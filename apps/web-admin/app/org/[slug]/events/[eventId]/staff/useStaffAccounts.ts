@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import type { StaffRole } from '@myclash/types';
 import { getPublicApiUrl } from '@/lib/api-url';
 import { useI18n } from '../../../../../../src/i18n/I18nProvider';
+import { pinProblem } from './pin-feedback';
 import type { EventInfo, Lice, StaffAccount } from './types';
 
 export interface NewStaffAccount {
@@ -187,6 +188,14 @@ function useStaffConfigWrites(base: string, load: () => Promise<void>) {
     async (account: StaffAccount, pin: string) => {
       setError(null);
       setNotice(null);
+      // Checked before the request because the reset prompt is the generic
+      // masked `usePrompt` — it has nowhere to render a live rule — and a
+      // rejected PIN would otherwise come back as an unexplained 400.
+      const problem = pinProblem(pin, t);
+      if (problem !== null) {
+        setError(problem);
+        return;
+      }
       // The new PIN is never echoed back, so a silent failure here is
       // indistinguishable from a typo at the tablet an hour later.
       const res = await sendJson(`${base}/staff-accounts/${account.id}/reset-pin`, 'POST', { pin });

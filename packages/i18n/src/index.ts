@@ -7229,6 +7229,13 @@ export const en = {
       hidePin: 'Hide PIN',
       resetPinError: 'Could not reset the PIN.',
       resetPinDone: 'PIN updated.',
+      pinHint: '6 to 16 digits. Avoid runs and repeats.',
+      weakPin: {
+        repeated_digit: 'Every digit is the same. Pick a PIN with some variety.',
+        sequence: 'That is a run of consecutive digits. Pick something less predictable.',
+        repeated_block: 'That repeats the same short group. Pick something less predictable.',
+        common: 'That is one of the most-guessed PINs. Pick another.',
+      },
       staffLogin: 'Staff sign-in',
       staffLoginHelp:
         'This is where referees sign in with their username and PIN — not the spectator app. The link opens the scoring pad with this event already filled in.',
@@ -14918,6 +14925,13 @@ export const fr = {
       hidePin: 'Masquer le PIN',
       resetPinError: 'Impossible de réinitialiser le PIN.',
       resetPinDone: 'PIN mis à jour.',
+      pinHint: 'De 6 à 16 chiffres. Évitez les suites et les répétitions.',
+      weakPin: {
+        repeated_digit: 'Tous les chiffres sont identiques. Choisissez un PIN plus varié.',
+        sequence: 'C’est une suite de chiffres consécutifs. Choisissez moins prévisible.',
+        repeated_block: 'Ce PIN répète le même petit groupe. Choisissez moins prévisible.',
+        common: 'C’est l’un des PIN les plus devinés. Choisissez-en un autre.',
+      },
       staffLogin: 'Connexion staff',
       staffLoginHelp:
         "C'est ici que les arbitres se connectent avec leur identifiant et leur PIN — pas dans l'application spectateur. Le lien ouvre la tablette de scoring avec cet évènement déjà renseigné.",

@@ -1,6 +1,6 @@
 import { createZodDto } from 'nestjs-zod';
 import { z } from 'zod';
-import { STAFF_ROLES } from '@myclash/types';
+import { STAFF_PIN_MAX_LENGTH, STAFF_PIN_MIN_LENGTH, STAFF_ROLES } from '@myclash/types';
 
 /**
  * Which job the account does. Mirrors the `event_staff_accounts_role_allowed`
@@ -17,10 +17,13 @@ const createStaffAccountSchema = z
       .min(3)
       .max(64)
       .regex(/^[a-zA-Z0-9._-]+$/),
+    // Shape only. Weakness (runs, repeats, denylisted classics) is checked in
+    // staff.service.hashPin, which every PIN write goes through — see the note
+    // there, and pin-strength.ts for why the rule is shared with the browser.
     pin: z
       .string()
-      .min(4)
-      .max(12)
+      .min(STAFF_PIN_MIN_LENGTH)
+      .max(STAFF_PIN_MAX_LENGTH)
       .regex(/^[0-9]+$/),
     // Optional so the column's own DEFAULT is the single source of the
     // historical meaning of a role-less staff account (scoring). The admin
@@ -52,10 +55,13 @@ export class UpdateStaffAccountDto extends createZodDto(updateStaffAccountSchema
 
 const resetStaffPinSchema = z
   .object({
+    // Shape only. Weakness (runs, repeats, denylisted classics) is checked in
+    // staff.service.hashPin, which every PIN write goes through — see the note
+    // there, and pin-strength.ts for why the rule is shared with the browser.
     pin: z
       .string()
-      .min(4)
-      .max(12)
+      .min(STAFF_PIN_MIN_LENGTH)
+      .max(STAFF_PIN_MAX_LENGTH)
       .regex(/^[0-9]+$/),
   })
   .strict();
@@ -108,7 +114,21 @@ const staffLoginSchema = z
      */
     eventId: z.uuid().optional(),
     username: z.string().min(3).max(64),
-    pin: z.string().min(4).max(12),
+    /**
+     * Deliberately WIDER than the create/reset rule (6–16 digits), and with no
+     * digit regex.
+     *
+     * Two reasons. It has to accept every PIN the create rule can produce, and
+     * a bound that lags a policy change locks people out of accounts they were
+     * legitimately given. More importantly, a shape rule here turns a wrong
+     * credential into a **400**, and the Traefik jail counts `401,403,429` —
+     * so tightening this schema would hand an attacker requests the jail never
+     * sees. A bad PIN must reach the credential check and come back 401.
+     *
+     * The policy is enforced where the PIN is SET, which is the only place it
+     * can be enforced honestly; the rate ceiling is @ThrottleByStaffAccount.
+     */
+    pin: z.string().min(1).max(64),
   })
   .strict();
 export class StaffLoginDto extends createZodDto(staffLoginSchema) {}

@@ -15,6 +15,7 @@ export * from './lice-placement';
 export * from './match-clock';
 export * from './match-status';
 export * from './password';
+export * from './pin-strength';
 export * from './programme';
 export * from './persons';
 export * from './platform-role';

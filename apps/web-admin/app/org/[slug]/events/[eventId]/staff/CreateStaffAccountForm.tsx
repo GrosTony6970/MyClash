@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import type { StaffRole } from '@myclash/types';
 import { useI18n } from '../../../../../../src/i18n/I18nProvider';
+import { pinProblem } from './pin-feedback';
 import { STAFF_TAB_CREATE_KEYS } from './types';
 import type { NewStaffAccount } from './useStaffAccounts';
 
@@ -57,6 +58,70 @@ function PinField({
   );
 }
 
+/** Who the account is for. Two plain text fields with no rule of their own. */
+function IdentityFields({
+  form,
+  onChange,
+}: {
+  form: NewStaffAccount;
+  onChange: React.Dispatch<React.SetStateAction<NewStaffAccount>>;
+}) {
+  const { t } = useI18n();
+
+  return (
+    <>
+      <input
+        required
+        value={form.displayName}
+        onChange={(event) =>
+          onChange((current) => ({ ...current, displayName: event.target.value }))
+        }
+        placeholder={t('organizer.staff.displayName')}
+        className="h-fit rounded border border-border px-3 py-2 text-sm"
+      />
+      <input
+        required
+        value={form.username}
+        onChange={(event) => onChange((current) => ({ ...current, username: event.target.value }))}
+        placeholder={t('organizer.staff.username')}
+        className="h-fit rounded border border-border px-3 py-2 text-sm"
+      />
+    </>
+  );
+}
+
+/**
+ * The PIN field plus the rule under it.
+ *
+ * The rule line is always rendered — as the hint before anything is typed, as
+ * the reason once something invalid is — so the field never changes height and
+ * the organiser reads what is expected before guessing at it.
+ */
+function PinFieldWithRule({
+  value,
+  problem,
+  onChange,
+  shown,
+  onToggle,
+}: {
+  value: string;
+  problem: string | null;
+  onChange: (next: string) => void;
+  shown: boolean;
+  onToggle: () => void;
+}) {
+  const { t } = useI18n();
+
+  return (
+    <div>
+      <PinField value={value} onChange={onChange} shown={shown} onToggle={onToggle} />
+      <p className={`mt-1 text-xs ${problem === null ? 'text-muted' : 'text-danger'}`}>
+        {problem ?? t('organizer.staff.pinHint')}
+      </p>
+    </div>
+  );
+}
+
 /**
  * Create one staff account in the role of the tab it is rendered under.
  *
@@ -69,8 +134,14 @@ export function CreateStaffAccountForm({ role, onCreate }: Props) {
   const [form, setForm] = useState<NewStaffAccount>(EMPTY);
   const [showPin, setShowPin] = useState(false);
 
+  // Derived in render, not held in state: the rule is a pure function of what
+  // is typed, and an effect mirroring it into state would only be a second
+  // copy that can lag by a keystroke.
+  const problem = form.pin === '' ? null : pinProblem(form.pin, t);
+
   async function submit(event: React.FormEvent) {
     event.preventDefault();
+    if (problem !== null) return;
     if (await onCreate(form, role)) {
       setForm(EMPTY);
       setShowPin(false);
@@ -82,29 +153,18 @@ export function CreateStaffAccountForm({ role, onCreate }: Props) {
       onSubmit={(event) => void submit(event)}
       className="mt-6 grid gap-3 rounded-lg border border-border bg-surface p-4 md:grid-cols-4"
     >
-      <input
-        required
-        value={form.displayName}
-        onChange={(event) =>
-          setForm((current) => ({ ...current, displayName: event.target.value }))
-        }
-        placeholder={t('organizer.staff.displayName')}
-        className="rounded border border-border px-3 py-2 text-sm"
-      />
-      <input
-        required
-        value={form.username}
-        onChange={(event) => setForm((current) => ({ ...current, username: event.target.value }))}
-        placeholder={t('organizer.staff.username')}
-        className="rounded border border-border px-3 py-2 text-sm"
-      />
-      <PinField
+      <IdentityFields form={form} onChange={setForm} />
+      <PinFieldWithRule
         value={form.pin}
+        problem={problem}
         onChange={(pin) => setForm((current) => ({ ...current, pin }))}
         shown={showPin}
         onToggle={() => setShowPin((current) => !current)}
       />
-      <button className="rounded bg-accent px-4 py-2 text-sm font-bold text-accent-foreground">
+      <button
+        disabled={problem !== null}
+        className="h-fit rounded bg-accent px-4 py-2 text-sm font-bold text-accent-foreground disabled:opacity-50"
+      >
         {t(STAFF_TAB_CREATE_KEYS[role])}
       </button>
     </form>

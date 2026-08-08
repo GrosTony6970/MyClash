@@ -19,7 +19,7 @@ import {
   roundCodeFromMatchRow,
   type LiceMatchesPayload,
 } from './lice-matches';
-import { bracketToken, parseStaffRole } from '@myclash/types';
+import { bracketToken, isWeakPin, parseStaffRole } from '@myclash/types';
 import type { PhaseType, StaffRole } from '@myclash/types';
 import { getEffectiveBestOf, normalizeMatchFormatConfig } from '@myclash/rulesets';
 import type { Match as RulesetMatch } from '@myclash/rulesets';
@@ -1351,7 +1351,19 @@ export class StaffService {
     return username.trim().toLowerCase();
   }
 
+  /**
+   * The one place a PIN becomes stored state — createAccount and resetPin both
+   * come through here, and login goes through `verifyPin` instead. So the
+   * strength check lives here rather than at the two call sites: a third write
+   * path added later is covered without anyone remembering to, and the login
+   * path cannot accidentally inherit a rule that would turn a wrong credential
+   * into a 400 (see the note on `pin` in staffLoginSchema).
+   */
   private async hashPin(pin: string) {
+    const weakness = isWeakPin(pin);
+    if (weakness) {
+      throw new BadRequestException({ code: 'weak_pin', reason: weakness });
+    }
     const salt = randomBytes(16);
     const key = (await scrypt(pin, salt, 32)) as Buffer;
     return `scrypt:${salt.toString('base64')}:${key.toString('base64')}`;

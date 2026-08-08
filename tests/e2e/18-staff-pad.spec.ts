@@ -34,8 +34,19 @@ import { createBracketTournament, ensureRoster, scoreMatch } from './_bracket';
  */
 const STAFF = ['1', 'true', 'yes'].includes((process.env.E2E_STAFF ?? '').toLowerCase());
 
-const PIN = '4731';
-const WRONG_PIN = '9999';
+/**
+ * 6–16 digits, and not weak: `CreateStaffAccountDto` and `ResetStaffPinDto`
+ * both reject a run, a repeated digit, a repeated 2–3 digit block, or a
+ * denylisted classic (apps/api/src/modules/staff/pin-strength.ts). A 4-digit
+ * PIN here used to die at SETUP — `api.json` throws on a non-2xx — taking the
+ * four authorization rules below with it, and root tests/ has no typecheck to
+ * catch the literal.
+ *
+ * WRONG_PIN only has to be shape-valid and credential-wrong: `staffLoginSchema`
+ * stays permissive on purpose so a bad PIN comes back 401 rather than 400.
+ */
+const PIN = '481902';
+const WRONG_PIN = '573164';
 
 /** Only the fields this spec reads back off a match row. */
 interface MatchRow {
