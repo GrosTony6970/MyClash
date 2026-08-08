@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from 'next';
 import { Fraunces, Geist, JetBrains_Mono } from 'next/font/google';
 import { MaintenanceBanner } from '@myclash/ui';
 import { HeartbeatRunner } from '../src/components/HeartbeatRunner';
+import { OfflineDrillBanner } from '../src/components/OfflineDrillBanner';
 import { ServiceWorkerRegistration } from '../src/components/ServiceWorkerRegistration';
 import { I18nProvider } from '../src/i18n/I18nProvider';
 import { getServerT, resolveServerLocale } from '../src/i18n/server-locale';
@@ -99,6 +100,10 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
         <I18nProvider locale={locale}>
           <ThemeProvider mode={themeMode}>
             <MaintenanceBanner apiUrl={process.env['NEXT_PUBLIC_API_URL'] ?? ''} />
+            {/* Above everything, on every route: a drill the crew can navigate
+                away from the reminder of is a drill someone forgets is
+                running — and a forgotten drill is a real match not syncing. */}
+            <OfflineDrillBanner />
             {children}
             <HeartbeatRunner />
           </ThemeProvider>

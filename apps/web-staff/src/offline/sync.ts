@@ -23,6 +23,8 @@ import {
   totalPendingCount,
 } from './outbox';
 import type { OutboxEntry } from './db';
+import { isDrillActive } from './drill';
+import { classifySyncFailure, offlineResponse, type FailureBody } from './failure-kind';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -97,6 +99,15 @@ export class SyncEngine {
    * "tidy" these into omissions.
    */
   private postExchange(entry: OutboxEntry, sequence: number): Promise<Response> {
+    // The offline drill intercepts here, and ONLY here.
+    //
+    // It answers with the exact response the service worker produces during a
+    // real outage, so everything downstream — the classification, the outbox,
+    // the retry accounting, the bar — is the real code path rather than a
+    // parallel one that might drift from it. A drill that took a shortcut past
+    // any of that would be teaching the crew a screen they will never see.
+    if (isDrillActive()) return Promise.resolve(offlineResponse());
+
     return fetch(`${this.apiUrl}/api/v1/matches/${entry.matchId}/exchanges`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -229,16 +240,24 @@ export class SyncEngine {
           consecutiveFailures = 0;
           await this.emit('syncing');
         } else {
-          // Server error — mark failed, continue to next
-          const body = (await res.json().catch(() => ({}))) as {
-            message?: string;
-          };
-          const error = body.message ?? `HTTP ${res.status}`;
-          await markFailed(entry.id!, error);
+          const body = (await res.json().catch(() => null)) as FailureBody | null;
+          const kind = classifySyncFailure(res.status, body);
+          await markFailed(entry.id!, body?.message ?? kind);
           consecutiveFailures++;
+
+          // A resolved 503 is what a real outage looks like here: the service
+          // worker turns a dead network into one rather than letting fetch
+          // reject, which is why the catch below could never report offline.
+          // See failure-kind.ts.
+          if (kind === 'offline' && consecutiveFailures >= this.maxConsecutiveFailures) {
+            await this.emit('offline');
+            this.running = false;
+            return;
+          }
         }
       } catch (err) {
-        // Network error
+        // A genuine rejection. Only reachable when the service worker is not
+        // in play at all — a first load before it installs, or a dev server.
         const error = err instanceof Error ? err.message : 'Network error';
         await markFailed(entry.id!, error);
         consecutiveFailures++;

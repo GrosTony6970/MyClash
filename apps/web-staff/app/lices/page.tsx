@@ -8,6 +8,7 @@ import { ThemeSwitcher } from '../../src/theme/ThemeSwitcher';
 import { api } from '../../src/lib/api';
 import { isLiveStatus } from '../../src/components/partition-lice-matches';
 import { MatchStatusPill } from './[liceId]/_components/MatchStatusPill';
+import { StartOfflineDrill } from '../../src/components/StartOfflineDrill';
 
 interface LiceAssignment {
   liceId: string;
@@ -187,6 +188,8 @@ export default function LicePickerPage() {
             </button>
           ))}
         </div>
+
+        <StartOfflineDrill />
       </div>
     </main>
   );

@@ -1514,6 +1514,14 @@ export const en = {
       notScheduled: 'Not scheduled yet',
       actionError: 'That did not save. Try again.',
     },
+    drill: {
+      start: 'Practice going offline',
+      explain:
+        'Runs a two-minute drill where this tablet cannot send hits, so you meet the offline screen before it matters. Hits you score are queued for real and send when it ends.',
+      blocked: 'Finish syncing first — a drill on top of a real problem is impossible to read.',
+      banner: 'Offline drill — {seconds}s left. Hits are queued, not lost.',
+      end: 'End drill',
+    },
     scan: {
       open: 'Scan QR',
       title: 'Scan pass',
@@ -9166,6 +9174,16 @@ export const fr = {
       everyoneArrived: 'Tout le monde est arrivé.',
       notScheduled: 'Pas encore programmé',
       actionError: "L'enregistrement a échoué. Réessayez.",
+    },
+    drill: {
+      start: 'S entrainer hors ligne',
+      explain:
+        'Lance un exercice de deux minutes pendant lequel cette tablette ne peut plus envoyer de touches, pour decouvrir l ecran hors ligne avant que ce soit necessaire. Les touches saisies sont reellement mises en file et partent a la fin.',
+      blocked:
+        'Terminez d abord la synchronisation - un exercice par-dessus un vrai probleme est illisible.',
+      banner:
+        'Exercice hors ligne - {seconds}s restantes. Les touches sont en file, rien n est perdu.',
+      end: 'Terminer l exercice',
     },
     scan: {
       open: 'Scanner un QR',
