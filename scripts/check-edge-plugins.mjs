@@ -185,6 +185,32 @@ export function effectivePriority(router) {
 }
 
 /**
+ * Existing and enabled is not the same as winning. A jail router that loses the
+ * match protects nothing, and every rival it has to beat is named explicitly —
+ * an absent one is an error rather than a skip, because renaming a rival would
+ * otherwise delete the comparison and leave the table green forever.
+ */
+function priorityVerdicts(wanted, router, byName) {
+  const priority = effectivePriority(router);
+  return (wanted.outranks ?? []).flatMap((rivalName) => {
+    const rival = byName.get(rivalName);
+    if (!rival) {
+      return [
+        `router ${rivalName} is absent, so ${wanted.name} cannot be proven to outrank it — ` +
+          'the expectation was written against a router that no longer exists.',
+      ];
+    }
+    const rivalPriority = effectivePriority(rival);
+    if (priority > rivalPriority) return [];
+    return [
+      `router ${wanted.name} (priority ${priority}) does not outrank ${rivalName} ` +
+        `(priority ${rivalPriority}), so ${rivalName} wins the match and its chain is what ` +
+        'actually serves the path.',
+    ];
+  });
+}
+
+/**
  * Verdicts for the named routers in EXPECTED_ROUTERS: present, built, carrying
  * the middlewares that make them a control, and winning the match.
  */
@@ -216,27 +242,7 @@ export function routerVerdicts(routers, expected) {
       }
     }
 
-    const priority = effectivePriority(router);
-    for (const rivalName of wanted.outranks ?? []) {
-      const rival = byName.get(rivalName);
-      // An absent rival is an error, not a skip: renaming it would otherwise
-      // delete the comparison silently and leave this table green forever.
-      if (!rival) {
-        errors.push(
-          `router ${rivalName} is absent, so ${wanted.name} cannot be proven to outrank it — ` +
-            'the expectation was written against a router that no longer exists.',
-        );
-        continue;
-      }
-      const rivalPriority = effectivePriority(rival);
-      if (priority <= rivalPriority) {
-        errors.push(
-          `router ${wanted.name} (priority ${priority}) does not outrank ${rivalName} ` +
-            `(priority ${rivalPriority}), so ${rivalName} wins the match and its chain is what ` +
-            'actually serves the path.',
-        );
-      }
-    }
+    errors.push(...priorityVerdicts(wanted, router, byName));
   }
 
   return errors;

@@ -165,6 +165,8 @@
     "packages/ui/src/components/AiKeysManager.tsx",
     "packages/ui/src/components/BracketView.tsx",
     "packages/ui/src/components/TVScoreboard.tsx",
+    "scripts/check-edge-plugins.mjs",
+    "scripts/check-edge-plugins.test.mjs",
     "scripts/check-infra-review.mjs",
     "scripts/ensure-prod-env.mjs",
     "scripts/ensure-prod-env.test.mjs",
