@@ -49,6 +49,10 @@ export const EVENT_NAV_GROUPS: readonly EventNavGroup[] = [
     key: 'competition',
     headingKey: 'organizer.shell.eventGroups.competition',
     items: [
+      // Before Live because that is the order of the day: work the checklist
+      // down, then run the event. It is the readiness report re-read as a
+      // sequence, not a second source of truth.
+      { href: 'day', labelKey: 'organizer.startOfDay.navLabel', icon: 'startOfDay' },
       { href: 'live', labelKey: 'organizer.eventHub.sections.live', icon: 'live' },
       { href: 'tournaments', labelKey: 'organizer.shell.nav.tournaments', icon: 'tournaments' },
       { href: 'pools', labelKey: 'organizer.eventHub.sections.pools', icon: 'pools' },

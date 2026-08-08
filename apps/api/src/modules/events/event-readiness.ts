@@ -10,6 +10,12 @@
  * when an event is ready to run, not a fact the database states, so it needs
  * to be unit-testable without a Supabase mock chain.
  *
+ * The FOLDING — raw rows into the snapshot these rules judge — lives next door
+ * in `event-readiness-snapshot.ts`. The two were one file until it outgrew the
+ * 400-line budget, and the seam was already there: this file holds opinions
+ * about when an event is ready, that one holds arithmetic about what the rows
+ * say. Their tests have always been separate for the same reason.
+ *
  * ── Rules that are not obvious ──────────────────────────────────────────────
  *
  * - **Readiness warns, it never blocks.** Publishing an event before referees
@@ -62,10 +68,41 @@ export interface ReadinessTournamentSnapshot {
   unscheduledPoolMatchCount: number;
 }
 
+/**
+ * Roster QUALITY, as opposed to the structural counts above.
+ *
+ * Every other snapshot field asks "does the event have the pieces it needs to
+ * run" — tournaments, pools, pistes, referees. This asks "is what we know about
+ * the people any good", which is a different question with a different deadline:
+ * structure can be fixed on the morning, but a fighter whose identity never
+ * resolved has already lost their stats, and chasing a club affiliation on the
+ * day is nobody's job.
+ *
+ * EVENT-level rather than per tournament. `persons` is event-scoped and a
+ * fighter entered in two weapons is one person with one club and one rating, so
+ * per-tournament rows would report the same gap twice and imply it could be
+ * fixed in one tournament but not the other.
+ *
+ * The population is fighters with an ACTIVE registration, not every `persons`
+ * row: the event roster also carries staff-only and instructor rows, and
+ * "12 people have no club" is a lie if four of them are volunteers.
+ */
+export interface ReadinessRosterSnapshot {
+  /** Distinct people holding at least one active registration. */
+  activeFighterCount: number;
+  /** …of those, how many have no `club_id`. */
+  withoutClub: number;
+  /** …how many have no HEMA Ratings id, locally or on their global identity. */
+  withoutRatingsId: number;
+  /** …how many never resolved to a `global_persons` row. */
+  withoutGlobalIdentity: number;
+}
+
 export interface ReadinessSnapshot {
   /** `lices` rows for the event (pistes). */
   liceCount: number;
   tournaments: ReadinessTournamentSnapshot[];
+  roster: ReadinessRosterSnapshot;
 }
 
 export interface ReadinessReport {
@@ -78,7 +115,28 @@ export interface ReadinessReport {
 export interface ReadinessRows {
   liceCount: number;
   tournaments: Array<{ id: string; name: string; ruleset_code: string | null }>;
-  registrations: Array<{ tournament_id: string; status: string | null }>;
+  /**
+   * `person_id` is what makes roster quality answerable without a second query
+   * — the service has always fetched it, the type simply did not say so.
+   */
+  registrations: Array<{ tournament_id: string; person_id: string; status: string | null }>;
+  /**
+   * The event's `persons` rows. Includes staff-only and instructor entries, so
+   * the fold intersects with active registrations before concluding anything.
+   *
+   * Empty when the event has no tournaments: with nothing to register for there
+   * are no active fighters, so the roster-quality rows would be vacuous and the
+   * service skips the query entirely rather than paying for an answer no rule
+   * will read.
+   */
+  persons: Array<{
+    id: string;
+    club_id: string | null;
+    hema_ratings_id: string | null;
+    global_person_id: string | null;
+    /** The linked global identity's rating id, when there is one. */
+    global_persons: { hema_ratings_id: string | null } | null;
+  }>;
   phases: Array<{ id: string; tournament_id: string; type: string }>;
   pools: Array<{ id: string; phase_id: string }>;
   /** Swiss rounds GENERATED so far, keyed to their phase. */
@@ -95,157 +153,6 @@ export interface ReadinessRows {
 }
 
 /**
- * "Active" mirrors `countUniqueActiveFighters` and the dashboard's registered
- * total: a waitlisted, withdrawn or disqualified entry is not someone who will
- * step on a piste, so none of them count toward the two-fighter floor.
- */
-const INACTIVE_REGISTRATION_STATUSES = new Set(['withdrawn', 'disqualified', 'waitlist']);
-
-/**
- * Fold the raw rows into the per-tournament snapshot the rules run on.
- *
- * Pure, and separate from the query layer, because two of the foldings carry
- * real judgement worth testing without a Supabase mock:
- *
- * - **A pool counts as refereed via EITHER scope.** The assignment board
- *   writes `scope_type='pool'` for a whole pool and `scope_type='match'` for a
- *   single fight, and `clearPoolAssignments` treats both as belonging to the
- *   pool. Reading only pool-scoped rows would report an entirely match-refereed
- *   pool as unstaffed.
- *
- * - **A match is scheduled only with BOTH a piste and a time.** Either alone
- *   cannot be put on the board. Same predicate the organizer chat uses to list
- *   unscheduled matches.
- */
-export function buildReadinessSnapshot(rows: ReadinessRows): ReadinessSnapshot {
-  const { phaseTypesByTournament, tournamentByPhase } = indexPhases(rows.phases);
-  const { tournamentByPool, poolIdsByTournament } = indexPools(rows.pools, tournamentByPhase);
-  const swissRoundsByTournament = countByTournament(rows.swissRounds, tournamentByPhase);
-
-  const refereedPoolIds = collectRefereedPoolIds(rows, tournamentByPool);
-  const fighters = countActiveRegistrations(rows.registrations);
-  const poolStats = summarisePoolMatches(rows.matches, tournamentByPool);
-
-  return {
-    liceCount: rows.liceCount,
-    tournaments: rows.tournaments.map((tournament) => {
-      const types = phaseTypesByTournament.get(tournament.id) ?? new Set<string>();
-      const poolIds = poolIdsByTournament.get(tournament.id) ?? [];
-      const stats = poolStats.get(tournament.id);
-      return {
-        id: tournament.id,
-        name: tournament.name,
-        rulesetCode: tournament.ruleset_code,
-        activeFighterCount: fighters.get(tournament.id) ?? 0,
-        hasPoolPhase: types.has('pool'),
-        hasSwissPhase: types.has('swiss'),
-        hasElimPhase: types.has('single_elim') || types.has('double_elim'),
-        poolCount: poolIds.length,
-        swissRoundCount: swissRoundsByTournament.get(tournament.id) ?? 0,
-        poolsWithoutReferee: poolIds.filter((poolId) => !refereedPoolIds.has(poolId)).length,
-        poolMatchCount: stats?.total ?? 0,
-        unscheduledPoolMatchCount: stats?.unscheduled ?? 0,
-      };
-    }),
-  };
-}
-
-function indexPhases(phases: ReadinessRows['phases']): {
-  phaseTypesByTournament: Map<string, Set<string>>;
-  tournamentByPhase: Map<string, string>;
-} {
-  const phaseTypesByTournament = new Map<string, Set<string>>();
-  const tournamentByPhase = new Map<string, string>();
-  for (const phase of phases) {
-    tournamentByPhase.set(phase.id, phase.tournament_id);
-    const types = phaseTypesByTournament.get(phase.tournament_id) ?? new Set<string>();
-    types.add(phase.type);
-    phaseTypesByTournament.set(phase.tournament_id, types);
-  }
-  return { phaseTypesByTournament, tournamentByPhase };
-}
-
-/** Count phase-scoped rows per tournament, via their phase. */
-function countByTournament(
-  rows: Array<{ phase_id: string }>,
-  tournamentByPhase: Map<string, string>,
-): Map<string, number> {
-  const out = new Map<string, number>();
-  for (const row of rows) {
-    const tournamentId = tournamentByPhase.get(row.phase_id);
-    if (!tournamentId) continue;
-    out.set(tournamentId, (out.get(tournamentId) ?? 0) + 1);
-  }
-  return out;
-}
-
-function indexPools(
-  pools: ReadinessRows['pools'],
-  tournamentByPhase: Map<string, string>,
-): { tournamentByPool: Map<string, string>; poolIdsByTournament: Map<string, string[]> } {
-  const tournamentByPool = new Map<string, string>();
-  const poolIdsByTournament = new Map<string, string[]>();
-  for (const pool of pools) {
-    const tournamentId = tournamentByPhase.get(pool.phase_id);
-    if (!tournamentId) continue;
-    tournamentByPool.set(pool.id, tournamentId);
-    poolIdsByTournament.set(tournamentId, [
-      ...(poolIdsByTournament.get(tournamentId) ?? []),
-      pool.id,
-    ]);
-  }
-  return { tournamentByPool, poolIdsByTournament };
-}
-
-/** Pools with at least one live assignment, whether pool- or match-scoped. */
-function collectRefereedPoolIds(
-  rows: ReadinessRows,
-  tournamentByPool: Map<string, string>,
-): Set<string> {
-  const poolByMatch = new Map<string, string>();
-  for (const match of rows.matches) {
-    if (match.pool_id && tournamentByPool.has(match.pool_id)) {
-      poolByMatch.set(match.id, match.pool_id);
-    }
-  }
-  const refereed = new Set<string>();
-  for (const assignment of rows.refereeAssignments) {
-    const poolId =
-      assignment.pool_id ??
-      (assignment.match_id ? poolByMatch.get(assignment.match_id) : undefined);
-    if (poolId) refereed.add(poolId);
-  }
-  return refereed;
-}
-
-function countActiveRegistrations(
-  registrations: ReadinessRows['registrations'],
-): Map<string, number> {
-  const counts = new Map<string, number>();
-  for (const registration of registrations) {
-    if (INACTIVE_REGISTRATION_STATUSES.has(registration.status ?? '')) continue;
-    counts.set(registration.tournament_id, (counts.get(registration.tournament_id) ?? 0) + 1);
-  }
-  return counts;
-}
-
-function summarisePoolMatches(
-  matches: ReadinessRows['matches'],
-  tournamentByPool: Map<string, string>,
-): Map<string, { total: number; unscheduled: number }> {
-  const stats = new Map<string, { total: number; unscheduled: number }>();
-  for (const match of matches) {
-    const tournamentId = match.pool_id ? tournamentByPool.get(match.pool_id) : undefined;
-    if (!tournamentId) continue; // bracket match, or a pool outside this event
-    const entry = stats.get(tournamentId) ?? { total: 0, unscheduled: 0 };
-    entry.total += 1;
-    if (!match.lice_id || !match.scheduled_at) entry.unscheduled += 1;
-    stats.set(tournamentId, entry);
-  }
-  return stats;
-}
-
-/**
  * Severity order for `worst`. `info` sits BELOW `ok`: an event whose only
  * non-ok rows are informational is in better shape than one with real
  * outstanding work, and the header chip should read green, not blue.
@@ -256,6 +163,7 @@ const SEVERITY: Record<ReadinessLevel, number> = { info: 0, ok: 1, warn: 2, crit
 export function computeEventReadiness(snapshot: ReadinessSnapshot): ReadinessReport {
   const checks: ReadinessCheck[] = [
     ...eventLevelChecks(snapshot),
+    ...rosterQualityChecks(snapshot.roster),
     ...snapshot.tournaments.flatMap((tournament) => tournamentChecks(tournament)),
   ];
   return { checks, worst: worstLevel(checks), counts: countByLevel(checks) };
@@ -279,6 +187,47 @@ function eventLevelChecks(snapshot: ReadinessSnapshot): ReadinessCheck[] {
       values: { count: snapshot.liceCount },
       tournamentId: null,
     },
+  ];
+}
+
+/**
+ * What we know about the people, as opposed to whether the event has its pieces.
+ *
+ * All three are OMITTED entirely when nobody has an active registration. With an
+ * empty roster "everyone has a club" is trivially true, and reporting it green
+ * is the false all-clear the module docstring exists to prevent.
+ *
+ * The levels differ on one question: is the gap a DEFECT or a fact about the
+ * world?
+ *
+ * - `rosterIdentity` WARNS. A roster row that never resolved to a global person
+ *   is a failure, not a state — `createPerson` links every participant and the
+ *   only path that leaves it null is the CSV importer swallowing a resolver
+ *   error. The cost is invisible and permanent: that fighter's results never
+ *   reach their profile, their career page, or any league standing. Rare, and
+ *   worth interrupting for.
+ *
+ * - `rosterClub` and `rosterRatings` stay at `info`, which sits BELOW `ok` in
+ *   SEVERITY and therefore never moves the header chip or reaches the publish
+ *   dialog. An unaffiliated fighter is a real and legitimate thing to be, and an
+ *   unrated one is simply new. Registration is open for weeks; a roster that
+ *   read amber the whole time would train the organiser to ignore the panel,
+ *   which is the failure this whole module is written to avoid.
+ */
+function rosterQualityChecks(roster: ReadinessRosterSnapshot): ReadinessCheck[] {
+  if (roster.activeFighterCount === 0) return [];
+
+  const at = (key: string, missing: number, level: ReadinessLevel): ReadinessCheck => ({
+    key,
+    level: missing > 0 ? level : 'ok',
+    values: { missing, total: roster.activeFighterCount },
+    tournamentId: null,
+  });
+
+  return [
+    at('rosterIdentity', roster.withoutGlobalIdentity, 'warn'),
+    at('rosterClub', roster.withoutClub, 'info'),
+    at('rosterRatings', roster.withoutRatingsId, 'info'),
   ];
 }
 

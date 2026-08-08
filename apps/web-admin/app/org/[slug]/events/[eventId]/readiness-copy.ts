@@ -70,6 +70,13 @@ const FIX_ROUTE: Record<string, string> = {
   schedule: 'schedule',
   bracket: 'bracket',
   swissRounds: 'swiss',
+  // All three roster-quality rows are fixed in the same place — the participant
+  // list is where a club is set, an identity is relinked and a rating id is
+  // entered. They stay separate CHECKS because they are separate questions with
+  // different urgency, not because they lead anywhere different.
+  rosterIdentity: 'persons',
+  rosterClub: 'persons',
+  rosterRatings: 'persons',
 };
 
 /**

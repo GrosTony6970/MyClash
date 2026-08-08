@@ -31,11 +31,8 @@ import { sideColorsFromScoringConfig } from './side-colors';
 // Swiss modules and nothing for module-graph.test.ts to object to.
 import { parseSwissConfig } from '../swiss/dto/swiss-config.dto';
 import { nextIsoDay } from './date-window';
-import {
-  buildReadinessSnapshot,
-  computeEventReadiness,
-  type ReadinessRows,
-} from './event-readiness';
+import { computeEventReadiness, type ReadinessRows } from './event-readiness';
+import { buildReadinessSnapshot } from './event-readiness-snapshot';
 import { sanitizePostgrestFilterValue } from '../../common/postgrest-filter';
 import type {
   CreateEventDto,
@@ -922,10 +919,14 @@ export class EventsService {
   private async loadReadinessRows(eventId: string): Promise<ReadinessRows> {
     const tournaments = await this.getEventTournaments(eventId);
     const tournamentIds = tournaments.map((tournament) => tournament.id);
-    const [registrations, phases, liceCount] = await Promise.all([
+    const [registrations, phases, liceCount, persons] = await Promise.all([
       this.getRegistrationsForTournaments(tournamentIds),
       this.getPhasesForTournaments(tournamentIds),
       this.countEventLices(eventId),
+      // Gated on there being something to register FOR: with no tournaments
+      // there are no active registrations, the roster-quality rules omit
+      // themselves, and this would be a round trip for an answer nothing reads.
+      tournamentIds.length === 0 ? [] : this.getRosterQualityRows(eventId),
     ]);
 
     // Nothing hangs off an event with no phases, and assignments can only
@@ -950,12 +951,32 @@ export class EventsService {
         ruleset_code: tournament.ruleset_code,
       })),
       registrations,
+      persons,
       phases,
       pools,
       swissRounds,
       matches,
       refereeAssignments,
     };
+  }
+
+  /**
+   * The roster as the quality rules judge it.
+   *
+   * The rating is read from BOTH the local row and the linked global identity:
+   * an importer writes `persons.hema_ratings_id`, a claimed profile carries
+   * `global_persons.hema_ratings_id`, and reporting a rated fighter as unrated
+   * because the id sits on the other row would be a false gap. The embed is
+   * to-one (`persons.global_person_id` is a plain FK), so it comes back as an
+   * object, not an array.
+   */
+  private async getRosterQualityRows(eventId: string): Promise<ReadinessRows['persons']> {
+    const { data, error } = await this.supabase.service
+      .from('persons')
+      .select('id, club_id, hema_ratings_id, global_person_id, global_persons(hema_ratings_id)')
+      .eq('event_id', eventId);
+    if (error) throw new BadRequestException(error.message);
+    return (data ?? []) as unknown as ReadinessRows['persons'];
   }
 
   /**

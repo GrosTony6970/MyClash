@@ -71,6 +71,12 @@ describe('readinessFixHref', () => {
   it('covers every key the API can emit', () => {
     // Pinned against the server's check keys: a new rule that lands without a
     // route here would render a row with no way to act on it.
+    //
+    // Kept in sync BY HAND with event-readiness.ts, because the two live in
+    // different packages and the frontend re-declares the check types rather
+    // than importing them. `swissRounds` was missing from this list while
+    // present in FIX_ROUTE, which is how a hole in the guard looks — the list
+    // must name every key the server can emit, routed or not.
     const apiKeys = [
       'tournaments',
       'pistes',
@@ -81,6 +87,10 @@ describe('readinessFixHref', () => {
       'poolReferees',
       'schedule',
       'bracket',
+      'swissRounds',
+      'rosterIdentity',
+      'rosterClub',
+      'rosterRatings',
     ];
     for (const key of apiKeys) {
       expect(readinessFixHref(check({ key }), 'my-club', 'event-1')).not.toBeNull();

@@ -3,6 +3,7 @@ import {
   computeEventReadiness,
   type ReadinessCheck,
   type ReadinessLevel,
+  type ReadinessRosterSnapshot,
   type ReadinessSnapshot,
   type ReadinessTournamentSnapshot,
 } from './event-readiness';
@@ -28,8 +29,19 @@ function readyTournament(
   };
 }
 
+/** A roster with nothing missing, so each test varies one gap. */
+function readyRoster(overrides: Partial<ReadinessRosterSnapshot> = {}): ReadinessRosterSnapshot {
+  return {
+    activeFighterCount: 16,
+    withoutClub: 0,
+    withoutRatingsId: 0,
+    withoutGlobalIdentity: 0,
+    ...overrides,
+  };
+}
+
 function readySnapshot(overrides: Partial<ReadinessSnapshot> = {}): ReadinessSnapshot {
-  return { liceCount: 2, tournaments: [readyTournament()], ...overrides };
+  return { liceCount: 2, tournaments: [readyTournament()], roster: readyRoster(), ...overrides };
 }
 
 function find(checks: ReadinessCheck[], key: string): ReadinessCheck | undefined {
@@ -299,9 +311,79 @@ describe('computeEventReadiness — aggregation', () => {
 
 describe('computeEventReadiness — an empty event', () => {
   it('reports the two event-level rows only, worst critical', () => {
-    const report = computeEventReadiness({ liceCount: 0, tournaments: [] });
+    const report = computeEventReadiness({
+      liceCount: 0,
+      tournaments: [],
+      roster: readyRoster({ activeFighterCount: 0 }),
+    });
     expect(report.checks.map((c) => c.key)).toEqual(['tournaments', 'pistes']);
     expect(report.worst).toBe('critical');
     expect(report.counts).toEqual({ ok: 0, warn: 1, critical: 1, info: 0 });
+  });
+});
+
+describe('computeEventReadiness — roster quality', () => {
+  it('reports all three rows green on a clean roster', () => {
+    const report = computeEventReadiness(readySnapshot());
+    for (const key of ['rosterIdentity', 'rosterClub', 'rosterRatings']) {
+      expect(find(report.checks, key)?.level).toBe('ok');
+    }
+  });
+
+  it('is EVENT-level, not per tournament', () => {
+    // A fighter entered in two weapons is one person with one club. Emitting a
+    // row per tournament would report the same gap twice and imply it could be
+    // fixed in one tournament but not the other.
+    const report = computeEventReadiness(
+      readySnapshot({
+        tournaments: [readyTournament({ id: 't1' }), readyTournament({ id: 't2' })],
+      }),
+    );
+    const roster = report.checks.filter((c) => c.key.startsWith('roster'));
+    expect(roster).toHaveLength(3);
+    expect(roster.every((c) => c.tournamentId === null)).toBe(true);
+  });
+
+  it('WARNS on an unresolved identity — that is a failed import, not a state', () => {
+    // The fighter's results never reach their profile, their career page or any
+    // league standing, and nothing else in the app will ever say so.
+    const snapshot = readySnapshot({ roster: readyRoster({ withoutGlobalIdentity: 2 }) });
+    expect(levelOf(snapshot, 'rosterIdentity')).toBe('warn');
+    expect(computeEventReadiness(snapshot).worst).toBe('warn');
+  });
+
+  it('keeps a missing club at info, so it never moves the header chip', () => {
+    // Unaffiliated fighters are a real and legitimate thing to be. Registration
+    // is open for weeks; an amber roster the whole time trains the organiser to
+    // ignore the panel.
+    const snapshot = readySnapshot({ roster: readyRoster({ withoutClub: 5 }) });
+    expect(levelOf(snapshot, 'rosterClub')).toBe('info');
+    expect(computeEventReadiness(snapshot).worst).toBe('ok');
+  });
+
+  it('keeps a missing rating at info for the same reason', () => {
+    const snapshot = readySnapshot({ roster: readyRoster({ withoutRatingsId: 5 }) });
+    expect(levelOf(snapshot, 'rosterRatings')).toBe('info');
+    expect(computeEventReadiness(snapshot).worst).toBe('ok');
+  });
+
+  it('carries the gap and the total, so the message can say 5 of 16', () => {
+    const snapshot = readySnapshot({
+      roster: readyRoster({ activeFighterCount: 16, withoutClub: 5 }),
+    });
+    expect(find(computeEventReadiness(snapshot).checks, 'rosterClub')?.values).toEqual({
+      missing: 5,
+      total: 16,
+    });
+  });
+
+  it('OMITS all three when nobody has an active registration', () => {
+    // "Everyone has a club" is trivially true of an empty roster, and a green
+    // row there is exactly the false all-clear the vacuous-check rule exists to
+    // prevent.
+    const report = computeEventReadiness(
+      readySnapshot({ roster: readyRoster({ activeFighterCount: 0, withoutClub: 0 }) }),
+    );
+    expect(report.checks.filter((c) => c.key.startsWith('roster'))).toEqual([]);
   });
 });

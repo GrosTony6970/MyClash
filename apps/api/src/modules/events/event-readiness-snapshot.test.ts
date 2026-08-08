@@ -1,9 +1,21 @@
 import { describe, it, expect } from 'vitest';
-import {
-  buildReadinessSnapshot,
-  type ReadinessRows,
-  type ReadinessTournamentSnapshot,
-} from './event-readiness';
+import { buildReadinessSnapshot } from './event-readiness-snapshot';
+import type { ReadinessRows, ReadinessTournamentSnapshot } from './event-readiness';
+
+/** A roster row with nothing missing, so each test varies one gap. */
+function readyPerson(
+  id: string,
+  overrides: Partial<ReadinessRows['persons'][number]> = {},
+): ReadinessRows['persons'][number] {
+  return {
+    id,
+    club_id: 'club-1',
+    hema_ratings_id: 'HR-1',
+    global_person_id: 'gp-1',
+    global_persons: { hema_ratings_id: 'HR-1' },
+    ...overrides,
+  };
+}
 
 /** One tournament, one pool phase, one pool, two matches — the smallest real event. */
 function baseRows(overrides: Partial<ReadinessRows> = {}): ReadinessRows {
@@ -11,9 +23,10 @@ function baseRows(overrides: Partial<ReadinessRows> = {}): ReadinessRows {
     liceCount: 1,
     tournaments: [{ id: 't1', name: 'Longsword', ruleset_code: 'TF_v1' }],
     registrations: [
-      { tournament_id: 't1', status: 'confirmed' },
-      { tournament_id: 't1', status: 'confirmed' },
+      { tournament_id: 't1', person_id: 'per1', status: 'confirmed' },
+      { tournament_id: 't1', person_id: 'per2', status: 'confirmed' },
     ],
+    persons: [readyPerson('per1'), readyPerson('per2')],
     phases: [{ id: 'ph-pool', tournament_id: 't1', type: 'pool' }],
     pools: [{ id: 'p1', phase_id: 'ph-pool' }],
     swissRounds: [],
@@ -73,10 +86,10 @@ describe('buildReadinessSnapshot — active registrations', () => {
     const tournament = onlyTournament(
       baseRows({
         registrations: [
-          { tournament_id: 't1', status: 'confirmed' },
-          { tournament_id: 't1', status: 'waitlist' },
-          { tournament_id: 't1', status: 'withdrawn' },
-          { tournament_id: 't1', status: 'disqualified' },
+          { tournament_id: 't1', person_id: 'reg1', status: 'confirmed' },
+          { tournament_id: 't1', person_id: 'reg2', status: 'waitlist' },
+          { tournament_id: 't1', person_id: 'reg3', status: 'withdrawn' },
+          { tournament_id: 't1', person_id: 'reg4', status: 'disqualified' },
         ],
       }),
     );
@@ -85,7 +98,7 @@ describe('buildReadinessSnapshot — active registrations', () => {
 
   it('counts a null status as active rather than dropping the fighter', () => {
     const tournament = onlyTournament(
-      baseRows({ registrations: [{ tournament_id: 't1', status: null }] }),
+      baseRows({ registrations: [{ tournament_id: 't1', person_id: 'reg5', status: null }] }),
     );
     expect(tournament.activeFighterCount).toBe(1);
   });
@@ -94,9 +107,9 @@ describe('buildReadinessSnapshot — active registrations', () => {
     const tournament = onlyTournament(
       baseRows({
         registrations: [
-          { tournament_id: 't1', status: 'confirmed' },
-          { tournament_id: 'other', status: 'confirmed' },
-          { tournament_id: 'other', status: 'confirmed' },
+          { tournament_id: 't1', person_id: 'reg6', status: 'confirmed' },
+          { tournament_id: 'other', person_id: 'reg7', status: 'confirmed' },
+          { tournament_id: 'other', person_id: 'reg8', status: 'confirmed' },
         ],
       }),
     );
@@ -184,10 +197,11 @@ describe('buildReadinessSnapshot — several tournaments', () => {
         { id: 't2', name: 'Rapier', ruleset_code: null },
       ],
       registrations: [
-        { tournament_id: 't1', status: 'confirmed' },
-        { tournament_id: 't1', status: 'confirmed' },
-        { tournament_id: 't2', status: 'confirmed' },
+        { tournament_id: 't1', person_id: 'per1', status: 'confirmed' },
+        { tournament_id: 't1', person_id: 'per2', status: 'confirmed' },
+        { tournament_id: 't2', person_id: 'per3', status: 'confirmed' },
       ],
+      persons: [readyPerson('per1'), readyPerson('per2'), readyPerson('per3')],
       phases: [
         { id: 'ph1', tournament_id: 't1', type: 'pool' },
         { id: 'ph2', tournament_id: 't2', type: 'pool' },
@@ -237,5 +251,110 @@ describe('buildReadinessSnapshot — several tournaments', () => {
       }),
     );
     expect(tournament.poolCount).toBe(1);
+  });
+});
+
+describe('buildReadinessSnapshot — roster quality', () => {
+  it('counts only people holding an ACTIVE registration', () => {
+    // `persons` is event-scoped and carries staff and instructors too. "12 have
+    // no club" is a lie if four of them are volunteers.
+    const snapshot = buildReadinessSnapshot(
+      baseRows({
+        registrations: [{ tournament_id: 't1', person_id: 'per1', status: 'confirmed' }],
+        persons: [readyPerson('per1'), readyPerson('volunteer', { club_id: null })],
+      }),
+    );
+    expect(snapshot.roster.activeFighterCount).toBe(1);
+    expect(snapshot.roster.withoutClub).toBe(0);
+  });
+
+  it('excludes waitlisted, withdrawn and disqualified people', () => {
+    const snapshot = buildReadinessSnapshot(
+      baseRows({
+        registrations: [
+          { tournament_id: 't1', person_id: 'per1', status: 'confirmed' },
+          { tournament_id: 't1', person_id: 'per2', status: 'waitlist' },
+        ],
+        persons: [readyPerson('per1'), readyPerson('per2', { club_id: null })],
+      }),
+    );
+    expect(snapshot.roster.activeFighterCount).toBe(1);
+    expect(snapshot.roster.withoutClub).toBe(0);
+  });
+
+  it('counts distinct PEOPLE, not registrations', () => {
+    // A fighter entered in longsword and rapier is one person with one club.
+    // Counting registrations would double every gap.
+    const snapshot = buildReadinessSnapshot(
+      baseRows({
+        registrations: [
+          { tournament_id: 't1', person_id: 'per1', status: 'confirmed' },
+          { tournament_id: 't2', person_id: 'per1', status: 'confirmed' },
+        ],
+        persons: [readyPerson('per1', { club_id: null })],
+      }),
+    );
+    expect(snapshot.roster.activeFighterCount).toBe(1);
+    expect(snapshot.roster.withoutClub).toBe(1);
+  });
+
+  it('accepts a rating held on the LOCAL row', () => {
+    const snapshot = buildReadinessSnapshot(
+      baseRows({
+        registrations: [{ tournament_id: 't1', person_id: 'per1', status: 'confirmed' }],
+        persons: [readyPerson('per1', { hema_ratings_id: 'HR-9', global_persons: null })],
+      }),
+    );
+    expect(snapshot.roster.withoutRatingsId).toBe(0);
+  });
+
+  it('accepts a rating held on the linked GLOBAL identity', () => {
+    // An importer writes persons.hema_ratings_id; a claimed profile carries
+    // global_persons.hema_ratings_id. Reading only one would report a rated
+    // fighter as unrated.
+    const snapshot = buildReadinessSnapshot(
+      baseRows({
+        registrations: [{ tournament_id: 't1', person_id: 'per1', status: 'confirmed' }],
+        persons: [
+          readyPerson('per1', {
+            hema_ratings_id: null,
+            global_persons: { hema_ratings_id: 'HR-9' },
+          }),
+        ],
+      }),
+    );
+    expect(snapshot.roster.withoutRatingsId).toBe(0);
+  });
+
+  it('treats a blank rating id as missing, not as present', () => {
+    const snapshot = buildReadinessSnapshot(
+      baseRows({
+        registrations: [{ tournament_id: 't1', person_id: 'per1', status: 'confirmed' }],
+        persons: [
+          readyPerson('per1', { hema_ratings_id: '  ', global_persons: { hema_ratings_id: '' } }),
+        ],
+      }),
+    );
+    expect(snapshot.roster.withoutRatingsId).toBe(1);
+  });
+
+  it('counts a person with no global identity', () => {
+    const snapshot = buildReadinessSnapshot(
+      baseRows({
+        registrations: [{ tournament_id: 't1', person_id: 'per1', status: 'confirmed' }],
+        persons: [readyPerson('per1', { global_person_id: null, global_persons: null })],
+      }),
+    );
+    expect(snapshot.roster.withoutGlobalIdentity).toBe(1);
+  });
+
+  it('reports an empty roster as zero rather than throwing', () => {
+    const snapshot = buildReadinessSnapshot(baseRows({ registrations: [], persons: [] }));
+    expect(snapshot.roster).toEqual({
+      activeFighterCount: 0,
+      withoutClub: 0,
+      withoutRatingsId: 0,
+      withoutGlobalIdentity: 0,
+    });
   });
 });

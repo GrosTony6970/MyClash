@@ -2734,6 +2734,24 @@ describe('EventsService', () => {
         ],
         phases: [{ id: 'ph1', tournament_id: 't1', type: 'pool', config_json: null }],
         lices: [{ id: 'l1' }],
+        // Roster quality: both registered fighters fully resolved, so the three
+        // roster rows report green and no test below has to account for them.
+        persons: [
+          {
+            id: 'p1',
+            club_id: 'c1',
+            hema_ratings_id: 'HR-1',
+            global_person_id: 'gp1',
+            global_persons: { hema_ratings_id: 'HR-1' },
+          },
+          {
+            id: 'p2',
+            club_id: 'c1',
+            hema_ratings_id: 'HR-2',
+            global_person_id: 'gp2',
+            global_persons: { hema_ratings_id: 'HR-2' },
+          },
+        ],
         pools: [{ id: 'pool1', phase_id: 'ph1' }],
         swiss_rounds: [],
         matches: [
@@ -2818,10 +2836,56 @@ describe('EventsService', () => {
       expect(result.checks.map((c) => c.key)).toEqual(['tournaments', 'pistes']);
       expect(result.worst).toBe('critical');
       // Nothing hangs off zero tournaments, so no `.in(..., [])` round-trips
-      // and no assignment read whose answer could not matter.
+      // and no assignment read whose answer could not matter. `persons` is in
+      // that set too: with nothing to register for there are no active
+      // fighters, the roster-quality rows omit themselves, and reading the
+      // roster would buy an answer no rule looks at.
       expect(new Set(fromMock.mock.calls.map(([table]) => table))).toEqual(
         new Set(['events', 'tournaments', 'lices']),
       );
+    });
+
+    it('reports roster quality over registered fighters only', async () => {
+      // `persons` is event-scoped and carries staff and instructor rows. A
+      // volunteer with no club must not appear as a roster gap.
+      fromMock.mockImplementation(
+        dispatchByTable(
+          readyTables({
+            persons: [
+              {
+                id: 'p1',
+                club_id: null,
+                hema_ratings_id: null,
+                global_person_id: null,
+                global_persons: null,
+              },
+              {
+                id: 'p2',
+                club_id: 'c1',
+                hema_ratings_id: 'HR-2',
+                global_person_id: 'gp2',
+                global_persons: null,
+              },
+              {
+                id: 'volunteer',
+                club_id: null,
+                hema_ratings_id: null,
+                global_person_id: null,
+                global_persons: null,
+              },
+            ],
+          }),
+        ),
+      );
+
+      const result = await service.getEventReadiness('event-1', 'user-1');
+      const roster = result.checks.filter((c) => c.key.startsWith('roster'));
+
+      expect(roster.map((c) => [c.key, c.level, c.values])).toEqual([
+        ['rosterIdentity', 'warn', { missing: 1, total: 2 }],
+        ['rosterClub', 'info', { missing: 1, total: 2 }],
+        ['rosterRatings', 'info', { missing: 1, total: 2 }],
+      ]);
     });
 
     it('reads only live pool- and match-scoped assignments', async () => {

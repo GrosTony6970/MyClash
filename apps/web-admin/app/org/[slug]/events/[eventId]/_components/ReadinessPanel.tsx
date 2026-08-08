@@ -168,7 +168,15 @@ function ReadinessGroup({
   );
 }
 
-function ReadinessRow({
+/**
+ * One check, as every surface renders it.
+ *
+ * Exported because the start-of-day view shows the same rows in a different
+ * ORDER — the dot, the label, the level-specific message and the Fix link are
+ * one decision about how a check reads, and a second copy would drift from this
+ * one the first time a level's wording changed.
+ */
+export function ReadinessRow({
   check,
   slug,
   eventId,

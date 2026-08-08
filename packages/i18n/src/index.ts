@@ -5281,6 +5281,24 @@ export const en = {
       logoWrongType: 'Logo must be a PNG, JPEG, or WebP image.',
       logoEmpty: 'No logo uploaded yet.',
     },
+    startOfDay: {
+      navLabel: 'Start of day',
+      back: 'Event',
+      title: 'Start of day',
+      subtitle: 'The readiness checklist, in the order it has to happen.',
+      loading: 'Loading the checklist...',
+      allClear: 'Nothing outstanding. Pool 1 match 1 can start.',
+      outstanding: '{count} item(s) between here and the first bout.',
+      stageClear: 'Clear',
+      stageOutstanding: '{count} to do',
+      stageEmpty: 'Nothing to check here yet — usually because the step above is not finished.',
+      stage: {
+        event: 'The event exists',
+        roster: 'The roster is trustworthy',
+        draw: 'The draw exists',
+        run: 'It can be run',
+      },
+    },
     readiness: {
       title: 'Readiness',
       loadError: 'Could not load the readiness checklist.',
@@ -5353,6 +5371,21 @@ export const en = {
         bracket: {
           label: 'Bracket',
           info: 'Fills from the pool standings once pools finish — usually on day two. Nothing to do now.',
+        },
+        rosterIdentity: {
+          label: 'Fighter identities',
+          ok: 'All {total} registered fighters are linked to a MyClash profile.',
+          warn: '{missing} of {total} registered fighters never linked to a profile. Their results will not reach their career page or any league standing.',
+        },
+        rosterClub: {
+          label: 'Club affiliations',
+          ok: 'All {total} registered fighters have a club.',
+          info: '{missing} of {total} registered fighters have no club. Fine if they are unaffiliated — their club will simply be blank on the board.',
+        },
+        rosterRatings: {
+          label: 'HEMA Ratings links',
+          ok: 'All {total} registered fighters have a HEMA Ratings id.',
+          info: '{missing} of {total} registered fighters have no HEMA Ratings id. Seeding and the ratings export will skip them.',
         },
       },
     },
@@ -12895,6 +12928,25 @@ export const fr = {
       logoWrongType: 'Le logo doit etre une image PNG, JPEG ou WebP.',
       logoEmpty: 'Aucun logo televerse.',
     },
+    startOfDay: {
+      navLabel: 'Debut de journee',
+      back: 'Evenement',
+      title: 'Debut de journee',
+      subtitle: 'La liste de controle, dans l ordre ou les choses doivent se faire.',
+      loading: 'Chargement de la liste...',
+      allClear: 'Rien en attente. Le premier match de la poule 1 peut commencer.',
+      outstanding: '{count} point(s) avant le premier assaut.',
+      stageClear: 'OK',
+      stageOutstanding: '{count} a faire',
+      stageEmpty:
+        'Rien a verifier ici pour l instant - en general parce que l etape precedente n est pas terminee.',
+      stage: {
+        event: 'L evenement existe',
+        roster: 'La liste des inscrits est fiable',
+        draw: 'Le tirage existe',
+        run: 'Tout est pret pour lancer',
+      },
+    },
     readiness: {
       title: 'Etat de preparation',
       loadError: 'Impossible de charger la liste de controle.',
@@ -12964,6 +13016,21 @@ export const fr = {
         bracket: {
           label: 'Tableau',
           info: 'Se remplit depuis le classement des poules une fois celles-ci terminees - en general le deuxieme jour. Rien a faire pour le moment.',
+        },
+        rosterIdentity: {
+          label: 'Identites des tireurs',
+          ok: 'Les {total} tireurs inscrits sont relies a un profil MyClash.',
+          warn: '{missing} des {total} tireurs inscrits ne sont relies a aucun profil. Leurs resultats n atteindront ni leur page de carriere ni aucun classement de ligue.',
+        },
+        rosterClub: {
+          label: 'Clubs',
+          ok: 'Les {total} tireurs inscrits ont un club.',
+          info: '{missing} des {total} tireurs inscrits n ont pas de club. Sans probleme s ils sont independants : leur club restera vide sur les ecrans.',
+        },
+        rosterRatings: {
+          label: 'Liens HEMA Ratings',
+          ok: 'Les {total} tireurs inscrits ont un identifiant HEMA Ratings.',
+          info: '{missing} des {total} tireurs inscrits n ont pas d identifiant HEMA Ratings. Le tirage au sort et l export HEMA Ratings les ignoreront.',
         },
       },
     },
