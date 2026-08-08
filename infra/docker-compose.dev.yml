@@ -418,6 +418,10 @@ services:
         NEXT_PUBLIC_MARKETING_URL: https://myclash.localhost
         # Staff sign-in target for the display hub + kiosk control layer.
         NEXT_PUBLIC_STAFF_URL: https://staff.myclash.localhost
+        # See the web-staff service for why the dev build needs the full
+        # REQUIRED_PROD_ENV set despite NODE_ENV: development below.
+        NEXT_PUBLIC_SUPABASE_URL: https://api.myclash.localhost
+        NEXT_PUBLIC_SUPABASE_ANON_KEY: ${SUPABASE_ANON_KEY:-eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoiYW5vbiIsImlhdCI6MTYxMzUzMTk4NSwiZXhwIjo0NzY5MjA1OTg1fQ.HkSBOhFBMBNFBHFBHFBHFBHFBHFBHFBHFBHFBHFBHFB}
     container_name: myclash-dev-web-public
     restart: unless-stopped
     environment:
@@ -448,6 +452,13 @@ services:
       target: runner
       args:
         NEXT_PUBLIC_API_URL: https://api.myclash.localhost
+        # `target: runner` means dev runs the SAME `next build` as prod, and
+        # next.config's REQUIRED_PROD_ENV check fires on NODE_ENV=production —
+        # which `next build` sets itself. The `NODE_ENV: development` below is
+        # RUNTIME only and never reaches the builder stage, so every var in
+        # REQUIRED_PROD_ENV has to be supplied here too or the image will not
+        # build. scripts/check-client-env-contract.mjs enforces that.
+        NEXT_PUBLIC_PUBLIC_APP_URL: https://myclash.localhost
     container_name: myclash-dev-web-staff
     restart: unless-stopped
     environment:
@@ -475,6 +486,11 @@ services:
         NEXT_PUBLIC_API_URL: https://admin.myclash.localhost
         NEXT_PUBLIC_STAFF_URL: https://staff.myclash.localhost
         NEXT_PUBLIC_MARKETING_URL: https://myclash.localhost
+        # See the web-staff service for why the dev build needs the full
+        # REQUIRED_PROD_ENV set despite NODE_ENV: development below.
+        NEXT_PUBLIC_PUBLIC_APP_URL: https://myclash.localhost
+        NEXT_PUBLIC_SUPABASE_URL: https://api.myclash.localhost
+        NEXT_PUBLIC_SUPABASE_ANON_KEY: ${SUPABASE_ANON_KEY:-eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoiYW5vbiIsImlhdCI6MTYxMzUzMTk4NSwiZXhwIjo0NzY5MjA1OTg1fQ.HkSBOhFBMBNFBHFBHFBHFBHFBHFBHFBHFBHFBHFBHFB}
     container_name: myclash-dev-web-admin
     restart: unless-stopped
     environment:
