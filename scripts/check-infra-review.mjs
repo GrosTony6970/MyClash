@@ -2350,6 +2350,48 @@ if (/routers\.myclash-admin-api\.middlewares=[^\n]*fail2ban/u.test(composeText))
   );
 }
 
+// Dev's staff-auth pair, mirroring prod's. Dev is where a router shape is first
+// exercised, so a jail that exists only in prod is one that reaches the live
+// edge untested — the same reasoning that pins the plugin versions identical.
+// Literal middleware names, not ${MW_*}: the kill-switch is prod-only.
+const devStaffAuthRouters = {
+  'dev-staff-auth': 'myclash-geoblock-public@file',
+  'dev-staff-auth-admin': 'myclash-geoblock-admin@file',
+};
+for (const [router, geoblock] of Object.entries(devStaffAuthRouters)) {
+  const pattern = new RegExp(
+    `traefik\\.http\\.routers\\.${escapeRegExp(router)}\\.middlewares=${escapeRegExp(geoblock)},myclash-fail2ban-staff@docker`,
+    'u',
+  );
+  if (!pattern.test(devComposeText)) {
+    errors.push(
+      `infra/docker-compose.dev.yml router ${router} must chain ${geoblock} then ` +
+        'myclash-fail2ban-staff@docker, matching its prod twin.',
+    );
+  }
+}
+
+// Priority is what makes the pair a control rather than a decoration: the
+// host-less router has to beat dev-admin-api's 30 and dev-api's rule-length
+// default, and the admin twin has to beat the host-less one or admin. silently
+// drops onto the public country allow-list.
+for (const [router, priority] of [
+  ['dev-staff-auth', 40],
+  ['dev-staff-auth-admin', 50],
+]) {
+  const pattern = new RegExp(
+    `traefik\\.http\\.routers\\.${escapeRegExp(router)}\\.priority=(\\d+)`,
+    'u',
+  );
+  const match = pattern.exec(devComposeText);
+  if (match?.[1] !== String(priority)) {
+    errors.push(
+      `infra/docker-compose.dev.yml router ${router} must set priority=${priority} ` +
+        `(found ${match?.[1] ?? 'none'}).`,
+    );
+  }
+}
+
 // Both jails must count 403 as well as 401. A disabled staff account answers
 // 403, not 401, so without it an attacker can enumerate which usernames exist
 // and which have been switched off for free. Nothing else pins this value, and

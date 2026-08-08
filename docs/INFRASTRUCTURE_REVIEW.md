@@ -91,6 +91,12 @@ host added to the API later cannot silently reopen it. `myclash-staff-auth-admin
 is its twin at priority 50, and exists only to keep that path behind
 `MW_GEO_ADMIN` on the admin host rather than inheriting the public allow-list.
 
+Dev carries the same pair as `dev-staff-auth` / `dev-staff-auth-admin`, at the same
+priorities. It had the identical hole — `dev-admin-api` serves `/api/v1` on the admin
+host with no jail — and dev is where a router shape gets exercised before it reaches
+the live edge, which is the same reason the plugin versions are pinned identical.
+`pnpm infra:plugins -- --mode=dev` reads them out of the Traefik API by name.
+
 The primary control on staff login is now `@ThrottleByStaffAccount` in the API
 (10/h per event + username, never keyed on `req.ip`); the jail is the volumetric
 backstop behind it.

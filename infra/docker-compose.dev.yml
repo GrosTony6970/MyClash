@@ -414,6 +414,30 @@ services:
       - traefik.http.routers.dev-admin-api.middlewares=myclash-geoblock-admin@file,myclash-compress@docker
       - traefik.http.routers.dev-admin-api.priority=30
       - traefik.http.routers.dev-admin-api.service=dev-api
+      # ── Staff PIN login, jailed on EVERY host ────────────────────────────
+      # prod's myclash-staff-auth / myclash-staff-auth-admin pair. Dev carried
+      # the same hole they close: dev-admin-api serves /api/v1 on the admin host
+      # with no jail at all, so POST /api/v1/staff-auth/login answered unjailed
+      # there. Mirrored here because dev is where a router shape is exercised
+      # before it reaches the live edge — the same reason the plugin versions
+      # are pinned identical. check-infra-review pins both pairs.
+      #
+      # Host-less on purpose, and priority 40 to beat dev-api's rule-length
+      # default (29) as well as dev-admin-api's explicit 30.
+      - traefik.http.routers.dev-staff-auth.rule=PathPrefix(`/api/v1/staff-auth`)
+      - traefik.http.routers.dev-staff-auth.entrypoints=websecure
+      - traefik.http.routers.dev-staff-auth.tls=true
+      - traefik.http.routers.dev-staff-auth.middlewares=myclash-geoblock-public@file,myclash-fail2ban-staff@docker,myclash-compress@docker
+      - traefik.http.routers.dev-staff-auth.priority=40
+      - traefik.http.routers.dev-staff-auth.service=dev-api
+      # The admin twin at 50, so admin. keeps the admin allow-list instead of
+      # inheriting the host-less router's public one — a widening, not a fix.
+      - traefik.http.routers.dev-staff-auth-admin.rule=Host(`admin.myclash.localhost`) && PathPrefix(`/api/v1/staff-auth`)
+      - traefik.http.routers.dev-staff-auth-admin.entrypoints=websecure
+      - traefik.http.routers.dev-staff-auth-admin.tls=true
+      - traefik.http.routers.dev-staff-auth-admin.middlewares=myclash-geoblock-admin@file,myclash-fail2ban-staff@docker,myclash-compress@docker
+      - traefik.http.routers.dev-staff-auth-admin.priority=50
+      - traefik.http.routers.dev-staff-auth-admin.service=dev-api
 
   # ── web-public PWA ────────────────────────────────────────────────
   web-public:
