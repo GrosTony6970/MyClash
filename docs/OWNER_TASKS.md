@@ -155,6 +155,24 @@ Everything else can wait until the relevant dev phase approaches.
 
 ---
 
+### O-011 · Rename the `web-scoring` Sentry project
+
+- **When**: Before the next release that needs a readable stack trace from the staff app.
+- **Why**: The tablet app was renamed `web-scoring` → `web-staff` (`11db3c66`), but the Sentry
+  project slug lives server-side at sentry.io, not in this repo. Two references were deliberately
+  left pointing at the old slug rather than renamed:
+  - `project: 'web-scoring'` in `apps/web-staff/next.config.ts`
+  - `NEXT_PUBLIC_SENTRY_DSN_SCORING` (`.env.example`, both Dockerfiles, both compose files,
+    `scripts/ensure-prod-env.mjs`, `scripts/check-observability-review.mjs`)
+- **Action**: rename the Sentry project to `web-staff`, reissue its DSN, then tell the AI — the
+  repo-side rename is mechanical once the project exists.
+- **If skipped**: nothing breaks loudly. Releases and source maps keep uploading to a project
+  called `web-scoring`, which stays correct-but-misnamed. The failure mode only appears if someone
+  renames it repo-side FIRST: uploads then silently target a project that does not exist, and the
+  gap is invisible until a stack trace is needed and arrives unminified.
+
+---
+
 ## Phase O1 — During Development
 
 ### O-101 · PR review cadence
