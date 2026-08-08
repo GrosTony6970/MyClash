@@ -237,6 +237,13 @@ jobs:
         if: '!cancelled()'
         run: pnpm db:review
 
+      # A postgres_changes binding on an unpublished table does not degrade
+      # itself — supabase-js kills the WHOLE channel with a permanent
+      # CHANNEL_ERROR. See 0167_realtime_match_penalties.sql for the outage.
+      - name: Check realtime bindings are published
+        if: '!cancelled()'
+        run: pnpm db:realtime-bindings
+
       - name: Check database perf fixture
         if: '!cancelled()'
         run: pnpm db:perf:fixture
