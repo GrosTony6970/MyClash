@@ -120,6 +120,14 @@ const EXPECTED_PUBLIC = [
   // /organizations/slug/:slug — that one returns contact_email + status.
   'GET /organizations/public/:slug',
   'GET /public/generated-content/:type/:entityId',
+  // The staff login page's event picker. Public by necessity: staff usernames
+  // are unique per EVENT, so there is no namespace to authenticate a username
+  // against until an event has been chosen — the picker cannot sit behind the
+  // login it feeds. Six fields only (id, slug, name, startDate, status, kind),
+  // built field-by-field rather than spread from the row, and only for events
+  // with at least one ACTIVE staff account. That projection is the boundary;
+  // staff.service.picker.test.ts asserts both halves of it.
+  'GET /staff-auth/events',
   'GET /tournaments/:id/stats/fighters',
   'GET /tournaments/:id/stats/overview',
   'GET /tournaments/:id/stats/target-values',

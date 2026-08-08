@@ -15,7 +15,10 @@ import {
 import { ApiBearerAuth, ApiBody, ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import type { FastifyReply, FastifyRequest } from 'fastify';
-import { ADMIN_READ_THROTTLE } from '../../common/throttling/throttle-profiles';
+import {
+  ADMIN_READ_THROTTLE,
+  CATALOG_READ_THROTTLE,
+} from '../../common/throttling/throttle-profiles';
 import { buildClearCookieOptions, buildSessionCookieOptions } from '../../security/http-security';
 import { SupabaseService } from '../supabase/supabase.service';
 import {
@@ -159,6 +162,26 @@ export class StaffController {
     @Req() req: FastifyRequest,
   ) {
     return this.staff.setLiceScorer(req, eventId, liceId, dto);
+  }
+
+  /**
+   * The login page's event picker.
+   *
+   * Unauthenticated by necessity, not by oversight: staff usernames are unique
+   * per EVENT (`idx_event_staff_accounts_event_username`), so there is nothing
+   * to authenticate against until an event has been chosen. The response
+   * projection is therefore the security boundary — see `StaffPickerEvent`.
+   */
+  @Public()
+  @Get('staff-auth/events')
+  @Throttle(CATALOG_READ_THROTTLE)
+  @ApiOperation({
+    summary: 'Events a volunteer can sign into, for the staff login picker',
+    description:
+      'Only events with at least one ACTIVE staff account, and only the six fields the picker renders. Unauthenticated: the event must be chosen before there is a username namespace to authenticate against.',
+  })
+  async pickerEvents() {
+    return this.staff.listPickerEvents();
   }
 
   @Public()

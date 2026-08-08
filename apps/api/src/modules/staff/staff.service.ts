@@ -90,6 +90,39 @@ type StaffAccountRow = {
  */
 const SCORING_ROLES: readonly StaffRole[] = ['scoring'];
 
+/**
+ * The ONLY fields the unauthenticated staff event picker exposes.
+ *
+ * This projection IS the security boundary. The endpoint has to be readable
+ * before authentication — a volunteer cannot pick an event after signing in,
+ * because staff usernames are unique per EVENT
+ * (`idx_event_staff_accounts_event_username`), so there is nothing to
+ * authenticate against until one is chosen. Everything the picker does not
+ * strictly need is therefore left out rather than filtered later: no
+ * organisation, no branding, no counts, no tournaments, no dates beyond the
+ * start.
+ *
+ * `kind` and `status` are here on purpose, not by accident of copying the row:
+ * a test or draft event must be VISIBLY marked, so a volunteer who signs into
+ * the wrong one finds out on the login screen rather than after scanning ten
+ * fighters into a dry run.
+ */
+export interface StaffPickerEvent {
+  id: string;
+  slug: string;
+  name: string;
+  startDate: string | null;
+  status: string;
+  kind: string;
+}
+
+/**
+ * A hard cap on an unauthenticated list. Well above any real deployment's
+ * count of simultaneously-staffed events, and low enough that the route can
+ * never become a bulk export of the events table.
+ */
+const STAFF_PICKER_LIMIT = 50;
+
 /** A prev/next match summary for the scoring pad's header tiles. */
 export interface NeighborTile {
   id: string;
@@ -303,7 +336,13 @@ export class StaffService {
   }
 
   async login(dto: StaffLoginDto): Promise<{ token: string; expiresAt: Date; me: unknown }> {
-    const event = await this.findEventBySlug(dto.eventSlugOrCode);
+    // The id wins when the caller has one (the picker always does): slugs are
+    // unique per organisation, not globally, so resolving by slug is ambiguous
+    // across orgs in a way that surfaces as a bare "Event not found". See the
+    // eventId field's note in dto.ts.
+    const event = dto.eventId
+      ? await this.getEventById(dto.eventId)
+      : await this.findEventBySlug(dto.eventSlugOrCode);
     this.assertEventScorable(event);
 
     const { data: account, error } = await this.supabase.service
@@ -333,6 +372,51 @@ export class StaffService {
   async getMe(req: FastifyRequest) {
     const staff = await this.requireStaffFromRequest(req);
     return this.getMeForStaff(staff.id);
+  }
+
+  /**
+   * Events a volunteer could actually sign into, for the login page's picker.
+   *
+   * Deliberately NOT `GET /events`. That route hard-excludes test events
+   * (`events.service.ts`, "Test events never appear on public surfaces") and
+   * defaults to published/running/completed, so drafts are invisible too — both
+   * correct for a spectator surface and both wrong here, where a dry run and a
+   * club night are exactly the events a volunteer needs to reach. Adding an
+   * `includeTest` flag to that public route would have exposed test events to
+   * everyone; a separate route with a narrower projection does not.
+   *
+   * Two filters carry the whole boundary:
+   *
+   *   1. `event_staff_accounts!inner` with `status = 'active'` — an event with
+   *      nobody configured to sign in never appears, so an unstaffed draft
+   *      stays invisible. The inner embed is a lateral join returning a nested
+   *      array, NOT a row-multiplying join, so an event with six staff accounts
+   *      is still one row (same shape as the weapon filter in listEvents).
+   *   2. Status limited to the three an mc_staff session can exist for.
+   *      `assertEventScorable` refuses completed and archived, so listing them
+   *      would offer a door that cannot open.
+   *
+   * The embedded accounts are dropped in the mapping below. Nothing about a
+   * staff account — not its count, not its usernames — reaches the response.
+   */
+  async listPickerEvents(): Promise<StaffPickerEvent[]> {
+    const { data, error } = await this.supabase.service
+      .from('events')
+      .select('id,slug,name,start_date,status,event_kind,event_staff_accounts!inner(id)')
+      .eq('event_staff_accounts.status', 'active')
+      .in('status', ['draft', 'published', 'running'])
+      .order('start_date', { ascending: true, nullsFirst: false })
+      .limit(STAFF_PICKER_LIMIT);
+    if (error) throw new BadRequestException(error.message);
+
+    return ((data ?? []) as unknown as Array<Record<string, unknown>>).map((row) => ({
+      id: row['id'] as string,
+      slug: row['slug'] as string,
+      name: row['name'] as string,
+      startDate: (row['start_date'] as string | null) ?? null,
+      status: row['status'] as string,
+      kind: row['event_kind'] as string,
+    }));
   }
 
   async listAssignedLices(req: FastifyRequest) {

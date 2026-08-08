@@ -2238,6 +2238,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  '/api/v1/admin/system/runtime-health/series': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Retained runtime-health samples for the trend view */
+    get: operations['RuntimeHealthAdminController_getSeries'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   '/api/v1/admin/system/runtime-health/alert-settings': {
     parameters: {
       query?: never;
@@ -4643,6 +4660,26 @@ export interface paths {
      * @description Replaces every assignment on the lice; returns the ids it removed so the caller can report them.
      */
     put: operations['StaffController_setLiceScorer'];
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/staff-auth/events': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Events a volunteer can sign into, for the staff login picker
+     * @description Only events with at least one ACTIVE staff account, and only the six fields the picker renders. Unauthenticated: the event must be chosen before there is a username namespace to authenticate against.
+     */
+    get: operations['StaffController_pickerEvents'];
+    put?: never;
     post?: never;
     delete?: never;
     options?: never;
@@ -9937,12 +9974,16 @@ export interface components {
       displayName: string;
       username: string;
       pin: string;
+      /** @enum {string} */
+      role?: 'scoring' | 'checkin' | 'gear';
     };
     UpdateStaffAccountDto: {
       displayName?: string;
       username?: string;
       /** @enum {string} */
       status?: 'active' | 'disabled';
+      /** @enum {string} */
+      role?: 'scoring' | 'checkin' | 'gear';
     };
     ResetStaffPinDto: {
       pin: string;
@@ -9956,6 +9997,8 @@ export interface components {
     };
     StaffLoginDto: {
       eventSlugOrCode: string;
+      /** Format: uuid */
+      eventId?: string;
       username: string;
       pin: string;
     };
@@ -9963,6 +10006,7 @@ export interface components {
       outboxDepth: number;
       oldestPendingAgeSec: number;
       rejectedCount: number;
+      clientNowMs?: number;
     };
     CreatePersonDto: {
       givenName: string;
@@ -9978,6 +10022,7 @@ export interface components {
       notes?: string | null;
       /** Format: uuid */
       globalPersonId?: string | null;
+      allowDuplicateName?: boolean;
     };
     UpdatePersonDto: {
       givenName?: string;
@@ -14247,6 +14292,26 @@ export interface operations {
       };
     };
   };
+  RuntimeHealthAdminController_getSeries: {
+    parameters: {
+      query?: {
+        /** @description Window size; clamped to retention. */
+        hours?: string;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
   RuntimeHealthAdminController_getAlertSettings: {
     parameters: {
       query?: never;
@@ -17783,6 +17848,23 @@ export interface operations {
         'application/json': components['schemas']['SetLiceScorerDto'];
       };
     };
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  StaffController_pickerEvents: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
     responses: {
       200: {
         headers: {

@@ -89,6 +89,24 @@ export class SetLiceScorerDto extends createZodDto(setLiceScorerSchema) {}
 const staffLoginSchema = z
   .object({
     eventSlugOrCode: z.string().min(1).max(160),
+    /**
+     * Preferred over the slug when the caller knows it — which the login
+     * page's event picker always does.
+     *
+     * `events.slug` is UNIQUE **(organization_id, slug)**, not globally unique
+     * (`events_organization_id_slug_key`). Two organisations may both run an
+     * `open-2026`, and `findEventBySlug` resolves with `.maybeSingle()`, which
+     * does not survive a multi-row match — so a slug collision makes staff
+     * login fail with "Event not found" for BOTH events, with nothing on the
+     * screen to suggest why. Picking from a list makes the id available, so the
+     * ambiguity simply never arises on that path.
+     *
+     * Optional, and `eventSlugOrCode` stays required: the `?event=<slug>` deep
+     * link an organiser prints on a QR code carries no id, and a `.refine()`
+     * making exactly one of them required would turn this schema into a
+     * ZodEffects, which the offline OpenAPI emit cannot render.
+     */
+    eventId: z.uuid().optional(),
     username: z.string().min(3).max(64),
     pin: z.string().min(4).max(12),
   })
