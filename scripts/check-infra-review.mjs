@@ -448,6 +448,28 @@ const dockerfilePaths = [
 
 const composeText = await readFile(composePath, 'utf8');
 const devComposeText = await readFile(devComposePath, 'utf8');
+const passwordSpecialChars = await readPasswordSpecialChars();
+
+/**
+ * The one owner of "what counts as a special character", read out of the
+ * TypeScript source so this gate compares the compose value to the real
+ * constant rather than to a copy of it that can rot independently.
+ */
+async function readPasswordSpecialChars() {
+  const source = await readFile(
+    path.join(rootDir, 'packages', 'types', 'src', 'password.ts'),
+    'utf8',
+  );
+  const match = /export const PASSWORD_SPECIAL_CHARS = '(.*)';/u.exec(source);
+  if (!match) {
+    throw new Error(
+      'packages/types/src/password.ts must export PASSWORD_SPECIAL_CHARS as a single-quoted literal — ' +
+        'the GoTrue policy check reads it from there.',
+    );
+  }
+  // Un-escape the TS string literal: only \' and \\ can appear in this set.
+  return match[1].replaceAll("\\'", "'").replaceAll('\\\\', '\\');
+}
 const deployText = await readFile(deployPath, 'utf8');
 const redeployText = await readFile(redeployPath, 'utf8');
 const statusText = await readFile(statusPath, 'utf8');
@@ -774,6 +796,42 @@ requireContains(
   'prod GOTRUE_URI_ALLOW_LIST',
   'https://api.${DOMAIN}/api/v1/auth/callback',
 );
+
+// GoTrue is reachable directly at app.${DOMAIN}/auth/v1/*, so it — not our Zod
+// — is the boundary for account passwords. Its default is 6 characters with no
+// rules, and its required-characters list must match the set the browser
+// checklist ticks against, or a password passes validation and is then refused.
+assertGoTruePasswordPolicy(composeText, 'infra/docker-compose.prod.yml');
+assertGoTruePasswordPolicy(devComposeText, 'infra/docker-compose.dev.yml');
+
+function assertGoTruePasswordPolicy(text, label) {
+  requireContains(text, label, 'GOTRUE_PASSWORD_MIN_LENGTH: 12');
+
+  const match = /GOTRUE_PASSWORD_REQUIRED_CHARACTERS: '([^\n]*)'/u.exec(text);
+  if (!match) {
+    errors.push(`${label} must set GOTRUE_PASSWORD_REQUIRED_CHARACTERS.`);
+    return;
+  }
+
+  // Compose collapses '$$' to a literal '$' before GoTrue sees the value, and
+  // a single-quoted YAML scalar doubles an inner quote.
+  const groups = match[1].replaceAll('$$', '$').replaceAll("''", "'").split(':');
+  if (groups.length !== 4) {
+    errors.push(
+      `${label} GOTRUE_PASSWORD_REQUIRED_CHARACTERS must have 4 ':'-delimited groups, found ${groups.length}. ` +
+        "A ':' inside a group splits it — that is why PASSWORD_SPECIAL_CHARS excludes ':'.",
+    );
+    return;
+  }
+  if (groups[3] !== passwordSpecialChars) {
+    errors.push(
+      `${label} GOTRUE_PASSWORD_REQUIRED_CHARACTERS punctuation group does not match ` +
+        `PASSWORD_SPECIAL_CHARS in packages/types/src/password.ts.\n` +
+        `  compose: ${JSON.stringify(groups[3])}\n` +
+        `  types:   ${JSON.stringify(passwordSpecialChars)}`,
+    );
+  }
+}
 
 for (const [label, text] of [
   ['infra/db/init/02-supabase-realtime.sh', realtimeInitText],

@@ -162,7 +162,7 @@ describe('OnboardingService', () => {
         email: 'jean@example.com',
         displayName: 'Jean Dupont',
         method: 'password',
-        password: 'securepassword123',
+        password: 'Securepassword123!',
         orgName: 'Lyon AMHE',
         orgSlug: 'lyon-amhe',
         ...ACCEPTED,
@@ -173,19 +173,38 @@ describe('OnboardingService', () => {
       expect(typed.emailVerificationRequired).toBe(true);
     });
 
-    it('throws BadRequestException when password is too short', async () => {
+    it.each([
+      ['too short', 'Short1!', ['length']],
+      ['no uppercase and no special', 'securepassword123', ['uppercase', 'special']],
+      ['no digit and no special', 'Securepassword', ['digit', 'special']],
+      // Not "special" under the narrowed rule — GoTrue's required-characters
+      // list is finite and a space is not in it.
+      ['whitespace as its only symbol', 'Secure password123', ['special']],
+    ])('refuses an org-owner password with %s', async (_label, password, failing) => {
       fromMock.mockReturnValue(makeQueryChain({ data: null, error: null }));
-      await expect(
-        service.signup({
+
+      // The org owner is the highest-privilege account there is. This path used
+      // to accept 8 characters with no class rules while a spectator signing up
+      // on the public app had to clear the full policy.
+      const error = await service
+        .signup({
           email: 'jean@example.com',
           displayName: 'Jean',
           method: 'password',
-          password: 'short',
+          password,
           orgName: 'Lyon AMHE',
           orgSlug: 'lyon-amhe',
           ...ACCEPTED,
-        }),
-      ).rejects.toThrow(BadRequestException);
+        })
+        .catch((thrown: unknown) => thrown);
+
+      expect(error).toBeInstanceOf(BadRequestException);
+      expect((error as BadRequestException).getResponse()).toEqual({
+        code: 'weak_password',
+        failing: expect.arrayContaining(failing),
+      });
+      // Refused before anything exists — no account, no verification email.
+      expect(createUserMock).not.toHaveBeenCalled();
     });
 
     it('throws ConflictException when email already registered', async () => {
@@ -200,7 +219,7 @@ describe('OnboardingService', () => {
           email: 'existing@example.com',
           displayName: 'Jean',
           method: 'password',
-          password: 'securepassword123',
+          password: 'Securepassword123!',
           orgName: 'Lyon AMHE',
           orgSlug: 'lyon-amhe',
           ...ACCEPTED,
@@ -218,7 +237,7 @@ describe('OnboardingService', () => {
           email: 'jean@example.com',
           displayName: 'Jean',
           method: 'password',
-          password: 'securepassword123',
+          password: 'Securepassword123!',
           orgName: 'Lyon AMHE',
           orgSlug: 'lyon-amhe',
           acceptedTerms: '1999-01-01',

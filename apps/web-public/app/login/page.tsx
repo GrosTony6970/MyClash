@@ -5,7 +5,7 @@ import { getPublicApiUrl } from '@/lib/api-url';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useMemo, useState } from 'react';
-import { Button, GoogleIcon } from '@myclash/ui';
+import { Button, GoogleIcon, PasswordChecklist } from '@myclash/ui';
 import { validatePassword } from '@myclash/types';
 import { LegalConsent } from '../../src/components/LegalConsent';
 import { useI18n } from '../../src/i18n/I18nProvider';
@@ -482,27 +482,5 @@ function TabButton({
     >
       {label}
     </button>
-  );
-}
-
-function PasswordChecklist({ failing, t }: { failing: string[]; t: (key: string) => string }) {
-  const rules: Array<{ rule: string; key: string }> = [
-    { rule: 'length', key: 'publicApp.login.passwordRules.length' },
-    { rule: 'uppercase', key: 'publicApp.login.passwordRules.uppercase' },
-    { rule: 'lowercase', key: 'publicApp.login.passwordRules.lowercase' },
-    { rule: 'digit', key: 'publicApp.login.passwordRules.digit' },
-    { rule: 'special', key: 'publicApp.login.passwordRules.special' },
-  ];
-  return (
-    <ul className="space-y-1 text-xs">
-      {rules.map(({ rule, key }) => {
-        const failed = failing.includes(rule);
-        return (
-          <li key={rule} className={failed ? 'text-muted' : 'text-success'}>
-            <span aria-hidden>{failed ? '○' : '✓'}</span> {t(key)}
-          </li>
-        );
-      })}
-    </ul>
   );
 }

@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { Button } from '@myclash/ui';
+import { Button, PasswordChecklist } from '@myclash/ui';
 import { validatePassword } from '@myclash/types';
 import { getPublicApiUrl } from '@/lib/api-url';
 import { EmailChangeSection } from '@/components/account/EmailChangeSection';
@@ -401,27 +401,5 @@ function PasswordField({
         className="mt-1 w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-accent focus:ring-1 focus:ring-accent"
       />
     </label>
-  );
-}
-
-function PasswordChecklist({ failing, t }: { failing: string[]; t: (key: string) => string }) {
-  const rules = [
-    { rule: 'length', key: 'publicApp.login.passwordRules.length' },
-    { rule: 'uppercase', key: 'publicApp.login.passwordRules.uppercase' },
-    { rule: 'lowercase', key: 'publicApp.login.passwordRules.lowercase' },
-    { rule: 'digit', key: 'publicApp.login.passwordRules.digit' },
-    { rule: 'special', key: 'publicApp.login.passwordRules.special' },
-  ] as const;
-  return (
-    <ul className="space-y-1 text-xs">
-      {rules.map(({ rule, key }) => {
-        const failed = failing.includes(rule);
-        return (
-          <li key={rule} className={failed ? 'text-muted' : 'text-success'}>
-            <span aria-hidden>{failed ? '○' : '✓'}</span> {t(key)}
-          </li>
-        );
-      })}
-    </ul>
   );
 }

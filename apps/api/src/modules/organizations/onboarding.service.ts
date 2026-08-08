@@ -1,5 +1,6 @@
 import { BadRequestException, ConflictException, Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { validatePassword } from '@myclash/types';
 import { MailService } from '../mail/mail.service';
 // Value import, not `import type`: Nest reads design:paramtypes to inject it.
 import {
@@ -24,6 +25,23 @@ export type SignupResult =
       orgSlug: string;
       emailVerificationRequired: true;
     };
+
+/**
+ * The shared rule from @myclash/types, not a local length check.
+ *
+ * This path creates the ORG OWNER — the highest-privilege account on the
+ * platform — and it used to accept 8 characters with no class rules, while a
+ * spectator signing up on the public app had to clear 12 plus four classes.
+ *
+ * Throws the structured `failing` list rather than a sentence, so the signup
+ * form can tick its checklist instead of showing one opaque message.
+ */
+function assertPasswordMeetsPolicy(password: string | undefined): void {
+  const validation = validatePassword(password ?? '');
+  if (!validation.ok) {
+    throw new BadRequestException({ code: 'weak_password', failing: validation.failing });
+  }
+}
 
 @Injectable()
 export class OnboardingService {
@@ -91,11 +109,7 @@ export class OnboardingService {
     }
 
     // 2. Validate password if method='password'
-    if (method === 'password') {
-      if (!password || password.length < 8) {
-        throw new BadRequestException('Password must be at least 8 characters');
-      }
-    }
+    if (method === 'password') assertPasswordMeetsPolicy(password);
 
     if (method === 'magic_link') {
       return this.signupWithMagicLink(email, displayName, orgName, normalizedSlug, versions);

@@ -2,7 +2,7 @@
 
 import { Suspense, useMemo, useState } from 'react';
 import { getPublicApiUrl } from '@/lib/api-url';
-import { Button } from '@myclash/ui';
+import { Button, PasswordChecklist } from '@myclash/ui';
 import { validatePassword } from '@myclash/types';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useI18n } from '../../src/i18n/I18nProvider';
@@ -115,24 +115,7 @@ function ResetPassword() {
           />
         </label>
 
-        <ul className="mt-3 space-y-1 text-xs">
-          {(
-            [
-              { rule: 'length', key: 'publicApp.login.passwordRules.length' },
-              { rule: 'uppercase', key: 'publicApp.login.passwordRules.uppercase' },
-              { rule: 'lowercase', key: 'publicApp.login.passwordRules.lowercase' },
-              { rule: 'digit', key: 'publicApp.login.passwordRules.digit' },
-              { rule: 'special', key: 'publicApp.login.passwordRules.special' },
-            ] as const
-          ).map(({ rule, key }) => {
-            const failed = validation.failing.includes(rule);
-            return (
-              <li key={rule} className={failed ? 'text-muted' : 'text-success'}>
-                <span aria-hidden>{failed ? '○' : '✓'}</span> {t(key)}
-              </li>
-            );
-          })}
-        </ul>
+        <PasswordChecklist failing={validation.failing} t={t} className="mt-3 space-y-1 text-xs" />
 
         <Button
           type="button"

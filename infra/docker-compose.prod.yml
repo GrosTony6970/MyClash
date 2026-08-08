@@ -205,6 +205,19 @@ services:
       GOTRUE_URI_ALLOW_LIST: https://app.${DOMAIN},https://${DOMAIN},https://admin.${DOMAIN},https://staff.${DOMAIN},https://api.${DOMAIN}/api/v1/auth/callback,https://admin.${DOMAIN}/auth/oauth/callback,https://app.${DOMAIN}/auth/oauth/callback,https://admin.${DOMAIN}/signup/oauth/callback,https://admin.${DOMAIN}/**,https://app.${DOMAIN}/**,https://staff.${DOMAIN}/**
       GOTRUE_JWT_SECRET: ${SUPABASE_JWT_SECRET}
       GOTRUE_JWT_EXP: 3600
+      # Password policy. This is the REAL boundary, not our Zod: the
+      # myclash-auth router below exposes /auth/v1/* on app.${DOMAIN}, so a
+      # client can POST straight to /signup or /user and miss every DTO in the
+      # repo. GoTrue's own default is 6 characters with no rules.
+      #
+      # Groups are ':'-delimited, which is why ':' is absent from the
+      # punctuation group — a group containing the delimiter cannot be
+      # expressed. ONE OWNER: this must stay character-for-character identical
+      # to PASSWORD_SPECIAL_CHARS in packages/types/src/password.ts, or the
+      # browser checklist ticks green on a password GoTrue then refuses.
+      # `$` is doubled because compose interpolates a single one.
+      GOTRUE_PASSWORD_MIN_LENGTH: 12
+      GOTRUE_PASSWORD_REQUIRED_CHARACTERS: 'abcdefghijklmnopqrstuvwxyz:ABCDEFGHIJKLMNOPQRSTUVWXYZ:0123456789:!"#$$%&''()*+,-./;<=>?@[\]^_`{|}~'
       # The API keeps sessions alive for ~30 days by exchanging the refresh
       # cookie (see AuthService.getMe). Rotate refresh tokens so each is
       # single-use, and revoke the whole family if a used token is replayed

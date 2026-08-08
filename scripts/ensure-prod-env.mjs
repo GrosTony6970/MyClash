@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { createHash, createHmac, randomBytes } from 'node:crypto';
+import { createHash, createHmac, randomBytes, randomInt } from 'node:crypto';
 import { existsSync } from 'node:fs';
 import { copyFile, readFile, writeFile } from 'node:fs/promises';
 import readline from 'node:readline/promises';
@@ -80,8 +80,39 @@ const SECRET_GENERATORS = {
   AI_KEY_SECRET: () => randomBytes(32).toString('hex'),
   // Generate a strong random password for the bootstrap super admin.
   // Stored in .env so deploy.sh can display it once and the operator saves it.
-  SEED_ADMIN_PASSWORD: () => randomBytes(16).toString('base64url'),
+  //
+  // NOT base64url like the secrets above: this one is set on a real account
+  // through GoTrue, which now enforces GOTRUE_PASSWORD_REQUIRED_CHARACTERS.
+  // base64url's only punctuation is `-` and `_`, so roughly half of those
+  // values would carry no accepted symbol and bootstrap would fail at random.
+  SEED_ADMIN_PASSWORD: () => generateAccountPassword(),
 };
+
+/**
+ * A password for an account GoTrue will accept: one character guaranteed from
+ * each required group, the rest drawn from the union, then shuffled.
+ *
+ * The punctuation set is deliberately narrower than PASSWORD_SPECIAL_CHARS —
+ * this value is written into a .env file, echoed by deploy.sh and pasted into
+ * a browser, so quotes, backslashes and shell metacharacters are excluded.
+ * Every character here is still inside the set GoTrue is configured with.
+ */
+function generateAccountPassword() {
+  const pools = [
+    'abcdefghijkmnopqrstuvwxyz',
+    'ABCDEFGHJKLMNPQRSTUVWXYZ',
+    '23456789',
+    '!#%*+-=?@^_~',
+  ];
+  const all = pools.join('');
+  const chars = pools.map((pool) => pool[randomInt(pool.length)]);
+  while (chars.length < 24) chars.push(all[randomInt(all.length)]);
+  for (let i = chars.length - 1; i > 0; i -= 1) {
+    const j = randomInt(i + 1);
+    [chars[i], chars[j]] = [chars[j], chars[i]];
+  }
+  return chars.join('');
+}
 
 const HUMAN_REQUIRED = [
   'DOMAIN',

@@ -1,7 +1,8 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { GoogleIcon } from '@myclash/ui';
+import { validatePassword } from '@myclash/types';
+import { GoogleIcon, PasswordChecklist } from '@myclash/ui';
 import { LegalConsent } from '../../src/components/LegalConsent';
 import { savePendingOrganizerSignup } from '../../src/components/OAuthCallback';
 import { useI18n } from '../../src/i18n/I18nProvider';
@@ -103,7 +104,10 @@ export default function SignupPage() {
       return t('admin.common.validEmailRequired');
     if (!displayName || displayName.trim().length < 2) return t('admin.common.displayNameRequired');
     if (method === 'password') {
-      if (password.length < 8) return t('admin.common.passwordMinLength');
+      // The shared rule, not a local length check. This form creates the ORG
+      // OWNER, and it used to admit 8 characters while the public app demanded
+      // 12 plus four classes — the checklist below shows which rule is unmet.
+      if (!validatePassword(password).ok) return t('admin.common.passwordMinLength');
       if (password !== passwordConfirm) return t('admin.common.passwordsDoNotMatch');
     }
     return null;
@@ -334,11 +338,18 @@ export default function SignupPage() {
                     id="password"
                     type="password"
                     required
-                    minLength={8}
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     placeholder={t('auth.signup.passwordPlaceholder')}
                     className="w-full border border-border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
+                  />
+                  {/* No minLength on the input: the rule is five conditions,
+                      not a length, and the browser's own bubble would say the
+                      wrong thing. The checklist is the affordance. */}
+                  <PasswordChecklist
+                    failing={validatePassword(password).failing}
+                    t={t}
+                    className="mt-2 space-y-1 text-xs"
                   />
                 </div>
                 <div>

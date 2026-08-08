@@ -104,6 +104,8 @@ export { CollapsibleSection } from './components/CollapsibleSection';
 
 export { FormField } from './components/FormField';
 export type { FormFieldProps } from './components/FormField';
+export { PasswordChecklist } from './components/PasswordChecklist';
+export type { PasswordChecklistProps } from './components/PasswordChecklist';
 
 export { HelpTooltip } from './components/HelpTooltip';
 export type { HelpTooltipProps } from './components/HelpTooltip';

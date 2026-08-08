@@ -145,6 +145,11 @@ services:
       GOTRUE_URI_ALLOW_LIST: https://myclash.localhost,https://app.myclash.localhost,https://admin.myclash.localhost,https://staff.myclash.localhost,https://api.myclash.localhost/api/v1/auth/callback,http://localhost:3001/auth/oauth/callback,http://localhost:3003/auth/oauth/callback,http://localhost:3003/signup/oauth/callback,https://admin.myclash.localhost/**,https://app.myclash.localhost/**,https://staff.myclash.localhost/**
       GOTRUE_JWT_SECRET: ${SUPABASE_JWT_SECRET:-super-secret-jwt-token-with-at-least-32-characters-long}
       GOTRUE_JWT_EXP: 3600
+      # Mirrors prod so a password accepted here is accepted there. Groups are
+      # ':'-delimited, hence no ':' in the punctuation group. ONE OWNER:
+      # identical to PASSWORD_SPECIAL_CHARS in packages/types/src/password.ts.
+      GOTRUE_PASSWORD_MIN_LENGTH: 12
+      GOTRUE_PASSWORD_REQUIRED_CHARACTERS: 'abcdefghijklmnopqrstuvwxyz:ABCDEFGHIJKLMNOPQRSTUVWXYZ:0123456789:!"#$$%&''()*+,-./;<=>?@[\]^_`{|}~'
       GOTRUE_EXTERNAL_EMAIL_ENABLED: 'true'
       GOTRUE_MAILER_AUTOCONFIRM: 'true' # auto-confirm in dev — no SMTP needed
       GOTRUE_EXTERNAL_GOOGLE_ENABLED: ${GOOGLE_OAUTH_ENABLED:-false}

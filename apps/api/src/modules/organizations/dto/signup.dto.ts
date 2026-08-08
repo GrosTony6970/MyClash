@@ -33,8 +33,16 @@ const signupSchema = z
      *                creating events.
      */
     method: z.enum(['magic_link', 'password']),
-    /** Required when method='password'. */
-    password: z.string().min(8).max(128).optional(),
+    /**
+     * Required when method='password'.
+     *
+     * No lower bound here on purpose: the strength rule is `validatePassword`
+     * in the onboarding service, which answers with WHICH rules failed so the
+     * form's checklist can tick them off. A `min()` would turn that into a
+     * generic Zod message and give the caller nothing to act on. Same split as
+     * the public signup / reset-confirm DTOs.
+     */
+    password: z.string().max(128).optional(),
 
     // ── Step 2: Organization ─────────────────────────────────────────────────
     orgName: z.string().min(2).max(100),
