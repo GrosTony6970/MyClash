@@ -21,6 +21,7 @@ import { ReviewQueueModule } from './modules/admin/review-queue.module';
 import { StatsModule } from './modules/stats/stats.module';
 import { EventStatsModule } from './modules/event-stats/event-stats.module';
 import { StaffModule } from './modules/staff/staff.module';
+import { CheckinModule } from './modules/checkin/checkin.module';
 import { ExportsModule } from './modules/exports/exports.module';
 import { WorkersModule } from './workers/workers.module';
 import { LicesModule } from './modules/lices/lices.module';
@@ -111,6 +112,7 @@ import { throttlerOptions } from './common/throttling/throttler-options';
     DeletionRequestsModule,
     ReviewQueueModule,
     StaffModule,
+    CheckinModule,
     StatsModule,
     EventStatsModule,
     ExportsModule,

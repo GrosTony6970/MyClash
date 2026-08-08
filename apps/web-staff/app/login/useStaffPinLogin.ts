@@ -6,6 +6,7 @@ import { api } from '../../src/lib/api';
 import { resolveSelectedEvent, type PickerEvent } from '../../src/components/picker-events';
 import { usePickerEvents } from '../../src/lib/usePickerEvents';
 import { rememberEvent, useRememberedEvent } from '../../src/lib/last-event';
+import { landingPathForRole } from '../../src/lib/landing';
 
 /**
  * Everything the PIN sign-in form does, so the component itself is markup.
@@ -43,8 +44,10 @@ export function useStaffPinLogin(linkedEvent: string, linkedUsername: string) {
     setLoading(true);
     setError(null);
     try {
-      await signIn(event.eventSlugOrCode, event.selected, username, pin);
-      window.location.href = '/lices';
+      const me = await signIn(event.eventSlugOrCode, event.selected, username, pin);
+      // The role decides the destination, and it comes off the login response
+      // because the mc_staff token carries none.
+      window.location.href = landingPathForRole(me?.account?.role);
     } catch {
       setError(t('scoring.login.localLoginError'));
     } finally {
@@ -66,17 +69,23 @@ async function signIn(
   selected: PickerEvent | null,
   username: string,
   pin: string,
-): Promise<void> {
+): Promise<StaffMe> {
   // The id goes when we have one. `events.slug` is unique per ORGANISATION, not
   // globally, so slug resolution is ambiguous across orgs; picking from the
   // list is the one path that always knows the id.
-  await api.post('/api/v1/staff-auth/login', {
+  const me = await api.post<StaffMe>('/api/v1/staff-auth/login', {
     eventSlugOrCode,
     ...(selected ? { eventId: selected.id } : {}),
     username,
     pin,
   });
   if (selected) rememberEvent({ id: selected.id, slug: selected.slug, name: selected.name });
+  return me;
+}
+
+/** The login response — the same payload `/staff-auth/me` returns. */
+interface StaffMe {
+  account?: { role?: string };
 }
 
 /** Which event the volunteer is signing into, from the three possible sources. */

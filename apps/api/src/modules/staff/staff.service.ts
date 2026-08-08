@@ -375,6 +375,26 @@ export class StaffService {
   }
 
   /**
+   * The staff session behind this request, gated on role — for other modules.
+   *
+   * The desk and the gear table live in their own modules but must resolve a
+   * staff session exactly as the scoring routes do: same cookie, same JWT
+   * verification, same disabled-account and event-scorable checks, and the same
+   * per-request read of `role` from the row. Exporting this rather than letting
+   * each module re-derive it keeps one owner of what an mc_staff session means.
+   *
+   * Event-scoped by construction: the returned row carries `event_id`, and a
+   * desk or gear account has no Lice assignment to scope it any further.
+   */
+  async requireStaffWithRole(
+    req: FastifyRequest,
+    allowedRoles: readonly StaffRole[],
+  ): Promise<{ id: string; event_id: string; role: StaffRole }> {
+    const staff = await this.requireStaffFromRequest(req, allowedRoles);
+    return { id: staff.id, event_id: staff.event_id, role: parseStaffRole(staff.role) };
+  }
+
+  /**
    * Events a volunteer could actually sign into, for the login page's picker.
    *
    * Deliberately NOT `GET /events`. That route hard-excludes test events

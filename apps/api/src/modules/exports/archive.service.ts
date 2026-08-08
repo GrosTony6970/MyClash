@@ -177,6 +177,14 @@ const ARCHIVE_EXCLUDED_TABLES = new Set<string>([
   // operational / derived / credential / notification / AI
   'event_staff_accounts',
   'event_staff_lice_assignments',
+  // Who physically walked in the door on the day. Operational, not part of the
+  // competitive record — and both its actor columns reference
+  // event_staff_accounts, which is excluded two lines up, so a restored arrival
+  // could only ever point at an actor that no longer exists. It IS personal
+  // data, so it appears in the GDPR subject export instead (see
+  // subject-export.service.ts); excluded here means "not part of an event
+  // archive", never "not reachable by its subject".
+  'event_arrivals',
   'event_broadcast_notifications',
   'event_broadcast_recipients',
   'tournament_query_settings',
