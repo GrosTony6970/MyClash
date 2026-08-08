@@ -2,104 +2,21 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { SupabaseClient } from '@supabase/supabase-js';
-import type { MatchFormatConfig, PhaseType, TournamentScoringConfig } from '@myclash/types';
-import type { ClockEvent, ExchangeRow, MatchStatus, Penalty } from '../types/match-events';
+import type { ClockSnapshot, DisplayMatch, ExchangeRow, Penalty } from '../types/match-events';
+import { deriveFreshness, type Freshness } from './realtime-freshness';
 
 // The wire shapes live in ../types/match-events (a leaf module the pure
 // timeline utils can import without depending on this hook). Re-exported here
 // so `@myclash/ui`'s long-standing public surface is unchanged.
 export type {
   ClockEvent,
+  ClockSnapshot,
+  DisplayMatch,
   ExchangeRow,
   MatchStatus,
   Penalty,
   PenaltyCard,
 } from '../types/match-events';
-
-export interface DisplayMatch {
-  id: string;
-  status: MatchStatus;
-  /**
-   * `phases.type` for this match. Selects which `timeLimitsSeconds` entry the
-   * clock counts against — without it a pool bout is billed at the bracket
-   * limit, which is what the projector did for every match until now. Optional
-   * because a payload predating the projection resolves to the bracket limit,
-   * the same default the engine uses for an unknown phase.
-   */
-  phaseType?: PhaseType | null;
-  matchNumberLabel: string | null;
-  /** Round code computed server-side: e.g. `LSW-QF-M1`, `RAP-P2-M5`. */
-  roundCode?: string | null;
-  redScore: number;
-  blueScore: number;
-  redFighterName: string | null;
-  blueFighterName: string | null;
-  /** Fighter photos for the scoreboard avatar — resolved server-side from
-   *  the global identity (global_persons.photo_url). Null when the fighter
-   *  has no photo or isn't linked to a global person. */
-  redFighterPhotoUrl?: string | null;
-  blueFighterPhotoUrl?: string | null;
-  rulesetCode: string;
-  startedAt: string | null;
-  endedAt: string | null;
-  /** Why the match ended: 'first_to_points' | 'time_limit' | 'max_doubles'.
-   *  'max_doubles' = double-cap reached → DOUBLE LOSS (both scores 0, no
-   *  winner). Null on manual clock-end / forfeit / legacy rows. */
-  endReason?: string | null;
-  /** Winner's registration id when the ruleset declared one (point cap).
-   *  Null for a double loss / tie / not-yet-decided. */
-  winnerRegistrationId?: string | null;
-  lice?: { name?: string } | null;
-  event?: { name?: string } | null;
-  tournament?: { name?: string; weapon?: string } | null;
-  scoringConfig?: TournamentScoringConfig | null;
-  matchFormat?: MatchFormatConfig | null;
-  // Best-of-N round state. `bestOf` is the EFFECTIVE number for this match's
-  // phase, resolved server-side (1 = single round → the round UI stays hidden).
-  bestOf?: number;
-  currentRound?: number;
-  redRoundWins?: number;
-  blueRoundWins?: number;
-  awaitingRoundAdvance?: boolean;
-  sideOrder?: 'red_left' | 'blue_left';
-  poolName?: string | null;
-  /** Round token naming this match's phase — `SF`, `R16`, `PI`, `GF`, `LB2`,
-   *  `S3` for Swiss. Null for pool matches (which carry poolName instead).
-   *  Expand with `roundTokenLabel()` from `@myclash/types`; never render the
-   *  raw token at an audience. Drives the TV header context line. */
-  roundToken?: string | null;
-  fightIndex?: number | null;
-  totalFightsInPool?: number | null;
-  redClub?: { name: string; logoUrl: string | null } | null;
-  blueClub?: { name: string; logoUrl: string | null } | null;
-  redRegistrationId?: string | null;
-  blueRegistrationId?: string | null;
-  /** External-display redesign: next match on this lice (for the
-   *  corner NEXT tile + auto-rollover after MATCH ENDED). Public
-   *  surfaces can rely on this without a second authenticated
-   *  fetch. */
-  nextMatchId?: string | null;
-  nextMatch?: {
-    id: string;
-    matchNumberLabel: string | null;
-    roundCode: string | null;
-    redFighterName: string | null;
-    blueFighterName: string | null;
-  } | null;
-}
-
-export interface ClockSnapshot {
-  status: 'idle' | 'running' | 'halted' | 'ended';
-  activeMs: number;
-  runningFrom: string | null;
-  /**
-   * The transitions `activeMs` was folded from. The endpoint has always
-   * returned these; this type simply dropped them. The bout-flow chart replays
-   * them to position its stoppage markers — `activeMs` alone cannot say WHERE
-   * the clock stopped, only how much ran in total.
-   */
-  events?: ClockEvent[];
-}
 
 export interface UseLiveMatchResult {
   match: DisplayMatch | null;
@@ -120,6 +37,16 @@ export interface UseLiveMatchResult {
    * poll as connected (see TVScoreboard).
    */
   connected: boolean;
+  /**
+   * How fresh this surface's data is, as a state rather than a boolean —
+   * `live` / `polling` / `stale` / `disabled`. Prefer this over `connected`:
+   * a polling surface reports `connected: false` while being perfectly fresh,
+   * which is the ambiguity that let a dead websocket look healthy for weeks.
+   *
+   * `connected` is kept because existing callers read it and it still answers
+   * exactly what it claims — is the channel subscribed.
+   */
+  freshness: Freshness;
   refresh: () => Promise<void>;
 }
 
@@ -175,6 +102,17 @@ export function useLiveMatch(
    * contract as `useRealtimeWithFallback` in the apps now.
    */
   pollMs?: number,
+  /**
+   * `disable_realtime`, from the public flags snapshot.
+   *
+   * This hook never used to know about the kill-switch, so the TV board and the
+   * live-control-room timeline kept opening a websocket and showing a green LIVE
+   * cue while an operator believed realtime was off. Passing the flag in — the
+   * caller already has it via `useRuntimeFlags` — is what makes the chip honest
+   * during an incident. Optional so existing callers keep working; they simply
+   * keep the old blind spot until they pass it.
+   */
+  realtimeDisabled = false,
 ): UseLiveMatchResult {
   const [match, setMatch] = useState<DisplayMatch | null>(null);
   const [penalties, setPenalties] = useState<Penalty[]>([]);
@@ -183,6 +121,14 @@ export function useLiveMatch(
   const [elapsedMs, setElapsedMs] = useState(0);
   const [loadError, setLoadError] = useState<{ status: number; message: string } | null>(null);
   const [connected, setConnected] = useState(false);
+  // The channel's own last word, kept separately from `connected` because
+  // `deriveFreshness` distinguishes "never joined yet" (null) from "joined and
+  // then dropped" — the first must not flash an alarm on page load.
+  const [channelStatus, setChannelStatus] = useState<string | null>(null);
+  // When a payload last landed. This, not the socket state, is what makes
+  // "stale" answerable: a poll that stops landing is invisible to the channel.
+  const [lastUpdateAt, setLastUpdateAt] = useState<number | null>(null);
+  const [now, setNow] = useState(0);
   // Tracks whether we were dropped, so a re-SUBSCRIBE backfills missed changes
   // (and the first SUBSCRIBE doesn't double-fetch over the initial load).
   const wasDisconnected = useRef(false);
@@ -213,6 +159,10 @@ export function useLiveMatch(
         return;
       }
       setLoadError(null);
+      // Stamped only on a SUCCESSFUL payload. Stamping on every attempt would
+      // make a poll that fires and fails look exactly like one that works,
+      // which is the whole condition `stale` exists to catch.
+      setLastUpdateAt(Date.now());
       setMatch((await matchRes.json()) as DisplayMatch);
       if (penaltyRes.ok) setPenalties((await penaltyRes.json()) as Penalty[]);
       if (exchangeRes.ok) setExchanges((await exchangeRes.json()) as ExchangeRow[]);
@@ -281,6 +231,7 @@ export function useLiveMatch(
         () => void refresh(),
       )
       .subscribe((status) => {
+        setChannelStatus(status);
         if (status === 'SUBSCRIBED') {
           setConnected(true);
           stopPolling();
@@ -300,6 +251,25 @@ export function useLiveMatch(
       void supabaseClient.removeChannel(channel);
     };
   }, [matchId, supabaseClient, refresh, pollMs]);
+
+  // A slow tick, running ONLY while degraded.
+  //
+  // `stale` is the one state that becomes true with no event to announce it —
+  // nothing arriving is precisely the condition — so something has to re-render
+  // for it to be noticed. Calling Date.now() during render would do it, but
+  // that is an impure render (the React Compiler rejects it) and it would make
+  // freshness a value that changes without anything re-rendering.
+  //
+  // Not started when live: a healthy page must not re-render once a second
+  // forever, least of all a projector left running all weekend. `now` stays 0
+  // until the first tick, which `deriveFreshness` clamps to an age of 0 — i.e.
+  // "just degraded", which is exactly right for the first second.
+  const degraded = channelStatus !== null && channelStatus !== 'SUBSCRIBED';
+  useEffect(() => {
+    if (!degraded) return;
+    const id = setInterval(() => setNow(Date.now()), 1_000);
+    return () => clearInterval(id);
+  }, [degraded]);
 
   // Running-clock ticker
   useEffect(() => {
@@ -327,5 +297,28 @@ export function useLiveMatch(
     };
   }, [refresh]);
 
-  return { match, penalties, exchanges, clock, elapsedMs, loadError, connected, refresh };
+  // Re-derived on every render rather than stored: `stale` is a function of how
+  // long ago the last payload landed, so a stored value would only ever change
+  // when something else re-rendered — i.e. it would go stale about staleness.
+  // The clock ticker above already re-renders a running bout every 50ms, and an
+  // idle one has nothing to report.
+  const freshness = deriveFreshness({
+    realtimeDisabled,
+    channelStatus,
+    pollMs,
+    lastUpdateAt,
+    now,
+  });
+
+  return {
+    match,
+    penalties,
+    exchanges,
+    clock,
+    elapsedMs,
+    loadError,
+    connected,
+    freshness,
+    refresh,
+  };
 }

@@ -3,10 +3,15 @@
  * every surface that renders them: the referee scoring pad, the TV / external
  * display, and the public match page.
  *
- * Lives in `types/` (a leaf with no imports) rather than beside the hook that
- * fetches them, so `utils/exchange-timeline.ts` can consume these without
- * `utils/` depending on `hooks/` — that inversion would become a real cycle
- * the moment a hook wants `UnifiedEvent` back.
+ * Lives in `types/` rather than beside the hook that fetches them, so
+ * `utils/exchange-timeline.ts` can consume these without `utils/` depending on
+ * `hooks/` — that inversion would become a real cycle the moment a hook wants
+ * `UnifiedEvent` back.
+ *
+ * It is a leaf WITHIN packages/ui: the one import below crosses a package
+ * boundary to `@myclash/types` and is type-only, so it cannot participate in a
+ * cycle here. Keep it that way — an import from `hooks/` or `components/` in
+ * this file is the thing the layout exists to prevent.
  *
  * These mirror what the API actually returns:
  *   - `GET /matches/:id/exchanges` → the raw `exchanges` row PLUS the camelCase
@@ -18,6 +23,7 @@
  * Note the deliberate spelling split: exchange rows carry camelCase
  * `occurredAt` (an API-added alias), penalty rows carry raw `occurred_at`.
  */
+import type { MatchFormatConfig, PhaseType, TournamentScoringConfig } from '@myclash/types';
 
 export type MatchStatus = 'scheduled' | 'running' | 'paused' | 'completed' | 'voided';
 
@@ -97,4 +103,98 @@ export interface Penalty {
   /** Match-clock position (accumulated active ms) when recorded — drives
    *  the timeline's match-clock time. Null for legacy rows. */
   clock_time_ms?: number | null;
+}
+
+/**
+ * The scoreboard payload, as `GET /matches/:id/display` returns it, and the
+ * clock snapshot beside it.
+ *
+ * Here rather than in `useLiveMatch` because these are WIRE shapes, not hook
+ * state — the same reason the exchange and penalty rows already live in this
+ * module. `useLiveMatch` re-exports both, so the package's long-standing public
+ * surface is unchanged.
+ */
+export interface DisplayMatch {
+  id: string;
+  status: MatchStatus;
+  /**
+   * `phases.type` for this match. Selects which `timeLimitsSeconds` entry the
+   * clock counts against — without it a pool bout is billed at the bracket
+   * limit, which is what the projector did for every match until now. Optional
+   * because a payload predating the projection resolves to the bracket limit,
+   * the same default the engine uses for an unknown phase.
+   */
+  phaseType?: PhaseType | null;
+  matchNumberLabel: string | null;
+  /** Round code computed server-side: e.g. `LSW-QF-M1`, `RAP-P2-M5`. */
+  roundCode?: string | null;
+  redScore: number;
+  blueScore: number;
+  redFighterName: string | null;
+  blueFighterName: string | null;
+  /** Fighter photos for the scoreboard avatar — resolved server-side from
+   *  the global identity (global_persons.photo_url). Null when the fighter
+   *  has no photo or isn't linked to a global person. */
+  redFighterPhotoUrl?: string | null;
+  blueFighterPhotoUrl?: string | null;
+  rulesetCode: string;
+  startedAt: string | null;
+  endedAt: string | null;
+  /** Why the match ended: 'first_to_points' | 'time_limit' | 'max_doubles'.
+   *  'max_doubles' = double-cap reached → DOUBLE LOSS (both scores 0, no
+   *  winner). Null on manual clock-end / forfeit / legacy rows. */
+  endReason?: string | null;
+  /** Winner's registration id when the ruleset declared one (point cap).
+   *  Null for a double loss / tie / not-yet-decided. */
+  winnerRegistrationId?: string | null;
+  lice?: { name?: string } | null;
+  event?: { name?: string } | null;
+  tournament?: { name?: string; weapon?: string } | null;
+  scoringConfig?: TournamentScoringConfig | null;
+  matchFormat?: MatchFormatConfig | null;
+  // Best-of-N round state. `bestOf` is the EFFECTIVE number for this match's
+  // phase, resolved server-side (1 = single round → the round UI stays hidden).
+  bestOf?: number;
+  currentRound?: number;
+  redRoundWins?: number;
+  blueRoundWins?: number;
+  awaitingRoundAdvance?: boolean;
+  sideOrder?: 'red_left' | 'blue_left';
+  poolName?: string | null;
+  /** Round token naming this match's phase — `SF`, `R16`, `PI`, `GF`, `LB2`,
+   *  `S3` for Swiss. Null for pool matches (which carry poolName instead).
+   *  Expand with `roundTokenLabel()` from `@myclash/types`; never render the
+   *  raw token at an audience. Drives the TV header context line. */
+  roundToken?: string | null;
+  fightIndex?: number | null;
+  totalFightsInPool?: number | null;
+  redClub?: { name: string; logoUrl: string | null } | null;
+  blueClub?: { name: string; logoUrl: string | null } | null;
+  redRegistrationId?: string | null;
+  blueRegistrationId?: string | null;
+  /** External-display redesign: next match on this lice (for the
+   *  corner NEXT tile + auto-rollover after MATCH ENDED). Public
+   *  surfaces can rely on this without a second authenticated
+   *  fetch. */
+  nextMatchId?: string | null;
+  nextMatch?: {
+    id: string;
+    matchNumberLabel: string | null;
+    roundCode: string | null;
+    redFighterName: string | null;
+    blueFighterName: string | null;
+  } | null;
+}
+
+export interface ClockSnapshot {
+  status: 'idle' | 'running' | 'halted' | 'ended';
+  activeMs: number;
+  runningFrom: string | null;
+  /**
+   * The transitions `activeMs` was folded from. The endpoint has always
+   * returned these; this type simply dropped them. The bout-flow chart replays
+   * them to position its stoppage markers — `activeMs` alone cannot say WHERE
+   * the clock stopped, only how much ran in total.
+   */
+  events?: ClockEvent[];
 }

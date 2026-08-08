@@ -271,6 +271,22 @@ export type { LegalFooterProps, LegalFooterLink } from './components/LegalFooter
 
 export { MaintenanceBanner } from './components/MaintenanceBanner';
 export { useRuntimeFlags, getRuntimeFlagsCached } from './hooks/useRuntimeFlags';
+export {
+  deriveFreshness,
+  fallbackPollMs,
+  isFreshnessAlarming,
+  shouldStartFallbackPoll,
+  IDLE_POLL_MS,
+  LIVE_POLL_MS,
+} from './hooks/realtime-freshness';
+export type {
+  FallbackPollInput,
+  Freshness,
+  FreshnessInput,
+  FreshnessKind,
+} from './hooks/realtime-freshness';
+export { FreshnessChip } from './components/FreshnessChip';
+export type { FreshnessChipProps } from './components/FreshnessChip';
 export { useNow, useClock, useClientClock, useSecondsClock, useNowSeconds } from './hooks/useNow';
 export type { ClockState } from './hooks/useNow';
 export { timeSimulationOffsetMs, isTimeSimulationActive } from './hooks/time-simulation';

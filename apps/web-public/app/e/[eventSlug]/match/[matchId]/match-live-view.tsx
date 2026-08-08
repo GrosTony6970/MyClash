@@ -3,6 +3,7 @@
 import { useCallback, useMemo, useState } from 'react';
 import {
   BoutFlowChart,
+  FreshnessChip,
   MatchTimeline,
   buildBoutFlow,
   sideColorsFor,
@@ -14,7 +15,6 @@ import { getPublicApiUrl } from '@/lib/api-url';
 import { useRealtimeDisabled } from '@/lib/supabase-browser';
 import { BackLink } from '@/components/BackLink';
 import { useI18n } from '../../../../../src/i18n/I18nProvider';
-import { showReconnecting } from './show-reconnecting';
 import { resolveMatchWinner } from './resolve-match-winner';
 import { useMatchLiveChannel } from './use-match-live-channel';
 import {
@@ -291,7 +291,7 @@ export function MatchLiveView({
   // is the docker-internal host, which the browser can't reach — the polling
   // fallback and post-reconnect catch-up refresh both run in the browser.
   const apiUrl = getPublicApiUrl();
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const [match, setMatch] = useState<MatchRow>(initialMatch);
   const [summary, setSummary] = useState<MatchSummary>(initialSummary);
   const [exchanges, setExchanges] = useState<ExchangeRow[]>(initialExchanges);
@@ -342,7 +342,7 @@ export function MatchLiveView({
     ]);
   }, [refreshLive, matchId, apiUrl]);
 
-  const connected = useMatchLiveChannel({
+  const freshness = useMatchLiveChannel({
     matchId,
     isFinal,
     // Live status, not the initial one — a bout that starts while the page is
@@ -368,16 +368,15 @@ export function MatchLiveView({
         className="mb-4"
       />
 
-      {/* Connection indicator — live match without a healthy channel (WS
-          dropped, or realtime disabled by the kill-switch). Either way the
-          fallback poll is now carrying the page, so this reports "updates are
-          slower", not "updates have stopped" — which is why it stays up while
-          the poll runs rather than being suppressed by it. */}
-      {showReconnecting(connected && !realtimeDisabled, match.status) && (
-        <div className="mb-4 flex items-center gap-2 rounded-lg bg-warning/10 px-4 py-2 text-sm text-warning">
-          <span className="h-2 w-2 rounded-full bg-warning" />
-          {t('scoring.liveMatch.reconnecting')}
-        </div>
+      {/* Freshness — the shared chip, so this page and the TV board can no
+          longer disagree about what is true. A finished match is static and has
+          nothing to be fresh about, so it says nothing at all. Otherwise the
+          chip stays up even while the poll is carrying the page: for a
+          spectator refreshing a phone, "updates are slower" is worth knowing,
+          which is the judgement `polling` exists to express without pretending
+          updates have stopped. */}
+      {!isFinal && (
+        <FreshnessChip freshness={freshness} locale={locale} className="mb-4" quietWhenLive />
       )}
 
       <ScoreBoard match={match} summary={summary} />

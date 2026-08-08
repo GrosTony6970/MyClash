@@ -32,6 +32,8 @@ import {
   shouldWarnClock,
 } from '@myclash/types';
 import { useLiveMatch, type DisplayMatch, type Penalty } from '../hooks/useLiveMatch';
+import { isFreshnessAlarming } from '../hooks/realtime-freshness';
+import { FreshnessChip } from './FreshnessChip';
 import type { ClockEvent, ExchangeRow } from '../types/match-events';
 import { sideStyle, legibleOn } from '../utils/side-color';
 import { buildUnifiedTimeline } from '../utils/exchange-timeline';
@@ -101,7 +103,11 @@ export function TVScoreboard({
   // `t` is a dependency of the timeline memo below — rebuilding the translator
   // each tick would rebuild the whole event list with it, all day on a projector.
   const t = useMemo(() => createTranslator(getMessages()), []);
-  const { match, penalties, exchanges, clock, elapsedMs, loadError, connected } = useLiveMatch(
+  // `connected` deliberately not read: it is a boolean about the SOCKET, and
+  // this board asks about the DATA. A polling surface reports connected:false
+  // while being perfectly fresh, which is exactly the ambiguity that let a dead
+  // websocket look healthy here for weeks.
+  const { match, penalties, exchanges, clock, elapsedMs, loadError, freshness } = useLiveMatch(
     apiBaseUrl,
     matchId,
     supabaseClient,
@@ -144,22 +150,26 @@ export function TVScoreboard({
     return () => clearInterval(interval);
   }, [clockStatus, nextMatchId, eventSlug, rolloverDelaySeconds, buildNextDisplayHref]);
 
-  // Connection-cue debounce. A realtime-only surface (no pollMs) starts
-  // disconnected and only flips connected once the channel acks SUBSCRIBED — a
-  // separate handshake that lands after the initial HTTP fetch. Wait a grace
-  // period before alarming so a normal first connect (or a brief blip) doesn't
-  // flash "Reconnecting"; if the socket is still down after it, the warning is
-  // real — dropped mid-bout, OR a never-connecting socket that would otherwise
-  // go silently stale (the very gap this cue exists to close).
-  const [staleConnection, setStaleConnection] = useState(false);
+  // Alarm debounce. The channel acks SUBSCRIBED on a handshake that lands
+  // AFTER the initial HTTP fetch, so a realtime-only surface is briefly
+  // not-live on every single load. Wait a grace period before alarming; if the
+  // state is still alarming after it, it is real — dropped mid-bout, or a
+  // socket that never connects and would otherwise go silently stale, which is
+  // the gap this cue exists to close.
+  //
+  // Keyed on `freshness.kind`, not on the object: `deriveFreshness` returns a
+  // fresh object every render (this component re-renders ~20x/s off the clock
+  // ticker) and depending on it would restart the timer forever.
+  const [graceElapsed, setGraceElapsed] = useState(false);
+  const alarming = isFreshnessAlarming(freshness);
   useEffect(() => {
-    if (pollMs || connected) {
-      setStaleConnection(false);
+    if (!alarming) {
+      setGraceElapsed(false);
       return;
     }
-    const id = setTimeout(() => setStaleConnection(true), 4000);
+    const id = setTimeout(() => setGraceElapsed(true), 4000);
     return () => clearTimeout(id);
-  }, [pollMs, connected]);
+  }, [alarming]);
 
   if (loadError) {
     return (
@@ -194,28 +204,21 @@ export function TVScoreboard({
   const redStyle = sideStyle(match.scoringConfig, 'red');
   const blueStyle = sideStyle(match.scoringConfig, 'blue');
 
-  // Connection cue — surfaces realtime channel health so the board no longer
-  // goes stale silently. A `pollMs` surface stays fresh via its poll even when
-  // the socket drops (a poll failure surfaces as the full-screen loadError), so
-  // it never shows "reconnecting"; finished matches are static so neither chip
-  // shows.
+  // Connection cue — one shared chip now, driven by the shared freshness state
+  // rather than by two hand-rolled pills with hard-coded amber/green.
+  //
+  // Two suppressions survive the move, both about not alarming a projector
+  // nobody is standing next to:
+  //   - a FINISHED match is static, so there is nothing to be stale about;
+  //   - the 4s debounce below covers the normal initial handshake, which lands
+  //     after the first HTTP fetch and would otherwise flash on every load.
+  // A working poll is no longer suppressed by special-casing `pollMs` at the
+  // call site: `deriveFreshness` reports it as `polling`, and the chip renders
+  // that as information rather than as an alarm.
   const isFinalMatch = match.status === 'completed' || match.status === 'voided';
-  // `staleConnection` already implies a realtime-only surface (!pollMs) whose
-  // channel has been down past the grace window — so this only alarms on a
-  // genuine outage, never on the normal initial handshake.
-  const reconnecting = staleConnection && !isFinalMatch;
   const isLiveBout = match.status === 'running' || match.status === 'paused';
-  const connectionCue = reconnecting ? (
-    <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-bold uppercase tracking-wide text-amber-700">
-      <span className="h-2 w-2 rounded-full bg-amber-500 animate-pulse" />
-      {t('scoring.liveMatch.reconnecting')}
-    </span>
-  ) : isLiveBout ? (
-    <span className="inline-flex items-center gap-1.5 rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-bold uppercase tracking-wide text-green-700">
-      <span className="h-2 w-2 rounded-full bg-green-500 animate-pulse" />
-      {t('scoring.liveMatch.live')}
-    </span>
-  ) : null;
+  const showCue = !isFinalMatch && (alarming ? graceElapsed : isLiveBout);
+  const connectionCue = showCue ? <FreshnessChip freshness={freshness} /> : null;
 
   const redColumn = (
     <FighterColumn

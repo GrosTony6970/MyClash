@@ -3,7 +3,12 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import type { Dispatch, SetStateAction } from 'react';
 import { supabase } from '@/lib/supabase';
-import { fallbackPollMs, shouldStartFallbackPoll } from './realtime-fallback';
+import {
+  deriveFreshness,
+  fallbackPollMs,
+  shouldStartFallbackPoll,
+  type Freshness,
+} from '@myclash/ui';
 import {
   mapMatchRow,
   type ExchangeRow,
@@ -143,9 +148,12 @@ export interface MatchLiveChannelOptions {
  * mutually exclusive, which is the property the surfaces that learned this the
  * hard way actually needed (see `useLiveMatch` in `@myclash/ui`).
  *
- * Returns the channel's connection state. The caller still owns the banner
- * decision (`showReconnecting`) — while the poll is carrying the page, realtime
- * genuinely IS down, so reporting it is honest.
+ * Returns a FRESHNESS state, not a boolean. The page used to get `connected`
+ * and decide for itself that a working poll still deserved a banner — honest,
+ * but not the same judgement the TV board made about the same condition. Both
+ * now go through `deriveFreshness` in `@myclash/ui`, which distinguishes
+ * `polling` (slower) from `stale` (not arriving), so the two surfaces can keep
+ * rendering it differently without disagreeing about what is true.
  */
 export function useMatchLiveChannel({
   matchId,
@@ -157,10 +165,17 @@ export function useMatchLiveChannel({
   setMatch,
   setExchanges,
   setPenalties,
-}: MatchLiveChannelOptions): boolean {
-  // Optimistic: the banner must not flash in the moment before the channel
+}: MatchLiveChannelOptions): Freshness {
+  // Optimistic: the chip must not flash in the moment before the channel
   // reports SUBSCRIBED.
   const [connected, setConnected] = useState(true);
+  // The channel's own last word, kept beside `connected` because
+  // `deriveFreshness` needs to tell "never joined" from "joined then dropped".
+  const [channelStatus, setChannelStatus] = useState<string | null>(null);
+  // When a payload last landed. This, not the socket state, is what makes
+  // "stale" answerable — a poll that stops landing is invisible to the channel.
+  const [lastUpdateAt, setLastUpdateAt] = useState<number | null>(null);
+  const [now, setNow] = useState(0);
   const wasDisconnected = useRef(false);
   const visible = useDocumentVisible();
 
@@ -169,12 +184,34 @@ export function useMatchLiveChannel({
   const degraded = realtimeDisabled || !connected;
   const pollMs = fallbackPollMs({ status: matchStatus, visible });
 
+  // A slow tick, running ONLY while degraded.
+  //
+  // `stale` is the one state that becomes true with no event to announce it —
+  // nothing arriving is precisely the condition — so something has to re-render
+  // for it to be noticed. Calling Date.now() during render would do it, but
+  // that is an impure render (the React Compiler rejects it) and it would make
+  // freshness a value that changes without anything re-rendering.
+  //
+  // Not started when live: a healthy page must not re-render once a second
+  // forever, least of all a projector left running all weekend. `now` stays 0
+  // until the first tick, which `deriveFreshness` clamps to an age of 0 — i.e.
+  // "just degraded", which is exactly right for the first second.
+  useEffect(() => {
+    if (!degraded) return;
+    const id = setInterval(() => setNow(Date.now()), 1_000);
+    return () => clearInterval(id);
+  }, [degraded]);
+
   useEffect(() => {
     if (isFinal || !degraded) return;
+    // Stamped only when a refetch RESOLVES. Stamping on dispatch would make a
+    // poll that fires and fails look exactly like one that works, which is the
+    // condition `stale` exists to catch.
+    const poll = () => void refreshLive().then(() => setLastUpdateAt(Date.now()));
     // Fire once immediately: on entering degraded the page is stale from this
     // instant, and on a cadence change the new speed should take effect now.
-    void refreshLive();
-    const timer = setInterval(() => void refreshLive(), pollMs);
+    poll();
+    const timer = setInterval(poll, pollMs);
     return () => clearInterval(timer);
   }, [isFinal, degraded, pollMs, refreshLive]);
 
@@ -243,6 +280,7 @@ export function useMatchLiveChannel({
         },
       )
       .subscribe((status) => {
+        setChannelStatus(status);
         if (status === 'SUBSCRIBED') {
           // Clears `degraded`, which stops the poll effect.
           setConnected(true);
@@ -263,5 +301,14 @@ export function useMatchLiveChannel({
     };
   }, [matchId, isFinal, realtimeDisabled, refresh, setMatch, setExchanges, setPenalties]);
 
-  return connected;
+  // Re-derived on every render rather than stored: `stale` is a function of how
+  // long ago the last payload landed, so a stored value would only ever change
+  // when something else re-rendered — it would go stale about staleness.
+  return deriveFreshness({
+    realtimeDisabled,
+    channelStatus,
+    pollMs: degraded ? pollMs : undefined,
+    lastUpdateAt,
+    now,
+  });
 }

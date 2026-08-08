@@ -1721,6 +1721,12 @@ export const en = {
       startRound: 'Start round {round}',
       endRound: 'End round',
     },
+    freshness: {
+      live: 'Live',
+      polling: 'Slower updates',
+      stale: 'Not updating',
+      disabled: 'Live updates off',
+    },
     liveMatch: {
       status: {
         scheduled: 'Scheduled',
@@ -1741,8 +1747,6 @@ export const en = {
       doubleLoss: 'Double loss',
       doubleLossSubtitle: 'Both fighters lose - double cap reached',
       blackCard: 'Black card',
-      reconnecting: 'Reconnecting...',
-      live: 'LIVE',
       displayTitle: 'External display',
       upNext: 'Up next',
       versus: 'vs',
@@ -9364,6 +9368,12 @@ export const fr = {
       startRound: 'Demarrer la manche {round}',
       endRound: 'Terminer la manche',
     },
+    freshness: {
+      live: 'En direct',
+      polling: 'Mises a jour ralenties',
+      stale: 'Plus de mise a jour',
+      disabled: 'Direct desactive',
+    },
     liveMatch: {
       status: {
         scheduled: 'Programme',
@@ -9384,8 +9394,6 @@ export const fr = {
       doubleLoss: 'Double defaite',
       doubleLossSubtitle: 'Les deux tireurs perdent - limite de doubles atteinte',
       blackCard: 'Carton noir',
-      reconnecting: 'Reconnexion...',
-      live: 'EN DIRECT',
       displayTitle: 'Affichage externe',
       upNext: 'A suivre',
       versus: 'contre',
