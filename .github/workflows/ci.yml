@@ -484,8 +484,37 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # The three web images cannot build without their NEXT_PUBLIC_* args:
+      # next.config's REQUIRED_PROD_ENV check throws during `next build`, so a
+      # bare `docker build` fails and those matrix legs never reached Trivy at
+      # all. (The API leg declares no NEXT_PUBLIC_* and was always fine.)
+      #
+      # The values are placeholders — Trivy scans OS and npm packages for CVEs,
+      # not bundled URLs, and the image is discarded after the scan.
+      #
+      # Derived from the Dockerfile's own `ARG NEXT_PUBLIC_*` lines rather than
+      # listed here, so this does not become a fourth place that has to agree
+      # with next.config, the Dockerfile and both compose files. Adding an ARG
+      # feeds this automatically; adding a REQUIRED_PROD_ENV *without* the ARG
+      # now fails here, which is the check that was missing.
+      #
+      # SENTRY_DSN args are skipped deliberately: none is in any
+      # REQUIRED_PROD_ENV, and handing @sentry/nextjs a non-DSN string at build
+      # time is a needless way to break the scan.
       - name: Build production image
-        run: docker build -f ${{ matrix.dockerfile }} -t ${{ matrix.image }}:ci .
+        run: |
+          set -euo pipefail
+          # `|| true`: the API Dockerfile declares no NEXT_PUBLIC_* at all, and
+          # a grep that matches nothing exits 1 — which under pipefail would
+          # fail the step for the one image that needs no arguments.
+          names=$(grep -oE '^ARG NEXT_PUBLIC_[A-Z_]+' "${{ matrix.dockerfile }}" \
+                    | sed 's/^ARG //' | grep -v SENTRY | sort -u || true)
+          args=()
+          for name in $names; do
+            args+=(--build-arg "$name=https://ci.invalid")
+          done
+          echo "derived build args: ${args[*]-none}"
+          docker build -f "${{ matrix.dockerfile }}" ${args[@]+"${args[@]}"} -t ${{ matrix.image }}:ci .
 
       - name: Scan production image
         uses: aquasecurity/trivy-action@v0.36.0
