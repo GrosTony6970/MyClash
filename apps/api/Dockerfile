@@ -105,7 +105,8 @@ RUN ln -s apps/api/dist dist \
 # Bootstrap scripts (run as one-off containers during deploy)
 COPY --chown=nestjs:nodejs scripts/bootstrap-super-admin.mjs ./scripts/bootstrap-super-admin.mjs
 COPY --chown=nestjs:nodejs scripts/create-demo-org.mjs ./scripts/create-demo-org.mjs
-# Migration script + SQL files (uses drizzle-orm programmatic API, not drizzle-kit)
+# Migration script + SQL files. Plain `postgres` applying raw SQL in filename
+# order, checksummed — no ORM and no migration framework of any kind.
 COPY --chown=nestjs:nodejs packages/db/scripts/migrate.mjs ./packages/db/scripts/migrate.mjs
 COPY --chown=nestjs:nodejs packages/db/migrations/ ./packages/db/migrations/
 

@@ -2217,7 +2217,7 @@ describe('PhasesService', () => {
       expect(m2.referees.filter((r) => r.role === 'arbitre_declarant')).toHaveLength(1);
     });
 
-    // Pins the post-0063 embed name. The Drizzle FK on
+    // Pins the post-0063 embed name. The FK on
     // referee_assignments.person_id lands on global_persons(id), NOT
     // on the per-event persons table — PostgREST will silently 400
     // any SELECT that uses the legacy `persons(...)` embed (the bug

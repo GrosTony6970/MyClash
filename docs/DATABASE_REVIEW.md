@@ -91,7 +91,11 @@ Known idempotence warnings remain for older migrations that created some tables 
 
 Chosen v1 default: no PgBouncer yet.
 
-- Drizzle uses `postgres.js` with `max: 10`, `idle_timeout: 20`, and `connect_timeout: 10`.
+- The API holds **no** direct Postgres pool: it reaches the database over HTTP through
+  PostgREST (`SupabaseService`). This line used to describe a `postgres.js` pool with `max: 10`
+  in `packages/db/src/client.ts` — that factory had zero callers and was deleted in 2026-08.
+- The one direct `postgres.js` connection is `packages/db/scripts/migrate.mjs`, which runs as a
+  one-off container during deploy and exits.
 - Supabase Auth/Realtime/Storage/PostgREST connect directly to the internal Postgres service.
 - API and worker containers should stay within safe connection counts on the single-VPS v1 deployment.
 

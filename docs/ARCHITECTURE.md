@@ -156,27 +156,27 @@ App: `apps/web-marketing/index.html`. Served by Caddy (`FROM caddy:2-alpine`, ge
 
 ### 3.1 Decisions
 
-| Layer                         | Choice                                                          | Rationale                                                                                                    |
-| ----------------------------- | --------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
-| Frontend (all PWAs)           | **Next.js 16** (App Router) + TypeScript + Tailwind + shadcn/ui | SSR for fast public results pages; PWA support; mature ecosystem; TypeScript end-to-end                      |
-| Backend                       | **NestJS 11** + TypeScript                                      | Modular, opinionated, excellent for domain-rich apps; first-class WebSocket gateway; matches user preference |
-| Database                      | **PostgreSQL 17** (via Supabase)                                | Deeply relational domain; `LISTEN/NOTIFY` for realtime; mature tooling; AGPL-friendly                        |
-| ORM                           | **Drizzle ORM**                                                 | TS-first, lightweight, raw-SQL escape hatch for ranking queries                                              |
-| Realtime                      | **Supabase Realtime** (Phoenix Channels)                        | Postgres-native broadcast on row changes; zero glue code for the read-side                                   |
-| Auth                          | **Supabase Auth** (email magic link + Google OAuth)             | Self-hostable, JWT-based, integrates with Postgres RLS                                                       |
-| Object Storage                | **Supabase Storage** (S3-compatible)                            | Fighter photos, event logos, podium photos                                                                   |
-| Background jobs               | **BullMQ** (Redis-backed)                                       | Stats recomputation, HEMA Ratings sync, exports                                                              |
-| Cache + pub/sub               | **Redis 8**                                                     | BullMQ + L2 cache for ranking queries                                                                        |
-| Reverse proxy                 | **Traefik v3**                                                  | Automatic Let's Encrypt, label-based config, native Docker integration                                       |
-| Container                     | **Docker + Docker Compose**                                     | User requirement                                                                                             |
-| Monorepo tool                 | **pnpm workspaces** + **Turborepo**                             | Fast, simple, well-supported                                                                                 |
-| Client state                  | **TanStack Query** (React Query) + **Zustand**                  | Server state vs UI state separation                                                                          |
-| Forms                         | **React Hook Form** + **Zod**                                   | Schema validation shared with backend                                                                        |
-| Heavy compute                 | **Web Workers** (via Comlink)                                   | Bracket generation, ranking computation, statistics aggregation off the main thread                          |
-| Local-first storage (scoring) | **IndexedDB** (via Dexie.js)                                    | Offline exchange queue                                                                                       |
-| Charts                        | **Recharts** + **D3** for custom viz                            | Statistics page                                                                                              |
-| Testing                       | **Vitest** (unit) + **Playwright** (E2E)                        | Modern, fast                                                                                                 |
-| CI/CD                         | **GitHub Actions**                                              | Standard                                                                                                     |
+| Layer                         | Choice                                                          | Rationale                                                                                                                                                                                     |
+| ----------------------------- | --------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Frontend (all PWAs)           | **Next.js 16** (App Router) + TypeScript + Tailwind + shadcn/ui | SSR for fast public results pages; PWA support; mature ecosystem; TypeScript end-to-end                                                                                                       |
+| Backend                       | **NestJS 11** + TypeScript                                      | Modular, opinionated, excellent for domain-rich apps; first-class WebSocket gateway; matches user preference                                                                                  |
+| Database                      | **PostgreSQL 17** (via Supabase)                                | Deeply relational domain; `LISTEN/NOTIFY` for realtime; mature tooling; AGPL-friendly                                                                                                         |
+| ORM                           | **None** — PostgREST + raw SQL                                  | Reads go through `SupabaseService`; migrations are hand-written SQL. A Drizzle mirror was carried until 2026-08 and deleted: nothing imported it and it had drifted from the SQL it described |
+| Realtime                      | **Supabase Realtime** (Phoenix Channels)                        | Postgres-native broadcast on row changes; zero glue code for the read-side                                                                                                                    |
+| Auth                          | **Supabase Auth** (email magic link + Google OAuth)             | Self-hostable, JWT-based, integrates with Postgres RLS                                                                                                                                        |
+| Object Storage                | **Supabase Storage** (S3-compatible)                            | Fighter photos, event logos, podium photos                                                                                                                                                    |
+| Background jobs               | **BullMQ** (Redis-backed)                                       | Stats recomputation, HEMA Ratings sync, exports                                                                                                                                               |
+| Cache + pub/sub               | **Redis 8**                                                     | BullMQ + L2 cache for ranking queries                                                                                                                                                         |
+| Reverse proxy                 | **Traefik v3**                                                  | Automatic Let's Encrypt, label-based config, native Docker integration                                                                                                                        |
+| Container                     | **Docker + Docker Compose**                                     | User requirement                                                                                                                                                                              |
+| Monorepo tool                 | **pnpm workspaces** + **Turborepo**                             | Fast, simple, well-supported                                                                                                                                                                  |
+| Client state                  | **TanStack Query** (React Query) + **Zustand**                  | Server state vs UI state separation                                                                                                                                                           |
+| Forms                         | **React Hook Form** + **Zod**                                   | Schema validation shared with backend                                                                                                                                                         |
+| Heavy compute                 | **Web Workers** (via Comlink)                                   | Bracket generation, ranking computation, statistics aggregation off the main thread                                                                                                           |
+| Local-first storage (scoring) | **IndexedDB** (via Dexie.js)                                    | Offline exchange queue                                                                                                                                                                        |
+| Charts                        | **Recharts** + **D3** for custom viz                            | Statistics page                                                                                                                                                                               |
+| Testing                       | **Vitest** (unit) + **Playwright** (E2E)                        | Modern, fast                                                                                                                                                                                  |
+| CI/CD                         | **GitHub Actions**                                              | Standard                                                                                                                                                                                      |
 
 ### 3.2 Why Supabase + NestJS together (not "one or the other")
 
@@ -2758,7 +2758,7 @@ myclash/
 ├── packages/
 │   ├── ui/                     # Shared shadcn/ui components + Tournament Manual aesthetic
 │   ├── design-tokens/          # Fonts, color palette, spacing
-│   ├── db/                     # Drizzle schema, migrations
+│   ├── db/                     # SQL migrations + the runner that applies them
 │   ├── rulesets/               # @myclash/rulesets — TF_v1 + custom-ruleset runtime
 │   ├── feature-flags/          # @myclash/feature-flags — curated toggle registry
 │   ├── types/                  # Shared TS types (Match, Exchange, etc.)

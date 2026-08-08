@@ -70,7 +70,8 @@ Use this method on staging before final production sign-off:
 
 Chosen v1 default: direct Postgres/Supabase connections, no PgBouncer yet.
 
-- API Drizzle uses `postgres.js max: 10`.
+- The API opens no direct Postgres connections — it goes through PostgREST over HTTP. Only
+  `packages/db/scripts/migrate.mjs` connects with `postgres.js`, as a one-off deploy container.
 - Supabase Auth, Realtime, Storage, and PostgREST use direct internal DB access.
 - Worker and API are expected to run as single replicas for v1.
 

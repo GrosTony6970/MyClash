@@ -20,12 +20,14 @@ here.
   logic. Don't push domain code into Postgres functions.
 - Three frontend apps over a shared `packages/ui` beats one mega-app, because the scoring app has
   materially different constraints (offline-first PWA).
-- Every Drizzle `uuid('foo_id')` pointing at a public-schema table needs **both** a
-  `.references(...)` chain in the Drizzle column and a `REFERENCES ...` clause in the SQL
-  migration. PostgREST embeds resolve through `information_schema.referential_constraints`:
-  without the SQL FK the embed 400s with "Could not find a relationship"; without the Drizzle
-  reference, introspection drifts from the live DB. `auth.users` references are the deliberate
-  exception — different schema, no cross-schema FK on purpose.
+- Every `uuid` column pointing at a public-schema table needs a real `REFERENCES ...` clause in
+  the migration, not just a naming convention. PostgREST embeds resolve through
+  `information_schema.referential_constraints`, so without the FK the embed 400s with "Could not
+  find a relationship" — the column works fine for reads and writes, and only the embed fails.
+  `auth.users` references are the deliberate exception: different schema, no cross-schema FK on
+  purpose. (This lesson used to require the same reference in a Drizzle column too; that mirror
+  was deleted in 2026-08 — the SQL is now the only declaration, which is one fewer place to
+  forget.)
 - Never use `import type { Foo }` for a class-validator DTO that NestJS reads through
   `@Body()/@Query()/@Param()`. The `type` keyword erases the import, so
   `Reflect.getMetadata('design:paramtypes', …)` sees `Object` instead of `Foo`, the global

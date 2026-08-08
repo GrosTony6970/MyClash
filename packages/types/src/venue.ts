@@ -5,10 +5,9 @@
  * workshop spaces; a venue with 0 or 1 area means workshop
  * sessions link directly to the venue without picking an area.
  *
- * Schema lives in migration 0088_venues.sql + Drizzle schema
- * `packages/db/src/schema/venues.ts`. Lices and workshop_sessions
- * point at venues (and optionally areas) via the columns added in
- * the same migration.
+ * Schema lives in migration 0088_venues.sql, which is the only
+ * declaration — lices and workshop_sessions point at venues (and
+ * optionally areas) via the columns added in the same migration.
  */
 export interface Venue {
   id: string;

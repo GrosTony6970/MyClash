@@ -1,7 +1,7 @@
 -- ============================================================
 -- MyClash — Initial schema migration
--- Generated for: T-101 · DB schema (Drizzle)
--- Apply with: pnpm --filter @myclash/db migrate
+-- Generated for: T-101 · DB schema
+-- Apply with: pnpm --filter @myclash/db migrate  (→ scripts/migrate.mjs)
 -- ============================================================
 
 -- ── Extensions ───────────────────────────────────────────────────────────────
