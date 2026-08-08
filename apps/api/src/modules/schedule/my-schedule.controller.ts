@@ -11,10 +11,11 @@
  * until referee_assignments table is populated.
  */
 
-import { Controller, Get, Param, ParseUUIDPipe, Req, UnauthorizedException } from '@nestjs/common';
+import { Controller, Get, Param, Req } from '@nestjs/common';
 import { ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
 import type { FastifyRequest } from 'fastify';
-import { GuestJwtService } from '../auth/guest-jwt.service';
+import { resolveEventId } from '../../common/event-ref';
+import { ParticipantIdentityService } from '../auth/participant-identity.service';
 import { SupabaseService } from '../supabase/supabase.service';
 import { PublicScheduleService } from '../persons/public-schedule.service';
 
@@ -23,53 +24,31 @@ import { PublicScheduleService } from '../persons/public-schedule.service';
 export class MyScheduleController {
   constructor(
     private readonly schedule: PublicScheduleService,
-    private readonly guestJwt: GuestJwtService,
     private readonly supabase: SupabaseService,
+    // "Which persons row is the caller at this event" used to be a private
+    // method here. It moved to ParticipantIdentityService when the event pass
+    // needed the same answer — two copies would have been two definitions of
+    // who a participant is. The move also fixed a guest-session cookie for
+    // another event resolving to that other event's person.
+    private readonly identity: ParticipantIdentityService,
   ) {}
 
+  /**
+   * Takes a slug OR an id.
+   *
+   * It used to be `ParseUUIDPipe`, while its only caller — the page at
+   * `/e/[eventSlug]/my-schedule` — sent the slug straight out of the URL. Every
+   * request 400'd, the page's `res.ok` branch swallowed it, and the surface
+   * rendered its logged-out empty state to signed-in fighters. Nothing caught it
+   * because the one spec that covers this page mocks the route away.
+   */
   @Get('events/:eventId/my-schedule')
   @ApiOperation({ summary: "Get authenticated person's unified schedule" })
-  @ApiParam({ name: 'eventId', type: 'string', format: 'uuid' })
-  async getMySchedule(
-    @Param('eventId', ParseUUIDPipe) eventId: string,
-    @Req() req: FastifyRequest,
-  ) {
-    const personId = await this.resolvePersonId(req, eventId);
+  @ApiParam({ name: 'eventId', type: 'string', description: 'Event UUID or slug' })
+  async getMySchedule(@Param('eventId') eventRef: string, @Req() req: FastifyRequest) {
+    const eventId = await resolveEventId(this.supabase, eventRef);
+    const personId = await this.identity.requirePersonId(req, eventId);
     // Person can always see their own workshops (requesterPersonId = personId)
     return this.schedule.getSchedule(eventId, personId, personId);
-  }
-
-  private async resolvePersonId(req: FastifyRequest, eventId: string): Promise<string> {
-    const cookies = (req as FastifyRequest & { cookies?: Record<string, string> }).cookies;
-
-    // Try claimed user — scope the person lookup to THIS event, otherwise a
-    // user claimed in several events resolves to an arbitrary event's person
-    // and the schedule comes back empty/wrong.
-    const accessToken = cookies?.['sb-access-token'];
-    if (accessToken) {
-      const { data } = await this.supabase.anon.auth.getUser(accessToken);
-      if (data.user) {
-        const { data: person } = await this.supabase.service
-          .from('persons')
-          .select('id')
-          .eq('claimed_by_user_id', data.user.id)
-          .eq('event_id', eventId)
-          .maybeSingle();
-        if (person) return (person as { id: string }).id;
-      }
-    }
-
-    // Try guest session
-    const guestToken = cookies?.['mc_guest'];
-    if (guestToken) {
-      try {
-        const payload = this.guestJwt.verify(guestToken);
-        return payload.person_id;
-      } catch {
-        // Invalid token
-      }
-    }
-
-    throw new UnauthorizedException('Authentication required to view your schedule');
   }
 }

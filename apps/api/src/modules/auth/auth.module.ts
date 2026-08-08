@@ -7,13 +7,14 @@ import { GuestJwtGuard } from './guest-jwt.guard';
 import { GuestJwtService } from './guest-jwt.service';
 import { GuestSessionsController } from './guest-sessions.controller';
 import { MeController } from './me.controller';
+import { ParticipantIdentityService } from './participant-identity.service';
 import { SignupController } from './signup.controller';
 
 @Module({
   // PrivacyModule imports nothing, so this edge cannot form a cycle.
   imports: [OrganizationsModule, PrivacyModule],
   controllers: [AuthController, SignupController, GuestSessionsController, MeController],
-  providers: [AuthService, GuestJwtService, GuestJwtGuard],
-  exports: [AuthService, GuestJwtService, GuestJwtGuard],
+  providers: [AuthService, GuestJwtService, GuestJwtGuard, ParticipantIdentityService],
+  exports: [AuthService, GuestJwtService, GuestJwtGuard, ParticipantIdentityService],
 })
 export class AuthModule {}
