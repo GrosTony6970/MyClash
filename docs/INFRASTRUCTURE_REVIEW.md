@@ -136,9 +136,23 @@ pnpm infra:plugins -- --deep             # per-middleware status/error from the 
 The default pass condition is not the status code alone: Traefik's fallback 404 runs no
 middleware at all, so the probe asserts the `Strict-Transport-Security` header that
 `myclash-security-headers@file` adds — which distinguishes "the chain is gone" from
-"the backend itself answered 404". The `traefik.${DOMAIN}` router carries no
-security-headers, so it is judged on 401/403 versus 404 instead. `--deep` needs
-`TRAEFIK_DASHBOARD_PASSWORD` from `.env`; deploy writes it there beside its hash.
+"the backend itself answered 404". The `traefik.${DOMAIN}` router is the **only** row
+judged on 401/403 instead, because its chain is the one with no security-headers. Both
+GeoBlock instances set `allowLocalRequests: true`, so the loopback probe is never
+geo-denied and a 403 is unreachable everywhere else — a row judged on the status code
+elsewhere reports a healthy edge as a plugin outage on every deploy.
+
+**What the default probes cannot see.** Several routers resolve to the same API
+container and all of them chain security-headers, so they answer `/api/v1/staff-auth/login`
+with an identical 404-plus-HSTS. A default-mode row therefore proves the path is alive
+behind _some_ built chain and nothing more: it stays green if a jail router was never
+deployed, and it cannot see the host-less router serving `admin.` off the **public** geo
+allow-list. `EXPECTED_ROUTERS` in `check-edge-plugins.mjs` closes that by reading
+Traefik's own API — each named router must exist, be enabled, chain its geoblock and
+fail2ban instances, and out-prioritise every router it has to beat. `--deep` therefore
+runs on **every deploy**: `mc_verify_edge_plugins` reads `TRAEFIK_DASHBOARD_PASSWORD`
+from `.env` (deploy writes it there beside its hash) and warns loudly if it is missing
+rather than quietly falling back to the shallow probe.
 
 Manual fallback, weakest to strongest, when the probe itself cannot run:
 

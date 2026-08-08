@@ -102,6 +102,23 @@ mc_warn_if_plugins_failed() {
   return 0
 }
 
+# --- .env reader --------------------------------------------------------------
+# Reads ONE key out of .env without sourcing the file, so no secret but the one
+# asked for enters this script's environment.
+#
+# Strips \r and a surrounding quote pair, and nothing else. The three reads
+# above additionally pipe through `tr -d '[:space:]'` because a domain or an IP
+# list containing whitespace is malformed either way — a password is not, and
+# stripping spaces out of one would produce a credential that silently fails to
+# authenticate. That difference is why this does not fold them in.
+mc_read_env_value() {
+  local key="$1"
+  [[ -f "$ROOT_DIR/.env" ]] || return 0
+  sed -n "s/^${key}=//p" "$ROOT_DIR/.env" |
+    tr -d '\r' |
+    sed -e 's/^"\(.*\)"$/\1/' -e "s/^'\(.*\)'\$/\1/"
+}
+
 # --- Post-start verification ------------------------------------------------
 # The log grep above only fires when the plugin DOWNLOAD failed. A plugin that
 # downloads and then rejects its own config logs nothing of the sort: the
@@ -152,19 +169,54 @@ mc_verify_edge_plugins() {
     return 0
   fi
 
+  # --deep is the only mode that proves WHICH router served a path. Several
+  # routers reach the API container and all of them chain security-headers, so
+  # the default probes answer identically whether or not the staff-auth jails
+  # exist — they cannot see a missing jail, and they cannot see the host-less
+  # router serving admin. off the public geo allow-list. The Traefik API can,
+  # and the credential for it is already on the box: deploy.sh writes
+  # TRAEFIK_DASHBOARD_PASSWORD into .env beside its hash.
+  #
+  # Read from .env as well as the shell, because start.sh never sources .env.
+  # Only \r and surrounding quotes are stripped here — tr -d '[:space:]', used
+  # for the values above, would silently corrupt a password containing a space.
+  local dashboard_password="${TRAEFIK_DASHBOARD_PASSWORD:-}"
+  local dashboard_auth="${TRAEFIK_DASHBOARD_AUTH:-}"
+  if [[ -z "$dashboard_password" ]]; then
+    dashboard_password="$(mc_read_env_value TRAEFIK_DASHBOARD_PASSWORD)"
+  fi
+  if [[ -z "$dashboard_auth" ]]; then
+    dashboard_auth="$(mc_read_env_value TRAEFIK_DASHBOARD_AUTH)"
+  fi
+
+  # `env` rather than an exported variable: the credential reaches node and
+  # nothing else, same rule as the targeted reads above.
+  local probe=(
+    env "TRAEFIK_DASHBOARD_PASSWORD=$dashboard_password" "TRAEFIK_DASHBOARD_AUTH=$dashboard_auth"
+    node "$ROOT_DIR/scripts/check-edge-plugins.mjs" --domain "$domain"
+  )
+  if [[ -n "$dashboard_password" ]]; then
+    probe+=(--deep)
+  else
+    # Degrading to the shallow probe without saying so is how this check went
+    # hollow in the first place: green, and asserting nothing about the jails.
+    warn "TRAEFIK_DASHBOARD_PASSWORD is missing from .env — running the shallow probe only."
+    warn "The staff-auth jail routers are NOT verified without it."
+  fi
+
   # Earlier attempts run silent: a not-yet-built router set is expected right
   # after `up`, and printing its diagnosis four times would bury the one verdict
   # that matters. The final attempt runs visibly, whatever it finds.
   local i
   for ((i = 1; i < attempts; i++)); do
-    if node "$ROOT_DIR/scripts/check-edge-plugins.mjs" --domain "$domain" >/dev/null 2>&1; then
+    if "${probe[@]}" >/dev/null 2>&1; then
       ok "Edge plugin middlewares are built and attached."
       return 0
     fi
     sleep "$delay"
   done
 
-  if node "$ROOT_DIR/scripts/check-edge-plugins.mjs" --domain "$domain"; then
+  if "${probe[@]}"; then
     return 0
   fi
 

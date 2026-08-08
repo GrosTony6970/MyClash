@@ -79,6 +79,11 @@ export const PROD_PROBES = [
     //
     // GET on a POST-only route, so the router answering at all is the signal:
     // 404-with-HSTS proves the chain built, 404-without proves it did not.
+    //
+    // What this row canNOT prove is WHICH router answered. myclash-api also
+    // matches this path and also chains security-headers, so it produces the
+    // same 404-with-HSTS if the jail router is missing entirely.
+    // EXPECTED_ROUTERS (deep mode) is what pins the identity.
     host: (domain) => `api.${domain}`,
     path: '/api/v1/staff-auth/login',
     middlewares: 'myclash-geoblock-public + myclash-fail2ban-staff',
@@ -87,12 +92,24 @@ export const PROD_PROBES = [
   {
     // myclash-staff-auth-admin: the admin-host twin, which exists so this path
     // keeps MW_GEO_ADMIN instead of inheriting the host-less router's public
-    // allow-list. Judged on auth-challenge because the admin geoblock answers
-    // 403 from anywhere outside the allow-list, including CI.
+    // allow-list.
+    //
+    // Judged on HSTS, not on an auth challenge: myclash-geoblock-admin sets
+    // allowLocalRequests: true like its public twin (middlewares.yml), so the
+    // loopback probe above is never geo-denied and 403 is unreachable here. The
+    // route is POST-only, so the only status this row can ever see is the
+    // backend's 404 — and MW_GEO_ADMIN's chain DOES carry security-headers, so
+    // the header is readable and is the honest signal. Judging it on 401/403
+    // reported a healthy edge as a plugin outage on every single deploy, and
+    // the recovery it printed detaches GeoBlock and Fail2Ban.
+    //
+    // Same blind spot as the row above: myclash-admin-api matches this path too.
+    // Deep mode is what tells the two apart, which matters more here — the whole
+    // point of this router is that admin. keeps the admin allow-list.
     host: (domain) => `admin.${domain}`,
     path: '/api/v1/staff-auth/login',
     middlewares: 'myclash-geoblock-admin + myclash-fail2ban-staff',
-    expect: 'auth-challenge',
+    expect: 'hsts',
   },
 ];
 
@@ -103,6 +120,127 @@ export const EXPECTED_MIDDLEWARES = [
   'myclash-fail2ban-auth@docker',
   'myclash-fail2ban-staff@docker',
 ];
+
+/**
+ * Routers a default-mode probe cannot identify, keyed by mode.
+ *
+ * Several routers resolve to the same API container and all chain
+ * security-headers, so every one of them answers /api/v1/staff-auth/login with
+ * an identical 404-plus-HSTS. The rows in PROD_PROBES therefore prove the path
+ * is alive behind SOME built chain and nothing more: they stay green if the
+ * jail routers were never deployed, and they cannot see the host-less router
+ * quietly serving admin. off the PUBLIC geo allow-list. Traefik's own API is
+ * the only source that answers "which router, with which middlewares".
+ *
+ * `outranks` is not decoration. A jail router that exists but loses the match
+ * protects nothing, and the whole design rests on 50 > 40 > 30 > 22.
+ *
+ * Per mode because dev's routers are named dev-* and reference the middlewares
+ * literally — dev has no ${MW_*} kill-switch — so one shared table would fail
+ * `--mode=dev` on prod names.
+ *
+ * Not reachable under TRAEFIK_PLUGINS=off: checkEdgePlugins returns before deep
+ * mode runs, because the kill-switch detaches exactly the middlewares this
+ * table requires. Dev has no kill-switch, so there is no gap on that side.
+ */
+export const EXPECTED_ROUTERS = {
+  prod: [
+    {
+      name: 'myclash-staff-auth@docker',
+      middlewares: ['myclash-geoblock-public@file', 'myclash-fail2ban-staff@docker'],
+      outranks: ['myclash-api@docker', 'myclash-public-api@docker', 'myclash-staff-api@docker'],
+    },
+    {
+      name: 'myclash-staff-auth-admin@docker',
+      middlewares: ['myclash-geoblock-admin@file', 'myclash-fail2ban-staff@docker'],
+      outranks: ['myclash-staff-auth@docker', 'myclash-admin-api@docker'],
+    },
+  ],
+  dev: [
+    {
+      name: 'dev-staff-auth@docker',
+      middlewares: ['myclash-geoblock-public@file', 'myclash-fail2ban-staff@docker'],
+      outranks: ['dev-api@docker'],
+    },
+    {
+      name: 'dev-staff-auth-admin@docker',
+      middlewares: ['myclash-geoblock-admin@file', 'myclash-fail2ban-staff@docker'],
+      outranks: ['dev-staff-auth@docker', 'dev-admin-api@docker'],
+    },
+  ],
+};
+
+/**
+ * The priority Traefik will actually match on.
+ *
+ * v3.7 serialises the computed default, so a router carrying no priority label
+ * still reads its real value — myclash-api reports 22, which is
+ * len("Host(`api.myclash.fr`)"). The rule-length fallback mirrors Traefik's own
+ * formula and exists only so a payload that ever stops doing that degrades to
+ * the same answer instead of comparing 0 and failing a healthy stack.
+ */
+export function effectivePriority(router) {
+  const declared = Number(router?.priority ?? 0);
+  return declared > 0 ? declared : String(router?.rule ?? '').length;
+}
+
+/**
+ * Verdicts for the named routers in EXPECTED_ROUTERS: present, built, carrying
+ * the middlewares that make them a control, and winning the match.
+ */
+export function routerVerdicts(routers, expected) {
+  const errors = [];
+  const byName = new Map((routers ?? []).map((entry) => [entry.name, entry]));
+
+  for (const wanted of expected ?? []) {
+    const router = byName.get(wanted.name);
+    if (!router) {
+      errors.push(
+        `router ${wanted.name} is absent — the surface it protects is served by whichever ` +
+          'lower-priority router matches next, which answers identically from the outside.',
+      );
+      continue;
+    }
+    if (router.status !== 'enabled') {
+      const detail = (router.error ?? []).join('; ');
+      errors.push(
+        `router ${wanted.name} is ${router.status ?? 'unknown'}${detail ? `: ${detail}` : ''}`,
+      );
+      continue;
+    }
+
+    const attached = new Set((router.middlewares ?? []).map(String));
+    for (const middleware of wanted.middlewares) {
+      if (!attached.has(middleware)) {
+        errors.push(`router ${wanted.name} does not chain ${middleware}.`);
+      }
+    }
+
+    const priority = effectivePriority(router);
+    for (const rivalName of wanted.outranks ?? []) {
+      const rival = byName.get(rivalName);
+      // An absent rival is an error, not a skip: renaming it would otherwise
+      // delete the comparison silently and leave this table green forever.
+      if (!rival) {
+        errors.push(
+          `router ${rivalName} is absent, so ${wanted.name} cannot be proven to outrank it — ` +
+            'the expectation was written against a router that no longer exists.',
+        );
+        continue;
+      }
+      const rivalPriority = effectivePriority(rival);
+      if (priority <= rivalPriority) {
+        errors.push(
+          `router ${wanted.name} (priority ${priority}) does not outrank ${rivalName} ` +
+            `(priority ${rivalPriority}), so ${rivalName} wins the match and its chain is what ` +
+            'actually serves the path.',
+        );
+      }
+    }
+  }
+
+  return errors;
+}
 
 const RECOVERY = [
   'Restore availability first:',
@@ -181,7 +319,7 @@ export function verdictFor(probe, response) {
  * this whole mode passes on a plugin that would 404 the site the moment a route
  * picked it up, and on a chain that silently lost its ${MW_*} prefix.
  */
-export function deepVerdicts(middlewares, routers) {
+export function deepVerdicts(middlewares, routers, expectedRouters = []) {
   const errors = [];
   const byName = new Map((middlewares ?? []).map((entry) => [entry.name, entry]));
   const referenced = new Set(
@@ -215,7 +353,14 @@ export function deepVerdicts(middlewares, routers) {
     );
   }
 
-  return errors;
+  // The sweep above catches routers that failed to BUILD. It says nothing about
+  // a router that was never declared, or one that built without the middleware
+  // that made it a control — both of which look like a healthy edge.
+  errors.push(...routerVerdicts(routers, expectedRouters));
+
+  // A router in EXPECTED_ROUTERS that failed to build is reported by both
+  // passes, in the same words. Deduped so one fault reads as one line.
+  return [...new Set(errors)];
 }
 
 function prodRequest(domain, hostname, path, headers) {
@@ -248,7 +393,14 @@ export function dashboardAuthHeader(env) {
         'with .env loaded, or export the value from .env.',
     );
   }
-  const user = env['TRAEFIK_DASHBOARD_USER'] ?? 'admin';
+  // The user is whatever the operator put in front of the colon in
+  // TRAEFIK_DASHBOARD_AUTH — that string IS the credential Traefik checks
+  // against. Defaulting blind to `admin` turns an operator who renamed it into
+  // a 401 on every deploy, which is the same false-outage this script exists to
+  // avoid. The bcrypt hash lives after the first colon, and its `$$` escaping
+  // never reaches the user half, so splitting there is safe.
+  const user =
+    env['TRAEFIK_DASHBOARD_USER'] || (env['TRAEFIK_DASHBOARD_AUTH'] ?? '').split(':')[0] || 'admin';
   return `Basic ${Buffer.from(`${user}:${password}`).toString('base64')}`;
 }
 
@@ -341,6 +493,7 @@ export async function checkEdgePlugins(args, env = process.env) {
         ...deepVerdicts(
           parseApiResponse('middlewares', raw.middlewares),
           parseApiResponse('routers', raw.routers),
+          EXPECTED_ROUTERS[mode] ?? [],
         ),
       );
     } catch (error) {

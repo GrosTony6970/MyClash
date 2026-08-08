@@ -5,11 +5,14 @@ import test from 'node:test';
 
 import {
   EXPECTED_MIDDLEWARES,
+  EXPECTED_ROUTERS,
   PROD_PROBES,
   checkEdgePlugins,
   dashboardAuthHeader,
   deepVerdicts,
+  effectivePriority,
   pluginsDisabled,
+  routerVerdicts,
   verdictFor,
 } from './check-edge-plugins.mjs';
 import { parseArgs } from './edge-probe.mjs';
@@ -74,6 +77,34 @@ test('the dashboard passes on 401 and on 403, fails on 404 and 200', () => {
   assert.equal(verdictFor(DASHBOARD_PROBE, { statusCode: 403, headers: {} }).ok, true);
   assert.equal(verdictFor(DASHBOARD_PROBE, { statusCode: 404, headers: {} }).ok, false);
   assert.equal(verdictFor(DASHBOARD_PROBE, { statusCode: 200, headers: {} }).ok, false);
+});
+
+// `auth-challenge` is a status-code-only verdict, and it is correct for exactly
+// one row: traefik.${DOMAIN}, whose chain carries no security-headers so there
+// is no header to read. Every other chain has one, and judging those on the
+// status inverts the diagnosis — an admin. row shipped with this verdict and
+// reported a healthy edge as a plugin outage on every deploy, because both
+// geoblock instances set allowLocalRequests: true and the loopback probe can
+// therefore never be geo-denied. Pinned so the next row cannot repeat it.
+test('auth-challenge is used by the traefik dashboard row and nothing else', () => {
+  const judgedOnStatus = PROD_PROBES.filter((probe) => probe.expect === 'auth-challenge').map(
+    (probe) => `${probe.host('example.org')}${probe.path}`,
+  );
+  assert.deepEqual(judgedOnStatus, ['traefik.example.org/dashboard/']);
+});
+
+// The regression itself. /api/v1/staff-auth/login is POST-only, so a GET is
+// always a backend 404 — the header is the only thing that separates that from
+// Traefik's middleware-free fallback.
+test('the admin staff-auth row passes on a 404 that carries HSTS', () => {
+  const row = PROD_PROBES.find(
+    (probe) =>
+      probe.host('example.org') === 'admin.example.org' &&
+      probe.path === '/api/v1/staff-auth/login',
+  );
+  assert.ok(row, 'the admin staff-auth probe row is missing');
+  assert.equal(verdictFor(row, { statusCode: 404, headers: OK_HEADERS }).ok, true);
+  assert.equal(verdictFor(row, { statusCode: 404, headers: {} }).ok, false);
 });
 
 function enabledMiddlewares() {
@@ -143,6 +174,182 @@ test('deep mode reports routers that failed to build', () => {
   assert.match(errors[0], /router myclash-auth@docker is disabled: middleware/);
 });
 
+/**
+ * The prod router set as Traefik v3.7 actually serialises it — priorities and
+ * middleware order copied from a live `/api/http/routers` read, including
+ * myclash-api's 22, which is the computed rule-length default for a router
+ * carrying no priority label.
+ */
+const CHAIN_TAIL = ['myclash-security-headers@file', 'myclash-compress@file'];
+function liveRouters(patch = {}) {
+  return [
+    {
+      name: 'myclash-api@docker',
+      rule: 'Host(`api.myclash.fr`)',
+      priority: 22,
+      status: 'enabled',
+      middlewares: ['myclash-geoblock-public@file', ...CHAIN_TAIL],
+    },
+    {
+      name: 'myclash-public-api@docker',
+      rule: 'Host(`app.myclash.fr`) && PathPrefix(`/api/v1`)',
+      priority: 30,
+      status: 'enabled',
+      middlewares: ['myclash-geoblock-public@file', ...CHAIN_TAIL],
+    },
+    {
+      name: 'myclash-staff-api@docker',
+      rule: 'Host(`staff.myclash.fr`) && PathPrefix(`/api/v1`)',
+      priority: 30,
+      status: 'enabled',
+      middlewares: ['myclash-geoblock-public@file', 'myclash-fail2ban-staff@docker', ...CHAIN_TAIL],
+    },
+    {
+      name: 'myclash-admin-api@docker',
+      rule: 'Host(`admin.myclash.fr`) && PathPrefix(`/api/v1`)',
+      priority: 30,
+      status: 'enabled',
+      middlewares: ['myclash-geoblock-admin@file', ...CHAIN_TAIL],
+    },
+    {
+      name: 'myclash-staff-auth@docker',
+      rule: 'PathPrefix(`/api/v1/staff-auth`)',
+      priority: 40,
+      status: 'enabled',
+      middlewares: ['myclash-geoblock-public@file', 'myclash-fail2ban-staff@docker', ...CHAIN_TAIL],
+    },
+    {
+      name: 'myclash-staff-auth-admin@docker',
+      rule: 'Host(`admin.myclash.fr`) && PathPrefix(`/api/v1/staff-auth`)',
+      priority: 50,
+      status: 'enabled',
+      middlewares: ['myclash-geoblock-admin@file', 'myclash-fail2ban-staff@docker', ...CHAIN_TAIL],
+    },
+  ]
+    .map((router) => ({ ...router, ...(patch[router.name] ?? {}) }))
+    .filter((router) => !patch.absent?.includes(router.name));
+}
+
+test('the live prod router set satisfies EXPECTED_ROUTERS', () => {
+  assert.deepEqual(routerVerdicts(liveRouters(), EXPECTED_ROUTERS.prod), []);
+});
+
+// Traefik computes a missing priority as the rule's length, and v3.7 serialises
+// that computed value. Reading it as 0 would make every comparison against an
+// unlabelled router pass or fail by accident, so the fallback mirrors Traefik's
+// own formula rather than guessing.
+test('effectivePriority prefers the declared value and falls back to rule length', () => {
+  assert.equal(effectivePriority({ priority: 40, rule: 'PathPrefix(`/x`)' }), 40);
+  assert.equal(effectivePriority({ rule: 'Host(`api.myclash.fr`)' }), 22);
+  assert.equal(effectivePriority({ priority: 0, rule: 'Host(`api.myclash.fr`)' }), 22);
+  assert.equal(effectivePriority(undefined), 0);
+});
+
+// The failure the default probes are blind to: with the jail router gone, every
+// request falls through to myclash-api, which answers 404-with-HSTS exactly as
+// the jailed router did.
+test('an absent expected router is an error, not a skip', () => {
+  const errors = routerVerdicts(
+    liveRouters({ absent: ['myclash-staff-auth@docker'] }),
+    EXPECTED_ROUTERS.prod,
+  );
+  assert.ok(errors.some((e) => /router myclash-staff-auth@docker is absent/.test(e)));
+});
+
+test('an expected router that failed to build is reported with its plugin error', () => {
+  const errors = routerVerdicts(
+    liveRouters({
+      'myclash-staff-auth@docker': {
+        status: 'disabled',
+        error: ['middleware "myclash-fail2ban-staff@docker" does not exist'],
+      },
+    }),
+    EXPECTED_ROUTERS.prod,
+  );
+  assert.ok(
+    errors.some((e) => /router myclash-staff-auth@docker is disabled: middleware/.test(e)),
+    errors.join('\n'),
+  );
+});
+
+// A router that builds without its jail is the original hole wearing the new
+// router's name: the path answers, and nothing counts the failed PIN attempts.
+test('an expected router missing its jail middleware fails', () => {
+  const errors = routerVerdicts(
+    liveRouters({
+      'myclash-staff-auth@docker': {
+        middlewares: ['myclash-geoblock-public@file', ...CHAIN_TAIL],
+      },
+    }),
+    EXPECTED_ROUTERS.prod,
+  );
+  assert.deepEqual(errors, [
+    'router myclash-staff-auth@docker does not chain myclash-fail2ban-staff@docker.',
+  ]);
+});
+
+// The admin twin exists only to keep that path on the admin allow-list. Chained
+// with the public geoblock it still answers, still bans, and has silently
+// widened the country filter — invisible to any probe that reads status codes.
+test('an expected router on the wrong geoblock instance fails', () => {
+  const errors = routerVerdicts(
+    liveRouters({
+      'myclash-staff-auth-admin@docker': {
+        middlewares: [
+          'myclash-geoblock-public@file',
+          'myclash-fail2ban-staff@docker',
+          ...CHAIN_TAIL,
+        ],
+      },
+    }),
+    EXPECTED_ROUTERS.prod,
+  );
+  assert.deepEqual(errors, [
+    'router myclash-staff-auth-admin@docker does not chain myclash-geoblock-admin@file.',
+  ]);
+});
+
+// Existing and enabled is not the same as winning. A jail router that loses the
+// match protects nothing, and the design rests on 50 > 40 > 30 > 22.
+test('an expected router that loses the priority match fails', () => {
+  const errors = routerVerdicts(
+    liveRouters({ 'myclash-staff-auth@docker': { priority: 20 } }),
+    EXPECTED_ROUTERS.prod,
+  );
+  assert.ok(
+    errors.some((e) =>
+      /myclash-staff-auth@docker \(priority 20\) does not outrank myclash-api@docker \(priority 22\)/.test(
+        e,
+      ),
+    ),
+    errors.join('\n'),
+  );
+});
+
+// Renaming the rival would otherwise delete the comparison silently and leave
+// this table green forever — the same rot EXPECTED_MIDDLEWARES guards against.
+test('an absent outranks target is an error, so the table cannot rot green', () => {
+  const errors = routerVerdicts(
+    liveRouters({ absent: ['myclash-public-api@docker'] }),
+    EXPECTED_ROUTERS.prod,
+  );
+  assert.deepEqual(errors, [
+    'router myclash-public-api@docker is absent, so myclash-staff-auth@docker cannot be proven ' +
+      'to outrank it — the expectation was written against a router that no longer exists.',
+  ]);
+});
+
+// One fault, one line: the generic router sweep and the named-router pass both
+// report a build failure, in the same words.
+test('deep mode does not print a failed expected router twice', () => {
+  const errors = deepVerdicts(
+    enabledMiddlewares(),
+    [...routersUsingAll(), ...liveRouters({ 'myclash-staff-auth@docker': { status: 'disabled' } })],
+    EXPECTED_ROUTERS.prod,
+  );
+  assert.deepEqual(errors, ['router myclash-staff-auth@docker is disabled']);
+});
+
 test('reads the TRAEFIK_PLUGINS kill-switch, defaulting to on', () => {
   assert.equal(pluginsDisabled({}), false);
   assert.equal(pluginsDisabled({ TRAEFIK_PLUGINS: 'on' }), false);
@@ -170,6 +377,23 @@ test('deep mode against prod refuses to run without the dashboard password', () 
   assert.equal(
     dashboardAuthHeader({ TRAEFIK_DASHBOARD_PASSWORD: 'pw', TRAEFIK_DASHBOARD_USER: 'ops' }),
     `Basic ${Buffer.from('ops:pw').toString('base64')}`,
+  );
+});
+
+// TRAEFIK_DASHBOARD_AUTH is the credential Traefik checks, so its user half is
+// the truth. Defaulting blind to `admin` turns an operator who renamed it into
+// a 401 on every deploy. The `$$` Compose escaping is confined to the hash.
+test('the dashboard user comes from TRAEFIK_DASHBOARD_AUTH when not set explicitly', () => {
+  assert.equal(
+    dashboardAuthHeader({
+      TRAEFIK_DASHBOARD_PASSWORD: 'pw',
+      TRAEFIK_DASHBOARD_AUTH: 'ops:$$2y$$05$$hash',
+    }),
+    `Basic ${Buffer.from('ops:pw').toString('base64')}`,
+  );
+  assert.equal(
+    dashboardAuthHeader({ TRAEFIK_DASHBOARD_PASSWORD: 'pw', TRAEFIK_DASHBOARD_AUTH: '' }),
+    `Basic ${Buffer.from('admin:pw').toString('base64')}`,
   );
 });
 
