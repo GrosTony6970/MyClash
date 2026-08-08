@@ -499,20 +499,50 @@ export default function ParticipantsPage() {
     setAddError(null);
     const hemaRatingsId = addForm.hemaRatingsId.trim() || null;
     try {
-      const personRes = await fetch(`${apiUrl}/api/v1/events/${eventId}/persons`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({
-          givenName: addForm.givenName.trim(),
-          familyName: addForm.familyName.trim(),
-          email: addForm.email.trim() || null,
-          clubId: selectedClubId || null,
-          newClubName: newClubName || null,
-          hemaRatingsId,
-          globalPersonId: selectedGlobalId || null,
-        }),
-      });
+      // The API refuses a same-name entry that carries no email, because with
+      // no email there is nothing else to tell two people apart. It is a
+      // suspicion, not a fact, so the refusal is resolvable: confirm once and
+      // re-send. `details.resolution` is the API saying which flag clears it.
+      async function postPerson(allowDuplicateName: boolean): Promise<Response> {
+        return fetch(`${apiUrl}/api/v1/events/${eventId}/persons`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({
+            givenName: addForm.givenName.trim(),
+            familyName: addForm.familyName.trim(),
+            email: addForm.email.trim() || null,
+            clubId: selectedClubId || null,
+            newClubName: newClubName || null,
+            hemaRatingsId,
+            globalPersonId: selectedGlobalId || null,
+            ...(allowDuplicateName ? { allowDuplicateName: true } : {}),
+          }),
+        });
+      }
+
+      let personRes = await postPerson(false);
+      if (personRes.status === 409) {
+        const body = (await personRes.json()) as {
+          message?: string;
+          details?: { resolution?: string };
+        };
+        if (body.details?.resolution !== 'allowDuplicateName') {
+          throw new Error(body.message ?? t('admin.common.createParticipantFailed'));
+        }
+        const confirmed = await confirm({
+          title: t('admin.orgPersons.duplicateNameTitle'),
+          description: t('admin.orgPersons.duplicateNameBody', {
+            name: `${addForm.givenName.trim()} ${addForm.familyName.trim()}`,
+          }),
+          confirmLabel: t('admin.orgPersons.duplicateNameConfirm'),
+        });
+        if (!confirmed) {
+          setAddSaving(false);
+          return;
+        }
+        personRes = await postPerson(true);
+      }
       if (!personRes.ok) {
         const body = (await personRes.json()) as { message?: string };
         throw new Error(body.message ?? t('admin.common.createParticipantFailed'));

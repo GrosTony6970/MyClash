@@ -20,6 +20,7 @@ import { GlobalPersonResolverService } from '../identity/global-person-resolver.
 import { replaceFighterWeaponsFromCell } from '../fighters/weapon-import.util';
 import { CsvImportService } from './csv-import.service';
 import type { CsvRow } from './csv-import.service';
+import { detectDuplicate, personNameKey } from './duplicate-guard';
 import type { CreatePersonDto, UpdatePersonDto } from './dto/persons.dto';
 
 @Injectable()
@@ -101,20 +102,39 @@ export class PersonsService {
 
     const email = dto.email ? dto.email.toLowerCase().trim() : null;
 
-    // Check email uniqueness within event when email is provided
-    if (email) {
-      const { data: existing } = await this.supabase.service
-        .from('persons')
-        .select('id')
-        .eq('event_id', eventId)
-        .ilike('email', email)
-        .maybeSingle();
+    // Same rule as the CSV import, shared in duplicate-guard.ts: the email
+    // decides when there is one, the name only when there is not. Before this,
+    // the import caught a repeated name and the manual add did not, so the same
+    // organizer typing the same email-less fighter twice got two roster rows.
+    //
+    // `.limit(1)` on a list, never `.maybeSingle()` — maybeSingle NULLS its data
+    // on multiple rows, so the name lookup (which can legitimately match several
+    // people) would report "no duplicate" precisely when there are the most.
+    const emailMatch = email ? await this.rosterMatchesEmail(eventId, email) : false;
+    const nameMatch = email
+      ? false
+      : await this.rosterMatchesName(eventId, dto.givenName, dto.familyName);
 
-      if (existing) {
+    switch (detectDuplicate({ hasEmail: email !== null, emailMatch, nameMatch })) {
+      case 'email':
         throw new ConflictException(
-          `A person with email ${this.csv.maskEmail(email)} already exists in this event`,
+          `A person with email ${this.csv.maskEmail(email as string)} already exists in this event`,
         );
-      }
+      case 'name':
+        // A name match is a suspicion, not a fact — two real fighters can share
+        // a name, and with no email there is nothing else to tell them apart.
+        // So this is overridable: the client re-sends with allowDuplicateName
+        // once the organizer confirms. `details.resolution` is how it knows the
+        // conflict is resolvable (the exception filter preserves extra keys).
+        if (!dto.allowDuplicateName) {
+          throw new ConflictException({
+            message: `${dto.givenName} ${dto.familyName} is already on this event's roster with no email. Add them anyway?`,
+            resolution: 'allowDuplicateName',
+          });
+        }
+        break;
+      default:
+        break;
     }
 
     // Reject re-linking the same global profile to an event row twice. The
@@ -266,16 +286,21 @@ export class PersonsService {
     }
 
     for (const row of rows) {
-      const nameKey = this.nameKey(row.given_name, row.family_name);
+      const nameKey = personNameKey(row.given_name, row.family_name);
       const emailKey = row.email?.toLowerCase();
 
-      // Duplicate detection: email first, then name
-      const isDuplicateByEmail =
-        emailKey && (existingByEmail.has(emailKey) || batchEmails.has(emailKey));
-      const isDuplicateByName =
-        !emailKey && (existingByName.has(nameKey) || batchNames.has(nameKey));
+      // Shared rule (duplicate-guard.ts): the email decides when there is one,
+      // the name only when there is not. `batch*` extends the roster with rows
+      // earlier in this same file, so a CSV that repeats someone self-detects.
+      const duplicate = detectDuplicate({
+        hasEmail: Boolean(emailKey),
+        emailMatch: Boolean(
+          emailKey && (existingByEmail.has(emailKey) || batchEmails.has(emailKey)),
+        ),
+        nameMatch: existingByName.has(nameKey) || batchNames.has(nameKey),
+      });
 
-      if (isDuplicateByEmail || isDuplicateByName) {
+      if (duplicate) {
         previewRows.push({
           index: row.rowNumber - 2,
           givenName: row.given_name,
@@ -363,12 +388,16 @@ export class PersonsService {
 
     for (const row of rows) {
       const emailKey = row.email?.toLowerCase();
-      const nameKey = this.nameKey(row.given_name, row.family_name);
+      const nameKey = personNameKey(row.given_name, row.family_name);
       const rowIndex = row.rowNumber - 2;
 
-      const isDuplicate = emailKey ? existingByEmail.has(emailKey) : existingByName.has(nameKey);
+      const duplicate = detectDuplicate({
+        hasEmail: Boolean(emailKey),
+        emailMatch: Boolean(emailKey && existingByEmail.has(emailKey)),
+        nameMatch: existingByName.has(nameKey),
+      });
 
-      if (isDuplicate) {
+      if (duplicate) {
         const ep = emailKey ? existingByEmail.get(emailKey) : existingByName.get(nameKey);
         report.duplicates.push({
           row: row.rowNumber,
@@ -454,6 +483,46 @@ export class PersonsService {
     }>;
   }
 
+  /**
+   * Is this email already on the event's roster?
+   *
+   * A list with `.limit(1)`, not `.maybeSingle()`: maybeSingle returns
+   * `data: null` when the query matches more than one row, which would turn
+   * "definitely a duplicate" into "no duplicate found".
+   */
+  private async rosterMatchesEmail(eventId: string, email: string): Promise<boolean> {
+    const { data } = await this.supabase.service
+      .from('persons')
+      .select('id')
+      .eq('event_id', eventId)
+      .ilike('email', email)
+      .limit(1);
+    return (data?.length ?? 0) > 0;
+  }
+
+  /**
+   * Is this name already on the event's roster?
+   *
+   * Matched on the normalized `personNameKey`, so it has to be done in memory —
+   * PostgREST cannot express "lower(given)||' '||lower(family) = x". The roster
+   * is one event's people (hundreds, not millions) and this runs once per manual
+   * add, which is a human typing.
+   */
+  private async rosterMatchesName(
+    eventId: string,
+    givenName: string,
+    familyName: string,
+  ): Promise<boolean> {
+    const key = personNameKey(givenName, familyName);
+    const { data } = await this.supabase.service
+      .from('persons')
+      .select('given_name, family_name')
+      .eq('event_id', eventId);
+    return (data ?? []).some(
+      (p) => personNameKey(p.given_name as string, p.family_name as string) === key,
+    );
+  }
+
   private indexByEmail(
     persons: Array<{ id: string; email: string | null; given_name: string; family_name: string }>,
   ) {
@@ -481,7 +550,7 @@ export class PersonsService {
       { id: string; email: string | null; givenName: string; familyName: string }
     >();
     for (const p of persons) {
-      map.set(this.nameKey(p.given_name, p.family_name), {
+      map.set(personNameKey(p.given_name, p.family_name), {
         id: p.id,
         email: p.email,
         givenName: p.given_name,
@@ -489,10 +558,6 @@ export class PersonsService {
       });
     }
     return map;
-  }
-
-  private nameKey(givenName: string, familyName: string): string {
-    return `${givenName.toLowerCase().trim()} ${familyName.toLowerCase().trim()}`;
   }
 
   /** Read-only club resolution for preview (no DB writes). */

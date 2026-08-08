@@ -23,6 +23,10 @@ export const createPersonSchema = z
     genderCategory: z.string().nullable().optional(),
     notes: z.string().max(2000).nullable().optional(),
     globalPersonId: z.uuid().nullable().optional(),
+    // Confirms a suspected same-name duplicate. Only consulted when the entry
+    // carries no email — with one, the email is the identity and a shared name
+    // is not a conflict at all. See duplicate-guard.ts.
+    allowDuplicateName: z.boolean().optional(),
   })
   .strict()
   // `!= null` treats both null and undefined as "no club name" so picking an

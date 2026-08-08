@@ -2154,6 +2154,10 @@ export const en = {
       saving: 'Saving…',
       saveChanges: 'Save changes',
       toastAddedToTournaments: 'Added {name} to {count} tournament(s).',
+      duplicateNameTitle: 'Someone with this name is already on the roster',
+      duplicateNameBody:
+        '{name} is already entered for this event, with no email address to tell them apart. Add them anyway?',
+      duplicateNameConfirm: 'Add anyway',
       toastProfileUpdated: 'Profile and tournament assignments updated.',
       toastRemovedParticipants: 'Removed {count} participant(s).',
       confirmCheckIn: 'Check in {count} participant(s)?',
@@ -9628,6 +9632,10 @@ export const fr = {
       saving: 'Enregistrement…',
       saveChanges: 'Enregistrer les modifications',
       toastAddedToTournaments: '{name} ajoute a {count} tournoi(s).',
+      duplicateNameTitle: 'Une personne de ce nom est deja sur la liste',
+      duplicateNameBody:
+        '{name} est deja inscrit a cet evenement, sans adresse e-mail permettant de les distinguer. Ajouter quand meme ?',
+      duplicateNameConfirm: 'Ajouter quand meme',
       toastProfileUpdated: 'Profil et inscriptions aux tournois mis a jour.',
       toastRemovedParticipants: '{count} participant(s) retire(s).',
       confirmCheckIn: 'Pointer {count} participant(s) ?',
