@@ -5,6 +5,7 @@ import { useToast } from '@myclash/ui';
 import { localeToBcp47, type AppLocale } from '@myclash/time';
 import { useI18n } from '../../../src/i18n/I18nProvider';
 import { getPublicApiUrl } from '@/lib/api-url';
+import { formatBytes } from '@/lib/format-bytes';
 import { RuntimeHealthTrend } from './RuntimeHealthTrend';
 
 type MetricStatus = 'healthy' | 'warning' | 'critical' | 'unavailable';
@@ -91,18 +92,6 @@ function StatusPill({ t, status }: { t: Translate; status: MetricStatus }) {
       {statusLabel(t, status)}
     </span>
   );
-}
-
-function formatBytes(bytes: number | undefined): string {
-  if (bytes == null) return '—';
-  const units = ['B', 'KB', 'MB', 'GB', 'TB'];
-  let value = bytes;
-  let i = 0;
-  while (value >= 1024 && i < units.length - 1) {
-    value /= 1024;
-    i += 1;
-  }
-  return `${value.toFixed(value < 10 && i > 0 ? 1 : 0)} ${units[i]}`;
 }
 
 /** Formats a duration in seconds as a compact human string, e.g. "12d 4h" / "3h 20m" / "45m". */

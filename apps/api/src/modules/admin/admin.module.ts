@@ -51,6 +51,8 @@ import { AdminSystemVersionsService } from './system-versions.service';
 import { SystemVersionsAdminController } from './system-versions.controller';
 import { AdminTlsStatusService } from './tls-status.service';
 import { TlsStatusAdminController } from './tls-status.controller';
+import { AdminHostInfoService } from './host-info.service';
+import { HostInfoAdminController } from './host-info.controller';
 import { UsersAdminController } from './users.controller';
 import { WeaponsAdminController } from './weapons/weapons-admin.controller';
 import { WeaponsAdminService } from './weapons/weapons-admin.service';
@@ -69,6 +71,7 @@ import { WeaponsAdminService } from './weapons/weapons-admin.service';
     ExchangeEditRequestsAdminController,
     SystemVersionsAdminController,
     TlsStatusAdminController,
+    HostInfoAdminController,
     BackupsAdminController,
     PlatformAISettingsController,
     PlatformAIKeysController,
@@ -102,6 +105,15 @@ import { WeaponsAdminService } from './weapons/weapons-admin.service';
       inject: [SupabaseService],
     },
     AdminTlsStatusService,
+    {
+      provide: AdminHostInfoService,
+      // useFactory for the same reason as AdminSystemActionsService above: the
+      // constructor takes the service by `import type`, so there is no runtime
+      // token for Nest to resolve from metadata.
+      useFactory: (systemActions: AdminSystemActionsService) =>
+        new AdminHostInfoService(systemActions),
+      inject: [AdminSystemActionsService],
+    },
     { provide: AdminBackupsService, useFactory: () => new AdminBackupsService() },
     PlatformAISettingsService,
     ModelSyncService,

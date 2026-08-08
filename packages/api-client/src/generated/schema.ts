@@ -1580,6 +1580,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  '/api/v1/admin/system/host-info': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Report host identity, CPU, memory and disk capacity */
+    get: operations['HostInfoAdminController_getHostInfo'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   '/api/v1/admin/backups/status': {
     parameters: {
       query?: never;
@@ -13640,6 +13657,23 @@ export interface operations {
     requestBody?: never;
     responses: {
       201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  HostInfoAdminController_getHostInfo: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
         headers: {
           [name: string]: unknown;
         };

@@ -65,6 +65,18 @@ export interface DiskUsageResult {
   usePercent: number;
 }
 
+/** Host identity and capacity as the ops-runner's `GET /host` reports it. */
+export interface HostFactsResult {
+  hostname: string | null;
+  os: string | null;
+  osVersion: string | null;
+  kernelVersion: string | null;
+  architecture: string | null;
+  cpuCount: number | null;
+  memoryTotalBytes: number | null;
+  dockerVersion: string | null;
+}
+
 type FetchLike = typeof fetch;
 
 export interface AdminSystemActionsServiceOptions {
@@ -74,6 +86,10 @@ export interface AdminSystemActionsServiceOptions {
 }
 
 const DEFAULT_OPS_TIMEOUT_MS = 35_000; // ops-runner kills at 30s; give it slack
+// Host facts are a read, not an operation: the sidecar kills `docker info` at
+// 5s, so a longer budget here would only turn a fast, clear failure into a slow
+// one on a panel the operator is watching load.
+const HOST_INFO_TIMEOUT_MS = 8_000;
 
 @Injectable()
 export class AdminSystemActionsService {
@@ -240,6 +256,48 @@ export class AdminSystemActionsService {
       usedBytes: body.usedBytes,
       availBytes: body.availBytes,
       usePercent: body.usePercent,
+    };
+  }
+
+  /**
+   * Read-only host identity and capacity via the ops-runner's GET /host route.
+   *
+   * Throws like `getDiskUsage()` rather than degrading here: this class is the
+   * ops-runner client and its job is to report what the sidecar said. Deciding
+   * that a missing hostname is tolerable is the caller's call, and
+   * `AdminHostInfoService` makes it.
+   */
+  async getHostFacts(): Promise<HostFactsResult> {
+    if (!this.opsRunnerUrl || !this.opsRunnerSecret) {
+      throw new ServiceUnavailableException('Host details require the ops-runner sidecar.');
+    }
+    let response: Response;
+    try {
+      response = await this.fetchImpl(`${this.opsRunnerUrl}/host`, {
+        method: 'GET',
+        headers: { authorization: `Bearer ${this.opsRunnerSecret}` },
+        signal: AbortSignal.timeout(HOST_INFO_TIMEOUT_MS),
+      });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'ops-runner request failed';
+      throw new ServiceUnavailableException(message);
+    }
+    if (!response.ok) {
+      const message = await response.text().catch(() => '');
+      throw new ServiceUnavailableException(
+        message || `ops-runner returned ${response.status} for host details.`,
+      );
+    }
+    const body = (await response.json()) as Partial<HostFactsResult>;
+    return {
+      hostname: body.hostname ?? null,
+      os: body.os ?? null,
+      osVersion: body.osVersion ?? null,
+      kernelVersion: body.kernelVersion ?? null,
+      architecture: body.architecture ?? null,
+      cpuCount: body.cpuCount ?? null,
+      memoryTotalBytes: body.memoryTotalBytes ?? null,
+      dockerVersion: body.dockerVersion ?? null,
     };
   }
 

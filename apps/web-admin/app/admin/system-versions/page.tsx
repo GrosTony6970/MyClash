@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { ConfirmDialog, useToast } from '@myclash/ui';
 import { localeToBcp47, type AppLocale } from '@myclash/time';
 import { useI18n } from '../../../src/i18n/I18nProvider';
+import { HostInfoCard } from './HostInfoCard';
 import { TlsCertificatesCard } from './TlsCertificatesCard';
 import { RuntimeHealthCard } from './RuntimeHealthCard';
 import { getPublicApiUrl } from '@/lib/api-url';
@@ -374,6 +375,11 @@ export default function AdminSystemVersionsPage() {
                 </section>
               );
             })}
+          </div>
+          {/* First of the three cards: which machine this all runs on frames
+              everything below it, and unlike them it never fails outright. */}
+          <div className="mt-5">
+            <HostInfoCard />
           </div>
           <div className="mt-5">
             <TlsCertificatesCard />

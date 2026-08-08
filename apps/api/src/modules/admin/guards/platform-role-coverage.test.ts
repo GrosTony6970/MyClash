@@ -49,6 +49,7 @@ import { ReviewQueueController } from '../review-queue.controller';
 import { RuntimeHealthAdminController } from '../runtime-health.controller';
 import { SystemVersionsAdminController } from '../system-versions.controller';
 import { TlsStatusAdminController } from '../tls-status.controller';
+import { HostInfoAdminController } from '../host-info.controller';
 import { UsersAdminController } from '../users.controller';
 import { WeaponsAdminController } from '../weapons/weapons-admin.controller';
 import { ClubsController } from '../../clubs/clubs.controller';
@@ -82,6 +83,7 @@ const CONTROLLERS: Ctor[] = [
   RuntimeHealthAdminController,
   SystemVersionsAdminController,
   TlsStatusAdminController,
+  HostInfoAdminController,
   UsersAdminController,
   WeaponsAdminController,
   ClubsController,
@@ -147,6 +149,7 @@ const EXPECTED = new Map<string, PlatformRole>([
   ['GET /admin/system/runtime-health/series', 'platform_viewer'],
   ['GET /admin/system/runtime-health/alert-settings', 'platform_viewer'],
   ['GET /admin/system/tls-status', 'platform_viewer'],
+  ['GET /admin/system/host-info', 'platform_viewer'],
   ['GET /admin/users', 'platform_viewer'],
   ['GET /admin/users/:id', 'platform_viewer'],
   ['GET /admin/users/:id/temp-password', 'super_admin'],
