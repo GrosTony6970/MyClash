@@ -37,6 +37,7 @@ import { EventThemesService } from './event-themes.service';
 import { Public } from '../../common/auth/public.decorator';
 import { AllowOnArchivedEvent } from '../../common/event-readonly/allow-on-archived.decorator';
 import { EventsService } from './events.service';
+import { ClockReconciliationService } from './clock-reconciliation.service';
 
 async function getUserId(req: FastifyRequest, supabase: SupabaseService): Promise<string> {
   const authHeader = req.headers['authorization'];
@@ -56,6 +57,7 @@ export class EventsController {
     private readonly events: EventsService,
     private readonly supabase: SupabaseService,
     private readonly eventThemes: EventThemesService,
+    private readonly clockReconciliation: ClockReconciliationService,
   ) {}
 
   // ── Events ───────────────────────────────────────────────────────────────────
@@ -92,6 +94,28 @@ export class EventsController {
   ) {
     const userId = await getUserId(req, this.supabase);
     return this.events.getEventReadiness(eventId, userId);
+  }
+
+  /**
+   * GET /api/v1/events/:eventId/clock-reconciliation
+   *
+   * Can the timings on this event's results be trusted? Same `scorekeeper` bar
+   * as readiness — this is organiser detail about their own event's equipment.
+   */
+  @Get('events/:eventId/clock-reconciliation')
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: "Per-tablet clock confidence for an event's recorded timings",
+    description:
+      "Compares each scoring tablet's heartbeat skew and its exchanges' tablet-stamped times against server-stamped bout envelopes. Queue lag is reported separately from clock skew.",
+  })
+  @ApiParam({ name: 'eventId', type: 'string', format: 'uuid' })
+  async getClockReconciliation(
+    @Param('eventId', ParseUUIDPipe) eventId: string,
+    @Req() req: FastifyRequest,
+  ) {
+    const userId = await getUserId(req, this.supabase);
+    return this.clockReconciliation.getReport(eventId, userId);
   }
 
   /** GET /api/v1/events/:eventId/clubs?scope=all|event&q=... */

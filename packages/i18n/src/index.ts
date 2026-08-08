@@ -5293,6 +5293,26 @@ export const en = {
       logoWrongType: 'Logo must be a PNG, JPEG, or WebP image.',
       logoEmpty: 'No logo uploaded yet.',
     },
+    clockReport: {
+      navLabel: 'Clock check',
+      back: 'Event',
+      title: 'Clock check',
+      subtitle: 'Whether the times recorded against this event can be trusted.',
+      loading: 'Checking the tablets...',
+      loadError: 'Could not load the clock report.',
+      noStaff: 'No scoring tablets configured for this event.',
+      allClear: 'Every tablet reported a clock within tolerance.',
+      needsAttention: '{count} tablet(s) need a look.',
+      measured: 'Clock {skew} against the server · {exchanges} hit(s) recorded.',
+      syncLag:
+        'Slowest hit waited {lag} to reach the server. That is the outbox working, not a clock problem.',
+      outOfEnvelope: '{count} hit(s) timestamped outside their own bout.',
+      confidence: {
+        ok: 'Trusted',
+        skewed: 'Clock is off',
+        unmeasured: 'Not measured',
+      },
+    },
     startOfDay: {
       navLabel: 'Start of day',
       back: 'Event',
@@ -12953,6 +12973,26 @@ export const fr = {
       logoTooLarge: 'Le logo doit faire 10 Mo maximum.',
       logoWrongType: 'Le logo doit etre une image PNG, JPEG ou WebP.',
       logoEmpty: 'Aucun logo televerse.',
+    },
+    clockReport: {
+      navLabel: 'Controle horloge',
+      back: 'Evenement',
+      title: 'Controle horloge',
+      subtitle: 'Si les horaires enregistres pour cet evenement sont fiables.',
+      loading: 'Verification des tablettes...',
+      loadError: 'Impossible de charger le rapport horloge.',
+      noStaff: 'Aucune tablette de saisie configuree pour cet evenement.',
+      allClear: 'Toutes les tablettes ont annonce une horloge dans la tolerance.',
+      needsAttention: '{count} tablette(s) a verifier.',
+      measured: 'Horloge {skew} par rapport au serveur - {exchanges} touche(s) enregistree(s).',
+      syncLag:
+        'La touche la plus lente a mis {lag} a atteindre le serveur. C est la file d attente qui fonctionne, pas un probleme d horloge.',
+      outOfEnvelope: '{count} touche(s) horodatee(s) en dehors de leur propre assaut.',
+      confidence: {
+        ok: 'Fiable',
+        skewed: 'Horloge decalee',
+        unmeasured: 'Non mesuree',
+      },
     },
     startOfDay: {
       navLabel: 'Debut de journee',

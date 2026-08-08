@@ -81,6 +81,9 @@ export const EVENT_NAV_GROUPS: readonly EventNavGroup[] = [
         labelKey: 'organizer.eventHub.sections.statistics',
         icon: 'statistics',
       },
+      // Beside the results it qualifies: the report says whether the timings
+      // attached to them can be trusted.
+      { href: 'clock', labelKey: 'organizer.clockReport.navLabel', icon: 'clockReport' },
     ],
   },
   {

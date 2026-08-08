@@ -10,6 +10,7 @@ import { RulesetHashModule } from '../ruleset-hash/ruleset-hash.module';
 import { EventsController } from './events.controller';
 import { EventThemesService } from './event-themes.service';
 import { EventsService } from './events.service';
+import { ClockReconciliationService } from './clock-reconciliation.service';
 
 @Module({
   imports: [
@@ -30,7 +31,7 @@ import { EventsService } from './events.service';
     RulesetHashModule,
   ],
   controllers: [EventsController],
-  providers: [EventsService, EventThemesService],
+  providers: [EventsService, EventThemesService, ClockReconciliationService],
   exports: [EventsService, EventThemesService],
 })
 export class EventsModule {}

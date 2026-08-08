@@ -6131,6 +6131,26 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  '/api/v1/events/{eventId}/clock-reconciliation': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Per-tablet clock confidence for an event's recorded timings
+     * @description Compares each scoring tablet's heartbeat skew and its exchanges' tablet-stamped times against server-stamped bout envelopes. Queue lag is reported separately from clock skew.
+     */
+    get: operations['EventsController_getClockReconciliation'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   '/api/v1/events/{eventId}/clubs': {
     parameters: {
       query?: never;
@@ -20229,6 +20249,25 @@ export interface operations {
     };
   };
   EventsController_getEventReadiness: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        eventId: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  EventsController_getClockReconciliation: {
     parameters: {
       query?: never;
       header?: never;
