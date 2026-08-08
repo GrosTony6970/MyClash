@@ -127,15 +127,11 @@ export const SUBJECT_EXPORT_TABLES: Readonly<Record<string, SubjectTableSpec>> =
     file: 'events.csv',
   },
   event_arrivals: {
-    // That the subject was physically present at a named venue on a named day,
-    // at a recorded time, and by which route (searched for at the desk, or
-    // scanned in). Location-and-time data about an identified person is
-    // squarely Art. 15 material — more so than most of what is already here —
-    // and the fact that it is operational to US has no bearing on that.
-    //
-    // Exported even though the event ARCHIVE excludes it: the two lists answer
-    // different questions. Archive asks "is this part of the event record";
-    // this asks "do we hold data about this person".
+    // That the subject was physically at a named venue on a named day, at a
+    // recorded time. Location-and-time data about an identified person is
+    // squarely Art. 15 material. Exported even though the event ARCHIVE
+    // excludes it — archive asks "is this part of the event record", this asks
+    // "do we hold data about this person".
     reaches: [{ column: 'person_id', reach: 'person' }],
     file: 'events.csv',
   },
