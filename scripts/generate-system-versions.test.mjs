@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { mkdir, mkdtemp, readFile, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, open, readFile, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
@@ -82,4 +82,46 @@ test('generates system version metadata from app manifests and production compos
 
   const written = JSON.parse(await readFile(outputPath, 'utf8'));
   assert.deepEqual(written, result);
+});
+
+test('rewrites the manifest in place so an already-open handle sees the update', async () => {
+  // Load-bearing, and invisible from this file alone: infra/docker-compose.prod.yml
+  // bind-mounts the manifest FILE (not its directory) into the api container. A
+  // bind mount pins the inode, so switching this writer to the temp-file +
+  // rename pattern used elsewhere in the repo (infra/ops-runner/server.mjs writes
+  // backup-history.json that way) would leave the container reading a dead inode
+  // forever — the admin board would freeze on the previous deploy's metadata with
+  // nothing failing anywhere. Truncate-in-place is the contract.
+  const rootDir = await mkdtemp(path.join(tmpdir(), 'myclash-system-versions-inode-'));
+  await writeFile(path.join(rootDir, 'VERSION'), 'v1.0.0\n');
+  const outputPath = path.join(rootDir, 'data', 'system-versions.json');
+
+  await generateSystemVersions({
+    rootDir,
+    outputPath,
+    now: () => new Date('2026-05-05T09:00:00.000Z'),
+    deploy: { deployedCommit: 'aaaaaaa' },
+  });
+  const before = await stat(outputPath);
+
+  // Hold a descriptor across the rewrite, the way the container holds the mount.
+  const handle = await open(outputPath, 'r');
+  try {
+    await generateSystemVersions({
+      rootDir,
+      outputPath,
+      now: () => new Date('2026-05-05T10:00:00.000Z'),
+      deploy: { deployedCommit: 'bbbbbbb' },
+    });
+
+    const seenThroughOldHandle = JSON.parse(await handle.readFile('utf8'));
+    assert.equal(seenThroughOldHandle.deploy.deployedCommit, 'bbbbbbb');
+    assert.equal(seenThroughOldHandle.generatedAt, '2026-05-05T10:00:00.000Z');
+  } finally {
+    await handle.close();
+  }
+
+  // Windows reports ino 0 on some filesystems; only assert when it is meaningful.
+  const after = await stat(outputPath);
+  if (before.ino !== 0) assert.equal(after.ino, before.ino);
 });

@@ -1923,6 +1923,7 @@ for (const expected of [
 ]) {
   requireContains(composeText, 'infra/docker-compose.prod.yml', expected);
 }
+assertManifestMountMatchesGenerator(deployText, 'infra/scripts/deploy.sh');
 for (const expected of [
   'parseComposeImages',
   "process.env['GIT_COMMIT']",
@@ -2518,6 +2519,57 @@ function parseServices(text) {
 
 function requireContains(text, serviceName, expected) {
   if (!text.includes(expected)) errors.push(`${serviceName} is missing ${expected}`);
+}
+
+/**
+ * The api container reads its deploy manifest through a bind mount; the deploy
+ * scripts write that file from the repo root. Those two paths must resolve to
+ * the same file — and they are resolved against DIFFERENT bases, which is why
+ * they silently disagreed for as long as they did.
+ *
+ * Compose resolves a relative bind source against its *project directory*,
+ * which defaults to the directory of the first `-f` file (`infra/`), not the
+ * directory the script was invoked from. So `./data/system-versions.json` in
+ * the compose file meant `infra/data/system-versions.json` while deploy.sh
+ * wrote `<root>/data/system-versions.json`. Compose then created a DIRECTORY at
+ * the missing source, the API's EISDIR guard degraded to its fallback manifest,
+ * and the admin board reported "unknown" for the deploy date, the deployer and
+ * the backup file with no error anywhere. Repo-root paths must use `../`.
+ *
+ * `generatorText` is whichever file owns the `--output` argument — deploy.sh
+ * today, the shared shell lib once the writer has one owner.
+ */
+function assertManifestMountMatchesGenerator(generatorText, generatorLabel) {
+  const apiService = services.get('api');
+  if (!apiService) {
+    errors.push('infra/docker-compose.prod.yml must define an api service.');
+    return;
+  }
+  const mountMatch = /^\s*-\s*(\S+?):\/app\/data\/system-versions\.json(?::[a-z,]+)?\s*$/mu.exec(
+    apiService,
+  );
+  if (!mountMatch) {
+    errors.push(
+      'infra/docker-compose.prod.yml api service must bind-mount the deploy manifest at /app/data/system-versions.json.',
+    );
+    return;
+  }
+  const outputMatch = /generate-system-versions\.mjs[\s\S]{0,400}?--output\s+(\S+)/u.exec(
+    generatorText,
+  );
+  if (!outputMatch) {
+    errors.push(`${generatorLabel} must pass --output to scripts/generate-system-versions.mjs.`);
+    return;
+  }
+  const mounted = path.resolve(path.join(rootDir, 'infra'), mountMatch[1]);
+  const written = path.resolve(rootDir, outputMatch[1]);
+  if (mounted !== written) {
+    errors.push(
+      `The api deploy-manifest mount resolves to ${mounted} but ${generatorLabel} writes ${written}. ` +
+        "Compose resolves relative bind sources against infra/ (the first -f file's directory), " +
+        'not the repo root — use ../ for repo-root paths.',
+    );
+  }
 }
 
 function escapeRegExp(value) {

@@ -580,9 +580,22 @@ services:
     depends_on:
       db: { condition: service_healthy }
       redis: { condition: service_healthy }
+    # Compose's project directory is the directory of the FIRST -f file, i.e.
+    # infra/ — not the repo root the deploy scripts run from. So `./x` here means
+    # infra/x and `../x` means the repo root. That mismatch is not theoretical: the
+    # manifest mount below used to read `./data/system-versions.json`, so Compose
+    # bound infra/data/system-versions.json while deploy.sh wrote the file at the
+    # repo root. Compose auto-created a DIRECTORY at the missing source, the API's
+    # EISDIR guard degraded to its fallback manifest, and the board reported
+    # "unknown" for the deploy date, deployer and backup file with nothing failing.
+    # Runtime state written by the deploy scripts (this manifest, backups/,
+    # .last-deploy.json) lives at the repo root — hence `../`, the same idiom
+    # `context: ../` and the ops-runner's `../:/srv/myclash` already use.
+    # `./logs/api` stays as-is deliberately: nothing reads it (the API logs to
+    # stdout), so pointing it elsewhere would be churn.
     volumes:
       - ./logs/api:/app/logs
-      - ./data/system-versions.json:/app/data/system-versions.json:ro
+      - ../data/system-versions.json:/app/data/system-versions.json:ro
     networks: [myclash]
     mem_limit: 1g
     cpus: 2
