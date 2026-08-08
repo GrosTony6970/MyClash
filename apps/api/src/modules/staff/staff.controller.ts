@@ -15,6 +15,7 @@ import {
 import { ApiBearerAuth, ApiBody, ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import type { FastifyReply, FastifyRequest } from 'fastify';
+import { ThrottleByStaffAccount } from '../../common/throttling/throttle-by-staff-account';
 import {
   ADMIN_READ_THROTTLE,
   CATALOG_READ_THROTTLE,
@@ -187,6 +188,11 @@ export class StaffController {
   @Public()
   @Post('staff-auth/login')
   @HttpCode(HttpStatus.OK)
+  // Keyed on (event, username), never req.ip — a venue shares one NAT address,
+  // so an IP bucket would ban the hall while a distributed attacker stayed
+  // under it. Without this the ceiling is the global 120/min ≈ 7,200 guesses
+  // an hour, which is a week's work against a 6-digit PIN.
+  @ThrottleByStaffAccount()
   @ApiOperation({ summary: 'Create a local event staff session' })
   async login(@Body() dto: StaffLoginDto, @Res({ passthrough: true }) reply: FastifyReply) {
     const result = await this.staff.login(dto);

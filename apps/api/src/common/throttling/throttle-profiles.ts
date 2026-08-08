@@ -44,6 +44,26 @@ export const AUTH_EMAIL_THROTTLE = {
   ttl: 3_600_000,
 } as const;
 
+/**
+ * Staff PIN login attempts per hour per (event, username), across every staff
+ * login surface (see ThrottleByStaffAccount).
+ *
+ * The staff pad's login carries no @Throttle override, so before this its only
+ * ceiling was the global 120/min ≈ 7,200 guesses an hour — enough to walk a
+ * 6-digit PIN in under a week. The Traefik `-staff` fail2ban jail cuts that to
+ * ~360/h, but only on the one router that carries it, and only for attackers
+ * who exceed the app limit and start collecting 429s.
+ *
+ * Same shape and same reasoning as AUTH_EMAIL_THROTTLE: the per-IP limit bounds
+ * one IP across all accounts, this bounds one account across all IPs. Matched
+ * to it at 10/h deliberately — a referee who has fumbled ten PINs in an hour
+ * needs the organizer, not another attempt.
+ */
+export const STAFF_PIN_THROTTLE = {
+  limit: 10,
+  ttl: 3_600_000,
+} as const;
+
 export const SIGNUP_ACTION_THROTTLE = {
   global: { limit: 5, ttl: 3_600_000 },
 } as const;
