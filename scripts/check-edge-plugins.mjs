@@ -59,7 +59,7 @@ export const PROD_PROBES = [
     // API_GLOBAL_PREFIX_EXCLUDE, so it answers only on the api. host that
     // Traefik routes wholesale, and 404s on the three PathPrefix(/api/v1)
     // hosts. /version was deliberately put under the prefix for this reason.
-    host: (domain) => `scoring.${domain}`,
+    host: (domain) => `staff.${domain}`,
     path: '/api/v1/version',
     middlewares: 'myclash-geoblock-public + myclash-fail2ban-staff',
     expect: 'hsts',

@@ -478,8 +478,8 @@ jobs:
             dockerfile: apps/web-admin/Dockerfile
           - image: myclash-web-public
             dockerfile: apps/web-public/Dockerfile
-          - image: myclash-web-scoring
-            dockerfile: apps/web-scoring/Dockerfile
+          - image: myclash-web-staff
+            dockerfile: apps/web-staff/Dockerfile
     steps:
       - uses: actions/checkout@v4
 

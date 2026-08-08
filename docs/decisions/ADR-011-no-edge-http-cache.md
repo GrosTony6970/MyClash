@@ -49,7 +49,7 @@ spiky but small, and the spike lands on live data.
 
 **No edge HTTP cache at v1.** Caching stays where it already is: the browser (immutable
 `_next/static`, Storage `max-age=3600`), Next.js's own data and route cache, and the
-`web-scoring` service worker.
+`web-staff` service worker.
 
 ## Consequences
 

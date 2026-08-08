@@ -7,7 +7,7 @@
  * can all render the same clock without a shared component.
  *
  * This logic used to live in three divergent copies:
- *   - `apps/web-scoring/src/components/scoreboard-clock.ts` — correct except it
+ *   - `apps/web-staff/src/components/scoreboard-clock.ts` — correct except it
  *     billed a Swiss bout at the BRACKET limit.
  *   - `packages/ui/src/components/MatchScoreboard.tsx` — hardcoded
  *     `timeLimitsSeconds.bracket`, so pool and finals showed the wrong limit.

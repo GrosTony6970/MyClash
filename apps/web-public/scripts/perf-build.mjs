@@ -31,7 +31,7 @@ const PERF_BUILD_ENV = {
   NEXT_PUBLIC_SUPABASE_URL: 'http://localhost:54321',
   NEXT_PUBLIC_SUPABASE_ANON_KEY: 'perf-build-placeholder-anon-key',
   NEXT_PUBLIC_MARKETING_URL: 'http://localhost:3000',
-  NEXT_PUBLIC_SCORING_URL: 'http://localhost:3002',
+  NEXT_PUBLIC_STAFF_URL: 'http://localhost:3002',
 };
 const placeholders = Object.fromEntries(
   Object.entries(PERF_BUILD_ENV).filter(([key]) => !process.env[key]),

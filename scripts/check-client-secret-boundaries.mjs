@@ -2,7 +2,7 @@ import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, relative, sep } from 'node:path';
 
 const root = process.cwd();
-const frontendRoots = ['apps/web-admin', 'apps/web-public', 'apps/web-scoring'];
+const frontendRoots = ['apps/web-admin', 'apps/web-public', 'apps/web-staff'];
 const forbiddenEnvKeys = [
   'SUPABASE_SERVICE_ROLE_KEY',
   'SUPABASE_JWT_SECRET',

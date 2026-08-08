@@ -12,7 +12,7 @@ describe('HTTP security configuration', () => {
     expect(origins).toContain('https://myclash.fr');
     expect(origins).toContain('https://app.myclash.fr');
     expect(origins).toContain('https://admin.myclash.fr');
-    expect(origins).toContain('https://scoring.myclash.fr');
+    expect(origins).toContain('https://staff.myclash.fr');
     expect(origins).not.toContain('*');
   });
 

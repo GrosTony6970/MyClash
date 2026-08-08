@@ -1,4 +1,4 @@
-# apps/web-scoring/Dockerfile
+# apps/web-staff/Dockerfile
 # Multi-stage build for the scorekeeper Next.js PWA (offline-first).
 # Build context: repo root. Requires next.config.ts output: 'standalone'.
 
@@ -12,7 +12,7 @@ WORKDIR /app
 
 FROM base AS deps
 COPY package.json pnpm-workspace.yaml pnpm-lock.yaml ./
-COPY apps/web-scoring/package.json ./apps/web-scoring/
+COPY apps/web-staff/package.json ./apps/web-staff/
 COPY packages/types/package.json ./packages/types/
 COPY packages/ui/package.json ./packages/ui/
 COPY packages/i18n/package.json ./packages/i18n/
@@ -20,7 +20,7 @@ COPY packages/api-client/package.json ./packages/api-client/
 COPY packages/feature-flags/package.json ./packages/feature-flags/
 RUN --mount=type=cache,id=pnpm-store,target=/root/.local/share/pnpm/store \
     pnpm install --frozen-lockfile \
-      --filter @myclash/web-scoring \
+      --filter @myclash/web-staff \
       --filter @myclash/types \
       --filter @myclash/ui \
       --filter @myclash/i18n \
@@ -46,10 +46,10 @@ ARG SENTRY_TRACES_SAMPLE_RATE=0
 # the build stays green.
 ARG SENTRY_AUTH_TOKEN
 # Asset prefix mirrors the Traefik /scoring sub-path mount on both
-# admin.${DOMAIN} and scoring.${DOMAIN}. Must persist into the
+# admin.${DOMAIN} and staff.${DOMAIN}. Must persist into the
 # `next build` invocation so next.config.ts picks it up.
-ARG SCORING_ASSET_PREFIX
-ENV SCORING_ASSET_PREFIX=${SCORING_ASSET_PREFIX}
+ARG STAFF_ASSET_PREFIX
+ENV STAFF_ASSET_PREFIX=${STAFF_ASSET_PREFIX}
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV NEXT_PUBLIC_SENTRY_DSN_SCORING=${NEXT_PUBLIC_SENTRY_DSN_SCORING}
 ENV NEXT_PUBLIC_SENTRY_ENVIRONMENT=${SENTRY_ENVIRONMENT}
@@ -63,7 +63,7 @@ ENV SENTRY_AUTH_TOKEN=${SENTRY_AUTH_TOKEN}
 COPY tsconfig.base.json tsconfig.lib.json ./
 COPY eslint.config.mjs ./
 COPY eslint-rules/ ./eslint-rules/
-COPY apps/web-scoring/ ./apps/web-scoring/
+COPY apps/web-staff/ ./apps/web-staff/
 COPY packages/types/ ./packages/types/
 COPY packages/ui/ ./packages/ui/
 COPY packages/i18n/ ./packages/i18n/
@@ -77,7 +77,7 @@ RUN pnpm --filter @myclash/types build \
  && pnpm --filter @myclash/api-client build \
  && pnpm --filter @myclash/feature-flags build \
  && pnpm --filter @myclash/ui build \
- && pnpm --filter @myclash/web-scoring build
+ && pnpm --filter @myclash/web-staff build
 
 FROM node:${NODE_VERSION}-alpine AS runner
 ENV NODE_ENV=production
@@ -90,9 +90,9 @@ WORKDIR /app
 RUN addgroup --system --gid 1001 nodejs \
  && adduser  --system --uid 1001 nextjs
 
-COPY --from=builder --chown=nextjs:nodejs /app/apps/web-scoring/.next/standalone ./
-COPY --from=builder --chown=nextjs:nodejs /app/apps/web-scoring/.next/static     ./apps/web-scoring/.next/static
-COPY --from=builder --chown=nextjs:nodejs /app/apps/web-scoring/public           ./apps/web-scoring/public
+COPY --from=builder --chown=nextjs:nodejs /app/apps/web-staff/.next/standalone ./
+COPY --from=builder --chown=nextjs:nodejs /app/apps/web-staff/.next/static     ./apps/web-staff/.next/static
+COPY --from=builder --chown=nextjs:nodejs /app/apps/web-staff/public           ./apps/web-staff/public
 # Lock file lets Trivy resolve exact installed versions from pnpm overrides
 COPY --from=builder --chown=nextjs:nodejs /app/pnpm-lock.yaml                  ./pnpm-lock.yaml
 
@@ -104,4 +104,4 @@ ENV HOSTNAME="0.0.0.0"
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
   CMD node -e "require('http').get('http://localhost:3000/api/health',r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))"
 
-CMD ["node", "apps/web-scoring/server.js"]
+CMD ["node", "apps/web-staff/server.js"]

@@ -15,11 +15,11 @@ const servers = [
     url: 'http://localhost:3001',
   },
   {
-    name: 'web-scoring',
+    name: 'web-staff',
     args: [
-      'apps/web-scoring/node_modules/next/dist/bin/next',
+      'apps/web-staff/node_modules/next/dist/bin/next',
       'dev',
-      'apps/web-scoring',
+      'apps/web-staff',
       '--port',
       '3002',
     ],

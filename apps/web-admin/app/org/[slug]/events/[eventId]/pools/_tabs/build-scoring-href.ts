@@ -1,5 +1,5 @@
 /**
- * Build the cross-app URL into the web-scoring app's lice-queue
+ * Build the cross-app URL into the web-staff app's lice-queue
  * page (`/lices/{liceId}`). The lice page shows the lice's current
  * top-of-queue match plus its upcoming queue — the right surface
  * for an operator stationed at a strip all day.
@@ -18,7 +18,7 @@ export function buildScoringHref(scoringBaseUrl: string, liceId: string | null):
 }
 
 /**
- * Build the URL into the web-scoring app's per-match ScoringPad.
+ * Build the URL into the web-staff app's per-match ScoringPad.
  * **Primary** deep-link from any specific match click in the admin
  * (bracket, pools, schedule grid) — lands on `/matches/{matchId}`
  * which fetches the match by id without a lice context, so the
@@ -27,7 +27,7 @@ export function buildScoringHref(scoringBaseUrl: string, liceId: string | null):
  * `scoringBaseUrl` can be a same-origin path prefix (e.g. `/scoring`
  * when the admin proxies the scoring container via Traefik) or a
  * full cross-origin URL. Same-origin avoids the dev-cert prompt that
- * blocks `https://scoring.myclash.fr` fetches.
+ * blocks `https://staff.myclash.fr` fetches.
  *
  * `returnTo` is the admin URL the operator clicked from — the
  * per-match scoring page surfaces it via `?return=` so its back

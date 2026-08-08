@@ -45,7 +45,7 @@ const createExchangeSchema = z
     //
     // Every optional field below is `.nullable()` as well, because the scoring
     // pad sends explicit NULLs for the fields an exchange type does not use:
-    // the outbox drain (`apps/web-scoring/src/offline/sync.ts`, the pad's ONE
+    // the outbox drain (`apps/web-staff/src/offline/sync.ts`, the pad's ONE
     // post path) builds the body with `?? null`. Zod's `.optional()` accepts
     // undefined ONLY, so a clean hit — which carries no afterblow and no
     // no-exchange reason — was rejected with a 400, and the SyncEngine treated

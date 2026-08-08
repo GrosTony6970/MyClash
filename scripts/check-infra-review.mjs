@@ -441,7 +441,7 @@ const dockerfilePaths = [
   'apps/api/Dockerfile',
   'apps/web-admin/Dockerfile',
   'apps/web-public/Dockerfile',
-  'apps/web-scoring/Dockerfile',
+  'apps/web-staff/Dockerfile',
   'apps/web-marketing/Dockerfile',
   'infra/ops-runner/Dockerfile',
 ];
@@ -548,7 +548,7 @@ const requiredServices = [
   'worker',
   'web-public',
   'web-marketing',
-  'web-scoring',
+  'web-staff',
   'web-admin',
   'supabase-meta',
   'supabase-studio',
@@ -845,7 +845,7 @@ for (const serviceName of [
   'api',
   'worker',
   'web-public',
-  'web-scoring',
+  'web-staff',
   'web-admin',
   'web-marketing',
   'db',
@@ -1807,7 +1807,7 @@ requireContains(
   "@Controller('admin/dashboard-stats')",
 );
 
-for (const serviceName of ['api', 'web-public', 'web-scoring', 'web-admin']) {
+for (const serviceName of ['api', 'web-public', 'web-staff', 'web-admin']) {
   const dockerfile = dockerfiles.find((file) =>
     file.filePath.includes(serviceName.replace('web-', 'web-')),
   );
@@ -1848,7 +1848,7 @@ if (apiDockerfile) {
     'COPY --chown=nestjs:nodejs infra/docker-compose.prod.yml ./infra/docker-compose.prod.yml',
     'COPY --chown=nestjs:nodejs apps/web-admin/package.json ./apps/web-admin/package.json',
     'COPY --chown=nestjs:nodejs apps/web-public/package.json ./apps/web-public/package.json',
-    'COPY --chown=nestjs:nodejs apps/web-scoring/package.json ./apps/web-scoring/package.json',
+    'COPY --chown=nestjs:nodejs apps/web-staff/package.json ./apps/web-staff/package.json',
     'COPY --chown=nestjs:nodejs apps/web-marketing/package.json ./apps/web-marketing/package.json',
   ]) {
     requireContains(apiDockerfile.text, apiDockerfile.filePath, expected);
@@ -1964,7 +1964,7 @@ const publicRouters = [
   'myclash-storage',
   'myclash-public',
   'myclash-marketing',
-  'myclash-scoring',
+  'myclash-staff',
   'myclash-admin',
 ];
 for (const router of publicRouters) {
@@ -2212,13 +2212,13 @@ const geoblockRouters = {
   'myclash-admin': 'admin',
   'myclash-admin-api': 'admin',
   'myclash-admin-storage': 'admin',
-  'myclash-admin-scoring': 'admin',
+  'myclash-admin-staff': 'admin',
   'myclash-traefik-dashboard': 'admin',
   'myclash-public': 'public',
   'myclash-marketing': 'public',
-  'myclash-scoring': 'public',
-  'myclash-scoring-prefixed': 'public',
-  'myclash-scoring-api': 'public',
+  'myclash-staff': 'public',
+  'myclash-staff-prefixed': 'public',
+  'myclash-staff-api': 'public',
   'myclash-api': 'public',
   'myclash-public-api': 'public',
   'myclash-rest': 'public',
@@ -2245,7 +2245,7 @@ for (const [router, variant] of Object.entries(geoblockRouters)) {
 const fail2banRouters = {
   'myclash-auth': 'MW_F2B_AUTH',
   'myclash-traefik-dashboard': 'MW_F2B_AUTH',
-  'myclash-scoring-api': 'MW_F2B_STAFF',
+  'myclash-staff-api': 'MW_F2B_STAFF',
 };
 for (const [router, prefix] of Object.entries(fail2banRouters)) {
   const pattern = new RegExp(
@@ -2279,7 +2279,7 @@ const devGeoblockRouters = {
   'dev-admin': 'admin',
   'dev-admin-api': 'admin',
   'dev-public': 'public',
-  'dev-scoring': 'public',
+  'dev-staff': 'public',
   'dev-api': 'public',
   'dev-auth': 'public',
   'dev-rest': 'public',

@@ -7,7 +7,7 @@ import { useSyncState } from '../../../src/offline/use-sync-state';
 import { useI18n } from '../../../src/i18n/I18nProvider';
 import { getApiUrl } from '../../../src/lib/api-url';
 import { getSyncEngine } from '../../../src/offline/sync';
-import { safeReturnHref, scoringRoutePrefix } from '../../../src/lib/nav';
+import { safeReturnHref, staffRoutePrefix } from '../../../src/lib/nav';
 
 interface Props {
   params: Promise<{ matchId: string }>;
@@ -63,7 +63,7 @@ export default function MatchScoringPage({ params }: Props) {
     setExternalDisplayUrl(ext);
     setReturnParam(ret);
     setBackHref(safeReturnHref(ret, window.location.origin));
-    setRoutePrefix(scoringRoutePrefix(window.location.pathname));
+    setRoutePrefix(staffRoutePrefix(window.location.pathname));
     /* eslint-enable react-hooks/set-state-in-effect */
   }, []);
 

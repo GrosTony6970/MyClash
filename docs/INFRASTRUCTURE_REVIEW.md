@@ -20,7 +20,7 @@ pnpm infra:edge -- --domain myclash.fr
 
 Production compose defines the expected v1 services: Traefik, Postgres, Redis,
 Supabase Auth, Supabase Realtime, Supabase Storage, Supabase REST (PostgREST),
-API, ops-runner, worker, web-public, web-marketing, web-scoring, and web-admin.
+API, ops-runner, worker, web-public, web-marketing, web-staff, and web-admin.
 
 Repo-verified controls:
 
@@ -75,7 +75,7 @@ site outage, so `allowUnknownCountries: true` there is load-bearing and pinned b
 | Instance                 | Routers                   | Threshold                       | Why                                                                          |
 | ------------------------ | ------------------------- | ------------------------------- | ---------------------------------------------------------------------------- |
 | `myclash-fail2ban-auth`  | `myclash-auth`, dashboard | 20 × (401\|429) / 10m → 30m ban | `/auth/v1/*` proxies straight to GoTrue, bypassing `ThrottlerGuard` entirely |
-| `myclash-fail2ban-staff` | `myclash-scoring-api`     | 60 × (401\|429) / 10m → 15m ban | Staff PIN login has no `@Throttle` override; a venue shares one NAT'd IP     |
+| `myclash-fail2ban-staff` | `myclash-staff-api`       | 60 × (401\|429) / 10m → 15m ban | Staff PIN login has no `@Throttle` override; a venue shares one NAT'd IP     |
 
 Thresholds are set by **how many humans sit behind one public IP**, not by how
 strict they could be — this is a volumetric backstop, not the primary auth

@@ -5,7 +5,7 @@
  * TV / projector display.
  *
  * Mirrors the redesigned referee scoreboard from
- * `apps/web-scoring/src/components/MatchView.tsx` but strips every
+ * `apps/web-staff/src/components/MatchView.tsx` but strips every
  * interactive control (no scoring buttons, no penalty picker, no
  * clock controls, no drawer, no spacebar). Typography is scaled up
  * significantly so the score is legible from across a sports hall.

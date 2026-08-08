@@ -163,7 +163,7 @@ test('offline scoring works on a custom-ruleset bout and auto-syncs', async ({
     p.evaluate(
       () =>
         new Promise<number>((resolve) => {
-          const open = indexedDB.open('myclash-scoring');
+          const open = indexedDB.open('myclash-staff');
           open.onerror = () => resolve(-1);
           open.onsuccess = () => {
             const db = open.result;

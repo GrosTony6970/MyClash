@@ -67,7 +67,7 @@ import { LicePlacementEditor } from './LicePlacementEditor';
  * `externalDisplay` carries the admin's read-only scoreboard URL so
  * the operator can throw the projection on a second monitor in one
  * click. Same-origin via Traefik `/scoring/*` avoids the dev-cert
- * prompt that blocks cross-origin scoring.myclash.fr.
+ * prompt that blocks cross-origin staff.myclash.fr.
  */
 function openMatchScoring(slug: string, eventId: string, matchId: string): void {
   // Full-bleed external display (no admin shell), opened as a popup

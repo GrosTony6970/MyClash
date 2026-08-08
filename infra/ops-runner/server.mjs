@@ -58,7 +58,7 @@ const RESTARTABLE_SERVICES = new Set([
   'worker',
   'web-admin',
   'web-public',
-  'web-scoring',
+  'web-staff',
   'web-marketing',
   'redis',
   'supabase-auth',

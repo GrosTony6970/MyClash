@@ -97,7 +97,7 @@ describe('AdminTlsStatusService.probeAll', () => {
       'api.myclash.fr',
       'app.myclash.fr',
       'admin.myclash.fr',
-      'scoring.myclash.fr',
+      'staff.myclash.fr',
       'traefik.myclash.fr',
     ]);
 

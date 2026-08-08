@@ -69,7 +69,7 @@ Also unified: the 5 transactional-email CTA backgrounds (`mail.service.ts` — a
 
 **Applied migrations `0001_init.sql:183` and `0085` still contain `#c0392b`** — never edited, by rule (the ledger checksums them). They are history, not live config.
 
-**Adjacent, now also FIXED (2026-07-27):** `apps/web-scoring/public/manifest.json` `background_color` was `#1a1a2e`, an untokenized dark navy matching no token. Now `#0f172a`, the real dark `--color-background`, so the PWA splash matches the app it opens into.
+**Adjacent, now also FIXED (2026-07-27):** `apps/web-staff/public/manifest.json` `background_color` was `#1a1a2e`, an untokenized dark navy matching no token. Now `#0f172a`, the real dark `--color-background`, so the PWA splash matches the app it opens into.
 
 ---
 
@@ -107,7 +107,7 @@ It shares the product palette **by copy, not by import** (`#0f172a`, `#1e293b`, 
 **FIXED (2026-07-17):**
 
 - **The two wrong swatches.** `/admin/design-system` showed `border-slate-200 #E2E8F0` for hairlines (token is `#e7e5e4`) and `bg-red-800 #991B1B` for "primary CTA" (accent is `#b91c1c`). All the mappable swatches now render the semantic token utilities (`bg-background`, `text-foreground`, `border-border`, `text-muted`, `bg-accent`), so the two values are corrected and the page can no longer drift from a raw hex.
-- **The dead hex fallbacks in `Button.tsx` and `Card.tsx`.** Removed. Every app imports `theme.css`, so `--color-*` is always defined and the fallbacks never fired — proven zero-op by a byte-level check that no `--color-*` value changed. Card's fallbacks were also actively _wrong_ (`#111827` for a `#ffffff` surface), a textbook declarations-rot case. The stale comments claiming web-admin/web-scoring "keep the gray look via the fallbacks" went with them.
+- **The dead hex fallbacks in `Button.tsx` and `Card.tsx`.** Removed. Every app imports `theme.css`, so `--color-*` is always defined and the fallbacks never fired — proven zero-op by a byte-level check that no `--color-*` value changed. Card's fallbacks were also actively _wrong_ (`#111827` for a `#ffffff` surface), a textbook declarations-rot case. The stale comments claiming web-admin/web-staff "keep the gray look via the fallbacks" went with them.
 - **`AdminPageHeader` H1 + subtitle** retokenized to `text-foreground` / `text-foreground-secondary` (exact-value, zero render change).
 
 **Still open (each needs a value-shift decision or a new token — not a silent sweep):**
@@ -116,7 +116,7 @@ It shares the product palette **by copy, not by import** (`#0f172a`, `#1e293b`, 
 - **`AdminPageHeader` border** `border-slate-200` (`#e2e8f0`) vs `border-border` (`#e7e5e4`, stone-200): sub-perceptual but non-zero.
 - **`FoilMark` / FormField input border** `text-slate-300` / `border-slate-300` (`#cbd5e1`): **no token has this value.** The system has no control-border tier distinct from the card hairline, and no placeholder tier (`slate-400`). Adding those tiers is a token decision.
 - **`FormField`** (its only consumer is the design-system showcase, not shipped chrome): its error text is `text-red-700` = accent-exact, but an error should be `text-danger` — the value-matching token and the correct token disagree. Wants the semantic fix, not a value-preserving swap.
-- **`Button` status variants** (`danger`, `gold`, secondary, …) stay raw **on purpose**: they render in web-scoring (dark), and a solid `bg-danger`/`bg-gold` fill there was tuned for _text_ contrast, so tokenizing the fill naively would break legibility. Needs status-fill tokens distinct from status-text.
+- **`Button` status variants** (`danger`, `gold`, secondary, …) stay raw **on purpose**: they render in web-staff (dark), and a solid `bg-danger`/`bg-gold` fill there was tuned for _text_ contrast, so tokenizing the fill naively would break legibility. Needs status-fill tokens distinct from status-text.
 - ~~**`Button.tsx:69` `ring-offset-gray-900`**~~ **FIXED (2026-07-27)** — it was painting a near-black halo around every focused button on the light admin pages. Now `ring-offset-background`, which tracks the `[data-theme]` scope instead of assuming one. The ring hue went `ring-amber-400` → `ring-gold` in the same pass: identical on dark, a deeper amber-500 on light where it needs the contrast.
 - **`Card` `CardBody`** the removed `#d1d5db` fallback shows the original intent was a _muted_ body; the var choice (`--color-foreground`) silently flattened title and body to one colour. `CardBody` should probably be `foreground-secondary` — a deliberate (visible) change, so deferred.
 
@@ -166,6 +166,6 @@ Radius is **not** a deviation: `rounded-md/lg/xl/full` is the vocabulary, delibe
 
 ## Fixed
 
-- ~~D9: `/lices` was dark while `/lices/[liceId]` was light~~ — tapping between the two piste screens flashed white. Fixed 2026-08-03: `/lices` had no `data-theme` at all, so it inherited the pad scope from `<body>`; both piste screens are now chrome and take `chromeScope`. The underlying decision — which regions are chrome — is now explicit in `apps/web-scoring/src/theme/theme.ts` rather than implied by which screen was written when.
-- ~~`web-scoring` loaded no fonts at all~~ — it imported `theme.css` but never defined `--font-fraunces`/`--font-geist`/`--font-jetbrains`, so the scorer's tablet rendered display type in Georgia and body in system sans. Valid CSS, correct colours, silently wrong type. Fixed by wiring `next/font` into `apps/web-scoring/app/layout.tsx`; `pnpm design:lint` now asserts this class of bug can't recur.
+- ~~D9: `/lices` was dark while `/lices/[liceId]` was light~~ — tapping between the two piste screens flashed white. Fixed 2026-08-03: `/lices` had no `data-theme` at all, so it inherited the pad scope from `<body>`; both piste screens are now chrome and take `chromeScope`. The underlying decision — which regions are chrome — is now explicit in `apps/web-staff/src/theme/theme.ts` rather than implied by which screen was written when.
+- ~~`web-staff` loaded no fonts at all~~ — it imported `theme.css` but never defined `--font-fraunces`/`--font-geist`/`--font-jetbrains`, so the scorer's tablet rendered display type in Georgia and body in system sans. Valid CSS, correct colours, silently wrong type. Fixed by wiring `next/font` into `apps/web-staff/app/layout.tsx`; `pnpm design:lint` now asserts this class of bug can't recur.
 - ~~`web-marketing` requested a non-existent font~~ — see D4.

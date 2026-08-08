@@ -13,7 +13,7 @@ const HOSTS_BY_KEY = {
   api: `api.${domain}`,
   app: `app.${domain}`,
   admin: `admin.${domain}`,
-  scoring: `scoring.${domain}`,
+  staff: `staff.${domain}`,
 };
 
 /**

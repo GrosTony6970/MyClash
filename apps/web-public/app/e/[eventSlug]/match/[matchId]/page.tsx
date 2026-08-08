@@ -68,7 +68,7 @@ interface Props {
 /**
  * Validate a `?return=` value before using it as a back-link href: accept only
  * a root-relative path (`/x`, not the protocol-relative `//x`) — open-redirect
- * hygiene, mirroring web-scoring's `safeReturnHref`.
+ * hygiene, mirroring web-staff's `safeReturnHref`.
  */
 function safeReturnHref(raw: string | undefined): string | null {
   if (!raw) return null;

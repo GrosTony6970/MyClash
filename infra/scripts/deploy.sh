@@ -428,7 +428,7 @@ if [[ -f VERSION ]]; then
   APP_VERSION_NODOT="${APP_VERSION//./}"
 
   # Service worker cache names per app
-  for sw in apps/web-public/public/sw.js apps/web-scoring/public/sw.js apps/web-admin/public/sw.js; do
+  for sw in apps/web-public/public/sw.js apps/web-staff/public/sw.js apps/web-admin/public/sw.js; do
     [[ -f "$sw" ]] && sed -i "s/const CACHE_NAME = 'myclash-[^-]*-v[^']*'/const CACHE_NAME = 'myclash-$(basename "$(dirname "$(dirname "$sw")")")-${APP_VERSION}'/" "$sw" || true
   done
 
@@ -441,7 +441,7 @@ fi
 hdr "Preparing data and log directories"
 
 mkdir -p \
-  logs/api logs/db logs/worker logs/web-public logs/web-scoring logs/web-admin logs/traefik \
+  logs/api logs/db logs/worker logs/web-public logs/web-staff logs/web-admin logs/traefik \
   data/postgres data/redis data/storage data/traefik \
   backups/pre-deploy backups/nightly
 
@@ -583,7 +583,7 @@ hdr "Waiting for services to become healthy"
 
 RETRIES=20
 DELAY=3
-for svc in api web-public web-scoring web-admin web-marketing supabase-storage; do
+for svc in api web-public web-staff web-admin web-marketing supabase-storage; do
   for i in $(seq 1 "$RETRIES"); do
     HEALTH=$(docker inspect --format='{{.State.Health.Status}}' \
               "$("${COMPOSE[@]}" ps -q "$svc")" 2>/dev/null || echo "unknown")

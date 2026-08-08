@@ -20,7 +20,7 @@ Every pull request targeting `main` runs the following GitHub Actions jobs, all 
 | **Coverage**              | `CI / Coverage`                                          | `pnpm coverage` (enforced coverage thresholds)                                                                                                                                                                        |
 | **Playwright and Axe**    | `CI / Playwright and Axe`                                | `pnpm test:e2e` — Playwright end-to-end + Axe accessibility checks                                                                                                                                                    |
 | **Secret scan**           | `CI / Secret scan`                                       | Gitleaks secret scan                                                                                                                                                                                                  |
-| **Trivy image scan**      | `CI / Trivy production image scan`                       | Builds the api / web-admin / web-public / web-scoring production images and scans them with Trivy (HIGH,CRITICAL)                                                                                                     |
+| **Trivy image scan**      | `CI / Trivy production image scan`                       | Builds the api / web-admin / web-public / web-staff production images and scans them with Trivy (HIGH,CRITICAL)                                                                                                       |
 | **CodeQL**                | `CodeQL Security Scan / Analyze (javascript-typescript)` | Static security analysis                                                                                                                                                                                              |
 
 To configure these as required checks in GitHub:
@@ -58,7 +58,7 @@ pnpm dev
 Local URLs:
 
 - `http://localhost:3001` — web-public
-- `http://localhost:3002` — web-scoring
+- `http://localhost:3002` — web-staff
 - `http://localhost:3003` — web-admin
 - `http://localhost:4000` — NestJS API
 - `http://localhost:4000/api/docs` — Swagger UI

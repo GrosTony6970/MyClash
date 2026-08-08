@@ -23,7 +23,7 @@ const appContainerServices = [
   'worker',
   'web-admin',
   'web-public',
-  'web-scoring',
+  'web-staff',
   'web-marketing',
 ];
 

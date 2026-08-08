@@ -224,7 +224,7 @@
 /* Light surface, as an explicit scope.
  *
  * @theme puts the light values on :root, which is enough while dark is only
- * ever applied at the top of a tree. web-scoring breaks that assumption: it
+ * ever applied at the top of a tree. web-staff breaks that assumption: it
  * sets data-theme='dark' on <body>, but its match LIST and match CHROME are
  * light surfaces (you read them between bouts, under hall lighting) while the
  * scoring pad stays dark for glare. Custom properties inherit, so nesting a

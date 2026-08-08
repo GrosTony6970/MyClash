@@ -110,7 +110,7 @@ At your registrar's DNS panel, add **A records**:
 | `api.myclash.fr`     | A     | `<VPS-IP>`   | 300 |
 | `app.myclash.fr`     | A     | `<VPS-IP>`   | 300 |
 | `admin.myclash.fr`   | A     | `<VPS-IP>`   | 300 |
-| `scoring.myclash.fr` | A     | `<VPS-IP>`   | 300 |
+| `staff.myclash.fr`   | A     | `<VPS-IP>`   | 300 |
 | `traefik.myclash.fr` | A     | `<VPS-IP>`   | 300 |
 | `www.myclash.fr`     | CNAME | `myclash.fr` | 300 |
 
@@ -129,7 +129,7 @@ nslookup myclash.fr
 nslookup api.myclash.fr
 nslookup app.myclash.fr
 nslookup admin.myclash.fr
-nslookup scoring.myclash.fr
+nslookup staff.myclash.fr
 nslookup traefik.myclash.fr
 ```
 
@@ -172,7 +172,7 @@ Can be done in parallel.
 ### ☐ 13. (Optional) Sentry account for error tracking
 
 - **Cost**: Free tier covers v1.
-- **Steps**: Sign up, create a project per app (api, web-public, web-scoring, web-admin), grab DSN per project.
+- **Steps**: Sign up, create a project per app (api, web-public, web-staff, web-admin), grab DSN per project.
 - **You'll need**: 4 DSNs for `.env` (one per service).
 - **Skippable**: Can be added in P14 (polish) instead of pre-launch.
 
@@ -278,7 +278,7 @@ curl -I https://myclash.fr
 curl -I https://app.myclash.fr
 curl -I https://api.myclash.fr/health
 curl -I https://admin.myclash.fr
-curl -I https://scoring.myclash.fr
+curl -I https://staff.myclash.fr
 ```
 
 All should return `HTTP/2 200`.

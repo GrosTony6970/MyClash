@@ -29,7 +29,7 @@ Test matrix per path: **desktop Chrome · mobile Safari · mobile Chrome**
 ## GP-2 — Scorekeeper: Score a fight and see live results
 
 **Actor:** Scorekeeper (assigned to a Lice/piste)
-**Entry point:** `scoring.myclash.fr` → enter event code
+**Entry point:** `staff.myclash.fr` → enter event code
 
 1. Open scorekeeper app on tablet (simulate offline: disable wifi after load)
 2. Select assigned Lice
@@ -109,7 +109,7 @@ Test matrix per path: **desktop Chrome · mobile Safari · mobile Chrome**
 ## GP-8 — Scorekeeper: Offline resilience
 
 **Actor:** Scorekeeper
-**Entry point:** `scoring.myclash.fr`
+**Entry point:** `staff.myclash.fr`
 
 1. Load the scorekeeper app while online
 2. Disable network entirely

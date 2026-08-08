@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useI18n } from '@/i18n/I18nProvider';
 import { getPublicApiUrl } from '@/lib/api-url';
-import { getStaffLoginUrl } from '@/lib/scoring-url';
+import { getStaffLoginUrl } from '@/lib/staff-url';
 
 interface Props {
   eventSlug: string;

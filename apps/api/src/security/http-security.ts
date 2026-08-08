@@ -6,7 +6,7 @@ export interface SessionCookieOptionsInput {
   maxAge?: number;
   /**
    * Cookie `Domain` (e.g. `.myclash.fr`). When set, the cookie is shared across
-   * all subdomains (app/admin/scoring/api) so a login that lands on a different
+   * all subdomains (app/admin/staff/api) so a login that lands on a different
    * subdomain than the one that set the cookie stays authenticated. Omit for a
    * host-only cookie (the default, used in dev).
    */
@@ -18,7 +18,7 @@ export function buildCorsOrigins(domain: string): string[] {
     `https://${domain}`,
     `https://app.${domain}`,
     `https://admin.${domain}`,
-    `https://scoring.${domain}`,
+    `https://staff.${domain}`,
     'http://localhost:3001',
     'http://localhost:3002',
     'http://localhost:3003',

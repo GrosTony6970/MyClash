@@ -47,9 +47,9 @@ const SAMPLE_VALUES = new Map([
   // docker-compose then reads each per-service.
   ['NEXT_PUBLIC_API_URL_ADMIN', new Set(['http://localhost:4000'])],
   ['NEXT_PUBLIC_API_URL_PUBLIC', new Set(['http://localhost:4000'])],
-  ['NEXT_PUBLIC_API_URL_SCORING', new Set(['http://localhost:4000'])],
+  ['NEXT_PUBLIC_API_URL_STAFF', new Set(['http://localhost:4000'])],
   // Cross-app deep links baked into admin + scoring at build time.
-  ['NEXT_PUBLIC_SCORING_URL', new Set(['http://localhost:3002'])],
+  ['NEXT_PUBLIC_STAFF_URL', new Set(['http://localhost:3002'])],
   ['NEXT_PUBLIC_PUBLIC_APP_URL', new Set(['http://localhost:3001'])],
   // Marketing origin — hosts the terms + privacy policy the apps link to.
   ['NEXT_PUBLIC_MARKETING_URL', new Set(['https://myclash.localhost'])],
@@ -314,9 +314,9 @@ export async function ensureProdEnv(envPath = '.env', options = {}) {
     // dedicated api.${DOMAIN} subdomain).
     ['NEXT_PUBLIC_API_URL_ADMIN', `https://admin.${domain}`],
     ['NEXT_PUBLIC_API_URL_PUBLIC', supabaseUrl], // https://app.${DOMAIN}
-    ['NEXT_PUBLIC_API_URL_SCORING', apiUrl], // https://api.${DOMAIN}
+    ['NEXT_PUBLIC_API_URL_STAFF', apiUrl], // https://api.${DOMAIN}
     // Cross-app deep links: admin → scoring app, admin/scoring → public app.
-    ['NEXT_PUBLIC_SCORING_URL', `https://scoring.${domain}`],
+    ['NEXT_PUBLIC_STAFF_URL', `https://scoring.${domain}`],
     ['NEXT_PUBLIC_PUBLIC_APP_URL', supabaseUrl], // https://app.${DOMAIN}
     // The marketing site is the apex host (see the myclash-marketing router).
     ['NEXT_PUBLIC_MARKETING_URL', `https://${domain}`],

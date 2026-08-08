@@ -1687,7 +1687,7 @@ export const en = {
         other: 'Other',
       },
     },
-    // web-scoring only: this app is the one hybrid surface (light chrome over a
+    // web-staff only: this app is the one hybrid surface (light chrome over a
     // dark pad), so `hybrid` has no meaning in web-admin or web-public.
     theme: {
       switcher: 'Colour theme',
@@ -4310,7 +4310,7 @@ export const en = {
         '@myclash/api': 'API workspace',
         '@myclash/web-admin': 'Admin app workspace',
         '@myclash/web-public': 'Public app workspace',
-        '@myclash/web-scoring': 'Scoring app workspace',
+        '@myclash/web-staff': 'Scoring app workspace',
         '@myclash/web-marketing': 'Marketing site workspace',
         react: 'React',
         reactDom: 'React DOM',
@@ -4331,7 +4331,7 @@ export const en = {
         worker: 'Worker container',
         'web-admin': 'Admin container',
         'web-public': 'Public app container',
-        'web-scoring': 'Scoring app container',
+        'web-staff': 'Scoring app container',
         'web-marketing': 'Marketing container',
       },
       actions: {
@@ -11823,7 +11823,7 @@ export const fr = {
         '@myclash/api': 'Workspace API',
         '@myclash/web-admin': 'Workspace admin',
         '@myclash/web-public': 'Workspace app publique',
-        '@myclash/web-scoring': 'Workspace scoring',
+        '@myclash/web-staff': 'Workspace scoring',
         '@myclash/web-marketing': 'Workspace marketing',
         react: 'React',
         reactDom: 'React DOM',
@@ -11844,7 +11844,7 @@ export const fr = {
         worker: 'Conteneur worker',
         'web-admin': 'Conteneur admin',
         'web-public': 'Conteneur app publique',
-        'web-scoring': 'Conteneur scoring',
+        'web-staff': 'Conteneur scoring',
         'web-marketing': 'Conteneur marketing',
       },
       actions: {

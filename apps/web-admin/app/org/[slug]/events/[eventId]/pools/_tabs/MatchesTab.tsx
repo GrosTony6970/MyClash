@@ -525,7 +525,7 @@ export function MatchesTab({ tournamentId, poolPhaseId, slug, eventId }: Matches
                         // Always-clickable: lice-scoped scoring URL when
                         // a lice is assigned, per-match URL otherwise.
                         // The previous "Assign a lice first" disabled
-                        // treatment is gone — the web-scoring
+                        // treatment is gone — the web-staff
                         // /matches/:matchId route renders the same UI
                         // without needing a lice context.
                         // Same-origin proxy at `/scoring/*` (Traefik) serves

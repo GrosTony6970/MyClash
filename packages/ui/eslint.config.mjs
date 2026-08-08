@@ -3,7 +3,7 @@
 // packages/ui was linted by nothing at all — its package.json script was
 // literally `echo 'lint: no sources yet'`. That is how the shared components
 // accumulated ~300 raw palette classes and a second, divergent token→hex map,
-// while web-scoring (the one app with the rule wired up) stayed clean.
+// while web-staff (the one app with the rule wired up) stayed clean.
 //
 // Scope note: the rule matches Tailwind CLASSES only. A raw hex in a lookup
 // table still slips through, so `sideStyle` / `sideColorsFor` remain the guard

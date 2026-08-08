@@ -66,8 +66,8 @@ const ROOTS = [
   'apps/web-admin/src',
   'apps/web-public/app',
   'apps/web-public/src',
-  'apps/web-scoring/app',
-  'apps/web-scoring/src',
+  'apps/web-staff/app',
+  'apps/web-staff/src',
   'packages/ui/src',
   'packages/feature-flags/src',
   // Holds key literals without calling `t()`: roundTokenLabel() maps a round

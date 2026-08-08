@@ -67,7 +67,7 @@ if (!ci.includes('pnpm perf:review')) {
 }
 
 const perfSpec = readFileSync('tests/perf/web-public.spec.ts', 'utf8');
-for (const phrase of ['LCP_BUDGET_MS', 'CLS_BUDGET', 'web-admin', 'web-scoring']) {
+for (const phrase of ['LCP_BUDGET_MS', 'CLS_BUDGET', 'web-admin', 'web-staff']) {
   if (!perfSpec.includes(phrase)) {
     failures.push(`Playwright perf spec must include ${phrase}`);
   }

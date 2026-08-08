@@ -39,7 +39,7 @@ If any of the above currently runs only locally, the action item is **move it in
 - CI now includes required jobs for dependency audit, coverage, Playwright/Axe, Gitleaks secret scan, and Trivy scans of the production app images.
 - `pnpm lint` is configured to fail on warnings for the API and the three active web apps. The current local lint gate exits cleanly.
 - `pnpm audit --audit-level high` exits cleanly after framework/dependency upgrades; remaining advisories are moderate severity.
-- `pnpm coverage` is wired through Turborepo. API coverage enforces 70% thresholds on exercised implementation files with Nest structural files excluded; web-scoring enforces 60% thresholds on the tested offline implementation. A later review should decide whether Phase 1 must expand this to every source file before production sign-off.
+- `pnpm coverage` is wired through Turborepo. API coverage enforces 70% thresholds on exercised implementation files with Nest structural files excluded; web-staff enforces 60% thresholds on the tested offline implementation. A later review should decide whether Phase 1 must expand this to every source file before production sign-off.
 - `pnpm test:e2e` now starts and tears down the three Next apps through `scripts/run-e2e.mjs`; local Playwright/Axe exits normally after all 7 tests pass.
 - `apps/web-public/scripts/perf-build.mjs` always rebuilds `.next` for perf budget checks so stale manifests cannot create false bundle failures.
 

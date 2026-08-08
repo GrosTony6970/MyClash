@@ -18,7 +18,7 @@ export default function EventStaffPage() {
   const publicAppUrl = process.env['NEXT_PUBLIC_PUBLIC_APP_URL'] ?? 'https://app.myclash.fr';
   // The scoring pad is where a referee's PIN actually works — the public app's
   // Sign in is the spectator door and cannot produce a staff session.
-  const scoringUrl = process.env['NEXT_PUBLIC_SCORING_URL'] ?? 'https://scoring.myclash.fr';
+  const scoringUrl = process.env['NEXT_PUBLIC_STAFF_URL'] ?? 'https://staff.myclash.fr';
 
   const [event, setEvent] = useState<EventInfo | null>(null);
   const [accounts, setAccounts] = useState<StaffAccount[]>([]);

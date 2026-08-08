@@ -51,7 +51,7 @@ also reachable over SSH via `pnpm deploy:prod` / `pnpm rollback:prod`
 | Pull a backup back after data loss          | `restore.sh` (lists local + S3 backups with no args)       |
 | Wipe the stack to redeploy from clean       | `destroy.sh --full` then `deploy.sh`                       |
 
-App services referenced by the default sets: `api web-public web-scoring web-admin
+App services referenced by the default sets: `api web-public web-staff web-admin
 web-marketing worker`. Infra/stateful services (`db redis traefik ops-runner supabase-*`)
 are never rebuilt by these scripts — they use published images.
 

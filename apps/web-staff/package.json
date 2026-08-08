@@ -1,5 +1,5 @@
 {
-  "name": "@myclash/web-scoring",
+  "name": "@myclash/web-staff",
   "version": "0.0.0",
   "private": true,
   "description": "MyClash scorekeeper PWA — tablet-first, offline-first.",

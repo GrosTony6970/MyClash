@@ -114,7 +114,7 @@ HEALTH_SERVICES=(
   api
   worker
   web-public
-  web-scoring
+  web-staff
   web-admin
   web-marketing
   db
@@ -278,7 +278,7 @@ tail_service_log traefik 20 "Recent traefik logs (last 20 lines, noise-filtered)
 tail_service_log worker 20 "Recent worker logs (BullMQ jobs)"
 tail_service_log web-admin 15 "Recent web-admin logs"
 tail_service_log web-public 15 "Recent web-public logs"
-tail_service_log web-scoring 15 "Recent web-scoring logs"
+tail_service_log web-staff 15 "Recent web-staff logs"
 tail_service_log supabase-auth 15 "Recent supabase-auth logs"
 
 echo

@@ -15,9 +15,9 @@ const requiredFiles = [
   'apps/web-public/instrumentation-client.ts',
   'apps/web-public/app/global-error.tsx',
   'apps/web-public/sentry.server.config.ts',
-  'apps/web-scoring/instrumentation-client.ts',
-  'apps/web-scoring/app/global-error.tsx',
-  'apps/web-scoring/sentry.server.config.ts',
+  'apps/web-staff/instrumentation-client.ts',
+  'apps/web-staff/app/global-error.tsx',
+  'apps/web-staff/sentry.server.config.ts',
 ];
 
 const requiredEnvKeys = [
@@ -59,7 +59,7 @@ for (const [pkg, dep] of [
   ['apps/api/package.json', '@sentry/nestjs'],
   ['apps/web-admin/package.json', '@sentry/nextjs'],
   ['apps/web-public/package.json', '@sentry/nextjs'],
-  ['apps/web-scoring/package.json', '@sentry/nextjs'],
+  ['apps/web-staff/package.json', '@sentry/nextjs'],
 ]) {
   const json = JSON.parse(readFileSync(pkg, 'utf8'));
   if (!json.dependencies?.[dep]) failures.push(`${pkg} is missing ${dep}`);
@@ -71,7 +71,7 @@ for (const [pkg, dep] of [
 for (const cfg of [
   'apps/web-public/next.config.ts',
   'apps/web-admin/next.config.ts',
-  'apps/web-scoring/next.config.ts',
+  'apps/web-staff/next.config.ts',
 ]) {
   const source = readFileSync(cfg, 'utf8');
   if (!source.includes('authToken')) {

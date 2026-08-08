@@ -31,7 +31,7 @@ Everything else can wait until the relevant dev phase approaches.
 - **Subdomains needed at v1**:
   - `myclash.fr` → `web-public`
   - `admin.myclash.fr` → `web-admin`
-  - `scoring.myclash.fr` → `web-scoring`
+  - `staff.myclash.fr` → `web-staff`
   - `api.myclash.fr` → API (NestJS)
 - **Cost**: ~€10–15/year.
 
@@ -149,7 +149,7 @@ Everything else can wait until the relevant dev phase approaches.
 - **When**: Before T-006.
 - **Action**: Add to `/etc/hosts` (or equivalent):
   ```
-  127.0.0.1  myclash.localhost admin.myclash.localhost scoring.myclash.localhost api.myclash.localhost
+  127.0.0.1  myclash.localhost admin.myclash.localhost staff.myclash.localhost api.myclash.localhost
   ```
 - Lets the AI develop locally with the same Traefik routing as production.
 

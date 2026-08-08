@@ -12,7 +12,7 @@
  */
 
 const CACHE_VERSION = self.__CACHE_VERSION__ || 'v1';
-const CACHE_NAME = `myclash-scoring-${CACHE_VERSION}`;
+const CACHE_NAME = `myclash-staff-${CACHE_VERSION}`;
 
 /** Shell URLs to precache on install. */
 const SHELL_URLS = ['/', '/login', '/lices', '/offline'];
@@ -42,7 +42,7 @@ self.addEventListener('activate', (event) => {
       .then((keys) =>
         Promise.all(
           keys
-            .filter((key) => key.startsWith('myclash-scoring-') && key !== CACHE_NAME)
+            .filter((key) => key.startsWith('myclash-staff-') && key !== CACHE_NAME)
             .map((key) => caches.delete(key)),
         ),
       )

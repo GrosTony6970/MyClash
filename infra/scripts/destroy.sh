@@ -139,7 +139,7 @@ fi
 
 if [[ "$FULL" -eq 1 ]]; then
   rm -rf data/traefik data/postgres data/redis data/storage
-  rm -rf logs/api logs/traefik logs/web-public logs/web-scoring logs/web-admin logs/db
+  rm -rf logs/api logs/traefik logs/web-public logs/web-staff logs/web-admin logs/db
   rm -f .last-deploy.json
   ok "data/, logs/, and runtime files removed"
 fi

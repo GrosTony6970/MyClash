@@ -30,7 +30,7 @@ const migrationsDir = join(root, 'packages', 'db', 'migrations');
 const scanRoots = [
   join(root, 'apps', 'web-admin'),
   join(root, 'apps', 'web-public'),
-  join(root, 'apps', 'web-scoring'),
+  join(root, 'apps', 'web-staff'),
   join(root, 'packages', 'ui', 'src'),
 ];
 

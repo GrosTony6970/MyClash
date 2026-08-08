@@ -202,7 +202,7 @@ services:
       # to GOTRUE_SITE_URL (app.${DOMAIN}) — which stranded admin Google logins
       # on the public app. Host-locked to our own subdomains: no cross-host
       # open-redirect. The explicit callback paths above are kept as belt-and-braces.
-      GOTRUE_URI_ALLOW_LIST: https://app.${DOMAIN},https://${DOMAIN},https://admin.${DOMAIN},https://scoring.${DOMAIN},https://api.${DOMAIN}/api/v1/auth/callback,https://admin.${DOMAIN}/auth/oauth/callback,https://app.${DOMAIN}/auth/oauth/callback,https://admin.${DOMAIN}/signup/oauth/callback,https://admin.${DOMAIN}/**,https://app.${DOMAIN}/**,https://scoring.${DOMAIN}/**
+      GOTRUE_URI_ALLOW_LIST: https://app.${DOMAIN},https://${DOMAIN},https://admin.${DOMAIN},https://staff.${DOMAIN},https://api.${DOMAIN}/api/v1/auth/callback,https://admin.${DOMAIN}/auth/oauth/callback,https://app.${DOMAIN}/auth/oauth/callback,https://admin.${DOMAIN}/signup/oauth/callback,https://admin.${DOMAIN}/**,https://app.${DOMAIN}/**,https://staff.${DOMAIN}/**
       GOTRUE_JWT_SECRET: ${SUPABASE_JWT_SECRET}
       GOTRUE_JWT_EXP: 3600
       # The API keeps sessions alive for ~30 days by exchanging the refresh
@@ -599,21 +599,21 @@ services:
       - traefik.http.routers.myclash-public-api.middlewares=${MW_GEO_PUBLIC}myclash-security-headers@file,myclash-compress@file
       - traefik.http.routers.myclash-public-api.priority=30
       - traefik.http.routers.myclash-public-api.service=myclash-api
-      # Scoring same-origin API: scoring.${DOMAIN}/api/v1/* → API container.
+      # Scoring same-origin API: staff.${DOMAIN}/api/v1/* → API container.
       # Needed so the scoring bundle (which fetches relative /api/v1 paths
       # via getApiUrl()) keeps working when loaded from its own host. The
       # admin proxy at admin.${DOMAIN}/scoring/* relies on the existing
       # myclash-admin-api router for its /api/v1 calls — no new router
       # there.
-      - traefik.http.routers.myclash-scoring-api.rule=Host(`scoring.${DOMAIN}`) && PathPrefix(`/api/v1`)
-      - traefik.http.routers.myclash-scoring-api.entrypoints=websecure
-      - traefik.http.routers.myclash-scoring-api.tls=true
-      - traefik.http.routers.myclash-scoring-api.tls.certresolver=letsencrypt
+      - traefik.http.routers.myclash-staff-api.rule=Host(`staff.${DOMAIN}`) && PathPrefix(`/api/v1`)
+      - traefik.http.routers.myclash-staff-api.entrypoints=websecure
+      - traefik.http.routers.myclash-staff-api.tls=true
+      - traefik.http.routers.myclash-staff-api.tls.certresolver=letsencrypt
       # Staff PIN login lands here and has NO @Throttle override in the API
       # (default 120/min ≈ 7,200 guesses/hour), so this is the brute-force control.
-      - traefik.http.routers.myclash-scoring-api.middlewares=${MW_GEO_PUBLIC}${MW_F2B_STAFF}myclash-security-headers@file,myclash-compress@file
-      - traefik.http.routers.myclash-scoring-api.priority=30
-      - traefik.http.routers.myclash-scoring-api.service=myclash-api
+      - traefik.http.routers.myclash-staff-api.middlewares=${MW_GEO_PUBLIC}${MW_F2B_STAFF}myclash-security-headers@file,myclash-compress@file
+      - traefik.http.routers.myclash-staff-api.priority=30
+      - traefik.http.routers.myclash-staff-api.service=myclash-api
       # Auth + Realtime + Storage routed through the PWA host on /auth/v1/* /realtime/v1/* /storage/v1/*
       # StripPrefix middlewares replicate Kong's strip_path behaviour: the upstream Supabase
       # services serve unprefixed routes (e.g. POST /bucket, not POST /storage/v1/bucket).
@@ -797,7 +797,7 @@ services:
         # Staff sign-in target: the display hub (/e/<slug>/display) and the
         # kiosk control layer link referees to the scoring pad — the public
         # app's own Sign in cannot produce a staff session.
-        NEXT_PUBLIC_SCORING_URL: ${NEXT_PUBLIC_SCORING_URL}
+        NEXT_PUBLIC_STAFF_URL: ${NEXT_PUBLIC_STAFF_URL}
         NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL}
         NEXT_PUBLIC_SUPABASE_ANON_KEY: ${NEXT_PUBLIC_SUPABASE_ANON_KEY}
         NEXT_PUBLIC_VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
@@ -900,14 +900,14 @@ services:
       - traefik.http.middlewares.myclash-www-redirect.redirectregex.replacement=https://${DOMAIN}/$${1}
       - traefik.http.middlewares.myclash-www-redirect.redirectregex.permanent=true
 
-  # ── web-scoring PWA (tablet-first, offline-first scorekeeper) ─────
-  web-scoring:
+  # ── web-staff PWA (tablet-first, offline-first scorekeeper) ─────
+  web-staff:
     build:
       context: ../
-      dockerfile: apps/web-scoring/Dockerfile
+      dockerfile: apps/web-staff/Dockerfile
       args:
         GIT_COMMIT: ${GIT_COMMIT:-unknown}
-        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL_SCORING}
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL_STAFF}
         NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL}
         NEXT_PUBLIC_SUPABASE_ANON_KEY: ${NEXT_PUBLIC_SUPABASE_ANON_KEY}
         NEXT_PUBLIC_PUBLIC_APP_URL: ${NEXT_PUBLIC_PUBLIC_APP_URL}
@@ -919,12 +919,12 @@ services:
         # environment: block below — it must not ship in the image / reach browsers.
         SENTRY_AUTH_TOKEN: ${SENTRY_AUTH_TOKEN:-}
         # Mounted under /scoring on both admin.${DOMAIN} (via the
-        # myclash-admin-scoring stripprefix router) and scoring.${DOMAIN}
-        # (via the myclash-scoring-prefixed sibling router below). Next
+        # myclash-admin-staff stripprefix router) and staff.${DOMAIN}
+        # (via the myclash-staff-prefixed sibling router below). Next
         # emits static chunks under this prefix so Traefik routes them
         # to the scoring container instead of admin's catch-all.
-        SCORING_ASSET_PREFIX: /scoring
-    container_name: myclash-web-scoring
+        STAFF_ASSET_PREFIX: /staff
+    container_name: myclash-web-staff
     restart: unless-stopped
     environment:
       NODE_ENV: production
@@ -958,12 +958,12 @@ services:
       options: { max-size: '10m', max-file: '3' }
     labels:
       - traefik.enable=true
-      - traefik.http.routers.myclash-scoring.rule=Host(`scoring.${DOMAIN}`)
-      - traefik.http.routers.myclash-scoring.entrypoints=websecure
-      - traefik.http.routers.myclash-scoring.tls=true
-      - traefik.http.routers.myclash-scoring.tls.certresolver=letsencrypt
-      - traefik.http.routers.myclash-scoring.middlewares=${MW_GEO_PUBLIC}myclash-security-headers@file,myclash-compress@file
-      - traefik.http.services.myclash-scoring.loadbalancer.server.port=3000
+      - traefik.http.routers.myclash-staff.rule=Host(`staff.${DOMAIN}`)
+      - traefik.http.routers.myclash-staff.entrypoints=websecure
+      - traefik.http.routers.myclash-staff.tls=true
+      - traefik.http.routers.myclash-staff.tls.certresolver=letsencrypt
+      - traefik.http.routers.myclash-staff.middlewares=${MW_GEO_PUBLIC}myclash-security-headers@file,myclash-compress@file
+      - traefik.http.services.myclash-staff.loadbalancer.server.port=3000
       # Admin same-origin proxy: admin.${DOMAIN}/scoring/* → scoring
       # container with /scoring stripped. Lets the organizer click a
       # match and land on the interactive scoring PWA inside admin
@@ -971,30 +971,30 @@ services:
       # scoring bundle's relative-path fetches resolve to
       # admin.${DOMAIN}/api/v1/* which the existing myclash-admin-api
       # router already serves.
-      - traefik.http.middlewares.myclash-admin-scoring-strip.stripprefix.prefixes=/scoring
-      - traefik.http.routers.myclash-admin-scoring.rule=Host(`admin.${DOMAIN}`) && PathPrefix(`/scoring`)
-      - traefik.http.routers.myclash-admin-scoring.entrypoints=websecure
-      - traefik.http.routers.myclash-admin-scoring.tls=true
-      - traefik.http.routers.myclash-admin-scoring.tls.certresolver=letsencrypt
-      - traefik.http.routers.myclash-admin-scoring.middlewares=${MW_GEO_ADMIN}myclash-security-headers@file,myclash-compress@file,myclash-admin-scoring-strip
-      - traefik.http.routers.myclash-admin-scoring.priority=30
-      - traefik.http.routers.myclash-admin-scoring.service=myclash-scoring
-      # Subdomain-prefixed assets: scoring.${DOMAIN}/scoring/_next/* →
+      - traefik.http.middlewares.myclash-admin-staff-strip.stripprefix.prefixes=/staff
+      - traefik.http.routers.myclash-admin-staff.rule=Host(`admin.${DOMAIN}`) && PathPrefix(`/staff`)
+      - traefik.http.routers.myclash-admin-staff.entrypoints=websecure
+      - traefik.http.routers.myclash-admin-staff.tls=true
+      - traefik.http.routers.myclash-admin-staff.tls.certresolver=letsencrypt
+      - traefik.http.routers.myclash-admin-staff.middlewares=${MW_GEO_ADMIN}myclash-security-headers@file,myclash-compress@file,myclash-admin-staff-strip
+      - traefik.http.routers.myclash-admin-staff.priority=30
+      - traefik.http.routers.myclash-admin-staff.service=myclash-staff
+      # Subdomain-prefixed assets: staff.${DOMAIN}/scoring/_next/* →
       # scoring container with /scoring stripped. Pairs with the
-      # SCORING_ASSET_PREFIX build arg so the HTML served on the
+      # STAFF_ASSET_PREFIX build arg so the HTML served on the
       # canonical scoring subdomain can still resolve its own
-      # /scoring-prefixed chunks. The bare myclash-scoring router
-      # above keeps serving non-prefixed paths (scoring.${DOMAIN}/,
-      # scoring.${DOMAIN}/matches/<id>) so scorekeeper bookmarks and
+      # /scoring-prefixed chunks. The bare myclash-staff router
+      # above keeps serving non-prefixed paths (staff.${DOMAIN}/,
+      # staff.${DOMAIN}/matches/<id>) so scorekeeper bookmarks and
       # the tablet-PWA entry point keep working.
-      - traefik.http.middlewares.myclash-scoring-subdomain-strip.stripprefix.prefixes=/scoring
-      - traefik.http.routers.myclash-scoring-prefixed.rule=Host(`scoring.${DOMAIN}`) && PathPrefix(`/scoring`)
-      - traefik.http.routers.myclash-scoring-prefixed.entrypoints=websecure
-      - traefik.http.routers.myclash-scoring-prefixed.tls=true
-      - traefik.http.routers.myclash-scoring-prefixed.tls.certresolver=letsencrypt
-      - traefik.http.routers.myclash-scoring-prefixed.middlewares=${MW_GEO_PUBLIC}myclash-security-headers@file,myclash-compress@file,myclash-scoring-subdomain-strip
-      - traefik.http.routers.myclash-scoring-prefixed.priority=30
-      - traefik.http.routers.myclash-scoring-prefixed.service=myclash-scoring
+      - traefik.http.middlewares.myclash-staff-subdomain-strip.stripprefix.prefixes=/staff
+      - traefik.http.routers.myclash-staff-prefixed.rule=Host(`staff.${DOMAIN}`) && PathPrefix(`/staff`)
+      - traefik.http.routers.myclash-staff-prefixed.entrypoints=websecure
+      - traefik.http.routers.myclash-staff-prefixed.tls=true
+      - traefik.http.routers.myclash-staff-prefixed.tls.certresolver=letsencrypt
+      - traefik.http.routers.myclash-staff-prefixed.middlewares=${MW_GEO_PUBLIC}myclash-security-headers@file,myclash-compress@file,myclash-staff-subdomain-strip
+      - traefik.http.routers.myclash-staff-prefixed.priority=30
+      - traefik.http.routers.myclash-staff-prefixed.service=myclash-staff
 
   # ── web-admin SPA (organizer + super admin) ───────────────────────
   web-admin:
@@ -1006,7 +1006,7 @@ services:
         NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL_ADMIN}
         NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL}
         NEXT_PUBLIC_SUPABASE_ANON_KEY: ${NEXT_PUBLIC_SUPABASE_ANON_KEY}
-        NEXT_PUBLIC_SCORING_URL: ${NEXT_PUBLIC_SCORING_URL}
+        NEXT_PUBLIC_STAFF_URL: ${NEXT_PUBLIC_STAFF_URL}
         NEXT_PUBLIC_PUBLIC_APP_URL: ${NEXT_PUBLIC_PUBLIC_APP_URL}
         NEXT_PUBLIC_MARKETING_URL: ${NEXT_PUBLIC_MARKETING_URL}
         NEXT_PUBLIC_SENTRY_DSN_ADMIN: ${NEXT_PUBLIC_SENTRY_DSN_ADMIN:-}

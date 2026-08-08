@@ -7,7 +7,7 @@
  * A class like `bg-slate-800` is a fixed hex. It does not respond to
  * `[data-theme='dark']` / `[data-theme='light']`, so a component written that
  * way silently ignores the scope it is rendered in. That is exactly how
- * web-scoring accumulated 137 of them: the app sets `data-theme='dark'` on
+ * web-staff accumulated 137 of them: the app sets `data-theme='dark'` on
  * <body>, its light chrome could not express itself in tokens, and every one of
  * those surfaces hardcoded slate-* instead. Nothing caught it, because
  * `pnpm design:lint` only checks that DESIGN.md's documented VALUES match
@@ -21,7 +21,7 @@
  * decoration and must not follow a theme:
  *   - fighter corner red/blue (rule semantics; see theme.css)
  *   - penalty card yellow/red/black (a yellow card is yellow, everywhere)
- *   - status FILLS tuned for text contrast in web-scoring's dark mode
+ *   - status FILLS tuned for text contrast in web-staff's dark mode
  *     (see docs/design/known-deviations.md#d5)
  * Mark those with a leading `// raw-color-exempt` comment and say why. An
  * exemption without a reason is a bug report waiting to happen.

@@ -7,6 +7,49 @@ import type { BoardRow } from '@/lib/live-board/types';
 type T = ReturnType<typeof useI18n>['t'];
 
 /**
+ * The tablet's outbox, and its clock when that clock is wrong.
+ *
+ * Split out of BoardRowScorer to stay under the 50-line function cap; the two
+ * lines belong together because they answer the same question — is what this
+ * tablet reports trustworthy — from two different directions.
+ */
+function TabletHealth({
+  health,
+  locale,
+  t,
+}: {
+  health: NonNullable<BoardRow['health']>;
+  locale: string;
+  t: T;
+}) {
+  return (
+    <>
+      <p className={health.rejectedCount > 0 ? 'text-danger' : 'text-muted'}>
+        {t('organizer.live.detail.outbox', {
+          queued: health.outboxDepth,
+          rejected: health.rejectedCount,
+        })}
+      </p>
+      {/* Only when it is actually out. A tablet within the noise floor gets no
+          line at all rather than a reassuring "clock OK" — this row is for
+          problems, and an unmeasured clock must not read as a good one. */}
+      {isClockSkewed(health.clockSkewMs) && (
+        <p className="text-warning" data-testid="clock-skew">
+          {t('organizer.live.detail.clockSkew', {
+            span: formatMinuteSpan(Math.abs(health.clockSkewMs as number), locale),
+            direction: t(
+              (health.clockSkewMs as number) > 0
+                ? 'organizer.live.detail.clockAhead'
+                : 'organizer.live.detail.clockBehind',
+            ),
+          })}
+        </p>
+      )}
+    </>
+  );
+}
+
+/**
  * The tablet behind this piste: who is on it, when it last checked in, and
  * what its outbox looks like.
  *
@@ -38,29 +81,7 @@ export function BoardRowScorer({ row, nowMs, t }: { row: BoardRow; nowMs: number
       {row.health === null ? (
         <p className="text-muted">{t('organizer.live.unknown')}</p>
       ) : (
-        <>
-          <p className={row.health.rejectedCount > 0 ? 'text-danger' : 'text-muted'}>
-            {t('organizer.live.detail.outbox', {
-              queued: row.health.outboxDepth,
-              rejected: row.health.rejectedCount,
-            })}
-          </p>
-          {/* Only when it is actually out. A tablet within the noise floor gets
-              no line at all rather than a reassuring "clock OK" — this row is
-              for problems, and an unmeasured clock must not read as a good one. */}
-          {isClockSkewed(row.health.clockSkewMs) && (
-            <p className="text-warning" data-testid="clock-skew">
-              {t('organizer.live.detail.clockSkew', {
-                span: formatMinuteSpan(Math.abs(row.health.clockSkewMs as number), locale),
-                direction: t(
-                  (row.health.clockSkewMs as number) > 0
-                    ? 'organizer.live.detail.clockAhead'
-                    : 'organizer.live.detail.clockBehind',
-                ),
-              })}
-            </p>
-          )}
-        </>
+        <TabletHealth health={row.health} locale={locale} t={t} />
       )}
       {scorer.others.length > 0 && (
         <p className="text-muted">

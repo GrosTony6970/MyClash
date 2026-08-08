@@ -17,7 +17,7 @@ export class VersionController {
    *
    * ── Why this is under the api/v1 prefix, unlike /health ────────────────────
    * Traefik routes `Host(api.${DOMAIN})` wholesale to this container, but
-   * `app.`, `admin.` and `scoring.` route ONLY `PathPrefix(/api/v1)`. An
+   * `app.`, `admin.` and `staff.` route ONLY `PathPrefix(/api/v1)`. An
    * unprefixed /version would answer on api.myclash.fr and 404 on the
    * same-origin app.myclash.fr/api/* path that is used in practice — and it
    * would look correct in a local `curl localhost:4000/version`. main.ts used

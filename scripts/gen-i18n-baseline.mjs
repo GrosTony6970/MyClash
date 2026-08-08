@@ -19,7 +19,7 @@ import { execSync } from 'node:child_process';
 import { writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
-const APPS = ['apps/web-admin', 'apps/web-public', 'apps/web-scoring'];
+const APPS = ['apps/web-admin', 'apps/web-public', 'apps/web-staff'];
 const RULE_ID = 'myclash/no-literal-string';
 
 const messageIdFor = (message) => {

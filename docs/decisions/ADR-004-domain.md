@@ -22,7 +22,7 @@ Subdomain structure:
 | `myclash.fr` / `www.myclash.fr` | Marketing landing page                   |
 | `app.myclash.fr`                | Public/spectator PWA + competitor portal |
 | `admin.myclash.fr`              | Organiser admin + super-admin            |
-| `scoring.myclash.fr`            | Scorekeeper PWA                          |
+| `staff.myclash.fr`              | Scorekeeper PWA                          |
 | `api.myclash.fr`                | NestJS REST API + Supabase services      |
 
 ## Consequences

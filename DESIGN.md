@@ -285,7 +285,7 @@ The single recurring mark is the **FoilMark** (`packages/ui/src/components/FoilM
 
 **The executable contract is `/admin/design-system`** (`apps/web-admin/app/admin/design-system/page.tsx`) — this language in one page, in real components. Code can rot against a markdown file; it cannot rot against a route.
 
-**Per-surface deltas:** `docs/design/{web-admin,web-public,web-scoring,display-kiosk,marketing}.md`. Each states only what its surface changes.
+**Per-surface deltas:** `docs/design/{web-admin,web-public,web-staff,display-kiosk,marketing}.md`. Each states only what its surface changes.
 
 **Where the code currently disagrees with this file: [`docs/design/known-deviations.md`](docs/design/known-deviations.md).** That register is a list of bugs, not a list of permissions. If you are about to copy an existing pattern, check it there first — the thing you are copying may be the thing we are removing.
 

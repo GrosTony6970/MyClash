@@ -14,7 +14,7 @@ const REQUIRED_PROD_ENV = [
   'NEXT_PUBLIC_MARKETING_URL',
   // Staff sign-in target: the display hub and the kiosk control layer link to
   // the scoring pad, because a referee's PIN only works there.
-  'NEXT_PUBLIC_SCORING_URL',
+  'NEXT_PUBLIC_STAFF_URL',
 ] as const;
 
 if (process.env['NODE_ENV'] === 'production') {

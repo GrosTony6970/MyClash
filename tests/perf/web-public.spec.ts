@@ -111,7 +111,7 @@ test.describe('web app performance budgets', () => {
     expect(cls).toBeLessThanOrEqual(CLS_BUDGET);
   });
 
-  test('web-scoring shell Web Vitals stay under budget', async ({ page }) => {
+  test('web-staff shell Web Vitals stay under budget', async ({ page }) => {
     // Pre-warm: load without throttling so JS chunks enter the browser cache.
     // Models real PWA usage — judges install the app on good connectivity
     // before the event; repeat loads under throttled conditions are what matter.

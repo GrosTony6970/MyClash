@@ -30,7 +30,7 @@ import { beforeAll, describe, expect, it } from 'vitest';
 
 const API_SRC = join(__dirname, '..', '..');
 const REPO_ROOT = join(API_SRC, '..', '..', '..');
-const FRONTENDS = ['apps/web-public', 'apps/web-admin', 'apps/web-scoring'];
+const FRONTENDS = ['apps/web-public', 'apps/web-admin', 'apps/web-staff'];
 
 /**
  * Phantom paths that are known-broken and tracked, so the suite can go green

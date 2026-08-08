@@ -112,7 +112,7 @@ export function MatchHeader({
   const resolvedBackHref = backHref ?? (liceId ? `/lices/${liceId}` : '/lices');
   // An absolute `?return=` target is a different app behind the same origin
   // (admin), so it needs a real browser navigation — a Next <Link> would try
-  // to client-route it inside web-scoring and 404. The in-app /lices fallback
+  // to client-route it inside web-staff and 404. The in-app /lices fallback
   // stays a <Link> for SPA navigation.
   const backIsExternal = isExternalHref(resolvedBackHref);
   const backClassName =

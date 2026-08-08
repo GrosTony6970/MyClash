@@ -10,7 +10,7 @@
 #   1. Add to C:\Windows\System32\drivers\etc\hosts (Windows) or /etc/hosts:
 #        127.0.0.1  myclash.localhost
 #        127.0.0.1  admin.myclash.localhost
-#        127.0.0.1  scoring.myclash.localhost
+#        127.0.0.1  staff.myclash.localhost
 #        127.0.0.1  api.myclash.localhost
 #   2. Copy .env.example to .env and fill in values.
 #   3. Docker Desktop running.
@@ -22,7 +22,7 @@
 # Local URLs (after up):
 #   https://myclash.localhost              → web-public  (port 3000 inside)
 #   https://admin.myclash.localhost        → web-admin   (port 3000 inside)
-#   https://scoring.myclash.localhost      → web-scoring (port 3000 inside)
+#   https://staff.myclash.localhost      → web-staff (port 3000 inside)
 #   https://api.myclash.localhost          → NestJS API  (port 4000 inside)
 #   https://api.myclash.localhost/auth/v1/ → Supabase Auth (GoTrue)
 #   https://api.myclash.localhost/rest/v1/ → Supabase REST (PostgREST)
@@ -142,7 +142,7 @@ services:
       GOTRUE_SITE_URL: https://myclash.localhost
       # Host-wildcard (/**) entries so OAuth callbacks match WITH their ?next=
       # query string instead of falling back to GOTRUE_SITE_URL. Host-locked.
-      GOTRUE_URI_ALLOW_LIST: https://myclash.localhost,https://app.myclash.localhost,https://admin.myclash.localhost,https://scoring.myclash.localhost,https://api.myclash.localhost/api/v1/auth/callback,http://localhost:3001/auth/oauth/callback,http://localhost:3003/auth/oauth/callback,http://localhost:3003/signup/oauth/callback,https://admin.myclash.localhost/**,https://app.myclash.localhost/**,https://scoring.myclash.localhost/**
+      GOTRUE_URI_ALLOW_LIST: https://myclash.localhost,https://app.myclash.localhost,https://admin.myclash.localhost,https://staff.myclash.localhost,https://api.myclash.localhost/api/v1/auth/callback,http://localhost:3001/auth/oauth/callback,http://localhost:3003/auth/oauth/callback,http://localhost:3003/signup/oauth/callback,https://admin.myclash.localhost/**,https://app.myclash.localhost/**,https://staff.myclash.localhost/**
       GOTRUE_JWT_SECRET: ${SUPABASE_JWT_SECRET:-super-secret-jwt-token-with-at-least-32-characters-long}
       GOTRUE_JWT_EXP: 3600
       GOTRUE_EXTERNAL_EMAIL_ENABLED: 'true'
@@ -395,7 +395,7 @@ services:
       - traefik.http.routers.dev-api.tls=true
       # Staff PIN login lands here in dev (the scoring pad calls the API host
       # directly), so this router carries the -staff ban rule — prod's
-      # myclash-scoring-api equivalent.
+      # myclash-staff-api equivalent.
       - traefik.http.routers.dev-api.middlewares=myclash-geoblock-public@file,myclash-fail2ban-staff@docker,myclash-compress@docker
       - traefik.http.services.dev-api.loadbalancer.server.port=4000
       - traefik.http.routers.dev-admin-api.rule=Host(`admin.myclash.localhost`) && PathPrefix(`/api/v1`)
@@ -417,7 +417,7 @@ services:
         NEXT_PUBLIC_ADMIN_URL: https://admin.myclash.localhost
         NEXT_PUBLIC_MARKETING_URL: https://myclash.localhost
         # Staff sign-in target for the display hub + kiosk control layer.
-        NEXT_PUBLIC_SCORING_URL: https://scoring.myclash.localhost
+        NEXT_PUBLIC_STAFF_URL: https://staff.myclash.localhost
     container_name: myclash-dev-web-public
     restart: unless-stopped
     environment:
@@ -440,15 +440,15 @@ services:
       - traefik.http.routers.dev-public.middlewares=myclash-geoblock-public@file,myclash-compress@docker
       - traefik.http.services.dev-public.loadbalancer.server.port=3000
 
-  # ── web-scoring PWA ───────────────────────────────────────────────
-  web-scoring:
+  # ── web-staff PWA ───────────────────────────────────────────────
+  web-staff:
     build:
       context: ../
-      dockerfile: apps/web-scoring/Dockerfile
+      dockerfile: apps/web-staff/Dockerfile
       target: runner
       args:
         NEXT_PUBLIC_API_URL: https://api.myclash.localhost
-    container_name: myclash-dev-web-scoring
+    container_name: myclash-dev-web-staff
     restart: unless-stopped
     environment:
       NODE_ENV: development
@@ -459,11 +459,11 @@ services:
     networks: [myclash-dev]
     labels:
       - traefik.enable=true
-      - traefik.http.routers.dev-scoring.rule=Host(`scoring.myclash.localhost`)
-      - traefik.http.routers.dev-scoring.entrypoints=websecure
-      - traefik.http.routers.dev-scoring.tls=true
-      - traefik.http.routers.dev-scoring.middlewares=myclash-geoblock-public@file,myclash-compress@docker
-      - traefik.http.services.dev-scoring.loadbalancer.server.port=3000
+      - traefik.http.routers.dev-staff.rule=Host(`staff.myclash.localhost`)
+      - traefik.http.routers.dev-staff.entrypoints=websecure
+      - traefik.http.routers.dev-staff.tls=true
+      - traefik.http.routers.dev-staff.middlewares=myclash-geoblock-public@file,myclash-compress@docker
+      - traefik.http.services.dev-staff.loadbalancer.server.port=3000
 
   # ── web-admin SPA ─────────────────────────────────────────────────
   web-admin:
@@ -473,7 +473,7 @@ services:
       target: runner
       args:
         NEXT_PUBLIC_API_URL: https://admin.myclash.localhost
-        NEXT_PUBLIC_SCORING_URL: https://scoring.myclash.localhost
+        NEXT_PUBLIC_STAFF_URL: https://staff.myclash.localhost
         NEXT_PUBLIC_MARKETING_URL: https://myclash.localhost
     container_name: myclash-dev-web-admin
     restart: unless-stopped

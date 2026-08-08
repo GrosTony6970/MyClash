@@ -145,7 +145,7 @@ describe('AdminSystemVersionsService', () => {
       dependencies: { next: '15.5.0', react: '^19.1.0', 'react-dom': '^19.1.0' },
     });
     await writeJson(path.join(dir, 'apps', 'web-public', 'package.json'), { version: '0.6.0' });
-    await writeJson(path.join(dir, 'apps', 'web-scoring', 'package.json'), { version: '0.5.0' });
+    await writeJson(path.join(dir, 'apps', 'web-staff', 'package.json'), { version: '0.5.0' });
     await writeJson(path.join(dir, 'apps', 'web-marketing', 'package.json'), {
       version: '0.4.0',
     });

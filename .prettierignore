@@ -25,4 +25,4 @@ pnpm-lock.yaml
 # entirely; its content is fixed by Next and not meant to be touched.
 apps/web-admin/next-env.d.ts
 apps/web-public/next-env.d.ts
-apps/web-scoring/next-env.d.ts
+apps/web-staff/next-env.d.ts

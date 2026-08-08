@@ -24,7 +24,7 @@ const RESTARTABLE_COMPONENTS: Record<string, string> = {
   worker: 'worker',
   'web-admin': 'web-admin',
   'web-public': 'web-public',
-  'web-scoring': 'web-scoring',
+  'web-staff': 'web-staff',
   'web-marketing': 'web-marketing',
   redis: 'redis',
   supabaseAuth: 'supabase-auth',

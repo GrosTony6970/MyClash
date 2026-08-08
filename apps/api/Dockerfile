@@ -98,7 +98,7 @@ COPY --chown=nestjs:nodejs VERSION ./VERSION
 COPY --chown=nestjs:nodejs infra/docker-compose.prod.yml ./infra/docker-compose.prod.yml
 COPY --chown=nestjs:nodejs apps/web-admin/package.json ./apps/web-admin/package.json
 COPY --chown=nestjs:nodejs apps/web-public/package.json ./apps/web-public/package.json
-COPY --chown=nestjs:nodejs apps/web-scoring/package.json ./apps/web-scoring/package.json
+COPY --chown=nestjs:nodejs apps/web-staff/package.json ./apps/web-staff/package.json
 COPY --chown=nestjs:nodejs apps/web-marketing/package.json ./apps/web-marketing/package.json
 RUN ln -s apps/api/dist dist \
  && chown -h nestjs:nodejs dist

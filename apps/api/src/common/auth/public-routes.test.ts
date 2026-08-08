@@ -63,7 +63,7 @@ const EXPECTED_PUBLIC = [
   'POST /auth/public-signup',
   'POST /auth/signup',
   'POST /events/:eventId/guest-sessions', // mints the guest cookie
-  'POST /staff-auth/login', // mints the staff cookie — web-scoring dies without it
+  'POST /staff-auth/login', // mints the staff cookie — web-staff dies without it
   'POST /staff-auth/logout', // idempotent; reads no identity
   // ── ops ──
   'GET /health', // docker healthcheck + deploy/rollback smoke tests

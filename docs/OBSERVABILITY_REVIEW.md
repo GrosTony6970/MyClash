@@ -47,7 +47,7 @@ External uptime checks must be configured by the owner for:
 - `https://api.myclash.fr/health`
 - `https://app.myclash.fr/`
 - `https://admin.myclash.fr/`
-- `https://scoring.myclash.fr/`
+- `https://staff.myclash.fr/`
 
 Expected alert routing: owner phone/email through Better Stack, UptimeRobot, or equivalent. Phase 6 intentionally does not add Prometheus, Grafana, or node_exporter.
 

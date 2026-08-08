@@ -11,7 +11,7 @@
 # untouched. Use this for a fast single-app iteration without a whole-stack redeploy.
 #
 # Usage:
-#   infra/scripts/redeploy.sh                # all app services (api web-public web-scoring web-admin web-marketing worker)
+#   infra/scripts/redeploy.sh                # all app services (api web-public web-staff web-admin web-marketing worker)
 #   infra/scripts/redeploy.sh api worker     # only these
 #   infra/scripts/redeploy.sh web-admin
 #   infra/scripts/redeploy.sh api --pull     # git fetch + reset --hard origin/main first
@@ -41,8 +41,8 @@ Usage: infra/scripts/redeploy.sh [service...] [options]
 Rebuild + recreate only the named app services, leaving every other container
 (db, redis, supabase-*, traefik, and the other apps) running untouched.
 
-  (no service)  Redeploy all app services: api web-public web-scoring web-admin web-marketing worker
-  service...    One or more of: api worker web-public web-scoring web-admin web-marketing
+  (no service)  Redeploy all app services: api web-public web-staff web-admin web-marketing worker
+  service...    One or more of: api worker web-public web-staff web-admin web-marketing
 
 Options:
   --pull        git fetch + reset --hard origin/main (+ PWA stamp) before building.
@@ -74,13 +74,13 @@ done
 
 # Default to the full app set (matches refresh.sh).
 if [[ "${#SERVICES[@]}" -eq 0 ]]; then
-  SERVICES=(api web-public web-scoring web-admin web-marketing worker)
+  SERVICES=(api web-public web-staff web-admin web-marketing worker)
 fi
 
 # ── Validate service names ───────────────────────────────────────
 # Only locally-built app services can be redeployed. Infra/stateful services use a
 # public image and are not rebuilt here.
-ALLOWED=(api worker web-public web-scoring web-admin web-marketing)
+ALLOWED=(api worker web-public web-staff web-admin web-marketing)
 is_allowed() {
   local s="$1" a
   for a in "${ALLOWED[@]}"; do [[ "$s" == "$a" ]] && return 0; done
@@ -145,7 +145,7 @@ if [[ "$PULL" -eq 1 ]]; then
   # Re-stamp service-worker cache names so PWAs cache-bust (same as deploy.sh).
   if [[ -f VERSION ]]; then
     APP_VERSION=$(tr -d '[:space:]' < VERSION)
-    for sw in apps/web-public/public/sw.js apps/web-scoring/public/sw.js apps/web-admin/public/sw.js; do
+    for sw in apps/web-public/public/sw.js apps/web-staff/public/sw.js apps/web-admin/public/sw.js; do
       [[ -f "$sw" ]] && sed -i "s/const CACHE_NAME = 'myclash-[^-]*-v[^']*'/const CACHE_NAME = 'myclash-$(basename "$(dirname "$(dirname "$sw")")")-${APP_VERSION}'/" "$sw" || true
     done
     ok "Version ${APP_VERSION} stamped into service workers"

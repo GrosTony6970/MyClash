@@ -57,7 +57,7 @@ pnpm dev
 Local URLs (after `pnpm dev`):
 
 - `http://localhost:3001` — web-public (spectator / competitor PWA)
-- `http://localhost:3002` — web-scoring (scorekeeper PWA)
+- `http://localhost:3002` — web-staff (scorekeeper PWA)
 - `http://localhost:3003` — web-admin (organiser + super-admin)
 - `http://localhost:4000` — NestJS API
 - `http://localhost:4000/api/docs` — Swagger UI (dev only)
@@ -73,7 +73,7 @@ myclash/
 ├── apps/                # Four Next.js apps + NestJS api + static marketing site
 │   ├── api/             # NestJS — domain logic, REST + WebSocket (port 4000)
 │   ├── web-public/      # Mobile-first PWA — public/spectator/competitor
-│   ├── web-scoring/     # Tablet-first PWA — offline-first scoring
+│   ├── web-staff/     # Tablet-first PWA — offline-first scoring
 │   ├── web-admin/       # Desktop-first admin app — organiser + super-admin
 │   └── web-marketing/   # Static HTML — myclash.fr apex landing (no build step)
 ├── packages/            # Shared workspaces (consumed by the apps)
@@ -105,7 +105,7 @@ The production deployment is a 16-service Docker Compose stack on a single VPS, 
 
 **Reverse proxy & TLS**
 
-- `traefik` (`traefik:v3.7.10`) — terminates HTTPS via Let's Encrypt, routes by hostname to every public-facing service. Hosts: `myclash.fr` → web-marketing · `app.myclash.fr` → web-public · `admin.myclash.fr` → web-admin + API · `scoring.myclash.fr` → web-scoring · `api.myclash.fr` → API · `traefik.myclash.fr` → dashboard at `/dashboard/` (basic-auth gated; the bare root 302s there, since Traefik's `api@internal` serves nothing at `/`).
+- `traefik` (`traefik:v3.7.10`) — terminates HTTPS via Let's Encrypt, routes by hostname to every public-facing service. Hosts: `myclash.fr` → web-marketing · `app.myclash.fr` → web-public · `admin.myclash.fr` → web-admin + API · `staff.myclash.fr` → web-staff · `api.myclash.fr` → API · `traefik.myclash.fr` → dashboard at `/dashboard/` (basic-auth gated; the bare root 302s there, since Traefik's `api@internal` serves nothing at `/`).
 
 **Data**
 
@@ -125,7 +125,7 @@ The production deployment is a 16-service Docker Compose stack on a single VPS, 
 
 - `api` — NestJS REST + WebSocket gateway on port 4000.
 - `worker` — same image as `api`, started with `--worker`. BullMQ consumer for stats, exports, Ratings sync.
-- `web-admin`, `web-public`, `web-scoring` — Next.js per-app containers.
+- `web-admin`, `web-public`, `web-staff` — Next.js per-app containers.
 - `web-marketing` — static HTML on nginx.
 
 **Ops sidecar**

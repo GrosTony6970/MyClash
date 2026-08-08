@@ -59,7 +59,7 @@
 **1. [HIGH · staleness] §3.1 Decisions — Frontend row**
 
 - **Doc says:** Frontend (all PWAs) | **Next.js 15** (App Router) + TypeScript + Tailwind + shadcn/ui
-- **Reality:** All three Next apps run Next.js 16.2.6, not 15. apps/web-admin/package.json line 26: "next": "16.2.6" (same in web-public/web-scoring package.json).
+- **Reality:** All three Next apps run Next.js 16.2.6, not 15. apps/web-admin/package.json line 26: "next": "16.2.6" (same in web-public/web-staff package.json).
 - **Fix:** Change "Next.js 15" to "Next.js 16" (16.2.6) in the §3.1 Frontend row.
 
 **2. [HIGH · staleness] §3.1 Decisions — Backend row**
@@ -101,7 +101,7 @@
 **8. [HIGH · inconsistency] §16 Internationalization — Library**
 
 - **Doc says:** Lists packages/i18n/src/en.ts (English source), packages/i18n/src/fr.ts (`fr = en` alias pattern), packages/i18n/src/index.ts (t + DeepString), and packages/i18n/src/I18nProvider.tsx (React provider).
-- **Reality:** packages/i18n/src contains only index.ts (plus test files). There are no en.ts or fr.ts files — `en` and `fr` are defined inline as full literal objects in index.ts (en at line 10, fr at line 5471, a complete separate object, not an `fr = en` alias). I18nProvider.tsx does not live in the package; it is duplicated per app at apps/{web-public,web-admin,web-scoring}/src/i18n/I18nProvider.tsx.
+- **Reality:** packages/i18n/src contains only index.ts (plus test files). There are no en.ts or fr.ts files — `en` and `fr` are defined inline as full literal objects in index.ts (en at line 10, fr at line 5471, a complete separate object, not an `fr = en` alias). I18nProvider.tsx does not live in the package; it is duplicated per app at apps/{web-public,web-admin,web-staff}/src/i18n/I18nProvider.tsx.
 - **Fix:** Rewrite the Library bullet list: en/fr are inline `export const en`/`export const fr` objects in packages/i18n/src/index.ts (fr is a full translation, not an alias); DeepString<T> and t live in index.ts; I18nProvider.tsx is per-app under apps/\*/src/i18n/.
 
 **9. [HIGH · contradiction] §16 Internationalization — Locale routing**
@@ -411,7 +411,7 @@
 **1. [MEDIUM · staleness] ## Architecture quick reference (line 158)**
 
 - **Doc says:** **Stack**: Next.js 15 (3 apps) + NestJS + Postgres (via Supabase) + Redis + Drizzle ORM + Supabase Realtime + Auth + Storage.
-- **Reality:** All three web apps declare "next": "16.2.6" and "react": "^19.2.6" (apps/web-public, apps/web-admin, apps/web-scoring package.json). The line-158 'Architecture quick reference' is a current-state stack description, so 'Next.js 15' is stale.
+- **Reality:** All three web apps declare "next": "16.2.6" and "react": "^19.2.6" (apps/web-public, apps/web-admin, apps/web-staff package.json). The line-158 'Architecture quick reference' is a current-state stack description, so 'Next.js 15' is stale.
 - **Fix:** Change 'Next.js 15 (3 apps)' to 'Next.js 16 (3 apps)'. Leave the historical Phase-P0 row 'T-003 · Scaffold three Next.js 15 apps' (line 227) as-is.
 
 **2. [LOW · staleness] ## Deployment patterns (inherited from MyFAL) — Compose conventions (line 72)**
@@ -437,14 +437,14 @@
 **2. [LOW · inconsistency] Step 4 — Order an OVH VPS ("Why this size")**
 
 - **Doc says:** "Postgres + Redis + 5 Node services + Traefik + Supabase services."
-- **Reality:** Confirmed: infra/docker-compose.prod.yml defines 7 Node app services — api (l.301), ops-runner (l.473), worker (l.514), web-public (l.561), web-marketing (l.637), web-scoring (l.671), web-admin (l.764). `db` (l.79) is Postgres and `myclash` (l.829) is a network, not services. PRE_DEPLOY_CHECKLIST.md line 49 says '5 Node services', undercounting the actual 7.
+- **Reality:** Confirmed: infra/docker-compose.prod.yml defines 7 Node app services — api (l.301), ops-runner (l.473), worker (l.514), web-public (l.561), web-marketing (l.637), web-staff (l.671), web-admin (l.764). `db` (l.79) is Postgres and `myclash` (l.829) is a network, not services. PRE_DEPLOY_CHECKLIST.md line 49 says '5 Node services', undercounting the actual 7.
 - **Fix:** Update the sizing rationale to reflect ~7 Node services (api + worker + ops-runner + 4 web apps), or reword to "several Node services"; the undercount understates RAM headroom during an event.
 
 ### `docs/INFRASTRUCTURE_REVIEW.md` (2)
 
 **1. [MEDIUM · inconsistency] ## Container Inventory (line 22-23)**
 
-- **Doc says:** "Production compose defines the expected v1 services: Traefik, Postgres, Redis, Supabase Auth, Supabase Realtime, Supabase Storage, API, ops-runner, worker, web-public, web-marketing, web-scoring, and web-admin." — 13 services listed.
+- **Doc says:** "Production compose defines the expected v1 services: Traefik, Postgres, Redis, Supabase Auth, Supabase Realtime, Supabase Storage, API, ops-runner, worker, web-public, web-marketing, web-staff, and web-admin." — 13 services listed.
 - **Reality:** infra/docker-compose.prod.yml defines 14 services; the inventory omits the supabase-rest (PostgREST) service (infra/docker-compose.prod.yml:266 `supabase-rest: image: postgrest/postgrest:v12.2.3`), which is edge-exposed via router myclash-rest (line 296) at app.${DOMAIN}/rest/v1 (rest-strip prefix /rest/v1 in middlewares.yml:13-16). PostgREST is a real production service, so its absence is an omission not a removal.
 - **Fix:** Add "Supabase REST (PostgREST)" to the Container Inventory list so it enumerates all 14 compose services.
 

@@ -1,9 +1,9 @@
 /**
- * Navigation helpers for the scoring pad, which is mounted at two base
+ * Navigation helpers for the staff app, which is mounted at two base
  * paths from one build:
- *   - scoring.${DOMAIN}/        — referee root (PWA / bookmarks)
- *   - admin.${DOMAIN}/scoring/* — admin same-origin proxy (Traefik strips
- *     /scoring; keeps the admin session cookie). See
+ *   - staff.${DOMAIN}/          — staff root (PWA / bookmarks)
+ *   - admin.${DOMAIN}/staff/*   — admin same-origin proxy (Traefik strips
+ *     /staff; keeps the admin session cookie). See
  *     infra/docker-compose.prod.yml.
  *
  * The app has no Next `basePath` (it would be build-time-static, but the
@@ -28,20 +28,24 @@ export function safeReturnHref(raw: string | null, currentOrigin: string): strin
 }
 
 /**
- * The route prefix the scoring app is mounted under: `/scoring` when
- * served via the admin same-origin proxy, `''` on the canonical scoring
- * subdomain (root mount). In-app navigation hrefs must be prefixed with
- * this so they don't escape the `/scoring` mount and hit the admin app.
+ * The route prefix the staff app is mounted under: `/staff` when served via
+ * the admin same-origin proxy, `''` on the canonical staff subdomain (root
+ * mount). In-app navigation hrefs must be prefixed with this so they don't
+ * escape the `/staff` mount and hit the admin app.
+ *
+ * Must stay in step with THREE things in infra/docker-compose.prod.yml — the
+ * two stripprefix middlewares and the `STAFF_ASSET_PREFIX` build arg. They are
+ * the same prefix seen from the edge, the build, and the client.
  */
-export function scoringRoutePrefix(pathname: string): string {
-  return pathname.startsWith('/scoring') ? '/scoring' : '';
+export function staffRoutePrefix(pathname: string): string {
+  return pathname.startsWith('/staff') ? '/staff' : '';
 }
 
 /**
- * Whether a back-link href points OUT of the web-scoring app (an absolute
+ * Whether a back-link href points OUT of the web-staff app (an absolute
  * http(s) URL — typically the admin `?return=` target on the same origin but
  * a different app behind the proxy). Such hrefs must be a native `<a>` hard
- * navigation: a Next `<Link>` would client-route them inside web-scoring,
+ * navigation: a Next `<Link>` would client-route them inside web-staff,
  * which has no `/org/...` route. Root-relative paths stay in-app (Next Link).
  */
 export function isExternalHref(href: string | null | undefined): boolean {

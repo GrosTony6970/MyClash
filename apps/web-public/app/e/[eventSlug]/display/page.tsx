@@ -20,7 +20,7 @@ import { notFound } from 'next/navigation';
 import { BackLink } from '@/components/BackLink';
 import { getServerApiUrl } from '@/lib/api-url';
 import { getServerT } from '@/i18n/server-locale';
-import { getStaffLoginUrl } from '@/lib/scoring-url';
+import { getStaffLoginUrl } from '@/lib/staff-url';
 import { NowLiveSection } from './NowLiveSection';
 import {
   groupLicesByPlacement,

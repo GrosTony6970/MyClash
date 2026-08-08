@@ -18,9 +18,9 @@ const budgets = [
     routes: ['/layout', '/page'],
   },
   {
-    name: 'web-scoring shell JavaScript',
+    name: 'web-staff shell JavaScript',
     type: 'next',
-    root: join('apps', 'web-scoring'),
+    root: join('apps', 'web-staff'),
     budgetBytes: 500 * 1024,
     routes: ['/layout', '/page'],
   },

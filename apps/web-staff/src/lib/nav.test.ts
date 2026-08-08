@@ -3,7 +3,7 @@ import {
   displayUrlForMatch,
   isExternalHref,
   safeReturnHref,
-  scoringRoutePrefix,
+  staffRoutePrefix,
   scoreboardPopupFeatures,
 } from './nav';
 
@@ -51,14 +51,14 @@ describe('isExternalHref', () => {
   });
 });
 
-describe('scoringRoutePrefix', () => {
-  it('returns /scoring when mounted under the admin same-origin proxy', () => {
-    expect(scoringRoutePrefix('/scoring/matches/abc')).toBe('/scoring');
+describe('staffRoutePrefix', () => {
+  it('returns /staff when mounted under the admin same-origin proxy', () => {
+    expect(staffRoutePrefix('/staff/matches/abc')).toBe('/staff');
   });
 
-  it('returns empty string on the canonical scoring subdomain (root mount)', () => {
-    expect(scoringRoutePrefix('/matches/abc')).toBe('');
-    expect(scoringRoutePrefix('/lices/abc')).toBe('');
+  it('returns empty string on the canonical staff subdomain (root mount)', () => {
+    expect(staffRoutePrefix('/matches/abc')).toBe('');
+    expect(staffRoutePrefix('/lices/abc')).toBe('');
   });
 });
 
@@ -94,8 +94,6 @@ describe('displayUrlForMatch', () => {
   });
 
   it('leaves a URL without a /display/{id} segment untouched', () => {
-    expect(displayUrlForMatch('/scoring/matches/match-1', 'match-2')).toBe(
-      '/scoring/matches/match-1',
-    );
+    expect(displayUrlForMatch('/staff/matches/match-1', 'match-2')).toBe('/staff/matches/match-1');
   });
 });

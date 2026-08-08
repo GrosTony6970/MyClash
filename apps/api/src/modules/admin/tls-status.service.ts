@@ -85,7 +85,7 @@ export class AdminTlsStatusService {
       `api.${domain}`,
       `app.${domain}`,
       `admin.${domain}`,
-      `scoring.${domain}`,
+      `staff.${domain}`,
       `traefik.${domain}`,
     ];
   }

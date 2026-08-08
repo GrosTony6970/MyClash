@@ -154,7 +154,7 @@ completed slot has a winner whose score sits exactly on the cap — proof the
 engine ended it, not the test.
 
 > This matters more than realism. An earlier version declared winners with
-> `PATCH /matches/:id/status`, which **no frontend calls**: web-scoring posts
+> `PATCH /matches/:id/status`, which **no frontend calls**: web-staff posts
 > exchanges and drives the clock. For a while that endpoint and forfeits were the
 > only paths wired to `BracketAdvanceService`, so a bracket scored on the pad
 > never advanced at all. Testing through the endpoint hid it; scoring for real is
@@ -385,8 +385,8 @@ Things worth knowing before touching it:
   set) and the first entry that actually issues a card is used. Naming one by ref
   number would break the day the rulebook is revised.
 
-It needs the `data-testid`s in `apps/web-scoring` — added with it — so a
-**web-scoring redeploy** is a precondition for it going green.
+It needs the `data-testid`s in `apps/web-staff` — added with it — so a
+**web-staff redeploy** is a precondition for it going green.
 
 ## Archive export → restore round-trip (opt-in)
 

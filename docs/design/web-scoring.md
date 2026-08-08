@@ -1,8 +1,8 @@
-# web-scoring — surface delta
+# web-staff — surface delta
 
 > Delta against [`/DESIGN.md`](../../DESIGN.md). Only what this surface changes. The language, tokens and rules come from the root file — read it first.
 
-`scoring.myclash.fr` · port 3002 · Next.js App Router · offline-first PWA
+`staff.myclash.fr` · port 3002 · Next.js App Router · offline-first PWA
 
 ## The reference, shifted
 

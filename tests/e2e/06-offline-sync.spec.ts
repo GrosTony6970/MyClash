@@ -2,7 +2,7 @@ import { test, expect, type APIResponse, type Page } from '@playwright/test';
 import { runContext } from './_context';
 
 /**
- * Offline scoring durability (web-scoring PWA) — drives the real scoring pad and
+ * Offline scoring durability (web-staff PWA) — drives the real scoring pad and
  * proves the outbox + SyncEngine wiring on the critical scoring path.
  *
  * Seeds a self-contained 2-fighter tournament in the shared throwaway event via
@@ -12,7 +12,7 @@ import { runContext } from './_context';
  *      (proves the rewired online path still persists exchanges), then
  *   2. goes OFFLINE (`context.setOffline`), records another clean hit — asserts
  *      the network bar flips to offline with pending count 1 AND the IndexedDB
- *      `myclash-scoring` outbox holds exactly 1 queued exchange (nothing lost),
+ *      `myclash-staff` outbox holds exactly 1 queued exchange (nothing lost),
  *      then
  *   3. comes back ONLINE — asserts the outbox drains to 0 and the server now
  *      returns BOTH exchanges (client_uuid idempotency; auto-drain on reconnect).
@@ -33,7 +33,7 @@ test('offline scoring queues an exchange and auto-syncs on reconnect', async ({
   const { eventId, baseURL } = runContext();
   const api = (p: string) => `/api/v1/${p}`;
   const tok = Date.now().toString(36);
-  // The pad lives in the web-scoring app; reach it same-origin through the admin
+  // The pad lives in the web-staff app; reach it same-origin through the admin
   // `/scoring/*` proxy (default) or via an explicit scoring host override.
   const scoringBase = (process.env.E2E_SCORING_URL ?? `${baseURL}/scoring`).replace(/\/$/, '');
 
@@ -123,7 +123,7 @@ test('offline scoring queues an exchange and auto-syncs on reconnect', async ({
     p.evaluate(
       () =>
         new Promise<number>((resolve) => {
-          const open = indexedDB.open('myclash-scoring');
+          const open = indexedDB.open('myclash-staff');
           open.onerror = () => resolve(-1);
           open.onsuccess = () => {
             const db = open.result;

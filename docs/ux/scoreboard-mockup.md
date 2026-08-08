@@ -6,7 +6,7 @@
 
 ## Context
 
-The live match-scoring screen (`apps/web-scoring`) works but isn't yet user-friendly. It's a dark
+The live match-scoring screen (`apps/web-staff`) works but isn't yet user-friendly. It's a dark
 3-column layout (**red | center | blue**) with a large **white Forfeit panel pinned at the bottom**,
 per-fighter clean-hit / afterblow / penalty-**search** / direct-card controls, and a center timer +
 exchange history. It must serve **both tablet (touch) and laptop (pointer)** and a **mix of operators**
@@ -25,7 +25,7 @@ Split the screen into two planes:
   Always visible, big, calm.
 - **Match administration (rare / destructive):** forfeit, direct card, reset, colour/side swap,
   corrections. Behind **one** "Match actions" entry — reuse the existing `Drawer`
-  ([MatchCorrectionsDrawer.tsx](../../apps/web-scoring/src/components/MatchCorrectionsDrawer.tsx)).
+  ([MatchCorrectionsDrawer.tsx](../../apps/web-staff/src/components/MatchCorrectionsDrawer.tsx)).
 
 ## Priority table
 

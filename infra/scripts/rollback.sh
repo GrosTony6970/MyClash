@@ -92,7 +92,7 @@ COMPOSE=(docker compose --env-file "$ROOT_DIR/.env" -f infra/docker-compose.prod
 hdr "Stopping services connected to the database"
 
 "${COMPOSE[@]}" stop \
-  api web-public web-scoring web-admin worker \
+  api web-public web-staff web-admin worker \
   supabase-auth supabase-rest supabase-realtime supabase-storage \
   supabase-meta supabase-studio
 ok "Services stopped"

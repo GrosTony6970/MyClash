@@ -28,7 +28,7 @@ The facts, each re-checkable rather than taken on trust:
   no cross-site cookie, no third-party domain.
 - **The policies existed but were unreachable from the product.** They are static pages on
   `web-marketing` (`public/terms`, `public/privacypolicy`, with `/en` siblings). Before this
-  slice, `grep -i 'terms|privacy|consent'` across `web-public`, `web-admin` and `web-scoring`
+  slice, `grep -i 'terms|privacy|consent'` across `web-public`, `web-admin` and `web-staff`
   returned **zero hits**: no signup form mentioned them, no footer linked them, and nothing
   recorded that anyone had ever agreed to them.
 

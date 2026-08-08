@@ -6,7 +6,7 @@ import { CreateExchangeDto } from './matches.dto';
  *
  * The pad fills every optional field with `?? null` for the ones an exchange
  * type does not use. Every exchange goes through the outbox, so
- * `apps/web-scoring/src/offline/sync.ts` is the single post path and it builds
+ * `apps/web-staff/src/offline/sync.ts` is the single post path and it builds
  * the body that way. Zod's `.optional()` accepts `undefined` only, so those
  * nulls made the schema reject a plain clean hit with a 400 — and `SyncEngine`
  * treated a 400 as terminal and DROPPED the entry. A referee's scored hit

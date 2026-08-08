@@ -12,7 +12,7 @@ This document records the production-review security posture for MyClash. It is 
   - `https://${DOMAIN}`
   - `https://app.${DOMAIN}`
   - `https://admin.${DOMAIN}`
-  - `https://scoring.${DOMAIN}`
+  - `https://staff.${DOMAIN}`
   - localhost ports 3001, 3002, and 3003 for development only
 - Wildcard CORS is not used.
 - Swagger/OpenAPI is disabled when `NODE_ENV=production`.

@@ -10,7 +10,7 @@ const SEVERITY_CLASSES: Record<MaintenanceBannerSeverity, string> = {
 };
 
 interface MaintenanceBannerProps {
-  /** API base URL — varies per app (web-admin / web-public / web-scoring). */
+  /** API base URL — varies per app (web-admin / web-public / web-staff). */
   apiUrl: string;
 }
 

@@ -4,7 +4,7 @@ import { join } from 'node:path';
 
 /**
  * [data-theme='light'] exists to override [data-theme='dark'] in a nested
- * region (web-scoring's match list and chrome sit light inside a dark body).
+ * region (web-staff's match list and chrome sit light inside a dark body).
  * That only works if it restores EVERY token the dark scope sets — a token
  * added to dark and forgotten in light leaks a dark value into a light region,
  * and the failure is invisible until someone looks at the right screen.

@@ -56,7 +56,7 @@ const appContainerLabels: Record<string, string> = {
   worker: 'Worker container',
   'web-admin': 'Admin container',
   'web-public': 'Public app container',
-  'web-scoring': 'Scoring app container',
+  'web-staff': 'Scoring app container',
   'web-marketing': 'Marketing container',
 };
 
@@ -82,7 +82,7 @@ const restartableKeys: ReadonlySet<string> = new Set([
   'worker',
   'web-admin',
   'web-public',
-  'web-scoring',
+  'web-staff',
   'web-marketing',
   'redis',
   'supabaseAuth',

@@ -73,7 +73,7 @@ export class ScoringDb extends Dexie {
   rejected!: Table<RejectedEntry, number>;
 
   constructor() {
-    super('myclash-scoring');
+    super('myclash-staff');
 
     this.version(1).stores({
       // id is auto-incremented PK; index matchId for per-match queries

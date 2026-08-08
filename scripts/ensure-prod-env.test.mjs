@@ -101,7 +101,7 @@ test('creates .env from sample and replaces generated secrets/default URLs', asy
   // uses the dedicated api. subdomain.
   assert.equal(values.get('NEXT_PUBLIC_API_URL_ADMIN'), 'https://admin.example.org');
   assert.equal(values.get('NEXT_PUBLIC_API_URL_PUBLIC'), 'https://app.example.org');
-  assert.equal(values.get('NEXT_PUBLIC_API_URL_SCORING'), 'https://api.example.org');
+  assert.equal(values.get('NEXT_PUBLIC_API_URL_STAFF'), 'https://api.example.org');
   assert.notEqual(values.get('POSTGRES_PASSWORD'), 'change-me-strong-password');
   assert.notEqual(values.get('COOKIE_SECRET'), 'change-me-cookie-secret');
   assert.match(values.get('TRAEFIK_DASHBOARD_AUTH'), /^admin:\{SHA\}.+/);

@@ -230,7 +230,7 @@ Three distinct mechanisms, each addressing a different concern:
 | Service             | Responsibility                                                                                               |
 | ------------------- | ------------------------------------------------------------------------------------------------------------ |
 | `web-public`        | Public/Spectator + Competitor PWA. SSR public pages (`/e/[eventSlug]/...`).                                  |
-| `web-scoring`       | Scorekeeper PWA. Heavily client-side, IndexedDB-backed.                                                      |
+| `web-staff`         | Scorekeeper PWA. Heavily client-side, IndexedDB-backed.                                                      |
 | `web-admin`         | Organizer Admin + Super Admin SPA-like experience.                                                           |
 | `web-marketing`     | Static HTML on Caddy — `myclash.fr` apex landing page.                                                       |
 | `api`               | NestJS — domain logic, REST + WebSocket gateway, BullMQ producer.                                            |
@@ -1085,7 +1085,7 @@ HEMA events happen in sports halls, basements, and convention centers with hosti
 
 ### 10.2 Architecture
 
-Implemented in [`apps/web-scoring/src/offline/`](../apps/web-scoring/src/offline/) — `db.ts` (Dexie
+Implemented in [`apps/web-staff/src/offline/`](../apps/web-staff/src/offline/) — `db.ts` (Dexie
 schema: `outbox` + `synced`), `outbox.ts`, `sync.ts` (`SyncEngine`), `reconcile.ts`.
 
 The write is **durable-first**: the exchange lands in the IndexedDB outbox before any network call, so
@@ -2337,7 +2337,7 @@ There are no per-user or per-org limiters, and scoring writes get the default.
 /me/claim-confirm                                      # Magic-link claim confirmation
 ```
 
-### 15.2 `web-scoring`
+### 15.2 `web-staff`
 
 ```
 /login
@@ -2419,7 +2419,7 @@ There are no per-user or per-org limiters, and scoring writes get the default.
 Custom `@myclash/i18n` package (`packages/i18n/`) — not `next-intl` or `i18next`. Rationale: shared across all apps (Next.js + NestJS) without a React dependency in the core translation layer.
 
 - `packages/i18n/src/index.ts` — the whole translation layer. `en` and `fr` are inline `export const en = {...}` / `export const fr = {...}` literal objects (fr is a **full French translation**, not an `fr = en` alias); this file also exports `defaultLocale`, the `DeepString<T>` type, and the `t` / `createTranslator` / `getMessages` helpers. There are no separate `en.ts` / `fr.ts` files.
-- `apps/{web-public,web-admin,web-scoring}/src/i18n/I18nProvider.tsx` — the React context provider is **per-app** (one copy in each Next.js app), not in the package.
+- `apps/{web-public,web-admin,web-staff}/src/i18n/I18nProvider.tsx` — the React context provider is **per-app** (one copy in each Next.js app), not in the package.
 
 ### ESLint enforcement
 
@@ -2464,7 +2464,7 @@ flowchart LR
   TR --> H_MK{{"${DOMAIN}<br/>www.${DOMAIN}"}}
   TR --> H_APP{{"app.${DOMAIN}"}}
   TR --> H_ADM{{"admin.${DOMAIN}"}}
-  TR --> H_SCO{{"scoring.${DOMAIN}"}}
+  TR --> H_SCO{{"staff.${DOMAIN}"}}
   TR --> H_API{{"api.${DOMAIN}"}}
   TR --> H_DASH{{"traefik.${DOMAIN}"}}
 
@@ -2489,7 +2489,7 @@ flowchart LR
   MKT["web-marketing :80"]
   PUB["web-public :3000"]
   ADM["web-admin :3000"]
-  SCO["web-scoring :3000"]
+  SCO["web-staff :3000"]
   API["api :4000"]
   AUTH["supabase-auth :9999"]
   REST["supabase-rest :3000"]
@@ -2516,7 +2516,7 @@ flowchart TD
   subgraph APP["application"]
     PUB["web-public"]
     ADM["web-admin"]
-    SCO["web-scoring"]
+    SCO["web-staff"]
     MKT["web-marketing"]
     API["api :4000"]
     WRK["worker<br/>(api image, --worker)"]
@@ -2631,7 +2631,7 @@ The production stack is defined in [`infra/docker-compose.prod.yml`](../infra/do
 | `worker`            | `myclash-worker`            | Same as `api`, started with `--worker`     | BullMQ consumer — stats aggregation, exports, Ratings sync, push notifications.                       |
 | `web-admin`         | `myclash-web-admin`         | Built from `apps/web-admin/Dockerfile`     | Next.js 16 on internal port 3000. Routed at `admin.${DOMAIN}`.                                        |
 | `web-public`        | `myclash-web-public`        | Built from `apps/web-public/Dockerfile`    | Next.js 16 on internal port 3000. Routed at `app.${DOMAIN}`.                                          |
-| `web-scoring`       | `myclash-web-scoring`       | Built from `apps/web-scoring/Dockerfile`   | Next.js 16 on internal port 3000. Routed at `scoring.${DOMAIN}`.                                      |
+| `web-staff`         | `myclash-web-staff`         | Built from `apps/web-staff/Dockerfile`     | Next.js 16 on internal port 3000. Routed at `staff.${DOMAIN}`.                                        |
 | `web-marketing`     | `myclash-web-marketing`     | Built from `apps/web-marketing/Dockerfile` | Static HTML on Caddy, port 80. Routed at `${DOMAIN}` and `www.${DOMAIN}` (apex redirect).             |
 | `ops-runner`        | `myclash-ops-runner`        | Built from `infra/ops-runner/Dockerfile`   | Bearer-authed sidecar with `/var/run/docker.sock`. Backups, restore, container lifecycle. See §17.4.  |
 
@@ -2642,8 +2642,8 @@ Traefik routes by Host header. Key mappings:
 | `${DOMAIN}`         | `web-marketing`         | Apex landing page. `www.${DOMAIN}` permanent-redirects to apex.                                                                                                         |
 | `app.${DOMAIN}`     | `web-public` + Supabase | Root → web-public. `/auth/v1` → supabase-auth · `/realtime/v1` → supabase-realtime · `/storage/v1` → supabase-storage · `/rest/v1` → supabase-rest (all StripPrefix'd). |
 | `admin.${DOMAIN}`   | `web-admin` + `api`     | `/api/v1/*` → api (priority 30), everything else → web-admin.                                                                                                           |
-| `scoring.${DOMAIN}` | `web-scoring`           | Scorekeeper tablet PWA.                                                                                                                                                 |
-| `api.${DOMAIN}`     | `api`                   | NestJS REST endpoint (used by web-scoring + dev tools).                                                                                                                 |
+| `staff.${DOMAIN}`   | `web-staff`             | Scorekeeper tablet PWA.                                                                                                                                                 |
+| `api.${DOMAIN}`     | `api`                   | NestJS REST endpoint (used by web-staff + dev tools).                                                                                                                   |
 | `traefik.${DOMAIN}` | `traefik`               | Dashboard, basic-auth gated via `TRAEFIK_DASHBOARD_AUTH`.                                                                                                               |
 | `studio.${DOMAIN}`  | `supabase-studio`       | Operator DB console. IP allowlist **and** basic auth, both mandatory. See §17.5.                                                                                        |
 
@@ -2684,7 +2684,7 @@ The HTTP surface is exposed on the internal `myclash` network at port `4075`, ne
 | `GET`    | `/download/{backupId}?...`         | Stream a backup artifact back to the admin UI.                                         |
 | `POST`   | `/containers/{service}/{action}`   | Start / stop / restart an allowlisted service (`action` ∈ `start`, `stop`, `restart`). |
 
-The lifecycle endpoint accepts only the **12-service restartable allowlist** (mirrored server-side as `RESTARTABLE_COMPONENTS` in `system-actions.service.ts` and as `RESTARTABLE_SERVICES` in `server.mjs`): `worker`, `web-admin`, `web-public`, `web-scoring`, `web-marketing`, `redis`, `supabase-auth`, `supabase-realtime`, `supabase-storage`, `supabase-rest`, `supabase-meta`, `supabase-studio`. Catastrophic / self-referential services are intentionally excluded:
+The lifecycle endpoint accepts only the **12-service restartable allowlist** (mirrored server-side as `RESTARTABLE_COMPONENTS` in `system-actions.service.ts` and as `RESTARTABLE_SERVICES` in `server.mjs`): `worker`, `web-admin`, `web-public`, `web-staff`, `web-marketing`, `redis`, `supabase-auth`, `supabase-realtime`, `supabase-storage`, `supabase-rest`, `supabase-meta`, `supabase-studio`. Catastrophic / self-referential services are intentionally excluded:
 
 - `api` — would kill the calling request mid-flight.
 - `postgres` (`db`) — full data outage.
@@ -2752,7 +2752,7 @@ myclash/
 │   │   │   └── main.ts
 │   │   └── test/
 │   ├── web-public/             # Next.js (PWA, mobile-first — spectator/competitor)
-│   ├── web-scoring/            # Next.js (PWA, offline-first — scorekeeper)
+│   ├── web-staff/            # Next.js (PWA, offline-first — scorekeeper)
 │   ├── web-admin/              # Next.js (SPA — organiser + super-admin)
 │   └── web-marketing/          # Static HTML — marketing site (myclash.fr apex)
 ├── packages/
