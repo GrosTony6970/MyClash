@@ -19,8 +19,8 @@ import {
   roundCodeFromMatchRow,
   type LiceMatchesPayload,
 } from './lice-matches';
-import { bracketToken } from '@myclash/types';
-import type { PhaseType } from '@myclash/types';
+import { bracketToken, parseStaffRole } from '@myclash/types';
+import type { PhaseType, StaffRole } from '@myclash/types';
 import { getEffectiveBestOf, normalizeMatchFormatConfig } from '@myclash/rulesets';
 import type { Match as RulesetMatch } from '@myclash/rulesets';
 import type { FastifyRequest } from 'fastify';
@@ -78,7 +78,17 @@ type StaffAccountRow = {
   username: string;
   pin_hash: string;
   status: string;
+  role: string;
 };
+
+/**
+ * Roles allowed to run a piste with the scoring pad.
+ *
+ * A one-element list rather than a bare equality check so that widening it —
+ * the day a head referee role appears — is an edit here and nowhere else, and
+ * so `grep SCORING_ROLES` finds every gate at once.
+ */
+const SCORING_ROLES: readonly StaffRole[] = ['scoring'];
 
 /** A prev/next match summary for the scoring pad's header tiles. */
 export interface NeighborTile {
@@ -107,7 +117,7 @@ export class StaffService {
     const { data, error } = await this.supabase.service
       .from('event_staff_accounts')
       .select(
-        'id,event_id,display_name,username,status,disabled_at,last_login_at,created_at,updated_at',
+        'id,event_id,display_name,username,status,role,disabled_at,last_login_at,created_at,updated_at',
       )
       .eq('event_id', eventId)
       .order('display_name', { ascending: true });
@@ -132,9 +142,13 @@ export class StaffService {
         username: this.normalizeUsername(dto.username),
         pin_hash: await this.hashPin(dto.pin),
         status: 'active',
+        // Omitted rather than defaulted here: the column's own DEFAULT 'scoring'
+        // is the one owner of what a role-less staff account means, and writing
+        // a second fallback in TypeScript is how the two drift apart.
+        ...(dto.role === undefined ? {} : { role: dto.role }),
         created_by_user_id: userId,
       })
-      .select('id,event_id,display_name,username,status,created_at,updated_at')
+      .select('id,event_id,display_name,username,status,role,created_at,updated_at')
       .single();
     if (error) throw new BadRequestException(error.message);
     return { ...data, liceIds: [] };
@@ -155,6 +169,11 @@ export class StaffService {
       updates['disabled_at'] = dto.status === 'disabled' ? new Date().toISOString() : null;
       updates['disabled_by_user_id'] = dto.status === 'disabled' ? userId : null;
     }
+    // Re-roling does NOT clear the account's Lice assignments. They are inert
+    // for a desk or gear account — nothing reads them off the scoring path once
+    // the role gate refuses it — and keeping them means moving an account back
+    // to Scoring restores the pistes it had, instead of silently losing them.
+    if (dto.role !== undefined) updates['role'] = dto.role;
 
     const { data, error } = await this.supabase.service
       .from('event_staff_accounts')
@@ -162,7 +181,7 @@ export class StaffService {
       .eq('event_id', eventId)
       .eq('id', accountId)
       .select(
-        'id,event_id,display_name,username,status,disabled_at,last_login_at,created_at,updated_at',
+        'id,event_id,display_name,username,status,role,disabled_at,last_login_at,created_at,updated_at',
       )
       .single();
     if (error) throw new BadRequestException(error.message);
@@ -289,7 +308,7 @@ export class StaffService {
 
     const { data: account, error } = await this.supabase.service
       .from('event_staff_accounts')
-      .select('id,event_id,display_name,username,pin_hash,status')
+      .select('id,event_id,display_name,username,pin_hash,status,role')
       .eq('event_id', event.id)
       .ilike('username', this.normalizeUsername(dto.username))
       .maybeSingle();
@@ -317,7 +336,7 @@ export class StaffService {
   }
 
   async listAssignedLices(req: FastifyRequest) {
-    const staff = await this.requireStaffFromRequest(req);
+    const staff = await this.requireStaffFromRequest(req, SCORING_ROLES);
     return this.getAssignedLices(staff.id);
   }
 
@@ -352,7 +371,7 @@ export class StaffService {
   }
 
   async getAssignedLiceCurrent(req: FastifyRequest, liceId: string) {
-    const staff = await this.requireStaffFromRequest(req);
+    const staff = await this.requireStaffFromRequest(req, SCORING_ROLES);
     const assigned = await this.isLiceAssigned(staff.id, liceId);
     if (!assigned) throw new ForbiddenException('Staff account is not assigned to this Lice');
     return this.getCurrentForLiceId(liceId);
@@ -589,7 +608,12 @@ export class StaffService {
       };
     }
 
-    const staff = await this.requireStaffFromRequest(req);
+    // The single choke point for every staff-token write to a bout — exchanges,
+    // penalties, the clock and the match itself all resolve their actor through
+    // here. Gating the role at this one call covers all of them; a desk or gear
+    // account is refused before the piste-assignment check it could never pass
+    // anyway, with a reason that names the real cause.
+    const staff = await this.requireStaffFromRequest(req, SCORING_ROLES);
     const match = await this.getMatchContext(matchId);
     if (match.eventId !== staff.event_id) throw new ForbiddenException('Wrong staff event');
     if (!match.liceId) throw new ForbiddenException('Match has no assigned Lice');
@@ -731,10 +755,20 @@ export class StaffService {
     };
   }
 
+  /**
+   * The staff session payload — returned by both `/staff-auth/me` and login.
+   *
+   * Carries `account.role` because the staff app has no other way to learn it:
+   * the token has none, so the landing route after sign-in and every
+   * role-specific nav item read it from here.
+   *
+   * `lices` stays on the payload for all three roles and is simply empty for a
+   * desk or gear account, which never has an assignment.
+   */
   private async getMeForStaff(staffAccountId: string) {
     const { data, error } = await this.supabase.service
       .from('event_staff_accounts')
-      .select('id,event_id,display_name,username,status,events(id,slug,name,status)')
+      .select('id,event_id,display_name,username,status,role,events(id,slug,name,status)')
       .eq('id', staffAccountId)
       .maybeSingle();
     if (error) throw new BadRequestException(error.message);
@@ -823,7 +857,7 @@ export class StaffService {
    * referee line.
    */
   async getAssignedLiceMatches(req: FastifyRequest, liceId: string) {
-    const staff = await this.requireStaffFromRequest(req);
+    const staff = await this.requireStaffFromRequest(req, SCORING_ROLES);
     const assigned = await this.isLiceAssigned(staff.id, liceId);
     if (!assigned) throw new ForbiddenException('Staff account is not assigned to this Lice');
     return this.getMatchesForLiceId(liceId);
@@ -854,7 +888,7 @@ export class StaffService {
 
   /** Staff session that is actually assigned to this lice, or 403. */
   private async requireLiceAccess(req: FastifyRequest, liceId: string): Promise<StaffAccountRow> {
-    const staff = await this.requireStaffFromRequest(req);
+    const staff = await this.requireStaffFromRequest(req, SCORING_ROLES);
     const assigned = await this.isLiceAssigned(staff.id, liceId);
     if (!assigned) throw new ForbiddenException('Staff account is not assigned to this Lice');
     return staff;
@@ -1074,13 +1108,30 @@ export class StaffService {
     };
   }
 
-  private async requireStaffFromRequest(req: FastifyRequest): Promise<StaffAccountRow> {
+  /**
+   * The staff session behind this request, or 401/403.
+   *
+   * `allowedRoles` gates EVENT-scoped on `event_staff_accounts.role`, read from
+   * the row on every call. The mc_staff token carries no role on purpose (see
+   * 0173): an organiser who re-roles a volunteer mid-event must take effect on
+   * that volunteer's next tap, and a staff session lasts the whole event day.
+   *
+   * Omit it for the surfaces every role shares — `/staff-auth/me` and the
+   * heartbeat, which a desk tablet sends exactly like a scoring tablet.
+   */
+  private async requireStaffFromRequest(
+    req: FastifyRequest,
+    allowedRoles?: readonly StaffRole[],
+  ): Promise<StaffAccountRow> {
     const cookies = (req as FastifyRequest & { cookies?: Record<string, string> }).cookies;
     const token = cookies?.[STAFF_COOKIE_NAME];
     if (!token) throw new UnauthorizedException('Staff session required');
     const payload = this.jwt.verify(token);
     const account = await this.getAccountForEvent(payload.event_id, payload.sub);
     if (account.status !== 'active') throw new ForbiddenException('Staff account is disabled');
+    if (allowedRoles && !allowedRoles.includes(parseStaffRole(account.role))) {
+      throw new ForbiddenException('Staff account role cannot use this surface');
+    }
     const event = await this.getEventById(account.event_id);
     this.assertEventScorable(event);
     return account;
@@ -1150,7 +1201,7 @@ export class StaffService {
   private async getAccountForEvent(eventId: string, accountId: string): Promise<StaffAccountRow> {
     const { data, error } = await this.supabase.service
       .from('event_staff_accounts')
-      .select('id,event_id,display_name,username,pin_hash,status')
+      .select('id,event_id,display_name,username,pin_hash,status,role')
       .eq('event_id', eventId)
       .eq('id', accountId)
       .maybeSingle();

@@ -1,5 +1,13 @@
 import { createZodDto } from 'nestjs-zod';
 import { z } from 'zod';
+import { STAFF_ROLES } from '@myclash/types';
+
+/**
+ * Which job the account does. Mirrors the `event_staff_accounts_role_allowed`
+ * CHECK from 0173 — the DTO and the table hold the same rule, so a caller that
+ * bypasses this schema still cannot store a fourth value.
+ */
+const staffRoleSchema = z.enum(STAFF_ROLES);
 
 const createStaffAccountSchema = z
   .object({
@@ -14,6 +22,11 @@ const createStaffAccountSchema = z
       .min(4)
       .max(12)
       .regex(/^[0-9]+$/),
+    // Optional so the column's own DEFAULT is the single source of the
+    // historical meaning of a role-less staff account (scoring). The admin
+    // create form always sends one — it is derived from the active tab, so
+    // there is no dropdown to leave unset.
+    role: staffRoleSchema.optional(),
   })
   .strict();
 export class CreateStaffAccountDto extends createZodDto(createStaffAccountSchema) {}
@@ -28,6 +41,11 @@ const updateStaffAccountSchema = z
       .regex(/^[a-zA-Z0-9._-]+$/)
       .optional(),
     status: z.enum(['active', 'disabled']).optional(),
+    // Re-roling an existing account rather than deleting and recreating it:
+    // the organiser who put a volunteer on the wrong tab keeps their PIN and
+    // their sign-in link. Takes effect on the volunteer's next request, since
+    // nothing caches the role.
+    role: staffRoleSchema.optional(),
   })
   .strict();
 export class UpdateStaffAccountDto extends createZodDto(updateStaffAccountSchema) {}

@@ -21,4 +21,5 @@ export * from './platform-role';
 export * from './referee-conflicts';
 export * from './round-code';
 export * from './scoring-config';
+export * from './staff-role';
 export * from './venue';
