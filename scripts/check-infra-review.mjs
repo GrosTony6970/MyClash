@@ -1854,6 +1854,12 @@ for (const expected of [
   'aws',
   's3',
   'rm',
+  // Host identity/CPU/RAM comes from the docker daemon, and only this sidecar
+  // has the socket. The projection is an allowlist because `docker info` also
+  // carries proxy URLs that can embed credentials — see host-info.mjs.
+  "url.pathname === '/host'",
+  'parseDockerInfo',
+  'HOST_INFO_TIMEOUT_MS',
 ]) {
   requireContains(opsRunnerServerText, 'infra/ops-runner/server.mjs', expected);
 }

@@ -21,6 +21,7 @@ import {
   writeBackupSchedule,
 } from './backup-core.mjs';
 import { parseDfOutput } from './disk.mjs';
+import { parseDockerInfo } from './host-info.mjs';
 import { acquireOpsLock, releaseOpsLock, withOpsLock } from './ops-lock.mjs';
 
 const PORT = Number(process.env.OPS_RUNNER_PORT ?? 4075);
@@ -44,6 +45,9 @@ const CLOUD_ARTIFACT_INCLUDE_GLOBS = [
 ];
 /** Keep propagated aws stderr readable in a UI banner. */
 const AWS_ERROR_MAX_CHARS = 400;
+// Well under the API's own budget for this call, so a stuck daemon surfaces as
+// "docker info timed out" rather than as a bare client-side abort.
+const HOST_INFO_TIMEOUT_MS = 5_000;
 const operations = new Map();
 let backupSchedule = await readBackupSchedule(ROOT_DIR);
 let lastScheduledRunKey = null;
@@ -94,6 +98,10 @@ const server = createServer(async (req, res) => {
     }
     if (req.method === 'GET' && url.pathname === '/disk') {
       sendJson(res, 200, await diskResponse());
+      return;
+    }
+    if (req.method === 'GET' && url.pathname === '/host') {
+      sendJson(res, 200, await hostResponse());
       return;
     }
     if (req.method === 'GET' && url.pathname === '/backups') {
@@ -196,6 +204,30 @@ async function diskResponse() {
     throw new Error(result.stderr || 'df failed');
   }
   return { generatedAt: new Date().toISOString(), ...parseDfOutput(result.stdout) };
+}
+
+/**
+ * Host identity and capacity, read from the docker daemon over the socket this
+ * sidecar already mounts. The api container has neither the socket nor the host
+ * filesystem, which is why this lives here at all.
+ *
+ * spawnCaptureWithTimeout, not spawnCapture: the latter has no timeout, and a
+ * wedged daemon would hold this request open until the API's own abort fires —
+ * turning a degraded panel into a stalled one.
+ */
+async function hostResponse() {
+  const result = await spawnCaptureWithTimeout(
+    'docker',
+    ['info', '--format', '{{json .}}'],
+    HOST_INFO_TIMEOUT_MS,
+  );
+  if (result.timedOut) {
+    throw new Error(`docker info timed out after ${HOST_INFO_TIMEOUT_MS}ms`);
+  }
+  if (result.code !== 0) {
+    throw new Error(result.stderr || 'docker info failed');
+  }
+  return { generatedAt: new Date().toISOString(), ...parseDockerInfo(result.stdout) };
 }
 
 async function backupsResponse() {
