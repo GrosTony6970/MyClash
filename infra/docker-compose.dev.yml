@@ -327,6 +327,10 @@ services:
     container_name: myclash-dev-supabase-studio
     restart: unless-stopped
     environment:
+      # See the prod compose: Next standalone binds to the injected HOSTNAME.
+      # Dev has no healthcheck to fail, but the loopback is just as dead, and
+      # the published port only works because DNAT lands on the container IP.
+      HOSTNAME: '0.0.0.0'
       STUDIO_PG_META_URL: http://supabase-meta:8080
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-dev-password}
       DEFAULT_ORGANIZATION_NAME: MyClash

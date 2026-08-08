@@ -454,6 +454,14 @@ services:
     container_name: myclash-supabase-studio
     restart: unless-stopped
     environment:
+      # A Next.js standalone server binds to process.env.HOSTNAME, and the
+      # container runtime injects HOSTNAME=<container id> — so without this
+      # Studio listens on its own eth0 address alone. Traefik still reaches it
+      # and the console looks fine, while the healthcheck below dials 127.0.0.1
+      # and is refused forever. Our own Next images set this in their
+      # Dockerfiles (apps/web-public/Dockerfile); an image we don't build has
+      # to be told here, which is what upstream's own compose does.
+      HOSTNAME: '0.0.0.0'
       STUDIO_PG_META_URL: http://supabase-meta:8080
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       DEFAULT_ORGANIZATION_NAME: MyClash

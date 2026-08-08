@@ -251,6 +251,12 @@ here.
 - Validate file bind-mount sources before `docker compose up`: a missing host path makes Docker
   create a _directory_ and mount it, so generated file artifacts must be recreated as files and
   checked with `-f`/`-s`.
+- A containerised Next.js **standalone** server binds to `process.env.HOSTNAME`, and the container
+  runtime injects `HOSTNAME=<container id>` — so it listens on its own eth0 address, not
+  `127.0.0.1`. Traefik and published ports still reach it (DNAT lands on the container IP), so the
+  service looks healthy from outside while every loopback healthcheck is refused. Our own images
+  set `ENV HOSTNAME="0.0.0.0"` in their Dockerfiles; a third-party Next image (`supabase/studio`)
+  must be given `HOSTNAME: '0.0.0.0'` in compose. Pinned by `pnpm infra:review`.
 
 ## Ops script conventions (inherited from MyFAL)
 

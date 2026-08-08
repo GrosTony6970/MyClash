@@ -2088,6 +2088,25 @@ if (!traefikEnvLibText.includes('TRAEFIK_STUDIO_ALLOWLIST')) {
   errors.push('infra/scripts/lib/traefik-env.sh must export TRAEFIK_STUDIO_ALLOWLIST.');
 }
 
+// Studio is a Next.js standalone server, so it binds to process.env.HOSTNAME —
+// and the container runtime injects HOSTNAME=<container id> into every
+// container. Without the override it listens on its own eth0 address alone:
+// Traefik still reaches it, so the console looks perfectly fine, while the
+// loopback healthcheck can never connect and the service sits unhealthy
+// forever. That is exactly how it shipped. Our own Next images set this in
+// their Dockerfiles; an image we don't build has to be told from compose.
+for (const [label, serviceText] of [
+  ['prod supabase-studio', services.get('supabase-studio') ?? ''],
+  ['dev supabase-studio', devServices.get('supabase-studio') ?? ''],
+]) {
+  if (!serviceText.includes("HOSTNAME: '0.0.0.0'")) {
+    errors.push(
+      `${label} must set HOSTNAME: '0.0.0.0' — a Next standalone binds to the injected ` +
+        'HOSTNAME, and a loopback healthcheck cannot reach it.',
+    );
+  }
+}
+
 // ── Traefik edge plugins (GeoBlock + Fail2Ban) ──────────────────────────────
 // Plugins load ONLY at container start, so these declarations are what make a
 // fresh deploy come up with them already installed.
