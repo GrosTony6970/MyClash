@@ -13,7 +13,7 @@ import {
 import { ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
 import type { FastifyRequest } from 'fastify';
 import { CheckinService } from './checkin.service';
-import { MarkArrivalDto, RosterQueryDto } from './dto';
+import { MarkArrivalDto, RosterQueryDto, ScanPassDto } from './dto';
 
 /**
  * The check-in desk, for a staff account holding the `checkin` role.
@@ -56,6 +56,30 @@ export class CheckinController {
   })
   async missing(@Req() req: FastifyRequest) {
     return this.checkin.getMissingAtRisk(req);
+  }
+
+  /**
+   * Redeem a scanned pass: resolve it and mark that person present, in one call.
+   *
+   * One call rather than resolve-then-confirm because the scanner stays live and
+   * the queue keeps moving — ten people is ten scans with no tap between, which
+   * is the entire reason the fast lane exists. The confirmation stacks up on
+   * screen afterwards with Undo still reachable, so a wrong scan is corrected
+   * without stopping the line.
+   *
+   * Safe to auto-mark here in a way it would NOT be from the search path: a
+   * search hit can be the wrong Marie, a token cannot. That difference is
+   * exactly what `event_arrivals.via` records.
+   */
+  @Post('scan')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Redeem a scanned event pass and mark that person present',
+    description:
+      "Resolves the token within this staff session's event and marks arrival with via=qr. 404 pass_not_recognized / pass_expired are readable states, not failures of the desk.",
+  })
+  async scan(@Body() dto: ScanPassDto, @Req() req: FastifyRequest) {
+    return this.checkin.redeemPass(req, dto.token);
   }
 
   @Post(':personId/arrive')

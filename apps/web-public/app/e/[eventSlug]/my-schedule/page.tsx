@@ -279,6 +279,18 @@ export default function MySchedulePage() {
         </button>
       </div>
 
+      {/* The pass hangs off this page rather than /me because /me is
+          claimed-only, and most participants at a real event are guests. This
+          page already serves both identities, so it is the one door both can
+          reach. */}
+      <Link
+        href={`/e/${eventSlug}/pass`}
+        className="mb-4 flex items-center justify-between gap-3 rounded-xl border border-border bg-surface px-4 py-3 text-sm font-semibold text-foreground hover:border-muted transition-colors"
+      >
+        <span>{t('publicApp.pass.link')}</span>
+        <span aria-hidden="true">›</span>
+      </Link>
+
       {/* Guest-session banner: this device follows the event without an
           account — offer the permanent upgrade (claim) + explicit logout
           (DELETE /guest-sessions/me, previously unreachable from any UI). */}

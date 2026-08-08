@@ -98,6 +98,20 @@ export const SUBJECT_EXPORT_TABLES: Readonly<Record<string, SubjectTableSpec>> =
     reaches: [{ column: 'person_id', reach: 'person' }],
     file: 'events.csv',
   },
+  event_passes: {
+    // When the subject was issued their event pass, by which path, and when it
+    // was last scanned. Same class of record as event_arrivals below — a
+    // timestamped trace of the subject being at a place — so it goes the same
+    // way, and for the same reason it is EXCLUDED from the event archive.
+    //
+    // The row's `token_hash` rides along in the export because the exporter
+    // selects `*`. That is deliberate and harmless: it is a sha256 of 256 bits
+    // of entropy, so it is not the credential and cannot be presented anywhere,
+    // and it is the subject's own pass in any case. The RAW token is never
+    // stored (migration 0176) and therefore cannot leak here.
+    reaches: [{ column: 'person_id', reach: 'person' }],
+    file: 'events.csv',
+  },
   event_arrivals: {
     // That the subject was physically at a named venue on a named day, at a
     // recorded time. Location-and-time data about an identified person is

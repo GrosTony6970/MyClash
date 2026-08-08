@@ -8759,6 +8759,26 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  '/api/v1/staff/checkin/scan': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Redeem a scanned event pass and mark that person present
+     * @description Resolves the token within this staff session's event and marks arrival with via=qr. 404 pass_not_recognized / pass_expired are readable states, not failures of the desk.
+     */
+    post: operations['CheckinController_scan'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   '/api/v1/staff/checkin/{personId}/arrive': {
     parameters: {
       query?: never;
@@ -8850,6 +8870,43 @@ export interface paths {
      * @description Appends rather than overwriting, so a re-check after a failure keeps the history. A conditional without a reason is refused by both the DTO and a table CHECK.
      */
     post: operations['GearController_record'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/events/{eventId}/pass': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Issue the calling participant an event pass */
+    post: operations['PassController_issue'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/event-passes/{token}': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Preview an emailed event pass
+     * @description Name + event only. Possession of the token is the credential; the narrow projection is the boundary.
+     */
+    get: operations['PassController_preview'];
+    put?: never;
+    post?: never;
     delete?: never;
     options?: never;
     head?: never;
@@ -11041,6 +11098,9 @@ export interface components {
     };
     RejectQueueItemDto: {
       rejectionReason: string;
+    };
+    ScanPassDto: {
+      token: string;
     };
     MarkArrivalDto: {
       /**
@@ -23850,6 +23910,7 @@ export interface operations {
       query?: never;
       header?: never;
       path: {
+        /** @description Event UUID or slug */
         eventId: string;
       };
       cookie?: never;
@@ -24124,6 +24185,27 @@ export interface operations {
       };
     };
   };
+  CheckinController_scan: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['ScanPassDto'];
+      };
+    };
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
   CheckinController_arrive: {
     parameters: {
       query?: never;
@@ -24219,6 +24301,45 @@ export interface operations {
     };
     responses: {
       201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  PassController_issue: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Event UUID or slug */
+        eventId: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  PassController_preview: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        token: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
         headers: {
           [name: string]: unknown;
         };

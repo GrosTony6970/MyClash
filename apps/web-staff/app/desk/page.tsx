@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useI18n } from '../../src/i18n/I18nProvider';
 import { useScoringTheme } from '../../src/theme/ThemeProvider';
 import { PersonRow } from '../../src/components/PersonRow';
+import { ScanOverlay } from '../../src/components/ScanOverlay';
 import { useDesk, type RosterEntry } from '../../src/lib/useDesk';
 import { MissingAtRisk } from './MissingAtRisk';
 
@@ -23,34 +24,32 @@ export default function DeskPage() {
   const { chromeScope } = useScoringTheme();
   const desk = useDesk();
   const [showMissing, setShowMissing] = useState(false);
+  const [showScan, setShowScan] = useState(false);
 
   if (showMissing) {
     return <MissingAtRisk onBack={() => setShowMissing(false)} onMark={desk.markArrived} />;
   }
 
+  if (showScan) {
+    return (
+      <ScanOverlay
+        onScan={desk.redeemPass}
+        onUndo={desk.undoArrival}
+        onClose={() => {
+          setShowScan(false);
+          // One refetch when the lane closes rather than one per scan: a queue
+          // of ten would otherwise be ten roster round trips on venue wifi.
+          void desk.reload();
+        }}
+      />
+    );
+  }
+
   return (
     <main data-theme={chromeScope} className="min-h-screen bg-background text-foreground">
       <div className="mx-auto flex min-h-screen max-w-2xl flex-col p-4">
-        <h1 className="mb-3 font-display text-xl font-bold">{t('scoring.desk.title')}</h1>
-
-        {/*
-          Autofocus is the point of this screen, not a convenience. The desk is
-          a single-purpose surface whose entire content IS this search, worked
-          by a standing volunteer with a queue in front of them — every tap
-          spent putting the cursor back in the box is a person waiting. The
-          a11y rule guards against stealing focus on a general page with other
-          content to orient in; there is no other content here.
-        */}
-        <input
-          type="search"
-          // eslint-disable-next-line jsx-a11y/no-autofocus -- single-purpose desk screen; the search IS the page
-          autoFocus
-          value={desk.query}
-          onChange={(event) => desk.setQuery(event.target.value)}
-          placeholder={t('scoring.desk.searchPlaceholder')}
-          aria-label={t('scoring.desk.searchPlaceholder')}
-          className="w-full rounded-lg border border-border bg-surface px-4 py-3 text-lg text-foreground placeholder-muted focus:outline-none focus:ring-2 focus:ring-accent"
-        />
+        <DeskHeader onScan={() => setShowScan(true)} />
+        <DeskSearch query={desk.query} onQueryChange={desk.setQuery} />
 
         {desk.error && <p className="mt-3 text-sm text-danger">{t('scoring.desk.actionError')}</p>}
 
@@ -64,6 +63,61 @@ export default function DeskPage() {
         <DeskFooter summary={desk.summary} onShowMissing={() => setShowMissing(true)} />
       </div>
     </main>
+  );
+}
+
+/** Title, plus the entrance to the QR lane. */
+function DeskHeader({ onScan }: { onScan: () => void }) {
+  const { t } = useI18n();
+
+  return (
+    <div className="mb-3 flex items-center justify-between gap-3">
+      <h1 className="font-display text-xl font-bold">{t('scoring.desk.title')}</h1>
+      {/*
+        A lane BESIDE the search box, not a mode the desk lands in. The home
+        screen stays the autofocused search, and this button never takes the
+        focus with it.
+      */}
+      <button
+        type="button"
+        onClick={onScan}
+        className="min-h-[44px] rounded-lg border border-border px-4 text-sm font-semibold"
+      >
+        {t('scoring.scan.open')}
+      </button>
+    </div>
+  );
+}
+
+/**
+ * The search box, which IS this screen.
+ *
+ * Autofocus is the point, not a convenience: the desk is a single-purpose
+ * surface worked by a standing volunteer with a queue in front of them, and
+ * every tap spent putting the cursor back in the box is a person waiting. The
+ * a11y rule guards against stealing focus on a general page with other content
+ * to orient in; there is no other content here.
+ */
+function DeskSearch({
+  query,
+  onQueryChange,
+}: {
+  query: string;
+  onQueryChange: (next: string) => void;
+}) {
+  const { t } = useI18n();
+
+  return (
+    <input
+      type="search"
+      // eslint-disable-next-line jsx-a11y/no-autofocus -- single-purpose desk screen; the search IS the page
+      autoFocus
+      value={query}
+      onChange={(event) => onQueryChange(event.target.value)}
+      placeholder={t('scoring.desk.searchPlaceholder')}
+      aria-label={t('scoring.desk.searchPlaceholder')}
+      className="w-full rounded-lg border border-border bg-surface px-4 py-3 text-lg text-foreground placeholder-muted focus:outline-none focus:ring-2 focus:ring-accent"
+    />
   );
 }
 

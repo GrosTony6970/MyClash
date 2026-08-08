@@ -1,8 +1,9 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import type { FastifyRequest } from 'fastify';
 import { SupabaseService } from '../supabase/supabase.service';
 import { StaffService } from '../staff/staff.service';
 import type { MarkArrivalDto } from './dto';
+import { PassService } from './pass.service';
 import { queryEventRoster, ROSTER_LIMIT } from './roster-query';
 import {
   mapRosterRow,
@@ -33,9 +34,13 @@ const DESK_ROLES = ['checkin'] as const;
 export class CheckinService {
   constructor(
     private readonly supabase: SupabaseService,
-    // Value import, not `import type` — a type-only import erases the DI
-    // metadata Nest needs to resolve this.
+    // Value imports, not `import type` — a type-only import erases the DI
+    // metadata Nest needs to resolve these.
     private readonly staff: StaffService,
+    // Resolving a pass token and deciding what to do with the answer are kept
+    // apart on purpose: PassService has no opinion about arrival, which is what
+    // lets the gear desk adopt scanning later without inheriting this write.
+    private readonly pass: PassService,
   ) {}
 
   /**
@@ -70,7 +75,51 @@ export class CheckinService {
   async markArrived(req: FastifyRequest, personId: string, dto: MarkArrivalDto) {
     const staff = await this.staff.requireStaffWithRole(req, DESK_ROLES);
     await this.assertPersonInEvent(staff.event_id, personId);
+    return this.upsertArrival(staff, personId, dto.via);
+  }
 
+  /**
+   * The QR fast lane: resolve a scanned pass and mark that person present.
+   *
+   * Auto-marks, with no confirmation tap. That is safe here in a way it would
+   * not be from the search box: a search hit can be the wrong Marie, a 256-bit
+   * token cannot — which is the difference `event_arrivals.via` exists to
+   * record. The scanner stays live and the confirmation stacks up behind it, so
+   * a queue of ten is ten scans and a mis-scan is undone without stopping the
+   * line.
+   *
+   * Returns the full desk row rather than the arrival: the overlay renders the
+   * same PersonRow the search results use, so the volunteer still sees the face
+   * and the club they just admitted.
+   */
+  async redeemPass(req: FastifyRequest, rawToken: string): Promise<RosterEntry> {
+    const staff = await this.staff.requireStaffWithRole(req, DESK_ROLES);
+    // Scoped to this session's event, so a pass from another event resolves to
+    // nothing here rather than to a person the desk then fails to mark.
+    const { personId } = await this.pass.resolve(rawToken, staff.event_id);
+    const arrival = await this.upsertArrival(staff, personId, 'qr');
+
+    const [person] = await this.queryPeopleByIds(staff.event_id, [personId]);
+    // The token resolved against this event, so the roster row must exist —
+    // unless the person was deleted between the two reads.
+    if (!person) throw new NotFoundException('pass_not_recognized');
+    return mapRosterRow(person, arrival);
+  }
+
+  /**
+   * The ONE writer for an arrival.
+   *
+   * An upsert on (event_id, person_id), which the UNIQUE index in 0174 makes
+   * idempotent: two volunteers tapping the same name at the same moment produce
+   * one row, not a race. It also re-arms a previously undone arrival, which is
+   * the "marked by mistake, then they actually showed up" case.
+   */
+  private async upsertArrival(
+    staff: { id: string; event_id: string },
+    personId: string,
+    via: 'search' | 'qr',
+  ): Promise<ArrivalRow> {
+    const now = new Date().toISOString();
     const { data, error } = await this.supabase.service
       .from('event_arrivals')
       .upsert(
@@ -78,17 +127,17 @@ export class CheckinService {
           event_id: staff.event_id,
           person_id: personId,
           state: 'present',
-          via: dto.via,
+          via,
           marked_by_staff_account_id: staff.id,
-          marked_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
+          marked_at: now,
+          updated_at: now,
         },
         { onConflict: 'event_id,person_id' },
       )
       .select('person_id,state,via,marked_at,reversed_at')
       .single();
     if (error) throw new BadRequestException(error.message);
-    return data;
+    return data as unknown as ArrivalRow;
   }
 
   /**
@@ -163,6 +212,11 @@ export class CheckinService {
     limit = ROSTER_LIMIT,
   ): Promise<RosterPersonRow[]> {
     return queryEventRoster(this.supabase, eventId, q, limit);
+  }
+
+  /** The same desk projection, for people already identified — the QR lane. */
+  private queryPeopleByIds(eventId: string, personIds: string[]): Promise<RosterPersonRow[]> {
+    return queryEventRoster(this.supabase, eventId, undefined, personIds.length, personIds);
   }
 
   private async arrivalsFor(

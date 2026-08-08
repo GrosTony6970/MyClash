@@ -18,6 +18,21 @@ const markArrivalSchema = z
   .strict();
 export class MarkArrivalDto extends createZodDto(markArrivalSchema) {}
 
+/**
+ * A scanned pass.
+ *
+ * Bounded rather than open text because the value comes straight off a camera:
+ * a desk pointed at a poster decodes a frame at a time, and an unbounded string
+ * would carry whatever a QR on a shipping label contains into the service. The
+ * real shape check is `looksLikePassToken`, which runs before any query.
+ */
+const scanPassSchema = z
+  .object({
+    token: z.string().trim().min(1).max(200),
+  })
+  .strict();
+export class ScanPassDto extends createZodDto(scanPassSchema) {}
+
 const rosterQuerySchema = z
   .object({
     /**

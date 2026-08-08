@@ -91,6 +91,14 @@ const EXPECTED_PUBLIC = [
   'GET /events/:eventSlug/tournaments/:tournamentSlug/standings',
   'GET /events/:slug',
   'GET /events/slug/:eventSlug/venues',
+  // An emailed event pass lands here before its holder has any session, and an
+  // unclaimed roster entry has no way to get one. Possession of the 256-bit
+  // token IS the credential — the same posture as the claim and email-change
+  // links. The projection is the boundary: the fighter's own name plus the
+  // event name/slug/date, all of which were already in the inbox that received
+  // the link. A wrong token and an expired one return the same 404, so this
+  // cannot be used to discover which tokens exist.
+  'GET /event-passes/:token',
   'GET /fighters/:slug',
   'GET /fighters/:slug/career',
   'GET /fighters/:slug/matches',

@@ -190,6 +190,14 @@ const ARCHIVE_EXCLUDED_TABLES = new Set<string>([
   // checker column references event_staff_accounts, which is excluded. Also in
   // the GDPR subject export, for the same reason arrivals are.
   'event_gear_checks',
+  // Event pass tokens. Excluded for a stronger reason than the two above: an
+  // archive is a file that gets copied, mailed and kept, and this table is a
+  // credential store. Even hashed, live secrets have no business in a portable
+  // copy of an event, and a restored archive re-issuing everyone's old pass
+  // would be worse still. Nothing is lost — a pass is a faster way to type a
+  // name, never part of the competitive record. It IS in the GDPR subject
+  // export, which asks the other question.
+  'event_passes',
   'event_broadcast_notifications',
   'event_broadcast_recipients',
   'tournament_query_settings',

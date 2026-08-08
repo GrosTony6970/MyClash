@@ -23,6 +23,15 @@ export async function queryEventRoster(
   eventId: string,
   q: string | undefined,
   limit = ROSTER_LIMIT,
+  /**
+   * Restrict to specific people, for the QR lane: a scanned token names one
+   * person and the overlay still needs the photo and club the search path shows.
+   * Kept as a parameter of THIS function rather than a second query so the
+   * select literal stays in one place — which matters twice over, because
+   * `db-schema-conformance.test.ts` reads (table, column) pairs off the literal
+   * at its call site and a hoisted or duplicated one goes unchecked.
+   */
+  personIds?: readonly string[],
 ): Promise<RosterPersonRow[]> {
   let query = supabase.service
     .from('persons')
@@ -32,6 +41,8 @@ export async function queryEventRoster(
     .eq('event_id', eventId)
     .order('family_name', { ascending: true })
     .limit(limit);
+
+  if (personIds) query = query.in('id', [...personIds]) as unknown as typeof query;
 
   const safe = q ? sanitizePostgrestFilterValue(q) : '';
   // Commas and parens would break out of the `or` grammar, so the sanitizer

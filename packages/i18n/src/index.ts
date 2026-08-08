@@ -1266,6 +1266,17 @@ export const en = {
       nextUp: 'Next up',
       updatesAutomatically: 'Updates automatically',
     },
+    pass: {
+      title: 'My event pass',
+      subtitle: 'Show this at the check-in desk.',
+      link: 'My event pass',
+      loading: 'Preparing your pass...',
+      signInNeeded: 'Sign in or pick yourself off the roster to get a pass.',
+      unavailable: 'Your pass is not available right now. The desk can still find you by name.',
+      deviceNote:
+        'This pass belongs to this device. Opening it elsewhere issues a new one and retires this.',
+      linkExpired: 'This link is no longer valid. Ask at the check-in desk.',
+    },
     mySchedule: {
       tbd: 'TBD',
       refereeLabel: 'Referee: {match}',
@@ -1502,6 +1513,24 @@ export const en = {
       everyoneArrived: 'Everyone has arrived.',
       notScheduled: 'Not scheduled yet',
       actionError: 'That did not save. Try again.',
+    },
+    scan: {
+      open: 'Scan QR',
+      title: 'Scan pass',
+      waiting: 'Point the camera at a pass. Scans stack up here.',
+      viewfinderLabel: 'Camera viewfinder',
+      useSearch: 'Search by name instead',
+      cameraFallback: 'Name search still works — nothing depends on the camera.',
+      cameraInsecure: 'The camera is unavailable on this connection.',
+      cameraDenied: 'Camera access was refused. Allow it in the browser settings for this site.',
+      cameraMissing: 'This device has no camera.',
+      cameraBusy: 'The camera is in use by another app.',
+      cameraFailed: 'The camera could not be started.',
+      errorUnknown: 'That pass is not for this event.',
+      errorExpired: 'That pass has expired.',
+      errorForbidden: 'This account cannot work the desk.',
+      errorOffline: 'Offline — that scan was not saved.',
+      errorFailed: 'That scan failed. Try again.',
     },
     gear: {
       title: 'Gear check',
@@ -8842,6 +8871,19 @@ export const fr = {
       nextUp: 'Prochainement',
       updatesAutomatically: 'Mise à jour automatique',
     },
+    pass: {
+      title: 'Mon pass événement',
+      subtitle: 'Présentez-le à l’accueil.',
+      link: 'Mon pass événement',
+      loading: 'Préparation de votre pass...',
+      signInNeeded:
+        'Connectez-vous ou choisissez-vous dans la liste des inscrits pour obtenir un pass.',
+      unavailable:
+        'Votre pass n’est pas disponible pour le moment. L’accueil peut toujours vous trouver par votre nom.',
+      deviceNote:
+        'Ce pass appartient à cet appareil. L’ouvrir ailleurs en génère un nouveau et annule celui-ci.',
+      linkExpired: 'Ce lien n’est plus valide. Adressez-vous à l’accueil.',
+    },
     mySchedule: {
       tbd: 'À définir',
       refereeLabel: 'Arbitre : {match}',
@@ -9073,6 +9115,25 @@ export const fr = {
       everyoneArrived: 'Tout le monde est arrivé.',
       notScheduled: 'Pas encore programmé',
       actionError: "L'enregistrement a échoué. Réessayez.",
+    },
+    scan: {
+      open: 'Scanner un QR',
+      title: 'Scanner un pass',
+      waiting: 'Visez un pass avec la caméra. Les scans s’empilent ici.',
+      viewfinderLabel: 'Viseur de la caméra',
+      useSearch: 'Rechercher par nom',
+      cameraFallback: 'La recherche par nom fonctionne toujours — rien ne dépend de la caméra.',
+      cameraInsecure: 'La caméra est indisponible sur cette connexion.',
+      cameraDenied:
+        'Accès à la caméra refusé. Autorisez-le dans les réglages du navigateur pour ce site.',
+      cameraMissing: 'Cet appareil n’a pas de caméra.',
+      cameraBusy: 'La caméra est utilisée par une autre application.',
+      cameraFailed: 'Impossible de démarrer la caméra.',
+      errorUnknown: 'Ce pass n’est pas pour cet événement.',
+      errorExpired: 'Ce pass a expiré.',
+      errorForbidden: 'Ce compte ne peut pas tenir l’accueil.',
+      errorOffline: 'Hors ligne — ce scan n’a pas été enregistré.',
+      errorFailed: 'Ce scan a échoué. Réessayez.',
     },
     gear: {
       title: 'Contrôle du matériel',

@@ -159,7 +159,23 @@ function useDeskWrites(reload: () => Promise<void>) {
     [reload],
   );
 
-  return { error, markArrived, undoArrival };
+  /**
+   * The QR lane's write. Unlike the other two this RETURNS its promise rather
+   * than swallowing it: the scan overlay needs both the resolved person (to show
+   * the face it just admitted) and the failure (to say WHY a pass bounced), and
+   * a void-returning handler could give it neither.
+   *
+   * It deliberately does not `reload()`. A queue of ten scans would be ten
+   * roster refetches on venue wifi, and the overlay is not showing the roster —
+   * the desk reloads once when the overlay closes.
+   */
+  const redeemPass = useCallback(
+    (token: string): Promise<RosterEntry> =>
+      api.post<RosterEntry>('/api/v1/staff/checkin/scan', { token }),
+    [],
+  );
+
+  return { error, markArrived, undoArrival, redeemPass };
 }
 
 /** The missing-at-risk list. Fetched on demand — it is a second screen, not the desk. */
