@@ -211,6 +211,15 @@ jobs:
         if: '!cancelled()'
         run: pnpm quality:test-code-leak
 
+      # Every NEXT_PUBLIC_* a web app requires at build time must be declared as
+      # a Dockerfile ARG and passed by both compose files. Reviewing this
+      # cheaply is the point: the check that already existed lives in
+      # next.config and only fires when someone builds the image, which is how
+      # the dev stack and three Trivy legs stayed broken.
+      - name: Check client env contract
+        if: '!cancelled()'
+        run: pnpm quality:client-env
+
       # Needs the COMPILED api: the OpenAPI document is built by booting
       # dist/app.module, not by reading source. No other job produces it, so
       # this step builds it itself.
