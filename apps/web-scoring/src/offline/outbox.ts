@@ -153,6 +153,56 @@ export async function requeueRejected(): Promise<number> {
   return entries.length;
 }
 
+/**
+ * Put ONE quarantined entry back in the outbox.
+ *
+ * Same sequence re-derivation as {@link requeueRejected} — the sequence an
+ * entry was rejected with is the single most likely reason it would be rejected
+ * again, so a retry must never replay the old one.
+ *
+ * Returns false when the id is gone (another tab already dealt with it), so a
+ * stale list in the inbox cannot silently double-queue a hit.
+ */
+export async function requeueRejectedEntry(id: number): Promise<boolean> {
+  const entry = await db.rejected.get(id);
+  if (!entry) return false;
+
+  // Read the next sequence BEFORE opening the transaction: nextSequence reads
+  // outbox + synced, and Dexie would have to join those tables into this
+  // transaction's scope for a read inside it.
+  const sequence = await nextSequence(entry.matchId);
+
+  return db.transaction('rw', db.outbox, db.rejected, async () => {
+    // Re-read inside the transaction — between the get above and here, another
+    // tab may have requeued or discarded this row.
+    const current = await db.rejected.get(id);
+    if (!current) return false;
+    const {
+      id: _id,
+      rejectedReason: _reason,
+      rejectedAt: _at,
+      lastError: _err,
+      ...payload
+    } = current;
+    await db.outbox.add({ ...payload, sequence, attempts: 0 });
+    await db.rejected.delete(id);
+    return true;
+  });
+}
+
+/**
+ * Drop a quarantined entry for good.
+ *
+ * This DESTROYS a hit a referee scored, which is exactly what the rejected
+ * table exists to prevent — so it is not a cleanup convenience. It is the exit
+ * for the one case retrying cannot fix: the operator has already re-entered the
+ * exchange by hand, and the held copy is now a duplicate keeping the sync bar
+ * red. Callers must confirm before calling it.
+ */
+export async function discardRejected(id: number): Promise<void> {
+  await db.rejected.delete(id);
+}
+
 // ── Sequence ──────────────────────────────────────────────────────────────────
 
 /**

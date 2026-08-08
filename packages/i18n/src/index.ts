@@ -1470,6 +1470,22 @@ export const en = {
       signingIn: 'Signing in...',
       localLoginError: 'Could not sign in with this event, username, and PIN.',
     },
+    quarantine: {
+      title: 'Hits the server refused',
+      intro:
+        'These were scored on this tablet but the server would not accept them. They are held here, not lost. Retry once the cause is cleared, or discard one you have already re-entered by hand.',
+      empty: 'Nothing is being held.',
+      retry: 'Retry',
+      discard: 'Discard',
+      discardTitle: 'Discard this hit?',
+      discardBody:
+        'This permanently deletes a hit a referee scored. Only do this if you have already re-entered it by hand — otherwise it will never reach the results.',
+      discardConfirm: 'Discard permanently',
+      typeClean: 'Clean hit',
+      typeAfterblow: 'Afterblow',
+      typeDouble: 'Double',
+      typeNoExchange: 'No exchange',
+    },
     lice: {
       loadingMatch: 'Loading match...',
       loadingAssignments: 'Loading your assignments...',
@@ -1490,6 +1506,7 @@ export const en = {
       // problem that will clear itself, and this one never will until the
       // operator retries. `{plural}` is filled by the caller (see voidedHidden).
       hitsRefused: '{count} HIT{plural} NOT RECORDED',
+      reviewRefused: 'Review',
       backToMatchList: 'Back to match list',
       red: 'Fighter 1',
       blue: 'Fighter 2',
@@ -8956,6 +8973,22 @@ export const fr = {
       signingIn: 'Connexion...',
       localLoginError: 'Connexion impossible avec cet evenement, cet identifiant et ce PIN.',
     },
+    quarantine: {
+      title: 'Touches refusees par le serveur',
+      intro:
+        'Ces touches ont ete marquees sur cette tablette mais le serveur les a refusees. Elles sont conservees ici, pas perdues. Reessayez une fois la cause levee, ou supprimez celle que vous avez deja ressaisie a la main.',
+      empty: 'Aucune touche en attente.',
+      retry: 'Reessayer',
+      discard: 'Supprimer',
+      discardTitle: 'Supprimer cette touche ?',
+      discardBody:
+        'Cela supprime definitivement une touche marquee par un arbitre. Ne le faites que si vous l avez deja ressaisie a la main, sinon elle n atteindra jamais les resultats.',
+      discardConfirm: 'Supprimer definitivement',
+      typeClean: 'Touche nette',
+      typeAfterblow: 'Coup double retarde',
+      typeDouble: 'Double',
+      typeNoExchange: 'Pas d echange',
+    },
     lice: {
       loadingMatch: 'Chargement de l assaut...',
       loadingAssignments: 'Chargement de vos affectations...',
@@ -8973,6 +9006,7 @@ export const fr = {
       syncing: 'SYNCHRONISATION',
       syncError: 'ERREUR DE SYNCHRO',
       hitsRefused: '{count} TOUCHE{plural} NON ENREGISTREE{plural}',
+      reviewRefused: 'Examiner',
       backToMatchList: 'Retour a la liste des assauts',
       red: 'Combattant 1',
       blue: 'Combattant 2',

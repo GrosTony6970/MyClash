@@ -11,6 +11,7 @@
  */
 
 import {
+  discardRejected,
   getAllPending,
   markFailed,
   markSynced,
@@ -18,6 +19,7 @@ import {
   quarantine,
   rejectedCount,
   requeueRejected,
+  requeueRejectedEntry,
   totalPendingCount,
 } from './outbox';
 import type { OutboxEntry } from './db';
@@ -280,6 +282,29 @@ export class SyncEngine {
     if (requeued > 0) await this.drain();
     else await this.emit('idle');
     return requeued;
+  }
+
+  /**
+   * Retry ONE quarantined exchange, from the inbox.
+   *
+   * Goes through the engine rather than the store so the sync bar cannot go
+   * stale: every path that changes what is held has to re-emit, and `emit`
+   * re-derives `error` from the remaining count on its own.
+   */
+  async retryRejectedEntry(id: number): Promise<boolean> {
+    const requeued = await requeueRejectedEntry(id);
+    if (requeued) await this.drain();
+    else await this.emit('idle');
+    return requeued;
+  }
+
+  /**
+   * Discard ONE quarantined exchange. Destroys a scored hit — the caller is
+   * responsible for having confirmed it. See `discardRejected` in outbox.ts.
+   */
+  async discardRejectedEntry(id: number): Promise<void> {
+    await discardRejected(id);
+    await this.emit('idle');
   }
 
   /** Abort an in-progress drain (e.g. user navigates away). */

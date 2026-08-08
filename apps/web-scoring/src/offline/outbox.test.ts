@@ -13,13 +13,17 @@ import { db } from './db';
 import {
   bulkEnqueue,
   clearMatch,
+  discardRejected,
   enqueue,
   getAllPending,
   getPendingForMatch,
+  getRejected,
   markFailed,
   markSynced,
   nextSequence,
   pendingCount,
+  quarantine,
+  requeueRejectedEntry,
   totalPendingCount,
 } from './outbox';
 
@@ -27,6 +31,7 @@ import {
 beforeEach(async () => {
   await db.outbox.clear();
   await db.synced.clear();
+  await db.rejected.clear();
 });
 
 // ── Enqueue ───────────────────────────────────────────────────────────────────
@@ -172,6 +177,84 @@ describe('nextSequence', () => {
     );
     // outbox empty, synced has seq=2
     expect(await nextSequence('m1')).toBe(3);
+  });
+});
+
+// ── Quarantine: per-row retry and discard ─────────────────────────────────────
+
+describe('requeueRejectedEntry', () => {
+  async function quarantineOne(matchId: string, sequence: number, reason: string) {
+    const id = await enqueue({
+      clientUuid: `uuid-${matchId}-${sequence}`,
+      matchId,
+      sequence,
+      type: 'clean',
+      occurredAt: new Date().toISOString(),
+      firstStrikerColor: 'red',
+      firstStrikeValue: 1,
+    });
+    await quarantine(id, reason);
+    const held = await getRejected();
+    return held[held.length - 1]!;
+  }
+
+  it('moves ONE held entry back to the outbox and leaves the others held', async () => {
+    const first = await quarantineOne('match-q', 1, 'stale sequence');
+    await quarantineOne('match-q', 2, 'match locked');
+
+    expect(await requeueRejectedEntry(first.id as number)).toBe(true);
+
+    expect(await pendingCount('match-q')).toBe(1);
+    const stillHeld = await getRejected();
+    expect(stillHeld).toHaveLength(1);
+    expect(stillHeld[0]?.rejectedReason).toBe('match locked');
+  });
+
+  it('re-derives the sequence instead of replaying the rejected one', async () => {
+    // The sequence an entry was refused with is the likeliest reason it would be
+    // refused again, so a retry that replays it is not a retry at all.
+    const held = await quarantineOne('match-seq', 7, 'sequence already used');
+    await enqueue({
+      clientUuid: 'uuid-occupant',
+      matchId: 'match-seq',
+      sequence: 1,
+      type: 'double',
+      occurredAt: new Date().toISOString(),
+    });
+
+    await requeueRejectedEntry(held.id as number);
+
+    const pending = await getPendingForMatch('match-seq');
+    const requeued = pending.find((e) => e.clientUuid === held.clientUuid);
+    expect(requeued?.sequence).toBe(2); // next free, not the refused 7
+    expect(requeued?.attempts).toBe(0); // a fresh, operator-initiated attempt
+  });
+
+  it('returns false for an id another tab already dealt with', async () => {
+    const held = await quarantineOne('match-gone', 1, 'whatever');
+    await discardRejected(held.id as number);
+
+    expect(await requeueRejectedEntry(held.id as number)).toBe(false);
+    expect(await pendingCount('match-gone')).toBe(0);
+  });
+});
+
+describe('discardRejected', () => {
+  it('removes the held entry without re-queuing it', async () => {
+    const id = await enqueue({
+      clientUuid: 'uuid-discard',
+      matchId: 'match-d',
+      sequence: 1,
+      type: 'clean',
+      occurredAt: new Date().toISOString(),
+    });
+    await quarantine(id, 'unrecoverable');
+    const held = await getRejected();
+
+    await discardRejected(held[0]?.id as number);
+
+    expect(await getRejected()).toHaveLength(0);
+    expect(await pendingCount('match-d')).toBe(0);
   });
 });
 

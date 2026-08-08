@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { MatchView, NoMatchView, type MatchInfo } from '../../../src/components/MatchView';
+import { QuarantineInbox } from '../../../src/components/QuarantineInbox';
 import { useSyncState } from '../../../src/offline/use-sync-state';
 import { useI18n } from '../../../src/i18n/I18nProvider';
 import { getApiUrl } from '../../../src/lib/api-url';
@@ -31,6 +32,7 @@ export default function MatchScoringPage({ params }: Props) {
   const [matchId, setMatchId] = useState<string | null>(null);
   const [match, setMatch] = useState<MatchInfo | null>(null);
   const [loading, setLoading] = useState(true);
+  const [quarantineOpen, setQuarantineOpen] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
   const [networkStatus, setNetworkStatus] = useState<'online' | 'offline'>(
     typeof navigator !== 'undefined' && !navigator.onLine ? 'offline' : 'online',
@@ -268,6 +270,19 @@ export default function MatchScoringPage({ params }: Props) {
             {t('scoring.lice.retry')}
           </button>
         )}
+        {/* Retry-everything is a guess; this is the way to find out WHAT was
+            refused and why before deciding. Only offered when something is
+            actually held — an empty inbox would be a dead end. */}
+        {rejected > 0 && (
+          <button
+            type="button"
+            data-testid="review-refused"
+            onClick={() => setQuarantineOpen(true)}
+            className="rounded border border-danger px-2 py-0.5 text-danger transition-colors hover:bg-danger/10"
+          >
+            {t('scoring.lice.reviewRefused')}
+          </button>
+        )}
       </div>
 
       {match ? (
@@ -284,6 +299,12 @@ export default function MatchScoringPage({ params }: Props) {
       ) : (
         <NoMatchView mode="match" />
       )}
+
+      <QuarantineInbox
+        open={quarantineOpen}
+        onClose={() => setQuarantineOpen(false)}
+        syncEngine={syncEngine}
+      />
     </main>
   );
 }
