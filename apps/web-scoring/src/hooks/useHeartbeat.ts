@@ -31,7 +31,9 @@ export function useHeartbeat(): void {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           credentials: 'include',
-          body: JSON.stringify(metrics),
+          // Read at SEND time, not with the metrics above: the outbox read is
+          // async, and stamping before it would fold that wait into the skew.
+          body: JSON.stringify({ ...metrics, clientNowMs: Date.now() }),
         });
       } catch {
         // best-effort telemetry; never surface

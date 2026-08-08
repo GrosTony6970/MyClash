@@ -58,6 +58,12 @@ export interface BoardHealth {
   outboxDepth: number;
   oldestPendingAgeSec: number;
   rejectedCount: number;
+  /**
+   * Signed ms the tablet clock is AHEAD of the server at its last heartbeat.
+   * `null` = never measured (an older bundle, or no heartbeat yet) — which is
+   * NOT the same as zero, and must not render as a healthy clock.
+   */
+  clockSkewMs: number | null;
 }
 
 export interface BoardAttention {

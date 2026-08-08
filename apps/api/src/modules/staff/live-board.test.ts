@@ -112,7 +112,12 @@ describe('assembleBoardRows', () => {
     input.assignments = [{ staff_account_id: 'a1', lice_id: 'L1' }];
     const [row] = assembleBoardRows(input);
     expect(row!.attention).toEqual({ reason: 'medic' });
-    expect(row!.health).toEqual({ outboxDepth: 8, oldestPendingAgeSec: 300, rejectedCount: 2 });
+    expect(row!.health).toEqual({
+      outboxDepth: 8,
+      oldestPendingAgeSec: 300,
+      rejectedCount: 2,
+      clockSkewMs: null,
+    });
   });
 
   it('has a null scorer when no account is assigned to the lice', () => {

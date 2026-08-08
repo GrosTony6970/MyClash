@@ -51,6 +51,7 @@ export function account(over: Partial<BoardAccountInput> = {}): BoardAccountInpu
     outbox_depth: 0,
     oldest_pending_age_seconds: 0,
     rejected_count: 0,
+    clock_skew_ms: null,
     needs_attention: false,
     needs_attention_reason: null,
     ...over,

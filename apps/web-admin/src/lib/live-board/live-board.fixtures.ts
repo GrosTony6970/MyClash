@@ -63,7 +63,7 @@ export function mkRow(over: Partial<BoardRow> = {}): BoardRow {
     },
     currentMatch: mkMatch({ startedAt: agoIso(60) }),
     scorer: mkScorer(),
-    health: { outboxDepth: 0, oldestPendingAgeSec: 0, rejectedCount: 0 },
+    health: { outboxDepth: 0, oldestPendingAgeSec: 0, rejectedCount: 0, clockSkewMs: null },
     attention: null,
     nextUp: null,
     queue: [],

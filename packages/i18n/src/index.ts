@@ -5712,6 +5712,11 @@ export const en = {
         lastSeen: 'Last seen {span} ago',
         neverSeen: 'Never checked in',
         outbox: '{queued} queued · {rejected} rejected',
+        // The tablet stamps every match clock, so a skewed one mis-times bouts
+        // silently. `{span}` is pre-formatted by @myclash/time (t() has no plurals).
+        clockSkew: 'Tablet clock is {span} {direction} — match times will be wrong',
+        clockAhead: 'ahead',
+        clockBehind: 'behind',
         alsoAssigned: 'Also on this piste: {names}',
         timeline: 'Exchanges',
         timelineEmpty: 'No exchanges scored yet',
@@ -13211,6 +13216,9 @@ export const fr = {
         lastSeen: 'Vu il y a {span}',
         neverSeen: 'Jamais connecté',
         outbox: '{queued} en attente · {rejected} rejetés',
+        clockSkew: "L'horloge de la tablette a {span} {direction} — les temps d'assaut seront faux",
+        clockAhead: "d'avance",
+        clockBehind: 'de retard',
         alsoAssigned: 'Également sur cette piste : {names}',
         timeline: 'Échanges',
         timelineEmpty: 'Aucun échange marqué pour l’instant',

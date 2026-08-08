@@ -82,6 +82,15 @@ const staffHeartbeatSchema = z
     outboxDepth: z.number().int().min(0),
     oldestPendingAgeSec: z.number().int().min(0),
     rejectedCount: z.number().int().min(0),
+    // The tablet's own Date.now() at send time. The server subtracts it from
+    // its receipt time to get clock skew — see 0172_staff_clock_skew.sql for
+    // why a wrong tablet clock is silent rather than loud.
+    //
+    // Optional so a tablet running an older bundle mid-event still heartbeats
+    // (they are best-effort telemetry and must never fail); unbounded because
+    // the whole point is to catch an absurd value, and a `.max()` here would
+    // reject exactly the reading worth having.
+    clientNowMs: z.number().int().optional(),
   })
   .strict();
 export class StaffHeartbeatDto extends createZodDto(staffHeartbeatSchema) {}

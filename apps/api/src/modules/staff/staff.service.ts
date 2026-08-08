@@ -328,13 +328,22 @@ export class StaffService {
    */
   async recordHeartbeat(req: FastifyRequest, dto: StaffHeartbeatDto): Promise<{ ok: true }> {
     const staff = await this.requireStaffFromRequest(req);
+    const receivedAt = new Date();
+    // Signed, tablet-minus-server: positive = the tablet is running ahead.
+    // Omitted when the tablet did not send its clock, so the column keeps
+    // meaning "never measured" instead of being overwritten with a false 0.
+    const skew =
+      dto.clientNowMs === undefined
+        ? {}
+        : { clock_skew_ms: Math.trunc(dto.clientNowMs - receivedAt.getTime()) };
     const { error } = await this.supabase.service
       .from('event_staff_accounts')
       .update({
-        last_seen_at: new Date().toISOString(),
+        last_seen_at: receivedAt.toISOString(),
         outbox_depth: dto.outboxDepth,
         oldest_pending_age_seconds: dto.oldestPendingAgeSec,
         rejected_count: dto.rejectedCount,
+        ...skew,
       })
       .eq('event_id', staff.event_id)
       .eq('id', staff.id);
@@ -455,7 +464,7 @@ export class StaffService {
     return this.supabase.service
       .from('event_staff_accounts')
       .select(
-        'id,display_name,username,status,last_seen_at,outbox_depth,oldest_pending_age_seconds,rejected_count,needs_attention,needs_attention_reason',
+        'id,display_name,username,status,last_seen_at,outbox_depth,oldest_pending_age_seconds,rejected_count,clock_skew_ms,needs_attention,needs_attention_reason',
       )
       .eq('event_id', eventId);
   }

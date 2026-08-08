@@ -84,6 +84,7 @@ export interface BoardAccountInput {
   outbox_depth: number | null;
   oldest_pending_age_seconds: number | null;
   rejected_count: number | null;
+  clock_skew_ms: number | null;
   needs_attention: boolean;
   needs_attention_reason: 'medic' | 'head_ref' | 'dispute' | null;
 }
@@ -230,6 +231,9 @@ function buildHealth(primary: BoardAccountInput | null): BoardHealth | null {
     outboxDepth: primary.outbox_depth ?? 0,
     oldestPendingAgeSec: primary.oldest_pending_age_seconds ?? 0,
     rejectedCount: primary.rejected_count ?? 0,
+    // `?? null`, deliberately NOT `?? 0`: a tablet that has never reported its
+    // clock has an unknown skew, and a rendered 0 would read as "verified fine".
+    clockSkewMs: primary.clock_skew_ms ?? null,
   };
 }
 

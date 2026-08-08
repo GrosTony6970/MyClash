@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import {
+  CLOCK_SKEW_REPORT_MS,
   DEFAULT_THRESHOLDS,
   DOT,
   deriveHealthState,
+  isClockSkewed,
   isHealthy,
   partitionByHealth,
   sortBoardRows,
@@ -37,12 +39,17 @@ describe('deriveHealthState', () => {
   });
 
   it('is stuck on a rejected exchange', () => {
-    const health = { outboxDepth: 1, oldestPendingAgeSec: 5, rejectedCount: 1 };
+    const health = { outboxDepth: 1, oldestPendingAgeSec: 5, rejectedCount: 1, clockSkewMs: null };
     expect(stateAt(mkRow({ health }))).toBe('stuck');
   });
 
   it('is stale on a queue that is not draining', () => {
-    const health = { outboxDepth: 2, oldestPendingAgeSec: 120, rejectedCount: 0 };
+    const health = {
+      outboxDepth: 2,
+      oldestPendingAgeSec: 120,
+      rejectedCount: 0,
+      clockSkewMs: null,
+    };
     expect(stateAt(mkRow({ health }))).toBe('stale');
   });
 
@@ -230,5 +237,25 @@ describe('partitionByHealth', () => {
       lastCompleted: { matchId: 'm0', label: '#0', endedAt: agoIso(900) },
     });
     expect(partitionByHealth([stalled], stateOf).problems).toHaveLength(1);
+  });
+});
+
+describe('isClockSkewed', () => {
+  it('is false for an unmeasured clock, not true and not "fine"', () => {
+    // null means the tablet never reported one. The caller renders nothing;
+    // the danger is treating it as a verified zero.
+    expect(isClockSkewed(null)).toBe(false);
+  });
+
+  it('ignores drift inside the network-latency noise floor', () => {
+    expect(isClockSkewed(0)).toBe(false);
+    expect(isClockSkewed(5_000)).toBe(false);
+    expect(isClockSkewed(-5_000)).toBe(false);
+  });
+
+  it('reports a real skew in either direction', () => {
+    expect(isClockSkewed(CLOCK_SKEW_REPORT_MS)).toBe(true);
+    expect(isClockSkewed(-CLOCK_SKEW_REPORT_MS)).toBe(true);
+    expect(isClockSkewed(3_600_000)).toBe(true);
   });
 });

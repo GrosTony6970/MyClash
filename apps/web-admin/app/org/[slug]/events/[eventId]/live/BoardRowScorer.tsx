@@ -1,6 +1,7 @@
 'use client';
 import { formatMinuteSpan } from '@myclash/time';
 import { useI18n } from '@/i18n/I18nProvider';
+import { isClockSkewed } from '@/lib/live-board/live-board-state';
 import type { BoardRow } from '@/lib/live-board/types';
 
 type T = ReturnType<typeof useI18n>['t'];
@@ -37,12 +38,29 @@ export function BoardRowScorer({ row, nowMs, t }: { row: BoardRow; nowMs: number
       {row.health === null ? (
         <p className="text-muted">{t('organizer.live.unknown')}</p>
       ) : (
-        <p className={row.health.rejectedCount > 0 ? 'text-danger' : 'text-muted'}>
-          {t('organizer.live.detail.outbox', {
-            queued: row.health.outboxDepth,
-            rejected: row.health.rejectedCount,
-          })}
-        </p>
+        <>
+          <p className={row.health.rejectedCount > 0 ? 'text-danger' : 'text-muted'}>
+            {t('organizer.live.detail.outbox', {
+              queued: row.health.outboxDepth,
+              rejected: row.health.rejectedCount,
+            })}
+          </p>
+          {/* Only when it is actually out. A tablet within the noise floor gets
+              no line at all rather than a reassuring "clock OK" — this row is
+              for problems, and an unmeasured clock must not read as a good one. */}
+          {isClockSkewed(row.health.clockSkewMs) && (
+            <p className="text-warning" data-testid="clock-skew">
+              {t('organizer.live.detail.clockSkew', {
+                span: formatMinuteSpan(Math.abs(row.health.clockSkewMs as number), locale),
+                direction: t(
+                  (row.health.clockSkewMs as number) > 0
+                    ? 'organizer.live.detail.clockAhead'
+                    : 'organizer.live.detail.clockBehind',
+                ),
+              })}
+            </p>
+          )}
+        </>
       )}
       {scorer.others.length > 0 && (
         <p className="text-muted">

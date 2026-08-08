@@ -35,6 +35,27 @@ export const DEFAULT_THRESHOLDS: Thresholds = {
   overrunGraceSec: 300,
 };
 
+/**
+ * How far a tablet clock may drift before it is worth reporting.
+ *
+ * A heartbeat's skew reading is a one-way measurement, so it carries up to a
+ * request's worth of network latency; a venue on bad wifi can easily show a few
+ * seconds that mean nothing. 30s is comfortably above that noise and far below
+ * the failure this exists to catch — a device that never joined wifi and is
+ * running minutes or hours off, silently mis-timing every bout it records.
+ */
+export const CLOCK_SKEW_REPORT_MS = 30_000;
+
+/**
+ * Is this tablet's clock far enough out to tell someone?
+ *
+ * `null` is not skewed AND not fine — it is unmeasured, and callers render it
+ * as nothing rather than as a clean bill of health.
+ */
+export function isClockSkewed(clockSkewMs: number | null): boolean {
+  return clockSkewMs !== null && Math.abs(clockSkewMs) >= CLOCK_SKEW_REPORT_MS;
+}
+
 /** Everything `deriveHealthState` needs. */
 export interface HealthInputs {
   row: BoardRow;
