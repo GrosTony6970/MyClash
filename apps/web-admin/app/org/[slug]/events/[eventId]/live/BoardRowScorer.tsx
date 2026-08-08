@@ -1,5 +1,5 @@
 'use client';
-import { formatMinuteSpan } from '@myclash/time';
+import { formatMinuteSpan, type AppLocale } from '@myclash/time';
 import { useI18n } from '@/i18n/I18nProvider';
 import { isClockSkewed } from '@/lib/live-board/live-board-state';
 import type { BoardRow } from '@/lib/live-board/types';
@@ -19,7 +19,7 @@ function TabletHealth({
   t,
 }: {
   health: NonNullable<BoardRow['health']>;
-  locale: string;
+  locale: AppLocale;
   t: T;
 }) {
   return (
