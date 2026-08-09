@@ -4,6 +4,7 @@
 .env.local
 .env.deploy
 .env.e2e
+.env.e2e.bak
 .env.*.local
 
 # Prod E2E session + run context (created by tests/e2e/global-setup.ts)
