@@ -1,7 +1,7 @@
 'use client';
 import Link from 'next/link';
 import type { useI18n } from '@/i18n/I18nProvider';
-import { buildMatchScoringHref } from '../pools/_tabs/build-scoring-href';
+import { buildMatchScoringHref, STAFF_APP_PREFIX } from '../pools/_tabs/build-scoring-href';
 
 type T = ReturnType<typeof useI18n>['t'];
 
@@ -39,7 +39,7 @@ export function BoardRowActions({
   // Same argument shape the pools table and the bracket already pass, so the
   // pad returns here and mirrors to the same hall screen.
   const scoringHref = buildMatchScoringHref(
-    '/scoring',
+    STAFF_APP_PREFIX,
     matchId,
     typeof window !== 'undefined' ? window.location.href : null,
     `/display/${matchId}`,

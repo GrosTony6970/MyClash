@@ -25,7 +25,7 @@ import { rulesetHelp } from '@/components/rulesets/rulesetHelp';
 import { useI18n } from '../../../../../../src/i18n/I18nProvider';
 import { useEventStatus } from '../_hooks/useEventStatus';
 import { RefereesTab as BracketRefereesTab } from './_tabs/RefereesTab';
-import { buildMatchScoringHref } from '../pools/_tabs/build-scoring-href';
+import { buildMatchScoringHref, STAFF_APP_PREFIX } from '../pools/_tabs/build-scoring-href';
 import { diffRoleAssignments } from './diff-role-assignments';
 import { deriveDoubleElimPodium } from './derive-de-podium';
 import {
@@ -1931,7 +1931,7 @@ export default function BracketPage() {
                   // projection screen in a new tab.
                   const scoreboardHref = `/display/${matchId}`;
                   const href = buildMatchScoringHref(
-                    '/scoring',
+                    STAFF_APP_PREFIX,
                     matchId,
                     window.location.href,
                     scoreboardHref,

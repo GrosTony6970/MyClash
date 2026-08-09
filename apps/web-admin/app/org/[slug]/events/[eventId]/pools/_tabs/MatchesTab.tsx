@@ -10,7 +10,7 @@ import { DEFAULT_SCORING_CONFIG } from '@myclash/types';
 import { parseSideColors, type SideColors } from './parse-side-colors';
 import { mergeScores, type MatchScoreUpdate } from './match-scores-merge';
 import { countPoolFighters } from './count-pool-fighters';
-import { buildMatchScoringHref } from './build-scoring-href';
+import { buildMatchScoringHref, STAFF_APP_PREFIX } from './build-scoring-href';
 import { getPublicApiUrl } from '@/lib/api-url';
 
 const apiUrl = getPublicApiUrl();
@@ -539,7 +539,7 @@ export function MatchesTab({ tournamentId, poolPhaseId, slug, eventId }: Matches
                         const scoreboardHref = m.id ? `/display/${m.id}` : null;
                         const scoringHref = m.id
                           ? buildMatchScoringHref(
-                              '/scoring',
+                              STAFF_APP_PREFIX,
                               m.id,
                               typeof window !== 'undefined' ? window.location.href : null,
                               scoreboardHref,

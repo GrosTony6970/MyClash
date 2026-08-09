@@ -232,14 +232,20 @@ test.describe('live control room', () => {
 
     // Score ↗ carries a return leg back to the board — losing the board is the
     // failure this whole design avoids. It must point at the MATCH route, never
-    // at /scoring/lices/{id}, which 401s an org admin into /login.
-    const scoreLink = row(liceAName).locator(`a[href*="/scoring/matches/${matchA}"]`);
+    // at /staff/lices/{id}, which 401s an org admin into /login.
+    //
+    // `/staff`, not `/scoring`: the pad moved when the scoring PWA became the
+    // staff app (`11db3c66`) and every admin call site kept the old literal, so
+    // this link 404'd in production while this assertion — written against the
+    // same stale path — stayed green. The prefix now has one owner
+    // (`STAFF_APP_PREFIX`), and this asserts the mount that actually answers.
+    const scoreLink = row(liceAName).locator(`a[href*="/staff/matches/${matchA}"]`);
     await expect(scoreLink, 'the expansion offers Score ↗ for the running bout').toHaveCount(1);
     const scoreHref = await scoreLink.getAttribute('href');
     expect(scoreHref, 'Score ↗ must return to the board').toContain('return=');
     expect(
-      await row(liceAName).locator('a[href*="/scoring/lices/"]').count(),
-      'the board must never link /scoring/lices — it is mc_staff-cookie only',
+      await row(liceAName).locator('a[href*="/staff/lices/"]').count(),
+      'the board must never link /staff/lices — it is mc_staff-cookie only',
     ).toBe(0);
 
     // Collapsing is the same control.

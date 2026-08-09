@@ -16,7 +16,7 @@ import { placeMultiWithShift, placeWithShift } from './place-with-shift';
 import { computeHeaderRuns, type HeaderRunItem } from './compute-header-runs';
 import { detectConflicts, type Conflict } from './conflict-detection';
 import { POOL_HEADER_SPAN, rowShiftForSlot } from './pool-header-layout';
-import { buildMatchScoringHref } from '../pools/_tabs/build-scoring-href';
+import { buildMatchScoringHref, STAFF_APP_PREFIX } from '../pools/_tabs/build-scoring-href';
 import { blockDeleteAction } from './schedule-block-actions';
 import { newBreakDraftFromCell } from './new-break-draft';
 import { PANEL_DEFAULT_WIDTH, clampPanelWidth } from './panel-width';
@@ -76,7 +76,12 @@ function openMatchScoring(slug: string, eventId: string, matchId: string): void 
   void slug;
   void eventId;
   const scoreboardHref = `/display/${matchId}`;
-  const href = buildMatchScoringHref('/scoring', matchId, window.location.href, scoreboardHref);
+  const href = buildMatchScoringHref(
+    STAFF_APP_PREFIX,
+    matchId,
+    window.location.href,
+    scoreboardHref,
+  );
   if (href) window.location.href = href;
 }
 

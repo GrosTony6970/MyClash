@@ -1,4 +1,17 @@
 /**
+ * Where the web-staff app is mounted, same-origin, behind the admin proxy.
+ *
+ * ONE owner, because there were four. Every caller used to hardcode
+ * `'/scoring'`, and when the scoring PWA was renamed to the staff app
+ * (`11db3c66`) the proxy moved to `/staff` while all four literals stayed —
+ * so "score this match" from the pools table, the bracket, the schedule grid
+ * and the live board every one of them led an organiser to a 404. The e2e
+ * suite could not catch it either: `28-live-control-room` asserted the href
+ * against the same stale literal, so it went green on the broken link.
+ */
+export const STAFF_APP_PREFIX = '/staff';
+
+/**
  * Build the cross-app URL into the web-staff app's lice-queue
  * page (`/lices/{liceId}`). The lice page shows the lice's current
  * top-of-queue match plus its upcoming queue — the right surface

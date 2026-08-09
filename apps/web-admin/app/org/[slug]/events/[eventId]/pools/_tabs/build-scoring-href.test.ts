@@ -1,5 +1,16 @@
 import { describe, it, expect } from 'vitest';
-import { buildScoringHref, buildMatchScoringHref } from './build-scoring-href';
+import { buildScoringHref, buildMatchScoringHref, STAFF_APP_PREFIX } from './build-scoring-href';
+
+describe('STAFF_APP_PREFIX', () => {
+  it('is the path the staff app is actually mounted at', () => {
+    // The one assertion that would have caught the dead link. The scoring PWA
+    // became the staff app in `11db3c66` and the proxy moved to `/staff`, but
+    // all four admin call sites kept a hardcoded `'/scoring'` — so every "score
+    // this match" action sent an organiser to a 404, in production, for a day.
+    // Every caller now reads this constant, so this line is the whole guard.
+    expect(STAFF_APP_PREFIX).toBe('/staff');
+  });
+});
 
 describe('buildScoringHref', () => {
   it('joins the scoring base URL with the lice path when both args are present', () => {
