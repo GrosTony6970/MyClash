@@ -88,5 +88,21 @@ _bmad-output/
 # carrying example club and person rows — not our code, and not something to
 # republish from a public repo. Keep them local.
 hemaratings-export/
-# Added by code-review-graph
+
+# Per-developer AI assistant wiring, same reasoning as `.claude/` above: it
+# describes one machine, not the product. The code-review-graph installer writes
+# a config per assistant, each hardcoding an absolute local path, plus its own
+# generated graph directory. Committed once in 28e05a3a and taken back out —
+# keep it local.
 .code-review-graph/
+.mcp.json
+.cursorrules
+.windsurfrules
+.opencode.json
+.gemini/
+.kiro/
+.qoder/
+GEMINI.md
+QODER.md
+CODE-REVIEW-GRAPH.local.md
+.github/code-review-graph.instruction.md
