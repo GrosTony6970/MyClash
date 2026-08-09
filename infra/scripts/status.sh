@@ -62,7 +62,7 @@ filter_log_noise() {
 # through uncoloured. Falls back to `cat` so the helper never
 # drops lines, even on dumb terminals.
 highlight_log_errors() {
-  GREP_COLOR='1;31' grep --color=always -E \
+  GREP_COLORS='mt=1;31' grep --color=always -E \
     '"level":(40|50|60)|[Ee][Rr][Rr][Oo][Rr]|[Ww][Aa][Rr][Nn]|[Ff][Aa][Tt][Aa][Ll]|$' \
     || cat
 }
