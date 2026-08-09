@@ -728,6 +728,9 @@ if [[ "$CREATE_DEMO_ORG" -eq 1 ]]; then
   fi
 
   set -a
+  # Same as .env: operator-supplied, gitignored, nothing to follow. Present on
+  # this box it would resolve and stay quiet — CI checks out without it.
+  # shellcheck source=/dev/null
   source ./.env.e2e
   set +a
   : "${E2E_ADMIN_EMAIL:?Missing E2E_ADMIN_EMAIL in .env.e2e}"
