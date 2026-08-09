@@ -589,8 +589,17 @@ for (const serviceName of requiredServices) {
   requireContains(service, serviceName, 'driver: json-file');
   requireContains(service, serviceName, "max-size: '10m'");
 
-  if (!['worker', 'supabase-rest'].includes(serviceName)) {
-    requireContains(service, serviceName, 'healthcheck:');
+  // A healthcheck is equally real whether it is declared here or baked into the
+  // image this service builds — `worker` has only ever had the second kind, and
+  // used to need a hardcoded exception here to say so. Resolve it by reading, so
+  // api/web-staff/web-admin can drop their byte-identical copies of the probe
+  // their own Dockerfile already carries. supabase-rest must have NEITHER; that
+  // is asserted separately below.
+  if (serviceName !== 'supabase-rest' && !healthcheckOwner(service)) {
+    errors.push(
+      `${serviceName} has no healthcheck — declare one in compose, or add a HEALTHCHECK to ` +
+        'the Dockerfile it builds.',
+    );
   }
 
   if (!['ops-runner'].includes(serviceName)) {

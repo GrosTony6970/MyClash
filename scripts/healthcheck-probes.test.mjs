@@ -90,15 +90,26 @@ test('every shipped healthcheck probe names its failure instead of exiting silen
       );
     }
   }
-  assert.ok(total >= 12, `expected every service probe to be covered, found ${total}`);
+  // 4 in prod compose (supabase-meta, supabase-studio, ops-runner, web-public's
+  // deeper SSR probe), 1 in dev compose (api, faster interval than the image),
+  // 4 image-level. api/web-staff/web-admin deliberately have no compose copy —
+  // their Dockerfile is the single owner. A floor, not an equality: the
+  // per-file assertion above is what catches a file losing its probes.
+  assert.ok(total >= 9, `expected every service probe to be covered, found ${total}`);
 });
 
 test('probes exit 0 on 200 and print the status code on a non-200', async () => {
+  // One of each shape. The fetch-based probe is supabase-meta's, declared in
+  // compose; the http.get-based one is the api's, which lives in its Dockerfile
+  // because compose no longer keeps a second copy of it.
   const prod = await readFile(path.join(ROOT, 'infra/docker-compose.prod.yml'), 'utf8');
-  const probes = extractProbes(prod);
-  // One of each shape: fetch-based (supabase-meta) and http.get-based (api).
-  const fetchProbe = probes.find((p) => p.includes("fetch('http://localhost:8080/health')"));
-  const getProbe = probes.find((p) => p.includes("get('http://localhost:4000/health'"));
+  const apiImage = await readFile(path.join(ROOT, 'apps/api/Dockerfile'), 'utf8');
+  const fetchProbe = extractProbes(prod).find((p) =>
+    p.includes("fetch('http://localhost:8080/health')"),
+  );
+  const getProbe = extractProbes(apiImage).find((p) =>
+    p.includes("get('http://localhost:4000/health'"),
+  );
   assert.ok(fetchProbe, 'supabase-meta fetch probe not found');
   assert.ok(getProbe, 'api http.get probe not found');
 

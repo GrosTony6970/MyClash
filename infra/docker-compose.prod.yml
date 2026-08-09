@@ -565,18 +565,10 @@ services:
       AI_KEY_SECRET: ${AI_KEY_SECRET}
       SYSTEM_VERSIONS_ROOT_DIR: /app
       SYSTEM_VERSIONS_PATH: /app/data/system-versions.json
-    healthcheck:
-      test:
-        [
-          'CMD',
-          'node',
-          '-e',
-          "require('http').get('http://localhost:4000/health',r=>{if(r.statusCode!==200)console.error('HTTP '+r.statusCode);process.exit(r.statusCode===200?0:1)}).on('error',e=>{console.error(e.code||e.name,e.message);process.exit(1)})",
-        ]
-      interval: 30s
-      timeout: 5s
-      retries: 3
-      start_period: 20s
+    # Healthcheck lives in apps/api/Dockerfile — same probe, same timings, one
+    # owner. Overriding it here only makes sense when this stack needs different
+    # behaviour from the image, as dev does (faster interval) and web-public does
+    # (a deeper probe). `worker` runs this same image and has always relied on it.
     depends_on:
       db: { condition: service_healthy }
       redis: { condition: service_healthy }
@@ -1000,18 +992,8 @@ services:
       SENTRY_ENVIRONMENT: ${SENTRY_ENVIRONMENT:-production}
       SENTRY_RELEASE: ${SENTRY_RELEASE:-}
       SENTRY_TRACES_SAMPLE_RATE: ${SENTRY_TRACES_SAMPLE_RATE:-0}
-    healthcheck:
-      test:
-        [
-          'CMD',
-          'node',
-          '-e',
-          "require('http').get('http://localhost:3000/api/health',r=>{if(r.statusCode!==200)console.error('HTTP '+r.statusCode);process.exit(r.statusCode===200?0:1)}).on('error',e=>{console.error(e.code||e.name,e.message);process.exit(1)})",
-        ]
-      interval: 30s
-      timeout: 5s
-      retries: 3
-      start_period: 20s
+    # Healthcheck lives in apps/web-staff/Dockerfile — one owner. See the api
+    # service for when overriding it here is the right call.
     networks: [myclash]
     mem_limit: 512m
     cpus: 1
@@ -1092,18 +1074,8 @@ services:
       SENTRY_ENVIRONMENT: ${SENTRY_ENVIRONMENT:-production}
       SENTRY_RELEASE: ${SENTRY_RELEASE:-}
       SENTRY_TRACES_SAMPLE_RATE: ${SENTRY_TRACES_SAMPLE_RATE:-0}
-    healthcheck:
-      test:
-        [
-          'CMD',
-          'node',
-          '-e',
-          "require('http').get('http://localhost:3000/api/health',r=>{if(r.statusCode!==200)console.error('HTTP '+r.statusCode);process.exit(r.statusCode===200?0:1)}).on('error',e=>{console.error(e.code||e.name,e.message);process.exit(1)})",
-        ]
-      interval: 30s
-      timeout: 5s
-      retries: 3
-      start_period: 20s
+    # Healthcheck lives in apps/web-admin/Dockerfile — one owner. See the api
+    # service for when overriding it here is the right call.
     networks: [myclash]
     mem_limit: 512m
     cpus: 1
