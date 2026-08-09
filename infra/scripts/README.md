@@ -81,6 +81,29 @@ are never rebuilt by these scripts — they use published images.
   `vps-bootstrap.sh` (needs an `_ask` prompt helper the lib lacks; runs at first
   provisioning) and `test-restore-roundtrip.sh` (self-contained test, plain PASS/FAIL).
 
+## Linting
+
+CI runs this in its own job (`Shellcheck infra scripts`), outside the Lint chain — nothing in
+`pnpm`-land covers these files, so run it yourself after editing one:
+
+```bash
+shellcheck -x infra/scripts/*.sh infra/scripts/lib/*.sh
+```
+
+Three things about it are not guessable:
+
+- **`-x` alone follows nothing.** ShellCheck reduces `source "$SCRIPT_DIR/lib/log.sh"` to
+  `./lib/log.sh` and searches the source path, which defaults to the CWD. The repo-root
+  `.shellcheckrc` sets `source-path=SCRIPTDIR` to resolve it against the script instead. Without
+  that the job reports "Not following:" once per script and exits non-zero — which it did, for as
+  long as the job existed.
+- **A `# shellcheck` directive must sit immediately above the `source` line itself.** Above
+  `set -a; source ./.env; set +a` it attaches to `set -a` and silences nothing, so those get split
+  across three lines with `# shellcheck source=/dev/null` on the middle one.
+- **Lint a clean checkout, not your working tree.** `.env`, `.env.e2e` and friends are gitignored
+  but present on a real box, so ShellCheck follows them locally and stays quiet about sources that
+  are unresolvable in CI. `git archive HEAD | tar -x -C "$(mktemp -d)"` and run it there.
+
 ## Cron
 
 `backup.sh` is intended to run nightly. The editable schedule is now managed by the
