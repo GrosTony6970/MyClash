@@ -76,11 +76,48 @@ errors_only_filter() {
     || true
 }
 
+# Docker stamps each line RFC3339Nano in UTC. Keep `MM-DD HH:MM:SSZ` —
+# enough to date a line without spending thirty columns on it. Docker's
+# stamp is always the first thing after compose's `service |` prefix, so
+# this un-anchored, non-global substitution can only ever hit that one.
+shorten_timestamps() {
+  sed -E 's/[0-9]{4}-([0-9]{2}-[0-9]{2})T([0-9]{2}:[0-9]{2}:[0-9]{2})\.[0-9]+Z/\1 \2Z/'
+}
+
+# Anchor a log section in time. Without this, a line emitted while the
+# stack was still booting reads exactly like one emitted ten seconds ago:
+# web-public's SSR probe logs `[health/api-reachable] … ECONNREFUSED`
+# whenever it runs before the API answers, and that line then sits at the
+# tail of this report for as long as the service stays quiet. Printing
+# when the container started turns "is this current?" into arithmetic.
+print_container_uptime() {
+  local svc="$1" id started started_epoch
+  id=$("${COMPOSE[@]}" ps -q "$svc" 2>/dev/null || true)
+  [[ -n "$id" ]] || return 0
+  started=$(docker inspect --format='{{.State.StartedAt}}' "$id" 2>/dev/null || true)
+  [[ -n "$started" ]] || return 0
+  # GNU date parses RFC3339Nano; anywhere it doesn't, print the raw stamp
+  # rather than losing the anchor entirely.
+  started_epoch=$(date -d "$started" +%s 2>/dev/null || true)
+  local short
+  short=$(printf '%s\n' "$started" | shorten_timestamps)
+  if [[ "$started_epoch" =~ ^[0-9]+$ ]]; then
+    info "container started $short (up $(fmt_duration "$(($(date +%s) - started_epoch))"))"
+  else
+    info "container started $short"
+  fi
+}
+
 # Emit one log section. Pulls 200 raw lines from the service so
 # the post-filter tail still has enough content for busy
 # services (each request emits 2 lines once the Nest middleware
 # is filtered out). In --errors mode the tail-N cap is skipped:
 # we want every matching warn/error in the recent window.
+#
+# --timestamps is not cosmetic: a quiet service's tail is mostly
+# startup lines, and undated they read as if they had just been
+# emitted. Every line here carries the time it was written, under
+# a header saying when the container started.
 tail_service_log() {
   local svc="$1"
   local tail_lines="$2"
@@ -90,16 +127,18 @@ tail_service_log() {
   else
     hdr "$title"
   fi
+  print_container_uptime "$svc"
   local raw
-  raw=$("${COMPOSE[@]}" logs --tail=200 "$svc" 2>/dev/null || true)
+  raw=$("${COMPOSE[@]}" logs --timestamps --tail=200 "$svc" 2>/dev/null || true)
   if [[ -z "$raw" ]]; then
     warn "No $svc logs"
     return
   fi
   if [[ "$ERRORS_ONLY" == "1" ]]; then
-    echo "$raw" | filter_log_noise | errors_only_filter
+    echo "$raw" | shorten_timestamps | filter_log_noise | errors_only_filter
   else
-    echo "$raw" | filter_log_noise | tail -n "$tail_lines" | highlight_log_errors
+    echo "$raw" | shorten_timestamps | filter_log_noise |
+      tail -n "$tail_lines" | highlight_log_errors
   fi
 }
 
