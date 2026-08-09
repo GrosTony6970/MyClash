@@ -550,13 +550,32 @@ hdr "Starting stack"
 # Capture the exit code with `|| rc=$?` — NOT `if ! cmd; then rc=$?`. Inside a
 # negated `if`, `$?` holds the *inverted* status (always 0 when the branch runs),
 # so the old form silently reported every failure as "exit 0".
-UP_TIMEOUT=120
+#
+# 240s, not 120s: the web tier now waits on `api: service_healthy`
+# (infra/docker-compose.prod.yml), so this call blocks for the API's boot plus
+# its first successful probe — ~30-40s more than when it returned as soon as the
+# api container was created. A timeout here is NOT harmless. Compose would exit
+# with web-public/web-staff/web-admin never recreated, their OLD containers still
+# running and healthy, and the poll below would pass on them: a deploy that
+# reports success while three services run the previous image.
+UP_TIMEOUT=240
 rc=0
 timeout --kill-after=10 "$UP_TIMEOUT" \
   "${COMPOSE[@]}" up -d || rc=$?
 if [[ "$rc" -ne 0 ]]; then
   if [[ "$rc" -eq 124 || "$rc" -eq 137 || "$rc" -eq 143 ]]; then
-    warn "docker compose up -d exited abnormally (code $rc: timeout/killed) — verifying container state via healthcheck poll"
+    warn "docker compose up -d exited abnormally (code $rc: timeout/killed) — retrying once"
+    # `up -d` is idempotent: everything already converged stays put, and anything
+    # the killed run never reached is created now. The hang this guards against
+    # is compose's progress renderer parking AFTER the work is done, so the retry
+    # normally returns immediately. Whatever it leaves behind, the healthcheck
+    # poll below is still the source of truth.
+    rc=0
+    timeout --kill-after=10 "$UP_TIMEOUT" \
+      "${COMPOSE[@]}" up -d || rc=$?
+    if [[ "$rc" -ne 0 ]]; then
+      warn "retry also exited $rc — verifying container state via healthcheck poll"
+    fi
   else
     err "docker compose up -d failed (exit $rc)"
     print_service_health_diagnostics supabase-rest supabase-storage api

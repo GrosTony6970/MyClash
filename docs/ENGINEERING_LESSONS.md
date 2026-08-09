@@ -257,6 +257,20 @@ here.
   service looks healthy from outside while every loopback healthcheck is refused. Our own images
   set `ENV HOSTNAME="0.0.0.0"` in their Dockerfiles; a third-party Next image (`supabase/studio`)
   must be given `HOSTNAME: '0.0.0.0'` in compose. Pinned by `pnpm infra:review`.
+- A healthcheck that asserts a **cross-service** invariant needs a matching `depends_on` gate on
+  that service (`condition: service_healthy`), or it cannot do anything but fail on every cold
+  start. `web-public`'s probe is an SSR fetch of the API; ungated, it ran while the API was still
+  booting and left two `[health/api-reachable] … ECONNREFUSED` lines at the tail of `status.sh` for
+  the life of the container — a healthy stack that reads as an outage. Dev had gated all three web
+  apps from the start and prod had not: **check dev/prod compose pairs for ordering drift**, nothing
+  reports it. Pinned by `pnpm infra:review`. Note `depends_on` only applies to `up`; Docker's restart
+  policy ignores it, so a host reboot still races.
+- Adding a `service_healthy` dependency lengthens `docker compose up -d`, and a timeout there is not
+  harmless: compose exits with the gated services never recreated, their **old** containers still
+  running and healthy, and a health poll passes on them — a deploy that reports success while
+  services run the previous image. Give `up -d` headroom and retry it once before trusting the poll.
+- `docker compose logs` without `--timestamps` makes a line written at boot indistinguishable from
+  one written ten seconds ago. Any tool that shows a log tail to an operator must date it.
 
 ## Ops script conventions (inherited from MyFAL)
 

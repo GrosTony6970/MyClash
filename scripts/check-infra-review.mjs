@@ -689,6 +689,29 @@ requireContains(
   'supabase-rest: { condition: service_started }',
 );
 
+// ── Web tier start ordering ────────────────────────────────────────────────
+// Every web app reaches the API on first paint, and web-public's healthcheck IS
+// an SSR fetch of /api/v1/events. Started in parallel with the db → api chain,
+// that probe cannot do anything but fail for the first minute of a cold start —
+// which is exactly what happened: two `[health/api-reachable] … ECONNREFUSED`
+// lines sat at the tail of status.sh, unexplained, while the stack was healthy.
+//
+// Dev has gated all three on the API since the beginning; prod is what drifted,
+// and nothing said so. Assert it on BOTH files so the pair cannot separate
+// again. web-marketing is out on purpose: static Caddy, never calls the API.
+for (const [label, serviceMap] of [
+  ['prod', services],
+  ['dev', devServices],
+]) {
+  for (const serviceName of ['web-public', 'web-staff', 'web-admin']) {
+    requireContains(
+      serviceMap.get(serviceName) ?? '',
+      `${label} ${serviceName}`,
+      'api: { condition: service_healthy }',
+    );
+  }
+}
+
 const prodRest = services.get('supabase-rest') ?? '';
 if (prodRest.includes('healthcheck:')) {
   errors.push('prod supabase-rest must not define a Docker healthcheck.');

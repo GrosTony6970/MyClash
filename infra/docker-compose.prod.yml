@@ -883,6 +883,19 @@ services:
       SENTRY_ENVIRONMENT: ${SENTRY_ENVIRONMENT:-production}
       SENTRY_RELEASE: ${SENTRY_RELEASE:-}
       SENTRY_TRACES_SAMPLE_RATE: ${SENTRY_TRACES_SAMPLE_RATE:-0}
+    # The healthcheck below asserts a CROSS-SERVICE invariant, so without this
+    # gate it is guaranteed to fail on every cold start: compose used to bring
+    # this app up in parallel with the db → api chain, the probe fired ~30s
+    # later against an API that was still booting, and two
+    # `[health/api-reachable] … ECONNREFUSED` lines were left at the tail of
+    # `status.sh` for the rest of the container's life. Gating the start adds no
+    # new availability rule — the probe already defines "no reachable API" as
+    # unhealthy. docker-compose.dev.yml has had this on all three web apps from
+    # the beginning; prod is what drifted. (Docker's restart policy ignores
+    # depends_on, so a host reboot still races; that is what the timestamps in
+    # status.sh are for.)
+    depends_on:
+      api: { condition: service_healthy }
     healthcheck:
       # Deeper probe than /api/health (which only verifies Next is alive).
       # /api/health/api-reachable performs the same server-side fetch the
@@ -992,6 +1005,9 @@ services:
       SENTRY_ENVIRONMENT: ${SENTRY_ENVIRONMENT:-production}
       SENTRY_RELEASE: ${SENTRY_RELEASE:-}
       SENTRY_TRACES_SAMPLE_RATE: ${SENTRY_TRACES_SAMPLE_RATE:-0}
+    # One rule for the whole web tier — see web-public for why.
+    depends_on:
+      api: { condition: service_healthy }
     # Healthcheck lives in apps/web-staff/Dockerfile — one owner. See the api
     # service for when overriding it here is the right call.
     networks: [myclash]
@@ -1074,6 +1090,9 @@ services:
       SENTRY_ENVIRONMENT: ${SENTRY_ENVIRONMENT:-production}
       SENTRY_RELEASE: ${SENTRY_RELEASE:-}
       SENTRY_TRACES_SAMPLE_RATE: ${SENTRY_TRACES_SAMPLE_RATE:-0}
+    # One rule for the whole web tier — see web-public for why.
+    depends_on:
+      api: { condition: service_healthy }
     # Healthcheck lives in apps/web-admin/Dockerfile — one owner. See the api
     # service for when overriding it here is the right call.
     networks: [myclash]

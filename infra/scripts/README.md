@@ -74,6 +74,9 @@ are never rebuilt by these scripts — they use published images.
   they can't race each other.
 - **`up -d` timeout** — `deploy.sh`/`redeploy.sh` bound `up -d` and treat the health poll,
   not the compose exit code, as the source of truth (compose's renderer can hang over SSH).
+  `deploy.sh` allows 240s (the web tier waits on `api: service_healthy`) and retries once
+  on an abnormal exit: a timeout that leaves a gated service un-recreated keeps its **old**
+  container running and healthy, which the poll would happily accept.
 - Two scripts are **standalone on purpose** and don't source `lib/log.sh`:
   `vps-bootstrap.sh` (needs an `_ask` prompt helper the lib lacks; runs at first
   provisioning) and `test-restore-roundtrip.sh` (self-contained test, plain PASS/FAIL).
