@@ -924,6 +924,54 @@ for (const serviceName of [
   }
 }
 
+// ── Deploy health-wait coverage ─────────────────────────────────────────────
+// supabase-studio sat unhealthy for two days and not one deploy said so: the
+// wait covered six services out of sixteen, and anything outside that list can
+// stay red forever while "Deploy complete" prints. Derive the requirement from
+// compose rather than keeping yet another hand-written list — every service that
+// HAS a healthcheck, declared in compose or inherited from the image it builds,
+// must be waited on in one tier or the other.
+//
+// Two tiers on purpose. The wait runs AFTER `up -d` has already replaced every
+// container, so aborting buys nothing for a sick operator console and would skip
+// the super-admin bootstrap and the deploy metadata write. Critical = the public
+// surface is down. Advisory = degraded, reported, survived.
+const criticalWait = parseBashArray(deployText, 'CRITICAL_SERVICES');
+const advisoryWait = parseBashArray(deployText, 'ADVISORY_SERVICES');
+if (!criticalWait || !advisoryWait) {
+  errors.push(
+    'deploy.sh must declare CRITICAL_SERVICES and ADVISORY_SERVICES for the health wait.',
+  );
+} else {
+  const waited = new Map();
+  for (const [tier, list] of [
+    ['critical', criticalWait],
+    ['advisory', advisoryWait],
+  ]) {
+    for (const serviceName of list) {
+      if (waited.has(serviceName)) {
+        errors.push(`deploy.sh lists ${serviceName} in both health-wait tiers.`);
+      }
+      if (!services.has(serviceName)) {
+        errors.push(
+          `deploy.sh health wait names ${serviceName}, which is not a prod compose service.`,
+        );
+      }
+      waited.set(serviceName, tier);
+    }
+  }
+  for (const [serviceName, serviceText] of services) {
+    if (!healthcheckOwner(serviceText)) continue;
+    if (!waited.has(serviceName)) {
+      errors.push(
+        `${serviceName} has a healthcheck but deploy.sh never waits on it — add it to ` +
+          'CRITICAL_SERVICES (the public surface is down without it) or ADVISORY_SERVICES ' +
+          '(degraded, reported at the end).',
+      );
+    }
+  }
+}
+
 // DROP DATABASE fails while ANY session is connected, so restore.sh and
 // rollback.sh stop every service holding a pool before recreating the database.
 // A new Postgres-connected service that misses these lists does not fail
@@ -2552,6 +2600,28 @@ function parseServices(text) {
 
 function requireContains(text, serviceName, expected) {
   if (!text.includes(expected)) errors.push(`${serviceName} is missing ${expected}`);
+}
+
+/**
+ * Where a service's healthcheck comes from, or null if it has none.
+ *
+ * A compose `healthcheck:` overrides the image's; a service that builds from one
+ * of our Dockerfiles inherits that image's HEALTHCHECK when compose stays quiet.
+ * `worker` has always relied on the second path, which is why it was excluded by
+ * name from the compose requirement — this resolves the same fact by reading.
+ */
+function healthcheckOwner(serviceText) {
+  if (serviceText.includes('healthcheck:')) return 'compose';
+  const dockerfile = /^\s*dockerfile:\s*(\S+)\s*$/mu.exec(serviceText)?.[1];
+  if (!dockerfile) return null;
+  const image = dockerfiles.find((entry) => entry.filePath === dockerfile);
+  return image?.text.includes('HEALTHCHECK') ? 'image' : null;
+}
+
+/** Read a `NAME=(a b c)` bash array out of a script, or null if absent. */
+function parseBashArray(text, name) {
+  const match = new RegExp(`${escapeRegExp(name)}=\\(([^)]*)\\)`, 'u').exec(text);
+  return match ? match[1].split(/\s+/u).filter(Boolean) : null;
 }
 
 /**

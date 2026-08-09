@@ -573,25 +573,80 @@ mc_warn_if_plugins_failed || true
 # ── Wait for healthchecks ────────────────────────────────────────
 hdr "Waiting for services to become healthy"
 
+# Two tiers, and check-infra-review fails the build if a service with a
+# healthcheck appears in neither. supabase-studio sat unhealthy for two days
+# because it was in no list at all and nothing here looked at it.
+#
+# The split is not about importance, it is about what aborting achieves. This
+# runs AFTER `up -d` has already replaced every container, so exiting does not
+# roll anything back — it only skips the steps below (super-admin bootstrap,
+# smoke test, .last-deploy.json). Worth it when the public surface is down;
+# actively harmful when the operator console is the only thing sick.
+#
+# CRITICAL — users cannot use the site.
+CRITICAL_SERVICES=(traefik db redis supabase-auth supabase-storage api
+  web-public web-staff web-admin web-marketing)
+# ADVISORY — degraded, not down. Reported by name at the end of the run.
+# supabase-realtime sits here deliberately: live surfaces need it, but its
+# healthcheck answered 200 for weeks while every public websocket was 403'd,
+# so failing a deploy on it would buy confidence it cannot actually give.
+ADVISORY_SERVICES=(supabase-realtime supabase-meta supabase-studio ops-runner worker)
+
 RETRIES=20
 DELAY=3
-for svc in api web-public web-staff web-admin web-marketing supabase-storage; do
-  for i in $(seq 1 "$RETRIES"); do
-    HEALTH=$(docker inspect --format='{{.State.Health.Status}}' \
-              "$("${COMPOSE[@]}" ps -q "$svc")" 2>/dev/null || echo "unknown")
-    if [[ "$HEALTH" == "healthy" ]]; then
-      ok "$svc healthy"
-      break
+# Advisory services are polled once the critical tier is already green, so the
+# stack has had a minute to settle and a healthy one answers on the first pass.
+ADVISORY_RETRIES=10
+
+# Poll one service until healthy. `{{if .State.Health}}` matters: the bare
+# `.State.Health.Status` prints `<no value>` for a container with no healthcheck
+# at all, which reads as "not ready yet" and burns the whole retry budget.
+wait_for_health() {
+  local svc="$1" retries="$2" id health
+  for i in $(seq 1 "$retries"); do
+    id=$("${COMPOSE[@]}" ps -q "$svc" 2>/dev/null || true)
+    health=$(docker inspect \
+      --format='{{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}' \
+      "$id" 2>/dev/null || echo "unknown")
+    if [[ "$health" == "healthy" ]]; then
+      return 0
     fi
-    if [[ "$i" -eq "$RETRIES" ]]; then
-      err "$svc did not become healthy after $((RETRIES * DELAY))s"
-      err "Check logs: docker compose -f infra/docker-compose.prod.yml logs --tail=100 $svc"
-      exit 1
+    if [[ "$i" -eq "$retries" ]]; then
+      LAST_HEALTH="$health"
+      return 1
     fi
-    info "Attempt $i/$RETRIES — $svc status: $HEALTH"
+    info "Attempt $i/$retries — $svc status: $health"
     sleep "$DELAY"
   done
+  return 1
+}
+
+for svc in "${CRITICAL_SERVICES[@]}"; do
+  if wait_for_health "$svc" "$RETRIES"; then
+    ok "$svc healthy"
+    continue
+  fi
+  err "$svc did not become healthy after $((RETRIES * DELAY))s (status: ${LAST_HEALTH:-unknown})"
+  print_service_health_diagnostics "$svc"
+  err "Check logs: docker compose -f infra/docker-compose.prod.yml logs --tail=100 $svc"
+  exit 1
 done
+
+DEGRADED_SERVICES=()
+for svc in "${ADVISORY_SERVICES[@]}"; do
+  if wait_for_health "$svc" "$ADVISORY_RETRIES"; then
+    ok "$svc healthy"
+    continue
+  fi
+  warn "$svc did not become healthy after $((ADVISORY_RETRIES * DELAY))s (status: ${LAST_HEALTH:-unknown})"
+  DEGRADED_SERVICES+=("$svc")
+done
+
+# One call for the whole set: the helper opens with a full `compose ps`, so
+# calling it per service would print that table once per sick container.
+if [[ "${#DEGRADED_SERVICES[@]}" -gt 0 ]]; then
+  print_service_health_diagnostics "${DEGRADED_SERVICES[@]}"
+fi
 
 # A plugin that downloads and then rejects its config logs nothing, so the grep
 # above cannot see it. Probe the routers to prove the middlewares built.
@@ -719,6 +774,14 @@ ok "Deployed commit ${NEW_COMMIT:0:8} to https://${DOMAIN}"
 echo "  Total time:          $(fmt_duration "$DEPLOY_DURATION")"
 echo "  Rollback if needed:  infra/scripts/rollback.sh"
 echo "  Status:              infra/scripts/status.sh"
+
+# Repeated here because the advisory warnings above scroll off the top of a long
+# deploy, which is exactly how a service stays broken for days.
+if [[ "${#DEGRADED_SERVICES[@]}" -gt 0 ]]; then
+  echo
+  warn "Deployed, but these services are NOT healthy: ${DEGRADED_SERVICES[*]}"
+  warn "They do not take the site down, so the deploy continued. Health logs are above."
+fi
 
 echo
 print_deployment_secrets
