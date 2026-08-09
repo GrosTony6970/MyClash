@@ -53,7 +53,11 @@ EOF
 done
 
 [[ -f .env ]] || { err "Missing .env"; exit 1; }
-set -a; source ./.env; set +a
+set -a
+# .env is deploy-time state, never committed — nothing to follow (see .shellcheckrc).
+# shellcheck source=/dev/null
+source ./.env
+set +a
 : "${POSTGRES_USER:=postgres}"
 : "${POSTGRES_DB:=myclash}"
 
@@ -79,17 +83,34 @@ s3_env() {
   export AWS_DEFAULT_REGION="${BACKUP_SCW_REGION:-fr-par}"
 }
 
+# ── Local backup listing ─────────────────────────────────────────
+# The empty case is decided BEFORE the pipeline, not after it: the old form was
+# `ls … | tail | sed || warn "No local backups found"`, and `||` binds to the
+# exit status of the LAST stage — `sed`, which succeeds on empty input. That
+# warning could never print, and a box with no backups at all showed two blank
+# headings instead.
+print_local_backups() {
+  local pattern="$1" empty_msg="$2" files=()
+  mapfile -t files < <(compgen -G "$pattern" || true)
+  if [[ "${#files[@]}" -eq 0 ]]; then
+    warn "  $empty_msg"
+    return
+  fi
+  # `ls` is deliberate here (SC2012): this output is read by a human and never
+  # parsed, and the names come from our own backup.sh (db-YYYYMMDD-HHMMSS.sql.gz).
+  # shellcheck disable=SC2012
+  ls -lh "${files[@]}" | tail -10 | sed 's/^/    /'
+}
+
 # ── No args: show local backups ──────────────────────────────────
 if [[ $# -eq 0 ]]; then
   echo
   hdr "Local backups"
   echo "  DB backups:"
-  ls -lh backups/nightly/db-*.sql.gz* 2>/dev/null | tail -10 | sed 's/^/    /' \
-    || warn "  No local DB backups found"
+  print_local_backups 'backups/nightly/db-*.sql.gz*' "No local DB backups found"
   echo
   echo "  Storage backups:"
-  ls -lh backups/nightly/storage-*.tar.gz* 2>/dev/null | tail -10 | sed 's/^/    /' \
-    || warn "  No local storage backups found"
+  print_local_backups 'backups/nightly/storage-*.tar.gz*' "No local storage backups found"
   echo
   if s3_configured && command -v aws &>/dev/null; then
     hdr "Remote backups (Scaleway S3)"
@@ -184,7 +205,11 @@ fi
 # ── Confirm ──────────────────────────────────────────────────────
 hdr "Restore plan"
 info "DB backup:      $BACKUP_FILE"
-[[ -n "$STORAGE_FILE" ]] && info "Storage backup: $STORAGE_FILE" || warn "No storage backup found — DB only"
+if [[ -n "$STORAGE_FILE" ]]; then
+  info "Storage backup: $STORAGE_FILE"
+else
+  warn "No storage backup found — DB only"
+fi
 info "Target DB:      $POSTGRES_DB on db container"
 warn "This will DROP the existing $POSTGRES_DB database and recreate it from the dump."
 warn "App + Supabase services will be stopped during the restore and restarted afterwards."

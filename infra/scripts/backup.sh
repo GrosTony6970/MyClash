@@ -70,7 +70,11 @@ log_info "Starting backup"
 
 # ── Load environment ─────────────────────────────────────────────
 [[ -f .env ]] || { log_err "Missing .env — aborting"; exit 1; }
-set -a; source ./.env; set +a
+set -a
+# .env is deploy-time state, never committed — nothing to follow (see .shellcheckrc).
+# shellcheck source=/dev/null
+source ./.env
+set +a
 
 : "${POSTGRES_USER:=postgres}"
 : "${POSTGRES_DB:=myclash}"

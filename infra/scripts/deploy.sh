@@ -364,6 +364,8 @@ NORMALIZED_KEYS=$(node -e "const r=JSON.parse(process.argv[1]); console.log((r.n
 [[ -n "$NORMALIZED_KEYS" ]] && info "Normalized values: $NORMALIZED_KEYS"
 
 set -a
+# .env is deploy-time state, never committed — nothing to follow (see .shellcheckrc).
+# shellcheck source=/dev/null
 source ./.env
 set +a
 
@@ -416,6 +418,7 @@ require_cmd node
 
 VAPID_RESULT=$(node scripts/ensure-vapid-env.mjs .env "$LETSENCRYPT_EMAIL")
 set -a
+# shellcheck source=/dev/null
 source ./.env
 set +a
 
@@ -430,7 +433,6 @@ hdr "Syncing version stamps"
 
 if [[ -f VERSION ]]; then
   APP_VERSION=$(tr -d '[:space:]' < VERSION)
-  APP_VERSION_NODOT="${APP_VERSION//./}"
 
   # Service worker cache names per app
   for sw in apps/web-public/public/sw.js apps/web-staff/public/sw.js apps/web-admin/public/sw.js; do

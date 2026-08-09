@@ -456,10 +456,15 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # shellcheck is preinstalled on ubuntu-latest runners. -x follows `source`d files
-      # (lib/log.sh) so directives in the scripts are honored across the boundary.
+      # shellcheck is preinstalled on ubuntu-latest runners. `-x` follows `source`d
+      # files, but ONLY finds them because .shellcheckrc sets source-path=SCRIPTDIR —
+      # on its own it resolves "$SCRIPT_DIR/lib/log.sh" against the CWD and follows
+      # nothing. Print the version: a runner image bump is the one thing that can
+      # change this job's verdict without a commit touching a script.
       - name: Run shellcheck
-        run: shellcheck -x infra/scripts/*.sh infra/scripts/lib/*.sh
+        run: |
+          shellcheck --version
+          shellcheck -x infra/scripts/*.sh infra/scripts/lib/*.sh
 
   secret-scan:
     name: Secret scan

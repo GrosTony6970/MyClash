@@ -234,6 +234,10 @@ fi
 # ── API version metadata ─────────────────────────────────────────
 hdr "API version"
 
+# Single quotes are the point (SC2016): `${appVersion}` and `process.env.GIT_COMMIT`
+# must reach node inside the container verbatim. Expanding them here would
+# interpolate this shell's empty variables into the program.
+# shellcheck disable=SC2016
 API_VERSION=$("${COMPOSE[@]}" exec -T api node -e 'const fs=require("node:fs");const path="/app/data/system-versions.json";const fallback={app:{version:"unknown"},containers:{api:{version:"unknown",commit:process.env.GIT_COMMIT||"unknown"}}};let manifest=fallback;let source="fallback";let type="missing";try{const stat=fs.statSync(path);type=stat.isFile()?"file":stat.isDirectory()?"directory":"other";if(stat.isFile()){try{manifest=JSON.parse(fs.readFileSync(path,"utf8"));source="manifest";}catch{source="malformed";}}}catch{}const appVersion=manifest.app?.version||"unknown";const apiVersion=manifest.containers?.api?.version||"unknown";const commit=manifest.containers?.api?.commit||process.env.GIT_COMMIT||"unknown";console.log(`  App:    ${appVersion}`);console.log(`  API:    ${apiVersion}`);console.log(`  Commit: ${commit}`);console.log(`  Source: ${source}`);console.log(`  Manifest path type: ${type}`);' 2>/dev/null || true)
 if [[ -n "$API_VERSION" ]]; then
   echo "$API_VERSION"
@@ -245,7 +249,11 @@ fi
 # ── DB health ────────────────────────────────────────────────────
 hdr "Postgres"
 
-set -a; source ./.env; set +a
+set -a
+# .env is deploy-time state, never committed — nothing to follow (see .shellcheckrc).
+# shellcheck source=/dev/null
+source ./.env
+set +a
 : "${POSTGRES_USER:=postgres}"
 : "${POSTGRES_DB:=myclash}"
 
@@ -280,7 +288,11 @@ hdr "BullMQ queues"
 
 QUEUE_INFO=$("${COMPOSE[@]}" exec -T redis redis-cli --raw KEYS "bull:*:meta" 2>/dev/null | head -10 || true)
 if [[ -n "$QUEUE_INFO" ]]; then
-  echo "$QUEUE_INFO" | sed 's/^/  /'
+  # `info` already indents by two — one owner for output style, and it drops the
+  # `sed 's/^/  /'` this used to hand-roll.
+  while IFS= read -r queue; do
+    info "$queue"
+  done <<< "$QUEUE_INFO"
 else
   warn "No BullMQ queues found (may be normal pre-launch)"
 fi
@@ -292,6 +304,9 @@ if [[ -z "${VAPID_PUBLIC_KEY:-}" ]]; then
   warn "VAPID_PUBLIC_KEY not set in .env — push notifications disabled"
 else
   ok "VAPID keys present in .env"
+  # Single quotes are the point (SC2016): the variable must be read inside the
+  # api container, which is the whole question being asked here.
+  # shellcheck disable=SC2016
   CONTAINER_VAPID=$("${COMPOSE[@]}" exec -T api sh -c 'echo -n "$VAPID_PUBLIC_KEY"' 2>/dev/null || true)
   if [[ -n "$CONTAINER_VAPID" ]]; then
     ok "VAPID_PUBLIC_KEY injected into api container"

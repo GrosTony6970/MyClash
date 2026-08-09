@@ -105,6 +105,8 @@ done
 [[ -f .env ]] || { err "Missing .env"; exit 1; }
 # Load .env so compose build args (NEXT_PUBLIC_*, GIT_COMMIT, …) interpolate correctly.
 set -a
+# .env is deploy-time state, never committed — nothing to follow (see .shellcheckrc).
+# shellcheck source=/dev/null
 source ./.env
 set +a
 

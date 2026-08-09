@@ -1,0 +1,12 @@
+# ShellCheck configuration — read automatically from the checked file's directory
+# upward, so it applies to CI, local runs and editor plugins alike. One owner.
+
+# `-x` alone does NOT follow `source "$SCRIPT_DIR/lib/log.sh"`. ShellCheck reduces
+# that to `./lib/log.sh` and looks for it in the SOURCE PATH, which defaults to the
+# current directory — the repo root in CI. Every one of our scripts sources
+# lib/log.sh that way, so the CI job reported "Not following:" twenty-two times,
+# exited non-zero, and had been red for as long as it had existed while its own
+# comment claimed `-x` followed the files "so directives are honored across the
+# boundary". It honored nothing. SCRIPTDIR resolves relative to the script being
+# checked, which is what that comment always meant.
+source-path=SCRIPTDIR

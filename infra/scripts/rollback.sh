@@ -83,7 +83,11 @@ echo
 confirm "Proceed with rollback? This is destructive." || { warn "Aborted."; exit 0; }
 
 # ── Load env ─────────────────────────────────────────────────────
-set -a; source ./.env; set +a
+set -a
+# .env is deploy-time state, never committed — nothing to follow (see .shellcheckrc).
+# shellcheck source=/dev/null
+source ./.env
+set +a
 : "${POSTGRES_USER:=postgres}"
 : "${POSTGRES_DB:=myclash}"
 

@@ -162,9 +162,14 @@ mc_verify_edge_plugins() {
   # Compose gets .env via --env-file, so the invoking shell has no DOMAIN.
   # Targeted read for the same reason as the whitelist above: no secrets in this
   # script's environment.
-  local domain
-  domain="$(sed -n 's/^DOMAIN=//p' "$ROOT_DIR/.env" | tr -d '"'\''' | tr -d '[:space:]')"
-  if [[ -z "$domain" ]]; then
+  #
+  # Named `edge_domain`, not `domain`: every caller of this lib reads `$DOMAIN`
+  # out of a sourced .env, and once shellcheck actually follows this file it
+  # reads a lower-case `domain` in scope as evidence that those `$DOMAIN` uses
+  # are a misspelling (SC2153). The variable is genuinely the edge's domain.
+  local edge_domain
+  edge_domain="$(sed -n 's/^DOMAIN=//p' "$ROOT_DIR/.env" | tr -d '"'\''' | tr -d '[:space:]')"
+  if [[ -z "$edge_domain" ]]; then
     warn "DOMAIN missing from .env — skipped the edge plugin verification."
     return 0
   fi
@@ -193,7 +198,7 @@ mc_verify_edge_plugins() {
   # nothing else, same rule as the targeted reads above.
   local probe=(
     env "TRAEFIK_DASHBOARD_PASSWORD=$dashboard_password" "TRAEFIK_DASHBOARD_AUTH=$dashboard_auth"
-    node "$ROOT_DIR/scripts/check-edge-plugins.mjs" --domain "$domain"
+    node "$ROOT_DIR/scripts/check-edge-plugins.mjs" --domain "$edge_domain"
   )
   if [[ -n "$dashboard_password" ]]; then
     probe+=(--deep)
