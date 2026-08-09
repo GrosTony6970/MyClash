@@ -79,6 +79,11 @@ fi
 # Traefik logs the plugin failure and carries on, so nothing else would tell the
 # operator that the edge lost its security middlewares. Call this after
 # `docker compose up -d`.
+#
+# The container name argument is optional and every caller omits it — which is
+# what SC2120/SC2119 exist to question, so say so once here rather than at each
+# of the three call sites.
+# shellcheck disable=SC2120
 mc_warn_if_plugins_failed() {
   local container="${1:-myclash-traefik}"
   local logs
@@ -128,6 +133,10 @@ mc_read_env_value() {
 #
 # Non-fatal by the same logic as AbortOnPluginFailure=false: this must report,
 # never abort a deploy. It prints its own recovery command.
+#
+# Both arguments are poll knobs with defaults and every caller omits them — see
+# mc_warn_if_plugins_failed for why that needs saying.
+# shellcheck disable=SC2120
 mc_verify_edge_plugins() {
   # Traefik rebuilds its router set asynchronously after `up`, so a single shot
   # right after the container starts can read a configuration that is merely

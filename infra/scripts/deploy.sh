@@ -434,9 +434,14 @@ hdr "Syncing version stamps"
 if [[ -f VERSION ]]; then
   APP_VERSION=$(tr -d '[:space:]' < VERSION)
 
-  # Service worker cache names per app
+  # Service worker cache names per app. if/then rather than
+  # `[[ -f x ]] && sed … || true`, which shellcheck reads as an if-then-else it
+  # is not (SC2015). The `|| true` stays: stamping is best-effort and must not
+  # abort a deploy.
   for sw in apps/web-public/public/sw.js apps/web-staff/public/sw.js apps/web-admin/public/sw.js; do
-    [[ -f "$sw" ]] && sed -i "s/const CACHE_NAME = 'myclash-[^-]*-v[^']*'/const CACHE_NAME = 'myclash-$(basename "$(dirname "$(dirname "$sw")")")-${APP_VERSION}'/" "$sw" || true
+    if [[ -f "$sw" ]]; then
+      sed -i "s/const CACHE_NAME = 'myclash-[^-]*-v[^']*'/const CACHE_NAME = 'myclash-$(basename "$(dirname "$(dirname "$sw")")")-${APP_VERSION}'/" "$sw" || true
+    fi
   done
 
   ok "Version ${APP_VERSION} stamped into service workers"
