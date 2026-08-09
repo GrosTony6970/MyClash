@@ -4,6 +4,13 @@
 # Restart only — this does NOT rebuild images. To pick up a code change, use
 # redeploy.sh (rebuild + recreate). For a full deploy, use deploy.sh.
 #
+# It also does NOT recreate containers, so it cannot apply a compose change.
+# `docker compose restart` stops and starts the container that already exists,
+# and `environment:` values are fixed at create time — an edited env var is
+# silently ignored here. Use start.sh (`up -d`, which recreates the services
+# whose config changed) for that. What this script does pick up is config a
+# process re-reads from a mounted file on boot.
+#
 # Usage:
 #   infra/scripts/refresh.sh             # restart all app services
 #   infra/scripts/refresh.sh api         # restart just one service
@@ -27,7 +34,8 @@ usage() {
 Usage: infra/scripts/refresh.sh [service...]
 
 Restart running containers and wait for health. Does NOT rebuild images —
-use redeploy.sh to pick up a code change.
+use redeploy.sh to pick up a code change — and does NOT recreate them, so an
+edited compose env var needs start.sh, not this.
 
   (no service)  Restart all app services: api web-public web-staff web-admin web-marketing worker
   service...    Restart only the named services.

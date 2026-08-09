@@ -28,7 +28,7 @@ also reachable over SSH via `pnpm deploy:prod` / `pnpm rollback:prod`
 | -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------- |
 | `deploy.sh`                            | Full safe deploy: validate env → lock → pre-deploy DB backup → git reset → build all → migrate → `up -d` → health → bootstrap super admin → smoke test | yes (all)        |
 | `redeploy.sh [svc…]`                   | Rebuild + recreate only the named app service(s); everything else keeps running                                                                        | yes (named)      |
-| `refresh.sh [svc…]`                    | Restart running containers and wait for health — **no rebuild** (config/env reload)                                                                    | no               |
+| `refresh.sh [svc…]`                    | Restart running containers and wait for health — **no rebuild, no recreate** (mounted-file config only)                                                | no               |
 | `start.sh` / `stop.sh`                 | `up -d` / `stop` the whole stack without rebuilding                                                                                                    | no               |
 | `rollback.sh`                          | Revert the last deploy from `.last-deploy.json` (restore DB + `git reset` + rebuild)                                                                   | yes (all)        |
 | `backup.sh`                            | Nightly `pg_dump` + Supabase Storage volume → Scaleway S3 (optional GPG). Cron-driven                                                                  | no               |
@@ -45,7 +45,8 @@ also reachable over SSH via `pnpm deploy:prod` / `pnpm rollback:prod`
 | ------------------------------------------- | ---------------------------------------------------------- |
 | Ship the latest `origin/main` to production | `deploy.sh`                                                |
 | Rebuild just one app after a code change    | `redeploy.sh <svc> --pull`                                 |
-| Re-read `.env` / restart without rebuilding | `refresh.sh <svc>`                                         |
+| Restart a service without rebuilding        | `refresh.sh <svc>`                                         |
+| Apply an edited compose env var             | `start.sh` (`up -d` recreates; `refresh.sh` cannot)        |
 | Undo the deploy I just did                  | `rollback.sh`                                              |
 | Check whether everything is healthy         | `status.sh` (add `--errors` for warn/error log lines only) |
 | Pull a backup back after data loss          | `restore.sh` (lists local + S3 backups with no args)       |
