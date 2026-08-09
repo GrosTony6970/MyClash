@@ -408,12 +408,35 @@ test('an unknown --mode fails instead of falling back to prod', async () => {
 // deploy, and the recovery it prints detaches GeoBlock and Fail2Ban. It shipped
 // once — /api/v1/health, which does not exist because `health` is in
 // API_GLOBAL_PREFIX_EXCLUDE and so answers only on the api. host that Traefik
-// routes wholesale. openapi.json is the emitted contract, so pin against it.
+// routes wholesale.
+//
+// Anchored on the COMMITTED client, not on openapi.json. That file is
+// gitignored and emitted on demand, so reading it made this test pass on any
+// machine that had run `pnpm openapi:emit` and fail with ENOENT everywhere
+// else — CI included, where it took the whole `test:scripts` step (and the Lint
+// job with it) red from the day it was added. schema.ts is generated from the
+// same document and `pnpm quality:openapi-drift` fails if the two differ, so
+// the guarantee is identical and needs no build to check.
+const SCHEMA_PATH = path.join(
+  import.meta.dirname,
+  '..',
+  'packages/api-client/src/generated/schema.ts',
+);
+
+/** Route keys of openapi-typescript's `paths` interface, e.g. `  '/health': {`. */
+function servedPaths(source) {
+  const start = source.indexOf('export interface paths {');
+  assert.ok(start !== -1, 'generated client has no `paths` interface');
+  const rest = source.slice(start + 1);
+  const end = rest.indexOf('\nexport ');
+  const block = end === -1 ? rest : rest.slice(0, end);
+  // Quote style follows the repo's prettier config — accept either.
+  return new Set([...block.matchAll(/^ {2}['"](\/[^'"]*)['"]:/gmu)].map((m) => m[1]));
+}
+
 test('every Nest-served probe path exists in the emitted OpenAPI spec', () => {
-  const spec = JSON.parse(
-    readFileSync(path.join(import.meta.dirname, '..', 'openapi.json'), 'utf8'),
-  );
-  const served = new Set(Object.keys(spec.paths ?? {}));
+  const served = servedPaths(readFileSync(SCHEMA_PATH, 'utf8'));
+  assert.ok(served.size > 50, `expected the full route list, parsed ${served.size}`);
 
   // Only rows that reach Nest. /dashboard/ is Traefik's own api@internal and
   // /auth/v1/* is stripped to GoTrue, so neither appears in this spec.
