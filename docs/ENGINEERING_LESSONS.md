@@ -271,6 +271,11 @@ here.
   services run the previous image. Give `up -d` headroom and retry it once before trusting the poll.
 - `docker compose logs` without `--timestamps` makes a line written at boot indistinguishable from
   one written ten seconds ago. Any tool that shows a log tail to an operator must date it.
+- A published Docker port **bypasses UFW** — Docker writes its own iptables chain, so
+  `ports: ['5432:5432']` on `db` would be world-reachable under `ufw default deny incoming`. That is
+  why production publishes nothing for Postgres and is reached by `compose exec` or an SSH tunnel to
+  the container IP (ARCHITECTURE §17.6). If a publish is ever needed, bind it:
+  `127.0.0.1:5432:5432`.
 
 ## Ops script conventions (inherited from MyFAL)
 

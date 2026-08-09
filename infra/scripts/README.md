@@ -55,6 +55,19 @@ App services referenced by the default sets: `api web-public web-staff web-admin
 web-marketing worker`. Infra/stateful services (`db redis traefik ops-runner supabase-*`)
 are never rebuilt by these scripts — they use published images.
 
+## Not a script: a psql shell on the production DB
+
+`db` publishes no host port, so there is nothing to connect to from outside. From the repo root
+on the server:
+
+```bash
+docker compose --env-file .env -f infra/docker-compose.prod.yml \
+  exec db psql -U "$POSTGRES_USER" -d "$POSTGRES_DB"
+```
+
+Desktop clients need an SSH tunnel to the container IP, and publishing 5432 would bypass UFW —
+both covered in [`docs/ARCHITECTURE.md` §17.6](../../docs/ARCHITECTURE.md#176-reaching-postgres-directly).
+
 ## Shared conventions
 
 - **`lib/log.sh`** — every script (except the two standalone ones below) sources this for

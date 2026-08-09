@@ -2695,7 +2695,7 @@ Both the API controller and the ops-runner re-validate the action and the servic
 
 ### 17.5 Supabase Studio — the operator DB console
 
-`studio.${DOMAIN}` gives the operator a web console over the production database: table editor, SQL editor, schema browser. It exists because the `db` service publishes no host ports, and reading production data previously meant `docker exec … psql` over SSH.
+`studio.${DOMAIN}` gives the operator a web console over the production database: table editor, SQL editor, schema browser. It exists because the `db` service publishes no host ports, and reading production data otherwise means `docker exec … psql` over SSH — still the fallback, documented in §17.6.
 
 **It bypasses RLS.** Studio reaches Postgres through `supabase-meta`, which connects as `POSTGRES_USER`. Every query it runs — read or write — ignores the row-level security policies that are otherwise this system's only data boundary (§9). Hard rule #4 is unchanged everywhere else; this is the single deliberate exception, granted to one human on one hostname, and it is the reason the router is gated twice rather than once.
 
@@ -2723,6 +2723,43 @@ THROTTLE_IP_WHITELIST=<new address>
 **Credentials.** `STUDIO_BASIC_AUTH` (hash) and `STUDIO_PASSWORD` (plaintext) are generated together by `scripts/ensure-prod-env.mjs` from the `BASIC_AUTH_PAIRS` table it shares with the Traefik dashboard, and printed by the deploy's Deployment secrets section. The hash is `{SHA}`, not bcrypt: Compose interpolates docker labels, so a bcrypt hash would need every `$` doubled, while base64 SHA-1 reaches Traefik untouched. The plaintext is stored rather than only printed because the hash is one-way and Studio is the only DB console — losing it would otherwise mean blanking the key and redeploying.
 
 `supabase-meta` itself is **unrouted**: no Traefik labels, no published ports. It answers unauthenticated on the compose network and speaks to Postgres as the superuser, so `supabase-studio` is the only thing that may reach it. `check-infra-review.mjs` asserts it never grows a router.
+
+### 17.6 Reaching Postgres directly
+
+**Use Studio first.** Its SQL Editor and Table Editor already work — they reach Postgres through `supabase-meta` (§17.5), not through a connection string you supply. Studio's **Get connected** panel (Framework / Server / Direct / ORM / MCP) is upstream's hosted-platform UI: the strings it prints resolve to `db:5432` on the compose network with platform-default credentials, so nothing there is usable from a laptop. Its **API Keys** tab _is_ real — `SUPABASE_ANON_KEY` and `SUPABASE_SERVICE_ROLE_KEY` are injected into the container.
+
+The real coordinates live in `.env` on the VPS, never in Studio:
+
+| Field    | Value                                           |
+| -------- | ----------------------------------------------- |
+| host     | `db` — resolvable on the `myclash` network only |
+| port     | `5432`                                          |
+| user     | `${POSTGRES_USER}` (`supabase_admin`)           |
+| database | `${POSTGRES_DB}` (`myclash`)                    |
+| password | `${POSTGRES_PASSWORD}`                          |
+
+**Recipe A — psql shell on the VPS.** Same invocation `backup.sh` runs nightly, so it is exercised in production every day:
+
+```bash
+cd /srv/myclash
+docker compose --env-file .env -f infra/docker-compose.prod.yml \
+  exec db psql -U "$POSTGRES_USER" -d "$POSTGRES_DB"
+```
+
+No `PGPASSWORD` — the in-container socket connection as `POSTGRES_USER` needs none, which is why `backup.sh` passes none either.
+
+**Recipe B — desktop client (TablePlus, DBeaver, psql on Windows).** There is no host port to forward, so tunnel to the container's own address: the docker bridge is reachable from the host's network namespace, and `ssh -L` forwards to anything the VPS can reach.
+
+```bash
+CIP=$(ssh user@vps "docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' myclash-db")
+ssh -L 5433:$CIP:5432 user@vps      # then point the client at localhost:5433
+```
+
+The container IP changes on every recreate, which is why the recipe reads it each time rather than hardcoding one. `ssh -L 5433:myclash-db:5432` does **not** work: container-name resolution is Docker's embedded DNS, visible from inside the network and not to the host's SSH daemon.
+
+**Do not publish 5432 to fix this.** Docker writes its own iptables chain and bypasses UFW, so `ports: ['5432:5432']` on `db` would be world-reachable despite `ufw default deny incoming` (`infra/scripts/vps-bootstrap.sh` allows 22/80/443 only). Dev publishes it deliberately for desktop tools; production does not, and if a publish is ever genuinely needed it must be bound: `127.0.0.1:5432:5432`.
+
+Both recipes connect as the superuser and therefore **bypass RLS**, exactly as Studio does — the warning in §17.5 applies unchanged. For a read-only look at production data without touching the live database, restore a nightly dump instead (§17.3, [`docs/DISASTER_RECOVERY.md`](./DISASTER_RECOVERY.md)).
 
 ---
 
