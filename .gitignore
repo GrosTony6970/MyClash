@@ -88,3 +88,5 @@ _bmad-output/
 # carrying example club and person rows — not our code, and not something to
 # republish from a public repo. Keep them local.
 hemaratings-export/
+# Added by code-review-graph
+.code-review-graph/
