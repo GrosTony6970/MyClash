@@ -271,6 +271,14 @@ here.
   services run the previous image. Give `up -d` headroom and retry it once before trusting the poll.
 - `docker compose logs` without `--timestamps` makes a line written at boot indistinguishable from
   one written ten seconds ago. Any tool that shows a log tail to an operator must date it.
+- Trimming a vendored upstream compose service leaves the vars you dropped at **upstream's
+  defaults**, which are tuned to upstream's `.env` and may contradict this stack. `supabase-studio`
+  went without `POSTGRES_DB` from the day the console shipped: its Database pages build their own
+  connection string rather than using `supabase-meta`'s, defaulted the name to upstream's invariant
+  `postgres`, and read the empty maintenance database for weeks. Nothing errored — pg-meta-backed
+  pages render an **empty state**, so it surfaced as "no tables in schema public", an Advisor
+  reporting no issues, and a healthy container. When adopting an upstream service, diff its env
+  block against upstream's compose, not just against what makes the container boot.
 - A published Docker port **bypasses UFW** — Docker writes its own iptables chain, so
   `ports: ['5432:5432']` on `db` would be world-reachable under `ufw default deny incoming`. That is
   why production publishes nothing for Postgres and is reached by `compose exec` or an SSH tunnel to
