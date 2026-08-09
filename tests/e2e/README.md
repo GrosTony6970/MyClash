@@ -434,15 +434,19 @@ Notes worth having before touching it:
 authenticates with the **organizer's** cookie from `global-setup`, which takes
 the first branch of `authorizeMatchScoring`. A referee at an event does not have
 that cookie — they sign in on a shared tablet with a PIN
-(`POST /api/v1/staff-auth/login`), landing in the second branch, whose four
+(`POST /api/v1/staff-auth/login`), landing in the second branch, whose **five**
 rules nothing had ever driven:
 
-| rule                               | the failure it describes                                |
-| ---------------------------------- | ------------------------------------------------------- |
-| `match.eventId !== staff.event_id` | a tablet signed into yesterday's event                  |
-| `!match.liceId`                    | **the organizer never assigned the piste** — a live 403 |
-| `!isLiceAssigned(...)`             | the referee reaching for someone else's piste           |
-| `canOverrideLocked: false`         | staff may never reopen a locked match                   |
+| rule                                          | the failure it describes                                |
+| --------------------------------------------- | ------------------------------------------------------- |
+| `requireStaffFromRequest(req, SCORING_ROLES)` | a check-in or gear volunteer on a scoring surface       |
+| `match.eventId !== staff.event_id`            | a tablet signed into yesterday's event                  |
+| `!match.liceId`                               | **the organizer never assigned the piste** — a live 403 |
+| `!isLiceAssigned(...)`                        | the referee reaching for someone else's piste           |
+| `canOverrideLocked: false`                    | staff may never reopen a locked match                   |
+
+The role gate arrived with the staff roles in `fa15528f` and fires **first** — a
+desk account is refused before the piste checks it could never pass anyway.
 
 Things worth knowing before touching it:
 
@@ -463,8 +467,69 @@ Things worth knowing before touching it:
   makes it the only test that proves that scan runs in production at all. It
   skips a group whose latest `ended_at` is null, so if that poll ever times out,
   suspect completion not stamping `ended_at` before suspecting the spec.
+- **Both login legs carry `?event=`, and that is load-bearing.**
+  `StaffPinForm` renders the `#eventSlugOrCode` input only on the deep-link
+  branch, or when the event picker came back empty. The spec creates an active
+  staff account before it navigates, which is exactly what puts the event in the
+  picker — so a bare `/login` shows the picker and that input never mounts. The
+  wrong-PIN leg used to navigate bare, and had been failing since the picker
+  shipped in `e3464cd1`. Worse, with a picker rendered and nothing tapped the
+  form posts an empty event slug and gets a **400**, which it renders in the
+  same generic alert as the **401** the leg means to prove — so that assertion
+  would have gone green on the wrong failure. The deep link makes 401 the only
+  reachable outcome.
+- **The picker is asserted at the API, not in the UI.** `GET staff-auth/events`
+  is `@Public()`, and the spec pins its six-field projection because that
+  projection is the security boundary. Membership is deliberately not asserted:
+  the list is capped at 50 ordered by `start_date`, and the run event's `2099`
+  date sorts last behind every sibling a failed teardown left behind.
 - It creates its own `event_kind: 'test'` event for the wrong-event case, and
   disables the staff account as its **last** act — nothing after that can log in.
+  That event is deleted by the spec's **own** `afterAll`: `global-teardown` only
+  ever removes the run's shared event, so this spec leaked one event per nightly
+  until the hook existed.
+
+## The desk, the gear table and the pass (opt-in)
+
+`E2E_STAFF=1 pnpm test:e2e:prod tests/e2e/33-staff-desk.spec.ts` runs
+`33-staff-desk.spec.ts` — the staff surfaces that are not the scoring pad. The
+check-in desk, per-weapon gear checks and personal event passes all shipped on
+2026-08-08 with no E2E coverage at all.
+
+**Its value is wiring, and the header says so.** The services underneath are
+thoroughly unit-tested and this spec does not re-litigate them. What a mock can
+never tell you is that the module is mounted at the real paths, that a real
+`mc_staff` cookie round-trips Fastify and the real JWT, that migrations
+0174–0176 are actually deployed (the UNIQUE index behind an idempotent
+double-arrive, the CHECK behind a reason-less conditional), that a base64url
+pass token survives a real path parameter, and that the weapon chain resolves
+against the real `weapon_catalog`.
+
+Things worth knowing before touching it:
+
+- **It builds its own event, and that is not fastidiousness.**
+  `GET staff/checkin/missing` assembles a PostgREST `.or()` filter from every
+  registration id in the event; on the shared event, which ends a full run at
+  ~200 people, that is a ~22 KB query string a proxy rejects before PostgREST
+  sees it. `summary` also counts every person in the event, so shared-event
+  numbers are meaningless, and the roster is capped at 40 rows by family name,
+  which hides a fixture outright. Its own event makes `total` an exact number.
+- **The weapon name is load-bearing.** Gear resolves
+  `registrations → tournaments.weapon → slugify → weapon_catalog.slug`, and the
+  catalog seeds exactly ten slugs. An invented weapon fails **silently** — the
+  fighter still appears, with `weapons: []`, and there is no id to check
+  against. The spec uses capitalised `Longsword` so the slugify hop does real
+  work, and names the catalog in the failure message.
+- **Four cookie jars, none of them the `request` fixture by accident.** The
+  organizer jar is `request`; the desk, gear and participant jars are
+  `playwright.request.newContext(...)`, which inherits **neither** `baseURL` nor
+  `ignoreHTTPSErrors` from the config — both must be passed or every call dies
+  at the TLS handshake against prod's dev cert.
+- **The participant jar must carry no organizer cookie.** `resolvePersonId`
+  tries the claimed user first, and the login auto-link can attach the E2E admin
+  to a person row — so a stray organizer cookie could issue somebody else's
+  pass.
+- It never touches `POST events/:id/passes/mail`: that emails real people.
 
 ## Workshops: who actually got the seat (opt-in)
 
@@ -933,6 +998,7 @@ has to parse and validate first.
 | 30  | AI keys, budgets, kill-switches       | `30-ai-settings.spec.ts`            | opt-in (`E2E_AI=1`); see above           |
 | 31  | AI generation against a real provider | `31-ai-generation.spec.ts`          | opt-in (`E2E_AI=1` + key); **spends**    |
 | 32  | Organiser AI tools + their pages      | `32-ai-organiser-tools.spec.ts`     | opt-in (`E2E_AI=1` + key); **spends**    |
+| 33  | Check-in desk, gear table, passes     | `33-staff-desk.spec.ts`             | opt-in (`E2E_STAFF=1`); see above        |
 
 Every spec in the table above runs — there are no `test.fixme` flows left. The
 opt-in ones are gated purely on their env flag, and the nightly sets all of them

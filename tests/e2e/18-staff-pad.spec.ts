@@ -9,16 +9,17 @@ import { createBracketTournament, ensureRoster, scoreMatch } from './_bracket';
  *
  * Every other scoring spec (`06`, `08`, `10`, `16`) authenticates with the
  * ORGANIZER's cookie from `global-setup`, which takes the FIRST branch of
- * `authorizeMatchScoring` (`staff.service.ts:337`). The second branch — the one
- * an actual referee at a piste goes through — has four rules that nothing in
- * the repo has ever driven:
+ * `authorizeMatchScoring` (`staff.service.ts:704`). The second branch — the one
+ * an actual referee at a piste goes through — has FIVE rules, and the first of
+ * them arrived with the staff roles in `fa15528f`:
  *
+ *   requireStaffFromRequest(req, SCORING_ROLES)   // a desk/gear account is refused here
  *   if (match.eventId !== staff.event_id) throw   // wrong event
  *   if (!match.liceId)                    throw   // match not assigned to a lice
  *   if (!await this.isLiceAssigned(...))  throw   // not YOUR lice
  *   return { staffAccountId, canOverrideLocked: false }   // staff may never override a lock
  *
- * The second of those is a live 403 waiting to happen: a referee whose match the
+ * The lice rule is a live 403 waiting to happen: a referee whose match the
  * organizer never assigned to a piste simply cannot score it.
  *
  * THE STORAGE STATE IS THE WHOLE TRICK. `playwright.e2e.config.ts` applies the
@@ -29,24 +30,47 @@ import { createBracketTournament, ensureRoster, scoreMatch } from './_bracket';
  * `storageState: undefined`, and `context.request` shares that context's cookie
  * jar, so the browser's PIN login is what authenticates the API assertions too.
  *
- * Event-scoped (plus one disposable `event_kind: 'test'` event for the
- * wrong-event case), so `global-teardown` cleans up.
+ * ── Both login legs carry `?event=`, and that is load-bearing ────────────────
+ *
+ * `StaffPinForm` renders the `#eventSlugOrCode` input only when the link carries
+ * `?event=`, or when the event picker came back empty (`StaffPinForm.tsx:111`).
+ * This spec creates an ACTIVE staff account before it navigates, which is
+ * exactly what puts the event in the picker — so a bare `/login` shows the
+ * picker and that input never mounts. The wrong-PIN leg used to navigate bare
+ * and fill it, and had been failing since the picker shipped in `e3464cd1`.
+ *
+ * Adding the deep link is not merely convenient. With a picker rendered and no
+ * row tapped, `useStaffPinLogin` posts `eventSlugOrCode: ''`, which is a 400
+ * from the DTO — and the form funnels every failure into the same generic
+ * alert, so a 400 there is visually identical to the 401 this leg means to
+ * prove. The deep link makes 401 the only reachable failure.
+ *
+ * Event-scoped. The disposable `event_kind: 'test'` event for the wrong-event
+ * case is deleted by this spec's own `afterAll`: `global-teardown` only ever
+ * deletes the run's shared event, so anything else a spec creates is its own to
+ * clean up (this one leaked an event per nightly until `afterAll` was added).
  */
 const STAFF = ['1', 'true', 'yes'].includes((process.env.E2E_STAFF ?? '').toLowerCase());
 
 /**
- * 6–16 digits, and not weak: `CreateStaffAccountDto` and `ResetStaffPinDto`
- * both reject a run, a repeated digit, a repeated 2–3 digit block, or a
- * denylisted classic (apps/api/src/modules/staff/pin-strength.ts). A 4-digit
- * PIN here used to die at SETUP — `api.json` throws on a non-2xx — taking the
- * four authorization rules below with it, and root tests/ has no typecheck to
- * catch the literal.
+ * 6–16 digits, and not weak: a run, a repeated digit, a repeated 2–3 digit
+ * block and a denylisted classic are all rejected. The rule lives in
+ * `packages/types/src/pin-strength.ts` and is enforced in
+ * `StaffService.hashPin` — NOT in the DTOs, which are shape-only and say so.
+ * That distinction matters when reading a failure: a weak PIN comes back from
+ * the service as a 400, not from validation.
+ *
+ * A 4-digit PIN here used to die at SETUP — `api.json` throws on a non-2xx —
+ * taking the authorization rules below with it, and root tests/ has no
+ * typecheck to catch the literal.
  *
  * WRONG_PIN only has to be shape-valid and credential-wrong: `staffLoginSchema`
  * stays permissive on purpose so a bad PIN comes back 401 rather than 400.
+ * WEAK_PIN is a repeated digit — the cheapest thing `isWeakPin` refuses.
  */
 const PIN = '481902';
 const WRONG_PIN = '573164';
+const WEAK_PIN = '111111';
 
 /** Only the fields this spec reads back off a match row. */
 interface MatchRow {
@@ -85,15 +109,53 @@ async function expectRefusal(
 test.describe('staff pad', () => {
   test.skip(!STAFF, 'set E2E_STAFF=1 to drive the referee PIN login and the staff scoring rules');
 
+  /** The wrong-event fixture's own event, deleted below. See the header. */
+  let otherEventId: string | null = null;
+
+  /**
+   * `global-teardown` deletes ONLY the run's shared event, so the disposable
+   * event this spec creates for the wrong-event rule is its own to clean up.
+   * It leaked one per nightly until this hook existed.
+   *
+   * `playwright`, not `request`: the `request` fixture is illegal in `afterAll`.
+   * It carries no cookies of its own either, hence the explicit storageState.
+   */
+  test.afterAll(async ({ playwright }) => {
+    // Hooks take the CONFIG timeout, not the one the test set for itself.
+    test.setTimeout(120_000);
+    if (!otherEventId) return;
+    const { baseURL, orgSlug } = runContext();
+    const cleanup = ['1', 'true', 'yes'].includes((process.env.E2E_CLEANUP ?? '').toLowerCase());
+    if (!cleanup) {
+      console.log(
+        `[e2e] staff wrong-event fixture PRESERVED: ${baseURL}/org/${orgSlug}/events/${otherEventId}`,
+      );
+      return;
+    }
+    const ctx = await playwright.request.newContext({
+      baseURL,
+      ignoreHTTPSErrors: true,
+      storageState: 'tests/e2e/.auth/admin.json',
+    });
+    const res = await ctx.delete(`/api/v1/events/${otherEventId}?mode=hard`);
+    if (!res.ok()) {
+      console.warn(
+        `[e2e] could not delete staff wrong-event fixture ${otherEventId}: ${res.status()}`,
+      );
+    }
+    await ctx.dispose();
+  });
+
   test('a referee signs in with a PIN and may score their own lice, and nothing else', async ({
     browser,
+    playwright,
     request,
   }) => {
     test.setTimeout(360_000);
     const api = apiFor(request);
     const { eventId, eventSlug, orgId, baseURL } = runContext();
     const token = Date.now().toString(36);
-    const scoringBase = (process.env.E2E_SCORING_URL ?? `${baseURL}/scoring`).replace(/\/$/, '');
+    const staffBase = (process.env.E2E_STAFF_URL ?? `${baseURL}/staff`).replace(/\/$/, '');
     const username = `ref${token}`.slice(0, 20);
 
     // ── Setup, entirely as the ORGANIZER ──────────────────────────────────────
@@ -104,11 +166,32 @@ test.describe('staff pad', () => {
       await api.post(`events/${eventId}/lices`, { data: { name: `Staff Theirs ${token}` } }),
     );
 
-    const account = await api.json<{ id: string; username: string }>(
+    // `role` is asked for explicitly rather than left to the column default.
+    // It gates every scoring surface now, so a silent default flip would fail
+    // this spec much later with an opaque 403 instead of naming the cause.
+    const account = await api.json<{ id: string; username: string; role: string }>(
       await api.post(`events/${eventId}/staff-accounts`, {
-        data: { displayName: `E2E Referee ${token}`, username, pin: PIN },
+        data: { displayName: `E2E Referee ${token}`, username, pin: PIN, role: 'scoring' },
       }),
     );
+    expect(account.role, 'the account must come back with the role it was created with').toBe(
+      'scoring',
+    );
+
+    // A weak PIN is refused at the HTTP boundary, not just in a unit test.
+    // Asserted on the TEXT: `hashPin` throws BadRequestException({ code:
+    // 'weak_pin' }), but the exception filter reads `body.error` for the
+    // top-level code, so `weak_pin` lands in `details` and `body.code` is a flat
+    // BAD_REQUEST. Asserting `body.code === 'weak_pin'` would be green-on-red.
+    const weak = await api.post(`events/${eventId}/staff-accounts`, {
+      data: {
+        displayName: `E2E Weak ${token}`,
+        username: `weak${token}`.slice(0, 20),
+        pin: WEAK_PIN,
+      },
+    });
+    expect(weak.status(), 'a repeated-digit PIN must be refused').toBe(400);
+    expect(await weak.text(), 'the refusal must name the rule').toMatch(/weak_pin/i);
     // The PIN is caller-chosen on reset too, so a spec can always know it.
     await api.ok(
       await api.post(`events/${eventId}/staff-accounts/${account.id}/reset-pin`, {
@@ -166,6 +249,7 @@ test.describe('staff pad', () => {
     // A match in a DIFFERENT event, for the wrong-event rule. Its own disposable
     // `test`-kind event, which stays hard-deletable with results recorded.
     const other = await anotherEventWithAMatch(api, orgId, token);
+    otherEventId = other.eventId; // so afterAll can delete it — see the header
 
     // ── The pad's own login page, in a browser with NO organizer cookie ────────
     const staffContext = await browser.newContext({
@@ -179,14 +263,17 @@ test.describe('staff pad', () => {
       const page = await staffContext.newPage();
 
       // A wrong PIN first, so the success below cannot be a session that was
-      // already lying around.
+      // already lying around. Deep-linked for the reason in the header: without
+      // `?event=` the picker replaces the slug input and the failure this leg
+      // would actually observe is a 400 on an empty event, wearing the same
+      // alert as the 401 it means to prove.
       //
       // NEVER `waitUntil: 'networkidle'` anywhere in the scoring app: it holds a
       // live connection and re-requests a service worker the /scoring proxy
       // answers 404, so the network never goes idle and goto hangs until the
       // test times out. `06` and `16` both navigate the pad with a bare goto for
       // this reason; the settle signal is an explicit wait on a real element.
-      await page.goto(`${scoringBase}/login`);
+      await page.goto(`${staffBase}/login?event=${encodeURIComponent(eventSlug)}`);
       await expect(page.locator('#staffPin')).toBeVisible({ timeout: 30_000 });
       await signIn(page, eventSlug, username, WRONG_PIN);
       await expect(page.getByRole('alert'), 'a wrong PIN must be refused visibly').toBeVisible({
@@ -202,7 +289,7 @@ test.describe('staff pad', () => {
       // a piste knows neither the event slug nor the URL scheme, so the link
       // must arrive with both filled in and leave exactly the PIN to type.
       await page.goto(
-        `${scoringBase}/login?event=${encodeURIComponent(eventSlug)}&u=${encodeURIComponent(username)}`,
+        `${staffBase}/login?event=${encodeURIComponent(eventSlug)}&u=${encodeURIComponent(username)}`,
       );
       await expect(page.locator('#eventSlugOrCode')).toHaveValue(eventSlug, { timeout: 30_000 });
       await expect(page.locator('#staffUsername')).toHaveValue(username);
@@ -211,7 +298,9 @@ test.describe('staff pad', () => {
 
       // Assert the SESSION, not the landing URL: the pad is served both at
       // scoring.<domain> and same-origin under admin.<domain>/scoring, and the
-      // session is the contract either way.
+      // landing path is now role-dependent too (`landingPathForRole` sends a
+      // desk volunteer to /desk and a gear marshal to /gear). The session is the
+      // contract under all of them.
       await expect
         .poll(async () => (await staffApi.get('staff-auth/me')).status(), {
           timeout: 30_000,
@@ -220,10 +309,23 @@ test.describe('staff pad', () => {
         .toBe(200);
       const me = await staffApi.json<StaffMe>(await staffApi.get('staff-auth/me'));
 
+      // `role` is in here on purpose: the browser routes on it after login
+      // (`landingPathForRole`), so a payload that quietly stopped carrying it
+      // would strand every desk and gear volunteer on /lices with no error.
       expect(
-        { type: me.type, username: me.account.username, event: me.account.event_id },
-        'the session must name the account that logged in, on its own event',
-      ).toEqual({ type: 'staff', username: username.toLowerCase(), event: eventId });
+        {
+          type: me.type,
+          username: me.account.username,
+          event: me.account.event_id,
+          role: me.account.role,
+        },
+        'the session must name the account that logged in, on its own event, with its role',
+      ).toEqual({
+        type: 'staff',
+        username: username.toLowerCase(),
+        event: eventId,
+        role: 'scoring',
+      });
 
       // `me` and the dedicated endpoint must agree on what this tablet may run —
       // the pad reads one, the organizer's board reads the other.
@@ -240,7 +342,7 @@ test.describe('staff pad', () => {
       ).toEqual([mineLice.id]);
 
       // ── The referee actually scores, through the pad ─────────────────────────
-      await page.goto(`${scoringBase}/matches/${onMyLice.id}`);
+      await page.goto(`${staffBase}/matches/${onMyLice.id}`);
       await expect(page.getByTestId('network-bar')).toHaveAttribute('data-network', 'online', {
         timeout: 30_000,
       });
@@ -338,6 +440,84 @@ test.describe('staff pad', () => {
       );
       await api.ok(await staffApi.post(`matches/${lock.matchId}/unlock`));
 
+      // ── Rule 0: the role gate, before any of the lice rules ──────────────────
+      //
+      // A check-in volunteer holds a valid staff session for this very event and
+      // could be assigned this very piste — and must still be refused, because
+      // the surface is not theirs. Driven in its own cookie jar so the scoring
+      // session above stays intact for the assertions that follow.
+      const deskUsername = `desk${token}`.slice(0, 20);
+      const desk = await api.json<{ id: string; role: string }>(
+        await api.post(`events/${eventId}/staff-accounts`, {
+          data: {
+            displayName: `E2E Desk ${token}`,
+            username: deskUsername,
+            pin: PIN,
+            role: 'checkin',
+          },
+        }),
+      );
+      expect(desk.role, 'the desk account must be created as checkin').toBe('checkin');
+      await api.ok(
+        await api.put(`events/${eventId}/staff-accounts/${desk.id}/lices`, {
+          data: { liceIds: [mineLice.id] },
+        }),
+      );
+
+      // `storageState: undefined` is NOT redundant. `playwright.request
+      // .newContext()` inherits `use.storageState` from the config, so a jar
+      // created without it silently carries the ORGANIZER's `sb-access-token`.
+      // On any endpoint with an organizer branch that is invisible and
+      // catastrophic: `authorizeMatchScoring` would resolve the organizer,
+      // return before the role gate, and this assertion would report a
+      // check-in account happily scoring a bout (it did — 201, not 403).
+      const deskContext = await playwright.request.newContext({
+        baseURL,
+        ignoreHTTPSErrors: true,
+        storageState: undefined,
+      });
+      try {
+        const deskApi = apiFor(deskContext);
+        await deskApi.ok(
+          await deskApi.post('staff-auth/login', {
+            data: { eventSlugOrCode: eventSlug, username: deskUsername, pin: PIN },
+          }),
+        );
+        await expectRefusal(
+          await deskApi.get('staff/assigned-lices'),
+          403,
+          /role cannot use this surface/i,
+          'desk account on the scoring lice list',
+        );
+        // The gate that matters: even on a piste they ARE assigned to.
+        await expectRefusal(
+          await postHit(deskApi, onMyLice.id),
+          403,
+          /role cannot use this surface/i,
+          'desk account scoring an assigned piste',
+        );
+      } finally {
+        await deskContext.dispose();
+      }
+
+      // ── The picker's projection is a security boundary ───────────────────────
+      //
+      // `GET staff-auth/events` is @Public() — it answers before anyone has a
+      // session. Only a unit test against a mock has ever pinned what it
+      // returns, so this asserts the real response carries those six fields and
+      // nothing else. Membership is deliberately NOT asserted: the list is
+      // capped at 50 ordered by start_date, and this event's 2099 date sorts
+      // last behind every sibling a failed teardown left behind.
+      const picker = await staffApi.json<Array<Record<string, unknown>>>(
+        await staffApi.get('staff-auth/events'),
+      );
+      for (const row of picker.slice(0, 5)) {
+        expect(
+          Object.keys(row).sort(),
+          'the public picker must expose exactly its six fields — no org id, no usernames',
+        ).toEqual(['id', 'kind', 'name', 'slug', 'startDate', 'status']);
+      }
+
       // ── The session ends when the tablet signs out ───────────────────────────
       await staffApi.ok(await staffApi.post('staff-auth/logout'));
       expect(
@@ -369,11 +549,16 @@ test.describe('staff pad', () => {
 
 interface StaffMe {
   type: string;
-  account: { id: string; username: string; event_id: string };
+  account: { id: string; username: string; event_id: string; role: string };
   lices: Array<{ id: string; name: string }>;
 }
 
-/** Fill and submit the PIN form on the pad's own login page. */
+/**
+ * Fill and submit the PIN form on the pad's own login page.
+ *
+ * Requires a page opened WITH `?event=`: `#eventSlugOrCode` only mounts on the
+ * deep-link branch, or when the picker came back empty. See the header.
+ */
 async function signIn(page: Page, eventSlug: string, username: string, pin: string): Promise<void> {
   await page.fill('#eventSlugOrCode', eventSlug);
   await page.fill('#staffUsername', username);

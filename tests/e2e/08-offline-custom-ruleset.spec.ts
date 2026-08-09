@@ -45,7 +45,7 @@ test('offline scoring works on a custom-ruleset bout and auto-syncs', async ({
   const { orgId, eventId, baseURL } = runContext();
   const api = (p: string) => `/api/v1/${p}`;
   const tok = Date.now().toString(36);
-  const scoringBase = (process.env.E2E_SCORING_URL ?? `${baseURL}/scoring`).replace(/\/$/, '');
+  const staffBase = (process.env.E2E_STAFF_URL ?? `${baseURL}/staff`).replace(/\/$/, '');
 
   const ok = async (res: APIResponse, label: string): Promise<APIResponse> => {
     if (!res.ok()) throw new Error(`${label} failed: ${res.status()} ${await res.text()}`);
@@ -189,7 +189,7 @@ test('offline scoring works on a custom-ruleset bout and auto-syncs', async ({
   const cleanHit = page.getByTestId('clean-hit-button').first();
 
   // ── Open the pad ────────────────────────────────────────────────────────────
-  await page.goto(`${scoringBase}/matches/${match.id}`);
+  await page.goto(`${staffBase}/matches/${match.id}`);
   await expect(bar).toHaveAttribute('data-network', 'online', { timeout: 30_000 });
   await expect(cleanHit).toBeEnabled({ timeout: 30_000 });
 

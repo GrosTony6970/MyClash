@@ -72,7 +72,7 @@ test.describe('scoring pad UI', () => {
     // Same-origin through the admin `/scoring/*` proxy by default — the path
     // organizers actually use, and the one with a trusted cert. `06` documents
     // the override.
-    const scoringBase = (process.env.E2E_SCORING_URL ?? `${baseURL}/scoring`).replace(/\/$/, '');
+    const staffBase = (process.env.E2E_STAFF_URL ?? `${baseURL}/staff`).replace(/\/$/, '');
 
     const match = await aPoolMatch(api, eventId, token);
 
@@ -127,7 +127,7 @@ test.describe('scoring pad UI', () => {
     const primaryClock = page.getByTestId('clock-primary-button');
 
     // ── Open the pad ──────────────────────────────────────────────────────────
-    await page.goto(`${scoringBase}/matches/${match.matchId}`);
+    await page.goto(`${staffBase}/matches/${match.matchId}`);
     await expect(page.getByTestId('network-bar')).toHaveAttribute('data-network', 'online', {
       timeout: 30_000,
     });

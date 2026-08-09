@@ -18,7 +18,7 @@ import { runContext } from './_context';
  *      returns BOTH exchanges (client_uuid idempotency; auto-drain on reconnect).
  *
  * The pad is served same-origin via the admin `/scoring/*` proxy by default
- * (trusted cert, the path organizers actually use); set `E2E_SCORING_URL` to the
+ * (trusted cert, the path organizers actually use); set `E2E_STAFF_URL` to the
  * canonical scoring subdomain to exercise that host instead. The `.myclash.fr`
  * session cookie authenticates either origin.
  *
@@ -35,7 +35,7 @@ test('offline scoring queues an exchange and auto-syncs on reconnect', async ({
   const tok = Date.now().toString(36);
   // The pad lives in the web-staff app; reach it same-origin through the admin
   // `/scoring/*` proxy (default) or via an explicit scoring host override.
-  const scoringBase = (process.env.E2E_SCORING_URL ?? `${baseURL}/scoring`).replace(/\/$/, '');
+  const staffBase = (process.env.E2E_STAFF_URL ?? `${baseURL}/staff`).replace(/\/$/, '');
 
   const ok = async (res: APIResponse, label: string): Promise<APIResponse> => {
     if (!res.ok()) throw new Error(`${label} failed: ${res.status()} ${await res.text()}`);
@@ -149,7 +149,7 @@ test('offline scoring queues an exchange and auto-syncs on reconnect', async ({
   const cleanHit = page.getByTestId('clean-hit-button').first();
 
   // ── Open the pad ────────────────────────────────────────────────────────────
-  await page.goto(`${scoringBase}/matches/${match.id}`);
+  await page.goto(`${staffBase}/matches/${match.id}`);
   await expect(bar).toHaveAttribute('data-network', 'online', { timeout: 30_000 });
   // Scoring is enabled (match running, clock stopped) → the clean-hit button is tappable.
   await expect(cleanHit).toBeEnabled({ timeout: 30_000 });
