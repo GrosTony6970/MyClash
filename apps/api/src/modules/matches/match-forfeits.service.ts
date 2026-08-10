@@ -32,24 +32,8 @@ export class MatchForfeitsService {
     const match = await this.loadMatch(matchId);
     if (!match) throw new NotFoundException(`Match ${matchId} not found`);
 
-    // An override's whole purpose is a match that has already ended, so
-    // `completed` is a reason to run it rather than to refuse it. A forfeit
-    // still needs a live bout. `voided` is closed to both.
-    const override = isOverrideReason(dto.reason);
     const wasCompleted = match.status === 'completed';
-    if (match.status === 'voided' || (wasCompleted && !override)) {
-      throw new BadRequestException('Match is already closed');
-    }
-    if (wasCompleted) {
-      await this.assertNoStartedDependents(matchId);
-    }
-    if (
-      ![match.red_registration_id, match.blue_registration_id].includes(
-        dto.forfeitingRegistrationId,
-      )
-    ) {
-      throw new BadRequestException('Forfeiting registration must belong to the current match');
-    }
+    await this.assertWritable(matchId, match, dto);
 
     const active = await this.loadActiveForfeit(matchId);
     if (active) return active;
@@ -216,6 +200,32 @@ export class MatchForfeitsService {
       .select('*')
       .single();
     return updated;
+  }
+
+  /**
+   * The three reasons this write can be refused before anything is inserted.
+   *
+   * An override's whole purpose is a match that has already ended, so
+   * `completed` is a reason to run it rather than to refuse it. A forfeit still
+   * needs a live bout, and `voided` is closed to both.
+   */
+  private async assertWritable(
+    matchId: string,
+    match: { status?: unknown; red_registration_id?: unknown; blue_registration_id?: unknown },
+    dto: CreateMatchForfeitDto,
+  ): Promise<void> {
+    const wasCompleted = match.status === 'completed';
+    if (match.status === 'voided' || (wasCompleted && !isOverrideReason(dto.reason))) {
+      throw new BadRequestException('Match is already closed');
+    }
+    if (wasCompleted) await this.assertNoStartedDependents(matchId);
+    if (
+      ![match.red_registration_id, match.blue_registration_id].includes(
+        dto.forfeitingRegistrationId,
+      )
+    ) {
+      throw new BadRequestException('Forfeiting registration must belong to the current match');
+    }
   }
 
   /**

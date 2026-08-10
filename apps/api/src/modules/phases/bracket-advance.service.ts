@@ -7,6 +7,13 @@ import {
   resolveLoser,
   type PhaseConfig,
 } from './bracket-refs';
+import {
+  clearDownstreamOf,
+  findDownstreamMatchIds,
+  loadMatch,
+  loadPhase,
+  loadSlot,
+} from './bracket-downstream';
 
 @Injectable()
 export class BracketAdvanceService {
@@ -50,69 +57,14 @@ export class BracketAdvanceService {
     }
   }
 
-  /**
-   * The matches this one feeds, by the SAME ref algebra advancement uses.
-   *
-   * Anything that needs to know "what depends on this match" — voiding a
-   * forfeit, overriding a completed result — has to ask the question
-   * `advanceFromSlot` asks. Asking it a second way (by round number, or by
-   * which slot happens to hold the winner) gets byes and losers brackets
-   * wrong, so it is answered here, once.
-   *
-   * Empty for a pool match, an unfinished match, or a bracket leaf.
-   */
+  /** The matches this one feeds. See bracket-downstream.ts for the ref algebra. */
   async findDownstreamMatchIds(matchId: string): Promise<string[]> {
-    const downstream = await this.downstreamSlots(matchId);
-    if (!downstream || downstream.slots.length === 0) return [];
-
-    const { data: matches } = await this.supabase.service
-      .from('matches')
-      .select('id')
-      .in(
-        'bracket_slot_id',
-        downstream.slots.map((slot) => slot.id),
-      );
-
-    return ((matches ?? []) as Array<{ id: string }>).map((row) => row.id);
+    return findDownstreamMatchIds(this.supabase.service, matchId);
   }
 
-  /**
-   * Un-resolve the sides this match feeds, so advancement can fill them again.
-   *
-   * Needed when a COMPLETED bracket match changes winner — a result override.
-   * `advanceFromSlot` writes a downstream side only while it is still null, on
-   * purpose: that is what makes re-advancement idempotent. The same guard makes
-   * a re-run after a winner change a silent no-op, leaving the bracket carrying
-   * a fighter who did not win. Clearing first is what turns the second call
-   * into a real re-advance.
-   *
-   * Only the slot side is cleared, not the downstream matches row —
-   * `writeSlotSide` overwrites that column unconditionally on the way back in.
-   *
-   * The caller must have established that no dependent match has started;
-   * clearing a side under a bout in progress would be a different bug.
-   */
+  /** Un-resolve the sides this match feeds, so advancement can fill them again. */
   async clearDownstreamOf(matchId: string): Promise<void> {
-    const downstream = await this.downstreamSlots(matchId);
-    if (!downstream) return;
-    const { winnerRef, loserRef, slots } = downstream;
-
-    for (const slot of slots) {
-      const patch: Record<string, null> = {};
-      if (slot.source_a_ref === winnerRef || slot.source_a_ref === loserRef) {
-        patch['registration_a_id'] = null;
-      }
-      if (slot.source_b_ref === winnerRef || slot.source_b_ref === loserRef) {
-        patch['registration_b_id'] = null;
-      }
-      if (Object.keys(patch).length === 0) continue;
-
-      const { error } = await this.supabase.service
-        .from('bracket_slots')
-        .update(patch)
-        .eq('id', slot.id);
-      if (error) throw new BadRequestException(error.message);
-    }
+    return clearDownstreamOf(this.supabase.service, matchId);
   }
 
   /** Called after seeds are populated at bracket generation time — advances bye slots immediately. */
@@ -383,91 +335,15 @@ export class BracketAdvanceService {
 
   // ── Helpers ───────────────────────────────────────────────────────────────
 
-  /**
-   * The slots fed by `matchId`, with the two refs that name them.
-   *
-   * One owner for the winner-of/loser-of lookup, shared by
-   * findDownstreamMatchIds and clearDownstreamOf. Null when the match feeds
-   * nothing resolvable: a pool match, an unfinished match, or a missing row.
-   */
-  private async downstreamSlots(matchId: string): Promise<{
-    winnerRef: string;
-    loserRef: string;
-    slots: Array<{ id: string; source_a_ref: string | null; source_b_ref: string | null }>;
-  } | null> {
-    const match = await this.loadMatch(matchId);
-    if (!match?.bracket_slot_id || !match.winner_registration_id) return null;
-
-    const slot = await this.loadSlot(match.bracket_slot_id);
-    if (!slot) return null;
-
-    const phase = await this.loadPhase(slot.phase_id);
-    if (!phase) return null;
-
-    const config = (phase.config_json ?? {}) as PhaseConfig;
-    const selfRef = buildSelfRef(slot.round, slot.position, phase.type as string, config);
-    const winnerRef = `winner of ${selfRef}`;
-    const loserRef = `loser of ${selfRef}`;
-
-    const { data } = await this.supabase.service
-      .from('bracket_slots')
-      .select('id, source_a_ref, source_b_ref')
-      .eq('phase_id', slot.phase_id)
-      .or(
-        `source_a_ref.eq.${winnerRef},source_b_ref.eq.${winnerRef},source_a_ref.eq.${loserRef},source_b_ref.eq.${loserRef}`,
-      );
-
-    return {
-      winnerRef,
-      loserRef,
-      slots: (data ?? []) as Array<{
-        id: string;
-        source_a_ref: string | null;
-        source_b_ref: string | null;
-      }>,
-    };
+  private loadMatch(matchId: string) {
+    return loadMatch(this.supabase.service, matchId);
   }
 
-  private async loadMatch(matchId: string) {
-    const { data } = await this.supabase.service
-      .from('matches')
-      .select(
-        'id, bracket_slot_id, winner_registration_id, red_registration_id, blue_registration_id',
-      )
-      .eq('id', matchId)
-      .maybeSingle();
-    return data as {
-      id: string;
-      bracket_slot_id: string | null;
-      winner_registration_id: string | null;
-      red_registration_id: string;
-      blue_registration_id: string;
-    } | null;
+  private loadSlot(slotId: string) {
+    return loadSlot(this.supabase.service, slotId);
   }
 
-  private async loadSlot(slotId: string) {
-    const { data } = await this.supabase.service
-      .from('bracket_slots')
-      .select('id, round, position, phase_id, source_b_type, registration_a_id, registration_b_id')
-      .eq('id', slotId)
-      .maybeSingle();
-    return data as {
-      id: string;
-      round: number;
-      position: number;
-      phase_id: string;
-      source_b_type: string;
-      registration_a_id: string | null;
-      registration_b_id: string | null;
-    } | null;
-  }
-
-  private async loadPhase(phaseId: string) {
-    const { data } = await this.supabase.service
-      .from('phases')
-      .select('id, type, config_json')
-      .eq('id', phaseId)
-      .maybeSingle();
-    return data as { id: string; type: unknown; config_json: unknown } | null;
+  private loadPhase(phaseId: string) {
+    return loadPhase(this.supabase.service, phaseId);
   }
 }

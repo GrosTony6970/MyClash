@@ -141,7 +141,50 @@ export class GearService {
    */
   async matchGear(req: FastifyRequest, matchId: string): Promise<MatchGear> {
     const staff = await this.staff.requireStaffWithRole(req, GEAR_READ_ROLES);
+    const bout = await this.loadBout(matchId, staff.event_id);
 
+    const persons = await this.personsByRegistration(
+      [bout.redRegistrationId, bout.blueRegistrationId].filter(
+        (id): id is string => typeof id === 'string',
+      ),
+    );
+    const redPersonId = bout.redRegistrationId
+      ? (persons.get(bout.redRegistrationId) ?? null)
+      : null;
+    const bluePersonId = bout.blueRegistrationId
+      ? (persons.get(bout.blueRegistrationId) ?? null)
+      : null;
+
+    // Same slugify → weapon_catalog hop the gear screen uses. A second,
+    // subtly different slugifier here is how the two-weapons bug returns.
+    const slug = slugify(bout.weapon?.trim() ?? '');
+    const weapon = slug ? ((await this.catalogBySlug([slug])).get(slug) ?? null) : null;
+
+    const personIds = [redPersonId, bluePersonId].filter((id): id is string => Boolean(id));
+    const latest = weapon
+      ? await this.latestChecks(staff.event_id, personIds)
+      : new Map<string, GearCheckRow>();
+
+    return buildMatchGear({ weapon, redPersonId, bluePersonId, latest });
+  }
+
+  // ── queries ───────────────────────────────────────────────────────────────
+
+  /**
+   * The two registrations and the weapon of one bout, scoped to this event.
+   *
+   * A staff session is event-scoped, so a match in another event is not this
+   * account's to read however valid its id — and it answers 404, not 403, so
+   * the response cannot be used to confirm the match exists elsewhere.
+   */
+  private async loadBout(
+    matchId: string,
+    eventId: string,
+  ): Promise<{
+    redRegistrationId: string | null;
+    blueRegistrationId: string | null;
+    weapon: string | null;
+  }> {
     const { data, error } = await this.supabase.service
       .from('matches')
       .select(
@@ -155,49 +198,26 @@ export class GearService {
     const row = data as unknown as {
       red_registration_id: string | null;
       blue_registration_id: string | null;
-      phases: { tournaments: { weapon: string | null; event_id: string } | null } | null;
+      phases: unknown;
     };
     // Many-to-one embeds come back as objects, but a mis-shaped one is an
     // array; normalise both hops rather than trust the shape.
     const phase = Array.isArray(row.phases) ? row.phases[0] : row.phases;
-    const tournamentEmbed = (phase as { tournaments?: unknown } | null)?.tournaments;
-    const tournament = (Array.isArray(tournamentEmbed) ? tournamentEmbed[0] : tournamentEmbed) as {
+    const embed = (phase as { tournaments?: unknown } | null)?.tournaments;
+    const tournament = (Array.isArray(embed) ? embed[0] : embed) as {
       weapon: string | null;
       event_id: string;
     } | null;
-
-    // A staff session is event-scoped; a match in another event is not this
-    // account's to read, however valid its id.
-    if (!tournament || tournament.event_id !== staff.event_id) {
+    if (!tournament || tournament.event_id !== eventId) {
       throw new NotFoundException(`Match ${matchId} not found`);
     }
 
-    const personByRegistration = await this.personsByRegistration(
-      [row.red_registration_id, row.blue_registration_id].filter(
-        (id): id is string => typeof id === 'string',
-      ),
-    );
-    const redPersonId = row.red_registration_id
-      ? (personByRegistration.get(row.red_registration_id) ?? null)
-      : null;
-    const bluePersonId = row.blue_registration_id
-      ? (personByRegistration.get(row.blue_registration_id) ?? null)
-      : null;
-
-    // Same slugify → weapon_catalog hop the gear screen uses. A second,
-    // subtly different slugifier here is how the two-weapons bug returns.
-    const slug = slugify(tournament.weapon?.trim() ?? '');
-    const weapon = slug ? ((await this.catalogBySlug([slug])).get(slug) ?? null) : null;
-
-    const personIds = [redPersonId, bluePersonId].filter((id): id is string => Boolean(id));
-    const latest = weapon
-      ? await this.latestChecks(staff.event_id, personIds)
-      : new Map<string, GearCheckRow>();
-
-    return buildMatchGear({ weapon, redPersonId, bluePersonId, latest });
+    return {
+      redRegistrationId: row.red_registration_id,
+      blueRegistrationId: row.blue_registration_id,
+      weapon: tournament.weapon,
+    };
   }
-
-  // ── queries ───────────────────────────────────────────────────────────────
 
   private async personsByRegistration(
     registrationIds: string[],
