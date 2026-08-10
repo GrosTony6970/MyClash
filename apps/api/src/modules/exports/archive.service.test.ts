@@ -360,7 +360,52 @@ describe('ArchiveService', () => {
       { id: 'p-1', event_id: 'event-1', given_name: 'A', family_name: 'B', email: 'a@b.c' },
     ],
     registrations: [{ id: 'r-1', tournament_id: 't-1', person_id: 'p-1' }],
-    phases: [{ id: 'ph-1', tournament_id: 't-1', type: 'pool' }],
+    phases: [
+      {
+        id: 'ph-1',
+        tournament_id: 't-1',
+        type: 'pool',
+        // A bracket_slots.id inside a JSON column, pointing FORWARD in
+        // INSERT_ORDER (bracket_slots is inserted after phases).
+        config_json: { bronzeSlotId: 'bs-1', bracketSize: 8 },
+      },
+    ],
+    bracket_slots: [{ id: 'bs-1', phase_id: 'ph-1', round: 1, position: 1 }],
+    swiss_rounds: [
+      {
+        id: 'sr-1',
+        phase_id: 'ph-1',
+        round_number: 1,
+        pairing_meta_json: {
+          ranked: ['r-1'],
+          warnings: [{ code: 'same-club', registrationIds: ['r-1'] }],
+          manualAdjustments: [
+            { kind: 'swap', aRegistrationId: 'r-1', bRegistrationId: 'r-1', warnings: [] },
+            {
+              kind: 'set-sides',
+              matchId: 'm-1',
+              from: { red: 'r-1', blue: null },
+              to: { red: 'r-1', blue: null },
+              warnings: [{ code: 'creates-rematch', registrationIds: ['r-1'] }],
+              // An auth user, not an event-scoped row — must pass through.
+              byUserId: 'user-9',
+            },
+          ],
+          generatedAt: '2026-01-01T00:00:00Z',
+        },
+      },
+    ],
+    exchanges: [
+      { id: 'ex-1', match_id: 'm-1', client_uuid: 'cu-ex-1', sequence: 1 },
+      // A correction pointing at the exchange it replaced (0019).
+      {
+        id: 'ex-2',
+        match_id: 'm-1',
+        client_uuid: 'cu-ex-2',
+        sequence: 2,
+        corrected_exchange_id: 'ex-1',
+      },
+    ],
     matches: [
       {
         id: 'm-1',
@@ -421,6 +466,10 @@ describe('ArchiveService', () => {
         winner_registration_id: 'r-1',
         reason: 'injury',
         score_policy: 'keep_current',
+        // Three ids the column sweep cannot see: one in an array, two nested.
+        downstream_match_ids: ['m-1'],
+        previous_match_state: { status: 'running', winner_registration_id: 'r-1' },
+        previous_registration_state: { id: 'r-1', status: 'checked_in' },
       },
     ],
     referee_compensation_event_settings: [{ event_id: 'event-1', plan_id: 'plan-1' }],
@@ -499,6 +548,111 @@ describe('ArchiveService', () => {
     const restoredPersonId = inserted.persons?.[0]?.id as string;
     expect(restoredPersonId, 'the person is copied under a new id').not.toBe('p-1');
     expect(inserted.matches?.[0]?.referee_id).toBe(restoredPersonId);
+  });
+
+  /**
+   * A restore must produce a SELF-CONTAINED copy. `mapFk` returns early on
+   * anything that is not a top-level string, so every id nested in an array or
+   * an object survived verbatim and kept pointing into the source event — with
+   * the FK satisfied, because the source rows still exist, so nothing ever
+   * complained. Same shape as the `bye_registration_id` and `referee_id` misses
+   * above, one level down.
+   *
+   * One test per leak class. `restoreScoped()` runs the round trip once.
+   */
+  describe('ids nested inside JSON columns', () => {
+    async function restoreScoped() {
+      const { service, inserted } = makeService(scopedRows());
+      const archive = await service.generateEventArchive('event-1', 'user-1', {
+        include: 'scoring',
+      });
+      await service.restoreArchiveCopy(Buffer.from(JSON.stringify(archive)), 'user-1', {
+        targetOrganizationId: 'org-1',
+        confirmation: 'RESTORE MYCLASH ARCHIVE',
+      });
+      return {
+        inserted,
+        matchId: inserted.matches?.[0]?.id as string,
+        registrationId: inserted.registrations?.[0]?.id as string,
+        slotId: inserted.bracket_slots?.[0]?.id as string,
+        forfeit: inserted.match_forfeits?.[0] as Record<string, unknown>,
+        swissRound: inserted.swiss_rounds?.[0] as Record<string, unknown>,
+      };
+    }
+
+    it('remaps an ARRAY of ids (match_forfeits.downstream_match_ids)', async () => {
+      const { forfeit, matchId } = await restoreScoped();
+      expect(matchId, 'the match is copied under a new id').not.toBe('m-1');
+      expect(forfeit['downstream_match_ids']).toEqual([matchId]);
+    });
+
+    it('remaps ids nested in an OBJECT (match_forfeits.previous_*_state)', async () => {
+      const { forfeit, registrationId } = await restoreScoped();
+      expect(registrationId).not.toBe('r-1');
+      expect(forfeit['previous_match_state']).toMatchObject({
+        status: 'running',
+        winner_registration_id: registrationId,
+      });
+      expect(forfeit['previous_registration_state']).toMatchObject({
+        id: registrationId,
+        status: 'checked_in',
+      });
+    });
+
+    it('remaps a FORWARD reference — phases.config_json.bronzeSlotId', async () => {
+      // bracket_slots is inserted AFTER phases, so this only resolves because
+      // the id-map pre-seed runs as its own pass over the whole INSERT_ORDER.
+      const { inserted, slotId } = await restoreScoped();
+      expect(slotId, 'the slot is copied under a new id').not.toBe('bs-1');
+      expect(inserted.phases?.[0]?.config_json).toMatchObject({
+        bronzeSlotId: slotId,
+        bracketSize: 8,
+      });
+    });
+
+    it('remaps every id shape in swiss_rounds.pairing_meta_json', async () => {
+      const { swissRound, registrationId, matchId } = await restoreScoped();
+      const meta = swissRound['pairing_meta_json'] as Record<string, unknown>;
+
+      expect(meta['ranked']).toEqual([registrationId]);
+      expect(meta['warnings']).toEqual([{ code: 'same-club', registrationIds: [registrationId] }]);
+
+      const adjustments = meta['manualAdjustments'] as Array<Record<string, unknown>>;
+      // A `swap` entry names two registrations directly...
+      expect(adjustments[0]).toMatchObject({
+        aRegistrationId: registrationId,
+        bRegistrationId: registrationId,
+      });
+      // ...a `set-sides` entry names a match and both side pairs.
+      expect(adjustments[1]).toMatchObject({
+        matchId,
+        from: { red: registrationId, blue: null },
+        to: { red: registrationId, blue: null },
+        // An auth user is not an event-scoped row: it passes through.
+        byUserId: 'user-9',
+      });
+      expect(adjustments[1]?.['warnings']).toEqual([
+        { code: 'creates-rematch', registrationIds: [registrationId] },
+      ]);
+    });
+
+    it('remaps the self-referencing exchanges.corrected_exchange_id', async () => {
+      // Not nested at all — a plain column the sweep simply never listed.
+      const { inserted } = await restoreScoped();
+      const restored = inserted.exchanges as Array<Record<string, unknown>>;
+      const original = restored.find((row) => row['sequence'] === 1);
+      const correction = restored.find((row) => row['sequence'] === 2);
+      expect(original?.['id']).not.toBe('ex-1');
+      expect(correction?.['corrected_exchange_id']).toBe(original?.['id']);
+    });
+
+    it('leaves an id with no counterpart in the archive alone', async () => {
+      // Matches `mapFk`: a reference to something outside the archive survives
+      // rather than becoming undefined. Passes pre-fix — a no-regression guard.
+      const { swissRound } = await restoreScoped();
+      const meta = swissRound['pairing_meta_json'] as Record<string, unknown>;
+      expect(meta['generatedAt']).toBe('2026-01-01T00:00:00Z');
+    });
   });
 
   /**

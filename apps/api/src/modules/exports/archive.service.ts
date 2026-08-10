@@ -139,6 +139,104 @@ const TABLE_TO_ARCHIVE_KEY = {
   tournament_penalty_reviews: 'tournamentPenaltyReviews',
 } as const satisfies Record<string, keyof ArchiveTables>;
 
+/** Which `IdMaps` member a nested id resolves through. */
+type JsonIdMapName = 'matches' | 'registrations' | 'bracketSlots';
+
+interface JsonIdPath {
+  readonly path: string;
+  readonly map: JsonIdMapName;
+}
+
+/**
+ * Ids that live INSIDE a JSON column, per table.
+ *
+ * `remapRow`'s column sweep goes through `mapFk`, which returns early on
+ * anything that is not a top-level string. So an id nested in an array or an
+ * object survives a restore verbatim and keeps pointing into the SOURCE event —
+ * a copy that is supposed to be self-contained silently is not. Same failure
+ * shape as the `bye_registration_id` incident below, one level down.
+ *
+ * Path grammar, deliberately smaller than JSON Pointer: dotted keys, and `[]`
+ * for "every element of this array". `a.b[]` is every element of the array at
+ * `a.b`; `a[].b` is the `b` of every element of `a`. No wildcards and no
+ * escapes — every path here is a literal shape some service writes, so a path
+ * that stops matching must read as a mistake, not quietly match something else.
+ *
+ * Each entry was read off its writer, not guessed:
+ *   match_forfeits  — match-forfeits.service.ts `matchSnapshot` / `loadRegistration`
+ *   swiss_rounds    — swiss-pairing.service.ts `commitNextRound` (warnings/ranked)
+ *                     and swiss-override.service.ts `recordAdjustment`, whose
+ *                     entries come in TWO shapes: a `swap` carrying
+ *                     a/bRegistrationId, and a `set-sides` carrying matchId plus
+ *                     from/to side pairs. `byUserId` is deliberately absent —
+ *                     it is an auth user, not an event-scoped row.
+ *   phases          — phases.service.ts stamps `config_json.bronzeSlotId`
+ */
+const JSON_ID_PATHS = {
+  match_forfeits: [
+    { path: 'downstream_match_ids[]', map: 'matches' },
+    { path: 'previous_match_state.winner_registration_id', map: 'registrations' },
+    { path: 'previous_registration_state.id', map: 'registrations' },
+  ],
+  swiss_rounds: [
+    { path: 'pairing_meta_json.ranked[]', map: 'registrations' },
+    { path: 'pairing_meta_json.warnings[].registrationIds[]', map: 'registrations' },
+    { path: 'pairing_meta_json.manualAdjustments[].aRegistrationId', map: 'registrations' },
+    { path: 'pairing_meta_json.manualAdjustments[].bRegistrationId', map: 'registrations' },
+    { path: 'pairing_meta_json.manualAdjustments[].matchId', map: 'matches' },
+    { path: 'pairing_meta_json.manualAdjustments[].from.red', map: 'registrations' },
+    { path: 'pairing_meta_json.manualAdjustments[].from.blue', map: 'registrations' },
+    { path: 'pairing_meta_json.manualAdjustments[].to.red', map: 'registrations' },
+    { path: 'pairing_meta_json.manualAdjustments[].to.blue', map: 'registrations' },
+    {
+      path: 'pairing_meta_json.manualAdjustments[].warnings[].registrationIds[]',
+      map: 'registrations',
+    },
+  ],
+  phases: [{ path: 'config_json.bronzeSlotId', map: 'bracketSlots' }],
+} as const satisfies Partial<Record<keyof typeof TABLE_TO_ARCHIVE_KEY, readonly JsonIdPath[]>>;
+
+/**
+ * Rewrite every id reachable at `path` through `map`.
+ *
+ * A path that matches nothing is a no-op: an older archive simply has not got
+ * the key, and a `set-sides` adjustment has no `aRegistrationId`. An id with no
+ * entry in the map is left alone, matching `mapFk` — that is how a reference to
+ * something outside the archive survives instead of becoming undefined.
+ *
+ * Kept out of `remapRow` so the switch stays a flat list of column statements.
+ */
+function remapJsonIdPath(row: ArchiveRow, path: string, map: Map<string, string>): void {
+  const remap = (node: unknown, segments: string[]): unknown => {
+    if (node === null || node === undefined) return node;
+
+    if (segments.length === 0) {
+      return typeof node === 'string' ? (map.get(node) ?? node) : node;
+    }
+
+    const [head, ...rest] = segments;
+    if (head === '[]') {
+      if (!Array.isArray(node)) return node;
+      return node.map((element) => remap(element, rest));
+    }
+    if (typeof node !== 'object' || Array.isArray(node)) return node;
+
+    const record = node as Record<string, unknown>;
+    if (!(head! in record)) return node;
+    return { ...record, [head!]: remap(record[head!], rest) };
+  };
+
+  // 'a.b[].c' → ['a', 'b', '[]', 'c']
+  const segments = path
+    .split('.')
+    .flatMap((part) => (part.endsWith('[]') ? [part.slice(0, -2), '[]'] : [part]))
+    .filter((part) => part.length > 0);
+
+  const [column, ...rest] = segments;
+  if (!column || !(column in row)) return;
+  row[column] = remap(row[column], rest);
+}
+
 /**
  * Tables that carry an `event_id`/`tournament_id` (directly, or as a scoped
  * child) but are DELIBERATELY not part of an organizer archive. The
@@ -544,19 +642,34 @@ export class ArchiveService {
   }
 
   private async insertMappedTables(data: ArchiveTables, maps: IdMaps, targets: RestoreTargets) {
+    // EVERY id map complete before ANY row is remapped.
+    //
+    // The pre-seed used to run per-table inside the insert loop below, which
+    // made a table's ids resolvable only from its own pass onward — fine for an
+    // intra-table self-reference like `match_forfeits.parent_forfeit_id`, but it
+    // left every FORWARD reference unresolvable. `phases.config_json.bronzeSlotId`
+    // holds a `bracket_slots.id`, and bracket_slots is inserted after phases, so
+    // it could not be remapped at all and the restored phase pointed at the
+    // SOURCE event's slot.
+    //
+    // Hoisting is free: pre-seeding only mints ids, it inserts nothing. The
+    // `!map.has` guard is what keeps it non-destructive — `restoreTournamentCopy`
+    // pre-points `maps.tournaments` at the target before calling in, and that
+    // must survive.
+    for (const table of INSERT_ORDER) {
+      const rows = data[TABLE_TO_ARCHIVE_KEY[table]];
+      if (rows.length === 0) continue;
+      const map = idMapForTable(table, maps);
+      for (const row of rows) {
+        const rowId = row['id'];
+        if (typeof rowId === 'string' && !map.has(rowId)) map.set(rowId, randomUUID());
+      }
+    }
+
     for (const table of INSERT_ORDER) {
       const key = TABLE_TO_ARCHIVE_KEY[table];
       const rows = data[key];
       if (rows.length === 0) continue;
-      // Pre-seed the table's id map so intra-table self-references (e.g.
-      // match_forfeits.parent_forfeit_id) resolve regardless of row order.
-      for (const row of rows) {
-        const rowId = row['id'];
-        if (typeof rowId === 'string') {
-          const map = idMapForTable(table, maps);
-          if (!map.has(rowId)) map.set(rowId, randomUUID());
-        }
-      }
       const mapped = rows
         .map((row) => this.remapRow(table, row, maps, targets))
         .filter((row): row is ArchiveRow => row !== null);
@@ -625,6 +738,12 @@ export class ArchiveService {
         break;
       case 'exchanges':
         next['client_uuid'] = randomUUID();
+        // A correction points at the exchange it replaced (0019). Never
+        // remapped, so a restored copy's corrections referenced the SOURCE
+        // event's exchanges — and the FK was satisfied, because those rows
+        // still exist, so nothing complained. Same shape as the
+        // `bye_registration_id` miss documented above.
+        this.mapFk(next, 'corrected_exchange_id', idMapForTable('exchanges', maps));
         break;
       case 'match_penalties':
         next['client_uuid'] = randomUUID();
@@ -676,6 +795,12 @@ export class ArchiveService {
       default:
         break;
     }
+    // Ids the column sweep above cannot see, because they are not top-level
+    // strings. Declared per table in JSON_ID_PATHS.
+    for (const { path, map } of jsonIdPathsFor(table)) {
+      remapJsonIdPath(next, path, jsonIdMap(map, maps));
+    }
+
     return this.cleanRow(next);
   }
 
@@ -1343,6 +1468,17 @@ function createIdMaps(): IdMaps {
 // Returns the id map for a table's own primary key. Named maps are used when
 // another table's FK points at this id; everything else falls back to a lazily
 // created per-table map so EVERY id-bearing row gets a fresh id on restore.
+function jsonIdPathsFor(table: keyof typeof TABLE_TO_ARCHIVE_KEY): readonly JsonIdPath[] {
+  const declared = JSON_ID_PATHS as Partial<
+    Record<keyof typeof TABLE_TO_ARCHIVE_KEY, readonly JsonIdPath[]>
+  >;
+  return declared[table] ?? [];
+}
+
+function jsonIdMap(name: JsonIdMapName, maps: IdMaps): Map<string, string> {
+  return maps[name];
+}
+
 function idMapForTable(
   table: keyof typeof TABLE_TO_ARCHIVE_KEY,
   maps: IdMaps,
