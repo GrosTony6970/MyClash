@@ -177,8 +177,20 @@ export class MatchesController {
     return this.forfeits.createForfeit(id, dto, actor);
   }
 
+  @Get('matches/:id/forfeit')
+  @ApiOperation({
+    summary: 'The live forfeit or result override on this match, or null (organizer+)',
+    description:
+      'Organiser-scoped, not public: it carries the reason a bout was stopped or corrected. One live record per match is a DB invariant, so a second attempt conflicts — this is how the organiser sees the record they must void first.',
+  })
+  @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
+  async getActiveForfeit(@Param('id', ParseUUIDPipe) id: string, @Req() req: FastifyRequest) {
+    await this.staff.authorizeMatchOrganizer(req, id);
+    return this.forfeits.getActiveForfeit(id);
+  }
+
   @Patch('match-forfeits/:id/void')
-  @ApiOperation({ summary: 'Void a match forfeit when downstream state allows it' })
+  @ApiOperation({ summary: 'Void a match forfeit or result override when downstream state allows' })
   async voidForfeit(@Param('id', ParseUUIDPipe) id: string, @Req() req: FastifyRequest) {
     const actor = await this.staff.authorizeForfeitOrganizer(req, id);
     return this.forfeits.voidForfeit(id, actor);

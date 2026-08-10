@@ -2435,7 +2435,11 @@ export interface paths {
       path?: never;
       cookie?: never;
     };
-    get?: never;
+    /**
+     * The live forfeit or result override on this match, or null (organizer+)
+     * @description Organiser-scoped, not public: it carries the reason a bout was stopped or corrected. One live record per match is a DB invariant, so a second attempt conflicts — this is how the organiser sees the record they must void first.
+     */
+    get: operations['MatchesController_getActiveForfeit'];
     put?: never;
     /** Record a match forfeit (scorekeeper+) */
     post: operations['MatchesController_createForfeit'];
@@ -2458,7 +2462,7 @@ export interface paths {
     delete?: never;
     options?: never;
     head?: never;
-    /** Void a match forfeit when downstream state allows it */
+    /** Void a match forfeit or result override when downstream state allows */
     patch: operations['MatchesController_voidForfeit'];
     trace?: never;
   };
@@ -14876,6 +14880,25 @@ export interface operations {
     };
   };
   MatchesController_voidMatch: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  MatchesController_getActiveForfeit: {
     parameters: {
       query?: never;
       header?: never;

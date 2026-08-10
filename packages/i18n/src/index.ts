@@ -7099,6 +7099,14 @@ export const en = {
       overrideWinningScore: 'Winning score',
       overrideHint:
         'The result is recorded as an override, never as a forfeit: it stays in the standings and in the HEMA Ratings submission, and it can be voided.',
+      activeRecordTitle: 'This match already has a forfeit or override',
+      activeRecordHint:
+        'Only one can be on record at a time. Void this one to record a different result.',
+      voidRecord: 'Void this record',
+      voidRecordTitle: 'Void this record?',
+      voidRecordBody:
+        'The match goes back to the result it had before. On a bracket, whoever this sent through is un-advanced.',
+      voidRecordFailed: 'Could not void this record.',
       summarySlots: '{count}-slot main bracket',
       summaryRounds: '{count} rounds',
       summaryByes: '{count} byes',
@@ -14835,6 +14843,14 @@ export const fr = {
       overrideWinningScore: 'Score du vainqueur',
       overrideHint:
         'Le résultat est enregistré comme une correction, jamais comme un forfait : il reste dans le classement et dans la soumission HEMA Ratings, et il peut être annulé.',
+      activeRecordTitle: 'Cet assaut a déjà un forfait ou une correction',
+      activeRecordHint:
+        'Un seul enregistrement à la fois. Annulez celui-ci pour enregistrer un autre résultat.',
+      voidRecord: 'Annuler cet enregistrement',
+      voidRecordTitle: 'Annuler cet enregistrement ?',
+      voidRecordBody:
+        'L’assaut retrouve le résultat qu’il avait avant. Dans un tableau, le combattant qualifié par cet enregistrement est retiré du tour suivant.',
+      voidRecordFailed: 'Impossible d’annuler cet enregistrement.',
       summarySlots: 'Tableau principal de {count} places',
       summaryRounds: '{count} tours',
       summaryByes: '{count} exemptions',

@@ -54,6 +54,19 @@ export class FrozenResultsGuard {
   ) {}
 
   async assertExchangeCreationAllowed(matchId: string, userId?: string): Promise<void> {
+    return this.assertResultMutationAllowed(matchId, userId);
+  }
+
+  /**
+   * Refuse any write that changes a match result once the event is completed.
+   *
+   * Named for what it guards rather than for its first caller: creating an
+   * exchange and recording a result override are the same question — "may this
+   * actor still change what happened?" — and answering it in two places is how
+   * one of them ends up not asking. Super-admin remains the only bypass, in
+   * line with `guardExchangeMutation`.
+   */
+  async assertResultMutationAllowed(matchId: string, userId?: string): Promise<void> {
     const state = await this.getEventStateForMatch(matchId);
     if (state.status !== 'completed') return;
     if (await this.isSuperAdmin(userId)) return;

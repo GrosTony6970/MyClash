@@ -41,6 +41,15 @@ const REASON_LABEL_KEY: Record<string, string> = {
   technical_failure: 'organizer.bracketPage.overrideReasonTechnicalFailure',
 };
 
+/** The one live forfeit-or-override on a match. `match_forfeits` allows no second. */
+interface ActiveForfeit {
+  id: string;
+  reason: string;
+  forfeiting_score: number | null;
+  opponent_score: number | null;
+  note: string | null;
+}
+
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 interface Exchange {
@@ -215,8 +224,23 @@ export default function MatchDetailPage() {
   const [forfeitSaving, setForfeitSaving] = useState(false);
   // Two scores, not one: an override states the whole result. Kept as strings
   // so the field can be emptied while typing without snapping back to 0.
-  const [overrideLosingScore, setOverrideLosingScore] = useState('0');
-  const [overrideWinningScore, setOverrideWinningScore] = useState('0');
+  //
+  // `null` means "untouched", and the field then SHOWS THE CURRENT SCORE rather
+  // than a hard 0. Defaulting to 0 meant an organiser who picked a reason and
+  // clicked — the shortest possible path — recorded 0–0 with a winner, and the
+  // readers that compare scores and the readers that read winner_registration_id
+  // then disagreed about that bout forever. Derived in render rather than
+  // seeded by an effect, which react-hooks/set-state-in-effect forbids.
+  const [overrideLosingScoreEdit, setOverrideLosingScore] = useState<string | null>(null);
+  const [overrideWinningScoreEdit, setOverrideWinningScore] = useState<string | null>(null);
+  const currentRedScore = match?.redScore ?? match?.red_score ?? 0;
+  const currentBlueScore = match?.blueScore ?? match?.blue_score ?? 0;
+  const overrideLosingScore =
+    overrideLosingScoreEdit ?? String(forfeitSide === 'red' ? currentRedScore : currentBlueScore);
+  const overrideWinningScore =
+    overrideWinningScoreEdit ?? String(forfeitSide === 'red' ? currentBlueScore : currentRedScore);
+  const [activeForfeit, setActiveForfeit] = useState<ActiveForfeit | null>(null);
+  const [voidingForfeit, setVoidingForfeit] = useState(false);
   const isOverride = isOverrideReason(forfeitReason);
 
   // ── Fetch ─────────────────────────────────────────────────────────────────────
@@ -241,12 +265,19 @@ export default function MatchDetailPage() {
         credentials: 'include',
         signal: controller.signal,
       }),
+      fetch(`${apiUrl}/api/v1/matches/${matchId}/forfeit`, {
+        credentials: 'include',
+        signal: controller.signal,
+      }),
     ])
-      .then(async ([matchRes, summaryRes, exRes, auditRes]) => {
+      .then(async ([matchRes, summaryRes, exRes, auditRes, forfeitRes]) => {
         setLoading(false);
         if (matchRes.ok) setMatch((await matchRes.json()) as Match);
         if (summaryRes.ok) setSummary((await summaryRes.json()) as MatchSummary);
         if (exRes.ok) setExchanges((await exRes.json()) as Exchange[]);
+        // One live record per match is a DB invariant, so this is the record a
+        // second attempt would conflict with — and the one to void first.
+        if (forfeitRes.ok) setActiveForfeit((await forfeitRes.json()) as ActiveForfeit | null);
         // Distinguish "no audit rows" from "the audit read failed" — a silent
         // `if (ok)` here is how this section stayed permanently empty unnoticed.
         if (auditRes.ok) {
@@ -420,6 +451,39 @@ export default function MatchDetailPage() {
     setRefreshKey((key) => key + 1);
   }
 
+  /**
+   * Void the live record so another can be written.
+   *
+   * The API refuses a second forfeit-or-override outright — one live row per
+   * match is a DB invariant — so this is the whole remedy path. It stays behind
+   * a confirmation because voiding restores the previous result and, on a
+   * bracket, un-advances whoever it sent through.
+   */
+  async function handleVoidForfeit() {
+    if (!activeForfeit) return;
+    const ok = await confirm({
+      title: t('organizer.bracketPage.voidRecordTitle'),
+      description: t('organizer.bracketPage.voidRecordBody'),
+      confirmLabel: t('organizer.bracketPage.voidRecord'),
+      danger: true,
+    });
+    if (!ok) return;
+
+    setVoidingForfeit(true);
+    const res = await fetch(`${apiUrl}/api/v1/match-forfeits/${activeForfeit.id}/void`, {
+      method: 'PATCH',
+      credentials: 'include',
+    });
+    setVoidingForfeit(false);
+    if (!res.ok) {
+      const body = (await res.json().catch(() => ({}))) as { message?: string };
+      toast.error(body.message ?? t('organizer.bracketPage.voidRecordFailed'));
+      return;
+    }
+    setActiveForfeit(null);
+    setRefreshKey((key) => key + 1);
+  }
+
   if (loading) {
     return (
       <main className="flex min-h-screen items-center justify-center">
@@ -526,7 +590,42 @@ export default function MatchDetailPage() {
         </div>
       )}
 
-      {match && (
+      {/* One live record per match, so it is that record OR the form to write
+          one — never both. Rendering the form beside an existing record is how
+          a second submission became a silent no-op reported as success. */}
+      {match && activeForfeit && (
+        <section className="mb-6 rounded-xl border border-danger/30 bg-danger/10 p-4">
+          <h2 className="mb-2 text-xs font-semibold uppercase tracking-wider text-danger">
+            {t('organizer.bracketPage.activeRecordTitle')}
+          </h2>
+          <p className="mb-1 text-sm text-foreground">
+            {t(
+              (REASON_LABEL_KEY[activeForfeit.reason] ??
+                'organizer.bracketPage.forfeitTitle') as never,
+            )}
+            {activeForfeit.forfeiting_score !== null && activeForfeit.opponent_score !== null && (
+              <span className="text-muted">
+                {' '}
+                · {activeForfeit.forfeiting_score}–{activeForfeit.opponent_score}
+              </span>
+            )}
+          </p>
+          {activeForfeit.note && <p className="mb-2 text-sm text-muted">{activeForfeit.note}</p>}
+          <p className="mb-3 text-xs text-muted">{t('organizer.bracketPage.activeRecordHint')}</p>
+          <button
+            type="button"
+            onClick={() => void handleVoidForfeit()}
+            disabled={voidingForfeit}
+            className="rounded-lg bg-danger px-4 py-2 text-sm font-semibold text-danger-foreground disabled:opacity-50"
+          >
+            {voidingForfeit
+              ? t('organizer.matchDetail.recording')
+              : t('organizer.bracketPage.voidRecord')}
+          </button>
+        </section>
+      )}
+
+      {match && !activeForfeit && (
         <section className="mb-6 rounded-xl border border-danger/30 bg-danger/10 p-4">
           <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-danger">
             {isOverride
