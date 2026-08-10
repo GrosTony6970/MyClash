@@ -2293,7 +2293,7 @@ There are no per-user or per-org limiters, and scoring writes get the default.
 # Per-event (themed)  — was `/t/[slug]/...` pre-v1.4
 /e/[eventSlug]                                          # Event landing (themed)
 /e/[eventSlug]/onboarding                               # Persona selection (multi-select)
-/e/[eventSlug]/home                                     # Persona-aware home
+/e/[eventSlug]/home                                     # Event home (the front door)
 /e/[eventSlug]/my-schedule                              # UNIFIED personal view (matches + referee + workshops + conflicts)
 /e/[eventSlug]/tournaments                              # Event index (e.g. "Longsword Open", "Sidesword Open")
 /e/[eventSlug]/t/[tournamentSlug]                       # Tournament detail (pools + brackets)

@@ -1,19 +1,19 @@
 /**
- * Persona-aware home — T-604
- * Route: /e/[eventSlug]/home
+ * The event home — Route: /e/[eventSlug]/home
  *
- * Server component. Reads persona from cookie, renders appropriate home variant.
+ * The front door: `/e/[eventSlug]` redirects here, and thirteen surfaces link
+ * to it, including the API's push notifications.
  *
- * Three variants:
- *   competitor   — my next match, today's parcours, my last results
- *   accompanist  — favorites live, big matches
- *   public       — editorial, event intro, schedule highlights (default)
+ * This was a three-way persona switch on an `mc_persona` cookie that NOTHING in
+ * the codebase ever set, so two of the three branches were unreachable — and
+ * both were built entirely on API routes that were never implemented
+ * (`/my-matches`, `/following/matches`, both tracked in
+ * `frontend-route-contract.test.ts`). Reading that cookie also opted the route
+ * out of static rendering to choose between a live branch and two dead ones.
+ * One home, the real one.
  */
 
-import { cookies } from 'next/headers';
 import type { Metadata } from 'next';
-import { CompetitorHome } from './CompetitorHome';
-import { AccompanistHome } from './AccompanistHome';
 import { PublicHome } from './PublicHome';
 
 interface Props {
@@ -25,26 +25,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   return { title: `Home — ${eventSlug}` };
 }
 
-type HomePersona = 'competitor' | 'accompanist' | 'public';
-
-function resolvePersona(cookieStore: Awaited<ReturnType<typeof cookies>>): HomePersona {
-  const raw = cookieStore.get('mc_persona')?.value;
-  if (raw === 'competitor' || raw === 'referee') return 'competitor';
-  if (raw === 'accompanist') return 'accompanist';
-  return 'public';
-}
-
 export default async function HomePage({ params }: Props) {
   const { eventSlug } = await params;
-  const cookieStore = await cookies();
-  const persona = resolvePersona(cookieStore);
-
-  switch (persona) {
-    case 'competitor':
-      return <CompetitorHome eventSlug={eventSlug} />;
-    case 'accompanist':
-      return <AccompanistHome eventSlug={eventSlug} />;
-    default:
-      return <PublicHome eventSlug={eventSlug} />;
-  }
+  return <PublicHome eventSlug={eventSlug} />;
 }

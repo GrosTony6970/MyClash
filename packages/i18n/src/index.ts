@@ -1138,21 +1138,6 @@ export const en = {
       unaffiliatedLabel: 'Unaffiliated',
       clubLedBy: 'Led by {names}',
     },
-    competitorHome: {
-      nextMatch: 'Next match',
-      versus: 'vs {name}',
-      tbd: 'TBD',
-      live: 'LIVE',
-      noUpcomingMatches: 'No upcoming matches',
-      todaysSchedule: "Today's schedule",
-      emptyMatches: 'Your matches will appear here once the schedule is set.',
-    },
-    accompanistHome: {
-      comingUp: 'Coming up',
-      fighterVersus: '{a} vs {b}',
-      emptyFollowing: 'Follow fighters to see their matches here.',
-      browseParticipants: 'Browse participants →',
-    },
     participants: {
       metaTitle: 'Participants · {name} · MyClash',
       metaTitleFallback: 'Participants · MyClash',
@@ -8886,21 +8871,6 @@ export const fr = {
       membersColumn: 'Membres',
       unaffiliatedLabel: 'Sans club',
       clubLedBy: 'Emmené par {names}',
-    },
-    competitorHome: {
-      nextMatch: 'Prochain combat',
-      versus: 'vs {name}',
-      tbd: 'À définir',
-      live: 'EN DIRECT',
-      noUpcomingMatches: 'Aucun combat à venir',
-      todaysSchedule: 'Programme du jour',
-      emptyMatches: 'Vos combats apparaîtront ici une fois le programme établi.',
-    },
-    accompanistHome: {
-      comingUp: 'À venir',
-      fighterVersus: '{a} vs {b}',
-      emptyFollowing: 'Suivez des combattants pour voir leurs combats ici.',
-      browseParticipants: 'Parcourir les participants →',
     },
     participants: {
       metaTitle: 'Participants · {name} · MyClash',

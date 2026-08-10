@@ -40,9 +40,6 @@ const FRONTENDS = ['apps/web-public', 'apps/web-admin', 'apps/web-staff'];
  * that does not exist — which is the entire bug this file exists to prevent.
  */
 const KNOWN_PHANTOM: string[] = [
-  // Personal event-home surfaces — never built.
-  '/api/v1/events/{p}/my-matches',
-  '/api/v1/events/{p}/following/matches',
   // web-admin candidates — not yet investigated.
   '/api/v1/admin/fighters/{p}',
   '/api/v1/tournaments',
