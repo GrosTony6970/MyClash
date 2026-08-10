@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { buildCrossPoolSnakeRanking, buildR1SeedingPlan, parseSeed } from './bracket-r1-seeding';
+import {
+  buildCrossPoolSnakeRanking,
+  buildR1SeedingPlan,
+  diffR1SeedingPlan,
+  parseSeed,
+  seedingSourceKind,
+} from './bracket-r1-seeding';
 
 // Standard size-8 seed distribution as the generator emits it:
 // [[1,8],[5,4],[3,6],[7,2]] (seed 1 vs 8, etc.). buildR1SeedingPlan must place
@@ -210,5 +216,94 @@ describe('buildCrossPoolSnakeRanking', () => {
       { rank: 2, registrationId: 'P2-1' },
       { rank: 3, registrationId: 'P3-1' },
     ]);
+  });
+});
+
+/**
+ * Diff-on-read: is this bracket still holding the fighters the standings would
+ * put in it? The two cases below are the ones that make the difference between
+ * a useful warning and a banner organisers learn to ignore.
+ */
+describe('diffR1SeedingPlan', () => {
+  const plan = [
+    { slotId: 's1', registrationAId: 'r1', registrationBId: 'r8' },
+    { slotId: 's2', registrationAId: 'r5', registrationBId: 'r4' },
+  ];
+
+  it('reports nothing when every seeded side still holds its fighter', () => {
+    expect(
+      diffR1SeedingPlan(plan, [
+        { id: 's1', seedA: 1, seedB: 8, registrationAId: 'r1', registrationBId: 'r8' },
+        { id: 's2', seedA: 5, seedB: 4, registrationAId: 'r5', registrationBId: 'r4' },
+      ]),
+    ).toEqual([]);
+  });
+
+  it('names the slot whose seeded fighter no longer matches the standings', () => {
+    expect(
+      diffR1SeedingPlan(plan, [
+        { id: 's1', seedA: 1, seedB: 8, registrationAId: 'r1', registrationBId: 'r8' },
+        // A reopened pool bout changed who finished 4th.
+        { id: 's2', seedA: 5, seedB: 4, registrationAId: 'r5', registrationBId: 'r9' },
+      ]),
+    ).toEqual(['s2']);
+  });
+
+  it('SKIPS a side with no seed label, so a play-in bracket is not permanently stale', () => {
+    // `buildR1SeedingPlan` writes null for a non-seed side, but a play-in
+    // slot's side B is legitimately filled by advancement ("winner of R0Px").
+    // Comparing it would report drift on every play-in bracket the moment its
+    // first qualifier came through — the banner would never be off.
+    expect(
+      diffR1SeedingPlan(
+        [{ slotId: 's1', registrationAId: 'r1', registrationBId: null }],
+        [
+          {
+            id: 's1',
+            seedA: 1,
+            seedB: null,
+            registrationAId: 'r1',
+            registrationBId: 'winner-of-play-in',
+          },
+        ],
+      ),
+    ).toEqual([]);
+  });
+
+  it('reports a seeded side the plan would now empty', () => {
+    // Fewer ranked fighters than bracket size: the fighter sitting there is one
+    // the standings no longer place at all.
+    expect(
+      diffR1SeedingPlan(
+        [{ slotId: 's1', registrationAId: 'r1', registrationBId: null }],
+        [{ id: 's1', seedA: 1, seedB: 8, registrationAId: 'r1', registrationBId: 'r8' }],
+      ),
+    ).toEqual(['s1']);
+  });
+
+  it('ignores a planned slot the bracket no longer has', () => {
+    expect(diffR1SeedingPlan(plan, [])).toEqual([]);
+  });
+});
+
+describe('seedingSourceKind', () => {
+  it('treats ONLY pool and Swiss standings as result-derived', () => {
+    // The trap: `by-rating` and `random` re-order the whole draw whenever
+    // anyone withdraws or a rating refreshes, so a correctly-seeded bracket
+    // would diff against them and the banner would cry wolf on every roster
+    // edit. They must report `static` even with pools present.
+    expect(seedingSourceKind('by-rating', true)).toBe('static');
+    expect(seedingSourceKind('random', true)).toBe('static');
+    expect(seedingSourceKind('by-swiss-rank', false)).toBe('swiss');
+    expect(seedingSourceKind('snake', true)).toBe('pool');
+    expect(seedingSourceKind('by-pool-rank', true)).toBe('pool');
+  });
+
+  it('reports static when there is no pool standings source to fall back on', () => {
+    // `populateBracket` sends every non-rating, non-random, non-Swiss strategy
+    // down the registration-seed path when there is no pool phase — and
+    // registration seed reshuffles on any withdrawal too.
+    expect(seedingSourceKind('snake', false)).toBe('static');
+    expect(seedingSourceKind('by-pool-rank', false)).toBe('static');
   });
 });

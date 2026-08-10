@@ -54,7 +54,9 @@ import { poolMatchSortKey } from './pool-match-sort';
 import {
   buildCrossPoolSnakeRanking,
   buildR1SeedingPlan,
+  diffR1SeedingPlan,
   parseSeed,
+  seedingSourceKind,
   type RankedRegistration,
 } from './bracket-r1-seeding';
 import { rankBySeed, rankByRating, rankRandom, type SeedableRegistration } from './r1-ranking';
@@ -87,6 +89,46 @@ export interface SeedingWarning {
   fighters: string[];
   ranks: number[];
 }
+
+/**
+ * Where a bracket's seeding stands relative to the standings it was drawn from.
+ *
+ * FOUR states, not a boolean. `pending` is what an organiser sees the moment a
+ * pool bout goes back in play, and the transition out of it is the whole point:
+ * `pending → fresh` means the bracket healed itself when the bout was replayed,
+ * `pending → stale` means the re-seed was refused because an R1 bout had
+ * already started. A boolean would show the same red flag for both.
+ */
+export interface SeedingDrift {
+  state: 'fresh' | 'stale' | 'pending' | 'not-applicable';
+  /** The ranking source the diff ran against, or null when it did not run. */
+  source: 'pool-standings' | 'swiss-standings' | null;
+  /** R1/R0 slots whose seeded fighter no longer matches the standings. */
+  changedSlotIds: string[];
+  /**
+   * Started R0/R1 matches — the reason a stale bracket cannot re-seed itself,
+   * and the cheap remedy: put these back to "not started" and the next pool
+   * completion heals the draw for free.
+   */
+  blockingMatchIds: string[];
+}
+
+/** Per-pool standings as `getPoolStandings('by-pool')` returns them. */
+type PerPoolStandings = Extract<
+  Awaited<ReturnType<PoolStandingsService['getPoolStandings']>>,
+  { pools: unknown }
+>['pools'];
+
+/** Either the Round-1 rank order, or the gate that is not met yet. */
+type SeedingResolution =
+  | {
+      ok: true;
+      rankings: RankedRegistration[];
+      source: R1RankingSource;
+      warnings: SeedingWarning[];
+      randomSeed?: number;
+    }
+  | { ok: false; reason: 'no_pool_data' | 'pools_not_finished'; message: string };
 // Value import (not `import type`): NestJS DI dependency. Type-only erases the
 // runtime metadata, so poolStandings resolved to `undefined` — which made
 // computePoolGate vacuously "complete" and populateBracket fall back to
@@ -1200,123 +1242,35 @@ export class PhasesService {
     }
 
     // 6. Resolve rankings. The strategy stamped by generateBracket decides the
-    //    ORDER; the pool-completion gate below still decides the TIMING for
+    //    ORDER; the pool-completion gate inside still decides the TIMING for
     //    every strategy, because a tournament with pools populates its bracket
     //    after pools regardless of how the fighters are ranked (and the
     //    auto-hook depends on that gate firing exactly once).
     const strategy = (config['seedingStrategy'] as SeedingStrategy | undefined) ?? 'snake';
-    const { data: poolPhase } = await this.supabase.service
-      .from('phases')
-      .select('id')
-      .eq('tournament_id', tournamentId)
-      .eq('type', 'pool')
-      .maybeSingle();
-
-    let rankings: RankedRegistration[];
-    let source: R1RankingSource = 'pool-standings';
-    let warnings: SeedingWarning[] = [];
-    let usedRandomSeed: number | undefined;
-
-    if (poolPhase && this.poolStandings) {
-      // Need per-pool data to (a) check completion + (b) feed the
-      // snake builder for top-n-per-pool mode. We fetch by-pool
-      // regardless of mode for a single source of truth.
-      const byPoolResponse = await this.poolStandings.getPoolStandings(tournamentId, 'by-pool');
-      const perPool = 'pools' in byPoolResponse ? byPoolResponse.pools : [];
-      // Empty perPool means "pool phase exists but no pools created
-      // yet" (or the standings query produced nothing). `.every()`
-      // returns true vacuously for an empty array, which silently
-      // bypassed the gate before this guard — operator would see a
-      // 200 with slotsSeeded:0 and a misleading "populated from pool
-      // standings" toast. Refuse explicitly so the FE surfaces a 409.
-      if (perPool.length === 0) {
-        if (options?.silentIfGateNotMet) {
-          return {
-            phaseId,
-            seedingMode,
-            slotsSeeded: 0,
-            skipped: 'no_pool_data',
-            source: 'pool-standings',
-            warnings: [],
-          };
-        }
-        throw new ConflictException(
-          'No pool data available — generate pools and play matches first.',
-        );
+    const { perPool } = await this.loadPoolSeedingContext(tournamentId);
+    const resolved = await this.resolveSeedingRankings(tournamentId, {
+      strategy,
+      seedingMode,
+      topNPerPool: dto.topNPerPool,
+      slotCount: slots.length,
+      randomSeed: config['seedingRandomSeed'] as number | undefined,
+      perPool,
+    });
+    if (!resolved.ok) {
+      if (options?.silentIfGateNotMet) {
+        return {
+          phaseId,
+          seedingMode,
+          slotsSeeded: 0,
+          skipped: resolved.reason,
+          source: 'pool-standings',
+          warnings: [],
+        };
       }
-      const allComplete = perPool.every((p) => p.status === 'completed');
-      if (!allComplete) {
-        if (options?.silentIfGateNotMet) {
-          return {
-            phaseId,
-            seedingMode,
-            slotsSeeded: 0,
-            skipped: 'pools_not_finished',
-            source: 'pool-standings',
-            warnings: [],
-          };
-        }
-        throw new ConflictException('Pools have not finished yet');
-      }
-
-      if (strategy === 'by-rating' || strategy === 'random' || strategy === 'by-swiss-rank') {
-        // Pools decided WHEN we populate; these strategies decide the order
-        // from data that has nothing to do with pool results. `by-swiss-rank`
-        // is here because a three-stage tournament (pools → Swiss → bracket)
-        // HAS a pool phase but seeds its bracket from the Swiss phase that came
-        // after it.
-        const resolved = await this.resolveRegistrationRanking(tournamentId, strategy, {
-          randomSeed: config['seedingRandomSeed'] as number | undefined,
-        });
-        rankings = resolved.rankings;
-        source = resolved.source;
-        usedRandomSeed = resolved.randomSeed;
-        warnings = resolved.warnings;
-      } else if (seedingMode === 'top-n-per-pool') {
-        const topN =
-          dto.topNPerPool ??
-          (perPool.length > 0 ? Math.floor((slots.length * 2) / perPool.length) : 0);
-        if (topN <= 0) {
-          throw new BadRequestException(
-            'topNPerPool must be >= 1 (or omit it to default to bracket_size / pool_count).',
-          );
-        }
-        rankings = buildCrossPoolSnakeRanking(
-          perPool.map((p) => ({
-            poolId: p.poolId,
-            rows: p.rows.map((r) => ({
-              rank: r.rank,
-              registrationId: r.registrationId,
-            })),
-          })),
-          topN,
-        );
-      } else {
-        const overallResponse = await this.poolStandings.getPoolStandings(tournamentId, 'overall');
-        const rows = 'rows' in overallResponse ? overallResponse.rows : [];
-        rankings = rows.map((r) => ({ rank: r.rank, registrationId: r.registrationId }));
-      }
-    } else {
-      // No pool phase → rank straight from registrations. `by-pool-rank` is
-      // the one strategy that cannot degrade here: an operator who explicitly
-      // asked to seed from pool rank must not silently get registration order
-      // instead. Refusing is the entire behavioural difference between
-      // `by-pool-rank` and the default.
-      if (strategy === 'by-pool-rank') {
-        throw new BadRequestException(
-          'Seeding strategy "by-pool-rank" requires a pool phase — this tournament has none. Pick another strategy or generate pools first.',
-        );
-      }
-      // FE branches the success toast on `source` so straight-to-bracket
-      // tournaments see an honest message instead of the pool-standings text.
-      const resolved = await this.resolveRegistrationRanking(tournamentId, strategy, {
-        randomSeed: config['seedingRandomSeed'] as number | undefined,
-      });
-      rankings = resolved.rankings;
-      source = resolved.source;
-      usedRandomSeed = resolved.randomSeed;
-      warnings = resolved.warnings;
+      throw new ConflictException(resolved.message);
     }
+    const { rankings, source, warnings } = resolved;
+    const usedRandomSeed = resolved.randomSeed;
 
     // 7. Compute the plan + apply per-slot updates + match upsert.
     const rulesetStamp = await matchRulesetForTournament(this.supabase.service, tournamentId);
@@ -1421,6 +1375,143 @@ export class PhasesService {
       `Populated bracket (phase=${phaseId}, mode=${seedingMode}, strategy=${strategy}, slotsSeeded=${slotsSeeded}, source=${source})`,
     );
     return { phaseId, seedingMode, slotsSeeded, source, warnings };
+  }
+
+  /**
+   * The per-pool standings the seeding branch reads, or null when the pool
+   * branch does not apply at all.
+   *
+   * Null covers both "no pool phase" and "the standings service is not wired",
+   * which is exactly what `populateBracket`'s `poolPhase && this.poolStandings`
+   * meant when this was inline. Extracted so the bracket READ can hand the
+   * rows it already fetched to `resolveSeedingRankings` instead of recomputing
+   * standings a second time on a hot page.
+   *
+   * Deliberately does not swallow a standings error: `populateBracket` has
+   * always let that propagate, and `computePoolGate` owns its own tolerance.
+   */
+  private async loadPoolSeedingContext(
+    tournamentId: string,
+  ): Promise<{ hasPoolPhase: boolean; perPool: PerPoolStandings | null }> {
+    const { data: poolPhase } = await this.supabase.service
+      .from('phases')
+      .select('id')
+      .eq('tournament_id', tournamentId)
+      .eq('type', 'pool')
+      .maybeSingle();
+    if (!poolPhase) return { hasPoolPhase: false, perPool: null };
+    if (!this.poolStandings) return { hasPoolPhase: true, perPool: null };
+    // Need per-pool data to (a) check completion + (b) feed the snake builder
+    // for top-n-per-pool mode. Fetched by-pool regardless of mode for a single
+    // source of truth.
+    const byPoolResponse = await this.poolStandings.getPoolStandings(tournamentId, 'by-pool');
+    return { hasPoolPhase: true, perPool: 'pools' in byPoolResponse ? byPoolResponse.pools : [] };
+  }
+
+  /**
+   * The Round-1 rank order, or the gate that says it is not available yet.
+   *
+   * Extracted from `populateBracket` so a READ can ask the same question
+   * without a write path's right to throw: the bracket page needs to know
+   * whether the slots still agree with the standings, and a 409 is not an
+   * answer it can render. The two pool gates therefore come back as
+   * `ok: false`; `populateBracket` maps them onto the `skipped` strings and
+   * exception it has always returned, so nothing about that endpoint changed.
+   *
+   * The two BadRequests below stay throws on purpose. They are not "not yet" —
+   * they are a misconfigured tournament, and the read never reaches them (it
+   * only resolves for result-derived strategies, and only once the source is
+   * final).
+   */
+  private async resolveSeedingRankings(
+    tournamentId: string,
+    input: {
+      strategy: SeedingStrategy;
+      seedingMode: 'overall' | 'top-n-per-pool';
+      topNPerPool?: number;
+      /** R0+R1 slot count — the default for `topNPerPool`. */
+      slotCount: number;
+      randomSeed?: number;
+      perPool: PerPoolStandings | null;
+    },
+  ): Promise<SeedingResolution> {
+    const { strategy, perPool } = input;
+
+    if (!perPool) {
+      // No pool phase → rank straight from registrations. `by-pool-rank` is
+      // the one strategy that cannot degrade here: an operator who explicitly
+      // asked to seed from pool rank must not silently get registration order
+      // instead. Refusing is the entire behavioural difference between
+      // `by-pool-rank` and the default.
+      if (strategy === 'by-pool-rank') {
+        throw new BadRequestException(
+          'Seeding strategy "by-pool-rank" requires a pool phase — this tournament has none. Pick another strategy or generate pools first.',
+        );
+      }
+      // FE branches the success toast on `source` so straight-to-bracket
+      // tournaments see an honest message instead of the pool-standings text.
+      return {
+        ok: true,
+        ...(await this.resolveRegistrationRanking(tournamentId, strategy, input)),
+      };
+    }
+
+    // Empty perPool means "pool phase exists but no pools created yet" (or the
+    // standings query produced nothing). `.every()` returns true vacuously for
+    // an empty array, which silently bypassed the gate before this guard —
+    // operator would see a 200 with slotsSeeded:0 and a misleading "populated
+    // from pool standings" toast.
+    if (perPool.length === 0) {
+      return {
+        ok: false,
+        reason: 'no_pool_data',
+        message: 'No pool data available — generate pools and play matches first.',
+      };
+    }
+    if (!perPool.every((p) => p.status === 'completed')) {
+      return { ok: false, reason: 'pools_not_finished', message: 'Pools have not finished yet' };
+    }
+
+    if (strategy === 'by-rating' || strategy === 'random' || strategy === 'by-swiss-rank') {
+      // Pools decided WHEN we populate; these strategies decide the order from
+      // data that has nothing to do with pool results. `by-swiss-rank` is here
+      // because a three-stage tournament (pools → Swiss → bracket) HAS a pool
+      // phase but seeds its bracket from the Swiss phase that came after it.
+      return {
+        ok: true,
+        ...(await this.resolveRegistrationRanking(tournamentId, strategy, input)),
+      };
+    }
+
+    if (input.seedingMode === 'top-n-per-pool') {
+      const topN = input.topNPerPool ?? Math.floor((input.slotCount * 2) / perPool.length);
+      if (topN <= 0) {
+        throw new BadRequestException(
+          'topNPerPool must be >= 1 (or omit it to default to bracket_size / pool_count).',
+        );
+      }
+      return {
+        ok: true,
+        source: 'pool-standings',
+        warnings: [],
+        rankings: buildCrossPoolSnakeRanking(
+          perPool.map((p) => ({
+            poolId: p.poolId,
+            rows: p.rows.map((r) => ({ rank: r.rank, registrationId: r.registrationId })),
+          })),
+          topN,
+        ),
+      };
+    }
+
+    const overallResponse = await this.poolStandings!.getPoolStandings(tournamentId, 'overall');
+    const rows = 'rows' in overallResponse ? overallResponse.rows : [];
+    return {
+      ok: true,
+      source: 'pool-standings',
+      warnings: [],
+      rankings: rows.map((r) => ({ rank: r.rank, registrationId: r.registrationId })),
+    };
   }
 
   async listTournamentPools(tournamentId: string) {
@@ -1946,6 +2037,11 @@ export class PhasesService {
       repechageEntryRound?: number;
       seedingStrategy?: string;
       bronzeSlotId?: string;
+      // Stamped by populateBracket so the auto-hook can reapply the operator's
+      // last choice — and so the drift diff can replay the same draw exactly.
+      populateSeedingMode?: 'overall' | 'top-n-per-pool';
+      populateTopNPerPool?: number;
+      seedingRandomSeed?: number;
     };
     // Surface the same "pools done" gate the populateBracket
     // endpoint uses ([phases.service.ts:populateBracket]), so the FE
@@ -1954,7 +2050,30 @@ export class PhasesService {
     // setups without the standings service wired report `true` —
     // populate falls through to the registration-seed fallback in
     // those cases.
-    const { hasPoolPhase, poolsCompleted } = await this.computePoolGate(tournamentId);
+    const poolGate = await this.computePoolGate(tournamentId);
+    const { hasPoolPhase, poolsCompleted } = poolGate;
+    // A banner must never take the bracket page down with it. Everything the
+    // diff touches is a read, so failing closed to `not-applicable` loses only
+    // the warning — the same tolerance `computePoolGate` already applies.
+    const seedingDrift = await this.computeSeedingDrift(tournamentId, {
+      strategy: (config.seedingStrategy as SeedingStrategy | undefined) ?? 'snake',
+      seedingMode: config.populateSeedingMode ?? 'overall',
+      topNPerPool: config.populateTopNPerPool,
+      randomSeed: config.seedingRandomSeed,
+      rawSlots,
+      matchBySlot,
+      perPool: poolGate.perPool,
+    }).catch((error: unknown) => {
+      this.logger.warn(
+        `Seeding-drift check failed for tournament ${tournamentId}: ${String(error)}`,
+      );
+      return {
+        state: 'not-applicable',
+        source: null,
+        changedSlotIds: [],
+        blockingMatchIds: [],
+      } satisfies SeedingDrift;
+    });
 
     return {
       phaseId,
@@ -1984,7 +2103,131 @@ export class PhasesService {
       slots: enrichedSlots,
       hasPoolPhase,
       poolsCompleted,
+      seedingDrift,
     };
+  }
+
+  /**
+   * Does this bracket still hold the fighters the current standings would put
+   * in it?
+   *
+   * Diff-on-read, no endpoint and no migration: `getTournamentBracket` already
+   * has the slots and the matches, and `computePoolGate` already has the
+   * standings. Most of the time the app heals itself — replay a reopened pool
+   * bout and the auto-hook re-seeds — so the only case worth a banner is the
+   * one where re-seeding is REFUSED because an R1 bout has already started, and
+   * today nobody is told.
+   */
+  private async computeSeedingDrift(
+    tournamentId: string,
+    input: {
+      strategy: SeedingStrategy;
+      seedingMode: 'overall' | 'top-n-per-pool';
+      topNPerPool?: number;
+      randomSeed?: number;
+      rawSlots: Array<{
+        id: string;
+        round: number;
+        source_a_ref: string | null;
+        source_b_ref: string | null;
+        registration_a_id: string | null;
+        registration_b_id: string | null;
+      }>;
+      matchBySlot: Map<string, { id: string; status: string }>;
+      /** Already fetched by `computePoolGate` — never re-read here. */
+      perPool: PerPoolStandings | null;
+    },
+  ): Promise<SeedingDrift> {
+    const notApplicable: SeedingDrift = {
+      state: 'not-applicable',
+      source: null,
+      changedSlotIds: [],
+      blockingMatchIds: [],
+    };
+
+    // Rounds 0 and 1, the same set populateBracket seeds — a play-in round's
+    // slots carry "seed N" refs too.
+    const seedSlots = input.rawSlots
+      .filter((slot) => slot.round === 0 || slot.round === 1)
+      .map((slot) => ({
+        id: slot.id,
+        position: 0,
+        seedA: parseSeed(slot.source_a_ref),
+        seedB: parseSeed(slot.source_b_ref),
+        registrationAId: slot.registration_a_id,
+        registrationBId: slot.registration_b_id,
+      }));
+    // Nothing seeded means nothing to diff — an ungenerated bracket, or one
+    // whose first round is entirely fed by advancement.
+    if (!seedSlots.some((slot) => slot.seedA != null || slot.seedB != null)) return notApplicable;
+
+    const kind = seedingSourceKind(input.strategy, input.perPool !== null);
+    if (kind === 'static') return notApplicable;
+    const source = kind === 'swiss' ? 'swiss-standings' : 'pool-standings';
+
+    const blockingMatchIds = seedSlots
+      .map((slot) => input.matchBySlot.get(slot.id))
+      .filter((match): match is { id: string; status: string } => Boolean(match))
+      .filter((match) => match.status !== 'scheduled' && match.status !== 'voided')
+      .map((match) => match.id);
+    const pending: SeedingDrift = {
+      state: 'pending',
+      source,
+      changedSlotIds: [],
+      blockingMatchIds,
+    };
+
+    // Swiss finality is asked HERE rather than let `rankFromSwiss` refuse it: a
+    // read has no business turning a mid-event snapshot into a 400, and "the
+    // source is not final yet" is a state the organiser needs to see.
+    if (kind === 'swiss' && !(await this.swissPhaseFinished(tournamentId))) return pending;
+
+    const resolved = await this.resolveSeedingRankings(tournamentId, {
+      strategy: input.strategy,
+      seedingMode: input.seedingMode,
+      topNPerPool: input.topNPerPool,
+      slotCount: seedSlots.length,
+      randomSeed: input.randomSeed,
+      perPool: input.perPool,
+    });
+    // The pool gates come back here, not as a throw — a bout back in play, or
+    // no pools at all. Both mean "the source is not final", never a drift
+    // claim. This is the state an organiser sees the instant they reopen a
+    // pool bout, and it must not read as an error: the bracket is about to
+    // heal itself when the bout is replayed.
+    if (!resolved.ok) return pending;
+
+    const changedSlotIds = diffR1SeedingPlan(
+      buildR1SeedingPlan(resolved.rankings, seedSlots),
+      seedSlots,
+    );
+    return {
+      state: changedSlotIds.length === 0 ? 'fresh' : 'stale',
+      source,
+      changedSlotIds,
+      blockingMatchIds,
+    };
+  }
+
+  /**
+   * Is the Swiss phase this bracket seeds from over?
+   *
+   * The same predicate `rankFromSwiss` refuses on, asked ahead of it so an
+   * unfinished phase reports `pending` instead of raising the 400 that path
+   * throws — a read has no business turning a mid-event snapshot into an error.
+   */
+  private async swissPhaseFinished(tournamentId: string): Promise<boolean> {
+    if (!this.swissStandings) return false;
+    try {
+      const standings = await this.swissStandings.getSwissStandings(tournamentId);
+      if (!standings.phaseId || standings.rows.length === 0) return false;
+      return (
+        Boolean(standings.finalized) ||
+        (standings.roundCount > 0 && standings.roundsCompleted >= standings.roundCount)
+      );
+    } catch {
+      return false;
+    }
   }
 
   /**
@@ -2009,27 +2252,24 @@ export class PhasesService {
    * `{ hasPoolPhase, poolsCompleted: true }` — the populate endpoint
    * re-checks the gate, so the FE just doesn't block the click.
    */
-  private async computePoolGate(
-    tournamentId: string,
-  ): Promise<{ hasPoolPhase: boolean; poolsCompleted: boolean }> {
-    const { data: poolPhase } = await this.supabase.service
-      .from('phases')
-      .select('id')
-      .eq('tournament_id', tournamentId)
-      .eq('type', 'pool')
-      .maybeSingle();
-    if (!poolPhase) return { hasPoolPhase: false, poolsCompleted: true };
-    if (!this.poolStandings) return { hasPoolPhase: true, poolsCompleted: true };
+  private async computePoolGate(tournamentId: string): Promise<{
+    hasPoolPhase: boolean;
+    poolsCompleted: boolean;
+    /** Handed to the drift diff so it never recomputes standings. */
+    perPool: PerPoolStandings | null;
+  }> {
     try {
-      const byPool = await this.poolStandings.getPoolStandings(tournamentId, 'by-pool');
-      const perPool = 'pools' in byPool ? byPool.pools : [];
-      if (perPool.length === 0) return { hasPoolPhase: true, poolsCompleted: false };
+      const { hasPoolPhase, perPool } = await this.loadPoolSeedingContext(tournamentId);
+      if (!hasPoolPhase) return { hasPoolPhase: false, poolsCompleted: true, perPool: null };
+      if (!perPool) return { hasPoolPhase: true, poolsCompleted: true, perPool: null };
+      if (perPool.length === 0) return { hasPoolPhase: true, poolsCompleted: false, perPool };
       return {
         hasPoolPhase: true,
         poolsCompleted: perPool.every((p) => p.status === 'completed'),
+        perPool,
       };
     } catch {
-      return { hasPoolPhase: true, poolsCompleted: true };
+      return { hasPoolPhase: true, poolsCompleted: true, perPool: null };
     }
   }
 

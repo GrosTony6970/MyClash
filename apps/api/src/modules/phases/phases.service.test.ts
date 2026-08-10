@@ -3109,3 +3109,318 @@ describe('PhasesService', () => {
     });
   });
 });
+
+// ── getTournamentBracket — seeding drift ─────────────────────────────────────
+
+/**
+ * Most of the time the app heals itself: reopen a pool bout, replay it, and the
+ * auto-hook re-seeds the bracket. It only gets STUCK when a first-round bracket
+ * bout has already started — then re-seeding is refused and nobody is told, so
+ * the bracket quietly disagrees with the standings it claims to come from.
+ *
+ * FOUR states, not a boolean. `pending → fresh` (healed) and `pending → stale`
+ * (refused) are the transition this exists to make visible; a boolean would
+ * paint both red.
+ *
+ * Mocks dispatch on TABLE NAME — this read makes a long, conditional sequence
+ * of `from()` calls and an order-based chain desyncs the moment one is added.
+ */
+describe('PhasesService.getTournamentBracket — seeding drift', () => {
+  const FOUR_SEEDED_SLOTS = [
+    {
+      id: 's1',
+      round: 1,
+      position: 1,
+      source_a_type: 'seed',
+      source_a_ref: 'seed 1',
+      source_b_type: 'seed',
+      source_b_ref: 'seed 4',
+      registration_a_id: 'r1',
+      registration_b_id: 'r4',
+    },
+    {
+      id: 's2',
+      round: 1,
+      position: 2,
+      source_a_type: 'seed',
+      source_a_ref: 'seed 3',
+      source_b_type: 'seed',
+      source_b_ref: 'seed 2',
+      registration_a_id: 'r3',
+      registration_b_id: 'r2',
+    },
+  ];
+  const COMPLETED_POOLS = [
+    {
+      poolId: 'p1',
+      poolName: 'Pool 1',
+      status: 'completed',
+      rows: [{ rank: 1, registrationId: 'r1' }],
+    },
+  ];
+  const OVERALL_ROWS = [
+    { rank: 1, registrationId: 'r1' },
+    { rank: 2, registrationId: 'r2' },
+    { rank: 3, registrationId: 'r3' },
+    { rank: 4, registrationId: 'r4' },
+  ];
+
+  function buildService(input: {
+    strategy?: string;
+    poolPhaseExists?: boolean;
+    perPool?: unknown[];
+    overallRows?: Array<{ rank: number; registrationId: string }>;
+    slots: unknown[];
+    matches?: Array<{ id: string; bracket_slot_id: string; status: string }>;
+    swiss?: {
+      phaseId: string | null;
+      roundCount: number;
+      roundsCompleted: number;
+      finalized?: boolean;
+      rows: Array<{ rank: number; registrationId: string; displayName: string }>;
+    };
+  }) {
+    fromMock.mockImplementation((table: string) => {
+      switch (table) {
+        case 'phases': {
+          // Both the bracket-phase lookup and computePoolGate's pool lookup
+          // land here; the pool one is the only caller filtering type='pool'.
+          const chain = makeChain({ data: null, error: null });
+          let poolLookup = false;
+          chain.eq.mockImplementation((column: string, value: string) => {
+            if (column === 'type' && value === 'pool') poolLookup = true;
+            return chain;
+          });
+          chain.maybeSingle.mockImplementation(() =>
+            Promise.resolve({
+              data: poolLookup
+                ? (input.poolPhaseExists ?? true)
+                  ? { id: 'pool-phase-1' }
+                  : null
+                : {
+                    id: 'phase-1',
+                    type: 'single_elim',
+                    visibility_status: 'published',
+                    config_json: {
+                      bracketSize: 4,
+                      seedingStrategy: input.strategy ?? 'snake',
+                    },
+                  },
+              error: null,
+            }),
+          );
+          return chain;
+        }
+        case 'bracket_slots':
+          return makeAwaitableChain({ data: input.slots, error: null });
+        case 'matches':
+          return makeAwaitableChain({ data: input.matches ?? [], error: null });
+        default:
+          return makeAwaitableChain({ data: [], error: null });
+      }
+    });
+
+    const poolStandings = {
+      getPoolStandings: vi
+        .fn()
+        .mockImplementation((_id: string, mode: 'by-pool' | 'overall') =>
+          Promise.resolve(
+            mode === 'overall'
+              ? { rows: input.overallRows ?? OVERALL_ROWS }
+              : { pools: input.perPool ?? COMPLETED_POOLS },
+          ),
+        ),
+    };
+    const swissStandings = input.swiss
+      ? { getSwissStandings: vi.fn().mockResolvedValue(input.swiss) }
+      : undefined;
+    return new PhasesService(
+      mockSupabase as never,
+      undefined,
+      mockOrgs as never,
+      undefined,
+      undefined,
+      poolStandings as never,
+      swissStandings as never,
+    );
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    fromMock.mockReturnValue(makeChain({ data: null, error: null }));
+  });
+
+  it('reports fresh when the slots still hold what the standings would put there', async () => {
+    const service = buildService({ slots: FOUR_SEEDED_SLOTS });
+
+    const result = await service.getTournamentBracket('tournament-1');
+
+    expect(result!.seedingDrift).toEqual({
+      state: 'fresh',
+      source: 'pool-standings',
+      changedSlotIds: [],
+      blockingMatchIds: [],
+    });
+  });
+
+  it('reports stale and names the started match that blocks the re-seed', async () => {
+    // The whole reason this exists: the auto-hook refuses to re-seed once an R1
+    // bout has started, and until now nobody was told. The blocking id is what
+    // lets the UI offer the CHEAP remedy — reset that one match and the next
+    // pool completion heals the bracket for free.
+    const service = buildService({
+      slots: [FOUR_SEEDED_SLOTS[0], { ...FOUR_SEEDED_SLOTS[1], registration_a_id: 'r9' }],
+      matches: [{ id: 'm1', bracket_slot_id: 's1', status: 'running' }],
+    });
+
+    const result = await service.getTournamentBracket('tournament-1');
+
+    expect(result!.seedingDrift).toMatchObject({
+      state: 'stale',
+      source: 'pool-standings',
+      changedSlotIds: ['s2'],
+      blockingMatchIds: ['m1'],
+    });
+  });
+
+  it('reports pending while a pool bout is back in play', async () => {
+    // The source is not final, so there is no plan to diff yet — and the
+    // bracket is about to heal itself. Showing "stale" here would send the
+    // organiser to Regenerate for a bracket that needs nothing done to it.
+    const service = buildService({
+      slots: [FOUR_SEEDED_SLOTS[0], { ...FOUR_SEEDED_SLOTS[1], registration_a_id: 'r9' }],
+      perPool: [{ poolId: 'p1', poolName: 'Pool 1', status: 'running', rows: [] }],
+    });
+
+    const result = await service.getTournamentBracket('tournament-1');
+
+    expect(result!.seedingDrift).toMatchObject({ state: 'pending', changedSlotIds: [] });
+  });
+
+  it('reports not-applicable for a draw that is not seeded from results', async () => {
+    // `random` re-shuffles the entire draw whenever anyone withdraws, so the
+    // recomputed plan differs from a perfectly correct bracket. Diffing it
+    // would put a warning on every random bracket after any roster edit.
+    const service = buildService({
+      strategy: 'random',
+      slots: [FOUR_SEEDED_SLOTS[0], { ...FOUR_SEEDED_SLOTS[1], registration_a_id: 'r9' }],
+    });
+
+    const result = await service.getTournamentBracket('tournament-1');
+
+    expect(result!.seedingDrift).toEqual({
+      state: 'not-applicable',
+      source: null,
+      changedSlotIds: [],
+      blockingMatchIds: [],
+    });
+  });
+
+  it('reports not-applicable for a straight-to-bracket tournament', async () => {
+    // No pool phase → populate falls through to registration seed, which
+    // reshuffles on any withdrawal just as random does.
+    const service = buildService({
+      poolPhaseExists: false,
+      slots: [FOUR_SEEDED_SLOTS[0], { ...FOUR_SEEDED_SLOTS[1], registration_a_id: 'r9' }],
+    });
+
+    const result = await service.getTournamentBracket('tournament-1');
+
+    expect(result!.seedingDrift.state).toBe('not-applicable');
+  });
+
+  it('does not report a play-in bracket as permanently stale', async () => {
+    // Side B waits on `winner of R0P1` and is filled by ADVANCEMENT, not by
+    // seeding. Comparing it against the plan's null would make every play-in
+    // bracket read stale from the moment its first qualifier came through.
+    const service = buildService({
+      slots: [
+        {
+          id: 's1',
+          round: 1,
+          position: 1,
+          source_a_type: 'seed',
+          source_a_ref: 'seed 1',
+          source_b_type: 'winner_of',
+          source_b_ref: 'winner of R0P1',
+          registration_a_id: 'r1',
+          registration_b_id: 'r7',
+        },
+      ],
+      overallRows: [{ rank: 1, registrationId: 'r1' }],
+    });
+
+    const result = await service.getTournamentBracket('tournament-1');
+
+    expect(result!.seedingDrift.state).toBe('fresh');
+  });
+
+  it('reports pending while the Swiss phase it seeds from is still running', async () => {
+    // `rankFromSwiss` REFUSES an unfinished phase with a 400. A read must not
+    // turn a mid-event snapshot into an error, and "not final yet" is exactly
+    // what the organiser needs to see — so finality is asked before resolving.
+    const service = buildService({
+      strategy: 'by-swiss-rank',
+      slots: [FOUR_SEEDED_SLOTS[0], { ...FOUR_SEEDED_SLOTS[1], registration_a_id: 'r9' }],
+      swiss: { phaseId: 'swiss-1', roundCount: 5, roundsCompleted: 3, rows: [] },
+    });
+
+    const result = await service.getTournamentBracket('tournament-1');
+
+    expect(result!.seedingDrift).toMatchObject({
+      state: 'pending',
+      source: 'swiss-standings',
+      changedSlotIds: [],
+    });
+  });
+
+  it('diffs against a FINISHED Swiss phase', async () => {
+    const service = buildService({
+      strategy: 'by-swiss-rank',
+      slots: [FOUR_SEEDED_SLOTS[0], { ...FOUR_SEEDED_SLOTS[1], registration_a_id: 'r9' }],
+      swiss: {
+        phaseId: 'swiss-1',
+        roundCount: 4,
+        roundsCompleted: 4,
+        rows: [
+          { rank: 1, registrationId: 'r1', displayName: 'One' },
+          { rank: 2, registrationId: 'r2', displayName: 'Two' },
+          { rank: 3, registrationId: 'r3', displayName: 'Three' },
+          { rank: 4, registrationId: 'r4', displayName: 'Four' },
+        ],
+      },
+    });
+
+    const result = await service.getTournamentBracket('tournament-1');
+
+    expect(result!.seedingDrift).toMatchObject({
+      state: 'stale',
+      source: 'swiss-standings',
+      changedSlotIds: ['s2'],
+    });
+  });
+
+  it('reports not-applicable when no slot carries a seed label at all', async () => {
+    // An ungenerated bracket, or one whose first round is entirely fed by
+    // advancement. Nothing to compare, so nothing to warn about.
+    const service = buildService({
+      slots: [
+        {
+          id: 's1',
+          round: 2,
+          position: 1,
+          source_a_type: 'winner_of',
+          source_a_ref: 'winner of R1P1',
+          source_b_type: 'winner_of',
+          source_b_ref: 'winner of R1P2',
+          registration_a_id: null,
+          registration_b_id: null,
+        },
+      ],
+    });
+
+    const result = await service.getTournamentBracket('tournament-1');
+
+    expect(result!.seedingDrift.state).toBe('not-applicable');
+  });
+});

@@ -66,6 +66,65 @@ export function buildR1SeedingPlan(
 }
 
 /**
+ * Which R1 slots no longer hold the fighters the current standings would put
+ * there. Pure, so "is this bracket seeded from stale standings?" is answerable
+ * on a READ without touching anything.
+ *
+ * Sound because the plan is deterministic: `populateBracket` reuses the
+ * persisted `seedingRandomSeed` and every ranker pre-sorts by id, so
+ * recomputing reproduces the draw exactly. (`reseedBracketRoundOne` is the one
+ * path that draws fresh.)
+ *
+ * A side whose `seed*` is NULL is SKIPPED, not compared. `buildR1SeedingPlan`
+ * writes null for a non-seed side, but a play-in slot's side B is legitimately
+ * filled by advancement — comparing it would report every play-in bracket as
+ * permanently drifted the moment its first qualifier came through.
+ */
+export function diffR1SeedingPlan(
+  plan: SlotSeedUpdate[],
+  slots: Array<{
+    id: string;
+    seedA: number | null;
+    seedB: number | null;
+    registrationAId: string | null;
+    registrationBId: string | null;
+  }>,
+): string[] {
+  const bySlotId = new Map(slots.map((slot) => [slot.id, slot]));
+  const changed: string[] = [];
+  for (const update of plan) {
+    const slot = bySlotId.get(update.slotId);
+    if (!slot) continue;
+    const aDrifted = slot.seedA != null && slot.registrationAId !== update.registrationAId;
+    const bDrifted = slot.seedB != null && slot.registrationBId !== update.registrationBId;
+    if (aDrifted || bDrifted) changed.push(update.slotId);
+  }
+  return changed;
+}
+
+/**
+ * Does this seeding strategy order the draw from RESULTS?
+ *
+ * Only pool and Swiss standings do. `registration-seed`, `by-rating` and
+ * `random` re-order the whole draw whenever anyone withdraws — a rating
+ * refresh or a withdrawal would make the recomputed plan differ from a
+ * perfectly correct bracket, so a drift banner fed by them cries wolf on every
+ * roster edit.
+ *
+ * `poolStandingsAvailable` is what `populateBracket` actually branches on: no
+ * pool phase (or no standings service) sends every non-rating, non-random,
+ * non-Swiss strategy down the registration-seed fallback.
+ */
+export function seedingSourceKind(
+  strategy: string,
+  poolStandingsAvailable: boolean,
+): 'pool' | 'swiss' | 'static' {
+  if (strategy === 'by-swiss-rank') return 'swiss';
+  if (strategy === 'by-rating' || strategy === 'random') return 'static';
+  return poolStandingsAvailable ? 'pool' : 'static';
+}
+
+/**
  * Flatten per-pool rankings into a single rank list using
  * cross-pool snake: round 1 takes #1 from every pool in pool
  * order, round 2 takes #2 in REVERSED pool order, round 3 in
