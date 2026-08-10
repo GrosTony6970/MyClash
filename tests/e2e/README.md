@@ -413,6 +413,27 @@ Both restore paths, because they are different code with different rules:
 | tournament scope, into its own event | forces the tournament to `draft`, **shares** the person rows |
 | tournament scope, into another event | copies the persons instead (the clone-last-year flow)        |
 
+Two things it checks that no unit test can:
+
+- **Nothing in the copy still names the source.** After each restore it
+  deep-walks every archived row and refuses any string equal to a SOURCE row id.
+  `mapFk` returns early on anything that is not a top-level string, so every id
+  nested in an array or an object used to survive verbatim — with the FK
+  satisfied, because the source rows still exist, so nothing ever complained.
+  There is a unit-level version of this sweep, but it runs against the mocked
+  Supabase described above; this one walks rows a real restore really wrote.
+  Source ids are collected as the `id` column of archived rows and nothing else,
+  which keeps the legitimate pass-throughs (a global person, an org-level venue
+  or plan, an auth user) out of the set by construction.
+- **A second-black-card review names the COPY's penalties.**
+  `tournament_penalty_reviews.payload_json` holds `{ penaltyIds: [...] }` —
+  `match_penalties.id`s, inside a JSON column. There is no FK on a JSON key, so
+  a copy that kept the source's ids satisfied every constraint and looked fine,
+  while confirming or dismissing the copy's review reasoned about another
+  event's black cards. Found by the schema-scan gate rather than by review, and
+  this is where it is exercised end to end — on its own disposable event, so it
+  perturbs none of the exact counts the main test asserts.
+
 Notes worth having before touching it:
 
 - **`GET events/:slug` resolves by SLUG and is public** — the wrong door for an
@@ -962,6 +983,73 @@ has to parse and validate first.
   super-admin-reviewed request, and a test must not self-approve that — so it
   skips with the reason until the account is claimed once by hand.
 
+## A bracket seeded from standings that then changed (opt-in)
+
+`E2E_DRIFT=1 pnpm test:e2e:prod tests/e2e/34-seeding-drift.spec.ts` runs
+`34-seeding-drift.spec.ts`, which walks a bracket through all four
+`seedingDrift` states against real pool results.
+
+`seedingDrift` is computed on a READ by recomputing the seeding plan and diffing
+it against the slots. Its whole claim is that the plan it recomputes is the plan
+`populateBracket` would actually WRITE — and the unit tests mock the standings
+service, so they prove the state machine and the wiring but never that the two
+code paths agree. Only a real playthrough can.
+
+The walk is the feature, not a sequence of independent checks:
+
+| Step                            | Drift                                            |
+| ------------------------------- | ------------------------------------------------ |
+| pools played, bracket populated | `fresh`                                          |
+| an R1 bout is started           | `fresh`, `blockingMatchIds` now names it         |
+| a pool bout is put back on      | `pending` — the bracket will heal itself         |
+| it is replayed the other way    | `stale` — the auto re-seed was refused, silently |
+| the started R1 bout is reset    | `stale`, unblocked                               |
+| the bracket is re-populated     | `fresh`, and the slots really moved              |
+
+The last row is what makes the rest mean anything: drift said the draw disagreed
+with the standings, and re-seeding moved **exactly the slots `changedSlotIds`
+named**. Without it every earlier assertion only proves the endpoint agrees with
+itself.
+
+The page assertion reads `data-drift-state` and `data-remedy` rather than the
+banner's text. Every label on that page exists in English and French, so a text
+assertion would really be asserting on whichever language the session happens to
+be in — `09-double-elim.spec.ts` sidesteps the same problem by asserting on
+fighter names. What must hold is the ORDER: the cheap remedy (reset the one
+started bout) is offered before Regenerate, which deletes every bout already
+fought.
+
+> The fixture flips the head-to-head between a POOL's top two, not the overall
+> top two — pool assignment spreads the seeds, so the two fighters at the top of
+> the overall standings are usually in different pools and never met. The spec
+> asserts the flip actually reordered the standings, so a fixture that stops
+> creating drift fails loudly instead of passing vacuously.
+
+## A withdrawal, undone (opt-in)
+
+`E2E_FORFEIT=1 pnpm test:e2e:prod tests/e2e/35-forfeit-cascade.spec.ts` runs
+`35-forfeit-cascade.spec.ts`: one pool of four, an injury that withdraws a
+fighter, one of the cascaded bouts put back on, a fresh forfeit written on it,
+and then the whole withdrawal undone.
+
+Two invariants, neither checkable against a mocked Supabase because both are
+about what OTHER rows say afterwards:
+
+- **the thread holds.** A forfeit re-recorded on a reopened bout hangs off the
+  ROOT withdrawal, not off the child it replaced. `cascadeVoidChildren` is one
+  query deep, so a tree of depth 2 strands grandchildren active when the root is
+  voided — an F standing in the standings for a fighter who is back in the
+  tournament, with nothing left pointing at it. The spec asserts
+  `cascaded_forfeit_count` covers the re-recorded record too, and that every
+  bout is playable again afterwards.
+- **the cascade context is honest.** `GET /matches/:id/forfeit` reports
+  `{role, childCount, parentActive}`, which the admin page branches its void
+  confirmation on. `parentActive` cannot be derived on the frontend: the row
+  says a parent EXISTS, never whether it still stands.
+
+Nothing is played first — an injury in the first bout of the day is the
+realistic shape, and it keeps every count in the spec exact.
+
 ## Status
 
 | #   | Flow                                  | Spec                                | State                                    |
@@ -999,6 +1087,8 @@ has to parse and validate first.
 | 31  | AI generation against a real provider | `31-ai-generation.spec.ts`          | opt-in (`E2E_AI=1` + key); **spends**    |
 | 32  | Organiser AI tools + their pages      | `32-ai-organiser-tools.spec.ts`     | opt-in (`E2E_AI=1` + key); **spends**    |
 | 33  | Check-in desk, gear table, passes     | `33-staff-desk.spec.ts`             | opt-in (`E2E_STAFF=1`); see above        |
+| 34  | Bracket seeding drift, all 4 states   | `34-seeding-drift.spec.ts`          | opt-in (`E2E_DRIFT=1`); see above        |
+| 35  | Pool forfeit cascade + re-record      | `35-forfeit-cascade.spec.ts`        | opt-in (`E2E_FORFEIT=1`); see above      |
 
 Every spec in the table above runs — there are no `test.fixme` flows left. The
 opt-in ones are gated purely on their env flag, and the nightly sets all of them

@@ -1,8 +1,10 @@
+import { randomUUID } from 'node:crypto';
 import { test, expect } from '@playwright/test';
 import { runContext } from './_context';
 import { apiFor } from './_api';
 import { championOf, ensureRoster, personName, readBracket, type Bracket } from './_bracket';
 import { playTournamentToChampion, type FinishedTournament } from './_tournament';
+import { colorOf, createPoolTournament, readPoolMatches } from './_pool';
 
 /**
  * Export an archive, restore it, and prove the copy reproduces the original
@@ -40,12 +42,20 @@ interface Archive {
   scope: string;
   include: string;
   source: { eventId: string; eventSlug: string };
-  data: {
+  /**
+   * Indexed, not just the five tables the named assertions read: the
+   * self-containment sweep below has to walk EVERY table the archive carries,
+   * and naming them here would have to be kept in step with
+   * `TABLE_TO_ARCHIVE_KEY` forever.
+   */
+  data: Record<string, Row[] | undefined> & {
     events?: Row[];
     tournaments?: Row[];
     persons?: Row[];
     registrations?: Row[];
     matches?: Row[];
+    matchPenalties?: Row[];
+    tournamentPenaltyReviews?: Row[];
   };
   reports: {
     tournaments: Array<{ tournamentName: string; exchangesCsv: string; resultsCsv: string }>;
@@ -104,6 +114,8 @@ interface Fixture {
 }
 let fixture: Fixture;
 let restoredEventId: string | null = null;
+/** Every other event these tests create, disposed of by the same afterAll. */
+const disposableEventIds: string[] = [];
 
 test.describe('archive restore', () => {
   test.describe.configure({ mode: 'serial' });
@@ -329,6 +341,22 @@ test.describe('archive restore', () => {
       exchangeFingerprint(sourceReport.exchangesCsv),
     );
 
+    // ── Nothing in the copy still names the source ─────────────────────────
+    // The generic form of the `matches.referee_id` assertion just above, and of
+    // the eight nested-id leaks before it. `mapFk` returns early on anything
+    // that is not a top-level string, so every id inside an array or an object
+    // used to survive verbatim — with the FK satisfied, because the source rows
+    // still exist, so nothing ever complained.
+    //
+    // The unit-level version of this sweep runs against a MOCKED Supabase, which
+    // (as this file's header says) inserts any column without caring what it
+    // references. Here it walks rows a real restore really wrote. Its limit is
+    // the mirror image of the schema gate's: that one cannot see inside a JSON
+    // column, this one only sees the shapes a played tournament produces —
+    // which for a bronze-mode double elim includes `phases.config_json`'s
+    // `bronzeSlotId`, the forward reference that needs the id-map pre-seed.
+    expectSelfContained(archive, copyArchive);
+
     // ── And the source is untouched ────────────────────────────────────────
     // A restore that quietly re-parented or renamed anything would show up here.
     // Compared against the row the PRE-restore archive captured, so this holds
@@ -442,6 +470,136 @@ test.describe('archive restore', () => {
   });
 
   /**
+   * The one nested-id shape a played bracket never produces.
+   *
+   * `tournament_penalty_reviews.payload_json` holds `{ penaltyIds: [...] }` —
+   * the `match_penalties.id`s that triggered a second-black-card review. There
+   * is no FK on a JSON key, so a restored copy that kept the SOURCE event's
+   * penalty ids satisfied every constraint and looked fine: confirming or
+   * dismissing the copy's review would have been reasoning about another
+   * event's black cards. Found by the schema-scan gate, not by review, and this
+   * is the only place it is exercised end to end.
+   *
+   * Its own disposable event, so nothing here perturbs the counts the main test
+   * asserts exactly.
+   */
+  test('a restored penalty review names the copy’s own penalties', async ({ request }) => {
+    test.setTimeout(600_000);
+    const api = apiFor(request);
+    const { orgId } = runContext();
+    const token = Date.now().toString(36);
+
+    const event = await api.json<EventRow>(
+      await api.post(`organizations/${orgId}/events`, {
+        data: {
+          name: `E2E TEST (auto) cards — ${token}`,
+          slug: `e2e-archive-cards-${token}`,
+          startDate: '2099-05-01',
+          endDate: '2099-05-02',
+          city: 'Testville',
+          country: 'FR',
+          eventKind: 'test',
+        },
+      }),
+    );
+    disposableEventIds.push(event.id);
+
+    const fighters = await ensureRoster(
+      api,
+      event.id,
+      Array.from({ length: 4 }, (_, i) => ({
+        givenName: 'Carded',
+        familyName: String(i + 1).padStart(2, '0'),
+      })),
+    );
+    const tournament = await createPoolTournament(api, event.id, {
+      name: `Archive cards ${token}`,
+      slug: `archive-cards-${token}`,
+      fighters,
+      poolCount: 1,
+    });
+
+    // Two black cards on ONE fighter, in two different bouts — the review is
+    // created on the second, and only then.
+    const offender = tournament.registrationIdByPersonId.get(fighters[0]!.id) as string;
+    const bouts = (await readPoolMatches(api, tournament.id))
+      .filter((match) => colorOf(match, offender) !== null)
+      .slice(0, 2);
+    expect(bouts, 'the offender needs two bouts to be carded in').toHaveLength(2);
+    for (const [index, bout] of bouts.entries()) {
+      await api.ok(
+        await api.post(`matches/${bout.id}/penalties`, {
+          data: {
+            clientUuid: randomUUID(),
+            sequence: index + 1,
+            registrationId: offender,
+            occurredAt: new Date().toISOString(),
+            directCard: 'black',
+            reason: 'e2e archive coverage',
+          },
+        }),
+      );
+    }
+
+    const sourceArchiveText = await (
+      await api.ok(await api.get(`events/${event.id}/archive?include=scoring&format=json`))
+    ).text();
+    const sourceArchive = JSON.parse(sourceArchiveText) as Archive;
+    const sourceReviews = sourceArchive.data.tournamentPenaltyReviews ?? [];
+    expect(
+      sourceReviews,
+      'two black cards on one fighter must raise exactly one second-black-card review',
+    ).toHaveLength(1);
+    const sourcePenaltyIds = new Set((sourceArchive.data.matchPenalties ?? []).map(idOf));
+    expect(
+      penaltyIdsOf(sourceReviews[0]!),
+      'the review must name the penalties that raised it',
+      // Sorted on both sides: the order of a JSON array is not a contract.
+    ).toEqual([...sourcePenaltyIds].sort());
+
+    // ── Restore, and read the copy's own archive back ──────────────────────
+    const restored = await api.json<RestoreResult>(
+      await api.post(
+        `archive/restore?${new URLSearchParams({
+          confirmation: RESTORE_CONFIRMATION,
+          targetOrganizationId: orgId,
+        })}`,
+        { multipart: upload(sourceArchiveText) },
+      ),
+    );
+    expect(restored.restoredEventId).toBeTruthy();
+    disposableEventIds.push(restored.restoredEventId as string);
+
+    const copyArchive = JSON.parse(
+      await (
+        await api.ok(
+          await api.get(`events/${restored.restoredEventId}/archive?include=scoring&format=json`),
+        )
+      ).text(),
+    ) as Archive;
+
+    const copyReviews = copyArchive.data.tournamentPenaltyReviews ?? [];
+    expect(copyReviews, 'the review must come across at all').toHaveLength(1);
+    const copyPenaltyIds = new Set((copyArchive.data.matchPenalties ?? []).map(idOf));
+    expect(copyPenaltyIds.size, 'the cards themselves must come across').toBe(
+      sourcePenaltyIds.size,
+    );
+    expect(
+      [...copyPenaltyIds].filter((id) => sourcePenaltyIds.has(id)),
+      'every penalty is a NEW row',
+    ).toEqual([]);
+
+    expect(
+      penaltyIdsOf(copyReviews[0]!),
+      'the copy’s review must name the COPY’s penalties — pointing at the source ' +
+        'breaks no constraint and shows nothing, which is why this went unnoticed',
+    ).toEqual([...copyPenaltyIds].sort());
+
+    // And the same generic guarantee the main test asserts, on this shape.
+    expectSelfContained(sourceArchive, copyArchive);
+  });
+
+  /**
    * Both events are `event_kind: 'test'`, so a single hard delete disposes of
    * each result graph. `E2E_CLEANUP` deletes them; otherwise they are left for
    * inspection with their URLs printed — the restored copy is the thing worth
@@ -454,7 +612,9 @@ test.describe('archive restore', () => {
     test.setTimeout(300_000);
     const { baseURL, orgSlug } = runContext();
     const cleanup = ['1', 'true', 'yes'].includes((process.env.E2E_CLEANUP ?? '').toLowerCase());
-    const targets = [fixture?.eventId, restoredEventId].filter((id): id is string => Boolean(id));
+    const targets = [fixture?.eventId, restoredEventId, ...disposableEventIds].filter(
+      (id): id is string => Boolean(id),
+    );
     if (targets.length === 0) return;
 
     const ctx = await playwright.request.newContext({
@@ -503,6 +663,64 @@ const slotShape = (bracket: Bracket) =>
 
 /** CSV data rows, sorted — order is not part of what a restore must reproduce. */
 const sortedRows = (csv: string) => csv.split('\n').slice(1).sort();
+
+const idOf = (row: Row): string => row['id'] as string;
+
+/** The `penaltyIds` a review names, sorted — array order is not a contract. */
+const penaltyIdsOf = (review: Row): string[] =>
+  [
+    ...(((review['payload_json'] as { penaltyIds?: string[] } | null)?.penaltyIds ??
+      []) as string[]),
+  ].sort();
+
+/**
+ * No value anywhere in the COPY may equal a row id from the SOURCE.
+ *
+ * Source ids are collected as the `id` column of archived rows and nothing else,
+ * which is what keeps the legitimate pass-throughs out of the set by
+ * construction: a global person, an org-level venue, a penalty ruleset, an auth
+ * user — none of them is the id of a row the archive carries, and all of them
+ * must survive verbatim.
+ *
+ * Reports are deliberately not swept: they are derived text, and the copy's
+ * exchange CSV carries the copy's own ids by design.
+ */
+function expectSelfContained(source: Archive, copy: Archive): void {
+  const sourceIds = new Set<string>();
+  for (const rows of Object.values(source.data)) {
+    for (const row of rows ?? []) {
+      if (typeof row['id'] === 'string') sourceIds.add(row['id']);
+    }
+  }
+  expect(sourceIds.size, 'the source archive carries no ids to check against').toBeGreaterThan(0);
+
+  const survivors: string[] = [];
+  const walk = (node: unknown, trail: string): void => {
+    if (typeof node === 'string') {
+      if (sourceIds.has(node)) survivors.push(`${trail} = ${node}`);
+      return;
+    }
+    if (Array.isArray(node)) {
+      node.forEach((element, index) => walk(element, `${trail}[${index}]`));
+      return;
+    }
+    if (node && typeof node === 'object') {
+      for (const [key, value] of Object.entries(node)) walk(value, `${trail}.${key}`);
+    }
+  };
+  for (const [table, rows] of Object.entries(copy.data)) {
+    (rows ?? []).forEach((row, index) => walk(row, `${table}[${index}]`));
+  }
+
+  expect(
+    survivors.sort(),
+    `A restore must produce a SELF-CONTAINED copy. These values still name a row ` +
+      `belonging to the archive's SOURCE event — nothing will complain, because ` +
+      `those rows still exist, and the copy will quietly read another event's ` +
+      `data:\n` +
+      survivors.map((entry) => `  - ${entry}`).join('\n'),
+  ).toEqual([]);
+}
 
 /**
  * Exchange rows without their two id columns, as a sorted multiset.
