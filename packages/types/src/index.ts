@@ -14,6 +14,7 @@ export * from './legal';
 export * from './lice-placement';
 export * from './match-clock';
 export * from './match-status';
+export * from './match-winner';
 export * from './password';
 export * from './pin-strength';
 export * from './programme';
