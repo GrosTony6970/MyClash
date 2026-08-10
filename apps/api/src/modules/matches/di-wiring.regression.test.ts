@@ -62,6 +62,16 @@ describe('NestJS DI wiring — injected services must be value-imported', () => 
     valueImports('../phases/phases.service.ts', 'PoolStandingsService');
     valueImports('../phases/phases.service.ts', 'BracketAdvanceService');
   });
+
+  // A result override reaches BracketAdvanceService twice: to refuse the write
+  // once a dependent match has started, and to clear the downstream slot sides
+  // so re-advancement is not a silent no-op. Both are `this.bracketAdvance?.`
+  // calls on an @Optional() dep, so `import type` here does not fail — it
+  // disarms the guard AND leaves the bracket carrying the previous winner,
+  // with no error anywhere. Exactly the shape of the two regressions above.
+  it('match-forfeits.service value-imports BracketAdvanceService', () => {
+    valueImports('./match-forfeits.service.ts', 'BracketAdvanceService');
+  });
 });
 
 /**
