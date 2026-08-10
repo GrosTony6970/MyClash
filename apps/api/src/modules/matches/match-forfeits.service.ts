@@ -30,6 +30,28 @@ import { forfeitEndReason } from './forfeit-end-reason';
 type Actor = { userId?: string; staffAccountId?: string; canOverrideLocked?: boolean };
 type Row = Record<string, unknown>;
 
+/**
+ * Where one live record sits in the cascade, computed on the READ.
+ *
+ * None of it is derivable from the record itself: `parent_forfeit_id` says a
+ * parent exists, not whether that parent is still on record, and nothing on the
+ * row counts the children a void would carry down. The organiser needs both to
+ * be told the truth about what voiding this record does.
+ */
+export interface ForfeitCascadeContext {
+  /**
+   * `child` — this record was written under a withdrawal (auto-created by the
+   * cascade, or re-recorded on a bout the organiser reopened).
+   * `root` — this record withdrew the fighter and carries live children.
+   * `standalone` — it closed nothing but its own bout.
+   */
+  role: 'root' | 'child' | 'standalone';
+  /** Live children this void would carry down. */
+  childCount: number;
+  /** For a child: is the record that withdrew the fighter still on record? */
+  parentActive: boolean;
+}
+
 @Injectable()
 export class MatchForfeitsService {
   constructor(
@@ -84,9 +106,11 @@ export class MatchForfeitsService {
     );
     const now = new Date().toISOString();
     const priorRegistration = await this.loadRegistration(dto.forfeitingRegistrationId);
+    const inheritedParentId = await this.resolveInheritedParentId(matchId, match, dto, phase);
 
     const forfeit = await this.insertForfeit({
       match_id: matchId,
+      parent_forfeit_id: inheritedParentId,
       tournament_id: phase.tournament_id,
       forfeiting_registration_id: dto.forfeitingRegistrationId,
       winner_registration_id: winnerRegistrationId,
@@ -127,7 +151,11 @@ export class MatchForfeitsService {
         match,
         dto.forfeitingRegistrationId,
         dto.reason as ForfeitReason,
-        forfeit.id as string,
+        // FLATTENED, not `forfeit.id`. `parent_forfeit_id` means "the root
+        // withdrawal" and nothing else: `cascadeVoidChildren` is one query
+        // deep, so a tree of depth 2 would leave the grandchildren active
+        // when the root is voided — the exact class 0178 exists to kill.
+        inheritedParentId ?? (forfeit.id as string),
         phase.tournament_id,
         tournament.ruleset_config ?? {},
         actor,
@@ -208,7 +236,99 @@ export class MatchForfeitsService {
    * caller in any app.
    */
   async getActiveForfeit(matchId: string): Promise<Row | null> {
-    return this.loadActiveForfeit(matchId);
+    const active = await this.loadActiveForfeit(matchId);
+    if (!active) return null;
+    return { ...active, cascade: await this.cascadeContext(active) };
+  }
+
+  /**
+   * Where this record sits in the cascade — see `ForfeitCascadeContext`.
+   *
+   * Two cheap indexed reads, on the ORGANISER READ only: the write path calls
+   * `loadActiveForfeit` directly, so the pad's idempotency check and the
+   * override conflict both cost exactly what they did before.
+   */
+  private async cascadeContext(forfeit: Row): Promise<ForfeitCascadeContext> {
+    const parentId = (forfeit['parent_forfeit_id'] as string | null) ?? null;
+
+    // Served by 0178's `match_forfeits_parent_forfeit_id_idx`.
+    const { count } = await this.supabase.service
+      .from('match_forfeits')
+      .select('id', { count: 'exact', head: true })
+      .eq('parent_forfeit_id', forfeit['id'] as string)
+      .is('voided_at', null);
+    const childCount = count ?? 0;
+
+    let parentActive = false;
+    if (parentId) {
+      const { data } = await this.supabase.service
+        .from('match_forfeits')
+        .select('voided_at')
+        .eq('id', parentId)
+        .maybeSingle();
+      const parent = data as Row | null;
+      parentActive = !!parent && parent['voided_at'] == null;
+    }
+
+    return {
+      role: parentId ? 'child' : childCount > 0 ? 'root' : 'standalone',
+      childCount,
+      parentActive,
+    };
+  }
+
+  /**
+   * The live ROOT withdrawal this new record belongs under, or null.
+   *
+   * The case: an injury withdraws a fighter mid-pool and auto-forfeits their
+   * remaining bouts as children of that record. The organiser voids ONE child
+   * to put that bout back on, and a fresh forfeit is written on it later.
+   * Without this the new row is a root of its own, so voiding the injury no
+   * longer sweeps it up and the fighter returns carrying an F that names a
+   * withdrawal nothing points at.
+   *
+   * Read PRESENT STATE, never the void history. A parent that was voided and
+   * re-recorded is a DIFFERENT row, and it is the new one that has the fighter
+   * withdrawn; the voided one names a withdrawal that no longer exists.
+   *
+   * Scoped to the same pool because that is the reach of the cascade that made
+   * the gap — `autoForfeitFuturePoolMatches` selects on `pool_id`, so a
+   * withdrawal recorded in another pool never closed this bout.
+   *
+   * Served by `match_forfeits_tournament_idx` (0032), which is already partial
+   * on `voided_at IS NULL`. No migration.
+   */
+  private async resolveInheritedParentId(
+    matchId: string,
+    match: Row,
+    dto: CreateMatchForfeitDto,
+    phase: { tournament_id: string },
+  ): Promise<string | null> {
+    // NEVER for an override. An override asserts the bout WAS fought and the
+    // result was X; hanging it off a withdrawal would let voiding that
+    // withdrawal erase a result an organiser stated.
+    if (isOverrideReason(dto.reason)) return null;
+    const poolId = match['pool_id'];
+    if (typeof poolId !== 'string') return null;
+
+    const { data } = await this.supabase.service
+      .from('match_forfeits')
+      // `pool_id` lives on the match, not on this table, so the scope goes
+      // through an `!inner` embed — a direct .eq('pool_id') 400s.
+      .select('id, matches!inner(pool_id)')
+      .eq('tournament_id', phase.tournament_id)
+      .eq('forfeiting_registration_id', dto.forfeitingRegistrationId)
+      // Roots only, and only a record that actually withdrew the fighter — a
+      // one-bout forfeit closed nothing else and adopts nothing.
+      .is('parent_forfeit_id', null)
+      .eq('can_continue', false)
+      .is('voided_at', null)
+      .eq('matches.pool_id', poolId)
+      .neq('match_id', matchId)
+      .order('created_at', { ascending: false })
+      .limit(1);
+    const root = (data ?? [])[0] as Row | undefined;
+    return (root?.['id'] as string | undefined) ?? null;
   }
 
   /**

@@ -386,7 +386,16 @@ function matchRow(input: {
 type TableState = Record<
   string,
   {
-    maybeSingle?: unknown;
+    /**
+     * A row, or a resolver over the `.eq()` filters that scoped the read.
+     *
+     * The resolver form exists because one table can be read twice in a single
+     * call with different intent — `loadActiveForfeit` keys on `match_id`, the
+     * cascade's parent probe keys on `id`. Discriminating on the FILTERS is
+     * order-independent; an ordered `mockReturnValueOnce` queue silently
+     * desyncs the moment a read is added anywhere upstream.
+     */
+    maybeSingle?: unknown | ((filters: Array<[string, unknown]>) => unknown);
     select?: unknown[];
     insert?: unknown;
     update?: unknown;
@@ -427,8 +436,15 @@ function fakeSupabase(state: TableState) {
       in: vi.fn(() => api),
       not: vi.fn(() => api),
       order: vi.fn(() => api),
+      limit: vi.fn(() => api),
       maybeSingle: vi.fn(() =>
-        Promise.resolve({ data: tableState.maybeSingle ?? null, error: null }),
+        Promise.resolve({
+          data:
+            typeof tableState.maybeSingle === 'function'
+              ? (tableState.maybeSingle as (f: Array<[string, unknown]>) => unknown)(filters)
+              : (tableState.maybeSingle ?? null),
+          error: null,
+        }),
       ),
       single: vi.fn(() =>
         Promise.resolve({ data: tableState.insert ?? tableState.update ?? null, error: null }),
@@ -997,5 +1013,239 @@ describe('MatchForfeitsService — pool cascade void', () => {
 
     expect(result.cascaded_forfeit_count).toBe(0);
     expect(supabase.updated.match_forfeits).toHaveLength(1);
+  });
+});
+
+/**
+ * Voiding one cascaded bout is already possible — there was never a lock. What
+ * was missing is the THREAD: a fresh forfeit written on that reopened bout used
+ * to be a root of its own, so voiding the withdrawal that closed the bout in
+ * the first place no longer swept it up, and the fighter came back to the
+ * standings carrying an F that named a withdrawal nothing pointed at.
+ */
+describe('MatchForfeitsService — re-recorded forfeit under a live withdrawal', () => {
+  /** A pool state whose `match_forfeits.select` answers the root lookup. */
+  function poolStateWithLiveRoot(
+    overrides: {
+      status?: string;
+      laterMatches?: unknown[];
+      root?: unknown[];
+    } = {},
+  ) {
+    return {
+      matches: {
+        maybeSingle: matchRow({ phaseType: 'pool', status: overrides.status ?? 'running' }),
+        update: { id: 'match-2' },
+        select: overrides.laterMatches ?? [],
+      },
+      match_forfeits: {
+        maybeSingle: null,
+        // The one live root withdrawal for this fighter in this pool.
+        select: overrides.root ?? [{ id: 'root-1' }],
+        insert: { id: 'forfeit-2' },
+      },
+      phases: { maybeSingle: { id: 'phase-1', type: 'pool', tournament_id: 'tournament-1' } },
+      registrations: { maybeSingle: { id: 'reg-red', status: 'withdrawn' } },
+    };
+  }
+
+  it('hangs a re-recorded pool forfeit off the live root withdrawal', async () => {
+    const supabase = fakeSupabase(poolStateWithLiveRoot());
+    const service = new MatchForfeitsService(supabase as never, undefined as never);
+
+    await service.createForfeit('match-1', {
+      forfeitingRegistrationId: 'reg-red',
+      reason: 'voluntary',
+      canContinue: true,
+    });
+
+    expect(supabase.inserted.match_forfeits?.[0]).toMatchObject({
+      match_id: 'match-1',
+      parent_forfeit_id: 'root-1',
+    });
+  });
+
+  it('flattens the tree: the re-recorded record cascades under the ROOT, not itself', async () => {
+    // Depth 2 is the failure. `cascadeVoidChildren` is ONE query deep, so
+    // voiding the root would stamp this record and leave its own children
+    // active — an F standing for a fighter who is back in the tournament.
+    const supabase = fakeSupabase(
+      poolStateWithLiveRoot({
+        laterMatches: [
+          {
+            id: 'later-1',
+            red_registration_id: 'reg-red',
+            blue_registration_id: 'reg-green',
+            status: 'scheduled',
+          },
+        ],
+      }),
+    );
+    const service = new MatchForfeitsService(supabase as never, undefined as never);
+
+    await service.createForfeit('match-1', {
+      forfeitingRegistrationId: 'reg-red',
+      reason: 'injury',
+      canContinue: false,
+    });
+
+    expect(supabase.inserted.match_forfeits).toHaveLength(2);
+    expect(supabase.inserted.match_forfeits?.[1]).toMatchObject({
+      match_id: 'later-1',
+      auto_created: true,
+      parent_forfeit_id: 'root-1',
+    });
+  });
+
+  it('still roots a forfeit when no live withdrawal covers this fighter', async () => {
+    // The ordinary case, and the reason the lookup asks for present state: a
+    // root that was voided and re-recorded is a DIFFERENT row, so an empty
+    // result here must mean "root of its own", not "look at the history".
+    const supabase = fakeSupabase(poolStateWithLiveRoot({ root: [] }));
+    const service = new MatchForfeitsService(supabase as never, undefined as never);
+
+    await service.createForfeit('match-1', {
+      forfeitingRegistrationId: 'reg-red',
+      reason: 'voluntary',
+      canContinue: true,
+    });
+
+    expect(supabase.inserted.match_forfeits?.[0]).toMatchObject({ parent_forfeit_id: null });
+  });
+
+  it('never inherits for an OVERRIDE', async () => {
+    // An override asserts the bout was fought and the result was X. Attaching
+    // it to a withdrawal would let voiding the withdrawal erase a result an
+    // organiser stated — the record would vanish with a cascade it never
+    // belonged to.
+    const supabase = fakeSupabase(poolStateWithLiveRoot({ status: 'completed' }));
+    const service = new MatchForfeitsService(supabase as never, undefined as never);
+
+    await service.createForfeit('match-1', {
+      forfeitingRegistrationId: 'reg-red',
+      reason: 'admin_correction',
+      explicitScores: { forfeitingScore: 3, opponentScore: 5 },
+    });
+
+    expect(supabase.inserted.match_forfeits?.[0]).toMatchObject({ parent_forfeit_id: null });
+  });
+
+  it('never inherits on a bracket match', async () => {
+    // The cascade that creates the gap only reaches the fighter's remaining
+    // POOL bouts, so a bracket bout was never closed by that withdrawal. The
+    // live root is present in this state on purpose: without the pool scope
+    // this bout would adopt it.
+    const supabase = fakeSupabase({
+      matches: {
+        maybeSingle: matchRow({ phaseType: 'single_elim', status: 'scheduled' }),
+        update: { id: 'match-1' },
+      },
+      match_forfeits: { maybeSingle: null, select: [{ id: 'root-1' }], insert: { id: 'f-2' } },
+      phases: {
+        maybeSingle: { id: 'phase-1', type: 'single_elim', tournament_id: 'tournament-1' },
+      },
+      bracket_slots: { maybeSingle: null },
+      registrations: { maybeSingle: { id: 'reg-red', status: 'checked_in' } },
+    });
+    const service = new MatchForfeitsService(supabase as never, undefined as never);
+
+    await service.createForfeit('match-1', {
+      forfeitingRegistrationId: 'reg-red',
+      reason: 'injury',
+      canContinue: true,
+    });
+
+    expect(supabase.inserted.match_forfeits?.[0]).toMatchObject({ parent_forfeit_id: null });
+  });
+});
+
+/**
+ * `getActiveForfeit` is what the organiser's confirm copy branches on, and none
+ * of it can be derived on the frontend: the row says a parent EXISTS, never
+ * whether that parent is still on record, and nothing on it counts the children
+ * a void would carry down.
+ */
+describe('MatchForfeitsService — cascade context on the read', () => {
+  /** `match_forfeits` read twice in one call — discriminate on the filters. */
+  function forfeitReads(active: Record<string, unknown>, parent: unknown) {
+    return (filters: Array<[string, unknown]>) => {
+      const byId = filters.find(([column]) => column === 'id')?.[1];
+      return byId === undefined ? active : byId === active['parent_forfeit_id'] ? parent : null;
+    };
+  }
+
+  it('reports a child, and whether the record that withdrew the fighter still stands', async () => {
+    const supabase = fakeSupabase({
+      match_forfeits: {
+        maybeSingle: forfeitReads(
+          { id: 'child-1', match_id: 'match-9', parent_forfeit_id: 'root-1', auto_created: true },
+          { voided_at: null },
+        ),
+        count: 0,
+      },
+    });
+    const service = new MatchForfeitsService(supabase as never, undefined as never);
+
+    const active = await service.getActiveForfeit('match-9');
+
+    expect(active).toMatchObject({
+      id: 'child-1',
+      cascade: { role: 'child', childCount: 0, parentActive: true },
+    });
+  });
+
+  it('reports a child whose parent has already been voided', async () => {
+    const supabase = fakeSupabase({
+      match_forfeits: {
+        maybeSingle: forfeitReads(
+          { id: 'child-1', match_id: 'match-9', parent_forfeit_id: 'root-1' },
+          { voided_at: '2026-08-10T09:00:00.000Z' },
+        ),
+        count: 0,
+      },
+    });
+    const service = new MatchForfeitsService(supabase as never, undefined as never);
+
+    const active = await service.getActiveForfeit('match-9');
+
+    expect(active).toMatchObject({ cascade: { role: 'child', parentActive: false } });
+  });
+
+  it('reports a root with the number of bouts its void would reopen', async () => {
+    const supabase = fakeSupabase({
+      match_forfeits: {
+        maybeSingle: { id: 'root-1', match_id: 'match-1', parent_forfeit_id: null },
+        count: 3,
+      },
+    });
+    const service = new MatchForfeitsService(supabase as never, undefined as never);
+
+    const active = await service.getActiveForfeit('match-1');
+
+    expect(active).toMatchObject({ cascade: { role: 'root', childCount: 3, parentActive: false } });
+  });
+
+  it('reports a standalone record when it closed nothing but its own bout', async () => {
+    const supabase = fakeSupabase({
+      match_forfeits: {
+        maybeSingle: { id: 'solo-1', match_id: 'match-1', parent_forfeit_id: null },
+        count: 0,
+      },
+    });
+    const service = new MatchForfeitsService(supabase as never, undefined as never);
+
+    const active = await service.getActiveForfeit('match-1');
+
+    expect(active).toMatchObject({ cascade: { role: 'standalone', childCount: 0 } });
+  });
+
+  it('answers null for a match with no live record, without the extra reads', async () => {
+    // Passes pre-fix — a guard that the cascade block never turns "no record"
+    // into an object the FE would render as one.
+    const supabase = fakeSupabase({ match_forfeits: { maybeSingle: null } });
+    const service = new MatchForfeitsService(supabase as never, undefined as never);
+
+    expect(await service.getActiveForfeit('match-1')).toBeNull();
+    expect(supabase.service.from).toHaveBeenCalledTimes(1);
   });
 });
