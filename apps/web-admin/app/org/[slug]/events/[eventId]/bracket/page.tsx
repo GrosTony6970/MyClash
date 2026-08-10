@@ -1290,12 +1290,24 @@ export default function BracketPage() {
                 immediately above Regenerate, because the remedies exist to be
                 read BEFORE that button is reached. */}
             {driftBanner && (
-              <div className="mb-4 flex flex-col gap-1">
+              <div
+                className="mb-4 flex flex-col gap-1"
+                data-testid="seeding-drift"
+                // The state and each remedy's KIND are on the DOM so a browser
+                // test can assert the ordering contract without reading copy
+                // that exists in two languages.
+                data-drift-state={bracket.seedingDrift?.state}
+              >
                 <p className="text-xs font-medium text-warning">
                   ⚠ {t(driftBanner.headline.key, driftBanner.headline.values)}
                 </p>
                 {driftBanner.remedies.map((remedy) => (
-                  <p key={remedy.key} className="text-xs text-muted">
+                  <p
+                    key={remedy.key}
+                    className="text-xs text-muted"
+                    data-testid="seeding-drift-remedy"
+                    data-remedy={remedy.kind}
+                  >
                     {t(remedy.key, remedy.values)}
                   </p>
                 ))}

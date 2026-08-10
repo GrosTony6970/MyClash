@@ -29,11 +29,25 @@ export interface BannerLine {
   values?: Record<string, string | number>;
 }
 
+/**
+ * A remedy plus WHAT it is, independent of its wording.
+ *
+ * The ordering contract is the whole point of this module, and an i18n key is a
+ * poor thing to assert it with: the copy is bilingual, so a browser test would
+ * be asserting on whichever language the session happened to be in. `kind` is
+ * rendered as `data-remedy` and is what both the unit test and the E2E read.
+ */
+export type RemedyKind = 'reset' | 'populate' | 'regenerate';
+
+export interface RemedyLine extends BannerLine {
+  kind: RemedyKind;
+}
+
 export interface SeedingDriftBanner {
   /** The headline. */
   headline: BannerLine;
   /** Remedies, CHEAPEST FIRST. Empty while the source is still settling. */
-  remedies: BannerLine[];
+  remedies: RemedyLine[];
 }
 
 export function seedingDriftBanner(
@@ -65,14 +79,15 @@ export function seedingDriftBanner(
       blocking === 0
         ? // Nothing has started, so the server will accept a re-populate — the
           // button is on this very card.
-          { key: 'organizer.bracketPage.seedingDriftRemedyPopulate' }
+          { kind: 'populate', key: 'organizer.bracketPage.seedingDriftRemedyPopulate' }
         : blocking === 1
-          ? { key: 'organizer.bracketPage.seedingDriftRemedyResetOne' }
+          ? { kind: 'reset', key: 'organizer.bracketPage.seedingDriftRemedyResetOne' }
           : {
+              kind: 'reset',
               key: 'organizer.bracketPage.seedingDriftRemedyResetMany',
               values: { count: blocking },
             },
-      { key: 'organizer.bracketPage.seedingDriftRemedyRegenerate' },
+      { kind: 'regenerate', key: 'organizer.bracketPage.seedingDriftRemedyRegenerate' },
     ],
   };
 }

@@ -62,10 +62,10 @@ describe('seedingDriftBanner', () => {
     });
 
     expect(banner!.headline).toEqual({ key: 'organizer.bracketPage.seedingDriftStaleOne' });
-    expect(banner!.remedies.map((line) => line.key)).toEqual([
-      'organizer.bracketPage.seedingDriftRemedyResetOne',
-      'organizer.bracketPage.seedingDriftRemedyRegenerate',
-    ]);
+    // Asserted by KIND, not by key: `kind` is the ordering contract, and it is
+    // what reaches the DOM as `data-remedy` for the browser test to read.
+    expect(banner!.remedies.map((line) => line.kind)).toEqual(['reset', 'regenerate']);
+    expect(banner!.remedies[0]!.key).toBe('organizer.bracketPage.seedingDriftRemedyResetOne');
   });
 
   it('points at Populate, not Regenerate, when nothing has started', () => {
@@ -77,10 +77,8 @@ describe('seedingDriftBanner', () => {
       blockingMatchIds: [],
     });
 
-    expect(banner!.remedies[0]).toEqual({
-      key: 'organizer.bracketPage.seedingDriftRemedyPopulate',
-    });
-    expect(banner!.remedies[1]!.key).toBe('organizer.bracketPage.seedingDriftRemedyRegenerate');
+    expect(banner!.remedies.map((line) => line.kind)).toEqual(['populate', 'regenerate']);
+    expect(banner!.remedies[0]!.key).toBe('organizer.bracketPage.seedingDriftRemedyPopulate');
   });
 
   it('counts the drifted places and the blocking bouts separately', () => {
@@ -98,6 +96,7 @@ describe('seedingDriftBanner', () => {
       values: { count: 3 },
     });
     expect(banner!.remedies[0]).toEqual({
+      kind: 'reset',
       key: 'organizer.bracketPage.seedingDriftRemedyResetMany',
       values: { count: 2 },
     });
@@ -111,12 +110,8 @@ describe('seedingDriftBanner', () => {
         changedSlotIds: ['s1'],
         blockingMatchIds,
       })!;
-      expect(banner.remedies[0]!.key).not.toBe(
-        'organizer.bracketPage.seedingDriftRemedyRegenerate',
-      );
-      expect(banner.remedies.at(-1)!.key).toBe(
-        'organizer.bracketPage.seedingDriftRemedyRegenerate',
-      );
+      expect(banner.remedies[0]!.kind).not.toBe('regenerate');
+      expect(banner.remedies.at(-1)!.kind).toBe('regenerate');
     }
   });
 });
