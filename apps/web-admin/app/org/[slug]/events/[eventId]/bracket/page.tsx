@@ -29,6 +29,7 @@ import { RefereesTab as BracketRefereesTab } from './_tabs/RefereesTab';
 import { buildMatchScoringHref, STAFF_APP_PREFIX } from '../pools/_tabs/build-scoring-href';
 import { diffRoleAssignments } from './diff-role-assignments';
 import { seedingDriftBanner, type SeedingDrift } from './seeding-drift-banner';
+import { countPlayedMatches } from './regenerate-impact';
 import { deriveDoubleElimPodium } from './derive-de-podium';
 import {
   DoubleElimPodiumOptions,
@@ -362,6 +363,9 @@ export default function BracketPage() {
   // Derived in render: which warning (if any) the seeding state earns, and in
   // which order its remedies must be read.
   const driftBanner = seedingDriftBanner(bracket?.seedingDrift);
+  // How much of this bracket has actually been fought — what the regenerate
+  // and delete confirmations never said.
+  const playedMatchCount = countPlayedMatches(bracket?.slots);
 
   // ── Load tournaments ────────────────────────────────────────────────────────
 
@@ -1506,9 +1510,20 @@ export default function BracketPage() {
           }
         >
           <p className="text-4xl mb-3">⚠️</p>
-          <p className="text-muted text-sm mb-5">
+          <p className="text-muted text-sm mb-3">
             {t('organizer.bracketPage.regenerateConfirmBody')}
           </p>
+          {/* The number that turns an abstract warning into a decision. A
+              bracket with nothing fought in it costs nothing to redraw. */}
+          {playedMatchCount > 0 && (
+            <p className="text-danger text-sm font-medium mb-5">
+              {playedMatchCount === 1
+                ? t('organizer.bracketPage.regenerateConfirmPlayedOne')
+                : t('organizer.bracketPage.regenerateConfirmPlayedMany', {
+                    count: playedMatchCount,
+                  })}
+            </p>
+          )}
         </Modal>
 
         {/* Delete confirm modal — distinct from regenerate: leaves no bracket behind. */}
@@ -1552,6 +1567,24 @@ export default function BracketPage() {
               <li className="flex justify-between">
                 <span>{t('organizer.bracketPage.deleteRowMatches')}</span>
                 <span className="font-mono text-foreground">{bracket.slots?.length ?? 0}</span>
+              </li>
+              {/* The three rows below were missing entirely: the bare
+                  `DELETE FROM phases` behind this cascades through `matches`
+                  to every exchange, card and forfeit record, and each match's
+                  piste and time die with its row. */}
+              {playedMatchCount > 0 && (
+                <li className="flex justify-between text-danger">
+                  <span>{t('organizer.bracketPage.deleteRowPlayed')}</span>
+                  <span className="font-mono">{playedMatchCount}</span>
+                </li>
+              )}
+              <li className="flex justify-between text-muted">
+                <span>{t('organizer.bracketPage.deleteRowResults')}</span>
+                <span className="font-mono">{t('organizer.bracketPage.deleteRowCascaded')}</span>
+              </li>
+              <li className="flex justify-between text-muted">
+                <span>{t('organizer.bracketPage.deleteRowSchedule')}</span>
+                <span className="font-mono">{t('organizer.bracketPage.deleteRowCascaded')}</span>
               </li>
               <li className="flex justify-between text-muted">
                 <span>{t('organizer.bracketPage.deleteRowReferees')}</span>

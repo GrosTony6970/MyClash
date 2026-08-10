@@ -7054,12 +7054,22 @@ export const en = {
       regenerateButton: 'Regenerate bracket',
       deleteButton: 'Delete bracket',
       regenerateConfirmTitle: 'Regenerate bracket?',
-      regenerateConfirmBody: 'The existing bracket and all its match slots will be deleted.',
+      // Named the slots and stopped there — the part nobody minds losing. The
+      // delete behind this cascades through every match row.
+      regenerateConfirmBody:
+        'The existing bracket is deleted and drawn again — the slots, every match row, and with them every exchange, penalty card, forfeit or override record, referee assignment, piste placement and scheduled time.',
+      regenerateConfirmPlayedOne:
+        'One bout in this bracket has already been fought. Its result and its exchanges go with it.',
+      regenerateConfirmPlayedMany:
+        '{count} bouts in this bracket have already been fought. Their results and their exchanges go with them.',
       regenerateConfirmYes: 'Yes, regenerate',
       deleteConfirmTitle: 'Delete this bracket?',
       deleteConfirmBody: 'This will permanently remove:',
       deleteRowSlots: 'Bracket slots',
       deleteRowMatches: 'Match records',
+      deleteRowPlayed: 'Bouts already fought',
+      deleteRowResults: 'Exchanges, cards & forfeits',
+      deleteRowSchedule: 'Piste & time placements',
       deleteRowReferees: 'Referee assignments',
       deleteRowCascaded: 'cascaded',
       deleteConfirmHint: 'You can re-create the bracket later from the registered fighters.',
@@ -14811,12 +14821,20 @@ export const fr = {
       regenerateButton: 'Régénérer le tableau',
       deleteButton: 'Supprimer le tableau',
       regenerateConfirmTitle: 'Régénérer le tableau ?',
-      regenerateConfirmBody: 'Le tableau existant et tous ses matchs seront supprimés.',
+      regenerateConfirmBody:
+        'Le tableau existant est supprimé puis tiré de nouveau — les emplacements, toutes les fiches de match, et avec elles tous les échanges, cartons, forfaits ou corrections, affectations d’arbitres, placements de piste et horaires.',
+      regenerateConfirmPlayedOne:
+        'Un assaut de ce tableau a déjà été disputé. Son résultat et ses échanges disparaissent avec lui.',
+      regenerateConfirmPlayedMany:
+        '{count} assauts de ce tableau ont déjà été disputés. Leurs résultats et leurs échanges disparaissent avec eux.',
       regenerateConfirmYes: 'Oui, régénérer',
       deleteConfirmTitle: 'Supprimer ce tableau ?',
       deleteConfirmBody: 'Cela supprimera définitivement :',
       deleteRowSlots: 'Emplacements du tableau',
       deleteRowMatches: 'Fiches de match',
+      deleteRowPlayed: 'Assauts déjà disputés',
+      deleteRowResults: 'Échanges, cartons et forfaits',
+      deleteRowSchedule: 'Pistes et horaires',
       deleteRowReferees: 'Affectations des arbitres',
       deleteRowCascaded: 'en cascade',
       deleteConfirmHint:
