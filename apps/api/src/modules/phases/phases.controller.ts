@@ -295,9 +295,15 @@ export class PhasesController {
   async generateBracket(
     @Param('tournamentId', ParseUUIDPipe) tournamentId: string,
     @Body() dto: GenerateBracketDto,
+    @Req() req: FastifyRequest,
     @Query('force') force?: string,
   ) {
-    return this.phases.generateBracket(tournamentId, dto, force === 'true');
+    // The actor was never resolved here at all, so `?force=true` — which deletes
+    // the phase and everything cascading from it — ran for anyone the global
+    // AuthGuard let through, regardless of organisation. Its three siblings
+    // (populate, reseed, delete) have always taken one.
+    const userId = await getUserId(req, this.supabase);
+    return this.phases.generateBracket(tournamentId, dto, force === 'true', userId);
   }
 
   /**

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { BadRequestException, ConflictException } from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException } from '@nestjs/common';
 import { PhasesService } from './phases.service';
 
 // ── Mocks ──────────────────────────────────────────────────────────────────
@@ -68,6 +68,60 @@ function makeAwaitableChain(result: unknown) {
 }
 
 // ── Tests ──────────────────────────────────────────────────────────────────
+
+describe('PhasesService.generateBracket — authorization', () => {
+  /**
+   * `generateBracket` took no actor at all. `?force=true` DELETEs the phase and
+   * cascades to every match under it — and with it every exchange, card,
+   * forfeit, referee assignment, piste placement and scheduled time — so any
+   * authenticated user could destroy any organisation's bracket, and nothing
+   * was recorded. Its three siblings (populate, reseed, delete) have always
+   * asserted org admin.
+   */
+  let service: PhasesService;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    // `clearAllMocks` resets calls, NOT implementations — re-establish the
+    // permissive default so a `…Once` rejection below cannot leak into the
+    // next describe if the code under test never consumes it.
+    mockOrgs.assertOrgRole.mockResolvedValue(undefined);
+    service = new PhasesService(mockSupabase as never, undefined, mockOrgs as never);
+  });
+
+  it('asserts org admin before touching anything', async () => {
+    fromMock.mockReturnValue(
+      makeChain({ data: { id: 't-1', events: { organization_id: 'org-1' } }, error: null }),
+    );
+    mockOrgs.assertOrgRole.mockRejectedValue(new ForbiddenException('nope'));
+
+    await expect(
+      service.generateBracket('t-1', { phaseType: 'single_elim' } as never, true, 'user-1'),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+
+    expect(mockOrgs.assertOrgRole).toHaveBeenCalledWith('org-1', 'user-1', 'admin');
+    // Refused before the destructive delete, not after it.
+    expect(fromMock).not.toHaveBeenCalledWith('phases');
+  });
+
+  it('refuses when the tournament resolves to no organisation', async () => {
+    fromMock.mockReturnValue(makeChain({ data: null, error: null }));
+
+    await expect(
+      service.generateBracket('t-missing', { phaseType: 'single_elim' } as never, true, 'user-1'),
+    ).rejects.toBeInstanceOf(BadRequestException);
+    expect(mockOrgs.assertOrgRole).not.toHaveBeenCalled();
+  });
+
+  it('lets the system actor through, as the auto-advance paths rely on', async () => {
+    // 'system' is the default and the sentinel populateBracket already uses.
+    fromMock.mockReturnValue(makeChain({ data: null, error: null }));
+
+    await service.generateBracket('t-1', { phaseType: 'single_elim' } as never).catch(() => {});
+
+    expect(mockOrgs.assertOrgRole).not.toHaveBeenCalled();
+  });
+});
 
 describe('PhasesService', () => {
   let service: PhasesService;

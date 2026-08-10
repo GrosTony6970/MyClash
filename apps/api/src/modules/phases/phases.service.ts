@@ -411,7 +411,33 @@ export class PhasesService {
    *
    * Idempotent: returns 409 if an elim phase already exists, unless force=true.
    */
-  async generateBracket(tournamentId: string, dto: GenerateBracketDto, force = false) {
+  async generateBracket(
+    tournamentId: string,
+    dto: GenerateBracketDto,
+    force = false,
+    actorUserId = 'system',
+  ) {
+    // Authorization, which this endpoint has never had. Its three siblings —
+    // populateBracket, reseedBracketRoundOne and deleteBracketPhase — all
+    // assert org admin; this one took no actor at all, so `?force=true`
+    // (a DELETE of the phase, cascading to every match, exchange, card,
+    // forfeit and referee assignment under it) ran for anyone the global
+    // AuthGuard admitted, in any organisation.
+    if (actorUserId !== 'system') {
+      const { data: tournamentRow } = await this.supabase.service
+        .from('tournaments')
+        .select('id, events!inner(organization_id)')
+        .eq('id', tournamentId)
+        .maybeSingle();
+      const eventEmbed = (tournamentRow as Record<string, unknown> | null)?.['events'];
+      const event = Array.isArray(eventEmbed) ? eventEmbed[0] : eventEmbed;
+      const orgId = (event as Record<string, unknown> | null)?.['organization_id'];
+      if (!this.orgs || typeof orgId !== 'string') {
+        throw new BadRequestException('Tournament organization could not be resolved');
+      }
+      await this.orgs.assertOrgRole(orgId, actorUserId, 'admin');
+    }
+
     const phaseType = dto.phaseType ?? 'single_elim';
     const isDoubleElim = phaseType === 'double_elim';
     // Stamped onto config_json only. generateBracket builds the STRUCTURE;
@@ -433,10 +459,31 @@ export class PhasesService {
     }
 
     if (existing && force) {
-      await this.supabase.service
-        .from('phases')
-        .delete()
-        .eq('id', (existing as { id: string }).id);
+      const existingPhaseId = (existing as { id: string }).id;
+      // Counted before the delete, because afterwards there is nothing to
+      // count. A regenerate cascades through matches to their exchanges, cards,
+      // forfeits and referee assignments, and drops every lice_id +
+      // scheduled_at with them — and until now it was the only
+      // bracket-mutating path that recorded nothing at all.
+      const { data: doomed } = await this.supabase.service
+        .from('matches')
+        .select('id, status')
+        .eq('phase_id', existingPhaseId);
+      const doomedRows = (doomed ?? []) as Array<{ status: string }>;
+
+      await this.supabase.service.from('phases').delete().eq('id', existingPhaseId);
+
+      await insertAuditLog(this.supabase.service, {
+        actorUserId: actorUserId === 'system' ? null : actorUserId,
+        action: 'phase.bracket_regenerated',
+        entityType: 'phase',
+        entityId: existingPhaseId,
+        payload: {
+          tournamentId,
+          matchCount: doomedRows.length,
+          playedMatchCount: doomedRows.filter((m) => m.status !== 'scheduled').length,
+        },
+      });
     }
 
     // Determine qualify count
