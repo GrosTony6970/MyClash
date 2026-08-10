@@ -171,14 +171,15 @@ export async function retractGrandFinalReset(supabase: Client, matchId: string):
 }
 
 /**
- * Drop a slot's never-played `matches` row — referee assignments FIRST.
+ * Drop a slot's never-played `matches` row.
  *
- * `referee_assignments.match_id` is ON DELETE SET NULL, and 0091 added
- * `referee_assignments_scope_check` requiring `match_id IS NOT NULL` when
- * `scope_type='match'`. Postgres runs a referential SET NULL as a real UPDATE
- * and validates CHECKs on it, so without this the DELETE does not orphan a row
- * — it ABORTS with a check violation. `deleteBracketPhase` clears them first
- * for the same reason.
+ * Its `referee_assignments` go with it through the FK. That used to need a
+ * hand-rolled delete first: the FK was ON DELETE SET NULL while
+ * `referee_assignments_scope_check` (0091) forbids a null `match_id` at
+ * `scope_type='match'`, and Postgres validates CHECKs on the SET NULL action,
+ * so the delete ABORTED rather than orphaning anything. Migration 0179 makes
+ * the FK CASCADE, which is the only action that agrees with that CHECK — and
+ * puts the rule in one place instead of at each of nine delete sites.
  *
  * DELETE, not `status='voided'`: the readers here are status-blind — the
  * schedule grid filters nothing, not even 'voided' — so voiding hides the row
@@ -201,9 +202,6 @@ async function deleteUnplayedSlotMatch(supabase: Client, slotId: string): Promis
     .is('started_at', null);
   const ids = ((data ?? []) as Array<{ id: string }>).map((row) => row.id);
   if (ids.length === 0) return;
-
-  const assignments = await supabase.from('referee_assignments').delete().in('match_id', ids);
-  if (assignments.error) throw new BadRequestException(assignments.error.message);
 
   const removed = await supabase.from('matches').delete().in('id', ids);
   if (removed.error) throw new BadRequestException(removed.error.message);

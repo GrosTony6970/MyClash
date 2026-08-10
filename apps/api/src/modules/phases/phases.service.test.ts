@@ -1227,7 +1227,13 @@ describe('PhasesService', () => {
       tournaments: { event_id: 'evt-1', events: { organization_id: 'org-1' } },
     };
 
-    it('deletes the phase row and clears scoped referee assignments', async () => {
+    it('deletes the phase row and leaves the assignment cleanup to the FK', async () => {
+      // This used to hand-delete referee_assignments first, on the stated
+      // grounds that ON DELETE SET NULL "would leave dangling rows". It would
+      // not — it ABORTED, because referee_assignments_scope_check forbids a
+      // null match_id at scope_type='match'. Migration 0179 makes the FK
+      // CASCADE, which is the only action that agrees with that CHECK, and
+      // this path stops being the one delete site in nine that got it right.
       const phaseLookup = makeChain({ data: bracketPhaseRow, error: null });
       phaseLookup.maybeSingle.mockResolvedValue({ data: bracketPhaseRow, error: null });
 
@@ -1235,27 +1241,28 @@ describe('PhasesService', () => {
         data: [{ id: 'match-a' }, { id: 'match-b' }],
         error: null,
       });
-      const refDelete = makeAwaitableChain({ data: null, error: null });
       const phaseDelete = makeAwaitableChain({ data: null, error: null });
       const auditInsert = makeAwaitableChain({ data: null, error: null });
 
       fromMock
         .mockReturnValueOnce(phaseLookup) // getPhaseForVisibility
-        .mockReturnValueOnce(matchesLookup) // matches.select where phase_id
-        .mockReturnValueOnce(refDelete) // referee_assignments.delete .in match_id
+        .mockReturnValueOnce(matchesLookup) // matches.select where phase_id (audit count)
         .mockReturnValueOnce(phaseDelete) // phases.delete .eq id
         .mockReturnValueOnce(auditInsert); // audit_log.insert
 
       await service.deleteBracketPhase('phase-1', 'actor-1');
 
       expect(mockOrgs.assertOrgRole).toHaveBeenCalledWith('org-1', 'actor-1', 'admin');
-      expect(refDelete.delete).toHaveBeenCalled();
-      expect(refDelete.in).toHaveBeenCalledWith('match_id', ['match-a', 'match-b']);
       expect(phaseDelete.delete).toHaveBeenCalled();
       expect(phaseDelete.eq).toHaveBeenCalledWith('id', 'phase-1');
+      // The matches read survives ONLY to count them for the audit trail.
+      expect(auditInsert.insert).toHaveBeenCalledWith(
+        expect.objectContaining({ payload_json: expect.objectContaining({ matchCount: 2 }) }),
+      );
+      expect(fromMock).not.toHaveBeenCalledWith('referee_assignments');
     });
 
-    it('skips the referee_assignments delete when the phase has no matches', async () => {
+    it('still deletes a phase that has no matches', async () => {
       const phaseLookup = makeChain({ data: bracketPhaseRow, error: null });
       phaseLookup.maybeSingle.mockResolvedValue({ data: bracketPhaseRow, error: null });
 
@@ -1266,7 +1273,7 @@ describe('PhasesService', () => {
       fromMock
         .mockReturnValueOnce(phaseLookup)
         .mockReturnValueOnce(matchesLookup)
-        .mockReturnValueOnce(phaseDelete) // straight to phases.delete — no referee_assignments call
+        .mockReturnValueOnce(phaseDelete)
         .mockReturnValueOnce(auditInsert);
 
       await service.deleteBracketPhase('phase-1', 'actor-1');

@@ -314,13 +314,8 @@ describe('BracketAdvanceService.onMatchCompleted', () => {
       expect(updates).toEqual([
         { table: 'bracket_slots', patch: { registration_a_id: null, registration_b_id: null } },
       ]);
-      // Referee assignments FIRST: match_id is ON DELETE SET NULL and
-      // referee_assignments_scope_check forbids a null one, so the reverse
-      // order does not orphan a row — it aborts the delete.
-      expect(calls.filter((c) => c.startsWith('delete('))).toEqual([
-        'delete(referee_assignments)',
-        'delete(matches)',
-      ]);
+      // One delete: the row's referee_assignments cascade with it (0179).
+      expect(calls.filter((c) => c.startsWith('delete('))).toEqual(['delete(matches)']);
     });
 
     it('deletes nothing when the reset carries a result', async () => {

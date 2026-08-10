@@ -115,15 +115,12 @@ describe('retractGrandFinalReset', () => {
     expect(supabase.updates).toEqual([
       { table: 'bracket_slots', patch: { registration_a_id: null, registration_b_id: null } },
     ]);
-    // Referee assignments FIRST. `referee_assignments.match_id` is ON DELETE
-    // SET NULL and `referee_assignments_scope_check` (0091) forbids a null one
-    // when scope_type='match' — Postgres validates CHECKs on the SET NULL
-    // action, so the reverse order does not orphan a row, it aborts the delete.
-    expect(supabase.deletes.map((entry) => entry.table)).toEqual([
-      'referee_assignments',
-      'matches',
-    ]);
-    expect(supabase.deletes[1]?.filters).toContainEqual(['id', ['reset-match']]);
+    // One delete. The row's referee_assignments go with it through the FK —
+    // CASCADE since migration 0179, which is the only delete action that
+    // agrees with `referee_assignments_scope_check` (a match-scoped row may
+    // not have a null match_id, so SET NULL aborted the parent delete).
+    expect(supabase.deletes.map((entry) => entry.table)).toEqual(['matches']);
+    expect(supabase.deletes[0]?.filters).toContainEqual(['id', ['reset-match']]);
   });
 
   it('leaves a reset match that carries a result alone', async () => {

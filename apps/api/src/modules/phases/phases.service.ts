@@ -1663,21 +1663,17 @@ export class PhasesService {
     }
     await this.orgs.assertOrgRole(orgId, actorUserId, 'admin');
 
-    // Clear referee_assignments scoped to this phase's matches before the
-    // matches cascade away. referee_assignments.match_id is ON DELETE SET NULL,
-    // so without this step we'd leave dangling rows.
+    // Counted for the audit payload only. This used to hand-delete the phase's
+    // referee_assignments first, on the stated grounds that the ON DELETE SET
+    // NULL "would leave dangling rows" — it would not; it ABORTED the delete,
+    // because referee_assignments_scope_check forbids a null match_id at
+    // scope_type='match'. Migration 0179 makes those FKs CASCADE, so the DB is
+    // now the one owner of this cleanup and every other delete path gets it too.
     const { data: matchRows } = await this.supabase.service
       .from('matches')
       .select('id')
       .eq('phase_id', phaseId);
     const matchIds = ((matchRows ?? []) as Array<{ id: string }>).map((m) => m.id);
-    if (matchIds.length > 0) {
-      const { error: refErr } = await this.supabase.service
-        .from('referee_assignments')
-        .delete()
-        .in('match_id', matchIds);
-      if (refErr) throw new BadRequestException(refErr.message);
-    }
 
     // Drop the phase — bracket_slots, matches, and match_events cascade.
     const { error: delErr } = await this.supabase.service.from('phases').delete().eq('id', phaseId);
