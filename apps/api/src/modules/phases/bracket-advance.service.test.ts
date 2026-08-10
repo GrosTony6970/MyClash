@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { BadRequestException, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, NotFoundException } from '@nestjs/common';
 import { BracketAdvanceService } from './bracket-advance.service';
 import { buildSelfRef, grandFinalEndsBracket, resolveLoser } from './bracket-refs';
 import { singleElimBracket } from '@myclash/rulesets/dist/scheduling/index';
@@ -822,52 +822,167 @@ describe('BracketAdvanceService.createMatchIfReady — stamps match_number_label
 // need to leave the row visible on the schedule grid and just clear
 // its registrations so it can be re-populated by a future advance.
 // In-flight matches (started_at non-null) must be untouched.
-describe('BracketAdvanceService.deleteUnstartedMatch — clears registrations, preserves schedule', () => {
-  it('UPDATEs the matches row keyed by bracket_slot_id with registrations cleared and status reset, scoped to unstarted non-voided rows', async () => {
-    const updateCalls: Array<{ patch: unknown; bracketSlotId: unknown }> = [];
-
-    const fromMock = vi.fn((table: string) => {
-      if (table !== 'matches') return {} as never;
-      // Track the call pattern:
-      //   update({...}).eq('bracket_slot_id', slotId).not('status','eq','voided').is('started_at', null)
-      return {
-        update: vi.fn((patch: unknown) => {
-          const eqMock = vi.fn((column: string, value: unknown) => {
-            if (column === 'bracket_slot_id') {
-              updateCalls.push({ patch, bracketSlotId: value });
-            }
-            const notMock = vi.fn().mockReturnValue({
-              is: vi.fn().mockResolvedValue({ data: null, error: null }),
-            });
-            return { eq: eqMock, not: notMock };
-          });
-          return { eq: eqMock };
+/**
+ * `syncMatchToSlot` replaces the deleteUnstartedMatch / createMatchIfReady fork.
+ *
+ * That fork could not express half of what an operator does. `overrideSlot`
+ * returned the moment either side was null, so a PATCH that swapped one fighter
+ * for another (clear A, set B) blanked the row and dropped B; and anything else
+ * went to createMatchIfReady, which returns early when a row exists, so putting
+ * a fighter back into a cleared slot left the match showing nobody. Neither
+ * branch could reach `writeSlotSide`'s matches UPDATE — the only code in the
+ * file that writes registrations into an existing row.
+ */
+describe('BracketAdvanceService.syncMatchToSlot — one owner for the matches row', () => {
+  /**
+   * `matches` reads resolve to `existing`; every write is recorded. The slot
+   * read is served separately so overrideSlot's own UPDATE can be asserted.
+   */
+  function makeMock(existing: Record<string, unknown> | null, slot: Record<string, unknown>) {
+    const updates: Array<{ table: string; patch: Record<string, unknown> }> = [];
+    const inserts: Array<Record<string, unknown>> = [];
+    const from = vi.fn((table: string) => {
+      const api: Record<string, unknown> = {};
+      Object.assign(api, {
+        select: vi.fn(() => api),
+        eq: vi.fn(() => api),
+        not: vi.fn(() => api),
+        is: vi.fn(() => api),
+        limit: vi.fn(() => api),
+        order: vi.fn(() => api),
+        or: vi.fn(() => Promise.resolve({ data: [], error: null })),
+        maybeSingle: vi.fn(() =>
+          Promise.resolve({ data: table === 'matches' ? existing : slot, error: null }),
+        ),
+        update: vi.fn((patch: Record<string, unknown>) => {
+          updates.push({ table, patch });
+          return api;
         }),
-      };
+        insert: vi.fn((row: Record<string, unknown>) => {
+          inserts.push(row);
+          return Promise.resolve({ data: null, error: null });
+        }),
+      });
+      return api;
     });
-    const mockSupabase = { service: { from: fromMock } };
+    return { updates, inserts, mockSupabase: { service: { from } } };
+  }
+
+  const SLOT = {
+    id: 'slot-1',
+    phase_id: 'ph-1',
+    position: 3,
+    source_b_type: 'winner_of',
+    registration_a_id: null,
+    registration_b_id: 'reg-b',
+  };
+
+  it('writes BOTH sides when one is cleared and the other set', async () => {
+    // The clear+set PATCH. Pre-fix `overrideSlot` returned after blanking both.
+    const { updates, mockSupabase } = makeMock(
+      { id: 'm-1', status: 'scheduled', started_at: null },
+      SLOT,
+    );
     const service = new BracketAdvanceService(mockSupabase as never);
 
-    const deleteUnstartedMatch = (
-      service as unknown as Record<string, (id: string) => Promise<void>>
-    )['deleteUnstartedMatch']!.bind(service);
+    await service.overrideSlot('slot-1', null, 'reg-b');
 
-    await deleteUnstartedMatch('slot-r2p1');
+    expect(updates).toContainEqual({
+      table: 'matches',
+      patch: { red_registration_id: null, blue_registration_id: 'reg-b' },
+    });
+  });
 
-    expect(updateCalls).toEqual([
-      {
-        patch: {
-          red_registration_id: null,
-          blue_registration_id: null,
-          status: 'scheduled',
-        },
-        bracketSlotId: 'slot-r2p1',
-      },
-    ]);
+  it('refills a slot whose match row was blanked', async () => {
+    // Pre-fix createMatchIfReady returned early on the existing row, so the
+    // match stayed nameless however many fighters you put back.
+    const { updates, mockSupabase } = makeMock(
+      { id: 'm-1', status: 'scheduled', started_at: null },
+      { ...SLOT, registration_a_id: 'reg-a' },
+    );
+    const service = new BracketAdvanceService(mockSupabase as never);
+
+    await service.overrideSlot('slot-1', 'reg-a', 'reg-b');
+
+    expect(updates).toContainEqual({
+      table: 'matches',
+      patch: { red_registration_id: 'reg-a', blue_registration_id: 'reg-b' },
+    });
+  });
+
+  it('never writes lice_id or scheduled_at', async () => {
+    // The row can carry an operator-placed schedule; blanking a side must be an
+    // UPDATE of the two registration columns and nothing else.
+    const { updates, mockSupabase } = makeMock(
+      { id: 'm-1', status: 'scheduled', started_at: null },
+      SLOT,
+    );
+    const service = new BracketAdvanceService(mockSupabase as never);
+
+    await service.overrideSlot('slot-1', null, 'reg-b');
+
+    const matchPatch = updates.find((u) => u.table === 'matches')?.patch ?? {};
+    expect(Object.keys(matchPatch).sort()).toEqual(['blue_registration_id', 'red_registration_id']);
+  });
+
+  it('refuses to rewrite a bout that has already started', async () => {
+    // Pre-fix: a silent 200 and a bracket contradicting its own slot.
+    const { updates, mockSupabase } = makeMock(
+      { id: 'm-1', status: 'running', started_at: '2026-01-01T10:00:00Z' },
+      SLOT,
+    );
+    const service = new BracketAdvanceService(mockSupabase as never);
+
+    await expect(service.overrideSlot('slot-1', 'reg-a', 'reg-b')).rejects.toBeInstanceOf(
+      ConflictException,
+    );
+    // And the slot itself is untouched — the check runs BEFORE the slot write,
+    // so a refusal cannot leave slot and match disagreeing the other way.
+    expect(updates).toEqual([]);
+  });
+
+  it('creates the row only once both fighters are known', async () => {
+    const { inserts, mockSupabase } = makeMock(null, {
+      ...SLOT,
+      registration_a_id: 'reg-a',
+    });
+    const service = new BracketAdvanceService(mockSupabase as never);
+
+    await service.overrideSlot('slot-1', 'reg-a', 'reg-b');
+
+    expect(inserts).toHaveLength(1);
+    expect(inserts[0]).toMatchObject({
+      bracket_slot_id: 'slot-1',
+      red_registration_id: 'reg-a',
+      blue_registration_id: 'reg-b',
+      status: 'scheduled',
+      match_number_label: '3',
+    });
+  });
+
+  it('leaves a bye slot without a match', async () => {
+    // The generator says there is no bout here; an operator write must not
+    // conjure one. Passes pre-fix — a no-regression guard.
+    const { inserts, updates, mockSupabase } = makeMock(null, {
+      ...SLOT,
+      source_b_type: 'bye',
+      registration_a_id: 'reg-a',
+    });
+    const service = new BracketAdvanceService(mockSupabase as never);
+
+    await service.overrideSlot('slot-1', 'reg-a', 'reg-b');
+
+    expect(inserts).toEqual([]);
+    expect(updates.filter((u) => u.table === 'matches')).toEqual([]);
   });
 });
 
 describe('BracketAdvanceService.overrideSlot — fails loud', () => {
+  /**
+   * `matches` answers the pre-check (no row → nothing has started), everything
+   * else answers the slot UPDATE. The pre-check runs BEFORE the slot write so a
+   * started bout cannot leave slot and match disagreeing.
+   */
   function makeOverrideMock(updateResult: { data: unknown; error: unknown }) {
     const updateChain = {
       eq: vi.fn().mockReturnThis(),
@@ -876,9 +991,20 @@ describe('BracketAdvanceService.overrideSlot — fails loud', () => {
     };
     return {
       service: {
-        from: vi.fn(() => ({
-          update: vi.fn().mockReturnValue(updateChain),
-        })),
+        from: vi.fn((table: string) => {
+          if (table === 'matches') {
+            const api: Record<string, unknown> = {};
+            Object.assign(api, {
+              select: vi.fn(() => api),
+              eq: vi.fn(() => api),
+              not: vi.fn(() => api),
+              limit: vi.fn(() => api),
+              maybeSingle: vi.fn(() => Promise.resolve({ data: null, error: null })),
+            });
+            return api;
+          }
+          return { update: vi.fn().mockReturnValue(updateChain) };
+        }),
       },
     };
   }

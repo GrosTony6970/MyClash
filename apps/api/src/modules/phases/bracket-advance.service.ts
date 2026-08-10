@@ -15,6 +15,7 @@ import {
   loadSlot,
   retractGrandFinalReset,
 } from './bracket-downstream';
+import { assertSlotMatchRewritable, syncMatchToSlot } from './bracket-match-sync';
 
 @Injectable()
 export class BracketAdvanceService {
@@ -122,6 +123,13 @@ export class BracketAdvanceService {
 
     if (Object.keys(updates).length === 0) return;
 
+    // Refuse BEFORE writing the slot, not after. The sync below throws on a
+    // bout already under way, and doing that after the slot write would leave
+    // the slot changed and the match not — a split-brain in the opposite
+    // direction to the one this method exists to fix. No transaction is
+    // available through supabase-js, so ordering is the whole guarantee.
+    await assertSlotMatchRewritable(this.supabase.service, slotId);
+
     // Fail loud: production trace showed manual-assign PATCHes returning
     // 200 with no row actually persisted because the supabase result was
     // not inspected. `select().maybeSingle()` returns the updated row (1)
@@ -140,17 +148,17 @@ export class BracketAdvanceService {
       `overrideSlot persisted slot=${slotId} a=${(persisted as { registration_a_id: string | null }).registration_a_id ?? 'null'} b=${(persisted as { registration_b_id: string | null }).registration_b_id ?? 'null'}`,
     );
 
-    // Re-check if slot is now fully resolved
     const slot = await this.loadSlot(slotId);
     if (!slot) return;
 
-    if (registrationAId === null || registrationBId === null) {
-      // Cancellation — delete downstream match if not started
-      await this.deleteUnstartedMatch(slotId);
-      return;
-    }
-
-    await this.createMatchIfReady(slot);
+    // One call, both directions. This used to fork: `null` on EITHER side ran
+    // deleteUnstartedMatch and returned, so a single PATCH that swapped one
+    // fighter for another (clear A, set B) blanked the row and dropped B on the
+    // floor; anything else ran createMatchIfReady, which returns early when a
+    // row already exists, so putting a fighter back into a cleared slot left
+    // the match showing nobody. Neither branch could reach the only code that
+    // writes registrations into an existing matches row.
+    await syncMatchToSlot(this.supabase.service, slot, { onStarted: 'throw' });
   }
 
   // ── Core advance logic ────────────────────────────────────────────────────
@@ -315,33 +323,6 @@ export class BracketAdvanceService {
       .update({ [matchColumn]: registrationId })
       .eq('bracket_slot_id', slotId)
       .not('status', 'eq', 'voided');
-  }
-
-  /**
-   * Invoked from overrideSlot when an operator un-sets a bracket
-   * slot's side. With placeholder match rows pre-created at bracket
-   * generation, the row may carry an operator-placed schedule
-   * (lice_id + scheduled_at) — voiding it would hide the chip from
-   * the schedule grid and lose that placement. Instead, clear the
-   * row's registrations and reset status to 'scheduled' so the row
-   * stays visible and a future re-advancement can re-populate
-   * registrations in place via writeSlotSide's matches UPDATE.
-   *
-   * Scoped to non-voided rows (replay/regen-flow can leave voided
-   * history alongside the live row) AND to rows whose match has not
-   * yet started — never touch an in-flight match.
-   */
-  private async deleteUnstartedMatch(slotId: string): Promise<void> {
-    await this.supabase.service
-      .from('matches')
-      .update({
-        red_registration_id: null,
-        blue_registration_id: null,
-        status: 'scheduled',
-      })
-      .eq('bracket_slot_id', slotId)
-      .not('status', 'eq', 'voided')
-      .is('started_at', null);
   }
 
   // ── Helpers ───────────────────────────────────────────────────────────────
