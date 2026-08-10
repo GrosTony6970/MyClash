@@ -111,6 +111,11 @@ export async function findDownstreamMatchIds(supabase: Client, matchId: string):
 export async function clearDownstreamOf(supabase: Client, matchId: string): Promise<void> {
   const downstream = await downstreamSlots(supabase, matchId);
   if (!downstream) return;
+  await clearFedSides(supabase, downstream);
+}
+
+/** Null every side of these slots that this match's winner/loser refs feed. */
+async function clearFedSides(supabase: Client, downstream: Downstream): Promise<void> {
   const { winnerRef, loserRef, slots } = downstream;
 
   for (const slot of slots) {
@@ -126,6 +131,82 @@ export async function clearDownstreamOf(supabase: Client, matchId: string): Prom
     const { error } = await supabase.from('bracket_slots').update(patch).eq('id', slot.id);
     if (error) throw new BadRequestException(error.message);
   }
+}
+
+/**
+ * Un-make the grand-final reset once the grand final has ENDED the bracket.
+ *
+ * The reset is the one slot generated without a placeholder `matches` row
+ * (`phases.service.ts` createInitialBracketMatches skips it, and
+ * `syncGrandFinalResetSlot` relies on the same assumption), because it is only
+ * played when the losers-bracket entrant wins. So when they do, the row is
+ * created on demand — and when that result is later changed to a
+ * winners-bracket win, `grandFinalEndsBracket` merely SKIPS advancement.
+ *
+ * Skipping is not enough. The created row survives as a `scheduled` bout still
+ * naming both finalists: it shows on the schedule grid, the live board and the
+ * public schedule, `events.service.ts` hands the bracket view a non-null
+ * matchId for a slot that must have none, and nothing validates a match against
+ * its slot before the pad starts it. The refill that would have corrected the
+ * row is exactly what the early return skips.
+ *
+ * Called from `onMatchCompleted` rather than from `clearDownstreamOf`, because
+ * three paths reach this state without ever clearing: `POST /matches/:id/reset`
+ * on the grand final, the clock's `reopen` (which clears the winner on a
+ * best-of), and `PATCH /matches/:id/status`. `grandFinalEndsBracket` is the
+ * single owner of the predicate, so the retraction belongs beside it.
+ *
+ * Only the reset is reachable from here: the grand final's self-ref is `GF`,
+ * and the generator points nothing but the reset slot at `winner of GF` /
+ * `loser of GF`. The caller has already established `grandFinalEndsBracket`.
+ */
+export async function retractGrandFinalReset(supabase: Client, matchId: string): Promise<void> {
+  const downstream = await downstreamSlots(supabase, matchId);
+  if (!downstream || downstream.slots.length === 0) return;
+
+  await clearFedSides(supabase, downstream);
+  for (const slot of downstream.slots) {
+    await deleteUnplayedSlotMatch(supabase, slot.id);
+  }
+}
+
+/**
+ * Drop a slot's never-played `matches` row — referee assignments FIRST.
+ *
+ * `referee_assignments.match_id` is ON DELETE SET NULL, and 0091 added
+ * `referee_assignments_scope_check` requiring `match_id IS NOT NULL` when
+ * `scope_type='match'`. Postgres runs a referential SET NULL as a real UPDATE
+ * and validates CHECKs on it, so without this the DELETE does not orphan a row
+ * — it ABORTS with a check violation. `deleteBracketPhase` clears them first
+ * for the same reason.
+ *
+ * DELETE, not `status='voided'`: the readers here are status-blind — the
+ * schedule grid filters nothing, not even 'voided' — so voiding hides the row
+ * from the unique index and not from the operator, and would additionally let
+ * `createMatchIfReady` insert a SECOND row for the same slot.
+ *
+ * Contrast `BracketAdvanceService.deleteUnstartedMatch`, which despite its name
+ * is an UPDATE: its row is a generation-time placeholder carrying the
+ * operator's schedule placement and has to survive. This one must not exist at
+ * all. Scoped to scheduled + never started, so a reset that carries a real
+ * result is left for the caller's started-dependents guard to refuse rather
+ * than destroyed here.
+ */
+async function deleteUnplayedSlotMatch(supabase: Client, slotId: string): Promise<void> {
+  const { data } = await supabase
+    .from('matches')
+    .select('id')
+    .eq('bracket_slot_id', slotId)
+    .eq('status', 'scheduled')
+    .is('started_at', null);
+  const ids = ((data ?? []) as Array<{ id: string }>).map((row) => row.id);
+  if (ids.length === 0) return;
+
+  const assignments = await supabase.from('referee_assignments').delete().in('match_id', ids);
+  if (assignments.error) throw new BadRequestException(assignments.error.message);
+
+  const removed = await supabase.from('matches').delete().in('id', ids);
+  if (removed.error) throw new BadRequestException(removed.error.message);
 }
 
 // ── Loaders ─────────────────────────────────────────────────────────────────

@@ -226,16 +226,30 @@ describe('BracketAdvanceService.onMatchCompleted', () => {
    * no decided final and return an empty ranking for the whole tournament.
    */
   describe('double_elim grand final with reset enabled', () => {
-    const mockFor = (winner: string) => {
+    const mockFor = (winner: string, downstream: unknown[] = [], resetMatches: unknown[] = []) => {
       const calls: string[] = [];
+      const updates: Array<{ table: string; patch: unknown }> = [];
       const mockSupabase = {
         service: {
           from: vi.fn((table: string) => {
             calls.push(`from(${table})`);
-            return {
-              select: vi.fn().mockReturnThis(),
-              eq: vi.fn().mockReturnThis(),
-              or: vi.fn().mockResolvedValue({ data: [], error: null }),
+            const api: Record<string, unknown> = {};
+            Object.assign(api, {
+              select: vi.fn(() => api),
+              eq: vi.fn(() => api),
+              not: vi.fn(() => api),
+              update: vi.fn((patch: unknown) => {
+                updates.push({ table, patch });
+                return api;
+              }),
+              delete: vi.fn(() => {
+                calls.push(`delete(${table})`);
+                return api;
+              }),
+              or: vi.fn().mockResolvedValue({ data: downstream, error: null }),
+              // The scheduled + never-started probe in deleteUnplayedSlotMatch.
+              is: vi.fn().mockResolvedValue({ data: resetMatches, error: null }),
+              in: vi.fn().mockResolvedValue({ data: [], error: null }),
               maybeSingle: vi.fn().mockResolvedValue({
                 data:
                   table === 'matches'
@@ -268,18 +282,59 @@ describe('BracketAdvanceService.onMatchCompleted', () => {
                         },
                 error: null,
               }),
-            };
+            });
+            return api;
           }),
         },
       };
-      return { calls, mockSupabase };
+      return { calls, updates, mockSupabase };
     };
 
-    it('skips the reset when the winners-bracket entrant wins', async () => {
-      const { calls, mockSupabase } = mockFor('wb-entrant');
+    /**
+     * Skipping advancement is not enough — the reset has to be UN-MADE.
+     *
+     * It is the one slot with no generation-time placeholder match, so when the
+     * losers-bracket entrant wins, the row is created on demand. Change that
+     * result to a winners-bracket win and the old code simply returned: the
+     * slot rendered TBD/TBD while its `scheduled` matches row kept both
+     * finalists and showed up on the schedule grid, the staff desk and the
+     * public schedule, with nothing validating a match against its slot before
+     * the pad could start it.
+     */
+    it('retracts the reset when the winners-bracket entrant wins', async () => {
+      const { calls, updates, mockSupabase } = mockFor(
+        'wb-entrant',
+        [{ id: 'slot-reset', source_a_ref: 'loser of GF', source_b_ref: 'winner of GF' }],
+        [{ id: 'm-reset' }],
+      );
+
       await new BracketAdvanceService(mockSupabase as never).onMatchCompleted('m-gf');
-      // One bracket_slots read (loading the GF slot), no downstream query.
-      expect(calls.filter((c) => c === 'from(bracket_slots)').length).toBe(1);
+
+      // Cleared, never filled — the reset takes BOTH sides from the grand final.
+      expect(updates).toEqual([
+        { table: 'bracket_slots', patch: { registration_a_id: null, registration_b_id: null } },
+      ]);
+      // Referee assignments FIRST: match_id is ON DELETE SET NULL and
+      // referee_assignments_scope_check forbids a null one, so the reverse
+      // order does not orphan a row — it aborts the delete.
+      expect(calls.filter((c) => c.startsWith('delete('))).toEqual([
+        'delete(referee_assignments)',
+        'delete(matches)',
+      ]);
+    });
+
+    it('deletes nothing when the reset carries a result', async () => {
+      // The scheduled + never-started probe finds no row to remove.
+      const { calls, updates, mockSupabase } = mockFor(
+        'wb-entrant',
+        [{ id: 'slot-reset', source_a_ref: 'loser of GF', source_b_ref: 'winner of GF' }],
+        [],
+      );
+
+      await new BracketAdvanceService(mockSupabase as never).onMatchCompleted('m-gf');
+
+      expect(calls.filter((c) => c.startsWith('delete('))).toEqual([]);
+      expect(updates).toHaveLength(1); // the slot sides are still cleared
     });
 
     it('advances into the reset when the losers-bracket entrant wins', async () => {

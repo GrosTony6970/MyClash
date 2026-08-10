@@ -13,6 +13,7 @@ import {
   loadMatch,
   loadPhase,
   loadSlot,
+  retractGrandFinalReset,
 } from './bracket-downstream';
 
 @Injectable()
@@ -37,7 +38,17 @@ export class BracketAdvanceService {
       const config = (phase.config_json ?? {}) as PhaseConfig;
       if (config.autoAdvance === false) return;
 
-      if (grandFinalEndsBracket(phase.type as string, config, slot, match)) return;
+      // Not merely skipped — UN-MADE. The reset slot is the one slot with no
+      // generation-time placeholder, so when the losers-bracket entrant wins it
+      // the match row is created on demand; changing that result to a
+      // winners-bracket win used to leave the row behind as a bout that can
+      // never legitimately be played. Failures are swallowed by the catch
+      // below, so the worst case is the phantom surviving with an error logged
+      // — never worse than the bare return was.
+      if (grandFinalEndsBracket(phase.type as string, config, slot, match)) {
+        await retractGrandFinalReset(this.supabase.service, matchId);
+        return;
+      }
 
       const selfRef = buildSelfRef(slot.round, slot.position, phase.type as string, config);
       // The SLOT is authoritative for who is in a bracket match — populate and

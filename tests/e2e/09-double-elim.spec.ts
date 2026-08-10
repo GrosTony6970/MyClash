@@ -225,6 +225,55 @@ test.describe('double elim', () => {
     await expectChampionIsTopSeed(page, built, result.championRegistrationId);
   });
 
+  test('A2. overriding the grand final retracts the reset it had already created', async ({
+    request,
+  }) => {
+    test.setTimeout(600_000);
+    const api = apiFor(request);
+    const { tournament, generated } = await build(api, PLAY_IN_RESET);
+    const reset = resetRound(generated) as number;
+
+    // Play everything up to and including the grand final, forcing the
+    // losers-bracket entrant to win it — which materialises the reset slot AND
+    // the matches row it has no generation-time placeholder for. Stop there:
+    // the reset must be observed scheduled-but-unplayed.
+    await playDoubleElim(api, tournament.id, {
+      forceLbWinsGrandFinal: true,
+      stopBeforeRound: reset,
+    });
+
+    const before = await readBracket(api, tournament.id);
+    const resetBefore = before.slots.find((s) => s.round === reset);
+    expect(resetBefore?.matchId).not.toBeNull();
+    expect(resetBefore?.status).toBe('scheduled');
+
+    // Correct the grand final so the unbeaten entrant wins after all. The reset
+    // is now a bout that must never be played.
+    const gfSlot = before.slots.find((s) => s.round === grandFinalRound(before)) as {
+      matchId: string;
+      blueRegistrationId: string;
+    };
+    await api.ok(
+      await api.post(`matches/${gfSlot.matchId}/forfeit`, {
+        data: {
+          forfeitingRegistrationId: gfSlot.blueRegistrationId,
+          reason: 'referee_decision',
+          explicitScores: { forfeitingScore: 2, opponentScore: POINT_CAP },
+        },
+      }),
+    );
+
+    // Was: `grandFinalEndsBracket` merely skipped advancement, so the slot went
+    // back to TBD/TBD while its matches row survived — a scheduled bout still
+    // naming both finalists on the schedule grid, the staff desk and the public
+    // schedule, startable because nothing checks a match against its slot.
+    const after = await readBracket(api, tournament.id);
+    const resetAfter = after.slots.find((s) => s.round === reset);
+    expect(resetAfter?.matchId).toBeNull();
+    expect(resetAfter?.redRegistrationId).toBeNull();
+    expect(resetAfter?.blueRegistrationId).toBeNull();
+  });
+
   test('B. skips the grand-final reset when the unbeaten entrant wins', async ({
     request,
     page,
