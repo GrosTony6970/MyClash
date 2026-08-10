@@ -1,4 +1,10 @@
-import { BadRequestException, Injectable, NotFoundException, Optional } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  Injectable,
+  NotFoundException,
+  Optional,
+} from '@nestjs/common';
 import {
   FORFEIT_REASONS,
   isOverrideReason,
@@ -12,9 +18,16 @@ import { MatchCompletionService } from '../phases/match-completion.service';
 import { BracketAdvanceService } from '../phases/bracket-advance.service';
 import type { CreateMatchForfeitDto } from './dto/matches.dto';
 import { ClockService } from './clock.service';
+import { FrozenResultsGuard } from './frozen-results.guard';
 import { forfeitEndReason } from './forfeit-end-reason';
 
-type Actor = { userId?: string; staffAccountId?: string };
+/**
+ * `canOverrideLocked` comes from `authorizeMatchScoring` and was being dropped
+ * on the floor: the controller has always passed the full ScoringActor, and
+ * this type simply did not declare the flag, so the lock could not be honoured
+ * even in principle.
+ */
+type Actor = { userId?: string; staffAccountId?: string; canOverrideLocked?: boolean };
 type Row = Record<string, unknown>;
 
 @Injectable()
@@ -26,6 +39,7 @@ export class MatchForfeitsService {
     // works; in the app it's provided by MatchesModule (Supabase-only dep).
     @Optional() private readonly clock?: ClockService,
     @Optional() private readonly bracketAdvance?: BracketAdvanceService,
+    @Optional() private readonly frozenResults?: FrozenResultsGuard,
   ) {}
 
   async createForfeit(matchId: string, dto: CreateMatchForfeitDto, actor: Actor = {}) {
@@ -33,9 +47,9 @@ export class MatchForfeitsService {
     if (!match) throw new NotFoundException(`Match ${matchId} not found`);
 
     const wasCompleted = match.status === 'completed';
-    await this.assertWritable(matchId, match, dto);
+    await this.assertWritable(matchId, match, dto, actor);
 
-    const active = await this.loadActiveForfeit(matchId);
+    const active = await this.existingRecord(matchId, dto);
     if (active) return active;
 
     const phase = this.phase(match);
@@ -125,6 +139,7 @@ export class MatchForfeitsService {
         match,
         phase,
         dto.forfeitingRegistrationId,
+        dto.reason as ForfeitReason,
       );
       downstreamIds.push(...bracketResult.downstreamIds);
       if (bracketResult.replacementRegistrationId) {
@@ -147,6 +162,47 @@ export class MatchForfeitsService {
     }
 
     return { ...forfeit, downstream_match_ids: downstreamIds };
+  }
+
+  /**
+   * The live record on this match, if one already exists — or a conflict.
+   *
+   * A repeated FORFEIT stays idempotent: the pad can double-tap, and the second
+   * press must not create a second row or error at the referee mid-bout.
+   *
+   * A repeated OVERRIDE must not be idempotent. Before overrides existed,
+   * `assertWritable` refused a second attempt outright, so returning the
+   * existing row was unreachable for anything a user could retry; admitting
+   * completed matches turned it into a live trap that answered 201 and wrote
+   * nothing — so correcting a mistyped score, or correcting a match that ended
+   * in a real forfeit (the case migration 0177 exists for), silently did
+   * nothing while the UI reported success.
+   *
+   * `match_forfeits_one_active_per_match` means a second row cannot be inserted
+   * anyway, so the honest answer is a conflict that names the remedy — and
+   * `GET /matches/:id/forfeit` plus the admin void button are what make that
+   * remedy reachable.
+   */
+  private async existingRecord(matchId: string, dto: CreateMatchForfeitDto): Promise<Row | null> {
+    const active = await this.loadActiveForfeit(matchId);
+    if (active && isOverrideReason(dto.reason)) {
+      throw new ConflictException(
+        'This match already has a forfeit or override on record. Void it before recording another.',
+      );
+    }
+    return active;
+  }
+
+  /**
+   * The live forfeit/override on this match, or null.
+   *
+   * Exists so the organiser can SEE the record that a second attempt now
+   * conflicts with, and void it. Without this read the 409 names a remedy
+   * nothing in the product can reach — `PATCH /match-forfeits/:id/void` had no
+   * caller in any app.
+   */
+  async getActiveForfeit(matchId: string): Promise<Row | null> {
+    return this.loadActiveForfeit(matchId);
   }
 
   async voidForfeit(forfeitId: string, actor: Actor = {}) {
@@ -203,21 +259,42 @@ export class MatchForfeitsService {
   }
 
   /**
-   * The three reasons this write can be refused before anything is inserted.
+   * Every reason this write can be refused before anything is inserted.
    *
    * An override's whole purpose is a match that has already ended, so
    * `completed` is a reason to run it rather than to refuse it. A forfeit still
    * needs a live bout, and `voided` is closed to both.
+   *
+   * The lock and freeze checks are NOT inherited from the sibling write paths —
+   * they have to be stated here. Every other writer on a match enforces them
+   * (`clock.service.ts`, `matches.service.ts`, `penalties.service.ts`), and the
+   * omission was harmless only while this service could not touch a completed
+   * match. An override targets exactly the completed matches that auto-lock
+   * stamps and that a finished event freezes, so without these two an
+   * auto-locked result could be rewritten by a PIN scorer who cannot void a
+   * single exchange on the same bout, and a frozen event could be edited
+   * around the exchange-edit-request review that exists to record such changes.
    */
   private async assertWritable(
     matchId: string,
-    match: { status?: unknown; red_registration_id?: unknown; blue_registration_id?: unknown },
+    match: {
+      status?: unknown;
+      locked_at?: unknown;
+      red_registration_id?: unknown;
+      blue_registration_id?: unknown;
+    },
     dto: CreateMatchForfeitDto,
+    actor: Actor,
   ): Promise<void> {
     const wasCompleted = match.status === 'completed';
     if (match.status === 'voided' || (wasCompleted && !isOverrideReason(dto.reason))) {
       throw new BadRequestException('Match is already closed');
     }
+    // `loadMatch` selects *, so locked_at is already on the row — no extra read.
+    if (match.locked_at && !actor.canOverrideLocked) {
+      throw new BadRequestException('Match is locked');
+    }
+    await this.frozenResults?.assertResultMutationAllowed(matchId, actor.userId);
     if (wasCompleted) await this.assertNoStartedDependents(matchId);
     if (
       ![match.red_registration_id, match.blue_registration_id].includes(
@@ -342,11 +419,13 @@ export class MatchForfeitsService {
     match: Row,
     phase: { type: string },
     forfeitingRegistrationId: string,
+    reason: ForfeitReason,
   ): Promise<{ downstreamIds: string[]; replacementRegistrationId?: string }> {
     const downstreamIds: string[] = [];
     const replacementRegistrationId = await this.tryReplaceMainRoundOneFighter(
       match,
       forfeitingRegistrationId,
+      reason,
     );
     if (replacementRegistrationId) {
       return { downstreamIds, replacementRegistrationId };
@@ -355,14 +434,33 @@ export class MatchForfeitsService {
     if (phase.type === 'single_elim' || phase.type === 'double_elim') {
       await this.matchCompletion?.onMatchCompleted(match['id'] as string);
     }
-    if (match['bracket_slot_id']) downstreamIds.push(match['id'] as string);
+
+    // The matches this one FEEDS — resolved after advancement has filled them,
+    // by the same ref algebra advancement used. This used to push the match's
+    // OWN id, which made `downstream_match_ids` a list containing self: void
+    // then handed it to a started-check whose set includes 'completed', and
+    // completeMatch had just set this very match to completed. Every bracket
+    // forfeit and every bracket override was therefore permanently unvoidable
+    // — the guard fired on the match being voided. This list has exactly one
+    // reader (that guard), so the self-id served no other purpose.
+    downstreamIds.push(
+      ...((await this.bracketAdvance?.findDownstreamMatchIds(match['id'] as string)) ?? []),
+    );
     return { downstreamIds };
   }
 
   private async tryReplaceMainRoundOneFighter(
     match: Row,
     forfeitingRegistrationId: string,
+    reason: ForfeitReason,
   ): Promise<string | null> {
+    // Replacing a no-show with a reserve is a FORFEIT remedy: "the bout never
+    // started, so the empty slot gets the next fighter in". An override states
+    // what a bout's result WAS — substituting a different fighter and resetting
+    // the match to 0-0 discards the correction that was just written, and
+    // `voidForfeit` never reverts `bracket_slots`, so the reserve would stay in
+    // the bracket even after a void.
+    if (isOverrideReason(reason)) return null;
     if (match['status'] !== 'scheduled' || !match['bracket_slot_id']) return null;
 
     const { data: slot } = await this.supabase.service
