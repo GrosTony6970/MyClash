@@ -7104,6 +7104,23 @@ export const en = {
       voidRecordBodyChildParentGone:
         'Only this bout reopens. The withdrawal that closed it has already been voided, so nothing else changes.',
       voidRecordFailed: 'Could not void this record.',
+      // Seeding drift. The remedies are ordered cheapest-first on purpose:
+      // Regenerate sits on the same card and destroys every bout already
+      // fought in the bracket.
+      seedingDriftPending:
+        'A pool result has changed. The bracket re-seeds itself as soon as that pool is finished again — nothing to do here yet.',
+      seedingDriftStaleOne:
+        'One first-round place no longer matches the standings this bracket was seeded from.',
+      seedingDriftStaleMany:
+        '{count} first-round places no longer match the standings this bracket was seeded from.',
+      seedingDriftRemedyResetOne:
+        'Cheapest fix: put the started first-round bout back to Not started. The bracket then re-seeds itself the next time a pool finishes.',
+      seedingDriftRemedyResetMany:
+        'Cheapest fix: put the {count} started first-round bouts back to Not started. The bracket then re-seeds itself the next time a pool finishes.',
+      seedingDriftRemedyPopulate:
+        'Cheapest fix: click Populate bracket to re-apply the seeding. Nothing has started, so it will be accepted.',
+      seedingDriftRemedyRegenerate:
+        'Only if neither is possible: regenerate the bracket. That deletes every bout already fought in it, along with its piste placements and referee crew.',
       summarySlots: '{count}-slot main bracket',
       summaryRounds: '{count} rounds',
       summaryByes: '{count} byes',
@@ -14843,6 +14860,20 @@ export const fr = {
       voidRecordBodyChildParentGone:
         'Seul cet assaut est rouvert. Le forfait qui l’avait fermé a déjà été annulé, donc rien d’autre ne change.',
       voidRecordFailed: 'Impossible d’annuler cet enregistrement.',
+      seedingDriftPending:
+        'Un résultat de poule a changé. Le tableau se réamorce tout seul dès que cette poule est de nouveau terminée — rien à faire ici pour l’instant.',
+      seedingDriftStaleOne:
+        'Une place du premier tour ne correspond plus au classement d’où ce tableau a été tiré.',
+      seedingDriftStaleMany:
+        '{count} places du premier tour ne correspondent plus au classement d’où ce tableau a été tiré.',
+      seedingDriftRemedyResetOne:
+        'Solution la moins coûteuse : remettez l’assaut du premier tour déjà commencé sur « Non commencé ». Le tableau se réamorce ensuite dès qu’une poule se termine.',
+      seedingDriftRemedyResetMany:
+        'Solution la moins coûteuse : remettez les {count} assauts du premier tour déjà commencés sur « Non commencé ». Le tableau se réamorce ensuite dès qu’une poule se termine.',
+      seedingDriftRemedyPopulate:
+        'Solution la moins coûteuse : cliquez sur Remplir le tableau pour réappliquer le tirage. Rien n’a commencé, donc il sera accepté.',
+      seedingDriftRemedyRegenerate:
+        'Seulement si aucune des deux n’est possible : régénérez le tableau. Cela supprime tous les assauts déjà disputés, ainsi que les pistes et les arbitres affectés.',
       summarySlots: 'Tableau principal de {count} places',
       summaryRounds: '{count} tours',
       summaryByes: '{count} exemptions',

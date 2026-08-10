@@ -28,6 +28,7 @@ import { useEventStatus } from '../_hooks/useEventStatus';
 import { RefereesTab as BracketRefereesTab } from './_tabs/RefereesTab';
 import { buildMatchScoringHref, STAFF_APP_PREFIX } from '../pools/_tabs/build-scoring-href';
 import { diffRoleAssignments } from './diff-role-assignments';
+import { seedingDriftBanner, type SeedingDrift } from './seeding-drift-banner';
 import { deriveDoubleElimPodium } from './derive-de-podium';
 import {
   DoubleElimPodiumOptions,
@@ -83,6 +84,12 @@ interface BracketResult {
    * the bracket.
    */
   hasPoolPhase?: boolean;
+  /**
+   * Whether the R1 slots still hold the fighters the standings would put
+   * there. Optional so a response from a deploy without it simply renders no
+   * banner. Four states, not a boolean — see `seeding-drift-banner.ts`.
+   */
+  seedingDrift?: SeedingDrift;
 }
 
 interface OverrideModalState {
@@ -351,6 +358,10 @@ export default function BracketPage() {
   const [bracketRefreshKey, setBracketRefreshKey] = useState(0);
 
   const refreshBracket = useCallback(() => setBracketRefreshKey((k) => k + 1), []);
+
+  // Derived in render: which warning (if any) the seeding state earns, and in
+  // which order its remedies must be read.
+  const driftBanner = seedingDriftBanner(bracket?.seedingDrift);
 
   // ── Load tournaments ────────────────────────────────────────────────────────
 
@@ -1270,6 +1281,22 @@ export default function BracketPage() {
             <h2 className="font-display font-semibold text-lg sm:text-xl text-foreground-secondary mb-4">
               {t('organizer.phaseVisibility.configCardTitle')}
             </h2>
+            {/* Same ⚠ text-warning treatment as the pools-not-finished notice
+                below, so the two seeding warnings read as one family — and
+                immediately above Regenerate, because the remedies exist to be
+                read BEFORE that button is reached. */}
+            {driftBanner && (
+              <div className="mb-4 flex flex-col gap-1">
+                <p className="text-xs font-medium text-warning">
+                  ⚠ {t(driftBanner.headline.key, driftBanner.headline.values)}
+                </p>
+                {driftBanner.remedies.map((remedy) => (
+                  <p key={remedy.key} className="text-xs text-muted">
+                    {t(remedy.key, remedy.values)}
+                  </p>
+                ))}
+              </div>
+            )}
             <div className="flex flex-wrap items-end gap-6 text-sm">
               <div>
                 <p className="text-xs text-muted">
