@@ -113,18 +113,24 @@ export class MatchForfeitsService {
     );
     await this.applyTournamentState(dto.forfeitingRegistrationId, tournamentState, canContinue);
 
+    // A pool match feeds no bracket slot, so a pool forfeit has no dependents
+    // and this list stays empty. It used to hold the auto-forfeited CHILD match
+    // ids — whose one reader is `assertNoneStarted`, whose started-set includes
+    // 'completed', and `createAutoForfeit` had just completed every one of them.
+    // Every cascading pool forfeit was therefore permanently unvoidable, and
+    // `existingRecord` 409s the retry, so there was no product-reachable remedy
+    // at all. The children are EFFECTS of this forfeit, not dependents of it;
+    // they are reached through `parent_forfeit_id` — see `cascadeVoidChildren`.
     const downstreamIds: string[] = [];
     if (phase.type === 'pool' && canContinue === false) {
-      downstreamIds.push(
-        ...(await this.autoForfeitFuturePoolMatches(
-          match,
-          dto.forfeitingRegistrationId,
-          dto.reason as ForfeitReason,
-          forfeit.id as string,
-          phase.tournament_id,
-          tournament.ruleset_config ?? {},
-          actor,
-        )),
+      await this.autoForfeitFuturePoolMatches(
+        match,
+        dto.forfeitingRegistrationId,
+        dto.reason as ForfeitReason,
+        forfeit.id as string,
+        phase.tournament_id,
+        tournament.ruleset_config ?? {},
+        actor,
       );
     }
 
@@ -258,18 +264,102 @@ export class MatchForfeitsService {
         .eq('id', forfeit['forfeiting_registration_id'] as string);
     }
 
-    const { data: updated } = await this.supabase.service
+    // Children second-to-last, the parent LAST. A crash between them leaves the
+    // parent record active, so a re-run converges: the children already voided
+    // drop out of `cascadeVoidChildren`'s query. Stamping the parent first would
+    // strand them forfeited with no reachable remedy, because `existingRecord`
+    // would no longer block a fresh record on the parent match.
+    const cascaded = await this.cascadeVoidChildren(forfeitId, actor);
+    const updated = await this.stampVoided(forfeitId, actor);
+    return { ...(updated ?? {}), cascaded_forfeit_count: cascaded };
+  }
+
+  /**
+   * Void the sub-forfeits this record cascaded into the fighter's remaining
+   * pool matches.
+   *
+   * Voiding the parent un-withdraws the fighter — `previous_registration_state`
+   * puts their `registrations.status` back — so leaving their other bouts on
+   * record as forfeits would count F's in the standings for someone who is back
+   * in the tournament. `pool-standings.service.ts` and `swiss-standings-loader`
+   * both key on `voided_at IS NULL` and nothing else, so stamping the child is
+   * what removes the F; restoring its match is what puts the bout back on.
+   *
+   * No registration restore for a child: its `previous_registration_state` is
+   * `{}` by construction and the PARENT owns the fighter's status. No
+   * `clearDownstreamOf` either — a pool match feeds no slot.
+   *
+   * A child already voided is SKIPPED. The organiser dealt with that bout
+   * separately and whatever was replayed on it afterwards is a real result;
+   * refusing the parent void over it would reinstate the bug being fixed here.
+   * That predicate is also what makes a re-run after a mid-way crash converge.
+   */
+  private async cascadeVoidChildren(parentForfeitId: string, actor: Actor): Promise<number> {
+    const { data } = await this.supabase.service
+      .from('match_forfeits')
+      .select('id, match_id, previous_match_state')
+      .eq('parent_forfeit_id', parentForfeitId)
+      .is('voided_at', null);
+    const children = (data ?? []) as Row[];
+    if (children.length === 0) return 0;
+
+    const live = await this.liveMatchIds(children.map((child) => child['match_id'] as string));
+    for (const child of children) {
+      const matchId = child['match_id'] as string;
+      if (!live.has(matchId)) {
+        await this.restoreMatchState(matchId, (child['previous_match_state'] as Row | null) ?? {});
+      }
+      await this.stampVoided(child['id'] as string, actor);
+    }
+    return children.length;
+  }
+
+  /**
+   * Which of these matches are mid-bout, so must not be rewritten.
+   *
+   * An auto-forfeited match is `completed`, but three live paths put one back in
+   * play with its forfeit row still active: `POST /matches/:id/reset`,
+   * `PATCH /matches/:id/status`, and the clock's `reopen` (which validates the
+   * CLOCK state machine, never `matches.status`). Restoring
+   * `previous_match_state` over a running bout would wipe its score.
+   *
+   * The record still voids either way — an F must not stand for a bout that is
+   * being fought for real. Scoped on `status`, NOT `started_at`:
+   * `autoForfeitFuturePoolMatches` selects `.in('status', ['scheduled','paused'])`,
+   * so a child auto-forfeited from `paused` has a non-null `started_at` and DOES
+   * need restoring.
+   */
+  private async liveMatchIds(matchIds: string[]): Promise<Set<string>> {
+    if (matchIds.length === 0) return new Set();
+    const { data } = await this.supabase.service
+      .from('matches')
+      .select('id, status')
+      .in('id', matchIds);
+    return new Set(
+      (data ?? [])
+        .filter((row) => ['running', 'paused'].includes(String((row as Row)['status'])))
+        .map((row) => (row as Row)['id'] as string),
+    );
+  }
+
+  /**
+   * Stamp the void columns. Shared so a cascaded child records the same audit
+   * trail — who voided it and when — as the parent that carried it down.
+   */
+  private async stampVoided(forfeitId: string, actor: Actor): Promise<Row | null> {
+    const now = new Date().toISOString();
+    const { data } = await this.supabase.service
       .from('match_forfeits')
       .update({
-        voided_at: new Date().toISOString(),
+        voided_at: now,
         voided_by_user_id: actor.userId ?? null,
         voided_by_staff_account_id: actor.staffAccountId ?? null,
-        updated_at: new Date().toISOString(),
+        updated_at: now,
       })
       .eq('id', forfeitId)
       .select('*')
       .single();
-    return updated;
+    return (data as Row | null) ?? null;
   }
 
   /**
@@ -400,21 +490,27 @@ export class MatchForfeitsService {
     tournamentId: string,
     rulesetConfig: unknown,
     actor: Actor,
-  ): Promise<string[]> {
+  ): Promise<void> {
     const { data } = await this.supabase.service
       .from('matches')
+      // winner_registration_id/ended_at/end_reason ride along for
+      // `matchSnapshot`, which is what a cascade void restores from. Omitting
+      // them made the snapshot record `null` for all three via its `?? null`
+      // fallbacks rather than the row's real value — the same way `end_reason`
+      // was lost on the parent (see the note on `matchSnapshot`). One string
+      // literal, never concatenated: supabase-js infers the row type FROM the
+      // select text, and a `+` collapses it to GenericStringError.
       .select(
-        'id, red_registration_id, blue_registration_id, red_score, blue_score, status, phases(id, type, tournament_id, tournaments(id, ruleset_config))',
+        'id, red_registration_id, blue_registration_id, red_score, blue_score, status, winner_registration_id, ended_at, end_reason, phases(id, type, tournament_id, tournaments(id, ruleset_config))',
       )
       .eq('pool_id', match['pool_id'] as string)
       .in('status', ['scheduled', 'paused'])
       .or(`red_registration_id.eq.${registrationId},blue_registration_id.eq.${registrationId}`);
 
-    const ids: string[] = [];
     for (const row of data ?? []) {
       const future = row as Row;
       if (future['id'] === match['id']) continue;
-      const result = await this.createAutoForfeit(
+      await this.createAutoForfeit(
         future,
         registrationId,
         reason,
@@ -423,9 +519,7 @@ export class MatchForfeitsService {
         rulesetConfig,
         actor,
       );
-      ids.push(result.matchId);
     }
-    return ids;
   }
 
   private async createAutoForfeit(
@@ -436,7 +530,7 @@ export class MatchForfeitsService {
     tournamentId: string,
     rulesetConfig: unknown,
     actor: Actor,
-  ): Promise<{ matchId: string }> {
+  ): Promise<void> {
     const policy = resolveForfeitPolicy(rulesetConfig, reason);
     const winnerRegistrationId =
       registrationId === match['red_registration_id']
@@ -468,7 +562,6 @@ export class MatchForfeitsService {
       scores,
       forfeitEndReason(reason),
     );
-    return { matchId: match['id'] as string };
   }
 
   private async applyBracketForfeit(

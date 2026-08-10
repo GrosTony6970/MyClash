@@ -7105,7 +7105,7 @@ export const en = {
       voidRecord: 'Void this record',
       voidRecordTitle: 'Void this record?',
       voidRecordBody:
-        'The match goes back to the result it had before. On a bracket, whoever this sent through is un-advanced.',
+        'The match goes back to the result it had before. On a bracket, whoever this sent through is un-advanced. In a pool, the other bouts this record closed are reopened too.',
       voidRecordFailed: 'Could not void this record.',
       summarySlots: '{count}-slot main bracket',
       summaryRounds: '{count} rounds',
@@ -14849,7 +14849,7 @@ export const fr = {
       voidRecord: 'Annuler cet enregistrement',
       voidRecordTitle: 'Annuler cet enregistrement ?',
       voidRecordBody:
-        'L’assaut retrouve le résultat qu’il avait avant. Dans un tableau, le combattant qualifié par cet enregistrement est retiré du tour suivant.',
+        'L’assaut retrouve le résultat qu’il avait avant. Dans un tableau, le combattant qualifié par cet enregistrement est retiré du tour suivant. Dans une poule, les autres assauts fermés par cet enregistrement sont rouverts.',
       voidRecordFailed: 'Impossible d’annuler cet enregistrement.',
       summarySlots: 'Tableau principal de {count} places',
       summaryRounds: '{count} tours',

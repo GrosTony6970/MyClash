@@ -398,9 +398,16 @@ type TableState = Record<
 function fakeSupabase(state: TableState) {
   const inserted: Record<string, unknown[]> = {};
   const updated: Record<string, unknown[]> = {};
+  /** Updates WITH the filters that scoped them — `updated` alone cannot say
+   *  which row was written, which is what a cascade's ordering needs. */
+  const mutations: Array<{ table: string; row: unknown; filters: Array<[string, unknown]> }> = [];
 
   function chain(table: string) {
     const tableState = state[table] ?? {};
+    // One array per chain, shared BY REFERENCE with the recorded mutation: the
+    // `.eq()` calls come after `.update()` in the fluent chain, so they have to
+    // be able to land on an entry that was already pushed.
+    const filters: Array<[string, unknown]> = [];
     const promise = Promise.resolve({
       data: tableState.select ?? [],
       count: tableState.count ?? 0,
@@ -410,7 +417,10 @@ function fakeSupabase(state: TableState) {
     // The test double intentionally mirrors that hybrid shape.
     const api: any = Object.assign(promise, {
       select: vi.fn(() => api),
-      eq: vi.fn(() => api),
+      eq: vi.fn((column: string, value: unknown) => {
+        filters.push([column, value]);
+        return api;
+      }),
       neq: vi.fn(() => api),
       is: vi.fn(() => api),
       or: vi.fn(() => api),
@@ -429,6 +439,7 @@ function fakeSupabase(state: TableState) {
       }),
       update: vi.fn((row: unknown) => {
         updated[table] = [...(updated[table] ?? []), row];
+        mutations.push({ table, row, filters });
         return api;
       }),
     });
@@ -438,6 +449,7 @@ function fakeSupabase(state: TableState) {
   return {
     inserted,
     updated,
+    mutations,
     service: {
       from: vi.fn((table: string) => chain(table)),
     },
@@ -779,5 +791,143 @@ describe('MatchForfeitsService — override regressions', () => {
     ).rejects.toThrow('Event results are frozen');
     expect(frozenResults.assertResultMutationAllowed).toHaveBeenCalledWith('match-1', 'user-1');
     expect(supabase.inserted.match_forfeits).toBeUndefined();
+  });
+});
+
+/**
+ * The pool half of the defect `applyBracketForfeit` already fixed on the
+ * bracket side: `downstream_match_ids` means "dependents that must not have
+ * started", and a cascade's children are not dependents — they are effects.
+ */
+describe('MatchForfeitsService — pool cascade void', () => {
+  const CHILD_ROW = {
+    id: 'child-1',
+    match_id: 'later-1',
+    previous_match_state: { status: 'scheduled', red_score: 0, blue_score: 0 },
+  };
+
+  /** Parent + one active child, the shape every cascade test below reads. */
+  function cascadeState(childMatchStatus: string, children: unknown[] = [CHILD_ROW]) {
+    return {
+      match_forfeits: {
+        maybeSingle: {
+          id: 'forfeit-1',
+          match_id: 'match-1',
+          forfeiting_registration_id: 'reg-red',
+          downstream_match_ids: [],
+          voided_at: null,
+          previous_match_state: { status: 'running', red_score: 2, blue_score: 3 },
+          previous_registration_state: { status: 'checked_in' },
+        },
+        select: children,
+        update: { id: 'forfeit-1' },
+      },
+      matches: {
+        maybeSingle: { locked_at: null },
+        select: [{ id: 'later-1', status: childMatchStatus }],
+      },
+    };
+  }
+
+  it('does not record the auto-forfeited pool matches as dependents', async () => {
+    // Was: the child MATCH ids went into `downstream_match_ids`, whose one
+    // reader is a started-check whose set includes 'completed' — which is
+    // exactly what `createAutoForfeit` had just set every one of them to. The
+    // guard therefore fired on matches this forfeit itself closed, and
+    // `existingRecord` 409s an override on top, so the record could never be
+    // undone by any route the product exposes.
+    const supabase = fakeSupabase({
+      matches: {
+        maybeSingle: matchRow({ phaseType: 'pool', status: 'running' }),
+        update: { id: 'match-1' },
+        select: [
+          {
+            id: 'later-1',
+            red_registration_id: 'reg-red',
+            blue_registration_id: 'reg-green',
+            status: 'scheduled',
+          },
+        ],
+      },
+      match_forfeits: { maybeSingle: null, insert: { id: 'forfeit-1' } },
+      phases: { maybeSingle: { id: 'phase-1', type: 'pool', tournament_id: 'tournament-1' } },
+      tournaments: { maybeSingle: { id: 'tournament-1', ruleset_config: {} } },
+    });
+    const service = new MatchForfeitsService(supabase as never, undefined as never);
+
+    const result = await service.createForfeit('match-1', {
+      forfeitingRegistrationId: 'reg-red',
+      reason: 'injury',
+      canContinue: false,
+    });
+
+    expect(result.downstream_match_ids).toEqual([]);
+    // The cascade still runs — only its bookkeeping moved to parent_forfeit_id,
+    // which is how the void reaches the children now.
+    expect(supabase.inserted.match_forfeits).toHaveLength(2);
+    expect(supabase.inserted.match_forfeits?.[1]).toMatchObject({
+      match_id: 'later-1',
+      parent_forfeit_id: 'forfeit-1',
+      auto_created: true,
+    });
+    // Never written at all, so the column keeps its '[]' default.
+    expect(supabase.updated.match_forfeits).toBeUndefined();
+  });
+
+  it('voids the sub-forfeits when the parent record is voided', async () => {
+    const supabase = fakeSupabase(cascadeState('completed'));
+    const service = new MatchForfeitsService(supabase as never, undefined as never);
+
+    const result = await service.voidForfeit('forfeit-1');
+
+    expect(result.cascaded_forfeit_count).toBe(1);
+    expect(supabase.updated.match_forfeits).toHaveLength(2);
+    // Off the record AND back on the schedule: standings key on voided_at, but
+    // the bout itself has to be playable again.
+    expect(supabase.updated.matches).toContainEqual(
+      expect.objectContaining({ status: 'scheduled', red_score: 0, blue_score: 0 }),
+    );
+  });
+
+  it('stamps the children before the parent, so a crash mid-void converges', async () => {
+    // Parent-first would leave the children forfeited with no reachable remedy:
+    // once the parent is voided, `existingRecord` no longer blocks a fresh
+    // record on the parent match, and nothing points at the orphans.
+    const supabase = fakeSupabase(cascadeState('completed'));
+    const service = new MatchForfeitsService(supabase as never, undefined as never);
+
+    await service.voidForfeit('forfeit-1');
+
+    const stamped = supabase.mutations
+      .filter((mutation) => mutation.table === 'match_forfeits')
+      .map((mutation) => mutation.filters.find(([column]) => column === 'id')?.[1]);
+    expect(stamped).toEqual(['child-1', 'forfeit-1']);
+  });
+
+  it('does not rewrite a child match that is back in play', async () => {
+    // `POST /matches/:id/reset`, `PATCH /matches/:id/status` and the clock's
+    // `reopen` all put an auto-forfeited match back in play while its forfeit
+    // row is still active. Restoring the snapshot over a live bout would wipe
+    // its score — but the F must not stand for a bout being fought, so the
+    // record still voids.
+    const supabase = fakeSupabase(cascadeState('running'));
+    const service = new MatchForfeitsService(supabase as never, undefined as never);
+
+    await service.voidForfeit('forfeit-1');
+
+    expect(supabase.updated.matches).toHaveLength(1); // the parent restore only
+    expect(supabase.updated.match_forfeits).toHaveLength(2);
+  });
+
+  it('voids a childless record in a single write', async () => {
+    // Passes pre-fix — a guard against the cascade double-stamping the parent
+    // or fanning out a query per void on the common case.
+    const supabase = fakeSupabase(cascadeState('completed', []));
+    const service = new MatchForfeitsService(supabase as never, undefined as never);
+
+    const result = await service.voidForfeit('forfeit-1');
+
+    expect(result.cascaded_forfeit_count).toBe(0);
+    expect(supabase.updated.match_forfeits).toHaveLength(1);
   });
 });
