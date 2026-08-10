@@ -1507,7 +1507,7 @@ export class EventsService {
     const { data: matchesData, error: matchesError } = await this.supabase.service
       .from('matches')
       .select(
-        'id, status, scheduled_at, match_number_label, red_score, blue_score, pool_id, lice_id, ' +
+        'id, status, scheduled_at, match_number_label, red_score, blue_score, winner_registration_id, pool_id, lice_id, ' +
           'red:registrations!matches_red_registration_id_fkey(id, persons(given_name, family_name, clubs(name, abbreviation))), ' +
           'blue:registrations!matches_blue_registration_id_fkey(id, persons(given_name, family_name, clubs(name, abbreviation))), ' +
           'lices(id, name, color_hex)',
@@ -1531,6 +1531,10 @@ export class EventsService {
       match_number_label: string | null;
       red_score: number | null;
       blue_score: number | null;
+      /** Authoritative over the scores — the public pool table bolds the
+       *  recorded winner, which a forfeit or an override can put on the lower
+       *  score. */
+      winner_registration_id: string | null;
       pool_id: string | null;
       lice_id: string | null;
       red: SideRel;
@@ -1592,6 +1596,7 @@ export class EventsService {
             blueClubAbbrev: clubAbbrevFrom(m.blue),
             blueRegistrationId: m.blue?.id ?? null,
             blueScore: m.blue_score,
+            winnerRegistrationId: m.winner_registration_id,
             liceName: m.lices?.name ?? null,
             liceColorHex: m.lices?.color_hex ?? null,
           })),

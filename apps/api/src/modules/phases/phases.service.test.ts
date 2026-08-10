@@ -2464,7 +2464,7 @@ describe('PhasesService', () => {
     // place (no referee assignments, no derived labels). Lock the
     // shape so we don't accidentally leak privileged data through
     // a cheap polling endpoint.
-    it("returns only (id, status, red_score, blue_score) for a tournament's matches", async () => {
+    it("returns only the narrow score+winner shape for a tournament's matches", async () => {
       // Rows carry the `phases` embed the query has to ask for, because there
       // is no matches.tournament_id — the embed is the ONLY way to filter by
       // tournament, and it must not reach the caller.
@@ -2474,6 +2474,7 @@ describe('PhasesService', () => {
           status: 'completed',
           red_score: 5,
           blue_score: 3,
+          winner_registration_id: 'reg-blue',
           phases: { tournament_id: 'tournament-1' },
         },
         {
@@ -2481,6 +2482,7 @@ describe('PhasesService', () => {
           status: 'pending',
           red_score: null,
           blue_score: null,
+          winner_registration_id: null,
           phases: { tournament_id: 'tournament-1' },
         },
       ];
@@ -2492,15 +2494,30 @@ describe('PhasesService', () => {
 
       const result = await service.listMatchScores('tournament-1');
 
+      // The winner rides along with the scores: the Matches tab bolds the
+      // RECORDED winner, which a forfeit or a referee_decision override can put
+      // on the lower score, so a scores-only poll re-staled every correction.
       expect(result).toEqual([
-        { id: 'm-1', status: 'completed', red_score: 5, blue_score: 3 },
-        { id: 'm-2', status: 'pending', red_score: null, blue_score: null },
+        {
+          id: 'm-1',
+          status: 'completed',
+          red_score: 5,
+          blue_score: 3,
+          winner_registration_id: 'reg-blue',
+        },
+        {
+          id: 'm-2',
+          status: 'pending',
+          red_score: null,
+          blue_score: null,
+          winner_registration_id: null,
+        },
       ]);
       // The SELECT must NOT include privileged fields like referee_id
       // or lice_id — those should only come through the heavier
       // `pools-with-matches` endpoint that handles permissions properly.
       expect(matchesChain.select).toHaveBeenCalledWith(
-        'id, status, red_score, blue_score, phases!inner(tournament_id)',
+        'id, status, red_score, blue_score, winner_registration_id, phases!inner(tournament_id)',
       );
       // Filtered THROUGH the embed. `matches.tournament_id` does not exist, and
       // asking for it 400'd — which `if (error) return []` turned into an empty

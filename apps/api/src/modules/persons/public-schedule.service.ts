@@ -18,6 +18,7 @@ import { SupabaseService } from '../supabase/supabase.service';
 import { PrivacyService } from './privacy.service';
 import { computeMatchKind, fetchBracketRounds, fetchSwissRounds } from './match-kind.util';
 import { sideColorsFromScoringConfig, type SideColors } from '../events/side-colors';
+import { deriveMatchOutcome } from '../fighters/recent-matches';
 
 export interface ScheduleMatch {
   id: string;
@@ -28,6 +29,11 @@ export interface ScheduleMatch {
   opponentClub: string | null;
   redScore: number;
   blueScore: number;
+  /** Result from THIS person's perspective, or null while unfinished. Derived
+   *  server-side from `winner_registration_id` because the client knows only
+   *  which side it is on, and the recorded winner is authoritative over the
+   *  scores — see `deriveMatchOutcome`. */
+  outcome: 'win' | 'loss' | 'draw' | null;
   isRed: boolean;
   /**
    * The tournament's configured fighter-side colour tokens. Carried per match
@@ -143,7 +149,7 @@ export class PublicScheduleService {
       .select(
         `
         id, match_number_label, status, scheduled_at,
-        red_score, blue_score,
+        red_score, blue_score, winner_registration_id,
         red_registration_id, blue_registration_id,
         pools ( name ),
         lices ( name ),
@@ -181,6 +187,21 @@ export class PublicScheduleService {
           opponentRegId: isRed ? blueReg : redReg,
           redScore: (m['red_score'] as number) ?? 0,
           blueScore: (m['blue_score'] as number) ?? 0,
+          // Decided HERE, not by the page. The client only knows which side it
+          // is on; the server knows the registration ids, and the recorded
+          // winner is authoritative over the scores — a forfeit or a
+          // referee_decision override can award the bout to the fighter behind
+          // on points. The page compared the two numbers, so it showed a loss
+          // for every such win and, having no third branch, for every draw too.
+          outcome:
+            (m['status'] as string) === 'completed'
+              ? deriveMatchOutcome(
+                  ((isRed ? m['red_score'] : m['blue_score']) as number) ?? 0,
+                  ((isRed ? m['blue_score'] : m['red_score']) as number) ?? 0,
+                  (m['winner_registration_id'] as string | null) ?? null,
+                  isRed ? redReg : blueReg,
+                )
+              : null,
           isRed,
           poolName: pool?.name ?? null,
           tournamentName: phase?.tournaments?.name ?? null,

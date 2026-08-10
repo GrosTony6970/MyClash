@@ -2726,7 +2726,7 @@ export class PhasesService {
     const { data: viewMatches } = await this.supabase.service
       .from('vw_tournament_query_matches')
       .select(
-        'match_id, pool_id, lice_id, lice_name, lice_number, red_registration_id, blue_registration_id, red_name, blue_name, red_club, blue_club, red_score, blue_score, status, match_number_label',
+        'match_id, pool_id, lice_id, lice_name, lice_number, red_registration_id, blue_registration_id, red_name, blue_name, red_club, blue_club, red_score, blue_score, winner_registration_id, status, match_number_label',
       )
       .eq('tournament_id', tournamentId)
       .eq('phase_type', 'pool')
@@ -2865,6 +2865,9 @@ export class PhasesService {
       blue_club: string | null;
       red_score: number | null;
       blue_score: number | null;
+      /** Authoritative over the scores — a forfeit or a referee_decision
+       *  override can award the bout to the fighter BEHIND on points. */
+      winner_registration_id: string | null;
       status: string;
       match_number_label: string | null;
     };
@@ -2921,6 +2924,7 @@ export class PhasesService {
             blue_club_abbrev: m.blue_club ?? null,
             red_score: m.red_score,
             blue_score: m.blue_score,
+            winner_registration_id: m.winner_registration_id,
             status: m.status,
             lice_id: m.lice_id,
             lice_name: m.lice_name ?? null,
@@ -2953,10 +2957,17 @@ export class PhasesService {
    * this cheap polling endpoint can't be used to siphon assignment
    * data.
    */
-  async listMatchScores(
-    tournamentId: string,
-  ): Promise<
-    Array<{ id: string; status: string; red_score: number | null; blue_score: number | null }>
+  async listMatchScores(tournamentId: string): Promise<
+    Array<{
+      id: string;
+      status: string;
+      red_score: number | null;
+      blue_score: number | null;
+      /** Carried because the Matches tab bolds the WINNER, not the higher
+       *  score. Without it the 30s poll re-staled every corrected result it
+       *  touched. */
+      winner_registration_id: string | null;
+    }>
   > {
     // `matches` has NO tournament_id — it hangs off phases (0001). Filtering on
     // it 400'd, and `if (error) return []` turned that into "this tournament has
@@ -2965,7 +2976,9 @@ export class PhasesService {
     // (deletion-requests.service.ts:108, leagues.service.ts:1902).
     const { data, error } = await this.supabase.service
       .from('matches')
-      .select('id, status, red_score, blue_score, phases!inner(tournament_id)')
+      .select(
+        'id, status, red_score, blue_score, winner_registration_id, phases!inner(tournament_id)',
+      )
       .eq('phases.tournament_id', tournamentId);
     if (error) return [];
     // Map explicitly so the embed stays out of the payload — this endpoint is
@@ -2975,6 +2988,7 @@ export class PhasesService {
       status: row['status'] as string,
       red_score: row['red_score'] as number | null,
       blue_score: row['blue_score'] as number | null,
+      winner_registration_id: row['winner_registration_id'] as string | null,
     }));
   }
 }
