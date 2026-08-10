@@ -25,6 +25,7 @@ import { localeToBcp47 } from '@myclash/time';
 import { useI18n } from '../../../../../../../src/i18n/I18nProvider';
 import { PayloadCell, type PayloadLabel } from '../../../../../../../src/components/PayloadCell';
 import { getPublicApiUrl } from '@/lib/api-url';
+import { voidConfirmCopy, type ForfeitCascade } from './void-confirm-copy';
 
 /**
  * One i18n key per reason. The engine owns which reasons exist; this owns
@@ -48,6 +49,16 @@ interface ActiveForfeit {
   forfeiting_score: number | null;
   opponent_score: number | null;
   note: string | null;
+  /** Set when a withdrawal recorded on another bout closed this one. */
+  parent_forfeit_id: string | null;
+  auto_created: boolean;
+  /**
+   * Computed server-side, and NOT derivable here: the row says a parent exists,
+   * never whether it still stands, and nothing on it counts the children a void
+   * would carry down. Optional so a response from an older deploy degrades to
+   * the copy that is true of every record instead of throwing.
+   */
+  cascade?: ForfeitCascade | null;
 }
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -242,6 +253,9 @@ export default function MatchDetailPage() {
   const [activeForfeit, setActiveForfeit] = useState<ActiveForfeit | null>(null);
   const [voidingForfeit, setVoidingForfeit] = useState(false);
   const isOverride = isOverrideReason(forfeitReason);
+  // Derived in render, not in an effect: what a void does is a pure function of
+  // the record the API just returned.
+  const voidCopy = voidConfirmCopy(activeForfeit?.cascade);
 
   // ── Fetch ─────────────────────────────────────────────────────────────────────
 
@@ -458,12 +472,18 @@ export default function MatchDetailPage() {
    * match is a DB invariant — so this is the whole remedy path. It stays behind
    * a confirmation because voiding restores the previous result and, on a
    * bracket, un-advances whoever it sent through.
+   *
+   * The body is assembled per record: what a void does depends entirely on
+   * whether this record withdrew the fighter, was written under a withdrawal,
+   * or closed nothing but its own bout.
    */
   async function handleVoidForfeit() {
     if (!activeForfeit) return;
     const ok = await confirm({
       title: t('organizer.bracketPage.voidRecordTitle'),
-      description: t('organizer.bracketPage.voidRecordBody'),
+      // One paragraph, like the string this replaces — ConfirmDialog already
+      // wraps `description` in a <p>, so nested block elements are invalid.
+      description: voidCopy.body.map((line) => t(line.key, line.values)).join(' '),
       confirmLabel: t('organizer.bracketPage.voidRecord'),
       danger: true,
     });
@@ -611,6 +631,14 @@ export default function MatchDetailPage() {
             )}
           </p>
           {activeForfeit.note && <p className="mb-2 text-sm text-muted">{activeForfeit.note}</p>}
+          {/* The consequence, readable BEFORE the dialog opens — the panel is
+              what an organiser looks at while deciding whether to click Void at
+              all, and a cascaded child looks identical to a root without it. */}
+          {voidCopy.hint && (
+            <p className="mb-2 text-xs font-medium text-warning">
+              {t(voidCopy.hint.key, voidCopy.hint.values)}
+            </p>
+          )}
           <p className="mb-3 text-xs text-muted">{t('organizer.bracketPage.activeRecordHint')}</p>
           <button
             type="button"

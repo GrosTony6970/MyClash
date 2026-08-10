@@ -7090,8 +7090,19 @@ export const en = {
         'Only one can be on record at a time. Void this one to record a different result.',
       voidRecord: 'Void this record',
       voidRecordTitle: 'Void this record?',
-      voidRecordBody:
-        'The match goes back to the result it had before. On a bracket, whoever this sent through is un-advanced. In a pool, the other bouts this record closed are reopened too.',
+      // Assembled per record by void-confirm-copy.ts. The single string these
+      // replace claimed "the other bouts this record closed are reopened too"
+      // for EVERY record — false for a cascaded child, which closed none.
+      voidRecordBodyRestores: 'The match goes back to the result it had before.',
+      voidRecordBodyUnadvances: 'On a bracket, whoever this record sent through is un-advanced.',
+      voidRecordBodyReopensOne:
+        'The one other pool bout this record closed is reopened too, and the fighter is back in the tournament.',
+      voidRecordBodyReopensMany:
+        'The {count} other pool bouts this record closed are reopened too, and the fighter is back in the tournament.',
+      voidRecordBodyChildStaysWithdrawn:
+        'Only this bout reopens. The fighter stays withdrawn by the record that closed it, so check them in again if they are going to fight it.',
+      voidRecordBodyChildParentGone:
+        'Only this bout reopens. The withdrawal that closed it has already been voided, so nothing else changes.',
       voidRecordFailed: 'Could not void this record.',
       summarySlots: '{count}-slot main bracket',
       summaryRounds: '{count} rounds',
@@ -14820,8 +14831,17 @@ export const fr = {
         'Un seul enregistrement à la fois. Annulez celui-ci pour enregistrer un autre résultat.',
       voidRecord: 'Annuler cet enregistrement',
       voidRecordTitle: 'Annuler cet enregistrement ?',
-      voidRecordBody:
-        'L’assaut retrouve le résultat qu’il avait avant. Dans un tableau, le combattant qualifié par cet enregistrement est retiré du tour suivant. Dans une poule, les autres assauts fermés par cet enregistrement sont rouverts.',
+      voidRecordBodyRestores: 'L’assaut retrouve le résultat qu’il avait avant.',
+      voidRecordBodyUnadvances:
+        'Dans un tableau, le combattant qualifié par cet enregistrement est retiré du tour suivant.',
+      voidRecordBodyReopensOne:
+        'L’autre assaut de poule fermé par cet enregistrement est rouvert lui aussi, et le combattant revient dans le tournoi.',
+      voidRecordBodyReopensMany:
+        'Les {count} autres assauts de poule fermés par cet enregistrement sont rouverts eux aussi, et le combattant revient dans le tournoi.',
+      voidRecordBodyChildStaysWithdrawn:
+        'Seul cet assaut est rouvert. Le combattant reste déclaré forfait par l’enregistrement qui l’a fermé : pointez-le de nouveau s’il doit le disputer.',
+      voidRecordBodyChildParentGone:
+        'Seul cet assaut est rouvert. Le forfait qui l’avait fermé a déjà été annulé, donc rien d’autre ne change.',
       voidRecordFailed: 'Impossible d’annuler cet enregistrement.',
       summarySlots: 'Tableau principal de {count} places',
       summaryRounds: '{count} tours',
