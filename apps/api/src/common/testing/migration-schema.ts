@@ -24,6 +24,15 @@ export interface ReplayedSchema {
   /** table name → live column names, both lower-cased. */
   columns: Map<string, Set<string>>;
   /**
+   * table name → the subset of those columns declared `JSON`/`JSONB`.
+   *
+   * Populated by the same replay, so a JSON column that was later dropped or
+   * renamed is handled exactly as `columns` handles it. Callers that must reason
+   * about what is INSIDE a column — the archive's nested-id coverage gate — need
+   * to know which columns can hold anything nested at all.
+   */
+  jsonColumns: Map<string, Set<string>>;
+  /**
    * View names, recorded WITHOUT columns. A view's columns come from a SELECT
    * list this parser has no business interpreting, so callers must treat a view
    * as opaque rather than report every column on it as missing.
@@ -126,10 +135,19 @@ function balanced(sql: string, open: number): string {
 
 interface SchemaBuilder {
   columns: Map<string, Set<string>>;
+  jsonColumns: Map<string, Set<string>>;
   views: Set<string>;
-  add: (table: string, column: string) => void;
+  /** `declaration` is whatever follows the column name; only its first token
+   *  is read, so a `CHECK (… ::jsonb)` further along cannot fake a JSON type. */
+  add: (table: string, column: string, declaration?: string) => void;
   drop: (table: string, column: string) => void;
   renameTable: (from: string, to: string) => void;
+}
+
+/** Is the first token of this declaration a JSON type? */
+function declaresJson(declaration: string | undefined): boolean {
+  const type = /^\s*(?:public\.)?([a-z_][a-z0-9_]*)/i.exec(declaration ?? '')?.[1];
+  return type?.toLowerCase() === 'json' || type?.toLowerCase() === 'jsonb';
 }
 
 /** Column names declared in every `CREATE TABLE` in one migration. */
@@ -145,7 +163,7 @@ function applyCreateTables(sql: string, schema: SchemaBuilder): void {
         continue;
       }
       const name = /^"?([a-z_][a-z0-9_]*)"?/i.exec(line);
-      if (name) schema.add(match[1]!, name[1]!);
+      if (name) schema.add(match[1]!, name[1]!, line.slice(name[0].length));
     }
   }
 }
@@ -166,9 +184,9 @@ function applyAlterTables(sql: string, schema: SchemaBuilder): void {
       continue;
     }
     for (const added of tail.matchAll(
-      /ADD\s+COLUMN\s+(?:IF\s+NOT\s+EXISTS\s+)?"?([a-z_][a-z0-9_]*)"?/gi,
+      /ADD\s+COLUMN\s+(?:IF\s+NOT\s+EXISTS\s+)?"?([a-z_][a-z0-9_]*)"?([^,;]*)/gi,
     )) {
-      schema.add(table, added[1]!);
+      schema.add(table, added[1]!, added[2]);
     }
     for (const renamed of tail.matchAll(
       /RENAME\s+COLUMN\s+"?([a-z_][a-z0-9_]*)"?\s+TO\s+"?([a-z_][a-z0-9_]*)"?/gi,
@@ -209,23 +227,31 @@ export function buildMigrationSchema(): ReplayedSchema {
   if (cached) return cached;
 
   const columns = new Map<string, Set<string>>();
+  const jsonColumns = new Map<string, Set<string>>();
   const schema: SchemaBuilder = {
     columns,
+    jsonColumns,
     views: new Set<string>(),
-    add: (table, column) => {
+    add: (table, column, declaration) => {
       const key = normaliseTable(table);
       if (!columns.has(key)) columns.set(key, new Set());
       columns.get(key)!.add(column.toLowerCase());
+      if (!declaresJson(declaration)) return;
+      if (!jsonColumns.has(key)) jsonColumns.set(key, new Set());
+      jsonColumns.get(key)!.add(column.toLowerCase());
     },
     drop: (table, column) => {
       columns.get(normaliseTable(table))?.delete(column.toLowerCase());
+      jsonColumns.get(normaliseTable(table))?.delete(column.toLowerCase());
     },
     renameTable: (from, to) => {
       const [oldKey, newKey] = [normaliseTable(from), normaliseTable(to)];
-      const moved = columns.get(oldKey);
-      if (!moved) return;
-      columns.set(newKey, new Set([...(columns.get(newKey) ?? []), ...moved]));
-      columns.delete(oldKey);
+      for (const index of [columns, jsonColumns]) {
+        const moved = index.get(oldKey);
+        if (!moved) continue;
+        index.set(newKey, new Set([...(index.get(newKey) ?? []), ...moved]));
+        index.delete(oldKey);
+      }
     },
   };
 
@@ -239,6 +265,6 @@ export function buildMigrationSchema(): ReplayedSchema {
     applyAlterTables(sql, schema);
   }
 
-  cached = { columns, views: schema.views };
+  cached = { columns, jsonColumns, views: schema.views };
   return cached;
 }

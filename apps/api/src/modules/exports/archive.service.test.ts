@@ -1,6 +1,6 @@
 import { ConflictException, ForbiddenException } from '@nestjs/common';
 import { describe, expect, it, vi } from 'vitest';
-import { ArchiveService } from './archive.service';
+import { ARCHIVE_COLLECTED_TABLES, ArchiveService } from './archive.service';
 
 type TableRows = Record<string, Record<string, unknown>[]>;
 
@@ -679,6 +679,81 @@ describe('ArchiveService', () => {
       const meta = swissRound['pairing_meta_json'] as Record<string, unknown>;
       expect(meta['generatedAt']).toBe('2026-01-01T00:00:00Z');
     });
+  });
+
+  /**
+   * Sentinel sweep: after a restore, no value ANYWHERE in an inserted row may
+   * equal an id belonging to the source event.
+   *
+   * The declarative gate in `archive.migration-coverage.test.ts` answers "did
+   * anyone forget a COLUMN?" — it reads the schema, so it sees every column
+   * that exists and none of what is inside one. This answers the question the
+   * schema cannot: "did anyone add a KEY inside a JSON column that is already
+   * declared?" It walks to any depth and needs nothing declared.
+   *
+   * Its limit is the mirror image, and worth stating rather than implying: it
+   * only sees shapes `scopedRows()` contains. A JSON key the fixture never
+   * carries is invisible here too. Neither test is a guarantee on its own.
+   */
+  it('leaves no source id anywhere in a restored copy', async () => {
+    const rows = scopedRows();
+    const sourceIds = new Set<string>();
+    for (const table of Object.values(rows) as Array<Record<string, unknown>[]>) {
+      for (const row of table) {
+        if (typeof row['id'] === 'string') sourceIds.add(row['id']);
+      }
+    }
+    // References to rows OUTSIDE the archive are not source ids by construction
+    // — a global person, an org-level venue or plan, an auth user is never the
+    // `id` of an archived row. They are asserted positively at the end rather
+    // than subtracted here, so an over-eager "remap everything" is caught too.
+
+    const { service, inserted } = makeService(rows);
+    const archive = await service.generateEventArchive('event-1', 'user-1', {
+      include: 'scoring',
+    });
+    await service.restoreArchiveCopy(Buffer.from(JSON.stringify(archive)), 'user-1', {
+      targetOrganizationId: 'org-1',
+      confirmation: 'RESTORE MYCLASH ARCHIVE',
+    });
+
+    const survivors: string[] = [];
+    const walk = (node: unknown, trail: string): void => {
+      if (typeof node === 'string') {
+        if (sourceIds.has(node)) survivors.push(`${trail} = ${node}`);
+        return;
+      }
+      if (Array.isArray(node)) {
+        node.forEach((element, index) => walk(element, `${trail}[${index}]`));
+        return;
+      }
+      if (node && typeof node === 'object') {
+        for (const [key, value] of Object.entries(node)) walk(value, `${trail}.${key}`);
+      }
+    };
+    for (const [table, insertedRows] of Object.entries(inserted)) {
+      // Archived tables only. The restore also writes an `audit_log` entry
+      // whose payload names the source event ON PURPOSE — that row is the
+      // record of where the copy came from, not part of the copy.
+      if (!ARCHIVE_COLLECTED_TABLES.has(table)) continue;
+      insertedRows.forEach((row, index) => walk(row, `${table}[${index}]`));
+    }
+
+    expect(
+      survivors.sort(),
+      `A restore must produce a SELF-CONTAINED copy. These values still name a ` +
+        `row belonging to the archive's SOURCE event — nothing will complain, ` +
+        `because those rows still exist, and the copy will quietly read another ` +
+        `event's data:\n` +
+        survivors.map((entry) => `  - ${entry}`).join('\n'),
+    ).toEqual([]);
+
+    // …and the sweep must not be so eager that a legitimate outside reference
+    // gets rewritten into nothing.
+    expect(inserted.event_referees?.[0]?.person_id, 'a global person passes through').toBe('gp-1');
+    expect(inserted.event_venues?.[0]?.venue_id, 'an org-level venue passes through').toBe(
+      'venue-1',
+    );
   });
 
   /**
