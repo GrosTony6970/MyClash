@@ -629,6 +629,121 @@ describe('MatchForfeitsService — override regressions', () => {
     expect(supabase.inserted.match_forfeits).toHaveLength(1);
   });
 
+  it('un-advances the bracket when a record is voided', async () => {
+    // Void was unreachable until the self-id was removed from
+    // downstream_match_ids, which exposed that it restored the match and left
+    // the winner it had propagated sitting in the next round. Advancement
+    // fills a side only while it is null, so the replayed bout could never
+    // correct it — the bracket kept the loser of the replay, silently.
+    const supabase = fakeSupabase({
+      match_forfeits: {
+        maybeSingle: {
+          id: 'forfeit-1',
+          match_id: 'match-1',
+          downstream_match_ids: ['downstream-9'],
+          voided_at: null,
+          previous_match_state: { status: 'running', red_score: 2, blue_score: 3 },
+        },
+        update: { id: 'forfeit-1' },
+      },
+      matches: {
+        maybeSingle: { locked_at: null },
+        select: [{ id: 'downstream-9', status: 'scheduled' }],
+      },
+    });
+    const bracketAdvance = {
+      findDownstreamMatchIds: vi.fn(async () => ['downstream-9']),
+      clearDownstreamOf: vi.fn(async () => {}),
+    };
+    const service = new MatchForfeitsService(
+      supabase as never,
+      undefined as never,
+      undefined as never,
+      bracketAdvance as never,
+    );
+
+    await service.voidForfeit('forfeit-1');
+
+    expect(bracketAdvance.clearDownstreamOf).toHaveBeenCalledWith('match-1');
+    // Cleared BEFORE the restore: downstreamSlots resolves through the match
+    // row, which the restore is about to rewrite.
+    expect(bracketAdvance.clearDownstreamOf.mock.invocationCallOrder[0]).toBeLessThan(
+      (
+        supabase.service.from as unknown as { mock: { invocationCallOrder: number[] } }
+      ).mock.invocationCallOrder.at(-1) as number,
+    );
+  });
+
+  it('restores end_reason when a record is voided', async () => {
+    const supabase = fakeSupabase({
+      match_forfeits: {
+        maybeSingle: {
+          id: 'forfeit-1',
+          match_id: 'match-1',
+          downstream_match_ids: [],
+          voided_at: null,
+          previous_match_state: {
+            status: 'completed',
+            red_score: 0,
+            blue_score: 0,
+            end_reason: 'max_doubles',
+          },
+        },
+        update: { id: 'forfeit-1' },
+      },
+      matches: { maybeSingle: { locked_at: null } },
+    });
+    const service = new MatchForfeitsService(supabase as never, undefined as never);
+
+    await service.voidForfeit('forfeit-1');
+
+    // Without this the bout keeps end_reason 'override' and is exported to
+    // HEMA Ratings as a draw instead of a mutual loss.
+    expect(supabase.updated.matches?.[0]).toMatchObject({ end_reason: 'max_doubles' });
+  });
+
+  it('refuses to void a result inside a frozen event', async () => {
+    // Symmetry: a result an actor may not write is one they may not erase.
+    const supabase = fakeSupabase({
+      match_forfeits: {
+        maybeSingle: { id: 'forfeit-1', match_id: 'match-1', voided_at: null },
+      },
+      matches: { maybeSingle: { locked_at: null } },
+    });
+    const frozenResults = {
+      assertResultMutationAllowed: vi.fn(async () => {
+        throw new ConflictException('Event results are frozen');
+      }),
+    };
+    const service = new MatchForfeitsService(
+      supabase as never,
+      undefined as never,
+      undefined as never,
+      undefined as never,
+      frozenResults as never,
+    );
+
+    await expect(service.voidForfeit('forfeit-1', { userId: 'user-1' })).rejects.toThrow(
+      'Event results are frozen',
+    );
+    expect(supabase.updated.matches).toBeUndefined();
+  });
+
+  it('refuses to void a locked match without the override-locked capability', async () => {
+    const supabase = fakeSupabase({
+      match_forfeits: {
+        maybeSingle: { id: 'forfeit-1', match_id: 'match-1', voided_at: null },
+      },
+      matches: { maybeSingle: { locked_at: '2026-08-10T09:00:00.000Z' } },
+    });
+    const service = new MatchForfeitsService(supabase as never, undefined as never);
+
+    await expect(service.voidForfeit('forfeit-1', { staffAccountId: 'staff-1' })).rejects.toThrow(
+      'Match is locked',
+    );
+    expect(supabase.updated.matches).toBeUndefined();
+  });
+
   it('asks the frozen-results guard before rewriting a result', async () => {
     // A completed event freezes its results; every sibling writer asks, and
     // this one did not — so an override could edit around the exchange-edit

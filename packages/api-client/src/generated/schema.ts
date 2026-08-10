@@ -2441,7 +2441,10 @@ export interface paths {
      */
     get: operations['MatchesController_getActiveForfeit'];
     put?: never;
-    /** Record a match forfeit (scorekeeper+) */
+    /**
+     * Record a match forfeit (scorekeeper+) or a result override (organizer+)
+     * @description The two halves of this route are gated differently ON PURPOSE. A forfeit is a referee action from the piste, so a scorekeeper or a staff PIN session records it. An override rewrites a finished result and is an organiser action — gated at the same role that can READ the record and VOID it, so the remedy the conflict response names is always available to whoever hit it.
+     */
     post: operations['MatchesController_createForfeit'];
     delete?: never;
     options?: never;

@@ -205,6 +205,21 @@ export class MatchForfeitsService {
     return this.loadActiveForfeit(matchId);
   }
 
+  /**
+   * Undo a forfeit or override: restore the result it replaced.
+   *
+   * Everything the WRITE half refuses, this half must refuse too. It did not,
+   * and that only became reachable when this endpoint gained its first caller:
+   * a completed event's freeze and a locked match both stopped the recording
+   * and neither stopped the undoing, so the same organiser who could not write
+   * an override could erase a published one.
+   *
+   * And it must undo the same things the write DID. Advancement is the one
+   * that bites: a bracket forfeit sends the winner into the next round, and
+   * restoring the match here left them there — then the replayed bout could
+   * never re-advance, because `advanceFromSlot` fills a downstream side only
+   * while it is null. The bracket would silently keep the loser of the replay.
+   */
   async voidForfeit(forfeitId: string, actor: Actor = {}) {
     const { data } = await this.supabase.service
       .from('match_forfeits')
@@ -215,6 +230,9 @@ export class MatchForfeitsService {
     const forfeit = data as Row;
     if (forfeit['voided_at']) throw new BadRequestException('Forfeit is already voided');
 
+    const matchId = forfeit['match_id'] as string;
+    await this.assertVoidable(matchId, actor);
+
     const downstreamIds = Array.isArray(forfeit['downstream_match_ids'])
       ? (forfeit['downstream_match_ids'] as string[])
       : [];
@@ -223,18 +241,14 @@ export class MatchForfeitsService {
       'Cannot void forfeit after a dependent match has started',
     );
 
-    const previous = (forfeit['previous_match_state'] as Row | null) ?? {};
-    await this.supabase.service
-      .from('matches')
-      .update({
-        status: previous['status'] ?? 'scheduled',
-        red_score: previous['red_score'] ?? 0,
-        blue_score: previous['blue_score'] ?? 0,
-        winner_registration_id: previous['winner_registration_id'] ?? null,
-        ended_at: previous['ended_at'] ?? null,
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', forfeit['match_id'] as string);
+    // Un-advance BEFORE restoring the match, while the winner this forfeit
+    // propagated is still on the row that names it — `downstreamSlots` reads
+    // the match to resolve its slot. Clearing the fed sides is what lets the
+    // replayed bout advance its real winner. Skipped for a pool match, which
+    // feeds no slots.
+    await this.bracketAdvance?.clearDownstreamOf(matchId);
+
+    await this.restoreMatchState(matchId, (forfeit['previous_match_state'] as Row | null) ?? {});
 
     const previousReg = (forfeit['previous_registration_state'] as Row | null) ?? {};
     if (previousReg['status']) {
@@ -322,6 +336,48 @@ export class MatchForfeitsService {
       downstreamIds,
       'Cannot override a result after a dependent match has started',
     );
+  }
+
+  /**
+   * Put the match back the way `matchSnapshot` found it.
+   *
+   * Every column here has a counterpart in `matchSnapshot`, and the pair must
+   * stay in step: a field the snapshot captures but this does not write stays
+   * at whatever the forfeit set it to, silently. `end_reason` was exactly that
+   * — see the note on `matchSnapshot`.
+   */
+  private async restoreMatchState(matchId: string, previous: Row): Promise<void> {
+    await this.supabase.service
+      .from('matches')
+      .update({
+        status: previous['status'] ?? 'scheduled',
+        red_score: previous['red_score'] ?? 0,
+        blue_score: previous['blue_score'] ?? 0,
+        winner_registration_id: previous['winner_registration_id'] ?? null,
+        ended_at: previous['ended_at'] ?? null,
+        end_reason: previous['end_reason'] ?? null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', matchId);
+  }
+
+  /**
+   * The write-half guards, applied to the undo.
+   *
+   * Symmetry is the rule: a result an actor may not write is a result they may
+   * not erase either. `assertWritable` reads the match row it already has;
+   * this one has to fetch it, which is why the two are not one function.
+   */
+  private async assertVoidable(matchId: string, actor: Actor): Promise<void> {
+    await this.frozenResults?.assertResultMutationAllowed(matchId, actor.userId);
+    const { data } = await this.supabase.service
+      .from('matches')
+      .select('locked_at')
+      .eq('id', matchId)
+      .maybeSingle();
+    if ((data as Row | null)?.['locked_at'] && !actor.canOverrideLocked) {
+      throw new BadRequestException('Match is locked');
+    }
   }
 
   private async assertNoneStarted(matchIds: string[], message: string): Promise<void> {
@@ -777,6 +833,10 @@ export class MatchForfeitsService {
       blue_score: match['blue_score'],
       winner_registration_id: match['winner_registration_id'] ?? null,
       ended_at: match['ended_at'] ?? null,
+      // Whatever the snapshot omits, the void cannot restore. end_reason was
+      // omitted and completeMatch overwrites it, so every void left the match
+      // claiming it ended the way the voided record said it did.
+      end_reason: match['end_reason'] ?? null,
     };
   }
 }

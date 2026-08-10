@@ -18,6 +18,7 @@ import {
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
+import { isOverrideReason } from '@myclash/rulesets';
 import { PUBLIC_LIVE_READ_THROTTLE } from '../../common/throttling/throttle-profiles';
 import { createZodDto } from 'nestjs-zod';
 import { z } from 'zod';
@@ -167,13 +168,19 @@ export class MatchesController {
 
   @Post('matches/:id/forfeit')
   @HttpCode(HttpStatus.CREATED)
-  @ApiOperation({ summary: 'Record a match forfeit (scorekeeper+)' })
+  @ApiOperation({
+    summary: 'Record a match forfeit (scorekeeper+) or a result override (organizer+)',
+    description:
+      'The two halves of this route are gated differently ON PURPOSE. A forfeit is a referee action from the piste, so a scorekeeper or a staff PIN session records it. An override rewrites a finished result and is an organiser action — gated at the same role that can READ the record and VOID it, so the remedy the conflict response names is always available to whoever hit it.',
+  })
   async createForfeit(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: CreateMatchForfeitDto,
     @Req() req: FastifyRequest,
   ) {
-    const actor = await this.staff.authorizeMatchScoring(req, id);
+    const actor = isOverrideReason(dto.reason)
+      ? await this.staff.authorizeMatchOrganizer(req, id)
+      : await this.staff.authorizeMatchScoring(req, id);
     return this.forfeits.createForfeit(id, dto, actor);
   }
 
