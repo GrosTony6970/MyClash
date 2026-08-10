@@ -16,6 +16,7 @@ import {
   formatRoundCode,
   roundCodeShapeFromConfig,
 } from '@myclash/types';
+import { FORFEIT_REASONS } from '@myclash/rulesets';
 import { createStoredZip } from '../../common/stored-zip';
 import {
   buildSubmission,
@@ -155,8 +156,17 @@ export class ExportsService {
       // Fetched separately rather than embedded: match_forfeits carries its own
       // tournament_id, and an embed would be one more array-vs-object shape to
       // get wrong. Un-voided rows only.
+      //
+      // FORFEIT_REASONS, not every row: the table also holds result overrides,
+      // and this set is what drops a match from the HEMA Ratings submission as
+      // a walk-over. A corrected result is a real bout that was really fought
+      // — excluding it would silently delete it from the fighters' ratings.
       this.fetchMany('match_forfeits', (q) =>
-        q.select('match_id').in('tournament_id', tournamentIds).is('voided_at', null),
+        q
+          .select('match_id')
+          .in('tournament_id', tournamentIds)
+          .in('reason', [...FORFEIT_REASONS])
+          .is('voided_at', null),
       ),
     ]);
 

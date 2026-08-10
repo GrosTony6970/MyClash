@@ -9881,9 +9881,21 @@ export interface components {
       /** Format: uuid */
       forfeitingRegistrationId: string;
       /** @enum {string} */
-      reason: 'injury' | 'voluntary' | 'black_card_1' | 'black_card_2' | 'conduct_violation';
+      reason:
+        | 'injury'
+        | 'voluntary'
+        | 'black_card_1'
+        | 'black_card_2'
+        | 'conduct_violation'
+        | 'referee_decision'
+        | 'admin_correction'
+        | 'technical_failure';
       canContinue?: boolean;
       note?: string;
+      explicitScores?: {
+        forfeitingScore: number;
+        opponentScore: number;
+      };
     };
     CreateExchangeDto: {
       /** Format: uuid */

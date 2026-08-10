@@ -1,9 +1,15 @@
 import { BadRequestException, Injectable, NotFoundException, Optional } from '@nestjs/common';
-import { resolveForfeitPolicy, type ForfeitReason } from '@myclash/rulesets';
+import {
+  FORFEIT_REASONS,
+  isOverrideReason,
+  resolveForfeitPolicy,
+  type ForfeitReason,
+} from '@myclash/rulesets';
 import { SupabaseService } from '../supabase/supabase.service';
 // Value import ON PURPOSE — `import type` erases DI metadata and @Optional()
 // silently injects undefined (see di-wiring.regression.test.ts).
 import { MatchCompletionService } from '../phases/match-completion.service';
+import { BracketAdvanceService } from '../phases/bracket-advance.service';
 import type { CreateMatchForfeitDto } from './dto/matches.dto';
 import { ClockService } from './clock.service';
 import { forfeitEndReason } from './forfeit-end-reason';
@@ -19,13 +25,23 @@ export class MatchForfeitsService {
     // Optional so direct `new MatchForfeitsService(supabase)` in tests still
     // works; in the app it's provided by MatchesModule (Supabase-only dep).
     @Optional() private readonly clock?: ClockService,
+    @Optional() private readonly bracketAdvance?: BracketAdvanceService,
   ) {}
 
   async createForfeit(matchId: string, dto: CreateMatchForfeitDto, actor: Actor = {}) {
     const match = await this.loadMatch(matchId);
     if (!match) throw new NotFoundException(`Match ${matchId} not found`);
-    if (match.status === 'completed' || match.status === 'voided') {
+
+    // An override's whole purpose is a match that has already ended, so
+    // `completed` is a reason to run it rather than to refuse it. A forfeit
+    // still needs a live bout. `voided` is closed to both.
+    const override = isOverrideReason(dto.reason);
+    const wasCompleted = match.status === 'completed';
+    if (match.status === 'voided' || (wasCompleted && !override)) {
       throw new BadRequestException('Match is already closed');
+    }
+    if (wasCompleted) {
+      await this.assertNoStartedDependents(matchId);
     }
     if (
       ![match.red_registration_id, match.blue_registration_id].includes(
@@ -58,10 +74,16 @@ export class MatchForfeitsService {
       phase.tournament_id,
       policy.tournamentState,
       tournament.ruleset_config,
+      dto.reason as ForfeitReason,
     );
 
     const canContinue = this.resolveCanContinue(tournamentState, dto.canContinue);
-    const scores = this.resolveScores(match, dto.forfeitingRegistrationId, policy);
+    const scores = this.resolveScores(
+      match,
+      dto.forfeitingRegistrationId,
+      policy,
+      dto.explicitScores,
+    );
     const now = new Date().toISOString();
     const priorRegistration = await this.loadRegistration(dto.forfeitingRegistrationId);
 
@@ -109,6 +131,12 @@ export class MatchForfeitsService {
     }
 
     if (phase.type !== 'pool') {
+      // Overriding a completed bracket match changes who advanced. Advancement
+      // fills a downstream side only while it is null — the property that makes
+      // it idempotent — so without clearing first, re-advancing is a silent
+      // no-op and the bracket keeps carrying the previous winner.
+      if (wasCompleted) await this.bracketAdvance?.clearDownstreamOf(matchId);
+
       const bracketResult = await this.applyBracketForfeit(
         match,
         phase,
@@ -150,18 +178,10 @@ export class MatchForfeitsService {
     const downstreamIds = Array.isArray(forfeit['downstream_match_ids'])
       ? (forfeit['downstream_match_ids'] as string[])
       : [];
-    if (downstreamIds.length > 0) {
-      const { data: downstream } = await this.supabase.service
-        .from('matches')
-        .select('id, status')
-        .in('id', downstreamIds);
-      const started = (downstream ?? []).some((row) =>
-        ['running', 'paused', 'completed'].includes(String((row as Row)['status'])),
-      );
-      if (started) {
-        throw new BadRequestException('Cannot void forfeit after a dependent match has started');
-      }
-    }
+    await this.assertNoneStarted(
+      downstreamIds,
+      'Cannot void forfeit after a dependent match has started',
+    );
 
     const previous = (forfeit['previous_match_state'] as Row | null) ?? {};
     await this.supabase.service
@@ -196,6 +216,37 @@ export class MatchForfeitsService {
       .select('*')
       .single();
     return updated;
+  }
+
+  /**
+   * Refuse an override once the old result has been built on.
+   *
+   * Voiding already refuses this — restoring a superseded winner would leave
+   * the bracket describing a match that never happened. Overriding a COMPLETED
+   * match rewrites the same winner, so it owes the same guard; without it the
+   * two halves of one rule disagreed, and only the reversible half enforced it.
+   *
+   * Dependents come from BracketAdvanceService, which resolves them with the
+   * ref algebra advancement itself uses.
+   */
+  private async assertNoStartedDependents(matchId: string): Promise<void> {
+    const downstreamIds = (await this.bracketAdvance?.findDownstreamMatchIds(matchId)) ?? [];
+    await this.assertNoneStarted(
+      downstreamIds,
+      'Cannot override a result after a dependent match has started',
+    );
+  }
+
+  private async assertNoneStarted(matchIds: string[], message: string): Promise<void> {
+    if (matchIds.length === 0) return;
+    const { data } = await this.supabase.service
+      .from('matches')
+      .select('id, status')
+      .in('id', matchIds);
+    const started = (data ?? []).some((row) =>
+      ['running', 'paused', 'completed'].includes(String((row as Row)['status'])),
+    );
+    if (started) throw new BadRequestException(message);
   }
 
   private async autoForfeitFuturePoolMatches(
@@ -398,8 +449,25 @@ export class MatchForfeitsService {
     match: Row,
     forfeitingRegistrationId: string,
     policy: { scorePolicy: string; lossScore: number; opponentScore: number },
+    explicit?: { forfeitingScore: number; opponentScore: number },
   ) {
     const redForfeits = forfeitingRegistrationId === match['red_registration_id'];
+
+    // An override states the result; there is nothing to derive. The DTO
+    // guarantees the pair is present for an override reason and absent
+    // otherwise, so a missing pair here would be a wiring bug, not input.
+    if (policy.scorePolicy === 'explicit') {
+      if (!explicit) {
+        throw new BadRequestException('An override requires explicit scores');
+      }
+      return {
+        redScore: redForfeits ? explicit.forfeitingScore : explicit.opponentScore,
+        blueScore: redForfeits ? explicit.opponentScore : explicit.forfeitingScore,
+        forfeitingScore: explicit.forfeitingScore,
+        opponentScore: explicit.opponentScore,
+      };
+    }
+
     const currentForfeitingScore =
       Number(redForfeits ? match['red_score'] : match['blue_score']) || 0;
     const currentOpponentScore =
@@ -501,8 +569,13 @@ export class MatchForfeitsService {
     tournamentId: string,
     state: string,
     rulesetConfig: unknown,
+    reason: ForfeitReason,
   ): Promise<string> {
     if (state === 'disqualified') return state;
+    // Nobody forfeited, so neither escalation applies. Correcting a fighter's
+    // first result must not disqualify them for "forfeiting before their 1st
+    // match", and a correction must not count toward `disqualifyAfter`.
+    if (isOverrideReason(reason)) return state;
 
     const policy =
       ((rulesetConfig as { tournamentPolicy?: Record<string, unknown> } | null) ?? {})
@@ -525,6 +598,8 @@ export class MatchForfeitsService {
         .select('id', { count: 'exact', head: true })
         .eq('tournament_id', tournamentId)
         .eq('forfeiting_registration_id', registrationId)
+        // Overrides share this table but are not forfeits — see FORFEIT_REASONS.
+        .in('reason', FORFEIT_REASONS)
         .is('voided_at', null);
       if ((count ?? 0) + 1 >= threshold) return 'disqualified';
     }

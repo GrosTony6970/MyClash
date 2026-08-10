@@ -201,6 +201,160 @@ describe('MatchForfeitsService', () => {
   });
 });
 
+describe('MatchForfeitsService — result overrides', () => {
+  it('overrides a COMPLETED match, which a forfeit may not touch', async () => {
+    const supabase = fakeSupabase({
+      matches: {
+        maybeSingle: matchRow({ phaseType: 'pool', status: 'completed' }),
+        update: { id: 'match-1' },
+      },
+      match_forfeits: { maybeSingle: null, insert: { id: 'override-1' } },
+      phases: { maybeSingle: { id: 'phase-1', type: 'pool', tournament_id: 'tournament-1' } },
+      tournaments: { maybeSingle: { id: 'tournament-1', ruleset_config: {} } },
+    });
+    const service = new MatchForfeitsService(supabase as never, undefined as never);
+
+    await service.createForfeit('match-1', {
+      forfeitingRegistrationId: 'reg-red',
+      reason: 'admin_correction',
+      explicitScores: { forfeitingScore: 3, opponentScore: 5 },
+    });
+
+    expect(supabase.inserted.match_forfeits?.[0]).toMatchObject({
+      reason: 'admin_correction',
+      score_policy: 'explicit',
+      forfeiting_score: 3,
+      opponent_score: 5,
+      winner_registration_id: 'reg-blue',
+    });
+    // The stated result, not one derived from the ruleset's per-reason policy.
+    expect(supabase.updated.matches?.[0]).toMatchObject({
+      status: 'completed',
+      red_score: 3,
+      blue_score: 5,
+      winner_registration_id: 'reg-blue',
+      // Never 'forfeit': nobody withdrew, and the pad and the hall screen
+      // would announce one.
+      end_reason: 'override',
+    });
+  });
+
+  it('still refuses a FORFEIT on a completed match', async () => {
+    const supabase = fakeSupabase({
+      matches: { maybeSingle: matchRow({ phaseType: 'pool', status: 'completed' }) },
+    });
+    const service = new MatchForfeitsService(supabase as never, undefined as never);
+
+    await expect(
+      service.createForfeit('match-1', {
+        forfeitingRegistrationId: 'reg-red',
+        reason: 'injury',
+        canContinue: true,
+      }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('does not count an override toward tournamentPolicy.disqualifyAfter', async () => {
+    // The same shape that disqualifies on a forfeit: a threshold of 1 and
+    // five prior rows. A correction is not a forfeit, so nothing escalates.
+    const supabase = fakeSupabase({
+      matches: {
+        maybeSingle: matchRow({
+          phaseType: 'pool',
+          status: 'completed',
+          tournamentPolicy: { disqualifyAfter: 1, forfeitFighterBefore1stMatch: true },
+        }),
+        update: { id: 'match-1' },
+        count: 0,
+      },
+      match_forfeits: { maybeSingle: null, insert: { id: 'override-1' }, count: 5 },
+      phases: { maybeSingle: { id: 'phase-1', type: 'pool', tournament_id: 'tournament-1' } },
+      registrations: { maybeSingle: { id: 'reg-red', status: 'checked_in' } },
+    });
+    const service = new MatchForfeitsService(supabase as never, undefined as never);
+
+    await service.createForfeit('match-1', {
+      forfeitingRegistrationId: 'reg-red',
+      reason: 'referee_decision',
+      explicitScores: { forfeitingScore: 0, opponentScore: 1 },
+    });
+
+    expect(supabase.updated.registrations?.[0]).toBeUndefined();
+  });
+
+  it('refuses an override once a dependent match has started', async () => {
+    const supabase = fakeSupabase({
+      matches: {
+        maybeSingle: matchRow({ phaseType: 'single_elim', status: 'completed' }),
+        select: [{ id: 'downstream-1', status: 'running' }],
+      },
+      phases: {
+        maybeSingle: { id: 'phase-1', type: 'single_elim', tournament_id: 'tournament-1' },
+      },
+    });
+    const bracketAdvance = {
+      findDownstreamMatchIds: vi.fn(async () => ['downstream-1']),
+      clearDownstreamOf: vi.fn(async () => {}),
+    };
+    const service = new MatchForfeitsService(
+      supabase as never,
+      undefined as never,
+      undefined as never,
+      bracketAdvance as never,
+    );
+
+    await expect(
+      service.createForfeit('match-1', {
+        forfeitingRegistrationId: 'reg-red',
+        reason: 'referee_decision',
+        explicitScores: { forfeitingScore: 0, opponentScore: 1 },
+      }),
+    ).rejects.toThrow('Cannot override a result after a dependent match has started');
+    expect(supabase.inserted.match_forfeits).toBeUndefined();
+  });
+
+  it('clears the downstream slot before re-advancing an overridden bracket match', async () => {
+    // Advancement only fills a side that is still null, so without the clear
+    // the re-advance is a silent no-op and the bracket keeps the old winner.
+    const supabase = fakeSupabase({
+      matches: {
+        maybeSingle: matchRow({ phaseType: 'single_elim', status: 'completed' }),
+        update: { id: 'match-1' },
+        select: [{ id: 'downstream-1', status: 'scheduled' }],
+      },
+      match_forfeits: { maybeSingle: null, insert: { id: 'override-1' } },
+      phases: {
+        maybeSingle: { id: 'phase-1', type: 'single_elim', tournament_id: 'tournament-1' },
+      },
+      bracket_slots: { maybeSingle: null },
+    });
+    const bracketAdvance = {
+      findDownstreamMatchIds: vi.fn(async () => ['downstream-1']),
+      clearDownstreamOf: vi.fn(async () => {}),
+    };
+    const matchCompletion = { onMatchCompleted: vi.fn(async () => {}) };
+    const service = new MatchForfeitsService(
+      supabase as never,
+      matchCompletion as never,
+      undefined as never,
+      bracketAdvance as never,
+    );
+
+    await service.createForfeit('match-1', {
+      forfeitingRegistrationId: 'reg-red',
+      reason: 'technical_failure',
+      explicitScores: { forfeitingScore: 1, opponentScore: 4 },
+    });
+
+    expect(bracketAdvance.clearDownstreamOf).toHaveBeenCalledWith('match-1');
+    expect(matchCompletion.onMatchCompleted).toHaveBeenCalledWith('match-1');
+    // Order is the whole point — clearing after the re-advance would undo it.
+    expect(bracketAdvance.clearDownstreamOf.mock.invocationCallOrder[0]).toBeLessThan(
+      matchCompletion.onMatchCompleted.mock.invocationCallOrder[0] as number,
+    );
+  });
+});
+
 function matchRow(input: {
   phaseType: string;
   status: string;

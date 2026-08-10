@@ -1,4 +1,5 @@
 import { BadRequestException, NotFoundException } from '@nestjs/common';
+import { FORFEIT_REASONS } from '@myclash/rulesets';
 import type { Exchange, Ruleset, StandingsColumn } from '@myclash/rulesets';
 import type { SupabaseService } from '../supabase/supabase.service';
 import type { RulesetResolver } from '../matches/ruleset-resolver.service';
@@ -150,6 +151,9 @@ export async function loadScoringInputs(
     .from('match_forfeits')
     .select('forfeiting_registration_id, match_id')
     .in('match_id', matchIds)
+    // Result overrides share this table and are NOT forfeits — see the same
+    // filter in pool-standings.service.ts, which feeds the same F column.
+    .in('reason', FORFEIT_REASONS)
     .is('voided_at', null);
   if (ffErr) throw new BadRequestException(ffErr.message);
   for (const r of (ffRows ?? []) as Array<{ forfeiting_registration_id: string }>) {

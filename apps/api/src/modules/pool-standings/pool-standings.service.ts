@@ -1,4 +1,5 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { FORFEIT_REASONS } from '@myclash/rulesets';
 import type { StandingsColumn, RankingRule, Exchange, Ruleset } from '@myclash/rulesets';
 import { computeStandingsRows } from './compute-rows';
 import { applyRanking, type PoolWithMembers, type StandingsRow } from './standings-rows';
@@ -216,6 +217,10 @@ export class PoolStandingsService {
         .from('match_forfeits')
         .select('forfeiting_registration_id, match_id')
         .in('match_id', completedMatchIds)
+        // match_forfeits also holds result OVERRIDES, which are not forfeits:
+        // counting one would deduct an F from a fighter whose result was
+        // merely corrected, and make forfeitDrawsCount treat it as a draw.
+        .in('reason', FORFEIT_REASONS)
         .is('voided_at', null);
       if (ffErr) throw new BadRequestException(ffErr.message);
       for (const r of (ffRows ?? []) as Array<{

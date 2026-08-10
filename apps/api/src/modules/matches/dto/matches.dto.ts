@@ -1,5 +1,6 @@
 import { createZodDto } from 'nestjs-zod';
 import { z } from 'zod';
+import { ForfeitReasonSchema, isOverrideReason } from '@myclash/rulesets';
 
 const createMatchSchema = z
   .object({
@@ -91,14 +92,63 @@ const resetMatchSchema = z
   .strict();
 export class ResetMatchDto extends createZodDto(resetMatchSchema) {}
 
+/**
+ * Records a forfeit OR a result override — `reason` says which.
+ *
+ * `reason` comes from `@myclash/rulesets` rather than a literal list: this
+ * enum was duplicated here and drifted out of sight of the engine that owns
+ * it. One owner, imported.
+ *
+ * `forfeitingRegistrationId` reads as "the side recorded as losing" on the
+ * override path. Nobody forfeited, but the column, the winner derivation and
+ * the void path are all shared, so the shape is too.
+ */
 const createMatchForfeitSchema = z
   .object({
     forfeitingRegistrationId: z.uuid(),
-    reason: z.enum(['injury', 'voluntary', 'black_card_1', 'black_card_2', 'conduct_violation']),
+    reason: ForfeitReasonSchema,
     canContinue: z.boolean().optional(),
     note: z.string().optional(),
+    /**
+     * The real result, for an override only. A correction exists to state a
+     * score the derivation got wrong, so it cannot come from the ruleset's
+     * per-reason policy.
+     */
+    explicitScores: z
+      .object({
+        forfeitingScore: z.number().int().min(0),
+        opponentScore: z.number().int().min(0),
+      })
+      .optional(),
   })
-  .strict();
+  .strict()
+  .superRefine((value, ctx) => {
+    const override = isOverrideReason(value.reason);
+
+    if (override && !value.explicitScores) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['explicitScores'],
+        message: 'explicitScores is required for an override reason',
+      });
+    }
+    if (!override && value.explicitScores) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['explicitScores'],
+        message: 'explicitScores is only accepted for an override reason',
+      });
+    }
+    // An override never withdraws anyone — accepting the flag would imply it
+    // could. See DEFAULT_FORFEIT_POLICY: every override is 'match_only'.
+    if (override && value.canContinue !== undefined) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['canContinue'],
+        message: 'canContinue is not accepted for an override reason',
+      });
+    }
+  });
 export class CreateMatchForfeitDto extends createZodDto(createMatchForfeitSchema) {}
 
 const adjustClockSchema = z
