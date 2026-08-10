@@ -1,4 +1,5 @@
 import * as React from 'react';
+import { resolveMatchWinner } from '@myclash/types';
 import { accentClassFor, tintBgClassFor } from '../../utils/color-token';
 import { SkillBadge } from '../SkillBadge';
 import type { BracketSlotData, ColorToken } from './types';
@@ -378,7 +379,14 @@ function FighterRow({
 }
 
 function winsThisRow(side: 'red' | 'blue', slot: BracketSlotData): boolean {
-  if (slot.redScore === null || slot.blueScore === null) return false;
-  if (side === 'red') return slot.redScore > slot.blueScore;
-  return slot.blueScore > slot.redScore;
+  return (
+    resolveMatchWinner({
+      status: 'completed', // the caller has already established this
+      winnerRegistrationId: slot.winnerRegistrationId,
+      redRegistrationId: slot.redRegistrationId,
+      blueRegistrationId: slot.blueRegistrationId,
+      redScore: slot.redScore,
+      blueScore: slot.blueScore,
+    }) === side
+  );
 }

@@ -35,6 +35,9 @@ interface ScheduleMatch {
   opponentName: string | null;
   redScore: number;
   blueScore: number;
+  /** Result from this person's perspective, decided server-side from the
+   *  recorded winner. Null while the bout is unfinished. */
+  outcome: 'win' | 'loss' | 'draw' | null;
   isRed: boolean;
   tournamentName: string | null;
 }
@@ -398,7 +401,11 @@ export default function PersonProfilePage() {
             {past.map((m) => {
               const myScore = m.isRed ? m.redScore : m.blueScore;
               const oppScore = m.isRed ? m.blueScore : m.redScore;
-              const won = myScore > oppScore;
+              // Server-decided from the recorded winner. Comparing the two
+              // numbers showed a loss for every bout won on the lower score —
+              // a forfeit, a walkover, a referee_decision override — and, with
+              // no third branch, for every draw as well.
+              const outcome = m.outcome;
               return (
                 <Link key={m.id} href={`/e/${eventSlug}/match/${m.id}`}>
                   <div className="flex items-center justify-between bg-surface border border-border rounded-xl px-4 py-3 hover:border-muted transition-colors">
@@ -412,12 +419,18 @@ export default function PersonProfilePage() {
                       <span
                         className={[
                           'text-xs font-bold px-2 py-0.5 rounded-full',
-                          won ? 'bg-success/10 text-success' : 'bg-danger/10 text-danger',
+                          outcome === 'win'
+                            ? 'bg-success/10 text-success'
+                            : outcome === 'draw'
+                              ? 'bg-muted/10 text-muted'
+                              : 'bg-danger/10 text-danger',
                         ].join(' ')}
                       >
-                        {won
+                        {outcome === 'win'
                           ? t('publicApp.following.resultWin')
-                          : t('publicApp.following.resultLoss')}
+                          : outcome === 'draw'
+                            ? t('publicApp.following.resultDraw')
+                            : t('publicApp.following.resultLoss')}
                       </span>
                       <p className="text-sm font-mono font-bold text-foreground tabular-nums">
                         {myScore}–{oppScore}

@@ -15,7 +15,7 @@ import { getPublicApiUrl } from '@/lib/api-url';
 import { useRealtimeDisabled } from '@/lib/supabase-browser';
 import { BackLink } from '@/components/BackLink';
 import { useI18n } from '../../../../../src/i18n/I18nProvider';
-import { resolveMatchWinner } from './resolve-match-winner';
+import { resolveMatchWinner } from '@myclash/types';
 import { useMatchLiveChannel } from './use-match-live-channel';
 import {
   mapMatchRow,

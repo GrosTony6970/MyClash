@@ -17,14 +17,17 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { sideStyle, tintTextClassFor } from '@myclash/ui';
-import { DEFAULT_SCORING_CONFIG, type TournamentSideColor } from '@myclash/types';
+import {
+  DEFAULT_SCORING_CONFIG,
+  resolveMatchWinner,
+  type TournamentSideColor,
+} from '@myclash/types';
 import { formatInZone, localeToBcp47 } from '@myclash/time';
 import { useRealtimeWithFallback } from '@/lib/supabase-browser';
 import { getPublicApiUrl } from '@/lib/api-url';
 import { useI18n } from '../../../../../src/i18n/I18nProvider';
 import { naturalCompare } from './pool-matches-sort';
 import { matchesQuery } from './pool-matches-filter';
-import { poolMatchWinner } from './pool-match-winner';
 
 interface PoolMatch {
   matchId: string;
@@ -39,6 +42,9 @@ interface PoolMatch {
   blueClubAbbrev: string | null;
   blueRegistrationId: string | null;
   blueScore: number | null;
+  /** The recorded winner — what the table bolds. Authoritative over the two
+   *  scores, which a forfeit or a `referee_decision` override can invert. */
+  winnerRegistrationId: string | null;
   liceName: string | null;
   liceColorHex: string | null;
 }
@@ -329,7 +335,7 @@ export function PoolMatchesView({
                     );
                     const openMatch = () =>
                       router.push(`/e/${eventSlug}/match/${m.matchId}?return=${returnTo}`);
-                    const winner = poolMatchWinner(m);
+                    const winner = resolveMatchWinner(m);
                     const redIsYou =
                       !!highlightRegistrationId && m.redRegistrationId === highlightRegistrationId;
                     const blueIsYou =

@@ -6,7 +6,7 @@ import { t } from '@myclash/i18n';
 import { useRealtimeWithFallback } from '@/lib/supabase-browser';
 import { useI18n } from '@/i18n/I18nProvider';
 import { sideStyle, statusPillTone, matchStatusSemantic, StatusHelp } from '@myclash/ui';
-import { DEFAULT_SCORING_CONFIG } from '@myclash/types';
+import { DEFAULT_SCORING_CONFIG, resolveMatchWinner } from '@myclash/types';
 import { parseSideColors, type SideColors } from './parse-side-colors';
 import { mergeScores, type MatchScoreUpdate } from './match-scores-merge';
 import { countPoolFighters } from './count-pool-fighters';
@@ -43,6 +43,9 @@ interface MatchRow {
   blue_club_abbrev: string | null;
   red_score: number | null;
   blue_score: number | null;
+  /** The recorded winner — what the table bolds. Authoritative over the two
+   *  scores, which a forfeit or an override can invert. */
+  winner_registration_id: string | null;
   status: string;
   lice_id: string | null;
   referee_id: string | null;
@@ -549,15 +552,23 @@ export function MatchesTab({ tournamentId, poolPhaseId, slug, eventId }: Matches
                           if (scoringHref) window.location.href = scoringHref;
                         }
                         const auditHref = `/org/${slug}/events/${eventId}/matches/${m.id}`;
-                        // Winner-bold rule: only completed matches with a
-                        // clear differential elect a winner. Ties leave both
-                        // sides in the regular weight — matches the engine
-                        // semantics where ties have no winner row.
+                        // Winner-bold rule: the RECORDED winner, never the
+                        // higher score. A forfeit or a `referee_decision`
+                        // override can award the bout to the fighter behind on
+                        // points, and this table bolded the other name.
                         const isCompleted = m.status === 'completed';
                         const redScore = m.red_score ?? 0;
                         const blueScore = m.blue_score ?? 0;
-                        const isRedWinner = isCompleted && redScore > blueScore;
-                        const isBlueWinner = isCompleted && blueScore > redScore;
+                        const winnerSide = resolveMatchWinner({
+                          status: m.status,
+                          winnerRegistrationId: m.winner_registration_id,
+                          redRegistrationId: m.red_registration_id,
+                          blueRegistrationId: m.blue_registration_id,
+                          redScore: m.red_score,
+                          blueScore: m.blue_score,
+                        });
+                        const isRedWinner = winnerSide === 'red';
+                        const isBlueWinner = winnerSide === 'blue';
                         return (
                           <tr
                             key={m.id}

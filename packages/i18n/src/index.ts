@@ -1184,6 +1184,7 @@ export const en = {
       vsOpponent: 'vs {name}',
       resultWin: 'W',
       resultLoss: 'L',
+      resultDraw: 'D',
     },
     workshopProfile: {
       statEvents: 'Events attended',
@@ -8933,6 +8934,7 @@ export const fr = {
       vsOpponent: 'vs {name}',
       resultWin: 'V',
       resultLoss: 'D',
+      resultDraw: 'N',
     },
     workshopProfile: {
       statEvents: 'Événements suivis',

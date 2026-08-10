@@ -20,6 +20,7 @@ import {
   type ColorToken,
   type PodiumData,
 } from '@myclash/ui';
+import { resolveMatchWinner } from '@myclash/types';
 import { useRealtimeWithFallback } from '@/lib/supabase-browser';
 import { rulesetHelp } from '@/components/rulesets/rulesetHelp';
 import { useI18n } from '../../../../../../src/i18n/I18nProvider';
@@ -1974,30 +1975,48 @@ export default function BracketPage() {
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
 
-function winnerName(
+/**
+ * Which side won, for the podium. Score comparison put the WRONG NAME on the
+ * gold step whenever a final was decided by a forfeit, a walkover or a
+ * `referee_decision` override — the exact cases explicit scores exist for.
+ * web-public's `tournament-data.ts` has always read the recorded winner; this
+ * copy is the one that drifted.
+ */
+function podiumSide(slot: BracketSlotData): 'red' | 'blue' | null {
+  return resolveMatchWinner({
+    status: 'completed', // both callers gate on slot.status === 'completed'
+    winnerRegistrationId: slot.winnerRegistrationId,
+    redRegistrationId: slot.redRegistrationId,
+    blueRegistrationId: slot.blueRegistrationId,
+    redScore: slot.redScore,
+    blueScore: slot.blueScore,
+  });
+}
+
+function sideName(
   slot: BracketSlotData,
+  side: 'red' | 'blue' | null,
 ): { fighterName: string; clubAbbrev?: string | null } | null {
-  if (slot.redScore === null || slot.blueScore === null) return null;
-  if (slot.redScore > slot.blueScore && slot.redFighterName) {
+  if (side === 'red' && slot.redFighterName) {
     return { fighterName: slot.redFighterName, clubAbbrev: slot.redClubAbbrev };
   }
-  if (slot.blueScore > slot.redScore && slot.blueFighterName) {
+  if (side === 'blue' && slot.blueFighterName) {
     return { fighterName: slot.blueFighterName, clubAbbrev: slot.blueClubAbbrev };
   }
   return null;
 }
 
+function winnerName(
+  slot: BracketSlotData,
+): { fighterName: string; clubAbbrev?: string | null } | null {
+  return sideName(slot, podiumSide(slot));
+}
+
 function loserName(
   slot: BracketSlotData,
 ): { fighterName: string; clubAbbrev?: string | null } | null {
-  if (slot.redScore === null || slot.blueScore === null) return null;
-  if (slot.redScore > slot.blueScore && slot.blueFighterName) {
-    return { fighterName: slot.blueFighterName, clubAbbrev: slot.blueClubAbbrev };
-  }
-  if (slot.blueScore > slot.redScore && slot.redFighterName) {
-    return { fighterName: slot.redFighterName, clubAbbrev: slot.redClubAbbrev };
-  }
-  return null;
+  const winner = podiumSide(slot);
+  return sideName(slot, winner === null ? null : winner === 'red' ? 'blue' : 'red');
 }
 
 function strategyKey(s: SeedingStrategy): string {

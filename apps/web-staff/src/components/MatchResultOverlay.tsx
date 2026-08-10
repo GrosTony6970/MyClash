@@ -22,7 +22,7 @@ import { useI18n } from '../i18n/I18nProvider';
 import { useScoringTheme } from '../theme/ThemeProvider';
 import { useExchanges } from '../hooks/useExchanges';
 import { usePenalties } from '../hooks/usePenalties';
-import { matchWinnerSide } from './match-winner';
+import { resolveMatchWinner } from '@myclash/types';
 import type { ClockState } from './MatchClock';
 
 export interface MatchResultOverlayProps {
@@ -34,6 +34,10 @@ export interface MatchResultOverlayProps {
   blueRegistrationId: string;
   redScore: number;
   blueScore: number;
+  /** The recorded winner. The overlay ANNOUNCES the result to the hall, so it
+   *  reads the record rather than comparing the two numbers — a forfeit or a
+   *  `referee_decision` override can put the winner on the lower score. */
+  winnerRegistrationId: string | null;
   endReason?: string | null;
   bestOf?: number;
   currentRound?: number;
@@ -51,13 +55,30 @@ function ResultHeadline({
   blueName,
   redScore,
   blueScore,
+  redRegistrationId,
+  blueRegistrationId,
+  winnerRegistrationId,
   scoringConfig,
 }: Pick<
   MatchResultOverlayProps,
-  'redName' | 'blueName' | 'redScore' | 'blueScore' | 'scoringConfig'
+  | 'redName'
+  | 'blueName'
+  | 'redScore'
+  | 'blueScore'
+  | 'redRegistrationId'
+  | 'blueRegistrationId'
+  | 'winnerRegistrationId'
+  | 'scoringConfig'
 >) {
   const { t } = useI18n();
-  const winner = matchWinnerSide(redScore, blueScore);
+  const winner = resolveMatchWinner({
+    status: 'completed', // the overlay only renders once the clock has ended
+    winnerRegistrationId,
+    redRegistrationId,
+    blueRegistrationId,
+    redScore,
+    blueScore,
+  });
   const winnerName = winner === 'red' ? redName : winner === 'blue' ? blueName : null;
 
   return (
@@ -186,6 +207,9 @@ export function MatchResultOverlay(props: MatchResultOverlayProps) {
           blueName={blueName}
           redScore={redScore}
           blueScore={blueScore}
+          redRegistrationId={props.redRegistrationId}
+          blueRegistrationId={props.blueRegistrationId}
+          winnerRegistrationId={props.winnerRegistrationId}
           scoringConfig={scoringConfig}
         />
         <BoutReview {...props} />

@@ -24,11 +24,15 @@
  */
 export function resolveMatchWinner(input: {
   status: string;
-  winnerRegistrationId: string | null | undefined;
-  redRegistrationId: string | null | undefined;
-  blueRegistrationId: string | null | undefined;
-  redScore: number | null | undefined;
-  blueScore: number | null | undefined;
+  // Optional, not merely nullable: several caller types declare these with `?`
+  // — `BracketSlotData`, the public `BracketSlot`, `MatchInfo` — and requiring
+  // them would push a `?? null` coercion onto every call site, which is exactly
+  // the kind of per-caller re-derivation this function exists to remove.
+  winnerRegistrationId?: string | null;
+  redRegistrationId?: string | null;
+  blueRegistrationId?: string | null;
+  redScore?: number | null;
+  blueScore?: number | null;
 }): 'red' | 'blue' | null {
   if (input.status !== 'completed') return null;
 

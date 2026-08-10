@@ -29,6 +29,7 @@ import {
   DEFAULT_SCORING_CONFIG,
   displayClockMs,
   formatClockMs,
+  resolveMatchWinner,
   shouldWarnClock,
 } from '@myclash/types';
 import { useLiveMatch, type DisplayMatch, type Penalty } from '../hooks/useLiveMatch';
@@ -526,19 +527,36 @@ function CenterColumn({
   const clockArgs = [matchFormat, match.phaseType ?? undefined, match.matchNumberLabel] as const;
   const shownClockMs = displayClockMs(elapsedMs, ...clockArgs);
   const warnClock = shouldWarnClock(elapsedMs, ...clockArgs);
-  // Double cap reached: both fighters lose, scores are 0-0 (so the
-  // score-derived winner below is null too). end_reason disambiguates
-  // this from a genuine tie.
+  // Double cap reached: both fighters lose, 0-0 with no recorded winner.
+  // end_reason disambiguates this from a genuine tie.
   const isDoubleLoss = isEnded && match.endReason === 'max_doubles';
   // A black card closed the match: the carded fighter forfeits, the opponent
-  // wins (fixed-loss score makes the winner score-derivable below).
+  // wins. The recorded winner is what says so — the fixed-loss score happens to
+  // agree, but a keep-current injury forfeit does not, and neither does an
+  // override that awards the bout to the fighter behind on points.
   const isBlackCard = isEnded && match.endReason === 'black_card';
   const winner = useMemo(() => {
     if (!isEnded) return null;
-    if (match.redScore > match.blueScore) return { side: 'red' as const, name: redName };
-    if (match.blueScore > match.redScore) return { side: 'blue' as const, name: blueName };
-    return null;
-  }, [isEnded, match.redScore, match.blueScore, redName, blueName]);
+    const side = resolveMatchWinner({
+      status: 'completed',
+      winnerRegistrationId: match.winnerRegistrationId,
+      redRegistrationId: match.redRegistrationId,
+      blueRegistrationId: match.blueRegistrationId,
+      redScore: match.redScore,
+      blueScore: match.blueScore,
+    });
+    if (side === null) return null;
+    return { side, name: side === 'red' ? redName : blueName };
+  }, [
+    isEnded,
+    match.winnerRegistrationId,
+    match.redRegistrationId,
+    match.blueRegistrationId,
+    match.redScore,
+    match.blueScore,
+    redName,
+    blueName,
+  ]);
 
   // The same numbered timeline the referee pad and the public match page show —
   // exchanges and cards merged into one contiguous 1..N sequence, newest first,

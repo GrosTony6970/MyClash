@@ -16,12 +16,19 @@ describe('mergeScores', () => {
   it('rewrites a row whose score changed', () => {
     const pools = [
       pool([
-        { id: 'm-1', status: 'pending', red_score: null, blue_score: null, lice_id: 'lice-a' },
+        {
+          id: 'm-1',
+          status: 'pending',
+          red_score: null,
+          blue_score: null,
+          winner_registration_id: null,
+          lice_id: 'lice-a',
+        },
       ]),
     ];
 
     const merged = mergeScores(pools, [
-      { id: 'm-1', status: 'completed', red_score: 5, blue_score: 3 },
+      { id: 'm-1', status: 'completed', red_score: 5, blue_score: 3, winner_registration_id: null },
     ]);
 
     expect(merged[0]!.matches[0]).toMatchObject({
@@ -29,6 +36,7 @@ describe('mergeScores', () => {
       status: 'completed',
       red_score: 5,
       blue_score: 3,
+      winner_registration_id: null,
       // unrelated fields pass through unchanged
       lice_id: 'lice-a',
     });
@@ -42,12 +50,13 @@ describe('mergeScores', () => {
       status: 'completed',
       red_score: 5,
       blue_score: 3,
+      winner_registration_id: null,
       lice_id: 'lice-a',
     };
     const pools = [pool([unchanged])];
 
     const merged = mergeScores(pools, [
-      { id: 'm-1', status: 'completed', red_score: 5, blue_score: 3 },
+      { id: 'm-1', status: 'completed', red_score: 5, blue_score: 3, winner_registration_id: null },
     ]);
 
     expect(merged[0]!.matches[0]).toBe(unchanged); // identity, not equality
@@ -55,10 +64,26 @@ describe('mergeScores', () => {
   });
 
   it('ignores updates whose id is not in the pool', () => {
-    const original = pool([{ id: 'm-1', status: 'pending', red_score: null, blue_score: null }]);
+    const original = pool([
+      {
+        id: 'm-1',
+        status: 'pending',
+        red_score: null,
+        blue_score: null,
+        winner_registration_id: null,
+      },
+    ]);
     const merged = mergeScores(
       [original],
-      [{ id: 'm-ghost', status: 'completed', red_score: 5, blue_score: 3 }],
+      [
+        {
+          id: 'm-ghost',
+          status: 'completed',
+          red_score: 5,
+          blue_score: 3,
+          winner_registration_id: null,
+        },
+      ],
     );
     expect(merged[0]).toBe(original); // no mutation, same reference
   });
@@ -69,13 +94,31 @@ describe('mergeScores', () => {
   });
 
   it('handles a mix of changed and unchanged rows in the same pool', () => {
-    const stableRow = { id: 'm-1', status: 'pending', red_score: null, blue_score: null };
-    const changingRow = { id: 'm-2', status: 'pending', red_score: null, blue_score: null };
+    const stableRow = {
+      id: 'm-1',
+      status: 'pending',
+      red_score: null,
+      blue_score: null,
+      winner_registration_id: null,
+    };
+    const changingRow = {
+      id: 'm-2',
+      status: 'pending',
+      red_score: null,
+      blue_score: null,
+      winner_registration_id: null,
+    };
     const pools = [pool([stableRow, changingRow])];
 
     const merged = mergeScores(pools, [
-      { id: 'm-1', status: 'pending', red_score: null, blue_score: null },
-      { id: 'm-2', status: 'completed', red_score: 5, blue_score: 3 },
+      {
+        id: 'm-1',
+        status: 'pending',
+        red_score: null,
+        blue_score: null,
+        winner_registration_id: null,
+      },
+      { id: 'm-2', status: 'completed', red_score: 5, blue_score: 3, winner_registration_id: null },
     ]);
 
     // Stable row keeps identity; changing row is rewritten.

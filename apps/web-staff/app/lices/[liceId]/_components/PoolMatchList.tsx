@@ -3,18 +3,25 @@
 import type * as React from 'react';
 import { useRouter } from 'next/navigation';
 import { sideColorsFor } from '@myclash/ui';
-import type { TournamentScoringConfig } from '@myclash/types';
+import { resolveMatchWinner, type TournamentScoringConfig } from '@myclash/types';
 import { useI18n } from '../../../../src/i18n/I18nProvider';
 import { useScoringTheme } from '../../../../src/theme/ThemeProvider';
 import type { PoolMatchRow } from '../../../../src/components/tournament-context-types';
 import { MatchStatusPill } from './MatchStatusPill';
 
-/** Winner only on a completed bout with a strict differential — a draw has none. */
+/** The RECORDED winner, never the higher score — a forfeit or a
+ *  `referee_decision` override can award the bout to the fighter behind on
+ *  points, and this list is the piste operator's copy of the organiser's
+ *  Matches tab, so the two have to agree. */
 function winnerSide(match: PoolMatchRow): 'red' | 'blue' | null {
-  if (match.status !== 'completed') return null;
-  if (match.red_score === null || match.blue_score === null) return null;
-  if (match.red_score === match.blue_score) return null;
-  return match.red_score > match.blue_score ? 'red' : 'blue';
+  return resolveMatchWinner({
+    status: match.status,
+    winnerRegistrationId: match.winner_registration_id,
+    redRegistrationId: match.red_registration_id,
+    blueRegistrationId: match.blue_registration_id,
+    redScore: match.red_score,
+    blueScore: match.blue_score,
+  });
 }
 
 /** Name + the organiser's corner colour + the club, as one cell. */

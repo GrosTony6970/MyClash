@@ -19,7 +19,7 @@ import {
 } from '@myclash/types';
 import { sideStyle, useAdjacentMatches } from '@myclash/ui';
 import { effectiveTimeLimitSeconds } from './scoreboard-clock';
-import { matchWinnerSide } from './match-winner';
+import { closedRoundWinner } from './round-winner';
 import { resumeBlockedByRuleset } from './resume-guard';
 
 export interface MatchInfo {
@@ -34,6 +34,10 @@ export interface MatchInfo {
   blueRegistrationId: string;
   redScore: number;
   blueScore: number;
+  /** The RECORDED winner. Authoritative over the two scores — a forfeit or a
+   *  `referee_decision` override can award the bout to the fighter behind on
+   *  points, and the end-of-match overlay announces it to the hall. */
+  winnerRegistrationId?: string | null;
   redFighterName?: string;
   blueFighterName?: string;
   redClub?: string | null;
@@ -631,7 +635,9 @@ export function MatchView({
               {t('scoring.rounds.roundComplete', { round: String(currentRound) })}
             </p>
             {(() => {
-              const winner = matchWinnerSide(match.redScore, match.blueScore);
+              // The ROUND's winner, from `rounds_json` — not the match's, and
+              // not the live score, which is about to reset to 0-0.
+              const winner = closedRoundWinner(match.roundsJson, currentRound);
               const winnerName = winner === 'red' ? redName : winner === 'blue' ? blueName : null;
               const winnerColor = winner ? sideStyle(scoringConfig, winner).border : undefined;
               return winnerName ? (
@@ -675,6 +681,7 @@ export function MatchView({
           blueRegistrationId={match.blueRegistrationId}
           redScore={match.redScore}
           blueScore={match.blueScore}
+          winnerRegistrationId={match.winnerRegistrationId ?? null}
           endReason={match.endReason}
           bestOf={bestOf}
           currentRound={currentRound}

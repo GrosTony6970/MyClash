@@ -205,6 +205,13 @@ export async function CompetitorHome({ eventSlug }: Props) {
                     </p>
                     <p className="text-xs text-muted">{m.matchNumberLabel}</p>
                   </div>
+                  {/* Highlights the higher score, which is NOT the winner when
+                      a forfeit or a `referee_decision` override decided the
+                      bout. Left as-is deliberately: `/my-matches` is a KNOWN
+                      PHANTOM route (frontend-route-contract.test.ts), so `past`
+                      is always empty and there is no shape to read a winner
+                      from. Whoever builds that endpoint must ship `outcome`
+                      like the person schedule does, and use it here. */}
                   <p className="text-lg font-black tabular-nums text-foreground">
                     <span className={m.redScore > m.blueScore ? 'text-success' : undefined}>
                       {m.redScore}

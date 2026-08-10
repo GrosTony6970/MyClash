@@ -10,6 +10,7 @@
  */
 
 import type { PodiumData } from '@myclash/ui';
+import { resolveMatchWinner } from '@myclash/types';
 import type { PoolMember, PoolReferee } from './PoolsCompositionView';
 
 export interface StandingRow {
@@ -162,16 +163,11 @@ export interface PodiumShape {
   bronzeMatch?: boolean | null;
 }
 
-// Recorded winner first — forfeits can award the lower-scored fighter (a
-// keep-current injury forfeit stores the pre-forfeit score, even 0-0).
+// This was the correct implementation while three other copies drifted; it is
+// now the shared one in @myclash/types, which says the same thing.
 function winnerSide(s: BracketSlot | null): 'red' | 'blue' | null {
-  if (!s || s.status !== 'completed') return null;
-  if (s.winnerRegistrationId && s.winnerRegistrationId === s.redRegistrationId) return 'red';
-  if (s.winnerRegistrationId && s.winnerRegistrationId === s.blueRegistrationId) return 'blue';
-  const rs = s.redScore ?? 0;
-  const bs = s.blueScore ?? 0;
-  if (rs === bs) return null;
-  return rs > bs ? 'red' : 'blue';
+  if (!s) return null;
+  return resolveMatchWinner(s);
 }
 
 function winnerName(s: BracketSlot | null) {

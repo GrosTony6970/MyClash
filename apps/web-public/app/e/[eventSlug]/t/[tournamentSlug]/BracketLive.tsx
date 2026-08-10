@@ -224,6 +224,11 @@ export function BracketLive({
     blueClubAbbrev: (s as { blueClubAbbrev?: string | null }).blueClubAbbrev ?? null,
     redScore: s.redScore,
     blueScore: s.blueScore,
+    // The card bolds the RECORDED winner, and this projection used to drop the
+    // field its own source type already declared — so the public bracket
+    // announced whoever had more points, which a forfeit or an override can
+    // make the loser.
+    winnerRegistrationId: s.winnerRegistrationId ?? null,
     status: s.status,
     matchId: s.matchId,
     redRegistrationId: (s as { redRegistrationId?: string | null }).redRegistrationId ?? null,

@@ -40,6 +40,12 @@ export interface BracketSlotData {
    *  legacy bracket fetches that didn't project them still type-check. */
   redRegistrationId?: string | null;
   blueRegistrationId?: string | null;
+  /** The RECORDED winner, authoritative over the two scores — a forfeit, a
+   *  walkover or a `referee_decision` override can award the bout to the
+   *  fighter behind on points. The API has always sent it; every consumer
+   *  dropped it on the way into this type, so the card bolded the higher score
+   *  in the one case where that is wrong. */
+  winnerRegistrationId?: string | null;
   /** Lice currently assigned to this slot's match. Drives the
    *  cross-app click into the scoring app's ScoringPad. Null
    *  when the operator hasn't placed the match on a lice yet —

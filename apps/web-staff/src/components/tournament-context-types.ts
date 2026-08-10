@@ -43,6 +43,11 @@ export interface PoolMatchRow {
   blue_club_abbrev: string | null;
   red_score: number | null;
   blue_score: number | null;
+  /** The recorded winner — what the list bolds. Authoritative over the two
+   *  scores, which a forfeit or an override can invert. */
+  winner_registration_id: string | null;
+  red_registration_id: string | null;
+  blue_registration_id: string | null;
   status: string;
   match_number_label: string | null;
   roundCode: string;
@@ -99,6 +104,11 @@ export interface TournamentBracketPayload {
     blueFighterName: string | null;
     redScore: number | null;
     blueScore: number | null;
+    /** Recorded winner — what the card bolds. Authoritative over the scores,
+     *  which a forfeit or a `referee_decision` override can invert. */
+    winnerRegistrationId?: string | null;
+    redRegistrationId?: string | null;
+    blueRegistrationId?: string | null;
     status: string;
     matchId: string | null;
     liceId?: string | null;

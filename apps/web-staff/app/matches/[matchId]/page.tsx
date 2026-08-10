@@ -120,6 +120,7 @@ export default function MatchScoringPage({ params }: Props) {
           blue_registration_id: string;
           red_score: number | null;
           blue_score: number | null;
+          winner_registration_id: string | null;
           locked_at: string | null;
           lice_id: string | null;
           end_reason: string | null;
@@ -165,6 +166,10 @@ export default function MatchScoringPage({ params }: Props) {
           blueRegistrationId: raw.blue_registration_id,
           redScore: raw.red_score ?? 0,
           blueScore: raw.blue_score ?? 0,
+          // GET /matches/:id is a select('*'), so this has always been on the
+          // wire — the client simply dropped it, and the end-of-match overlay
+          // announced whoever had more points.
+          winnerRegistrationId: raw.winner_registration_id ?? null,
           redFighterName: summary?.redName ?? '',
           blueFighterName: summary?.blueName ?? '',
           redClub: summary?.redClub ?? null,
