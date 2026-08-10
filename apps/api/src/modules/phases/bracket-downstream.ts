@@ -34,15 +34,25 @@ export interface Downstream {
 /**
  * The slots fed by `matchId`, with the two refs that name them.
  *
- * Null when the match feeds nothing resolvable: a pool match, an unfinished
- * match, or a missing row.
+ * Null only when there is nothing to resolve FROM: a pool match, or a missing
+ * row. Deliberately NOT gated on `winner_registration_id` — the refs are built
+ * from the slot's own round and position, so the winner is not an input here.
+ *
+ * That distinction is load-bearing. `onMatchCompleted` needs a winner because
+ * it has one to propagate; a CALLER ASKING WHAT DEPENDS ON THIS MATCH does not.
+ * Copying the winner check into this lookup made the override guard blind on
+ * exactly the matches that most need it — a bracket bout completed with no
+ * winner, which is every bout that ends on the clock or on max-doubles
+ * (`clock.service.ts` end, `scoring.service.ts` time_limit / max_doubles). The
+ * guard ran before the winner was written and saw nothing; the destructive
+ * clear ran after and saw everything.
  */
 export async function downstreamSlots(
   supabase: Client,
   matchId: string,
 ): Promise<Downstream | null> {
   const match = await loadMatch(supabase, matchId);
-  if (!match?.bracket_slot_id || !match.winner_registration_id) return null;
+  if (!match?.bracket_slot_id) return null;
 
   const slot = await loadSlot(supabase, match.bracket_slot_id);
   if (!slot) return null;
