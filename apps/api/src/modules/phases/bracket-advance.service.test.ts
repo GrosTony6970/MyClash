@@ -247,6 +247,11 @@ describe('BracketAdvanceService.onMatchCompleted', () => {
                 return api;
               }),
               or: vi.fn().mockResolvedValue({ data: downstream, error: null }),
+              // `loadSlotMatch` scopes its probe with `.limit(1)` before
+              // `.maybeSingle()`. Without this the chain throws, and
+              // `onMatchCompleted` swallows it — the whole advance would go
+              // silently missing while the test still passed.
+              limit: vi.fn(() => api),
               // The scheduled + never-started probe in deleteUnplayedSlotMatch.
               is: vi.fn().mockResolvedValue({ data: resetMatches, error: null }),
               in: vi.fn().mockResolvedValue({ data: [], error: null }),
@@ -377,6 +382,10 @@ describe('BracketAdvanceService.onMatchCompleted', () => {
               }),
               // The downstream lookup: only the reset references GF.
               or: vi.fn().mockResolvedValue({ data: [resetSlot], error: null }),
+              // `loadSlotMatch` ends `.limit(1).maybeSingle()`; without it the
+              // chain throws and `onMatchCompleted`'s catch hides the whole
+              // advance while the slot assertions below still pass.
+              limit: vi.fn(() => chain),
               maybeSingle: vi.fn().mockResolvedValue({
                 data:
                   table === 'matches'
