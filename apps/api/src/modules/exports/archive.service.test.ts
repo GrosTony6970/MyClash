@@ -472,6 +472,18 @@ describe('ArchiveService', () => {
         previous_registration_state: { id: 'r-1', status: 'checked_in' },
       },
     ],
+    tournament_penalty_reviews: [
+      {
+        id: 'tpr-1',
+        tournament_id: 't-1',
+        registration_id: 'r-1',
+        review_type: 'second_black_card',
+        status: 'pending',
+        black_card_count: 2,
+        // match_penalties.id values, in an array inside a JSON column.
+        payload_json: { penaltyIds: ['mp-1'] },
+      },
+    ],
     referee_compensation_event_settings: [{ event_id: 'event-1', plan_id: 'plan-1' }],
   });
 
@@ -644,6 +656,20 @@ describe('ArchiveService', () => {
       const correction = restored.find((row) => row['sequence'] === 2);
       expect(original?.['id']).not.toBe('ex-1');
       expect(correction?.['corrected_exchange_id']).toBe(original?.['id']);
+    });
+
+    it('remaps the penalty ids a second-black-card review names', async () => {
+      // Found by the schema-scan gate, not by review: `payload_json` holds the
+      // `match_penalties.id`s that triggered the review, and a restored copy
+      // named the SOURCE event's penalties. The FK is not declared, so nothing
+      // could ever have complained — confirming or dismissing the copy's review
+      // would have read another event's cards.
+      const { inserted } = await restoreScoped();
+      const penaltyId = inserted.match_penalties?.[0]?.id as string;
+      expect(penaltyId, 'the penalty is copied under a new id').not.toBe('mp-1');
+      expect(inserted.tournament_penalty_reviews?.[0]?.payload_json).toEqual({
+        penaltyIds: [penaltyId],
+      });
     });
 
     it('leaves an id with no counterpart in the archive alone', async () => {

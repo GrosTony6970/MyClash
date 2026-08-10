@@ -140,7 +140,7 @@ const TABLE_TO_ARCHIVE_KEY = {
 } as const satisfies Record<string, keyof ArchiveTables>;
 
 /** Which `IdMaps` member a nested id resolves through. */
-type JsonIdMapName = 'matches' | 'registrations' | 'bracketSlots';
+type JsonIdMapName = 'matches' | 'registrations' | 'bracketSlots' | 'matchPenalties';
 
 interface JsonIdPath {
   readonly path: string;
@@ -171,6 +171,9 @@ interface JsonIdPath {
  *                     from/to side pairs. `byUserId` is deliberately absent —
  *                     it is an auth user, not an event-scoped row.
  *   phases          — phases.service.ts stamps `config_json.bronzeSlotId`
+ *   tournament_penalty_reviews
+ *                   — penalties.service.ts `createSecondBlackCardReviewIfNeeded`
+ *                     stores the `match_penalties.id`s that triggered the review
  */
 const JSON_ID_PATHS = {
   match_forfeits: [
@@ -194,6 +197,7 @@ const JSON_ID_PATHS = {
     },
   ],
   phases: [{ path: 'config_json.bronzeSlotId', map: 'bracketSlots' }],
+  tournament_penalty_reviews: [{ path: 'payload_json.penaltyIds[]', map: 'matchPenalties' }],
 } as const satisfies Partial<Record<keyof typeof TABLE_TO_ARCHIVE_KEY, readonly JsonIdPath[]>>;
 
 /**
@@ -320,7 +324,7 @@ const ARCHIVE_EXCLUDED_TABLES = new Set<string>([
 
 const ARCHIVE_COLLECTED_TABLES = new Set<string>(Object.keys(TABLE_TO_ARCHIVE_KEY));
 
-export { ARCHIVE_EXCLUDED_TABLES, ARCHIVE_COLLECTED_TABLES };
+export { ARCHIVE_EXCLUDED_TABLES, ARCHIVE_COLLECTED_TABLES, JSON_ID_PATHS };
 
 // Parents before children — FK-dependency order. New scoped tables are
 // interleaved so their referenced rows are always inserted first. Notably:
@@ -1434,6 +1438,7 @@ interface IdMaps {
   // Named maps for ids referenced by OTHER tables' FK columns.
   refereeSkills: Map<string, string>;
   matchForfeits: Map<string, string>;
+  matchPenalties: Map<string, string>;
   tournamentSlotConfig: Map<string, string>;
   eventSlotConfig: Map<string, string>;
   // Fallback per-table id maps for tables whose id is not referenced elsewhere
@@ -1459,6 +1464,7 @@ function createIdMaps(): IdMaps {
     workshopSessions: new Map(),
     refereeSkills: new Map(),
     matchForfeits: new Map(),
+    matchPenalties: new Map(),
     tournamentSlotConfig: new Map(),
     eventSlotConfig: new Map(),
     generic: new Map(),
@@ -1499,6 +1505,7 @@ function idMapForTable(
     workshop_sessions: maps.workshopSessions,
     referee_skills: maps.refereeSkills,
     match_forfeits: maps.matchForfeits,
+    match_penalties: maps.matchPenalties,
     tournament_slot_config: maps.tournamentSlotConfig,
     event_slot_config_default: maps.eventSlotConfig,
   };
