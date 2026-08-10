@@ -72,6 +72,14 @@ describe('NestJS DI wiring — injected services must be value-imported', () => 
   it('match-forfeits.service value-imports BracketAdvanceService', () => {
     valueImports('./match-forfeits.service.ts', 'BracketAdvanceService');
   });
+
+  // The results freeze is the only thing stopping an override rewriting a
+  // completed event's results outside the exchange-edit review. `import type`
+  // here makes `this.frozenResults?.` a no-op on undefined — the check does not
+  // fail, it just stops existing, which is the worst shape a guard can take.
+  it('match-forfeits.service value-imports FrozenResultsGuard', () => {
+    valueImports('./match-forfeits.service.ts', 'FrozenResultsGuard');
+  });
 });
 
 /**
