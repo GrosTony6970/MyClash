@@ -20,10 +20,26 @@ import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { Modal, sideColorsFor, useConfirm, useToast } from '@myclash/ui';
 import type { TournamentScoringConfig } from '@myclash/types';
+import { FORFEIT_REASONS, OVERRIDE_REASONS, isOverrideReason } from '@myclash/rulesets';
 import { localeToBcp47 } from '@myclash/time';
 import { useI18n } from '../../../../../../../src/i18n/I18nProvider';
 import { PayloadCell, type PayloadLabel } from '../../../../../../../src/components/PayloadCell';
 import { getPublicApiUrl } from '@/lib/api-url';
+
+/**
+ * One i18n key per reason. The engine owns which reasons exist; this owns
+ * what each is called. Literal values so the i18n reverse sweep can see them.
+ */
+const REASON_LABEL_KEY: Record<string, string> = {
+  injury: 'organizer.bracketPage.forfeitReasonInjury',
+  voluntary: 'organizer.bracketPage.forfeitReasonVoluntary',
+  black_card_1: 'organizer.bracketPage.forfeitReasonBlackCard1',
+  black_card_2: 'organizer.bracketPage.forfeitReasonBlackCard2',
+  conduct_violation: 'organizer.bracketPage.forfeitReasonConduct',
+  referee_decision: 'organizer.bracketPage.overrideReasonRefereeDecision',
+  admin_correction: 'organizer.bracketPage.overrideReasonAdminCorrection',
+  technical_failure: 'organizer.bracketPage.overrideReasonTechnicalFailure',
+};
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -193,10 +209,15 @@ export default function MatchDetailPage() {
   const [voidReason, setVoidReason] = useState('');
   const [voidSaving, setVoidSaving] = useState(false);
   const [voidError, setVoidError] = useState<string | null>(null);
-  const [forfeitReason, setForfeitReason] = useState('injury');
+  const [forfeitReason, setForfeitReason] = useState<string>('injury');
   const [forfeitSide, setForfeitSide] = useState<'red' | 'blue'>('red');
   const [forfeitCanContinue, setForfeitCanContinue] = useState(true);
   const [forfeitSaving, setForfeitSaving] = useState(false);
+  // Two scores, not one: an override states the whole result. Kept as strings
+  // so the field can be emptied while typing without snapping back to 0.
+  const [overrideLosingScore, setOverrideLosingScore] = useState('0');
+  const [overrideWinningScore, setOverrideWinningScore] = useState('0');
+  const isOverride = isOverrideReason(forfeitReason);
 
   // ── Fetch ─────────────────────────────────────────────────────────────────────
 
@@ -376,8 +397,17 @@ export default function MatchDetailPage() {
       body: JSON.stringify({
         forfeitingRegistrationId,
         reason: forfeitReason,
-        canContinue: ['injury', 'voluntary', 'black_card_1'].includes(forfeitReason)
-          ? forfeitCanContinue
+        // The DTO refuses canContinue on an override and requires the scores;
+        // an override never withdraws anyone, so there is nothing to ask.
+        canContinue:
+          !isOverride && ['injury', 'voluntary', 'black_card_1'].includes(forfeitReason)
+            ? forfeitCanContinue
+            : undefined,
+        explicitScores: isOverride
+          ? {
+              forfeitingScore: Number(overrideLosingScore) || 0,
+              opponentScore: Number(overrideWinningScore) || 0,
+            }
           : undefined,
       }),
     });
@@ -499,7 +529,9 @@ export default function MatchDetailPage() {
       {match && (
         <section className="mb-6 rounded-xl border border-danger/30 bg-danger/10 p-4">
           <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-danger">
-            {t('organizer.bracketPage.forfeitTitle')}
+            {isOverride
+              ? t('organizer.bracketPage.overrideTitle')
+              : t('organizer.bracketPage.forfeitTitle')}
           </h2>
           <div className="grid gap-3 md:grid-cols-4">
             <select
@@ -516,32 +548,62 @@ export default function MatchDetailPage() {
                   t('organizer.matchDetail.blue')}
               </option>
             </select>
+            {/* Both groups come from @myclash/rulesets, which owns the enum —
+                a reason added there appears here without a second edit. */}
             <select
               value={forfeitReason}
               onChange={(event) => setForfeitReason(event.target.value)}
               className="rounded-lg border border-danger/30 bg-surface px-3 py-2 text-sm"
             >
-              <option value="injury">{t('organizer.bracketPage.forfeitReasonInjury')}</option>
-              <option value="voluntary">{t('organizer.bracketPage.forfeitReasonVoluntary')}</option>
-              <option value="black_card_1">
-                {t('organizer.bracketPage.forfeitReasonBlackCard1')}
-              </option>
-              <option value="black_card_2">
-                {t('organizer.bracketPage.forfeitReasonBlackCard2')}
-              </option>
-              <option value="conduct_violation">
-                {t('organizer.bracketPage.forfeitReasonConduct')}
-              </option>
+              <optgroup label={t('organizer.bracketPage.forfeitReasonGroup')}>
+                {FORFEIT_REASONS.map((reason) => (
+                  <option key={reason} value={reason}>
+                    {t(REASON_LABEL_KEY[reason] as never)}
+                  </option>
+                ))}
+              </optgroup>
+              <optgroup label={t('organizer.bracketPage.overrideReasonGroup')}>
+                {OVERRIDE_REASONS.map((reason) => (
+                  <option key={reason} value={reason}>
+                    {t(REASON_LABEL_KEY[reason] as never)}
+                  </option>
+                ))}
+              </optgroup>
             </select>
-            {['injury', 'voluntary', 'black_card_1'].includes(forfeitReason) && (
-              <label className="flex items-center gap-2 text-sm text-danger">
-                <input
-                  type="checkbox"
-                  checked={forfeitCanContinue}
-                  onChange={(event) => setForfeitCanContinue(event.target.checked)}
-                />
-                {t('organizer.matchDetail.canContinue')}
-              </label>
+            {isOverride ? (
+              <>
+                <label className="flex items-center gap-2 text-sm text-danger">
+                  {t('organizer.bracketPage.overrideLosingScore')}
+                  <input
+                    type="number"
+                    min={0}
+                    value={overrideLosingScore}
+                    onChange={(event) => setOverrideLosingScore(event.target.value)}
+                    className="w-20 rounded-lg border border-danger/30 bg-surface px-3 py-2 text-sm"
+                  />
+                </label>
+                <label className="flex items-center gap-2 text-sm text-danger">
+                  {t('organizer.bracketPage.overrideWinningScore')}
+                  <input
+                    type="number"
+                    min={0}
+                    value={overrideWinningScore}
+                    onChange={(event) => setOverrideWinningScore(event.target.value)}
+                    className="w-20 rounded-lg border border-danger/30 bg-surface px-3 py-2 text-sm"
+                  />
+                </label>
+              </>
+            ) : (
+              ['injury', 'voluntary', 'black_card_1'].includes(forfeitReason) && (
+                <label className="flex items-center gap-2 text-sm text-danger">
+                  <input
+                    type="checkbox"
+                    checked={forfeitCanContinue}
+                    onChange={(event) => setForfeitCanContinue(event.target.checked)}
+                  />
+                  {t('organizer.matchDetail.canContinue')}
+                </label>
+              )
             )}
             <button
               type="button"
@@ -551,9 +613,14 @@ export default function MatchDetailPage() {
             >
               {forfeitSaving
                 ? t('organizer.matchDetail.recording')
-                : t('organizer.bracketPage.forfeitTitle')}
+                : isOverride
+                  ? t('organizer.bracketPage.overrideTitle')
+                  : t('organizer.bracketPage.forfeitTitle')}
             </button>
           </div>
+          {isOverride && (
+            <p className="mt-3 text-xs text-muted">{t('organizer.bracketPage.overrideHint')}</p>
+          )}
         </section>
       )}
 
