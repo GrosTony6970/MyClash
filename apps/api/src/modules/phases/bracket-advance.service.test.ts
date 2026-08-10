@@ -643,92 +643,89 @@ describe('BracketAdvanceService.advanceFromSlot — fails loud', () => {
   });
 });
 
-// When advanceFromSlot resolves a downstream slot, the corresponding
-// matches row already exists (pre-created at bracket generation in
-// phases.service.ts createInitialBracketMatches). The advance flow
-// must UPDATE that row's red_/blue_registration_id rather than INSERT
-// a fresh one — otherwise we'd lose the operator's pre-played
-// schedule (lice_id + scheduled_at) attached to the placeholder row,
-// and the new partial unique index on (bracket_slot_id WHERE
-// status <> 'voided') would reject the duplicate.
-describe('BracketAdvanceService.advanceFromSlot — pushes registration into existing matches row', () => {
-  it("UPDATEs matches.red_registration_id (side 'a') for the pre-existing row keyed by bracket_slot_id", async () => {
-    const downstreamSlot = {
-      id: 'ds-1',
-      round: 2,
-      position: 1,
-      phase_id: 'phase-1',
-      source_a_type: 'winner_of',
-      source_a_ref: 'winner of R1P1',
-      source_b_type: 'winner_of',
-      source_b_ref: 'winner of R1P2',
-      registration_a_id: null,
-      registration_b_id: null,
-    };
+// When advanceFromSlot resolves a downstream slot, the corresponding matches
+// row already exists (pre-created at bracket generation in phases.service.ts
+// createInitialBracketMatches). The advance flow must UPDATE that row rather
+// than INSERT a fresh one — otherwise the operator's schedule (lice_id +
+// scheduled_at) attached to the placeholder row is lost, and the partial unique
+// index on (bracket_slot_id WHERE status <> 'voided') rejects the duplicate.
+/**
+ * Advancement used to write the matches row itself, through `writeSlotSide`.
+ * That made two writers for one row, and the advancement one had no
+ * started-guard: an override on a feeder clears and re-advances, so a bout
+ * already in play could have its fighters rewritten underneath the referee.
+ * Both halves now go through `syncMatchToSlot`.
+ */
+describe('BracketAdvanceService.advanceFromSlot — one owner for the matches row', () => {
+  const DOWNSTREAM = {
+    id: 'ds-1',
+    round: 2,
+    position: 3,
+    phase_id: 'phase-1',
+    source_a_type: 'winner_of',
+    source_a_ref: 'winner of R1P1',
+    source_b_type: 'winner_of',
+    source_b_ref: 'winner of R1P2',
+    registration_a_id: null,
+    registration_b_id: null,
+  };
 
-    // Capture every matches mutation. We expect: one update keyed by
-    // bracket_slot_id='ds-1' with red_registration_id='reg-winner';
-    // zero inserts.
-    const matchesUpdateCalls: Array<{ patch: unknown; bracketSlotId: unknown }> = [];
-    const matchesInsertCalls: unknown[] = [];
+  /** Table-dispatched, and records the FILTERS each write was scoped by. */
+  function makeAdvanceMock(input: {
+    downstream?: Record<string, unknown>[];
+    existingMatch: Record<string, unknown> | null;
+  }) {
+    const matchUpdates: Array<{
+      patch: Record<string, unknown>;
+      filters: Array<[string, unknown]>;
+    }> = [];
+    const matchInserts: Array<Record<string, unknown>> = [];
+    const slotUpdates: Array<Record<string, unknown>> = [];
 
-    let bracketSlotsCall = 0;
-    const fromMock = vi.fn((table: string) => {
-      if (table === 'bracket_slots') {
-        bracketSlotsCall += 1;
-        if (bracketSlotsCall === 1) {
-          // Step 1: downstream query.
-          return {
-            select: vi.fn().mockReturnThis(),
-            eq: vi.fn().mockReturnThis(),
-            or: vi.fn().mockResolvedValue({ data: [downstreamSlot], error: null }),
-          };
-        }
-        // Step 2: writeSlotSide for bracket_slots — succeed.
-        return {
-          update: vi.fn().mockReturnValue({
-            eq: vi.fn().mockReturnThis(),
-            select: vi.fn().mockReturnThis(),
-            maybeSingle: vi.fn().mockResolvedValue({ data: { id: 'ds-1' }, error: null }),
-          }),
-        };
-      }
-      if (table === 'matches') {
-        // Two access shapes:
-        //   - update(patch).eq('bracket_slot_id', ...).not('status', 'eq', 'voided')
-        //   - createMatchIfReady select() idempotency chain
-        const chain: Record<string, unknown> = {
-          insert: vi.fn((row: unknown) => {
-            matchesInsertCalls.push(row);
-            return Promise.resolve({ data: null, error: null });
-          }),
-          // createMatchIfReady idempotency: existing row found → skip insert.
-          select: vi.fn().mockReturnThis(),
-          eq: vi.fn().mockReturnThis(),
-          not: vi.fn().mockReturnThis(),
-          maybeSingle: vi.fn().mockResolvedValue({
-            data: { id: 'pre-existing-match', status: 'scheduled' },
+    const from = vi.fn((table: string) => {
+      // Shared by reference with the recorded write: `.eq()` comes AFTER
+      // `.update()` in the fluent chain.
+      const filters: Array<[string, unknown]> = [];
+      const api: Record<string, unknown> = {};
+      Object.assign(api, {
+        select: vi.fn(() => api),
+        eq: vi.fn((column: string, value: unknown) => {
+          filters.push([column, value]);
+          return api;
+        }),
+        not: vi.fn(() => api),
+        is: vi.fn(() => api),
+        limit: vi.fn(() => api),
+        order: vi.fn(() => api),
+        or: vi.fn(() => Promise.resolve({ data: input.downstream ?? [DOWNSTREAM], error: null })),
+        maybeSingle: vi.fn(() =>
+          Promise.resolve({
+            data:
+              table === 'matches'
+                ? input.existingMatch
+                : table === 'phases'
+                  ? { tournaments: { ruleset_code: 'TF_v1', ruleset_version: '1.0.0' } }
+                  : { id: 'ds-1' },
             error: null,
           }),
-        };
-        chain.update = vi.fn((patch: unknown) => {
-          const eqMock = vi.fn((column: string, value: unknown) => {
-            if (column === 'bracket_slot_id') {
-              matchesUpdateCalls.push({ patch, bracketSlotId: value });
-            }
-            // chainable
-            return { eq: eqMock, not: vi.fn().mockResolvedValue({ data: null, error: null }) };
-          });
-          return { eq: eqMock };
-        });
-        return chain;
-      }
-      return {} as never;
+        ),
+        update: vi.fn((patch: Record<string, unknown>) => {
+          if (table === 'matches') matchUpdates.push({ patch, filters });
+          else slotUpdates.push(patch);
+          return api;
+        }),
+        insert: vi.fn((row: Record<string, unknown>) => {
+          matchInserts.push(row);
+          return Promise.resolve({ data: null, error: null });
+        }),
+      });
+      return api;
     });
-    const mockSupabase = { service: { from: fromMock } };
-    const service = new BracketAdvanceService(mockSupabase as never);
+    return { matchUpdates, matchInserts, slotUpdates, mockSupabase: { service: { from } } };
+  }
 
-    const advanceFromSlot = (
+  function advanceFrom(service: BracketAdvanceService) {
+    return (
       service as unknown as Record<
         string,
         (
@@ -739,77 +736,62 @@ describe('BracketAdvanceService.advanceFromSlot — pushes registration into exi
         ) => Promise<void>
       >
     )['advanceFromSlot']!.bind(service);
+  }
 
-    await advanceFromSlot('phase-1', 'R1P1', 'reg-winner', 'reg-loser');
-
-    // The matches row for the downstream slot already exists — flow
-    // must UPDATE it, not INSERT a fresh row.
-    expect(matchesUpdateCalls).toEqual([
-      { patch: { red_registration_id: 'reg-winner' }, bracketSlotId: 'ds-1' },
-    ]);
-    expect(matchesInsertCalls).toEqual([]);
-  });
-});
-
-describe('BracketAdvanceService.createMatchIfReady — stamps match_number_label', () => {
-  // After a winner propagates into a downstream slot, the lazily-
-  // created match must carry the bracket-local match number so
-  // buildRoundCode renders the same canonical code the bracket card
-  // shows. Without the stamp the scoreboard falls back to B{round}.
-  it('writes match_number_label = String(slot.position) on the inserted row', async () => {
-    let inserted: Record<string, unknown> | null = null;
-    const mockSupabase = {
-      service: {
-        from: vi.fn((table: string) => {
-          if (table === 'matches') {
-            // Idempotency .maybeSingle returns no existing row, then
-            // the inserter receives the row body via the next call.
-            const chain = {
-              select: vi.fn().mockReturnThis(),
-              eq: vi.fn().mockReturnThis(),
-              not: vi.fn().mockReturnThis(),
-              maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
-              insert: vi.fn((row: Record<string, unknown>) => {
-                inserted = row;
-                return Promise.resolve({ data: null, error: null });
-              }),
-            };
-            return chain;
-          }
-          if (table === 'phases') {
-            // matchRulesetForPhase resolves the tournament's ruleset stamp.
-            const chain = {
-              select: vi.fn().mockReturnThis(),
-              eq: vi.fn().mockReturnThis(),
-              maybeSingle: vi.fn().mockResolvedValue({
-                data: { tournaments: { ruleset_code: 'TF_v1', ruleset_version: '1.0.0' } },
-                error: null,
-              }),
-            };
-            return chain;
-          }
-          return {} as never;
-        }),
-      },
-    };
-    const service = new BracketAdvanceService(mockSupabase as never);
-
-    const createMatchIfReady = (
-      service as unknown as Record<string, (slot: unknown) => Promise<void>>
-    )['createMatchIfReady']!.bind(service);
-
-    await createMatchIfReady({
-      id: 'slot-r2-p3',
-      phase_id: 'phase-1',
-      round: 2,
-      position: 3,
-      source_b_type: 'winner_of',
-      registration_a_id: 'reg-w1',
-      registration_b_id: 'reg-w2',
+  it('rewrites the existing row from the SLOT, keyed by the match id', async () => {
+    // Was: `writeSlotSide` UPDATEd `matches` scoped by `bracket_slot_id`, one
+    // column at a time — a second writer of a row `syncMatchToSlot` owns.
+    const mock = makeAdvanceMock({
+      existingMatch: { id: 'm-ds', status: 'scheduled', started_at: null },
     });
+    const service = new BracketAdvanceService(mock.mockSupabase as never);
 
-    expect(inserted).toMatchObject({
-      bracket_slot_id: 'slot-r2-p3',
+    await advanceFrom(service)('phase-1', 'R1P1', 'reg-winner', 'reg-loser');
+
+    expect(mock.matchUpdates).toHaveLength(1);
+    expect(mock.matchUpdates[0]!.patch).toEqual({
+      red_registration_id: 'reg-winner',
+      blue_registration_id: null,
+    });
+    expect(mock.matchUpdates[0]!.filters).toContainEqual(['id', 'm-ds']);
+    expect(mock.matchInserts).toEqual([]);
+  });
+
+  it('does NOT rewrite a downstream bout that is already in play', async () => {
+    // The live foot-gun this refactor closes. Overriding a feeder result clears
+    // and re-advances, and `writeSlotSide` had no started-guard — so a running
+    // match's fighters were swapped mid-bout, silently.
+    const mock = makeAdvanceMock({
+      existingMatch: { id: 'm-ds', status: 'running', started_at: '2026-01-01T10:00:00Z' },
+    });
+    const service = new BracketAdvanceService(mock.mockSupabase as never);
+
+    await advanceFrom(service)('phase-1', 'R1P1', 'reg-winner', 'reg-loser');
+
+    expect(mock.matchUpdates).toEqual([]);
+    expect(mock.matchInserts).toEqual([]);
+    // The SLOT is still written: it stays authoritative for who belongs here,
+    // and it is what a later reset reconciles the match against.
+    expect(mock.slotUpdates).toContainEqual({ registration_a_id: 'reg-winner' });
+  });
+
+  it('stamps match_number_label when it creates the row', async () => {
+    // Carried over from the deleted `createMatchIfReady` test — the guarantee
+    // is the same, only its owner changed. Without the stamp buildRoundCode
+    // falls back to B{round} and the scoreboard disagrees with the bracket.
+    const mock = makeAdvanceMock({
+      downstream: [{ ...DOWNSTREAM, source_b_ref: 'loser of R1P1' }],
+      existingMatch: null,
+    });
+    const service = new BracketAdvanceService(mock.mockSupabase as never);
+
+    await advanceFrom(service)('phase-1', 'R1P1', 'reg-winner', 'reg-loser');
+
+    expect(mock.matchInserts).toHaveLength(1);
+    expect(mock.matchInserts[0]).toMatchObject({
+      bracket_slot_id: 'ds-1',
+      red_registration_id: 'reg-winner',
+      blue_registration_id: 'reg-loser',
       match_number_label: '3',
     });
   });

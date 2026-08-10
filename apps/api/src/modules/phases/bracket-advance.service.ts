@@ -1,6 +1,5 @@
 import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { SupabaseService } from '../supabase/supabase.service';
-import { matchRulesetForPhase } from './match-ruleset';
 import {
   buildSelfRef,
   grandFinalEndsBracket,
@@ -230,58 +229,17 @@ export class BracketAdvanceService {
         await this.writeSlotSide(ds.id, 'b', loserRegId);
       }
 
-      // Re-load with updated values for match creation check
-      const updatedSlot = {
-        ...ds,
-        registration_a_id: updatedA,
-        registration_b_id: updatedB,
-      };
-
-      await this.createMatchIfReady(updatedSlot);
+      // The slot as it now stands, handed to the ONE owner of its matches row.
+      // `onStarted: 'skip'` because advancement is automatic and this loop
+      // serves several downstream slots — throwing on one bout already under
+      // way would abandon the others. `overrideSlot` passes 'throw': an
+      // operator clicked Save and deserves the 409.
+      await syncMatchToSlot(
+        this.supabase.service,
+        { ...ds, registration_a_id: updatedA, registration_b_id: updatedB },
+        { onStarted: 'skip' },
+      );
     }
-  }
-
-  private async createMatchIfReady(slot: {
-    id: string;
-    phase_id: string;
-    /** 1-indexed slot position within the round. Stamped as
-     *  match_number_label so the scoreboard renders the same canonical
-     *  code (LSW-R16-M1) the bracket view shows. */
-    position?: number;
-    source_b_type: string;
-    registration_a_id: string | null;
-    registration_b_id: string | null;
-  }): Promise<void> {
-    const sideAReady = !!slot.registration_a_id;
-    const sideBReady = !!slot.registration_b_id || slot.source_b_type === 'bye';
-
-    if (!sideAReady || !sideBReady) return;
-    if (slot.source_b_type === 'bye') return; // bye slots never get a match
-
-    // Idempotency: check no active match exists for this slot
-    const { data: existing } = await this.supabase.service
-      .from('matches')
-      .select('id, status')
-      .eq('bracket_slot_id', slot.id)
-      .not('status', 'eq', 'voided')
-      .maybeSingle();
-
-    if (existing) return;
-
-    await this.supabase.service.from('matches').insert({
-      phase_id: slot.phase_id,
-      bracket_slot_id: slot.id,
-      red_registration_id: slot.registration_a_id,
-      blue_registration_id: slot.registration_b_id,
-      status: 'scheduled',
-      red_score: 0,
-      blue_score: 0,
-      // Tournament's ruleset, not a hardcoded TF_v1 — scoring reads the match row.
-      ...(await matchRulesetForPhase(this.supabase.service, slot.phase_id)),
-      match_number_label: typeof slot.position === 'number' ? String(slot.position) : null,
-    });
-
-    this.logger.log(`Created match for bracket slot ${slot.id}`);
   }
 
   /**
@@ -290,8 +248,14 @@ export class BracketAdvanceService {
    * issued `update(...).eq(...)` with no `.select()` and no `error`
    * check, so an FK violation or a stale slot id (e.g. the downstream
    * row was deleted between the SELECT in advanceFromSlot and this
-   * write) silently no-op'd and corrupted the in-memory state we
-   * then passed to createMatchIfReady.
+   * write) silently no-op'd and corrupted the in-memory state that is
+   * then handed to `syncMatchToSlot`.
+   *
+   * SLOT ONLY. This used to push the registration into the matches row too,
+   * which made it a second writer of that row — and one with no started-guard,
+   * so re-advancing into a bout already in play (an override on the feeder
+   * clears and re-advances) rewrote a running match's fighters underneath the
+   * referee. `syncMatchToSlot` owns the row, and refuses that.
    */
   private async writeSlotSide(
     slotId: string,
@@ -307,22 +271,6 @@ export class BracketAdvanceService {
       .maybeSingle();
     if (error) throw new BadRequestException(error.message);
     if (!data) throw new NotFoundException(`Bracket slot ${slotId} not found`);
-
-    // Push the resolved registration into the placeholder matches row
-    // pre-created at bracket generation (phases.service.ts
-    // createInitialBracketMatches). The matches row exists from the
-    // moment the bracket was generated — UPDATEing it here preserves
-    // any schedule (lice_id + scheduled_at) the operator has already
-    // attached to the chip. The legacy INSERT path in
-    // createMatchIfReady stays as a defensive fallback for any slot
-    // missed at generation time. Skip voided rows: replay/regen-flow
-    // can leave a voided historical row alongside the live one.
-    const matchColumn = side === 'a' ? 'red_registration_id' : 'blue_registration_id';
-    await this.supabase.service
-      .from('matches')
-      .update({ [matchColumn]: registrationId })
-      .eq('bracket_slot_id', slotId)
-      .not('status', 'eq', 'voided');
   }
 
   // ── Helpers ───────────────────────────────────────────────────────────────
