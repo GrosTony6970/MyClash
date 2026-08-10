@@ -254,7 +254,9 @@ export class MatchForfeitsService {
     // feeds no slots.
     await this.bracketAdvance?.clearDownstreamOf(matchId);
 
-    await this.restoreMatchState(matchId, (forfeit['previous_match_state'] as Row | null) ?? {});
+    const previousMatch = (forfeit['previous_match_state'] as Row | null) ?? {};
+    await this.restoreMatchState(matchId, previousMatch);
+    await this.readvanceIfDecided(matchId, previousMatch);
 
     const previousReg = (forfeit['previous_registration_state'] as Row | null) ?? {};
     if (previousReg['status']) {
@@ -272,6 +274,23 @@ export class MatchForfeitsService {
     const cascaded = await this.cascadeVoidChildren(forfeitId, actor);
     const updated = await this.stampVoided(forfeitId, actor);
     return { ...(updated ?? {}), cascaded_forfeit_count: cascaded };
+  }
+
+  /**
+   * Re-propagate a restored result that was already decided.
+   *
+   * The clear above un-advanced whoever the voided record sent through, and on
+   * the normal path nothing needs to put anyone back: the bout returns to
+   * un-completed, gets replayed, and completion advances the real winner. But
+   * voiding an OVERRIDE on a match that had been completed by play restores a
+   * finished result with a winner, and that path never re-advances — so the
+   * downstream slot stayed empty and the bracket stalled on a result it already
+   * had. Advancement fills a side only while it is null, which is exactly what
+   * the clear just made it.
+   */
+  private async readvanceIfDecided(matchId: string, previous: Row): Promise<void> {
+    if (previous['status'] !== 'completed' || !previous['winner_registration_id']) return;
+    await this.matchCompletion?.onMatchCompleted(matchId);
   }
 
   /**

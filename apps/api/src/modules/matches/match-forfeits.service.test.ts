@@ -686,6 +686,74 @@ describe('MatchForfeitsService — override regressions', () => {
     );
   });
 
+  it('re-advances the bracket when the void restores a decided result', async () => {
+    // Voiding an override on a match that had been completed BY PLAY restores a
+    // finished result with a winner — and nothing re-advanced it. The clear had
+    // already emptied the downstream side, and the usual "replay the bout, let
+    // completion advance the real winner" flow never runs on this path, so the
+    // bracket stalled on a result it already had.
+    const supabase = fakeSupabase({
+      match_forfeits: {
+        maybeSingle: {
+          id: 'override-1',
+          match_id: 'match-1',
+          downstream_match_ids: ['downstream-9'],
+          voided_at: null,
+          previous_match_state: {
+            status: 'completed',
+            red_score: 5,
+            blue_score: 3,
+            winner_registration_id: 'reg-red',
+          },
+        },
+        update: { id: 'override-1' },
+      },
+      matches: {
+        maybeSingle: { locked_at: null },
+        select: [{ id: 'downstream-9', status: 'scheduled' }],
+      },
+    });
+    const matchCompletion = { onMatchCompleted: vi.fn(async () => {}) };
+    const service = new MatchForfeitsService(
+      supabase as never,
+      matchCompletion as never,
+      undefined as never,
+      {
+        findDownstreamMatchIds: vi.fn(async () => []),
+        clearDownstreamOf: vi.fn(async () => {}),
+      } as never,
+    );
+
+    await service.voidForfeit('override-1');
+
+    expect(matchCompletion.onMatchCompleted).toHaveBeenCalledWith('match-1');
+  });
+
+  it('does not re-advance when the void restores an unfinished bout', async () => {
+    // The normal case: the bout goes back to running and will advance its real
+    // winner when it is replayed. Re-advancing here would propagate a winner
+    // that the restored row no longer names.
+    const supabase = fakeSupabase({
+      match_forfeits: {
+        maybeSingle: {
+          id: 'forfeit-1',
+          match_id: 'match-1',
+          downstream_match_ids: [],
+          voided_at: null,
+          previous_match_state: { status: 'running', red_score: 2, blue_score: 3 },
+        },
+        update: { id: 'forfeit-1' },
+      },
+      matches: { maybeSingle: { locked_at: null } },
+    });
+    const matchCompletion = { onMatchCompleted: vi.fn(async () => {}) };
+    const service = new MatchForfeitsService(supabase as never, matchCompletion as never);
+
+    await service.voidForfeit('forfeit-1');
+
+    expect(matchCompletion.onMatchCompleted).not.toHaveBeenCalled();
+  });
+
   it('restores end_reason when a record is voided', async () => {
     const supabase = fakeSupabase({
       match_forfeits: {
