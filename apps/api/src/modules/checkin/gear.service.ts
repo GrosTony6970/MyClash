@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import type { FastifyRequest } from 'fastify';
 import { SupabaseService } from '../supabase/supabase.service';
 import { StaffService } from '../staff/staff.service';
@@ -6,10 +6,26 @@ import { slugify } from '../fighters/weapon-import.util';
 import type { RecordGearCheckDto } from './dto';
 import { queryEventRoster } from './roster-query';
 import { mapRosterRow } from './roster';
-import { buildGearEntry, latestCheckPerWeapon, type GearEntry, type GearCheckRow } from './gear';
+import {
+  buildGearEntry,
+  buildMatchGear,
+  latestCheckPerWeapon,
+  type GearEntry,
+  type GearCheckRow,
+  type MatchGear,
+} from './gear';
 
 /** Roles allowed to work the gear table. See `SCORING_ROLES` in staff.service.ts. */
 const GEAR_ROLES = ['gear'] as const;
+
+/**
+ * Who may READ a gear result on a match: the piste as well as the gear table.
+ *
+ * The scoring role is the point of this list — the referee is who the result
+ * was always meant to reach. Writing stays on GEAR_ROLES; a referee may see a
+ * failed check and may not record one.
+ */
+const GEAR_READ_ROLES = ['gear', 'scoring'] as const;
 
 interface CatalogWeapon {
   id: string;
@@ -109,7 +125,96 @@ export class GearService {
     return { checked, total: people.length };
   }
 
+  /**
+   * The two fighters' gear standing for one match, for the pad.
+   *
+   * 0175 said the result "is displayed where the referee already looks" and
+   * nothing displayed it: `event_gear_checks` was read only by the gear screen
+   * itself, so a fighter turned away at the gear table walked to the piste with
+   * nothing on the referee's screen to say so. This is that read.
+   *
+   * Still informational. It returns a result and never a verdict, and nothing
+   * downstream of it gates a match.
+   *
+   * NOT on the public `GET /matches/:id/summary`: which named fighter failed an
+   * equipment check is event-internal, and that endpoint answers to anyone.
+   */
+  async matchGear(req: FastifyRequest, matchId: string): Promise<MatchGear> {
+    const staff = await this.staff.requireStaffWithRole(req, GEAR_READ_ROLES);
+
+    const { data, error } = await this.supabase.service
+      .from('matches')
+      .select(
+        'id, red_registration_id, blue_registration_id, phases!inner(tournament_id, tournaments!inner(weapon, event_id))',
+      )
+      .eq('id', matchId)
+      .maybeSingle();
+    if (error) throw new BadRequestException(error.message);
+    if (!data) throw new NotFoundException(`Match ${matchId} not found`);
+
+    const row = data as unknown as {
+      red_registration_id: string | null;
+      blue_registration_id: string | null;
+      phases: { tournaments: { weapon: string | null; event_id: string } | null } | null;
+    };
+    // Many-to-one embeds come back as objects, but a mis-shaped one is an
+    // array; normalise both hops rather than trust the shape.
+    const phase = Array.isArray(row.phases) ? row.phases[0] : row.phases;
+    const tournamentEmbed = (phase as { tournaments?: unknown } | null)?.tournaments;
+    const tournament = (Array.isArray(tournamentEmbed) ? tournamentEmbed[0] : tournamentEmbed) as {
+      weapon: string | null;
+      event_id: string;
+    } | null;
+
+    // A staff session is event-scoped; a match in another event is not this
+    // account's to read, however valid its id.
+    if (!tournament || tournament.event_id !== staff.event_id) {
+      throw new NotFoundException(`Match ${matchId} not found`);
+    }
+
+    const personByRegistration = await this.personsByRegistration(
+      [row.red_registration_id, row.blue_registration_id].filter(
+        (id): id is string => typeof id === 'string',
+      ),
+    );
+    const redPersonId = row.red_registration_id
+      ? (personByRegistration.get(row.red_registration_id) ?? null)
+      : null;
+    const bluePersonId = row.blue_registration_id
+      ? (personByRegistration.get(row.blue_registration_id) ?? null)
+      : null;
+
+    // Same slugify → weapon_catalog hop the gear screen uses. A second,
+    // subtly different slugifier here is how the two-weapons bug returns.
+    const slug = slugify(tournament.weapon?.trim() ?? '');
+    const weapon = slug ? ((await this.catalogBySlug([slug])).get(slug) ?? null) : null;
+
+    const personIds = [redPersonId, bluePersonId].filter((id): id is string => Boolean(id));
+    const latest = weapon
+      ? await this.latestChecks(staff.event_id, personIds)
+      : new Map<string, GearCheckRow>();
+
+    return buildMatchGear({ weapon, redPersonId, bluePersonId, latest });
+  }
+
   // ── queries ───────────────────────────────────────────────────────────────
+
+  private async personsByRegistration(
+    registrationIds: string[],
+  ): Promise<Map<string, string | null>> {
+    if (registrationIds.length === 0) return new Map();
+    const { data, error } = await this.supabase.service
+      .from('registrations')
+      .select('id,person_id')
+      .in('id', registrationIds);
+    if (error) throw new BadRequestException(error.message);
+    return new Map(
+      ((data ?? []) as Array<{ id: string; person_id: string | null }>).map((row) => [
+        row.id,
+        row.person_id,
+      ]),
+    );
+  }
 
   /**
    * Which catalog weapons each person is entered in, for this event.

@@ -31,6 +31,7 @@ import {
   openScoreboardPopup,
   retargetScoreboardPopupIfOpen,
 } from '../lib/nav';
+import { useMatchGear, type MatchGear, type MatchGearSide } from '../lib/useMatchGear';
 
 interface MatchHeaderProps {
   matchId: string;
@@ -119,6 +120,7 @@ export function MatchHeader({
     'inline-flex items-center gap-1 rounded-lg border border-border px-3 py-1.5 text-sm font-semibold text-foreground-secondary hover:border-muted hover:bg-background';
   const redStyle = sideStyle(config, 'red');
   const blueStyle = sideStyle(config, 'blue');
+  const gear = useMatchGear(matchId);
 
   return (
     // Own data-theme because the chrome may differ from <body>: under `hybrid`
@@ -190,6 +192,7 @@ export function MatchHeader({
             <span className="text-muted">{t('scoring.lice.vs')}</span>{' '}
             <span style={{ color: blueStyle.border }}>{blueName}</span>
           </p>
+          <GearLine gear={gear} redName={redName} blueName={blueName} />
           <button
             type="button"
             onClick={onOpenCorrections}
@@ -237,5 +240,74 @@ export function MatchHeader({
         </div>
       </div>
     </header>
+  );
+}
+
+/**
+ * The gear-check standing of the two fighters in front of the referee.
+ *
+ * 0175's own header says a gear result "is displayed where the referee already
+ * looks, prominently enough that it cannot be missed and passively enough that
+ * it stops nothing" — this is that display, and it stays informational: no
+ * button, no block, no confirmation. The referee decides.
+ *
+ * Every state is named, including "not checked". Hiding the line on a pass
+ * would make its absence ambiguous — passed, unchecked, or simply offline —
+ * and the one reading a referee must not have to guess at is whether a fighter
+ * was cleared.
+ *
+ * Renders nothing at all while `gear` is null, which includes every offline
+ * case. See useMatchGear.
+ */
+function GearLine({
+  gear,
+  redName,
+  blueName,
+}: {
+  gear: MatchGear | null;
+  redName: string;
+  blueName: string;
+}) {
+  const { t } = useI18n();
+  if (!gear) return null;
+
+  return (
+    <p className="flex flex-wrap items-center justify-center gap-x-2 gap-y-1 text-xs">
+      <span className="font-semibold text-muted">
+        {t('scoring.gear.padLabel')}
+        {gear.weaponName ? ` · ${gear.weaponName}` : ''}
+      </span>
+      <GearChip name={redName} side={gear.red} />
+      <GearChip name={blueName} side={gear.blue} />
+    </p>
+  );
+}
+
+function GearChip({ name, side }: { name: string; side: MatchGearSide }) {
+  const { t } = useI18n();
+  const tone =
+    side.result === 'fail'
+      ? 'border-danger/40 bg-danger/10 text-danger'
+      : side.result === 'conditional'
+        ? 'border-warning/40 bg-warning/10 text-warning'
+        : side.result === 'pass'
+          ? 'border-success/40 bg-success/10 text-success'
+          : 'border-border bg-background text-muted';
+  const label =
+    side.result === 'fail'
+      ? t('scoring.gear.resultFail')
+      : side.result === 'conditional'
+        ? t('scoring.gear.resultConditional')
+        : side.result === 'pass'
+          ? t('scoring.gear.resultPass')
+          : t('scoring.gear.notChecked');
+
+  return (
+    <span className={`rounded-full border px-2 py-0.5 font-semibold ${tone}`}>
+      {name} · {label}
+      {/* A conditional with no text is indistinguishable from a pass by the
+          time it reaches the piste, which is why 0175 refuses to store one. */}
+      {side.result === 'conditional' && side.reason ? ` — ${side.reason}` : ''}
+    </span>
   );
 }

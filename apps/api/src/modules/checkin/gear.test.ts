@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildGearEntry, latestCheckPerWeapon, type GearCheckRow } from './gear';
+import { buildGearEntry, buildMatchGear, latestCheckPerWeapon, type GearCheckRow } from './gear';
 import { mapRosterRow, type RosterPersonRow } from './roster';
 
 const PERSON: RosterPersonRow = {
@@ -109,5 +109,65 @@ describe('buildGearEntry', () => {
     );
 
     expect(entry.weapons[0]?.result).toBeNull();
+  });
+});
+
+describe('buildMatchGear', () => {
+  const weapon = { id: 'w-longsword', name: 'Longsword' };
+
+  it('reports each side for the weapon of THIS bout', () => {
+    const gear = buildMatchGear({
+      weapon,
+      redPersonId: 'p1',
+      bluePersonId: 'p2',
+      latest: latestCheckPerWeapon([
+        check({ person_id: 'p1', result: 'fail', reason: 'no gorget' }),
+        check({ person_id: 'p2', result: 'pass' }),
+      ]),
+    });
+
+    expect(gear.weaponName).toBe('Longsword');
+    expect(gear.red).toMatchObject({ result: 'fail', reason: 'no gorget' });
+    expect(gear.blue).toMatchObject({ result: 'pass' });
+  });
+
+  it('ignores a pass recorded for a DIFFERENT weapon', () => {
+    // A longsword pass says nothing about the rapier they fight with after
+    // lunch. Widening this to any-weapon would report a clearance never given.
+    const gear = buildMatchGear({
+      weapon: { id: 'w-rapier', name: 'Rapier' },
+      redPersonId: 'p1',
+      bluePersonId: null,
+      latest: latestCheckPerWeapon([check({ person_id: 'p1', weapon_id: 'w-longsword' })]),
+    });
+
+    expect(gear.red.result).toBeNull();
+  });
+
+  it('reads an unresolvable weapon as unchecked, never as a pass', () => {
+    const gear = buildMatchGear({
+      weapon: null,
+      redPersonId: 'p1',
+      bluePersonId: 'p2',
+      latest: latestCheckPerWeapon([check({ person_id: 'p1' })]),
+    });
+
+    expect(gear.weaponName).toBeNull();
+    expect(gear.red.result).toBeNull();
+    expect(gear.blue.result).toBeNull();
+  });
+
+  it('reads a side with no registration as unchecked', () => {
+    const gear = buildMatchGear({
+      weapon,
+      redPersonId: null,
+      bluePersonId: 'p2',
+      latest: latestCheckPerWeapon([
+        check({ person_id: 'p2', result: 'conditional', reason: 'x' }),
+      ]),
+    });
+
+    expect(gear.red).toEqual({ result: null, reason: null, checkedAt: null });
+    expect(gear.blue.result).toBe('conditional');
   });
 });

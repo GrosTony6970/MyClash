@@ -48,6 +48,17 @@ export class GearController {
     return this.gear.getSummary(req);
   }
 
+  @Get('match/:matchId')
+  @ApiOperation({
+    summary: "Both fighters' gear standing for one match, for this bout's weapon",
+    description:
+      'Readable by the piste as well as the gear table — the referee is who the result was always for. Scoped to the weapon of THIS bout: a longsword pass says nothing about the rapier after lunch. Informational; it gates nothing.',
+  })
+  @ApiParam({ name: 'matchId', type: 'string', format: 'uuid' })
+  async matchGear(@Param('matchId', ParseUUIDPipe) matchId: string, @Req() req: FastifyRequest) {
+    return this.gear.matchGear(req, matchId);
+  }
+
   @Post(':personId/:weaponId')
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({

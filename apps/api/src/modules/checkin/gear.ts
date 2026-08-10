@@ -89,3 +89,53 @@ export function buildGearEntry(
 function toGearResult(value: string): GearResult | null {
   return value === 'pass' || value === 'fail' || value === 'conditional' ? value : null;
 }
+
+/** One side of a bout, as the pad shows it. */
+export interface MatchGearSide {
+  /** Null when this person has never been checked for this bout's weapon. */
+  result: GearResult | null;
+  reason: string | null;
+  checkedAt: string | null;
+}
+
+export interface MatchGear {
+  /** The bout's weapon, resolved to the catalog. Null when it did not resolve. */
+  weaponName: string | null;
+  red: MatchGearSide;
+  blue: MatchGearSide;
+}
+
+/**
+ * The gear standing of the two fighters about to fight, for ONE weapon.
+ *
+ * The gear screen answers "every weapon this person is entered in"; the pad
+ * asks a narrower question — the fighter in front of the referee, for the
+ * weapon of this bout. A longsword pass says nothing about the rapier they
+ * fight with after lunch, so widening this to any-weapon would report a
+ * clearance that was never given.
+ *
+ * A person with no check, or a weapon that never resolved to the catalog,
+ * comes back as `result: null` — unchecked. Never as a pass.
+ */
+export function buildMatchGear(input: {
+  weapon: { id: string; name: string } | null;
+  redPersonId: string | null;
+  bluePersonId: string | null;
+  latest: Map<string, GearCheckRow>;
+}): MatchGear {
+  const side = (personId: string | null): MatchGearSide => {
+    const row =
+      personId && input.weapon ? input.latest.get(gearKey(personId, input.weapon.id)) : undefined;
+    return {
+      result: row ? toGearResult(row.result) : null,
+      reason: row?.reason ?? null,
+      checkedAt: row?.checked_at ?? null,
+    };
+  };
+
+  return {
+    weaponName: input.weapon?.name ?? null,
+    red: side(input.redPersonId),
+    blue: side(input.bluePersonId),
+  };
+}

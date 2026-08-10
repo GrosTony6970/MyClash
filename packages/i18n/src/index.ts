@@ -1555,6 +1555,7 @@ export const en = {
       saveConditional: 'Save conditional',
       cancel: 'Cancel',
       noWeapons: 'No weapon resolved for this fighter — check their tournament entries.',
+      padLabel: 'Gear',
     },
     quarantine: {
       title: 'Hits the server refused',
@@ -9291,6 +9292,7 @@ export const fr = {
       saveConditional: 'Enregistrer la réserve',
       cancel: 'Annuler',
       noWeapons: 'Aucune arme identifiée pour ce tireur — vérifiez ses inscriptions aux tournois.',
+      padLabel: 'Matériel',
     },
     quarantine: {
       title: 'Touches refusees par le serveur',

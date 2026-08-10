@@ -8893,6 +8893,26 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  '/api/v1/staff/gear/match/{matchId}': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Both fighters' gear standing for one match, for this bout's weapon
+     * @description Readable by the piste as well as the gear table — the referee is who the result was always for. Scoped to the weapon of THIS bout: a longsword pass says nothing about the rapier after lunch. Informational; it gates nothing.
+     */
+    get: operations['GearController_matchGear'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   '/api/v1/staff/gear/{personId}/{weaponId}': {
     parameters: {
       query?: never;
@@ -24381,6 +24401,25 @@ export interface operations {
       query?: never;
       header?: never;
       path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  GearController_matchGear: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        matchId: string;
+      };
       cookie?: never;
     };
     requestBody?: never;
