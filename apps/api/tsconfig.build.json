@@ -49,6 +49,12 @@
     // convention (*.harness.ts) that no glob written for the other four would
     // have caught. It imports no vitest, so only the "imported by tests and
     // nothing else" rule sees it.
-    "src/modules/phases/double-elim-simulation.harness.ts"
+    "src/modules/phases/double-elim-simulation.harness.ts",
+    // A sixth convention: an ordinary-looking module name. Its own header says
+    // "Test-only: nothing in the running API parses the workflow (the container
+    // has no .github/)" — it exists so gates.drift.test.ts can hold gates.ts to
+    // the real ci.yml. Shipping a reader for a file the image does not contain
+    // is dead weight, and the gate caught it the same way it caught the harness.
+    "src/modules/admin/ci-health/parse-workflow.ts"
   ]
 }
