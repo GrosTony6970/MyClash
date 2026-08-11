@@ -18,9 +18,16 @@ cd /srv/myclash/infra/scripts
 ./deploy.sh --dev-certs --skip-backup
 ```
 
-All scripts support `-h` / `--help`. From your machine, `deploy.sh` and `rollback.sh` are
-also reachable over SSH via `pnpm deploy:prod` / `pnpm rollback:prod`
-(see [`scripts/deploy.ts`](../../scripts/deploy.ts)).
+All scripts support `-h` / `--help`. From your machine, `deploy.sh` is reachable over SSH via
+`pnpm deploy:prod` (see [`scripts/deploy.ts`](../../scripts/deploy.ts)).
+
+**`pnpm rollback:prod` is wired but not implemented.** `package.json` points it at
+`scripts/rollback.ts`, which does not exist, so the command fails immediately. Until that wrapper
+is written, roll back over SSH directly:
+
+```bash
+ssh <user>@<vps> 'cd /srv/myclash && bash infra/scripts/rollback.sh'
+```
 
 ## The scripts
 

@@ -112,11 +112,14 @@ At your registrar's DNS panel, add **A records**:
 | `admin.myclash.fr`   | A     | `<VPS-IP>`   | 300 |
 | `staff.myclash.fr`   | A     | `<VPS-IP>`   | 300 |
 | `traefik.myclash.fr` | A     | `<VPS-IP>`   | 300 |
+| `studio.myclash.fr`  | A     | `<VPS-IP>`   | 300 |
 | `www.myclash.fr`     | CNAME | `myclash.fr` | 300 |
 
-`app` and `traefik` are easy to forget — both are probed by the admin TLS-status card
-(`apps/api/src/modules/admin/tls-status.service.ts`), and Let's Encrypt cannot issue for a
-hostname that does not resolve.
+`app`, `traefik` and `studio` are easy to forget. `app` and `traefik` are probed by the admin
+TLS-status card (`apps/api/src/modules/admin/tls-status.service.ts`); `studio` carries its own
+Let's Encrypt router in `infra/docker-compose.prod.yml` with no `profiles:` guard, so it is
+requested on **every** deploy. Let's Encrypt cannot issue for a hostname that does not resolve, and
+the production endpoint allows only 5 failures per hour — the budget this step exists to protect.
 
 If you anticipate per-event subdomains later (`fal2026.myclash.fr`), also add a wildcard A record: `*` → `<VPS-IP>`.
 
@@ -131,9 +134,10 @@ nslookup app.myclash.fr
 nslookup admin.myclash.fr
 nslookup staff.myclash.fr
 nslookup traefik.myclash.fr
+nslookup studio.myclash.fr
 ```
 
-All six should return your VPS IP. Allow up to 1h for global propagation. **Do not proceed to Phase 5 (first deploy) until all six resolve correctly** — Let's Encrypt will fail otherwise.
+All seven should return your VPS IP. Allow up to 1h for global propagation. **Do not proceed to Phase 5 (first deploy) until all seven resolve correctly** — Let's Encrypt will fail otherwise.
 
 ---
 
