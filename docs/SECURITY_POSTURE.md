@@ -100,6 +100,34 @@ Gitleaks runs in CI as the automated secret-scan gate.
 - Logic tests in `packages/db/test/rls.test.ts` cover cross-tenant denial, super-admin/platform AI access, org-admin AI settings/usage access, broadcast recipient access, tournament-query history ownership, and recent service-role-only tables.
 - Service-role-only tables are represented in tests as rejecting `anon` and `authenticated` writes.
 - Live Supabase/Postgres RLS verification is deferred to Phase 4 or final production sign-off because local live integration may not be available in every development environment.
+- RLS does not apply to views or functions. Views must set `security_invoker = on` and `SECURITY DEFINER` functions must be revoked from `anon` and `authenticated` **by name** — `REVOKE ... FROM public` does not remove the image's default grants. Both are enforced offline by `pnpm db:review`.
+
+### Supabase Linter Warnings We Accept
+
+The Studio linter's ERROR-level findings were fixed in migration 0184. The remaining WARNs are
+deliberate, recorded here so they are not re-litigated at every Studio visit.
+
+**`function_search_path_mutable` (21 functions) — accepted.** All 21 are `SECURITY INVOKER`, where
+a mutable `search_path` grants no escalation: the function already runs with the caller's own
+rights. Shadowing is impossible regardless, because `anon`/`authenticated` hold only `USAGE` on
+`public` (`infra/db/init/supabase-postgrest.sh`), never `CREATE`, and PG15+ removed `PUBLIC`'s
+default CREATE on the schema. The one function that genuinely needed pinning —
+`admin_runtime_db_stats`, the only `SECURITY DEFINER` read — already has it.
+
+Pinning the rest would cost measurable performance: PostgreSQL will not inline an SQL function
+carrying a `SET` clause (a non-null `proconfig` disqualifies it in `inline_function`). Ten of the 21
+are RLS helpers (`is_org_member`, `event_org_id`, `has_org_role`, `is_super_admin`, …) evaluated
+per row across 276 policy clauses in 29 migrations, and `immutable_unaccent` is baked into four GIN
+index expressions. If this is ever revisited, use the repo's existing
+`SET search_path = public, pg_catalog` form (0156/0180/0182) and **not** `SET search_path = ''`,
+which would break the unqualified `similarity()` calls in `lookup_persons`, `find_club_by_name` and
+`lookup_global_persons`.
+
+**`extension_in_public` (`pg_trgm`, `unaccent`) — accepted.** Relocating them breaks
+`immutable_unaccent`, which hardcodes `public.unaccent` as both the function and the dictionary
+argument (0001), the four GIN indexes built on that expression, and the three functions calling
+bare `similarity()`. The lint targets multi-tenant hosted hygiene; this is a single-tenant
+self-hosted database where the blast radius far exceeds the benefit.
 
 ## Supply Chain And Containers
 
