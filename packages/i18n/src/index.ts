@@ -118,7 +118,7 @@ export const en = {
       description: 'Public event app',
       title: 'Follow live HEMA events from your phone.',
       subtitle:
-        'Open an event to see the live schedule, find competitors, follow fighters, and check results as they are published.',
+        'Open an event to see the live schedule, find fighters, follow them, and check results as they are published.',
       openEvent: 'Open',
       unknownEvent: 'Untitled event',
       signIn: 'Sign in',
@@ -7388,7 +7388,7 @@ export const en = {
         searchFighter: 'Filter by fighter name',
         help: {
           rank: 'Final standing, set by the ranking metric and its tie-breakers.',
-          fighter: 'The competitor and their club.',
+          fighter: 'The fighter and their club.',
           score:
             'The ranking metric this table is sorted by; higher is better. Set by the tournament ruleset.',
           W: 'Matches won.',
@@ -15286,7 +15286,7 @@ export const fr = {
         searchFighter: 'Filtrer par nom de tireur',
         help: {
           rank: 'Classement final, déterminé par le score et ses départages.',
-          fighter: 'Le compétiteur et son club.',
+          fighter: 'Le combattant et son club.',
           score:
             "Le score de classement qui ordonne ce tableau ; plus il est élevé, mieux c'est. Défini par le règlement.",
           W: 'Matchs gagnés.',

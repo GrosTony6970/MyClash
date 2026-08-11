@@ -11,25 +11,26 @@ table, which is now merged here.
 These are the terms [`../HIERARCHY.md`](../HIERARCHY.md) defines. Translate them consistently — they
 name the same things in the UI, the docs and the code.
 
-| English       | French                           | Notes                                                      |
-| ------------- | -------------------------------- | ---------------------------------------------------------- |
-| Organization  | Organisation / Club organisateur |                                                            |
-| Event         | Événement                        | The gathering                                              |
-| Tournament    | Tournoi                          | A competition inside an event                              |
-| Phase         | Phase                            | A stage of a tournament: poules, tableau or rondes suisses |
-| Pool          | Poule                            | Round-robin group                                          |
-| Bracket       | Tableau / Tableau d'élimination  | The slot tree of an elimination phase                      |
-| Swiss round   | Ronde suisse                     |                                                            |
-| Match         | Assaut                           | "Match" also acceptable depending on context               |
-| Exchange      | Échange                          | The atomic scoring unit                                    |
-| Workshop      | Atelier / Stage                  | "Atelier" for short, "stage" for full-day                  |
-| Venue         | Lieu / Salle                     |                                                            |
-| Lice          | Lice                             | The fighting area a match is held on                       |
-| **Fighter**   | **Combattant**                   | The canonical word for the competing role                  |
-| Competitor    | Compétiteur                      | Formal synonym of Fighter — prefer _Fighter/Combattant_    |
-| Global Person | Personne globale                 | Cross-event identity; internal term, rarely user-facing    |
-| Person        | Personne                         | Per-event identity                                         |
-| Registration  | Inscription                      | A person entered in one tournament                         |
+| English              | French                           | Notes                                                                                                                                     |
+| -------------------- | -------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| Organization         | Organisation / Club organisateur |                                                                                                                                           |
+| Event                | Événement                        | The gathering                                                                                                                             |
+| Tournament           | Tournoi                          | A competition inside an event                                                                                                             |
+| Phase                | Phase                            | A stage of a tournament: poules, tableau or rondes suisses                                                                                |
+| Pool                 | Poule                            | Round-robin group                                                                                                                         |
+| Bracket              | Tableau / Tableau d'élimination  | The slot tree of an elimination phase                                                                                                     |
+| Swiss round          | Ronde suisse                     |                                                                                                                                           |
+| Match                | Assaut                           | "Match" also acceptable depending on context                                                                                              |
+| Exchange             | Échange                          | The atomic scoring unit                                                                                                                   |
+| Workshop             | Atelier / Stage                  | "Atelier" for short, "stage" for full-day                                                                                                 |
+| Venue                | Lieu / Salle                     |                                                                                                                                           |
+| Lice                 | Lice                             | The fighting area a match is held on                                                                                                      |
+| **Fighter**          | **Combattant**                   | The canonical word for the competing role                                                                                                 |
+| Competitor           | Compétiteur                      | Formal synonym of Fighter — prefer _Fighter/Combattant_                                                                                   |
+| _(Fighter, FR alt.)_ | Tireur                           | Established fencing register, used in ~75 strings **on purpose**. Do not sweep it to _Combattant_ — both are correct French for the role. |
+| Global Person        | Personne globale                 | Cross-event identity; internal term, rarely user-facing                                                                                   |
+| Person               | Personne                         | Per-event identity                                                                                                                        |
+| Registration         | Inscription                      | A person entered in one tournament                                                                                                        |
 
 ## HEMA terminology
 
