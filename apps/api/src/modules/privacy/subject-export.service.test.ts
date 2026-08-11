@@ -85,12 +85,12 @@ describe('subject table census', () => {
     expect(reach?.reach).toBe('person');
   });
 
-  it('reaches league standing through the legacy fighter_id column name', () => {
+  it('reaches league standing through the global_person_id column', () => {
     // `fighters` became `global_persons` in 0023, but these two columns kept the
     // old NAME while their siblings were renamed.
     for (const table of ['league_rankings', 'league_tournament_results']) {
       const reaches = SUBJECT_EXPORT_TABLES[table]?.reaches;
-      expect(reaches?.[0]?.column, `${table}`).toBe('fighter_id');
+      expect(reaches?.[0]?.column, `${table}`).toBe('global_person_id');
       expect(reaches?.[0]?.reach).toBe('global_person');
     }
   });

@@ -717,7 +717,6 @@ export class ArchiveService {
     // keep it and the referee dashboard listed the copy's match under the wrong
     // event's person (assignments.service.ts reads this column directly).
     this.mapFk(next, 'referee_id', maps.persons);
-    this.mapFk(next, 'fighter_id', maps.fighters);
     this.mapFk(next, 'global_person_id', maps.fighters);
     this.mapFk(next, 'tournament_id', maps.tournaments, targets.targetTournamentId);
     this.mapFk(next, 'competition_id', maps.tournaments);

@@ -263,7 +263,7 @@ export class MeEventsService {
       .select(
         'ranking_group_key, rank, total_points, participation_count, medal_count, leagues(id, name, slug, season_year, logo_url, public_visibility, status)',
       )
-      .eq('fighter_id', fighterId);
+      .eq('global_person_id', fighterId);
 
     const rows = Array.isArray(data) ? (data as Row[]) : [];
     const byLeague = new Map<string, MyLeague>();

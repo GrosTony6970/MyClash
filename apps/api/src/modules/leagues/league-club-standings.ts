@@ -69,7 +69,7 @@ export function aggregateClubStandings(rows: Row[]): {
   for (const row of rows) {
     const points = Number(row['total_points'] ?? 0);
     const medals = Number(row['medal_count'] ?? 0);
-    const fighterId = String(row['fighter_id'] ?? '');
+    const fighterId = String(row['global_person_id'] ?? '');
     const person = embedObject(row['global_persons']);
     const club = person ? embedObject(person['clubs']) : null;
     const clubId = club ? String(club['id'] ?? '') : '';

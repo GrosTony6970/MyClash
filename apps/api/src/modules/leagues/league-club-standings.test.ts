@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { aggregateClubStandings } from './league-club-standings';
 
 function rankingRow(overrides: {
-  fighter_id: string;
+  global_person_id: string;
   total_points?: number;
   medal_count?: number;
   ranking_group_key?: string;
@@ -10,7 +10,7 @@ function rankingRow(overrides: {
   display_name?: string;
 }): Record<string, unknown> {
   const {
-    fighter_id,
+    global_person_id,
     total_points = 0,
     medal_count = 0,
     ranking_group_key = 'longsword',
@@ -18,12 +18,12 @@ function rankingRow(overrides: {
     display_name,
   } = overrides;
   return {
-    fighter_id,
+    global_person_id,
     ranking_group_key,
     total_points,
     medal_count,
     global_persons: {
-      display_name: display_name ?? `Fighter ${fighter_id}`,
+      display_name: display_name ?? `Fighter ${global_person_id}`,
       club_id: club?.id ?? null,
       clubs: club ? { id: club.id, name: club.name, city: club.city ?? null } : null,
     },
@@ -33,9 +33,21 @@ function rankingRow(overrides: {
 describe('aggregateClubStandings', () => {
   it('sums member points per club and ranks clubs by total points', () => {
     const { clubs } = aggregateClubStandings([
-      rankingRow({ fighter_id: 'a', total_points: 16, club: { id: 'lyon', name: 'Lyon AMHE' } }),
-      rankingRow({ fighter_id: 'b', total_points: 13, club: { id: 'lyon', name: 'Lyon AMHE' } }),
-      rankingRow({ fighter_id: 'c', total_points: 20, club: { id: 'paris', name: 'Paris HEMA' } }),
+      rankingRow({
+        global_person_id: 'a',
+        total_points: 16,
+        club: { id: 'lyon', name: 'Lyon AMHE' },
+      }),
+      rankingRow({
+        global_person_id: 'b',
+        total_points: 13,
+        club: { id: 'lyon', name: 'Lyon AMHE' },
+      }),
+      rankingRow({
+        global_person_id: 'c',
+        total_points: 20,
+        club: { id: 'paris', name: 'Paris HEMA' },
+      }),
     ]);
 
     expect(clubs.map((c) => c.clubId)).toEqual(['lyon', 'paris']); // 29 vs 20
@@ -51,19 +63,19 @@ describe('aggregateClubStandings', () => {
   it('counts each fighter once toward memberCount even across multiple ranking groups', () => {
     const { clubs } = aggregateClubStandings([
       rankingRow({
-        fighter_id: 'a',
+        global_person_id: 'a',
         total_points: 16,
         ranking_group_key: 'longsword',
         club: { id: 'lyon', name: 'Lyon' },
       }),
       rankingRow({
-        fighter_id: 'a',
+        global_person_id: 'a',
         total_points: 10,
         ranking_group_key: 'rapier',
         club: { id: 'lyon', name: 'Lyon' },
       }),
       rankingRow({
-        fighter_id: 'b',
+        global_person_id: 'b',
         total_points: 5,
         ranking_group_key: 'rapier',
         club: { id: 'lyon', name: 'Lyon' },
@@ -79,13 +91,13 @@ describe('aggregateClubStandings', () => {
   it('sums medal counts per club', () => {
     const { clubs } = aggregateClubStandings([
       rankingRow({
-        fighter_id: 'a',
+        global_person_id: 'a',
         total_points: 10,
         medal_count: 2,
         club: { id: 'lyon', name: 'Lyon' },
       }),
       rankingRow({
-        fighter_id: 'b',
+        global_person_id: 'b',
         total_points: 10,
         medal_count: 1,
         club: { id: 'lyon', name: 'Lyon' },
@@ -98,20 +110,20 @@ describe('aggregateClubStandings', () => {
     const { clubs } = aggregateClubStandings([
       // Club A: 20 pts across 1 member, 3 medals.
       rankingRow({
-        fighter_id: 'a1',
+        global_person_id: 'a1',
         total_points: 20,
         medal_count: 3,
         club: { id: 'A', name: 'Club A' },
       }),
       // Club B: 20 pts across 2 members, 0 medals → wins the tie on member count.
       rankingRow({
-        fighter_id: 'b1',
+        global_person_id: 'b1',
         total_points: 10,
         medal_count: 0,
         club: { id: 'B', name: 'Club B' },
       }),
       rankingRow({
-        fighter_id: 'b2',
+        global_person_id: 'b2',
         total_points: 10,
         medal_count: 0,
         club: { id: 'B', name: 'Club B' },
@@ -122,13 +134,13 @@ describe('aggregateClubStandings', () => {
     // Same points AND member count → medal count decides.
     const tieOnMedals = aggregateClubStandings([
       rankingRow({
-        fighter_id: 'c1',
+        global_person_id: 'c1',
         total_points: 20,
         medal_count: 1,
         club: { id: 'C', name: 'Club C' },
       }),
       rankingRow({
-        fighter_id: 'd1',
+        global_person_id: 'd1',
         total_points: 20,
         medal_count: 3,
         club: { id: 'D', name: 'Club D' },
@@ -139,9 +151,9 @@ describe('aggregateClubStandings', () => {
 
   it('buckets club-less fighters into Unaffiliated, excluded from the ranked clubs', () => {
     const { clubs, unaffiliated } = aggregateClubStandings([
-      rankingRow({ fighter_id: 'a', total_points: 16, club: { id: 'lyon', name: 'Lyon' } }),
-      rankingRow({ fighter_id: 'x', total_points: 9, club: null }),
-      rankingRow({ fighter_id: 'y', total_points: 4, club: null }),
+      rankingRow({ global_person_id: 'a', total_points: 16, club: { id: 'lyon', name: 'Lyon' } }),
+      rankingRow({ global_person_id: 'x', total_points: 9, club: null }),
+      rankingRow({ global_person_id: 'y', total_points: 4, club: null }),
     ]);
     expect(clubs.map((c) => c.clubId)).toEqual(['lyon']);
     expect(unaffiliated).toEqual({ totalPoints: 13, memberCount: 2, medalCount: 0 });
@@ -149,7 +161,7 @@ describe('aggregateClubStandings', () => {
 
   it('returns unaffiliated=null when every fighter has a club', () => {
     const { unaffiliated } = aggregateClubStandings([
-      rankingRow({ fighter_id: 'a', total_points: 16, club: { id: 'lyon', name: 'Lyon' } }),
+      rankingRow({ global_person_id: 'a', total_points: 16, club: { id: 'lyon', name: 'Lyon' } }),
     ]);
     expect(unaffiliated).toBeNull();
   });
@@ -157,25 +169,25 @@ describe('aggregateClubStandings', () => {
   it('limits topMembers to the three highest scorers, sorted by points', () => {
     const { clubs } = aggregateClubStandings([
       rankingRow({
-        fighter_id: 'a',
+        global_person_id: 'a',
         total_points: 5,
         display_name: 'Ann',
         club: { id: 'lyon', name: 'Lyon' },
       }),
       rankingRow({
-        fighter_id: 'b',
+        global_person_id: 'b',
         total_points: 16,
         display_name: 'Bob',
         club: { id: 'lyon', name: 'Lyon' },
       }),
       rankingRow({
-        fighter_id: 'c',
+        global_person_id: 'c',
         total_points: 10,
         display_name: 'Cy',
         club: { id: 'lyon', name: 'Lyon' },
       }),
       rankingRow({
-        fighter_id: 'd',
+        global_person_id: 'd',
         total_points: 8,
         display_name: 'Di',
         club: { id: 'lyon', name: 'Lyon' },
@@ -187,7 +199,7 @@ describe('aggregateClubStandings', () => {
   it('normalizes an array-shaped embed (UNIQUE-fk flip) the same as an object', () => {
     const rows = [
       {
-        fighter_id: 'a',
+        global_person_id: 'a',
         total_points: 12,
         medal_count: 1,
         global_persons: [

@@ -229,15 +229,14 @@ export const SUBJECT_EXPORT_TABLES: Readonly<Record<string, SubjectTableSpec>> =
   },
 
   // ── League standing ─────────────────────────────────────────────────────────
-  // `fighter_id` here is a global_persons.id: `fighters` was renamed to
-  // `global_persons` in 0023 but these two columns kept the old NAME (unlike
-  // fighter_clubs / fighter_weapons / workshop_instructors, which were renamed).
+  // Both columns are global_persons.id. Renamed from `fighter_id` in 0185 so the
+  // name matches the concept — see docs/decisions/ADR-013.
   league_rankings: {
-    reaches: [{ column: 'fighter_id', reach: 'global_person' }],
+    reaches: [{ column: 'global_person_id', reach: 'global_person' }],
     file: 'leagues.csv',
   },
   league_tournament_results: {
-    reaches: [{ column: 'fighter_id', reach: 'global_person' }],
+    reaches: [{ column: 'global_person_id', reach: 'global_person' }],
     file: 'leagues.csv',
   },
 

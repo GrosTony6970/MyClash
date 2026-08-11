@@ -1340,12 +1340,10 @@ export class FightersService {
   private async fetchCareerLeagueRankings(fighterId: string): Promise<CareerLeagueRankingInput[]> {
     const { data, error } = await this.supabase.service
       .from('league_rankings')
-      // league_rankings keeps the column name `fighter_id`, now referencing
-      // global_persons(id) (table renamed in 0023, column not renamed).
       .select(
         'rank, total_points, medal_count, ranking_group_key, leagues(name, slug, public_visibility, status)',
       )
-      .eq('fighter_id', fighterId);
+      .eq('global_person_id', fighterId);
     if (error) return [];
 
     // Only published+public leagues — these are the ones with a live classement

@@ -256,6 +256,20 @@ for (const file of files.filter((name) => Number(name.slice(0, 4)) > 23)) {
     );
   }
 }
+// 0185 renamed league_rankings.fighter_id and league_tournament_results.fighter_id
+// to global_person_id: both are FKs to global_persons, so the old name denoted the
+// competing role while the value is a cross-event identity (docs/decisions/ADR-013).
+// Nothing else enforces that, and the last time this drifted it went unnoticed for
+// three months, so a later migration reintroducing the old column name fails here.
+const leagueFighterColumnPattern =
+  /\b(?:league_rankings|league_tournament_results)\b[\s\S]{0,400}?(?<!global_)\bfighter_id\b/iu;
+for (const file of files.filter((name) => Number(name.slice(0, 4)) > 185)) {
+  const sqlWithoutComments = (migrationSqlByFile.get(file) ?? '').replace(/--.*$/gmu, '');
+  if (leagueFighterColumnPattern.test(sqlWithoutComments)) {
+    errors.push(`${file} names fighter_id on a league table; 0185 renamed it to global_person_id.`);
+  }
+}
+
 const staleFixtureFightersTablePattern =
   /\b(?:DELETE\s+FROM|INSERT\s+INTO|UPDATE|FROM|JOIN|REFERENCES)\s+(?:(?:"?public"?\.)?)"?fighters"?\b/iu;
 for (const file of fixtureSchemaReferenceFiles) {

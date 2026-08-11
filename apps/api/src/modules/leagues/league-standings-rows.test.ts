@@ -147,8 +147,12 @@ describe('attachDecidingTiebreaks', () => {
   });
 
   it('preserves the original row fields alongside the derived tie-break', () => {
-    const rows = [row({ rank: 1, fighter_id: 'gp-1', total_points: 15 })];
+    const rows = [row({ rank: 1, global_person_id: 'gp-1', total_points: 15 })];
     const [only] = attachDecidingTiebreaks(rows, DEFAULT_TIEBREAKERS);
-    expect(only).toMatchObject({ fighter_id: 'gp-1', total_points: 15, decidingTiebreak: null });
+    expect(only).toMatchObject({
+      global_person_id: 'gp-1',
+      total_points: 15,
+      decidingTiebreak: null,
+    });
   });
 });

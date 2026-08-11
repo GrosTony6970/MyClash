@@ -110,6 +110,9 @@ export function containmentProbes(
   for (const id of globalPersonIds) {
     probes.push(
       { global_person_id: id },
+      // Retained deliberately: audit payloads written before migration 0185 carry
+      // `fighter_id` for what is now `global_person_id`. Dropping this probe would
+      // silently miss historical rows during an erasure.
       { fighter_id: id },
       { source: { id } },
       { target: { id } },

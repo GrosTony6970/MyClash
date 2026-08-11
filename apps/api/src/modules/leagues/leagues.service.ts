@@ -385,7 +385,7 @@ export class LeaguesService {
         .eq('status', 'approved'),
       this.supabase.service
         .from('league_rankings')
-        .select('league_id, fighter_id')
+        .select('league_id, global_person_id')
         .in('league_id', leagueIds),
     ]);
 
@@ -414,12 +414,12 @@ export class LeaguesService {
     const fightersPerLeague = new Map<string, Set<string>>();
     for (const row of (rankingsRes.data ?? []) as Array<{
       league_id: string;
-      fighter_id: string;
+      global_person_id: string;
     }>) {
       if (!fightersPerLeague.has(row.league_id)) {
         fightersPerLeague.set(row.league_id, new Set());
       }
-      fightersPerLeague.get(row.league_id)!.add(row.fighter_id);
+      fightersPerLeague.get(row.league_id)!.add(row.global_person_id);
     }
 
     return leagues.map((row) => {
@@ -1523,7 +1523,7 @@ export class LeaguesService {
       leagueId,
       tournamentId: String(row['tournament_id']),
       eventId: String(row['event_id']),
-      fighterId: String(row['fighter_id']),
+      fighterId: String(row['global_person_id']),
       fighterName: String(
         (row['global_persons'] as { display_name?: string | null } | null)?.display_name ?? '',
       ),
@@ -1644,7 +1644,7 @@ export class LeaguesService {
     let q = this.supabase.service
       .from('league_rankings')
       .select(
-        'fighter_id, ranking_group_key, total_points, medal_count, global_persons(display_name, club_id, clubs(id, name, city))',
+        'global_person_id, ranking_group_key, total_points, medal_count, global_persons(display_name, club_id, clubs(id, name, city))',
       )
       .eq('league_id', leagueId);
     if (group) q = q.eq('ranking_group_key', group) as typeof q;
@@ -1797,7 +1797,7 @@ export class LeaguesService {
         [
           csv(row['ranking_group_key']),
           csv(row['rank']),
-          csv(fighter?.['display_name'] ?? row['fighter_id']),
+          csv(fighter?.['display_name'] ?? row['global_person_id']),
           csv(row['total_points']),
           csv(row['participation_count']),
           csv(row['medal_count']),
@@ -1814,7 +1814,7 @@ export class LeaguesService {
     const rows = (standings.rows as Row[])
       .map((row) => {
         const fighter = row['global_persons'] as Row | null;
-        return `<tr><td>${escapeHtml(row['ranking_group_key'])}</td><td>${escapeHtml(row['rank'])}</td><td>${escapeHtml(fighter?.['display_name'] ?? row['fighter_id'])}</td><td>${escapeHtml(row['total_points'])}</td></tr>`;
+        return `<tr><td>${escapeHtml(row['ranking_group_key'])}</td><td>${escapeHtml(row['rank'])}</td><td>${escapeHtml(fighter?.['display_name'] ?? row['global_person_id'])}</td><td>${escapeHtml(row['total_points'])}</td></tr>`;
       })
       .join('');
     return `<!doctype html><html><head><meta charset="utf-8"><title>${escapeHtml(league['name'])}</title><style>body{font-family:Arial,sans-serif}table{border-collapse:collapse;width:100%}td,th{border:1px solid #999;padding:6px}.medal{font-weight:700}</style></head><body><h1>${escapeHtml(league['name'])}</h1><table><thead><tr><th>Group</th><th>Rank</th><th>Fighter</th><th>Points</th></tr></thead><tbody>${rows}</tbody></table></body></html>`;
@@ -1980,7 +1980,7 @@ export class LeaguesService {
         league_id: row.leagueId,
         tournament_id: row.tournamentId,
         event_id: row.eventId,
-        fighter_id: row.fighterId,
+        global_person_id: row.fighterId,
         ranking_group_key: row.rankingGroupKey,
         final_rank: row.finalRank,
         league_points: row.leaguePoints,
@@ -1998,7 +1998,7 @@ export class LeaguesService {
       rankings.map((row) => ({
         league_id: row.leagueId,
         ranking_group_key: row.rankingGroupKey,
-        fighter_id: row.fighterId,
+        global_person_id: row.fighterId,
         rank: row.rank,
         total_points: row.totalPoints,
         participation_count: row.participationCount,

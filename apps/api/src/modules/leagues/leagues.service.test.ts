@@ -917,10 +917,10 @@ describe('LeaguesService.listManageable count enrichment', () => {
             select: vi.fn().mockReturnThis(),
             in: vi.fn().mockResolvedValue({
               data: [
-                { league_id: 'L1', fighter_id: 'F1' },
-                { league_id: 'L1', fighter_id: 'F2' },
-                { league_id: 'L1', fighter_id: 'F1' }, // duplicate fighter
-                { league_id: 'L2', fighter_id: 'F3' },
+                { league_id: 'L1', global_person_id: 'F1' },
+                { league_id: 'L1', global_person_id: 'F2' },
+                { league_id: 'L1', global_person_id: 'F1' }, // duplicate fighter
+                { league_id: 'L2', global_person_id: 'F3' },
               ],
               error: null,
             }),
@@ -1167,7 +1167,7 @@ describe('LeaguesService.recomputeLeagueRankings — fighter names reach the tie
                   {
                     tournament_id: 't-1',
                     event_id: 'e-1',
-                    fighter_id: 'fighter-zulu',
+                    global_person_id: 'fighter-zulu',
                     ranking_group_key: 'longsword::open',
                     final_rank: 3,
                     league_points: 30,
@@ -1178,7 +1178,7 @@ describe('LeaguesService.recomputeLeagueRankings — fighter names reach the tie
                   {
                     tournament_id: 't-1',
                     event_id: 'e-1',
-                    fighter_id: 'fighter-alpha',
+                    global_person_id: 'fighter-alpha',
                     ranking_group_key: 'longsword::open',
                     final_rank: 4,
                     league_points: 30,
