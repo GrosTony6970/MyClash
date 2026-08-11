@@ -399,27 +399,37 @@ body {
 }
 
 /* ── BANNER ───────────────────────────────────── */
+/*
+ * Banner.png is not a banner — it is the full logo lockup: the wordmark with
+ * its swords, the red "HEMA TOURNAMENT MANAGER" ribbon, and the shield crest,
+ * on white, at 1584x1024 (roughly 3:2).
+ *
+ * It was being poured into a 240px-tall full-bleed strip with
+ * `object-fit: cover`. At a 1920px viewport that scales the image to 1241px
+ * tall and then keeps the middle 240px — a horizontal slice through the
+ * letterforms, with the ribbon and the crest cropped away entirely. The taller
+ * the viewport-width, the worse the crop.
+ *
+ * So it is contained rather than covered, at a size a logo should occupy. The
+ * band is white because the artwork's own background is: any other colour puts
+ * a white rectangle inside a coloured one.
+ */
 .banner-section {
-  height: 240px;
-  overflow: hidden;
-  position: relative;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 4rem 5%;
+  background: var(--white);
 }
 .banner-section picture {
   display: block;
   width: 100%;
-  height: 100%;
+  max-width: 420px;
 }
 .banner-section img {
+  display: block;
   width: 100%;
-  height: 100%;
-  object-fit: cover;
-  object-position: center;
-}
-.banner-section::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(180deg, rgba(15, 23, 42, 0.2) 0%, rgba(15, 23, 42, 0.1) 100%);
+  height: auto;
 }
 
 /* ── CTA ──────────────────────────────────────── */

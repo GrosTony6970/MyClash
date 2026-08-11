@@ -284,3 +284,32 @@ test('the landing page stays within its first-paint budget', () => {
   );
   console.log(`    first paint (mobile): ${Math.round(total / 1024)} KB of ${budget / 1024} KB`);
 });
+
+test('the logo lockup is shown whole, not cropped to a strip', () => {
+  /*
+   * Banner.png is the full logo — wordmark, ribbon and crest, at 3:2. It was
+   * being poured into a 240px full-bleed strip with `object-fit: cover`, so at
+   * a 1920px viewport the browser scaled it to 1241px tall and kept the middle
+   * 240px: a slice through the letterforms with the ribbon and crest gone.
+   *
+   * Asserted against the emitted CSS because the crop was invisible to every
+   * markup-level check — the HTML was fine the whole time.
+   */
+  const html = pages.get('/');
+  const bundled = [...html.matchAll(/href="(\/_astro\/[^"]+\.css)"/gu)]
+    .map(([, href]) => readFileSync(join(DIST, href), 'utf8'))
+    .join('\n')
+    .replace(/\s+/gu, '');
+
+  const rule = /\.banner-sectionimg\{([^}]*)\}/u.exec(bundled);
+  assert.ok(rule, 'no .banner-section img rule found in the bundled CSS');
+  assert.ok(
+    !/object-fit:cover/u.test(rule[1]),
+    'the banner image is set to object-fit: cover, which crops the logo',
+  );
+  assert.match(rule[1], /height:auto/u, 'the banner image must keep its own aspect ratio');
+  assert.ok(
+    !/\.banner-section\{[^}]*height:240px/u.test(bundled),
+    'the banner is back to a fixed-height strip, which forces a crop',
+  );
+});

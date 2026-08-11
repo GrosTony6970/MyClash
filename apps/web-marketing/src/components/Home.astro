@@ -152,13 +152,19 @@ const statsEndpoint = `${API_URL.replace(/\/+$/, '')}/api/v1/public/site-stats`;
 </section>
 
 <!-- BANNER -->
+{/*
+  The logo lockup, shown whole. `sizes` and `widths` describe the box it is
+  actually rendered in — it caps at 420 CSS px (see home.css), so the old
+  `sizes="100vw"` with a 1584px candidate had the browser fetch a file four
+  times wider than anything it would draw.
+*/}
 <div class="banner-section" aria-hidden="true">
   <Picture
     src={banner}
     formats={['avif', 'webp']}
     fallbackFormat="webp"
-    widths={[768, 1200, 1584]}
-    sizes="100vw"
+    widths={[420, 840]}
+    sizes="(max-width: 480px) 90vw, 420px"
     alt=""
     loading="lazy"
   />
