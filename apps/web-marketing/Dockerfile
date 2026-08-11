@@ -27,6 +27,11 @@ RUN --mount=type=cache,id=pnpm-store,target=/root/.local/share/pnpm/store \
 # ── builder ──────────────────────────────────────────────────────────────────
 FROM deps AS builder
 WORKDIR /app
+# Baked into the bundle at build time (Astro inlines import.meta.env.PUBLIC_*),
+# so the value must be present BEFORE `astro build`, not at container start.
+# The default is production; both compose files pass their own.
+ARG PUBLIC_API_URL=https://api.myclash.fr
+ENV PUBLIC_API_URL=${PUBLIC_API_URL}
 COPY apps/web-marketing/ ./apps/web-marketing/
 RUN pnpm --filter @myclash/web-marketing build
 

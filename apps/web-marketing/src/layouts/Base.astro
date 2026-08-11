@@ -16,6 +16,14 @@ interface Props {
   ogDescription?: string;
   /** Skip the JSON-LD product blocks on pages where they do not apply. */
   structuredData?: boolean;
+  /**
+   * False for pages that exist in one locale only — today just the 404, which
+   * is bilingual on a single document because it is reached from a URL that
+   * said nothing about the reader's language. Such a page has no counterpart to
+   * point `hreflang` at and no counterpart for the switcher to link to: the
+   * link test caught /404 offering a switch to /en/404, which is not built.
+   */
+  localised?: boolean;
   bodyClass?: string;
 }
 
@@ -27,6 +35,7 @@ const {
   ogTitle = title,
   ogDescription = description,
   structuredData = false,
+  localised = true,
   bodyClass,
 } = Astro.props;
 
@@ -93,11 +102,20 @@ const jsonLd = structuredData
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>{title}</title>
     <meta name="description" content={description} />
-    <meta name="robots" content="index, follow, max-image-preview:large" />
-    <link rel="canonical" href={canonical} />
-    <link rel="alternate" hreflang="fr" href={frHref} />
-    <link rel="alternate" hreflang="en" href={enHref} />
-    <link rel="alternate" hreflang="x-default" href={frHref} />
+    <meta
+      name="robots"
+      content={localised ? 'index, follow, max-image-preview:large' : 'noindex, follow'}
+    />
+    {localised && <link rel="canonical" href={canonical} />}
+    {
+      localised && (
+        <>
+          <link rel="alternate" hreflang="fr" href={frHref} />
+          <link rel="alternate" hreflang="en" href={enHref} />
+          <link rel="alternate" hreflang="x-default" href={frHref} />
+        </>
+      )
+    }
     <meta name="theme-color" content="#0f172a" />
     <meta property="og:type" content="website" />
     <meta property="og:site_name" content="MyClash" />
@@ -134,8 +152,8 @@ const jsonLd = structuredData
   </head>
   <body class={bodyClass}>
     <a class="skip-link" href="#main-content">{t.skipToContent}</a>
-    <Nav locale={locale} />
+    <Nav locale={locale} route={localised ? route : null} />
     <slot />
-    <Footer locale={locale} />
+    <Footer locale={locale} route={localised ? route : null} />
   </body>
 </html>

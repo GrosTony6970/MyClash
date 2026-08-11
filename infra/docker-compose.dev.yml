@@ -609,6 +609,8 @@ services:
       # Repo root: Astro needs the workspace lockfile to install.
       context: ..
       dockerfile: apps/web-marketing/Dockerfile
+      args:
+        PUBLIC_API_URL: https://api.myclash.localhost
     container_name: myclash-dev-web-marketing
     restart: unless-stopped
     environment:

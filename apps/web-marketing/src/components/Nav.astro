@@ -1,13 +1,20 @@
 ---
 import { Image } from 'astro:assets';
 import logo from '../assets/Logo_nobackground.png';
+import LangSwitch from './LangSwitch.astro';
 import { CHROME, SECTION_IDS, localePath, APP_URL, type Locale } from '../i18n/ui';
 
 interface Props {
   locale: Locale;
+  /**
+   * Locale-independent route, so the language switch stays on this page.
+   * `null` for a page with no counterpart in the other locale — the switcher
+   * is then omitted rather than pointing at a URL that is not built.
+   */
+  route: string | null;
 }
 
-const { locale } = Astro.props;
+const { locale, route } = Astro.props;
 const t = CHROME[locale];
 const home = localePath(locale, '/');
 
@@ -39,6 +46,7 @@ const anchor = (id: string) => `${home === '/' ? '' : home}/#${id}`;
       <li><a href={anchor(SECTION_IDS.howItWorks)}>{t.navHowItWorks}</a></li>
       <li><a href={anchor(SECTION_IDS.support)}>{t.navSupport}</a></li>
     </ul>
+    {route !== null && <LangSwitch locale={locale} route={route} variant="nav" />}
     <a href={APP_URL} class="nav__cta" target="_blank" rel="noopener">{t.navCta}</a>
   </div>
 </nav>

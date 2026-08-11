@@ -36,6 +36,19 @@ html {
 }
 
 /*
+ * The `hidden` attribute only gets `display: none` from the UA stylesheet, so
+ * ANY explicit `display` in our own CSS beats it — and the stats band is
+ * `display: grid`. Without this rule the band stayed laid out when the API was
+ * unreachable: an empty blue bar with three blank slots where the numbers
+ * should be, which is a worse answer than the fabricated figures it replaced.
+ * Caught in a browser, not by markup assertions, because the attribute was set
+ * correctly the whole time.
+ */
+[hidden] {
+  display: none !important;
+}
+
+/*
  * Background and colour are NOT set here: the landing page is a light document
  * and the legal pages are dark ones. Each page stylesheet owns its own.
  */

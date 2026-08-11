@@ -963,6 +963,10 @@ services:
       # Repo root: Astro needs the workspace lockfile to install.
       context: ..
       dockerfile: apps/web-marketing/Dockerfile
+      args:
+        # Read by the browser for the adoption counts above the fold. Inlined
+        # by `astro build`, so it is a build arg and not an `environment:` key.
+        PUBLIC_API_URL: https://api.${DOMAIN}
     container_name: myclash-web-marketing
     restart: unless-stopped
     environment:

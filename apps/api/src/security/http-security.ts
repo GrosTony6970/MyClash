@@ -15,10 +15,18 @@ export interface SessionCookieOptionsInput {
 
 export function buildCorsOrigins(domain: string): string[] {
   return [
+    // In production the marketing site IS the apex, so this entry already
+    // covers its call to /public/site-stats. Dev is the exception below.
     `https://${domain}`,
     `https://app.${domain}`,
     `https://admin.${domain}`,
     `https://staff.${domain}`,
+    // Dev only, and harmless in production: `marketing.myclash.fr` does not
+    // exist and resolves nowhere, so listing it grants nothing. Dev puts the
+    // marketing site on its own subdomain because `myclash.localhost` is
+    // already taken by web-public, which means the apex entry above does not
+    // cover it and its stats band would silently fail CORS locally.
+    `https://marketing.${domain}`,
     'http://localhost:3001',
     'http://localhost:3002',
     'http://localhost:3003',

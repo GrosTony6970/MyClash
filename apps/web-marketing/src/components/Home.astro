@@ -2,8 +2,15 @@
 import { Picture } from 'astro:assets';
 import hero from '../assets/Hero_myclash.png';
 import banner from '../assets/Banner.png';
-import { HOME, STAT_VALUES, FEATURE_ICON_PATHS, DONATION_URL } from '../i18n/home';
-import { SECTION_IDS, APP_URL, CONTACT_EMAIL, type Locale } from '../i18n/ui';
+import { HOME, FEATURE_ICON_PATHS, DONATION_URL } from '../i18n/home';
+import {
+  SECTION_IDS,
+  APP_URL,
+  ADMIN_URL,
+  CONTACT_EMAIL,
+  API_URL,
+  type Locale,
+} from '../i18n/ui';
 import '../styles/home.css';
 
 interface Props {
@@ -13,7 +20,7 @@ interface Props {
 const { locale } = Astro.props;
 const c = HOME[locale];
 const numberLocale = locale === 'fr' ? 'fr-FR' : 'en-GB';
-const format = (value: number) => new Intl.NumberFormat(numberLocale).format(value);
+const statsEndpoint = `${API_URL.replace(/\/+$/, '')}/api/v1/public/site-stats`;
 ---
 
 <!-- HERO -->
@@ -43,9 +50,14 @@ const format = (value: number) => new Intl.NumberFormat(numberLocale).format(val
       <span>{c.heroTitleAccent}</span>
     </h1>
     <p class="hero__subtitle">{c.heroSubtitle}</p>
+    {/*
+      Two audiences, two destinations — the split the README always described
+      and the page never shipped. Organisers go to the workspace where an event
+      is created; everyone else goes to the public app to find one.
+    */}
     <div class="hero__actions">
-      <a href={APP_URL} class="btn-primary" target="_blank" rel="noopener">{c.heroCtaPrimary}</a>
-      <a href={`#${SECTION_IDS.features}`} class="btn-outline">{c.heroCtaSecondary}</a>
+      <a href={ADMIN_URL} class="btn-primary" target="_blank" rel="noopener">{c.heroCtaPrimary}</a>
+      <a href={APP_URL} class="btn-outline" target="_blank" rel="noopener">{c.heroCtaSecondary}</a>
     </div>
   </div>
   <div class="hero__scroll" aria-hidden="true">
@@ -64,20 +76,22 @@ const format = (value: number) => new Intl.NumberFormat(numberLocale).format(val
 
 <!-- STATS BAR -->
 {/*
-  Was a bare <div aria-label="…">. A div has no role, so the label was dropped
-  by assistive tech entirely. A <section> with a visually-hidden heading is
-  announced.
+  Rendered empty and filled from the API, or removed outright.
+
+  The three numbers here used to be 120 / 45 / 3 000, hardcoded as animation
+  targets and untrue. Server-rendering a placeholder would reintroduce exactly
+  that — a figure on screen that nothing substantiates — so the band ships with
+  `hidden` and only appears once real counts arrive. No API, no band.
 */}
-<section class="stats" aria-labelledby="stats-heading">
+<section class="stats" id="site-stats" aria-labelledby="stats-heading" data-endpoint={statsEndpoint} data-locale={numberLocale} hidden>
   <h2 id="stats-heading" class="visually-hidden">{c.statsHeading}</h2>
   {
-    STAT_VALUES.map((value, i) => (
+    c.statLabels.map((label, i) => (
       <div class="stat">
-        <div class="stat__number" data-count={value}>
-          {format(value)}
-          <span>+</span>
+        <div class="stat__number" data-stat={['events', 'clubs', 'fighters'][i]}>
+          &nbsp;
         </div>
-        <div class="stat__label">{c.statLabels[i]}</div>
+        <div class="stat__label">{label}</div>
       </div>
     ))
   }
@@ -102,7 +116,9 @@ const format = (value: number) => new Intl.NumberFormat(numberLocale).format(val
               stroke="currentColor"
               stroke-width="2"
             >
-              <path stroke-linecap="round" stroke-linejoin="round" d={FEATURE_ICON_PATHS[i]} />
+              {(FEATURE_ICON_PATHS[i] ?? []).map((d) => (
+                <path stroke-linecap="round" stroke-linejoin="round" d={d} />
+              ))}
             </svg>
           </div>
           <h3 class="feature-card__title">{feature.title}</h3>
@@ -156,7 +172,7 @@ const format = (value: number) => new Intl.NumberFormat(numberLocale).format(val
   </h2>
   <p class="section__lead">{c.ctaLead}</p>
   <div class="cta-section__actions">
-    <a href={APP_URL} class="btn-white" target="_blank" rel="noopener">{c.ctaPrimary}</a>
+    <a href={ADMIN_URL} class="btn-white" target="_blank" rel="noopener">{c.ctaPrimary}</a>
     <a href={`mailto:${CONTACT_EMAIL}`} class="btn-outline-white">{c.ctaSecondary}</a>
   </div>
 </section>
@@ -176,10 +192,15 @@ const format = (value: number) => new Intl.NumberFormat(numberLocale).format(val
       </a>
     </div>
     <div class="contribution__right">
+      {/*
+        The paragraph that used to sit here repeated the highlight box below it
+        almost word for word — "Every cent donated goes directly toward hosting
+        costs and infrastructure maintenance", twice, back to back, in both
+        languages. Said once.
+      */}
       <h3 class="contribution__box-title">{c.contribBoxTitle}</h3>
-      <p class="contribution__box-text">{c.contribBoxText}</p>
       <div class="contribution__highlight" role="note">
-        <span>💡</span>
+        <span aria-hidden="true">💡</span>
         <span><strong>{c.contribHighlightLabel}</strong> {c.contribHighlightText}</span>
       </div>
       <h3 class="contribution__box-title contribution__box-title--tight">{c.contribHowTitle}</h3>
@@ -237,35 +258,86 @@ const format = (value: number) => new Intl.NumberFormat(numberLocale).format(val
     });
   }
 
-  // Counter animation. The final value is already in the markup, so this only
-  // ever animates *up to* what a no-JS visitor already sees.
-  const statNumbers = document.querySelectorAll<HTMLElement>('.stat__number[data-count]');
-  const numberFormat = new Intl.NumberFormat(document.documentElement.lang || 'fr');
-
-  function animateCounter(el: HTMLElement, target: number) {
-    const duration = 1800;
-    const start = performance.now();
-    const update = (now: number) => {
-      const progress = Math.min((now - start) / duration, 1);
-      const eased = 1 - Math.pow(1 - progress, 3);
-      el.innerHTML = `${numberFormat.format(Math.round(eased * target))}<span>+</span>`;
-      if (progress < 1) requestAnimationFrame(update);
-    };
-    requestAnimationFrame(update);
+  /*
+   * Live adoption counts.
+   *
+   * Every failure path ends the same way: the band stays hidden. A network
+   * error, a non-200, a malformed body, or a zero count all mean "we cannot
+   * substantiate a number right now", and the honest render of that is nothing
+   * at all — never a placeholder, never a stale constant. That is the whole
+   * reason these stopped being hardcoded.
+   */
+  interface SiteStats {
+    events: number;
+    clubs: number;
+    fighters: number;
   }
 
-  const statsEl = document.querySelector('.stats');
-  if (statsEl && statNumbers.length > 0 && !prefersReducedMotion) {
-    const statsObserver = new IntersectionObserver(
+  const band = document.getElementById('site-stats');
+
+  function isUsable(value: unknown): value is number {
+    return typeof value === 'number' && Number.isFinite(value) && value > 0;
+  }
+
+  async function loadStats(el: HTMLElement): Promise<void> {
+    const endpoint = el.dataset.endpoint;
+    if (!endpoint) return;
+
+    let stats: SiteStats;
+    try {
+      const response = await fetch(endpoint, { headers: { accept: 'application/json' } });
+      if (!response.ok) return;
+      stats = (await response.json()) as SiteStats;
+    } catch {
+      return;
+    }
+
+    // All three or none: a band showing two real numbers and one blank reads
+    // as broken, and inviting the reader to guess which is which is worse than
+    // showing nothing.
+    if (!isUsable(stats.events) || !isUsable(stats.clubs) || !isUsable(stats.fighters)) return;
+
+    const format = new Intl.NumberFormat(el.dataset.locale || 'fr-FR');
+    const targets = el.querySelectorAll<HTMLElement>('.stat__number[data-stat]');
+
+    targets.forEach((target) => {
+      const key = target.dataset.stat as keyof SiteStats;
+      target.textContent = format.format(stats[key]);
+    });
+
+    el.hidden = false;
+
+    if (prefersReducedMotion) return;
+
+    // Count up only once the band is actually on screen. The final value is
+    // already in the DOM before this runs, so an interrupted animation still
+    // leaves the true number behind.
+    const animate = (target: HTMLElement) => {
+      const key = target.dataset.stat as keyof SiteStats;
+      const value = stats[key];
+      const duration = 1800;
+      const start = performance.now();
+      const step = (now: number) => {
+        const progress = Math.min((now - start) / duration, 1);
+        const eased = 1 - Math.pow(1 - progress, 3);
+        target.textContent = format.format(Math.round(eased * value));
+        if (progress < 1) requestAnimationFrame(step);
+      };
+      requestAnimationFrame(step);
+    };
+
+    const watcher = new IntersectionObserver(
       (entries) => {
         entries.forEach((entry) => {
           if (!entry.isIntersecting) return;
-          statNumbers.forEach((el) => animateCounter(el, Number(el.dataset.count)));
-          statsObserver.unobserve(entry.target);
+          targets.forEach(animate);
+          watcher.unobserve(entry.target);
         });
       },
       { threshold: 0.5 },
     );
-    statsObserver.observe(statsEl);
+    watcher.observe(el);
   }
+
+  if (band) void loadStats(band);
 </script>

@@ -1,6 +1,7 @@
 ---
 import { Image } from 'astro:assets';
 import logo from '../assets/Logo_nobackground.png';
+import LangSwitch from './LangSwitch.astro';
 import {
   CHROME,
   SECTION_IDS,
@@ -8,21 +9,30 @@ import {
   APP_URL,
   CONTACT_EMAIL,
   ASSOCIATION_URL,
+  LICENSE_URL,
   type Locale,
 } from '../i18n/ui';
 
 interface Props {
   locale: Locale;
+  /**
+   * Locale-independent route, so the language switch stays on this page.
+   * `null` for a page with no counterpart in the other locale — the switcher
+   * is then omitted rather than pointing at a URL that is not built.
+   */
+  route: string | null;
 }
 
-const { locale } = Astro.props;
+const { locale, route } = Astro.props;
 const t = CHROME[locale];
 const home = localePath(locale, '/');
 const anchor = (id: string) => `${home === '/' ? '' : home}/#${id}`;
 const year = 2026;
 const association = locale === 'fr' ? 'Lyon AMHE' : 'Lyon HEMA';
-const tagline =
-  locale === 'fr' ? 'Gestionnaire de Tournois AMHE' : 'HEMA Tournament Manager';
+const tagline = locale === 'fr' ? 'Gestionnaire de Tournois AMHE' : 'HEMA Tournament Manager';
+const licence = locale === 'fr' ? 'Logiciel libre sous licence' : 'Free software licensed under';
+const inspiredBy =
+  locale === 'fr' ? 'Inspiré par Hemascorecard.' : 'Inspired by Hemascorecard.';
 ---
 
 <footer class="footer">
@@ -39,6 +49,11 @@ const tagline =
       <li><a href={APP_URL} target="_blank" rel="noopener">{t.footerApp}</a></li>
       <li><a href={localePath(locale, '/privacypolicy')}>{t.footerPrivacy}</a></li>
       <li><a href={localePath(locale, '/terms')}>{t.footerTerms}</a></li>
+      {route !== null && (
+        <li>
+          <LangSwitch locale={locale} route={route} variant="footer" />
+        </li>
+      )}
     </ul>
     <a href={`mailto:${CONTACT_EMAIL}`} class="footer__contact">
       <svg
@@ -62,13 +77,18 @@ const tagline =
   </div>
   <div class="footer__bottom">
     <div>
+      {/*
+        Was "Tous droits réservés" / "All rights reserved" on an AGPL-3.0
+        project, which is the opposite of what the licence says. The licence is
+        a selling point here, so it is stated rather than merely not-denied.
+      */}
       <p class="footer__copy">
-        © MyClash {year} — {tagline}.{' '}
-        {locale === 'fr' ? 'Tous droits réservés.' : 'All rights reserved.'}
+        © MyClash {year} — {tagline}. {licence}{' '}
+        <a href={LICENSE_URL} target="_blank" rel="noopener">AGPL-3.0</a>.
       </p>
       <p class="footer__copy footer__copy--credit">
         {t.footerDevelopedBy}{' '}
-        <a href={ASSOCIATION_URL} target="_blank" rel="noopener">{association}</a>
+        <a href={ASSOCIATION_URL} target="_blank" rel="noopener">{association}</a>. {inspiredBy}
       </p>
     </div>
     <div class="footer__badges">
@@ -89,11 +109,14 @@ const tagline =
   .footer__copy--credit {
     margin-top: 0.3rem;
   }
+  .footer__copy a,
   .footer__copy--credit a {
     color: rgba(255, 255, 255, 0.55);
     text-decoration: underline;
     transition: color 0.2s;
   }
+  .footer__copy a:hover,
+  .footer__copy a:focus-visible,
   .footer__copy--credit a:hover,
   .footer__copy--credit a:focus-visible {
     color: rgba(255, 255, 255, 0.9);

@@ -13,6 +13,9 @@ describe('HTTP security configuration', () => {
     expect(origins).toContain('https://app.myclash.fr');
     expect(origins).toContain('https://admin.myclash.fr');
     expect(origins).toContain('https://staff.myclash.fr');
+    // The marketing site reads /public/site-stats from the browser. Prod serves
+    // it from the apex, dev from its own subdomain.
+    expect(origins).toContain('https://marketing.myclash.fr');
     expect(origins).not.toContain('*');
   });
 

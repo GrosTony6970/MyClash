@@ -159,6 +159,22 @@ test('page content is in the HTML, not injected by script', () => {
    * behind a `.js` class. Assert the prose is present in the served markup —
    * a crawler or a reader without JS sees the same words.
    */
+  /*
+   * Expected counts come from the copy table, not from a number typed here.
+   * A literal 6 had to be edited the moment the feature list grew, which means
+   * it was pinning the test's own fixture rather than the page.
+   */
+  const copy = readFileSync(join(HERE, '..', 'src', 'i18n', 'home.ts'), 'utf8');
+  const expected = (block) => {
+    const section =
+      new RegExp(`\\n  ${block}: \\[([\\s\\S]*?)\\n  \\],`, 'u').exec(copy)?.[1] ?? '';
+    return [...section.matchAll(/^\s{4}\{/gmu)].length;
+  };
+  const expectedFeatures = expected('features');
+  const expectedSteps = expected('steps');
+  assert.ok(expectedFeatures >= 6, `parsed ${expectedFeatures} features from home.ts`);
+  assert.ok(expectedSteps >= 3, `parsed ${expectedSteps} steps from home.ts`);
+
   for (const route of ['/', '/en']) {
     const html = pages.get(route);
     const body = html.slice(html.indexOf('<body'));
@@ -169,12 +185,55 @@ test('page content is in the HTML, not injected by script', () => {
     const cards = [...body.matchAll(/class="feature-card"/gu)].length;
     assert.equal(
       cards,
-      6,
-      `${route} should render all six feature cards server-side, saw ${cards}`,
+      expectedFeatures,
+      `${route} should render every feature card server-side, saw ${cards}`,
     );
     const steps = [...body.matchAll(/class="step"/gu)].length;
-    assert.equal(steps, 3, `${route} should render all three steps server-side, saw ${steps}`);
+    assert.equal(
+      steps,
+      expectedSteps,
+      `${route} should render every step server-side, saw ${steps}`,
+    );
   }
+});
+
+test('the stats band ships empty and is filled from the API, never prefilled', () => {
+  /*
+   * The three figures here were 120 / 45 / 3 000, hardcoded and untrue. Server
+   * rendering any digit into the band would reintroduce that, so the markup
+   * must contain no number and must start hidden — the script reveals it only
+   * once real counts arrive.
+   */
+  for (const route of ['/', '/en']) {
+    const html = pages.get(route);
+    const band = /<section class="stats"[^>]*>([\s\S]*?)<\/section>/u.exec(html);
+    assert.ok(band, `${route} has no stats band`);
+    assert.match(band[0], /\bhidden\b/u, `${route} stats band does not start hidden`);
+
+    const numbers = [...band[1].matchAll(/<div class="stat__number"[^>]*>([\s\S]*?)<\/div>/gu)];
+    assert.ok(numbers.length >= 3, `${route} stats band has ${numbers.length} slots`);
+    for (const [, contents] of numbers) {
+      assert.ok(
+        !/\d/u.test(contents),
+        `${route} server-renders a figure into the stats band: ${contents.trim()}`,
+      );
+    }
+  }
+
+  /*
+   * `hidden` alone is not enough. The band is `display: grid`, and any explicit
+   * display in our own CSS beats the UA stylesheet's `[hidden] { display: none }` —
+   * so with the attribute set correctly the band still occupied the page as an
+   * empty blue bar. Assert the override that actually makes `hidden` mean hidden.
+   */
+  const css = [...pages.get('/').matchAll(/href="(\/_astro\/[^"]+\.css)"/gu)].map((m) => m[1]);
+  assert.ok(css.length > 0, 'the landing page links no stylesheet');
+  const bundled = css.map((href) => readFileSync(join(DIST, href), 'utf8')).join('\n');
+  assert.match(
+    bundled.replace(/\s+/gu, ''),
+    /\[hidden\]\{display:none!important\}/u,
+    'the [hidden] display override is missing — a hidden stats band would still take up space',
+  );
 });
 
 test('each page declares a canonical and both hreflang alternates', () => {

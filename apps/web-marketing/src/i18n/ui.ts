@@ -95,5 +95,17 @@ export const SECTION_IDS = {
 
 export const CONTACT_EMAIL = 'admin@myclash.fr';
 export const APP_URL = 'https://app.myclash.fr';
+/** Organiser workspace — where "create my event" goes. */
+export const ADMIN_URL = 'https://admin.myclash.fr';
+export const LICENSE_URL = 'https://www.gnu.org/licenses/agpl-3.0.html';
+
+/**
+ * Where the marketing page reads its adoption counts.
+ *
+ * Baked in at build time from the `PUBLIC_API_URL` build arg (see the
+ * Dockerfile and both compose files). The default is the production host so a
+ * plain `astro build` outside Docker still produces a working page.
+ */
+export const API_URL = import.meta.env.PUBLIC_API_URL ?? 'https://api.myclash.fr';
 export const REPO_URL = 'https://github.com/GrosTony6970/MyClash';
 export const ASSOCIATION_URL = 'https://www.helloasso.com/associations/lyon-amhe';
