@@ -1,19 +1,23 @@
 # MyClash — Build Order
 
-> **Operational task list for the AI coding agent.**
+> **This is a historical record, not a task list.** It describes how MyClash was built — the order
+> the phases were tackled in and the acceptance criteria each task was held to. It is not what to
+> work on next, and its instructions are no longer in force.
 >
-> Read `docs/ARCHITECTURE.md` first. That document is the source of truth for _what_ and _why_. This document is the source of truth for _order_ and _acceptance criteria_.
+> **`CLAUDE.md` is the agent contract.** Where this file and CLAUDE.md disagree, CLAUDE.md wins.
+> Three things below are specifically out of date: work lands directly on `main`, so there is no
+> one-task-one-PR ritual; `pnpm lint && pnpm typecheck && pnpm test` is **not** the verification
+> check (see the `myclash-gates` skill for the real chain); and tasks are no longer picked in order,
+> because the project is past the build-out this file plans.
 >
-> Owner-side tasks (things only the human project owner can do — domains, hosting, legal, beta event coordination) are tracked in `docs/OWNER_TASKS.md` and cross-referenced from individual tasks below as `[needs O-NNN]`.
+> Two things here are still live, and are why the file is kept:
 >
-> **Rules of engagement:**
+> - **`[needs O-NNN]` markers** cross-reference `docs/OWNER_TASKS.md`. If a task you are reviving
+>   depends on an owner task that has not happened, stop and notify.
+> - **The acceptance criteria** record what "done" meant for each shipped task, which is useful when
+>   changing that behaviour later.
 >
-> 1. Tasks are picked **in order**. Don't skip ahead unless dependencies allow it.
-> 2. **One task = one PR.** Atomic, reviewable, testable.
-> 3. Acceptance criteria are **testable assertions**, not aspirations. If you can't verify it, the task isn't done.
-> 4. If a task is blocked or ambiguous, **stop and ask** — don't improvise architecture.
-> 5. If a task references an `[O-NNN]` owner task that hasn't been completed, **stop and notify** — don't try to work around it.
-> 6. Always run `pnpm lint && pnpm typecheck && pnpm test` before opening a PR.
+> For current system design read `docs/ARCHITECTURE.md`; for vocabulary, `docs/HIERARCHY.md`.
 
 ---
 
