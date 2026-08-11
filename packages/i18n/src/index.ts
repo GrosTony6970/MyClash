@@ -2053,6 +2053,14 @@ export const en = {
       recomputeFailed: 'Could not recompute rankings.',
       recomputeHint:
         'Rankings do NOT refresh when a match finishes. They are recomputed when an event changes status, and whenever you press this button — so a table can sit behind its results without saying so.',
+      preflight: {
+        blockingTitle: 'A recompute would fail',
+        blockingBody:
+          'These fighters have no global identity, and the whole recompute stops on the first one. Link or re-add them on the event roster, then recompute.',
+        unstableTitle: '{count} scoring fighters have no club and no HEMA Ratings ID',
+        unstableBody:
+          'They still score, but nothing links them to their next event, so their points restart under a new identity. Adding a club on their global profile fixes it.',
+      },
       freshness: {
         fresh: 'Up to date',
         stale: 'Out of date',
@@ -9859,6 +9867,14 @@ export const fr = {
       recomputeFailed: 'Impossible de recalculer le classement.',
       recomputeHint:
         "Le classement ne se met PAS à jour quand un combat se termine. Il est recalculé lors d'un changement de statut d'événement, et chaque fois que vous appuyez sur ce bouton — un tableau peut donc être en retard sur ses résultats sans le dire.",
+      preflight: {
+        blockingTitle: 'Un recalcul échouerait',
+        blockingBody:
+          "Ces combattants n'ont pas d'identité globale, et le recalcul complet s'arrête au premier. Reliez-les ou rajoutez-les sur la liste de l'événement, puis recalculez.",
+        unstableTitle: '{count} combattants classés sans club ni identifiant HEMA Ratings',
+        unstableBody:
+          'Ils sont classés, mais rien ne les relie à leur prochain événement : leurs points repartent sous une nouvelle identité. Ajouter un club sur leur profil global corrige cela.',
+      },
       freshness: {
         fresh: 'À jour',
         stale: 'Périmé',

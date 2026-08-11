@@ -8,6 +8,7 @@ import type { LeagueRankingDimensions as RankingDimensions } from '@myclash/type
 import { FFAMHE_POINTS, fuzzyMatch } from '../../league-utils';
 import { LeagueRequestsPanel } from '../../../../../src/components/league/LeagueRequestsPanel';
 import { LeagueFreshnessBadge } from './LeagueFreshnessBadge';
+import { RecomputePreflight } from './RecomputePreflight';
 import { useI18n } from '../../../../../src/i18n/I18nProvider';
 import { useConfirm, useToast } from '@myclash/ui';
 import { localeToBcp47 } from '@myclash/time';
@@ -1446,6 +1447,7 @@ export default function EditLeaguePage() {
         <div className="mt-3">
           <LeagueFreshnessBadge leagueId={leagueId} refreshToken={freshnessToken} />
         </div>
+        <RecomputePreflight leagueId={leagueId} refreshToken={freshnessToken} />
         <p className="mt-2 text-xs text-muted">{t('admin.adminLeagues.recomputeHint')}</p>
       </section>
       {confirmDialog}

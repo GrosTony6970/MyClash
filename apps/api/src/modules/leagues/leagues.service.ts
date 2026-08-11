@@ -1427,6 +1427,62 @@ export class LeaguesService {
     });
   }
 
+  /**
+   * What a recompute would complain about, without running one.
+   *
+   * `validateContributionIdentities` aborts the WHOLE recompute with a 400 when
+   * any contributor lacks a global identity, and names at most five people
+   * (`.slice(0, 5)`) — so on a big roster the organiser fixes five, runs it
+   * again, and meets the next five. This lists all of them, and stays a pure
+   * read: it never writes results and never throws on the condition it reports.
+   */
+  async getRecomputePreflight(leagueId: string, userId: string) {
+    await this.assertCanManageLeague(leagueId, userId);
+
+    const { data: links, error: linksError } = await this.supabase.service
+      .from('league_tournament_links')
+      .select('tournament_id, tournaments(name)')
+      .eq('league_id', leagueId)
+      .eq('status', 'approved');
+    if (linksError) throw new BadRequestException(linksError.message);
+
+    const blocking: Array<{ tournamentName: string; fighterNames: string[] }> = [];
+    const contributorIds = new Set<string>();
+
+    for (const link of (links ?? []) as Row[]) {
+      const inputs = await this.buildContributionInputs(leagueId, String(link['tournament_id']));
+      const tournamentName = String((link['tournaments'] as { name?: string } | null)?.name ?? '');
+      const missing = inputs.filter((input) => !input.fighterId);
+      if (missing.length > 0) {
+        blocking.push({ tournamentName, fighterNames: missing.map((input) => input.fighterName) });
+      }
+      for (const input of inputs) if (input.fighterId) contributorIds.add(input.fighterId);
+    }
+
+    return {
+      blocking,
+      unstableIdentities: await this.findUnstableContributors([...contributorIds]),
+    };
+  }
+
+  /**
+   * Contributors who carry neither a club nor a HEMA Ratings id, so no matching
+   * tier can link them at their next event and their points start over under a
+   * fresh identity. Scoped to people who ACTUALLY scored — the roster-wide
+   * version of this warning already fires when the identity is minted.
+   */
+  private async findUnstableContributors(fighterIds: string[]): Promise<string[]> {
+    if (fighterIds.length === 0) return [];
+    const { data, error } = await this.supabase.service
+      .from('global_persons')
+      .select('display_name, club_id, hema_ratings_id')
+      .in('id', fighterIds)
+      .is('club_id', null)
+      .is('hema_ratings_id', null);
+    if (error) throw new BadRequestException(error.message);
+    return ((data ?? []) as Row[]).map((row) => String(row['display_name'] ?? ''));
+  }
+
   async recomputeLeagueRankings(leagueId: string, userId?: string) {
     if (userId) await this.assertCanManageLeague(leagueId, userId);
     const league = await this.getLeagueById(leagueId);
@@ -1769,6 +1825,30 @@ export class LeaguesService {
     tournamentId: string,
     config: LeagueScoringConfig,
   ): Promise<LeagueTournamentContribution[]> {
+    const inputs = await this.buildContributionInputs(leagueId, tournamentId);
+    // An unrated event kind or an undecided bracket yields no inputs, and the
+    // scoring engine must not be reached in that case — the early returns used
+    // to live in this method and tests guard that they still short-circuit.
+    // `replaceTournamentResults` still deletes on an empty result, so the
+    // self-heal in both directions is unaffected.
+    if (inputs.length === 0) return [];
+    return this.scoring.toTournamentContributions(config, inputs);
+  }
+
+  /**
+   * The gathering half of a recompute, stopping one step BEFORE
+   * `toTournamentContributions` validates identities and throws.
+   *
+   * Split out so the pre-flight can inspect what a recompute would find without
+   * triggering the 400 it is trying to explain. Every precondition stays here —
+   * event kind, decided placements, registrations with a placement — because a
+   * pre-flight that skipped them would nag about people who cannot block
+   * anything.
+   */
+  private async buildContributionInputs(
+    leagueId: string,
+    tournamentId: string,
+  ): Promise<TournamentContributionInput[]> {
     const tournament = await this.getTournamentWithEvent(tournamentId);
     // Only STANDARD events contribute to a league — test events are dry runs
     // and club events are internal activity. Returning no contributions makes
@@ -1796,7 +1876,7 @@ export class LeaguesService {
     const exchanges =
       matchIds.length === 0 ? [] : await this.listRowsIn('exchanges', 'match_id', matchIds);
     const doubleHits = this.doubleHitsByRegistration(matches, exchanges);
-    const inputs = this.toContributionInputs(
+    return this.toContributionInputs(
       leagueId,
       tournament,
       groupName,
@@ -1804,7 +1884,6 @@ export class LeaguesService {
       doubleHits,
       placements,
     );
-    return this.scoring.toTournamentContributions(config, inputs);
   }
 
   /**

@@ -2207,3 +2207,76 @@ describe('LeaguesService.getFreshness gathering', () => {
     expect(report.state).toBe('fresh');
   });
 });
+
+describe('LeaguesService.getRecomputePreflight', () => {
+  function makePreflightService(inputs: Array<{ fighterId: string | null; fighterName: string }>) {
+    const links: Record<string, unknown> = {
+      select: vi.fn(() => links),
+      eq: vi.fn((col: string) =>
+        col === 'status'
+          ? Promise.resolve({
+              data: [{ tournament_id: 'T1', tournaments: { name: 'Longsword' } }],
+              error: null,
+            })
+          : links,
+      ),
+    };
+    const globalPersons: Record<string, unknown> = {
+      select: vi.fn(() => globalPersons),
+      in: vi.fn(() => globalPersons),
+      is: vi.fn(() => globalPersons),
+      // Second .is() resolves the chain — no contributor lacks both here.
+      then: undefined as never,
+    };
+    let isCalls = 0;
+    globalPersons['is'] = vi.fn(() => {
+      isCalls += 1;
+      return isCalls >= 2 ? Promise.resolve({ data: [], error: null }) : globalPersons;
+    });
+    const supabaseService = {
+      from: vi.fn((table: string) => {
+        if (table === 'league_tournament_links') return links;
+        if (table === 'global_persons') return globalPersons;
+        throw new Error(`unexpected table ${table}`);
+      }),
+    };
+    const service = new LeaguesService(
+      { service: supabaseService } as never,
+      {} as never,
+      {} as never,
+    );
+    vi.spyOn(
+      service as unknown as { assertCanManageLeague: () => Promise<void> },
+      'assertCanManageLeague',
+    ).mockResolvedValue(undefined);
+    vi.spyOn(
+      service as unknown as { buildContributionInputs: () => Promise<unknown> },
+      'buildContributionInputs',
+    ).mockResolvedValue(inputs);
+    return service;
+  }
+
+  it('lists EVERY blocked fighter, not the five the 400 names', async () => {
+    // validateContributionIdentities slices its message to 5, so an organiser
+    // fixing a big roster meets the next five on every retry. The whole point
+    // of the pre-flight is that it does not truncate.
+    const service = makePreflightService(
+      Array.from({ length: 8 }, (_, i) => ({ fighterId: null, fighterName: `Fighter ${i + 1}` })),
+    );
+
+    const result = await service.getRecomputePreflight('L1', 'user-1');
+
+    expect(result.blocking).toHaveLength(1);
+    expect(result.blocking[0]!.tournamentName).toBe('Longsword');
+    expect(result.blocking[0]!.fighterNames).toHaveLength(8);
+    expect(result.blocking[0]!.fighterNames).toContain('Fighter 8');
+  });
+
+  it('reports nothing blocking when every contributor carries an identity', async () => {
+    const service = makePreflightService([{ fighterId: 'gp-1', fighterName: 'Jean' }]);
+
+    const result = await service.getRecomputePreflight('L1', 'user-1');
+
+    expect(result.blocking).toEqual([]);
+  });
+});

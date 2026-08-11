@@ -3363,6 +3363,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  '/api/v1/admin/leagues/{leagueId}/recompute-preflight': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** What a recompute would refuse or warn about, without running one */
+    get: operations['LeaguesController_recomputePreflight'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   '/api/v1/admin/leagues/{leagueId}/recompute': {
     parameters: {
       query?: never;
@@ -16246,6 +16263,25 @@ export interface operations {
     };
   };
   LeaguesController_freshness: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        leagueId: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  LeaguesController_recomputePreflight: {
     parameters: {
       query?: never;
       header?: never;

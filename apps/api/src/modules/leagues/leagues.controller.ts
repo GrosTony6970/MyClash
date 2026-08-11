@@ -622,6 +622,20 @@ export class LeaguesController {
     return this.leagues.getFreshness(leagueId, userId);
   }
 
+  @Get('admin/leagues/:leagueId/recompute-preflight')
+  @ApiBearerAuth()
+  @ApiParam({ name: 'leagueId', type: 'string', format: 'uuid' })
+  @ApiOperation({
+    summary: 'What a recompute would refuse or warn about, without running one',
+  })
+  async recomputePreflight(
+    @Param('leagueId', ParseUUIDPipe) leagueId: string,
+    @Req() req: FastifyRequest,
+  ) {
+    const userId = await getUserId(req, this.supabase);
+    return this.leagues.getRecomputePreflight(leagueId, userId);
+  }
+
   @Post('admin/leagues/:leagueId/recompute')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Manually recompute league rankings' })
