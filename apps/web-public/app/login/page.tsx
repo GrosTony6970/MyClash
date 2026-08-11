@@ -5,7 +5,16 @@ import { getPublicApiUrl } from '@/lib/api-url';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useMemo, useState } from 'react';
-import { Button, GoogleIcon, PasswordChecklist } from '@myclash/ui';
+import {
+  AuthDivider,
+  AuthNotice,
+  AuthPanel,
+  Button,
+  GoogleIcon,
+  PasswordChecklist,
+  authFieldClass,
+} from '@myclash/ui';
+import type { AuthPanelTab } from '@myclash/ui';
 import { validatePassword } from '@myclash/types';
 import { LegalConsent } from '../../src/components/LegalConsent';
 import { useI18n } from '../../src/i18n/I18nProvider';
@@ -176,311 +185,213 @@ export default function PublicLoginPage() {
     }
   }
 
+  const tabs: ReadonlyArray<AuthPanelTab<Tab>> = [
+    { value: 'signin', label: t('publicApp.login.tabSignIn') },
+    { value: 'signup', label: t('publicApp.login.tabSignUp') },
+  ];
+
   return (
-    <main
-      id="main-content"
-      data-theme="dark"
-      data-accent="personal"
-      className="min-h-screen bg-background px-4 py-6 text-foreground sm:px-6"
+    <AuthPanel<Tab>
+      mainId="main-content"
+      accent="personal"
+      brandHref="/"
+      brandName={t('app.name')}
+      eyebrow={t('publicApp.login.eyebrow')}
+      title={t('publicApp.login.title')}
+      subtitle={t('publicApp.login.subtitle')}
+      brandMark={
+        <Image
+          src="/brand/Logomini_nobackground.png"
+          alt=""
+          width={48}
+          height={48}
+          priority
+          className="h-11 w-11 lg:h-12 lg:w-12"
+        />
+      }
+      heroArt={
+        <Image
+          src="/brand/Login_logo.png"
+          alt=""
+          width={1423}
+          height={1007}
+          className="mx-auto mb-8 h-auto w-full max-w-md"
+          priority
+        />
+      }
+      tabs={tabs}
+      activeTab={tab}
+      onTabChange={(value) => {
+        setTab(value);
+        reset();
+      }}
+      tabsLabel={t('publicApp.login.tabsLabel')}
+      footer={
+        tab === 'reset' ? (
+          <button
+            type="button"
+            onClick={() => {
+              setTab('signin');
+              reset();
+            }}
+            className="text-sm font-semibold text-muted hover:text-foreground"
+          >
+            ← {t('publicApp.login.tabSignIn')}
+          </button>
+        ) : (
+          <Link href="/" className="text-sm font-semibold text-muted hover:text-foreground">
+            {t('publicApp.login.backToEvents')}
+          </Link>
+        )
+      }
     >
-      <div className="mx-auto flex min-h-[calc(100vh-3rem)] w-full max-w-5xl items-center justify-center">
-        <section className="grid w-full overflow-hidden rounded-lg border border-border bg-surface shadow-2xl lg:grid-cols-[1fr_460px]">
-          <div className="relative hidden min-h-[560px] overflow-hidden bg-surface p-8 lg:block">
-            <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,color-mix(in_srgb,var(--color-accent)_35%,transparent),transparent_34%),radial-gradient(circle_at_80%_10%,color-mix(in_srgb,var(--color-warning)_24%,transparent),transparent_26%),linear-gradient(135deg,var(--color-background),var(--color-surface)_55%,var(--color-border))]" />
-            <div className="relative flex h-full flex-col justify-between">
-              <Link href="/" className="flex items-center gap-3">
-                <Image
-                  src="/brand/Logomini_nobackground.png"
-                  alt=""
-                  width={48}
-                  height={48}
-                  priority
-                />
-                <div>
-                  <p className="font-display text-xl font-bold">{t('app.name')}</p>
-                  <p className="text-xs font-bold uppercase tracking-[0.22em] text-gold">
-                    {t('publicApp.login.eyebrow')}
-                  </p>
-                </div>
-              </Link>
-              <div>
-                <Image
-                  src="/brand/Login_logo.png"
-                  alt=""
-                  width={1423}
-                  height={1007}
-                  className="mx-auto mb-8 h-auto w-full max-w-md"
-                  priority
-                />
-                <h1 className="max-w-lg text-4xl font-black leading-tight">
-                  {t('publicApp.login.title')}
-                </h1>
-                <p className="mt-4 max-w-md text-sm leading-6 text-muted">
-                  {t('publicApp.login.subtitle')}
-                </p>
-              </div>
-            </div>
-          </div>
+      {tab === 'reset' ? (
+        <>
+          <h2 className="text-2xl font-black">{t('publicApp.login.resetTitle')}</h2>
+          <p className="text-sm leading-6 text-muted">{t('publicApp.login.resetDescription')}</p>
+        </>
+      ) : (
+        <>
+          <h2 className="text-2xl font-black">
+            {tab === 'signin' ? t('publicApp.login.formTitle') : t('publicApp.login.signupTitle')}
+          </h2>
+          <p className="text-sm leading-6 text-muted">
+            {tab === 'signin'
+              ? t('publicApp.login.formDescription')
+              : t('publicApp.login.signupDescription')}
+          </p>
+        </>
+      )}
 
-          <div className="p-5 sm:p-8">
-            <div className="mb-6 flex items-center gap-3 lg:hidden">
-              <Image src="/brand/Logomini_nobackground.png" alt="" width={44} height={44} />
-              <div>
-                <p className="font-display text-lg font-bold">{t('app.name')}</p>
-                <p className="text-xs font-bold uppercase tracking-[0.18em] text-gold">
-                  {t('publicApp.login.eyebrow')}
-                </p>
-              </div>
-            </div>
+      <label className="block">
+        <span className="text-sm font-semibold text-foreground">
+          {t('auth.login.emailAddress')}
+        </span>
+        <input
+          type="email"
+          value={email}
+          onChange={(event) => setEmail(event.target.value)}
+          placeholder={t('auth.login.emailPlaceholder')}
+          className={authFieldClass}
+        />
+      </label>
 
-            <div
-              role="tablist"
-              aria-label={t('publicApp.login.tabsLabel')}
-              className="mb-5 flex gap-1 rounded-md bg-background p-1"
-            >
-              <TabButton
-                current={tab}
-                value="signin"
-                onClick={() => {
-                  setTab('signin');
-                  reset();
-                }}
-                label={t('publicApp.login.tabSignIn')}
-              />
-              <TabButton
-                current={tab}
-                value="signup"
-                onClick={() => {
-                  setTab('signup');
-                  reset();
-                }}
-                label={t('publicApp.login.tabSignUp')}
-              />
-            </div>
+      {(tab === 'signin' || tab === 'signup') && (
+        <label className="block">
+          <span className="text-sm font-semibold text-foreground">{t('auth.login.password')}</span>
+          <input
+            type="password"
+            value={password}
+            onChange={(event) => setPassword(event.target.value)}
+            placeholder={t('auth.login.passwordPlaceholder')}
+            autoComplete={tab === 'signup' ? 'new-password' : 'current-password'}
+            className={authFieldClass}
+          />
+        </label>
+      )}
 
-            <div className="space-y-4">
-              {tab === 'reset' ? (
-                <>
-                  <h2 className="text-2xl font-black">{t('publicApp.login.resetTitle')}</h2>
-                  <p className="text-sm leading-6 text-muted">
-                    {t('publicApp.login.resetDescription')}
-                  </p>
-                </>
-              ) : (
-                <>
-                  <h2 className="text-2xl font-black">
-                    {tab === 'signin'
-                      ? t('publicApp.login.formTitle')
-                      : t('publicApp.login.signupTitle')}
-                  </h2>
-                  <p className="text-sm leading-6 text-muted">
-                    {tab === 'signin'
-                      ? t('publicApp.login.formDescription')
-                      : t('publicApp.login.signupDescription')}
-                  </p>
-                </>
-              )}
+      {tab === 'signup' && (
+        <>
+          <label className="block">
+            <span className="text-sm font-semibold text-foreground">
+              {t('publicApp.login.passwordConfirmLabel')}
+            </span>
+            <input
+              type="password"
+              value={passwordConfirm}
+              onChange={(event) => setPasswordConfirm(event.target.value)}
+              autoComplete="new-password"
+              className={authFieldClass}
+            />
+          </label>
+          <PasswordChecklist failing={passwordValidation.failing} t={t} />
+          <LegalConsent checked={acceptedLegal} onChange={setAcceptedLegal} />
+        </>
+      )}
 
-              <label className="block">
-                <span className="text-sm font-semibold text-foreground">
-                  {t('auth.login.emailAddress')}
-                </span>
-                <input
-                  type="email"
-                  value={email}
-                  onChange={(event) => setEmail(event.target.value)}
-                  placeholder={t('auth.login.emailPlaceholder')}
-                  className="mt-2 w-full rounded-md border border-border bg-background px-3 py-3 text-foreground outline-none transition focus:border-accent focus:ring-2 focus:ring-accent/30"
-                />
-              </label>
+      {tab === 'signin' && (
+        <Button
+          type="button"
+          disabled={busy}
+          loading={busy}
+          variant="primary"
+          className="w-full py-3"
+          onClick={() => void handlePasswordSignIn()}
+        >
+          {busy ? t('auth.login.signingIn') : t('auth.login.signIn')}
+        </Button>
+      )}
 
-              {(tab === 'signin' || tab === 'signup') && (
-                <label className="block">
-                  <span className="text-sm font-semibold text-foreground">
-                    {t('auth.login.password')}
-                  </span>
-                  <input
-                    type="password"
-                    value={password}
-                    onChange={(event) => setPassword(event.target.value)}
-                    placeholder={t('auth.login.passwordPlaceholder')}
-                    autoComplete={tab === 'signup' ? 'new-password' : 'current-password'}
-                    className="mt-2 w-full rounded-md border border-border bg-background px-3 py-3 text-foreground outline-none transition focus:border-accent focus:ring-2 focus:ring-accent/30"
-                  />
-                </label>
-              )}
+      {tab === 'signup' && (
+        <Button
+          type="button"
+          disabled={
+            busy || !acceptedLegal || !passwordValidation.ok || password !== passwordConfirm
+          }
+          loading={busy}
+          variant="primary"
+          className="w-full py-3"
+          onClick={() => void handleSignUp()}
+        >
+          {busy ? t('common.loading') : t('publicApp.login.createAccount')}
+        </Button>
+      )}
 
-              {tab === 'signup' && (
-                <>
-                  <label className="block">
-                    <span className="text-sm font-semibold text-foreground">
-                      {t('publicApp.login.passwordConfirmLabel')}
-                    </span>
-                    <input
-                      type="password"
-                      value={passwordConfirm}
-                      onChange={(event) => setPasswordConfirm(event.target.value)}
-                      autoComplete="new-password"
-                      className="mt-2 w-full rounded-md border border-border bg-background px-3 py-3 text-foreground outline-none transition focus:border-accent focus:ring-2 focus:ring-accent/30"
-                    />
-                  </label>
-                  <PasswordChecklist failing={passwordValidation.failing} t={t} />
-                  <LegalConsent checked={acceptedLegal} onChange={setAcceptedLegal} />
-                </>
-              )}
+      {tab === 'reset' && (
+        <Button
+          type="button"
+          disabled={busy}
+          loading={busy}
+          variant="primary"
+          className="w-full py-3"
+          onClick={() => void handleResetRequest()}
+        >
+          {busy ? t('common.loading') : t('publicApp.login.sendResetLink')}
+        </Button>
+      )}
 
-              {tab === 'signin' && (
-                <Button
-                  type="button"
-                  disabled={busy}
-                  loading={busy}
-                  variant="primary"
-                  className="w-full py-3"
-                  onClick={() => void handlePasswordSignIn()}
-                >
-                  {busy ? t('auth.login.signingIn') : t('auth.login.signIn')}
-                </Button>
-              )}
+      {tab === 'signin' && (
+        <button
+          type="button"
+          onClick={() => {
+            setTab('reset');
+            reset();
+          }}
+          className="text-xs font-semibold text-muted underline-offset-2 hover:text-foreground hover:underline"
+        >
+          {t('publicApp.login.forgotPassword')}
+        </button>
+      )}
 
-              {tab === 'signup' && (
-                <Button
-                  type="button"
-                  disabled={
-                    busy || !acceptedLegal || !passwordValidation.ok || password !== passwordConfirm
-                  }
-                  loading={busy}
-                  variant="primary"
-                  className="w-full py-3"
-                  onClick={() => void handleSignUp()}
-                >
-                  {busy ? t('common.loading') : t('publicApp.login.createAccount')}
-                </Button>
-              )}
+      {tab !== 'reset' && (
+        <>
+          <AuthDivider label={t('publicApp.login.or')} />
 
-              {tab === 'reset' && (
-                <Button
-                  type="button"
-                  disabled={busy}
-                  loading={busy}
-                  variant="primary"
-                  className="w-full py-3"
-                  onClick={() => void handleResetRequest()}
-                >
-                  {busy ? t('common.loading') : t('publicApp.login.sendResetLink')}
-                </Button>
-              )}
+          <Button
+            type="button"
+            disabled={busy}
+            loading={busy}
+            variant="ghost"
+            className="w-full py-3"
+            onClick={() => void handleSendMagicLink()}
+          >
+            {t('publicApp.login.sendMagicLink')}
+          </Button>
 
-              {tab === 'signin' && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setTab('reset');
-                    reset();
-                  }}
-                  className="text-xs font-semibold text-muted underline-offset-2 hover:text-foreground hover:underline"
-                >
-                  {t('publicApp.login.forgotPassword')}
-                </button>
-              )}
+          <Button
+            type="button"
+            variant="ghost"
+            className="w-full py-3"
+            leftIcon={<GoogleIcon />}
+            onClick={() => void continueWithGoogle()}
+          >
+            {t('auth.oauth.continueWithGoogle')}
+          </Button>
+        </>
+      )}
 
-              {tab !== 'reset' && (
-                <>
-                  <div className="flex items-center gap-3 text-xs uppercase tracking-widest text-muted">
-                    <span className="h-px flex-1 bg-border" />
-                    <span>{t('publicApp.login.or')}</span>
-                    <span className="h-px flex-1 bg-border" />
-                  </div>
-
-                  <Button
-                    type="button"
-                    disabled={busy}
-                    loading={busy}
-                    variant="ghost"
-                    className="w-full py-3"
-                    onClick={() => void handleSendMagicLink()}
-                  >
-                    {t('publicApp.login.sendMagicLink')}
-                  </Button>
-
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    className="w-full py-3"
-                    leftIcon={<GoogleIcon />}
-                    onClick={() => void continueWithGoogle()}
-                  >
-                    {t('auth.oauth.continueWithGoogle')}
-                  </Button>
-                </>
-              )}
-
-              {message && (
-                <p
-                  className="rounded-md border border-success/30 bg-success/10 px-3 py-2 text-sm text-success"
-                  role="status"
-                >
-                  {message}
-                </p>
-              )}
-              {error && (
-                <p
-                  className="rounded-md border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger"
-                  role="alert"
-                >
-                  {error}
-                </p>
-              )}
-
-              <div className="border-t border-border pt-4">
-                {tab === 'reset' ? (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setTab('signin');
-                      reset();
-                    }}
-                    className="text-sm font-semibold text-muted hover:text-foreground"
-                  >
-                    ← {t('publicApp.login.tabSignIn')}
-                  </button>
-                ) : (
-                  <Link href="/" className="text-sm font-semibold text-muted hover:text-foreground">
-                    {t('publicApp.login.backToEvents')}
-                  </Link>
-                )}
-              </div>
-            </div>
-          </div>
-        </section>
-      </div>
-    </main>
-  );
-}
-
-function TabButton({
-  current,
-  value,
-  onClick,
-  label,
-}: {
-  current: Tab;
-  value: Tab;
-  onClick: () => void;
-  label: string;
-}) {
-  const active = current === value;
-  return (
-    <button
-      type="button"
-      role="tab"
-      aria-selected={active}
-      onClick={onClick}
-      className={[
-        'flex-1 rounded-md px-3 py-2 text-sm font-bold transition',
-        active ? 'bg-accent text-accent-foreground shadow' : 'text-muted hover:text-foreground',
-      ].join(' ')}
-    >
-      {label}
-    </button>
+      {message && <AuthNotice tone="success">{message}</AuthNotice>}
+      {error && <AuthNotice tone="error">{error}</AuthNotice>}
+    </AuthPanel>
   );
 }
