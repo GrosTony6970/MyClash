@@ -97,6 +97,11 @@ export class AssignmentsService {
     personId: string,
     tournamentId?: string,
   ): Promise<AssignmentReport> {
+    // Every query below raises on error. A dropped error here does not degrade
+    // gracefully — it returns a report that says "nothing assigned", which is
+    // indistinguishable from the truth and is what let three separate broken
+    // queries live in this file unnoticed.
+
     // 1. Every registration this person has in this event.
     const { data: regRows, error: regErr } = await this.supabase.service
       .from('registrations')
@@ -121,10 +126,11 @@ export class AssignmentsService {
     // 2. Pool memberships for these registrations.
     let pools: AssignmentSummary[] = [];
     if (regIds.length > 0) {
-      const { data: poolRows } = await this.supabase.service
+      const { data: poolRows, error: poolErr } = await this.supabase.service
         .from('pool_members')
         .select('registration_id, pools(id, name, phases(tournament_id, tournaments(id, name)))')
         .in('registration_id', regIds);
+      if (poolErr) throw new BadRequestException(poolErr.message);
       pools = (
         (poolRows ?? []) as unknown as Array<{
           registration_id: string;
@@ -156,12 +162,13 @@ export class AssignmentsService {
     let bracketSlots: AssignmentSummary[] = [];
     if (regIds.length > 0) {
       const inList = regIds.join(',');
-      const { data: slotRows } = await this.supabase.service
+      const { data: slotRows, error: slotErr } = await this.supabase.service
         .from('bracket_slots')
         .select(
           'id, round, position, registration_a_id, registration_b_id, phases(tournament_id, tournaments(id, name))',
         )
         .or(`registration_a_id.in.(${inList}),registration_b_id.in.(${inList})`);
+      if (slotErr) throw new BadRequestException(slotErr.message);
       bracketSlots = (
         (slotRows ?? []) as unknown as Array<{
           id: string;
@@ -195,19 +202,26 @@ export class AssignmentsService {
     let matchesAsFighter: AssignmentSummary[] = [];
     if (regIds.length > 0) {
       const inList = regIds.join(',');
-      const { data: matchRows } = await this.supabase.service
+      // The view has no tournament_name and never has had one, so naming it
+      // 400'd the whole query. The error was dropped, so a fighter's matches
+      // read back empty — and the blocking set below silently lost its fighter
+      // half. The name comes from regToTournament, the map the pool branch
+      // above already resolves through.
+      const { data: matchRows, error: matchErr } = await this.supabase.service
         .from('vw_tournament_query_matches')
         .select(
-          'match_id, match_number_label, status, tournament_id, tournament_name, red_registration_id, blue_registration_id',
+          'match_id, match_number_label, status, tournament_id, red_registration_id, blue_registration_id',
         )
         .or(`red_registration_id.in.(${inList}),blue_registration_id.in.(${inList})`);
+      if (matchErr) throw new BadRequestException(matchErr.message);
       matchesAsFighter = (
         (matchRows ?? []) as unknown as Array<{
           match_id: string;
           match_number_label: string | null;
           status: string;
           tournament_id: string;
-          tournament_name: string;
+          red_registration_id: string | null;
+          blue_registration_id: string | null;
         }>
       )
         .filter((row) => !tournamentId || row.tournament_id === tournamentId)
@@ -216,7 +230,12 @@ export class AssignmentsService {
           label: row.match_number_label ?? '',
           status: row.status,
           tournamentId: row.tournament_id,
-          tournamentName: row.tournament_name,
+          // Every row matched on one side or the other being one of regIds, so
+          // one of these two lookups always hits.
+          tournamentName:
+            regToTournament.get(row.red_registration_id ?? '')?.name ??
+            regToTournament.get(row.blue_registration_id ?? '')?.name ??
+            '',
         }));
     }
 
@@ -228,10 +247,11 @@ export class AssignmentsService {
     // `phases` (0001), exactly as the pool branch below already does. Naming it
     // directly 400'd the query, so `legacyRefMatches` was always undefined and
     // a referee's match assignments never appeared on this surface at all.
-    const { data: legacyRefMatches } = await this.supabase.service
+    const { data: legacyRefMatches, error: legacyRefErr } = await this.supabase.service
       .from('matches')
       .select('id, match_number_label, status, referee_id, phases(tournament_id)')
       .eq('referee_id', personId);
+    if (legacyRefErr) throw new BadRequestException(legacyRefErr.message);
     for (const row of (legacyRefMatches ?? []) as unknown as Array<{
       id: string;
       match_number_label: string | null;
@@ -253,7 +273,7 @@ export class AssignmentsService {
     }
 
     // 6. Referee assignments (scope-aware).
-    const { data: refAssignments } = await this.supabase.service
+    const { data: refAssignments, error: refAssignErr } = await this.supabase.service
       .from('referee_assignments')
       .select(
         // The match branch traverses phases for the same reason the pool branch
@@ -263,6 +283,7 @@ export class AssignmentsService {
         'id, scope_type, pool_id, match_id, role, pools(phases(tournament_id, tournaments(id, name))), matches(id, match_number_label, status, phases(tournament_id, tournaments(id, name)))',
       )
       .eq('person_id', personId);
+    if (refAssignErr) throw new BadRequestException(refAssignErr.message);
     const refereeAssignments: AssignmentSummary[] = [];
     for (const row of (refAssignments ?? []) as unknown as Array<{
       id: string;

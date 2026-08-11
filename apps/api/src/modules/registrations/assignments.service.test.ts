@@ -75,7 +75,6 @@ describe('AssignmentsService.getEventAssignments', () => {
               match_number_label: 'L1-PA-M1',
               status: 'scheduled',
               tournament_id: 't-1',
-              tournament_name: 'Longsword',
               red_registration_id: 'reg-1',
               blue_registration_id: 'other',
             },
@@ -84,7 +83,6 @@ describe('AssignmentsService.getEventAssignments', () => {
               match_number_label: 'L1-PA-M5',
               status: 'completed',
               tournament_id: 't-1',
-              tournament_name: 'Longsword',
               red_registration_id: 'reg-1',
               blue_registration_id: 'other',
             },
@@ -111,6 +109,94 @@ describe('AssignmentsService.getEventAssignments', () => {
     expect(report.pools).toEqual([
       { poolId: 'pool-1', poolName: 'Pool A', tournamentId: 't-1', tournamentName: 'Longsword' },
     ]);
+  });
+
+  // vw_tournament_query_matches has never projected tournament_name. Asking for
+  // it 400'd the whole query, and the dropped error turned that into an empty
+  // matchesAsFighter — so a fighter's own matches never blocked a deletion and
+  // never rendered. The name is resolved from the registration embed instead.
+  it('does not ask the view for a column it does not project', async () => {
+    const selectArgs: string[] = [];
+    fromMock.mockImplementation((tableName: string) => {
+      if (tableName === 'registrations') {
+        return awaitableChain({
+          data: [
+            {
+              id: 'reg-1',
+              tournament_id: 't-1',
+              tournaments: { id: 't-1', name: 'Longsword', event_id: 'event-1' },
+            },
+          ],
+          error: null,
+        });
+      }
+      if (tableName === 'vw_tournament_query_matches') {
+        const chain = awaitableChain({
+          data: [
+            {
+              match_id: 'm-1',
+              match_number_label: 'L1-PA-M1',
+              status: 'scheduled',
+              tournament_id: 't-1',
+              red_registration_id: 'reg-1',
+              blue_registration_id: 'other',
+            },
+          ],
+          error: null,
+        });
+        chain.select = vi.fn().mockImplementation((columns: string) => {
+          selectArgs.push(columns);
+          return chain;
+        });
+        return chain;
+      }
+      return awaitableChain({ data: [], error: null });
+    });
+
+    const report = await service.getEventAssignments('event-1', 'person-1');
+
+    expect(selectArgs).toHaveLength(1);
+    expect(selectArgs[0]).not.toContain('tournament_name');
+    // Still named, resolved through the registration the match was matched on.
+    expect(report.matchesAsFighter).toEqual([
+      {
+        matchId: 'm-1',
+        label: 'L1-PA-M1',
+        status: 'scheduled',
+        tournamentId: 't-1',
+        tournamentName: 'Longsword',
+      },
+    ]);
+  });
+
+  it('raises rather than reporting an empty assignment list when a query fails', async () => {
+    fromMock.mockImplementation((tableName: string) => {
+      if (tableName === 'registrations') {
+        return awaitableChain({
+          data: [
+            {
+              id: 'reg-1',
+              tournament_id: 't-1',
+              tournaments: { id: 't-1', name: 'Longsword', event_id: 'event-1' },
+            },
+          ],
+          error: null,
+        });
+      }
+      if (tableName === 'vw_tournament_query_matches') {
+        return awaitableChain({
+          data: null,
+          error: { message: 'column vw_tournament_query_matches.nope does not exist' },
+        });
+      }
+      return awaitableChain({ data: [], error: null });
+    });
+
+    await expect(service.getEventAssignments('event-1', 'person-1')).rejects.toMatchObject({
+      response: expect.objectContaining({
+        message: expect.stringContaining('does not exist'),
+      }),
+    });
   });
 
   it('flags hasBlockingMatch when the person is the referee on a running match', async () => {
@@ -259,7 +345,6 @@ describe('AssignmentsService.forceDeleteRegistration', () => {
               match_number_label: 'L1-PA-M1',
               status: 'scheduled',
               tournament_id: 't-1',
-              tournament_name: 'Longsword',
               red_registration_id: 'reg-1',
               blue_registration_id: 'other',
             },
@@ -320,7 +405,6 @@ describe('AssignmentsService.forceDeleteRegistration', () => {
               match_number_label: 'L1-PA-M5',
               status: 'completed',
               tournament_id: 't-1',
-              tournament_name: 'Longsword',
               red_registration_id: 'reg-1',
               blue_registration_id: 'other',
             },
@@ -373,7 +457,6 @@ describe('AssignmentsService.forceDeletePersonInEvent', () => {
               match_number_label: 'L1-PA-M5',
               status: 'completed',
               tournament_id: 't-A',
-              tournament_name: 'Longsword',
               red_registration_id: 'reg-A',
               blue_registration_id: 'other',
             },
