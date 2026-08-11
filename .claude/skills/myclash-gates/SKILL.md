@@ -5,8 +5,8 @@ description: The real verification chain for this repo — what to run before pu
 
 # MyClash verification gates
 
-`pnpm lint && pnpm typecheck && pnpm test` is **not** the CI check. CI's Lint job runs sixteen
-further steps — fifteen independent gates plus one build. Running only the three and pushing is
+`pnpm lint && pnpm typecheck && pnpm test` is **not** the CI check. CI's Lint job runs twenty
+further steps — nineteen independent gates plus one build. Running only the three and pushing is
 the most common way to turn `main` red here.
 
 Source of truth: `.github/workflows/ci.yml`. If this file and that file disagree, the workflow wins.
@@ -35,15 +35,19 @@ pnpm turbo run typecheck
 pnpm turbo run lint
 pnpm turbo run test
 
+pnpm quality:peers               # peerDependencyRules — a non-camelCase key no-ops silently
 pnpm security:client-secrets     # no server secrets reachable from client bundles
 pnpm quality:todos               # untracked debt markers
 pnpm quality:api-docs            # API doc coverage
 pnpm quality:complexity          # per-function/file line budget (see below)
+pnpm quality:test-code-leak      # test code kept out of the emit surface
+pnpm quality:client-env          # client env build-arg contract
 pnpm --filter @myclash/api build # required: OpenAPI is emitted by booting dist/app.module
 pnpm quality:openapi-drift       # generated client vs live routes
 pnpm quality:shared-types        # shared-type leaks
 pnpm design:lint                 # DESIGN.md vs packages/ui/src/theme.css
 pnpm db:review                   # schema/RLS review gates
+pnpm db:realtime-bindings        # an unpublished table in any binding kills the channel
 pnpm db:perf:fixture
 pnpm infra:review
 pnpm observability:review
@@ -64,7 +68,7 @@ locally either — you will reproduce the same blindness.
 (`git stash`). If it is red there too, it belongs to whoever introduced it — say so and move on
 rather than absorbing someone else's failure into your slice.
 
-**The complexity baseline is line-keyed.** Entries point at a file *and line*, so any edit above a
+**The complexity baseline is line-keyed.** Entries point at a file _and line_, so any edit above a
 baselined function re-points it and the gate goes red on untouched code. Re-point rather than
 refactor when the function itself did not change. Refresh with `--write-baseline` only when HEAD
 is green and you have audited the diff — and re-run the identity check **after** committing, since
