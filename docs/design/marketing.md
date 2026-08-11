@@ -2,7 +2,7 @@
 
 > Delta against [`/DESIGN.md`](../../DESIGN.md). Only what this surface changes. The language, tokens and rules come from the root file — read it first.
 
-`myclash.fr` (apex) · static HTML served by Caddy · **no framework, no build step**
+`myclash.fr` (apex) · **Astro 6**, prerendered to `dist/` (`output: 'static'`), served by Caddy · no Tailwind, no React
 
 ## Read this first
 
@@ -27,7 +27,7 @@ That difference justifies a hero, a wider grid (`max-w-7xl`), and more air than 
 
 ## Device & density
 
-Desktop + mobile web, SEO-driven. Six static files: `/`, `/en`, `/terms`, `/en/terms`, `/privacypolicy`, `/en/privacypolicy`.
+Desktop + mobile web, SEO-driven. Six prerendered routes — `/`, `/en`, `/terms`, `/en/terms`, `/privacypolicy`, `/en/privacypolicy` — plus a `404`.
 
 ## Scopes
 
@@ -35,7 +35,11 @@ None. No Tailwind, no `theme.css`, no `data-theme` / `data-accent`. `theme-color
 
 It shares the product palette **by copy, not by import** — `#0f172a`, `#1e293b`, `#f1f5f9`, `#e2e8f0`, `#64748b`, `#b91c1c`, `#f59e0b` all appear in `theme.css` too, as literals typed twice.
 
-**Sharing values is not sharing a system.** When `theme.css` moves, this app does not follow. That is an accepted cost of having no build step, and a reason the migration is worth doing.
+**Sharing values is not sharing a system.** When `theme.css` moves, this app does not follow.
+
+This used to be excused as the cost of having no build step. That excuse is gone: the Astro
+migration gave this app a real build, so importing `theme.css` is now a normal thing to do rather
+than an architectural change. What remains is the visible brand decision in [D4](known-deviations.md#d4--web-marketing-is-still-on-the-legacy-design-language), not a technical obstacle.
 
 ## What differs
 

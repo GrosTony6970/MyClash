@@ -87,16 +87,18 @@ Worth remembering _why_ it was dangerous rather than merely dead: its radius sca
 
 **Rule broken:** Typography (Fraunces + Geist). **Target: `web-marketing` adopts the Tournament Manual.**
 
-`apps/web-marketing` is static HTML on Caddy. It imports no `@myclash/ui`, no `theme.css`, and hand-rolls its palette in `:root`. It runs **Cinzel + Cormorant** — the language the product left behind. This is the source of the "Cinzel + Inter" claim that survived in the docs for months.
+`apps/web-marketing` is **Astro 6**, prerendered to `dist/` and served by Caddy. It imports no `@myclash/ui`, no `theme.css`, and hand-rolls its palette in `src/styles/base.css`. It runs **Cinzel + Cormorant Garamond** — the language the product left behind. This is the source of the "Cinzel + Inter" claim that survived in the docs for months.
 
 Two specific defects on top of the font stack:
 
 1. **Its brand red is the danger value.** `--red: #dc2626` is used as the brand red while `--red-dark: #b91c1c` — the product's actual accent — is demoted to secondary. Inverted.
 2. **~~Its body font never loaded.~~** — _fixed_: `family=Cormorant+Garant` was a typo for \*Cormorant **Garamond\*** in all 6 HTML files. Google Fonts **silently drops an unknown family from a combined request** rather than erroring — the request returned `HTTP 200` with only Cinzel (860 bytes vs 2136 after the fix), so there was no 400, no console error, and no signal of any kind. Cinzel loaded; the body copy fell back to Times for months. Corrected; kept here as context for the migration, and as a reminder that a font can be silently absent.
 
-It shares the product palette **by copy, not by import** (`#0f172a`, `#1e293b`, `#f1f5f9`, `#64748b`, `#b91c1c`, `#f59e0b` all appear in `theme.css`). Sharing values is not sharing a system: when `theme.css` moves, this app does not follow. That's an accepted cost of having no build step — and a reason the migration is worth doing.
+It shares the product palette **by copy, not by import** (`#0f172a`, `#1e293b`, `#f1f5f9`, `#64748b`, `#b91c1c`, `#f59e0b` all appear in `theme.css`). Sharing values is not sharing a system: when `theme.css` moves, this app does not follow.
 
-**Why not fixed:** migrating the public homepage's type is a visible brand change to `myclash.fr` and deserves its own review.
+**The technical excuse has expired.** This entry used to say the copying was "an accepted cost of having no build step". The Astro migration gave the app a real build, so importing `theme.css` is now ordinary work, not an architectural change.
+
+**Why not fixed:** what is left is the brand decision, not the plumbing — migrating the public homepage's type is a visible change to `myclash.fr` and deserves its own review.
 
 ---
 
