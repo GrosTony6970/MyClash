@@ -9,7 +9,7 @@ Test matrix per path: **desktop Chrome · mobile Safari · mobile Chrome**
 ## GP-1 — Organiser: Create and run a tournament
 
 **Actor:** Organiser (authenticated, owns at least one organisation)
-**Entry point:** `app.myclash.fr` → login
+**Entry point:** `admin.myclash.fr` → login (the organiser workspace; `playwright.e2e.config.ts` defaults its baseURL here)
 
 1. Sign in via magic-link email
 2. Create a new organisation (if none exists)

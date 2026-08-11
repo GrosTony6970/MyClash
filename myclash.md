@@ -26,7 +26,7 @@ It is designed around three convictions:
 ### For event organizers
 
 - Create a themed event site (logo, colors, custom pages) at `app.myclash.fr/e/[slug]`.
-- Define multiple events (weapon × category) with configurable rulesets.
+- Define multiple tournaments (weapon × category) within an event, each with its own ruleset.
 - Configure Lices (pistes) — multi-Lice scheduling.
 - Register fighters individually or via CSV import; suggest matches against global fighter database and HEMA Ratings.
 - **Pool populator** with configurable constraints: school separation, skill balancing using HEMA Ratings, manual override.
@@ -100,7 +100,7 @@ It is designed around three convictions:
 
 ### Competitor on event day
 
-1. Opens `myclash.fr/t/fal2026` on phone.
+1. Opens `app.myclash.fr/e/fal2026` on phone.
 2. Logs in (or already logged in from prior visit).
 3. Onboarding (first time only): selects "Competitor" + maybe "Workshop attendee".
 4. Lands on Competitor home: "Your next match — Pool A on Lice 1 at 10:30. Check in at registration desk."
@@ -123,7 +123,7 @@ It is designed around three convictions:
 ### Organizer pre-event
 
 1. Creates event; configures theme to match their club's identity.
-2. Adds 4 Lices, 3 events (Longsword Open, Sidesword Open, Longsword Women's).
+2. Adds 4 Lices, 3 tournaments (Longsword Open, Sidesword Open, Women's Longsword).
 3. Imports 80 fighters from CSV; system suggests HEMA Ratings links.
 4. Opens the AI setup assistant to draft tournament configuration, pool size assumptions, match-grid timing, and referee assignment suggestions; reviews each draft before applying.
 5. Uses the natural-language query panel to check "Combien de combats restent dans chaque poule ?" or "Are we on schedule?" without writing reports manually.
@@ -192,7 +192,7 @@ It is designed around three convictions:
 - **Tablet-first scoring app**: large, gloved-finger-friendly buttons. Color-coded (red fighter / blue fighter). High-contrast for outdoor lighting.
 - **Desktop-first admin**: dense, table-driven, drag-drop for scheduling.
 - **Per-event theming**: each event site adopts the organizer's logo, colors, and editorial content. Layout and components stay consistent — only the skin changes.
-- **Internationalization**: English at launch, French in v1.1. HEMA terminology requires native review (referee role names stay in French).
+- **Internationalization**: EN and FR both ship and are both mandatory — every `t()` key must resolve in each, gated by `packages/i18n/src/t-key-references.test.ts`. HEMA terminology had native review; referee role names stay in French.
 
 ---
 

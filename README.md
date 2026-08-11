@@ -75,13 +75,14 @@ myclash/
 │   ├── web-public/      # Mobile-first PWA — public/spectator/competitor
 │   ├── web-staff/     # Tablet-first PWA — offline-first scoring
 │   ├── web-admin/       # Desktop-first admin app — organiser + super-admin
-│   └── web-marketing/   # Static HTML — myclash.fr apex landing (no build step)
+│   └── web-marketing/   # Astro 6 — myclash.fr apex landing, prerendered to dist/
 ├── packages/            # Shared workspaces (consumed by the apps)
 │   ├── rulesets/        # @myclash/rulesets — TF_v1 scoring engine + custom-ruleset runtime
 │   ├── feature-flags/   # @myclash/feature-flags — curated toggle registry
-│   ├── db/              # Drizzle schema + migrations
-│   ├── ui/              # Shared shadcn/ui components (Tournament Manual aesthetic)
-│   ├── design-tokens/   # Fonts, color palette, spacing
+│   ├── db/              # Numbered SQL migrations + fixtures (no ORM)
+│   ├── ui/              # Shared components + theme.css, the design-token source of truth
+│   ├── schedule-core/   # Scheduling + assignment engines
+│   ├── time/            # Duration/date formatting, locale-aware
 │   ├── types/           # Shared TS types
 │   ├── api-client/      # Generated OpenAPI client
 │   └── i18n/            # EN + FR translation strings
