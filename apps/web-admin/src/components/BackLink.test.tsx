@@ -79,6 +79,10 @@ describe('back-navigation drift guard', () => {
     // Breadcrumb crumbs, rendered inside a `Organization / Event` trail.
     'organizer.eventHub.backToOrg',
     'organizer.newEvent.backToOrg',
+    // Leaves the password-reset view of the login panel. It switches a tab in
+    // place — there is no page to go back to, and BackLink's white `back`
+    // button would be unreadable on the panel's dark surface.
+    'auth.login.backToSignIn',
   ]);
 
   it('routes every back-navigation label through BackLink', () => {
