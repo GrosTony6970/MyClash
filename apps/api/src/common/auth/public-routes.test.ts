@@ -73,6 +73,11 @@ const EXPECTED_PUBLIC = [
   // controller metadata, which the global prefix is not part of.
   'GET /version',
   'GET /public/feature-flags', // polled by every app before login
+  // Read by the marketing site at the apex domain, from the browser, above the
+  // fold on a page that has no login. Three integers — public events, clubs,
+  // fighters — and nothing that names or could re-identify anybody. It replaces
+  // three hardcoded figures that were not true.
+  'GET /public/site-stats',
   // ── public event site (web-public, logged out) ──
   'GET /clubs/:slug',
   'GET /events',
