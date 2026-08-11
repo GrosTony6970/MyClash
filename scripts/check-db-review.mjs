@@ -40,8 +40,82 @@ function objectName(matchValue) {
   return matchValue.split('.').pop()?.replaceAll('"', '') ?? matchValue;
 }
 
+// Migration headers in this repo are long prose, and they quote the DDL they
+// discuss. Every structural check below would otherwise read those sentences
+// as declarations: a header explaining `CREATE TABLE IF NOT EXISTS` reports a
+// table named "IF" with no RLS. Blank the comments out rather than deleting
+// them so line-keyed output stays honest.
+export function stripSqlComments(sql) {
+  return sql
+    .replace(/\/\*[\s\S]*?\*\//g, (block) => block.replace(/[^\n]/g, ' '))
+    .replace(/--[^\n]*/g, (line) => ' '.repeat(line.length));
+}
+
+// The IF NOT EXISTS clause is optional on purpose. Requiring it hid 17 table
+// declarations from this check, and event_hidden_skills (0076) shipped
+// world-readable for that reason alone — see 0184.
+export function tablesMissingRls(sql) {
+  const tables = [
+    ...sql.matchAll(/CREATE TABLE\s+(?:IF NOT EXISTS\s+)?((?:"?\w+"?\.)?"?\w+"?)/gi),
+  ].map((match) => objectName(match[1] ?? ''));
+  const enabled = [
+    ...sql.matchAll(/ALTER TABLE\s+((?:"?\w+"?\.)?"?\w+"?)\s+ENABLE ROW LEVEL SECURITY/gi),
+  ].map((match) => objectName(match[1] ?? ''));
+  return [...new Set(tables.filter((table) => !enabled.includes(table)))];
+}
+
+// RLS does not apply to views. A view with security_invoker off runs as its
+// OWNER, and the migrating role is supabase_admin (SUPERUSER, BYPASSRLS), so
+// such a view hands its base tables to any role that may SELECT it with RLS
+// switched off entirely. Matched corpus-wide: a view may be created in one
+// migration and pinned in a later one.
+export function viewsMissingSecurityInvoker(sql) {
+  const views = [
+    ...sql.matchAll(/CREATE\s+(?:OR\s+REPLACE\s+)?VIEW\s+((?:"?\w+"?\.)?"?\w+"?)/gi),
+  ].map((match) => objectName(match[1] ?? ''));
+  const pinned = [
+    ...sql.matchAll(
+      /ALTER\s+VIEW\s+((?:"?\w+"?\.)?"?\w+"?)\s+SET\s*\([^)]*security_invoker\s*=\s*on/gi,
+    ),
+    ...sql.matchAll(
+      /CREATE\s+(?:OR\s+REPLACE\s+)?VIEW\s+((?:"?\w+"?\.)?"?\w+"?)\s+WITH\s*\([^)]*security_invoker\s*=\s*on/gi,
+    ),
+  ].map((match) => objectName(match[1] ?? ''));
+  return [...new Set(views.filter((view) => !pinned.includes(view)))];
+}
+
+// SECURITY DEFINER functions must be revoked from anon and authenticated BY
+// NAME. `REVOKE ... FROM public` looks equivalent and is not: the supabase
+// image's ALTER DEFAULT PRIVILEGES grants EXECUTE to those two roles by name,
+// and a role-specific grant survives a revoke aimed at PUBLIC. 0156, 0180 and
+// 0182 all shipped believing otherwise.
+export function securityDefinerFunctionsReachableByAnon(sql) {
+  // Bounded at the body marker so a plain function cannot borrow the SECURITY
+  // DEFINER of whichever function happens to be declared after it.
+  const definers = [
+    ...sql.matchAll(
+      /CREATE\s+(?:OR\s+REPLACE\s+)?FUNCTION\s+((?:"?\w+"?\.)?"?\w+"?)\s*\(([\s\S]*?)AS\s*\$/gi,
+    ),
+  ]
+    .filter((match) => /\bSECURITY\s+DEFINER\b/i.test(match[2] ?? ''))
+    .map((match) => objectName(match[1] ?? ''));
+  const revoked = new Set();
+  for (const match of sql.matchAll(
+    /REVOKE\s+[\s\S]*?\bON\s+FUNCTION\s+([\s\S]*?)\bFROM\b([^;]*);/gi,
+  )) {
+    const roles = match[2] ?? '';
+    if (!/\banon\b/iu.test(roles) || !/\bauthenticated\b/iu.test(roles)) continue;
+    for (const target of (match[1] ?? '').matchAll(/((?:"?\w+"?\.)?"?\w+"?)\s*\(/g)) {
+      revoked.add(objectName(target[1] ?? ''));
+    }
+  }
+  return [...new Set(definers.filter((fn) => !revoked.has(fn)))];
+}
+
 const files = migrationFiles();
-const allSql = files.map((file) => readFileSync(join(migrationsDir, file), 'utf8')).join('\n');
+const allSql = stripSqlComments(
+  files.map((file) => readFileSync(join(migrationsDir, file), 'utf8')).join('\n'),
+);
 const migrationSqlByFile = new Map(
   files.map((file) => [file, readFileSync(join(migrationsDir, file), 'utf8')]),
 );
@@ -70,16 +144,30 @@ for (let i = 1; i < prefixes.length; i += 1) {
   }
 }
 
-const tables = [...allSql.matchAll(/CREATE TABLE IF NOT EXISTS\s+((?:"?\w+"?\.)?"?\w+"?)/gi)].map(
-  (match) => objectName(match[1] ?? ''),
-);
+const tables = [
+  ...allSql.matchAll(/CREATE TABLE\s+(?:IF NOT EXISTS\s+)?((?:"?\w+"?\.)?"?\w+"?)/gi),
+].map((match) => objectName(match[1] ?? ''));
 const rlsTables = [
   ...allSql.matchAll(/ALTER TABLE\s+((?:"?\w+"?\.)?"?\w+"?)\s+ENABLE ROW LEVEL SECURITY/gi),
 ].map((match) => objectName(match[1] ?? ''));
 
-const missingRls = tables.filter((table) => !rlsTables.includes(table));
+const missingRls = tablesMissingRls(allSql);
 if (missingRls.length > 0) {
-  errors.push(`Tables without ENABLE ROW LEVEL SECURITY: ${[...new Set(missingRls)].join(', ')}`);
+  errors.push(`Tables without ENABLE ROW LEVEL SECURITY: ${missingRls.join(', ')}`);
+}
+
+const missingInvoker = viewsMissingSecurityInvoker(allSql);
+if (missingInvoker.length > 0) {
+  errors.push(
+    `Views without security_invoker = on run as their owner and ignore RLS on every base table: ${missingInvoker.join(', ')}`,
+  );
+}
+
+const anonReachableDefiners = securityDefinerFunctionsReachableByAnon(allSql);
+if (anonReachableDefiners.length > 0) {
+  errors.push(
+    `SECURITY DEFINER functions must REVOKE EXECUTE FROM anon, authenticated by name (REVOKE ... FROM public does not remove the image's default grants): ${anonReachableDefiners.join(', ')}`,
+  );
 }
 
 const nonIdempotentTables = [
@@ -227,19 +315,24 @@ if (unindexedFkColumns.length > 0) {
   );
 }
 
-console.log(`Reviewed ${files.length} migrations and ${tables.length} table declarations.`);
-console.log(`RLS enabled for ${rlsTables.length} table declarations.`);
-if (warnings.length > 0) {
-  console.warn('Database review warnings:');
-  for (const warning of warnings) console.warn(`  - ${warning}`);
-}
+// Reporting is guarded so the rule functions above can be imported by
+// check-db-review.test.mjs without the import itself exiting the process.
+const invokedDirectly = process.argv[1]?.endsWith('check-db-review.mjs');
+if (invokedDirectly) {
+  console.log(`Reviewed ${files.length} migrations and ${tables.length} table declarations.`);
+  console.log(`RLS enabled for ${rlsTables.length} table declarations.`);
+  if (warnings.length > 0) {
+    console.warn('Database review warnings:');
+    for (const warning of warnings) console.warn(`  - ${warning}`);
+  }
 
-if (errors.length > 0) {
-  console.error('Database review blockers:');
-  for (const error of errors) console.error(`  - ${error}`);
-  process.exit(1);
-}
+  if (errors.length > 0) {
+    console.error('Database review blockers:');
+    for (const error of errors) console.error(`  - ${error}`);
+    process.exit(1);
+  }
 
-console.log(
-  `Database review artifacts present: ${requiredFiles.map((file) => normalize(join(root, file))).join(', ')}`,
-);
+  console.log(
+    `Database review artifacts present: ${requiredFiles.map((file) => normalize(join(root, file))).join(', ')}`,
+  );
+}
