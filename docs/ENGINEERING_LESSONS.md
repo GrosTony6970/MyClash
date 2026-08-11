@@ -14,8 +14,9 @@ here.
 - Scores are **derived** from per-exchange data via the ruleset engine, never stored as an
   independent source of truth. Stored aggregates drift; derived ones keep stats and rankings
   consistent.
-- Deeply relational data (Tournament → Event → Phase → Match → Exchange, plus cross-cutting
-  Fighter/Club) belongs in Postgres, not a document store.
+- Deeply relational data (Organization → Event → Tournament → Phase → Match → Exchange, plus
+  cross-cutting Global Person / Club) belongs in Postgres, not a document store. See
+  [`HIERARCHY.md`](HIERARCHY.md) — it is authoritative for these terms.
 - Use Supabase for what it is good at (auth, storage, realtime, the DB) and NestJS for business
   logic. Don't push domain code into Postgres functions.
 - Three frontend apps over a shared `packages/ui` beats one mega-app, because the scoring app has
