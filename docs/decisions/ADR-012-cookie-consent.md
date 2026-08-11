@@ -21,13 +21,16 @@ The facts, each re-checkable rather than taken on trust:
 'plausible|umami|matomo|gtag|google-analytics'` across `apps/` and `packages/` returns nothing.
   Sentry is loaded, but it is error reporting on first-party infrastructure and sets no
   identifying cookie.
-- **Three cookies exist, all first-party.** `sb-access-token` / `sb-refresh-token` (the auth
+- **Five cookies exist, all first-party.** `sb-access-token` / `sb-refresh-token` (the auth
   session), `mc_guest` (the signed guest-session cookie minted at
-  `apps/api/src/modules/auth/guest-sessions.controller.ts`), and `mc_locale` (the language the
-  user picked, read by `apps/web-public/src/i18n/server-locale.ts`). No advertising identifier,
-  no cross-site cookie, no third-party domain.
+  `apps/api/src/modules/auth/guest-sessions.controller.ts`), `mc_locale` (the language the
+  user picked, read by `apps/web-public/src/i18n/server-locale.ts`), `mc_staff` (the event staff
+  PIN session, `apps/api/src/common/auth/auth.guard.ts:20`) and `mc_theme` (the scoring pad's
+  theme preference). No advertising identifier, no cross-site cookie, no third-party domain.
+  `mc_staff` is strictly necessary and `mc_theme` is user-set, so both sit inside the Art. 5(3)
+  exemption and the decision below is unaffected.
 - **The policies existed but were unreachable from the product.** They are static pages on
-  `web-marketing` (`public/terms`, `public/privacypolicy`, with `/en` siblings). Before this
+  `web-marketing` (`src/pages/terms.astro`, `src/pages/privacypolicy.astro`, with `/en` siblings; they lived under `public/` before the Astro rebuild). Before this
   slice, `grep -i 'terms|privacy|consent'` across `web-public`, `web-admin` and `web-staff`
   returned **zero hits**: no signup form mentioned them, no footer linked them, and nothing
   recorded that anyone had ever agreed to them.

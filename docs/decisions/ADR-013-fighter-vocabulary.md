@@ -13,7 +13,7 @@ months since (0023 landed 2026-05-07), four consequences compounded:
 
 1. **Two API namespaces backed by one service**, which reads `global_persons` and never a `fighters`
    table. `apps/api/src/modules/fighters/fighters.controller.ts` declares both
-   `@Controller('fighters')` (18 routes) and `@Controller('global-persons')` (8). This looks like
+   `@Controller('fighters')` (18 routes) and `@Controller('global-persons')` (7). This looks like
    duplication and is not: only `list` and `:id` collide as paths, and they differ by audience and
    authorization — `PATCH /fighters/:id` is the claimed-owner self-service path
    (`updateAsClaimedUser`), `PATCH /global-persons/:id` is `platform_admin` only

@@ -3,7 +3,12 @@
 **Date:** 2025-01-01
 **Status:** Accepted (partially superseded — see note)
 
-> **Note (2026-04):** Google OAuth was implemented for organiser/admin login (web-admin app) in addition to magic-link. The core guest session model for competitors/spectators remains unchanged. This ADR should be read with that context.
+> **Note (updated 2026-08-11):** Google OAuth now covers **both** apps — organiser login in
+> `web-admin`, and competitor login, person-claim and workshop signup in `web-public`
+> (`app/login/page.tsx`, `app/e/[eventSlug]/claim/page.tsx`,
+> `app/e/[eventSlug]/w/[workshopSlug]/page.tsx`). It is gated by `GOOGLE_OAUTH_ENABLED`. The core
+> guest-session model for competitors and spectators is unchanged; OAuth is an additional way to
+> reach a claimed account.
 
 ## Context
 
@@ -22,7 +27,7 @@ The identity model must:
 1. **Guest sessions** — ephemeral, event-scoped. No signup required. A competitor can claim their slot by entering a code or clicking a link from the organiser. Session stored in a cookie.
 2. **Claimed accounts** — durable Supabase auth identity (email magic-link). Required for organisers, admins, and competitors who want persistent profiles across events.
 
-At v1: no Google OAuth for competitor/spectator flows (magic-link only for organisers).
+At the time of writing: no Google OAuth for competitor/spectator flows (magic-link only for organisers). See the note above — this is no longer true.
 
 ## Consequences
 

@@ -21,8 +21,13 @@ Specifically:
 
 - **Competition results, rankings, bracket positions, scores** → public by default (as they are on venue screens and printed brackets)
 - **Email addresses** → never public; internal only
-- **Fighter profile photos** → visible to authenticated users by default; organisers can mark events as fully public
-- **Workshop attendance, personal schedule** → visible only to the individual and the organiser
+- **Fighter profile photos** → **public by default, with no per-field opt-out.** The seven
+  opt-outs that exist are the keys of `VISIBILITY_FIELDS`
+  (`apps/api/src/modules/fighters/fighters.service.ts:107-115`): dateOfBirth (the only one
+  defaulting private), nationality, gender, bio, alias, links, practicingSince. `photo_url` is not
+  among them.
+- **Workshop attendance, personal schedule** → public by default; a person can hide their workshops
+  with the `hideWorkshopsPublicly` preference (`GET`/`PATCH /api/v1/persons/me/privacy`)
 - **Detailed exchange data** (which hit landed where) → public at the event level; aggregated in public stats
 
 Competitors can opt out of public result publication per event via their profile settings (GDPR right to object, Article 21). Opting out replaces their name with "Anonymous" in public views.

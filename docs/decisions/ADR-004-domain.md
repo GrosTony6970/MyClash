@@ -17,13 +17,20 @@ The platform needs a canonical domain. Requirements:
 
 Subdomain structure:
 
-| Subdomain                       | Service                                  |
-| ------------------------------- | ---------------------------------------- |
-| `myclash.fr` / `www.myclash.fr` | Marketing landing page                   |
-| `app.myclash.fr`                | Public/spectator PWA + competitor portal |
-| `admin.myclash.fr`              | Organiser admin + super-admin            |
-| `staff.myclash.fr`              | Scorekeeper PWA                          |
-| `api.myclash.fr`                | NestJS REST API + Supabase services      |
+| Subdomain                       | Service                                              |
+| ------------------------------- | ---------------------------------------------------- |
+| `myclash.fr` / `www.myclash.fr` | Marketing landing page                               |
+| `app.myclash.fr`                | Public/spectator PWA + competitor portal             |
+| `admin.myclash.fr`              | Organiser admin + super-admin                        |
+| `staff.myclash.fr`              | Scorekeeper PWA                                      |
+| `api.myclash.fr`                | NestJS REST API (and the unprefixed `/health` probe) |
+| `studio.myclash.fr`             | Supabase Studio, IP-allowlisted + basic-auth         |
+| `traefik.myclash.fr`            | Traefik dashboard                                    |
+
+The **Supabase services are not on `api.`** — they are same-origin on `app.${DOMAIN}`:
+`/auth/v1` (GoTrue), `/rest/v1` (PostgREST), `/realtime/v1`, `/storage/v1`, alongside a same-origin
+`/api/v1` mount. Building a Supabase client URL, a probe or a redirect URI from the `api.` row
+targets a host with no such router.
 
 ## Consequences
 
