@@ -389,6 +389,13 @@ const RECENT_INTERNAL_TABLE_POLICIES: InternalTablePolicy[] = [
     serviceRoleOnlyWrite: true,
     authenticatedWritePolicy: false,
   },
+  // 0076 shipped this one without RLS at all, so anon could read it and, with
+  // the image's default privileges, write it too. 0184 closed that.
+  {
+    tableName: 'event_hidden_skills',
+    serviceRoleOnlyWrite: true,
+    authenticatedWritePolicy: false,
+  },
 ];
 
 // ── Tests ─────────────────────────────────────────────────────────────────────
