@@ -1,0 +1,261 @@
+/*
+ * chrome.css — the nav and footer, shared by every page.
+ *
+ * These rules were byte-identical in the landing stylesheet and the legal
+ * stylesheet, duplicated into all six HTML files. That duplication is how the
+ * French and English pages drifted apart in the first place, so they live
+ * here once and are imported by Base.astro.
+ */
+
+/* ── NAVBAR ───────────────────────────────────── */
+.nav {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 100;
+  height: var(--nav-h);
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--grey-mid);
+  display: flex;
+  align-items: center;
+  padding: 0 5%;
+  gap: 2rem;
+  transition: box-shadow 0.3s;
+}
+.nav.scrolled {
+  box-shadow: 0 4px 24px rgba(15, 23, 42, 0.12);
+}
+.nav__logo {
+  display: flex;
+  align-items: center;
+  text-decoration: none;
+  flex-shrink: 0;
+}
+.nav__logo img {
+  height: 44px;
+  width: auto;
+}
+/*
+ * `display: contents` makes the panel vanish as a box, so on desktop the links
+ * and the CTA are direct flex children of `.nav` exactly as they were when they
+ * were siblings — `margin-left: auto` on `.nav__links` still pushes the pair
+ * right. On mobile the panel becomes a real box and both children flow inside
+ * it. That is what retires the old `top: calc(var(--nav-h) + 10rem)` on the
+ * mobile CTA, which was a measurement of three nav links and would have drifted
+ * silently the moment a fourth was added.
+ */
+.nav__panel {
+  display: contents;
+}
+.nav__links {
+  display: flex;
+  gap: 2rem;
+  list-style: none;
+  margin-left: auto;
+}
+.nav__links a {
+  font-family: var(--font-display);
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--dark-mid);
+  text-decoration: none;
+  transition: color 0.2s;
+}
+.nav__links a:hover {
+  color: var(--blue);
+}
+.nav__cta {
+  margin-left: 1rem;
+  padding: 0.6rem 1.5rem;
+  background: var(--blue);
+  color: var(--white);
+  font-family: var(--font-display);
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  text-decoration: none;
+  border-radius: 4px;
+  transition:
+    background 0.2s,
+    transform 0.15s;
+  white-space: nowrap;
+}
+.nav__cta:hover {
+  background: var(--blue-dark);
+  transform: translateY(-1px);
+}
+.nav__burger {
+  display: none;
+  flex-direction: column;
+  gap: 5px;
+  cursor: pointer;
+  margin-left: auto;
+  padding: 4px;
+  background: none;
+  border: none;
+}
+.nav__burger span {
+  display: block;
+  width: 24px;
+  height: 2px;
+  background: var(--dark);
+  border-radius: 2px;
+  transition: 0.3s;
+}
+
+/* ── FOOTER ───────────────────────────────────── */
+.footer {
+  background: var(--dark);
+  color: rgba(255, 255, 255, 0.6);
+  padding: 3.5rem 5% 2rem;
+}
+.footer__inner {
+  max-width: 1100px;
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 3rem;
+  align-items: center;
+  padding-bottom: 2.5rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+.footer__logo img {
+  height: 40px;
+  width: auto;
+  opacity: 0.9;
+}
+.footer__links {
+  display: flex;
+  gap: 2rem;
+  list-style: none;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+.footer__links a {
+  font-family: var(--font-display);
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.55);
+  text-decoration: none;
+  transition: color 0.2s;
+}
+.footer__links a:hover {
+  color: var(--white);
+}
+.footer__contact {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1.2rem;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 4px;
+  font-family: var(--font-display);
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.7);
+  text-decoration: none;
+  transition:
+    border-color 0.2s,
+    color 0.2s;
+}
+.footer__contact:hover {
+  border-color: var(--white);
+  color: var(--white);
+}
+.footer__bottom {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-top: 1.5rem;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+/*
+ * Alphas below are measured, not eyeballed. Against --dark (#0f172a) the
+ * originals failed WCAG AA for body text: .footer__copy at 0.35 gave 3.21:1 and
+ * .footer__badge at 0.40 gave 3.80:1, both under the 4.5:1 floor. 0.55 gives
+ * 6.07:1 and still reads as secondary. .footer__links was already at 0.55.
+ */
+.footer__copy {
+  font-size: 0.85rem;
+  font-style: italic;
+  color: rgba(255, 255, 255, 0.55);
+}
+.footer__badges {
+  display: flex;
+  gap: 0.6rem;
+}
+.footer__badge {
+  font-family: var(--font-display);
+  font-size: 0.58rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  padding: 0.25rem 0.6rem;
+  border-radius: 3px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  color: rgba(255, 255, 255, 0.55);
+}
+
+/* ── RESPONSIVE (chrome) ──────────────────────── */
+@media (max-width: 900px) {
+  .nav__burger {
+    display: flex;
+  }
+  /*
+   * The panel stops being `display: contents` and becomes the dropdown itself,
+   * so the links and the CTA are laid out by one flex column instead of the CTA
+   * being absolutely positioned below a hardcoded link-stack height.
+   */
+  .nav__panel {
+    display: none;
+  }
+  .nav__panel.open {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    position: fixed;
+    top: var(--nav-h);
+    left: 0;
+    right: 0;
+    background: var(--white);
+    padding: 1.5rem 5%;
+    border-bottom: 1px solid var(--grey-mid);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1);
+    gap: 1.2rem;
+  }
+  .nav__panel.open .nav__links {
+    display: flex;
+    flex-direction: column;
+    gap: 1.2rem;
+    margin-left: 0;
+  }
+  .nav__panel.open .nav__cta {
+    margin-left: 0;
+    text-align: center;
+  }
+  .footer__inner {
+    grid-template-columns: 1fr;
+    gap: 1.5rem;
+    text-align: center;
+  }
+  .footer__links {
+    justify-content: center;
+  }
+  .footer__contact {
+    margin: 0 auto;
+  }
+  .footer__bottom {
+    justify-content: center;
+    text-align: center;
+  }
+}

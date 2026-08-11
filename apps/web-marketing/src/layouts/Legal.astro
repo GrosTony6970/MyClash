@@ -1,0 +1,63 @@
+---
+import Base from './Base.astro';
+import { localePath, type Locale } from '../i18n/ui';
+import '../styles/legal.css';
+
+interface Props {
+  locale: Locale;
+  /** Locale-independent route: `/terms` or `/privacypolicy`. */
+  route: string;
+  title: string;
+  description: string;
+  /** Heading printed at the top of the document. */
+  heading: string;
+  /** The published "Last updated" line, already formatted for the locale. */
+  updated: string;
+}
+
+const { locale, route, title, description, heading, updated } = Astro.props;
+
+const other: Locale = locale === 'fr' ? 'en' : 'fr';
+const otherHref = localePath(other, route);
+const otherLabel = locale === 'fr' ? '🇬🇧 Read in English' : '🇫🇷 Lire en français';
+
+/*
+ * Each legal page carried its own hand-written BreadcrumbList. Building it from
+ * the props means the two entries can no longer disagree with the canonical URL
+ * the same page declares — which is the only reason a breadcrumb is worth
+ * emitting at all.
+ */
+const site = Astro.site ?? new URL('https://myclash.fr');
+const breadcrumbs = {
+  '@context': 'https://schema.org',
+  '@type': 'BreadcrumbList',
+  itemListElement: [
+    {
+      '@type': 'ListItem',
+      position: 1,
+      name: locale === 'fr' ? 'Accueil' : 'Home',
+      item: new URL(localePath(locale, '/'), site).href,
+    },
+    {
+      '@type': 'ListItem',
+      position: 2,
+      name: heading,
+      item: new URL(localePath(locale, route), site).href,
+    },
+  ],
+};
+---
+
+<Base locale={locale} route={route} title={title} description={description}>
+  <Fragment slot="head">
+    <script type="application/ld+json" set:html={JSON.stringify(breadcrumbs)} />
+  </Fragment>
+  <main class="policy" id="main-content">
+    <div class="policy__container">
+      <h1 class="policy__title">{heading}</h1>
+      <p class="policy__lang-toggle"><a href={otherHref} hreflang={other}>{otherLabel}</a></p>
+      <p class="policy__date">{updated}</p>
+      <slot />
+    </div>
+  </main>
+</Base>

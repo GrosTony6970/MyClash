@@ -1,0 +1,40 @@
+/*
+ * fonts.css — self-hosted Cinzel and Cormorant Garamond.
+ *
+ * These used to come from fonts.googleapis.com + fonts.gstatic.com, which meant
+ * every visitor's IP address reached Google on every page — including on the
+ * privacy policy itself, whose §8 undertakes to name every flow that leaves the
+ * European Union and names three. That made the document contradict the page it
+ * was printed on. Self-hosting removes the flow rather than disclosing it.
+ *
+ * It also removes two render-blocking third-party round trips before first
+ * paint, and it is what lets the "zero external hosts" test in test/ hold.
+ *
+ * Weights below mirror the old request exactly, so nothing renders differently:
+ *   Cinzel:wght@400;600;700;900
+ *   Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400;1,500
+ *
+ * Only the `latin` and `latin-ext` subsets are pulled in. latin-ext is what
+ * carries the French typography (œ, and the guillemets/diacritics that fall
+ * outside the base latin block); cyrillic and vietnamese are not shipped.
+ */
+
+@import '@fontsource/cinzel/latin-400.css';
+@import '@fontsource/cinzel/latin-600.css';
+@import '@fontsource/cinzel/latin-700.css';
+@import '@fontsource/cinzel/latin-900.css';
+@import '@fontsource/cinzel/latin-ext-400.css';
+@import '@fontsource/cinzel/latin-ext-600.css';
+@import '@fontsource/cinzel/latin-ext-700.css';
+@import '@fontsource/cinzel/latin-ext-900.css';
+
+@import '@fontsource/cormorant-garamond/latin-400.css';
+@import '@fontsource/cormorant-garamond/latin-500.css';
+@import '@fontsource/cormorant-garamond/latin-600.css';
+@import '@fontsource/cormorant-garamond/latin-400-italic.css';
+@import '@fontsource/cormorant-garamond/latin-500-italic.css';
+@import '@fontsource/cormorant-garamond/latin-ext-400.css';
+@import '@fontsource/cormorant-garamond/latin-ext-500.css';
+@import '@fontsource/cormorant-garamond/latin-ext-600.css';
+@import '@fontsource/cormorant-garamond/latin-ext-400-italic.css';
+@import '@fontsource/cormorant-garamond/latin-ext-500-italic.css';

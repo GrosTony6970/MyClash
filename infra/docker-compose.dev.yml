@@ -606,8 +606,9 @@ services:
   # ── web-marketing (static landing site) ───────────────────────────
   web-marketing:
     build:
-      context: ../apps/web-marketing
-      dockerfile: Dockerfile
+      # Repo root: Astro needs the workspace lockfile to install.
+      context: ..
+      dockerfile: apps/web-marketing/Dockerfile
     container_name: myclash-dev-web-marketing
     restart: unless-stopped
     environment:

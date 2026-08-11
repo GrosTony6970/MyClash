@@ -66,6 +66,14 @@ peerDependencyRules:
     # compiler directly via `import ts from 'typescript'` and the OpenAPI drift
     # gate passes on 6.0.3.
     openapi-typescript>typescript: '6'
+    # Both arrive with @astrojs/check, which web-marketing uses for `lint` and
+    # `typecheck`. Each peers typescript ^5 against our pinned ^6.0.3, for the
+    # same reason as openapi-typescript above: neither has published a range
+    # naming 6 yet. Verified rather than assumed — `astro check` drives both
+    # (tsconfck resolves the tsconfig, zod-to-ts renders the diagnostics) and
+    # reports 0 errors and 0 warnings across all 17 files on 6.0.3.
+    zod-to-ts>typescript: '6'
+    tsconfck>typescript: '6'
 
 # Transitive-version pins. Moved here verbatim from `package.json#pnpm.overrides`
 # when the repo went to pnpm 11 — v11 no longer reads the `pnpm` field in

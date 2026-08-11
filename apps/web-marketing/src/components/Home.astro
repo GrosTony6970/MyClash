@@ -1,0 +1,271 @@
+---
+import { Picture } from 'astro:assets';
+import hero from '../assets/Hero_myclash.png';
+import banner from '../assets/Banner.png';
+import { HOME, STAT_VALUES, FEATURE_ICON_PATHS, DONATION_URL } from '../i18n/home';
+import { SECTION_IDS, APP_URL, CONTACT_EMAIL, type Locale } from '../i18n/ui';
+import '../styles/home.css';
+
+interface Props {
+  locale: Locale;
+}
+
+const { locale } = Astro.props;
+const c = HOME[locale];
+const numberLocale = locale === 'fr' ? 'fr-FR' : 'en-GB';
+const format = (value: number) => new Intl.NumberFormat(numberLocale).format(value);
+---
+
+<!-- HERO -->
+<section class="hero" aria-labelledby="hero-title">
+  {/*
+    Was a CSS background-image on an empty div, invisible to the preload
+    scanner. As a real element it can be eager + high priority, and Astro emits
+    AVIF/WebP at several widths instead of one 2.37 MB PNG.
+  */}
+  <Picture
+    src={hero}
+    formats={['avif', 'webp']}
+    fallbackFormat="webp"
+    widths={[768, 1200, 1672]}
+    sizes="100vw"
+    alt={c.heroImageAlt}
+    class="hero__bg"
+    id="heroBg"
+    loading="eager"
+    fetchpriority="high"
+  />
+  <div class="hero__overlay"></div>
+  <div class="hero__content">
+    <p class="hero__eyebrow">{c.heroEyebrow}</p>
+    <h1 class="hero__title" id="hero-title">
+      {c.heroTitleLead}<br />
+      <span>{c.heroTitleAccent}</span>
+    </h1>
+    <p class="hero__subtitle">{c.heroSubtitle}</p>
+    <div class="hero__actions">
+      <a href={APP_URL} class="btn-primary" target="_blank" rel="noopener">{c.heroCtaPrimary}</a>
+      <a href={`#${SECTION_IDS.features}`} class="btn-outline">{c.heroCtaSecondary}</a>
+    </div>
+  </div>
+  <div class="hero__scroll" aria-hidden="true">
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      fill="none"
+      viewBox="0 0 24 24"
+      stroke="currentColor"
+      stroke-width="2"
+    >
+      <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"></path>
+    </svg>
+    {c.heroScroll}
+  </div>
+</section>
+
+<!-- STATS BAR -->
+{/*
+  Was a bare <div aria-label="…">. A div has no role, so the label was dropped
+  by assistive tech entirely. A <section> with a visually-hidden heading is
+  announced.
+*/}
+<section class="stats" aria-labelledby="stats-heading">
+  <h2 id="stats-heading" class="visually-hidden">{c.statsHeading}</h2>
+  {
+    STAT_VALUES.map((value, i) => (
+      <div class="stat">
+        <div class="stat__number" data-count={value}>
+          {format(value)}
+          <span>+</span>
+        </div>
+        <div class="stat__label">{c.statLabels[i]}</div>
+      </div>
+    ))
+  }
+</section>
+
+<!-- FEATURES -->
+<section class="section section--grey" id={SECTION_IDS.features} aria-labelledby="features-title">
+  <div class="section__header">
+    <span class="section__tag">{c.featuresTag}</span>
+    <h2 class="section__title" id="features-title">{c.featuresTitle}</h2>
+    <p class="section__lead">{c.featuresLead}</p>
+  </div>
+  <div class="features__grid">
+    {
+      c.features.map((feature, i) => (
+        <div class="feature-card" data-reveal>
+          <div class="feature-card__icon" aria-hidden="true">
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              stroke-width="2"
+            >
+              <path stroke-linecap="round" stroke-linejoin="round" d={FEATURE_ICON_PATHS[i]} />
+            </svg>
+          </div>
+          <h3 class="feature-card__title">{feature.title}</h3>
+          <p class="feature-card__text">{feature.text}</p>
+        </div>
+      ))
+    }
+  </div>
+</section>
+
+<!-- HOW IT WORKS -->
+<section class="section" id={SECTION_IDS.howItWorks} aria-labelledby="steps-title">
+  <div class="section__header">
+    <span class="section__tag">{c.stepsTag}</span>
+    <h2 class="section__title" id="steps-title">{c.stepsTitle}</h2>
+    <p class="section__lead">{c.stepsLead}</p>
+  </div>
+  <div class="steps">
+    {
+      c.steps.map((step, i) => (
+        <div class="step" data-reveal>
+          <div class="step__num" aria-hidden="true">
+            {i + 1}
+          </div>
+          <h3 class="step__title">{step.title}</h3>
+          <p class="step__text">{step.text}</p>
+        </div>
+      ))
+    }
+  </div>
+</section>
+
+<!-- BANNER -->
+<div class="banner-section" aria-hidden="true">
+  <Picture
+    src={banner}
+    formats={['avif', 'webp']}
+    fallbackFormat="webp"
+    widths={[768, 1200, 1584]}
+    sizes="100vw"
+    alt=""
+    loading="lazy"
+  />
+</div>
+
+<!-- CTA -->
+<section class="cta-section" aria-labelledby="cta-title">
+  <span class="section__tag">{c.ctaTag}</span>
+  <h2 class="section__title" id="cta-title">
+    {c.ctaTitleLead}<br />{c.ctaTitleTail}
+  </h2>
+  <p class="section__lead">{c.ctaLead}</p>
+  <div class="cta-section__actions">
+    <a href={APP_URL} class="btn-white" target="_blank" rel="noopener">{c.ctaPrimary}</a>
+    <a href={`mailto:${CONTACT_EMAIL}`} class="btn-outline-white">{c.ctaSecondary}</a>
+  </div>
+</section>
+
+<!-- CONTRIBUTION -->
+<section class="contribution" id={SECTION_IDS.support} aria-labelledby="contrib-title">
+  <div class="contribution__inner">
+    <div class="contribution__left">
+      <span class="section__tag">{c.contribTag}</span>
+      <h2 class="section__title" id="contrib-title">{c.contribTitle}</h2>
+      <p class="contribution__tagline">{c.contribTagline}</p>
+      <ul class="contribution__list">
+        {c.contribBullets.map((bullet) => <li>{bullet}</li>)}
+      </ul>
+      <a href={DONATION_URL} class="contribution__donate" target="_blank" rel="noopener noreferrer">
+        ♥ &nbsp;{c.contribDonate}
+      </a>
+    </div>
+    <div class="contribution__right">
+      <h3 class="contribution__box-title">{c.contribBoxTitle}</h3>
+      <p class="contribution__box-text">{c.contribBoxText}</p>
+      <div class="contribution__highlight" role="note">
+        <span>💡</span>
+        <span><strong>{c.contribHighlightLabel}</strong> {c.contribHighlightText}</span>
+      </div>
+      <h3 class="contribution__box-title contribution__box-title--tight">{c.contribHowTitle}</h3>
+      <div class="contribution__types">
+        {
+          c.contribTypes.map((type, i) => (
+            <div class="contribution__type">
+              <span class:list={['contribution__type-badge', { monthly: i === 1 }]}>
+                {type.badge}
+              </span>
+              <span>{type.text}</span>
+            </div>
+          ))
+        }
+      </div>
+    </div>
+  </div>
+</section>
+
+<script>
+  // Hero zoom-in once the image has decoded.
+  const heroBg = document.getElementById('heroBg');
+  if (heroBg) {
+    const markLoaded = () => heroBg.classList.add('loaded');
+    if (heroBg instanceof HTMLImageElement && heroBg.complete) markLoaded();
+    else heroBg.addEventListener('load', markLoaded, { once: true });
+  }
+
+  const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  // Scroll-triggered reveal. The hidden start state is `.js [data-reveal]` in
+  // base.css, so with scripting off nothing is ever hidden in the first place.
+  const revealables = document.querySelectorAll<HTMLElement>('[data-reveal]');
+  if (prefersReducedMotion) {
+    revealables.forEach((el) => el.classList.add('visible'));
+  } else {
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (!entry.isIntersecting) return;
+          const el = entry.target as HTMLElement;
+          window.setTimeout(() => el.classList.add('visible'), Number(el.dataset.delay ?? 0));
+          observer.unobserve(el);
+        });
+      },
+      { threshold: 0.15 },
+    );
+    document.querySelectorAll<HTMLElement>('.feature-card[data-reveal]').forEach((el, i) => {
+      el.dataset.delay = String(i * 100);
+      observer.observe(el);
+    });
+    document.querySelectorAll<HTMLElement>('.step[data-reveal]').forEach((el, i) => {
+      el.dataset.delay = String(i * 150);
+      observer.observe(el);
+    });
+  }
+
+  // Counter animation. The final value is already in the markup, so this only
+  // ever animates *up to* what a no-JS visitor already sees.
+  const statNumbers = document.querySelectorAll<HTMLElement>('.stat__number[data-count]');
+  const numberFormat = new Intl.NumberFormat(document.documentElement.lang || 'fr');
+
+  function animateCounter(el: HTMLElement, target: number) {
+    const duration = 1800;
+    const start = performance.now();
+    const update = (now: number) => {
+      const progress = Math.min((now - start) / duration, 1);
+      const eased = 1 - Math.pow(1 - progress, 3);
+      el.innerHTML = `${numberFormat.format(Math.round(eased * target))}<span>+</span>`;
+      if (progress < 1) requestAnimationFrame(update);
+    };
+    requestAnimationFrame(update);
+  }
+
+  const statsEl = document.querySelector('.stats');
+  if (statsEl && statNumbers.length > 0 && !prefersReducedMotion) {
+    const statsObserver = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (!entry.isIntersecting) return;
+          statNumbers.forEach((el) => animateCounter(el, Number(el.dataset.count)));
+          statsObserver.unobserve(entry.target);
+        });
+      },
+      { threshold: 0.5 },
+    );
+    statsObserver.observe(statsEl);
+  }
+</script>

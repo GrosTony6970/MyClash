@@ -1,0 +1,719 @@
+/*
+ * home.css — the landing page only. Nav and footer live in chrome.css.
+ */
+
+body {
+  color: var(--dark);
+  background: var(--white);
+}
+
+/* ── HERO ─────────────────────────────────────── */
+.hero {
+  position: relative;
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  padding: calc(var(--nav-h) + 4rem) 5% 5rem;
+  overflow: hidden;
+}
+/*
+ * The hero is a real <img>, not a CSS background.
+ *
+ * As a background it was invisible to the preload scanner, so the largest
+ * element on the page — a 2.37 MB PNG — could not start downloading until the
+ * stylesheet had parsed, and could never carry `fetchpriority`. As an element
+ * Astro can also emit it as AVIF/WebP with a srcset, which is where nearly all
+ * of the weight goes.
+ *
+ * This rule pair is also the one place the FR and EN stylesheets had drifted:
+ * the url() was `assets/…` in one and `../assets/…` in the other, which is the
+ * whole argument for there being one stylesheet.
+ */
+.hero__bg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center top;
+  transform: scale(1.04);
+  transition: transform 8s ease-out;
+}
+.hero__bg.loaded {
+  transform: scale(1);
+}
+/* <Picture> wraps the <img> in a <picture>. The img is absolutely positioned,
+   but the wrapper is not — left alone it would become a real flex item of the
+   .hero flex row. Take the wrapper out of flow instead. */
+.hero > picture {
+  position: absolute;
+  inset: 0;
+}
+.hero__overlay {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    105deg,
+    rgba(15, 23, 42, 0.82) 0%,
+    rgba(15, 23, 42, 0.6) 45%,
+    rgba(29, 78, 216, 0.25) 100%
+  );
+}
+.hero__content {
+  position: relative;
+  z-index: 1;
+  max-width: 680px;
+}
+.hero__eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6rem;
+  font-family: var(--font-display);
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--gold);
+  margin-bottom: 1.5rem;
+  opacity: 0;
+  transform: translateY(20px);
+  animation: fadeUp 0.7s 0.2s forwards;
+}
+.hero__eyebrow::before {
+  content: '';
+  display: block;
+  width: 32px;
+  height: 2px;
+  background: var(--gold);
+}
+.hero__title {
+  font-family: var(--font-display);
+  font-size: clamp(2.4rem, 5vw, 4rem);
+  font-weight: 900;
+  line-height: 1.1;
+  color: var(--white);
+  margin-bottom: 1.5rem;
+  opacity: 0;
+  transform: translateY(24px);
+  animation: fadeUp 0.7s 0.4s forwards;
+}
+.hero__title span {
+  color: var(--red);
+}
+.hero__subtitle {
+  font-size: clamp(1.1rem, 2vw, 1.3rem);
+  font-weight: 400;
+  font-style: italic;
+  color: rgba(255, 255, 255, 0.82);
+  line-height: 1.6;
+  margin-bottom: 2.5rem;
+  max-width: 560px;
+  opacity: 0;
+  transform: translateY(24px);
+  animation: fadeUp 0.7s 0.6s forwards;
+}
+.hero__actions {
+  display: flex;
+  gap: 1rem;
+  flex-wrap: wrap;
+  opacity: 0;
+  transform: translateY(24px);
+  animation: fadeUp 0.7s 0.8s forwards;
+}
+.btn-primary {
+  padding: 0.85rem 2rem;
+  background: var(--red);
+  color: var(--white);
+  font-family: var(--font-display);
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  text-decoration: none;
+  border-radius: 4px;
+  border: 2px solid var(--red);
+  cursor: pointer;
+  transition:
+    background 0.2s,
+    transform 0.15s,
+    box-shadow 0.2s;
+  display: inline-block;
+}
+.btn-primary:hover {
+  background: var(--red-dark);
+  border-color: var(--red-dark);
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(220, 38, 38, 0.35);
+}
+.btn-outline {
+  padding: 0.85rem 2rem;
+  background: transparent;
+  color: var(--white);
+  font-family: var(--font-display);
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  text-decoration: none;
+  border-radius: 4px;
+  border: 2px solid rgba(255, 255, 255, 0.5);
+  cursor: pointer;
+  transition:
+    border-color 0.2s,
+    background 0.2s,
+    transform 0.15s;
+  display: inline-block;
+}
+.btn-outline:hover {
+  border-color: var(--white);
+  background: rgba(255, 255, 255, 0.1);
+  transform: translateY(-2px);
+}
+.hero__scroll {
+  position: absolute;
+  bottom: 2.5rem;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  color: rgba(255, 255, 255, 0.5);
+  font-family: var(--font-display);
+  font-size: 0.6rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  animation: bounce 2s 1.5s infinite;
+}
+.hero__scroll svg {
+  width: 20px;
+  height: 20px;
+}
+
+/* ── STATS BAR ────────────────────────────────── */
+.stats {
+  background: var(--blue);
+  padding: 3rem 5%;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1px;
+  position: relative;
+}
+.stats::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: linear-gradient(90deg, var(--red) 0%, var(--gold) 50%, var(--red) 100%);
+}
+.stat {
+  padding: 1.5rem 2rem;
+  text-align: center;
+  border-right: 1px solid rgba(255, 255, 255, 0.15);
+}
+.stat:last-child {
+  border-right: none;
+}
+.stat__number {
+  font-family: var(--font-display);
+  font-size: clamp(2rem, 4vw, 3rem);
+  font-weight: 900;
+  color: var(--white);
+  line-height: 1;
+  margin-bottom: 0.4rem;
+}
+.stat__number span {
+  color: var(--gold);
+}
+.stat__label {
+  font-size: 0.9rem;
+  font-style: italic;
+  /* 0.72 measured 4.25:1 against --blue — under the 4.5:1 AA floor. 0.85 is
+     5.30:1 and visually indistinguishable at this size. */
+  color: rgba(255, 255, 255, 0.85);
+  letter-spacing: 0.04em;
+}
+
+/* ── SECTION COMMONS ─────────────────────────── */
+.section {
+  padding: 6rem 5%;
+}
+.section--grey {
+  background: var(--grey-light);
+}
+.section__header {
+  text-align: center;
+  margin-bottom: 4rem;
+}
+.section__tag {
+  display: inline-block;
+  font-family: var(--font-display);
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--red);
+  margin-bottom: 0.8rem;
+}
+.section__title {
+  font-family: var(--font-display);
+  font-size: clamp(1.8rem, 3.5vw, 2.8rem);
+  font-weight: 700;
+  color: var(--dark);
+  line-height: 1.2;
+  margin-bottom: 1rem;
+}
+.section__title::after {
+  content: '';
+  display: block;
+  width: 48px;
+  height: 3px;
+  background: var(--red);
+  margin: 0.8rem auto 0;
+}
+.section__lead {
+  font-size: 1.1rem;
+  font-style: italic;
+  color: var(--grey);
+  max-width: 600px;
+  margin: 0 auto;
+  line-height: 1.7;
+}
+
+/* ── FEATURES ─────────────────────────────────── */
+.features__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 2rem;
+  max-width: 1100px;
+  margin: 0 auto;
+}
+/* The hidden-until-revealed state moved to `.js [data-reveal]` in base.css, so
+   these cards are visible when JavaScript is not. Only the hover treatment is
+   card-specific. */
+.feature-card {
+  background: var(--white);
+  border-radius: 8px;
+  padding: 2.5rem 2rem;
+  border: 1px solid var(--grey-mid);
+  transition:
+    transform 0.25s,
+    box-shadow 0.25s,
+    border-color 0.25s;
+}
+.feature-card:hover {
+  transform: translateY(-6px);
+  box-shadow: 0 16px 40px rgba(29, 78, 216, 0.12);
+  border-color: var(--blue-light);
+}
+.feature-card__icon {
+  width: 52px;
+  height: 52px;
+  background: linear-gradient(135deg, var(--blue) 0%, var(--blue-dark) 100%);
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 1.5rem;
+}
+.feature-card__icon svg {
+  width: 26px;
+  height: 26px;
+  color: var(--white);
+}
+.feature-card__title {
+  font-family: var(--font-display);
+  font-size: 1rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: var(--dark);
+  margin-bottom: 0.8rem;
+}
+.feature-card__text {
+  font-size: 1rem;
+  color: var(--grey);
+  line-height: 1.65;
+}
+
+/* ── HOW IT WORKS ─────────────────────────────── */
+.steps {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 0;
+  max-width: 900px;
+  margin: 0 auto;
+  position: relative;
+}
+.steps::before {
+  content: '';
+  position: absolute;
+  top: 32px;
+  left: calc(16.67% + 32px);
+  right: calc(16.67% + 32px);
+  height: 2px;
+  background: repeating-linear-gradient(
+    90deg,
+    var(--grey-mid) 0,
+    var(--grey-mid) 8px,
+    transparent 8px,
+    transparent 16px
+  );
+}
+.step {
+  text-align: center;
+  padding: 0 1.5rem;
+}
+.step__num {
+  width: 64px;
+  height: 64px;
+  background: var(--red);
+  color: var(--white);
+  font-family: var(--font-display);
+  font-size: 1.4rem;
+  font-weight: 900;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 1.5rem;
+  position: relative;
+  z-index: 1;
+  box-shadow: 0 4px 16px rgba(220, 38, 38, 0.3);
+}
+.step__title {
+  font-family: var(--font-display);
+  font-size: 0.9rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--dark);
+  margin-bottom: 0.7rem;
+}
+.step__text {
+  font-size: 1rem;
+  color: var(--grey);
+  line-height: 1.6;
+  font-style: italic;
+}
+
+/* ── BANNER ───────────────────────────────────── */
+.banner-section {
+  height: 240px;
+  overflow: hidden;
+  position: relative;
+}
+.banner-section picture {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+.banner-section img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
+}
+.banner-section::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(15, 23, 42, 0.2) 0%, rgba(15, 23, 42, 0.1) 100%);
+}
+
+/* ── CTA ──────────────────────────────────────── */
+.cta-section {
+  background: var(--blue);
+  padding: 6rem 5%;
+  text-align: center;
+  position: relative;
+  overflow: hidden;
+}
+.cta-section::before {
+  content: '';
+  position: absolute;
+  top: -60px;
+  right: -60px;
+  width: 320px;
+  height: 320px;
+  background: rgba(255, 255, 255, 0.04);
+  border-radius: 50%;
+}
+.cta-section::after {
+  content: '';
+  position: absolute;
+  bottom: -80px;
+  left: -40px;
+  width: 240px;
+  height: 240px;
+  background: rgba(220, 38, 38, 0.12);
+  border-radius: 50%;
+}
+.cta-section .section__tag {
+  color: var(--gold);
+}
+.cta-section .section__title {
+  color: var(--white);
+}
+.cta-section .section__title::after {
+  background: var(--gold);
+  margin: 0.8rem auto 0;
+}
+.cta-section .section__lead {
+  color: rgba(255, 255, 255, 0.75);
+}
+.cta-section__actions {
+  display: flex;
+  gap: 1rem;
+  justify-content: center;
+  flex-wrap: wrap;
+  margin-top: 2.5rem;
+  position: relative;
+  z-index: 1;
+}
+.btn-white {
+  padding: 0.85rem 2.2rem;
+  background: var(--white);
+  color: var(--blue-dark);
+  font-family: var(--font-display);
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  text-decoration: none;
+  border-radius: 4px;
+  border: 2px solid var(--white);
+  transition:
+    background 0.2s,
+    transform 0.15s,
+    box-shadow 0.2s;
+  display: inline-block;
+}
+.btn-white:hover {
+  background: var(--grey-light);
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+}
+.btn-outline-white {
+  padding: 0.85rem 2.2rem;
+  background: transparent;
+  color: var(--white);
+  font-family: var(--font-display);
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  text-decoration: none;
+  border-radius: 4px;
+  border: 2px solid rgba(255, 255, 255, 0.5);
+  transition:
+    border-color 0.2s,
+    background 0.2s,
+    transform 0.15s;
+  display: inline-block;
+}
+.btn-outline-white:hover {
+  border-color: var(--white);
+  background: rgba(255, 255, 255, 0.1);
+  transform: translateY(-2px);
+}
+
+/* ── CONTRIBUTION ─────────────────────────────── */
+.contribution {
+  background: var(--grey-light);
+  padding: 6rem 5%;
+}
+.contribution__inner {
+  max-width: 900px;
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4rem;
+  align-items: start;
+}
+.contribution__left .section__title {
+  text-align: left;
+}
+.contribution__left .section__title::after {
+  margin: 0.8rem 0 0;
+}
+.contribution__tagline {
+  font-size: 1.1rem;
+  font-style: italic;
+  color: var(--grey);
+  line-height: 1.7;
+  margin-bottom: 1.5rem;
+}
+.contribution__list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.8rem;
+  margin-bottom: 2rem;
+}
+.contribution__list li {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.8rem;
+  font-size: 1rem;
+  color: var(--dark-mid);
+  line-height: 1.5;
+}
+.contribution__list li::before {
+  content: '✦';
+  color: var(--blue);
+  font-size: 0.7rem;
+  margin-top: 0.3rem;
+  flex-shrink: 0;
+}
+.contribution__donate {
+  display: inline-block;
+  padding: 0.85rem 2rem;
+  background: var(--red);
+  color: var(--white);
+  font-family: var(--font-display);
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  text-decoration: none;
+  border-radius: 4px;
+  border: 2px solid var(--red);
+  transition:
+    background 0.2s,
+    transform 0.15s,
+    box-shadow 0.2s;
+}
+.contribution__donate:hover {
+  background: var(--red-dark);
+  border-color: var(--red-dark);
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(220, 38, 38, 0.3);
+}
+.contribution__right {
+  background: var(--white);
+  border-radius: 12px;
+  padding: 2.5rem;
+  border: 1px solid var(--grey-mid);
+  box-shadow: 0 4px 24px rgba(15, 23, 42, 0.06);
+}
+.contribution__box-title {
+  font-family: var(--font-display);
+  font-size: 1rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  color: var(--dark);
+  margin-bottom: 1rem;
+}
+.contribution__box-text {
+  font-size: 1rem;
+  color: var(--grey);
+  line-height: 1.7;
+  font-style: italic;
+  margin-bottom: 1.5rem;
+}
+.contribution__highlight {
+  display: flex;
+  align-items: flex-start;
+  gap: 1rem;
+  background: linear-gradient(135deg, rgba(29, 78, 216, 0.06) 0%, rgba(220, 38, 38, 0.04) 100%);
+  border-left: 3px solid var(--blue);
+  border-radius: 0 8px 8px 0;
+  padding: 1rem 1.2rem;
+  margin-bottom: 1.5rem;
+  font-size: 0.95rem;
+  color: var(--dark-mid);
+  line-height: 1.6;
+  font-weight: 500;
+}
+.contribution__types {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+.contribution__type {
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+  padding: 0.7rem 1rem;
+  border-radius: 6px;
+  border: 1px solid var(--grey-mid);
+  font-size: 0.95rem;
+  color: var(--dark-mid);
+  line-height: 1.4;
+}
+.contribution__type-badge {
+  font-family: var(--font-display);
+  font-size: 0.6rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  background: var(--blue);
+  color: var(--white);
+  padding: 0.2rem 0.5rem;
+  border-radius: 3px;
+  flex-shrink: 0;
+}
+.contribution__type-badge.monthly {
+  background: var(--red);
+}
+
+/* ── ANIMATIONS ───────────────────────────────── */
+@keyframes fadeUp {
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+@keyframes bounce {
+  0%,
+  100% {
+    transform: translateX(-50%) translateY(0);
+  }
+  50% {
+    transform: translateX(-50%) translateY(8px);
+  }
+}
+
+/* ── RESPONSIVE (home) ────────────────────────── */
+@media (max-width: 900px) {
+  .stats {
+    grid-template-columns: 1fr;
+  }
+  .stat {
+    border-right: none;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.15);
+  }
+  .stat:last-child {
+    border-bottom: none;
+  }
+  .contribution__inner {
+    grid-template-columns: 1fr;
+    gap: 2rem;
+  }
+  .steps::before {
+    display: none;
+  }
+}
+@media (max-width: 600px) {
+  .hero {
+    padding: calc(var(--nav-h) + 2rem) 5% 4rem;
+  }
+  .hero__actions {
+    flex-direction: column;
+  }
+  .btn-primary,
+  .btn-outline {
+    width: 100%;
+    text-align: center;
+  }
+  .section {
+    padding: 4rem 5%;
+  }
+}
+
+/* Was an inline style="margin-bottom:0.8rem" on the second box title. */
+.contribution__box-title--tight {
+  margin-bottom: 0.8rem;
+}

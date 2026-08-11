@@ -1,0 +1,81 @@
+---
+import { Image } from 'astro:assets';
+import logo from '../assets/Logo_nobackground.png';
+import { CHROME, SECTION_IDS, localePath, APP_URL, type Locale } from '../i18n/ui';
+
+interface Props {
+  locale: Locale;
+}
+
+const { locale } = Astro.props;
+const t = CHROME[locale];
+const home = localePath(locale, '/');
+
+/*
+ * Absolute anchors rather than bare `#fonctionnalites`. The landing page used
+ * bare fragments and the legal pages used `/#…` — two spellings of the same
+ * link, which is exactly the kind of split this component removes. From the
+ * landing page `/#fonctionnalites` resolves to the same in-page anchor.
+ */
+const anchor = (id: string) => `${home === '/' ? '' : home}/#${id}`;
+---
+
+<nav class="nav" id="navbar">
+  {/* Was href="#", which jumps to the top and pushes an empty fragment onto
+      history instead of going home. */}
+  <a href={home} class="nav__logo" aria-label={t.homeAria}>
+    <Image src={logo} alt="MyClash" width={88} height={88} densities={[1, 2]} loading="eager" />
+  </a>
+
+  <button class="nav__burger" id="burger" aria-label={t.menuAria} aria-expanded="false" aria-controls="nav-panel">
+    <span></span><span></span><span></span>
+  </button>
+
+  {/* One panel holding both the links and the CTA — see the `display: contents`
+      note in chrome.css. */}
+  <div class="nav__panel" id="nav-panel">
+    <ul class="nav__links">
+      <li><a href={anchor(SECTION_IDS.features)}>{t.navFeatures}</a></li>
+      <li><a href={anchor(SECTION_IDS.howItWorks)}>{t.navHowItWorks}</a></li>
+      <li><a href={anchor(SECTION_IDS.support)}>{t.navSupport}</a></li>
+    </ul>
+    <a href={APP_URL} class="nav__cta" target="_blank" rel="noopener">{t.navCta}</a>
+  </div>
+</nav>
+
+<script>
+  const navbar = document.getElementById('navbar');
+  const burger = document.getElementById('burger');
+  const panel = document.getElementById('nav-panel');
+
+  if (navbar) {
+    window.addEventListener(
+      'scroll',
+      () => navbar.classList.toggle('scrolled', window.scrollY > 20),
+      { passive: true },
+    );
+  }
+
+  if (burger && panel) {
+    burger.addEventListener('click', () => {
+      const open = panel.classList.toggle('open');
+      burger.setAttribute('aria-expanded', String(open));
+    });
+
+    // Close on navigation to an in-page anchor, otherwise the panel stays over
+    // the section it just scrolled to.
+    panel.querySelectorAll('a').forEach((link) => {
+      link.addEventListener('click', () => {
+        panel.classList.remove('open');
+        burger.setAttribute('aria-expanded', 'false');
+      });
+    });
+
+    document.addEventListener('keydown', (event) => {
+      if (event.key !== 'Escape' || !panel.classList.contains('open')) return;
+      panel.classList.remove('open');
+      burger.setAttribute('aria-expanded', 'false');
+      burger.focus();
+    });
+  }
+</script>

@@ -11,6 +11,10 @@ openapi.json
 # Lockfiles + caches
 pnpm-lock.yaml
 **/.turbo/
+# Astro writes .astro/ on every build and check. Prettier does not read
+# .gitignore, so without this entry four generated files redden format:check
+# the moment anyone builds the marketing site.
+**/.astro/
 
 # Local session-tool scratch dirs. Git-ignored via their own nested .gitignore,
 # but Prettier does not read .gitignore — so `format:check` was failing on 53

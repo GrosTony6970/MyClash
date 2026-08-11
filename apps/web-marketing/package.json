@@ -2,12 +2,25 @@
   "name": "@myclash/web-marketing",
   "version": "0.0.0",
   "private": true,
-  "description": "Static marketing/landing site at myclash.fr (apex). Stub — agent fills in during T-003b.",
+  "type": "module",
+  "description": "Static marketing/landing site at myclash.fr (apex). Astro, prerendered to plain HTML and served by Caddy.",
   "scripts": {
-    "dev": "echo 'noop until T-003b static dev server'",
-    "build": "echo 'noop until T-003b static output'",
-    "lint": "echo 'noop until T-003b'",
-    "typecheck": "echo 'noop for static site'",
-    "test": "echo 'noop until T-003b'"
+    "dev": "astro dev --port 3004",
+    "build": "astro build",
+    "preview": "astro preview --port 3004",
+    "lint": "astro check --minimumSeverity warning",
+    "typecheck": "astro check --minimumSeverity error",
+    "test": "astro build && node --test \"test/*.test.mjs\""
+  },
+  "dependencies": {
+    "@astrojs/sitemap": "^3.6.0",
+    "@fontsource/cinzel": "^5.2.5",
+    "@fontsource/cormorant-garamond": "^5.2.5",
+    "astro": "^5.14.1",
+    "sharp": "^0.34.4"
+  },
+  "devDependencies": {
+    "@astrojs/check": "^0.9.10",
+    "typescript": "^6.0.3"
   }
 }

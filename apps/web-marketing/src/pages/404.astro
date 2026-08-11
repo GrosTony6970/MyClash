@@ -1,0 +1,112 @@
+---
+/**
+ * Served by Caddy for any unresolved path (see apps/web-marketing/Caddyfile).
+ *
+ * Bilingual on one page on purpose: it is reached from a URL that told us
+ * nothing about the visitor's language, so choosing one would be a guess.
+ */
+import Base from '../layouts/Base.astro';
+---
+
+<Base
+  locale="fr"
+  route="/404"
+  title="Page introuvable — MyClash"
+  description="La page demandée n'existe pas."
+  bodyClass="notfound"
+>
+  <main class="notfound__main" id="main-content">
+    <p class="notfound__code">404</p>
+    <div class="notfound__rule" aria-hidden="true"></div>
+    <h1 class="notfound__title">Cette page n'existe pas</h1>
+    <p class="notfound__text">
+      Le lien est peut-être obsolète, ou l'adresse comporte une faute de frappe.
+    </p>
+    <p class="notfound__text notfound__text--alt" lang="en">
+      This page does not exist. The link may be out of date, or the address mistyped.
+    </p>
+    <nav class="notfound__actions" aria-label="Retour / Back">
+      <a href="/" class="notfound__btn notfound__btn--primary">Accueil</a>
+      <a href="/en" class="notfound__btn">English</a>
+    </nav>
+  </main>
+</Base>
+
+<style>
+  /* Reached from an unknown URL, so it must not depend on anything but itself. */
+  body.notfound {
+    background: var(--dark);
+    color: var(--grey-light);
+  }
+  .notfound__main {
+    min-height: calc(100vh - var(--nav-h));
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: calc(var(--nav-h) + 3rem) 1.5rem 4rem;
+  }
+  .notfound__code {
+    font-family: var(--font-display);
+    font-size: clamp(3.5rem, 12vw, 6rem);
+    font-weight: 900;
+    line-height: 1;
+    color: var(--red);
+    letter-spacing: 0.04em;
+  }
+  .notfound__rule {
+    width: 48px;
+    height: 3px;
+    background: var(--gold);
+    margin: 1.5rem auto;
+  }
+  .notfound__title {
+    font-family: var(--font-display);
+    font-size: clamp(1.3rem, 4vw, 1.8rem);
+    font-weight: 700;
+    margin-bottom: 0.75rem;
+  }
+  .notfound__text {
+    max-width: 34rem;
+    color: rgba(241, 245, 249, 0.75);
+    line-height: 1.6;
+  }
+  .notfound__text--alt {
+    margin-top: 0.4rem;
+    font-style: italic;
+    color: rgba(241, 245, 249, 0.6);
+  }
+  .notfound__actions {
+    display: flex;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+    justify-content: center;
+    margin-top: 2.5rem;
+  }
+  .notfound__btn {
+    padding: 0.7rem 1.6rem;
+    border: 2px solid rgba(255, 255, 255, 0.45);
+    border-radius: 4px;
+    color: var(--white);
+    text-decoration: none;
+    font-family: var(--font-display);
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    transition: border-color 0.2s, background 0.2s;
+  }
+  .notfound__btn--primary {
+    background: var(--red);
+    border-color: var(--red);
+  }
+  .notfound__btn:hover {
+    border-color: var(--white);
+    background: rgba(255, 255, 255, 0.12);
+  }
+  .notfound__btn--primary:hover {
+    background: var(--red-dark);
+    border-color: var(--red-dark);
+  }
+</style>

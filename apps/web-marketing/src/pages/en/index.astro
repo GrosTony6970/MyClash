@@ -1,0 +1,20 @@
+---
+import Base from '../../layouts/Base.astro';
+import Home from '../../components/Home.astro';
+import { HOME } from '../../i18n/home';
+
+const c = HOME.en;
+---
+
+<Base
+  locale="en"
+  route="/"
+  title={c.metaTitle}
+  description={c.metaDescription}
+  ogDescription={c.ogDescription}
+  structuredData
+>
+  <main id="main-content">
+    <Home locale="en" />
+  </main>
+</Base>

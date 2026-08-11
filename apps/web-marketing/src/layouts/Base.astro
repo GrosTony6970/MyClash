@@ -1,0 +1,141 @@
+---
+import Nav from '../components/Nav.astro';
+import Footer from '../components/Footer.astro';
+import { CHROME, localePath, CONTACT_EMAIL, APP_URL, REPO_URL, type Locale } from '../i18n/ui';
+import '../styles/base.css';
+import '../styles/chrome.css';
+
+interface Props {
+  locale: Locale;
+  /** Locale-independent route, e.g. `/` or `/terms`. Drives canonical + hreflang. */
+  route: string;
+  title: string;
+  description: string;
+  /** Landing pages describe the product; legal pages should stay out of the index for social cards. */
+  ogTitle?: string;
+  ogDescription?: string;
+  /** Skip the JSON-LD product blocks on pages where they do not apply. */
+  structuredData?: boolean;
+  bodyClass?: string;
+}
+
+const {
+  locale,
+  route,
+  title,
+  description,
+  ogTitle = title,
+  ogDescription = description,
+  structuredData = false,
+  bodyClass,
+} = Astro.props;
+
+const t = CHROME[locale];
+const site = Astro.site ?? new URL('https://myclash.fr');
+const abs = (path: string) => new URL(path, site).href;
+
+const canonical = abs(localePath(locale, route));
+const frHref = abs(localePath('fr', route));
+const enHref = abs(localePath('en', route));
+const ogImage = abs('/assets/og-default.jpg');
+
+/*
+ * A 1200x630 JPEG rather than the 2.37 MB hero PNG the meta tags used to point
+ * at. Social scrapers fetch this on every share; the hero was 25x the size and
+ * the wrong aspect ratio, so cards were cropped unpredictably.
+ */
+
+const jsonLd = structuredData
+  ? [
+      {
+        '@context': 'https://schema.org',
+        '@type': 'Organization',
+        name: 'MyClash',
+        url: 'https://myclash.fr/',
+        logo: abs('/assets/og-default.jpg'),
+        sameAs: [REPO_URL],
+        contactPoint: [
+          {
+            '@type': 'ContactPoint',
+            email: CONTACT_EMAIL,
+            contactType: 'customer support',
+            availableLanguage: ['fr', 'en'],
+          },
+        ],
+      },
+      {
+        '@context': 'https://schema.org',
+        '@type': 'WebSite',
+        name: locale === 'fr' ? 'MyClash France' : 'MyClash',
+        url: canonical,
+        inLanguage: locale,
+      },
+      {
+        '@context': 'https://schema.org',
+        '@type': 'SoftwareApplication',
+        name: 'MyClash',
+        url: APP_URL,
+        applicationCategory: 'SportsApplication',
+        operatingSystem: 'Web',
+        inLanguage: ['fr', 'en'],
+        description: ogDescription,
+        offers: { '@type': 'Offer', price: '0', priceCurrency: 'EUR' },
+        publisher: { '@type': 'Organization', name: 'MyClash', url: 'https://myclash.fr/' },
+      },
+    ]
+  : null;
+---
+
+<!doctype html>
+<html lang={t.htmlLang}>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>{title}</title>
+    <meta name="description" content={description} />
+    <meta name="robots" content="index, follow, max-image-preview:large" />
+    <link rel="canonical" href={canonical} />
+    <link rel="alternate" hreflang="fr" href={frHref} />
+    <link rel="alternate" hreflang="en" href={enHref} />
+    <link rel="alternate" hreflang="x-default" href={frHref} />
+    <meta name="theme-color" content="#0f172a" />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="MyClash" />
+    <meta property="og:locale" content={t.ogLocale} />
+    <meta property="og:title" content={ogTitle} />
+    <meta property="og:description" content={ogDescription} />
+    <meta property="og:url" content={canonical} />
+    <meta property="og:image" content={ogImage} />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="MyClash tournament management interface" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content={ogTitle} />
+    <meta name="twitter:description" content={ogDescription} />
+    <meta name="twitter:image" content={ogImage} />
+    <link rel="icon" href="/assets/favicon.png" type="image/png" />
+    <link rel="apple-touch-icon" href="/assets/favicon.png" />
+
+    {
+      jsonLd && (
+        <script type="application/ld+json" set:html={JSON.stringify(jsonLd)} />
+      )
+    }
+
+    {/* Per-page additions: the legal pages inject their BreadcrumbList here. */}
+    <slot name="head" />
+
+    {/* Marks that scripting is available, before first paint, so the
+        scroll-reveal start state in base.css applies only when something can
+        actually finish it. See the note there. */}
+    <script is:inline>
+      document.documentElement.classList.add('js');
+    </script>
+  </head>
+  <body class={bodyClass}>
+    <a class="skip-link" href="#main-content">{t.skipToContent}</a>
+    <Nav locale={locale} />
+    <slot />
+    <Footer locale={locale} />
+  </body>
+</html>
