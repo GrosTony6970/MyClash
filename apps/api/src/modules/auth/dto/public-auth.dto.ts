@@ -30,7 +30,22 @@ const publicLoginSchema = z
   .strict();
 export class PublicLoginDto extends createZodDto(publicLoginSchema) {}
 
-const publicPasswordResetSchema = z.object({ email: z.email().max(254) }).strict();
+const publicPasswordResetSchema = z
+  .object({
+    email: z.email().max(254),
+    /**
+     * Which front door asked. Same vocabulary as the magic-link DTO: 'login' is
+     * the admin app, 'public_login' the participant app. It selects the HOST the
+     * recovery link opens — a security email that lands on a domain the person
+     * did not ask about is the exact shape of a phishing attempt.
+     *
+     * Defaults to the participant app so the two existing callers (the public
+     * login and the personal-space security page) keep their behaviour without
+     * sending the field.
+     */
+    type: z.enum(['login', 'public_login']).default('public_login'),
+  })
+  .strict();
 export class PublicPasswordResetDto extends createZodDto(publicPasswordResetSchema) {}
 
 const publicPasswordResetConfirmSchema = z

@@ -74,15 +74,21 @@ function button(url: string, label: string): string {
 
 export function magicLinkHtml(
   logoUrl: string,
-  opts: { magicLink: string; type: 'claim' | 'login'; displayName?: string },
+  opts: { magicLink: string; type: 'claim' | 'login' | 'recovery'; displayName?: string },
 ): string {
   const greeting = opts.displayName ? `Bonjour ${escapeHtml(opts.displayName)},` : 'Bonjour,';
   const intro =
     opts.type === 'claim'
       ? '<p>Cliquez sur le lien ci-dessous pour confirmer votre profil et acceder a votre planning.</p><p>Click the link below to confirm your profile and access your schedule.</p>'
-      : '<p>Cliquez sur le lien ci-dessous pour vous connecter a MyClash.</p><p>Click the link below to log in to MyClash.</p>';
+      : opts.type === 'recovery'
+        ? '<p>Cliquez sur le lien ci-dessous pour definir un nouveau mot de passe.</p><p>Click the link below to set a new password.</p>'
+        : '<p>Cliquez sur le lien ci-dessous pour vous connecter a MyClash.</p><p>Click the link below to log in to MyClash.</p>';
   const label =
-    opts.type === 'claim' ? 'Confirmer mon profil / Confirm my profile' : 'Se connecter / Log in';
+    opts.type === 'claim'
+      ? 'Confirmer mon profil / Confirm my profile'
+      : opts.type === 'recovery'
+        ? 'Definir un mot de passe / Set a password'
+        : 'Se connecter / Log in';
 
   return page(
     logoUrl,

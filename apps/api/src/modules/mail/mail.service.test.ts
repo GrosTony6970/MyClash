@@ -154,3 +154,58 @@ describe('MailService email-change confirmation', () => {
     expect(html).toContain('<img src="https://staging.myclash.fr/brand/Logomini_nobackground.png"');
   });
 });
+
+describe('MailService magic link', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    sendMock.mockResolvedValue({ data: { id: 'mail-1' }, error: null });
+  });
+
+  /**
+   * A password reset used to be mailed as `type: 'login'`, so the person who
+   * pressed "forgot my password" received "Your MyClash login link" with a
+   * "Log in" button and was never told a reset was underway. Both the subject
+   * and the body branch on the type and neither is exhaustive-checked, so this
+   * pins all three copies.
+   */
+  it('says password reset, not login, on a recovery link', async () => {
+    const service = new MailService(config as never, supabase as never);
+
+    await service.sendMagicLink({
+      to: 'organizer@example.com',
+      magicLink: 'https://admin.myclash.fr/reset-password?token_hash=abc',
+      type: 'recovery',
+    });
+
+    expect(sendMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        to: 'organizer@example.com',
+        subject: 'Reinitialisez votre mot de passe MyClash / Reset your MyClash password',
+      }),
+    );
+
+    const html = sendMock.mock.calls[0]![0].html as string;
+    expect(html).toContain('definir un nouveau mot de passe');
+    expect(html).toContain('set a new password');
+    expect(html).toContain('Definir un mot de passe / Set a password');
+    expect(html).toContain('https://admin.myclash.fr/reset-password?token_hash=abc');
+    expect(html).not.toContain('Se connecter / Log in');
+  });
+
+  it('leaves the sign-in link wording alone', async () => {
+    const service = new MailService(config as never, supabase as never);
+
+    await service.sendMagicLink({
+      to: 'organizer@example.com',
+      magicLink: 'https://api.myclash.fr/api/v1/auth/callback?type=login',
+      type: 'login',
+    });
+
+    expect(sendMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        subject: 'Votre lien de connexion MyClash / Your MyClash login link',
+      }),
+    );
+    expect(sendMock.mock.calls[0]![0].html as string).toContain('Se connecter / Log in');
+  });
+});

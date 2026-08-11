@@ -9543,6 +9543,11 @@ export interface components {
     PublicPasswordResetDto: {
       /** Format: email */
       email: string;
+      /**
+       * @default public_login
+       * @enum {string}
+       */
+      type: 'login' | 'public_login';
     };
     PublicPasswordResetConfirmDto: {
       token: string;

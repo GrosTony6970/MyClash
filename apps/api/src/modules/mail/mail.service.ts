@@ -15,8 +15,17 @@ import {
 export interface MagicLinkEmailOptions {
   to: string;
   magicLink: string;
-  /** 'claim' = participant claiming their profile; 'login' = organizer login */
-  type: 'claim' | 'login';
+  /**
+   * 'claim' = participant claiming their profile; 'login' = a sign-in link;
+   * 'recovery' = setting a new password.
+   *
+   * Recovery used to be sent as 'login', so someone who pressed "forgot my
+   * password" was mailed a "Your MyClash login link" with a "Log in" button and
+   * was never told a password reset was underway. Both switches below branch on
+   * this — neither is exhaustive-checked by the compiler, so a fourth value
+   * needs both touched by hand.
+   */
+  type: 'claim' | 'login' | 'recovery';
   /** Display name shown in the email body */
   displayName?: string;
 }
@@ -103,7 +112,12 @@ export class MailService {
     const subject =
       opts.type === 'claim'
         ? 'Confirmez votre profil MyClash / Confirm your MyClash profile'
-        : 'Votre lien de connexion MyClash / Your MyClash login link';
+        : opts.type === 'recovery'
+          ? // ASCII like every other subject and body in this file: the mail
+            // surface stays unaccented so a client that mangles encodings
+            // cannot turn a security email into mojibake.
+            'Reinitialisez votre mot de passe MyClash / Reset your MyClash password'
+          : 'Votre lien de connexion MyClash / Your MyClash login link';
     await this.deliver('sendMagicLink', opts.to, subject, magicLinkHtml(this.logoUrl, opts));
   }
 

@@ -842,8 +842,12 @@ export class AdminUsersService {
     const { data, error } = await this.supabase.service.auth.admin.generateLink({
       type: 'recovery',
       email,
-      // web-public owns the only /reset-password page. The account lands there,
-      // sets a password, and signs in wherever they were headed.
+      // Deliberately the participant app, even though both apps now have a
+      // /reset-password page. The self-service flow returns you to the host you
+      // asked from; here nobody asked — a staff member acted on the account's
+      // behalf, and there is no requesting host to return to. Routing by whether
+      // the target holds admin access would need `hasAdminAccess`, which is
+      // private to AuthService and in a module this one does not import.
       options: { redirectTo: `https://app.${domain}/reset-password` },
     });
     if (error || !data?.properties?.action_link) {
@@ -853,7 +857,7 @@ export class AdminUsersService {
     await this.mail.sendMagicLink({
       to: email,
       magicLink: data.properties.action_link,
-      type: 'login',
+      type: 'recovery',
     });
 
     // `target_email` is masked for free — maskAuditPayload keys off the suffix.

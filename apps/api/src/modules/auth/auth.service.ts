@@ -1313,10 +1313,16 @@ export class AuthService {
    * Always returns 202 + a generic message so the response shape is
    * identical for unknown emails (no enumeration).
    */
-  async publicPasswordReset(email: string): Promise<{ message: string }> {
+  async publicPasswordReset(
+    email: string,
+    audience: 'login' | 'public_login' = 'public_login',
+  ): Promise<{ message: string }> {
     const normalized = email.trim().toLowerCase();
-    const domain = this.config.get<string>('DOMAIN', 'myclash.localhost');
-    const redirectTo = `https://app.${domain}/reset-password`;
+    // The link opens the host that asked: an organizer who pressed "forgot
+    // password" on admin.${DOMAIN} sets it there, not in the participant app.
+    // Same helper the magic-link callbacks use, so there is one place that maps
+    // an audience to a host and the host is never built from input.
+    const redirectTo = this.buildPostAuthRedirectUrl('/reset-password', audience);
 
     try {
       const { data, error } = await this.supabase.service.auth.admin.generateLink({
@@ -1330,7 +1336,7 @@ export class AuthService {
         await this.mail.sendMagicLink({
           to: normalized,
           magicLink: data.properties.action_link,
-          type: 'login',
+          type: 'recovery',
         });
       }
     } catch (err) {

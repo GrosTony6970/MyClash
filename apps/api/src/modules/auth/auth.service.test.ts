@@ -252,6 +252,72 @@ describe('AuthService', () => {
     });
   });
 
+  describe('publicPasswordReset', () => {
+    /**
+     * The link opens the host that asked. This used to be hardcoded to the
+     * participant app for everyone, so an organizer who pressed "forgot
+     * password" on admin.${DOMAIN} was mailed a link to a domain they had not
+     * asked about — which is what phishing looks like.
+     */
+    it('sends an organizer back to the admin host', async () => {
+      generateLinkMock.mockResolvedValue({
+        data: { properties: { action_link: 'https://example.com/recover' } },
+        error: null,
+      });
+
+      await service.publicPasswordReset('organizer@example.com', 'login');
+
+      expect(generateLinkMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: 'recovery',
+          options: { redirectTo: 'https://admin.myclash.localhost/reset-password' },
+        }),
+      );
+    });
+
+    it('defaults to the participant host when no audience is given', async () => {
+      generateLinkMock.mockResolvedValue({
+        data: { properties: { action_link: 'https://example.com/recover' } },
+        error: null,
+      });
+
+      await service.publicPasswordReset('fighter@example.com');
+
+      expect(generateLinkMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          options: { redirectTo: 'https://app.myclash.localhost/reset-password' },
+        }),
+      );
+    });
+
+    it('mails it as a recovery, not as a login link', async () => {
+      generateLinkMock.mockResolvedValue({
+        data: { properties: { action_link: 'https://example.com/recover' } },
+        error: null,
+      });
+
+      await service.publicPasswordReset('organizer@example.com', 'login');
+
+      // 'login' here would send "Your MyClash login link" with a "Log in"
+      // button to someone who asked to reset a password.
+      expect(mockMailService.sendMagicLink).toHaveBeenCalledWith(
+        expect.objectContaining({ to: 'organizer@example.com', type: 'recovery' }),
+      );
+    });
+
+    it('answers the same way for an address that does not exist', async () => {
+      generateLinkMock.mockResolvedValue({
+        data: { properties: {} },
+        error: { message: 'User not found' },
+      });
+
+      const result = await service.publicPasswordReset('unknown@example.com', 'login');
+
+      expect(result.message).toContain('If this email is registered');
+      expect(mockMailService.sendMagicLink).not.toHaveBeenCalled();
+    });
+  });
+
   describe('requestMagicLink — claim type', () => {
     it('throws BadRequestException when personId is missing', async () => {
       await expect(

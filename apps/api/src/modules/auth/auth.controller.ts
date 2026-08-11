@@ -155,7 +155,7 @@ export class AuthController {
   @ApiOperation({ summary: 'Request a password reset email' })
   @ApiResponse({ status: 202, description: 'Reset link sent (or silently dropped)' })
   async publicPasswordReset(@Body() dto: PublicPasswordResetDto): Promise<{ message: string }> {
-    return this.authService.publicPasswordReset(dto.email);
+    return this.authService.publicPasswordReset(dto.email, dto.type);
   }
 
   /**
