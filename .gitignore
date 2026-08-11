@@ -72,7 +72,12 @@ test-results/
 .eslintcache
 
 # Claude Code
-.claude/
+.claude/*
+!.claude/agents/
+!.claude/commands/
+!.claude/skills/
+.claude/skills/*
+!.claude/skills/myclash-gates/
 .claude/settings.local.json
 .claude/hooks/node_modules/
 .claudeignore
