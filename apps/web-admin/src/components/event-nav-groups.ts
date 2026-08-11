@@ -84,6 +84,9 @@ export const EVENT_NAV_GROUPS: readonly EventNavGroup[] = [
       // Beside the results it qualifies: the report says whether the timings
       // attached to them can be trusted.
       { href: 'clock', labelKey: 'organizer.clockReport.navLabel', icon: 'clockReport' },
+      // Reads the same day from the other end: the clock report qualifies the
+      // results, this one says what never arrived to be qualified.
+      { href: 'debrief', labelKey: 'organizer.debrief.navLabel', icon: 'auditLog' },
     ],
   },
   {

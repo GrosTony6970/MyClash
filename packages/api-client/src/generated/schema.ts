@@ -9133,6 +9133,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  '/api/v1/events/{eventId}/post-event-report': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** What happened during the event: refused exchanges, overrides, desk */
+    get: operations['EventStatsController_getPostEventReport'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   '/api/v1/events/{eventId}/statistics/tournaments/{tournamentId}': {
     parameters: {
       query?: never;
@@ -24751,6 +24768,25 @@ export interface operations {
     };
   };
   EventStatsController_getEventStatistics: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        eventId: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  EventStatsController_getPostEventReport: {
     parameters: {
       query?: never;
       header?: never;

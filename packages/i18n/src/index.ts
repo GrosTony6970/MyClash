@@ -5391,6 +5391,36 @@ export const en = {
         unmeasured: 'Not measured',
       },
     },
+    debrief: {
+      navLabel: 'Debrief',
+      back: 'Back to event',
+      title: 'Post-event debrief',
+      subtitle: 'What actually happened, once the day is over.',
+      loading: 'Loading the debrief…',
+      loadError: 'Could not load the debrief.',
+      headlineClean: 'Nothing needs your attention.',
+      headlineAttention: 'Some things need a look.',
+      openClockReport: 'Open the full clock report',
+      sections: {
+        refusedExchanges: 'Exchanges the server refused',
+        silentDevices: 'Devices that stopped reporting',
+        overrides: 'Recorded overrides',
+        voidedOverrides: 'Overrides later voided',
+        arrivals: 'Arrivals recorded at the desk',
+        clockDrift: 'Devices with a drifting clock',
+      },
+      hints: {
+        refusedExchanges:
+          'Hits a referee scored that never reached the server. Counted at their peak, so a tablet that recovered still shows what it lost.',
+        silentDevices:
+          'These stopped sending their status before the rest did. Whatever they were holding is unknown.',
+        overrides: 'A recorded result change. A normal tool, listed for the record.',
+        voidedOverrides: 'Overrides that were undone.',
+        arrivals: 'People marked present, excluding reversals.',
+        clockDrift:
+          'A wrong device clock makes match timings disagree. The full report shows by how much.',
+      },
+    },
     startOfDay: {
       navLabel: 'Start of day',
       back: 'Event',
@@ -13213,6 +13243,36 @@ export const fr = {
         ok: 'Fiable',
         skewed: 'Horloge decalee',
         unmeasured: 'Non mesuree',
+      },
+    },
+    debrief: {
+      navLabel: 'Débriefing',
+      back: "Retour à l'événement",
+      title: 'Débriefing post-événement',
+      subtitle: "Ce qui s'est réellement passé, une fois la journée terminée.",
+      loading: 'Chargement du débriefing…',
+      loadError: 'Impossible de charger le débriefing.',
+      headlineClean: 'Rien ne requiert votre attention.',
+      headlineAttention: "Certains points méritent un coup d'œil.",
+      openClockReport: "Ouvrir le rapport d'horloge complet",
+      sections: {
+        refusedExchanges: 'Échanges refusés par le serveur',
+        silentDevices: 'Appareils ayant cessé de répondre',
+        overrides: 'Corrections enregistrées',
+        voidedOverrides: 'Corrections annulées',
+        arrivals: "Arrivées enregistrées à l'accueil",
+        clockDrift: "Appareils dont l'horloge dérive",
+      },
+      hints: {
+        refusedExchanges:
+          "Des touches réellement arbitrées qui ne sont jamais arrivées au serveur. Comptées à leur maximum : une tablette rétablie montre quand même ce qu'elle a perdu.",
+        silentDevices:
+          "Ces appareils ont cessé d'envoyer leur état avant les autres. Ce qu'ils retenaient est inconnu.",
+        overrides: 'Un résultat modifié et enregistré. Un outil normal, listé pour mémoire.',
+        voidedOverrides: 'Corrections qui ont été annulées.',
+        arrivals: 'Personnes marquées présentes, hors annulations.',
+        clockDrift:
+          'Une horloge fausse fait diverger les temps de combat. Le rapport complet indique de combien.',
       },
     },
     startOfDay: {

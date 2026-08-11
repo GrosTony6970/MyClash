@@ -45,6 +45,18 @@ export class EventStatsController {
   }
 
   /** GET /api/v1/events/:eventId/statistics/tournaments/:tournamentId */
+  @Get('events/:eventId/post-event-report')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'What happened during the event: refused exchanges, overrides, desk' })
+  @ApiParam({ name: 'eventId', type: 'string', format: 'uuid' })
+  async getPostEventReport(
+    @Param('eventId', ParseUUIDPipe) eventId: string,
+    @Req() req: FastifyRequest,
+  ) {
+    const userId = await getUserId(req, this.supabase);
+    return this.eventStats.getPostEventReport(eventId, userId);
+  }
+
   @Get('events/:eventId/statistics/tournaments/:tournamentId')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Per-tournament stats detail (overall standings + per-fighter table)' })
