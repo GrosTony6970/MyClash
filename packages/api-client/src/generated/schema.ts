@@ -10382,6 +10382,12 @@ export interface components {
       oldestPendingAgeSec: number;
       rejectedCount: number;
       clientNowMs?: number;
+      deviceId?: string;
+      deviceLabel?: string | null;
+      quarantinedCount?: number;
+      reasonCodes?: ('match_closed' | 'validation' | 'sequence' | 'other')[];
+      /** Format: date-time */
+      oldestQuarantinedAt?: string | null;
     };
     CreatePersonDto: {
       givenName: string;

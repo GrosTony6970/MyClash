@@ -147,6 +147,22 @@ const staffHeartbeatSchema = z
     // the whole point is to catch an absurd value, and a `.max()` here would
     // reject exactly the reading worth having.
     clientNowMs: z.number().int().optional(),
+    /**
+     * The quarantine half — exchanges the server REFUSED outright, distinct
+     * from `rejectedCount` above, which counts outbox entries stuck retrying.
+     * All optional together: a tablet on an older bundle still heartbeats, and
+     * telemetry must never fail the request.
+     */
+    deviceId: z.string().min(1).max(64).optional(),
+    deviceLabel: z.string().max(120).nullable().optional(),
+    quarantinedCount: z.number().int().min(0).optional(),
+    // A CLOSED code set mapped on the device. Never the server's own message:
+    // a 400 body can embed the offending value and this repo is public.
+    reasonCodes: z
+      .array(z.enum(['match_closed', 'validation', 'sequence', 'other']))
+      .max(8)
+      .optional(),
+    oldestQuarantinedAt: z.iso.datetime().nullable().optional(),
   })
   .strict();
 export class StaffHeartbeatDto extends createZodDto(staffHeartbeatSchema) {}

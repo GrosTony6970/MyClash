@@ -308,6 +308,10 @@ const ARCHIVE_EXCLUDED_TABLES = new Set<string>([
   'exchange_edit_requests',
   'deletion_requests',
   'tournament_ruleset_repins', // mid-event re-pin audit; governance log, not archived event data
+  // Per-device sync heartbeat: describes the TABLETS that ran the event, not
+  // the event. Restoring it into a copy would claim devices that never synced
+  // to that copy, and its whole value is being current rather than historical.
+  'scoring_device_sync_reports',
   'organizer_ai_assistant_drafts',
   'organizer_chat_conversations',
   'organizer_chat_messages',

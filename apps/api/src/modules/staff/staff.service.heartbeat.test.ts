@@ -6,7 +6,12 @@ const req = { cookies: {} } as never;
 function harness() {
   const updates: Record<string, unknown>[] = [];
   const eqCalls: Array<[string, unknown]> = [];
+  const rpcCalls: Array<[string, Record<string, unknown>]> = [];
   const service = {
+    rpc: vi.fn((fn: string, args: Record<string, unknown>) => {
+      rpcCalls.push([fn, args]);
+      return Promise.resolve({ data: null, error: null });
+    }),
     from: vi.fn(() => {
       const chain: Record<string, unknown> = {
         update: vi.fn((patch: Record<string, unknown>) => {
@@ -27,7 +32,7 @@ function harness() {
     svc as never as { requireStaffFromRequest: () => Promise<{ id: string; event_id: string }> },
     'requireStaffFromRequest',
   ).mockResolvedValue({ id: 'a1', event_id: 'E1' });
-  return { svc, updates, eqCalls };
+  return { svc, updates, eqCalls, rpcCalls };
 }
 
 describe('StaffService.recordHeartbeat', () => {
@@ -91,5 +96,97 @@ describe('StaffService.recordHeartbeat', () => {
     });
 
     expect(updates[0]).not.toHaveProperty('clock_skew_ms');
+  });
+});
+
+describe('StaffService.recordHeartbeat — durable device report', () => {
+  const quarantine = {
+    outboxDepth: 0,
+    oldestPendingAgeSec: 0,
+    rejectedCount: 0,
+    deviceId: 'dev-a',
+    deviceLabel: 'Tablet A',
+    quarantinedCount: 3,
+    reasonCodes: ['match_closed'] as const,
+    oldestQuarantinedAt: '2026-01-01T10:00:00.000Z',
+  };
+
+  it('records the quarantine against the event from the SESSION, never the client', async () => {
+    const { svc, rpcCalls } = harness();
+
+    await svc.recordHeartbeat(req, { ...quarantine, eventId: 'attacker-event' } as never);
+
+    expect(rpcCalls).toHaveLength(1);
+    const [fn, args] = rpcCalls[0]!;
+    expect(fn).toBe('record_device_sync_report');
+    expect(args['p_event_id']).toBe('E1');
+    expect(args['p_quarantined_count']).toBe(3);
+    expect(args['p_reason_codes']).toEqual(['match_closed']);
+  });
+
+  it('still records when the quarantine is EMPTY, so silence differs from clean', async () => {
+    const { svc, rpcCalls } = harness();
+
+    await svc.recordHeartbeat(req, {
+      outboxDepth: 0,
+      oldestPendingAgeSec: 0,
+      rejectedCount: 0,
+      deviceId: 'dev-a',
+      quarantinedCount: 0,
+      reasonCodes: [],
+      oldestQuarantinedAt: null,
+    });
+
+    expect(rpcCalls).toHaveLength(1);
+    expect(rpcCalls[0]![1]['p_quarantined_count']).toBe(0);
+  });
+
+  it('skips the report for a tablet on an older bundle, without failing the beat', async () => {
+    const { svc, rpcCalls } = harness();
+
+    await expect(
+      svc.recordHeartbeat(req, { outboxDepth: 1, oldestPendingAgeSec: 2, rejectedCount: 0 }),
+    ).resolves.toEqual({ ok: true });
+
+    expect(rpcCalls).toHaveLength(0);
+  });
+
+  it('never fails the heartbeat when the durable write errors', async () => {
+    const { svc } = harness();
+    // Telemetry must not break scoring: a failed report is logged, not thrown.
+    const failing = {
+      rpc: vi.fn(() => Promise.resolve({ data: null, error: { message: 'boom' } })),
+      from: vi.fn(() => {
+        const chain: Record<string, unknown> = {
+          update: vi.fn(() => chain),
+          eq: vi.fn(() => chain),
+          then: (r: (v: { data: null; error: null }) => void) => r({ data: null, error: null }),
+        };
+        return chain;
+      }),
+    };
+    const svc2 = new StaffService(
+      { service: failing } as never,
+      {} as never,
+      {} as never,
+      {} as never,
+    );
+    vi.spyOn(
+      svc2 as never as { requireStaffFromRequest: () => Promise<{ id: string; event_id: string }> },
+      'requireStaffFromRequest',
+    ).mockResolvedValue({ id: 'a1', event_id: 'E1' });
+    void svc;
+
+    await expect(
+      svc2.recordHeartbeat(req, {
+        outboxDepth: 0,
+        oldestPendingAgeSec: 0,
+        rejectedCount: 0,
+        deviceId: 'dev-a',
+        quarantinedCount: 1,
+        reasonCodes: ['other'],
+        oldestQuarantinedAt: null,
+      }),
+    ).resolves.toEqual({ ok: true });
   });
 });

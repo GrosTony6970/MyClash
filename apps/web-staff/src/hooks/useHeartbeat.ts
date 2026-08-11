@@ -1,10 +1,37 @@
 'use client';
 import { useEffect } from 'react';
 import { getApiUrl } from '../lib/api-url';
-import { getAllPending } from '../offline/outbox';
+import { getAllPending, getRejected } from '../offline/outbox';
 import { computeHeartbeatMetrics } from '../offline/heartbeat';
+import { getDeviceId } from '../offline/device-id';
+import { summariseQuarantine } from '../offline/quarantine-report';
 
 const HEARTBEAT_MS = 20_000;
+
+/**
+ * Snapshot everything one beat reports.
+ *
+ * `metrics.rejectedCount` and `quarantinedCount` are DIFFERENT numbers and the
+ * names have collided in this codebase before: the first counts outbox entries
+ * stuck retrying, the second counts exchanges the server refused outright and
+ * the device is still holding.
+ *
+ * The quarantine block is sent on every beat, including when it is empty, so a
+ * device nobody heard from is distinguishable from a device with nothing to
+ * report. It is omitted only when storage denied us a device id.
+ */
+async function collectHeartbeatPayload(): Promise<Record<string, unknown>> {
+  const [entries, held] = await Promise.all([getAllPending(), getRejected()]);
+  const metrics = computeHeartbeatMetrics(entries, Date.now());
+  const deviceId = getDeviceId();
+  return {
+    ...metrics,
+    // Stamped LAST, not with the metrics above: the reads are async and
+    // stamping before them would fold that wait into the measured clock skew.
+    clientNowMs: Date.now(),
+    ...(deviceId ? { deviceId, ...summariseQuarantine(held) } : {}),
+  };
+}
 
 /**
  * Best-effort tablet heartbeat: every 20s, while online, snapshot the outbox
@@ -24,16 +51,13 @@ export function useHeartbeat(): void {
       if (inFlight || !navigator.onLine) return;
       inFlight = true;
       try {
-        const entries = await getAllPending();
-        const metrics = computeHeartbeatMetrics(entries, Date.now());
+        const payload = await collectHeartbeatPayload();
         if (cancelled) return;
         await fetch(`${getApiUrl()}/api/v1/staff/heartbeat`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           credentials: 'include',
-          // Read at SEND time, not with the metrics above: the outbox read is
-          // async, and stamping before it would fold that wait into the skew.
-          body: JSON.stringify({ ...metrics, clientNowMs: Date.now() }),
+          body: JSON.stringify(payload),
         });
       } catch {
         // best-effort telemetry; never surface

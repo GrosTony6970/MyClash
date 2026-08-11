@@ -2,6 +2,7 @@ import {
   BadRequestException,
   ForbiddenException,
   Injectable,
+  Logger,
   NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common';
@@ -136,6 +137,8 @@ export interface NeighborTile {
 
 @Injectable()
 export class StaffService {
+  private readonly logger = new Logger(StaffService.name);
+
   constructor(
     private readonly supabase: SupabaseService,
     private readonly orgs: OrganizationsService,
@@ -471,7 +474,37 @@ export class StaffService {
       .eq('event_id', staff.event_id)
       .eq('id', staff.id);
     if (error) throw new BadRequestException(error.message);
+    await this.recordDeviceSyncReport(String(staff.event_id), dto);
     return { ok: true };
+  }
+
+  /**
+   * The durable half of the heartbeat.
+   *
+   * `event_staff_accounts.rejected_count` above is a live gauge: overwritten
+   * every 20s, carrying no reason, on a row that dies with the staff account.
+   * This keeps a per-DEVICE high-water record instead, so a tablet that was
+   * stuck at 14:00 and drained by 17:00 still shows that exchanges a referee
+   * scored were refused — the fact a post-event report needs and the gauge has
+   * already forgotten.
+   *
+   * Best-effort by design: telemetry must never fail a scoring request, so a
+   * write error is logged rather than thrown. The event comes from the staff
+   * SESSION, never the client.
+   */
+  private async recordDeviceSyncReport(eventId: string, dto: StaffHeartbeatDto): Promise<void> {
+    if (!dto.deviceId) return;
+    const { error } = await this.supabase.service.rpc('record_device_sync_report', {
+      p_event_id: eventId,
+      p_device_id: dto.deviceId,
+      p_device_label: dto.deviceLabel ?? null,
+      p_quarantined_count: dto.quarantinedCount ?? 0,
+      p_reason_codes: dto.reasonCodes ?? [],
+      p_oldest_quarantined_at: dto.oldestQuarantinedAt ?? null,
+    });
+    if (error) {
+      this.logger.warn(`device sync report failed for event ${eventId}: ${error.message}`);
+    }
   }
 
   async getAssignedLiceCurrent(req: FastifyRequest, liceId: string) {
