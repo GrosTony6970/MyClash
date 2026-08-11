@@ -49,12 +49,26 @@ export const LEGAL_POLICIES: Readonly<Record<LegalDocumentKind, LegalPolicy>> = 
   },
   privacy: {
     kind: 'privacy',
+    // 2026-08-11: corrected §7 and §8. The 2026-08-04 rewrite fixed the
+    // template's "Sentry self-hosted" claim by calling Sentry a US transfer,
+    // and overshot — the DSN points at Sentry's European region, so the logs
+    // are stored in Germany and were never a transfer out of the EU at all.
+    // §8 now lists two flows, not three. Separately, the marketing site stopped
+    // loading Google Fonts, which was an undisclosed fourth flow reaching
+    // Google from every page including this one; §8's undertaking to name them
+    // all is true as written for the first time.
+    //
+    // Bumped rather than corrected in place: legal_acceptances is append-only
+    // and exists to answer "what exactly did this user agree to", which two
+    // different texts sharing version 2026-08-04 would destroy. The change
+    // narrows what we claim leaves the EU, so it expands no processing.
+    //
     // 2026-08-04: full rewrite. The previous text was a template that
     // described a different product and stated four things that were false of
     // this one — Sentry self-hosted, no transfers outside the EU, analytics
     // cookies behind a consent panel that did not exist, and a 30-day
     // deletion grace period. See docs/decisions/ADR-012-cookie-consent.md.
-    version: '2026-08-04',
+    version: '2026-08-11',
     path: { en: '/en/privacypolicy', fr: '/privacypolicy' },
   },
 };

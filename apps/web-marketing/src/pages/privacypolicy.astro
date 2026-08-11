@@ -8,7 +8,7 @@ import Legal from '../layouts/Legal.astro';
   title={"Politique de Confidentialité — MyClash"}
   description={"Politique de confidentialité de MyClash — comment nous collectons, utilisons et protégeons vos données personnelles conformément au RGPD."}
   heading={"Politique de Confidentialité"}
-  updated={"Dernière mise à jour : 4 août 2026"}
+  updated={"Dernière mise à jour : 11 août 2026"}
 >
 <!-- 1 -->
 <h2>1. Qui sommes-nous, et qui est responsable de vos données ?</h2>
@@ -161,7 +161,7 @@ import Legal from '../layouts/Legal.astro';
     <tr><td><strong>OVHcloud</strong> (France)</td><td>Hébergement des serveurs : l'application, la base de données, les fichiers téléversés</td><td>🇪🇺 France</td></tr>
     <tr><td><strong>Scaleway</strong> (France)</td><td>Stockage hors-site des sauvegardes chiffrées</td><td>🇪🇺 France</td></tr>
     <tr><td><strong>Resend</strong> (Pays-Bas)</td><td>Envoi de nos emails : liens de connexion, emails de compte, notifications d'événement. Reçoit votre adresse email et le contenu du message</td><td>🇪🇺 Union européenne</td></tr>
-    <tr><td><strong>Sentry</strong> — Functional Software, Inc. (États-Unis)</td><td>Remontée des erreurs. Reçoit <strong>uniquement des journaux d'erreur applicatifs</strong> — voir §7.1</td><td>🇺🇸 États-Unis</td></tr>
+    <tr><td><strong>Sentry</strong> — Functional Software, Inc. (États-Unis)</td><td>Remontée des erreurs. Reçoit <strong>uniquement des journaux d'erreur applicatifs</strong> — voir §7.1</td><td>🇪🇺 Allemagne — région européenne de Sentry</td></tr>
     <tr><td><strong>Services de push</strong> — Google, Mozilla, Apple, Microsoft selon votre navigateur</td><td>Acheminement des notifications push, <strong>uniquement si vous les activez</strong>. Reçoit le contenu de la notification et l'adresse d'abonnement de votre navigateur</td><td>🌍 Variable selon le navigateur</td></tr>
     <tr><td><strong>Fournisseurs d'IA</strong> — Anthropic, OpenAI, Mistral AI, Google</td><td><strong>Optionnel, et désactivé par défaut.</strong> Uniquement lorsqu'un organisateur a fourni sa propre clé, le contenu de ses requêtes parvient au fournisseur choisi</td><td>🇺🇸 États-Unis · 🇪🇺 France (Mistral)</td></tr>
   </tbody>
@@ -188,15 +188,15 @@ import Legal from '../layouts/Legal.astro';
 
 <!-- 8 -->
 <h2>8. Transferts hors Union européenne</h2>
-<p>Notre infrastructure — application, base de données, fichiers, sauvegardes — est hébergée <strong>intégralement en France</strong>. Trois flux sortent néanmoins de l'Union européenne, et nous les énonçons clairement plutôt que d'affirmer le contraire :</p>
+<p>Notre infrastructure — application, base de données, fichiers, sauvegardes — est hébergée <strong>intégralement en France</strong>. Deux flux sortent néanmoins de l'Union européenne, et nous les énonçons clairement plutôt que d'affirmer le contraire :</p>
 <table>
   <thead><tr><th>Flux</th><th>Destination</th><th>Garantie</th><th>Pouvez-vous l'éviter ?</th></tr></thead>
   <tbody>
-    <tr><td>Journaux d'erreur de l'application</td><td>Sentry, États-Unis</td><td>Clauses contractuelles types et cadre de protection des données UE–États-Unis</td><td>Pas individuellement — mais voir §7.1 : ces journaux ne portent aucune donnée personnelle</td></tr>
     <tr><td>Notifications push</td><td>Le service de push de votre navigateur</td><td>Le cadre propre au fournisseur</td><td><strong>Oui</strong> — n'activez pas les notifications, ou révoquez-les</td></tr>
     <tr><td>Requêtes d'IA</td><td>Le fournisseur choisi par l'organisateur</td><td>Clauses contractuelles types. Mistral AI étant français, cette option reste dans l'UE</td><td><strong>Oui</strong> — la fonction est inactive tant qu'un organisateur ne l'active pas</td></tr>
   </tbody>
 </table>
+<p><strong>Une précision sur Sentry</strong>, qui figurait dans ce tableau jusqu'au 11 août 2026 : nos journaux d'erreur sont envoyés à la <strong>région européenne</strong> de Sentry et stockés en Allemagne, pas aux États-Unis. Ils ne constituent donc pas un transfert hors de l'Union européenne. Sentry reste édité par une société américaine, Functional Software, Inc. : un accès depuis les États-Unis par ses équipes de support demeure possible, encadré par les clauses contractuelles types de son accord de sous-traitance. Rappelons par ailleurs que ces journaux ne portent aucune donnée personnelle — voir §7.1.</p>
 
 <!-- 9 -->
 <h2>9. Cookies</h2>
