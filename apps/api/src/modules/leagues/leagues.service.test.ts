@@ -2111,3 +2111,99 @@ describe('LeaguesService recompute freeze guard', () => {
     expect(scoring.resolveConfig).not.toHaveBeenCalled();
   });
 });
+
+describe('LeaguesService.getFreshness gathering', () => {
+  /**
+   * Records every filter the match query applies, because the reach from a
+   * tournament to its matches is the part that fails SILENTLY: `matches` has no
+   * tournament_id, so a direct .eq('tournament_id') 400s and a swallowed error
+   * reads as "no matches", i.e. a league that is permanently fresh.
+   */
+  /** A chain whose terminal `maybeSingle()` yields `data`, recording filters. */
+  function readChain(
+    data: unknown,
+    spy?: { selects: string[]; filters: Array<[string, unknown]> },
+  ) {
+    const api: Record<string, unknown> = {
+      select: vi.fn((cols?: string) => {
+        if (spy && typeof cols === 'string') spy.selects.push(cols);
+        return api;
+      }),
+      eq: vi.fn((col: string, val: unknown) => {
+        spy?.filters.push([col, val]);
+        return api;
+      }),
+      order: vi.fn(() => api),
+      limit: vi.fn(() => api),
+      maybeSingle: vi.fn(() => Promise.resolve({ data, error: null })),
+    };
+    return api;
+  }
+
+  function makeFreshnessService(latestMatchUpdatedAt: string | null) {
+    const matchSpy = { selects: [] as string[], filters: [] as Array<[string, unknown]> };
+    // The links read resolves on the SECOND .eq() (league_id, then status)
+    // rather than a terminal call, so it gets its own thenable chain.
+    const linksRows = [{ tournament_id: 'T1', tournaments: { name: 'Longsword' } }];
+    const links: Record<string, unknown> = {
+      select: vi.fn(() => links),
+      eq: vi.fn((col: string) =>
+        col === 'status' ? Promise.resolve({ data: linksRows, error: null }) : links,
+      ),
+    };
+    const tables: Record<string, unknown> = {
+      leagues: readChain({ id: 'L1', finalized_at: null, scoring_config: {} }),
+      league_rankings: readChain({ computed_at: '2026-08-01T12:00:00Z' }),
+      league_tournament_links: links,
+      matches: readChain(
+        latestMatchUpdatedAt ? { updated_at: latestMatchUpdatedAt } : null,
+        matchSpy,
+      ),
+    };
+    const supabaseService = {
+      from: vi.fn((table: string) => {
+        const found = tables[table];
+        if (!found) throw new Error(`unexpected table ${table}`);
+        return found;
+      }),
+    };
+    const service = new LeaguesService(
+      { service: supabaseService } as never,
+      {} as never,
+      {} as never,
+    );
+    // getFreshness is manage-gated; the authorization path is covered elsewhere.
+    vi.spyOn(
+      service as unknown as { assertCanManageLeague: () => Promise<void> },
+      'assertCanManageLeague',
+    ).mockResolvedValue(undefined);
+    return { service, matchSpy };
+  }
+
+  it('reaches matches through the phases embed, never a direct tournament_id', async () => {
+    const { service, matchSpy } = makeFreshnessService('2026-08-05T10:00:00Z');
+
+    await service.getFreshness('L1', 'user-1');
+
+    expect(matchSpy.selects[0]).toContain('phases!inner(tournament_id)');
+    expect(matchSpy.filters).toEqual([['phases.tournament_id', 'T1']]);
+    expect(matchSpy.filters.map(([col]) => col)).not.toContain('tournament_id');
+  });
+
+  it('reports stale when a linked tournament moved after the last recompute', async () => {
+    const { service } = makeFreshnessService('2026-08-05T10:00:00Z');
+
+    const report = await service.getFreshness('L1', 'user-1');
+
+    expect(report.state).toBe('stale');
+    expect(report.changedTournamentNames).toEqual(['Longsword']);
+  });
+
+  it('reports fresh when the linked tournament has no matches at all', async () => {
+    const { service } = makeFreshnessService(null);
+
+    const report = await service.getFreshness('L1', 'user-1');
+
+    expect(report.state).toBe('fresh');
+  });
+});

@@ -120,6 +120,9 @@ const MANUAL_PREFIXES = [
   'admin.aiSettings.keys.', // `${ns}.keys.${leaf}` — AiKeysManager ns="admin.aiSettings"
   'publicApp.meSettings.ai.keys.', // `${ns}.keys.${leaf}` — AiKeysManager ns="publicApp.meSettings.ai"
   'organizer.pools.standings.help.', // `${HELP_KEY_BASE}.${leaf}` — standings/columnHelp.ts
+  // `admin.adminLeagues.freshness.${state}` — LeagueFreshnessBadge keys the
+  // label off the API's LeagueFreshnessState union.
+  'admin.adminLeagues.freshness.',
 ];
 // Deliberate non-UI fixtures kept in the tree on purpose.
 const KEEP_PREFIXES = ['test.'];

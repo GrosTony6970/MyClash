@@ -611,6 +611,17 @@ export class LeaguesController {
     await this.leagues.deleteGroup(groupId, userId);
   }
 
+  @Get('admin/leagues/:leagueId/freshness')
+  @ApiBearerAuth()
+  @ApiParam({ name: 'leagueId', type: 'string', format: 'uuid' })
+  @ApiOperation({
+    summary: 'Whether this league table still matches its linked tournaments',
+  })
+  async freshness(@Param('leagueId', ParseUUIDPipe) leagueId: string, @Req() req: FastifyRequest) {
+    const userId = await getUserId(req, this.supabase);
+    return this.leagues.getFreshness(leagueId, userId);
+  }
+
   @Post('admin/leagues/:leagueId/recompute')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Manually recompute league rankings' })

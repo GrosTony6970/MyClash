@@ -17,6 +17,11 @@ import {
   type TournamentContributionInput,
 } from './league.types';
 import { LeagueScoringService } from './league-scoring.service';
+import {
+  computeLeagueFreshness,
+  type LeagueFreshnessReport,
+  type LinkedTournamentChange,
+} from './league-freshness';
 import { attachDecidingTiebreaks } from './league-standings-rows';
 import { aggregateClubStandings } from './league-club-standings';
 // Value import (NOT `import type`) — DI-injected, so the runtime needs the
@@ -1365,6 +1370,61 @@ export class LeaguesService {
     }
 
     return { eventId, recomputedLeagues: [...affectedLeagueIds] };
+  }
+
+  /**
+   * Gathering only — every rule lives in `league-freshness.ts`.
+   *
+   * Three reads, none of them an aggregate: PostgREST rejects those, so
+   * "latest" is expressed as order + limit 1 throughout. The per-tournament
+   * loop is deliberate rather than one big fetch — it costs one single-row
+   * query per linked tournament (a season links a handful, not thousands) and
+   * avoids pulling every match row in the league just to take a maximum.
+   */
+  async getFreshness(leagueId: string, userId: string): Promise<LeagueFreshnessReport> {
+    await this.assertCanManageLeague(leagueId, userId);
+    const league = await this.getLeagueById(leagueId);
+
+    const { data: latestRanking } = await this.supabase.service
+      .from('league_rankings')
+      .select('computed_at')
+      .eq('league_id', leagueId)
+      .order('computed_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    const { data: links, error: linksError } = await this.supabase.service
+      .from('league_tournament_links')
+      .select('tournament_id, tournaments(name)')
+      .eq('league_id', leagueId)
+      .eq('status', 'approved');
+    if (linksError) throw new BadRequestException(linksError.message);
+
+    const linkedTournaments: LinkedTournamentChange[] = [];
+    for (const link of (links ?? []) as Row[]) {
+      const tournamentId = String(link['tournament_id']);
+      // `matches` has NO tournament_id — the reach is via phases. A direct
+      // .eq('tournament_id') 400s, and a swallowed error would read as "no
+      // matches", i.e. permanently fresh.
+      const { data: latestMatch } = await this.supabase.service
+        .from('matches')
+        .select('updated_at, phases!inner(tournament_id)')
+        .eq('phases.tournament_id', tournamentId)
+        .order('updated_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      linkedTournaments.push({
+        tournamentId,
+        name: String((link['tournaments'] as { name?: string } | null)?.name ?? ''),
+        lastChangedAt: (latestMatch as { updated_at?: string } | null)?.updated_at ?? null,
+      });
+    }
+
+    return computeLeagueFreshness({
+      finalizedAt: (league['finalized_at'] as string | null) ?? null,
+      computedAt: (latestRanking as { computed_at?: string } | null)?.computed_at ?? null,
+      linkedTournaments,
+    });
   }
 
   async recomputeLeagueRankings(leagueId: string, userId?: string) {

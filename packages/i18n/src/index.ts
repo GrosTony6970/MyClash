@@ -2052,7 +2052,15 @@ export const en = {
       recomputeDone: 'Rankings recomputed.',
       recomputeFailed: 'Could not recompute rankings.',
       recomputeHint:
-        'Rankings normally refresh automatically when linked tournaments finish — use recompute if the standings look stale.',
+        'Rankings do NOT refresh when a match finishes. They are recomputed when an event changes status, and whenever you press this button — so a table can sit behind its results without saying so.',
+      freshness: {
+        fresh: 'Up to date',
+        stale: 'Out of date',
+        never_computed: 'Never computed',
+        frozen: 'Season finalized',
+        computedAt: 'Computed {date}',
+        changedSince: 'Changed since: {list}',
+      },
       pageTitle: 'Leagues',
       createButton: '+ Create league',
       colLogo: 'Logo',
@@ -9850,7 +9858,15 @@ export const fr = {
       recomputeDone: 'Classement recalcule.',
       recomputeFailed: 'Impossible de recalculer le classement.',
       recomputeHint:
-        'Le classement se met a jour automatiquement quand les tournois lies se terminent — utilisez le recalcul si le classement semble perime.',
+        "Le classement ne se met PAS à jour quand un combat se termine. Il est recalculé lors d'un changement de statut d'événement, et chaque fois que vous appuyez sur ce bouton — un tableau peut donc être en retard sur ses résultats sans le dire.",
+      freshness: {
+        fresh: 'À jour',
+        stale: 'Périmé',
+        never_computed: 'Jamais calculé',
+        frozen: 'Saison finalisée',
+        computedAt: 'Calculé le {date}',
+        changedSince: 'Modifiés depuis : {list}',
+      },
       pageTitle: 'Ligues',
       createButton: '+ Créer une ligue',
       colLogo: 'Logo',

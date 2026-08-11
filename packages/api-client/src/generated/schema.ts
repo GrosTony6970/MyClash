@@ -3346,6 +3346,23 @@ export interface paths {
     patch: operations['LeaguesController_updateLeagueGroup'];
     trace?: never;
   };
+  '/api/v1/admin/leagues/{leagueId}/freshness': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Whether this league table still matches its linked tournaments */
+    get: operations['LeaguesController_freshness'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   '/api/v1/admin/leagues/{leagueId}/recompute': {
     parameters: {
       query?: never;
@@ -16219,6 +16236,25 @@ export interface operations {
         'application/json': components['schemas']['UpdateLeagueGroupDto'];
       };
     };
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  LeaguesController_freshness: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        leagueId: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
     responses: {
       200: {
         headers: {

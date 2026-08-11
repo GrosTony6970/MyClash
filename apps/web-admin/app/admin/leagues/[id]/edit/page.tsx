@@ -7,6 +7,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { LeagueRankingDimensions as RankingDimensions } from '@myclash/types';
 import { FFAMHE_POINTS, fuzzyMatch } from '../../league-utils';
 import { LeagueRequestsPanel } from '../../../../../src/components/league/LeagueRequestsPanel';
+import { LeagueFreshnessBadge } from './LeagueFreshnessBadge';
 import { useI18n } from '../../../../../src/i18n/I18nProvider';
 import { useConfirm, useToast } from '@myclash/ui';
 import { localeToBcp47 } from '@myclash/time';
@@ -142,6 +143,7 @@ export default function EditLeaguePage() {
   const params = useParams<{ id: string }>();
   const leagueId = params.id;
   const [recomputing, setRecomputing] = useState(false);
+  const [freshnessToken, setFreshnessToken] = useState(0);
 
   // Manual standings recompute — the endpoint existed with no UI, so drifted
   // standings could only be fixed by waiting for automatic triggers.
@@ -154,6 +156,9 @@ export default function EditLeaguePage() {
       });
       if (!res.ok) throw new Error(t('admin.adminLeagues.recomputeFailed'));
       toast.success(t('admin.adminLeagues.recomputeDone'));
+      // The badge is the proof the recompute landed, so refetch it here rather
+      // than leaving a "stale" chip beside a button that just succeeded.
+      setFreshnessToken((n) => n + 1);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : t('admin.adminLeagues.recomputeFailed'));
     } finally {
@@ -1437,6 +1442,9 @@ export default function EditLeaguePage() {
               ? t('admin.adminLeagues.recomputing')
               : t('admin.adminLeagues.recomputeButton')}
           </button>
+        </div>
+        <div className="mt-3">
+          <LeagueFreshnessBadge leagueId={leagueId} refreshToken={freshnessToken} />
         </div>
         <p className="mt-2 text-xs text-muted">{t('admin.adminLeagues.recomputeHint')}</p>
       </section>
