@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { GlobalPersonResolverService } from './global-person-resolver.service';
+import { GlobalPersonResolverService, classifyMint } from './global-person-resolver.service';
 
 /**
  * The supabase mock is a table-keyed dispatcher: each `from('global_persons')`
@@ -75,7 +75,7 @@ describe('GlobalPersonResolverService.resolveOrCreateGlobalPerson', () => {
       genderCategory: null,
     });
 
-    expect(res).toEqual({ id: 'gp-hema', created: false });
+    expect(res).toEqual({ id: 'gp-hema', created: false, mintReason: null });
     expect(insertCaptures['global_persons']).toBeUndefined();
   });
 
@@ -94,7 +94,7 @@ describe('GlobalPersonResolverService.resolveOrCreateGlobalPerson', () => {
       genderCategory: null,
     });
 
-    expect(res).toEqual({ id: 'gp-fresh', created: true });
+    expect(res).toEqual({ id: 'gp-fresh', created: true, mintReason: 'first_sighting' });
     expect(insertCaptures['global_persons']).toHaveLength(1);
   });
 
@@ -115,7 +115,7 @@ describe('GlobalPersonResolverService.resolveOrCreateGlobalPerson', () => {
       genderCategory: null,
     });
 
-    expect(res).toEqual({ id: 'gp-ncd', created: false });
+    expect(res).toEqual({ id: 'gp-ncd', created: false, mintReason: null });
     expect(insertCaptures['global_persons']).toBeUndefined();
   });
 
@@ -136,7 +136,7 @@ describe('GlobalPersonResolverService.resolveOrCreateGlobalPerson', () => {
       genderCategory: null,
     });
 
-    expect(res).toEqual({ id: 'gp-nc', created: false });
+    expect(res).toEqual({ id: 'gp-nc', created: false, mintReason: null });
     expect(insertCaptures['global_persons']).toBeUndefined();
   });
 
@@ -155,7 +155,7 @@ describe('GlobalPersonResolverService.resolveOrCreateGlobalPerson', () => {
       genderCategory: null,
     });
 
-    expect(res).toEqual({ id: 'gp-fresh2', created: true });
+    expect(res).toEqual({ id: 'gp-fresh2', created: true, mintReason: 'first_sighting' });
     expect(insertCaptures['global_persons']).toHaveLength(1);
   });
 
@@ -173,7 +173,7 @@ describe('GlobalPersonResolverService.resolveOrCreateGlobalPerson', () => {
       genderCategory: null,
     });
 
-    expect(res).toEqual({ id: 'gp-fresh3', created: true });
+    expect(res).toEqual({ id: 'gp-fresh3', created: true, mintReason: 'unmatchable' });
     expect(insertCaptures['global_persons']).toHaveLength(1);
     expect(insertCaptures['global_persons']![0]).toMatchObject({
       given_name: 'Jean',
@@ -196,7 +196,7 @@ describe('GlobalPersonResolverService.resolveOrCreateGlobalPerson', () => {
       genderCategory: null,
     });
 
-    expect(res).toEqual({ id: 'gp-email', created: false });
+    expect(res).toEqual({ id: 'gp-email', created: false, mintReason: null });
     expect(insertCaptures['global_persons']).toBeUndefined();
   });
 
@@ -216,6 +216,33 @@ describe('GlobalPersonResolverService.resolveOrCreateGlobalPerson', () => {
       genderCategory: null,
     });
 
-    expect(res).toEqual({ id: 'gp-collide', created: false });
+    expect(res).toEqual({ id: 'gp-collide', created: false, mintReason: null });
+  });
+});
+
+/**
+ * The classifier answers one question: can any matching tier EVER fire for
+ * these identifiers? Each case is written from the tier requirements directly
+ * (tier 1 needs a ratings id, tiers 2 and 3 need a club, the email tier needs
+ * an email) rather than from the classifier's own implementation, so a change
+ * that widens the tiers without widening the classifier fails here.
+ */
+describe('classifyMint', () => {
+  it('is unmatchable with no club, no ratings id and no email', () => {
+    expect(classifyMint({ clubId: null, hemaRatingsId: null, email: null })).toBe('unmatchable');
+  });
+
+  it.each([
+    ['a club feeds tiers 2 and 3', { clubId: 'club-1', hemaRatingsId: null, email: null }],
+    ['a ratings id feeds tier 1', { clubId: null, hemaRatingsId: '10458', email: null }],
+    ['an email feeds the email tier', { clubId: null, hemaRatingsId: null, email: 'j@e.com' }],
+  ])('is a first sighting when %s', (_label, identifiers) => {
+    expect(classifyMint(identifiers)).toBe('first_sighting');
+  });
+
+  it('treats an empty-string identifier as absent, matching the tier guards', () => {
+    // The resolver normalizes `'   '` to null before any tier runs; the
+    // classifier must agree, or it would promise a link that never happens.
+    expect(classifyMint({ clubId: '', hemaRatingsId: '', email: '' })).toBe('unmatchable');
   });
 });

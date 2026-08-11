@@ -552,6 +552,7 @@ export default function ParticipantsPage() {
         id: string;
         globalPersonId: string | null;
         claimedByUserId?: string | null;
+        mintedIdentity?: 'unmatchable' | 'first_sighting' | null;
       };
 
       // Post-0063: referee registration keys on the person's global_persons.id.
@@ -638,6 +639,13 @@ export default function ParticipantsPage() {
             count: selectedTournaments.size,
           }),
         );
+      }
+      // The identity this add minted can never be matched again — no club, no
+      // HEMA Ratings id, no email — so the same person mints another one at the
+      // next event and their results never join up. Warn, never block: the
+      // participant is already saved and the fix is editing their details.
+      if (person.mintedIdentity === 'unmatchable') {
+        toast.warning(t('admin.orgPersons.toastUnmatchableIdentity', { name: personName }));
       }
       if (fullPending.length > 0) setWaitlistPrompt(fullPending);
       closeAddModal();

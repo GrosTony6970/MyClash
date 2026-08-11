@@ -4,12 +4,23 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import type { IdentityMintReason } from '@myclash/types';
 import { SupabaseService } from '../supabase/supabase.service';
 import { GlobalPersonResolverService } from '../identity/global-person-resolver.service';
 import {
   REGISTRATION_STATUS_TRANSITIONS,
   type CreateRegistrationDto,
 } from './dto/registrations.dto';
+
+/**
+ * A written registration row plus the identity notice for THIS write. The row
+ * keeps its index signature so existing callers read their own columns off it
+ * unchanged; `mintedIdentity` rides alongside rather than inside it, because it
+ * describes the write and not the registration.
+ */
+type RegistrationWithMintNotice = Record<string, unknown> & {
+  mintedIdentity: IdentityMintReason | null;
+};
 
 @Injectable()
 export class RegistrationsService {
@@ -109,12 +120,15 @@ export class RegistrationsService {
 
   // ── Create (single) ──────────────────────────────────────────────────────────
 
-  async create(tournamentId: string, dto: CreateRegistrationDto) {
-    // Side effect only: ensures persons.global_person_id is populated
-    // (mints a global_persons row if needed). Identity now flows via
-    // person_id → persons.global_person_id; registrations.fighter_id
-    // is being retired.
-    await this.resolveFighterForRegistration(dto);
+  async create(
+    tournamentId: string,
+    dto: CreateRegistrationDto,
+  ): Promise<RegistrationWithMintNotice> {
+    // Ensures persons.global_person_id is populated (mints a global_persons row
+    // if needed). Identity now flows via person_id → persons.global_person_id;
+    // registrations.fighter_id is being retired. The mint, when there is one, is
+    // reported back on the response — see resolveFighterForRegistration.
+    const { mintedIdentity } = await this.resolveFighterForRegistration(dto);
     // Slice 2: capacity guard — returns 409 with reason='tournament_full' so
     // the admin UI can offer 'Add to waitlist instead?' as an explicit step.
     await this.assertCapacityForCreate(tournamentId);
@@ -138,7 +152,7 @@ export class RegistrationsService {
       }
       throw new BadRequestException(error.message);
     }
-    return data;
+    return { ...(data as Record<string, unknown>), mintedIdentity };
   }
 
   private async assertCapacityForCreate(tournamentId: string): Promise<void> {
@@ -171,10 +185,13 @@ export class RegistrationsService {
    * `max(waitlist_position) + 1`; returns 409 with reason='waitlist_full'
    * when the queue is also capped and full.
    */
-  async addToWaitlist(tournamentId: string, dto: CreateRegistrationDto) {
-    // Same side-effect-only call as create() — populates the canonical
-    // persons.global_person_id link; we no longer write fighter_id.
-    await this.resolveFighterForRegistration(dto);
+  async addToWaitlist(
+    tournamentId: string,
+    dto: CreateRegistrationDto,
+  ): Promise<RegistrationWithMintNotice> {
+    // Same call as create() — populates the canonical persons.global_person_id
+    // link; we no longer write fighter_id.
+    const { mintedIdentity } = await this.resolveFighterForRegistration(dto);
 
     const { data: tournament } = await this.supabase.service
       .from('tournaments')
@@ -227,7 +244,7 @@ export class RegistrationsService {
       }
       throw new BadRequestException(error.message);
     }
-    return data;
+    return { ...(data as Record<string, unknown>), mintedIdentity };
   }
 
   // ── Status transition ────────────────────────────────────────────────────────
@@ -457,7 +474,16 @@ export class RegistrationsService {
     return max + 1;
   }
 
-  private async resolveFighterForRegistration(dto: CreateRegistrationDto): Promise<string | null> {
+  /**
+   * Ensures `persons.global_person_id` is populated, minting a global identity
+   * when nothing matches. `mintedIdentity` reports that mint to the caller: a
+   * registration is the moment a person starts contributing league points, so
+   * an identity minted here that can never be matched again is the one that
+   * scatters those points across events. Advisory — it never blocks the write.
+   */
+  private async resolveFighterForRegistration(
+    dto: CreateRegistrationDto,
+  ): Promise<{ fighterId: string | null; mintedIdentity: IdentityMintReason | null }> {
     if (dto.fighterId) {
       if (dto.hemaRatingsId) {
         await this.supabase.service
@@ -465,7 +491,7 @@ export class RegistrationsService {
           .update({ hema_ratings_id: dto.hemaRatingsId })
           .eq('id', dto.fighterId);
       }
-      return dto.fighterId;
+      return { fighterId: dto.fighterId, mintedIdentity: null };
     }
 
     const { data: person, error } = await this.supabase.service
@@ -497,28 +523,29 @@ export class RegistrationsService {
           .update({ hema_ratings_id: dto.hemaRatingsId })
           .eq('id', p.global_person_id);
       }
-      return p.global_person_id;
+      return { fighterId: p.global_person_id, mintedIdentity: null };
     }
 
     // Reuse an existing global identity when one matches (HEMA id, name+club+DOB,
     // or a unique name+club) — only mint when there's no confident match. This
     // is what stops a person registered across events from accumulating a
     // duplicate global_persons row per event.
-    const { id: fighterId } = await this.globalPersonResolver.resolveOrCreateGlobalPerson({
-      givenName: p.given_name,
-      familyName: p.family_name,
-      clubId: p.club_id,
-      hemaRatingsId: dto.hemaRatingsId ?? p.hema_ratings_id ?? null,
-      dateOfBirth: p.date_of_birth ?? null,
-      email: p.email ?? null,
-      genderCategory: null,
-    });
+    const { id: fighterId, mintReason } =
+      await this.globalPersonResolver.resolveOrCreateGlobalPerson({
+        givenName: p.given_name,
+        familyName: p.family_name,
+        clubId: p.club_id,
+        hemaRatingsId: dto.hemaRatingsId ?? p.hema_ratings_id ?? null,
+        dateOfBirth: p.date_of_birth ?? null,
+        email: p.email ?? null,
+        genderCategory: null,
+      });
 
     await this.supabase.service
       .from('persons')
       .update({ global_person_id: fighterId })
       .eq('id', p.id);
 
-    return fighterId;
+    return { fighterId, mintedIdentity: mintReason };
   }
 }

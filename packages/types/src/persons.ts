@@ -25,6 +25,28 @@ export interface Person {
   updatedAt: string;
 }
 
+/**
+ * Why adding a participant minted a BRAND NEW global identity.
+ *
+ * `unmatchable` — the participant carries no club, no HEMA Ratings id and no
+ * email, so no matching tier can ever fire and they will mint a fresh identity
+ * at every event they attend. Their results never aggregate and their league
+ * points scatter across identities that never add up.
+ * `first_sighting` — at least one matchable identifier is present, so the next
+ * event links to this identity instead. Informational.
+ */
+export type IdentityMintReason = 'unmatchable' | 'first_sighting';
+
+/**
+ * The create-participant response: the stored person, plus a fact about THIS
+ * add that is deliberately not a Person field — it describes the write, not the
+ * row, and would read as null on every subsequent fetch.
+ */
+export interface PersonCreated extends Person {
+  /** Set when the add minted a new global identity; `null` when one was reused. */
+  mintedIdentity: IdentityMintReason | null;
+}
+
 export interface PersonPublic {
   id: string;
   givenName: string;
@@ -76,6 +98,13 @@ export interface CsvImportReport {
   duplicates: CsvImportDuplicate[];
   invalid: CsvImportInvalid[];
   newClubsForReview: string[];
+  /**
+   * Names of imported people whose global identity was minted with nothing to
+   * match on next time — no club, no HEMA Ratings id, no email. They mint a
+   * fresh identity at every future event, so their results never aggregate.
+   * Names rather than ids: this list is read by a human.
+   */
+  unmatchableIdentities: string[];
 }
 
 // ── Import preview (two-pass flow) ───────────────────────────────────────────

@@ -102,7 +102,7 @@ describe('RegistrationsService fighter linking', () => {
 
     const result = await service.create('tournament-1', { personId: 'person-1' });
 
-    expect((result as { id: string }).id).toBe('reg-1');
+    expect(result['id']).toBe('reg-1');
     expect(mockResolver.resolveOrCreateGlobalPerson).toHaveBeenCalledWith(
       expect.objectContaining({
         givenName: 'Jean',

@@ -11,12 +11,15 @@ import type {
   CsvImportReport,
   GlobalPersonCandidate,
   ImportDecision,
+  IdentityMintReason,
   ImportPreviewResponse,
   Person,
+  PersonCreated,
   PreviewRow,
 } from '@myclash/types';
 import { SupabaseService } from '../supabase/supabase.service';
 import { GlobalPersonResolverService } from '../identity/global-person-resolver.service';
+import type { ResolveGlobalPersonResult } from '../identity/global-person-resolver.service';
 import { replaceFighterWeaponsFromCell } from '../fighters/weapon-import.util';
 import { CsvImportService } from './csv-import.service';
 import type { CsvRow } from './csv-import.service';
@@ -88,7 +91,7 @@ export class PersonsService {
     eventId: string,
     dto: CreatePersonDto,
     createdByUserId: string,
-  ): Promise<Person> {
+  ): Promise<PersonCreated> {
     // Inline "Create new club" support. When the organizer accepted the
     // "+ Create new club X" dropdown row in the add-participant modal,
     // the client sends `newClubName` instead of `clubId`. Resolve it to
@@ -162,19 +165,24 @@ export class PersonsService {
     // This is the canonical entry point: every persons row gets a
     // global_person_id, no exceptions, so downstream features (referees,
     // ratings, cross-event aggregation) never have to handle a null.
-    const globalPersonId =
-      dto.globalPersonId ??
-      (
-        await this.globalPersonResolver.resolveOrCreateGlobalPerson({
-          givenName: dto.givenName,
-          familyName: dto.familyName,
-          clubId: resolvedClubId,
-          hemaRatingsId: dto.hemaRatingsId ?? null,
-          dateOfBirth: dto.dateOfBirth ?? null,
-          email,
-          genderCategory: dto.genderCategory ?? null,
-        })
-      ).id;
+    //
+    // An explicit link from the UI mints nothing by definition, so only the
+    // resolver branch can raise the alarm.
+    let globalPersonId = dto.globalPersonId ?? null;
+    let mintedIdentity: IdentityMintReason | null = null;
+    if (!globalPersonId) {
+      const resolved = await this.globalPersonResolver.resolveOrCreateGlobalPerson({
+        givenName: dto.givenName,
+        familyName: dto.familyName,
+        clubId: resolvedClubId,
+        hemaRatingsId: dto.hemaRatingsId ?? null,
+        dateOfBirth: dto.dateOfBirth ?? null,
+        email,
+        genderCategory: dto.genderCategory ?? null,
+      });
+      globalPersonId = resolved.id;
+      mintedIdentity = resolved.mintReason;
+    }
 
     // If the caller didn't supply a club, inherit it from the linked
     // global profile. Keeps persons.club_id and global_persons.club_id
@@ -210,7 +218,7 @@ export class PersonsService {
       .single();
 
     if (error) throw new BadRequestException(error.message);
-    return this.mapPerson(data as Record<string, unknown>);
+    return { ...this.mapPerson(data as Record<string, unknown>), mintedIdentity };
   }
 
   // ── Update ──────────────────────────────────────────────────────────────────
@@ -374,6 +382,7 @@ export class PersonsService {
       duplicates: [],
       invalid,
       newClubsForReview: [],
+      unmatchableIdentities: [],
     };
 
     const existingPersons = await this.fetchExistingPersons(eventId);
@@ -445,7 +454,18 @@ export class PersonsService {
 
       // Handle global person decision
       const decision = decisionByIndex.get(rowIndex);
-      await this.applyGlobalPersonDecision(personId, row, decision, clubId, createdByUserId);
+      const minted = await this.applyGlobalPersonDecision(
+        personId,
+        row,
+        decision,
+        clubId,
+        createdByUserId,
+      );
+      // Only the unmatchable kind is worth an organizer's attention: a first
+      // sighting links on its own next time, this one never will.
+      if (minted === 'unmatchable') {
+        report.unmatchableIdentities.push(`${row.given_name} ${row.family_name}`.trim());
+      }
 
       // Track for intra-batch dedup
       if (emailKey)
@@ -852,14 +872,18 @@ export class PersonsService {
     return intersection / (setA.size + setB.size - intersection);
   }
 
-  /** Apply global person link or creation after person insert. */
+  /**
+   * Apply global person link or creation after person insert. Returns the mint
+   * reason when a fresh identity was minted, `null` when one was linked or
+   * reused — the import report collects the unmatchable ones for the organizer.
+   */
   private async applyGlobalPersonDecision(
     personId: string,
     row: CsvRow,
     decision: ImportDecision | undefined,
     clubId: string | null,
     _createdByUserId: string,
-  ): Promise<void> {
+  ): Promise<IdentityMintReason | null> {
     const action = decision?.action ?? 'create_new';
 
     if (action === 'link' && decision?.globalPersonId) {
@@ -880,14 +904,14 @@ export class PersonsService {
         if (inherited) updates.club_id = inherited;
       }
       await this.supabase.service.from('persons').update(updates).eq('id', personId);
-      return;
+      return null;
     }
 
     // create_new: resolve to an existing global identity or mint a fresh one,
     // via the shared resolver (Tier hema/name+club+DOB/name+club/email). This
     // is what stops a roster imported per-event without email/DOB from minting
     // a duplicate global_persons row per event.
-    let resolved: { id: string; created: boolean };
+    let resolved: ResolveGlobalPersonResult;
     try {
       resolved = await this.globalPersonResolver.resolveOrCreateGlobalPerson({
         givenName: row.given_name,
@@ -905,7 +929,7 @@ export class PersonsService {
           resolveError instanceof Error ? resolveError.message : String(resolveError)
         }`,
       );
-      return;
+      return null;
     }
 
     await this.supabase.service
@@ -930,6 +954,8 @@ export class PersonsService {
         );
       }
     }
+
+    return resolved.mintReason;
   }
 
   private mapPerson(p: Record<string, unknown>): Person {

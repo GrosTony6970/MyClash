@@ -12,10 +12,41 @@ export interface ResolveGlobalPersonInput {
   genderCategory: string | null;
 }
 
+/**
+ * Why a fresh `global_persons` row was minted.
+ *
+ * `unmatchable` is the reason worth warning an organizer about: with no club,
+ * no HEMA Ratings id and no email, NO tier below can ever fire — tier 1 needs a
+ * ratings id, tiers 2 and 3 need a club, the email tier needs an email. Such a
+ * person mints a BRAND NEW identity at every event they attend, so their
+ * results never aggregate across events and their league points scatter.
+ *
+ * `first_sighting` carries at least one matchable identifier, so the next event
+ * links to this row instead of minting another. Nothing to fix.
+ */
+export type MintReason = 'unmatchable' | 'first_sighting';
+
 export interface ResolveGlobalPersonResult {
   id: string;
   /** true when a fresh row was minted; false when an existing identity was reused. */
   created: boolean;
+  /** Why the fresh row was minted. `null` whenever an existing identity was reused. */
+  mintReason: MintReason | null;
+}
+
+/**
+ * Pure: which mint reason a set of identifiers implies. Takes the NORMALIZED
+ * values (trimmed, lower-cased email) so it agrees with the matching tiers
+ * rather than with the caller's raw input — a `hemaRatingsId` of `'   '` is
+ * not an identifier.
+ */
+export function classifyMint(identifiers: {
+  clubId: string | null;
+  hemaRatingsId: string | null;
+  email: string | null;
+}): MintReason {
+  const matchable = identifiers.clubId ?? identifiers.hemaRatingsId ?? identifiers.email;
+  return matchable ? 'first_sighting' : 'unmatchable';
 }
 
 interface GpMatchRow {
@@ -93,7 +124,7 @@ export class GlobalPersonResolverService {
       const rows = (hits ?? []) as GpMatchRow[];
       if (rows.length === 1) {
         await this.backfillIdentity(rows[0]!, { email, dateOfBirth });
-        return { id: rows[0]!.id, created: false };
+        return { id: rows[0]!.id, created: false, mintReason: null };
       }
     }
 
@@ -110,7 +141,7 @@ export class GlobalPersonResolverService {
       const rows = (hits ?? []) as GpMatchRow[];
       if (rows.length === 1) {
         await this.backfillIdentity(rows[0]!, { email, dateOfBirth });
-        return { id: rows[0]!.id, created: false };
+        return { id: rows[0]!.id, created: false, mintReason: null };
       }
     }
 
@@ -128,7 +159,7 @@ export class GlobalPersonResolverService {
       const rows = (hits ?? []) as GpMatchRow[];
       if (rows.length === 1) {
         await this.backfillIdentity(rows[0]!, { email, dateOfBirth });
-        return { id: rows[0]!.id, created: false };
+        return { id: rows[0]!.id, created: false, mintReason: null };
       }
     }
 
@@ -143,7 +174,7 @@ export class GlobalPersonResolverService {
         .limit(1)
         .maybeSingle();
       if (existingByEmail) {
-        return { id: (existingByEmail as { id: string }).id, created: false };
+        return { id: (existingByEmail as { id: string }).id, created: false, mintReason: null };
       }
     }
 
@@ -177,14 +208,19 @@ export class GlobalPersonResolverService {
           .is('merged_into_id', null)
           .limit(1)
           .maybeSingle();
-        if (collided) return { id: (collided as { id: string }).id, created: false };
+        if (collided)
+          return { id: (collided as { id: string }).id, created: false, mintReason: null };
         throw new BadRequestException(
           `Email ${maskEmail(email)} is already linked to another global profile`,
         );
       }
       throw new BadRequestException(error.message);
     }
-    return { id: (data as { id: string }).id, created: true };
+    return {
+      id: (data as { id: string }).id,
+      created: true,
+      mintReason: classifyMint({ clubId: input.clubId, hemaRatingsId, email }),
+    };
   }
 
   /**

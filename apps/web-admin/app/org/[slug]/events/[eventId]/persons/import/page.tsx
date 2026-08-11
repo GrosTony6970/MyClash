@@ -609,6 +609,25 @@ export default function CsvImportPage() {
               invalid: report.invalid.length,
             })}
           </p>
+          {report.unmatchableIdentities.length > 0 && (
+            /* These rows minted an identity with nothing to match on next time.
+               Named rather than counted: the fix is per person — give them a
+               club, a HEMA Ratings id or an email — so the organiser needs to
+               know who, not how many. */
+            <div className="mx-auto mb-6 max-w-xl rounded-lg border border-warning/30 bg-warning/10 p-4 text-left">
+              <p className="text-sm font-semibold text-warning">
+                {t('organizer.personsImport.unmatchableTitle', {
+                  count: report.unmatchableIdentities.length,
+                })}
+              </p>
+              <p className="mt-1 text-xs text-muted">
+                {t('organizer.personsImport.unmatchableBody')}
+              </p>
+              <p className="mt-2 text-xs text-foreground-secondary">
+                {report.unmatchableIdentities.join(', ')}
+              </p>
+            </div>
+          )}
           <button
             onClick={() => router.push(`/org/${slug}/events/${eventId}/persons`)}
             className="bg-accent hover:bg-accent-hover text-accent-foreground font-semibold py-2 px-6 rounded-lg text-sm transition-colors"

@@ -2262,6 +2262,8 @@ export const en = {
       saving: 'Saving…',
       saveChanges: 'Save changes',
       toastAddedToTournaments: 'Added {name} to {count} tournament(s).',
+      toastUnmatchableIdentity:
+        '{name} has no club, no HEMA Ratings ID and no email, so their results will not join up with their other events. Add one to fix it.',
       duplicateNameTitle: 'Someone with this name is already on the roster',
       duplicateNameBody:
         '{name} is already entered for this event, with no email address to tell them apart. Add them anyway?',
@@ -7000,6 +7002,9 @@ export const en = {
       sectionInvalid: 'Invalid (will skip)',
       doneTitle: 'Import complete',
       doneSummary: '{created} created · {updated} updated · {skipped} skipped · {invalid} invalid',
+      unmatchableTitle: '{count} imported without a way to recognise them again',
+      unmatchableBody:
+        'These people have no club, no HEMA Ratings ID and no email, so each event they attend creates a separate identity and their results never add up. Give them a club or an email on the roster to fix it.',
       backToRoster: 'Back to roster',
     },
     branding: {
@@ -10058,6 +10063,8 @@ export const fr = {
       saving: 'Enregistrement…',
       saveChanges: 'Enregistrer les modifications',
       toastAddedToTournaments: '{name} ajoute a {count} tournoi(s).',
+      toastUnmatchableIdentity:
+        "{name} n'a ni club, ni identifiant HEMA Ratings, ni e-mail : ses résultats ne se cumuleront pas avec ses autres événements. Ajoutez-en un pour corriger cela.",
       duplicateNameTitle: 'Une personne de ce nom est deja sur la liste',
       duplicateNameBody:
         '{name} est deja inscrit a cet evenement, sans adresse e-mail permettant de les distinguer. Ajouter quand meme ?',
@@ -14802,6 +14809,9 @@ export const fr = {
       doneTitle: 'Import terminé',
       doneSummary:
         '{created} créés · {updated} mis à jour · {skipped} ignorés · {invalid} invalides',
+      unmatchableTitle: '{count} importés sans moyen de les reconnaître ensuite',
+      unmatchableBody:
+        "Ces personnes n'ont ni club, ni identifiant HEMA Ratings, ni e-mail : chaque événement auquel elles participent crée une identité distincte et leurs résultats ne se cumulent jamais. Ajoutez-leur un club ou un e-mail sur la liste pour corriger cela.",
       backToRoster: 'Retour à la liste',
     },
     branding: {

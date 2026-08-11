@@ -103,7 +103,7 @@ describe('RegistrationsService', () => {
       fromMock.mockReturnValueOnce(fetchChain).mockReturnValueOnce(updateChain);
 
       const result = await service.updateStatus('reg-1', 'checked_in');
-      expect((result as { status: string }).status).toBe('checked_in');
+      expect(result['status']).toBe('checked_in');
     });
 
     it('blocks registered → done (cannot skip checked_in)', async () => {
@@ -143,7 +143,7 @@ describe('RegistrationsService', () => {
       fromMock.mockReturnValueOnce(fetchChain).mockReturnValueOnce(updateChain);
 
       const result = await service.updateStatus('reg-1', 'done');
-      expect((result as { status: string }).status).toBe('done');
+      expect(result['status']).toBe('done');
     });
 
     it('blocks done → any (terminal state)', async () => {
@@ -206,7 +206,7 @@ describe('RegistrationsService', () => {
         .mockReturnValueOnce(insertChain); // insert
 
       const result = await service.create('tournament-1', { personId: 'person-1' });
-      expect((result as { bib_number: number }).bib_number).toBe(6);
+      expect(result['bib_number']).toBe(6);
     });
 
     it('uses provided bib_number when given', async () => {
@@ -232,7 +232,7 @@ describe('RegistrationsService', () => {
         .mockReturnValueOnce(insertChain);
 
       const result = await service.create('tournament-1', { personId: 'person-1', bibNumber: 42 });
-      expect((result as { bib_number: number }).bib_number).toBe(42);
+      expect(result['bib_number']).toBe(42);
     });
   });
 
@@ -303,7 +303,7 @@ describe('RegistrationsService', () => {
         .mockReturnValueOnce(insertChain);
 
       const result = await service.create('tournament-1', { personId: 'person-1' });
-      expect((result as { status: string }).status).toBe('registered');
+      expect(result['status']).toBe('registered');
     });
   });
 
@@ -349,7 +349,7 @@ describe('RegistrationsService', () => {
       expect(insertChain.insert).toHaveBeenCalledWith(
         expect.objectContaining({ status: 'waitlist', waitlist_position: 1 }),
       );
-      expect((result as { waitlist_position: number }).waitlist_position).toBe(1);
+      expect(result['waitlist_position']).toBe(1);
     });
 
     it('inserts at position N+1 when the highest existing position is N', async () => {
@@ -468,7 +468,7 @@ describe('RegistrationsService', () => {
         .mockReturnValueOnce(listWaitlistChain);
 
       const result = await service.updateStatus('reg-1', 'withdrawn');
-      expect((result as { status: string }).status).toBe('withdrawn');
+      expect(result['status']).toBe('withdrawn');
     });
   });
 
