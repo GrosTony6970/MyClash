@@ -13,6 +13,7 @@ export type { GoogleIconProps } from './components/GoogleIcon';
 
 export {
   AuthPanel,
+  AuthField,
   AuthDivider,
   AuthNotice,
   authFieldClass,
@@ -22,6 +23,7 @@ export {
 export type {
   AuthPanelProps,
   AuthPanelTab,
+  AuthFieldProps,
   AuthDividerProps,
   AuthNoticeProps,
   AuthNoticeTone,

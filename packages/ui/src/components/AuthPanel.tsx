@@ -203,6 +203,38 @@ export function AuthPanel<T extends string = string>({
   );
 }
 
+export interface AuthFieldProps extends React.InputHTMLAttributes<HTMLInputElement> {
+  id: string;
+  label: string;
+  /** Small print under the control. */
+  hint?: string;
+}
+
+/**
+ * A labelled auth input. The label wraps the control AND carries `htmlFor`, so
+ * the whole row is a click target and the association survives if the two are
+ * ever separated.
+ *
+ * Eleven copies of this block existed across the two login pages, differing in
+ * padding, font size and focus ring — which is most of why the two front doors
+ * looked unrelated.
+ */
+export function AuthField({
+  id,
+  label,
+  hint,
+  className,
+  ...input
+}: AuthFieldProps): React.JSX.Element {
+  return (
+    <label className="block" htmlFor={id}>
+      <span className="text-sm font-semibold text-foreground">{label}</span>
+      <input id={id} className={className ?? authFieldClass} {...input} />
+      {hint !== undefined && <span className="mt-1 block text-xs text-muted">{hint}</span>}
+    </label>
+  );
+}
+
 export interface AuthDividerProps {
   label: string;
 }

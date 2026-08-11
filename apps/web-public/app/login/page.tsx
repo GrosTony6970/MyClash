@@ -7,12 +7,12 @@ import { useRouter } from 'next/navigation';
 import { useMemo, useState } from 'react';
 import {
   AuthDivider,
+  AuthField,
   AuthNotice,
   AuthPanel,
   Button,
   GoogleIcon,
   PasswordChecklist,
-  authFieldClass,
 } from '@myclash/ui';
 import type { AuthPanelTab } from '@myclash/ui';
 import { validatePassword } from '@myclash/types';
@@ -263,47 +263,38 @@ export default function PublicLoginPage() {
         </>
       )}
 
-      <label className="block">
-        <span className="text-sm font-semibold text-foreground">
-          {t('auth.login.emailAddress')}
-        </span>
-        <input
-          type="email"
-          value={email}
-          onChange={(event) => setEmail(event.target.value)}
-          placeholder={t('auth.login.emailPlaceholder')}
-          className={authFieldClass}
-        />
-      </label>
+      <AuthField
+        id="email"
+        type="email"
+        autoComplete="email"
+        label={t('auth.login.emailAddress')}
+        placeholder={t('auth.login.emailPlaceholder')}
+        value={email}
+        onChange={(event) => setEmail(event.target.value)}
+      />
 
       {(tab === 'signin' || tab === 'signup') && (
-        <label className="block">
-          <span className="text-sm font-semibold text-foreground">{t('auth.login.password')}</span>
-          <input
-            type="password"
-            value={password}
-            onChange={(event) => setPassword(event.target.value)}
-            placeholder={t('auth.login.passwordPlaceholder')}
-            autoComplete={tab === 'signup' ? 'new-password' : 'current-password'}
-            className={authFieldClass}
-          />
-        </label>
+        <AuthField
+          id="password"
+          type="password"
+          autoComplete={tab === 'signup' ? 'new-password' : 'current-password'}
+          label={t('auth.login.password')}
+          placeholder={t('auth.login.passwordPlaceholder')}
+          value={password}
+          onChange={(event) => setPassword(event.target.value)}
+        />
       )}
 
       {tab === 'signup' && (
         <>
-          <label className="block">
-            <span className="text-sm font-semibold text-foreground">
-              {t('publicApp.login.passwordConfirmLabel')}
-            </span>
-            <input
-              type="password"
-              value={passwordConfirm}
-              onChange={(event) => setPasswordConfirm(event.target.value)}
-              autoComplete="new-password"
-              className={authFieldClass}
-            />
-          </label>
+          <AuthField
+            id="passwordConfirm"
+            type="password"
+            autoComplete="new-password"
+            label={t('publicApp.login.passwordConfirmLabel')}
+            value={passwordConfirm}
+            onChange={(event) => setPasswordConfirm(event.target.value)}
+          />
           <PasswordChecklist failing={passwordValidation.failing} t={t} />
           <LegalConsent checked={acceptedLegal} onChange={setAcceptedLegal} />
         </>
