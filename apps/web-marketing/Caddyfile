@@ -1,0 +1,43 @@
+# apps/web-marketing/Caddyfile
+#
+# Static multi-page site. NOT an SPA — and that distinction is the whole point
+# of this file.
+#
+# What used to be here was `try_files {path} /index.html`, written inline in the
+# Dockerfile as a printf one-liner. That is the SPA recipe: it rewrites anything
+# that is not a file on disk to the homepage. `/terms` and `/privacypolicy` are
+# directories, not files, so every request for either one was answered with the
+# landing page — status 200, correct-looking, entirely the wrong document.
+#
+# Those two paths are not decorative. `packages/types/src/legal.ts` publishes
+# them as `LEGAL_POLICIES[kind].path`, and `legal-url.ts` in web-public and
+# web-admin builds every consent link and every LegalUpdateBanner href from
+# them. So the app was asking people to accept a policy and then showing them
+# the homepage, and nothing anywhere reported an error, because a 200 is not an
+# error. A 404 would have been louder and therefore better.
+#
+# Order matters below. `try_files {path} {path}/index.html` would look correct
+# and still be wrong: the file matcher counts a directory as existing, so
+# `/terms` matches the first candidate, file_server sees a directory and answers
+# 301 → `/terms/`. That contradicts the page's own
+# `<link rel="canonical" href="https://myclash.fr/terms">` and leaves the URL in
+# legal.ts one redirect away from the document it names. Trying the index file
+# first serves `/terms/index.html` directly, 200, no redirect, URL unchanged.
+
+:80 {
+	root * /usr/share/caddy
+	encode zstd gzip
+
+	try_files {path}/index.html {path}
+	file_server
+
+	# `status` is load-bearing: without it file_server serves 404.html with a
+	# 200, which is the same soft-404 failure in a different costume — every
+	# typo'd URL would still look to a crawler like a real page.
+	handle_errors {
+		rewrite * /404.html
+		file_server {
+			status {err.status_code}
+		}
+	}
+}
