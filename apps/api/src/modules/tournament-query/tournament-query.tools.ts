@@ -99,7 +99,7 @@ export function buildTournamentToolDefinitions(
       order: enumSchema(['asc', 'desc']),
       limit: numberSchema(1, 50),
     }),
-    tool('get_judge_stats', 'Per-judge aggregations.', {
+    tool('get_judge_stats', 'Per-judge aggregations. Accepts a judge name or id.', {
       judge_id: stringSchema(),
       weapon,
       phase: enumSchema(['pools', 'elimination', 'all']),

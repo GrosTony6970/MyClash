@@ -74,7 +74,10 @@ type ProgrammeRow = {
 type RefereeRow = {
   tournament_id?: string | null;
   event_id: string;
-  user_id: string;
+  // A global_persons id, not an auth uid. 0063 replaced the view's user_id
+  // projection with person_id; this type kept the old name, and because the
+  // query is select('*') nothing errored — the field was simply undefined.
+  person_id: string;
   judge_name?: string | null;
   pool_id?: string | null;
   pool_name?: string | null;
@@ -420,8 +423,16 @@ export class TournamentQueryToolsService {
   }
 
   private async getJudgeStats(tournament: TournamentContext, args: Record<string, unknown>) {
-    const judgeId = String(args['judge_id']);
-    const refs = (await this.referees(tournament)).filter((row) => row.user_id === judgeId);
+    const judgeId = String(args['judge_id'] ?? '').trim();
+    // Matched on the name as well as the id: judge_name is the only judge
+    // identity any tool puts in front of the model (find_lagging_pools lists
+    // referees by name), so an id-only filter is one the model can never
+    // satisfy.
+    const refs = judgeId
+      ? (await this.referees(tournament)).filter(
+          (row) => row.person_id === judgeId || contains(row.judge_name, judgeId),
+        )
+      : [];
     if (refs.length === 0) return empty('No judge assignments found', 'get_judge_stats', args);
     return {
       render_hint: 'card',
@@ -627,7 +638,7 @@ export class TournamentQueryToolsService {
         const poolReferees = unique(
           refs
             .filter((ref) => ref.pool_name === pool)
-            .map((ref) => ref.judge_name ?? ref.user_id)
+            .map((ref) => ref.judge_name ?? ref.person_id)
             .filter(nonEmpty),
         );
         return {
