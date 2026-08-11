@@ -16,8 +16,8 @@
     "@astrojs/sitemap": "^3.6.0",
     "@fontsource/cinzel": "^5.2.5",
     "@fontsource/cormorant-garamond": "^5.2.5",
-    "astro": "^5.14.1",
-    "sharp": "^0.34.4"
+    "astro": "^6.4.8",
+    "sharp": "^0.35.3"
   },
   "devDependencies": {
     "@astrojs/check": "^0.9.10",

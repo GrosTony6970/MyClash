@@ -100,6 +100,11 @@ overrides:
   minimatch: ^9.0.9
   picomatch: ^4.0.5
   import-in-the-middle: ^3.0.1
+  # >=0.35.0 clears GHSA-f88m-g3jw-g9cj (four inherited libvips CVEs). Only
+  # astro still asks for the 0.34 line; next@16 already resolves 0.35.3 on its
+  # own, and web-marketing declares it directly, so this drags exactly one
+  # consumer forward and collapses the tree from two copies of sharp to one.
+  sharp: ^0.35.0
   # Transitive advisory floors. js-yaml is in the tree on two major lines at
   # once, so it needs a key per major — a bare `js-yaml` override would drag
   # the 5.x consumers back to 4.x.
