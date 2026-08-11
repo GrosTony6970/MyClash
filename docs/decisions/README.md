@@ -43,3 +43,4 @@ What did we look at and reject? Why?
 | [ADR-010](./ADR-010-personal-data-visibility.md) | Default visibility for personal data: follows venue reality | Accepted |
 | [ADR-011](./ADR-011-no-edge-http-cache.md)       | No edge HTTP cache at v1 (Souin rejected)                   | Accepted |
 | [ADR-012](./ADR-012-cookie-consent.md)           | No cookie banner; versioned acceptance record instead       | Accepted |
+| [ADR-013](./ADR-013-fighter-vocabulary.md)       | Person / Global Person / Fighter vocabulary; bounded rename | Accepted |
