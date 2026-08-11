@@ -1,7 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+import { type SupabaseClient } from '@supabase/supabase-js';
 import * as jwt from 'jsonwebtoken';
+import { createInstrumentedClients } from './query-errors/install';
 
 /** How long to wait on GoTrue before treating it as unavailable (ms). */
 const GOTRUE_TIMEOUT_MS = 5000;
@@ -125,17 +126,16 @@ export class SupabaseService {
   readonly service: SupabaseClient;
 
   constructor(private readonly config: ConfigService) {
-    const url = config.getOrThrow<string>('SUPABASE_URL');
-    const anonKey = config.getOrThrow<string>('SUPABASE_ANON_KEY');
-    const serviceKey = config.getOrThrow<string>('SUPABASE_SERVICE_ROLE_KEY');
-
-    this.anon = createClient(url, anonKey, {
-      auth: { persistSession: false, autoRefreshToken: false },
-    });
-
-    this.service = createClient(url, serviceKey, {
-      auth: { persistSession: false, autoRefreshToken: false },
-    });
+    // Both clients carry the swallowed-error tripwire; query-errors/install.ts
+    // owns that wiring, including the un-instrumented client the recorder writes
+    // through so a database outage cannot recurse.
+    const clients = createInstrumentedClients(
+      config.getOrThrow<string>('SUPABASE_URL'),
+      config.getOrThrow<string>('SUPABASE_ANON_KEY'),
+      config.getOrThrow<string>('SUPABASE_SERVICE_ROLE_KEY'),
+    );
+    this.anon = clients.anon;
+    this.service = clients.service;
   }
 
   async getAuthUser(accessToken: string): Promise<SupabaseAuthUser | null> {
