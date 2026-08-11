@@ -4,6 +4,20 @@
 > (no build, no backend). Use the demo bar (top) to switch **Afterblow (Deductive / Full)**,
 > **Device (Desktop / Tablet)**, or **Jump to finish**. Everything on the board is clickable.
 
+> **Stale premise — read before acting on any recommendation below (checked 2026-08-11).**
+> Two of the facts this document reasons from are no longer true at HEAD:
+>
+> - **The Forfeit panel is no longer on the scoring surface.** `ForfeitPanel` is imported and
+>   rendered only by `MatchCorrectionsDrawer.tsx`, so the "large white panel pinned at the
+>   bottom" that motivates several recommendations is already gone.
+> - **A tabs primitive now exists.** `packages/ui/src/components/SegmentedTabs.tsx` is exported
+>   from the package index, so the "none exists in `packages/ui`" premise behind the no-tabs
+>   recommendation has expired. The recommendation may still be right — the reason given is not.
+>
+> `ScoreDisplay` in the primitives column is also not a real export; the other entries
+> (Button, ConfirmDialog, Pill, Toast) are. Kept as a design exploration and for the clickable
+> mockup, not as a current description of the screen.
+
 ## Context
 
 The live match-scoring screen (`apps/web-staff`) works but isn't yet user-friendly. It's a dark
