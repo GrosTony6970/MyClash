@@ -21,28 +21,43 @@
 
 ## Table of Contents
 
-1. [Project Overview](#1-project-overview)
-2. [Product Surfaces](#2-product-surfaces)
-3. [Tech Stack & Rationale](#3-tech-stack--rationale)
-4. [High-Level System Architecture](#4-high-level-system-architecture)
-5. [Data Model](#5-data-model)
-6. [TF_v1 Ruleset Specification](#6-tf_v1-ruleset-specification)
-7. [Scoring Engine & Ruleset Plugin System](#7-scoring-engine--ruleset-plugin-system)
-8. [Statistics Module](#8-statistics-module)
-9. [Real-Time Architecture](#9-real-time-architecture)
-10. [Offline-First Scoring](#10-offline-first-scoring-pwa--indexeddb)
-11. [HEMA Ratings Integration](#11-hema-ratings-integration)
-12. [Authentication & Authorization](#12-authentication--authorization)
-13. [Per-Event Theming](#13-per-event-theming)
-14. [API Surface](#14-api-surface)
-15. [Frontend Routes](#15-frontend-routes)
-16. [Internationalization](#16-internationalization)
-17. [Deployment](#17-deployment-docker-compose--traefik)
-18. [Repository Structure](#18-repository-structure-monorepo)
-19. [Development Roadmap](#19-development-roadmap)
-20. [Conventions & Standards](#20-conventions--standards)
-21. [AI Coder Instructions](#21-ai-coder-instructions)
-22. [Open Questions](#22-open-questions--future-work)
+Every `##` section appears here. Sections are cited elsewhere by number (`§14`), so the numbering is
+a contract: **renumber an existing section only after repointing every citation to it.** The
+`bis`/`ter`/`quater` suffixes mark sections inserted after their neighbours were already cited —
+ugly, but cheaper than renumbering. Append new sections at the end instead.
+
+- [1. Project Overview](#1-project-overview)
+- [2. Product Surfaces](#2-product-surfaces)
+- [3. Tech Stack & Rationale](#3-tech-stack--rationale)
+- [4. High-Level System Architecture](#4-high-level-system-architecture)
+- [5. Data Model](#5-data-model)
+- [6. TF_v1 Ruleset Specification](#6-tf_v1-ruleset-specification)
+- [7. Scoring Engine & Ruleset Plugin System](#7-scoring-engine--ruleset-plugin-system)
+- [7bis. Ruleset authoring, sharing and pinning](#7bis-ruleset-authoring-sharing-and-pinning)
+- [8. Statistics Module](#8-statistics-module)
+- [9. Real-Time Architecture](#9-real-time-architecture)
+- [10. Offline-First Scoring (PWA + IndexedDB)](#10-offline-first-scoring-pwa--indexeddb)
+- [11. HEMA Ratings Integration](#11-hema-ratings-integration)
+- [11bis. Workshops Module](#11bis-workshops-module)
+- [11ter. Push Notifications](#11ter-push-notifications)
+- [11quater. Pool Population & Referee Assignment](#11quater-pool-population--referee-assignment)
+- [11sexies. Bracket Auto-Advance](#11sexies-bracket-auto-advance)
+- [11quinquies. Following & Public Profiles](#11quinquies-following--public-profiles)
+- [12. Authentication & Identity](#12-authentication--identity)
+- [13. Per-Event Theming](#13-per-event-theming)
+- [14. API Surface](#14-api-surface)
+- [15. Frontend Routes](#15-frontend-routes)
+- [16. Internationalization](#16-internationalization)
+- [17. Deployment (Docker Compose + Traefik)](#17-deployment-docker-compose--traefik)
+- [18. Repository Structure (Monorepo)](#18-repository-structure-monorepo)
+- [19. Development Roadmap](#19-development-roadmap)
+- [20. Conventions & Standards](#20-conventions--standards)
+- [21. AI Coder Instructions](#21-ai-coder-instructions)
+- [22. Open Questions / Future Work](#22-open-questions--future-work)
+- [23. Referee Financial Compensation (T-1209)](#23-referee-financial-compensation-t-1209)
+- [24. Event Schedule Planner (T-1210)](#24-event-schedule-planner-t-1210)
+- [25. Live Schedule View (T-1211)](#25-live-schedule-view-t-1211)
+- [26. AI Infrastructure (T-1212)](#26-ai-infrastructure-t-1212)
 
 ---
 
@@ -2938,7 +2953,7 @@ These are intentionally **not** in scope for v1.0 but are tracked here:
 
 ---
 
-## 13. Referee Financial Compensation (T-1209)
+## 23. Referee Financial Compensation (T-1209)
 
 ### 13.1 Overview
 
@@ -2985,7 +3000,7 @@ The report is always computed fresh from live `referee_assignments` data. Pool a
 
 ---
 
-## 14. Event Schedule Planner (T-1210)
+## 24. Event Schedule Planner (T-1210)
 
 A two-layer scheduling tool for tournament organisers.
 
@@ -3026,7 +3041,7 @@ POST   /api/v1/events/:eventId/programme/generate  run scheduler + create worksh
 
 ---
 
-## 15. Live Schedule View (T-1211)
+## 25. Live Schedule View (T-1211)
 
 Real-time display of the current programme block and active fights, visible to all event participants without login.
 
@@ -3069,7 +3084,7 @@ Block detection: converts `day_index` offset from `event.start_date` + block `st
 
 ---
 
-## 16. AI Infrastructure (T-1212)
+## 26. AI Infrastructure (T-1212)
 
 Shared AI layer required by all AI-powered features (NLQ, Recap Generator, etc.). Provides LLM provider abstraction, encrypted BYOK API key storage at org level, per-event spend caps, and a settings UI.
 
