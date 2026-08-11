@@ -14,6 +14,7 @@ Phase 4 production-readiness review. Scope fixed 2026-05-12; **content maintaine
 - `pnpm db:migrations:replay` replays every migration into a disposable database when `DATABASE_URL` is explicitly provided. See [Migration replay on a vanilla Postgres](#migration-replay-on-a-vanilla-postgres) for the Supabase-compatibility baseline it applies first.
 - `pnpm db:perf:explain` runs the committed EXPLAIN workload against a disposable database after applying `packages/db/fixtures/phase4_synthetic.sql`.
 - `pnpm --filter @myclash/db test` covers RLS logic, including recent service-role-only tables.
+- `pnpm db:realtime-bindings` fails when a table named in any realtime binding is not in the publication — one unpublished table permanently CHANNEL_ERRORs the whole channel. It runs in CI between `db:review` and `db:perf:fixture`.
 
 ## Migration replay on a vanilla Postgres
 

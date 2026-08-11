@@ -21,7 +21,7 @@ pnpm infra:edge -- --domain myclash.fr
 
 Production compose defines the expected v1 services: Traefik, Postgres, Redis,
 Supabase Auth, Supabase Realtime, Supabase Storage, Supabase REST (PostgREST),
-API, ops-runner, worker, web-public, web-marketing, web-staff, and web-admin.
+API, ops-runner, worker, web-public, web-marketing, web-staff, web-admin, plus `supabase-meta` and `supabase-studio` — neither of which carries a `profiles:` guard, so both run on every deploy and `scripts/check-infra-review.mjs` expects them.
 
 Repo-verified controls:
 
@@ -184,7 +184,7 @@ Live evidence to capture after deploy:
 pnpm infra:edge -- --domain myclash.fr
 ```
 
-This checks apex, `www`, `api`, `app`, `admin`, and `scoring` HTTP-to-HTTPS
+This checks apex, `www`, `api`, `app`, `admin`, and `staff` HTTP-to-HTTPS
 redirects, TLS certificate expiry, HSTS headers, and `https://api.myclash.fr/health`.
 
 Observed on 2026-05-13 before deploy: `pnpm infra:edge -- --domain myclash.fr`

@@ -8,7 +8,7 @@ The marketing / landing site served at `myclash.fr` (apex domain).
 
 - Project homepage: what is MyClash, why it exists, screenshots.
 - "For organizers" pitch with CTA → `admin.myclash.fr`.
-- "For HEMA clubs" pitch with CTA → `app.myclash.fr/events` (browse events).
+- "For HEMA clubs" pitch with CTA → `app.myclash.fr` (the app root is the browse-events surface; there is no `/events` segment).
 - Privacy policy, ToS, contact, attribution.
 
 ## Pages

@@ -104,8 +104,8 @@ Disk full:
 
 Rollback:
 
-1. Use the deployment rollback script documented in `README.md`/ops docs.
-2. Confirm API `/health`, public app, admin, and scoring after rollback.
+1. Roll back over SSH: `ssh <user>@<vps> 'cd /srv/myclash && bash infra/scripts/rollback.sh'`. Note `pnpm rollback:prod` is wired in package.json but its wrapper `scripts/rollback.ts` does not exist, so it fails immediately — see `infra/scripts/README.md`.
+2. Confirm API `/health`, public app, admin, and staff after rollback.
 3. Record the incident in the incident log.
 
 OAuth/email outage:

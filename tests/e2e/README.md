@@ -38,7 +38,56 @@ E2E_CLEANUP=1 pnpm test:e2e:prod      # delete the test data afterwards
 pnpm test:e2e:prod tests/e2e/07-*.spec.ts  # run one test by number (here: test 7)
 ```
 
-Specs are numbered `01`…`28` (see the Status table), so you can run one by number.
+Specs are numbered `01`…`35` (see the index below and the Status table), so you can run one by number.
+
+### Spec index
+
+Generated from `tests/e2e/*.spec.ts`. Section headings below are prose titles, so this table is
+the way to get from a spec number to what it does. The Status table at the end of the file carries
+the pass/fail record.
+
+<div style="overflow-x:auto">
+
+| #    | Spec                   | Opt-in flag                                                                                                                               |
+| ---- | ---------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| `01` | participants import    | `E2E_PARTICIPANTS_CSV`                                                                                                                    |
+| `02` | create tournament      | — always runs                                                                                                                             |
+| `03` | create event           | — always runs                                                                                                                             |
+| `04` | schedule               | — always runs                                                                                                                             |
+| `05` | referee board          | — always runs                                                                                                                             |
+| `06` | offline sync           | `E2E_STAFF_URL`                                                                                                                           |
+| `07` | populate event         | `E2E_LIVE_DURATION_S`, `E2E_LIVE_SIDESWORD`, `E2E_PACE_MS`, `E2E_PARTICIPANTS_CSV`, `E2E_POPULATE`                                        |
+| `08` | offline custom ruleset | `E2E_STAFF_URL`                                                                                                                           |
+| `09` | double elim            | `E2E_DOUBLE_ELIM`                                                                                                                         |
+| `10` | scoring pad            | `E2E_SCORING_PAD`                                                                                                                         |
+| `11` | league                 | `E2E_LEAGUE`                                                                                                                              |
+| `12` | exports                | `E2E_EXPORTS`                                                                                                                             |
+| `13` | privacy                | `E2E_PRIVACY`                                                                                                                             |
+| `14` | compensation           | `E2E_COMPENSATION`                                                                                                                        |
+| `15` | public site            | `E2E_PUBLIC_SITE`, `E2E_PUBLIC_URL`, `E2E_SCORING_URL`                                                                                    |
+| `16` | pad ui                 | `E2E_PAD_UI`, `E2E_STAFF_URL`                                                                                                             |
+| `17` | archive restore        | `E2E_ARCHIVE`                                                                                                                             |
+| `18` | staff pad              | `E2E_STAFF`, `E2E_STAFF_URL`                                                                                                              |
+| `19` | workshops              | `E2E_WORKSHOPS`                                                                                                                           |
+| `20` | schedule               | `E2E_SCHEDULE`                                                                                                                            |
+| `21` | referee assign         | `E2E_SCHEDULE`                                                                                                                            |
+| `22` | swiss                  | `E2E_SWISS`                                                                                                                               |
+| `23` | swiss seeding          | `E2E_SWISS`                                                                                                                               |
+| `24` | swiss public           | `E2E_PUBLIC_URL`, `E2E_SWISS`                                                                                                             |
+| `25` | swiss data             | `E2E_SWISS`                                                                                                                               |
+| `26` | print pack             | — always runs                                                                                                                             |
+| `27` | super admin            | `E2E_PLATFORM_ADMIN_EMAIL`, `E2E_PLATFORM_ADMIN_PASSWORD`, `E2E_PLATFORM_VIEWER_EMAIL`, `E2E_PLATFORM_VIEWER_PASSWORD`, `E2E_SUPER_ADMIN` |
+| `28` | live control room      | `E2E_LIVE_BOARD`                                                                                                                          |
+| `29` | league multi event     | `E2E_LEAGUE`                                                                                                                              |
+| `30` | ai settings            | `E2E_AI`                                                                                                                                  |
+| `31` | ai generation          | `E2E_AI`, `E2E_AI_KEY`, `E2E_AI_PROVIDER`                                                                                                 |
+| `32` | ai organiser tools     | `E2E_AI`, `E2E_AI_KEY`, `E2E_AI_MODEL`, `E2E_AI_PROVIDER`                                                                                 |
+| `33` | staff desk             | `E2E_STAFF`                                                                                                                               |
+| `34` | seeding drift          | `E2E_DRIFT`                                                                                                                               |
+| `35` | forfeit cascade        | `E2E_FORFEIT`                                                                                                                             |
+
+</div>
+
 Note that **PowerShell does not expand globs and Playwright reads its argument as
 a regex**, so `tests/e2e/18-*.spec.ts` silently matches nothing there — pass the
 literal path (`pnpm test:e2e:prod tests/e2e/18-staff-pad.spec.ts`).
@@ -311,7 +360,8 @@ last).
 > only, so marking an **unclaimed** referee paid — nearly every referee at a real
 > event — wrote a row nothing could read back, and the UI's optimistic checkbox
 > hid it until the next reload. Fixed by migration 0163 (payments now key on
-> `person_id`); that assertion is red until the API is redeployed.
+> `person_id`). Shipped in 0163 (commit 64330c4f) and long since redeployed — the assertion is
+> green; this note is kept for the bug's provenance, not as a standing excuse.
 
 ## The public site, showing real data (opt-in)
 
@@ -910,7 +960,7 @@ Two things worth knowing before touching it:
 
 `E2E_AI=1 pnpm test:e2e:prod tests/e2e/30-ai-settings.spec.ts` runs the whole AI
 configuration surface. Adding `E2E_AI_PROVIDER` + `E2E_AI_KEY` also runs
-`31-ai-generation.spec.ts`, **the only spec in this suite that spends money.**
+`31-ai-generation.spec.ts`, **one of the two specs in this suite that spend money** — `32-ai-organiser-tools.spec.ts` carries the same `E2E_AI_PROVIDER` + `E2E_AI_KEY` gate and also bills tokens.
 
 Six API modules (`ai-providers`, `ai-usage`, `generated-content`,
 `organizer-ai-assistant`, `organizer-chat`, and the platform `admin/ai-*`
