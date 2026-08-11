@@ -9,19 +9,19 @@ This document covers the contribution process, required status checks, and devel
 
 Every pull request targeting `main` runs the following GitHub Actions jobs, all of which must pass before merging:
 
-| Check                     | Workflow                                                 | What it does                                                                                                                                                                                                          |
-| ------------------------- | -------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Install dependencies**  | `CI / Install dependencies`                              | `pnpm install --frozen-lockfile`                                                                                                                                                                                      |
-| **Build shared packages** | `CI / Build shared packages`                             | `pnpm turbo run build`, filtered to the 6 shared packages: `@myclash/types`, `rulesets`, `db`, `ui`, `i18n`, `api-client`                                                                                             |
-| **Typecheck**             | `CI / Typecheck`                                         | `pnpm turbo run typecheck` across all workspaces                                                                                                                                                                      |
-| **Lint**                  | `CI / Lint`                                              | `pnpm turbo run lint` **plus fifteen further independent gates** — see [Before pushing](#before-pushing) for the full list. Each runs as its own step with `if: '!cancelled()'`, so one failure never hides the rest. |
-| **Test**                  | `CI / Test`                                              | `pnpm turbo run test` (Vitest)                                                                                                                                                                                        |
-| **Dependency audit**      | `CI / Dependency audit`                                  | `pnpm audit --audit-level high`                                                                                                                                                                                       |
-| **Coverage**              | `CI / Coverage`                                          | `pnpm coverage` (enforced coverage thresholds)                                                                                                                                                                        |
-| **Playwright and Axe**    | `CI / Playwright and Axe`                                | `pnpm test:e2e` — Playwright end-to-end + Axe accessibility checks                                                                                                                                                    |
-| **Secret scan**           | `CI / Secret scan`                                       | Gitleaks secret scan                                                                                                                                                                                                  |
-| **Trivy image scan**      | `CI / Trivy production image scan`                       | Builds the api / web-admin / web-public / web-staff production images and scans them with Trivy (HIGH,CRITICAL)                                                                                                       |
-| **CodeQL**                | `CodeQL Security Scan / Analyze (javascript-typescript)` | Static security analysis                                                                                                                                                                                              |
+| Check                     | Workflow                                                 | What it does                                                                                                                                                                                                                         |
+| ------------------------- | -------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **Install dependencies**  | `CI / Install dependencies`                              | `pnpm install --frozen-lockfile`                                                                                                                                                                                                     |
+| **Build shared packages** | `CI / Build shared packages`                             | `pnpm turbo run build`, filtered to the 6 shared packages: `@myclash/types`, `rulesets`, `db`, `ui`, `i18n`, `api-client`                                                                                                            |
+| **Typecheck**             | `CI / Typecheck`                                         | `pnpm turbo run typecheck` across all workspaces                                                                                                                                                                                     |
+| **Lint**                  | `CI / Lint`                                              | `pnpm turbo run lint` **plus nineteen further independent gates and one build** — see [Before pushing](#before-pushing) for the full list. Each runs as its own step with `if: '!cancelled()'`, so one failure never hides the rest. |
+| **Test**                  | `CI / Test`                                              | `pnpm turbo run test` (Vitest)                                                                                                                                                                                                       |
+| **Dependency audit**      | `CI / Dependency audit`                                  | `pnpm audit --audit-level high`                                                                                                                                                                                                      |
+| **Coverage**              | `CI / Coverage`                                          | `pnpm coverage` (enforced coverage thresholds)                                                                                                                                                                                       |
+| **Playwright and Axe**    | `CI / Playwright and Axe`                                | `pnpm test:e2e` — Playwright end-to-end + Axe accessibility checks                                                                                                                                                                   |
+| **Secret scan**           | `CI / Secret scan`                                       | Gitleaks secret scan                                                                                                                                                                                                                 |
+| **Trivy image scan**      | `CI / Trivy production image scan`                       | Builds the api / web-admin / web-public / web-staff production images and scans them with Trivy (HIGH,CRITICAL)                                                                                                                      |
+| **CodeQL**                | `CodeQL Security Scan / Analyze (javascript-typescript)` | Static security analysis                                                                                                                                                                                                             |
 
 To configure these as required checks in GitHub:
 
@@ -67,9 +67,12 @@ Local URLs:
 
 ## Before pushing
 
-`pnpm lint && pnpm typecheck && pnpm test` is **not** the full check — CI's Lint job runs sixteen
+`pnpm lint && pnpm typecheck && pnpm test` is **not** the full check — CI's Lint job runs twenty
 further steps, and shared packages must be built first or a local pass proves nothing (`tsc`
 resolves workspace deps from `dist/` on disk, not through the pnpm symlink).
+
+`.github/workflows/ci.yml` is the source of truth. If this list and that file disagree, the
+workflow wins.
 
 ```bash
 # 1. Shared packages first — the API and apps typecheck against their dist/
@@ -81,16 +84,20 @@ pnpm turbo run typecheck
 pnpm turbo run lint
 pnpm turbo run test
 
-# 3. The gates that actually fail CI
+# 3. The gates that actually fail CI, in the order CI runs them
+pnpm quality:peers               # peerDependencyRules — a non-camelCase key no-ops silently
 pnpm security:client-secrets     # no server secrets reachable from client bundles
 pnpm quality:todos               # untracked debt markers
 pnpm quality:api-docs            # API doc coverage
 pnpm quality:complexity          # per-function/file line budget
+pnpm quality:test-code-leak      # test code kept out of the emit surface
+pnpm quality:client-env          # client env build-arg contract
 pnpm --filter @myclash/api build # required: OpenAPI is emitted by booting dist/app.module
 pnpm quality:openapi-drift       # generated client vs live routes
 pnpm quality:shared-types        # shared-type leaks
 pnpm design:lint                 # DESIGN.md vs packages/ui/src/theme.css
 pnpm db:review                   # schema / RLS review gates
+pnpm db:realtime-bindings        # an unpublished table in any binding kills the channel
 pnpm db:perf:fixture
 pnpm infra:review
 pnpm observability:review

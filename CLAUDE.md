@@ -72,7 +72,7 @@ historical build plan — it records how the project was built, not what to do n
 
 ## Verification
 
-**`pnpm lint && pnpm typecheck && pnpm test` is not the check.** CI's Lint job runs sixteen further
+**`pnpm lint && pnpm typecheck && pnpm test` is not the check.** CI's Lint job runs twenty further
 steps, and shared packages must be built in the right order or a local pass means nothing.
 
 Use the **`myclash-gates` skill** — it holds the full ordered chain from `.github/workflows/ci.yml`
