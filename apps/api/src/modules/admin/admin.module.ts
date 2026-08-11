@@ -53,6 +53,8 @@ import { AdminTlsStatusService } from './tls-status.service';
 import { TlsStatusAdminController } from './tls-status.controller';
 import { AdminHostInfoService } from './host-info.service';
 import { HostInfoAdminController } from './host-info.controller';
+import { AdminCiHealthService } from './ci-health.service';
+import { CiHealthAdminController } from './ci-health.controller';
 import { UsersAdminController } from './users.controller';
 import { WeaponsAdminController } from './weapons/weapons-admin.controller';
 import { WeaponsAdminService } from './weapons/weapons-admin.service';
@@ -72,6 +74,7 @@ import { WeaponsAdminService } from './weapons/weapons-admin.service';
     SystemVersionsAdminController,
     TlsStatusAdminController,
     HostInfoAdminController,
+    CiHealthAdminController,
     BackupsAdminController,
     PlatformAISettingsController,
     PlatformAIKeysController,
@@ -113,6 +116,14 @@ import { WeaponsAdminService } from './weapons/weapons-admin.service';
       useFactory: (systemActions: AdminSystemActionsService) =>
         new AdminHostInfoService(systemActions),
       inject: [AdminSystemActionsService],
+    },
+    {
+      provide: AdminCiHealthService,
+      // useFactory for the same reason as the two above: the constructor's
+      // second and third parameters are a factory function and a clock, neither
+      // of which has a runtime token for Nest to resolve.
+      useFactory: (config: ConfigService) => new AdminCiHealthService(config),
+      inject: [ConfigService],
     },
     { provide: AdminBackupsService, useFactory: () => new AdminBackupsService() },
     PlatformAISettingsService,

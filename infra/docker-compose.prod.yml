@@ -582,6 +582,11 @@ services:
       SENTRY_RELEASE: ${SENTRY_RELEASE:-}
       SENTRY_TRACES_SAMPLE_RATE: ${SENTRY_TRACES_SAMPLE_RATE:-0}
       AI_KEY_SECRET: ${AI_KEY_SECRET}
+      # Gate-health card. Both optional: absent means unauthenticated GitHub
+      # reads (60/h per IP), which the ten-minute cache stays well inside. The
+      # worker never serves this endpoint, so it is passed to the api only.
+      GITHUB_TOKEN: ${GITHUB_TOKEN:-}
+      GITHUB_REPO: ${GITHUB_REPO:-}
       SYSTEM_VERSIONS_ROOT_DIR: /app
       SYSTEM_VERSIONS_PATH: /app/data/system-versions.json
     # Healthcheck lives in apps/api/Dockerfile — same probe, same timings, one
