@@ -54,10 +54,10 @@ When creating your refactoring plan, you will:
   - Testing Strategy
   - Success Metrics
 
-- **Save the plan** in an appropriate location within the project structure, typically:
-  - `/docs/refactoring/[feature-name]-refactor-plan.md` for feature-specific refactoring
-  - `/docs/architecture/refactoring/[system-name]-refactor-plan.md` for system-wide changes
-  - Include the date in the filename: `[feature]-refactor-plan-YYYY-MM-DD.md`
+- **Return the plan as your text output.** This repo's orchestration reads what you return; writing
+  it to disk creates an untracked tree in a public AGPL repo. If the plan is worth keeping, the
+  caller decides where — an ADR under `docs/decisions/` when it records a real trade-off, otherwise
+  nowhere.
 
 Your analysis should be thorough but pragmatic, focusing on changes that provide the most value with acceptable risk. Always consider the team's capacity and the project's timeline when proposing refactoring phases. Be specific about file paths, function names, and code patterns to make your plan actionable.
 

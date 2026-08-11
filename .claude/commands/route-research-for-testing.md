@@ -1,15 +1,15 @@
 ---
-description: Map edited routes & launch tests
+description: Map edited API routes & smoke-test them
 argument-hint: '[/extra/path …]'
-allowed-tools: Bash(cat:*), Bash(awk:*), Bash(grep:*), Bash(sort:*), Bash(xargs:*), Bash(sed:*)
+allowed-tools: Bash(git:*), Bash(cat:*), Bash(awk:*), Bash(grep:*), Bash(sort:*), Bash(xargs:*), Bash(sed:*)
 model: inherit
 ---
 
 ## Context
 
-Changed route files this session (auto-generated):
+Controllers changed against `main` (auto-generated):
 
-!cat "$CLAUDE_PROJECT_DIR/.claude/tsc-cache"/\*/edited-files.log 2>/dev/null | awk -F: '{print $2}' | grep '/routes/' | sort -u || echo "No route files modified yet"
+!git diff --name-only main...HEAD -- apps/api/src | grep controller | sort -u; git diff --name-only -- apps/api/src | grep controller | sort -u
 
 User-specified additional routes: `$ARGUMENTS`
 
@@ -17,11 +17,24 @@ User-specified additional routes: `$ARGUMENTS`
 
 Follow the numbered steps **exactly**:
 
-1. Combine the auto list with `$ARGUMENTS`, dedupe, and resolve any prefixes
-   defined in `src/app.ts`.
-2. For each final route, output a JSON record with the path, method, expected
-   request/response shapes, and valid + invalid payload examples.
-3. **Use the Task tool to launch the auth-route-tester agent** with:
-   - subagent_type: `auth-route-tester`
-   - description: `route smoke tests`
-   - prompt: `Test all the routes identified above. For each route, verify it exists, test with valid authentication and payloads, test error cases, and verify database records are created correctly.`
+1. Combine the auto-detected controllers with `$ARGUMENTS` and dedupe. Resolve each route's full
+   path as `API_GLOBAL_PREFIX` + the `@Controller('…')` prefix + the method decorator's path —
+   `apps/api/src/main.ts:71` applies the global prefix with an `exclude` list, so check
+   `API_GLOBAL_PREFIX_EXCLUDE` before assuming a route is prefixed. (`/health` and friends answer
+   **only** on `api.${DOMAIN}`, not under the prefix.)
+
+2. For each final route, output a JSON record with the path, method, guard/role requirements, and
+   valid + invalid payload examples. Read the guards rather than guessing: a global `AuthGuard`
+   means every route needs identity unless it carries `@Public()`, and `@PlatformRole('…')` on a
+   GET is a **silent no-op** because `PlatformRoleGuard` defaults by verb.
+
+3. Smoke-test them yourself against the local stack — do not dispatch a subagent.
+   - `/api/v1` on `http://localhost:4000`; Swagger at `/api/docs`.
+   - Auth is **httpOnly cookies**, not a bearer header: sign in and reuse the jar (`curl -c`/`-b`).
+   - The global `ValidationPipe` runs `whitelist` + `forbidNonWhitelisted`, so an unexpected
+     property is a 400 rather than a silent drop.
+   - Bodies of status >= 500 are scrubbed, so read the API logs for those.
+   - For flows needing realistic data, drive `tests/e2e/` rather than hand-rolling fixtures.
+
+4. Report per route: exists/registered, happy path, validation failures, authorization refusals
+   (wrong role, wrong org, anonymous), the persisted effect, and the response shape.

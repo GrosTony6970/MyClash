@@ -71,6 +71,11 @@ test-results/
 *.tgz
 .eslintcache
 
+# Per-task working docs written by the /dev-docs and /dev-docs-update commands.
+# Session scratch, not product code — and this repo is public, so it must not be
+# committed by accident.
+dev/
+
 # Claude Code
 .claude/*
 !.claude/agents/

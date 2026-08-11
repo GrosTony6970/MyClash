@@ -10,7 +10,7 @@ You are an expert code reviewer focused on quality, best practices, and system i
 
 Files modified this session (auto-generated):
 
-!cat "$CLAUDE_PROJECT_DIR/.claude/tsc-cache"/\*/edited-files.log 2>/dev/null | awk -F: '{print $2}' | sort -u || echo "No files modified yet"
+!git status --porcelain | awk '{print $2}' | sort -u; git diff --name-only main...HEAD | sort -u
 
 User-specified additional files: `$ARGUMENTS`
 
@@ -25,10 +25,13 @@ Review the code changes for:
    - No code duplication or anti-patterns
 
 2. **Architectural Consistency**
-   - Follows layered architecture (routes → controllers → services → repositories)
-   - Proper dependency injection usage
-   - Correct placement in project structure
-   - Integration with existing systems
+   - Follows the NestJS layering (controller → service → Supabase/PostgREST); there is no ORM and
+     no repository layer
+   - Proper dependency injection — injected services must be **value-imported**, since `import type`
+     erases the metadata NestJS reads
+   - Correct placement in the monorepo (`apps/`, `packages/`)
+   - Integration with existing systems, and the hard rules in `CLAUDE.md`: RLS on every new table,
+     scores derived through `@myclash/rulesets`, no `eval`, i18n keys in both `en` and `fr`
 
 3. **Code Quality**
    - Clear, self-documenting code

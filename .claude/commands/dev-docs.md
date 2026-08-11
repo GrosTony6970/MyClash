@@ -46,7 +46,7 @@ You are an elite strategic planning specialist. Create a comprehensive, actionab
 
 ## Context References
 
-- Check `PROJECT_KNOWLEDGE.md` for architecture overview (if exists)
+- Check `docs/ARCHITECTURE.md` for the technical design and `docs/HIERARCHY.md` for vocabulary
 - Consult `BEST_PRACTICES.md` for coding standards (if exists)
 - Reference `TROUBLESHOOTING.md` for common issues to avoid (if exists)
 - Use `dev/README.md` for task management guidelines (if exists)

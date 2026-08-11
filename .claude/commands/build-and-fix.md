@@ -14,7 +14,7 @@ We NEVER leave broken builds. Every change must compile cleanly.
 
 Services modified this session (auto-generated):
 
-!cat "$CLAUDE_PROJECT_DIR/.claude/tsc-cache"/\*/affected-repos.txt 2>/dev/null | sort -u || echo "No services modified yet"
+!git status --porcelain | awk '{print $2}' | grep -E '^(apps|packages)/' | cut -d/ -f1-2 | sort -u
 
 User-specified services: `$ARGUMENTS`
 
@@ -69,10 +69,18 @@ npx tsc --project tsconfig.build.json --noEmit
 **Monorepo:**
 
 ```bash
-# Build specific service
-cd services/[service-name]
-npm run build
+# Shared packages FIRST, in dependency order — the API and apps typecheck against
+# packages/*/dist on disk, so a partial build gives a green that lies.
+pnpm turbo run build --filter="@myclash/types" --filter="@myclash/rulesets" \
+  --filter="@myclash/db" --filter="@myclash/ui" --filter="@myclash/i18n" --filter="@myclash/api-client"
+
+# Then a single workspace, if you need one
+pnpm --filter @myclash/api build
 ```
+
+The API's own typecheck must go through `nest build`: incremental `tsc` trusts `.tsbuildinfo` and
+reports clean on code that does not compile from scratch. The full ordered chain is in the
+`myclash-gates` skill.
 
 ## Quality Standards
 

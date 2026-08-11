@@ -31,18 +31,19 @@ Test the specified route thoroughly:
    - Edge cases (empty values, very long strings, etc.)
    - Authentication/authorization failures
 
-4. **Execute Tests**
-   - Use the Task tool to launch the auth-route-tester agent with:
-     - subagent_type: `auth-route-tester`
-     - description: `test route functionality`
-     - prompt: Test the route specified in $ARGUMENTS by:
-       1. Verifying route exists and is registered
-       2. Testing with valid authentication and valid payload
-       3. Testing with missing/invalid fields
-       4. Testing authorization (if applicable)
-       5. Verifying database records are created/updated correctly
-       6. Checking response status codes and body structure
-       7. Providing detailed test results for each scenario
+4. **Execute Tests** — run them yourself against the local stack. Do not dispatch a subagent.
+   - The API serves `/api/v1` on `http://localhost:4000` in dev; Swagger is at `/api/docs`.
+   - Auth is **httpOnly cookies**, not a bearer header. Sign in first and reuse the cookie jar
+     (`curl -c`/`-b`), or drive the flow through the Playwright suite in `tests/e2e/`.
+   - Work through: route exists and is registered → valid auth + valid payload → missing or
+     wrong-typed fields → authorization (wrong role, wrong org, anonymous) → the persisted effect →
+     status codes and body shape.
+   - Remember the global `ValidationPipe` runs with `whitelist` and `forbidNonWhitelisted`, so an
+     unexpected property is a 400, not a silent drop.
+   - **Every response body of status >= 500 is scrubbed**, so a deliberate 503's message will not
+     reach you. Read the API logs for those.
+   - If a route needs realistic data, the E2E suite already builds it — see `tests/e2e/README.md`
+     rather than hand-rolling fixtures.
 
 5. **Validation Checks**
    - Response status codes match expectations

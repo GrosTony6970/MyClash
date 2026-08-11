@@ -140,14 +140,28 @@ const data: Result = result;
 For monorepos, detect affected services:
 
 ```bash
-# Read from tsc-cache if available
-cat .claude/tsc-cache/*/affected-repos.txt 2>/dev/null | sort -u
-
-# Or detect based on git changes
-git diff --name-only HEAD | grep -E '^(services|packages|apps)/' | cut -d/ -f2 | sort -u
+# Detect which workspaces changed
+git diff --name-only HEAD | grep -E '^(packages|apps)/' | cut -d/ -f2 | sort -u
 ```
 
-Build only affected services to save time.
+**Do not build only the affected workspace.** The API and the apps resolve workspace deps from
+`dist/index.d.ts` **on disk**, not through the pnpm symlink, so a partial build produces either
+phantom errors or — worse — a phantom pass on code that will not compile in Docker.
+
+Build the shared packages first, in this order, then typecheck:
+
+```bash
+pnpm turbo run build --filter="@myclash/types" --filter="@myclash/rulesets" \
+  --filter="@myclash/db" --filter="@myclash/ui" --filter="@myclash/i18n" --filter="@myclash/api-client"
+```
+
+Two traps this catches: `@myclash/rulesets` must be built before the API typechecks, and
+`@myclash/ui` must be rebuilt before any app typechecks or the app validates against stale prop
+types. The API's own typecheck must go through `nest build` — incremental `tsc` trusts
+`.tsbuildinfo` and reports clean on code that does not compile from scratch.
+
+The full ordered chain lives in the `myclash-gates` skill; `.github/workflows/ci.yml` is the source
+of truth.
 
 ## Output Format
 
