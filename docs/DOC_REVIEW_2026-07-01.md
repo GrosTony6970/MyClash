@@ -1,5 +1,11 @@
 # Documentation Review — 2026-07-01
 
+> **SPENT — findings applied.** This is a completed point-in-time audit, kept for provenance and
+> because `scripts/check-todos.mjs:46` accepts it as a debt marker. Spot-checked 2026-08-11: the
+> stack-version findings (Next 15→16, NestJS 10→11) and the TF_v1_no_afterblow ruleset finding are
+> all fixed in the tree. Do **not** treat anything below as an open action, and do not cite it as
+> current state — a superseding review landed 2026-08-11.
+
 > Consolidated findings from a full audit of every project-owned markdown doc against the current code on `main`. Each finding was produced by a per-cluster reviewer agent and then independently **adversarially verified** (an agent tasked to refute it against the live tree) before being recorded here.
 
 **Provenance:** automated multi-agent audit (38 agents across 19 doc clusters) → adversarial verification. **73 findings CONFIRMED**, 1 refuted. Ground truth: NestJS 11 / Fastify API, Next.js 16.2.6 / React 19 apps, 9 shared packages, ~120 Drizzle migrations (latest `0120`), 14-service Docker/Traefik/Supabase stack.

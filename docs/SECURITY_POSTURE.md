@@ -1,6 +1,6 @@
 # MyClash Security Posture
 
-Last reviewed: 2026-05-12.
+Posture first recorded 2026-05-12 and **maintained since — `git log` is the authority on freshness, not this line.**
 
 This document records the production-review security posture for MyClash. It is intentionally operational: each section points to the code, CI gate, or owner task that proves the control.
 

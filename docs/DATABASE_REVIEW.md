@@ -1,6 +1,7 @@
 # Database Review
 
-Phase 4 production-readiness review, last updated 2026-05-12.
+Phase 4 production-readiness review. Scope fixed 2026-05-12; **content maintained since — see
+`git log` for the true last edit rather than trusting a date in prose.**
 
 ## Status
 

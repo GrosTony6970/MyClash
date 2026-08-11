@@ -1,7 +1,7 @@
 # Observability Review
 
 Status: Pass with known issues
-Date: 2026-05-13
+Phase scope fixed: 2026-05-13 — **content maintained since; `git log` is the authority on freshness.**
 
 Phase 6 uses Sentry Cloud for error tracking, external uptime monitoring for public endpoints, and API-first structured JSON request logs. The repository wiring is complete; production sign-off still needs owner-supplied Sentry DSNs, external uptime checks, and staging smoke-test evidence.
 

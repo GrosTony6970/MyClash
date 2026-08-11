@@ -5,7 +5,8 @@ is owner-confirmed complete and is excluded from this pass.
 
 ## Status
 
-**Current status (2026-05-13): Pass with known issues.**
+**Pass with known issues.** Phase scope fixed 2026-05-13; content maintained since — `git log` is
+the authority on freshness.
 
 Repo-local container and edge configuration checks are automated through
 `pnpm infra:review`. Live TLS evidence was attempted from this workstation, but

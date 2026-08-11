@@ -1,7 +1,7 @@
 # Performance Review
 
 Status: Pass with known issues
-Date: 2026-05-13
+Phase scope fixed: 2026-05-13 — **content maintained since; `git log` is the authority on freshness.**
 
 Phase 7 covers backend latency, SQL Query Review, frontend budgets, Web Vitals, load testing, and caching. Repo-local checks now enforce the review artifacts and scripts. Live p95 latency, full 50-concurrent load evidence, and real-user INP evidence still require staging or production traffic.
 
