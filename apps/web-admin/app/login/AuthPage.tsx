@@ -181,7 +181,10 @@ export function AuthPage({ initialTab }: { initialTab: AuthTab }) {
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: email.trim() }),
+        // `type` picks the host the recovery link opens. Without it the server
+        // defaults to the participant app and an organizer finishes the reset
+        // on a domain they never asked about.
+        body: JSON.stringify({ email: email.trim(), type: 'login' }),
       });
     } catch {
       // Deliberately swallowed — see above.

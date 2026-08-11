@@ -1851,6 +1851,21 @@ export const en = {
         magicLinkFailed: 'Could not send a login link.',
       },
     },
+    resetPassword: {
+      title: 'Set a new password',
+      description: 'Choose a new password for your organizer account.',
+      newPassword: 'New password',
+      submit: 'Save the new password',
+      doneTitle: 'Password updated',
+      doneDescription: 'You are signed in. Continue to your workspace.',
+      continue: 'Go to my dashboard',
+      errors: {
+        missingToken: 'This link is missing its token. Request a new reset email.',
+        expired: 'This reset link has expired. Request a new one.',
+        generic: 'Could not update the password. Try again in a moment.',
+        network: 'Could not reach the MyClash server. Check your connection and try again.',
+      },
+    },
     oauth: {
       continueWithGoogle: 'Continue with Google',
       completing: 'Completing sign-in',
@@ -9725,8 +9740,23 @@ export const fr = {
       resetCheckEmail: 'Si cet e-mail est enregistré, un lien de réinitialisation a été envoyé.',
       errors: {
         passwordLoginFailed:
-          "E-mail ou mot de passe invalide, ou ce compte n'est pas autorise dans l'admin.",
+          "E-mail ou mot de passe invalide, ou ce compte n'est pas autorisé dans l'admin.",
         magicLinkFailed: "Impossible d'envoyer un lien de connexion.",
+      },
+    },
+    resetPassword: {
+      title: 'Définir un nouveau mot de passe',
+      description: 'Choisissez un nouveau mot de passe pour votre compte organisateur.',
+      newPassword: 'Nouveau mot de passe',
+      submit: 'Enregistrer le mot de passe',
+      doneTitle: 'Mot de passe mis à jour',
+      doneDescription: 'Vous êtes connecté. Rejoignez votre espace de travail.',
+      continue: 'Aller à mon tableau de bord',
+      errors: {
+        missingToken: 'Ce lien ne contient pas de jeton. Demandez un nouvel e-mail.',
+        expired: 'Ce lien de réinitialisation a expiré. Demandez-en un nouveau.',
+        generic: 'Impossible de mettre à jour le mot de passe. Réessayez dans un instant.',
+        network: 'Impossible de joindre le serveur MyClash. Vérifiez votre connexion et réessayez.',
       },
     },
     oauth: {
