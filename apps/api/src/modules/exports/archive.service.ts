@@ -312,6 +312,12 @@ const ARCHIVE_EXCLUDED_TABLES = new Set<string>([
   // the event. Restoring it into a copy would claim devices that never synced
   // to that copy, and its whole value is being current rather than historical.
   'scoring_device_sync_reports',
+  // Feedback is given TO an organiser about one running of an event, under a
+  // promise of anonymity from that organiser. An archive is copied, restored
+  // into new events and handed around; carrying opinions into a copy would move
+  // them further from the promise they were given under with every hop. The
+  // author still gets their own rows through the GDPR subject export.
+  'event_feedback',
   'organizer_ai_assistant_drafts',
   'organizer_chat_conversations',
   'organizer_chat_messages',

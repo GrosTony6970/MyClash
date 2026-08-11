@@ -9116,6 +9116,24 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  '/api/v1/events/{eventId}/feedback': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Aggregated event feedback (anonymous unless the author opted in) */
+    get: operations['EventStatsController_getFeedback'];
+    put?: never;
+    /** Submit feedback on an event you attended */
+    post: operations['EventStatsController_submitFeedback'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   '/api/v1/events/{eventId}/statistics': {
     parameters: {
       query?: never;
@@ -11304,6 +11322,11 @@ export interface components {
     MailPassesDto: {
       /** @default false */
       resend: boolean;
+    };
+    SubmitEventFeedbackDto: {
+      rating: number;
+      comment?: string | null;
+      isAttributed?: boolean;
     };
   };
   responses: never;
@@ -24760,6 +24783,48 @@ export interface operations {
     requestBody?: never;
     responses: {
       200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  EventStatsController_getFeedback: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        eventId: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  EventStatsController_submitFeedback: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        eventId: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['SubmitEventFeedbackDto'];
+      };
+    };
+    responses: {
+      204: {
         headers: {
           [name: string]: unknown;
         };

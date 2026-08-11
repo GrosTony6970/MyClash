@@ -12,6 +12,20 @@ export const en = {
     name: 'MyClash',
   },
   publicApp: {
+    eventFeedback: {
+      title: 'How did it go?',
+      subtitle: 'A minute of your time helps the organiser run the next one better.',
+      ratingLabel: 'Overall, out of 5',
+      commentLabel: 'Anything you want to add (optional)',
+      attributeLabel: 'Sign this feedback: the organiser will see your name.',
+      anonymousHint: 'The organiser will see your answer, but not who wrote it.',
+      attributedHint: 'The organiser will see your name next to this answer.',
+      submit: 'Send',
+      sending: 'Sending…',
+      failed: 'Could not send your feedback.',
+      thanksTitle: 'Thank you',
+      thanksBody: 'Your answer has been recorded.',
+    },
     name: 'MyClash',
     // Shared by every public/personal surface that tags a club event (event
     // list card + row, event header, /me events), so the same sentence cannot
@@ -5401,6 +5415,19 @@ export const en = {
       headlineClean: 'Nothing needs your attention.',
       headlineAttention: 'Some things need a look.',
       openClockReport: 'Open the full clock report',
+      feedback: {
+        title: 'What people said',
+        empty: 'Nobody has answered yet.',
+        headline: '{average} out of 5 · {count} responses',
+        anonymous: 'Anonymous',
+        roles: {
+          fighter: 'Fighters',
+          referee: 'Referees',
+          instructor: 'Instructors',
+          attendee: 'Attendees',
+          other: 'Too few to break down',
+        },
+      },
       sections: {
         refusedExchanges: 'Exchanges the server refused',
         silentDevices: 'Devices that stopped reporting',
@@ -7858,6 +7885,20 @@ export const fr = {
     name: 'MyClash',
   },
   publicApp: {
+    eventFeedback: {
+      title: "Comment ça s'est passé ?",
+      subtitle: "Une minute de votre temps aide l'organisateur à mieux faire la prochaine fois.",
+      ratingLabel: 'Globalement, sur 5',
+      commentLabel: 'Ce que vous voulez ajouter (facultatif)',
+      attributeLabel: "Signer cet avis : l'organisateur verra votre nom.",
+      anonymousHint: "L'organisateur verra votre réponse, mais pas qui l'a écrite.",
+      attributedHint: "L'organisateur verra votre nom à côté de cette réponse.",
+      submit: 'Envoyer',
+      sending: 'Envoi…',
+      failed: "Impossible d'envoyer votre avis.",
+      thanksTitle: 'Merci',
+      thanksBody: 'Votre réponse a été enregistrée.',
+    },
     name: 'MyClash',
     eventKind: {
       clubBadge: 'Événement de club',
@@ -13255,6 +13296,19 @@ export const fr = {
       headlineClean: 'Rien ne requiert votre attention.',
       headlineAttention: "Certains points méritent un coup d'œil.",
       openClockReport: "Ouvrir le rapport d'horloge complet",
+      feedback: {
+        title: 'Ce que les gens ont dit',
+        empty: "Personne n'a encore répondu.",
+        headline: '{average} sur 5 · {count} réponses',
+        anonymous: 'Anonyme',
+        roles: {
+          fighter: 'Combattants',
+          referee: 'Arbitres',
+          instructor: 'Instructeurs',
+          attendee: 'Participants',
+          other: 'Trop peu pour détailler',
+        },
+      },
       sections: {
         refusedExchanges: 'Échanges refusés par le serveur',
         silentDevices: 'Appareils ayant cessé de répondre',

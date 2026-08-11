@@ -121,6 +121,15 @@ export const SUBJECT_EXPORT_TABLES: Readonly<Record<string, SubjectTableSpec>> =
     reaches: [{ column: 'person_id', reach: 'person' }],
     file: 'events.csv',
   },
+  event_feedback: {
+    // The subject's own opinion of an event, with their rating and comment.
+    // Unambiguously personal data about them, so Art. 15 obliges disclosure TO
+    // THEM — and it costs nothing, because the anonymity this table promises is
+    // anonymity from the ORGANISER, never from the author. A subject export
+    // returning only their own rows cannot breach it.
+    reaches: [{ column: 'respondent_person_id', reach: 'person' }],
+    file: 'events.csv',
+  },
   swiss_entrants: {
     // The Swiss phase roster. Personal data: it records that this person was
     // entered into this phase and, via `withdrawn_at_round`, that they pulled
