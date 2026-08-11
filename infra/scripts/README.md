@@ -18,16 +18,15 @@ cd /srv/myclash/infra/scripts
 ./deploy.sh --dev-certs --skip-backup
 ```
 
-All scripts support `-h` / `--help`. From your machine, `deploy.sh` is reachable over SSH via
-`pnpm deploy:prod` (see [`scripts/deploy.ts`](../../scripts/deploy.ts)).
+All scripts support `-h` / `--help`. From your machine, `deploy.sh` and `rollback.sh` are both
+reachable over SSH via `pnpm deploy:prod` and `pnpm rollback:prod` (see
+[`scripts/deploy.ts`](../../scripts/deploy.ts) and
+[`scripts/rollback.ts`](../../scripts/rollback.ts)). Both wrappers read `.env.deploy` and re-run
+the edge/TLS review afterwards.
 
-**`pnpm rollback:prod` is wired but not implemented.** `package.json` points it at
-`scripts/rollback.ts`, which does not exist, so the command fails immediately. Until that wrapper
-is written, roll back over SSH directly:
-
-```bash
-ssh <user>@<vps> 'cd /srv/myclash && bash infra/scripts/rollback.sh'
-```
+`rollback.sh` takes no arguments and confirms before restoring the database, so `pnpm rollback:prod`
+forces an SSH TTY and refuses to run without an interactive terminal — an unattended rollback would
+answer that prompt for you. Use `--dry-run` to see what it would do.
 
 ## The scripts
 

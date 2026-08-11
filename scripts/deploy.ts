@@ -51,7 +51,8 @@ interface DeployEnv {
   allowStagingCert: boolean;
 }
 
-function loadEnv(): DeployEnv {
+/** Exported so `scripts/rollback.ts` reads the same `.env.deploy` contract. */
+export function loadEnv(): DeployEnv {
   const envFile = resolve('.env.deploy');
   if (!existsSync(envFile)) {
     err('Missing .env.deploy. Create it from .env.deploy.example.');
@@ -148,6 +149,8 @@ function printPlan(env: DeployEnv, passthrough: string): void {
 }
 
 /** The two post-deploy probes, injectable so they can be faked in a test. */
+export type { DeployEnv };
+
 export interface DeployProbes {
   smoke: (url: string) => Promise<boolean>;
   edge: (env: DeployEnv) => Promise<boolean>;

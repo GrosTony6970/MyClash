@@ -104,7 +104,7 @@ Disk full:
 
 Rollback:
 
-1. Roll back over SSH: `ssh <user>@<vps> 'cd /srv/myclash && bash infra/scripts/rollback.sh'`. Note `pnpm rollback:prod` is wired in package.json but its wrapper `scripts/rollback.ts` does not exist, so it fails immediately — see `infra/scripts/README.md`.
+1. Run `pnpm rollback:prod` from an interactive terminal. It SSHes to the VPS, runs `infra/scripts/rollback.sh` (which confirms before restoring the database), and re-runs the edge/TLS review afterwards. `--dry-run` shows what it would do without touching the VPS.
 2. Confirm API `/health`, public app, admin, and staff after rollback.
 3. Record the incident in the incident log.
 
