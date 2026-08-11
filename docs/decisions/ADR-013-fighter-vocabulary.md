@@ -11,10 +11,13 @@ cascaded the obvious columns (`persons.global_fighter_id` → `global_person_id`
 everything, and nothing recorded what the words were supposed to mean afterwards. In the three
 months since (0023 landed 2026-05-07), four consequences compounded:
 
-1. **Two live public API namespaces for one concept.** `apps/api/src/modules/fighters/fighters.controller.ts`
-   declares both `@Controller('fighters')` and `@Controller('global-persons')`, backed by one
-   `FightersService` that reads `global_persons` and never a `fighters` table. `/admin/fighters`
-   likewise duplicates the canonical `/admin/global-persons`.
+1. **Two API namespaces backed by one service**, which reads `global_persons` and never a `fighters`
+   table. `apps/api/src/modules/fighters/fighters.controller.ts` declares both
+   `@Controller('fighters')` (18 routes) and `@Controller('global-persons')` (8). This looks like
+   duplication and is not: only `list` and `:id` collide as paths, and they differ by audience and
+   authorization — `PATCH /fighters/:id` is the claimed-owner self-service path
+   (`updateAsClaimedUser`), `PATCH /global-persons/:id` is `platform_admin` only
+   (`updateGlobalPerson`). See the Decision below.
 
 2. **Columns whose names denote the wrong concept.** `league_rankings.fighter_id`
    (`0015_leagues.sql:83`) and `league_tournament_results.fighter_id` (`:67`) are foreign keys to
@@ -58,6 +61,14 @@ _wrong_ concept. Leave correct ones alone, and leave foreign vocabulary alone.
 | `enforce_fighter_referee_no_overlap`                                      | Already correct under the ruling, and renaming forces DROP + re-ADD of a CHECK that CLAUDE.md hard rule 8 forbids disabling.                                                                           |
 | `redFighterName` / `blueFighterName` (~320 lines)                         | Competing-role identifiers. Correct as-is.                                                                                                                                                             |
 
+**The two API namespaces stay, and are not a defect.** They are two surfaces for two audiences, and
+under this ADR's own vocabulary the split is correct: `/fighters/*` is the role-facing surface —
+public browsing, a person's own profile and photo, competition history, career, rating history —
+while `/global-persons/*` is the identity-management surface: CSV import, referee-qualification and
+workshop-enrollment linking, super-admin update. Fifteen of the eighteen `/fighters` routes have no
+`/global-persons` counterpart because they are asking a different question about a person. No
+consolidation, no deprecation, no new routes.
+
 **Declined: renaming the `apps/api/src/modules/fighters/` directory.** Measured at 6,360 LOC across
 20 files with 9 external importers, and it invalidates all 33 path-keyed entries in
 `docs/code-quality-complexity-baseline.json` at once — serialising the whole gate chain behind a
@@ -68,9 +79,11 @@ oversight.
 
 - **Easy:** new code has one place to check what a word means. A reviewer can now say "that column
   name denotes the wrong concept" and point at a document rather than an opinion.
-- **Hard:** the repo keeps visible inconsistency on purpose. `/api/v1/fighters/*` and
-  `/api/v1/global-persons/*` both serve; `fighter_clubs` and friends keep names that mean
+- **Hard:** the repo keeps visible inconsistency on purpose. `fighter_clubs`, `fighter_weapons`,
+  `fighter_manual_medals`, `fighter_ai_keys` and `fighter_ai_usage_log` keep names that mean
   global-person. HIERARCHY.md documents this explicitly so it reads as history, not confusion.
+- **Hard:** `/fighters` and `/global-persons` will keep looking like duplication to anyone who
+  greps rather than reads the authorization. That is why the distinction is written down here.
 - **Committed to:** the public `/fighters/:slug` URL is now a promise with a legal dependency.
   Changing it means changing a published privacy policy in two locales and breaking printed passes.
 - **Committed to:** any future `fighter_id` sweep must classify sites by hand. The token is
