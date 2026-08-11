@@ -15,7 +15,7 @@ const LABELS: PrintLabels = {
   scoresheet: 'Feuille de match',
   pisteSheet: 'Feuille de piste',
   bracketSheet: 'Tableau',
-  fighter: 'Tireur',
+  fighter: 'Combattant',
   club: 'Club',
   bout: 'Combats',
   piste: 'Piste',
@@ -206,7 +206,7 @@ describe('printPackHtml', () => {
 
   it('uses the labels it is given — no English leaks onto the paper', () => {
     const html = render(['pools', 'bracket', 'pistes', 'scoresheets']);
-    for (const header of ['Tireur', 'Arbitre', 'Vainqueur', 'Échanges', 'Coups doubles']) {
+    for (const header of ['Combattant', 'Arbitre', 'Vainqueur', 'Échanges', 'Coups doubles']) {
       expect(html).toContain(header);
     }
     // The bug this whole labels object exists to prevent.

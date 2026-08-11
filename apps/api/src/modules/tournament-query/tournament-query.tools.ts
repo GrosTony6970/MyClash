@@ -33,7 +33,7 @@ const RANK_METRICS: RankMetric[] = [
 export function detectQueryLanguage(question: string): 'en' | 'fr' {
   const normalized = question.toLocaleLowerCase('fr-FR');
   if (
-    /\b(quel|quelle|quels|quelles|combien|poule|poules|piste|pistes|tireur|tireurs|arbitre|arbitres|retard|temps|tableau|combat|combats|sommes-nous)\b/u.test(
+    /\b(quel|quelle|quels|quelles|combien|poule|poules|piste|pistes|tireur|tireurs|combattant|combattants|arbitre|arbitres|retard|temps|tableau|combat|combats|sommes-nous)\b/u.test(
       normalized,
     )
   ) {
@@ -43,15 +43,20 @@ export function detectQueryLanguage(question: string): 'en' | 'fr' {
 }
 
 export function normalizeQuestionAliases(question: string): string {
-  return question
-    .replace(/\bpistes?\b/giu, 'lice')
-    .replace(/\bpoules?\b/giu, 'pool')
-    .replace(/\btireurs?\b/giu, 'fighter')
-    .replace(/\barbitres?\b/giu, 'judge')
-    .replace(/\bcombats?\b/giu, 'matches')
-    .replace(/\btableaux?\b/giu, 'bracket')
-    .replace(/\bépee longue\b/giu, 'longsword')
-    .replace(/\bépée longue\b/giu, 'longsword');
+  return (
+    question
+      .replace(/\bpistes?\b/giu, 'lice')
+      .replace(/\bpoules?\b/giu, 'pool')
+      // Both words are live input: the UI says "combattant" (docs/notes/glossary.md), but
+      // users type "tireur" too - it is standard fencing register. Accept both.
+      .replace(/\btireurs?\b/giu, 'fighter')
+      .replace(/\bcombattants?\b/giu, 'fighter')
+      .replace(/\barbitres?\b/giu, 'judge')
+      .replace(/\bcombats?\b/giu, 'matches')
+      .replace(/\btableaux?\b/giu, 'bracket')
+      .replace(/\bépee longue\b/giu, 'longsword')
+      .replace(/\bépée longue\b/giu, 'longsword')
+  );
 }
 
 export function buildTournamentToolDefinitions(

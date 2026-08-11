@@ -3205,7 +3205,7 @@ GET   /api/v1/tournaments/:tournamentId/query/settings
 PATCH /api/v1/tournaments/:tournamentId/query/settings
 ```
 
-The LLM call receives a narrowed tool schema for the current tournament's weapons, pools, lices, and divisions. It must return exactly one tool call, a clarification, or a refusal. French aliases such as `piste`, `poule`, `tireur`, and `arbitre` normalize to canonical internal terms before tool selection.
+The LLM call receives a narrowed tool schema for the current tournament's weapons, pools, lices, and divisions. It must return exactly one tool call, a clarification, or a refusal. French aliases such as `piste`, `poule`, `tireur`, `combattant`, and `arbitre` normalize to canonical internal terms before tool selection. Both `tireur` and `combattant` are accepted on input even though the UI says `combattant`, because users type either.
 
 V1 tools cover fighter search/stats, match search, pool standings, lice status, fighter rankings, judge stats, club comparison, bracket status, tournament summary, pool completion estimates, schedule status, and lagging pools with referees.
 

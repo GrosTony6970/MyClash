@@ -17,6 +17,16 @@ describe('tournament query language and tool schemas', () => {
     ).toContain('lice');
   });
 
+  it('accepts both French words for the fighter role on input', () => {
+    // The UI says "combattant" everywhere (docs/notes/glossary.md), but "tireur" is standard
+    // fencing register and users type it. Dropping either one silently breaks French queries
+    // for half the people asking them.
+    for (const word of ['tireurs', 'combattants']) {
+      expect(detectQueryLanguage(`Quels sont les meilleurs ${word} ?`)).toBe('fr');
+      expect(normalizeQuestionAliases(`Quels sont les meilleurs ${word} ?`)).toContain('fighter');
+    }
+  });
+
   it('narrows weapons, pools, and lices to values from the current tournament', () => {
     const tools = buildTournamentToolDefinitions({
       weapons: ['Longsword', 'Sabre'],

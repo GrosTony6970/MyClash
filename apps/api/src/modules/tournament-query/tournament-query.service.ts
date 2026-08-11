@@ -395,7 +395,7 @@ export class TournamentQueryService {
 
   private clarification(language: QueryLanguage) {
     return language === 'fr'
-      ? 'Pouvez-vous preciser la poule, la piste, le tireur ou l arme ?'
+      ? 'Pouvez-vous preciser la poule, la piste, le combattant ou l arme ?'
       : 'Please specify the pool, lice, fighter, or weapon.';
   }
 
