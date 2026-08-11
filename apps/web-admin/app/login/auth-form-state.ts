@@ -4,9 +4,13 @@ import { validatePassword } from '@myclash/types';
  * The organizer auth form's decisions, with no React and no i18n in them.
  *
  * Validation returns a CODE, not a translated sentence: the i18n reverse sweep
- * only sees `t('a.b')` literals in source, so a helper that returned key
- * strings would make every one of those keys look orphaned and get pruned. The
- * component maps codes to keys; this file stays testable.
+ * only counts a key as used when it appears as a literal inside a translator
+ * call, so a helper that returned bare key strings would make every one of them
+ * look orphaned and get pruned. The component maps codes to keys; this file
+ * stays testable.
+ *
+ * (Written without an example call on purpose — the sweep reads comments too,
+ * and a sample key in this sentence is a key it will demand you define.)
  */
 export type AuthFormCode =
   | 'legal_required'
