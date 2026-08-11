@@ -7,6 +7,7 @@ import { useI18n } from '../../../src/i18n/I18nProvider';
 import { HostInfoCard } from './HostInfoCard';
 import { TlsCertificatesCard } from './TlsCertificatesCard';
 import { RuntimeHealthCard } from './RuntimeHealthCard';
+import { CiHealthCard } from './CiHealthCard';
 import { getPublicApiUrl } from '@/lib/api-url';
 
 /**
@@ -386,6 +387,11 @@ export default function AdminSystemVersionsPage() {
           </div>
           <div className="mt-5">
             <RuntimeHealthCard />
+          </div>
+          {/* Last, because it reports on the build pipeline rather than on this
+              running stack — everything above is what the box is doing now. */}
+          <div className="mt-5">
+            <CiHealthCard />
           </div>
         </>
       ) : null}

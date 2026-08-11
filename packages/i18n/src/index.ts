@@ -4514,6 +4514,37 @@ export const en = {
           docker: 'Container engine',
         },
       },
+      ci: {
+        title: 'CI gates',
+        description: 'Which quality gates ran on the last CI run, and which never reported.',
+        refresh: 'Refresh',
+        refreshing: 'Refreshing...',
+        loading: 'Reading the last CI run...',
+        loadError: 'Could not load CI gate health.',
+        unavailable: 'Could not read CI: {reason}',
+        latestRun: 'Run #{run} on {sha}, {time}',
+        lastAllGreen: 'Last run with every job green: {sha}, {time}',
+        neverAllGreen: 'No run on this branch has ever been green in every job.',
+        summary: '{passed} of {total} gates passed',
+        notReportedWarning:
+          '{count} expected gate did not report. A gate that stops running produces no row at all, which is how eight gates once went unnoticed for six weeks.',
+        notReportedWarningPlural:
+          '{count} expected gates did not report. A gate that stops running produces no row at all, which is how eight gates once went unnoticed for six weeks.',
+        rateLimit: '{remaining} GitHub requests left this hour',
+        rateLimitAnon: '{remaining} GitHub requests left this hour (no token configured)',
+        columns: {
+          gate: 'Gate',
+          job: 'Job',
+          verdict: 'Result',
+        },
+        verdicts: {
+          passed: 'Passed',
+          failed: 'Failed',
+          skipped: 'Skipped',
+          cancelled: 'Cancelled',
+          notReported: 'Never reported',
+        },
+      },
       runtimeHealth: {
         title: 'Runtime health',
         description: 'Live database, Redis, queue and disk status.',
@@ -12287,6 +12318,38 @@ export const fr = {
           memory: 'Mémoire',
           disk: 'Disque',
           docker: 'Moteur de conteneurs',
+        },
+      },
+      ci: {
+        title: "Contrôles d'intégration continue",
+        description:
+          "Quels contrôles qualité ont tourné lors de la dernière exécution, et lesquels n'ont rien signalé.",
+        refresh: 'Actualiser',
+        refreshing: 'Actualisation...',
+        loading: 'Lecture de la dernière exécution...',
+        loadError: "Impossible de charger l'état des contrôles.",
+        unavailable: "Impossible de lire l'intégration continue : {reason}",
+        latestRun: 'Exécution n°{run} sur {sha}, {time}',
+        lastAllGreen: 'Dernière exécution entièrement au vert : {sha}, {time}',
+        neverAllGreen: "Aucune exécution de cette branche n'a jamais été entièrement au vert.",
+        summary: '{passed} contrôles réussis sur {total}',
+        notReportedWarning:
+          "{count} contrôle attendu n'a rien signalé. Un contrôle qui cesse de tourner ne produit aucune ligne, ce qui a masqué huit contrôles pendant six semaines.",
+        notReportedWarningPlural:
+          "{count} contrôles attendus n'ont rien signalé. Un contrôle qui cesse de tourner ne produit aucune ligne, ce qui a masqué huit contrôles pendant six semaines.",
+        rateLimit: '{remaining} requêtes GitHub restantes cette heure',
+        rateLimitAnon: '{remaining} requêtes GitHub restantes cette heure (aucun jeton configuré)',
+        columns: {
+          gate: 'Contrôle',
+          job: 'Tâche',
+          verdict: 'Résultat',
+        },
+        verdicts: {
+          passed: 'Réussi',
+          failed: 'Échoué',
+          skipped: 'Ignoré',
+          cancelled: 'Annulé',
+          notReported: 'Jamais signalé',
         },
       },
       runtimeHealth: {
