@@ -11,6 +11,22 @@ export type { PillProps, PillVariant } from './components/Pill';
 export { GoogleIcon } from './components/GoogleIcon';
 export type { GoogleIconProps } from './components/GoogleIcon';
 
+export {
+  AuthPanel,
+  AuthDivider,
+  AuthNotice,
+  authFieldClass,
+  authTabClass,
+  authNoticeClass,
+} from './components/AuthPanel';
+export type {
+  AuthPanelProps,
+  AuthPanelTab,
+  AuthDividerProps,
+  AuthNoticeProps,
+  AuthNoticeTone,
+} from './components/AuthPanel';
+
 export { NavIcon, NAV_ICON_NAMES, NAV_ICON_GLYPHS } from './components/NavIcon';
 export type { NavIconProps, NavIconName } from './components/NavIcon';
 
