@@ -35,7 +35,8 @@ export type PlatformLogCategory =
   | 'ai_draft'
   | 'deletion'
   | 'merge'
-  | 'club_archive';
+  | 'club_archive'
+  | 'query_error';
 
 export type PlatformLogSeverity = 'info' | 'warning' | 'error';
 
@@ -62,6 +63,19 @@ export interface PlatformLogEntry {
   actorName: string | null;
   actorEmail: string | null;
   href: string | null;
+  /**
+   * How many times this entry has happened, for the aggregated sources.
+   *
+   * A NUMBER, not a sentence: composing "N occurrences since ..." here would
+   * hardcode English and break hard rule 6. The panel formats it.
+   *
+   * Only `query_error` populates these today; every other source is one row per
+   * event, where the count is always 1 and `firstSeenAt` equals `occurredAt`.
+   */
+  occurrenceCount?: number;
+  firstSeenAt?: string;
+  /** True when the operator can silence this entry. `query_error` only. */
+  resolvable?: boolean;
 }
 
 export interface PlatformLogListResponse {
@@ -87,6 +101,7 @@ const ALL_CATEGORIES: PlatformLogCategory[] = [
   'deletion',
   'merge',
   'club_archive',
+  'query_error',
 ];
 
 const DEFAULT_PAGE = 1;
@@ -94,6 +109,8 @@ const DEFAULT_PER_PAGE = 50;
 const MAX_PER_PAGE = 100;
 /** Per-source row cap for the merged window. Keeps the in-memory merge cheap. */
 const PER_SOURCE_CAP = 200;
+/** See fetchQueryErrors: aggregated source, so it needs far fewer slots. */
+const QUERY_ERROR_CAP = 50;
 
 function positiveInt(value: string | undefined, fallback: number): number {
   if (!value) return fallback;
@@ -198,12 +215,65 @@ export class AdminPlatformLogService {
         return this.fetchDeletions(from, to);
       case 'merge':
         return this.fetchMerges(from, to);
+      case 'query_error':
+        return this.fetchQueryErrors(from, to);
       case 'club_archive':
         return this.fetchClubArchives(from, to);
     }
   }
 
   // ── Sources ────────────────────────────────────────────────────────────────
+
+  /**
+   * Queries that errored while their caller may have rendered "no data".
+   *
+   * Unresolved rows only: a tripwire the operator cannot silence gets ignored,
+   * and `record_query_error` un-resolves a fingerprint the moment it recurs.
+   *
+   * Capped below PER_SOURCE_CAP because this source is AGGREGATED — one row per
+   * distinct defect, not per occurrence — so it needs far fewer slots than a log
+   * table, and a burst of novel fingerprints must not crowd the other nine
+   * sources out of the merged window.
+   */
+  private async fetchQueryErrors(
+    fromDate: string | undefined,
+    toDate: string | undefined,
+  ): Promise<RawEntry[]> {
+    let q = this.supabase.service
+      .from('query_error_events')
+      .select(
+        'id, table_name, is_rpc, status, pg_code, severity, sanitized_path, sanitized_message, first_seen_at, last_seen_at, occurrence_count',
+      )
+      .is('resolved_at', null);
+    if (fromDate) q = q.gte('last_seen_at', fromDate) as typeof q;
+    if (toDate) q = q.lte('last_seen_at', toDate) as typeof q;
+
+    const { data, error } = await q
+      .order('last_seen_at', { ascending: false })
+      .limit(QUERY_ERROR_CAP);
+    if (error) return this.warnEmpty('query_error_events', error.message);
+
+    return ((data ?? []) as Array<Record<string, unknown>>).map((r) => ({
+      id: `query_error:${r['id'] as string}`,
+      category: 'query_error' as const,
+      // The table's own CHECK allows only 'error' | 'warning', both of which are
+      // PlatformLogSeverity members.
+      severity: r['severity'] as PlatformLogSeverity,
+      // last_seen_at, not first_seen_at: a three-week-old defect still firing
+      // now belongs at the top of the feed, not buried three weeks down it.
+      occurredAt: r['last_seen_at'] as string,
+      title: `${r['table_name'] as string} · ${String(r['status'])}${
+        r['pg_code'] ? ` ${r['pg_code'] as string}` : ''
+      }`,
+      detail: (r['sanitized_message'] as string | null) ?? (r['sanitized_path'] as string),
+      // No user actor: the API itself made this query.
+      actorUserId: null,
+      href: null,
+      occurrenceCount: Number(r['occurrence_count'] ?? 1),
+      firstSeenAt: r['first_seen_at'] as string,
+      resolvable: true,
+    }));
+  }
 
   private async fetchAiScans(
     fromDate: string | undefined,

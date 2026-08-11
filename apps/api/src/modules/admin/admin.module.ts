@@ -55,6 +55,8 @@ import { AdminHostInfoService } from './host-info.service';
 import { HostInfoAdminController } from './host-info.controller';
 import { AdminCiHealthService } from './ci-health.service';
 import { CiHealthAdminController } from './ci-health.controller';
+import { AdminQueryErrorsService } from './query-errors.service';
+import { QueryErrorsAdminController } from './query-errors.controller';
 import { UsersAdminController } from './users.controller';
 import { WeaponsAdminController } from './weapons/weapons-admin.controller';
 import { WeaponsAdminService } from './weapons/weapons-admin.service';
@@ -75,6 +77,7 @@ import { WeaponsAdminService } from './weapons/weapons-admin.service';
     TlsStatusAdminController,
     HostInfoAdminController,
     CiHealthAdminController,
+    QueryErrorsAdminController,
     BackupsAdminController,
     PlatformAISettingsController,
     PlatformAIKeysController,
@@ -108,6 +111,7 @@ import { WeaponsAdminService } from './weapons/weapons-admin.service';
       inject: [SupabaseService],
     },
     AdminTlsStatusService,
+    AdminQueryErrorsService,
     {
       provide: AdminHostInfoService,
       // useFactory for the same reason as AdminSystemActionsService above: the

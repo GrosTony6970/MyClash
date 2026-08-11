@@ -1614,6 +1614,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  '/api/v1/admin/query-errors/{id}/resolve': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    /** Silence a tripped query until it happens again */
+    patch: operations['QueryErrorsAdminController_resolve'];
+    trace?: never;
+  };
   '/api/v1/admin/backups/status': {
     parameters: {
       query?: never;
@@ -13742,6 +13759,25 @@ export interface operations {
       query?: never;
       header?: never;
       path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  QueryErrorsAdminController_resolve: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
       cookie?: never;
     };
     requestBody?: never;

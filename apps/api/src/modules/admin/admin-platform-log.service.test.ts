@@ -18,6 +18,10 @@ function makeChain(result: { data: unknown; error: unknown }): AwaitableChain {
     'in',
     'or',
     'not',
+    // `is` is how the query_error source asks for unresolved rows. Without it
+    // that source threw, was caught by the tolerant-source guard, and silently
+    // contributed nothing — a green suite asserting against an absent source.
+    'is',
     'order',
     'limit',
   ] as const) {
@@ -220,5 +224,81 @@ describe('AdminPlatformLogService', () => {
   it('rejects invalid date filters before querying', async () => {
     await expect(service.list({ from: 'not-a-date' })).rejects.toThrow(BadRequestException);
     expect(fromMock).not.toHaveBeenCalled();
+  });
+
+  describe('query_error source', () => {
+    const row = {
+      id: 'qe-1',
+      table_name: 'matches',
+      is_rpc: false,
+      status: 400,
+      pg_code: 'PGRST200',
+      severity: 'error',
+      sanitized_path: 'matches?select=id,tournaments(name)',
+      sanitized_message: 'Could not find a relationship',
+      first_seen_at: '2026-07-01T09:00:00.000Z',
+      last_seen_at: '2026-08-11T09:00:00.000Z',
+      occurrence_count: 412,
+    };
+
+    it('reports the count as a NUMBER, never as composed prose', async () => {
+      wireTables({ query_error_events: { data: [row], error: null } });
+
+      const result = await service.list({ category: 'query_error' });
+      const entry = result.items[0]!;
+
+      expect(entry.occurrenceCount).toBe(412);
+      expect(entry.firstSeenAt).toBe('2026-07-01T09:00:00.000Z');
+      expect(entry.resolvable).toBe(true);
+      // Hard rule 6: any English here would never reach a French operator.
+      expect(entry.detail).toBe('Could not find a relationship');
+      expect(entry.title).toBe('matches · 400 PGRST200');
+    });
+
+    /**
+     * A three-week-old defect still firing now belongs at the top of the feed.
+     * Sorting on first_seen_at would bury it three weeks down.
+     */
+    it('orders on last_seen_at, not first_seen_at', async () => {
+      wireTables({
+        query_error_events: { data: [row], error: null },
+        ai_data_quality_scans: {
+          data: [
+            {
+              id: 'scan-a',
+              actor_user_id: null,
+              error_message: 'x',
+              started_at: '2026-07-15T09:00:00.000Z',
+              completed_at: '2026-07-15T09:00:00.000Z',
+            },
+          ],
+          error: null,
+        },
+      });
+
+      const result = await service.list({});
+      expect(result.items[0]!.category).toBe('query_error');
+    });
+
+    it('carries the row severity through rather than assuming error', async () => {
+      wireTables({
+        query_error_events: {
+          data: [{ ...row, severity: 'warning', pg_code: '23505' }],
+          error: null,
+        },
+      });
+
+      const result = await service.list({ category: 'query_error' });
+      expect(result.items[0]!.severity).toBe('warning');
+    });
+
+    it('falls back to the sanitised path when there is no message', async () => {
+      wireTables({
+        query_error_events: { data: [{ ...row, sanitized_message: null }], error: null },
+      });
+
+      const result = await service.list({ category: 'query_error' });
+      expect(result.items[0]!.detail).toBe('matches?select=id,tournaments(name)');
+    });
   });
 });

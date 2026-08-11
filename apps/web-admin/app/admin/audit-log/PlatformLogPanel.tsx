@@ -6,6 +6,7 @@ import { localeToBcp47 } from '@myclash/time';
 import { DataTable, DataTableCell, DataTableHead, DataTableRow } from '@myclash/ui';
 import { useI18n } from '../../../src/i18n/I18nProvider';
 import { getPublicApiUrl } from '@/lib/api-url';
+import { QueryErrorDetail } from './QueryErrorDetail';
 
 type PlatformLogCategory =
   | 'ai_scan'
@@ -16,7 +17,8 @@ type PlatformLogCategory =
   | 'ai_draft'
   | 'deletion'
   | 'merge'
-  | 'club_archive';
+  | 'club_archive'
+  | 'query_error';
 
 type PlatformLogSeverity = 'info' | 'warning' | 'error';
 
@@ -32,6 +34,10 @@ interface PlatformLogEntry {
   actorName: string | null;
   actorEmail: string | null;
   href: string | null;
+  /** Aggregated sources only (query_error today) — a count, formatted here. */
+  occurrenceCount?: number;
+  firstSeenAt?: string;
+  resolvable?: boolean;
 }
 
 interface PlatformLogResponse {
@@ -107,6 +113,9 @@ export function PlatformLogPanel() {
   const [perPage, setPerPage] = useState(50);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [resolving, setResolving] = useState<string | null>(null);
+  /** Bumped after a resolve so the feed refetches without a full remount. */
+  const [reloadToken, setReloadToken] = useState(0);
 
   const queryString = useMemo(
     () => buildParams(appliedFilters, page, perPage),
@@ -116,6 +125,32 @@ export function PlatformLogPanel() {
   const updateDraft = useCallback((key: keyof PlatformFilters, value: string) => {
     setDraftFilters((current) => ({ ...current, [key]: value }));
   }, []);
+
+  /**
+   * Silence one tripped query.
+   *
+   * `entry.id` is source-prefixed (`query_error:<uuid>`) so React keys never
+   * collide across the nine sources — the endpoint wants the bare uuid.
+   */
+  const resolveEntry = useCallback(
+    async (entryId: string) => {
+      const id = entryId.slice(entryId.indexOf(':') + 1);
+      setResolving(entryId);
+      try {
+        const res = await fetch(`${apiUrl}/api/v1/admin/query-errors/${id}/resolve`, {
+          method: 'PATCH',
+          credentials: 'include',
+        });
+        if (!res.ok) throw new Error(t('admin.platformLog.resolveError'));
+        setReloadToken((n) => n + 1);
+      } catch (err: unknown) {
+        setError(err instanceof Error ? err.message : t('admin.platformLog.resolveError'));
+      } finally {
+        setResolving(null);
+      }
+    },
+    [apiUrl, t],
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -151,7 +186,7 @@ export function PlatformLogPanel() {
       cancelled = true;
       controller.abort();
     };
-  }, [apiUrl, queryString, t]);
+  }, [apiUrl, queryString, t, reloadToken]);
 
   function applyFilters() {
     setLoading(true);
@@ -330,6 +365,15 @@ export function PlatformLogPanel() {
                     <pre className="max-w-xl whitespace-pre-wrap break-words text-xs text-foreground-secondary">
                       {entry.detail ?? '—'}
                     </pre>
+                    <QueryErrorDetail
+                      occurrenceCount={entry.occurrenceCount}
+                      firstSeenAt={entry.firstSeenAt}
+                      resolvable={entry.resolvable}
+                      resolving={resolving === entry.id}
+                      onResolve={() => void resolveEntry(entry.id)}
+                      locale={locale}
+                      t={t}
+                    />
                   </DataTableCell>
                   <DataTableCell className="text-xs text-foreground-secondary">
                     {entry.actorUserId ? (

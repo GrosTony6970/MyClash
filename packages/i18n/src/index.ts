@@ -4134,7 +4134,11 @@ export const en = {
         deletion: 'Deletion request',
         merge: 'Profile merge',
         club_archive: 'Club archived',
+        query_error: 'Query returned no data AND errored',
       },
+      occurrences: '{count} occurrences since {since}',
+      resolve: 'Mark handled',
+      resolveError: 'Could not mark this as handled.',
     },
     designSystem: {
       page: {
@@ -11936,7 +11940,11 @@ export const fr = {
         deletion: 'Demande de suppression',
         merge: 'Fusion de profil',
         club_archive: 'Club archive',
+        query_error: 'Requete sans donnees ET en erreur',
       },
+      occurrences: '{count} occurrences depuis {since}',
+      resolve: 'Marquer comme traite',
+      resolveError: 'Impossible de marquer cette entree comme traitee.',
     },
     designSystem: {
       page: {
