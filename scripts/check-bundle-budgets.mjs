@@ -7,7 +7,7 @@ const budgets = [
   {
     name: 'web-marketing static JavaScript',
     type: 'static',
-    root: join('apps', 'web-marketing', 'public'),
+    root: join('apps', 'web-marketing', 'dist'),
     budgetBytes: 200 * 1024,
   },
   {
@@ -52,12 +52,29 @@ function gzipSize(files) {
 }
 
 function checkStaticBudget(budget) {
+  /*
+   * A budget that measures nothing passes, and that is how this one spent its
+   * whole life: it pointed at apps/web-marketing/public, the hand-written site
+   * kept every line of its JavaScript inline in the HTML, and so the walk found
+   * zero .js files and printed "0 bytes gzip" on every run. It never weighed a
+   * single byte. Astro emits real assets to dist/, so the root moved — and an
+   * absent build is now reported instead of silently scoring zero.
+   */
+  if (!existsSync(budget.root)) {
+    const message = `${budget.name}: ${budget.root} does not exist. Build the app first.`;
+    if (requireBuild) failures.push(message);
+    else console.warn(`${message} Skipping.`);
+    return;
+  }
+
   const jsFiles = walkFiles(budget.root).filter((file) => file.endsWith('.js'));
   const total = gzipSize(jsFiles);
   if (total > budget.budgetBytes) {
     failures.push(`${budget.name} is ${total} bytes gzip, above ${budget.budgetBytes}.`);
   }
-  console.log(`${budget.name}: ${total} bytes gzip (budget ${budget.budgetBytes}).`);
+  console.log(
+    `${budget.name}: ${total} bytes gzip across ${jsFiles.length} file(s) (budget ${budget.budgetBytes}).`,
+  );
 }
 
 function checkNextBudget(budget) {

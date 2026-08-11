@@ -504,6 +504,11 @@ jobs:
             dockerfile: apps/web-public/Dockerfile
           - image: myclash-web-staff
             dockerfile: apps/web-staff/Dockerfile
+          # Never scanned before. It was a one-line COPY into caddy:2-alpine and
+          # nobody added it; it is now a real multi-stage build, and the runtime
+          # base image has CVEs like any other.
+          - image: myclash-web-marketing
+            dockerfile: apps/web-marketing/Dockerfile
     steps:
       - uses: actions/checkout@v4
 

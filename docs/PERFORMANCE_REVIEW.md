@@ -8,7 +8,7 @@ Phase 7 covers backend latency, SQL Query Review, frontend budgets, Web Vitals, 
 ## Automated Evidence
 
 - `pnpm perf:review` checks Phase 7 artifacts, CI wiring, Playwright perf coverage, SQL review evidence, and root performance scripts.
-- `pnpm perf:bundle` checks marketing static JavaScript immediately. Use `-- --include-next` after fresh Next.js builds, or `-- --require-build` to fail when app build artifacts are missing.
+- `pnpm perf:bundle` checks marketing static JavaScript immediately. Use `-- --include-next` after fresh Next.js builds, or `-- --require-build` to fail when app build artifacts are missing. It measures `apps/web-marketing/dist`; before the Astro migration it pointed at `public/`, where the hand-written site kept all its JavaScript inline, so it reported 0 bytes on every run and guarded nothing.
 - `pnpm perf:load` runs a configurable HTTP load smoke test with p95 and error-rate thresholds.
 - `pnpm db:perf:fixture` verifies the committed synthetic realistic dataset and EXPLAIN workload stay in sync.
 - `pnpm db:perf:explain` runs the EXPLAIN workload against a disposable database when `DATABASE_URL` is provided.
@@ -79,12 +79,13 @@ Add PgBouncer or Supabase pooler when `pg_stat_activity` consistently exceeds 60
 
 ## Bundle Budgets
 
-| App                 |      Budget | Check                                                                             |
-| ------------------- | ----------: | --------------------------------------------------------------------------------- |
-| Marketing static JS | 200 KB gzip | `pnpm perf:bundle`                                                                |
-| Public critical JS  | 200 KB gzip | `pnpm --filter @myclash/web-public test` and `pnpm perf:bundle -- --include-next` |
-| Scoring shell JS    | 500 KB gzip | `pnpm perf:bundle -- --include-next` after a fresh scoring build                  |
-| Admin first-load JS | 800 KB gzip | `pnpm perf:bundle -- --include-next` after a fresh admin build                    |
+| App                   |      Budget | Check                                                                                                                                                          |
+| --------------------- | ----------: | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Marketing static JS   | 200 KB gzip | `pnpm perf:bundle` (Astro inlines this site's few KB of script, so the emitted-JS count is normally 0 — the binding budget is the first-paint assertion below) |
+| Public critical JS    | 200 KB gzip | `pnpm --filter @myclash/web-public test` and `pnpm perf:bundle -- --include-next`                                                                              |
+| Scoring shell JS      | 500 KB gzip | `pnpm perf:bundle -- --include-next` after a fresh scoring build                                                                                               |
+| Admin first-load JS   | 800 KB gzip | `pnpm perf:bundle -- --include-next` after a fresh admin build                                                                                                 |
+| Marketing first paint | 250 KB gzip | `pnpm --filter @myclash/web-marketing test` — document + stylesheets + smallest hero candidate. Currently 39 KB, down from ~4.7 MB of unoptimised PNG          |
 
 The existing public app test builds the app before checking its landing budget. Admin and scoring budgets are artifact-aware so local or CI jobs can enforce them after intentional app builds without reading stale `.next` output during lightweight review gates.
 

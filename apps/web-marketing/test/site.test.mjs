@@ -10,6 +10,7 @@
 import { test, before } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, existsSync, readdirSync, statSync } from 'node:fs';
+import { gzipSync } from 'node:zlib';
 import { join, dirname, resolve, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -247,4 +248,39 @@ test('each page declares a canonical and both hreflang alternates', () => {
     assert.match(html, /hreflang="fr"/u, `${route} is missing its fr alternate`);
     assert.match(html, /hreflang="en"/u, `${route} is missing its en alternate`);
   }
+});
+
+test('the landing page stays within its first-paint budget', () => {
+  /*
+   * `pnpm perf:bundle` weighs emitted .js files, and Astro inlines this site's
+   * few kilobytes of script straight into the HTML — so that budget correctly
+   * reports zero files and guards nothing here. What can actually regress is
+   * total first-paint weight, which is the thing that was wrong: the page used
+   * to ship ~4.7 MB of unoptimised PNG, with a 2.37 MB hero as a CSS
+   * background that could not even be preloaded.
+   *
+   * Measured: the document, every stylesheet it links, and the smallest hero
+   * candidate the srcset offers (what a phone actually fetches).
+   */
+  const html = pages.get('/');
+  const gz = (buffer) => gzipSync(buffer, { level: 9 }).byteLength;
+
+  let total = gz(Buffer.from(html));
+
+  for (const [, href] of html.matchAll(/<link[^>]+rel="stylesheet"[^>]+href="([^"]+)"/gu)) {
+    total += gz(readFileSync(join(DIST, href)));
+  }
+
+  const heroCandidates = [...html.matchAll(/\/_astro\/Hero_myclash[^\s",]+\.avif/gu)].map(
+    (m) => statSync(join(DIST, m[0])).size,
+  );
+  assert.ok(heroCandidates.length > 0, 'no AVIF hero candidates were emitted');
+  total += Math.min(...heroCandidates);
+
+  const budget = 250 * 1024;
+  assert.ok(
+    total <= budget,
+    `first paint is ${Math.round(total / 1024)} KB, above the ${budget / 1024} KB budget`,
+  );
+  console.log(`    first paint (mobile): ${Math.round(total / 1024)} KB of ${budget / 1024} KB`);
 });
