@@ -82,24 +82,22 @@ function verdictClass(verdict: CiGateVerdict): string {
   }
 }
 
-export function CiHealthCard() {
+/** Fetch + refresh state, kept out of the component so it stays about layout. */
+function useCiHealth(t: Translate) {
   const apiUrl = getPublicApiUrl();
-  const { t, locale } = useI18n();
-
   const [health, setHealth] = useState<CiHealthResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const loadHealth = useCallback(
+  const load = useCallback(
     ({ signal, refresh = false }: { signal?: AbortSignal; refresh?: boolean } = {}) => {
       if (refresh) setRefreshing(true);
 
       fetch(`${apiUrl}/api/v1/admin/system/ci-health`, { credentials: 'include', signal })
         .then(async (res) => {
           if (!res.ok) throw new Error(t('admin.systemVersions.ci.loadError'));
-          const data = (await res.json()) as CiHealthResponse;
-          setHealth(data);
+          setHealth((await res.json()) as CiHealthResponse);
           setError(null);
         })
         .catch((err: unknown) => {
@@ -117,34 +115,24 @@ export function CiHealthCard() {
 
   useEffect(() => {
     const controller = new AbortController();
-    void Promise.resolve().then(() => loadHealth({ signal: controller.signal }));
+    void Promise.resolve().then(() => load({ signal: controller.signal }));
     return () => {
       controller.abort();
     };
-  }, [loadHealth]);
+  }, [load]);
+
+  return { health, loading, refreshing, error, refresh: () => load({ refresh: true }) };
+}
+
+export function CiHealthCard() {
+  const { t, locale } = useI18n();
+  const { health, loading, refreshing, error, refresh } = useCiHealth(t);
 
   const passed = health ? health.gates.filter((g) => g.verdict === 'passed').length : 0;
 
   return (
     <section className="border border-border rounded-lg overflow-hidden">
-      <div className="px-4 py-3 border-b border-border bg-background flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h2 className="font-display font-semibold text-lg sm:text-xl text-foreground">
-            {t('admin.systemVersions.ci.title')}
-          </h2>
-          <p className="text-muted text-xs mt-0.5">{t('admin.systemVersions.ci.description')}</p>
-        </div>
-        <button
-          type="button"
-          onClick={() => loadHealth({ refresh: true })}
-          disabled={loading || refreshing}
-          className="rounded-md border border-border bg-surface px-3 py-1.5 text-xs font-semibold text-foreground-secondary hover:bg-background disabled:opacity-50"
-        >
-          {refreshing
-            ? t('admin.systemVersions.ci.refreshing')
-            : t('admin.systemVersions.ci.refresh')}
-        </button>
-      </div>
+      <CardHeader busy={loading || refreshing} refreshing={refreshing} onRefresh={refresh} t={t} />
 
       {error && (
         <div className="bg-danger/10 border-b border-danger/30 text-danger px-4 py-3 text-sm">
@@ -162,86 +150,161 @@ export function CiHealthCard() {
         </p>
       ) : health ? (
         <>
-          {health.notReportedCount > 0 && (
-            <div className="bg-danger/10 border-b border-danger/30 text-danger px-4 py-3 text-sm">
-              {health.notReportedCount === 1
-                ? t('admin.systemVersions.ci.notReportedWarning', {
-                    count: health.notReportedCount,
-                  })
-                : t('admin.systemVersions.ci.notReportedWarningPlural', {
-                    count: health.notReportedCount,
-                  })}
-            </div>
-          )}
-
-          <div className="overflow-x-auto">
-            <DataTable className="min-w-[640px]">
-              <DataTableHead>
-                <DataTableCell as="th">{t('admin.systemVersions.ci.columns.gate')}</DataTableCell>
-                <DataTableCell as="th">{t('admin.systemVersions.ci.columns.job')}</DataTableCell>
-                <DataTableCell as="th">
-                  {t('admin.systemVersions.ci.columns.verdict')}
-                </DataTableCell>
-              </DataTableHead>
-              <tbody>
-                {health.gates.map((gate) => (
-                  <DataTableRow key={`${gate.job}/${gate.step}`}>
-                    <DataTableCell className="text-foreground-secondary">{gate.step}</DataTableCell>
-                    <DataTableCell className="text-muted whitespace-nowrap">
-                      {gate.job}
-                    </DataTableCell>
-                    <DataTableCell className={`whitespace-nowrap ${verdictClass(gate.verdict)}`}>
-                      {verdictLabel(t, gate.verdict)}
-                    </DataTableCell>
-                  </DataTableRow>
-                ))}
-              </tbody>
-            </DataTable>
-          </div>
-
-          <div className="border-t border-border px-4 py-2.5 text-xs text-muted space-y-1">
-            <p>{t('admin.systemVersions.ci.summary', { passed, total: health.gates.length })}</p>
-            {health.latestRun && (
-              <p>
-                <a
-                  href={health.latestRun.url}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="hover:text-foreground-secondary underline"
-                >
-                  {t('admin.systemVersions.ci.latestRun', {
-                    run: health.latestRun.runNumber,
-                    sha: health.latestRun.sha.slice(0, 8),
-                    time: formatWhen(health.latestRun.createdAt, locale),
-                  })}
-                </a>
-              </p>
-            )}
-            {/* Deliberately shown with its date. On a repo where one job stays red
-                for months this is months behind HEAD, and its staleness is the
-                honest signal — the per-gate table above is the real reading. */}
-            <p>
-              {health.lastAllGreenRun
-                ? t('admin.systemVersions.ci.lastAllGreen', {
-                    sha: health.lastAllGreenRun.sha.slice(0, 8),
-                    time: formatWhen(health.lastAllGreenRun.createdAt, locale),
-                  })
-                : t('admin.systemVersions.ci.neverAllGreen')}
-            </p>
-            {health.rateLimitRemaining !== null && (
-              <p>
-                {health.authenticated
-                  ? t('admin.systemVersions.ci.rateLimit', {
-                      remaining: health.rateLimitRemaining,
-                    })
-                  : t('admin.systemVersions.ci.rateLimitAnon', {
-                      remaining: health.rateLimitRemaining,
-                    })}
-              </p>
-            )}
-          </div>
+          <NotReportedBanner count={health.notReportedCount} t={t} />
+          <GateTable gates={health.gates} t={t} />
+          <CardFooter health={health} passed={passed} locale={locale} t={t} />
         </>
       ) : null}
     </section>
+  );
+}
+
+function CardHeader({
+  busy,
+  refreshing,
+  onRefresh,
+  t,
+}: {
+  busy: boolean;
+  refreshing: boolean;
+  onRefresh: () => void;
+  t: Translate;
+}) {
+  return (
+    <div className="px-4 py-3 border-b border-border bg-background flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      <div>
+        <h2 className="font-display font-semibold text-lg sm:text-xl text-foreground">
+          {t('admin.systemVersions.ci.title')}
+        </h2>
+        <p className="text-muted text-xs mt-0.5">{t('admin.systemVersions.ci.description')}</p>
+      </div>
+      <button
+        type="button"
+        onClick={onRefresh}
+        disabled={busy}
+        className="rounded-md border border-border bg-surface px-3 py-1.5 text-xs font-semibold text-foreground-secondary hover:bg-background disabled:opacity-50"
+      >
+        {refreshing
+          ? t('admin.systemVersions.ci.refreshing')
+          : t('admin.systemVersions.ci.refresh')}
+      </button>
+    </div>
+  );
+}
+
+/**
+ * The loudest thing on the card, because the condition it names is the quietest:
+ * a gate that stops running leaves no row, no colour and no error.
+ */
+function NotReportedBanner({ count, t }: { count: number; t: Translate }) {
+  if (count === 0) return null;
+  return (
+    <div className="bg-danger/10 border-b border-danger/30 text-danger px-4 py-3 text-sm">
+      {count === 1
+        ? t('admin.systemVersions.ci.notReportedWarning', { count })
+        : t('admin.systemVersions.ci.notReportedWarningPlural', { count })}
+    </div>
+  );
+}
+
+function GateTable({ gates, t }: { gates: CiGateRow[]; t: Translate }) {
+  return (
+    <div className="overflow-x-auto">
+      <DataTable className="min-w-[640px]">
+        <DataTableHead>
+          <DataTableCell as="th">{t('admin.systemVersions.ci.columns.gate')}</DataTableCell>
+          <DataTableCell as="th">{t('admin.systemVersions.ci.columns.job')}</DataTableCell>
+          <DataTableCell as="th">{t('admin.systemVersions.ci.columns.verdict')}</DataTableCell>
+        </DataTableHead>
+        <tbody>
+          {gates.map((gate) => (
+            <DataTableRow key={`${gate.job}/${gate.step}`}>
+              <DataTableCell className="text-foreground-secondary">{gate.step}</DataTableCell>
+              <DataTableCell className="text-muted whitespace-nowrap">{gate.job}</DataTableCell>
+              <DataTableCell className={`whitespace-nowrap ${verdictClass(gate.verdict)}`}>
+                {verdictLabel(t, gate.verdict)}
+              </DataTableCell>
+            </DataTableRow>
+          ))}
+        </tbody>
+      </DataTable>
+    </div>
+  );
+}
+
+function CardFooter({
+  health,
+  passed,
+  locale,
+  t,
+}: {
+  health: CiHealthResponse;
+  passed: number;
+  locale: AppLocale;
+  t: Translate;
+}) {
+  return (
+    <div className="border-t border-border px-4 py-2.5 text-xs text-muted space-y-1">
+      <p>{t('admin.systemVersions.ci.summary', { passed, total: health.gates.length })}</p>
+      {health.latestRun && (
+        <p>
+          <a
+            href={health.latestRun.url}
+            target="_blank"
+            rel="noreferrer"
+            className="hover:text-foreground-secondary underline"
+          >
+            {t('admin.systemVersions.ci.latestRun', {
+              run: health.latestRun.runNumber,
+              sha: health.latestRun.sha.slice(0, 8),
+              time: formatWhen(health.latestRun.createdAt, locale),
+            })}
+          </a>
+        </p>
+      )}
+      <GreenMarker run={health.lastAllGreenRun} locale={locale} t={t} />
+      <RateLimitNote
+        remaining={health.rateLimitRemaining}
+        authenticated={health.authenticated}
+        t={t}
+      />
+    </div>
+  );
+}
+
+/**
+ * Deliberately shown with its date. On a repo where one job stays red for months
+ * this is months behind HEAD, and its staleness is the honest signal — the
+ * per-gate table above it is the real reading.
+ */
+function GreenMarker({ run, locale, t }: { run: CiRun | null; locale: AppLocale; t: Translate }) {
+  return (
+    <p>
+      {run
+        ? t('admin.systemVersions.ci.lastAllGreen', {
+            sha: run.sha.slice(0, 8),
+            time: formatWhen(run.createdAt, locale),
+          })
+        : t('admin.systemVersions.ci.neverAllGreen')}
+    </p>
+  );
+}
+
+function RateLimitNote({
+  remaining,
+  authenticated,
+  t,
+}: {
+  remaining: number | null;
+  authenticated: boolean;
+  t: Translate;
+}) {
+  if (remaining === null) return null;
+  return (
+    <p>
+      {authenticated
+        ? t('admin.systemVersions.ci.rateLimit', { remaining })
+        : t('admin.systemVersions.ci.rateLimitAnon', { remaining })}
+    </p>
   );
 }
