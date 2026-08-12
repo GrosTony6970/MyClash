@@ -1,3 +1,6 @@
+import type { ArchiveRow } from './archive.table-spec';
+import type { ArchiveKey } from './archive.tables';
+
 export type ArchiveInclude = 'structure' | 'scoring';
 export type ArchiveScope = 'event' | 'tournament';
 
@@ -16,51 +19,17 @@ export interface ArchiveSource {
   tournamentStatus?: string;
 }
 
-export type ArchiveRow = Record<string, unknown>;
+export type { ArchiveRow } from './archive.table-spec';
 
-export interface ArchiveTables {
-  events: ArchiveRow[];
-  themes: ArchiveRow[];
-  lices: ArchiveRow[];
-  persons: ArchiveRow[];
-  personPrivacy: ArchiveRow[];
-  refereeQualifications: ArchiveRow[];
-  poolAssignmentSettings: ArchiveRow[];
-  tournaments: ArchiveRow[];
-  registrations: ArchiveRow[];
-  phases: ArchiveRow[];
-  pools: ArchiveRow[];
-  poolMembers: ArchiveRow[];
-  bracketSlots: ArchiveRow[];
-  swissRounds: ArchiveRow[];
-  swissEntrants: ArchiveRow[];
-  matches: ArchiveRow[];
-  matchEvents: ArchiveRow[];
-  exchanges: ArchiveRow[];
-  refereeAssignments: ArchiveRow[];
-  workshops: ArchiveRow[];
-  workshopInstructors: ArchiveRow[];
-  workshopSessions: ArchiveRow[];
-  workshopEnrollments: ArchiveRow[];
-  workshopBreaks: ArchiveRow[];
-  eventProgrammeBlocks: ArchiveRow[];
-  refereeSkills: ArchiveRow[];
-  eventReferees: ArchiveRow[];
-  eventRefereeTournaments: ArchiveRow[];
-  eventRefereeDays: ArchiveRow[];
-  eventHiddenSkills: ArchiveRow[];
-  eventInstructors: ArchiveRow[];
-  eventSlotConfigDefault: ArchiveRow[];
-  eventSlotConfigDefaultSkills: ArchiveRow[];
-  tournamentSlotConfig: ArchiveRow[];
-  tournamentSlotAllowedSkills: ArchiveRow[];
-  tournamentPhaseVenues: ArchiveRow[];
-  eventVenues: ArchiveRow[];
-  refereeCompensationEventSettings: ArchiveRow[];
-  matchPenalties: ArchiveRow[];
-  matchForfeits: ArchiveRow[];
-  tournamentPenaltyReviews: ArchiveRow[];
-}
+/**
+ * One member per archived table, derived from the registry.
+ *
+ * This was a hand-written interface listing all 41 camelCase keys — one of six
+ * places a table had to be named, and the one that at least failed loudly. The
+ * registry in `archive.tables.ts` is the single source now: add a table there
+ * and this widens with it.
+ */
+export type ArchiveTables = Record<ArchiveKey, ArchiveRow[]>;
 
 export interface TournamentArchiveReports {
   tournamentId: string;

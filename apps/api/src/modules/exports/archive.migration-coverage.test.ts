@@ -2,11 +2,7 @@ import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { buildMigrationSchema } from '../../common/testing/migration-schema';
-import {
-  ARCHIVE_COLLECTED_TABLES,
-  ARCHIVE_EXCLUDED_TABLES,
-  JSON_ID_PATHS,
-} from './archive.service';
+import { ARCHIVE_COLLECTED_TABLES, ARCHIVE_EXCLUDED_TABLES, JSON_ID_PATHS } from './archive.tables';
 
 /**
  * Anti-rot guard for the organizer archive, in two layers.

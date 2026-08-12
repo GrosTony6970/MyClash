@@ -1,6 +1,7 @@
 import { ConflictException, ForbiddenException } from '@nestjs/common';
 import { describe, expect, it, vi } from 'vitest';
-import { ARCHIVE_COLLECTED_TABLES, ArchiveService } from './archive.service';
+import { ArchiveService } from './archive.service';
+import { ARCHIVE_COLLECTED_TABLES } from './archive.tables';
 
 type TableRows = Record<string, Record<string, unknown>[]>;
 

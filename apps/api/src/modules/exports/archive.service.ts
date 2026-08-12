@@ -7,6 +7,16 @@ import {
 import { randomUUID } from 'node:crypto';
 import { createStoredZip } from '../../common/stored-zip';
 import { buildTournamentReports, emptyTournamentReports, safeFilename } from './archive-reports';
+import { ID_MAP_NAMES } from './archive.table-spec';
+import type { IdMapName } from './archive.table-spec';
+import {
+  INSERT_ORDER,
+  TABLE_TO_ARCHIVE_KEY,
+  emptyArchiveTables,
+  idMapNameForTable,
+  jsonIdPathsFor,
+} from './archive.tables';
+import type { ArchiveTableName } from './archive.tables';
 import { OrganizationsService } from '../organizations/organizations.service';
 import { SupabaseService } from '../supabase/supabase.service';
 import { insertAuditLog } from '../../common/audit-log';
@@ -51,159 +61,6 @@ type RestoreTargets = {
   crossOrg?: boolean;
 };
 
-const EMPTY_TABLES: ArchiveTables = {
-  events: [],
-  themes: [],
-  lices: [],
-  persons: [],
-  personPrivacy: [],
-  refereeQualifications: [],
-  poolAssignmentSettings: [],
-  tournaments: [],
-  registrations: [],
-  phases: [],
-  pools: [],
-  poolMembers: [],
-  bracketSlots: [],
-  swissRounds: [],
-  swissEntrants: [],
-  matches: [],
-  matchEvents: [],
-  exchanges: [],
-  refereeAssignments: [],
-  workshops: [],
-  workshopInstructors: [],
-  workshopSessions: [],
-  workshopEnrollments: [],
-  workshopBreaks: [],
-  eventProgrammeBlocks: [],
-  refereeSkills: [],
-  eventReferees: [],
-  eventRefereeTournaments: [],
-  eventRefereeDays: [],
-  eventHiddenSkills: [],
-  eventInstructors: [],
-  eventSlotConfigDefault: [],
-  eventSlotConfigDefaultSkills: [],
-  tournamentSlotConfig: [],
-  tournamentSlotAllowedSkills: [],
-  tournamentPhaseVenues: [],
-  eventVenues: [],
-  refereeCompensationEventSettings: [],
-  matchPenalties: [],
-  matchForfeits: [],
-  tournamentPenaltyReviews: [],
-};
-
-const TABLE_TO_ARCHIVE_KEY = {
-  events: 'events',
-  themes: 'themes',
-  lices: 'lices',
-  persons: 'persons',
-  person_privacy: 'personPrivacy',
-  referee_qualifications: 'refereeQualifications',
-  pool_assignment_settings: 'poolAssignmentSettings',
-  tournaments: 'tournaments',
-  registrations: 'registrations',
-  phases: 'phases',
-  pools: 'pools',
-  pool_members: 'poolMembers',
-  bracket_slots: 'bracketSlots',
-  swiss_rounds: 'swissRounds',
-  swiss_entrants: 'swissEntrants',
-  matches: 'matches',
-  match_events: 'matchEvents',
-  exchanges: 'exchanges',
-  referee_assignments: 'refereeAssignments',
-  workshops: 'workshops',
-  workshop_instructors: 'workshopInstructors',
-  workshop_sessions: 'workshopSessions',
-  workshop_enrollments: 'workshopEnrollments',
-  workshop_breaks: 'workshopBreaks',
-  event_programme_blocks: 'eventProgrammeBlocks',
-  referee_skills: 'refereeSkills',
-  event_referees: 'eventReferees',
-  event_referee_tournaments: 'eventRefereeTournaments',
-  event_referee_days: 'eventRefereeDays',
-  event_hidden_skills: 'eventHiddenSkills',
-  event_instructors: 'eventInstructors',
-  event_slot_config_default: 'eventSlotConfigDefault',
-  event_slot_config_default_skills: 'eventSlotConfigDefaultSkills',
-  tournament_slot_config: 'tournamentSlotConfig',
-  tournament_slot_allowed_skills: 'tournamentSlotAllowedSkills',
-  tournament_phase_venues: 'tournamentPhaseVenues',
-  event_venues: 'eventVenues',
-  referee_compensation_event_settings: 'refereeCompensationEventSettings',
-  match_penalties: 'matchPenalties',
-  match_forfeits: 'matchForfeits',
-  tournament_penalty_reviews: 'tournamentPenaltyReviews',
-} as const satisfies Record<string, keyof ArchiveTables>;
-
-/** Which `IdMaps` member a nested id resolves through. */
-type JsonIdMapName = 'matches' | 'registrations' | 'bracketSlots' | 'matchPenalties';
-
-interface JsonIdPath {
-  readonly path: string;
-  readonly map: JsonIdMapName;
-}
-
-/**
- * Ids that live INSIDE a JSON column, per table.
- *
- * `remapRow`'s column sweep goes through `mapFk`, which returns early on
- * anything that is not a top-level string. So an id nested in an array or an
- * object survives a restore verbatim and keeps pointing into the SOURCE event —
- * a copy that is supposed to be self-contained silently is not. Same failure
- * shape as the `bye_registration_id` incident below, one level down.
- *
- * Path grammar, deliberately smaller than JSON Pointer: dotted keys, and `[]`
- * for "every element of this array". `a.b[]` is every element of the array at
- * `a.b`; `a[].b` is the `b` of every element of `a`. No wildcards and no
- * escapes — every path here is a literal shape some service writes, so a path
- * that stops matching must read as a mistake, not quietly match something else.
- *
- * Each entry was read off its writer, not guessed:
- *   match_forfeits  — match-forfeits.service.ts `matchSnapshot` / `loadRegistration`
- *   swiss_rounds    — swiss-pairing.service.ts `commitNextRound` (warnings/ranked)
- *                     and swiss-override.service.ts `recordAdjustment`, whose
- *                     entries come in TWO shapes: a `swap` carrying
- *                     a/bRegistrationId, and a `set-sides` carrying matchId plus
- *                     from/to side pairs. `byUserId` is deliberately absent —
- *                     it is an auth user, not an event-scoped row.
- *   phases          — phases.service.ts stamps `config_json.bronzeSlotId`
- *   tournament_penalty_reviews
- *                   — penalties.service.ts `createSecondBlackCardReviewIfNeeded`
- *                     stores the `match_penalties.id`s that triggered the review
- */
-const JSON_ID_PATHS = {
-  match_forfeits: [
-    { path: 'downstream_match_ids[]', map: 'matches' },
-    { path: 'previous_match_state.winner_registration_id', map: 'registrations' },
-    // Same shape as its `previous_` sibling — both are `matchSnapshot` output,
-    // so both carry the winner. 0186 added the post-state so a void can tell
-    // whether the match still holds the result the record produced.
-    { path: 'resulting_match_state.winner_registration_id', map: 'registrations' },
-    { path: 'previous_registration_state.id', map: 'registrations' },
-  ],
-  swiss_rounds: [
-    { path: 'pairing_meta_json.ranked[]', map: 'registrations' },
-    { path: 'pairing_meta_json.warnings[].registrationIds[]', map: 'registrations' },
-    { path: 'pairing_meta_json.manualAdjustments[].aRegistrationId', map: 'registrations' },
-    { path: 'pairing_meta_json.manualAdjustments[].bRegistrationId', map: 'registrations' },
-    { path: 'pairing_meta_json.manualAdjustments[].matchId', map: 'matches' },
-    { path: 'pairing_meta_json.manualAdjustments[].from.red', map: 'registrations' },
-    { path: 'pairing_meta_json.manualAdjustments[].from.blue', map: 'registrations' },
-    { path: 'pairing_meta_json.manualAdjustments[].to.red', map: 'registrations' },
-    { path: 'pairing_meta_json.manualAdjustments[].to.blue', map: 'registrations' },
-    {
-      path: 'pairing_meta_json.manualAdjustments[].warnings[].registrationIds[]',
-      map: 'registrations',
-    },
-  ],
-  phases: [{ path: 'config_json.bronzeSlotId', map: 'bracketSlots' }],
-  tournament_penalty_reviews: [{ path: 'payload_json.penaltyIds[]', map: 'matchPenalties' }],
-} as const satisfies Partial<Record<keyof typeof TABLE_TO_ARCHIVE_KEY, readonly JsonIdPath[]>>;
-
 /**
  * Rewrite every id reachable at `path` through `map`.
  *
@@ -245,152 +102,6 @@ function remapJsonIdPath(row: ArchiveRow, path: string, map: Map<string, string>
   row[column] = remap(row[column], rest);
 }
 
-/**
- * Tables that carry an `event_id`/`tournament_id` (directly, or as a scoped
- * child) but are DELIBERATELY not part of an organizer archive. The
- * migration-scanning guard test asserts every scoped table is either in
- * TABLE_TO_ARCHIVE_KEY above or listed here, so a newly added scoped table
- * fails CI until someone consciously buckets it. Reasons, per group:
- *  - org-level catalogues shared across events (copied by reference, resolve
- *    on same-org restore): venues + rulesets + compensation plans, etc.
- *  - league data is cross-event and recomputed, not part of one event.
- *  - operational / derived / credential / notification / AI rows that must
- *    not clone into a restored copy.
- */
-const ARCHIVE_EXCLUDED_TABLES = new Set<string>([
-  // org-level catalogues (referenced by id; exist independently of the event)
-  'venues',
-  'venue_areas',
-  'venue_lices',
-  'penalty_rulesets',
-  'penalty_ruleset_entries',
-  'custom_rulesets',
-  'custom_ruleset_versions',
-  'league_scoring_systems',
-  'league_scoring_system_versions',
-  'referee_compensation_plans',
-  'referee_compensation_role_rates',
-  'referee_compensation_tiers',
-  // league data (cross-event; recomputed from results)
-  'leagues',
-  'league_organization_roles',
-  'league_user_roles',
-  'league_groups',
-  'league_tournament_links',
-  'league_tournament_results',
-  'league_rankings',
-  'league_membership_requests',
-  // operational / derived / credential / notification / AI
-  'event_staff_accounts',
-  'event_staff_lice_assignments',
-  // Who physically walked in the door on the day. Operational, not part of the
-  // competitive record — and both its actor columns reference
-  // event_staff_accounts, which is excluded two lines up, so a restored arrival
-  // could only ever point at an actor that no longer exists. It IS personal
-  // data, so it appears in the GDPR subject export instead (see
-  // subject-export.service.ts); excluded here means "not part of an event
-  // archive", never "not reachable by its subject".
-  'event_arrivals',
-  // Per-weapon equipment checks. Same reasoning as event_arrivals directly
-  // above: event-day operations rather than the competitive record, and its
-  // checker column references event_staff_accounts, which is excluded. Also in
-  // the GDPR subject export, for the same reason arrivals are.
-  'event_gear_checks',
-  // Event pass tokens. Excluded for a stronger reason than the two above: an
-  // archive is a file that gets copied, mailed and kept, and this table is a
-  // credential store. Even hashed, live secrets have no business in a portable
-  // copy of an event, and a restored archive re-issuing everyone's old pass
-  // would be worse still. Nothing is lost — a pass is a faster way to type a
-  // name, never part of the competitive record. It IS in the GDPR subject
-  // export, which asks the other question.
-  'event_passes',
-  'event_broadcast_notifications',
-  'event_broadcast_recipients',
-  'tournament_query_settings',
-  'tournament_query_history',
-  'referee_compensation_payments',
-  'exchange_edit_requests',
-  'deletion_requests',
-  'tournament_ruleset_repins', // mid-event re-pin audit; governance log, not archived event data
-  // Per-device sync heartbeat: describes the TABLETS that ran the event, not
-  // the event. Restoring it into a copy would claim devices that never synced
-  // to that copy, and its whole value is being current rather than historical.
-  'scoring_device_sync_reports',
-  // Feedback is given TO an organiser about one running of an event, under a
-  // promise of anonymity from that organiser. An archive is copied, restored
-  // into new events and handed around; carrying opinions into a copy would move
-  // them further from the promise they were given under with every hop. The
-  // author still gets their own rows through the GDPR subject export.
-  'event_feedback',
-  'organizer_ai_assistant_drafts',
-  'organizer_chat_conversations',
-  'organizer_chat_messages',
-  'ai_usage_log',
-  'ai_data_quality_findings',
-  'ai_data_quality_scans',
-  'organization_ai_settings',
-  'ai_generated_content', // regenerable AI output, not source data
-
-  'follows', // user social graph, not event data
-  'club_review_requests', // club-verification workflow, not event data
-  'workshop_feedback', // post-event participant ratings/comments; sentiment, not structural event data
-]);
-
-const ARCHIVE_COLLECTED_TABLES = new Set<string>(Object.keys(TABLE_TO_ARCHIVE_KEY));
-
-export { ARCHIVE_EXCLUDED_TABLES, ARCHIVE_COLLECTED_TABLES, JSON_ID_PATHS };
-
-// Parents before children — FK-dependency order. New scoped tables are
-// interleaved so their referenced rows are always inserted first. Notably:
-// referee_skills before anything that stores a skill id (event_hidden_skills,
-// the slot-config skill joins, referee_assignments.role); event_referees before
-// its per-tournament/day allowlists; slot configs before their skill joins;
-// tournaments/workshops before event_programme_blocks (competition_id/workshop_id).
-const INSERT_ORDER: Array<keyof typeof TABLE_TO_ARCHIVE_KEY> = [
-  'events',
-  'themes',
-  'lices',
-  'persons',
-  'person_privacy',
-  'referee_skills',
-  'referee_qualifications',
-  'event_referees',
-  'event_hidden_skills',
-  'event_instructors',
-  'pool_assignment_settings',
-  'event_slot_config_default',
-  'event_slot_config_default_skills',
-  'referee_compensation_event_settings',
-  'event_venues',
-  'tournaments',
-  'tournament_phase_venues',
-  'tournament_slot_config',
-  'tournament_slot_allowed_skills',
-  'event_referee_tournaments',
-  'event_referee_days',
-  'registrations',
-  'phases',
-  'pools',
-  'pool_members',
-  'bracket_slots',
-  'swiss_entrants',
-  // Before `matches`: a match carries swiss_round_id, so the round it points at
-  // has to exist first or the FK remaps to null and the round loses its bouts.
-  'swiss_rounds',
-  'matches',
-  'referee_assignments',
-  'match_events',
-  'exchanges',
-  'match_penalties',
-  'match_forfeits',
-  'tournament_penalty_reviews',
-  'workshops',
-  'workshop_instructors',
-  'workshop_sessions',
-  'workshop_enrollments',
-  'workshop_breaks',
-  'event_programme_blocks',
-];
 const RESTORE_CONFIRMATION = 'RESTORE MYCLASH ARCHIVE';
 
 @Injectable()
@@ -688,7 +399,7 @@ export class ArchiveService {
   }
 
   private remapRow(
-    table: keyof typeof TABLE_TO_ARCHIVE_KEY,
+    table: ArchiveTableName,
     row: ArchiveRow,
     maps: IdMaps,
     targets: RestoreTargets,
@@ -1159,97 +870,40 @@ export class ArchiveService {
   }
 }
 
-interface IdMaps {
-  events: Map<string, string>;
-  themes: Map<string, string>;
-  lices: Map<string, string>;
-  persons: Map<string, string>;
-  fighters: Map<string, string>;
-  tournaments: Map<string, string>;
-  registrations: Map<string, string>;
-  phases: Map<string, string>;
-  pools: Map<string, string>;
-  bracketSlots: Map<string, string>;
-  swissRounds: Map<string, string>;
-  matches: Map<string, string>;
-  workshops: Map<string, string>;
-  workshopSessions: Map<string, string>;
-  // Named maps for ids referenced by OTHER tables' FK columns.
-  refereeSkills: Map<string, string>;
-  matchForfeits: Map<string, string>;
-  matchPenalties: Map<string, string>;
-  tournamentSlotConfig: Map<string, string>;
-  eventSlotConfig: Map<string, string>;
-  // Fallback per-table id maps for tables whose id is not referenced elsewhere
-  // but must still be regenerated to avoid PK collisions on a same-DB restore.
+/**
+ * The per-restore id maps. Every named member is declared in `ID_MAP_NAMES`;
+ * `generic` holds the fallback per-table maps for ids nothing else references,
+ * which must still be regenerated to avoid PK collisions on a same-DB restore.
+ */
+type IdMaps = Record<IdMapName, Map<string, string>> & {
   generic: Map<string, Map<string, string>>;
-}
+};
 
 function createIdMaps(): IdMaps {
   return {
-    events: new Map(),
-    themes: new Map(),
-    lices: new Map(),
-    persons: new Map(),
-    fighters: new Map(),
-    tournaments: new Map(),
-    registrations: new Map(),
-    phases: new Map(),
-    pools: new Map(),
-    bracketSlots: new Map(),
-    swissRounds: new Map(),
-    matches: new Map(),
-    workshops: new Map(),
-    workshopSessions: new Map(),
-    refereeSkills: new Map(),
-    matchForfeits: new Map(),
-    matchPenalties: new Map(),
-    tournamentSlotConfig: new Map(),
-    eventSlotConfig: new Map(),
+    ...(Object.fromEntries(ID_MAP_NAMES.map((name) => [name, new Map<string, string>()])) as Record<
+      IdMapName,
+      Map<string, string>
+    >),
     generic: new Map(),
   };
 }
 
-// Returns the id map for a table's own primary key. Named maps are used when
-// another table's FK points at this id; everything else falls back to a lazily
-// created per-table map so EVERY id-bearing row gets a fresh id on restore.
-function jsonIdPathsFor(table: keyof typeof TABLE_TO_ARCHIVE_KEY): readonly JsonIdPath[] {
-  const declared = JSON_ID_PATHS as Partial<
-    Record<keyof typeof TABLE_TO_ARCHIVE_KEY, readonly JsonIdPath[]>
-  >;
-  return declared[table] ?? [];
-}
-
-function jsonIdMap(name: JsonIdMapName, maps: IdMaps): Map<string, string> {
+function jsonIdMap(name: IdMapName, maps: IdMaps): Map<string, string> {
   return maps[name];
 }
 
-function idMapForTable(
-  table: keyof typeof TABLE_TO_ARCHIVE_KEY,
-  maps: IdMaps,
-): Map<string, string> {
-  const named: Partial<Record<keyof typeof TABLE_TO_ARCHIVE_KEY, Map<string, string>>> = {
-    events: maps.events,
-    themes: maps.themes,
-    lices: maps.lices,
-    persons: maps.persons,
-    tournaments: maps.tournaments,
-    registrations: maps.registrations,
-    phases: maps.phases,
-    pools: maps.pools,
-    bracket_slots: maps.bracketSlots,
-    swiss_rounds: maps.swissRounds,
-    matches: maps.matches,
-    workshops: maps.workshops,
-    workshop_sessions: maps.workshopSessions,
-    referee_skills: maps.refereeSkills,
-    match_forfeits: maps.matchForfeits,
-    match_penalties: maps.matchPenalties,
-    tournament_slot_config: maps.tournamentSlotConfig,
-    event_slot_config_default: maps.eventSlotConfig,
-  };
-  const namedMap = named[table];
-  if (namedMap) return namedMap;
+/**
+ * The id map for a table's own primary key.
+ *
+ * A named map when another table's FK points at this id, otherwise a lazily
+ * created per-table map — so EVERY id-bearing row gets a fresh id on restore,
+ * whether or not anything needs to find it again. Which tables earn a name is
+ * declared once, in the registry.
+ */
+function idMapForTable(table: ArchiveTableName, maps: IdMaps): Map<string, string> {
+  const named = idMapNameForTable(table);
+  if (named) return maps[named];
   let generic = maps.generic.get(table);
   if (!generic) {
     generic = new Map();
@@ -1262,7 +916,7 @@ function normalizeArchiveTables(
   data: MyClashArchive['data'] | Partial<ArchiveTables>,
 ): ArchiveTables {
   return {
-    ...EMPTY_TABLES,
+    ...emptyArchiveTables(),
     ...Object.fromEntries(
       Object.entries(data).map(([key, value]) => [key, Array.isArray(value) ? [...value] : []]),
     ),
