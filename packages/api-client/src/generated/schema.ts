@@ -10014,9 +10014,10 @@ export interface components {
     };
     UpdateMatchStatusDto: {
       /** @enum {string} */
-      status: 'scheduled' | 'running' | 'paused' | 'completed' | 'voided';
+      status: 'scheduled' | 'running' | 'paused' | 'completed';
       /** Format: uuid */
       winnerRegistrationId?: string;
+      discardDependentResults?: boolean;
     };
     UpdateMatchDto: {
       /** Format: uuid */
@@ -10081,11 +10082,13 @@ export interface components {
     ResetMatchDto: {
       confirmation: string;
       reason?: string;
+      discardDependentResults?: boolean;
     };
     ClockActionDto: {
       /** @enum {string} */
       action: 'start' | 'halt' | 'resume' | 'end' | 'reopen' | 'reset_clock';
       reason?: string;
+      discardDependentResults?: boolean;
     };
     AdjustClockDto: {
       adjustmentMs: number;

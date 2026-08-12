@@ -248,6 +248,38 @@ describe('every match-completion path hands off to MatchCompletionService', () =
     completesAndHandsOff('./scoring.service.ts', 'scoring auto-complete'));
   it('clock.service (clock end)', () => completesAndHandsOff('./clock.service.ts', 'clock end'));
 });
+
+/**
+ * And every path that takes one BACK OUT hands off to the same owner.
+ *
+ * The mirror of the guard above, for the same reason: the call is
+ * `await this.matchCompletion?.onMatchUncompleted(...)` on an @Optional()
+ * dependency, so a missing one is silent by construction — the bracket simply
+ * keeps naming a fighter who did not win, for the rest of the event.
+ *
+ * The census is three files, not one route. `clock.service.ts` is here because
+ * its transition table is keyed on the clock status replayed from match_events
+ * and never reads `matches.status`, so 'start', 'halt' and 'resume' are legal on
+ * a completed bout whose clock never ran — 'reopen' is not the only clock action
+ * that un-completes.
+ *
+ * Matched with the open paren: this file already records a source-text guard
+ * going vacuous against a docstring that still contained the bare name.
+ */
+describe('every path that un-completes a match hands off to MatchCompletionService', () => {
+  const uncompletesAndHandsOff = (rel: string, label: string) => {
+    const src = read(rel);
+    expect(src, `${label} must call matchCompletion.onMatchUncompleted(`).toMatch(
+      /matchCompletion\??\.\s*onMatchUncompleted\(/,
+    );
+  };
+
+  it('matches.service (reset, PATCH /status, void)', () =>
+    uncompletesAndHandsOff('./matches.service.ts', 'resetMatch / setStatus'));
+  it('clock.service (reopen, and the three siblings that also write a status)', () =>
+    uncompletesAndHandsOff('./clock.service.ts', 'clockAction'));
+});
+
 // The other half — that the single owner actually PERFORMS both side effects —
 // is asserted behaviourally in ../phases/match-completion.service.test.ts.
 // A source-text guard was tried here first and was vacuous: the word

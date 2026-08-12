@@ -44,6 +44,8 @@ const clockActionSchema = z
   .object({
     action: z.enum(['start', 'halt', 'resume', 'end', 'reopen', 'reset_clock']),
     reason: z.string().optional(),
+    /** See `ResetMatchDto` — four of these actions can un-complete a bout. */
+    discardDependentResults: z.boolean().optional(),
   })
   .strict();
 class ClockActionDto extends createZodDto(clockActionSchema) {}
@@ -106,8 +108,18 @@ export class MatchesController {
   @Patch('matches/:id/status')
   @ApiOperation({ summary: 'Update match status (scorekeeper+)' })
   @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
-  async updateStatus(@Param('id', ParseUUIDPipe) id: string, @Body() dto: UpdateMatchStatusDto) {
-    return this.matches.updateStatus(id, dto);
+  async updateStatus(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: UpdateMatchStatusDto,
+    @Req() req: FastifyRequest,
+  ) {
+    // Resolved, not assumed. This route carried no actor at all while its
+    // summary claimed scorekeeper+ — the global AuthGuard defaults to shadow
+    // mode, so an anonymous caller was let through and logged. It now needs the
+    // identity the summary always described, and the actor is what decides
+    // whether a de-completion may discard later bouts.
+    const actor = await this.staff.authorizeMatchScoring(req, id);
+    return this.matches.updateStatus(id, dto, actor);
   }
 
   @Patch('matches/:id/schedule')
@@ -160,10 +172,19 @@ export class MatchesController {
 
   @Post('matches/:id/void')
   @HttpCode(HttpStatus.OK)
+  @ApiBearerAuth()
   @ApiOperation({ summary: 'Void a match (organizer+)' })
   @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
-  async voidMatch(@Param('id', ParseUUIDPipe) id: string) {
-    return this.matches.voidMatch(id);
+  async voidMatch(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Req() req: FastifyRequest,
+    @Body() dto?: { discardDependentResults?: boolean },
+  ) {
+    // organizer, not scoring: this is the only door out of a completed bout
+    // besides a reset, and ARCHITECTURE.md has claimed [organizer+] for it all
+    // along while the code checked nothing.
+    const actor = await this.staff.authorizeMatchOrganizer(req, id);
+    return this.matches.voidMatch(id, actor, dto?.discardDependentResults === true);
   }
 
   @Post('matches/:id/forfeit')
@@ -405,7 +426,13 @@ export class MatchesController {
     @Req() req: FastifyRequest,
   ) {
     const actor = await this.staff.authorizeMatchScoring(req, id);
-    return this.clock.clockAction(id, dto.action, dto.reason, actor);
+    return this.clock.clockAction(
+      id,
+      dto.action,
+      dto.reason,
+      actor,
+      dto.discardDependentResults === true,
+    );
   }
 
   @Post('matches/:id/clock/adjust')

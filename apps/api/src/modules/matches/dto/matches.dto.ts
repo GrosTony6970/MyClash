@@ -19,8 +19,18 @@ export class CreateMatchDto extends createZodDto(createMatchSchema) {}
 
 const updateMatchStatusSchema = z
   .object({
-    status: z.enum(['scheduled', 'running', 'paused', 'completed', 'voided']),
+    /**
+     * No 'voided'. `voidMatch` was literally `updateStatus({status:'voided'})`,
+     * so this route was a second door to the same destructive place — gated at
+     * scorekeeper, while `POST /matches/:id/void` is gated at organizer. An
+     * assigned pad staff token could walk through it, and after the
+     * un-completion owner landed that door led to discarding later bouts.
+     * One door, one gate: void goes through its own route.
+     */
+    status: z.enum(['scheduled', 'running', 'paused', 'completed']),
     winnerRegistrationId: z.uuid().optional(),
+    /** See `ResetMatchDto` — same acknowledgement, same 403 without the capability. */
+    discardDependentResults: z.boolean().optional(),
   })
   .strict();
 export class UpdateMatchStatusDto extends createZodDto(updateMatchStatusSchema) {}
@@ -88,6 +98,15 @@ const resetMatchSchema = z
   .object({
     confirmation: z.string(),
     reason: z.string().optional(),
+    /**
+     * "Yes, discard the later bouts this invalidates."
+     *
+     * Refused with 403 unless the actor holds `canDiscardDependentResults`, so
+     * the capability is enforced server-side rather than by hiding a checkbox.
+     * Without it the reset is refused with a 409 naming how many bouts would be
+     * lost — the pre-flight read exists so the operator sees that first.
+     */
+    discardDependentResults: z.boolean().optional(),
   })
   .strict();
 export class ResetMatchDto extends createZodDto(resetMatchSchema) {}

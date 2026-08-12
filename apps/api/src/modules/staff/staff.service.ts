@@ -59,6 +59,18 @@ export interface ScoringActor {
   userId?: string;
   staffAccountId?: string;
   canOverrideLocked?: boolean;
+  /**
+   * May undo a result even though a later bout has already been fought, which
+   * discards that bout's score and puts it back on the schedule.
+   *
+   * Deliberately NOT `canOverrideLocked`. That flag means "may edit past the
+   * lock" and `authorizeMatchUnlock` hands it to a pad staff token whenever the
+   * tournament's auto-lock is disabled — a reasonable rule for reopening your
+   * own bout, and the wrong authority for throwing away someone else's result.
+   * Granted only by `authorizeMatchOrganizer`: a logged-in user holding editor,
+   * admin or owner on the match's organization.
+   */
+  canDiscardDependentResults?: boolean;
 }
 
 type EventRow = {
@@ -764,7 +776,7 @@ export class StaffService {
     if (!userId) throw new UnauthorizedException('Organizer session required');
     const match = await this.getMatchContext(matchId);
     await this.orgs.assertOrgRole(match.organizationId, userId, 'editor');
-    return { userId, canOverrideLocked: true };
+    return { userId, canOverrideLocked: true, canDiscardDependentResults: true };
   }
 
   /**

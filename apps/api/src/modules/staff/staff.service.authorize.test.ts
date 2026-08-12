@@ -254,6 +254,11 @@ describe('authorizeMatchOrganizer', () => {
     await expect(svc.authorizeMatchOrganizer(bareRequest(), MATCH)).resolves.toEqual({
       userId: 'user-1',
       canOverrideLocked: true,
+      // The ONLY place this is granted. It is not `canOverrideLocked` under
+      // another name: that one means "may edit past the lock" and reaches a pad
+      // staff token when auto-lock is off, which is the wrong authority for
+      // throwing away a bout somebody else fought.
+      canDiscardDependentResults: true,
     });
     expect(assertOrgRole).toHaveBeenCalledWith(ORG, 'user-1', 'editor');
   });
@@ -303,8 +308,22 @@ describe('authorizeMatchUnlock', () => {
     await expect(svc.authorizeMatchUnlock(bareRequest(), MATCH)).resolves.toEqual({
       userId: 'user-1',
       canOverrideLocked: true,
+      canDiscardDependentResults: true,
     });
     expect(assertOrgRole).toHaveBeenCalledWith(ORG, 'user-1', 'editor');
+  });
+
+  /**
+   * The lock override is NOT the discard capability. This is the case that
+   * makes them different: with auto-lock off, a pad staff token gets
+   * `canOverrideLocked` here — and must still not be able to throw away a bout
+   * that has already been fought.
+   */
+  it('with auto-lock OFF, staff gain the lock override but NOT the discard power', async () => {
+    const { svc } = build({ match: matchRow({ lockConfigJson: { autoLockEnabled: false } }) });
+    const actor = await svc.authorizeMatchUnlock(staffRequest(), MATCH);
+    expect(actor.canOverrideLocked).toBe(true);
+    expect(actor.canDiscardDependentResults).toBeUndefined();
   });
 
   it('with auto-lock OFF, assigned staff may reopen — and gain the override', async () => {
@@ -400,6 +419,7 @@ describe('authorizeForfeitOrganizer', () => {
     await expect(svc.authorizeForfeitOrganizer(bareRequest(), 'forfeit-1')).resolves.toEqual({
       userId: 'user-1',
       canOverrideLocked: true,
+      canDiscardDependentResults: true,
     });
     expect(assertOrgRole).toHaveBeenCalledWith(ORG, 'user-1', 'editor');
   });

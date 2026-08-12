@@ -34,7 +34,19 @@ import type {
   VoidExchangeDto,
 } from './dto/matches.dto';
 
-type MatchActor = { userId?: string; staffAccountId?: string; canOverrideLocked?: boolean };
+/**
+ * Structurally `ScoringActor`. Kept local so this service does not import
+ * StaffModule's surface, but it must declare every field it forwards: the
+ * discard capability travels from the controller through here into
+ * `onMatchUncompleted`, and leaving it off the type made the code read as if it
+ * could never arrive.
+ */
+type MatchActor = {
+  userId?: string;
+  staffAccountId?: string;
+  canOverrideLocked?: boolean;
+  canDiscardDependentResults?: boolean;
+};
 
 @Injectable()
 export class MatchesService {
@@ -336,18 +348,69 @@ export class MatchesService {
     return data;
   }
 
-  async updateStatus(matchId: string, dto: UpdateMatchStatusDto) {
+  async updateStatus(matchId: string, dto: UpdateMatchStatusDto, context?: MatchActor) {
+    return this.setStatus(matchId, dto.status, {
+      winnerRegistrationId: dto.winnerRegistrationId,
+      discardDependents: dto.discardDependentResults === true,
+      context,
+    });
+  }
+
+  /**
+   * Void a match — the only door out of a completed bout other than a reset.
+   *
+   * `'voided'` used to be a member of `UpdateMatchStatusDto`, which made
+   * `PATCH /status` a second door to the same destructive place, gated at
+   * scorekeeper while this route is gated at organizer. An assigned pad staff
+   * token could reach it. One door, one gate.
+   */
+  async voidMatch(matchId: string, context?: MatchActor, discardDependents = false) {
+    return this.setStatus(matchId, 'voided', { discardDependents, context });
+  }
+
+  /**
+   * The one write that moves a match between statuses, and the two side effects
+   * that hang off the ends of it.
+   *
+   * UN-COMPLETION FIRST. Any target but 'completed' takes a bout out of the
+   * bracket it fed, and that is owned before the write so a refusal leaves the
+   * row alone. There is no transaction, so ordering is the guarantee.
+   *
+   * COMPLETION AWAITED. The comment this replaces justified a fire-and-forget by
+   * claiming the endpoint was only reachable from the e2e specs — which
+   * `voidMatch` had already falsified by routing through it. An unobserved
+   * failure there is a bracket that silently did not advance, in front of a
+   * caller about to act on the response.
+   */
+  private async setStatus(
+    matchId: string,
+    status: UpdateMatchStatusDto['status'] | 'voided',
+    opts: {
+      winnerRegistrationId?: string;
+      discardDependents: boolean;
+      context?: MatchActor;
+    },
+  ) {
     const updates: Record<string, unknown> = {
-      status: dto.status,
+      status,
       updated_at: new Date().toISOString(),
     };
 
-    if (dto.status === 'running') updates['started_at'] = new Date().toISOString();
-    if (dto.status === 'completed') {
+    if (status === 'running') updates['started_at'] = new Date().toISOString();
+    if (status === 'completed') {
       updates['ended_at'] = new Date().toISOString();
-      if (dto.winnerRegistrationId) {
-        updates['winner_registration_id'] = dto.winnerRegistrationId;
+      if (opts.winnerRegistrationId) {
+        updates['winner_registration_id'] = opts.winnerRegistrationId;
       }
+    }
+
+    if (status !== 'completed') {
+      await this.uncomplete(
+        matchId,
+        `match status set to ${status}`,
+        opts.context,
+        opts.discardDependents,
+      );
     }
 
     const { data, error } = await this.supabase.service
@@ -359,18 +422,11 @@ export class MatchesService {
 
     if (error) throw new BadRequestException(error.message);
 
-    // One owner for every completion side effect (advance + pool auto-populate).
-    // Fire-and-forget here, unlike the pad's paths: this endpoint is only used by
-    // the e2e specs, which poll for the result anyway.
-    if (dto.status === 'completed') {
-      void this.matchCompletion?.onMatchCompleted(matchId);
+    if (status === 'completed') {
+      await this.matchCompletion?.onMatchCompleted(matchId);
     }
 
     return data;
-  }
-
-  async voidMatch(matchId: string) {
-    return this.updateStatus(matchId, { status: 'voided' });
   }
 
   /**
@@ -1012,6 +1068,10 @@ export class MatchesService {
     }
     await this.assertMatchUnlocked(matchId, context);
     const reason = dto.reason ?? 'match reset';
+    // BEFORE the writes below, so a refusal leaves the bout untouched and the
+    // bracket still names the result that is about to be undone — which is what
+    // the dependent walk resolves through.
+    await this.uncomplete(matchId, reason, context, dto.discardDependentResults === true);
     const voidedExchanges = await this.supabase.service
       .from('exchanges')
       .update({ voided: true, voided_reason: reason })
@@ -1154,6 +1214,38 @@ export class MatchesService {
     return (scoringConfig as { afterblowMode?: unknown } | null)?.afterblowMode === 'deductive'
       ? 'deductive'
       : 'full';
+  }
+
+  /**
+   * Hand a bout that is ceasing to be completed to the single owner of that
+   * event, if it is completed at all.
+   *
+   * Gated on the CURRENT row rather than on the caller's intent: a bout that was
+   * never completed propagated nothing, so there is nothing to undo and no
+   * reason to make the operator answer for dependents that cannot exist.
+   *
+   * `onMatchUncompleted` throws on purpose — 409 when a later bout has been
+   * fought and nobody has accepted the loss, 403 when the actor may not accept
+   * it. Those must reach the caller, so this is deliberately NOT wrapped in a
+   * catch the way the completion side effects are.
+   */
+  private async uncomplete(
+    matchId: string,
+    reason: string,
+    context: MatchActor | undefined,
+    discardDependents: boolean,
+  ): Promise<void> {
+    const { data } = await this.supabase.service
+      .from('matches')
+      .select('status')
+      .eq('id', matchId)
+      .maybeSingle();
+    if ((data as { status?: string } | null)?.status !== 'completed') return;
+    await this.matchCompletion?.onMatchUncompleted(matchId, {
+      actor: context,
+      discardDependents,
+      reason,
+    });
   }
 
   private async assertMatchUnlocked(

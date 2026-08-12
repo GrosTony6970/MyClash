@@ -93,7 +93,13 @@ export class ClockService {
     matchId: string,
     action: ClockAction,
     reason?: string,
-    actor?: { userId?: string; staffAccountId?: string; canOverrideLocked?: boolean },
+    actor?: {
+      userId?: string;
+      staffAccountId?: string;
+      canOverrideLocked?: boolean;
+      canDiscardDependentResults?: boolean;
+    },
+    discardDependents = false,
   ): Promise<ClockState> {
     // Verify match exists
     const { data: match } = await this.supabase.service
@@ -117,6 +123,28 @@ export class ClockService {
         `Cannot ${action} clock when status is '${current.status}'. ` +
           `Allowed: ${allowed.length ? allowed.join(', ') : 'none'}`,
       );
+    }
+
+    // Four of the six actions write a non-completed status, and the transition
+    // table above cannot see that: it is keyed on the clock status replayed from
+    // `match_events`, and never reads `matches.status`. A bout completed without
+    // an `end` event — every `PATCH /status` completion, every forfeit or point
+    // cap on a clock that was never started — has clock status 'idle', so
+    // 'start' is legal on it, and 'halt' and 'resume' after that. Only 'reopen'
+    // looks like an un-completion; all four are one.
+    //
+    // Owned once, here, before the event row is written, so a refusal leaves the
+    // timeline as well as the row untouched.
+    if (
+      (match as { status?: string }).status === 'completed' &&
+      action !== 'end' &&
+      action !== 'reset_clock'
+    ) {
+      await this.matchCompletion?.onMatchUncompleted(matchId, {
+        actor,
+        discardDependents,
+        reason: reason ?? `clock ${action}`,
+      });
     }
 
     // Get next sequence number
