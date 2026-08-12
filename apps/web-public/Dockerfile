@@ -39,7 +39,12 @@ FROM deps AS builder
 # Silence DEP0205 (module.register) from import-in-the-middle via Sentry/OTel
 # on Node 26 — harmless upstream deprecation. Disables only this warning.
 ENV NODE_OPTIONS=--disable-warning=DEP0205
-ARG GIT_COMMIT=unknown
+# No GIT_COMMIT / release SHA in this stage, on purpose. BuildKit folds build
+# args and env into the cache key of every RUN, so a per-commit value here
+# invalidated the whole `next build` on every deploy while the COPY layers below
+# stayed CACHED — the image was rebuilt from scratch even when nothing in it had
+# changed. The commit still reaches the container: docker-compose.prod.yml sets
+# GIT_COMMIT in this service's runtime `environment:` block.
 ARG NEXT_PUBLIC_API_URL
 # Cross-app switch target for competitors who also hold an organiser/super-admin
 # grant (rendered by SiteHeader + PublicPersonalShell). Inlined by `next build`.
@@ -52,6 +57,11 @@ ARG NEXT_PUBLIC_SUPABASE_URL
 ARG NEXT_PUBLIC_SUPABASE_ANON_KEY
 ARG NEXT_PUBLIC_SENTRY_DSN_PUBLIC
 ARG SENTRY_ENVIRONMENT=production
+# Names the release the uploaded source maps belong to. Compose no longer passes
+# it (see the GIT_COMMIT note above) — it is empty for every build, which is what
+# keeps this stage cacheable. It stays declared because it is the knob to turn
+# the day SENTRY_AUTH_TOKEN is supplied: pass both together and accept that the
+# release value rebuilds the image, since the maps have to match that build.
 ARG SENTRY_RELEASE
 ARG SENTRY_TRACES_SAMPLE_RATE=0
 # Source-map upload token (build-time ONLY). Deliberately NOT set in the runner
@@ -62,7 +72,12 @@ ARG SENTRY_AUTH_TOKEN
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV NEXT_PUBLIC_SENTRY_DSN_PUBLIC=${NEXT_PUBLIC_SENTRY_DSN_PUBLIC}
 ENV NEXT_PUBLIC_SENTRY_ENVIRONMENT=${SENTRY_ENVIRONMENT}
-ENV NEXT_PUBLIC_SENTRY_RELEASE=${SENTRY_RELEASE}
+# NEXT_PUBLIC_SENTRY_RELEASE is NOT set here. Next inlines NEXT_PUBLIC_* into the
+# browser bundle at build time, so baking the commit SHA made the bundle — and
+# therefore this whole image — differ on every commit. Browser events lose their
+# release tag; server-side events keep it (runtime env). Nothing else is lost
+# today: no source maps are uploaded, so there was nothing for that tag to
+# resolve against. See apps/web-public/instrumentation-client.ts.
 ENV NEXT_PUBLIC_SENTRY_TRACES_SAMPLE_RATE=${SENTRY_TRACES_SAMPLE_RATE}
 ENV SENTRY_ENVIRONMENT=${SENTRY_ENVIRONMENT}
 ENV SENTRY_RELEASE=${SENTRY_RELEASE}

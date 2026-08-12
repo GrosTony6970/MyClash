@@ -535,8 +535,10 @@ services:
     build:
       context: ../
       dockerfile: apps/api/Dockerfile
-      args:
-        GIT_COMMIT: ${GIT_COMMIT:-unknown}
+      # No build args on purpose: nothing in the builder stage reads GIT_COMMIT,
+      # and passing it made every RUN layer miss the cache on every commit (see
+      # the comment on the builder stage in apps/api/Dockerfile). The commit is
+      # a RUNTIME value — it is in the `environment:` block below.
     container_name: myclash-api
     restart: unless-stopped
     environment:
@@ -805,8 +807,9 @@ services:
     build:
       context: ../
       dockerfile: apps/api/Dockerfile
-      args:
-        GIT_COMMIT: ${GIT_COMMIT:-unknown}
+      # Same image as the api service, and deliberately the same (empty) build
+      # args — differing args would fork the two into separate builds of an
+      # identical Dockerfile. See the api service above.
     container_name: myclash-worker
     restart: unless-stopped
     command: ['node', 'dist/main.js', '--worker']
@@ -861,7 +864,10 @@ services:
       context: ../
       dockerfile: apps/web-public/Dockerfile
       args:
-        GIT_COMMIT: ${GIT_COMMIT:-unknown}
+        # No GIT_COMMIT / SENTRY_RELEASE here: a per-commit build arg invalidates
+        # every RUN layer of the builder stage, so the whole `next build` ran
+        # again on every deploy even when nothing in this app had changed. Both
+        # values still reach the container through `environment:` below.
         # Same-origin API: browser bundle calls app.${DOMAIN}/api/v1/*
         # via the myclash-public-api Traefik router (see api service labels).
         # Avoids the api.${DOMAIN} cross-origin path entirely.
@@ -881,7 +887,6 @@ services:
         NEXT_PUBLIC_VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
         NEXT_PUBLIC_SENTRY_DSN_PUBLIC: ${NEXT_PUBLIC_SENTRY_DSN_PUBLIC:-}
         SENTRY_ENVIRONMENT: ${SENTRY_ENVIRONMENT:-production}
-        SENTRY_RELEASE: ${GIT_COMMIT:-unknown}
         SENTRY_TRACES_SAMPLE_RATE: ${SENTRY_TRACES_SAMPLE_RATE:-0}
         # Build-time ONLY (source-map upload). Never mirrored into the
         # environment: block below — it must not ship in the image / reach browsers.
@@ -902,7 +907,10 @@ services:
       API_URL_INTERNAL: http://api:4000
       NEXT_PUBLIC_SENTRY_DSN_PUBLIC: ${NEXT_PUBLIC_SENTRY_DSN_PUBLIC:-}
       NEXT_PUBLIC_SENTRY_ENVIRONMENT: ${NEXT_PUBLIC_SENTRY_ENVIRONMENT:-production}
-      NEXT_PUBLIC_SENTRY_RELEASE: ${GIT_COMMIT:-unknown}
+      # No NEXT_PUBLIC_SENTRY_RELEASE: a NEXT_PUBLIC_* value only reaches the
+      # browser if `next build` inlined it, so setting it here read as a browser
+      # release tag while doing nothing. Server-side events take their release
+      # from SENTRY_RELEASE / GIT_COMMIT below.
       NEXT_PUBLIC_SENTRY_TRACES_SAMPLE_RATE: ${NEXT_PUBLIC_SENTRY_TRACES_SAMPLE_RATE:-0}
       SENTRY_ENVIRONMENT: ${SENTRY_ENVIRONMENT:-production}
       SENTRY_RELEASE: ${SENTRY_RELEASE:-}
@@ -1002,14 +1010,16 @@ services:
       context: ../
       dockerfile: apps/web-staff/Dockerfile
       args:
-        GIT_COMMIT: ${GIT_COMMIT:-unknown}
+        # No GIT_COMMIT / SENTRY_RELEASE here: a per-commit build arg invalidates
+        # every RUN layer of the builder stage, so the whole `next build` ran
+        # again on every deploy even when nothing in this app had changed. Both
+        # values still reach the container through `environment:` below.
         NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL_STAFF}
         NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL}
         NEXT_PUBLIC_SUPABASE_ANON_KEY: ${NEXT_PUBLIC_SUPABASE_ANON_KEY}
         NEXT_PUBLIC_PUBLIC_APP_URL: ${NEXT_PUBLIC_PUBLIC_APP_URL}
         NEXT_PUBLIC_SENTRY_DSN_SCORING: ${NEXT_PUBLIC_SENTRY_DSN_SCORING:-}
         SENTRY_ENVIRONMENT: ${SENTRY_ENVIRONMENT:-production}
-        SENTRY_RELEASE: ${GIT_COMMIT:-unknown}
         SENTRY_TRACES_SAMPLE_RATE: ${SENTRY_TRACES_SAMPLE_RATE:-0}
         # Build-time ONLY (source-map upload). Never mirrored into the
         # environment: block below — it must not ship in the image / reach browsers.
@@ -1029,7 +1039,10 @@ services:
       GIT_COMMIT: ${GIT_COMMIT:-unknown}
       NEXT_PUBLIC_SENTRY_DSN_SCORING: ${NEXT_PUBLIC_SENTRY_DSN_SCORING:-}
       NEXT_PUBLIC_SENTRY_ENVIRONMENT: ${NEXT_PUBLIC_SENTRY_ENVIRONMENT:-production}
-      NEXT_PUBLIC_SENTRY_RELEASE: ${GIT_COMMIT:-unknown}
+      # No NEXT_PUBLIC_SENTRY_RELEASE: a NEXT_PUBLIC_* value only reaches the
+      # browser if `next build` inlined it, so setting it here read as a browser
+      # release tag while doing nothing. Server-side events take their release
+      # from SENTRY_RELEASE / GIT_COMMIT below.
       NEXT_PUBLIC_SENTRY_TRACES_SAMPLE_RATE: ${NEXT_PUBLIC_SENTRY_TRACES_SAMPLE_RATE:-0}
       SENTRY_ENVIRONMENT: ${SENTRY_ENVIRONMENT:-production}
       SENTRY_RELEASE: ${SENTRY_RELEASE:-}
@@ -1091,7 +1104,10 @@ services:
       context: ../
       dockerfile: apps/web-admin/Dockerfile
       args:
-        GIT_COMMIT: ${GIT_COMMIT:-unknown}
+        # No GIT_COMMIT / SENTRY_RELEASE here: a per-commit build arg invalidates
+        # every RUN layer of the builder stage, so the whole `next build` ran
+        # again on every deploy even when nothing in this app had changed. Both
+        # values still reach the container through `environment:` below.
         NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL_ADMIN}
         NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL}
         NEXT_PUBLIC_SUPABASE_ANON_KEY: ${NEXT_PUBLIC_SUPABASE_ANON_KEY}
@@ -1100,7 +1116,6 @@ services:
         NEXT_PUBLIC_MARKETING_URL: ${NEXT_PUBLIC_MARKETING_URL}
         NEXT_PUBLIC_SENTRY_DSN_ADMIN: ${NEXT_PUBLIC_SENTRY_DSN_ADMIN:-}
         SENTRY_ENVIRONMENT: ${SENTRY_ENVIRONMENT:-production}
-        SENTRY_RELEASE: ${GIT_COMMIT:-unknown}
         SENTRY_TRACES_SAMPLE_RATE: ${SENTRY_TRACES_SAMPLE_RATE:-0}
         # Build-time ONLY (source-map upload). Never mirrored into the
         # environment: block below — it must not ship in the image / reach browsers.
@@ -1114,7 +1129,10 @@ services:
       GIT_COMMIT: ${GIT_COMMIT:-unknown}
       NEXT_PUBLIC_SENTRY_DSN_ADMIN: ${NEXT_PUBLIC_SENTRY_DSN_ADMIN:-}
       NEXT_PUBLIC_SENTRY_ENVIRONMENT: ${NEXT_PUBLIC_SENTRY_ENVIRONMENT:-production}
-      NEXT_PUBLIC_SENTRY_RELEASE: ${GIT_COMMIT:-unknown}
+      # No NEXT_PUBLIC_SENTRY_RELEASE: a NEXT_PUBLIC_* value only reaches the
+      # browser if `next build` inlined it, so setting it here read as a browser
+      # release tag while doing nothing. Server-side events take their release
+      # from SENTRY_RELEASE / GIT_COMMIT below.
       NEXT_PUBLIC_SENTRY_TRACES_SAMPLE_RATE: ${NEXT_PUBLIC_SENTRY_TRACES_SAMPLE_RATE:-0}
       SENTRY_ENVIRONMENT: ${SENTRY_ENVIRONMENT:-production}
       SENTRY_RELEASE: ${SENTRY_RELEASE:-}

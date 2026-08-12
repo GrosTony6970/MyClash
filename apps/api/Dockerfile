@@ -33,8 +33,16 @@ RUN --mount=type=cache,id=pnpm-store,target=/root/.local/share/pnpm/store \
 
 # ── builder ───────────────────────────────────────────────────────────────────
 FROM deps AS builder
-ARG GIT_COMMIT=unknown
-ENV GIT_COMMIT=${GIT_COMMIT}
+# GIT_COMMIT is deliberately ABSENT from this stage. Nothing here reads it —
+# its three readers (version.service.ts, system-versions.service.ts,
+# common/observability/sentry.ts) all run at RUNTIME and take it from the
+# `environment:` block of infra/docker-compose.prod.yml.
+#
+# Declaring it here was not free: BuildKit folds build args and env into the
+# cache key of every RUN in the stage, so a new commit SHA invalidated the whole
+# compile while the COPY layers below stayed CACHED (content-addressed). Every
+# deploy therefore rebuilt this image from scratch, changed or not. Re-adding an
+# ARG here re-buys that cost for the entire image.
 # Copy source
 COPY tsconfig.base.json tsconfig.lib.json ./
 COPY apps/api/ ./apps/api/
