@@ -138,12 +138,7 @@ export class MatchCompletionService {
     const fought = dependents.filter((bout) => bout.hasBeenFought);
     const touched = [matchId, ...fought.flatMap((bout) => (bout.matchId ? [bout.matchId] : []))];
 
-    // ASSERT PHASE — every refusal, before any write. A 409 raised after two
-    // bouts have already been reverted is the half-applied cascade this method
-    // is ordered to prevent.
-    const forfeits = await readActiveForfeits(this.supabase.service, touched);
-    if (fought.length > 0) this.assertMayDiscard(fought, opts);
-    await assertForfeitsVoidableHere(this.supabase.service, forfeits);
+    const forfeits = await this.assertUncompletionAllowed(matchId, touched, fought, opts);
 
     if (fought.length > 0) {
       const reason = opts.reason ?? 'result of an earlier bout was undone';
@@ -174,6 +169,34 @@ export class MatchCompletionService {
     // still sees `status === 'completed'`. Voiding earlier would strand a bout
     // whose result nobody fought with no forfeit explaining it.
     await voidForfeitRecords(this.supabase.service, forfeits, opts.actor ?? {});
+
+    // The Swiss mirror of clearing the fed sides: the round this bout closed is
+    // open again. A no-op for every non-Swiss match.
+    await this.swissAdvance?.onMatchUncompleted(matchId);
+  }
+
+  /**
+   * Every refusal, before any write.
+   *
+   * A 409 raised after two bouts have already been reverted is exactly the
+   * half-applied cascade this method's ordering exists to prevent, and there is
+   * no transaction to undo one.
+   *
+   * Returns the live forfeit records so the write phase voids precisely what was
+   * asserted on — reading them twice is how the two ends come to disagree about
+   * which records are covered.
+   */
+  private async assertUncompletionAllowed(
+    matchId: string,
+    touched: string[],
+    fought: DependentBout[],
+    opts: UncompleteOptions,
+  ): Promise<ActiveForfeitRecord[]> {
+    const forfeits = await readActiveForfeits(this.supabase.service, touched);
+    if (fought.length > 0) this.assertMayDiscard(fought, opts);
+    await assertForfeitsVoidableHere(this.supabase.service, forfeits);
+    await this.swissAdvance?.assertUncompletable(matchId, opts);
+    return forfeits;
   }
 
   /**
@@ -252,6 +275,7 @@ export class MatchCompletionService {
     const forfeits = await readActiveForfeits(this.supabase.service, touched);
     const blockedReason = await this.forfeitBlockedReason(forfeits);
     return {
+      swissRoundsAhead: (await this.swissAdvance?.roundsAhead(matchId)) ?? [],
       forfeitsToVoid: forfeits.length,
       forfeitBlocked: blockedReason !== null,
       forfeitBlockedReason: blockedReason,

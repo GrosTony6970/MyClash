@@ -7024,6 +7024,10 @@ export const en = {
         'This bout was closed by a forfeit that also took the fighter out of the tournament. Undo that record first, from the forfeit panel on this bout.',
       uncompleteBodyForfeitReplacement:
         'A reserve took the missing fighter’s place in the draw. That stays as it is.',
+      uncompleteBodySwissRoundDrawn:
+        'Round {round} has already been drawn from these standings and announced to the fighters. It stays exactly as drawn — delete it from the Swiss rounds tab if you want it redrawn.',
+      uncompleteBodySwissRoundFought:
+        'Round {round} has already been drawn from these standings and some of its bouts have been fought. It cannot be redrawn.',
       uncompleteBlockedTitle: 'Undoing this result would invalidate a later bout',
       uncompleteAffectedTitle: 'Bouts affected',
       correctionSubmitted: 'Correction request {id} submitted for review.',
@@ -14948,6 +14952,10 @@ export const fr = {
         'Cet assaut a été clôturé par un forfait qui a aussi retiré le combattant du tournoi. Annulez d’abord cet enregistrement, depuis le panneau forfait de cet assaut.',
       uncompleteBodyForfeitReplacement:
         'Un remplaçant a pris la place du combattant absent dans le tableau. Cela reste inchangé.',
+      uncompleteBodySwissRoundDrawn:
+        'La ronde {round} a déjà été tirée à partir de ce classement et annoncée aux combattants. Elle reste telle quelle — supprimez-la depuis l’onglet des rondes suisses si vous voulez la retirer.',
+      uncompleteBodySwissRoundFought:
+        'La ronde {round} a déjà été tirée à partir de ce classement et certains de ses assauts ont été combattus. Elle ne peut pas être retirée.',
       uncompleteBlockedTitle: 'Annuler ce résultat invaliderait un assaut suivant',
       uncompleteAffectedTitle: 'Assauts concernés',
       correctionSubmitted: 'Demande de correction {id} soumise pour validation.',

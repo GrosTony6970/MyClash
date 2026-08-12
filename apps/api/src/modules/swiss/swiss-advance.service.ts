@@ -1,4 +1,10 @@
-import { Injectable, Logger, Optional } from '@nestjs/common';
+import {
+  ConflictException,
+  ForbiddenException,
+  Injectable,
+  Logger,
+  Optional,
+} from '@nestjs/common';
 import { SupabaseService } from '../supabase/supabase.service';
 // Value imports, not `import type`: Nest needs the runtime classes for DI
 // metadata. With `import type` these resolve to undefined and every Swiss round
@@ -83,6 +89,99 @@ export class SwissAdvanceService {
     }
   }
 
+  /**
+   * Refuse an un-completion whose round has already been superseded.
+   *
+   * READ-ONLY, and called in the owner's assert phase — a refusal raised after
+   * `revertMatchToUnplayed` has run is a half-applied cascade with no
+   * transaction to undo it.
+   *
+   * ANY later round counts, fought or not. An all-`scheduled` round N+1 has
+   * already been published to the whole field by `notifyRoundPublished` and had
+   * pistes assigned by `scheduleRound`, and its pairing was drawn from standings
+   * that included the result being undone. "Untouched" is not "inconsequential".
+   *
+   * The remedy named in the refusal is `DELETE /swiss-phases/:id/rounds/:n`,
+   * which `SwissService.deleteRound` accepts for exactly the last round with
+   * every bout still scheduled — so an organiser told to redraw can actually do
+   * it. Redrawing it HERE would be worse than the problem: it fires a second
+   * `swiss_round_published` at fighters already walking to a piste, which
+   * `22-swiss.spec.ts` records as the thing not to do.
+   */
+  async assertUncompletable(matchId: string, opts: SwissUncompleteOptions): Promise<void> {
+    if (!this.roundState) return;
+    const round = await this.roundOf(matchId);
+    if (!round) return;
+    if (!(await this.hasLaterRound(round.phaseId, round.roundNumber))) return;
+
+    if (!opts.discardDependents) {
+      throw new ConflictException({
+        message:
+          'A later Swiss round has already been drawn from these standings. ' +
+          'Delete that round first, or confirm that it stands as drawn.',
+        code: 'swiss_later_round_already_drawn',
+        roundNumber: round.roundNumber,
+      });
+    }
+    if (!opts.actor?.canDiscardDependentResults) {
+      throw new ForbiddenException(
+        'Only an organiser can undo a result once a later Swiss round has been drawn',
+      );
+    }
+  }
+
+  /**
+   * The rounds already drawn after this match's round, for the pre-flight.
+   *
+   * Deliberately NOT folded into the bracket's `affected` list — that is read as
+   * "bouts emptied", and a Swiss round is not a bout. Empty for every non-Swiss
+   * match, and for a Swiss match on the frontier round.
+   */
+  async roundsAhead(matchId: string): Promise<SwissRoundAhead[]> {
+    const round = await this.roundOf(matchId);
+    if (!round) return [];
+    const { data } = await this.supabase.service
+      .from('swiss_rounds')
+      .select('round_number, status, matches(status)')
+      .eq('phase_id', round.phaseId)
+      .gt('round_number', round.roundNumber)
+      .order('round_number', { ascending: true });
+
+    return ((data ?? []) as Array<Record<string, unknown>>).map((row) => ({
+      roundNumber: row['round_number'] as number,
+      status: row['status'] as string,
+      hasFoughtBout: ((row['matches'] ?? []) as Array<{ status: string }>).some((match) =>
+        ['running', 'paused', 'completed'].includes(match.status),
+      ),
+    }));
+  }
+
+  /**
+   * A match STOPPED being completed, so the round it closed is open again.
+   *
+   * The whole inverse. `refresh` is already bidirectional — it writes whatever
+   * `deriveRoundStatus` says and only when it differs — so the round drops back
+   * to `running` or `pending` with no new transition logic. What it needs is the
+   * `asIfUnplayed` projection: see `SwissRoundStateService.refresh`.
+   *
+   * The already-drawn later round is NOT redrawn. `assertUncompletable` has
+   * either refused or been acknowledged, and the frontier guard in
+   * `onMatchCompleted` stops the re-completion from committing a skipped round
+   * on the way back.
+   *
+   * Swallows, like its sibling: called after the bout has been put back.
+   */
+  async onMatchUncompleted(matchId: string): Promise<void> {
+    if (!this.roundState) return;
+    try {
+      const round = await this.roundOf(matchId);
+      if (!round) return;
+      await this.roundState.refresh(round.roundId, matchId);
+    } catch (err) {
+      this.logger.warn(`swiss round reopen after match ${matchId} failed: ${describe(err)}`);
+    }
+  }
+
   private async roundOf(matchId: string): Promise<SwissRoundRef | null> {
     const { data } = await this.supabase.service
       .from('matches')
@@ -136,6 +235,23 @@ export class SwissAdvanceService {
 }
 
 const describe = (err: unknown): string => (err instanceof Error ? err.message : String(err));
+
+/**
+ * What the un-completion owner already knows about who is asking. Structurally
+ * the subset of `UncompleteOptions` this service needs — declared here rather
+ * than imported so SwissCoreModule keeps no dependency on PhasesModule.
+ */
+export interface SwissUncompleteOptions {
+  actor?: { canDiscardDependentResults?: boolean };
+  discardDependents?: boolean;
+}
+
+/** One round already drawn after the one being un-completed. */
+export interface SwissRoundAhead {
+  roundNumber: number;
+  status: string;
+  hasFoughtBout: boolean;
+}
 
 /** The Swiss round a match belongs to, resolved in one read. */
 interface SwissRoundRef {

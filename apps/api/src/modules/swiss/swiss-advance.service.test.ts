@@ -1,3 +1,4 @@
+import { ConflictException, ForbiddenException } from '@nestjs/common';
 import { describe, expect, it, vi } from 'vitest';
 import { mockSupabase, queriedTables } from '../../common/testing/supabase-chain';
 import type { SupabaseService } from '../supabase/supabase.service';
@@ -235,6 +236,109 @@ describe('SwissAdvanceService.onMatchCompleted', () => {
     } as unknown as SwissRoundStateService;
     await expect(
       new SwissAdvanceService(as(supabase), pairingStub(), roundState).onMatchCompleted('m1'),
+    ).resolves.toBeUndefined();
+  });
+});
+
+/**
+ * The inverse. Split into an assert and a write on purpose: a refusal raised
+ * from the write method would land after `revertMatchToUnplayed` has already
+ * run, which is the half-applied cascade the owner's ordering prevents.
+ */
+describe('SwissAdvanceService un-completion', () => {
+  const ORGANISER = { actor: { canDiscardDependentResults: true } };
+
+  it('refuses when a later round has already been drawn', async () => {
+    // ANY later round, fought or not. An all-scheduled round N+1 has already
+    // been published to the whole field and had pistes assigned, and its
+    // pairing came from standings that included the result being undone.
+    const supabase = mockSupabase({
+      matches: swissMatchRow(),
+      swiss_rounds: roundsAhead(1),
+    });
+
+    await expect(
+      new SwissAdvanceService(
+        as(supabase),
+        pairingStub(),
+        roundStateStub('completed'),
+      ).assertUncompletable('m1', {}),
+    ).rejects.toThrow(ConflictException);
+  });
+
+  it('lets an organiser through once they have acknowledged it', async () => {
+    const supabase = mockSupabase({
+      matches: swissMatchRow(),
+      swiss_rounds: roundsAhead(1),
+    });
+
+    await expect(
+      new SwissAdvanceService(
+        as(supabase),
+        pairingStub(),
+        roundStateStub('completed'),
+      ).assertUncompletable('m1', { ...ORGANISER, discardDependents: true }),
+    ).resolves.toBeUndefined();
+  });
+
+  it('refuses a pad scorekeeper who acknowledged but cannot discard', async () => {
+    const supabase = mockSupabase({
+      matches: swissMatchRow(),
+      swiss_rounds: roundsAhead(1),
+    });
+
+    await expect(
+      new SwissAdvanceService(
+        as(supabase),
+        pairingStub(),
+        roundStateStub('completed'),
+      ).assertUncompletable('m1', { discardDependents: true, actor: {} }),
+    ).rejects.toThrow(ForbiddenException);
+  });
+
+  it('does not refuse on the frontier round, where nothing was drawn from it', async () => {
+    const supabase = mockSupabase({
+      matches: swissMatchRow(),
+      swiss_rounds: roundsAhead(0),
+    });
+
+    await expect(
+      new SwissAdvanceService(
+        as(supabase),
+        pairingStub(),
+        roundStateStub('completed'),
+      ).assertUncompletable('m1', {}),
+    ).resolves.toBeUndefined();
+  });
+
+  it('is a no-op for a non-Swiss match', async () => {
+    const supabase = mockSupabase({ matches: { data: { swiss_round_id: null }, error: null } });
+    const roundState = roundStateStub('completed');
+
+    await new SwissAdvanceService(as(supabase), pairingStub(), roundState).onMatchUncompleted('m1');
+
+    expect(roundState.refresh).not.toHaveBeenCalled();
+  });
+
+  it('re-opens the round, projecting the bout as already unplayed', async () => {
+    // The owner runs before its caller's write, so the bout still reads
+    // `completed` here — passing the id is what makes the recompute true.
+    const supabase = mockSupabase({ matches: swissMatchRow() });
+    const roundState = roundStateStub('running');
+
+    await new SwissAdvanceService(as(supabase), pairingStub(), roundState).onMatchUncompleted('m1');
+
+    expect(roundState.refresh).toHaveBeenCalledWith('round-1', 'm1');
+  });
+
+  it('swallows a refresh failure — the bout has already been put back', async () => {
+    const supabase = mockSupabase({ matches: swissMatchRow() });
+    const roundState = {
+      refresh: vi.fn().mockRejectedValue(new Error('round state exploded')),
+    } as unknown as SwissRoundStateService;
+
+    await expect(
+      new SwissAdvanceService(as(supabase), pairingStub(), roundState).onMatchUncompleted('m1'),
     ).resolves.toBeUndefined();
   });
 });

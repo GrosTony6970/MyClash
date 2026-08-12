@@ -32,6 +32,8 @@ export interface UncompletePreflight {
   forfeitBlocked?: boolean;
   /** A reserve took a no-show's place. That substitution is NOT undone. */
   forfeitReplacedFighter?: boolean;
+  /** Swiss rounds already drawn after this bout's round. Never re-drawn for you. */
+  swissRoundsAhead?: Array<{ roundNumber: number; status: string; hasFoughtBout: boolean }>;
 }
 
 export interface CopyLine {
@@ -66,6 +68,8 @@ const FROZEN = 'organizer.matchDetail.uncompleteBodyFrozen';
 const FORFEIT_VOIDED = 'organizer.matchDetail.uncompleteBodyForfeitVoided';
 const FORFEIT_BLOCKED = 'organizer.matchDetail.uncompleteBodyForfeitBlocked';
 const FORFEIT_REPLACEMENT = 'organizer.matchDetail.uncompleteBodyForfeitReplacement';
+const SWISS_ROUND_DRAWN = 'organizer.matchDetail.uncompleteBodySwissRoundDrawn';
+const SWISS_ROUND_FOUGHT = 'organizer.matchDetail.uncompleteBodySwissRoundFought';
 
 /**
  * `t()` has no plural engine, so a count of one needs its own key rather than
@@ -95,6 +99,30 @@ function forfeitLines(preflight: UncompletePreflight): CopyLine[] {
   ];
 }
 
+/**
+ * The already-drawn Swiss round, or null when there is none.
+ *
+ * Refused like the forfeit, but UNLIKE it this one is overridable — an organiser
+ * may accept that round N+1 stands as drawn — so it offers the tick rather than
+ * a dead end. The two sentences differ on whether a bout in that round has been
+ * fought, because the remedy (`DELETE /swiss-phases/:id/rounds/:n`) only accepts
+ * a round nobody has fought; promising a redraw otherwise names an action that
+ * will refuse.
+ */
+function swissCopy(preflight: UncompletePreflight): UncompleteConfirmCopy | null {
+  const ahead = preflight.swissRoundsAhead ?? [];
+  if (ahead.length === 0) return null;
+
+  const line: CopyLine = {
+    key: ahead.some((round) => round.hasFoughtBout) ? SWISS_ROUND_FOUGHT : SWISS_ROUND_DRAWN,
+    values: { round: ahead[0]?.roundNumber ?? 0 },
+  };
+  if (!preflight.canDiscard) {
+    return { body: [line, { key: ASK_ORGANISER }], hint: line, action: 'refused' };
+  }
+  return { body: [line, ...forfeitLines(preflight)], hint: line, action: 'acknowledge' };
+}
+
 export function uncompleteConfirmCopy(
   preflight: UncompletePreflight | null | undefined,
 ): UncompleteConfirmCopy {
@@ -113,6 +141,9 @@ export function uncompleteConfirmCopy(
   // screen, so the copy has to name it.
   if (preflight.forfeitBlocked) return refusal(FORFEIT_BLOCKED);
 
+  const swiss = swissCopy(preflight);
+  if (swiss) return swiss;
+
   const emptied = preflight.affected.length;
   const forfeits = forfeitLines(preflight);
 
@@ -123,11 +154,7 @@ export function uncompleteConfirmCopy(
       emptied === 0
         ? [{ key: EMPTIES_NONE }]
         : [counted(EMPTIES_ONE, EMPTIES_MANY, emptied), { key: REFILLS }];
-    return {
-      body: [...body, ...forfeits],
-      hint: forfeits[0] ?? null,
-      action: 'proceed',
-    };
+    return { body: [...body, ...forfeits], hint: forfeits[0] ?? null, action: 'proceed' };
   }
 
   // Fought bouts exist. The consequence sentence is the one that must also be on

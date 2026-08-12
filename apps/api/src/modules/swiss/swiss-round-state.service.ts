@@ -25,18 +25,33 @@ export class SwissRoundStateService {
    *
    * Returns the resulting status so a caller that just completed a match can
    * decide whether to advance without a second read.
+   *
+   * `asIfUnplayed` PROJECTS ONE MATCH AS `scheduled` INSTEAD OF READING IT.
+   * The un-completion owner runs BEFORE the caller writes the row — that
+   * ordering is the whole guarantee that a refusal leaves nothing half-done —
+   * so at the moment it wants this recomputed, the bout is still `completed` in
+   * the database. A plain refresh would derive `completed`, find it equal to the
+   * stored value, and write nothing: a Swiss inverse that ships green and does
+   * nothing. Substituting the state the caller is about to create is what makes
+   * the answer true, and a later real refresh gives the same one, so nothing
+   * about idempotency changes.
    */
-  async refresh(roundId: string): Promise<'pending' | 'running' | 'completed' | null> {
+  async refresh(
+    roundId: string,
+    asIfUnplayed?: string,
+  ): Promise<'pending' | 'running' | 'completed' | null> {
     const { data, error } = await this.supabase.service
       .from('swiss_rounds')
-      .select('id, status, matches(status)')
+      .select('id, status, matches(id, status)')
       .eq('id', roundId)
       .maybeSingle();
     if (error) throw new BadRequestException(error.message);
     if (!data) return null;
 
-    const row = data as { status: string; matches?: Array<{ status: string }> };
-    const statuses = (row.matches ?? []).map((m) => m.status);
+    const row = data as { status: string; matches?: Array<{ id: string; status: string }> };
+    const statuses = (row.matches ?? []).map((m) =>
+      asIfUnplayed && m.id === asIfUnplayed ? 'scheduled' : m.status,
+    );
     const next = deriveRoundStatus(statuses);
 
     if (next !== row.status) {

@@ -55,6 +55,7 @@
     "apps/api/src/modules/persons/public-schedule.service.ts",
     "apps/api/src/modules/phases/bracket-advance.service.test.ts",
     "apps/api/src/modules/phases/match-completion.service.test.ts",
+    "apps/api/src/modules/phases/match-completion.service.ts",
     "apps/api/src/modules/phases/phases.controller.ts",
     "apps/api/src/modules/phases/phases.service.test.ts",
     "apps/api/src/modules/phases/phases.service.ts",

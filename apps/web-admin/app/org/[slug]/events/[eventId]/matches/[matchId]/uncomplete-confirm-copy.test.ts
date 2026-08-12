@@ -169,4 +169,45 @@ describe('uncompleteConfirmCopy', () => {
     // The discard sentence still leads — it is the one that loses fought bouts.
     expect(copy.hint?.key).toBe('organizer.matchDetail.uncompleteBodyDiscardsOne');
   });
+
+  it('names the Swiss round that was drawn, and offers the tick', () => {
+    // Unlike the forfeit refusal this one IS overridable, so it must not be a
+    // dead end — the organiser can accept that round N+1 stands as drawn.
+    const copy = uncompleteConfirmCopy(
+      preflight({
+        canDiscard: true,
+        swissRoundsAhead: [{ roundNumber: 4, status: 'pending', hasFoughtBout: false }],
+      }),
+    );
+
+    expect(keys(copy)).toContain('organizer.matchDetail.uncompleteBodySwissRoundDrawn');
+    expect(copy.body[0]?.values).toEqual({ round: 4 });
+    expect(copy.action).toBe('acknowledge');
+  });
+
+  it('uses the harder sentence once a bout in that round has been fought', () => {
+    // deleteRound only accepts a round nobody has fought, so promising a redraw
+    // would name a remedy that will refuse.
+    const copy = uncompleteConfirmCopy(
+      preflight({
+        canDiscard: true,
+        swissRoundsAhead: [{ roundNumber: 4, status: 'running', hasFoughtBout: true }],
+      }),
+    );
+
+    expect(keys(copy)).toContain('organizer.matchDetail.uncompleteBodySwissRoundFought');
+    expect(keys(copy)).not.toContain('organizer.matchDetail.uncompleteBodySwissRoundDrawn');
+  });
+
+  it('sends a non-organiser to find one instead of offering the tick', () => {
+    const copy = uncompleteConfirmCopy(
+      preflight({
+        canDiscard: false,
+        swissRoundsAhead: [{ roundNumber: 4, status: 'pending', hasFoughtBout: false }],
+      }),
+    );
+
+    expect(copy.action).toBe('refused');
+    expect(keys(copy)).toContain('organizer.matchDetail.uncompleteBodyAskOrganiser');
+  });
 });
