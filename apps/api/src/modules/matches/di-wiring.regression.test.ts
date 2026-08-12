@@ -83,6 +83,73 @@ describe('NestJS DI wiring — injected services must be value-imported', () => 
 });
 
 /**
+ * The provider has to be REACHABLE, not just imported.
+ *
+ * FrozenResultsGuard moved out of MatchesModule's `providers` into its own leaf
+ * so a phase-side owner can inject it without closing
+ * PhasesModule → MatchesModule → PhasesModule. That move silently changes what
+ * every consumer module can see: a module that injects the guard but does not
+ * import the leaf gets `undefined` from @Optional() and the freeze stops
+ * existing — the same failure the value-import guards above exist to catch, one
+ * layer out.
+ *
+ * Nest would throw for the one NON-optional consumer
+ * (`exchange-edit-requests.service.ts`), but only at real boot, and no test in
+ * this repo boots the whole container. The other three are @Optional() and would
+ * never throw at all. So assert the module edge in source.
+ */
+describe('every module injecting FrozenResultsGuard imports the leaf that provides it', () => {
+  const CONSUMERS: Array<[serviceFile: string, moduleFile: string]> = [
+    ['./matches.service.ts', './matches.module.ts'],
+    ['./match-forfeits.service.ts', './matches.module.ts'],
+    ['../penalties/penalties.service.ts', '../penalties/penalties.module.ts'],
+    ['../admin/exchange-edit-requests.service.ts', '../admin/admin.module.ts'],
+  ];
+
+  /**
+   * The `imports:` array, not the whole file. An `import { X } from …` statement
+   * at the top satisfies a bare file-wide match while the module still does not
+   * import X — which is exactly how a first cut of this guard passed its own
+   * falsification.
+   */
+  const importsArrayOf = (moduleFile: string): string => {
+    const src = read(moduleFile);
+    const start = src.indexOf('imports:');
+    expect(start, `${moduleFile} has no imports: array`).toBeGreaterThan(-1);
+    const open = src.indexOf('[', start);
+    let depth = 0;
+    for (let i = open; i < src.length; i++) {
+      if (src[i] === '[') depth++;
+      if (src[i] === ']' && --depth === 0) return src.slice(open, i + 1);
+    }
+    throw new Error(`${moduleFile}: unterminated imports: array`);
+  };
+
+  for (const [serviceFile, moduleFile] of CONSUMERS) {
+    it(`${serviceFile} → ${moduleFile}`, () => {
+      // Non-vacuity: this service really does inject the guard.
+      expect(read(serviceFile), `${serviceFile} should inject FrozenResultsGuard`).toMatch(
+        /\bFrozenResultsGuard\b/,
+      );
+      expect(
+        importsArrayOf(moduleFile),
+        `${moduleFile} must list FrozenResultsModule in imports: — its provider is no longer in MatchesModule`,
+      ).toMatch(/\bFrozenResultsModule\b/);
+    });
+  }
+
+  // The other half: nothing may quietly put the provider back where it was, or
+  // the leaf stops being the single owner and the cycle becomes reachable again.
+  it('MatchesModule no longer provides the guard itself', () => {
+    const src = read('./matches.module.ts');
+    expect(src).toMatch(/\bFrozenResultsModule\b/);
+    expect(src, 'FrozenResultsGuard must come from the leaf, not from providers[]').not.toMatch(
+      /\bFrozenResultsGuard\b/,
+    );
+  });
+});
+
+/**
  * Every path that completes a match must hand off to MatchCompletionService.
  *
  * A completed match owes two side effects — advance the bracket, and (for a pool

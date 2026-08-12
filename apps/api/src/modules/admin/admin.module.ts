@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { AIUsageModule } from '../ai-usage/ai-usage.module';
 import { HemaRatingsModule } from '../hema-ratings/hema-ratings.module';
+import { FrozenResultsModule } from '../matches/frozen-results.module';
 import { MatchesModule } from '../matches/matches.module';
 import { OrganizationsModule } from '../organizations/organizations.module';
 import { SupabaseService } from '../supabase/supabase.service';
@@ -62,7 +63,13 @@ import { WeaponsAdminController } from './weapons/weapons-admin.controller';
 import { WeaponsAdminService } from './weapons/weapons-admin.service';
 
 @Module({
-  imports: [HemaRatingsModule, MatchesModule, OrganizationsModule, AIUsageModule],
+  imports: [
+    HemaRatingsModule,
+    MatchesModule,
+    FrozenResultsModule,
+    OrganizationsModule,
+    AIUsageModule,
+  ],
   controllers: [
     OrganizationsAdminController,
     UsersAdminController,
