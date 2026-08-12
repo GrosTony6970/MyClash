@@ -92,7 +92,18 @@ COPY packages/schedule-core/ ./packages/schedule-core/
 COPY packages/feature-flags/ ./packages/feature-flags/
 
 # schedule-core is built after time because it imports @myclash/time.
-RUN pnpm --filter @myclash/types build \
+#
+# `.next/cache` is Next's incremental build cache. It is the one part of .next
+# that a build reads instead of writing, and nothing copies it into the runner
+# stage — so it can live in a BuildKit cache mount rather than a layer. Measured
+# on this app: 25s cold, 10s with only this directory preserved. It pays off on
+# exactly the deploys that still rebuild, i.e. the ones where the app changed.
+#
+# The id is per-app because the three web images build concurrently and would
+# otherwise write into one shared mount. Costs disk on the builder (~325 MB for
+# web-admin); `docker builder prune` reclaims it.
+RUN --mount=type=cache,id=next-cache-web-admin,target=/app/apps/web-admin/.next/cache \
+    pnpm --filter @myclash/types build \
  && pnpm --filter @myclash/i18n build \
  && pnpm --filter @myclash/api-client build \
  && pnpm --filter @myclash/rulesets build \
