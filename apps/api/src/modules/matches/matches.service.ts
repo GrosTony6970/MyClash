@@ -978,16 +978,24 @@ export class MatchesService {
     }
     await this.assertMatchUnlocked(matchId, context);
     const reason = dto.reason ?? 'match reset';
-    await this.supabase.service
+    // Checked, all of them. A reset is four writes with no transaction, and each
+    // one silently failing leaves a different half-reset bout: live exchanges
+    // that recompute the old score, penalties that still count, or — worst — no
+    // `reset_match` event, which is the only thing that returns the derived
+    // clock to `idle`. Without it the clock replays as `ended`, and
+    // `VALID_TRANSITIONS.ended` is `['reopen']`, so the bout cannot be started.
+    const voidedExchanges = await this.supabase.service
       .from('exchanges')
       .update({ voided: true, voided_reason: reason })
       .eq('match_id', matchId)
       .eq('voided', false);
-    await this.supabase.service
+    if (voidedExchanges.error) throw new BadRequestException(voidedExchanges.error.message);
+    const voidedPenalties = await this.supabase.service
       .from('match_penalties')
       .update({ voided: true, voided_reason: reason })
       .eq('match_id', matchId)
       .eq('voided', false);
+    if (voidedPenalties.error) throw new BadRequestException(voidedPenalties.error.message);
     await this.insertMatchEvent(matchId, 'reset_match', reason, context);
     const { data, error } = await this.supabase.service
       .from('matches')
@@ -1011,6 +1019,22 @@ export class MatchesService {
         end_reason: null,
         duration_active_ms: null,
         duration_total_ms: null,
+        // A reset exists to make the bout playable again, and a lock is the one
+        // thing that stops it being played. Nothing else would ever clear it:
+        // MatchAutoLockService only ever ADDS locks (`if (match['locked_at'])
+        // continue`), and its group gate needs every match in the group to be
+        // completed or voided — which a freshly reset one is not — so the group
+        // is skipped from then on. The lock outlived the result it was protecting
+        // and only a manual unlock could remove it.
+        //
+        // Safe because `assertMatchUnlocked` above has already refused this call
+        // unless the actor holds `canOverrideLocked`, which is the same authority
+        // `unlockMatch` demands. Same five columns it clears.
+        locked_at: null,
+        locked_by_user_id: null,
+        locked_by_staff_account_id: null,
+        lock_source: null,
+        lock_reason: null,
         // Reset best-of round state back to a single open round.
         current_round: 1,
         red_round_wins: 0,
@@ -1193,7 +1217,11 @@ export class MatchesService {
       .order('sequence', { ascending: false })
       .limit(1)
       .maybeSingle();
-    await this.supabase.service.from('match_events').insert({
+    // Checked, for the reason ClockService already gives at its identical
+    // insert: clock state is replayed from these rows and never stored, so an
+    // unchecked failure here returns HTTP 200 over a clock that did not change.
+    // `reset_match` is the only event that returns the replay to `idle`.
+    const { error } = await this.supabase.service.from('match_events').insert({
       match_id: matchId,
       sequence: ((lastEvent as { sequence?: number } | null)?.sequence ?? 0) + 1,
       type,
@@ -1202,5 +1230,6 @@ export class MatchesService {
       staff_account_id: context?.staffAccountId ?? null,
       occurred_at: new Date().toISOString(),
     });
+    if (error) throw new BadRequestException(error.message);
   }
 }

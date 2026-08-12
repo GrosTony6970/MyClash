@@ -774,6 +774,72 @@ describe('MatchesService', () => {
       );
     });
 
+    /**
+     * A reset that leaves the bout locked has not reset anything an operator can
+     * act on. Nothing else clears the lock: MatchAutoLockService only ever adds
+     * one, and its group gate needs every match in the group completed or voided
+     * — which a freshly reset one is not — so it never looks at the group again.
+     * The reset is already refused unless the actor may override the lock, so
+     * clearing it here needs no authority the call did not already have.
+     */
+    it('resetMatch clears the lock, so the bout can actually be scored again', async () => {
+      const matchUpdate = makeChain({ data: { id: 'match-1' }, error: null });
+      fromMock.mockImplementation((table: string) => {
+        if (table === 'matches') {
+          matchUpdate.maybeSingle.mockResolvedValue({
+            data: { id: 'match-1', locked_at: '2026-08-12T09:00:00.000Z' },
+            error: null,
+          });
+          return matchUpdate;
+        }
+        return makeChain({ data: null, error: null });
+      });
+
+      await service.resetMatch(
+        'match-1',
+        { confirmation: 'RESET MATCH', reason: 'replay the bout' },
+        { userId: 'organiser-1', canOverrideLocked: true },
+      );
+
+      expect(matchUpdate.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          locked_at: null,
+          locked_by_user_id: null,
+          locked_by_staff_account_id: null,
+          lock_source: null,
+          lock_reason: null,
+        }),
+      );
+    });
+
+    it('resetMatch fails loudly when the reset_match event cannot be written', async () => {
+      // That event is the only thing returning the derived clock to `idle`.
+      // Swallowed, it leaves a bout that reads `scheduled` to every list and
+      // `ended` to the pad — and `VALID_TRANSITIONS.ended` is `['reopen']`, so
+      // it cannot be started.
+      fromMock.mockImplementation((table: string) => {
+        if (table === 'match_events') {
+          const chain = makeChain({ data: null, error: null });
+          // The sequence probe succeeds; the insert is what fails. `insert` is
+          // awaited directly here (no terminal `.single()`), so the double has
+          // to resolve the result object rather than return the chain.
+          chain.maybeSingle.mockResolvedValue({ data: null, error: null });
+          chain.insert.mockResolvedValue({ error: { message: 'sequence conflict' } });
+          return chain;
+        }
+        const chain = makeChain({ data: { id: 'match-1' }, error: null });
+        chain.maybeSingle.mockResolvedValue({
+          data: { id: 'match-1', locked_at: null },
+          error: null,
+        });
+        return chain;
+      });
+
+      await expect(
+        service.resetMatch('match-1', { confirmation: 'RESET MATCH', reason: 'replay' }),
+      ).rejects.toThrow(BadRequestException);
+    });
+
     it('swapFighterSide toggles visual side order only', async () => {
       const lockChain = makeChain({ data: null, error: null });
       lockChain.maybeSingle.mockResolvedValue({
