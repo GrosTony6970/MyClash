@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { FrozenResultsModule } from '../matches/frozen-results.module';
 import { BracketAdvanceService } from './bracket-advance.service';
 import { BracketSlotsController } from './bracket-slots.controller';
 import { ConflictCheckController } from './conflict-check.controller';
@@ -15,7 +16,11 @@ import { SwissCoreModule } from '../swiss/swiss-core.module';
   // SwissCoreModule, never SwissModule: MatchCompletionService has to invoke
   // Swiss pairing for auto-advance, and only the leaf can be depended on
   // without closing a module cycle. See swiss-core.module.ts.
+  // FrozenResultsModule, not MatchesModule: MatchCompletionService injects the
+  // freeze non-optionally and MatchesModule imports THIS module, so reaching it
+  // any other way closes the cycle module-graph.test.ts fails on.
   imports: [
+    FrozenResultsModule,
     RefereesModule,
     HemaRatingsModule,
     OrganizationsModule,

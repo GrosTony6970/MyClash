@@ -1,9 +1,32 @@
-import { Injectable, Logger, Optional } from '@nestjs/common';
+import {
+  ConflictException,
+  ForbiddenException,
+  Injectable,
+  Logger,
+  Optional,
+} from '@nestjs/common';
 import { SupabaseService } from '../supabase/supabase.service';
 // Value imports, not `import type`: Nest needs the runtime classes for DI metadata.
 import { BracketAdvanceService } from './bracket-advance.service';
 import { PhasesService } from './phases.service';
 import { SwissAdvanceService } from '../swiss/swiss-advance.service';
+import { FrozenResultsGuard } from '../matches/frozen-results.guard';
+import { clearDependentPairing, dependentClosure, type DependentBout } from './bracket-dependents';
+import { revertMatchToUnplayed } from './revert-match';
+
+/** Who is asking, and what they have already agreed to lose. */
+export interface UncompleteOptions {
+  actor?: {
+    userId?: string;
+    staffAccountId?: string;
+    /** Granted only by `authorizeMatchOrganizer` — org editor, admin or owner. */
+    canDiscardDependentResults?: boolean;
+  };
+  /** The organiser has been shown the fought dependents and wants them wiped. */
+  discardDependents?: boolean;
+  /** Recorded on each reverted bout's `match_events` row. */
+  reason?: string;
+}
 
 /**
  * The single owner of "a match just completed".
@@ -39,6 +62,11 @@ export class MatchCompletionService {
 
   constructor(
     private readonly supabase: SupabaseService,
+    // NOT @Optional(), unlike its siblings. The other three degrade to a missing
+    // side effect; this one degrades to a freeze that stops existing, which is
+    // the worst shape a guard can take. It is reachable from here only because
+    // FrozenResultsModule is a leaf — see its header.
+    private readonly frozenResults: FrozenResultsGuard,
     @Optional() private readonly bracketAdvance?: BracketAdvanceService,
     @Optional() private readonly phases?: PhasesService,
     @Optional() private readonly swissAdvance?: SwissAdvanceService,
@@ -56,6 +84,99 @@ export class MatchCompletionService {
     await this.advance(matchId);
     await this.maybePopulateBracket(matchId);
     await this.maybeAdvanceSwiss(matchId);
+  }
+
+  /**
+   * The mirror: a match STOPPED being completed, so everything its result
+   * produced has to stop standing.
+   *
+   * Advancement writes a downstream side only while it is null — the property
+   * that makes re-advancing idempotent — so a stale side is permanent. Undo the
+   * bout and nothing corrects it: replay it, let the other fighter win, and the
+   * next round still carries the first one. Silently, for the rest of the event.
+   *
+   * THE ERROR CONTRACT IS DELIBERATELY THE OPPOSITE OF ITS SIBLING.
+   * `onMatchCompleted` must never throw, because a side effect must not fail the
+   * write that triggered it. This one MUST be able to refuse: a caller that
+   * swallows a failure here leaves the bracket describing a match that did not
+   * happen, which is worse than the write not going through. Call it BEFORE the
+   * status write, so a refusal leaves nothing half-done — there is no
+   * transaction through supabase-js, and ordering is the whole guarantee.
+   *
+   * THREE OUTCOMES.
+   *   - No dependent has been fought: clear and return. Nothing is lost.
+   *   - A dependent has been fought, `discardDependents` not set: refuse, naming
+   *     the count. The caller is expected to have shown the operator the
+   *     pre-flight first.
+   *   - A dependent has been fought and an authorised organiser said yes: those
+   *     bouts are reverted to unplayed too, deepest round first, and go back on
+   *     the schedule to be re-fought. Completing this match again refills them
+   *     through the ordinary advance path.
+   *
+   * WHAT IT DELIBERATELY DOES NOT DO. It never deletes a bout. The grand-final
+   * reset is the one row created on demand rather than at generation time, and
+   * `retractGrandFinalReset` removes it when a re-completion flips the result to
+   * a winners-bracket win. Doing that here as well would hard-delete a reset
+   * that was actually played, taking its exchanges, penalties and events with it
+   * through ON DELETE CASCADE. Clearing is enough: the row survives as an empty
+   * scheduled bout and the completion path decides its fate.
+   */
+  async onMatchUncompleted(matchId: string, opts: UncompleteOptions = {}): Promise<void> {
+    // Once, on the root. The guard is per EVENT — it walks match → phase →
+    // tournament → event — and every dependent is in the same phase, so asking
+    // per bout would be 5N sequential reads for one answer. It also throws, and
+    // a throw from inside the revert loop leaves a half-applied cascade.
+    await this.frozenResults.assertResultMutationAllowed(matchId, opts.actor?.userId);
+
+    const dependents = await dependentClosure(this.supabase.service, matchId);
+    const fought = dependents.filter((bout) => bout.hasBeenFought);
+
+    if (fought.length > 0) {
+      this.assertMayDiscard(fought, opts);
+      const reason = opts.reason ?? 'result of an earlier bout was undone';
+      // Deepest round first, which `dependentClosure` has already ordered. Every
+      // edge increases the round, so a bout is reverted only after everything it
+      // feeds — a crash part-way leaves a suffix reverted and converges on re-run.
+      for (const bout of fought) {
+        if (!bout.matchId) continue;
+        await revertMatchToUnplayed(this.supabase.service, bout.matchId, reason, opts.actor ?? {});
+      }
+    }
+
+    // The root's own fed sides, plus those of every bout the cascade reverted:
+    // `clearDownstreamOf` reaches exactly one level, so applying it only at the
+    // root would leave every deeper slot holding what its now-reverted parent
+    // put there, and the permanent-stale-side bug simply moves a round along.
+    // Bouts that were never fought propagated nothing, so they need no clear.
+    await this.bracketAdvance?.clearDownstreamOf(matchId);
+    for (const bout of fought) {
+      if (bout.matchId) await this.bracketAdvance?.clearDownstreamOf(bout.matchId);
+    }
+
+    // And take the fighters off the dependent rows themselves — the slot clear
+    // does not touch them, and until a re-completion happens they would keep
+    // naming a pair that has not earned the bout.
+    for (const bout of dependents) {
+      if (bout.matchId) await clearDependentPairing(this.supabase.service, bout.matchId);
+    }
+  }
+
+  private assertMayDiscard(fought: DependentBout[], opts: UncompleteOptions): void {
+    if (!opts.discardDependents) {
+      throw new ConflictException({
+        message:
+          fought.length === 1
+            ? 'A later bout has already been fought. Undoing this result would invalidate it.'
+            : `${fought.length} later bouts have already been fought. Undoing this result would invalidate them.`,
+        foughtCount: fought.length,
+        code: 'dependent_results_would_be_discarded',
+      });
+    }
+    if (!opts.actor?.canDiscardDependentResults) {
+      throw new ForbiddenException(
+        'Only an organiser can undo a result once a later bout has been fought',
+      );
+    }
   }
 
   private async advance(matchId: string): Promise<void> {

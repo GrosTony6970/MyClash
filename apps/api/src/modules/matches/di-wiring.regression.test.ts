@@ -126,6 +126,7 @@ describe('every module injecting FrozenResultsGuard imports the leaf that provid
     'MatchForfeitsService',
     'PenaltiesService',
     'ExchangeEditRequestsAdminService',
+    'MatchCompletionService',
   ];
 
   const moduleFiles = walk(apiSrc);
@@ -158,6 +159,7 @@ describe('every module injecting FrozenResultsGuard imports the leaf that provid
     ['../penalties/penalties.service.ts', '../penalties/penalties.module.ts'],
     ['../admin/exchange-edit-requests.service.ts', '../admin/admin.module.ts'],
     ['../admin/exchange-edit-requests.service.ts', '../admin/review-queue.module.ts'],
+    ['../phases/match-completion.service.ts', '../phases/phases.module.ts'],
   ];
 
   /**
