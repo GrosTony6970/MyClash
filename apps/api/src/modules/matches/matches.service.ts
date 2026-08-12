@@ -1057,10 +1057,12 @@ export class MatchesService {
    * already refused this call unless the actor holds `canOverrideLocked`, the
    * same authority `unlockMatch` demands; these are its five columns.
    *
-   * NOT DONE HERE: the match's active `match_forfeits` row is left standing, so
-   * standings keep counting the F. Voiding it also means undoing whatever
-   * `applyTournamentState` did to the fighter's registration, which belongs with
-   * the un-completion owner rather than bolted on here.
+   * THE FORFEIT is voided by the un-completion owner, not here — `uncomplete`
+   * below reaches it, and it does the same for every bout the cascade reverts.
+   * It voids only records whose whole effect was their own bout, and REFUSES
+   * when one withdrew the fighter or spawned child auto-forfeits, naming
+   * `PATCH /match-forfeits/:id/void` as the remedy. That refusal is why this
+   * call can return a 409 it never used to.
    */
   async resetMatch(matchId: string, dto: ResetMatchDto, context?: MatchActor) {
     if (dto.confirmation !== 'RESET MATCH') {

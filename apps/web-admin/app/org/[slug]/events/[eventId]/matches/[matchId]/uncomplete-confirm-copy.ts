@@ -26,6 +26,12 @@ export interface UncompletePreflight {
   blocked: boolean;
   canDiscard: boolean;
   frozen: boolean;
+  /** Live forfeit records this un-completion would void. Absent on older deploys. */
+  forfeitsToVoid?: number;
+  /** One of them reached beyond its own bout, so the whole call refuses. */
+  forfeitBlocked?: boolean;
+  /** A reserve took a no-show's place. That substitution is NOT undone. */
+  forfeitReplacedFighter?: boolean;
 }
 
 export interface CopyLine {
@@ -57,6 +63,9 @@ const BACK_ON_SCHEDULE = 'organizer.matchDetail.uncompleteBodyBackOnSchedule';
 const REFILLS = 'organizer.matchDetail.uncompleteBodyRefills';
 const ASK_ORGANISER = 'organizer.matchDetail.uncompleteBodyAskOrganiser';
 const FROZEN = 'organizer.matchDetail.uncompleteBodyFrozen';
+const FORFEIT_VOIDED = 'organizer.matchDetail.uncompleteBodyForfeitVoided';
+const FORFEIT_BLOCKED = 'organizer.matchDetail.uncompleteBodyForfeitBlocked';
+const FORFEIT_REPLACEMENT = 'organizer.matchDetail.uncompleteBodyForfeitReplacement';
 
 /**
  * `t()` has no plural engine, so a count of one needs its own key rather than
@@ -65,23 +74,47 @@ const FROZEN = 'organizer.matchDetail.uncompleteBodyFrozen';
 const counted = (one: string, many: string, count: number): CopyLine =>
   count === 1 ? { key: one } : { key: many, values: { count } };
 
+/** One sentence, said the same way wherever it applies. */
+const refusal = (key: string): UncompleteConfirmCopy => ({
+  body: [{ key }],
+  hint: { key },
+  action: 'refused',
+});
+
+/**
+ * What the forfeit records add to the body.
+ *
+ * Stated wherever it applies: an F disappearing from the standings is exactly
+ * the kind of side effect an organiser will not predict from the word "undo",
+ * and a reserve substitution SURVIVING the undo is the other one.
+ */
+function forfeitLines(preflight: UncompletePreflight): CopyLine[] {
+  return [
+    ...((preflight.forfeitsToVoid ?? 0) > 0 ? [{ key: FORFEIT_VOIDED }] : []),
+    ...(preflight.forfeitReplacedFighter ? [{ key: FORFEIT_REPLACEMENT }] : []),
+  ];
+}
+
 export function uncompleteConfirmCopy(
   preflight: UncompletePreflight | null | undefined,
 ): UncompleteConfirmCopy {
   // No pre-flight — it failed to load, or this is a deploy without the endpoint.
   // Say only what is true of every un-completion. Guessing "nothing downstream"
   // here would be the same class of lie the void copy exists to remove.
-  if (!preflight) {
-    return { body: [{ key: EMPTIES_NONE }], hint: null, action: 'proceed' };
-  }
+  if (!preflight) return { body: [{ key: EMPTIES_NONE }], hint: null, action: 'proceed' };
 
   // The freeze outranks everything: a completed event refuses the write whatever
   // the organiser ticks, so offering the action at all would be a dead end.
-  if (preflight.frozen) {
-    return { body: [{ key: FROZEN }], hint: { key: FROZEN }, action: 'refused' };
-  }
+  if (preflight.frozen) return refusal(FROZEN);
+
+  // A forfeit that withdrew the fighter, or that auto-forfeited their other
+  // bouts, is refused by the API whatever else is true — ranked above the fought
+  // dependents for the same reason the freeze is. Its remedy is a different
+  // screen, so the copy has to name it.
+  if (preflight.forfeitBlocked) return refusal(FORFEIT_BLOCKED);
 
   const emptied = preflight.affected.length;
+  const forfeits = forfeitLines(preflight);
 
   if (!preflight.blocked) {
     // Nothing was fought, so nothing is lost. Two shapes only, because "the 0
@@ -90,7 +123,11 @@ export function uncompleteConfirmCopy(
       emptied === 0
         ? [{ key: EMPTIES_NONE }]
         : [counted(EMPTIES_ONE, EMPTIES_MANY, emptied), { key: REFILLS }];
-    return { body, hint: null, action: 'proceed' };
+    return {
+      body: [...body, ...forfeits],
+      hint: forfeits[0] ?? null,
+      action: 'proceed',
+    };
   }
 
   // Fought bouts exist. The consequence sentence is the one that must also be on
@@ -102,7 +139,7 @@ export function uncompleteConfirmCopy(
   }
 
   return {
-    body: [discards, { key: BACK_ON_SCHEDULE }, { key: REFILLS }],
+    body: [discards, { key: BACK_ON_SCHEDULE }, { key: REFILLS }, ...forfeits],
     hint: discards,
     action: 'acknowledge',
   };

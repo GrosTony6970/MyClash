@@ -163,17 +163,22 @@ function bracketFixture(foughtFinal: boolean) {
 }
 
 /** Records every write so the assertions can be about effects, not calls. */
-function uncompleteSupabase(fixture: { slots: Row[]; matches: Row[] }) {
+function uncompleteSupabase(fixture: {
+  slots: Row[];
+  matches: Row[];
+  match_forfeits?: Row[];
+  registrations?: Row[];
+}) {
   const writes: Array<{ table: string; row: Row }> = [];
+  const tableRows: Record<string, Row[]> = {
+    bracket_slots: fixture.slots,
+    matches: fixture.matches,
+    phases: [{ id: 'phase-1', type: 'single_elim', config_json: { bracketSize: 4 } }],
+    match_forfeits: fixture.match_forfeits ?? [],
+    registrations: fixture.registrations ?? [],
+  };
   const from = (table: string) => {
-    let rows: Row[] =
-      table === 'bracket_slots'
-        ? fixture.slots
-        : table === 'matches'
-          ? fixture.matches
-          : table === 'phases'
-            ? [{ id: 'phase-1', type: 'single_elim', config_json: { bracketSize: 4 } }]
-            : [];
+    let rows: Row[] = tableRows[table] ?? [];
     const api: Record<string, unknown> = {};
     Object.assign(api, {
       select: () => api,
@@ -191,6 +196,12 @@ function uncompleteSupabase(fixture: { slots: Row[]; matches: Row[] }) {
         rows = rows.filter((row) => row[column] !== value);
         return api;
       },
+      // `.is('voided_at', null)` — a column absent from a fixture row reads as
+      // null, which is what an un-voided forfeit record actually looks like.
+      is: (column: string, value: unknown) => {
+        rows = rows.filter((row) => (row[column] ?? null) === value);
+        return api;
+      },
       update: (row: Row) => {
         writes.push({ table, row });
         return api;
@@ -200,6 +211,7 @@ function uncompleteSupabase(fixture: { slots: Row[]; matches: Row[] }) {
         return Promise.resolve({ error: null });
       },
       maybeSingle: () => Promise.resolve({ data: rows[0] ?? null, error: null }),
+      single: () => Promise.resolve({ data: rows[0] ?? null, error: null }),
       then: (resolve: (v: unknown) => unknown) => resolve({ data: rows, error: null }),
     });
     return api;
@@ -327,6 +339,145 @@ describe('MatchCompletionService.onMatchUncompleted', () => {
     ).rejects.toThrow(ConflictException);
 
     expect(supabase.writes).toEqual([]);
+  });
+
+  /**
+   * A forfeit record whose whole effect was its own bout: the fighter's
+   * `registrations.status` still reads exactly what the record captured, which
+   * is what `applyTournamentState` leaves behind when it decides not to move
+   * them at all.
+   */
+  const matchOnlyForfeit = (over: Row = {}) => ({
+    match_forfeits: [
+      {
+        id: 'forfeit-1',
+        match_id: 'match-r1p1',
+        forfeiting_registration_id: 'reg-a',
+        replacement_registration_id: null,
+        previous_registration_state: { status: 'checked_in' },
+        parent_forfeit_id: null,
+        voided_at: null,
+        ...over,
+      },
+    ],
+    registrations: [{ id: 'reg-a', status: 'checked_in' }],
+  });
+
+  it('voids the bout’s forfeit, and writes nothing but that', async () => {
+    // The F keys on `voided_at IS NULL` in pool standings, Swiss standings and
+    // the HEMA export — and `match_forfeits_one_active_per_match` means the
+    // replayed bout cannot be re-forfeited while the stale record stands.
+    const supabase = uncompleteSupabase({ ...bracketFixture(false), ...matchOnlyForfeit() });
+
+    await new MatchCompletionService(
+      supabase as never,
+      openEvent() as never,
+      { clearDownstreamOf: vi.fn().mockResolvedValue(undefined) } as never,
+    ).onMatchUncompleted('match-r1p1', { actor: { userId: 'organiser-1' } });
+
+    const voided = supabase.writes.filter((w) => w.table === 'match_forfeits');
+    expect(voided).toHaveLength(1);
+    expect(voided[0]?.row).toMatchObject({ voided_by_user_id: 'organiser-1' });
+    expect(voided[0]?.row['voided_at']).toEqual(expect.any(String));
+
+    // THE UN-DQ GUARD. Reopen on the pad reaches this same owner, so a
+    // registration write here is a disqualification reversed by a clock button.
+    // On the path that passes, previous === current — there is nothing to undo.
+    expect(supabase.writes.some((w) => w.table === 'registrations')).toBe(false);
+  });
+
+  it('voids the forfeit LAST, after the bout has been put back', async () => {
+    // Crash before it and the state is exactly today's: F standing, row still
+    // completed, and `MatchesService.uncomplete` still sees `completed` so a
+    // re-run converges. Crash after voiding first and the standings show a win
+    // for a bout nobody fought, with no record explaining it.
+    const supabase = uncompleteSupabase({ ...bracketFixture(true), ...matchOnlyForfeit() });
+
+    await new MatchCompletionService(
+      supabase as never,
+      openEvent() as never,
+      { clearDownstreamOf: vi.fn().mockResolvedValue(undefined) } as never,
+    ).onMatchUncompleted('match-r1p1', { discardDependents: true, actor: ORGANISER });
+
+    const tables = supabase.writes.map((w) => w.table);
+    expect(tables.indexOf('match_forfeits')).toBeGreaterThan(tables.lastIndexOf('matches'));
+  });
+
+  it('refuses when the forfeit also took the fighter out of the tournament', async () => {
+    // `previous_registration_state` is captured for every root record whether or
+    // not `applyTournamentState` wrote anything, so the record alone proves
+    // nothing. The fighter's CURRENT status having moved is the evidence.
+    const supabase = uncompleteSupabase({
+      ...bracketFixture(false),
+      ...matchOnlyForfeit(),
+      registrations: [{ id: 'reg-a', status: 'disqualified' }],
+    });
+
+    await expect(
+      new MatchCompletionService(
+        supabase as never,
+        openEvent() as never,
+        { clearDownstreamOf: vi.fn() } as never,
+      ).onMatchUncompleted('match-r1p1', { actor: ORGANISER }),
+    ).rejects.toThrow(ConflictException);
+
+    expect(supabase.writes).toEqual([]);
+  });
+
+  it('refuses while the record still carries live children', async () => {
+    // A withdrawal auto-forfeited the fighter's remaining pool bouts. Undoing
+    // the trigger here would put this bout back while those stayed forfeited.
+    const forfeit = matchOnlyForfeit();
+    const supabase = uncompleteSupabase({
+      ...bracketFixture(false),
+      ...forfeit,
+      match_forfeits: [
+        ...forfeit.match_forfeits,
+        {
+          id: 'forfeit-child',
+          match_id: 'pool-later',
+          forfeiting_registration_id: 'reg-a',
+          replacement_registration_id: null,
+          // A child captures `{}` — the PARENT owns the fighter's status.
+          previous_registration_state: {},
+          parent_forfeit_id: 'forfeit-1',
+          voided_at: null,
+        },
+      ],
+    });
+
+    await expect(
+      new MatchCompletionService(
+        supabase as never,
+        openEvent() as never,
+        { clearDownstreamOf: vi.fn() } as never,
+      ).onMatchUncompleted('match-r1p1', { actor: ORGANISER }),
+    ).rejects.toThrow(ConflictException);
+
+    expect(supabase.writes).toEqual([]);
+  });
+
+  it('voids a record that swapped a reserve in, without touching the bracket', async () => {
+    // Reachable only once the reserve has actually fought — and at that point
+    // `voidForfeit` refuses forever (`resulting_match_state` says 'scheduled'),
+    // so refusing here too would leave the record unremovable by any route while
+    // the HEMA export keeps dropping a real bout as a walkover.
+    //
+    // Entering a substitute changed the FIELD, not this result. Undoing a result
+    // must not un-enter a fighter who may have fought elsewhere since.
+    const supabase = uncompleteSupabase({
+      ...bracketFixture(false),
+      ...matchOnlyForfeit({ replacement_registration_id: 'reg-reserve' }),
+    });
+
+    await new MatchCompletionService(
+      supabase as never,
+      openEvent() as never,
+      { clearDownstreamOf: vi.fn().mockResolvedValue(undefined) } as never,
+    ).onMatchUncompleted('match-r1p1', { actor: ORGANISER });
+
+    expect(supabase.writes.filter((w) => w.table === 'match_forfeits')).toHaveLength(1);
+    expect(supabase.writes.some((w) => w.table === 'bracket_slots')).toBe(false);
   });
 
   it('no-ops for a pool match, which feeds no slot', async () => {

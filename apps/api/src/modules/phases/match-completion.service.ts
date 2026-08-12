@@ -13,6 +13,12 @@ import { SwissAdvanceService } from '../swiss/swiss-advance.service';
 import { FrozenResultsGuard } from '../matches/frozen-results.guard';
 import { clearDependentPairing, dependentClosure, type DependentBout } from './bracket-dependents';
 import { revertMatchToUnplayed } from './revert-match';
+import {
+  assertForfeitsVoidableHere,
+  readActiveForfeits,
+  voidForfeitRecords,
+  type ActiveForfeitRecord,
+} from '../matches/forfeit-void';
 
 /** Who is asking, and what they have already agreed to lose. */
 export interface UncompleteOptions {
@@ -130,9 +136,16 @@ export class MatchCompletionService {
 
     const dependents = await dependentClosure(this.supabase.service, matchId);
     const fought = dependents.filter((bout) => bout.hasBeenFought);
+    const touched = [matchId, ...fought.flatMap((bout) => (bout.matchId ? [bout.matchId] : []))];
+
+    // ASSERT PHASE — every refusal, before any write. A 409 raised after two
+    // bouts have already been reverted is the half-applied cascade this method
+    // is ordered to prevent.
+    const forfeits = await readActiveForfeits(this.supabase.service, touched);
+    if (fought.length > 0) this.assertMayDiscard(fought, opts);
+    await assertForfeitsVoidableHere(this.supabase.service, forfeits);
 
     if (fought.length > 0) {
-      this.assertMayDiscard(fought, opts);
       const reason = opts.reason ?? 'result of an earlier bout was undone';
       // Deepest round first, which `dependentClosure` has already ordered. Every
       // edge increases the round, so a bout is reverted only after everything it
@@ -143,19 +156,37 @@ export class MatchCompletionService {
       }
     }
 
-    // The root's own fed sides, plus those of every bout the cascade reverted:
-    // `clearDownstreamOf` reaches exactly one level, so applying it only at the
-    // root would leave every deeper slot holding what its now-reverted parent
-    // put there, and the permanent-stale-side bug simply moves a round along.
-    // Bouts that were never fought propagated nothing, so they need no clear.
+    await this.clearFedSides(matchId, fought, dependents);
+
+    // LAST. Not-yet-done is exactly today's behaviour — the F stands and the row
+    // still says completed — so a crash before this leaves the safest partial
+    // state there is, and a re-run converges because `MatchesService.uncomplete`
+    // still sees `status === 'completed'`. Voiding earlier would strand a bout
+    // whose result nobody fought with no forfeit explaining it.
+    await voidForfeitRecords(this.supabase.service, forfeits, opts.actor ?? {});
+  }
+
+  /**
+   * Take back everything these results propagated.
+   *
+   * `clearDownstreamOf` reaches exactly one level, so applying it only at the
+   * root would leave every deeper slot holding what its now-reverted parent put
+   * there, and the permanent-stale-side bug simply moves a round along. Bouts
+   * that were never fought propagated nothing, so they need no clear.
+   *
+   * The pairing clear is separate and runs over EVERY dependent, fought or not:
+   * the slot clear does not touch the matches row, so until a re-completion
+   * happens the bout would keep naming a pair that has not earned it.
+   */
+  private async clearFedSides(
+    matchId: string,
+    fought: DependentBout[],
+    dependents: DependentBout[],
+  ): Promise<void> {
     await this.bracketAdvance?.clearDownstreamOf(matchId);
     for (const bout of fought) {
       if (bout.matchId) await this.bracketAdvance?.clearDownstreamOf(bout.matchId);
     }
-
-    // And take the fighters off the dependent rows themselves — the slot clear
-    // does not touch them, and until a re-completion happens they would keep
-    // naming a pair that has not earned the bout.
     for (const bout of dependents) {
       if (bout.matchId) await clearDependentPairing(this.supabase.service, bout.matchId);
     }
@@ -177,8 +208,10 @@ export class MatchCompletionService {
     const dependents = await dependentClosure(this.supabase.service, matchId);
     const fought = dependents.filter((bout) => bout.hasBeenFought);
     const named = await this.nameBouts(dependents);
+    const forfeits = await this.previewForfeits(matchId, fought);
 
     return {
+      ...forfeits,
       affected: dependents.map((bout) => ({
         label: named.get(bout.matchId ?? '')?.label ?? bout.label,
         redName: named.get(bout.matchId ?? '')?.redName ?? null,
@@ -193,6 +226,39 @@ export class MatchCompletionService {
       canDiscard: actor?.canDiscardDependentResults === true,
       frozen: await this.isFrozen(matchId, actor?.userId),
     };
+  }
+
+  /**
+   * What the forfeit records on these bouts would do, without doing it.
+   *
+   * `forfeitBlocked` is the same question `assertForfeitsVoidableHere` answers
+   * with a 409 — asked here so the dialog can say "an organiser has to void the
+   * withdrawal first" instead of the operator discovering it by being refused.
+   * `forfeitsToVoid` counts the records that WILL be voided, because a reset
+   * that quietly removes an F should say so first.
+   */
+  private async previewForfeits(matchId: string, fought: DependentBout[]) {
+    const touched = [matchId, ...fought.flatMap((bout) => (bout.matchId ? [bout.matchId] : []))];
+    const forfeits = await readActiveForfeits(this.supabase.service, touched);
+    const blockedReason = await this.forfeitBlockedReason(forfeits);
+    return {
+      forfeitsToVoid: forfeits.length,
+      forfeitBlocked: blockedReason !== null,
+      forfeitBlockedReason: blockedReason,
+      /** A reserve took a no-show's place; that substitution is NOT undone. */
+      forfeitReplacedFighter: forfeits.some((record) => record.replacementRegistrationId !== null),
+    };
+  }
+
+  /** The refusal's `code`, or null when nothing would refuse. Never throws. */
+  private async forfeitBlockedReason(forfeits: ActiveForfeitRecord[]): Promise<string | null> {
+    try {
+      await assertForfeitsVoidableHere(this.supabase.service, forfeits);
+      return null;
+    } catch (err) {
+      const body = (err as { response?: { code?: string } }).response;
+      return body?.code ?? 'forfeit_withdrew_fighter';
+    }
   }
 
   /** `false` rather than a throw — a pre-flight reports, it does not refuse. */

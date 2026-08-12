@@ -7018,6 +7018,12 @@ export const en = {
       uncompleteBodyAskOrganiser: 'Only an organiser can do this. Ask one for help.',
       uncompleteBodyFrozen:
         'This event is closed and its results are frozen. Nothing can be undone here.',
+      uncompleteBodyForfeitVoided:
+        'The forfeit recorded on this bout is cancelled, so it stops counting in the standings.',
+      uncompleteBodyForfeitBlocked:
+        'This bout was closed by a forfeit that also took the fighter out of the tournament. Undo that record first, from the forfeit panel on this bout.',
+      uncompleteBodyForfeitReplacement:
+        'A reserve took the missing fighter’s place in the draw. That stays as it is.',
       uncompleteBlockedTitle: 'Undoing this result would invalidate a later bout',
       uncompleteAffectedTitle: 'Bouts affected',
       correctionSubmitted: 'Correction request {id} submitted for review.',
@@ -14936,6 +14942,12 @@ export const fr = {
       uncompleteBodyAskOrganiser: 'Seul un organisateur peut le faire. Demandez-lui de l’aide.',
       uncompleteBodyFrozen:
         'Cet événement est clôturé et ses résultats sont figés. Rien ne peut être annulé ici.',
+      uncompleteBodyForfeitVoided:
+        'Le forfait enregistré sur cet assaut est annulé : il cesse de compter au classement.',
+      uncompleteBodyForfeitBlocked:
+        'Cet assaut a été clôturé par un forfait qui a aussi retiré le combattant du tournoi. Annulez d’abord cet enregistrement, depuis le panneau forfait de cet assaut.',
+      uncompleteBodyForfeitReplacement:
+        'Un remplaçant a pris la place du combattant absent dans le tableau. Cela reste inchangé.',
       uncompleteBlockedTitle: 'Annuler ce résultat invaliderait un assaut suivant',
       uncompleteAffectedTitle: 'Assauts concernés',
       correctionSubmitted: 'Demande de correction {id} soumise pour validation.',

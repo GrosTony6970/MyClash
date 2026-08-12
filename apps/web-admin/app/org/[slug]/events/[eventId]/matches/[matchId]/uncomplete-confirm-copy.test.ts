@@ -122,4 +122,51 @@ describe('uncompleteConfirmCopy', () => {
       expect(copy.hint).toBeNull();
     }
   });
+
+  it('says the forfeit stops counting, because an F vanishing silently is the bug', () => {
+    const copy = uncompleteConfirmCopy(preflight({ forfeitsToVoid: 1 }));
+
+    expect(keys(copy)).toContain('organizer.matchDetail.uncompleteBodyForfeitVoided');
+    // On the panel too — the standings change is the consequence an organiser
+    // is least likely to predict from the word 'undo'.
+    expect(copy.hint?.key).toBe('organizer.matchDetail.uncompleteBodyForfeitVoided');
+    expect(copy.action).toBe('proceed');
+  });
+
+  it('refuses, and names the other screen, when the forfeit withdrew the fighter', () => {
+    // Ranked above the fought dependents: the API refuses whatever is ticked, so
+    // offering the tick would be the lie this module exists to remove.
+    const copy = uncompleteConfirmCopy(
+      preflight({ forfeitBlocked: true, blocked: true, foughtCount: 1, canDiscard: true }),
+    );
+
+    expect(keys(copy)).toEqual(['organizer.matchDetail.uncompleteBodyForfeitBlocked']);
+    expect(copy.action).toBe('refused');
+    expect(keys(copy)).not.toContain('organizer.matchDetail.uncompleteBodyDiscardsOne');
+  });
+
+  it('warns that a reserve substitution is NOT undone', () => {
+    const copy = uncompleteConfirmCopy(
+      preflight({ forfeitsToVoid: 1, forfeitReplacedFighter: true }),
+    );
+
+    expect(keys(copy)).toContain('organizer.matchDetail.uncompleteBodyForfeitReplacement');
+  });
+
+  it('keeps the forfeit sentence on the destructive branch too', () => {
+    const copy = uncompleteConfirmCopy(
+      preflight({
+        affected: [bout(true)],
+        blocked: true,
+        foughtCount: 1,
+        canDiscard: true,
+        forfeitsToVoid: 1,
+      }),
+    );
+
+    expect(copy.action).toBe('acknowledge');
+    expect(keys(copy)).toContain('organizer.matchDetail.uncompleteBodyForfeitVoided');
+    // The discard sentence still leads — it is the one that loses fought bouts.
+    expect(copy.hint?.key).toBe('organizer.matchDetail.uncompleteBodyDiscardsOne');
+  });
 });

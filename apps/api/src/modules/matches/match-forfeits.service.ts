@@ -20,6 +20,7 @@ import type { CreateMatchForfeitDto } from './dto/matches.dto';
 import { ClockService } from './clock.service';
 import { FrozenResultsGuard } from './frozen-results.guard';
 import { forfeitEndReason } from './forfeit-end-reason';
+import { stampForfeitVoided } from './forfeit-void';
 
 /**
  * `canOverrideLocked` comes from `authorizeMatchScoring` and was being dropped
@@ -502,21 +503,13 @@ export class MatchForfeitsService {
   /**
    * Stamp the void columns. Shared so a cascaded child records the same audit
    * trail — who voided it and when — as the parent that carried it down.
+   *
+   * The columns moved to `forfeit-void.ts` once the un-completion owner grew a
+   * third way to void a record. Three writers of one audit shape is how they
+   * drift; `unplayed-match-columns.ts` is here for the same reason.
    */
-  private async stampVoided(forfeitId: string, actor: Actor): Promise<Row | null> {
-    const now = new Date().toISOString();
-    const { data } = await this.supabase.service
-      .from('match_forfeits')
-      .update({
-        voided_at: now,
-        voided_by_user_id: actor.userId ?? null,
-        voided_by_staff_account_id: actor.staffAccountId ?? null,
-        updated_at: now,
-      })
-      .eq('id', forfeitId)
-      .select('*')
-      .single();
-    return (data as Row | null) ?? null;
+  private stampVoided(forfeitId: string, actor: Actor): Promise<Row | null> {
+    return stampForfeitVoided(this.supabase.service, forfeitId, actor);
   }
 
   /**
