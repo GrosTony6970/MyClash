@@ -771,6 +771,35 @@ export class StaffService {
     return { staffAccountId: staff.id, canOverrideLocked: false };
   }
 
+  /**
+   * Scoring for ACCESS, organizer PROBED for the discard capability.
+   *
+   * The un-completion paths — reset, the clock, the pre-flight — all have to be
+   * reachable by whoever is running the piste, because that is who un-does a
+   * bout. But only an organiser may un-do one that a LATER bout has already been
+   * fought, and `authorizeMatchScoring` cannot say who that is: it grants
+   * `canOverrideLocked` and nothing else.
+   *
+   * Authorising with the organiser check instead would lock the pad out of
+   * resetting anything. Asking both is what lets the same route serve both, and
+   * it asks the question the write path itself will ask, so the pre-flight can
+   * never promise an override the reset then refuses.
+   *
+   * The probe's refusal is a `false`, never a 403 — being unable to discard is
+   * not being unable to act.
+   */
+  async authorizeMatchScoringWithDiscard(
+    req: FastifyRequest,
+    matchId: string,
+  ): Promise<ScoringActor> {
+    const actor = await this.authorizeMatchScoring(req, matchId);
+    const canDiscardDependentResults = await this.authorizeMatchOrganizer(req, matchId).then(
+      () => true,
+      () => false,
+    );
+    return { ...actor, canDiscardDependentResults };
+  }
+
   async authorizeMatchOrganizer(req: FastifyRequest, matchId: string): Promise<ScoringActor> {
     const userId = await this.getSupabaseUserId(req);
     if (!userId) throw new UnauthorizedException('Organizer session required');

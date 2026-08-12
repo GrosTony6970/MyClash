@@ -121,7 +121,7 @@ export class MatchesController {
     // mode, so an anonymous caller was let through and logged. It now needs the
     // identity the summary always described, and the actor is what decides
     // whether a de-completion may discard later bouts.
-    const actor = await this.staff.authorizeMatchScoring(req, id);
+    const actor = await this.staff.authorizeMatchScoringWithDiscard(req, id);
     return this.matches.updateStatus(id, dto, actor);
   }
 
@@ -180,26 +180,8 @@ export class MatchesController {
   })
   @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
   async uncompletePreflight(@Param('id', ParseUUIDPipe) id: string, @Req() req: FastifyRequest) {
-    // Scoring for ACCESS — anyone who can act on the bout should be able to read
-    // what acting would cost, including a pad scorekeeper who cannot push
-    // through and needs to be told so.
-    const actor = await this.staff.authorizeMatchScoring(req, id);
-
-    // Organizer, PROBED, for the capability. `authorizeMatchScoring` never
-    // grants `canDiscardDependentResults` — only `authorizeMatchOrganizer` does
-    // — so reporting the scoring actor's flag would answer `false` for
-    // everybody, including the organisers the override exists for, and the UI
-    // would tell an organiser to go and find an organiser. Asking the same
-    // question the write path will ask is the only answer that stays true.
-    const canDiscardDependentResults = await this.staff
-      .authorizeMatchOrganizer(req, id)
-      .then(() => true)
-      .catch(() => false);
-
-    return this.matchCompletion.previewUncompletion(id, {
-      ...actor,
-      canDiscardDependentResults,
-    });
+    const actor = await this.staff.authorizeMatchScoringWithDiscard(req, id);
+    return this.matchCompletion.previewUncompletion(id, actor);
   }
 
   @Post('matches/:id/void')
@@ -420,7 +402,9 @@ export class MatchesController {
     @Body() dto: ResetMatchDto,
     @Req() req: FastifyRequest,
   ) {
-    const actor = await this.staff.authorizeMatchScoring(req, id);
+    // …WithDiscard: a reset IS an un-completion, so it needs the capability the
+    // pre-flight reports, or an acknowledged reset 403s for everybody.
+    const actor = await this.staff.authorizeMatchScoringWithDiscard(req, id);
     return this.matches.resetMatch(id, dto, actor);
   }
 
@@ -457,7 +441,9 @@ export class MatchesController {
     @Body() dto: ClockActionDto,
     @Req() req: FastifyRequest,
   ) {
-    const actor = await this.staff.authorizeMatchScoring(req, id);
+    // …WithDiscard for the same reason as the reset: four clock actions
+    // un-complete a bout.
+    const actor = await this.staff.authorizeMatchScoringWithDiscard(req, id);
     return this.clock.clockAction(
       id,
       dto.action,
