@@ -405,11 +405,45 @@ bracket_slots (
   registration_a_id, registration_b_id  -- resolved at runtime
 )
 
+swiss_rounds (
+  id, phase_id, round_number,  -- UNIQUE (phase_id, round_number)
+  status,  -- pending | running | completed
+  bye_registration_id, pairing_meta_json
+)
+swiss_entrants (id, phase_id, registration_id, withdrawn_at_round)
+-- matches.swiss_round_id is nullable and mutually exclusive with pool_id /
+-- bracket_slot_id; see HIERARCHY.md.
+
 Generated pool and bracket phases default to `visibility_status='hidden'`.
 Organizer/admin reads can see hidden phases; public and participant-facing reads
 only expose phases, pools, standings, bracket slots, and phase match details once
 the phase is `published`. Existing phases were backfilled to `published` when
 this visibility model was introduced.
+
+**Swiss round lifecycle.** Three rules, each of which more than one service now
+depends on:
+
+1. `swiss_rounds.status` is a **projection of its bouts**, never a workflow of
+   its own. `SwissRoundStateService.refresh` derives it and is the only writer.
+   No organiser action opens or closes a round — the first fighter to step on
+   the piste closes it, which is the moment a pairing change stops being an
+   adjustment and becomes a rewrite of history. It runs in both directions, so
+   un-completing a bout re-opens its round.
+2. **Only the frontier round advances.** `planNextRound` pairs
+   `rounds.length + 1`, which is "one past however many exist" and not "the one
+   after this" — so closing a round that is no longer the last one would commit
+   a round that skips the ones between. `SwissAdvanceService` refuses to advance
+   from any round that already has a later one.
+3. **A published round is never re-drawn automatically.** Committing a round
+   assigns pistes and pushes `swiss_round_published` to the whole field, so
+   redrawing it behind the organiser is worse than one stale pairing. Un-completing
+   a bout whose round has a later round drawn is refused; an organiser may
+   acknowledge and proceed, and `DELETE /swiss-phases/:id/rounds/:n` is the
+   explicit remedy — it accepts exactly the last round with every bout still
+   `scheduled`.
+
+Swiss standings are derived on read and never stored, so they self-correct; the
+round `status` is the only thing that can go stale, which is why rule 1 matters.
 
 matches (
   id, phase_id, pool_id, bracket_slot_id, lice_id,
