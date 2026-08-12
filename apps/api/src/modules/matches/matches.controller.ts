@@ -180,8 +180,26 @@ export class MatchesController {
   })
   @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
   async uncompletePreflight(@Param('id', ParseUUIDPipe) id: string, @Req() req: FastifyRequest) {
+    // Scoring for ACCESS — anyone who can act on the bout should be able to read
+    // what acting would cost, including a pad scorekeeper who cannot push
+    // through and needs to be told so.
     const actor = await this.staff.authorizeMatchScoring(req, id);
-    return this.matchCompletion.previewUncompletion(id, actor);
+
+    // Organizer, PROBED, for the capability. `authorizeMatchScoring` never
+    // grants `canDiscardDependentResults` — only `authorizeMatchOrganizer` does
+    // — so reporting the scoring actor's flag would answer `false` for
+    // everybody, including the organisers the override exists for, and the UI
+    // would tell an organiser to go and find an organiser. Asking the same
+    // question the write path will ask is the only answer that stays true.
+    const canDiscardDependentResults = await this.staff
+      .authorizeMatchOrganizer(req, id)
+      .then(() => true)
+      .catch(() => false);
+
+    return this.matchCompletion.previewUncompletion(id, {
+      ...actor,
+      canDiscardDependentResults,
+    });
   }
 
   @Post('matches/:id/void')
