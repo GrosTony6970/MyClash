@@ -1,7 +1,7 @@
 import { ConflictException, ForbiddenException } from '@nestjs/common';
 import { describe, expect, it, vi } from 'vitest';
 import { ArchiveService } from './archive.service';
-import { ARCHIVE_COLLECTED_TABLES } from './archive.tables';
+import { ARCHIVE_COLLECTED_TABLES, TABLE_TO_ARCHIVE_KEY } from './archive.tables';
 
 type TableRows = Record<string, Record<string, unknown>[]>;
 
@@ -680,6 +680,46 @@ describe('ArchiveService', () => {
       const meta = swissRound['pairing_meta_json'] as Record<string, unknown>;
       expect(meta['generatedAt']).toBe('2026-01-01T00:00:00Z');
     });
+  });
+
+  /**
+   * Anti-vacuity: a table the fixture has rows for must arrive in the archive.
+   *
+   * Without this, declaring a real table uncollected passes almost everything
+   * here — the assertions that read it do `restored.find(...)?.['id']`, and an
+   * empty array satisfies an `undefined` comparison just as well as a correct
+   * one. Two of the tests below were vacuously green when `exchanges` was
+   * collected as `[]`.
+   *
+   * Bounded by the fixture, deliberately: it can only speak for the tables
+   * `scopedRows()` provides, which is why the registry's own suite asserts the
+   * shape of the rules rather than their effect.
+   */
+  it('carries every fixture table the registry says an event archive collects', async () => {
+    const rows = scopedRows();
+    const { service } = makeService(rows);
+
+    const archive = await service.generateEventArchive('event-1', 'user-1', {
+      include: 'scoring',
+    });
+
+    // No exception for an `omit` rule: an EVENT archive is the whole event, so
+    // every declared table is collected at that scope. Excusing `omit` here
+    // would make this blind to the one mistake it exists to catch — which it
+    // was, until declaring `exchanges` uncollected sailed straight past it.
+    const empty = Object.keys(rows)
+      .filter((table) => ARCHIVE_COLLECTED_TABLES.has(table))
+      .filter((table) => {
+        const key = TABLE_TO_ARCHIVE_KEY[table as never] as string;
+        return ((archive.data as Record<string, unknown[]>)[key] ?? []).length === 0;
+      })
+      .sort();
+
+    expect(
+      empty,
+      'the fixture has rows for these tables and the archive came back empty for them — ' +
+        'their collect rule is wrong, and every assertion that reads them is now vacuous',
+    ).toEqual([]);
   });
 
   /**

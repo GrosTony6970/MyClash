@@ -24,58 +24,189 @@
  * migration and fails CI until a new event/tournament/phase-scoped table is
  * either declared below or listed in ARCHIVE_EXCLUDED_TABLES.
  */
-import type { ArchiveRow, ArchiveTableSpec, IdMapName, JsonIdPath } from './archive.table-spec';
+import type {
+  ArchiveRow,
+  ArchiveTableSpec,
+  CollectRule,
+  IdMapName,
+  JsonIdPath,
+} from './archive.table-spec';
+
+/** The row(s) the caller already holds — the event, and the tournament in tournament scope. */
+const ROOT = { from: 'root' } as const satisfies CollectRule;
+/** `eq('event_id', …)` on the event being archived. */
+const EVENT_SCOPED = { from: 'event' } as const satisfies CollectRule;
+const BY_TOURNAMENT = {
+  from: 'tournaments',
+  local: 'tournament_id',
+} as const satisfies CollectRule;
+const BY_PHASE = { from: 'phases', local: 'phase_id' } as const satisfies CollectRule;
+const BY_MATCH_SCORING = {
+  from: 'matches',
+  local: 'match_id',
+  include: 'scoring',
+} as const satisfies CollectRule;
+
+/**
+ * A tournament archive takes the event's pool-assignment settings, but only the
+ * rows that are the event default (no tournament) or this tournament's own.
+ */
+const TOURNAMENT_POOL_SETTINGS = {
+  from: 'event',
+  needs: ['tournaments'],
+  filter: (row, ctx) =>
+    !row['tournament_id'] || ctx.tournamentIds.includes(row['tournament_id'] as string),
+} as const satisfies CollectRule;
+
+/**
+ * Referee assignments are event-scoped, so a tournament archive has to pick out
+ * the ones pointing at a pool or a match it actually carries. In a
+ * structure-only archive there are no matches, so only the pool assignments
+ * survive — which is the same answer the hand-written collector gave.
+ */
+const TOURNAMENT_REFEREE_ASSIGNMENTS = {
+  from: 'event',
+  needs: ['pools', 'matches'],
+  filter: (row, ctx) =>
+    (typeof row['pool_id'] === 'string' && ctx.idsOf('pools').includes(row['pool_id'])) ||
+    (typeof row['match_id'] === 'string' && ctx.idsOf('matches').includes(row['match_id'])),
+} as const satisfies CollectRule;
 
 const TABLES = {
   // ── Event root and its immediate children ─────────────────────────────────
-  events: { key: 'events', idMap: 'events' },
-  themes: { key: 'themes', idMap: 'themes' },
-  lices: { key: 'lices', idMap: 'lices' },
-  persons: { key: 'persons', idMap: 'persons' },
-  person_privacy: { key: 'personPrivacy' },
+  events: { key: 'events', collect: { event: ROOT, tournament: ROOT }, idMap: 'events' },
+  themes: { key: 'themes', collect: { event: EVENT_SCOPED, tournament: 'omit' }, idMap: 'themes' },
+  lices: {
+    key: 'lices',
+    collect: { event: EVENT_SCOPED, tournament: EVENT_SCOPED },
+    idMap: 'lices',
+  },
+  persons: {
+    key: 'persons',
+    collect: {
+      event: EVENT_SCOPED,
+      tournament: { from: 'registrations', local: 'id', parent: 'person_id' },
+    },
+    idMap: 'persons',
+  },
+  person_privacy: {
+    key: 'personPrivacy',
+    collect: {
+      event: { from: 'persons', local: 'person_id' },
+      tournament: { from: 'persons', local: 'person_id' },
+    },
+  },
 
   // referee_skills before anything that stores a skill id: event_hidden_skills,
   // both slot-config skill joins, and referee_assignments.role — which holds a
   // referee_skills.id rather than a role name.
-  referee_skills: { key: 'refereeSkills', idMap: 'refereeSkills' },
-  referee_qualifications: { key: 'refereeQualifications' },
+  referee_skills: {
+    key: 'refereeSkills',
+    collect: { event: EVENT_SCOPED, tournament: 'omit' },
+    idMap: 'refereeSkills',
+  },
+  referee_qualifications: {
+    key: 'refereeQualifications',
+    collect: { event: EVENT_SCOPED, tournament: 'omit' },
+  },
 
   // event_referees before its per-tournament / per-day allowlists.
-  event_referees: { key: 'eventReferees' },
-  event_hidden_skills: { key: 'eventHiddenSkills' },
-  event_instructors: { key: 'eventInstructors' },
-  pool_assignment_settings: { key: 'poolAssignmentSettings' },
+  event_referees: { key: 'eventReferees', collect: { event: EVENT_SCOPED, tournament: 'omit' } },
+  event_hidden_skills: {
+    key: 'eventHiddenSkills',
+    collect: { event: EVENT_SCOPED, tournament: 'omit' },
+  },
+  event_instructors: {
+    key: 'eventInstructors',
+    collect: { event: EVENT_SCOPED, tournament: 'omit' },
+  },
+  pool_assignment_settings: {
+    key: 'poolAssignmentSettings',
+    collect: { event: EVENT_SCOPED, tournament: TOURNAMENT_POOL_SETTINGS },
+  },
 
   // Slot configs before their allowed-skill joins.
-  event_slot_config_default: { key: 'eventSlotConfigDefault', idMap: 'eventSlotConfig' },
-  event_slot_config_default_skills: { key: 'eventSlotConfigDefaultSkills' },
-  referee_compensation_event_settings: { key: 'refereeCompensationEventSettings' },
-  event_venues: { key: 'eventVenues' },
+  event_slot_config_default: {
+    key: 'eventSlotConfigDefault',
+    collect: { event: EVENT_SCOPED, tournament: 'omit' },
+    idMap: 'eventSlotConfig',
+  },
+  event_slot_config_default_skills: {
+    key: 'eventSlotConfigDefaultSkills',
+    collect: {
+      event: { from: 'event_slot_config_default', local: 'slot_config_id' },
+      tournament: 'omit',
+    },
+  },
+  referee_compensation_event_settings: {
+    key: 'refereeCompensationEventSettings',
+    collect: { event: EVENT_SCOPED, tournament: 'omit' },
+  },
+  event_venues: { key: 'eventVenues', collect: { event: EVENT_SCOPED, tournament: 'omit' } },
 
   // ── Tournament and its structure ──────────────────────────────────────────
-  tournaments: { key: 'tournaments', idMap: 'tournaments' },
-  tournament_phase_venues: { key: 'tournamentPhaseVenues' },
-  tournament_slot_config: { key: 'tournamentSlotConfig', idMap: 'tournamentSlotConfig' },
-  tournament_slot_allowed_skills: { key: 'tournamentSlotAllowedSkills' },
-  event_referee_tournaments: { key: 'eventRefereeTournaments' },
-  event_referee_days: { key: 'eventRefereeDays' },
-  registrations: { key: 'registrations', idMap: 'registrations' },
+  tournaments: {
+    key: 'tournaments',
+    collect: { event: EVENT_SCOPED, tournament: ROOT },
+    idMap: 'tournaments',
+  },
+  tournament_phase_venues: {
+    key: 'tournamentPhaseVenues',
+    collect: { event: BY_TOURNAMENT, tournament: BY_TOURNAMENT },
+  },
+  tournament_slot_config: {
+    key: 'tournamentSlotConfig',
+    collect: { event: BY_TOURNAMENT, tournament: BY_TOURNAMENT },
+    idMap: 'tournamentSlotConfig',
+  },
+  tournament_slot_allowed_skills: {
+    key: 'tournamentSlotAllowedSkills',
+    collect: {
+      event: { from: 'tournament_slot_config', local: 'slot_config_id' },
+      tournament: { from: 'tournament_slot_config', local: 'slot_config_id' },
+    },
+  },
+  event_referee_tournaments: {
+    key: 'eventRefereeTournaments',
+    collect: { event: EVENT_SCOPED, tournament: 'omit' },
+  },
+  event_referee_days: {
+    key: 'eventRefereeDays',
+    collect: { event: EVENT_SCOPED, tournament: 'omit' },
+  },
+  registrations: {
+    key: 'registrations',
+    collect: { event: BY_TOURNAMENT, tournament: BY_TOURNAMENT },
+    idMap: 'registrations',
+  },
 
   phases: {
     key: 'phases',
+    collect: { event: BY_TOURNAMENT, tournament: BY_TOURNAMENT },
     idMap: 'phases',
     // phases.service.ts stamps `config_json.bronzeSlotId`, which is a
     // bracket_slots.id inserted LATER. The id maps are all pre-seeded before
     // any row is rewritten precisely so this forward reference resolves.
     json: [{ path: 'config_json.bronzeSlotId', map: 'bracketSlots' }],
   },
-  pools: { key: 'pools', idMap: 'pools' },
-  pool_members: { key: 'poolMembers' },
-  bracket_slots: { key: 'bracketSlots', idMap: 'bracketSlots' },
-  swiss_entrants: { key: 'swissEntrants' },
+  pools: { key: 'pools', collect: { event: BY_PHASE, tournament: BY_PHASE }, idMap: 'pools' },
+  pool_members: {
+    key: 'poolMembers',
+    collect: {
+      event: { from: 'pools', local: 'pool_id' },
+      tournament: { from: 'pools', local: 'pool_id' },
+    },
+  },
+  bracket_slots: {
+    key: 'bracketSlots',
+    collect: { event: BY_PHASE, tournament: BY_PHASE },
+    idMap: 'bracketSlots',
+  },
+  swiss_entrants: { key: 'swissEntrants', collect: { event: BY_PHASE, tournament: BY_PHASE } },
 
   swiss_rounds: {
     key: 'swissRounds',
+    collect: { event: BY_PHASE, tournament: BY_PHASE },
     idMap: 'swissRounds',
     // Before `matches`: a match carries swiss_round_id, so the round it points
     // at has to exist first or the FK remaps to null and the round loses its
@@ -104,14 +235,36 @@ const TABLES = {
   },
 
   // ── Scoring ───────────────────────────────────────────────────────────────
-  matches: { key: 'matches', idMap: 'matches' },
-  referee_assignments: { key: 'refereeAssignments' },
-  match_events: { key: 'matchEvents' },
-  exchanges: { key: 'exchanges', idMap: 'exchanges' },
-  match_penalties: { key: 'matchPenalties', idMap: 'matchPenalties' },
+  matches: {
+    key: 'matches',
+    collect: {
+      event: { from: 'phases', local: 'phase_id', include: 'scoring' },
+      tournament: { from: 'phases', local: 'phase_id', include: 'scoring' },
+    },
+    idMap: 'matches',
+  },
+  referee_assignments: {
+    key: 'refereeAssignments',
+    collect: { event: EVENT_SCOPED, tournament: TOURNAMENT_REFEREE_ASSIGNMENTS },
+  },
+  match_events: {
+    key: 'matchEvents',
+    collect: { event: BY_MATCH_SCORING, tournament: BY_MATCH_SCORING },
+  },
+  exchanges: {
+    key: 'exchanges',
+    collect: { event: BY_MATCH_SCORING, tournament: BY_MATCH_SCORING },
+    idMap: 'exchanges',
+  },
+  match_penalties: {
+    key: 'matchPenalties',
+    collect: { event: BY_MATCH_SCORING, tournament: BY_MATCH_SCORING },
+    idMap: 'matchPenalties',
+  },
 
   match_forfeits: {
     key: 'matchForfeits',
+    collect: { event: BY_MATCH_SCORING, tournament: BY_MATCH_SCORING },
     idMap: 'matchForfeits',
     // Read off match-forfeits.service.ts `matchSnapshot` / `loadRegistration`.
     // The two `*_match_state` blobs are the same snapshot shape, so both carry
@@ -126,6 +279,10 @@ const TABLES = {
   },
   tournament_penalty_reviews: {
     key: 'tournamentPenaltyReviews',
+    collect: {
+      event: { from: 'tournaments', local: 'tournament_id', include: 'scoring' },
+      tournament: { from: 'tournaments', local: 'tournament_id', include: 'scoring' },
+    },
     // penalties.service.ts `createSecondBlackCardReviewIfNeeded` stores the
     // match_penalties.ids that triggered the review. No FK is declared on them,
     // so nothing would ever have complained about a copy naming another event's
@@ -136,12 +293,32 @@ const TABLES = {
   // ── Workshops and the programme ───────────────────────────────────────────
   // Tournaments and workshops both precede event_programme_blocks, which
   // references them by competition_id / workshop_id.
-  workshops: { key: 'workshops', idMap: 'workshops' },
-  workshop_instructors: { key: 'workshopInstructors' },
-  workshop_sessions: { key: 'workshopSessions', idMap: 'workshopSessions' },
-  workshop_enrollments: { key: 'workshopEnrollments' },
-  workshop_breaks: { key: 'workshopBreaks' },
-  event_programme_blocks: { key: 'eventProgrammeBlocks' },
+  workshops: {
+    key: 'workshops',
+    collect: { event: EVENT_SCOPED, tournament: 'omit' },
+    idMap: 'workshops',
+  },
+  workshop_instructors: {
+    key: 'workshopInstructors',
+    collect: { event: { from: 'workshops', local: 'workshop_id' }, tournament: 'omit' },
+  },
+  workshop_sessions: {
+    key: 'workshopSessions',
+    collect: { event: { from: 'workshops', local: 'workshop_id' }, tournament: 'omit' },
+    idMap: 'workshopSessions',
+  },
+  workshop_enrollments: {
+    key: 'workshopEnrollments',
+    collect: {
+      event: { from: 'workshop_sessions', local: 'workshop_session_id' },
+      tournament: 'omit',
+    },
+  },
+  workshop_breaks: { key: 'workshopBreaks', collect: { event: EVENT_SCOPED, tournament: 'omit' } },
+  event_programme_blocks: {
+    key: 'eventProgrammeBlocks',
+    collect: { event: EVENT_SCOPED, tournament: 'omit' },
+  },
 } as const satisfies Record<string, ArchiveTableSpec>;
 
 export const ARCHIVE_TABLES: Readonly<Record<string, ArchiveTableSpec>> = TABLES;
@@ -172,6 +349,17 @@ export const JSON_ID_PATHS = Object.fromEntries(
     (table) => [table, (TABLES[table] as ArchiveTableSpec).json],
   ),
 ) as Partial<Record<ArchiveTableName, readonly JsonIdPath[]>>;
+
+/**
+ * How this table is gathered in the given scope, or 'omit' when a copy at that
+ * scope does not carry it at all.
+ */
+export function collectRuleFor(
+  table: ArchiveTableName,
+  scope: 'event' | 'tournament',
+): CollectRule | 'omit' {
+  return ARCHIVE_TABLES[table]!.collect[scope];
+}
 
 const NO_PATHS: readonly JsonIdPath[] = [];
 

@@ -8,10 +8,11 @@ import { randomUUID } from 'node:crypto';
 import { createStoredZip } from '../../common/stored-zip';
 import { buildTournamentReports, emptyTournamentReports, safeFilename } from './archive-reports';
 import { ID_MAP_NAMES } from './archive.table-spec';
-import type { IdMapName } from './archive.table-spec';
+import type { CollectContext, CollectRule, IdMapName } from './archive.table-spec';
 import {
   INSERT_ORDER,
   TABLE_TO_ARCHIVE_KEY,
+  collectRuleFor,
   emptyArchiveTables,
   idMapNameForTable,
   jsonIdPathsFor,
@@ -538,82 +539,7 @@ export class ArchiveService {
     event: ArchiveRow,
     include: ArchiveInclude,
   ): Promise<ArchiveTables> {
-    const eventId = event['id'] as string;
-    const tables = normalizeArchiveTables({ events: [event], tournaments: [] });
-    tables.themes = await this.listRows('themes', 'event_id', eventId);
-    tables.lices = await this.listRows('lices', 'event_id', eventId);
-    tables.persons = await this.listRows('persons', 'event_id', eventId);
-    tables.personPrivacy = await this.listRowsByIds(
-      'person_privacy',
-      'person_id',
-      ids(tables.persons),
-    );
-    tables.refereeQualifications = await this.listRows(
-      'referee_qualifications',
-      'event_id',
-      eventId,
-    );
-    tables.poolAssignmentSettings = await this.listRows(
-      'pool_assignment_settings',
-      'event_id',
-      eventId,
-    );
-    tables.tournaments = await this.listRows('tournaments', 'event_id', eventId);
-    await this.collectTournamentChildren(tables, ids(tables.tournaments), include);
-    tables.refereeAssignments = await this.listRows('referee_assignments', 'event_id', eventId);
-    tables.workshops = await this.listRows('workshops', 'event_id', eventId);
-    tables.workshopInstructors = await this.listRowsByIds(
-      'workshop_instructors',
-      'workshop_id',
-      ids(tables.workshops),
-    );
-    tables.workshopSessions = await this.listRowsByIds(
-      'workshop_sessions',
-      'workshop_id',
-      ids(tables.workshops),
-    );
-    tables.workshopEnrollments = await this.listRowsByIds(
-      'workshop_enrollments',
-      'workshop_session_id',
-      ids(tables.workshopSessions),
-    );
-    // Referee roster, custom skills, granular availability, per-event skill
-    // visibility, and the event instructor roster (all event-scoped).
-    tables.refereeSkills = await this.listRows('referee_skills', 'event_id', eventId);
-    tables.eventReferees = await this.listRows('event_referees', 'event_id', eventId);
-    tables.eventRefereeTournaments = await this.listRows(
-      'event_referee_tournaments',
-      'event_id',
-      eventId,
-    );
-    tables.eventRefereeDays = await this.listRows('event_referee_days', 'event_id', eventId);
-    tables.eventHiddenSkills = await this.listRows('event_hidden_skills', 'event_id', eventId);
-    tables.eventInstructors = await this.listRows('event_instructors', 'event_id', eventId);
-    // Event-level staffing slot defaults + their allowed-skill joins.
-    tables.eventSlotConfigDefault = await this.listRows(
-      'event_slot_config_default',
-      'event_id',
-      eventId,
-    );
-    tables.eventSlotConfigDefaultSkills = await this.listRowsByIds(
-      'event_slot_config_default_skills',
-      'slot_config_id',
-      ids(tables.eventSlotConfigDefault),
-    );
-    // Schedule programme, workshop breaks, venue links, compensation choice.
-    tables.eventProgrammeBlocks = await this.listRows(
-      'event_programme_blocks',
-      'event_id',
-      eventId,
-    );
-    tables.workshopBreaks = await this.listRows('workshop_breaks', 'event_id', eventId);
-    tables.eventVenues = await this.listRows('event_venues', 'event_id', eventId);
-    tables.refereeCompensationEventSettings = await this.listRows(
-      'referee_compensation_event_settings',
-      'event_id',
-      eventId,
-    );
-    return tables;
+    return this.collectTables('event', event, include, { events: [event] });
   }
 
   private async collectTournamentTables(
@@ -621,94 +547,105 @@ export class ArchiveService {
     tournament: ArchiveRow,
     include: ArchiveInclude,
   ): Promise<ArchiveTables> {
-    const tables = normalizeArchiveTables({ events: [event], tournaments: [tournament] });
-    await this.collectTournamentChildren(tables, [tournament['id'] as string], include);
-    const personIds = idsByColumn(tables.registrations, 'person_id');
-    tables.persons = await this.listRowsByIds('persons', 'id', personIds);
-    tables.personPrivacy = await this.listRowsByIds('person_privacy', 'person_id', personIds);
-    tables.lices = await this.listRows('lices', 'event_id', event['id'] as string);
-    tables.poolAssignmentSettings = (
-      await this.listRows('pool_assignment_settings', 'event_id', event['id'] as string)
-    ).filter((row) => !row['tournament_id'] || row['tournament_id'] === tournament['id']);
-    const poolIds = ids(tables.pools);
-    const matchIds = ids(tables.matches);
-    tables.refereeAssignments = (
-      await this.listRows('referee_assignments', 'event_id', event['id'] as string)
-    ).filter(
-      (row) =>
-        (typeof row['pool_id'] === 'string' && poolIds.includes(row['pool_id'])) ||
-        (typeof row['match_id'] === 'string' && matchIds.includes(row['match_id'])),
-    );
+    return this.collectTables('tournament', event, include, {
+      events: [event],
+      tournaments: [tournament],
+    });
+  }
+
+  /**
+   * Gather every table its registry entry says belongs in this scope.
+   *
+   * Resolution is on demand and memoised, following each rule's `from` edge —
+   * NOT the declaration order. The two orders genuinely differ:
+   * `registrations.person_id` means persons must be INSERTED before
+   * registrations, while a tournament archive finds its persons THROUGH the
+   * registrations. One hand-maintained sequence could not satisfy both, and
+   * this way neither has to be maintained at all.
+   *
+   * A table whose rule is `omit`, or whose `include: 'scoring'` is not met,
+   * resolves to an empty array without a query — the same as the structure-only
+   * branch the collector used to carry.
+   */
+  private async collectTables(
+    scope: ArchiveScope,
+    event: ArchiveRow,
+    include: ArchiveInclude,
+    roots: Partial<Record<ArchiveTableName, ArchiveRow[]>>,
+  ): Promise<ArchiveTables> {
+    const eventId = event['id'] as string;
+    const resolved = new Map<ArchiveTableName, ArchiveRow[]>();
+    const resolving = new Set<ArchiveTableName>();
+
+    const context: CollectContext = {
+      eventId,
+      get tournamentIds() {
+        return ids(resolved.get('tournaments') ?? []);
+      },
+      idsOf: (table) => ids(resolved.get(table as ArchiveTableName) ?? []),
+    };
+
+    const resolve = async (table: ArchiveTableName): Promise<ArchiveRow[]> => {
+      const cached = resolved.get(table);
+      if (cached) return cached;
+      // The registry test proves the graph is acyclic; this is what a cycle
+      // introduced tomorrow looks like, instead of a hung export.
+      if (resolving.has(table)) {
+        throw new Error(`Archive collection cycle through ${table}`);
+      }
+      resolving.add(table);
+
+      const rows = await this.rowsForRule(table, collectRuleFor(table, scope), {
+        include,
+        eventId,
+        roots,
+        resolve,
+        context,
+      });
+
+      resolving.delete(table);
+      resolved.set(table, rows);
+      return rows;
+    };
+
+    const tables = emptyArchiveTables();
+    for (const table of INSERT_ORDER) {
+      tables[TABLE_TO_ARCHIVE_KEY[table]] = await resolve(table);
+    }
     return tables;
   }
 
-  private async collectTournamentChildren(
-    tables: ArchiveTables,
-    tournamentIds: string[],
-    include: ArchiveInclude,
-  ) {
-    if (tournamentIds.length === 0) return;
-    tables.registrations = await this.listRowsByIds(
-      'registrations',
-      'tournament_id',
-      tournamentIds,
-    );
-    tables.phases = await this.listRowsByIds('phases', 'tournament_id', tournamentIds);
-    tables.pools = await this.listRowsByIds('pools', 'phase_id', ids(tables.phases));
-    tables.poolMembers = await this.listRowsByIds('pool_members', 'pool_id', ids(tables.pools));
-    tables.bracketSlots = await this.listRowsByIds('bracket_slots', 'phase_id', ids(tables.phases));
-    // Swiss rounds and its roster. Phase-scoped like pools and bracket slots,
-    // which is why the migration-coverage guard cannot see them on its own —
-    // it keys on event_id/tournament_id. See the note on that test.
-    tables.swissRounds = await this.listRowsByIds('swiss_rounds', 'phase_id', ids(tables.phases));
-    tables.swissEntrants = await this.listRowsByIds(
-      'swiss_entrants',
-      'phase_id',
-      ids(tables.phases),
-    );
-    // Tournament-level staffing slot config + per-phase venue intent (structure,
-    // always captured regardless of include level).
-    tables.tournamentSlotConfig = await this.listRowsByIds(
-      'tournament_slot_config',
-      'tournament_id',
-      tournamentIds,
-    );
-    tables.tournamentSlotAllowedSkills = await this.listRowsByIds(
-      'tournament_slot_allowed_skills',
-      'slot_config_id',
-      ids(tables.tournamentSlotConfig),
-    );
-    tables.tournamentPhaseVenues = await this.listRowsByIds(
-      'tournament_phase_venues',
-      'tournament_id',
-      tournamentIds,
-    );
-    if (include === 'scoring') {
-      const phaseIds = ids(tables.phases);
-      tables.matches = await this.listRowsByIds('matches', 'phase_id', phaseIds);
-      tables.matchEvents = await this.listRowsByIds(
-        'match_events',
-        'match_id',
-        ids(tables.matches),
-      );
-      tables.exchanges = await this.listRowsByIds('exchanges', 'match_id', ids(tables.matches));
-      // Penalty cards, forfeits, and second-black-card reviews are scoring data.
-      tables.matchPenalties = await this.listRowsByIds(
-        'match_penalties',
-        'match_id',
-        ids(tables.matches),
-      );
-      tables.matchForfeits = await this.listRowsByIds(
-        'match_forfeits',
-        'match_id',
-        ids(tables.matches),
-      );
-      tables.tournamentPenaltyReviews = await this.listRowsByIds(
-        'tournament_penalty_reviews',
-        'tournament_id',
-        tournamentIds,
+  private async rowsForRule(
+    table: ArchiveTableName,
+    rule: CollectRule | 'omit',
+    env: {
+      include: ArchiveInclude;
+      eventId: string;
+      roots: Partial<Record<ArchiveTableName, ArchiveRow[]>>;
+      resolve: (table: ArchiveTableName) => Promise<ArchiveRow[]>;
+      context: CollectContext;
+    },
+  ): Promise<ArchiveRow[]> {
+    if (rule === 'omit') return [];
+    if (rule.include === 'scoring' && env.include !== 'scoring') return [];
+
+    let rows: ArchiveRow[];
+    if (rule.from === 'root') {
+      rows = env.roots[table] ?? [];
+    } else if (rule.from === 'event') {
+      rows = await this.listRows(table, 'event_id', env.eventId);
+    } else {
+      const parents = await env.resolve(rule.from as ArchiveTableName);
+      rows = await this.listRowsByIds(
+        table,
+        rule.local!,
+        idsByColumn(parents, rule.parent ?? 'id'),
       );
     }
+
+    if (!rule.filter) return rows;
+    for (const need of rule.needs ?? []) await env.resolve(need as ArchiveTableName);
+    return rows.filter((row) => rule.filter!(row, env.context));
   }
 
   private buildArchive(

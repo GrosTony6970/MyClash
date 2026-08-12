@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { ID_MAP_NAMES } from './archive.table-spec';
+import type { CollectRule } from './archive.table-spec';
 import {
   ARCHIVE_COLLECTED_TABLES,
   ARCHIVE_EXCLUDED_TABLES,
@@ -7,6 +8,7 @@ import {
   INSERT_ORDER,
   JSON_ID_PATHS,
   TABLE_TO_ARCHIVE_KEY,
+  collectRuleFor,
   emptyArchiveTables,
   idMapNameForTable,
   jsonIdPathsFor,
@@ -67,6 +69,119 @@ describe('the registry is internally consistent', () => {
   it('carries no table on both sides of the archive/excluded fence', () => {
     const overlap = names().filter((table) => ARCHIVE_EXCLUDED_TABLES.has(table));
     expect(overlap).toEqual([]);
+  });
+});
+
+describe('the collection graph', () => {
+  const SCOPES = ['event', 'tournament'] as const;
+
+  const rulesOf = (table: string) =>
+    SCOPES.map((scope) => [scope, collectRuleFor(table as never, scope)] as const).filter(
+      ([, rule]) => rule !== 'omit',
+    ) as ReadonlyArray<readonly ['event' | 'tournament', Exclude<CollectRule, 'omit'>]>;
+
+  it('points every rule at a table the registry declares', () => {
+    const dangling: string[] = [];
+    for (const table of names()) {
+      for (const [scope, rule] of rulesOf(table)) {
+        if (rule.from === 'root' || rule.from === 'event') continue;
+        if (!ARCHIVE_COLLECTED_TABLES.has(rule.from)) {
+          dangling.push(`${table}.collect.${scope}.from -> ${rule.from}`);
+        }
+      }
+      for (const [scope, rule] of rulesOf(table)) {
+        for (const need of rule.needs ?? []) {
+          if (!ARCHIVE_COLLECTED_TABLES.has(need)) {
+            dangling.push(`${table}.collect.${scope}.needs -> ${need}`);
+          }
+        }
+      }
+    }
+
+    expect(dangling, 'a rule naming a table nothing declares collects nothing').toEqual([]);
+  });
+
+  it('gives every parent rule the column to match on', () => {
+    const incomplete: string[] = [];
+    for (const table of names()) {
+      for (const [scope, rule] of rulesOf(table)) {
+        if (rule.from === 'root' || rule.from === 'event') continue;
+        if (!rule.local) incomplete.push(`${table}.collect.${scope}`);
+      }
+    }
+
+    expect(
+      incomplete,
+      'without `local` there is no column to match the parent ids against',
+    ).toEqual([]);
+  });
+
+  it('has every filter declare what it reads', () => {
+    // `filter` runs against rows from OTHER tables via ctx.idsOf, and the driver
+    // only resolves what `needs` names. A filter reading an unresolved table
+    // silently sees an empty list and drops every row.
+    const undeclared: string[] = [];
+    for (const table of names()) {
+      for (const [scope, rule] of rulesOf(table)) {
+        if (rule.filter && (rule.needs ?? []).length === 0) {
+          undeclared.push(`${table}.collect.${scope}`);
+        }
+      }
+    }
+
+    expect(undeclared).toEqual([]);
+  });
+
+  it('is acyclic, so on-demand resolution terminates', () => {
+    // The driver throws on a cycle rather than hanging, but nobody should have
+    // to discover one by exporting an event.
+    const cycles: string[] = [];
+    for (const scope of SCOPES) {
+      const seen = new Set<string>();
+      const walk = (table: string, trail: string[]): void => {
+        if (trail.includes(table)) {
+          cycles.push(`${scope}: ${[...trail, table].join(' -> ')}`);
+          return;
+        }
+        if (seen.has(table)) return;
+        seen.add(table);
+        const rule = collectRuleFor(table as never, scope);
+        if (rule === 'omit') return;
+        const next = [...(rule.from === 'root' || rule.from === 'event' ? [] : [rule.from])];
+        for (const need of rule.needs ?? []) next.push(need);
+        for (const edge of next) walk(edge, [...trail, table]);
+      };
+      for (const table of names()) walk(table, []);
+    }
+
+    expect(cycles).toEqual([]);
+  });
+
+  it('roots the event archive at the event and the tournament archive at both', () => {
+    expect(collectRuleFor('events', 'event')).toEqual({ from: 'root' });
+    expect(collectRuleFor('events', 'tournament')).toEqual({ from: 'root' });
+    // An event archive discovers its tournaments; a tournament archive is handed one.
+    expect(collectRuleFor('tournaments', 'event')).toEqual({ from: 'event' });
+    expect(collectRuleFor('tournaments', 'tournament')).toEqual({ from: 'root' });
+  });
+
+  it('keeps every scoring table out of a structure-only archive', () => {
+    // The `include` flag replaced an `if (include === 'scoring')` block, and
+    // these six are exactly what that block guarded.
+    const scoringOnly = names().filter((table) =>
+      rulesOf(table).some(([, rule]) => rule.include === 'scoring'),
+    );
+
+    expect(scoringOnly.sort()).toEqual(
+      [
+        'matches',
+        'match_events',
+        'exchanges',
+        'match_penalties',
+        'match_forfeits',
+        'tournament_penalty_reviews',
+      ].sort(),
+    );
   });
 });
 

@@ -59,6 +59,48 @@ export interface JsonIdPath {
 }
 
 /**
+ * Where a table's rows come from.
+ *
+ *   { from: 'root' }                      the row(s) the caller already holds
+ *   { from: 'event' }                     eq('event_id', the event being archived)
+ *   { from: T, local, parent? }           in(local, the values of `parent` — 'id'
+ *                                         unless stated — on T's collected rows)
+ *
+ * Resolution is on demand and memoised, NOT in declaration order, because no
+ * single order can serve both collection and insertion: `registrations.person_id`
+ * means persons must be INSERTED first, while a tournament-scope archive finds
+ * its persons THROUGH the registrations. Declaration order is the insert order;
+ * collection follows these edges wherever they lead.
+ */
+export type CollectRule = {
+  readonly from: string;
+  /** The column on THIS table that holds the parent's value. */
+  readonly local?: string;
+  /** The column on the PARENT whose values `local` matches. Defaults to `id`. */
+  readonly parent?: string;
+  /** Collected only in a `scoring` archive; a structure-only one leaves it empty. */
+  readonly include?: 'scoring';
+  /**
+   * Narrow the rows after fetching. Two tables need it, both only in tournament
+   * scope, where an event-wide query has to be cut down to one tournament's
+   * share. Anything the predicate reads must be named in `needs`.
+   */
+  readonly filter?: (row: ArchiveRow, ctx: CollectContext) => boolean;
+  /** Tables to resolve before `filter` runs. */
+  readonly needs?: readonly string[];
+};
+
+export interface CollectContext {
+  readonly eventId: string;
+  readonly tournamentIds: readonly string[];
+  /** The `id`s of an already-resolved table. Only valid for a table in `needs`. */
+  idsOf(table: string): readonly string[];
+}
+
+/** A table not carried at all in this scope. */
+export type CollectOmitted = 'omit';
+
+/**
  * One archived table, declared once.
  *
  * Everything the archive knows about a table is here: what it is called in the
@@ -78,6 +120,19 @@ export interface ArchiveTableSpec {
    * every archive file already written.
    */
   readonly key: string;
+
+  /**
+   * How the table is gathered, per archive scope.
+   *
+   * An EVENT archive takes the whole event. A TOURNAMENT archive takes one
+   * competition out of it, so most event-level rosters and settings are `omit`
+   * there — that is a judgement about what a tournament copy IS, and it belongs
+   * on the table rather than in the shape of a method.
+   */
+  readonly collect: {
+    readonly event: CollectRule | CollectOmitted;
+    readonly tournament: CollectRule | CollectOmitted;
+  };
 
   /**
    * The named id map this table's primary key is remapped through. Omit unless
