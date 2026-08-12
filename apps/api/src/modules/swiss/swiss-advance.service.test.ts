@@ -26,11 +26,21 @@ const pairingStub = (committed: unknown = null) =>
 const roundStateStub = (status: string) =>
   ({ refresh: vi.fn().mockResolvedValue(status) }) as unknown as SwissRoundStateService;
 
-/** A matches row whose embed resolves to a Swiss round on `phase-1`. */
-const swissMatchRow = (embed: unknown = { phase_id: 'phase-1' }) => ({
+/** A matches row whose embed resolves to round 2 of a Swiss phase on `phase-1`. */
+const swissMatchRow = (embed: unknown = { phase_id: 'phase-1', round_number: 2 }) => ({
   data: { swiss_round_id: 'round-1', swiss_rounds: embed },
   error: null,
 });
+
+/**
+ * The frontier head-count. `count` is what the service reads; `data` is present
+ * only because the double resolves one object for both spellings.
+ *
+ * Configured explicitly in every test that gets far enough to ask, because
+ * `supabaseFrom` throws on an unconfigured table and `onMatchCompleted` swallows
+ * throws — an omission here would read as a passing "did not advance".
+ */
+const roundsAhead = (count: number) => ({ data: [], count, error: null });
 
 describe('SwissAdvanceService.onMatchCompleted', () => {
   it('does nothing when the optional collaborators are absent', async () => {
@@ -78,8 +88,9 @@ describe('SwissAdvanceService.onMatchCompleted', () => {
     // PostgREST flips a many-to-one embed between object and array depending on
     // the key it infers; the service tolerates both on purpose.
     const supabase = mockSupabase({
-      matches: swissMatchRow([{ phase_id: 'phase-1' }]),
+      matches: swissMatchRow([{ phase_id: 'phase-1', round_number: 2 }]),
       phases: { data: { config_json: config() }, error: null },
+      swiss_rounds: roundsAhead(0),
     });
     const pairing = pairingStub({ roundNumber: 2 });
     await new SwissAdvanceService(
@@ -136,6 +147,7 @@ describe('SwissAdvanceService.onMatchCompleted', () => {
     const supabase = mockSupabase({
       matches: swissMatchRow(),
       phases: { data: { config_json: config() }, error: null },
+      swiss_rounds: roundsAhead(0),
     });
     const pairing = pairingStub({ roundNumber: 3 });
     await new SwissAdvanceService(
@@ -146,10 +158,35 @@ describe('SwissAdvanceService.onMatchCompleted', () => {
     expect(pairing.commitNextRound).toHaveBeenCalledWith('phase-1');
   });
 
+  it('does not advance from a round that is no longer the frontier', async () => {
+    // THE SKIPPED-ROUND DEFECT. `planNextRound` computes `rounds.length + 1`
+    // over every round the phase has — "one past however many exist", not "the
+    // one after this". So re-closing round 2 while rounds 3 and 4 are already
+    // drawn commits round 5, schedules pistes for it, and pushes
+    // `swiss_round_published` at a field that has not fought round 3 yet.
+    //
+    // Reachable with no un-completion at all: `PATCH /matches/:id/status` on an
+    // already-completed bout runs this whole path a second time.
+    const supabase = mockSupabase({
+      matches: swissMatchRow(),
+      phases: { data: { config_json: config() }, error: null },
+      swiss_rounds: roundsAhead(2),
+    });
+    const pairing = pairingStub({ roundNumber: 5 });
+    await new SwissAdvanceService(
+      as(supabase),
+      pairing,
+      roundStateStub('completed'),
+    ).onMatchCompleted('m1');
+
+    expect(pairing.commitNextRound).not.toHaveBeenCalled();
+  });
+
   it('treats an unparseable phase config as not finalised', async () => {
     const supabase = mockSupabase({
       matches: swissMatchRow(),
       phases: { data: { config_json: { garbage: true } }, error: null },
+      swiss_rounds: roundsAhead(0),
     });
     const pairing = pairingStub({ roundNumber: 2 });
     await new SwissAdvanceService(
@@ -164,6 +201,7 @@ describe('SwissAdvanceService.onMatchCompleted', () => {
     const supabase = mockSupabase({
       matches: swissMatchRow(),
       phases: { data: { config_json: config() }, error: null },
+      swiss_rounds: roundsAhead(0),
     });
     const pairing = pairingStub(null);
     await expect(
@@ -178,6 +216,7 @@ describe('SwissAdvanceService.onMatchCompleted', () => {
     const supabase = mockSupabase({
       matches: swissMatchRow(),
       phases: { data: { config_json: config() }, error: null },
+      swiss_rounds: roundsAhead(0),
     });
     const pairing = {
       commitNextRound: vi.fn().mockRejectedValue(new Error('pairing exploded')),

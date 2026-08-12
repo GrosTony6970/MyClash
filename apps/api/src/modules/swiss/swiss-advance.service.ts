@@ -56,6 +56,20 @@ export class SwissAdvanceService {
         return;
       }
 
+      // ONLY THE FRONTIER ROUND ADVANCES. `planNextRound` computes
+      // `rounds.length + 1` over every round the phase has, so it pairs "one
+      // past however many exist" — not "the one after this". Re-closing an
+      // EARLIER round therefore commits a round that skips the ones between,
+      // schedules pistes for it and pushes `swiss_round_published` to the whole
+      // field. Reachable without any un-completion: `PATCH /matches/:id/status`
+      // on an already-completed bout runs this path again.
+      if (await this.hasLaterRound(round.phaseId, round.roundNumber)) {
+        this.logger.log(
+          `swiss round ${round.roundNumber} of phase ${round.phaseId} is not the frontier; not advancing`,
+        );
+        return;
+      }
+
       // commitNextRound returns null when the phase has run its configured
       // rounds, or when a concurrent completion already committed this one.
       const committed = await this.pairing.commitNextRound(round.phaseId);
@@ -69,10 +83,10 @@ export class SwissAdvanceService {
     }
   }
 
-  private async roundOf(matchId: string): Promise<{ roundId: string; phaseId: string } | null> {
+  private async roundOf(matchId: string): Promise<SwissRoundRef | null> {
     const { data } = await this.supabase.service
       .from('matches')
-      .select('swiss_round_id, swiss_rounds(phase_id)')
+      .select('swiss_round_id, swiss_rounds(phase_id, round_number)')
       .eq('id', matchId)
       .maybeSingle();
     const row = data as { swiss_round_id?: string | null; swiss_rounds?: unknown } | null;
@@ -80,8 +94,29 @@ export class SwissAdvanceService {
 
     // Many-to-one embeds come back as objects; normalise defensively.
     const embed = Array.isArray(row.swiss_rounds) ? row.swiss_rounds[0] : row.swiss_rounds;
-    const phaseId = (embed as { phase_id?: string } | null)?.phase_id;
-    return phaseId ? { roundId: row.swiss_round_id, phaseId } : null;
+    const round = embed as { phase_id?: string; round_number?: number } | null;
+    if (!round?.phase_id || typeof round.round_number !== 'number') return null;
+    return {
+      roundId: row.swiss_round_id,
+      phaseId: round.phase_id,
+      roundNumber: round.round_number,
+    };
+  }
+
+  /**
+   * Does this phase already carry a round drawn after this one?
+   *
+   * A head count, served by `swiss_rounds UNIQUE (phase_id, round_number)`.
+   * Asks about the ROUND NUMBER rather than the row count, because the two stop
+   * agreeing the moment a round is deleted.
+   */
+  private async hasLaterRound(phaseId: string, roundNumber: number): Promise<boolean> {
+    const { count } = await this.supabase.service
+      .from('swiss_rounds')
+      .select('id', { count: 'exact', head: true })
+      .eq('phase_id', phaseId)
+      .gt('round_number', roundNumber);
+    return (count ?? 0) > 0;
   }
 
   /**
@@ -101,3 +136,10 @@ export class SwissAdvanceService {
 }
 
 const describe = (err: unknown): string => (err instanceof Error ? err.message : String(err));
+
+/** The Swiss round a match belongs to, resolved in one read. */
+interface SwissRoundRef {
+  roundId: string;
+  phaseId: string;
+  roundNumber: number;
+}
