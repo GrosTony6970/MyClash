@@ -7001,9 +7001,25 @@ export const en = {
       lockMatch: 'Lock match',
       unlockMatch: 'Unlock match',
       reopenMatch: '↻ Re-open match',
-      reopenConfirm:
-        'Re-open this match? The lice will be able to score again. The current scores and exchanges are preserved.',
       restoreConfirm: 'Restore this exchange? The score will be recomputed.',
+      uncompleteTitle: 'Undo this result?',
+      uncompleteAcknowledge: 'Yes, discard those bouts and put them back on the schedule',
+      uncompleteConfirm: 'Undo the result',
+      uncompleteBodyEmptiesNone: 'No later bout depends on this result.',
+      uncompleteBodyEmptiesOne: 'The next bout is emptied and waits for this one again.',
+      uncompleteBodyEmptiesMany: 'The {count} later bouts are emptied and wait for this one again.',
+      uncompleteBodyDiscardsOne:
+        'One later bout has already been fought. Its score is voided and the bout is put back on the schedule.',
+      uncompleteBodyDiscardsMany:
+        '{count} later bouts have already been fought. Their scores are voided and the bouts are put back on the schedule.',
+      uncompleteBodyBackOnSchedule: 'They must be fought again.',
+      uncompleteBodyRefills:
+        'When this bout is finished again, the bracket fills itself with the right fighters.',
+      uncompleteBodyAskOrganiser: 'Only an organiser can do this. Ask one for help.',
+      uncompleteBodyFrozen:
+        'This event is closed and its results are frozen. Nothing can be undone here.',
+      uncompleteBlockedTitle: 'Undoing this result would invalidate a later bout',
+      uncompleteAffectedTitle: 'Bouts affected',
       correctionSubmitted: 'Correction request {id} submitted for review.',
       red: 'Fighter 1',
       blue: 'Fighter 2',
@@ -14902,9 +14918,26 @@ export const fr = {
       lockMatch: 'Verrouiller le match',
       unlockMatch: 'Déverrouiller le match',
       reopenMatch: '↻ Rouvrir le match',
-      reopenConfirm:
-        'Rouvrir ce match ? La lice pourra de nouveau saisir des points. Les scores et échanges actuels sont conservés.',
       restoreConfirm: 'Restaurer cet échange ? Le score sera recalculé.',
+      uncompleteTitle: 'Annuler ce résultat ?',
+      uncompleteAcknowledge: 'Oui, supprimer ces assauts et les remettre au programme',
+      uncompleteConfirm: 'Annuler le résultat',
+      uncompleteBodyEmptiesNone: 'Aucun assaut suivant ne dépend de ce résultat.',
+      uncompleteBodyEmptiesOne: "L'assaut suivant est vidé et attend de nouveau celui-ci.",
+      uncompleteBodyEmptiesMany:
+        'Les {count} assauts suivants sont vidés et attendent de nouveau celui-ci.',
+      uncompleteBodyDiscardsOne:
+        'Un assaut suivant a déjà été combattu. Son score est annulé et l’assaut est remis au programme.',
+      uncompleteBodyDiscardsMany:
+        '{count} assauts suivants ont déjà été combattus. Leurs scores sont annulés et les assauts sont remis au programme.',
+      uncompleteBodyBackOnSchedule: 'Ils devront être combattus de nouveau.',
+      uncompleteBodyRefills:
+        'Quand cet assaut sera de nouveau terminé, le tableau se remplira avec les bons combattants.',
+      uncompleteBodyAskOrganiser: 'Seul un organisateur peut le faire. Demandez-lui de l’aide.',
+      uncompleteBodyFrozen:
+        'Cet événement est clôturé et ses résultats sont figés. Rien ne peut être annulé ici.',
+      uncompleteBlockedTitle: 'Annuler ce résultat invaliderait un assaut suivant',
+      uncompleteAffectedTitle: 'Assauts concernés',
       correctionSubmitted: 'Demande de correction {id} soumise pour validation.',
       red: 'Combattant 1',
       blue: 'Combattant 2',

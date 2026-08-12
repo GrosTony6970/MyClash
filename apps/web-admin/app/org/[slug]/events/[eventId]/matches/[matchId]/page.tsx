@@ -26,6 +26,7 @@ import { useI18n } from '../../../../../../../src/i18n/I18nProvider';
 import { PayloadCell, type PayloadLabel } from '../../../../../../../src/components/PayloadCell';
 import { getPublicApiUrl } from '@/lib/api-url';
 import { voidConfirmCopy, type ForfeitCascade } from './void-confirm-copy';
+import { UncompleteDialog, UncompleteHint } from './UncompleteConfirm';
 
 /**
  * One i18n key per reason. The engine owns which reasons exist; this owns
@@ -205,6 +206,8 @@ export default function MatchDetailPage() {
   const { t, locale } = useI18n();
   const toast = useToast();
   const { confirm, confirmDialog } = useConfirm();
+  const [reopenOpen, setReopenOpen] = useState(false);
+  const [reopening, setReopening] = useState(false);
 
   const [match, setMatch] = useState<Match | null>(null);
   // Canonical header data — roundCode (LSW-B-R16-M1) + fighter names
@@ -401,27 +404,35 @@ export default function MatchDetailPage() {
     }
   }
 
-  async function handleReopen() {
+  /**
+   * Re-opening an ENDED bout un-completes it, so it goes through the
+   * pre-flight dialog rather than a bare confirm: the organiser has to be told
+   * which later bouts it empties, and which of them have already been fought,
+   * before the request is made rather than by reading a 409 afterwards.
+   */
+  async function submitReopen(discardDependentResults: boolean) {
     if (!match) return;
-    if (
-      !(await confirm({
-        title: t('organizer.matchDetail.reopenConfirm'),
-        danger: true,
-      }))
-    ) {
-      return;
-    }
-    const res = await fetch(`${apiUrl}/api/v1/matches/${matchId}/clock`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      credentials: 'include',
-      body: JSON.stringify({ action: 'reopen', reason: 'Organizer re-opened ended match' }),
-    });
-    if (res.ok) {
-      setRefreshKey((key) => key + 1);
-    } else {
-      const body = (await res.json().catch(() => ({}))) as { message?: string };
-      toast.error(body.message ?? t('admin.common.couldNotReopenMatch'));
+    setReopening(true);
+    try {
+      const res = await fetch(`${apiUrl}/api/v1/matches/${matchId}/clock`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          action: 'reopen',
+          reason: 'Organizer re-opened ended match',
+          discardDependentResults,
+        }),
+      });
+      if (res.ok) {
+        setReopenOpen(false);
+        setRefreshKey((key) => key + 1);
+      } else {
+        const body = (await res.json().catch(() => ({}))) as { message?: string };
+        toast.error(body.message ?? t('admin.common.couldNotReopenMatch'));
+      }
+    } finally {
+      setReopening(false);
     }
   }
 
@@ -593,13 +604,14 @@ export default function MatchDetailPage() {
               {match?.status === 'completed' && (
                 <button
                   type="button"
-                  onClick={() => void handleReopen()}
+                  onClick={() => setReopenOpen(true)}
                   className="rounded-lg border border-warning/30 bg-warning/10 px-3 py-1.5 text-xs font-semibold text-warning hover:border-warning hover:bg-warning/20"
                 >
                   {t('organizer.matchDetail.reopenMatch')}
                 </button>
               )}
             </div>
+            <UncompleteHint matchId={matchId} refreshToken={refreshKey} />
           </div>
         </div>
       )}
@@ -938,6 +950,16 @@ export default function MatchDetailPage() {
         </Modal>
       )}
       {confirmDialog}
+      <UncompleteDialog
+        // Remount per opening: the tick must never be inherited from last time.
+        key={reopenOpen ? 'uncomplete-open' : 'uncomplete-closed'}
+        matchId={matchId}
+        open={reopenOpen}
+        refreshToken={refreshKey}
+        busy={reopening}
+        onCancel={() => setReopenOpen(false)}
+        onConfirm={(discard) => void submitReopen(discard)}
+      />
     </main>
   );
 }
