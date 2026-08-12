@@ -18,6 +18,7 @@ import { fetchRefereeAssignmentIndex } from './referee-assignment-index';
 import { refereeNamesOnly, resolveMatchReferees } from './resolve-match-referees';
 import { ScoringService } from './scoring.service';
 import { FrozenResultsGuard } from './frozen-results.guard';
+import { unplayedMatchColumns } from './unplayed-match-columns';
 // Value import (not `import type`): this is a NestJS DI dependency. A type-only
 // import is erased at runtime, so `design:paramtypes` emits `Object`, the
 // @Optional() param silently resolves to `undefined`, and every completion side
@@ -972,18 +973,45 @@ export class MatchesService {
     return data;
   }
 
+  /**
+   * Put a bout back to unplayed so it can be fought again.
+   *
+   * FOUR WRITES, NO TRANSACTION, ALL CHECKED. Each silent failure leaves a
+   * different half-reset bout: live exchanges that recompute the old score,
+   * penalties that still count, or — worst — no `reset_match` event, which is
+   * the only thing that returns the derived clock to `idle`. Without it the
+   * clock replays as `ended` and `VALID_TRANSITIONS.ended` is `['reopen']`, so
+   * the bout reads `scheduled` to every list and cannot be started at all.
+   *
+   * `end_reason` AND THE DURATIONS. Nothing clears them on the way back in: the
+   * clock's `end` writes status, ended_at and the durations but never the
+   * reason, and scoring writes it only inside `justCompleted`. A bout reset
+   * after a double cap and re-fought to a clock end would stay `completed`
+   * carrying 'max_doubles' — which `swiss-standings.service.ts` reads as
+   * ['loss','loss'] and the HEMA Ratings submission documents the same way, so
+   * both fighters lose a bout one of them just won, in the export that leaves
+   * the platform. Same class of miss as the hole `restoreMatchState` was fixed
+   * for.
+   *
+   * THE LOCK. A reset exists to make the bout playable, and a lock is the one
+   * thing that stops it being played. Nothing else would ever clear it —
+   * MatchAutoLockService only ever ADDS locks, and its group gate needs every
+   * match in the group completed or voided, which a freshly reset one is not,
+   * so it skips the group from then on. Safe because `assertMatchUnlocked` has
+   * already refused this call unless the actor holds `canOverrideLocked`, the
+   * same authority `unlockMatch` demands; these are its five columns.
+   *
+   * NOT DONE HERE: the match's active `match_forfeits` row is left standing, so
+   * standings keep counting the F. Voiding it also means undoing whatever
+   * `applyTournamentState` did to the fighter's registration, which belongs with
+   * the un-completion owner rather than bolted on here.
+   */
   async resetMatch(matchId: string, dto: ResetMatchDto, context?: MatchActor) {
     if (dto.confirmation !== 'RESET MATCH') {
       throw new BadRequestException('Confirmation phrase must be RESET MATCH');
     }
     await this.assertMatchUnlocked(matchId, context);
     const reason = dto.reason ?? 'match reset';
-    // Checked, all of them. A reset is four writes with no transaction, and each
-    // one silently failing leaves a different half-reset bout: live exchanges
-    // that recompute the old score, penalties that still count, or — worst — no
-    // `reset_match` event, which is the only thing that returns the derived
-    // clock to `idle`. Without it the clock replays as `ended`, and
-    // `VALID_TRANSITIONS.ended` is `['reopen']`, so the bout cannot be started.
     const voidedExchanges = await this.supabase.service
       .from('exchanges')
       .update({ voided: true, voided_reason: reason })
@@ -999,50 +1027,7 @@ export class MatchesService {
     await this.insertMatchEvent(matchId, 'reset_match', reason, context);
     const { data, error } = await this.supabase.service
       .from('matches')
-      .update({
-        status: 'scheduled',
-        red_score: 0,
-        blue_score: 0,
-        winner_registration_id: null,
-        started_at: null,
-        ended_at: null,
-        // How the PREVIOUS fight ended, and how long it took. Nothing clears
-        // either on the way back in: the clock's `end` writes status + ended_at
-        // + the durations but never `end_reason`, and scoring writes it only
-        // inside `justCompleted`. So a bout reset and re-fought to a clock end
-        // stays `completed` carrying the old reason — and `end_reason` is not
-        // decoration. `swiss-standings.service.ts` reads 'max_doubles' as
-        // ['loss','loss'] and the HEMA Ratings submission says the same, so
-        // both fighters lose a bout one of them just won, in the export that
-        // leaves the platform. Same class of miss as the `end_reason` hole
-        // `match-forfeits.service.ts` restoreMatchState was fixed for.
-        end_reason: null,
-        duration_active_ms: null,
-        duration_total_ms: null,
-        // A reset exists to make the bout playable again, and a lock is the one
-        // thing that stops it being played. Nothing else would ever clear it:
-        // MatchAutoLockService only ever ADDS locks (`if (match['locked_at'])
-        // continue`), and its group gate needs every match in the group to be
-        // completed or voided — which a freshly reset one is not — so the group
-        // is skipped from then on. The lock outlived the result it was protecting
-        // and only a manual unlock could remove it.
-        //
-        // Safe because `assertMatchUnlocked` above has already refused this call
-        // unless the actor holds `canOverrideLocked`, which is the same authority
-        // `unlockMatch` demands. Same five columns it clears.
-        locked_at: null,
-        locked_by_user_id: null,
-        locked_by_staff_account_id: null,
-        lock_source: null,
-        lock_reason: null,
-        // Reset best-of round state back to a single open round.
-        current_round: 1,
-        red_round_wins: 0,
-        blue_round_wins: 0,
-        rounds_json: null,
-        awaiting_round_advance: false,
-        updated_at: new Date().toISOString(),
-      })
+      .update(unplayedMatchColumns())
       .eq('id', matchId)
       .select('*')
       .single();

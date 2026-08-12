@@ -361,21 +361,7 @@ export class MatchForfeitsService {
 
     const matchId = forfeit['match_id'] as string;
     await this.assertVoidable(matchId, actor);
-
-    // The bout must still be holding the result this record produced. Every
-    // guard above asks whether the ACTOR may void; none asked whether there is
-    // still the same thing to void. Three paths put a forfeited bout back in
-    // play with its record active — reset, PATCH /status, and the clock's
-    // reopen — and a bout that is then re-fought lands back on 'completed', so
-    // no status-shaped check notices. Restoring `previous_match_state` over it
-    // writes the pre-forfeit snapshot straight over a real played result and
-    // the scores are gone. Refuse instead: the organiser can reset the bout
-    // themselves if the replay is the one they want to discard.
-    if ((await this.recordedResultDiverged(matchId, forfeit)) === true) {
-      throw new BadRequestException(
-        'Cannot void this record — the match has been replayed since it was created',
-      );
-    }
+    await this.assertMatchStillHoldsRecordedResult(matchId, forfeit);
 
     const downstreamIds = Array.isArray(forfeit['downstream_match_ids'])
       ? (forfeit['downstream_match_ids'] as string[])
@@ -635,6 +621,27 @@ export class MatchForfeitsService {
     if ((data as Row | null)?.['locked_at'] && !actor.canOverrideLocked) {
       throw new BadRequestException('Match is locked');
     }
+  }
+
+  /**
+   * The bout must still be holding the result this record produced.
+   *
+   * `assertVoidable` asks whether the ACTOR may void. This asks whether there is
+   * still the same thing to void. Three routes put a forfeited bout back in play
+   * with its record active — reset, `PATCH /status`, and the clock's reopen —
+   * and a bout taken back through one of them and then fought to a finish is
+   * `completed` again, so no status-shaped check notices. Restoring
+   * `previous_match_state` over it writes the pre-forfeit snapshot straight over
+   * a real played result and the scores are gone.
+   *
+   * Refuse rather than guess: the organiser can reset the bout themselves if the
+   * replay is the result they meant to discard.
+   */
+  private async assertMatchStillHoldsRecordedResult(matchId: string, forfeit: Row): Promise<void> {
+    if ((await this.recordedResultDiverged(matchId, forfeit)) !== true) return;
+    throw new BadRequestException(
+      'Cannot void this record — the match has been replayed since it was created',
+    );
   }
 
   private async assertNoneStarted(matchIds: string[], message: string): Promise<void> {
