@@ -128,14 +128,36 @@ export class MatchForfeitsService {
       staff_account_id: actor.staffAccountId ?? null,
     });
 
-    await this.completeMatch(
-      matchId,
-      dto.forfeitingRegistrationId,
-      winnerRegistrationId as string,
-      scores,
-      forfeitEndReason(dto.reason),
-      now,
-    );
+    // RESOLVED BEFORE THE BOUT IS COMPLETED, not after. Replacing a no-show with
+    // a reserve means the bout has not happened — so the honest sequence is to
+    // never complete it, rather than to complete it and write it back.
+    //
+    // It used to run after `completeMatch`, reading `status` off the snapshot
+    // loaded at the top of this method. That made the guard `!== 'scheduled'`
+    // read a value the row no longer held, and its remedy was to write the row
+    // back to scheduled/0-0 — an un-completion that bypassed
+    // `MatchCompletionService` entirely. Self-inverting within the request, so
+    // never data loss, but it broke the invariant the un-completion owner now
+    // assumes, and left a bout momentarily completed that never was.
+    const replacementRegistrationId =
+      phase.type === 'pool'
+        ? null
+        : await this.tryReplaceMainRoundOneFighter(
+            match,
+            dto.forfeitingRegistrationId,
+            dto.reason as ForfeitReason,
+          );
+
+    if (!replacementRegistrationId) {
+      await this.completeMatch(
+        matchId,
+        dto.forfeitingRegistrationId,
+        winnerRegistrationId as string,
+        scores,
+        forfeitEndReason(dto.reason),
+        now,
+      );
+    }
     await this.applyTournamentState(dto.forfeitingRegistrationId, tournamentState, canContinue);
 
     // A pool match feeds no bracket slot, so a pool forfeit has no dependents
@@ -164,29 +186,13 @@ export class MatchForfeitsService {
     }
 
     if (phase.type !== 'pool') {
-      // Overriding a completed bracket match changes who advanced. Advancement
-      // fills a downstream side only while it is null — the property that makes
-      // it idempotent — so without clearing first, re-advancing is a silent
-      // no-op and the bracket keeps carrying the previous winner.
-      if (wasCompleted) await this.bracketAdvance?.clearDownstreamOf(matchId);
-
-      const bracketResult = await this.applyBracketForfeit(
-        match,
-        phase,
-        dto.forfeitingRegistrationId,
-        dto.reason as ForfeitReason,
+      downstreamIds.push(
+        ...(await this.applyBracketOutcome(match, phase, forfeit.id as string, {
+          wasCompleted,
+          replacementRegistrationId,
+          now,
+        })),
       );
-      downstreamIds.push(...bracketResult.downstreamIds);
-      if (bracketResult.replacementRegistrationId) {
-        await this.supabase.service
-          .from('match_forfeits')
-          .update({
-            replacement_registration_id: bracketResult.replacementRegistrationId,
-            downstream_match_ids: downstreamIds,
-            updated_at: now,
-          })
-          .eq('id', forfeit.id as string);
-      }
     }
 
     if (downstreamIds.length > 0) {
@@ -349,6 +355,16 @@ export class MatchForfeitsService {
    * restoring the match here left them there — then the replayed bout could
    * never re-advance, because `advanceFromSlot` fills a downstream side only
    * while it is null. The bracket would silently keep the loser of the replay.
+   *
+   * NOT ROUTED THROUGH `MatchCompletionService.onMatchUncompleted`, deliberately
+   * rather than by omission, so the question does not get re-opened. This path
+   * restores a PREVIOUS state, which for an override is itself `completed` with
+   * a winner — so it re-advances (`readvanceIfDecided`) exactly where the owner
+   * would revert. The owner would also refuse through the whole dependent
+   * closure, where this has its own narrower and already-tested guard in
+   * `assertNoneStarted` over `downstream_match_ids`. Consolidating would change
+   * behaviour and buy nothing; only `stampVoided` is shared, via
+   * `forfeit-void.ts`.
    */
   async voidForfeit(forfeitId: string, actor: Actor = {}) {
     const { data } = await this.supabase.service
@@ -373,10 +389,10 @@ export class MatchForfeitsService {
     );
 
     // Un-advance BEFORE restoring the match, while the winner this forfeit
-    // propagated is still on the row that names it — `downstreamSlots` reads
-    // the match to resolve its slot. Clearing the fed sides is what lets the
-    // replayed bout advance its real winner. Skipped for a pool match, which
-    // feeds no slots.
+    // propagated is still on the row that names it — `downstreamSlots` reads the
+    // match to resolve its slot. Clearing the fed sides is what lets the replayed
+    // bout advance its real winner. Skipped for a pool match, which feeds none.
+    // (The header says why this is hand-rolled rather than routed through the owner.)
     await this.bracketAdvance?.clearDownstreamOf(matchId);
 
     const previousMatch = (forfeit['previous_match_state'] as Row | null) ?? {};
@@ -738,22 +754,38 @@ export class MatchForfeitsService {
     await this.stampResultingState(child.id as string, match['id'] as string);
   }
 
-  private async applyBracketForfeit(
+  /**
+   * The bracket half of a forfeit, once the replacement question is settled.
+   *
+   * The replacement is decided by the caller BEFORE the bout is completed — see
+   * `createForfeit` — so by here it is a fact, not a branch to evaluate. When
+   * one applies the bout was never completed, so there is nothing to advance and
+   * nothing downstream: record the reserve and stop.
+   */
+  private async applyBracketOutcome(
     match: Row,
     phase: { type: string },
-    forfeitingRegistrationId: string,
-    reason: ForfeitReason,
-  ): Promise<{ downstreamIds: string[]; replacementRegistrationId?: string }> {
-    const downstreamIds: string[] = [];
-    const replacementRegistrationId = await this.tryReplaceMainRoundOneFighter(
-      match,
-      forfeitingRegistrationId,
-      reason,
-    );
-    if (replacementRegistrationId) {
-      return { downstreamIds, replacementRegistrationId };
+    forfeitId: string,
+    ctx: { wasCompleted: boolean; replacementRegistrationId: string | null; now: string },
+  ): Promise<string[]> {
+    if (ctx.replacementRegistrationId) {
+      await this.supabase.service
+        .from('match_forfeits')
+        .update({
+          replacement_registration_id: ctx.replacementRegistrationId,
+          updated_at: ctx.now,
+        })
+        .eq('id', forfeitId);
+      return [];
     }
 
+    // Overriding a completed bracket match changes who advanced. Advancement
+    // fills a downstream side only while it is null — the property that makes it
+    // idempotent — so without clearing first, re-advancing is a silent no-op and
+    // the bracket keeps carrying the previous winner.
+    if (ctx.wasCompleted) await this.bracketAdvance?.clearDownstreamOf(match['id'] as string);
+
+    const downstreamIds: string[] = [];
     if (phase.type === 'single_elim' || phase.type === 'double_elim') {
       await this.matchCompletion?.onMatchCompleted(match['id'] as string);
     }
@@ -769,7 +801,7 @@ export class MatchForfeitsService {
     downstreamIds.push(
       ...((await this.bracketAdvance?.findDownstreamMatchIds(match['id'] as string)) ?? []),
     );
-    return { downstreamIds };
+    return downstreamIds;
   }
 
   private async tryReplaceMainRoundOneFighter(
@@ -779,11 +811,14 @@ export class MatchForfeitsService {
   ): Promise<string | null> {
     // Replacing a no-show with a reserve is a FORFEIT remedy: "the bout never
     // started, so the empty slot gets the next fighter in". An override states
-    // what a bout's result WAS — substituting a different fighter and resetting
-    // the match to 0-0 discards the correction that was just written, and
-    // `voidForfeit` never reverts `bracket_slots`, so the reserve would stay in
-    // the bracket even after a void.
+    // what a bout's result WAS — substituting a different fighter would discard
+    // the correction being written, and `voidForfeit` never reverts
+    // `bracket_slots`, so the reserve would stay in the bracket even after a
+    // void.
     if (isOverrideReason(reason)) return null;
+    // `match` is the row as it stands NOW: the caller resolves this before
+    // completing the bout, so `scheduled` genuinely means unplayed rather than
+    // "unplayed a moment ago, according to a snapshot".
     if (match['status'] !== 'scheduled' || !match['bracket_slot_id']) return null;
 
     const { data: slot } = await this.supabase.service
@@ -818,29 +853,15 @@ export class MatchForfeitsService {
       )
       .eq('id', bracketSlot['id'] as string);
 
+    // The fighter, and nothing else. This used to reset status/scores/winner as
+    // well, because it ran AFTER `completeMatch` and had to undo it — which made
+    // it an un-completion outside `MatchCompletionService`. The bout is now
+    // never completed in the first place, so there is nothing to put back and
+    // the guard above is the only thing deciding it.
+    const side = forfeitsOnA ? 'red_registration_id' : 'blue_registration_id';
     await this.supabase.service
       .from('matches')
-      .update(
-        forfeitsOnA
-          ? {
-              red_registration_id: replacementId,
-              status: 'scheduled',
-              winner_registration_id: null,
-              ended_at: null,
-              red_score: 0,
-              blue_score: 0,
-              updated_at: new Date().toISOString(),
-            }
-          : {
-              blue_registration_id: replacementId,
-              status: 'scheduled',
-              winner_registration_id: null,
-              ended_at: null,
-              red_score: 0,
-              blue_score: 0,
-              updated_at: new Date().toISOString(),
-            },
-      )
+      .update({ [side]: replacementId, updated_at: new Date().toISOString() })
       .eq('id', match['id'] as string);
 
     return replacementId;

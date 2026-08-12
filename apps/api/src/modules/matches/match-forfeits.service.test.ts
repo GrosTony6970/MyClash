@@ -578,6 +578,61 @@ describe('MatchForfeitsService — override regressions', () => {
     });
   });
 
+  it('never completes a bout it is about to hand to a reserve', async () => {
+    // THE INVARIANT. The replacement used to be resolved AFTER `completeMatch`,
+    // so the row went completed → scheduled/0-0 inside one request: an
+    // un-completion that never reached `MatchCompletionService`. Self-inverting,
+    // so never data loss, but the un-completion owner now assumes it is the only
+    // thing that un-completes a bout, and this contradicted that.
+    //
+    // Deciding first means the bout is simply never completed, so the only write
+    // is the fighter swap.
+    const supabase = fakeSupabase({
+      matches: {
+        maybeSingle: matchRow({ phaseType: 'single_elim', status: 'scheduled' }),
+        update: { id: 'match-1' },
+      },
+      match_forfeits: { maybeSingle: null, insert: { id: 'forfeit-1' } },
+      phases: {
+        maybeSingle: { id: 'phase-1', type: 'single_elim', tournament_id: 'tournament-1' },
+      },
+      bracket_slots: {
+        // The registration ids matter here, unlike in the override test above
+        // which returns before reading them: they are what decides WHICH side
+        // the reserve replaces.
+        maybeSingle: {
+          id: 'slot-1',
+          phase_id: 'phase-1',
+          round: 1,
+          source_a_type: 'seed',
+          registration_a_id: 'reg-red',
+          registration_b_id: 'reg-blue',
+        },
+        select: [{ registration_a_id: 'reg-red', registration_b_id: 'reg-blue' }],
+      },
+      registrations: {
+        maybeSingle: { id: 'reg-red', status: 'checked_in' },
+        select: [{ id: 'reg-spare', status: 'checked_in', seed: 9 }],
+      },
+    });
+    const service = new MatchForfeitsService(supabase as never, undefined as never);
+
+    await service.createForfeit('match-1', {
+      forfeitingRegistrationId: 'reg-red',
+      reason: 'injury',
+    });
+
+    // The reserve is in, on the slot and on the row.
+    expect(supabase.updated.bracket_slots?.[0]).toMatchObject({ registration_a_id: 'reg-spare' });
+    expect(supabase.updated.matches).toHaveLength(1);
+    expect(supabase.updated.matches?.[0]).toMatchObject({ red_registration_id: 'reg-spare' });
+    // And the bout was never completed on the way there — no status write at
+    // all, in either direction.
+    expect(
+      (supabase.updated.matches ?? []).some((row) => 'status' in (row as Record<string, unknown>)),
+    ).toBe(false);
+  });
+
   it('records the matches it FEEDS as dependents, never itself', async () => {
     // Was: applyBracketForfeit pushed the match's own id, so voidForfeit —
     // whose started-set includes 'completed' — fired on the very match being
