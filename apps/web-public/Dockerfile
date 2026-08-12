@@ -85,8 +85,6 @@ ENV SENTRY_TRACES_SAMPLE_RATE=${SENTRY_TRACES_SAMPLE_RATE}
 ENV SENTRY_AUTH_TOKEN=${SENTRY_AUTH_TOKEN}
 
 COPY tsconfig.base.json tsconfig.lib.json ./
-COPY eslint.config.mjs ./
-COPY eslint-rules/ ./eslint-rules/
 COPY apps/web-public/ ./apps/web-public/
 COPY packages/types/ ./packages/types/
 COPY packages/ui/ ./packages/ui/
