@@ -2,6 +2,7 @@ import {
   BadRequestException,
   ConflictException,
   Injectable,
+  Logger,
   UnauthorizedException,
 } from '@nestjs/common';
 import { NotificationSchedulerService } from '../../workers/notification-scheduler.worker';
@@ -48,6 +49,8 @@ interface EventFreezeState {
 
 @Injectable()
 export class FrozenResultsGuard {
+  private readonly logger = new Logger(FrozenResultsGuard.name);
+
   constructor(
     private readonly supabase: SupabaseService,
     private readonly notifications: NotificationSchedulerService,
@@ -188,6 +191,57 @@ export class FrozenResultsGuard {
       url: '/notifications',
       preference: 'schedule_changes',
     });
+  }
+
+  /**
+   * Close the pending edit requests on bouts that have just been un-completed.
+   *
+   * A request names an EXCHANGE, and un-completing a bout voids every exchange
+   * on it. Both pending shapes then rot, in opposite directions:
+   *
+   *   - `void_exchange` can never be approved again. `voidExchange` refuses an
+   *     already-voided exchange, so the row sits in the review queue forever,
+   *     inflating the super-admin badge and — because
+   *     `exchange_edit_requests_one_pending_idx` is UNIQUE on
+   *     `(exchange_id, request_type) WHERE status = 'pending'` — holding the slot
+   *     so no fresh request on that exchange can ever be filed.
+   *   - `revert_void_exchange` is worse, because it still WORKS. Approving one
+   *     un-voids a hit the revert deliberately threw away and recomputes the
+   *     score of a bout nobody has fought yet.
+   *
+   * Rejected rather than deleted: the request was a real thing somebody asked
+   * for, and the requester gets told why. `reviewed_by_user_id` is the actor or
+   * NULL — the clock and the pad reach this with a staff account and no user id,
+   * and inventing a sentinel uuid there would put a fictional reviewer in the
+   * audit trail.
+   *
+   * Best-effort ON PURPOSE, the one place in this class that swallows. It runs
+   * inside the un-completion owner AFTER the bout has been put back; throwing
+   * here would fail a reset that has already happened, to tidy a queue.
+   */
+  async rejectPendingEditsForMatch(
+    matchIds: readonly string[],
+    reason: string,
+    actorUserId?: string,
+  ): Promise<void> {
+    if (matchIds.length === 0) return;
+    const now = new Date().toISOString();
+    const { error } = await this.supabase.service
+      .from('exchange_edit_requests')
+      .update({
+        status: 'rejected',
+        reviewed_by_user_id: actorUserId ?? null,
+        reviewed_at: now,
+        rejection_reason: reason,
+        updated_at: now,
+      })
+      .in('match_id', [...matchIds])
+      .eq('status', 'pending');
+    if (error) {
+      this.logger.warn(
+        `Could not close pending exchange edits for ${matchIds.join(', ')}: ${error.message}`,
+      );
+    }
   }
 
   private async getEventStateForMatch(matchId: string): Promise<EventFreezeState> {

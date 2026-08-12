@@ -27,7 +27,10 @@ function supabaseFor(phase: { type: string; tournament_id: string } | null) {
 }
 
 /** The freeze is non-optional now, so every construction has to supply it. */
-const openEvent = () => ({ assertResultMutationAllowed: vi.fn().mockResolvedValue(undefined) });
+const openEvent = () => ({
+  assertResultMutationAllowed: vi.fn().mockResolvedValue(undefined),
+  rejectPendingEditsForMatch: vi.fn().mockResolvedValue(undefined),
+});
 
 const POOL = { type: 'pool', tournament_id: 't1' };
 const BRACKET = { type: 'single_elim', tournament_id: 't1' };
@@ -478,6 +481,29 @@ describe('MatchCompletionService.onMatchUncompleted', () => {
 
     expect(supabase.writes.filter((w) => w.table === 'match_forfeits')).toHaveLength(1);
     expect(supabase.writes.some((w) => w.table === 'bracket_slots')).toBe(false);
+  });
+
+  it('closes pending exchange edits on every bout it put back', async () => {
+    // A request names an EXCHANGE, and the revert voids every exchange on the
+    // bout. `void_exchange` then can never be approved and holds its unique
+    // pending slot forever; `revert_void_exchange` still works, and would put a
+    // hit back into a bout nobody has fought.
+    const supabase = uncompleteSupabase(bracketFixture(true));
+    const frozen = openEvent();
+
+    await new MatchCompletionService(
+      supabase as never,
+      frozen as never,
+      { clearDownstreamOf: vi.fn().mockResolvedValue(undefined) } as never,
+    ).onMatchUncompleted('match-r1p1', { discardDependents: true, actor: ORGANISER });
+
+    // The root AND the dependent that was reverted — the cascade voided that
+    // bout's exchanges too, so its requests rot in exactly the same way.
+    expect(frozen.rejectPendingEditsForMatch).toHaveBeenCalledWith(
+      ['match-r1p1', 'match-final'],
+      expect.any(String),
+      'organiser-1',
+    );
   });
 
   it('no-ops for a pool match, which feeds no slot', async () => {
