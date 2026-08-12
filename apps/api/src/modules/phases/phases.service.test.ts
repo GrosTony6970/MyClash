@@ -317,6 +317,77 @@ describe('PhasesService', () => {
       // Should resolve without throwing or making destructive calls.
       await expect(service.deleteAllPools('tournament-1', 'user-1')).resolves.toBeUndefined();
     });
+
+    /**
+     * `deletePool` and `regeneratePoolMatches` both refuse once a bout in the
+     * pool has been scored. `deleteAllPools` did the strictly more destructive
+     * thing — one DELETE across every pool in the phase — behind an org-role
+     * check alone, so a played round of pools could be erased outright. The
+     * delete takes each match's exchanges, penalties, events and forfeit records
+     * with it through ON DELETE CASCADE; there is nothing left to recover from.
+     */
+    it('deleteAllPools refuses once any bout in the phase has been scored', async () => {
+      const matchesQuery = makeAwaitableChain({
+        data: [{ id: 'match-9', status: 'completed' }],
+        error: null,
+      });
+      const deleteChain = makeChain({ data: null, error: null });
+      fromMock.mockImplementation((table: string) => {
+        if (table === 'phases') {
+          const chain = makeChain({ data: null, error: null });
+          chain.maybeSingle.mockResolvedValue({
+            data: { id: 'phase-1', tournament_id: 'tournament-1' },
+            error: null,
+          });
+          return chain;
+        }
+        if (table === 'tournaments') {
+          const chain = makeChain({ data: null, error: null });
+          chain.maybeSingle.mockResolvedValue({
+            data: { events: { organization_id: 'org-1' } },
+            error: null,
+          });
+          return chain;
+        }
+        if (table === 'matches') return matchesQuery;
+        return deleteChain;
+      });
+
+      await expect(service.deleteAllPools('tournament-1', 'user-1')).rejects.toThrow(
+        ConflictException,
+      );
+      // Refused BEFORE the destructive call, not after it.
+      expect(matchesQuery.delete).not.toHaveBeenCalled();
+      expect(deleteChain.delete).not.toHaveBeenCalled();
+    });
+
+    it('deleteAllPools proceeds when nothing in the phase has been scored', async () => {
+      const matchesQuery = makeAwaitableChain({ data: [], error: null });
+      const generic = makeChain({ data: [], error: null });
+      fromMock.mockImplementation((table: string) => {
+        if (table === 'phases') {
+          const chain = makeChain({ data: null, error: null });
+          chain.maybeSingle.mockResolvedValue({
+            data: { id: 'phase-1', tournament_id: 'tournament-1' },
+            error: null,
+          });
+          return chain;
+        }
+        if (table === 'tournaments') {
+          const chain = makeChain({ data: null, error: null });
+          chain.maybeSingle.mockResolvedValue({
+            data: { events: { organization_id: 'org-1' } },
+            error: null,
+          });
+          return chain;
+        }
+        if (table === 'matches') return matchesQuery;
+        return generic;
+      });
+
+      await expect(service.deleteAllPools('tournament-1', 'user-1')).resolves.toBeUndefined();
+      expect(matchesQuery.delete).toHaveBeenCalled();
+    });
   });
 
   // ── generateBracket — idempotency ─────────────────────────────────────────

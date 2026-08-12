@@ -2330,18 +2330,53 @@ export class PhasesService {
     };
   }
 
-  private async assertPoolEditable(poolId: string) {
+  /**
+   * Matches in this scope that scoring has touched. Empty means the layout can
+   * still be restructured.
+   *
+   * One owner for the predicate, two scopes: a single pool for the per-pool
+   * edits, and the whole phase for `deleteAllPools`, which removes every match
+   * at once and so cannot ask the per-pool question.
+   */
+  private async scoredMatchesIn(column: 'pool_id' | 'phase_id', id: string): Promise<string[]> {
     const { data, error } = await this.supabase.service
       .from('matches')
-      .select('id, status', { count: 'exact', head: false })
-      .eq('pool_id', poolId)
+      .select('id, status')
+      .eq(column, id)
       .in('status', ['running', 'paused', 'completed']);
     if (error) throw new BadRequestException(error.message);
-    if ((data ?? []).length > 0) {
+    return (data ?? []).map((row) => (row as { id: string }).id);
+  }
+
+  private async assertPoolEditable(poolId: string) {
+    const started = await this.scoredMatchesIn('pool_id', poolId);
+    if (started.length > 0) {
       throw new ConflictException({
         message: 'Pool is locked because scoring has started in at least one match.',
         poolId,
-        startedMatches: (data ?? []).length,
+        startedMatches: started.length,
+      });
+    }
+  }
+
+  /**
+   * The phase-wide twin, for the one caller that deletes every pool at once.
+   *
+   * `deletePool` and `regeneratePoolMatches` both refuse once a bout in the pool
+   * has been scored; `deleteAllPools` did the strictly more destructive thing —
+   * `DELETE FROM matches WHERE phase_id = ...` across every pool — behind an
+   * org-role check alone. A played round of pools could be erased outright, and
+   * the deletion takes each match's exchanges, penalties, events and forfeit
+   * records with it through ON DELETE CASCADE, so there is nothing left to
+   * recover the result from.
+   */
+  private async assertPoolPhaseEditable(phaseId: string) {
+    const started = await this.scoredMatchesIn('phase_id', phaseId);
+    if (started.length > 0) {
+      throw new ConflictException({
+        message: 'Pools are locked because scoring has started in at least one match.',
+        phaseId,
+        startedMatches: started.length,
       });
     }
   }
@@ -2852,6 +2887,8 @@ export class PhasesService {
     }
 
     const phaseId = (phase as { id: string }).id;
+    // Same rule its two siblings enforce per pool — see assertPoolPhaseEditable.
+    await this.assertPoolPhaseEditable(phaseId);
 
     // Order matters: matches → pool_members → pools → phase.
     const matchesRes = await this.supabase.service.from('matches').delete().eq('phase_id', phaseId);
