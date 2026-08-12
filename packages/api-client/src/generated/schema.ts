@@ -2445,6 +2445,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  '/api/v1/matches/{id}/uncomplete-preflight': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** What undoing this result would break, without undoing it (scorekeeper+) */
+    get: operations['MatchesController_uncompletePreflight'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   '/api/v1/matches/{id}/void': {
     parameters: {
       query?: never;
@@ -15065,6 +15082,25 @@ export interface operations {
         'application/json': components['schemas']['RefereeRoleAssignmentDto'];
       };
     };
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  MatchesController_uncompletePreflight: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
     responses: {
       200: {
         headers: {

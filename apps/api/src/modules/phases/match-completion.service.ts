@@ -161,6 +161,70 @@ export class MatchCompletionService {
     }
   }
 
+  /**
+   * What un-completing this match would do, without doing any of it.
+   *
+   * A pure read. It never writes and never throws on the condition it reports —
+   * including the frozen-results refusal, which becomes a `blockedReason` rather
+   * than a 409, because the whole point is that the operator sees the answer
+   * BEFORE pressing anything. Modelled on `getRecomputePreflight`.
+   *
+   * Names, never ids. `vw_tournament_query_matches` already projects the two
+   * fighter names and the bout's label, so the affected list reads as bouts an
+   * organiser recognises rather than a column of UUIDs.
+   */
+  async previewUncompletion(matchId: string, actor?: UncompleteOptions['actor']) {
+    const dependents = await dependentClosure(this.supabase.service, matchId);
+    const fought = dependents.filter((bout) => bout.hasBeenFought);
+    const named = await this.nameBouts(dependents);
+
+    return {
+      affected: dependents.map((bout) => ({
+        label: named.get(bout.matchId ?? '')?.label ?? bout.label,
+        redName: named.get(bout.matchId ?? '')?.redName ?? null,
+        blueName: named.get(bout.matchId ?? '')?.blueName ?? null,
+        round: bout.round,
+        status: bout.status,
+        hasBeenFought: bout.hasBeenFought,
+        locked: bout.lockedAt !== null,
+      })),
+      foughtCount: fought.length,
+      blocked: fought.length > 0,
+      canDiscard: actor?.canDiscardDependentResults === true,
+      frozen: await this.isFrozen(matchId, actor?.userId),
+    };
+  }
+
+  /** `false` rather than a throw — a pre-flight reports, it does not refuse. */
+  private async isFrozen(matchId: string, userId?: string): Promise<boolean> {
+    try {
+      await this.frozenResults.assertResultMutationAllowed(matchId, userId);
+      return false;
+    } catch {
+      return true;
+    }
+  }
+
+  private async nameBouts(bouts: DependentBout[]) {
+    const ids = bouts.map((bout) => bout.matchId).filter((id): id is string => id !== null);
+    const named = new Map<string, { label: string | null; redName: string; blueName: string }>();
+    if (ids.length === 0) return named;
+
+    const { data } = await this.supabase.service
+      .from('vw_tournament_query_matches')
+      .select('match_id, match_number_label, red_name, blue_name')
+      .in('match_id', ids);
+
+    for (const row of (data ?? []) as Array<Record<string, string | null>>) {
+      named.set(row['match_id'] as string, {
+        label: row['match_number_label'] ?? null,
+        redName: row['red_name'] ?? '',
+        blueName: row['blue_name'] ?? '',
+      });
+    }
+    return named;
+  }
+
   private assertMayDiscard(fought: DependentBout[], opts: UncompleteOptions): void {
     if (!opts.discardDependents) {
       throw new ConflictException({

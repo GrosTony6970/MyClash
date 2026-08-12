@@ -26,6 +26,7 @@ import type { FastifyReply, FastifyRequest } from 'fastify';
 import { StaffService } from '../staff/staff.service';
 import { ClockService } from './clock.service';
 import { MatchAuditService } from './match-audit.service';
+import { MatchCompletionService } from '../phases/match-completion.service';
 import { MatchForfeitsService } from './match-forfeits.service';
 import { MatchesService } from './matches.service';
 import {
@@ -69,6 +70,8 @@ export class MatchesController {
     private readonly clock: ClockService,
     private readonly staff: StaffService,
     private readonly matchAudit: MatchAuditService,
+    // Value import, not `import type` — see di-wiring.regression.test.ts.
+    private readonly matchCompletion: MatchCompletionService,
   ) {}
 
   // ── Matches ──────────────────────────────────────────────────────────────────
@@ -168,6 +171,17 @@ export class MatchesController {
     @Body() dto: RefereeRoleAssignmentDto,
   ) {
     return this.matches.setRefereeRoleAssignment(id, dto.role, dto.refereeId);
+  }
+
+  @Get('matches/:id/uncomplete-preflight')
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'What undoing this result would break, without undoing it (scorekeeper+)',
+  })
+  @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
+  async uncompletePreflight(@Param('id', ParseUUIDPipe) id: string, @Req() req: FastifyRequest) {
+    const actor = await this.staff.authorizeMatchScoring(req, id);
+    return this.matchCompletion.previewUncompletion(id, actor);
   }
 
   @Post('matches/:id/void')
