@@ -410,6 +410,17 @@ function fakeSupabase(state: TableState) {
   /** Updates WITH the filters that scoped them — `updated` alone cannot say
    *  which row was written, which is what a cascade's ordering needs. */
   const mutations: Array<{ table: string; row: unknown; filters: Array<[string, unknown]> }> = [];
+  /** The column lists asked for. This double does NOT project — `select()`
+   *  hands back the whole fixture row whatever it was asked for — so a column
+   *  missing from a projection cannot change behaviour here the way it does
+   *  against Postgres. Recording the request is the only way to assert one. */
+  const selects: Array<{ table: string; columns: string }> = [];
+  /** Records the projection and hands the chain back, so `select` stays one
+   *  line inside `chain` — which is already at its length budget. */
+  const recordSelect = (table: string, columns: unknown, api: unknown) => {
+    if (typeof columns === 'string') selects.push({ table, columns });
+    return api;
+  };
 
   function chain(table: string) {
     const tableState = state[table] ?? {};
@@ -425,7 +436,7 @@ function fakeSupabase(state: TableState) {
     // Supabase's fluent query builder is both thenable and chainable in the code under test.
     // The test double intentionally mirrors that hybrid shape.
     const api: any = Object.assign(promise, {
-      select: vi.fn(() => api),
+      select: vi.fn((columns?: unknown) => recordSelect(table, columns, api)),
       eq: vi.fn((column: string, value: unknown) => {
         filters.push([column, value]);
         return api;
@@ -466,6 +477,7 @@ function fakeSupabase(state: TableState) {
     inserted,
     updated,
     mutations,
+    selects,
     service: {
       from: vi.fn((table: string) => chain(table)),
     },
@@ -1127,6 +1139,59 @@ describe('MatchForfeitsService — pool cascade void', () => {
     await service.voidForfeit('forfeit-1');
 
     expect(supabase.updated.matches).toHaveLength(1); // the parent restore only
+    expect(supabase.updated.match_forfeits).toHaveLength(2);
+  });
+
+  it('asks for the column its divergence check reads', async () => {
+    // Not a style assertion — the projection IS the bug. `cascadeVoidChildren`
+    // selected `id, match_id, previous_match_state` and then asked
+    // `recordedResultDiverged` for a verdict computed from
+    // `resulting_match_state`. Against Postgres that column reads back
+    // undefined, the recorded state is `{}`, and the check answers `null` for
+    // every child forever: not strict, INERT. Only `liveMatchIds` was left, and
+    // it cannot see a child that was reset and re-fought all the way back to
+    // 'completed' — that child got its real result overwritten by the snapshot.
+    //
+    // Asserted on the request rather than on behaviour because this double does
+    // not project: it returns the whole fixture row whatever the select said,
+    // so dropping the column again changes nothing it can observe.
+    const supabase = fakeSupabase(cascadeState('completed'));
+    const service = new MatchForfeitsService(supabase as never, undefined as never);
+
+    await service.voidForfeit('forfeit-1');
+
+    const childQuery = supabase.selects.find(
+      (query) => query.table === 'match_forfeits' && query.columns.includes('previous_match_state'),
+    );
+    expect(childQuery?.columns).toContain('resulting_match_state');
+  });
+
+  it('leaves a child that was replayed to a finish, and still voids its record', async () => {
+    // The case `liveMatchIds` is blind to: reset, re-fought, `completed` again.
+    // Not 'running' or 'paused', so it reads as untouched — the divergence
+    // check is the only thing between a real replayed score and the snapshot.
+    const supabase = fakeSupabase(
+      cascadeState('completed', [
+        {
+          ...CHILD_ROW,
+          resulting_match_state: {
+            status: 'completed',
+            winner_registration_id: 'reg-green',
+            red_score: 0,
+            blue_score: 3,
+            end_reason: 'forfeit',
+          },
+        },
+      ]),
+    );
+    const service = new MatchForfeitsService(supabase as never, undefined as never);
+
+    const result = await service.voidForfeit('forfeit-1');
+
+    // The parent restore only — the child bout keeps whatever it was replayed to.
+    expect(supabase.updated.matches).toHaveLength(1);
+    // But the F must not stand for a bout somebody actually fought.
+    expect(result.cascaded_forfeit_count).toBe(1);
     expect(supabase.updated.match_forfeits).toHaveLength(2);
   });
 

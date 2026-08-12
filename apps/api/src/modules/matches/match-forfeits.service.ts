@@ -440,7 +440,11 @@ export class MatchForfeitsService {
   private async cascadeVoidChildren(parentForfeitId: string, actor: Actor): Promise<number> {
     const { data } = await this.supabase.service
       .from('match_forfeits')
-      .select('id, match_id, previous_match_state')
+      // `resulting_match_state` is what `recordedResultDiverged` compares
+      // against. Leaving it out of the select does not make that check strict,
+      // it makes it INERT: the column reads back undefined, the comparison has
+      // nothing to compare, and it answers `null` for every child forever.
+      .select('id, match_id, previous_match_state, resulting_match_state')
       .eq('parent_forfeit_id', parentForfeitId)
       .is('voided_at', null);
     const children = (data ?? []) as Row[];
