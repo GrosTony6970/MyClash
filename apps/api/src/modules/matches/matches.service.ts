@@ -998,6 +998,19 @@ export class MatchesService {
         winner_registration_id: null,
         started_at: null,
         ended_at: null,
+        // How the PREVIOUS fight ended, and how long it took. Nothing clears
+        // either on the way back in: the clock's `end` writes status + ended_at
+        // + the durations but never `end_reason`, and scoring writes it only
+        // inside `justCompleted`. So a bout reset and re-fought to a clock end
+        // stays `completed` carrying the old reason — and `end_reason` is not
+        // decoration. `swiss-standings.service.ts` reads 'max_doubles' as
+        // ['loss','loss'] and the HEMA Ratings submission says the same, so
+        // both fighters lose a bout one of them just won, in the export that
+        // leaves the platform. Same class of miss as the `end_reason` hole
+        // `match-forfeits.service.ts` restoreMatchState was fixed for.
+        end_reason: null,
+        duration_active_ms: null,
+        duration_total_ms: null,
         // Reset best-of round state back to a single open round.
         current_round: 1,
         red_round_wins: 0,

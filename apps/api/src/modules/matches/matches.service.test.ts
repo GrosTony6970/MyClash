@@ -726,6 +726,54 @@ describe('MatchesService', () => {
       expect(fromMock).not.toHaveBeenCalled();
     });
 
+    /**
+     * The bout that lies about how it ended.
+     *
+     * Nothing on the way back IN clears `end_reason`: the clock's `end` writes
+     * status + ended_at + the durations and never touches it, and scoring writes
+     * it only inside `justCompleted`. So a match reset after a double cap and
+     * then re-fought to a clock end is `completed` with `end_reason` still
+     * reading 'max_doubles' — and that value is not decoration.
+     * `swiss-standings.service.ts` maps it to ['loss','loss'] and the HEMA
+     * Ratings submission documents the same meaning, so BOTH fighters lose a
+     * bout one of them just won, in the export that leaves the platform.
+     *
+     * Asserted on the update object rather than through a replay because the
+     * reason has to be gone at the moment of the reset — a later re-completion
+     * is exactly what does NOT repair it.
+     */
+    it('resetMatch clears the previous fight end reason and durations', async () => {
+      const matchUpdate = makeChain({ data: { id: 'match-1' }, error: null });
+      fromMock.mockImplementation((table: string) => {
+        if (table === 'matches') {
+          const chain = matchUpdate;
+          chain.maybeSingle.mockResolvedValue({
+            data: { id: 'match-1', locked_at: null },
+            error: null,
+          });
+          return chain;
+        }
+        return makeChain({ data: null, error: null });
+      });
+
+      await service.resetMatch('match-1', {
+        confirmation: 'RESET MATCH',
+        reason: 'replay the bout',
+      });
+
+      expect(matchUpdate.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          status: 'scheduled',
+          end_reason: null,
+          duration_active_ms: null,
+          duration_total_ms: null,
+          winner_registration_id: null,
+          started_at: null,
+          ended_at: null,
+        }),
+      );
+    });
+
     it('swapFighterSide toggles visual side order only', async () => {
       const lockChain = makeChain({ data: null, error: null });
       lockChain.maybeSingle.mockResolvedValue({
