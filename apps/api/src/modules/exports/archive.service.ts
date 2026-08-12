@@ -179,6 +179,10 @@ const JSON_ID_PATHS = {
   match_forfeits: [
     { path: 'downstream_match_ids[]', map: 'matches' },
     { path: 'previous_match_state.winner_registration_id', map: 'registrations' },
+    // Same shape as its `previous_` sibling — both are `matchSnapshot` output,
+    // so both carry the winner. 0186 added the post-state so a void can tell
+    // whether the match still holds the result the record produced.
+    { path: 'resulting_match_state.winner_registration_id', map: 'registrations' },
     { path: 'previous_registration_state.id', map: 'registrations' },
   ],
   swiss_rounds: [

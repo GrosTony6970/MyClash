@@ -702,6 +702,126 @@ describe('MatchForfeitsService — override regressions', () => {
     );
   });
 
+  /**
+   * The void that overwrites a real result.
+   *
+   * Every guard on this path asks whether the ACTOR may void. None asked whether
+   * there is still the same thing to void. `liveMatchIds`' own comment names the
+   * three routes that put a forfeited bout back in play with its record active —
+   * reset, PATCH /status, the clock's reopen — but a bout taken back through one
+   * of them and then fought to a finish is `completed` again, so no status-shaped
+   * check sees anything wrong. The restore then writes the pre-forfeit snapshot
+   * over a played result and the scores are gone.
+   */
+  it('refuses to void a record whose match has been replayed since', async () => {
+    const supabase = fakeSupabase({
+      match_forfeits: {
+        maybeSingle: {
+          id: 'forfeit-1',
+          match_id: 'match-1',
+          voided_at: null,
+          previous_match_state: { status: 'scheduled', red_score: 0, blue_score: 0 },
+          // What the forfeit left: a 0–3 walkover to blue.
+          resulting_match_state: {
+            status: 'completed',
+            red_score: 0,
+            blue_score: 3,
+            winner_registration_id: 'reg-blue',
+            ended_at: '2026-08-12T09:00:00.000Z',
+            end_reason: 'forfeit',
+          },
+        },
+        update: { id: 'forfeit-1' },
+      },
+      matches: {
+        // What the bout says now: reset, re-fought, red won it 5–2 on points.
+        maybeSingle: {
+          locked_at: null,
+          status: 'completed',
+          red_score: 5,
+          blue_score: 2,
+          winner_registration_id: 'reg-red',
+          ended_at: '2026-08-12T11:00:00.000Z',
+          end_reason: 'first_to_points',
+        },
+      },
+    });
+    const service = new MatchForfeitsService(supabase as never, undefined as never);
+
+    await expect(service.voidForfeit('forfeit-1')).rejects.toThrow(BadRequestException);
+    // And nothing was written on the way to the refusal.
+    expect(supabase.updated.matches).toBeUndefined();
+    expect(supabase.updated.match_forfeits).toBeUndefined();
+  });
+
+  it('still voids when the match holds exactly the result the record produced', async () => {
+    // The normal case, and the reason the guard compares rather than refusing on
+    // any completed row: a forfeited bout IS completed, by the forfeit.
+    const result = {
+      status: 'completed',
+      red_score: 0,
+      blue_score: 3,
+      winner_registration_id: 'reg-blue',
+      ended_at: '2026-08-12T09:00:00.000Z',
+      end_reason: 'forfeit',
+    };
+    const supabase = fakeSupabase({
+      match_forfeits: {
+        maybeSingle: {
+          id: 'forfeit-1',
+          match_id: 'match-1',
+          voided_at: null,
+          previous_match_state: { status: 'scheduled', red_score: 0, blue_score: 0 },
+          resulting_match_state: result,
+        },
+        update: { id: 'forfeit-1' },
+      },
+      matches: { maybeSingle: { locked_at: null, ...result } },
+    });
+    const service = new MatchForfeitsService(supabase as never, undefined as never);
+
+    await service.voidForfeit('forfeit-1');
+
+    expect(supabase.updated.matches).toContainEqual(
+      expect.objectContaining({ status: 'scheduled' }),
+    );
+  });
+
+  it('voids a record written before the post-state was captured', async () => {
+    // Pre-0186 rows carry `{}`. Refusing on no evidence would make every
+    // historical record permanently unvoidable, so the guard abstains and the
+    // old status-shaped protection is what remains.
+    const supabase = fakeSupabase({
+      match_forfeits: {
+        maybeSingle: {
+          id: 'forfeit-1',
+          match_id: 'match-1',
+          voided_at: null,
+          previous_match_state: { status: 'scheduled', red_score: 0, blue_score: 0 },
+          resulting_match_state: {},
+        },
+        update: { id: 'forfeit-1' },
+      },
+      matches: {
+        maybeSingle: {
+          locked_at: null,
+          status: 'completed',
+          red_score: 5,
+          blue_score: 2,
+          winner_registration_id: 'reg-red',
+          end_reason: 'first_to_points',
+        },
+      },
+    });
+    const service = new MatchForfeitsService(supabase as never, undefined as never);
+
+    await service.voidForfeit('forfeit-1');
+
+    expect(supabase.updated.matches).toContainEqual(
+      expect.objectContaining({ status: 'scheduled' }),
+    );
+  });
+
   it('re-advances the bracket when the void restores a decided result', async () => {
     // Voiding an override on a match that had been completed BY PLAY restores a
     // finished result with a winner — and nothing re-advanced it. The clear had
@@ -954,8 +1074,15 @@ describe('MatchForfeitsService — pool cascade void', () => {
       parent_forfeit_id: 'forfeit-1',
       auto_created: true,
     });
-    // Never written at all, so the column keeps its '[]' default.
-    expect(supabase.updated.match_forfeits).toBeUndefined();
+    // Never written at all, so the column keeps its '[]' default. Asserted on
+    // the COLUMN, not on the table being untouched: both records now get a
+    // `resulting_match_state` stamp, so `match_forfeits` is legitimately
+    // written — just never with this column.
+    expect(
+      (supabase.updated.match_forfeits ?? []).some(
+        (row) => 'downstream_match_ids' in (row as Record<string, unknown>),
+      ),
+    ).toBe(false);
   });
 
   it('voids the sub-forfeits when the parent record is voided', async () => {

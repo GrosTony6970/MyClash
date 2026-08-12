@@ -195,6 +195,9 @@ export class MatchForfeitsService {
         .eq('id', forfeit.id as string);
     }
 
+    // Last, once every branch above has had its say about the matches row.
+    await this.stampResultingState(forfeit.id as string, matchId);
+
     return { ...forfeit, downstream_match_ids: downstreamIds };
   }
 
@@ -359,6 +362,21 @@ export class MatchForfeitsService {
     const matchId = forfeit['match_id'] as string;
     await this.assertVoidable(matchId, actor);
 
+    // The bout must still be holding the result this record produced. Every
+    // guard above asks whether the ACTOR may void; none asked whether there is
+    // still the same thing to void. Three paths put a forfeited bout back in
+    // play with its record active — reset, PATCH /status, and the clock's
+    // reopen — and a bout that is then re-fought lands back on 'completed', so
+    // no status-shaped check notices. Restoring `previous_match_state` over it
+    // writes the pre-forfeit snapshot straight over a real played result and
+    // the scores are gone. Refuse instead: the organiser can reset the bout
+    // themselves if the replay is the one they want to discard.
+    if ((await this.recordedResultDiverged(matchId, forfeit)) === true) {
+      throw new BadRequestException(
+        'Cannot void this record — the match has been replayed since it was created',
+      );
+    }
+
     const downstreamIds = Array.isArray(forfeit['downstream_match_ids'])
       ? (forfeit['downstream_match_ids'] as string[])
       : [];
@@ -445,7 +463,12 @@ export class MatchForfeitsService {
     const live = await this.liveMatchIds(children.map((child) => child['match_id'] as string));
     for (const child of children) {
       const matchId = child['match_id'] as string;
-      if (!live.has(matchId)) {
+      // Two reasons to leave the bout alone, and the record voids either way.
+      // `live` catches one mid-bout; the divergence check catches the case it
+      // cannot see — a child reset and re-fought all the way to 'completed'
+      // again, which is not 'running' or 'paused' and so reads as untouched.
+      const diverged = await this.recordedResultDiverged(matchId, child);
+      if (!live.has(matchId) && diverged !== true) {
         await this.restoreMatchState(matchId, (child['previous_match_state'] as Row | null) ?? {});
       }
       await this.stampVoided(child['id'] as string, actor);
@@ -461,6 +484,11 @@ export class MatchForfeitsService {
    * `PATCH /matches/:id/status`, and the clock's `reopen` (which validates the
    * CLOCK state machine, never `matches.status`). Restoring
    * `previous_match_state` over a running bout would wipe its score.
+   *
+   * MID-BOUT ONLY. A child taken back through one of those paths and then fought
+   * to a finish is `completed` again, which this set does not contain — the
+   * caller pairs it with `recordedResultDiverged`, which compares the row to
+   * what the record produced and so covers the finished case.
    *
    * The record still voids either way — an F must not stand for a bout that is
    * being fought for real. Scoped on `status`, NOT `started_at`:
@@ -677,7 +705,7 @@ export class MatchForfeitsService {
         : (match['red_registration_id'] as string);
     const scores = this.resolveScores(match, registrationId, policy);
 
-    await this.insertForfeit({
+    const child = await this.insertForfeit({
       match_id: match['id'],
       tournament_id: tournamentId,
       forfeiting_registration_id: registrationId,
@@ -701,6 +729,9 @@ export class MatchForfeitsService {
       scores,
       forfeitEndReason(reason),
     );
+    // A child is voided by the cascade, which compares the same way the parent
+    // void does — so it owes the same recorded result.
+    await this.stampResultingState(child.id as string, match['id'] as string);
   }
 
   private async applyBracketForfeit(
@@ -1071,4 +1102,65 @@ export class MatchForfeitsService {
       end_reason: match['end_reason'] ?? null,
     };
   }
+
+  /** The six snapshot columns, read fresh. Null when the match is gone. */
+  private async readMatchSnapshot(matchId: string): Promise<Row | null> {
+    const { data } = await this.supabase.service
+      .from('matches')
+      .select('status, red_score, blue_score, winner_registration_id, ended_at, end_reason')
+      .eq('id', matchId)
+      .maybeSingle();
+    return data ? this.matchSnapshot(data as Row) : null;
+  }
+
+  /**
+   * Record the result this forfeit produced, so a later void can tell whether
+   * the match still holds it.
+   *
+   * Read fresh at the END of the write rather than copied from `completeMatch`'s
+   * arguments, because `tryReplaceMainRoundOneFighter` can un-complete the row
+   * again inside the same call — a bracket round-1 forfeit with a replacement
+   * finishes `scheduled`, not `completed`. Whatever the row says once every
+   * branch has run is what the record produced.
+   */
+  private async stampResultingState(forfeitId: string, matchId: string): Promise<void> {
+    const resulting = await this.readMatchSnapshot(matchId);
+    if (!resulting) return;
+    await this.supabase.service
+      .from('match_forfeits')
+      .update({ resulting_match_state: resulting, updated_at: new Date().toISOString() })
+      .eq('id', forfeitId);
+  }
+
+  /**
+   * Has the match moved off the result this record produced?
+   *
+   * `null` when there is nothing to compare — a record written before migration
+   * 0186 carries an empty object, and inventing a verdict there would refuse
+   * voids on no evidence.
+   *
+   * `ended_at` is deliberately NOT compared. It round-trips through Postgres as
+   * a timestamptz and comes back in a different string form than the ISO value
+   * `completeMatch` wrote, so comparing it would report divergence on every
+   * untouched row. The four decision columns are enough to separate a replay
+   * from the forfeit's own result: a real fight writes `end_reason` from the
+   * ruleset ('first_to_points', 'time_limit', 'max_doubles') or leaves it null,
+   * never 'forfeit' or 'black_card'.
+   */
+  private async recordedResultDiverged(matchId: string, forfeit: Row): Promise<boolean | null> {
+    const recorded = (forfeit['resulting_match_state'] as Row | null) ?? {};
+    if (Object.keys(recorded).length === 0) return null;
+    const current = await this.readMatchSnapshot(matchId);
+    if (!current) return null;
+    return RESULT_DECISION_KEYS.some((key) => (current[key] ?? null) !== (recorded[key] ?? null));
+  }
 }
+
+/** What makes one result different from another. See `recordedResultDiverged`. */
+const RESULT_DECISION_KEYS = [
+  'status',
+  'winner_registration_id',
+  'red_score',
+  'blue_score',
+  'end_reason',
+] as const;
