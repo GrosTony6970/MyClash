@@ -21,6 +21,7 @@ import type { TournamentScoringConfig } from '@myclash/types';
 import { useI18n } from '../i18n/I18nProvider';
 import { useScoringTheme } from '../theme/ThemeProvider';
 import { clockAdjustmentMs } from './clock-adjustment';
+import { refusalMessage, type RefusalBody } from '../lib/refusal-copy';
 import { buildUnifiedTimeline, ConfirmDialog, exchangeOptionLabel } from '@myclash/ui';
 import { useExchanges } from '../hooks/useExchanges';
 import { usePenalties, type PenaltyCard } from '../hooks/usePenalties';
@@ -161,8 +162,8 @@ export function MatchCorrectionsDrawer({
         body: JSON.stringify(body),
       });
       if (!res.ok) {
-        const payload = (await res.json().catch(() => ({}))) as { message?: string };
-        throw new Error(payload.message ?? t('scoring.corrections.actionFailed'));
+        const payload = (await res.json().catch(() => ({}))) as RefusalBody;
+        throw new Error(refusalMessage(res.status, payload, t, 'scoring.corrections.actionFailed'));
       }
       onDone();
     } catch (err) {
@@ -191,8 +192,8 @@ export function MatchCorrectionsDrawer({
         }),
       });
       if (!res.ok) {
-        const payload = (await res.json().catch(() => ({}))) as { message?: string };
-        throw new Error(payload.message ?? t('scoring.corrections.actionFailed'));
+        const payload = (await res.json().catch(() => ({}))) as RefusalBody;
+        throw new Error(refusalMessage(res.status, payload, t, 'scoring.corrections.actionFailed'));
       }
       onDone();
     } catch (err) {

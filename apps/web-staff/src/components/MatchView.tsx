@@ -8,6 +8,7 @@ import { MatchCorrectionsDrawer } from './MatchCorrectionsDrawer';
 import { MatchResultOverlay } from './MatchResultOverlay';
 import { useI18n } from '../i18n/I18nProvider';
 import { useScoringSubmit } from '../hooks/useScoringSubmit';
+import { refusalMessage, type RefusalBody } from '../lib/refusal-copy';
 import { nextSequence as outboxNextSequence } from '../offline/outbox';
 import type { SyncEngine } from '../offline/sync';
 import type { ClockState } from './MatchClock';
@@ -225,8 +226,8 @@ export function MatchView({
           body: JSON.stringify({ action }),
         });
         if (!res.ok) {
-          const body = (await res.json().catch(() => ({}))) as { message?: string };
-          throw new Error(body.message ?? t('scoring.clock.actionFailed'));
+          const body = (await res.json().catch(() => ({}))) as RefusalBody;
+          throw new Error(refusalMessage(res.status, body, t, 'scoring.clock.actionFailed'));
         }
         const newState = (await res.json()) as ClockState;
         setClockState(newState);
@@ -264,8 +265,8 @@ export function MatchView({
         body: JSON.stringify({}),
       });
       if (!res.ok) {
-        const body = (await res.json().catch(() => ({}))) as { message?: string };
-        throw new Error(body.message ?? t('scoring.match.unlockFailed'));
+        const body = (await res.json().catch(() => ({}))) as RefusalBody;
+        throw new Error(refusalMessage(res.status, body, t, 'scoring.match.unlockFailed'));
       }
       onRefresh();
     } catch (err) {

@@ -124,9 +124,10 @@ export class SwissAdvanceService {
       });
     }
     if (!opts.actor?.canDiscardDependentResults) {
-      throw new ForbiddenException(
-        'Only an organiser can undo a result once a later Swiss round has been drawn',
-      );
+      throw new ForbiddenException({
+        message: 'Only an organiser can undo a result once a later Swiss round has been drawn',
+        code: 'uncomplete_requires_organiser',
+      });
     }
   }
 

@@ -45,6 +45,14 @@ describe('deriveRoundStatus', () => {
   });
 });
 
+/** Every row written across every chain the double handed out. */
+const updateCalls = (supabase: { from: { mock: { results: Array<{ value: unknown }> } } }) =>
+  supabase.from.mock.results.flatMap((result) =>
+    ((result.value as { update: { mock: { calls: unknown[][] } } }).update.mock.calls ?? []).map(
+      (call) => call[0],
+    ),
+  );
+
 /**
  * The projection has to be computed on the state the caller is ABOUT to create.
  *
@@ -54,14 +62,6 @@ describe('deriveRoundStatus', () => {
  * the database. Reading it plainly derives `completed`, finds nothing changed,
  * and writes nothing: an inverse that ships green and does nothing at all.
  */
-/** Every row written across every chain the double handed out. */
-const updateCalls = (supabase: { from: { mock: { results: Array<{ value: unknown }> } } }) =>
-  supabase.from.mock.results.flatMap((result) =>
-    ((result.value as { update: { mock: { calls: unknown[][] } } }).update.mock.calls ?? []).map(
-      (call) => call[0],
-    ),
-  );
-
 describe('SwissRoundStateService.refresh', () => {
   const round = (matches: Array<{ id: string; status: string }>, status = 'completed') => ({
     swiss_rounds: { data: { id: 'round-1', status, matches }, error: null },

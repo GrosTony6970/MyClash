@@ -1684,6 +1684,16 @@ export const en = {
       editAsNoExchange: 'Edit as no exchange',
       reason: 'Correction reason',
       resetConfirmation: 'Type RESET MATCH to reset',
+      dependentsBlockedOne:
+        'A later bout has already been fought. Only an organiser can undo this — ask one.',
+      dependentsBlockedMany:
+        '{count} later bouts have already been fought. Only an organiser can undo this — ask one.',
+      forfeitBlocked:
+        'This bout ended in a forfeit that took the fighter out of the tournament. An organiser has to cancel that first.',
+      swissRoundAhead:
+        'The next Swiss round has already been drawn from this result. Only an organiser can undo it now.',
+      organiserOnly: 'Only an organiser can do this. Ask one for help.',
+      offlineRefusal: 'No connection. This needs the network — try again once you are back online.',
     },
     clock: {
       loading: 'Loading clock...',
@@ -9609,6 +9619,17 @@ export const fr = {
       editAsNoExchange: 'Corriger en aucun echange',
       reason: 'Raison de correction',
       resetConfirmation: 'Taper RESET MATCH pour reinitialiser',
+      dependentsBlockedOne:
+        'Un assaut suivant a deja ete combattu. Seul un organisateur peut annuler — demandez-lui.',
+      dependentsBlockedMany:
+        '{count} assauts suivants ont deja ete combattus. Seul un organisateur peut annuler — demandez-lui.',
+      forfeitBlocked:
+        'Cet assaut s est termine par un forfait qui a retire le combattant du tournoi. Un organisateur doit d abord annuler ce forfait.',
+      swissRoundAhead:
+        'La ronde suisse suivante a deja ete tiree a partir de ce resultat. Seul un organisateur peut annuler maintenant.',
+      organiserOnly: 'Seul un organisateur peut le faire. Demandez-lui de l aide.',
+      offlineRefusal:
+        'Pas de connexion. Cette action necessite le reseau — reessayez une fois reconnecte.',
     },
     clock: {
       loading: 'Chargement du chrono...',

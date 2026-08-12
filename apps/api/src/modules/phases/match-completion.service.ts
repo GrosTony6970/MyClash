@@ -337,9 +337,12 @@ export class MatchCompletionService {
       });
     }
     if (!opts.actor?.canDiscardDependentResults) {
-      throw new ForbiddenException(
-        'Only an organiser can undo a result once a later bout has been fought',
-      );
+      // Object form, like its sibling above: the pad maps `code` to its own
+      // wording, and a bare string leaves it rendering API English at a referee.
+      throw new ForbiddenException({
+        message: 'Only an organiser can undo a result once a later bout has been fought',
+        code: 'uncomplete_requires_organiser',
+      });
     }
   }
 
