@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 /**
@@ -93,17 +93,71 @@ describe('NestJS DI wiring — injected services must be value-imported', () => 
  * existing — the same failure the value-import guards above exist to catch, one
  * layer out.
  *
- * Nest would throw for the one NON-optional consumer
- * (`exchange-edit-requests.service.ts`), but only at real boot, and no test in
- * this repo boots the whole container. The other three are @Optional() and would
- * never throw at all. So assert the module edge in source.
+ * Nest throws for the one NON-optional consumer
+ * (`exchange-edit-requests.service.ts`), but only at real boot. No TEST boots the
+ * container — `pnpm quality:openapi-drift` does, via emit-openapi.cjs on the
+ * built dist, which is where this failure actually surfaced. That is a slow gate
+ * that needs `nest build` first, and it says nothing at all about the other three
+ * consumers, which are @Optional() and would never throw. So assert the module
+ * edge in source, where it is cheap and covers every consumer.
  */
 describe('every module injecting FrozenResultsGuard imports the leaf that provides it', () => {
+  /**
+   * Derived, not listed. A hand-written service→module table was the first cut
+   * and it was wrong on its first outing: `ExchangeEditRequestsAdminService` is
+   * registered in BOTH AdminModule and ReviewQueueModule, the table named only
+   * the first, and Nest resolves per REGISTERING MODULE rather than per class —
+   * so the second one threw at boot with the guard's own test green.
+   *
+   * Scanning for the registrations cannot make that mistake: whichever modules
+   * list a consumer in `providers:`, all of them must import the leaf.
+   */
+  const apiSrc = join(__dirname, '..', '..');
+
+  const walk = (dir: string): string[] =>
+    readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
+      const full = join(dir, entry.name);
+      if (entry.isDirectory()) return walk(full);
+      return entry.name.endsWith('.module.ts') ? [full] : [];
+    });
+
+  const CONSUMER_SERVICES = [
+    'MatchesService',
+    'MatchForfeitsService',
+    'PenaltiesService',
+    'ExchangeEditRequestsAdminService',
+  ];
+
+  const moduleFiles = walk(apiSrc);
+
+  it('finds the module files at all — a broken scan must not read as a clean repo', () => {
+    expect(moduleFiles.length).toBeGreaterThan(20);
+  });
+
+  for (const serviceName of CONSUMER_SERVICES) {
+    it(`${serviceName}: every module registering it imports FrozenResultsModule`, () => {
+      const registering = moduleFiles.filter((file) => {
+        const src = readFileSync(file, 'utf8');
+        const providers = src.slice(src.indexOf('providers:'));
+        return src.includes('providers:') && providers.includes(serviceName);
+      });
+      expect(registering.length, `no module registers ${serviceName}`).toBeGreaterThan(0);
+
+      for (const file of registering) {
+        expect(
+          readFileSync(file, 'utf8'),
+          `${file} registers ${serviceName}, which injects FrozenResultsGuard, so it must import FrozenResultsModule`,
+        ).toMatch(/\bFrozenResultsModule\b/);
+      }
+    });
+  }
+
   const CONSUMERS: Array<[serviceFile: string, moduleFile: string]> = [
     ['./matches.service.ts', './matches.module.ts'],
     ['./match-forfeits.service.ts', './matches.module.ts'],
     ['../penalties/penalties.service.ts', '../penalties/penalties.module.ts'],
     ['../admin/exchange-edit-requests.service.ts', '../admin/admin.module.ts'],
+    ['../admin/exchange-edit-requests.service.ts', '../admin/review-queue.module.ts'],
   ];
 
   /**
