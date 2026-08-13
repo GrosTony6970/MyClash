@@ -582,9 +582,6 @@ importers:
       '@myclash/types':
         specifier: workspace:^
         version: link:../types
-      lucide-react:
-        specifier: ^1.29.0
-        version: 1.29.0(react@19.2.8)
       react:
         specifier: ^19.0.0
         version: 19.2.8
@@ -607,6 +604,9 @@ importers:
       eslint-plugin-jsx-a11y:
         specifier: ^6.10.2
         version: 6.10.2(eslint@10.8.0(jiti@2.7.0)(supports-color@10.2.2))
+      lucide-react:
+        specifier: ^1.29.0
+        version: 1.29.0(react@19.2.8)
       typescript:
         specifier: ^6.0.3
         version: 6.0.3

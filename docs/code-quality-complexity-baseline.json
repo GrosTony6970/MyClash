@@ -170,6 +170,7 @@
     "packages/ui/src/components/AiKeysManager.tsx",
     "packages/ui/src/components/BracketView.tsx",
     "packages/ui/src/components/TVScoreboard.tsx",
+    "packages/ui/src/components/nav-icon-glyphs.ts",
     "scripts/check-edge-plugins.mjs",
     "scripts/check-edge-plugins.test.mjs",
     "scripts/check-infra-review.mjs",
