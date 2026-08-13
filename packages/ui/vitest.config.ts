@@ -7,7 +7,10 @@ export default defineConfig({
   test: {
     globals: false,
     environment: 'node',
-    include: ['src/**/*.test.ts'],
+    // `.tsx` too: NavIcon renders here now that it no longer reads a context,
+    // so its render assertion lives beside it instead of in web-admin. Still
+    // scoped to `src/`, which is what keeps dist/ out.
+    include: ['src/**/*.test.{ts,tsx}'],
     passWithNoTests: true,
   },
 });
