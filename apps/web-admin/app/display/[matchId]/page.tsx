@@ -66,6 +66,7 @@ export default function DisplayPage({ params }: { params: Promise<{ matchId: str
         {t('scoring.scoreboard.swapSides')}
       </button>
       <TVScoreboard
+        t={t}
         matchId={matchId}
         apiBaseUrl={apiUrl}
         supabaseClient={getSupabaseBrowser()}

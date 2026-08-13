@@ -3,7 +3,18 @@
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
+import { I18nProvider } from '../../i18n/I18nProvider';
 import { RulesetDiscoverCard } from './RulesetDiscoverCard';
+
+/**
+ * Wrapped in the app's own provider because these components call `useI18n()`.
+ * They used to render bare and still read English: the context default was
+ * seeded with the whole dictionary. That default is gone — seeding it meant
+ * importing every namespace into @myclash/next-i18n, which sits in every client
+ * bundle — so the messages come from the surface, as they do at runtime.
+ */
+const withI18n = (node: React.ReactElement) =>
+  renderToStaticMarkup(<I18nProvider locale="en">{node}</I18nProvider>);
 
 /**
  * A Discover card shows lineage lamps for an adoptable ruleset. The lamps are
@@ -27,14 +38,14 @@ const BASE_PROPS = {
 
 describe('RulesetDiscoverCard lineage lamps', () => {
   it('renders no lamps for a ruleset that reuses nothing', () => {
-    const html = renderToStaticMarkup(<RulesetDiscoverCard {...BASE_PROPS} />);
+    const html = withI18n(<RulesetDiscoverCard {...BASE_PROPS} />);
 
     expect(html).not.toContain('Compared with');
     expect(html).not.toContain('bg-success');
   });
 
   it('renders three lamps and no guardrail when only the grammar diverges', () => {
-    const html = renderToStaticMarkup(
+    const html = withI18n(
       <RulesetDiscoverCard
         {...BASE_PROPS}
         lineage={{
@@ -60,7 +71,7 @@ describe('RulesetDiscoverCard lineage lamps', () => {
   });
 
   it('fires the ranking guardrail when ranking diverges', () => {
-    const html = renderToStaticMarkup(
+    const html = withI18n(
       <RulesetDiscoverCard
         {...BASE_PROPS}
         lineage={{
@@ -79,7 +90,7 @@ describe('RulesetDiscoverCard lineage lamps', () => {
   });
 
   it('renders the single penalty lamp for a penalty ruleset', () => {
-    const html = renderToStaticMarkup(
+    const html = withI18n(
       <RulesetDiscoverCard
         {...BASE_PROPS}
         lineage={{ base: 'FFAMHE penalties', status: 'changed' }}

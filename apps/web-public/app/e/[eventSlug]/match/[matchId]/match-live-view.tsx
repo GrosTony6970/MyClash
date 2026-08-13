@@ -291,7 +291,7 @@ export function MatchLiveView({
   // is the docker-internal host, which the browser can't reach — the polling
   // fallback and post-reconnect catch-up refresh both run in the browser.
   const apiUrl = getPublicApiUrl();
-  const { t, locale } = useI18n();
+  const { t } = useI18n();
   const [match, setMatch] = useState<MatchRow>(initialMatch);
   const [summary, setSummary] = useState<MatchSummary>(initialSummary);
   const [exchanges, setExchanges] = useState<ExchangeRow[]>(initialExchanges);
@@ -375,9 +375,7 @@ export function MatchLiveView({
           spectator refreshing a phone, "updates are slower" is worth knowing,
           which is the judgement `polling` exists to express without pretending
           updates have stopped. */}
-      {!isFinal && (
-        <FreshnessChip freshness={freshness} locale={locale} className="mb-4" quietWhenLive />
-      )}
+      {!isFinal && <FreshnessChip freshness={freshness} t={t} className="mb-4" quietWhenLive />}
 
       <ScoreBoard match={match} summary={summary} />
       <MatchEventFeed

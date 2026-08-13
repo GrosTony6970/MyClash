@@ -4,7 +4,7 @@ import { MaintenanceBanner } from '@myclash/ui';
 import { HeartbeatRunner } from '../src/components/HeartbeatRunner';
 import { OfflineDrillBanner } from '../src/components/OfflineDrillBanner';
 import { ServiceWorkerRegistration } from '../src/components/ServiceWorkerRegistration';
-import { I18nProvider } from '@myclash/next-i18n/client';
+import { I18nProvider } from '../src/i18n/I18nProvider';
 import { getServerT, resolveServerLocale } from '@myclash/next-i18n/server';
 import { ThemeProvider } from '../src/theme/ThemeProvider';
 import { resolveServerTheme } from '../src/theme/server-theme';

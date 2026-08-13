@@ -1,6 +1,7 @@
 'use client';
 
 import { TVScoreboard } from '@myclash/ui';
+import { useI18n } from '@myclash/next-i18n/client';
 import { getPublicApiUrl } from '@/lib/api-url';
 import { supabase } from '@/lib/supabase';
 
@@ -21,9 +22,12 @@ interface Props {
  * on the projection.
  */
 export function DisplayView({ matchId, eventSlug }: Props) {
+  const { t } = useI18n();
+
   return (
     <div className="min-h-screen w-screen overflow-hidden bg-stage cursor-none">
       <TVScoreboard
+        t={t}
         matchId={matchId}
         apiBaseUrl={API_URL}
         supabaseClient={supabase}

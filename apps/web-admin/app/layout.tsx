@@ -4,7 +4,7 @@ import { ToastProvider } from '@myclash/ui';
 import { AppLegalFooter } from './_components/AppLegalFooter';
 import { LegalUpdateBanner } from './_components/LegalUpdateBanner';
 import { RuntimeBanner } from './_components/RuntimeBanner';
-import { I18nProvider } from '@myclash/next-i18n/client';
+import { I18nProvider } from '../src/i18n/I18nProvider';
 import { getServerT, resolveServerLocale } from '@myclash/next-i18n/server';
 import '../src/styles/globals.css';
 
