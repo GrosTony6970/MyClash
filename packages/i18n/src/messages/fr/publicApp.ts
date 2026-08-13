@@ -42,7 +42,7 @@ export const publicApp = {
   },
   eventHome: {
     backToEvents: 'Retour aux événements',
-    backToHome: "Retour a l'accueil de l'événement",
+    backToHome: "Retour à l'accueil de l'événement",
     card: {
       fighters: 'combattants',
       referees: 'arbitres',
@@ -527,7 +527,7 @@ export const publicApp = {
     claimable: {
       title: 'Revendiquez vos profils',
       description:
-        "Nous avons trouve des profils de roster enregistres avec votre e-mail. Confirmez qu'il s'agit de vous pour les lier a votre compte.",
+        "Nous avons trouvé des profils de roster enregistres avec votre e-mail. Confirmez qu'il s'agit de vous pour les lier à votre compte.",
       claim: "C'est moi",
       claimAll: 'Tout revendiquer ({count})',
       error: 'Échec de la revendication — réessayez.',
@@ -811,7 +811,7 @@ export const publicApp = {
       saveError: "Impossible d'enregistrer ce changement. Veuillez réessayer.",
     },
     privacy: {
-      scopeNote: "Ces paramètres s'appliquent a votre profil de participant.",
+      scopeNote: "Ces paramètres s'appliquent à votre profil de participant.",
       hideWorkshops: 'Masquer mes ateliers publiquement',
       hideWorkshopsDescription:
         'Gardez les ateliers que vous rejoignez hors de votre profil public.',
@@ -843,7 +843,7 @@ export const publicApp = {
     sendConfirmation: 'Envoyer le lien de confirmation',
     sending: 'Envoi...',
     pendingTitle: 'Confirmation en attente',
-    pendingDescription: 'Un lien de confirmation a �t� envoye a {email}.',
+    pendingDescription: 'Un lien de confirmation a été envoye a {email}.',
     cancelPending: 'Annuler la demande',
     cancelling: 'Annulation...',
     requestSuccess: 'Lien de confirmation envoye.',
@@ -1018,7 +1018,7 @@ export const publicApp = {
       forcedRematchHelp:
         "Aucun appariement legal n'evitait cette repetition ; le moteur l'a autorisée plutot que de bloquer la ronde.",
       manuallyAdjusted: 'Ajuste manuellement',
-      manuallyAdjustedHelp: "L'organisateur a modifie un appariement de cette ronde a la main.",
+      manuallyAdjustedHelp: "L'organisateur a modifié un appariement de cette ronde à la main.",
       podiumPending: 'Le podium apparaît une fois le classement suisse fige.',
     },
     standings: {

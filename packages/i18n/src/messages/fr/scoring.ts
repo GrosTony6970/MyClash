@@ -12,8 +12,8 @@ export const scoring = {
   },
   login: {
     checkEmailTitle: 'Vérifiez votre email',
-    checkEmailPrefix: 'Nous avons envoye un lien de connexion a',
-    checkEmailSuffix: 'Cliquez dessus pour accéder a vos affectations de lice.',
+    checkEmailPrefix: 'Nous avons envoyé un lien de connexion a',
+    checkEmailSuffix: 'Cliquez dessus pour accéder à vos affectations de lice.',
     linkExpires: 'Le lien expire dans 1 heure.',
     title: 'MyClash Scoring',
     scorekeeperAccess: 'Accès arbitre',
@@ -67,7 +67,7 @@ export const scoring = {
   drill: {
     start: "S'entrainer hors ligne",
     explain:
-      "Lance un exercice de deux minutes pendant lequel cette tablette ne peut plus envoyer de touches, pour découvrir l'écran hors ligne avant que ce soit nécessaire. Les touches saisies sont réellement mises en file et partent a la fin.",
+      "Lance un exercice de deux minutes pendant lequel cette tablette ne peut plus envoyer de touches, pour découvrir l'écran hors ligne avant que ce soit nécessaire. Les touches saisies sont réellement mises en file et partent à la fin.",
     blocked:
       "Terminez d'abord la synchronisation - un exercice par-dessus un vrai problème est illisible.",
     banner:
@@ -111,13 +111,13 @@ export const scoring = {
   quarantine: {
     title: 'Touches refusées par le serveur',
     intro:
-      'Ces touches ont �t� marquées sur cette tablette mais le serveur les a refusées. Elles sont conservées ici, pas perdues. Réessayez une fois la cause levée, ou supprimez celle que vous avez déjà ressaisie a la main.',
+      'Ces touches ont été marquées sur cette tablette mais le serveur les a refusées. Elles sont conservées ici, pas perdues. Réessayez une fois la cause levée, ou supprimez celle que vous avez déjà ressaisie à la main.',
     empty: 'Aucune touche en attente.',
     retry: 'Réessayer',
     discard: 'Supprimer',
     discardTitle: 'Supprimer cette touche ?',
     discardBody:
-      "Cela supprime définitivement une touche marquée par un arbitre. Ne le faites que si vous l'avez déjà ressaisie a la main, sinon elle n'atteindra jamais les résultats.",
+      "Cela supprime définitivement une touche marquée par un arbitre. Ne le faites que si vous l'avez déjà ressaisie à la main, sinon elle n'atteindra jamais les résultats.",
     discardConfirm: 'Supprimer définitivement',
     typeClean: 'Touche nette',
     typeAfterblow: 'Coup double retarde',
@@ -131,7 +131,7 @@ export const scoring = {
     retry: 'Réessayer',
     noAssignedTitle: 'Aucune lice affectée',
     noAssignedDescription:
-      "Aucune lice ne vous est affectée aujourd'hui. Demandez a l'organisateur de vous affecter.",
+      "Aucune lice ne vous est affectée aujourd'hui. Demandez à l'organisateur de vous affecter.",
     yourLices: 'Vos lices',
     selectLice: 'Choisissez une lice pour scorer',
     logout: 'Se deconnecter',
@@ -142,12 +142,12 @@ export const scoring = {
     syncError: 'ERREUR DE SYNCHRO',
     hitsRefused: '{count} TOUCHE{plural} NON ENREGISTRÉE{plural}',
     reviewRefused: 'Examiner',
-    backToMatchList: 'Retour a la liste des assauts',
+    backToMatchList: 'Retour à la liste des assauts',
     red: 'Combattant 1',
     blue: 'Combattant 2',
     vs: 'vs',
     noMatchTitle: 'Aucun assaut en cours',
-    noMatchDescription: "En attente de l'attribution d'un assaut a cette lice.",
+    noMatchDescription: "En attente de l'attribution d'un assaut à cette lice.",
     externalDisplay: 'Affichage externe',
     matchActions: 'Actions du match',
     nextMatchLabel: 'SUIVANT',
@@ -206,7 +206,7 @@ export const scoring = {
   match: {
     unavailableTitle: 'Assaut indisponible',
     unavailableBody:
-      "Cet assaut n'a pas pu être charge — il a peut-être �t� supprime ou reprogramme.",
+      "Cet assaut n'a pas pu être charge — il a peut-être été supprime ou reprogramme.",
     reopen: "Rouvrir l'assaut",
     reopening: 'Reouverture...',
     unlockFailed: 'Impossible de rouvrir cet assaut.',
@@ -214,7 +214,7 @@ export const scoring = {
   corrections: {
     onlineOnly: 'Connexion requise',
     locked: 'Verrouille',
-    matchLocked: 'Ce match est verrouille. Le scoring staff et les corrections sont desactives.',
+    matchLocked: 'Ce match est verrouillé. Le scoring staff et les corrections sont desactives.',
     actionFailed: 'Correction impossible.',
     defaultReason: 'Correction arbitre de table',
     clearLastExchange: 'Effacer le dernier échange',
@@ -229,13 +229,13 @@ export const scoring = {
     reason: 'Raison de correction',
     resetConfirmation: 'Taper RESET MATCH pour réinitialiser',
     dependentsBlockedOne:
-      'Un assaut suivant a déjà �t� combattu. Seul un organisateur peut annuler — demandez-lui.',
+      'Un assaut suivant a déjà été combattu. Seul un organisateur peut annuler — demandez-lui.',
     dependentsBlockedMany:
-      '{count} assauts suivants ont déjà �t� combattus. Seul un organisateur peut annuler — demandez-lui.',
+      '{count} assauts suivants ont déjà été combattus. Seul un organisateur peut annuler — demandez-lui.',
     forfeitBlocked:
-      "Cet assaut s'est termine par un forfait qui a retire le combattant du tournoi. Un organisateur doit d'abord annuler ce forfait.",
+      "Cet assaut s'est terminé par un forfait qui a retiré le combattant du tournoi. Un organisateur doit d'abord annuler ce forfait.",
     swissRoundAhead:
-      'La ronde suisse suivante a déjà �t� tirée à partir de ce résultat. Seul un organisateur peut annuler maintenant.',
+      'La ronde suisse suivante a déjà été tirée à partir de ce résultat. Seul un organisateur peut annuler maintenant.',
     organiserOnly: "Seul un organisateur peut le faire. Demandez-lui de l'aide.",
     offlineRefusal:
       'Pas de connexion. Cette action nécessite le réseau — réessayez une fois reconnecte.',
@@ -355,7 +355,7 @@ export const scoring = {
     recording: 'Enregistrement...',
     recordError: "Impossible d'enregistrer le forfait.",
     confirmTitle: 'Enregistrer le forfait ?',
-    confirmBody: "{fighter} abandonne ce match. Cela met fin a l'assaut.",
+    confirmBody: "{fighter} abandonne ce match. Cela met fin à l'assaut.",
     reasons: {
       injury: 'Blessure',
       voluntary: 'Volontaire',
