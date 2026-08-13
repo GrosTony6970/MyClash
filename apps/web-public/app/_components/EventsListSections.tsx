@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useMemo } from 'react';
-import { defaultLocale } from '@myclash/i18n';
+import type { Locale } from '@myclash/i18n';
 import { EventKindBadge, formatCountryName } from '@myclash/ui';
 import { DEFAULT_ORG_ACCENT, asEventKind } from '@myclash/types';
 import { useI18n, type Translator } from '@myclash/next-i18n/client';
@@ -36,8 +36,16 @@ interface PublicEvent {
   } | null;
 }
 
-function formatEventLocation(event: PublicEvent): string | null {
-  const countryName = formatCountryName(event.country, defaultLocale);
+/**
+ * Takes the reader's locale rather than importing `defaultLocale`.
+ *
+ * `formatCountryName` localises the country name, so pinning it to the default
+ * locale meant a French reader saw "Germany" on a page whose every other word
+ * was French. The locale comes from `useI18n()` at each call site, the same way
+ * `OrganiserEyebrow` already resolves it for date formatting.
+ */
+function formatEventLocation(event: PublicEvent, locale: Locale): string | null {
+  const countryName = formatCountryName(event.country, locale);
   const parts = [event.city, countryName].filter((v): v is string => Boolean(v));
   return parts.length === 0 ? null : parts.join(', ');
 }
@@ -244,7 +252,7 @@ function PastTag() {
 }
 
 function LiveSection({ events, query }: { events: PublicEvent[]; query: string }) {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
 
   return (
     <section aria-labelledby="public-events-live-title" className="flex flex-col gap-4">
@@ -275,7 +283,7 @@ function LiveSection({ events, query }: { events: PublicEvent[]; query: string }
                       {event.name ?? t('publicApp.home.unknownEvent')}
                     </Link>
                     {(() => {
-                      const place = formatEventLocation(event);
+                      const place = formatEventLocation(event, locale);
                       return place ? <p className="mt-1 text-sm text-muted">{place}</p> : null;
                     })()}
                   </div>
@@ -308,7 +316,7 @@ interface EventRowProps {
 }
 
 function EventRow({ event, variant, hasLogos }: EventRowProps) {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
 
   const tag = variant === 'published' ? <PublishedTag /> : <PastTag />;
   const trailing =
@@ -357,7 +365,7 @@ function EventRow({ event, variant, hasLogos }: EventRowProps) {
           <span className="font-medium text-foreground-secondary md:hidden">
             {t('publicApp.home.colLocation')} ·{' '}
           </span>
-          {formatEventLocation(event) ?? '—'}
+          {formatEventLocation(event, locale) ?? '—'}
         </p>
         <p className="text-sm text-muted">
           <span className="font-medium text-foreground-secondary md:hidden">
