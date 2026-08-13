@@ -1,26 +1,9 @@
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, relative, sep } from 'node:path';
 
+import { REPO_IGNORED_DIRS } from './lib/repo-scan.mjs';
+
 const root = process.cwd();
-const ignoredDirs = new Set([
-  '.agents',
-  '.claude',
-  '.codex',
-  '.git',
-  // Tool caches. Partially tracked, so gitignore does not cover them; their
-  // generated summaries mention TODO/FIXME as prose, which is not debt.
-  '.understand-anything',
-  '.remember',
-  '.kiro',
-  '.next',
-  '.pnpm-store',
-  '.turbo',
-  'coverage',
-  'dist',
-  'node_modules',
-  'playwright-report',
-  'test-results',
-]);
 const extensions = new Set([
   '.cjs',
   '.js',
@@ -56,7 +39,7 @@ const allowedMarkers = [
 
 function walk(dir) {
   return readdirSync(dir).flatMap((entry) => {
-    if (ignoredDirs.has(entry)) return [];
+    if (REPO_IGNORED_DIRS.has(entry)) return [];
     const path = join(dir, entry);
     return statSync(path).isDirectory() ? walk(path) : [path];
   });

@@ -26,31 +26,10 @@ import { readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { join, relative, sep } from 'node:path';
 import ts from 'typescript';
 
+import { REPO_IGNORED_DIRS } from './lib/repo-scan.mjs';
+
 const root = process.cwd();
 const baselinePath = join(root, 'docs', 'code-quality-complexity-baseline.json');
-
-const ignoredDirs = new Set([
-  '.agents',
-  '.claude',
-  '.codex',
-  '.git',
-  '.kiro',
-  '.next',
-  '.pnpm-store',
-  '.turbo',
-  'coverage',
-  'dist',
-  'node_modules',
-  'playwright-report',
-  'test-results',
-  // Not product source, and not ours to hold to this budget:
-  //   _bmad             — gitignored, vendored tooling
-  //   .understand-anything — tool cache (its .trash-* subtree was contributing
-  //                          baseline entries)
-  // Mirrors the same exclusions in scripts/check-todos.mjs.
-  '_bmad',
-  '.understand-anything',
-]);
 
 const fileLineLimit = 400;
 const functionLineLimit = 50;
@@ -58,7 +37,7 @@ const scannedExtensions = ['.ts', '.tsx', '.js', '.jsx', '.mjs'];
 
 function walk(dir) {
   return readdirSync(dir).flatMap((entry) => {
-    if (ignoredDirs.has(entry)) return [];
+    if (REPO_IGNORED_DIRS.has(entry)) return [];
     const path = join(dir, entry);
     return statSync(path).isDirectory() ? walk(path) : [path];
   });

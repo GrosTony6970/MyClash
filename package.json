@@ -21,7 +21,7 @@
     "typecheck": "turbo run typecheck",
     "test": "turbo run test",
     "coverage": "turbo run coverage",
-    "test:scripts": "node --import tsx --test \"scripts/*.test.mjs\" \"infra/ops-runner/*.test.mjs\"",
+    "test:scripts": "node --import tsx --test \"scripts/*.test.mjs\" \"scripts/lib/*.test.mjs\" \"infra/ops-runner/*.test.mjs\"",
     "test:e2e": "node scripts/run-e2e.mjs",
     "test:e2e:prod": "playwright test -c playwright.e2e.config.ts",
     "security:client-secrets": "node scripts/check-client-secret-boundaries.mjs",
