@@ -2,7 +2,7 @@
 
 import Image from 'next/image';
 import { useCallback, useEffect, useState } from 'react';
-import { AuthNotice, AuthPanel } from '@myclash/ui';
+import { AuthAltLink, AuthNotice, AuthPanel } from '@myclash/ui';
 import type { AuthPanelTab } from '@myclash/ui';
 import { savePendingOrganizerSignup } from '../../src/components/OAuthCallback';
 import { useI18n } from '@myclash/next-i18n/client';
@@ -64,6 +64,7 @@ const EMPTY_DRAFT: AccountDraft = {
 export function AuthPage({ initialTab }: { initialTab: AuthTab }) {
   const { t } = useI18n();
   const apiUrl = getPublicApiUrl();
+  const publicAppUrl = process.env['NEXT_PUBLIC_PUBLIC_APP_URL'] ?? 'https://app.myclash.fr';
 
   const [tab, setTab] = useState<AuthTab>(initialTab);
   // One draft across the tabs on purpose: someone who tried to sign in and
@@ -366,6 +367,18 @@ export function AuthPage({ initialTab }: { initialTab: AuthTab }) {
         <>
           <h2 className="text-2xl font-black">{heading.title}</h2>
           <p className="text-sm leading-6 text-muted">{heading.description}</p>
+
+          {/* `/login` on both tabs: the participant page's signup tab is
+              useState, not a route, so there is nothing to deep-link to — and
+              giving it one through useSearchParams would opt that page out of
+              the React Compiler, which is why its own tab is a prop. */}
+          {tab !== 'reset' && step === 1 && (
+            <AuthAltLink
+              prompt={t('auth.login.participantPrompt')}
+              label={t('auth.login.participantLink')}
+              href={`${publicAppUrl}/login`}
+            />
+          )}
 
           {tab === 'signin' && (
             <SignInForm

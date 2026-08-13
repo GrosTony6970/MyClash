@@ -12,6 +12,8 @@ export const auth = {
     formTitle: 'Connexion organisateur',
     formDescription:
       'Connectez-vous avec vos identifiants administrateur, un lien magique ou Google.',
+    participantPrompt: 'Vous cherchez la connexion participant ?',
+    participantLink: "Accéder à l'espace personnel",
     tabsLabel: 'Se connecter ou créer un compte organisateur',
     tabSignIn: 'Se connecter',
     tabSignUp: 'Créer un compte',

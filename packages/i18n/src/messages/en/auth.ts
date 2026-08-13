@@ -8,6 +8,8 @@ export const auth = {
       'Entries, pools, brackets, referees and live scoring — for a club evening or a three-day open.',
     formTitle: 'Organizer login',
     formDescription: 'Sign in with your administrator credentials, magic link, or Google.',
+    participantPrompt: 'Looking for the participant login?',
+    participantLink: 'Go to the participant space',
     tabsLabel: 'Sign in or create an organizer account',
     tabSignIn: 'Sign in',
     tabSignUp: 'Create account',
