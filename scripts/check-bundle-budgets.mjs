@@ -200,21 +200,24 @@ function clientReferenceManifests(dir) {
   });
 }
 
-/**
- * Shell + root-layout entry, gzipped. Fails loudly when either half comes back
- * empty: a half that silently resolves to nothing turns this into a smaller
- * budget that still passes, which is the exact failure the static budget's
- * anti-vacuity assertion exists to prevent.
- */
-export function checkPageLoadBudget(budget, { includeNext = false, requireBuild = false } = {}) {
-  if (!includeNext) {
-    return {
-      warnings: [
-        `${budget.name}: skipping page-load budget. Pass --include-next after a fresh build.`,
-      ],
-    };
+/** The layout entry from whichever route manifest names it first. */
+function findLayoutEntry(root, app) {
+  for (const manifest of clientReferenceManifests(join(root, '.next', 'server', 'app'))) {
+    const entry = layoutEntryJsFiles(readFileSync(manifest, 'utf8'), app);
+    if (entry.length > 0) return entry;
   }
+  return [];
+}
 
+/**
+ * Both halves of a page load, or the reason neither can be weighed.
+ *
+ * Each half fails loudly when it comes back empty. A half that silently
+ * resolves to nothing turns the budget into a smaller one that still passes,
+ * which is the exact failure the static budget's anti-vacuity assertion exists
+ * to prevent — and the reason the shell-only budget never saw the icon barrel.
+ */
+function pageLoadChunks(budget, requireBuild) {
   const manifestPath = join(budget.root, '.next', 'build-manifest.json');
   if (!existsSync(manifestPath)) {
     const message = `${budget.name}: missing ${manifestPath}. Run next build first.`;
@@ -231,11 +234,7 @@ export function checkPageLoadBudget(budget, { includeNext = false, requireBuild 
     };
   }
 
-  let entry = [];
-  for (const manifest of clientReferenceManifests(join(budget.root, '.next', 'server', 'app'))) {
-    entry = layoutEntryJsFiles(readFileSync(manifest, 'utf8'), budget.app);
-    if (entry.length > 0) break;
-  }
+  const entry = findLayoutEntry(budget.root, budget.app);
   if (entry.length === 0) {
     return {
       failures: [
@@ -245,6 +244,22 @@ export function checkPageLoadBudget(budget, { includeNext = false, requireBuild 
       ],
     };
   }
+
+  return { shell, entry };
+}
+
+/** Shell + root-layout entry, gzipped: what a visitor pays on every page. */
+export function checkPageLoadBudget(budget, { includeNext = false, requireBuild = false } = {}) {
+  if (!includeNext) {
+    return {
+      warnings: [
+        `${budget.name}: skipping page-load budget. Pass --include-next after a fresh build.`,
+      ],
+    };
+  }
+
+  const { shell, entry, failures, warnings } = pageLoadChunks(budget, requireBuild);
+  if (failures || warnings) return { failures, warnings };
 
   const files = [
     ...shell.map((asset) => join(budget.root, '.next', asset)),
