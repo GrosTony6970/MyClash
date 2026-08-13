@@ -306,7 +306,7 @@ export const admin = {
       confirmSendTitle: 'Envoyer les pass par email ?',
       confirmResendTitle: 'Renvoyer a tout le monde ?',
       confirmSendBody:
-        'Chaque inscrit sans compte MyClash, et dont l adresse email est connue, recoit un lien de pass personnel. Ceux qui en ont deja un sont ignores.',
+        "Chaque inscrit sans compte MyClash, et dont l'adresse email est connue, recoit un lien de pass personnel. Ceux qui en ont deja un sont ignores.",
       confirmResendBody:
         'Cela genere un NOUVEAU pass pour tout le monde et rend inutilisables les liens deja envoyes. A ne faire que si les anciens liens doivent être annules.',
       result: '{sent} envoyes, {skipped} en avaient deja un, {withoutEmail} sans adresse email.',
@@ -376,11 +376,11 @@ export const admin = {
     toastRegisterFailedFor: 'Inscription impossible : {list}.',
     toastRemovedSkipped: '{count} retire(s) · Ignore(s) : {skipped}',
     toastSkipped: 'Ignore(s) : {skipped}',
-    toastWaitlistPromoted: 'Promu depuis la liste d attente',
-    toastWaitlistRemoved: 'Retire de la liste d attente',
+    toastWaitlistPromoted: "Promu depuis la liste d'attente",
+    toastWaitlistRemoved: "Retire de la liste d'attente",
     confirmWaitlistPromoteFull:
       'Le tournoi est complet. Promouvoir quand même et depasser la limite ?',
-    confirmWaitlistRemove: 'Retirer cette personne de la liste d attente ?',
+    confirmWaitlistRemove: "Retirer cette personne de la liste d'attente ?",
   },
   orgPools: {
     fighterCount: '{count} combattants',
@@ -641,7 +641,7 @@ export const admin = {
     noRatings: 'Pas encore de ratings',
     refreshFighter: 'Rafraichir ce combattant depuis hemaratings.com',
     refreshFailed: 'Impossible de rafraichir ce combattant',
-    saveFailed: 'Impossible d enregistrer',
+    saveFailed: "Impossible d'enregistrer",
     invalidRatingId: 'Le Rating ID doit être numerique',
     save: 'Enregistrer',
     cancel: 'Annuler',
@@ -651,7 +651,7 @@ export const admin = {
     detailRank: 'Rang',
     detailWeightedRating: 'Rating pondere',
     detailLastCompeted: 'Dernier combat',
-    detailEmpty: 'Aucune note d arme pour ce combattant dans le dernier snapshot.',
+    detailEmpty: "Aucune note d'arme pour ce combattant dans le dernier snapshot.",
   },
   dashboard: {
     title: 'Super Admin',
@@ -761,9 +761,9 @@ export const admin = {
       selectOwnerTitle: 'Choisir le nouveau responsable',
       selectOwnerDescription:
         'Choisir un utilisateur plateforme existant pour le promouvoir, ou créer un nouveau compte par email.',
-      assignOwnerTitle: 'Attribuer le responsable de l organisation',
+      assignOwnerTitle: "Attribuer le responsable de l'organisation",
       assignOwnerDescription:
-        'Cette organisation n a pas encore de responsable. Choisissez un utilisateur plateforme existant ou créez un nouveau compte par email.',
+        "Cette organisation n'a pas encore de responsable. Choisissez un utilisateur plateforme existant ou créez un nouveau compte par email.",
       assignModeNewAccount: 'Créer un nouveau compte',
       assignModeExistingUser: 'Utiliser un compte existant',
       assignNewAccountEmail: 'Email',
@@ -789,7 +789,7 @@ export const admin = {
       addMemberTitle: 'Ajouter un membre a cette organisation',
       addMemberDescription: 'Rechercher un compte plateforme et lui assigner un rôle.',
       addMemberRole: 'Rôle',
-      addMemberFailed: 'Impossible d ajouter le membre.',
+      addMemberFailed: "Impossible d'ajouter le membre.",
       removeMember: 'Retirer',
       confirmRemoveMember: 'Retirer {account} de cette organisation ?',
       removeMemberFailed: 'Impossible de retirer le membre.',
@@ -800,9 +800,9 @@ export const admin = {
       open: 'Créer une organisation',
       close: 'Fermer le formulaire',
       title: 'Créer organisation et responsable',
-      description: 'Cree l espace organisateur et rattache un compte responsable en une opération.',
-      name: 'Nom de l organisation',
-      slug: 'Slug de l organisation',
+      description: "Cree l'espace organisateur et rattache un compte responsable en une opération.",
+      name: "Nom de l'organisation",
+      slug: "Slug de l'organisation",
       ownerEmail: 'Email du responsable',
       ownerDisplayName: 'Nom affiche du responsable',
       ownerSearch: 'Rechercher un utilisateur existant',
@@ -813,15 +813,15 @@ export const admin = {
         none: 'Aucun responsable (a définir plus tard)',
       },
       ownerModeNoneHint:
-        'Vous pourrez attribuer un responsable plus tard depuis la page de l organisation.',
+        "Vous pourrez attribuer un responsable plus tard depuis la page de l'organisation.",
       noOwnerColumn: 'sans responsable',
       successNoOwner:
-        'Organisation créée sans responsable. Ouvrez la page de l organisation pour en attribuer un.',
+        "Organisation créée sans responsable. Ouvrez la page de l'organisation pour en attribuer un.",
       copy: 'Copier',
       copied: 'Copie',
-      submit: 'Créer l organisation',
+      submit: "Créer l'organisation",
       submitting: 'Création...',
-      failed: 'Impossible de créer l organisation',
+      failed: "Impossible de créer l'organisation",
       accessDenied: 'Acces refuse. Super-admin requis.',
       success: 'Organisation créée',
       createdOrg: '{name} est prête sur {slug}.',
@@ -829,19 +829,19 @@ export const admin = {
       temporaryPassword: 'Mot de passe temporaire',
       existingAccountTitle: 'Compte existant',
       existingAccount:
-        'Cet organisateur avait deja un compte, son mot de passe n a pas ete modifie.',
-      magicLinkSent: 'Un lien de connexion a ete envoye a l organisateur.',
+        "Cet organisateur avait deja un compte, son mot de passe n'a pas ete modifie.",
+      magicLinkSent: "Un lien de connexion a ete envoye a l'organisateur.",
       magicLinkFailed:
-        'Le lien de connexion n a pas pu être envoye. Le mot de passe temporaire reste utilisable pour les nouveaux comptes.',
+        "Le lien de connexion n'a pas pu être envoye. Le mot de passe temporaire reste utilisable pour les nouveaux comptes.",
       orgUrl: 'Espace organisateur : {url}',
     },
     edit: {
-      title: 'Modifier l organisation',
+      title: "Modifier l'organisation",
       description: 'Changer le nom ou le slug. Les changements de statut se font depuis le détail.',
       save: 'Enregistrer',
       saving: 'Enregistrement...',
       cancel: 'Annuler',
-      saveError: 'Impossible d enregistrer les modifications.',
+      saveError: "Impossible d'enregistrer les modifications.",
     },
   },
   users: {
@@ -918,7 +918,7 @@ export const admin = {
         'Retirer les liens prives pris en charge, puis supprimer le compte Auth en conservant les faits historiques.',
       confirmToggle: 'Confirmer {action} pour {account} ?',
       confirmSafeDelete:
-        'La suppression sure retire le compte Auth seulement si aucune reference MyClash n existe. Continuer pour {account} ?',
+        "La suppression sure retire le compte Auth seulement si aucune reference MyClash n'existe. Continuer pour {account} ?",
       confirmCleanupDelete:
         'La suppression avec nettoyage retire les acces et liens prives avant de supprimer Auth. Les faits historiques restent conserves. Continuer pour {account} ?',
       blockers: 'Bloque par',
@@ -932,15 +932,15 @@ export const admin = {
       displayName: 'Nom affiche',
       save: 'Enregistrer',
       saved: 'Modifications enregistrées.',
-      saveError: 'Impossible d enregistrer les modifications.',
+      saveError: "Impossible d'enregistrer les modifications.",
       organizationsSection: 'Organisations',
-      empty: 'Cet utilisateur n appartient encore a aucune organisation.',
+      empty: "Cet utilisateur n'appartient encore a aucune organisation.",
       organizationLabel: 'Organisation',
       role: 'Rôle',
       add: 'Ajouter une adhesion',
       adding: 'Ajout...',
-      addError: 'Impossible d ajouter l adhesion a l organisation.',
-      removeError: 'Impossible de retirer l adhesion.',
+      addError: "Impossible d'ajouter l'adhesion a l'organisation.",
+      removeError: "Impossible de retirer l'adhesion.",
       roleUpdateError: 'Impossible de changer le rôle.',
       confirmRemove: 'Retirer {organization} de cet utilisateur ?',
       chooseOrganization: 'Choisir une organisation',
@@ -951,36 +951,36 @@ export const admin = {
       passwordSection: 'Mot de passe',
       regeneratePassword: 'Générer un nouveau mot de passe',
       regeneratePasswordHelp:
-        'Remplace le mot de passe par une nouvelle valeur a usage unique, affichée une seule fois. A utiliser quand la personne ne peut pas recevoir d email.',
+        "Remplace le mot de passe par une nouvelle valeur a usage unique, affichée une seule fois. A utiliser quand la personne ne peut pas recevoir d'email.",
       regeneratePasswordConfirm:
         'Remplacer le mot de passe de ce compte ? Son mot de passe actuel cesse de fonctionner immediatement.',
       regeneratePasswordFailed: 'Impossible de générer un nouveau mot de passe.',
       sendResetEmail: 'Envoyer un email de réinitialisation',
       sendResetEmailHelp:
-        'Envoie un lien de recuperation pour que le compte choisisse son mot de passe. Rien ne change tant qu il ne l utilise pas.',
+        "Envoie un lien de recuperation pour que le compte choisisse son mot de passe. Rien ne change tant qu'il ne l'utilise pas.",
       sendResetEmailConfirm: 'Envoyer un lien de réinitialisation a ce compte ?',
       sendResetEmailSent: 'Email envoye',
-      sendResetEmailFailed: 'Impossible d envoyer l email de réinitialisation.',
+      sendResetEmailFailed: "Impossible d'envoyer l'email de réinitialisation.",
       tempPasswordSection: 'Mot de passe temporaire',
-      tempPasswordHint: 'Verrouille automatiquement quand l utilisateur change son mot de passe.',
+      tempPasswordHint: "Verrouille automatiquement quand l'utilisateur change son mot de passe.",
       tempPasswordReveal: 'Afficher',
       tempPasswordHide: 'Masquer',
       tempPasswordCopy: 'Copier',
       tempPasswordCopied: 'Copie',
       tempPasswordLockNow: 'Verrouiller',
       tempPasswordLockConfirm:
-        'Verrouiller le mot de passe temporaire ? Le super-admin ne pourra plus l afficher.',
-      tempPasswordLocked: 'Verrouille — défini par l utilisateur.',
+        "Verrouiller le mot de passe temporaire ? Le super-admin ne pourra plus l'afficher.",
+      tempPasswordLocked: "Verrouille — défini par l'utilisateur.",
       tempPasswordExpired: 'Verrouille — mot de passe expire.',
     },
   },
   featureFlags: {
     title: 'Indicateurs de fonctionnalite',
     description:
-      'Interrupteurs plateforme pour les fonctionnalites optionnelles et la gestion d incidents.',
+      "Interrupteurs plateforme pour les fonctionnalites optionnelles et la gestion d'incidents.",
     loading: 'Chargement...',
     loadError: 'Impossible de charger les indicateurs.',
-    toggleFailed: 'Impossible de changer la valeur de l indicateur.',
+    toggleFailed: "Impossible de changer la valeur de l'indicateur.",
     enable: 'Activer',
     disable: 'Désactiver',
     lastUpdated: 'Dernière mise a jour {date}',
@@ -1009,7 +1009,7 @@ export const admin = {
     disablePublicSignups: {
       title: 'Désactiver les inscriptions publiques',
       description:
-        'Bloquer le endpoint POST /auth/public-signup de l app publique (création de compte email + mot de passe sur app.myclash.fr). Indépendant de « Désactiver les inscriptions » qui concerne les organisateurs. Les comptes existants et les chemins magic-link / Google restent ouverts.',
+        "Bloquer le endpoint POST /auth/public-signup de l'app publique (création de compte email + mot de passe sur app.myclash.fr). Indépendant de « Désactiver les inscriptions » qui concerne les organisateurs. Les comptes existants et les chemins magic-link / Google restent ouverts.",
     },
     maintenanceBanner: {
       title: 'Bannière de maintenance',
@@ -1046,11 +1046,11 @@ export const admin = {
     timeSimulation: {
       title: 'Simulation temporelle',
       description:
-        'Décale l horloge utilisée par l app publique (app.myclash.fr) pour tester a la demande les elements dependant du temps : les badges « En direct » / « Suivant » du planning personnel, les stages « En direct » de l accueil événement, et la ligne « maintenant » de la grille des tournois (qui ouvre aussi le jour simule). Pendant la simulation, un combat programme suit son créneau au lieu d attendre son lancement — les statuts reels priment toujours, donc un combat en cours reste En direct et un combat termine reste passe. Les données live calculees cote serveur (le tableau /live, la bannière live organisateur) gardent l horloge reelle. L horloge avance a partir de la date/heure choisie. ⚠️ Quand active, TOUS les visiteurs publics voient l heure simulee (un badge affiche la valeur active). A désactiver apres les tests.',
+        "Décale l'horloge utilisée par l'app publique (app.myclash.fr) pour tester a la demande les elements dependant du temps : les badges « En direct » / « Suivant » du planning personnel, les stages « En direct » de l'accueil événement, et la ligne « maintenant » de la grille des tournois (qui ouvre aussi le jour simule). Pendant la simulation, un combat programme suit son créneau au lieu d'attendre son lancement — les statuts reels priment toujours, donc un combat en cours reste En direct et un combat termine reste passe. Les données live calculees cote serveur (le tableau /live, la bannière live organisateur) gardent l'horloge reelle. L'horloge avance a partir de la date/heure choisie. ⚠️ Quand active, TOUS les visiteurs publics voient l'heure simulee (un badge affiche la valeur active). A désactiver apres les tests.",
       targetLabel: 'Instant simule (« maintenant »)',
       targetHelp:
-        'La date et l heure que l app publique doit considerer comme l instant present. L horloge avance a partir de ce point.',
-      saveButton: 'Enregistrer l heure simulee',
+        "La date et l'heure que l'app publique doit considerer comme l'instant present. L'horloge avance a partir de ce point.",
+      saveButton: "Enregistrer l'heure simulee",
     },
     disableRealtime: {
       title: 'Désactiver Realtime',
@@ -1147,12 +1147,12 @@ export const admin = {
     doublePenaltyCustom: 'Formule personnalisée…',
     scoreEquals: 'Score =',
     formulaHelp:
-      'Composer une formule a l aide des chips de variables et d operateurs. La formule est evaluee par combattant.',
+      "Composer une formule a l'aide des chips de variables et d'operateurs. La formule est evaluee par combattant.",
     formulaEmpty: 'Aucun jeton pour le moment. Ajouter une variable ou un nombre pour commencer.',
     formulaInvalid: 'Formule invalide.',
     tiebreakersTitle: 'Tie-breakers',
     tiebreakersHelp:
-      'Appliques dans l ordre quand les combattants ont le même score. Plus haut = les plus grandes valeurs sont mieux classees.',
+      "Appliques dans l'ordre quand les combattants ont le même score. Plus haut = les plus grandes valeurs sont mieux classees.",
     tiebreakersEmpty: 'Aucun tie-breaker configure.',
     deepHelp: {
       targets:
@@ -1185,10 +1185,10 @@ export const admin = {
     systemPanelDoublePenalty: 'Formule penalite double',
     systemPanelScoreFormula: 'Formule de score',
     systemPanelHasAfterblow: 'Afterblow pris en charge',
-    systemPanelTiebreakers: 'Departages (dans l ordre)',
+    systemPanelTiebreakers: "Departages (dans l'ordre)",
     systemPanelReadOnlyBadge: 'Lecture seule — défini par le ruleset système',
-    systemPanelDirectionHighest: 'plus haut d abord',
-    systemPanelDirectionLowest: 'plus bas d abord',
+    systemPanelDirectionHighest: "plus haut d'abord",
+    systemPanelDirectionLowest: "plus bas d'abord",
     systemPanelTrue: 'Oui',
     systemPanelFalse: 'Non',
     rankingKey_ptsScored: 'Points marques',
@@ -1213,7 +1213,7 @@ export const admin = {
     setDefaultAction: 'Définir par défaut',
     rejectAction: 'Rejeter',
     rejectReasonPrompt: 'Motif du rejet :',
-    actionFailed: 'L action a echoue. Veuillez réessayer.',
+    actionFailed: "L'action a echoue. Veuillez réessayer.",
     portability: {
       export: 'Exporter',
       import: 'Importer',
@@ -1251,7 +1251,7 @@ export const admin = {
     },
     versionHistoryTitle: 'Historique des versions',
     versionHistoryEmpty: 'Aucune version publiée pour le moment.',
-    versionHistoryLoadError: 'Impossible de charger l historique des versions.',
+    versionHistoryLoadError: "Impossible de charger l'historique des versions.",
     versionPublishedBy: 'Publie par',
     versionFrozenBadge: 'Verrouillée (utilisée par un tournoi)',
     versionRestoreAction: 'Restaurer cette version',
@@ -1266,7 +1266,7 @@ export const admin = {
     tfV1InternalsTitle: 'Internals TF v1 (super-admin)',
     tfV1InternalsTitleOrg: 'Internals TF v1',
     tfV1InternalsHelp:
-      'Ces valeurs sont fusionnees par-dessus les defauts TF v1 a la création d un tournoi. L algorithme de scoring et la chaine de classement restent definis dans le code.',
+      "Ces valeurs sont fusionnees par-dessus les defauts TF v1 a la création d'un tournoi. L'algorithme de scoring et la chaine de classement restent definis dans le code.",
     tfV1WinBonus: 'Bonus de victoire',
     tabScoring: 'Rulesets de score',
     tabPenalty: 'Rulesets de pénalités',
@@ -1408,7 +1408,7 @@ export const admin = {
   penaltyRulesets: {
     title: 'Rulesets de pénalités',
     description:
-      'Bibliotheques de cartons (jaune/rouge/noir) que les tournois referencent pour les decisions d arbitrage.',
+      "Bibliotheques de cartons (jaune/rouge/noir) que les tournois referencent pour les decisions d'arbitrage.",
     loadError: 'Impossible de charger les rulesets de pénalités.',
     curatedTitle: 'Rulesets de pénalités curates',
     empty: 'Aucun ruleset de pénalités pour le moment.',
@@ -1423,17 +1423,17 @@ export const admin = {
     importSubmit: 'Importer',
     importing: 'Import...',
     importSuccess: '« {name} » importe.',
-    importFailed: 'Échec de l import — vérifiez le format du CSV.',
+    importFailed: "Échec de l'import — vérifiez le format du CSV.",
     createTitle: 'Créer un ruleset de pénalités',
     createDescription:
-      'Définir une liste d entrees de pénalités — chacune avec une progression de cartons (sanctions). Les organisateurs y font reference depuis un tournoi.',
+      "Définir une liste d'entrees de pénalités — chacune avec une progression de cartons (sanctions). Les organisateurs y font reference depuis un tournoi.",
     editTitle: 'Modifier le ruleset de pénalités',
     editDescription:
-      'Mettre a jour les metadonnees et la liste des entrees. L enregistrement remplace les entrees.',
+      "Mettre a jour les metadonnees et la liste des entrees. L'enregistrement remplace les entrees.",
     builtInSuperAdminBanner:
       'Ceci est le ruleset de pénalités integre a la plateforme. Seul le super-admin peut le modifier.',
     archivedReadOnlyBanner:
-      'Ce ruleset de pénalités est archive et en lecture seule. Il a ete retire des selecteurs au lieu d être supprime, car des tournois l utilisent encore pour le calcul — le modifier changerait les sanctions sous des résultats deja enregistres.',
+      "Ce ruleset de pénalités est archive et en lecture seule. Il a ete retire des selecteurs au lieu d'être supprime, car des tournois l'utilisent encore pour le calcul — le modifier changerait les sanctions sous des résultats deja enregistres.",
     lineagePenalties: 'Pénalités (cartons, forfaits)',
     lineagePenaltyWarning:
       'Ceci change le calcul par rapport au défaut {base} — les classements differeront.',
@@ -1444,7 +1444,7 @@ export const admin = {
     colSanctions: 'Sanctions',
     codeLabel: 'Code',
     codeVersionRequired: 'Le code et la version sont requis.',
-    accumulationLabel: 'Portee d accumulation',
+    accumulationLabel: "Portee d'accumulation",
     publicVisibilityLabel: 'Visible aux autres organisations',
     scope: {
       match: 'Par match',
@@ -1456,13 +1456,13 @@ export const admin = {
       'Chaque entrée associe une infraction a une liste ordonnee de sanctions. Le premier carton est émis a la première infraction, le second a la repetition. Utilisez +Y / +R / +B pour ajouter.',
     entriesEmpty: 'Aucune entrée pour le moment — ajoutez-en une.',
     addEntry: 'Ajouter une entrée',
-    removeEntry: 'Retirer l entrée',
+    removeEntry: "Retirer l'entrée",
     appendSanction: 'Ajouter le carton {card} a la liste',
     popSanction: 'Retirer la dernière sanction',
     sanctionsEmpty: 'aucune sanction',
     cardCostsTitle: 'Couts des cartons & portee du forfait',
     cardCostsHelp:
-      'Points retires par couleur de carton, et ce que chaque carton noir declenche. Le ruleset de score d un tournoi (politique de forfait) peut surcharger ces valeurs par tournoi.',
+      "Points retires par couleur de carton, et ce que chaque carton noir declenche. Le ruleset de score d'un tournoi (politique de forfait) peut surcharger ces valeurs par tournoi.",
     yellowCardPoints: 'Points carton jaune',
     redCardPoints: 'Points carton rouge',
     blackCardPoints: 'Points carton noir',
@@ -1479,7 +1479,7 @@ export const admin = {
     versionHistory: {
       title: 'Historique des versions',
       empty: 'Aucune version publiée pour le moment.',
-      loadError: 'Impossible de charger l historique des versions.',
+      loadError: "Impossible de charger l'historique des versions.",
       publishedAt: 'le {date}',
       frozenBadge: 'Epinglee',
       publishButton: 'Publier la version',
@@ -1488,7 +1488,7 @@ export const admin = {
       rollbackButton: 'Restaurer',
       rollbackConfirmTitle: 'Restaurer la version {version}',
       rollbackConfirmBody:
-        'Ceci remplace la definition et les entrees actuelles du règlement par l instantane de {version}. Les tournois deja rattaches a une autre version ne sont pas affectes.',
+        "Ceci remplace la definition et les entrees actuelles du règlement par l'instantane de {version}. Les tournois deja rattaches a une autre version ne sont pas affectes.",
       rollbackConfirmAction: 'Restaurer',
       rollbackError: 'Échec de la restauration',
       rollbackSuccess: 'Version {version} restauree',
@@ -1526,7 +1526,7 @@ export const admin = {
     byEvent: 'Par événement',
     byDay: 'Cout par jour',
     usageTruncated:
-      'Affichage des 100 000 appels les plus récents — l activite plus ancienne n est pas incluse dans ces totaux.',
+      "Affichage des 100 000 appels les plus récents — l'activite plus ancienne n'est pas incluse dans ces totaux.",
     colName: 'Nom',
     colCost: 'Cout',
     colCalls: 'Appels',
@@ -1538,7 +1538,7 @@ export const admin = {
     saveBudget: 'Enregistrer le budget',
     budgetUnlimited: 'Illimite',
     budgetSpent: 'Depense ce mois-ci',
-    budgetReached: 'Budget mensuel atteint — les appels IA sont bloques jusqu au mois prochain.',
+    budgetReached: "Budget mensuel atteint — les appels IA sont bloques jusqu'au mois prochain.",
     budgetNear: 'Budget mensuel bientôt atteint.',
     budgetSaved: 'Budget enregistre.',
     budgetError: "Impossible d'enregistrer le budget.",
@@ -1550,7 +1550,7 @@ export const admin = {
       enableAi: 'Activer les fonctionnalites IA pour cette organisation',
       enableChat: 'Activer le chatbot organisateur',
       availabilityHint:
-        'Desactivez l IA pour votre organisation sans supprimer la cle. Une desactivation au niveau de la plateforme prime toujours.',
+        "Desactivez l'IA pour votre organisation sans supprimer la cle. Une desactivation au niveau de la plateforme prime toujours.",
     },
     modelSync: {
       title: 'Synchronisation des modeles',
@@ -1677,7 +1677,7 @@ export const admin = {
     runDeterministic: 'Scan deterministe',
     runAiHint: 'Revue des candidats par LLM. Couteux par appel.',
     runDeterministicHint:
-      'Scan a règles, sans cout. Memes verifications de doublons / trous d identite / noms placeholders, sans IA.',
+      "Scan a règles, sans cout. Memes verifications de doublons / trous d'identite / noms placeholders, sans IA.",
     cronHint: 'Le scan deterministe est aussi execute automatiquement chaque jour a 04:00 UTC.',
     scanning: 'Scan...',
     findingsFromCandidates: '{count} candidats revus',
@@ -1726,7 +1726,7 @@ export const admin = {
     tabExchangeEdits: "Edits d'échanges",
     tabClubReviews: 'Revues de clubs',
     tabLeagueTournamentRequests: 'Demandes de tournoi de ligue',
-    tabLeagueMembershipRequests: 'Demandes d adhesion a une ligue',
+    tabLeagueMembershipRequests: "Demandes d'adhesion a une ligue",
     statusPending: 'En attente',
     statusApproved: 'Approuvée',
     statusRejected: 'Refusée',
@@ -1834,7 +1834,7 @@ export const admin = {
       confirmTitle: 'Confirmer la fusion',
       reasonPlaceholder: 'Motif',
       typePrefix: 'Taper : {name}',
-      selectSourceFirst: 'Sélectionnez d abord un combattant source',
+      selectSourceFirst: "Sélectionnez d'abord un combattant source",
       mergeAction: 'Fusionner source vers cible',
       recentTitle: 'Fusions recentes',
       noMerges: 'Aucune fusion pour le moment.',
@@ -2548,7 +2548,7 @@ export const admin = {
       confirmRestartTitle: 'Redémarrer {component}',
       confirmStartDescription: 'Démarrer le service {component} ?',
       confirmStopDescription:
-        'Arrêter le service {component} ? Il restera hors ligne jusqu au prochain démarrage.',
+        "Arrêter le service {component} ? Il restera hors ligne jusqu'au prochain démarrage.",
       confirmRestartDescription: 'Redémarrer {component} ? Il sera brièvement hors ligne (~5 s).',
       successStart: '{component} démarré.',
       successStop: '{component} arrêté.',

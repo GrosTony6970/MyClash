@@ -13,7 +13,7 @@ export const statusHelp = {
   event: {
     draft: {
       means: "L'événement existe mais rien n'apparaît sur le site public.",
-      next: 'Le publier le rend visible et permet aux gens de le trouver et de s y inscrire.',
+      next: "Le publier le rend visible et permet aux gens de le trouver et de s'y inscrire.",
       who: "Un admin ou propriétaire de l'organisation.",
     },
     published: {
@@ -28,13 +28,13 @@ export const statusHelp = {
     },
     completed: {
       means: "L'événement est fini. Résultats et classements sont definitifs.",
-      next: 'Plus rien, sauf si vous l archivez pour le ranger.',
+      next: "Plus rien, sauf si vous l'archivez pour le ranger.",
       who: "Un admin ou propriétaire de l'organisation.",
     },
     archived: {
       means:
         "L'événement est clos et en lecture seule. Il reste visible publiquement mais rien n'est modifiable.",
-      next: 'Il reste en l état. Le supprimer demande une demande de suppression.',
+      next: "Il reste en l'état. Le supprimer demande une demande de suppression.",
       who: "Un admin ou propriétaire de l'organisation.",
     },
   },
@@ -50,7 +50,7 @@ export const statusHelp = {
       who: "Un admin ou propriétaire de l'organisation.",
     },
     running: {
-      means: 'Des combats sont en train d être scores dans ce tournoi.',
+      means: "Des combats sont en train d'être scores dans ce tournoi.",
       next: 'Il passe a termine quand la finale a ete combattue.',
       who: "Un admin ou propriétaire de l'organisation.",
     },
@@ -61,19 +61,19 @@ export const statusHelp = {
     },
     archived: {
       means: 'Le tournoi est en lecture seule et sort du travail courant.',
-      next: 'Il reste en l état, résultats compris.',
+      next: "Il reste en l'état, résultats compris.",
       who: "Un admin ou propriétaire de l'organisation.",
     },
   },
   match: {
     scheduled: {
       means: 'Le combat existe et attend. Il a ou non une piste et un horaire.',
-      next: 'Un teneur de score l ouvre sur une piste et lance le chrono.',
+      next: "Un teneur de score l'ouvre sur une piste et lance le chrono.",
       who: 'Un organisateur attribue piste et horaire ; un teneur de score le lance.',
     },
     running: {
       means: 'Le chrono tourne et les échanges sont enregistres.',
-      next: 'Il se met en pause entre les échanges, et se termine a la fin de l assaut.',
+      next: "Il se met en pause entre les échanges, et se termine a la fin de l'assaut.",
       who: 'Le teneur de score de cette piste.',
     },
     paused: {
@@ -100,7 +100,7 @@ export const statusHelp = {
     },
     published: {
       means: "L'atelier est visible publiquement et les gens peuvent s'y inscrire.",
-      next: 'Il se deroule a l horaire prévu.',
+      next: "Il se deroule a l'horaire prévu.",
       who: "Un admin ou propriétaire de l'organisation.",
     },
     running: {
@@ -132,17 +132,17 @@ export const statusHelp = {
     },
     waitlist: {
       means: 'Le tournoi est plein, le combattant occupe une place numerotee dans la file.',
-      next: 'Il remonte automatiquement des qu une place se libere, dans l ordre de la file.',
+      next: "Il remonte automatiquement des qu'une place se libere, dans l'ordre de la file.",
       who: 'Un organisateur, ou le combattant qui se retire.',
     },
     withdrawn: {
-      means: 'Le combattant s est retire. Il ne compte pour rien au classement.',
-      next: 'Sa place peut aller au premier de la liste d attente.',
+      means: "Le combattant s'est retire. Il ne compte pour rien au classement.",
+      next: "Sa place peut aller au premier de la liste d'attente.",
       who: 'Un organisateur, ou le combattant lui-même.',
     },
     disqualified: {
       means: 'Le combattant a ete exclu du tournoi par décision.',
-      next: 'Ses combats restants ne sont pas scores et il n a aucun classement.',
+      next: "Ses combats restants ne sont pas scores et il n'a aucun classement.",
       who: 'Un organisateur.',
     },
   },
@@ -164,7 +164,7 @@ export const statusHelp = {
     },
     linked: {
       means: 'La demande a ete acceptee et rattachee a une fiche existante.',
-      next: 'Les deux ne font plus qu un partout.',
+      next: "Les deux ne font plus qu'un partout.",
       who: 'Un relecteur.',
     },
     rejected: {
@@ -198,12 +198,12 @@ export const statusHelp = {
   clock: {
     idle: {
       means: "Le chrono n'a pas ete lance pour ce combat.",
-      next: 'Le lancer demarre l assaut et le temps enregistre.',
+      next: "Le lancer demarre l'assaut et le temps enregistre.",
       who: 'Le teneur de score de cette piste.',
     },
     running: {
-      means: 'Le temps de combat s ecoule.',
-      next: 'Il s arrete entre les échanges, ou arrive a zero et termine l assaut.',
+      means: "Le temps de combat s'ecoule.",
+      next: "Il s'arrete entre les échanges, ou arrive a zero et termine l'assaut.",
       who: 'Le teneur de score de cette piste.',
     },
     halted: {
@@ -213,13 +213,13 @@ export const statusHelp = {
     },
     ended: {
       means: 'Le temps de combat est epuise.',
-      next: 'Le résultat tient au score obtenu a l instant ou le temps s est termine.',
-      who: 'Personne - c est ce que veut dire un chrono arrive a zero.',
+      next: "Le résultat tient au score obtenu a l'instant ou le temps s'est termine.",
+      who: "Personne - c'est ce que veut dire un chrono arrive a zero.",
     },
   },
   ruleset: {
     builtin: {
-      means: 'Un des reglements livres avec MyClash. Il n est pas modifiable.',
+      means: "Un des reglements livres avec MyClash. Il n'est pas modifiable.",
       next: 'Forkez-le pour changer quelque chose ; votre copie vous appartient.',
       who: "Toute personne pouvant gérer les reglements de l'organisation.",
     },
@@ -230,40 +230,40 @@ export const statusHelp = {
     },
     custom: {
       means: 'Un règlement écrit ou forke par votre organisation.',
-      next: 'Publiez-le pour pouvoir l utiliser sur des tournois.',
+      next: "Publiez-le pour pouvoir l'utiliser sur des tournois.",
       who: "Toute personne pouvant gérer les reglements de l'organisation.",
     },
     draft: {
-      means: 'Encore en cours d ecriture. Il ne peut pas encore être fixe sur un tournoi.',
+      means: "Encore en cours d'ecriture. Il ne peut pas encore être fixe sur un tournoi.",
       next: 'Le publier valide les règles et le rend selectionnable.',
       who: "Toute personne pouvant gérer les reglements de l'organisation.",
     },
     pendingReview: {
-      means: 'Soumis a relecture, en attente d une décision avant partage.',
-      next: 'Un relecteur l approuve ou le renvoie.',
+      means: "Soumis a relecture, en attente d'une décision avant partage.",
+      next: "Un relecteur l'approuve ou le renvoie.",
       who: 'Un relecteur MyClash.',
     },
     published: {
       means: 'Termine et utilisable. Les tournois peuvent le fixer, et son contenu est gele.',
-      next: 'Le modifier revient a publier une nouvelle version ; les tournois deja fixes gardent l ancienne.',
+      next: "Le modifier revient a publier une nouvelle version ; les tournois deja fixes gardent l'ancienne.",
       who: "Toute personne pouvant gérer les reglements de l'organisation.",
     },
     archived: {
       means: 'Retire des selecteurs, mais PAS supprime.',
-      next: 'Les tournois qui l ont deja fixe continuent de scorer avec, pour toujours.',
+      next: "Les tournois qui l'ont deja fixe continuent de scorer avec, pour toujours.",
       who: "Toute personne pouvant gérer les reglements de l'organisation.",
     },
   },
   organization: {
     active: {
       means: "L'organisation fonctionne normalement.",
-      next: 'Rien. C est l état ordinaire.',
+      next: "Rien. C'est l'état ordinaire.",
       who: 'Un super admin MyClash.',
     },
     suspended: {
       means:
         "L'organisation a ete suspendue par MyClash. Ses membres ne peuvent plus y travailler.",
-      next: 'Elle reste suspendue jusqu a ce qu un super admin la reactive.',
+      next: "Elle reste suspendue jusqu'à ce qu'un super admin la reactive.",
       who: 'Un super admin MyClash.',
     },
   },

@@ -65,14 +65,14 @@ export const scoring = {
     actionError: "L'enregistrement a échoué. Réessayez.",
   },
   drill: {
-    start: 'S entrainer hors ligne',
+    start: "S'entrainer hors ligne",
     explain:
-      'Lance un exercice de deux minutes pendant lequel cette tablette ne peut plus envoyer de touches, pour découvrir l écran hors ligne avant que ce soit nécessaire. Les touches saisies sont réellement mises en file et partent a la fin.',
+      "Lance un exercice de deux minutes pendant lequel cette tablette ne peut plus envoyer de touches, pour découvrir l'écran hors ligne avant que ce soit nécessaire. Les touches saisies sont réellement mises en file et partent a la fin.",
     blocked:
-      'Terminez d abord la synchronisation - un exercice par-dessus un vrai problème est illisible.',
+      "Terminez d'abord la synchronisation - un exercice par-dessus un vrai problème est illisible.",
     banner:
-      'Exercice hors ligne - {seconds}s restantes. Les touches sont en file, rien n est perdu.',
-    end: 'Terminer l exercice',
+      "Exercice hors ligne - {seconds}s restantes. Les touches sont en file, rien n'est perdu.",
+    end: "Terminer l'exercice",
   },
   scan: {
     open: 'Scanner un QR',
@@ -117,21 +117,21 @@ export const scoring = {
     discard: 'Supprimer',
     discardTitle: 'Supprimer cette touche ?',
     discardBody:
-      'Cela supprime définitivement une touche marquee par un arbitre. Ne le faites que si vous l avez deja ressaisie a la main, sinon elle n atteindra jamais les résultats.',
+      "Cela supprime définitivement une touche marquee par un arbitre. Ne le faites que si vous l'avez deja ressaisie a la main, sinon elle n'atteindra jamais les résultats.",
     discardConfirm: 'Supprimer définitivement',
     typeClean: 'Touche nette',
     typeAfterblow: 'Coup double retarde',
     typeDouble: 'Double',
-    typeNoExchange: 'Pas d échange',
+    typeNoExchange: "Pas d'échange",
   },
   lice: {
-    loadingMatch: 'Chargement de l assaut...',
+    loadingMatch: "Chargement de l'assaut...",
     loadingAssignments: 'Chargement de vos affectations...',
     loadAssignmentsError: 'Impossible de charger les affectations. Vérifiez la connexion.',
     retry: 'Réessayer',
     noAssignedTitle: 'Aucune lice affectee',
     noAssignedDescription:
-      'Aucune lice ne vous est affectee aujourd hui. Demandez a l organisateur de vous affecter.',
+      "Aucune lice ne vous est affectee aujourd hui. Demandez a l'organisateur de vous affecter.",
     yourLices: 'Vos lices',
     selectLice: 'Choisissez une lice pour scorer',
     logout: 'Se deconnecter',
@@ -147,7 +147,7 @@ export const scoring = {
     blue: 'Combattant 2',
     vs: 'vs',
     noMatchTitle: 'Aucun assaut en cours',
-    noMatchDescription: 'En attente de l attribution d un assaut a cette lice.',
+    noMatchDescription: "En attente de l'attribution d'un assaut a cette lice.",
     externalDisplay: 'Affichage externe',
     matchActions: 'Actions du match',
     nextMatchLabel: 'SUIVANT',
@@ -206,8 +206,8 @@ export const scoring = {
   match: {
     unavailableTitle: 'Assaut indisponible',
     unavailableBody:
-      'Cet assaut n a pas pu être charge — il a peut-être ete supprime ou reprogramme.',
-    reopen: 'Rouvrir l assaut',
+      "Cet assaut n'a pas pu être charge — il a peut-être ete supprime ou reprogramme.",
+    reopen: "Rouvrir l'assaut",
     reopening: 'Reouverture...',
     unlockFailed: 'Impossible de rouvrir cet assaut.',
   },
@@ -233,10 +233,10 @@ export const scoring = {
     dependentsBlockedMany:
       '{count} assauts suivants ont deja ete combattus. Seul un organisateur peut annuler — demandez-lui.',
     forfeitBlocked:
-      'Cet assaut s est termine par un forfait qui a retire le combattant du tournoi. Un organisateur doit d abord annuler ce forfait.',
+      "Cet assaut s'est termine par un forfait qui a retire le combattant du tournoi. Un organisateur doit d'abord annuler ce forfait.",
     swissRoundAhead:
       'La ronde suisse suivante a deja ete tirée a partir de ce résultat. Seul un organisateur peut annuler maintenant.',
-    organiserOnly: 'Seul un organisateur peut le faire. Demandez-lui de l aide.',
+    organiserOnly: "Seul un organisateur peut le faire. Demandez-lui de l'aide.",
     offlineRefusal:
       'Pas de connexion. Cette action necessite le réseau — réessayez une fois reconnecte.',
   },
@@ -321,7 +321,7 @@ export const scoring = {
     noQueue: "Plus aucun assaut programme sur cette lice aujourd'hui",
   },
   pad: {
-    noExchangeReason: 'Motif de l absence d échange',
+    noExchangeReason: "Motif de l'absence d'échange",
     afterblowTitleDeductive: '{attacker} +{attackerPts}, {defender} +0 (déductif)',
     afterblowTitleFull: '{attacker} +{attackerPts}, {defender} +{defenderPts}',
     noExchangeReasons: {
@@ -353,9 +353,9 @@ export const scoring = {
     note: 'Note optionnelle',
     record: 'Enregistrer le forfait',
     recording: 'Enregistrement...',
-    recordError: 'Impossible d enregistrer le forfait.',
+    recordError: "Impossible d'enregistrer le forfait.",
     confirmTitle: 'Enregistrer le forfait ?',
-    confirmBody: '{fighter} abandonne ce match. Cela met fin a l assaut.',
+    confirmBody: "{fighter} abandonne ce match. Cela met fin a l'assaut.",
     reasons: {
       injury: 'Blessure',
       voluntary: 'Volontaire',
