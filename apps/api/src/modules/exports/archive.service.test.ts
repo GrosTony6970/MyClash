@@ -873,6 +873,120 @@ describe('ArchiveService', () => {
     expect(inserted.workshops?.[0]?.venue_id).toBeNull();
   });
 
+  /**
+   * A tournament restored into a DIFFERENT event named the SOURCE event's
+   * custom referee skills.
+   *
+   * `referee_skills` was collected in event scope only, so a tournament archive
+   * carried none and `maps.refereeSkills` was empty — which made `remapSkillId`
+   * a no-op and left `referee_assignments.role` and
+   * `tournament_slot_allowed_skills.skill_id` pointing at another event's
+   * catalogue. The FK is satisfied, because those rows still exist, so nothing
+   * complained.
+   *
+   * Invisible to the sentinel sweep below because that only drives the EVENT
+   * restore path. These two drive the tournament one, in both directions —
+   * a different target event, and the source event itself.
+   */
+  const rowsWithSecondEvent = () => {
+    const rows = scopedRows();
+    return {
+      ...rows,
+      events: [
+        ...rows.events,
+        { id: 'event-2', organization_id: 'org-1', slug: 'other', name: 'Other', status: 'draft' },
+      ],
+    };
+  };
+
+  it('re-mints custom referee skills when a tournament lands in another event', async () => {
+    const { service, inserted } = makeService(rowsWithSecondEvent());
+    const archive = await service.generateTournamentArchive('t-1', 'user-1', {
+      include: 'scoring',
+    });
+
+    expect(archive.data.refereeSkills, 'a tournament archive must carry them at all').toHaveLength(
+      1,
+    );
+
+    await service.restoreArchiveCopy(Buffer.from(JSON.stringify(archive)), 'user-1', {
+      targetEventId: 'event-2',
+      confirmation: 'RESTORE MYCLASH ARCHIVE',
+    });
+
+    const newSkillId = inserted.referee_skills?.[0]?.id as string;
+    expect(newSkillId, 'the skill is copied under a new id').not.toBe('skill-custom');
+    expect(inserted.referee_skills?.[0]?.event_id, 'and re-parented').toBe('event-2');
+    // role holds a referee_skills.id, so it must follow the copy.
+    expect(inserted.referee_assignments?.[0]?.role).toBe(newSkillId);
+    expect(inserted.referee_assignments?.[0]?.role).not.toBe('skill-custom');
+  });
+
+  it('reuses the existing skills when a tournament is restored into its own event', async () => {
+    // The other direction. Copying them here would duplicate the event's whole
+    // skill catalogue on every restore — the same reason persons are shared.
+    const { service, inserted } = makeService(scopedRows());
+    const archive = await service.generateTournamentArchive('t-1', 'user-1', {
+      include: 'scoring',
+    });
+
+    await service.restoreArchiveCopy(Buffer.from(JSON.stringify(archive)), 'user-1', {
+      targetEventId: 'event-1',
+      confirmation: 'RESTORE MYCLASH ARCHIVE',
+    });
+
+    expect(inserted.referee_skills, 'nothing re-inserted').toBeUndefined();
+    expect(inserted.referee_assignments?.[0]?.role).toBe('skill-custom');
+  });
+
+  it('leaves no source id anywhere in a tournament copy sent to another event', async () => {
+    // The sentinel sweep, on the path it never covered.
+    const rows = rowsWithSecondEvent();
+    const sourceIds = new Set<string>();
+    for (const table of Object.values(rows) as Array<Record<string, unknown>[]>) {
+      for (const row of table) {
+        if (typeof row['id'] === 'string') sourceIds.add(row['id']);
+      }
+    }
+    // The target event is not part of the archive; a copy pointing at it is the
+    // whole point of restoring there.
+    sourceIds.delete('event-2');
+
+    const { service, inserted } = makeService(rows);
+    const archive = await service.generateTournamentArchive('t-1', 'user-1', {
+      include: 'scoring',
+    });
+    await service.restoreArchiveCopy(Buffer.from(JSON.stringify(archive)), 'user-1', {
+      targetEventId: 'event-2',
+      confirmation: 'RESTORE MYCLASH ARCHIVE',
+    });
+
+    const survivors: string[] = [];
+    const walk = (node: unknown, trail: string): void => {
+      if (typeof node === 'string') {
+        if (sourceIds.has(node)) survivors.push(`${trail} = ${node}`);
+        return;
+      }
+      if (Array.isArray(node)) {
+        node.forEach((element, index) => walk(element, `${trail}[${index}]`));
+        return;
+      }
+      if (node && typeof node === 'object') {
+        for (const [key, value] of Object.entries(node)) walk(value, `${trail}.${key}`);
+      }
+    };
+    for (const [table, insertedRows] of Object.entries(inserted)) {
+      if (!ARCHIVE_COLLECTED_TABLES.has(table)) continue;
+      insertedRows.forEach((row, index) => walk(row, `${table}[${index}]`));
+    }
+
+    expect(
+      survivors.sort(),
+      `A tournament restored into a different event must be self-contained too:\n` +
+        survivors.map((entry) => `  - ${entry}`).join('\n'),
+    ).toEqual([]);
+  });
+
   it('keeps org-level venue references when the copy stays in the same org', async () => {
     // The other half of the pair: nulling these unconditionally would strip a
     // same-org copy of venues that resolve perfectly well.

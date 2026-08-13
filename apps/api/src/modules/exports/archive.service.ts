@@ -319,12 +319,25 @@ export class ArchiveService {
     data.events = [];
     data.themes = [];
     data.lices = [];
+    // Restoring back into the event the tournament came from: the people and
+    // the custom referee skills are ALREADY there. Self-map their ids so every
+    // reference resolves to the existing rows, and carry none of them, or the
+    // copy duplicates the whole roster and skill catalogue.
+    //
+    // Into a DIFFERENT event they are carried and re-minted, which is what
+    // makes `referee_assignments.role` and `tournament_slot_allowed_skills.
+    // skill_id` land on the target event's own skills instead of naming the
+    // source event's.
     if (options.targetEventId === archive.source.eventId) {
       for (const person of data.persons) {
         maps.persons.set(person['id'] as string, person['id'] as string);
       }
       data.persons = [];
       data.personPrivacy = [];
+      for (const skill of data.refereeSkills) {
+        maps.refereeSkills.set(skill['id'] as string, skill['id'] as string);
+      }
+      data.refereeSkills = [];
     }
     data.tournaments = [
       this.cleanRow({

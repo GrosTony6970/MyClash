@@ -163,7 +163,18 @@ const TABLES = {
   // referee_skills.id rather than a role name.
   referee_skills: {
     key: 'refereeSkills',
-    collect: { event: EVENT_SCOPED, tournament: 'omit' },
+    // Collected in TOURNAMENT scope too, which it was not. referee_assignments
+    // and tournament_slot_allowed_skills both travel in a tournament archive
+    // and both hold a referee_skills.id, so with this omitted the id map was
+    // empty and those ids passed through unchanged — correct when restoring
+    // into the same event, and a reference to ANOTHER event's custom skill when
+    // restoring into a different one. `restoreTournamentCopy` self-maps and
+    // drops these rows in the same-event case, exactly as it does for persons.
+    //
+    // System skills carry `event_id IS NULL` (0041's CHECK), so the event_id
+    // filter never picks them up and they keep passing through, which is right:
+    // they are shared by every event.
+    collect: { event: EVENT_SCOPED, tournament: EVENT_SCOPED },
     idMap: 'refereeSkills',
   },
   referee_qualifications: {
