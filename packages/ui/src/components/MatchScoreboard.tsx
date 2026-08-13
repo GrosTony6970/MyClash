@@ -122,7 +122,7 @@ export function MatchScoreboard({
         className={`flex min-h-[400px] flex-col items-center justify-center gap-3 bg-slate-900 p-8 text-slate-100 ${className ?? ''}`}
       >
         <p className="text-lg font-semibold">
-          {t('organizer.scoreboard.loadError', { status: String(loadError.status) })}
+          {t('scoring.scoreboard.loadError', { status: String(loadError.status) })}
         </p>
         {loadError.message && <p className="text-sm text-slate-300">{loadError.message}</p>}
         <button
@@ -130,7 +130,7 @@ export function MatchScoreboard({
           onClick={() => void refresh()}
           className="mt-2 rounded-md bg-slate-700 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-600"
         >
-          {t('organizer.scoreboard.retry')}
+          {t('scoring.scoreboard.retry')}
         </button>
       </div>
     );
@@ -142,7 +142,7 @@ export function MatchScoreboard({
         className={`flex min-h-[400px] flex-col items-center justify-center gap-3 bg-slate-900 p-8 text-slate-100 ${className ?? ''}`}
       >
         <span className="h-8 w-8 animate-spin rounded-full border-2 border-slate-400 border-t-transparent" />
-        <p className="text-sm text-slate-300">{t('organizer.scoreboard.loading')}</p>
+        <p className="text-sm text-slate-300">{t('scoring.scoreboard.loading')}</p>
       </div>
     );
   }

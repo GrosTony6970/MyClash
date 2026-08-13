@@ -31,7 +31,7 @@ export function SimulatedTimeBadge() {
         className="h-1.5 w-1.5 animate-pulse rounded-full bg-warning motion-reduce:animate-none"
         aria-hidden
       />
-      {t('admin.featureFlags.timeSimulation.activeNote')}: {formatted}
+      {t('publicApp.simulatedTime')}: {formatted}
     </div>
   );
 }

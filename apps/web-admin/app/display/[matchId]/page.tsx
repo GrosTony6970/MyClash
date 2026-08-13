@@ -63,7 +63,7 @@ export default function DisplayPage({ params }: { params: Promise<{ matchId: str
         onClick={toggleMirror}
         className="fixed left-3 top-3 z-50 cursor-pointer rounded-md border border-white/20 bg-black/40 px-3 py-1.5 text-xs font-semibold text-white/70 backdrop-blur hover:bg-black/60 hover:text-white"
       >
-        {t('organizer.scoreboard.swapSides')}
+        {t('scoring.scoreboard.swapSides')}
       </button>
       <TVScoreboard
         matchId={matchId}

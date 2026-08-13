@@ -12,6 +12,8 @@ export const en = {
     name: 'MyClash',
   },
   publicApp: {
+    /** Badge shown to every visitor while an operator is simulating the clock. */
+    simulatedTime: 'Simulated time',
     eventFeedback: {
       title: 'How did it go?',
       subtitle: 'A minute of your time helps the organiser run the next one better.',
@@ -1126,6 +1128,9 @@ export const en = {
     },
     leagues: {
       backToHome: 'Back to home',
+      indexTitle: 'Leagues',
+      indexDescription: 'Manage Tournois Federal seasons, tournament requests, and standings.',
+      emptyList: 'No leagues found.',
       rankColumn: 'Rank',
       fighterColumn: 'Fighter',
       clubColumn: 'Club',
@@ -1464,6 +1469,12 @@ export const en = {
     tryAgain: 'Try again',
   },
   scoring: {
+    scoreboard: {
+      loading: 'Loading scoreboard…',
+      loadError: 'Could not load scoreboard data ({status}).',
+      retry: 'Retry',
+      swapSides: '⇄ Swap sides',
+    },
     login: {
       checkEmailTitle: 'Check your email',
       checkEmailPrefix: 'We sent a login link to',
@@ -2680,8 +2691,6 @@ export const en = {
         aiBudgetCeiling: 'Monthly ceiling',
         aiUtilization: 'Utilization',
       },
-      leaguesTitle: 'Leagues',
-      leaguesDescription: 'Manage Tournois Federal seasons, tournament requests, and standings.',
     },
     organizations: {
       eyebrow: 'Organizer network',
@@ -3023,7 +3032,6 @@ export const en = {
         targetHelp:
           'The date & time the public app should treat as the current moment. The clock advances forward from here.',
         saveButton: 'Save simulated time',
-        activeNote: 'Simulated time',
       },
       disableRealtime: {
         title: 'Disable Realtime',
@@ -3943,7 +3951,6 @@ export const en = {
     leagues: {
       loading: 'Loading leagues...',
       loadError: 'Failed to load leagues.',
-      empty: 'No leagues found.',
       requestAttach: 'Request league attachment',
       attachDescription: 'Ask a league admin to include one of this event tournaments.',
       league: 'League',
@@ -7974,12 +7981,6 @@ export const en = {
         openAudit: 'Open audit history',
       },
     },
-    scoreboard: {
-      loading: 'Loading scoreboard…',
-      loadError: 'Could not load scoreboard data ({status}).',
-      retry: 'Retry',
-      swapSides: '⇄ Swap sides',
-    },
   },
   test: {
     greeting: 'Hello, {name}',
@@ -7991,6 +7992,7 @@ export const fr = {
     name: 'MyClash',
   },
   publicApp: {
+    simulatedTime: 'Heure simulee',
     eventFeedback: {
       title: "Comment ça s'est passé ?",
       subtitle: "Une minute de votre temps aide l'organisateur à mieux faire la prochaine fois.",
@@ -9116,6 +9118,9 @@ export const fr = {
     },
     leagues: {
       backToHome: "Retour à l'accueil",
+      indexTitle: 'Tournois fédéraux',
+      indexDescription: 'Gérer les saisons, les demandes de tournois et les classements.',
+      emptyList: 'Aucune ligue trouvée.',
       rankColumn: 'Rang',
       fighterColumn: 'Combattant',
       clubColumn: 'Club',
@@ -9448,6 +9453,12 @@ export const fr = {
     tryAgain: 'Réessayer',
   },
   scoring: {
+    scoreboard: {
+      loading: 'Chargement du tableau de score...',
+      loadError: 'Impossible de charger les donnees du tableau de score ({status}).',
+      retry: 'Reessayer',
+      swapSides: '⇄ Inverser les côtés',
+    },
     login: {
       checkEmailTitle: 'Verifiez votre email',
       checkEmailPrefix: 'Nous avons envoye un lien de connexion a',
@@ -10658,8 +10669,6 @@ export const fr = {
         aiBudgetCeiling: 'Plafond mensuel',
         aiUtilization: 'Utilisation',
       },
-      leaguesTitle: 'Tournois fédéraux',
-      leaguesDescription: 'Gérer les saisons, les demandes de tournois et les classements.',
     },
     organizations: {
       eyebrow: 'Reseau organisateur',
@@ -11001,7 +11010,6 @@ export const fr = {
         targetHelp:
           'La date et l heure que l app publique doit considerer comme l instant present. L horloge avance a partir de ce point.',
         saveButton: 'Enregistrer l heure simulee',
-        activeNote: 'Heure simulee',
       },
       disableRealtime: {
         title: 'Desactiver Realtime',
@@ -11930,7 +11938,6 @@ export const fr = {
     leagues: {
       loading: 'Chargement des ligues...',
       loadError: 'Impossible de charger les ligues.',
-      empty: 'Aucune ligue trouvée.',
       requestAttach: 'Demander le rattachement à une ligue',
       attachDescription:
         "Demander à un administrateur de ligue d'inclure un tournoi de cet événement.",
@@ -15979,12 +15986,6 @@ export const fr = {
         openScoreboard: "Ouvrir le pad d'arbitrage",
         openAudit: "Ouvrir l'historique d'audit",
       },
-    },
-    scoreboard: {
-      loading: 'Chargement du tableau de score...',
-      loadError: 'Impossible de charger les donnees du tableau de score ({status}).',
-      retry: 'Reessayer',
-      swapSides: '⇄ Inverser les côtés',
     },
   },
   test: {

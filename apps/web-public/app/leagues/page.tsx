@@ -29,9 +29,9 @@ export default async function PublicLeaguesPage() {
     <main className="mx-auto max-w-6xl px-4 py-8">
       <div className="mb-7">
         <h1 className="font-display font-bold text-2xl sm:text-3xl text-foreground">
-          {t('admin.dashboard.leaguesTitle')}
+          {t('publicApp.leagues.indexTitle')}
         </h1>
-        <p className="text-sm text-muted mt-1">{t('admin.dashboard.leaguesDescription')}</p>
+        <p className="text-sm text-muted mt-1">{t('publicApp.leagues.indexDescription')}</p>
       </div>
 
       <div className="grid gap-4">
@@ -54,7 +54,9 @@ export default async function PublicLeaguesPage() {
         ))}
       </div>
 
-      {leagues.length === 0 && <p className="text-sm text-muted">{t('admin.leagues.empty')}</p>}
+      {leagues.length === 0 && (
+        <p className="text-sm text-muted">{t('publicApp.leagues.emptyList')}</p>
+      )}
     </main>
   );
 }

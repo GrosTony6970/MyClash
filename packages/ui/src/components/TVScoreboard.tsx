@@ -179,7 +179,7 @@ export function TVScoreboard({
       >
         <div className="text-center">
           <p className="text-3xl font-bold">
-            {t('organizer.scoreboard.loadError', { status: String(loadError.status) })}
+            {t('scoring.scoreboard.loadError', { status: String(loadError.status) })}
           </p>
           {loadError.message && <p className="mt-3 text-xl text-gray-400">{loadError.message}</p>}
         </div>
@@ -194,7 +194,7 @@ export function TVScoreboard({
       >
         <div className="flex items-center gap-4 text-2xl text-gray-400">
           <span className="h-8 w-8 animate-spin rounded-full border-2 border-gray-400 border-t-transparent" />
-          <span>{t('organizer.scoreboard.loading')}</span>
+          <span>{t('scoring.scoreboard.loading')}</span>
         </div>
       </div>
     );
