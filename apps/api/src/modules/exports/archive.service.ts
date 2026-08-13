@@ -10,7 +10,9 @@ import { buildTournamentReports, emptyTournamentReports, safeFilename } from './
 import { ID_MAP_NAMES } from './archive.table-spec';
 import type { CollectContext, CollectRule, IdMapName } from './archive.table-spec';
 import {
+  ARCHIVE_TABLES,
   INSERT_ORDER,
+  SHARED_FK_COLUMNS,
   TABLE_TO_ARCHIVE_KEY,
   collectRuleFor,
   emptyArchiveTables,
@@ -413,110 +415,39 @@ export class ArchiveService {
       next['id'] = map.get(id);
     }
     const crossOrg = targets.crossOrg === true;
+    const spec = ARCHIVE_TABLES[table]!;
 
-    this.mapFk(next, 'event_id', maps.events, targets.targetEventId);
-    this.mapFk(next, 'lice_id', maps.lices);
-    this.mapFk(next, 'person_id', maps.persons);
-    // `matches.referee_id` is an EVENT-SCOPED persons.id (migration 0039), not a
-    // global person — so it has to be remapped like any other person reference.
-    // Left unmapped, a restored match pointed at the SOURCE event's person row:
-    // delete the source and `ON DELETE SET NULL` silently dropped the referee,
-    // keep it and the referee dashboard listed the copy's match under the wrong
-    // event's person (assignments.service.ts reads this column directly).
-    this.mapFk(next, 'referee_id', maps.persons);
-    this.mapFk(next, 'global_person_id', maps.fighters);
-    this.mapFk(next, 'tournament_id', maps.tournaments, targets.targetTournamentId);
-    this.mapFk(next, 'competition_id', maps.tournaments);
-    this.mapFk(next, 'registration_id', maps.registrations);
-    this.mapFk(next, 'red_registration_id', maps.registrations);
-    this.mapFk(next, 'blue_registration_id', maps.registrations);
-    this.mapFk(next, 'winner_registration_id', maps.registrations);
-    this.mapFk(next, 'forfeiting_registration_id', maps.registrations);
-    this.mapFk(next, 'replacement_registration_id', maps.registrations);
-    this.mapFk(next, 'registration_a_id', maps.registrations);
-    this.mapFk(next, 'registration_b_id', maps.registrations);
-    // `swiss_rounds.bye_registration_id`. Missed when the Swiss tables were
-    // registered, and silently: the FK points at `registrations(id)` and the
-    // SOURCE row still exists, so the constraint is satisfied and the restore
-    // succeeds with the copy's byes pointing into another event. The bye holder
-    // then renders blank everywhere — and their bye points vanish from the
-    // restored standings, because `swissRecords` credits `points.bye` by
-    // matching this id against the phase's own entrants.
-    this.mapFk(next, 'bye_registration_id', maps.registrations);
-    this.mapFk(next, 'phase_id', maps.phases);
-    this.mapFk(next, 'pool_id', maps.pools);
-    this.mapFk(next, 'bracket_slot_id', maps.bracketSlots);
-    this.mapFk(next, 'swiss_round_id', maps.swissRounds);
-    this.mapFk(next, 'match_id', maps.matches);
-    this.mapFk(next, 'workshop_id', maps.workshops);
-    this.mapFk(next, 'workshop_session_id', maps.workshopSessions);
-
-    switch (table) {
-      case 'persons':
-        next['claim_status'] = 'unclaimed';
-        next['claimed_by_user_id'] = null;
-        break;
-      case 'exchanges':
-        next['client_uuid'] = randomUUID();
-        // A correction points at the exchange it replaced (0019). Never
-        // remapped, so a restored copy's corrections referenced the SOURCE
-        // event's exchanges — and the FK was satisfied, because those rows
-        // still exist, so nothing complained. Same shape as the
-        // `bye_registration_id` miss documented above.
-        this.mapFk(next, 'corrected_exchange_id', idMapForTable('exchanges', maps));
-        break;
-      case 'match_penalties':
-        next['client_uuid'] = randomUUID();
-        // ruleset_id / ruleset_entry_id point at org-level penalty rulesets that
-        // aren't copied — they resolve on same-org restore, not across orgs.
-        if (crossOrg) {
-          next['ruleset_id'] = null;
-          next['ruleset_entry_id'] = null;
-        }
-        break;
-      case 'match_forfeits':
-        this.mapFk(next, 'parent_forfeit_id', maps.matchForfeits);
-        break;
-      case 'event_hidden_skills':
-        next['skill_id'] = this.remapSkillId(next['skill_id'], maps);
-        break;
-      case 'referee_assignments':
-        // role stores a referee_skills.id: system ids pass through, custom remap.
-        next['role'] = this.remapSkillId(next['role'], maps);
-        break;
-      case 'tournament_slot_allowed_skills':
-        this.mapFk(next, 'slot_config_id', maps.tournamentSlotConfig);
-        next['skill_id'] = this.remapSkillId(next['skill_id'], maps);
-        break;
-      case 'event_slot_config_default_skills':
-        this.mapFk(next, 'slot_config_id', maps.eventSlotConfig);
-        next['skill_id'] = this.remapSkillId(next['skill_id'], maps);
-        break;
-      case 'lices':
-        if (crossOrg) next['venue_id'] = null;
-        break;
-      case 'workshop_sessions':
-        if (crossOrg) {
-          next['venue_id'] = null;
-          next['area_id'] = null;
-        }
-        break;
-      case 'event_venues':
-        // venue belongs to the source org; a cross-org copy has no matching venue
-        if (crossOrg) return null;
-        break;
-      case 'tournament_phase_venues':
-        if (crossOrg) next['venue_id'] = null;
-        break;
-      case 'referee_compensation_event_settings':
-        // plan_id (NOT NULL) references an org-level plan not copied across orgs
-        if (crossOrg) return null;
-        break;
-      default:
-        break;
+    // The columns whose meaning is the same on every table.
+    for (const [column, { map, target }] of Object.entries(SHARED_FK_COLUMNS)) {
+      const fallback =
+        target === 'event'
+          ? targets.targetEventId
+          : target === 'tournament'
+            ? targets.targetTournamentId
+            : undefined;
+      this.mapFk(next, column, maps[map], fallback);
     }
+
+    // …and the ones that only mean something on this table.
+    for (const [column, map] of Object.entries(spec.fk ?? {})) {
+      this.mapFk(next, column, maps[map]);
+    }
+
+    for (const [column, value] of Object.entries(spec.set ?? {})) {
+      next[column] = value;
+    }
+    if (spec.freshClientUuid) next['client_uuid'] = randomUUID();
+    for (const column of spec.skillIdColumns ?? []) {
+      next[column] = this.remapSkillId(next[column], maps);
+    }
+
+    if (crossOrg && spec.crossOrg) {
+      if (spec.crossOrg === 'drop') return null;
+      for (const column of spec.crossOrg.null) next[column] = null;
+    }
+
     // Ids the column sweep above cannot see, because they are not top-level
-    // strings. Declared per table in JSON_ID_PATHS.
+    // strings. Declared per table as `json` paths.
     for (const { path, map } of jsonIdPathsFor(table)) {
       remapJsonIdPath(next, path, jsonIdMap(map, maps));
     }

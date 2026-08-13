@@ -2,7 +2,13 @@ import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { buildMigrationSchema } from '../../common/testing/migration-schema';
-import { ARCHIVE_COLLECTED_TABLES, ARCHIVE_EXCLUDED_TABLES, JSON_ID_PATHS } from './archive.tables';
+import {
+  ARCHIVE_COLLECTED_TABLES,
+  ARCHIVE_EXCLUDED_TABLES,
+  ARCHIVE_TABLES,
+  JSON_ID_PATHS,
+  SHARED_FK_COLUMNS,
+} from './archive.tables';
 
 /**
  * Anti-rot guard for the organizer archive, in two layers.
@@ -203,24 +209,40 @@ const FK_COLUMNS_NOT_REMAPPED = new Set<string>([
   'referee_compensation_event_settings.plan_id',
   // external identifier
   'persons.hema_ratings_id',
+  // NOT NULL, and the whole row is dropped on a cross-org restore (crossOrg:
+  // 'drop') precisely because this cannot be resolved there. On a same-org
+  // restore the venue exists and the reference is already correct, so there is
+  // nothing to remap in either case.
+  'event_venues.venue_id',
 ]);
 
 /**
- * The columns `remapRow` actually touches, read off the source.
+ * The columns `remapRow` touches on a given table, read off the registry.
  *
- * A source scan rather than an exported list, because an exported list would be
- * a second thing to keep in step and the second one always rots. DELIBERATELY
- * NARROW: it recognises `mapFk(next, 'x'` and `next['x'] =`, and nothing else.
- * That narrowness is only safe because the count is asserted against a floor
- * below — a parser that quietly stopped matching would otherwise report every
- * column as unhandled and read as a catastrophic failure, or (worse, if the
- * assertion were inverted) as success.
+ * This USED to regex-scan `archive.service.ts` for `mapFk(next, 'x'` and
+ * `next['x'] =`, with a docstring arguing against an exported list because "the
+ * second one always rots". That argument no longer applies, and the reason is
+ * worth stating rather than leaving for the next reader to re-derive: the
+ * registry is not a second list. It is the record `remapRow` iterates to DO the
+ * remapping, so it cannot disagree with the behaviour it describes — where a
+ * regex over source could, and silently did.
+ *
+ * It is also strictly sharper, because it is per-table where the scan was
+ * global. The scan gathered every remapped column NAME anywhere in the file and
+ * waved through that name on EVERY table, so one table nulling `venue_id`
+ * excused `venue_id` on all the others. Re-pointing it surfaced exactly that:
+ * `workshops.venue_id` had never been handled by anything.
  */
-function remappedColumnsFromSource(): Set<string> {
-  const source = readFileSync(path.resolve(__dirname, 'archive.service.ts'), 'utf8');
-  const handled = new Set<string>();
-  for (const match of source.matchAll(/mapFk\(\s*next,\s*'([a-z_]+)'/g)) handled.add(match[1]!);
-  for (const match of source.matchAll(/next\['([a-z_]+)'\]\s*=/g)) handled.add(match[1]!);
+function remappedColumnsFor(table: string): Set<string> {
+  const spec = ARCHIVE_TABLES[table];
+  const handled = new Set<string>(Object.keys(SHARED_FK_COLUMNS));
+  if (!spec) return handled;
+  for (const column of Object.keys(spec.fk ?? {})) handled.add(column);
+  for (const column of Object.keys(spec.set ?? {})) handled.add(column);
+  for (const column of spec.skillIdColumns ?? []) handled.add(column);
+  if (spec.crossOrg && spec.crossOrg !== 'drop') {
+    for (const column of spec.crossOrg.null) handled.add(column);
+  }
   return handled;
 }
 
@@ -232,15 +254,21 @@ function jsonColumnsWithDeclaredPaths(table: string): Set<string> {
 
 describe('archive column coverage', () => {
   const { columns, jsonColumns } = buildMigrationSchema();
-  const remapped = remappedColumnsFromSource();
 
-  it('resolves a meaningful set of remapped columns (sanity check on the scanner)', () => {
-    // Without this floor a scanner that matched nothing would make the two
-    // assertions below scream about every column, or — with one typo in a
-    // regex — quietly stop testing anything at all.
-    expect(remapped.has('event_id')).toBe(true);
-    expect(remapped.has('corrected_exchange_id')).toBe(true);
-    expect(remapped.size).toBeGreaterThan(25);
+  it('resolves a meaningful set of remapped columns (sanity check on the registry)', () => {
+    // The floor the source scan needed, kept: a registry that stopped exporting
+    // its columns would otherwise make the assertions below scream about every
+    // column, or — inverted — quietly stop testing anything at all.
+    const shared = remappedColumnsFor('matches');
+    expect(shared.has('event_id')).toBe(true);
+    expect(shared.size).toBeGreaterThan(20);
+    // Per-table declarations reach the set too, not just the shared sweep.
+    expect(remappedColumnsFor('exchanges').has('corrected_exchange_id')).toBe(true);
+    expect(remappedColumnsFor('referee_assignments').has('role')).toBe(true);
+    expect(remappedColumnsFor('match_penalties').has('ruleset_id')).toBe(true);
+    // …and do NOT leak onto a table that never declared them. This is the
+    // false pass the global source scan was giving.
+    expect(remappedColumnsFor('matches').has('corrected_exchange_id')).toBe(false);
   });
 
   it('sees the archived tables in the replayed schema (sanity check on the replay)', () => {
@@ -253,6 +281,7 @@ describe('archive column coverage', () => {
     const unhandled: string[] = [];
     for (const table of [...ARCHIVE_COLLECTED_TABLES].sort()) {
       const declaredJsonColumns = jsonColumnsWithDeclaredPaths(table);
+      const remapped = remappedColumnsFor(table);
       for (const column of [...(columns.get(table) ?? [])].sort()) {
         if (!/_id$|_ids$/.test(column)) continue;
         // A `*_ids` column is usually JSON, and is then handled by a declared

@@ -30,6 +30,7 @@ import type {
   CollectRule,
   IdMapName,
   JsonIdPath,
+  SharedFkColumn,
 } from './archive.table-spec';
 
 /** The row(s) the caller already holds — the event, and the tournament in tournament scope. */
@@ -72,6 +73,56 @@ const TOURNAMENT_REFEREE_ASSIGNMENTS = {
     (typeof row['match_id'] === 'string' && ctx.idsOf('matches').includes(row['match_id'])),
 } as const satisfies CollectRule;
 
+/**
+ * FK columns swept on EVERY table, because the column name means the same thing
+ * wherever it appears. A column whose meaning depends on the table it is on
+ * belongs in that table's own `fk` instead.
+ *
+ * `target` names the restore target an unmapped value falls back to: an
+ * `event_id` with no entry in the map becomes the event being restored into,
+ * which is what re-parents a copy.
+ */
+export const SHARED_FK_COLUMNS: Readonly<Record<string, SharedFkColumn>> = {
+  event_id: { map: 'events', target: 'event' },
+  lice_id: { map: 'lices' },
+  person_id: { map: 'persons' },
+  // `matches.referee_id` is an EVENT-SCOPED persons.id (migration 0039), not a
+  // global person — so it has to be remapped like any other person reference.
+  // Left unmapped, a restored match pointed at the SOURCE event's person row:
+  // delete the source and `ON DELETE SET NULL` silently dropped the referee,
+  // keep it and the referee dashboard listed the copy's match under the wrong
+  // event's person (assignments.service.ts reads this column directly).
+  referee_id: { map: 'persons' },
+  // A global person is NOT archived, so this map stays empty and the id passes
+  // through — correct, because it names a row that exists outside the copy.
+  global_person_id: { map: 'fighters' },
+  tournament_id: { map: 'tournaments', target: 'tournament' },
+  competition_id: { map: 'tournaments' },
+  registration_id: { map: 'registrations' },
+  red_registration_id: { map: 'registrations' },
+  blue_registration_id: { map: 'registrations' },
+  winner_registration_id: { map: 'registrations' },
+  forfeiting_registration_id: { map: 'registrations' },
+  replacement_registration_id: { map: 'registrations' },
+  registration_a_id: { map: 'registrations' },
+  registration_b_id: { map: 'registrations' },
+  // `swiss_rounds.bye_registration_id`. Missed when the Swiss tables were
+  // registered, and silently: the FK points at `registrations(id)` and the
+  // SOURCE row still exists, so the constraint is satisfied and the restore
+  // succeeds with the copy's byes pointing into another event. The bye holder
+  // then renders blank everywhere — and their bye points vanish from the
+  // restored standings, because `swissRecords` credits `points.bye` by
+  // matching this id against the phase's own entrants.
+  bye_registration_id: { map: 'registrations' },
+  phase_id: { map: 'phases' },
+  pool_id: { map: 'pools' },
+  bracket_slot_id: { map: 'bracketSlots' },
+  swiss_round_id: { map: 'swissRounds' },
+  match_id: { map: 'matches' },
+  workshop_id: { map: 'workshops' },
+  workshop_session_id: { map: 'workshopSessions' },
+};
+
 const TABLES = {
   // ── Event root and its immediate children ─────────────────────────────────
   events: { key: 'events', collect: { event: ROOT, tournament: ROOT }, idMap: 'events' },
@@ -79,6 +130,12 @@ const TABLES = {
   lices: {
     key: 'lices',
     collect: { event: EVENT_SCOPED, tournament: EVENT_SCOPED },
+    // `area_id` (0169) references venue_areas, which hang off a venue owned by
+    // the source org — so it leaks exactly like `venue_id` beside it, and was
+    // missed because the column gate was matching remapped names globally
+    // rather than per table: one table nulling `venue_id` waved it through
+    // everywhere, and `area_id` rode in on workshop_sessions.
+    crossOrg: { null: ['venue_id', 'area_id'] },
     idMap: 'lices',
   },
   persons: {
@@ -87,6 +144,10 @@ const TABLES = {
       event: EVENT_SCOPED,
       tournament: { from: 'registrations', local: 'id', parent: 'person_id' },
     },
+    // A restored copy is a fresh event: nobody has claimed its people yet, and
+    // inheriting a claim would hand the copy's rows to whoever claimed the
+    // source's.
+    set: { claim_status: 'unclaimed', claimed_by_user_id: null },
     idMap: 'persons',
   },
   person_privacy: {
@@ -115,6 +176,7 @@ const TABLES = {
   event_hidden_skills: {
     key: 'eventHiddenSkills',
     collect: { event: EVENT_SCOPED, tournament: 'omit' },
+    skillIdColumns: ['skill_id'],
   },
   event_instructors: {
     key: 'eventInstructors',
@@ -137,12 +199,21 @@ const TABLES = {
       event: { from: 'event_slot_config_default', local: 'slot_config_id' },
       tournament: 'omit',
     },
+    fk: { slot_config_id: 'eventSlotConfig' },
+    skillIdColumns: ['skill_id'],
   },
   referee_compensation_event_settings: {
     key: 'refereeCompensationEventSettings',
     collect: { event: EVENT_SCOPED, tournament: 'omit' },
+    // plan_id (NOT NULL) references an org-level plan not copied across orgs
+    crossOrg: 'drop',
   },
-  event_venues: { key: 'eventVenues', collect: { event: EVENT_SCOPED, tournament: 'omit' } },
+  event_venues: {
+    key: 'eventVenues',
+    collect: { event: EVENT_SCOPED, tournament: 'omit' },
+    // venue belongs to the source org; a cross-org copy has no matching venue
+    crossOrg: 'drop',
+  },
 
   // ── Tournament and its structure ──────────────────────────────────────────
   tournaments: {
@@ -153,6 +224,7 @@ const TABLES = {
   tournament_phase_venues: {
     key: 'tournamentPhaseVenues',
     collect: { event: BY_TOURNAMENT, tournament: BY_TOURNAMENT },
+    crossOrg: { null: ['venue_id'] },
   },
   tournament_slot_config: {
     key: 'tournamentSlotConfig',
@@ -165,6 +237,10 @@ const TABLES = {
       event: { from: 'tournament_slot_config', local: 'slot_config_id' },
       tournament: { from: 'tournament_slot_config', local: 'slot_config_id' },
     },
+    // slot_config_id is ambiguous across tables — here it is the TOURNAMENT
+    // config, on event_slot_config_default_skills it is the event one.
+    fk: { slot_config_id: 'tournamentSlotConfig' },
+    skillIdColumns: ['skill_id'],
   },
   event_referee_tournaments: {
     key: 'eventRefereeTournaments',
@@ -246,6 +322,8 @@ const TABLES = {
   referee_assignments: {
     key: 'refereeAssignments',
     collect: { event: EVENT_SCOPED, tournament: TOURNAMENT_REFEREE_ASSIGNMENTS },
+    // role stores a referee_skills.id: system ids pass through, custom remap.
+    skillIdColumns: ['role'],
   },
   match_events: {
     key: 'matchEvents',
@@ -254,17 +332,28 @@ const TABLES = {
   exchanges: {
     key: 'exchanges',
     collect: { event: BY_MATCH_SCORING, tournament: BY_MATCH_SCORING },
+    freshClientUuid: true,
+    // A correction points at the exchange it replaced (0019). Never remapped,
+    // so a restored copy's corrections referenced the SOURCE event's exchanges
+    // — and the FK was satisfied, because those rows still exist, so nothing
+    // complained. Same shape as the bye_registration_id miss.
+    fk: { corrected_exchange_id: 'exchanges' },
     idMap: 'exchanges',
   },
   match_penalties: {
     key: 'matchPenalties',
     collect: { event: BY_MATCH_SCORING, tournament: BY_MATCH_SCORING },
+    freshClientUuid: true,
+    // ruleset_id / ruleset_entry_id point at org-level penalty rulesets that
+    // aren't copied — they resolve on same-org restore, not across orgs.
+    crossOrg: { null: ['ruleset_id', 'ruleset_entry_id'] },
     idMap: 'matchPenalties',
   },
 
   match_forfeits: {
     key: 'matchForfeits',
     collect: { event: BY_MATCH_SCORING, tournament: BY_MATCH_SCORING },
+    fk: { parent_forfeit_id: 'matchForfeits' },
     idMap: 'matchForfeits',
     // Read off match-forfeits.service.ts `matchSnapshot` / `loadRegistration`.
     // The two `*_match_state` blobs are the same snapshot shape, so both carry
@@ -296,6 +385,11 @@ const TABLES = {
   workshops: {
     key: 'workshops',
     collect: { event: EVENT_SCOPED, tournament: 'omit' },
+    // The workshop's DEFAULT venue (0090), which its sessions pre-fill from at
+    // creation. Sessions nulled theirs across orgs and the parent never did, so
+    // a cross-org copy kept pointing at the source org's venue — and every new
+    // session created in that copy would have inherited it.
+    crossOrg: { null: ['venue_id'] },
     idMap: 'workshops',
   },
   workshop_instructors: {
@@ -305,6 +399,7 @@ const TABLES = {
   workshop_sessions: {
     key: 'workshopSessions',
     collect: { event: { from: 'workshops', local: 'workshop_id' }, tournament: 'omit' },
+    crossOrg: { null: ['venue_id', 'area_id'] },
     idMap: 'workshopSessions',
   },
   workshop_enrollments: {

@@ -357,6 +357,20 @@ describe('ArchiveService', () => {
       { id: 'event-1', organization_id: 'org-1', slug: 'fal', name: 'FAL', status: 'completed' },
     ],
     tournaments: [{ id: 't-1', event_id: 'event-1', slug: 'ls', name: 'LS' }],
+    // Both carry an org-level venue reference that a cross-org copy cannot
+    // resolve. `lices.area_id` (0169) and `workshops.venue_id` (0090) were
+    // absent from this fixture, which is why nothing noticed neither was being
+    // cleared.
+    lices: [
+      {
+        id: 'lice-1',
+        event_id: 'event-1',
+        name: 'Piste 1',
+        venue_id: 'venue-1',
+        area_id: 'area-1',
+      },
+    ],
+    workshops: [{ id: 'w-1', event_id: 'event-1', title: 'Drills', venue_id: 'venue-1' }],
     persons: [
       { id: 'p-1', event_id: 'event-1', given_name: 'A', family_name: 'B', email: 'a@b.c' },
     ],
@@ -850,5 +864,29 @@ describe('ArchiveService', () => {
     expect(inserted.tournament_phase_venues?.[0]?.venue_id).toBeNull();
     expect(inserted.match_penalties?.[0]?.ruleset_id).toBeNull();
     expect(inserted.match_penalties?.[0]?.ruleset_entry_id).toBeNull();
+    // Both found by making the column gate per-table. A venue_area belongs to a
+    // venue owned by the source org, so lices.area_id leaks exactly as its
+    // venue_id sibling does; workshops.venue_id is the default its sessions
+    // pre-fill from, and the sessions cleared theirs while the parent did not.
+    expect(inserted.lices?.[0]?.venue_id).toBeNull();
+    expect(inserted.lices?.[0]?.area_id).toBeNull();
+    expect(inserted.workshops?.[0]?.venue_id).toBeNull();
+  });
+
+  it('keeps org-level venue references when the copy stays in the same org', async () => {
+    // The other half of the pair: nulling these unconditionally would strip a
+    // same-org copy of venues that resolve perfectly well.
+    const { service, inserted } = makeService(scopedRows());
+    const archive = await service.generateEventArchive('event-1', 'user-1', { include: 'scoring' });
+
+    await service.restoreArchiveCopy(Buffer.from(JSON.stringify(archive)), 'user-1', {
+      targetOrganizationId: 'org-1',
+      confirmation: 'RESTORE MYCLASH ARCHIVE',
+    });
+
+    expect(inserted.lices?.[0]?.venue_id).toBe('venue-1');
+    expect(inserted.lices?.[0]?.area_id).toBe('area-1');
+    expect(inserted.workshops?.[0]?.venue_id).toBe('venue-1');
+    expect(inserted.event_venues?.[0]?.venue_id).toBe('venue-1');
   });
 });

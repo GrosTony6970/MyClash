@@ -53,6 +53,15 @@ export const ID_MAP_NAMES = [
 
 export type IdMapName = (typeof ID_MAP_NAMES)[number];
 
+/**
+ * A FK column swept on every table: the id map that resolves it, and which
+ * restore target an unmapped value falls back to.
+ */
+export interface SharedFkColumn {
+  readonly map: IdMapName;
+  readonly target?: 'event' | 'tournament';
+}
+
 export interface JsonIdPath {
   readonly path: string;
   readonly map: IdMapName;
@@ -159,4 +168,38 @@ export interface ArchiveTableSpec {
    * survives instead of becoming undefined.
    */
   readonly json?: readonly JsonIdPath[];
+
+  /**
+   * FK columns this table carries that the shared sweep does not know about,
+   * mapped to the id map that resolves them. Two kinds land here: a
+   * self-reference (`exchanges.corrected_exchange_id`,
+   * `match_forfeits.parent_forfeit_id`) and a column whose name is ambiguous
+   * across tables (`slot_config_id` means the event config on one table and the
+   * tournament config on another).
+   */
+  readonly fk?: Readonly<Record<string, IdMapName>>;
+
+  /**
+   * Columns holding a `referee_skills.id`. System skills are shared across every
+   * event and pass through; a custom skill is event-scoped and is remapped.
+   * `referee_assignments.role` is one of these — the column name says role, the
+   * value is a skill id.
+   */
+  readonly skillIdColumns?: readonly string[];
+
+  /** Columns overwritten with a literal on restore, whatever the source held. */
+  readonly set?: Readonly<Record<string, unknown>>;
+
+  /** Mint a new `client_uuid` — the offline pad's idempotency key, never shared. */
+  readonly freshClientUuid?: boolean;
+
+  /**
+   * What to do when the copy lands in a DIFFERENT organization from the source.
+   *
+   * Org-level catalogues — venues, penalty rulesets, compensation plans — are
+   * referenced by id and never copied, so across orgs they resolve to nothing.
+   * `'drop'` for a row that cannot exist without one (a NOT NULL reference);
+   * `{ null: [...] }` for nullable columns the row survives without.
+   */
+  readonly crossOrg?: 'drop' | { readonly null: readonly string[] };
 }
