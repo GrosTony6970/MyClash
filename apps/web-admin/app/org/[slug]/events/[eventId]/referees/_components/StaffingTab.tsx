@@ -20,9 +20,9 @@
  * dialog with the list and re-PUT with confirmDestructive: true.
  */
 
+import { useI18n } from '@myclash/next-i18n/client';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Modal, SkillBadge, useToast } from '@myclash/ui';
-import { t } from '@myclash/i18n';
 
 const PHASE_TYPES = ['pool', 'swiss', 'bracket', 'finals'] as const;
 type PhaseType = (typeof PHASE_TYPES)[number];
@@ -77,6 +77,8 @@ interface Props {
 }
 
 export function StaffingTab({ eventId, apiUrl, skills, isReadOnly }: Props) {
+  const { t } = useI18n();
+
   const toast = useToast();
   const [tournaments, setTournaments] = useState<TournamentSummary[]>([]);
   const [selectedTournamentId, setSelectedTournamentId] = useState<string | 'event-default'>(
@@ -307,6 +309,8 @@ interface PhaseSectionProps {
 }
 
 function PhaseSection({ phase, slots, skills, editable, onChange }: PhaseSectionProps) {
+  const { t } = useI18n();
+
   const skillById = useMemo(() => {
     const m = new Map<string, RefereeSkill>();
     for (const s of skills) m.set(s.id, s);
@@ -444,6 +448,8 @@ interface SkillChipListProps {
 }
 
 function SkillChipList({ skills, skillById, selectedIds, editable, onChange }: SkillChipListProps) {
+  const { t } = useI18n();
+
   const [pickerOpen, setPickerOpen] = useState(false);
   const available = skills.filter((s) => !selectedIds.includes(s.id));
 
@@ -521,6 +527,8 @@ function DestructiveConfirmDialog({
   onConfirm,
   saving,
 }: DestructiveConfirmProps) {
+  const { t } = useI18n();
+
   return (
     <Modal
       open

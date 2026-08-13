@@ -1,6 +1,10 @@
 'use client';
 
 import * as Sentry from '@sentry/nextjs';
+// The EN-bound module `t`, on purpose — and the only place it is still the
+// right call in a client component. global-error replaces the ROOT LAYOUT, so
+// I18nProvider is not above it and useI18n() would read the context default
+// anyway. The hard-coded <html lang="en"> below says the same thing.
 import { t } from '@myclash/i18n';
 import { useEffect } from 'react';
 

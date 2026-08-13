@@ -17,7 +17,6 @@
  */
 
 import { useEffect, useMemo, useState } from 'react';
-import { t } from '@myclash/i18n';
 import { useI18n } from '@myclash/next-i18n/client';
 import { SwapSuggestionsPanel } from '../../referees/_components/SwapSuggestionsPanel';
 import { CandidatePicker } from '../../referees/_components/CandidatePicker';
@@ -37,6 +36,8 @@ interface Props {
 }
 
 export function RefereesTab({ eventId, tournamentId, isReadOnly }: Props) {
+  const { t } = useI18n();
+
   const {
     board,
     allBoardPools,
@@ -237,7 +238,7 @@ function BracketMatchCard({
   onAssignClick: (slot: AssignmentBoardRoleSlot) => void;
   onUnassign: (assignmentId: string) => void;
 }) {
-  const { locale } = useI18n();
+  const { locale, t } = useI18n();
   // Unified match code. The server now returns pool.name in the
   // canonical LSW-B-QF-M1 / LSW-B-PI-M5 shape via formatRoundCode,
   // so this surface no longer needs its own "Quarter-final #2"

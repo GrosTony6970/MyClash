@@ -1,7 +1,7 @@
 'use client';
 
+import { useI18n } from '@myclash/next-i18n/client';
 import { useState } from 'react';
-import { t } from '@myclash/i18n';
 import { useConfirm } from '@myclash/ui';
 import { getPublicApiUrl } from '@/lib/api-url';
 
@@ -30,6 +30,8 @@ interface MailOutResult {
  * added there re-points the entries below it.
  */
 export function MailPassesButton({ eventId, disabled }: Props) {
+  const { t } = useI18n();
+
   const { confirm, confirmDialog } = useConfirm();
   const { busy, result, error, send } = useMailPasses(eventId, confirm);
 
@@ -75,6 +77,8 @@ type Confirm = (opts: { title: string; description: string; danger: boolean }) =
  * discovers at the desk.
  */
 function useMailPasses(eventId: string, confirm: Confirm) {
+  const { t } = useI18n();
+
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<MailOutResult | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -114,6 +118,8 @@ function useMailPasses(eventId: string, confirm: Confirm) {
 }
 
 function MailOutSummary({ result }: { result: MailOutResult }) {
+  const { t } = useI18n();
+
   return (
     <p className="text-xs text-foreground-secondary">
       {t('admin.orgPersons.passes.result', {

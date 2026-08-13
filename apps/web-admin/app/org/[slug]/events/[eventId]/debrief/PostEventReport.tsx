@@ -1,9 +1,9 @@
 'use client';
 
+import { useI18n } from '@myclash/next-i18n/client';
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { StatusBadge } from '@myclash/ui';
-import { t } from '@myclash/i18n';
 import { getPublicApiUrl } from '@/lib/api-url';
 import { BackLink } from '@/components/BackLink';
 
@@ -96,6 +96,8 @@ function useFeedback(eventId: string): FeedbackSummary | null {
  * role segments too small to be anonymous, which the API folds into "other".
  */
 function FeedbackPanel({ summary }: { summary: FeedbackSummary }) {
+  const { t } = useI18n();
+
   if (summary.totalResponses === 0) {
     return (
       <div className="rounded-lg border border-border bg-surface p-4">
@@ -144,6 +146,8 @@ function FeedbackPanel({ summary }: { summary: FeedbackSummary }) {
 }
 
 function SectionCard({ section }: { section: ReportSection }) {
+  const { t } = useI18n();
+
   return (
     <div className="rounded-lg border border-border bg-surface p-4">
       <div className="flex items-center justify-between gap-3">
@@ -178,6 +182,8 @@ function SectionCard({ section }: { section: ReportSection }) {
  * which is the opposite of the reassurance a clean report is supposed to give.
  */
 export function PostEventReport({ slug, eventId }: { slug: string; eventId: string }) {
+  const { t } = useI18n();
+
   const { report, loading } = useReport(eventId);
   const feedback = useFeedback(eventId);
 

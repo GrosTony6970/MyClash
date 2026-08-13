@@ -1,7 +1,7 @@
 'use client';
 
+import { useI18n } from '@myclash/next-i18n/client';
 import { useEffect, useState } from 'react';
-import { t } from '@myclash/i18n';
 import { getPublicApiUrl } from '@/lib/api-url';
 import { BackLink } from '@/components/BackLink';
 import { ReadinessRow } from '../_components/ReadinessPanel';
@@ -27,6 +27,8 @@ interface Props {
  * so a level's wording can only ever change in one place.
  */
 export function StartOfDay({ slug, eventId }: Props) {
+  const { t } = useI18n();
+
   const { report, error, loading } = useReadiness(eventId);
 
   return (
@@ -57,6 +59,8 @@ function fetchReadiness(eventId: string): Promise<ReadinessReport | null> {
 }
 
 function useReadiness(eventId: string) {
+  const { t } = useI18n();
+
   const [report, setReport] = useState<ReadinessReport | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -72,7 +76,7 @@ function useReadiness(eventId: string) {
     return () => {
       cancelled = true;
     };
-  }, [eventId]);
+  }, [eventId, t]);
 
   return { report, error, loading };
 }
@@ -86,6 +90,8 @@ function StageList({
   slug: string;
   eventId: string;
 }) {
+  const { t } = useI18n();
+
   const stages = buildStartOfDay(report);
   const outstanding = report.checks.filter(isOutstanding).length;
 
@@ -124,6 +130,8 @@ function Stage({
   slug: string;
   eventId: string;
 }) {
+  const { t } = useI18n();
+
   return (
     <li
       className={[
@@ -155,6 +163,8 @@ function Stage({
 }
 
 function StageHeader({ stage, index }: { stage: StartOfDayStage; index: number }) {
+  const { t } = useI18n();
+
   const done = stage.outstandingCount === 0;
 
   return (

@@ -10,8 +10,8 @@
  * rather than the difference justifying two copies.
  */
 
+import { useI18n } from '@myclash/next-i18n/client';
 import { useMemo } from 'react';
-import { t } from '@myclash/i18n';
 import { Modal } from '@myclash/ui';
 import type {
   AssignmentBoardCandidate,
@@ -38,6 +38,8 @@ export function CandidatePicker({
   onAssign: (userId: string) => void;
   onCancel: () => void;
 }) {
+  const { t } = useI18n();
+
   const busy = busyUserIds ?? EMPTY;
 
   const blocked = useMemo(() => {
@@ -107,6 +109,8 @@ function CandidateGroup({
   onSelect?: (candidate: AssignmentBoardCandidate) => void;
   disabled?: boolean;
 }) {
+  const { t } = useI18n();
+
   if (candidates.length === 0) return null;
   return (
     <div>

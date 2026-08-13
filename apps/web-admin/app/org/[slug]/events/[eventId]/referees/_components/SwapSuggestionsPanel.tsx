@@ -20,7 +20,7 @@
  * Assignments / Referees tabs clean when everything is fine.
  */
 
-import { t } from '@myclash/i18n';
+import { useI18n } from '@myclash/next-i18n/client';
 
 export interface SwapSuggestion {
   fromPoolId: string;
@@ -41,6 +41,8 @@ interface Props {
 }
 
 export function SwapSuggestionsPanel({ suggestions, isReadOnly, busy, onApply }: Props) {
+  const { t } = useI18n();
+
   if (suggestions.length === 0) return null;
 
   return (

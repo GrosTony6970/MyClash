@@ -19,6 +19,7 @@
  * action anyway).
  */
 
+import { useI18n } from '@myclash/next-i18n/client';
 import { useMemo, useState } from 'react';
 import {
   DataTable,
@@ -28,7 +29,6 @@ import {
   SkillBadge,
   tintBgClassFor,
 } from '@myclash/ui';
-import { t } from '@myclash/i18n';
 
 export interface RefereeSkill {
   id: string;
@@ -85,6 +85,8 @@ export function SkillCatalog({
   onReorder,
   onToggleVisibility,
 }: Props) {
+  const { t } = useI18n();
+
   const [drillSkillId, setDrillSkillId] = useState<string | null>(null);
   const drillSkill = drillSkillId ? (skills.find((s) => s.id === drillSkillId) ?? null) : null;
 
@@ -314,6 +316,8 @@ function SkillDrillDownDrawer({
   onUpsertQualification,
   onRemoveQualification,
 }: DrawerProps) {
+  const { t } = useI18n();
+
   return (
     // eslint-disable-next-line jsx-a11y/click-events-have-key-events -- modal backdrop, dismiss-on-click; the close button provides keyboard access
     <div className="fixed inset-0 z-overlay flex justify-end bg-slate-950/40" onClick={onClose}>

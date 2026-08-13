@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
-import { t } from '@myclash/i18n';
 import {
   DataTable,
   DataTableCell,
@@ -75,6 +74,8 @@ function formatEventDateRange(startDate: string, endDate: string, locale: AppLoc
  * page is where the operator manages the catalogue itself.
  */
 export default function OrgVenuesPage() {
+  const { t } = useI18n();
+
   const params = useParams<{ slug: string }>();
   const slug = params.slug ?? '';
   const { confirm, confirmDialog } = useConfirm();
@@ -88,16 +89,19 @@ export default function OrgVenuesPage() {
   const [editing, setEditing] = useState<VenueRow | null>(null);
   const [creating, setCreating] = useState(false);
 
-  const loadVenues = useCallback(async (id: string) => {
-    try {
-      const res = await fetch(`${apiUrl}/api/v1/organizations/${id}/venues`, {
-        credentials: 'include',
-      });
-      if (res.ok) setVenues((await res.json()) as VenueRow[]);
-    } catch {
-      setMessage(t('organizer.venues.loadError'));
-    }
-  }, []);
+  const loadVenues = useCallback(
+    async (id: string) => {
+      try {
+        const res = await fetch(`${apiUrl}/api/v1/organizations/${id}/venues`, {
+          credentials: 'include',
+        });
+        if (res.ok) setVenues((await res.json()) as VenueRow[]);
+      } catch {
+        setMessage(t('organizer.venues.loadError'));
+      }
+    },
+    [t],
+  );
 
   // Org events power the modal's "attach to event" checklist. Non-fatal: if it
   // fails the checklist just shows the empty state. Archived events are hidden;
@@ -145,7 +149,7 @@ export default function OrgVenuesPage() {
         setLoading(false);
       }
     })();
-  }, [slug, loadVenues, loadEvents]);
+  }, [slug, loadVenues, loadEvents, t]);
 
   const onDelete = async (venue: VenueRow) => {
     if (
@@ -350,7 +354,7 @@ interface VenueFormModalProps {
 }
 
 function VenueFormModal({ orgId, venue, events, onClose, onSaved }: VenueFormModalProps) {
-  const { locale } = useI18n();
+  const { locale, t } = useI18n();
   const isEdit = venue !== null;
   const [name, setName] = useState(venue?.name ?? '');
   const [address, setAddress] = useState(venue?.address ?? '');

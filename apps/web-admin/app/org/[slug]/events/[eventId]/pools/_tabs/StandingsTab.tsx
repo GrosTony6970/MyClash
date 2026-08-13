@@ -1,7 +1,7 @@
 'use client';
 
+import { useI18n } from '@myclash/next-i18n/client';
 import { useCallback, useEffect, useState } from 'react';
-import { t } from '@myclash/i18n';
 import { escapeCsvCell } from '@myclash/types';
 import { useRealtimeWithFallback } from '@/lib/supabase-browser';
 import { StandingsHeaderCell } from '@/components/standings/StandingsHeaderCell';
@@ -73,6 +73,8 @@ function readHashMode(): Mode {
 }
 
 export function StandingsTab({ tournamentId, poolPhaseId }: StandingsTabProps) {
+  const { t } = useI18n();
+
   const [mode, setMode] = useState<Mode>('overall');
   const [overall, setOverall] = useState<OverallResponse | null>(null);
   const [byPool, setByPool] = useState<ByPoolResponse | null>(null);
@@ -318,6 +320,8 @@ function StandingsTable({
   /** Show the fuzzy fighter-name filter above the table (overall view only). */
   showFilter?: boolean;
 }) {
+  const { t } = useI18n();
+
   // Surface the ranking metric (score) first and make it stand out — it's the
   // column the standings are actually ordered by.
   const orderedColumns = [
@@ -480,6 +484,8 @@ function StandingsTable({
 }
 
 function EmptyState() {
+  const { t } = useI18n();
+
   return (
     <div className="rounded-md border border-dashed border-border bg-background p-8 text-center text-sm text-muted">
       {t('organizer.pools.standings.noMatchesYet')}

@@ -6,6 +6,7 @@ import reactHooksPlugin from 'eslint-plugin-react-hooks';
 import jsxA11y from 'eslint-plugin-jsx-a11y';
 import noLiteralStringRule from '../../eslint-rules/no-literal-string.mjs';
 import noLiteralLocaleRule from '../../eslint-rules/no-literal-locale.mjs';
+import noModuleTranslatorRule from '../../eslint-rules/no-module-translator-in-client.mjs';
 
 export default tseslint.config(
   ...rootConfig,
@@ -18,6 +19,7 @@ export default tseslint.config(
         rules: {
           'no-literal-string': noLiteralStringRule,
           'no-literal-locale': noLiteralLocaleRule,
+          'no-module-translator-in-client': noModuleTranslatorRule,
         },
       },
     },
@@ -38,6 +40,7 @@ export default tseslint.config(
       'jsx-a11y/no-noninteractive-tabindex': 'off',
       'myclash/no-literal-string': 'error',
       'myclash/no-literal-locale': 'error',
+      'myclash/no-module-translator-in-client': 'error',
     },
     languageOptions: {
       parserOptions: {

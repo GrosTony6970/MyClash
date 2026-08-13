@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
-import { t } from '@myclash/i18n';
 import { useRealtimeWithFallback } from '@/lib/supabase-browser';
 import { useI18n } from '@myclash/next-i18n/client';
 import { sideStyle, statusPillTone, matchStatusSemantic, StatusHelp } from '@myclash/ui';
@@ -100,6 +99,8 @@ interface MatchesTabProps {
 }
 
 export function MatchesTab({ tournamentId, poolPhaseId, slug, eventId }: MatchesTabProps) {
+  const { t } = useI18n();
+
   const [pools, setPools] = useState<PoolWithMatches[]>([]);
   const [sideColors, setSideColors] = useState<SideColors>({ red: 'red', blue: 'blue' });
   const [lices, setLices] = useState<Lice[]>([]);

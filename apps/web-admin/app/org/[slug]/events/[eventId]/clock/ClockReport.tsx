@@ -1,7 +1,7 @@
 'use client';
 
+import { useI18n } from '@myclash/next-i18n/client';
 import { useEffect, useState } from 'react';
-import { t } from '@myclash/i18n';
 import { getPublicApiUrl } from '@/lib/api-url';
 import { BackLink } from '@/components/BackLink';
 
@@ -38,6 +38,8 @@ interface ClockReport {
  * of picking a colour.
  */
 export function ClockReport({ slug, eventId }: { slug: string; eventId: string }) {
+  const { t } = useI18n();
+
   const { report, error, loading } = useClockReport(eventId);
 
   return (
@@ -67,6 +69,8 @@ function fetchReport(eventId: string): Promise<ClockReport | null> {
 }
 
 function useClockReport(eventId: string) {
+  const { t } = useI18n();
+
   const [report, setReport] = useState<ClockReport | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -82,12 +86,14 @@ function useClockReport(eventId: string) {
     return () => {
       cancelled = true;
     };
-  }, [eventId]);
+  }, [eventId, t]);
 
   return { report, error, loading };
 }
 
 function ReportBody({ report }: { report: ClockReport }) {
+  const { t } = useI18n();
+
   if (report.rows.length === 0) {
     return <p className="mt-6 text-sm text-muted">{t('organizer.clockReport.noStaff')}</p>;
   }
@@ -109,6 +115,8 @@ function ReportBody({ report }: { report: ClockReport }) {
 }
 
 function ClockRowItem({ row }: { row: ClockRow }) {
+  const { t } = useI18n();
+
   return (
     <li className="px-4 py-3">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
@@ -139,6 +147,8 @@ function ClockRowItem({ row }: { row: ClockRow }) {
 }
 
 function ConfidenceBadge({ confidence }: { confidence: ClockConfidence }) {
+  const { t } = useI18n();
+
   const tone =
     confidence === 'skewed'
       ? 'bg-warning/15 text-warning'

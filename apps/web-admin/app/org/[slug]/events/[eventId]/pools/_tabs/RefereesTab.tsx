@@ -26,7 +26,6 @@
  */
 
 import { useMemo, useState } from 'react';
-import { t } from '@myclash/i18n';
 import { type AppLocale } from '@myclash/time';
 import { useI18n } from '@myclash/next-i18n/client';
 import { PoolTimelineGrid, type TimelinePool } from './_components/PoolTimelineGrid';
@@ -47,7 +46,7 @@ interface Props {
 }
 
 export function RefereesTab({ eventId, tournamentId, isReadOnly }: Props) {
-  const { locale } = useI18n();
+  const { locale, t } = useI18n();
   const {
     board,
     allBoardPools,
@@ -213,6 +212,8 @@ function ConcurrentPoolsPanel({
   pools: AssignmentBoardPool[];
   locale: AppLocale;
 }) {
+  const { t } = useI18n();
+
   return (
     <section className="rounded-lg border border-warning/30 bg-warning/10 p-4">
       <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-warning">

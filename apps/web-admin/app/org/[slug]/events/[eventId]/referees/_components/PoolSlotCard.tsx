@@ -11,7 +11,6 @@
  * through `onAssignClick` unchanged.
  */
 
-import { t } from '@myclash/i18n';
 import { localeToBcp47, type AppLocale } from '@myclash/time';
 import { useI18n } from '@myclash/next-i18n/client';
 import { assignmentChipClasses } from './assignment-chip-classes';
@@ -77,7 +76,7 @@ export function PoolSlotCard<S extends PoolCardRoleSlot>({
    *  column header already carries it. */
   showLice?: boolean;
 }) {
-  const { locale } = useI18n();
+  const { locale, t } = useI18n();
   // Most-important role first (slot 1 sits on top, then 2, then 3 …).
   const orderedSlots = [...pool.roleSlots].sort((a, b) => a.slotIndex - b.slotIndex);
   return (

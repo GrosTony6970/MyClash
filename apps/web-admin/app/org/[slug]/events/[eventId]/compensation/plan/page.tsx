@@ -1,6 +1,5 @@
 'use client';
 
-import { t } from '@myclash/i18n';
 import { HelpTooltip, useConfirm } from '@myclash/ui';
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
@@ -65,7 +64,7 @@ function planToTierRows(plan: CompensationPlan): TierRow[] {
 export default function OrgCompensationPlansPage() {
   // Locale-aware `t` for the new help copy specifically: the module-level
   // `t` this page imports is bound to EN and would never translate.
-  const { t: translate } = useI18n();
+  const { t: translate, t } = useI18n();
   const params = useParams<{ slug: string; eventId: string }>();
   const { slug, eventId } = params;
   const apiUrl = getPublicApiUrl();
@@ -125,7 +124,7 @@ export default function OrgCompensationPlansPage() {
       })
       .finally(() => setLoading(false));
     return () => controller.abort();
-  }, [slug, apiUrl]);
+  }, [slug, apiUrl, t]);
 
   // Referee-skills catalog for this event (3 system skills + custom ones) — the
   // source of the role rows, replacing the old hardcoded 3-role list.
@@ -649,6 +648,8 @@ function PlanDetails({
   skillNameById: Record<string, string>;
   skillOrderById: Record<string, number>;
 }) {
+  const { t } = useI18n();
+
   const sortedTiers = [...plan.tiers].sort((a, b) => a.minTokens - b.minTokens);
   // Show only the roles this (read-only, built-in) plan actually defines,
   // labeled by catalog name and ordered by the skill's sort order.

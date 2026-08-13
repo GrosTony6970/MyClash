@@ -1,5 +1,6 @@
 'use client';
 
+import { useI18n } from '@myclash/next-i18n/client';
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
@@ -12,7 +13,6 @@ import {
   useConfirm,
   useToast,
 } from '@myclash/ui';
-import { t } from '@myclash/i18n';
 import { HemaRatingsSuggest } from '@/components/HemaRatingsSuggest';
 import { mapGlobalPersonSuggestion, type GlobalPersonSuggestion } from './global-person-mapper';
 import { formatRosterName } from './roster-name';
@@ -134,6 +134,8 @@ function RegistrationStatusChip({
 }
 
 export default function ParticipantsPage() {
+  const { t } = useI18n();
+
   const params = useParams<{ slug: string; eventId: string }>();
   const { slug, eventId } = params;
   const apiUrl = getPublicApiUrl();

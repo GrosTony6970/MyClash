@@ -19,7 +19,6 @@
  */
 
 import { useMemo } from 'react';
-import { t } from '@myclash/i18n';
 import { localeToBcp47, type AppLocale } from '@myclash/time';
 import { blockTint, resolveBlockAccent } from '@myclash/types';
 import { groupPoolsByTimeslot } from '../../../referees/_components/group-pools-by-timeslot';
@@ -68,7 +67,7 @@ function byLice(a: TimelinePool, b: TimelinePool): number {
 }
 
 export function PoolTimelineGrid({ pools, breaks, highlightTournamentId, onPoolClick }: Props) {
-  const { locale } = useI18n();
+  const { locale, t } = useI18n();
   const { blocks, unscheduled } = useMemo(() => groupPoolsByTimeslot(pools), [pools]);
   const unscheduledByLice = useMemo(() => [...unscheduled].sort(byLice), [unscheduled]);
   // Merge timeslot rows with break bars, ordered by start time.

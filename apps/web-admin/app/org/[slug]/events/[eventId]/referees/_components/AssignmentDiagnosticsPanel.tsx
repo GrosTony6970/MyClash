@@ -1,6 +1,5 @@
 'use client';
 
-import { t } from '@myclash/i18n';
 import { localeToBcp47, type AppLocale } from '@myclash/time';
 import type { CapacityWarning, RefereeConflict } from '@myclash/types';
 import { useI18n } from '@myclash/next-i18n/client';
@@ -112,7 +111,7 @@ export function AssignmentDiagnosticsPanel({
   onToggleRule?: (key: RuleKey, enabled: boolean) => void;
   togglesDisabled?: boolean;
 }) {
-  const { locale } = useI18n();
+  const { locale, t } = useI18n();
   const summary = summariseBoard(board);
   const roster = summariseRosterHealth(board, skillNameById);
   if (summary.totalSlots === 0) return null;

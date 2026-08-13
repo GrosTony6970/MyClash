@@ -1,6 +1,5 @@
 'use client';
 
-import { t } from '@myclash/i18n';
 import { localeToBcp47 } from '@myclash/time';
 import Link from 'next/link';
 import { Fragment, useEffect, useState } from 'react';
@@ -49,7 +48,7 @@ function slugify(name: string): string {
 }
 
 export default function CompensationPage() {
-  const { locale } = useI18n();
+  const { locale, t } = useI18n();
   const params = useParams<{ slug: string; eventId: string }>();
   const { slug, eventId } = params;
   const apiUrl = getPublicApiUrl();

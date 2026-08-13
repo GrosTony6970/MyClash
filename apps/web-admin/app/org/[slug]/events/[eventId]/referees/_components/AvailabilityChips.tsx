@@ -9,7 +9,7 @@
  * everyone is available everywhere (the default).
  */
 
-import { t } from '@myclash/i18n';
+import { useI18n } from '@myclash/next-i18n/client';
 
 interface Option<TValue extends string | number> {
   value: TValue;
@@ -31,6 +31,8 @@ export function AvailabilityChips<TValue extends string | number>({
   allLabel,
   onChange,
 }: Props<TValue>) {
+  const { t } = useI18n();
+
   if (options.length === 0) {
     return <span className="text-xs italic text-muted">—</span>;
   }

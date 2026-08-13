@@ -11,11 +11,11 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { ConfirmDialog, Modal, SkillBadge, tintBgClassFor, useToast } from '@myclash/ui';
-import { t } from '@myclash/i18n';
+
 import { localeToBcp47, type AppLocale } from '@myclash/time';
 import { blockTint, resolveBlockAccent } from '@myclash/types';
 import type { CapacityWarning, RefereeConflict } from '@myclash/types';
-import { useI18n } from '@myclash/next-i18n/client';
+import { useI18n, type Translator } from '@myclash/next-i18n/client';
 import { useEventStatus } from '../_hooks/useEventStatus';
 import { SkillCatalog } from './_components/SkillCatalog';
 import { StaffingTab } from './_components/StaffingTab';
@@ -188,6 +188,8 @@ function StarRating({
   value: number | null;
   onChange: (v: number | null) => void;
 }) {
+  const { t } = useI18n();
+
   return (
     <div className="flex gap-0.5">
       {[1, 2, 3, 4, 5].map((star) => (
@@ -256,6 +258,8 @@ function SkillModal({
   onSaved,
   onDeleted,
 }: SkillModalProps) {
+  const { t } = useI18n();
+
   const [name, setName] = useState(initial?.name ?? '');
   const [color, setColor] = useState(initial?.color ?? 'blue');
   const [description, setDescription] = useState(initial?.description ?? '');
@@ -475,7 +479,9 @@ function SkillModal({
 
 // ── Main page ─────────────────────────────────────────────────────────────────
 
-function roleLabel(role: AssignmentRole, skillNameById?: Map<string, string>) {
+// Takes the translator: this is module scope, where no hook can run, and the
+// module-level `t` is permanently English.
+function roleLabel(t: Translator, role: AssignmentRole, skillNameById?: Map<string, string>) {
   // Resolution chain (per the "don't display IDs to humans" rule):
   //   1. operator-typed skill name from referee_skills.name
   //   2. legacy hand-written translation for built-in roles
@@ -488,7 +494,7 @@ function roleLabel(role: AssignmentRole, skillNameById?: Map<string, string>) {
   return role;
 }
 
-function formatTime(value: string | null, locale: AppLocale) {
+function formatTime(t: Translator, value: string | null, locale: AppLocale) {
   if (!value) return t('organizer.refereesPage.unscheduled');
   return new Intl.DateTimeFormat(localeToBcp47(locale), {
     hour: '2-digit',
@@ -554,7 +560,7 @@ const KNOWN_BLOCKED_REASONS = new Set([
   'duplicate_role_same_pool',
 ]);
 
-function formatBlockedReason(code: string): string {
+function formatBlockedReason(t: Translator, code: string): string {
   if (KNOWN_BLOCKED_REASONS.has(code)) {
     return t(`organizer.refereesPage.blockedReasons.${code}`);
   }
@@ -572,6 +578,8 @@ function CandidateGroup({
   disabled?: boolean;
   onSelect?: (candidate: AssignmentBoardCandidate) => void;
 }) {
+  const { t } = useI18n();
+
   if (candidates.length === 0) return null;
   return (
     <div>
@@ -579,7 +587,7 @@ function CandidateGroup({
       <div className="space-y-2">
         {candidates.map((candidate) => {
           const reasonsRaw = candidate.reasons ?? [];
-          const formattedReasons = reasonsRaw.map(formatBlockedReason);
+          const formattedReasons = reasonsRaw.map((code) => formatBlockedReason(t, code));
           const tooltip =
             disabled && formattedReasons.length > 0 ? formattedReasons.join(', ') : undefined;
           return (
@@ -652,7 +660,7 @@ function AssignmentsTab({
   /** Per-skill colour token for the chip tint (see assignment-chip-classes). */
   skillColorById: Map<string, string>;
 }) {
-  const { locale } = useI18n();
+  const { locale, t } = useI18n();
   const [board, setBoard] = useState<AssignmentBoard | null>(null);
   const [loading, setLoading] = useState(true);
   const [running, setRunning] = useState(false);
@@ -1324,7 +1332,7 @@ function AssignmentsTab({
               <div className="flex items-baseline gap-3">
                 <span className="text-sm font-bold tabular-nums text-foreground">
                   {formatDayShort(row.block.startTime, locale)} ·{' '}
-                  {formatTime(row.block.startTime, locale)}
+                  {formatTime(t, row.block.startTime, locale)}
                 </span>
                 <div className="h-px flex-1 bg-border" />
               </div>
@@ -1531,7 +1539,7 @@ function AssignmentsTab({
               <AssignmentDiagnosticsPanel
                 board={board}
                 skillNameById={skillNameById}
-                roleLabel={(role) => roleLabel(role, skillNameById)}
+                roleLabel={(role) => roleLabel(t, role, skillNameById)}
                 {...(ruleSettings ? { ruleSettings } : {})}
                 onToggleRule={(key, enabled) => void toggleRule(key, enabled)}
                 togglesDisabled={isReadOnly || running || previewing}
@@ -1614,7 +1622,7 @@ function AssignmentsTab({
           onClose={() => setPicker(null)}
           size="lg"
           title={`${picker.pool.name} - ${
-            picker.slot.displayName ?? roleLabel(picker.slot.role, skillNameById)
+            picker.slot.displayName ?? roleLabel(t, picker.slot.role, skillNameById)
           }`}
           description={picker.pool.tournamentName}
           footer={
@@ -1716,7 +1724,7 @@ interface PersonResult {
 }
 
 export default function RefereesPage() {
-  const { locale } = useI18n();
+  const { locale, t } = useI18n();
   const params = useParams<{ slug: string; eventId: string }>();
   const { slug, eventId } = params;
   const apiUrl = getPublicApiUrl();

@@ -21,15 +21,17 @@
  *   admin API that already serves the initial render.
  */
 
+import { useI18n } from '@myclash/next-i18n/client';
 import { use, useEffect, useState } from 'react';
 import { TVScoreboard } from '@myclash/ui';
-import { t } from '@myclash/i18n';
 import { getSupabaseBrowser } from '@/lib/supabase-browser';
 import { getPublicApiUrl } from '@/lib/api-url';
 
 const MIRROR_STORAGE_KEY = 'myclash:display:mirror';
 
 export default function DisplayPage({ params }: { params: Promise<{ matchId: string }> }) {
+  const { t } = useI18n();
+
   const { matchId } = use(params);
   const apiUrl = getPublicApiUrl();
 
