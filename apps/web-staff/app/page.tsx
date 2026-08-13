@@ -3,7 +3,7 @@
 import Image from 'next/image';
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { t } from '@myclash/i18n';
+import { useI18n } from '@myclash/next-i18n/client';
 import { getApiUrl } from '../src/lib/api-url';
 
 /**
@@ -12,6 +12,7 @@ import { getApiUrl } from '../src/lib/api-url';
  * - Anonymous -> /login
  */
 export default function RootPage() {
+  const { t } = useI18n();
   const router = useRouter();
   const apiUrl = getApiUrl();
 

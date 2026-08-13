@@ -1,8 +1,10 @@
 'use client';
 
-import { t } from '@myclash/i18n';
+import { useI18n } from '@myclash/next-i18n/client';
 
 export default function OfflinePage() {
+  const { t } = useI18n();
+
   return (
     <main className="flex min-h-screen flex-col items-center justify-center p-8 text-center">
       <div className="text-5xl mb-4">📡</div>
