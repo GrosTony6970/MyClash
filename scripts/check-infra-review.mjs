@@ -1614,11 +1614,12 @@ for (const forbidden of ['SUPABASE_SERVICE_ROLE_KEY', 'service_role', 'SEED_ADMI
     errors.push(`apps/web-admin/app/admin/organizations/page.tsx must not expose ${forbidden}.`);
   }
 }
-requireContains(
-  adminOrganizationsControllerText,
-  'apps/api/src/modules/admin/organizations.controller.ts',
-  '@UseGuards(PlatformRoleGuard)',
-);
+// The platform guard on this controller — and on users, fighters, clubs and
+// dashboard-stats — is owned by platform-role-coverage.test.ts, which walks the
+// real Nest metadata rather than the source text. Do not re-add a substring
+// check here: the test pins each route's required TIER, fails on a new guarded
+// route, fails on a deleted one, and is not fooled by the decorator moving
+// between class and method level, which a substring cannot tell apart.
 requireContains(
   adminOrganizationsControllerText,
   'apps/api/src/modules/admin/organizations.controller.ts',
@@ -1728,11 +1729,6 @@ for (const expected of ['listAuthAdminUsers', 'createAuthAdminUser', 'deleteAuth
     expected,
   );
 }
-requireContains(
-  adminUsersControllerText,
-  'apps/api/src/modules/admin/users.controller.ts',
-  '@UseGuards(PlatformRoleGuard)',
-);
 for (const expected of ['@Post()', "@Delete(':id')", 'CreatePlatformUserDto', 'mode']) {
   requireContains(
     adminUsersControllerText,
@@ -1835,7 +1831,6 @@ for (const forbidden of ['SUPABASE_SERVICE_ROLE_KEY', 'SERVICE_ROLE', 'SEED_ADMI
 }
 for (const expected of [
   "@Patch(':id')",
-  '@UseGuards(PlatformRoleGuard)',
   'updateGlobalPerson',
   'ADMIN_READ_THROTTLE',
   'CATALOG_READ_THROTTLE',
@@ -1908,7 +1903,6 @@ for (const expected of [
   "@Post('review-requests/:id/approve')",
   "@Post('review-requests/:id/link')",
   "@Post('review-requests/:id/reject')",
-  '@UseGuards(PlatformRoleGuard)',
   'CATALOG_READ_THROTTLE',
   '@Throttle(CATALOG_READ_THROTTLE)',
   'uploadLogo',
@@ -2092,11 +2086,6 @@ for (const expected of ['getAuthAdminUser', 'updateAuthAdminUser']) {
     expected,
   );
 }
-requireContains(
-  adminDashboardStatsControllerText,
-  'apps/api/src/modules/admin/dashboard-stats.controller.ts',
-  '@UseGuards(PlatformRoleGuard)',
-);
 requireContains(
   adminDashboardStatsControllerText,
   'apps/api/src/modules/admin/dashboard-stats.controller.ts',
