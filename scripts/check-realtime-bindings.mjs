@@ -20,10 +20,11 @@
  * operator wipes and redeploys from `packages/db/migrations`, so the migrations
  * ARE the deployed schema and a static check is the real protection.
  */
-import { readdirSync, readFileSync, statSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { join, relative, sep } from 'node:path';
 
 import { listMigrationFiles } from './lib/migrations.mjs';
+import { walkRepoFiles } from './lib/repo-scan.mjs';
 import { stripSqlComments } from './lib/sql.mjs';
 
 const root = process.cwd();
@@ -37,8 +38,7 @@ const scanRoots = [
   join(root, 'packages', 'ui', 'src'),
 ];
 
-const ignoredDirs = new Set(['node_modules', '.next', '.turbo', 'dist', 'coverage']);
-const extensions = new Set(['.ts', '.tsx']);
+const extensions = ['.ts', '.tsx'];
 
 /**
  * The generic subscription hooks take `table` as a parameter, so their own
@@ -55,18 +55,17 @@ const ANCHOR = /postgres_changes|useRealtimeWithFallback\s*\(/g;
 /** How far past an anchor the `table:` property may sit. Real ones are <10 lines. */
 const WINDOW = 600;
 
-function walk(dir) {
-  let entries;
-  try {
-    entries = readdirSync(dir);
-  } catch {
-    return []; // a scan root that does not exist yet is not a failure
-  }
-  return entries.flatMap((entry) => {
-    if (ignoredDirs.has(entry)) return [];
-    const path = join(dir, entry);
-    return statSync(path).isDirectory() ? walk(path) : [path];
-  });
+/**
+ * `missingRoot: 'empty'` keeps the intent of the try/catch this replaces — a
+ * scan root that does not exist yet is not a failure — and drops the half that
+ * was never intended. That catch sat around EVERY level's readdir, not just the
+ * root, so an unreadable subtree also returned [] and this gate passed having
+ * scanned less. For a gate whose false green is a permanent CHANNEL_ERROR in
+ * production, "unreadable" has to be loud; only "absent" is safe to read as
+ * "no bindings here".
+ */
+function scanSources() {
+  return scanRoots.flatMap((dir) => walkRepoFiles(dir, { missingRoot: 'empty', extensions }));
 }
 
 function normalize(path) {
@@ -82,8 +81,7 @@ function lineOf(source, index) {
 const boundTables = new Map(); // table -> [repoPath:line]
 const dynamicBindings = [];
 
-for (const file of scanRoots.flatMap(walk)) {
-  if (!extensions.has(file.slice(file.lastIndexOf('.')))) continue;
+for (const file of scanSources()) {
   const repoPath = normalize(file);
   const source = readFileSync(file, 'utf8');
   if (!source.includes('postgres_changes') && !source.includes('useRealtimeWithFallback')) continue;
