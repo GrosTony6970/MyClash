@@ -12,40 +12,40 @@ export const statusHelp = {
   },
   event: {
     draft: {
-      means: "L'evenement existe mais rien n'apparaît sur le site public.",
+      means: "L'événement existe mais rien n'apparaît sur le site public.",
       next: 'Le publier le rend visible et permet aux gens de le trouver et de s y inscrire.',
       who: "Un admin ou propriétaire de l'organisation.",
     },
     published: {
-      means: "L'evenement est en ligne sur le site public, ouvert a tous.",
+      means: "L'événement est en ligne sur le site public, ouvert a tous.",
       next: 'Il passe en cours a sa date de début, ou vous pouvez le repasser en brouillon.',
       who: "Un admin ou propriétaire de l'organisation.",
     },
     running: {
-      means: "L'evenement est en cours. Score, planning et affichage live sont actifs.",
+      means: "L'événement est en cours. Score, planning et affichage live sont actifs.",
       next: 'Il passe a termine une fois les combats finis.',
       who: "Un admin ou propriétaire de l'organisation.",
     },
     completed: {
-      means: "L'evenement est fini. Résultats et classements sont definitifs.",
+      means: "L'événement est fini. Résultats et classements sont definitifs.",
       next: 'Plus rien, sauf si vous l archivez pour le ranger.',
       who: "Un admin ou propriétaire de l'organisation.",
     },
     archived: {
       means:
-        "L'evenement est clos et en lecture seule. Il reste visible publiquement mais rien n'est modifiable.",
+        "L'événement est clos et en lecture seule. Il reste visible publiquement mais rien n'est modifiable.",
       next: 'Il reste en l état. Le supprimer demande une demande de suppression.',
       who: "Un admin ou propriétaire de l'organisation.",
     },
   },
   tournament: {
     draft: {
-      means: "Ce tournoi est masque, même si l'evenement est publie.",
-      next: "Le publier l'affiche sur la page de l'evenement et ouvre les inscriptions.",
+      means: "Ce tournoi est masque, même si l'événement est publie.",
+      next: "Le publier l'affiche sur la page de l'événement et ouvre les inscriptions.",
       who: "Un admin ou propriétaire de l'organisation.",
     },
     published: {
-      means: "Le tournoi est visible sur la page de l'evenement et accepte les inscriptions.",
+      means: "Le tournoi est visible sur la page de l'événement et accepte les inscriptions.",
       next: 'Générez les poules et le tableau, puis lancez les combats.',
       who: "Un admin ou propriétaire de l'organisation.",
     },
@@ -94,7 +94,7 @@ export const statusHelp = {
   },
   workshop: {
     draft: {
-      means: "L'atelier n'apparaît pas encore sur la page de l'evenement.",
+      means: "L'atelier n'apparaît pas encore sur la page de l'événement.",
       next: 'Le publier ouvre les inscriptions.',
       who: "Un admin ou propriétaire de l'organisation.",
     },
@@ -185,7 +185,7 @@ export const statusHelp = {
   },
   phaseVisibility: {
     hidden: {
-      means: "Cette phase n'apparaît pas sur la page publique de l'evenement.",
+      means: "Cette phase n'apparaît pas sur la page publique de l'événement.",
       next: 'La publier permet au public de suivre les poules ou le tableau en direct.',
       who: "Un admin ou propriétaire de l'organisation.",
     },

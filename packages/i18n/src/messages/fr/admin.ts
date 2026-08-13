@@ -365,7 +365,7 @@ export const admin = {
       "{name} n'a ni club, ni identifiant HEMA Ratings, ni e-mail : ses résultats ne se cumuleront pas avec ses autres événements. Ajoutez-en un pour corriger cela.",
     duplicateNameTitle: 'Une personne de ce nom est deja sur la liste',
     duplicateNameBody:
-      '{name} est deja inscrit a cet evenement, sans adresse e-mail permettant de les distinguer. Ajouter quand même ?',
+      '{name} est deja inscrit a cet événement, sans adresse e-mail permettant de les distinguer. Ajouter quand même ?',
     duplicateNameConfirm: 'Ajouter quand même',
     toastProfileUpdated: 'Profil et inscriptions aux tournois mis a jour.',
     toastRemovedParticipants: '{count} participant(s) retire(s).',
@@ -669,14 +669,14 @@ export const admin = {
       platformAdminDesc:
         'Moderer les organisations, les comptes et les paramètres de la plateforme.',
       eventOrganiser: 'Organisateur',
-      eventOrganiserDesc: 'Gérer vos tournois, evenements et arbitres.',
+      eventOrganiserDesc: 'Gérer vos tournois, événements et arbitres.',
     },
     statsLoading: 'Chargement des statistiques plateforme...',
     statsLoadError: 'Impossible de charger les statistiques plateforme.',
     statsAccessDenied: 'Acces refuse. Super-admin requis.',
     statsUpdated: 'Mis a jour {date}',
     statsRecent:
-      '{days} derniers jours : {organizations} organisations, {events} evenements, {tournaments} tournois, {persons} personnes globales, {matches} assauts termines.',
+      '{days} derniers jours : {organizations} organisations, {events} événements, {tournaments} tournois, {persons} personnes globales, {matches} assauts termines.',
     manageAi: "Gérer l'IA →",
     section: {
       platform: 'Plateforme',
@@ -687,9 +687,9 @@ export const admin = {
     stats: {
       organizations: 'Organisations',
       organizationsDetail: '{active} actives, {suspended} suspendues',
-      eventsLive: 'Evenements publies ou en cours',
-      eventsLiveDetail: '{total} evenements au total',
-      eventsCompleted: 'Evenements termines',
+      eventsLive: 'Événements publies ou en cours',
+      eventsLiveDetail: '{total} événements au total',
+      eventsCompleted: 'Événements termines',
       eventsCompletedDetail: '{draft} brouillons',
       tournamentsCreated: 'Tournois créés',
       tournamentsCreatedDetail: '{active} actifs',
@@ -698,7 +698,7 @@ export const admin = {
       fighters: 'Combattants',
       fightersDetail: '{global} personnes globales',
       registrations: 'Inscriptions',
-      registrationsDetail: '{persons} personnes evenement',
+      registrationsDetail: '{persons} personnes événement',
       completedMatches: 'Assauts termines',
       completedMatchesDetail: '{total} assauts au total',
       exchanges: 'Échanges enregistres',
@@ -733,7 +733,7 @@ export const admin = {
       name: 'Nom',
       owner: 'Responsable',
       members: 'Membres',
-      events: 'Evenements',
+      events: 'Événements',
       status: 'Statut',
       created: 'Créée',
       actions: 'Actions',
@@ -1046,7 +1046,7 @@ export const admin = {
     timeSimulation: {
       title: 'Simulation temporelle',
       description:
-        'Décale l horloge utilisée par l app publique (app.myclash.fr) pour tester a la demande les elements dependant du temps : les badges « En direct » / « Suivant » du planning personnel, les stages « En direct » de l accueil evenement, et la ligne « maintenant » de la grille des tournois (qui ouvre aussi le jour simule). Pendant la simulation, un combat programme suit son créneau au lieu d attendre son lancement — les statuts reels priment toujours, donc un combat en cours reste En direct et un combat termine reste passe. Les données live calculees cote serveur (le tableau /live, la bannière live organisateur) gardent l horloge reelle. L horloge avance a partir de la date/heure choisie. ⚠️ Quand active, TOUS les visiteurs publics voient l heure simulee (un badge affiche la valeur active). A désactiver apres les tests.',
+        'Décale l horloge utilisée par l app publique (app.myclash.fr) pour tester a la demande les elements dependant du temps : les badges « En direct » / « Suivant » du planning personnel, les stages « En direct » de l accueil événement, et la ligne « maintenant » de la grille des tournois (qui ouvre aussi le jour simule). Pendant la simulation, un combat programme suit son créneau au lieu d attendre son lancement — les statuts reels priment toujours, donc un combat en cours reste En direct et un combat termine reste passe. Les données live calculees cote serveur (le tableau /live, la bannière live organisateur) gardent l horloge reelle. L horloge avance a partir de la date/heure choisie. ⚠️ Quand active, TOUS les visiteurs publics voient l heure simulee (un badge affiche la valeur active). A désactiver apres les tests.',
       targetLabel: 'Instant simule (« maintenant »)',
       targetHelp:
         'La date et l heure que l app publique doit considerer comme l instant present. L horloge avance a partir de ce point.',
@@ -1170,13 +1170,13 @@ export const admin = {
       tiebreakers:
         "Appliques dans l'ordre, et seulement entre combattants a score strictement egal. La première regle qui les departage tranche et les suivantes ne sont jamais consultees : l'ORDRE compte donc plus que le choix des règles. Chaque regle a aussi un sens - doubles et touches reçues veulent presque toujours le plus petit d'abord.",
       penaltyCosts:
-        "Ce que coute chaque carton. Des qu'un tournoi ou un evenement fixe ce règlement, il est gele - la modification est refusée, pas simplement differee, car changer un cout reecrirait silencieusement l'escalade des cartons sous un tournoi en cours. Pour modifier un règlement fixe, dupliquez-le, modifiez la copie et refixez-la.",
+        "Ce que coute chaque carton. Des qu'un tournoi ou un événement fixe ce règlement, il est gele - la modification est refusée, pas simplement differee, car changer un cout reecrirait silencieusement l'escalade des cartons sous un tournoi en cours. Pour modifier un règlement fixe, dupliquez-le, modifiez la copie et refixez-la.",
       penaltyVersioning:
-        "Publier prend un instantane que les tournois peuvent fixer. Revenir en arrière restaure un instantane plus ancien sur le règlement - rien n'est supprime, et la publication suivante prend le numero de version suivant. Des qu'un tournoi ou un evenement reference ce règlement, le retour arrière devient impossible ; dupliquez-le a la place.",
+        "Publier prend un instantane que les tournois peuvent fixer. Revenir en arrière restaure un instantane plus ancien sur le règlement - rien n'est supprime, et la publication suivante prend le numero de version suivant. Des qu'un tournoi ou un événement reference ce règlement, le retour arrière devient impossible ; dupliquez-le a la place.",
       seedingStrategy:
         "Serpentin repartit les vainqueurs de poule. Par classement et Aleatoire ignorent completement les résultats de poule - ils ordonnent a partir de données sans rapport avec le deroulement des poules - et Aleatoire enregistre la graine utilisée, ce qui permet de rejouer le même tirage. Par rang de poule est le strict : il REFUSE de s'executer sans phase de poules terminée plutot que de retomber silencieusement sur l'ordre d'inscription.",
       compensationTiers:
-        "Les paliers convertissent les jetons gagnes par un arbitre sur l'evenement en ce qu'il touche réellement. Le premier palier dont la plage contient son total l'emporte, et un total qui tombe dans un TROU entre deux paliers ne donne rien du tout - seul le paiement minimum de l'evenement, si vous en fixez un, le rattrape. Ce minimum est applique apres le plafond, donc il est respecte même s'il le depasse.",
+        "Les paliers convertissent les jetons gagnes par un arbitre sur l'événement en ce qu'il touche réellement. Le premier palier dont la plage contient son total l'emporte, et un total qui tombe dans un TROU entre deux paliers ne donne rien du tout - seul le paiement minimum de l'événement, si vous en fixez un, le rattrape. Ce minimum est applique apres le plafond, donc il est respecte même s'il le depasse.",
     },
     systemPanelTitle: 'Détails du ruleset système (lecture seule)',
     systemPanelWinBonus: 'Bonus de victoire',
@@ -1523,7 +1523,7 @@ export const admin = {
     byModel: 'Par modèle',
     byProvider: 'Par fournisseur',
     byOrg: 'Par organisation',
-    byEvent: 'Par evenement',
+    byEvent: 'Par événement',
     byDay: 'Cout par jour',
     usageTruncated:
       'Affichage des 100 000 appels les plus récents — l activite plus ancienne n est pas incluse dans ces totaux.',
@@ -1656,7 +1656,7 @@ export const admin = {
     aiUsageHint:
       'Enregistrements par appel des fonctions IA utilisees par les organisateurs et les combattants.',
     broadcasts: 'Destinataires des annonces',
-    broadcastsHint: 'A qui chaque annonce d’evenement a ete delivree.',
+    broadcastsHint: 'A qui chaque annonce d’événement a ete delivree.',
     auditLog: 'Journal d’audit',
     auditLogHint:
       'Laisse a 0 volontairement : le journal d’audit est un registre de gouvernance, et les données personnelles qu’il contient sont retirees lors de l’effacement d’une personne plutot qu’en supprimant les lignes concernant tout le monde.',
@@ -2106,7 +2106,7 @@ export const admin = {
         empty: 'Aucun tournoi lie.',
         noGroupOption: '— sans groupe —',
         addHeading: 'Ajouter un tournoi',
-        eventSearchPlaceholder: 'Chercher des evenements…',
+        eventSearchPlaceholder: 'Chercher des événements…',
         noTournaments: 'Aucun tournoi.',
         nameFallback: '(sans nom)',
         linkedButton: 'Lie',
@@ -2128,7 +2128,7 @@ export const admin = {
       emptyTournament: "Aucune demande d'attachement en attente.",
       emptyMembership: 'Aucune demande de rejoindre en attente.',
       tournamentFallback: 'Tournoi',
-      eventFallback: 'Evenement',
+      eventFallback: 'Événement',
       requestedBy: 'demande par {name}',
       orgFallback: 'Organisation',
       submittedAt: 'Soumis {date}',
@@ -2190,13 +2190,13 @@ export const admin = {
     },
   },
   platformLog: {
-    subtitle: 'Flux chronologique des evenements plateforme et opérationnels.',
+    subtitle: 'Flux chronologique des événements plateforme et opérationnels.',
     accessDenied: 'Acces refuse. Super admin requis.',
     loadError: 'Échec du chargement du journal plateforme',
     genericError: 'Une erreur est survenue',
-    empty: 'Aucun evenement plateforme ne correspond a ces filtres.',
+    empty: 'Aucun événement plateforme ne correspond a ces filtres.',
     truncatedNotice:
-      'Affichage des evenements les plus récents ; les plus anciens peuvent être masques.',
+      'Affichage des événements les plus récents ; les plus anciens peuvent être masques.',
     filters: {
       categoryAll: 'Toutes les catégories',
       severityAll: 'Toutes les severites',
@@ -2206,7 +2206,7 @@ export const admin = {
     },
     pagination: {
       loading: 'Chargement...',
-      summary: '{total} evenements · page {page} sur {totalPages}',
+      summary: '{total} événements · page {page} sur {totalPages}',
       previous: 'Précédent',
       next: 'Suivant',
     },
@@ -2214,7 +2214,7 @@ export const admin = {
       occurred: 'Survenu',
       category: 'Catégorie',
       severity: 'Severite',
-      event: 'Evenement',
+      event: 'Événement',
       detail: 'Détail',
       actor: 'Acteur',
     },
