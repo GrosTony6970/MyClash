@@ -35,6 +35,8 @@ import { readdirSync, readFileSync, existsSync, statSync } from 'node:fs';
 import { join, relative, sep, dirname, resolve } from 'node:path';
 import ts from 'typescript';
 
+import { walkRepoFiles } from './lib/repo-scan.mjs';
+
 const root = process.cwd();
 
 /**
@@ -60,7 +62,12 @@ export const TEST_ONLY_ALLOWED = {
 
 const TEST_FILE = /\.(test|spec)\.tsx?$/;
 const TEST_RUNNER = /^(vitest|@vitest\/.+|node:test|jest|@jest\/.+)$/;
-const IGNORED_DIRS = new Set(['node_modules', 'dist', 'coverage', '.next', '.turbo', 'build']);
+/**
+ * `missingRoot: 'empty'` because most workspaces have no `test/` directory —
+ * the one place in this repo where an absent scan root is normal rather than a
+ * gate pointed at nothing.
+ */
+const WORKSPACE_SOURCES = { missingRoot: 'empty', extensions: ['.ts', '.tsx'] };
 
 export function isTestFile(path) {
   return TEST_FILE.test(path);
@@ -76,15 +83,6 @@ export function isRelativeSpecifier(specifier) {
 
 function toRepoPath(absolute) {
   return relative(root, absolute).split(sep).join('/');
-}
-
-function walk(dir) {
-  if (!existsSync(dir)) return [];
-  return readdirSync(dir).flatMap((entry) => {
-    if (IGNORED_DIRS.has(entry)) return [];
-    const path = join(dir, entry);
-    return statSync(path).isDirectory() ? walk(path) : [path];
-  });
 }
 
 // ── Workspace discovery ──────────────────────────────────────────────────────
@@ -342,8 +340,11 @@ export function scanRepo() {
     }
 
     const emitFiles = parseBuildConfig(configPath);
-    const allFiles = [...walk(join(dir, 'src')), ...walk(join(dir, 'test'))]
-      .filter((file) => /\.tsx?$/.test(file) && !/\.d\.ts$/.test(file))
+    const allFiles = [
+      ...walkRepoFiles(join(dir, 'src'), WORKSPACE_SOURCES),
+      ...walkRepoFiles(join(dir, 'test'), WORKSPACE_SOURCES),
+    ]
+      .filter((file) => !/\.d\.ts$/.test(file))
       .map((file) => resolve(file));
     const entries = new Set([...entryPointSources(manifest)].map((rel) => resolve(join(dir, rel))));
 
