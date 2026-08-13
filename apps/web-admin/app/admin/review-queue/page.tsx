@@ -1,8 +1,9 @@
 'use client';
 
+import { useI18n } from '@myclash/next-i18n/client';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { DataTable, DataTableCell, DataTableHead, useToast } from '@myclash/ui';
-import { t } from '@myclash/i18n';
+
 import type { ReviewQueueItem } from './_types';
 import { QueueRow } from './_components/QueueRow';
 import { ApproveModal } from './_components/ApproveModal';
@@ -22,36 +23,34 @@ type StatusFilter = 'pending' | 'approved' | 'rejected' | 'all';
 
 interface Tab {
   value: TabValue;
-  label: string;
+  labelKey: string;
 }
 
+// Keys, not strings: resolving these at module init bound them to whichever
+// locale loaded first — which for the module-level `t` was always English. The
+// two `|| 'English fallback'` arms this replaces were dead anyway: a missing key
+// makes t() return "[key]", which is truthy.
 const TABS: Tab[] = [
-  { value: 'all', label: t('admin.reviewQueue.tabAll') },
-  { value: 'deletion', label: t('admin.reviewQueue.tabDeletions') },
-  { value: 'exchange_edit', label: t('admin.reviewQueue.tabExchangeEdits') },
-  { value: 'club_review', label: t('admin.reviewQueue.tabClubReviews') },
-  // Falls back to a hard-coded label if the i18n key isn't seeded yet; the
-  // key is added below in en.json / fr.json (review-queue scope).
-  {
-    value: 'league_tournament_request',
-    label: t('admin.reviewQueue.tabLeagueTournamentRequests') || 'League tournament requests',
-  },
-  {
-    value: 'league_membership_request',
-    label: t('admin.reviewQueue.tabLeagueMembershipRequests') || 'League join requests',
-  },
+  { value: 'all', labelKey: 'admin.reviewQueue.tabAll' },
+  { value: 'deletion', labelKey: 'admin.reviewQueue.tabDeletions' },
+  { value: 'exchange_edit', labelKey: 'admin.reviewQueue.tabExchangeEdits' },
+  { value: 'club_review', labelKey: 'admin.reviewQueue.tabClubReviews' },
+  { value: 'league_tournament_request', labelKey: 'admin.reviewQueue.tabLeagueTournamentRequests' },
+  { value: 'league_membership_request', labelKey: 'admin.reviewQueue.tabLeagueMembershipRequests' },
 ];
 
-const STATUS_FILTERS: { value: StatusFilter; label: string }[] = [
-  { value: 'pending', label: t('admin.reviewQueue.statusPending') },
-  { value: 'approved', label: t('admin.reviewQueue.statusApproved') },
-  { value: 'rejected', label: t('admin.reviewQueue.statusRejected') },
-  { value: 'all', label: t('admin.reviewQueue.statusAll') },
+const STATUS_FILTERS: { value: StatusFilter; labelKey: string }[] = [
+  { value: 'pending', labelKey: 'admin.reviewQueue.statusPending' },
+  { value: 'approved', labelKey: 'admin.reviewQueue.statusApproved' },
+  { value: 'rejected', labelKey: 'admin.reviewQueue.statusRejected' },
+  { value: 'all', labelKey: 'admin.reviewQueue.statusAll' },
 ];
 
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function ReviewQueuePage() {
+  const { t } = useI18n();
+
   const apiUrl = getPublicApiUrl();
   const toast = useToast();
 
@@ -121,7 +120,7 @@ export default function ReviewQueuePage() {
       cancelled = true;
       controller.abort();
     };
-  }, [endpoint, refreshKey]);
+  }, [endpoint, refreshKey, t]);
 
   // ── Fetch pending counts (all types, pending only) ───────────────────────────
 
@@ -195,7 +194,7 @@ export default function ReviewQueuePage() {
                   : 'border-transparent text-muted hover:text-foreground-secondary',
               ].join(' ')}
             >
-              {tab.label}
+              {t(tab.labelKey)}
               {count > 0 && (
                 <span className="rounded-full bg-warning/10 px-1.5 py-0.5 text-xs font-bold text-warning">
                   {count}
@@ -224,7 +223,7 @@ export default function ReviewQueuePage() {
                   : 'text-muted hover:text-foreground-secondary',
               ].join(' ')}
             >
-              {sf.label}
+              {t(sf.labelKey)}
             </button>
           );
         })}

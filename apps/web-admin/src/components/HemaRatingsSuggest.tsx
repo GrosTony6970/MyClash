@@ -1,8 +1,8 @@
 'use client';
 
+import { useI18n } from '@myclash/next-i18n/client';
 import { useEffect, useState } from 'react';
 import { DataTable, DataTableCell, DataTableHead, DataTableRow } from '@myclash/ui';
-import { t } from '@myclash/i18n';
 
 export interface HemaRatingsSuggestion {
   id: string;
@@ -25,6 +25,8 @@ export function HemaRatingsSuggest({
   selectedId,
   onSelect,
 }: HemaRatingsSuggestProps) {
+  const { t } = useI18n();
+
   const [suggestions, setSuggestions] = useState<HemaRatingsSuggestion[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -64,7 +66,7 @@ export function HemaRatingsSuggest({
       clearTimeout(timer);
       controller.abort();
     };
-  }, [apiUrl, personName]);
+  }, [apiUrl, personName, t]);
 
   const selected = suggestions.find((s) => s.id === selectedId) ?? null;
 

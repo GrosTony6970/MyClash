@@ -1,6 +1,5 @@
 'use client';
 
-import { t } from '@myclash/i18n';
 import { localeToBcp47, type AppLocale } from '@myclash/time';
 import {
   AdminPageHeader,
@@ -104,7 +103,7 @@ function formatBlockers(blockers: unknown): string | null {
 }
 
 export default function AdminClubsPage() {
-  const { locale } = useI18n();
+  const { locale, t } = useI18n();
   const apiUrl = getPublicApiUrl();
 
   const [query, setQuery] = useState('');
@@ -174,7 +173,7 @@ export default function AdminClubsPage() {
       if (!res.ok) throw new Error(t('admin.clubs.loadError'));
       return (await res.json()) as ClubRow[];
     },
-    [apiUrl],
+    [apiUrl, t],
   );
 
   const refreshClubs = useCallback(async () => {
@@ -187,7 +186,7 @@ export default function AdminClubsPage() {
     } finally {
       setLoading(false);
     }
-  }, [fetchClubs]);
+  }, [fetchClubs, t]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -205,7 +204,7 @@ export default function AdminClubsPage() {
       .finally(() => setLoading(false));
 
     return () => controller.abort();
-  }, [fetchClubs]);
+  }, [fetchClubs, t]);
 
   const fetchRequests = useCallback(
     async (signal?: AbortSignal) => {
@@ -216,7 +215,7 @@ export default function AdminClubsPage() {
       if (!res.ok) throw new Error(t('admin.clubs.requestsLoadError'));
       return (await res.json()) as ClubReviewRequest[];
     },
-    [apiUrl],
+    [apiUrl, t],
   );
 
   useEffect(() => {
@@ -233,7 +232,7 @@ export default function AdminClubsPage() {
       })
       .finally(() => setRequestLoading(false));
     return () => controller.abort();
-  }, [fetchRequests]);
+  }, [fetchRequests, t]);
 
   useEffect(() => {
     return () => {
@@ -1633,6 +1632,8 @@ function bulkSuccessKey(action: BulkAction): string {
 }
 
 function LogoButton({ club, onOpen }: { club: ClubRow; onOpen: (club: ClubRow) => void }) {
+  const { t } = useI18n();
+
   return (
     <button
       type="button"

@@ -1,6 +1,5 @@
 'use client';
 
-import { t } from '@myclash/i18n';
 import { localeToBcp47 } from '@myclash/time';
 import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
@@ -46,7 +45,7 @@ const typeOptions = [
 ] as const;
 
 export default function AdminDataQualityPage() {
-  const { locale } = useI18n();
+  const { locale, t } = useI18n();
   const apiUrl = getPublicApiUrl();
   const [scans, setScans] = useState<DataQualityScan[]>([]);
   const [findings, setFindings] = useState<DataQualityFinding[]>([]);
@@ -113,7 +112,7 @@ export default function AdminDataQualityPage() {
       .finally(() => setLoading(false));
 
     return () => controller.abort();
-  }, [apiUrl]);
+  }, [apiUrl, t]);
 
   async function runScan(mode: 'ai' | 'deterministic') {
     setScanning(true);
@@ -313,6 +312,8 @@ function FilterSelect(props: {
   options: readonly string[];
   onChange: (value: string) => void;
 }) {
+  const { t } = useI18n();
+
   return (
     <label className="text-sm text-foreground-secondary">
       <span className="mb-1 block">{props.label}</span>

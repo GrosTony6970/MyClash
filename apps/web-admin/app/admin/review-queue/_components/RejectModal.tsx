@@ -1,7 +1,7 @@
 'use client';
 
+import { useI18n } from '@myclash/next-i18n/client';
 import { useState } from 'react';
-import { t } from '@myclash/i18n';
 import { Modal } from '@myclash/ui';
 import type { ReviewQueueItem } from '../_types';
 
@@ -13,6 +13,8 @@ export interface RejectModalProps {
 }
 
 export function RejectModal({ item, apiUrl, onClose, onRejected }: RejectModalProps) {
+  const { t } = useI18n();
+
   const [reason, setReason] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);

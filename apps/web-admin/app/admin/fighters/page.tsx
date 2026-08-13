@@ -1,6 +1,5 @@
 'use client';
 
-import { t } from '@myclash/i18n';
 import { getDateFormat } from '@myclash/types';
 import {
   Button,
@@ -15,7 +14,7 @@ import {
 import { localeToBcp47 } from '@myclash/time';
 import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { useI18n } from '@myclash/next-i18n/client';
+import { useI18n, type Translator } from '@myclash/next-i18n/client';
 import { getPublicApiUrl } from '@/lib/api-url';
 
 // ── Types ──────────────────────────────────────────────────────────────────────
@@ -121,6 +120,8 @@ function canRevert(createdAt: string, nowMs: number): boolean {
 }
 
 function FighterCard({ label, fighter }: { label: string; fighter: FighterRow | null }) {
+  const { t } = useI18n();
+
   return (
     <section className="border border-border rounded-lg p-4 min-h-64">
       <p className="text-xs text-muted uppercase tracking-wide mb-3">{label}</p>
@@ -172,7 +173,9 @@ function FighterCard({ label, fighter }: { label: string; fighter: FighterRow | 
 
 // ── Page ───────────────────────────────────────────────────────────────────────
 
-async function readErrorMessage(res: Response, fallback: string): Promise<string> {
+// Takes the translator: this is module scope, where no hook can run, and the
+// module-level `t` is permanently English.
+async function readErrorMessage(t: Translator, res: Response, fallback: string): Promise<string> {
   if (res.status === 429) return t('common.tooManyRequests');
   try {
     const body = (await res.json()) as { message?: unknown };
@@ -195,7 +198,7 @@ type Tab = 'profiles' | 'create' | 'merge';
 
 export default function AdminFightersPage() {
   const apiUrl = getPublicApiUrl();
-  const { locale } = useI18n();
+  const { locale, t } = useI18n();
   const dateFormat = useMemo(() => getDateFormat(locale), [locale]);
   const { confirm, confirmDialog } = useConfirm();
   const [tab, setTab] = useState<Tab>('profiles');
@@ -228,7 +231,7 @@ export default function AdminFightersPage() {
       setPersons((await res.json()) as FighterRow[]);
       return;
     }
-    setPersonsError(await readErrorMessage(res, t('admin.globalProfiles.loadError')));
+    setPersonsError(await readErrorMessage(t, res, t('admin.globalProfiles.loadError')));
   }
 
   // Debounced server-side search: fire `q=...` ~250 ms after each keystroke
@@ -302,7 +305,7 @@ export default function AdminFightersPage() {
       setCreateError(null);
       return;
     }
-    setCreateError(await readErrorMessage(res, t('admin.globalProfiles.clubSearchError')));
+    setCreateError(await readErrorMessage(t, res, t('admin.globalProfiles.clubSearchError')));
   }
 
   async function createClubFromProfileForm() {
@@ -322,7 +325,7 @@ export default function AdminFightersPage() {
         }),
       });
       if (!res.ok) {
-        throw new Error(await readErrorMessage(res, t('admin.globalProfiles.clubCreateError')));
+        throw new Error(await readErrorMessage(t, res, t('admin.globalProfiles.clubCreateError')));
       }
       const club = (await res.json()) as ClubSearchResult;
       setForm((f) => ({
@@ -391,6 +394,7 @@ export default function AdminFightersPage() {
       if (!res.ok) {
         throw new Error(
           await readErrorMessage(
+            t,
             res,
             editingProfile
               ? t('admin.globalProfiles.updateError')
@@ -445,7 +449,7 @@ export default function AdminFightersPage() {
       .then(async (res) => {
         if (!res.ok)
           throw new Error(
-            await readErrorMessage(res, t('admin.globalProfiles.merge.auditLoadError')),
+            await readErrorMessage(t, res, t('admin.globalProfiles.merge.auditLoadError')),
           );
         setAudits((await res.json()) as MergeAuditEntry[]);
       })
@@ -457,7 +461,7 @@ export default function AdminFightersPage() {
         }
       });
     return () => controller.abort();
-  }, [apiUrl, refreshKey]);
+  }, [apiUrl, refreshKey, t]);
 
   async function searchFighters() {
     if (!query.trim()) return;
@@ -468,7 +472,7 @@ export default function AdminFightersPage() {
     });
     setLoading(false);
     if (!res.ok) {
-      setMergeError(await readErrorMessage(res, t('admin.globalProfiles.merge.searchFailed')));
+      setMergeError(await readErrorMessage(t, res, t('admin.globalProfiles.merge.searchFailed')));
       return;
     }
     setFighters((await res.json()) as FighterRow[]);
@@ -501,7 +505,7 @@ export default function AdminFightersPage() {
       refreshAudits();
       return;
     }
-    setMergeError(await readErrorMessage(res, t('admin.globalProfiles.merge.mergeFailed')));
+    setMergeError(await readErrorMessage(t, res, t('admin.globalProfiles.merge.mergeFailed')));
   }
 
   async function revertMerge(auditId: string) {
@@ -515,7 +519,7 @@ export default function AdminFightersPage() {
       refreshAudits();
       return;
     }
-    setMergeError(await readErrorMessage(res, t('admin.globalProfiles.merge.revertFailed')));
+    setMergeError(await readErrorMessage(t, res, t('admin.globalProfiles.merge.revertFailed')));
   }
 
   // ── Sort over the current persons result set ─────────────────────────────

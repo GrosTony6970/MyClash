@@ -1,5 +1,6 @@
 'use client';
 
+import { useI18n, type Translator } from '@myclash/next-i18n/client';
 import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
 import {
@@ -16,7 +17,7 @@ import {
   useSortableList,
   useToast,
 } from '@myclash/ui';
-import { t } from '@myclash/i18n';
+
 import type { LeagueRankingDimensions } from '@myclash/types';
 import { getPublicApiUrl } from '@/lib/api-url';
 
@@ -67,7 +68,9 @@ function formatScoringSystem(value: string): string {
  * string called it "Weapon + Category" — one setting, two names, and the one a
  * user met first pointed at a column dropped in migration 0049.
  */
-function formatRankingDimension(value: string | undefined): string {
+// Takes the translator: this is module scope, where no hook can run, and the
+// module-level `t` is permanently English.
+function formatRankingDimension(t: Translator, value: string | undefined): string {
   if (value === 'weapon') return t('admin.adminLeagues.rankingDimensionWeapon');
   if (value === 'weapon_category') return t('admin.adminLeagues.rankingDimensionWeaponGroup');
   if (value === 'group') return t('admin.adminLeagues.rankingDimensionGroup');
@@ -75,20 +78,25 @@ function formatRankingDimension(value: string | undefined): string {
 }
 
 export default function AdminLeaguesPage() {
+  const { t } = useI18n();
+
   const [leagues, setLeagues] = useState<League[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [tab, setTab] = useState<AdminLeaguesTab>('list');
 
-  const fetchLeagues = useCallback(async (signal?: AbortSignal) => {
-    const res = await fetch(`${apiUrl}/api/v1/admin/leagues`, {
-      credentials: 'include',
-      signal,
-    });
-    if (!res.ok) throw new Error(t('admin.common.loadLeaguesFailed'));
-    return (await res.json()) as League[];
-  }, []);
+  const fetchLeagues = useCallback(
+    async (signal?: AbortSignal) => {
+      const res = await fetch(`${apiUrl}/api/v1/admin/leagues`, {
+        credentials: 'include',
+        signal,
+      });
+      if (!res.ok) throw new Error(t('admin.common.loadLeaguesFailed'));
+      return (await res.json()) as League[];
+    },
+    [t],
+  );
 
   useEffect(() => {
     const controller = new AbortController();
@@ -103,7 +111,7 @@ export default function AdminLeaguesPage() {
       })
       .finally(() => setLoading(false));
     return () => controller.abort();
-  }, [fetchLeagues]);
+  }, [fetchLeagues, t]);
 
   const toast = useToast();
   const [pendingDelete, setPendingDelete] = useState<League | null>(null);
@@ -493,7 +501,7 @@ export default function AdminLeaguesPage() {
                 </DataTableCell>
                 <DataTableCell>{league.season_year}</DataTableCell>
                 <DataTableCell>
-                  {formatRankingDimension(league.scoring_config?.rankingDimensions)}
+                  {formatRankingDimension(t, league.scoring_config?.rankingDimensions)}
                 </DataTableCell>
                 <DataTableCell>{formatScoringSystem(league.scoring_system)}</DataTableCell>
                 <DataTableCell>

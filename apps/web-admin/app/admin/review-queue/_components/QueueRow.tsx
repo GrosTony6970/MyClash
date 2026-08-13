@@ -9,8 +9,8 @@ import {
   reviewStatusSemantic,
 } from '@myclash/ui';
 import { localeToBcp47 } from '@myclash/time';
-import { t } from '@myclash/i18n';
-import { useI18n } from '@myclash/next-i18n/client';
+
+import { useI18n, type Translator } from '@myclash/next-i18n/client';
 import type { ReviewQueueItem } from '../_types';
 
 // ── Type badge config ─────────────────────────────────────────────────────────
@@ -27,7 +27,9 @@ const TYPE_BADGE: Record<ReviewQueueItem['type'], { color: string; label: string
 
 const STATUS_PILL_BASE = 'inline-block rounded-full border px-2 py-0.5 text-xs font-semibold';
 
-function statusLabel(status: string): string {
+// Takes the translator: this is module scope, where no hook can run, and the
+// module-level `t` is permanently English.
+function statusLabel(t: Translator, status: string): string {
   switch (status) {
     case 'pending':
       return t('admin.reviewQueue.statusPending');
@@ -66,7 +68,7 @@ export interface QueueRowProps {
 // ── Component ─────────────────────────────────────────────────────────────────
 
 export function QueueRow({ item, busyId, onApprove, onReject }: QueueRowProps) {
-  const { locale } = useI18n();
+  const { locale, t } = useI18n();
   const badge = TYPE_BADGE[item.type];
   const truncatedReason =
     item.reason && item.reason.length > 80 ? item.reason.slice(0, 80) + '…' : item.reason;
@@ -122,7 +124,7 @@ export function QueueRow({ item, busyId, onApprove, onReject }: QueueRowProps) {
         <span
           className={`${STATUS_PILL_BASE} ${statusPillTone(reviewStatusSemantic(item.status), 'light').className}`}
         >
-          {statusLabel(item.status)}
+          {statusLabel(t, item.status)}
         </span>
       </DataTableCell>
 
