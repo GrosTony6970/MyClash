@@ -42,11 +42,8 @@ function formatEventLocation(event: PublicEvent): string | null {
   return parts.length === 0 ? null : parts.join(', ');
 }
 
-// `personal` routes the card into the personal-space shell (/me/events/<slug>,
-// keeps the sidebar) instead of the standalone public event home.
-function eventHref(event: PublicEvent, personal: boolean): string {
-  const slug = encodeURIComponent(event.slug ?? event.id ?? '');
-  return personal ? `/me/events/${slug}` : `/e/${slug}/home`;
+function eventHref(event: PublicEvent): string {
+  return `/e/${encodeURIComponent(event.slug ?? event.id ?? '')}/home`;
 }
 
 // Takes the translator rather than importing one: this runs at module scope,
@@ -62,8 +59,8 @@ function orgAccent(event: PublicEvent): string {
   return event.organizations?.brand_color || DEFAULT_ORG_ACCENT;
 }
 
-// Shared column template for the events table. The header and every row are
-// independent grid containers, so the non-fractional columns must be FIXED
+// Shared column template for the events list. The header strip and every row
+// are independent grid containers, so the non-fractional columns must be FIXED
 // (not `auto`) — otherwise each grid sizes its `auto` tracks to its own
 // content (blank header vs the status badge, "TOURNAMENTS" vs "2 tournaments")
 // and the `fr` columns drift between header and rows. Both literal strings are
@@ -80,12 +77,10 @@ export function EventsListSections({
   events,
   weapons = [],
   filters = EMPTY_EVENT_FILTERS,
-  personal = false,
 }: {
   events: PublicEvent[];
   weapons?: WeaponOption[];
   filters?: EventFilters;
-  personal?: boolean;
 }) {
   const { live, published, past } = useMemo(() => partitionEvents(events), [events]);
   // Display-only: the sections no longer filter on it, but the empty-state copy
@@ -96,9 +91,9 @@ export function EventsListSections({
     <div className="flex w-full flex-col gap-10">
       <EventFilterBar filters={filters} weapons={weapons} resultCount={events.length} />
 
-      <LiveSection events={live} query={query} personal={personal} />
-      <UpcomingSection events={published} query={query} personal={personal} />
-      <PastSection events={past} query={query} personal={personal} />
+      <LiveSection events={live} query={query} />
+      <UpcomingSection events={published} query={query} />
+      <PastSection events={past} query={query} />
     </div>
   );
 }
@@ -248,15 +243,7 @@ function PastTag() {
   );
 }
 
-function LiveSection({
-  events,
-  query,
-  personal,
-}: {
-  events: PublicEvent[];
-  query: string;
-  personal: boolean;
-}) {
+function LiveSection({ events, query }: { events: PublicEvent[]; query: string }) {
   const { t } = useI18n();
 
   return (
@@ -269,9 +256,9 @@ function LiveSection({
       {events.length === 0 ? (
         <EmptySectionMessage sectionKey="live" query={query} />
       ) : (
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+        <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
           {events.map((event) => (
-            <div
+            <li
               key={event.slug ?? event.id}
               style={{ borderLeftColor: orgAccent(event) }}
               className={`${CARD_SHELL} flex min-h-44 flex-col justify-between`}
@@ -282,7 +269,7 @@ function LiveSection({
                   <EventLogo src={event.logo_url} alt={event.name ?? ''} />
                   <div className="min-w-0 flex-1">
                     <Link
-                      href={eventHref(event, personal)}
+                      href={eventHref(event)}
                       className={`${CARD_TITLE_LINK} font-display text-lg font-semibold leading-tight text-foreground`}
                     >
                       {event.name ?? t('publicApp.home.unknownEvent')}
@@ -306,22 +293,21 @@ function LiveSection({
                   {t('publicApp.home.openEvent')}
                 </span>
               </div>
-            </div>
+            </li>
           ))}
-        </div>
+        </ul>
       )}
     </section>
   );
 }
 
-interface TableRowProps {
+interface EventRowProps {
   event: PublicEvent;
   variant: 'published' | 'past';
   hasLogos: boolean;
-  personal: boolean;
 }
 
-function EventRow({ event, variant, hasLogos, personal }: TableRowProps) {
+function EventRow({ event, variant, hasLogos }: EventRowProps) {
   const { t } = useI18n();
 
   const tag = variant === 'published' ? <PublishedTag /> : <PastTag />;
@@ -342,7 +328,7 @@ function EventRow({ event, variant, hasLogos, personal }: TableRowProps) {
     );
 
   return (
-    <div
+    <li
       style={{ borderLeftColor: orgAccent(event) }}
       className={`${CARD_SHELL} flex flex-col gap-3`}
     >
@@ -360,7 +346,7 @@ function EventRow({ event, variant, hasLogos, personal }: TableRowProps) {
           ))}
         <div className="min-w-0">
           <Link
-            href={eventHref(event, personal)}
+            href={eventHref(event)}
             className={`${CARD_TITLE_LINK} font-display text-base font-semibold leading-tight text-foreground`}
           >
             {event.name ?? t('publicApp.home.unknownEvent')}
@@ -390,11 +376,23 @@ function EventRow({ event, variant, hasLogos, personal }: TableRowProps) {
         <div>{trailing}</div>
         <div className="md:justify-self-end">{tag}</div>
       </div>
-    </div>
+    </li>
   );
 }
 
-function EventTableHeader({
+/**
+ * The desktop column labels.
+ *
+ * Purely presentational, and marked so. This used to claim `role="row"` with
+ * `role="columnheader"` children inside a `role="table"` whose rows carried no
+ * `role="row"` at all — an ARIA table with a header and no data, which assistive
+ * tech announces as an empty table. The markup underneath is a list of cards
+ * that happens to align into columns above `md`, so the list is now a real
+ * <ul>/<li> and this strip is hidden from the accessibility tree. Each row
+ * already repeats its own labels inline on mobile ("Location · …"), which is
+ * what carries the meaning for a screen reader.
+ */
+function EventListHeader({
   variant,
   hasLogos,
 }: {
@@ -408,38 +406,20 @@ function EventTableHeader({
   // sits outside its padding, shifting its content 4px to the right).
   const headerClass = `hidden md:grid ${gridColsClass(hasLogos)} md:items-center md:gap-4 md:border-b md:border-l-4 md:border-border md:border-l-transparent md:px-4 md:py-2 md:text-xs md:font-semibold md:uppercase md:tracking-wider md:text-muted`;
   return (
-    <div role="row" className={headerClass}>
-      {hasLogos && (
-        <span role="columnheader" aria-label={t('publicApp.home.colLogo')}>
-          {' '}
-        </span>
-      )}
-      <span role="columnheader">{t('publicApp.home.colEvent')}</span>
-      <span role="columnheader">{t('publicApp.home.colLocation')}</span>
-      <span role="columnheader">{t('publicApp.home.colLeague')}</span>
-      <span role="columnheader">
+    <div aria-hidden="true" className={headerClass}>
+      {hasLogos && <span />}
+      <span>{t('publicApp.home.colEvent')}</span>
+      <span>{t('publicApp.home.colLocation')}</span>
+      <span>{t('publicApp.home.colLeague')}</span>
+      <span>
         {variant === 'past' ? t('publicApp.home.colResults') : t('publicApp.home.colTournaments')}
       </span>
-      <span
-        role="columnheader"
-        className="md:justify-self-end"
-        aria-label={t('publicApp.home.colStatus')}
-      >
-        {' '}
-      </span>
+      <span className="md:justify-self-end" />
     </div>
   );
 }
 
-function UpcomingSection({
-  events,
-  query,
-  personal,
-}: {
-  events: PublicEvent[];
-  query: string;
-  personal: boolean;
-}) {
+function UpcomingSection({ events, query }: { events: PublicEvent[]; query: string }) {
   const { t } = useI18n();
 
   const hasLogos = events.some((event) => Boolean(event.logo_url));
@@ -453,38 +433,29 @@ function UpcomingSection({
       {events.length === 0 ? (
         <EmptySectionMessage sectionKey="upcoming" query={query} />
       ) : (
-        <div
-          role="table"
-          aria-labelledby="public-events-published-title"
-          className="max-h-[60vh] overflow-y-auto"
-        >
-          <EventTableHeader variant="published" hasLogos={hasLogos} />
-          <div className="flex flex-col gap-3">
+        <div>
+          <EventListHeader variant="published" hasLogos={hasLogos} />
+          {/* No max-height/overflow here any more. The scrollport existed to keep
+              the fake table's header row in view; with the table gone its only
+              remaining effect was a scroll region nested inside page scroll,
+              which on a phone steals the swipe. */}
+          <ul className="flex flex-col gap-3">
             {events.map((event) => (
               <EventRow
                 key={event.slug ?? event.id}
                 event={event}
                 variant="published"
                 hasLogos={hasLogos}
-                personal={personal}
               />
             ))}
-          </div>
+          </ul>
         </div>
       )}
     </section>
   );
 }
 
-function PastSection({
-  events,
-  query,
-  personal,
-}: {
-  events: PublicEvent[];
-  query: string;
-  personal: boolean;
-}) {
+function PastSection({ events, query }: { events: PublicEvent[]; query: string }) {
   const { t } = useI18n();
 
   const hasLogos = events.some((event) => Boolean(event.logo_url));
@@ -498,23 +469,18 @@ function PastSection({
       {events.length === 0 ? (
         <EmptySectionMessage sectionKey="past" query={query} />
       ) : (
-        <div
-          role="table"
-          aria-labelledby="public-events-past-title"
-          className="max-h-[60vh] overflow-y-auto"
-        >
-          <EventTableHeader variant="past" hasLogos={hasLogos} />
-          <div className="flex flex-col gap-3">
+        <div>
+          <EventListHeader variant="past" hasLogos={hasLogos} />
+          <ul className="flex flex-col gap-3">
             {events.map((event) => (
               <EventRow
                 key={event.slug ?? event.id}
                 event={event}
                 variant="past"
                 hasLogos={hasLogos}
-                personal={personal}
               />
             ))}
-          </div>
+          </ul>
         </div>
       )}
     </section>

@@ -11,14 +11,17 @@ import {
 } from './event-filters';
 
 /**
- * Shared public-events browser: fetches the published events + leagues and
- * renders the Events/Leagues tabs (or the empty / unavailable state). Used by
- * both the public landing page and the personal-space "Public events" tab so
- * the latter shows the same listing inside the personal shell instead of
- * bouncing to the marketing home.
+ * Public-events browser: fetches the published events + leagues and renders the
+ * Events/Leagues tabs (or the empty / unavailable state).
  *
- * It renders only the listing (no page chrome / heading); each caller wraps it
- * in its own layout.
+ * It renders only the listing (no page chrome / heading); the caller wraps it in
+ * its own layout.
+ *
+ * This used to carry a `personal` flag, described as serving a personal-space
+ * "Public events" tab that routed cards to /me/events/<slug> inside the personal
+ * shell. No caller ever passed it, so that branch — threaded through six
+ * components down to eventHref — was unreachable. Removed rather than
+ * documented, because a dead parameter reads as a live feature.
  */
 interface PublicEvent {
   id?: string | null;
@@ -128,10 +131,8 @@ async function fetchWeapons(): Promise<WeaponOption[]> {
 }
 
 export async function PublicEventsBrowser({
-  personal = false,
   filters = EMPTY_EVENT_FILTERS,
 }: {
-  personal?: boolean;
   filters?: EventFilters;
 } = {}) {
   const t = await getServerT();
@@ -144,30 +145,14 @@ export async function PublicEventsBrowser({
   const filtered = hasAnyFilter(filters);
 
   if (events.length > 0 || leagues.length > 0) {
-    return (
-      <HomeTabs
-        events={events}
-        leagues={leagues}
-        weapons={weapons}
-        filters={filters}
-        personal={personal}
-      />
-    );
+    return <HomeTabs events={events} leagues={leagues} weapons={weapons} filters={filters} />;
   }
 
   // A filtered search that matched nothing is not the same as an empty
   // platform. Keep the bar mounted so the user can widen or clear, instead of
   // stranding them on "no events yet" with no way back.
   if (filtered && !unavailable) {
-    return (
-      <HomeTabs
-        events={events}
-        leagues={leagues}
-        weapons={weapons}
-        filters={filters}
-        personal={personal}
-      />
-    );
+    return <HomeTabs events={events} leagues={leagues} weapons={weapons} filters={filters} />;
   }
 
   return (

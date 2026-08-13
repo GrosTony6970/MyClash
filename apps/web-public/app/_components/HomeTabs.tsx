@@ -73,25 +73,18 @@ export function HomeTabs({
   leagues,
   weapons = [],
   filters = EMPTY_EVENT_FILTERS,
-  personal = false,
 }: {
   events: PublicEvent[];
   leagues: PublicLeague[];
   weapons?: WeaponOption[];
   filters?: EventFilters;
-  personal?: boolean;
 }) {
   const [tab, setTab] = useState<Tab>('events');
   return (
     <div className="flex flex-col gap-6">
       <TabRow tab={tab} onSelect={setTab} />
       {tab === 'events' && (
-        <EventsListSections
-          events={events}
-          weapons={weapons}
-          filters={filters}
-          personal={personal}
-        />
+        <EventsListSections events={events} weapons={weapons} filters={filters} />
       )}
       {tab === 'leagues' && <PublicLeaguesSections leagues={leagues} />}
     </div>
