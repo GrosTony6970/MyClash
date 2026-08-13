@@ -332,20 +332,27 @@ export async function ensureProdEnv(envPath = '.env', options = {}) {
 
   const domain = state.values.get('DOMAIN');
   const supabaseUrl = `https://app.${domain}`;
-  const apiUrl = `https://api.${domain}`;
+  const staffUrl = `https://staff.${domain}`;
   const anonKey = state.values.get('SUPABASE_ANON_KEY');
 
   for (const [key, value] of [
     ['SUPABASE_URL', supabaseUrl],
     ['NEXT_PUBLIC_SUPABASE_URL', supabaseUrl],
     ['NEXT_PUBLIC_SUPABASE_ANON_KEY', anonKey],
-    // Per-app API URLs — preserve the per-service routing convention
-    // (admin and public stay same-origin with their UI host so the
-    // browser doesn't preflight every fetch; scoring uses the
-    // dedicated api.${DOMAIN} subdomain).
+    // Per-app API URLs — every app stays same-origin with its own UI host, so
+    // the browser doesn't preflight every fetch and no bundle depends on the
+    // api.${DOMAIN} cert. Traefik serves /api/v1 on all three hosts
+    // (myclash-admin-api / myclash-public-api / myclash-staff-api).
+    //
+    // Staff used to point at api.${DOMAIN}. Nothing in web-staff reads this in
+    // the browser — the pad's fetches are relative — so the only consumer was
+    // the root layout's direct env read, which is precisely how an absolute,
+    // untrusted-cert host reached the pad and silently killed the maintenance
+    // banner. Same-origin here so a future direct read lands somewhere that
+    // works.
     ['NEXT_PUBLIC_API_URL_ADMIN', `https://admin.${domain}`],
     ['NEXT_PUBLIC_API_URL_PUBLIC', supabaseUrl], // https://app.${DOMAIN}
-    ['NEXT_PUBLIC_API_URL_STAFF', apiUrl], // https://api.${DOMAIN}
+    ['NEXT_PUBLIC_API_URL_STAFF', staffUrl], // https://staff.${DOMAIN}
     // Cross-app deep links: admin → scoring app, admin/scoring → public app.
     ['NEXT_PUBLIC_STAFF_URL', `https://scoring.${domain}`],
     ['NEXT_PUBLIC_PUBLIC_APP_URL', supabaseUrl], // https://app.${DOMAIN}

@@ -96,12 +96,22 @@ test('creates .env from sample and replaces generated secrets/default URLs', asy
   // The single NEXT_PUBLIC_API_URL was split into three per-app vars, so this
   // used to assert on a variable the script no longer writes (and read back the
   // untouched localhost sample value). Assert the per-service routing the
-  // script actually establishes: admin and public stay same-origin with their
-  // own UI host so the browser does not preflight every fetch; only scoring
-  // uses the dedicated api. subdomain.
+  // script actually establishes: every app stays same-origin with its own UI
+  // host, so the browser does not preflight every fetch and no bundle depends
+  // on the api. subdomain's cert. Staff pointed at api. until 2026-08-13, which
+  // is how an absolute host reached the pad and killed the maintenance banner.
   assert.equal(values.get('NEXT_PUBLIC_API_URL_ADMIN'), 'https://admin.example.org');
   assert.equal(values.get('NEXT_PUBLIC_API_URL_PUBLIC'), 'https://app.example.org');
-  assert.equal(values.get('NEXT_PUBLIC_API_URL_STAFF'), 'https://api.example.org');
+  assert.equal(values.get('NEXT_PUBLIC_API_URL_STAFF'), 'https://staff.example.org');
+  // No generated value may point at api.${DOMAIN}: browsers reject that host's
+  // cert in this deploy, and it is server-to-server only.
+  for (const key of [
+    'NEXT_PUBLIC_API_URL_ADMIN',
+    'NEXT_PUBLIC_API_URL_PUBLIC',
+    'NEXT_PUBLIC_API_URL_STAFF',
+  ]) {
+    assert.notEqual(values.get(key), 'https://api.example.org');
+  }
   assert.notEqual(values.get('POSTGRES_PASSWORD'), 'change-me-strong-password');
   assert.notEqual(values.get('COOKIE_SECRET'), 'change-me-cookie-secret');
   assert.match(values.get('TRAEFIK_DASHBOARD_AUTH'), /^admin:\{SHA\}.+/);
