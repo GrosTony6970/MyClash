@@ -413,7 +413,11 @@ const adminUsersServicePath = path.join(
   'admin',
   'admin-users.service.ts',
 );
-const i18nPath = path.join(rootDir, 'packages', 'i18n', 'src', 'index.ts');
+// The EN dictionary, which is one module per namespace since the per-surface
+// split. These assertions only ever meant "this copy exists somewhere in the
+// dictionary", so they read the whole tree rather than pinning one file — which
+// is what made them break when the data moved out of index.ts.
+const i18nMessagesDir = path.join(rootDir, 'packages', 'i18n', 'src', 'messages', 'en');
 const traefikMiddlewarePath = path.join(rootDir, 'infra', 'config', 'traefik', 'middlewares.yml');
 const stagingCertsComposePath = path.join(rootDir, 'infra', 'docker-compose.staging-certs.yml');
 const realtimeInitPath = path.join(rootDir, 'infra', 'db', 'init', '02-supabase-realtime.sh');
@@ -536,7 +540,13 @@ const adminOrganizationsControllerText = await readFile(adminOrganizationsContro
 const adminOrganizationsServiceText = await readFile(adminOrganizationsServicePath, 'utf8');
 const adminUsersControllerText = await readFile(adminUsersControllerPath, 'utf8');
 const adminUsersServiceText = await readFile(adminUsersServicePath, 'utf8');
-const i18nText = await readFile(i18nPath, 'utf8');
+const i18nText = (
+  await Promise.all(
+    (await readdir(i18nMessagesDir))
+      .filter((entry) => entry.endsWith('.ts'))
+      .map((entry) => readFile(path.join(i18nMessagesDir, entry), 'utf8')),
+  )
+).join('\n');
 const traefikMiddlewareText = await readFile(traefikMiddlewarePath, 'utf8');
 const startText = await readFile(startPath, 'utf8');
 const systemVersionsLibText = await readFile(systemVersionsLibPath, 'utf8');
@@ -1096,7 +1106,7 @@ for (const [label, text] of [
   ['apps/web-public/app/page.tsx', publicRootPageText],
   ['apps/web-public/app/e/[eventSlug]/page.tsx', publicEventRootPageText],
   ['apps/web-admin/app/page.tsx', adminRootPageText],
-  ['packages/i18n/src/index.ts', i18nText],
+  ['packages/i18n/src/messages/en/**', i18nText],
 ]) {
   if (/\bT-003\b|Placeholder -|scaffold|port 300[13]/u.test(text)) {
     errors.push(`${label} must not expose the old T-003 scaffold root-page copy.`);
@@ -1693,7 +1703,7 @@ for (const expected of [
   'safeDeleteHelp',
   'cleanupDeleteHelp',
 ]) {
-  requireContains(i18nText, 'packages/i18n/src/index.ts', expected);
+  requireContains(i18nText, 'packages/i18n/src/messages/en/**', expected);
 }
 for (const forbidden of ['SUPABASE_SERVICE_ROLE_KEY', 'SERVICE_ROLE', 'SEED_ADMIN_PASSWORD']) {
   for (const [label, text] of [
@@ -1875,7 +1885,7 @@ for (const expected of [
   requireContains(superAdminBackupsPageText, 'apps/web-admin/app/admin/backups/page.tsx', expected);
 }
 for (const expected of ['Delete from {location}', 'local server', 'Scaleway S3']) {
-  requireContains(i18nText, 'packages/i18n/src/index.ts', expected);
+  requireContains(i18nText, 'packages/i18n/src/messages/en/**', expected);
 }
 if (superAdminBackupsPageText.includes('confirmationByBackup')) {
   errors.push(
