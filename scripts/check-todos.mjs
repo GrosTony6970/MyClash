@@ -1,23 +1,12 @@
-import { readdirSync, readFileSync, statSync } from 'node:fs';
-import { join, relative, sep } from 'node:path';
+import { readFileSync } from 'node:fs';
+import { relative, sep } from 'node:path';
 
-import { REPO_IGNORED_DIRS } from './lib/repo-scan.mjs';
+import { walkRepoFiles } from './lib/repo-scan.mjs';
 
 const root = process.cwd();
-const extensions = new Set([
-  '.cjs',
-  '.js',
-  '.jsx',
-  '.json',
-  '.md',
-  '.mjs',
-  '.ts',
-  '.tsx',
-  '.yaml',
-  '.yml',
-]);
-// Same rationale as the tool-cache entries in ignoredDirs, but these need a
-// PATH prefix rather than a directory name: `plans` / `specs` / `archive` are
+const extensions = ['.cjs', '.js', '.jsx', '.json', '.md', '.mjs', '.ts', '.tsx', '.yaml', '.yml'];
+// Same rationale as the tool-cache entries in REPO_IGNORED_DIRS, but these need
+// a PATH prefix rather than a directory name: `plans` / `specs` / `archive` are
 // far too generic to ignore as bare segment names. These hold session planning
 // artefacts, whose prose discusses TODOs — including, unavoidably, sentences
 // asserting a plan contains none ("Placeholder scan: No TBD/TODO"). That is a
@@ -37,24 +26,12 @@ const allowedMarkers = [
   /https:\/\/github\.com\//,
 ];
 
-function walk(dir) {
-  return readdirSync(dir).flatMap((entry) => {
-    if (REPO_IGNORED_DIRS.has(entry)) return [];
-    const path = join(dir, entry);
-    return statSync(path).isDirectory() ? walk(path) : [path];
-  });
-}
-
-function hasAllowedExtension(path) {
-  return [...extensions].some((extension) => path.endsWith(extension));
-}
-
 function normalize(path) {
   return relative(root, path).split(sep).join('/');
 }
 
 const violations = [];
-for (const file of walk(root).filter(hasAllowedExtension)) {
+for (const file of walkRepoFiles(root, { extensions })) {
   const repoPath = normalize(file);
   if (ignoredPathPrefixes.some((prefix) => repoPath.startsWith(prefix))) continue;
   const source = readFileSync(file, 'utf8');

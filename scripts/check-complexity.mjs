@@ -22,11 +22,11 @@
  * detector now asks the parser. Costs ~1.3s more on a full scan; irrelevant in
  * CI, and it is the difference between a gate that works and one that lies.
  */
-import { readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
+import { readFileSync, writeFileSync } from 'node:fs';
 import { join, relative, sep } from 'node:path';
 import ts from 'typescript';
 
-import { REPO_IGNORED_DIRS } from './lib/repo-scan.mjs';
+import { walkRepoFiles } from './lib/repo-scan.mjs';
 
 const root = process.cwd();
 const baselinePath = join(root, 'docs', 'code-quality-complexity-baseline.json');
@@ -35,20 +35,8 @@ const fileLineLimit = 400;
 const functionLineLimit = 50;
 const scannedExtensions = ['.ts', '.tsx', '.js', '.jsx', '.mjs'];
 
-function walk(dir) {
-  return readdirSync(dir).flatMap((entry) => {
-    if (REPO_IGNORED_DIRS.has(entry)) return [];
-    const path = join(dir, entry);
-    return statSync(path).isDirectory() ? walk(path) : [path];
-  });
-}
-
 function normalize(path) {
   return relative(root, path).split(sep).join('/');
-}
-
-function hasScannedExtension(path) {
-  return scannedExtensions.some((extension) => path.endsWith(extension));
 }
 
 function countLines(source) {
@@ -154,7 +142,7 @@ export function findFunctionHotspots(source, repoPath) {
 export function scanRepo() {
   const fileHotspots = [];
   const functionHotspots = [];
-  for (const file of walk(root).filter(hasScannedExtension)) {
+  for (const file of walkRepoFiles(root, { extensions: scannedExtensions })) {
     const repoPath = normalize(file);
     const source = readFileSync(file, 'utf8');
     const lines = countLines(source);
