@@ -5,7 +5,7 @@ import { useMemo } from 'react';
 import { defaultLocale, t } from '@myclash/i18n';
 import { EventKindBadge, formatCountryName } from '@myclash/ui';
 import { DEFAULT_ORG_ACCENT, asEventKind } from '@myclash/types';
-import { useI18n } from '@/i18n/I18nProvider';
+import { useI18n } from '@myclash/next-i18n/client';
 import { partitionEvents } from './filter-events';
 import { emptySectionMessageKey, type SectionKey } from './empty-section-message-key';
 import { formatDateRange } from './format-date-range';

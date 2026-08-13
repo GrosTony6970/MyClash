@@ -4,7 +4,7 @@ import { useSearchParams } from 'next/navigation';
 import { getPublicApiUrl } from '@/lib/api-url';
 import { Suspense, useState } from 'react';
 import { GoogleIcon } from '@myclash/ui';
-import { useI18n } from '../../../../src/i18n/I18nProvider';
+import { useI18n } from '@myclash/next-i18n/client';
 import { createOAuthSupabaseClient } from '../../../../src/lib/oauth-supabase';
 
 function ClaimForm() {

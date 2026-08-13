@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { Switch } from '@myclash/ui';
-import { useI18n } from '@/i18n/I18nProvider';
+import { useI18n } from '@myclash/next-i18n/client';
 import { SettingRow } from './controls';
 
 interface Privacy {

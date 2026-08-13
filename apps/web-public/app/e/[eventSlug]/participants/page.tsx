@@ -4,7 +4,7 @@ import { createTranslator, defaultLocale, getMessages, type Locale } from '@mycl
 import { localeToBcp47 } from '@myclash/time';
 import { formatCountryName } from '@myclash/ui';
 import { getServerApiUrl } from '@/lib/api-url';
-import { getServerT, resolveServerLocale } from '@/i18n/server-locale';
+import { getServerT, resolveServerLocale } from '@myclash/next-i18n/server';
 import { FollowOrganizerButton } from '../../../_components/FollowOrganizerButton';
 import { fetchEventInfo, type EventInfo } from '../_components/EventHeader';
 import { ParticipantsTabbedView } from './_components/ParticipantsTabbedView';

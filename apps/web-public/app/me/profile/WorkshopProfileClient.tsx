@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { EmptyState, Skeleton } from '@myclash/ui';
-import { useI18n } from '@/i18n/I18nProvider';
+import { useI18n } from '@myclash/next-i18n/client';
 import { weaponKey } from '@/lib/weapon-stats';
 import { WorkshopCard, type WorkshopListItem } from '@/components/workshops/WorkshopCard';
 

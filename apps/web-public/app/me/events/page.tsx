@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import type { ReactNode } from 'react';
 import { Button, EventKindBadge } from '@myclash/ui';
-import { useI18n } from '@/i18n/I18nProvider';
+import { useI18n } from '@myclash/next-i18n/client';
 import { useMyEvents } from '@/components/me/hooks';
 import { HubLoading } from '@/components/me/EventHubChrome';
 import type { MyEvent } from '@/components/me/types';

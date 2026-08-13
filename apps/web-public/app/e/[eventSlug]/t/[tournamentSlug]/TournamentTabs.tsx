@@ -13,7 +13,7 @@
  */
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { tintBorderClassFor, tintTextClassFor } from '@myclash/ui';
-import { useI18n } from '../../../../../src/i18n/I18nProvider';
+import { useI18n } from '@myclash/next-i18n/client';
 
 export type TabKey =
   | 'participants'

@@ -15,7 +15,7 @@
 import { useEffect, useState } from 'react';
 import { MedalPodium, type PodiumData } from '@myclash/ui';
 import { getPublicApiUrl } from '@/lib/api-url';
-import { useI18n } from '../../../../../src/i18n/I18nProvider';
+import { useI18n } from '@myclash/next-i18n/client';
 
 interface SwissStandingsRow {
   registrationId: string;

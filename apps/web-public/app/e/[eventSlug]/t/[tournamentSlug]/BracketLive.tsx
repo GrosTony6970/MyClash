@@ -22,7 +22,7 @@ import {
 } from '@myclash/ui';
 import { useRealtimeWithFallback } from '@/lib/supabase-browser';
 import { getPublicApiUrl } from '@/lib/api-url';
-import { useI18n } from '../../../../../src/i18n/I18nProvider';
+import { useI18n } from '@myclash/next-i18n/client';
 import { refereeRoleLabel } from './referee-display';
 import type { BracketSlot } from './page';
 

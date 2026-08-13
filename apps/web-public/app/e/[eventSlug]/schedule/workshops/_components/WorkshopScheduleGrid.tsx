@@ -30,7 +30,7 @@ import {
   nowSlotForDay,
   slotToHHMM,
 } from '@myclash/schedule-core';
-import { useI18n } from '@/i18n/I18nProvider';
+import { useI18n } from '@myclash/next-i18n/client';
 import { getPublicApiUrl } from '@/lib/api-url';
 import type { WorkshopScheduleData } from '../_lib/workshop-grid-data';
 import { WorkshopGridBlock } from './WorkshopGridBlock';

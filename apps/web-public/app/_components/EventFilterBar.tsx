@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, useTransition } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { CountryCombobox } from '@myclash/ui';
-import { useI18n } from '../../src/i18n/I18nProvider';
+import { useI18n } from '@myclash/next-i18n/client';
 import { hasAnyFilter, toEventQueryString, type EventFilters } from './event-filters';
 
 export interface WeaponOption {

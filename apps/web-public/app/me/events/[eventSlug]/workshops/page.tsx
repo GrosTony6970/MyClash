@@ -13,7 +13,7 @@ import {
   type WorkshopListItem,
 } from '@/components/workshops/workshop-grouping';
 import { overlaps, toTimed, type TimedItem } from '@/components/me/conflicts';
-import { useI18n } from '@/i18n/I18nProvider';
+import { useI18n } from '@myclash/next-i18n/client';
 import { useMyEvents, useMySchedule } from '@/components/me/hooks';
 import type { MyEventInfo, MyEventWorkshopTeaching } from '@/components/me/types';
 

@@ -1,5 +1,5 @@
 import { accentClassFor } from '@myclash/ui';
-import { getServerT } from '@/i18n/server-locale';
+import { getServerT } from '@myclash/next-i18n/server';
 
 export interface LeagueDecidingTiebreak {
   key: 'total_points' | 'participation_count' | 'medal_count' | 'double_hit_average';

@@ -13,7 +13,7 @@ import {
 } from 'react';
 import { getDateFormat } from '@myclash/types';
 import { Avatar, Button, Card, ClubCombobox, type ClubOption, type ClubValue } from '@myclash/ui';
-import { useI18n } from '../../../src/i18n/I18nProvider';
+import { useI18n } from '@myclash/next-i18n/client';
 import { AvatarCropper } from './AvatarCropper';
 import { InsightCard } from './InsightCard';
 import { ShareProfile } from '@/components/fighter/ShareProfile';

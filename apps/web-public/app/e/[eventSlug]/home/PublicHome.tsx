@@ -12,7 +12,7 @@ import { createTranslator, getMessages } from '@myclash/i18n';
 import { formatInZone, localeToBcp47 } from '@myclash/time';
 import { BackLink } from '@/components/BackLink';
 import { getServerApiUrl } from '@/lib/api-url';
-import { resolveServerLocale } from '@/i18n/server-locale';
+import { resolveServerLocale } from '@myclash/next-i18n/server';
 import { EventBackLink } from './_components/EventBackLink';
 import { EventHeader, fetchEventInfo } from '../_components/EventHeader';
 import { TournamentCard } from './_components/TournamentCard';

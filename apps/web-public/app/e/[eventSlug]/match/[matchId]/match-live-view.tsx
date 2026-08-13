@@ -14,7 +14,7 @@ import { formatInZone, localeToBcp47 } from '@myclash/time';
 import { getPublicApiUrl } from '@/lib/api-url';
 import { useRealtimeDisabled } from '@/lib/supabase-browser';
 import { BackLink } from '@/components/BackLink';
-import { useI18n } from '../../../../../src/i18n/I18nProvider';
+import { useI18n } from '@myclash/next-i18n/client';
 import { resolveMatchWinner } from '@myclash/types';
 import { useMatchLiveChannel } from './use-match-live-channel';
 import {

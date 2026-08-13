@@ -17,7 +17,7 @@ import { localeToBcp47, type AppLocale } from '@myclash/time';
 import { sideColorsForTokens } from '@myclash/ui';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
-import { useI18n } from '../../../../src/i18n/I18nProvider';
+import { useI18n } from '@myclash/next-i18n/client';
 
 type TranslateFn = (key: string, vars?: Record<string, string | number>) => string;
 

@@ -6,7 +6,7 @@ import type { ReactNode } from 'react';
 import { SkillBadge } from '@myclash/ui';
 import { formatInZone } from '@myclash/time';
 import { EventHubChrome, HubLoading, HubNotFound } from '@/components/me/EventHubChrome';
-import { useI18n } from '@/i18n/I18nProvider';
+import { useI18n } from '@myclash/next-i18n/client';
 import { useMyEvents, useMySchedule } from '@/components/me/hooks';
 import { matchKindHash, matchKindLabel } from '@/components/me/match-kind';
 import { buildWorkshopRows } from '@/components/me/workshop-rows';

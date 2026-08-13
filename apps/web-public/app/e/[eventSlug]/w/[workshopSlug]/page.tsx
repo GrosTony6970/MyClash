@@ -16,7 +16,7 @@ import { useParams, useSearchParams } from 'next/navigation';
 import { formatInZone, localeToBcp47 } from '@myclash/time';
 import { Button, GoogleIcon, TournamentColorDot, accentClassFor } from '@myclash/ui';
 import { EventHeader, fetchEventInfo, type EventInfo } from '../../_components/EventHeader';
-import { useI18n } from '../../../../../src/i18n/I18nProvider';
+import { useI18n } from '@myclash/next-i18n/client';
 import { createOAuthSupabaseClient } from '../../../../../src/lib/oauth-supabase';
 
 interface Session {

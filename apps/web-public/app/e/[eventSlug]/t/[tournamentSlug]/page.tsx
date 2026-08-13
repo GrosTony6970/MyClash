@@ -13,7 +13,7 @@
 
 import type { Metadata } from 'next';
 import { getServerApiUrl } from '@/lib/api-url';
-import { getServerT, resolveServerLocale } from '@/i18n/server-locale';
+import { getServerT, resolveServerLocale } from '@myclash/next-i18n/server';
 import { BackLink } from '@/components/BackLink';
 import { MedalPodium } from '@myclash/ui';
 import { createTranslator, getMessages } from '@myclash/i18n';

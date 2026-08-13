@@ -5,7 +5,7 @@ import { useMemo, useState } from 'react';
 import { SkillBadge } from '@myclash/ui';
 import { filterParticipants, type ParticipantLike } from './filter-participants';
 import { tournamentPillClasses } from './tournament-pill-classes';
-import { useI18n } from '../../../../../src/i18n/I18nProvider';
+import { useI18n } from '@myclash/next-i18n/client';
 
 interface Props {
   eventSlug: string;

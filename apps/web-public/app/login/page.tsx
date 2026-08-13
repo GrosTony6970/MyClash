@@ -17,7 +17,7 @@ import {
 import type { AuthPanelTab } from '@myclash/ui';
 import { validatePassword } from '@myclash/types';
 import { LegalConsent } from '../../src/components/LegalConsent';
-import { useI18n } from '../../src/i18n/I18nProvider';
+import { useI18n } from '@myclash/next-i18n/client';
 import { currentLegalVersionFields } from '../../src/lib/legal-url';
 import { createOAuthSupabaseClient } from '../../src/lib/oauth-supabase';
 

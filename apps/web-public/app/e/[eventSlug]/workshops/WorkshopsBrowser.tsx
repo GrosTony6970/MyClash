@@ -12,7 +12,7 @@
 import { useMemo, useState } from 'react';
 import { fuzzyMatch } from '@myclash/ui';
 import { zonedDay, formatInZone, localeToBcp47 } from '@myclash/time';
-import { useI18n } from '../../../../src/i18n/I18nProvider';
+import { useI18n } from '@myclash/next-i18n/client';
 import { WorkshopCard, workshopDayLabel } from '@/components/workshops/WorkshopCard';
 import {
   firstSessionStart,

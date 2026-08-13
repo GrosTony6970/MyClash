@@ -1,5 +1,5 @@
 import { getServerApiUrl } from '@/lib/api-url';
-import { getServerT } from '@/i18n/server-locale';
+import { getServerT } from '@myclash/next-i18n/server';
 import { HomeTabs } from './HomeTabs';
 import type { PublicLeague } from './PublicLeaguesSections';
 import type { WeaponOption } from './EventFilterBar';

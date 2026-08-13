@@ -18,7 +18,7 @@
 import { useEffect, useState } from 'react';
 import { ParticipantsList } from './ParticipantsList';
 import type { ParticipantLike } from './filter-participants';
-import { useI18n } from '../../../../../src/i18n/I18nProvider';
+import { useI18n } from '@myclash/next-i18n/client';
 
 interface WaitlistTab {
   tournamentId: string;

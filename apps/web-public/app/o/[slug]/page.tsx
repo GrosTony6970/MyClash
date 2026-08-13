@@ -16,7 +16,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { getServerApiUrl } from '@/lib/api-url';
-import { getServerT, resolveServerLocale } from '@/i18n/server-locale';
+import { getServerT, resolveServerLocale } from '@myclash/next-i18n/server';
 import type { Locale } from '@myclash/i18n';
 import { formatDateRange } from '../../_components/format-date-range';
 import { partitionEvents } from '../../_components/filter-events';

@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { LiceWaitingDisplay, type LiceWaitingDisplayNextMatch } from '@myclash/ui';
-import { useI18n } from '../../../../../../src/i18n/I18nProvider';
+import { useI18n } from '@myclash/next-i18n/client';
 import { useRealtimeWithFallback } from '../../../../../../src/lib/supabase-browser';
 import { getPublicApiUrl } from '../../../../../../src/lib/api-url';
 import { DisplayView } from '../../../match/[matchId]/display/display-view';

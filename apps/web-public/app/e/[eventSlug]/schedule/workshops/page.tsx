@@ -12,7 +12,7 @@ import { createTranslator, getMessages } from '@myclash/i18n';
 import { getServerApiUrl } from '@/lib/api-url';
 import { BackLink } from '@/components/BackLink';
 import { EventHeader, fetchEventInfo } from '../../_components/EventHeader';
-import { resolveServerLocale } from '@/i18n/server-locale';
+import { resolveServerLocale } from '@myclash/next-i18n/server';
 import { fetchWorkshops } from '../../home/_lib/public-event-data';
 import { buildWorkshopEntries } from '../../home/_lib/schedule-entries';
 import { ScheduleAgenda } from '../../home/_components/ScheduleAgenda';

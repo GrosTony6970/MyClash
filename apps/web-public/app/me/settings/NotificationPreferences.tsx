@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { Switch } from '@myclash/ui';
-import { useI18n } from '@/i18n/I18nProvider';
+import { useI18n } from '@myclash/next-i18n/client';
 import { SettingRow, Stepper } from './controls';
 
 /** Mirrors the API's NotificationPreferencesResponse (all numbers/booleans). */

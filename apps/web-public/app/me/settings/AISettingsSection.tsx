@@ -1,7 +1,7 @@
 'use client';
 
 import { AiKeysManager } from '@myclash/ui';
-import { useI18n } from '@/i18n/I18nProvider';
+import { useI18n } from '@myclash/next-i18n/client';
 
 /**
  * Personal BYOK AI keys — power the fighter's own performance insight. Keys are

@@ -24,7 +24,7 @@ import { isLiveStatus } from '@myclash/types';
 import { useClientClock } from '@myclash/ui';
 import { getPublicApiUrl } from '@/lib/api-url';
 import { useRealtimeWithFallback } from '@/lib/supabase-browser';
-import { useI18n } from '@/i18n/I18nProvider';
+import { useI18n } from '@myclash/next-i18n/client';
 import type { HighlightMatch, PublicWorkshop } from '../_lib/public-event-data';
 import { liveWorkshops, upcomingWorkshops } from '../_lib/live-workshops';
 import { LiveMatchCard } from './LiveMatchCard';

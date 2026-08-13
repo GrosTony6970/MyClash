@@ -3,9 +3,9 @@
 // entry deep-links to. Used by the event Overview page and the Schedule view so
 // both read the kind identically.
 
-import type { useI18n } from '@/i18n/I18nProvider';
+import type { Translator } from '@myclash/next-i18n/client';
 
-type TFn = ReturnType<typeof useI18n>['t'];
+type TFn = Translator;
 
 /** Normalised referee match-kind token → localized label. */
 export function matchKindLabel(

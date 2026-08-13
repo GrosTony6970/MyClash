@@ -10,7 +10,7 @@ import { createTranslator, getMessages } from '@myclash/i18n';
 import { getServerApiUrl } from '@/lib/api-url';
 import { BackLink } from '@/components/BackLink';
 import { EventHeader, fetchEventInfo } from '../../_components/EventHeader';
-import { resolveServerLocale } from '@/i18n/server-locale';
+import { resolveServerLocale } from '@myclash/next-i18n/server';
 import { loadTournamentSchedule } from './_lib/schedule-grid-data';
 import { TournamentScheduleGrid } from './_components/TournamentScheduleGrid';
 

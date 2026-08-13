@@ -12,7 +12,7 @@
 import { useEffect, useState } from 'react';
 import { useRealtimeWithFallback } from '@/lib/supabase-browser';
 import { getPublicApiUrl } from '@/lib/api-url';
-import { useI18n } from '../../../../../src/i18n/I18nProvider';
+import { useI18n } from '@myclash/next-i18n/client';
 import { toStandingRow, type ApiPoolStandings } from './tournament-data';
 import type { StandingRow } from './page';
 

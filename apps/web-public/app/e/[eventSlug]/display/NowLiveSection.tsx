@@ -18,7 +18,7 @@ import Link from 'next/link';
 import { isLiveStatus, placementLabel, type HubLice } from '@myclash/types';
 import { getPublicApiUrl } from '@/lib/api-url';
 import { useRealtimeWithFallback } from '@/lib/supabase-browser';
-import { useI18n } from '../../../../src/i18n/I18nProvider';
+import { useI18n } from '@myclash/next-i18n/client';
 
 interface LiveMatch {
   id: string;

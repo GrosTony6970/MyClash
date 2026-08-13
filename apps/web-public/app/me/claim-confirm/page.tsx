@@ -4,7 +4,7 @@ import { Suspense, useEffect, useState } from 'react';
 import { getPublicApiUrl } from '@/lib/api-url';
 import { Button } from '@myclash/ui';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useI18n } from '../../../src/i18n/I18nProvider';
+import { useI18n } from '@myclash/next-i18n/client';
 
 type Phase = 'validating' | 'confirming' | 'redirecting';
 

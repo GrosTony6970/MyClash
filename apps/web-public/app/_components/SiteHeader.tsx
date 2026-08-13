@@ -5,7 +5,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { t } from '@myclash/i18n';
 import { getPublicApiUrl } from '@/lib/api-url';
-import { LanguageSwitcher } from '@/i18n/LanguageSwitcher';
+import { LanguageSwitcher } from '@myclash/next-i18n/client';
 
 type AuthState = 'unknown' | 'signed-out' | 'signed-in';
 

@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from 'react';
 import { getPublicApiUrl } from '@/lib/api-url';
-import { useI18n } from '@/i18n/I18nProvider';
+import { useI18n } from '@myclash/next-i18n/client';
 import { AccountSection } from './AccountSection';
 import { AISettingsSection } from './AISettingsSection';
 import { LegalSection } from './LegalSection';

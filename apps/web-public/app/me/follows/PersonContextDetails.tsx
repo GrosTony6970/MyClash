@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import type { ReactNode } from 'react';
-import { useI18n } from '@/i18n/I18nProvider';
+import { useI18n } from '@myclash/next-i18n/client';
 import type { PersonContext, PersonContextFinalRank, PersonContextMatch } from './personContext';
 
 function Field({ label, value }: { label: string; value: string }) {

@@ -2,7 +2,7 @@
 
 import { useState, useSyncExternalStore } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
-import { useI18n } from '@/i18n/I18nProvider';
+import { useI18n } from '@myclash/next-i18n/client';
 
 // No-op store: we only need a client-vs-server snapshot, not live updates.
 const subscribe = () => () => {};

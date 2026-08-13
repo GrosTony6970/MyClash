@@ -13,7 +13,7 @@ import { getPublicApiUrl } from '@/lib/api-url';
 import { localeToBcp47 } from '@myclash/time';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
-import { useI18n } from '../../../../src/i18n/I18nProvider';
+import { useI18n } from '@myclash/next-i18n/client';
 
 interface PersonResult {
   id: string;

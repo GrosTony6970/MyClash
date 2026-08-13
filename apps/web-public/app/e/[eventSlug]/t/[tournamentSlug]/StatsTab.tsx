@@ -21,7 +21,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { getPublicApiUrl } from '@/lib/api-url';
-import { useI18n } from '../../../../../src/i18n/I18nProvider';
+import { useI18n } from '@myclash/next-i18n/client';
 import { fetchTournamentStats, type TournamentStats } from './stats-data';
 import { StatsView } from './StatsView';
 

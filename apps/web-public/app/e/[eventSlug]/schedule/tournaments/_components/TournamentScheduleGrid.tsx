@@ -41,7 +41,7 @@ import {
   TIME_LABEL_COL_PX,
   VENUE_HEADER_HEIGHT_PX,
 } from '@myclash/schedule-core';
-import { useI18n } from '@/i18n/I18nProvider';
+import { useI18n } from '@myclash/next-i18n/client';
 import { getPublicApiUrl } from '@/lib/api-url';
 import type { TournamentScheduleData } from '../_lib/schedule-grid-data';
 

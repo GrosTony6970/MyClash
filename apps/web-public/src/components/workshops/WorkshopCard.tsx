@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, type ReactNode } from 'react';
 import Link from 'next/link';
 import { accentClassFor } from '@myclash/ui';
 import { formatInZone, localeToBcp47 } from '@myclash/time';
-import { useI18n } from '@/i18n/I18nProvider';
+import { useI18n } from '@myclash/next-i18n/client';
 import { WORKSHOP_UNSCHEDULED, type WorkshopListItem } from './workshop-grouping';
 
 type TFn = ReturnType<typeof useI18n>['t'];

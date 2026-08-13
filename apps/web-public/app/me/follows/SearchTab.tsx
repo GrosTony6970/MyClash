@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { Avatar, EmptyState, formatCountryName, useNow } from '@myclash/ui';
 import { flagEmoji } from '@/lib/flag';
-import { useI18n } from '@/i18n/I18nProvider';
+import { useI18n } from '@myclash/next-i18n/client';
 import { FollowButton } from './FollowButton';
 import { PersonContextDetails } from './PersonContextDetails';
 import { fetchPeopleContext, type PersonContext } from './personContext';

@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { bracketRoundLabel } from '@myclash/types';
 import { Card, SkillBadge, sideColorsForTokens } from '@myclash/ui';
-import { useI18n } from '../../../src/i18n/I18nProvider';
+import { useI18n } from '@myclash/next-i18n/client';
 
 type TFn = (key: string, values?: Record<string, string | number>) => string;
 

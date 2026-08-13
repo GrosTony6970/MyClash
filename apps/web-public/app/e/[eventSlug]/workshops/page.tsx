@@ -10,7 +10,7 @@
 import type { Metadata } from 'next';
 import { BackLink } from '@/components/BackLink';
 import { getServerApiUrl } from '@/lib/api-url';
-import { getServerT } from '@/i18n/server-locale';
+import { getServerT } from '@myclash/next-i18n/server';
 import { WorkshopsBrowser, type WorkshopListItem } from './WorkshopsBrowser';
 import { fetchEventInfo } from '../_components/EventHeader';
 

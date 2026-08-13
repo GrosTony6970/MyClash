@@ -15,7 +15,7 @@ import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { localeToBcp47 } from '@myclash/time';
 import { LegalNotice } from '../../../../../src/components/LegalConsent';
-import { useI18n } from '../../../../../src/i18n/I18nProvider';
+import { useI18n } from '@myclash/next-i18n/client';
 
 interface PersonProfile {
   id: string;

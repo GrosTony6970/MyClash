@@ -20,7 +20,7 @@ import { formatInZone, localeToBcp47 } from '@myclash/time';
 import { DEFAULT_SCORING_CONFIG, type TournamentSideColor } from '@myclash/types';
 import { useRealtimeWithFallback } from '@/lib/supabase-browser';
 import { getPublicApiUrl } from '@/lib/api-url';
-import { useI18n } from '../../../../../src/i18n/I18nProvider';
+import { useI18n } from '@myclash/next-i18n/client';
 
 interface SwissMatch {
   id: string;

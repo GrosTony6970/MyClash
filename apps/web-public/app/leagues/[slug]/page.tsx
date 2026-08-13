@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { accentClassFor } from '@myclash/ui';
 import { getServerApiUrl, getPublicApiUrl } from '@/lib/api-url';
-import { getServerT } from '@/i18n/server-locale';
+import { getServerT } from '@myclash/next-i18n/server';
 import {
   StandingsGroups,
   type LeagueStandingRow,

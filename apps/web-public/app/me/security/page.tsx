@@ -5,7 +5,7 @@ import { Button, PasswordChecklist } from '@myclash/ui';
 import { validatePassword } from '@myclash/types';
 import { getPublicApiUrl } from '@/lib/api-url';
 import { EmailChangeSection } from '@/components/account/EmailChangeSection';
-import { useI18n } from '../../../src/i18n/I18nProvider';
+import { useI18n } from '@myclash/next-i18n/client';
 import { DataAndPrivacySection } from './DataAndPrivacySection';
 
 interface SecurityStatus {

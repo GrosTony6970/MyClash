@@ -5,7 +5,7 @@ import { useParams } from 'next/navigation';
 import { QRCodeSVG } from 'qrcode.react';
 import { getPublicApiUrl } from '@/lib/api-url';
 import { readStoredPass, writeStoredPass, type StoredPass } from '@/lib/event-pass';
-import { useI18n } from '../../../../src/i18n/I18nProvider';
+import { useI18n } from '@myclash/next-i18n/client';
 
 /**
  * My event pass — the QR the desk scans.

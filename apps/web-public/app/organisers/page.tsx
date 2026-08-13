@@ -17,7 +17,7 @@ import Link from 'next/link';
 import { EmptyState } from '@myclash/ui';
 import type { TranslationValues } from '@myclash/i18n';
 import { getServerApiUrl } from '@/lib/api-url';
-import { getServerT } from '@/i18n/server-locale';
+import { getServerT } from '@myclash/next-i18n/server';
 import { FollowOrganizerButton } from '../_components/FollowOrganizerButton';
 import { OrganiserSearchBar } from './OrganiserSearchBar';
 

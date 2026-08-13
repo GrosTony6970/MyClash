@@ -8,7 +8,7 @@ import { getServerApiUrl, getPublicApiUrl } from '@/lib/api-url';
 import Link from 'next/link';
 import { createTranslator, getMessages, type Locale } from '@myclash/i18n';
 import { localeToBcp47 } from '@myclash/time';
-import { resolveServerLocale } from '@/i18n/server-locale';
+import { resolveServerLocale } from '@myclash/next-i18n/server';
 import { MatchHistoryTrigger } from './_components/MatchHistoryTrigger';
 import { RatingHistorySection } from './_components/RatingHistorySection';
 import { FighterStatsPanel } from '@/components/fighter/FighterStatsPanel';

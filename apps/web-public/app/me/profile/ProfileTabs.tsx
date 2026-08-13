@@ -4,7 +4,7 @@ import { useMemo } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { SegmentedTabs } from '@myclash/ui';
 import { getPublicApiUrl } from '@/lib/api-url';
-import { useI18n } from '@/i18n/I18nProvider';
+import { useI18n } from '@myclash/next-i18n/client';
 import { FighterProfileClient } from '../../profile/fighter/FighterProfileClient';
 import { RefereeProfileClient } from '../../profile/referee/RefereeProfileClient';
 import { WorkshopProfileClient } from './WorkshopProfileClient';

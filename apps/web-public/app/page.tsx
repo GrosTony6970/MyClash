@@ -1,6 +1,6 @@
 import { PublicEventsBrowser } from './_components/PublicEventsBrowser';
 import { parseEventFilters } from './_components/event-filters';
-import { getServerT } from '@/i18n/server-locale';
+import { getServerT } from '@myclash/next-i18n/server';
 
 // Next.js 16 defaults route segments to static rendering. The public
 // landing page must always reflect the current published-events list

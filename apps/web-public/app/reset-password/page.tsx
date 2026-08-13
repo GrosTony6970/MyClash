@@ -5,7 +5,7 @@ import { getPublicApiUrl } from '@/lib/api-url';
 import { Button, PasswordChecklist } from '@myclash/ui';
 import { validatePassword } from '@myclash/types';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useI18n } from '../../src/i18n/I18nProvider';
+import { useI18n } from '@myclash/next-i18n/client';
 
 type Phase = 'idle' | 'submitting' | 'done';
 

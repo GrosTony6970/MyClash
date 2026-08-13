@@ -7,7 +7,7 @@ import { getPublicApiUrl } from '@/lib/api-url';
 import { useParams, useSearchParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useRealtimeWithFallback } from '@/lib/supabase-browser';
-import { useI18n } from '../../../../src/i18n/I18nProvider';
+import { useI18n } from '@myclash/next-i18n/client';
 
 interface LiveMatch {
   id: string;

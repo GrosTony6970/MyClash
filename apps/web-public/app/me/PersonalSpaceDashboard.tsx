@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { formatLocalizedDate } from '@myclash/types';
 import { useToast } from '@myclash/ui';
-import { useI18n } from '../../src/i18n/I18nProvider';
+import { useI18n } from '@myclash/next-i18n/client';
 import { getPublicApiUrl } from '@/lib/api-url';
 import { DashboardToday } from '@/components/me/DashboardToday';
 

@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useEffect, useState, type ReactNode } from 'react';
 import { Avatar, NavIcon, type NavIconName } from '@myclash/ui';
-import { useI18n } from '../i18n/I18nProvider';
+import { useI18n } from '@myclash/next-i18n/client';
 import { getPublicApiUrl } from '../lib/api-url';
 import { BottomNav } from './BottomNav';
 import { MyEventsNav } from './me/MyEventsNav';

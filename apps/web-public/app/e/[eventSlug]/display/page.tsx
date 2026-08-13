@@ -19,7 +19,7 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { BackLink } from '@/components/BackLink';
 import { getServerApiUrl } from '@/lib/api-url';
-import { getServerT } from '@/i18n/server-locale';
+import { getServerT } from '@myclash/next-i18n/server';
 import { getStaffLoginUrl } from '@/lib/staff-url';
 import { NowLiveSection } from './NowLiveSection';
 import {

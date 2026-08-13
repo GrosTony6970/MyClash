@@ -1,5 +1,5 @@
 import { BackLink } from '@/components/BackLink';
-import { getServerT } from '@/i18n/server-locale';
+import { getServerT } from '@myclash/next-i18n/server';
 
 /**
  * "← Back to events" link rendered at the top of each event-home

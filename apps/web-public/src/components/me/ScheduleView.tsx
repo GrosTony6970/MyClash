@@ -4,7 +4,7 @@ import { formatInZone } from '@myclash/time';
 import { blockTint, resolveBlockAccent } from '@myclash/types';
 import { CollapsibleSection, EmptyState, useClock } from '@myclash/ui';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { useI18n } from '../../i18n/I18nProvider';
+import { useI18n } from '@myclash/next-i18n/client';
 import { getPublicApiUrl } from '../../lib/api-url';
 import { CommitmentCard } from './CommitmentCard';
 import { detectConflicts, toTimed, type TimedItem } from './conflicts';
