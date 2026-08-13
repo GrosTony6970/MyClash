@@ -1,7 +1,7 @@
 'use client';
 
+import { useI18n } from '@myclash/next-i18n/client';
 import * as Sentry from '@sentry/nextjs';
-import { t } from '@myclash/i18n';
 import { useEffect } from 'react';
 
 /** Segment error boundary for the personal space (see e/[eventSlug]/error.tsx). */
@@ -12,6 +12,8 @@ export default function MeSegmentError({
   error: Error & { digest?: string };
   reset: () => void;
 }) {
+  const { t } = useI18n();
+
   useEffect(() => {
     Sentry.captureException(error);
   }, [error]);

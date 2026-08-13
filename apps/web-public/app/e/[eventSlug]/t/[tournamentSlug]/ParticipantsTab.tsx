@@ -11,9 +11,9 @@
  * Rating = HEMA rating (weighted · rank) for this tournament's weapon.
  */
 
+import { useI18n } from '@myclash/next-i18n/client';
 import { useMemo, useState } from 'react';
 import { SkillBadge } from '@myclash/ui';
-import { t } from '@myclash/i18n';
 import {
   filterParticipants,
   sortParticipants,
@@ -45,6 +45,8 @@ function formatRating(r: { weightedRating: number; rank: number | null } | null)
 }
 
 export function ParticipantsTab({ entries }: Props) {
+  const { t } = useI18n();
+
   const [sub, setSub] = useState<'main' | 'waitlist'>('main');
   const [query, setQuery] = useState('');
   const [sortKey, setSortKey] = useState<SortKey>('name');
@@ -153,6 +155,8 @@ function ParticipantsTable({
   onSort?: (key: SortKey) => void;
   emptyLabel: string;
 }) {
+  const { t } = useI18n();
+
   const colSpan = showPosition ? 5 : 4;
   return (
     <div className="overflow-x-auto rounded-xl border border-border bg-surface shadow-sm">

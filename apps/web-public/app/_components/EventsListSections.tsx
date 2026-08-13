@@ -2,10 +2,10 @@
 
 import Link from 'next/link';
 import { useMemo } from 'react';
-import { defaultLocale, t } from '@myclash/i18n';
+import { defaultLocale } from '@myclash/i18n';
 import { EventKindBadge, formatCountryName } from '@myclash/ui';
 import { DEFAULT_ORG_ACCENT, asEventKind } from '@myclash/types';
-import { useI18n } from '@myclash/next-i18n/client';
+import { useI18n, type Translator } from '@myclash/next-i18n/client';
 import { partitionEvents } from './filter-events';
 import { emptySectionMessageKey, type SectionKey } from './empty-section-message-key';
 import { formatDateRange } from './format-date-range';
@@ -49,7 +49,9 @@ function eventHref(event: PublicEvent, personal: boolean): string {
   return personal ? `/me/events/${slug}` : `/e/${slug}/home`;
 }
 
-function tournamentCountLabel(n: number | null | undefined): string {
+// Takes the translator rather than importing one: this runs at module scope,
+// where no hook can be called, and the module-level `t` is permanently English.
+function tournamentCountLabel(t: Translator, n: number | null | undefined): string {
   const count = n ?? 0;
   return count === 1
     ? t('publicApp.home.tournamentCountSingular').replace('{count}', '1')
@@ -102,6 +104,8 @@ export function EventsListSections({
 }
 
 function EmptySectionMessage({ sectionKey, query }: { sectionKey: SectionKey; query: string }) {
+  const { t } = useI18n();
+
   const trimmed = query.trim();
   const message = t(emptySectionMessageKey(sectionKey, trimmed)).replace('{query}', trimmed);
   return (
@@ -196,6 +200,8 @@ function EventLogo({ src, alt }: { src: string | null | undefined; alt: string }
 }
 
 function LiveTag() {
+  const { t } = useI18n();
+
   return (
     <span className="inline-flex items-center gap-1.5 rounded-full border border-success/60 bg-success/10 px-2.5 py-1 text-xs font-bold uppercase tracking-wide text-success">
       <span
@@ -208,6 +214,8 @@ function LiveTag() {
 }
 
 function PublishedTag() {
+  const { t } = useI18n();
+
   return (
     <span className="inline-flex items-center rounded-full border border-info/40 bg-info/10 px-2.5 py-1 text-xs font-semibold uppercase tracking-wide text-info">
       {t('publicApp.home.publishedTag')}
@@ -218,6 +226,8 @@ function PublishedTag() {
 /** Club events are public but unrated — say so, or their standings look like
  *  results that count. See the API's countsTowardStats gate. */
 function ClubTag({ event, className }: { event: PublicEvent; className?: string }) {
+  const { t } = useI18n();
+
   return (
     <EventKindBadge
       kind={asEventKind(event.event_kind)}
@@ -229,6 +239,8 @@ function ClubTag({ event, className }: { event: PublicEvent; className?: string 
 }
 
 function PastTag() {
+  const { t } = useI18n();
+
   return (
     <span className="inline-flex items-center rounded-full border border-border bg-border px-2.5 py-1 text-xs font-semibold uppercase tracking-wide text-foreground-secondary">
       {t('publicApp.home.pastTag')}
@@ -245,6 +257,8 @@ function LiveSection({
   query: string;
   personal: boolean;
 }) {
+  const { t } = useI18n();
+
   return (
     <section aria-labelledby="public-events-live-title" className="flex flex-col gap-4">
       <SectionHeader
@@ -285,7 +299,9 @@ function LiveSection({
                 </div>
               </div>
               <div className="mt-6 flex flex-wrap items-center justify-between gap-2 text-sm">
-                <span className="text-muted">{tournamentCountLabel(event.tournament_count)}</span>
+                <span className="text-muted">
+                  {tournamentCountLabel(t, event.tournament_count)}
+                </span>
                 <span className="font-semibold text-accent group-hover:text-accent-hover">
                   {t('publicApp.home.openEvent')}
                 </span>
@@ -306,6 +322,8 @@ interface TableRowProps {
 }
 
 function EventRow({ event, variant, hasLogos, personal }: TableRowProps) {
+  const { t } = useI18n();
+
   const tag = variant === 'published' ? <PublishedTag /> : <PastTag />;
   const trailing =
     variant === 'past' ? (
@@ -320,7 +338,7 @@ function EventRow({ event, variant, hasLogos, personal }: TableRowProps) {
         );
       })()
     ) : (
-      <span className="text-sm text-muted">{tournamentCountLabel(event.tournament_count)}</span>
+      <span className="text-sm text-muted">{tournamentCountLabel(t, event.tournament_count)}</span>
     );
 
   return (
@@ -383,6 +401,8 @@ function EventTableHeader({
   variant: 'published' | 'past';
   hasLogos: boolean;
 }) {
+  const { t } = useI18n();
+
   // The transparent 4px left border mirrors each row's colored `border-l-4` so
   // the header labels line up exactly above the row content (the row's border
   // sits outside its padding, shifting its content 4px to the right).
@@ -420,6 +440,8 @@ function UpcomingSection({
   query: string;
   personal: boolean;
 }) {
+  const { t } = useI18n();
+
   const hasLogos = events.some((event) => Boolean(event.logo_url));
   return (
     <section aria-labelledby="public-events-published-title" className="flex flex-col gap-3">
@@ -463,6 +485,8 @@ function PastSection({
   query: string;
   personal: boolean;
 }) {
+  const { t } = useI18n();
+
   const hasLogos = events.some((event) => Boolean(event.logo_url));
   return (
     <section aria-labelledby="public-events-past-title" className="flex flex-col gap-3">

@@ -3,9 +3,8 @@
 import { useEffect, useState, useSyncExternalStore } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
-import { t } from '@myclash/i18n';
 import { getPublicApiUrl } from '@/lib/api-url';
-import { LanguageSwitcher } from '@myclash/next-i18n/client';
+import { LanguageSwitcher, useI18n } from '@myclash/next-i18n/client';
 
 type AuthState = 'unknown' | 'signed-out' | 'signed-in';
 
@@ -37,6 +36,8 @@ function readAuthServerSnapshot(): AuthState {
  * same place as Sign in for signed-out users).
  */
 export function SiteHeader() {
+  const { t } = useI18n();
+
   const authState = useSyncExternalStore(subscribeAuth, readAuthSnapshot, readAuthServerSnapshot);
   const [displayName, setDisplayName] = useState<string | null>(null);
   const [hasAdminAccess, setHasAdminAccess] = useState(false);

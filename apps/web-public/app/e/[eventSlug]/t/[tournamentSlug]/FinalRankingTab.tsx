@@ -15,8 +15,9 @@
  * section exists; the content gates on the bracket actually being decided.
  */
 
+import { useI18n, type Translator } from '@myclash/next-i18n/client';
 import { useEffect, useState } from 'react';
-import { t } from '@myclash/i18n';
+
 import {
   computeFinalRanking,
   rankingBracketShape,
@@ -81,6 +82,8 @@ export function FinalRankingTab({
   repechageEntryRound,
   highlightRegistrationId,
 }: Props) {
+  const { t } = useI18n();
+
   const [poolEntries, setPoolEntries] = useState<PoolEntry[]>([]);
 
   // The entries the ranking is built from. Resolve client-side:
@@ -219,7 +222,7 @@ export function FinalRankingTab({
                   )}
                 </td>
                 <td className="px-4 py-2 text-foreground-secondary">
-                  {resultLabel(entry, maxRound)}
+                  {resultLabel(t, entry, maxRound)}
                 </td>
                 <td className="px-4 py-2 text-right font-mono tabular-nums text-foreground-secondary">
                   {poolScoreText}
@@ -240,7 +243,9 @@ function medalFor(place: number): string {
   return '';
 }
 
-function resultLabel(entry: FinalRankingEntry, maxRound: number): string {
+// Takes the translator: this runs at module scope, where no hook can be
+// called, and the module-level `t` is permanently English.
+function resultLabel(t: Translator, entry: FinalRankingEntry, maxRound: number): string {
   switch (entry.resultKind) {
     case 'champion':
       return t('publicApp.tournament.finalRanking.champion');
@@ -251,7 +256,7 @@ function resultLabel(entry: FinalRankingEntry, maxRound: number): string {
     case 'fourth':
       return t('publicApp.tournament.finalRanking.fourth');
     case 'round':
-      return roundLabel(entry.eliminationRound ?? 0, maxRound);
+      return roundLabel(t, entry.eliminationRound ?? 0, maxRound);
     case 'pool':
       return t('publicApp.tournament.finalRanking.pools');
     case 'swiss':
@@ -262,7 +267,7 @@ function resultLabel(entry: FinalRankingEntry, maxRound: number): string {
 }
 
 /** Phase name for the round a fighter was eliminated in (deepest = Semi-finals). */
-function roundLabel(round: number, maxRound: number): string {
+function roundLabel(t: Translator, round: number, maxRound: number): string {
   const remaining = maxRound - round;
   if (remaining <= 0) return t('publicApp.tournament.finalRanking.final');
   if (remaining === 1) return t('publicApp.tournament.finalRanking.semiFinals');

@@ -16,8 +16,9 @@
  * triggers a refetch.
  */
 
+import { useI18n, type Translator } from '@myclash/next-i18n/client';
 import { Fragment, useCallback, useEffect, useState, useSyncExternalStore } from 'react';
-import { t } from '@myclash/i18n';
+
 import { accentClassFor } from '@myclash/ui';
 import { useRealtimeWithFallback } from '@/lib/supabase-browser';
 import { getPublicApiUrl } from '@/lib/api-url';
@@ -116,6 +117,8 @@ export function StandingsView({
   colorToken,
   highlightRegistrationId,
 }: Props) {
+  const { t } = useI18n();
+
   // Mode is derived from the URL hash via useSyncExternalStore — the
   // SSR-safe, lint-clean way to read an external mutable source. The server
   // snapshot is always 'overall' (matches the SSR HTML); after hydration the
@@ -231,7 +234,14 @@ export function StandingsView({
 }
 
 /** The one-line explanation of why a fighter sits where they do. */
-function derivationSentence(data: OverallResponse, row: OverallRow, idx: number): string {
+// Takes the translator: this runs at module scope, where no hook can be
+// called, and the module-level `t` is permanently English.
+function derivationSentence(
+  t: Translator,
+  data: OverallResponse,
+  row: OverallRow,
+  idx: number,
+): string {
   if (idx === 0) return t('publicApp.tournament.standings.derivationLeader');
   const aboveName = data.rows[idx - 1]?.displayName ?? '';
   const dt = row.decidingTiebreak;
@@ -254,6 +264,8 @@ function OverallTable({
   bracketSize: number | null;
   highlightRegistrationId?: string | null;
 }) {
+  const { t } = useI18n();
+
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(() => new Set());
   const toggle = useCallback((id: string) => {
     setExpanded((prev) => {
@@ -394,7 +406,7 @@ function OverallTable({
                   >
                     <td colSpan={2 + orderedColumns.length} className="px-4 pb-3 pt-0.5">
                       <div className="flex flex-col gap-1 text-xs text-foreground-secondary">
-                        <p>{derivationSentence(data, row, idx)}</p>
+                        <p>{derivationSentence(t, data, row, idx)}</p>
                         {data.ruleset?.scoreFormula && (
                           <p className="font-mono text-[11px] text-muted">
                             {t('publicApp.tournament.standings.derivationFormula', {

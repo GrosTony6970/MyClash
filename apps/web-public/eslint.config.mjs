@@ -6,6 +6,7 @@ import reactHooksPlugin from 'eslint-plugin-react-hooks';
 import jsxA11y from 'eslint-plugin-jsx-a11y';
 import noLiteralStringRule from '../../eslint-rules/no-literal-string.mjs';
 import noLiteralLocaleRule from '../../eslint-rules/no-literal-locale.mjs';
+import noModuleTranslatorRule from '../../eslint-rules/no-module-translator-in-client.mjs';
 import noServerApiUrlLeakRule from '../../eslint-rules/no-server-api-url-leak.mjs';
 
 export default tseslint.config(
@@ -23,6 +24,7 @@ export default tseslint.config(
         rules: {
           'no-literal-string': noLiteralStringRule,
           'no-literal-locale': noLiteralLocaleRule,
+          'no-module-translator-in-client': noModuleTranslatorRule,
           'no-server-api-url-leak': noServerApiUrlLeakRule,
         },
       },
@@ -42,6 +44,7 @@ export default tseslint.config(
       'jsx-a11y/no-noninteractive-tabindex': 'off',
       'myclash/no-literal-string': 'error',
       'myclash/no-literal-locale': 'error',
+      'myclash/no-module-translator-in-client': 'error',
       // The docker-internal API host must never reach the browser. The rule
       // self-detects 'use client', so it applies to every file.
       'myclash/no-server-api-url-leak': 'error',

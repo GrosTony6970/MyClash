@@ -1,7 +1,7 @@
 'use client';
 
+import { useI18n } from '@myclash/next-i18n/client';
 import Link from 'next/link';
-import { t } from '@myclash/i18n';
 
 export interface PublicLeague {
   id?: string | null;
@@ -60,6 +60,8 @@ function LeagueLogo({ league }: { league: PublicLeague }) {
 }
 
 function LeagueActiveTag() {
+  const { t } = useI18n();
+
   return (
     <span className="inline-flex items-center rounded-full border border-success/60 bg-success/10 px-2.5 py-1 text-xs font-bold uppercase tracking-wide text-success">
       {t('publicApp.home.leagueStatusActive')}
@@ -68,6 +70,8 @@ function LeagueActiveTag() {
 }
 
 function LeaguePastTag() {
+  const { t } = useI18n();
+
   return (
     <span className="inline-flex items-center rounded-full border border-border bg-border px-2.5 py-1 text-xs font-semibold uppercase tracking-wide text-foreground-secondary">
       {t('publicApp.home.leagueStatusPast')}
@@ -76,6 +80,8 @@ function LeaguePastTag() {
 }
 
 function LeagueRow({ league, variant }: { league: PublicLeague; variant: 'active' | 'past' }) {
+  const { t } = useI18n();
+
   const accentColor = variant === 'active' ? ACCENT_ACTIVE : ACCENT_PAST;
   const tag = variant === 'active' ? <LeagueActiveTag /> : <LeaguePastTag />;
   return (
@@ -114,6 +120,8 @@ function LeagueRow({ league, variant }: { league: PublicLeague; variant: 'active
 }
 
 function LeagueTableHeader() {
+  const { t } = useI18n();
+
   return (
     <div
       role="row"
@@ -147,6 +155,8 @@ function SectionHeader({ id, title, count }: { id: string; title: string; count:
 }
 
 function LeaguesEmpty() {
+  const { t } = useI18n();
+
   return (
     <div className="rounded-lg border border-dashed border-border bg-background p-6 text-center text-sm text-muted">
       {t('publicApp.home.leaguesEmptyDescription')}
@@ -155,6 +165,8 @@ function LeaguesEmpty() {
 }
 
 export function PublicLeaguesSections({ leagues }: { leagues: PublicLeague[] }) {
+  const { t } = useI18n();
+
   if (leagues.length === 0) {
     return <LeaguesEmpty />;
   }

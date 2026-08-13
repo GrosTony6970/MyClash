@@ -2,7 +2,6 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { t } from '@myclash/i18n';
 import { useI18n } from '@myclash/next-i18n/client';
 import { EventsListSections } from './EventsListSections';
 import { PublicLeaguesSections, type PublicLeague } from './PublicLeaguesSections';
@@ -32,9 +31,7 @@ interface PublicEvent {
 type Tab = 'events' | 'leagues';
 
 function TabRow({ tab, onSelect }: { tab: Tab; onSelect: (next: Tab) => void }) {
-  // The tab labels use the module-level (English-bound) `t`; the directory link
-  // uses the locale-aware hook rather than inheriting that.
-  const { t: localised } = useI18n();
+  const { t } = useI18n();
   return (
     <div className="flex flex-wrap items-center justify-between gap-3">
       <div className="inline-flex self-start rounded-md border border-border bg-surface p-1 shadow-sm">
@@ -65,7 +62,7 @@ function TabRow({ tab, onSelect }: { tab: Tab; onSelect: (next: Tab) => void }) 
         href="/organisers"
         className="text-sm font-semibold text-accent hover:text-accent-hover hover:underline"
       >
-        {localised('publicApp.organisers.browseCta')}
+        {t('publicApp.organisers.browseCta')}
       </Link>
     </div>
   );
