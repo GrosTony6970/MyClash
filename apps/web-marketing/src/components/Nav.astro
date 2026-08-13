@@ -2,7 +2,7 @@
 import { Image } from 'astro:assets';
 import logo from '../assets/Logo_nobackground.png';
 import LangSwitch from './LangSwitch.astro';
-import { CHROME, SECTION_IDS, localePath, APP_URL, type Locale } from '../i18n/ui';
+import { CHROME, SECTION_IDS, localePath, APP_URL, APP_LOGIN_URL, type Locale } from '../i18n/ui';
 
 interface Props {
   locale: Locale;
@@ -51,7 +51,7 @@ const anchor = (id: string) => `${home === '/' ? '' : home}/#${id}`;
       <li><a href={anchor(SECTION_IDS.support)}>{t.navSupport}</a></li>
     </ul>
     {route !== null && <LangSwitch locale={locale} route={route} variant="nav" />}
-    <a href={APP_URL} class="nav__cta" target="_blank" rel="noopener">{t.navCta}</a>
+    <a href={APP_LOGIN_URL} class="nav__cta" target="_blank" rel="noopener">{t.navCta}</a>
   </div>
 </nav>
 

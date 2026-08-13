@@ -100,6 +100,14 @@ export const SECTION_IDS = {
 
 export const CONTACT_EMAIL = 'admin@myclash.fr';
 export const APP_URL = 'https://app.myclash.fr';
+/**
+ * Where the "Connexion" CTA goes. Separate from `APP_URL` because the two nav
+ * items lead to different places: the "Application" link opens the app, the CTA
+ * opens the front door. Pointing the CTA at the root dropped a visitor who had
+ * just clicked a button labelled *Connexion* onto the events browser, where
+ * they had to find the sign-in button again.
+ */
+export const APP_LOGIN_URL = `${APP_URL}/login`;
 /** Organiser workspace — where "create my event" goes. */
 export const ADMIN_URL = 'https://admin.myclash.fr';
 export const LICENSE_URL = 'https://www.gnu.org/licenses/agpl-3.0.html';
