@@ -103,7 +103,7 @@ export const publicApp = {
   },
   home: {
     description: 'Application publique événement',
-    title: 'Suivez les événements AMHE en direct depuis votre téléphone.',
+    title: 'Catalogue public des événements',
     subtitle:
       'Ouvrez un événement pour consulter le planning live, trouver des participants, suivre des combattants et voir les résultats publiés.',
     openEvent: 'Ouvrir',

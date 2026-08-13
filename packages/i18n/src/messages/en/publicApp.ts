@@ -107,7 +107,7 @@ export const publicApp = {
   },
   home: {
     description: 'Public event app',
-    title: 'Follow live HEMA events from your phone.',
+    title: 'Public event catalog',
     subtitle:
       'Open an event to see the live schedule, find fighters, follow them, and check results as they are published.',
     openEvent: 'Open',

@@ -28,9 +28,12 @@ export default async function HomePage({
     >
       <div className="mx-auto flex w-full max-w-7xl flex-col gap-8">
         <section className="border-y border-border py-5">
-          <p className="max-w-2xl font-display font-bold text-2xl sm:text-3xl text-foreground">
+          {/* The page's only h1. The heading used to be a <p>, which left the
+              document with no h1 at all — the brand in SiteHeader is a <span>
+              and every section below is an h2. */}
+          <h1 className="max-w-2xl font-display font-bold text-2xl sm:text-3xl text-foreground">
             {t('publicApp.home.title')}
-          </p>
+          </h1>
           <p className="mt-2 max-w-2xl text-sm leading-6 text-foreground-secondary">
             {t('publicApp.home.subtitle')}
           </p>
