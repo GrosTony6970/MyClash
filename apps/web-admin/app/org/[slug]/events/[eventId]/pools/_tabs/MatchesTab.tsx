@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { t } from '@myclash/i18n';
 import { useRealtimeWithFallback } from '@/lib/supabase-browser';
-import { useI18n } from '@/i18n/I18nProvider';
+import { useI18n } from '@myclash/next-i18n/client';
 import { sideStyle, statusPillTone, matchStatusSemantic, StatusHelp } from '@myclash/ui';
 import { DEFAULT_SCORING_CONFIG, resolveMatchWinner } from '@myclash/types';
 import { parseSideColors, type SideColors } from './parse-side-colors';

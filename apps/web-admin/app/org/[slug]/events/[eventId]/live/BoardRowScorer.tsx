@@ -1,6 +1,6 @@
 'use client';
 import { formatMinuteSpan, type AppLocale } from '@myclash/time';
-import { useI18n } from '@/i18n/I18nProvider';
+import { useI18n } from '@myclash/next-i18n/client';
 import { isClockSkewed } from '@/lib/live-board/live-board-state';
 import type { BoardRow } from '@/lib/live-board/types';
 

@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
 import { useConfirm } from '@myclash/ui';
-import { useI18n } from '../../../../../../src/i18n/I18nProvider';
+import { useI18n } from '@myclash/next-i18n/client';
 import { MessageMarkdown } from './MessageMarkdown';
 import { ProposalCard, type ChatProposal } from './ProposalCard';
 import { getPublicApiUrl } from '@/lib/api-url';

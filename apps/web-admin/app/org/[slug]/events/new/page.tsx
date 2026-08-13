@@ -5,7 +5,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { Button, CountryCombobox, formatCountryName } from '@myclash/ui';
 import { EVENT_KINDS, DEFAULT_EVENT_KIND, type EventKind } from '@myclash/types';
 import { IsoDatePicker } from '../../../../../src/components/IsoDatePicker';
-import { useI18n } from '../../../../../src/i18n/I18nProvider';
+import { useI18n } from '@myclash/next-i18n/client';
 import { useOrganizerSelectedEvent } from '../../../../../src/components/organizer-event-context';
 import { getPublicApiUrl } from '@/lib/api-url';
 

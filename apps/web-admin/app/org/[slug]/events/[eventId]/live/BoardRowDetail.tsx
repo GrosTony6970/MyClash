@@ -1,6 +1,6 @@
 'use client';
 import { asColorToken, tintBgClassFor, tintTextClassFor } from '@myclash/ui';
-import { useI18n } from '@/i18n/I18nProvider';
+import { useI18n } from '@myclash/next-i18n/client';
 import { BoardRowActions } from './BoardRowActions';
 import { BoardRowScorer } from './BoardRowScorer';
 import { BoardRowTimeline } from './BoardRowTimeline';

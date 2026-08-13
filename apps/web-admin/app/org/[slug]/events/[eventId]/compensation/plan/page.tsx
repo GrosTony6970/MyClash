@@ -7,7 +7,7 @@ import { useParams } from 'next/navigation';
 import type { CompensationPlan, CompensationPhase } from '@myclash/types';
 import { CompensationTopNav } from '../../../../../../../src/components/CompensationTopNav';
 import { rulesetHelp } from '@/components/rulesets/rulesetHelp';
-import { useI18n } from '@/i18n/I18nProvider';
+import { useI18n } from '@myclash/next-i18n/client';
 import { getPublicApiUrl } from '@/lib/api-url';
 
 /** A referee_skills catalog entry (the 3 system skills + this event's custom skills). */

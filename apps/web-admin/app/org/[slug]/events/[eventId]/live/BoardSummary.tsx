@@ -1,6 +1,6 @@
 'use client';
 import { formatTime } from '@myclash/time';
-import { useI18n } from '@/i18n/I18nProvider';
+import { useI18n } from '@myclash/next-i18n/client';
 import type { HealthState } from '@/lib/live-board/live-board-state';
 import { projectedFinishMs } from '@/lib/live-board/live-board-timing';
 import type { BoardRow, LiveBoardProgress } from '@/lib/live-board/types';

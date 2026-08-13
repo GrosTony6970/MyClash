@@ -22,7 +22,7 @@ import {
   TournamentColorDot,
   useToast,
 } from '@myclash/ui';
-import { useI18n } from '../../../../../../src/i18n/I18nProvider';
+import { useI18n } from '@myclash/next-i18n/client';
 import { MatchesTab } from './_tabs/MatchesTab';
 import { StandingsTab } from './_tabs/StandingsTab';
 import { RefereesTab } from './_tabs/RefereesTab';

@@ -37,7 +37,7 @@ import { localeToBcp47, type AppLocale } from '@myclash/time';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { type ChangeEvent, type FormEvent, useEffect, useMemo, useRef, useState } from 'react';
-import { useI18n } from '../../../../src/i18n/I18nProvider';
+import { useI18n } from '@myclash/next-i18n/client';
 import { validateLogoFile } from '../../../../src/lib/validate-logo-file';
 import { RequestDeletionModal } from './_components/RequestDeletionModal';
 import { getPublicApiUrl } from '@/lib/api-url';

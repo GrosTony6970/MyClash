@@ -2,11 +2,11 @@
 import { useMemo } from 'react';
 import { MatchTimeline, buildUnifiedTimeline, useLiveMatch } from '@myclash/ui';
 import { DEFAULT_SCORING_CONFIG } from '@myclash/types';
-import type { useI18n } from '@/i18n/I18nProvider';
+import type { Translator } from '@myclash/next-i18n/client';
 import { getPublicApiUrl } from '@/lib/api-url';
 import { getSupabaseBrowser } from '@/lib/supabase-browser';
 
-type T = ReturnType<typeof useI18n>['t'];
+type T = Translator;
 
 /**
  * The exchange + penalty feed for the expanded bout.

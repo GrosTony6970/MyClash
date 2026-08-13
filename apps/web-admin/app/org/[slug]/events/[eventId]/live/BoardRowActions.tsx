@@ -1,9 +1,9 @@
 'use client';
 import Link from 'next/link';
-import type { useI18n } from '@/i18n/I18nProvider';
+import type { Translator } from '@myclash/next-i18n/client';
 import { buildMatchScoringHref, STAFF_APP_PREFIX } from '../pools/_tabs/build-scoring-href';
 
-type T = ReturnType<typeof useI18n>['t'];
+type T = Translator;
 
 const PUBLIC_APP_URL = process.env['NEXT_PUBLIC_PUBLIC_APP_URL'] ?? 'https://app.myclash.fr';
 

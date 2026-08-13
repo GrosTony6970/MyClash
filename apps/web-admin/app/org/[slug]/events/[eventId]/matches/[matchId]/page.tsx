@@ -22,7 +22,7 @@ import { Modal, sideColorsFor, useConfirm, useToast } from '@myclash/ui';
 import type { TournamentScoringConfig } from '@myclash/types';
 import { FORFEIT_REASONS, OVERRIDE_REASONS, isOverrideReason } from '@myclash/rulesets';
 import { localeToBcp47 } from '@myclash/time';
-import { useI18n } from '../../../../../../../src/i18n/I18nProvider';
+import { useI18n } from '@myclash/next-i18n/client';
 import { PayloadCell, type PayloadLabel } from '../../../../../../../src/components/PayloadCell';
 import { getPublicApiUrl } from '@/lib/api-url';
 import { voidConfirmCopy, type ForfeitCascade } from './void-confirm-copy';

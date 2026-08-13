@@ -23,7 +23,7 @@ import { t } from '@myclash/i18n';
 import { localeToBcp47, type AppLocale } from '@myclash/time';
 import { blockTint, resolveBlockAccent } from '@myclash/types';
 import { groupPoolsByTimeslot } from '../../../referees/_components/group-pools-by-timeslot';
-import { useI18n } from '../../../../../../../../src/i18n/I18nProvider';
+import { useI18n } from '@myclash/next-i18n/client';
 
 export interface TimelinePool {
   id: string;

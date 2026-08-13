@@ -15,7 +15,7 @@ import {
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import { useI18n } from '../../../../../../src/i18n/I18nProvider';
+import { useI18n } from '@myclash/next-i18n/client';
 import { computeWizardStep } from './new/_wizard/compute-wizard-step';
 import { useEventStatus } from '../_hooks/useEventStatus';
 import { RequestDeletionModal } from '../../_components/RequestDeletionModal';

@@ -28,7 +28,7 @@
 import { useMemo, useState } from 'react';
 import { t } from '@myclash/i18n';
 import { type AppLocale } from '@myclash/time';
-import { useI18n } from '@/i18n/I18nProvider';
+import { useI18n } from '@myclash/next-i18n/client';
 import { PoolTimelineGrid, type TimelinePool } from './_components/PoolTimelineGrid';
 import { SwapSuggestionsPanel } from '../../referees/_components/SwapSuggestionsPanel';
 import { PoolSlotCard } from '../../referees/_components/PoolSlotCard';

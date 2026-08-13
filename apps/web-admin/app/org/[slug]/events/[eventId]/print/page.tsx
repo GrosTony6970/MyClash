@@ -22,7 +22,7 @@ import { sideColorsFor } from '@myclash/ui';
 import type { TournamentScoringConfig } from '@myclash/types';
 import { localeToBcp47 } from '@myclash/time';
 import { getPublicApiUrl } from '@/lib/api-url';
-import { useI18n } from '../../../../../../src/i18n/I18nProvider';
+import { useI18n } from '@myclash/next-i18n/client';
 import {
   allMatchesOf,
   bracketToPrint,

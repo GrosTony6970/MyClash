@@ -15,7 +15,7 @@ import { t } from '@myclash/i18n';
 import { localeToBcp47, type AppLocale } from '@myclash/time';
 import { blockTint, resolveBlockAccent } from '@myclash/types';
 import type { CapacityWarning, RefereeConflict } from '@myclash/types';
-import { useI18n } from '../../../../../../src/i18n/I18nProvider';
+import { useI18n } from '@myclash/next-i18n/client';
 import { useEventStatus } from '../_hooks/useEventStatus';
 import { SkillCatalog } from './_components/SkillCatalog';
 import { StaffingTab } from './_components/StaffingTab';

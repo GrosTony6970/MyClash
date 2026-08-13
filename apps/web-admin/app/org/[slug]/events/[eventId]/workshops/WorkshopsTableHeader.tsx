@@ -15,7 +15,7 @@
 import type { ComponentProps } from 'react';
 import { DataTableCell, SortableHeader } from '@myclash/ui';
 import { NO_VENUE, type WorkshopFilterOptions, type WorkshopFilterValue } from './filter-workshops';
-import { useI18n } from '../../../../../../src/i18n/I18nProvider';
+import { useI18n } from '@myclash/next-i18n/client';
 
 const CONTROL_CLASS =
   'w-full rounded-lg border border-border bg-surface px-2 py-1 text-xs font-normal normal-case tracking-normal text-foreground-secondary focus:outline-none focus:ring-2 focus:ring-accent';

@@ -7,7 +7,7 @@ import { Fragment, useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import type { CompensationReport } from '@myclash/types';
 import { CompensationTopNav } from '../../../../../../src/components/CompensationTopNav';
-import { useI18n } from '../../../../../../src/i18n/I18nProvider';
+import { useI18n } from '@myclash/next-i18n/client';
 import { compensationToCsv, compensationToPrintHtml } from './compensation-export';
 import { getPublicApiUrl } from '@/lib/api-url';
 

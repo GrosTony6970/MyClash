@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import type { StaffRole } from '@myclash/types';
-import { useI18n } from '../../../../../../src/i18n/I18nProvider';
+import { useI18n } from '@myclash/next-i18n/client';
 import { pinProblem } from './pin-feedback';
 import { STAFF_TAB_CREATE_KEYS } from './types';
 import type { NewStaffAccount } from './useStaffAccounts';

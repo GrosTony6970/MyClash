@@ -1,7 +1,7 @@
 'use client';
 
 import { STAFF_ROLES, staffRoleUsesLices, type StaffRole } from '@myclash/types';
-import { useI18n } from '../../../../../../src/i18n/I18nProvider';
+import { useI18n } from '@myclash/next-i18n/client';
 import { StaffLoginLink } from './StaffLoginLink';
 import { STAFF_TAB_LABEL_KEYS, type Lice, type StaffAccount } from './types';
 

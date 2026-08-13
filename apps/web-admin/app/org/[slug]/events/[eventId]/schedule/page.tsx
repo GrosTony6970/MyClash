@@ -7,7 +7,7 @@ import type { GenerateResult } from '@myclash/types';
 import { ProgrammePlanner } from './programme';
 import { ScheduleGrid } from './grid';
 import { LiveNowBanner } from './live-now-banner';
-import { useI18n } from '../../../../../../src/i18n/I18nProvider';
+import { useI18n } from '@myclash/next-i18n/client';
 
 export default function SchedulePage() {
   const params = useParams<{ slug: string; eventId: string }>();

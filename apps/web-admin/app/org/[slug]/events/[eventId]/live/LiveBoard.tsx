@@ -1,7 +1,7 @@
 'use client';
 import { useState } from 'react';
 import { useSecondsClock } from '@myclash/ui';
-import { useI18n } from '@/i18n/I18nProvider';
+import { useI18n } from '@myclash/next-i18n/client';
 import { useRealtimeWithFallback } from '@/lib/supabase-browser';
 import { getPublicApiUrl } from '@/lib/api-url';
 import { useLiveBoard } from '@/lib/live-board/useLiveBoard';

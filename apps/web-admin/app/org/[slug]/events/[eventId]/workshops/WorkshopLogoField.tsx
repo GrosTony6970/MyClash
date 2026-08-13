@@ -17,7 +17,7 @@
 import { useRef, useState } from 'react';
 import { validateLogoFile } from '../../../../../../src/lib/validate-logo-file';
 import { LogoCropperModal } from '../../../_components/LogoCropperModal';
-import { useI18n } from '../../../../../../src/i18n/I18nProvider';
+import { useI18n } from '@myclash/next-i18n/client';
 
 interface Props {
   /** Currently-saved logo URL (edit mode), or null. */

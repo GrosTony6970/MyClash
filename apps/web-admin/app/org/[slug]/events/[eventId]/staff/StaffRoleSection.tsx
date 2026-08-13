@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { SegmentedTabs, usePrompt } from '@myclash/ui';
 import { STAFF_ROLES, type StaffRole } from '@myclash/types';
-import { useI18n } from '../../../../../../src/i18n/I18nProvider';
+import { useI18n } from '@myclash/next-i18n/client';
 import { CreateStaffAccountForm } from './CreateStaffAccountForm';
 import { StaffAccountList } from './StaffAccountList';
 import { isStaffRoleTab, STAFF_TAB_HINT_KEYS, STAFF_TAB_LABEL_KEYS } from './types';

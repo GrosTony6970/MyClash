@@ -23,7 +23,7 @@ import {
 import { resolveMatchWinner } from '@myclash/types';
 import { useRealtimeWithFallback } from '@/lib/supabase-browser';
 import { rulesetHelp } from '@/components/rulesets/rulesetHelp';
-import { useI18n } from '../../../../../../src/i18n/I18nProvider';
+import { useI18n } from '@myclash/next-i18n/client';
 import { useEventStatus } from '../_hooks/useEventStatus';
 import { RefereesTab as BracketRefereesTab } from './_tabs/RefereesTab';
 import { buildMatchScoringHref, STAFF_APP_PREFIX } from '../pools/_tabs/build-scoring-href';

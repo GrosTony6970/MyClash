@@ -1,10 +1,10 @@
 'use client';
 import { useState } from 'react';
 import { useToast } from '@myclash/ui';
-import type { useI18n } from '@/i18n/I18nProvider';
+import type { Translator } from '@myclash/next-i18n/client';
 import type { LiveBoardAccount } from '@/lib/live-board/types';
 
-type T = ReturnType<typeof useI18n>['t'];
+type T = Translator;
 
 const NONE = '__none__';
 

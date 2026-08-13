@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { localeToBcp47 } from '@myclash/time';
-import { useI18n } from '../../../../../../src/i18n/I18nProvider';
+import { useI18n } from '@myclash/next-i18n/client';
 import { getPublicApiUrl } from '@/lib/api-url';
 
 interface LiveMatch {

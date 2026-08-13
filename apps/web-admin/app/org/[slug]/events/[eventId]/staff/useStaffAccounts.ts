@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { StaffRole } from '@myclash/types';
 import { getPublicApiUrl } from '@/lib/api-url';
-import { useI18n } from '../../../../../../src/i18n/I18nProvider';
+import { useI18n } from '@myclash/next-i18n/client';
 import { pinProblem } from './pin-feedback';
 import type { EventInfo, Lice, StaffAccount } from './types';
 

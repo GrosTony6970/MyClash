@@ -17,7 +17,7 @@
 import { useRef, useState } from 'react';
 import { blockTint, resolveBlockAccent } from '@myclash/types';
 import { accentClassFor, tintBgClassFor, tintBorderClassFor, tintTextClassFor } from '@myclash/ui';
-import { useI18n } from '../../../../../../src/i18n/I18nProvider';
+import { useI18n } from '@myclash/next-i18n/client';
 import type { LiceDrift } from './lice-drift';
 import { liceSpanFromDelta } from './lice-span';
 import { liceUtilizationPct } from './lice-utilization';

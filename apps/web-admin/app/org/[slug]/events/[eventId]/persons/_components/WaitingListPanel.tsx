@@ -10,7 +10,7 @@ import {
   useToast,
 } from '@myclash/ui';
 import { formatRosterName } from '../roster-name';
-import { useI18n } from '../../../../../../../src/i18n/I18nProvider';
+import { useI18n } from '@myclash/next-i18n/client';
 
 /**
  * Slice 5 of the tournament capacity + waitlist overhaul.

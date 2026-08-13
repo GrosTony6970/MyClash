@@ -18,7 +18,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { t } from '@myclash/i18n';
-import { useI18n } from '@/i18n/I18nProvider';
+import { useI18n } from '@myclash/next-i18n/client';
 import { SwapSuggestionsPanel } from '../../referees/_components/SwapSuggestionsPanel';
 import { CandidatePicker } from '../../referees/_components/CandidatePicker';
 import { formatHHMM } from '../../referees/_components/format-hhmm';

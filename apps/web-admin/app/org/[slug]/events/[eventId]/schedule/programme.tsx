@@ -9,7 +9,7 @@ import type {
 } from '@myclash/types';
 import { blockTint, resolveBlockAccent } from '@myclash/types';
 import { useConfirm } from '@myclash/ui';
-import { useI18n } from '../../../../../../src/i18n/I18nProvider';
+import { useI18n } from '@myclash/next-i18n/client';
 import { minToTime, nextBlockStartTime, resequenceDay, timeToMin } from './programme-timeline';
 import { ColorSwatchPicker } from '@/components/ColorSwatchPicker';
 import { getPublicApiUrl } from '@/lib/api-url';

@@ -26,7 +26,7 @@ import {
 } from '@myclash/ui';
 import { useRealtimeWithFallback } from '@/lib/supabase-browser';
 import { rankingToCsv, rankingToPrintHtml, type ExportRow } from './final-ranking-export';
-import { useI18n } from '../../../../../../src/i18n/I18nProvider';
+import { useI18n } from '@myclash/next-i18n/client';
 import { getPublicApiUrl } from '@/lib/api-url';
 
 type Translator = (key: string, values?: Record<string, string | number>) => string;

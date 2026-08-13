@@ -49,7 +49,7 @@ import {
 } from './filter-workshops';
 import { useWorkshopListFilters } from './useWorkshopListFilters';
 import { Time24Input } from '@/components/Time24Input';
-import { useI18n } from '../../../../../../src/i18n/I18nProvider';
+import { useI18n } from '@myclash/next-i18n/client';
 import { getPublicApiUrl } from '@/lib/api-url';
 
 interface NamedRef {

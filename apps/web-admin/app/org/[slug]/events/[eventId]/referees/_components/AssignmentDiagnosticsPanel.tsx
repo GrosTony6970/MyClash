@@ -3,7 +3,7 @@
 import { t } from '@myclash/i18n';
 import { localeToBcp47, type AppLocale } from '@myclash/time';
 import type { CapacityWarning, RefereeConflict } from '@myclash/types';
-import { useI18n } from '@/i18n/I18nProvider';
+import { useI18n } from '@myclash/next-i18n/client';
 import { boardHealthStatus, summariseBoard, summariseRosterHealth } from './board-diagnostics';
 import type { HealthStatus } from './board-diagnostics';
 import { formatUnassignedReason } from './format-unassigned-reason';
