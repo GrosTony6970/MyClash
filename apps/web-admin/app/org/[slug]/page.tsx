@@ -5,7 +5,7 @@ import { useParams } from 'next/navigation';
 import { type ChangeEvent, type FormEvent, useEffect, useRef, useState } from 'react';
 import { AdminPageHeader, MetricCard, StatsGrid } from '@myclash/ui';
 import { DEFAULT_ORG_ACCENT } from '@myclash/types';
-import { useI18n } from '../../../src/i18n/I18nProvider';
+import { useI18n } from '@myclash/next-i18n/client';
 import { useOrganizerSelectedEvent } from '../../../src/components/organizer-event-context';
 import { ColorSwatchPicker } from '../../../src/components/ColorSwatchPicker';
 import { LogoCropperModal } from './_components/LogoCropperModal';

@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useI18n } from '../../src/i18n/I18nProvider';
+import { useI18n } from '@myclash/next-i18n/client';
 import { resolvePostAuthDestination } from '../../src/lib/post-auth-destination';
 import { getPublicApiUrl } from '@/lib/api-url';
 

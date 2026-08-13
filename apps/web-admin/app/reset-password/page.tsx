@@ -4,7 +4,7 @@ import Image from 'next/image';
 import { useMemo, useState } from 'react';
 import { validatePassword } from '@myclash/types';
 import { AuthField, AuthNotice, AuthPanel, Button, PasswordChecklist } from '@myclash/ui';
-import { useI18n } from '../../src/i18n/I18nProvider';
+import { useI18n } from '@myclash/next-i18n/client';
 import { getPublicApiUrl } from '@/lib/api-url';
 
 type Phase = 'idle' | 'submitting' | 'done';

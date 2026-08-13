@@ -1,6 +1,6 @@
 'use client';
 import { useSecondsClock } from '@myclash/ui';
-import { useI18n } from '@/i18n/I18nProvider';
+import { useI18n } from '@myclash/next-i18n/client';
 import { getPublicApiUrl } from '@/lib/api-url';
 import { groupBoardRows } from '@/lib/live-board/board-groups';
 import { sortBoardRows } from '@/lib/live-board/live-board-state';

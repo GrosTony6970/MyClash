@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { AiKeysManager } from '@myclash/ui';
-import { useI18n } from '../../../../../src/i18n/I18nProvider';
+import { useI18n } from '@myclash/next-i18n/client';
 import { AiUsageView, type UsageRollup } from '../../../../../src/components/ai/AiUsageView';
 import { AiBudgetView } from '../../../../../src/components/ai/AiBudgetView';
 import { getPublicApiUrl } from '@/lib/api-url';

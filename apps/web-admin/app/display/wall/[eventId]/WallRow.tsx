@@ -1,12 +1,12 @@
 'use client';
-import type { useI18n } from '@/i18n/I18nProvider';
+import type { Translator } from '@myclash/next-i18n/client';
 import { DOT, type HealthState } from '@/lib/live-board/live-board-state';
 import { timingReadout } from '@/lib/live-board/board-timing-labels';
 import { matchStatusLabel } from '@/lib/live-board/match-status';
 import type { AppLocale } from '@myclash/time';
 import type { BoardRow } from '@/lib/live-board/types';
 
-type T = ReturnType<typeof useI18n>['t'];
+type T = Translator;
 
 /**
  * One piste on the projector.

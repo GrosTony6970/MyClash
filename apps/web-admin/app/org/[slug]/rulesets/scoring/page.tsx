@@ -13,7 +13,7 @@ import {
   useToast,
 } from '@myclash/ui';
 import type { BucketDiff } from '@myclash/rulesets';
-import { useI18n } from '../../../../../src/i18n/I18nProvider';
+import { useI18n } from '@myclash/next-i18n/client';
 import { RulesetsTopNav } from '../../../../../src/components/rulesets/RulesetsTopNav';
 import { rulesetRowActions } from '../../../../../src/components/rulesets/ruleset-row-actions';
 import { RulesetDiscoverTab } from '../../../../../src/components/rulesets/RulesetDiscoverTab';
