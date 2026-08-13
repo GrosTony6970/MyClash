@@ -410,9 +410,11 @@ services:
       - traefik.http.routers.dev-api.rule=Host(`api.myclash.localhost`)
       - traefik.http.routers.dev-api.entrypoints=websecure
       - traefik.http.routers.dev-api.tls=true
-      # Staff PIN login lands here in dev (the scoring pad calls the API host
-      # directly), so this router carries the -staff ban rule — prod's
-      # myclash-staff-api equivalent.
+      # Carries the -staff ban rule as a volumetric backstop, matching prod's
+      # myclash-api. (This comment used to claim the scoring pad calls the API
+      # host directly. It does not: every pad fetch is relative to whatever
+      # origin served the bundle — see apps/web-staff/src/lib/api-url.ts — so
+      # they land on dev-staff-api below, not here.)
       - traefik.http.routers.dev-api.middlewares=myclash-geoblock-public@file,myclash-fail2ban-staff@docker,myclash-compress@docker
       - traefik.http.services.dev-api.loadbalancer.server.port=4000
       - traefik.http.routers.dev-admin-api.rule=Host(`admin.myclash.localhost`) && PathPrefix(`/api/v1`)
@@ -422,6 +424,22 @@ services:
       - traefik.http.routers.dev-admin-api.middlewares=myclash-geoblock-admin@file,myclash-compress@docker
       - traefik.http.routers.dev-admin-api.priority=30
       - traefik.http.routers.dev-admin-api.service=dev-api
+      # Scoring same-origin API: staff.myclash.localhost/api/v1/* → API.
+      # prod's myclash-staff-api. Dev had no equivalent, so the pad could sign
+      # in (dev-staff-auth below is host-less and matched) and then every other
+      # call fell through to the dev-staff router — the Next container — and
+      # 404'd. The scoring bundle fetches RELATIVE paths by design, so without
+      # this router the dev stack cannot exercise the app's actual routing.
+      - traefik.http.routers.dev-staff-api.rule=Host(`staff.myclash.localhost`) && PathPrefix(`/api/v1`)
+      - traefik.http.routers.dev-staff-api.entrypoints=websecure
+      - traefik.http.routers.dev-staff-api.tls=true
+      # Public geo allow-list + the -staff jail, matching prod's
+      # myclash-staff-api middleware chain.
+      - traefik.http.routers.dev-staff-api.middlewares=myclash-geoblock-public@file,myclash-fail2ban-staff@docker,myclash-compress@docker
+      # 30 beats dev-staff's rule-length default and stays BELOW dev-staff-auth's
+      # 40, so the PIN-login pair below keeps winning on its own path.
+      - traefik.http.routers.dev-staff-api.priority=30
+      - traefik.http.routers.dev-staff-api.service=dev-api
       # ── Staff PIN login, jailed on EVERY host ────────────────────────────
       # prod's myclash-staff-auth / myclash-staff-auth-admin pair. Dev carried
       # the same hole they close: dev-admin-api serves /api/v1 on the admin host

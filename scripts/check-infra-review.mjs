@@ -778,6 +778,22 @@ requireContains(
   'dev api admin same-origin route',
   'traefik.http.routers.dev-admin-api.rule=Host(`admin.myclash.localhost`) && PathPrefix(`/api/v1`)',
 );
+// The scoring same-origin route, both stacks. The pad fetches RELATIVE paths by
+// design (apps/web-staff/src/lib/api-url.ts) so one image can serve
+// staff.${DOMAIN} and admin.${DOMAIN}/staff/*; without these routers those
+// fetches fall through to the Next container and 404. Dev lacked its half
+// entirely, so the pad could sign in there (the host-less staff-auth router
+// matched) and then fail on everything else.
+requireContains(
+  services.get('api') ?? '',
+  'prod api scoring same-origin route',
+  'traefik.http.routers.myclash-staff-api.rule=Host(`staff.${DOMAIN}`) && PathPrefix(`/api/v1`)',
+);
+requireContains(
+  devServices.get('api') ?? '',
+  'dev api scoring same-origin route',
+  'traefik.http.routers.dev-staff-api.rule=Host(`staff.myclash.localhost`) && PathPrefix(`/api/v1`)',
+);
 for (const serviceName of ['api', 'worker']) {
   requireContains(
     services.get(serviceName) ?? '',
@@ -2474,15 +2490,19 @@ if (/routers\.myclash-admin-api\.middlewares=[^\n]*fail2ban/u.test(composeText))
   );
 }
 
-// Dev's staff-auth pair, mirroring prod's. Dev is where a router shape is first
+// Dev's staff routers, mirroring prod's. Dev is where a router shape is first
 // exercised, so a jail that exists only in prod is one that reaches the live
 // edge untested — the same reasoning that pins the plugin versions identical.
 // Literal middleware names, not ${MW_*}: the kill-switch is prod-only.
-const devStaffAuthRouters = {
+const devStaffRouters = {
   'dev-staff-auth': 'myclash-geoblock-public@file',
   'dev-staff-auth-admin': 'myclash-geoblock-admin@file',
+  // The pad's own /api/v1 route. Same chain as prod's myclash-staff-api, which
+  // carries MW_F2B_STAFF as a volumetric backstop behind the API's own
+  // per-account throttle.
+  'dev-staff-api': 'myclash-geoblock-public@file',
 };
-for (const [router, geoblock] of Object.entries(devStaffAuthRouters)) {
+for (const [router, geoblock] of Object.entries(devStaffRouters)) {
   const pattern = new RegExp(
     `traefik\\.http\\.routers\\.${escapeRegExp(router)}\\.middlewares=${escapeRegExp(geoblock)},myclash-fail2ban-staff@docker`,
     'u',
@@ -2498,10 +2518,13 @@ for (const [router, geoblock] of Object.entries(devStaffAuthRouters)) {
 // Priority is what makes the pair a control rather than a decoration: the
 // host-less router has to beat dev-admin-api's 30 and dev-api's rule-length
 // default, and the admin twin has to beat the host-less one or admin. silently
-// drops onto the public country allow-list.
+// drops onto the public country allow-list. dev-staff-api sits at 30 — above
+// dev-staff's rule-length default, BELOW the staff-auth pair so the PIN-login
+// jail keeps winning on its own path.
 for (const [router, priority] of [
   ['dev-staff-auth', 40],
   ['dev-staff-auth-admin', 50],
+  ['dev-staff-api', 30],
 ]) {
   const pattern = new RegExp(
     `traefik\\.http\\.routers\\.${escapeRegExp(router)}\\.priority=(\\d+)`,
