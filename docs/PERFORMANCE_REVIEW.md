@@ -8,7 +8,9 @@ Phase 7 covers backend latency, SQL Query Review, frontend budgets, Web Vitals, 
 ## Automated Evidence
 
 - `pnpm perf:review` checks Phase 7 artifacts, CI wiring, Playwright perf coverage, SQL review evidence, and root performance scripts.
-- `pnpm perf:bundle` checks marketing static JavaScript immediately, and runs in CI's Lint job after a marketing build with `-- --require-build` so an absent `dist/` fails instead of skipping. Add `-- --include-next` after fresh Next.js builds to also weigh the three app root shells; the two flags are independent. It measures `apps/web-marketing/dist`; before the Astro migration it pointed at `public/`, where the hand-written site kept all its JavaScript inline, so it reported 0 bytes on every run and guarded nothing. Astro still inlines that script, so 0 emitted `.js` files remains the correct result and is now stated explicitly in the output — the failure condition is an empty scan root, not an absent bundle.
+- `pnpm perf:bundle:build && pnpm perf:bundle -- --include-next --require-build` is what CI's Lint job runs. The build driver builds every app the budget registry names, deriving placeholder env from each `next.config.ts`. `--include-next` asks for the page-load budgets by name — without it all three skip themselves and the step passes having weighed only the marketing site, which is how this gate spent its whole life. `--require-build` makes an absent build fail rather than skip.
+- A **page-load** budget weighs what a visitor downloads on any page: the root shell (`build-manifest.json` → `rootMainFiles`) plus the root layout's own client entry (`entryJSFiles` in each route's `page_client-reference-manifest.js`). The two sets are disjoint, so a shell-only figure cannot see what the layout drags in — it missed lucide's 2,011-icon barrel (188 KB gzip) and the whole EN+FR dictionary (181 KB gzip), both of which loaded on every page of every app. The three shell-only budgets that missed them have been deleted: a page-load budget contains every chunk they weighed, and on their own they measured the React and Next runtime, not the app.
+- The marketing budget measures `apps/web-marketing/dist`; before the Astro migration it pointed at `public/`, where the hand-written site kept all its JavaScript inline, so it reported 0 bytes on every run and guarded nothing. Astro still inlines that script, so 0 emitted `.js` files remains the correct result and is stated explicitly in the output — the failure condition is an empty scan root, not an absent bundle.
 - `pnpm perf:load` runs a configurable HTTP load smoke test with p95 and error-rate thresholds.
 - `pnpm db:perf:fixture` verifies the committed synthetic realistic dataset and EXPLAIN workload stay in sync.
 - `pnpm db:perf:explain` runs the EXPLAIN workload against a disposable database when `DATABASE_URL` is provided.
@@ -79,15 +81,15 @@ Add PgBouncer or Supabase pooler when `pg_stat_activity` consistently exceeds 60
 
 ## Bundle Budgets
 
-| App                   |      Budget | Check                                                                                                                                                                                    |
-| --------------------- | ----------: | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Marketing static JS   | 200 KB gzip | `pnpm perf:bundle -- --require-build`, in CI (Astro inlines this site's few KB of script, so the emitted-JS count is normally 0 — the binding budget is the first-paint assertion below) |
-| Public root shell JS  | 230 KB gzip | `pnpm --filter @myclash/web-public test` and `pnpm perf:bundle -- --include-next`                                                                                                        |
-| Scoring root shell JS | 500 KB gzip | `pnpm perf:bundle -- --include-next` after a fresh scoring build                                                                                                                         |
-| Admin root shell JS   | 800 KB gzip | `pnpm perf:bundle -- --include-next` after a fresh admin build                                                                                                                           |
-| Marketing first paint | 250 KB gzip | `pnpm --filter @myclash/web-marketing test` — document + stylesheets + smallest hero candidate. Currently 39 KB, down from ~4.7 MB of unoptimised PNG                                    |
+| App                   |      Budget | Check                                                                                                                                                 |
+| --------------------- | ----------: | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Marketing static JS   | 200 KB gzip | In CI (Astro inlines this site's few KB of script, so the emitted-JS count is normally 0 — the binding budget is the first-paint assertion below)     |
+| Public page load      | 360 KB gzip | In CI. Measured 331,280 B on 2026-08-13                                                                                                               |
+| Scoring page load     | 320 KB gzip | In CI. Measured 297,578 B on 2026-08-13                                                                                                               |
+| Admin page load       | 460 KB gzip | In CI. Measured 428,992 B on 2026-08-13                                                                                                               |
+| Marketing first paint | 250 KB gzip | `pnpm --filter @myclash/web-marketing test` — document + stylesheets + smallest hero candidate. Currently 39 KB, down from ~4.7 MB of unoptimised PNG |
 
-The existing public app test builds the app before checking its landing budget. Admin and scoring budgets are artifact-aware so local or CI jobs can enforce them after intentional app builds without reading stale `.next` output during lightweight review gates.
+All four run on every push. web-public used to budget its own root shell inside its `test` script, from `apps/web-public/scripts/landing-bundle-budget.mjs` with its own build harness; both are gone, because that measured the shell half and the page-load budget above measures all of it. The headroom is about 10%, which catches roughly a barrel import — re-baseline deliberately when a feature genuinely grows the payload, and record the measurement here as above.
 
 ## Web Vitals
 

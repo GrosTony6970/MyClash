@@ -9,7 +9,7 @@
     "start": "next start --port 3001",
     "lint": "eslint app src --no-cache --max-warnings 0",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run && node scripts/perf-build.mjs && pnpm exec tsx scripts/stats-render.perf.tsx && node scripts/landing-bundle-budget.mjs"
+    "test": "vitest run && pnpm exec tsx scripts/stats-render.perf.tsx"
   },
   "dependencies": {
     "@myclash/api-client": "workspace:^",
