@@ -1,7 +1,13 @@
-import { readdir, readFile } from 'node:fs/promises';
 import path from 'node:path';
 
+import { createPinnedReader, isMissingPinnedFile } from './lib/pinned-file.mjs';
+
 const rootDir = path.resolve(import.meta.dirname, '..');
+
+// Every file below is pinned BY PATH. Read them through the reader, never
+// through fs directly: a renamed file must become a finding that names it, not
+// an unhandled ENOENT that takes the other 400-odd assertions down with it.
+const pinned = createPinnedReader(rootDir);
 const composePath = path.join(rootDir, 'infra', 'docker-compose.prod.yml');
 const devComposePath = path.join(rootDir, 'infra', 'docker-compose.dev.yml');
 const deployPath = path.join(rootDir, 'infra', 'scripts', 'deploy.sh');
@@ -451,20 +457,25 @@ const dockerfilePaths = [
   'infra/ops-runner/Dockerfile',
 ];
 
-const composeText = await readFile(composePath, 'utf8');
-const devComposeText = await readFile(devComposePath, 'utf8');
+const composeText = await pinned.readPinnedFile(composePath);
+const devComposeText = await pinned.readPinnedFile(devComposePath);
 const passwordSpecialChars = await readPasswordSpecialChars();
 
 /**
  * The one owner of "what counts as a special character", read out of the
  * TypeScript source so this gate compares the compose value to the real
  * constant rather than to a copy of it that can rot independently.
+ *
+ * Returns null when the source is absent — the reader has already recorded that
+ * path, and the policy comparison skips rather than reporting a mismatch
+ * against nothing. A malformed export still throws: that is a claim about a
+ * file that IS there, and it must not degrade into a silent skip.
  */
 async function readPasswordSpecialChars() {
-  const source = await readFile(
+  const source = await pinned.readPinnedFile(
     path.join(rootDir, 'packages', 'types', 'src', 'password.ts'),
-    'utf8',
   );
+  if (isMissingPinnedFile(source)) return null;
   const match = /export const PASSWORD_SPECIAL_CHARS = '(.*)';/u.exec(source);
   if (!match) {
     throw new Error(
@@ -475,98 +486,127 @@ async function readPasswordSpecialChars() {
   // Un-escape the TS string literal: only \' and \\ can appear in this set.
   return match[1].replaceAll("\\'", "'").replaceAll('\\\\', '\\');
 }
-const deployText = await readFile(deployPath, 'utf8');
-const redeployText = await readFile(redeployPath, 'utf8');
-const statusText = await readFile(statusPath, 'utf8');
-const restoreText = await readFile(restorePath, 'utf8');
-const rollbackText = await readFile(rollbackPath, 'utf8');
-const vpsBootstrapText = await readFile(vpsBootstrapPath, 'utf8');
-const publicRootPageText = await readFile(publicRootPagePath, 'utf8');
-const publicLoginPageText = await readFile(publicLoginPagePath, 'utf8');
-const publicOAuthCallbackText = await readFile(publicOAuthCallbackPath, 'utf8');
-const publicPersonalLayoutText = await readFile(publicPersonalLayoutPath, 'utf8');
-const publicPersonalPageText = await readFile(publicPersonalPagePath, 'utf8');
-const publicPersonalDashboardText = await readFile(publicPersonalDashboardPath, 'utf8');
-const publicPersonalShellText = await readFile(publicPersonalShellPath, 'utf8');
-const publicEventRootPageText = await readFile(publicEventRootPagePath, 'utf8');
-const adminRootPageText = await readFile(adminRootPagePath, 'utf8');
-const adminDashboardPageText = await readFile(adminDashboardPagePath, 'utf8');
-const bootstrapSuperAdminScriptText = await readFile(bootstrapSuperAdminScriptPath, 'utf8');
-const seedMinScriptText = await readFile(seedMinScriptPath, 'utf8');
-const superAdminPageText = await readFile(superAdminPagePath, 'utf8');
-const superAdminOrganizationsPageText = await readFile(superAdminOrganizationsPagePath, 'utf8');
-const superAdminOrganizationDetailPageText = await readFile(
-  superAdminOrganizationDetailPagePath,
-  'utf8',
+const deployText = await pinned.readPinnedFile(deployPath);
+const redeployText = await pinned.readPinnedFile(redeployPath);
+const statusText = await pinned.readPinnedFile(statusPath);
+const restoreText = await pinned.readPinnedFile(restorePath);
+const rollbackText = await pinned.readPinnedFile(rollbackPath);
+const vpsBootstrapText = await pinned.readPinnedFile(vpsBootstrapPath);
+const publicRootPageText = await pinned.readPinnedFile(publicRootPagePath);
+const publicLoginPageText = await pinned.readPinnedFile(publicLoginPagePath);
+const publicOAuthCallbackText = await pinned.readPinnedFile(publicOAuthCallbackPath);
+const publicPersonalLayoutText = await pinned.readPinnedFile(publicPersonalLayoutPath);
+const publicPersonalPageText = await pinned.readPinnedFile(publicPersonalPagePath);
+const publicPersonalDashboardText = await pinned.readPinnedFile(publicPersonalDashboardPath);
+const publicPersonalShellText = await pinned.readPinnedFile(publicPersonalShellPath);
+const publicEventRootPageText = await pinned.readPinnedFile(publicEventRootPagePath);
+const adminRootPageText = await pinned.readPinnedFile(adminRootPagePath);
+const adminDashboardPageText = await pinned.readPinnedFile(adminDashboardPagePath);
+const bootstrapSuperAdminScriptText = await pinned.readPinnedFile(bootstrapSuperAdminScriptPath);
+const seedMinScriptText = await pinned.readPinnedFile(seedMinScriptPath);
+const superAdminPageText = await pinned.readPinnedFile(superAdminPagePath);
+const superAdminOrganizationsPageText = await pinned.readPinnedFile(
+  superAdminOrganizationsPagePath,
 );
-const superAdminUsersPageText = await readFile(superAdminUsersPagePath, 'utf8');
-const accountsPanelText = await readFile(accountsPanelPath, 'utf8');
-const accountsTableText = await readFile(accountsTablePath, 'utf8');
-const createPlatformAccountFormText = await readFile(createPlatformAccountFormPath, 'utf8');
-const useAdminUsersText = await readFile(useAdminUsersPath, 'utf8');
-const superAdminFightersPageText = await readFile(superAdminFightersPagePath, 'utf8');
-const superAdminClubsPageText = await readFile(superAdminClubsPagePath, 'utf8');
-const superAdminBackupsPageText = await readFile(superAdminBackupsPagePath, 'utf8');
-const superAdminSystemVersionsPageText = await readFile(superAdminSystemVersionsPagePath, 'utf8');
-const adminSystemVersionsServiceText = await readFile(adminSystemVersionsServicePath, 'utf8');
-const superAdminLayoutText = await readFile(superAdminLayoutPath, 'utf8');
-const superAdminShellText = await readFile(superAdminShellPath, 'utf8');
-const organizerLayoutText = await readFile(organizerLayoutPath, 'utf8');
-const organizerShellText = await readFile(organizerShellPath, 'utf8');
-const organizerDashboardPageText = await readFile(organizerDashboardPagePath, 'utf8');
-const organizerEventsPageText = await readFile(organizerEventsPagePath, 'utf8');
-const organizerEventPageText = await readFile(organizerEventPagePath, 'utf8');
-const organizerEventClubsPageText = await readFile(organizerEventClubsPagePath, 'utf8');
-const organizerNewTournamentPageText = await readFile(organizerNewTournamentPagePath, 'utf8');
-const organizerAiSettingsPageText = await readFile(organizerAiSettingsPagePath, 'utf8');
-const appModuleText = await readFile(appModulePath, 'utf8');
-const authControllerText = await readFile(authControllerPath, 'utf8');
-const signupControllerText = await readFile(signupControllerPath, 'utf8');
-const authServiceText = await readFile(authServicePath, 'utf8');
-const supabaseServiceText = await readFile(supabaseServicePath, 'utf8');
-const compensationControllerText = await readFile(compensationControllerPath, 'utf8');
-const leaguesControllerText = await readFile(leaguesControllerPath, 'utf8');
-const fightersControllerText = await readFile(fightersControllerPath, 'utf8');
-const clubsControllerText = await readFile(clubsControllerPath, 'utf8');
-const eventsControllerText = await readFile(eventsControllerPath, 'utf8');
-const eventsServiceText = await readFile(eventsServicePath, 'utf8');
-const adminBackupsControllerText = await readFile(adminBackupsControllerPath, 'utf8');
-const adminBackupsServiceText = await readFile(adminBackupsServicePath, 'utf8');
-const opsRunnerServerText = await readFile(opsRunnerServerPath, 'utf8');
-const opsRunnerBackupCoreText = await readFile(opsRunnerBackupCorePath, 'utf8');
-const platformRoleGuardText = await readFile(platformRoleGuardPath, 'utf8');
-const adminDashboardStatsControllerText = await readFile(adminDashboardStatsControllerPath, 'utf8');
-const adminOrganizationsControllerText = await readFile(adminOrganizationsControllerPath, 'utf8');
-const adminOrganizationsServiceText = await readFile(adminOrganizationsServicePath, 'utf8');
-const adminUsersControllerText = await readFile(adminUsersControllerPath, 'utf8');
-const adminUsersServiceText = await readFile(adminUsersServicePath, 'utf8');
+const superAdminOrganizationDetailPageText = await pinned.readPinnedFile(
+  superAdminOrganizationDetailPagePath,
+);
+const superAdminUsersPageText = await pinned.readPinnedFile(superAdminUsersPagePath);
+const accountsPanelText = await pinned.readPinnedFile(accountsPanelPath);
+const accountsTableText = await pinned.readPinnedFile(accountsTablePath);
+const createPlatformAccountFormText = await pinned.readPinnedFile(createPlatformAccountFormPath);
+const useAdminUsersText = await pinned.readPinnedFile(useAdminUsersPath);
+const superAdminFightersPageText = await pinned.readPinnedFile(superAdminFightersPagePath);
+const superAdminClubsPageText = await pinned.readPinnedFile(superAdminClubsPagePath);
+const superAdminBackupsPageText = await pinned.readPinnedFile(superAdminBackupsPagePath);
+const superAdminSystemVersionsPageText = await pinned.readPinnedFile(
+  superAdminSystemVersionsPagePath,
+);
+const adminSystemVersionsServiceText = await pinned.readPinnedFile(adminSystemVersionsServicePath);
+const superAdminLayoutText = await pinned.readPinnedFile(superAdminLayoutPath);
+const superAdminShellText = await pinned.readPinnedFile(superAdminShellPath);
+const organizerLayoutText = await pinned.readPinnedFile(organizerLayoutPath);
+const organizerShellText = await pinned.readPinnedFile(organizerShellPath);
+const organizerDashboardPageText = await pinned.readPinnedFile(organizerDashboardPagePath);
+const organizerEventsPageText = await pinned.readPinnedFile(organizerEventsPagePath);
+const organizerEventPageText = await pinned.readPinnedFile(organizerEventPagePath);
+const organizerEventClubsPageText = await pinned.readPinnedFile(organizerEventClubsPagePath);
+const organizerNewTournamentPageText = await pinned.readPinnedFile(organizerNewTournamentPagePath);
+const organizerAiSettingsPageText = await pinned.readPinnedFile(organizerAiSettingsPagePath);
+const appModuleText = await pinned.readPinnedFile(appModulePath);
+const authControllerText = await pinned.readPinnedFile(authControllerPath);
+const signupControllerText = await pinned.readPinnedFile(signupControllerPath);
+const authServiceText = await pinned.readPinnedFile(authServicePath);
+const supabaseServiceText = await pinned.readPinnedFile(supabaseServicePath);
+const compensationControllerText = await pinned.readPinnedFile(compensationControllerPath);
+const leaguesControllerText = await pinned.readPinnedFile(leaguesControllerPath);
+const fightersControllerText = await pinned.readPinnedFile(fightersControllerPath);
+const clubsControllerText = await pinned.readPinnedFile(clubsControllerPath);
+const eventsControllerText = await pinned.readPinnedFile(eventsControllerPath);
+const eventsServiceText = await pinned.readPinnedFile(eventsServicePath);
+const adminBackupsControllerText = await pinned.readPinnedFile(adminBackupsControllerPath);
+const adminBackupsServiceText = await pinned.readPinnedFile(adminBackupsServicePath);
+const opsRunnerServerText = await pinned.readPinnedFile(opsRunnerServerPath);
+const opsRunnerBackupCoreText = await pinned.readPinnedFile(opsRunnerBackupCorePath);
+const platformRoleGuardText = await pinned.readPinnedFile(platformRoleGuardPath);
+const adminDashboardStatsControllerText = await pinned.readPinnedFile(
+  adminDashboardStatsControllerPath,
+);
+const adminOrganizationsControllerText = await pinned.readPinnedFile(
+  adminOrganizationsControllerPath,
+);
+const adminOrganizationsServiceText = await pinned.readPinnedFile(adminOrganizationsServicePath);
+const adminUsersControllerText = await pinned.readPinnedFile(adminUsersControllerPath);
+const adminUsersServiceText = await pinned.readPinnedFile(adminUsersServicePath);
 const i18nText = (
   await Promise.all(
-    (await readdir(i18nMessagesDir))
+    (await pinned.readPinnedDir(i18nMessagesDir))
       .filter((entry) => entry.endsWith('.ts'))
-      .map((entry) => readFile(path.join(i18nMessagesDir, entry), 'utf8')),
+      .map((entry) => pinned.readPinnedFile(path.join(i18nMessagesDir, entry))),
   )
 ).join('\n');
-const traefikMiddlewareText = await readFile(traefikMiddlewarePath, 'utf8');
-const startText = await readFile(startPath, 'utf8');
-const systemVersionsLibText = await readFile(systemVersionsLibPath, 'utf8');
-const traefikEnvLibText = await readFile(traefikEnvLibPath, 'utf8');
-const devTraefikStaticText = await readFile(devTraefikStaticPath, 'utf8');
-const devTraefikDynamicText = await readFile(devTraefikDynamicPath, 'utf8');
-const stagingCertsComposeText = await readFile(stagingCertsComposePath, 'utf8');
-const realtimeInitText = await readFile(realtimeInitPath, 'utf8');
-const realtimeMigrationText = await readFile(realtimeMigrationPath, 'utf8');
-const clubArchivingMigrationText = await readFile(clubArchivingMigrationPath, 'utf8');
-const clubReviewRequestsMigrationText = await readFile(clubReviewRequestsMigrationPath, 'utf8');
-const dockerfiles = await Promise.all(
-  dockerfilePaths.map(async (filePath) => ({
-    filePath,
-    text: await readFile(path.join(rootDir, filePath), 'utf8'),
-  })),
+const traefikMiddlewareText = await pinned.readPinnedFile(traefikMiddlewarePath);
+const startText = await pinned.readPinnedFile(startPath);
+const systemVersionsLibText = await pinned.readPinnedFile(systemVersionsLibPath);
+const traefikEnvLibText = await pinned.readPinnedFile(traefikEnvLibPath);
+const devTraefikStaticText = await pinned.readPinnedFile(devTraefikStaticPath);
+const devTraefikDynamicText = await pinned.readPinnedFile(devTraefikDynamicPath);
+const stagingCertsComposeText = await pinned.readPinnedFile(stagingCertsComposePath);
+const realtimeInitText = await pinned.readPinnedFile(realtimeInitPath);
+const realtimeMigrationText = await pinned.readPinnedFile(realtimeMigrationPath);
+const clubArchivingMigrationText = await pinned.readPinnedFile(clubArchivingMigrationPath);
+const clubReviewRequestsMigrationText = await pinned.readPinnedFile(
+  clubReviewRequestsMigrationPath,
 );
+// Absent Dockerfiles are dropped rather than carried as sentinels: every
+// consumer below is already written as `if (dockerfile && …)` / `image?.text`,
+// so an absent entry falls out of those guards on its own. The reader has
+// already recorded the path, and one "pinned file is missing" beats a dozen
+// derived complaints about a file that is not there.
+const dockerfiles = (
+  await Promise.all(
+    dockerfilePaths.map(async (filePath) => ({
+      filePath,
+      text: await pinned.readPinnedFile(path.join(rootDir, filePath)),
+    })),
+  )
+).filter((entry) => !isMissingPinnedFile(entry.text));
 
 const errors = [];
 const warnings = [];
+
+// Reported first, because every other finding a missing file produces is a
+// consequence of it. `pinned.missing` also grows from the two directory reads
+// and the package.json read further down, so it is re-drained before the
+// verdict rather than only here.
+for (const missingPath of pinned.missing) {
+  errors.push(
+    `Pinned file is missing: ${missingPath} — this gate asserts facts about that path. ` +
+      'If it moved, re-point the constant at the top of this file; if it was deleted, delete the ' +
+      'assertions that named it and say in the commit what stopped being true.',
+  );
+}
+const reportedMissing = new Set(pinned.missing);
 
 const services = parseServices(composeText);
 const devServices = parseServices(devComposeText);
@@ -883,7 +923,7 @@ function assertGoTruePasswordPolicy(text, label) {
     );
     return;
   }
-  if (groups[3] !== passwordSpecialChars) {
+  if (passwordSpecialChars !== null && groups[3] !== passwordSpecialChars) {
     errors.push(
       `${label} GOTRUE_PASSWORD_REQUIRED_CHARACTERS punctuation group does not match ` +
         `PASSWORD_SPECIAL_CHARS in packages/types/src/password.ts.\n` +
@@ -2362,9 +2402,9 @@ for (const value of prodAllowlistValues) {
 // compose call printed "variable is not set" warnings). Any script that drives
 // the prod compose file needs the exports.
 const scriptsDir = path.join(rootDir, 'infra', 'scripts');
-const shellScripts = (await readdir(scriptsDir)).filter((f) => f.endsWith('.sh'));
+const shellScripts = (await pinned.readPinnedDir(scriptsDir)).filter((f) => f.endsWith('.sh'));
 for (const name of shellScripts) {
-  const text = await readFile(path.join(scriptsDir, name), 'utf8');
+  const text = await pinned.readPinnedFile(path.join(scriptsDir, name));
   if (!text.includes('docker-compose.prod.yml')) continue; // not a stack driver
   if (!text.includes('lib/traefik-env.sh')) {
     errors.push(
@@ -2396,7 +2436,8 @@ if (!traefikEnvLibText.includes('mc_verify_edge_plugins')) {
   );
 }
 for (const name of ['deploy.sh', 'redeploy.sh', 'start.sh']) {
-  const text = await readFile(path.join(scriptsDir, name), 'utf8');
+  const text = await pinned.readPinnedFile(path.join(scriptsDir, name));
+  if (isMissingPinnedFile(text)) continue;
   if (!text.includes('mc_verify_edge_plugins')) {
     errors.push(
       `infra/scripts/${name} must call mc_verify_edge_plugins after bringing the stack up — ` +
@@ -2404,9 +2445,16 @@ for (const name of ['deploy.sh', 'redeploy.sh', 'start.sh']) {
     );
   }
 }
-const rootPackageJson = JSON.parse(await readFile(path.join(rootDir, 'package.json'), 'utf8'));
-if (rootPackageJson.scripts?.['infra:plugins'] !== 'node scripts/check-edge-plugins.mjs') {
-  errors.push('package.json must expose pnpm infra:plugins → node scripts/check-edge-plugins.mjs.');
+// Parsed, not searched — so the sentinel has to be kept out of JSON.parse,
+// which would throw on it exactly the way the raw read used to throw on ENOENT.
+const rootPackageJsonText = await pinned.readPinnedFile(path.join(rootDir, 'package.json'));
+if (!isMissingPinnedFile(rootPackageJsonText)) {
+  const rootPackageJson = JSON.parse(rootPackageJsonText);
+  if (rootPackageJson.scripts?.['infra:plugins'] !== 'node scripts/check-edge-plugins.mjs') {
+    errors.push(
+      'package.json must expose pnpm infra:plugins → node scripts/check-edge-plugins.mjs.',
+    );
+  }
 }
 
 // Dev must declare the same plugins at the same versions, or the config is first
@@ -2630,6 +2678,16 @@ for (const { filePath, text } of dockerfiles) {
   }
 }
 
+// Not every pinned path is opened in the sweep at the top — the shell-script
+// checks and the package.json read happen far below it. Drain whatever the
+// reader recorded since, so a path that goes missing late is reported too
+// rather than passing silently because the first drain had already run.
+for (const missingPath of pinned.missing) {
+  if (reportedMissing.has(missingPath)) continue;
+  reportedMissing.add(missingPath);
+  errors.push(`Pinned file is missing: ${missingPath} — this gate reads that path.`);
+}
+
 if (warnings.length > 0) {
   console.warn('Infrastructure review warnings:');
   for (const warning of new Set(warnings)) console.warn(`  - ${warning}`);
@@ -2664,6 +2722,10 @@ function parseServices(text) {
 }
 
 function requireContains(text, serviceName, expected) {
+  // A file that is not there owns no facts. Without this, one rename reports
+  // "is missing X" once per assertion that named the file — eleven lines for
+  // AccountsTable.tsx alone — and buries the one finding that explains them.
+  if (isMissingPinnedFile(text)) return;
   if (!text.includes(expected)) errors.push(`${serviceName} is missing ${expected}`);
 }
 
