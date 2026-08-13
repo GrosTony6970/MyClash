@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
 import type { LeagueRankingDimensions as RankingDimensions } from '@myclash/types';
 import { FFAMHE_POINTS, fuzzyMatch, toSlug } from '../league-utils';
-import { useI18n } from '../../../../src/i18n/I18nProvider';
+import { useI18n } from '@myclash/next-i18n/client';
 import { getPublicApiUrl } from '@/lib/api-url';
 import { BackLink } from '@/components/BackLink';
 import {

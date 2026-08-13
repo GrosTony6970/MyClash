@@ -9,7 +9,7 @@ import { FFAMHE_POINTS, fuzzyMatch } from '../../league-utils';
 import { LeagueRequestsPanel } from '../../../../../src/components/league/LeagueRequestsPanel';
 import { LeagueFreshnessBadge } from './LeagueFreshnessBadge';
 import { RecomputePreflight } from './RecomputePreflight';
-import { useI18n } from '../../../../../src/i18n/I18nProvider';
+import { useI18n } from '@myclash/next-i18n/client';
 import { useConfirm, useToast } from '@myclash/ui';
 import { localeToBcp47 } from '@myclash/time';
 import { getPublicApiUrl } from '@/lib/api-url';

@@ -14,7 +14,7 @@ import {
   rowActionClasses,
   useToast,
 } from '@myclash/ui';
-import { useI18n } from '../../../../src/i18n/I18nProvider';
+import { useI18n } from '@myclash/next-i18n/client';
 import { RulesetsTopNav } from '../../../../src/components/rulesets/RulesetsTopNav';
 import { CreateRulesetCta } from '../../../../src/components/rulesets/CreateRulesetCta';
 import { RulesetBadge } from '../../../../src/components/rulesets/RulesetBadge';

@@ -13,7 +13,7 @@ import type {
   Target,
   Tiebreaker,
 } from '@myclash/rulesets';
-import { useI18n } from '../../../../../../src/i18n/I18nProvider';
+import { useI18n } from '@myclash/next-i18n/client';
 import {
   RulesetForm,
   type MatchFormatDefaults,

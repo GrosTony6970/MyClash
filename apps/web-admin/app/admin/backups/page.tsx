@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
 import { Modal } from '@myclash/ui';
-import { useI18n } from '../../../src/i18n/I18nProvider';
+import { useI18n } from '@myclash/next-i18n/client';
 import { getPublicApiUrl } from '@/lib/api-url';
 import { apiErrorMessage } from '@/lib/api-error';
 

@@ -12,7 +12,7 @@ import {
   StatusBadge,
   type StatusBadgeVariant,
 } from '@myclash/ui';
-import { useI18n } from '../../../src/i18n/I18nProvider';
+import { useI18n } from '@myclash/next-i18n/client';
 
 /**
  * /admin/design-system — the canonical visual contract for admin.myclash.fr.

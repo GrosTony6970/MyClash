@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { AdminPageHeader } from '@myclash/ui';
-import { useI18n } from '@/i18n/I18nProvider';
+import { useI18n } from '@myclash/next-i18n/client';
 import { AiBudgetView } from '@/components/ai/AiBudgetView';
 import { type UsageRollup } from '@/components/ai/AiUsageView';
 import { getPublicApiUrl } from '@/lib/api-url';

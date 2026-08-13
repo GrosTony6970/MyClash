@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { localeToBcp47, type AppLocale } from '@myclash/time';
-import { useI18n } from '../../../src/i18n/I18nProvider';
+import { useI18n } from '@myclash/next-i18n/client';
 import { getPublicApiUrl } from '@/lib/api-url';
 import { formatBytes } from '@/lib/format-bytes';
 

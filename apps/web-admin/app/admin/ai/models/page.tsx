@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { AdminPageHeader, Button, type AiKeyModelOption, type AiKeyProvider } from '@myclash/ui';
-import { useI18n } from '@/i18n/I18nProvider';
+import { useI18n } from '@myclash/next-i18n/client';
 import { getPublicApiUrl } from '@/lib/api-url';
 
 type ModelsMap = Record<AiKeyProvider, AiKeyModelOption[]>;

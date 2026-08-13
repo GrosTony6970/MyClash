@@ -10,7 +10,7 @@ import {
 } from '@myclash/ui';
 import { localeToBcp47 } from '@myclash/time';
 import { t } from '@myclash/i18n';
-import { useI18n } from '@/i18n/I18nProvider';
+import { useI18n } from '@myclash/next-i18n/client';
 import type { ReviewQueueItem } from '../_types';
 
 // ── Type badge config ─────────────────────────────────────────────────────────

@@ -1,6 +1,6 @@
 'use client';
 
-import { useI18n } from '../../../src/i18n/I18nProvider';
+import { useI18n } from '@myclash/next-i18n/client';
 
 const PER_PAGE_CHOICES = [25, 50, 100] as const;
 

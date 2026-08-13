@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 import { AdminPageHeader, FoilMark, MetricCard, StatsGrid } from '@myclash/ui';
 import { localeToBcp47 } from '@myclash/time';
-import { useI18n } from '../../src/i18n/I18nProvider';
+import { useI18n } from '@myclash/next-i18n/client';
 import { getPublicApiUrl } from '@/lib/api-url';
 
 type DashboardStats = {

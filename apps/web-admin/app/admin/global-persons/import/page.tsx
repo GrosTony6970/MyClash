@@ -8,7 +8,7 @@
 import Link from 'next/link';
 import { useMemo, useRef, useState } from 'react';
 import { getDateFormat } from '@myclash/types';
-import { useI18n } from '../../../../src/i18n/I18nProvider';
+import { useI18n } from '@myclash/next-i18n/client';
 import { getPublicApiUrl } from '@/lib/api-url';
 
 type RowStatus = 'ok' | 'invalid' | 'duplicate';

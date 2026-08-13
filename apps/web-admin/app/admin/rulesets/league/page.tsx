@@ -1,7 +1,7 @@
 'use client';
 
 import { AdminPageHeader } from '@myclash/ui';
-import { useI18n } from '../../../../src/i18n/I18nProvider';
+import { useI18n } from '@myclash/next-i18n/client';
 import { RulesetsTopNav } from '../../../../src/components/rulesets/RulesetsTopNav';
 import { LeagueScoringSystemsTable } from './_components/LeagueScoringSystemsTable';
 

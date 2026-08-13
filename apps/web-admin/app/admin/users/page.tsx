@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { AdminPageHeader, Button, SegmentedTabs } from '@myclash/ui';
-import { useI18n } from '../../../src/i18n/I18nProvider';
+import { useI18n } from '@myclash/next-i18n/client';
 import { AccountsPanel } from './AccountsPanel';
 import { CreatePlatformAccountForm } from './CreatePlatformAccountForm';
 import { isUsersTab, type UsersTab } from './types';
