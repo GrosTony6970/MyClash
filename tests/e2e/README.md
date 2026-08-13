@@ -35,10 +35,36 @@ cp .env.e2e.example .env.e2e          # then fill in the E2E_* values
 pnpm exec playwright install chromium  # first time only
 pnpm test:e2e:prod                    # runs all specs; preserves the event + prints its URL
 E2E_CLEANUP=1 pnpm test:e2e:prod      # delete the test data afterwards
+pnpm e2e:cleanup --dry-run            # list every leftover event from ANY past run
+pnpm e2e:cleanup                      # …and delete them
 pnpm test:e2e:prod tests/e2e/07-*.spec.ts  # run one test by number (here: test 7)
 ```
 
 Specs are numbered `01`…`35` (see the index below and the Status table), so you can run one by number.
+
+### Cleaning up leftovers — `pnpm e2e:cleanup`
+
+`E2E_CLEANUP=1` only disposes of **the event the current run created**. Every run that
+finishes without it — the default — leaves its event behind, and no later run can see it.
+Spec `17` makes this sharper: it creates its own disposable events (an archive source and
+its restored copy) that the run context never records at all.
+
+`pnpm e2e:cleanup` sweeps the whole org instead of one run, so it collects leftovers
+regardless of which run made them or whether that run finished. `--dry-run` lists without
+touching anything and always exits `0`; a real sweep exits non-zero if anything survives.
+
+Two things it is careful about, both learned the hard way:
+
+- **It verifies against `GET /organizations/:orgId/events`, never a per-id lookup.**
+  `GET /events/:slug` is the _public_ resolver and 404s an event whose `event_kind` is
+  `test` — by design. A checker built on it reports "already gone" for exactly the rows it
+  failed to delete, which is the worst way for a cleanup to fail.
+- **It reuses the stored session** (`tests/e2e/.auth/admin.json`) when it is fresh, and only
+  logs in otherwise. Password login is throttled 3/hour per email, and a cleanup run must
+  not spend the budget the next test run needs.
+
+It matches an `^e2e-` slug prefix, anchored: a real event merely containing "e2e" is never
+touched, because this deletes hard and does not ask.
 
 ### Spec index
 

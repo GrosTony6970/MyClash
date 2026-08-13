@@ -57,7 +57,8 @@
     "seed:min": "tsx scripts/seed-min.ts",
     "gen:api-client": "tsx scripts/gen-api-client.ts",
     "prepare": "simple-git-hooks",
-    "docs:mermaid": "node scripts/check-mermaid.mjs"
+    "docs:mermaid": "node scripts/check-mermaid.mjs",
+    "e2e:cleanup": "node scripts/e2e-cleanup.mjs"
   },
   "simple-git-hooks": {
     "pre-commit": "pnpm exec lint-staged",
