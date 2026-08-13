@@ -1,7 +1,7 @@
 'use client';
 
+import { useI18n } from '@myclash/next-i18n/client';
 import { useEffect, useRef, useState } from 'react';
-import { t } from '@myclash/i18n';
 import { useToast } from '@myclash/ui';
 import { TOURNAMENT_SIDE_COLORS } from '@myclash/types';
 import { validateLogoFile } from '../../../../../../../../../src/lib/validate-logo-file';
@@ -48,6 +48,8 @@ const DEFAULTS: DisplayState = {
 const COLORS = TOURNAMENT_SIDE_COLORS;
 
 export function DisplayTab({ tournamentId }: { tournamentId: string }) {
+  const { t } = useI18n();
+
   const toast = useToast();
   const [data, setData] = useState<DisplayState>(DEFAULTS);
   const [penaltyEntries, setPenaltyEntries] = useState<PenaltyEntry[]>([]);

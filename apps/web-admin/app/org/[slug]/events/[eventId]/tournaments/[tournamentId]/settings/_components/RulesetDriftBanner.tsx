@@ -1,8 +1,8 @@
 'use client';
 
+import { useI18n } from '@myclash/next-i18n/client';
 import { useEffect, useState } from 'react';
 import { Button, useToast } from '@myclash/ui';
-import { t } from '@myclash/i18n';
 import { getPublicApiUrl } from '@/lib/api-url';
 
 const apiUrl = getPublicApiUrl();
@@ -16,6 +16,8 @@ const apiUrl = getPublicApiUrl();
  * Renders nothing when there is no drift (the common case).
  */
 export function RulesetDriftBanner({ tournamentId }: { tournamentId: string }) {
+  const { t } = useI18n();
+
   const toast = useToast();
   const [drifted, setDrifted] = useState(false);
   const [busy, setBusy] = useState(false);

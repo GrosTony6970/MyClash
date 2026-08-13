@@ -1,8 +1,8 @@
 'use client';
 
+import { useI18n } from '@myclash/next-i18n/client';
 import { useState } from 'react';
 import { Modal } from '@myclash/ui';
-import { t } from '@myclash/i18n';
 import type { BucketDiff } from '@myclash/rulesets';
 import { LineageLamps } from '@/components/rulesets/LineageLamps';
 
@@ -40,6 +40,8 @@ export function RepinRulesetDialog({
   onConfirm: (justification: string) => void;
   onClose: () => void;
 }) {
+  const { t } = useI18n();
+
   const [justification, setJustification] = useState('');
   const valid = justification.trim().length >= MIN_JUSTIFICATION;
 

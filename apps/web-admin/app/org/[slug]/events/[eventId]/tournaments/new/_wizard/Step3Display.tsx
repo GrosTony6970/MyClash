@@ -1,7 +1,7 @@
 'use client';
 
+import { useI18n } from '@myclash/next-i18n/client';
 import { useEffect, useRef, useState } from 'react';
-import { t } from '@myclash/i18n';
 import { useToast } from '@myclash/ui';
 import { TOURNAMENT_SIDE_COLORS } from '@myclash/types';
 import { validateLogoFile } from '../../../../../../../../src/lib/validate-logo-file';
@@ -30,6 +30,8 @@ export function Step3Display({
   onNext: () => void;
   onBack: () => void;
 }) {
+  const { t } = useI18n();
+
   const toast = useToast();
   const [data, setData] = useState<DisplayState>(DEFAULTS);
   const [rulesetCode, setRulesetCode] = useState<string>('TF_v1');

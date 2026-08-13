@@ -9,7 +9,7 @@
  * needs the draft state.
  */
 
-import { t } from '@myclash/i18n';
+import { useI18n } from '@myclash/next-i18n/client';
 import type { UseSwissAdmin } from '../useSwissAdmin';
 
 type SwissView = NonNullable<UseSwissAdmin['view']>;
@@ -33,6 +33,8 @@ export function LifecyclePanel({
   onFinalise: () => void;
   onResume: () => void;
 }) {
+  const { t } = useI18n();
+
   const hasPhase = view.phaseId !== null;
   const finalized = Boolean(view.config?.finalized);
   return (
@@ -110,6 +112,8 @@ export function WithdrawPanel({
   busy: boolean;
   onWithdraw: (registrationId: string) => void;
 }) {
+  const { t } = useI18n();
+
   if (view.entrants.length === 0) return null;
   return (
     <div className="space-y-2 border-t border-border pt-4">

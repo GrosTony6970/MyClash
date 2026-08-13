@@ -16,8 +16,8 @@
  * the only honest way to reveal a badly chosen set.
  */
 
+import { useI18n } from '@myclash/next-i18n/client';
 import { useMemo } from 'react';
-import { t } from '@myclash/i18n';
 import { bandsOf, type SwissPlayer } from '@myclash/rulesets/scheduling';
 import type { SwissGrouping } from '../useSwissAdmin';
 
@@ -41,6 +41,8 @@ export function GroupingField({
   disabledReason: string | null;
   onChange: (next: SwissGrouping) => void;
 }) {
+  const { t } = useI18n();
+
   // Memoised: a fresh `[]` on every render would re-run the band preview
   // (and re-run `bandsOf`) on every keystroke elsewhere in the form.
   const boundaries = useMemo(() => grouping.boundaries ?? [], [grouping.boundaries]);
@@ -125,6 +127,8 @@ function BandPreview({
   bands: SwissPlayer[][] | null;
   players: BandPreviewPlayer[];
 }) {
+  const { t } = useI18n();
+
   if (!bands) return null;
   if (players.length === 0) {
     return (

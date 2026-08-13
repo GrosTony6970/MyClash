@@ -1,7 +1,7 @@
 'use client';
 
+import { useI18n } from '@myclash/next-i18n/client';
 import { type ReactNode } from 'react';
-import { t } from '@myclash/i18n';
 import { Button } from '@myclash/ui';
 import { TF_DEFAULTS, type RulesetConfigTF } from '../new/_wizard/buildTfFromRow';
 
@@ -30,6 +30,8 @@ export function TfRulesetControls({
   onCustomise?: () => void;
   customising?: boolean;
 }) {
+  const { t } = useI18n();
+
   return (
     <fieldset className="space-y-3 rounded-md border border-border p-4">
       <legend className="px-2 text-xs font-medium text-foreground-secondary">
@@ -65,6 +67,8 @@ function TfConstantFields({
   onChange: (next: RulesetConfigTF) => void;
   disabled: boolean;
 }) {
+  const { t } = useI18n();
+
   const setTarget = (key: 'deepTarget' | 'shallowTarget', v: number) =>
     onChange({ ...tf, targetValues: { ...tf.targetValues, [key]: v } });
   return (
@@ -108,6 +112,8 @@ function TfPolicyFields({
   tf: RulesetConfigTF;
   onChange: (next: RulesetConfigTF) => void;
 }) {
+  const { t } = useI18n();
+
   const setPolicy = (patch: Partial<RulesetConfigTF['tournamentPolicy']>) =>
     onChange({ ...tf, tournamentPolicy: { ...tf.tournamentPolicy, ...patch } });
   return (
@@ -166,6 +172,8 @@ function DefaultAffordance({
   defaultLabel: string;
   onReset: () => void;
 }) {
+  const { t } = useI18n();
+
   if (!modified) return null;
   return (
     <button
@@ -180,6 +188,8 @@ function DefaultAffordance({
 }
 
 function ModifiedBadge({ show, defaultLabel }: { show: boolean; defaultLabel: string }) {
+  const { t } = useI18n();
+
   if (!show) return null;
   return (
     <span

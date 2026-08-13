@@ -1,7 +1,7 @@
 'use client';
 
+import { useI18n } from '@myclash/next-i18n/client';
 import { useEffect, useState, type ReactNode } from 'react';
-import { t } from '@myclash/i18n';
 import { Switch, useToast } from '@myclash/ui';
 import { getPublicApiUrl } from '@/lib/api-url';
 
@@ -22,6 +22,8 @@ const LOCK_DEFAULTS: LockConfig = {
 };
 
 export function LocksTab({ tournamentId }: { tournamentId: string }) {
+  const { t } = useI18n();
+
   const toast = useToast();
   const [lock, setLock] = useState<LockConfig>(LOCK_DEFAULTS);
   const [saving, setSaving] = useState(false);

@@ -10,9 +10,9 @@
  * worth, so a 409 here would be the operator discovering the rule the hard way.
  */
 
+import { useI18n } from '@myclash/next-i18n/client';
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { t } from '@myclash/i18n';
 import { ConfirmDialog, useToast } from '@myclash/ui';
 import { getPublicApiUrl } from '@/lib/api-url';
 import {
@@ -52,6 +52,8 @@ export function ConfigureTab({
   slug: string;
   eventId: string;
 }) {
+  const { t } = useI18n();
+
   const toast = useToast();
   const { view, reload } = swiss;
   const [draft, setDraft] = useState<Draft | null>(null);

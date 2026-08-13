@@ -1,7 +1,7 @@
 'use client';
 
+import { useI18n } from '@myclash/next-i18n/client';
 import { useEffect, useState } from 'react';
-import { t } from '@myclash/i18n';
 import { TournamentColorDot, useToast } from '@myclash/ui';
 import { useWeaponOptions } from '@/hooks/useWeaponOptions';
 import { TOURNAMENT_COLORS } from '../../_lib/tournament-colors';
@@ -44,6 +44,8 @@ export function Step1Basics({
   initialTournamentId: string | null;
   onCreated: (id: string) => void;
 }) {
+  const { t } = useI18n();
+
   const toast = useToast();
   const weaponOptions = useWeaponOptions();
   const [name, setName] = useState('');

@@ -1,7 +1,7 @@
 'use client';
 
+import { useI18n } from '@myclash/next-i18n/client';
 import { useState } from 'react';
-import { t } from '@myclash/i18n';
 import { useConfirm, useToast } from '@myclash/ui';
 import { getPublicApiUrl } from '@/lib/api-url';
 
@@ -18,6 +18,8 @@ const apiUrl = getPublicApiUrl();
  * event PUBLICLY declares (fighters see the org's copy, not the federal format).
  */
 export function useCustomiseFormat(tournamentId: string, onDone: () => void) {
+  const { t } = useI18n();
+
   const toast = useToast();
   const { confirm, confirmDialog } = useConfirm();
   const [customising, setCustomising] = useState(false);

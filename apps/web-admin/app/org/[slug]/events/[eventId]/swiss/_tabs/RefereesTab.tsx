@@ -14,8 +14,8 @@
  * of it staffed.
  */
 
+import { useI18n } from '@myclash/next-i18n/client';
 import { useMemo, useState } from 'react';
-import { t } from '@myclash/i18n';
 import { ConfirmDialog, useToast } from '@myclash/ui';
 import { PoolSlotCard } from '../../referees/_components/PoolSlotCard';
 import { CandidatePicker } from '../../referees/_components/CandidatePicker';
@@ -35,6 +35,8 @@ export function RefereesTab({
   tournamentId: string;
   isReadOnly: boolean;
 }) {
+  const { t } = useI18n();
+
   const toast = useToast();
   const {
     board,

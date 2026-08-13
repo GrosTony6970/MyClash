@@ -7,7 +7,7 @@
  * scoreboard palette via `displayPreviewModel` (sideStyle).
  */
 
-import { t } from '@myclash/i18n';
+import { useI18n } from '@myclash/next-i18n/client';
 import type { SideColorStyle } from '@myclash/ui';
 import { displayPreviewModel } from './display-preview-model';
 import type { DisplayState } from './buildDisplayConfigFromRow';
@@ -48,6 +48,8 @@ export function DisplayPreview({
   logoUrl: string | null;
   rulesetCode: string;
 }) {
+  const { t } = useI18n();
+
   const m = displayPreviewModel({
     sideColors: data.sideColors,
     buttons: data.buttons,

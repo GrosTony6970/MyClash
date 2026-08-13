@@ -1,7 +1,7 @@
 'use client';
 
+import { useI18n } from '@myclash/next-i18n/client';
 import { useEffect, useState } from 'react';
-import { t } from '@myclash/i18n';
 import { useToast } from '@myclash/ui';
 import { getPublicApiUrl } from '@/lib/api-url';
 
@@ -30,6 +30,8 @@ export function TournamentVenuesEditor({
   tournamentId: string;
   eventId: string;
 }) {
+  const { t } = useI18n();
+
   const toast = useToast();
   const [venues, setVenues] = useState<VenueOption[]>([]);
   const [poolVenueId, setPoolVenueId] = useState<string>('');
@@ -234,6 +236,8 @@ function VenueSelect({
   venues: VenueOption[];
   onChange: (v: string) => void;
 }) {
+  const { t } = useI18n();
+
   return (
     <label className="flex items-center justify-between gap-3">
       <span className="text-sm text-foreground-secondary">{label}</span>

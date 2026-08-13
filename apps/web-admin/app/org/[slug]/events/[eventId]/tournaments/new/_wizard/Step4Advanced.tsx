@@ -1,7 +1,7 @@
 'use client';
 
+import { useI18n } from '@myclash/next-i18n/client';
 import { useCallback, useEffect, useState } from 'react';
-import { t } from '@myclash/i18n';
 import { useToast } from '@myclash/ui';
 import { buildTfFromRow, type RulesetConfigTF, TF_DEFAULTS } from './buildTfFromRow';
 import { TournamentVenuesEditor } from '../../_components/TournamentVenuesEditor';
@@ -23,6 +23,8 @@ export function Step4Advanced({
   onBack: () => void;
   onFinish: (publish: boolean) => void;
 }) {
+  const { t } = useI18n();
+
   const toast = useToast();
   const [rulesetCode, setRulesetCode] = useState<string>('TF_v1');
   const [isSystem, setIsSystem] = useState(true);

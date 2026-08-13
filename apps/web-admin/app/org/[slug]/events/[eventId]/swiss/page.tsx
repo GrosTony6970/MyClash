@@ -14,10 +14,10 @@
  * never match itself.
  */
 
+import { useI18n } from '@myclash/next-i18n/client';
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
-import { t } from '@myclash/i18n';
 import { TournamentColorDot } from '@myclash/ui';
 import { parseHashTab } from '../pools/parse-hash-tab';
 import { useEventStatus } from '../_hooks/useEventStatus';
@@ -48,6 +48,8 @@ function readHashTab(): TabKey {
 }
 
 export default function SwissPage() {
+  const { t } = useI18n();
+
   const { slug, eventId } = useParams<{ slug: string; eventId: string }>();
   const apiUrl = getPublicApiUrl();
   const { isReadOnly } = useEventStatus(eventId);

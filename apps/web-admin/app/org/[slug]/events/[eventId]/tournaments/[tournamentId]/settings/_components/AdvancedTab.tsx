@@ -1,7 +1,7 @@
 'use client';
 
+import { useI18n } from '@myclash/next-i18n/client';
 import { useCallback, useEffect, useState } from 'react';
-import { t } from '@myclash/i18n';
 import { useToast } from '@myclash/ui';
 import {
   buildTfFromRow,
@@ -16,6 +16,8 @@ import { getPublicApiUrl } from '@/lib/api-url';
 const apiUrl = getPublicApiUrl();
 
 export function AdvancedTab({ tournamentId }: { tournamentId: string }) {
+  const { t } = useI18n();
+
   const toast = useToast();
   const [rulesetCode, setRulesetCode] = useState<string>('TF_v1');
   const [isSystem, setIsSystem] = useState(true);

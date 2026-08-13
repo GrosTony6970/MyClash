@@ -10,8 +10,8 @@
  * should be placed on a number they cannot see.
  */
 
+import { useI18n } from '@myclash/next-i18n/client';
 import { useCallback, useEffect, useState } from 'react';
-import { t } from '@myclash/i18n';
 import { escapeCsvCell } from '@myclash/types';
 import { StandingsHeaderCell } from '@/components/standings/StandingsHeaderCell';
 import { useStandingsView } from '@/components/standings/useStandingsView';
@@ -48,6 +48,8 @@ interface SwissStandings {
 }
 
 export function StandingsTab({ tournamentId }: { tournamentId: string }) {
+  const { t } = useI18n();
+
   const [data, setData] = useState<SwissStandings | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -118,6 +120,8 @@ export function StandingsTab({ tournamentId }: { tournamentId: string }) {
 }
 
 function SwissTable({ columns, rows }: { columns: StandingsColumn[]; rows: SwissRow[] }) {
+  const { t } = useI18n();
+
   const { query, setQuery, view, sortKey, direction, toggle } = useStandingsView(rows);
   const sortAscLabel = t('admin.common.sortAscLabel');
   const sortDescLabel = t('admin.common.sortDescLabel');

@@ -1,7 +1,6 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { t } from '@myclash/i18n';
 import { localeToBcp47 } from '@myclash/time';
 import { Button } from '@myclash/ui';
 import { useI18n } from '@myclash/next-i18n/client';
@@ -19,7 +18,7 @@ type Locale = (typeof LOCALES)[number];
 
 /** Organizer control for the AI tournament recap: generate → review → publish. */
 export function RecapTab({ tournamentId }: { tournamentId: string }) {
-  const { locale: uiLocale } = useI18n();
+  const { locale: uiLocale, t } = useI18n();
   const apiUrl = getPublicApiUrl();
   const base = `${apiUrl}/api/v1/generated-content/tournament_recap/${tournamentId}`;
 

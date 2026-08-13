@@ -1,9 +1,9 @@
 'use client';
 
+import { useI18n } from '@myclash/next-i18n/client';
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { AdminPageHeader } from '@myclash/ui';
-import { t } from '@myclash/i18n';
 import { BasicsTab } from './_components/BasicsTab';
 import { MatchFormatTab } from './_components/MatchFormatTab';
 import { DisplayTab } from './_components/DisplayTab';
@@ -33,6 +33,8 @@ function readHashTab(): TabKey {
 }
 
 export default function TournamentSettingsPage() {
+  const { t } = useI18n();
+
   const params = useParams<{ slug: string; eventId: string; tournamentId: string }>();
   const [active, setActive] = useState<TabKey>('basics');
 

@@ -10,7 +10,7 @@
  * rewrite what the rounds already played were worth.
  */
 
-import { t } from '@myclash/i18n';
+import { useI18n } from '@myclash/next-i18n/client';
 import { HelpTooltip } from '@myclash/ui';
 import type { UseSwissAdmin } from '../useSwissAdmin';
 import type { Draft } from '../_tabs/ConfigureTab';
@@ -35,6 +35,8 @@ export function FormatSection({
   frozenReason: string | null;
   onChange: (next: Draft) => void;
 }) {
+  const { t } = useI18n();
+
   return (
     <section className="space-y-3 rounded-lg border border-border bg-surface p-4">
       <h2 className="text-xs font-semibold uppercase tracking-wider text-muted">
@@ -156,6 +158,8 @@ function CoverageLine({
   threshold: number | null;
   highlight: boolean;
 }) {
+  const { t } = useI18n();
+
   // Null means the ratings lookup itself failed; saying nothing beats claiming
   // 0% and pushing the operator away from a strategy that may be fine.
   if (!coverage || coverage.total === 0) return null;

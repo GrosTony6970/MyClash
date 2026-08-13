@@ -1,7 +1,8 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { t } from '@myclash/i18n';
+import { useI18n } from '@myclash/next-i18n/client';
+import { useEffect, useMemo, useState } from 'react';
+
 import { useToast } from '@myclash/ui';
 import { getPublicApiUrl } from '@/lib/api-url';
 
@@ -30,15 +31,23 @@ const DEFAULTS: MatchFormat = {
 };
 
 // Best-of selector options — odd values only (the engine rejects even N).
+// Keys, not strings: resolved at module init these bound to the EN-only
+// module-level `t`, so the selector read English whatever the organiser chose.
 const BEST_OF_OPTIONS = [
-  { value: '1', label: t('organizer.tournaments.settings.bestOfSingle') },
-  { value: '3', label: t('organizer.tournaments.settings.bestOf3') },
-  { value: '5', label: t('organizer.tournaments.settings.bestOf5') },
-  { value: '7', label: t('organizer.tournaments.settings.bestOf7') },
-];
+  { value: '1', labelKey: 'organizer.tournaments.settings.bestOfSingle' },
+  { value: '3', labelKey: 'organizer.tournaments.settings.bestOf3' },
+  { value: '5', labelKey: 'organizer.tournaments.settings.bestOf5' },
+  { value: '7', labelKey: 'organizer.tournaments.settings.bestOf7' },
+] as const;
 
 export function MatchFormatTab({ tournamentId }: { tournamentId: string }) {
+  const { t } = useI18n();
+
   const toast = useToast();
+  const bestOfOptions = useMemo(
+    () => BEST_OF_OPTIONS.map((option) => ({ value: option.value, label: t(option.labelKey) })),
+    [t],
+  );
   const [data, setData] = useState<MatchFormat>(DEFAULTS);
   // Whether the ruleset HAS afterblow, driven from its grammar rather than a
   // `rulesetCode === 'TF_v1'` literal — so the afterblow-mode control survives
@@ -199,7 +208,7 @@ export function MatchFormatTab({ tournamentId }: { tournamentId: string }) {
         defaultValue={String(DEFAULTS.bestOf.pool)}
         onChange={(v) => setData({ ...data, bestOf: { ...data.bestOf, pool: Number(v) } })}
         onReset={() => setData({ ...data, bestOf: { ...data.bestOf, pool: DEFAULTS.bestOf.pool } })}
-        options={BEST_OF_OPTIONS}
+        options={bestOfOptions}
       />
       <SelectField
         label={t('organizer.tournaments.settings.bestOfBracket')}
@@ -209,7 +218,7 @@ export function MatchFormatTab({ tournamentId }: { tournamentId: string }) {
         onReset={() =>
           setData({ ...data, bestOf: { ...data.bestOf, bracket: DEFAULTS.bestOf.bracket } })
         }
-        options={BEST_OF_OPTIONS}
+        options={bestOfOptions}
       />
       <SelectField
         label={t('organizer.tournaments.settings.bestOfFinals')}
@@ -219,7 +228,7 @@ export function MatchFormatTab({ tournamentId }: { tournamentId: string }) {
         onReset={() =>
           setData({ ...data, bestOf: { ...data.bestOf, finals: DEFAULTS.bestOf.finals } })
         }
-        options={BEST_OF_OPTIONS}
+        options={bestOfOptions}
       />
 
       <NumberField
@@ -311,6 +320,8 @@ function NumberField({
   suffix?: string;
   hint?: string;
 }) {
+  const { t } = useI18n();
+
   const modified = defaultValue !== undefined && value !== defaultValue;
   return (
     <label className="block">
@@ -368,6 +379,8 @@ function SelectField({
   options: Array<{ value: string; label: string }>;
   hint?: string;
 }) {
+  const { t } = useI18n();
+
   const modified = defaultValue !== undefined && value !== defaultValue;
   return (
     <label className="block">

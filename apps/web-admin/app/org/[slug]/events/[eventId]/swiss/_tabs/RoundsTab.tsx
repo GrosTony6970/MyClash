@@ -14,8 +14,8 @@
  * window closing (decision 3).
  */
 
+import { useI18n } from '@myclash/next-i18n/client';
 import { useState } from 'react';
-import { t } from '@myclash/i18n';
 import { ConfirmDialog, useToast } from '@myclash/ui';
 import {
   swissMutate,
@@ -34,6 +34,8 @@ export function RoundsTab({
   slug: string;
   eventId: string;
 }) {
+  const { t } = useI18n();
+
   const toast = useToast();
   const { view, reload, nameOf } = swiss;
   const [busy, setBusy] = useState(false);

@@ -1,7 +1,7 @@
 'use client';
 
+import { useI18n } from '@myclash/next-i18n/client';
 import { useEffect, useState } from 'react';
-import { t } from '@myclash/i18n';
 import { useToast } from '@myclash/ui';
 import {
   buildMatchFormatFromRow,
@@ -24,6 +24,8 @@ export function Step2MatchFormat({
   onNext: () => void;
   onBack: () => void;
 }) {
+  const { t } = useI18n();
+
   const toast = useToast();
   const [data, setData] = useState<MatchFormat>(DEFAULTS);
   const [hasAfterblow, setHasAfterblow] = useState(false);

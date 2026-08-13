@@ -1,9 +1,9 @@
 'use client';
 
+import { useI18n } from '@myclash/next-i18n/client';
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { fetchSelectableRulesets } from '@/lib/selectable-rulesets';
-import { t } from '@myclash/i18n';
 import type { BucketDiff } from '@myclash/rulesets';
 import { useToast } from '@myclash/ui';
 import { useWeaponOptions } from '@/hooks/useWeaponOptions';
@@ -36,6 +36,8 @@ interface TournamentBasics {
 const apiUrl = getPublicApiUrl();
 
 export function BasicsTab({ tournamentId }: { tournamentId: string }) {
+  const { t } = useI18n();
+
   const params = useParams<{ slug: string; eventId: string }>();
   const orgSlug = params.slug;
   const eventId = params.eventId;

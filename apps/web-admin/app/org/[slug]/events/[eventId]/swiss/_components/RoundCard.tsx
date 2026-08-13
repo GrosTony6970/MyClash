@@ -9,7 +9,7 @@
  * insider vocabulary.
  */
 
-import { t } from '@myclash/i18n';
+import { useI18n } from '@myclash/next-i18n/client';
 import { StatusBadge, matchStatusSemantic } from '@myclash/ui';
 import type { SwissAdminMatch, SwissAdminRound } from '../useSwissAdmin';
 
@@ -36,6 +36,8 @@ export function RoundCard({
   onDelete: () => void;
   onSetSides: (matchId: string, red: string | null, blue: string | null) => void;
 }) {
+  const { t } = useI18n();
+
   // The override window IS the round's status: it opens when the round is
   // paired and closes when its first bout starts.
   const editable = !locked && round.status === 'pending';
@@ -141,6 +143,8 @@ function MatchRow({
   onPick: (registrationId: string) => void;
   onSetSides: (matchId: string, red: string | null, blue: string | null) => void;
 }) {
+  const { t } = useI18n();
+
   return (
     <li className="flex flex-wrap items-center gap-x-3 gap-y-1 px-4 py-2.5 text-sm">
       <span className="w-24 shrink-0 font-mono text-xs text-muted">{match.matchNumberLabel}</span>
@@ -234,6 +238,8 @@ function ValidityBanner({
   round: SwissAdminRound;
   nameOf: (registrationId: string | null) => string;
 }) {
+  const { t } = useI18n();
+
   const groups: Array<[string, string[]]> = [
     ['duplicated', round.validity.duplicated],
     ['missing', round.validity.missing],

@@ -1,9 +1,9 @@
 'use client';
 
+import { useI18n } from '@myclash/next-i18n/client';
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { AdminPageHeader, useToast } from '@myclash/ui';
-import { t } from '@myclash/i18n';
 import { Step1Basics } from './Step1Basics';
 import { Step2MatchFormat } from './Step2MatchFormat';
 import { Step3Display } from './Step3Display';
@@ -27,6 +27,8 @@ interface Props {
 }
 
 export function WizardShell({ slug, eventId, initialTournamentId, initialStep }: Props) {
+  const { t } = useI18n();
+
   const router = useRouter();
   const toast = useToast();
   const [tournamentId, setTournamentId] = useState<string | null>(initialTournamentId);

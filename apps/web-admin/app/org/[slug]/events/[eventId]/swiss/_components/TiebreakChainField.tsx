@@ -13,7 +13,7 @@
  * an organiser rank on it twice.
  */
 
-import { t } from '@myclash/i18n';
+import { useI18n } from '@myclash/next-i18n/client';
 
 /** Mirrors SWISS_TIEBREAK_KEYS on the API. */
 export const SWISS_TIEBREAK_KEYS = [
@@ -40,6 +40,8 @@ export function TiebreakChainField({
   disabled: boolean;
   onChange: (next: string[]) => void;
 }) {
+  const { t } = useI18n();
+
   const available = SWISS_TIEBREAK_KEYS.filter((key) => !chain.includes(key));
 
   function move(index: number, delta: number) {
