@@ -16,9 +16,11 @@ export {
   AuthField,
   AuthDivider,
   AuthNotice,
+  AuthAltLink,
   authFieldClass,
   authTabClass,
   authNoticeClass,
+  authAltLinkClass,
 } from './components/AuthPanel';
 export type {
   AuthPanelProps,
@@ -27,6 +29,7 @@ export type {
   AuthDividerProps,
   AuthNoticeProps,
   AuthNoticeTone,
+  AuthAltLinkProps,
 } from './components/AuthPanel';
 
 export type { Translator, TranslatorValues } from './types/translator';

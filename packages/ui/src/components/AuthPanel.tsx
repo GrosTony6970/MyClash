@@ -37,6 +37,15 @@ export function authNoticeClass(tone: AuthNoticeTone): string {
     : 'rounded-md border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger';
 }
 
+/**
+ * The pointer from one front door to the other.
+ *
+ * `text-accent` rather than a fixed colour: the class resolves per scope, so
+ * the link is blue on the personal-space panel and red on the organizer one
+ * without this component knowing which app rendered it.
+ */
+export const authAltLinkClass = 'font-semibold text-accent underline-offset-2 hover:underline';
+
 export interface AuthPanelTab<T extends string = string> {
   value: T;
   label: string;
@@ -247,6 +256,34 @@ export function AuthDivider({ label }: AuthDividerProps): React.JSX.Element {
       <span>{label}</span>
       <span className="h-px flex-1 bg-border" />
     </div>
+  );
+}
+
+export interface AuthAltLinkProps {
+  /** The question that frames the link — "Looking for the organizer login?" */
+  prompt: string;
+  /** The link text. Descriptive on its own; never "click here". */
+  label: string;
+  href: string;
+}
+
+/**
+ * The one-line pointer from one front door to the other.
+ *
+ * The two apps share an account system but sit on different hosts, so someone
+ * who lands on the wrong one had nothing but the browser bar to get across.
+ * A plain `<a>` rather than a router link: the target is another origin, it is
+ * a document navigation either way, and packages/ui has no `next` dependency
+ * and must not gain one.
+ */
+export function AuthAltLink({ prompt, label, href }: AuthAltLinkProps): React.JSX.Element {
+  return (
+    <p className="text-sm leading-6 text-muted">
+      {prompt}{' '}
+      <a href={href} className={authAltLinkClass}>
+        {label}
+      </a>
+    </p>
   );
 }
 

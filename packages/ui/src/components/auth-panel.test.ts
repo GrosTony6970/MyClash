@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { authFieldClass, authNoticeClass, authTabClass } from './AuthPanel';
+import { authAltLinkClass, authFieldClass, authNoticeClass, authTabClass } from './AuthPanel';
 
 /**
  * There is no DOM harness in this package, so these cover the parts of the auth
@@ -41,5 +41,13 @@ describe('auth panel classes', () => {
     expect(authFieldClass).toContain('text-foreground');
     expect(authFieldClass).toContain('focus:border-accent');
     expect(authFieldClass).not.toMatch(/\b(?:bg|text|border)-(?:slate|gray|zinc|white|black)\b/);
+  });
+
+  it('paints the cross-app link with the accent, not a fixed colour', () => {
+    // The same component renders on the blue personal-space panel and the red
+    // organizer one. A literal colour here would be right on exactly one of
+    // them, and there is no DOM test that would catch which.
+    expect(authAltLinkClass).toContain('text-accent');
+    expect(authAltLinkClass).not.toMatch(/\b(?:bg|text|border)-(?:slate|gray|zinc|white|black)\b/);
   });
 });
