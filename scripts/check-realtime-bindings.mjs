@@ -24,6 +24,7 @@ import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, relative, sep } from 'node:path';
 
 import { listMigrationFiles } from './lib/migrations.mjs';
+import { stripSqlComments } from './lib/sql.mjs';
 
 const root = process.cwd();
 const migrationsDir = join(root, 'packages', 'db', 'migrations');
@@ -112,12 +113,15 @@ for (const file of scanRoots.flatMap(walk)) {
 
 // ── 2. Collect what the migrations publish ───────────────────────────────────
 
-const migrationSql = listMigrationFiles(migrationsDir)
-  .map((name) => readFileSync(join(migrationsDir, name), 'utf8'))
-  .join('\n')
-  // Strip `--` comments: 0167's own header quotes the statements it explains,
-  // and counting prose as DDL would make the gate pass on documentation.
-  .replace(/--[^\n]*/g, '');
+// Comments are blanked, not read: 0167's own header quotes the statements it
+// explains, and counting prose as DDL would make the gate pass on
+// documentation. This used to strip `--` lines only, so a publication named
+// inside a block comment still registered as published — see scripts/lib/sql.mjs.
+const migrationSql = stripSqlComments(
+  listMigrationFiles(migrationsDir)
+    .map((name) => readFileSync(join(migrationsDir, name), 'utf8'))
+    .join('\n'),
+);
 
 const published = new Set(
   [...migrationSql.matchAll(/ALTER\s+PUBLICATION\s+supabase_realtime\s+ADD\s+TABLE\s+(\w+)/gi)].map(

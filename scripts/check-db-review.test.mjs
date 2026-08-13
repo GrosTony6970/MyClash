@@ -3,10 +3,10 @@ import test from 'node:test';
 
 import {
   securityDefinerFunctionsReachableByAnon,
-  stripSqlComments,
   tablesMissingRls,
   viewsMissingSecurityInvoker,
 } from './check-db-review.mjs';
+import { stripSqlComments } from './lib/sql.mjs';
 
 // Every fixture below is hand-written to fail. None is derived from the real
 // migrations: a fixture built from the thing under test cannot falsify it.

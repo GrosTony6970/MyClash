@@ -2,6 +2,7 @@ import { readFileSync, statSync } from 'node:fs';
 import { join, relative, sep } from 'node:path';
 
 import { listMigrationFiles } from './lib/migrations.mjs';
+import { stripSqlComments } from './lib/sql.mjs';
 
 const root = process.cwd();
 const migrationsDir = join(root, 'packages', 'db', 'migrations');
@@ -34,17 +35,6 @@ function normalize(path) {
 
 function objectName(matchValue) {
   return matchValue.split('.').pop()?.replaceAll('"', '') ?? matchValue;
-}
-
-// Migration headers in this repo are long prose, and they quote the DDL they
-// discuss. Every structural check below would otherwise read those sentences
-// as declarations: a header explaining `CREATE TABLE IF NOT EXISTS` reports a
-// table named "IF" with no RLS. Blank the comments out rather than deleting
-// them so line-keyed output stays honest.
-export function stripSqlComments(sql) {
-  return sql
-    .replace(/\/\*[\s\S]*?\*\//g, (block) => block.replace(/[^\n]/g, ' '))
-    .replace(/--[^\n]*/g, (line) => ' '.repeat(line.length));
 }
 
 // The IF NOT EXISTS clause is optional on purpose. Requiring it hid 17 table
