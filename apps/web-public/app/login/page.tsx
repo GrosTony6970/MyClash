@@ -2,7 +2,6 @@
 
 import Image from 'next/image';
 import { getPublicApiUrl } from '@/lib/api-url';
-import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useMemo, useState } from 'react';
 import {
@@ -17,6 +16,7 @@ import {
 } from '@myclash/ui';
 import type { AuthPanelTab } from '@myclash/ui';
 import { validatePassword } from '@myclash/types';
+import { BackLink } from '../../src/components/BackLink';
 import { LegalConsent } from '../../src/components/LegalConsent';
 import { useI18n } from '@myclash/next-i18n/client';
 import { currentLegalVersionFields } from '../../src/lib/legal-url';
@@ -245,9 +245,11 @@ export default function PublicLoginPage() {
             ← {t('publicApp.login.tabSignIn')}
           </button>
         ) : (
-          <Link href="/" className="text-sm font-semibold text-muted hover:text-foreground">
-            {t('publicApp.login.backToEvents')}
-          </Link>
+          // The app's one back affordance rather than muted text: sitting under
+          // a hairline below two full-width buttons, a bare link did not read
+          // as clickable at all. Every token BackLink uses is redefined under
+          // the panel's data-theme="dark", so the pill reads correctly here.
+          <BackLink href="/" label={t('publicApp.login.backToEvents')} />
         )
       }
     >
