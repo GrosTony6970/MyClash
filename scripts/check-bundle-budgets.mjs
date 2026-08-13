@@ -32,9 +32,11 @@
  *
  * So `page-load` budgets weigh the UNION. That is the figure a visitor pays.
  */
-import { existsSync, readFileSync, readdirSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { gzipSync } from 'node:zlib';
+
+import { walkAllFiles } from './lib/repo-scan.mjs';
 
 export const budgets = [
   {
@@ -95,15 +97,17 @@ export const budgets = [
   },
 ];
 
-function walkFiles(root) {
-  if (!existsSync(root)) return [];
-  return readdirSync(root, { withFileTypes: true }).flatMap((entry) => {
-    const path = join(root, entry.name);
-    if (entry.isDirectory()) return walkFiles(path);
-    if (entry.isFile()) return [path];
-    return [];
-  });
-}
+/**
+ * Every walk in this file is walkAllFiles, never walkRepoFiles.
+ *
+ * The shared REPO_IGNORED_DIRS excludes `dist` and `.next` — precisely the two
+ * directories these budgets weigh. A walk that inherited it would measure a
+ * subset of the build and pass, which is this file's own founding bug: it spent
+ * its whole life pointed at a directory the site emitted nothing to, reporting
+ * "0 bytes gzip" as a pass. repo-scan.test.mjs asserts this file never imports
+ * walkRepoFiles, so the mistake cannot be reintroduced by a tidy-up.
+ */
+const BUILD_OUTPUT = { missingRoot: 'empty' };
 
 function gzipSize(files) {
   return files.reduce((total, file) => total + gzipSync(readFileSync(file)).byteLength, 0);
@@ -142,7 +146,7 @@ export function checkStaticBudget(budget, { requireBuild = false } = {}) {
     return requireBuild ? { failures: [message] } : { warnings: [`${message} Skipping.`] };
   }
 
-  const allFiles = walkFiles(budget.root);
+  const allFiles = walkAllFiles(budget.root, BUILD_OUTPUT);
   if (allFiles.length === 0) {
     return {
       failures: [
@@ -193,12 +197,9 @@ export function layoutEntryJsFiles(source, app) {
 }
 
 function clientReferenceManifests(dir) {
-  if (!existsSync(dir)) return [];
-  return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
-    const path = join(dir, entry.name);
-    if (entry.isDirectory()) return clientReferenceManifests(path);
-    return entry.name.endsWith('_client-reference-manifest.js') ? [path] : [];
-  });
+  return walkAllFiles(dir, BUILD_OUTPUT).filter((path) =>
+    path.endsWith('_client-reference-manifest.js'),
+  );
 }
 
 /** The layout entry from whichever route manifest names it first. */

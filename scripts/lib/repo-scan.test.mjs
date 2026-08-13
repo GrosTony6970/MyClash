@@ -72,19 +72,71 @@ test('does not exclude a directory holding product source', () => {
   }
 });
 
-test('the gates that walk the repo root hold no private ignore list', () => {
+/** Every gate that scans a directory tree. */
+const WALKING_GATES = [
+  'check-api-docs.mjs',
+  'check-bundle-budgets.mjs',
+  'check-client-secret-boundaries.mjs',
+  'check-complexity.mjs',
+  'check-realtime-bindings.mjs',
+  'check-shared-type-leaks.mjs',
+  'check-test-code-leak.mjs',
+  'check-todos.mjs',
+];
+
+const gateSource = (gate) => readFileSync(join(root, 'scripts', gate), 'utf8');
+
+test('no gate holds a private walk', () => {
   // Falsifies the extraction itself. If a copy is ever reintroduced alongside
   // the import, the two drift again and this module stops being the one place
-  // an exclusion has to be added.
-  for (const gate of ['check-complexity.mjs', 'check-todos.mjs']) {
-    const source = readFileSync(join(root, 'scripts', gate), 'utf8');
-    assert.match(source, /REPO_IGNORED_DIRS/, `${gate} must use the shared set`);
+  // a scanning decision has to be made. The eight copies this replaced used
+  // three different names, so match the shape rather than any one of them.
+  for (const gate of WALKING_GATES) {
+    const source = gateSource(gate);
+    assert.match(source, /walkRepoFiles|walkAllFiles/, `${gate} must use the shared walk`);
     assert.doesNotMatch(
       source,
-      /const\s+ignoredDirs\s*=\s*new Set\(\[/,
-      `${gate} must not declare its own ignore set`,
+      /function\s+walk\w*\s*\(/,
+      `${gate} must not declare its own directory walk`,
     );
   }
+});
+
+test('no gate holds a private ignore list', () => {
+  // Name-independent: the copies spelled it `ignoredDirs`, `IGNORED_DIRS`, and
+  // as a bare chain of `entry === 'node_modules' || …`. What they all had to
+  // name is the directory itself, so that is what this forbids.
+  for (const gate of WALKING_GATES) {
+    assert.doesNotMatch(
+      gateSource(gate),
+      /node_modules/,
+      `${gate} must not name an excluded directory — REPO_IGNORED_DIRS owns that list`,
+    );
+  }
+});
+
+test('the bundle budget cannot inherit the source exclusions', () => {
+  // The one gate whose scan targets are dist/ and .next/, which REPO_IGNORED_DIRS
+  // excludes. Importing walkRepoFiles here would silently shrink every budget
+  // and every one of them would still pass — the failure that file already has
+  // a docstring about. A one-word tidy-up must turn this red.
+  //
+  // Matches the IMPORT and the CALL, not the name. The first version of this
+  // test matched the bare word and went red on the docstring explaining why the
+  // rule exists — a gate reading prose as code, which is the same defect
+  // check-db-review.mjs was hardened against.
+  const source = gateSource('check-bundle-budgets.mjs');
+  assert.match(source, /walkAllFiles\s*\(/);
+  assert.doesNotMatch(
+    source,
+    /import\s*\{[^}]*\bwalkRepoFiles\b[^}]*\}/,
+    'check-bundle-budgets.mjs weighs build output and must never import the source walk',
+  );
+  assert.doesNotMatch(
+    source,
+    /walkRepoFiles\s*\(/,
+    'check-bundle-budgets.mjs weighs build output and must never call the source walk',
+  );
 });
 
 // ── walkRepoFiles / walkAllFiles ─────────────────────────────────────────────
