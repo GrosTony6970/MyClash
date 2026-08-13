@@ -61,9 +61,24 @@ for (const [name, command] of Object.entries(expectedScripts)) {
   }
 }
 
+// Registration is not execution. The expectedScripts loop above proves each
+// gate has a package.json entry, and for perf:bundle that was the only thing
+// anything proved: it sat registered and unrun for weeks, reading a Next
+// manifest that had been deleted from the framework, and no gate noticed
+// because none of them asked whether a workflow invokes it. Assert the run.
 const ci = readFileSync('.github/workflows/ci.yml', 'utf8');
-if (!ci.includes('pnpm perf:review')) {
-  failures.push('CI lint job must run pnpm perf:review');
+for (const command of ['pnpm perf:review', 'pnpm perf:bundle']) {
+  if (!ci.includes(command)) {
+    failures.push(`CI lint job must run ${command}`);
+  }
+}
+
+// A bundle budget with nothing built is a budget over an empty directory, and
+// that passes. The step must demand the build it measures.
+if (ci.includes('pnpm perf:bundle') && !ci.includes('pnpm perf:bundle -- --require-build')) {
+  failures.push(
+    'CI must run pnpm perf:bundle with --require-build, or an absent build skips the budget instead of failing it.',
+  );
 }
 
 const perfSpec = readFileSync('tests/perf/web-public.spec.ts', 'utf8');

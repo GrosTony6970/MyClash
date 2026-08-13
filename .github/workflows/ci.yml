@@ -270,6 +270,25 @@ jobs:
         if: '!cancelled()'
         run: pnpm perf:review
 
+      # The bundle budget was registered in package.json and run by no workflow,
+      # so its meta-gate proved only that the script existed. It needs a build to
+      # weigh: web-marketing has no workspace dependencies, so it builds here on
+      # its own. The Test job builds it too, as part of web-marketing's `test`
+      # script, but turbo declares only coverage/** as that task's output — on a
+      # cache hit dist/ is never restored and the budget would silently measure
+      # nothing again.
+      - name: Build the marketing site for the bundle budget
+        if: '!cancelled()'
+        run: pnpm --filter @myclash/web-marketing build
+
+      # --require-build so an absent dist/ fails instead of skipping. The Next
+      # budgets stay opt-in (--include-next) and are not run here: they would
+      # need three more app builds, and web-public already budgets its own root
+      # shell inside its test chain.
+      - name: Check bundle budgets
+        if: '!cancelled()'
+        run: pnpm perf:bundle -- --require-build
+
       # Root-level scripts/ is outside the turbo workspace graph, so
       # `turbo run test` never covered it. Three of these tests had rotted
       # against current behaviour precisely because nothing ran them.

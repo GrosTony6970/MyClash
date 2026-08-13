@@ -183,8 +183,12 @@ export function checkNextBudget(budget, { includeNext = false, requireBuild = fa
 // Guarded so the test file can import the checks without running a scan.
 const invokedDirectly = process.argv[1] && process.argv[1].endsWith('check-bundle-budgets.mjs');
 if (invokedDirectly) {
+  // The two flags are independent. `--require-build` used to imply
+  // `--include-next`, which left no way to say "the static build must exist"
+  // without also demanding three Next builds — and that is exactly what CI
+  // needs, since the Lint job builds the marketing site and nothing else.
   const requireBuild = process.argv.includes('--require-build');
-  const includeNext = requireBuild || process.argv.includes('--include-next');
+  const includeNext = process.argv.includes('--include-next');
   const options = { includeNext, requireBuild };
 
   const failures = [];
