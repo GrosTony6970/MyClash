@@ -80,6 +80,14 @@ const devTraefikDynamicPath = path.join(rootDir, 'infra', 'traefik', 'dynamic.de
 const vpsBootstrapPath = path.join(rootDir, 'infra', 'scripts', 'vps-bootstrap.sh');
 const publicRootPagePath = path.join(rootDir, 'apps', 'web-public', 'app', 'page.tsx');
 const publicLoginPagePath = path.join(rootDir, 'apps', 'web-public', 'app', 'login', 'page.tsx');
+const publicLoginRequestsPath = path.join(
+  rootDir,
+  'apps',
+  'web-public',
+  'app',
+  'login',
+  'auth-requests.ts',
+);
 const publicOAuthCallbackPath = path.join(
   rootDir,
   'apps',
@@ -551,6 +559,7 @@ const rollbackText = await pinned.readPinnedFile(rollbackPath);
 const vpsBootstrapText = await pinned.readPinnedFile(vpsBootstrapPath);
 const publicRootPageText = await pinned.readPinnedFile(publicRootPagePath);
 const publicLoginPageText = await pinned.readPinnedFile(publicLoginPagePath);
+const publicLoginRequestsText = await pinned.readPinnedFile(publicLoginRequestsPath);
 const publicOAuthCallbackText = await pinned.readPinnedFile(publicOAuthCallbackPath);
 const publicPersonalLayoutText = await pinned.readPinnedFile(publicPersonalLayoutPath);
 const publicPersonalPageText = await pinned.readPinnedFile(publicPersonalPagePath);
@@ -1233,8 +1242,26 @@ for (const [label, text] of [
 if (publicRootPageText.includes('publicApp.home.placeholder')) {
   errors.push('apps/web-public/app/page.tsx must not render publicApp.home.placeholder.');
 }
-requireContains(publicLoginPageText, 'apps/web-public/app/login/page.tsx', "type: 'public_login'");
-requireContains(publicLoginPageText, 'apps/web-public/app/login/page.tsx', 'signInWithOAuth');
+// The magic-link `type` and the Google hand-off moved to the page's network
+// module when the page was split; both facts are unchanged, so the assertions
+// follow them rather than being dropped. The page keeps an assertion of its
+// own so the two halves cannot drift apart unnoticed — a page that stops
+// importing the module would otherwise leave these passing against dead code.
+requireContains(
+  publicLoginRequestsText,
+  'apps/web-public/app/login/auth-requests.ts',
+  "type: 'public_login'",
+);
+requireContains(
+  publicLoginRequestsText,
+  'apps/web-public/app/login/auth-requests.ts',
+  'signInWithOAuth',
+);
+requireContains(
+  publicLoginPageText,
+  'apps/web-public/app/login/page.tsx',
+  "from './auth-requests'",
+);
 requireContains(
   publicOAuthCallbackText,
   'apps/web-public/app/auth/oauth/callback/page.tsx',
