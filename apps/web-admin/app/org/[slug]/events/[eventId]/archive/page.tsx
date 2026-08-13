@@ -323,7 +323,10 @@ export default function OrganizerArchivePage() {
                 .filter(([, value]) => value > 0)
                 .map(([key, value]) => (
                   <div key={key} className="rounded-md bg-surface p-2">
-                    <dt className="text-xs text-muted">{key}</dt>
+                    {/* The API keys these counts by the archive envelope's table
+                        names. Rendering them raw showed the organiser
+                        `eventProgrammeBlocks` and `poolMembers`. */}
+                    <dt className="text-xs text-muted">{t(`organizer.archive.tables.${key}`)}</dt>
                     <dd className="font-semibold text-foreground">{value}</dd>
                   </div>
                 ))}

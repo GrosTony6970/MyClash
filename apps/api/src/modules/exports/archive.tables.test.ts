@@ -1,3 +1,5 @@
+import { existsSync, readFileSync } from 'node:fs';
+import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { ID_MAP_NAMES } from './archive.table-spec';
 import type { CollectRule } from './archive.table-spec';
@@ -208,6 +210,73 @@ describe('the derived declarations agree, because they are derived', () => {
 
   it('reports every declared table as collected', () => {
     expect([...ARCHIVE_COLLECTED_TABLES].sort()).toEqual(names().sort());
+  });
+});
+
+describe('the organiser can read every table name', () => {
+  /**
+   * The restore preview renders one row per archived table, labelled by
+   * `t('organizer.archive.tables.<key>')`. Before that it rendered the envelope
+   * key raw, so an organiser previewing a restore was shown
+   * `eventProgrammeBlocks` and `personPrivacy`.
+   *
+   * The dictionary is read from disk rather than imported: @myclash/i18n is not
+   * an API dependency, and the migration-coverage suite next door already reads
+   * packages/db/migrations the same way. A dynamic `t()` key cannot be checked
+   * by the i18n sweep, which is exactly why this exists.
+   */
+  const dictionary = (() => {
+    const candidates = [
+      path.resolve(process.cwd(), '../../packages/i18n/src/index.ts'),
+      path.resolve(process.cwd(), 'packages/i18n/src/index.ts'),
+      path.resolve(__dirname, '../../../../packages/i18n/src/index.ts'),
+      path.resolve(__dirname, '../../../../../packages/i18n/src/index.ts'),
+    ];
+    const found = candidates.find((candidate) => existsSync(candidate));
+    if (!found) throw new Error(`Could not locate packages/i18n/src/index.ts`);
+    return readFileSync(found, 'utf8');
+  })();
+
+  /** Every `tables: { … }` block under `organizer.archive` — one per locale. */
+  const localeBlocks = (() => {
+    const blocks = [...dictionary.matchAll(/\n( *)tables: \{\n([\s\S]*?)\n\1\},\n/g)].map(
+      (match) => match[2]!,
+    );
+    return blocks.filter((block) => /\n\s*eventProgrammeBlocks: /.test(block));
+  })();
+
+  it('finds both locale blocks (sanity check on the reader)', () => {
+    // Without this, a regex that stopped matching would report every key as
+    // missing — or, if the blocks vanished, assert nothing at all.
+    expect(localeBlocks).toHaveLength(2);
+  });
+
+  it.each([0, 1])('labels every archived table in locale %i', (index) => {
+    const block = localeBlocks[index] ?? '';
+    const labelled = new Set([...block.matchAll(/^\s*([A-Za-z]+): /gm)].map((match) => match[1]!));
+
+    const missing = names()
+      .map((table) => TABLE_TO_ARCHIVE_KEY[table])
+      .filter((key) => !labelled.has(key))
+      .sort();
+
+    expect(
+      missing,
+      `These archived tables have no label, so the restore preview would show ` +
+        `the organiser a raw camelCase identifier. Add each to BOTH locales ` +
+        `under organizer.archive.tables:\n` +
+        missing.map((key) => `  - ${key}`).join('\n'),
+    ).toEqual([]);
+  });
+
+  it('carries no label for a table the archive does not have', () => {
+    const keys = new Set<string>(names().map((table) => TABLE_TO_ARCHIVE_KEY[table]));
+    const stale = [...(localeBlocks[0] ?? '').matchAll(/^\s*([A-Za-z]+): /gm)]
+      .map((match) => match[1]!)
+      .filter((key) => !keys.has(key))
+      .sort();
+
+    expect(stale, 'a label nothing renders').toEqual([]);
   });
 });
 
