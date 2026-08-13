@@ -15,6 +15,22 @@
  *
  * Because `rootMainFiles` is the root shell rather than a per-route set, the
  * budgets no longer name routes — there is one shell figure per app.
+ *
+ * ── Why there is a SECOND figure per Next app ───────────────────────────────
+ * `rootMainFiles` is only half of what a page load pulls. The other half is the
+ * root layout's own client module graph, which Next records as `entryJSFiles`
+ * in each route's `page_client-reference-manifest.js`. The two sets are
+ * disjoint — measured across all three apps, zero chunks in common — so a
+ * shell-only budget cannot see anything the layout drags in.
+ *
+ * It missed two large ones. `packages/ui` pulled lucide-react's whole
+ * 2,011-icon barrel (188 KB gzip) and every app's I18nProvider pulls the entire
+ * EN+FR dictionary (181 KB gzip). Both sit in the layout entry, so both are
+ * downloaded on every page load of every app, and the shell budgets stayed
+ * green through all of it — the icon barrel's own source comment cited exactly
+ * that to argue the cost did not matter.
+ *
+ * So `page-load` budgets weigh the UNION. That is the figure a visitor pays.
  */
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
@@ -50,6 +66,31 @@ export const budgets = [
     type: 'next',
     root: join('apps', 'web-admin'),
     budgetBytes: 800 * 1024,
+  },
+  // Shell + root-layout entry: everything a page load pulls. Baselined from the
+  // measured figures after the lucide barrel came out (455,561 / 462,759 /
+  // 463,031), with headroom. These come down again when the dictionary is split
+  // per surface — re-baseline then rather than leaving slack nothing can use.
+  {
+    name: 'web-public every page load',
+    type: 'page-load',
+    root: join('apps', 'web-public'),
+    app: 'web-public',
+    budgetBytes: 480 * 1024,
+  },
+  {
+    name: 'web-staff every page load',
+    type: 'page-load',
+    root: join('apps', 'web-staff'),
+    app: 'web-staff',
+    budgetBytes: 480 * 1024,
+  },
+  {
+    name: 'web-admin every page load',
+    type: 'page-load',
+    root: join('apps', 'web-admin'),
+    app: 'web-admin',
+    budgetBytes: 480 * 1024,
   },
 ];
 
@@ -129,6 +170,101 @@ export function checkStaticBudget(budget, { requireBuild = false } = {}) {
   return { logs };
 }
 
+/**
+ * The client chunks a route's client-reference manifest lists under the ROOT
+ * LAYOUT's `entryJSFiles` — what every page of the app loads on top of the
+ * shell.
+ *
+ * Takes the manifest's SOURCE TEXT, not parsed JSON: Next emits this file as a
+ * JS assignment whose payload is sometimes an escaped string literal and
+ * sometimes not, and the chunk paths read the same either way. Exported so the
+ * shape is asserted in a test rather than discovered the next time Next renames
+ * a field — the same reason `rootMainJsFiles` is.
+ */
+export function layoutEntryJsFiles(source, app) {
+  const start = source.indexOf('entryJSFiles');
+  if (start === -1) return [];
+  const layout = source.indexOf(`/apps/${app}/app/layout`, start);
+  if (layout === -1) return [];
+  const segment = source.slice(layout, source.indexOf(']', layout) + 1);
+  const chunks = [...segment.matchAll(/static\/chunks\/([\w.-]+\.js)/g)].map((match) => match[1]);
+  return [...new Set(chunks)];
+}
+
+function clientReferenceManifests(dir) {
+  if (!existsSync(dir)) return [];
+  return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
+    const path = join(dir, entry.name);
+    if (entry.isDirectory()) return clientReferenceManifests(path);
+    return entry.name.endsWith('_client-reference-manifest.js') ? [path] : [];
+  });
+}
+
+/**
+ * Shell + root-layout entry, gzipped. Fails loudly when either half comes back
+ * empty: a half that silently resolves to nothing turns this into a smaller
+ * budget that still passes, which is the exact failure the static budget's
+ * anti-vacuity assertion exists to prevent.
+ */
+export function checkPageLoadBudget(budget, { includeNext = false, requireBuild = false } = {}) {
+  if (!includeNext) {
+    return {
+      warnings: [
+        `${budget.name}: skipping page-load budget. Pass --include-next after a fresh build.`,
+      ],
+    };
+  }
+
+  const manifestPath = join(budget.root, '.next', 'build-manifest.json');
+  if (!existsSync(manifestPath)) {
+    const message = `${budget.name}: missing ${manifestPath}. Run next build first.`;
+    return requireBuild ? { failures: [message] } : { warnings: [`${message} Skipping.`] };
+  }
+
+  const shell = rootMainJsFiles(JSON.parse(readFileSync(manifestPath, 'utf8')));
+  if (shell.length === 0) {
+    return {
+      failures: [
+        `${budget.name}: build-manifest.json names no rootMainFiles chunks. ` +
+          'Reconcile with apps/web-public/scripts/landing-bundle-budget.mjs.',
+      ],
+    };
+  }
+
+  let entry = [];
+  for (const manifest of clientReferenceManifests(join(budget.root, '.next', 'server', 'app'))) {
+    entry = layoutEntryJsFiles(readFileSync(manifest, 'utf8'), budget.app);
+    if (entry.length > 0) break;
+  }
+  if (entry.length === 0) {
+    return {
+      failures: [
+        `${budget.name}: no route names "[project]/apps/${budget.app}/app/layout" under ` +
+          'entryJSFiles. Next has changed the client-reference manifest shape, and this budget ' +
+          'would silently fall back to measuring the shell alone.',
+      ],
+    };
+  }
+
+  const files = [
+    ...shell.map((asset) => join(budget.root, '.next', asset)),
+    ...entry.map((chunk) => join(budget.root, '.next', 'static', 'chunks', chunk)),
+  ].filter(existsSync);
+
+  const total = gzipSize(files);
+  const logs = [
+    `${budget.name}: ${total} bytes gzip across ${files.length} chunk(s) ` +
+      `(${shell.length} shell + ${entry.length} layout, budget ${budget.budgetBytes}).`,
+  ];
+  if (total > budget.budgetBytes) {
+    return {
+      failures: [`${budget.name} is ${total} bytes gzip, above ${budget.budgetBytes}.`],
+      logs,
+    };
+  }
+  return { logs };
+}
+
 export function checkNextBudget(budget, { includeNext = false, requireBuild = false } = {}) {
   if (!includeNext) {
     return {
@@ -193,10 +329,13 @@ if (invokedDirectly) {
 
   const failures = [];
   for (const budget of budgets) {
-    const result =
+    const check =
       budget.type === 'static'
-        ? checkStaticBudget(budget, options)
-        : checkNextBudget(budget, options);
+        ? checkStaticBudget
+        : budget.type === 'page-load'
+          ? checkPageLoadBudget
+          : checkNextBudget;
+    const result = check(budget, options);
     for (const line of result.logs ?? []) console.log(line);
     for (const line of result.warnings ?? []) console.warn(line);
     failures.push(...(result.failures ?? []));
