@@ -19,8 +19,13 @@ import { validatePassword } from '@myclash/types';
 import { BackLink } from '../../src/components/BackLink';
 import { LegalConsent } from '../../src/components/LegalConsent';
 import { useI18n } from '@myclash/next-i18n/client';
-import { currentLegalVersionFields } from '../../src/lib/legal-url';
-import { createOAuthSupabaseClient } from '../../src/lib/oauth-supabase';
+import {
+  requestMagicLink,
+  requestPasswordReset,
+  requestPasswordSignIn,
+  requestSignUp,
+  startGoogleSignIn,
+} from './auth-requests';
 
 type Tab = 'signin' | 'signup' | 'reset';
 
@@ -56,30 +61,17 @@ export default function PublicLoginPage() {
     if (!email.trim() || !password || busy) return;
     setBusy(true);
     reset();
-    try {
-      const res = await fetch(`${apiUrl}/api/v1/auth/public-login`, {
-        method: 'POST',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: email.trim(), password }),
-      });
-      if (res.status === 403) {
-        const body = (await res.json().catch(() => ({}))) as { code?: string };
-        if (body.code === 'email_not_confirmed') {
-          setError(t('publicApp.login.errors.emailNotConfirmed'));
-          return;
-        }
-      }
-      if (!res.ok) {
-        setError(t('publicApp.login.errors.passwordLoginFailed'));
-        return;
-      }
+    const code = await requestPasswordSignIn(apiUrl, email, password);
+    setBusy(false);
+    if (code === 'ok') {
       router.replace('/me');
-    } catch {
-      setError(t('publicApp.login.errors.passwordLoginFailed'));
-    } finally {
-      setBusy(false);
+      return;
     }
+    setError(
+      code === 'email_not_confirmed'
+        ? t('publicApp.login.errors.emailNotConfirmed')
+        : t('publicApp.login.errors.passwordLoginFailed'),
+    );
   }
 
   async function handleSignUp() {
@@ -98,97 +90,46 @@ export default function PublicLoginPage() {
     }
     setBusy(true);
     reset();
-    try {
-      const res = await fetch(`${apiUrl}/api/v1/auth/public-signup`, {
-        method: 'POST',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          email: email.trim(),
-          password,
-          // Checked server-side against the published registry; a stale pair is
-          // refused so a tab open across a policy revision cannot consent to the
-          // old text.
-          ...currentLegalVersionFields(),
-        }),
-      });
-      if (res.status === 503) {
-        setError(t('publicApp.login.errors.signupsDisabled'));
-        return;
-      }
-      if (!res.ok) {
-        const body = (await res.json().catch(() => ({}))) as { code?: string };
-        setError(
-          body.code === 'legal_version_stale'
-            ? t('legal.accept.stale')
-            : t('publicApp.login.errors.signupFailed'),
-        );
-        return;
-      }
+    const code = await requestSignUp(apiUrl, email, password);
+    setBusy(false);
+    if (code === 'ok') {
       setMessage(t('publicApp.login.signupCheckEmail', { email: email.trim() }));
-    } catch {
-      setError(t('publicApp.login.errors.signupFailed'));
-    } finally {
-      setBusy(false);
+      return;
     }
+    setError(
+      code === 'signups_disabled'
+        ? t('publicApp.login.errors.signupsDisabled')
+        : code === 'legal_stale'
+          ? t('legal.accept.stale')
+          : t('publicApp.login.errors.signupFailed'),
+    );
   }
 
   async function handleSendMagicLink() {
     if (!email.trim() || busy) return;
     setBusy(true);
     reset();
-    try {
-      const res = await fetch(`${apiUrl}/api/v1/auth/magic-link`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({
-          email: email.trim(),
-          type: 'public_login',
-          redirectTo: '/me',
-        }),
-      });
-      if (!res.ok) throw new Error('magic-link');
-      setMessage(t('publicApp.login.checkEmail'));
-    } catch {
-      setError(t('publicApp.login.errors.magicLinkFailed'));
-    } finally {
-      setBusy(false);
-    }
+    const sent = await requestMagicLink(apiUrl, email);
+    setBusy(false);
+    if (sent) setMessage(t('publicApp.login.checkEmail'));
+    else setError(t('publicApp.login.errors.magicLinkFailed'));
   }
 
   async function handleResetRequest() {
     if (!email.trim() || busy) return;
     setBusy(true);
     reset();
-    try {
-      await fetch(`${apiUrl}/api/v1/auth/public-password-reset`, {
-        method: 'POST',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: email.trim() }),
-      });
-      setMessage(t('publicApp.login.resetCheckEmail'));
-    } catch {
-      setMessage(t('publicApp.login.resetCheckEmail'));
-    } finally {
-      setBusy(false);
-    }
+    await requestPasswordReset(apiUrl, email);
+    setBusy(false);
+    // The same notice whether or not the address exists — the endpoint does not
+    // enumerate accounts, and neither does this.
+    setMessage(t('publicApp.login.resetCheckEmail'));
   }
 
   async function continueWithGoogle() {
     reset();
-    try {
-      const redirectTo = `${window.location.origin}/auth/oauth/callback?mode=public_login&next=${encodeURIComponent('/me')}`;
-      const { error: oauthError } = await createOAuthSupabaseClient().auth.signInWithOAuth({
-        provider: 'google',
-        options: { redirectTo },
-      });
-      if (!oauthError) return;
-      setError(t('auth.oauth.errors.startFailed'));
-    } catch {
-      setError(t('auth.oauth.errors.startFailed'));
-    }
+    const started = await startGoogleSignIn(window.location.origin);
+    if (!started) setError(t('auth.oauth.errors.startFailed'));
   }
 
   const tabs: ReadonlyArray<AuthPanelTab<Tab>> = [
