@@ -48,6 +48,7 @@
     "observability:review": "node scripts/check-observability-review.mjs",
     "perf:review": "node scripts/check-performance-review.mjs",
     "perf:bundle": "node scripts/check-bundle-budgets.mjs",
+    "perf:bundle:build": "node scripts/build-app-bundles.mjs",
     "perf:load": "node scripts/perf-load-smoke.mjs",
     "format": "prettier --write \"**/*.{ts,tsx,js,jsx,mjs,cjs,json,md,yml,yaml,css}\"",
     "format:check": "prettier --check \"**/*.{ts,tsx,js,jsx,mjs,cjs,json,md,yml,yaml,css}\"",
