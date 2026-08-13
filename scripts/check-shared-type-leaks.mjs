@@ -1,9 +1,10 @@
-import { readdirSync, readFileSync, statSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { join, relative, sep } from 'node:path';
+
+import { walkRepoFiles } from './lib/repo-scan.mjs';
 
 const root = process.cwd();
 const scannedRoots = ['apps/api/src', 'packages'];
-const ignoredDirs = new Set(['coverage', 'dist', 'node_modules']);
 const ignoredFilePatterns = [
   /\.test\.ts$/,
   /\.test\.tsx$/,
@@ -15,14 +16,6 @@ const ignoredFilePatterns = [
 ];
 const anyLeakPattern = /(^|[^\w])((as|:)\s+any\b|<any>|\bany\[\])/;
 
-function walk(dir) {
-  return readdirSync(dir).flatMap((entry) => {
-    if (ignoredDirs.has(entry)) return [];
-    const path = join(dir, entry);
-    return statSync(path).isDirectory() ? walk(path) : [path];
-  });
-}
-
 function normalize(path) {
   return relative(root, path).split(sep).join('/');
 }
@@ -30,7 +23,7 @@ function normalize(path) {
 const violations = [];
 for (const scannedRoot of scannedRoots) {
   const absoluteRoot = join(root, scannedRoot);
-  for (const file of walk(absoluteRoot).filter((path) => path.endsWith('.ts'))) {
+  for (const file of walkRepoFiles(absoluteRoot, { extensions: ['.ts'] })) {
     const repoPath = normalize(file);
     if (ignoredFilePatterns.some((pattern) => pattern.test(repoPath))) continue;
     readFileSync(file, 'utf8')

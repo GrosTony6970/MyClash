@@ -1,5 +1,7 @@
-import { readdirSync, readFileSync, statSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { join, relative, sep } from 'node:path';
+
+import { walkRepoFiles } from './lib/repo-scan.mjs';
 
 const root = process.cwd();
 const frontendRoots = ['apps/web-admin', 'apps/web-public', 'apps/web-staff'];
@@ -15,26 +17,12 @@ const forbiddenEnvKeys = [
   'RESEND_API_KEY',
   'SMTP_PASSWORD',
 ];
-const scannedExtensions = new Set(['.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs', '.json']);
-
-function walk(dir) {
-  return readdirSync(dir).flatMap((entry) => {
-    if (entry === 'node_modules' || entry === '.next' || entry === 'dist' || entry === 'coverage') {
-      return [];
-    }
-    const path = join(dir, entry);
-    return statSync(path).isDirectory() ? walk(path) : [path];
-  });
-}
-
-function hasScannedExtension(path) {
-  return [...scannedExtensions].some((extension) => path.endsWith(extension));
-}
+const scannedExtensions = ['.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs', '.json'];
 
 const leaks = [];
 for (const frontendRoot of frontendRoots) {
   const absoluteRoot = join(root, frontendRoot);
-  for (const file of walk(absoluteRoot).filter(hasScannedExtension)) {
+  for (const file of walkRepoFiles(absoluteRoot, { extensions: scannedExtensions })) {
     const source = readFileSync(file, 'utf8');
     for (const key of forbiddenEnvKeys) {
       if (source.includes(key)) {
