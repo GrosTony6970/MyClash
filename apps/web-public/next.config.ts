@@ -43,6 +43,7 @@ const nextConfig: NextConfig = {
     '@myclash/ui',
     '@myclash/types',
     '@myclash/i18n',
+    '@myclash/next-i18n',
     '@myclash/api-client',
     '@myclash/time',
   ],

@@ -244,6 +244,9 @@ importers:
       '@myclash/i18n':
         specifier: workspace:^
         version: link:../../packages/i18n
+      '@myclash/next-i18n':
+        specifier: workspace:^
+        version: link:../../packages/next-i18n
       '@myclash/rulesets':
         specifier: workspace:^
         version: link:../../packages/rulesets
@@ -345,6 +348,9 @@ importers:
       '@myclash/i18n':
         specifier: workspace:^
         version: link:../../packages/i18n
+      '@myclash/next-i18n':
+        specifier: workspace:^
+        version: link:../../packages/next-i18n
       '@myclash/schedule-core':
         specifier: workspace:^
         version: link:../../packages/schedule-core
@@ -415,6 +421,9 @@ importers:
       '@myclash/i18n':
         specifier: workspace:^
         version: link:../../packages/i18n
+      '@myclash/next-i18n':
+        specifier: workspace:^
+        version: link:../../packages/next-i18n
       '@myclash/types':
         specifier: workspace:^
         version: link:../../packages/types
@@ -510,6 +519,31 @@ importers:
       eslint:
         specifier: ^10.8.0
         version: 10.8.0(jiti@2.7.0)(supports-color@10.2.2)
+      typescript:
+        specifier: ^6.0.3
+        version: 6.0.3
+      vitest:
+        specifier: ^4.1.10
+        version: 4.1.10(@opentelemetry/api@1.9.1)(@types/node@26.1.2)(@vitest/coverage-v8@4.1.10)(@vitest/ui@4.1.10)(jsdom@30.0.1)(vite@8.2.1(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.49.2)(tsx@4.23.9)(yaml@2.9.0))
+
+  packages/next-i18n:
+    dependencies:
+      '@myclash/i18n':
+        specifier: workspace:^
+        version: link:../i18n
+    devDependencies:
+      '@types/node':
+        specifier: ^26.1.2
+        version: 26.1.2
+      '@types/react':
+        specifier: ^19.2.18
+        version: 19.2.18
+      next:
+        specifier: ^16.3.0
+        version: 16.3.0(@babel/core@7.29.7(supports-color@10.2.2))(@opentelemetry/api@1.9.1)(@playwright/test@1.62.1)(@types/node@26.1.2)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
+      react:
+        specifier: ^19.2.8
+        version: 19.2.8
       typescript:
         specifier: ^6.0.3
         version: 6.0.3

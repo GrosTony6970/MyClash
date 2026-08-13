@@ -57,10 +57,17 @@ function findRepoRoot(): string {
 
 const REPO_ROOT = findRepoRoot();
 
-// Every surface that references i18n keys: the three FE app trees plus the two
+// Every surface that references i18n keys: the three FE app trees plus the
 // shared packages that call `t()` / hold key literals. Verified exhaustive —
 // no key is referenced only outside this set (packages/i18n itself excluded;
 // the API never renders `t()`).
+//
+// A root missing from this list does not weaken the FORWARD check, it breaks
+// the REVERSE one: keys referenced only from an unscanned directory are
+// reported as orphans and the suite tells you to delete strings that are very
+// much in use. That is exactly what happened when the language switcher moved
+// out of apps/*/src/i18n and into @myclash/next-i18n — three `navigation.*`
+// keys went orphaned the moment the last app copy was deleted.
 const ROOTS = [
   'apps/web-admin/app',
   'apps/web-admin/src',
@@ -69,6 +76,7 @@ const ROOTS = [
   'apps/web-staff/app',
   'apps/web-staff/src',
   'packages/ui/src',
+  'packages/next-i18n/src',
   'packages/feature-flags/src',
   // Holds key literals without calling `t()`: roundTokenLabel() maps a round
   // token to an i18n key so the module can stay locale-agnostic. Whitelisting

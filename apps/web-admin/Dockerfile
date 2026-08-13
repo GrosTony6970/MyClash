@@ -16,6 +16,7 @@ COPY apps/web-admin/package.json ./apps/web-admin/
 COPY packages/types/package.json ./packages/types/
 COPY packages/ui/package.json ./packages/ui/
 COPY packages/i18n/package.json ./packages/i18n/
+COPY packages/next-i18n/package.json ./packages/next-i18n/
 COPY packages/api-client/package.json ./packages/api-client/
 COPY packages/rulesets/package.json ./packages/rulesets/
 COPY packages/time/package.json ./packages/time/
@@ -27,6 +28,7 @@ RUN --mount=type=cache,id=pnpm-store,target=/root/.local/share/pnpm/store \
       --filter @myclash/types \
       --filter @myclash/ui \
       --filter @myclash/i18n \
+      --filter @myclash/next-i18n \
       --filter @myclash/api-client \
       --filter @myclash/rulesets \
       --filter @myclash/time \
@@ -83,6 +85,7 @@ COPY apps/web-admin/ ./apps/web-admin/
 COPY packages/types/ ./packages/types/
 COPY packages/ui/ ./packages/ui/
 COPY packages/i18n/ ./packages/i18n/
+COPY packages/next-i18n/ ./packages/next-i18n/
 COPY packages/api-client/ ./packages/api-client/
 COPY packages/rulesets/ ./packages/rulesets/
 COPY packages/time/ ./packages/time/
@@ -103,6 +106,7 @@ COPY packages/feature-flags/ ./packages/feature-flags/
 RUN --mount=type=cache,id=next-cache-web-admin,target=/app/apps/web-admin/.next/cache \
     pnpm --filter @myclash/types build \
  && pnpm --filter @myclash/i18n build \
+ && pnpm --filter @myclash/next-i18n build \
  && pnpm --filter @myclash/api-client build \
  && pnpm --filter @myclash/rulesets build \
  && pnpm --filter @myclash/time build \

@@ -1,0 +1,16 @@
+{
+  // TYPECHECK surface — see packages/ui/tsconfig.json. Two entry points rather
+  // than one barrel: `client.tsx` carries 'use client' and reaches for
+  // next/navigation, `server.ts` reaches for next/headers. A single module
+  // exporting both would drag next/headers into every client bundle and put a
+  // 'use client' directive on top of a server-only read.
+  "extends": "../../tsconfig.lib.json",
+  "compilerOptions": {
+    "jsx": "react-jsx",
+    "outDir": "dist",
+    "rootDir": "src",
+    "noEmit": true
+  },
+  "include": ["src/**/*.ts", "src/**/*.tsx"],
+  "exclude": ["node_modules", "dist"]
+}

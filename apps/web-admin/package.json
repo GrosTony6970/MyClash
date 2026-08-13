@@ -16,6 +16,7 @@
     "@myclash/api-client": "workspace:^",
     "@myclash/feature-flags": "workspace:^",
     "@myclash/i18n": "workspace:^",
+    "@myclash/next-i18n": "workspace:^",
     "@myclash/rulesets": "workspace:^",
     "@myclash/schedule-core": "workspace:^",
     "@myclash/time": "workspace:^",

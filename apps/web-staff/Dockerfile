@@ -16,6 +16,7 @@ COPY apps/web-staff/package.json ./apps/web-staff/
 COPY packages/types/package.json ./packages/types/
 COPY packages/ui/package.json ./packages/ui/
 COPY packages/i18n/package.json ./packages/i18n/
+COPY packages/next-i18n/package.json ./packages/next-i18n/
 COPY packages/api-client/package.json ./packages/api-client/
 COPY packages/feature-flags/package.json ./packages/feature-flags/
 RUN --mount=type=cache,id=pnpm-store,target=/root/.local/share/pnpm/store \
@@ -24,6 +25,7 @@ RUN --mount=type=cache,id=pnpm-store,target=/root/.local/share/pnpm/store \
       --filter @myclash/types \
       --filter @myclash/ui \
       --filter @myclash/i18n \
+      --filter @myclash/next-i18n \
       --filter @myclash/api-client \
       --filter @myclash/feature-flags
 
@@ -80,6 +82,7 @@ COPY apps/web-staff/ ./apps/web-staff/
 COPY packages/types/ ./packages/types/
 COPY packages/ui/ ./packages/ui/
 COPY packages/i18n/ ./packages/i18n/
+COPY packages/next-i18n/ ./packages/next-i18n/
 COPY packages/api-client/ ./packages/api-client/
 COPY packages/feature-flags/ ./packages/feature-flags/
 
@@ -98,6 +101,7 @@ COPY packages/feature-flags/ ./packages/feature-flags/
 RUN --mount=type=cache,id=next-cache-web-staff,target=/app/apps/web-staff/.next/cache \
     pnpm --filter @myclash/types build \
  && pnpm --filter @myclash/i18n build \
+ && pnpm --filter @myclash/next-i18n build \
  && pnpm --filter @myclash/api-client build \
  && pnpm --filter @myclash/feature-flags build \
  && pnpm --filter @myclash/ui build \
