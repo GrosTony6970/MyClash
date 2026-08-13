@@ -17,7 +17,7 @@ export const statusHelp = {
       who: "Un admin ou propriétaire de l'organisation.",
     },
     published: {
-      means: "L'événement est en ligne sur le site public, ouvert a tous.",
+      means: "L'événement est en ligne sur le site public, ouvert à tous.",
       next: 'Il passe en cours a sa date de début, ou vous pouvez le repasser en brouillon.',
       who: "Un admin ou propriétaire de l'organisation.",
     },
@@ -127,7 +127,7 @@ export const statusHelp = {
     },
     checked_in: {
       means: 'Le combattant est arrive sur place et a ete pointe.',
-      next: 'Il est prêt a être tire et a combattre.',
+      next: 'Il est prêt à être tire et à combattre.',
       who: "Toute personne au bureau d'accueil.",
     },
     waitlist: {
@@ -191,7 +191,7 @@ export const statusHelp = {
     },
     published: {
       means: 'Le public voit cette phase, scores compris au fil des combats.',
-      next: 'Vous pouvez la masquer de nouveau a tout moment.',
+      next: 'Vous pouvez la masquer de nouveau à tout moment.',
       who: "Un admin ou propriétaire de l'organisation.",
     },
   },
@@ -203,7 +203,7 @@ export const statusHelp = {
     },
     running: {
       means: "Le temps de combat s'ecoule.",
-      next: "Il s'arrete entre les échanges, ou arrive a zero et termine l'assaut.",
+      next: "Il s'arrete entre les échanges, ou arrive à zero et termine l'assaut.",
       who: 'Le teneur de score de cette piste.',
     },
     halted: {
@@ -214,7 +214,7 @@ export const statusHelp = {
     ended: {
       means: 'Le temps de combat est epuise.',
       next: "Le résultat tient au score obtenu a l'instant ou le temps s'est termine.",
-      who: "Personne - c'est ce que veut dire un chrono arrive a zero.",
+      who: "Personne - c'est ce que veut dire un chrono arrive à zero.",
     },
   },
   ruleset: {
@@ -245,7 +245,7 @@ export const statusHelp = {
     },
     published: {
       means: 'Termine et utilisable. Les tournois peuvent le fixer, et son contenu est gele.',
-      next: "Le modifier revient a publier une nouvelle version ; les tournois deja fixes gardent l'ancienne.",
+      next: "Le modifier revient à publier une nouvelle version ; les tournois deja fixes gardent l'ancienne.",
       who: "Toute personne pouvant gérer les reglements de l'organisation.",
     },
     archived: {

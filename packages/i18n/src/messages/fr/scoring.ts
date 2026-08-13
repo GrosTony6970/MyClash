@@ -221,7 +221,7 @@ export const scoring = {
     swapColor: 'Inverser les couleurs',
     swapSide: 'Inverser les cotes',
     resetMatch: 'Réinitialiser le match',
-    adjustSeconds: 'Secondes a ajuster',
+    adjustSeconds: 'Secondes à ajuster',
     addTime: 'Ajouter du temps',
     subtractTime: 'Retirer du temps',
     selectExchange: 'Sélectionner un échange',
@@ -235,7 +235,7 @@ export const scoring = {
     forfeitBlocked:
       "Cet assaut s'est termine par un forfait qui a retire le combattant du tournoi. Un organisateur doit d'abord annuler ce forfait.",
     swissRoundAhead:
-      'La ronde suisse suivante a deja ete tirée a partir de ce résultat. Seul un organisateur peut annuler maintenant.',
+      'La ronde suisse suivante a deja ete tirée à partir de ce résultat. Seul un organisateur peut annuler maintenant.',
     organiserOnly: "Seul un organisateur peut le faire. Demandez-lui de l'aide.",
     offlineRefusal:
       'Pas de connexion. Cette action necessite le réseau — réessayez une fois reconnecte.',
@@ -253,7 +253,7 @@ export const scoring = {
     pauseShort: 'Pause',
     totalTime: 'Temps total',
     resetConfirmTitle: 'Réinitialiser le chrono ?',
-    resetConfirmBody: 'Le chrono retombe a zero. Les échanges ne sont pas modifies.',
+    resetConfirmBody: 'Le chrono retombe à zero. Les échanges ne sont pas modifies.',
     resetConfirmAction: 'Réinitialiser',
     resetConfirmCancel: 'Annuler',
   },
@@ -290,8 +290,8 @@ export const scoring = {
   },
   freshness: {
     live: 'En direct',
-    polling: 'Mises a jour ralenties',
-    stale: 'Plus de mise a jour',
+    polling: 'Mises à jour ralenties',
+    stale: 'Plus de mise à jour',
     disabled: 'Direct desactive',
   },
   liveMatch: {

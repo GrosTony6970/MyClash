@@ -302,9 +302,9 @@ export const admin = {
     passes: {
       send: 'Envoyer les pass',
       sending: 'Envoi...',
-      resend: 'Renvoyer a tout le monde',
+      resend: 'Renvoyer à tout le monde',
       confirmSendTitle: 'Envoyer les pass par email ?',
-      confirmResendTitle: 'Renvoyer a tout le monde ?',
+      confirmResendTitle: 'Renvoyer à tout le monde ?',
       confirmSendBody:
         "Chaque inscrit sans compte MyClash, et dont l'adresse email est connue, recoit un lien de pass personnel. Ceux qui en ont deja un sont ignores.",
       confirmResendBody:
@@ -367,12 +367,12 @@ export const admin = {
     duplicateNameBody:
       '{name} est deja inscrit a cet événement, sans adresse e-mail permettant de les distinguer. Ajouter quand même ?',
     duplicateNameConfirm: 'Ajouter quand même',
-    toastProfileUpdated: 'Profil et inscriptions aux tournois mis a jour.',
+    toastProfileUpdated: 'Profil et inscriptions aux tournois mis à jour.',
     toastRemovedParticipants: '{count} participant(s) retire(s).',
     confirmCheckIn: 'Pointer {count} participant(s) ?',
     toastCreatedRegisterFailed: 'Participant cree, mais inscription impossible dans : {list}.',
     toastSavedAssignFailed:
-      'Profil enregistre, mais mise a jour des inscriptions impossible pour : {list}.',
+      'Profil enregistre, mais mise à jour des inscriptions impossible pour : {list}.',
     toastRegisterFailedFor: 'Inscription impossible : {list}.',
     toastRemovedSkipped: '{count} retire(s) · Ignore(s) : {skipped}',
     toastSkipped: 'Ignore(s) : {skipped}',
@@ -664,7 +664,7 @@ export const admin = {
     chooser: {
       title: 'Choisissez votre espace',
       subtitle:
-        'Vous avez acces aux deux. Choisissez ou aller — vous pouvez changer a tout moment depuis le menu.',
+        'Vous avez acces aux deux. Choisissez ou aller — vous pouvez changer à tout moment depuis le menu.',
       platformAdmin: 'Super Admin',
       platformAdminDesc:
         'Moderer les organisations, les comptes et les paramètres de la plateforme.',
@@ -674,7 +674,7 @@ export const admin = {
     statsLoading: 'Chargement des statistiques plateforme...',
     statsLoadError: 'Impossible de charger les statistiques plateforme.',
     statsAccessDenied: 'Acces refuse. Super-admin requis.',
-    statsUpdated: 'Mis a jour {date}',
+    statsUpdated: 'Mis à jour {date}',
     statsRecent:
       '{days} derniers jours : {organizations} organisations, {events} événements, {tournaments} tournois, {persons} personnes globales, {matches} assauts termines.',
     manageAi: "Gérer l'IA →",
@@ -793,7 +793,7 @@ export const admin = {
       removeMember: 'Retirer',
       confirmRemoveMember: 'Retirer {account} de cette organisation ?',
       removeMemberFailed: 'Impossible de retirer le membre.',
-      roleUpdateFailed: 'Impossible de mettre a jour le rôle.',
+      roleUpdateFailed: 'Impossible de mettre à jour le rôle.',
       actions: 'Actions',
     },
     create: {
@@ -810,7 +810,7 @@ export const admin = {
       ownerMode: {
         new: 'Créer un nouveau responsable',
         existing: 'Utiliser un compte existant',
-        none: 'Aucun responsable (a définir plus tard)',
+        none: 'Aucun responsable (à définir plus tard)',
       },
       ownerModeNoneHint:
         "Vous pourrez attribuer un responsable plus tard depuis la page de l'organisation.",
@@ -951,7 +951,7 @@ export const admin = {
       passwordSection: 'Mot de passe',
       regeneratePassword: 'Générer un nouveau mot de passe',
       regeneratePasswordHelp:
-        "Remplace le mot de passe par une nouvelle valeur a usage unique, affichée une seule fois. A utiliser quand la personne ne peut pas recevoir d'email.",
+        "Remplace le mot de passe par une nouvelle valeur à usage unique, affichée une seule fois. A utiliser quand la personne ne peut pas recevoir d'email.",
       regeneratePasswordConfirm:
         'Remplacer le mot de passe de ce compte ? Son mot de passe actuel cesse de fonctionner immediatement.',
       regeneratePasswordFailed: 'Impossible de générer un nouveau mot de passe.',
@@ -983,7 +983,7 @@ export const admin = {
     toggleFailed: "Impossible de changer la valeur de l'indicateur.",
     enable: 'Activer',
     disable: 'Désactiver',
-    lastUpdated: 'Dernière mise a jour {date}',
+    lastUpdated: 'Dernière mise à jour {date}',
     lockdown: {
       title: 'Verrouillage administrateur',
       description:
@@ -999,7 +999,7 @@ export const admin = {
     readOnlyMode: {
       title: 'Mode lecture seule',
       description:
-        "Autoriser la lecture mais bloquer toute ecriture sur l'API. A utiliser pendant une maintenance DB ou un déploiement bancal pour que les organisateurs puissent continuer a consulter. Les super-administrateurs ne sont pas affectes ; les ecritures non-admin renvoient un 503.",
+        "Autoriser la lecture mais bloquer toute ecriture sur l'API. A utiliser pendant une maintenance DB ou un déploiement bancal pour que les organisateurs puissent continuer à consulter. Les super-administrateurs ne sont pas affectes ; les ecritures non-admin renvoient un 503.",
     },
     disableSignups: {
       title: 'Désactiver les inscriptions',
@@ -1031,7 +1031,7 @@ export const admin = {
     disableOrganizerChat: {
       title: 'Désactiver le chatbot organisateur',
       description:
-        'Interrupteur pour le chatbot conversationnel des organisateurs uniquement (questions + actions a confirmer). Les autres fonctions IA (brouillons assistant, requêtes en langage naturel, qualite des données) continuent. A activer pour désactiver seulement le chatbot.',
+        'Interrupteur pour le chatbot conversationnel des organisateurs uniquement (questions + actions à confirmer). Les autres fonctions IA (brouillons assistant, requêtes en langage naturel, qualite des données) continuent. A activer pour désactiver seulement le chatbot.',
     },
     disableHemaSync: {
       title: 'Désactiver le sync HEMA',
@@ -1046,16 +1046,16 @@ export const admin = {
     timeSimulation: {
       title: 'Simulation temporelle',
       description:
-        "Décale l'horloge utilisée par l'app publique (app.myclash.fr) pour tester a la demande les elements dependant du temps : les badges « En direct » / « Suivant » du planning personnel, les stages « En direct » de l'accueil événement, et la ligne « maintenant » de la grille des tournois (qui ouvre aussi le jour simule). Pendant la simulation, un combat programme suit son créneau au lieu d'attendre son lancement — les statuts reels priment toujours, donc un combat en cours reste En direct et un combat termine reste passe. Les données live calculees cote serveur (le tableau /live, la bannière live organisateur) gardent l'horloge reelle. L'horloge avance a partir de la date/heure choisie. ⚠️ Quand active, TOUS les visiteurs publics voient l'heure simulee (un badge affiche la valeur active). A désactiver apres les tests.",
+        "Décale l'horloge utilisée par l'app publique (app.myclash.fr) pour tester a la demande les elements dependant du temps : les badges « En direct » / « Suivant » du planning personnel, les stages « En direct » de l'accueil événement, et la ligne « maintenant » de la grille des tournois (qui ouvre aussi le jour simule). Pendant la simulation, un combat programme suit son créneau au lieu d'attendre son lancement — les statuts reels priment toujours, donc un combat en cours reste En direct et un combat termine reste passe. Les données live calculees cote serveur (le tableau /live, la bannière live organisateur) gardent l'horloge reelle. L'horloge avance à partir de la date/heure choisie. ⚠️ Quand active, TOUS les visiteurs publics voient l'heure simulee (un badge affiche la valeur active). A désactiver apres les tests.",
       targetLabel: 'Instant simule (« maintenant »)',
       targetHelp:
-        "La date et l'heure que l'app publique doit considerer comme l'instant present. L'horloge avance a partir de ce point.",
+        "La date et l'heure que l'app publique doit considerer comme l'instant present. L'horloge avance à partir de ce point.",
       saveButton: "Enregistrer l'heure simulee",
     },
     disableRealtime: {
       title: 'Désactiver Realtime',
       description:
-        'Forcer toutes les frontends a ignorer Supabase Realtime et utiliser le polling. A activer quand Realtime est degrade et que les cartes de match / la grille de planning desynchronisent ; le polling est plus lent mais fiable.',
+        'Forcer toutes les frontends à ignorer Supabase Realtime et utiliser le polling. A activer quand Realtime est degrade et que les cartes de match / la grille de planning desynchronisent ; le polling est plus lent mais fiable.',
     },
   },
   rulesets: {
@@ -1087,7 +1087,7 @@ export const admin = {
         deleted: 'Barème supprime',
         archived:
           'Barème archive : il est encore utilise par un tournoi, il a donc ete conserve pour ces résultats.',
-        defaultSet: 'Défaut mis a jour',
+        defaultSet: 'Défaut mis à jour',
       },
       form: {
         validation: {
@@ -1113,7 +1113,7 @@ export const admin = {
     createDescription:
       'Définir une formule de score et des tie-breakers. Le ruleset est cree en brouillon ; publiez-le quand prêt.',
     editTitle: 'Modifier le ruleset',
-    editDescription: 'Mettre a jour la formule, les constantes et les tie-breakers.',
+    editDescription: 'Mettre à jour la formule, les constantes et les tie-breakers.',
     nameLabel: 'Nom',
     nameRequired: 'Le nom est requis.',
     descriptionLabel: 'Description',
@@ -1166,7 +1166,7 @@ export const admin = {
       doublePenalty:
         "Ce que coute une double touche. Ce que vous fixez ici devient la variable « doublePenalty » dans le BAS de la formule de score : les doubles tirent donc le score vers le bas au lieu d'être retranches des points gagnes. Une formule personnalisée ne peut utiliser que doubleHits - aucune autre statistique n'a de sens dans une penalite de double.",
       formula:
-        "Le score de poule est un RATIO : points gagnes sur touches reçues plus la penalite de double. Deux consequences. Ce que vous voulez sanctionner va au denominateur, pas en soustraction au numerateur. Et quand le denominateur vaut zero - un combattant qui n'a recu ni touche ni double - le score retombe sur le numerateur brut : un sans-faute affiche alors quelque chose comme 77 au lieu d'un ratio autour de 3. Une seule touche reçue rend le chiffre a nouveau comparable.",
+        "Le score de poule est un RATIO : points gagnes sur touches reçues plus la penalite de double. Deux consequences. Ce que vous voulez sanctionner va au denominateur, pas en soustraction au numerateur. Et quand le denominateur vaut zero - un combattant qui n'a recu ni touche ni double - le score retombe sur le numerateur brut : un sans-faute affiche alors quelque chose comme 77 au lieu d'un ratio autour de 3. Une seule touche reçue rend le chiffre à nouveau comparable.",
       tiebreakers:
         "Appliques dans l'ordre, et seulement entre combattants a score strictement egal. La première regle qui les departage tranche et les suivantes ne sont jamais consultees : l'ORDRE compte donc plus que le choix des règles. Chaque regle a aussi un sens - doubles et touches reçues veulent presque toujours le plus petit d'abord.",
       penaltyCosts:
@@ -1174,7 +1174,7 @@ export const admin = {
       penaltyVersioning:
         "Publier prend un instantane que les tournois peuvent fixer. Revenir en arrière restaure un instantane plus ancien sur le règlement - rien n'est supprime, et la publication suivante prend le numero de version suivant. Des qu'un tournoi ou un événement reference ce règlement, le retour arrière devient impossible ; dupliquez-le a la place.",
       seedingStrategy:
-        "Serpentin repartit les vainqueurs de poule. Par classement et Aleatoire ignorent completement les résultats de poule - ils ordonnent a partir de données sans rapport avec le deroulement des poules - et Aleatoire enregistre la graine utilisée, ce qui permet de rejouer le même tirage. Par rang de poule est le strict : il REFUSE de s'executer sans phase de poules terminée plutot que de retomber silencieusement sur l'ordre d'inscription.",
+        "Serpentin repartit les vainqueurs de poule. Par classement et Aleatoire ignorent completement les résultats de poule - ils ordonnent à partir de données sans rapport avec le deroulement des poules - et Aleatoire enregistre la graine utilisée, ce qui permet de rejouer le même tirage. Par rang de poule est le strict : il REFUSE de s'executer sans phase de poules terminée plutot que de retomber silencieusement sur l'ordre d'inscription.",
       compensationTiers:
         "Les paliers convertissent les jetons gagnes par un arbitre sur l'événement en ce qu'il touche réellement. Le premier palier dont la plage contient son total l'emporte, et un total qui tombe dans un TROU entre deux paliers ne donne rien du tout - seul le paiement minimum de l'événement, si vous en fixez un, le rattrape. Ce minimum est applique apres le plafond, donc il est respecte même s'il le depasse.",
     },
@@ -1302,7 +1302,7 @@ export const admin = {
         cloned: 'Clone "{name}"',
         bulkDeleted: '{n} systemes supprimes ({failed} echecs)',
         created: 'Système cree',
-        updated: 'Système mis a jour',
+        updated: 'Système mis à jour',
       },
       form: {
         eyebrow: 'Rulesets / Ligue',
@@ -1429,7 +1429,7 @@ export const admin = {
       "Définir une liste d'entrees de pénalités — chacune avec une progression de cartons (sanctions). Les organisateurs y font reference depuis un tournoi.",
     editTitle: 'Modifier le ruleset de pénalités',
     editDescription:
-      "Mettre a jour les metadonnees et la liste des entrees. L'enregistrement remplace les entrees.",
+      "Mettre à jour les metadonnees et la liste des entrees. L'enregistrement remplace les entrees.",
     builtInSuperAdminBanner:
       'Ceci est le ruleset de pénalités integre a la plateforme. Seul le super-admin peut le modifier.',
     archivedReadOnlyBanner:
@@ -1586,7 +1586,7 @@ export const admin = {
       syncing: 'Synchronisation…',
       syncRetired: 'Retires chez le fournisseur',
       syncNew: 'Nouveaux chez le fournisseur',
-      syncUpToDate: 'Catalogue a jour.',
+      syncUpToDate: 'Catalogue à jour.',
       syncError: 'Échec de la synchronisation.',
       empty: 'Aucune cle. Ajoutez-en une pour activer les fonctions IA.',
       loadError: 'Impossible de charger les cles IA.',
@@ -1634,7 +1634,7 @@ export const admin = {
     loadError: 'Impossible de charger le catalogue des armes.',
     duplicateError: 'Une arme portant ce nom existe deja.',
     created: 'Arme ajoutee.',
-    updated: 'Arme mise a jour.',
+    updated: 'Arme mise à jour.',
     deleted: 'Arme supprimee.',
   },
   dataRetention: {
@@ -1672,7 +1672,7 @@ export const admin = {
       "Lancer des scans super-admin pour les doublons de personnes globales, arbitres, clubs et trous d'identite.",
     loadError: 'Impossible de charger les anomalies de qualite.',
     scanError: 'Impossible de lancer le scan de qualite.',
-    updateError: "Impossible de mettre a jour l'anomalie.",
+    updateError: "Impossible de mettre à jour l'anomalie.",
     runAi: 'Scan IA',
     runDeterministic: 'Scan deterministe',
     runAiHint: 'Revue des candidats par LLM. Couteux par appel.',
@@ -1770,7 +1770,7 @@ export const admin = {
     clubCreateError: 'Création du club impossible',
     roleRequired: 'Sélectionnez au moins un rôle.',
     createError: 'Création impossible',
-    updateError: 'Mise a jour impossible',
+    updateError: 'Mise à jour impossible',
     saveError: 'Sauvegarde impossible',
     errors: {
       emailInUse: 'Cet email est deja lie a un autre profil global.',
@@ -1778,7 +1778,7 @@ export const admin = {
         'La date de naissance doit respecter le format affiche (JJ/MM/AAAA ou MM/DD/YYYY selon la langue).',
     },
     createSuccess: 'Profil cree : {profile}',
-    updateSuccess: 'Profil mis a jour : {profile}',
+    updateSuccess: 'Profil mis à jour : {profile}',
     creating: 'Création...',
     saving: 'Sauvegarde...',
     createProfile: 'Créer le profil',
@@ -1823,8 +1823,8 @@ export const admin = {
       colSelect: 'Sélectionner',
       markSource: 'Source',
       markTarget: 'Cible',
-      sourceCardLabel: 'Source : profil a fusionner',
-      targetCardLabel: 'Cible : profil a conserver',
+      sourceCardLabel: 'Source : profil à fusionner',
+      targetCardLabel: 'Cible : profil à conserver',
       noFighterSelected: 'Aucun combattant selectionne.',
       cardName: 'Nom',
       cardCountry: 'Pays',
@@ -1898,11 +1898,11 @@ export const admin = {
     logoRemove: 'Supprimer le logo',
     logoRemoveConfirm: 'Supprimer le logo de {club} ? Action irréversible.',
     logoRemoved: 'Logo supprime.',
-    logoReplaced: 'Logo mis a jour.',
+    logoReplaced: 'Logo mis à jour.',
     logoUploadAction: 'Importer un logo',
     logoLightboxTitle: 'Logo de {club}',
     logoInitialsAlt: '{club} (pas encore de logo)',
-    logoUpdateError: 'Impossible de mettre a jour le logo.',
+    logoUpdateError: 'Impossible de mettre à jour le logo.',
     abbreviationPlaceholder: 'ex. DFDA',
     countryPlaceholder: 'FR',
     editNameLabel: 'Nom de {club}',
@@ -1954,8 +1954,8 @@ export const admin = {
     bulkArchiveSuccess: '{count} clubs archives.',
     bulkDeleteSuccess: '{count} clubs supprimes.',
     bulkCleanupDeleteSuccess: '{count} clubs supprimes (forcage).',
-    bulkEditSuccess: '{count} clubs mis a jour.',
-    bulkEditNoFields: 'Indiquez au moins un champ a mettre a jour.',
+    bulkEditSuccess: '{count} clubs mis à jour.',
+    bulkEditNoFields: 'Indiquez au moins un champ à mettre à jour.',
     bulkPartial: 'Termine : {succeeded} reussies, {failed} ignorees ou en échec.',
     requestsTitle: 'Demandes de clubs',
     requestsDescription:
@@ -1968,7 +1968,7 @@ export const admin = {
     requestApproved: 'Demande de club approuvée.',
     requestRejected: 'Demande de club rejetée.',
     requestLinked: 'Demande de club liee a un club existant.',
-    reviewError: 'Impossible de mettre a jour cette demande de club.',
+    reviewError: 'Impossible de mettre à jour cette demande de club.',
     linkSearchLabel: 'Lier a un club existant',
     linkSearchPlaceholder: 'Chercher un club existant par nom ou abréviation...',
   },
@@ -2054,29 +2054,29 @@ export const admin = {
       owners: {
         heading: 'Administrateurs de la ligue (comptes individuels)',
         description:
-          "Donne a un compte individuel un acces admin a cette ligue, indépendamment de toute organisation. La recherche couvre tous les comptes de la plateforme. Pour donner l'acces a une organisation entière — et a toute son équipe d'admins — utilisez plutot Organisations membres ci-dessous.",
+          "Donne a un compte individuel un acces admin a cette ligue, indépendamment de toute organisation. La recherche couvre tous les comptes de la plateforme. Pour donner l'acces a une organisation entière — et à toute son équipe d'admins — utilisez plutot Organisations membres ci-dessous.",
         empty: 'Aucun compte lie.',
         nameFallback: '(sans nom)',
-        searchPlaceholder: 'Chercher des comptes a ajouter…',
+        searchPlaceholder: 'Chercher des comptes à ajouter…',
         searchHint: 'Saisissez au moins 2 caractères pour rechercher des comptes.',
         searchLoading: 'Recherche…',
         searchEmpty: 'Aucun compte correspondant.',
         redundantHidden:
           '{count} compte(s) correspondant(s) gerent deja cette ligue via une organisation membre et ne sont pas listes.',
         orgLinkedNudge:
-          "Certains de ces comptes appartiennent a une organisation. Ajouter cette organisation sous Organisations membres couvre toute son équipe d'admins et garde l'acces a jour quand l'équipe change.",
+          "Certains de ces comptes appartiennent a une organisation. Ajouter cette organisation sous Organisations membres couvre toute son équipe d'admins et garde l'acces à jour quand l'équipe change.",
         detachButton: 'Detacher',
         detachConfirm: 'Detacher ce compte de la ligue ?',
         orgMembershipsLabel: 'Membre de',
         orgMembershipsHint:
-          "Organisations auxquelles ce compte appartient. Affiche a titre indicatif uniquement — cela ne lie pas l'organisation a cette ligue.",
+          "Organisations auxquelles ce compte appartient. Affiche à titre indicatif uniquement — cela ne lie pas l'organisation a cette ligue.",
         addError: "Échec de l'ajout",
         detachError: 'Échec du detachement',
       },
       orgs: {
         heading: 'Organisations membres',
         description:
-          "Lie une organisation entière a cette ligue. Avec le rôle Admin ou Propriétaire, chaque administrateur et propriétaire de cette organisation peut gérer la ligue depuis son propre espace — l'acces suit leur équipe, vous n'avez donc rien a mettre a jour quand elle change. Le rôle Membre est une simple affiliation : l'organisation participe a la ligue mais ne peut pas la gérer.",
+          "Lie une organisation entière a cette ligue. Avec le rôle Admin ou Propriétaire, chaque administrateur et propriétaire de cette organisation peut gérer la ligue depuis son propre espace — l'acces suit leur équipe, vous n'avez donc rien à mettre à jour quand elle change. Le rôle Membre est une simple affiliation : l'organisation participe a la ligue mais ne peut pas la gérer.",
         empty: 'Aucune organisation liee.',
         addHeading: 'Ajouter une organisation',
         roleLabel: 'Rôle',
@@ -2353,8 +2353,8 @@ export const admin = {
     },
     scheduleSummary: {
       hourly: 'Toutes les heures a :{minute}',
-      every6h: 'Toutes les 6 h a partir de {time} UTC',
-      every12h: 'Toutes les 12 h a partir de {time} UTC',
+      every6h: 'Toutes les 6 h à partir de {time} UTC',
+      every12h: 'Toutes les 12 h à partir de {time} UTC',
       daily: 'Quotidienne a {time} UTC',
       weekly: 'Hebdomadaire le {weekday} a {time} UTC',
       monthly: 'Mensuelle le {day} a {time} UTC',
@@ -2383,10 +2383,10 @@ export const admin = {
     },
     retentionLocal: 'Retention locale (garder N)',
     retentionLocalHint:
-      'Nombre de sauvegardes recentes a conserver sur le disque du VPS. Les plus anciennes sont supprimées apres chaque sauvegarde.',
+      'Nombre de sauvegardes recentes à conserver sur le disque du VPS. Les plus anciennes sont supprimées apres chaque sauvegarde.',
     retentionCloud: 'Retention cloud (garder N)',
     retentionCloudHint:
-      'Nombre de sauvegardes a conserver sur Scaleway S3. Habituellement plus grand que le local pour le PRA.',
+      'Nombre de sauvegardes à conserver sur Scaleway S3. Habituellement plus grand que le local pour le PRA.',
     dangerZoneTitle: 'Zone dangereuse — supprimer toutes les sauvegardes',
     dangerZoneDescription:
       'Effacer toutes les sauvegardes locales et S3. A utiliser uniquement lors de la rotation des cles de chiffrement ou apres une migration. Irréversible.',

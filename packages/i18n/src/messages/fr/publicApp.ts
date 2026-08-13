@@ -121,7 +121,7 @@ export const publicApp = {
     filterClear: 'Effacer les filtres',
     filterResultCount: '{count} événements',
     sectionLive: 'En direct',
-    sectionPublished: 'Événements a venir',
+    sectionPublished: 'Événements à venir',
     sectionPast: 'Événements passes',
     tabEvents: 'Événements',
     tabLeagues: 'Ligues',
@@ -154,10 +154,10 @@ export const publicApp = {
     emptyDescription:
       'Les événements publies apparaîtront ici lorsque les organisateurs les rendront visibles.',
     emptyLive: 'Aucun événement en direct pour le moment.',
-    emptyUpcoming: 'Aucun événement a venir.',
-    emptyPast: 'Aucun événement passe a afficher.',
+    emptyUpcoming: 'Aucun événement à venir.',
+    emptyPast: 'Aucun événement passe à afficher.',
     emptyLiveNoMatch: 'Aucun événement en direct ne correspond a « {query} ».',
-    emptyUpcomingNoMatch: 'Aucun événement a venir ne correspond a « {query} ».',
+    emptyUpcomingNoMatch: 'Aucun événement à venir ne correspond a « {query} ».',
     emptyPastNoMatch: 'Aucun événement passe ne correspond a « {query} ».',
     unavailableTitle: 'Les événements sont temporairement indisponibles',
     unavailableDescription:
@@ -304,7 +304,7 @@ export const publicApp = {
       feedbackError: 'Impossible de charger les retours.',
     },
     claimedSuccess: 'Profil revendique — bienvenue !',
-    passwordResetSuccess: 'Mot de passe mis a jour. Vous êtes connecte.',
+    passwordResetSuccess: 'Mot de passe mis à jour. Vous êtes connecte.',
     follows: {
       title: 'Personnes suivies',
       subtitle: 'Les combattants que vous suivez dans vos événements.',
@@ -726,7 +726,7 @@ export const publicApp = {
   meInsight: {
     title: 'Bilan de performance IA',
     subtitle:
-      "Un court resume personnalise de vos résultats, redige par l'IA a partir de votre parcours.",
+      "Un court resume personnalise de vos résultats, redige par l'IA à partir de votre parcours.",
     published: 'Sur votre profil public',
     draft: 'Brouillon prive',
     needsKey: 'Ajoutez votre cle de fournisseur IA pour générer des bilans.',
