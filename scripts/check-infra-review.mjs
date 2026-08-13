@@ -1,3 +1,57 @@
+/**
+ * `pnpm infra:review` — the offline gate over things that are true across FILES
+ * rather than inside one.
+ *
+ * ── What it actually reviews, which is not only infrastructure ──────────────
+ * The name is half a lie and has been for months, so it is written down here
+ * rather than discovered on the twentieth read. Measured over one run: of 429
+ * text assertions, 163 target infrastructure and 266 target application source
+ * — 131 in apps/web-admin, 105 in apps/api, 12 in apps/web-public, 16 in
+ * packages/. 77 paths are pinned as constants at the top; the run reads 106
+ * files in total, the rest reached by enumerating a directory. The verdict line
+ * prints both counts, so these numbers are checkable rather than asserted.
+ * Four distinct concerns share the file:
+ *
+ *   1. INFRA TOPOLOGY. Compose services, healthchecks, deploy/restore/rollback
+ *      shell scripts, the Traefik edge, dev/prod parity. The strongest work
+ *      here, because most of it is DERIVED rather than pinned: healthcheckOwner
+ *      resolves a probe from compose or from the Dockerfile the service builds;
+ *      the deploy health-wait requirement is computed from compose itself; the
+ *      traefik-env sweep enumerates infra/scripts/*.sh instead of listing them.
+ *      Derived checks survive refactors, which is why these have.
+ *
+ *   2. API SOURCE TEXT. Decorators, forbidden calls, method and route names.
+ *      Some of it is the only guard there is — the four bans on
+ *      supabase.anon.auth.getUser are a deliberate exception list, since 21
+ *      other API files use that call legitimately.
+ *
+ *   3. WEB APP SOURCE TEXT. The largest single group and the weakest as a
+ *      group, but it holds at least one invariant nothing else holds: the
+ *      sticky-not-fixed chrome rule below, whose regression painted the root
+ *      layout's banners over.
+ *
+ *   4. ENGLISH COPY, asserted against the EN dictionary.
+ *
+ * ── Where the rot is ────────────────────────────────────────────────────────
+ * Groups 2-4 pin file LOCATIONS and literal strings, so they go red on renames
+ * and refactors that broke nothing. Four of this file's commits are repairs of
+ * exactly that. Two rules keep that cost bounded:
+ *
+ *   - Assert the RELATIONSHIP, not the snapshot, wherever the relationship can
+ *     be read. The realtime tenant check compares the tenant to the router's
+ *     Host label instead of pinning a name; the GoTrue password policy is
+ *     compared to PASSWORD_SPECIAL_CHARS read out of packages/types. An earlier
+ *     version of the chrome rule pinned the old class string and sat red for as
+ *     long as the fix was in place.
+ *   - Before adding an assertion here, check whether a typed test can hold it
+ *     instead. platform-role-coverage.test.ts walks real Nest metadata and is
+ *     strictly stronger than any `@UseGuards(...)` substring could be; a text
+ *     assertion is the tool of last resort, for facts no type system sees.
+ *
+ * Errors accumulate and are reported together — one bad line must not hide the
+ * other twenty findings, which is the same reason CI runs each gate as its own
+ * step.
+ */
 import path from 'node:path';
 
 import { createPinnedReader, isMissingPinnedFile } from './lib/pinned-file.mjs';
@@ -594,6 +648,11 @@ const dockerfiles = (
 
 const errors = [];
 const warnings = [];
+// Counted so the verdict can state its own scope. The line used to read
+// "passed for 15 services", which describes the compose block and none of the
+// 400-odd assertions over 77 files that follow it — a green run understated
+// what it had covered by more than an order of magnitude.
+let assertionsRun = 0;
 
 // Reported first, because every other finding a missing file produces is a
 // consequence of it. `pinned.missing` also grows from the two directory reads
@@ -2699,7 +2758,10 @@ if (errors.length > 0) {
   process.exit(1);
 }
 
-console.log(`Infrastructure review passed for ${requiredServices.length} services.`);
+console.log(
+  `Infrastructure review passed: ${assertionsRun} text assertions over ${pinned.read.size} ` +
+    `pinned files, including ${requiredServices.length} compose services.`,
+);
 
 function parseServices(text) {
   const lines = text.split(/\r?\n/u);
@@ -2726,6 +2788,7 @@ function requireContains(text, serviceName, expected) {
   // "is missing X" once per assertion that named the file — eleven lines for
   // AccountsTable.tsx alone — and buries the one finding that explains them.
   if (isMissingPinnedFile(text)) return;
+  assertionsRun += 1;
   if (!text.includes(expected)) errors.push(`${serviceName} is missing ${expected}`);
 }
 

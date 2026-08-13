@@ -15,6 +15,29 @@ test('a present file reads exactly as readFile would', async () => {
 
   assert.equal(await reader.readPinnedFile(realFile), await readFile(realFile, 'utf8'));
   assert.deepEqual(reader.missing, []);
+  assert.deepEqual([...reader.read], ['package.json']);
+});
+
+test('the same file reached twice counts once', async () => {
+  // A gate may open one file by two routes — check-infra-review.mjs reads
+  // deploy.sh by its own constant and again while enumerating infra/scripts.
+  // A count reported to the operator as "N files" has to mean N files.
+  const reader = createPinnedReader(root);
+
+  await reader.readPinnedFile(realFile);
+  await reader.readPinnedFile(realFile);
+
+  assert.equal(reader.read.size, 1);
+});
+
+test('an absent path is never counted as read', async () => {
+  const reader = createPinnedReader(root);
+
+  await reader.readPinnedFile(renamedFile);
+  await reader.readPinnedDir(join(root, 'packages', 'i18n', 'src', 'gone'));
+
+  assert.equal(reader.read.size, 0);
+  assert.equal(reader.missing.length, 2);
 });
 
 test('a renamed file is reported, not thrown', async () => {

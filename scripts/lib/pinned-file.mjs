@@ -63,15 +63,26 @@ function isAbsent(error) {
  */
 export function createPinnedReader(root = process.cwd()) {
   const missing = [];
+  const read = new Set();
 
   return {
-    /** Repo-relative paths, in the order they were read. */
+    /** Repo-relative paths that were absent, in the order they were read. */
     missing,
+
+    /**
+     * Distinct repo-relative paths successfully opened. A Set because a gate
+     * may reach the same file by two routes — check-infra-review.mjs reads
+     * deploy.sh once by its own constant and again while enumerating
+     * infra/scripts — and a count that says "77 files" must mean 77 files.
+     */
+    read,
 
     /** File text, or MISSING_PINNED_FILE. */
     async readPinnedFile(absolutePath) {
       try {
-        return await readFile(absolutePath, 'utf8');
+        const text = await readFile(absolutePath, 'utf8');
+        read.add(toRepoPath(absolutePath, root));
+        return text;
       } catch (error) {
         if (!isAbsent(error)) throw error;
         missing.push(toRepoPath(absolutePath, root));
@@ -82,7 +93,9 @@ export function createPinnedReader(root = process.cwd()) {
     /** Directory entries, or an empty list. */
     async readPinnedDir(absolutePath) {
       try {
-        return await readdir(absolutePath);
+        const entries = await readdir(absolutePath);
+        read.add(toRepoPath(absolutePath, root));
+        return entries;
       } catch (error) {
         if (!isAbsent(error)) throw error;
         missing.push(toRepoPath(absolutePath, root));
