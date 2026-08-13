@@ -63,6 +63,7 @@ export const CI_GATES: readonly CiGate[] = [
   { job: 'Lint', step: 'Check infrastructure review gates' },
   { job: 'Lint', step: 'Check observability review gates' },
   { job: 'Lint', step: 'Check performance review gates' },
+  { job: 'Lint', step: 'Check bundle budgets' },
   { job: 'Lint', step: 'Test repo scripts' },
   { job: 'Lint', step: 'Check docs diagrams parse' },
   { job: 'Lint', step: 'Check formatting' },
@@ -82,9 +83,10 @@ export const CI_GATES: readonly CiGate[] = [
  * lie — `pnpm/action-setup` is not under `actions/`, and `Post Scan production
  * image` is not `Post Run *`. A deny-list of shapes left 34 of 71 rows as noise.
  *
- * `Build API for OpenAPI emit` and `Build production image` sit here on purpose:
- * each is setup for the gate on the next line, and surfacing both halves would
- * report one gate twice.
+ * `Build API for OpenAPI emit`, `Build production image` and `Build the
+ * marketing site for the bundle budget` sit here on purpose: each is setup for
+ * the gate on the next line, and surfacing both halves would report one gate
+ * twice.
  */
 export const CI_PLUMBING_STEPS: readonly string[] = [
   'Install',
@@ -100,6 +102,7 @@ export const CI_PLUMBING_STEPS: readonly string[] = [
   'Install Playwright browser',
   'Upload Playwright report',
   'Build production image',
+  'Build the marketing site for the bundle budget',
 ] as const;
 
 /** Stable key for a gate, used to join the expectation against CI's answer. */
