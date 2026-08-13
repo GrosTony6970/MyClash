@@ -30,6 +30,8 @@ import {
   ADMIN_READ_THROTTLE,
   CATALOG_READ_THROTTLE,
 } from '../../common/throttling/throttle-profiles';
+import { getIdentity } from '../../common/auth/identity';
+import { isPlatformStaff } from '../../common/auth/platform-role';
 import { PlatformRoleGuard } from '../admin/guards/platform-role.guard';
 import { PlatformRole } from '../admin/guards/platform-role.decorator';
 import { SupabaseService } from '../supabase/supabase.service';
@@ -308,12 +310,37 @@ export class GlobalPersonsController {
     private readonly supabase: SupabaseService,
   ) {}
 
-  /** GET /api/v1/global-persons?q=...&roles=referee */
+  /**
+   * GET /api/v1/global-persons?q=...&roles=referee
+   *
+   * The organiser/admin person picker — NOT a public endpoint, despite what its
+   * old summary said. It used to `select('*')` and return the row untouched, so
+   * every global person's `email`, `date_of_birth` and `claimed_by_user_id`
+   * reached the caller. And because AuthGuard runs in shadow mode by default
+   * (`AUTH_GUARD_MODE`, see auth.guard.ts:66-67 — it logs "would-401" and
+   * returns true), an undecorated route is NOT actually closed: the whole
+   * roster's contact details were readable anonymously.
+   *
+   * Two layers now, because either alone leaves a hole:
+   *  1. Anonymous callers are rejected HERE, from the attached identity, so the
+   *     route closes today rather than whenever AUTH_GUARD_MODE flips.
+   *  2. Contact PII is projected only for platform staff, so an ordinary signed-in
+   *     competitor cannot harvest the roster's email addresses either.
+   */
   @Get()
   @Throttle(CATALOG_READ_THROTTLE)
-  @ApiOperation({ summary: 'List global persons (public)' })
-  async list(@Query() query: GlobalPersonQueryDto) {
-    return this.fighters.listGlobalPersons(query);
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'List global persons (organizer/admin picker)' })
+  async list(@Query() query: GlobalPersonQueryDto, @Req() req: FastifyRequest) {
+    const identity = getIdentity(req);
+    if (identity.kind === 'anonymous') {
+      throw new UnauthorizedException('Authentication required');
+    }
+    // Only a claimed user can hold a platform role; guest and staff tokens
+    // carry no user id to look one up with.
+    const includeContactPii =
+      identity.kind === 'claimed' && (await isPlatformStaff(this.supabase, identity.userId));
+    return this.fighters.listGlobalPersons(query, { includeContactPii });
   }
 
   /** POST /api/v1/global-persons */

@@ -114,6 +114,48 @@ const VISIBILITY_FIELDS: Record<string, { columns: string[]; defaultPublic: bool
   practicingSince: { columns: ['practicing_since_year'], defaultPublic: true },
 };
 
+/**
+ * Columns GET /global-persons returns to any authenticated caller.
+ *
+ * Scoped to what the three organiser pickers actually read — the participant
+ * picker via `mapGlobalPersonSuggestion`, the referee picker and the workshop
+ * picker. Nothing here is contact PII, so an organiser adding someone to their
+ * event learns nothing they could not already see on the public profile.
+ */
+const GLOBAL_PERSON_PICKER_COLUMNS = [
+  'id',
+  'slug',
+  'display_name',
+  'given_name',
+  'family_name',
+  'club_id',
+  'hema_ratings_id',
+  'photo_url',
+  'is_fighter',
+  'is_referee',
+  'is_workshop_participant',
+  'is_instructor',
+].join(', ');
+
+/**
+ * Added only for platform staff, who administer these records.
+ *
+ * `email` and `date_of_birth` are contact PII. `bio`, `gender_category` and
+ * `country_code` are visibility-gated on the public profile
+ * (see VISIBILITY_FIELDS) and this endpoint does NOT apply that gate, so
+ * handing them to every signed-in caller would route around a fighter's own
+ * choice to hide them. The super-admin console renders all five.
+ */
+const GLOBAL_PERSON_STAFF_COLUMNS = [
+  'email',
+  'date_of_birth',
+  'bio',
+  'gender_category',
+  'country_code',
+  'merged_into_id',
+  'deleted_at',
+].join(', ');
+
 const DEFAULT_WEAPONS = [
   'Longsword',
   'Rapier',
@@ -1679,10 +1721,19 @@ export class FightersService {
 
   // ── Global-persons new methods ────────────────────────────────────────────────
 
-  async listGlobalPersons(query: GlobalPersonQueryDto) {
+  async listGlobalPersons(query: GlobalPersonQueryDto, opts: { includeContactPii?: boolean } = {}) {
+    // An ALLOW-list, not `select('*')`. The previous query returned the whole
+    // row, so every column ever added to global_persons shipped to the caller on
+    // the day it landed — email (0075), date_of_birth, claimed_by_user_id and
+    // public_visibility (0126) all did. An allow-list fails CLOSED: a new column
+    // is invisible here until someone adds it deliberately.
+    const columns = opts.includeContactPii
+      ? `${GLOBAL_PERSON_PICKER_COLUMNS}, ${GLOBAL_PERSON_STAFF_COLUMNS}`
+      : GLOBAL_PERSON_PICKER_COLUMNS;
+
     let q = this.supabase.service
       .from('global_persons')
-      .select('*, clubs(id, name, slug, abbreviation, city, country_code)')
+      .select(`${columns}, clubs(id, name, slug, abbreviation, city, country_code)`)
       .order('family_name', { ascending: true })
       .order('given_name', { ascending: true });
 

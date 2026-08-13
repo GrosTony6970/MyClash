@@ -709,6 +709,72 @@ describe('parseBoolCell', () => {
   });
 });
 
+describe('listGlobalPersons projection', () => {
+  let service: FightersService;
+
+  /** The column list handed to PostgREST for the one global_persons query. */
+  function selectedColumns(): string {
+    const chain = fromMock.mock.results[0]?.value as { select: { mock: { calls: unknown[][] } } };
+    return String(chain.select.mock.calls[0]?.[0] ?? '');
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    fromMock.mockReturnValue(makeChain({ data: [], error: null }));
+    service = new FightersService(mockSupabase as never, {} as never);
+  });
+
+  it('never selects contact PII for a caller who is not platform staff', async () => {
+    await service.listGlobalPersons({} as never);
+
+    const columns = selectedColumns();
+    expect(columns).not.toContain('email');
+    expect(columns).not.toContain('date_of_birth');
+  });
+
+  it('never selects claimed_by_user_id or the visibility map for ANY caller', async () => {
+    // These two are stripped by sanitizePublicFighter on the public path, but
+    // this endpoint does not run that projection — before the allow-list they
+    // shipped on every row. Neither tier may reintroduce them.
+    for (const opts of [{}, { includeContactPii: true }]) {
+      vi.clearAllMocks();
+      fromMock.mockReturnValue(makeChain({ data: [], error: null }));
+      await service.listGlobalPersons({} as never, opts);
+
+      const columns = selectedColumns();
+      expect(columns).not.toContain('claimed_by_user_id');
+      expect(columns).not.toContain('public_visibility');
+    }
+  });
+
+  it('adds contact PII only for platform staff', async () => {
+    await service.listGlobalPersons({} as never, { includeContactPii: true });
+
+    const columns = selectedColumns();
+    expect(columns).toContain('email');
+    expect(columns).toContain('date_of_birth');
+  });
+
+  it('is an allow-list, so a column added to global_persons is not published by default', async () => {
+    // The falsification for the whole change: `select('*')` would satisfy every
+    // "contains" assertion above while still shipping the entire row. Naming a
+    // star here is the one thing that must never come back.
+    await service.listGlobalPersons({} as never);
+    expect(selectedColumns()).not.toContain('*');
+  });
+
+  it('still selects what the organiser pickers read', async () => {
+    await service.listGlobalPersons({} as never);
+
+    const columns = selectedColumns();
+    // mapGlobalPersonSuggestion + the referee and workshop pickers.
+    for (const column of ['id', 'display_name', 'given_name', 'family_name', 'hema_ratings_id']) {
+      expect(columns).toContain(column);
+    }
+    expect(columns).toContain('clubs(');
+  });
+});
+
 // NOTE: tournament-placement decided-ness tests moved to
 // `../tournament-placement/tournament-placement.service.test.ts` when the
 // placement logic was extracted into the shared TournamentPlacementService.
