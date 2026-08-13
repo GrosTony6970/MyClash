@@ -165,18 +165,18 @@ export const publicApp = {
   },
   login: {
     eyebrow: 'Espace personnel',
-    title: 'Votre journee MyClash, sur tous les evenements.',
+    title: 'Votre journée MyClash, sur tous les événements.',
     subtitle:
-      'Connectez-vous pour consulter votre profil combattant, votre historique arbitre, vos ateliers et vos notifications meme si aucun evenement public n est ouvert.',
+      "Connectez-vous pour consulter votre profil combattant, votre historique arbitre, vos ateliers et vos notifications même si aucun événement public n'est ouvert.",
     formTitle: 'Connexion participant',
     formDescription: 'Utilisez votre compte MyClash, ou continuez avec Google.',
     organizerPrompt: 'Vous cherchez la connexion organisateur ?',
     organizerLink: 'Se connecter en organisateur',
     organizerSignupPrompt: 'Vous organisez un événement ?',
     organizerSignupLink: 'Créer un compte organisateur',
-    sendMagicLink: 'Envoyer le lien magique a la place',
-    checkEmail: 'Si cet email est enregistre, un lien de connexion a ete envoye.',
-    backToEvents: 'Retour aux evenements publics',
+    sendMagicLink: 'Envoyer le lien magique à la place',
+    checkEmail: 'Si cet email est enregistré, un lien de connexion a été envoyé.',
+    backToEvents: 'Retour aux événements publics',
     tabsLabel: 'Se connecter ou créer un compte',
     tabSignIn: 'Se connecter',
     tabSignUp: 'Créer un compte',
@@ -195,7 +195,7 @@ export const publicApp = {
     sendResetLink: 'Envoyer le lien',
     resetCheckEmail: 'Si cet email est enregistré, un lien de réinitialisation a été envoyé.',
     errors: {
-      magicLinkFailed: 'Impossible d envoyer un lien de connexion.',
+      magicLinkFailed: "Impossible d'envoyer un lien de connexion.",
       passwordLoginFailed: 'Email ou mot de passe incorrect.',
       emailNotConfirmed:
         'Confirmez votre email avant de vous connecter. Consultez votre boîte de réception.',
