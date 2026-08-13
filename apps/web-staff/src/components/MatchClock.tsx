@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { MatchFormatConfig } from '@myclash/types';
 import { DEFAULT_MATCH_FORMAT_CONFIG } from '@myclash/types';
 import { clockStatusSemantic, statusPillTone } from '@myclash/ui';
-import { useI18n } from '../i18n/I18nProvider';
+import { useI18n } from '@myclash/next-i18n/client';
 import { useScoringTheme } from '../theme/ThemeProvider';
 import {
   type ClockState,

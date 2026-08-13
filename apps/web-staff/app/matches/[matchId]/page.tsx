@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { MatchView, NoMatchView, type MatchInfo } from '../../../src/components/MatchView';
 import { QuarantineInbox } from '../../../src/components/QuarantineInbox';
 import { useSyncState } from '../../../src/offline/use-sync-state';
-import { useI18n } from '../../../src/i18n/I18nProvider';
+import { useI18n } from '@myclash/next-i18n/client';
 import { getApiUrl } from '../../../src/lib/api-url';
 import { getSyncEngine } from '../../../src/offline/sync';
 import { safeReturnHref, staffRoutePrefix } from '../../../src/lib/nav';

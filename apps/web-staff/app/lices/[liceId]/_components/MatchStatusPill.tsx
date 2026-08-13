@@ -1,7 +1,7 @@
 'use client';
 
 import { StatusBadge, matchStatusSemantic } from '@myclash/ui';
-import { useI18n } from '../../../../src/i18n/I18nProvider';
+import { useI18n } from '@myclash/next-i18n/client';
 import { useScoringTheme } from '../../../../src/theme/ThemeProvider';
 
 /**

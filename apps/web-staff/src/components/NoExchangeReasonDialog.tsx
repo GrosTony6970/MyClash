@@ -16,7 +16,7 @@
  */
 
 import { Modal, NO_EXCHANGE_REASONS, NO_EXCHANGE_REASON_KEYS } from '@myclash/ui';
-import { useI18n } from '../i18n/I18nProvider';
+import { useI18n } from '@myclash/next-i18n/client';
 import type { NoExchangeReason } from '../hooks/useScoringSubmit';
 
 interface NoExchangeReasonDialogProps {

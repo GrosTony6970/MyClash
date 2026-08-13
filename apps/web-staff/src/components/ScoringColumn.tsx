@@ -25,7 +25,7 @@
 import { useMemo, useState } from 'react';
 import type { TournamentScoringConfig } from '@myclash/types';
 import { computeAfterblowDeltas } from '@myclash/types';
-import { useI18n } from '../i18n/I18nProvider';
+import { useI18n } from '@myclash/next-i18n/client';
 import { useScoringTheme } from '../theme/ThemeProvider';
 import { outlineInkOn, sideStyle } from '@myclash/ui';
 import { usePenalties, type PenaltyCard, type PenaltyRulesetEntry } from '../hooks/usePenalties';

@@ -6,7 +6,7 @@ import { ScoringColumn } from './ScoringColumn';
 import { ScoringCenterControls } from './ScoringCenterControls';
 import { MatchCorrectionsDrawer } from './MatchCorrectionsDrawer';
 import { MatchResultOverlay } from './MatchResultOverlay';
-import { useI18n } from '../i18n/I18nProvider';
+import { useI18n } from '@myclash/next-i18n/client';
 import { useScoringSubmit } from '../hooks/useScoringSubmit';
 import { refusalMessage, type RefusalBody } from '../lib/refusal-copy';
 import { nextSequence as outboxNextSequence } from '../offline/outbox';

@@ -4,7 +4,7 @@ import type * as React from 'react';
 import { useRouter } from 'next/navigation';
 import { sideColorsFor } from '@myclash/ui';
 import { resolveMatchWinner, type TournamentScoringConfig } from '@myclash/types';
-import { useI18n } from '../../../../src/i18n/I18nProvider';
+import { useI18n } from '@myclash/next-i18n/client';
 import { useScoringTheme } from '../../../../src/theme/ThemeProvider';
 import type { PoolMatchRow } from '../../../../src/components/tournament-context-types';
 import { MatchStatusPill } from './MatchStatusPill';

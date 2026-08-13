@@ -2,8 +2,7 @@
 
 import Image from 'next/image';
 import { useSyncExternalStore } from 'react';
-import { useI18n } from '../../src/i18n/I18nProvider';
-import { LanguageSwitcher } from '../../src/i18n/LanguageSwitcher';
+import { LanguageSwitcher, useI18n } from '@myclash/next-i18n/client';
 import { MagicLinkForm } from './MagicLinkForm';
 import { StaffPinForm } from './StaffPinForm';
 

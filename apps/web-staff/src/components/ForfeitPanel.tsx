@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { ConfirmDialog } from '@myclash/ui';
-import { useI18n } from '../i18n/I18nProvider';
+import { useI18n } from '@myclash/next-i18n/client';
 
 type ForfeitReason = 'injury' | 'voluntary' | 'black_card_1' | 'black_card_2' | 'conduct_violation';
 type FighterColor = 'red' | 'blue';

@@ -18,7 +18,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import type { TournamentScoringConfig } from '@myclash/types';
-import { useI18n } from '../i18n/I18nProvider';
+import { useI18n } from '@myclash/next-i18n/client';
 import { useScoringTheme } from '../theme/ThemeProvider';
 import { clockAdjustmentMs } from './clock-adjustment';
 import { refusalMessage, type RefusalBody } from '../lib/refusal-copy';

@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { useI18n } from '../../src/i18n/I18nProvider';
+import { useI18n } from '@myclash/next-i18n/client';
 import { api } from '../../src/lib/api';
 import { resolveSelectedEvent, type PickerEvent } from '../../src/components/picker-events';
 import { usePickerEvents } from '../../src/lib/usePickerEvents';

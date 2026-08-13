@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { Modal, useConfirm } from '@myclash/ui';
-import { useI18n } from '../i18n/I18nProvider';
+import { useI18n } from '@myclash/next-i18n/client';
 import { getRejected } from '../offline/outbox';
 import type { ExchangeType, RejectedEntry } from '../offline/db';
 import type { SyncEngine } from '../offline/sync';

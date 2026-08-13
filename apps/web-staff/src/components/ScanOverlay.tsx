@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useRef, useState } from 'react';
-import { useI18n } from '../i18n/I18nProvider';
+import { useI18n } from '@myclash/next-i18n/client';
 import { useScoringTheme } from '../theme/ThemeProvider';
 import { PersonRow } from './PersonRow';
 import { useCameraScanner } from '../lib/scan/useCameraScanner';

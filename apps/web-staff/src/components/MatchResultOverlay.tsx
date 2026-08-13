@@ -18,7 +18,7 @@ import { useState } from 'react';
 import { BoutFlowChart, MatchTimeline, buildBoutFlow, buildUnifiedTimeline } from '@myclash/ui';
 import type { MatchFormatConfig, TournamentScoringConfig } from '@myclash/types';
 import { sideStyle } from '@myclash/ui';
-import { useI18n } from '../i18n/I18nProvider';
+import { useI18n } from '@myclash/next-i18n/client';
 import { useScoringTheme } from '../theme/ThemeProvider';
 import { useExchanges } from '../hooks/useExchanges';
 import { usePenalties } from '../hooks/usePenalties';

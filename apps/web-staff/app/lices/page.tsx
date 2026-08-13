@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { useI18n } from '../../src/i18n/I18nProvider';
+import { useI18n } from '@myclash/next-i18n/client';
 import { useScoringTheme } from '../../src/theme/ThemeProvider';
 import { ThemeSwitcher } from '../../src/theme/ThemeSwitcher';
 import { api } from '../../src/lib/api';

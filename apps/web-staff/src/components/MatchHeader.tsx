@@ -20,7 +20,7 @@
 import { useEffect } from 'react';
 import Link from 'next/link';
 import type { TournamentScoringConfig } from '@myclash/types';
-import { useI18n } from '../i18n/I18nProvider';
+import { useI18n } from '@myclash/next-i18n/client';
 import { useScoringTheme } from '../theme/ThemeProvider';
 import { ThemeSwitcher } from '../theme/ThemeSwitcher';
 import { sideStyle, roundLabel } from '@myclash/ui';

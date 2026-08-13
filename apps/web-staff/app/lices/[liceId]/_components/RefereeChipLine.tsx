@@ -1,7 +1,7 @@
 'use client';
 
 import { SkillBadge } from '@myclash/ui';
-import { useI18n } from '../../../../src/i18n/I18nProvider';
+import { useI18n } from '@myclash/next-i18n/client';
 import type { LiceMatchReferee } from '../../../../src/components/lice-match-types';
 
 /** Role chip + name. Phrasing content only, so it is legal in either wrapper. */

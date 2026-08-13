@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useI18n } from '../../../../src/i18n/I18nProvider';
+import { useI18n } from '@myclash/next-i18n/client';
 import { ThemeSwitcher } from '../../../../src/theme/ThemeSwitcher';
 
 /** Connectivity strip. The pad queues exchanges locally when this reads offline. */
