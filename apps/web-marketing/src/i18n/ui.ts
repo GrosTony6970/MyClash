@@ -30,9 +30,14 @@ interface Chrome {
   readonly navFeatures: string;
   readonly navHowItWorks: string;
   readonly navSupport: string;
+  /**
+   * The app link. One string because the nav and the footer point at the same
+   * URL — a `footer`-prefixed name read from the nav would be a lie, and two
+   * names is how the same link ends up with two labels.
+   */
+  readonly appLink: string;
   readonly navCta: string;
   readonly footerNavAria: string;
-  readonly footerApp: string;
   readonly footerPrivacy: string;
   readonly footerTerms: string;
   readonly footerContact: string;
@@ -53,9 +58,9 @@ export const CHROME: Readonly<Record<Locale, Chrome>> = {
     navFeatures: 'Fonctionnalités',
     navHowItWorks: 'Comment ça marche',
     navSupport: 'Soutenir',
+    appLink: 'Application',
     navCta: 'Connexion',
     footerNavAria: 'Navigation pied de page',
-    footerApp: 'Application',
     footerPrivacy: 'Confidentialité',
     footerTerms: 'CGU',
     footerContact: 'Contact',
@@ -73,9 +78,9 @@ export const CHROME: Readonly<Record<Locale, Chrome>> = {
     navFeatures: 'Features',
     navHowItWorks: 'How it works',
     navSupport: 'Support',
+    appLink: 'App',
     navCta: 'Sign in',
     footerNavAria: 'Footer navigation',
-    footerApp: 'App',
     footerPrivacy: 'Privacy',
     footerTerms: 'Terms',
     footerContact: 'Contact',

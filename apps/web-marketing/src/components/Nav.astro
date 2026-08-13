@@ -44,6 +44,10 @@ const anchor = (id: string) => `${home === '/' ? '' : home}/#${id}`;
     <ul class="nav__links">
       <li><a href={anchor(SECTION_IDS.features)}>{t.navFeatures}</a></li>
       <li><a href={anchor(SECTION_IDS.howItWorks)}>{t.navHowItWorks}</a></li>
+      {/* Same link and same attributes as the footer's — the app was reachable
+          from the bottom of the page only, which a visitor who never scrolls
+          that far does not find. */}
+      <li><a href={APP_URL} target="_blank" rel="noopener">{t.appLink}</a></li>
       <li><a href={anchor(SECTION_IDS.support)}>{t.navSupport}</a></li>
     </ul>
     {route !== null && <LangSwitch locale={locale} route={route} variant="nav" />}
