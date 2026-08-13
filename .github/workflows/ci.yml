@@ -281,13 +281,23 @@ jobs:
         if: '!cancelled()'
         run: pnpm --filter @myclash/web-marketing build
 
-      # --require-build so an absent dist/ fails instead of skipping. The Next
-      # budgets stay opt-in (--include-next) and are not run here: they would
-      # need three more app builds, and web-public already budgets its own root
-      # shell inside its test chain.
+      # The page-load budgets weigh what a visitor downloads on any page: the
+      # root shell plus the root layout's client entry. They need a real build,
+      # and only web-public had one — inside its own test chain — so web-staff
+      # and web-admin had never been measured at all. The driver builds every
+      # app the budget registry names, with placeholder env derived from each
+      # next.config.ts, so a new budget cannot sit dormant for want of a build.
+      - name: Build the apps for the bundle budgets
+        if: '!cancelled()'
+        run: pnpm perf:bundle:build
+
+      # --include-next or the three page-load budgets skip themselves and the
+      # step passes having weighed only the marketing site. That is how this
+      # gate spent its whole life: registered, invoked, and measuring nothing.
+      # --require-build so an absent build fails instead of skipping.
       - name: Check bundle budgets
         if: '!cancelled()'
-        run: pnpm perf:bundle -- --require-build
+        run: pnpm perf:bundle -- --include-next --require-build
 
       # Root-level scripts/ is outside the turbo workspace graph, so
       # `turbo run test` never covered it. Three of these tests had rotted

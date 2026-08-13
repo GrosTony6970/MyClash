@@ -67,18 +67,35 @@ for (const [name, command] of Object.entries(expectedScripts)) {
 // manifest that had been deleted from the framework, and no gate noticed
 // because none of them asked whether a workflow invokes it. Assert the run.
 const ci = readFileSync('.github/workflows/ci.yml', 'utf8');
-for (const command of ['pnpm perf:review', 'pnpm perf:bundle']) {
-  if (!ci.includes(command)) {
-    failures.push(`CI lint job must run ${command}`);
-  }
+// perf:bundle is asserted below rather than here: a bare `includes` for it also
+// matches `pnpm perf:bundle:build`, so dropping the check step while keeping the
+// build step would have passed this loop.
+if (!ci.includes('pnpm perf:review')) {
+  failures.push('CI lint job must run pnpm perf:review');
 }
 
 // A bundle budget with nothing built is a budget over an empty directory, and
-// that passes. The step must demand the build it measures.
-if (ci.includes('pnpm perf:bundle') && !ci.includes('pnpm perf:bundle -- --require-build')) {
-  failures.push(
-    'CI must run pnpm perf:bundle with --require-build, or an absent build skips the budget instead of failing it.',
-  );
+// that passes. The step must demand the build it measures, and must ask for the
+// page-load budgets by name: without --include-next all three skip themselves
+// and the step passes having weighed only the marketing site, which is how this
+// gate spent its whole life — registered, invoked, and measuring nothing.
+const bundleStep = /pnpm perf:bundle(?! ?:)((?: -[-\w]+)*)/.exec(ci);
+if (!bundleStep) {
+  failures.push('CI lint job must run pnpm perf:bundle');
+} else {
+  for (const flag of ['--require-build', '--include-next']) {
+    if (!bundleStep[1].includes(flag)) {
+      failures.push(
+        `CI must run pnpm perf:bundle with ${flag}. Without it the budgets skip themselves and the step still passes.`,
+      );
+    }
+  }
+}
+
+// The builds those budgets weigh. A page-load budget with no build skips under
+// warn, or fails under --require-build; either way the step is not measuring.
+if (!ci.includes('pnpm perf:bundle:build')) {
+  failures.push('CI lint job must run pnpm perf:bundle:build before checking the bundle budgets.');
 }
 
 const perfSpec = readFileSync('tests/perf/web-public.spec.ts', 'utf8');

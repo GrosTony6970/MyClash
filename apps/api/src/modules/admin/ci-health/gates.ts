@@ -103,6 +103,7 @@ export const CI_PLUMBING_STEPS: readonly string[] = [
   'Upload Playwright report',
   'Build production image',
   'Build the marketing site for the bundle budget',
+  'Build the apps for the bundle budgets',
 ] as const;
 
 /** Stable key for a gate, used to join the expectation against CI's answer. */
