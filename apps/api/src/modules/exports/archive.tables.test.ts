@@ -224,26 +224,31 @@ describe('the organiser can read every table name', () => {
    * an API dependency, and the migration-coverage suite next door already reads
    * packages/db/migrations the same way. A dynamic `t()` key cannot be checked
    * by the i18n sweep, which is exactly why this exists.
+   *
+   * It used to read one file, packages/i18n/src/index.ts, and find both locales'
+   * blocks in it. The dictionary is now one module per namespace per locale, so
+   * this reads the two `organizer` modules instead — re-pointed, not deleted:
+   * without it an organiser previewing a restore is shown raw camelCase again.
    */
-  const dictionary = (() => {
+  const localeSources = (['en', 'fr'] as const).map((locale) => {
+    const relative = `packages/i18n/src/messages/${locale}/organizer.ts`;
     const candidates = [
-      path.resolve(process.cwd(), '../../packages/i18n/src/index.ts'),
-      path.resolve(process.cwd(), 'packages/i18n/src/index.ts'),
-      path.resolve(__dirname, '../../../../packages/i18n/src/index.ts'),
-      path.resolve(__dirname, '../../../../../packages/i18n/src/index.ts'),
+      path.resolve(process.cwd(), '../..', relative),
+      path.resolve(process.cwd(), relative),
+      path.resolve(__dirname, '../../../../', relative),
+      path.resolve(__dirname, '../../../../../', relative),
     ];
     const found = candidates.find((candidate) => existsSync(candidate));
-    if (!found) throw new Error(`Could not locate packages/i18n/src/index.ts`);
+    if (!found) throw new Error(`Could not locate ${relative}`);
     return readFileSync(found, 'utf8');
-  })();
+  });
 
-  /** Every `tables: { … }` block under `organizer.archive` — one per locale. */
-  const localeBlocks = (() => {
-    const blocks = [...dictionary.matchAll(/\n( *)tables: \{\n([\s\S]*?)\n\1\},\n/g)].map(
-      (match) => match[2]!,
-    );
-    return blocks.filter((block) => /\n\s*eventProgrammeBlocks: /.test(block));
-  })();
+  /** The `tables: { … }` block under `organizer.archive`, one per locale. */
+  const localeBlocks = localeSources
+    .flatMap((source) =>
+      [...source.matchAll(/\n( *)tables: \{\n([\s\S]*?)\n\1\},\n/g)].map((match) => match[2]!),
+    )
+    .filter((block) => /\n\s*eventProgrammeBlocks: /.test(block));
 
   it('finds both locale blocks (sanity check on the reader)', () => {
     // Without this, a regex that stopped matching would report every key as

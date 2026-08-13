@@ -9,6 +9,22 @@
     ".": {
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
+    },
+    "./staff": {
+      "types": "./dist/surfaces/staff.d.ts",
+      "default": "./dist/surfaces/staff.js"
+    },
+    "./public": {
+      "types": "./dist/surfaces/public.d.ts",
+      "default": "./dist/surfaces/public.js"
+    },
+    "./admin": {
+      "types": "./dist/surfaces/admin.d.ts",
+      "default": "./dist/surfaces/admin.js"
+    },
+    "./messages/*": {
+      "types": "./dist/messages/*.d.ts",
+      "default": "./dist/messages/*.js"
     }
   },
   "scripts": {
