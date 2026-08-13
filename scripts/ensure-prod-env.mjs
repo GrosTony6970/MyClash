@@ -353,8 +353,13 @@ export async function ensureProdEnv(envPath = '.env', options = {}) {
     ['NEXT_PUBLIC_API_URL_ADMIN', `https://admin.${domain}`],
     ['NEXT_PUBLIC_API_URL_PUBLIC', supabaseUrl], // https://app.${DOMAIN}
     ['NEXT_PUBLIC_API_URL_STAFF', staffUrl], // https://staff.${DOMAIN}
-    // Cross-app deep links: admin → scoring app, admin/scoring → public app.
-    ['NEXT_PUBLIC_STAFF_URL', `https://scoring.${domain}`],
+    // Cross-app deep links: admin → staff app, admin/staff → public app.
+    // staff., not scoring.: the router is Host(`staff.${DOMAIN}`) and no
+    // scoring.${DOMAIN} router has ever existed in either compose file. This
+    // was left behind by the scoring → staff rename, and the value feeds the
+    // PRINTED staff-login QR code (web-admin's getStaffUrl), so a fresh deploy
+    // handed scorekeepers a code pointing at a host with no route.
+    ['NEXT_PUBLIC_STAFF_URL', staffUrl],
     ['NEXT_PUBLIC_PUBLIC_APP_URL', supabaseUrl], // https://app.${DOMAIN}
     // The marketing site is the apex host (see the myclash-marketing router).
     ['NEXT_PUBLIC_MARKETING_URL', `https://${domain}`],

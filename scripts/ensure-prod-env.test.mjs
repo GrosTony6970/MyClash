@@ -112,6 +112,13 @@ test('creates .env from sample and replaces generated secrets/default URLs', asy
   ]) {
     assert.notEqual(values.get(key), 'https://api.example.org');
   }
+  // Every generated URL must name a host some router actually serves. This one
+  // said scoring.${DOMAIN} for months after the scoring → staff rename — a host
+  // with no router in either compose file — and it is what the printed
+  // staff-login QR encodes.
+  assert.equal(values.get('NEXT_PUBLIC_STAFF_URL'), 'https://staff.example.org');
+  assert.equal(values.get('NEXT_PUBLIC_PUBLIC_APP_URL'), 'https://app.example.org');
+  assert.equal(values.get('NEXT_PUBLIC_MARKETING_URL'), 'https://example.org');
   assert.notEqual(values.get('POSTGRES_PASSWORD'), 'change-me-strong-password');
   assert.notEqual(values.get('COOKIE_SECRET'), 'change-me-cookie-secret');
   assert.match(values.get('TRAEFIK_DASHBOARD_AUTH'), /^admin:\{SHA\}.+/);
