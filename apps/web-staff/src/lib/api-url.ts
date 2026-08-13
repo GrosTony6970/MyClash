@@ -8,22 +8,9 @@
  * - On the server (SSR/tests): falls back to the build-time env var
  *   or localhost so SSR fetches and unit tests keep working.
  *
- * ── Why the browser half is also exported as a constant ─────────────────────
- * The pad's browser policy is a constant, not a computed value, so a Server
- * Component that has to hand the base URL to a client component can use
- * `BROWSER_API_BASE` directly instead of reading the env var. That is not a
- * shortcut — it is the only shape that keeps the policy in one file here:
- *
- *   - `getApiUrl()` branches on `typeof window`, so calling it from a Server
- *     Component returns the SERVER value and ships it to the browser. That is
- *     exactly the bug class `eslint-rules/no-server-api-url-leak.mjs` exists
- *     for in web-public.
- *   - Wrapping the consumer in a `'use client'` component (web-admin's and
- *     web-public's `app/_components/RuntimeBanner.tsx`) is the fix there, but
- *     it does not port: those wrappers import `@myclash/ui`, which is CJS with
- *     a single `"."` export and 75 eager `require`s in its barrel. A client
- *     module importing it pulls the whole package into the root-layout client
- *     graph — on the offline-first pad, of all apps.
+ * A Server Component that has to hand the base URL to a client component uses
+ * `BROWSER_API_BASE` below — see its docstring for why neither `getApiUrl()`
+ * nor a `'use client'` wrapper works there.
  *
  * ── Why a module-scope read is still statically inlined ─────────────────────
  * Next inlines `process.env.NEXT_PUBLIC_FOO` / `process.env['NEXT_PUBLIC_FOO']`
@@ -59,6 +46,24 @@ function trimmed(value: string | undefined): string | undefined {
  * every browser fetch is relative and Traefik routes `/api/v1/*` to the API on
  * whichever host the page was loaded from (`myclash-staff-api` and
  * `myclash-admin-api` in infra/docker-compose.prod.yml).
+ *
+ * Exported for `app/layout.tsx`, which renders the shared MaintenanceBanner and
+ * needs the browser base in a Server Component. Both other ways of getting it
+ * there are wrong, which is why this constant exists:
+ *
+ *   - `getApiUrl()` branches on `typeof window`, so from a Server Component it
+ *     returns the SERVER value and ships it to the browser. That is what the
+ *     layout did (via a direct env read): it baked the absolute host in — Next
+ *     inlines the literal in the server compilation too, so the `?? ''` beside
+ *     it never ran — and made the banner the only request in the PWA leaving
+ *     the current origin. Rejected by that host's cert, swallowed by
+ *     `useRuntimeFlags`' catch, banner silently never shown.
+ *   - A `'use client'` wrapper (web-admin's and web-public's
+ *     `app/_components/RuntimeBanner.tsx`) is the fix in those apps but does not
+ *     port: the wrapper imports `@myclash/ui`, which is CJS with a single `"."`
+ *     export and 75 eager `require`s in its barrel, so a client module importing
+ *     it pulls the whole package into the root-layout client graph — on the
+ *     offline-first pad, of all apps.
  */
 export const BROWSER_API_BASE = '';
 

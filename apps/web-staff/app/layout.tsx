@@ -100,22 +100,9 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
         </a>
         <I18nProvider locale={locale}>
           <ThemeProvider mode={themeMode}>
-            {/* The banner's flags fetch runs in the BROWSER, so it takes the
-                pad's browser policy — same-origin, like every other fetch in
-                this app. Reading NEXT_PUBLIC_API_URL here instead baked
-                https://api.${DOMAIN} into the bundle (Next inlines the literal
-                in the SERVER compilation too, so `?? ''` never ran), making
-                this the one request in the whole PWA that left the current
-                origin: rejected by that host's cert, swallowed by
-                useRuntimeFlags' catch, banner silently never shown.
-
-                A constant rather than getApiUrl() because this is a Server
-                Component — getApiUrl() would return the SERVER value here. And
-                a constant rather than a 'use client' wrapper (web-admin's
-                RuntimeBanner) because such a wrapper imports @myclash/ui, a CJS
-                barrel with 75 eager requires and no subpath exports, which
-                would land whole in the root-layout client graph of the
-                offline-first pad. */}
+            {/* The banner fetches in the BROWSER, so it takes the pad's browser
+                policy. A constant, not getApiUrl() and not a 'use client'
+                wrapper — src/lib/api-url.ts explains why both are wrong here. */}
             <MaintenanceBanner apiUrl={BROWSER_API_BASE} />
             {/* Above everything, on every route: a drill the crew can navigate
                 away from the reminder of is a drill someone forgets is
