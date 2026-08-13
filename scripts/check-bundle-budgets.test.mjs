@@ -1,12 +1,11 @@
 import assert from 'node:assert/strict';
-import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
 
 import {
   budgets,
-  checkNextBudget,
   checkPageLoadBudget,
   checkStaticBudget,
   layoutEntryJsFiles,
@@ -17,14 +16,6 @@ const root = process.cwd();
 
 function tempRoot() {
   return mkdtempSync(join(tmpdir(), 'myclash-bundle-'));
-}
-
-function writeNextBuild(appRoot, manifest, chunks = {}) {
-  mkdirSync(join(appRoot, '.next', 'static', 'chunks'), { recursive: true });
-  writeFileSync(join(appRoot, '.next', 'build-manifest.json'), JSON.stringify(manifest));
-  for (const [name, body] of Object.entries(chunks)) {
-    writeFileSync(join(appRoot, '.next', name), body);
-  }
 }
 
 // ── The Next 16 manifest rename ──────────────────────────────────────────────
@@ -50,39 +41,6 @@ test('an app-build-manifest-shaped payload yields nothing', () => {
   // loudly rather than score zero bytes and pass.
   const legacy = { pages: { '/layout': ['static/chunks/main.js'], '/page': [] } };
   assert.deepEqual(rootMainJsFiles(legacy), []);
-});
-
-test('a manifest with no usable chunks fails instead of scoring zero', () => {
-  const appRoot = tempRoot();
-  writeNextBuild(appRoot, { pages: { '/page': ['static/chunks/main.js'] } });
-
-  const result = checkNextBudget(
-    { name: 'app', type: 'next', root: appRoot, budgetBytes: 1024 },
-    { includeNext: true, requireBuild: true },
-  );
-  assert.equal(result.failures?.length, 1);
-  assert.match(result.failures[0], /rootMainFiles/);
-});
-
-test('a real manifest is weighed against the budget', () => {
-  const appRoot = tempRoot();
-  writeNextBuild(
-    appRoot,
-    { rootMainFiles: ['static/chunks/main.js'] },
-    { 'static/chunks/main.js': 'x'.repeat(50_000) },
-  );
-
-  const passing = checkNextBudget(
-    { name: 'app', type: 'next', root: appRoot, budgetBytes: 100 * 1024 },
-    { includeNext: true },
-  );
-  assert.equal(passing.failures, undefined);
-
-  const failing = checkNextBudget(
-    { name: 'app', type: 'next', root: appRoot, budgetBytes: 10 },
-    { includeNext: true },
-  );
-  assert.match(failing.failures[0], /above 10/);
 });
 
 // ── The root-layout entry, the half rootMainFiles cannot see ─────────────────
@@ -227,17 +185,36 @@ test('every configured budget names an app that exists', () => {
   }
 });
 
-test('the web-public budget agrees with the gate that owns it', () => {
-  // web-public's own landing budget runs inside its test chain and is the
-  // authority on this number. Two gates weighing the same shell must not drift
-  // to different figures.
-  const owner = readFileSync(
-    join(root, 'apps', 'web-public', 'scripts', 'landing-bundle-budget.mjs'),
-    'utf8',
-  );
-  const ownerBudget = /const budgetBytes = (\d+) \* 1024/.exec(owner);
-  assert.ok(ownerBudget, 'could not read the web-public landing budget');
+test('no budget weighs the shell alone', () => {
+  // There were three shell budgets, one per app, and they measured the React
+  // and Next runtime: no app-identifying symbol in any of their eighteen
+  // chunks, four chunks byte-identical BETWEEN apps, and a 400 KB payload in a
+  // root-layout provider moved the figure by zero. A page-load budget contains
+  // every chunk they weighed, so a shell figure could only breach after the
+  // page-load figure it is a subset of had already breached.
+  //
+  // Reintroducing one would re-add a framework-version detector wearing a
+  // bundle budget's name, so the type is gone rather than merely unused.
+  for (const budget of budgets) {
+    assert.notEqual(budget.type, 'next', `${budget.name} weighs the shell alone`);
+    assert.ok(
+      ['static', 'page-load'].includes(budget.type),
+      `${budget.name} has unknown type "${budget.type}" — the CLI would route it to the page-load check`,
+    );
+  }
+});
 
-  const mirrored = budgets.find((budget) => budget.root.includes('web-public'));
-  assert.equal(mirrored.budgetBytes, Number(ownerBudget[1]) * 1024);
+test('every Next app has a page-load budget', () => {
+  // Anti-vacuity for the registry itself: a fourth app, or an app whose entry
+  // is dropped in a tidy-up, must not escape a budget silently.
+  const nextApps = readdirSync(join(root, 'apps')).filter((app) =>
+    existsSync(join(root, 'apps', app, 'next.config.ts')),
+  );
+  assert.ok(nextApps.length >= 3, `expected the real apps, found ${nextApps.join(', ')}`);
+  for (const app of nextApps) {
+    assert.ok(
+      budgets.some((budget) => budget.type === 'page-load' && budget.app === app),
+      `${app} has a next.config.ts but no page-load budget`,
+    );
+  }
 });

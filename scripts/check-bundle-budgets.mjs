@@ -2,35 +2,44 @@
 /**
  * Gzip budgets for the JavaScript each app ships.
  *
- * ── Why the Next budgets read build-manifest.json ───────────────────────────
- * They used to read `.next/app-build-manifest.json` and pick assets per route.
- * Next 16 removed that file outright — the `APP_BUILD_MANIFEST` constant and
- * every emission of it are gone from Next's source, on both Turbopack and
- * `--webpack`. The read therefore found nothing on every modern build.
- *
- * The same bug was found and fixed in apps/web-public/scripts/landing-bundle-budget.mjs
- * on 2026-07-23; this copy never got the fix, and nothing noticed because no
- * workflow ran it. `build-manifest.json` carries the equivalent data under
- * `rootMainFiles`: the shared client chunks every route loads.
- *
- * Because `rootMainFiles` is the root shell rather than a per-route set, the
- * budgets no longer name routes — there is one shell figure per app.
- *
- * ── Why there is a SECOND figure per Next app ───────────────────────────────
- * `rootMainFiles` is only half of what a page load pulls. The other half is the
- * root layout's own client module graph, which Next records as `entryJSFiles`
- * in each route's `page_client-reference-manifest.js`. The two sets are
- * disjoint — measured across all three apps, zero chunks in common — so a
- * shell-only budget cannot see anything the layout drags in.
+ * ── What a Next budget weighs, and why it is the union ──────────────────────
+ * `build-manifest.json`'s `rootMainFiles` is the root shell: the shared chunks
+ * every route loads. It is only half of what a page load pulls. The other half
+ * is the root layout's own client module graph, which Next records as
+ * `entryJSFiles` in each route's `page_client-reference-manifest.js`. The two
+ * sets are disjoint — measured across all three apps, zero chunks in common —
+ * so a shell-only budget cannot see anything the layout drags in.
  *
  * It missed two large ones. `packages/ui` pulled lucide-react's whole
- * 2,011-icon barrel (188 KB gzip) and every app's I18nProvider pulls the entire
- * EN+FR dictionary (181 KB gzip). Both sit in the layout entry, so both are
- * downloaded on every page load of every app, and the shell budgets stayed
+ * 2,011-icon barrel (188 KB gzip) and every app's I18nProvider pulled the
+ * entire EN+FR dictionary (181 KB gzip). Both sat in the layout entry, so both
+ * were downloaded on every page load of every app, and the shell budgets stayed
  * green through all of it — the icon barrel's own source comment cited exactly
- * that to argue the cost did not matter.
+ * that to argue the cost did not matter. Both were found by hand and fixed
+ * (209766a5, 34ab639e); neither was found by this file.
  *
  * So `page-load` budgets weigh the UNION. That is the figure a visitor pays.
+ *
+ * ── Why there is no separate shell budget ───────────────────────────────────
+ * There were three, one per app, and they are gone. A page-load budget already
+ * contains every chunk a shell budget weighed, so the shell figure could only
+ * breach after the page-load figure it is a subset of had already breached.
+ * What it measured on its own was the React and Next runtime and a route table:
+ * across eighteen chunks in three apps, none carried an app-identifying symbol,
+ * and four were byte-identical BETWEEN apps. A 400 KB payload injected into a
+ * root-layout provider moved the shell figure by zero bytes.
+ *
+ * That made it a framework-version detector wearing a bundle budget's name —
+ * it would go red on all three apps at once on a Next upgrade, and stay green
+ * through anything the apps themselves shipped.
+ *
+ * ── The manifest history this file keeps repeating ──────────────────────────
+ * The read used to be `.next/app-build-manifest.json`, which Next 16 removed
+ * outright — the `APP_BUILD_MANIFEST` constant and every emission of it are
+ * gone from the framework, on both Turbopack and `--webpack`. That read found
+ * nothing on every modern build and scored zero as a pass. Both manifest
+ * readers below therefore fail loudly on an empty result rather than returning
+ * a smaller number, and both are exported so their shape is asserted in a test.
  */
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -44,30 +53,6 @@ export const budgets = [
     type: 'static',
     root: join('apps', 'web-marketing', 'dist'),
     budgetBytes: 200 * 1024,
-  },
-  {
-    // apps/web-public/scripts/landing-bundle-budget.mjs is the authority on
-    // this number and runs inside web-public's own test chain; the figure is
-    // mirrored here so a full sweep covers the same ground. Both were
-    // re-baselined 200KB → 230KB for Next 16: `next build` defaults to
-    // Turbopack, whose shared runtime + framework chunks gzip to ~212KB where
-    // the old webpack bundle was ~160KB.
-    name: 'web-public root shell JavaScript',
-    type: 'next',
-    root: join('apps', 'web-public'),
-    budgetBytes: 230 * 1024,
-  },
-  {
-    name: 'web-staff root shell JavaScript',
-    type: 'next',
-    root: join('apps', 'web-staff'),
-    budgetBytes: 500 * 1024,
-  },
-  {
-    name: 'web-admin root shell JavaScript',
-    type: 'next',
-    root: join('apps', 'web-admin'),
-    budgetBytes: 800 * 1024,
   },
   // Shell + root-layout entry: everything a page load pulls. Re-baselined after
   // the dictionary was split per surface — measured 331,091 / 297,379 / 428,811,
@@ -282,56 +267,6 @@ export function checkPageLoadBudget(budget, { includeNext = false, requireBuild 
   return { logs };
 }
 
-export function checkNextBudget(budget, { includeNext = false, requireBuild = false } = {}) {
-  if (!includeNext) {
-    return {
-      warnings: [
-        `${budget.name}: skipping Next.js artifact budget. Pass --include-next after fresh builds.`,
-      ],
-    };
-  }
-
-  const manifestPath = join(budget.root, '.next', 'build-manifest.json');
-  if (!existsSync(manifestPath)) {
-    const message = `${budget.name}: missing ${manifestPath}. Run next build first.`;
-    return requireBuild
-      ? { failures: [message] }
-      : { warnings: [`${message} Skipping artifact-dependent budget.`] };
-  }
-
-  const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'));
-  const assets = rootMainJsFiles(manifest);
-  if (assets.length === 0) {
-    return {
-      failures: [
-        `${budget.name}: no JavaScript assets found in build-manifest.json rootMainFiles. ` +
-          'Next has renamed the manifest field again — reconcile with apps/web-public/scripts/landing-bundle-budget.mjs.',
-      ],
-    };
-  }
-
-  const files = assets.map((asset) => join(budget.root, '.next', asset)).filter(existsSync);
-  if (files.length === 0) {
-    return {
-      failures: [
-        `${budget.name}: build-manifest.json names ${assets.length} chunk(s), none of which exist on disk.`,
-      ],
-    };
-  }
-
-  const total = gzipSize(files);
-  const logs = [
-    `${budget.name}: ${total} bytes gzip across ${files.length} chunk(s) (budget ${budget.budgetBytes}).`,
-  ];
-  if (total > budget.budgetBytes) {
-    return {
-      failures: [`${budget.name} is ${total} bytes gzip, above ${budget.budgetBytes}.`],
-      logs,
-    };
-  }
-  return { logs };
-}
-
 // ── CLI ──────────────────────────────────────────────────────────────────────
 // Guarded so the test file can import the checks without running a scan.
 const invokedDirectly = process.argv[1] && process.argv[1].endsWith('check-bundle-budgets.mjs');
@@ -346,12 +281,7 @@ if (invokedDirectly) {
 
   const failures = [];
   for (const budget of budgets) {
-    const check =
-      budget.type === 'static'
-        ? checkStaticBudget
-        : budget.type === 'page-load'
-          ? checkPageLoadBudget
-          : checkNextBudget;
+    const check = budget.type === 'static' ? checkStaticBudget : checkPageLoadBudget;
     const result = check(budget, options);
     for (const line of result.logs ?? []) console.log(line);
     for (const line of result.warnings ?? []) console.warn(line);
