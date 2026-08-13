@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useMemo, useState } from 'react';
 import {
+  AuthAltLink,
   AuthDivider,
   AuthField,
   AuthNotice,
@@ -38,6 +39,11 @@ export default function PublicLoginPage() {
   const [error, setError] = useState<string | null>(null);
 
   const apiUrl = getPublicApiUrl();
+  // The organizer workspace is a different host, so the cross-link needs the
+  // build-time value the rest of the app already reads (SiteHeader,
+  // PublicPersonalShell). Passed by both compose files; the default is the
+  // production host so a bare `next build` still emits a working link.
+  const adminUrl = process.env['NEXT_PUBLIC_ADMIN_URL'] ?? 'https://admin.myclash.fr';
 
   const passwordValidation = useMemo(() => validatePassword(password), [password]);
 
@@ -260,6 +266,22 @@ export default function PublicLoginPage() {
               ? t('publicApp.login.formDescription')
               : t('publicApp.login.signupDescription')}
           </p>
+          {/* Both halves follow the tab: an organizer who is signing in wants
+              the other login, one who is creating an account wants the
+              organizer signup, which web-admin serves at its own route. */}
+          <AuthAltLink
+            prompt={
+              tab === 'signin'
+                ? t('publicApp.login.organizerPrompt')
+                : t('publicApp.login.organizerSignupPrompt')
+            }
+            label={
+              tab === 'signin'
+                ? t('publicApp.login.organizerLink')
+                : t('publicApp.login.organizerSignupLink')
+            }
+            href={tab === 'signin' ? `${adminUrl}/login` : `${adminUrl}/signup`}
+          />
         </>
       )}
 
