@@ -72,7 +72,7 @@ export const organizer = {
     areas: 'Zones',
     areasSection: 'Zones',
     areasHelp:
-      'Subdivisez ce lieu en au moins deux zones nommees pour accueillir plusieurs ateliers en parallèle. Inutile si une seule zone suffit.',
+      'Subdivisez ce lieu en au moins deux zones nommées pour accueillir plusieurs ateliers en parallèle. Inutile si une seule zone suffit.',
     addArea: 'Ajouter',
     newAreaPlaceholder: 'Tapis 1',
     removeArea: 'Retirer',
@@ -108,7 +108,7 @@ export const organizer = {
     titleWithOrg: '{name} — Ligues',
     titleFallback: 'Ligues',
     subtitle:
-      'Parcourez les ligues et demandez à rejoindre. Les approbations sont gerees par le super-admin de la ligue.',
+      'Parcourez les ligues et demandez à rejoindre. Les approbations sont gérées par le super-admin de la ligue.',
     pendingHeading: 'Demandes en attente',
     requestedAt: 'Demande le {date}',
     withdrawButton: 'Retirer',
@@ -242,7 +242,7 @@ export const organizer = {
     eventEyebrow: 'Centre de commande événement',
     title: '{organization}',
     eventTitle: '{event}',
-    status: 'Session protegee',
+    status: 'Session protégée',
     navigationLabel: 'Navigation organisateur',
     organizationSection: 'Organisation',
     eventSection: 'Événement',
@@ -267,7 +267,7 @@ export const organizer = {
       manageAll: 'Gérer tous les événements...',
     },
     nav: {
-      overview: 'Vue generale',
+      overview: 'Vue générale',
       events: 'Liste des événements',
       rulesets: 'Rulesets',
       leagues: 'Ligues',
@@ -294,7 +294,7 @@ export const organizer = {
     confirmedToast: '{name} disqualifie.',
     dismissedToast: 'Revision rejetée.',
     actionFailed: 'Impossible de mettre à jour la revision.',
-    resolvedTitle: 'Traitees ({count})',
+    resolvedTitle: 'Traitées ({count})',
     statusConfirmed: 'disqualifie',
     statusDismissed: 'rejetée',
     unknownFighter: 'Combattant inconnu',
@@ -318,7 +318,7 @@ export const organizer = {
     memberAdded: 'Membre ajoute.',
     addFailed: "Impossible d'ajouter le membre.",
     addHint:
-      'La personne doit deja avoir un compte MyClash avec cet email. Le rôle owner ne peut être reattribue que par un super-admin.',
+      'La personne doit déjà avoir un compte MyClash avec cet email. Le rôle owner ne peut être reattribue que par un super-admin.',
     unknownUser: 'Utilisateur inconnu',
     loadFailed: "Impossible de charger l'organisation.",
   },
@@ -390,7 +390,7 @@ export const organizer = {
     },
     testBadge: 'Test',
     clubBadge: 'Événement de club',
-    visibility: 'Visibilite',
+    visibility: 'Visibilité',
     publishCta: 'Publier',
     statusHelp:
       "Modifiez le statut pour passer l'événement en cours, termine, ou le repasser en brouillon. Enregistre avec le reste du formulaire.",
@@ -408,7 +408,7 @@ export const organizer = {
     unpublish: 'Repasser en brouillon',
     published: "L'événement est publie.",
     unpublished: "L'événement est repasse en brouillon.",
-    visibilityError: "Impossible de changer la visibilite de l'événement.",
+    visibilityError: "Impossible de changer la visibilité de l'événement.",
     deleted: 'Événement supprime.',
     deleteError: "Impossible de supprimer l'événement.",
     deletionPending: 'Suppression en attente · en revue',
@@ -421,7 +421,7 @@ export const organizer = {
     venuesSection: 'Lieux',
     venuesHelp:
       'Choisissez le ou les lieux de cet événement. Les lieux de tournoi y injectent leurs pistes ; un lieu ne peut pas être retire tant qu’il a des assauts programmes ou des sessions de stage.',
-    venuesBlocked: 'Enregistre. Ces lieux sont encore utilises et ont ete conserves : {venues}.',
+    venuesBlocked: 'Enregistre. Ces lieux sont encore utilises et ont �t� conserves : {venues}.',
     deleteTitle: 'Suppression définitive',
     deleteWarning:
       'Cette action supprime définitivement "{name}" et ses données. Archiver est plus sur pour un événement reel.',
@@ -436,7 +436,7 @@ export const organizer = {
       createdBy: 'Cree par',
       startDate: 'Début',
       endDate: 'Fin',
-      visibility: 'Visibilite',
+      visibility: 'Visibilité',
     },
     listTitle: 'Liste des événements',
     listDescription: 'Tous les événements de {organization}.',
@@ -444,7 +444,7 @@ export const organizer = {
     visibilityHidden: 'Masque',
     setPublic: 'Publier',
     setDraft: 'Repasser brouillon',
-    visibilityCardTitle: "Visibilite de l'événement",
+    visibilityCardTitle: "Visibilité de l'événement",
     visibilityPublicHint: 'Visible sur le site public.',
     visibilityHiddenHint: 'Masque du site public.',
     visibilityLocked: 'Les événements {status} ne peuvent pas être bascules ici.',
@@ -471,11 +471,11 @@ export const organizer = {
     measured: 'Horloge {skew} par rapport au serveur - {exchanges} touche(s) enregistrée(s).',
     syncLag:
       "La touche la plus lente a mis {lag} à atteindre le serveur. C'est la file d'attente qui fonctionne, pas un problème d'horloge.",
-    outOfEnvelope: '{count} touche(s) horodatee(s) en dehors de leur propre assaut.',
+    outOfEnvelope: '{count} touche(s) horodatée(s) en dehors de leur propre assaut.',
     confidence: {
       ok: 'Fiable',
-      skewed: 'Horloge decalee',
-      unmeasured: 'Non mesuree',
+      skewed: 'Horloge décalée',
+      unmeasured: 'Non mesurée',
     },
   },
   debrief: {
@@ -532,7 +532,7 @@ export const organizer = {
     stageClear: 'OK',
     stageOutstanding: '{count} à faire',
     stageEmpty:
-      "Rien à vérifier ici pour l'instant - en général parce que l'étape precedente n'est pas terminée.",
+      "Rien à vérifier ici pour l'instant - en général parce que l'étape précédente n'est pas terminée.",
     stage: {
       event: "L'événement existe",
       roster: 'La liste des inscrits est fiable',
@@ -556,7 +556,7 @@ export const organizer = {
     },
     publishTitle: 'Publier avant que tout soit prêt ?',
     publishDescription:
-      '{count} point(s) restent en attente. Publier reste possible - ceci sert juste à eviter les mauvaises surprises.',
+      '{count} point(s) restent en attente. Publier reste possible - ceci sert juste à éviter les mauvaises surprises.',
     publishAnyway: 'Publier quand même',
     publishHint:
       "Publier ouvre l'événement sur le site public. Vous pourrez continuer à travailler sur ces points ensuite.",
@@ -588,8 +588,8 @@ export const organizer = {
       },
       pools: {
         label: 'Poules',
-        ok: '{count} poule(s) generees.',
-        warn: "La phase de poules existe mais aucune poule n'a ete générée.",
+        ok: '{count} poule(s) générées.',
+        warn: "La phase de poules existe mais aucune poule n'a �t� générée.",
         info: 'Pas de phase de poules - ce tournoi passe directement au tableau.',
       },
       poolReferees: {
@@ -604,14 +604,14 @@ export const organizer = {
       },
       swissRounds: {
         label: 'Rondes suisses',
-        info: '{rounds} ronde(s) appariee(s). La suivante se tire seule des que la courante se termine.',
+        info: '{rounds} ronde(s) appariée(s). La suivante se tire seule des que la courante se termine.',
       },
       bracket: {
         label: 'Tableau',
-        info: 'Se remplit depuis le classement des poules une fois celles-ci terminees - en général le deuxieme jour. Rien à faire pour le moment.',
+        info: 'Se remplit depuis le classement des poules une fois celles-ci terminées - en général le deuxieme jour. Rien à faire pour le moment.',
       },
       rosterIdentity: {
-        label: 'Identites des combattants',
+        label: 'Identités des combattants',
         ok: 'Les {total} combattants inscrits sont relies a un profil MyClash.',
         warn: "{missing} des {total} combattants inscrits ne sont relies a aucun profil. Leurs résultats n'atteindront ni leur page de carriere ni aucun classement de ligue.",
       },
@@ -684,14 +684,14 @@ export const organizer = {
       recap: 'Recap',
       drift: {
         title: 'Les règles effectives ont change depuis le dernier enregistrement',
-        body: "Les règles de score ou de penalite en vigueur pour ce tournoi ne correspondent plus a l'empreinte enregistrée lors de la dernière configuration — le plus souvent parce qu'une regle de la plateforme (comme le barème de pénalités integre) a ete modifiée. Confirmez pour mettre à jour l'empreinte apres avoir verifie les paramètres actuels.",
+        body: "Les règles de score ou de penalite en vigueur pour ce tournoi ne correspondent plus a l'empreinte enregistrée lors de la dernière configuration — le plus souvent parce qu'une regle de la plateforme (comme le barème de pénalités integre) a �t� modifiée. Confirmez pour mettre à jour l'empreinte après avoir verifie les paramètres actuels.",
         acknowledge: 'Confirmer',
         acknowledged: 'Empreinte du barème mise à jour.',
         acknowledgeError: "Impossible de mettre à jour l'empreinte. Veuillez réessayer.",
       },
       lockHelp: {
         intro:
-          'Verrouille les poules ou tableaux termines apres un délai pour empecher les arbitres de continuer a les modifier. Reglage au niveau du tournoi, distinct du barème.',
+          'Verrouille les poules ou tableaux termines après un délai pour empecher les arbitres de continuer a les modifier. Reglage au niveau du tournoi, distinct du barème.',
         lockedNote:
           "Les assauts verrouilles passent en lecture seule sur le tableau de score ; un organisateur du tournoi peut les rouvrir — et si le verrouillage auto est desactive, le staff de l'événement peut aussi les rouvrir.",
         enabled: 'Verrouillage auto active',
@@ -699,18 +699,18 @@ export const organizer = {
           "Interrupteur principal. Desactive, les assauts ne se verrouillent jamais automatiquement (un organisateur peut toujours les verrouiller manuellement) et les options ci-dessous n'ont aucun effet.",
         delay: 'Délai de verrouillage auto (minutes)',
         delayHelp:
-          "Délai de grace apres la fin du dernier assaut d'une poule ou d'un tableau avant le verrouillage — laisse le temps de corriger. 0 verrouille des la fin.",
-        completedPools: 'Verrouiller les poules terminees',
+          "Délai de grace après la fin du dernier assaut d'une poule ou d'un tableau avant le verrouillage — laisse le temps de corriger. 0 verrouille des la fin.",
+        completedPools: 'Verrouiller les poules terminées',
         completedPoolsHelp:
-          "Quand tous les assauts d'une poule sont termines, verrouille cette poule apres le délai. Uniquement si le verrouillage auto est active.",
+          "Quand tous les assauts d'une poule sont termines, verrouille cette poule après le délai. Uniquement si le verrouillage auto est active.",
         completedBrackets: 'Verrouiller les tableaux termines',
         completedBracketsHelp:
-          "Quand tous les assauts d'un tableau sont termines, verrouille ce tableau apres le délai. Uniquement si le verrouillage auto est active.",
+          "Quand tous les assauts d'un tableau sont termines, verrouille ce tableau après le délai. Uniquement si le verrouillage auto est active.",
       },
       venues: 'Lieux',
       name: 'Nom',
       slug: 'Slug URL',
-      slugLocked: 'Le slug est verrouille apres la création.',
+      slugLocked: 'Le slug est verrouille après la création.',
       weapon: 'Arme',
       ruleset: 'Règlement',
       penaltyRuleset: 'Règlement de pénalités',
@@ -729,7 +729,7 @@ export const organizer = {
       bestOf5: 'Au meilleur des 5',
       bestOf7: 'Au meilleur des 7',
       bestOfHelp:
-        'Nombre de manches; gagner la majorite des manches remporte le match. Manche unique = comportement actuel.',
+        'Nombre de manches; gagner la majorité des manches remporte le match. Manche unique = comportement actuel.',
       softClock: 'Horloge souple',
       maxDoubleHits: 'Doubles maximum',
       afterblowMode: 'Mode contre-frappe',
@@ -737,7 +737,7 @@ export const organizer = {
       afterblowDeductive: 'Déductif',
       scoringDirection: 'Direction du score',
       scoringNormal: 'Normal',
-      scoringReverse: 'Inverse (zero perd)',
+      scoringReverse: 'Inverse (zéro perd)',
       pointCapHelp:
         'Le premier combattant à atteindre ce score gagne; le match se termine alors automatiquement.',
       timerModeHelp:
@@ -749,11 +749,11 @@ export const organizer = {
       softClockHelp:
         "Quand le decompte passe sous ce nombre de secondes, la saisie des points est bloquée jusqu'à l'arrêt du chrono.",
       maxDoubleHitsHelp:
-        'Apres ce nombre de doubles, les deux combattants perdent avec un score de 0–0. 0 = pas de limite.',
+        'Après ce nombre de doubles, les deux combattants perdent avec un score de 0–0. 0 = pas de limite.',
       afterblowModeHelp:
         "Complet : la contre-frappe rapporte des points au defenseur. Déductif : la contre-frappe est soustraite des points de l'attaquant et le defenseur marque 0.",
       scoringDirectionHelp:
-        "Normal : les points s'additionnent; le premier au plafond gagne. Inverse (zero perd) : chaque combattant part du plafond et perd des points; le premier à atteindre 0 perd.",
+        "Normal : les points s'additionnent; le premier au plafond gagne. Inverse (zéro perd) : chaque combattant part du plafond et perd des points; le premier à atteindre 0 perd.",
       sideColors: 'Couleurs des cotes',
       quickPenalties: 'Pénalités en accès rapide',
       quickPenaltiesHelp:
@@ -798,7 +798,7 @@ export const organizer = {
       bracketAt: 'Tableau : {venue}',
       swiss: 'Lieu des rondes suisses',
       moveHelp:
-        "L'enregistrement définit ou les nouveaux matchs sont planifies. Pour déplacer maintenant les matchs deja planifies vers le lieu attribue, utilisez les boutons ci-dessous.",
+        "L'enregistrement définit ou les nouveaux matchs sont planifies. Pour déplacer maintenant les matchs déjà planifies vers le lieu attribue, utilisez les boutons ci-dessous.",
       movePools: 'Déplacer les matchs de poule maintenant',
       moveSwiss: 'Déplacer les matchs suisses maintenant',
       moveBracket: 'Déplacer les matchs de tableau maintenant',
@@ -848,7 +848,7 @@ export const organizer = {
     kindHelp: {
       standard:
         'Une compétition normale. Publique, et les résultats comptent pour les classements et les statistiques des combattants.',
-      test: "Un essai. Masque des pages publiques, des espaces personnels et des statistiques, et supprimable définitivement même apres l'enregistrement de matchs.",
+      test: "Un essai. Masque des pages publiques, des espaces personnels et des statistiques, et supprimable définitivement même après l'enregistrement de matchs.",
       club: 'Activite interne au club. Publique, mais les résultats ne comptent jamais pour les classements, les statistiques de carriere ni HEMA Ratings, et elle reste supprimable définitivement.',
     },
     licesNames: 'Noms des lices',
@@ -861,7 +861,7 @@ export const organizer = {
     areaAdd: 'Ajouter un espace',
     areaRemove: "Supprimer l'espace",
     areaHint:
-      'Ajoutez un espace seulement si vous voulez diviser le lieu en plusieurs zones de stages simultanees. Sinon, laissez vide.',
+      'Ajoutez un espace seulement si vous voulez diviser le lieu en plusieurs zones de stages simultanées. Sinon, laissez vide.',
     venuePickExisting: 'Choisir un lieu existant',
     venueCreateNew: 'Créer un nouveau lieu',
     venuePickLabel: "Catalogue des lieux de l'organisation",
@@ -898,7 +898,7 @@ export const organizer = {
       invalidSlug: 'Le slug doit contenir seulement minuscules, chiffres et tirets',
       startRequired: 'La date de début est requise',
       endRequired: 'La date de fin est requise',
-      endBeforeStart: 'La date de fin doit être apres ou egale a la date de début',
+      endBeforeStart: 'La date de fin doit être après ou egale a la date de début',
       licesRequired: 'Au moins 1 lice est requise',
       licesNamesRequired: 'Tous les noms de lices doivent être remplis',
       areaNamesRequired: "Tous les noms d'espaces doivent être remplis",
@@ -928,7 +928,7 @@ export const organizer = {
     archiveTitle: 'Archive',
     dashboard: {
       title: "Vue d'ensemble de l'événement",
-      description: "Instantane operationnel de l'événement selectionne.",
+      description: "Instantané operationnel de l'événement selectionne.",
       loadError: "Impossible de charger le tableau de bord de l'événement.",
       startDate: 'Date de début',
       endDate: 'Date de fin',
@@ -939,7 +939,7 @@ export const organizer = {
       startedAgo: 'Debute il y a {span}',
       live: 'En direct',
       completed: 'Termine',
-      visibility: 'Visibilite : {status}',
+      visibility: 'Visibilité : {status}',
       tournaments: 'Tournois',
       participants: 'Participants',
       uniqueFighters: 'Combattants uniques',
@@ -959,13 +959,13 @@ export const organizer = {
       colRuleset: 'Ruleset',
       elimSingle: 'Simple-elim',
       elimDouble: 'Double-elim',
-      visibilityColumn: 'Visibilite',
+      visibilityColumn: 'Visibilité',
       visibilityDraft: 'Brouillon',
       visibilityPublic: 'Publie',
       setPublic: 'Publier le tournoi',
       setDraft: 'Repasser le tournoi en brouillon',
       statusUpdateError: 'Impossible de modifier le statut du tournoi.',
-      visibilityError: 'Impossible de changer la visibilite du tournoi.',
+      visibilityError: 'Impossible de changer la visibilité du tournoi.',
     },
     clubs: {
       title: 'Clubs',
@@ -1116,7 +1116,7 @@ export const organizer = {
       doubles: 'Doubles',
       clubs: 'Clubs',
       completion: 'Avancement',
-      doublesHint: 'Taux de touche simultanee',
+      doublesHint: 'Taux de touche simultanée',
       completionHint: '{completed} matchs sur {total}',
       participantsHint: 'Sur {count} tournoi(s)',
     },
@@ -1190,10 +1190,10 @@ export const organizer = {
   chat: {
     title: 'Chatbot organisateur',
     description:
-      "Posez des questions sur votre événement et proposez des actions de configuration. Les actions ne sont appliquees qu'apres votre confirmation.",
+      "Posez des questions sur votre événement et proposez des actions de configuration. Les actions ne sont appliquées qu'après votre confirmation.",
     backToEvent: "Retour a l'événement",
-    missingKey: 'Configurez une cle IA pour utiliser le chatbot.',
-    configureKey: 'Configurer la cle IA',
+    missingKey: 'Configurez une clé IA pour utiliser le chatbot.',
+    configureKey: 'Configurer la clé IA',
     newConversation: 'Nouvelle conversation',
     conversations: 'Conversations',
     emptyHistory: 'Aucune conversation pour le moment.',
@@ -1212,12 +1212,12 @@ export const organizer = {
     deleteConversation: 'Supprimer la conversation',
     deleteConfirm: 'Supprimer cette conversation et ses messages ?',
     proposal: {
-      title: 'Action proposee',
+      title: 'Action proposée',
       confirm: 'Confirmer et appliquer',
       reject: 'Ignorer',
-      applied: 'Appliquee',
-      rejected: 'Ignoree',
-      failed: 'Cette proposition comporte des erreurs de validation et ne peut pas être appliquee.',
+      applied: 'Appliquée',
+      rejected: 'Ignorée',
+      failed: 'Cette proposition comporte des erreurs de validation et ne peut pas être appliquée.',
     },
   },
   aiAssistant: {
@@ -1226,8 +1226,8 @@ export const organizer = {
     description:
       'Créer des brouillons IA relus pour la configuration, les poules, les tableaux, le planning et les arbitres.',
     missingKey:
-      "L'IA organisateur est desactivee tant que cette organisation n'a pas configure de cle BYOK.",
-    configureKey: 'Configurer la cle IA',
+      "L'IA organisateur est désactivée tant que cette organisation n'a pas configure de clé BYOK.",
+    configureKey: 'Configurer la clé IA',
     draftType: 'Type de brouillon',
     tournament: 'Tournoi',
     prompt: 'Consigne organisateur',
@@ -1243,7 +1243,7 @@ export const organizer = {
     rejectSuccess: 'Brouillon rejete.',
     rejectError: 'Impossible de rejeter le brouillon.',
     preview: 'Aperçu du brouillon',
-    actions: 'Actions structurees',
+    actions: 'Actions structurées',
     history: 'Historique des brouillons',
     emptyHistory: 'Aucun brouillon assistant pour le moment.',
     suggest: 'Suggestion IA',
@@ -1267,7 +1267,7 @@ export const organizer = {
     queryError: 'La requête a echoue. Réessayez.',
     estimate: 'Environ {cost} EUR par question - {spent} EUR / {cap} utilises',
     estimatePending: 'Tapez une question pour estimer le cout.',
-    metadata: 'Metadonnees',
+    metadata: 'Métadonnées',
     metric: 'Mesure',
     history: 'Questions recentes',
     emptyHistory: 'Aucune question pour le moment.',
@@ -1278,7 +1278,7 @@ export const organizer = {
       organizersOnly: 'Organisateurs seulement',
       headJudges: 'Organisateurs + arbitres principaux',
       coaches: 'Organisateurs + arbitres principaux + coaches',
-      anyone: 'Toute personne avec acces au tournoi',
+      anyone: 'Toute personne avec accès au tournoi',
     },
     suggestions: {
       topWinRateEn: 'Top 5 fighters by win rate',
@@ -1440,14 +1440,14 @@ export const organizer = {
       clear: 'Vider ce cote',
       empty: 'Aucun combattant inscrit.',
       liceLabel: 'Lice',
-      liceNone: 'Non assignee',
+      liceNone: 'Non assignée',
       refereeNone: 'Non assigne',
     },
     autoPopulateButton: 'Remplir le tableau',
     autoPopulateModeOverall: 'Classement général',
     autoPopulateModeTopNPerPool: 'Top-N par poule',
     autoPopulateTopNLabel: 'Top N',
-    autoPopulatePoolsNotFinished: 'Les poules ne sont pas encore terminees',
+    autoPopulatePoolsNotFinished: 'Les poules ne sont pas encore terminées',
     autoPopulateSuccess: 'Tableau rempli à partir du classement des poules',
     autoPopulateSuccessFromSeed:
       "Tableau rempli à partir de l'ordre d'inscription (aucune donnée de poule)",
@@ -1467,7 +1467,7 @@ export const organizer = {
     breadcrumbPools: 'Poules',
     poolsTitle: 'Gestion des poules',
     notifyParticipants: 'Notifier les participants',
-    updateError: 'Impossible de modifier la visibilite.',
+    updateError: 'Impossible de modifier la visibilité.',
     poolsReadyTitle: 'Les poules sont pretes',
     poolsReadyBody: 'Les poules sont publiées. Consultez votre poule et votre planning.',
     bracketReadyTitle: 'Le tableau est prêt',
@@ -1478,7 +1478,7 @@ export const organizer = {
     seedingStrategySnake: "Standard — rang de poule, ou ordre d'inscription (recommande)",
     seedingStrategyByRating: 'Par classement HEMA',
     seedingStrategyRandom: 'Tirage aleatoire',
-    seedingStrategyByPoolRank: 'Par rang de poule (poules terminees requises)',
+    seedingStrategyByPoolRank: 'Par rang de poule (poules terminées requises)',
     podiumTitle: 'Podium',
     podiumGold: 'Or',
     podiumSilver: 'Argent',
@@ -1497,11 +1497,11 @@ export const organizer = {
     reseedButton: 'Re-tirer le 1er tour',
     reseedTitle: 'Re-tirer le 1er tour',
     reseedHint:
-      'Choisissez une stratégie et appliquez-la au 1er tour. Les matchs deja lances ne peuvent pas être re-tires.',
+      'Choisissez une stratégie et appliquez-la au 1er tour. Les matchs déjà lances ne peuvent pas être re-tires.',
     reseedStrategyLabel: 'Stratégie',
     reseedApply: 'Appliquer',
     reseedApplying: 'Application...',
-    reseedBlocked: 'Certains matchs du 1er tour sont deja lances - re-tirage impossible.',
+    reseedBlocked: 'Certains matchs du 1er tour sont déjà lances - re-tirage impossible.',
     reseedSuccess: '1er tour re-tire.',
   },
   swiss: {
@@ -1538,8 +1538,8 @@ export const organizer = {
       seedingHint: {
         random: 'Rejouable : la graine est enregistrée, un tirage conteste peut être reproduit.',
         'by-rating':
-          "Lit l'instantane hemaratings.com pour cette arme. Refuse plutot que de classer les non-notes en dernier.",
-        'by-pool-rank': "Necessite une phase de poules terminée pour en lire l'ordre.",
+          "Lit l'instantané hemaratings.com pour cette arme. Refuse plutot que de classer les non-notes en dernier.",
+        'by-pool-rank': "Nécessite une phase de poules terminée pour en lire l'ordre.",
       },
       ratingCoverage: '{rated} combattants notes sur {total} ({percent} %)',
       ratingCoverageBelow: 'En dessous des {threshold} % exiges : ce tirage serait refuse.',
@@ -1552,7 +1552,7 @@ export const organizer = {
         adjacent: 'Adjacent - 1c2, 3c4',
       },
       frozenAfterRound2:
-        'Fige à partir de la ronde 2 : le modifier reecrirait la valeur des rondes deja disputees.',
+        'Fige à partir de la ronde 2 : le modifier reecrirait la valeur des rondes déjà disputées.',
       groupingTitle: "L'appariement groupe sur",
       groupingExplainer:
         "Le système suisse apparie sur une valeur EGALE. Ce n'est pas le même reglage que celui du classement : un score continu donne à chacun une valeur unique, donc chaque groupe ne contiendrait qu'une personne et l'appariement degenererait en 1c2, 3c4.",
@@ -1566,7 +1566,7 @@ export const organizer = {
       boundariesLabel: 'Bornes des tranches, croissantes',
       boundariesHint:
         "Entre 1 et 10 bornes, strictement croissantes. L'aperçu ci-dessous utilise la fonction qui apparie réellement.",
-      bandsNoData: "Pas encore de classement - l'aperçu apparaît apres une ronde arbitree.",
+      bandsNoData: "Pas encore de classement - l'aperçu apparaît après une ronde arbitrée.",
       bandLabel: 'Tranche {index} - {count} combattant(s)',
       bandSingleton: 'seul - redescend dans la tranche inferieure',
       rankingTitle: 'Le classement se base sur',
@@ -1577,7 +1577,7 @@ export const organizer = {
         swissPtsHint: 'Victoires, nuls et exempts aux valeurs définies ci-dessous.',
         rulesetScore: 'Le score du règlement',
         rulesetScoreHint:
-          "Propose pour tout règlement. Si le règlement ne declare aucune colonne de score, elle est ajoutee au tableau - personne n'est classe sur un nombre invisible.",
+          "Propose pour tout règlement. Si le règlement ne declare aucune colonne de score, elle est ajoutée au tableau - personne n'est classe sur un nombre invisible.",
       },
       points: {
         win: 'Victoire',
@@ -1587,7 +1587,7 @@ export const organizer = {
       },
       tiebreakTitle: 'Chaine de departages',
       tiebreakExplainer:
-        "Appliquee dans l'ordre pour departager les ex aequo. « Chaine du règlement » insere ce que ce règlement fait normalement.",
+        "Appliquée dans l'ordre pour departager les ex aequo. « Chaine du règlement » insere ce que ce règlement fait normalement.",
       tiebreakEmpty: "Aucun departage : les ex aequo restent dans l'ordre du tirage.",
       removeTiebreak: 'Retirer',
       moveUp: 'Déplacer {key} plus tôt',
@@ -1604,24 +1604,24 @@ export const organizer = {
       regenerateConfirm: 'Supprimer et retirer',
       finalise: 'Figer le classement',
       finalised: 'Classement fige.',
-      finalisedAt: 'Classement final apres {round} rondes sur {total}.',
+      finalisedAt: 'Classement final après {round} rondes sur {total}.',
       resume: 'Reprendre',
       resumed: 'Phase reprise.',
       assignReferees: 'Affecter les arbitres',
       entrantsTitle: 'Participants ({count})',
       withdrawHint:
-        'Un forfait ne participe plus aux rondes suivantes. Les rondes deja disputees restent acquises et comptent pour ses adversaires.',
+        'Un forfait ne participe plus aux rondes suivantes. Les rondes déjà disputées restent acquises et comptent pour ses adversaires.',
       withdraw: 'Forfait',
       withdrawn: 'Combattant declare forfait.',
       withdrawnAt: 'sorti a la ronde {round}',
     },
     rounds: {
       noPhase: 'Pas encore de phase suisse.',
-      empty: 'Aucune ronde appariee.',
-      progress: '{done} rondes terminees sur {total}',
+      empty: 'Aucune ronde appariée.',
+      progress: '{done} rondes terminées sur {total}',
       roundTitle: 'Ronde {round}',
       finalisedBanner: 'Le classement est fige. Reprenez la phase pour modifier les rondes.',
-      advanced: 'Afficher les corrections avancees',
+      advanced: 'Afficher les corrections avancées',
       manuallyAdjusted: 'Ajuste manuellement',
       forcedRematch: 'Re-rencontre forcée',
       bye: 'Exempt',
@@ -1630,8 +1630,8 @@ export const organizer = {
       swapWarningTitle: 'Echanger quand même ?',
       swapWarningConfirm: 'Echanger quand même',
       swapWarning: {
-        'creates-rematch': '{fighters} se sont deja rencontres dans cette phase.',
-        'repeat-bye': '{fighters} a deja ete exempt.',
+        'creates-rematch': '{fighters} se sont déjà rencontres dans cette phase.',
+        'repeat-bye': '{fighters} a déjà �t� exempt.',
         'same-club': '{fighters} sont du même club.',
       },
       setSides: 'Inverser les cotes',
@@ -1643,7 +1643,7 @@ export const organizer = {
       deleteBody:
         'Cela retire la ronde et ses {count} combat(s). Seule la dernière ronde peut partir.',
       deleteConfirm: 'Supprimer la ronde',
-      deleted: 'Ronde supprimee.',
+      deleted: 'Ronde supprimée.',
       invalidTitle: 'Cette ronde est invalide et bloque la suivante.',
       invalid: {
         duplicated: 'Combat deux fois',
@@ -1653,7 +1653,7 @@ export const organizer = {
     },
     standings: {
       empty: 'Pas encore de classement.',
-      after: 'Apres {done} rondes sur {total}',
+      after: 'Après {done} rondes sur {total}',
       rankedBy: {
         swissPts: 'classe sur les points suisses',
         rulesetScore: 'classe sur le score du règlement',
@@ -1669,9 +1669,9 @@ export const organizer = {
       roundTitle: 'Ronde {round}',
       clearRound: 'Vider la ronde',
       clearTitle: 'Retirer tous les arbitres de la ronde {round} ?',
-      clearBody: 'Toutes les affectations sur toutes les pistes de cette ronde sont retirees.',
+      clearBody: 'Toutes les affectations sur toutes les pistes de cette ronde sont retirées.',
       clearConfirm: 'Vider la ronde',
-      cleared: 'Ronde videe.',
+      cleared: 'Ronde vidée.',
       clearFailed: 'Impossible de vider la ronde.',
     },
     tiebreak: {
@@ -1701,12 +1701,12 @@ export const organizer = {
     refereesAssignFailed: "Impossible d'enregistrer l'affectation.",
     refereesEmpty: 'Choisissez un tournoi pour gérer ses arbitres.',
     refereesTimelineTitle: "Timeline des poules de l'événement",
-    refereesTimelineEmpty: 'Aucune poule planifiee pour le moment.',
+    refereesTimelineEmpty: 'Aucune poule planifiée pour le moment.',
     refereesTimelineUnscheduled: 'Non planifie',
     refereesLiceLabel: '{lice}',
     refereesConcurrentTitle: 'Poules en parallèle',
     refereesConcurrentBody:
-      "{count} poule(s) d'autres tournois chevauchent les votres. Les arbitres deja affectes la-bas sont indisponibles.",
+      "{count} poule(s) d'autres tournois chevauchent les votres. Les arbitres déjà affectes la-bas sont indisponibles.",
     refereesSlotCardsTitle: 'Poules du tournoi',
     refereesAssign: 'Affecter',
     refereesUnassign: 'Retirer',
@@ -2425,7 +2425,7 @@ export const organizer = {
         schoolSeparation:
           'Les combattants du même club sont places dans des poules differentes autant que possible.',
         skillBalance:
-          'Les poules sont seedees de sorte que les niveaux de classement sont repartis équitablement.',
+          'Les poules sont seedées de sorte que les niveaux de classement sont repartis équitablement.',
       },
     },
     matches: {
@@ -2683,7 +2683,7 @@ export const organizer = {
     instructorRegistrationFailed:
       'Impossible de marquer comme instructeur. Réessayez depuis la page Participants.',
     instructorUpdateFailed:
-      "Impossible de mettre à jour le statut d'instructeur. Les autres modifications ont ete enregistrées.",
+      "Impossible de mettre à jour le statut d'instructeur. Les autres modifications ont �t� enregistrées.",
     searchPlaceholder: 'Rechercher par nom…',
     filterByClub: 'Filtrer par club',
     allClubs: 'Tous les clubs',
@@ -2706,10 +2706,10 @@ export const organizer = {
     refereeRegistrationFailed:
       "Impossible d'inscrire comme arbitre. Essayez depuis la page Arbitres.",
     refereeUnclaimedHint:
-      'Inscrit comme arbitre. Il verra ses affectations apres avoir revendique son compte.',
+      'Inscrit comme arbitre. Il verra ses affectations après avoir revendique son compte.',
     refereeUnclaimedBadge: 'non revendique',
     refereeUpdateFailed:
-      "Impossible de mettre à jour le statut d'arbitre. Les autres modifications ont ete enregistrées.",
+      "Impossible de mettre à jour le statut d'arbitre. Les autres modifications ont �t� enregistrées.",
     hemaFinder: {
       colName: 'Nom',
       colClub: 'Club',
@@ -2751,11 +2751,11 @@ export const organizer = {
       "Cet événement est archive et en lecture seule. La modification n'est plus disponible.",
     archivedBannerCta: 'Demander la suppression',
     archivedBannerPendingCopy:
-      'Suppression demandee par {requester} le {date} — en attente de revue super-admin.',
+      'Suppression demandée par {requester} le {date} — en attente de revue super-admin.',
     archivedLastArchivedOn: 'Archive le {date}',
     deletionRequestSubmitted: 'Demande de suppression envoyée. Un super-admin va la revoir.',
-    deletionRequestCancelled: 'Demande de suppression annulee.',
-    deletionRequestConflict: 'Une demande de suppression est deja en attente pour cet element.',
+    deletionRequestCancelled: 'Demande de suppression annulée.',
+    deletionRequestConflict: 'Une demande de suppression est déjà en attente pour cet element.',
     autoArchiveNotice:
       'En envoyant, cet événement sera archive et une demande de suppression sera envoyée aux admins MyClash pour revue.',
     permanentDeleteWarning:
@@ -2779,8 +2779,8 @@ export const organizer = {
     slotCount: 'Nombre de creneaux',
     slotLabel: 'Créneau {index}',
     displayNamePlaceholder: "Nom d'affichage (optionnel)",
-    addSkillToSlot: 'Ajouter une competence',
-    removeSkillFromSlot: 'Retirer cette competence du créneau',
+    addSkillToSlot: 'Ajouter une compétence',
+    removeSkillFromSlot: 'Retirer cette compétence du créneau',
     dragHandle: 'Glisser pour reordonner',
     save: 'Enregistrer',
     saving: 'Enregistrement...',
@@ -2800,7 +2800,7 @@ export const organizer = {
     },
   },
   refereesPage: {
-    addCustomSkill: 'Ajouter une competence personnalisée',
+    addCustomSkill: 'Ajouter une compétence personnalisée',
     tabs: {
       referees: 'Liste',
       qualifications: 'Qualifications',
@@ -2809,9 +2809,9 @@ export const organizer = {
     },
     tabIntros: {
       referees:
-        'Les personnes inscrites pour arbitrer cet événement. Chaque ligne montre leurs qualifications, disponibilites et le nombre de matchs deja programmes à arbitrer.',
+        'Les personnes inscrites pour arbitrer cet événement. Chaque ligne montre leurs qualifications, disponibilites et le nombre de matchs déjà programmes à arbitrer.',
       qualifications:
-        'Définissez les competences disponibles pour cet événement et qui possede chaque competence — Declarant, Assesseur, Table, ou toute competence personnalisée.',
+        'Définissez les compétences disponibles pour cet événement et qui possede chaque compétence — Declarant, Assesseur, Table, ou toute compétence personnalisée.',
       staffing:
         'Affectez automatiquement les arbitres aux poules selon leurs qualifications et disponibilites, puis ajustez le résultat a la main.',
       assignments:
@@ -2820,21 +2820,21 @@ export const organizer = {
     unassignedReasons: {
       no_qualified_users: "Personne ayant cette qualification n'est inscrit.",
       all_qualified_already_assigned_to_pool:
-        'Tous les arbitres qualifies sont deja affectes a un autre rôle dans cette poule.',
+        'Tous les arbitres qualifies sont déjà affectes a un autre rôle dans cette poule.',
       all_qualified_are_fighters_in_this_pool:
         'Tous les arbitres qualifies combattent dans cette poule.',
       all_qualified_have_time_conflict_with_other_pool:
         'Tous les arbitres qualifies ont un conflit avec une autre poule au même moment.',
       no_candidates_after_scoring: "Aucun candidat n'a passe le filtre de notation.",
       would_self_conflict_in_pool:
-        'Cette personne est deja affectee a un autre rôle dans cette poule.',
+        'Cette personne est déjà affectée a un autre rôle dans cette poule.',
       all_qualified_unavailable_for_this_pool:
         'Tous les arbitres qualifies sont indisponibles pour ce tournoi ou ce jour.',
       all_qualified_fighting_in_parallel_pool:
         'Tous les arbitres qualifies combattent dans une poule en parallèle au même moment.',
     },
     rules: {
-      title: 'Règles verifiees',
+      title: 'Règles vérifiées',
       toggleFailed: 'Impossible de mettre à jour le reglage de la regle.',
       ownPool: {
         label: 'Sa poule',
@@ -2855,8 +2855,8 @@ export const organizer = {
         description: 'Une même personne ne peut pas tenir deux rôles sur la même poule.',
       },
       availability: {
-        label: 'Disponibilite',
-        description: 'Les affectations respectent la disponibilite tournoi/jour de chaque arbitre.',
+        label: 'Disponibilité',
+        description: 'Les affectations respectent la disponibilité tournoi/jour de chaque arbitre.',
       },
       capacity: {
         label: 'Capacite',
@@ -2870,13 +2870,13 @@ export const organizer = {
       coverageNoneOpen: 'Tous les postes sont pourvus',
       unfilledLabel: 'Postes non pourvus, par raison :',
       rosterHealth: "Sante de l'effectif",
-      rosterOk: 'Toutes les competences sont couvertes.',
+      rosterOk: 'Toutes les compétences sont couvertes.',
       rosterShortBy: '{skill} : il manque {count} ({open} postes ouverts, {qualified} qualifies)',
     },
     catalogEmpty:
-      'Aucune competence pour le moment. Ajoutez une competence personnalisée pour commencer.',
+      'Aucune compétence pour le moment. Ajoutez une compétence personnalisée pour commencer.',
     catalogColColor: 'Couleur',
-    catalogColName: 'Competence',
+    catalogColName: 'Compétence',
     catalogColCount: 'Arbitres qualifies',
     catalogColActions: 'Actions',
     catalogSystemPill: 'Système',
@@ -2887,16 +2887,16 @@ export const organizer = {
     catalogDrillRatingUnset: 'Non note',
     catalogDrillRatingNotQualified: 'Non qualifie',
     catalogDeleteConfirm:
-      'Supprimer "{name}" ? Personnalisees uniquement — les competences système sont protegees.',
-    catalogDeleteConfirmTitle: 'Supprimer la competence',
+      'Supprimer "{name}" ? Personnalisées uniquement — les compétences système sont protégées.',
+    catalogDeleteConfirmTitle: 'Supprimer la compétence',
     catalogDeleteConfirmAction: 'Supprimer',
-    catalogDeleteBlocked: 'Suppression impossible : competence encore référencée.',
-    catalogDeleteFailed: 'Impossible de supprimer la competence.',
-    catalogDeleteSuccess: 'Competence supprimee.',
-    editSkill: 'Modifier la competence',
-    deleteSkill: 'Supprimer la competence',
-    skillName: 'Nom de la competence',
-    skillColor: 'Couleur de la competence',
+    catalogDeleteBlocked: 'Suppression impossible : compétence encore référencée.',
+    catalogDeleteFailed: 'Impossible de supprimer la compétence.',
+    catalogDeleteSuccess: 'Compétence supprimée.',
+    editSkill: 'Modifier la compétence',
+    deleteSkill: 'Supprimer la compétence',
+    skillName: 'Nom de la compétence',
+    skillColor: 'Couleur de la compétence',
     skillDescription: 'Description (optionnel)',
     skillDescriptionPlaceholder: 'Info-bulle affichée dans le catalogue',
     swapSuggestionsTitle: 'Échanges suggeres',
@@ -2909,7 +2909,7 @@ export const organizer = {
     catalogReorderFailed: 'Impossible de sauvegarder le nouvel ordre.',
     catalogHideAction: 'Masquer',
     catalogShowAction: 'Afficher',
-    catalogVisibilityFailed: 'Impossible de mettre à jour la visibilite.',
+    catalogVisibilityFailed: 'Impossible de mettre à jour la visibilité.',
     availableTournamentsColumn: 'Disponible pour',
     availableDaysColumn: 'Disponible le',
     availableAllTournamentsShort: 'Tous les tournois',
@@ -2919,12 +2919,12 @@ export const organizer = {
     match: 'match',
     matches: 'matches',
     moreCount: '+{count} de plus',
-    skillDeleteConflict: 'Suppression impossible : {count} arbitre(s) ont encore cette competence.',
-    skillDeleteInUse: 'Impossible de supprimer cette competence — elle est encore utilisée.',
-    skillDeleteFailed: 'Impossible de supprimer la competence.',
-    skillSaveFailed: "Impossible d'enregistrer la competence.",
-    availabilitySaveFailed: 'Impossible de mettre à jour la disponibilite.',
-    skillNameRequired: 'Le nom de la competence est obligatoire.',
+    skillDeleteConflict: 'Suppression impossible : {count} arbitre(s) ont encore cette compétence.',
+    skillDeleteInUse: 'Impossible de supprimer cette compétence — elle est encore utilisée.',
+    skillDeleteFailed: 'Impossible de supprimer la compétence.',
+    skillSaveFailed: "Impossible d'enregistrer la compétence.",
+    availabilitySaveFailed: 'Impossible de mettre à jour la disponibilité.',
+    skillNameRequired: 'Le nom de la compétence est obligatoire.',
     skillNamePlaceholder: 'ex. Juge principal',
     preview: 'Aperçu',
     deleting: 'Suppression…',
@@ -2941,7 +2941,7 @@ export const organizer = {
       fighter_referee_overlap: 'Combattant dans cette poule',
       schedule_conflict: 'Occupe a ce créneau (combat ou arbitrage ailleurs)',
       unavailable: 'Indisponible pour ce tournoi ou ce jour',
-      duplicate_role_same_pool: 'Deja affecte a un autre rôle ici',
+      duplicate_role_same_pool: 'Déjà affecte a un autre rôle ici',
     },
     conflict: {
       sectionTitle: 'Conflits de planning',
@@ -2950,14 +2950,14 @@ export const organizer = {
       alsoOfficiating: 'arbitre aussi {pool} au même moment',
       alsoOfficiatingVenue:
         'arbitre aussi {pool} a {venue} au même moment — un arbitre ne peut pas être dans deux lieux a la fois',
-      unavailableLine: 'affecte hors disponibilite ({tournament})',
+      unavailableLine: 'affecte hors disponibilité ({tournament})',
       unfillableTitle: 'Postes impossibles à pourvoir',
       unfillableDetail: 'tous les arbitres qualifies sont occupes ou indisponibles',
       capacityTitle: 'Capacite',
       capacityLine:
         '{lices} poules en parallèle demandent {needed} postes, seulement {free} arbitres libres',
       rulesFooter:
-        'Règles : sa poule · arbitre-vs-combat · double affectation · deux rôles · disponibilite · capacite',
+        'Règles : sa poule · arbitre-vs-combat · double affectation · deux rôles · disponibilité · capacite',
     },
     byTimeslotTitle: 'Par créneau',
     idleLice: 'libre',
@@ -2983,7 +2983,7 @@ export const organizer = {
     assignmentLockFailed: 'Impossible de verrouiller les affectations arbitres.',
     assignmentUnlockFailed: 'Impossible de déverrouiller les affectations arbitres.',
     lockedBanner:
-      'Les affectations sont verrouillees. Cliquez sur "Déverrouiller les affectations" pour modifier.',
+      'Les affectations sont verrouillées. Cliquez sur "Déverrouiller les affectations" pour modifier.',
     clearAll: 'Tout effacer',
     clearAllConfirm:
       'Effacer toutes les affectations arbitres de cet événement ? Action irréversible.',

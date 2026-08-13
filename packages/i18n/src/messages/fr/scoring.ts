@@ -16,7 +16,7 @@ export const scoring = {
     checkEmailSuffix: 'Cliquez dessus pour accéder a vos affectations de lice.',
     linkExpires: 'Le lien expire dans 1 heure.',
     title: 'MyClash Scoring',
-    scorekeeperAccess: 'Acces arbitre',
+    scorekeeperAccess: 'Accès arbitre',
     emailAddress: 'Adresse email',
     emailPlaceholder: 'vous@example.com',
     sending: 'Envoi...',
@@ -109,15 +109,15 @@ export const scoring = {
     padLabel: 'Matériel',
   },
   quarantine: {
-    title: 'Touches refusees par le serveur',
+    title: 'Touches refusées par le serveur',
     intro:
-      'Ces touches ont ete marquées sur cette tablette mais le serveur les a refusees. Elles sont conservees ici, pas perdues. Réessayez une fois la cause levee, ou supprimez celle que vous avez deja ressaisie a la main.',
+      'Ces touches ont �t� marquées sur cette tablette mais le serveur les a refusées. Elles sont conservées ici, pas perdues. Réessayez une fois la cause levée, ou supprimez celle que vous avez déjà ressaisie a la main.',
     empty: 'Aucune touche en attente.',
     retry: 'Réessayer',
     discard: 'Supprimer',
     discardTitle: 'Supprimer cette touche ?',
     discardBody:
-      "Cela supprime définitivement une touche marquee par un arbitre. Ne le faites que si vous l'avez deja ressaisie a la main, sinon elle n'atteindra jamais les résultats.",
+      "Cela supprime définitivement une touche marquée par un arbitre. Ne le faites que si vous l'avez déjà ressaisie a la main, sinon elle n'atteindra jamais les résultats.",
     discardConfirm: 'Supprimer définitivement',
     typeClean: 'Touche nette',
     typeAfterblow: 'Coup double retarde',
@@ -129,9 +129,9 @@ export const scoring = {
     loadingAssignments: 'Chargement de vos affectations...',
     loadAssignmentsError: 'Impossible de charger les affectations. Vérifiez la connexion.',
     retry: 'Réessayer',
-    noAssignedTitle: 'Aucune lice affectee',
+    noAssignedTitle: 'Aucune lice affectée',
     noAssignedDescription:
-      "Aucune lice ne vous est affectee aujourd hui. Demandez a l'organisateur de vous affecter.",
+      "Aucune lice ne vous est affectée aujourd'hui. Demandez a l'organisateur de vous affecter.",
     yourLices: 'Vos lices',
     selectLice: 'Choisissez une lice pour scorer',
     logout: 'Se deconnecter',
@@ -206,7 +206,7 @@ export const scoring = {
   match: {
     unavailableTitle: 'Assaut indisponible',
     unavailableBody:
-      "Cet assaut n'a pas pu être charge — il a peut-être ete supprime ou reprogramme.",
+      "Cet assaut n'a pas pu être charge — il a peut-être �t� supprime ou reprogramme.",
     reopen: "Rouvrir l'assaut",
     reopening: 'Reouverture...',
     unlockFailed: 'Impossible de rouvrir cet assaut.',
@@ -229,16 +229,16 @@ export const scoring = {
     reason: 'Raison de correction',
     resetConfirmation: 'Taper RESET MATCH pour réinitialiser',
     dependentsBlockedOne:
-      'Un assaut suivant a deja ete combattu. Seul un organisateur peut annuler — demandez-lui.',
+      'Un assaut suivant a déjà �t� combattu. Seul un organisateur peut annuler — demandez-lui.',
     dependentsBlockedMany:
-      '{count} assauts suivants ont deja ete combattus. Seul un organisateur peut annuler — demandez-lui.',
+      '{count} assauts suivants ont déjà �t� combattus. Seul un organisateur peut annuler — demandez-lui.',
     forfeitBlocked:
       "Cet assaut s'est termine par un forfait qui a retire le combattant du tournoi. Un organisateur doit d'abord annuler ce forfait.",
     swissRoundAhead:
-      'La ronde suisse suivante a deja ete tirée à partir de ce résultat. Seul un organisateur peut annuler maintenant.',
+      'La ronde suisse suivante a déjà �t� tirée à partir de ce résultat. Seul un organisateur peut annuler maintenant.',
     organiserOnly: "Seul un organisateur peut le faire. Demandez-lui de l'aide.",
     offlineRefusal:
-      'Pas de connexion. Cette action necessite le réseau — réessayez une fois reconnecte.',
+      'Pas de connexion. Cette action nécessite le réseau — réessayez une fois reconnecte.',
   },
   clock: {
     loading: 'Chargement du chrono...',
@@ -253,7 +253,7 @@ export const scoring = {
     pauseShort: 'Pause',
     totalTime: 'Temps total',
     resetConfirmTitle: 'Réinitialiser le chrono ?',
-    resetConfirmBody: 'Le chrono retombe à zero. Les échanges ne sont pas modifies.',
+    resetConfirmBody: 'Le chrono retombe à zéro. Les échanges ne sont pas modifies.',
     resetConfirmAction: 'Réinitialiser',
     resetConfirmCancel: 'Annuler',
   },

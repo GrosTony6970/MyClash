@@ -27,7 +27,7 @@ export const statusHelp = {
       who: "Un admin ou propriétaire de l'organisation.",
     },
     completed: {
-      means: "L'événement est fini. Résultats et classements sont definitifs.",
+      means: "L'événement est fini. Résultats et classements sont définitifs.",
       next: "Plus rien, sauf si vous l'archivez pour le ranger.",
       who: "Un admin ou propriétaire de l'organisation.",
     },
@@ -51,12 +51,12 @@ export const statusHelp = {
     },
     running: {
       means: "Des combats sont en train d'être scores dans ce tournoi.",
-      next: 'Il passe a termine quand la finale a ete combattue.',
+      next: 'Il passe a termine quand la finale a �t� combattue.',
       who: "Un admin ou propriétaire de l'organisation.",
     },
     completed: {
-      means: 'Tous les combats sont faits et le classement final est etabli.',
-      next: 'Les résultats alimentent les statistiques des combattants et la ligue eventuelle.',
+      means: 'Tous les combats sont faits et le classement final est établi.',
+      next: 'Les résultats alimentent les statistiques des combattants et la ligue éventuelle.',
       who: "Un admin ou propriétaire de l'organisation.",
     },
     archived: {
@@ -83,11 +83,11 @@ export const statusHelp = {
     },
     completed: {
       means: 'Le combat est fini et son score compte pour le classement.',
-      next: 'Plus rien, sauf correction par un organisateur. Les corrections sont tracees.',
+      next: 'Plus rien, sauf correction par un organisateur. Les corrections sont tracées.',
       who: 'Un organisateur, via une correction de match.',
     },
     voided: {
-      means: 'Le combat a ete annule et ne compte pour personne.',
+      means: 'Le combat a �t� annule et ne compte pour personne.',
       next: 'Il reste hors du classement. Il faut créer un combat de remplacement.',
       who: 'Un organisateur.',
     },
@@ -110,7 +110,7 @@ export const statusHelp = {
     },
     completed: {
       means: "L'atelier est termine.",
-      next: 'Plus rien. La presence reste enregistrée.',
+      next: 'Plus rien. La présence reste enregistrée.',
       who: "Un admin ou propriétaire de l'organisation.",
     },
     cancelled: {
@@ -121,18 +121,18 @@ export const statusHelp = {
   },
   registration: {
     registered: {
-      means: 'Le combattant a une place confirmee dans ce tournoi.',
+      means: 'Le combattant a une place confirmée dans ce tournoi.',
       next: 'Il pointe le jour J, puis est tire dans une poule.',
       who: 'Un organisateur, ou le combattant qui se retire.',
     },
     checked_in: {
-      means: 'Le combattant est arrive sur place et a ete pointe.',
+      means: 'Le combattant est arrive sur place et a �t� pointe.',
       next: 'Il est prêt à être tire et à combattre.',
       who: "Toute personne au bureau d'accueil.",
     },
     waitlist: {
-      means: 'Le tournoi est plein, le combattant occupe une place numerotee dans la file.',
-      next: "Il remonte automatiquement des qu'une place se libere, dans l'ordre de la file.",
+      means: 'Le tournoi est plein, le combattant occupe une place numérotée dans la file.',
+      next: "Il remonte automatiquement des qu'une place se libère, dans l'ordre de la file.",
       who: 'Un organisateur, ou le combattant qui se retire.',
     },
     withdrawn: {
@@ -141,7 +141,7 @@ export const statusHelp = {
       who: 'Un organisateur, ou le combattant lui-même.',
     },
     disqualified: {
-      means: 'Le combattant a ete exclu du tournoi par décision.',
+      means: 'Le combattant a �t� exclu du tournoi par décision.',
       next: "Ses combats restants ne sont pas scores et il n'a aucun classement.",
       who: 'Un organisateur.',
     },
@@ -158,22 +158,22 @@ export const statusHelp = {
       who: 'Celui qui tient la file de relecture pour ce type de demande.',
     },
     approved: {
-      means: 'La demande a ete acceptee.',
+      means: 'La demande a �t� acceptée.',
       next: 'Le changement demande est désormais en vigueur.',
       who: 'Un relecteur, mais revenir dessus demande en général une nouvelle demande.',
     },
     linked: {
-      means: 'La demande a ete acceptee et rattachee a une fiche existante.',
+      means: 'La demande a �t� acceptée et rattachée a une fiche existante.',
       next: "Les deux ne font plus qu'un partout.",
       who: 'Un relecteur.',
     },
     rejected: {
-      means: 'La demande a ete refusée.',
+      means: 'La demande a �t� refusée.',
       next: 'Rien ne change. Une nouvelle demande reste possible.',
       who: 'Un relecteur.',
     },
     cancelled: {
-      means: 'La demande a ete annulee avant toute décision.',
+      means: 'La demande a �t� annulée avant toute décision.',
       next: 'Rien ne change.',
       who: 'Celui qui a fait la demande.',
     },
@@ -197,13 +197,13 @@ export const statusHelp = {
   },
   clock: {
     idle: {
-      means: "Le chrono n'a pas ete lance pour ce combat.",
+      means: "Le chrono n'a pas �t� lance pour ce combat.",
       next: "Le lancer demarre l'assaut et le temps enregistre.",
       who: 'Le teneur de score de cette piste.',
     },
     running: {
       means: "Le temps de combat s'ecoule.",
-      next: "Il s'arrete entre les échanges, ou arrive à zero et termine l'assaut.",
+      next: "Il s'arrete entre les échanges, ou arrive à zéro et termine l'assaut.",
       who: 'Le teneur de score de cette piste.',
     },
     halted: {
@@ -214,7 +214,7 @@ export const statusHelp = {
     ended: {
       means: 'Le temps de combat est epuise.',
       next: "Le résultat tient au score obtenu a l'instant ou le temps s'est termine.",
-      who: "Personne - c'est ce que veut dire un chrono arrive à zero.",
+      who: "Personne - c'est ce que veut dire un chrono arrive à zéro.",
     },
   },
   ruleset: {
@@ -234,7 +234,7 @@ export const statusHelp = {
       who: "Toute personne pouvant gérer les reglements de l'organisation.",
     },
     draft: {
-      means: "Encore en cours d'ecriture. Il ne peut pas encore être fixe sur un tournoi.",
+      means: "Encore en cours d'écriture. Il ne peut pas encore être fixe sur un tournoi.",
       next: 'Le publier valide les règles et le rend selectionnable.',
       who: "Toute personne pouvant gérer les reglements de l'organisation.",
     },
@@ -245,12 +245,12 @@ export const statusHelp = {
     },
     published: {
       means: 'Termine et utilisable. Les tournois peuvent le fixer, et son contenu est gele.',
-      next: "Le modifier revient à publier une nouvelle version ; les tournois deja fixes gardent l'ancienne.",
+      next: "Le modifier revient à publier une nouvelle version ; les tournois déjà fixes gardent l'ancienne.",
       who: "Toute personne pouvant gérer les reglements de l'organisation.",
     },
     archived: {
       means: 'Retire des selecteurs, mais PAS supprime.',
-      next: "Les tournois qui l'ont deja fixe continuent de scorer avec, pour toujours.",
+      next: "Les tournois qui l'ont déjà fixe continuent de scorer avec, pour toujours.",
       who: "Toute personne pouvant gérer les reglements de l'organisation.",
     },
   },
@@ -262,7 +262,7 @@ export const statusHelp = {
     },
     suspended: {
       means:
-        "L'organisation a ete suspendue par MyClash. Ses membres ne peuvent plus y travailler.",
+        "L'organisation a �t� suspendue par MyClash. Ses membres ne peuvent plus y travailler.",
       next: "Elle reste suspendue jusqu'à ce qu'un super admin la reactive.",
       who: 'Un super admin MyClash.',
     },
