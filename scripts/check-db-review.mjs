@@ -1,5 +1,7 @@
-import { readdirSync, readFileSync, statSync } from 'node:fs';
+import { readFileSync, statSync } from 'node:fs';
 import { join, relative, sep } from 'node:path';
+
+import { listMigrationFiles } from './lib/migrations.mjs';
 
 const root = process.cwd();
 const migrationsDir = join(root, 'packages', 'db', 'migrations');
@@ -28,12 +30,6 @@ const requiredFiles = [
 
 function normalize(path) {
   return relative(root, path).split(sep).join('/');
-}
-
-function migrationFiles() {
-  return readdirSync(migrationsDir)
-    .filter((name) => /^\d{4}_.+\.sql$/.test(name))
-    .sort();
 }
 
 function objectName(matchValue) {
@@ -112,7 +108,7 @@ export function securityDefinerFunctionsReachableByAnon(sql) {
   return [...new Set(definers.filter((fn) => !revoked.has(fn)))];
 }
 
-const files = migrationFiles();
+const files = listMigrationFiles(migrationsDir);
 const allSql = stripSqlComments(
   files.map((file) => readFileSync(join(migrationsDir, file), 'utf8')).join('\n'),
 );

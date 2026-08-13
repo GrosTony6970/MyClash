@@ -23,6 +23,8 @@
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, relative, sep } from 'node:path';
 
+import { listMigrationFiles } from './lib/migrations.mjs';
+
 const root = process.cwd();
 const migrationsDir = join(root, 'packages', 'db', 'migrations');
 
@@ -110,9 +112,7 @@ for (const file of scanRoots.flatMap(walk)) {
 
 // ── 2. Collect what the migrations publish ───────────────────────────────────
 
-const migrationSql = readdirSync(migrationsDir)
-  .filter((name) => /^\d{4}_.+\.sql$/.test(name))
-  .sort()
+const migrationSql = listMigrationFiles(migrationsDir)
   .map((name) => readFileSync(join(migrationsDir, name), 'utf8'))
   .join('\n')
   // Strip `--` comments: 0167's own header quotes the statements it explains,

@@ -1,6 +1,8 @@
-import { existsSync, readFileSync, readdirSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import postgres from 'postgres';
+
+import { listMigrationFiles } from './lib/migrations.mjs';
 
 const databaseUrl = process.env['DATABASE_URL'];
 if (!databaseUrl) {
@@ -17,9 +19,7 @@ const migrationsDir = join(root, 'packages', 'db', 'migrations');
 // so applying it against a real Supabase DB is a harmless no-op — see the file
 // header and docs/DATABASE_REVIEW.md.
 const baselinePath = join(root, 'packages', 'db', 'fixtures', 'supabase-baseline.sql');
-const files = readdirSync(migrationsDir)
-  .filter((name) => /^\d{4}_.+\.sql$/.test(name))
-  .sort();
+const files = listMigrationFiles(migrationsDir);
 
 const sql = postgres(databaseUrl, { max: 1, idle_timeout: 5, connect_timeout: 10 });
 
