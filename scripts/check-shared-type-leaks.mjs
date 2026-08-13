@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
-import { join, relative, sep } from 'node:path';
+import { join } from 'node:path';
 
-import { walkRepoFiles } from './lib/repo-scan.mjs';
+import { toRepoPath, walkRepoFiles } from './lib/repo-scan.mjs';
 
 const root = process.cwd();
 const scannedRoots = ['apps/api/src', 'packages'];
@@ -16,15 +16,11 @@ const ignoredFilePatterns = [
 ];
 const anyLeakPattern = /(^|[^\w])((as|:)\s+any\b|<any>|\bany\[\])/;
 
-function normalize(path) {
-  return relative(root, path).split(sep).join('/');
-}
-
 const violations = [];
 for (const scannedRoot of scannedRoots) {
   const absoluteRoot = join(root, scannedRoot);
   for (const file of walkRepoFiles(absoluteRoot, { extensions: ['.ts'] })) {
-    const repoPath = normalize(file);
+    const repoPath = toRepoPath(file);
     if (ignoredFilePatterns.some((pattern) => pattern.test(repoPath))) continue;
     readFileSync(file, 'utf8')
       .split(/\r?\n/)

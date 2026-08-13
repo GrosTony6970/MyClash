@@ -1,5 +1,5 @@
 import { existsSync, readdirSync, statSync } from 'node:fs';
-import { join } from 'node:path';
+import { join, relative, sep } from 'node:path';
 
 /**
  * Directory names no repo-root scan should descend into.
@@ -154,4 +154,21 @@ export function walkRepoFiles(dir, options) {
  */
 export function walkAllFiles(dir, options) {
   return walk(dir, NOTHING_IGNORED, options);
+}
+
+/**
+ * An absolute path as the repo spells it: relative to the root, forward slashes
+ * on every platform.
+ *
+ * Every walking gate reports its violations this way and six of them had
+ * written this exact line — five as `normalize`, one as `toRepoPath`. Unlike
+ * the walks there was no drift to end here; it rides along because each of
+ * those callers is already importing this module, and because a violation list
+ * that spells paths differently per gate is a paper cut for whoever greps it.
+ *
+ * Named toRepoPath, not repoPath: five of the six assign the result to a local
+ * `const repoPath`, which an import of that name would shadow.
+ */
+export function toRepoPath(absolute, root = process.cwd()) {
+  return relative(root, absolute).split(sep).join('/');
 }

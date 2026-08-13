@@ -21,10 +21,10 @@
  * ARE the deployed schema and a static check is the real protection.
  */
 import { readFileSync } from 'node:fs';
-import { join, relative, sep } from 'node:path';
+import { join } from 'node:path';
 
 import { listMigrationFiles } from './lib/migrations.mjs';
-import { walkRepoFiles } from './lib/repo-scan.mjs';
+import { toRepoPath, walkRepoFiles } from './lib/repo-scan.mjs';
 import { stripSqlComments } from './lib/sql.mjs';
 
 const root = process.cwd();
@@ -68,10 +68,6 @@ function scanSources() {
   return scanRoots.flatMap((dir) => walkRepoFiles(dir, { missingRoot: 'empty', extensions }));
 }
 
-function normalize(path) {
-  return relative(root, path).split(sep).join('/');
-}
-
 function lineOf(source, index) {
   return source.slice(0, index).split(/\r?\n/).length;
 }
@@ -82,7 +78,7 @@ const boundTables = new Map(); // table -> [repoPath:line]
 const dynamicBindings = [];
 
 for (const file of scanSources()) {
-  const repoPath = normalize(file);
+  const repoPath = toRepoPath(file);
   const source = readFileSync(file, 'utf8');
   if (!source.includes('postgres_changes') && !source.includes('useRealtimeWithFallback')) continue;
 

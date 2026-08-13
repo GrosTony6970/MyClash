@@ -1,15 +1,11 @@
 import { readFileSync } from 'node:fs';
-import { join, relative, sep } from 'node:path';
+import { join } from 'node:path';
 
-import { walkRepoFiles } from './lib/repo-scan.mjs';
+import { toRepoPath, walkRepoFiles } from './lib/repo-scan.mjs';
 
 const root = process.cwd();
 const controllerRoot = join(root, 'apps', 'api', 'src', 'modules');
 const httpDecorator = /^\s*@(Get|Post|Put|Patch|Delete)\(/;
-
-function normalize(path) {
-  return relative(root, path).split(sep).join('/');
-}
 
 function hasApiOperation(lines, decoratorIndex) {
   for (let i = decoratorIndex + 1; i < Math.min(lines.length, decoratorIndex + 40); i += 1) {
@@ -31,7 +27,7 @@ function hasApiOperation(lines, decoratorIndex) {
 const violations = [];
 const controllers = walkRepoFiles(controllerRoot).filter((path) => path.endsWith('.controller.ts'));
 for (const controller of controllers) {
-  const repoPath = normalize(controller);
+  const repoPath = toRepoPath(controller);
   const lines = readFileSync(controller, 'utf8').split(/\r?\n/);
   if (!lines.some((line) => line.includes('@ApiTags('))) {
     violations.push(`${repoPath}: missing @ApiTags`);

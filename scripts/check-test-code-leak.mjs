@@ -32,10 +32,10 @@
  *      unscanned, since forgetting is the regression.
  */
 import { readdirSync, readFileSync, existsSync, statSync } from 'node:fs';
-import { join, relative, sep, dirname, resolve } from 'node:path';
+import { join, dirname, resolve } from 'node:path';
 import ts from 'typescript';
 
-import { walkRepoFiles } from './lib/repo-scan.mjs';
+import { toRepoPath, walkRepoFiles } from './lib/repo-scan.mjs';
 
 const root = process.cwd();
 
@@ -79,10 +79,6 @@ export function isTestRunnerSpecifier(specifier) {
 
 export function isRelativeSpecifier(specifier) {
   return specifier.startsWith('./') || specifier.startsWith('../');
-}
-
-function toRepoPath(absolute) {
-  return relative(root, absolute).split(sep).join('/');
 }
 
 // ── Workspace discovery ──────────────────────────────────────────────────────
@@ -340,10 +336,8 @@ export function scanRepo() {
     }
 
     const emitFiles = parseBuildConfig(configPath);
-    const allFiles = [
-      ...walkRepoFiles(join(dir, 'src'), WORKSPACE_SOURCES),
-      ...walkRepoFiles(join(dir, 'test'), WORKSPACE_SOURCES),
-    ]
+    const allFiles = ['src', 'test']
+      .flatMap((sub) => walkRepoFiles(join(dir, sub), WORKSPACE_SOURCES))
       .filter((file) => !/\.d\.ts$/.test(file))
       .map((file) => resolve(file));
     const entries = new Set([...entryPointSources(manifest)].map((rel) => resolve(join(dir, rel))));

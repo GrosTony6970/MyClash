@@ -23,10 +23,10 @@
  * CI, and it is the difference between a gate that works and one that lies.
  */
 import { readFileSync, writeFileSync } from 'node:fs';
-import { join, relative, sep } from 'node:path';
+import { join } from 'node:path';
 import ts from 'typescript';
 
-import { walkRepoFiles } from './lib/repo-scan.mjs';
+import { toRepoPath, walkRepoFiles } from './lib/repo-scan.mjs';
 
 const root = process.cwd();
 const baselinePath = join(root, 'docs', 'code-quality-complexity-baseline.json');
@@ -34,10 +34,6 @@ const baselinePath = join(root, 'docs', 'code-quality-complexity-baseline.json')
 const fileLineLimit = 400;
 const functionLineLimit = 50;
 const scannedExtensions = ['.ts', '.tsx', '.js', '.jsx', '.mjs'];
-
-function normalize(path) {
-  return relative(root, path).split(sep).join('/');
-}
 
 function countLines(source) {
   return source.split(/\r?\n/).length;
@@ -143,7 +139,7 @@ export function scanRepo() {
   const fileHotspots = [];
   const functionHotspots = [];
   for (const file of walkRepoFiles(root, { extensions: scannedExtensions })) {
-    const repoPath = normalize(file);
+    const repoPath = toRepoPath(file);
     const source = readFileSync(file, 'utf8');
     const lines = countLines(source);
     if (lines > fileLineLimit) {

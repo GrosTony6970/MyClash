@@ -1,7 +1,6 @@
 import { readFileSync } from 'node:fs';
-import { relative, sep } from 'node:path';
 
-import { walkRepoFiles } from './lib/repo-scan.mjs';
+import { toRepoPath, walkRepoFiles } from './lib/repo-scan.mjs';
 
 const root = process.cwd();
 const extensions = ['.cjs', '.js', '.jsx', '.json', '.md', '.mjs', '.ts', '.tsx', '.yaml', '.yml'];
@@ -26,13 +25,9 @@ const allowedMarkers = [
   /https:\/\/github\.com\//,
 ];
 
-function normalize(path) {
-  return relative(root, path).split(sep).join('/');
-}
-
 const violations = [];
 for (const file of walkRepoFiles(root, { extensions })) {
-  const repoPath = normalize(file);
+  const repoPath = toRepoPath(file);
   if (ignoredPathPrefixes.some((prefix) => repoPath.startsWith(prefix))) continue;
   const source = readFileSync(file, 'utf8');
   source.split(/\r?\n/).forEach((line, index) => {
