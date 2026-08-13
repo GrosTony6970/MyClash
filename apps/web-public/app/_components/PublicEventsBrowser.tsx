@@ -3,12 +3,7 @@ import { getServerT } from '@myclash/next-i18n/server';
 import { HomeTabs } from './HomeTabs';
 import type { PublicLeague } from './PublicLeaguesSections';
 import type { WeaponOption } from './EventFilterBar';
-import {
-  EMPTY_EVENT_FILTERS,
-  hasAnyFilter,
-  toEventQueryString,
-  type EventFilters,
-} from './event-filters';
+import { EMPTY_EVENT_FILTERS, toEventQueryString, type EventFilters } from './event-filters';
 
 /**
  * Public-events browser: fetches the published events + leagues and renders the
@@ -142,29 +137,27 @@ export async function PublicEventsBrowser({
     fetchWeapons(),
   ]);
 
-  const filtered = hasAnyFilter(filters);
-
-  if (events.length > 0 || leagues.length > 0) {
-    return <HomeTabs events={events} leagues={leagues} weapons={weapons} filters={filters} />;
+  // A dead API is the ONE case that still replaces the listing. It is not an
+  // empty platform: the tabs would be lying, the filters would return nothing
+  // whatever the reader typed, and "Browse organisers" would send them to
+  // another page served by the same broken API.
+  if (unavailable) {
+    return (
+      <section className="rounded-lg border border-border bg-surface p-5 shadow-sm">
+        <h2 className="font-display font-semibold text-lg sm:text-xl text-foreground">
+          {t('publicApp.home.unavailableTitle')}
+        </h2>
+        <p className="mt-2 text-sm leading-6 text-foreground-secondary">
+          {t('publicApp.home.unavailableDescription')}
+        </p>
+      </section>
+    );
   }
 
-  // A filtered search that matched nothing is not the same as an empty
-  // platform. Keep the bar mounted so the user can widen or clear, instead of
-  // stranding them on "no events yet" with no way back.
-  if (filtered && !unavailable) {
-    return <HomeTabs events={events} leagues={leagues} weapons={weapons} filters={filters} />;
-  }
-
-  return (
-    <section className="rounded-lg border border-border bg-surface p-5 shadow-sm">
-      <h2 className="font-display font-semibold text-lg sm:text-xl text-foreground">
-        {unavailable ? t('publicApp.home.unavailableTitle') : t('publicApp.home.emptyTitle')}
-      </h2>
-      <p className="mt-2 text-sm leading-6 text-foreground-secondary">
-        {unavailable
-          ? t('publicApp.home.unavailableDescription')
-          : t('publicApp.home.emptyDescription')}
-      </p>
-    </section>
-  );
+  // Everything else keeps the tabs, the filter bar and the organisers link
+  // mounted. An empty platform used to unmount all three at once, stranding a
+  // visitor on "no events yet" with no route anywhere; the empty state now
+  // lives INSIDE the listing (see shouldCollapseEmptySections) rather than
+  // replacing it.
+  return <HomeTabs events={events} leagues={leagues} weapons={weapons} filters={filters} />;
 }

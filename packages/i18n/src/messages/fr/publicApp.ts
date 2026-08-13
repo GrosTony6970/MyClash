@@ -145,7 +145,6 @@ export const publicApp = {
     colLeague: 'Ligue',
     colTournaments: 'Tournois',
     colResults: 'Résultats',
-    colStatus: 'Statut',
     tournamentCountSingular: '{count} tournoi',
     tournamentCountPlural: '{count} tournois',
     resultsReady: '✓ Résultats',
@@ -153,6 +152,7 @@ export const publicApp = {
     emptyTitle: 'Aucun événement public pour le moment',
     emptyDescription:
       'Les événements publiés apparaîtront ici lorsque les organisateurs les rendront visibles.',
+    emptyBrowseLeagues: 'Parcourir les ligues',
     emptyLive: 'Aucun événement en direct pour le moment.',
     emptyUpcoming: 'Aucun événement à venir.',
     emptyPast: 'Aucun événement passé à afficher.',

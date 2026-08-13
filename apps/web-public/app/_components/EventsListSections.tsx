@@ -3,14 +3,15 @@
 import Link from 'next/link';
 import { useMemo } from 'react';
 import type { Locale } from '@myclash/i18n';
-import { EventKindBadge, formatCountryName } from '@myclash/ui';
+import { Button, EventKindBadge, formatCountryName } from '@myclash/ui';
 import { DEFAULT_ORG_ACCENT, asEventKind } from '@myclash/types';
 import { useI18n, type Translator } from '@myclash/next-i18n/client';
 import { partitionEvents } from './filter-events';
 import { emptySectionMessageKey, type SectionKey } from './empty-section-message-key';
+import { shouldCollapseEmptySections } from './should-collapse-empty-sections';
 import { formatDateRange } from './format-date-range';
 import { EventFilterBar, type WeaponOption } from './EventFilterBar';
-import { EMPTY_EVENT_FILTERS, type EventFilters } from './event-filters';
+import { EMPTY_EVENT_FILTERS, hasAnyFilter, type EventFilters } from './event-filters';
 
 interface PublicEvent {
   id?: string | null;
@@ -95,14 +96,56 @@ export function EventsListSections({
   // still says "no live events match {query}".
   const query = filters.q ?? '';
 
+  const collapsed = shouldCollapseEmptySections(
+    { live: live.length, published: published.length, past: past.length },
+    hasAnyFilter(filters),
+  );
+
   return (
     <div className="flex w-full flex-col gap-10">
       <EventFilterBar filters={filters} weapons={weapons} resultCount={events.length} />
 
-      <LiveSection events={live} query={query} />
-      <UpcomingSection events={published} query={query} />
-      <PastSection events={past} query={query} />
+      {collapsed ? (
+        <EmptyCatalogue />
+      ) : (
+        <>
+          <LiveSection events={live} query={query} />
+          <UpcomingSection events={published} query={query} />
+          <PastSection events={past} query={query} />
+        </>
+      )}
     </div>
+  );
+}
+
+/**
+ * The one card a genuinely empty platform shows, in place of three stacked
+ * "no events" messages that would each say the same thing.
+ *
+ * It carries exits. Both destinations stay populated when no event is
+ * published -- an organisation exists before it announces anything, and a
+ * league spans seasons -- so neither link is a second dead end.
+ */
+function EmptyCatalogue() {
+  const { t } = useI18n();
+
+  return (
+    <section className="rounded-lg border border-border bg-surface p-5 shadow-sm">
+      <h2 className="font-display font-semibold text-lg sm:text-xl text-foreground">
+        {t('publicApp.home.emptyTitle')}
+      </h2>
+      <p className="mt-2 text-sm leading-6 text-foreground-secondary">
+        {t('publicApp.home.emptyDescription')}
+      </p>
+      <div className="mt-4 flex flex-wrap gap-2">
+        <Button asChild variant="primary">
+          <Link href="/organisers">{t('publicApp.organisers.browseCta')}</Link>
+        </Button>
+        <Button asChild variant="secondary">
+          <Link href="/leagues">{t('publicApp.home.emptyBrowseLeagues')}</Link>
+        </Button>
+      </div>
+    </section>
   );
 }
 
