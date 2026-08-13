@@ -109,6 +109,30 @@ for (const locale of ['en', 'fr'] as const) {
 
 assert.deepEqual(rotted, [], `Mojibake in the message tree:\n  ${rotted.join('\n  ')}`);
 
+/*
+ * The other half of encoding damage: U+FFFD, the replacement character a
+ * decoder leaves behind when the bytes were not valid UTF-8 at all.
+ *
+ * Mojibake is recoverable and this is not — the original character is simply
+ * gone — yet only mojibake was checked. 62 of these reached the FR dictionary
+ * in one pass (31 × "été" written through a tool that emitted CP1252 bytes)
+ * and this file reported the tree clean, because `Ã©` never appeared: the
+ * bytes failed to decode instead of decoding wrongly.
+ */
+const undecodable: string[] = [];
+for (const locale of ['en', 'fr'] as const) {
+  for (const [key, text] of collectStrings(messages[locale])) {
+    if (text.includes('�')) undecodable.push(`${locale}.${key}: ${text}`);
+  }
+}
+
+assert.deepEqual(
+  undecodable,
+  [],
+  `Replacement characters (U+FFFD) in the message tree — the source bytes were not valid UTF-8, ` +
+    `and unlike mojibake the original character cannot be recovered:\n  ${undecodable.join('\n  ')}`,
+);
+
 /** Inverse of `decodeOnce` — reads a string's UTF-8 bytes back as CP1252.
  *  Used to BUILD the fixtures below rather than pasting rotted literals: a
  *  hand-typed `ÃƒÂ ` is one invisible NBSP away from not being mojibake at
@@ -130,5 +154,14 @@ for (const sample of ['Accès refusé.', "Retour à l'événement", 'Périmètre
   assert.equal(demojibake(sample), sample);
 }
 assert.equal(demojibake('Back to platform accounts'), 'Back to platform accounts');
+
+// The U+FFFD check must fire on the exact damage that got through: "été"
+// written as CP1252 bytes and read back as UTF-8. Built from bytes rather than
+// pasted, for the same reason the mojibake fixtures are.
+const undecodableSample = new TextDecoder('utf-8').decode(
+  Buffer.from([0x61, 0x20, 0xe9, 0x74, 0xe9]),
+);
+assert.ok(undecodableSample.includes('�'), 'the U+FFFD fixture no longer reproduces the damage');
+assert.ok(!'a été'.includes('�'));
 
 console.log(`i18n encoding: ${collectStrings(messages.fr).length} fr strings free of mojibake.`);
