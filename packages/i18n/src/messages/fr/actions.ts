@@ -16,7 +16,7 @@ export const actions = {
   next: 'Suivant',
   reject: 'Rejeter',
   remove: 'Retirer',
-  retry: 'Reessayer',
+  retry: 'Réessayer',
   refresh: 'Rafraichir',
   save: 'Enregistrer',
   search: 'Rechercher',
