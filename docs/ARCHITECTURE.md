@@ -2467,7 +2467,10 @@ There are no per-user or per-org limiters, and scoring writes get the default.
 
 Custom `@myclash/i18n` package (`packages/i18n/`) — not `next-intl` or `i18next`. Rationale: shared across all apps (Next.js + NestJS) without a React dependency in the core translation layer.
 
-- `packages/i18n/src/index.ts` — the whole translation layer. `en` and `fr` are inline `export const en = {...}` / `export const fr = {...}` literal objects (fr is a **full French translation**, not an `fr = en` alias); this file also exports `defaultLocale`, the `DeepString<T>` type, and the `t` / `createTranslator` / `getMessages` helpers. There are no separate `en.ts` / `fr.ts` files.
+- `packages/i18n/src/messages/{en,fr}/<namespace>.ts` — **the data**, one module per namespace per locale (fr is a **full French translation**, not an `fr = en` alias). Each `fr` module is `satisfies DeepString<typeof en<Ns>>`, so a missing or extra key is a tsc error.
+- `packages/i18n/src/runtime.ts` — **the implementation, with none of the data**: `createTranslator`, `negotiateLocale`, `defaultLocale`, `LOCALE_COOKIE`, `SUPPORTED_LOCALES`. Anything that ships to a browser imports `@myclash/i18n/runtime`, because importing them from the package root drags every namespace along behind them.
+- `packages/i18n/src/surfaces/{staff,public,admin}.ts` — **per-surface bundles**, exported as `@myclash/i18n/staff` / `/public` / `/admin`. Each app's client provider imports its own; that is what stops all 6,418 keys reaching every bundle. Of 6,418: staff resolves 480, public 1,765, admin 5,257.
+- `packages/i18n/src/index.ts` — composes the lot and re-exports the runtime, so the package's public API is unchanged. Importing **this** pulls every namespace: correct on the server and in tests, wrong in a client module.
 - `apps/{web-public,web-admin,web-staff}/src/i18n/I18nProvider.tsx` — the React context provider is **per-app** (one copy in each Next.js app), not in the package.
 
 ### ESLint enforcement
@@ -2476,13 +2479,14 @@ Custom `no-literal-string` rule in `eslint-rules/no-literal-string.mjs` — fail
 
 ### Locale routing
 
-Each Next.js app wraps its root layout with `<I18nProvider>` (no explicit `locale` prop) and renders `<html lang={defaultLocale}>`. `defaultLocale` is `'en'` — EN is the source/default locale; the client `useI18n()` hook is locale-aware. Multi-locale URL routing is deferred to v2.
+Each Next.js app wraps its root layout with its own `src/i18n/I18nProvider`, a six-line client module binding the shared provider from `@myclash/next-i18n/client` to that app's surface, and renders `<html lang={locale}>` from `resolveServerLocale()`. `defaultLocale` is `'en'` — EN is the source/default locale; the client `useI18n()` hook is locale-aware. Multi-locale URL routing is deferred to v2.
 
 ### Adding a string
 
-1. Add the key to the `en` object in `packages/i18n/src/index.ts`
-2. Add the French translation to the matching path in the `fr` object (same file); every key must exist in both — CI lint (`packages/i18n/src/t-key-references.test.ts`) fails on misses
-3. Use `t('key')` in the component via `useI18n()` hook
+1. Add the key to `packages/i18n/src/messages/en/<namespace>.ts`
+2. Add the French translation at the matching path in `messages/fr/<namespace>.ts`; every key must exist in both — the FR module is typed against the EN one, and `packages/i18n/src/t-key-references.test.ts` fails on misses either way
+3. Use `t('key')` in the component via the `useI18n()` hook — never the module-level `t`, which is bound to `defaultLocale` and is banned in client components by `myclash/no-module-translator-in-client`
+4. If the key belongs to a namespace a surface does not yet carry, add it to that surface in `packages/i18n/src/surfaces/`
 
 ---
 
