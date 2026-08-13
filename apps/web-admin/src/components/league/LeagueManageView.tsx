@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { SegmentedTabs, useConfirm, useToast } from '@myclash/ui';
 import { localeToBcp47 } from '@myclash/time';
 import type { LeagueRankingDimensions } from '@myclash/types';
-import { useI18n } from '../../i18n/I18nProvider';
+import { useI18n } from '@myclash/next-i18n/client';
 import { LeagueRequestsPanel } from './LeagueRequestsPanel';
 import { ScoringSystemPreview } from './ScoringSystemPreview';
 import { getPublicApiUrl } from '../../lib/api-url';

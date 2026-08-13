@@ -2,8 +2,7 @@
 
 import { useEffect, useState, type ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
-import { useI18n } from '../i18n/I18nProvider';
-import { LanguageSwitcher } from '../i18n/LanguageSwitcher';
+import { LanguageSwitcher, useI18n } from '@myclash/next-i18n/client';
 import {
   resolveLeagueWorkspaceDecision,
   type LeagueWorkspaceMePayload,

@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
 import { NavIcon } from '@myclash/ui';
 import type { PlatformRole } from '@myclash/types';
-import { useI18n } from '../i18n/I18nProvider';
+import { useI18n } from '@myclash/next-i18n/client';
 import type { WorkspaceOption, WorkspaceOptions } from './workspace-options';
 
 /**

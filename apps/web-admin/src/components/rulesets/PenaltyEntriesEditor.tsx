@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { useI18n } from '../../i18n/I18nProvider';
+import { useI18n } from '@myclash/next-i18n/client';
 
 type PenaltyCard = 'yellow' | 'red' | 'black';
 

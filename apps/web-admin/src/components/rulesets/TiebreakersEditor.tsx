@@ -2,7 +2,7 @@
 
 import { FORMULA_VARIABLE_KEYS } from '@myclash/rulesets';
 import type { RankingRule, Tiebreaker, VariableKey } from '@myclash/rulesets';
-import { useI18n } from '../../i18n/I18nProvider';
+import { useI18n } from '@myclash/next-i18n/client';
 
 interface Props {
   value: Tiebreaker[];

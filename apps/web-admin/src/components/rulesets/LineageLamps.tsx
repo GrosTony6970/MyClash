@@ -1,7 +1,7 @@
 'use client';
 
 import type { BucketDiff, BucketStatus } from '@myclash/rulesets';
-import { useI18n } from '../../i18n/I18nProvider';
+import { useI18n } from '@myclash/next-i18n/client';
 
 /** One computed lineage lamp: a coloured dot (green unchanged / amber changed),
  *  a bucket label, and its status word. Never self-declared — the `changed`

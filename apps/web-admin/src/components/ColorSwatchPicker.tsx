@@ -18,7 +18,7 @@
  * decoration, so semantic tokens have nothing to say about them.
  */
 
-import { useI18n } from '../i18n/I18nProvider';
+import { useI18n } from '@myclash/next-i18n/client';
 
 export const SWATCH_PALETTE: readonly string[] = [
   // red · orange · amber · yellow · lime · green · emerald · teal

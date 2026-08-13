@@ -16,7 +16,7 @@
  */
 
 import { rulesetSemantic, StatusBadge, StatusHelp } from '@myclash/ui';
-import { useI18n } from '@/i18n/I18nProvider';
+import { useI18n } from '@myclash/next-i18n/client';
 
 export type RulesetBadgeVariant =
   'builtin' | 'custom' | 'default' | 'published' | 'draft' | 'archived' | 'pendingReview';

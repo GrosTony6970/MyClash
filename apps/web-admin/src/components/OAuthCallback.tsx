@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useI18n } from '../i18n/I18nProvider';
+import { useI18n } from '@myclash/next-i18n/client';
 import { createOAuthSupabaseClient } from '../lib/oauth-supabase';
 import { runOAuthCodeOnce } from '../lib/oauth-single-flight';
 import { resolvePostAuthDestination } from '../lib/post-auth-destination';

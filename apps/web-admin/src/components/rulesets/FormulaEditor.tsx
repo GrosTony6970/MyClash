@@ -3,7 +3,7 @@
 import { useMemo, useState } from 'react';
 import { FORMULA_VARIABLE_KEYS } from '@myclash/rulesets';
 import type { BinaryOperator, FormulaNode, VariableKey } from '@myclash/rulesets';
-import { useI18n } from '../../i18n/I18nProvider';
+import { useI18n } from '@myclash/next-i18n/client';
 
 type Token =
   | { kind: 'var'; name: VariableKey }

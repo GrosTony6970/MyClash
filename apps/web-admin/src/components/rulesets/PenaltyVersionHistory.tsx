@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { ConfirmDialog, HelpTooltip, useToast } from '@myclash/ui';
-import { useI18n } from '../../i18n/I18nProvider';
+import { useI18n } from '@myclash/next-i18n/client';
 import { rulesetHelp } from './rulesetHelp';
 import { getPublicApiUrl } from '../../lib/api-url';
 

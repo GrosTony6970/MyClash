@@ -6,8 +6,7 @@ import { usePathname } from 'next/navigation';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { NavIcon, useFocusTrap, type NavIconName } from '@myclash/ui';
 import { atLeastPlatformRole, parsePlatformRole, type PlatformRole } from '@myclash/types';
-import { useI18n } from '../i18n/I18nProvider';
-import { LanguageSwitcher } from '../i18n/LanguageSwitcher';
+import { LanguageSwitcher, useI18n } from '@myclash/next-i18n/client';
 import {
   useNotificationsSummary,
   type NotificationsSummary,
