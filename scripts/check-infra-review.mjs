@@ -4,13 +4,16 @@
  *
  * ── What it actually reviews, which is not only infrastructure ──────────────
  * The name is half a lie and has been for months, so it is written down here
- * rather than discovered on the twentieth read. Measured over one run: of 429
- * text assertions, 163 target infrastructure and 266 target application source
- * — 131 in apps/web-admin, 105 in apps/api, 12 in apps/web-public, 16 in
- * packages/. 77 paths are pinned as constants at the top; the run reads 106
- * files in total, the rest reached by enumerating a directory. The verdict line
- * prints both counts, so these numbers are checkable rather than asserted.
- * Four distinct concerns share the file:
+ * rather than discovered on the twentieth read. Of the 424 assertions the
+ * verdict line counts, 163 target infrastructure and 261 target application
+ * source — 131 in apps/web-admin, 100 in apps/api, 12 in apps/web-public, 16 in
+ * packages/, 2 in scripts/. 77 paths are pinned as constants at the top; the
+ * run reads 106 files in total, the rest reached by enumerating a directory.
+ *
+ * That count is requireContains only. Roughly 90 further checks are written
+ * inline as `if (text.includes(…)) errors.push(…)`, mostly the negative ones —
+ * so the verdict line understates, which is the safe direction for a number
+ * nothing recomputes. Four distinct concerns share the file:
  *
  *   1. INFRA TOPOLOGY. Compose services, healthchecks, deploy/restore/rollback
  *      shell scripts, the Traefik edge, dev/prod parity. The strongest work
@@ -1298,15 +1301,12 @@ for (const [label, text] of [
     );
   }
 }
-for (const [label, text] of [
-  ['apps/web-public/app/login/page.tsx', publicLoginPageText],
-  ['apps/web-public/app/me/PersonalSpaceDashboard.tsx', publicPersonalDashboardText],
-  ['apps/web-public/src/components/PublicPersonalShell.tsx', publicPersonalShellText],
-]) {
-  if (/SERVICE_ROLE|SEED_ADMIN|SUPABASE_SERVICE_ROLE_KEY/u.test(text)) {
-    errors.push(`${label} must not expose service-role or seed-admin secrets.`);
-  }
-}
+// Server-only secrets in frontend source are owned by
+// check-client-secret-boundaries.mjs (`pnpm security:client-secrets`), which
+// walks all three web app trees instead of the nine files this gate had named.
+// Do not re-add a per-file check here: a leak in the tenth file was never the
+// less dangerous one, and web-staff — the app this gate never looked at — is
+// where the pad's staff tokens live.
 if (adminRootPageText.includes('admin.home.placeholder')) {
   errors.push('apps/web-admin/app/page.tsx must not render admin.home.placeholder.');
 }
@@ -1609,11 +1609,6 @@ requireContains(
   'apps/web-admin/app/admin/organizations/page.tsx',
   'temporaryPassword',
 );
-for (const forbidden of ['SUPABASE_SERVICE_ROLE_KEY', 'service_role', 'SEED_ADMIN_PASSWORD']) {
-  if (superAdminOrganizationsPageText.includes(forbidden)) {
-    errors.push(`apps/web-admin/app/admin/organizations/page.tsx must not expose ${forbidden}.`);
-  }
-}
 // The platform guard on this controller — and on users, fighters, clubs and
 // dashboard-stats — is owned by platform-role-coverage.test.ts, which walks the
 // real Nest metadata rather than the source text. Do not re-add a substring
@@ -1815,19 +1810,6 @@ for (const expected of [
   'cleanupDeleteHelp',
 ]) {
   requireContains(i18nText, 'packages/i18n/src/messages/en/**', expected);
-}
-for (const forbidden of ['SUPABASE_SERVICE_ROLE_KEY', 'SERVICE_ROLE', 'SEED_ADMIN_PASSWORD']) {
-  for (const [label, text] of [
-    ['apps/web-admin/app/admin/users/page.tsx', superAdminUsersPageText],
-    ['apps/web-admin/app/admin/users/AccountsPanel.tsx', accountsPanelText],
-    ['apps/web-admin/app/admin/users/AccountsTable.tsx', accountsTableText],
-    ['apps/web-admin/app/admin/users/CreatePlatformAccountForm.tsx', createPlatformAccountFormText],
-    ['apps/web-admin/app/admin/users/useAdminUsers.ts', useAdminUsersText],
-  ]) {
-    if (text.includes(forbidden)) {
-      errors.push(`${label} must not expose ${forbidden}.`);
-    }
-  }
 }
 for (const expected of [
   "@Patch(':id')",
