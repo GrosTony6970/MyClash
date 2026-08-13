@@ -16,7 +16,12 @@
  * describes. EN is the source of truth; the i18n parity test already
  * guarantees FR carries the same leaves.
  */
-import { en } from '@myclash/i18n';
+// Just the one namespace, not the composed dictionary. packages/ui is a single
+// CJS barrel with no tree-shaking, so importing `en` from '@myclash/i18n' here
+// put all 15 namespaces in both locales into every app that touches any UI
+// component — 181KB gzip on every page, which is exactly what the per-surface
+// split exists to stop.
+import { statusHelp } from '@myclash/i18n/messages/en/statusHelp';
 
 /**
  * Status vocabularies that carry help copy.
@@ -67,7 +72,7 @@ export function statusHelpKeys(domain: StatusHelpDomain, status: string): Status
  * ⓘ that opens onto nothing (or onto raw key names).
  */
 export function hasStatusHelp(domain: string, status: string): boolean {
-  const domainNode = (en as Record<string, unknown>)['statusHelp'];
+  const domainNode: unknown = statusHelp;
   if (!isRecord(domainNode)) return false;
   const statuses = domainNode[domain];
   if (!isRecord(statuses)) return false;
@@ -82,7 +87,7 @@ export function hasStatusHelp(domain: string, status: string): boolean {
 
 /** Every status with help copy in a domain — used by tests and the showcase. */
 export function statusesWithHelp(domain: StatusHelpDomain): string[] {
-  const domainNode = (en as Record<string, unknown>)['statusHelp'];
+  const domainNode: unknown = statusHelp;
   if (!isRecord(domainNode)) return [];
   const statuses = domainNode[domain];
   if (!isRecord(statuses)) return [];

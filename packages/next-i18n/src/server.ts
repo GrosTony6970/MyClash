@@ -1,12 +1,9 @@
 import { cookies, headers } from 'next/headers';
-import {
-  createTranslator,
-  getMessages,
-  LOCALE_COOKIE,
-  negotiateLocale,
-  type Locale,
-  type TranslationValues,
-} from '@myclash/i18n';
+import { LOCALE_COOKIE, negotiateLocale, type Locale } from '@myclash/i18n/runtime';
+// The server renders on the server: the composed dictionary costs nothing on the
+// wire here, and `getServerT` is used from generateMetadata and server
+// components that may reach any namespace.
+import { createTranslator, getMessages, type TranslationValues } from '@myclash/i18n';
 
 /**
  * Resolve the visitor's locale server-side: an explicit `mc_locale` cookie

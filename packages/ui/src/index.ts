@@ -29,6 +29,7 @@ export type {
   AuthNoticeTone,
 } from './components/AuthPanel';
 
+export type { Translator, TranslatorValues } from './types/translator';
 export { NavIcon, NAV_ICON_NAMES, NAV_ICON_GLYPHS } from './components/NavIcon';
 export type { NavIconProps, NavIconName } from './components/NavIcon';
 

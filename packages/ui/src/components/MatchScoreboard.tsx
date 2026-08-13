@@ -8,12 +8,14 @@ import {
   formatClockMs,
   shouldWarnClock,
 } from '@myclash/types';
-import { createTranslator, getMessages } from '@myclash/i18n';
+import type { Translator } from '../types/translator';
 import { formatFightOfTotal } from './format-fight-of-total';
 import { useLiveMatch, type Penalty } from '../hooks/useLiveMatch';
 import { sideColorsFor } from '../utils/side-color';
 
 export interface MatchScoreboardProps {
+  /** The caller's translator. See src/types/translator.ts for why it is a prop. */
+  t: Translator;
   matchId: string;
   apiBaseUrl: string;
   supabaseClient: SupabaseClient;
@@ -107,9 +109,8 @@ export function MatchScoreboard({
   supabaseClient,
   showNextMatch = true,
   className,
+  t,
 }: MatchScoreboardProps): React.ReactElement | null {
-  const t = createTranslator(getMessages());
-
   const { match, penalties, elapsedMs, loadError, refresh } = useLiveMatch(
     apiBaseUrl,
     matchId,

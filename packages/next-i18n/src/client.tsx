@@ -5,12 +5,12 @@ import { createContext, Fragment, useContext, useMemo, useTransition, type React
 import {
   createTranslator,
   defaultLocale,
-  getMessages,
   LOCALE_COOKIE,
   SUPPORTED_LOCALES,
   type Locale,
+  type MessageTree,
   type TranslationValues,
-} from '@myclash/i18n';
+} from '@myclash/i18n/runtime';
 
 /**
  * The client half of the locale layer, shared by web-admin, web-public and
@@ -31,29 +31,43 @@ export type I18nContextValue = {
 };
 
 /**
- * Seeded eagerly rather than left undefined. Component tests in web-admin and
- * web-staff render `useI18n` consumers with no provider above them and rely on
- * getting a working translator; a throwing hook would be the more usual
- * hardening and would turn those suites red for no defect.
+ * Seeded with an empty tree rather than left undefined, so a consumer rendered
+ * without a provider gets a working translator instead of a crash. Every key
+ * comes back as `[the.key]`, which is what `createTranslator` already returns
+ * for a key it cannot find.
+ *
+ * It deliberately does NOT seed real messages. Doing that means importing the
+ * composed dictionary, and this module is in every app's client graph — one
+ * such import puts all 15 namespaces in both locales back on every page and
+ * undoes the per-surface split entirely.
  */
 const I18nContext = createContext<I18nContextValue>({
   locale: defaultLocale,
-  t: createTranslator(getMessages(defaultLocale)),
+  t: createTranslator({}),
 });
 
+/**
+ * `messages` is a prop because only the app knows its surface. It must be
+ * supplied by a CLIENT module that imports `@myclash/i18n/<surface>` directly —
+ * never passed down from a server component, which would serialise the whole
+ * surface into the RSC payload on every navigation (26KB for the pad, ~480KB
+ * for the organiser workspace, uncacheable).
+ */
 export function I18nProvider({
   children,
   locale = defaultLocale,
+  messages,
 }: {
   children: ReactNode;
   locale?: Locale;
+  messages: Readonly<Record<Locale, MessageTree>>;
 }) {
   const value = useMemo(
     () => ({
       locale,
-      t: createTranslator(getMessages(locale)),
+      t: createTranslator(messages[locale] ?? messages[defaultLocale]),
     }),
-    [locale],
+    [locale, messages],
   );
 
   return <I18nContext.Provider value={value}>{children}</I18nContext.Provider>;

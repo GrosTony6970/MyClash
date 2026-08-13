@@ -1,7 +1,7 @@
 'use client';
 
 import * as React from 'react';
-import { createTranslator, getMessages } from '@myclash/i18n';
+import type { Translator } from '../types/translator';
 import { isFreshnessAlarming, type Freshness } from '../hooks/realtime-freshness';
 
 export interface FreshnessChipProps {
@@ -11,7 +11,8 @@ export interface FreshnessChipProps {
    * every other packages/ui component resolves messages — the projector and the
    * TV board have no i18n provider to read from.
    */
-  locale?: string;
+  /** The caller's translator. See src/types/translator.ts for why it is a prop. */
+  t: Translator;
   /**
    * Hide the chip while everything is fine.
    *
@@ -39,12 +40,10 @@ export interface FreshnessChipProps {
  */
 export function FreshnessChip({
   freshness,
-  locale,
+  t,
   quietWhenLive = false,
   className,
 }: FreshnessChipProps) {
-  const t = createTranslator(getMessages(locale));
-
   if (quietWhenLive && freshness.kind === 'live') return null;
 
   const alarming = isFreshnessAlarming(freshness);

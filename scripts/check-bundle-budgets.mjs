@@ -67,30 +67,31 @@ export const budgets = [
     root: join('apps', 'web-admin'),
     budgetBytes: 800 * 1024,
   },
-  // Shell + root-layout entry: everything a page load pulls. Baselined from the
-  // measured figures after the lucide barrel came out (455,561 / 462,759 /
-  // 463,031), with headroom. These come down again when the dictionary is split
-  // per surface — re-baseline then rather than leaving slack nothing can use.
+  // Shell + root-layout entry: everything a page load pulls. Re-baselined after
+  // the dictionary was split per surface — measured 331,091 / 297,379 / 428,811,
+  // budgeted with ~8% headroom. Per app, because they now differ by a lot: the
+  // pad reads 480 of 6,418 keys and the organiser workspace 5,257, so one shared
+  // ceiling would be slack for two of them and no guard at all for the third.
   {
     name: 'web-public every page load',
     type: 'page-load',
     root: join('apps', 'web-public'),
     app: 'web-public',
-    budgetBytes: 480 * 1024,
+    budgetBytes: 360 * 1024,
   },
   {
     name: 'web-staff every page load',
     type: 'page-load',
     root: join('apps', 'web-staff'),
     app: 'web-staff',
-    budgetBytes: 480 * 1024,
+    budgetBytes: 320 * 1024,
   },
   {
     name: 'web-admin every page load',
     type: 'page-load',
     root: join('apps', 'web-admin'),
     app: 'web-admin',
-    budgetBytes: 480 * 1024,
+    budgetBytes: 460 * 1024,
   },
 ];
 

@@ -23,7 +23,7 @@
 import * as React from 'react';
 import { useEffect, useMemo, useState } from 'react';
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { createTranslator, getMessages } from '@myclash/i18n';
+import type { Translator } from '../types/translator';
 import {
   DEFAULT_MATCH_FORMAT_CONFIG,
   DEFAULT_SCORING_CONFIG,
@@ -45,6 +45,8 @@ import { MatchTimeline } from './MatchTimeline';
 import { nextDisplayHref } from './next-display-href';
 
 export interface TVScoreboardProps {
+  /** The caller's translator. See src/types/translator.ts for why it is a prop. */
+  t: Translator;
   matchId: string;
   apiBaseUrl: string;
   supabaseClient: SupabaseClient;
@@ -99,11 +101,8 @@ export function TVScoreboard({
   pollMs,
   mirror = false,
   className,
+  t,
 }: TVScoreboardProps): React.ReactElement | null {
-  // Stable identity: this component re-renders ~20×/s off the clock ticker, and
-  // `t` is a dependency of the timeline memo below — rebuilding the translator
-  // each tick would rebuild the whole event list with it, all day on a projector.
-  const t = useMemo(() => createTranslator(getMessages()), []);
   // `connected` deliberately not read: it is a boolean about the SOCKET, and
   // this board asks about the DATA. A polling surface reports connected:false
   // while being perfectly fresh, which is exactly the ambiguity that let a dead
@@ -219,7 +218,7 @@ export function TVScoreboard({
   const isFinalMatch = match.status === 'completed' || match.status === 'voided';
   const isLiveBout = match.status === 'running' || match.status === 'paused';
   const showCue = !isFinalMatch && (alarming ? graceElapsed : isLiveBout);
-  const connectionCue = showCue ? <FreshnessChip freshness={freshness} /> : null;
+  const connectionCue = showCue ? <FreshnessChip freshness={freshness} t={t} /> : null;
 
   const redColumn = (
     <FighterColumn

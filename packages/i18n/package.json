@@ -10,6 +10,10 @@
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
     },
+    "./runtime": {
+      "types": "./dist/runtime.d.ts",
+      "default": "./dist/runtime.js"
+    },
     "./staff": {
       "types": "./dist/surfaces/staff.d.ts",
       "default": "./dist/surfaces/staff.js"
