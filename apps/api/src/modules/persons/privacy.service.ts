@@ -21,6 +21,23 @@ const DEFAULTS: Omit<PersonPrivacy, 'personId'> = {
   showRealEmailToFollowers: false,
 };
 
+/**
+ * Fold two copies of one user's answer to the stricter of the two.
+ *
+ * "Stricter" is per-field, not per-row: hiding is the restrictive choice for
+ * `hideWorkshopsPublicly`, and NOT allowing is the restrictive choice for the
+ * other two. Keeps `personId` from the accumulator, which the caller seeds with
+ * the primary row.
+ */
+function mostRestrictive(a: PersonPrivacy, b: PersonPrivacy): PersonPrivacy {
+  return {
+    personId: a.personId,
+    hideWorkshopsPublicly: a.hideWorkshopsPublicly || b.hideWorkshopsPublicly,
+    allowBeingFollowed: a.allowBeingFollowed && b.allowBeingFollowed,
+    showRealEmailToFollowers: a.showRealEmailToFollowers && b.showRealEmailToFollowers,
+  };
+}
+
 @Injectable()
 export class PrivacyService {
   constructor(private readonly supabase: SupabaseService) {}
@@ -75,6 +92,68 @@ export class PrivacyService {
 
     if (data) return this.map(data as Record<string, unknown>);
     return this.getOrCreate(personId);
+  }
+
+  // ── Per-user (across every event) ────────────────────────────────────────────
+
+  /**
+   * One privacy answer for a user who may hold several event-scoped `persons`
+   * rows.
+   *
+   * `person_privacy.person_id` references `persons(id)`, which is event-scoped,
+   * so a competitor in five events has five places to store a single preference.
+   * The controller used to resolve one arbitrary row; the reader
+   * (`hiddenWorkshopGlobalPersonIds`) then looked up the row for whichever event
+   * it was rendering, so "hide my workshops" applied to at most one event and
+   * silently did nothing on the rest.
+   *
+   * Read folds MOST-RESTRICTIVE across the rows. When copies disagree — and
+   * before this commit they routinely did — honouring the strictest is the only
+   * safe reading: it can never publish something the user asked to hide.
+   */
+  async getOrCreateForPersons(personIds: string[]): Promise<PersonPrivacy> {
+    const primary = personIds[0] as string;
+    if (personIds.length === 1) return this.getOrCreate(primary);
+
+    const { data } = await this.supabase.service
+      .from('person_privacy')
+      .select('*')
+      .in('person_id', personIds);
+
+    const rows = (data ?? []) as Array<Record<string, unknown>>;
+    if (rows.length === 0) return this.getOrCreate(primary);
+
+    return rows
+      .map((row) => this.map(row))
+      .reduce(mostRestrictive, {
+        personId: primary,
+        ...DEFAULTS,
+      });
+  }
+
+  /**
+   * Write the answer to EVERY row the user owns, so it holds in every event.
+   *
+   * Anything less leaves the copies disagreeing, which is the state that made
+   * the setting look applied while doing nothing.
+   */
+  async updateForPersons(
+    personIds: string[],
+    patch: Partial<Omit<PersonPrivacy, 'personId'>>,
+  ): Promise<PersonPrivacy> {
+    const updates: Record<string, unknown> = {};
+    if (patch.hideWorkshopsPublicly !== undefined)
+      updates['hide_workshops_publicly'] = patch.hideWorkshopsPublicly;
+    if (patch.allowBeingFollowed !== undefined)
+      updates['allow_being_followed'] = patch.allowBeingFollowed;
+    if (patch.showRealEmailToFollowers !== undefined)
+      updates['show_real_email_to_followers'] = patch.showRealEmailToFollowers;
+
+    await this.supabase.service
+      .from('person_privacy')
+      .upsert(personIds.map((person_id) => ({ person_id, ...updates })));
+
+    return this.getOrCreateForPersons(personIds);
   }
 
   // ── Privacy check ────────────────────────────────────────────────────────────
