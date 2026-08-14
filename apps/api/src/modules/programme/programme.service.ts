@@ -8,6 +8,9 @@ import type {
   SuggestConfig,
 } from '@myclash/types';
 import { SupabaseService } from '../supabase/supabase.service';
+// Value import, not `import type` — `import type` erases the DI metadata.
+import { OrganizationsService } from '../organizations/organizations.service';
+import { assertCanManageEvent } from '../../common/auth/event-authz';
 import { scheduleMatches } from '../schedule/match-scheduler';
 import { poolBottleneckMinutes } from './pool-bottleneck';
 import { cascadeBlockShift } from './block-cascade';
@@ -115,7 +118,20 @@ export function decidePoolAffinity(input: {
 
 @Injectable()
 export class ProgrammeService {
-  constructor(private readonly supabase: SupabaseService) {}
+  constructor(
+    private readonly supabase: SupabaseService,
+    private readonly orgs: OrganizationsService,
+  ) {}
+
+  /**
+   * Every WRITE on this service asserts the caller's org role first. There was
+   * no check at all before, on ten routes that all run as the BYPASSRLS
+   * service role — including `DELETE /programme/full`, which unschedules every
+   * match in the event. `listBlocks` stays public and never calls this.
+   */
+  private async assertWriter(eventId: string, userId: string): Promise<void> {
+    await assertCanManageEvent({ supabase: this.supabase, orgs: this.orgs }, eventId, userId);
+  }
 
   // ── List ───────────────────────────────────────────────────────────────────
 
@@ -131,6 +147,37 @@ export class ProgrammeService {
   }
 
   // ── Save (bulk replace) ────────────────────────────────────────────────────
+
+  /**
+   * One programme block as a DB row. Any id that is not a UUID is treated as
+   * new and given one here — see `saveBlocks` for why rejecting it would be
+   * worse. Every row carries an `id` key because PostgREST refuses a bulk
+   * write whose objects have differing keys.
+   */
+  private toBlockRow(
+    eventId: string,
+    b: SaveProgrammeDto['blocks'][number],
+    sortOrder: number,
+  ): Record<string, unknown> {
+    return {
+      id: UUID_RE.test(b.id) ? b.id : randomUUID(),
+      event_id: eventId,
+      day_index: b.dayIndex,
+      sort_order: sortOrder,
+      block_type: b.blockType,
+      label: b.label,
+      competition_id: b.competitionId ?? null,
+      competition_phase: b.competitionPhase ?? null,
+      workshop_id: b.workshopId ?? null,
+      lice_count: b.liceCount,
+      start_time: b.startTime,
+      end_time: b.endTime,
+      match_gap_seconds: b.matchGapSeconds,
+      match_duration_minutes: b.matchDurationMinutes,
+      min_rest_minutes: b.minRestMinutes,
+      color_hex: b.colorHex ?? null,
+    };
+  }
 
   /**
    * Replace an event's programme.
@@ -154,7 +201,12 @@ export class ProgrammeService {
    * a bulk insert whose objects have differing keys — and the upsert-then-prune
    * order means a refusal leaves the previous programme untouched.
    */
-  async saveBlocks(eventId: string, dto: SaveProgrammeDto): Promise<ProgrammeBlock[]> {
+  async saveBlocks(
+    eventId: string,
+    dto: SaveProgrammeDto,
+    userId: string,
+  ): Promise<ProgrammeBlock[]> {
+    await this.assertWriter(eventId, userId);
     this.validateBlocks(dto.blocks);
 
     if (dto.blocks.length === 0) {
@@ -166,24 +218,7 @@ export class ProgrammeService {
       return [];
     }
 
-    const inserts = dto.blocks.map((b, i) => ({
-      id: UUID_RE.test(b.id) ? b.id : randomUUID(),
-      event_id: eventId,
-      day_index: b.dayIndex,
-      sort_order: i,
-      block_type: b.blockType,
-      label: b.label,
-      competition_id: b.competitionId ?? null,
-      competition_phase: b.competitionPhase ?? null,
-      workshop_id: b.workshopId ?? null,
-      lice_count: b.liceCount,
-      start_time: b.startTime,
-      end_time: b.endTime,
-      match_gap_seconds: b.matchGapSeconds,
-      match_duration_minutes: b.matchDurationMinutes,
-      min_rest_minutes: b.minRestMinutes,
-      color_hex: b.colorHex ?? null,
-    }));
+    const inserts = dto.blocks.map((b, i) => this.toBlockRow(eventId, b, i));
 
     const { data, error } = await this.supabase.service
       .from('event_programme_blocks')
@@ -218,7 +253,11 @@ export class ProgrammeService {
    * programme has already been deleted, which is acceptable (the
    * operator is asking to wipe state anyway).
    */
-  async resetAll(eventId: string): Promise<{ programmeDeleted: number; matchesCleared: number }> {
+  async resetAll(
+    eventId: string,
+    userId: string,
+  ): Promise<{ programmeDeleted: number; matchesCleared: number }> {
+    await this.assertWriter(eventId, userId);
     // 1. Drop every programme block.
     const { data: deletedBlocks, error: progErr } = await this.supabase.service
       .from('event_programme_blocks')
@@ -263,7 +302,12 @@ export class ProgrammeService {
 
   // ── Suggest ────────────────────────────────────────────────────────────────
 
-  async suggest(eventId: string, dto: SuggestProgrammeDto): Promise<ProgrammeSuggestion> {
+  async suggest(
+    eventId: string,
+    dto: SuggestProgrammeDto,
+    userId: string,
+  ): Promise<ProgrammeSuggestion> {
+    await this.assertWriter(eventId, userId);
     const config: SuggestConfig = {
       dayStartTime: dto.dayStartTime,
       dayEndTime: dto.dayEndTime,
@@ -670,7 +714,12 @@ export class ProgrammeService {
 
   // ── Generate ───────────────────────────────────────────────────────────────
 
-  async generate(eventId: string, opts?: { dayIndices?: number[] }): Promise<GenerateResult> {
+  async generate(
+    eventId: string,
+    opts: { dayIndices?: number[] } | undefined,
+    userId: string,
+  ): Promise<GenerateResult> {
+    await this.assertWriter(eventId, userId);
     // When dayIndices is provided, only (re)generate those days — other
     // days' blocks/matches are left untouched.
     const dayFilter =
@@ -1020,11 +1069,13 @@ export class ProgrammeService {
     eventId: string,
     blockId: string,
     dto: { newStartTime: string },
+    userId: string,
   ): Promise<{
     block: ProgrammeBlock;
     deltaMinutes: number;
     shiftedMatches: number;
   }> {
+    await this.assertWriter(eventId, userId);
     const { data: blockRow, error: blockErr } = await this.supabase.service
       .from('event_programme_blocks')
       .select('*')
@@ -1173,7 +1224,9 @@ export class ProgrammeService {
     eventId: string,
     blockId: string,
     dto: { newStartTime?: string; newEndTime?: string },
+    userId: string,
   ): Promise<{ block: ProgrammeBlock }> {
+    await this.assertWriter(eventId, userId);
     const { data: blockRow, error: blockErr } = await this.supabase.service
       .from('event_programme_blocks')
       .select('*')
@@ -1222,6 +1275,28 @@ export class ProgrammeService {
    * seeded to land AFTER whatever already occupies those lices (no overlap).
    */
   async scheduleGroup(
+    eventId: string,
+    dto: ScheduleGroupDto,
+    userId: string,
+  ): Promise<{
+    scheduled: Array<{ matchId: string; liceId: string; scheduledAt: string }>;
+    imbalancePercent: number;
+    unscheduled: string[];
+  }> {
+    await this.assertWriter(eventId, userId);
+    return this.scheduleGroupUnchecked(eventId, dto);
+  }
+
+  /**
+   * The same re-fan with NO authorization, for trusted server-side callers.
+   *
+   * Only `SwissPairingService.scheduleRound` uses it: that path has no HTTP
+   * caller to attribute, and the round advance it belongs to is authorized
+   * upstream. The name is deliberately loud — an optional `userId` that
+   * silently skipped the check when omitted would be a fail-open default, and
+   * fail-open is the defect this slice exists to close.
+   */
+  async scheduleGroupUnchecked(
     eventId: string,
     dto: ScheduleGroupDto,
   ): Promise<{
@@ -1378,7 +1453,12 @@ export class ProgrammeService {
    * lands after any existing blocks. Competition-only fields fall back to the
    * non-competition zero values when omitted.
    */
-  async createBlock(eventId: string, dto: CreateBlockDto): Promise<{ block: ProgrammeBlock }> {
+  async createBlock(
+    eventId: string,
+    dto: CreateBlockDto,
+    userId: string,
+  ): Promise<{ block: ProgrammeBlock }> {
+    await this.assertWriter(eventId, userId);
     // Next sort_order on the day = max existing + 1 (computed in JS — PostgREST
     // has no MAX without an RPC). Ordered desc so the first row is the highest.
     const { data: existing } = await this.supabase.service
@@ -1419,7 +1499,9 @@ export class ProgrammeService {
     eventId: string,
     blockId: string,
     dto: UpdateBlockLabelDto,
+    userId: string,
   ): Promise<{ block: ProgrammeBlock }> {
+    await this.assertWriter(eventId, userId);
     // Label is required; color is optional — only patch what was sent.
     const patch: Record<string, unknown> = { label: dto.label };
     if (dto.colorHex !== undefined) patch['color_hex'] = dto.colorHex;
@@ -1468,7 +1550,9 @@ export class ProgrammeService {
   async deleteBlock(
     eventId: string,
     blockId: string,
+    userId: string,
   ): Promise<{ deletedId: string; unscheduledMatchIds: string[] }> {
+    await this.assertWriter(eventId, userId);
     // 1. Load the block (event-scoped guard rejects cross-event ids).
     const { data: blockRow, error: blockErr } = await this.supabase.service
       .from('event_programme_blocks')

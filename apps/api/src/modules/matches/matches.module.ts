@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { OrganizationsModule } from '../organizations/organizations.module';
 import { WorkersModule } from '../../workers/workers.module';
 import { StaffModule } from '../staff/staff.module';
 import { PhasesModule } from '../phases/phases.module';
@@ -17,7 +18,14 @@ import { ScoringService } from './scoring.service';
   // private provider here, so PoolStandingsModule can inject it without
   // importing MatchesModule (which would close a cycle through PhasesModule).
   // FrozenResultsModule is the same move for the same reason — see its header.
-  imports: [WorkersModule, StaffModule, PhasesModule, RulesetResolverModule, FrozenResultsModule],
+  imports: [
+    WorkersModule,
+    StaffModule,
+    PhasesModule,
+    RulesetResolverModule,
+    FrozenResultsModule,
+    OrganizationsModule,
+  ],
   controllers: [MatchesController],
   providers: [
     MatchesService,

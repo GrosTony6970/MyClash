@@ -1,12 +1,24 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { SupabaseService } from '../supabase/supabase.service';
+// Value import, not `import type` — `import type` erases the DI metadata and
+// the dependency arrives undefined at runtime.
+import { OrganizationsService } from '../organizations/organizations.service';
+import { assertCanManageEvent, assertCanManageLice } from '../../common/auth/event-authz';
 import type { CreateLiceDto, UpdateLiceDto } from './dto/lices.dto';
 
 type Row = Record<string, unknown>;
 
 @Injectable()
 export class LicesService {
-  constructor(private readonly supabase: SupabaseService) {}
+  constructor(
+    private readonly supabase: SupabaseService,
+    private readonly orgs: OrganizationsService,
+  ) {}
+
+  /** Shape `event-authz` needs; `list` stays public and never calls this. */
+  private get authz() {
+    return { supabase: this.supabase, orgs: this.orgs };
+  }
 
   async list(eventId: string) {
     // Project the joined venue (id + name) and area so the schedule grid,
@@ -22,7 +34,8 @@ export class LicesService {
     return data ?? [];
   }
 
-  async create(eventId: string, dto: CreateLiceDto) {
+  async create(eventId: string, dto: CreateLiceDto, userId: string) {
+    await assertCanManageEvent(this.authz, eventId, userId);
     if (dto.venueId) {
       await this.assertVenueBelongsToEventsOrg(dto.venueId, eventId);
     }
@@ -47,7 +60,8 @@ export class LicesService {
     return data;
   }
 
-  async update(liceId: string, dto: UpdateLiceDto) {
+  async update(liceId: string, dto: UpdateLiceDto, userId: string) {
+    await assertCanManageLice(this.authz, liceId, userId);
     const updates: Row = {};
     if (dto.name !== undefined) updates['name'] = dto.name.trim();
     if (dto.locationLabel !== undefined) updates['location_label'] = dto.locationLabel;
@@ -113,7 +127,11 @@ export class LicesService {
     if (effectiveVenueId === null) updates['area_id'] = null;
   }
 
-  async delete(liceId: string) {
+  async delete(liceId: string, userId: string) {
+    // Destructive beyond this row: `matches.lice_id` is ON DELETE SET NULL, so
+    // dropping a piste silently unschedules every match on it. It had no
+    // caller check of any kind.
+    await assertCanManageLice(this.authz, liceId, userId);
     const { error } = await this.supabase.service.from('lices').delete().eq('id', liceId);
 
     if (error) throw new BadRequestException(error.message);

@@ -29,6 +29,11 @@ import { MatchAuditService } from './match-audit.service';
 import { MatchCompletionService } from '../phases/match-completion.service';
 import { MatchForfeitsService } from './match-forfeits.service';
 import { MatchesService } from './matches.service';
+import { SupabaseService } from '../supabase/supabase.service';
+// Value import, not `import type` — `import type` erases the DI metadata.
+import { OrganizationsService } from '../organizations/organizations.service';
+import { assertCanManagePool } from '../../common/auth/event-authz';
+import { resolveRequestUserId } from '../../common/auth/request-user';
 import {
   AdjustClockDto,
   CreateExchangeDto,
@@ -36,6 +41,7 @@ import {
   CreateMatchDto,
   EditExchangeDto,
   ResetMatchDto,
+  ScheduleMatchDto,
   UpdateMatchDto,
   UpdateMatchStatusDto,
   VoidExchangeDto,
@@ -72,6 +78,8 @@ export class MatchesController {
     private readonly matchAudit: MatchAuditService,
     // Value import, not `import type` — see di-wiring.regression.test.ts.
     private readonly matchCompletion: MatchCompletionService,
+    private readonly supabase: SupabaseService,
+    private readonly orgs: OrganizationsService,
   ) {}
 
   // ── Matches ──────────────────────────────────────────────────────────────────
@@ -130,8 +138,13 @@ export class MatchesController {
   @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
   async scheduleMatch(
     @Param('id', ParseUUIDPipe) id: string,
-    @Body() dto: { liceId?: string | null; scheduledAt?: string | null },
+    @Body() dto: ScheduleMatchDto,
+    @Req() req: FastifyRequest,
   ) {
+    // The summary claimed "(organizer+)" and nothing enforced it. This is the
+    // helper the other 14 writes on this controller already use; it resolves
+    // the org from the MATCH, so a caller cannot name someone else's event.
+    await this.staff.authorizeMatchOrganizer(req, id);
     return this.matches.scheduleMatch(id, dto.liceId ?? null, dto.scheduledAt ?? null);
   }
 
@@ -145,10 +158,17 @@ export class MatchesController {
   async clearPoolScheduleForDay(
     @Param('poolId', ParseUUIDPipe) poolId: string,
     @Query('day') day: string,
+    @Req() req: FastifyRequest,
   ) {
     if (!day || !/^\d{4}-\d{2}-\d{2}$/.test(day)) {
       throw new BadRequestException('day query parameter required (YYYY-MM-DD)');
     }
+    // Pools carry no event id — the chain is pool → phase → tournament → event.
+    await assertCanManagePool(
+      { supabase: this.supabase, orgs: this.orgs },
+      poolId,
+      await resolveRequestUserId(req, this.supabase),
+    );
     await this.matches.clearPoolScheduleForDay(poolId, day);
   }
 
@@ -156,7 +176,12 @@ export class MatchesController {
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Update lice and/or referee assignment for a match' })
   @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
-  async update(@Param('id', ParseUUIDPipe) id: string, @Body() dto: UpdateMatchDto) {
+  async update(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: UpdateMatchDto,
+    @Req() req: FastifyRequest,
+  ) {
+    await this.staff.authorizeMatchOrganizer(req, id);
     return this.matches.update(id, dto);
   }
 

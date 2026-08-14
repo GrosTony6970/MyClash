@@ -185,3 +185,21 @@ const updateMatchSchema = z
   })
   .strict();
 export class UpdateMatchDto extends createZodDto(updateMatchSchema) {}
+
+/**
+ * `PATCH /matches/:id/schedule` took a bare inline TS type before, which
+ * `nestjs-zod` cannot validate: the metatype is plain `Object`, and
+ * `ZodOrClassValidationPipe` delegates that to ValidationPipe, which skips it.
+ * The body was therefore entirely unchecked — `scheduledAt` could be any
+ * string at all, and Postgres decided what it meant.
+ *
+ * Both fields are nullish because clearing a placement is a real operation:
+ * `null` unschedules the match.
+ */
+const scheduleMatchSchema = z
+  .object({
+    liceId: z.uuid().nullish(),
+    scheduledAt: z.iso.datetime({ offset: true }).nullish(),
+  })
+  .strict();
+export class ScheduleMatchDto extends createZodDto(scheduleMatchSchema) {}

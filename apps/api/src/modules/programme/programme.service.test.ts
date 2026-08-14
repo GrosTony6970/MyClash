@@ -1,5 +1,9 @@
 import { BadRequestException } from '@nestjs/common';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+/** Org-role check stands in for OrganizationsService; see the authz suite. */
+const mockOrgs = { assertOrgRole: vi.fn() };
+const CALLER = 'user-1';
 import { ProgrammeService, decidePoolAffinity } from './programme.service';
 import type { SaveProgrammeDto, SuggestProgrammeDto } from './dto/programme.dto';
 
@@ -159,7 +163,15 @@ describe('ProgrammeService', () => {
     // before consuming all its mocks would otherwise leak fixtures
     // into the next test in file order.
     fromMock.mockReset();
-    service = new ProgrammeService(mockSupabase as never);
+    service = new ProgrammeService(mockSupabase as never, mockOrgs as never);
+    // The org-role assertion reads `events` before every write. These suites
+    // drive their mocks as ORDERED queues, so letting that read through would
+    // desync every one of them. Authorization has its own tests below, which
+    // do NOT stub it.
+    vi.spyOn(
+      service as never as { assertWriter: () => Promise<void> },
+      'assertWriter',
+    ).mockResolvedValue(undefined);
   });
 
   it('strips seconds from start_time / end_time when listing saved blocks', async () => {
@@ -221,7 +233,7 @@ describe('ProgrammeService', () => {
     // programme intact when the write is refused.
     fromMock.mockReturnValueOnce(upsertChain).mockReturnValueOnce(deleteChain);
 
-    const saved = await service.saveBlocks('event-1', programmeDto());
+    const saved = await service.saveBlocks('event-1', programmeDto(), CALLER);
 
     expect(saved).toHaveLength(1);
     expect(upsertChain.upsert).toHaveBeenCalledWith(
@@ -255,7 +267,7 @@ describe('ProgrammeService', () => {
       const deleteChain = makeChain({ data: null, error: null });
       fromMock.mockReturnValueOnce(upsertChain).mockReturnValueOnce(deleteChain);
 
-      await expect(service.saveBlocks('event-1', programmeDto())).rejects.toThrow(
+      await expect(service.saveBlocks('event-1', programmeDto(), CALLER)).rejects.toThrow(
         /deadlock detected/,
       );
 
@@ -279,6 +291,7 @@ describe('ProgrammeService', () => {
         programmeDto({
           blocks: [{ ...programmeDto().blocks[0]!, id: `tmp-${Date.now()}-abc` }],
         }),
+        CALLER,
       );
 
       const rows = upsertChain.upsert.mock.calls[0]?.[0] as Array<{ id: string }>;
@@ -295,6 +308,7 @@ describe('ProgrammeService', () => {
       await service.saveBlocks(
         'event-1',
         programmeDto({ blocks: [{ ...programmeDto().blocks[0]!, id: existingId }] }),
+        CALLER,
       );
 
       const rows = upsertChain.upsert.mock.calls[0]?.[0] as Array<{ id: string }>;
@@ -310,6 +324,7 @@ describe('ProgrammeService', () => {
       await service.saveBlocks(
         'event-1',
         programmeDto({ blocks: [{ ...programmeDto().blocks[0]!, id: existingId }] }),
+        CALLER,
       );
 
       expect(deleteChain.delete).toHaveBeenCalled();
@@ -320,7 +335,7 @@ describe('ProgrammeService', () => {
       const deleteChain = makeChain({ data: null, error: null });
       fromMock.mockReturnValueOnce(deleteChain);
 
-      await expect(service.saveBlocks('event-1', { blocks: [] })).resolves.toEqual([]);
+      await expect(service.saveBlocks('event-1', { blocks: [] }, CALLER)).resolves.toEqual([]);
       expect(deleteChain.delete).toHaveBeenCalled();
     });
   });
@@ -353,13 +368,17 @@ describe('ProgrammeService', () => {
         }),
       );
 
-    const { block } = await service.createBlock('e1', {
-      dayIndex: 0,
-      blockType: 'break',
-      label: 'Lunch',
-      startTime: '12:00',
-      endTime: '12:30',
-    } as never);
+    const { block } = await service.createBlock(
+      'e1',
+      {
+        dayIndex: 0,
+        blockType: 'break',
+        label: 'Lunch',
+        startTime: '12:00',
+        endTime: '12:30',
+      } as never,
+      CALLER,
+    );
 
     expect(block).toMatchObject({
       id: 'blk-new',
@@ -398,14 +417,18 @@ describe('ProgrammeService', () => {
         }),
       );
 
-    const { block } = await service.createBlock('e1', {
-      dayIndex: 0,
-      blockType: 'break',
-      label: 'Coffee',
-      startTime: '10:00',
-      endTime: '10:15',
-      colorHex: '#0ea5e9',
-    } as never);
+    const { block } = await service.createBlock(
+      'e1',
+      {
+        dayIndex: 0,
+        blockType: 'break',
+        label: 'Coffee',
+        startTime: '10:00',
+        endTime: '10:15',
+        colorHex: '#0ea5e9',
+      } as never,
+      CALLER,
+    );
 
     expect(block.colorHex).toBe('#0ea5e9');
   });
@@ -459,7 +482,7 @@ describe('ProgrammeService', () => {
         }),
       );
 
-    const { block } = await service.resizeBlock('e1', 'b1', { newStartTime: '12:15' });
+    const { block } = await service.resizeBlock('e1', 'b1', { newStartTime: '12:15' }, CALLER);
     expect(block).toMatchObject({ startTime: '12:15', endTime: '13:00' });
   });
 
@@ -487,9 +510,9 @@ describe('ProgrammeService', () => {
       }),
     );
 
-    await expect(service.resizeBlock('e1', 'b1', { newStartTime: '13:00' })).rejects.toThrow(
-      BadRequestException,
-    );
+    await expect(
+      service.resizeBlock('e1', 'b1', { newStartTime: '13:00' }, CALLER),
+    ).rejects.toThrow(BadRequestException);
   });
 
   it('does not suggest workshop blocks (workshops live on their own board)', async () => {
@@ -499,22 +522,26 @@ describe('ProgrammeService', () => {
       .mockReturnValueOnce(makeChain({ data: [{ id: 'l1' }], error: null })) // lices
       .mockReturnValueOnce(makeChain({ data: [], error: null })); // tournaments
 
-    const suggestion = await service.suggest('event-1', {
-      dayStartTime: '08:00',
-      dayEndTime: '18:00',
-      parallelLiceCount: 1,
-      poolMatchDurationMinutes: 5,
-      eliminationMatchDurationMinutes: 8,
-      finalsMatchDurationMinutes: 10,
-      matchGapSeconds: 15,
-      minRestMinutes: 10,
-      breakBetweenSessionsMinutes: 10,
-      middayBreakStart: '12:00',
-      middayBreakEnd: '13:00',
-      registrationDurationMinutes: 30,
-      gearCheckDurationMinutes: 15,
-      refereeMeetingDurationMinutes: 15,
-    } as never);
+    const suggestion = await service.suggest(
+      'event-1',
+      {
+        dayStartTime: '08:00',
+        dayEndTime: '18:00',
+        parallelLiceCount: 1,
+        poolMatchDurationMinutes: 5,
+        eliminationMatchDurationMinutes: 8,
+        finalsMatchDurationMinutes: 10,
+        matchGapSeconds: 15,
+        minRestMinutes: 10,
+        breakBetweenSessionsMinutes: 10,
+        middayBreakStart: '12:00',
+        middayBreakEnd: '13:00',
+        registrationDurationMinutes: 30,
+        gearCheckDurationMinutes: 15,
+        refereeMeetingDurationMinutes: 15,
+      } as never,
+      CALLER,
+    );
 
     expect(suggestion.blocks.length).toBeGreaterThan(0);
     expect(suggestion.blocks.some((b) => b.blockType === 'workshop')).toBe(false);
@@ -552,7 +579,7 @@ describe('ProgrammeService', () => {
         }),
       ); // bracket_slots coords
 
-    const suggestion = await service.suggest('event-1', suggestCfg());
+    const suggestion = await service.suggest('event-1', suggestCfg(), CALLER);
 
     const bracket = suggestion.blocks.find((b) => b.competitionPhase === 'bracket');
     const finals = suggestion.blocks.find((b) => b.competitionPhase === 'finals');
@@ -571,7 +598,7 @@ describe('ProgrammeService', () => {
       .mockReturnValueOnce(makeChain({ data: [mkBracketMatch('m1', 'F', 's1')], error: null })) // bracket matches
       .mockReturnValueOnce(makeChain({ data: [{ id: 's1', round: 1, position: 1 }], error: null })); // coords
 
-    const suggestion = await service.suggest('event-1', suggestCfg());
+    const suggestion = await service.suggest('event-1', suggestCfg(), CALLER);
 
     expect(suggestion.blocks.some((b) => b.competitionPhase === 'bracket')).toBe(false);
     expect(
@@ -589,7 +616,7 @@ describe('ProgrammeService', () => {
       ],
     });
 
-    await expect(service.saveBlocks('event-1', dto)).rejects.toThrow(BadRequestException);
+    await expect(service.saveBlocks('event-1', dto, CALLER)).rejects.toThrow(BadRequestException);
     expect(fromMock).not.toHaveBeenCalled();
   });
 
@@ -642,7 +669,7 @@ describe('ProgrammeService', () => {
       .mockReturnValueOnce(makeChain({ data: null, error: null }))
       .mockReturnValueOnce(makeChain({ data: null, error: null }));
 
-    const result = await service.generate('event-1');
+    const result = await service.generate('event-1', {}, CALLER);
 
     expect(result.matchesScheduled).toBe(1);
     expect(fromMock).toHaveBeenCalledWith('matches');
@@ -716,7 +743,7 @@ describe('ProgrammeService', () => {
       .mockReturnValueOnce(makeChain({ data: null, error: null })) // realized-window sync
       .mockReturnValueOnce(makeChain({ data: null, error: null }));
 
-    await service.generate('event-1');
+    await service.generate('event-1', {}, CALLER);
 
     const upsertArg = upsertChain.upsert.mock.calls[0]?.[0] as Array<{ id: string }>;
     const scheduledIds = upsertArg.map((r) => r.id);
@@ -777,7 +804,9 @@ describe('ProgrammeService', () => {
         makeChain({ data: null, error: { message: 'mock FK violation on lice_id' } }),
       );
 
-    await expect(service.generate('event-1')).rejects.toThrow(/mock FK violation on lice_id/);
+    await expect(service.generate('event-1', {}, CALLER)).rejects.toThrow(
+      /mock FK violation on lice_id/,
+    );
   });
 
   // ── Bug-fix coverage: missing-matches diagnostics ───────────────────────────
@@ -813,7 +842,7 @@ describe('ProgrammeService', () => {
       .mockReturnValueOnce(makeChain({ data: { start_date: '2026-05-21' }, error: null }))
       .mockReturnValueOnce(makeChain({ data: [], error: null })); // ← no lices
 
-    await expect(service.generate('event-1')).rejects.toThrow(/lice/i);
+    await expect(service.generate('event-1', {}, CALLER)).rejects.toThrow(/lice/i);
   });
 
   it('returns per-block diagnostics so the operator can see what each block produced', async () => {
@@ -866,7 +895,7 @@ describe('ProgrammeService', () => {
       .mockReturnValueOnce(makeChain({ data: null, error: null }))
       .mockReturnValueOnce(makeChain({ data: null, error: null }));
 
-    const result = await service.generate('event-1');
+    const result = await service.generate('event-1', {}, CALLER);
 
     expect(result.blockDiagnostics).toHaveLength(1);
     expect(result.blockDiagnostics![0]).toMatchObject({
@@ -946,7 +975,7 @@ describe('ProgrammeService', () => {
       .mockReturnValueOnce(syncChain) // realized-window sync update
       .mockReturnValueOnce(makeChain({ data: null, error: null })); // generated_at stamp
 
-    await service.generate('event-1');
+    await service.generate('event-1', {}, CALLER);
 
     // The block is first on its day, so its start stays 10:00; end + lice_count
     // sync to the realized run. (start_time is now always written by the pack.)
@@ -1032,7 +1061,7 @@ describe('ProgrammeService', () => {
       .mockReturnValueOnce(syncChain) // competition block sync update
       .mockReturnValueOnce(makeChain({ data: null, error: null })); // generated_at stamp
 
-    await service.generate('event-1');
+    await service.generate('event-1', {}, CALLER);
 
     // Block start clamped to 10:00 (after admin), not its stale 09:00.
     expect(syncPayload).toMatchObject({ start_time: '10:00' });
@@ -1111,7 +1140,7 @@ describe('ProgrammeService', () => {
       .mockReturnValueOnce(breakChain) // break shift update
       .mockReturnValueOnce(makeChain({ data: null, error: null })); // generated_at stamp
 
-    await service.generate('event-1');
+    await service.generate('event-1', {}, CALLER);
 
     expect(breakPayload).toEqual({ start_time: '12:30', end_time: '13:30' });
   });
@@ -1163,7 +1192,7 @@ describe('ProgrammeService', () => {
       .mockReturnValueOnce(makeChain({ data: [{ id: 'lice-1', name: 'Lice 1' }], error: null })) // lices
       .mockReturnValueOnce(makeChain({ data: null, error: null })); // generated_at stamp
 
-    const result = await service.generate('event-1');
+    const result = await service.generate('event-1', {}, CALLER);
 
     expect(result.matchesScheduled).toBe(0);
     // blocks + event + lices + stamp = 4; no per-block shift writes.
@@ -1292,7 +1321,12 @@ describe('ProgrammeService', () => {
         ],
       });
 
-      const result = await service.moveBlock('event-1', 'block-1', { newStartTime: '10:00' });
+      const result = await service.moveBlock(
+        'event-1',
+        'block-1',
+        { newStartTime: '10:00' },
+        CALLER,
+      );
 
       // Only the at-or-after match on the same day should be shifted.
       expect(updates).toEqual([{ id: 'match-after', scheduled_at: at(2026, 6, 2, 10, 15) }]);
@@ -1331,7 +1365,7 @@ describe('ProgrammeService', () => {
       });
 
       await expect(
-        service.moveBlock('event-1', 'block-1', { newStartTime: '10:00' }),
+        service.moveBlock('event-1', 'block-1', { newStartTime: '10:00' }, CALLER),
       ).rejects.toThrow(/Failed to shift match match-after: deadlock detected/);
     });
 
@@ -1363,7 +1397,12 @@ describe('ProgrammeService', () => {
         ],
       });
 
-      const result = await service.moveBlock('event-1', 'block-2', { newStartTime: '13:00' });
+      const result = await service.moveBlock(
+        'event-1',
+        'block-2',
+        { newStartTime: '13:00' },
+        CALLER,
+      );
 
       expect(updates).toEqual([{ id: 'match-after', scheduled_at: at(2026, 6, 2, 13, 45) }]);
       expect(result.deltaMinutes).toBe(-60);
@@ -1412,7 +1451,12 @@ describe('ProgrammeService', () => {
         ],
       });
 
-      const result = await service.moveBlock('event-1', 'block-tz', { newStartTime: '10:00' });
+      const result = await service.moveBlock(
+        'event-1',
+        'block-tz',
+        { newStartTime: '10:00' },
+        CALLER,
+      );
 
       expect(updates).toEqual([{ id: 'match-at-start', scheduled_at: at(2099, 3, 1, 10, 0) }]);
       expect(result.shiftedMatches).toBe(1);
@@ -1486,7 +1530,7 @@ describe('ProgrammeService', () => {
         .mockReturnValueOnce(recChain()) // update moved
         .mockReturnValueOnce(recChain()); // update pool
 
-      const result = await service.moveBlock('event-1', 'moved', { newStartTime: '10:00' });
+      const result = await service.moveBlock('event-1', 'moved', { newStartTime: '10:00' }, CALLER);
 
       expect(result.deltaMinutes).toBe(60);
       // moved (09:00→10:00) and pool (09:30→10:30) shift +60; reg (08:00) stays.
@@ -1562,7 +1606,7 @@ describe('ProgrammeService', () => {
         .mockReturnValueOnce(matchesChain) // matches update.in.gte.lt.select
         .mockReturnValueOnce(makeChain({ data: null, error: null })); // event_programme_blocks delete
 
-      const result = await service.deleteBlock('event-1', 'block-1');
+      const result = await service.deleteBlock('event-1', 'block-1', CALLER);
 
       expect(captured.payload).toEqual({ scheduled_at: null, lice_id: null });
       expect(captured.phaseIds).toEqual(['phase-1']);
@@ -1616,7 +1660,7 @@ describe('ProgrammeService', () => {
         .mockReturnValueOnce(matchesChain)
         .mockReturnValueOnce(makeChain({ data: null, error: null }));
 
-      await service.deleteBlock('event-tz', 'block-tz');
+      await service.deleteBlock('event-tz', 'block-tz', CALLER);
 
       // A match scheduled by the scheduler at "10:00 local" (via
       // setHours, matching grid.tsx slotToTime) — the BE delete must
@@ -1653,7 +1697,7 @@ describe('ProgrammeService', () => {
         .mockReturnValueOnce(makeChain({ data: [], error: null })) // tournaments select — empty
         .mockReturnValueOnce(makeChain({ data: null, error: null })); // block delete
 
-      const result = await service.deleteBlock('event-2', 'block-2');
+      const result = await service.deleteBlock('event-2', 'block-2', CALLER);
 
       expect(result).toEqual({ deletedId: 'block-2', unscheduledMatchIds: [] });
     });
@@ -1661,7 +1705,7 @@ describe('ProgrammeService', () => {
     it('throws NotFoundException when the block id does not belong to the event', async () => {
       fromMock.mockReturnValueOnce(makeChain({ data: null, error: null })); // block select returns null
 
-      await expect(service.deleteBlock('event-1', 'missing-block')).rejects.toThrow(
+      await expect(service.deleteBlock('event-1', 'missing-block', CALLER)).rejects.toThrow(
         /not found for event/i,
       );
     });
@@ -1688,7 +1732,7 @@ describe('ProgrammeService', () => {
         .mockReturnValueOnce(failingMatchesChain)
         .mockReturnValueOnce(blockDeleteChain); // would fire if not aborted
 
-      await expect(service.deleteBlock('event-3', 'block-3')).rejects.toThrow(
+      await expect(service.deleteBlock('event-3', 'block-3', CALLER)).rejects.toThrow(
         /Failed to unschedule matches/i,
       );
       // The block delete chain was never consumed — fromMock should have
@@ -1732,7 +1776,7 @@ describe('ProgrammeService', () => {
       .mockReturnValueOnce(makeChain({ data: [], error: null })) // ← zero matches
       .mockReturnValueOnce(makeChain({ data: null, error: null })); // event_programme_blocks update
 
-    const result = await service.generate('event-1');
+    const result = await service.generate('event-1', {}, CALLER);
 
     expect(result.matchesScheduled).toBe(0);
     expect(result.warnings.some((w) => /no matches/i.test(w.message))).toBe(true);
@@ -1747,7 +1791,11 @@ describe('scheduleGroup', () => {
   let svc: ProgrammeService;
   beforeEach(() => {
     fromMock.mockReset();
-    svc = new ProgrammeService(mockSupabase as never);
+    svc = new ProgrammeService(mockSupabase as never, mockOrgs as never);
+    vi.spyOn(
+      svc as never as { assertWriter: () => Promise<void> },
+      'assertWriter',
+    ).mockResolvedValue(undefined);
   });
 
   const START = '2026-05-21T09:00:00.000Z';
@@ -1763,12 +1811,16 @@ describe('scheduleGroup', () => {
   });
 
   it('returns empty without querying for an empty group', async () => {
-    const res = await svc.scheduleGroup('event-1', {
-      matchIds: [],
-      liceIds: ['l1'],
-      startTime: START,
-      mode: 'pool',
-    });
+    const res = await svc.scheduleGroup(
+      'event-1',
+      {
+        matchIds: [],
+        liceIds: ['l1'],
+        startTime: START,
+        mode: 'pool',
+      },
+      CALLER,
+    );
     expect(res.scheduled).toEqual([]);
     expect(fromMock).not.toHaveBeenCalled();
   });
@@ -1779,12 +1831,16 @@ describe('scheduleGroup', () => {
       .mockReturnValueOnce(makeChain({ data: [{ id: 'phase-1' }], error: null })) // phases
       .mockReturnValueOnce(makeChain({ data: [gm('m1', { phase_id: 'OTHER' })], error: null })); // matches
     await expect(
-      svc.scheduleGroup('event-1', {
-        matchIds: ['m1'],
-        liceIds: ['l1'],
-        startTime: START,
-        mode: 'pool',
-      }),
+      svc.scheduleGroup(
+        'event-1',
+        {
+          matchIds: ['m1'],
+          liceIds: ['l1'],
+          startTime: START,
+          mode: 'pool',
+        },
+        CALLER,
+      ),
     ).rejects.toBeInstanceOf(BadRequestException);
   });
 
@@ -1799,12 +1855,16 @@ describe('scheduleGroup', () => {
       .mockReturnValueOnce(makeChain({ data: [], error: null })) // occupants
       .mockReturnValueOnce(makeChain({ data: null, error: null })) // update m1
       .mockReturnValueOnce(makeChain({ data: null, error: null })); // update m2
-    const res = await svc.scheduleGroup('event-1', {
-      matchIds: ['m1', 'm2'],
-      liceIds: ['l1'],
-      startTime: START,
-      mode: 'pool',
-    });
+    const res = await svc.scheduleGroup(
+      'event-1',
+      {
+        matchIds: ['m1', 'm2'],
+        liceIds: ['l1'],
+        startTime: START,
+        mode: 'pool',
+      },
+      CALLER,
+    );
     expect(res.scheduled).toHaveLength(2);
     expect(new Set(res.scheduled.map((s) => s.liceId))).toEqual(new Set(['l1']));
   });
@@ -1824,12 +1884,16 @@ describe('scheduleGroup', () => {
         }),
       ) // occupants
       .mockReturnValueOnce(makeChain({ data: null, error: null })); // update m1
-    const res = await svc.scheduleGroup('event-1', {
-      matchIds: ['m1'],
-      liceIds: ['l1'],
-      startTime: START,
-      mode: 'pool',
-    });
+    const res = await svc.scheduleGroup(
+      'event-1',
+      {
+        matchIds: ['m1'],
+        liceIds: ['l1'],
+        startTime: START,
+        mode: 'pool',
+      },
+      CALLER,
+    );
     expect(new Date(res.scheduled[0]!.scheduledAt).getTime()).toBeGreaterThanOrEqual(
       new Date('2026-05-21T10:05:00.000Z').getTime(),
     );

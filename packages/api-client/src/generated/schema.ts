@@ -6701,7 +6701,7 @@ export interface paths {
     /** List lices for an event (public) */
     get: operations['LicesController_list'];
     put?: never;
-    /** Create a lice (org admin+) */
+    /** Create a lice (org editor+) */
     post: operations['LicesController_create'];
     delete?: never;
     options?: never;
@@ -6719,11 +6719,11 @@ export interface paths {
     get?: never;
     put?: never;
     post?: never;
-    /** Delete a lice (org admin+) */
+    /** Delete a lice (org editor+) */
     delete: operations['LicesController_delete'];
     options?: never;
     head?: never;
-    /** Update a lice (org admin+) */
+    /** Update a lice (org editor+) */
     patch: operations['LicesController_update'];
     trace?: never;
   };
@@ -10052,6 +10052,12 @@ export interface components {
       /** Format: uuid */
       winnerRegistrationId?: string;
       discardDependentResults?: boolean;
+    };
+    ScheduleMatchDto: {
+      /** Format: uuid */
+      liceId?: string | null;
+      /** Format: date-time */
+      scheduledAt?: string | null;
     };
     UpdateMatchDto: {
       /** Format: uuid */
@@ -15057,7 +15063,11 @@ export interface operations {
       };
       cookie?: never;
     };
-    requestBody?: never;
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['ScheduleMatchDto'];
+      };
+    };
     responses: {
       200: {
         headers: {

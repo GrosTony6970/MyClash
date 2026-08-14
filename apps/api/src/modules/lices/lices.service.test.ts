@@ -38,8 +38,12 @@ const VENUE_A = '33333333-3333-4333-8333-333333333333';
 const VENUE_B = '44444444-4444-4444-8444-444444444444';
 const AREA_IN_A = '55555555-5555-4555-8555-555555555555';
 
+/** The org-role check has its own suite in common/auth/event-authz.test.ts. */
+const mockOrgs = { assertOrgRole: vi.fn() };
+const CALLER = 'user-1';
+
 function service() {
-  return new LicesService(supabase as never);
+  return new LicesService(supabase as never, mockOrgs as never);
 }
 
 beforeEach(() => {
@@ -54,7 +58,7 @@ beforeEach(() => {
 
 describe('LicesService placement guards', () => {
   it('accepts an area that sits inside the venue the lice already has', async () => {
-    await service().update(LICE, { areaId: AREA_IN_A });
+    await service().update(LICE, { areaId: AREA_IN_A }, CALLER);
 
     expect(updatePayload).toMatchObject({ area_id: AREA_IN_A });
   });
@@ -64,7 +68,9 @@ describe('LicesService placement guards', () => {
     // because an area-only payload names no venue at all.
     reads['venue_areas'] = { data: { venue_id: VENUE_B }, error: null };
 
-    await expect(service().update(LICE, { areaId: AREA_IN_A })).rejects.toThrow(/different venue/i);
+    await expect(service().update(LICE, { areaId: AREA_IN_A }, CALLER)).rejects.toThrow(
+      /different venue/i,
+    );
   });
 
   it('checks an incoming area against the venue in the SAME payload, not the stored one', async () => {
@@ -72,37 +78,39 @@ describe('LicesService placement guards', () => {
     // must fail even though A is the lice's current venue.
     reads['venue_areas'] = { data: { venue_id: VENUE_A }, error: null };
 
-    await expect(service().update(LICE, { venueId: VENUE_B, areaId: AREA_IN_A })).rejects.toThrow(
-      /different venue/i,
-    );
+    await expect(
+      service().update(LICE, { venueId: VENUE_B, areaId: AREA_IN_A }, CALLER),
+    ).rejects.toThrow(/different venue/i);
   });
 
   it('refuses an area on a lice that has no venue', async () => {
     reads['lices'] = { data: { event_id: EVENT, venue_id: null }, error: null };
 
-    await expect(service().update(LICE, { areaId: AREA_IN_A })).rejects.toThrow(/has a venue/i);
+    await expect(service().update(LICE, { areaId: AREA_IN_A }, CALLER)).rejects.toThrow(
+      /has a venue/i,
+    );
   });
 
   it('clears the area when the venue is detached, even unasked', async () => {
-    await service().update(LICE, { venueId: null });
+    await service().update(LICE, { venueId: null }, CALLER);
 
     expect(updatePayload).toMatchObject({ venue_id: null, area_id: null });
   });
 
   it('lets the caller clear the area on its own', async () => {
-    await service().update(LICE, { areaId: null });
+    await service().update(LICE, { areaId: null }, CALLER);
 
     expect(updatePayload).toMatchObject({ area_id: null });
   });
 
   it('leaves placement untouched when the payload names neither field', async () => {
-    await service().update(LICE, { name: 'Piste 2' });
+    await service().update(LICE, { name: 'Piste 2' }, CALLER);
 
     expect(updatePayload).toEqual({ name: 'Piste 2' });
   });
 
   it('persists the area on create', async () => {
-    await service().create(EVENT, { name: 'Piste 1', venueId: VENUE_A, areaId: AREA_IN_A });
+    await service().create(EVENT, { name: 'Piste 1', venueId: VENUE_A, areaId: AREA_IN_A }, CALLER);
 
     expect(insertPayload).toMatchObject({ venue_id: VENUE_A, area_id: AREA_IN_A });
   });
@@ -111,7 +119,7 @@ describe('LicesService placement guards', () => {
     reads['venue_areas'] = { data: { venue_id: VENUE_B }, error: null };
 
     await expect(
-      service().create(EVENT, { name: 'Piste 1', venueId: VENUE_A, areaId: AREA_IN_A }),
+      service().create(EVENT, { name: 'Piste 1', venueId: VENUE_A, areaId: AREA_IN_A }, CALLER),
     ).rejects.toThrow(/different venue/i);
   });
 });

@@ -241,7 +241,9 @@ export class SwissPairingService {
     try {
       const context = await this.eventAndLices(phaseId);
       if (!context || context.liceIds.length === 0) return;
-      await this.programme.scheduleGroup(context.eventId, {
+      // Unchecked by design: no HTTP caller to attribute, and the round
+      // advance this belongs to is authorized upstream.
+      await this.programme.scheduleGroupUnchecked(context.eventId, {
         matchIds,
         liceIds: context.liceIds,
         startTime: new Date().toISOString(),

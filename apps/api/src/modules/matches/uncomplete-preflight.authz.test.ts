@@ -76,6 +76,8 @@ const controllerFor = (organizerAllowed: boolean) => {
     staff as never,
     {} as never,
     { previewUncompletion } as never,
+    {} as never,
+    {} as never,
   );
   return { controller, staff, previewUncompletion };
 };
