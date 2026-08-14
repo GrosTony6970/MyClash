@@ -12,13 +12,11 @@ export interface PersonPrivacy {
   personId: string;
   hideWorkshopsPublicly: boolean;
   allowBeingFollowed: boolean;
-  showRealEmailToFollowers: boolean;
 }
 
 const DEFAULTS: Omit<PersonPrivacy, 'personId'> = {
   hideWorkshopsPublicly: false,
   allowBeingFollowed: true,
-  showRealEmailToFollowers: false,
 };
 
 /**
@@ -34,7 +32,6 @@ function mostRestrictive(a: PersonPrivacy, b: PersonPrivacy): PersonPrivacy {
     personId: a.personId,
     hideWorkshopsPublicly: a.hideWorkshopsPublicly || b.hideWorkshopsPublicly,
     allowBeingFollowed: a.allowBeingFollowed && b.allowBeingFollowed,
-    showRealEmailToFollowers: a.showRealEmailToFollowers && b.showRealEmailToFollowers,
   };
 }
 
@@ -60,7 +57,6 @@ export class PrivacyService {
         person_id: personId,
         hide_workshops_publicly: DEFAULTS.hideWorkshopsPublicly,
         allow_being_followed: DEFAULTS.allowBeingFollowed,
-        show_real_email_to_followers: DEFAULTS.showRealEmailToFollowers,
       })
       .select('*')
       .single();
@@ -80,8 +76,6 @@ export class PrivacyService {
       updates['hide_workshops_publicly'] = patch.hideWorkshopsPublicly;
     if (patch.allowBeingFollowed !== undefined)
       updates['allow_being_followed'] = patch.allowBeingFollowed;
-    if (patch.showRealEmailToFollowers !== undefined)
-      updates['show_real_email_to_followers'] = patch.showRealEmailToFollowers;
 
     // Upsert — creates row if missing
     const { data } = await this.supabase.service
@@ -146,8 +140,6 @@ export class PrivacyService {
       updates['hide_workshops_publicly'] = patch.hideWorkshopsPublicly;
     if (patch.allowBeingFollowed !== undefined)
       updates['allow_being_followed'] = patch.allowBeingFollowed;
-    if (patch.showRealEmailToFollowers !== undefined)
-      updates['show_real_email_to_followers'] = patch.showRealEmailToFollowers;
 
     await this.supabase.service
       .from('person_privacy')
@@ -219,7 +211,6 @@ export class PrivacyService {
       personId: row['person_id'] as string,
       hideWorkshopsPublicly: Boolean(row['hide_workshops_publicly']),
       allowBeingFollowed: Boolean(row['allow_being_followed'] ?? true),
-      showRealEmailToFollowers: Boolean(row['show_real_email_to_followers']),
     };
   }
 }

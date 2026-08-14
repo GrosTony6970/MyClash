@@ -10497,7 +10497,6 @@ export interface components {
     UpdatePrivacyDto: {
       hideWorkshopsPublicly?: boolean;
       allowBeingFollowed?: boolean;
-      showRealEmailToFollowers?: boolean;
     };
     RequestPersonEmailChangeDto: {
       /** Format: email */

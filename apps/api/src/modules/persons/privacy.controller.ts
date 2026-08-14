@@ -30,7 +30,6 @@ const updatePrivacySchema = z
   .object({
     hideWorkshopsPublicly: z.boolean().optional(),
     allowBeingFollowed: z.boolean().optional(),
-    showRealEmailToFollowers: z.boolean().optional(),
   })
   .strict();
 class UpdatePrivacyDto extends createZodDto(updatePrivacySchema) {}
@@ -62,7 +61,6 @@ export class PrivacyController {
     return this.privacy.updateForPersons(personIds, {
       hideWorkshopsPublicly: dto.hideWorkshopsPublicly,
       allowBeingFollowed: dto.allowBeingFollowed,
-      showRealEmailToFollowers: dto.showRealEmailToFollowers,
     });
   }
 

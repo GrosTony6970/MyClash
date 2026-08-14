@@ -819,8 +819,6 @@ export const publicApp = {
       allowFollows: 'Autoriser les autres a me suivre',
       allowFollowsDescription:
         "Laissez d'autres personnes suivre votre programme et recevoir vos alertes.",
-      showEmailToFollowers: 'Montrer mon email a mes abonnes',
-      showEmailToFollowersDescription: 'Reveler votre vrai email aux personnes qui vous suivent.',
       signInRequired: 'Connectez-vous pour gérer vos paramètres de confidentialite.',
       loadError: 'Impossible de charger vos paramètres de confidentialite.',
       saveError: "Impossible d'enregistrer ce changement. Veuillez réessayer.",

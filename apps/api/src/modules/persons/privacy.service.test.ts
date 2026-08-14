@@ -22,7 +22,6 @@ function row(overrides: Record<string, unknown> = {}) {
     person_id: 'p-1',
     hide_workshops_publicly: false,
     allow_being_followed: true,
-    show_real_email_to_followers: false,
     ...overrides,
   };
 }

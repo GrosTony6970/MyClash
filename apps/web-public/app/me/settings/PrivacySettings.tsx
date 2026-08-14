@@ -8,7 +8,6 @@ import { SettingRow } from './controls';
 interface Privacy {
   hideWorkshopsPublicly: boolean;
   allowBeingFollowed: boolean;
-  showRealEmailToFollowers: boolean;
 }
 
 type Status = 'loading' | 'ready' | 'signin' | 'error';
@@ -109,17 +108,6 @@ export function PrivacySettings({ apiUrl }: { apiUrl: string }) {
                   checked={privacy.allowBeingFollowed}
                   onChange={(v) => void patch({ allowBeingFollowed: v })}
                   ariaLabel={t('publicApp.meSettings.privacy.allowFollows')}
-                />
-              }
-            />
-            <SettingRow
-              label={t('publicApp.meSettings.privacy.showEmailToFollowers')}
-              description={t('publicApp.meSettings.privacy.showEmailToFollowersDescription')}
-              control={
-                <Switch
-                  checked={privacy.showRealEmailToFollowers}
-                  onChange={(v) => void patch({ showRealEmailToFollowers: v })}
-                  ariaLabel={t('publicApp.meSettings.privacy.showEmailToFollowers')}
                 />
               }
             />
