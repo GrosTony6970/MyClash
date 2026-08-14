@@ -1867,6 +1867,9 @@ export const organizer = {
       conflictSegIsInBoth: 'est à la fois dans',
       conflictSegAnd: 'et',
       conflictSegAt: 'à',
+      barCollisionSingular: '⚠ {count} combat est programmé pendant une pause ou un bloc admin.',
+      barCollisionPlural: '⚠ {count} combats sont programmés pendant une pause ou un bloc admin.',
+      barCollisionLine: '{match} pendant {bar}',
       overlapCountSingular:
         '⚠ {count} chevauchement de blocs sur une lice — ajustez les heures ou les lices.',
       overlapCountPlural:

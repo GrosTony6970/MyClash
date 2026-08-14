@@ -1888,6 +1888,11 @@ export const organizer = {
       conflictSegAt: 'at',
       overlapCountSingular: '⚠ {count} block overlap on a lice — adjust the times or lices.',
       overlapCountPlural: '⚠ {count} block overlaps on a lice — adjust the times or lices.',
+      // A warning, not a block: an organiser running late does sometimes push
+      // a bout through a nominal break to catch up.
+      barCollisionSingular: '⚠ {count} fight is scheduled inside a break or admin block.',
+      barCollisionPlural: '⚠ {count} fights are scheduled inside a break or admin block.',
+      barCollisionLine: '{match} during {bar}',
       viewLabel: 'View',
       viewBlocks: 'Blocks',
       viewDetailed: 'Detailed grid',
