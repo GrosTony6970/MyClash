@@ -195,6 +195,83 @@ export function ScheduleGrid({
     (iso: string, day: string) => isoToSlot(iso, day, eventTz, gridStartHour),
     [eventTz, gridStartHour],
   );
+
+  // ── Derived geometry ──────────────────────────────────────────────────────
+  //
+  // Declared here, above every write handler, because three of them read
+  // `gridEndSlot`: beginBlockResize, handleDrop and handleGroupDrop.
+  //
+  // It used to sit ~1000 lines BELOW those three, and that was fine — a closure
+  // captures the binding, not the value, and an event handler only runs after
+  // the render that initialised it. What is NOT fine is handing `gridEndSlot`
+  // to a hook, because the call evaluates its arguments during render: one line
+  // of `useScheduleMutations({ gridEndSlot })` above the const throws
+  // `ReferenceError: Cannot access 'gridEndSlot' before initialization` and
+  // blanks the board. `tsc` reports nothing either way.
+  //
+  // So the order below is load-bearing, not tidiness: data, then geometry, then
+  // the writes that depend on it. Keep new derivations in that band.
+  const scheduledOnActiveDay = useMemo(
+    () =>
+      matches.filter(
+        (m) => m.scheduledAt && m.liceId && matchBelongsToDay(m.scheduledAt, activeDay),
+      ),
+    [matches, activeDay],
+  );
+
+  // ── Block view model (one block per pool / bracket round) ─────────────────
+  const dayBlocks = useMemo(
+    () =>
+      buildScheduleBlocks(
+        scheduledOnActiveDay.map((m) => ({
+          id: m.id,
+          liceId: m.liceId,
+          scheduledAt: m.scheduledAt,
+          poolId: m.poolId,
+          poolName: m.poolName,
+          roundCode: m.roundCode,
+          phaseType: m.phaseType,
+          tournamentName: m.tournamentName,
+          redFighterName: m.redFighterName,
+          blueFighterName: m.blueFighterName,
+          durationMinutes: m.durationMinutes,
+          status: m.status,
+        })),
+      ),
+    [scheduledOnActiveDay],
+  );
+
+  // Slice 7: programme blocks (admin / break) scoped to the active day,
+  // with their start/end converted into grid slot indices for rendering.
+  const blocksOnActiveDay = useMemo(() => {
+    if (!activeDay) return [] as Array<ProgrammeBlockRow & { startSlot: number; span: number }>;
+    const dayIndex = days.indexOf(activeDay);
+    if (dayIndex < 0) return [];
+    return programmeBlocksForDay(programmeBlocks, dayIndex, gridStartHour);
+  }, [programmeBlocks, activeDay, days, gridStartHour]);
+
+  // The board's visible vertical extent grows to cover the latest block/break
+  // and the configured day-end. BOTH views use it — the detailed grid used to
+  // keep a fixed 08:00–20:00 window, so a 21:00 final rendered in an implicit
+  // row with no time label and no drop target behind it: visible, unreadable
+  // and impossible to move.
+  const gridEndSlot = useMemo(() => {
+    const blockEndSlots = dayBlocks.map((b) => isoToSlotTz(b.endIso, activeDay));
+    const breakEndSlots = blocksOnActiveDay
+      .filter((b) => b.blockType !== 'competition')
+      .map((b) => b.startSlot + b.span);
+    const dayEndHHMM = blocksOnActiveDay.reduce<string | null>(
+      (max, b) => (max && max >= b.endTime ? max : b.endTime),
+      null,
+    );
+    return computeGridEndSlot({
+      blockEndSlots,
+      breakEndSlots,
+      dayEndHHMM,
+      startHour: gridStartHour,
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- isoToSlotTz is a stable pure helper; excluded intentionally
+  }, [dayBlocks, blocksOnActiveDay, activeDay]);
   // Slice 3 of the schedule overhaul: clear every match on the active
   // day with a confirm gate. `clearing` doubles as the modal flag and
   // the in-flight busy state for the confirm button.
@@ -1097,35 +1174,6 @@ export function ScheduleGrid({
     return ids;
   }, [unscheduledBracketRounds, matches]);
 
-  const scheduledOnActiveDay = useMemo(
-    () =>
-      matches.filter(
-        (m) => m.scheduledAt && m.liceId && matchBelongsToDay(m.scheduledAt, activeDay),
-      ),
-    [matches, activeDay],
-  );
-
-  // ── Block view model (one block per pool / bracket round) ─────────────────
-  const dayBlocks = useMemo(
-    () =>
-      buildScheduleBlocks(
-        scheduledOnActiveDay.map((m) => ({
-          id: m.id,
-          liceId: m.liceId,
-          scheduledAt: m.scheduledAt,
-          poolId: m.poolId,
-          poolName: m.poolName,
-          roundCode: m.roundCode,
-          phaseType: m.phaseType,
-          tournamentName: m.tournamentName,
-          redFighterName: m.redFighterName,
-          blueFighterName: m.blueFighterName,
-          durationMinutes: m.durationMinutes,
-          status: m.status,
-        })),
-      ),
-    [scheduledOnActiveDay],
-  );
   const tournamentColorByName = useMemo(() => {
     const map = new Map<string, string | null>();
     for (const m of matches) {
@@ -1674,38 +1722,6 @@ export function ScheduleGrid({
       setPendingRunClear(null);
     }
   }
-
-  // Slice 7: programme blocks (admin / break) scoped to the active day,
-  // with their start/end converted into grid slot indices for rendering.
-  const blocksOnActiveDay = useMemo(() => {
-    if (!activeDay) return [] as Array<ProgrammeBlockRow & { startSlot: number; span: number }>;
-    const dayIndex = days.indexOf(activeDay);
-    if (dayIndex < 0) return [];
-    return programmeBlocksForDay(programmeBlocks, dayIndex, gridStartHour);
-  }, [programmeBlocks, activeDay, days, gridStartHour]);
-
-  // The board's visible vertical extent grows to cover the latest block/break
-  // and the configured day-end. BOTH views use it — the detailed grid used to
-  // keep a fixed 08:00–20:00 window, so a 21:00 final rendered in an implicit
-  // row with no time label and no drop target behind it: visible, unreadable
-  // and impossible to move.
-  const gridEndSlot = useMemo(() => {
-    const blockEndSlots = dayBlocks.map((b) => isoToSlotTz(b.endIso, activeDay));
-    const breakEndSlots = blocksOnActiveDay
-      .filter((b) => b.blockType !== 'competition')
-      .map((b) => b.startSlot + b.span);
-    const dayEndHHMM = blocksOnActiveDay.reduce<string | null>(
-      (max, b) => (max && max >= b.endTime ? max : b.endTime),
-      null,
-    );
-    return computeGridEndSlot({
-      blockEndSlots,
-      breakEndSlots,
-      dayEndHHMM,
-      startHour: gridStartHour,
-    });
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- isoToSlotTz is a stable pure helper; excluded intentionally
-  }, [dayBlocks, blocksOnActiveDay, activeDay]);
 
   // Admin / break / workshop bars for the block grid (competition excluded —
   // those render as the pool/round blocks).
