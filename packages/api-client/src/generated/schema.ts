@@ -10618,6 +10618,8 @@ export interface components {
       publicVisibility?: {
         [key: string]: boolean;
       };
+      listedInDirectory?: boolean;
+      searchIndexable?: boolean;
       /** Format: uuid */
       fighterId: string;
       mainClub?: {
@@ -10683,6 +10685,8 @@ export interface components {
       publicVisibility?: {
         [key: string]: boolean;
       };
+      listedInDirectory?: boolean;
+      searchIndexable?: boolean;
     };
     PromoteFighterDto: {
       /** Format: uuid */

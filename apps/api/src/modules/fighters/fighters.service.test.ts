@@ -994,6 +994,54 @@ describe('public fighter reads exclude merged and erased identities', () => {
   });
 });
 
+describe('update() directory listing', () => {
+  let service: FightersService;
+
+  /** The object handed to .update() for the one global_persons write. */
+  function written(): Record<string, unknown> {
+    const chain = fromMock.mock.results[0]?.value as { update: { mock: { calls: unknown[][] } } };
+    return (chain.update.mock.calls[0]?.[0] ?? {}) as Record<string, unknown>;
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    fromMock.mockReturnValue(makeAwaitableChain({ data: { id: 'gp-1' }, error: null }));
+    service = new FightersService(mockSupabase as never, {} as never);
+  });
+
+  it('stamps listing_changed_at when either flag is touched', async () => {
+    // Without it, "listed" reads the same whether somebody agreed or never
+    // looked -- which is the exact distinction this slice exists to record.
+    await service.update('gp-1', { listedInDirectory: false } as never);
+    expect(written()['listing_changed_at']).toBeTypeOf('string');
+  });
+
+  it('does not stamp it when neither flag is in the payload', async () => {
+    await service.update('gp-1', { bio: 'hello' } as never);
+    expect(written()['listing_changed_at']).toBeUndefined();
+    expect(written()['listed_in_directory']).toBeUndefined();
+  });
+
+  it('un-indexes when un-listing, rather than letting the CHECK reject it', async () => {
+    // The nesting is enforced by a CHECK, so an un-listing that left
+    // search_indexable true would violate it -- surfacing to the user as a 500
+    // telling them their opt-out failed, when what they asked for is
+    // unambiguous.
+    await service.update('gp-1', { listedInDirectory: false } as never);
+    expect(written()['listed_in_directory']).toBe(false);
+    expect(written()['search_indexable']).toBe(false);
+  });
+
+  it('does not clobber an explicit indexing choice made alongside listing on', async () => {
+    await service.update('gp-1', {
+      listedInDirectory: true,
+      searchIndexable: true,
+    } as never);
+    expect(written()['listed_in_directory']).toBe(true);
+    expect(written()['search_indexable']).toBe(true);
+  });
+});
+
 describe('listPublicDirectory', () => {
   const ROW = (id: string, extra: Record<string, unknown> = {}) => ({
     id,

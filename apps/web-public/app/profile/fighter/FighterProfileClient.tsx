@@ -84,6 +84,8 @@ interface FighterProfile {
   youtube_url?: string | null;
   practicing_since_year?: number | null;
   public_visibility?: Record<string, boolean> | null;
+  listed_in_directory?: boolean | null;
+  search_indexable?: boolean | null;
   photo_url?: string | null;
   clubs?: ClubLink[];
   weapons?: WeaponLink[];
@@ -240,6 +242,8 @@ interface FormState {
   youtubeUrl: string;
   practicingSince: string;
   visibility: Record<string, boolean>;
+  listedInDirectory: boolean;
+  searchIndexable: boolean;
   photoUrl: string;
   mainClub: ClubValue | null;
   secondaryClubs: ClubValue[];
@@ -250,6 +254,19 @@ interface FormState {
   >;
   medals: MedalFormRow[];
 }
+
+/**
+ * Server-side defaults for the per-field visibility map, mirroring
+ * VISIBILITY_FIELDS in the API.
+ *
+ * A blanket `?? true` was correct only while dateOfBirth had no control here:
+ * the server defaults that one to HIDDEN, so an unset value rendered as a
+ * ticked box would have told a fighter their birth date was public when it was
+ * not, and ticking it "off" would have written the value it already had.
+ */
+const VISIBILITY_DEFAULTS: Record<string, boolean> = {
+  dateOfBirth: false,
+};
 
 const emptyForm: FormState = {
   displayName: '',
@@ -264,6 +281,10 @@ const emptyForm: FormState = {
   youtubeUrl: '',
   practicingSince: '',
   visibility: {},
+  // Mirrors the column defaults (0187): listed unless you say otherwise,
+  // never indexed until you ask.
+  listedInDirectory: true,
+  searchIndexable: false,
   photoUrl: '',
   mainClub: null,
   secondaryClubs: [],
@@ -314,6 +335,8 @@ function formFromProfile(profile: FighterProfile, formatDob: (iso: string) => st
     youtubeUrl: profile.youtube_url ?? '',
     practicingSince: profile.practicing_since_year ? String(profile.practicing_since_year) : '',
     visibility: profile.public_visibility ?? {},
+    listedInDirectory: profile.listed_in_directory ?? true,
+    searchIndexable: profile.search_indexable ?? false,
     photoUrl: profile.photo_url ?? '',
     mainClub: mainClubs[0] ?? null,
     secondaryClubs: clubValuesByRole(profile.clubs, 'secondary'),
@@ -675,6 +698,11 @@ export function FighterProfileClient({ apiUrl }: { apiUrl: string }) {
         youtubeUrl: form.youtubeUrl.trim() || null,
         practicingSinceYear,
         publicVisibility: form.visibility,
+        listedInDirectory: form.listedInDirectory,
+        // Never send an indexed-but-unlisted pair: the DTO rejects it and
+        // the CHECK constraint would too. The UI already forces the toggle
+        // off, so this is the second of two guards, not the only one.
+        searchIndexable: form.listedInDirectory && form.searchIndexable,
         mainClub: form.mainClub ? toClubInput(form.mainClub) : undefined,
         secondaryClubs: form.secondaryClubs.map(toClubInput),
         previousClubs: form.previousClubs.map(toClubInput),
@@ -1060,6 +1088,83 @@ export function FighterProfileClient({ apiUrl }: { apiUrl: string }) {
           </button>
         </div>
 
+        {/*
+          Its own bordered block, ABOVE the per-field visibility grid and not
+          inside it. That grid's comment is "Every toggle here defaults to
+          public" and its hint reads "Choose which fields appear on your public
+          profile" — these two have different consequences (one governs whether
+          you appear at all, one is a one-way door), and controls with different
+          consequences must not hide among controls without them.
+        */}
+        <div className="mt-6 rounded-xl border border-border bg-surface p-4">
+          <h2 className="mb-1 font-display font-semibold text-lg sm:text-xl text-foreground">
+            {t('publicApp.fighterProfile.directoryTitle')}
+          </h2>
+          <p className="mb-3 text-xs leading-5 text-muted">
+            {t('publicApp.fighterProfile.directoryHint')}
+          </p>
+
+          <label className="flex items-start gap-3 rounded-lg border border-border bg-background px-3 py-2.5 text-sm">
+            <input
+              type="checkbox"
+              checked={form.listedInDirectory}
+              onChange={() =>
+                setForm((current) => ({
+                  ...current,
+                  listedInDirectory: !current.listedInDirectory,
+                  // Un-listing un-indexes, so the UI can never show a state the
+                  // CHECK constraint would refuse to store.
+                  searchIndexable: current.listedInDirectory ? false : current.searchIndexable,
+                }))
+              }
+              className="mt-0.5 h-4 w-4 shrink-0 accent-accent"
+            />
+            <span className="min-w-0 flex-1">
+              <span className="block font-semibold text-foreground">
+                {t('publicApp.fighterProfile.directoryListedLabel')}
+              </span>
+              <span className="mt-0.5 block text-xs leading-5 text-muted">
+                {t('publicApp.fighterProfile.directoryListedHint')}
+              </span>
+            </span>
+          </label>
+
+          {/* Nested visually as well as logically: indented, and disabled while
+              the parent is off rather than merely ignored. */}
+          <label
+            className={[
+              'mt-2 ml-6 flex items-start gap-3 rounded-lg border border-border px-3 py-2.5 text-sm',
+              form.listedInDirectory ? 'bg-background' : 'bg-background/50 opacity-60',
+            ].join(' ')}
+          >
+            <input
+              type="checkbox"
+              checked={form.listedInDirectory && form.searchIndexable}
+              disabled={!form.listedInDirectory}
+              onChange={() =>
+                setForm((current) => ({ ...current, searchIndexable: !current.searchIndexable }))
+              }
+              className="mt-0.5 h-4 w-4 shrink-0 accent-accent"
+            />
+            <span className="min-w-0 flex-1">
+              <span className="block font-semibold text-foreground">
+                {t('publicApp.fighterProfile.directoryIndexableLabel')}
+              </span>
+              <span className="mt-0.5 block text-xs leading-5 text-muted">
+                {t('publicApp.fighterProfile.directoryIndexableHint')}
+              </span>
+            </span>
+          </label>
+
+          {/* States the boundary rather than implying a wider one. Opting out
+              does NOT retract results from the events you fought at — those
+              stay public on the event's own pages, and promising otherwise
+              would be a promise the event model cannot keep. */}
+          <p className="mt-3 text-xs leading-5 text-muted">
+            {t('publicApp.fighterProfile.directoryScopeNote')}
+          </p>
+        </div>
+
         <div className="mt-4">
           <h2 className="mb-1 font-display font-semibold text-lg sm:text-xl text-foreground">
             {t('publicApp.fighterProfile.visibilityTitle')}
@@ -1067,12 +1172,20 @@ export function FighterProfileClient({ apiUrl }: { apiUrl: string }) {
           <p className="mb-2 text-xs text-muted">{t('publicApp.fighterProfile.visibilityHint')}</p>
           <div className="grid gap-2 sm:grid-cols-2">
             {[
+              // dateOfBirth, nationality and gender are server-supported
+              // visibility keys (VISIBILITY_FIELDS) that had no control here at
+              // all — reachable only by hand-crafting a PATCH. dateOfBirth is
+              // the one that defaults HIDDEN, so its row is the only place the
+              // grid's "everything here defaults to public" hint is not true.
+              { key: 'dateOfBirth', label: t('publicApp.fighterProfile.dateOfBirth') },
+              { key: 'nationality', label: t('publicApp.fighterProfile.nationality') },
+              { key: 'gender', label: t('publicApp.fighterProfile.gender') },
               { key: 'alias', label: t('publicApp.fighterProfile.alias') },
               { key: 'bio', label: t('publicApp.fighterProfile.bio') },
               { key: 'links', label: t('publicApp.fighterProfile.links') },
               { key: 'practicingSince', label: t('publicApp.fighterProfile.practicingSince') },
             ].map(({ key, label }) => {
-              const visible = form.visibility[key] ?? true;
+              const visible = form.visibility[key] ?? VISIBILITY_DEFAULTS[key] ?? true;
               return (
                 <label
                   key={key}

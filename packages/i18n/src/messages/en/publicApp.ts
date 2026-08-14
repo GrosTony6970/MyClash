@@ -566,6 +566,18 @@ export const publicApp = {
     familyName: 'Family name',
     nationality: 'Nationality',
     dateOfBirth: 'Date of birth',
+    gender: 'Gender category',
+    directoryTitle: 'Directory and search',
+    directoryHint:
+      'These two decide whether people can find you. They are separate from the field-by-field choices below.',
+    directoryListedLabel: 'Appear in the public fighter directory',
+    directoryListedHint:
+      'Your name, club, country and weapons appear in the directory at /fighters, and people can search for you there.',
+    directoryIndexableLabel: 'Let search engines index my profile',
+    directoryIndexableHint:
+      'Your profile can appear in Google and other search results. Off by default, and slow to undo: removing a page from search takes time and never reaches copies other sites have already made.',
+    directoryScopeNote:
+      'Turning these off removes you from the directory and from search. It does not hide your results at public events — those stay on each event’s own pages, as they always have.',
     bio: 'Bio',
     alias: 'Alias',
     aliasHint: 'A nickname shown below your name, publicly visible.',

@@ -40,8 +40,23 @@ const updateFighterSchema = z
     // Per-field public visibility map ({ fieldKey: boolean }). Unknown keys are
     // dropped server-side; only whitelisted fields are persisted.
     publicVisibility: z.record(z.string(), z.boolean()).optional(),
+    // Directory listing and search indexing (0187). Two separate choices, the
+    // second nested inside the first — see the refinement below.
+    listedInDirectory: z.boolean().optional(),
+    searchIndexable: z.boolean().optional(),
   })
-  .strict();
+  .strict()
+  .refine(
+    (value) =>
+      // Only a payload that would END UP indexed-but-unlisted is rejected.
+      // `searchIndexable: true` alone is fine — the row may already be listed,
+      // and the CHECK is the backstop for the case where it is not.
+      !(value.searchIndexable === true && value.listedInDirectory === false),
+    {
+      message: 'searchIndexable requires listedInDirectory',
+      path: ['searchIndexable'],
+    },
+  );
 export class UpdateFighterDto extends createZodDto(updateFighterSchema) {}
 
 const fighterClubInputSchema = z

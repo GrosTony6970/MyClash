@@ -568,8 +568,20 @@ export const publicApp = {
     displayName: "Nom d'affichage",
     givenName: 'Prénom',
     familyName: 'Nom',
-    nationality: 'Nationalite',
+    nationality: 'Nationalité',
     dateOfBirth: 'Date de naissance',
+    gender: 'Catégorie de genre',
+    directoryTitle: 'Annuaire et recherche',
+    directoryHint:
+      'Ces deux réglages déterminent si l’on peut vous trouver. Ils sont indépendants des choix champ par champ ci-dessous.',
+    directoryListedLabel: 'Apparaître dans l’annuaire public des combattants',
+    directoryListedHint:
+      'Votre nom, votre club, votre pays et vos armes apparaissent dans l’annuaire sur /fighters, et l’on peut vous y rechercher.',
+    directoryIndexableLabel: 'Autoriser les moteurs de recherche à indexer mon profil',
+    directoryIndexableHint:
+      'Votre profil peut apparaître dans Google et d’autres résultats de recherche. Désactivé par défaut, et long à annuler : retirer une page des résultats prend du temps et n’atteint jamais les copies déjà faites par d’autres sites.',
+    directoryScopeNote:
+      'Désactiver ces options vous retire de l’annuaire et de la recherche. Cela ne masque pas vos résultats lors des événements publics — ils restent sur les pages de chaque événement, comme toujours.',
     bio: 'Bio',
     alias: 'Alias',
     aliasHint: 'Un surnom affiche sous votre nom, visible publiquement.',

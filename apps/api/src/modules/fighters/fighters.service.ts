@@ -627,6 +627,23 @@ export class FightersService {
       updates['practicing_since_year'] = dto.practicingSinceYear ?? null;
     if (dto.publicVisibility !== undefined)
       updates['public_visibility'] = this.pickVisibilityKeys(dto.publicVisibility);
+
+    // Directory listing (0187). `listing_changed_at` is what distinguishes an
+    // untouched default from a choice somebody actually made — without it,
+    // "listed" means the same thing whether they agreed or never looked.
+    if (dto.listedInDirectory !== undefined) {
+      updates['listed_in_directory'] = dto.listedInDirectory;
+      updates['listing_changed_at'] = new Date().toISOString();
+      // Un-listing un-indexes. The CHECK would reject the row otherwise, and a
+      // constraint violation on an un-listing is a 500 telling the user their
+      // opt-out failed — when what they asked for is unambiguous.
+      if (dto.listedInDirectory === false) updates['search_indexable'] = false;
+    }
+    if (dto.searchIndexable !== undefined && updates['search_indexable'] === undefined) {
+      updates['search_indexable'] = dto.searchIndexable;
+      updates['listing_changed_at'] = new Date().toISOString();
+    }
+
     updates['updated_at'] = new Date().toISOString();
 
     const { data, error } = await this.supabase.service
