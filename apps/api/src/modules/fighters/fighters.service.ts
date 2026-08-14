@@ -277,6 +277,18 @@ export class FightersService {
       if (fuzzy) return fuzzy;
     }
 
+    const q = this.buildFighterListQuery(query, limit, offset);
+
+    const { data, error } = await q;
+    if (error) throw new BadRequestException(error.message);
+    // Through `unknown`: supabase-js parses the select string at the TYPE level,
+    // and the allow-list is joined at runtime, so it can only infer ParserError.
+    // Same reason `listGlobalPersons` returns its rows untyped.
+    return ((data ?? []) as unknown as Row[]).map((row) => this.sanitizePublicFighter(row));
+  }
+
+  /** The non-fuzzy `list()` query: reachable rows, filtered, ordered, paged. */
+  private buildFighterListQuery(query: FighterQueryDto, limit: number, offset: number) {
     // `!inner` ONLY when filtering by club.
     //
     // PostgREST applies `.eq('clubs.slug', …)` to the EMBEDDED resource unless
@@ -317,13 +329,7 @@ export class FightersService {
       // business in a slug and a club slug is [a-z0-9-] anyway.
       q = q.eq('clubs.slug', sanitizePostgrestFilterValue(query.club)) as typeof q;
     }
-
-    const { data, error } = await q;
-    if (error) throw new BadRequestException(error.message);
-    // Through `unknown`: supabase-js parses the select string at the TYPE level,
-    // and the allow-list is joined at runtime, so it can only infer ParserError.
-    // Same reason `listGlobalPersons` returns its rows untyped.
-    return ((data ?? []) as unknown as Row[]).map((row) => this.sanitizePublicFighter(row));
+    return q;
   }
 
   /** Trigram-ranked fighter search. Returns full rows (same shape as list())
