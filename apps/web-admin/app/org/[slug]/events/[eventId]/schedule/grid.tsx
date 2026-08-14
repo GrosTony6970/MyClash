@@ -22,6 +22,7 @@ import { newBreakDraftFromCell } from './new-break-draft';
 import { hhmmToMinutes, programmeBlocksForDay } from './programme-block-slots';
 import { clampPanelWidth } from './panel-width';
 import { useSchedulePrefs } from './useSchedulePrefs';
+import { useScheduleWrites } from './useScheduleWrites';
 import { useScheduleData } from './useScheduleData';
 import { BlockGridView, type BgvBreak } from './BlockGridView';
 import { BlockEditPopover, type BlockEditDraft } from './BlockEditPopover';
@@ -59,12 +60,7 @@ import {
 } from '@myclash/schedule-core';
 import { getPublicApiUrl } from '@/lib/api-url';
 import { LicePlacementEditor } from './LicePlacementEditor';
-import {
-  mutateAll,
-  mutateSchedule,
-  NETWORK_FAILURE_STATUS,
-  ScheduleMutationError,
-} from './schedule-mutations';
+import { mutateSchedule } from './schedule-mutations';
 
 // `computeVenueGroups` + the `VenueGroup` type now live in
 // ./schedule-grid-geometry (shared with BlockGridView).
@@ -137,18 +133,24 @@ export function ScheduleGrid({
   const { t, locale } = useI18n();
   const apiUrl = getPublicApiUrl();
 
-  // A write that did not land. Separate from `fetchError` because the recovery
-  // differs: a failed READ leaves the board empty and the operator retries, a
-  // failed WRITE leaves the board showing something the server never accepted,
-  // so `commit` below re-reads the truth underneath this banner.
-  const [saveError, setSaveError] = useState<string | null>(null);
-  const [saving, setSaving] = useState<string | null>(null);
-  // Read by the realtime debounce below so an echo never fights an in-flight
-  // optimistic drag. A ref because the debounced callback is created once.
-  const savingRef = useRef(saving);
-  // eslint-disable-next-line react-hooks/refs -- intentional render-time mirror of latest saving flag for stable debounced callback
-  savingRef.current = saving;
-  const isBusy = useCallback(() => savingRef.current !== null, []);
+  // The read half and the write half each need something from the other: a
+  // refused write rolls back by re-reading the server, and the realtime
+  // subscription suppresses itself while a write is in flight. Hooks cannot be
+  // mutually recursive, so exactly one of those edges goes through a ref. This
+  // is that edge, kept here in the composition root rather than inside either
+  // hook, where it would look like an implementation detail of one of them.
+  const refetchRef = useRef<() => Promise<void>>(() => Promise.resolve());
+  const rollback = useCallback(() => refetchRef.current(), []);
+  const {
+    saving,
+    saveError,
+    setSaveError,
+    isBusy,
+    saveMatchPosition,
+    describeSaveError,
+    commit,
+    commitAll,
+  } = useScheduleWrites({ apiUrl, refetch: rollback });
 
   // Everything the board reads: bootstrap, the two refetchers, realtime, and
   // the conflict derivation. See ./useScheduleData.
@@ -168,6 +170,8 @@ export function ScheduleGrid({
     refetchLices,
     refetchScheduleAndBlocks,
   } = useScheduleData({ eventId, apiUrl, isBusy });
+  // eslint-disable-next-line react-hooks/refs -- render-time mirror closing the read/write cycle described above
+  refetchRef.current = refetchScheduleAndBlocks;
 
   /**
    * The axis ORIGIN, derived from the day's own programme rather than fixed at
@@ -499,74 +503,6 @@ export function ScheduleGrid({
     } finally {
       setAddLiceBusy(false);
     }
-  }
-
-  /** Throws `ScheduleMutationError` if the server did not accept the position. */
-  async function saveMatchPosition(matchId: string, liceId: string, scheduledAt: string) {
-    setSaving(matchId);
-    try {
-      await mutateSchedule(`${apiUrl}/api/v1/matches/${matchId}/schedule`, {
-        method: 'PATCH',
-        body: { liceId, scheduledAt },
-      });
-    } finally {
-      setSaving(null);
-    }
-  }
-
-  /**
-   * Turn a failed write into something an operator can read. `schedule-mutations`
-   * never invents prose, so "there was no response at all" becomes words here,
-   * where `t()` is in scope.
-   */
-  function describeSaveError(err: unknown): string {
-    if (err instanceof ScheduleMutationError && err.status === NETWORK_FAILURE_STATUS) {
-      return t('organizer.schedulePage.grid.saveFailedOffline');
-    }
-    return err instanceof Error ? err.message : String(err);
-  }
-
-  /**
-   * Run one write. On failure the banner names it and the board re-reads the
-   * server, discarding whatever optimistic state the caller applied.
-   *
-   * The rollback IS the refetch. No call site remembers a previous value, so no
-   * call site can restore a stale or partial one — and it corrects the case that
-   * used to be invisible, where a rejected write left the UI showing a placement
-   * the database never had.
-   */
-  async function commit(run: () => Promise<unknown>): Promise<boolean> {
-    try {
-      await run();
-      setSaveError(null);
-      return true;
-    } catch (err) {
-      setSaveError(describeSaveError(err));
-      await refetchScheduleAndBlocks();
-      return false;
-    }
-  }
-
-  /**
-   * Same contract for a fan-out (a drag that displaces neighbours, a day clear).
-   * Every call is attempted before anything is reported — see `mutateAll`.
-   */
-  async function commitAll(calls: ReadonlyArray<() => Promise<unknown>>): Promise<boolean> {
-    const { total, failures } = await mutateAll(calls);
-    if (failures.length === 0) {
-      setSaveError(null);
-      return true;
-    }
-    setSaveError(
-      total === 1 && failures[0]
-        ? describeSaveError(failures[0])
-        : t('organizer.schedulePage.grid.saveFailedPartial', {
-            failed: failures.length,
-            total,
-          }),
-    );
-    await refetchScheduleAndBlocks();
-    return false;
   }
 
   async function moveBlockTo(blockId: string, slot: number): Promise<void> {
