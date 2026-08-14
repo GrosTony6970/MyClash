@@ -96,10 +96,19 @@ const updateMyFighterProfileSchema = updateFighterSchema
   .strict();
 export class UpdateMyFighterProfileDto extends createZodDto(updateMyFighterProfileSchema) {}
 
+/**
+ * Query for GET /fighters — the signed-in people search behind /me/follows and
+ * the super-admin merge tool.
+ *
+ * Query values arrive as strings, so the numbers are coerced before their
+ * bounds are checked — same reason as publicOrganizationQuerySchema.
+ */
 const fighterQuerySchema = z
   .object({
     q: z.string().max(100).optional(),
     club: z.string().optional(),
+    limit: z.coerce.number().min(1).max(50).optional(),
+    offset: z.coerce.number().min(0).optional(),
   })
   .strict();
 export class FighterQueryDto extends createZodDto(fighterQuerySchema) {}

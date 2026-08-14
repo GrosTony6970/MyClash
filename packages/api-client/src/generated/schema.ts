@@ -20035,6 +20035,8 @@ export interface operations {
       query?: {
         q?: string;
         club?: string;
+        limit?: number;
+        offset?: number;
       };
       header?: never;
       path?: never;

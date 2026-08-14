@@ -12,6 +12,7 @@ import { SupabaseService } from '../supabase/supabase.service';
 import { HemaRatingsService } from '../hema-ratings/hema-ratings.service';
 import { CsvImportService } from '../persons/csv-import.service';
 import { replaceFighterWeaponsFromCell } from './weapon-import.util';
+import { applyReachable } from './directory-predicate';
 // Value import (NOT `import type`) — DI-injected, so the runtime needs the
 // class metadata preserved.
 import { TournamentPlacementService } from '../tournament-placement/tournament-placement.service';
@@ -98,6 +99,15 @@ type Row = Record<string, unknown>;
 /** Completed matches shown inline on the profile "recent results" strip; the
  *  full history is behind the "show all matches" modal. */
 const RECENT_COMPLETED_LIMIT = 5;
+
+/**
+ * Page size for GET /fighters. Matches the organiser directory's numbers.
+ *
+ * The list was previously unbounded: with no query it returned every
+ * global_persons row plus a club embed for each, in one response.
+ */
+const DEFAULT_FIGHTER_PAGE = 24;
+const MAX_FIGHTER_PAGE = 50;
 
 /**
  * Fighter-profile fields a user can hide from their public profile, mapped to
@@ -254,17 +264,29 @@ export class FightersService {
     // filtering by club), rank by trigram similarity via lookup_global_persons,
     // then hydrate full rows in that order. Falls back to ilike when the RPC is
     // unavailable or returns nothing.
+    const limit = Math.min(query.limit ?? DEFAULT_FIGHTER_PAGE, MAX_FIGHTER_PAGE);
+    const offset = query.offset ?? 0;
+
     const term = query.q?.trim();
     if (term && term.length >= 2 && !query.club) {
-      const fuzzy = await this.fuzzySearchFighters(term);
+      // The fuzzy branch honours `limit` but has no offset: lookup_global_persons
+      // takes p_limit only, so page 2 of a fuzzy search is not expressible. The
+      // directory's own RPC (search_public_fighters) is where that is fixed;
+      // here the branch is a typo-tolerant first page, as it always was.
+      const fuzzy = await this.fuzzySearchFighters(term, limit);
       if (fuzzy) return fuzzy;
     }
 
-    let q = this.supabase.service
-      .from('global_persons')
-      .select(`${PUBLIC_FIGHTER_COLUMNS}, clubs(name, slug)`)
+    let q = applyReachable(
+      this.supabase.service
+        .from('global_persons')
+        .select(`${PUBLIC_FIGHTER_COLUMNS}, clubs(name, slug)`),
+    )
       .order('family_name', { ascending: true })
-      .order('given_name', { ascending: true });
+      .order('given_name', { ascending: true })
+      // Unbounded before this: with no query at all, GET /fighters selected
+      // every global_persons row and its club embed in one response.
+      .range(offset, offset + limit - 1);
 
     if (query.q) {
       // Strip PostgREST meta-characters before interpolating into `.or(...)`.
@@ -291,10 +313,10 @@ export class FightersService {
 
   /** Trigram-ranked fighter search. Returns full rows (same shape as list())
    *  ordered by similarity, or null to signal the caller to fall back to ilike. */
-  private async fuzzySearchFighters(term: string): Promise<Row[] | null> {
+  private async fuzzySearchFighters(term: string, limit: number): Promise<Row[] | null> {
     const { data, error } = await this.supabase.service.rpc('lookup_global_persons', {
       p_query: term,
-      p_limit: 20,
+      p_limit: limit,
       p_threshold: 0.2,
     });
     if (error || !data) return null; // pre-migration / RPC error → ilike fallback
@@ -303,10 +325,16 @@ export class FightersService {
     if (ranked.length === 0) return []; // ran cleanly, genuinely no matches
 
     const ids = ranked.map((r) => r.id);
-    const { data: rows } = await this.supabase.service
-      .from('global_persons')
-      .select(`${PUBLIC_FIGHTER_COLUMNS}, clubs(name, slug)`)
-      .in('id', ids);
+    // The predicate is re-applied here, not trusted from the RPC. An id list is
+    // not a promise about the rows behind it, and lookup_global_persons filters
+    // on only two of the three columns — it has never excluded erased accounts.
+    // Without this the fuzzy branch and the ilike branch return different row
+    // sets for the same conceptual query, decided by the length of the term.
+    const { data: rows } = await applyReachable(
+      this.supabase.service
+        .from('global_persons')
+        .select(`${PUBLIC_FIGHTER_COLUMNS}, clubs(name, slug)`),
+    ).in('id', ids);
 
     const order = new Map(ids.map((id, index) => [id, index]));
     return ((rows ?? []) as unknown as Row[])
@@ -317,9 +345,11 @@ export class FightersService {
   // ── Get by slug ──────────────────────────────────────────────────────────────
 
   async getBySlug(slug: string) {
-    const { data, error } = await this.supabase.service
-      .from('global_persons')
-      .select(`${PUBLIC_FIGHTER_COLUMNS}, clubs(name, slug, city, country_code)`)
+    const { data, error } = await applyReachable(
+      this.supabase.service
+        .from('global_persons')
+        .select(`${PUBLIC_FIGHTER_COLUMNS}, clubs(name, slug, city, country_code)`),
+    )
       .eq('slug', slug)
       .maybeSingle();
 

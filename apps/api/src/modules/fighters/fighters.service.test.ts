@@ -25,6 +25,11 @@ function makeChain(result: unknown) {
     delete: vi.fn() as ReturnType<typeof vi.fn>,
     in: vi.fn() as ReturnType<typeof vi.fn>,
     upsert: vi.fn() as ReturnType<typeof vi.fn>,
+    // Adding a builder method here is safe: the ordered mockReturnValueOnce
+    // sequences below are positional on `fromMock`, not on chain methods.
+    is: vi.fn() as ReturnType<typeof vi.fn>,
+    range: vi.fn() as ReturnType<typeof vi.fn>,
+    limit: vi.fn() as ReturnType<typeof vi.fn>,
     maybeSingle: vi.fn().mockResolvedValue(result),
     single: vi.fn().mockResolvedValue(result),
   };
@@ -38,6 +43,22 @@ function makeChain(result: unknown) {
   chain.delete.mockReturnValue(chain);
   chain.in.mockReturnValue(chain);
   chain.upsert.mockReturnValue(chain);
+  chain.is.mockReturnValue(chain);
+  chain.range.mockReturnValue(chain);
+  chain.limit.mockReturnValue(chain);
+  return chain;
+}
+
+/**
+ * A chain that also resolves when awaited directly.
+ *
+ * `list()` does `await q` on the builder rather than calling `.maybeSingle()`,
+ * so a chain awaitable only through maybeSingle/single yields `undefined` and
+ * every list assertion silently passes on an empty array.
+ */
+function makeAwaitableChain(result: unknown) {
+  const chain = makeChain(result) as ReturnType<typeof makeChain> & { then: unknown };
+  chain.then = (resolve: (value: unknown) => unknown) => Promise.resolve(result).then(resolve);
   return chain;
 }
 
@@ -712,30 +733,6 @@ describe('parseBoolCell', () => {
 describe('public fighter projection', () => {
   let service: FightersService;
 
-  /**
-   * A chain that also resolves when awaited directly.
-   *
-   * `list()` does `await q` on the builder rather than calling `.maybeSingle()`,
-   * so the shared `makeChain` (awaitable only through maybeSingle/single) yields
-   * `undefined` and every list assertion silently passes on an empty array.
-   * Kept local rather than added to `makeChain`, because that factory feeds
-   * ordered `mockReturnValueOnce` sequences elsewhere in this file and changing
-   * its shape desyncs them.
-   */
-  function makeAwaitableChain(result: unknown) {
-    const chain = makeChain(result) as ReturnType<typeof makeChain> & {
-      then: unknown;
-      range: ReturnType<typeof vi.fn>;
-      is: ReturnType<typeof vi.fn>;
-      limit: ReturnType<typeof vi.fn>;
-    };
-    chain.range = vi.fn().mockReturnValue(chain);
-    chain.is = vi.fn().mockReturnValue(chain);
-    chain.limit = vi.fn().mockReturnValue(chain);
-    chain.then = (resolve: (value: unknown) => unknown) => Promise.resolve(result).then(resolve);
-    return chain;
-  }
-
   /** The column list handed to PostgREST for the first global_persons query. */
   function selectedColumns(): string {
     const chain = fromMock.mock.results[0]?.value as { select: { mock: { calls: unknown[][] } } };
@@ -888,6 +885,76 @@ describe('public fighter projection', () => {
   it('carries the club embed through', async () => {
     const out = await listOne({ ...FULL_ROW, clubs: { name: 'Garde Noire', slug: 'garde-noire' } });
     expect(out['clubs']).toEqual({ name: 'Garde Noire', slug: 'garde-noire' });
+  });
+});
+
+describe('public fighter reads exclude merged and erased identities', () => {
+  let service: FightersService;
+
+  /** Columns the Nth global_persons query filtered to null. */
+  function nulledColumns(queryIndex = 0): string[] {
+    const chain = fromMock.mock.results[queryIndex]?.value as {
+      is: { mock: { calls: unknown[][] } };
+    };
+    return (chain.is?.mock.calls ?? []).map((call) => String(call[0])).sort();
+  }
+
+  const EXPECTED = ['account_deleted_at', 'deleted_at', 'merged_into_id'];
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    service = new FightersService(mockSupabase as never, {} as never);
+  });
+
+  it('list() excludes them', async () => {
+    fromMock.mockReturnValue(makeAwaitableChain({ data: [], error: null }));
+    await service.list({} as never);
+    expect(nulledColumns()).toEqual(EXPECTED);
+  });
+
+  it('list() bounds the page instead of dumping the table', async () => {
+    // With no query at all this returned every global_persons row plus a club
+    // embed for each, in one response.
+    const chain = makeAwaitableChain({ data: [], error: null });
+    fromMock.mockReturnValue(chain);
+    await service.list({} as never);
+    expect(chain.range).toHaveBeenCalledWith(0, 23);
+
+    vi.clearAllMocks();
+    const paged = makeAwaitableChain({ data: [], error: null });
+    fromMock.mockReturnValue(paged);
+    await service.list({ limit: 10, offset: 30 } as never);
+    expect(paged.range).toHaveBeenCalledWith(30, 39);
+  });
+
+  it('list() clamps an over-large limit rather than trusting the caller', async () => {
+    const chain = makeAwaitableChain({ data: [], error: null });
+    fromMock.mockReturnValue(chain);
+    await service.list({ limit: 5000 } as never);
+    expect(chain.range).toHaveBeenCalledWith(0, 49);
+  });
+
+  it('getBySlug() excludes them', async () => {
+    fromMock.mockReturnValue(makeAwaitableChain({ data: null, error: null }));
+    await expect(service.getBySlug('jean-dupont')).rejects.toThrow(NotFoundException);
+    expect(nulledColumns()).toEqual(EXPECTED);
+  });
+
+  it('the fuzzy hydrate re-applies them rather than trusting the RPC id list', async () => {
+    // The load-bearing case. lookup_global_persons filters deleted_at and
+    // merged_into_id but has never known about account_deleted_at, and the
+    // hydrate was a bare .in('id', ids) -- so the fuzzy branch and the ilike
+    // branch returned different row sets for the same conceptual query,
+    // decided by how many characters the reader had typed.
+    const rpc = vi.fn().mockResolvedValue({ data: [{ id: 'gp-1' }], error: null });
+    const supabase = { service: { from: fromMock, rpc }, anon: {} };
+    const local = new FightersService(supabase as never, {} as never);
+
+    fromMock.mockReturnValue(makeAwaitableChain({ data: [], error: null }));
+    await local.list({ q: 'dupont' } as never);
+
+    expect(rpc).toHaveBeenCalledWith('lookup_global_persons', expect.anything());
+    expect(nulledColumns()).toEqual(EXPECTED);
   });
 });
 
