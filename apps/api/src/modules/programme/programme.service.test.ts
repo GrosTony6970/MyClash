@@ -19,6 +19,7 @@ function makeChain(result: unknown) {
     update: vi.fn(),
     upsert: vi.fn(),
     delete: vi.fn(),
+    not: vi.fn(),
     single: vi.fn().mockResolvedValue(result),
     maybeSingle: vi.fn().mockResolvedValue(result),
   });
@@ -34,6 +35,7 @@ function makeChain(result: unknown) {
     'update',
     'upsert',
     'delete',
+    'not',
   ]) {
     (chain as unknown as Record<string, unknown>)[key] = vi.fn().mockReturnValue(chain);
   }
@@ -193,7 +195,7 @@ describe('ProgrammeService', () => {
 
   it('saves auto-suggested non-competition blocks with zero match duration', async () => {
     const deleteChain = makeChain({ data: null, error: null });
-    const insertChain = makeChain({
+    const upsertChain = makeChain({
       data: [
         {
           id: 'saved-admin',
@@ -215,12 +217,14 @@ describe('ProgrammeService', () => {
       ],
       error: null,
     });
-    fromMock.mockReturnValueOnce(deleteChain).mockReturnValueOnce(insertChain);
+    // Upsert FIRST, prune second — the order that keeps the previous
+    // programme intact when the write is refused.
+    fromMock.mockReturnValueOnce(upsertChain).mockReturnValueOnce(deleteChain);
 
     const saved = await service.saveBlocks('event-1', programmeDto());
 
     expect(saved).toHaveLength(1);
-    expect(insertChain.insert).toHaveBeenCalledWith(
+    expect(upsertChain.upsert).toHaveBeenCalledWith(
       expect.arrayContaining([
         expect.objectContaining({
           block_type: 'admin',
@@ -235,7 +239,90 @@ describe('ProgrammeService', () => {
           match_duration_minutes: 0,
         }),
       ]),
+      { onConflict: 'id' },
     );
+  });
+
+  /**
+   * `PUT /programme` is what the planner calls on every save, and it used to
+   * DELETE the event's blocks before inserting the replacements. Any insert
+   * failure therefore left the event with NO programme at all and answered
+   * 400 — the day plan destroyed by the act of saving it.
+   */
+  describe('saveBlocks cannot destroy the programme it is replacing', () => {
+    it('does not delete anything when the write is refused', async () => {
+      const upsertChain = makeChain({ data: null, error: { message: 'deadlock detected' } });
+      const deleteChain = makeChain({ data: null, error: null });
+      fromMock.mockReturnValueOnce(upsertChain).mockReturnValueOnce(deleteChain);
+
+      await expect(service.saveBlocks('event-1', programmeDto())).rejects.toThrow(
+        /deadlock detected/,
+      );
+
+      // The point of the slice: the previous programme is still there.
+      expect(deleteChain.delete).not.toHaveBeenCalled();
+    });
+
+    /**
+     * The client mints a block id with `crypto.randomUUID()` and falls back to
+     * `tmp-…` when that is unavailable — which is what happens on a non-secure
+     * origin. The old guard only skipped ids starting `new-`, so a `tmp-` id
+     * went into a `uuid` column, the insert failed on the cast, and the
+     * delete had already run.
+     */
+    it('mints a fresh id for a client id that is not a UUID', async () => {
+      const upsertChain = makeChain({ data: [], error: null });
+      fromMock.mockReturnValueOnce(upsertChain).mockReturnValueOnce(makeChain({ error: null }));
+
+      await service.saveBlocks(
+        'event-1',
+        programmeDto({
+          blocks: [{ ...programmeDto().blocks[0]!, id: `tmp-${Date.now()}-abc` }],
+        }),
+      );
+
+      const rows = upsertChain.upsert.mock.calls[0]?.[0] as Array<{ id: string }>;
+      expect(rows[0]?.id).toMatch(
+        /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
+      );
+    });
+
+    it('keeps a UUID the client sent, so an edit updates the row it names', async () => {
+      const existingId = '3f2504e0-4f89-41d3-9a0c-0305e82c3301';
+      const upsertChain = makeChain({ data: [], error: null });
+      fromMock.mockReturnValueOnce(upsertChain).mockReturnValueOnce(makeChain({ error: null }));
+
+      await service.saveBlocks(
+        'event-1',
+        programmeDto({ blocks: [{ ...programmeDto().blocks[0]!, id: existingId }] }),
+      );
+
+      const rows = upsertChain.upsert.mock.calls[0]?.[0] as Array<{ id: string }>;
+      expect(rows[0]?.id).toBe(existingId);
+    });
+
+    it('prunes only the rows the new programme did not keep', async () => {
+      const existingId = '3f2504e0-4f89-41d3-9a0c-0305e82c3301';
+      const upsertChain = makeChain({ data: [], error: null });
+      const deleteChain = makeChain({ data: null, error: null });
+      fromMock.mockReturnValueOnce(upsertChain).mockReturnValueOnce(deleteChain);
+
+      await service.saveBlocks(
+        'event-1',
+        programmeDto({ blocks: [{ ...programmeDto().blocks[0]!, id: existingId }] }),
+      );
+
+      expect(deleteChain.delete).toHaveBeenCalled();
+      expect(deleteChain.not).toHaveBeenCalledWith('id', 'in', `(${existingId})`);
+    });
+
+    it('still clears the programme when the operator saves an empty one', async () => {
+      const deleteChain = makeChain({ data: null, error: null });
+      fromMock.mockReturnValueOnce(deleteChain);
+
+      await expect(service.saveBlocks('event-1', { blocks: [] })).resolves.toEqual([]);
+      expect(deleteChain.delete).toHaveBeenCalled();
+    });
   });
 
   it('creates a single programme block and returns it mapped (next sort_order on the day)', async () => {

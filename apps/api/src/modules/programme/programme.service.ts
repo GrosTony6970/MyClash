@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import type {
   BlockDiagnostic,
@@ -14,6 +15,9 @@ import { cascadeBlockShift } from './block-cascade';
 // import and NOT a ProgrammeModule → SwissModule edge. SwissCoreModule imports
 // ProgrammeModule, so a real module edge here would close a cycle.
 import { parseSwissConfig } from '../swiss/dto/swiss-config.dto';
+
+/** A client block id we can trust as a row PK; anything else gets a fresh one. */
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 import type {
   CreateBlockDto,
   SaveProgrammeDto,
@@ -128,44 +132,76 @@ export class ProgrammeService {
 
   // ── Save (bulk replace) ────────────────────────────────────────────────────
 
+  /**
+   * Replace an event's programme.
+   *
+   * WRITE ORDER IS LOAD-BEARING. This used to DELETE every block for the event
+   * and then INSERT the new set, with nothing transactional between them — so
+   * any insert failure left the event with ZERO blocks and answered 400. The
+   * programme was simply gone, and `PUT /programme` is what the planner calls
+   * on every save.
+   *
+   * The failure was reachable, not theoretical. The client mints a block id
+   * with `crypto.randomUUID()` and falls back to `tmp-${Date.now()}-…` when
+   * that is unavailable — which is precisely what happens on a NON-SECURE
+   * origin. The old guard only skipped ids beginning `new-`, a sentinel
+   * nothing mints any more, so a `tmp-` id went straight into a `uuid` column,
+   * the insert failed on the cast, and the day plan was destroyed by a save.
+   *
+   * So: any id that is not a UUID is treated as "new" and given one here
+   * rather than rejected, because the client only produces one when the
+   * browser could not. Every row then carries an `id` key — PostgREST rejects
+   * a bulk insert whose objects have differing keys — and the upsert-then-prune
+   * order means a refusal leaves the previous programme untouched.
+   */
   async saveBlocks(eventId: string, dto: SaveProgrammeDto): Promise<ProgrammeBlock[]> {
     this.validateBlocks(dto.blocks);
 
-    const { error: delError } = await this.supabase.service
-      .from('event_programme_blocks')
-      .delete()
-      .eq('event_id', eventId);
-    if (delError) throw new BadRequestException(delError.message);
+    if (dto.blocks.length === 0) {
+      const { error: delError } = await this.supabase.service
+        .from('event_programme_blocks')
+        .delete()
+        .eq('event_id', eventId);
+      if (delError) throw new BadRequestException(delError.message);
+      return [];
+    }
 
-    if (dto.blocks.length === 0) return [];
-
-    const inserts = dto.blocks.map((b, i) => {
-      const row: Record<string, unknown> = {
-        event_id: eventId,
-        day_index: b.dayIndex,
-        sort_order: i,
-        block_type: b.blockType,
-        label: b.label,
-        competition_id: b.competitionId ?? null,
-        competition_phase: b.competitionPhase ?? null,
-        workshop_id: b.workshopId ?? null,
-        lice_count: b.liceCount,
-        start_time: b.startTime,
-        end_time: b.endTime,
-        match_gap_seconds: b.matchGapSeconds,
-        match_duration_minutes: b.matchDurationMinutes,
-        min_rest_minutes: b.minRestMinutes,
-        color_hex: b.colorHex ?? null,
-      };
-      if (b.id && !b.id.startsWith('new-')) row['id'] = b.id;
-      return row;
-    });
+    const inserts = dto.blocks.map((b, i) => ({
+      id: UUID_RE.test(b.id) ? b.id : randomUUID(),
+      event_id: eventId,
+      day_index: b.dayIndex,
+      sort_order: i,
+      block_type: b.blockType,
+      label: b.label,
+      competition_id: b.competitionId ?? null,
+      competition_phase: b.competitionPhase ?? null,
+      workshop_id: b.workshopId ?? null,
+      lice_count: b.liceCount,
+      start_time: b.startTime,
+      end_time: b.endTime,
+      match_gap_seconds: b.matchGapSeconds,
+      match_duration_minutes: b.matchDurationMinutes,
+      min_rest_minutes: b.minRestMinutes,
+      color_hex: b.colorHex ?? null,
+    }));
 
     const { data, error } = await this.supabase.service
       .from('event_programme_blocks')
-      .insert(inserts)
+      .upsert(inserts, { onConflict: 'id' })
       .select('*');
     if (error) throw new BadRequestException(error.message);
+
+    // Only now drop what the new programme replaced. Reached solely on a
+    // successful upsert, so there is no window in which the event has no
+    // programme at all.
+    const keptIds = inserts.map((row) => row.id);
+    const { error: pruneError } = await this.supabase.service
+      .from('event_programme_blocks')
+      .delete()
+      .eq('event_id', eventId)
+      .not('id', 'in', `(${keptIds.join(',')})`);
+    if (pruneError) throw new BadRequestException(pruneError.message);
+
     return (data ?? []).map((r) => this.mapBlock(r as Record<string, unknown>));
   }
 
@@ -1297,15 +1333,32 @@ export class ProgrammeService {
       },
     );
 
-    await Promise.all(
+    // `Promise.all` rejected on the FIRST failure while the other writes were
+    // already in flight and still committed — a partial re-fan reported as a
+    // flat 400, with no way to tell how much of it had landed.
+    //
+    // Every write is now attempted, and the error says how many moved, so the
+    // caller knows a reload is required rather than assuming a no-op. Both
+    // grid callers refetch unconditionally, which is what makes that safe.
+    const writes = await Promise.allSettled(
       result.scheduledMatches.map(async (sm) => {
         const { error } = await this.supabase.service
           .from('matches')
           .update({ lice_id: sm.liceId, scheduled_at: sm.scheduledAt })
           .eq('id', sm.matchId);
         if (error) throw new BadRequestException(`Failed to schedule match: ${error.message}`);
+        return sm.matchId;
       }),
     );
+    const committed = new Set(
+      writes.flatMap((w) => (w.status === 'fulfilled' ? [w.value as string] : [])),
+    );
+    const failed = writes.length - committed.size;
+    if (failed > 0) {
+      throw new BadRequestException(
+        `Re-fan partly applied: ${committed.size}/${writes.length} matches moved. Reload the schedule before retrying.`,
+      );
+    }
 
     return {
       scheduled: result.scheduledMatches.map((sm) => ({
