@@ -123,6 +123,7 @@ export const publicApp = {
     sectionLive: 'En direct',
     sectionPublished: 'Événements à venir',
     sectionPast: 'Événements passés',
+    tabsLabel: 'Basculer entre événements et ligues',
     tabEvents: 'Événements',
     tabLeagues: 'Ligues',
     sectionActiveLeagues: 'Ligues en cours',

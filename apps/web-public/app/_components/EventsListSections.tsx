@@ -11,7 +11,13 @@ import { emptySectionMessageKey, type SectionKey } from './empty-section-message
 import { shouldCollapseEmptySections } from './should-collapse-empty-sections';
 import { formatDateRange } from './format-date-range';
 import { EventFilterBar, type WeaponOption } from './EventFilterBar';
-import { EMPTY_EVENT_FILTERS, hasAnyFilter, type EventFilters } from './event-filters';
+import {
+  DEFAULT_CATALOG_TAB,
+  EMPTY_EVENT_FILTERS,
+  hasAnyFilter,
+  type CatalogTab,
+  type EventFilters,
+} from './event-filters';
 
 interface PublicEvent {
   id?: string | null;
@@ -86,10 +92,13 @@ export function EventsListSections({
   events,
   weapons = [],
   filters = EMPTY_EVENT_FILTERS,
+  tab = DEFAULT_CATALOG_TAB,
 }: {
   events: PublicEvent[];
   weapons?: WeaponOption[];
   filters?: EventFilters;
+  /** Passed through untouched, so the filter bar can keep it in the URL. */
+  tab?: CatalogTab;
 }) {
   const { live, published, past } = useMemo(() => partitionEvents(events), [events]);
   // Display-only: the sections no longer filter on it, but the empty-state copy
@@ -103,7 +112,7 @@ export function EventsListSections({
 
   return (
     <div className="flex w-full flex-col gap-10">
-      <EventFilterBar filters={filters} weapons={weapons} resultCount={events.length} />
+      <EventFilterBar filters={filters} weapons={weapons} resultCount={events.length} tab={tab} />
 
       {collapsed ? (
         <EmptyCatalogue />

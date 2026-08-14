@@ -127,6 +127,7 @@ export const publicApp = {
     sectionLive: 'Live now',
     sectionPublished: 'Upcoming events',
     sectionPast: 'Past events',
+    tabsLabel: 'Switch between events and leagues',
     tabEvents: 'Events',
     tabLeagues: 'Leagues',
     sectionActiveLeagues: 'Active leagues',

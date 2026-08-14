@@ -1,5 +1,5 @@
 import { PublicEventsBrowser } from './_components/PublicEventsBrowser';
-import { parseEventFilters } from './_components/event-filters';
+import { parseEventFilters, parseTab } from './_components/event-filters';
 import { getServerT } from '@myclash/next-i18n/server';
 
 // Next.js 16 defaults route segments to static rendering. The public
@@ -18,9 +18,12 @@ export default async function HomePage({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const t = await getServerT();
+  const params = await searchParams;
   // Parsed here, not in the client bar: validation lives on the way IN, so a
   // hand-edited or link-rotted URL can never forward junk to the API.
-  const filters = parseEventFilters(await searchParams);
+  const filters = parseEventFilters(params);
+  // Read on the server so a link to a tab opens on that tab, server-rendered.
+  const tab = parseTab(params['tab']);
   return (
     <main
       id="main-content"
@@ -39,7 +42,7 @@ export default async function HomePage({
           </p>
         </section>
 
-        <PublicEventsBrowser filters={filters} />
+        <PublicEventsBrowser filters={filters} tab={tab} />
       </div>
     </main>
   );

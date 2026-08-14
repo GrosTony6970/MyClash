@@ -18,6 +18,18 @@ export interface EventFilters {
   to: string | null;
 }
 
+/**
+ * Which catalogue section is showing. Deliberately NOT a field of EventFilters:
+ * the filter bar rebuilds the URL from toEventQueryString on every keystroke, so
+ * a tab living inside the filter object would have to survive four call sites
+ * that construct EventFilters literals (the Clear button among them). Carrying
+ * it alongside keeps those exhaustive and makes the omission a type error rather
+ * than a silent reset to Events.
+ */
+export type CatalogTab = 'events' | 'leagues';
+
+export const DEFAULT_CATALOG_TAB: CatalogTab = 'events';
+
 export const EMPTY_EVENT_FILTERS: EventFilters = {
   q: null,
   country: null,
@@ -33,7 +45,13 @@ const COUNTRY_CODE = /^[A-Za-z]{2}$/;
 /** Matches the API's weapon slug shape; anything else is link rot. */
 const WEAPON_SLUG = /^[a-z0-9-]{1,100}$/;
 
-function first(value: string | string[] | undefined): string | null {
+/**
+ * First usable string out of a searchParams entry that may arrive as an array.
+ * Exported because every server page in this app has to do exactly this, and
+ * /organisers grew a second copy with different semantics (`''` rather than
+ * `null`, no trim) before this one was reachable.
+ */
+export function first(value: string | string[] | undefined): string | null {
   const raw = Array.isArray(value) ? value[0] : value;
   if (typeof raw !== 'string') return null;
   const trimmed = raw.trim();
@@ -61,6 +79,30 @@ export function parseEventFilters(params: RawSearchParams): EventFilters {
     from: swap ? validTo : validFrom,
     to: swap ? validFrom : validTo,
   };
+}
+
+/** Junk, a missing value and the default all resolve to the default tab. */
+export function parseTab(value: string | string[] | undefined): CatalogTab {
+  return first(value) === 'leagues' ? 'leagues' : DEFAULT_CATALOG_TAB;
+}
+
+/**
+ * The catalogue URL, filters and tab together — the ONLY serializer any writer
+ * should call.
+ *
+ * `toEventQueryString` alone is what the filter bar used to commit, and because
+ * it cannot see the tab, every filter change and every debounced keystroke
+ * silently rewrote the URL back to Events. Routing both writers (the filter bar
+ * and the tab links) through one function makes "the tab survives a keystroke" a
+ * property of the code rather than of whoever remembered to re-append it.
+ *
+ * The default tab is omitted so `/` stays the canonical, linkable address for
+ * the catalogue — same convention as /me/profile's tabs.
+ */
+export function toCatalogQueryString(filters: EventFilters, tab: CatalogTab): string {
+  const events = toEventQueryString(filters);
+  if (tab === DEFAULT_CATALOG_TAB) return events;
+  return events ? `${events}&tab=${tab}` : `tab=${tab}`;
 }
 
 /** Serialize to a query string (no leading `?`); empty when nothing is set. */

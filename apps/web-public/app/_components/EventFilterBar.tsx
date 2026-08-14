@@ -4,7 +4,13 @@ import { useEffect, useRef, useState, useTransition } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { CountryCombobox } from '@myclash/ui';
 import { useI18n } from '@myclash/next-i18n/client';
-import { hasAnyFilter, toEventQueryString, type EventFilters } from './event-filters';
+import {
+  DEFAULT_CATALOG_TAB,
+  hasAnyFilter,
+  toCatalogQueryString,
+  type CatalogTab,
+  type EventFilters,
+} from './event-filters';
 
 export interface WeaponOption {
   slug: string;
@@ -23,10 +29,17 @@ export function EventFilterBar({
   filters,
   weapons,
   resultCount,
+  tab = DEFAULT_CATALOG_TAB,
 }: {
   filters: EventFilters;
   weapons: WeaponOption[];
   resultCount: number;
+  /**
+   * Re-emitted by every commit. `commit` rebuilds the whole query string, and
+   * the debounced search calls it once per keystroke — so a tab this component
+   * cannot see is a tab it erases, one character at a time.
+   */
+  tab?: CatalogTab;
 }) {
   const { t, locale } = useI18n();
   const router = useRouter();
@@ -51,7 +64,7 @@ export function EventFilterBar({
 
   function commit(next: EventFilters) {
     committedQ.current = next.q ?? '';
-    const qs = toEventQueryString(next);
+    const qs = toCatalogQueryString(next, tab);
     startTransition(() => {
       router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
     });
@@ -64,9 +77,10 @@ export function EventFilterBar({
       commit({ ...filters, q: trimmed === '' ? null : trimmed });
     }, 300);
     return () => clearTimeout(timer);
-    // `commit` is stable enough for this: it only closes over router/pathname.
+    // `commit` is stable enough for this: it closes over router/pathname and
+    // `tab`, all of which are re-read from props on every render anyway.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [draftQ, filters]);
+  }, [draftQ, filters, tab]);
 
   const showClear = hasAnyFilter(filters);
 

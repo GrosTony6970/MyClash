@@ -1,12 +1,17 @@
 'use client';
 
-import { useState } from 'react';
 import Link from 'next/link';
 import { useI18n } from '@myclash/next-i18n/client';
 import { EventsListSections } from './EventsListSections';
 import { PublicLeaguesSections, type PublicLeague } from './PublicLeaguesSections';
 import type { WeaponOption } from './EventFilterBar';
-import { EMPTY_EVENT_FILTERS, type EventFilters } from './event-filters';
+import {
+  DEFAULT_CATALOG_TAB,
+  EMPTY_EVENT_FILTERS,
+  toCatalogQueryString,
+  type CatalogTab,
+  type EventFilters,
+} from './event-filters';
 
 interface PublicEvent {
   id?: string | null;
@@ -28,32 +33,73 @@ interface PublicEvent {
   } | null;
 }
 
-type Tab = 'events' | 'leagues';
+/** Tab id → its label key. One place to add the third tab. */
+const TAB_LABEL_KEYS: ReadonlyArray<readonly [CatalogTab, string]> = [
+  ['events', 'publicApp.home.tabEvents'],
+  ['leagues', 'publicApp.home.tabLeagues'],
+];
 
-function TabRow({ tab, onSelect }: { tab: Tab; onSelect: (next: Tab) => void }) {
+/**
+ * One tab, as an anchor.
+ *
+ * `href` carries the current filters, so switching tabs does not silently
+ * discard a search the reader typed on the other one.
+ */
+function TabLink({
+  value,
+  label,
+  active,
+  filters,
+}: {
+  value: CatalogTab;
+  label: string;
+  active: boolean;
+  filters: EventFilters;
+}) {
+  const qs = toCatalogQueryString(filters, value);
+  return (
+    <Link
+      href={qs ? `/?${qs}` : '/'}
+      role="tab"
+      aria-selected={active}
+      scroll={false}
+      className={[
+        'rounded px-3 py-1.5 text-sm font-semibold transition-colors',
+        active
+          ? 'bg-accent text-accent-foreground'
+          : 'text-foreground-secondary hover:bg-background',
+      ].join(' ')}
+    >
+      {label}
+    </Link>
+  );
+}
+
+/**
+ * Tabs as links, not buttons.
+ *
+ * The tab used to be local `useState`, so the catalogue had one address whatever
+ * you were looking at: a link to the leagues list was unshareable, the back
+ * button skipped past it, and the server rendered Events every time. Anchors put
+ * the state where the rest of this page already keeps it — the URL.
+ */
+function TabRow({ tab, filters }: { tab: CatalogTab; filters: EventFilters }) {
   const { t } = useI18n();
   return (
     <div className="flex flex-wrap items-center justify-between gap-3">
-      <div className="inline-flex self-start rounded-md border border-border bg-surface p-1 shadow-sm">
-        {(
-          [
-            ['events', t('publicApp.home.tabEvents')],
-            ['leagues', t('publicApp.home.tabLeagues')],
-          ] as const
-        ).map(([value, label]) => (
-          <button
+      <div
+        role="tablist"
+        aria-label={t('publicApp.home.tabsLabel')}
+        className="inline-flex self-start rounded-md border border-border bg-surface p-1 shadow-sm"
+      >
+        {TAB_LABEL_KEYS.map(([value, labelKey]) => (
+          <TabLink
             key={value}
-            type="button"
-            onClick={() => onSelect(value)}
-            className={[
-              'rounded px-3 py-1.5 text-sm font-semibold transition-colors',
-              tab === value
-                ? 'bg-accent text-accent-foreground'
-                : 'text-foreground-secondary hover:bg-background',
-            ].join(' ')}
-          >
-            {label}
-          </button>
+            value={value}
+            label={t(labelKey)}
+            active={tab === value}
+            filters={filters}
+          />
         ))}
       </div>
       {/* The event cards below are anchors end to end, so the organiser name
@@ -73,18 +119,19 @@ export function HomeTabs({
   leagues,
   weapons = [],
   filters = EMPTY_EVENT_FILTERS,
+  tab = DEFAULT_CATALOG_TAB,
 }: {
   events: PublicEvent[];
   leagues: PublicLeague[];
   weapons?: WeaponOption[];
   filters?: EventFilters;
+  tab?: CatalogTab;
 }) {
-  const [tab, setTab] = useState<Tab>('events');
   return (
     <div className="flex flex-col gap-6">
-      <TabRow tab={tab} onSelect={setTab} />
+      <TabRow tab={tab} filters={filters} />
       {tab === 'events' && (
-        <EventsListSections events={events} weapons={weapons} filters={filters} />
+        <EventsListSections events={events} weapons={weapons} filters={filters} tab={tab} />
       )}
       {tab === 'leagues' && <PublicLeaguesSections leagues={leagues} />}
     </div>

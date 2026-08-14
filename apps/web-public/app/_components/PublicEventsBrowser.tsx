@@ -3,7 +3,13 @@ import { getServerT } from '@myclash/next-i18n/server';
 import { HomeTabs } from './HomeTabs';
 import type { PublicLeague } from './PublicLeaguesSections';
 import type { WeaponOption } from './EventFilterBar';
-import { EMPTY_EVENT_FILTERS, toEventQueryString, type EventFilters } from './event-filters';
+import {
+  DEFAULT_CATALOG_TAB,
+  EMPTY_EVENT_FILTERS,
+  toEventQueryString,
+  type CatalogTab,
+  type EventFilters,
+} from './event-filters';
 
 /**
  * Public-events browser: fetches the published events + leagues and renders the
@@ -127,8 +133,10 @@ async function fetchWeapons(): Promise<WeaponOption[]> {
 
 export async function PublicEventsBrowser({
   filters = EMPTY_EVENT_FILTERS,
+  tab = DEFAULT_CATALOG_TAB,
 }: {
   filters?: EventFilters;
+  tab?: CatalogTab;
 } = {}) {
   const t = await getServerT();
   const [{ events, unavailable }, leagues, weapons] = await Promise.all([
@@ -159,5 +167,7 @@ export async function PublicEventsBrowser({
   // visitor on "no events yet" with no route anywhere; the empty state now
   // lives INSIDE the listing (see shouldCollapseEmptySections) rather than
   // replacing it.
-  return <HomeTabs events={events} leagues={leagues} weapons={weapons} filters={filters} />;
+  return (
+    <HomeTabs events={events} leagues={leagues} weapons={weapons} filters={filters} tab={tab} />
+  );
 }
