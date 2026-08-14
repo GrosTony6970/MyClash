@@ -499,7 +499,6 @@ export const admin = {
     couldNotAddEmptyPool: 'Could not add an empty pool.',
     couldNotClearPoolLayout: 'Could not clear the pool layout.',
     couldNotDeletePool: 'Could not delete the pool.',
-    couldNotRefanBracket: 'Could not re-fan the bracket across those lices.',
     couldNotReopenMatch: 'Could not re-open the match.',
     couldNotSaveConfig: 'Could not save configuration',
     createParticipantFailed: 'Failed to create participant',

@@ -1866,6 +1866,11 @@ export const organizer = {
       add: 'Add',
       loadFailedPrefix: 'Schedule failed to load:',
       autoDistributeFailedPrefix: 'Auto-distribute failed:',
+      // A write that did not land. The board rolls back to what the server
+      // actually holds, so this banner is the only trace the operator gets.
+      saveFailedPrefix: 'Change not saved:',
+      saveFailedOffline: 'The server could not be reached.',
+      saveFailedPartial: '{failed}/{total} changes were not saved.',
       conflictCountSingular: '⚠ {count} scheduling conflict',
       conflictCountPlural: '⚠ {count} scheduling conflicts',
       conflictSegIsInBoth: 'is in both',

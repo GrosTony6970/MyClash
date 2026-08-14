@@ -506,7 +506,6 @@ export const admin = {
     couldNotAddEmptyPool: "Impossible d'ajouter une poule vide.",
     couldNotClearPoolLayout: 'Impossible de réinitialiser la répartition des poules.',
     couldNotDeletePool: 'Impossible de supprimer la poule.',
-    couldNotRefanBracket: 'Impossible de répartir le tableau sur ces lices.',
     couldNotReopenMatch: "Impossible de rouvrir l'assaut.",
     couldNotSaveConfig: "Impossible d'enregistrer la configuration",
     createParticipantFailed: 'Échec de la création du participant',

@@ -56,6 +56,12 @@ import {
 } from '@myclash/schedule-core';
 import { getPublicApiUrl } from '@/lib/api-url';
 import { LicePlacementEditor } from './LicePlacementEditor';
+import {
+  mutateAll,
+  mutateSchedule,
+  NETWORK_FAILURE_STATUS,
+  ScheduleMutationError,
+} from './schedule-mutations';
 
 /**
  * Ctrl/⌘-click on a match card (placed grid card OR unscheduled
@@ -249,6 +255,11 @@ export function ScheduleGrid({
   // SELECT was silently swallowed — the grid just stayed empty and
   // the operator had to dig into DevTools to find the cause.
   const [fetchError, setFetchError] = useState<string | null>(null);
+  // A write that did not land. Separate from `fetchError` because the recovery
+  // differs: a failed READ leaves the board empty and the operator retries, a
+  // failed WRITE leaves the board showing something the server never accepted,
+  // so `commit` below re-reads the truth underneath this banner.
+  const [saveError, setSaveError] = useState<string | null>(null);
   const [saving, setSaving] = useState<string | null>(null);
   const [conflicts, setConflicts] = useState<Conflict[]>([]);
   // Slice 7: non-fight programme blocks (registration, gear check,
@@ -494,20 +505,10 @@ export function ScheduleGrid({
     setAddLiceBusy(true);
     setAddLiceError(null);
     try {
-      const res = await fetch(`${apiUrl}/api/v1/events/${eventId}/lices`, {
+      await mutateSchedule(`${apiUrl}/api/v1/events/${eventId}/lices`, {
         method: 'POST',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name,
-          colorHex: newLiceColor,
-          sortOrder: lices.length,
-        }),
+        body: { name, colorHex: newLiceColor, sortOrder: lices.length },
       });
-      if (!res.ok) {
-        const body = (await res.json().catch(() => ({}))) as { message?: string };
-        throw new Error(body.message ?? t('admin.common.addLiceFailed'));
-      }
       await refetchLices();
       setNewLiceName('');
       setShowAddLice(false);
@@ -616,18 +617,72 @@ export function ScheduleGrid({
     return () => controller.abort();
   }, [eventId, apiUrl, t]);
 
+  /** Throws `ScheduleMutationError` if the server did not accept the position. */
   async function saveMatchPosition(matchId: string, liceId: string, scheduledAt: string) {
     setSaving(matchId);
     try {
-      await fetch(`${apiUrl}/api/v1/matches/${matchId}/schedule`, {
+      await mutateSchedule(`${apiUrl}/api/v1/matches/${matchId}/schedule`, {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ liceId, scheduledAt }),
+        body: { liceId, scheduledAt },
       });
     } finally {
       setSaving(null);
     }
+  }
+
+  /**
+   * Turn a failed write into something an operator can read. `schedule-mutations`
+   * never invents prose, so "there was no response at all" becomes words here,
+   * where `t()` is in scope.
+   */
+  function describeSaveError(err: unknown): string {
+    if (err instanceof ScheduleMutationError && err.status === NETWORK_FAILURE_STATUS) {
+      return t('organizer.schedulePage.grid.saveFailedOffline');
+    }
+    return err instanceof Error ? err.message : String(err);
+  }
+
+  /**
+   * Run one write. On failure the banner names it and the board re-reads the
+   * server, discarding whatever optimistic state the caller applied.
+   *
+   * The rollback IS the refetch. No call site remembers a previous value, so no
+   * call site can restore a stale or partial one — and it corrects the case that
+   * used to be invisible, where a rejected write left the UI showing a placement
+   * the database never had.
+   */
+  async function commit(run: () => Promise<unknown>): Promise<boolean> {
+    try {
+      await run();
+      setSaveError(null);
+      return true;
+    } catch (err) {
+      setSaveError(describeSaveError(err));
+      await refetchScheduleAndBlocks();
+      return false;
+    }
+  }
+
+  /**
+   * Same contract for a fan-out (a drag that displaces neighbours, a day clear).
+   * Every call is attempted before anything is reported — see `mutateAll`.
+   */
+  async function commitAll(calls: ReadonlyArray<() => Promise<unknown>>): Promise<boolean> {
+    const { total, failures } = await mutateAll(calls);
+    if (failures.length === 0) {
+      setSaveError(null);
+      return true;
+    }
+    setSaveError(
+      total === 1 && failures[0]
+        ? describeSaveError(failures[0])
+        : t('organizer.schedulePage.grid.saveFailedPartial', {
+            failed: failures.length,
+            total,
+          }),
+    );
+    await refetchScheduleAndBlocks();
+    return false;
   }
 
   async function refetchScheduleAndBlocks(): Promise<void> {
@@ -635,15 +690,22 @@ export function ScheduleGrid({
       fetch(`${apiUrl}/api/v1/events/${eventId}/schedule`, { credentials: 'include' }),
       fetch(`${apiUrl}/api/v1/events/${eventId}/programme`, { credentials: 'include' }),
     ]);
-    if (schedRes.ok) {
-      const m = (await schedRes.json()) as ScheduleMatch[];
-      setMatches(m);
-      setConflicts(detectConflicts(m));
+    // This is also the rollback path after a failed write, so a silent skip
+    // here would leave the board showing state the server rejected — the exact
+    // failure `commit` exists to prevent. A refusal has to be visible.
+    if (!schedRes.ok || !programmeRes.ok) {
+      setFetchError(
+        t('organizer.schedulePage.grid.fetchSchedule', {
+          message: `${(schedRes.ok ? programmeRes : schedRes).status}`,
+        }),
+      );
+      return;
     }
-    if (programmeRes.ok) {
-      const blocks = (await programmeRes.json()) as ProgrammeBlockRow[];
-      setProgrammeBlocks(blocks.filter((b) => b.blockType === 'admin' || b.blockType === 'break'));
-    }
+    const m = (await schedRes.json()) as ScheduleMatch[];
+    setMatches(m);
+    setConflicts(detectConflicts(m));
+    const blocks = (await programmeRes.json()) as ProgrammeBlockRow[];
+    setProgrammeBlocks(blocks.filter((b) => b.blockType === 'admin' || b.blockType === 'break'));
   }
 
   // ── Realtime: refresh when matches change elsewhere (scoring, another
@@ -687,16 +749,13 @@ export function ScheduleGrid({
       const hh = Math.floor(newStartMin / 60);
       const mm = newStartMin % 60;
       const newStartTime = `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}`;
-      const res = await fetch(
-        `${apiUrl}/api/v1/events/${eventId}/programme/blocks/${blockId}/move`,
-        {
+      const ok = await commit(() =>
+        mutateSchedule(`${apiUrl}/api/v1/events/${eventId}/programme/blocks/${blockId}/move`, {
           method: 'PATCH',
-          credentials: 'include',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ newStartTime }),
-        },
+          body: { newStartTime },
+        }),
       );
-      if (!res.ok) return;
+      if (!ok) return;
       // Cascade can touch many matches — refetch from source of truth
       // instead of trying to mirror the shift client-side.
       await refetchScheduleAndBlocks();
@@ -765,22 +824,15 @@ export function ScheduleGrid({
       const hh = String(Math.floor(newEndMinutes / 60)).padStart(2, '0');
       const mm = String(newEndMinutes % 60).padStart(2, '0');
       const newEndTime = `${hh}:${mm}`;
-      try {
-        const res = await fetch(
-          `${apiUrl}/api/v1/events/${eventId}/programme/blocks/${block.id}/resize`,
-          {
-            method: 'PATCH',
-            headers: { 'Content-Type': 'application/json' },
-            credentials: 'include',
-            body: JSON.stringify({ newEndTime }),
-          },
-        );
-        if (!res.ok) return;
-        await refetchScheduleAndBlocks();
-        onProgrammeMutated?.();
-      } catch {
-        // Surfaces on next refetch; refetch handles consistency.
-      }
+      const ok = await commit(() =>
+        mutateSchedule(`${apiUrl}/api/v1/events/${eventId}/programme/blocks/${block.id}/resize`, {
+          method: 'PATCH',
+          body: { newEndTime },
+        }),
+      );
+      if (!ok) return;
+      await refetchScheduleAndBlocks();
+      onProgrammeMutated?.();
     }
     function onCancel(e: PointerEvent) {
       handle.releasePointerCapture(e.pointerId);
@@ -799,11 +851,12 @@ export function ScheduleGrid({
     const row = programmeBlocks.find((b) => b.id === blockId);
     setDeletingBlockId(blockId);
     try {
-      const res = await fetch(`${apiUrl}/api/v1/events/${eventId}/programme/blocks/${blockId}`, {
-        method: 'DELETE',
-        credentials: 'include',
-      });
-      if (!res.ok) return;
+      const ok = await commit(() =>
+        mutateSchedule(`${apiUrl}/api/v1/events/${eventId}/programme/blocks/${blockId}`, {
+          method: 'DELETE',
+        }),
+      );
+      if (!ok) return;
       if (row) {
         setLastUndo({
           kind: 'delete-block',
@@ -848,7 +901,7 @@ export function ScheduleGrid({
     );
     setMatches(updated);
     setConflicts(detectConflicts(updated));
-    for (const id of action.matchIds) void saveMatchPosition(id, '', '');
+    void commitAll(action.matchIds.map((id) => () => saveMatchPosition(id, '', '')));
     setLastUndo({ kind: 'unschedule', label: block.label, matches: prior });
   }
 
@@ -865,23 +918,23 @@ export function ScheduleGrid({
       });
       setMatches(restored);
       setConflicts(detectConflicts(restored));
-      await Promise.all(
-        u.matches.map((m) =>
-          fetch(`${apiUrl}/api/v1/matches/${m.id}/schedule`, {
-            method: 'PATCH',
-            headers: { 'Content-Type': 'application/json' },
-            credentials: 'include',
-            body: JSON.stringify({ liceId: m.liceId, scheduledAt: m.scheduledAt }),
-          }),
+      await commitAll(
+        u.matches.map(
+          (m) => () =>
+            mutateSchedule(`${apiUrl}/api/v1/matches/${m.id}/schedule`, {
+              method: 'PATCH',
+              body: { liceId: m.liceId, scheduledAt: m.scheduledAt },
+            }),
         ),
       );
     } else {
-      await fetch(`${apiUrl}/api/v1/events/${eventId}/programme/blocks`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify(u.block),
-      });
+      const ok = await commit(() =>
+        mutateSchedule(`${apiUrl}/api/v1/events/${eventId}/programme/blocks`, {
+          method: 'POST',
+          body: u.block,
+        }),
+      );
+      if (!ok) return;
       await refetchScheduleAndBlocks();
       onProgrammeMutated?.();
     }
@@ -971,14 +1024,19 @@ export function ScheduleGrid({
     });
     setMatches(updated);
     setConflicts(detectConflicts(updated));
-    void saveMatchPosition(match.id, liceId, newScheduledAt);
-    // Fan-out PATCHes for every neighbour the shift moved. Fire-and-
-    // forget; refetch on next render keeps state honest.
+    // The dropped match and every neighbour the shift displaced are ONE
+    // operation to the operator, so they are reported as one: any rejection
+    // re-reads the server instead of leaving half the column moved on screen
+    // and unmoved in the database.
+    const writes: Array<() => Promise<unknown>> = [
+      () => saveMatchPosition(match.id, liceId, newScheduledAt),
+    ];
     for (const s of placement.shifted) {
       const moved = matches.find((m) => m.id === s.id);
       if (!moved) continue;
-      void saveMatchPosition(s.id, liceId, slotToTimeTz(s.slot, activeDay));
+      writes.push(() => saveMatchPosition(s.id, liceId, slotToTimeTz(s.slot, activeDay)));
     }
+    void commitAll(writes);
     dragMatch.current = null;
   }
 
@@ -1057,9 +1115,10 @@ export function ScheduleGrid({
     setMatches(updated);
     setConflicts(detectConflicts(updated));
 
-    // 6. PATCH every match whose (liceId, scheduledAt) actually
-    //    changed. Fire-and-forget — refetch on next interaction
-    //    keeps state honest.
+    // 6. PATCH every match whose (liceId, scheduledAt) actually changed, as
+    //    one reported operation — a partial failure rolls the board back to
+    //    the server's version rather than leaving the group half-placed.
+    const writes: Array<() => Promise<unknown>> = [];
     for (const item of placement.items) {
       const original = matches.find((m) => m.id === item.id);
       if (!original) continue;
@@ -1068,8 +1127,9 @@ export function ScheduleGrid({
         ? targetLiceId
         : (original.liceId ?? targetLiceId);
       if (original.scheduledAt === newScheduledAt && original.liceId === newLiceId) continue;
-      void saveMatchPosition(item.id, newLiceId, newScheduledAt);
+      writes.push(() => saveMatchPosition(item.id, newLiceId, newScheduledAt));
     }
+    await commitAll(writes);
   }
 
   /** Pool drop — all of the pool's matches as one group. */
@@ -1087,7 +1147,7 @@ export function ScheduleGrid({
     const updated = matches.map((m) => (m.id === matchId ? { ...m, liceId, scheduledAt } : m));
     setMatches(updated);
     setConflicts(detectConflicts(updated));
-    await saveMatchPosition(matchId, liceId ?? '', scheduledAt ?? '');
+    await commit(() => saveMatchPosition(matchId, liceId ?? '', scheduledAt ?? ''));
   }
 
   async function undo() {
@@ -1151,16 +1211,22 @@ export function ScheduleGrid({
     try {
       // Fan out PATCHes in parallel. Last write wins per match — no
       // ordering required since each touches its own row.
-      await Promise.all(
-        targets.map((m) =>
-          fetch(`${apiUrl}/api/v1/matches/${m.id}/schedule`, {
-            method: 'PATCH',
-            headers: { 'Content-Type': 'application/json' },
-            credentials: 'include',
-            body: JSON.stringify({ liceId: null, scheduledAt: null }),
-          }),
+      //
+      // The local state is applied only AFTER the writes are known to have
+      // landed. This used to run the other way round: a 401 emptied the whole
+      // day on screen while every match stayed scheduled in the database, on
+      // the pad and on the public display, and the operator then re-scheduled
+      // on top of rows that were never cleared.
+      const ok = await commitAll(
+        targets.map(
+          (m) => () =>
+            mutateSchedule(`${apiUrl}/api/v1/matches/${m.id}/schedule`, {
+              method: 'PATCH',
+              body: { liceId: null, scheduledAt: null },
+            }),
         ),
       );
+      if (!ok) return;
       const targetIds = new Set(targets.map((m) => m.id));
       const updated = matches.map((m) =>
         targetIds.has(m.id) ? { ...m, liceId: null, scheduledAt: null } : m,
@@ -1389,7 +1455,9 @@ export function ScheduleGrid({
     );
     setMatches(updated);
     setConflicts(detectConflicts(updated));
-    for (const f of future) void saveMatchPosition(f.id, liceId, shifted(f.scheduledAt!));
+    void commitAll(
+      future.map((f) => () => saveMatchPosition(f.id, liceId, shifted(f.scheduledAt!))),
+    );
   }
 
   // ── Block grid: edit popover + resize/edit commit handlers ────────────────
@@ -1410,7 +1478,7 @@ export function ScheduleGrid({
     );
     setMatches(updated);
     setConflicts(detectConflicts(updated));
-    for (const u of updates) void saveMatchPosition(u.id, u.liceId, u.scheduledAt);
+    void commitAll(updates.map((u) => () => saveMatchPosition(u.id, u.liceId, u.scheduledAt)));
   }
 
   // Vertical resize / end edit: respace each lice's sub-run of the block across
@@ -1463,19 +1531,21 @@ export function ScheduleGrid({
   ): Promise<boolean> {
     if (!activeDay || matchIds.length === 0 || liceIds.length === 0) return false;
     try {
-      const res = await fetch(`${apiUrl}/api/v1/events/${eventId}/programme/schedule-group`, {
+      await mutateSchedule(`${apiUrl}/api/v1/events/${eventId}/programme/schedule-group`, {
         method: 'POST',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+        body: {
           matchIds,
           liceIds,
           startTime: slotToTimeTz(startSlot, activeDay),
           mode,
-        }),
+        },
       });
-      return res.ok;
-    } catch {
+      return true;
+    } catch (err) {
+      // Keep the server's own reason. This endpoint can commit part of a re-fan
+      // and still fail, so "could not re-fan" on its own leaves the operator
+      // with nothing to act on.
+      setAutoDistributeError(describeSaveError(err));
       return false;
     }
   }
@@ -1492,8 +1562,11 @@ export function ScheduleGrid({
           startSlot,
           'bracket-branch',
         );
-        if (ok) await refetchScheduleAndBlocks();
-        else setAutoDistributeError(t('admin.common.couldNotRefanBracket'));
+        // On failure `postScheduleGroup` has already surfaced the server's
+        // reason, which beats the generic one this used to show. Either way the
+        // board re-reads, because a failed re-fan may still have moved rows.
+        await refetchScheduleAndBlocks();
+        if (!ok) return;
       })();
       return;
     }
@@ -1506,31 +1579,42 @@ export function ScheduleGrid({
     setBlockEditBusy(true);
     try {
       // Label + color share the same update endpoint ('' color → null = default).
+      //
+      // These run in sequence, not as a fan-out: /move cascades the day's
+      // matches and /resize does not, so the order they land in changes the
+      // result. `commit` stops at the first refusal rather than sending the
+      // rest against a block the server did not update.
       const draftColor = draft.colorHex || null;
+      const base = `${apiUrl}/api/v1/events/${eventId}/programme/blocks/${brk.id}`;
+      const steps: Array<() => Promise<unknown>> = [];
       if (draft.label !== brk.label || draftColor !== (brk.colorHex ?? null)) {
-        await fetch(`${apiUrl}/api/v1/events/${eventId}/programme/blocks/${brk.id}`, {
-          method: 'PATCH',
-          credentials: 'include',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ label: draft.label, colorHex: draftColor }),
-        });
+        steps.push(() =>
+          mutateSchedule(base, {
+            method: 'PATCH',
+            body: { label: draft.label, colorHex: draftColor },
+          }),
+        );
       }
       if (draft.startHHMM !== brk.startTime) {
-        await fetch(`${apiUrl}/api/v1/events/${eventId}/programme/blocks/${brk.id}/move`, {
-          method: 'PATCH',
-          credentials: 'include',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ newStartTime: draft.startHHMM }),
-        });
+        steps.push(() =>
+          mutateSchedule(`${base}/move`, {
+            method: 'PATCH',
+            body: { newStartTime: draft.startHHMM },
+          }),
+        );
       }
       if (draft.endHHMM !== brk.endTime) {
-        await fetch(`${apiUrl}/api/v1/events/${eventId}/programme/blocks/${brk.id}/resize`, {
-          method: 'PATCH',
-          credentials: 'include',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ newEndTime: draft.endHHMM }),
-        });
+        steps.push(() =>
+          mutateSchedule(`${base}/resize`, {
+            method: 'PATCH',
+            body: { newEndTime: draft.endHHMM },
+          }),
+        );
       }
+      const ok = await commit(async () => {
+        for (const step of steps) await step();
+      });
+      if (!ok) return;
       await refetchScheduleAndBlocks();
       onProgrammeMutated?.();
     } finally {
@@ -1539,12 +1623,13 @@ export function ScheduleGrid({
   }
 
   async function resizeBreakTimeTo(brk: BgvBreak, newEndSlot: number) {
-    await fetch(`${apiUrl}/api/v1/events/${eventId}/programme/blocks/${brk.id}/resize`, {
-      method: 'PATCH',
-      credentials: 'include',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ newEndTime: slotToHHMM(newEndSlot) }),
-    });
+    const ok = await commit(() =>
+      mutateSchedule(`${apiUrl}/api/v1/events/${eventId}/programme/blocks/${brk.id}/resize`, {
+        method: 'PATCH',
+        body: { newEndTime: slotToHHMM(newEndSlot) },
+      }),
+    );
+    if (!ok) return;
     await refetchScheduleAndBlocks();
     onProgrammeMutated?.();
   }
@@ -1557,19 +1642,20 @@ export function ScheduleGrid({
     if (dayIndex < 0) return;
     setBlockEditBusy(true);
     try {
-      await fetch(`${apiUrl}/api/v1/events/${eventId}/programme/blocks`, {
-        method: 'POST',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          dayIndex,
-          blockType: 'break',
-          label: draft.label || t('organizer.schedulePage.grid.breakDefaultLabel'),
-          startTime: draft.startHHMM,
-          endTime: draft.endHHMM,
-          colorHex: draft.colorHex || null,
+      const ok = await commit(() =>
+        mutateSchedule(`${apiUrl}/api/v1/events/${eventId}/programme/blocks`, {
+          method: 'POST',
+          body: {
+            dayIndex,
+            blockType: 'break',
+            label: draft.label || t('organizer.schedulePage.grid.breakDefaultLabel'),
+            startTime: draft.startHHMM,
+            endTime: draft.endHHMM,
+            colorHex: draft.colorHex || null,
+          },
         }),
-      });
+      );
+      if (!ok) return;
       await refetchScheduleAndBlocks();
       onProgrammeMutated?.();
     } finally {
@@ -1580,12 +1666,13 @@ export function ScheduleGrid({
 
   // Top-edge resize of a break/admin bar — moves start_time, end_time stays put.
   async function resizeBreakStartTo(brk: BgvBreak, newStartSlot: number) {
-    await fetch(`${apiUrl}/api/v1/events/${eventId}/programme/blocks/${brk.id}/resize`, {
-      method: 'PATCH',
-      credentials: 'include',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ newStartTime: slotToHHMM(newStartSlot) }),
-    });
+    const ok = await commit(() =>
+      mutateSchedule(`${apiUrl}/api/v1/events/${eventId}/programme/blocks/${brk.id}/resize`, {
+        method: 'PATCH',
+        body: { newStartTime: slotToHHMM(newStartSlot) },
+      }),
+    );
+    if (!ok) return;
     await refetchScheduleAndBlocks();
     onProgrammeMutated?.();
   }
@@ -1827,9 +1914,7 @@ export function ScheduleGrid({
       );
       setMatches(updated);
       setConflicts(detectConflicts(updated));
-      for (const id of group.matchIds) {
-        void saveMatchPosition(id, '', '');
-      }
+      await commitAll(group.matchIds.map((id) => () => saveMatchPosition(id, '', '')));
     } finally {
       setClearingRun(false);
       setPendingRunClear(null);
@@ -2090,6 +2175,25 @@ export function ScheduleGrid({
         </div>
       )}
 
+      {saveError && (
+        <div
+          role="alert"
+          className="bg-danger/10 border border-danger/30 rounded-xl px-4 py-3 mb-4 text-sm flex items-start gap-3"
+        >
+          <span className="font-bold text-danger">
+            {t('organizer.schedulePage.grid.saveFailedPrefix')}
+          </span>
+          <span className="text-danger">{saveError}</span>
+          <button
+            type="button"
+            onClick={() => setSaveError(null)}
+            className="ml-auto text-danger hover:text-danger-hover font-bold"
+          >
+            ✕
+          </button>
+        </div>
+      )}
+
       {autoDistributeError && (
         <div className="bg-danger/10 border border-danger/30 rounded-xl px-4 py-3 mb-4 text-sm flex items-start gap-3">
           <span className="font-bold text-danger">
@@ -2266,7 +2370,7 @@ export function ScheduleGrid({
                   );
                   setMatches(updated);
                   setConflicts(detectConflicts(updated));
-                  void saveMatchPosition(match.id, '', '');
+                  void commit(() => saveMatchPosition(match.id, '', ''));
                   dragMatch.current = null;
                 }}
               >

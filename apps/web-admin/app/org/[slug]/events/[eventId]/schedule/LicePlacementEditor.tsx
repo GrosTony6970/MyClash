@@ -17,6 +17,7 @@ import { useEffect, useState } from 'react';
 import { Modal } from '@myclash/ui';
 import { getPublicApiUrl } from '@/lib/api-url';
 import { useI18n } from '@myclash/next-i18n/client';
+import { mutateSchedule } from './schedule-mutations';
 
 interface VenueArea {
   id: string;
@@ -64,7 +65,13 @@ export function LicePlacementEditor({ eventId, lice, onClose, onSaved }: Props) 
       signal: controller.signal,
     })
       .then(async (res) => {
-        if (res.ok) setVenues((await res.json()) as EventVenue[]);
+        // A refused read used to fall through silently, leaving an empty hall
+        // dropdown indistinguishable from "this event has no venues".
+        if (!res.ok) {
+          setError(t('organizer.schedulePage.placement.loadFailed'));
+          return;
+        }
+        setVenues((await res.json()) as EventVenue[]);
       })
       .catch((err: unknown) => {
         if (err instanceof Error && err.name === 'AbortError') return;
@@ -88,16 +95,10 @@ export function LicePlacementEditor({ eventId, lice, onClose, onSaved }: Props) 
     setBusy(true);
     setError(null);
     try {
-      const res = await fetch(`${apiUrl}/api/v1/lices/${lice.id}`, {
+      await mutateSchedule(`${apiUrl}/api/v1/lices/${lice.id}`, {
         method: 'PATCH',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ venueId: venueId || null, areaId: areaId || null }),
+        body: { venueId: venueId || null, areaId: areaId || null },
       });
-      if (!res.ok) {
-        const body = (await res.json().catch(() => ({}))) as { message?: string };
-        throw new Error(body.message ?? t('organizer.schedulePage.placement.saveFailed'));
-      }
       await onSaved();
       onClose();
     } catch (err) {
