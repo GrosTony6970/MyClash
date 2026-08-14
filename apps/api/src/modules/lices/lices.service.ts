@@ -3,7 +3,11 @@ import { SupabaseService } from '../supabase/supabase.service';
 // Value import, not `import type` — `import type` erases the DI metadata and
 // the dependency arrives undefined at runtime.
 import { OrganizationsService } from '../organizations/organizations.service';
-import { assertCanManageEvent, assertCanManageLice } from '../../common/auth/event-authz';
+import {
+  assertCanManageEvent,
+  assertCanManageLice,
+  assertCanReadEvent,
+} from '../../common/auth/event-authz';
 import type { CreateLiceDto, UpdateLiceDto } from './dto/lices.dto';
 
 type Row = Record<string, unknown>;
@@ -15,12 +19,17 @@ export class LicesService {
     private readonly orgs: OrganizationsService,
   ) {}
 
-  /** Shape `event-authz` needs; `list` stays public and never calls this. */
+  /** Shape `event-authz` needs, for both the writes and the public read. */
   private get authz() {
     return { supabase: this.supabase, orgs: this.orgs };
   }
 
-  async list(eventId: string) {
+  /**
+   * `@Public()`, gated on event visibility: the piste layout of an event that
+   * has not been announced yet is the organiser's, not the internet's.
+   */
+  async list(eventId: string, resolveUserId: () => Promise<string>) {
+    await assertCanReadEvent(this.authz, eventId, resolveUserId);
     // Project the joined venue (id + name) and area so the schedule grid,
     // venues page and public display picker can group lice columns under
     // a venue/area header without a second round-trip.

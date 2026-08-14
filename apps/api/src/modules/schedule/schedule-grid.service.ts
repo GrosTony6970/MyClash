@@ -1,5 +1,9 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { SupabaseService } from '../supabase/supabase.service';
+// Value import, not `import type` — `import type` erases the DI metadata and
+// the dependency arrives undefined at runtime.
+import { OrganizationsService } from '../organizations/organizations.service';
+import { assertCanReadEvent } from '../../common/auth/event-authz';
 import { buildRoundCode, bracketCodeConfig } from '../matches/round-code.helper';
 
 export interface ScheduleGridMatch {
@@ -126,7 +130,10 @@ interface ViewNameRow {
 
 @Injectable()
 export class ScheduleGridService {
-  constructor(private readonly supabase: SupabaseService) {}
+  constructor(
+    private readonly supabase: SupabaseService,
+    private readonly orgs: OrganizationsService,
+  ) {}
 
   /**
    * Return every match across every phase (pool / bracket / finals) for the
@@ -142,8 +149,17 @@ export class ScheduleGridService {
    *
    * Matches with `scheduled_at IS NULL` are returned too — the frontend uses
    * them to populate the "Unscheduled" sidebar.
+   *
+   * Gated on event visibility FIRST: every row below carries both fighters'
+   * names, and this route is `@Public()`, so an unannounced event's whole
+   * roster was one request away for anyone holding its id.
    */
-  async listEventSchedule(eventId: string): Promise<ScheduleGridMatch[]> {
+  async listEventSchedule(
+    eventId: string,
+    resolveUserId: () => Promise<string>,
+  ): Promise<ScheduleGridMatch[]> {
+    await assertCanReadEvent({ supabase: this.supabase, orgs: this.orgs }, eventId, resolveUserId);
+
     // 1. Tournaments for this event.
     const { data: tournamentsData, error: tournamentsErr } = await this.supabase.service
       .from('tournaments')

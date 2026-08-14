@@ -1,8 +1,26 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { NotFoundException } from '@nestjs/common';
 import { ScheduleGridService, formatBracketPlaceholder } from './schedule-grid.service';
+import { assertCanReadEvent } from '../../common/auth/event-authz';
+
+/**
+ * The visibility gate is mocked, not exercised, for one reason: `queueTables`
+ * below drives `fromMock` as an ORDERED mockReturnValueOnce sequence, so the
+ * gate's own `events` read would shift every queued chain by one and desync
+ * every spec in this file. The gate's behaviour is owned by
+ * common/auth/event-authz.test.ts; what this file owns is that it is CALLED,
+ * and called before any data is read.
+ */
+vi.mock('../../common/auth/event-authz', () => ({
+  assertCanReadEvent: vi.fn(() => Promise.resolve()),
+}));
+const assertCanReadEventMock = vi.mocked(assertCanReadEvent);
 
 const fromMock = vi.fn();
 const mockSupabase = { service: { from: fromMock } };
+const mockOrgs = { assertOrgRole: vi.fn() };
+/** Every spec below reads a published event; the gate is asserted separately. */
+const anyCaller = () => Promise.resolve('user-1');
 
 function makeChain(result: unknown) {
   const promise = Promise.resolve(result);
@@ -87,7 +105,7 @@ describe('ScheduleGridService', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    service = new ScheduleGridService(mockSupabase as never);
+    service = new ScheduleGridService(mockSupabase as never, mockOrgs as never);
   });
 
   it('returns matches across pool + bracket phases for the event', async () => {
@@ -129,7 +147,7 @@ describe('ScheduleGridService', () => {
       ],
     });
 
-    const result = await service.listEventSchedule('event-1');
+    const result = await service.listEventSchedule('event-1', anyCaller);
     expect(result).toHaveLength(2);
     const pool = result.find((m) => m.id === 'match-pool')!;
     const bracket = result.find((m) => m.id === 'match-bracket')!;
@@ -164,7 +182,7 @@ describe('ScheduleGridService', () => {
       ],
     });
 
-    const result = await service.listEventSchedule('event-1');
+    const result = await service.listEventSchedule('event-1', anyCaller);
     expect(result).toHaveLength(1);
     expect(result[0]!.scheduledAt).toBeNull();
     expect(result[0]!.liceId).toBeNull();
@@ -172,7 +190,7 @@ describe('ScheduleGridService', () => {
 
   it('returns an empty list when the event has no tournaments', async () => {
     queueTables({ tournaments: [] });
-    await expect(service.listEventSchedule('event-1')).resolves.toEqual([]);
+    await expect(service.listEventSchedule('event-1', anyCaller)).resolves.toEqual([]);
   });
 
   it('returns an empty list when phases exist but no matches do', async () => {
@@ -181,7 +199,7 @@ describe('ScheduleGridService', () => {
       phases: [{ id: 'ph-pool', type: 'pool', tournament_id: 't1' }],
       matches: [],
     });
-    await expect(service.listEventSchedule('event-1')).resolves.toEqual([]);
+    await expect(service.listEventSchedule('event-1', anyCaller)).resolves.toEqual([]);
   });
 
   it('projects the canonical roundCode (LSW-P1-M1) for a pool match', async () => {
@@ -205,7 +223,7 @@ describe('ScheduleGridService', () => {
       pools: [{ id: 'pool-1', name: 'Pool A', sort_order: 0 }],
     });
 
-    const result = await service.listEventSchedule('event-1');
+    const result = await service.listEventSchedule('event-1', anyCaller);
     expect(result).toHaveLength(1);
     expect(result[0]!.roundCode).toBe('LSW-P1-M1');
     expect(result[0]!.poolName).toBe('Pool A');
@@ -239,7 +257,7 @@ describe('ScheduleGridService', () => {
       bracketSlots: [{ id: 'slot-sf-1', round: 2 }],
     });
 
-    const result = await service.listEventSchedule('event-1');
+    const result = await service.listEventSchedule('event-1', anyCaller);
     expect(result).toHaveLength(1);
     // bracketSize 8 + round 2 → semifinal (4 fighters remaining)
     expect(result[0]!.roundCode).toBe('LSW-B-SF-M1');
@@ -275,7 +293,7 @@ describe('ScheduleGridService', () => {
       bracketSlots: [{ id: 'slot-f-1', round: 3 }],
     });
 
-    const result = await service.listEventSchedule('event-1');
+    const result = await service.listEventSchedule('event-1', anyCaller);
     // mainBracketSize 8 + round 3 → final (2 fighters remaining)
     expect(result[0]!.roundCode).toBe('LSW-B-F-M1');
   });
@@ -299,7 +317,7 @@ describe('ScheduleGridService', () => {
       names: [{ match_id: 'm1', red_name: 'Alice', blue_name: 'Bob' }],
     });
 
-    const result = await service.listEventSchedule('event-1');
+    const result = await service.listEventSchedule('event-1', anyCaller);
     expect(result[0]!.redFighterName).toBe('Alice');
     expect(result[0]!.blueFighterName).toBe('Bob');
 
@@ -308,5 +326,55 @@ describe('ScheduleGridService', () => {
     // default 1000-row cap so large events aren't silently truncated.
     const namesChain = fromMock.mock.results[3]!.value;
     expect(namesChain.limit).toHaveBeenCalledWith(1);
+  });
+
+  /**
+   * Every row this service returns carries both fighters' names, and the route
+   * is @Public(). Before the gate, a draft event's whole roster was one request
+   * away for anyone holding the id — which `GET /events/:slug`, also public,
+   * hands out. The gate has to run BEFORE the reads, not filter after them.
+   */
+  describe('visibility gate', () => {
+    it('gates on the event before reading a single row', async () => {
+      queueTables({ tournaments: [] });
+
+      await service.listEventSchedule('event-1', anyCaller);
+
+      expect(assertCanReadEventMock).toHaveBeenCalledWith(
+        expect.objectContaining({ supabase: mockSupabase, orgs: mockOrgs }),
+        'event-1',
+        anyCaller,
+      );
+      expect(assertCanReadEventMock.mock.invocationCallOrder[0]!).toBeLessThan(
+        fromMock.mock.invocationCallOrder[0]!,
+      );
+    });
+
+    it('returns nothing at all when the gate refuses', async () => {
+      assertCanReadEventMock.mockRejectedValueOnce(new NotFoundException('Event not found'));
+      queueTables({
+        tournaments: [{ id: 't1', name: 'Cup' }],
+        phases: [{ id: 'ph', type: 'pool', tournament_id: 't1' }],
+        matches: [
+          {
+            id: 'm1',
+            match_number_label: 'P1-M1',
+            status: 'scheduled',
+            lice_id: null,
+            scheduled_at: null,
+            phase_id: 'ph',
+            red_registration_id: 'reg-a',
+            blue_registration_id: 'reg-b',
+          },
+        ],
+        names: [{ match_id: 'm1', red_name: 'Alice', blue_name: 'Bob' }],
+      });
+
+      await expect(service.listEventSchedule('event-1', anyCaller)).rejects.toThrow(
+        NotFoundException,
+      );
+      // Not "threw after fetching" — the roster must never have been read.
+      expect(fromMock).not.toHaveBeenCalled();
+    });
   });
 });

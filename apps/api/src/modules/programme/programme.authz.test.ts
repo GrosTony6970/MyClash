@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { ForbiddenException } from '@nestjs/common';
+import { ForbiddenException, NotFoundException } from '@nestjs/common';
 import { ProgrammeService } from './programme.service';
 import { LicesService } from '../lices/lices.service';
 
@@ -136,4 +136,53 @@ describe('a member of another organisation cannot write the lices', () => {
     const { svc } = lices();
     await expect(svc.delete(LICE_ID, OUTSIDER)).rejects.toThrow(ForbiddenException);
   });
+});
+
+/**
+ * The two `@Public()` reads on these services. Public was unconditional: the
+ * programme and the piste layout of an event nobody had announced yet were
+ * readable by anyone holding the event id, and `GET /events/:slug` — also
+ * public — hands that id out for a slug.
+ *
+ * A refusal here is 404, not 403: a 403 confirms the event exists.
+ */
+describe('an unannounced event is not readable from outside the org', () => {
+  const draft = (status: string) => ({
+    events: { data: { organization_id: ORG_OWNER, status }, error: null },
+  });
+
+  const reads: Array<
+    [string, (svc: { programme: ProgrammeService; lices: LicesService }) => unknown]
+  > = [
+    ['programme', ({ programme: p }) => p.listBlocks(EVENT_ID, () => Promise.resolve(OUTSIDER))],
+    ['lices', ({ lices: l }) => l.list(EVENT_ID, () => Promise.resolve(OUTSIDER))],
+  ];
+
+  function services(status: string) {
+    const orgs = refusingOrgs();
+    const supabase = supabaseFor(draft(status)) as never;
+    return {
+      programme: new ProgrammeService(supabase, orgs as never),
+      lices: new LicesService(supabase, orgs as never),
+    };
+  }
+
+  for (const [name, call] of reads) {
+    it(`404s an outsider reading a draft event's ${name}`, async () => {
+      await expect(call(services('draft'))).rejects.toThrow(NotFoundException);
+    });
+
+    it(`still serves ${name} anonymously once the event is published`, async () => {
+      await expect(call(services('published'))).resolves.toBeDefined();
+    });
+
+    /**
+     * Archived events stay readable ON PURPOSE — the divergence from
+     * matches_select and listEvents is the decision. Archiving locks writes
+     * (EventReadOnlyGuard); it is not a curtain over a past event.
+     */
+    it(`still serves ${name} on an archived event`, async () => {
+      await expect(call(services('archived'))).resolves.toBeDefined();
+    });
+  }
 });

@@ -164,13 +164,18 @@ describe('ProgrammeService', () => {
     // into the next test in file order.
     fromMock.mockReset();
     service = new ProgrammeService(mockSupabase as never, mockOrgs as never);
-    // The org-role assertion reads `events` before every write. These suites
-    // drive their mocks as ORDERED queues, so letting that read through would
-    // desync every one of them. Authorization has its own tests below, which
-    // do NOT stub it.
+    // The org-role assertion reads `events` before every write, and the
+    // visibility gate does the same before the one public read. These suites
+    // drive their mocks as ORDERED queues, so letting either read through would
+    // desync every one of them. Authorization has its own tests below and in
+    // programme.authz.test.ts, which do NOT stub these.
     vi.spyOn(
       service as never as { assertWriter: () => Promise<void> },
       'assertWriter',
+    ).mockResolvedValue(undefined);
+    vi.spyOn(
+      service as never as { assertReader: () => Promise<void> },
+      'assertReader',
     ).mockResolvedValue(undefined);
   });
 
@@ -198,7 +203,7 @@ describe('ProgrammeService', () => {
     };
     fromMock.mockReturnValueOnce(makeChain({ data: [blockRow], error: null }));
 
-    const blocks = await service.listBlocks('event-1');
+    const blocks = await service.listBlocks('event-1', () => Promise.resolve(CALLER));
 
     expect(blocks).toHaveLength(1);
     expect(blocks[0]!.startTime).toBe('08:00');

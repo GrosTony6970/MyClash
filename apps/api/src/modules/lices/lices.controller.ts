@@ -27,6 +27,9 @@ import { CreateLiceDto, UpdateLiceDto } from './dto/lices.dto';
  * The writes carried "(org admin+)" in their summaries and enforced nothing —
  * the service now asserts the caller's org role, which is the whole boundary
  * given every query runs as the BYPASSRLS service role.
+ *
+ * The read is gated too, on the EVENT rather than on the caller: public until
+ * the event is published, org-only before that.
  */
 @ApiTags('lices')
 @Controller()
@@ -40,8 +43,8 @@ export class LicesController {
   @Get('events/:eventId/lices')
   @ApiOperation({ summary: 'List lices for an event (public)' })
   @ApiParam({ name: 'eventId', type: 'string', format: 'uuid' })
-  async list(@Param('eventId', ParseUUIDPipe) eventId: string) {
-    return this.lices.list(eventId);
+  async list(@Param('eventId', ParseUUIDPipe) eventId: string, @Req() req: FastifyRequest) {
+    return this.lices.list(eventId, () => resolveRequestUserId(req, this.supabase));
   }
 
   @Post('events/:eventId/lices')

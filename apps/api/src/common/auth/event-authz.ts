@@ -25,6 +25,7 @@
 import { BadRequestException, NotFoundException } from '@nestjs/common';
 import type { OrganizationsService } from '../../modules/organizations/organizations.service';
 import type { SupabaseService } from '../../modules/supabase/supabase.service';
+import { ANONYMOUS_USER_ID } from './request-user';
 
 export type OrgRole = Parameters<OrganizationsService['assertOrgRole']>[2];
 
@@ -116,4 +117,83 @@ export async function assertCanManagePool(
   const orgId = await orgIdForPool(deps.supabase, poolId);
   await deps.orgs.assertOrgRole(orgId, userId, minRole);
   return orgId;
+}
+
+// ── Reads ────────────────────────────────────────────────────────────────────
+
+/**
+ * The only event status whose contents are org-only.
+ *
+ * `matches_select` (0002_rls.sql:523-533) and `listEvents`
+ * (events.service.ts:186) both exclude `archived` as well. This does NOT:
+ * a past event's public page is the reason to keep the event around, and the
+ * lock archiving applies is a WRITE lock — EventReadOnlyGuard — not a curtain.
+ * The divergence is the decision, not an oversight.
+ *
+ * `status` defaults to 'draft' (events.service.ts:563), so an event is org-only
+ * from creation until it is published, which is the whole point.
+ */
+const HIDDEN_EVENT_STATUSES = new Set(['draft']);
+
+export interface EventVisibilityRow {
+  status: string;
+  organization_id: string;
+}
+
+/**
+ * A non-public event is 404, never 403 — a 403 confirms it exists, and the
+ * existence of an unannounced event is part of what is being hidden.
+ */
+function hidden(eventId: string): never {
+  throw new NotFoundException(`Event ${eventId} not found`);
+}
+
+/**
+ * Gate a row the caller had to read anyway (`live-state` already selects from
+ * `events`), so the check costs no extra round-trip there.
+ *
+ * `resolveUserId` is a THUNK on purpose. `resolveRequestUserId` does a GoTrue
+ * round-trip whenever a token is present, and these are the highest-traffic
+ * reads in the API — the organiser grid re-reads the schedule after every
+ * mutation, and hall displays poll live-state continuously. A public event
+ * returns at step 2 and never resolves an identity at all.
+ *
+ * A missing row returns rather than throwing: `/schedule` answers `[]` for an
+ * unknown id today and its callers depend on that shape. Inventing a 404 here
+ * would be a second, unrelated behaviour change.
+ */
+export async function assertCanReadEventRow(
+  deps: EventAuthzDeps,
+  eventId: string,
+  row: EventVisibilityRow | null,
+  resolveUserId: () => Promise<string>,
+): Promise<void> {
+  if (!row) return;
+  if (!HIDDEN_EVENT_STATUSES.has(row.status)) return;
+
+  const userId = await resolveUserId();
+  if (userId === ANONYMOUS_USER_ID) hidden(eventId);
+
+  try {
+    // `read_only` is the floor of the role hierarchy, i.e. ANY member — the
+    // same bar `is_org_member` sets in the RLS policy this mirrors.
+    await deps.orgs.assertOrgRole(row.organization_id, userId, 'read_only');
+  } catch {
+    hidden(eventId);
+  }
+}
+
+/** Fetch the visibility row, then gate on it. */
+export async function assertCanReadEvent(
+  deps: EventAuthzDeps,
+  eventId: string,
+  resolveUserId: () => Promise<string>,
+): Promise<void> {
+  const { data, error } = await deps.supabase.service
+    .from('events')
+    .select('status, organization_id')
+    .eq('id', eventId)
+    .maybeSingle();
+  if (error) throw new BadRequestException(error.message);
+  await assertCanReadEventRow(deps, eventId, data as EventVisibilityRow | null, resolveUserId);
 }

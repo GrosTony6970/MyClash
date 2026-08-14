@@ -10,7 +10,7 @@ import type {
 import { SupabaseService } from '../supabase/supabase.service';
 // Value import, not `import type` — `import type` erases the DI metadata.
 import { OrganizationsService } from '../organizations/organizations.service';
-import { assertCanManageEvent } from '../../common/auth/event-authz';
+import { assertCanManageEvent, assertCanReadEvent } from '../../common/auth/event-authz';
 import { scheduleMatches } from '../schedule/match-scheduler';
 import { poolBottleneckMinutes } from './pool-bottleneck';
 import { cascadeBlockShift } from './block-cascade';
@@ -127,15 +127,33 @@ export class ProgrammeService {
    * Every WRITE on this service asserts the caller's org role first. There was
    * no check at all before, on ten routes that all run as the BYPASSRLS
    * service role — including `DELETE /programme/full`, which unschedules every
-   * match in the event. `listBlocks` stays public and never calls this.
+   * match in the event. `listBlocks` is a read and uses `assertCanReadEvent`
+   * instead — a lower bar (any member) and a 404 rather than a 403.
    */
   private async assertWriter(eventId: string, userId: string): Promise<void> {
     await assertCanManageEvent({ supabase: this.supabase, orgs: this.orgs }, eventId, userId);
   }
 
+  /**
+   * The read counterpart, for the one `@Public()` route here. Lower bar (any
+   * org member) and a 404 rather than a 403 — the programme is the shape of an
+   * event, and an event that has not been announced yet should not be found.
+   */
+  private async assertReader(eventId: string, resolveUserId: () => Promise<string>): Promise<void> {
+    await assertCanReadEvent({ supabase: this.supabase, orgs: this.orgs }, eventId, resolveUserId);
+  }
+
   // ── List ───────────────────────────────────────────────────────────────────
 
-  async listBlocks(eventId: string): Promise<ProgrammeBlock[]> {
+  /**
+   * `@Public()`, but not unconditional: the programme is the shape of an event
+   * that has not been announced yet. Gated on visibility, org members exempt.
+   */
+  async listBlocks(
+    eventId: string,
+    resolveUserId: () => Promise<string>,
+  ): Promise<ProgrammeBlock[]> {
+    await this.assertReader(eventId, resolveUserId);
     const { data, error } = await this.supabase.service
       .from('event_programme_blocks')
       .select('*')

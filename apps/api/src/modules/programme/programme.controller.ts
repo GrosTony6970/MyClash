@@ -56,8 +56,8 @@ export class ProgrammeController {
   @ApiBearerAuth()
   @ApiOperation({ summary: 'List all programme blocks for an event' })
   @ApiParam({ name: 'eventId', type: 'string', format: 'uuid' })
-  listBlocks(@Param('eventId', ParseUUIDPipe) eventId: string) {
-    return this.programme.listBlocks(eventId);
+  listBlocks(@Param('eventId', ParseUUIDPipe) eventId: string, @Req() req: FastifyRequest) {
+    return this.programme.listBlocks(eventId, () => this.caller(req));
   }
 
   /** PUT /api/v1/events/:eventId/programme */
