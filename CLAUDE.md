@@ -83,6 +83,16 @@ chain is green. You are measured by tasks closed cleanly, not lines written.
 
 ---
 
+## Reporting back
+
+Three messages are written for a reader who has not just read the code: **what was done** when a task
+finishes, **a question** put to the operator, and **a bug you found**. Give one line of context
+before the finding, use Simplified Technical English (one idea per sentence, active voice, everyday
+words), and use the nouns from `docs/HIERARCHY.md` rather than table, class or service names. File
+and line references still belong there — after the plain sentence, not instead of it.
+
+---
+
 ## BMad planning toolkit
 
 BMad (planning/PRD/architecture toolkit, v6.9.0) is **not installed in this repo** — it lives in
