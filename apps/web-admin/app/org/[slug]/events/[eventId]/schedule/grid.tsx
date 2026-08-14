@@ -15,9 +15,16 @@ import { placeMultiWithShift } from './place-with-shift';
 import { computeHeaderRuns, type HeaderRunItem } from './compute-header-runs';
 import { POOL_HEADER_SPAN, rowShiftForSlot } from './pool-header-layout';
 import { openMatchScoring } from './open-match-scoring';
-import { MatchChip } from './MatchChip';
+import { UnscheduledPanel } from './UnscheduledPanel';
 import { draggedMatchIds, type DragPayload } from './drag-payload';
-import type { GridUndo, Lice, ProgrammeBlockRow, ScheduleMatch } from './schedule-types';
+import type {
+  GridUndo,
+  Lice,
+  ProgrammeBlockRow,
+  ScheduleMatch,
+  UnscheduledBracketRound,
+  UnscheduledPool,
+} from './schedule-types';
 import { blockDeleteAction } from './schedule-block-actions';
 import { newBreakDraftFromCell } from './new-break-draft';
 import { hhmmToMinutes, programmeBlocksForDay } from './programme-block-slots';
@@ -976,12 +983,6 @@ export function ScheduleGrid({
   // a whole pool onto a cell instead of placing fights one by one.
   // Brackets are intentionally excluded — they need a different
   // grouping (by round) which is a separate sprint.
-  type UnscheduledPool = {
-    poolId: string;
-    poolName: string;
-    tournamentName: string | null;
-    matchIds: string[];
-  };
   const unscheduledPools = useMemo<UnscheduledPool[]>(() => {
     const byPool = new Map<string, UnscheduledPool>();
     for (const m of unscheduled) {
@@ -1030,13 +1031,6 @@ export function ScheduleGrid({
   // includes the tournament name so two same-weapon tournaments don't
   // merge their rounds. Sorted by tournament then round order
   // (play-ins → final).
-  type UnscheduledBracketRound = {
-    key: string;
-    label: string;
-    order: number;
-    tournamentName: string | null;
-    matchIds: string[];
-  };
   const unscheduledBracketRounds = useMemo<UnscheduledBracketRound[]>(() => {
     const byRound = new Map<string, UnscheduledBracketRound>();
     for (const m of unscheduled) {
@@ -1108,6 +1102,31 @@ export function ScheduleGrid({
     // Drop at the grid slot the operator released over (snapped to 15 min),
     // re-fanning the run onto the target lice and shifting any occupants.
     void handleGroupDrop(new Set(ids), liceId, snapSlot(slot));
+  }
+
+  /**
+   * Drop onto the left panel: take one fight back off the board.
+   *
+   * Only a single fight comes off this way. Dropping a pool, a bracket round or
+   * a programme bar here is a no-op — unscheduling a whole group has its own
+   * affordance (the run header's inline ×), which stages an Undo.
+   */
+  function handleUnscheduleDrop(): void {
+    const payload = takeDrag();
+    if (payload?.kind !== 'match') return;
+    const match = payload.match;
+    if (match.liceId === null && match.scheduledAt === null) return;
+    pushUndo({
+      matchId: match.id,
+      fromLiceId: match.liceId,
+      fromScheduledAt: match.scheduledAt,
+      toLiceId: null,
+      toScheduledAt: null,
+    });
+    setMatches(
+      matches.map((m) => (m.id === match.id ? { ...m, liceId: null, scheduledAt: null } : m)),
+    );
+    void commit(() => saveMatchPosition(match.id, '', ''));
   }
 
   // ── Live drift: how late/early each lice is running on the active day ──────
@@ -2003,209 +2022,27 @@ export function ScheduleGrid({
       {/* Retractable LEFT panel: Unscheduled (top) + Configure (below); the
           schedule canvas takes the rest. Collapses to a thin rail. */}
       <div className="flex flex-col gap-6 lg:flex-row lg:items-start">
-        <div
-          style={
-            panelCollapsed ? undefined : ({ '--panel-w': `${panelWidth}px` } as React.CSSProperties)
-          }
-          className={
-            panelCollapsed
-              ? 'w-full lg:sticky lg:top-4 lg:w-10 lg:flex-shrink-0 lg:self-start'
-              : 'relative w-full space-y-4 lg:sticky lg:top-4 lg:w-[var(--panel-w)] lg:flex-shrink-0 lg:self-start'
-          }
-        >
-          {!panelCollapsed && (
-            <div
-              role="separator"
-              aria-orientation="vertical"
-              aria-label={t('organizer.schedulePage.grid.panelResizeAria')}
-              onPointerDown={beginPanelResize}
-              className="absolute -right-1 top-0 z-20 hidden h-full w-2 cursor-col-resize touch-none bg-transparent hover:bg-accent/30 lg:block"
-            />
-          )}
-          <div className="mb-2 flex items-center justify-between gap-2">
-            {!panelCollapsed && (
-              <h2 className="text-xs font-semibold uppercase tracking-wider text-muted">
-                {t('organizer.schedulePage.grid.unscheduledHeading', {
-                  count: unscheduled.length,
-                })}
-              </h2>
-            )}
-            <button
-              type="button"
-              aria-expanded={!panelCollapsed}
-              aria-label={
-                panelCollapsed
-                  ? t('organizer.schedulePage.grid.expandPanel')
-                  : t('organizer.schedulePage.grid.collapsePanel')
-              }
-              onClick={() => setPanelCollapsed((v) => !v)}
-              className="rounded-md border border-border px-2 py-0.5 text-sm font-semibold text-foreground-secondary hover:bg-background"
-            >
-              {panelCollapsed ? '»' : '«'}
-            </button>
-          </div>
-          {!panelCollapsed && (
-            <>
-              {tickedKeys.size > 0 && (
-                <button
-                  type="button"
-                  onClick={() => void scheduleSelected()}
-                  className="mb-2 w-full rounded-md bg-accent px-2 py-1 text-xs font-semibold text-accent-foreground hover:bg-accent-hover"
-                >
-                  {t('organizer.schedulePage.grid.scheduleSelected', { count: tickedKeys.size })}
-                </button>
-              )}
-              <div
-                className="flex flex-col gap-1.5 min-h-[100px] border-2 border-dashed border-border rounded-xl p-2 max-h-[60vh] overflow-y-auto"
-                onDragOver={(e) => e.preventDefault()}
-                onDrop={() => {
-                  const payload = takeDrag();
-                  // Only a single fight comes back off the board this way.
-                  // Dropping a pool / bracket-round / bar here is a no-op.
-                  if (payload?.kind !== 'match') return;
-                  const match = payload.match;
-                  if (match.liceId === null && match.scheduledAt === null) return;
-                  pushUndo({
-                    matchId: match.id,
-                    fromLiceId: match.liceId,
-                    fromScheduledAt: match.scheduledAt,
-                    toLiceId: null,
-                    toScheduledAt: null,
-                  });
-                  const updated = matches.map((m) =>
-                    m.id === match.id ? { ...m, liceId: null, scheduledAt: null } : m,
-                  );
-                  setMatches(updated);
-                  void commit(() => saveMatchPosition(match.id, '', ''));
-                }}
-              >
-                {unscheduled.length === 0 ? (
-                  <p className="px-1 py-2 text-xs italic text-muted">
-                    {t('organizer.schedulePage.grid.allPlaced')}
-                  </p>
-                ) : (
-                  <>
-                    {/* Slice 4: drag a whole pool onto a cell to fan its
-                    matches out across lices. Only fully-unscheduled
-                    pools render as blocks — the moment the operator
-                    places one fight manually, the rest fall back to
-                    individual chips. */}
-                    {unscheduledPools
-                      .filter((p) => p.matchIds.every((id) => matchIdsCoveredByPoolBlock.has(id)))
-                      .map((pool) => (
-                        <div
-                          key={pool.poolId}
-                          draggable
-                          onDragStart={() =>
-                            beginDrag({
-                              kind: 'pool',
-                              poolId: pool.poolId,
-                              matchIds: pool.matchIds,
-                            })
-                          }
-                          onDragEnd={endDrag}
-                          className="cursor-grab rounded-md border-2 border-dashed border-border bg-border px-2 py-1.5 text-xs hover:border-muted hover:bg-background"
-                          title={t('organizer.schedulePage.grid.groupChipTitle', {
-                            count: pool.matchIds.length,
-                          })}
-                        >
-                          <div className="flex items-start gap-1.5">
-                            <input
-                              type="checkbox"
-                              className="mt-0.5"
-                              checked={tickedKeys.has(`pool:${pool.poolId}`)}
-                              onClick={(e) => e.stopPropagation()}
-                              onChange={() => toggleTicked(`pool:${pool.poolId}`)}
-                              aria-label={t('organizer.schedulePage.grid.selectAria', {
-                                label: pool.poolName,
-                              })}
-                            />
-                            <div className="min-w-0">
-                              <div className="font-bold text-foreground truncate">
-                                {pool.poolName}
-                              </div>
-                              <div className="text-[10px] text-foreground-secondary truncate">
-                                {t('organizer.schedulePage.grid.groupChipSub', {
-                                  tournament: pool.tournamentName ?? '',
-                                  count: pool.matchIds.length,
-                                })}
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                    {/* Bracket rounds group the same way pools do — drag a
-                    whole round (Play-ins / Round of 16 / …) onto a cell
-                    to fan its matches down a lice. Amber accent mirrors
-                    the bracket theme on the individual chips. */}
-                    {unscheduledBracketRounds
-                      .filter((r) =>
-                        r.matchIds.every((id) => matchIdsCoveredByBracketRoundBlock.has(id)),
-                      )
-                      .map((round) => (
-                        <div
-                          key={round.key}
-                          draggable
-                          onDragStart={() =>
-                            beginDrag({
-                              kind: 'bracketRound',
-                              key: round.key,
-                              matchIds: round.matchIds,
-                            })
-                          }
-                          onDragEnd={endDrag}
-                          className="cursor-grab rounded-md border-2 border-dashed border-amber-400 bg-amber-50 px-2 py-1.5 text-xs hover:border-amber-500 hover:bg-amber-100"
-                          title={t('organizer.schedulePage.grid.groupChipTitle', {
-                            count: round.matchIds.length,
-                          })}
-                        >
-                          <div className="flex items-start gap-1.5">
-                            <input
-                              type="checkbox"
-                              className="mt-0.5"
-                              checked={tickedKeys.has(`round:${round.key}`)}
-                              onClick={(e) => e.stopPropagation()}
-                              onChange={() => toggleTicked(`round:${round.key}`)}
-                              aria-label={t('organizer.schedulePage.grid.selectAria', {
-                                label: round.label,
-                              })}
-                            />
-                            <div className="min-w-0">
-                              <div className="font-bold text-amber-900 truncate">{round.label}</div>
-                              <div className="text-[10px] text-amber-700 truncate">
-                                {t('organizer.schedulePage.grid.groupChipSub', {
-                                  tournament: round.tournamentName ?? '',
-                                  count: round.matchIds.length,
-                                })}
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                    {unscheduled
-                      .filter(
-                        (m) =>
-                          !matchIdsCoveredByPoolBlock.has(m.id) &&
-                          !matchIdsCoveredByBracketRoundBlock.has(m.id),
-                      )
-                      .map((m) => (
-                        <MatchChip
-                          key={m.id}
-                          match={m}
-                          slug={slug}
-                          eventId={eventId}
-                          saving={saving === m.id}
-                          onDragStart={() => beginDrag({ kind: 'match', match: m })}
-                          onDragEnd={endDrag}
-                        />
-                      ))}
-                  </>
-                )}
-              </div>
-              {configurePanel}
-            </>
-          )}
-        </div>
+        <UnscheduledPanel
+          panelCollapsed={panelCollapsed}
+          onToggleCollapsed={() => setPanelCollapsed((v) => !v)}
+          panelWidth={panelWidth}
+          onBeginResize={beginPanelResize}
+          unscheduled={unscheduled}
+          unscheduledPools={unscheduledPools}
+          unscheduledBracketRounds={unscheduledBracketRounds}
+          matchIdsCoveredByPoolBlock={matchIdsCoveredByPoolBlock}
+          matchIdsCoveredByBracketRoundBlock={matchIdsCoveredByBracketRoundBlock}
+          tickedKeys={tickedKeys}
+          onToggleTicked={toggleTicked}
+          onScheduleSelected={() => void scheduleSelected()}
+          slug={slug}
+          eventId={eventId}
+          savingMatchId={saving}
+          onUnscheduleDrop={handleUnscheduleDrop}
+          onDragStart={beginDrag}
+          onDragEnd={endDrag}
+          configurePanel={configurePanel}
+        />
 
         {/* Day grid — lice as columns, time as rows. Columns flex to fill the canvas. */}
         <div className="flex-1 min-w-0 overflow-x-auto">

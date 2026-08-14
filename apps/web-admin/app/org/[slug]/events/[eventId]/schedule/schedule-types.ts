@@ -72,6 +72,33 @@ export type GridUndo =
       };
     };
 
+/**
+ * A pool whose fights are ALL still unscheduled, so the left panel offers it as
+ * one draggable block instead of a chip per fight. The moment the operator
+ * places one of them by hand the pool loses its block and the rest fall back to
+ * individual chips — the grouping is a convenience, never a constraint.
+ */
+export interface UnscheduledPool {
+  poolId: string;
+  poolName: string;
+  tournamentName: string | null;
+  matchIds: string[];
+}
+
+/**
+ * The bracket analogue: unscheduled bracket fights grouped by phase round
+ * (Play-ins / Round of 16 / …). The key carries the tournament name so two
+ * same-weapon tournaments do not merge their rounds; `order` sorts play-ins
+ * before the final rather than alphabetically.
+ */
+export interface UnscheduledBracketRound {
+  key: string;
+  label: string;
+  order: number;
+  tournamentName: string | null;
+  matchIds: string[];
+}
+
 export interface ScheduleMatch {
   id: string;
   matchNumberLabel: string;
