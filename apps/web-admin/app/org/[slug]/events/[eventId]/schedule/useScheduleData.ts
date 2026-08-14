@@ -5,6 +5,7 @@ import { useI18n } from '@myclash/next-i18n/client';
 import { DEFAULT_EVENT_TIMEZONE } from '@myclash/time';
 import { useRealtimeWithFallback } from '@/lib/supabase-browser';
 import { detectConflicts, type Conflict } from './conflict-detection';
+import { createRefetchGate, type RefetchGate } from './realtime-refetch-gate';
 import { loadBootstrap, loadScheduleAndProgramme, type BootstrapSource } from './schedule-reads';
 import type { Lice, ProgrammeBlockRow, ScheduleMatch } from './schedule-types';
 
@@ -31,12 +32,20 @@ import type { Lice, ProgrammeBlockRow, ScheduleMatch } from './schedule-types';
  * test in schedule-reads.test.ts, since the comment that carried it is gone.
  */
 
+/** Coalescing window for a burst of realtime events. */
+const REFETCH_DEBOUNCE_MS = 1500;
+
 /**
  * Refresh when matches change elsewhere (scoring, another operator).
  *
- * Debounced, and suppressed while a local write is in flight so a realtime echo
- * never fights an optimistic drag. The websocket's own 30 s poll fallback
- * covers the unschedule-off-lice edge the `lice_id` filter cannot see.
+ * The decision — debounce, and defer while a local write is in flight — is in
+ * ./realtime-refetch-gate, which takes its timer functions as arguments and is
+ * therefore the only part of this path with any test cover. This hook is the
+ * lifecycle around it.
+ *
+ * The websocket's own 30 s poll fallback covers the unschedule-off-lice edge the
+ * `lice_id` filter cannot see. It exists only while the socket is DOWN, which is
+ * why the gate has to defer a suppressed refetch rather than drop it.
  */
 function useScheduleRealtime(args: {
   eventId: string;
@@ -51,18 +60,25 @@ function useScheduleRealtime(args: {
   const isBusyRef = useRef(isBusy);
   // eslint-disable-next-line react-hooks/refs -- intentional render-time mirror of latest busy flag for stable debounced callback
   isBusyRef.current = isBusy;
-  const timer = useRef<number | null>(null);
+  // Built on the first event rather than during render. The gate closes over
+  // the two mirrors above, and handing a ref-reader to a function while
+  // rendering is the shape `react-hooks/refs` refuses — correctly: nothing
+  // guarantees the callee waits for an event before calling it.
+  const gateRef = useRef<RefetchGate | null>(null);
   const scheduleRefetch = useCallback(() => {
-    if (timer.current) window.clearTimeout(timer.current);
-    timer.current = window.setTimeout(() => {
-      if (isBusyRef.current()) return;
-      void refetchRef.current();
-    }, 1500);
+    gateRef.current ??= createRefetchGate({
+      delayMs: REFETCH_DEBOUNCE_MS,
+      isBusy: () => isBusyRef.current(),
+      refetch: () => void refetchRef.current(),
+      setTimer: (fn, ms) => window.setTimeout(fn, ms),
+      clearTimer: (id) => window.clearTimeout(id),
+    });
+    gateRef.current.schedule();
   }, []);
   // The pending timer used to outlive the component and fire a refetch into an
   // unmounted tree. Nothing surfaced it — the setters no-op after unmount — but
   // the request still went out.
-  useEffect(() => () => void (timer.current && window.clearTimeout(timer.current)), []);
+  useEffect(() => () => gateRef.current?.cancel(), []);
   const liceIdsCsv = liceIds.join(',');
   useRealtimeWithFallback({
     channelName: `schedule-${eventId}`,

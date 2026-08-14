@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { useI18n } from '@myclash/next-i18n/client';
 import {
   mutateAll,
@@ -8,6 +8,7 @@ import {
   NETWORK_FAILURE_STATUS,
   ScheduleMutationError,
 } from './schedule-mutations';
+import { createWriteTracker } from './write-tracker';
 
 /**
  * The commit core every schedule write goes through.
@@ -23,10 +24,16 @@ import {
  * one. That is why this hook needs `refetch` rather than owning it: the read
  * path is a separate hook, and the rollback belongs to the write.
  *
- * `isBusy` is here too, and reads the flag through a ref. The realtime
- * subscription uses it to suppress an echo while a local write is in flight,
- * and it must be a stable identity or the debounced callback is rebuilt on
- * every render.
+ * `isBusy` is here too, backed by ./write-tracker. The realtime subscription
+ * uses it to suppress an echo while a local write is in flight, and it must be
+ * a stable identity or the debounced callback is rebuilt on every render.
+ *
+ * It used to be `saving !== null` — the state that dims one card — so it was
+ * true only during a single-fight move and false during every block move, break
+ * edit, delete and group re-fan. Those are the writes with the widest cascades,
+ * and they were the ones realtime was free to interrupt. Every write that goes
+ * through `commit`/`commitAll` is counted now, and `track` is exported for the
+ * two that deliberately do not (they own their own error banner).
  */
 
 export interface ScheduleWrites {
@@ -38,6 +45,9 @@ export interface ScheduleWrites {
   setSaveError: (message: string | null) => void;
   /** True while any write is in flight. Stable identity, safe in a dep array. */
   isBusy: () => boolean;
+  /** Count a write that does not go through `commit` as in flight. For the two
+   *  callers that own their own error banner and must keep it. */
+  track: <T>(work: () => Promise<T>) => Promise<T>;
   /** PATCH one match's lice + time. Throws if the server refused. */
   saveMatchPosition: (matchId: string, liceId: string, scheduledAt: string) => Promise<void>;
   /** Turn a thrown write failure into something an operator can read. */
@@ -58,10 +68,8 @@ export function useScheduleWrites(args: {
   const [saving, setSaving] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
 
-  const savingRef = useRef(saving);
-  // eslint-disable-next-line react-hooks/refs -- intentional render-time mirror of latest saving flag for a stable isBusy identity
-  savingRef.current = saving;
-  const isBusy = useCallback(() => savingRef.current !== null, []);
+  const tracker = useMemo(() => createWriteTracker(), []);
+  const isBusy = useCallback(() => tracker.isBusy(), [tracker]);
 
   const saveMatchPosition = useCallback(
     async (matchId: string, liceId: string, scheduledAt: string): Promise<void> => {
@@ -93,7 +101,7 @@ export function useScheduleWrites(args: {
   const commit = useCallback(
     async (run: () => Promise<unknown>): Promise<boolean> => {
       try {
-        await run();
+        await tracker.track(run);
         setSaveError(null);
         return true;
       } catch (err) {
@@ -102,12 +110,14 @@ export function useScheduleWrites(args: {
         return false;
       }
     },
-    [describeSaveError, refetch],
+    [tracker, describeSaveError, refetch],
   );
 
   const commitAll = useCallback(
     async (calls: ReadonlyArray<() => Promise<unknown>>): Promise<boolean> => {
-      const { total, failures } = await mutateAll(calls);
+      // The whole fan-out counts as one write, so the board is not reported
+      // idle between two PATCHes of the same operation.
+      const { total, failures } = await tracker.track(() => mutateAll(calls));
       if (failures.length === 0) {
         setSaveError(null);
         return true;
@@ -125,7 +135,7 @@ export function useScheduleWrites(args: {
       await refetch();
       return false;
     },
-    [describeSaveError, refetch, t],
+    [tracker, describeSaveError, refetch, t],
   );
 
   return {
@@ -133,6 +143,7 @@ export function useScheduleWrites(args: {
     saveError,
     setSaveError,
     isBusy,
+    track: tracker.track,
     saveMatchPosition,
     describeSaveError,
     commit,

@@ -142,6 +142,7 @@ export function ScheduleGrid({
     saveError,
     setSaveError,
     isBusy,
+    track,
     saveMatchPosition,
     describeSaveError,
     commit,
@@ -506,10 +507,15 @@ export function ScheduleGrid({
     setAddLiceBusy(true);
     setAddLiceError(null);
     try {
-      await mutateSchedule(`${apiUrl}/api/v1/events/${eventId}/lices`, {
-        method: 'POST',
-        body: { name, colorHex: newLiceColor, sortOrder: lices.length },
-      });
+      // Tracked, not committed: this owns its own error line under the form, and
+      // routing it through `commit` would move that message to the save banner.
+      // The board still has to count it as busy — it adds a column.
+      await track(() =>
+        mutateSchedule(`${apiUrl}/api/v1/events/${eventId}/lices`, {
+          method: 'POST',
+          body: { name, colorHex: newLiceColor, sortOrder: lices.length },
+        }),
+      );
       await refetchLices();
       setNewLiceName('');
       setShowAddLice(false);
@@ -1191,15 +1197,20 @@ export function ScheduleGrid({
   ): Promise<boolean> {
     if (!activeDay || matchIds.length === 0 || liceIds.length === 0) return false;
     try {
-      await mutateSchedule(`${apiUrl}/api/v1/events/${eventId}/programme/schedule-group`, {
-        method: 'POST',
-        body: {
-          matchIds,
-          liceIds,
-          startTime: slotToTimeTz(startSlot, activeDay),
-          mode,
-        },
-      });
+      // Same reason as `addLice`: this keeps the server's own reason in the
+      // auto-distribute banner, because a partial re-fan needs it. Tracked so
+      // realtime does not land mid-cascade.
+      await track(() =>
+        mutateSchedule(`${apiUrl}/api/v1/events/${eventId}/programme/schedule-group`, {
+          method: 'POST',
+          body: {
+            matchIds,
+            liceIds,
+            startTime: slotToTimeTz(startSlot, activeDay),
+            mode,
+          },
+        }),
+      );
       return true;
     } catch (err) {
       // Keep the server's own reason. This endpoint can commit part of a re-fan
