@@ -8,5 +8,6 @@ export * from './schedule-grid-geometry';
 export * from './schedule-blocks';
 export * from './bracket-round-group';
 export * from './compute-grid-end';
+export * from './compute-grid-start';
 export * from './event-days';
 export * from './workshop-board-geometry';

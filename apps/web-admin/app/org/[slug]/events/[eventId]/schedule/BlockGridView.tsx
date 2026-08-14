@@ -64,6 +64,8 @@ interface Props {
   baseDate: string;
   /** Event IANA timezone — the time axis is resolved in it. */
   timezone: string;
+  /** Axis origin hour, derived per day by the grid — see computeGridStartHour. */
+  gridStartHour: number;
   gridEndSlot: number;
   drift: Map<string, LiceDrift>;
   nowSlot: number | null;
@@ -113,6 +115,7 @@ export function BlockGridView({
   tournamentColorByName,
   baseDate,
   timezone,
+  gridStartHour,
   gridEndSlot,
   drift,
   nowSlot,
@@ -186,8 +189,8 @@ export function BlockGridView({
       if (b.key === excludeKey) continue;
       out.push({
         liceIds: b.liceIds,
-        startSlot: isoToSlot(b.startIso, baseDate, timezone),
-        endSlot: isoToSlot(b.endIso, baseDate, timezone),
+        startSlot: isoToSlot(b.startIso, baseDate, timezone, gridStartHour),
+        endSlot: isoToSlot(b.endIso, baseDate, timezone, gridStartHour),
       });
     }
     const allLice = lices.map((l) => l.id);
@@ -200,8 +203,8 @@ export function BlockGridView({
   // Per-lice load (match runs only, not breaks) for the column-header chip.
   const blockOccupancy = blocks.map((b) => ({
     liceIds: b.liceIds,
-    startSlot: isoToSlot(b.startIso, baseDate, timezone),
-    endSlot: isoToSlot(b.endIso, baseDate, timezone),
+    startSlot: isoToSlot(b.startIso, baseDate, timezone, gridStartHour),
+    endSlot: isoToSlot(b.endIso, baseDate, timezone, gridStartHour),
   }));
 
   const venueGroups = computeVenueGroups(lices);
@@ -484,7 +487,7 @@ export function BlockGridView({
                 className="sticky left-0 z-10 flex items-start justify-end bg-surface pr-1 text-[10px] text-muted select-none"
                 style={{ gridColumn: 1, gridRow: rowFor(slot), borderTop: '1px solid #e5e7eb' }}
               >
-                {formatSlotTime(slot)}
+                {formatSlotTime(slot, gridStartHour)}
               </div>
               <div
                 aria-hidden="true"
@@ -656,8 +659,8 @@ export function BlockGridView({
           const previewIdx = liceResize?.key === block.key ? liceResize.previewIndices : indices;
           const colStart = Math.min(...previewIdx) + 2;
           const colEnd = Math.max(...previewIdx) + 3;
-          const startSlot = isoToSlot(block.startIso, baseDate, timezone);
-          const baseEndSlot = isoToSlot(block.endIso, baseDate, timezone);
+          const startSlot = isoToSlot(block.startIso, baseDate, timezone, gridStartHour);
+          const baseEndSlot = isoToSlot(block.endIso, baseDate, timezone, gridStartHour);
           const endSlot = timeResize?.key === block.key ? timeResize.previewEndSlot : baseEndSlot;
           const effStartSlot =
             startResize?.key === block.key ? startResize.previewStartSlot : startSlot;
@@ -731,8 +734,8 @@ export function BlockGridView({
                 <span className="truncate text-xs font-medium opacity-80">
                   {t('organizer.schedulePage.blockGrid.fightsAndTime', {
                     count: block.matchCount,
-                    start: formatSlotTime(startSlot),
-                    end: formatSlotTime(baseEndSlot),
+                    start: formatSlotTime(startSlot, gridStartHour),
+                    end: formatSlotTime(baseEndSlot, gridStartHour),
                   })}
                 </span>
               ) : null}
@@ -830,7 +833,8 @@ export function BlockGridView({
                   zIndex: 13,
                 }}
               >
-                {formatSlotTime(ghost.slot)}–{formatSlotTime(ghost.slot + Math.max(1, ghost.span))}
+                {formatSlotTime(ghost.slot, gridStartHour)}–
+                {formatSlotTime(ghost.slot + Math.max(1, ghost.span), gridStartHour)}
               </div>
             );
           })()}

@@ -8,27 +8,29 @@
  */
 import {
   DEFAULT_GRID_END_HOUR,
-  GRID_START_HOUR,
+  DEFAULT_GRID_START_HOUR,
   SLOT_MINUTES,
   hhmmToSlot,
 } from './schedule-grid-geometry';
 
-const DEFAULT_END_SLOT = ((DEFAULT_GRID_END_HOUR - GRID_START_HOUR) * 60) / SLOT_MINUTES; // 144
 const SLOTS_PER_HOUR = 60 / SLOT_MINUTES; // 12
-const MIDNIGHT_SLOT = ((24 - GRID_START_HOUR) * 60) / SLOT_MINUTES; // 192
 
+/**
+ * `startHour` is the axis origin — now derived per day (see
+ * `compute-grid-start.ts`), so every slot here is measured from it. Passing
+ * the default keeps the historical 08:00–20:00 floor.
+ */
 export function computeGridEndSlot(input: {
   blockEndSlots: number[];
   breakEndSlots: number[];
   dayEndHHMM: string | null;
+  startHour?: number;
 }): number {
-  const dayEndSlot = input.dayEndHHMM ? hhmmToSlot(input.dayEndHHMM) : 0;
-  const raw = Math.max(
-    DEFAULT_END_SLOT,
-    dayEndSlot,
-    ...input.blockEndSlots,
-    ...input.breakEndSlots,
-  );
+  const startHour = input.startHour ?? DEFAULT_GRID_START_HOUR;
+  const defaultEndSlot = ((DEFAULT_GRID_END_HOUR - startHour) * 60) / SLOT_MINUTES;
+  const midnightSlot = ((24 - startHour) * 60) / SLOT_MINUTES;
+  const dayEndSlot = input.dayEndHHMM ? hhmmToSlot(input.dayEndHHMM, startHour) : 0;
+  const raw = Math.max(defaultEndSlot, dayEndSlot, ...input.blockEndSlots, ...input.breakEndSlots);
   const rounded = Math.ceil(raw / SLOTS_PER_HOUR) * SLOTS_PER_HOUR;
-  return Math.min(rounded, MIDNIGHT_SLOT);
+  return Math.min(rounded, midnightSlot);
 }

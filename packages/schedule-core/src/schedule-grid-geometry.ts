@@ -16,7 +16,14 @@
 import { dayStartUtcIso, minutesIntoDayInZone, zonedDay } from '@myclash/time';
 
 export const SLOT_MINUTES = 5;
-export const GRID_START_HOUR = 8;
+/**
+ * The axis origin for an ordinary event, and the cap on the derived one — see
+ * `compute-grid-start.ts`. It is a DEFAULT, not a floor: a day whose earliest
+ * block starts before it moves the origin back.
+ */
+export const DEFAULT_GRID_START_HOUR = 8;
+/** @deprecated Prefer the derived origin; this is the default, not the axis. */
+export const GRID_START_HOUR = DEFAULT_GRID_START_HOUR;
 export const DEFAULT_GRID_END_HOUR = 20;
 export const SLOT_HEIGHT_PX = 16;
 // Vertical-zoom bounds for the rendered slot height (the slot math stays in

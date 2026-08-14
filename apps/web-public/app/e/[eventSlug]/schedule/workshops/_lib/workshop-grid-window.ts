@@ -8,9 +8,7 @@
  */
 
 import { minutesIntoDayInZone } from '@myclash/time';
-import { DEFAULT_GRID_END_HOUR, GRID_START_HOUR, SLOT_MINUTES } from '@myclash/schedule-core';
-
-const SLOTS_PER_HOUR = 60 / SLOT_MINUTES;
+import { computeGridEndSlot, computeGridStartHour } from '@myclash/schedule-core';
 
 /**
  * First hour of the axis: 08:00 (the organizer board's default, so the two look
@@ -19,36 +17,38 @@ const SLOTS_PER_HOUR = 60 / SLOT_MINUTES;
  * Going earlier matters — `isoToSlot` clamps negative slots to 0, so a 07:00
  * session on an 08:00 axis silently renders at 08:00, stacked on whatever is
  * genuinely there. Never going later keeps the familiar look.
+ *
+ * The rule itself now lives in `computeGridStartHour`; this only resolves the
+ * two input shapes this grid has. The organiser board derives its origin the
+ * same way — one definition, two callers.
  */
 export function deriveStartHour(
   sessionStartsIso: ReadonlyArray<string>,
   breakStartHHMM: ReadonlyArray<string>,
   tz: string,
 ): number {
-  let hour = GRID_START_HOUR;
-  for (const iso of sessionStartsIso) {
-    const min = minutesIntoDayInZone(iso, tz);
-    if (min === null) continue;
-    hour = Math.min(hour, Math.floor(min / 60));
-  }
-  for (const hhmm of breakStartHHMM) {
-    const h = Number(hhmm.slice(0, 2));
-    if (Number.isFinite(h)) hour = Math.min(hour, h);
-  }
-  return Math.max(0, hour);
+  const sessionMinutes = sessionStartsIso
+    .map((iso) => minutesIntoDayInZone(iso, tz))
+    .filter((min): min is number => min !== null);
+  const breakMinutes = breakStartHHMM
+    .map((hhmm) => Number(hhmm.slice(0, 2)) * 60)
+    .filter((min) => Number.isFinite(min));
+  return computeGridStartHour([...sessionMinutes, ...breakMinutes]);
 }
 
 /**
  * Vertical extent for one day: the 20:00 floor, grown to cover the latest block
  * or break and rounded up to a whole hour, clamped at midnight.
  *
- * Deliberately NOT `computeGridEndSlot` — that one hardcodes GRID_START_HOUR as
- * the axis origin, which is wrong for any derived `startHour`. The two agree
- * exactly when startHour is 8 (a test pins that), so don't "deduplicate" them.
+ * This used to be a separate implementation, and the note here said not to
+ * deduplicate it because `computeGridEndSlot` hardcoded 08:00 as the origin.
+ * That is no longer true — it takes `startHour` — so the duplicate is gone.
  */
 export function dayEndSlot(startHour: number, endSlots: ReadonlyArray<number>): number {
-  const floor = Math.max(0, (DEFAULT_GRID_END_HOUR - startHour) * SLOTS_PER_HOUR);
-  const needed = Math.max(floor, ...endSlots, 0);
-  const wholeHours = Math.ceil(needed / SLOTS_PER_HOUR) * SLOTS_PER_HOUR;
-  return Math.min(wholeHours, (24 - startHour) * SLOTS_PER_HOUR);
+  return computeGridEndSlot({
+    blockEndSlots: [...endSlots],
+    breakEndSlots: [],
+    dayEndHHMM: null,
+    startHour,
+  });
 }

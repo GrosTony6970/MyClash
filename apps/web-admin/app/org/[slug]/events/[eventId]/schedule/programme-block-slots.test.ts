@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { blockSlots, programmeBlocksForDay } from './programme-block-slots';
+import { computeGridStartHour } from '@myclash/schedule-core';
+import { blockSlots, hhmmToMinutes, programmeBlocksForDay } from './programme-block-slots';
 
 const GRID_START = 8;
 
@@ -70,6 +71,39 @@ describe('programmeBlocksForDay', () => {
 
     expect(kept).toHaveLength(1);
     expect(kept[0]?.span).toBe(12);
+  });
+
+  /**
+   * The two halves together, as the grid wires them: derive the origin from
+   * the day's blocks, then map the blocks onto it.
+   *
+   * On the old fixed 08:00 axis a 07:30 gear check was clamped to slot 0 — the
+   * same slot as an 08:00 block — so the two stacked and a drag wrote 08:00
+   * back over the operator's 07:30.
+   */
+  it('places an early block correctly once the origin is derived from it', () => {
+    const blocks = [
+      block({ startTime: '07:30', endTime: '08:00' }),
+      block({ startTime: '08:00', endTime: '09:00' }),
+    ];
+
+    const startHour = computeGridStartHour(blocks.map((b) => hhmmToMinutes(b.startTime)));
+    const laid = programmeBlocksForDay(blocks, 0, startHour);
+
+    expect(startHour).toBe(7);
+    // 07:30 is half an hour past a 07:00 origin, and 08:00 is a full hour.
+    expect(laid[0]?.startSlot).toBe(6);
+    expect(laid[1]?.startSlot).toBe(12);
+    // The defect was these two colliding on slot 0.
+    expect(laid[0]?.startSlot).not.toBe(laid[1]?.startSlot);
+  });
+
+  it('leaves an ordinary day on the default origin', () => {
+    const blocks = [block({ startTime: '09:00', endTime: '10:00' })];
+    const startHour = computeGridStartHour(blocks.map((b) => hhmmToMinutes(b.startTime)));
+
+    expect(startHour).toBe(8);
+    expect(programmeBlocksForDay(blocks, 0, startHour)[0]?.startSlot).toBe(12);
   });
 
   it('preserves the given order', () => {

@@ -29,7 +29,7 @@ export interface BlockSlots {
 }
 
 /** Minutes since midnight for `HH:MM`, tolerating the `HH:MM:SS` Postgres form. */
-function minutesOfDay(hhmm: string): number {
+export function hhmmToMinutes(hhmm: string): number {
   const [h, m] = hhmm.split(':').map((s) => Number(s));
   return (h ?? 0) * 60 + (m ?? 0);
 }
@@ -39,11 +39,11 @@ export function blockSlots(block: DayBlockInput, startHour: number): BlockSlots 
   const originMin = startHour * 60;
   const startSlot = Math.max(
     0,
-    Math.floor((minutesOfDay(block.startTime) - originMin) / SLOT_MINUTES),
+    Math.floor((hhmmToMinutes(block.startTime) - originMin) / SLOT_MINUTES),
   );
   const endSlot = Math.max(
     startSlot + 1,
-    Math.ceil((minutesOfDay(block.endTime) - originMin) / SLOT_MINUTES),
+    Math.ceil((hhmmToMinutes(block.endTime) - originMin) / SLOT_MINUTES),
   );
   return { startSlot, span: endSlot - startSlot };
 }

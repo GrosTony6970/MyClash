@@ -19,7 +19,7 @@ import { POOL_HEADER_SPAN, rowShiftForSlot } from './pool-header-layout';
 import { buildMatchScoringHref, STAFF_APP_PREFIX } from '../pools/_tabs/build-scoring-href';
 import { blockDeleteAction } from './schedule-block-actions';
 import { newBreakDraftFromCell } from './new-break-draft';
-import { programmeBlocksForDay } from './programme-block-slots';
+import { hhmmToMinutes, programmeBlocksForDay } from './programme-block-slots';
 import { PANEL_DEFAULT_WIDTH, clampPanelWidth } from './panel-width';
 import { BlockGridView, type BgvBreak } from './BlockGridView';
 import { BlockEditPopover, type BlockEditDraft } from './BlockEditPopover';
@@ -29,7 +29,6 @@ import { respaceMatchesEvenly } from './lice-span';
 import { distributeGroups } from './auto-place';
 import { detectScheduleOverlaps } from './detect-overlaps';
 import {
-  GRID_START_HOUR,
   LICE_HEADER_HEIGHT_PX,
   MIN_LICE_COL_PX,
   SLOT_HEIGHT_PX,
@@ -53,6 +52,7 @@ import {
   type ScheduleBlock,
   type ScheduleBlockMatch,
   computeGridEndSlot,
+  computeGridStartHour,
 } from '@myclash/schedule-core';
 import { getPublicApiUrl } from '@/lib/api-url';
 import { LicePlacementEditor } from './LicePlacementEditor';
@@ -257,16 +257,6 @@ export function ScheduleGrid({
   const [activeDay, setActiveDay] = useState<string>('');
   // Event IANA timezone — the schedule axis + times are interpreted in it.
   const [eventTz, setEventTz] = useState<string>(DEFAULT_EVENT_TIMEZONE);
-  // Thin closures so the many grid call sites stay 2-arg; both resolve the
-  // axis in the event timezone (not the browser's).
-  const slotToTimeTz = useCallback(
-    (slot: number, day: string) => slotToTime(slot, day, eventTz),
-    [eventTz],
-  );
-  const isoToSlotTz = useCallback(
-    (iso: string, day: string) => isoToSlot(iso, day, eventTz),
-    [eventTz],
-  );
   const [loading, setLoading] = useState(true);
   // When any of the schedule-page bootstrap fetches errors out (or
   // returns a non-2xx body), surface it as a banner above the grid.
@@ -287,6 +277,33 @@ export function ScheduleGrid({
   // Slice 7: non-fight programme blocks (registration, gear check,
   // referee meeting, breaks) rendered as full-width bars on the grid.
   const [programmeBlocks, setProgrammeBlocks] = useState<ProgrammeBlockRow[]>([]);
+
+  /**
+   * The axis ORIGIN, derived from the day's own programme rather than fixed at
+   * 08:00 — the mirror of `gridEndSlot` below.
+   *
+   * A 07:30 gear-check block used to render at 08:00, because both converters
+   * clamped anything earlier to slot 0. Dragging a neighbour then wrote that
+   * wrong time back. Nothing floors such a block on the way in: the planner's
+   * day-start field takes any HH:MM and the generator seeds the day from it.
+   *
+   * Declared here, above the two closures below, because they capture it.
+   */
+  const gridStartHour = useMemo(
+    () => computeGridStartHour(programmeBlocks.map((b) => hhmmToMinutes(b.startTime))),
+    [programmeBlocks],
+  );
+
+  // Thin closures so the many grid call sites stay 2-arg; both resolve the
+  // axis in the event timezone (not the browser's) and on the derived origin.
+  const slotToTimeTz = useCallback(
+    (slot: number, day: string) => slotToTime(slot, day, eventTz, gridStartHour),
+    [eventTz, gridStartHour],
+  );
+  const isoToSlotTz = useCallback(
+    (iso: string, day: string) => isoToSlot(iso, day, eventTz, gridStartHour),
+    [eventTz, gridStartHour],
+  );
   // Slice 3 of the schedule overhaul: clear every match on the active
   // day with a confirm gate. `clearing` doubles as the modal flag and
   // the in-flight busy state for the confirm button.
@@ -772,7 +789,7 @@ export function ScheduleGrid({
     try {
       // The grid axis runs 08:00–20:00 in 5-min steps. Translate the
       // drop slot back to HH:MM the backend expects.
-      const newStartMin = GRID_START_HOUR * 60 + slot * SLOT_MINUTES;
+      const newStartMin = gridStartHour * 60 + slot * SLOT_MINUTES;
       const hh = Math.floor(newStartMin / 60);
       const mm = newStartMin % 60;
       const newStartTime = `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}`;
@@ -847,7 +864,7 @@ export function ScheduleGrid({
       const clampedSpan = Math.max(1, Math.min(gridEndSlot - block.startSlot, finalSpan));
       setResizingBlock(null);
       if (clampedSpan === startSpan) return;
-      const newEndMinutes = GRID_START_HOUR * 60 + (block.startSlot + clampedSpan) * SLOT_MINUTES;
+      const newEndMinutes = gridStartHour * 60 + (block.startSlot + clampedSpan) * SLOT_MINUTES;
       const hh = String(Math.floor(newEndMinutes / 60)).padStart(2, '0');
       const mm = String(newEndMinutes % 60).padStart(2, '0');
       const newEndTime = `${hh}:${mm}`;
@@ -1653,7 +1670,7 @@ export function ScheduleGrid({
     const ok = await commit(() =>
       mutateSchedule(`${apiUrl}/api/v1/events/${eventId}/programme/blocks/${brk.id}/resize`, {
         method: 'PATCH',
-        body: { newEndTime: slotToHHMM(newEndSlot) },
+        body: { newEndTime: slotToHHMM(newEndSlot, gridStartHour) },
       }),
     );
     if (!ok) return;
@@ -1696,7 +1713,7 @@ export function ScheduleGrid({
     const ok = await commit(() =>
       mutateSchedule(`${apiUrl}/api/v1/events/${eventId}/programme/blocks/${brk.id}/resize`, {
         method: 'PATCH',
-        body: { newStartTime: slotToHHMM(newStartSlot) },
+        body: { newStartTime: slotToHHMM(newStartSlot, gridStartHour) },
       }),
     );
     if (!ok) return;
@@ -1714,7 +1731,7 @@ export function ScheduleGrid({
     if (editingBlock) {
       const block = editingBlock;
       setEditingBlock(null);
-      retimeBlockStart(block, hhmmToSlot(draft.startHHMM));
+      retimeBlockStart(block, hhmmToSlot(draft.startHHMM, gridStartHour));
       const cur = [...block.liceIds].sort();
       const next = [...draft.liceIds].sort();
       const changed = cur.length !== next.length || cur.some((v, i) => v !== next[i]);
@@ -1739,7 +1756,7 @@ export function ScheduleGrid({
     }
     setAutoDistributeError(null);
     // Axis space, not instant space — see BATCH_SCHEDULE_START_HHMM.
-    const dayStartSlot = hhmmToSlot(BATCH_SCHEDULE_START_HHMM);
+    const dayStartSlot = hhmmToSlot(BATCH_SCHEDULE_START_HHMM, gridStartHour);
     const lastEnd = (liceId: string) => {
       const onLice = scheduledOnActiveDay.filter((m) => m.liceId === liceId && m.scheduledAt);
       if (onLice.length === 0) return dayStartSlot;
@@ -1965,8 +1982,8 @@ export function ScheduleGrid({
     if (!activeDay) return [] as Array<ProgrammeBlockRow & { startSlot: number; span: number }>;
     const dayIndex = days.indexOf(activeDay);
     if (dayIndex < 0) return [];
-    return programmeBlocksForDay(programmeBlocks, dayIndex, GRID_START_HOUR);
-  }, [programmeBlocks, activeDay, days]);
+    return programmeBlocksForDay(programmeBlocks, dayIndex, gridStartHour);
+  }, [programmeBlocks, activeDay, days, gridStartHour]);
 
   // The board's visible vertical extent grows to cover the latest block/break
   // and the configured day-end. BOTH views use it — the detailed grid used to
@@ -1982,7 +1999,12 @@ export function ScheduleGrid({
       (max, b) => (max && max >= b.endTime ? max : b.endTime),
       null,
     );
-    return computeGridEndSlot({ blockEndSlots, breakEndSlots, dayEndHHMM });
+    return computeGridEndSlot({
+      blockEndSlots,
+      breakEndSlots,
+      dayEndHHMM,
+      startHour: gridStartHour,
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps -- isoToSlotTz is a stable pure helper; excluded intentionally
   }, [dayBlocks, blocksOnActiveDay, activeDay]);
 
@@ -2037,7 +2059,9 @@ export function ScheduleGrid({
   // Not memoized: `nowSlotForDay` is a cheap pure call, and wrapping it made
   // the React Compiler bail out of optimizing the whole component because it
   // could not preserve a manual memo that depends on `gridEndSlot`.
-  const nowSlotRaw = activeDay ? nowSlotForDay(now.toISOString(), activeDay, eventTz) : null;
+  const nowSlotRaw = activeDay
+    ? nowSlotForDay(now.toISOString(), activeDay, eventTz, gridStartHour)
+    : null;
   // Gated on the DYNAMIC end, not the 20:00 default. An event running finals to
   // 21:30 has an axis reaching 22:00, and the red "now" marker used to vanish
   // at 20:00 from a board that visibly still had two hours of programme on it —
@@ -2641,6 +2665,7 @@ export function ScheduleGrid({
                 baseDate={activeDay}
                 timezone={eventTz}
                 gridEndSlot={gridEndSlot}
+                gridStartHour={gridStartHour}
                 drift={liceDrift}
                 nowSlot={nowSlot}
                 conflictMatchIds={conflictMatchIds}
@@ -2795,7 +2820,7 @@ export function ScheduleGrid({
                       borderTop: slot % 12 === 0 ? '1px solid #d1d5db' : '1px solid transparent',
                     }}
                   >
-                    {slot % 12 === 0 ? formatSlotTime(slot) : ''}
+                    {slot % 12 === 0 ? formatSlotTime(slot, gridStartHour) : ''}
                   </div>
 
                   {/* Drop-target cells — one per lice, explicit column index */}
@@ -2832,7 +2857,7 @@ export function ScheduleGrid({
                       >
                         {isHover && (
                           <span className="pointer-events-none absolute left-1 top-1 z-20 rounded bg-blue-600 px-1.5 py-0.5 text-[10px] font-bold leading-none text-white shadow">
-                            {formatSlotTime(slot)} · {lice.name}
+                            {formatSlotTime(slot, gridStartHour)} · {lice.name}
                           </span>
                         )}
                       </div>
@@ -3128,10 +3153,10 @@ export function ScheduleGrid({
               : {
                   label: editingBlock?.label ?? '',
                   startHHMM: editingBlock
-                    ? slotToHHMM(isoToSlotTz(editingBlock.startIso, activeDay))
+                    ? slotToHHMM(isoToSlotTz(editingBlock.startIso, activeDay), gridStartHour)
                     : '',
                   endHHMM: editingBlock
-                    ? slotToHHMM(isoToSlotTz(editingBlock.endIso, activeDay))
+                    ? slotToHHMM(isoToSlotTz(editingBlock.endIso, activeDay), gridStartHour)
                     : '',
                   liceIds: editingBlock?.liceIds ?? [],
                   colorHex: '',
