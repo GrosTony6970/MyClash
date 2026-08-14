@@ -104,6 +104,11 @@ const EXPECTED_PUBLIC = [
   // the link. A wrong token and an expired one return the same 404, so this
   // cannot be used to discover which tokens exist.
   'GET /event-passes/:token',
+  // The anonymous fighter directory behind /fighters. Deliberately NOT
+  // GET /fighters, which is a signed-in people search over every global person
+  // -- this one returns only claimed accounts that are listed in the directory,
+  // and the predicate is baked into the RPC rather than left to the caller.
+  'GET /fighters/public',
   'GET /fighters/:slug',
   'GET /fighters/:slug/career',
   'GET /fighters/:slug/matches',

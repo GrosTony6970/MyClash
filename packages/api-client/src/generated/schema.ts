@@ -5818,11 +5818,28 @@ export interface paths {
       path?: never;
       cookie?: never;
     };
-    /** List fighters (public) */
+    /** List fighters (signed-in people search) */
     get: operations['FightersController_list'];
     put?: never;
     /** Create a fighter (organizer+) */
     post: operations['FightersController_create'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/fighters/public': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Public fighter directory (anonymous, searchable) */
+    get: operations['FightersController_listPublicDirectory'];
+    put?: never;
+    post?: never;
     delete?: never;
     options?: never;
     head?: never;
@@ -20065,6 +20082,31 @@ export interface operations {
     };
     responses: {
       201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  FightersController_listPublicDirectory: {
+    parameters: {
+      query?: {
+        q?: string;
+        country?: string;
+        weapon?: string;
+        sort?: 'name' | 'club' | 'country';
+        dir?: 'asc' | 'desc';
+        limit?: number;
+        offset?: number;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
         headers: {
           [name: string]: unknown;
         };

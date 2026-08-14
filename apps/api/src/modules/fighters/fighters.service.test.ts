@@ -994,6 +994,163 @@ describe('public fighter reads exclude merged and erased identities', () => {
   });
 });
 
+describe('listPublicDirectory', () => {
+  const ROW = (id: string, extra: Record<string, unknown> = {}) => ({
+    id,
+    slug: `f-${id}`,
+    display_name: `Fighter ${id}`,
+    given_name: 'Jean',
+    family_name: 'Dupont',
+    photo_url: null,
+    country_code: 'FR',
+    public_visibility: {},
+    clubs: { name: 'Garde Noire', slug: 'garde-noire' },
+    ...extra,
+  });
+
+  function setup(opts: {
+    rpc?: { data: unknown; error: unknown };
+    rows?: unknown[];
+    weapons?: unknown[];
+  }) {
+    const fromMock = vi.fn();
+    const rpc = vi
+      .fn()
+      .mockResolvedValue(opts.rpc ?? { data: [{ id: 'a', total: 2 }], error: null });
+
+    fromMock.mockImplementation((table: string) => {
+      if (table === 'fighter_weapons') {
+        return makeAwaitableChain({ data: opts.weapons ?? [], error: null });
+      }
+      return makeAwaitableChain({ data: opts.rows ?? [ROW('a')], error: null });
+    });
+
+    const service = new FightersService(
+      { service: { from: fromMock, rpc }, anon: {} } as never,
+      {} as never,
+    );
+    return { service, rpc, fromMock };
+  }
+
+  beforeEach(() => vi.clearAllMocks());
+
+  it('returns rows in the RPC ranking order, not the planner order', async () => {
+    // `.in()` returns rows in whatever order the planner likes. A directory
+    // sorted by relevance that arrives in table order is not sorted at all.
+    const { service } = setup({
+      rpc: { data: [{ id: 'c', total: 3 }, { id: 'a' }, { id: 'b' }], error: null },
+      rows: [ROW('a'), ROW('b'), ROW('c')],
+    });
+
+    const { items } = await service.listPublicDirectory({} as never);
+    expect(items.map((i) => i.id)).toEqual(['c', 'a', 'b']);
+  });
+
+  it('takes total from the RPC window, not from the page length', async () => {
+    // The pager needs the size of the whole result set. Counting the page would
+    // report 24 forever and hide every page after the first.
+    const { service } = setup({ rpc: { data: [{ id: 'a', total: 137 }], error: null } });
+    expect((await service.listPublicDirectory({} as never)).total).toBe(137);
+  });
+
+  it('leaves the directory predicate to the RPC and passes the filters through', async () => {
+    const { service, rpc } = setup({});
+    await service.listPublicDirectory({
+      q: 'kuntz',
+      country: 'FR',
+      weapon: 'longsword',
+      sort: 'club',
+      dir: 'desc',
+      limit: 10,
+      offset: 20,
+    } as never);
+
+    expect(rpc).toHaveBeenCalledWith('search_public_fighters', {
+      p_query: 'kuntz',
+      p_country: 'FR',
+      p_weapon: 'longsword',
+      p_sort: 'club',
+      p_dir: 'desc',
+      p_limit: 10,
+      p_offset: 20,
+      p_threshold: 0.2,
+    });
+  });
+
+  it('clamps an over-large limit rather than trusting the caller', async () => {
+    const { service, rpc } = setup({});
+    await service.listPublicDirectory({ limit: 5000 } as never);
+    expect(rpc.mock.calls[0]?.[1]).toMatchObject({ p_limit: 50 });
+  });
+
+  it('degrades to an empty directory when the RPC is missing', async () => {
+    // On a database that has not taken 0188 yet the function does not exist. An
+    // empty directory is a better public page than a 500.
+    const { service } = setup({ rpc: { data: null, error: { message: 'no such function' } } });
+    expect(await service.listPublicDirectory({} as never)).toEqual({ items: [], total: 0 });
+  });
+
+  it('still honours a fighter who hid their nationality', async () => {
+    // The visibility map is not superseded by directory listing: someone who
+    // hid a field hid it here too, not only on their profile page.
+    const { service } = setup({
+      rows: [ROW('a', { public_visibility: { nationality: false } })],
+    });
+    const { items } = await service.listPublicDirectory({} as never);
+    expect(items[0]?.countryCode).toBeNull();
+  });
+
+  it('builds each row field by field, so no column can ride along', async () => {
+    const { service } = setup({
+      rows: [ROW('a', { email: 'jean@example.com', claimed_by_user_id: 'user-1' })],
+    });
+    const { items } = await service.listPublicDirectory({} as never);
+    expect(Object.keys(items[0] ?? {}).sort()).toEqual([
+      'clubName',
+      'clubSlug',
+      'countryCode',
+      'displayName',
+      'familyName',
+      'givenName',
+      'id',
+      'photoUrl',
+      'slug',
+      'weapons',
+    ]);
+  });
+
+  it('hydrates weapons in ONE query for the whole page', async () => {
+    // getFighterWeaponLinks is the per-fighter equivalent; using it here would
+    // be 25 round trips for a 24-row page.
+    const { service, fromMock } = setup({
+      rpc: { data: [{ id: 'a', total: 2 }, { id: 'b' }], error: null },
+      rows: [ROW('a'), ROW('b')],
+      weapons: [
+        {
+          global_person_id: 'a',
+          favorite: true,
+          sort_order: 0,
+          weapon_catalog: { name: 'Longsword' },
+        },
+        {
+          global_person_id: 'a',
+          favorite: false,
+          sort_order: 1,
+          weapon_catalog: { name: 'Rapier' },
+        },
+        { global_person_id: 'b', favorite: true, sort_order: 0, weapon_catalog: { name: 'Sabre' } },
+      ],
+    });
+
+    const { items } = await service.listPublicDirectory({} as never);
+    expect(items[0]?.weapons).toEqual(['Longsword', 'Rapier']);
+    expect(items[1]?.weapons).toEqual(['Sabre']);
+
+    const weaponQueries = fromMock.mock.calls.filter((c) => c[0] === 'fighter_weapons');
+    expect(weaponQueries).toHaveLength(1);
+  });
+});
+
 describe('list() club filter', () => {
   let service: FightersService;
 

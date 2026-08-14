@@ -30,6 +30,7 @@ import type {
   FighterQueryDto,
   GlobalPersonQueryDto,
   ImportDecisionDto,
+  PublicFighterQueryDto,
   PromoteFighterDto,
   UpdateGlobalPersonDto,
   UpdateMyFighterProfileDto,
@@ -114,6 +115,25 @@ const RECENT_COMPLETED_LIMIT = 5;
  */
 const DEFAULT_FIGHTER_PAGE = 24;
 const MAX_FIGHTER_PAGE = 50;
+
+/** Trigram floor for the directory search. Matches lookup_global_persons. */
+const DIRECTORY_SIMILARITY_THRESHOLD = 0.2;
+/** Weapons shown per directory row before the column stops being scannable. */
+const DIRECTORY_WEAPONS_SHOWN = 3;
+
+/** One row of the public fighter directory. Built field by field, never spread. */
+export interface PublicDirectoryFighter {
+  id: string;
+  slug: string;
+  displayName: string;
+  givenName: string;
+  familyName: string;
+  photoUrl: string | null;
+  countryCode: string | null;
+  clubName: string | null;
+  clubSlug: string | null;
+  weapons: string[];
+}
 
 /**
  * Fighter-profile fields a user can hide from their public profile, mapped to
@@ -345,6 +365,118 @@ export class FightersService {
       q = q.eq('clubs.slug', sanitizePostgrestFilterValue(query.club)) as typeof q;
     }
     return q;
+  }
+
+  // ── Public directory ────────────────────────────────────────────────────────
+
+  /**
+   * The anonymous fighter directory behind GET /fighters/public.
+   *
+   * Deliberately NOT `list()`. That one answers a signed-in people search over
+   * every global person; this one answers "who is publicly listed", and the two
+   * sharing a method is how one quietly acquires the other's surface. Same
+   * reasoning as /organizations/public.
+   *
+   * The directory predicate lives in the RPC, not here, so no caller can forget
+   * it. This method's job is hydration: the RPC returns ids in rank order, and
+   * the rows come back in one query plus one batched weapons query — never a
+   * per-row lookup, which at 24 rows a page would be 25 round trips.
+   */
+  async listPublicDirectory(query: PublicFighterQueryDto): Promise<{
+    items: PublicDirectoryFighter[];
+    total: number;
+  }> {
+    const limit = Math.min(query.limit ?? DEFAULT_FIGHTER_PAGE, MAX_FIGHTER_PAGE);
+    const offset = query.offset ?? 0;
+
+    const { data, error } = await this.supabase.service.rpc('search_public_fighters', {
+      p_query: query.q ?? null,
+      p_country: query.country ?? null,
+      p_weapon: query.weapon ?? null,
+      p_sort: query.sort ?? 'name',
+      p_dir: query.dir ?? 'asc',
+      p_limit: limit,
+      p_offset: offset,
+      p_threshold: DIRECTORY_SIMILARITY_THRESHOLD,
+    });
+
+    // Degrade rather than throw: on a database that has not taken 0188 yet the
+    // function does not exist, and an empty directory is a better public page
+    // than a 500. Same posture as the other RPC callers in this service.
+    if (error || !data) return { items: [], total: 0 };
+
+    const ranked = data as Array<{ id: string; total: number | string }>;
+    if (ranked.length === 0) return { items: [], total: 0 };
+
+    const ids = ranked.map((r) => r.id);
+    const total = Number(ranked[0]?.total ?? ids.length);
+
+    const { data: rows } = await this.supabase.service
+      .from('global_persons')
+      .select(
+        'id, slug, display_name, given_name, family_name, photo_url, country_code, public_visibility, clubs(name, slug)',
+      )
+      .in('id', ids);
+
+    const byId = new Map(
+      ((rows ?? []) as unknown as Row[]).map((row) => [row['id'] as string, row]),
+    );
+    const weaponsById = await this.getFavoriteWeaponNames(ids);
+
+    // Rebuilt in the RPC's order: `.in()` returns rows in whatever order the
+    // planner likes, and a directory sorted by relevance that arrives in table
+    // order is not sorted at all.
+    const items: PublicDirectoryFighter[] = [];
+    for (const id of ids) {
+      const row = byId.get(id);
+      if (!row) continue;
+      // The visibility map still applies: someone who hid their nationality has
+      // hidden it here too, not only on their profile page.
+      const visible = this.sanitizePublicFighter(row);
+      const club = row['clubs'] as { name?: string | null; slug?: string | null } | null;
+      items.push({
+        id,
+        slug: String(visible['slug'] ?? ''),
+        displayName: String(visible['display_name'] ?? ''),
+        givenName: String(visible['given_name'] ?? ''),
+        familyName: String(visible['family_name'] ?? ''),
+        photoUrl: (visible['photo_url'] as string | null) ?? null,
+        countryCode: (visible['country_code'] as string | null) ?? null,
+        clubName: club?.name ?? null,
+        clubSlug: club?.slug ?? null,
+        weapons: weaponsById.get(id) ?? [],
+      });
+    }
+
+    return { items, total };
+  }
+
+  /**
+   * global_person_id → weapon names, favourites first. ONE query for the page.
+   *
+   * `getFighterWeaponLinks` is the per-fighter equivalent and is right for a
+   * profile; using it here would be an N+1 across the directory.
+   */
+  private async getFavoriteWeaponNames(ids: string[]): Promise<Map<string, string[]>> {
+    const out = new Map<string, string[]>();
+    if (ids.length === 0) return out;
+
+    const { data } = await this.supabase.service
+      .from('fighter_weapons')
+      .select('global_person_id, favorite, sort_order, weapon_catalog(name)')
+      .in('global_person_id', ids)
+      .order('favorite', { ascending: false })
+      .order('sort_order', { ascending: true });
+
+    for (const raw of (data ?? []) as Array<Record<string, unknown>>) {
+      const gp = raw['global_person_id'] as string;
+      const name = (raw['weapon_catalog'] as { name?: string | null } | null)?.name;
+      if (!name) continue;
+      const list = out.get(gp) ?? [];
+      if (list.length < DIRECTORY_WEAPONS_SHOWN && !list.includes(name)) list.push(name);
+      out.set(gp, list);
+    }
+    return out;
   }
 
   /** Trigram-ranked fighter search. Returns full rows (same shape as list())

@@ -113,6 +113,38 @@ const fighterQuerySchema = z
   .strict();
 export class FighterQueryDto extends createZodDto(fighterQuerySchema) {}
 
+/**
+ * Query for GET /fighters/public — the anonymous fighter directory.
+ *
+ * Separate from fighterQuerySchema on purpose, following the
+ * /organizations/public precedent: the authenticated people-search and the
+ * anonymous directory answer different questions to different audiences, and
+ * sharing a DTO is how one of them quietly acquires the other's surface.
+ *
+ * `sort` and `dir` are enums rather than free strings. The RPC also CASE-matches
+ * them against a whitelist, so this is the outer of two independent gates —
+ * neither is load-bearing alone.
+ */
+const publicFighterQuerySchema = z
+  .object({
+    q: z.string().trim().max(100).optional(),
+    // ISO 3166-1 alpha-2, upper-cased so the RPC's comparison is exact.
+    country: z
+      .string()
+      .trim()
+      .length(2)
+      .transform((value) => value.toUpperCase())
+      .optional(),
+    weapon: z.string().trim().max(100).optional(),
+    sort: z.enum(['name', 'club', 'country']).optional(),
+    dir: z.enum(['asc', 'desc']).optional(),
+    // Coerced before bounds are checked: query values arrive as strings.
+    limit: z.coerce.number().min(1).max(50).optional(),
+    offset: z.coerce.number().min(0).optional(),
+  })
+  .strict();
+export class PublicFighterQueryDto extends createZodDto(publicFighterQuerySchema) {}
+
 const promoteFighterSchema = z.object({ personId: z.uuid() }).strict();
 export class PromoteFighterDto extends createZodDto(promoteFighterSchema) {}
 

@@ -46,6 +46,7 @@ import {
   LinkEnrollmentDto,
   LinkQualificationDto,
   MergeFightersDto,
+  PublicFighterQueryDto,
   PromoteFighterDto,
   UpdateMyFighterProfileDto,
   UpdateFighterDto,
@@ -79,9 +80,28 @@ export class FightersController {
 
   /** GET /api/v1/fighters?q=...&club=... */
   @Get()
-  @ApiOperation({ summary: 'List fighters (public)' })
+  @ApiOperation({ summary: 'List fighters (signed-in people search)' })
   async list(@Query() query: FighterQueryDto) {
     return this.fighters.list(query);
+  }
+
+  /**
+   * GET /api/v1/fighters/public?q=&country=&weapon=&sort=&dir=&limit=&offset=
+   *
+   * The anonymous fighter directory behind /fighters. Deliberately NOT the route
+   * above: that one is a signed-in people search over every global person, and
+   * this one returns only people who claimed their account and are listed. Two
+   * audiences, two projections — the same split as /organizations/public.
+   *
+   * Declared ABOVE @Get(':slug/matches') on purpose. Nest matches in declaration
+   * order, so a later position would let 'public' be swallowed as a :slug.
+   */
+  @Public()
+  @Get('public')
+  @Throttle(CATALOG_READ_THROTTLE)
+  @ApiOperation({ summary: 'Public fighter directory (anonymous, searchable)' })
+  async listPublicDirectory(@Query() query: PublicFighterQueryDto) {
+    return this.fighters.listPublicDirectory(query);
   }
 
   /** GET /api/v1/fighters/me/profile */
