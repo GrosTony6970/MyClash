@@ -410,7 +410,17 @@ export class FightersService {
 
     const ids = ranked.map((r) => r.id);
     const total = Number(ranked[0]?.total ?? ids.length);
+    return { items: await this.hydrateDirectoryRows(ids), total };
+  }
 
+  /**
+   * Fetch and shape one page of directory rows, in the order the ids arrive.
+   *
+   * The ordering is the point: `.in()` returns rows in whatever order the
+   * planner likes, and a directory sorted by relevance that arrives in table
+   * order is not sorted at all.
+   */
+  private async hydrateDirectoryRows(ids: string[]): Promise<PublicDirectoryFighter[]> {
     const { data: rows } = await this.supabase.service
       .from('global_persons')
       .select(
@@ -423,9 +433,6 @@ export class FightersService {
     );
     const weaponsById = await this.getFavoriteWeaponNames(ids);
 
-    // Rebuilt in the RPC's order: `.in()` returns rows in whatever order the
-    // planner likes, and a directory sorted by relevance that arrives in table
-    // order is not sorted at all.
     const items: PublicDirectoryFighter[] = [];
     for (const id of ids) {
       const row = byId.get(id);
@@ -447,8 +454,7 @@ export class FightersService {
         weapons: weaponsById.get(id) ?? [],
       });
     }
-
-    return { items, total };
+    return items;
   }
 
   /**
