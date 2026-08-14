@@ -36,9 +36,13 @@ import {
 const ADMIN = 'http://localhost:3003';
 const SCHEDULE_URL = `${ADMIN}/org/${ORG_SLUG}/events/${EVENT_ID}/schedule`;
 
-/** The axis runs from 09:00 in 5-minute slots, so slot = (minutes since 09:00)/5. */
-const SLOT_1200 = 36;
-const SLOT_1500 = 72;
+/**
+ * Slots are READ FROM THE DOM, never computed here. The axis origin is derived
+ * per day, so any constant in this file would be a second copy of that
+ * derivation — and a wrong one: an earlier version of this spec assumed a 09:00
+ * origin, computed 12:00 as slot 36, and silently dropped on an empty 11:00
+ * cell while claiming to test an occupied one.
+ */
 
 interface Harness {
   writes: Request[];
@@ -104,6 +108,30 @@ async function mockApi(page: Page): Promise<Harness> {
 /** The draggable match card carrying `roundCode` — what the operator reads. */
 function card(page: Page, roundCode: string) {
   return page.locator('[draggable="true"]').filter({ hasText: roundCode }).first();
+}
+
+/**
+ * The slot a rendered match actually occupies, resolved by matching its CSS
+ * grid row against the drop cells' rows. This is the only honest way to name
+ * "the cell that match is in" without reimplementing the axis geometry.
+ */
+async function slotOfCard(page: Page, roundCode: string, liceId: string): Promise<number> {
+  const slot = await page.evaluate(
+    ([code, lice]) => {
+      const el = [...document.querySelectorAll('[draggable="true"]')].find((e) =>
+        (e.textContent ?? '').includes(code as string),
+      ) as HTMLElement | undefined;
+      if (!el) throw new Error(`no card for ${String(code)}`);
+      const row = getComputedStyle(el).gridRowStart;
+      const cell = [...document.querySelectorAll(`[data-lice-id="${lice}"][data-slot]`)].find(
+        (c) => getComputedStyle(c as HTMLElement).gridRowStart === row,
+      );
+      if (!cell) throw new Error(`no cell on row ${row}`);
+      return Number(cell.getAttribute('data-slot'));
+    },
+    [roundCode, liceId],
+  );
+  return slot;
 }
 
 /** Loads the grid and switches to the Detailed view, where the cells live. */
@@ -184,7 +212,9 @@ test.describe('schedule grid drag layer', () => {
   test('dropping a match on an empty cell re-times exactly that match', async ({ page }) => {
     const api = await openDetailedGrid(page);
 
-    await dragCardToCell(page, 'LSW-P1-M1', LICE_B, SLOT_1500);
+    // Well clear of M2, so nothing is displaced and the count is unambiguous.
+    const empty = (await slotOfCard(page, 'LSW-P1-M2', LICE_B)) + 24;
+    await dragCardToCell(page, 'LSW-P1-M1', LICE_B, empty);
 
     await expect.poll(() => api.scheduleWrites().length).toBe(1);
     const write = api.scheduleWrites()[0]!;
@@ -202,8 +232,9 @@ test.describe('schedule grid drag layer', () => {
   test('a drop carries the target cell piste, not the source piste', async ({ page }) => {
     const api = await openDetailedGrid(page);
 
-    // M2 starts on piste B; drop it onto piste A.
-    await dragCardToCell(page, 'LSW-P1-M2', LICE_A, SLOT_1500);
+    // M2 starts on lice B; drop it onto lice A, clear of M1.
+    const empty = (await slotOfCard(page, 'LSW-P1-M1', LICE_A)) + 24;
+    await dragCardToCell(page, 'LSW-P1-M2', LICE_A, empty);
 
     await expect.poll(() => api.scheduleWrites().length).toBe(1);
     const write = api.scheduleWrites()[0]!;
@@ -212,27 +243,39 @@ test.describe('schedule grid drag layer', () => {
   });
 
   /**
-   * CURRENT BEHAVIOUR, pinned deliberately rather than endorsed: dropping onto
-   * a slot another match already occupies emits ONE write — the dragged match
-   * moves and the occupant stays exactly where it was. No cascade, no warning,
-   * and the piste ends up double-booked.
+   * Dropping onto a slot another match already occupies CASCADES: the dragged
+   * match takes the slot and the occupant is pushed clear, and both rows are
+   * written in one operation (`placeWithShift` → `commitAll`).
    *
-   * That is the very state `20-schedule.spec.ts` forbids the generator from
-   * producing ("one lice runs one match at a time"), reachable by hand. This
-   * test exists so the grid.tsx split cannot change it by accident, and so that
-   * fixing it later is a deliberate edit to this assertion rather than drift.
+   * This is the assertion most worth having before the split, because the
+   * cascade is the part a refactor is most likely to drop — losing it is
+   * invisible on screen for the dragged card and leaves the lice double-booked
+   * in the database, which is exactly what `20-schedule.spec.ts` forbids the
+   * generator from producing.
+   *
+   * The occupied slot is READ from the rendered grid. An earlier version of
+   * this spec computed it from an assumed 09:00 axis origin, landed on an empty
+   * cell, and passed while asserting the opposite behaviour.
    */
-  test('dropping on an occupied slot moves only the dragged match (no cascade)', async ({
-    page,
-  }) => {
+  test('dropping on an occupied slot cascades the occupant out of the way', async ({ page }) => {
     const api = await openDetailedGrid(page);
 
-    // Slot 36 on piste B is exactly where M2 sits.
-    await dragCardToCell(page, 'LSW-P1-M1', LICE_B, SLOT_1200);
+    const occupied = await slotOfCard(page, 'LSW-P1-M2', LICE_B);
+    await dragCardToCell(page, 'LSW-P1-M1', LICE_B, occupied);
 
-    await expect.poll(() => api.scheduleWrites().length).toBe(1);
+    await expect.poll(() => api.scheduleWrites().length).toBe(2);
     const writes = api.scheduleWrites();
-    expect(writes[0]!.matchId).toBe(MATCH_1);
-    expect(writes.some((w) => w.matchId === MATCH_2)).toBe(false);
+
+    // Both the dragged match and the displaced occupant are written.
+    expect(writes.map((w) => w.matchId).sort()).toEqual([MATCH_1, MATCH_2].sort());
+    // Both land on the target lice, and neither is left without a time.
+    for (const w of writes) {
+      expect(w.body['liceId']).toBe(LICE_B);
+      expect(typeof w.body['scheduledAt']).toBe('string');
+    }
+    // The occupant is pushed LATER than the dragged match, not on top of it.
+    const dragged = writes.find((w) => w.matchId === MATCH_1)!;
+    const displaced = writes.find((w) => w.matchId === MATCH_2)!;
+    expect(String(displaced.body['scheduledAt']) > String(dragged.body['scheduledAt'])).toBe(true);
   });
 });
