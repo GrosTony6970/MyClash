@@ -840,6 +840,42 @@ describe('public fighter projection', () => {
     expect(erased['account_deleted_at']).toBeUndefined();
   });
 
+  it('reports indexability as one derived boolean, never the four inputs', async () => {
+    // Publishing them separately would tell any reader which of "not a
+    // fighter", "never claimed" and "opted out" applied to a named person.
+    const out = await listOne({
+      ...FULL_ROW,
+      is_fighter: true,
+      claimed_by_user_id: 'user-1',
+      listed_in_directory: true,
+      search_indexable: true,
+    });
+    expect(out['indexable']).toBe(true);
+    for (const field of ['listed_in_directory', 'search_indexable', 'claimed_by_user_id']) {
+      expect(out[field]).toBeUndefined();
+    }
+  });
+
+  it('is not indexable when the second choice was never made', async () => {
+    const out = await listOne({
+      ...FULL_ROW,
+      claimed_by_user_id: 'user-1',
+      listed_in_directory: true,
+      search_indexable: false,
+    });
+    expect(out['indexable']).toBe(false);
+  });
+
+  it('is not indexable for an unclaimed import', async () => {
+    const out = await listOne({
+      ...FULL_ROW,
+      claimed_by_user_id: null,
+      listed_in_directory: true,
+      search_indexable: true,
+    });
+    expect(out['indexable']).toBe(false);
+  });
+
   it('still returns what the public surfaces read', async () => {
     const out = await listOne();
     for (const field of [

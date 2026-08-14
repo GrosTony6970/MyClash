@@ -25,14 +25,33 @@
  * listing toggle promises — opting out removes you from the directory and from
  * search, it does not hide results you already fought for.
  *
- * The narrower directory and indexing predicates build on this one; they arrive
- * with the columns they read.
+ * ── Listed, and Indexable ────────────────────────────────────────────────────
+ * Two narrower questions, NESTED inside reachability and inside each other:
+ *
+ *     isIndexable  ⊂  isListed  ⊂  isReachable
+ *
+ * so it is not expressible for a fighter to be indexed but unlisted — an orphan
+ * page reachable only from a search result, with no route to it from the site —
+ * or listed but not reachable. The database enforces the same nesting with a
+ * CHECK (0187); this is the same rule where the application can see it.
+ *
+ * One definition each, because every surface downstream needs the SAME answer:
+ * the directory, the sitemap and the per-profile robots tag are three places a
+ * person's opt-out has to hold, and a surface that invents its own rule is a
+ * surface where their opt-out silently does not apply.
  */
 
 export interface ReachableRow {
   deleted_at?: string | null;
   merged_into_id?: string | null;
   account_deleted_at?: string | null;
+}
+
+export interface DirectoryRow extends ReachableRow {
+  is_fighter?: boolean | null;
+  claimed_by_user_id?: string | null;
+  listed_in_directory?: boolean | null;
+  search_indexable?: boolean | null;
 }
 
 /** Columns `isReachable` reads. A caller checking in memory must select these. */
@@ -52,4 +71,56 @@ export function isReachable(row: ReachableRow): boolean {
  */
 export function applyReachable<T extends { is(column: string, value: null): T }>(query: T): T {
   return query.is('deleted_at', null).is('merged_into_id', null).is('account_deleted_at', null);
+}
+
+/** Columns `isListed` and `isIndexable` read, on top of REACHABLE_COLUMNS. */
+export const DIRECTORY_COLUMNS = [
+  'is_fighter',
+  'claimed_by_user_id',
+  'listed_in_directory',
+  'search_indexable',
+] as const;
+
+/**
+ * Appears in the public fighter directory.
+ *
+ *  - `is_fighter` — it is a directory OF fighters. Referees and instructors get
+ *    their own; until then they are simply not in this one.
+ *  - `claimed_by_user_id` — somebody who never signed up cannot have agreed to
+ *    anything. This is the requirement carrying the weight, and it is why
+ *    `listed_in_directory` can default TRUE without publishing the imported
+ *    majority who never chose.
+ *  - `listed_in_directory` — the switch itself.
+ */
+export function isListed(row: DirectoryRow): boolean {
+  return (
+    isReachable(row) &&
+    row.is_fighter === true &&
+    row.claimed_by_user_id != null &&
+    row.listed_in_directory === true
+  );
+}
+
+/**
+ * Search engines may index the profile.
+ *
+ * Defaults FALSE in the schema: this is the half that cannot be undone, since
+ * de-indexing is slow and never reaches caches or scrapers.
+ */
+export function isIndexable(row: DirectoryRow): boolean {
+  return isListed(row) && row.search_indexable === true;
+}
+
+/** The PostgREST filter chain matching `isListed`. */
+export function applyListed<
+  T extends {
+    is(column: string, value: null): T;
+    not(column: string, op: 'is', value: null): T;
+    eq(column: string, value: boolean): T;
+  },
+>(query: T): T {
+  return applyReachable(query)
+    .eq('is_fighter', true)
+    .eq('listed_in_directory', true)
+    .not('claimed_by_user_id', 'is', null);
 }

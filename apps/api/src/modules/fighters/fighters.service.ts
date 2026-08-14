@@ -12,7 +12,13 @@ import { SupabaseService } from '../supabase/supabase.service';
 import { HemaRatingsService } from '../hema-ratings/hema-ratings.service';
 import { CsvImportService } from '../persons/csv-import.service';
 import { replaceFighterWeaponsFromCell } from './weapon-import.util';
-import { applyReachable } from './directory-predicate';
+import {
+  applyReachable,
+  isIndexable,
+  DIRECTORY_COLUMNS,
+  REACHABLE_COLUMNS,
+  type DirectoryRow,
+} from './directory-predicate';
 // Value import (NOT `import type`) — DI-injected, so the runtime needs the
 // class metadata preserved.
 import { TournamentPlacementService } from '../tournament-placement/tournament-placement.service';
@@ -154,6 +160,11 @@ const VISIBILITY_FIELDS: Record<string, { columns: string[]; defaultPublic: bool
  *    only branches on whether the account was erased; it never renders the date,
  *    so an exact erasure timestamp for a named person was more than any reader
  *    needed.
+ *  - the four DIRECTORY_COLUMNS become the boolean `indexable`. The profile page
+ *    needs one answer — may a search engine index this? — not the four inputs.
+ *    Publishing them separately would tell any reader which of "not a fighter",
+ *    "never claimed" and "opted out" applied to a named person, which is more
+ *    than the question asks and none of a stranger's business.
  */
 const PUBLIC_FIGHTER_EMITTED_FIELDS = [
   'id',
@@ -185,6 +196,10 @@ const PUBLIC_FIGHTER_COLUMNS = [
   ...PUBLIC_FIGHTER_EMITTED_FIELDS,
   VISIBILITY_CONFIG_FIELD,
   ACCOUNT_ERASED_FIELD,
+  ...REACHABLE_COLUMNS,
+  ...DIRECTORY_COLUMNS,
+  // REACHABLE_COLUMNS repeats account_deleted_at; PostgREST tolerates a repeat
+  // in the select list, and deduping here would hide which constant owns it.
 ].join(', ');
 
 /**
@@ -1100,8 +1115,10 @@ export class FightersService {
     // it; the embed itself is column-scoped at the call site.
     if ('clubs' in row) out['clubs'] = row['clubs'];
     // Derived, not copied: the reader needs to know the account was erased, not
-    // when. See PUBLIC_FIGHTER_COLUMNS.
+    // when, and needs one indexing answer rather than the four inputs to it.
+    // See PUBLIC_FIGHTER_COLUMNS.
     out['accountDeleted'] = row[ACCOUNT_ERASED_FIELD] != null;
+    out['indexable'] = isIndexable(row as DirectoryRow);
 
     for (const [key, cfg] of Object.entries(VISIBILITY_FIELDS)) {
       const explicit = typeof vis[key] === 'boolean' ? (vis[key] as boolean) : undefined;
