@@ -1,4 +1,5 @@
 import { Injectable, InternalServerErrorException, NotFoundException } from '@nestjs/common';
+import { DEFAULT_EVENT_TIMEZONE } from '@myclash/time';
 import type { BlockType, ProgrammeBlock } from '@myclash/types';
 import { isLiveStatus } from '@myclash/types';
 import { SupabaseService } from '../supabase/supabase.service';
@@ -35,6 +36,14 @@ export interface LiveStateResponse {
   currentBlock: ProgrammeBlock | null;
   nextBlock: ProgrammeBlock | null;
   lices: LiveLiceState[];
+  /**
+   * The event's timezone. Block times are wall-clock `HH:MM` with no offset,
+   * so every consumer that renders or subtracts them needs the zone they are
+   * expressed in. The organiser's live banner used to compare them against a
+   * browser-local `new Date()`, which reported "480 min left" for a block with
+   * two hours to run whenever the viewer sat in a different zone.
+   */
+  timezone: string;
 }
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -86,7 +95,11 @@ export class LiveStateService {
       : await this.resolveSlug(eventIdOrSlug);
 
     const [eventRes, licesRes] = await Promise.all([
-      this.supabase.service.from('events').select('start_date').eq('id', eventId).maybeSingle(),
+      this.supabase.service
+        .from('events')
+        .select('start_date, timezone')
+        .eq('id', eventId)
+        .maybeSingle(),
       this.supabase.service
         .from('lices')
         .select('id, name, sort_order')
@@ -160,7 +173,12 @@ export class LiveStateService {
       };
     });
 
-    return { currentBlock, nextBlock, lices: liceStates };
+    return {
+      currentBlock,
+      nextBlock,
+      lices: liceStates,
+      timezone: (eventRow?.['timezone'] as string | null) ?? DEFAULT_EVENT_TIMEZONE,
+    };
   }
 
   private async resolveSlug(slug: string): Promise<string> {

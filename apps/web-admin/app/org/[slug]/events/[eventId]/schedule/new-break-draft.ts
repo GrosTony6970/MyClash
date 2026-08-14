@@ -9,10 +9,17 @@ import type { BlockEditDraft } from './BlockEditPopover';
 
 const DEFAULT_SPAN_SLOTS = 6; // 30 min at SLOT_MINUTES = 5
 
-export function newBreakDraftFromCell(slot: number): BlockEditDraft {
+/**
+ * `label` is passed in rather than defaulted here. It used to be the literal
+ * 'Break', which the i18n lint rule cannot see inside a pure module — and
+ * because the popover pre-fills it, `draft.label` was always truthy, so the
+ * translated fallback in `createBreakBlock` never fired. A French organiser
+ * got an English bar name every time.
+ */
+export function newBreakDraftFromCell(slot: number, label: string): BlockEditDraft {
   const start = snapSlot(slot);
   return {
-    label: 'Break',
+    label,
     startHHMM: slotToHHMM(start),
     endHHMM: slotToHHMM(start + DEFAULT_SPAN_SLOTS),
     liceIds: [],

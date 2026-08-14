@@ -21,9 +21,24 @@ const lices = new Map([
   ['L2', 'Lice 2'],
 ]);
 
+const TZ = 'Europe/Paris';
+
+/** Headers come from `t()` at the call site; English here mirrors the EN pack. */
+const LABELS = {
+  day: 'Day',
+  lice: 'Lice',
+  start: 'Start',
+  round: 'Round',
+  tournament: 'Tournament',
+  group: 'Pool/Round',
+  red: 'Red',
+  blue: 'Blue',
+  status: 'Status',
+};
+
 describe('scheduleToCsv', () => {
   it('emits a header row and one data row per scheduled match', () => {
-    const csv = scheduleToCsv([m({})], lices);
+    const csv = scheduleToCsv([m({})], lices, TZ, LABELS);
     const lines = csv.trim().split('\n');
     expect(lines[0]).toBe('Day,Lice,Start,Round,Tournament,Pool/Round,Red,Blue,Status');
     expect(lines).toHaveLength(2);
@@ -41,6 +56,8 @@ describe('scheduleToCsv', () => {
         m({ liceId: 'L1', scheduledAt: '2027-06-21T09:00:00.000Z', matchNumberLabel: 'A1' }),
       ],
       lices,
+      TZ,
+      LABELS,
     );
     const rows = csv.trim().split('\n').slice(1);
     // L1 before L2; within L1, 09:00 before 10:00.
@@ -53,16 +70,61 @@ describe('scheduleToCsv', () => {
     const csv = scheduleToCsv(
       [m({ redFighterName: 'Doe, John', blueFighterName: 'Anne "Ace" Roy' })],
       lices,
+      TZ,
+      LABELS,
     );
     const row = csv.trim().split('\n')[1]!;
     expect(row).toContain('"Doe, John"');
     expect(row).toContain('"Anne ""Ace"" Roy"');
   });
 
+  /**
+   * This file is printed and taped up at the venue, so every time on it has to
+   * be the venue's. `Intl.DateTimeFormat(undefined, …)` used the RUNTIME's zone
+   * and locale, and the Day column came from `scheduledAt.slice(0, 10)` — the
+   * UTC prefix — so a bout just after midnight filed under the previous day.
+   */
+  it('writes the start time on the event wall clock', () => {
+    // 07:00Z is 09:00 in Paris (CEST) and 03:00 in New York.
+    const csv = scheduleToCsv(
+      [m({ scheduledAt: '2027-06-21T07:00:00.000Z' })],
+      lices,
+      'Europe/Paris',
+      LABELS,
+    );
+
+    expect(csv.trim().split('\n')[1]).toContain('09:00');
+  });
+
+  it('files a bout after midnight under the event day, not the UTC day', () => {
+    // 22:30Z on the 20th is 00:30 on the 21st in Paris.
+    const csv = scheduleToCsv(
+      [m({ scheduledAt: '2027-06-20T22:30:00.000Z' })],
+      lices,
+      'Europe/Paris',
+      LABELS,
+    );
+    const row = csv.trim().split('\n')[1]!;
+
+    expect(row).toContain('2027-06-21');
+    expect(row).not.toContain('2027-06-20');
+    expect(row).toContain('00:30');
+  });
+
+  it('takes its headers from the caller rather than hardcoding English', () => {
+    const csv = scheduleToCsv([m({})], lices, TZ, { ...LABELS, day: 'Jour', red: 'Rouge' });
+
+    expect(csv.trim().split('\n')[0]).toBe(
+      'Jour,Lice,Start,Round,Tournament,Pool/Round,Rouge,Blue,Status',
+    );
+  });
+
   it('excludes unscheduled matches (no time or no lice)', () => {
     const csv = scheduleToCsv(
       [m({ scheduledAt: null }), m({ liceId: null }), m({ matchNumberLabel: 'kept' })],
       lices,
+      TZ,
+      LABELS,
     );
     expect(csv.trim().split('\n')).toHaveLength(2); // header + the one kept
   });

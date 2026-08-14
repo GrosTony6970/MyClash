@@ -1,6 +1,9 @@
 import { describe, it, expect } from 'vitest';
 import { detectConflicts, type ScheduleMatchForConflict } from './conflict-detection';
 
+const TZ = 'Europe/Paris';
+const UNKNOWN = 'Unknown fighter';
+
 function buildMatch(over: Partial<ScheduleMatchForConflict>): ScheduleMatchForConflict {
   return {
     matchNumberLabel: 'M?',
@@ -35,7 +38,7 @@ describe('detectConflicts', () => {
       blueFighterName: 'Bob Jones',
     });
 
-    const conflicts = detectConflicts([matchA, matchB]);
+    const conflicts = detectConflicts([matchA, matchB], TZ, UNKNOWN);
 
     expect(conflicts).toHaveLength(1);
     expect(conflicts[0]?.personName).toBe('Alice Smith');
@@ -53,7 +56,7 @@ describe('detectConflicts', () => {
       redFighterName: 'Alice Smith',
     });
 
-    const conflicts = detectConflicts([matchA, matchB]);
+    const conflicts = detectConflicts([matchA, matchB], TZ, UNKNOWN);
 
     expect(conflicts).toHaveLength(1);
     expect(conflicts[0]?.personName).toBe('Alice Smith');
@@ -78,10 +81,10 @@ describe('detectConflicts', () => {
       blueFighterName: null,
     });
 
-    const conflicts = detectConflicts([matchA, matchB]);
+    const conflicts = detectConflicts([matchA, matchB], TZ, UNKNOWN);
 
     expect(conflicts).toHaveLength(1);
-    expect(conflicts[0]?.personName).toBe('Unknown fighter');
+    expect(conflicts[0]?.personName).toBe(UNKNOWN);
     // Defensive: explicitly confirm the UUID never leaks.
     expect(conflicts[0]?.personName).not.toBe('reg-shared');
   });
@@ -102,12 +105,49 @@ describe('detectConflicts', () => {
       redRegistrationId: 'reg-shared',
     });
 
-    const conflicts = detectConflicts([matchA, matchB]);
+    const conflicts = detectConflicts([matchA, matchB], TZ, UNKNOWN);
 
     expect(conflicts).toHaveLength(1);
     // 24h shape: two digits, colon, two digits. No AM/PM marker.
     expect(conflicts[0]?.time).toMatch(/^([01][0-9]|2[0-3]):[0-5][0-9]$/);
     expect(conflicts[0]?.time?.toUpperCase()).not.toContain('AM');
     expect(conflicts[0]?.time?.toUpperCase()).not.toContain('PM');
+  });
+
+  /**
+   * The banner used to build its time with `Date#getHours`, which reads the
+   * VIEWER's zone. Detection itself was never wrong — the overlap test is
+   * epoch arithmetic — but the time an organiser was told to go and fix was.
+   * These assert an absolute instant against a named zone, so they mean the
+   * same thing on every machine and would have failed on the old code
+   * regardless of where CI runs.
+   */
+  it("renders the time on the event wall clock, not the viewer's", () => {
+    // 07:00Z is 09:00 in Paris (CEST, UTC+2) and 03:00 in New York.
+    const at = '2026-05-29T07:00:00.000Z';
+    const conflicts = detectConflicts(
+      [
+        buildMatch({ matchNumberLabel: 'M1', scheduledAt: at, redRegistrationId: 'reg-shared' }),
+        buildMatch({ matchNumberLabel: 'M2', scheduledAt: at, redRegistrationId: 'reg-shared' }),
+      ],
+      'Europe/Paris',
+      UNKNOWN,
+    );
+
+    expect(conflicts[0]?.time).toBe('09:00');
+  });
+
+  it('follows the event zone rather than a fixed offset', () => {
+    const at = '2026-05-29T07:00:00.000Z';
+    const conflicts = detectConflicts(
+      [
+        buildMatch({ matchNumberLabel: 'M1', scheduledAt: at, redRegistrationId: 'reg-shared' }),
+        buildMatch({ matchNumberLabel: 'M2', scheduledAt: at, redRegistrationId: 'reg-shared' }),
+      ],
+      'America/New_York',
+      UNKNOWN,
+    );
+
+    expect(conflicts[0]?.time).toBe('03:00');
   });
 });

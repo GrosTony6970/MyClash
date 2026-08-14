@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { localeToBcp47 } from '@myclash/time';
+import { formatInZone, localeToBcp47, minutesIntoDayInZone } from '@myclash/time';
 import { useI18n } from '@myclash/next-i18n/client';
 import { getPublicApiUrl } from '@/lib/api-url';
 
@@ -25,14 +25,23 @@ interface LiveState {
   currentBlock: { label: string; startTime: string; endTime: string } | null;
   nextBlock: { label: string; startTime: string } | null;
   lices: LiveLiceState[];
+  timezone: string;
 }
 
-function minutesRemaining(endTime: string): number {
-  const now = new Date();
+/**
+ * Minutes left in the current block, both sides read on the EVENT's clock.
+ *
+ * `endTime` is a wall-clock `HH:MM` with no offset. This used to `setHours`
+ * it onto a browser-local `new Date()` and subtract, so a viewer in another
+ * zone saw the offset instead of the remaining time — "480 min left" on a
+ * block with two hours to run, and it kept counting for hours after the block
+ * had ended.
+ */
+function minutesRemaining(endTime: string, nowIso: string, tz: string): number {
+  const nowMinutes = minutesIntoDayInZone(nowIso, tz);
+  if (nowMinutes === null) return 0;
   const [h, m] = endTime.split(':').map(Number);
-  const end = new Date(now);
-  end.setHours(h ?? 0, m ?? 0, 0, 0);
-  return Math.round((end.getTime() - now.getTime()) / 60_000);
+  return (h ?? 0) * 60 + (m ?? 0) - nowMinutes;
 }
 
 export function LiveNowBanner({ eventId }: { eventId: string }) {
@@ -76,7 +85,9 @@ export function LiveNowBanner({ eventId }: { eventId: string }) {
       ? t('organizer.schedulePage.liveBanner.nextBlock', { label: state.nextBlock.label })
       : null);
   const anyRunning = state.lices.some((l) => l.runningMatch !== null);
-  const remaining = state.currentBlock ? minutesRemaining(state.currentBlock.endTime) : null;
+  const remaining = state.currentBlock
+    ? minutesRemaining(state.currentBlock.endTime, new Date().toISOString(), state.timezone)
+    : null;
 
   return (
     <div className="bg-surface border border-border rounded-xl mb-4 overflow-hidden shadow-sm">
@@ -148,13 +159,11 @@ export function LiveNowBanner({ eventId }: { eventId: string }) {
                   </span>
                   {ls.nextMatch.scheduledAt && (
                     <span className="flex-shrink-0 text-xs ml-auto">
-                      {new Date(ls.nextMatch.scheduledAt).toLocaleTimeString(
+                      {formatInZone(
+                        ls.nextMatch.scheduledAt,
+                        state.timezone,
+                        { hour: '2-digit', minute: '2-digit' },
                         localeToBcp47(locale),
-                        {
-                          hour: '2-digit',
-                          minute: '2-digit',
-                          hour12: false,
-                        },
                       )}
                     </span>
                   )}

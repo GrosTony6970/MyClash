@@ -3,7 +3,14 @@
  * so the logic is testable without mounting React. The grid imports
  * `detectConflicts` and renders the resulting `Conflict[]` in its
  * banner.
+ *
+ * Times are resolved in the EVENT's timezone, matching the axis geometry in
+ * `@myclash/schedule-core`. The banner used to build its `time` with
+ * `Date#getHours`, which is the viewer's zone: detection was still correct
+ * (the overlap test is epoch arithmetic) but a Paris double-booking at 09:00
+ * read as "at 03:00" to an organiser on a US laptop.
  */
+import { minutesIntoDayInZone } from '@myclash/time';
 
 export interface ScheduleMatchForConflict {
   matchNumberLabel: string;
@@ -31,7 +38,18 @@ export interface Conflict {
  * reference every other match in the schedule first. Only when no match
  * anywhere has the name do we fall through to "Unknown fighter".
  */
-export function detectConflicts(matches: ScheduleMatchForConflict[]): Conflict[] {
+/** `HH:MM` on the event's wall clock, locale-free (identical in every locale). */
+function hhmmInZone(iso: string, tz: string): string {
+  const minutes = minutesIntoDayInZone(iso, tz);
+  if (minutes === null) return '';
+  return `${String(Math.floor(minutes / 60)).padStart(2, '0')}:${String(minutes % 60).padStart(2, '0')}`;
+}
+
+export function detectConflicts(
+  matches: ScheduleMatchForConflict[],
+  tz: string,
+  unknownFighterLabel: string,
+): Conflict[] {
   const nameByRegistration = new Map<string, string>();
   for (const m of matches) {
     if (m.redRegistrationId && m.redFighterName) {
@@ -60,13 +78,8 @@ export function detectConflicts(matches: ScheduleMatchForConflict[]): Conflict[]
         conflicts.push({
           matchA: a.matchNumberLabel,
           matchB: b.matchNumberLabel,
-          personName: nameByRegistration.get(shared[0]!) ?? 'Unknown fighter',
-          // Locale-free 24h HH:MM (identical in every locale) so this pure util
-          // needn't take a locale through its ~17 call sites.
-          time: (() => {
-            const d = new Date(a.scheduledAt!);
-            return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
-          })(),
+          personName: nameByRegistration.get(shared[0]!) ?? unknownFighterLabel,
+          time: hhmmInZone(a.scheduledAt!, tz),
         });
       }
     }

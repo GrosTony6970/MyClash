@@ -10,7 +10,7 @@ import {
   tintBorderClassFor,
   tintTextClassFor,
 } from '@myclash/ui';
-import { localeToBcp47 } from '@myclash/time';
+import { DEFAULT_EVENT_TIMEZONE, localeToBcp47 } from '@myclash/time';
 import { resolveBlockAccent } from '@myclash/types';
 import { placeMultiWithShift, placeWithShift } from './place-with-shift';
 import { computeHeaderRuns, type HeaderRunItem } from './compute-header-runs';
@@ -194,6 +194,24 @@ interface ScheduleMatch {
 // dynamic per day.
 const TOTAL_SLOTS = ((DEFAULT_GRID_END_HOUR - GRID_START_HOUR) * 60) / SLOT_MINUTES;
 
+/**
+ * Where "Schedule selected" starts a group on an empty lice.
+ *
+ * This is a wall-clock time read directly into axis space. It used to be built
+ * as `${activeDay}T09:00:00` — an ISO string with NO offset, which JS parses in
+ * the BROWSER's zone — and then diffed against the event-zone day start. On a
+ * browser east or west of the event the two disagreed by exactly the offset, so
+ * every ticked group was POSTed at the wrong hour and the server stored it
+ * there: a Paris event scheduled from New York landed at 15:00, not 09:00. The
+ * grid axis is already event-local, so the slot for a wall-clock time needs no
+ * timezone at all.
+ *
+ * NOTE: the Configure planner defaults its own `dayStartTime` to 08:00, so the
+ * two disagree. Left alone here — this slice is about the timezone, not the
+ * default, and changing it would move where batches land.
+ */
+const BATCH_SCHEDULE_START_HHMM = '09:00';
+
 // Stable empty set for the block grid's conflict/overlap tint props until S7b
 // computes the real ones (avoids a new-ref churn each render).
 const EMPTY_STRING_SET: Set<string> = new Set();
@@ -237,7 +255,7 @@ export function ScheduleGrid({
   const [days, setDays] = useState<string[]>([]);
   const [activeDay, setActiveDay] = useState<string>('');
   // Event IANA timezone — the schedule axis + times are interpreted in it.
-  const [eventTz, setEventTz] = useState<string>('Europe/Paris');
+  const [eventTz, setEventTz] = useState<string>(DEFAULT_EVENT_TIMEZONE);
   // Thin closures so the many grid call sites stay 2-arg; both resolve the
   // axis in the event timezone (not the browser's).
   const slotToTimeTz = useCallback(
@@ -260,6 +278,9 @@ export function ScheduleGrid({
   // failed WRITE leaves the board showing something the server never accepted,
   // so `commit` below re-reads the truth underneath this banner.
   const [saveError, setSaveError] = useState<string | null>(null);
+  // Passed into the pure conflict/CSV modules, which the i18n lint rule cannot
+  // reach and which must not carry English of their own.
+  const unknownFighterLabel = t('organizer.schedulePage.grid.unknownFighter');
   const [saving, setSaving] = useState<string | null>(null);
   const [conflicts, setConflicts] = useState<Conflict[]>([]);
   // Slice 7: non-fight programme blocks (registration, gear check,
@@ -586,7 +607,6 @@ export function ScheduleGrid({
         setLices(l.sort((a, b) => a.sortOrder - b.sortOrder));
         const m = (await schedRes.json()) as ScheduleMatch[];
         setMatches(m);
-        setConflicts(detectConflicts(m));
         // GET /api/v1/events/:id resolves to `getEventBySlug` which returns
         // the raw Supabase row — snake_case fields. Don't paper over it
         // with `startDate` aliases unless the API mapping is unified.
@@ -595,7 +615,13 @@ export function ScheduleGrid({
           end_date?: string | null;
           timezone?: string | null;
         };
+        // Read the zone off THIS response, not off `eventTz` state: the
+        // setter below has not flushed yet, so the state still holds the
+        // default and the first conflict banner would be stamped in the wrong
+        // timezone until some later render recomputed it.
+        const tz = ev.timezone ?? DEFAULT_EVENT_TIMEZONE;
         if (ev.timezone) setEventTz(ev.timezone);
+        setConflicts(detectConflicts(m, tz, unknownFighterLabel));
         const eventDays = eachDay(ev.start_date, ev.end_date ?? null);
         setDays(eventDays);
         if (eventDays[0]) setActiveDay(eventDays[0]);
@@ -615,7 +641,7 @@ export function ScheduleGrid({
         setFetchError(err instanceof Error ? err.message : t('admin.common.scheduleLoadFailed'));
       });
     return () => controller.abort();
-  }, [eventId, apiUrl, t]);
+  }, [eventId, apiUrl, t, unknownFighterLabel]);
 
   /** Throws `ScheduleMutationError` if the server did not accept the position. */
   async function saveMatchPosition(matchId: string, liceId: string, scheduledAt: string) {
@@ -703,7 +729,7 @@ export function ScheduleGrid({
     }
     const m = (await schedRes.json()) as ScheduleMatch[];
     setMatches(m);
-    setConflicts(detectConflicts(m));
+    setConflicts(detectConflicts(m, eventTz, unknownFighterLabel));
     const blocks = (await programmeRes.json()) as ProgrammeBlockRow[];
     setProgrammeBlocks(blocks.filter((b) => b.blockType === 'admin' || b.blockType === 'break'));
   }
@@ -900,7 +926,7 @@ export function ScheduleGrid({
       ids.has(m.id) ? { ...m, liceId: null, scheduledAt: null } : m,
     );
     setMatches(updated);
-    setConflicts(detectConflicts(updated));
+    setConflicts(detectConflicts(updated, eventTz, unknownFighterLabel));
     void commitAll(action.matchIds.map((id) => () => saveMatchPosition(id, '', '')));
     setLastUndo({ kind: 'unschedule', label: block.label, matches: prior });
   }
@@ -917,7 +943,7 @@ export function ScheduleGrid({
         return prev ? { ...m, liceId: prev.liceId, scheduledAt: prev.scheduledAt } : m;
       });
       setMatches(restored);
-      setConflicts(detectConflicts(restored));
+      setConflicts(detectConflicts(restored, eventTz, unknownFighterLabel));
       await commitAll(
         u.matches.map(
           (m) => () =>
@@ -1023,7 +1049,7 @@ export function ScheduleGrid({
       return { ...m, scheduledAt: slotToTimeTz(newSlot, activeDay) };
     });
     setMatches(updated);
-    setConflicts(detectConflicts(updated));
+    setConflicts(detectConflicts(updated, eventTz, unknownFighterLabel));
     // The dropped match and every neighbour the shift displaced are ONE
     // operation to the operator, so they are reported as one: any rejection
     // re-reads the server instead of leaving half the column moved on screen
@@ -1113,7 +1139,7 @@ export function ScheduleGrid({
       return { ...m, scheduledAt: newScheduledAt, liceId: newLiceId };
     });
     setMatches(updated);
-    setConflicts(detectConflicts(updated));
+    setConflicts(detectConflicts(updated, eventTz, unknownFighterLabel));
 
     // 6. PATCH every match whose (liceId, scheduledAt) actually changed, as
     //    one reported operation — a partial failure rolls the board back to
@@ -1146,7 +1172,7 @@ export function ScheduleGrid({
   async function applyMove(matchId: string, liceId: string | null, scheduledAt: string | null) {
     const updated = matches.map((m) => (m.id === matchId ? { ...m, liceId, scheduledAt } : m));
     setMatches(updated);
-    setConflicts(detectConflicts(updated));
+    setConflicts(detectConflicts(updated, eventTz, unknownFighterLabel));
     await commit(() => saveMatchPosition(matchId, liceId ?? '', scheduledAt ?? ''));
   }
 
@@ -1232,7 +1258,7 @@ export function ScheduleGrid({
         targetIds.has(m.id) ? { ...m, liceId: null, scheduledAt: null } : m,
       );
       setMatches(updated);
-      setConflicts(detectConflicts(updated));
+      setConflicts(detectConflicts(updated, eventTz, unknownFighterLabel));
     } finally {
       setClearingDay(false);
       setPendingClear(false);
@@ -1454,7 +1480,7 @@ export function ScheduleGrid({
       futureIds.has(m.id) ? { ...m, scheduledAt: shifted(m.scheduledAt!) } : m,
     );
     setMatches(updated);
-    setConflicts(detectConflicts(updated));
+    setConflicts(detectConflicts(updated, eventTz, unknownFighterLabel));
     void commitAll(
       future.map((f) => () => saveMatchPosition(f.id, liceId, shifted(f.scheduledAt!))),
     );
@@ -1477,7 +1503,7 @@ export function ScheduleGrid({
         : m,
     );
     setMatches(updated);
-    setConflicts(detectConflicts(updated));
+    setConflicts(detectConflicts(updated, eventTz, unknownFighterLabel));
     void commitAll(updates.map((u) => () => saveMatchPosition(u.id, u.liceId, u.scheduledAt)));
   }
 
@@ -1711,7 +1737,8 @@ export function ScheduleGrid({
       return;
     }
     setAutoDistributeError(null);
-    const dayStartSlot = isoToSlotTz(`${activeDay}T09:00:00`, activeDay);
+    // Axis space, not instant space — see BATCH_SCHEDULE_START_HHMM.
+    const dayStartSlot = hhmmToSlot(BATCH_SCHEDULE_START_HHMM);
     const lastEnd = (liceId: string) => {
       const onLice = scheduledOnActiveDay.filter((m) => m.liceId === liceId && m.scheduledAt);
       if (onLice.length === 0) return dayStartSlot;
@@ -1755,7 +1782,17 @@ export function ScheduleGrid({
   }, [lices]);
 
   function exportCsv() {
-    const csv = scheduleToCsv(matches, liceNameById);
+    const csv = scheduleToCsv(matches, liceNameById, eventTz, {
+      day: t('organizer.schedulePage.grid.printColDay'),
+      lice: t('organizer.schedulePage.grid.printColLice'),
+      start: t('organizer.schedulePage.grid.printColStart'),
+      round: t('organizer.schedulePage.grid.printColRound'),
+      tournament: t('organizer.schedulePage.grid.printColTournament'),
+      group: t('organizer.schedulePage.grid.printColGroup'),
+      red: t('organizer.schedulePage.grid.printColRed'),
+      blue: t('organizer.schedulePage.grid.printColBlue'),
+      status: t('organizer.schedulePage.grid.printColStatus'),
+    });
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -1913,7 +1950,7 @@ export function ScheduleGrid({
         ids.has(m.id) ? { ...m, liceId: null, scheduledAt: null } : m,
       );
       setMatches(updated);
-      setConflicts(detectConflicts(updated));
+      setConflicts(detectConflicts(updated, eventTz, unknownFighterLabel));
       await commitAll(group.matchIds.map((id) => () => saveMatchPosition(id, '', '')));
     } finally {
       setClearingRun(false);
@@ -2369,7 +2406,7 @@ export function ScheduleGrid({
                     m.id === match.id ? { ...m, liceId: null, scheduledAt: null } : m,
                   );
                   setMatches(updated);
-                  setConflicts(detectConflicts(updated));
+                  setConflicts(detectConflicts(updated, eventTz, unknownFighterLabel));
                   void commit(() => saveMatchPosition(match.id, '', ''));
                   dragMatch.current = null;
                 }}
@@ -2646,7 +2683,11 @@ export function ScheduleGrid({
                   dragViewBreak.current = null;
                 }}
                 onDropOnLice={handleBlockViewDrop}
-                onCreateAtCell={(slot) => setCreatingBreak(newBreakDraftFromCell(slot))}
+                onCreateAtCell={(slot) =>
+                  setCreatingBreak(
+                    newBreakDraftFromCell(slot, t('organizer.schedulePage.grid.breakDefaultLabel')),
+                  )
+                }
                 dragOverLiceId={dragOverLiceId}
                 onDragOverLice={setDragOverLiceId}
               />

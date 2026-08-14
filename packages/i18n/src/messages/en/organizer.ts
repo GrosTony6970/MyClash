@@ -1853,6 +1853,13 @@ export const organizer = {
       printColRound: 'Round',
       printColTournament: 'Tournament',
       printColMatch: 'Match',
+      // The CSV shares this column family with the print view — one export,
+      // one set of headers. They were English constants before, on a file
+      // handed to French referees at the venue.
+      printColGroup: 'Pool/Round',
+      printColRed: 'Red',
+      printColBlue: 'Blue',
+      printColStatus: 'Status',
       versus: '{a} vs {b}',
       dayTab: 'Day {n} · {date}',
       undo: '↶ Undo',
@@ -1873,6 +1880,9 @@ export const organizer = {
       saveFailedPartial: '{failed}/{total} changes were not saved.',
       conflictCountSingular: '⚠ {count} scheduling conflict',
       conflictCountPlural: '⚠ {count} scheduling conflicts',
+      // Shown when no match in the schedule carries the fighter's name. Never
+      // a registration id — see the no-raw-ids rule.
+      unknownFighter: 'Unknown fighter',
       conflictSegIsInBoth: 'is in both',
       conflictSegAnd: 'and',
       conflictSegAt: 'at',
