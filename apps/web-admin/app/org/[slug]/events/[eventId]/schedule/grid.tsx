@@ -11,7 +11,7 @@ import {
 } from '@myclash/ui';
 import { localeToBcp47 } from '@myclash/time';
 import { blockTint, resolveBlockAccent } from '@myclash/types';
-import { placeMultiWithShift, placeWithShift } from './place-with-shift';
+import { placeMultiWithShift } from './place-with-shift';
 import { computeHeaderRuns, type HeaderRunItem } from './compute-header-runs';
 import { POOL_HEADER_SPAN, rowShiftForSlot } from './pool-header-layout';
 import { openMatchScoring } from './open-match-scoring';
@@ -30,6 +30,7 @@ import {
   retimeBlockSlots,
   type SlotAssignment,
 } from './block-geometry';
+import { matchBelongsToDay, planMatchDrop } from './plan-match-drop';
 import { useScheduleData } from './useScheduleData';
 import { BlockGridView, type BgvBreak } from './BlockGridView';
 import { BlockEditPopover, type BlockEditDraft } from './BlockEditPopover';
@@ -106,12 +107,6 @@ const EMPTY_STRING_SET: Set<string> = new Set();
 
 // `eachDay` / `formatDayLabel` live in @myclash/schedule-core (shared
 // with the workshop schedule board). Imported at the top of this module.
-
-/** True when `scheduledAtIso` falls on the same calendar day (UTC) as `dayIso`. */
-function matchBelongsToDay(scheduledAtIso: string | null, dayIso: string): boolean {
-  if (!scheduledAtIso) return false;
-  return scheduledAtIso.slice(0, 10) === dayIso;
-}
 
 export function ScheduleGrid({
   slug,
@@ -757,51 +752,31 @@ export function ScheduleGrid({
       toScheduledAt: newScheduledAt,
     });
 
-    // Build a placeable representation of every match currently on the
-    // target lice on the active day (excluding the one being dropped if
-    // it was already there). placeWithShift cascades downward, with an
-    // upward fallback when the drop is too close to the grid end.
-    const span = matchSlotSpan(match.durationMinutes);
-    const occupants = matches
-      .filter(
-        (m) =>
-          m.id !== match.id &&
-          m.liceId === liceId &&
-          m.scheduledAt &&
-          matchBelongsToDay(m.scheduledAt, activeDay),
-      )
-      .map((m) => ({
-        id: m.id,
-        slot: isoToSlotTz(m.scheduledAt!, activeDay),
-        span: matchSlotSpan(m.durationMinutes),
-      }));
-    const placement = placeWithShift({
-      items: occupants,
-      dropped: { id: match.id, slot, span },
-      dropSlot: slot,
+    // Where the dropped match and every neighbour it displaces end up. The
+    // cascade arithmetic is in ./plan-match-drop; only the timezone is ours.
+    const plan = planMatchDrop({
+      matches,
+      dropped: match,
+      targetLiceId: liceId,
+      slot,
+      day: activeDay,
       gridEndSlot,
+      slotOf: (iso) => isoToSlotTz(iso, activeDay),
     });
-    const shiftedById = new Map(placement.shifted.map((s) => [s.id, s.slot]));
-    const updated = matches.map((m) => {
-      if (m.id === match.id) return { ...m, liceId, scheduledAt: newScheduledAt };
-      const newSlot = shiftedById.get(m.id);
-      if (newSlot == null) return m;
-      return { ...m, scheduledAt: slotToTimeTz(newSlot, activeDay) };
-    });
-    setMatches(updated);
+    const placedById = new Map(
+      plan.map((p) => [p.id, { liceId: p.liceId, scheduledAt: slotToTimeTz(p.slot, activeDay) }]),
+    );
+    setMatches(matches.map((m) => ({ ...m, ...(placedById.get(m.id) ?? {}) })));
     // The dropped match and every neighbour the shift displaced are ONE
     // operation to the operator, so they are reported as one: any rejection
     // re-reads the server instead of leaving half the column moved on screen
     // and unmoved in the database.
-    const writes: Array<() => Promise<unknown>> = [
-      () => saveMatchPosition(match.id, liceId, newScheduledAt),
-    ];
-    for (const s of placement.shifted) {
-      const moved = matches.find((m) => m.id === s.id);
-      if (!moved) continue;
-      writes.push(() => saveMatchPosition(s.id, liceId, slotToTimeTz(s.slot, activeDay)));
-    }
-    void commitAll(writes);
+    void commitAll(
+      plan.map((p) => {
+        const placed = placedById.get(p.id)!;
+        return () => saveMatchPosition(p.id, placed.liceId, placed.scheduledAt);
+      }),
+    );
     dragMatch.current = null;
   }
 
