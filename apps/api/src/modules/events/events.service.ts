@@ -16,6 +16,7 @@ import {
 } from '@myclash/types';
 import { SupabaseService } from '../supabase/supabase.service';
 import { insertAuditLog } from '../../common/audit-log';
+import { assertCanReadEvent, assertCanReadEventRow } from '../../common/auth/event-authz';
 import { hasPlatformTier } from '../../common/auth/platform-role';
 import { HemaRatingsService } from '../hema-ratings/hema-ratings.service';
 import { normalizePersonName, type WeaponRating } from '../hema-ratings/weapon-rating';
@@ -501,7 +502,19 @@ export class EventsService {
     }
   }
 
-  async getEventBySlug(slug: string) {
+  /**
+   * The one public slug→event resolver: `GET /events/:slug` plus the three
+   * internal callers below (standings, pools-with-matches, participants). It is
+   * therefore also the one place a visibility rule has to go to cover all four
+   * — hence the `resolveUserId` parameter, threaded from each controller.
+   *
+   * That parameter is REQUIRED, not optional-defaulting-to-anonymous: an
+   * optional default is fail-open by omission, which is the exact shape of the
+   * defect this closes. Required makes every call site a compiler error that
+   * has to be answered — which is how the two server-side callers in
+   * event-stats and the AI recap were found at all.
+   */
+  async getEventBySlug(slug: string, resolveUserId: () => Promise<string>) {
     const query = this.supabase.service
       .from('events')
       // The embedded lices carry their venue + area so the public display
@@ -531,6 +544,21 @@ export class EventsService {
     if (!isPubliclyVisible(asEventKind((data as { event_kind?: string }).event_kind))) {
       throw new NotFoundException(`Event "${slug}" not found`);
     }
+    // Kind was the only axis; STATUS was not checked at all, so an event still
+    // being built resolved for anyone — and this row is `select('*')`, which is
+    // where the id that unlocks every eventId-addressed read came from. Uses
+    // the row already fetched, so it costs no extra round-trip.
+    //
+    // `slug` and not the id as the 404 ref, so a hidden event and an unknown
+    // slug answer identically. Passing the id would hand back exactly the
+    // secret this gate exists to keep.
+    const row = data as { status: string; organization_id: string };
+    await assertCanReadEventRow(
+      { supabase: this.supabase, orgs: this.orgs },
+      slug,
+      { status: row.status, organization_id: row.organization_id },
+      resolveUserId,
+    );
     return data;
   }
 
@@ -1248,8 +1276,12 @@ export class EventsService {
     return { deleted: true, id: eventId };
   }
 
-  async getPublicTournamentStandings(eventSlug: string, tournamentSlug: string) {
-    const event = await this.getEventBySlug(eventSlug);
+  async getPublicTournamentStandings(
+    eventSlug: string,
+    tournamentSlug: string,
+    resolveUserId: () => Promise<string>,
+  ) {
+    const event = await this.getEventBySlug(eventSlug, resolveUserId);
     const eventId = (event as { id: string }).id;
 
     const { data: tournament, error: tournamentError } = await this.supabase.service
@@ -1446,8 +1478,12 @@ export class EventsService {
    * the per-match referee column: round code, fighter names + club
    * abbreviations, score, status, lice name + color.
    */
-  async getPublicTournamentPoolsWithMatches(eventSlug: string, tournamentSlug: string) {
-    const event = await this.getEventBySlug(eventSlug);
+  async getPublicTournamentPoolsWithMatches(
+    eventSlug: string,
+    tournamentSlug: string,
+    resolveUserId: () => Promise<string>,
+  ) {
+    const event = await this.getEventBySlug(eventSlug, resolveUserId);
     const eventId = (event as { id: string }).id;
     // Event IANA timezone — the client renders each pool's scheduled date/time
     // in it (defaults to Europe/Paris when unset).
@@ -1607,7 +1643,15 @@ export class EventsService {
 
   // ── Tournaments ───────────────────────────────────────────────────────────────
 
-  async listTournaments(eventId: string) {
+  /**
+   * `@Public()`, and the id source for every `/tournaments/:id/*` read — the
+   * stats, pool-standings and Swiss routes are all addressed by a tournament id
+   * and have no other public way to discover one for a given event. Gating here
+   * is what keeps those unreachable on an unannounced event rather than merely
+   * unauthorized.
+   */
+  async listTournaments(eventId: string, resolveUserId: () => Promise<string>) {
+    await assertCanReadEvent({ supabase: this.supabase, orgs: this.orgs }, eventId, resolveUserId);
     const { data, error } = await this.supabase.service
       .from('tournaments')
       .select('*')
@@ -1848,6 +1892,7 @@ export class EventsService {
    */
   async listPublicParticipants(
     slugOrId: string,
+    resolveUserId: () => Promise<string>,
     opts?: { includeStaff?: boolean },
   ): Promise<
     Array<{
@@ -1869,7 +1914,7 @@ export class EventsService {
       }>;
     }>
   > {
-    const event = await this.getEventBySlug(slugOrId);
+    const event = await this.getEventBySlug(slugOrId, resolveUserId);
     const eventId = (event as { id: string }).id;
     // Staff (referees/instructors) who don't compete are only appended when the
     // caller opts in — the roster is otherwise registration-only so the event

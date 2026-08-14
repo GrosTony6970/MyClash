@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { ForbiddenException, NotFoundException } from '@nestjs/common';
 import { LookupController } from './lookup.controller';
 import { CsvImportService } from './csv-import.service';
 
@@ -96,7 +97,26 @@ function simulateLookup(query: string, threshold = 0.3, limit = 10) {
 
 // ── Mock Supabase ─────────────────────────────────────────────────────────────
 
-function makeMockSupabase(query: string) {
+/**
+ * Wraps a blanket `from` stub so the visibility gate's `events` read is served
+ * separately. Without this the gate receives the persons/claimed chain, which
+ * has no `.maybeSingle()`, and every spec dies on an unrelated TypeError.
+ */
+function gated(from: (table: string) => unknown, status = 'published') {
+  return vi.fn((table: string) => (table === 'events' ? eventChain(status) : from(table)));
+}
+
+/** Published unless a spec asks otherwise; the gate returns on status. */
+function eventChain(status = 'published') {
+  const c: Record<string, unknown> = {};
+  for (const key of ['select', 'eq']) c[key] = vi.fn(() => c);
+  c['maybeSingle'] = vi.fn(() =>
+    Promise.resolve({ data: { status, organization_id: 'org-1' }, error: null }),
+  );
+  return c;
+}
+
+function makeMockSupabase(query: string, eventStatus = 'published') {
   const results = simulateLookup(query);
   // Stub for the supplemental fetchClaimedByUserIds query that runs after the RPC.
   // Returns claimed_by_user_id: null for all persons (sufficient for lookup tests).
@@ -119,12 +139,22 @@ function makeMockSupabase(query: string) {
         })),
         error: null,
       }),
-      from: vi.fn().mockReturnValue(claimedStub),
+      // Dispatches on table name: the visibility gate reads `events` before
+      // anything else, and an ordered/blanket stub would hand it the persons
+      // chain instead.
+      from: vi.fn((table: string) => (table === 'events' ? eventChain(eventStatus) : claimedStub)),
     },
   };
 }
 
 // ── Tests ─────────────────────────────────────────────────────────────────────
+
+/** Refuses everyone, like `assertOrgRole` refuses a non-member. */
+const mockOrgs = {
+  assertOrgRole: vi.fn(() => Promise.reject(new ForbiddenException('not a member'))),
+};
+/** No cookie, no bearer — resolveRequestUserId returns the anonymous sentinel. */
+const REQ = { headers: {}, cookies: {} };
 
 describe('LookupController', () => {
   let csvService: CsvImportService;
@@ -136,9 +166,9 @@ describe('LookupController', () => {
   describe('lookup — query "jean"', () => {
     it('returns Jean Dupont, Jéan Martin, Jean-Pierre Lambert', async () => {
       const mockSupabase = makeMockSupabase('jean');
-      const controller = new LookupController(mockSupabase as never, csvService);
+      const controller = new LookupController(mockSupabase as never, csvService, mockOrgs as never);
 
-      const results = await controller.lookup('event-1', { q: 'jean' });
+      const results = await controller.lookup('event-1', { q: 'jean' }, REQ as never);
       const names = results.map((r) => r.given_name);
 
       expect(names).toContain('Jean');
@@ -148,9 +178,9 @@ describe('LookupController', () => {
 
     it('does NOT return Marie Dupont for query "jean"', async () => {
       const mockSupabase = makeMockSupabase('jean');
-      const controller = new LookupController(mockSupabase as never, csvService);
+      const controller = new LookupController(mockSupabase as never, csvService, mockOrgs as never);
 
-      const results = await controller.lookup('event-1', { q: 'jean' });
+      const results = await controller.lookup('event-1', { q: 'jean' }, REQ as never);
       const names = results.map((r) => r.given_name);
 
       expect(names).not.toContain('Marie');
@@ -160,9 +190,9 @@ describe('LookupController', () => {
   describe('lookup — email masking', () => {
     it('returns masked email, never plain email', async () => {
       const mockSupabase = makeMockSupabase('jean');
-      const controller = new LookupController(mockSupabase as never, csvService);
+      const controller = new LookupController(mockSupabase as never, csvService, mockOrgs as never);
 
-      const results = await controller.lookup('event-1', { q: 'jean' });
+      const results = await controller.lookup('event-1', { q: 'jean' }, REQ as never);
       for (const r of results) {
         expect(r.masked_email).toMatch(/\*\*\*/);
         expect(r.masked_email).not.toContain('@gmail.com');
@@ -189,10 +219,10 @@ describe('LookupController', () => {
         }),
       };
       const mockSupabase = {
-        service: { rpc: rpcMock, from: vi.fn().mockReturnValue(claimedStub) },
+        service: { rpc: rpcMock, from: gated(() => claimedStub) },
       };
-      const controller = new LookupController(mockSupabase as never, csvService);
-      await controller.lookup('event-1', { q: 'jean', limit: '50' });
+      const controller = new LookupController(mockSupabase as never, csvService, mockOrgs as never);
+      await controller.lookup('event-1', { q: 'jean', limit: '50' }, REQ as never);
       // Verify the RPC was called with p_limit capped at 10
       expect(rpcMock).toHaveBeenCalledWith(
         'lookup_persons',
@@ -232,11 +262,11 @@ describe('LookupController', () => {
           clubs: { name: 'Lyon AMHE' },
         },
       ]);
-      const fromMock = vi.fn().mockReturnValue(personsChain);
+      const fromMock = gated(() => personsChain);
       const mockSupabase = { service: { from: fromMock, rpc: vi.fn() } };
-      const controller = new LookupController(mockSupabase as never, csvService);
+      const controller = new LookupController(mockSupabase as never, csvService, mockOrgs as never);
 
-      const result = await controller.lookup('event-1', { q: '' });
+      const result = await controller.lookup('event-1', { q: '' }, REQ as never);
       expect(result).toHaveLength(1);
       expect(result[0]).toMatchObject({ id: 'p1', given_name: 'Jean' });
       // listAllParticipants reads from `persons`, never calls the lookup RPC.
@@ -246,11 +276,11 @@ describe('LookupController', () => {
 
     it('treats whitespace-only `q` the same as empty (lists all)', async () => {
       const personsChain = makeChain([]);
-      const fromMock = vi.fn().mockReturnValue(personsChain);
+      const fromMock = gated(() => personsChain);
       const mockSupabase = { service: { from: fromMock, rpc: vi.fn() } };
-      const controller = new LookupController(mockSupabase as never, csvService);
+      const controller = new LookupController(mockSupabase as never, csvService, mockOrgs as never);
 
-      const result = await controller.lookup('event-1', { q: '   ' });
+      const result = await controller.lookup('event-1', { q: '   ' }, REQ as never);
       expect(result).toEqual([]);
       expect(mockSupabase.service.rpc).not.toHaveBeenCalled();
     });
@@ -261,7 +291,7 @@ describe('LookupController', () => {
       const mockSupabase = {
         service: {
           rpc: vi.fn().mockResolvedValue({ data: null, error: { message: 'function not found' } }),
-          from: vi.fn().mockReturnValue({
+          from: gated(() => ({
             select: vi.fn().mockReturnThis(),
             eq: vi.fn().mockReturnThis(),
             or: vi.fn().mockReturnThis(),
@@ -277,14 +307,44 @@ describe('LookupController', () => {
               ],
               error: null,
             }),
-          }),
+          })),
         },
       };
-      const controller = new LookupController(mockSupabase as never, csvService);
-      const results = await controller.lookup('event-1', { q: 'jean' });
+      const controller = new LookupController(mockSupabase as never, csvService, mockOrgs as never);
+      const results = await controller.lookup('event-1', { q: 'jean' }, REQ as never);
       expect(results).toHaveLength(1);
       expect(results[0]?.given_name).toBe('Jean');
       expect(results[0]?.masked_email).toMatch(/\*\*\*/);
+    });
+  });
+
+  /**
+   * An empty `q` returns up to fifty participants, so this route is a roster
+   * dump by another name — and it was @Public() with no event check at all.
+   */
+  describe('unannounced events', () => {
+    it('404s an anonymous lookup against a draft event', async () => {
+      const controller = new LookupController(
+        makeMockSupabase('jean', 'draft') as never,
+        csvService,
+        mockOrgs as never,
+      );
+
+      await expect(controller.lookup('event-1', { q: 'jean' }, REQ as never)).rejects.toThrow(
+        NotFoundException,
+      );
+    });
+
+    it('still answers anonymously once the event is published', async () => {
+      const controller = new LookupController(
+        makeMockSupabase('jean', 'published') as never,
+        csvService,
+        mockOrgs as never,
+      );
+
+      await expect(
+        controller.lookup('event-1', { q: 'jean' }, REQ as never),
+      ).resolves.not.toHaveLength(0);
     });
   });
 });

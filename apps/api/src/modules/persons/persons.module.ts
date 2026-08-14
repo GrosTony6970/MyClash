@@ -10,11 +10,14 @@ import { PrivacyService } from './privacy.service';
 import { PublicScheduleController } from './public-schedule.controller';
 import { PublicScheduleService } from './public-schedule.service';
 import { AuthModule } from '../auth/auth.module';
+import { OrganizationsModule } from '../organizations/organizations.module';
 import { RegistrationsModule } from '../registrations/registrations.module';
 import { IdentityModule } from '../identity/identity.module';
 
 @Module({
-  imports: [AuthModule, RegistrationsModule, IdentityModule],
+  // OrganizationsModule imports only UserDirectoryModule (@Global, SupabaseService
+  // alone) and PrivacyModule (imports nothing), so this edge cannot form a cycle.
+  imports: [AuthModule, OrganizationsModule, RegistrationsModule, IdentityModule],
   controllers: [
     PersonsController,
     LookupController,

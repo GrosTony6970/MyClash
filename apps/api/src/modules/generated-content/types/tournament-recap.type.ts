@@ -54,11 +54,20 @@ export class TournamentRecapType implements ContentTypeDef {
     await this.orgs.assertOrgRole(t.events.organization_id, userId, 'admin');
   }
 
-  async buildContext(entityId: string): Promise<Record<string, unknown>> {
+  async buildContext(
+    entityId: string,
+    _locale: string,
+    userId: string,
+  ): Promise<Record<string, unknown>> {
     const t = await this.loadTournament(entityId);
     if (!t.events?.slug) throw new NotFoundException('Tournament event not found');
     // Reuse the tested public assembly; its bracketSlots map 1:1 to RankingSlot.
-    const standings = await this.events.getPublicTournamentStandings(t.events.slug, t.slug);
+    // The caller `assertAccess` just proved to be an org admin — that assembly
+    // hides an unannounced event from non-members, and a recap is exactly the
+    // thing an organiser writes before publishing.
+    const standings = await this.events.getPublicTournamentStandings(t.events.slug, t.slug, () =>
+      Promise.resolve(userId),
+    );
     const header = standings.tournament as Record<string, unknown>;
     const slots = (standings as { bracketSlots?: RankingSlot[] }).bracketSlots ?? [];
     // The cast must expose the WHOLE shape, not just phaseType: narrowing it

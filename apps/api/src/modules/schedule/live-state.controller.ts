@@ -1,7 +1,10 @@
-import { Controller, Get, Param } from '@nestjs/common';
+import { Controller, Get, Param, Req } from '@nestjs/common';
 import { ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
+import type { FastifyRequest } from 'fastify';
 import { Public } from '../../common/auth/public.decorator';
+import { resolveRequestUserId } from '../../common/auth/request-user';
+import { SupabaseService } from '../supabase/supabase.service';
 import { PUBLIC_LIVE_READ_THROTTLE } from '../../common/throttling/throttle-profiles';
 import { LiveStateService } from './live-state.service';
 
@@ -11,7 +14,10 @@ import { LiveStateService } from './live-state.service';
 @Public()
 @Controller()
 export class LiveStateController {
-  constructor(private readonly liveState: LiveStateService) {}
+  constructor(
+    private readonly liveState: LiveStateService,
+    private readonly supabase: SupabaseService,
+  ) {}
 
   /**
    * Accepts event UUID or slug — public endpoint, no auth required.
@@ -25,7 +31,7 @@ export class LiveStateController {
   @Throttle(PUBLIC_LIVE_READ_THROTTLE)
   @ApiOperation({ summary: 'Current programme block and per-lice match state (public)' })
   @ApiParam({ name: 'eventId', type: 'string', description: 'Event UUID or slug' })
-  getLiveState(@Param('eventId') eventId: string) {
-    return this.liveState.getLiveState(eventId);
+  getLiveState(@Param('eventId') eventId: string, @Req() req: FastifyRequest) {
+    return this.liveState.getLiveState(eventId, () => resolveRequestUserId(req, this.supabase));
   }
 }

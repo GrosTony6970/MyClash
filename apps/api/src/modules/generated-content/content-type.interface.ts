@@ -19,8 +19,16 @@ export interface ContentTypeDef {
   resolveScope?(entityId: string): Promise<GenScope>;
   /** Throws if `userId` may not generate/read this entity's content. */
   assertAccess(entityId: string, userId: string): Promise<void>;
-  /** Structured, real facts the model must narrate (never invent). */
-  buildContext(entityId: string, locale: string): Promise<Record<string, unknown>>;
+  /**
+   * Structured, real facts the model must narrate (never invent).
+   *
+   * `userId` is the caller `assertAccess` just approved. It is here because
+   * some context builders reuse a PUBLIC assembly to gather their facts, and
+   * those assemblies hide an unannounced event from non-members — so a builder
+   * that could not name its caller would fail to narrate a draft event that the
+   * caller is perfectly entitled to see.
+   */
+  buildContext(entityId: string, locale: string, userId: string): Promise<Record<string, unknown>>;
   systemPrompt(locale: string): string;
 }
 

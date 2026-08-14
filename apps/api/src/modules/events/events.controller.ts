@@ -151,8 +151,8 @@ export class EventsController {
   @Public()
   @Get('events/:slug')
   @ApiOperation({ summary: 'Get event by slug (public)' })
-  async getEvent(@Param('slug') slug: string) {
-    return this.events.getEventBySlug(slug);
+  async getEvent(@Param('slug') slug: string, @Req() req: FastifyRequest) {
+    return this.events.getEventBySlug(slug, () => getUserId(req, this.supabase));
   }
 
   /** GET /api/v1/events/:eventSlug/tournaments/:tournamentSlug/standings */
@@ -162,8 +162,11 @@ export class EventsController {
   async getPublicTournamentStandings(
     @Param('eventSlug') eventSlug: string,
     @Param('tournamentSlug') tournamentSlug: string,
+    @Req() req: FastifyRequest,
   ) {
-    return this.events.getPublicTournamentStandings(eventSlug, tournamentSlug);
+    return this.events.getPublicTournamentStandings(eventSlug, tournamentSlug, () =>
+      getUserId(req, this.supabase),
+    );
   }
 
   /** GET /api/v1/events/:eventSlug/tournaments/:tournamentSlug/pools-with-matches */
@@ -173,8 +176,11 @@ export class EventsController {
   async getPublicTournamentPoolsWithMatches(
     @Param('eventSlug') eventSlug: string,
     @Param('tournamentSlug') tournamentSlug: string,
+    @Req() req: FastifyRequest,
   ) {
-    return this.events.getPublicTournamentPoolsWithMatches(eventSlug, tournamentSlug);
+    return this.events.getPublicTournamentPoolsWithMatches(eventSlug, tournamentSlug, () =>
+      getUserId(req, this.supabase),
+    );
   }
 
   /** GET /api/v1/organizations/:orgId/events */
@@ -359,8 +365,11 @@ export class EventsController {
   @Get('events/:eventId/tournaments')
   @ApiOperation({ summary: 'List tournaments for an event (public)' })
   @ApiParam({ name: 'eventId', type: 'string', format: 'uuid' })
-  async listTournaments(@Param('eventId', ParseUUIDPipe) eventId: string) {
-    return this.events.listTournaments(eventId);
+  async listTournaments(
+    @Param('eventId', ParseUUIDPipe) eventId: string,
+    @Req() req: FastifyRequest,
+  ) {
+    return this.events.listTournaments(eventId, () => getUserId(req, this.supabase));
   }
 
   /**
@@ -376,9 +385,10 @@ export class EventsController {
   @ApiParam({ name: 'eventSlug', type: 'string' })
   async listParticipants(
     @Param('eventSlug') eventSlug: string,
+    @Req() req: FastifyRequest,
     @Query('includeStaff') includeStaff?: string,
   ) {
-    return this.events.listPublicParticipants(eventSlug, {
+    return this.events.listPublicParticipants(eventSlug, () => getUserId(req, this.supabase), {
       includeStaff: includeStaff === 'true',
     });
   }

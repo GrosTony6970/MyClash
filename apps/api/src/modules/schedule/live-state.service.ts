@@ -3,6 +3,10 @@ import { DEFAULT_EVENT_TIMEZONE } from '@myclash/time';
 import type { BlockType, ProgrammeBlock } from '@myclash/types';
 import { isLiveStatus } from '@myclash/types';
 import { SupabaseService } from '../supabase/supabase.service';
+// Value import, not `import type` — `import type` erases the DI metadata and
+// the dependency arrives undefined at runtime.
+import { OrganizationsService } from '../organizations/organizations.service';
+import { assertCanReadEventRow } from '../../common/auth/event-authz';
 import { dayIndexFor, selectProgrammeBlocks, toHHMM } from './select-programme-block';
 
 type ProgrammePhase = 'pool' | 'swiss' | 'bracket' | 'finals';
@@ -64,7 +68,10 @@ interface ReadResult<T> {
 
 @Injectable()
 export class LiveStateService {
-  constructor(private readonly supabase: SupabaseService) {}
+  constructor(
+    private readonly supabase: SupabaseService,
+    private readonly orgs: OrganizationsService,
+  ) {}
 
   /**
    * A refused query must not read as an empty one.
@@ -87,7 +94,10 @@ export class LiveStateService {
     return res.data;
   }
 
-  async getLiveState(eventIdOrSlug: string): Promise<LiveStateResponse> {
+  async getLiveState(
+    eventIdOrSlug: string,
+    resolveUserId: () => Promise<string>,
+  ): Promise<LiveStateResponse> {
     const now = new Date();
 
     const eventId = UUID_RE.test(eventIdOrSlug)
@@ -97,7 +107,10 @@ export class LiveStateService {
     const [eventRes, licesRes] = await Promise.all([
       this.supabase.service
         .from('events')
-        .select('start_date, timezone')
+        // `status` and `organization_id` ride along on a read this method
+        // already had to do, so gating the board costs no extra round-trip on
+        // a route every hall display polls continuously.
+        .select('start_date, timezone, status, organization_id')
         .eq('id', eventId)
         .maybeSingle(),
       this.supabase.service
@@ -108,6 +121,19 @@ export class LiveStateService {
     ]);
 
     const eventRow = this.orThrow(eventRes as ReadResult<Record<string, unknown>>, 'event');
+    // The board names every fighter currently on a piste. An event still being
+    // built is nobody else's business, so gate before anything is projected.
+    await assertCanReadEventRow(
+      { supabase: this.supabase, orgs: this.orgs },
+      eventIdOrSlug,
+      eventRow
+        ? {
+            status: String(eventRow['status']),
+            organization_id: String(eventRow['organization_id']),
+          }
+        : null,
+      resolveUserId,
+    );
     const dayIndex = dayIndexFor(eventRow?.['start_date'] as string | null, now.getTime());
 
     const lices =

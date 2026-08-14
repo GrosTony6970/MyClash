@@ -1,11 +1,17 @@
-import { Controller, Get, Param, ParseUUIDPipe, Query } from '@nestjs/common';
+import { Controller, Get, Param, ParseUUIDPipe, Query, Req } from '@nestjs/common';
 import { ApiOperation, ApiParam, ApiQuery, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
+import type { FastifyRequest } from 'fastify';
 import { createZodDto } from 'nestjs-zod';
 import { z } from 'zod';
 import { sanitizePostgrestFilterValue } from '../../common/postgrest-filter';
 import { SupabaseService } from '../supabase/supabase.service';
+// Value import, not `import type` — `import type` erases the DI metadata and
+// the dependency arrives undefined at runtime.
+import { OrganizationsService } from '../organizations/organizations.service';
+import { assertCanReadEvent } from '../../common/auth/event-authz';
 import { Public } from '../../common/auth/public.decorator';
+import { resolveRequestUserId } from '../../common/auth/request-user';
 import { CsvImportService } from './csv-import.service';
 
 // Query DTO: values arrive as strings. `limit` is kept as a string because the
@@ -44,6 +50,7 @@ export class LookupController {
   constructor(
     private readonly supabase: SupabaseService,
     private readonly csv: CsvImportService,
+    private readonly orgs: OrganizationsService,
   ) {}
 
   /**
@@ -73,7 +80,14 @@ export class LookupController {
   async lookup(
     @Param('eventId', ParseUUIDPipe) eventId: string,
     @Query() query: LookupQueryDto,
+    @Req() req: FastifyRequest,
   ): Promise<LookupResult[]> {
+    // An empty `q` returns up to 50 participants, so this route is a roster
+    // dump by another name. Gated on the event: public once announced, org-only
+    // before that.
+    await assertCanReadEvent({ supabase: this.supabase, orgs: this.orgs }, eventId, () =>
+      resolveRequestUserId(req, this.supabase),
+    );
     const q = (query.q ?? '').trim();
     // Empty query = "show me all participants" (used by typeahead on focus).
     // Caller can request up to 50 in that case; with a query we still cap at 10

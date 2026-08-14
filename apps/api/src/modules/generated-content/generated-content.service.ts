@@ -46,7 +46,7 @@ export class GeneratedContentService {
   async generate(contentType: string, entityId: string, locale: string, userId: string) {
     const def = this.def(contentType);
     await def.assertAccess(entityId, userId);
-    const facts = await def.buildContext(entityId, locale);
+    const facts = await def.buildContext(entityId, locale, userId);
     const request = {
       system: def.systemPrompt(locale),
       user: `FACTS:\n${JSON.stringify(facts)}\n\nWrite the content now.`,

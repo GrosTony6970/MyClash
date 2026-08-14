@@ -85,7 +85,12 @@ describe('GeneratedContentService', () => {
     const out = await service.generate('tournament_recap', 't1', 'en', 'user-1');
 
     expect(t.assertAccess).toHaveBeenCalledWith('t1', 'user-1');
-    expect(t.buildContext).toHaveBeenCalledWith('t1', 'en');
+    // The caller is threaded into buildContext, not just into assertAccess:
+    // some builders gather their facts from a PUBLIC assembly that hides an
+    // unannounced event from non-members, and a recap is exactly the thing an
+    // organiser writes before publishing. Dropping the third argument here
+    // would 404 them on their own draft.
+    expect(t.buildContext).toHaveBeenCalledWith('t1', 'en', 'user-1');
     expect(mockGenerateWithCap).toHaveBeenCalledWith(
       'org-1',
       'ev-1',

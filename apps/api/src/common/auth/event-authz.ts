@@ -143,9 +143,14 @@ export interface EventVisibilityRow {
 /**
  * A non-public event is 404, never 403 — a 403 confirms it exists, and the
  * existence of an unannounced event is part of what is being hidden.
+ *
+ * `ref` is whatever the caller was addressed BY, not always the id: on
+ * `getEventBySlug` it is the slug, so a hidden event and a slug that matches
+ * nothing produce the same sentence. Echoing the id there would have handed
+ * back the very thing the gate exists to withhold.
  */
-function hidden(eventId: string): never {
-  throw new NotFoundException(`Event ${eventId} not found`);
+function hidden(ref: string): never {
+  throw new NotFoundException(`Event "${ref}" not found`);
 }
 
 /**
@@ -164,7 +169,7 @@ function hidden(eventId: string): never {
  */
 export async function assertCanReadEventRow(
   deps: EventAuthzDeps,
-  eventId: string,
+  ref: string,
   row: EventVisibilityRow | null,
   resolveUserId: () => Promise<string>,
 ): Promise<void> {
@@ -172,14 +177,14 @@ export async function assertCanReadEventRow(
   if (!HIDDEN_EVENT_STATUSES.has(row.status)) return;
 
   const userId = await resolveUserId();
-  if (userId === ANONYMOUS_USER_ID) hidden(eventId);
+  if (userId === ANONYMOUS_USER_ID) hidden(ref);
 
   try {
     // `read_only` is the floor of the role hierarchy, i.e. ANY member — the
     // same bar `is_org_member` sets in the RLS policy this mirrors.
     await deps.orgs.assertOrgRole(row.organization_id, userId, 'read_only');
   } catch {
-    hidden(eventId);
+    hidden(ref);
   }
 }
 

@@ -6,8 +6,30 @@ import {
 } from '@nestjs/common';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { EventsService } from './events.service';
+import { ANONYMOUS_USER_ID } from '../../common/auth/request-user';
 
 const fromMock = vi.fn();
+
+/**
+ * Stands in for the caller these public resolvers now take. Every fixture below
+ * is a published event, so the gate returns on status and never invokes this —
+ * the gate's own behaviour lives in common/auth/event-authz.test.ts.
+ */
+const CALLER = () => Promise.resolve('user-1');
+/** No token at all — what an anonymous public read resolves to. */
+const ANON = () => Promise.resolve(ANONYMOUS_USER_ID);
+
+/**
+ * The row the visibility gate reads before any event-scoped list. Published, so
+ * the gate returns on status without touching the caller.
+ */
+function publishedEventChain(make: (r: unknown) => { maybeSingle: ReturnType<typeof vi.fn> }) {
+  const chain = make({ data: { status: 'published', organization_id: 'org-1' }, error: null });
+  chain.maybeSingle = vi
+    .fn()
+    .mockResolvedValue({ data: { status: 'published', organization_id: 'org-1' }, error: null });
+  return chain;
+}
 const assertOrgRole = vi.fn();
 
 function makeChain(result: unknown) {
@@ -825,7 +847,7 @@ describe('EventsService', () => {
       fromMock.mockReturnValueOnce(
         makeChain({ data: { id: 'e1', slug: 'club-night', event_kind: kind }, error: null }),
       );
-      return service.getEventBySlug('club-night');
+      return service.getEventBySlug('club-night', CALLER);
     };
 
     it('404s a test event', async () => {
@@ -842,7 +864,86 @@ describe('EventsService', () => {
 
     it('resolves a row with no kind at all (legacy rows stay visible)', async () => {
       fromMock.mockReturnValueOnce(makeChain({ data: { id: 'e1', slug: 'x' }, error: null }));
-      await expect(service.getEventBySlug('x')).resolves.toMatchObject({ id: 'e1' });
+      await expect(service.getEventBySlug('x', CALLER)).resolves.toMatchObject({ id: 'e1' });
+    });
+  });
+
+  /**
+   * The second axis on the same resolver. Kind was checked; STATUS was not, so
+   * an event still being built resolved for anyone — and this row is
+   * `select('*')`, which is where the id that unlocks every eventId-addressed
+   * read came from. Four public routes go through here, so this is the one
+   * place that covers all of them.
+   */
+  describe('getEventBySlug — public visibility by status', () => {
+    const resolve = (status: string, caller = ANON) => {
+      fromMock.mockReturnValueOnce(
+        makeChain({
+          data: {
+            id: 'e1',
+            slug: 'club-night',
+            event_kind: 'standard',
+            status,
+            organization_id: 'org-1',
+          },
+          error: null,
+        }),
+      );
+      return service.getEventBySlug('club-night', caller);
+    };
+
+    it.each(['published', 'running', 'completed'])('resolves a %s event anonymously', async (s) => {
+      await expect(resolve(s)).resolves.toMatchObject({ id: 'e1' });
+    });
+
+    /**
+     * Archived stays public ON PURPOSE, unlike matches_select and listEvents:
+     * a past event's public page is the reason to keep the event, and archiving
+     * is a write lock (EventReadOnlyGuard), not a curtain.
+     */
+    it('resolves an archived event anonymously', async () => {
+      await expect(resolve('archived')).resolves.toMatchObject({ id: 'e1' });
+    });
+
+    it('404s a draft event for an anonymous caller', async () => {
+      await expect(resolve('draft')).rejects.toThrow(NotFoundException);
+    });
+
+    it('resolves a draft event for a member of the owning org', async () => {
+      assertOrgRole.mockResolvedValueOnce(undefined);
+      await expect(resolve('draft', CALLER)).resolves.toMatchObject({ id: 'e1' });
+      expect(assertOrgRole).toHaveBeenCalledWith('org-1', 'user-1', 'read_only');
+    });
+
+    /**
+     * The caller parameter must stay REQUIRED. An optional one defaulting to
+     * anonymous is fail-open by omission — the exact shape of the defect this
+     * gate closes — and no behavioural spec can see it: every spec passes a
+     * caller explicitly, so making it optional leaves this whole file green.
+     * What catches it is arity. `Function.length` counts parameters before the
+     * first defaulted one, so a default silently drops this to 1.
+     *
+     * This is not theoretical: requiring it is what turned two server-side
+     * callers (event-stats, the AI tournament recap) into compiler errors. With
+     * a default they would have compiled and read as anonymous, 404ing an
+     * organiser on their own unpublished event.
+     */
+    it('keeps the caller a required parameter, not a defaulted one', () => {
+      expect(EventsService.prototype.getEventBySlug.length).toBe(2);
+      expect(EventsService.prototype.listTournaments.length).toBe(2);
+      expect(EventsService.prototype.getPublicTournamentStandings.length).toBe(3);
+      expect(EventsService.prototype.getPublicTournamentPoolsWithMatches.length).toBe(3);
+    });
+
+    /**
+     * The refusal must be indistinguishable from an unknown slug, and must not
+     * echo the id — that id is exactly what the gate exists to withhold.
+     */
+    it('refuses with the slug, never the id', async () => {
+      const err = await resolve('draft').catch((e: unknown) => e as Error);
+
+      expect(err.message).toBe('Event "club-night" not found');
+      expect(err.message).not.toContain('e1');
     });
   });
 
@@ -1506,7 +1607,7 @@ describe('EventsService', () => {
         .mockReturnValueOnce(makeAwaitableChain({ data: [], error: null })) // event_referees
         .mockReturnValueOnce(makeAwaitableChain({ data: [], error: null })); // event_instructors
 
-      const result = await service.listPublicParticipants('fal-2027');
+      const result = await service.listPublicParticipants('fal-2027', CALLER);
 
       expect(result).toHaveLength(1);
       expect(result[0]?.displayName).toBe('Alice Dupont');
@@ -1542,7 +1643,7 @@ describe('EventsService', () => {
         .mockReturnValueOnce(makeAwaitableChain({ data: [], error: null })) // event_referees
         .mockReturnValueOnce(makeAwaitableChain({ data: [], error: null })); // event_instructors
 
-      const result = await service.listPublicParticipants('fal-2027');
+      const result = await service.listPublicParticipants('fal-2027', CALLER);
 
       expect(result.map((r) => r.personId)).toEqual(['p2']);
       // Withdrawn / disqualified must never be in the status filter list.
@@ -1568,7 +1669,7 @@ describe('EventsService', () => {
         .mockReturnValueOnce(makeAwaitableChain({ data: [], error: null })) // event_referees
         .mockReturnValueOnce(makeAwaitableChain({ data: [], error: null })); // event_instructors
 
-      const result = await service.listPublicParticipants('fal-2027');
+      const result = await service.listPublicParticipants('fal-2027', CALLER);
 
       expect(result).toHaveLength(1);
       expect(result[0]?.clubName).toBeNull();
@@ -1588,7 +1689,7 @@ describe('EventsService', () => {
         .mockReturnValueOnce(makeAwaitableChain({ data: [], error: null })) // event_referees
         .mockReturnValueOnce(makeAwaitableChain({ data: [], error: null })); // event_instructors
 
-      const result = await service.listPublicParticipants('fal-2027');
+      const result = await service.listPublicParticipants('fal-2027', CALLER);
       expect(result[0]?.tournaments[0]?.registrationState).toBe('active');
     });
 
@@ -1646,7 +1747,9 @@ describe('EventsService', () => {
           }),
         ); // staff clubs
 
-      const result = await service.listPublicParticipants('fal-2027', { includeStaff: true });
+      const result = await service.listPublicParticipants('fal-2027', CALLER, {
+        includeStaff: true,
+      });
 
       const alice = result.find((r) => r.globalPersonId === 'g1');
       expect(alice?.isReferee).toBe(true);
@@ -1979,6 +2082,8 @@ describe('EventsService', () => {
       const phaseVenuesChain = makeAwaitableChain({ data: [], error: null });
       const regCallQueue = [registrationsChain, waitlistChain];
       fromMock.mockImplementation((table: string) => {
+        // The visibility gate reads `events` before the list fans out.
+        if (table === 'events') return publishedEventChain(makeChain);
         if (table === 'tournaments') return tournamentsChain;
         if (table === 'registrations') return regCallQueue.shift() ?? waitlistChain;
         if (table === 'phases') return phasesChain;
@@ -1986,7 +2091,7 @@ describe('EventsService', () => {
         throw new Error(`unexpected table ${table}`);
       });
 
-      const result = (await service.listTournaments('event-1')) as unknown as Array<{
+      const result = (await service.listTournaments('event-1', CALLER)) as unknown as Array<{
         id: string;
         registered: number;
         max_participants: number | null;
@@ -2004,14 +2109,21 @@ describe('EventsService', () => {
     it('returns [] without fanning out the registrations fetch when the event has no tournaments', async () => {
       const tournamentsChain = makeChain({ data: [], error: null });
       tournamentsChain.order.mockResolvedValue({ data: [], error: null });
+      // Ordered queue: the gate's `events` read is the first from() call now.
+      fromMock.mockReturnValueOnce(publishedEventChain(makeChain));
       fromMock.mockReturnValueOnce(tournamentsChain);
 
-      const result = await service.listTournaments('event-1');
+      const result = await service.listTournaments('event-1', CALLER);
 
       expect(result).toEqual([]);
-      // registrations table must not be queried
-      expect(fromMock).toHaveBeenCalledTimes(1);
+      // What this spec is really about: an empty tournament list must not fan
+      // out into the per-tournament aggregate reads. Asserted by NAME rather
+      // than by a call count, which counted the visibility gate's own read as a
+      // fan-out and would break again on the next read added ahead of this one.
       expect(fromMock).toHaveBeenCalledWith('tournaments');
+      const tables = fromMock.mock.calls.map(([t]) => t);
+      expect(tables).not.toContain('registrations');
+      expect(tables).not.toContain('phases');
     });
   });
 
@@ -2036,7 +2148,11 @@ describe('EventsService', () => {
       });
       fromMock.mockImplementation(dispatchWithRulesetResolution([eventChain, tournamentChain]));
 
-      const result = await service.getPublicTournamentStandings('fal-2027', 'longsword-open');
+      const result = await service.getPublicTournamentStandings(
+        'fal-2027',
+        'longsword-open',
+        CALLER,
+      );
 
       expect(result).toMatchObject({
         tournament: { name: 'Longsword Open', status: 'draft' },
@@ -2108,7 +2224,11 @@ describe('EventsService', () => {
         ]),
       );
 
-      const result = await service.getPublicTournamentStandings('fal-2027', 'longsword-open');
+      const result = await service.getPublicTournamentStandings(
+        'fal-2027',
+        'longsword-open',
+        CALLER,
+      );
 
       // The phases query must NOT filter on visibility_status. Earlier
       // bug: `.eq('visibility_status', 'published')` kept hidden phases
@@ -2183,7 +2303,7 @@ describe('EventsService', () => {
         ]),
       );
 
-      await service.getPublicTournamentStandings('fal-2027', 'longsword-open');
+      await service.getPublicTournamentStandings('fal-2027', 'longsword-open', CALLER);
 
       // The select string fed to the referee_assignments query MUST NOT
       // include `user_id` — that column was dropped by migration 0063.
@@ -2321,7 +2441,11 @@ describe('EventsService', () => {
         ]),
       );
 
-      const result = await service.getPublicTournamentStandings('fal-2027', 'longsword-open');
+      const result = await service.getPublicTournamentStandings(
+        'fal-2027',
+        'longsword-open',
+        CALLER,
+      );
 
       const slots = result.bracketSlots as Array<{ id: string; referees: unknown[] }>;
       const s1 = slots.find((s) => s.id === 'slot-1');
@@ -2539,6 +2663,8 @@ describe('EventsService', () => {
       // shift queue so the test doesn't couple to call-site indices.
       const regCalls = [registeredChain, waitlistChain];
       fromMock.mockImplementation((table: string) => {
+        // The visibility gate reads `events` before the list fans out.
+        if (table === 'events') return publishedEventChain(makeChain);
         if (table === 'tournaments') return tournamentsChain;
         if (table === 'registrations') return regCalls.shift() ?? waitlistChain;
         if (table === 'phases') return phasesChain;
@@ -2549,7 +2675,7 @@ describe('EventsService', () => {
         throw new Error(`unexpected table ${table}`);
       });
 
-      const result = (await service.listTournaments('event-1')) as Array<{
+      const result = (await service.listTournaments('event-1', CALLER)) as Array<{
         id: string;
         registered: number;
         waitlistCount: number;
@@ -2634,7 +2760,7 @@ describe('EventsService', () => {
         .mockReturnValueOnce(makeAwaitableChain({ data: [], error: null })) // event_referees
         .mockReturnValueOnce(makeAwaitableChain({ data: [], error: null })); // event_instructors
 
-      const result = await service.listPublicParticipants('fal-2027');
+      const result = await service.listPublicParticipants('fal-2027', CALLER);
 
       const bob = result.find((r) => r.personId === 'p-2');
       expect(bob).toBeDefined();
@@ -2692,7 +2818,11 @@ describe('EventsService', () => {
         ]),
       );
 
-      const result = await service.getPublicTournamentStandings('fal-2027', 'longsword-open');
+      const result = await service.getPublicTournamentStandings(
+        'fal-2027',
+        'longsword-open',
+        CALLER,
+      );
 
       expect(result.tournament).toMatchObject({
         participantCount: 23,
