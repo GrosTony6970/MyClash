@@ -3,6 +3,7 @@ import { getServerT } from '@myclash/next-i18n/server';
 import { HomeTabs } from './HomeTabs';
 import type { PublicLeague } from './PublicLeaguesSections';
 import type { WeaponOption } from './EventFilterBar';
+import type { DirectoryApiFighter } from '../fighters/fighter-row-model';
 import {
   DEFAULT_CATALOG_TAB,
   EMPTY_EVENT_FILTERS,
@@ -118,6 +119,22 @@ async function fetchPublicLeagues(): Promise<PublicLeague[]> {
   }
 }
 
+/** First page of the directory, for the Fighters tab preview. */
+async function fetchTopFighters(): Promise<DirectoryApiFighter[]> {
+  const apiUrl = getServerApiUrl();
+  try {
+    const res = await fetch(`${apiUrl}/api/v1/fighters/public?limit=${FIGHTER_PREVIEW_SIZE}`, {
+      cache: 'no-store',
+    });
+    if (!res.ok) return [];
+    return ((await res.json()) as { items?: DirectoryApiFighter[] }).items ?? [];
+  } catch {
+    // Soft-fail like the leagues and weapons fetches: an empty preview tab is
+    // better than taking the events tab down with it.
+    return [];
+  }
+}
+
 async function fetchWeapons(): Promise<WeaponOption[]> {
   const apiUrl = getServerApiUrl();
   try {
@@ -131,6 +148,9 @@ async function fetchWeapons(): Promise<WeaponOption[]> {
   }
 }
 
+/** Enough to show the tab is real without reproducing the directory. */
+const FIGHTER_PREVIEW_SIZE = 8;
+
 export async function PublicEventsBrowser({
   filters = EMPTY_EVENT_FILTERS,
   tab = DEFAULT_CATALOG_TAB,
@@ -139,10 +159,11 @@ export async function PublicEventsBrowser({
   tab?: CatalogTab;
 } = {}) {
   const t = await getServerT();
-  const [{ events, unavailable }, leagues, weapons] = await Promise.all([
+  const [{ events, unavailable }, leagues, weapons, fighters] = await Promise.all([
     fetchPublicEvents(filters),
     fetchPublicLeagues(),
     fetchWeapons(),
+    fetchTopFighters(),
   ]);
 
   // A dead API is the ONE case that still replaces the listing. It is not an
@@ -168,6 +189,13 @@ export async function PublicEventsBrowser({
   // lives INSIDE the listing (see shouldCollapseEmptySections) rather than
   // replacing it.
   return (
-    <HomeTabs events={events} leagues={leagues} weapons={weapons} filters={filters} tab={tab} />
+    <HomeTabs
+      events={events}
+      leagues={leagues}
+      fighters={fighters}
+      weapons={weapons}
+      filters={filters}
+      tab={tab}
+    />
   );
 }

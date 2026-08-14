@@ -26,7 +26,7 @@ export interface EventFilters {
  * it alongside keeps those exhaustive and makes the omission a type error rather
  * than a silent reset to Events.
  */
-export type CatalogTab = 'events' | 'leagues';
+export type CatalogTab = 'events' | 'leagues' | 'fighters';
 
 export const DEFAULT_CATALOG_TAB: CatalogTab = 'events';
 
@@ -83,7 +83,10 @@ export function parseEventFilters(params: RawSearchParams): EventFilters {
 
 /** Junk, a missing value and the default all resolve to the default tab. */
 export function parseTab(value: string | string[] | undefined): CatalogTab {
-  return first(value) === 'leagues' ? 'leagues' : DEFAULT_CATALOG_TAB;
+  const raw = first(value);
+  if (raw === 'leagues') return 'leagues';
+  if (raw === 'fighters') return 'fighters';
+  return DEFAULT_CATALOG_TAB;
 }
 
 /**

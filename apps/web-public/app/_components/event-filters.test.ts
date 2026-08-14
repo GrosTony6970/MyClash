@@ -117,14 +117,15 @@ describe('parseTab', () => {
     expect(parseTab(undefined)).toBe('events');
   });
 
-  it('reads the leagues tab', () => {
+  it('reads every real tab', () => {
     expect(parseTab('leagues')).toBe('leagues');
+    expect(parseTab('fighters')).toBe('fighters');
   });
 
   it('drops junk rather than rendering an empty catalogue', () => {
     // A hand-edited or link-rotted ?tab= must land somewhere real. Falling back
     // to the default beats matching nothing and rendering neither panel.
-    for (const junk of ['fighters', 'Leagues', '', '  ', 'events;drop']) {
+    for (const junk of ['organisers', 'Leagues', '', '  ', 'events;drop']) {
       expect(parseTab(junk)).toBe('events');
     }
   });

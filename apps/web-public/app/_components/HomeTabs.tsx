@@ -4,6 +4,8 @@ import Link from 'next/link';
 import { useI18n } from '@myclash/next-i18n/client';
 import { EventsListSections } from './EventsListSections';
 import { PublicLeaguesSections, type PublicLeague } from './PublicLeaguesSections';
+import { PublicFightersPreview } from './PublicFightersPreview';
+import type { DirectoryApiFighter } from '../fighters/fighter-row-model';
 import type { WeaponOption } from './EventFilterBar';
 import {
   DEFAULT_CATALOG_TAB,
@@ -37,6 +39,7 @@ interface PublicEvent {
 const TAB_LABEL_KEYS: ReadonlyArray<readonly [CatalogTab, string]> = [
   ['events', 'publicApp.home.tabEvents'],
   ['leagues', 'publicApp.home.tabLeagues'],
+  ['fighters', 'publicApp.home.tabFighters'],
 ];
 
 /**
@@ -117,12 +120,14 @@ function TabRow({ tab, filters }: { tab: CatalogTab; filters: EventFilters }) {
 export function HomeTabs({
   events,
   leagues,
+  fighters = [],
   weapons = [],
   filters = EMPTY_EVENT_FILTERS,
   tab = DEFAULT_CATALOG_TAB,
 }: {
   events: PublicEvent[];
   leagues: PublicLeague[];
+  fighters?: DirectoryApiFighter[];
   weapons?: WeaponOption[];
   filters?: EventFilters;
   tab?: CatalogTab;
@@ -134,6 +139,7 @@ export function HomeTabs({
         <EventsListSections events={events} weapons={weapons} filters={filters} tab={tab} />
       )}
       {tab === 'leagues' && <PublicLeaguesSections leagues={leagues} />}
+      {tab === 'fighters' && <PublicFightersPreview fighters={fighters} />}
     </div>
   );
 }
