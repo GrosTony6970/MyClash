@@ -6093,7 +6093,7 @@ export interface paths {
       path?: never;
       cookie?: never;
     };
-    /** List global persons (public) */
+    /** List global persons (organizer/admin picker) */
     get: operations['GlobalPersonsController_list'];
     put?: never;
     /** Create an unclaimed global person (organizer+) */
