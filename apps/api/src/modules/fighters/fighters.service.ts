@@ -426,6 +426,7 @@ export class FightersService {
       p_limit: limit,
       p_offset: offset,
       p_threshold: DIRECTORY_SIMILARITY_THRESHOLD,
+      p_indexable_only: query.indexable ?? false,
     });
 
     // Degrade rather than throw: on a database that has not taken 0188 yet the

@@ -156,6 +156,13 @@ const publicFighterQuerySchema = z
     // Coerced before bounds are checked: query values arrive as strings.
     limit: z.coerce.number().min(1).max(50).optional(),
     offset: z.coerce.number().min(0).optional(),
+    // Sitemap-only: narrow to fighters who also opted into being indexed.
+    // `'1'` and `'true'` both read as true; anything else is false, so a
+    // hand-edited value can only ever NARROW the result.
+    indexable: z
+      .enum(['0', '1', 'true', 'false'])
+      .transform((value) => value === '1' || value === 'true')
+      .optional(),
   })
   .strict();
 export class PublicFighterQueryDto extends createZodDto(publicFighterQuerySchema) {}

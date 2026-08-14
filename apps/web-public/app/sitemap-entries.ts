@@ -35,12 +35,26 @@ export interface SitemapSources {
   events: Array<{ slug?: string | null; end_date?: string | null; start_date?: string | null }>;
   leagues: Array<{ slug?: string | null }>;
   organizers: Array<{ slug?: string | null }>;
+  /**
+   * Fighters whose owner opted into indexing.
+   *
+   * NOT every listed fighter. `search_indexable` defaults FALSE, so on day one
+   * this is nearly empty and fills only as people choose it — which is the
+   * intended consequence of making the irreversible half an active choice, and
+   * will look broken to anyone not expecting it.
+   *
+   * A sitemap entry is an instruction to go and index a page, so listing a
+   * fighter here who has not asked would override their own robots tag with a
+   * louder signal.
+   */
+  fighters: Array<{ slug?: string | null }>;
 }
 
 export const EMPTY_SITEMAP_SOURCES: SitemapSources = {
   events: [],
   leagues: [],
   organizers: [],
+  fighters: [],
 };
 
 /**
@@ -56,6 +70,7 @@ const STATIC_ROUTES: ReadonlyArray<{
 }> = [
   { path: '/', priority: 1, changeFrequency: 'hourly' },
   { path: '/organisers', priority: 0.6, changeFrequency: 'weekly' },
+  { path: '/fighters', priority: 0.6, changeFrequency: 'daily' },
 ];
 
 /** Parse an ISO date without throwing on the junk a nullable column can hold. */
@@ -102,6 +117,11 @@ export function buildSitemapEntries(origin: string, sources: SitemapSources): Si
   for (const organizer of sources.organizers) {
     if (!organizer.slug) continue;
     push(`/o/${organizer.slug}`, { changeFrequency: 'weekly', priority: 0.6 });
+  }
+
+  for (const fighter of sources.fighters) {
+    if (!fighter.slug) continue;
+    push(`/fighters/${fighter.slug}`, { changeFrequency: 'weekly', priority: 0.5 });
   }
 
   return entries;

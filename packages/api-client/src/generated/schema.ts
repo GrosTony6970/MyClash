@@ -20103,6 +20103,7 @@ export interface operations {
         dir?: 'asc' | 'desc';
         limit?: number;
         offset?: number;
+        indexable?: '0' | '1' | 'true' | 'false';
       };
       header?: never;
       path?: never;

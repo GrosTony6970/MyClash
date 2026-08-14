@@ -11,6 +11,7 @@ const SOURCES = {
   ],
   leagues: [{ slug: 'ligue-aura' }],
   organizers: [{ slug: 'garde-noire' }],
+  fighters: [{ slug: 'jean-dupont' }],
 };
 
 function urls(sources = SOURCES): string[] {
@@ -27,10 +28,14 @@ describe('buildSitemapEntries', () => {
     }
   });
 
-  it('includes the catalogue and the organiser hub with no data at all', () => {
+  it('includes the hubs with no data at all', () => {
     // The static routes must not depend on a fetch succeeding: an API outage
     // during a revalidate would otherwise publish an empty sitemap.
-    expect(urls(EMPTY_SITEMAP_SOURCES)).toEqual([`${ORIGIN}/`, `${ORIGIN}/organisers`]);
+    expect(urls(EMPTY_SITEMAP_SOURCES)).toEqual([
+      `${ORIGIN}/`,
+      `${ORIGIN}/organisers`,
+      `${ORIGIN}/fighters`,
+    ]);
   });
 
   it('includes PAST events, not only upcoming ones', () => {
@@ -51,8 +56,9 @@ describe('buildSitemapEntries', () => {
       events: [{ slug: null }, { slug: '' }, { slug: undefined }],
       leagues: [{ slug: null }],
       organizers: [{ slug: null }],
+      fighters: [{ slug: null }],
     });
-    expect(built).toEqual([`${ORIGIN}/`, `${ORIGIN}/organisers`]);
+    expect(built).toEqual([`${ORIGIN}/`, `${ORIGIN}/organisers`, `${ORIGIN}/fighters`]);
   });
 
   it('dedupes a slug that arrives twice', () => {
@@ -96,5 +102,31 @@ describe('buildSitemapEntries', () => {
         expect(path.startsWith(forbidden)).toBe(false);
       }
     }
+  });
+});
+
+describe('indexable fighters', () => {
+  it('lists a fighter the API returned as indexable', () => {
+    const built = buildSitemapEntries(ORIGIN, {
+      ...EMPTY_SITEMAP_SOURCES,
+      fighters: [{ slug: 'jean-dupont' }],
+    }).map((e) => e.url);
+    expect(built).toContain(`${ORIGIN}/fighters/jean-dupont`);
+  });
+
+  it('lists the directory hub even with no indexable fighter', () => {
+    // search_indexable defaults FALSE, so on day one the fighter section is
+    // empty by design. The hub itself is still worth crawling.
+    const built = buildSitemapEntries(ORIGIN, EMPTY_SITEMAP_SOURCES).map((e) => e.url);
+    expect(built).toContain(`${ORIGIN}/fighters`);
+    expect(built.filter((u) => u.startsWith(`${ORIGIN}/fighters/`))).toHaveLength(0);
+  });
+
+  it('never invents a fighter URL from a blank slug', () => {
+    const built = buildSitemapEntries(ORIGIN, {
+      ...EMPTY_SITEMAP_SOURCES,
+      fighters: [{ slug: null }, { slug: '' }],
+    }).map((e) => e.url);
+    expect(built).not.toContain(`${ORIGIN}/fighters/`);
   });
 });

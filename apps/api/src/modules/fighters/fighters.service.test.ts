@@ -1122,7 +1122,17 @@ describe('listPublicDirectory', () => {
       p_limit: 10,
       p_offset: 20,
       p_threshold: 0.2,
+      p_indexable_only: false,
     });
+  });
+
+  it('narrows to indexable fighters only when asked', async () => {
+    // The sitemap's filter. Which fighters may be indexed is decided beside
+    // the listing rule, in the RPC -- a sitemap that filtered for itself
+    // would be a place for somebody's opt-out to not apply.
+    const { service, rpc } = setup({});
+    await service.listPublicDirectory({ indexable: true } as never);
+    expect(rpc.mock.calls[0]?.[1]).toMatchObject({ p_indexable_only: true });
   });
 
   it('clamps an over-large limit rather than trusting the caller', async () => {

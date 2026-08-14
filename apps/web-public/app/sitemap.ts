@@ -38,6 +38,10 @@ const ORG_PAGE_SIZE = 50;
  */
 const MAX_ORG_PAGES = 100;
 
+/** Same bound, for the same reason, on the fighter walk. */
+const FIGHTER_PAGE_SIZE = 50;
+const MAX_FIGHTER_PAGES = 100;
+
 async function fetchJson<T>(url: string): Promise<T | null> {
   try {
     const res = await fetch(url, { next: { revalidate: REVALIDATE_SECONDS } });
@@ -82,12 +86,34 @@ async function fetchOrganizers(apiUrl: string): Promise<SitemapSources['organize
   return all;
 }
 
+/**
+ * Fighters who opted into indexing, walked page by page.
+ *
+ * `?indexable=1` is the API's filter, NOT a client-side one: which fighters may
+ * be indexed is decided by isIndexable() beside isListed(), and a sitemap that
+ * filtered for itself would be a place for somebody's opt-out to not apply.
+ */
+async function fetchIndexableFighters(apiUrl: string): Promise<SitemapSources['fighters']> {
+  const all: SitemapSources['fighters'] = [];
+  for (let page = 0; page < MAX_FIGHTER_PAGES; page += 1) {
+    const offset = page * FIGHTER_PAGE_SIZE;
+    const body = await fetchJson<{ items: SitemapSources['fighters']; total: number }>(
+      `${apiUrl}/api/v1/fighters/public?indexable=1&limit=${FIGHTER_PAGE_SIZE}&offset=${offset}`,
+    );
+    if (!body?.items?.length) break;
+    all.push(...body.items);
+    if (all.length >= body.total) break;
+  }
+  return all;
+}
+
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const apiUrl = getServerApiUrl();
-  const [events, leagues, organizers] = await Promise.all([
+  const [events, leagues, organizers, fighters] = await Promise.all([
     fetchEvents(apiUrl),
     fetchLeagues(apiUrl),
     fetchOrganizers(apiUrl),
+    fetchIndexableFighters(apiUrl),
   ]);
 
   return buildSitemapEntries(getAppOrigin(), {
@@ -95,5 +121,6 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     events,
     leagues,
     organizers,
+    fighters,
   });
 }

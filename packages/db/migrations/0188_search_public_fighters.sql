@@ -78,7 +78,11 @@ create or replace function public.search_public_fighters(
   p_dir       text default 'asc',
   p_limit     int default 24,
   p_offset    int default 0,
-  p_threshold float default 0.2
+  p_threshold float default 0.2,
+  -- The sitemap enumerates only fighters who opted into indexing. Filtering
+  -- here rather than in the caller keeps `total` and the paging honest, and
+  -- keeps the indexing rule in the same place as the listing rule.
+  p_indexable_only boolean default false
 )
 returns table (
   id         uuid,
@@ -129,6 +133,7 @@ as $$
       and gp.deleted_at is null
       and gp.merged_into_id is null
       and gp.account_deleted_at is null
+      and (not p_indexable_only or gp.search_indexable)
       and (p_country is null or btrim(p_country) = '' or gp.country_code = upper(p_country))
       and (
         p_weapon is null or btrim(p_weapon) = ''
@@ -170,17 +175,17 @@ as $$
 $$;
 
 revoke all on function public.search_public_fighters(
-  text, text, text, text, text, int, int, float
+  text, text, text, text, text, int, int, float, boolean
 ) from public;
 
 -- Named explicitly: the image grants EXECUTE to these two by name, and a
 -- role-specific grant survives a revoke aimed at PUBLIC (see 0184).
 revoke execute on function public.search_public_fighters(
-  text, text, text, text, text, int, int, float
+  text, text, text, text, text, int, int, float, boolean
 ) from anon, authenticated;
 
 grant execute on function public.search_public_fighters(
-  text, text, text, text, text, int, int, float
+  text, text, text, text, text, int, int, float, boolean
 ) to service_role;
 
 NOTIFY pgrst, 'reload schema';
