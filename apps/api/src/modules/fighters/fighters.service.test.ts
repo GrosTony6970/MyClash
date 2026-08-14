@@ -709,6 +709,188 @@ describe('parseBoolCell', () => {
   });
 });
 
+describe('public fighter projection', () => {
+  let service: FightersService;
+
+  /**
+   * A chain that also resolves when awaited directly.
+   *
+   * `list()` does `await q` on the builder rather than calling `.maybeSingle()`,
+   * so the shared `makeChain` (awaitable only through maybeSingle/single) yields
+   * `undefined` and every list assertion silently passes on an empty array.
+   * Kept local rather than added to `makeChain`, because that factory feeds
+   * ordered `mockReturnValueOnce` sequences elsewhere in this file and changing
+   * its shape desyncs them.
+   */
+  function makeAwaitableChain(result: unknown) {
+    const chain = makeChain(result) as ReturnType<typeof makeChain> & {
+      then: unknown;
+      range: ReturnType<typeof vi.fn>;
+      is: ReturnType<typeof vi.fn>;
+      limit: ReturnType<typeof vi.fn>;
+    };
+    chain.range = vi.fn().mockReturnValue(chain);
+    chain.is = vi.fn().mockReturnValue(chain);
+    chain.limit = vi.fn().mockReturnValue(chain);
+    chain.then = (resolve: (value: unknown) => unknown) => Promise.resolve(result).then(resolve);
+    return chain;
+  }
+
+  /** The column list handed to PostgREST for the first global_persons query. */
+  function selectedColumns(): string {
+    const chain = fromMock.mock.results[0]?.value as { select: { mock: { calls: unknown[][] } } };
+    return String(chain.select.mock.calls[0]?.[0] ?? '');
+  }
+
+  /**
+   * A row carrying every column global_persons actually has, plus one that does
+   * not exist yet. The unknown column is the point: it stands in for the next
+   * column somebody adds, and the old deny-list projection published exactly
+   * that on the day it landed.
+   */
+  const FULL_ROW = {
+    id: 'gp-1',
+    slug: 'jean-dupont',
+    display_name: 'Jean Dupont',
+    given_name: 'Jean',
+    family_name: 'Dupont',
+    club_id: 'club-1',
+    photo_url: 'https://cdn/x.jpg',
+    hema_ratings_id: 'hr-1',
+    country_code: 'FR',
+    gender_category: 'mixed',
+    date_of_birth: '1990-01-01',
+    bio: 'A bio',
+    alias: 'JD',
+    website_url: 'https://x',
+    instagram_url: 'https://ig',
+    youtube_url: 'https://yt',
+    practicing_since_year: 2015,
+    public_visibility: {},
+    // Never public.
+    email: 'jean@example.com',
+    claimed_by_user_id: 'user-1',
+    merged_into_id: null,
+    deleted_at: null,
+    account_deleted_at: null,
+    created_at: '2024-01-01',
+    updated_at: '2024-01-02',
+    is_fighter: true,
+    is_referee: true,
+    is_instructor: false,
+    is_workshop_participant: false,
+    is_referee_event_managed: false,
+    // The column that does not exist yet.
+    a_column_added_next_quarter: 'oops',
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    service = new FightersService(mockSupabase as never, {} as never);
+  });
+
+  async function listOne(row: Record<string, unknown> = FULL_ROW) {
+    fromMock.mockReturnValue(makeAwaitableChain({ data: [row], error: null }));
+    const rows = (await service.list({} as never)) as Array<Record<string, unknown>>;
+    return rows[0] ?? {};
+  }
+
+  it('drops a column the allow-list does not name', async () => {
+    // The assertion that kills the CLASS rather than the instance. Any
+    // "not.toContain('email')" test passes forever while the next column ships
+    // on arrival; this one does not.
+    const out = await listOne();
+    expect(out['a_column_added_next_quarter']).toBeUndefined();
+  });
+
+  it('never returns contact or account PII', async () => {
+    const out = await listOne();
+    for (const field of ['email', 'claimed_by_user_id']) {
+      expect(out[field]).toBeUndefined();
+    }
+  });
+
+  it('never returns merge, erasure or role bookkeeping', async () => {
+    const out = await listOne();
+    for (const field of [
+      'merged_into_id',
+      'deleted_at',
+      'account_deleted_at',
+      'created_at',
+      'updated_at',
+      'is_fighter',
+      'is_referee',
+      'is_instructor',
+      'is_workshop_participant',
+      'is_referee_event_managed',
+    ]) {
+      expect(out[field]).toBeUndefined();
+    }
+  });
+
+  it('never returns the visibility map it was configured by', async () => {
+    // Publishing it would tell any reader exactly which fields a person chose
+    // to hide -- which is most of what hiding them was meant to prevent.
+    expect((await listOne())['public_visibility']).toBeUndefined();
+  });
+
+  it('reports an erased account as a boolean, never as a date', async () => {
+    const live = await listOne();
+    expect(live['accountDeleted']).toBe(false);
+
+    const erased = await listOne({ ...FULL_ROW, account_deleted_at: '2026-02-03T10:00:00Z' });
+    expect(erased['accountDeleted']).toBe(true);
+    expect(erased['account_deleted_at']).toBeUndefined();
+  });
+
+  it('still returns what the public surfaces read', async () => {
+    const out = await listOne();
+    for (const field of [
+      'id',
+      'slug',
+      'display_name',
+      'given_name',
+      'family_name',
+      'photo_url',
+      'country_code',
+      'hema_ratings_id',
+      'bio',
+    ]) {
+      expect(out[field]).toBeDefined();
+    }
+  });
+
+  it('honours a hidden field even though the column was selected', async () => {
+    // The gate needs the column present to withhold it, so "selected" and
+    // "published" are different questions and both have to be right.
+    const out = await listOne({ ...FULL_ROW, public_visibility: { bio: false, links: false } });
+    expect(out['bio']).toBeUndefined();
+    expect(out['website_url']).toBeUndefined();
+    expect(out['instagram_url']).toBeUndefined();
+    expect(out['display_name']).toBe('Jean Dupont');
+  });
+
+  it('hides date_of_birth by default and only by default', async () => {
+    expect((await listOne())['date_of_birth']).toBeUndefined();
+    const optedIn = await listOne({ ...FULL_ROW, public_visibility: { dateOfBirth: true } });
+    expect(optedIn['date_of_birth']).toBe('1990-01-01');
+  });
+
+  it('asks PostgREST for named columns, never a star', async () => {
+    // Belt to the projection's braces: without this the row still crosses the
+    // wire from the database in full, and any future code path that forgets to
+    // project has the whole row to hand.
+    await listOne();
+    expect(selectedColumns()).not.toContain('*');
+    expect(selectedColumns()).toContain('display_name');
+  });
+
+  it('carries the club embed through', async () => {
+    const out = await listOne({ ...FULL_ROW, clubs: { name: 'Garde Noire', slug: 'garde-noire' } });
+    expect(out['clubs']).toEqual({ name: 'Garde Noire', slug: 'garde-noire' });
+  });
+});
+
 describe('listGlobalPersons projection', () => {
   let service: FightersService;
 

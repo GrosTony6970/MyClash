@@ -65,11 +65,15 @@ interface Fighter {
   medals: FighterMedal[];
   recentMatches: RecentMatch[];
   /**
-   * Set when the linked account was erased. The results below are unaffected —
+   * True when the linked account was erased. The results below are unaffected —
    * they are a public record — but the personal profile fields are gone, so the
    * page says so rather than looking like an unfinished profile.
+   *
+   * A boolean, not the timestamp: this is the only thing rendered from it, and
+   * the API deliberately stops publishing an exact erasure date for a named
+   * person.
    */
-  accountDeletedAt: string | null;
+  accountDeleted: boolean;
 }
 
 interface HemaRatingsProfile {
@@ -171,7 +175,7 @@ type RawFighter = Omit<Partial<Fighter>, 'clubs' | 'weapons'> & {
   youtube_url?: string | null;
   practicing_since_year?: number | null;
   hema_ratings_id?: string | null;
-  account_deleted_at?: string | null;
+  accountDeleted?: boolean;
   hemaRatings?: HemaRatingsProfile | null;
   hemaRatingsPending?: boolean;
   clubs?: FighterClubLink[] | { name?: string | null; slug?: string | null } | null;
@@ -244,7 +248,7 @@ async function fetchFighter(slug: string, apiUrl: string): Promise<Fighter | nul
       hemaRatingsPending: raw.hemaRatingsPending ?? false,
       medals: raw.medals ?? [],
       recentMatches: raw.recentMatches ?? [],
-      accountDeletedAt: raw.accountDeletedAt ?? raw.account_deleted_at ?? null,
+      accountDeleted: raw.accountDeleted ?? false,
     };
   } catch {
     return null;
@@ -444,7 +448,7 @@ export default async function FighterPage({ params }: Props) {
         <p className="mb-6 text-sm leading-relaxed text-foreground-secondary">{fighter.bio}</p>
       )}
 
-      {fighter.accountDeletedAt && (
+      {fighter.accountDeleted && (
         <p className="mb-6 rounded-xl border border-border bg-surface p-4 text-sm text-muted">
           {t('publicApp.fighterProfile.accountDeletedNote')}
         </p>

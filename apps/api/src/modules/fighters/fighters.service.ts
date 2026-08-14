@@ -115,6 +115,69 @@ const VISIBILITY_FIELDS: Record<string, { columns: string[]; defaultPublic: bool
 };
 
 /**
+ * Every column a PUBLIC fighter read may return. An ALLOW-list.
+ *
+ * This replaces a deny-list — `select('*')` minus three `delete` calls — that
+ * failed OPEN: any column added to `global_persons` shipped to anonymous
+ * callers on the day it landed, and nobody had to decide that. The table has
+ * grown eleven columns since that projection was written, `email` (0075) among
+ * them; it stayed private only because someone remembered to name it in a
+ * `delete`. An allow-list inverts the default, so a new column is invisible
+ * here until someone adds it deliberately.
+ *
+ * Notably NOT here, and each for its own reason:
+ *  - `email`, `claimed_by_user_id` — contact/account PII, never public. Note
+ *    `email` is not in GLOBAL_PERSON_NULLED either, so it SURVIVES a GDPR
+ *    erasure; this list is what keeps it off the public profile.
+ *  - `merged_into_id`, `deleted_at` — merge bookkeeping. The reads filter on
+ *    them rather than publishing them.
+ *  - `is_fighter` / `is_referee` / `is_workshop_participant` / `is_instructor`
+ *    / `is_referee_event_managed` — role flags. No public surface renders them.
+ *  - `created_at` / `updated_at` — when a row was typed into an import.
+ *
+ * Two columns are SELECTED but never emitted — the projection consumes them and
+ * publishes something else:
+ *  - `public_visibility` decides what to hide. Omitting it from the query would
+ *    make the map `{}` for every fighter and silently republish every field
+ *    anybody chose to hide.
+ *  - `account_deleted_at` becomes the boolean `accountDeleted`. The profile page
+ *    only branches on whether the account was erased; it never renders the date,
+ *    so an exact erasure timestamp for a named person was more than any reader
+ *    needed.
+ */
+const PUBLIC_FIGHTER_EMITTED_FIELDS = [
+  'id',
+  'slug',
+  'display_name',
+  'given_name',
+  'family_name',
+  'club_id',
+  'photo_url',
+  'hema_ratings_id',
+  // Everything from here down is visibility-gated (see VISIBILITY_FIELDS): it
+  // must be SELECTED so the gate has something to withhold.
+  'country_code',
+  'gender_category',
+  'date_of_birth',
+  'bio',
+  'alias',
+  'website_url',
+  'instagram_url',
+  'youtube_url',
+  'practicing_since_year',
+] as const;
+
+/** Read by the projection, never present in its output. */
+const VISIBILITY_CONFIG_FIELD = 'public_visibility';
+const ACCOUNT_ERASED_FIELD = 'account_deleted_at';
+
+const PUBLIC_FIGHTER_COLUMNS = [
+  ...PUBLIC_FIGHTER_EMITTED_FIELDS,
+  VISIBILITY_CONFIG_FIELD,
+  ACCOUNT_ERASED_FIELD,
+].join(', ');
+
+/**
  * Columns GET /global-persons returns to any authenticated caller.
  *
  * Scoped to what the three organiser pickers actually read — the participant
@@ -199,7 +262,7 @@ export class FightersService {
 
     let q = this.supabase.service
       .from('global_persons')
-      .select('*, clubs(name, slug)')
+      .select(`${PUBLIC_FIGHTER_COLUMNS}, clubs(name, slug)`)
       .order('family_name', { ascending: true })
       .order('given_name', { ascending: true });
 
@@ -220,7 +283,10 @@ export class FightersService {
 
     const { data, error } = await q;
     if (error) throw new BadRequestException(error.message);
-    return ((data ?? []) as Row[]).map((row) => this.sanitizePublicFighter(row));
+    // Through `unknown`: supabase-js parses the select string at the TYPE level,
+    // and the allow-list is joined at runtime, so it can only infer ParserError.
+    // Same reason `listGlobalPersons` returns its rows untyped.
+    return ((data ?? []) as unknown as Row[]).map((row) => this.sanitizePublicFighter(row));
   }
 
   /** Trigram-ranked fighter search. Returns full rows (same shape as list())
@@ -239,11 +305,11 @@ export class FightersService {
     const ids = ranked.map((r) => r.id);
     const { data: rows } = await this.supabase.service
       .from('global_persons')
-      .select('*, clubs(name, slug)')
+      .select(`${PUBLIC_FIGHTER_COLUMNS}, clubs(name, slug)`)
       .in('id', ids);
 
     const order = new Map(ids.map((id, index) => [id, index]));
-    return ((rows ?? []) as Row[])
+    return ((rows ?? []) as unknown as Row[])
       .sort((a, b) => (order.get(a['id'] as string) ?? 0) - (order.get(b['id'] as string) ?? 0))
       .map((row) => this.sanitizePublicFighter(row));
   }
@@ -253,7 +319,7 @@ export class FightersService {
   async getBySlug(slug: string) {
     const { data, error } = await this.supabase.service
       .from('global_persons')
-      .select('*, clubs(name, slug, city, country_code)')
+      .select(`${PUBLIC_FIGHTER_COLUMNS}, clubs(name, slug, city, country_code)`)
       .eq('slug', slug)
       .maybeSingle();
 
@@ -269,7 +335,7 @@ export class FightersService {
       throw new NotFoundException(`Fighter "${slug}" not found`);
     }
 
-    const row = data as Record<string, unknown>;
+    const row = data as unknown as Record<string, unknown>;
     const publicProfile = await this.withPublicProfileRelations(this.sanitizePublicFighter(row));
     const hemaRatingsId = row['hema_ratings_id'] as string | null | undefined;
     if (!hemaRatingsId || !this.hemaRatings) return publicProfile;
@@ -954,19 +1020,38 @@ export class FightersService {
   }
 
   /**
-   * Project a global_persons row for public consumption:
-   *  - always strip contact/internal PII (email, claimed_by_user_id) and the
-   *    visibility config itself — older list endpoints leaked these;
-   *  - honour the per-field `public_visibility` map, dropping any column the
-   *    fighter marked hidden. Defaults: everything public except date_of_birth.
-   * Applied to every public read (getBySlug, list, fuzzy search).
+   * Project a global_persons row for public consumption. Applied to every
+   * public read (getBySlug, list, fuzzy search).
+   *
+   * Two gates, in order:
+   *  1. COPY the allow-listed columns across. This used to spread the whole row
+   *     and `delete` three keys, which meant the function's output was defined
+   *     by what the caller happened to pass in — so every new column was public
+   *     by default and the projection could not be reasoned about in isolation.
+   *     Building the result instead of pruning it makes the set of public
+   *     fields a property of this file.
+   *  2. Apply the fighter's own `public_visibility` map on top, dropping any
+   *     column they marked hidden. Defaults: everything public except
+   *     date_of_birth.
+   *
+   * The `clubs(...)` embed and the relations added by
+   * `withPublicProfileRelations` are attached by the caller, AFTER this runs.
    */
   private sanitizePublicFighter(row: Row): Row {
-    const vis = (row['public_visibility'] ?? {}) as Record<string, unknown>;
-    const out: Row = { ...row };
-    delete out['email'];
-    delete out['claimed_by_user_id'];
-    delete out['public_visibility'];
+    const vis = (row[VISIBILITY_CONFIG_FIELD] ?? {}) as Record<string, unknown>;
+
+    const out: Row = {};
+    for (const field of PUBLIC_FIGHTER_EMITTED_FIELDS) {
+      if (field in row) out[field] = row[field];
+    }
+    // PostgREST returns an embed under its relation name, which is not a column
+    // and so is not in the allow-list. Carry it through when the query asked for
+    // it; the embed itself is column-scoped at the call site.
+    if ('clubs' in row) out['clubs'] = row['clubs'];
+    // Derived, not copied: the reader needs to know the account was erased, not
+    // when. See PUBLIC_FIGHTER_COLUMNS.
+    out['accountDeleted'] = row[ACCOUNT_ERASED_FIELD] != null;
+
     for (const [key, cfg] of Object.entries(VISIBILITY_FIELDS)) {
       const explicit = typeof vis[key] === 'boolean' ? (vis[key] as boolean) : undefined;
       const visible = explicit ?? cfg.defaultPublic;
