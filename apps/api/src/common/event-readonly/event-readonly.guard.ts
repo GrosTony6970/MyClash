@@ -71,8 +71,44 @@ export class EventReadOnlyGuard implements CanActivate {
     // Read off the path rather than off `params['id']`: `:id` means a different
     // entity on most other controllers (tournaments, clubs, deletion requests),
     // and matching the path segment cannot be broken by a param rename either.
-    const fromPath = /(?:^|\/)events\/([0-9a-fA-F-]{36})(?:[/?]|$)/.exec(request.url ?? '');
+    const url = request.url ?? '';
+    const fromPath = /(?:^|\/)events\/([0-9a-fA-F-]{36})(?:[/?]|$)/.exec(url);
     if (fromPath) return fromPath[1] as string;
+
+    // (a″) `/matches/<uuid>` — same defect, same fix. Every match route names
+    // its param `:id`, so the params-only `matchId` branch this replaces
+    // matched NO route in the API and the guard fell through to "not
+    // event-scoped": PATCH matches/:id/schedule re-timed bouts on an ARCHIVED
+    // event, and nothing threw.
+    //
+    // One query, not the three that branch walked: the embedded select is the
+    // shape `event-authz.orgIdForPool` already uses. `match-forfeits/<uuid>`
+    // does not match — the segment has to be exactly `matches`.
+    const fromMatch = /(?:^|\/)matches\/([0-9a-fA-F-]{36})(?:[/?]|$)/.exec(url);
+    if (fromMatch) {
+      const { data } = await this.supabase.service
+        .from('matches')
+        .select('phases!inner(tournaments!inner(event_id))')
+        .eq('id', fromMatch[1] as string)
+        .maybeSingle();
+      const eventId = (data as { phases?: { tournaments?: { event_id?: string } } } | null)?.phases
+        ?.tournaments?.event_id;
+      if (eventId) return eventId;
+    }
+
+    // (a‴) `/lices/<uuid>` — PATCH and DELETE both live here, and deleting a
+    // piste is ON DELETE SET NULL on matches.lice_id, i.e. it unschedules every
+    // match on that strip. `lices.event_id` is required, so the hop is single.
+    const fromLice = /(?:^|\/)lices\/([0-9a-fA-F-]{36})(?:[/?]|$)/.exec(url);
+    if (fromLice) {
+      const { data } = await this.supabase.service
+        .from('lices')
+        .select('event_id')
+        .eq('id', fromLice[1] as string)
+        .maybeSingle();
+      const eventId = (data as { event_id?: string } | null)?.event_id;
+      if (eventId) return eventId;
+    }
 
     // (b) tournamentId → tournaments.event_id
     if (params['tournamentId']) {
@@ -131,32 +167,13 @@ export class EventReadOnlyGuard implements CanActivate {
       }
     }
 
-    // (e) matchId → matches.phase_id → phases.tournament_id → tournaments.event_id
-    if (params['matchId']) {
-      const { data: match } = await this.supabase.service
-        .from('matches')
-        .select('phase_id')
-        .eq('id', params['matchId'])
-        .maybeSingle();
-      const phaseId = (match as { phase_id?: string } | null)?.phase_id;
-      if (phaseId) {
-        const { data: phase } = await this.supabase.service
-          .from('phases')
-          .select('tournament_id')
-          .eq('id', phaseId)
-          .maybeSingle();
-        const tournamentId = (phase as { tournament_id?: string } | null)?.tournament_id;
-        if (tournamentId) {
-          const { data: tournament } = await this.supabase.service
-            .from('tournaments')
-            .select('event_id')
-            .eq('id', tournamentId)
-            .maybeSingle();
-          const eventId = (tournament as { event_id?: string } | null)?.event_id;
-          if (eventId) return eventId;
-        }
-      }
-    }
+    // (e) — REMOVED. It read `params['matchId']`, which no mutating route in
+    // this API binds: they are all `matches/:id`. The one exception,
+    // PATCH matches/:matchId/swiss-sides, has a URL that (a″) matches, and
+    // gear.controller's GET match/:matchId never reaches here (read verbs skip
+    // at the top). So the branch was dead code guarding nothing, and (a″)
+    // covers every URL it could ever have covered — in one query instead of
+    // three. A spec pins swiss-sides so the removal cannot silently regress.
 
     // (f) registrationId → registrations.tournament_id → tournaments.event_id
     //

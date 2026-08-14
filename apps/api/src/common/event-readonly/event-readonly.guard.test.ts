@@ -57,6 +57,8 @@ function makeContext(opts: {
 
 /** A real event id shape — the path match requires 36 chars. */
 const EVENT_UUID = 'aaba08c8-f692-49ac-ace3-45ce2c58ef8a';
+const MATCH_UUID = 'b1c2d3e4-f5a6-4b7c-8d9e-0f1a2b3c4d5e';
+const LICE_UUID = 'c1d2e3f4-a5b6-4c7d-8e9f-0a1b2c3d4e5f';
 
 // ── Tests ─────────────────────────────────────────────────────────────────────
 
@@ -65,6 +67,11 @@ describe('EventReadOnlyGuard', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    // Drain the FIFO `mockReturnValueOnce` queue as well: clearAllMocks resets
+    // call history but NOT queued return values, so a spec that resolves fewer
+    // chains than it queued leaks the rest into the next spec in file order —
+    // which is how a broken match branch showed up as failing lice specs.
+    fromMock.mockReset();
     guard = new EventReadOnlyGuard(mockSupabase as never, mockReflector as never);
   });
 
@@ -229,6 +236,127 @@ describe('EventReadOnlyGuard', () => {
     });
 
     fromMock.mockReturnValueOnce(makeChain({ data: { status: 'draft' }, error: null }));
+
+    expect(await guard.canActivate(ctx)).toBe(true);
+  });
+
+  // ── (10) The schedule routes, which also name their param `:id` ───────────
+  //
+  // The guard resolved an event from `params['matchId']`. No mutating route in
+  // this API binds that name — they are all `matches/:id` — so the branch was
+  // dead, `resolveEventId` returned null, the guard treated every match write
+  // as "not event-scoped" and an ARCHIVED event stayed fully re-schedulable.
+  // public-routes.test.ts had stated this defect in a comment for months with
+  // nothing behind it. This is the something.
+
+  /** matches → event in ONE query, via the embedded select. */
+  function matchChain(eventId: string | null) {
+    return makeChain({
+      data: eventId ? { phases: { tournaments: { event_id: eventId } } } : null,
+      error: null,
+    });
+  }
+
+  it.each([
+    ['PATCH', `/api/v1/matches/${MATCH_UUID}/schedule`, 'the route this fix exists for'],
+    ['POST', `/api/v1/matches/${MATCH_UUID}/exchanges`, 'scoring into an archived event'],
+    ['PATCH', `/api/v1/matches/${MATCH_UUID}/swiss-sides`, 'the only real :matchId route'],
+  ])('blocks %s %s on an archived event — %s', async (method, url) => {
+    const ctx = makeContext({ method, params: { id: MATCH_UUID }, url });
+
+    fromMock
+      .mockReturnValueOnce(matchChain(EVENT_UUID))
+      .mockReturnValueOnce(makeChain({ data: { status: 'archived' }, error: null }));
+
+    await expect(guard.canActivate(ctx)).rejects.toThrow(ForbiddenException);
+  });
+
+  it('resolves a match in exactly two queries, not the three the dead branch walked', async () => {
+    const ctx = makeContext({
+      method: 'PATCH',
+      params: { id: MATCH_UUID },
+      url: `/api/v1/matches/${MATCH_UUID}/schedule`,
+    });
+
+    fromMock
+      .mockReturnValueOnce(matchChain(EVENT_UUID))
+      .mockReturnValueOnce(makeChain({ data: { status: 'running' }, error: null }));
+
+    expect(await guard.canActivate(ctx)).toBe(true);
+    expect(fromMock).toHaveBeenCalledTimes(2);
+    expect(fromMock).toHaveBeenNthCalledWith(1, 'matches');
+    expect(fromMock).toHaveBeenNthCalledWith(2, 'events');
+  });
+
+  it('allows a match write when the event is not archived', async () => {
+    const ctx = makeContext({
+      method: 'PATCH',
+      params: { id: MATCH_UUID },
+      url: `/api/v1/matches/${MATCH_UUID}/schedule`,
+    });
+
+    fromMock
+      .mockReturnValueOnce(matchChain(EVENT_UUID))
+      .mockReturnValueOnce(makeChain({ data: { status: 'running' }, error: null }));
+
+    expect(await guard.canActivate(ctx)).toBe(true);
+  });
+
+  /**
+   * `match-forfeits` starts with the same eight characters. If the regex ever
+   * loosens to a substring match it would resolve this route through the
+   * matches table and 500 on a forfeit id.
+   */
+  it('does not mistake `match-forfeits/:id` for a match route', async () => {
+    const ctx = makeContext({
+      method: 'PATCH',
+      params: { id: MATCH_UUID },
+      url: `/api/v1/match-forfeits/${MATCH_UUID}/void`,
+    });
+
+    expect(await guard.canActivate(ctx)).toBe(true);
+    expect(fromMock).not.toHaveBeenCalled();
+  });
+
+  // ── (11) Lices, whose deletion unschedules every match on the strip ───────
+
+  it.each([['PATCH'], ['DELETE']])('blocks %s /lices/:id on an archived event', async (method) => {
+    const ctx = makeContext({
+      method,
+      params: { id: LICE_UUID },
+      url: `/api/v1/lices/${LICE_UUID}`,
+    });
+
+    fromMock
+      .mockReturnValueOnce(makeChain({ data: { event_id: EVENT_UUID }, error: null }))
+      .mockReturnValueOnce(makeChain({ data: { status: 'archived' }, error: null }));
+
+    await expect(guard.canActivate(ctx)).rejects.toThrow(ForbiddenException);
+    expect(fromMock).toHaveBeenNthCalledWith(1, 'lices');
+  });
+
+  it('allows a lice edit when the event is not archived', async () => {
+    const ctx = makeContext({
+      method: 'PATCH',
+      params: { id: LICE_UUID },
+      url: `/api/v1/lices/${LICE_UUID}`,
+    });
+
+    fromMock
+      .mockReturnValueOnce(makeChain({ data: { event_id: EVENT_UUID }, error: null }))
+      .mockReturnValueOnce(makeChain({ data: { status: 'published' }, error: null }));
+
+    expect(await guard.canActivate(ctx)).toBe(true);
+  });
+
+  it('falls through when the match resolves to no event', async () => {
+    const ctx = makeContext({
+      method: 'PATCH',
+      params: { id: MATCH_UUID },
+      url: `/api/v1/matches/${MATCH_UUID}/schedule`,
+    });
+
+    fromMock.mockReturnValueOnce(matchChain(null));
 
     expect(await guard.canActivate(ctx)).toBe(true);
   });

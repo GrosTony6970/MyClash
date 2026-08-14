@@ -5,9 +5,11 @@
  * from the behaviour they describe, with nothing checking —
  * check-api-route-security.mjs declared postures it never verified (7 turned out
  * false); assignment-board.service.ts cites a "scorekeeper check" that was never
- * written; EventReadOnlyGuard resolves params['matchId'] on routes that are all
- * matches/:id, so its branch is dead and it fails open. A hand-maintained list of
- * public routes would rot the same way.
+ * written; EventReadOnlyGuard resolved params['matchId'] on routes that are all
+ * matches/:id, so its branch was dead and it failed open — an archived event
+ * stayed re-schedulable (fixed since; the guard now matches on the PATH, and
+ * event-readonly.guard.test.ts pins it). A hand-maintained list of public
+ * routes would rot the same way.
  *
  * So this does not read a list — it reflects the ACTUAL decorator metadata Nest
  * will use at runtime, and pins it. Adding @Public() to a route is a deliberate
