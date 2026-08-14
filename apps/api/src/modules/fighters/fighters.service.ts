@@ -277,10 +277,22 @@ export class FightersService {
       if (fuzzy) return fuzzy;
     }
 
+    // `!inner` ONLY when filtering by club.
+    //
+    // PostgREST applies `.eq('clubs.slug', …)` to the EMBEDDED resource unless
+    // the embed is inner-joined. Without it every parent row still comes back —
+    // just with `clubs: null` on the ones that did not match — so `?club=x`
+    // returned the entire table with the filter silently doing nothing.
+    //
+    // It cannot be unconditional, because `!inner` is also an inner join: on an
+    // unfiltered list it would drop every fighter who has no club, which is most
+    // of an early roster.
+    const clubEmbed = query.club ? 'clubs!inner(name, slug)' : 'clubs(name, slug)';
+
     let q = applyReachable(
       this.supabase.service
         .from('global_persons')
-        .select(`${PUBLIC_FIGHTER_COLUMNS}, clubs(name, slug)`),
+        .select(`${PUBLIC_FIGHTER_COLUMNS}, ${clubEmbed}`),
     )
       .order('family_name', { ascending: true })
       .order('given_name', { ascending: true })
@@ -300,7 +312,10 @@ export class FightersService {
       }
     }
     if (query.club) {
-      q = q.eq('clubs.slug', query.club) as typeof q;
+      // Sanitised like the free-text filter above: an exact-match value is
+      // already encoded by supabase-js, but PostgREST meta-characters have no
+      // business in a slug and a club slug is [a-z0-9-] anyway.
+      q = q.eq('clubs.slug', sanitizePostgrestFilterValue(query.club)) as typeof q;
     }
 
     const { data, error } = await q;

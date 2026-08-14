@@ -958,6 +958,59 @@ describe('public fighter reads exclude merged and erased identities', () => {
   });
 });
 
+describe('list() club filter', () => {
+  let service: FightersService;
+
+  function selectedColumns(): string {
+    const chain = fromMock.mock.results[0]?.value as { select: { mock: { calls: unknown[][] } } };
+    return String(chain.select.mock.calls[0]?.[0] ?? '');
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    fromMock.mockReturnValue(makeAwaitableChain({ data: [], error: null }));
+    service = new FightersService(mockSupabase as never, {} as never);
+  });
+
+  it('inner-joins the club so the filter reaches the PARENT row', async () => {
+    // The whole defect. `.eq('clubs.slug', …)` on a plain embed filters the
+    // EMBEDDED resource: every fighter still comes back, just with clubs:null
+    // on the ones that did not match. `?club=x` returned the entire table and
+    // the filter did nothing at all. A fighter from another club can only be
+    // absent if the join is inner.
+    await service.list({ club: 'garde-noire' } as never);
+    expect(selectedColumns()).toContain('clubs!inner(');
+  });
+
+  it('does NOT inner-join when no club filter is present', async () => {
+    // `!inner` is an inner join. Unconditionally, it would drop every fighter
+    // with no club -- most of an early roster -- from the unfiltered list.
+    await service.list({} as never);
+    expect(selectedColumns()).toContain('clubs(');
+    expect(selectedColumns()).not.toContain('clubs!inner(');
+  });
+
+  it('filters on the club slug', async () => {
+    const chain = makeAwaitableChain({ data: [], error: null });
+    fromMock.mockReturnValue(chain);
+    await service.list({ club: 'garde-noire' } as never);
+    expect(chain.eq).toHaveBeenCalledWith('clubs.slug', 'garde-noire');
+  });
+
+  it('skips the fuzzy branch when a club filter is present', async () => {
+    // Fuzzy ranking happens in an RPC that knows nothing about clubs, so
+    // combining the two would silently drop the club filter.
+    const rpc = vi.fn().mockResolvedValue({ data: [{ id: 'gp-1' }], error: null });
+    const local = new FightersService(
+      { service: { from: fromMock, rpc }, anon: {} } as never,
+      {} as never,
+    );
+    await local.list({ q: 'dupont', club: 'garde-noire' } as never);
+    expect(rpc).not.toHaveBeenCalled();
+    expect(selectedColumns()).toContain('clubs!inner(');
+  });
+});
+
 describe('listGlobalPersons projection', () => {
   let service: FightersService;
 
