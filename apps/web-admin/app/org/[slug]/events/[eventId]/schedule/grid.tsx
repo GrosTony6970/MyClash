@@ -16,7 +16,9 @@ import { placeMultiWithShift, placeWithShift } from './place-with-shift';
 import { computeHeaderRuns, type HeaderRunItem } from './compute-header-runs';
 import { detectConflicts, type Conflict } from './conflict-detection';
 import { POOL_HEADER_SPAN, rowShiftForSlot } from './pool-header-layout';
-import { buildMatchScoringHref, STAFF_APP_PREFIX } from '../pools/_tabs/build-scoring-href';
+import { openMatchScoring } from './open-match-scoring';
+import { MatchChip } from './MatchChip';
+import type { GridUndo, Lice, ProgrammeBlockRow, ScheduleMatch } from './schedule-types';
 import { blockDeleteAction } from './schedule-block-actions';
 import { newBreakDraftFromCell } from './new-break-draft';
 import { hhmmToMinutes, programmeBlocksForDay } from './programme-block-slots';
@@ -65,129 +67,12 @@ import {
   ScheduleMutationError,
 } from './schedule-mutations';
 
-/**
- * Ctrl/⌘-click on a match card (placed grid card OR unscheduled
- * chip) opens the same-origin proxied scoring view for **that
- * specific match**. Plain click is reserved for drag-and-drop
- * selection. The scoring route works for both pool and bracket
- * matches without needing lice/phase branching.
- *
- * `externalDisplay` carries the admin's read-only scoreboard URL so
- * the operator can throw the projection on a second monitor in one
- * click. Same-origin via Traefik `/scoring/*` avoids the dev-cert
- * prompt that blocks cross-origin staff.myclash.fr.
- */
-function openMatchScoring(slug: string, eventId: string, matchId: string): void {
-  // Full-bleed external display (no admin shell), opened as a popup
-  // from the scoring pad. `slug`/`eventId` are no longer needed for the
-  // display URL but kept in the signature for call-site compatibility.
-  void slug;
-  void eventId;
-  const scoreboardHref = `/display/${matchId}`;
-  const href = buildMatchScoringHref(
-    STAFF_APP_PREFIX,
-    matchId,
-    window.location.href,
-    scoreboardHref,
-  );
-  if (href) window.location.href = href;
-}
-
-interface Lice {
-  id: string;
-  name: string;
-  sortOrder: number;
-  /**
-   * Slice 8 of the venues feature: when a lice is attached to an
-   * org-level venue, the schedule grid groups consecutive same-venue
-   * lice columns under a single venue header row. Backend projects
-   * this via `venues(id, name)` on /events/:eventId/lices.
-   */
-  venues?: { id: string; name: string } | null;
-  /**
-   * The sub-room of that venue, when the hall is split into named areas
-   * (migration 0169). The grid's venue band ignores it — it only groups by
-   * hall — but the placement editor round-trips it, and the public display
-   * picker headings it.
-   */
-  venue_areas?: { id: string; name: string } | null;
-}
-
 // `computeVenueGroups` + the `VenueGroup` type now live in
 // ./schedule-grid-geometry (shared with BlockGridView).
-
-/**
- * Slice 7: non-fight programme blocks rendered on the grid.
- * `dayIndex` indexes into the event's `days` array (computed below from
- * the event start/end). `startTime` / `endTime` are HH:MM strings on
- * that day. Currently read-only — drag-to-move stays a follow-up.
- */
-interface ProgrammeBlockRow {
-  id: string;
-  dayIndex: number;
-  blockType: 'admin' | 'competition' | 'workshop' | 'break';
-  label: string;
-  startTime: string;
-  endTime: string;
-  colorHex?: string | null;
-}
-
-/**
- * One reversible grid-block deletion, surfaced as an Undo toast:
- *  - `unschedule` — a pool/bracket/other run was unscheduled; restore each
- *    match to the position it held before.
- *  - `delete-block` — an admin/break bar was deleted; re-create it from the
- *    captured payload (matches that were inside its window stay in the
- *    Unscheduled list, recoverable on their own).
- */
-type GridUndo =
-  | {
-      kind: 'unschedule';
-      label: string;
-      matches: Array<{ id: string; liceId: string | null; scheduledAt: string | null }>;
-    }
-  | {
-      kind: 'delete-block';
-      label: string;
-      block: {
-        dayIndex: number;
-        blockType: ProgrammeBlockRow['blockType'];
-        label: string;
-        startTime: string;
-        endTime: string;
-      };
-    };
-
-interface ScheduleMatch {
-  id: string;
-  matchNumberLabel: string;
-  /** Canonical match code (LSW-P1-M1 for pools, LSW-B-QF-M1 for brackets).
-   *  Backend computes it via formatRoundCode; the sidebar + grid use it as the
-   *  display label, falling back to matchNumberLabel for legacy payloads. */
-  roundCode?: string;
-  status: string;
-  liceId: string | null;
-  scheduledAt: string | null;
-  /** Actual run timing — drives the per-lice drift indicator. */
-  startedAt: string | null;
-  endedAt: string | null;
-  redFighterName: string | null;
-  blueFighterName: string | null;
-  redRegistrationId: string;
-  blueRegistrationId: string;
-  tournamentName: string | null;
-  /** Parent tournament's identity color (ColorToken string). Drives
-   *  the card tint so every card from the same tournament reads as
-   *  one family. Null falls back to the default token via the tint
-   *  helpers in @myclash/ui. */
-  tournamentColor: string | null;
-  durationMinutes: number;
-  phaseType: string | null;
-  /** Populated for pool-type matches; drives the per-pool colour tint
-   *  on the grid card. Null for bracket / finals matches. */
-  poolId: string | null;
-  poolName: string | null;
-}
+//
+// `Lice`, `ProgrammeBlockRow`, `GridUndo` and `ScheduleMatch` now live in
+// ./schedule-types, and `openMatchScoring` in ./open-match-scoring — both read
+// by the extracted children as well as by this file.
 
 // Geometry constants + slot helpers (slotToTime / isoToSlot /
 // formatSlotTime / computeVenueGroups …) live in the shared
@@ -3394,66 +3279,6 @@ export function ScheduleGrid({
           onSaved={refetchLices}
         />
       )}
-    </div>
-  );
-}
-
-function MatchChip({
-  match,
-  slug,
-  eventId,
-  saving,
-  onDragStart,
-}: {
-  match: ScheduleMatch;
-  slug: string;
-  eventId: string;
-  saving: boolean;
-  onDragStart: () => void;
-}) {
-  const { t } = useI18n();
-  // Swiss is neither pool nor bracket: it gets its own badge so an organiser
-  // can tell a Swiss round from an elimination round at a glance on the grid.
-  const isSwiss = match.phaseType === 'swiss';
-  const isBracket = match.phaseType !== null && match.phaseType !== 'pool' && !isSwiss;
-  return (
-    // eslint-disable-next-line jsx-a11y/click-events-have-key-events -- draggable match card; onClick is a modifier-gated (ctrl/meta) shortcut, not the primary affordance
-    <div
-      draggable
-      onDragStart={onDragStart}
-      onClick={(e) => {
-        if (!(e.ctrlKey || e.metaKey)) return;
-        e.preventDefault();
-        openMatchScoring(slug, eventId, match.id);
-      }}
-      title={`${match.roundCode || match.matchNumberLabel} · ${t('organizer.schedulePage.grid.ctrlClickHint')}`}
-      className={[
-        'border rounded-lg px-2 py-1.5 text-xs cursor-grab active:cursor-grabbing bg-surface hover:border-muted transition-colors',
-        isBracket ? 'border-amber-300' : isSwiss ? 'border-sky-300' : 'border-border',
-        saving ? 'opacity-50' : '',
-      ].join(' ')}
-    >
-      <div className="flex items-center gap-1">
-        <p className="flex-1 font-medium text-foreground truncate">
-          {match.roundCode || match.matchNumberLabel}
-        </p>
-        {isBracket && (
-          <span className="shrink-0 rounded bg-amber-100 px-1 py-px text-[10px] text-amber-800">
-            {t('organizer.schedulePage.grid.bracketBadge')}
-          </span>
-        )}
-        {isSwiss && (
-          <span className="shrink-0 rounded bg-sky-100 px-1 py-px text-[10px] text-sky-800">
-            {t('organizer.schedulePage.grid.swissBadge')}
-          </span>
-        )}
-      </div>
-      <p className="text-muted truncate">
-        {t('organizer.schedulePage.grid.versus', {
-          a: match.redFighterName ?? '?',
-          b: match.blueFighterName ?? '?',
-        })}
-      </p>
     </div>
   );
 }
