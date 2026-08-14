@@ -22,7 +22,8 @@ import type { GridUndo, Lice, ProgrammeBlockRow, ScheduleMatch } from './schedul
 import { blockDeleteAction } from './schedule-block-actions';
 import { newBreakDraftFromCell } from './new-break-draft';
 import { hhmmToMinutes, programmeBlocksForDay } from './programme-block-slots';
-import { PANEL_DEFAULT_WIDTH, clampPanelWidth } from './panel-width';
+import { clampPanelWidth } from './panel-width';
+import { useSchedulePrefs } from './useSchedulePrefs';
 import { BlockGridView, type BgvBreak } from './BlockGridView';
 import { BlockEditPopover, type BlockEditDraft } from './BlockEditPopover';
 import { computeLiceDrift } from './lice-drift';
@@ -230,70 +231,22 @@ export function ScheduleGrid({
   // Default to the readable block view (one block per pool/round); the
   // detailed time-grid is available behind the toggle.
   const [viewMode, setViewMode] = useState<'blocks' | 'grid'>('blocks');
-  // The Unscheduled + Configure side panel is retractable, visible by default.
-  // Init false (hydration-safe), then sync from localStorage in an effect.
-  const [panelCollapsed, setPanelCollapsed] = useState(false);
-  useEffect(() => {
-    // Hydration-safe: SSR + first client render use `false`, then sync from
-    // localStorage. (setState-in-effect is the correct pattern here.)
-    if (typeof window === 'undefined') return;
-    if (window.localStorage.getItem('myclash.schedule.panelCollapsed') === '1') {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      setPanelCollapsed(true);
-    }
-  }, []);
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    window.localStorage.setItem('myclash.schedule.panelCollapsed', panelCollapsed ? '1' : '0');
-  }, [panelCollapsed]);
-  // Sidebar width (drag-to-resize on lg+). Hydration-safe: SSR + first render
-  // use the default, then sync from localStorage.
-  const [panelWidth, setPanelWidth] = useState(PANEL_DEFAULT_WIDTH);
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    const stored = Number(window.localStorage.getItem('myclash.schedule.panelWidth'));
-    if (Number.isFinite(stored) && stored > 0) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      setPanelWidth(clampPanelWidth(stored));
-    }
-  }, []);
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    window.localStorage.setItem('myclash.schedule.panelWidth', String(panelWidth));
-  }, [panelWidth]);
-  // Vertical zoom: rendered slot height in px (slot math stays 5-min). The
-  // default is a touch taller than the base slot so block cards have room for
-  // the tournament / pool / fight-count / time lines; the operator can zoom
-  // down. A stored preference (below) overrides this.
-  const [slotHeightPx, setSlotHeightPx] = useState(zoomToSlotHeight(22));
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    const stored = Number(window.localStorage.getItem('myclash.schedule.zoom'));
-    if (Number.isFinite(stored) && stored > 0) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      setSlotHeightPx(zoomToSlotHeight(stored));
-    }
-  }, []);
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    window.localStorage.setItem('myclash.schedule.zoom', String(slotHeightPx));
-  }, [slotHeightPx]);
+  // The four preferences that survive a reload (panel collapsed/width, zoom,
+  // hall filter). localStorage-backed via useSyncExternalStore — see
+  // ./useSchedulePrefs for why that rather than useState + a sync effect.
+  const {
+    panelCollapsed,
+    setPanelCollapsed,
+    panelWidth,
+    setPanelWidth,
+    slotHeightPx,
+    setSlotHeightPx,
+    venueFilter,
+    setVenueFilter,
+  } = useSchedulePrefs();
   // Tournament legend focus — clicking a chip dims the other tournaments.
   const [focusedTournament, setFocusedTournament] = useState<string | null>(null);
 
-  // Per-hall filter for the block board: 'all' | venueId | 'none'. Hydration-
-  // safe default, then synced from localStorage (mirrors zoom/panelWidth).
-  const [venueFilter, setVenueFilter] = useState<string>('all');
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    const stored = window.localStorage.getItem('myclash.schedule.venueFilter');
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    if (stored) setVenueFilter(stored);
-  }, []);
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    window.localStorage.setItem('myclash.schedule.venueFilter', venueFilter);
-  }, [venueFilter]);
   // Distinct venues across this event's lices → the filter dropdown options.
   const venueFilterOptions = useMemo(() => {
     const byId = new Map<string, string>();
