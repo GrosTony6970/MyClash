@@ -2894,6 +2894,15 @@ export function ScheduleGrid({
                       return (
                         <div
                           key={lice.id}
+                          // The drop target's identity, readable from the DOM.
+                          // These cells are unlabelled siblings of the match
+                          // cards, positioned only by inline grid coordinates,
+                          // so a test had no way to name "the 14:00 cell on
+                          // piste 2" except by reproducing rowFor() — which
+                          // would break the moment the axis geometry moved.
+                          // See tests/drag/schedule-grid.spec.ts.
+                          data-lice-id={lice.id}
+                          data-slot={slot}
                           className={[
                             'border-l border-l-border transition-colors relative',
                             isHover

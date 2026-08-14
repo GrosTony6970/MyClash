@@ -71,6 +71,18 @@ function spawnServer(server) {
   const child = spawn(process.execPath, server.args, {
     stdio: 'inherit',
     env: {
+      // Placeholder Supabase client env. `getSupabaseBrowser()` THROWS when
+      // these are unset, and it is called from the realtime effect the schedule
+      // grid mounts — so without them that page dies in its error boundary
+      // before a single test can look at it, and the suite could only ever
+      // cover surfaces with no realtime. Nothing here connects: the host is
+      // unroutable, the socket fails, and the grid falls back to polling, which
+      // is the state these tests want anyway.
+      //
+      // Real values are a build-time contract in prod (see `quality:client-env`),
+      // so this only fills the gap in the local/CI harness.
+      NEXT_PUBLIC_SUPABASE_URL: 'http://127.0.0.1:9',
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: 'e2e-harness-placeholder-anon-key',
       ...process.env,
       NEXT_TELEMETRY_DISABLED: '1',
     },
