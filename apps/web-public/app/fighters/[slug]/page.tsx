@@ -4,6 +4,8 @@
  */
 
 import type { Metadata } from 'next';
+import { notFound } from 'next/navigation';
+import { classifyFighterResponse, shouldNotFound } from './fighter-outcome';
 import { getServerApiUrl, getPublicApiUrl } from '@/lib/api-url';
 import Link from 'next/link';
 import { createTranslator, getMessages, type Locale } from '@myclash/i18n';
@@ -74,6 +76,12 @@ interface Fighter {
    * person.
    */
   accountDeleted: boolean;
+  /**
+   * Whether search engines may index this profile: listed in the directory AND
+   * opted into indexing AND a claimed fighter. One derived answer from the API,
+   * not the flags behind it.
+   */
+  indexable: boolean;
 }
 
 interface HemaRatingsProfile {
@@ -176,6 +184,7 @@ type RawFighter = Omit<Partial<Fighter>, 'clubs' | 'weapons'> & {
   practicing_since_year?: number | null;
   hema_ratings_id?: string | null;
   accountDeleted?: boolean;
+  indexable?: boolean;
   hemaRatings?: HemaRatingsProfile | null;
   hemaRatingsPending?: boolean;
   clubs?: FighterClubLink[] | { name?: string | null; slug?: string | null } | null;
@@ -216,16 +225,41 @@ function toClubLinks(
   return [];
 }
 
-async function fetchFighter(slug: string, apiUrl: string): Promise<Fighter | null> {
+/**
+ * Why this is four outcomes and not `Fighter | null`.
+ *
+ * The old shape collapsed "no such fighter", "this profile was erased" and "the
+ * API is down" into one null, and the page rendered a not-found body at HTTP
+ * **200** for all three. Two consequences, both bad:
+ *
+ *  - Every dead slug became an indexable page saying nothing. Point a crawler at
+ *    the directory and it learns thousands of them.
+ *  - An API outage turned EVERY profile into that page, at 200, so a crawl
+ *    during an incident would replace real indexed profiles with placeholders.
+ *
+ * So "we could not ask" must never look like "there is nothing here". A 5xx or a
+ * network failure now throws, which Next serves as a 500 — the honest answer, and
+ * one no crawler treats as content.
+ */
+type FighterResult =
+  { kind: 'ok'; fighter: Fighter } | { kind: 'missing' } | { kind: 'gone' } | { kind: 'error' };
+
+async function fetchFighter(slug: string, apiUrl: string): Promise<FighterResult> {
+  let res: Response;
   try {
-    const res = await fetch(`${apiUrl}/api/v1/fighters/${slug}`, {
-      cache: 'no-store',
-    });
-    if (!res.ok) return null;
+    res = await fetch(`${apiUrl}/api/v1/fighters/${slug}`, { cache: 'no-store' });
+  } catch {
+    return { kind: 'error' };
+  }
+
+  const outcome = classifyFighterResponse(res.status);
+  if (outcome !== 'ok') return { kind: outcome };
+
+  try {
     const raw = (await res.json()) as RawFighter;
     const clubName = raw.clubName ?? raw.club_name ?? null;
     const clubSlug = raw.clubSlug ?? raw.club_slug ?? null;
-    return {
+    const fighter: Fighter = {
       id: raw.id ?? '',
       slug: raw.slug ?? slug,
       displayName: raw.displayName ?? raw.display_name ?? '',
@@ -249,9 +283,14 @@ async function fetchFighter(slug: string, apiUrl: string): Promise<Fighter | nul
       medals: raw.medals ?? [],
       recentMatches: raw.recentMatches ?? [],
       accountDeleted: raw.accountDeleted ?? false,
+      // Defaults CLOSED. A profile served by an older API that does not send
+      // the field must not be indexed on the strength of a missing value.
+      indexable: raw.indexable ?? false,
     };
+    return { kind: 'ok', fighter };
   } catch {
-    return null;
+    // A malformed body is a broken API, not a missing fighter.
+    return { kind: 'error' };
   }
 }
 
@@ -304,7 +343,39 @@ function formatDate(date: string | null, locale: Locale): string {
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params;
-  return { title: slug };
+  const locale = await resolveServerLocale();
+  const t = createTranslator(getMessages(locale));
+  const result = await fetchFighter(slug, getServerApiUrl());
+
+  // Titling the page with the raw URL slug ("jean-dupont") was the whole of the
+  // old metadata. A search result, a shared link and a browser tab all read this.
+  if (result.kind !== 'ok') {
+    return { title: t('publicApp.fighterProfile.notFoundTitle'), robots: { index: false } };
+  }
+
+  const { fighter } = result;
+  const club = fighter.clubs[0]?.clubs?.name ?? fighter.clubName;
+  const description = club
+    ? t('publicApp.fighterProfile.metaDescriptionWithClub', { name: fighter.displayName, club })
+    : t('publicApp.fighterProfile.metaDescription', { name: fighter.displayName });
+
+  return {
+    title: fighter.displayName,
+    description,
+    alternates: { canonical: `/fighters/${fighter.slug}` },
+    // ONE flag, from the API's own `isIndexable` — listed AND opted in AND a
+    // claimed fighter. Everyone else, including every referee and instructor,
+    // gets noindex. That is a change from today, where they are crawlable; a
+    // directory of their own is a later slice.
+    robots: { index: fighter.indexable, follow: true },
+    openGraph: {
+      title: fighter.displayName,
+      description,
+      url: `/fighters/${fighter.slug}`,
+      type: 'profile',
+      ...(fighter.photoUrl ? { images: [{ url: fighter.photoUrl }] } : {}),
+    },
+  };
 }
 
 export default async function FighterPage({ params }: Props) {
@@ -312,29 +383,33 @@ export default async function FighterPage({ params }: Props) {
   const apiUrl = getServerApiUrl();
   const locale = await resolveServerLocale();
   const t = createTranslator(getMessages(locale));
-  const [fighter, career, refereeStats] = await Promise.all([
+  const [result, career, refereeStats] = await Promise.all([
     fetchFighter(slug, apiUrl),
     fetchCareer(slug, apiUrl),
     fetchRefereeStats(slug, apiUrl),
   ]);
 
-  if (!fighter) {
-    return (
-      <main className="flex min-h-screen items-center justify-center px-4 text-center">
-        <div>
-          <div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-full border border-border bg-surface text-xl font-black text-muted">
-            ?
-          </div>
-          <h1 className="mb-2 font-display font-bold text-2xl sm:text-3xl text-foreground">
-            {t('publicApp.fighterProfile.notFoundTitle')}
-          </h1>
-          <p className="text-sm text-muted">
-            {t('publicApp.fighterProfile.notFoundDescription', { slug })}
-          </p>
-        </div>
-      </main>
-    );
+  // An outage must not read as "this fighter does not exist". Throwing gives a
+  // 500, which is the truth and which no crawler treats as content; returning a
+  // not-found body at 200 -- what this did before -- taught search engines that
+  // every profile had become an empty page.
+  if (result.kind === 'error') {
+    throw new Error(`Could not load fighter "${slug}"`);
   }
+
+  // 404 for both missing and erased. The API distinguishes them and answers 410
+  // for a retired slug, which is right for its own consumers, but a Next page
+  // cannot emit an arbitrary status -- notFound() is 404 or nothing. 404 still
+  // de-indexes, which is what the 410 was for; what mattered was never rendering
+  // either at 200.
+  if (shouldNotFound(result.kind)) {
+    notFound();
+  }
+  if (result.kind !== 'ok') {
+    throw new Error(`Could not load fighter "${slug}"`);
+  }
+
+  const { fighter } = result;
 
   const live = fighter.recentMatches.filter((match) => match.status === 'running');
   const history = fighter.recentMatches.filter((match) => match.status === 'completed');

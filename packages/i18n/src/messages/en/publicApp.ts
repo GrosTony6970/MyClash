@@ -533,9 +533,10 @@ export const publicApp = {
     },
   },
   fighterProfile: {
+    metaDescription: '{name} — results, clubs and weapons on MyClash.',
+    metaDescriptionWithClub: '{name} of {club} — results, clubs and weapons on MyClash.',
     notFoundTitle: 'Fighter not found',
     insightTitle: 'AI performance insight',
-    notFoundDescription: 'No fighter with slug "{slug}".',
     accountDeletedNote:
       'This fighter has deleted their MyClash account. Their competition results remain as a public record of the events they took part in.',
     hemaRatings: 'HEMA Ratings',

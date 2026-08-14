@@ -536,9 +536,10 @@ export const publicApp = {
     },
   },
   fighterProfile: {
+    metaDescription: '{name} — résultats, clubs et armes sur MyClash.',
+    metaDescriptionWithClub: '{name} du club {club} — résultats, clubs et armes sur MyClash.',
     notFoundTitle: 'Combattant introuvable',
     insightTitle: 'Bilan de performance IA',
-    notFoundDescription: 'Aucun combattant avec le slug "{slug}".',
     accountDeletedNote:
       'Ce combattant a supprimé son compte MyClash. Ses résultats de compétition subsistent comme registre public des événements auxquels il a participé.',
     hemaRatings: 'HEMA Ratings',
