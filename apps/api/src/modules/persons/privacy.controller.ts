@@ -86,6 +86,22 @@ export class PrivacyController {
    * before global linkage existed.
    */
   private async resolvePersonIds(req: FastifyRequest): Promise<string[]> {
+    const userId = await this.authenticate(req);
+    const ids = await this.personIdsForUser(userId);
+
+    if (ids.length === 0) {
+      // Genuinely no profile: person_privacy.person_id is a foreign key to
+      // persons, so a user who has never entered an event has nowhere to store
+      // an answer. That is a data-model limit, not an auth failure, but 401 is
+      // what the surface has always returned and the settings page handles it.
+      throw new UnauthorizedException('No person profile linked to this account');
+    }
+
+    return ids;
+  }
+
+  /** The Supabase user behind the session cookie. Guest sessions have none. */
+  private async authenticate(req: FastifyRequest): Promise<string> {
     const cookies = (req as FastifyRequest & { cookies?: Record<string, string> }).cookies;
     const accessToken = cookies?.['sb-access-token'];
 
@@ -97,8 +113,11 @@ export class PrivacyController {
     if (error || !data.user) {
       throw new UnauthorizedException('Invalid or expired session');
     }
-    const userId = data.user.id;
+    return data.user.id;
+  }
 
+  /** Every `persons` row this user owns, deduped, oldest first. */
+  private async personIdsForUser(userId: string): Promise<string[]> {
     // global_persons.claimed_by_user_id is UNIQUE (0063), so this one IS single.
     const { data: globalPerson, error: globalError } = await this.supabase.service
       .from('global_persons')
@@ -131,16 +150,6 @@ export class PrivacyController {
       throw new InternalServerErrorException('Could not resolve your profile');
     }
 
-    const ids = [...new Set(((persons ?? []) as Array<{ id: string }>).map((p) => p.id))];
-
-    if (ids.length === 0) {
-      // Genuinely no profile: person_privacy.person_id is a foreign key to
-      // persons, so a user who has never entered an event has nowhere to store
-      // an answer. That is a data-model limit, not an auth failure, but 401 is
-      // what the surface has always returned and the settings page handles it.
-      throw new UnauthorizedException('No person profile linked to this account');
-    }
-
-    return ids;
+    return [...new Set(((persons ?? []) as Array<{ id: string }>).map((p) => p.id))];
   }
 }
