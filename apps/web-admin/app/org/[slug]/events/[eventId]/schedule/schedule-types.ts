@@ -73,6 +73,28 @@ export type GridUndo =
     };
 
 /**
+ * One contiguous run of same-pool / same-bracket-round fights on a single lice,
+ * drawn as a labelled band with a drag handle.
+ *
+ * Contiguity is the whole point: separating a match — another lice, a time gap,
+ * another fight wedged in — splits the run, so each cluster keeps its own
+ * header, and dragging or clearing one scopes to that cluster alone.
+ */
+export interface HeaderRunGroup {
+  key: string;
+  label: string;
+  tournamentName: string | null;
+  tournamentColor: string | null;
+  startSlot: number;
+  /** Exclusive end slot — the last match's slot plus its span. The band's
+   *  bottom edge sits here so it visually wraps the run. */
+  endSlot: number;
+  liceIndex: number;
+  matchCount: number;
+  matchIds: string[];
+}
+
+/**
  * A pool whose fights are ALL still unscheduled, so the left panel offers it as
  * one draggable block instead of a chip per fight. The moment the operator
  * places one of them by hand the pool loses its block and the rest fall back to

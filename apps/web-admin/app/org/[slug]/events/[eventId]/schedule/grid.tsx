@@ -1,24 +1,19 @@
 'use client';
 
-import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useI18n } from '@myclash/next-i18n/client';
-import {
-  ConfirmDialog,
-  accentClassFor,
-  tintBgClassFor,
-  tintBorderClassFor,
-  tintTextClassFor,
-} from '@myclash/ui';
+import { ConfirmDialog, accentClassFor } from '@myclash/ui';
 import { localeToBcp47 } from '@myclash/time';
-import { blockTint, resolveBlockAccent } from '@myclash/types';
+import { resolveBlockAccent } from '@myclash/types';
 import { placeMultiWithShift } from './place-with-shift';
 import { computeHeaderRuns, type HeaderRunItem } from './compute-header-runs';
 import { POOL_HEADER_SPAN, rowShiftForSlot } from './pool-header-layout';
-import { openMatchScoring } from './open-match-scoring';
 import { UnscheduledPanel } from './UnscheduledPanel';
+import { DetailedGridView } from './DetailedGridView';
 import { draggedMatchIds, type DragPayload } from './drag-payload';
 import type {
   GridUndo,
+  HeaderRunGroup,
   Lice,
   ProgrammeBlockRow,
   ScheduleMatch,
@@ -49,21 +44,14 @@ import { detectScheduleOverlaps } from './detect-overlaps';
 import { detectBarCollisions } from './bar-collisions';
 import { breakEditSteps } from './break-edit-steps';
 import {
-  LICE_HEADER_HEIGHT_PX,
-  MIN_LICE_COL_PX,
   SLOT_HEIGHT_PX,
   SLOT_MINUTES,
-  TIME_LABEL_COL_PX,
-  VENUE_HEADER_HEIGHT_PX,
-  computeVenueGroups,
-  formatSlotTime,
   hhmmToSlot,
   isoToSlot,
   nowSlotForDay,
   slotToHHMM,
   slotToTime,
   snapSlot,
-  venueColor,
   zoomToSlotHeight,
   parseBracketRound,
   formatDayLabel,
@@ -715,72 +703,6 @@ export function ScheduleGrid({
     return () => window.clearTimeout(t);
   }, [lastUndo]);
 
-  function handleDrop(liceId: string, slot: number) {
-    // Land on the 15-min grid (the axis still renders in 5-min slots).
-    slot = snapSlot(slot);
-    const payload = takeDrag();
-    if (!payload) return;
-    switch (payload.kind) {
-      // A programme bar spans every lice column, so any cell on the target
-      // row is a valid landing and the lice is irrelevant.
-      case 'block':
-        void moveBlockTo(payload.id, slot);
-        return;
-      case 'pool':
-        void handlePoolDrop(payload.poolId, liceId, slot);
-        return;
-      case 'bracketRound':
-        void handleGroupDrop(new Set(payload.matchIds), liceId, slot);
-        return;
-      // The Blocks view's own payloads. Only one view is mounted at a time so
-      // neither can reach this handler; they are named rather than swept into
-      // a `default:` so the next kind added has to be routed here on purpose.
-      case 'viewBlock':
-      case 'viewBreak':
-        return;
-      case 'match':
-        break;
-    }
-    const match = payload.match;
-    if (!activeDay) return;
-    const newScheduledAt = slotToTimeTz(slot, activeDay);
-    // Same-cell drop = no-op; don't pollute the undo stack.
-    if (match.liceId === liceId && match.scheduledAt === newScheduledAt) return;
-    pushUndo({
-      matchId: match.id,
-      fromLiceId: match.liceId,
-      fromScheduledAt: match.scheduledAt,
-      toLiceId: liceId,
-      toScheduledAt: newScheduledAt,
-    });
-
-    // Where the dropped match and every neighbour it displaces end up. The
-    // cascade arithmetic is in ./plan-match-drop; only the timezone is ours.
-    const plan = planMatchDrop({
-      matches,
-      dropped: match,
-      targetLiceId: liceId,
-      slot,
-      day: activeDay,
-      gridEndSlot,
-      slotOf: (iso) => isoToSlotTz(iso, activeDay),
-    });
-    const placedById = new Map(
-      plan.map((p) => [p.id, { liceId: p.liceId, scheduledAt: slotToTimeTz(p.slot, activeDay) }]),
-    );
-    setMatches(matches.map((m) => ({ ...m, ...(placedById.get(m.id) ?? {}) })));
-    // The dropped match and every neighbour the shift displaced are ONE
-    // operation to the operator, so they are reported as one: any rejection
-    // re-reads the server instead of leaving half the column moved on screen
-    // and unmoved in the database.
-    void commitAll(
-      plan.map((p) => {
-        const placed = placedById.get(p.id)!;
-        return () => saveMatchPosition(p.id, placed.liceId, placed.scheduledAt);
-      }),
-    );
-  }
-
   /**
    * Group drop: place every match in `groupMatchIds` sequentially on
    * the target lice starting at `slot`, displacing any existing
@@ -881,6 +803,91 @@ export function ScheduleGrid({
   function pushUndo(move: ScheduleMove) {
     setUndoStack((prev) => [...prev, move].slice(-20));
     setRedoStack([]);
+  }
+
+  /**
+   * A drop on one Detailed-view cell.
+   *
+   * MUST stay below `handleGroupDrop`, `handlePoolDrop` and `pushUndo`. It is
+   * passed to `DetailedGridView` as a prop, so the React Compiler has to capture
+   * it into a memoized context — and a forward reference to a hoisted `function`
+   * declaration makes it give up on the WHOLE component:
+   * `Todo: [PruneHoistedContexts] Rewrite hoisted function references`.
+   *
+   * The cost is silent. A bailout is not reported by the recommended rule set,
+   * it just stops every compiler-backed lint rule from analysing this file — the
+   * three `react-hooks/refs` suppressions below turn into "unused directive"
+   * warnings, and a genuine ref write during render stops being flagged at all.
+   * Verified by probing with a deliberate one.
+   *
+   * The reference was harmless while this was only called from an inline arrow
+   * inside the JSX. Moving the cells into their own component is what made it
+   * matter, which is why nothing caught it earlier.
+   */
+  function handleDrop(liceId: string, slot: number) {
+    // Land on the 15-min grid (the axis still renders in 5-min slots).
+    slot = snapSlot(slot);
+    const payload = takeDrag();
+    if (!payload) return;
+    switch (payload.kind) {
+      // A programme bar spans every lice column, so any cell on the target
+      // row is a valid landing and the lice is irrelevant.
+      case 'block':
+        void moveBlockTo(payload.id, slot);
+        return;
+      case 'pool':
+        void handlePoolDrop(payload.poolId, liceId, slot);
+        return;
+      case 'bracketRound':
+        void handleGroupDrop(new Set(payload.matchIds), liceId, slot);
+        return;
+      // The Blocks view's own payloads. Only one view is mounted at a time so
+      // neither can reach this handler; they are named rather than swept into
+      // a `default:` so the next kind added has to be routed here on purpose.
+      case 'viewBlock':
+      case 'viewBreak':
+        return;
+      case 'match':
+        break;
+    }
+    const match = payload.match;
+    if (!activeDay) return;
+    const newScheduledAt = slotToTimeTz(slot, activeDay);
+    // Same-cell drop = no-op; don't pollute the undo stack.
+    if (match.liceId === liceId && match.scheduledAt === newScheduledAt) return;
+    pushUndo({
+      matchId: match.id,
+      fromLiceId: match.liceId,
+      fromScheduledAt: match.scheduledAt,
+      toLiceId: liceId,
+      toScheduledAt: newScheduledAt,
+    });
+
+    // Where the dropped match and every neighbour it displaces end up. The
+    // cascade arithmetic is in ./plan-match-drop; only the timezone is ours.
+    const plan = planMatchDrop({
+      matches,
+      dropped: match,
+      targetLiceId: liceId,
+      slot,
+      day: activeDay,
+      gridEndSlot,
+      slotOf: (iso) => isoToSlotTz(iso, activeDay),
+    });
+    const placedById = new Map(
+      plan.map((p) => [p.id, { liceId: p.liceId, scheduledAt: slotToTimeTz(p.slot, activeDay) }]),
+    );
+    setMatches(matches.map((m) => ({ ...m, ...(placedById.get(m.id) ?? {}) })));
+    // The dropped match and every neighbour the shift displaced are ONE
+    // operation to the operator, so they are reported as one: any rejection
+    // re-reads the server instead of leaving half the column moved on screen
+    // and unmoved in the database.
+    void commitAll(
+      plan.map((p) => {
+        const placed = placedById.get(p.id)!;
+        return () => saveMatchPosition(p.id, placed.liceId, placed.scheduledAt);
+      }),
+    );
   }
 
   async function applyMove(matchId: string, liceId: string | null, scheduledAt: string | null) {
@@ -1549,19 +1556,6 @@ export function ScheduleGrid({
   // another lice, a time gap, or a different match wedged in — splits the
   // run, so each cluster keeps its own header, and the header's drag /
   // clear scopes to just that cluster's matches.
-  type HeaderRunGroup = {
-    key: string;
-    label: string;
-    tournamentName: string | null;
-    tournamentColor: string | null;
-    startSlot: number;
-    /** Exclusive end slot — last match's slot + its span. The band's
-     *  bottom edge sits here so it visually wraps the run. */
-    endSlot: number;
-    liceIndex: number;
-    matchCount: number;
-    matchIds: string[];
-  };
   const headerRunsOnActiveDay = useMemo<HeaderRunGroup[]>(() => {
     if (!activeDay) return [];
     const items: HeaderRunItem[] = [];
@@ -2162,433 +2156,34 @@ export function ScheduleGrid({
               />
             </>
           ) : (
-            <>
-              {/* Same hall filter the Blocks view shows — it used to live inside
-                that view's fragment only, so switching here hid the control
-                while `venueFilter` stayed set. */}
-              <div className="mb-2 flex flex-wrap items-center gap-2">{hallFilterControl}</div>
-              <div
-                className="relative grid w-full"
-                style={{
-                  gridTemplateColumns: `${TIME_LABEL_COL_PX}px repeat(${visibleLices.length}, minmax(${MIN_LICE_COL_PX}px, 1fr))`,
-                  gridAutoRows: `${SLOT_HEIGHT_PX}px`,
-                }}
-              >
-                {/* Row 1: venue header band. Consecutive same-venue lice
-                  columns share one header cell; lices without a venue
-                  show "No venue". The cell is clickable when bound to a
-                  venue — opens the event's Venues tab so the operator
-                  can edit the venue inline. */}
-                <div
-                  className="sticky top-0 z-30 bg-surface border-b border-border"
-                  style={{ gridColumn: 1, gridRow: 1, height: VENUE_HEADER_HEIGHT_PX }}
-                />
-                {computeVenueGroups(visibleLices).map((group, groupIndex) => {
-                  const startCol = group.startIndex + 2;
-                  if (group.venueId) {
-                    const tint = venueColor(group.venueId);
-                    return (
-                      <a
-                        key={`${group.venueId}-${groupIndex}`}
-                        href={`/org/${slug}/venues`}
-                        className="sticky top-0 z-30 border-b border-l border-l-border px-2 flex items-center justify-center text-sm font-semibold truncate hover:brightness-95"
-                        style={{
-                          gridColumn: `${startCol} / span ${group.span}`,
-                          gridRow: 1,
-                          height: VENUE_HEADER_HEIGHT_PX,
-                          ...(tint ?? {}),
-                        }}
-                        title={group.venueName ?? ''}
-                      >
-                        {group.venueName}
-                      </a>
-                    );
-                  }
-                  return (
-                    <div
-                      key={`no-venue-${groupIndex}`}
-                      className="sticky top-0 z-30 bg-border border-b border-border border-l border-l-border px-2 flex items-center justify-center text-sm italic text-muted truncate"
-                      style={{
-                        gridColumn: `${startCol} / span ${group.span}`,
-                        gridRow: 1,
-                        height: VENUE_HEADER_HEIGHT_PX,
-                      }}
-                    >
-                      {t('organizer.schedulePage.blockGrid.noVenue')}
-                    </div>
-                  );
-                })}
-
-                {/* Row 2: lice header — corner cell + lice name cells. Every
-                  cell is explicitly placed so the per-slot Fragment below
-                  can't be cascaded out of position by the absolutely-placed
-                  match cards (see Slice 1 of the schedule overhaul plan).
-                  Sticky `top` matches the venue band's height so this row
-                  parks directly under it on scroll. */}
-                <div
-                  className="sticky bg-surface border-b border-border"
-                  style={{ gridColumn: 1, gridRow: 2, top: VENUE_HEADER_HEIGHT_PX, zIndex: 20 }}
-                />
-                {visibleLices.map((lice, liceIndex) => (
-                  <div
-                    key={lice.id}
-                    className="sticky bg-surface border-b border-border border-l border-l-border px-2 flex items-center justify-center gap-1"
-                    style={{
-                      gridColumn: liceIndex + 2,
-                      gridRow: 2,
-                      top: VENUE_HEADER_HEIGHT_PX,
-                      zIndex: 20,
-                      height: LICE_HEADER_HEIGHT_PX,
-                    }}
-                  >
-                    <span className="text-xs font-bold text-foreground-secondary truncate">
-                      {lice.name}
-                    </span>
-                    {/* The only way to place a lice after the event wizard has
-                      run — PATCH /lices/:id had no caller before this. */}
-                    <button
-                      type="button"
-                      onClick={() => setPlacingLice(lice)}
-                      title={t('organizer.schedulePage.placement.editLabel')}
-                      aria-label={t('organizer.schedulePage.placement.editLabel')}
-                      className="shrink-0 text-xs text-muted hover:text-accent focus:outline-none focus:ring-2 focus:ring-accent rounded"
-                    >
-                      ⌖
-                    </button>
-                  </div>
-                ))}
-
-                {/* Rows 2..gridEndSlot+1: time-label cell + one drop-target cell per lice.
-                  Every cell is explicitly placed via gridColumn/gridRow so that
-                  match cards (which are also explicitly placed below) can't
-                  cascade auto-flow rightward. Dropping a fight at e.g. 09:10 in
-                  lice 2 used to push the 10:00 label out of col 1 — see the
-                  schedule overhaul plan, Slice 1. */}
-                {Array.from({ length: gridEndSlot }, (_, slot) => (
-                  <Fragment key={slot}>
-                    {/* Time label — sticky left, explicit (col 1, row slot+2) */}
-                    <div
-                      className="sticky left-0 z-10 bg-surface text-xs text-muted pr-1 flex items-center justify-end select-none"
-                      style={{
-                        gridColumn: 1,
-                        gridRow: rowFor(slot),
-                        borderTop: slot % 12 === 0 ? '1px solid #d1d5db' : '1px solid transparent',
-                      }}
-                    >
-                      {slot % 12 === 0 ? formatSlotTime(slot, gridStartHour) : ''}
-                    </div>
-
-                    {/* Drop-target cells — one per lice, explicit column index */}
-                    {visibleLices.map((lice, liceIndex) => {
-                      const isHover =
-                        dragOverCell?.liceId === lice.id && dragOverCell?.slot === slot;
-                      return (
-                        <div
-                          key={lice.id}
-                          // The drop target's identity, readable from the DOM.
-                          // These cells are unlabelled siblings of the match
-                          // cards, positioned only by inline grid coordinates,
-                          // so a test had no way to name "the 14:00 cell on
-                          // piste 2" except by reproducing rowFor() — which
-                          // would break the moment the axis geometry moved.
-                          // See tests/drag/schedule-grid.spec.ts.
-                          data-lice-id={lice.id}
-                          data-slot={slot}
-                          className={[
-                            'border-l border-l-border transition-colors relative',
-                            isHover
-                              ? 'bg-blue-100 ring-2 ring-inset ring-blue-400'
-                              : 'bg-background',
-                          ].join(' ')}
-                          style={{
-                            gridColumn: liceIndex + 2,
-                            gridRow: rowFor(slot),
-                            borderTop:
-                              slot % 12 === 0 ? '1px solid #d1d5db' : '1px solid transparent',
-                          }}
-                          onDragOver={(e) => {
-                            e.preventDefault();
-                            if (dragOverCell?.liceId !== lice.id || dragOverCell?.slot !== slot) {
-                              setDragOverCell({ liceId: lice.id, slot });
-                            }
-                          }}
-                          onDragLeave={() => {
-                            if (dragOverCell?.liceId === lice.id && dragOverCell?.slot === slot) {
-                              setDragOverCell(null);
-                            }
-                          }}
-                          onDrop={() => {
-                            setDragOverCell(null);
-                            handleDrop(lice.id, slot);
-                          }}
-                        >
-                          {isHover && (
-                            <span className="pointer-events-none absolute left-1 top-1 z-20 rounded bg-blue-600 px-1.5 py-0.5 text-[10px] font-bold leading-none text-white shadow">
-                              {formatSlotTime(slot, gridStartHour)} · {lice.name}
-                            </span>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </Fragment>
-                ))}
-
-                {/* Scheduled match cards on the active day — positioned by grid cell. */}
-                {scheduledOnActiveDay.map((m) => {
-                  // visibleLices, not lices: the column index must agree with the
-                  // header and drop-target loops above, or a hall filter would place
-                  // cards in the wrong column instead of hiding them.
-                  const liceIndex = visibleLices.findIndex((l) => l.id === m.liceId);
-                  if (liceIndex === -1) return null;
-                  const slot = isoToSlotTz(m.scheduledAt!, activeDay);
-                  const span = matchSlotSpan(m.durationMinutes);
-                  const hasConflict = conflicts.some(
-                    (c) => c.matchA === m.matchNumberLabel || c.matchB === m.matchNumberLabel,
-                  );
-                  // Card tints by the parent tournament's color so the
-                  // grid reads as a horizontal flow of tournaments. The
-                  // existing round code text (LSW-P1-…, LSW-B-QF-…)
-                  // signals pool-vs-bracket; conflicts override with
-                  // red-200 so they stay the dominant signal.
-                  return (
-                    // eslint-disable-next-line jsx-a11y/click-events-have-key-events -- draggable match card; onClick is a modifier-gated (ctrl/meta) shortcut, not the primary affordance
-                    <div
-                      key={m.id}
-                      draggable
-                      onDragStart={() => beginDrag({ kind: 'match', match: m })}
-                      onDragEnd={endDrag}
-                      onClick={(e) => {
-                        if (!(e.ctrlKey || e.metaKey)) return;
-                        e.preventDefault();
-                        openMatchScoring(slug, eventId, m.id);
-                      }}
-                      className={[
-                        'rounded text-xs font-medium px-1 flex items-center cursor-grab active:cursor-grabbing overflow-hidden z-10 border',
-                        hasConflict
-                          ? 'bg-danger/10 border-danger/30 text-danger'
-                          : `${tintBgClassFor(m.tournamentColor)} ${tintBorderClassFor(m.tournamentColor)} ${tintTextClassFor(m.tournamentColor)}`,
-                        saving === m.id ? 'opacity-50' : '',
-                      ].join(' ')}
-                      style={{
-                        gridColumn: liceIndex + 2, // +1 for time-label col, +1 for 1-based
-                        gridRow: `${rowFor(slot)} / span ${span}`, // base slot+3 (venue+lice+1-based) plus reserved pool-header rows
-                        margin: '1px',
-                      }}
-                      title={`${m.roundCode || m.matchNumberLabel} · ${t('organizer.schedulePage.grid.ctrlClickHint')}${m.tournamentName ? ` · ${m.tournamentName}` : ''}${m.poolName ? ` · ${m.poolName}` : ''}: ${t('organizer.schedulePage.grid.versus', { a: m.redFighterName ?? '?', b: m.blueFighterName ?? '?' })}`}
-                    >
-                      <span className="truncate">{m.roundCode || m.matchNumberLabel}</span>
-                    </div>
-                  );
-                })}
-
-                {/* Run headers: one tinted band + bold strip per contiguous
-                  same-pool / same-bracket-round run on a lice ("Pool 1",
-                  "Semi-finals", …). Separating a match splits the run, so
-                  each cluster keeps its own header. The band uses dashed
-                  colored borders to read as a container; matches inside
-                  keep their own solid styling and stay above the band via
-                  z-index so the operator can still drag individual cards
-                  out of the run. */}
-                {headerRunsOnActiveDay.map((group) => {
-                  // The header occupies its own reserved rows ABOVE the run's
-                  // first match (matchRowStart already includes this run's
-                  // shift). The band wraps header + matches.
-                  const matchRowStart = rowFor(group.startSlot);
-                  const headerRowStart = matchRowStart - POOL_HEADER_SPAN;
-                  const bandRowEnd = rowFor(group.endSlot);
-                  return (
-                    <Fragment key={group.key}>
-                      {/* Translucent band — purely decorative, pointer-events
-                        none so individual match drags inside the band still
-                        work. */}
-                      <div
-                        aria-hidden="true"
-                        className={[
-                          'pointer-events-none rounded-md border-2 border-dashed',
-                          tintBgClassFor(group.tournamentColor),
-                          tintBorderClassFor(group.tournamentColor),
-                        ].join(' ')}
-                        style={{
-                          gridColumn: group.liceIndex + 2,
-                          gridRow: `${headerRowStart} / ${bandRowEnd}`,
-                          margin: '1px',
-                          opacity: 0.45,
-                          zIndex: 5,
-                        }}
-                      />
-                      {/* Drag handle: bold header strip the operator drags to
-                        move this run's matches. Reuses the bracketRound
-                        payload (a plain matchIds group) so handleDrop's
-                        existing handleGroupDrop path re-fans the run at the
-                        drop target — works for pools and rounds alike. */}
-                      <div
-                        draggable
-                        role="button"
-                        tabIndex={0}
-                        onDragStart={() =>
-                          beginDrag({
-                            kind: 'bracketRound',
-                            key: group.key,
-                            matchIds: group.matchIds,
-                          })
-                        }
-                        onDragEnd={endDrag}
-                        onClick={() => setPendingRunClear(group)}
-                        onKeyDown={(ev) => {
-                          if (ev.key === 'Enter' || ev.key === ' ') {
-                            ev.preventDefault();
-                            setPendingRunClear(group);
-                          }
-                        }}
-                        title={`${group.label}${group.tournamentName ? ` - ${group.tournamentName}` : ''} ${
-                          group.matchCount === 1
-                            ? t('organizer.schedulePage.grid.runHeaderHintSingular', {
-                                count: group.matchCount,
-                              })
-                            : t('organizer.schedulePage.grid.runHeaderHintPlural', {
-                                count: group.matchCount,
-                              })
-                        }`}
-                        className={[
-                          'flex items-center justify-between gap-1 rounded-t-md border border-b-0 px-3 py-2 text-sm font-bold shadow-sm cursor-grab active:cursor-grabbing hover:shadow-md transition-shadow',
-                          accentClassFor(group.tournamentColor),
-                          tintBorderClassFor(group.tournamentColor),
-                          'text-white',
-                        ].join(' ')}
-                        style={{
-                          gridColumn: group.liceIndex + 2,
-                          // Sits in its own reserved rows just above the run's
-                          // first match.
-                          gridRow: `${headerRowStart} / ${matchRowStart}`,
-                          marginLeft: '1px',
-                          marginRight: '1px',
-                          zIndex: 12,
-                          pointerEvents: 'auto',
-                        }}
-                      >
-                        <span className="truncate">
-                          {group.label}
-                          {group.tournamentName ? ` - ${group.tournamentName}` : ''}
-                        </span>
-                        <span className="text-xs opacity-90">· {group.matchCount}</span>
-                      </div>
-                    </Fragment>
-                  );
-                })}
-
-                {/* Slice 7 + schedule overhaul slice 5: non-fight programme
-                  blocks rendered as full-width bars across every lice
-                  column. Now draggable — operator drops the bar on any
-                  cell in the target row and the backend cascade-shifts
-                  every later match on that day by the same Δ. Striped
-                  chrome distinguishes them from fight cards.
-                  The bottom-edge resize handle (4px) lets the operator
-                  grow / shrink the block in 5-min increments — PATCHes
-                  the resize endpoint on pointerup. */}
-                {blocksOnActiveDay.map((b) => {
-                  const optimisticSpan =
-                    resizingBlock?.id === b.id ? resizingBlock.previewSpan : b.span;
-                  return (
-                    <div
-                      key={b.id}
-                      draggable
-                      onDragStart={() =>
-                        beginDrag({ kind: 'block', id: b.id, startTime: b.startTime })
-                      }
-                      onDragEnd={endDrag}
-                      aria-label={b.label}
-                      title={t('organizer.schedulePage.grid.blockBarTitle', {
-                        start: b.startTime,
-                        end: b.endTime,
-                        label: b.label,
-                      })}
-                      className={[
-                        'relative pointer-events-auto flex items-center justify-center overflow-hidden border-y text-[11px] font-semibold uppercase tracking-wide text-foreground-secondary cursor-grab active:cursor-grabbing',
-                        movingBlockId === b.id || deletingBlockId === b.id ? 'opacity-50' : '',
-                      ].join(' ')}
-                      style={{
-                        gridColumn: '2 / -1',
-                        // Explicit end row (not span) so any reserved pool-header
-                        // rows inside the block's range are accounted for.
-                        gridRow: `${rowFor(b.startSlot)} / ${rowFor(b.startSlot + optimisticSpan)}`,
-                        zIndex: 8,
-                        // Same tint as the Blocks view. This used to hardcode
-                        // slate/purple by kind, so the colour an operator picked
-                        // in the edit popover rendered on one view and vanished
-                        // on the other. `resolveBlockAccent` also supplies the
-                        // per-kind default, which is what the picker rings.
-                        ...blockTint(resolveBlockAccent(b.blockType, b.colorHex ?? null)),
-                      }}
-                    >
-                      <span className="truncate px-2">
-                        {b.label} ({b.startTime} – {b.endTime})
-                      </span>
-                      <button
-                        type="button"
-                        draggable={false}
-                        onMouseDown={(e) => e.stopPropagation()}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setPendingBlockDelete(b);
-                        }}
-                        aria-label={t('organizer.schedulePage.blockGrid.deleteAria', {
-                          label: b.label,
-                        })}
-                        title={t('organizer.schedulePage.blockGrid.deleteAria', { label: b.label })}
-                        className="absolute right-1 top-1/2 -translate-y-1/2 z-30 rounded p-0.5 text-muted hover:bg-surface hover:text-foreground transition-colors"
-                      >
-                        <svg
-                          width="14"
-                          height="14"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="2.5"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          aria-hidden="true"
-                        >
-                          <path d="M18 6 6 18" />
-                          <path d="m6 6 12 12" />
-                        </svg>
-                      </button>
-                      {/* Bottom-edge resize handle. pointerdown captures the
-                      pointer; pointermove updates the previewSpan in
-                      5-min increments; pointerup commits via PATCH
-                      resize. The `draggable={false}` + stopPropagation
-                      keeps the parent's HTML5 drag handler dormant
-                      while the operator is resizing. */}
-                      <div
-                        role="separator"
-                        aria-label={t('organizer.schedulePage.blockGrid.resizeAria', {
-                          label: b.label,
-                        })}
-                        draggable={false}
-                        onPointerDown={(ev) => beginBlockResize(ev, b)}
-                        className="absolute inset-x-0 bottom-0 z-30 h-1 cursor-row-resize bg-transparent hover:bg-muted/40"
-                      />
-                    </div>
-                  );
-                })}
-
-                {/* Slice 4: "now" marker — horizontal red line across every
-                  lice column at the current time slot. Only rendered when
-                  the active day is today (see nowSlot above). */}
-                {nowSlot !== null && (
-                  <div
-                    aria-hidden="true"
-                    className="pointer-events-none flex items-center"
-                    style={{
-                      gridColumn: '1 / -1',
-                      gridRow: rowFor(nowSlot),
-                      zIndex: 15,
-                    }}
-                  >
-                    <div className="h-[2px] w-full bg-red-600 shadow-[0_0_4px_rgba(220,38,38,0.6)]" />
-                  </div>
-                )}
-              </div>
-            </>
+            <DetailedGridView
+              visibleLices={visibleLices}
+              hallFilterControl={hallFilterControl}
+              gridEndSlot={gridEndSlot}
+              gridStartHour={gridStartHour}
+              rowFor={rowFor}
+              slotOf={(iso) => isoToSlotTz(iso, activeDay)}
+              matches={scheduledOnActiveDay}
+              conflictMatchIds={conflictMatchIds}
+              savingMatchId={saving}
+              slug={slug}
+              eventId={eventId}
+              runGroups={headerRunsOnActiveDay}
+              onClearRun={setPendingRunClear}
+              bars={blocksOnActiveDay}
+              resizingBlock={resizingBlock}
+              movingBlockId={movingBlockId}
+              deletingBlockId={deletingBlockId}
+              onDeleteBar={setPendingBlockDelete}
+              onBeginBarResize={beginBlockResize}
+              dragOverCell={dragOverCell}
+              onDragOverCell={setDragOverCell}
+              onDropOnCell={handleDrop}
+              onDragStart={beginDrag}
+              onDragEnd={endDrag}
+              onPlaceLice={setPlacingLice}
+              nowSlot={nowSlot}
+            />
           )}
         </div>
       </div>
