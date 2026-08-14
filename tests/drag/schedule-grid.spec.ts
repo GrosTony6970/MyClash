@@ -184,6 +184,55 @@ async function dragCardToCell(
   );
 }
 
+/**
+ * Two drags started back to back with NO `dragend` between them, then a drop.
+ *
+ * That is the state a lost `dragend` leaves, and it is reachable in this app
+ * without the operator doing anything odd: React owns the listener, so if the
+ * dragged node unmounts mid-gesture — a realtime refetch landing, the now-marker
+ * tick re-rendering the bars — the `dragend` goes with it and never fires.
+ *
+ * The board then holds a payload nobody cleared, and the NEXT drop acts on
+ * whichever payload the drop handler happens to check first rather than on the
+ * thing the operator is holding.
+ */
+async function dragAfterAbandonedDrag(
+  page: Page,
+  abandonedText: string,
+  roundCode: string,
+  liceId: string,
+  slot: number,
+): Promise<void> {
+  await page.evaluate(
+    ([abandoned, code, lice, slotIndex]) => {
+      const dst = document.querySelector(`[data-lice-id="${lice}"][data-slot="${slotIndex}"]`);
+      if (!dst) throw new Error(`no drop cell for lice ${String(lice)} slot ${String(slotIndex)}`);
+      // Scoped to the grid, not the document. The Configure planner in the left
+      // panel renders its own draggable row per programme block — same labels,
+      // an entirely different drag system — and an unscoped search finds that
+      // one first, abandoning a drag the board never saw.
+      const grid = dst.parentElement;
+      if (!grid) throw new Error('drop cell has no grid parent');
+      const draggables = [...grid.querySelectorAll('[draggable="true"]')];
+      const first = draggables.find((e) => (e.textContent ?? '').includes(abandoned as string));
+      const src = draggables.find((e) => (e.textContent ?? '').includes(code as string));
+      if (!first) throw new Error(`no draggable on the grid matching ${String(abandoned)}`);
+      if (!src) throw new Error(`no draggable card matching ${String(code)}`);
+      const dataTransfer = new DataTransfer();
+      const fire = (el: Element, type: string) =>
+        el.dispatchEvent(new DragEvent(type, { bubbles: true, cancelable: true, dataTransfer }));
+      fire(first, 'dragstart');
+      // Deliberately no `dragend` on `first`.
+      fire(src, 'dragstart');
+      fire(dst, 'dragenter');
+      fire(dst, 'dragover');
+      fire(dst, 'drop');
+      fire(src, 'dragend');
+    },
+    [abandonedText, roundCode, liceId, String(slot)],
+  );
+}
+
 test.describe('schedule grid drag layer', () => {
   // The grid is a desktop workspace. At the default 1280x720 the match cards
   // land below the fold, where `document.elementFromPoint` answers null and a
@@ -277,5 +326,31 @@ test.describe('schedule grid drag layer', () => {
     const dragged = writes.find((w) => w.matchId === MATCH_1)!;
     const displaced = writes.find((w) => w.matchId === MATCH_2)!;
     expect(String(displaced.body['scheduledAt']) > String(dragged.body['scheduledAt'])).toBe(true);
+  });
+
+  /**
+   * A drop acts on what the operator is HOLDING, never on something they let go
+   * of earlier.
+   *
+   * The board used to track the dragged thing in six separate refs, each
+   * drag-start site nulling whichever others it remembered. The Detailed view's
+   * match card nulled none of them, and the drop handler tested the programme-bar
+   * ref first — so abandoning a bar drag and then dragging a fight moved the BAR,
+   * cascading every later match on the day, while the fight stayed put.
+   *
+   * Delete the payload union and this reds: zero schedule writes, one block move.
+   */
+  test('a drop ignores a payload left behind by an abandoned drag', async ({ page }) => {
+    const api = await openDetailedGrid(page);
+
+    const empty = (await slotOfCard(page, 'LSW-P1-M2', LICE_B)) + 24;
+    await dragAfterAbandonedDrag(page, 'Lunch', 'LSW-P1-M1', LICE_B, empty);
+
+    await expect.poll(() => api.scheduleWrites().length).toBe(1);
+    expect(api.scheduleWrites()[0]!.matchId).toBe(MATCH_1);
+    // And the abandoned bar did not move — that write is the failure mode, so
+    // its absence is the assertion, not a side note.
+    const blockMoves = api.writes.filter((r) => new URL(r.url()).pathname.endsWith('/move'));
+    expect(blockMoves).toHaveLength(0);
   });
 });

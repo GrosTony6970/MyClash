@@ -10,6 +10,9 @@ interface Props {
   eventId: string;
   saving: boolean;
   onDragStart: () => void;
+  /** Required, not optional: a chip that starts a drag and never ends it leaves
+   *  a payload standing for the next drop to act on. See ./drag-payload. */
+  onDragEnd: () => void;
 }
 
 /**
@@ -20,7 +23,7 @@ interface Props {
  * placed cards on the Detailed view are a different component; this one is only
  * ever rendered in the Unscheduled list.
  */
-export function MatchChip({ match, slug, eventId, saving, onDragStart }: Props) {
+export function MatchChip({ match, slug, eventId, saving, onDragStart, onDragEnd }: Props) {
   const { t } = useI18n();
   // Swiss is neither pool nor bracket: it gets its own badge so an organiser
   // can tell a Swiss round from an elimination round at a glance on the grid.
@@ -32,6 +35,7 @@ export function MatchChip({ match, slug, eventId, saving, onDragStart }: Props) 
     <div
       draggable
       onDragStart={onDragStart}
+      onDragEnd={onDragEnd}
       onClick={(e) => {
         if (!(e.ctrlKey || e.metaKey)) return;
         e.preventDefault();

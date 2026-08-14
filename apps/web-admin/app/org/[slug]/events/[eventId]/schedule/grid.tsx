@@ -16,6 +16,7 @@ import { computeHeaderRuns, type HeaderRunItem } from './compute-header-runs';
 import { POOL_HEADER_SPAN, rowShiftForSlot } from './pool-header-layout';
 import { openMatchScoring } from './open-match-scoring';
 import { MatchChip } from './MatchChip';
+import { draggedMatchIds, type DragPayload } from './drag-payload';
 import type { GridUndo, Lice, ProgrammeBlockRow, ScheduleMatch } from './schedule-types';
 import { blockDeleteAction } from './schedule-block-actions';
 import { newBreakDraftFromCell } from './new-break-draft';
@@ -419,29 +420,27 @@ export function ScheduleGrid({
     });
   }
   const [dragOverLiceId, setDragOverLiceId] = useState<string | null>(null);
-  // Match ids of the block being dragged in the block view.
-  const dragViewBlock = useRef<{ matchIds: string[] } | null>(null);
-  // Programme bar (registration / break / referee) being dragged in the block
-  // view — re-times the block (and cascades later blocks) via moveBlockTo.
-  const dragViewBreak = useRef<{ id: string; startTime: string } | null>(null);
-
-  const dragMatch = useRef<ScheduleMatch | null>(null);
-  // Slice 4 of the polish pass: dropping a whole pool onto a cell.
-  // Carries the pool id + the count so we can fan-out via the
-  // /pools/:poolId/schedule/auto-distribute endpoint when the drop
-  // lands. Mutually exclusive with `dragMatch` — onDragStart on one
-  // path clears the other.
-  const dragPool = useRef<{ poolId: string; matchIds: string[] } | null>(null);
-  // Schedule overhaul slice 5: dragging a fixed programme block
-  // (registration / break / referee meeting) on the grid moves the
-  // block AND cascade-shifts every later match on the same day.
-  // Mutually exclusive with dragMatch / dragPool.
-  const dragBlock = useRef<{ id: string; startTime: string } | null>(null);
-  // Dropping a whole bracket round (Play-ins / Round of 16 / …) onto a
-  // cell, the bracket analogue of dragPool. Carries the round's match
-  // ids so the drop fans them out via handleGroupDrop. Mutually
-  // exclusive with dragMatch / dragPool / dragBlock.
-  const dragBracketRound = useRef<{ key: string; matchIds: string[] } | null>(null);
+  /**
+   * The one thing being dragged. See ./drag-payload for why there is one slot
+   * and not six.
+   *
+   * Held in a ref rather than state on purpose: a drag payload is read by drop
+   * handlers, never rendered, and re-rendering the whole board on dragstart
+   * would cost a frame in the middle of a gesture.
+   */
+  const drag = useRef<DragPayload | null>(null);
+  const beginDrag = useCallback((payload: DragPayload) => {
+    drag.current = payload;
+  }, []);
+  const endDrag = useCallback(() => {
+    drag.current = null;
+  }, []);
+  /** Read and consume — a payload is spent by the drop that acts on it. */
+  const takeDrag = useCallback((): DragPayload | null => {
+    const payload = drag.current;
+    drag.current = null;
+    return payload;
+  }, []);
   // Highlighted drop target while the operator drags. Drives the
   // blue ring on the hovered cell plus a HH:MM · lice-name pill so
   // the operator can aim the drop instead of guessing. Cleared on
@@ -712,38 +711,34 @@ export function ScheduleGrid({
   function handleDrop(liceId: string, slot: number) {
     // Land on the 15-min grid (the axis still renders in 5-min slots).
     slot = snapSlot(slot);
-    // Programme-block drop: the operator dragged a fixed bar. Block
-    // drop takes precedence — the bar spans every lice column so any
-    // cell at the target row is a valid landing.
-    if (dragBlock.current) {
-      const payload = dragBlock.current;
-      dragBlock.current = null;
-      void moveBlockTo(payload.id, slot);
-      return;
+    const payload = takeDrag();
+    if (!payload) return;
+    switch (payload.kind) {
+      // A programme bar spans every lice column, so any cell on the target
+      // row is a valid landing and the lice is irrelevant.
+      case 'block':
+        void moveBlockTo(payload.id, slot);
+        return;
+      case 'pool':
+        void handlePoolDrop(payload.poolId, liceId, slot);
+        return;
+      case 'bracketRound':
+        void handleGroupDrop(new Set(payload.matchIds), liceId, slot);
+        return;
+      // The Blocks view's own payloads. Only one view is mounted at a time so
+      // neither can reach this handler; they are named rather than swept into
+      // a `default:` so the next kind added has to be routed here on purpose.
+      case 'viewBlock':
+      case 'viewBreak':
+        return;
+      case 'match':
+        break;
     }
-    // Pool-block drop takes precedence over the per-match path — same
-    // cell, different payload.
-    if (dragPool.current) {
-      const payload = dragPool.current;
-      dragPool.current = null;
-      void handlePoolDrop(payload.poolId, liceId, slot);
-      return;
-    }
-    // Bracket-round-block drop — same precedence as a pool block.
-    if (dragBracketRound.current) {
-      const payload = dragBracketRound.current;
-      dragBracketRound.current = null;
-      void handleGroupDrop(new Set(payload.matchIds), liceId, slot);
-      return;
-    }
-    const match = dragMatch.current;
-    if (!match || !activeDay) return;
+    const match = payload.match;
+    if (!activeDay) return;
     const newScheduledAt = slotToTimeTz(slot, activeDay);
     // Same-cell drop = no-op; don't pollute the undo stack.
-    if (match.liceId === liceId && match.scheduledAt === newScheduledAt) {
-      dragMatch.current = null;
-      return;
-    }
+    if (match.liceId === liceId && match.scheduledAt === newScheduledAt) return;
     pushUndo({
       matchId: match.id,
       fromLiceId: match.liceId,
@@ -777,7 +772,6 @@ export function ScheduleGrid({
         return () => saveMatchPosition(p.id, placed.liceId, placed.scheduledAt);
       }),
     );
-    dragMatch.current = null;
   }
 
   /**
@@ -1100,25 +1094,15 @@ export function ScheduleGrid({
   // view: place its matches sequentially (5-min apart) after that lice's last
   // scheduled match (or 09:00 if empty). Persists each via the schedule PATCH.
   function handleBlockViewDrop(liceId: string, slot: number) {
+    const payload = takeDrag();
+    setDragOverLiceId(null);
     // A programme bar drag re-times the block (and cascades later blocks) —
     // the lice is irrelevant since these bars are full-width.
-    if (dragViewBreak.current) {
-      const { id } = dragViewBreak.current;
-      dragViewBreak.current = null;
-      setDragOverLiceId(null);
-      void moveBlockTo(id, snapSlot(slot));
+    if (payload?.kind === 'viewBreak') {
+      void moveBlockTo(payload.id, snapSlot(slot));
       return;
     }
-    const ids =
-      dragViewBlock.current?.matchIds ??
-      dragPool.current?.matchIds ??
-      dragBracketRound.current?.matchIds ??
-      (dragMatch.current ? [dragMatch.current.id] : []);
-    dragViewBlock.current = null;
-    dragPool.current = null;
-    dragBracketRound.current = null;
-    dragMatch.current = null;
-    setDragOverLiceId(null);
+    const ids = draggedMatchIds(payload);
     if (ids.length === 0 || !activeDay) return;
 
     // Drop at the grid slot the operator released over (snapped to 15 min),
@@ -2075,22 +2059,12 @@ export function ScheduleGrid({
                 className="flex flex-col gap-1.5 min-h-[100px] border-2 border-dashed border-border rounded-xl p-2 max-h-[60vh] overflow-y-auto"
                 onDragOver={(e) => e.preventDefault()}
                 onDrop={() => {
-                  // Dropping a pool / bracket-round block back onto the
-                  // sidebar = no-op.
-                  if (dragPool.current) {
-                    dragPool.current = null;
-                    return;
-                  }
-                  if (dragBracketRound.current) {
-                    dragBracketRound.current = null;
-                    return;
-                  }
-                  const match = dragMatch.current;
-                  if (!match) return;
-                  if (match.liceId === null && match.scheduledAt === null) {
-                    dragMatch.current = null;
-                    return;
-                  }
+                  const payload = takeDrag();
+                  // Only a single fight comes back off the board this way.
+                  // Dropping a pool / bracket-round / bar here is a no-op.
+                  if (payload?.kind !== 'match') return;
+                  const match = payload.match;
+                  if (match.liceId === null && match.scheduledAt === null) return;
                   pushUndo({
                     matchId: match.id,
                     fromLiceId: match.liceId,
@@ -2103,7 +2077,6 @@ export function ScheduleGrid({
                   );
                   setMatches(updated);
                   void commit(() => saveMatchPosition(match.id, '', ''));
-                  dragMatch.current = null;
                 }}
               >
                 {unscheduled.length === 0 ? (
@@ -2123,14 +2096,14 @@ export function ScheduleGrid({
                         <div
                           key={pool.poolId}
                           draggable
-                          onDragStart={() => {
-                            dragPool.current = { poolId: pool.poolId, matchIds: pool.matchIds };
-                            dragMatch.current = null;
-                            dragBracketRound.current = null;
-                          }}
-                          onDragEnd={() => {
-                            dragPool.current = null;
-                          }}
+                          onDragStart={() =>
+                            beginDrag({
+                              kind: 'pool',
+                              poolId: pool.poolId,
+                              matchIds: pool.matchIds,
+                            })
+                          }
+                          onDragEnd={endDrag}
                           className="cursor-grab rounded-md border-2 border-dashed border-border bg-border px-2 py-1.5 text-xs hover:border-muted hover:bg-background"
                           title={t('organizer.schedulePage.grid.groupChipTitle', {
                             count: pool.matchIds.length,
@@ -2173,14 +2146,14 @@ export function ScheduleGrid({
                         <div
                           key={round.key}
                           draggable
-                          onDragStart={() => {
-                            dragBracketRound.current = { key: round.key, matchIds: round.matchIds };
-                            dragMatch.current = null;
-                            dragPool.current = null;
-                          }}
-                          onDragEnd={() => {
-                            dragBracketRound.current = null;
-                          }}
+                          onDragStart={() =>
+                            beginDrag({
+                              kind: 'bracketRound',
+                              key: round.key,
+                              matchIds: round.matchIds,
+                            })
+                          }
+                          onDragEnd={endDrag}
                           className="cursor-grab rounded-md border-2 border-dashed border-amber-400 bg-amber-50 px-2 py-1.5 text-xs hover:border-amber-500 hover:bg-amber-100"
                           title={t('organizer.schedulePage.grid.groupChipTitle', {
                             count: round.matchIds.length,
@@ -2222,11 +2195,8 @@ export function ScheduleGrid({
                           slug={slug}
                           eventId={eventId}
                           saving={saving === m.id}
-                          onDragStart={() => {
-                            dragMatch.current = m;
-                            dragPool.current = null;
-                            dragBracketRound.current = null;
-                          }}
+                          onDragStart={() => beginDrag({ kind: 'match', match: m })}
+                          onDragEnd={endDrag}
                         />
                       ))}
                   </>
@@ -2336,25 +2306,14 @@ export function ScheduleGrid({
                 onResizeBlockStart={retimeBlockStart}
                 onResizeBreakStart={(brk, newStart) => void resizeBreakStartTo(brk, newStart)}
                 onResizeBlockLices={changeBlockLices}
-                onBlockDragStart={(block) => {
-                  dragViewBlock.current = { matchIds: block.matches.map((m) => m.id) };
-                  dragMatch.current = null;
-                  dragPool.current = null;
-                  dragBracketRound.current = null;
-                }}
-                onBlockDragEnd={() => {
-                  dragViewBlock.current = null;
-                }}
-                onBreakDragStart={(brk) => {
-                  dragViewBreak.current = { id: brk.id, startTime: brk.startTime };
-                  dragViewBlock.current = null;
-                  dragMatch.current = null;
-                  dragPool.current = null;
-                  dragBracketRound.current = null;
-                }}
-                onBreakDragEnd={() => {
-                  dragViewBreak.current = null;
-                }}
+                onBlockDragStart={(block) =>
+                  beginDrag({ kind: 'viewBlock', matchIds: block.matches.map((m) => m.id) })
+                }
+                onBlockDragEnd={endDrag}
+                onBreakDragStart={(brk) =>
+                  beginDrag({ kind: 'viewBreak', id: brk.id, startTime: brk.startTime })
+                }
+                onBreakDragEnd={endDrag}
                 onDropOnLice={handleBlockViewDrop}
                 onCreateAtCell={(slot) =>
                   setCreatingBreak(
@@ -2559,9 +2518,8 @@ export function ScheduleGrid({
                     <div
                       key={m.id}
                       draggable
-                      onDragStart={() => {
-                        dragMatch.current = m;
-                      }}
+                      onDragStart={() => beginDrag({ kind: 'match', match: m })}
+                      onDragEnd={endDrag}
                       onClick={(e) => {
                         if (!(e.ctrlKey || e.metaKey)) return;
                         e.preventDefault();
@@ -2622,7 +2580,7 @@ export function ScheduleGrid({
                         }}
                       />
                       {/* Drag handle: bold header strip the operator drags to
-                        move this run's matches. Reuses the dragBracketRound
+                        move this run's matches. Reuses the bracketRound
                         payload (a plain matchIds group) so handleDrop's
                         existing handleGroupDrop path re-fans the run at the
                         drop target — works for pools and rounds alike. */}
@@ -2630,18 +2588,14 @@ export function ScheduleGrid({
                         draggable
                         role="button"
                         tabIndex={0}
-                        onDragStart={() => {
-                          dragBracketRound.current = {
+                        onDragStart={() =>
+                          beginDrag({
+                            kind: 'bracketRound',
                             key: group.key,
                             matchIds: group.matchIds,
-                          };
-                          dragMatch.current = null;
-                          dragPool.current = null;
-                          dragBlock.current = null;
-                        }}
-                        onDragEnd={() => {
-                          dragBracketRound.current = null;
-                        }}
+                          })
+                        }
+                        onDragEnd={endDrag}
                         onClick={() => setPendingRunClear(group)}
                         onKeyDown={(ev) => {
                           if (ev.key === 'Enter' || ev.key === ' ') {
@@ -2701,14 +2655,10 @@ export function ScheduleGrid({
                     <div
                       key={b.id}
                       draggable
-                      onDragStart={() => {
-                        dragBlock.current = { id: b.id, startTime: b.startTime };
-                        dragMatch.current = null;
-                        dragPool.current = null;
-                      }}
-                      onDragEnd={() => {
-                        dragBlock.current = null;
-                      }}
+                      onDragStart={() =>
+                        beginDrag({ kind: 'block', id: b.id, startTime: b.startTime })
+                      }
+                      onDragEnd={endDrag}
                       aria-label={b.label}
                       title={t('organizer.schedulePage.grid.blockBarTitle', {
                         start: b.startTime,
