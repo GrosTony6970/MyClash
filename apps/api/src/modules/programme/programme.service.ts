@@ -1068,10 +1068,17 @@ export class ProgrammeService {
           if (matchMinOfDay < oldStartMin) continue;
 
           const shifted = new Date(matchDate.getTime() + deltaMin * 60_000);
-          await this.supabase.service
+          // The counter this endpoint returns is what the operator is told
+          // moved. Incrementing it without reading `error` meant a refused
+          // update still reported as a shift, so a partly-cascaded day looked
+          // like a complete one.
+          const { error: shiftErr } = await this.supabase.service
             .from('matches')
             .update({ scheduled_at: shifted.toISOString() })
             .eq('id', m.id);
+          if (shiftErr) {
+            throw new BadRequestException(`Failed to shift match ${m.id}: ${shiftErr.message}`);
+          }
           shiftedMatches++;
         }
       }

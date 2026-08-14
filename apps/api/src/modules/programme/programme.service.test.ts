@@ -1107,6 +1107,8 @@ describe('ProgrammeService', () => {
       tournamentIds?: string[];
       phaseIds?: string[];
       matches?: Array<{ id: string; scheduled_at: string | null }>;
+      /** Make every per-match shift UPDATE fail, to test the count's honesty. */
+      updateError?: { message: string };
     }) {
       const tournamentIds = opts.tournamentIds ?? ['tournament-1'];
       const phaseIds = opts.phaseIds ?? ['phase-1'];
@@ -1114,7 +1116,7 @@ describe('ProgrammeService', () => {
       const updates: Array<{ id: string; scheduled_at: string }> = [];
 
       const matchesUpdateChain = (() => {
-        const result = { data: null, error: null };
+        const result = { data: null, error: opts.updateError ?? null };
         const promise = Promise.resolve(result);
         const chain = Object.assign(promise, {
           select: vi.fn(),
@@ -1209,6 +1211,41 @@ describe('ProgrammeService', () => {
       expect(updates).toEqual([{ id: 'match-after', scheduled_at: at(2026, 6, 2, 10, 15) }]);
       expect(result.shiftedMatches).toBe(1);
       expect(result.deltaMinutes).toBe(60);
+    });
+
+    /**
+     * `shiftedMatches` is what the operator is told moved. The loop used to
+     * increment it without reading `error`, so a refused UPDATE still counted
+     * — a partly-cascaded day reported as a complete one, and the grid's
+     * refetch then disagreed with the number it had just been given.
+     */
+    it('does not count a match it failed to shift', async () => {
+      buildMoveMocks({
+        block: {
+          id: 'block-1',
+          event_id: 'event-1',
+          day_index: 0,
+          sort_order: 0,
+          block_type: 'admin',
+          label: 'Registration',
+          competition_id: null,
+          competition_phase: null,
+          workshop_id: null,
+          lice_count: 0,
+          start_time: '09:00',
+          end_time: '09:30',
+          match_gap_seconds: 0,
+          match_duration_minutes: 0,
+          generated_at: null,
+        },
+        eventStartDate: '2026-06-02',
+        matches: [{ id: 'match-after', scheduled_at: at(2026, 6, 2, 9, 15) }],
+        updateError: { message: 'deadlock detected' },
+      });
+
+      await expect(
+        service.moveBlock('event-1', 'block-1', { newStartTime: '10:00' }),
+      ).rejects.toThrow(/Failed to shift match match-after: deadlock detected/);
     });
 
     it('shifts later matches backward by Δ when the block moves backward', async () => {

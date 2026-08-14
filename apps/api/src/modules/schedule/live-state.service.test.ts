@@ -95,3 +95,50 @@ describe('LiveStateService — a paused bout still holds its piste', () => {
     expect(state.lices[0]?.nextMatch?.id).toBe('m-later');
   });
 });
+
+/**
+ * This endpoint feeds the venue's hall display and the spectator app. Every
+ * read used to drop `error`, so a refused query became an empty result and the
+ * board confidently rendered every piste as idle — with a 200. An outage it
+ * reports beats an outage it hides.
+ */
+describe('LiveStateService — a refused read is not an empty one', () => {
+  it('does not report every piste idle when the matches read fails', async () => {
+    tables['matches'] = { data: null, error: { message: 'connection reset' } };
+
+    await expect(service().getLiveState(EVENT_ID)).rejects.toThrow(/matches read failed/);
+  });
+
+  it('fails loudly when the lices read fails, rather than answering with no pistes', async () => {
+    tables['lices'] = { data: null, error: { message: 'permission denied' } };
+
+    await expect(service().getLiveState(EVENT_ID)).rejects.toThrow(/lices read failed/);
+  });
+
+  it('fails loudly when the event read fails, rather than resolving the wrong day', async () => {
+    tables['events'] = { data: null, error: { message: 'timeout' } };
+
+    await expect(service().getLiveState(EVENT_ID)).rejects.toThrow(/event read failed/);
+  });
+
+  it('fails loudly when the programme-block read fails', async () => {
+    tables['event_programme_blocks'] = { data: null, error: { message: 'timeout' } };
+
+    await expect(service().getLiveState(EVENT_ID)).rejects.toThrow(/programme blocks read failed/);
+  });
+
+  // `maybeSingle` raises PGRST116 when a slug matches more than one row, which
+  // `events` allows: the UNIQUE is per organisation, not global. Swallowing the
+  // error turned that into "Event not found" for an event that exists.
+  it('distinguishes a failed slug lookup from a missing event', async () => {
+    tables['events'] = { data: null, error: { message: 'PGRST116: multiple rows returned' } };
+
+    await expect(service().getLiveState('open-2026')).rejects.toThrow(/event slug read failed/);
+  });
+
+  it('still reports a genuinely missing event as not found', async () => {
+    tables['events'] = { data: null, error: null };
+
+    await expect(service().getLiveState('no-such-event')).rejects.toThrow(/Event not found/);
+  });
+});

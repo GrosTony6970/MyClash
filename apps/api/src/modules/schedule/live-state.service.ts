@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, InternalServerErrorException, NotFoundException } from '@nestjs/common';
 import type { BlockType, ProgrammeBlock } from '@myclash/types';
 import { isLiveStatus } from '@myclash/types';
 import { SupabaseService } from '../supabase/supabase.service';
@@ -47,9 +47,36 @@ function composeName(
   return composed || null;
 }
 
+/** The shape every PostgREST read returns, narrowed to what `orThrow` needs. */
+interface ReadResult<T> {
+  data: T | null;
+  error: { message: string } | null;
+}
+
 @Injectable()
 export class LiveStateService {
   constructor(private readonly supabase: SupabaseService) {}
+
+  /**
+   * A refused query must not read as an empty one.
+   *
+   * Every read in this service used to destructure `{ data }` and drop
+   * `error`. A failing matches query then yielded `[]`, and the venue's hall
+   * display and the spectator app rendered EVERY piste as idle — with a 200.
+   * This endpoint is the board a room full of people watches, so an outage it
+   * reports is strictly better than an outage it hides.
+   *
+   * The message reaches the server log and not the caller: this route is
+   * public, and 5xx bodies are scrubbed on the way out by design.
+   */
+  private orThrow<T>(res: ReadResult<T>, what: string): T | null {
+    if (res.error) {
+      throw new InternalServerErrorException(
+        `live-state ${what} read failed: ${res.error.message}`,
+      );
+    }
+    return res.data;
+  }
 
   async getLiveState(eventIdOrSlug: string): Promise<LiveStateResponse> {
     const now = new Date();
@@ -67,27 +94,31 @@ export class LiveStateService {
         .order('sort_order', { ascending: true }),
     ]);
 
-    const dayIndex = dayIndexFor(
-      (eventRes.data as Record<string, unknown> | null)?.['start_date'] as string | null,
-      now.getTime(),
-    );
+    const eventRow = this.orThrow(eventRes as ReadResult<Record<string, unknown>>, 'event');
+    const dayIndex = dayIndexFor(eventRow?.['start_date'] as string | null, now.getTime());
 
-    const lices = (licesRes.data ?? []) as { id: string; name: string; sort_order: number }[];
+    const lices =
+      this.orThrow(
+        licesRes as ReadResult<{ id: string; name: string; sort_order: number }[]>,
+        'lices',
+      ) ?? [];
 
-    const { data: blocksData } = await this.supabase.service
+    const blocksRes = await this.supabase.service
       .from('event_programme_blocks')
       .select('*')
       .eq('event_id', eventId)
       .eq('day_index', dayIndex)
       .order('sort_order', { ascending: true });
 
-    const blocks = (blocksData ?? []).map((r) => this.mapBlock(r as Record<string, unknown>));
+    const blocksData =
+      this.orThrow(blocksRes as ReadResult<Record<string, unknown>[]>, 'programme blocks') ?? [];
+    const blocks = blocksData.map((r) => this.mapBlock(r));
     const { current: currentBlock, next: nextBlock } = selectProgrammeBlocks(blocks, toHHMM(now));
 
     const liceIds = lices.map((l) => l.id);
     let matchRows: Record<string, unknown>[] = [];
     if (liceIds.length > 0) {
-      const { data } = await this.supabase.service
+      const matchesRes = await this.supabase.service
         .from('matches')
         .select(
           'id,status,scheduled_at,match_number_label,lice_id,red_score,blue_score,' +
@@ -98,7 +129,10 @@ export class LiveStateService {
         .in('lice_id', liceIds)
         .in('status', ['running', 'paused', 'scheduled'])
         .order('scheduled_at', { ascending: true, nullsFirst: false });
-      matchRows = (data ?? []) as unknown as Record<string, unknown>[];
+      // The read that mattered most: an unchecked failure here emptied every
+      // piste on the board while still answering 200.
+      matchRows = (this.orThrow(matchesRes as ReadResult<unknown[]>, 'matches') ??
+        []) as unknown as Record<string, unknown>[];
     }
 
     const nowIso = now.toISOString();
@@ -130,13 +164,18 @@ export class LiveStateService {
   }
 
   private async resolveSlug(slug: string): Promise<string> {
-    const { data } = await this.supabase.service
+    const res = await this.supabase.service
       .from('events')
       .select('id')
       .eq('slug', slug)
       .maybeSingle();
+    // Dropping `error` here turned every failure into "Event not found",
+    // including PGRST116 — which `maybeSingle` raises when two organisations
+    // have slugged an event the same way, since `events` is UNIQUE per org and
+    // not globally. A real event then 404s and the reason is invisible.
+    const data = this.orThrow(res as ReadResult<{ id: string }>, 'event slug');
     if (!data) throw new NotFoundException(`Event not found: ${slug}`);
-    return (data as { id: string }).id;
+    return data.id;
   }
 
   private mapLiveMatch(m: Record<string, unknown>): LiveMatch {

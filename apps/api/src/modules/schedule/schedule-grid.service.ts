@@ -207,11 +207,15 @@ export class ScheduleGridService {
     );
     const poolById = new Map<string, PoolRow>();
     if (poolIds.length > 0) {
-      const { data: poolsData } = await this.supabase.service
+      const { data: poolsData, error: poolsErr } = await this.supabase.service
         .from('pools')
         .select('id, name, sort_order')
         .in('id', poolIds)
         .limit(poolIds.length);
+      // The three reads above check `error`; these four did not, so a refused
+      // hydration degraded silently into `poolName: null`, a segment-less
+      // roundCode, or a "? vs ?" card — indistinguishable from real data.
+      if (poolsErr) throw new BadRequestException(poolsErr.message);
       for (const p of (poolsData ?? []) as PoolRow[]) {
         poolById.set(p.id, p);
       }
@@ -226,11 +230,12 @@ export class ScheduleGridService {
     );
     const bracketSourceBySlotId = new Map<string, BracketSlotSourceInfo>();
     if (bracketSlotIds.length > 0) {
-      const { data: slotsData } = await this.supabase.service
+      const { data: slotsData, error: slotsErr } = await this.supabase.service
         .from('bracket_slots')
         .select('id, round, source_a_type, source_a_ref, source_b_type, source_b_ref')
         .in('id', bracketSlotIds)
         .limit(bracketSlotIds.length);
+      if (slotsErr) throw new BadRequestException(slotsErr.message);
       for (const s of (slotsData ?? []) as BracketSlotRow[]) {
         bracketSourceBySlotId.set(s.id, {
           round: s.round,
@@ -250,11 +255,12 @@ export class ScheduleGridService {
     );
     const swissRoundNumberById = new Map<string, number>();
     if (swissRoundIds.length > 0) {
-      const { data: roundsData } = await this.supabase.service
+      const { data: roundsData, error: roundsErr } = await this.supabase.service
         .from('swiss_rounds')
         .select('id, round_number')
         .in('id', swissRoundIds)
         .limit(swissRoundIds.length);
+      if (roundsErr) throw new BadRequestException(roundsErr.message);
       for (const r of (roundsData ?? []) as Array<{ id: string; round_number: number }>) {
         swissRoundNumberById.set(r.id, r.round_number);
       }
@@ -269,11 +275,12 @@ export class ScheduleGridService {
     // bypasses PostgREST's default 1000-row cap for large events.
     const matchIds = matches.map((m) => m.id);
     const nameByMatchId = new Map<string, { red: string | null; blue: string | null }>();
-    const { data: nameRows } = await this.supabase.service
+    const { data: nameRows, error: namesErr } = await this.supabase.service
       .from('vw_tournament_query_matches')
       .select('match_id, red_name, blue_name')
       .in('match_id', matchIds)
       .limit(matchIds.length);
+    if (namesErr) throw new BadRequestException(namesErr.message);
     for (const r of (nameRows ?? []) as ViewNameRow[]) {
       nameByMatchId.set(r.match_id, {
         red: r.red_name?.trim() || null,
