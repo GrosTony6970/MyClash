@@ -1,7 +1,6 @@
 'use client';
 
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { useRealtimeWithFallback } from '@/lib/supabase-browser';
 import { useI18n } from '@myclash/next-i18n/client';
 import {
   ConfirmDialog,
@@ -10,11 +9,10 @@ import {
   tintBorderClassFor,
   tintTextClassFor,
 } from '@myclash/ui';
-import { DEFAULT_EVENT_TIMEZONE, localeToBcp47 } from '@myclash/time';
+import { localeToBcp47 } from '@myclash/time';
 import { blockTint, resolveBlockAccent } from '@myclash/types';
 import { placeMultiWithShift, placeWithShift } from './place-with-shift';
 import { computeHeaderRuns, type HeaderRunItem } from './compute-header-runs';
-import { detectConflicts, type Conflict } from './conflict-detection';
 import { POOL_HEADER_SPAN, rowShiftForSlot } from './pool-header-layout';
 import { openMatchScoring } from './open-match-scoring';
 import { MatchChip } from './MatchChip';
@@ -24,6 +22,7 @@ import { newBreakDraftFromCell } from './new-break-draft';
 import { hhmmToMinutes, programmeBlocksForDay } from './programme-block-slots';
 import { clampPanelWidth } from './panel-width';
 import { useSchedulePrefs } from './useSchedulePrefs';
+import { useScheduleData } from './useScheduleData';
 import { BlockGridView, type BgvBreak } from './BlockGridView';
 import { BlockEditPopover, type BlockEditDraft } from './BlockEditPopover';
 import { computeLiceDrift } from './lice-drift';
@@ -51,7 +50,6 @@ import {
   venueColor,
   zoomToSlotHeight,
   parseBracketRound,
-  eachDay,
   formatDayLabel,
   buildScheduleBlocks,
   type ScheduleBlock,
@@ -139,32 +137,37 @@ export function ScheduleGrid({
   const { t, locale } = useI18n();
   const apiUrl = getPublicApiUrl();
 
-  const [lices, setLices] = useState<Lice[]>([]);
-  const [matches, setMatches] = useState<ScheduleMatch[]>([]);
-  const [days, setDays] = useState<string[]>([]);
-  const [activeDay, setActiveDay] = useState<string>('');
-  // Event IANA timezone — the schedule axis + times are interpreted in it.
-  const [eventTz, setEventTz] = useState<string>(DEFAULT_EVENT_TIMEZONE);
-  const [loading, setLoading] = useState(true);
-  // When any of the schedule-page bootstrap fetches errors out (or
-  // returns a non-2xx body), surface it as a banner above the grid.
-  // Before this, a 400 like the dead `tournaments.bracket_size`
-  // SELECT was silently swallowed — the grid just stayed empty and
-  // the operator had to dig into DevTools to find the cause.
-  const [fetchError, setFetchError] = useState<string | null>(null);
   // A write that did not land. Separate from `fetchError` because the recovery
   // differs: a failed READ leaves the board empty and the operator retries, a
   // failed WRITE leaves the board showing something the server never accepted,
   // so `commit` below re-reads the truth underneath this banner.
   const [saveError, setSaveError] = useState<string | null>(null);
-  // Passed into the pure conflict/CSV modules, which the i18n lint rule cannot
-  // reach and which must not carry English of their own.
-  const unknownFighterLabel = t('organizer.schedulePage.grid.unknownFighter');
   const [saving, setSaving] = useState<string | null>(null);
-  const [conflicts, setConflicts] = useState<Conflict[]>([]);
-  // Slice 7: non-fight programme blocks (registration, gear check,
-  // referee meeting, breaks) rendered as full-width bars on the grid.
-  const [programmeBlocks, setProgrammeBlocks] = useState<ProgrammeBlockRow[]>([]);
+  // Read by the realtime debounce below so an echo never fights an in-flight
+  // optimistic drag. A ref because the debounced callback is created once.
+  const savingRef = useRef(saving);
+  // eslint-disable-next-line react-hooks/refs -- intentional render-time mirror of latest saving flag for stable debounced callback
+  savingRef.current = saving;
+  const isBusy = useCallback(() => savingRef.current !== null, []);
+
+  // Everything the board reads: bootstrap, the two refetchers, realtime, and
+  // the conflict derivation. See ./useScheduleData.
+  const {
+    lices,
+    matches,
+    setMatches,
+    days,
+    activeDay,
+    setActiveDay,
+    eventTz,
+    loading,
+    fetchError,
+    setFetchError,
+    programmeBlocks,
+    conflicts,
+    refetchLices,
+    refetchScheduleAndBlocks,
+  } = useScheduleData({ eventId, apiUrl, isBusy });
 
   /**
    * The axis ORIGIN, derived from the day's own programme rather than fixed at
@@ -398,15 +401,6 @@ export function ScheduleGrid({
   // own component — grid.tsx is long enough.
   const [placingLice, setPlacingLice] = useState<Lice | null>(null);
 
-  async function refetchLices(): Promise<void> {
-    const res = await fetch(`${apiUrl}/api/v1/events/${eventId}/lices`, {
-      credentials: 'include',
-    });
-    if (!res.ok) return;
-    const l = (await res.json()) as Lice[];
-    setLices(l.sort((a, b) => a.sortOrder - b.sortOrder));
-  }
-
   async function addLice() {
     const name = newLiceName.trim();
     if (!name) {
@@ -429,109 +423,6 @@ export function ScheduleGrid({
       setAddLiceBusy(false);
     }
   }
-
-  useEffect(() => {
-    const controller = new AbortController();
-    Promise.all([
-      fetch(`${apiUrl}/api/v1/events/${eventId}/lices`, {
-        credentials: 'include',
-        signal: controller.signal,
-      }),
-      fetch(`${apiUrl}/api/v1/events/${eventId}/schedule`, {
-        credentials: 'include',
-        signal: controller.signal,
-      }),
-      fetch(`${apiUrl}/api/v1/events/${eventId}`, {
-        credentials: 'include',
-        signal: controller.signal,
-      }),
-      fetch(`${apiUrl}/api/v1/events/${eventId}/programme`, {
-        credentials: 'include',
-        signal: controller.signal,
-      }),
-    ])
-      .then(async ([licesRes, schedRes, eventRes, programmeRes]) => {
-        setLoading(false);
-        // Surface the first non-OK response as a banner. Each
-        // endpoint reports the upstream message (NestJS exception
-        // body) so the operator sees the actual DB / auth / schema
-        // error instead of staring at an empty grid.
-        async function bodyMessage(res: Response): Promise<string> {
-          try {
-            const body = (await res.json()) as { message?: string };
-            return body.message ?? `${res.status} ${res.statusText}`;
-          } catch {
-            return `${res.status} ${res.statusText}`;
-          }
-        }
-        if (!licesRes.ok) {
-          setFetchError(
-            t('organizer.schedulePage.grid.fetchLices', { message: await bodyMessage(licesRes) }),
-          );
-          return;
-        }
-        if (!schedRes.ok) {
-          setFetchError(
-            t('organizer.schedulePage.grid.fetchSchedule', {
-              message: await bodyMessage(schedRes),
-            }),
-          );
-          return;
-        }
-        if (!eventRes.ok) {
-          setFetchError(
-            t('organizer.schedulePage.grid.fetchEvent', { message: await bodyMessage(eventRes) }),
-          );
-          return;
-        }
-        if (!programmeRes.ok) {
-          setFetchError(
-            t('organizer.schedulePage.grid.fetchProgramme', {
-              message: await bodyMessage(programmeRes),
-            }),
-          );
-          return;
-        }
-        setFetchError(null);
-        const l = (await licesRes.json()) as Lice[];
-        setLices(l.sort((a, b) => a.sortOrder - b.sortOrder));
-        const m = (await schedRes.json()) as ScheduleMatch[];
-        setMatches(m);
-        // GET /api/v1/events/:id resolves to `getEventBySlug` which returns
-        // the raw Supabase row — snake_case fields. Don't paper over it
-        // with `startDate` aliases unless the API mapping is unified.
-        const ev = (await eventRes.json()) as {
-          start_date: string;
-          end_date?: string | null;
-          timezone?: string | null;
-        };
-        // Read the zone off THIS response, not off `eventTz` state: the
-        // setter below has not flushed yet, so the state still holds the
-        // default and the first conflict banner would be stamped in the wrong
-        // timezone until some later render recomputed it.
-        const tz = ev.timezone ?? DEFAULT_EVENT_TIMEZONE;
-        if (ev.timezone) setEventTz(ev.timezone);
-        setConflicts(detectConflicts(m, tz, unknownFighterLabel));
-        const eventDays = eachDay(ev.start_date, ev.end_date ?? null);
-        setDays(eventDays);
-        if (eventDays[0]) setActiveDay(eventDays[0]);
-        // Slice 7: fetch every programme block; we keep the admin /
-        // break entries to render as full-width bars on the grid
-        // (registration, gear check, referee meeting, breaks).
-        // Competition / workshop blocks are skipped — fights and
-        // workshops are already rendered by the matches projection.
-        const blocks = (await programmeRes.json()) as ProgrammeBlockRow[];
-        setProgrammeBlocks(
-          blocks.filter((b) => b.blockType === 'admin' || b.blockType === 'break'),
-        );
-      })
-      .catch((err: unknown) => {
-        setLoading(false);
-        if (err instanceof Error && err.name === 'AbortError') return;
-        setFetchError(err instanceof Error ? err.message : t('admin.common.scheduleLoadFailed'));
-      });
-    return () => controller.abort();
-  }, [eventId, apiUrl, t, unknownFighterLabel]);
 
   /** Throws `ScheduleMutationError` if the server did not accept the position. */
   async function saveMatchPosition(matchId: string, liceId: string, scheduledAt: string) {
@@ -600,61 +491,6 @@ export function ScheduleGrid({
     await refetchScheduleAndBlocks();
     return false;
   }
-
-  async function refetchScheduleAndBlocks(): Promise<void> {
-    const [schedRes, programmeRes] = await Promise.all([
-      fetch(`${apiUrl}/api/v1/events/${eventId}/schedule`, { credentials: 'include' }),
-      fetch(`${apiUrl}/api/v1/events/${eventId}/programme`, { credentials: 'include' }),
-    ]);
-    // This is also the rollback path after a failed write, so a silent skip
-    // here would leave the board showing state the server rejected — the exact
-    // failure `commit` exists to prevent. A refusal has to be visible.
-    if (!schedRes.ok || !programmeRes.ok) {
-      setFetchError(
-        t('organizer.schedulePage.grid.fetchSchedule', {
-          message: `${(schedRes.ok ? programmeRes : schedRes).status}`,
-        }),
-      );
-      return;
-    }
-    const m = (await schedRes.json()) as ScheduleMatch[];
-    setMatches(m);
-    setConflicts(detectConflicts(m, eventTz, unknownFighterLabel));
-    const blocks = (await programmeRes.json()) as ProgrammeBlockRow[];
-    setProgrammeBlocks(blocks.filter((b) => b.blockType === 'admin' || b.blockType === 'break'));
-  }
-
-  // ── Realtime: refresh when matches change elsewhere (scoring, another
-  //    operator). Debounced + suppressed during a local save so it never
-  //    fights an in-flight optimistic drag. 30s poll fallback in the hook. ──
-  const refetchRef = useRef(refetchScheduleAndBlocks);
-  // eslint-disable-next-line react-hooks/refs -- intentional render-time mirror of latest refetch fn for stable debounced callback
-  refetchRef.current = refetchScheduleAndBlocks;
-  const savingRef = useRef(saving);
-  // eslint-disable-next-line react-hooks/refs -- intentional render-time mirror of latest saving flag for stable debounced callback
-  savingRef.current = saving;
-  const refetchTimer = useRef<number | null>(null);
-  const scheduleRefetch = useCallback(() => {
-    if (refetchTimer.current) window.clearTimeout(refetchTimer.current);
-    refetchTimer.current = window.setTimeout(() => {
-      if (savingRef.current) return;
-      void refetchRef.current();
-    }, 1500);
-  }, []);
-  const liceIdsCsv = lices.map((l) => l.id).join(',');
-  useRealtimeWithFallback({
-    channelName: `schedule-${eventId}`,
-    table: 'matches',
-    // Scoped to the event's lices — catches scoring/status changes + lice
-    // placements; the poll fallback covers unschedule-off-lice edges.
-    filter: liceIdsCsv
-      ? `lice_id=in.(${liceIdsCsv})`
-      : 'lice_id=in.(00000000-0000-0000-0000-000000000000)',
-    event: '*',
-    onEvent: scheduleRefetch,
-    onFallbackPoll: scheduleRefetch,
-    fallbackPollMs: 30_000,
-  });
 
   async function moveBlockTo(blockId: string, slot: number): Promise<void> {
     setMovingBlockId(blockId);
@@ -816,7 +652,6 @@ export function ScheduleGrid({
       ids.has(m.id) ? { ...m, liceId: null, scheduledAt: null } : m,
     );
     setMatches(updated);
-    setConflicts(detectConflicts(updated, eventTz, unknownFighterLabel));
     void commitAll(action.matchIds.map((id) => () => saveMatchPosition(id, '', '')));
     setLastUndo({ kind: 'unschedule', label: block.label, matches: prior });
   }
@@ -833,7 +668,6 @@ export function ScheduleGrid({
         return prev ? { ...m, liceId: prev.liceId, scheduledAt: prev.scheduledAt } : m;
       });
       setMatches(restored);
-      setConflicts(detectConflicts(restored, eventTz, unknownFighterLabel));
       await commitAll(
         u.matches.map(
           (m) => () =>
@@ -939,7 +773,6 @@ export function ScheduleGrid({
       return { ...m, scheduledAt: slotToTimeTz(newSlot, activeDay) };
     });
     setMatches(updated);
-    setConflicts(detectConflicts(updated, eventTz, unknownFighterLabel));
     // The dropped match and every neighbour the shift displaced are ONE
     // operation to the operator, so they are reported as one: any rejection
     // re-reads the server instead of leaving half the column moved on screen
@@ -1029,7 +862,6 @@ export function ScheduleGrid({
       return { ...m, scheduledAt: newScheduledAt, liceId: newLiceId };
     });
     setMatches(updated);
-    setConflicts(detectConflicts(updated, eventTz, unknownFighterLabel));
 
     // 6. PATCH every match whose (liceId, scheduledAt) actually changed, as
     //    one reported operation — a partial failure rolls the board back to
@@ -1062,7 +894,6 @@ export function ScheduleGrid({
   async function applyMove(matchId: string, liceId: string | null, scheduledAt: string | null) {
     const updated = matches.map((m) => (m.id === matchId ? { ...m, liceId, scheduledAt } : m));
     setMatches(updated);
-    setConflicts(detectConflicts(updated, eventTz, unknownFighterLabel));
     await commit(() => saveMatchPosition(matchId, liceId ?? '', scheduledAt ?? ''));
   }
 
@@ -1148,7 +979,6 @@ export function ScheduleGrid({
         targetIds.has(m.id) ? { ...m, liceId: null, scheduledAt: null } : m,
       );
       setMatches(updated);
-      setConflicts(detectConflicts(updated, eventTz, unknownFighterLabel));
     } finally {
       setClearingDay(false);
       setPendingClear(false);
@@ -1370,7 +1200,6 @@ export function ScheduleGrid({
       futureIds.has(m.id) ? { ...m, scheduledAt: shifted(m.scheduledAt!) } : m,
     );
     setMatches(updated);
-    setConflicts(detectConflicts(updated, eventTz, unknownFighterLabel));
     void commitAll(
       future.map((f) => () => saveMatchPosition(f.id, liceId, shifted(f.scheduledAt!))),
     );
@@ -1393,7 +1222,6 @@ export function ScheduleGrid({
         : m,
     );
     setMatches(updated);
-    setConflicts(detectConflicts(updated, eventTz, unknownFighterLabel));
     void commitAll(updates.map((u) => () => saveMatchPosition(u.id, u.liceId, u.scheduledAt)));
   }
 
@@ -1840,7 +1668,6 @@ export function ScheduleGrid({
         ids.has(m.id) ? { ...m, liceId: null, scheduledAt: null } : m,
       );
       setMatches(updated);
-      setConflicts(detectConflicts(updated, eventTz, unknownFighterLabel));
       await commitAll(group.matchIds.map((id) => () => saveMatchPosition(id, '', '')));
     } finally {
       setClearingRun(false);
@@ -2344,7 +2171,6 @@ export function ScheduleGrid({
                     m.id === match.id ? { ...m, liceId: null, scheduledAt: null } : m,
                   );
                   setMatches(updated);
-                  setConflicts(detectConflicts(updated, eventTz, unknownFighterLabel));
                   void commit(() => saveMatchPosition(match.id, '', ''));
                   dragMatch.current = null;
                 }}
