@@ -52,8 +52,12 @@
 -- global_persons_name_trgm_idx (0025) covers ONLY
 -- immutable_unaccent(given_name || ' ' || family_name). lookup_global_persons
 -- has always probed the reversed form and display_name as well, and both were
--- unindexed sequential scans. This function adds a club-name leg on top, so
--- without these the directory scans global_persons and clubs on every keystroke.
+-- unindexed sequential scans; this function probes them too, so without these
+-- the directory scans global_persons on every keystroke.
+--
+-- The club-name leg needs no index here: 0001 already creates
+-- clubs_name_trgm_idx over exactly immutable_unaccent(name) for the CSV
+-- importer, and it is the same expression this function matches on.
 
 create index if not exists global_persons_name_reversed_trgm_idx
   on public.global_persons using gin (
@@ -64,9 +68,6 @@ create index if not exists global_persons_display_name_trgm_idx
   on public.global_persons using gin (
     public.immutable_unaccent(display_name) gin_trgm_ops
   );
-
-create index if not exists clubs_name_trgm_idx
-  on public.clubs using gin (public.immutable_unaccent(name) gin_trgm_ops);
 
 -- ── 2. The search function ───────────────────────────────────────────────────
 
