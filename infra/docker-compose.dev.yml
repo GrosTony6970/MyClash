@@ -492,6 +492,11 @@ services:
       # doesn't reliably hairpin from inside the network (opaque `fetch
       # failed`). Mirrors the prod compose wiring.
       API_URL_INTERNAL: http://api:4000
+      # Origin for sitemap/robots/canonical URLs. Dev serves this app on the
+      # APEX localhost host (see the dev-public router below), not an `app.`
+      # subdomain as prod does — so this is not the prod expression with the
+      # domain swapped.
+      PUBLIC_APP_ORIGIN: https://myclash.localhost
     depends_on:
       api: { condition: service_healthy }
     networks: [myclash-dev]

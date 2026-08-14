@@ -56,4 +56,4 @@ Several pages currently inline `var(--event-primary, #c0392b)` — the wrong fal
 
 ## Deviations on this surface
 
-[D1](known-deviations.md#d1--success-and-warning-fail-wcag-aa-as-text-colours) · [D2](known-deviations.md#d2--four-reds-c0392b-is-the-products-other-red) · [D6](known-deviations.md#d6--three-input-styles) · [D7](known-deviations.md#d7--chromeless-display-routes-bypass-the-tokens) · [D8](known-deviations.md#d8--bare-z--and-rounded--numbers)
+[D1](known-deviations.md#d1--success-and-warning-fail-wcag-aa-as-text-colours) · [D2](known-deviations.md#d2--four-reds-c0392b-is-the-products-other-red) · [D6](known-deviations.md#d6--three-input-styles) · [D7](known-deviations.md#d7--chromeless-display-routes-bypass-the-tokens) · [D8](known-deviations.md#d8--bare-z--and-rounded--numbers) · [D10](known-deviations.md#d10--one-url-serves-two-languages-so-only-one-is-indexable)

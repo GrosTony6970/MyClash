@@ -1,3 +1,4 @@
+import type { Metadata } from 'next';
 import { PublicEventsBrowser } from './_components/PublicEventsBrowser';
 import { parseEventFilters, parseTab } from './_components/event-filters';
 import { getServerT } from '@myclash/next-i18n/server';
@@ -10,6 +11,31 @@ import { getServerT } from '@myclash/next-i18n/server';
 // the data layer; these exports cover the route-segment layer.
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
+
+/**
+ * The catalogue's own metadata. The root layout's title is the app name, which
+ * says nothing about this page; a search result for the catalogue should say
+ * what the catalogue is.
+ *
+ * The canonical is bare `/` on purpose: the filters and the tab are all
+ * query params, so a filtered view is the same page. Letting each combination
+ * self-canonicalise would split the catalogue's ranking across every search
+ * anyone has ever linked.
+ */
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getServerT();
+  return {
+    title: t('publicApp.home.title'),
+    description: t('publicApp.home.subtitle'),
+    alternates: { canonical: '/' },
+    openGraph: {
+      title: t('publicApp.home.title'),
+      description: t('publicApp.home.subtitle'),
+      url: '/',
+      type: 'website',
+    },
+  };
+}
 
 export default async function HomePage({
   searchParams,

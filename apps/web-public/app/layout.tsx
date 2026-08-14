@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { Fraunces, Geist, JetBrains_Mono } from 'next/font/google';
 import { ToastProvider } from '@myclash/ui';
 import { I18nProvider } from '../src/i18n/I18nProvider';
+import { getAppOrigin } from '@/lib/app-origin';
 import { getServerT, resolveServerLocale } from '@myclash/next-i18n/server';
 import { AppLegalFooter } from './_components/AppLegalFooter';
 import { LegalUpdateBanner } from './_components/LegalUpdateBanner';
@@ -36,6 +37,10 @@ const jetbrainsMono = JetBrains_Mono({
 export async function generateMetadata(): Promise<Metadata> {
   const t = await getServerT();
   return {
+    // Without this every relative canonical and OG image resolves against
+    // localhost in the built output, so a crawler is handed URLs it cannot
+    // fetch. It has to be set once, at the root, for the whole app.
+    metadataBase: new URL(getAppOrigin()),
     title: t('metadata.publicTitle'),
     description: t('metadata.publicDescription'),
     icons: {

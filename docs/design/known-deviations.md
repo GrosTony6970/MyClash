@@ -166,6 +166,24 @@ Radius is **not** a deviation: `rounded-md/lg/xl/full` is the vocabulary, delibe
 
 ---
 
+## D10 — One URL serves two languages, so only one is indexable
+
+**Rule broken:** every user-facing string is available in `en` and `fr` — but only one of them can be found.
+
+`web-public` resolves the locale per request from the `mc_locale` cookie, then `Accept-Language`, then the default. There is no locale in the path and no locale in the query, so `https://app.${DOMAIN}/e/lyon-open-2026` is **one URL that renders two different documents**.
+
+Publishing `sitemap.ts` and `robots.ts` makes this consequential rather than theoretical:
+
+- A crawler has no cookie and sends whatever `Accept-Language` it likes, so which language gets indexed is not a decision anyone made.
+- There is no second URL to point `<link rel="alternate" hreflang>` at, so the tag cannot be emitted at all — the standard fix is unavailable, not merely unimplemented.
+- Every entry in the sitemap has this property. The French half of the content is effectively unsearchable, which for a French-speaking HEMA scene is the wrong half.
+
+Note this is **not** a `metadataBase` or canonical bug: those are correct, and the canonical deliberately points at the bare path so filtered views do not split ranking. The problem is one level up — there is only one path to be canonical about.
+
+**Why not fixed:** the fix is locale-prefixed routes (`/fr/e/...`, `/en/e/...`) or a locale subdomain, either of which moves every URL this app has ever emitted and needs redirects for the old ones. That is its own slice, and it should happen before the sitemap has been indexed long enough for the moves to cost ranking — not as a rider on the commit that publishes it.
+
+---
+
 ## Fixed
 
 - ~~D9: `/lices` was dark while `/lices/[liceId]` was light~~ — tapping between the two piste screens flashed white. Fixed 2026-08-03: `/lices` had no `data-theme` at all, so it inherited the pad scope from `<body>`; both piste screens are now chrome and take `chromeScope`. The underlying decision — which regions are chrome — is now explicit in `apps/web-staff/src/theme/theme.ts` rather than implied by which screen was written when.

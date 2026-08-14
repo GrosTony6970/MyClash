@@ -905,6 +905,12 @@ services:
       # cleanly from inside the container — it resolves to 127.0.0.1
       # which has no listener. See apps/web-public/src/lib/api-url.ts.
       API_URL_INTERNAL: http://api:4000
+      # This app's own public origin, for the absolute URLs it has to emit:
+      # sitemap.xml, the Sitemap: line in robots.txt, and every canonical/OG
+      # tag via metadataBase. Server-only, so NOT a build arg and NOT
+      # NEXT_PUBLIC_ — nothing here is inlined into the browser bundle, and
+      # changing it needs no image rebuild. See apps/web-public/src/lib/app-origin.ts.
+      PUBLIC_APP_ORIGIN: https://app.${DOMAIN}
       NEXT_PUBLIC_SENTRY_DSN_PUBLIC: ${NEXT_PUBLIC_SENTRY_DSN_PUBLIC:-}
       NEXT_PUBLIC_SENTRY_ENVIRONMENT: ${NEXT_PUBLIC_SENTRY_ENVIRONMENT:-production}
       # No NEXT_PUBLIC_SENTRY_RELEASE: a NEXT_PUBLIC_* value only reaches the
