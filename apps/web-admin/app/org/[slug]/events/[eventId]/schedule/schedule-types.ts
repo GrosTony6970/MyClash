@@ -47,32 +47,6 @@ export interface ProgrammeBlockRow {
 }
 
 /**
- * One reversible grid-block deletion, surfaced as an Undo toast:
- *  - `unschedule` — a pool/bracket/other run was unscheduled; restore each
- *    match to the position it held before.
- *  - `delete-block` — an admin/break bar was deleted; re-create it from the
- *    captured payload (matches that were inside its window stay in the
- *    Unscheduled list, recoverable on their own).
- */
-export type GridUndo =
-  | {
-      kind: 'unschedule';
-      label: string;
-      matches: Array<{ id: string; liceId: string | null; scheduledAt: string | null }>;
-    }
-  | {
-      kind: 'delete-block';
-      label: string;
-      block: {
-        dayIndex: number;
-        blockType: ProgrammeBlockRow['blockType'];
-        label: string;
-        startTime: string;
-        endTime: string;
-      };
-    };
-
-/**
  * One contiguous run of same-pool / same-bracket-round fights on a single lice,
  * drawn as a labelled band with a drag handle.
  *

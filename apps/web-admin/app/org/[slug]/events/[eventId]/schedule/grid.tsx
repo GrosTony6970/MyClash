@@ -9,10 +9,10 @@ import { placeMultiWithShift } from './place-with-shift';
 import { computeHeaderRuns, type HeaderRunItem } from './compute-header-runs';
 import { POOL_HEADER_SPAN, rowShiftForSlot } from './pool-header-layout';
 import { UnscheduledPanel } from './UnscheduledPanel';
+import { useScheduleUndo, type DeletedBlock, type MatchPosition } from './useScheduleUndo';
 import { DetailedGridView } from './DetailedGridView';
 import { draggedMatchIds, type DragPayload } from './drag-payload';
 import type {
-  GridUndo,
   HeaderRunGroup,
   Lice,
   ProgrammeBlockRow,
@@ -67,7 +67,7 @@ import { mutateSchedule } from './schedule-mutations';
 // `computeVenueGroups` + the `VenueGroup` type now live in
 // ./schedule-grid-geometry (shared with BlockGridView).
 //
-// `Lice`, `ProgrammeBlockRow`, `GridUndo` and `ScheduleMatch` now live in
+// `Lice`, `ProgrammeBlockRow` and `ScheduleMatch` now live in
 // ./schedule-types, and `openMatchScoring` in ./open-match-scoring — both read
 // by the extracted children as well as by this file.
 
@@ -168,6 +168,51 @@ export function ScheduleGrid({
   } = useScheduleData({ eventId, apiUrl, isBusy });
   // eslint-disable-next-line react-hooks/refs -- render-time mirror closing the read/write cycle described above
   refetchRef.current = refetchScheduleAndBlocks;
+
+  /**
+   * The two things undo needs the board to be able to do. Both live here rather
+   * than in the history hook because they are transport, and the hook owns
+   * ordering, not writes.
+   *
+   * `applyUndoPositions` writes through `commitAll` even for a single fight. A
+   * one-call fan-out reports the server's own message, exactly as `commit`
+   * does — the count only enters the wording from two failures up.
+   */
+  const applyUndoPositions = useCallback(
+    async (positions: Array<{ id: string } & MatchPosition>): Promise<boolean> => {
+      const byId = new Map(positions.map((p) => [p.id, p]));
+      setMatches((prev) =>
+        prev.map((m) => {
+          const next = byId.get(m.id);
+          return next ? { ...m, liceId: next.liceId, scheduledAt: next.scheduledAt } : m;
+        }),
+      );
+      return commitAll(
+        positions.map((p) => () => saveMatchPosition(p.id, p.liceId ?? '', p.scheduledAt ?? '')),
+      );
+    },
+    [setMatches, commitAll, saveMatchPosition],
+  );
+  const recreateDeletedBlock = useCallback(
+    async (block: DeletedBlock): Promise<boolean> => {
+      const ok = await commit(() =>
+        mutateSchedule(`${apiUrl}/api/v1/events/${eventId}/programme/blocks`, {
+          method: 'POST',
+          body: block,
+        }),
+      );
+      if (!ok) return false;
+      await refetchScheduleAndBlocks();
+      onProgrammeMutated?.();
+      return true;
+    },
+    [apiUrl, eventId, commit, refetchScheduleAndBlocks, onProgrammeMutated],
+  );
+  const history = useScheduleUndo({
+    activeDay,
+    applyPositions: applyUndoPositions,
+    recreateBlock: recreateDeletedBlock,
+  });
 
   /**
    * The axis ORIGIN, derived from the day's own programme rather than fixed at
@@ -286,28 +331,6 @@ export function ScheduleGrid({
     const id = window.setInterval(() => setNow(new Date()), 60_000);
     return () => window.clearInterval(id);
   }, []);
-  // Slice 9: undo/redo stack for drag-and-drop moves. Each entry records
-  // a single transition; Ctrl+Z reverses the topmost entry, Ctrl+Y or
-  // Ctrl+Shift+Z replays. Stack is capped at 20 to keep memory bounded.
-  // Bulk operations (Clear day, Clear pool) don't push entries — they're
-  // covered by the confirm modal and aren't expected to need finger
-  // memory rewinding.
-  type ScheduleMove = {
-    matchId: string;
-    fromLiceId: string | null;
-    fromScheduledAt: string | null;
-    toLiceId: string | null;
-    toScheduledAt: string | null;
-  };
-  const [undoStack, setUndoStack] = useState<ScheduleMove[]>([]);
-  const [redoStack, setRedoStack] = useState<ScheduleMove[]>([]);
-  const undoStackRef = useRef(undoStack);
-  const redoStackRef = useRef(redoStack);
-  // eslint-disable-next-line react-hooks/refs -- intentional render-time mirror of latest stacks for stable callbacks
-  undoStackRef.current = undoStack;
-  // eslint-disable-next-line react-hooks/refs -- intentional render-time mirror of latest stacks for stable callbacks
-  redoStackRef.current = redoStack;
-
   // Default to the readable block view (one block per pool/round); the
   // detailed time-grid is available behind the toggle.
   const [viewMode, setViewMode] = useState<'blocks' | 'grid'>('blocks');
@@ -447,8 +470,6 @@ export function ScheduleGrid({
   // + time window in the description.
   const [pendingBlockDelete, setPendingBlockDelete] = useState<ProgrammeBlockRow | null>(null);
   const [deletingBlockId, setDeletingBlockId] = useState<string | null>(null);
-  // Last reversible grid-block deletion — drives the Undo toast (auto-dismisses).
-  const [lastUndo, setLastUndo] = useState<GridUndo | null>(null);
   // P8 — bottom-edge resize state. `previewSpan` is the live row-span
   // the operator is dragging toward; commits to a PATCH resize on
   // pointerup. Tracked here so the active block's render and the
@@ -615,7 +636,7 @@ export function ScheduleGrid({
       );
       if (!ok) return;
       if (row) {
-        setLastUndo({
+        history.push({
           kind: 'delete-block',
           label: row.label,
           block: {
@@ -658,50 +679,8 @@ export function ScheduleGrid({
     );
     setMatches(updated);
     void commitAll(action.matchIds.map((id) => () => saveMatchPosition(id, '', '')));
-    setLastUndo({ kind: 'unschedule', label: block.label, matches: prior });
+    history.push({ kind: 'unschedule', label: block.label, matches: prior });
   }
-
-  /** Reverse the last grid-block deletion captured in `lastUndo`. */
-  async function performUndo(): Promise<void> {
-    const u = lastUndo;
-    if (!u) return;
-    setLastUndo(null);
-    if (u.kind === 'unschedule') {
-      const byId = new Map(u.matches.map((m) => [m.id, m]));
-      const restored = matches.map((m) => {
-        const prev = byId.get(m.id);
-        return prev ? { ...m, liceId: prev.liceId, scheduledAt: prev.scheduledAt } : m;
-      });
-      setMatches(restored);
-      await commitAll(
-        u.matches.map(
-          (m) => () =>
-            mutateSchedule(`${apiUrl}/api/v1/matches/${m.id}/schedule`, {
-              method: 'PATCH',
-              body: { liceId: m.liceId, scheduledAt: m.scheduledAt },
-            }),
-        ),
-      );
-    } else {
-      const ok = await commit(() =>
-        mutateSchedule(`${apiUrl}/api/v1/events/${eventId}/programme/blocks`, {
-          method: 'POST',
-          body: u.block,
-        }),
-      );
-      if (!ok) return;
-      await refetchScheduleAndBlocks();
-      onProgrammeMutated?.();
-    }
-  }
-
-  // Auto-dismiss the Undo toast after a few seconds (the action already
-  // persisted; the toast is only a convenience to reverse it).
-  useEffect(() => {
-    if (!lastUndo) return;
-    const t = window.setTimeout(() => setLastUndo(null), 6000);
-    return () => window.clearTimeout(t);
-  }, [lastUndo]);
 
   /**
    * Group drop: place every match in `groupMatchIds` sequentially on
@@ -800,15 +779,10 @@ export function ScheduleGrid({
     return handleGroupDrop(ids, targetLiceId, slot);
   }
 
-  function pushUndo(move: ScheduleMove) {
-    setUndoStack((prev) => [...prev, move].slice(-20));
-    setRedoStack([]);
-  }
-
   /**
    * A drop on one Detailed-view cell.
    *
-   * MUST stay below `handleGroupDrop`, `handlePoolDrop` and `pushUndo`. It is
+   * MUST stay below `handleGroupDrop` and `handlePoolDrop`. It is
    * passed to `DetailedGridView` as a prop, so the React Compiler has to capture
    * it into a memoized context — and a forward reference to a hoisted `function`
    * declaration makes it give up on the WHOLE component:
@@ -855,12 +829,11 @@ export function ScheduleGrid({
     const newScheduledAt = slotToTimeTz(slot, activeDay);
     // Same-cell drop = no-op; don't pollute the undo stack.
     if (match.liceId === liceId && match.scheduledAt === newScheduledAt) return;
-    pushUndo({
+    history.push({
+      kind: 'move',
       matchId: match.id,
-      fromLiceId: match.liceId,
-      fromScheduledAt: match.scheduledAt,
-      toLiceId: liceId,
-      toScheduledAt: newScheduledAt,
+      from: { liceId: match.liceId, scheduledAt: match.scheduledAt },
+      to: { liceId, scheduledAt: newScheduledAt },
     });
 
     // Where the dropped match and every neighbour it displaces end up. The
@@ -890,37 +863,6 @@ export function ScheduleGrid({
     );
   }
 
-  async function applyMove(matchId: string, liceId: string | null, scheduledAt: string | null) {
-    const updated = matches.map((m) => (m.id === matchId ? { ...m, liceId, scheduledAt } : m));
-    setMatches(updated);
-    await commit(() => saveMatchPosition(matchId, liceId ?? '', scheduledAt ?? ''));
-  }
-
-  async function undo() {
-    const last = undoStackRef.current[undoStackRef.current.length - 1];
-    if (!last) return;
-    setUndoStack((prev) => prev.slice(0, -1));
-    setRedoStack((prev) => [...prev, last].slice(-20));
-    await applyMove(last.matchId, last.fromLiceId, last.fromScheduledAt);
-  }
-
-  async function redo() {
-    const last = redoStackRef.current[redoStackRef.current.length - 1];
-    if (!last) return;
-    setRedoStack((prev) => prev.slice(0, -1));
-    setUndoStack((prev) => [...prev, last].slice(-20));
-    await applyMove(last.matchId, last.toLiceId, last.toScheduledAt);
-  }
-
-  // Clear the undo/redo stacks when the active day changes — pushing
-  // history across days would let an undo move a match back to a day
-  // the operator isn't looking at, which is more confusing than useful.
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- intentional reset of undo/redo history on day change
-    setUndoStack([]);
-    setRedoStack([]);
-  }, [activeDay]);
-
   // Keyboard shortcuts: Ctrl+Z / Cmd+Z = undo; Ctrl+Shift+Z / Cmd+Shift+Z
   // (or Ctrl+Y) = redo. Skip when focused on an input so typing in the
   // unscheduled-search field isn't trapped.
@@ -932,11 +874,11 @@ export function ScheduleGrid({
       if (!mod) return;
       if (e.key === 'z' || e.key === 'Z') {
         e.preventDefault();
-        if (e.shiftKey) void redo();
-        else void undo();
+        if (e.shiftKey) void history.redo();
+        else void history.undo();
       } else if (e.key === 'y' || e.key === 'Y') {
         e.preventDefault();
-        void redo();
+        void history.redo();
       }
     }
     window.addEventListener('keydown', onKey);
@@ -1123,12 +1065,11 @@ export function ScheduleGrid({
     if (payload?.kind !== 'match') return;
     const match = payload.match;
     if (match.liceId === null && match.scheduledAt === null) return;
-    pushUndo({
+    history.push({
+      kind: 'move',
       matchId: match.id,
-      fromLiceId: match.liceId,
-      fromScheduledAt: match.scheduledAt,
-      toLiceId: null,
-      toScheduledAt: null,
+      from: { liceId: match.liceId, scheduledAt: match.scheduledAt },
+      to: { liceId: null, scheduledAt: null },
     });
     setMatches(
       matches.map((m) => (m.id === match.id ? { ...m, liceId: null, scheduledAt: null } : m)),
@@ -1767,8 +1708,8 @@ export function ScheduleGrid({
             {/* Slice 9: undo/redo for drag-and-drop moves. */}
             <button
               type="button"
-              onClick={() => void undo()}
-              disabled={undoStack.length === 0}
+              onClick={() => void history.undo()}
+              disabled={!history.canUndo}
               title={t('organizer.schedulePage.grid.undoTitle')}
               className="rounded-md border border-border px-3 py-1.5 text-xs font-semibold text-foreground-secondary hover:bg-background disabled:opacity-40"
             >
@@ -1776,8 +1717,8 @@ export function ScheduleGrid({
             </button>
             <button
               type="button"
-              onClick={() => void redo()}
-              disabled={redoStack.length === 0}
+              onClick={() => void history.redo()}
+              disabled={!history.canRedo}
               title={t('organizer.schedulePage.grid.redoTitle')}
               className="rounded-md border border-border px-3 py-1.5 text-xs font-semibold text-foreground-secondary hover:bg-background disabled:opacity-40"
             >
@@ -2328,26 +2269,29 @@ export function ScheduleGrid({
         busy={deletingBlockId !== null}
       />
 
-      {/* Undo toast — surfaces after an inline × unschedule / block delete. */}
-      {lastUndo && (
+      {/* Undo toast — the third surface onto the one history, offered after the
+          two actions that have no other affordance: an inline × unschedule and
+          a deleted bar. Its ✕ and its timeout only hide it; the entry stays in
+          the history and Ctrl+Z still reaches it. */}
+      {history.toast && (
         <div
           role="status"
           aria-live="polite"
           className="fixed bottom-4 left-1/2 z-overlay flex -translate-x-1/2 items-center gap-3 rounded-lg bg-strong px-4 py-2.5 text-sm text-strong-foreground shadow-lg"
         >
           <span>
-            {lastUndo.kind === 'unschedule'
+            {history.toast.kind === 'unschedule'
               ? t(
-                  lastUndo.matches.length === 1
+                  history.toast.matches.length === 1
                     ? 'organizer.schedulePage.grid.undoUnscheduledSingular'
                     : 'organizer.schedulePage.grid.undoUnscheduledPlural',
-                  { count: lastUndo.matches.length, label: lastUndo.label },
+                  { count: history.toast.matches.length, label: history.toast.label },
                 )
-              : t('organizer.schedulePage.grid.undoDeleted', { label: lastUndo.label })}
+              : t('organizer.schedulePage.grid.undoDeleted', { label: history.toast.label })}
           </span>
           <button
             type="button"
-            onClick={() => void performUndo()}
+            onClick={() => void history.undo()}
             className="rounded bg-white/15 px-2 py-1 font-semibold text-strong-foreground hover:bg-white/25"
           >
             {t('organizer.schedulePage.grid.undoAction')}
@@ -2355,7 +2299,7 @@ export function ScheduleGrid({
           <button
             type="button"
             aria-label={t('organizer.schedulePage.grid.dismiss')}
-            onClick={() => setLastUndo(null)}
+            onClick={history.dismissToast}
             className="text-strong-foreground/70 hover:text-strong-foreground"
           >
             ✕
