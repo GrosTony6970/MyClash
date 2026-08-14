@@ -215,6 +215,21 @@ here.
 - **TS2352 on `Promise & {...}` intersections**: cast through `unknown` first —
   `(chain as unknown as Record<string, unknown>)[key] = …`. Applies whenever you `Object.assign`
   onto a Promise and then mutate its properties.
+- **A UTC-only test run cannot see a wall-clock bug.** The scheduler and the programme service do
+  wall-clock arithmetic (`setHours`/`getHours`); code that reaches for `getUTCHours` instead agrees
+  with them exactly on a UTC runner and nowhere else. Measured: reintroducing the `getUTCHours` bug
+  `moveBlock` once shipped leaves the API suite **fully green under `TZ=UTC` (45 passed)** and reds
+  four specs under `TZ=Europe/Paris`. Several specs already documented themselves as only meaningful
+  off UTC; until CI grew a second leg they asserted nothing there. GitHub runners are UTC, so CI now
+  runs `pnpm turbo run test` twice — `TZ=UTC` then `TZ=Europe/Paris` (the operator's own zone) —
+  with `!cancelled()` on the second so a UTC failure cannot mask a zone-only one. The suite is green
+  under UTC, Paris, `America/New_York` and `Pacific/Kiritimati`; pick a real offset, not a synthetic one.
+- **`TZ` must be declared an input on turbo's `test` task or the second leg runs nothing.** Turbo
+  hashes declared env vars only. Before `"env": ["TZ"]` both zones hashed to the identical key
+  (`27e1ac188b496903`), so the non-UTC leg was a **cache hit that replayed the UTC logs and executed
+  zero tests** — green, and meaningless. Same class as the cached i18n sweep. Any future "run the
+  suite again under a different X" needs X in that `env` array. Turbo also **rejects unknown keys**
+  in `turbo.json`, so the usual `"// comment"` trick is a parse error there — explain it here instead.
 
 ## Lint rules that bite
 

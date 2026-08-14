@@ -349,8 +349,33 @@ jobs:
           name: package-dist
           path: packages
 
+      # TZ is pinned rather than inherited: GitHub runners are UTC today, and a
+      # silent change of that default would silently change what these two legs
+      # mean.
       - name: Run tests
         run: pnpm turbo run test
+        env:
+          TZ: UTC
+
+      # The same suite under a zone with an offset. The scheduler and the
+      # programme service do WALL-CLOCK arithmetic (setHours/getHours), so a
+      # whole class of defect is INVISIBLE on a UTC runner: reintroducing the
+      # getUTCHours bug that moveBlock once shipped leaves the API suite fully
+      # green under TZ=UTC (45 passed) and reds four specs under Europe/Paris.
+      # Several specs say so in their own docblocks; until this leg existed they
+      # asserted nothing in CI.
+      #
+      # Depends on `TZ` being declared an input of turbo's `test` task. Without
+      # that this step is a CACHE HIT that replays the UTC logs and executes no
+      # tests — measured, both zones hashed to the same key.
+      #
+      # `!cancelled()` so a UTC failure cannot mask a zone-only one; the repo
+      # has been bitten by an && chain hiding later steps before.
+      - name: Run tests again under a non-UTC timezone
+        if: '!cancelled()'
+        run: pnpm turbo run test
+        env:
+          TZ: Europe/Paris
 
       - name: Upload coverage
         if: always()

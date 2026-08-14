@@ -19,11 +19,13 @@
     },
     "test": {
       "dependsOn": ["^build"],
-      "outputs": ["coverage/**"]
+      "outputs": ["coverage/**"],
+      "env": ["TZ"]
     },
     "coverage": {
       "dependsOn": ["^build"],
-      "outputs": ["coverage/**"]
+      "outputs": ["coverage/**"],
+      "env": ["TZ"]
     },
     "test:e2e": {
       "dependsOn": ["^build"],
