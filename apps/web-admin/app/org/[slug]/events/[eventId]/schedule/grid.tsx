@@ -27,6 +27,7 @@ import { clampPanelWidth } from './panel-width';
 import { useSchedulePrefs } from './useSchedulePrefs';
 import { useScheduleWrites } from './useScheduleWrites';
 import {
+  barWarningSlotSpan,
   clampBlockSpan,
   matchSlotSpan,
   respaceBlockSlots,
@@ -45,7 +46,6 @@ import { detectBarCollisions } from './bar-collisions';
 import { breakEditSteps } from './break-edit-steps';
 import {
   SLOT_HEIGHT_PX,
-  SLOT_MINUTES,
   hhmmToSlot,
   isoToSlot,
   nowSlotForDay,
@@ -1628,7 +1628,7 @@ export function ScheduleGrid({
         id: m.id,
         matchNumberLabel: m.matchNumberLabel,
         startSlot: isoToSlotTz(m.scheduledAt!, activeDay),
-        span: Math.max(1, Math.round(m.durationMinutes / SLOT_MINUTES)),
+        span: barWarningSlotSpan(m.durationMinutes),
       }));
     return detectBarCollisions(placed, bars);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- isoToSlotTz is a stable pure helper; excluded intentionally

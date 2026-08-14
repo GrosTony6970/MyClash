@@ -28,21 +28,42 @@ export interface PlacedBlockMatch {
 }
 
 /**
- * How many 5-minute slots a match occupies.
+ * How many 5-minute slots a match occupies on the board.
  *
  * Floors, so an 8-minute bout claims one slot rather than two — which is what
  * the cascade, the header runs and `placeWithShift` all assume. Seven call
  * sites had this inline.
  *
- * NOT the same as the span the bar-collision detector uses: that one rounds, so
- * a bout spilling past a slot boundary still warns against a break bar it
- * clips. `Math.round` is never smaller than `Math.floor`, so the warning is
- * conservative by up to one slot for any duration that is not a multiple of
- * five. That divergence is left alone deliberately — narrowing it would make
- * the board warn less often, and break-bar drops are warn-only by decision.
+ * `barWarningSlotSpan` below is the same question asked for a warning, and
+ * rounds instead. Today the two agree on every input the board ever sees; see
+ * its note for why they are still two functions.
  */
 export function matchSlotSpan(durationMinutes: number): number {
   return Math.max(1, Math.floor(durationMinutes / SLOT_MINUTES));
+}
+
+/**
+ * The span the bar-collision detector measures a match by.
+ *
+ * IDENTICAL to `matchSlotSpan` for every match the board currently draws:
+ * `/events/:id/schedule` returns a constant `durationMinutes` of 5, equal to
+ * `SLOT_MINUTES`, so the quotient is exactly 1 and floor and round agree. The
+ * divergence is unreachable, not a live over-report.
+ *
+ * It is kept, and named rather than left inline, for two reasons. Should
+ * `durationMinutes` ever become a real column, rounding is the conservative
+ * side — a bout spilling past a slot boundary would still warn against a break
+ * bar it clips, and break-bar drops are warn-only by decision, so warning too
+ * often is the harmless direction. And an eighth hand-written span expression
+ * beside seven calls to one function is exactly the shape this module exists to
+ * end.
+ *
+ * The pin test asserts the direction (`matchSlotSpan <= barWarningSlotSpan`)
+ * rather than the values: if that ever inverts, the board would warn LESS than
+ * it places, which is the dangerous way round.
+ */
+export function barWarningSlotSpan(durationMinutes: number): number {
+  return Math.max(1, Math.round(durationMinutes / SLOT_MINUTES));
 }
 
 /**

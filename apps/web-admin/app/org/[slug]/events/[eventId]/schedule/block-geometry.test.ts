@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { SLOT_MINUTES } from '@myclash/schedule-core';
 import {
+  barWarningSlotSpan,
   clampBlockSpan,
   matchSlotSpan,
   respaceBlockSlots,
@@ -34,14 +35,23 @@ describe('matchSlotSpan', () => {
     }
   });
 
-  it('is never larger than the rounding the collision detector uses', () => {
-    // The bar-collision detector rounds instead. Round >= floor always, so its
-    // warning is conservative rather than wrong. If this ever inverts, the
-    // board would warn LESS than it places, which is the dangerous direction.
+  it('is never larger than the span the collision detector warns on', () => {
+    // If this ever inverts, the board would warn LESS than it places, which is
+    // the dangerous direction. Compares the two named functions, not a copy of
+    // one of them: an inline `Math.round` here would pass while the real
+    // detector used something else entirely.
     for (let duration = 1; duration <= 60; duration++) {
-      const warned = Math.max(1, Math.round(duration / SLOT_MINUTES));
-      expect(matchSlotSpan(duration)).toBeLessThanOrEqual(warned);
+      expect(matchSlotSpan(duration)).toBeLessThanOrEqual(barWarningSlotSpan(duration));
     }
+  });
+
+  it('agrees with the warning span on every duration the API actually sends', () => {
+    // GET /events/:id/schedule returns a constant durationMinutes of 5, equal to
+    // SLOT_MINUTES. So the two spans are the same number for every match the
+    // board draws, and the divergence above is latent rather than live. This
+    // reds if that constant moves off a slot boundary — at which point the
+    // divergence becomes real and someone has to decide it on purpose.
+    expect(barWarningSlotSpan(SLOT_MINUTES)).toBe(matchSlotSpan(SLOT_MINUTES));
   });
 });
 
