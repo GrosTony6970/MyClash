@@ -19,6 +19,7 @@ import { POOL_HEADER_SPAN, rowShiftForSlot } from './pool-header-layout';
 import { buildMatchScoringHref, STAFF_APP_PREFIX } from '../pools/_tabs/build-scoring-href';
 import { blockDeleteAction } from './schedule-block-actions';
 import { newBreakDraftFromCell } from './new-break-draft';
+import { programmeBlocksForDay } from './programme-block-slots';
 import { PANEL_DEFAULT_WIDTH, clampPanelWidth } from './panel-width';
 import { BlockGridView, type BgvBreak } from './BlockGridView';
 import { BlockEditPopover, type BlockEditDraft } from './BlockEditPopover';
@@ -28,7 +29,6 @@ import { respaceMatchesEvenly } from './lice-span';
 import { distributeGroups } from './auto-place';
 import { detectScheduleOverlaps } from './detect-overlaps';
 import {
-  DEFAULT_GRID_END_HOUR,
   GRID_START_HOUR,
   LICE_HEADER_HEIGHT_PX,
   MIN_LICE_COL_PX,
@@ -189,10 +189,11 @@ interface ScheduleMatch {
 
 // Geometry constants + slot helpers (slotToTime / isoToSlot /
 // formatSlotTime / computeVenueGroups …) live in the shared
-// @myclash/schedule-core package. TOTAL_SLOTS floors at
-// DEFAULT_GRID_END_HOUR for now; Stage G makes the visible end
-// dynamic per day.
-const TOTAL_SLOTS = ((DEFAULT_GRID_END_HOUR - GRID_START_HOUR) * 60) / SLOT_MINUTES;
+// @myclash/schedule-core package.
+//
+// The axis extent is NOT a constant here any more — see `gridEndSlot`, which
+// grows per day to cover the latest block. The fixed 08:00–20:00 window this
+// file used to carry is now only the floor, inside `computeGridEndSlot`.
 
 /**
  * Where "Schedule selected" starts a group on an empty lice.
@@ -828,7 +829,7 @@ export function ScheduleGrid({
 
     function onMove(e: PointerEvent) {
       const deltaSlots = Math.round((e.clientY - startY) / SLOT_HEIGHT_PX);
-      const nextSpan = Math.max(1, Math.min(TOTAL_SLOTS - block.startSlot, startSpan + deltaSlots));
+      const nextSpan = Math.max(1, Math.min(gridEndSlot - block.startSlot, startSpan + deltaSlots));
       setResizingBlock((prev) =>
         prev && prev.id === block.id ? { ...prev, previewSpan: nextSpan } : prev,
       );
@@ -843,7 +844,7 @@ export function ScheduleGrid({
       handle.removeEventListener('pointercancel', onCancel);
       // Compute new end_time from final preview span.
       const finalSpan = Math.round((e.clientY - startY) / SLOT_HEIGHT_PX) + startSpan;
-      const clampedSpan = Math.max(1, Math.min(TOTAL_SLOTS - block.startSlot, finalSpan));
+      const clampedSpan = Math.max(1, Math.min(gridEndSlot - block.startSlot, finalSpan));
       setResizingBlock(null);
       if (clampedSpan === startSpan) return;
       const newEndMinutes = GRID_START_HOUR * 60 + (block.startSlot + clampedSpan) * SLOT_MINUTES;
@@ -1039,7 +1040,7 @@ export function ScheduleGrid({
       items: occupants,
       dropped: { id: match.id, slot, span },
       dropSlot: slot,
-      gridEndSlot: TOTAL_SLOTS,
+      gridEndSlot,
     });
     const shiftedById = new Map(placement.shifted.map((s) => [s.id, s.slot]));
     const updated = matches.map((m) => {
@@ -1125,7 +1126,7 @@ export function ScheduleGrid({
       items: occupants,
       dropped,
       dropSlot: slot,
-      gridEndSlot: TOTAL_SLOTS,
+      gridEndSlot,
     });
     const slotById = new Map(placement.items.map((it) => [it.id, it.slot]));
 
@@ -1964,23 +1965,14 @@ export function ScheduleGrid({
     if (!activeDay) return [] as Array<ProgrammeBlockRow & { startSlot: number; span: number }>;
     const dayIndex = days.indexOf(activeDay);
     if (dayIndex < 0) return [];
-    return programmeBlocks
-      .filter((b) => b.dayIndex === dayIndex)
-      .map((b) => {
-        const [sh, sm] = b.startTime.split(':').map((s) => Number(s));
-        const [eh, em] = b.endTime.split(':').map((s) => Number(s));
-        const startMin = (sh ?? 0) * 60 + (sm ?? 0) - GRID_START_HOUR * 60;
-        const endMin = (eh ?? 0) * 60 + (em ?? 0) - GRID_START_HOUR * 60;
-        const startSlot = Math.max(0, Math.floor(startMin / SLOT_MINUTES));
-        const endSlot = Math.max(startSlot + 1, Math.ceil(endMin / SLOT_MINUTES));
-        return { ...b, startSlot, span: endSlot - startSlot };
-      })
-      .filter((b) => b.startSlot < TOTAL_SLOTS);
+    return programmeBlocksForDay(programmeBlocks, dayIndex, GRID_START_HOUR);
   }, [programmeBlocks, activeDay, days]);
 
-  // Stage G: the block grid's visible vertical extent grows to cover the latest
-  // block/break and the configured day-end (the detailed grid keeps its fixed
-  // 08:00–20:00 window).
+  // The board's visible vertical extent grows to cover the latest block/break
+  // and the configured day-end. BOTH views use it — the detailed grid used to
+  // keep a fixed 08:00–20:00 window, so a 21:00 final rendered in an implicit
+  // row with no time label and no drop target behind it: visible, unreadable
+  // and impossible to move.
   const gridEndSlot = useMemo(() => {
     const blockEndSlots = dayBlocks.map((b) => isoToSlotTz(b.endIso, activeDay));
     const breakEndSlots = blocksOnActiveDay
@@ -2041,14 +2033,16 @@ export function ScheduleGrid({
   // active day isn't today, when the current time is before the grid
   // start, or when it's past the grid end — caller renders nothing in
   // those cases.
-  const nowSlot = useMemo<number | null>(() => {
-    if (!activeDay) return null;
-    // Resolved in the EVENT timezone so the line lands on the right row even
-    // when the operator's browser timezone differs from the venue's.
-    const slot = nowSlotForDay(now.toISOString(), activeDay, eventTz);
-    if (slot === null || slot >= TOTAL_SLOTS) return null;
-    return slot;
-  }, [activeDay, now, eventTz]);
+  //
+  // Not memoized: `nowSlotForDay` is a cheap pure call, and wrapping it made
+  // the React Compiler bail out of optimizing the whole component because it
+  // could not preserve a manual memo that depends on `gridEndSlot`.
+  const nowSlotRaw = activeDay ? nowSlotForDay(now.toISOString(), activeDay, eventTz) : null;
+  // Gated on the DYNAMIC end, not the 20:00 default. An event running finals to
+  // 21:30 has an axis reaching 22:00, and the red "now" marker used to vanish
+  // at 20:00 from a board that visibly still had two hours of programme on it —
+  // exactly when the drift it measures is largest.
+  const nowSlot = nowSlotRaw !== null && nowSlotRaw < gridEndSlot ? nowSlotRaw : null;
 
   if (loading) {
     return (
@@ -2784,13 +2778,13 @@ export function ScheduleGrid({
                 </div>
               ))}
 
-              {/* Rows 2..TOTAL_SLOTS+1: time-label cell + one drop-target cell per lice.
+              {/* Rows 2..gridEndSlot+1: time-label cell + one drop-target cell per lice.
                   Every cell is explicitly placed via gridColumn/gridRow so that
                   match cards (which are also explicitly placed below) can't
                   cascade auto-flow rightward. Dropping a fight at e.g. 09:10 in
                   lice 2 used to push the 10:00 label out of col 1 — see the
                   schedule overhaul plan, Slice 1. */}
-              {Array.from({ length: TOTAL_SLOTS }, (_, slot) => (
+              {Array.from({ length: gridEndSlot }, (_, slot) => (
                 <Fragment key={slot}>
                   {/* Time label — sticky left, explicit (col 1, row slot+2) */}
                   <div
