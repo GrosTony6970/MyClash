@@ -121,6 +121,34 @@ const DIRECTORY_SIMILARITY_THRESHOLD = 0.2;
 /** Weapons shown per directory row before the column stops being scannable. */
 const DIRECTORY_WEAPONS_SHOWN = 3;
 
+/**
+ * The columns a directory-listing change writes (0187), or nothing.
+ *
+ * `listing_changed_at` is what distinguishes an untouched default from a choice
+ * somebody actually made — without it, "listed" means the same thing whether
+ * they agreed or never looked.
+ */
+function directoryListingUpdates(dto: {
+  listedInDirectory?: boolean;
+  searchIndexable?: boolean;
+}): Record<string, unknown> {
+  const updates: Record<string, unknown> = {};
+  if (dto.listedInDirectory === undefined && dto.searchIndexable === undefined) return updates;
+
+  if (dto.listedInDirectory !== undefined) {
+    updates['listed_in_directory'] = dto.listedInDirectory;
+    // Un-listing un-indexes. The CHECK would reject the row otherwise, and a
+    // constraint violation on an un-listing surfaces as a 500 telling the user
+    // their opt-out failed — when what they asked for is unambiguous.
+    if (dto.listedInDirectory === false) updates['search_indexable'] = false;
+  }
+  if (dto.searchIndexable !== undefined && updates['search_indexable'] === undefined) {
+    updates['search_indexable'] = dto.searchIndexable;
+  }
+  updates['listing_changed_at'] = new Date().toISOString();
+  return updates;
+}
+
 /** One row of the public fighter directory. Built field by field, never spread. */
 export interface PublicDirectoryFighter {
   id: string;
@@ -628,22 +656,7 @@ export class FightersService {
     if (dto.publicVisibility !== undefined)
       updates['public_visibility'] = this.pickVisibilityKeys(dto.publicVisibility);
 
-    // Directory listing (0187). `listing_changed_at` is what distinguishes an
-    // untouched default from a choice somebody actually made — without it,
-    // "listed" means the same thing whether they agreed or never looked.
-    if (dto.listedInDirectory !== undefined) {
-      updates['listed_in_directory'] = dto.listedInDirectory;
-      updates['listing_changed_at'] = new Date().toISOString();
-      // Un-listing un-indexes. The CHECK would reject the row otherwise, and a
-      // constraint violation on an un-listing is a 500 telling the user their
-      // opt-out failed — when what they asked for is unambiguous.
-      if (dto.listedInDirectory === false) updates['search_indexable'] = false;
-    }
-    if (dto.searchIndexable !== undefined && updates['search_indexable'] === undefined) {
-      updates['search_indexable'] = dto.searchIndexable;
-      updates['listing_changed_at'] = new Date().toISOString();
-    }
-
+    Object.assign(updates, directoryListingUpdates(dto));
     updates['updated_at'] = new Date().toISOString();
 
     const { data, error } = await this.supabase.service
