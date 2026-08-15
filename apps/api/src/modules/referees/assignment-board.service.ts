@@ -740,8 +740,26 @@ export class AssignmentBoardService {
     return { deleted: all.length };
   }
 
+  /**
+   * Run the engine and persist its whole answer, replacing the auto-assigned
+   * rows it owns.
+   *
+   * Refuses on a locked board, like every other bulk path here
+   * (`clearEventAssignments`, `clearPoolAssignments`, `clearSwissRoundAssignments`,
+   * `removeAssignment`). This one was the exception, and it is the most
+   * destructive of the five: `persistAssignments(replaceAutoAssigned=true)`
+   * deletes before it inserts, so a re-run silently threw away assignments an
+   * operator had confirmed. The UI already greys the Apply button on a locked
+   * board and puts Unlock beside it — this closes the ways round the screen: a
+   * direct API call, a board fetched before someone else locked it, a second tab.
+   */
   async applyPreview(eventId: string): Promise<AssignmentResult & { persisted: number }> {
     const context = await this.loadContext(eventId);
+    if (context.locked) {
+      throw new ConflictException(
+        'Assignments are locked. Unlock the board before re-running auto-assign.',
+      );
+    }
     const result = await this.previewFromContext(context);
     await this.persistAssignments(eventId, context, result.assignments, true);
     return { ...result, persisted: result.assignments.length };
@@ -2042,11 +2060,49 @@ export class AssignmentBoardService {
     replaceAutoAssigned: boolean,
   ) {
     if (replaceAutoAssigned) {
-      await this.supabase.service
+      // Scoped to the units this run actually covers, not to the whole event.
+      //
+      // The lock check and this delete disagreed about scope, and the delete was
+      // the wider one: `context.locked` comes from `listAssignments`, which
+      // filters `scope_type IN ('pool','match')`, while an `event_id +
+      // auto_assigned` sweep reaches every scope there is. A lice-scoped row is
+      // invisible to the check and reachable by the delete. Nothing writes those
+      // rows today — only compensation.service.ts reads them — so this is latent
+      // rather than live, but the asymmetry is the bug shape, not the symptom.
+      //
+      // Narrowing to the run's own pools and matches makes the two agree by
+      // construction: `referee_assignments_scope_check` (migration 0091) forces
+      // pool_id and match_id NULL on a lice-scoped row, so it can never again be
+      // caught by a sweep that cannot see it.
+      const poolIds: string[] = [];
+      const matchIds: string[] = [];
+      for (const pool of context.pools) {
+        if (isMatchScopedKind(pool.kind ?? 'pool')) matchIds.push(...(pool.matchIds ?? []));
+        else poolIds.push(pool.id);
+      }
+
+      // Nothing placeable means nothing to replace. Returning here also closes a
+      // standing hazard: the `rows.length === 0` guard below used to fire AFTER
+      // the delete had already run, so a run that produced no assignments wiped
+      // the event's auto-assigned rows and put nothing back.
+      if (poolIds.length === 0 && matchIds.length === 0) return;
+
+      // Ids come from our own tables, so they need no escaping — but an empty
+      // `in.()` list is a PostgREST syntax error, hence the three shapes.
+      let query = this.supabase.service
         .from('referee_assignments')
         .delete()
         .eq('event_id', eventId)
         .eq('auto_assigned', true);
+      if (poolIds.length > 0 && matchIds.length > 0) {
+        query = query.or(`pool_id.in.(${poolIds.join(',')}),match_id.in.(${matchIds.join(',')})`);
+      } else if (poolIds.length > 0) {
+        query = query.in('pool_id', poolIds);
+      } else {
+        query = query.in('match_id', matchIds);
+      }
+      const { error: deleteError } = await query;
+      if (deleteError) throw new BadRequestException(deleteError.message);
     }
 
     // Post-0063: assignments + candidates key on personId. The engine

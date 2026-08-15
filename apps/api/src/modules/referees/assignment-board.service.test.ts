@@ -43,13 +43,14 @@ function makeChain(result: unknown) {
     select: vi.fn(),
     eq: vi.fn(),
     in: vi.fn(),
+    or: vi.fn(),
     order: vi.fn(),
     delete: vi.fn(),
     insert: vi.fn(),
     maybeSingle: vi.fn().mockResolvedValue(result),
   });
 
-  for (const key of ['select', 'eq', 'in', 'order', 'delete']) {
+  for (const key of ['select', 'eq', 'in', 'or', 'order', 'delete']) {
     (chain as unknown as Record<string, unknown>)[key] = vi.fn().mockReturnValue(chain);
   }
   chain.insert = vi.fn().mockResolvedValue(result);
@@ -640,6 +641,86 @@ describe('AssignmentBoardService', () => {
       await expect(service.clearEventAssignments('event-1')).rejects.toBeInstanceOf(
         ConflictException,
       );
+    });
+  });
+
+  // ── applyPreview: the fifth bulk path ─────────────────────────────────
+  // `clearEventAssignments` above refuses on a locked board and says why in
+  // its docblock — "otherwise we'd silently wipe a locked board". Applying the
+  // preview does something strictly worse (delete-then-insert) and used to ask
+  // nothing at all. These pin the guard and the delete's scope.
+  //
+  // `loadContext` is stubbed rather than mocked through `fromMock`: it makes a
+  // dozen queries, and none of them is what either test is about.
+  describe('applyPreview lock guard', () => {
+    // `loadContext` is private, so the spy needs a structural view of it. Cast
+    // through `unknown` — TS2352 otherwise, per the repo's mock-chain note.
+    type WithLoadContext = { loadContext: (eventId: string) => Promise<unknown> };
+
+    function stubContext(overrides: Record<string, unknown>) {
+      return vi.spyOn(service as unknown as WithLoadContext, 'loadContext').mockResolvedValue({
+        eventId: 'event-1',
+        eventStartDate: null,
+        ruleSettings: DEFAULT_RULE_SETTINGS,
+        tournaments: [],
+        phases: [],
+        pools: [],
+        candidates: [],
+        assignments: [],
+        fighterRegistrationIdsByPerson: new Map(),
+        slotConfigByTournament: new Map(),
+        venueByLiceId: new Map(),
+        locked: false,
+        ...overrides,
+      } as never);
+    }
+
+    it('refuses on a locked board and deletes nothing', async () => {
+      stubContext({ locked: true });
+
+      await expect(service.applyPreview('event-1')).rejects.toBeInstanceOf(ConflictException);
+      // The guard has to run BEFORE persistAssignments, not alongside it: the
+      // delete is the first thing that method does.
+      expect(fromMock).not.toHaveBeenCalled();
+    });
+
+    it('scopes the delete to the units the run covers, not the whole event', async () => {
+      const poolShape = {
+        name: 'A',
+        tournamentId: 't-1',
+        tournamentName: 'T',
+        liceId: null,
+        scheduledStart: null,
+        scheduledEnd: null,
+        members: [],
+        matches: [],
+      };
+      stubContext({
+        pools: [
+          { ...poolShape, id: 'pool-1', kind: 'pool', matchIds: [] },
+          { ...poolShape, id: 'bracket-unit', kind: 'bracket', matchIds: ['m-1', 'm-2'] },
+        ],
+      });
+      const deleteChain = makeChain({ data: null, error: null });
+      fromMock.mockReturnValue(deleteChain);
+
+      await service.applyPreview('event-1');
+
+      expect(deleteChain.delete).toHaveBeenCalled();
+      expect(deleteChain.eq).toHaveBeenCalledWith('auto_assigned', true);
+      // A lice-scoped row has pool_id and match_id NULL, so this predicate
+      // cannot reach one — which is the point.
+      expect(deleteChain.or).toHaveBeenCalledWith('pool_id.in.(pool-1),match_id.in.(m-1,m-2)');
+    });
+
+    it('deletes nothing when the run covers no placeable unit', async () => {
+      stubContext({ pools: [] });
+
+      await service.applyPreview('event-1');
+
+      // Falsifies the old order, where `rows.length === 0` returned AFTER the
+      // delete had already wiped the event's auto-assigned rows.
+      expect(fromMock).not.toHaveBeenCalled();
     });
   });
 
