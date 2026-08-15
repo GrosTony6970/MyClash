@@ -69,6 +69,10 @@ export const CI_GATES: readonly CiGate[] = [
   { job: 'Lint', step: 'Check formatting' },
 
   { job: 'Test', step: 'Run tests' },
+  // The second leg runs the same suite under Europe/Paris. A gate, not a
+  // repeat: a UTC-only run hid four specs whose assertions were true only at a
+  // zero offset, which is what put this step in the workflow.
+  { job: 'Test', step: 'Run tests again under a non-UTC timezone' },
   { job: 'Coverage', step: 'Run enforced coverage' },
   { job: 'Dependency audit', step: 'Audit high and critical vulnerabilities' },
   { job: 'Playwright and Axe', step: 'Run Playwright and Axe tests' },
