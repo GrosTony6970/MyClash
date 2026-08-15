@@ -2436,7 +2436,7 @@ export interface paths {
       cookie?: never;
     };
     get?: never;
-    /** Set (or clear) the referee for one (match, role) pair in referee_assignments (scope_type=match) */
+    /** Set (or clear) the referee for one (match, role) pair in referee_assignments (scope_type=match, organizer+) */
     put: operations['MatchesController_setRefereeRoleAssignment'];
     post?: never;
     delete?: never;
