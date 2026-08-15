@@ -105,9 +105,24 @@ export class FollowNotificationSchedulerService {
     private readonly supabase: SupabaseService,
   ) {}
 
+  /**
+   * Bring every follower's alert for this bout in line with what the bout now
+   * says — including when it no longer says anything.
+   *
+   * TAKING THE TIME AWAY IS A RESCHEDULE TOO. This used to open with
+   * `if (!match?.scheduled_at) return;`, so unscheduling a fight left every
+   * follower's "starting soon" sitting in the queue, still timed off the old
+   * slot. It then fired for a fight that was no longer on the board. The
+   * personal scheduler next door never had the bug: its `scheduleReminder`
+   * removes the existing job BEFORE it checks the time, so a null cancels.
+   * Here the check came first, so the removal never ran.
+   *
+   * The follows still have to be resolved in that case — the job id is per
+   * FOLLOWER, so there is no way to cancel without knowing who they are.
+   */
   async scheduleMatchStarting(matchId: string, now = new Date()): Promise<void> {
     const match = await this.getMatch(matchId);
-    if (!match?.scheduled_at) return;
+    if (!match) return;
 
     const registrations = await this.getRegistrations([
       match.red_registration_id,
@@ -120,6 +135,9 @@ export class FollowNotificationSchedulerService {
     if (personIds.length === 0) return;
 
     const follows = await this.getClaimedMatchFollows(personIds);
+
+    if (!match.scheduled_at) return this.cancelMatchFollows(match.id, follows);
+
     const preferences = await this.getPreferences(
       follows.map((follow) => follow.follower_user_id).filter((id): id is string => Boolean(id)),
     );
@@ -153,6 +171,17 @@ export class FollowNotificationSchedulerService {
   async cancelMatchStarting(matchId: string, followerUserId: string): Promise<void> {
     const existing = await this.queue.getJob(buildFollowNotificationJobId(matchId, followerUserId));
     await existing?.remove();
+  }
+
+  /** Drop this bout's alert for everyone following either fighter. */
+  private async cancelMatchFollows(matchId: string, follows: FollowRow[]): Promise<void> {
+    await Promise.all(
+      follows.map((follow) =>
+        follow.follower_user_id
+          ? this.cancelMatchStarting(matchId, follow.follower_user_id)
+          : undefined,
+      ),
+    );
   }
 
   async cancelForFollowedPerson(followedPersonId: string, followerUserId: string): Promise<void> {

@@ -290,4 +290,82 @@ describe('follow notification scheduler', () => {
     expect(queue.getJob).toHaveBeenCalledWith('follow.match_starting.match-2.user-1');
     expect(existingJob.remove).toHaveBeenCalledTimes(2);
   });
+
+  /**
+   * Taking a fight off the board is a reschedule too.
+   *
+   * This used to open with `if (!match?.scheduled_at) return;`, so every
+   * follower's "starting soon" stayed queued at the old slot and fired for a
+   * fight that was no longer scheduled. The personal scheduler next door never
+   * had it: its `scheduleReminder` removes the job BEFORE it looks at the time.
+   */
+  it('cancels every follower job when a match loses its time', async () => {
+    const existingJob = { remove: vi.fn().mockResolvedValue(undefined) };
+    const queue = makeQueue();
+    queue.getJob.mockResolvedValue(existingJob);
+    const from = makeSupabaseFrom({
+      matches: {
+        data: {
+          id: 'match-1',
+          match_number_label: 'L1-P1-M1',
+          scheduled_at: null,
+          red_registration_id: 'reg-red',
+          blue_registration_id: 'reg-blue',
+          lices: null,
+          pools: { name: 'Pool A' },
+        },
+        error: null,
+      },
+      registrations: {
+        data: [
+          { id: 'reg-red', person_id: 'person-red', persons: { given_name: 'Jean' } },
+          { id: 'reg-blue', person_id: 'person-blue', persons: { given_name: 'Marie' } },
+        ],
+        error: null,
+      },
+      follows: {
+        data: [
+          {
+            followed_person_id: 'person-red',
+            follower_user_id: 'user-1',
+            notify_match_start: true,
+          },
+          {
+            followed_person_id: 'person-blue',
+            follower_user_id: 'user-2',
+            notify_match_start: true,
+          },
+        ],
+        error: null,
+      },
+      notification_preferences: { data: [], error: null },
+    });
+    const service = new FollowNotificationSchedulerService(
+      queue as never,
+      { service: { from } } as never,
+    );
+
+    await service.scheduleMatchStarting('match-1', new Date('2026-05-02T10:00:00.000Z'));
+
+    expect(queue.getJob).toHaveBeenCalledWith('follow.match_starting.match-1.user-1');
+    expect(queue.getJob).toHaveBeenCalledWith('follow.match_starting.match-1.user-2');
+    expect(existingJob.remove).toHaveBeenCalledTimes(2);
+    // The cancel must not re-queue anything. Adding a job with a null time is
+    // how a "starting soon" ends up firing at the epoch.
+    expect(queue.add).not.toHaveBeenCalled();
+  });
+
+  it('leaves the queue alone when the match itself is gone', async () => {
+    const queue = makeQueue();
+    const from = makeSupabaseFrom({ matches: { data: null, error: null } });
+    const service = new FollowNotificationSchedulerService(
+      queue as never,
+      { service: { from } } as never,
+    );
+
+    await service.scheduleMatchStarting('match-gone');
+
+    expect(queue.add).not.toHaveBeenCalled();
+    expect(queue.getJob).not.toHaveBeenCalled();
+  });
 });
