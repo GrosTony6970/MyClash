@@ -600,7 +600,7 @@
     "apps/web-admin/app/org/[slug]/events/[eventId]/schedule/programme.tsx:64",
     "apps/web-admin/app/org/[slug]/events/[eventId]/schedule/programme.tsx:762",
     "apps/web-admin/app/org/[slug]/events/[eventId]/schedule/useProgrammeBars.ts:94",
-    "apps/web-admin/app/org/[slug]/events/[eventId]/schedule/useScheduleData.ts:120",
+    "apps/web-admin/app/org/[slug]/events/[eventId]/schedule/useScheduleData.ts:138",
     "apps/web-admin/app/org/[slug]/events/[eventId]/schedule/useScheduleUndo.ts:67",
     "apps/web-admin/app/org/[slug]/events/[eventId]/schedule/useScheduleWrites.ts:61",
     "apps/web-admin/app/org/[slug]/events/[eventId]/statistics/page.tsx:13",

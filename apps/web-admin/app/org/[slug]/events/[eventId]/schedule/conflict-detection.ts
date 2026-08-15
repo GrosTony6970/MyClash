@@ -38,8 +38,17 @@ export interface Conflict {
  * reference every other match in the schedule first. Only when no match
  * anywhere has the name do we fall through to "Unknown fighter".
  */
-/** `HH:MM` on the event's wall clock, locale-free (identical in every locale). */
-function hhmmInZone(iso: string, tz: string): string {
+/**
+ * `HH:MM` on the event's wall clock, locale-free (identical in every locale).
+ *
+ * Exported because the referee banner needs the same clock. Two copies would be
+ * two chances to reach for `Date#getHours` again, which is the bug the docblock
+ * at the top of this file records: detection stayed right and the printed time
+ * went wrong, so nothing failed — it just read 03:00 to an organiser abroad.
+ * Returns '' when the timestamp cannot be read, which callers treat as "no time
+ * to show".
+ */
+export function hhmmInZone(iso: string, tz: string): string {
   const minutes = minutesIntoDayInZone(iso, tz);
   if (minutes === null) return '';
   return `${String(Math.floor(minutes / 60)).padStart(2, '0')}:${String(minutes % 60).padStart(2, '0')}`;

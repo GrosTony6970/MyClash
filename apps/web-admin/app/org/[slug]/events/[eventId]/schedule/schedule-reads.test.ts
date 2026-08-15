@@ -1,6 +1,11 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { DEFAULT_EVENT_TIMEZONE } from '@myclash/time';
-import { barBlocksOnly, loadBootstrap, loadScheduleAndProgramme } from './schedule-reads';
+import {
+  barBlocksOnly,
+  loadBootstrap,
+  loadRefereeConflictInputs,
+  loadScheduleAndProgramme,
+} from './schedule-reads';
 import type { ProgrammeBlockRow } from './schedule-types';
 
 /**
@@ -172,6 +177,49 @@ describe('loadScheduleAndProgramme', () => {
     ]);
     const result = await loadScheduleAndProgramme(API, EVENT);
     expect(result.ok && result.programmeBlocks.map((b) => b.id)).toEqual(['1']);
+  });
+});
+
+describe('loadRefereeConflictInputs', () => {
+  it('hands back the two arms of the join', async () => {
+    stubFetch([
+      jsonResponse({
+        assignments: [{ matchId: 'm1', personId: 'gp-1', personName: 'Denis', role: 'declarant' }],
+        registrations: [{ registrationId: 'reg-1', personId: 'gp-1', personName: 'Denis' }],
+      }),
+    ]);
+    const result = await loadRefereeConflictInputs(API, EVENT, new AbortController().signal);
+    expect(result).toEqual({
+      ok: true,
+      assignments: [{ matchId: 'm1', personId: 'gp-1', personName: 'Denis', role: 'declarant' }],
+      registrations: [{ registrationId: 'reg-1', personId: 'gp-1', personName: 'Denis' }],
+    });
+  });
+
+  /**
+   * A refusal is a VALUE, not an empty payload. An empty payload derives to
+   * zero findings, which on a conflict banner reads as "all clear" — the one
+   * thing a read that never happened must not be allowed to say.
+   */
+  it('reports a refusal by status rather than returning an empty payload', async () => {
+    stubFetch([jsonResponse({ message: 'nope' }, { ok: false, status: 403 })]);
+    const result = await loadRefereeConflictInputs(API, EVENT, new AbortController().signal);
+    expect(result).toEqual({ ok: false, status: 403 });
+  });
+
+  it('survives a payload missing an arm', async () => {
+    stubFetch([jsonResponse({})]);
+    const result = await loadRefereeConflictInputs(API, EVENT, new AbortController().signal);
+    expect(result).toEqual({ ok: true, assignments: [], registrations: [] });
+  });
+
+  it('asks the event-scoped endpoint', async () => {
+    stubFetch([jsonResponse({ assignments: [], registrations: [] })]);
+    await loadRefereeConflictInputs(API, EVENT, new AbortController().signal);
+    expect(fetch).toHaveBeenCalledWith(
+      `${API}/api/v1/events/${EVENT}/referee-match-assignments`,
+      expect.objectContaining({ credentials: 'include' }),
+    );
   });
 });
 

@@ -6,7 +6,14 @@ import { DEFAULT_EVENT_TIMEZONE } from '@myclash/time';
 import { useRealtimeWithFallback } from '@/lib/supabase-browser';
 import { detectConflicts, type Conflict } from './conflict-detection';
 import { createRefetchGate, type RefetchGate } from './realtime-refetch-gate';
-import { loadBootstrap, loadScheduleAndProgramme, type BootstrapSource } from './schedule-reads';
+import {
+  loadBootstrap,
+  loadRefereeConflictInputs,
+  loadScheduleAndProgramme,
+  type BootstrapSource,
+  type RefereeConflictInputsResult,
+} from './schedule-reads';
+import { buildRefereeConflictRows, type RefereeConflictRow } from './referee-conflict-rows';
 import type { Lice, ProgrammeBlockRow, ScheduleMatch } from './schedule-types';
 
 /**
@@ -34,6 +41,10 @@ import type { Lice, ProgrammeBlockRow, ScheduleMatch } from './schedule-types';
 
 /** Coalescing window for a burst of realtime events. */
 const REFETCH_DEBOUNCE_MS = 1500;
+
+/** Stable identity, so a board with no referee findings does not hand its
+ *  consumers a fresh array on every render. */
+const NO_REFEREE_CONFLICTS: RefereeConflictRow[] = [];
 
 /**
  * Refresh when matches change elsewhere (scoring, another operator).
@@ -113,6 +124,13 @@ export interface ScheduleData {
   programmeBlocks: ProgrammeBlockRow[];
   /** Derived from `matches` — never stored. */
   conflicts: Conflict[];
+  /** Hard rule 8, per match, derived from `matches` — never stored. Empty
+   *  while the referee read is in flight and after it is refused; the flag
+   *  below tells the two apart. */
+  refereeConflicts: RefereeConflictRow[];
+  /** The referee read was refused. Without this, "no findings" and "we never
+   *  managed to look" render identically, and the second one reads as safe. */
+  refereeConflictsUnavailable: boolean;
   refetchLices: () => Promise<void>;
   refetchScheduleAndBlocks: () => Promise<void>;
 }
@@ -133,6 +151,9 @@ export function useScheduleData(args: {
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState<string | null>(null);
   const [programmeBlocks, setProgrammeBlocks] = useState<ProgrammeBlockRow[]>([]);
+  // null while the read is in flight. See the derivation below for why the
+  // refusal is kept rather than collapsed to an empty payload.
+  const [refereeInputs, setRefereeInputs] = useState<RefereeConflictInputsResult | null>(null);
 
   // Passed into the pure conflict module, which the i18n lint rule cannot reach
   // and which must not carry English of its own.
@@ -141,6 +162,20 @@ export function useScheduleData(args: {
     () => detectConflicts(matches, eventTz, unknownFighterLabel),
     [matches, eventTz, unknownFighterLabel],
   );
+  // The referee half, derived beside the fighter half and for the same reason:
+  // who referees what changes rarely, but WHEN each bout runs changes on every
+  // drag, and the answer depends on both. Storing it would put the board one
+  // forgotten setter away from a stale all-clear.
+  const refereeConflicts = useMemo(() => {
+    if (!refereeInputs?.ok) return NO_REFEREE_CONFLICTS;
+    return buildRefereeConflictRows({
+      matches,
+      assignments: refereeInputs.assignments,
+      registrations: refereeInputs.registrations,
+      tz: eventTz,
+      unknownPersonLabel: unknownFighterLabel,
+    });
+  }, [matches, refereeInputs, eventTz, unknownFighterLabel]);
 
   const refetchLices = useCallback(async (): Promise<void> => {
     const res = await fetch(`${apiUrl}/api/v1/events/${eventId}/lices`, {
@@ -188,6 +223,21 @@ export function useScheduleData(args: {
     return () => controller.abort();
   }, [eventId, apiUrl, t]);
 
+  // Its own effect, not a fifth bootstrap fetch: a refusal here must not blank
+  // a board the operator can still schedule on. A rejected promise is the one
+  // outcome that would leave `refereeInputs` at null forever, which reads as
+  // "still loading" rather than "unavailable", so the catch names a status too.
+  useEffect(() => {
+    const controller = new AbortController();
+    loadRefereeConflictInputs(apiUrl, eventId, controller.signal)
+      .then(setRefereeInputs)
+      .catch((err: unknown) => {
+        if (err instanceof Error && err.name === 'AbortError') return;
+        setRefereeInputs({ ok: false, status: 0 });
+      });
+    return () => controller.abort();
+  }, [apiUrl, eventId]);
+
   const liceIds = useMemo(() => lices.map((l) => l.id), [lices]);
   useScheduleRealtime({ eventId, liceIds, refetch: refetchScheduleAndBlocks, isBusy });
 
@@ -204,6 +254,8 @@ export function useScheduleData(args: {
     setFetchError,
     programmeBlocks,
     conflicts,
+    refereeConflicts,
+    refereeConflictsUnavailable: refereeInputs !== null && !refereeInputs.ok,
     refetchLices,
     refetchScheduleAndBlocks,
   };

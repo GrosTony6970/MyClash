@@ -1,5 +1,9 @@
 import { DEFAULT_EVENT_TIMEZONE } from '@myclash/time';
 import { eachDay } from '@myclash/schedule-core';
+import type {
+  RefereeConflictAssignment,
+  RefereeConflictRegistration,
+} from './referee-conflict-rows';
 import type { Lice, ProgrammeBlockRow, ScheduleMatch } from './schedule-types';
 
 /**
@@ -105,6 +109,37 @@ export async function loadBootstrap(
       programmeBlocks: barBlocksOnly(blocks),
     },
   };
+}
+
+export type RefereeConflictInputs = {
+  assignments: RefereeConflictAssignment[];
+  registrations: RefereeConflictRegistration[];
+};
+
+export type RefereeConflictInputsResult =
+  ({ ok: true } & RefereeConflictInputs) | { ok: false; status: number };
+
+/**
+ * Who referees what, and which person each registration belongs to.
+ *
+ * Deliberately NOT part of `loadBootstrap`. A refusal there blanks the whole
+ * board, and this read is an addition to it: the operator can still schedule
+ * fights without knowing the referee crews. The refusal is still a value rather
+ * than a swallowed error, so the surface can say the referee check is
+ * unavailable instead of showing an empty banner that reads as "all clear".
+ */
+export async function loadRefereeConflictInputs(
+  apiUrl: string,
+  eventId: string,
+  signal: AbortSignal,
+): Promise<RefereeConflictInputsResult> {
+  const res = await fetch(`${apiUrl}/api/v1/events/${eventId}/referee-match-assignments`, {
+    credentials: 'include',
+    signal,
+  });
+  if (!res.ok) return { ok: false, status: res.status };
+  const body = (await res.json()) as RefereeConflictInputs;
+  return { ok: true, assignments: body.assignments ?? [], registrations: body.registrations ?? [] };
 }
 
 /** Re-read the two things a write can change. Also the rollback path. */
