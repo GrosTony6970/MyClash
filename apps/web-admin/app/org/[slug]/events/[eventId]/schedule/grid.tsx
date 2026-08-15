@@ -26,9 +26,10 @@ import { hhmmToMinutes, programmeBlocksForDay } from './programme-block-slots';
 import { clampPanelWidth } from './panel-width';
 import { useSchedulePrefs } from './useSchedulePrefs';
 import { useScheduleWrites } from './useScheduleWrites';
+import { useProgrammeBars } from './useProgrammeBars';
+import { createBarRequest } from './programme-bar-requests';
 import {
   barWarningSlotSpan,
-  clampBlockSpan,
   matchSlotSpan,
   respaceBlockSlots,
   retimeBlockSlots,
@@ -43,9 +44,7 @@ import { scheduleToCsv } from './schedule-csv';
 import { distributeGroups } from './auto-place';
 import { detectScheduleOverlaps } from './detect-overlaps';
 import { detectBarCollisions } from './bar-collisions';
-import { breakEditSteps } from './break-edit-steps';
 import {
-  SLOT_HEIGHT_PX,
   hhmmToSlot,
   isoToSlot,
   nowSlotForDay,
@@ -196,12 +195,10 @@ export function ScheduleGrid({
   );
   const recreateDeletedBlock = useCallback(
     async (block: DeletedBlock): Promise<boolean> => {
-      const ok = await commit(() =>
-        mutateSchedule(`${apiUrl}/api/v1/events/${eventId}/programme/blocks`, {
-          method: 'POST',
-          body: block,
-        }),
-      );
+      // Same request builder the create path uses — see ./programme-bar-requests
+      // for why a snapshot with no colour POSTs without the key rather than null.
+      const request = createBarRequest({ apiUrl, eventId }, block);
+      const ok = await commit(() => mutateSchedule(request.url, request.init));
       if (!ok) return false;
       await refetchScheduleAndBlocks();
       onProgrammeMutated?.();
@@ -287,14 +284,21 @@ export function ScheduleGrid({
     [scheduledOnActiveDay],
   );
 
+  /**
+   * Which day of the event is on screen, as the index the programme endpoints
+   * key by. Negative when there is no active day yet — the same answer the two
+   * readers below used to reach by their own `days.indexOf`, one of them behind
+   * an extra empty-string guard that `indexOf` already gives for free.
+   */
+  const activeDayIndex = useMemo(() => days.indexOf(activeDay), [days, activeDay]);
+
   // Slice 7: programme blocks (admin / break) scoped to the active day,
   // with their start/end converted into grid slot indices for rendering.
   const blocksOnActiveDay = useMemo(() => {
-    if (!activeDay) return [] as Array<ProgrammeBlockRow & { startSlot: number; span: number }>;
-    const dayIndex = days.indexOf(activeDay);
-    if (dayIndex < 0) return [];
-    return programmeBlocksForDay(programmeBlocks, dayIndex, gridStartHour);
-  }, [programmeBlocks, activeDay, days, gridStartHour]);
+    if (activeDayIndex < 0)
+      return [] as Array<ProgrammeBlockRow & { startSlot: number; span: number }>;
+    return programmeBlocksForDay(programmeBlocks, activeDayIndex, gridStartHour);
+  }, [programmeBlocks, activeDayIndex, gridStartHour]);
 
   // The board's visible vertical extent grows to cover the latest block/break
   // and the configured day-end. BOTH views use it — the detailed grid used to
@@ -318,6 +322,49 @@ export function ScheduleGrid({
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps -- isoToSlotTz is a stable pure helper; excluded intentionally
   }, [dayBlocks, blocksOnActiveDay, activeDay]);
+
+  /**
+   * Every write to a programme bar — break, admin slot, workshop band — plus the
+   * state those writes need while they are in flight. See ./useProgrammeBars.
+   *
+   * This call MUST stay below `gridEndSlot`: a hook call evaluates its arguments
+   * during render, and the resize clamp reads it. One line higher throws
+   * `Cannot access 'gridEndSlot' before initialization` and blanks the board,
+   * with `tsc` clean either way. That is the data → geometry → writes order the
+   * band above documents.
+   */
+  const bars = useProgrammeBars({
+    apiUrl,
+    eventId,
+    dayIndex: activeDayIndex,
+    gridStartHour,
+    gridEndSlot,
+    programmeBlocks,
+    commit,
+    refetch: refetchScheduleAndBlocks,
+    onProgrammeMutated,
+    pushUndo: history.push,
+  });
+  const {
+    movingBlockId,
+    deletingBlockId,
+    pendingBlockDelete,
+    setPendingBlockDelete,
+    resizingBlock,
+    editingBreak,
+    setEditingBreak,
+    creatingBreak,
+    setCreatingBreak,
+    blockEditBusy,
+    moveBlockTo,
+    deleteBlock,
+    beginBlockResize,
+    saveBreakEdit,
+    resizeBreakTimeTo,
+    resizeBreakStartTo,
+    createBreakBlock,
+  } = bars;
+
   // Slice 3 of the schedule overhaul: clear every match on the active
   // day with a confirm gate. `clearing` doubles as the modal flag and
   // the in-flight busy state for the confirm button.
@@ -465,22 +512,6 @@ export function ScheduleGrid({
   // the operator can aim the drop instead of guessing. Cleared on
   // drop, on cell-leave, and on drag-cancel.
   const [dragOverCell, setDragOverCell] = useState<{ liceId: string; slot: number } | null>(null);
-  const [movingBlockId, setMovingBlockId] = useState<string | null>(null);
-  // Block staged for deletion via the inline × button on the grid.
-  // Carries the full row so the confirm modal can render the label
-  // + time window in the description.
-  const [pendingBlockDelete, setPendingBlockDelete] = useState<ProgrammeBlockRow | null>(null);
-  const [deletingBlockId, setDeletingBlockId] = useState<string | null>(null);
-  // P8 — bottom-edge resize state. `previewSpan` is the live row-span
-  // the operator is dragging toward; commits to a PATCH resize on
-  // pointerup. Tracked here so the active block's render and the
-  // pointer handlers can share it.
-  const [resizingBlock, setResizingBlock] = useState<{
-    id: string;
-    startSlot: number;
-    minSpan: number;
-    previewSpan: number;
-  } | null>(null);
   // Surfaced when auto-distribute fails so the operator sees the error
   // instead of a silent no-op.
   const [autoDistributeError, setAutoDistributeError] = useState<string | null>(null);
@@ -523,142 +554,6 @@ export function ScheduleGrid({
       setAddLiceError(err instanceof Error ? err.message : t('admin.common.addLiceFailed'));
     } finally {
       setAddLiceBusy(false);
-    }
-  }
-
-  async function moveBlockTo(blockId: string, slot: number): Promise<void> {
-    setMovingBlockId(blockId);
-    try {
-      // The grid axis runs 08:00–20:00 in 5-min steps. Translate the
-      // drop slot back to HH:MM the backend expects.
-      const newStartTime = slotToHHMM(slot, gridStartHour);
-      const ok = await commit(() =>
-        mutateSchedule(`${apiUrl}/api/v1/events/${eventId}/programme/blocks/${blockId}/move`, {
-          method: 'PATCH',
-          body: { newStartTime },
-        }),
-      );
-      if (!ok) return;
-      // Cascade can touch many matches — refetch from source of truth
-      // instead of trying to mirror the shift client-side.
-      await refetchScheduleAndBlocks();
-      // The block's startTime / endTime changed server-side; let the
-      // Configure drawer's planner re-read its own copy so it doesn't
-      // render a stale value when the operator opens it.
-      onProgrammeMutated?.();
-    } finally {
-      setMovingBlockId(null);
-    }
-  }
-
-  /**
-   * Drop a programme block from the grid via the inline × affordance.
-   * Backend unschedules matches whose scheduled_at falls inside the
-   * block window (set scheduled_at + lice_id null → they reappear in
-   * the Unscheduled sidebar); we refetch from the source of truth
-   * to pick up both the new matches state and the removed block row.
-   */
-  /**
-   * P8 — bottom-edge block resize. The handle captures the pointer
-   * on mousedown, tracks vertical pointer movement in slot
-   * increments (one slot = SLOT_HEIGHT_PX px), and commits on
-   * pointerup. The minimum span is 1 slot (block can't be 0-length
-   * or invert). Cancels via Escape — preview reverts to the stored
-   * span without firing the PATCH.
-   */
-  function beginBlockResize(
-    ev: React.PointerEvent<HTMLDivElement>,
-    block: ProgrammeBlockRow & { startSlot: number; span: number },
-  ): void {
-    ev.preventDefault();
-    ev.stopPropagation();
-    const handle = ev.currentTarget;
-    handle.setPointerCapture(ev.pointerId);
-    const startY = ev.clientY;
-    const startSpan = block.span;
-    setResizingBlock({
-      id: block.id,
-      startSlot: block.startSlot,
-      minSpan: 1,
-      previewSpan: startSpan,
-    });
-
-    /** Slots the pointer has travelled since the drag began. */
-    function dragSpan(e: PointerEvent): number {
-      const deltaSlots = Math.round((e.clientY - startY) / SLOT_HEIGHT_PX);
-      return clampBlockSpan({ startSpan, deltaSlots, startSlot: block.startSlot, gridEndSlot });
-    }
-    function onMove(e: PointerEvent) {
-      const nextSpan = dragSpan(e);
-      setResizingBlock((prev) =>
-        prev && prev.id === block.id ? { ...prev, previewSpan: nextSpan } : prev,
-      );
-    }
-    function onUp(e: PointerEvent): void {
-      void onUpAsync(e);
-    }
-    async function onUpAsync(e: PointerEvent) {
-      handle.releasePointerCapture(e.pointerId);
-      handle.removeEventListener('pointermove', onMove);
-      handle.removeEventListener('pointerup', onUp);
-      handle.removeEventListener('pointercancel', onCancel);
-      // The commit reuses the preview's own span calculation. These were two
-      // separate expressions, which is how a preview and its write drift.
-      const clampedSpan = dragSpan(e);
-      setResizingBlock(null);
-      if (clampedSpan === startSpan) return;
-      const newEndTime = slotToHHMM(block.startSlot + clampedSpan, gridStartHour);
-      const ok = await commit(() =>
-        mutateSchedule(`${apiUrl}/api/v1/events/${eventId}/programme/blocks/${block.id}/resize`, {
-          method: 'PATCH',
-          body: { newEndTime },
-        }),
-      );
-      if (!ok) return;
-      await refetchScheduleAndBlocks();
-      onProgrammeMutated?.();
-    }
-    function onCancel(e: PointerEvent) {
-      handle.releasePointerCapture(e.pointerId);
-      handle.removeEventListener('pointermove', onMove);
-      handle.removeEventListener('pointerup', onUp);
-      handle.removeEventListener('pointercancel', onCancel);
-      setResizingBlock(null);
-    }
-    handle.addEventListener('pointermove', onMove);
-    handle.addEventListener('pointerup', onUp);
-    handle.addEventListener('pointercancel', onCancel);
-  }
-
-  async function deleteBlock(blockId: string): Promise<void> {
-    // Snapshot the row first so Undo can re-create it (the DELETE removes it).
-    const row = programmeBlocks.find((b) => b.id === blockId);
-    setDeletingBlockId(blockId);
-    try {
-      const ok = await commit(() =>
-        mutateSchedule(`${apiUrl}/api/v1/events/${eventId}/programme/blocks/${blockId}`, {
-          method: 'DELETE',
-        }),
-      );
-      if (!ok) return;
-      if (row) {
-        history.push({
-          kind: 'delete-block',
-          label: row.label,
-          block: {
-            dayIndex: row.dayIndex,
-            blockType: row.blockType,
-            label: row.label,
-            startTime: row.startTime,
-            endTime: row.endTime,
-          },
-        });
-      }
-      await refetchScheduleAndBlocks();
-      onProgrammeMutated?.();
-    } finally {
-      setDeletingBlockId(null);
-      setPendingBlockDelete(null);
     }
   }
 
@@ -1125,11 +1020,11 @@ export function ScheduleGrid({
   }
 
   // ── Block grid: edit popover + resize/edit commit handlers ────────────────
+  //
+  // Only the competition-run half of the popover state lives here. Its bar half
+  // (`editingBreak`, `creatingBreak`, `blockEditBusy`) belongs to the writes that
+  // set it — see ./useProgrammeBars.
   const [editingBlock, setEditingBlock] = useState<ScheduleBlock | null>(null);
-  const [editingBreak, setEditingBreak] = useState<BgvBreak | null>(null);
-  // Double-click an empty cell → seed a new break draft for the create popover.
-  const [creatingBreak, setCreatingBreak] = useState<BlockEditDraft | null>(null);
-  const [blockEditBusy, setBlockEditBusy] = useState(false);
 
   // Optimistic apply + per-match PATCH for a set of (id, lice, time) updates.
   function applyMatchUpdates(updates: Array<{ id: string; liceId: string; scheduledAt: string }>) {
@@ -1243,108 +1138,6 @@ export function ScheduleGrid({
     }
     // Pool / other: relocate to the single target lice client-side.
     void handleGroupDrop(new Set(block.matches.map((m) => m.id)), newLiceIds[0], startSlot);
-  }
-
-  // Move / resize / rename a break via the programme endpoints.
-  async function saveBreakEdit(brk: BgvBreak, draft: BlockEditDraft) {
-    setBlockEditBusy(true);
-    try {
-      // Which requests to send, and in what order, is decided by
-      // `breakEditSteps` — the ordering is load-bearing (only /move cascades)
-      // and now has tests. They run in sequence, not as a fan-out, and `commit`
-      // stops at the first refusal rather than sending the rest against a block
-      // the server did not update.
-      const base = `${apiUrl}/api/v1/events/${eventId}/programme/blocks/${brk.id}`;
-      const steps = breakEditSteps(
-        {
-          label: brk.label,
-          startTime: brk.startTime,
-          endTime: brk.endTime,
-          colorHex: brk.colorHex ?? null,
-        },
-        draft,
-      );
-      const ok = await commit(async () => {
-        for (const step of steps) {
-          if (step.kind === 'label') {
-            await mutateSchedule(base, {
-              method: 'PATCH',
-              body: { label: step.label, colorHex: step.colorHex },
-            });
-          } else if (step.kind === 'move') {
-            await mutateSchedule(`${base}/move`, {
-              method: 'PATCH',
-              body: { newStartTime: step.newStartTime },
-            });
-          } else {
-            await mutateSchedule(`${base}/resize`, {
-              method: 'PATCH',
-              body: { newEndTime: step.newEndTime },
-            });
-          }
-        }
-      });
-      if (!ok) return;
-      await refetchScheduleAndBlocks();
-      onProgrammeMutated?.();
-    } finally {
-      setBlockEditBusy(false);
-    }
-  }
-
-  async function resizeBreakTimeTo(brk: BgvBreak, newEndSlot: number) {
-    const ok = await commit(() =>
-      mutateSchedule(`${apiUrl}/api/v1/events/${eventId}/programme/blocks/${brk.id}/resize`, {
-        method: 'PATCH',
-        body: { newEndTime: slotToHHMM(newEndSlot, gridStartHour) },
-      }),
-    );
-    if (!ok) return;
-    await refetchScheduleAndBlocks();
-    onProgrammeMutated?.();
-  }
-
-  // Create a new break from the double-click-an-empty-cell flow: POST a single
-  // programme block on the active day, then refetch.
-  async function createBreakBlock(draft: BlockEditDraft) {
-    if (!activeDay) return;
-    const dayIndex = days.indexOf(activeDay);
-    if (dayIndex < 0) return;
-    setBlockEditBusy(true);
-    try {
-      const ok = await commit(() =>
-        mutateSchedule(`${apiUrl}/api/v1/events/${eventId}/programme/blocks`, {
-          method: 'POST',
-          body: {
-            dayIndex,
-            blockType: 'break',
-            label: draft.label || t('organizer.schedulePage.grid.breakDefaultLabel'),
-            startTime: draft.startHHMM,
-            endTime: draft.endHHMM,
-            colorHex: draft.colorHex || null,
-          },
-        }),
-      );
-      if (!ok) return;
-      await refetchScheduleAndBlocks();
-      onProgrammeMutated?.();
-    } finally {
-      setBlockEditBusy(false);
-      setCreatingBreak(null);
-    }
-  }
-
-  // Top-edge resize of a break/admin bar — moves start_time, end_time stays put.
-  async function resizeBreakStartTo(brk: BgvBreak, newStartSlot: number) {
-    const ok = await commit(() =>
-      mutateSchedule(`${apiUrl}/api/v1/events/${eventId}/programme/blocks/${brk.id}/resize`, {
-        method: 'PATCH',
-        body: { newStartTime: slotToHHMM(newStartSlot, gridStartHour) },
-      }),
-    );
-    if (!ok) return;
-    await refetchScheduleAndBlocks();
-    onProgrammeMutated?.();
   }
 
   function savePopover(draft: BlockEditDraft) {
