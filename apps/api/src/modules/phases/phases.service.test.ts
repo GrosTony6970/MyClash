@@ -1502,6 +1502,71 @@ describe('PhasesService', () => {
       expect(slot['redClubAbbrev']).toBe('Lyon AMHE');
     });
 
+    /**
+     * The printed piste sheet lists a day's bouts with no times on it, which is
+     * the one thing a piste sheet is for. `matches.scheduled_at` was simply
+     * never threaded through the slot map — the read is already there, so this
+     * is a column, not a second fetch.
+     */
+    it('carries the planned start through the slot map, null when there is no bout', async () => {
+      const slotsChain = makeAwaitableChain({
+        data: [
+          {
+            id: 's-1',
+            round: 0,
+            position: 0,
+            source_a_type: null,
+            source_a_ref: null,
+            source_b_type: null,
+            source_b_ref: null,
+            registration_a_id: null,
+            registration_b_id: null,
+          },
+          {
+            id: 's-empty',
+            round: 0,
+            position: 1,
+            source_a_type: null,
+            source_a_ref: null,
+            source_b_type: null,
+            source_b_ref: null,
+            registration_a_id: null,
+            registration_b_id: null,
+          },
+        ],
+        error: null,
+      });
+      const matchesChain = makeAwaitableChain({
+        data: [
+          {
+            id: 'm-1',
+            bracket_slot_id: 's-1',
+            status: 'scheduled',
+            red_score: null,
+            blue_score: null,
+            winner_registration_id: null,
+            lice_id: null,
+            scheduled_at: '2026-06-06T09:05:00.000Z',
+          },
+        ],
+        error: null,
+      });
+      fromMock
+        .mockReturnValueOnce(phaseChain())
+        .mockReturnValueOnce(slotsChain)
+        .mockReturnValueOnce(matchesChain)
+        .mockReturnValueOnce(makeAwaitableChain({ data: [], error: null }));
+
+      const result = await service.getTournamentBracket('tournament-1');
+      const slots = result!.slots as Array<Record<string, unknown>>;
+
+      expect(slots.find((s) => s['id'] === 's-1')?.['scheduledAt']).toBe(
+        '2026-06-06T09:05:00.000Z',
+      );
+      // A slot with no bout yet has no time, and must not borrow another's.
+      expect(slots.find((s) => s['id'] === 's-empty')?.['scheduledAt']).toBeNull();
+    });
+
     it('carries status + red/blue scores + matchId from the linked match row', async () => {
       const slotsChain = makeAwaitableChain({
         data: [
@@ -1970,6 +2035,99 @@ describe('PhasesService', () => {
       expect(result).toHaveLength(1);
       expect(result[0]?.matches).toHaveLength(1);
       expect((result[0]?.matches[0] as { roundCode: string }).roundCode).toBe('LSW-P1-M1');
+    });
+
+    /**
+     * `scheduled_at` has been a column of `vw_tournament_query_matches` since
+     * migration 0164 and was simply missing from the select string, so the
+     * printed piste sheet had no times on it. One column, no view change and no
+     * second fetch — which is what keeps the print pack's one-source-per-pack
+     * rule intact.
+     */
+    it('carries the planned start on each pool match, null for an unscheduled one', async () => {
+      // The SELECT STRING is asserted, not just the projected value. These
+      // mocks answer with whatever the fixture holds regardless of what was
+      // asked for, so dropping `scheduled_at` from the select alone would leave
+      // this test green while the real read returned nothing — the column was
+      // missing from that string for two years exactly this quietly.
+      let viewSelect = '';
+      fromMock.mockImplementation((tableName: string) => {
+        if (tableName === 'phases') {
+          const chain = makeChain({ data: { id: 'phase-1' }, error: null });
+          chain.maybeSingle.mockResolvedValue({ data: { id: 'phase-1' }, error: null });
+          return chain;
+        }
+        if (tableName === 'tournaments') {
+          const tournamentRow = { event_id: 'event-1', weapon: 'longsword' };
+          const chain = makeChain({ data: tournamentRow, error: null });
+          chain.maybeSingle.mockResolvedValue({ data: tournamentRow, error: null });
+          chain.single.mockResolvedValue({ data: tournamentRow, error: null });
+          return chain;
+        }
+        if (tableName === 'pools') {
+          const chain = makeChain({ data: null, error: null });
+          chain.order.mockResolvedValue({
+            data: [{ id: 'pool-1', name: 'Pool A', sort_order: 0 }],
+            error: null,
+          });
+          return chain;
+        }
+        if (tableName === 'vw_tournament_query_matches') {
+          const base = {
+            pool_id: 'pool-1',
+            lice_id: null,
+            lice_name: null,
+            lice_number: null,
+            red_registration_id: 'r-1',
+            blue_registration_id: 'r-2',
+            red_name: 'Red',
+            blue_name: 'Blue',
+            red_club: null,
+            blue_club: null,
+            red_score: null,
+            blue_score: null,
+            status: 'scheduled',
+          };
+          const chain = makeChain({ data: null, error: null });
+          chain.select.mockImplementation((cols: string) => {
+            viewSelect = cols;
+            return chain;
+          });
+          chain.order.mockResolvedValue({
+            data: [
+              {
+                ...base,
+                match_id: 'm-1',
+                match_number_label: 'L1-PA-M1',
+                scheduled_at: '2026-06-06T09:05:00.000Z',
+              },
+              {
+                ...base,
+                match_id: 'm-2',
+                match_number_label: 'L1-PA-M2',
+                scheduled_at: null,
+              },
+            ],
+            error: null,
+          });
+          return chain;
+        }
+        if (tableName === 'matches') {
+          const chain = makeChain({ data: [], error: null });
+          chain.eq.mockResolvedValue({ data: [], error: null });
+          return chain;
+        }
+        return makeChain({ data: null, error: null });
+      });
+
+      const result = await service.listPoolsWithMatches('tournament-1');
+      const matches = result[0]?.matches as Array<Record<string, unknown>>;
+
+      expect(viewSelect).toContain('scheduled_at');
+      expect(matches[0]?.['scheduled_at']).toBe('2026-06-06T09:05:00.000Z');
+      // A bout nobody has placed yet has no time. It must arrive as null rather
+      // than be dropped, or the sheet cannot list it last.
+      expect(matches[1]?.['scheduled_at']).toBeNull();
     });
 
     // Slice E of the per-role-referee spec: each match exposes a

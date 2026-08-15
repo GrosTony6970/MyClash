@@ -1884,13 +1884,14 @@ export class PhasesService {
         blue_score: number | null;
         winner_registration_id: string | null;
         lice_id: string | null;
+        scheduled_at: string | null;
       }
     >();
     if (slotIds.length > 0) {
       const { data: matchRows } = await this.supabase.service
         .from('matches')
         .select(
-          'id, bracket_slot_id, status, red_score, blue_score, winner_registration_id, lice_id',
+          'id, bracket_slot_id, status, red_score, blue_score, winner_registration_id, lice_id, scheduled_at',
         )
         .in('bracket_slot_id', slotIds);
       for (const m of (matchRows ?? []) as Array<{
@@ -1901,6 +1902,7 @@ export class PhasesService {
         blue_score: number | null;
         winner_registration_id: string | null;
         lice_id: string | null;
+        scheduled_at: string | null;
       }>) {
         matchBySlot.set(m.bracket_slot_id, {
           id: m.id,
@@ -1909,6 +1911,7 @@ export class PhasesService {
           blue_score: m.blue_score,
           winner_registration_id: m.winner_registration_id ?? null,
           lice_id: m.lice_id ?? null,
+          scheduled_at: m.scheduled_at ?? null,
         });
       }
     }
@@ -1997,6 +2000,10 @@ export class PhasesService {
         winnerRegistrationId: match?.winner_registration_id ?? null,
         status: match?.status ?? 'scheduled',
         matchId: match?.id ?? null,
+        // The planned start, threaded through the slot map so the printed
+        // piste sheet can put a clock against a bracket bout the way it can
+        // against a pool one. Null for a slot with no match yet.
+        scheduledAt: match?.scheduled_at ?? null,
         liceId: match?.lice_id ?? null,
         liceName: match?.lice_id ? (liceNameById.get(match.lice_id) ?? null) : null,
         // BracketReferee shape (packages/ui) — the card renders the name, the
@@ -3053,7 +3060,7 @@ export class PhasesService {
     const { data: viewMatches } = await this.supabase.service
       .from('vw_tournament_query_matches')
       .select(
-        'match_id, pool_id, lice_id, lice_name, lice_number, red_registration_id, blue_registration_id, red_name, blue_name, red_club, blue_club, red_score, blue_score, winner_registration_id, status, match_number_label',
+        'match_id, pool_id, lice_id, lice_name, lice_number, red_registration_id, blue_registration_id, red_name, blue_name, red_club, blue_club, red_score, blue_score, winner_registration_id, status, match_number_label, scheduled_at',
       )
       .eq('tournament_id', tournamentId)
       .eq('phase_type', 'pool')
@@ -3197,6 +3204,12 @@ export class PhasesService {
       winner_registration_id: string | null;
       status: string;
       match_number_label: string | null;
+      /**
+       * The planned start. Already a column of the view (migration 0164) and
+       * simply never selected, so the printed piste sheet listed a day's bouts
+       * with no times on it — the one thing a piste sheet is for.
+       */
+      scheduled_at: string | null;
     };
 
     const matchesByPool = new Map<string, ViewMatch[]>();
@@ -3257,6 +3270,7 @@ export class PhasesService {
             lice_name: m.lice_name ?? null,
             lice_number: m.lice_number ?? null,
             referee_id: refereeMap.get(m.match_id) ?? null,
+            scheduled_at: m.scheduled_at,
             match_number_label: m.match_number_label,
             referees: resolveReferees(m.match_id, m.pool_id),
             roundCode: buildRoundCode({
