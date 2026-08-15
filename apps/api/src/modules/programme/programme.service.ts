@@ -14,7 +14,7 @@ import { MatchAlertRefresherService } from '../notifications/match-alert-refresh
 import { assertCanManageEvent, assertCanReadEvent } from '../../common/auth/event-authz';
 import { scheduleMatches } from '../schedule/match-scheduler';
 import { poolBottleneckMinutes } from './pool-bottleneck';
-import { cascadeBlockShift } from './block-cascade';
+import { localDateIso, planBlockMove, type MoveCandidateMatch } from './block-move-plan';
 // A pure zod schema (its only dependency is zod), so this is a plain file
 // import and NOT a ProgrammeModule → SwissModule edge. SwissCoreModule imports
 // ProgrammeModule, so a real module edge here would close a cycle.
@@ -40,22 +40,6 @@ function minToTime(min: number): string {
   const h = Math.floor(clamped / 60);
   const m = clamped % 60;
   return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
-}
-
-/**
- * `YYYY-MM-DD` for the WALL-CLOCK day a Date falls on.
- *
- * Not `toISOString().slice(0, 10)`, which is the UTC day: an event day whose
- * 09:00 local start is stored as 08:00Z is the same date here but would drift
- * across midnight for late-evening blocks in a positive-offset zone. The
- * scheduler places matches with `setHours` (container-local `TZ`), so every
- * read-back that compares days has to speak the same clock.
- */
-function localDateIso(date: Date): string {
-  const y = date.getFullYear();
-  const m = String(date.getMonth() + 1).padStart(2, '0');
-  const d = String(date.getDate()).padStart(2, '0');
-  return `${y}-${m}-${d}`;
 }
 
 /**
@@ -1097,6 +1081,11 @@ export class ProgrammeService {
    * start by the same Δ. Keeps the visual order of the grid intact:
    * forward drags push later matches forward; backward drags pull
    * them back. Other days are untouched.
+   *
+   * Reads everything, then decides in `planBlockMove`, then writes. The order
+   * matters: the plan can refuse the whole move (a shift that would carry a bar
+   * or a bout past midnight), and a refusal after the bouts had already been
+   * written would be the half-applied shift it exists to prevent.
    */
   async moveBlock(
     eventId: string,
@@ -1158,11 +1147,7 @@ export class ProgrammeService {
       .eq('event_id', eventId);
     const tournamentIds = ((tournamentsData ?? []) as Array<{ id: string }>).map((t) => t.id);
 
-    let shiftedMatches = 0;
-    // Collected across the fan-out below and refreshed in ONE call. Refreshing
-    // inside the loop would put four reads per bout back into a path that can
-    // move a whole day's fights.
-    const shiftedMatchIds: string[] = [];
+    let candidateMatches: MoveCandidateMatch[] = [];
     if (tournamentIds.length > 0) {
       const { data: phasesData } = await this.supabase.service
         .from('phases')
@@ -1173,70 +1158,105 @@ export class ProgrammeService {
       if (phaseIds.length > 0) {
         const { data: matchesData } = await this.supabase.service
           .from('matches')
-          .select('id, scheduled_at')
-          .in('phase_id', phaseIds);
-        const matches = (matchesData ?? []) as Array<{
-          id: string;
-          scheduled_at: string | null;
-        }>;
-
-        const oldStartMin = timeToMin(block.startTime);
-        for (const m of matches) {
-          if (!m.scheduled_at) continue;
-          const matchDate = new Date(m.scheduled_at);
-          // Same calendar day as the block, in WALL-CLOCK terms — the stored
-          // instant's local date, not the UTC prefix of its ISO string.
-          if (localDateIso(matchDate) !== blockDateIso) continue;
-          // At or after the block's old startTime, read the same way.
-          const matchMinOfDay = matchDate.getHours() * 60 + matchDate.getMinutes();
-          if (matchMinOfDay < oldStartMin) continue;
-
-          const shifted = new Date(matchDate.getTime() + deltaMin * 60_000);
-          // The counter this endpoint returns is what the operator is told
-          // moved. Incrementing it without reading `error` meant a refused
-          // update still reported as a shift, so a partly-cascaded day looked
-          // like a complete one.
-          const { error: shiftErr } = await this.supabase.service
-            .from('matches')
-            .update({ scheduled_at: shifted.toISOString() })
-            .eq('id', m.id);
-          if (shiftErr) {
-            throw new BadRequestException(`Failed to shift match ${m.id}: ${shiftErr.message}`);
-          }
-          shiftedMatches++;
-          shiftedMatchIds.push(m.id);
-        }
+          .select('id, phase_id, scheduled_at, status, match_number_label')
+          .in('phase_id', phaseIds)
+          // Explicit limit: PostgREST deployments with a `max-rows` cap silently
+          // truncate otherwise, and a truncated read here does not fail — it
+          // cascades PART of the day and reports success. Hardening, matching
+          // `schedule-grid.service.ts`; no deployment of this repo sets the cap.
+          .limit(10_000);
+        candidateMatches = (
+          (matchesData ?? []) as Array<{
+            id: string;
+            phase_id: string;
+            scheduled_at: string | null;
+            status: string | null;
+            match_number_label: string | null;
+          }>
+        ).map((m) => ({
+          id: m.id,
+          phaseId: m.phase_id,
+          scheduledAt: m.scheduled_at,
+          status: m.status ?? '',
+          label: m.match_number_label,
+        }));
       }
     }
-    await this.matchAlerts?.refresh(shiftedMatchIds);
 
-    // Cascade across the day's programme blocks: every block at or after the
-    // moved block's OLD start shifts by the same Δ (the moved block included),
-    // so later blocks stay in order behind the one that moved.
+    // The day's other bars, read BEFORE any write: they are half of what the
+    // plan has to refuse on.
     const { data: dayBlockRows } = await this.supabase.service
       .from('event_programme_blocks')
-      .select('id, start_time, end_time')
+      .select('id, label, start_time, end_time')
       .eq('event_id', eventId)
       .eq('day_index', block.dayIndex);
     const dayBlocks = (
       (dayBlockRows ?? []) as Array<{
         id: string;
+        label: string | null;
         start_time: string;
         end_time: string;
       }>
     ).map((b) => ({
       id: b.id,
+      label: b.label ?? '',
       startMin: timeToMin(trimSeconds(b.start_time)),
       endMin: timeToMin(trimSeconds(b.end_time)),
     }));
-    const shifts = cascadeBlockShift(dayBlocks, blockId, deltaMin);
 
+    const plan = planBlockMove({
+      movedBlockId: blockId,
+      movedBlockLabel: block.label,
+      deltaMin,
+      oldStartMin: timeToMin(block.startTime),
+      blockDateIso,
+      dayBlocks,
+      matches: candidateMatches,
+    });
+    if (plan.refusal) throw new BadRequestException(plan.refusal);
+
+    // ONE round trip for the whole cascade, which used to be one per bout — a
+    // whole-day shift is hundreds of them. UPSERT carries `phase_id` because
+    // PostgREST emits `INSERT … ON CONFLICT DO UPDATE` and PostgreSQL validates
+    // the candidate row's NOT NULL constraints before the conflict resolver
+    // fires, so omitting it crashes the write even for rows that all exist.
+    let shiftedMatches = 0;
+    if (plan.matchShifts.length > 0) {
+      const { data: upserted, error: shiftErr } = await this.supabase.service
+        .from('matches')
+        .upsert(
+          plan.matchShifts.map((s) => ({
+            id: s.id,
+            phase_id: s.phaseId,
+            scheduled_at: s.scheduledAt,
+          })),
+          { onConflict: 'id' },
+        )
+        .select('id');
+      // The counter this endpoint returns is what the operator is told moved.
+      // It comes from what PostgREST says it persisted, never from what we
+      // asked for, so a refused write cannot report as a completed cascade.
+      if (shiftErr) {
+        throw new BadRequestException(
+          `Failed to shift ${plan.matchShifts.length} match(es): ${shiftErr.message}`,
+        );
+      }
+      shiftedMatches = ((upserted ?? []) as Array<{ id: string }>).length;
+    }
+    // Every retimed bout owes its queued "starts in N minutes" a new time, in
+    // ONE call. Refreshing per bout would put four reads back on every fight in
+    // a cascade that can cover a whole day.
+    await this.matchAlerts?.refresh(plan.matchShifts.map((s) => s.id));
+
+    // Cascade across the day's programme blocks: every block at or after the
+    // moved block's OLD start shifts by the same Δ (the moved block included),
+    // so later blocks stay in order behind the one that moved.
     let updatedBlock: ProgrammeBlock = {
       ...block,
       startTime: dto.newStartTime,
       endTime: newEndTime,
     };
-    for (const s of shifts) {
+    for (const s of plan.blockShifts) {
       const { data: updatedRow } = await this.supabase.service
         .from('event_programme_blocks')
         .update({ start_time: minToTime(s.startMin), end_time: minToTime(s.endMin) })

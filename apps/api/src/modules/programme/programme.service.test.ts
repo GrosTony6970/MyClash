@@ -18,6 +18,7 @@ function makeChain(result: unknown) {
     in: vi.fn(),
     gte: vi.fn(),
     lt: vi.fn(),
+    limit: vi.fn(),
     order: vi.fn(),
     insert: vi.fn(),
     update: vi.fn(),
@@ -34,6 +35,7 @@ function makeChain(result: unknown) {
     'in',
     'gte',
     'lt',
+    'limit',
     'order',
     'insert',
     'update',
@@ -1247,77 +1249,110 @@ describe('ProgrammeService', () => {
     const at = (y: number, m: number, d: number, hh: number, mm: number): string =>
       new Date(y, m - 1, d, hh, mm, 0, 0).toISOString();
 
+    /** A match row as PostgREST returns it to the move's candidate read. */
+    type MoveMatchRow = {
+      id: string;
+      scheduled_at: string | null;
+      phase_id?: string;
+      status?: string;
+      match_number_label?: string | null;
+    };
+
+    /**
+     * Queue the reads and writes `moveBlock` makes, in order.
+     *
+     * READ EVERYTHING, DECIDE, THEN WRITE. The day's bars are now read BEFORE
+     * the bouts are written, because the plan can refuse the whole move and a
+     * refusal after the bouts had landed would be the half-applied shift the
+     * refusal exists to prevent. The bouts then go in ONE upsert, not one round
+     * trip each.
+     */
     function buildMoveMocks(opts: {
       block: Record<string, unknown>;
       eventStartDate: string;
       tournamentIds?: string[];
       phaseIds?: string[];
-      matches?: Array<{ id: string; scheduled_at: string | null }>;
-      /** Make every per-match shift UPDATE fail, to test the count's honesty. */
+      matches?: MoveMatchRow[];
+      /** The day's bars. Defaults to the moved one alone, so nothing cascades onto it. */
+      dayBlocks?: Array<{ id: string; label: string; start_time: string; end_time: string }>;
+      /** Make the batched shift UPSERT fail, to test the count's honesty. */
       updateError?: { message: string };
+      /** Answer the batched write with only these ids, as a partial persist would. */
+      persistedIds?: string[];
     }) {
       const tournamentIds = opts.tournamentIds ?? ['tournament-1'];
       const phaseIds = opts.phaseIds ?? ['phase-1'];
-      const matches = opts.matches ?? [];
-      const updates: Array<{ id: string; scheduled_at: string }> = [];
+      // Every fixture row is a waiting bout under `phase-1` unless it says
+      // otherwise — the columns the read added, defaulted so the older cases
+      // still read as they did.
+      const matches = (opts.matches ?? []).map((m) => ({
+        phase_id: 'phase-1',
+        status: 'scheduled',
+        match_number_label: null,
+        ...m,
+      }));
+      const dayBlocks = opts.dayBlocks ?? [
+        {
+          id: opts.block['id'] as string,
+          label: opts.block['label'] as string,
+          start_time: opts.block['start_time'] as string,
+          end_time: opts.block['end_time'] as string,
+        },
+      ];
 
-      const matchesUpdateChain = (() => {
-        const result = { data: null, error: opts.updateError ?? null };
-        const promise = Promise.resolve(result);
-        const chain = Object.assign(promise, {
-          select: vi.fn(),
-          eq: vi.fn(),
-          in: vi.fn(),
-          order: vi.fn(),
-          insert: vi.fn(),
-          update: vi.fn((payload: Record<string, unknown>) => {
-            // The service calls eq('id', matchId).update(payload) per
-            // match — capture both. We rebuild the chain so .eq() can
-            // resolve and complete the call.
-            (chain as unknown as Record<string, unknown>)['__pendingUpdate'] = payload;
-            return chain;
-          }),
-          delete: vi.fn(),
-          single: vi.fn().mockResolvedValue(result),
-        });
-        for (const key of ['select', 'in', 'order', 'insert', 'delete']) {
-          (chain as unknown as Record<string, unknown>)[key] = vi.fn().mockReturnValue(chain);
+      const updates: Array<{ id: string; scheduled_at: string }> = [];
+      const upserted: Array<Record<string, unknown>> = [];
+      /** Times the batched write ran. One cascade must be one round trip. */
+      const upsertCalls = { count: 0 };
+
+      // Built on `makeChain` so it degrades into an ordinary chain when a
+      // fixture never reaches the batched write. A mock that STARVES reports a
+      // falsification as a crash inside the Supabase stub, which reads like a
+      // broken test rather than the deleted guard it actually is.
+      const upsertResult: {
+        data: Array<{ id: string }> | null;
+        error: { message: string } | null;
+      } = { data: opts.updateError ? null : [], error: opts.updateError ?? null };
+      const matchesUpsertChain = makeChain(upsertResult);
+      matchesUpsertChain.upsert = vi.fn((rows: Array<Record<string, unknown>>) => {
+        upsertCalls.count++;
+        upserted.push(...rows);
+        for (const row of rows) {
+          updates.push({
+            id: row['id'] as string,
+            scheduled_at: row['scheduled_at'] as string,
+          });
         }
-        chain.eq = vi.fn((column: string, value: string) => {
-          if (column === 'id') {
-            const payload = (chain as unknown as Record<string, unknown>)['__pendingUpdate'] as
-              { scheduled_at?: string } | undefined;
-            if (payload && typeof payload.scheduled_at === 'string') {
-              updates.push({ id: value, scheduled_at: payload.scheduled_at });
-            }
-            (chain as unknown as Record<string, unknown>)['__pendingUpdate'] = undefined;
-          }
-          return chain;
-        });
-        return chain;
-      })();
+        // PostgREST answers a batch with the rows it persisted; the service
+        // counts those, never the rows it asked for.
+        if (!opts.updateError) {
+          upsertResult.data = (opts.persistedIds ?? rows.map((r) => r['id'] as string)).map(
+            (id) => ({ id }),
+          );
+        }
+        return matchesUpsertChain;
+      });
 
       fromMock
         .mockReturnValueOnce(makeChain({ data: opts.block, error: null })) // block fetch
         .mockReturnValueOnce(makeChain({ data: { start_date: opts.eventStartDate }, error: null })) // event fetch
         .mockReturnValueOnce(makeChain({ data: tournamentIds.map((id) => ({ id })), error: null })) // tournaments fetch
         .mockReturnValueOnce(makeChain({ data: phaseIds.map((id) => ({ id })), error: null })) // phases fetch
-        .mockReturnValueOnce(makeChain({ data: matches, error: null })); // matches fetch
+        .mockReturnValueOnce(makeChain({ data: matches, error: null })) // matches fetch
+        .mockReturnValueOnce(makeChain({ data: dayBlocks, error: null })) // day-blocks fetch
+        .mockReturnValueOnce(matchesUpsertChain); // the ONE batched shift
 
-      // Each match update consumes one fromMock call.
-      for (let i = 0; i < matches.length; i++) {
-        fromMock.mockReturnValueOnce(matchesUpdateChain);
+      // One block UPDATE per cascaded bar.
+      for (let i = 0; i < dayBlocks.length; i++) {
+        fromMock.mockReturnValueOnce(
+          makeChain({
+            data: { ...opts.block, start_time: '', end_time: '' },
+            error: null,
+          }),
+        );
       }
 
-      // Finally the block update.
-      fromMock.mockReturnValueOnce(
-        makeChain({
-          data: { ...opts.block, start_time: '', end_time: '' },
-          error: null,
-        }),
-      );
-
-      return { updates };
+      return { updates, upserted, upsertCalls };
     }
 
     it('shifts matches scheduled at-or-after the block forward by Δ when the block moves forward', async () => {
@@ -1413,7 +1448,8 @@ describe('ProgrammeService', () => {
      * `shiftedMatches` is what the operator is told moved. The loop used to
      * increment it without reading `error`, so a refused UPDATE still counted
      * — a partly-cascaded day reported as a complete one, and the grid's
-     * refetch then disagreed with the number it had just been given.
+     * refetch then disagreed with the number it had just been given. The count
+     * now comes from what the batched write says it persisted.
      */
     it('does not count a match it failed to shift', async () => {
       buildMoveMocks({
@@ -1441,7 +1477,7 @@ describe('ProgrammeService', () => {
 
       await expect(
         service.moveBlock('event-1', 'block-1', { newStartTime: '10:00' }, CALLER),
-      ).rejects.toThrow(/Failed to shift match match-after: deadlock detected/);
+      ).rejects.toThrow(/Failed to shift 1 match\(es\): deadlock detected/);
     });
 
     it('shifts later matches backward by Δ when the block moves backward', async () => {
@@ -1516,10 +1552,8 @@ describe('ProgrammeService', () => {
           generated_at: null,
         },
         eventStartDate: '2099-03-01',
-        // Both sides of the boundary. The earlier match also leaves `buildMoveMocks`
-        // a spare update chain — it queues one per match, and the day-blocks
-        // query consumes whatever is next, so a fixture where EVERY match
-        // shifts starves it and fails on the wrong assertion entirely.
+        // Both sides of the boundary: the match at the block's exact start is
+        // the one the old UTC comparison dropped.
         matches: [
           { id: 'match-before-start', scheduled_at: at(2099, 3, 1, 8, 30) },
           { id: 'match-at-start', scheduled_at: at(2099, 3, 1, 9, 0) },
@@ -1613,6 +1647,169 @@ describe('ProgrammeService', () => {
         { id: 'moved', payload: { start_time: '10:00', end_time: '10:30' } },
         { id: 'pool', payload: { start_time: '10:30', end_time: '13:00' } },
       ]);
+    });
+
+    /** The bar a fixture drags, 09:00 → 09:30 on day 0. */
+    function movedBar(): Record<string, unknown> {
+      return {
+        id: 'block-1',
+        event_id: 'event-1',
+        day_index: 0,
+        sort_order: 0,
+        block_type: 'break',
+        label: 'Lunch',
+        competition_id: null,
+        competition_phase: null,
+        workshop_id: null,
+        lice_count: 0,
+        start_time: '09:00',
+        end_time: '09:30',
+        match_gap_seconds: 0,
+        match_duration_minutes: 0,
+        generated_at: null,
+      };
+    }
+
+    /**
+     * A bar drop that pushes something past midnight used to be HALF applied:
+     * the bars clamp at 23:59, the bouts are millisecond arithmetic and roll
+     * onto the next day, and the two then disagreed permanently with nothing on
+     * the board to say so. It is refused whole instead, and refused BEFORE any
+     * write — the reads and the decision all happen first.
+     */
+    it('refuses with a 400, and writes nothing, when a bout would cross midnight', async () => {
+      const { upsertCalls } = buildMoveMocks({
+        block: movedBar(),
+        eventStartDate: '2026-06-02',
+        matches: [
+          { id: 'match-late', scheduled_at: at(2026, 6, 2, 23, 30), match_number_label: 'LSW-F' },
+        ],
+      });
+
+      await expect(
+        service.moveBlock('event-1', 'block-1', { newStartTime: '11:00' }, CALLER),
+      ).rejects.toThrow(BadRequestException);
+      expect(upsertCalls.count).toBe(0);
+    });
+
+    it('names the bar that would fall off the end of the day', async () => {
+      buildMoveMocks({
+        block: movedBar(),
+        eventStartDate: '2026-06-02',
+        dayBlocks: [
+          { id: 'block-1', label: 'Lunch', start_time: '09:00:00', end_time: '09:30:00' },
+          { id: 'finals', label: 'Finals', start_time: '22:00:00', end_time: '23:30:00' },
+        ],
+      });
+
+      await expect(
+        service.moveBlock('event-1', 'block-1', { newStartTime: '10:30' }, CALLER),
+      ).rejects.toThrow(
+        'Moving "Lunch" by +90 min would carry the bar "Finals" past midnight ' +
+          '(23:30 becomes 01:00). Nothing was moved.',
+      );
+    });
+
+    /**
+     * A bar dropped above a bout already fought used to rewrite its planned
+     * time, so the plan and the record stopped agreeing. Only a bout still
+     * waiting to be fought moves — the same rule the per-piste "+N" control
+     * uses.
+     */
+    it('leaves a bout that has started, finished or been voided where it is', async () => {
+      const { updates } = buildMoveMocks({
+        block: movedBar(),
+        eventStartDate: '2026-06-02',
+        matches: [
+          { id: 'done', scheduled_at: at(2026, 6, 2, 9, 15), status: 'completed' },
+          { id: 'on-the-piste', scheduled_at: at(2026, 6, 2, 9, 20), status: 'running' },
+          { id: 'clock-stopped', scheduled_at: at(2026, 6, 2, 9, 25), status: 'paused' },
+          { id: 'cancelled', scheduled_at: at(2026, 6, 2, 9, 35), status: 'voided' },
+          { id: 'waiting', scheduled_at: at(2026, 6, 2, 9, 40), status: 'scheduled' },
+        ],
+      });
+
+      const result = await service.moveBlock(
+        'event-1',
+        'block-1',
+        { newStartTime: '10:00' },
+        CALLER,
+      );
+
+      expect(updates).toEqual([{ id: 'waiting', scheduled_at: at(2026, 6, 2, 10, 40) }]);
+      expect(result.shiftedMatches).toBe(1);
+    });
+
+    /**
+     * The cascade used to await one round trip per bout, and it can cover a
+     * whole day. `phase_id` rides along because PostgREST writes a batch as
+     * `INSERT … ON CONFLICT DO UPDATE` and PostgreSQL checks the candidate
+     * row's NOT NULL columns before resolving the conflict.
+     */
+    it('shifts the whole cascade in one write, carrying each bout’s phase', async () => {
+      const { upserted, upsertCalls } = buildMoveMocks({
+        block: movedBar(),
+        eventStartDate: '2026-06-02',
+        matches: [
+          { id: 'm1', scheduled_at: at(2026, 6, 2, 9, 15), phase_id: 'phase-pools' },
+          { id: 'm2', scheduled_at: at(2026, 6, 2, 9, 45), phase_id: 'phase-finals' },
+        ],
+      });
+
+      const result = await service.moveBlock(
+        'event-1',
+        'block-1',
+        { newStartTime: '10:00' },
+        CALLER,
+      );
+
+      expect(upsertCalls.count).toBe(1);
+      expect(upserted).toEqual([
+        { id: 'm1', phase_id: 'phase-pools', scheduled_at: at(2026, 6, 2, 10, 15) },
+        { id: 'm2', phase_id: 'phase-finals', scheduled_at: at(2026, 6, 2, 10, 45) },
+      ]);
+      expect(result.shiftedMatches).toBe(2);
+    });
+
+    /**
+     * The number the operator is shown has to come from the write's own answer.
+     * Counting the rows we ASKED for reports a partly-cascaded day as a
+     * complete one — the same lie the old per-row loop told by incrementing
+     * before it read `error`.
+     */
+    it('counts the bouts the write says it persisted, not the ones it asked for', async () => {
+      buildMoveMocks({
+        block: movedBar(),
+        eventStartDate: '2026-06-02',
+        matches: [
+          { id: 'm1', scheduled_at: at(2026, 6, 2, 9, 15) },
+          { id: 'm2', scheduled_at: at(2026, 6, 2, 9, 45) },
+        ],
+        persistedIds: ['m1'],
+      });
+
+      const result = await service.moveBlock(
+        'event-1',
+        'block-1',
+        { newStartTime: '10:00' },
+        CALLER,
+      );
+
+      expect(result.shiftedMatches).toBe(1);
+    });
+
+    /** A refused move must not touch the alert queue either. */
+    it('does not re-queue any alert for a move it refuses', async () => {
+      buildMoveMocks({
+        block: movedBar(),
+        eventStartDate: '2026-06-02',
+        matches: [{ id: 'match-late', scheduled_at: at(2026, 6, 2, 23, 30) }],
+      });
+
+      await expect(
+        withAlerts().moveBlock('event-1', 'block-1', { newStartTime: '11:00' }, CALLER),
+      ).rejects.toThrow(BadRequestException);
+      expect(mockMatchAlerts.refresh).not.toHaveBeenCalled();
     });
   });
 
