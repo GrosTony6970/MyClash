@@ -99,6 +99,22 @@ async function orgIdForTournament(
 }
 
 /**
+ * `phases` carry no event id — the chain is phase → tournament → event, the same
+ * walk `orgIdForPool` makes one level higher.
+ */
+async function orgIdForPhase(supabase: SupabaseService, phaseId: string): Promise<string> {
+  const { data, error } = await supabase.service
+    .from('phases')
+    .select('tournaments!inner(event_id)')
+    .eq('id', phaseId)
+    .maybeSingle();
+  if (error) throw new BadRequestException(error.message);
+  const eventId = (data as { tournaments?: { event_id?: string } } | null)?.tournaments?.event_id;
+  if (!eventId) throw new NotFoundException(`Phase ${phaseId} not found`);
+  return orgIdForEvent(supabase, eventId);
+}
+
+/**
  * `swiss_rounds` carries no event id — the chain is round → phase → tournament →
  * event, the same walk `orgIdForPool` makes one level lower.
  */
@@ -172,6 +188,18 @@ export async function assertCanManagePool(
   minRole: OrgRole = MANAGE_EVENT_ROLE,
 ): Promise<string> {
   const orgId = await orgIdForPool(deps.supabase, poolId);
+  await deps.orgs.assertOrgRole(orgId, userId, minRole);
+  return orgId;
+}
+
+/** Assert the caller may manage the event a phase belongs to. */
+export async function assertCanManagePhase(
+  deps: EventAuthzDeps,
+  phaseId: string,
+  userId: string,
+  minRole: OrgRole = MANAGE_EVENT_ROLE,
+): Promise<string> {
+  const orgId = await orgIdForPhase(deps.supabase, phaseId);
   await deps.orgs.assertOrgRole(orgId, userId, minRole);
   return orgId;
 }
@@ -316,6 +344,31 @@ export async function assertCanReadEventRow(
   } catch {
     hidden(ref);
   }
+}
+
+/**
+ * The public-read gate for something reached through a phase.
+ *
+ * A phase carries no event id, so the visibility row is fetched through the same
+ * `phases → tournaments` hop `orgIdForPhase` makes. An unknown phase RETURNS
+ * rather than throwing, matching `assertCanReadEventRow`: the callers here
+ * answer `[]` for an id that does not exist and inventing a 404 would be a
+ * second, unrelated behaviour change.
+ */
+export async function assertCanReadPhase(
+  deps: EventAuthzDeps,
+  phaseId: string,
+  resolveUserId: () => Promise<string>,
+): Promise<void> {
+  const { data, error } = await deps.supabase.service
+    .from('phases')
+    .select('tournaments!inner(events!inner(status, organization_id))')
+    .eq('id', phaseId)
+    .maybeSingle();
+  if (error) throw new BadRequestException(error.message);
+  const event = (data as { tournaments?: { events?: EventVisibilityRow } } | null)?.tournaments
+    ?.events;
+  await assertCanReadEventRow(deps, phaseId, event ?? null, resolveUserId);
 }
 
 /** Fetch the visibility row, then gate on it. */

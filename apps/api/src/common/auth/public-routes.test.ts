@@ -139,6 +139,13 @@ const EXPECTED_PUBLIC = [
   // Anonymous organiser profile for /o/[slug]. Deliberately NOT
   // /organizations/slug/:slug — that one returns contact_email + status.
   'GET /organizations/public/:slug',
+  // A phase's fight card, which is what the public event page draws. It always
+  // said "(public)" in its own summary and sat next to five @Public() siblings,
+  // but carried no decorator and no check: it demanded an account and then asked
+  // nothing of it, so any signed-in stranger could read a DRAFT event's card.
+  // `assertCanReadPhase` is what makes this safe to open — a draft stays closed
+  // to everyone outside the organisation, anonymous or not.
+  'GET /phases/:phaseId/matches',
   'GET /public/generated-content/:type/:entityId',
   // The staff login page's event picker. Public by necessity: staff usernames
   // are unique per EVENT, so there is no namespace to authenticate a username

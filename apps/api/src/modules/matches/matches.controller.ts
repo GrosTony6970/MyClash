@@ -32,7 +32,11 @@ import { MatchesService } from './matches.service';
 import { SupabaseService } from '../supabase/supabase.service';
 // Value import, not `import type` — `import type` erases the DI metadata.
 import { OrganizationsService } from '../organizations/organizations.service';
-import { assertCanManagePool } from '../../common/auth/event-authz';
+import {
+  assertCanManagePhase,
+  assertCanManagePool,
+  assertCanReadPhase,
+} from '../../common/auth/event-authz';
 import { resolveRequestUserId } from '../../common/auth/request-user';
 import {
   AdjustClockDto,
@@ -84,10 +88,19 @@ export class MatchesController {
 
   // ── Matches ──────────────────────────────────────────────────────────────────
 
+  @Public()
   @Get('phases/:phaseId/matches')
   @ApiOperation({ summary: 'List matches for a phase (public)' })
   @ApiParam({ name: 'phaseId', type: 'string', format: 'uuid' })
-  async listByPhase(@Param('phaseId', ParseUUIDPipe) phaseId: string) {
+  async listByPhase(@Param('phaseId', ParseUUIDPipe) phaseId: string, @Req() req: FastifyRequest) {
+    // Its summary said "(public)" and its two neighbours are `@Public()`, but
+    // this one was neither public nor gated: it demanded an account and then
+    // asked nothing of it, so any signed-in stranger could read a DRAFT event's
+    // fight card. Now it is what it always claimed — open for a published event,
+    // and closed over a draft to everyone outside the organisation.
+    await assertCanReadPhase({ supabase: this.supabase, orgs: this.orgs }, phaseId, () =>
+      resolveRequestUserId(req, this.supabase),
+    );
     return this.matches.listByPhase(phaseId);
   }
 
@@ -110,9 +123,27 @@ export class MatchesController {
 
   @Post('phases/:phaseId/matches')
   @HttpCode(HttpStatus.CREATED)
+  @ApiBearerAuth()
   @ApiOperation({ summary: 'Create a match (org admin+)' })
   @ApiParam({ name: 'phaseId', type: 'string', format: 'uuid' })
-  async createMatch(@Body() dto: CreateMatchDto) {
+  async createMatch(
+    @Param('phaseId', ParseUUIDPipe) phaseId: string,
+    @Body() dto: CreateMatchDto,
+    @Req() req: FastifyRequest,
+  ) {
+    // The summary claimed "(org admin+)" and nothing enforced it — the same
+    // shape `scheduleMatch` below carried, and the same fix. Two faults, both
+    // here: the handler also ignored its own path parameter and wrote whatever
+    // phase the BODY named, so authorizing the path alone would have checked one
+    // event and written to another. The phase is pinned first, then checked.
+    if (dto.phaseId !== phaseId) {
+      throw new BadRequestException('phaseId in the body must match the phase in the path');
+    }
+    await assertCanManagePhase(
+      { supabase: this.supabase, orgs: this.orgs },
+      phaseId,
+      await resolveRequestUserId(req, this.supabase),
+    );
     return this.matches.createMatch(dto);
   }
 
@@ -186,15 +217,22 @@ export class MatchesController {
   }
 
   @Put('matches/:id/referee-role-assignments')
+  @ApiBearerAuth()
   @ApiOperation({
     summary:
-      'Set (or clear) the referee for one (match, role) pair in referee_assignments (scope_type=match)',
+      'Set (or clear) the referee for one (match, role) pair in referee_assignments (scope_type=match, organizer+)',
   })
   @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
   async setRefereeRoleAssignment(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: RefereeRoleAssignmentDto,
+    @Req() req: FastifyRequest,
   ) {
+    // This route named no event and checked nobody: any signed-in caller could
+    // put any person on any fight in any event. It resolves the organisation
+    // from the MATCH, like the other writes here, so a caller cannot reach past
+    // their own event.
+    await this.staff.authorizeMatchOrganizer(req, id);
     return this.matches.setRefereeRoleAssignment(id, dto.role, dto.refereeId);
   }
 
