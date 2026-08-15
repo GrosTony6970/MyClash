@@ -1,5 +1,6 @@
 import { BadRequestException, ConflictException, Logger } from '@nestjs/common';
 import type { SupabaseService } from '../supabase/supabase.service';
+import { hasBeenFought } from '../matches/fought-match';
 import { matchRulesetForPhase } from './match-ruleset';
 
 /**
@@ -62,7 +63,7 @@ export async function loadSlotMatch(supabase: Client, slotId: string): Promise<S
 
 /** True once a bout is in play or decided — its pairing is no longer ours. */
 export function hasStarted(match: SlotMatch): boolean {
-  return match.started_at !== null || ['running', 'paused', 'completed'].includes(match.status);
+  return hasBeenFought(match.status, match.started_at);
 }
 
 /**

@@ -1,5 +1,6 @@
 import { BadRequestException } from '@nestjs/common';
 import type { SupabaseService } from '../supabase/supabase.service';
+import { hasBeenFought } from '../matches/fought-match';
 import { buildSelfRef, type PhaseConfig } from './bracket-refs';
 import { loadMatch, loadPhase, loadSlot } from './bracket-downstream';
 
@@ -91,8 +92,7 @@ interface MatchRow {
   match_number_label: string | null;
 }
 
-const fought = (status: string, startedAt: string | null): boolean =>
-  startedAt !== null || ['running', 'paused', 'completed'].includes(status);
+const fought = hasBeenFought;
 
 /**
  * Every bout downstream of `matchId`, deepest round first.
