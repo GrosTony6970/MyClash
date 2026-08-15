@@ -339,6 +339,52 @@ describe('VenuesService', () => {
       expect(byLice.get('lice-b')).toEqual(['m2']);
     });
 
+    /**
+     * Moving a phase to a venue re-pistes every fight in it and moves no clock.
+     * The queued alert names the piste and freezes it at enqueue, so without
+     * this the whole phase's alerts would go on naming the old hall's pistes at
+     * exactly the right minute — the failure that looks like nothing at all.
+     */
+    it('applyTournamentPhaseVenue re-queues the alerts for every fight it moved', async () => {
+      const matchesChain = q({
+        data: [
+          { id: 'm1', scheduled_at: '2026-06-26T10:00:00Z' },
+          { id: 'm2', scheduled_at: '2026-06-26T10:05:00Z' },
+        ],
+        error: null,
+      });
+      matchesChain.update = vi.fn(() => ({
+        in: vi.fn(() => Promise.resolve({ data: null, error: null })),
+      }));
+
+      const supabase = {
+        service: {
+          from: vi.fn((table: string) => {
+            if (table === 'tournaments')
+              return q({ data: { id: 't-1', event_id: 'e-1' }, error: null });
+            if (table === 'events')
+              return q({ data: { id: 'e-1', organization_id: 'org-1' }, error: null });
+            if (table === 'tournament_phase_venues')
+              return q({ data: { venue_id: 'v-1' }, error: null });
+            if (table === 'phases') return q({ data: [{ id: 'phase-1' }], error: null });
+            if (table === 'lices') return q({ data: [{ id: 'lice-a' }], error: null });
+            if (table === 'matches') return matchesChain;
+            return q({ data: null, error: null });
+          }),
+        },
+      };
+      const matchAlerts = { refresh: vi.fn().mockResolvedValue(undefined) };
+      const service = new VenuesService(
+        supabase as never,
+        { assertOrgRole: vi.fn().mockResolvedValue(undefined) } as never,
+        matchAlerts as never,
+      );
+
+      await service.applyTournamentPhaseVenue('t-1', 'pool', 'user-1');
+
+      expect(matchAlerts.refresh).toHaveBeenCalledWith(['m1', 'm2']);
+    });
+
     it('applyTournamentPhaseVenue rejects when no venue is assigned for the kind', async () => {
       const supabase = {
         service: {

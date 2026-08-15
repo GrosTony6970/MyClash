@@ -2845,9 +2845,10 @@ describe('PhasesService', () => {
       // assertPoolEditable: matches.select.eq.in (no started matches)
       const editableChain = makeChain({ data: [], error: null });
       editableChain.in.mockResolvedValue({ data: [], error: null });
-      // Bulk update: matches.update({lice_id}).eq('pool_id', poolId)
+      // Bulk update: matches.update({lice_id}).eq('pool_id', poolId).select('id')
+      // — the ids come back from the write so the alerts can be refreshed.
       const updateChain = makeChain({ data: null, error: null });
-      updateChain.eq.mockResolvedValue({ data: null, error: null });
+      updateChain.select.mockResolvedValue({ data: [{ id: 'match-1' }], error: null });
 
       fromMock
         .mockReturnValueOnce(poolCtxChain)
@@ -2884,7 +2885,7 @@ describe('PhasesService', () => {
       const editableChain = makeChain({ data: [], error: null });
       editableChain.in.mockResolvedValue({ data: [], error: null });
       const updateChain = makeChain({ data: null, error: null });
-      updateChain.eq.mockResolvedValue({ data: null, error: null });
+      updateChain.select.mockResolvedValue({ data: [{ id: 'match-1' }], error: null });
 
       fromMock
         .mockReturnValueOnce(poolCtxChain)
@@ -2895,6 +2896,66 @@ describe('PhasesService', () => {
 
       expect(updateChain.update).toHaveBeenCalledWith({ lice_id: null });
       expect(result).toEqual({ poolId: 'pool-1', liceId: null });
+    });
+
+    /**
+     * The clock does not move here — only the piste. A queued alert names the
+     * piste in its own sentence and freezes it at enqueue, so a piste-only move
+     * leaves the alert sending a competitor to a piste this pool has left, at
+     * exactly the right minute. Nothing about that looks broken, which is why
+     * `lice_id` writes went years without telling the queue anything.
+     */
+    it('re-queues the alerts for every match it re-pisted', async () => {
+      const matchAlerts = { refresh: vi.fn().mockResolvedValue(undefined) };
+      const svc = new PhasesService(
+        mockSupabase as never,
+        undefined,
+        mockOrgs as never,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        matchAlerts as never,
+      );
+
+      const poolCtxChain = makeChain({
+        data: {
+          id: 'pool-1',
+          name: 'A',
+          phase_id: 'phase-1',
+          sort_order: 0,
+          phases: {
+            id: 'phase-1',
+            tournament_id: 'tournament-1',
+            tournaments: {
+              event_id: 'event-1',
+              weapon: 'longsword',
+              tournament_id: 'tournament-1',
+              events: { organization_id: 'org-1' },
+            },
+          },
+        },
+        error: null,
+      });
+      const editableChain = makeChain({ data: [], error: null });
+      editableChain.in.mockResolvedValue({ data: [], error: null });
+      const updateChain = makeChain({ data: null, error: null });
+      updateChain.select.mockResolvedValue({
+        data: [{ id: 'match-1' }, { id: 'match-2' }],
+        error: null,
+      });
+
+      fromMock
+        .mockReturnValueOnce(poolCtxChain)
+        .mockReturnValueOnce(editableChain)
+        .mockReturnValueOnce(updateChain);
+
+      await svc.setPoolLice('pool-1', 'lice-9', 'user-1');
+
+      // The ids come from the write's own RETURNING, so the projection is part
+      // of the contract: drop `.select('id')` and there is nothing to refresh.
+      expect(updateChain.select).toHaveBeenCalledWith('id');
+      expect(matchAlerts.refresh).toHaveBeenCalledWith(['match-1', 'match-2']);
     });
   });
 

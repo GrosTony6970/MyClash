@@ -1,16 +1,27 @@
 /**
- * Every write of `matches.scheduled_at` must refresh the alerts built from it.
+ * Every write of `matches.scheduled_at` OR `matches.lice_id` must refresh the
+ * alerts built from them.
  *
- * A queued "your fight starts in 10 minutes" is timed off the slot the fight
- * had when the job was created. Move the fight and the job stays where it was;
- * it fires at the old minute for a fight that is now somewhere else.
- * Unschedule the fight and it fires for a fight that is nowhere at all.
+ * A queued "your fight starts in 10 minutes" is built from two fields, not one:
+ * the time it fires at, and the piste it names in its own sentence — "… fights
+ * in 10 min — Pool 3 vs Dupont on Piste 2". Both are frozen into the job body
+ * when it is enqueued.
  *
- * On 2026-08-15 there were NINE such writes across four services and exactly
- * one of them told the queue anything — and that one got it half right, so
- * nothing looked broken. Eight silent instances of one bug is not eight
- * oversights: it is a missing seam. `MatchAlertRefresherService` is the seam
- * and this is what keeps the tenth write from being written without it.
+ * Move the fight in the clock and the job stays where it was; it fires at the
+ * old minute for a fight that is now somewhere else. That half was closed on
+ * 2026-08-15, when NINE writes of the time across four services turned out to
+ * have exactly one caller telling the queue anything — and that one got it half
+ * right, so nothing looked broken.
+ *
+ * Move the fight between PISTES and nothing fires at the wrong moment at all:
+ * the alert arrives on time and names a piste the fight has left. That is why
+ * this half went unnoticed for longer. Three writes changed `lice_id` without
+ * touching `scheduled_at`, so the refresher never ran and the guard below could
+ * not see them — it was watching one field of the two the body depends on.
+ *
+ * Eight, then three, silent instances of one bug is not eleven oversights: it is
+ * a missing seam. `MatchAlertRefresherService` is the seam and this is what
+ * keeps the next write from being written without it.
  *
  * WHAT IT CANNOT PROVE. This asserts the file REFERENCES the refresher, not
  * that the reference sits on the right code path. A file could call it once and
@@ -103,20 +114,31 @@ function writePayload(root: ts.Node): ts.Expression | null {
 }
 
 /**
- * Does this payload set `scheduled_at`?
+ * The two columns an alert body is built from. A write of EITHER can leave a
+ * queued job describing something that is no longer true.
+ */
+const ALERT_COLUMNS = ['scheduled_at', 'lice_id'] as const;
+
+/**
+ * Does this payload set one of the alert columns?
  *
  * A literal answers for itself. An IDENTIFIER does not, and that is not an edge
  * case — the schedule generator builds `matchesPayload` twenty lines earlier
  * and hands it over by name, which is how that write stayed invisible through a
  * whole recon pass. So a named payload is resolved to its declaration.
  *
- * Resolving beats falling back to the file. A file-wide search was the first
- * attempt and it flagged `venues.service.ts`, which writes `lice_id` alone and
- * merely mentions `scheduled_at:` in a TYPE ANNOTATION. A guard that cries wolf
- * gets an exemption entry, and an exemption list is how a guard dies.
+ * Resolving beats falling back to the file, and the reason is now visible in
+ * both directions. A file-wide text search was the first attempt and it flagged
+ * `venues.service.ts` for merely mentioning `scheduled_at:` in a TYPE
+ * ANNOTATION — a guard that cries wolf gets an exemption entry, and an
+ * exemption list is how a guard dies. That same file is flagged today, for the
+ * opposite and correct reason: it really does write `lice_id`.
  */
-function payloadSetsTime(payload: ts.Expression, source: ts.SourceFile): boolean {
-  if (payload.getText(source).includes('scheduled_at')) return true;
+function payloadSetsAlertColumn(payload: ts.Expression, source: ts.SourceFile): boolean {
+  const mentionsColumn = (text: string): boolean =>
+    ALERT_COLUMNS.some((column) => text.includes(column));
+
+  if (mentionsColumn(payload.getText(source))) return true;
   if (!ts.isIdentifier(payload)) return false;
   const name = payload.text;
   let declared = false;
@@ -125,7 +147,7 @@ function payloadSetsTime(payload: ts.Expression, source: ts.SourceFile): boolean
       ts.isVariableDeclaration(node) &&
       ts.isIdentifier(node.name) &&
       node.name.text === name &&
-      node.initializer?.getText(source).includes('scheduled_at')
+      mentionsColumn(node.initializer?.getText(source) ?? '')
     ) {
       declared = true;
     }
@@ -135,7 +157,7 @@ function payloadSetsTime(payload: ts.Expression, source: ts.SourceFile): boolean
   return declared;
 }
 
-function timeWriteFiles(): string[] {
+function alertWriteFiles(): string[] {
   const files: string[] = [];
   for (const file of sourceFiles(API_SRC)) {
     const text = readFileSync(file, 'utf8');
@@ -143,7 +165,7 @@ function timeWriteFiles(): string[] {
     const source = ts.createSourceFile(file, text, ts.ScriptTarget.Latest, true);
     for (const call of matchTableCalls(source)) {
       const payload = writePayload(chainRoot(call));
-      if (!payload || !payloadSetsTime(payload, source)) continue;
+      if (!payload || !payloadSetsAlertColumn(payload, source)) continue;
       files.push(file.replace(/\\/g, '/'));
       break;
     }
@@ -153,34 +175,48 @@ function timeWriteFiles(): string[] {
 
 describe('match alert coverage', () => {
   /**
-   * The detector has to actually see the four services it was built for, or
+   * The detector has to actually see the five services it was built for, or
    * every assertion below passes by finding nothing. A guard that has silently
    * stopped detecting is worse than no guard: it reads as coverage.
    */
   it('finds the writes it is meant to police', () => {
-    const files = timeWriteFiles();
+    const files = alertWriteFiles();
     expect(files.some((f) => f.endsWith('programme/programme.service.ts'))).toBe(true);
     expect(files.some((f) => f.endsWith('matches/matches.service.ts'))).toBe(true);
     expect(files.some((f) => f.endsWith('phases/phases.service.ts'))).toBe(true);
     expect(
       files.some((f) => f.endsWith('organizer-ai-assistant/organizer-ai-assistant.service.ts')),
     ).toBe(true);
+    // The piste half. This file writes `lice_id` and NOTHING else, so it is the
+    // one that proves the guard widened — under the time-only detector it was
+    // asserted ABSENT, and a piste-only move is exactly the write that used to
+    // slip through.
+    expect(files.some((f) => f.endsWith('venues/venues.service.ts'))).toBe(true);
   });
 
-  /** And nothing that only moves a fight between pistes. */
-  it('does not flag a write that leaves the time alone', () => {
-    expect(timeWriteFiles().some((f) => f.endsWith('venues/venues.service.ts'))).toBe(false);
+  /**
+   * And nothing that merely reads the columns, or names them in a type. The
+   * detector walks the AST for a `.update()`/`.upsert()` payload precisely so a
+   * mention is not a write — the first version of this guard flagged
+   * `venues.service.ts` off a type annotation and would have earned an
+   * exemption entry for it.
+   */
+  it('does not flag a file that only reads the alert columns', () => {
+    const files = alertWriteFiles();
+    expect(files.some((f) => f.endsWith('events/event-readiness.ts'))).toBe(false);
+    expect(files.some((f) => f.endsWith('matches/referee-assignment-index.ts'))).toBe(false);
   });
 
-  it('leaves no write of a match time without a refresh', () => {
-    const offenders = Array.from(new Set(timeWriteFiles()))
+  it('leaves no write of a match time or piste without a refresh', () => {
+    const offenders = Array.from(new Set(alertWriteFiles()))
       .filter((file) => !EXEMPT.some((allowed) => file.endsWith(allowed)))
       .filter((file) => !readFileSync(file, 'utf8').includes(REFRESHER))
       .map((file) => file.slice(file.indexOf('apps/api/')));
 
     expect(
       offenders,
-      `these files write a match time and never refresh its alerts:\n  ${offenders.join('\n  ')}`,
+      'these files write a match time or piste and never refresh its alerts:\n  ' +
+        offenders.join('\n  '),
     ).toEqual([]);
   });
 });

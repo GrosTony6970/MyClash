@@ -628,6 +628,15 @@ export class MatchesService {
       .single();
     if (error) throw new BadRequestException(error.message);
     if (!data) throw new NotFoundException(`Match ${matchId} not found`);
+    // A piste change is an alert change. The queued body names the piste as
+    // well as the time — frozen at enqueue — so moving a fight between pistes
+    // without moving it in the clock leaves the alert naming the wrong one,
+    // with a time that is still correct. Nothing about that looks broken.
+    //
+    // Only on a piste write. `referee_id` here is the legacy single-referee
+    // column; no alert body is built from it, and the referee's own alert comes
+    // off `referee_assignments`.
+    if (dto.liceId !== undefined) await this.matchAlerts.refresh([matchId]);
     return data;
   }
 

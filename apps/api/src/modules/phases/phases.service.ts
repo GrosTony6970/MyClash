@@ -2417,11 +2417,20 @@ export class PhasesService {
     await this.assertPoolEditAuth(poolId, userId);
     await this.assertPoolEditable(poolId);
 
-    const { error } = await this.supabase.service
+    const { data, error } = await this.supabase.service
       .from('matches')
       .update({ lice_id: liceId })
-      .eq('pool_id', poolId);
+      // The ids come back from the write itself. The filter is the pool, so a
+      // read afterwards would work too — but reading the rows the statement
+      // just changed is one round trip instead of two, and cannot drift.
+      .eq('pool_id', poolId)
+      .select('id');
     if (error) throw new BadRequestException(error.message);
+
+    // The time did not move, only the piste, and a queued alert names the piste
+    // as well as the time. Frozen at enqueue, it would go on naming the piste
+    // this pool has just left.
+    await this.matchAlerts?.refresh(((data ?? []) as Array<{ id: string }>).map((row) => row.id));
 
     return { poolId, liceId };
   }

@@ -3,9 +3,12 @@ import {
   ConflictException,
   Injectable,
   NotFoundException,
+  Optional,
 } from '@nestjs/common';
 import { SupabaseService } from '../supabase/supabase.service';
 import { OrganizationsService } from '../organizations/organizations.service';
+// Value import, not `import type` — `import type` erases the DI metadata.
+import { MatchAlertRefresherService } from '../notifications/match-alert-refresher.service';
 import type {
   CreateVenueAreaDto,
   CreateVenueDto,
@@ -43,6 +46,11 @@ export class VenuesService {
   constructor(
     private readonly supabase: SupabaseService,
     private readonly orgs: OrganizationsService,
+    // Optional like its neighbours elsewhere: several tests build this service
+    // by hand. Moving a phase to a venue re-pistes its fights, and the alert
+    // bodies name the piste.
+    @Optional()
+    private readonly matchAlerts?: MatchAlertRefresherService,
   ) {}
 
   // ── Venues ──────────────────────────────────────────────────────────────────
@@ -754,6 +762,13 @@ export class VenuesService {
         .in('id', ids);
       if (error) throw new BadRequestException(error.message);
     }
+
+    // The time did not move, only the piste — and a queued alert names the
+    // piste too ("… fights in 10 min … on Piste 3"). The body is frozen when
+    // the job is enqueued, so a piste-only move leaves it naming a piste the
+    // fight is no longer on, with a time that is still right. Nothing looks
+    // broken, which is why this went unnoticed.
+    await this.matchAlerts?.refresh(matches.map((m) => m.id));
 
     return { moved: matches.length, venueId };
   }

@@ -894,6 +894,34 @@ describe('MatchesService', () => {
   // which the public PATCH still writes for back-compat). The setter
   // always deletes the existing row for (match_id, role) and then either
   // stops (refereeId=null) or inserts the new row.
+  /**
+   * PATCH /matches/:id moves one fight between pistes without touching its
+   * time. The queued alert names the piste as well as the minute, and freezes
+   * both at enqueue — so this write left the alert arriving exactly on time and
+   * naming a piste the fight had left. That is why it was never noticed.
+   */
+  describe('update — a piste change is an alert change', () => {
+    it('re-queues the alert when the piste moves', async () => {
+      fromMock.mockReturnValue(makeChain({ data: { id: 'match-1' }, error: null }));
+
+      await service.update('match-1', { liceId: 'lice-9' } as never);
+
+      expect(mockMatchAlerts.refresh).toHaveBeenCalledWith(['match-1']);
+    });
+
+    it('leaves the queue alone for the legacy referee column', async () => {
+      // `matches.referee_id` is the legacy single-referee field. No alert body
+      // is built from it — the referee's own alert comes off
+      // `referee_assignments` — so refreshing here would be queue work for a
+      // change no reader can see.
+      fromMock.mockReturnValue(makeChain({ data: { id: 'match-1' }, error: null }));
+
+      await service.update('match-1', { refereeId: 'person-1' } as never);
+
+      expect(mockMatchAlerts.refresh).not.toHaveBeenCalled();
+    });
+  });
+
   describe('setRefereeRoleAssignment', () => {
     // The service does `await this.supabase.service.from('referee_assignments').delete().eq(...).eq(...).eq(...)`,
     // so the chain itself must be thenable. `makeChain` is not — patch
