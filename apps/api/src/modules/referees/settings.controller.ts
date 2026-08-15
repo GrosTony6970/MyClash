@@ -12,10 +12,16 @@ import {
   ParseUUIDPipe,
   Put,
   Query,
+  Req,
 } from '@nestjs/common';
 import { ApiOperation, ApiParam, ApiQuery, ApiTags } from '@nestjs/swagger';
 import { createZodDto } from 'nestjs-zod';
 import { z } from 'zod';
+import type { FastifyRequest } from 'fastify';
+import { assertCanManageEvent, assertEventMember } from '../../common/auth/event-authz';
+import { resolveRequestUserId } from '../../common/auth/request-user';
+import { OrganizationsService } from '../organizations/organizations.service';
+import { SupabaseService } from '../supabase/supabase.service';
 import { SettingsService } from './settings.service';
 
 const updateSettingsSchema = z
@@ -44,7 +50,19 @@ class UpdateSettingsDto extends createZodDto(updateSettingsSchema) {}
 @ApiTags('referees')
 @Controller()
 export class SettingsController {
-  constructor(private readonly settings: SettingsService) {}
+  constructor(
+    private readonly settings: SettingsService,
+    private readonly supabase: SupabaseService,
+    private readonly organizations: OrganizationsService,
+  ) {}
+
+  private get authz() {
+    return { supabase: this.supabase, orgs: this.organizations };
+  }
+
+  private userId(req: FastifyRequest): Promise<string> {
+    return resolveRequestUserId(req, this.supabase);
+  }
 
   @Get('events/:eventId/pool-assignment-settings')
   @ApiOperation({ summary: 'Get pool assignment settings (tournament override → event default)' })
@@ -52,8 +70,10 @@ export class SettingsController {
   @ApiQuery({ name: 'tournamentId', required: false, type: 'string' })
   async get(
     @Param('eventId', ParseUUIDPipe) eventId: string,
+    @Req() req: FastifyRequest,
     @Query('tournamentId') tournamentId?: string,
   ) {
+    await assertEventMember(this.authz, eventId, await this.userId(req));
     return this.settings.getSettings(eventId, tournamentId);
   }
 
@@ -66,7 +86,10 @@ export class SettingsController {
     @Param('eventId', ParseUUIDPipe) eventId: string,
     @Query('tournamentId') tournamentId: string | undefined,
     @Body() dto: UpdateSettingsDto,
+    @Req() req: FastifyRequest,
   ) {
+    // The summary said "organizer+" and nothing enforced it until 2026-08-15.
+    await assertCanManageEvent(this.authz, eventId, await this.userId(req));
     return this.settings.upsertSettings(eventId, tournamentId ?? null, dto);
   }
 }

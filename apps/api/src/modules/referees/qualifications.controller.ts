@@ -21,6 +21,12 @@ import { ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
 import { createZodDto } from 'nestjs-zod';
 import { z } from 'zod';
 import type { FastifyRequest } from 'fastify';
+import {
+  assertCanManageEvent,
+  assertCanManageRefereeQualification,
+  assertEventMember,
+} from '../../common/auth/event-authz';
+import { OrganizationsService } from '../organizations/organizations.service';
 import { SupabaseService } from '../supabase/supabase.service';
 import { QualificationsService } from './qualifications.service';
 
@@ -99,23 +105,36 @@ export class QualificationsController {
   constructor(
     private readonly qualifications: QualificationsService,
     private readonly supabase: SupabaseService,
+    private readonly organizations: OrganizationsService,
   ) {}
 
+  /**
+   * The skills routes below authorize inside the service, at `admin`. The four
+   * qualification routes did not authorize ANYWHERE until 2026-08-15 — the
+   * neighbour being guarded is not evidence that a route is.
+   */
+  private get authz() {
+    return { supabase: this.supabase, orgs: this.organizations };
+  }
+
   @Get('events/:eventId/referee-qualifications')
-  @ApiOperation({ summary: 'List active referee qualifications for an event' })
+  @ApiOperation({ summary: 'List active referee qualifications for an event (org member)' })
   @ApiParam({ name: 'eventId', type: 'string', format: 'uuid' })
-  async list(@Param('eventId', ParseUUIDPipe) eventId: string) {
+  async list(@Param('eventId', ParseUUIDPipe) eventId: string, @Req() req: FastifyRequest) {
+    await assertEventMember(this.authz, eventId, await getUserId(req, this.supabase));
     return this.qualifications.listForEvent(eventId);
   }
 
   @Get('events/:eventId/persons/:personId/referee-qualifications')
-  @ApiOperation({ summary: 'List qualifications for a specific person' })
+  @ApiOperation({ summary: 'List qualifications for a specific person (org member)' })
   @ApiParam({ name: 'eventId', type: 'string', format: 'uuid' })
   @ApiParam({ name: 'personId', type: 'string', format: 'uuid' })
   async listForPerson(
     @Param('eventId', ParseUUIDPipe) eventId: string,
     @Param('personId', ParseUUIDPipe) personId: string,
+    @Req() req: FastifyRequest,
   ) {
+    await assertEventMember(this.authz, eventId, await getUserId(req, this.supabase));
     return this.qualifications.listForPerson(eventId, personId);
   }
 
@@ -126,24 +145,29 @@ export class QualificationsController {
   async upsert(
     @Param('eventId', ParseUUIDPipe) eventId: string,
     @Body() dto: UpsertQualificationDto,
+    @Req() req: FastifyRequest,
   ) {
+    await assertCanManageEvent(this.authz, eventId, await getUserId(req, this.supabase));
     return this.qualifications.upsert(eventId, dto.personId, dto.role, dto.rating ?? null);
   }
 
   @Delete('referee-qualifications/:id')
   @HttpCode(HttpStatus.NO_CONTENT)
-  @ApiOperation({ summary: 'Soft-delete a qualification (active=false)' })
+  @ApiOperation({ summary: 'Soft-delete a qualification (active=false, organizer+)' })
   @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
-  async deactivate(@Param('id', ParseUUIDPipe) id: string) {
+  async deactivate(@Param('id', ParseUUIDPipe) id: string, @Req() req: FastifyRequest) {
+    // The row names its own event, so the caller cannot address someone else's.
+    await assertCanManageRefereeQualification(this.authz, id, await getUserId(req, this.supabase));
     await this.qualifications.deactivate(id);
   }
 
   // ── Skills catalog ────────────────────────────────────────────────────────────
 
   @Get('events/:eventId/referee-skills')
-  @ApiOperation({ summary: 'List system + event custom skills' })
+  @ApiOperation({ summary: 'List system + event custom skills (org member)' })
   @ApiParam({ name: 'eventId', type: 'string', format: 'uuid' })
-  async listSkills(@Param('eventId', ParseUUIDPipe) eventId: string) {
+  async listSkills(@Param('eventId', ParseUUIDPipe) eventId: string, @Req() req: FastifyRequest) {
+    await assertEventMember(this.authz, eventId, await getUserId(req, this.supabase));
     return this.qualifications.listEventSkills(eventId);
   }
 

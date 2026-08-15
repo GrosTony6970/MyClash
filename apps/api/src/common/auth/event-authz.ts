@@ -83,6 +83,63 @@ async function orgIdForPool(supabase: SupabaseService, poolId: string): Promise<
   return orgIdForEvent(supabase, eventId);
 }
 
+/** A tournament belongs to exactly one event — `tournaments.event_id`. */
+async function orgIdForTournament(
+  supabase: SupabaseService,
+  tournamentId: string,
+): Promise<string> {
+  const { data, error } = await supabase.service
+    .from('tournaments')
+    .select('event_id')
+    .eq('id', tournamentId)
+    .maybeSingle();
+  if (error) throw new BadRequestException(error.message);
+  if (!data) throw new NotFoundException(`Tournament ${tournamentId} not found`);
+  return orgIdForEvent(supabase, String((data as { event_id: string }).event_id));
+}
+
+/**
+ * `swiss_rounds` carries no event id — the chain is round → phase → tournament →
+ * event, the same walk `orgIdForPool` makes one level lower.
+ */
+async function orgIdForSwissRound(supabase: SupabaseService, roundId: string): Promise<string> {
+  const { data, error } = await supabase.service
+    .from('swiss_rounds')
+    .select('phases!inner(tournaments!inner(event_id))')
+    .eq('id', roundId)
+    .maybeSingle();
+  if (error) throw new BadRequestException(error.message);
+  const eventId = (data as { phases?: { tournaments?: { event_id?: string } } } | null)?.phases
+    ?.tournaments?.event_id;
+  if (!eventId) throw new NotFoundException(`Swiss round ${roundId} not found`);
+  return orgIdForEvent(supabase, eventId);
+}
+
+/**
+ * Tables that carry their own `event_id`, so the hop is single — unlike the pool
+ * and Swiss-round walks above.
+ *
+ * A closed union rather than a `string` parameter: a typo'd table name would
+ * otherwise resolve to nothing, and `orgIdFor…` returning nothing is the shape
+ * that FAILS OPEN. The compiler rejects the typo instead.
+ */
+type EventScopedTable = 'referee_assignments' | 'referee_qualifications';
+
+async function orgIdForEventScopedRow(
+  supabase: SupabaseService,
+  table: EventScopedTable,
+  id: string,
+): Promise<string> {
+  const { data, error } = await supabase.service
+    .from(table)
+    .select('event_id')
+    .eq('id', id)
+    .maybeSingle();
+  if (error) throw new BadRequestException(error.message);
+  if (!data) throw new NotFoundException(`Row ${id} not found in ${table}`);
+  return orgIdForEvent(supabase, String((data as { event_id: string }).event_id));
+}
+
 /** Assert the caller may manage `eventId`, and return its organisation id. */
 export async function assertCanManageEvent(
   deps: EventAuthzDeps,
@@ -119,6 +176,46 @@ export async function assertCanManagePool(
   return orgId;
 }
 
+/** Assert the caller may manage the event a Swiss round belongs to. */
+export async function assertCanManageSwissRound(
+  deps: EventAuthzDeps,
+  roundId: string,
+  userId: string,
+  minRole: OrgRole = MANAGE_EVENT_ROLE,
+): Promise<string> {
+  const orgId = await orgIdForSwissRound(deps.supabase, roundId);
+  await deps.orgs.assertOrgRole(orgId, userId, minRole);
+  return orgId;
+}
+
+/** Assert the caller may manage the event a referee assignment belongs to. */
+export async function assertCanManageRefereeAssignment(
+  deps: EventAuthzDeps,
+  assignmentId: string,
+  userId: string,
+  minRole: OrgRole = MANAGE_EVENT_ROLE,
+): Promise<string> {
+  const orgId = await orgIdForEventScopedRow(deps.supabase, 'referee_assignments', assignmentId);
+  await deps.orgs.assertOrgRole(orgId, userId, minRole);
+  return orgId;
+}
+
+/** Assert the caller may manage the event a referee qualification belongs to. */
+export async function assertCanManageRefereeQualification(
+  deps: EventAuthzDeps,
+  qualificationId: string,
+  userId: string,
+  minRole: OrgRole = MANAGE_EVENT_ROLE,
+): Promise<string> {
+  const orgId = await orgIdForEventScopedRow(
+    deps.supabase,
+    'referee_qualifications',
+    qualificationId,
+  );
+  await deps.orgs.assertOrgRole(orgId, userId, minRole);
+  return orgId;
+}
+
 /**
  * Assert the caller is a MEMBER of the event's organisation, at any role.
  *
@@ -137,6 +234,17 @@ export async function assertEventMember(
   userId: string,
 ): Promise<string> {
   const orgId = await orgIdForEvent(deps.supabase, eventId);
+  await deps.orgs.assertOrgRole(orgId, userId, 'read_only');
+  return orgId;
+}
+
+/** `assertEventMember` reached through a tournament. */
+export async function assertTournamentMember(
+  deps: EventAuthzDeps,
+  tournamentId: string,
+  userId: string,
+): Promise<string> {
+  const orgId = await orgIdForTournament(deps.supabase, tournamentId);
   await deps.orgs.assertOrgRole(orgId, userId, 'read_only');
   return orgId;
 }
