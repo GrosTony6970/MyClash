@@ -72,6 +72,28 @@ const moveBlockSchema = z
 export class MoveBlockDto extends createZodDto(moveBlockSchema) {}
 
 /**
+ * Push the rest of one day back by a measured delay, bars and bouts together.
+ *
+ * `fromTime` is the cut: everything starting at or after it moves. Bars need
+ * that cut because a bar has no status to say it has already happened; a bout
+ * is protected by its status as well, so one already fought or on a piste
+ * stays where it is whatever the cut says.
+ *
+ * `deltaMinutes` is bounded at twelve hours in either direction. A day cannot
+ * absorb more than that without crossing midnight, which the writer refuses
+ * anyway — the bound is here so a mistyped figure is rejected by its shape
+ * rather than by its consequences.
+ */
+const delayDaySchema = z
+  .object({
+    dayIndex: z.number().int().min(0),
+    fromTime: z.string().regex(HH_MM),
+    deltaMinutes: z.number().int().min(-720).max(720),
+  })
+  .strict();
+export class DelayDayDto extends createZodDto(delayDaySchema) {}
+
+/**
  * Resize a block by setting a new end and/or start time. The operator drags
  * the block's bottom edge (newEndTime) or top edge (newStartTime) on the grid;
  * the FE rounds to a 15-min slot and PATCHes the new HH:MM. Whichever field is

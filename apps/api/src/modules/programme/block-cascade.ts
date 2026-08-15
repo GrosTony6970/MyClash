@@ -23,12 +23,28 @@ export function cascadeBlockShift(
   dayStartMin = 0,
 ): CascadeBlock[] {
   const moved = blocks.find((b) => b.id === movedBlockId);
-  if (!moved || deltaMin === 0) return [];
-  const oldStartMin = moved.startMin;
+  if (!moved) return [];
+  return shiftBlocksFrom(blocks, moved.startMin, deltaMin, dayStartMin);
+}
+
+/**
+ * The same cascade, cut at a minute of the day rather than at a block.
+ *
+ * This is what `cascadeBlockShift` has always done underneath; naming it lets
+ * the whole-day running-late control reuse it, where there is no dragged block
+ * to take the cut from — the operator says "everything from now on".
+ */
+export function shiftBlocksFrom(
+  blocks: CascadeBlock[],
+  fromMin: number,
+  deltaMin: number,
+  dayStartMin = 0,
+): CascadeBlock[] {
+  if (deltaMin === 0) return [];
 
   const shifted: CascadeBlock[] = [];
   for (const b of blocks) {
-    if (b.startMin < oldStartMin) continue; // earlier blocks stay put
+    if (b.startMin < fromMin) continue; // earlier blocks stay put
     const duration = b.endMin - b.startMin;
     const start = Math.max(dayStartMin, b.startMin + deltaMin);
     shifted.push({ id: b.id, startMin: start, endMin: start + duration });

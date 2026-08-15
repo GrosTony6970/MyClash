@@ -34,6 +34,18 @@ export function hhmmToMinutes(hhmm: string): number {
   return (h ?? 0) * 60 + (m ?? 0);
 }
 
+/**
+ * The exact inverse: `HH:MM` for minutes since midnight.
+ *
+ * Lives beside `hhmmToMinutes` so the pair cannot drift. Not a slot conversion
+ * — the axis origin is nowhere in it, which is what the whole-day delay needs:
+ * a wall-clock time to cut the day at, not a row on the grid.
+ */
+export function minutesToHHMM(min: number): string {
+  const wrapped = Math.max(0, Math.min(Math.floor(min), 24 * 60 - 1));
+  return `${String(Math.floor(wrapped / 60)).padStart(2, '0')}:${String(wrapped % 60).padStart(2, '0')}`;
+}
+
 /** Slot indices for one block on an axis starting at `startHour`. */
 export function blockSlots(block: DayBlockInput, startHour: number): BlockSlots {
   const originMin = startHour * 60;

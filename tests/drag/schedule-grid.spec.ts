@@ -1,12 +1,14 @@
 import { test, expect } from '@playwright/test';
 import { LICE_A, LICE_B, MATCH_1, MATCH_2 } from './schedule-grid.fixture';
 import {
+  RUNNING_LATE_CUT,
   SCHEDULE_URL,
   card,
   dragAfterAbandonedDrag,
   dragCardToCell,
   mockApi,
   openDetailedGrid,
+  openRunningLateBoard,
   slotOfCard,
 } from './schedule-grid.harness';
 
@@ -263,5 +265,91 @@ test.describe('schedule grid drag layer', () => {
     // string proves the EVENT clock only because the two agree here; the unit
     // test in referee-conflict-rows.test.ts is the one that runs a third zone.
     expect(api.readCount('/referee-crew-conflicts')).toBeGreaterThanOrEqual(1);
+  });
+});
+
+/**
+ * The whole-day running-late control.
+ *
+ * Separate describe because it needs a different board: a piste actually
+ * behind, and the browser clock pinned to the fixture's day. See
+ * `openRunningLateBoard`.
+ */
+test.describe('running late for a whole day', () => {
+  test.use({ viewport: { width: 1680, height: 1600 } });
+
+  /**
+   * The board measures drift per piste and the control offers the worst one.
+   * M1 was planned for 10:00 and went on at 10:20, so the day is twenty minutes
+   * behind and the button says so before it is pressed.
+   */
+  test('offers the measured delay when a piste is running behind', async ({ page }) => {
+    await openRunningLateBoard(page);
+
+    await expect(page.getByTestId('running-late-open')).toContainText('20 min');
+  });
+
+  /**
+   * The confirm step. It is not the one-click the piste headers carry, because
+   * this write retimes the whole day and lands on no undo stack — so it says
+   * what it will touch first. One bar (Lunch, 13:00) and one fight (M2, 12:00)
+   * sit after the 11:00 cut; M1 is on a piste and does not move.
+   */
+  test('says what it will move before it moves anything', async ({ page }) => {
+    const api = await openRunningLateBoard(page);
+
+    await page.getByTestId('running-late-open').click();
+
+    await expect(page.getByText('Bars to move: 1. Fights to move: 1.')).toBeVisible();
+    await expect(page.getByText(/From 11:00 onwards/)).toBeVisible();
+    // Nothing is written by opening the dialog.
+    expect(api.delayWrites()).toEqual([]);
+  });
+
+  /**
+   * The contract: ONE request, carrying the day, the cut and the delay. Bars
+   * and fights move together on the server — which is the whole point of the
+   * endpoint, and what the per-piste "+N" never did.
+   */
+  test('pushes the day back in one request carrying the day, the cut and the delay', async ({
+    page,
+  }) => {
+    const api = await openRunningLateBoard(page);
+
+    await page.getByTestId('running-late-open').click();
+    await page.getByTestId('running-late-confirm').click();
+
+    await expect.poll(() => api.delayWrites().length).toBe(1);
+    expect(api.delayWrites()[0]).toEqual({
+      dayIndex: 0,
+      fromTime: RUNNING_LATE_CUT,
+      deltaMinutes: 20,
+    });
+  });
+
+  /**
+   * The measured figure is a heuristic off one bout. The person in the hall
+   * usually knows better, so the field is editable and what they type is what
+   * is sent.
+   */
+  test('sends the corrected figure when the operator overrides it', async ({ page }) => {
+    const api = await openRunningLateBoard(page);
+
+    await page.getByTestId('running-late-open').click();
+    await page.getByTestId('running-late-minutes').fill('35');
+    await page.getByTestId('running-late-confirm').click();
+
+    await expect.poll(() => api.delayWrites().length).toBe(1);
+    expect(api.delayWrites()[0]?.['deltaMinutes']).toBe(35);
+  });
+
+  /**
+   * A board with nothing started has no drift, so there is nothing to offer and
+   * the control stays away. Guessing a delay would be worse than not having one.
+   */
+  test('offers nothing on a board where no piste has started', async ({ page }) => {
+    await openDetailedGrid(page);
+
+    await expect(page.getByTestId('running-late-open')).toHaveCount(0);
   });
 });

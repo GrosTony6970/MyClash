@@ -80,6 +80,10 @@ describe('a member of another organisation cannot write the programme', () => {
     ['generate', (s) => s.generate(EVENT_ID, {}, OUTSIDER)],
     ['createBlock', (s) => s.createBlock(EVENT_ID, {} as never, OUTSIDER)],
     ['moveBlock', (s) => s.moveBlock(EVENT_ID, 'b1', { newStartTime: '10:00' }, OUTSIDER)],
+    [
+      'delayDay',
+      (s) => s.delayDay(EVENT_ID, { dayIndex: 0, fromTime: '14:00', deltaMinutes: 20 }, OUTSIDER),
+    ],
     ['resizeBlock', (s) => s.resizeBlock(EVENT_ID, 'b1', { newEndTime: '11:00' }, OUTSIDER)],
     ['scheduleGroup', (s) => s.scheduleGroup(EVENT_ID, {} as never, OUTSIDER)],
     ['updateBlockLabel', (s) => s.updateBlockLabel(EVENT_ID, 'b1', {} as never, OUTSIDER)],

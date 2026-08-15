@@ -131,6 +131,41 @@ export const scheduleFixture = [
   }),
 ];
 
+/**
+ * The same day, running twenty minutes behind on Piste 1.
+ *
+ * `computeLiceDrift` measures a piste off its RUNNING bout: M1 was planned for
+ * 10:00 and went on at 10:20. That is the only way to make the whole-day
+ * running-late control appear, because a board with nothing started has no
+ * drift to offer and deliberately shows no button.
+ *
+ * M2 stays waiting at 12:00, so with the clock at 11:00 there is exactly one
+ * fight and one bar (Lunch) after the cut — small enough to assert exactly.
+ */
+export const LATE_START = at('10:20');
+export const lateScheduleFixture = [
+  match({
+    id: MATCH_1,
+    matchNumberLabel: 'M1',
+    roundCode: 'LSW-P1-M1',
+    liceId: LICE_A,
+    scheduledAt: at('10:00'),
+    status: 'running',
+    startedAt: LATE_START,
+  }),
+  match({
+    id: MATCH_2,
+    matchNumberLabel: 'M2',
+    roundCode: 'LSW-P1-M2',
+    liceId: LICE_B,
+    scheduledAt: at('12:00'),
+    redFighterName: 'Third Fighter',
+    blueFighterName: 'Fourth Fighter',
+    redRegistrationId: 'reg-red-2',
+    blueRegistrationId: 'reg-blue-2',
+  }),
+];
+
 /** `global_persons.id` — deliberately unlike any registration id above, because
  *  the whole referee check turns on those two spaces not being confused. */
 export const REFEREE_PERSON = 'gp-denis';

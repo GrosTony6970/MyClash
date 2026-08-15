@@ -3,6 +3,7 @@ import { breakEditSteps } from './break-edit-steps';
 import {
   barEditRequest,
   createBarRequest,
+  delayDayRequest,
   deleteBarRequest,
   moveBarRequest,
   resizeBarEndRequest,
@@ -105,6 +106,18 @@ describe('programme bar requests', () => {
     expect(moveBarRequest(target, 'b-1', '11:30')).toEqual({
       url: `${BASE}/b-1/move`,
       init: { method: 'PATCH', body: { newStartTime: '11:30' } },
+    });
+  });
+
+  /**
+   * The whole-day delay is NOT under a bar: no bar is being dragged, so it
+   * hangs off the programme itself. Routing it through a bar would have meant
+   * inventing one to carry the day's delay.
+   */
+  it('sends the whole-day delay to the programme, not to a bar', () => {
+    expect(delayDayRequest(target, { dayIndex: 1, fromTime: '14:35', deltaMinutes: 20 })).toEqual({
+      url: 'https://api.test/api/v1/events/ev-1/programme/delay',
+      init: { method: 'POST', body: { dayIndex: 1, fromTime: '14:35', deltaMinutes: 20 } },
     });
   });
 

@@ -1,8 +1,10 @@
 import { expect, type Page, type Request } from '@playwright/test';
 import {
+  DAY,
   EVENT_ID,
   ORG_SLUG,
   eventFixture,
+  lateScheduleFixture,
   licesFixture,
   meFixture,
   programmeFixture,
@@ -30,17 +32,25 @@ export interface Harness {
   writes: Request[];
   /** Writes to PATCH /matches/:id/schedule, parsed. */
   scheduleWrites: () => Array<{ matchId: string; body: Record<string, unknown> }>;
+  /** Bodies POSTed to the whole-day running-late endpoint. */
+  delayWrites: () => Array<Record<string, unknown>>;
   /** How many times a GET path suffix has been asked for. Lets a spec say "the
    *  board answered this from what it already had" rather than only that the
    *  answer appeared. */
   readCount: (pathSuffix: string) => number;
 }
 
+/** What a spec wants served instead of the defaults. */
+export interface MockOptions {
+  /** Overrides `scheduleFixture` — the running-late spec needs a late board. */
+  schedule?: unknown;
+}
+
 /** The GET payload for a bootstrap path, or null when this spec does not own it. */
-export function readFixture(path: string): unknown | null {
+export function readFixture(path: string, opts: MockOptions = {}): unknown | null {
   if (path.endsWith('/me')) return meFixture;
   if (path.endsWith(`/events/${EVENT_ID}/lices`)) return licesFixture;
-  if (path.endsWith(`/events/${EVENT_ID}/schedule`)) return scheduleFixture;
+  if (path.endsWith(`/events/${EVENT_ID}/schedule`)) return opts.schedule ?? scheduleFixture;
   if (path.endsWith(`/events/${EVENT_ID}/programme`)) return programmeFixture;
   // Both halves of the referee check. Unmocked they fall through to the `?? []`
   // in mockApi, and an array is not a crew payload — the board would raise a
@@ -72,7 +82,7 @@ export function writeFixture(path: string): unknown {
   return {};
 }
 
-export async function mockApi(page: Page): Promise<Harness> {
+export async function mockApi(page: Page, opts: MockOptions = {}): Promise<Harness> {
   const writes: Request[] = [];
   const reads: string[] = [];
 
@@ -87,12 +97,16 @@ export async function mockApi(page: Page): Promise<Harness> {
     reads.push(path);
     // Anything unrecognised must still answer — an unrouted request stalls the
     // mount effect and the page never finishes loading.
-    return route.fulfill({ json: readFixture(path) ?? [] });
+    return route.fulfill({ json: readFixture(path, opts) ?? [] });
   });
 
   return {
     writes,
     readCount: (pathSuffix) => reads.filter((p) => p.endsWith(pathSuffix)).length,
+    delayWrites: () =>
+      writes
+        .filter((r) => new URL(r.url()).pathname.endsWith('/programme/delay'))
+        .map((r) => (r.postDataJSON() ?? {}) as Record<string, unknown>),
     scheduleWrites: () =>
       writes
         .filter((r) => /\/matches\/[0-9a-f-]{36}\/schedule$/i.test(new URL(r.url()).pathname))
@@ -139,6 +153,32 @@ export async function openDetailedGrid(page: Page): Promise<Harness> {
   await expect(card(page, 'LSW-P1-M1')).toBeVisible();
   await page.getByRole('button', { name: 'Detailed grid' }).click();
   await expect(page.locator('[data-lice-id][data-slot]').first()).toBeAttached();
+  return harness;
+}
+
+/**
+ * Loads the board as it looks on a day that is running late.
+ *
+ * TWO things have to be true or the control is deliberately absent, and both
+ * are the reason this needs its own opener. A piste must be measurably behind,
+ * which takes a bout that has actually STARTED late — hence
+ * `lateScheduleFixture`. And the board's active day must be TODAY, which the
+ * fixture's fixed date never is, so the browser clock is pinned to it. Without
+ * the clock the button simply never renders and the spec would pass or fail for
+ * reasons unrelated to the delay.
+ *
+ * 11:00 Paris on the fixture day: after M1 went on late at 10:20, and before
+ * both the Lunch bar (13:00) and M2 (12:00), so exactly one bar and one fight
+ * sit after the cut.
+ */
+export const RUNNING_LATE_CUT = '11:00';
+
+export async function openRunningLateBoard(page: Page): Promise<Harness> {
+  // Paris is UTC+2 in June, so 09:00Z is 11:00 on the board's own clock.
+  await page.clock.setFixedTime(new Date(`${DAY}T09:00:00.000Z`));
+  const harness = await mockApi(page, { schedule: lateScheduleFixture });
+  await page.goto(SCHEDULE_URL);
+  await expect(card(page, 'LSW-P1-M2')).toBeVisible();
   return harness;
 }
 

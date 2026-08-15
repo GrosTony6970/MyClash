@@ -1867,6 +1867,25 @@ export const organizer = {
       redo: '↷ Redo',
       redoTitle: 'Redo (Ctrl+Shift+Z)',
       clearDayButton: 'Clear day ({count})',
+      // Whole-day running-late control. The per-piste "+N" in the column
+      // headers pushes one piste's fights; this pushes the bars too, so the
+      // day keeps its shape. Shown only when a piste is measurably late.
+      runningLateButton: '⏱ Running late — {min} min',
+      runningLateTitle: 'Push the rest of the day back, bars and fights together',
+      runningLateHeading: 'Running late',
+      runningLateBasis: '{lice} is {min} min behind, measured on {basis}.',
+      runningLateAmount: 'Push the rest of the day back by',
+      runningLateMinutes: 'min',
+      runningLateFrom: 'From {time} onwards, on {day}.',
+      // Count-first on purpose: `t()` has no plural forms, and "1 bars" in a
+      // confirm dialog reads as a bug in the number.
+      runningLateMoves: 'Bars to move: {bars}. Fights to move: {fights}.',
+      // Says what the operator does NOT have to check by hand. The API applies
+      // the same rule, so this is a promise the write keeps.
+      runningLateKeeps: 'Fights already fought, or on a piste now, stay where they are.',
+      runningLateConfirm: 'Push the day back',
+      runningLateCancel: 'Cancel',
+      runningLateBusy: 'Pushing…',
       addLice: '+ Add lice',
       newLicePlaceholder: 'Lice 4',
       adding: 'Adding…',

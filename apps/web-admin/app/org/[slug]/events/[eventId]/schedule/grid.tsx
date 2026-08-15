@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useI18n } from '@myclash/next-i18n/client';
 import { ConfirmDialog, accentClassFor } from '@myclash/ui';
-import { localeToBcp47 } from '@myclash/time';
+import { localeToBcp47, minutesIntoDayInZone, zonedDay } from '@myclash/time';
 import { resolveBlockAccent } from '@myclash/types';
 import { placeMultiWithShift } from './place-with-shift';
 import { computeHeaderRuns, type HeaderRunItem } from './compute-header-runs';
@@ -23,7 +23,9 @@ import type {
 } from './schedule-types';
 import { blockLiceChange, liceSelectionChanged, runUnschedulePlan } from './block-run-plans';
 import { newBreakDraftFromCell } from './new-break-draft';
-import { hhmmToMinutes, programmeBlocksForDay } from './programme-block-slots';
+import { hhmmToMinutes, minutesToHHMM, programmeBlocksForDay } from './programme-block-slots';
+import { previewDayDelay, suggestDayDelay } from './day-delay';
+import { RunningLateDialog } from './RunningLateDialog';
 import { clampPanelWidth } from './panel-width';
 import { useSchedulePrefs } from './useSchedulePrefs';
 import { useScheduleWrites } from './useScheduleWrites';
@@ -366,7 +368,10 @@ export function ScheduleGrid({
     resizeBreakTimeTo,
     resizeBreakStartTo,
     createBreakBlock,
+    delayRestOfDay,
+    delayingDay,
   } = bars;
+  const [pendingDelay, setPendingDelay] = useState(false);
 
   // Slice 3 of the schedule overhaul: clear every match on the active
   // day with a confirm gate. `clearing` doubles as the modal flag and
@@ -988,6 +993,43 @@ export function ScheduleGrid({
     [scheduledOnActiveDay],
   );
 
+  // The whole-day version of the same idea. A day has no single measured drift
+  // — `computeLiceDrift` reports one per piste — so the worst late piste seeds
+  // the dialog and the operator can correct it.
+  const dayDelaySeed = useMemo(
+    () => suggestDayDelay(liceDrift, new Map(lices.map((l) => [l.id, l.name]))),
+    [liceDrift, lices],
+  );
+
+  // The cut. Everything starting at or after this minute of the day moves, in
+  // the EVENT zone — the clock the board and the endpoint both speak. Null when
+  // the active day is not today, which is also when there is no drift to act on.
+  const nowInEventZone = activeDay
+    ? zonedDay(now.toISOString(), eventTz) === activeDay
+      ? minutesIntoDayInZone(now.toISOString(), eventTz)
+      : null
+    : null;
+  const delayFromTime = nowInEventZone === null ? null : minutesToHHMM(nowInEventZone);
+
+  const dayDelayPreview = useMemo(
+    () =>
+      previewDayDelay({
+        fromMin: nowInEventZone ?? 0,
+        barStartMins: blocksOnActiveDay.map((b) => hhmmToMinutes(b.startTime)),
+        fights: scheduledOnActiveDay.flatMap((m) =>
+          m.scheduledAt
+            ? [
+                {
+                  startMin: minutesIntoDayInZone(m.scheduledAt, eventTz) ?? 0,
+                  status: m.status,
+                },
+              ]
+            : [],
+        ),
+      }),
+    [nowInEventZone, blocksOnActiveDay, scheduledOnActiveDay, eventTz],
+  );
+
   // Push a lice's not-yet-started future matches by the drift, to re-align the
   // rest of the day after a delay. Optimistic + per-match PATCH.
   function shiftLiceRemaining(liceId: string, driftMin: number) {
@@ -1516,6 +1558,21 @@ export function ScheduleGrid({
             >
               {t('organizer.schedulePage.grid.redo')}
             </button>
+            {/* Whole-day running-late. Only offered when a piste on the active
+                day is measurably behind AND that day is today — a delay is a
+                thing you apply while it is happening, and `delayFromTime` is
+                null on any other day. */}
+            {dayDelaySeed && delayFromTime ? (
+              <button
+                type="button"
+                data-testid="running-late-open"
+                onClick={() => setPendingDelay(true)}
+                title={t('organizer.schedulePage.grid.runningLateTitle')}
+                className="rounded-md border border-danger/30 px-3 py-1.5 text-xs font-semibold text-danger hover:bg-danger/10"
+              >
+                {t('organizer.schedulePage.grid.runningLateButton', { min: dayDelaySeed.deltaMin })}
+              </button>
+            ) : null}
             {/* Clear active day — Slice 3. Disables when the active day has
                 nothing to clear, opens a confirm modal otherwise. */}
             <button
@@ -1988,6 +2045,23 @@ export function ScheduleGrid({
           onSave={(draft) => void createBreakBlock(draft)}
         />
       )}
+
+      {/* Whole-day running-late confirm. Mounted only with a seed and a cut, so
+          the dialog never has to describe a delay it cannot apply. */}
+      {pendingDelay && dayDelaySeed && delayFromTime ? (
+        <RunningLateDialog
+          seed={dayDelaySeed}
+          fromTime={delayFromTime}
+          dayLabel={activeDay ? formatDayLabel(activeDay) : ''}
+          preview={dayDelayPreview}
+          busy={delayingDay}
+          onCancel={() => setPendingDelay(false)}
+          onConfirm={(deltaMinutes) => {
+            setPendingDelay(false);
+            void delayRestOfDay(delayFromTime, deltaMinutes);
+          }}
+        />
+      ) : null}
 
       {/* Slice 3: Clear-day confirm modal. */}
       <ConfirmDialog

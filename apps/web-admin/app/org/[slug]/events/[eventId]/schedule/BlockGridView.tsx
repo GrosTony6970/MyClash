@@ -19,6 +19,7 @@ import { blockTint, resolveBlockAccent } from '@myclash/types';
 import { accentClassFor, tintBgClassFor, tintBorderClassFor, tintTextClassFor } from '@myclash/ui';
 import { useI18n } from '@myclash/next-i18n/client';
 import type { LiceDrift } from './lice-drift';
+import { DRIFT_NOTICE_MIN } from './day-delay';
 import { liceSpanFromDelta } from './lice-span';
 import { liceUtilizationPct } from './lice-utilization';
 import { wouldOverlap, type SlotPlacement } from './detect-overlaps';
@@ -430,7 +431,7 @@ export function BlockGridView({
               <span className="text-xs font-bold uppercase tracking-wider text-foreground-secondary truncate">
                 {lice.name}
               </span>
-              {d && Math.abs(d.driftMin) >= 2 ? (
+              {d && Math.abs(d.driftMin) >= DRIFT_NOTICE_MIN ? (
                 <span className="flex items-center gap-1">
                   <span
                     className={`text-[10px] font-semibold ${late ? 'text-danger' : 'text-success'}`}

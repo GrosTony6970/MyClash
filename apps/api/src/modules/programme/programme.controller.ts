@@ -20,6 +20,7 @@ import { SupabaseService } from '../supabase/supabase.service';
 import { resolveRequestUserId } from '../../common/auth/request-user';
 import {
   CreateBlockDto,
+  DelayDayDto,
   MoveBlockDto,
   ResizeBlockDto,
   SaveProgrammeDto,
@@ -137,6 +138,22 @@ export class ProgrammeController {
     @Req() req: FastifyRequest,
   ) {
     return this.programme.moveBlock(eventId, blockId, dto, await this.caller(req));
+  }
+
+  /** POST /api/v1/events/:eventId/programme/delay */
+  @Post('events/:eventId/programme/delay')
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary:
+      'Push the rest of one event day back by N minutes: every programme bar and every not-yet-started match starting at or after fromTime shifts together. Refused with a 400 if any of them would cross midnight',
+  })
+  @ApiParam({ name: 'eventId', type: 'string', format: 'uuid' })
+  async delayDay(
+    @Param('eventId', ParseUUIDPipe) eventId: string,
+    @Body() dto: DelayDayDto,
+    @Req() req: FastifyRequest,
+  ) {
+    return this.programme.delayDay(eventId, dto, await this.caller(req));
   }
 
   /** PATCH /api/v1/events/:eventId/programme/blocks/:blockId/resize */

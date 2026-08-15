@@ -1,4 +1,4 @@
-import { cascadeBlockShift, type CascadeBlock } from './block-cascade';
+import { shiftBlocksFrom, type CascadeBlock } from './block-cascade';
 
 /**
  * Decide what dragging a programme bar is allowed to do, before anything is
@@ -131,13 +131,13 @@ interface Crossing {
   to: string;
 }
 
-function refusedPlan(movedLabel: string, deltaMin: number, crossing: Crossing): BlockMovePlan {
+function refusedPlan(action: string, deltaMin: number, crossing: Crossing): BlockMovePlan {
   const signed = deltaMin > 0 ? `+${deltaMin}` : String(deltaMin);
   return {
     matchShifts: [],
     blockShifts: [],
     refusal:
-      `Moving "${movedLabel}" by ${signed} min would carry ${crossing.what} past midnight ` +
+      `${action} by ${signed} min would carry ${crossing.what} past midnight ` +
       `(${crossing.from} becomes ${crossing.to}). Nothing was moved.`,
   };
 }
@@ -150,19 +150,14 @@ function refusedPlan(movedLabel: string, deltaMin: number, crossing: Crossing): 
  * both times.
  */
 function firstBarPastMidnight(input: {
-  movedBlockId: string;
   deltaMin: number;
-  oldStartMin: number;
+  fromMin: number;
   dayBlocks: MoveDayBlock[];
 }): Crossing | null {
-  // A move whose bar is not among the day's rows cascades nothing, which is
-  // what `cascadeBlockShift` already decides. Checking the same condition here
-  // keeps the two from disagreeing about whether there was a move to refuse.
   if (input.deltaMin === 0) return null;
-  if (!input.dayBlocks.some((b) => b.id === input.movedBlockId)) return null;
 
   for (const bar of [...input.dayBlocks].sort((a, b) => a.startMin - b.startMin)) {
-    if (bar.startMin < input.oldStartMin) continue; // earlier bars stay put
+    if (bar.startMin < input.fromMin) continue; // earlier bars stay put
     const rawStart = bar.startMin + input.deltaMin;
     const rawEnd = rawStart + (bar.endMin - bar.startMin);
     const named = `the bar "${bar.label}"`;
@@ -185,7 +180,7 @@ function firstBarPastMidnight(input: {
  */
 function planMatchShifts(input: {
   deltaMin: number;
-  oldStartMin: number;
+  fromMin: number;
   blockDateIso: string;
   matches: MoveCandidateMatch[];
 }): { shifts: PlannedMatchShift[]; crossing: Crossing | null } {
@@ -203,7 +198,7 @@ function planMatchShifts(input: {
     // local date, not the UTC prefix of its ISO string.
     if (localDateIso(at) !== input.blockDateIso) continue;
     // At or after the bar's old start, read the same way.
-    if (at.getHours() * 60 + at.getMinutes() < input.oldStartMin) continue;
+    if (at.getHours() * 60 + at.getMinutes() < input.fromMin) continue;
 
     const shifted = new Date(at.getTime() + input.deltaMin * 60_000);
     if (localDateIso(shifted) !== input.blockDateIso) {
@@ -222,34 +217,81 @@ function planMatchShifts(input: {
 }
 
 /**
- * Work out which bars and which bouts a bar move retimes, or why it cannot
- * happen.
+ * Work out which bars and which bouts a shift retimes, or why it cannot happen.
+ *
+ * The cut is a minute of the day: everything at or after it follows. Both
+ * running-late paths come through here — dragging one bar, and pushing the
+ * whole day back — so the three rules above are one implementation rather than
+ * two that will drift.
  *
  * Bars are checked before bouts so the sentence an operator gets names the
  * structure of the day before it names one fight in it.
  */
-export function planBlockMove(input: {
-  movedBlockId: string;
-  movedBlockLabel: string;
+export function planTimeShift(input: {
+  /** How the refusal opens: `Moving "Lunch"`, `Pushing the day back`. */
+  action: string;
   deltaMin: number;
-  /** The moved bar's start before the drag; everything at or after it follows. */
-  oldStartMin: number;
-  /** The wall-clock day the moved bar sits on, as `YYYY-MM-DD`. */
+  /** Everything at or after this minute of the day follows the shift. */
+  fromMin: number;
+  /** The wall-clock day being shifted, as `YYYY-MM-DD`. */
   blockDateIso: string;
   dayBlocks: MoveDayBlock[];
   matches: MoveCandidateMatch[];
 }): BlockMovePlan {
   const barCrossing = firstBarPastMidnight(input);
-  if (barCrossing) return refusedPlan(input.movedBlockLabel, input.deltaMin, barCrossing);
+  if (barCrossing) return refusedPlan(input.action, input.deltaMin, barCrossing);
 
   const { shifts, crossing } = planMatchShifts(input);
-  if (crossing) return refusedPlan(input.movedBlockLabel, input.deltaMin, crossing);
+  if (crossing) return refusedPlan(input.action, input.deltaMin, crossing);
 
   return {
     matchShifts: shifts,
     // Past the refusals above, no bar can reach either clamp, so this returns
     // the raw shift every time. That is the property they buy.
-    blockShifts: cascadeBlockShift(input.dayBlocks, input.movedBlockId, input.deltaMin),
+    blockShifts: shiftBlocksFrom(input.dayBlocks, input.fromMin, input.deltaMin),
     refusal: null,
   };
+}
+
+/** Dragging one programme bar to a new start time. */
+export function planBlockMove(input: {
+  movedBlockId: string;
+  movedBlockLabel: string;
+  deltaMin: number;
+  /** The moved bar's start before the drag. */
+  oldStartMin: number;
+  blockDateIso: string;
+  dayBlocks: MoveDayBlock[];
+  matches: MoveCandidateMatch[];
+}): BlockMovePlan {
+  // A drag whose bar is not among the day's rows cascades no bars, which is
+  // what `cascadeBlockShift` has always decided. Hiding them from the plan
+  // keeps it from refusing a cascade that was never going to happen.
+  const movedIsOnTheDay = input.dayBlocks.some((b) => b.id === input.movedBlockId);
+  return planTimeShift({
+    action: `Moving "${input.movedBlockLabel}"`,
+    deltaMin: input.deltaMin,
+    fromMin: input.oldStartMin,
+    blockDateIso: input.blockDateIso,
+    dayBlocks: movedIsOnTheDay ? input.dayBlocks : [],
+    matches: input.matches,
+  });
+}
+
+/**
+ * Pushing the rest of a day back (or pulling it forward) by a measured delay.
+ *
+ * No bar is dragged here, so the cut is the clock: the operator says "we are
+ * twenty minutes late from now on". Bars have no status to filter on, which is
+ * why the cut exists at all — for the bouts, `MOVABLE_STATUS` has already said
+ * everything that has begun stays put.
+ */
+export function planDayDelay(input: {
+  deltaMin: number;
+  fromMin: number;
+  blockDateIso: string;
+  dayBlocks: MoveDayBlock[];
+  matches: MoveCandidateMatch[];
+}): BlockMovePlan {
+  return planTimeShift({ action: 'Pushing the day back', ...input });
 }

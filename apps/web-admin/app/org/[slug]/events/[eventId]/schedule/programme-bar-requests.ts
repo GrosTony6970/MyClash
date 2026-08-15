@@ -55,9 +55,14 @@ export interface NewBarBody {
   colorHex?: string | null;
 }
 
-/** The collection every bar request is rooted at. The one owner of this path. */
+/** The event's programme. The one owner of this path. */
+function programmeUrl(target: ProgrammeTarget): string {
+  return `${target.apiUrl}/api/v1/events/${target.eventId}/programme`;
+}
+
+/** The collection every bar request is rooted at. */
 function barsUrl(target: ProgrammeTarget): string {
-  return `${target.apiUrl}/api/v1/events/${target.eventId}/programme/blocks`;
+  return `${programmeUrl(target)}/blocks`;
 }
 
 function barUrl(target: ProgrammeTarget, blockId: string): string {
@@ -87,6 +92,21 @@ export function moveBarRequest(
     url: `${barUrl(target, blockId)}/move`,
     init: { method: 'PATCH', body: { newStartTime } },
   };
+}
+
+/**
+ * Push the rest of one day back, bars and fights together.
+ *
+ * The whole-day twin of `moveBarRequest`, and not routed through a bar: there
+ * is no bar being dragged, so the cut is the clock. `fromTime` is wall-clock
+ * `HH:MM` in the EVENT zone, which is the clock every other time on this
+ * surface is expressed in.
+ */
+export function delayDayRequest(
+  target: ProgrammeTarget,
+  body: { dayIndex: number; fromTime: string; deltaMinutes: number },
+): BarRequest {
+  return { url: `${programmeUrl(target)}/delay`, init: { method: 'POST', body } };
 }
 
 /** Drag the bottom edge: the end moves, the start and the rest of the day do not. */

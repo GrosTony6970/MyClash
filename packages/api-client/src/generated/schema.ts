@@ -4463,6 +4463,23 @@ export interface paths {
     patch: operations['ProgrammeController_moveBlock'];
     trace?: never;
   };
+  '/api/v1/events/{eventId}/programme/delay': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Push the rest of one event day back by N minutes: every programme bar and every not-yet-started match starting at or after fromTime shifts together. Refused with a 400 if any of them would cross midnight */
+    post: operations['ProgrammeController_delayDay'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   '/api/v1/events/{eventId}/programme/blocks/{blockId}/resize': {
     parameters: {
       query?: never;
@@ -10456,6 +10473,11 @@ export interface components {
     };
     MoveBlockDto: {
       newStartTime: string;
+    };
+    DelayDayDto: {
+      dayIndex: number;
+      fromTime: string;
+      deltaMinutes: number;
     };
     ResizeBlockDto: {
       newStartTime?: string;
@@ -18064,6 +18086,29 @@ export interface operations {
     };
     responses: {
       200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  ProgrammeController_delayDay: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        eventId: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['DelayDayDto'];
+      };
+    };
+    responses: {
+      201: {
         headers: {
           [name: string]: unknown;
         };

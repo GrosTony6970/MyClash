@@ -1813,6 +1813,196 @@ describe('ProgrammeService', () => {
     });
   });
 
+  /**
+   * The whole-day running-late control. It shares `moveBlock`'s writer, so the
+   * cases here are the ones that are its OWN: that bars move (which the
+   * per-piste "+N" never did), and that the cut is the clock rather than a
+   * dragged bar.
+   */
+  describe('delayDay', () => {
+    const at = (y: number, m: number, d: number, hh: number, mm: number): string =>
+      new Date(y, m - 1, d, hh, mm, 0, 0).toISOString();
+
+    function buildDelayMocks(opts: {
+      eventStartDate: string;
+      matches?: Array<{ id: string; scheduled_at: string | null; status?: string }>;
+      dayBlocks?: Array<{ id: string; label: string; start_time: string; end_time: string }>;
+    }) {
+      const matches = (opts.matches ?? []).map((m) => ({
+        phase_id: 'phase-1',
+        status: 'scheduled',
+        match_number_label: null,
+        ...m,
+      }));
+      const dayBlocks = opts.dayBlocks ?? [];
+      const updates: Array<{ id: string; scheduled_at: string }> = [];
+      const blockUpdates: Array<{ id: string; payload: Record<string, unknown> }> = [];
+
+      const upsertResult: { data: Array<{ id: string }> | null; error: null } = {
+        data: [],
+        error: null,
+      };
+      const upsertChain = makeChain(upsertResult);
+      upsertChain.upsert = vi.fn((rows: Array<Record<string, unknown>>) => {
+        for (const row of rows) {
+          updates.push({
+            id: row['id'] as string,
+            scheduled_at: row['scheduled_at'] as string,
+          });
+        }
+        upsertResult.data = rows.map((r) => ({ id: r['id'] as string }));
+        return upsertChain;
+      });
+
+      fromMock
+        .mockReturnValueOnce(makeChain({ data: { start_date: opts.eventStartDate }, error: null })) // event
+        .mockReturnValueOnce(makeChain({ data: [{ id: 'tournament-1' }], error: null })) // tournaments
+        .mockReturnValueOnce(makeChain({ data: [{ id: 'phase-1' }], error: null })) // phases
+        .mockReturnValueOnce(makeChain({ data: matches, error: null })) // matches
+        .mockReturnValueOnce(makeChain({ data: dayBlocks, error: null })) // day blocks
+        .mockReturnValueOnce(upsertChain); // the batched shift
+
+      for (const b of dayBlocks) {
+        const row = { data: { ...b }, error: null };
+        const chain = makeChain(row);
+        let pending: Record<string, unknown> | undefined;
+        chain.update = vi.fn((p: Record<string, unknown>) => {
+          pending = p;
+          return chain;
+        });
+        chain.eq = vi.fn((col: string, val: string) => {
+          if (col === 'id' && pending) {
+            blockUpdates.push({ id: val, payload: pending });
+            pending = undefined;
+          }
+          return chain;
+        });
+        fromMock.mockReturnValueOnce(chain);
+      }
+
+      return { updates, blockUpdates };
+    }
+
+    /**
+     * THE POINT OF THE SLICE. `shiftLiceRemaining` already pushes one piste's
+     * fights. What no control did was move the programme bars with them, so a
+     * delayed day kept its lunch bar sitting on top of the fights that had been
+     * pushed past it.
+     */
+    it('moves the bars as well as the fights, from the cut onwards', async () => {
+      const { updates, blockUpdates } = buildDelayMocks({
+        eventStartDate: '2026-06-02',
+        dayBlocks: [
+          { id: 'lunch', label: 'Lunch', start_time: '12:00:00', end_time: '13:00:00' },
+          { id: 'finals', label: 'Finals', start_time: '16:00:00', end_time: '17:00:00' },
+        ],
+        matches: [
+          { id: 'earlier', scheduled_at: at(2026, 6, 2, 13, 30) },
+          { id: 'later', scheduled_at: at(2026, 6, 2, 16, 30) },
+        ],
+      });
+
+      const result = await service.delayDay(
+        'event-1',
+        { dayIndex: 0, fromTime: '14:00', deltaMinutes: 20 },
+        CALLER,
+      );
+
+      expect(blockUpdates).toEqual([
+        { id: 'finals', payload: { start_time: '16:20', end_time: '17:20' } },
+      ]);
+      expect(updates).toEqual([{ id: 'later', scheduled_at: at(2026, 6, 2, 16, 50) }]);
+      expect(result).toEqual({ deltaMinutes: 20, shiftedMatches: 1, shiftedBlocks: 1 });
+    });
+
+    it('leaves a fight that has already begun where it is', async () => {
+      const { updates } = buildDelayMocks({
+        eventStartDate: '2026-06-02',
+        matches: [
+          { id: 'on-the-piste', scheduled_at: at(2026, 6, 2, 14, 30), status: 'running' },
+          { id: 'waiting', scheduled_at: at(2026, 6, 2, 15, 0) },
+        ],
+      });
+
+      await service.delayDay(
+        'event-1',
+        { dayIndex: 0, fromTime: '14:00', deltaMinutes: 20 },
+        CALLER,
+      );
+
+      expect(updates.map((u) => u.id)).toEqual(['waiting']);
+    });
+
+    it('re-queues the alert for every fight it moves, in one call', async () => {
+      buildDelayMocks({
+        eventStartDate: '2026-06-02',
+        matches: [
+          { id: 'm1', scheduled_at: at(2026, 6, 2, 15, 0) },
+          { id: 'm2', scheduled_at: at(2026, 6, 2, 15, 30) },
+        ],
+      });
+
+      await withAlerts().delayDay(
+        'event-1',
+        { dayIndex: 0, fromTime: '14:00', deltaMinutes: 20 },
+        CALLER,
+      );
+
+      expect(mockMatchAlerts.refresh).toHaveBeenCalledTimes(1);
+      expect(mockMatchAlerts.refresh).toHaveBeenCalledWith(['m1', 'm2']);
+    });
+
+    it('refuses the whole delay with a 400 when it would cross midnight', async () => {
+      const { updates, blockUpdates } = buildDelayMocks({
+        eventStartDate: '2026-06-02',
+        dayBlocks: [
+          { id: 'finals', label: 'Finals', start_time: '22:00:00', end_time: '23:00:00' },
+        ],
+        matches: [{ id: 'm1', scheduled_at: at(2026, 6, 2, 22, 30) }],
+      });
+
+      await expect(
+        service.delayDay('event-1', { dayIndex: 0, fromTime: '14:00', deltaMinutes: 90 }, CALLER),
+      ).rejects.toThrow(
+        'Pushing the day back by +90 min would carry the bar "Finals" past midnight ' +
+          '(23:00 becomes 00:30). Nothing was moved.',
+      );
+      expect(updates).toEqual([]);
+      expect(blockUpdates).toEqual([]);
+    });
+
+    /** Nothing to do, and no reads worth making to prove it. */
+    it('does nothing for a zero delay', async () => {
+      const result = await service.delayDay(
+        'event-1',
+        { dayIndex: 0, fromTime: '14:00', deltaMinutes: 0 },
+        CALLER,
+      );
+
+      expect(result).toEqual({ deltaMinutes: 0, shiftedMatches: 0, shiftedBlocks: 0 });
+      expect(fromMock).not.toHaveBeenCalled();
+    });
+
+    /** Day 1 of a two-day event is start_date + 1, in wall-clock terms. */
+    it('scopes the delay to the day the index names', async () => {
+      const { updates } = buildDelayMocks({
+        eventStartDate: '2026-06-02',
+        matches: [
+          { id: 'day-0', scheduled_at: at(2026, 6, 2, 15, 0) },
+          { id: 'day-1', scheduled_at: at(2026, 6, 3, 15, 0) },
+        ],
+      });
+
+      await service.delayDay(
+        'event-1',
+        { dayIndex: 1, fromTime: '14:00', deltaMinutes: 20 },
+        CALLER,
+      );
+
+      expect(updates).toEqual([{ id: 'day-1', scheduled_at: at(2026, 6, 3, 15, 20) }]);
+    });
+  });
+
   describe('deleteBlock', () => {
     /**
      * Capture the bounds + payload the matches `.update()` call sees so

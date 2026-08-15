@@ -9,6 +9,7 @@ import { mutateSchedule } from './schedule-mutations';
 import {
   barEditRequest,
   createBarRequest,
+  delayDayRequest,
   deleteBarRequest,
   moveBarRequest,
   resizeBarEndRequest,
@@ -62,6 +63,10 @@ export interface ResizingBar {
 }
 
 export interface ProgrammeBars {
+  /** Push the rest of the active day back from `fromTime` (event-zone HH:MM). */
+  delayRestOfDay: (fromTime: string, deltaMinutes: number) => Promise<boolean>;
+  /** True while that cascade is in flight — drives the dialog's busy state. */
+  delayingDay: boolean;
   /** Bar being retimed by a drag — dims it while the cascade lands. */
   movingBlockId: string | null;
   /** Bar being deleted. Also drives the confirm dialog's busy state. */
@@ -134,6 +139,7 @@ export function useProgrammeBars(args: {
   const [editingBreak, setEditingBreak] = useState<BgvBreak | null>(null);
   const [creatingBreak, setCreatingBreak] = useState<BlockEditDraft | null>(null);
   const [blockEditBusy, setBlockEditBusy] = useState(false);
+  const [delayingDay, setDelayingDay] = useState(false);
 
   /**
    * Send a bar write and settle the board around it.
@@ -330,7 +336,31 @@ export function useProgrammeBars(args: {
     [target, dayIndex, t, sendBars],
   );
 
+  /**
+   * Push the rest of the active day back, bars and fights together.
+   *
+   * A bar family write even though most of what it moves is fights, because
+   * moving the BARS is the thing it adds over the per-piste "+N" the board
+   * already had — and because it needs this hook's refetch: the cascade rewrites
+   * hundreds of rows, so the board re-reads from the source of truth rather than
+   * mirroring the shift client-side, exactly as a bar drag does.
+   */
+  const delayRestOfDay = useCallback(
+    async (fromTime: string, deltaMinutes: number): Promise<boolean> => {
+      if (dayIndex < 0 || deltaMinutes === 0) return false;
+      setDelayingDay(true);
+      try {
+        return await sendBars([delayDayRequest(target, { dayIndex, fromTime, deltaMinutes })]);
+      } finally {
+        setDelayingDay(false);
+      }
+    },
+    [target, dayIndex, sendBars],
+  );
+
   return {
+    delayRestOfDay,
+    delayingDay,
     movingBlockId,
     deletingBlockId,
     pendingBlockDelete,
