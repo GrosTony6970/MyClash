@@ -157,6 +157,15 @@ describe('PhasesService', () => {
       const phaseCheckChain = makeChain({ data: null, error: null });
       phaseCheckChain.maybeSingle.mockResolvedValue({ data: { id: 'old-phase' }, error: null });
 
+      // The tournament read moved AHEAD of the delete: the force path's scored-
+      // bout guard needs the owning org, and asking once the phase is gone is
+      // asking too late. It now also embeds events(organization_id).
+      const tournamentChain = makeChain({ data: { weapon: null }, error: null });
+
+      // Scored-bout check on the existing phase — empty, so force proceeds
+      // without needing `discardScoredResults`.
+      const scoredChain = makeAwaitableChain({ data: [], error: null });
+
       // Delete chain
       const deleteChain = makeChain({ data: null, error: null });
       deleteChain.eq.mockResolvedValue({ data: null, error: null });
@@ -165,7 +174,6 @@ describe('PhasesService', () => {
       const regsChain = makeAwaitableChain({ data: regsData, error: null });
 
       // Phase insert
-      const tournamentChain = makeChain({ data: { weapon: null }, error: null });
       const phaseInsertChain = makeChain({ data: null, error: null });
       phaseInsertChain.single.mockResolvedValue({ data: { id: 'new-phase' }, error: null });
 
@@ -175,9 +183,10 @@ describe('PhasesService', () => {
 
       fromMock
         .mockReturnValueOnce(phaseCheckChain)
+        .mockReturnValueOnce(tournamentChain)
+        .mockReturnValueOnce(scoredChain)
         .mockReturnValueOnce(deleteChain)
         .mockReturnValueOnce(regsChain)
-        .mockReturnValueOnce(tournamentChain)
         .mockReturnValueOnce(phaseInsertChain)
         .mockReturnValue(defaultChain);
 
@@ -188,6 +197,68 @@ describe('PhasesService', () => {
       expect(phaseInsertChain.insert).toHaveBeenCalledWith(
         expect.objectContaining({ visibility_status: 'hidden' }),
       );
+    });
+
+    // ── force=true is not a licence to delete fought bouts ────────────────
+    // The force path raw-DELETEs the phase, and the CASCADE takes matches and
+    // with them exchanges, penalties, events, forfeits and referee assignments.
+    // It used to check only that the phase existed.
+    describe('force=true vs scored bouts', () => {
+      /** phase check (found) → tournament (+org) → scored matches. */
+      function queueUpToScoredCheck(scored: unknown[]) {
+        const phaseCheckChain = makeChain({ data: null, error: null });
+        phaseCheckChain.maybeSingle.mockResolvedValue({ data: { id: 'old-phase' }, error: null });
+        const tournamentChain = makeChain({ data: null, error: null });
+        tournamentChain.maybeSingle.mockResolvedValue({
+          data: { weapon: null, event_id: 'event-1', events: { organization_id: 'org-1' } },
+          error: null,
+        });
+        const scoredChain = makeAwaitableChain({ data: scored, error: null });
+        const defaultChain = makeChain({ data: null, error: null });
+        fromMock
+          .mockReturnValueOnce(phaseCheckChain)
+          .mockReturnValueOnce(tournamentChain)
+          .mockReturnValueOnce(scoredChain)
+          .mockReturnValue(defaultChain);
+        return { defaultChain };
+      }
+
+      it('refuses, naming the count, when a bout in the phase has been scored', async () => {
+        queueUpToScoredCheck([{ id: 'm-1' }, { id: 'm-2' }]);
+
+        await expect(
+          service.generatePools('tournament-1', {}, true, 'user-1'),
+        ).rejects.toBeInstanceOf(ConflictException);
+      });
+
+      it('does not delete the phase when it refuses', async () => {
+        const { defaultChain } = queueUpToScoredCheck([{ id: 'm-1' }]);
+
+        await service.generatePools('tournament-1', {}, true, 'user-1').catch(() => undefined);
+
+        // The whole point: the 409 has to land BEFORE the CASCADE.
+        expect(defaultChain.delete).not.toHaveBeenCalled();
+      });
+
+      it('refuses the override for an admin — discarding results is an owner call', async () => {
+        queueUpToScoredCheck([{ id: 'm-1' }]);
+        mockOrgs.assertOrgRole.mockRejectedValueOnce(new ForbiddenException('not an owner'));
+
+        await expect(
+          service.generatePools('tournament-1', { discardScoredResults: true }, true, 'user-1'),
+        ).rejects.toBeInstanceOf(ForbiddenException);
+        expect(mockOrgs.assertOrgRole).toHaveBeenCalledWith('org-1', 'user-1', 'owner');
+      });
+
+      it('refuses the override when no actor can be identified', async () => {
+        queueUpToScoredCheck([{ id: 'm-1' }]);
+
+        // Fail CLOSED. The override lets a named human accept a permanent loss;
+        // "we could not work out who you are" is not that.
+        await expect(
+          service.generatePools('tournament-1', { discardScoredResults: true }, true, undefined),
+        ).rejects.toBeInstanceOf(ForbiddenException);
+      });
     });
 
     it('caps poolCount so no pool is forced to be a singleton (5 fighters, targetSize=2 → 2 pools)', async () => {
@@ -214,8 +285,10 @@ describe('PhasesService', () => {
 
       fromMock
         .mockReturnValueOnce(phaseCheckChain)
-        .mockReturnValueOnce(regsChain)
+        // Tournament BEFORE registrations: the read was hoisted above the force
+        // path's delete so the scored-bout guard can resolve the owning org.
         .mockReturnValueOnce(tournamentChain)
+        .mockReturnValueOnce(regsChain)
         .mockReturnValueOnce(phaseInsertChain)
         .mockReturnValue(defaultChain);
 
@@ -241,8 +314,10 @@ describe('PhasesService', () => {
 
       fromMock
         .mockReturnValueOnce(phaseCheckChain)
-        .mockReturnValueOnce(regsChain)
+        // Tournament BEFORE registrations: the read was hoisted above the force
+        // path's delete so the scored-bout guard can resolve the owning org.
         .mockReturnValueOnce(tournamentChain)
+        .mockReturnValueOnce(regsChain)
         .mockReturnValueOnce(phaseInsertChain)
         .mockReturnValue(defaultChain);
 
@@ -264,8 +339,10 @@ describe('PhasesService', () => {
 
       fromMock
         .mockReturnValueOnce(phaseCheckChain)
-        .mockReturnValueOnce(regsChain)
+        // Tournament BEFORE registrations: the read was hoisted above the force
+        // path's delete so the scored-bout guard can resolve the owning org.
         .mockReturnValueOnce(tournamentChain)
+        .mockReturnValueOnce(regsChain)
         .mockReturnValueOnce(phaseInsertChain)
         .mockReturnValue(poolInsertChain);
 

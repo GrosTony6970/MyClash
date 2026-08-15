@@ -5,6 +5,7 @@
 import {
   BadRequestException,
   ConflictException,
+  ForbiddenException,
   Injectable,
   Logger,
   NotFoundException,
@@ -176,7 +177,7 @@ export class PhasesService {
    *
    * Idempotent: returns 409 if a pool phase already exists, unless force=true.
    */
-  async generatePools(tournamentId: string, dto: GeneratePoolsDto, force = false) {
+  async generatePools(tournamentId: string, dto: GeneratePoolsDto, force = false, userId?: string) {
     this.logger.log(
       `generatePools: tournament=${tournamentId} dto=${JSON.stringify(dto)} force=${force}`,
     );
@@ -194,8 +195,30 @@ export class PhasesService {
       );
     }
 
+    // Read the tournament BEFORE the delete, not after: the override below
+    // needs the owning organisation, and asking for it once the phase is gone
+    // is asking too late. `weapon` and `event_id` are wanted further down
+    // anyway, so this is a move rather than an extra round-trip.
+    const { data: tournament, error: tournamentError } = await this.supabase.service
+      .from('tournaments')
+      .select('weapon, event_id, events(organization_id)')
+      .eq('id', tournamentId)
+      .maybeSingle();
+    if (tournamentError) throw new BadRequestException(tournamentError.message);
+    const tournamentWeapon = (tournament as { weapon?: string | null } | null)?.weapon ?? null;
+    const eventId = (tournament as { event_id?: string | null } | null)?.event_id ?? null;
+    const organizationId =
+      (tournament as { events?: { organization_id?: string } | null } | null)?.events
+        ?.organization_id ?? null;
+
     // Delete existing pool phase if force=true
     if (existing && force) {
+      await this.assertForceRegenerationAllowed(
+        (existing as { id: string }).id,
+        organizationId,
+        userId,
+        dto.discardScoredResults === true,
+      );
       await this.supabase.service
         .from('phases')
         .delete()
@@ -216,15 +239,6 @@ export class PhasesService {
     if (regsError) throw new BadRequestException(regsError.message);
     const allRegs = regs ?? [];
     const fighterCount = allRegs.length;
-
-    const { data: tournament, error: tournamentError } = await this.supabase.service
-      .from('tournaments')
-      .select('weapon, event_id')
-      .eq('id', tournamentId)
-      .maybeSingle();
-    if (tournamentError) throw new BadRequestException(tournamentError.message);
-    const tournamentWeapon = (tournament as { weapon?: string | null } | null)?.weapon ?? null;
-    const eventId = (tournament as { event_id?: string | null } | null)?.event_id ?? null;
 
     // Merge any referee constraint overrides from the DTO into pool_assignment_settings
     // and persist them so they survive across regenerations.
@@ -2391,6 +2405,61 @@ export class PhasesService {
         startedMatches: started.length,
       });
     }
+  }
+
+  /**
+   * `generatePools(force=true)`'s twin of {@link assertPoolPhaseEditable}, with
+   * a way through.
+   *
+   * The force path raw-DELETEs the phase row, and the CASCADE takes pools,
+   * pool_members, bracket_slots, swiss_rounds and matches — and from matches,
+   * exchanges, match_events, match_penalties, match_forfeits and
+   * referee_assignments. It checked only that the phase existed. An admin could
+   * destroy a played round through it, and as assertPoolPhaseEditable's docblock
+   * puts it, "there is nothing left to recover the result from".
+   *
+   * Unlike the referee board, this surface has no UI affordance that would tell
+   * an operator what to unlock — so refusing outright would leave them stuck.
+   * Hence three states rather than two: clean regenerations pass, a scored phase
+   * stops with a message naming what dies, and an org OWNER can say so
+   * explicitly. Owner rather than the admin the sibling pool paths require:
+   * discarding fought results should cost more than editing a pool.
+   *
+   * The message is the only thing between the operator and irreversible loss, so
+   * it names the count, the cascade and the way through. API exception messages
+   * are English and not i18n'd.
+   */
+  private async assertForceRegenerationAllowed(
+    phaseId: string,
+    organizationId: string | null,
+    userId: string | undefined,
+    discardScoredResults: boolean,
+  ) {
+    const scored = await this.scoredMatchesIn('phase_id', phaseId);
+    if (scored.length === 0) return;
+
+    if (!discardScoredResults) {
+      throw new ConflictException({
+        message:
+          `${scored.length} ${scored.length === 1 ? 'bout' : 'bouts'} in this pool phase ` +
+          'have been scored. Regenerating deletes them permanently, together with their ' +
+          'exchanges, penalties, match events, forfeits and referee assignments — there is ' +
+          'no undo. Re-send with discardScoredResults: true to proceed.',
+        phaseId,
+        scoredMatches: scored.length,
+      });
+    }
+
+    // Fail CLOSED on a missing actor or a missing org. The override exists to
+    // let a named human accept a permanent loss; "we could not work out who you
+    // are" is not that.
+    if (!this.orgs) throw new BadRequestException('Organizations service not wired');
+    if (!userId || !organizationId) {
+      throw new ForbiddenException(
+        'Discarding scored results requires an identified organisation owner.',
+      );
+    }
+    await this.orgs.assertOrgRole(organizationId, userId, 'owner');
   }
 
   private async assertPoolEditAuth(poolId: string, userId: string) {

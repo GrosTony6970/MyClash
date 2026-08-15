@@ -75,9 +75,14 @@ export class PhasesController {
   async generatePools(
     @Param('tournamentId', ParseUUIDPipe) tournamentId: string,
     @Body() dto: GeneratePoolsDto,
+    @Req() req: FastifyRequest,
     @Query('force') force?: string,
   ) {
-    return this.phases.generatePools(tournamentId, dto, force === 'true');
+    // The identity is only consulted by the `discardScoredResults` override,
+    // which needs an org owner. Resolved here rather than in the service so this
+    // route reads like its neighbours.
+    const userId = await getUserId(req, this.supabase);
+    return this.phases.generatePools(tournamentId, dto, force === 'true', userId);
   }
 
   @Get('tournaments/:tournamentId/pools')

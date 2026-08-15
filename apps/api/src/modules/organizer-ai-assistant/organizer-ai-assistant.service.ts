@@ -331,8 +331,22 @@ export class OrganizerAIAssistantService {
           enforceSchoolSeparation: this.optionalBoolean(action['enforceSchoolSeparation']),
           enforceSkillBalance: this.optionalBoolean(action['enforceSkillBalance']),
           seed: this.optionalNumber(action['seed']),
+          // NEVER read `discardScoredResults` from `action`.
+          //
+          // Every other field here is plumbed straight from the model's output,
+          // because the worst a wrong one does is make badly-shaped pools an
+          // operator can regenerate. This one is different: it accepts the
+          // PERMANENT deletion of fought bouts and their exchanges. Plumbing it
+          // would let a confused or prompt-injected model destroy results with
+          // no human in the loop, and the failure leaves nothing to recover from.
+          //
+          // Hardcoded false, so a scored phase gives the assistant the same 409
+          // an operator gets. Discarding fought results stays a human decision,
+          // taken on a surface where the count is on screen.
+          discardScoredResults: false,
         },
         Boolean(action['force']),
+        actorUserId,
       );
       return { kind, result };
     }

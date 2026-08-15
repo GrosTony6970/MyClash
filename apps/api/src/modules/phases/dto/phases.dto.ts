@@ -33,6 +33,15 @@ const generatePoolsSchema = z
     enforceFighterRefereeNoOverlap: z.boolean().optional(),
     /** Prefer referees with higher ratings when multiple candidates are available (default: true) */
     preferHighRatedReferees: z.boolean().optional(),
+    /**
+     * Accept the permanent loss of already-scored bouts when regenerating with
+     * `?force=true`. Without it a scored phase refuses with a 409 naming the
+     * count; with it the caller must be an org OWNER or the request is a 403.
+     *
+     * Must be declared here: this schema is `.strict()`, so an undeclared field
+     * makes the global forbidNonWhitelisted pipe 400 the whole POST.
+     */
+    discardScoredResults: z.boolean().optional(),
   })
   .strict();
 export class GeneratePoolsDto extends createZodDto(generatePoolsSchema) {}

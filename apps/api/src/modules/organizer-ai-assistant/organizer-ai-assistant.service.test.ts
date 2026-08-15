@@ -281,6 +281,60 @@ describe('OrganizerAIAssistantService', () => {
     ]);
   });
 
+  it('never lets a draft discard scored results, however it asks', async () => {
+    // Every other field in the generate_pools mapper is plumbed straight from
+    // the model's output, because the worst a wrong one does is make badly
+    // shaped pools somebody regenerates. `discardScoredResults` is different:
+    // it accepts the PERMANENT deletion of fought bouts and their exchanges.
+    //
+    // So the action bag here carries it set to true — the shape a confused or
+    // prompt-injected model would emit — and the service must still hand the
+    // phases layer `false`. Without this, the hardcoded literal is one careless
+    // spread away from becoming plumbing, and the failure mode is a model
+    // deleting results with no human in the loop.
+    mockGeneratePools.mockResolvedValue({ poolCount: 2 });
+    mockSupabaseFrom.mockImplementation((table: string) => {
+      if (table === 'organizer_ai_assistant_drafts') {
+        return chain({
+          data: {
+            id: 'draft-1',
+            event_id: 'event-1',
+            actor_user_id: 'user-1',
+            draft_type: 'pool_plan',
+            status: 'ready',
+            proposed_actions_json: [
+              {
+                kind: 'generate_pools',
+                tournamentId: '11111111-1111-4111-8111-111111111111',
+                targetSize: 8,
+                force: true,
+                discardScoredResults: true,
+              },
+            ],
+            events: { organization_id: 'org-1' },
+          },
+          error: null,
+        });
+      }
+      if (table === 'tournaments') {
+        return chain({
+          data: { id: '11111111-1111-4111-8111-111111111111', event_id: 'event-1' },
+          error: null,
+        });
+      }
+      return chain();
+    });
+
+    await service().applyDraft('event-1', 'draft-1', 'user-1');
+
+    expect(mockGeneratePools).toHaveBeenCalledWith(
+      '11111111-1111-4111-8111-111111111111',
+      expect.objectContaining({ discardScoredResults: false }),
+      true,
+      'user-1',
+    );
+  });
+
   it('rejects unsafe draft action shapes before apply', async () => {
     mockSupabaseFrom.mockImplementation((table: string) => {
       if (table === 'organizer_ai_assistant_drafts') {
