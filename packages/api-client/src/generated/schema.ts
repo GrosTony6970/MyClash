@@ -4273,6 +4273,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  '/api/v1/events/{eventId}/referee-match-assignments': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Per-match referee assignments plus the registration→person map, for client-side conflict detection (org member) */
+    get: operations['RefereeMatchAssignmentsController_getForEvent'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   '/api/v1/events/{eventId}/slot-config': {
     parameters: {
       query?: never;
@@ -17731,6 +17748,25 @@ export interface operations {
       header?: never;
       path: {
         roundId: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  RefereeMatchAssignmentsController_getForEvent: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        eventId: string;
       };
       cookie?: never;
     };

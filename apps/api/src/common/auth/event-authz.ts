@@ -119,6 +119,28 @@ export async function assertCanManagePool(
   return orgId;
 }
 
+/**
+ * Assert the caller is a MEMBER of the event's organisation, at any role.
+ *
+ * The bar for an event's staff data — referee assignments, availability, crew
+ * names. Deliberately NOT `assertCanReadEvent`, which is the gate for an event's
+ * PUBLIC contents and therefore only hides drafts: once an event is published,
+ * that helper lets anyone through, which is correct for a schedule and wrong for
+ * the people rostered to run it.
+ *
+ * `read_only` is the floor of the role hierarchy, so this means "any member",
+ * matching the `is_org_member` bar the RLS policies use.
+ */
+export async function assertEventMember(
+  deps: EventAuthzDeps,
+  eventId: string,
+  userId: string,
+): Promise<string> {
+  const orgId = await orgIdForEvent(deps.supabase, eventId);
+  await deps.orgs.assertOrgRole(orgId, userId, 'read_only');
+  return orgId;
+}
+
 // ── Reads ────────────────────────────────────────────────────────────────────
 
 /**

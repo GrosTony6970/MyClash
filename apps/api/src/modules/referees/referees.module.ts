@@ -6,6 +6,8 @@ import { AssignmentBoardService } from './assignment-board.service';
 import { AutoAssignController } from './auto-assign.controller';
 import { QualificationsController } from './qualifications.controller';
 import { QualificationsService } from './qualifications.service';
+import { RefereeMatchAssignmentsController } from './referee-match-assignments.controller';
+import { RefereeMatchAssignmentsService } from './referee-match-assignments.service';
 import { SettingsController } from './settings.controller';
 import { SettingsService } from './settings.service';
 import { StaffingController } from './staffing.controller';
@@ -23,9 +25,16 @@ import { StaffingService } from './staffing.service';
     SettingsController,
     AutoAssignController,
     AssignmentBoardController,
+    RefereeMatchAssignmentsController,
     StaffingController,
   ],
-  providers: [QualificationsService, SettingsService, AssignmentBoardService, StaffingService],
+  providers: [
+    QualificationsService,
+    SettingsService,
+    AssignmentBoardService,
+    RefereeMatchAssignmentsService,
+    StaffingService,
+  ],
   exports: [QualificationsService, SettingsService, StaffingService],
 })
 export class RefereesModule {}
