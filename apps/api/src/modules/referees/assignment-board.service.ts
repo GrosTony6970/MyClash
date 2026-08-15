@@ -1681,7 +1681,13 @@ export class AssignmentBoardService {
       const kind = pool.kind ?? 'pool';
       const slotConfig = context.slotConfigByTournament.get(pool.tournamentId);
       const slots = slotsForKind(slotConfig, kind);
-      const unitMatchIds = new Set(pool.matchIds ?? []);
+      // From `matches`, NOT `matchIds`. `matchIds` is set only on the synthetic
+      // bracket and Swiss units; a real pool from `listPools` has none, so
+      // reading it here would leave every genuine pool with an empty fight list
+      // — a fix that tests green against a bracket fixture and changes nothing
+      // where the problem actually is. `matches` is projected for all three
+      // kinds and carries the same ids.
+      const unitMatchIds = new Set(pool.matches.map((m) => m.id));
       const fighterPersonIds = Array.from(
         new Set<string>([
           ...pool.members.map((m) => m.personId),
@@ -1695,10 +1701,18 @@ export class AssignmentBoardService {
       const assignments: RefereeCommitmentPool['assignments'] = [];
       for (const a of context.assignments) {
         if (!a.role || !a.person_id) continue;
+        // BOTH scopes, for every kind of unit. This used to branch on `kind` and
+        // ask a pool only about `pool_id`, so a referee booked on ONE FIGHT of
+        // that pool — which is what the pool tab's matches table writes, with a
+        // null pool_id — was invisible to the commitment model. The write path
+        // judges overlap from this list, so it accepted a double-booking the
+        // board was already warning about.
+        //
+        // A union rather than a branch is safe because the two id spaces cannot
+        // collide: a synthetic unit's `id` is not a pools.id, so a real
+        // pool-scoped row can never match a bracket or Swiss unit by accident.
         const matchesPool =
-          kind === 'pool'
-            ? a.pool_id === pool.id
-            : a.match_id !== null && unitMatchIds.has(a.match_id);
+          a.pool_id === pool.id || (a.match_id !== null && unitMatchIds.has(a.match_id));
         if (matchesPool) {
           assignments.push({
             personId: a.person_id,

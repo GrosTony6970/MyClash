@@ -753,4 +753,190 @@ describe('AssignmentBoardService', () => {
       expect(Number.isNaN(Date.parse(slim.asOf))).toBe(false);
     });
   });
+
+  /**
+   * A referee committed to ONE FIGHT is still committed.
+   *
+   * Two things put a referee on a bout. The board assigns a whole pool and
+   * writes `scope_type='pool'`; the pool tab's matches table sets the crew of a
+   * single fight and writes `scope_type='match'` with a null `pool_id`. The
+   * commitment model the write path judges by only ever collected the first
+   * kind, so a referee already booked on a fight looked completely free, and
+   * `applyManual` accepted an overlap the board had been drawing a banner about
+   * since W6.2.
+   *
+   * The reason the obvious one-line union does not fix it: a REAL pool unit
+   * carries no `matchIds` at all. That field is set only on the synthetic
+   * bracket and Swiss units. `listPools` projects `matches`, so that is what the
+   * unit's fights have to be read from — matching on `matchIds` alone would have
+   * been a no-op that tested green against a bracket fixture.
+   */
+  describe('a per-match referee is a commitment the write path can see', () => {
+    const POOL_2_REF = 'person-ref-b'; // = PURE_REF_GLOBAL_ID, the referee being moved
+    const C_GLOBAL_ID = 'person-c-global';
+    const D_GLOBAL_ID = 'person-d-global';
+
+    /**
+     * Two pools running at the same time on two pistes. Pool 1 holds match-1,
+     * pool 2 holds match-2. Nobody fights in both — the only thing that can
+     * collide here is a REFEREE.
+     */
+    function queueTwoOverlappingPools(assignments: unknown[]) {
+      // A fallback for everything after the positional queue: an assignment
+      // that is ACCEPTED goes on to delete and insert, and those reads are not
+      // part of loadContext.
+      fromMock.mockReturnValue(makeChain({ data: [], error: null }));
+      fromMock
+        .mockReturnValueOnce(makeChain({ data: { start_date: '2026-05-21' }, error: null }))
+        .mockReturnValueOnce(
+          makeChain({ data: [{ id: 'tournament-1', name: 'Longsword' }], error: null }),
+        )
+        .mockReturnValueOnce(
+          makeChain({ data: [{ id: 'phase-1', tournament_id: 'tournament-1' }], error: null }),
+        )
+        .mockReturnValueOnce(
+          makeChain({
+            data: [
+              {
+                id: 'pool-1',
+                phase_id: 'phase-1',
+                name: 'Pool 1',
+                pool_members: [],
+                matches: [
+                  {
+                    id: 'match-1',
+                    scheduled_at: '2026-05-21T10:00:00.000Z',
+                    lice_id: 'lice-1',
+                    red_registration_id: 'reg-fighter-ref',
+                    blue_registration_id: 'reg-b',
+                  },
+                ],
+              },
+              {
+                id: 'pool-2',
+                phase_id: 'phase-1',
+                name: 'Pool 2',
+                pool_members: [],
+                matches: [
+                  {
+                    id: 'match-2',
+                    scheduled_at: '2026-05-21T10:00:00.000Z',
+                    lice_id: 'lice-2',
+                    red_registration_id: 'reg-c',
+                    blue_registration_id: 'reg-d',
+                  },
+                ],
+              },
+            ],
+            error: null,
+          }),
+        );
+      queueCandidateReads();
+      fromMock
+        .mockReturnValueOnce(
+          makeChain({
+            data: [
+              {
+                id: 'reg-fighter-ref',
+                person_id: FIGHTER_REF_PERSONS_ID,
+                tournament_id: 'tournament-1',
+                persons: { global_person_id: FIGHTER_REF_GLOBAL_ID },
+              },
+              {
+                id: 'reg-b',
+                person_id: BLUE_PERSONS_ID,
+                tournament_id: 'tournament-1',
+                persons: { global_person_id: BLUE_GLOBAL_ID },
+              },
+              {
+                id: 'reg-c',
+                person_id: 'persons-row-c',
+                tournament_id: 'tournament-1',
+                persons: { global_person_id: C_GLOBAL_ID },
+              },
+              {
+                id: 'reg-d',
+                person_id: 'persons-row-d',
+                tournament_id: 'tournament-1',
+                persons: { global_person_id: D_GLOBAL_ID },
+              },
+            ],
+            error: null,
+          }),
+        )
+        .mockReturnValueOnce(makeChain({ data: assignments, error: null }))
+        .mockReturnValueOnce(makeChain({ data: [], error: null })) // lices
+        .mockReturnValueOnce(makeChain({ data: [], error: null })) // bracket phases
+        .mockReturnValueOnce(makeChain({ data: [], error: null })); // swiss phases
+    }
+
+    /** Booked on match-1 alone: scope 'match', match_id set, pool_id NULL. */
+    const perMatchAssignment = {
+      id: 'existing-match-scoped',
+      person_id: POOL_2_REF,
+      pool_id: null,
+      match_id: 'match-1',
+      role: 'arbitre_declarant',
+      status: 'assigned',
+      auto_assigned: false,
+    };
+
+    it('refuses a referee already booked on an overlapping fight', async () => {
+      queueTwoOverlappingPools([perMatchAssignment]);
+
+      await expect(
+        service.applyManual('event-1', {
+          poolId: 'pool-2',
+          role: 'arbitre_declarant',
+          personId: POOL_2_REF,
+        }),
+      ).rejects.toThrow(/already officiating/);
+    });
+
+    it('still accepts them when the double-booking rule is switched off', async () => {
+      // The refusal rides on `enableDoubleBookedRule`, which is a real toggle an
+      // organiser may turn off — unlike rule 8, which is its own always-true
+      // setting and is not what gates this. A disabled rule must let the write
+      // through, or the toggle is decoration.
+      mockSettings.getSettings.mockResolvedValueOnce({
+        ...DEFAULT_RULE_SETTINGS,
+        enableDoubleBookedRule: false,
+      });
+      queueTwoOverlappingPools([perMatchAssignment]);
+
+      await expect(
+        service.applyManual('event-1', {
+          poolId: 'pool-2',
+          role: 'arbitre_declarant',
+          personId: POOL_2_REF,
+        }),
+      ).resolves.toBeDefined();
+    });
+
+    it('leaves a referee booked on a fight that does NOT overlap alone', async () => {
+      // The commitment is real but the windows do not touch, so there is
+      // nothing to refuse. Without this the fix could simply refuse every
+      // per-match referee everywhere and still look correct.
+      queueTwoOverlappingPools([
+        { ...perMatchAssignment, match_id: 'match-elsewhere' },
+        {
+          id: 'unrelated-pool-scoped',
+          person_id: POOL_2_REF,
+          pool_id: 'pool-nowhere',
+          match_id: null,
+          role: 'arbitre_declarant',
+          status: 'assigned',
+          auto_assigned: false,
+        },
+      ]);
+
+      await expect(
+        service.applyManual('event-1', {
+          poolId: 'pool-2',
+          role: 'arbitre_declarant',
+          personId: POOL_2_REF,
+        }),
+      ).resolves.toBeDefined();
+    });
+  });
 });
