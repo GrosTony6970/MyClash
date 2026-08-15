@@ -142,6 +142,88 @@ export async function loadRefereeConflictInputs(
   return { ok: true, assignments: body.assignments ?? [], registrations: body.registrations ?? [] };
 }
 
+/** One pool-scoped referee clash, as `packages/types` defines it. */
+export interface RefereeCrewConflict {
+  personId: string;
+  personName: string;
+  kind: 'officiate_vs_fight' | 'double_booked' | 'unavailable';
+  poolId: string;
+  poolName: string;
+  role: string;
+  start: string | null;
+  otherPoolId: string;
+  otherPoolName: string;
+  otherVenueName?: string | null;
+  crossVenue?: boolean;
+}
+
+/** Which of the three checks were switched on when the server looked. */
+export interface RefereeCrewRules {
+  officiateVsFight: boolean;
+  doubleBooked: boolean;
+  availability: boolean;
+}
+
+export interface RefereeCrewConflictsBody {
+  conflicts: RefereeCrewConflict[];
+  rules: RefereeCrewRules;
+  /** ISO, server-side: when these were computed. */
+  asOf: string;
+}
+
+export type RefereeCrewConflictsResult =
+  ({ ok: true } & RefereeCrewConflictsBody) | { ok: false; status: number };
+
+/**
+ * True only for a body that actually carries the three toggles.
+ *
+ * Neither default is safe when they are missing. Filling them in as `true`
+ * claims all three checks ran; filling them in as `false` claims they are
+ * switched off. Both are statements about a payload that said nothing, and one
+ * of them will be wrong. So a body without them is not a successful read.
+ */
+function hasCrewShape(body: unknown): body is RefereeCrewConflictsBody {
+  if (typeof body !== 'object' || body === null) return false;
+  const { conflicts, rules } = body as { conflicts?: unknown; rules?: unknown };
+  if (!Array.isArray(conflicts)) return false;
+  if (typeof rules !== 'object' || rules === null) return false;
+  const r = rules as Record<string, unknown>;
+  return (
+    typeof r['officiateVsFight'] === 'boolean' &&
+    typeof r['doubleBooked'] === 'boolean' &&
+    typeof r['availability'] === 'boolean'
+  );
+}
+
+/**
+ * The pool-scoped referee clashes, and whether anybody was looking.
+ *
+ * The slim read, not `referee-assignment-board`: that one returns the whole
+ * referee workspace, and this is re-read after every card move.
+ *
+ * `rules` is why the banner can be honest. Each conflict kind is gated by its
+ * own toggle in referee settings, so an empty list may mean the check is off.
+ */
+export async function loadRefereeCrewConflicts(
+  apiUrl: string,
+  eventId: string,
+  signal?: AbortSignal,
+): Promise<RefereeCrewConflictsResult> {
+  const res = await fetch(`${apiUrl}/api/v1/events/${eventId}/referee-crew-conflicts`, {
+    credentials: 'include',
+    signal,
+  });
+  if (!res.ok) return { ok: false, status: res.status };
+  const body: unknown = await res.json();
+  if (!hasCrewShape(body)) return { ok: false, status: res.status };
+  return {
+    ok: true,
+    conflicts: body.conflicts,
+    rules: body.rules,
+    asOf: body.asOf ?? '',
+  };
+}
+
 /** Re-read the two things a write can change. Also the rollback path. */
 export async function loadScheduleAndProgramme(
   apiUrl: string,

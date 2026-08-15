@@ -4,6 +4,7 @@ import {
   barBlocksOnly,
   loadBootstrap,
   loadRefereeConflictInputs,
+  loadRefereeCrewConflicts,
   loadScheduleAndProgramme,
 } from './schedule-reads';
 import type { ProgrammeBlockRow } from './schedule-types';
@@ -218,6 +219,77 @@ describe('loadRefereeConflictInputs', () => {
     await loadRefereeConflictInputs(API, EVENT, new AbortController().signal);
     expect(fetch).toHaveBeenCalledWith(
       `${API}/api/v1/events/${EVENT}/referee-match-assignments`,
+      expect.objectContaining({ credentials: 'include' }),
+    );
+  });
+});
+
+describe('loadRefereeCrewConflicts', () => {
+  const RULES_ALL_ON = { officiateVsFight: true, doubleBooked: true, availability: true };
+
+  it('carries the conflicts, the rules that gate them, and when it looked', async () => {
+    stubFetch([
+      jsonResponse({
+        conflicts: [{ personId: 'gp-1', poolId: 'p1', kind: 'double_booked' }],
+        rules: { officiateVsFight: true, doubleBooked: false, availability: true },
+        asOf: '2026-06-13T09:30:00.000Z',
+      }),
+    ]);
+    const result = await loadRefereeCrewConflicts(API, EVENT, new AbortController().signal);
+    expect(result).toEqual({
+      ok: true,
+      conflicts: [{ personId: 'gp-1', poolId: 'p1', kind: 'double_booked' }],
+      rules: { officiateVsFight: true, doubleBooked: false, availability: true },
+      asOf: '2026-06-13T09:30:00.000Z',
+    });
+  });
+
+  it('reports a refusal by status', async () => {
+    stubFetch([jsonResponse({ message: 'nope' }, { ok: false, status: 403 })]);
+    const result = await loadRefereeCrewConflicts(API, EVENT, new AbortController().signal);
+    expect(result).toEqual({ ok: false, status: 403 });
+  });
+
+  /**
+   * The important one. A 200 whose body has no `rules` cannot be filled in
+   * either way: `true` claims all three checks ran, `false` claims they are
+   * switched off, and one of those will be a lie about a payload that said
+   * nothing. The banner has a word for that, and it is "unavailable".
+   *
+   * The drag harness answers every unrouted GET with `[]`, so this is not a
+   * hypothetical shape — it is what an unmocked endpoint returns.
+   */
+  it('refuses a 200 that does not carry the rules, rather than guessing them', async () => {
+    stubFetch([jsonResponse({ conflicts: [], asOf: '2026-06-13T09:30:00.000Z' })]);
+    const result = await loadRefereeCrewConflicts(API, EVENT, new AbortController().signal);
+    expect(result).toEqual({ ok: false, status: 200 });
+  });
+
+  it('refuses a body that is not an object at all', async () => {
+    stubFetch([jsonResponse([])]);
+    const result = await loadRefereeCrewConflicts(API, EVENT, new AbortController().signal);
+    expect(result).toEqual({ ok: false, status: 200 });
+  });
+
+  it('refuses a rules object missing one of the three toggles', async () => {
+    stubFetch([
+      jsonResponse({ conflicts: [], rules: { officiateVsFight: true, doubleBooked: true } }),
+    ]);
+    const result = await loadRefereeCrewConflicts(API, EVENT, new AbortController().signal);
+    expect(result).toEqual({ ok: false, status: 200 });
+  });
+
+  it('accepts a well-formed body with nothing found', async () => {
+    stubFetch([jsonResponse({ conflicts: [], rules: RULES_ALL_ON, asOf: 'x' })]);
+    const result = await loadRefereeCrewConflicts(API, EVENT, new AbortController().signal);
+    expect(result).toEqual({ ok: true, conflicts: [], rules: RULES_ALL_ON, asOf: 'x' });
+  });
+
+  it('asks the slim endpoint, not the whole assignment board', async () => {
+    stubFetch([jsonResponse({ conflicts: [], rules: RULES_ALL_ON, asOf: 'x' })]);
+    await loadRefereeCrewConflicts(API, EVENT, new AbortController().signal);
+    expect(fetch).toHaveBeenCalledWith(
+      `${API}/api/v1/events/${EVENT}/referee-crew-conflicts`,
       expect.objectContaining({ credentials: 'include' }),
     );
   });

@@ -6,6 +6,8 @@ import {
   licesFixture,
   meFixture,
   programmeFixture,
+  refereeCrewConflictsFixture,
+  refereeMatchAssignmentsFixture,
   scheduleFixture,
 } from './schedule-grid.fixture';
 
@@ -28,6 +30,10 @@ export interface Harness {
   writes: Request[];
   /** Writes to PATCH /matches/:id/schedule, parsed. */
   scheduleWrites: () => Array<{ matchId: string; body: Record<string, unknown> }>;
+  /** How many times a GET path suffix has been asked for. Lets a spec say "the
+   *  board answered this from what it already had" rather than only that the
+   *  answer appeared. */
+  readCount: (pathSuffix: string) => number;
 }
 
 /** The GET payload for a bootstrap path, or null when this spec does not own it. */
@@ -36,6 +42,15 @@ export function readFixture(path: string): unknown | null {
   if (path.endsWith(`/events/${EVENT_ID}/lices`)) return licesFixture;
   if (path.endsWith(`/events/${EVENT_ID}/schedule`)) return scheduleFixture;
   if (path.endsWith(`/events/${EVENT_ID}/programme`)) return programmeFixture;
+  // Both halves of the referee check. Unmocked they fall through to the `?? []`
+  // in mockApi, and an array is not a crew payload — the board would raise a
+  // "could not be read" banner in every spec in this file.
+  if (path.endsWith(`/events/${EVENT_ID}/referee-match-assignments`)) {
+    return refereeMatchAssignmentsFixture;
+  }
+  if (path.endsWith(`/events/${EVENT_ID}/referee-crew-conflicts`)) {
+    return refereeCrewConflictsFixture;
+  }
   // LiveNowBanner reads `state.lices.some(...)`; an empty object here takes the
   // whole page down before the grid even mounts.
   if (path.endsWith(`/events/${EVENT_ID}/live-state`)) {
@@ -59,6 +74,7 @@ export function writeFixture(path: string): unknown {
 
 export async function mockApi(page: Page): Promise<Harness> {
   const writes: Request[] = [];
+  const reads: string[] = [];
 
   await page.route('**/api/v1/**', async (route) => {
     const request = route.request();
@@ -68,6 +84,7 @@ export async function mockApi(page: Page): Promise<Harness> {
       writes.push(request);
       return route.fulfill({ status: 200, json: writeFixture(path) });
     }
+    reads.push(path);
     // Anything unrecognised must still answer — an unrouted request stalls the
     // mount effect and the page never finishes loading.
     return route.fulfill({ json: readFixture(path) ?? [] });
@@ -75,6 +92,7 @@ export async function mockApi(page: Page): Promise<Harness> {
 
   return {
     writes,
+    readCount: (pathSuffix) => reads.filter((p) => p.endsWith(pathSuffix)).length,
     scheduleWrites: () =>
       writes
         .filter((r) => /\/matches\/[0-9a-f-]{36}\/schedule$/i.test(new URL(r.url()).pathname))

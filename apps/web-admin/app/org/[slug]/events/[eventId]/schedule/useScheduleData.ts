@@ -12,7 +12,9 @@ import {
   loadScheduleAndProgramme,
   type BootstrapSource,
   type RefereeConflictInputsResult,
+  type RefereeCrewConflictsResult,
 } from './schedule-reads';
+import { useRefereeCrewConflicts } from './useRefereeCrewConflicts';
 import { buildRefereeConflictRows, type RefereeConflictRow } from './referee-conflict-rows';
 import type { Lice, ProgrammeBlockRow, ScheduleMatch } from './schedule-types';
 
@@ -131,6 +133,10 @@ export interface ScheduleData {
   /** The referee read was refused. Without this, "no findings" and "we never
    *  managed to look" render identically, and the second one reads as safe. */
   refereeConflictsUnavailable: boolean;
+  /** The OTHER half of hard rule 8: pool-scoped crews, re-read from the server
+   *  rather than derived, so it lags and carries the time it was read. Null
+   *  until the first read lands. See ./useRefereeCrewConflicts. */
+  refereeCrewConflicts: RefereeCrewConflictsResult | null;
   refetchLices: () => Promise<void>;
   refetchScheduleAndBlocks: () => Promise<void>;
 }
@@ -238,6 +244,15 @@ export function useScheduleData(args: {
     return () => controller.abort();
   }, [apiUrl, eventId]);
 
+  // The lagging half. Keyed on `matches` because a moved card moves a pool's
+  // window, which is what its answer is computed from.
+  const { result: refereeCrewConflicts } = useRefereeCrewConflicts({
+    apiUrl,
+    eventId,
+    matches,
+    isBusy,
+  });
+
   const liceIds = useMemo(() => lices.map((l) => l.id), [lices]);
   useScheduleRealtime({ eventId, liceIds, refetch: refetchScheduleAndBlocks, isBusy });
 
@@ -256,6 +271,7 @@ export function useScheduleData(args: {
     conflicts,
     refereeConflicts,
     refereeConflictsUnavailable: refereeInputs !== null && !refereeInputs.ok,
+    refereeCrewConflicts,
     refetchLices,
     refetchScheduleAndBlocks,
   };

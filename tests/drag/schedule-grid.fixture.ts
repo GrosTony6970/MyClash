@@ -122,8 +122,48 @@ export const scheduleFixture = [
     scheduledAt: at('12:00'),
     redFighterName: 'Third Fighter',
     blueFighterName: 'Fourth Fighter',
+    // Its own registrations. They used to be the `match()` defaults, so both
+    // bouts carried the same two ids while showing four different names — and
+    // any drag that overlapped them raised a fighter double-booking that the
+    // fixture never meant to describe.
+    redRegistrationId: 'reg-red-2',
+    blueRegistrationId: 'reg-blue-2',
   }),
 ];
+
+/** `global_persons.id` — deliberately unlike any registration id above, because
+ *  the whole referee check turns on those two spaces not being confused. */
+export const REFEREE_PERSON = 'gp-denis';
+
+/**
+ * Denis fights M1 and referees M2. At the fixture's own times, 10:00 and 12:00,
+ * that is fine and the board says nothing. Drag M1 next to M2 and it is hard
+ * rule 8 — which is what the referee spec drags.
+ */
+export const refereeMatchAssignmentsFixture = {
+  assignments: [
+    {
+      matchId: MATCH_2,
+      personId: REFEREE_PERSON,
+      personName: 'Denis Referee',
+      role: 'arbitre_declarant',
+    },
+  ],
+  registrations: [
+    { registrationId: 'reg-red', personId: REFEREE_PERSON, personName: 'Denis Referee' },
+  ],
+};
+
+/**
+ * The lagging half, clean. Every check on, nothing found — so the banner stays
+ * hidden until the drag produces a live finding, and the group can then be
+ * asserted to carry this exact time.
+ */
+export const refereeCrewConflictsFixture = {
+  conflicts: [],
+  rules: { officiateVsFight: true, doubleBooked: true, availability: true },
+  asOf: at('09:30'),
+};
 
 export const programmeFixture = [
   {

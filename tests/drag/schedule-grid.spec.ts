@@ -210,4 +210,58 @@ test.describe('schedule grid drag layer', () => {
       )
       .toBe(1);
   });
+
+  /**
+   * Hard rule 8, the half that has to be current.
+   *
+   * The fixture's Denis fights M1 and referees M2, an hour apart, so the board
+   * starts silent. Putting M1 alongside M2 makes him both fighter and referee
+   * at the same minute — and the warning has to appear off the cards on screen,
+   * not off a fresh answer from the server, because the server has not been
+   * told yet. The read count is the assertion that carries that: if the row
+   * only appeared after a re-read, this would still show the row and would be
+   * proving the wrong thing.
+   */
+  test('a drag that overlaps a referee with their own fight warns without re-reading', async ({
+    page,
+  }) => {
+    const api = await openDetailedGrid(page);
+    const banner = page.getByText('Referee conflicts');
+    await expect(banner).toBeHidden();
+    // A DELTA, never an absolute. This spec runs against `next dev`, where
+    // StrictMode mounts every effect twice, so the board legitimately asks for
+    // this endpoint two times on load. Asserting "one read" reds on a healthy
+    // board; asserting "no further read" is the claim that actually matters.
+    const readsBefore = api.readCount('/referee-match-assignments');
+
+    // Same slot as M2, other piste: the two now run at the same minute, and
+    // nothing is displaced so no second finding muddies the assertion.
+    const slot = await slotOfCard(page, 'LSW-P1-M2', LICE_B);
+    await dragCardToCell(page, 'LSW-P1-M1', LICE_A, slot);
+
+    await expect(banner).toBeVisible();
+    await expect(
+      page.getByText(/Denis Referee fights LSW-P1-M1 .* referees LSW-P1-M2/),
+    ).toBeVisible();
+    // Derived, not fetched.
+    expect(api.readCount('/referee-match-assignments')).toBe(readsBefore);
+  });
+
+  /**
+   * The other half says how old it is. It is a re-read of pool crews, so it can
+   * be minutes behind the cards — and a group that did not say so would let the
+   * live half vouch for it.
+   */
+  test('the pool-crew group carries the time it was read', async ({ page }) => {
+    const api = await openDetailedGrid(page);
+
+    const slot = await slotOfCard(page, 'LSW-P1-M2', LICE_B);
+    await dragCardToCell(page, 'LSW-P1-M1', LICE_A, slot);
+
+    await expect(page.getByText('Pool crews, last read at 09:30')).toBeVisible();
+    // 09:30 is the fixture's `asOf`, and the fixture event is Europe/Paris. The
+    // string proves the EVENT clock only because the two agree here; the unit
+    // test in referee-conflict-rows.test.ts is the one that runs a third zone.
+    expect(api.readCount('/referee-crew-conflicts')).toBeGreaterThanOrEqual(1);
+  });
 });

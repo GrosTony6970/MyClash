@@ -1886,6 +1886,23 @@ export const organizer = {
       conflictSegIsInBoth: 'is in both',
       conflictSegAnd: 'and',
       conflictSegAt: 'at',
+      // Referee conflicts. TWO groups, never merged: one is recomputed on every
+      // card move, the other is a re-read that can be minutes old, and hiding
+      // which is which would make the fresh half vouch for the stale one.
+      refereeTitle: '⚠ Referee conflicts',
+      refereeLiveGroup: 'Checked just now, per fight',
+      refereeCrewGroup: 'Pool crews, last read at {time}',
+      refereeCrewNone: 'No pool-crew conflicts at that point.',
+      refereeCrewUnavailable: 'Pool crews could not be read, so nothing here has been checked.',
+      // An empty list means "all clear" ONLY when the checks were running. Each
+      // kind has its own switch in the referee settings.
+      refereeCrewRulesOff: 'These checks are switched off: {rules}.',
+      refereeRuleOfficiateVsFight: 'refereeing while fighting',
+      refereeRuleDoubleBooked: 'refereeing two things at once',
+      refereeRuleAvailability: 'assigned outside availability',
+      refereeOwnBout: '{person} is down to referee {match}, their own fight',
+      refereeOverlap:
+        '{person} fights {fight} at {fightTime} and referees {refereeing} at {refereeTime}',
       overlapCountSingular: '⚠ {count} block overlap on a lice — adjust the times or lices.',
       overlapCountPlural: '⚠ {count} block overlaps on a lice — adjust the times or lices.',
       // A warning, not a block: an organiser running late does sometimes push

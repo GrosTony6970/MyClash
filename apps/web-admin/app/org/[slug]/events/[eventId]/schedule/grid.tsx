@@ -9,6 +9,7 @@ import { placeMultiWithShift } from './place-with-shift';
 import { computeHeaderRuns, type HeaderRunItem } from './compute-header-runs';
 import { POOL_HEADER_SPAN, rowShiftForSlot } from './pool-header-layout';
 import { UnscheduledPanel } from './UnscheduledPanel';
+import { RefereeConflictBanner } from './RefereeConflictBanner';
 import { useScheduleUndo, type DeletedBlock, type MatchPosition } from './useScheduleUndo';
 import { DetailedGridView } from './DetailedGridView';
 import { draggedMatchIds, type DragPayload } from './drag-payload';
@@ -163,6 +164,8 @@ export function ScheduleGrid({
     setFetchError,
     programmeBlocks,
     conflicts,
+    refereeConflicts,
+    refereeCrewConflicts,
     refetchLices,
     refetchScheduleAndBlocks,
   } = useScheduleData({ eventId, apiUrl, isBusy });
@@ -1667,6 +1670,14 @@ export function ScheduleGrid({
           </ul>
         </div>
       )}
+
+      {/* Referees, below the fighter banner: the same question about a
+          different body. Two labelled groups — see ./RefereeConflictBanner. */}
+      <RefereeConflictBanner
+        live={refereeConflicts}
+        crew={refereeCrewConflicts}
+        eventTz={eventTz}
+      />
 
       {barCollisions.length > 0 && (
         <div className="bg-warning/10 border border-warning/30 rounded-xl px-4 py-2 mb-4 text-sm">
