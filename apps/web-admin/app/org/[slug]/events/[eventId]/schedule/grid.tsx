@@ -20,7 +20,7 @@ import type {
   UnscheduledBracketRound,
   UnscheduledPool,
 } from './schedule-types';
-import { blockDeleteAction } from './schedule-block-actions';
+import { blockLiceChange, liceSelectionChanged, runUnschedulePlan } from './block-run-plans';
 import { newBreakDraftFromCell } from './new-break-draft';
 import { hhmmToMinutes, programmeBlocksForDay } from './programme-block-slots';
 import { clampPanelWidth } from './panel-width';
@@ -563,24 +563,14 @@ export function ScheduleGrid({
    * the Undo toast is the safety net for this one-click affordance.
    */
   function unscheduleRunBlock(block: ScheduleBlock): void {
-    const action = blockDeleteAction({
-      kind: block.kind,
-      matchIds: block.matches.map((m) => m.id),
-      blockId: block.key,
-    });
-    if (action.kind !== 'unschedule') return;
-    const ids = new Set(action.matchIds);
-    const prior = matches
-      .filter((m) => ids.has(m.id))
-      .map((m) => ({ id: m.id, liceId: m.liceId, scheduledAt: m.scheduledAt }));
-    if (prior.length === 0) return;
-
-    const updated = matches.map((m) =>
-      ids.has(m.id) ? { ...m, liceId: null, scheduledAt: null } : m,
-    );
-    setMatches(updated);
-    void commitAll(action.matchIds.map((id) => () => saveMatchPosition(id, '', '')));
-    history.push({ kind: 'unschedule', label: block.label, matches: prior });
+    // Whether this × unschedules at all, and what undo has to remember to
+    // reverse it, are decided in ./block-run-plans.
+    const plan = runUnschedulePlan({ block, matches });
+    if (!plan) return;
+    const ids = new Set(plan.matchIds);
+    setMatches(matches.map((m) => (ids.has(m.id) ? { ...m, liceId: null, scheduledAt: null } : m)));
+    void commitAll(plan.matchIds.map((id) => () => saveMatchPosition(id, '', '')));
+    history.push({ kind: 'unschedule', label: plan.label, matches: plan.prior });
   }
 
   /**
@@ -1117,27 +1107,21 @@ export function ScheduleGrid({
   }
 
   function changeBlockLices(block: ScheduleBlock, newLiceIds: string[]) {
-    if (!newLiceIds[0] || !activeDay) return;
+    // Server re-fan or client relocate — decided in ./block-run-plans.
+    const change = blockLiceChange(block, newLiceIds);
+    if (!change || !activeDay) return;
     const startSlot = isoToSlotTz(block.startIso, activeDay);
-    if (block.kind === 'bracket') {
-      // Branch-aware re-fan across the dragged lices (server-side).
+    if (change.mode === 'refan') {
       void (async () => {
-        const ok = await postScheduleGroup(
-          block.matches.map((m) => m.id),
-          newLiceIds,
-          startSlot,
-          'bracket-branch',
-        );
-        // On failure `postScheduleGroup` has already surfaced the server's
-        // reason, which beats the generic one this used to show. Either way the
-        // board re-reads, because a failed re-fan may still have moved rows.
+        await postScheduleGroup(change.matchIds, change.liceIds, startSlot, 'bracket-branch');
+        // No branch on the result: `postScheduleGroup` has already surfaced the
+        // server's own reason for a refusal, and the board re-reads either way
+        // because a failed re-fan may still have moved rows.
         await refetchScheduleAndBlocks();
-        if (!ok) return;
       })();
       return;
     }
-    // Pool / other: relocate to the single target lice client-side.
-    void handleGroupDrop(new Set(block.matches.map((m) => m.id)), newLiceIds[0], startSlot);
+    void handleGroupDrop(new Set(change.matchIds), change.liceId, startSlot);
   }
 
   function savePopover(draft: BlockEditDraft) {
@@ -1150,11 +1134,12 @@ export function ScheduleGrid({
     if (editingBlock) {
       const block = editingBlock;
       setEditingBlock(null);
+      // The popover shows no end field for a run, so only the start and the lice
+      // selection can have moved. `draft.endHHMM` is carried in and ignored.
       retimeBlockStart(block, hhmmToSlot(draft.startHHMM, gridStartHour));
-      const cur = [...block.liceIds].sort();
-      const next = [...draft.liceIds].sort();
-      const changed = cur.length !== next.length || cur.some((v, i) => v !== next[i]);
-      if (changed) changeBlockLices(block, draft.liceIds);
+      if (liceSelectionChanged(block.liceIds, draft.liceIds)) {
+        changeBlockLices(block, draft.liceIds);
+      }
     }
   }
 
