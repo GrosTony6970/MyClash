@@ -179,6 +179,25 @@ export interface AssignmentBoardPool {
   }>;
 }
 
+/**
+ * The schedule board's slice of the referee board: the conflicts, and whether
+ * anybody was actually looking for them.
+ */
+export interface RefereeCrewConflicts {
+  conflicts: RefereeConflict[];
+  /** The three toggles that gate the rows above, one per `RefereeConflictKind`. */
+  rules: {
+    /** Gates `officiate_vs_fight`. */
+    officiateVsFight: boolean;
+    /** Gates `double_booked`. */
+    doubleBooked: boolean;
+    /** Gates `unavailable`. */
+    availability: boolean;
+  };
+  /** When the server computed these. The banner is the LAGGING half and says so. */
+  asOf: string;
+}
+
 export interface AssignmentBoard {
   /** Deduped union of skill_ids used across every pool's slots. */
   roles: string[];
@@ -434,6 +453,37 @@ export class AssignmentBoardService {
   async getBoard(eventId: string): Promise<AssignmentBoard> {
     const context = await this.loadContext(eventId);
     return this.buildBoard(context, EMPTY_PREVIEW);
+  }
+
+  /**
+   * Just the referee scheduling conflicts, for the schedule board's banner.
+   *
+   * `getBoard` answers this already, but it answers about forty other things
+   * with it — every candidate and their qualifications, one synthetic pool per
+   * bracket and finals bout, capacity windows, swap suggestions. The schedule
+   * board wants one field, refreshed after every card move, over a venue's
+   * wifi. Same server work, a fraction of the wire.
+   *
+   * `rules` is the part `getBoard` cannot give. Each conflict kind is gated by
+   * its own toggle in referee settings, so a switched-off rule empties the list
+   * — and an empty list on a safety banner reads as "all clear" rather than
+   * "nobody is checking". Sending the three toggles that gate these rows lets
+   * the banner tell those apart. The other toggles gate other outputs and are
+   * deliberately not here: this payload should describe only itself.
+   */
+  async getCrewConflicts(eventId: string): Promise<RefereeCrewConflicts> {
+    const context = await this.loadContext(eventId);
+    const board = this.buildBoard(context, EMPTY_PREVIEW);
+    const rules = context.ruleSettings;
+    return {
+      conflicts: board.conflicts,
+      rules: {
+        officiateVsFight: rules.enableOfficiateVsFightRule,
+        doubleBooked: rules.enableDoubleBookedRule,
+        availability: rules.enableAvailabilityRule,
+      },
+      asOf: new Date().toISOString(),
+    };
   }
 
   /**

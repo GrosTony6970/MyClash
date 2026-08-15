@@ -5,21 +5,23 @@ import { HARD_CODED_DEFAULT_SLOTS } from './staffing.service';
 
 const fromMock = vi.fn();
 const mockSupabase = { service: { from: fromMock } };
+/** Every rule on. Named so a test can flip one without restating the other eleven. */
+const DEFAULT_RULE_SETTINGS = {
+  enforceRefereeNoBackToBack: true,
+  refereeRestMinSlots: 1,
+  enforceDedicatedRefereeRest: true,
+  workshopConflictWarning: true,
+  ratingBasedOrdering: true,
+  workloadBalance: true,
+  enableOwnPoolRule: true,
+  enableOfficiateVsFightRule: true,
+  enableDoubleBookedRule: true,
+  enableTwoRolesRule: true,
+  enableAvailabilityRule: true,
+  enableCapacityRule: true,
+};
 const mockSettings = {
-  getSettings: vi.fn().mockResolvedValue({
-    enforceRefereeNoBackToBack: true,
-    refereeRestMinSlots: 1,
-    enforceDedicatedRefereeRest: true,
-    workshopConflictWarning: true,
-    ratingBasedOrdering: true,
-    workloadBalance: true,
-    enableOwnPoolRule: true,
-    enableOfficiateVsFightRule: true,
-    enableDoubleBookedRule: true,
-    enableTwoRolesRule: true,
-    enableAvailabilityRule: true,
-    enableCapacityRule: true,
-  }),
+  getSettings: vi.fn().mockResolvedValue(DEFAULT_RULE_SETTINGS),
 };
 // R2: the assignment board now depends on the staffing resolver. In
 // these tests we don't exercise custom slot configs — the
@@ -692,6 +694,63 @@ describe('AssignmentBoardService', () => {
       await expect(service.clearPoolAssignments('pool-1')).rejects.toBeInstanceOf(
         ConflictException,
       );
+    });
+  });
+
+  /**
+   * The schedule board's banner reads this instead of the whole workspace. Two
+   * things have to hold: it must not become a second implementation that drifts
+   * from `getBoard`, and it must say whether anybody was looking.
+   */
+  describe('getCrewConflicts', () => {
+    it('returns exactly what getBoard computes, and none of the rest of the workspace', async () => {
+      queueBoardReads();
+      const board = await service.getBoard('event-1');
+      queueBoardReads();
+      const slim = await service.getCrewConflicts('event-1');
+
+      expect(slim.conflicts).toEqual(board.conflicts);
+      // The whole point of the endpoint. Spreading the board in here would
+      // still satisfy the assertion above and undo the reason it exists.
+      expect(Object.keys(slim).sort()).toEqual(['asOf', 'conflicts', 'rules']);
+    });
+
+    /**
+     * Each conflict kind is gated by its own toggle, so a switched-off rule
+     * empties the list. Without this field the banner cannot tell "no
+     * conflicts" from "nobody is checking", and the second one reads as safe.
+     */
+    it('reports a switched-off rule rather than silently returning nothing', async () => {
+      mockSettings.getSettings.mockResolvedValueOnce({
+        ...DEFAULT_RULE_SETTINGS,
+        enableDoubleBookedRule: false,
+      });
+      queueBoardReads();
+
+      const slim = await service.getCrewConflicts('event-1');
+
+      expect(slim.rules).toEqual({
+        officiateVsFight: true,
+        doubleBooked: false,
+        availability: true,
+      });
+    });
+
+    it('reports every rule on when every rule is on', async () => {
+      queueBoardReads();
+      const slim = await service.getCrewConflicts('event-1');
+      expect(slim.rules).toEqual({
+        officiateVsFight: true,
+        doubleBooked: true,
+        availability: true,
+      });
+    });
+
+    /** This half of the banner is the LAGGING one and has to be able to say so. */
+    it('stamps when it looked', async () => {
+      queueBoardReads();
+      const slim = await service.getCrewConflicts('event-1');
+      expect(Number.isNaN(Date.parse(slim.asOf))).toBe(false);
     });
   });
 });

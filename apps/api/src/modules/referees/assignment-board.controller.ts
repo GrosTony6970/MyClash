@@ -47,7 +47,7 @@ class LegacyManualAssignmentRequestDto extends createZodDto(legacyManualAssignme
  * The referee assignment board.
  *
  * AUTHORIZATION IS PER ROUTE, and every route has it. Until 2026-08-15 not one
- * of these eleven did: under the global `AuthGuard` they required *a* logged-in
+ * of them did: under the global `AuthGuard` they required *a* logged-in
  * account, but nothing tied that account to the event, so any authenticated user
  * could read any event's roster — or wipe it.
  *
@@ -55,7 +55,10 @@ class LegacyManualAssignmentRequestDto extends createZodDto(legacyManualAssignme
  * the crew rostered to run an event has to be able to see it. A write needs the
  * event-management bar, the same one the schedule writes use.
  *
- * Deliberately not a guard. These eleven routes address the event through SIX
+ * `referees-authz.test.ts` counts the routes here as well as checking them, so
+ * a new one is a deliberate edit to that test rather than a quiet addition.
+ *
+ * Deliberately not a guard. These routes address the event through SIX
  * different keys — event, tournament, pool, Swiss round, assignment id, and one
  * legacy route carrying the id in its BODY. `EventReadOnlyGuard` resolves by
  * path and has FAILED OPEN twice when a params name did not match; an explicit
@@ -90,6 +93,23 @@ export class AssignmentBoardController {
   async getBoard(@Param('eventId', ParseUUIDPipe) eventId: string, @Req() req: FastifyRequest) {
     await assertEventMember(this.authz, eventId, await this.userId(req));
     return this.assignments.getBoard(eventId);
+  }
+
+  /**
+   * The schedule board polls this after every card move, so it is the slim
+   * read: the conflicts and the toggles that gate them, not the workspace.
+   */
+  @Get('events/:eventId/referee-crew-conflicts')
+  @ApiOperation({
+    summary: 'Read referee scheduling conflicts only, with the rule toggles that gate them',
+  })
+  @ApiParam({ name: 'eventId', type: 'string', format: 'uuid' })
+  async getCrewConflicts(
+    @Param('eventId', ParseUUIDPipe) eventId: string,
+    @Req() req: FastifyRequest,
+  ) {
+    await assertEventMember(this.authz, eventId, await this.userId(req));
+    return this.assignments.getCrewConflicts(eventId);
   }
 
   @Post('events/:eventId/referee-assignment-board/preview')

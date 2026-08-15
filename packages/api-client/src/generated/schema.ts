@@ -4119,6 +4119,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  '/api/v1/events/{eventId}/referee-crew-conflicts': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Read referee scheduling conflicts only, with the rule toggles that gate them */
+    get: operations['AssignmentBoardController_getCrewConflicts'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   '/api/v1/events/{eventId}/referee-assignment-board/preview': {
     parameters: {
       query?: never;
@@ -17547,6 +17564,25 @@ export interface operations {
     };
   };
   AssignmentBoardController_getBoard: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        eventId: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  AssignmentBoardController_getCrewConflicts: {
     parameters: {
       query?: never;
       header?: never;

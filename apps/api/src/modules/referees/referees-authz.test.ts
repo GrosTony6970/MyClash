@@ -95,7 +95,9 @@ describe('referees module authorization', () => {
     const board = allHandlers().filter((h) => h.file === 'assignment-board.controller.ts');
     const withoutAssert = board.filter((h) => !AUTHORIZES.test(h.text)).map((h) => h.name);
 
-    expect(board.length).toBe(11);
+    // The count is the point: it makes a NEW route a deliberate edit here
+    // rather than something that slips in behind the loop above.
+    expect(board.length).toBe(12);
     expect(withoutAssert).toEqual([]);
   });
 });
