@@ -493,6 +493,11 @@ export class MatchesService {
    *   refereeId = string  → delete any existing row for (match, role),
    *                         then insert the new assignment.
    *   refereeId = null    → delete any existing row, do not insert.
+   *
+   * HARD RULE 8. A fighter may not referee their own fight, and that rule has no
+   * off switch. The assignment board enforced it on its own manual path and this
+   * route — the one the pool tab's matches table actually uses — enforced
+   * nothing, so the rule held on one door and not the other.
    */
   async setRefereeRoleAssignment(
     matchId: string,
@@ -501,10 +506,12 @@ export class MatchesService {
   ): Promise<{ matchId: string; role: string; refereeId: string | null }> {
     // 1. Load the match and resolve its event via phases → tournaments.event_id
     //    (the `phases` table has no event_id column of its own — it keys on
-    //    tournament_id, and the event is reached one hop further up).
+    //    tournament_id, and the event is reached one hop further up). The two
+    //    registration ids come back on the same read: rule 8 is about them, and
+    //    a second round trip for two columns already in hand is waste.
     const { data: match, error: matchErr } = await this.supabase.service
       .from('matches')
-      .select('phases ( tournaments ( event_id ) )')
+      .select('red_registration_id, blue_registration_id, phases ( tournaments ( event_id ) )')
       .eq('id', matchId)
       .maybeSingle();
     if (matchErr) throw new BadRequestException(matchErr.message);
@@ -519,7 +526,18 @@ export class MatchesService {
     const eventId = tournament?.['event_id'] as string | undefined;
     if (!eventId) throw new NotFoundException(`Event for match ${matchId} not found`);
 
-    // 2. Idempotent clear — delete any existing assignment for the
+    // 2. Hard rule 8, before anything is written. Checked on the way IN rather
+    //    than as a filter on the way out: a refusal has to reach the operator
+    //    who picked the name, not disappear into a log.
+    if (refereeId !== null) {
+      const matchRow = match as Record<string, unknown>;
+      await this.assertRefereeIsNotFighting(refereeId, [
+        matchRow['red_registration_id'] as string | null,
+        matchRow['blue_registration_id'] as string | null,
+      ]);
+    }
+
+    // 3. Idempotent clear — delete any existing assignment for the
     //    (match, role) tuple. Mirrors the manual-assignment branch in
     //    AssignmentBoardService.persistAssignments.
     const { error: delErr } = await this.supabase.service
@@ -552,6 +570,45 @@ export class MatchesService {
     if (insErr) throw new BadRequestException(insErr.message);
 
     return { matchId, role, refereeId };
+  }
+
+  /**
+   * Refuse a referee who is one of the two fighters in the bout.
+   *
+   * ONE ID-SPACE. `referee_assignments.person_id` points at `global_persons`. A
+   * registration reaches that same space through `persons.global_person_id` —
+   * NOT `persons.id`, which is the per-event identity and a different space
+   * entirely. Comparing the wrong one yields a guard that never matches and
+   * therefore never fires, which reads exactly like a guard that works. That is
+   * the Denis-Allaume bug, and `referee-match-assignments.ts` carries the same
+   * note for the same reason.
+   *
+   * An unresolvable registration is skipped, never compared under an empty id:
+   * two people we cannot identify must not collapse onto one key and refuse each
+   * other.
+   */
+  private async assertRefereeIsNotFighting(
+    refereeId: string,
+    registrationIds: readonly (string | null)[],
+  ): Promise<void> {
+    const ids = registrationIds.filter((id): id is string => Boolean(id));
+    if (ids.length === 0) return;
+
+    const { data, error } = await this.supabase.service
+      .from('registrations')
+      .select('id, persons ( global_person_id )')
+      .in('id', ids);
+    if (error) throw new BadRequestException(error.message);
+
+    for (const row of (data ?? []) as Array<{ persons?: unknown }>) {
+      const person = Array.isArray(row.persons)
+        ? ((row.persons[0] as Record<string, unknown>) ?? null)
+        : ((row.persons as Record<string, unknown>) ?? null);
+      const globalPersonId = person?.['global_person_id'] as string | null | undefined;
+      if (globalPersonId && globalPersonId === refereeId) {
+        throw new BadRequestException('A fighter cannot referee their own match');
+      }
+    }
   }
 
   async update(matchId: string, dto: UpdateMatchDto) {

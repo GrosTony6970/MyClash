@@ -985,5 +985,160 @@ describe('MatchesService', () => {
       expect(refereeChain.delete).toHaveBeenCalled();
       expect(insertSpy).not.toHaveBeenCalled();
     });
+
+    // ── Hard rule 8 ────────────────────────────────────────────────────────
+    //
+    // A fighter may not referee their own fight, and that rule cannot be
+    // switched off. The assignment board enforced it on its own manual path
+    // while this route — the one the pool tab's matches table calls — enforced
+    // nothing at all.
+    //
+    // Every case here asserts the SELECT STRING as well as the outcome. The
+    // mocks answer with whatever the fixture holds no matter what was asked
+    // for, so a value-only assertion stays green with the column deleted from
+    // the read. That is exactly how a column can sit missing from a select for
+    // years with a full test suite passing over it.
+    describe('setRefereeRoleAssignment — a fighter cannot referee their own match', () => {
+      /** A thenable chain: the registrations read ends on `.in()`, not `.single()`. */
+      function awaitableChain(result: { data: unknown; error: unknown }, sink: string[]) {
+        const promise = Promise.resolve(result);
+        const chain = Object.assign(promise, {
+          select: vi.fn(),
+          eq: vi.fn(),
+          delete: vi.fn(),
+          in: vi.fn(),
+          order: vi.fn(),
+          insert: vi.fn().mockResolvedValue(result),
+          update: vi.fn(),
+          maybeSingle: vi.fn().mockResolvedValue(result),
+          single: vi.fn().mockResolvedValue(result),
+        });
+        for (const key of ['eq', 'delete', 'in', 'order', 'update']) {
+          (chain as unknown as Record<string, unknown>)[key] = vi.fn().mockReturnValue(chain);
+        }
+        chain.select = vi.fn((arg: string) => {
+          sink.push(arg);
+          return chain;
+        }) as never;
+        return chain;
+      }
+
+      /**
+       * One bout, one referee candidate, and whatever the two registrations
+       * resolve to. `selects` collects every projection the service asks for.
+       */
+      function harness(registrationRows: unknown[]) {
+        const selects: string[] = [];
+        const refereeChain = makeAwaitableDeleteChain();
+        const inserted: Record<string, unknown>[] = [];
+        refereeChain.insert = vi.fn((row: Record<string, unknown>) => {
+          inserted.push(row);
+          return Promise.resolve({ data: null, error: null });
+        }) as never;
+
+        fromMock.mockImplementation((tableName: string) => {
+          if (tableName === 'matches') {
+            const chain = makeChain({
+              data: {
+                red_registration_id: 'reg-red',
+                blue_registration_id: 'reg-blue',
+                phases: { tournaments: { event_id: 'event-1' } },
+              },
+              error: null,
+            });
+            chain.select.mockImplementation((arg: string) => {
+              selects.push(arg);
+              return chain;
+            });
+            return chain;
+          }
+          if (tableName === 'registrations') {
+            return awaitableChain({ data: registrationRows, error: null }, selects);
+          }
+          if (tableName === 'referee_assignments') return refereeChain;
+          return makeChain({ data: null, error: null });
+        });
+
+        return { selects, inserted, refereeChain };
+      }
+
+      it('refuses the red fighter, and reads the columns it judges on', async () => {
+        // `person-1` is the referee being offered AND the global person behind
+        // the red corner's registration.
+        const { selects, inserted, refereeChain } = harness([
+          { id: 'reg-red', persons: { global_person_id: 'person-1' } },
+          { id: 'reg-blue', persons: { global_person_id: 'person-2' } },
+        ]);
+
+        await expect(
+          service.setRefereeRoleAssignment('match-1', 'arbitre_declarant', 'person-1'),
+        ).rejects.toThrow('A fighter cannot referee their own match');
+
+        // Refused BEFORE anything was written — not deleted-then-refused, which
+        // would drop the crew that was already correct.
+        expect(refereeChain.delete).not.toHaveBeenCalled();
+        expect(inserted).toEqual([]);
+
+        // The projection, not just the answer. Delete either registration column
+        // from the match read and this reds.
+        expect(selects[0]).toContain('red_registration_id');
+        expect(selects[0]).toContain('blue_registration_id');
+        expect(selects[1]).toContain('global_person_id');
+      });
+
+      it('refuses the blue fighter too', async () => {
+        const { inserted } = harness([
+          { id: 'reg-red', persons: { global_person_id: 'person-2' } },
+          { id: 'reg-blue', persons: { global_person_id: 'person-1' } },
+        ]);
+
+        await expect(
+          service.setRefereeRoleAssignment('match-1', 'arbitre_declarant', 'person-1'),
+        ).rejects.toThrow('A fighter cannot referee their own match');
+        expect(inserted).toEqual([]);
+      });
+
+      it('lets a referee who is not in the bout through', async () => {
+        const { inserted } = harness([
+          { id: 'reg-red', persons: { global_person_id: 'person-2' } },
+          { id: 'reg-blue', persons: { global_person_id: 'person-3' } },
+        ]);
+
+        await service.setRefereeRoleAssignment('match-1', 'arbitre_declarant', 'person-1');
+        expect(inserted).toHaveLength(1);
+        expect(inserted[0]).toMatchObject({ person_id: 'person-1', match_id: 'match-1' });
+      });
+
+      it('compares global person ids, not the per-event persons.id', async () => {
+        // THE failure mode this guard dies of. `referee_assignments.person_id`
+        // is a `global_persons.id`; a registration reaches that space through
+        // `persons.global_person_id`. Read `persons.id` instead and the guard
+        // matches nothing, never fires, and looks perfectly healthy.
+        //
+        // Here the red fighter's per-event `persons.id` IS the referee id and
+        // their global person is somebody else. A guard reading the wrong
+        // column refuses this; the right one lets it through.
+        const { inserted } = harness([
+          { id: 'reg-red', persons: { id: 'person-1', global_person_id: 'person-9' } },
+          { id: 'reg-blue', persons: { id: 'person-8', global_person_id: 'person-2' } },
+        ]);
+
+        await service.setRefereeRoleAssignment('match-1', 'arbitre_declarant', 'person-1');
+        expect(inserted).toHaveLength(1);
+      });
+
+      it('does not collapse two unidentifiable fighters onto one empty key', async () => {
+        // A registration with no global person is SKIPPED, never compared under
+        // ''. Defaulting to an empty string would make every unlinked
+        // registration match every unlinked referee.
+        const { inserted } = harness([
+          { id: 'reg-red', persons: { global_person_id: null } },
+          { id: 'reg-blue', persons: null },
+        ]);
+
+        await service.setRefereeRoleAssignment('match-1', 'arbitre_declarant', '');
+        expect(inserted).toHaveLength(1);
+      });
+    });
   });
 });
