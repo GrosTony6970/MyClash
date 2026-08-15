@@ -8,6 +8,7 @@ import {
 } from '../../workers/notification-scheduler.worker';
 import { FollowNotificationSchedulerService } from '../../workers/follow-notification-scheduler.worker';
 import { NotificationEventsService } from './event-handlers/notification-events.service';
+import { MatchAlertRefresherService } from './match-alert-refresher.service';
 
 /**
  * Leaf module owning the notification-scheduling subsystem: the enqueue
@@ -35,6 +36,7 @@ import { NotificationEventsService } from './event-handlers/notification-events.
     NotificationSchedulerService,
     FollowNotificationSchedulerService,
     NotificationEventsService,
+    MatchAlertRefresherService,
     WebPushSender,
     NotificationSchedulerWorker,
   ],
@@ -42,6 +44,11 @@ import { NotificationEventsService } from './event-handlers/notification-events.
     NotificationSchedulerService,
     FollowNotificationSchedulerService,
     NotificationEventsService,
+    // Every service that writes `matches.scheduled_at` depends on this one.
+    // It is exported from the LEAF for that reason: Programme, Phases, Matches
+    // and the AI assistant all need it, and any of them importing a heavier
+    // module to reach it would re-open the cycle this leaf was cut to break.
+    MatchAlertRefresherService,
   ],
 })
 export class NotificationSchedulingModule {}

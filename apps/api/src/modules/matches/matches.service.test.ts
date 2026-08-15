@@ -9,11 +9,13 @@ const mockSupabase = { service: { from: fromMock }, anon: {} };
 const mockScoring = {
   recomputeMatchScore: vi.fn().mockResolvedValue({ redScore: 0, blueScore: 0 }),
 };
-const mockNotificationScheduler = {
-  scheduleMatchStarting: vi.fn().mockResolvedValue(undefined),
-};
-const mockFollowNotificationScheduler = {
-  scheduleMatchStarting: vi.fn().mockResolvedValue(undefined),
+/**
+ * The service no longer injects the two schedulers directly. Every write of a
+ * match time goes through the refresher, which owns calling both — see
+ * `match-alert-refresher.service.ts` for why one call replaced two.
+ */
+const mockMatchAlerts = {
+  refresh: vi.fn().mockResolvedValue(undefined),
 };
 const mockFrozenResults = {
   assertExchangeCreationAllowed: vi.fn().mockResolvedValue(undefined),
@@ -57,8 +59,7 @@ describe('MatchesService', () => {
     service = new MatchesService(
       mockSupabase as never,
       mockScoring as never,
-      mockNotificationScheduler as never,
-      mockFollowNotificationScheduler as never,
+      mockMatchAlerts as never,
     );
   });
 
@@ -296,8 +297,7 @@ describe('MatchesService', () => {
       service = new MatchesService(
         mockSupabase as never,
         mockScoring as never,
-        mockNotificationScheduler as never,
-        mockFollowNotificationScheduler as never,
+        mockMatchAlerts as never,
         mockFrozenResults as never,
       );
       mockFrozenResults.assertExchangeCreationAllowed.mockRejectedValueOnce(
@@ -425,8 +425,7 @@ describe('MatchesService', () => {
       service = new MatchesService(
         mockSupabase as never,
         mockScoring as never,
-        mockNotificationScheduler as never,
-        mockFollowNotificationScheduler as never,
+        mockMatchAlerts as never,
         mockFrozenResults as never,
       );
       const exchange = { id: 'ex-1', match_id: 'm1', voided: false };
@@ -459,8 +458,7 @@ describe('MatchesService', () => {
       service = new MatchesService(
         mockSupabase as never,
         mockScoring as never,
-        mockNotificationScheduler as never,
-        mockFollowNotificationScheduler as never,
+        mockMatchAlerts as never,
         mockFrozenResults as never,
       );
       const exchange = { id: 'ex-1', match_id: 'm1', voided: true };
@@ -491,8 +489,7 @@ describe('MatchesService', () => {
       service = new MatchesService(
         mockSupabase as never,
         mockScoring as never,
-        mockNotificationScheduler as never,
-        mockFollowNotificationScheduler as never,
+        mockMatchAlerts as never,
         mockFrozenResults as never,
       );
       const exchange = { id: 'ex-1', match_id: 'm1', voided: false };
@@ -648,8 +645,7 @@ describe('MatchesService', () => {
 
       await service.scheduleMatch('match-1', 'lice-1', scheduledAt);
 
-      expect(mockNotificationScheduler.scheduleMatchStarting).toHaveBeenCalledWith('match-1');
-      expect(mockFollowNotificationScheduler.scheduleMatchStarting).toHaveBeenCalledWith('match-1');
+      expect(mockMatchAlerts.refresh).toHaveBeenCalledWith(['match-1']);
     });
   });
 
@@ -666,12 +662,19 @@ describe('MatchesService', () => {
       // The service chains .update(...).eq('pool_id', …).gte('scheduled_at', …).lt(…)
       // so the terminating chain.eq must resolve to a result.
       updateChain.eq.mockReturnValue(updateChain);
-      // Last filter resolves the awaitable.
+      // The chain now ends `.lt(…).select('id')`: the ids are only reachable
+      // from the write itself, because the filter is a day window over the very
+      // times it erases. Reading them back afterwards would match nothing.
+      const cleared = Promise.resolve({
+        data: [{ id: 'match-1' }, { id: 'match-2' }],
+        error: null,
+      });
       updateChain.lt = vi.fn().mockReturnValue(
         Object.assign(Promise.resolve({ data: null, error: null }), {
           eq: vi.fn().mockReturnThis(),
           gte: vi.fn().mockReturnThis(),
           lt: vi.fn().mockReturnThis(),
+          select: vi.fn().mockReturnValue(cleared),
         }),
       ) as never;
       updateChain.gte = vi.fn().mockReturnValue(updateChain) as never;
@@ -683,6 +686,9 @@ describe('MatchesService', () => {
       expect(updateChain.eq).toHaveBeenCalledWith('pool_id', 'pool-1');
       expect(updateChain.gte).toHaveBeenCalledWith('scheduled_at', '2026-05-02T00:00:00.000Z');
       expect(updateChain.lt).toHaveBeenCalledWith('scheduled_at', '2026-05-03T00:00:00.000Z');
+      // Clearing a time IS a reschedule. This route told the queue nothing at
+      // all until 2026-08-15, so every fight it wiped kept its "starting soon".
+      expect(mockMatchAlerts.refresh).toHaveBeenCalledWith(['match-1', 'match-2']);
     });
   });
 

@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException, Optional } from '@nestjs/common';
 import type {
   BlockDiagnostic,
   GenerateResult,
@@ -10,6 +10,7 @@ import type {
 import { SupabaseService } from '../supabase/supabase.service';
 // Value import, not `import type` — `import type` erases the DI metadata.
 import { OrganizationsService } from '../organizations/organizations.service';
+import { MatchAlertRefresherService } from '../notifications/match-alert-refresher.service';
 import { assertCanManageEvent, assertCanReadEvent } from '../../common/auth/event-authz';
 import { scheduleMatches } from '../schedule/match-scheduler';
 import { poolBottleneckMinutes } from './pool-bottleneck';
@@ -121,6 +122,14 @@ export class ProgrammeService {
   constructor(
     private readonly supabase: SupabaseService,
     private readonly orgs: OrganizationsService,
+    /**
+     * Five writes in this file move or clear a match's time, and every one of
+     * them owes the queued "your fight starts soon" a refresh. Optional so the
+     * unit tests that build this service by hand keep working; the module
+     * provides it for real. `match-alert-coverage.test.ts` is what stops a
+     * sixth write forgetting.
+     */
+    @Optional() private readonly matchAlerts?: MatchAlertRefresherService,
   ) {}
 
   /**
@@ -312,6 +321,9 @@ export class ProgrammeService {
           .select('id');
         if (mErr) throw new BadRequestException(mErr.message);
         matchesCleared = (cleared ?? []).length;
+        await this.matchAlerts?.refresh(
+          ((cleared ?? []) as Array<{ id: string }>).map((row) => row.id),
+        );
       }
     }
 
@@ -999,6 +1011,9 @@ export class ProgrammeService {
         }
         const persistedCount = (upserted ?? []).length;
         matchesScheduled += persistedCount;
+        // Regenerating a block retimes every bout in it — several hundred on a
+        // large phase. This is the write the bulk scheduler exists for.
+        await this.matchAlerts?.refresh(matchesPayload.map((row) => row.id));
 
         // Realized-window sync: the scheduler may run a phase far longer than
         // the planner's estimate (strict pools serialize on one lice). Rewrite
@@ -1144,6 +1159,10 @@ export class ProgrammeService {
     const tournamentIds = ((tournamentsData ?? []) as Array<{ id: string }>).map((t) => t.id);
 
     let shiftedMatches = 0;
+    // Collected across the fan-out below and refreshed in ONE call. Refreshing
+    // inside the loop would put four reads per bout back into a path that can
+    // move a whole day's fights.
+    const shiftedMatchIds: string[] = [];
     if (tournamentIds.length > 0) {
       const { data: phasesData } = await this.supabase.service
         .from('phases')
@@ -1185,9 +1204,11 @@ export class ProgrammeService {
             throw new BadRequestException(`Failed to shift match ${m.id}: ${shiftErr.message}`);
           }
           shiftedMatches++;
+          shiftedMatchIds.push(m.id);
         }
       }
     }
+    await this.matchAlerts?.refresh(shiftedMatchIds);
 
     // Cascade across the day's programme blocks: every block at or after the
     // moved block's OLD start shifts by the same Δ (the moved block included),
@@ -1447,6 +1468,10 @@ export class ProgrammeService {
       writes.flatMap((w) => (w.status === 'fulfilled' ? [w.value as string] : [])),
     );
     const failed = writes.length - committed.size;
+    // Before the throw, deliberately. A partly-applied re-fan still moved the
+    // bouts in `committed`, and their alerts are wrong whether or not the
+    // caller gets a 400.
+    await this.matchAlerts?.refresh([...committed]);
     if (failed > 0) {
       throw new BadRequestException(
         `Re-fan partly applied: ${committed.size}/${writes.length} matches moved. Reload the schedule before retrying.`,
@@ -1651,6 +1676,10 @@ export class ProgrammeService {
       .eq('id', blockId)
       .eq('event_id', eventId);
     if (delErr) throw new BadRequestException(`Failed to delete block: ${delErr.message}`);
+
+    // Deleting a bar takes the fights under it off the clock, so their alerts
+    // have to come off with them. Clearing a time IS a reschedule.
+    await this.matchAlerts?.refresh(unscheduledMatchIds);
 
     return { deletedId: blockId, unscheduledMatchIds };
   }

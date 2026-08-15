@@ -3,6 +3,7 @@ import { AIUsageService } from '../ai-usage/ai-usage.service';
 import { EventsService } from '../events/events.service';
 import { OrganizationsService } from '../organizations/organizations.service';
 import { PhasesService } from '../phases/phases.service';
+import { MatchAlertRefresherService } from '../notifications/match-alert-refresher.service';
 import { SupabaseService } from '../supabase/supabase.service';
 import { insertAuditLog } from '../../common/audit-log';
 import { parseModelJson } from '../../common/model-json';
@@ -64,6 +65,7 @@ export class OrganizerAIAssistantService {
     private readonly organizations: OrganizationsService,
     private readonly events: EventsService,
     private readonly phases: PhasesService,
+    private readonly matchAlerts: MatchAlertRefresherService,
   ) {}
 
   async createDraft(eventId: string, actorUserId: string, dto: CreateOrganizerAIDraftDto) {
@@ -366,6 +368,7 @@ export class OrganizerAIAssistantService {
         .select('id')
         .single();
       if (error) throw new BadRequestException(error.message);
+      await this.matchAlerts.refresh([String(action['matchId'])]);
       return { kind, result: data };
     }
     if (kind === 'assign_referee') {

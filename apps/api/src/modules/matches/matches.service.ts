@@ -9,8 +9,7 @@ import { randomUUID } from 'node:crypto';
 import { bracketToken, computeAfterblowDeltas, type AfterblowMode } from '@myclash/types';
 import { getEffectiveBestOf, normalizeMatchFormatConfig } from '@myclash/rulesets';
 import type { Match as RulesetMatch } from '@myclash/rulesets';
-import { FollowNotificationSchedulerService } from '../../workers/follow-notification-scheduler.worker';
-import { NotificationSchedulerService } from '../../workers/notification-scheduler.worker';
+import { MatchAlertRefresherService } from '../notifications/match-alert-refresher.service';
 import { SupabaseService } from '../supabase/supabase.service';
 import { insertAuditLog } from '../../common/audit-log';
 import { buildRoundCode, bracketCodeConfig } from './round-code.helper';
@@ -53,8 +52,7 @@ export class MatchesService {
   constructor(
     private readonly supabase: SupabaseService,
     private readonly scoring: ScoringService,
-    private readonly notifications: NotificationSchedulerService,
-    private readonly followNotifications: FollowNotificationSchedulerService,
+    private readonly matchAlerts: MatchAlertRefresherService,
     @Optional() private readonly frozenResults?: FrozenResultsGuard,
     @Optional() private readonly matchCompletion?: MatchCompletionService,
   ) {}
@@ -444,13 +442,18 @@ export class MatchesService {
     nextDay.setUTCDate(nextDay.getUTCDate() + 1);
     const end = nextDay.toISOString();
 
-    const { error } = await this.supabase.service
+    const { data, error } = await this.supabase.service
       .from('matches')
       .update({ lice_id: null, scheduled_at: null, updated_at: new Date().toISOString() })
       .eq('pool_id', poolId)
       .gte('scheduled_at', start)
-      .lt('scheduled_at', end);
+      .lt('scheduled_at', end)
+      // The ids are only reachable from the write itself: the filter is a day
+      // window over the times this statement is about to erase, so reading them
+      // back afterwards would match nothing.
+      .select('id');
     if (error) throw new BadRequestException(error.message);
+    await this.matchAlerts.refresh(((data ?? []) as Array<{ id: string }>).map((row) => row.id));
   }
 
   async scheduleMatch(matchId: string, liceId: string | null, scheduledAt: string | null) {
@@ -468,8 +471,11 @@ export class MatchesService {
       .single();
 
     if (error) throw new BadRequestException(error.message);
-    await this.notifications.scheduleMatchStarting(matchId);
-    await this.followNotifications.scheduleMatchStarting(matchId);
+    // Through the refresher rather than the two schedulers directly. This was
+    // the only write in the API that told the queue anything, and it still got
+    // it half right for months — it cancelled the fighter's own alert on an
+    // unschedule and left their followers'. One call cannot be half-remembered.
+    await this.matchAlerts.refresh([matchId]);
     return data;
   }
 

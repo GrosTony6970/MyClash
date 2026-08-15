@@ -62,6 +62,7 @@ import {
 import { rankBySeed, rankByRating, rankRandom, type SeedableRegistration } from './r1-ranking';
 // Value import, not `import type`: Nest DI metadata.
 import { SwissStandingsService } from '../swiss/swiss-standings.service';
+import { MatchAlertRefresherService } from '../notifications/match-alert-refresher.service';
 
 /**
  * Where a bracket's Round-1 rank order came from. The FE branches its success
@@ -156,6 +157,10 @@ export class PhasesService {
     // resolve to undefined.
     @Optional()
     private readonly swissStandings?: SwissStandingsService,
+    // Optional like its neighbours: several tests build this service by hand.
+    // The two routes that need it are the two that write match times.
+    @Optional()
+    private readonly matchAlerts?: MatchAlertRefresherService,
   ) {}
 
   // ── Generate pools ────────────────────────────────────────────────────────
@@ -2456,6 +2461,7 @@ export class PhasesService {
         if (error) throw new BadRequestException(error.message);
       }),
     );
+    await this.matchAlerts?.refresh(updates.map((u) => u.matchId));
 
     return { poolId, updated: updates };
   }
@@ -2545,6 +2551,7 @@ export class PhasesService {
         return a;
       }),
     );
+    await this.matchAlerts?.refresh(results.map((a) => a.matchId));
 
     return { poolId, updated: results };
   }

@@ -152,8 +152,32 @@ function suggestCfg(): SuggestProgrammeDto {
   };
 }
 
+/**
+ * Every write in this service that moves or clears a match time owes the
+ * queued "your fight starts soon" a refresh. The service takes the refresher
+ * optionally so the suites above can build it with two arguments; the cases
+ * that assert the refresh build it with three, through `withAlerts()`.
+ */
+const mockMatchAlerts = {
+  refresh: vi.fn().mockResolvedValue(undefined),
+};
+
 describe('ProgrammeService', () => {
   let service: ProgrammeService;
+
+  /** The same service, wired to the alert refresher and with authz stubbed. */
+  function withAlerts(): ProgrammeService {
+    const svc = new ProgrammeService(
+      mockSupabase as never,
+      mockOrgs as never,
+      mockMatchAlerts as never,
+    );
+    vi.spyOn(
+      svc as never as { assertWriter: () => Promise<void> },
+      'assertWriter',
+    ).mockResolvedValue(undefined);
+    return svc;
+  }
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -164,6 +188,7 @@ describe('ProgrammeService', () => {
     // into the next test in file order.
     fromMock.mockReset();
     service = new ProgrammeService(mockSupabase as never, mockOrgs as never);
+    mockMatchAlerts.refresh.mockClear();
     // The org-role assertion reads `events` before every write, and the
     // visibility gate does the same before the one public read. These suites
     // drive their mocks as ORDERED queues, so letting either read through would
@@ -1340,6 +1365,51 @@ describe('ProgrammeService', () => {
     });
 
     /**
+     * Dragging a bar retimes the fights behind it. Their queued "starts in 10
+     * minutes" is timed off the OLD slot and does not move with them, so it
+     * fires early — which is precisely the alert this feature exists to get
+     * right.
+     *
+     * The refresh takes exactly the shifted ids, in one call. Refreshing per
+     * bout inside the loop would put four database reads on every fight in a
+     * cascade that can cover a whole day.
+     */
+    it('re-queues the alert for every fight the cascade shifts, in one call', async () => {
+      buildMoveMocks({
+        block: {
+          id: 'block-1',
+          event_id: 'event-1',
+          day_index: 0,
+          sort_order: 0,
+          block_type: 'admin',
+          label: 'Registration',
+          competition_id: null,
+          competition_phase: null,
+          workshop_id: null,
+          lice_count: 0,
+          start_time: '09:00',
+          end_time: '09:30',
+          match_gap_seconds: 0,
+          match_duration_minutes: 0,
+          generated_at: null,
+        },
+        eventStartDate: '2026-06-02',
+        matches: [
+          { id: 'match-before', scheduled_at: at(2026, 6, 2, 8, 30) },
+          { id: 'match-after', scheduled_at: at(2026, 6, 2, 9, 15) },
+          { id: 'match-later', scheduled_at: at(2026, 6, 2, 9, 45) },
+        ],
+      });
+
+      await withAlerts().moveBlock('event-1', 'block-1', { newStartTime: '10:00' }, CALLER);
+
+      // `match-before` did not move, so its alert is still correct and must
+      // not be rewritten.
+      expect(mockMatchAlerts.refresh).toHaveBeenCalledTimes(1);
+      expect(mockMatchAlerts.refresh).toHaveBeenCalledWith(['match-after', 'match-later']);
+    });
+
+    /**
      * `shiftedMatches` is what the operator is told moved. The loop used to
      * increment it without reading `error`, so a refused UPDATE still counted
      * — a partly-cascaded day reported as a complete one, and the grid's
@@ -1638,6 +1708,36 @@ describe('ProgrammeService', () => {
         deletedId: 'block-1',
         unscheduledMatchIds: ['match-inside-1', 'match-inside-2'],
       });
+    });
+
+    /**
+     * Deleting a bar takes the fights under it off the clock. Their queued
+     * "your fight starts in 10 minutes" has to come off with them, or it fires
+     * for a fight that is no longer scheduled at all.
+     */
+    it('cancels the alerts for every fight the delete unschedules', async () => {
+      const blockRow = {
+        id: 'block-1',
+        event_id: 'event-1',
+        day_index: 0,
+        start_time: '10:00',
+        end_time: '11:00',
+      };
+      const { chain: matchesChain } = makeMatchesUpdateChain([
+        { id: 'match-inside-1' },
+        { id: 'match-inside-2' },
+      ]);
+      fromMock
+        .mockReturnValueOnce(makeChain({ data: blockRow, error: null }))
+        .mockReturnValueOnce(makeChain({ data: { start_date: '2026-06-02' }, error: null }))
+        .mockReturnValueOnce(makeChain({ data: [{ id: 'tournament-1' }], error: null }))
+        .mockReturnValueOnce(makeChain({ data: [{ id: 'phase-1' }], error: null }))
+        .mockReturnValueOnce(matchesChain)
+        .mockReturnValueOnce(makeChain({ data: null, error: null }));
+
+      await withAlerts().deleteBlock('event-1', 'block-1', CALLER);
+
+      expect(mockMatchAlerts.refresh).toHaveBeenCalledWith(['match-inside-1', 'match-inside-2']);
     });
 
     it("uses the same wall-clock TZ as the scheduler so the [start, end) window matches matches' stored ISOs", async () => {

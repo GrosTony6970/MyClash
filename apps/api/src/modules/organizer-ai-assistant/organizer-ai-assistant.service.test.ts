@@ -33,6 +33,10 @@ function chain(result: { data?: unknown; error?: unknown } = { data: null, error
   return base;
 }
 
+/** The `schedule_match` action writes a match time, so it owes the queued
+ *  "your fight starts soon" a refresh. */
+const matchAlerts = { refresh: vi.fn().mockResolvedValue(undefined) };
+
 function service() {
   return new OrganizerAIAssistantService(
     supabase as never,
@@ -40,6 +44,7 @@ function service() {
     orgs as never,
     events as never,
     phases as never,
+    matchAlerts as never,
   );
 }
 
