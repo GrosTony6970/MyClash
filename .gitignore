@@ -120,3 +120,16 @@ GEMINI.md
 QODER.md
 CODE-REVIEW-GRAPH.local.md
 .github/code-review-graph.instruction.md
+
+# Agent guidance that `next dev` writes into each app, and rewrites every time
+# it starts (see node_modules/next/dist/server/lib/generate-agent-files.js). The
+# content is Next's own "this version has breaking changes, read
+# node_modules/next/dist/docs first" block plus a one-line CLAUDE.md importing
+# it — vendor-generated, versioned by the next package, and identical in all
+# three apps. Untracked it dirtied every diff and every `git add`; the repo's
+# real agent contract is the ROOT CLAUDE.md, which these do not replace.
+#
+# Scoped to `apps/*` on purpose: the root AGENTS.md and CLAUDE.md are tracked.
+# A hand-written per-app CLAUDE.md would need `git add -f`.
+apps/*/AGENTS.md
+apps/*/CLAUDE.md
