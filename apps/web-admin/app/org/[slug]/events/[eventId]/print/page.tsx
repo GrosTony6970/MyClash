@@ -20,7 +20,7 @@ import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { sideColorsFor } from '@myclash/ui';
 import type { TournamentScoringConfig } from '@myclash/types';
-import { localeToBcp47 } from '@myclash/time';
+import { DEFAULT_EVENT_TIMEZONE, localeToBcp47 } from '@myclash/time';
 import { getPublicApiUrl } from '@/lib/api-url';
 import { useI18n } from '@myclash/next-i18n/client';
 import {
@@ -103,6 +103,7 @@ function sheetLabels(t: (key: string) => string): PrintLabels {
     winner: t('organizer.printPack.sheet.winner'),
     signature: t('organizer.printPack.sheet.signature'),
     round: t('organizer.printPack.sheet.round'),
+    time: t('organizer.printPack.sheet.time'),
     generatedAt: t('organizer.printPack.sheet.generatedAt'),
     red: t('organizer.printPack.sheet.red'),
     blue: t('organizer.printPack.sheet.blue'),
@@ -115,6 +116,12 @@ export default function PrintPackPage() {
   const { t, locale } = useI18n();
 
   const [eventName, setEventName] = useState('');
+  /**
+   * The EVENT's zone, not this machine's. Every clock the pack prints belongs
+   * to the hall, and an organiser preparing the pack the night before from
+   * somewhere else is the ordinary case.
+   */
+  const [eventTz, setEventTz] = useState<string>(DEFAULT_EVENT_TIMEZONE);
   const [tournaments, setTournaments] = useState<Tournament[]>([]);
   const [selected, setSelected] = useState<string | null>(null);
   const [detail, setDetail] = useState<TournamentDetail | null>(null);
@@ -144,6 +151,7 @@ export default function PrintPackPage() {
     ])
       .then(([event, tournamentRows, liceRows]) => {
         setEventName((event as { name?: string }).name ?? '');
+        setEventTz((event as { timezone?: string }).timezone || DEFAULT_EVENT_TIMEZONE);
         const list = (tournamentRows as Tournament[]) ?? [];
         setTournaments(list);
         setSelected((current) => current ?? list[0]?.id ?? null);
@@ -238,6 +246,7 @@ export default function PrintPackPage() {
         // thing a spectator can read, and paper has to agree with the screen.
         sideColors: sideColorsFor(detail.scoring_config_json ?? null, 'light'),
         generatedAt: new Date().toLocaleString(localeToBcp47(locale)),
+        timeZone: eventTz,
       },
       labels,
       pools: printPools,

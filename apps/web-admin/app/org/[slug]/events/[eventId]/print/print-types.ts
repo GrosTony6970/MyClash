@@ -22,6 +22,15 @@ export interface PrintMatch {
   blueClub: string | null;
   /** Human lice name, or null when the bout has not been placed on a piste. */
   liceName: string | null;
+  /**
+   * The planned start as a UTC ISO instant, or null when nobody has placed the
+   * bout yet.
+   *
+   * An INSTANT, not a rendered time. The piste sheet resolves it in the event's
+   * zone at the moment it draws the row, so a pack printed from a laptop in
+   * another country still says what the hall's clock will say.
+   */
+  scheduledAt: string | null;
   /** Referee display names already resolved. */
   referees: string[];
 }
@@ -53,6 +62,15 @@ export interface PrintTournamentMeta {
   sideColors: { red: string; blue: string };
   /** ISO timestamp the pack was generated at, pre-formatted by the caller. */
   generatedAt: string;
+  /**
+   * The EVENT's IANA zone, e.g. `Europe/Paris`.
+   *
+   * Not the printing machine's. A pack is a physical object handed to someone
+   * standing in the hall, so every clock on it has to be the hall's — and an
+   * organiser preparing a pack the night before, from a hotel in another
+   * country, is the ordinary case rather than the odd one.
+   */
+  timeZone: string;
 }
 
 /**
@@ -77,6 +95,7 @@ export interface PrintLabels {
   winner: string;
   signature: string;
   round: string;
+  time: string;
   generatedAt: string;
   red: string;
   blue: string;

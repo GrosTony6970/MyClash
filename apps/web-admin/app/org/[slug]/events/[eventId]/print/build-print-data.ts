@@ -7,9 +7,10 @@
  * 1. **Lice id → name.** `pools-with-matches` carries `lice_id`; the human name
  *    is only in `GET /events/:id/lices`. An unresolved id must render as "not
  *    assigned", never as a raw UUID on a sheet handed to a human.
- * 2. **Bout order.** The piste sheet groups by lice but keeps the order it is
- *    given, so pools have to come before bracket rounds here — that is the
- *    order the bouts are actually fought.
+ * 2. **Bout order.** Pools come before bracket rounds here, which is the order
+ *    an unscheduled day is fought in. The piste sheet re-sorts by the clock
+ *    once the bouts have times (`groupByPiste`); this order is what the pool
+ *    and bracket sections keep, and the fallback when nothing is scheduled.
  */
 import type { PrintBracketRound, PrintMatch, PrintPool } from './print-types';
 
@@ -23,6 +24,8 @@ export interface ApiPoolMatch {
   red_registration_id: string;
   blue_registration_id: string;
   lice_id: string | null;
+  /** UTC ISO instant, or null when the bout has not been placed. */
+  scheduled_at: string | null;
   roundCode: string;
   referees: Array<{ refereeName: string }>;
 }
@@ -41,6 +44,7 @@ export interface ApiBracketSlot {
   redClubAbbrev?: string | null;
   blueClubAbbrev?: string | null;
   liceId?: string | null;
+  scheduledAt?: string | null;
   roundCode?: string | null;
 }
 
@@ -76,6 +80,7 @@ export function poolsToPrint(
       redClub: match.red_club_abbrev,
       blueClub: match.blue_club_abbrev,
       liceName: liceNameOf(match.lice_id, lices),
+      scheduledAt: match.scheduled_at ?? null,
       referees: match.referees.map((referee) => referee.refereeName).filter(Boolean),
     })),
   }));
@@ -114,6 +119,7 @@ export function bracketToPrint(
       redClub: slot.redClubAbbrev ?? null,
       blueClub: slot.blueClubAbbrev ?? null,
       liceName: liceNameOf(slot.liceId, lices),
+      scheduledAt: slot.scheduledAt ?? null,
       referees: [],
     });
     byRound.set(slot.round, bucket);

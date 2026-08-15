@@ -6,9 +6,8 @@ import {
   type ApiBracketSlot,
   type ApiPoolWithMatches,
 } from './build-print-data';
-import { groupByPiste } from './piste-sheet';
 import { printPackHtml } from './print-pack';
-import type { PrintLabels, PrintMatch, PrintTournamentMeta } from './print-types';
+import type { PrintLabels, PrintTournamentMeta } from './print-types';
 
 const LABELS: PrintLabels = {
   poolSheet: 'Feuille de poule',
@@ -28,6 +27,7 @@ const LABELS: PrintLabels = {
   winner: 'Vainqueur',
   signature: 'Signature',
   round: 'Combat',
+  time: 'Heure',
   generatedAt: 'Généré le',
   red: 'Rouge',
   blue: 'Bleu',
@@ -42,6 +42,10 @@ const META: PrintTournamentMeta = {
   // paper has to agree with the hall screen.
   sideColors: { red: '#15803d', blue: '#7e22ce' },
   generatedAt: '04/08/2026 09:00',
+  // A THIRD zone, on purpose. This machine, DEFAULT_EVENT_TIMEZONE and the drag
+  // fixture are all Europe/Paris, so a Paris event asserted from a Paris box
+  // cannot tell a correct conversion from no conversion at all.
+  timeZone: 'America/New_York',
 };
 
 const LICES = new Map([
@@ -64,6 +68,7 @@ function apiPool(overrides: Partial<ApiPoolWithMatches> = {}): ApiPoolWithMatche
         red_registration_id: 'r1',
         blue_registration_id: 'r2',
         lice_id: 'lice-1',
+        scheduled_at: '2026-06-06T14:30:00.000Z',
         roundCode: 'LSW-P1-M1',
         referees: [{ refereeName: 'Paul Durand' }],
       },
@@ -77,6 +82,7 @@ function apiPool(overrides: Partial<ApiPoolWithMatches> = {}): ApiPoolWithMatche
         red_registration_id: 'r1',
         blue_registration_id: 'r3',
         lice_id: null,
+        scheduled_at: null,
         roundCode: 'LSW-P1-M2',
         referees: [],
       },
@@ -98,6 +104,17 @@ describe('poolsToPrint', () => {
   it('resolves lice ids to names', () => {
     const [pool] = poolsToPrint([apiPool()], LICES);
     expect(pool?.matches[0]?.liceName).toBe('Piste 1');
+  });
+
+  /**
+   * The API sends the planned start; the piste sheet sorts and prints it. This
+   * is the hop between, and it is the one a type change does NOT catch —
+   * `scheduledAt` is required on `PrintMatch`, so a hardcoded null compiles.
+   */
+  it('carries the planned start through, and null for an unplaced bout', () => {
+    const [pool] = poolsToPrint([apiPool()], LICES);
+    expect(pool?.matches[0]?.scheduledAt).toBe('2026-06-06T14:30:00.000Z');
+    expect(pool?.matches[1]?.scheduledAt).toBeNull();
   });
 
   it('renders an unknown lice id as unplaced rather than leaking the id', () => {
@@ -128,6 +145,28 @@ describe('bracketToPrint', () => {
     expect(rounds[1]?.matches[0]?.blueName).toBe('—');
   });
 
+  /** Same hop on the bracket side, where the field arrives already camelCase. */
+  it('carries a slot’s planned start through, and null when it has none', () => {
+    const rounds = bracketToPrint(
+      [
+        {
+          round: 1,
+          position: 1,
+          redFighterName: 'A',
+          blueFighterName: 'B',
+          scheduledAt: '2026-06-06T16:00:00.000Z',
+        },
+        { round: 1, position: 2, redFighterName: 'C', blueFighterName: 'D' },
+      ],
+      1,
+      LICES,
+      () => 'Final',
+    );
+
+    expect(rounds[0]?.matches[0]?.scheduledAt).toBe('2026-06-06T16:00:00.000Z');
+    expect(rounds[0]?.matches[1]?.scheduledAt).toBeNull();
+  });
+
   it('falls back to a positional code when the slot carries none', () => {
     const rounds = bracketToPrint(
       [{ round: 1, position: 3, redFighterName: 'X', blueFighterName: 'Y' }],
@@ -136,43 +175,6 @@ describe('bracketToPrint', () => {
       () => 'Final',
     );
     expect(rounds[0]?.matches[0]?.roundCode).toBe('R1-3');
-  });
-});
-
-describe('groupByPiste', () => {
-  it('keeps the order it was given and buckets unplaced bouts separately', () => {
-    const matches: PrintMatch[] = [
-      {
-        roundCode: 'A',
-        redName: 'a',
-        blueName: 'b',
-        redClub: null,
-        blueClub: null,
-        liceName: 'Piste 1',
-        referees: [],
-      },
-      {
-        roundCode: 'B',
-        redName: 'c',
-        blueName: 'd',
-        redClub: null,
-        blueClub: null,
-        liceName: null,
-        referees: [],
-      },
-      {
-        roundCode: 'C',
-        redName: 'e',
-        blueName: 'f',
-        redClub: null,
-        blueClub: null,
-        liceName: 'Piste 1',
-        referees: [],
-      },
-    ];
-    const groups = groupByPiste(matches, LABELS.unassigned);
-    expect(groups.map((g) => g.liceName)).toEqual(['Piste 1', 'Non attribué']);
-    expect(groups[0]?.matches.map((m) => m.roundCode)).toEqual(['A', 'C']);
   });
 });
 

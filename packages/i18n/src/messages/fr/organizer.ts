@@ -48,6 +48,7 @@ export const organizer = {
       winner: 'Vainqueur',
       signature: 'Signature',
       round: 'Combat',
+      time: 'Heure',
       generatedAt: 'Généré le',
       red: 'Rouge',
       blue: 'Bleu',

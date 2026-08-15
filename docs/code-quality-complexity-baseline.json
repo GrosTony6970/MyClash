@@ -560,7 +560,7 @@
     "apps/web-admin/app/org/[slug]/events/[eventId]/pools/_tabs/_components/PoolTimelineGrid.tsx:69",
     "apps/web-admin/app/org/[slug]/events/[eventId]/pools/page.tsx:104",
     "apps/web-admin/app/org/[slug]/events/[eventId]/pools/page.tsx:232",
-    "apps/web-admin/app/org/[slug]/events/[eventId]/print/page.tsx:113",
+    "apps/web-admin/app/org/[slug]/events/[eventId]/print/page.tsx:114",
     "apps/web-admin/app/org/[slug]/events/[eventId]/referees/_components/AssignmentDiagnosticsPanel.tsx:97",
     "apps/web-admin/app/org/[slug]/events/[eventId]/referees/_components/AvailabilityChips.tsx:27",
     "apps/web-admin/app/org/[slug]/events/[eventId]/referees/_components/CandidatePicker.tsx:101",

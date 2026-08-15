@@ -53,6 +53,8 @@ export const organizer = {
       winner: 'Winner',
       signature: 'Signature',
       round: 'Bout',
+      // Piste-sheet time column. The hall's clock, not the printing machine's.
+      time: 'Time',
       generatedAt: 'Generated',
       red: 'Red',
       blue: 'Blue',
