@@ -1014,6 +1014,101 @@ describe('ProgrammeService', () => {
     expect(syncPayload).toEqual({ start_time: '10:00', end_time: '11:00', lice_count: 1 });
   });
 
+  /**
+   * A generated day that runs past midnight has to SAY SO.
+   *
+   * `clampedMinToTime` pins the bar at 23:59 because `event_programme_blocks`
+   * stores a Postgres `TIME` and 24:30 is not a value it can hold. The bouts
+   * inside that block are placed by millisecond arithmetic and roll onto the
+   * next calendar day. So the bar says 23:59 and the fights are tomorrow, and
+   * before this nothing anywhere reported it.
+   *
+   * That is the same fault a bar drag is REFUSED for. `generate` may not refuse
+   * — it warns and continues on purpose, so one over-long block does not throw
+   * away a whole programme — so the requirement here is that it stops being
+   * silent, not that it fails.
+   */
+  it('warns when a generated block runs past midnight instead of clamping in silence', async () => {
+    const blockRows = [
+      {
+        id: 'block-1',
+        event_id: 'event-1',
+        day_index: 0,
+        sort_order: 0,
+        block_type: 'competition',
+        label: 'Late Pools',
+        competition_id: 'tournament-1',
+        competition_phase: 'pool',
+        workshop_id: null,
+        lice_count: 1,
+        // 23:00 + a run that rounds to 60 min lands at 24:00 — one minute past
+        // the last minute the column can hold.
+        start_time: '23:00',
+        end_time: '23:30',
+        match_gap_seconds: 0,
+        match_duration_minutes: 5,
+        generated_at: null,
+      },
+    ];
+    const matches = Array.from({ length: 8 }, (_, i) => ({
+      id: `m${i}`,
+      red_registration_id: `r${i}`,
+      blue_registration_id: `b${i}`,
+      pool_id: 'pool-1',
+    }));
+
+    let syncPayload: Record<string, unknown> | null = null;
+    const syncChain = (() => {
+      const result = { data: null, error: null };
+      const promise = Promise.resolve(result);
+      const chain = Object.assign(promise, {
+        select: vi.fn(),
+        eq: vi.fn(),
+        in: vi.fn(),
+        order: vi.fn(),
+        insert: vi.fn(),
+        update: vi.fn(),
+        upsert: vi.fn(),
+        delete: vi.fn(),
+        single: vi.fn().mockResolvedValue(result),
+      });
+      chain.update = vi.fn((p: Record<string, unknown>) => {
+        syncPayload = p;
+        return chain;
+      });
+      for (const k of ['select', 'eq', 'in', 'order', 'insert', 'upsert', 'delete']) {
+        (chain as unknown as Record<string, unknown>)[k] = vi.fn().mockReturnValue(chain);
+      }
+      return chain;
+    })();
+
+    fromMock
+      .mockReturnValueOnce(makeChain({ data: blockRows, error: null }))
+      .mockReturnValueOnce(makeChain({ data: { start_date: '2026-05-21' }, error: null }))
+      .mockReturnValueOnce(makeChain({ data: [{ id: 'lice-1', name: 'Lice 1' }], error: null }))
+      .mockReturnValueOnce(makeChain({ data: [], error: null })) // tournament_phase_venues
+      .mockReturnValueOnce(makeChain({ data: [{ id: 'phase-1', type: 'pool' }], error: null }))
+      .mockReturnValueOnce(makeChain({ data: [{ id: 'pool-1' }], error: null }))
+      .mockReturnValueOnce(makeChain({ data: matches, error: null }))
+      .mockReturnValueOnce(makeChain({ data: matches.map((m) => ({ id: m.id })), error: null }))
+      .mockReturnValueOnce(syncChain)
+      .mockReturnValueOnce(makeChain({ data: null, error: null }));
+
+    const result = await service.generate('event-1', {}, CALLER);
+
+    // The clamp still happened — it has to, the column cannot hold 24:00.
+    expect(syncPayload).toMatchObject({ end_time: '23:59' });
+    // And now it is reported rather than swallowed.
+    const midnight = result.warnings.find((w) => /past midnight/.test(w.message));
+    expect(
+      midnight,
+      'a block clamped at 23:59 while its fights rolled onto the next day must be reported',
+    ).toBeDefined();
+    expect(midnight!.blockId).toBe('block-1');
+    // Named, so the operator knows WHICH block to shorten.
+    expect(midnight!.message).toContain('Late Pools');
+  });
+
   it('clamps a competition block to start after a preceding admin block (no overlap)', async () => {
     // Admin 08:00–10:00 (sort 0) then a pool whose STORED start is a stale
     // 09:00 (sort 1). The sequential pack must push the pool's matches to 10:00

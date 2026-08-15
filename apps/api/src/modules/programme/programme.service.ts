@@ -15,6 +15,7 @@ import { assertCanManageEvent, assertCanReadEvent } from '../../common/auth/even
 import { scheduleMatches } from '../schedule/match-scheduler';
 import { poolBottleneckMinutes } from './pool-bottleneck';
 import {
+  DAY_LAST_MIN,
   localDateIso,
   planBlockMove,
   planDayDelay,
@@ -42,11 +43,43 @@ function timeToMin(t: string): number {
   return (h ?? 0) * 60 + (m ?? 0);
 }
 
-function minToTime(min: number): string {
-  const clamped = Math.max(0, Math.min(min, 23 * 60 + 59));
+/**
+ * `HH:MM` for a minute-of-day, CLAMPED into the day.
+ *
+ * The clamp is not a style choice and cannot simply be removed:
+ * `event_programme_blocks.start_time` and `end_time` are Postgres `TIME`
+ * columns (migration 0028), which will not accept 24:30. A bar asked to land
+ * past the end of the day has to become something, and 23:59 is what it
+ * becomes.
+ *
+ * The name says so because a clamp is a silent lie by default. Four functions
+ * call this, and they are NOT equally safe:
+ *
+ *   - `buildSuggestion` — safe to clamp. It returns a PROPOSAL and writes
+ *     nothing; an over-long day shows its last bar pinned to 23:59, which is a
+ *     fair way to say "this does not fit".
+ *   - `moveBlock` and `applyDayShift` — cannot reach the clamp. `planTimeShift`
+ *     refuses any shift that would carry a bar past `DAY_LAST_MIN` before
+ *     either of them writes, which is exactly the property that refusal buys
+ *     (see block-move-plan.ts, fault 2).
+ *   - `generate` — CAN reach it, and this is the one that hurts. A clamped bar
+ *     is written while the bouts inside it are placed by millisecond arithmetic
+ *     and roll onto the next calendar day, so the bar and its fights disagree
+ *     permanently. `generate` may not refuse the way a bar move does — it warns
+ *     and continues on purpose, so one over-long block does not throw away a
+ *     whole generated programme — so it warns about this instead. Silence was
+ *     the actual defect; the clamp is the mechanism.
+ */
+function clampedMinToTime(min: number): string {
+  const clamped = Math.max(0, Math.min(min, DAY_LAST_MIN));
   const h = Math.floor(clamped / 60);
   const m = clamped % 60;
   return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+}
+
+/** True when a minute-of-day has run off the end of the day and will be clamped. */
+function crossesDayEnd(min: number): boolean {
+  return min > DAY_LAST_MIN;
 }
 
 /**
@@ -512,7 +545,7 @@ export class ProgrammeService {
           warnings.push({
             blockId: b.id,
             message: `Needs ${overflow} more minutes`,
-            suggestedEndTime: minToTime(timeToMin(partial.startTime) + Math.ceil(neededMin)),
+            suggestedEndTime: clampedMinToTime(timeToMin(partial.startTime) + Math.ceil(neededMin)),
             overflowMinutes: overflow,
           });
         }
@@ -540,8 +573,8 @@ export class ProgrammeService {
           competitionPhase: null,
           workshopId: null,
           liceCount: 0,
-          startTime: minToTime(cursor),
-          endTime: minToTime(end),
+          startTime: clampedMinToTime(cursor),
+          endTime: clampedMinToTime(end),
           matchGapSeconds: 0,
           matchDurationMinutes: 0,
         });
@@ -560,8 +593,8 @@ export class ProgrammeService {
       competitionPhase: null,
       workshopId: null,
       liceCount: 0,
-      startTime: minToTime(cursor),
-      endTime: minToTime(cursor + regMin),
+      startTime: clampedMinToTime(cursor),
+      endTime: clampedMinToTime(cursor + regMin),
       matchGapSeconds: 0,
       matchDurationMinutes: 0,
     });
@@ -575,8 +608,8 @@ export class ProgrammeService {
       competitionPhase: null,
       workshopId: null,
       liceCount: 0,
-      startTime: minToTime(cursor),
-      endTime: minToTime(cursor + cfg.refereeMeetingDurationMinutes),
+      startTime: clampedMinToTime(cursor),
+      endTime: clampedMinToTime(cursor + cfg.refereeMeetingDurationMinutes),
       matchGapSeconds: 0,
       matchDurationMinutes: 0,
     });
@@ -604,8 +637,8 @@ export class ProgrammeService {
           competitionPhase: 'pool',
           workshopId: null,
           liceCount: Math.max(1, licesUsed),
-          startTime: minToTime(cursor),
-          endTime: minToTime(cursor + alloc),
+          startTime: clampedMinToTime(cursor),
+          endTime: clampedMinToTime(cursor + alloc),
           matchGapSeconds: cfg.matchGapSeconds,
           matchDurationMinutes: cfg.poolMatchDurationMinutes,
           minRestMinutes: cfg.minRestMinutes,
@@ -622,8 +655,8 @@ export class ProgrammeService {
         competitionPhase: null,
         workshopId: null,
         liceCount: 0,
-        startTime: minToTime(cursor),
-        endTime: minToTime(cursor + cfg.breakBetweenSessionsMinutes),
+        startTime: clampedMinToTime(cursor),
+        endTime: clampedMinToTime(cursor + cfg.breakBetweenSessionsMinutes),
         matchGapSeconds: 0,
         matchDurationMinutes: 0,
       });
@@ -658,8 +691,8 @@ export class ProgrammeService {
           competitionPhase: phase,
           workshopId: null,
           liceCount: parallelLice,
-          startTime: minToTime(cursor),
-          endTime: minToTime(cursor + alloc),
+          startTime: clampedMinToTime(cursor),
+          endTime: clampedMinToTime(cursor + alloc),
           matchGapSeconds: cfg.matchGapSeconds,
           matchDurationMinutes: durationMin,
           minRestMinutes: cfg.minRestMinutes,
@@ -692,8 +725,8 @@ export class ProgrammeService {
           // A Swiss round spreads ACROSS pistes (no pool affinity), so the
           // block claims every parallel lice rather than one per group.
           liceCount: parallelLice,
-          startTime: minToTime(cursor),
-          endTime: minToTime(cursor + alloc),
+          startTime: clampedMinToTime(cursor),
+          endTime: clampedMinToTime(cursor + alloc),
           matchGapSeconds: cfg.matchGapSeconds,
           matchDurationMinutes: swissDurationMin,
           minRestMinutes: cfg.minRestMinutes,
@@ -709,8 +742,8 @@ export class ProgrammeService {
         competitionPhase: null,
         workshopId: null,
         liceCount: 0,
-        startTime: minToTime(cursor),
-        endTime: minToTime(cursor + cfg.breakBetweenSessionsMinutes),
+        startTime: clampedMinToTime(cursor),
+        endTime: clampedMinToTime(cursor + cfg.breakBetweenSessionsMinutes),
         matchGapSeconds: 0,
         matchDurationMinutes: 0,
       });
@@ -969,10 +1002,17 @@ export class ProgrammeService {
             const overflowMin = Math.ceil(
               (new Date(lastEnd).getTime() - blockEndDt.getTime()) / 60000,
             );
+            const suggestedEndMin = allocatedEndMin + overflowMin;
             warnings.push({
               blockId: block.id,
-              message: `Schedule overflows by ${overflowMin} minutes`,
-              suggestedEndTime: minToTime(allocatedEndMin + overflowMin),
+              // The suggestion is clamped when it runs past the day, and a bare
+              // "23:59" would read as a fix that clears the overflow when it
+              // does not — the block would still be short by whatever fell off
+              // the end. The message says which of the two it is.
+              message: crossesDayEnd(suggestedEndMin)
+                ? `Schedule overflows by ${overflowMin} minutes and runs past the end of the day — it cannot fit here`
+                : `Schedule overflows by ${overflowMin} minutes`,
+              suggestedEndTime: clampedMinToTime(suggestedEndMin),
               overflowMinutes: overflowMin,
             });
           }
@@ -1027,12 +1067,32 @@ export class ProgrammeService {
           const { error: syncErr } = await this.supabase.service
             .from('event_programme_blocks')
             .update({
-              start_time: minToTime(effStartMin),
-              end_time: minToTime(realizedEndMin),
+              start_time: clampedMinToTime(effStartMin),
+              end_time: clampedMinToTime(realizedEndMin),
               lice_count: licesUsed,
             })
             .eq('id', block.id);
           if (syncErr) throw new BadRequestException(syncErr.message);
+
+          // The bar just written is CLAMPED at 23:59 if the run went past
+          // midnight, while the bouts inside it were placed by millisecond
+          // arithmetic and rolled onto the next calendar day. Bar and fights
+          // then disagree permanently — the same fault a bar drag is refused
+          // for (block-move-plan.ts, fault 2). `generate` may not refuse: it
+          // warns and continues on purpose, so one over-long block does not
+          // throw away a whole generated programme. What it must not do is stay
+          // SILENT, which is what made this invisible.
+          if (crossesDayEnd(realizedEndMin)) {
+            warnings.push({
+              blockId: block.id,
+              message:
+                `"${block.label}" runs past midnight. Its bar is pinned to 23:59 and its ` +
+                `fights are placed on the following day, so the two do not agree — ` +
+                `shorten the day or move this block.`,
+              suggestedEndTime: clampedMinToTime(realizedEndMin),
+              overflowMinutes: realizedEndMin - DAY_LAST_MIN,
+            });
+          }
 
           cursorByDay[block.dayIndex] = realizedEndMin;
         } else {
@@ -1059,9 +1119,26 @@ export class ProgrammeService {
         if (effStartMin !== storedStartMin) {
           const { error: shiftErr } = await this.supabase.service
             .from('event_programme_blocks')
-            .update({ start_time: minToTime(effStartMin), end_time: minToTime(effEndMin) })
+            .update({
+              start_time: clampedMinToTime(effStartMin),
+              end_time: clampedMinToTime(effEndMin),
+            })
             .eq('id', block.id);
           if (shiftErr) throw new BadRequestException(shiftErr.message);
+        }
+        // A fixed bar can be pushed past midnight too — by everything that
+        // packed above it, not by anything it did. It schedules no fights, so
+        // nothing disagrees with it; it simply stops being where the operator
+        // put it, and says nothing.
+        if (crossesDayEnd(effEndMin)) {
+          warnings.push({
+            blockId: block.id,
+            message:
+              `"${block.label}" was pushed past midnight by the blocks above it, ` +
+              `so its bar is pinned to 23:59 rather than where it belongs.`,
+            suggestedEndTime: clampedMinToTime(effEndMin),
+            overflowMinutes: effEndMin - DAY_LAST_MIN,
+          });
         }
         cursorByDay[block.dayIndex] = effEndMin;
       }
@@ -1121,7 +1198,7 @@ export class ProgrammeService {
       return { block, deltaMinutes: 0, shiftedMatches: 0 };
     }
 
-    const newEndTime = minToTime(timeToMin(block.endTime) + deltaMin);
+    const newEndTime = clampedMinToTime(timeToMin(block.endTime) + deltaMin);
 
     // Look up the event date so we can scope cascade shifts to the
     // block's day. start_date + dayIndex → date for THIS block.
@@ -1373,7 +1450,7 @@ export class ProgrammeService {
     for (const s of plan.blockShifts) {
       const { data: updatedRow } = await this.supabase.service
         .from('event_programme_blocks')
-        .update({ start_time: minToTime(s.startMin), end_time: minToTime(s.endMin) })
+        .update({ start_time: clampedMinToTime(s.startMin), end_time: clampedMinToTime(s.endMin) })
         .eq('id', s.id)
         .select('*')
         .single();

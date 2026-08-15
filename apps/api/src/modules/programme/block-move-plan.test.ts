@@ -248,8 +248,8 @@ describe('planBlockMove — the midnight refusal', () => {
 
 describe('planBlockMove — what the refusal buys', () => {
   /**
-   * `cascadeBlockShift` clamps a backward move at 00:00 and `minToTime` clamps
-   * a forward one at 23:59. Past the refusal neither clamp can fire, so the
+   * `cascadeBlockShift` clamps a backward move at 00:00 and `clampedMinToTime`
+   * clamps a forward one at 23:59. Past the refusal neither clamp can fire, so the
    * bars that come back are the raw arithmetic — which is the whole reason the
    * bars and the bouts can no longer disagree.
    */

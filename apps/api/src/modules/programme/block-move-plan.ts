@@ -37,11 +37,15 @@ const DAY_FIRST_MIN = 0;
 /**
  * Minute-of-day of 23:59.
  *
- * Not an arbitrary edge: it is exactly what `minToTime` clamps to, so a bar
- * asked to land past it is written wrong rather than refused. The refusal below
- * is what stops that write happening at all.
+ * Not an arbitrary edge: it is exactly what `clampedMinToTime` clamps to, so a
+ * bar asked to land past it is written wrong rather than refused. The refusal
+ * below is what stops that write happening at all.
+ *
+ * Exported so the clamp and the refusal are the SAME number. They were written
+ * as two copies of `23 * 60 + 59` with a comment claiming they agreed, which is
+ * the kind of claim that stops being true without anything failing.
  */
-const DAY_LAST_MIN = 23 * 60 + 59;
+export const DAY_LAST_MIN = 23 * 60 + 59;
 
 /** The one bout state a bar move may retime. See fault 1 above. */
 const MOVABLE_STATUS = 'scheduled';
