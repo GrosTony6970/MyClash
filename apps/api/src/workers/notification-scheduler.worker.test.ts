@@ -136,14 +136,18 @@ describe('notification scheduler jobs', () => {
   it('uses each user match lead preference when scheduling a changed match', async () => {
     const queue = makeQueue();
     const from = makeSupabaseFrom({
+      // A row SET, not one row: the single-bout call delegates to the bulk one,
+      // which reads with `.in('id', …)`.
       matches: {
-        data: {
-          id: 'match-1',
-          match_number_label: 'L1-P1-M1',
-          scheduled_at: '2026-05-02T10:30:00.000Z',
-          red_registration_id: 'reg-red',
-          blue_registration_id: 'reg-blue',
-        },
+        data: [
+          {
+            id: 'match-1',
+            match_number_label: 'L1-P1-M1',
+            scheduled_at: '2026-05-02T10:30:00.000Z',
+            red_registration_id: 'reg-red',
+            blue_registration_id: 'reg-blue',
+          },
+        ],
         error: null,
       },
       registrations: {
@@ -186,6 +190,71 @@ describe('notification scheduler jobs', () => {
       expect.objectContaining({ userId: 'user-blue' }),
       expect.objectContaining({ delay: 15 * 60_000 }),
     );
+  });
+
+  /**
+   * The bulk path reads every bout's people in one query. The risk that creates
+   * is cross-talk — telling somebody their fight starts soon when it is
+   * somebody else's. Two bouts here share no fighter.
+   */
+  it('keeps each fighter to their own bout when several are retimed together', async () => {
+    const queue = makeQueue();
+    const from = makeSupabaseFrom({
+      matches: {
+        data: [
+          {
+            id: 'match-1',
+            match_number_label: 'M1',
+            scheduled_at: '2026-05-02T10:30:00.000Z',
+            red_registration_id: 'reg-a',
+            blue_registration_id: null,
+          },
+          {
+            id: 'match-2',
+            match_number_label: 'M2',
+            scheduled_at: '2026-05-02T11:30:00.000Z',
+            red_registration_id: 'reg-b',
+            blue_registration_id: null,
+          },
+        ],
+        error: null,
+      },
+      registrations: {
+        data: [
+          { id: 'reg-a', person_id: 'person-a' },
+          { id: 'reg-b', person_id: 'person-b' },
+        ],
+        error: null,
+      },
+      persons: {
+        data: [
+          { id: 'person-a', claimed_by_user_id: 'user-a' },
+          { id: 'person-b', claimed_by_user_id: 'user-b' },
+        ],
+        error: null,
+      },
+      notification_preferences: { data: [], error: null },
+    });
+    const service = new NotificationSchedulerService(
+      queue as never,
+      { service: { from } } as never,
+    );
+
+    await service.scheduleMatchStartingMany(
+      ['match-1', 'match-2'],
+      new Date('2026-05-02T10:00:00.000Z'),
+    );
+
+    const jobIds = queue.add.mock.calls.map((call) => (call[2] as { jobId: string }).jobId).sort();
+    expect(jobIds).toEqual([
+      'notification.match_starting.match-1.user-a',
+      'notification.match_starting.match-2.user-b',
+    ]);
+    // Three bouts would still be one read. A per-bout loop makes one each, and
+    // on a regenerated block of three hundred it makes three hundred.
+    expect(from.mock.calls.filter((call) => call[0] === 'matches')).toHaveLength(1);
+    expect(from.mock.calls.filter((call) => call[0] === 'registrations')).toHaveLength(1);
+    expect(from.mock.calls.filter((call) => call[0] === 'persons')).toHaveLength(1);
   });
 
   it('uses workshop lead preferences for confirmed enrollments', async () => {

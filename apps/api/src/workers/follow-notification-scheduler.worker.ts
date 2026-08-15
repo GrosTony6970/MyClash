@@ -121,26 +121,71 @@ export class FollowNotificationSchedulerService {
    * FOLLOWER, so there is no way to cancel without knowing who they are.
    */
   async scheduleMatchStarting(matchId: string, now = new Date()): Promise<void> {
-    const match = await this.getMatch(matchId);
-    if (!match) return;
+    await this.scheduleMatchStartingMany([matchId], now);
+  }
 
-    const registrations = await this.getRegistrations([
-      match.red_registration_id,
-      match.blue_registration_id,
-    ]);
+  /**
+   * The same for many bouts, in four reads rather than four per bout.
+   *
+   * The single-bout call above delegates here, so there is ONE implementation.
+   * The programme writes retime whole phases at once — regenerating a block can
+   * move several hundred bouts — and a per-bout loop would put several hundred
+   * sequential round trips inside one HTTP request.
+   */
+  async scheduleMatchStartingMany(matchIds: readonly string[], now = new Date()): Promise<void> {
+    const ids = Array.from(new Set(matchIds.filter(Boolean)));
+    if (ids.length === 0) return;
+    const matches = await this.getMatches(ids);
+    if (matches.length === 0) return;
+
+    const registrations = await this.getRegistrations(
+      matches.flatMap((match) => [match.red_registration_id, match.blue_registration_id]),
+    );
     const byRegistrationId = new Map(registrations.map((row) => [row.id, row]));
-    const red = byRegistrationId.get(match.red_registration_id ?? '');
-    const blue = byRegistrationId.get(match.blue_registration_id ?? '');
-    const personIds = [red?.person_id, blue?.person_id].filter((id): id is string => Boolean(id));
+    const personIds = Array.from(
+      new Set(registrations.map((row) => row.person_id).filter((id): id is string => Boolean(id))),
+    );
     if (personIds.length === 0) return;
 
     const follows = await this.getClaimedMatchFollows(personIds);
-
-    if (!match.scheduled_at) return this.cancelMatchFollows(match.id, follows);
-
+    if (follows.length === 0) return;
+    const followsByPerson = new Map<string, FollowRow[]>();
+    for (const follow of follows) {
+      if (!follow.followed_person_id) continue;
+      const existing = followsByPerson.get(follow.followed_person_id) ?? [];
+      existing.push(follow);
+      followsByPerson.set(follow.followed_person_id, existing);
+    }
     const preferences = await this.getPreferences(
       follows.map((follow) => follow.follower_user_id).filter((id): id is string => Boolean(id)),
     );
+
+    await Promise.all(
+      matches.map((match) =>
+        this.applyMatchFollows(match, byRegistrationId, followsByPerson, preferences, now),
+      ),
+    );
+  }
+
+  /** One bout's followers, reschedule or cancel. Every read is already done. */
+  private async applyMatchFollows(
+    match: MatchRow,
+    byRegistrationId: Map<string, RegistrationRow>,
+    followsByPerson: Map<string, FollowRow[]>,
+    preferences: Map<string, NotificationPreferenceRow>,
+    now: Date,
+  ): Promise<void> {
+    const red = byRegistrationId.get(match.red_registration_id ?? '');
+    const blue = byRegistrationId.get(match.blue_registration_id ?? '');
+    // Only the people in THIS bout. Batching the reads must not let one bout's
+    // followers be alerted about another's.
+    const follows = [red?.person_id, blue?.person_id]
+      .filter((id): id is string => Boolean(id))
+      .flatMap((personId) => followsByPerson.get(personId) ?? []);
+    if (follows.length === 0) return;
+
+    if (!match.scheduled_at) return this.cancelMatchFollows(match.id, follows);
+    const startsAt = match.scheduled_at;
 
     await Promise.all(
       follows.map((follow) => {
@@ -163,7 +208,7 @@ export class FollowNotificationSchedulerService {
           }.`,
           url: '/notifications',
         };
-        return this.replaceJob(job, match.scheduled_at!, leadMinutes, now);
+        return this.replaceJob(job, startsAt, leadMinutes, now);
       }),
     );
   }
@@ -278,15 +323,14 @@ export class FollowNotificationSchedulerService {
     });
   }
 
-  private async getMatch(matchId: string): Promise<MatchRow | null> {
+  private async getMatches(matchIds: string[]): Promise<MatchRow[]> {
     const { data } = await this.supabase.service
       .from('matches')
       .select(
         'id, match_number_label, scheduled_at, red_registration_id, blue_registration_id, lices ( name, label ), pools ( name )',
       )
-      .eq('id', matchId)
-      .maybeSingle();
-    return (data as MatchRow | null) ?? null;
+      .in('id', matchIds);
+    return (data ?? []) as MatchRow[];
   }
 
   private async getRegistrations(

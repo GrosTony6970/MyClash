@@ -75,6 +75,15 @@ export interface ReminderInput extends ScheduledNotificationJob {
   now?: Date;
 }
 
+/** The columns the "your fight starts soon" alert is built from. */
+interface MatchStartRow {
+  id: string;
+  match_number_label: string | null;
+  scheduled_at: string | null;
+  red_registration_id: string | null;
+  blue_registration_id: string | null;
+}
+
 interface PushSubscriptionRow {
   endpoint: string;
   p256dh_key: string;
@@ -235,64 +244,118 @@ export class NotificationSchedulerService {
   }
 
   async scheduleMatchStarting(matchId: string, now = new Date()): Promise<void> {
-    const { data: match, error } = await this.supabase.service
+    await this.scheduleMatchStartingMany([matchId], now);
+  }
+
+  /**
+   * Bring the "your fight starts soon" alert in line for MANY bouts at once.
+   *
+   * The single-bout call above delegates here, so there is ONE implementation
+   * and the two cannot drift apart.
+   *
+   * WHY A BULK PATH EXISTS. Per bout this costs three database round trips
+   * before it reaches the queue. The programme writes rewrite whole phases at a
+   * time — regenerating a block can retime several hundred bouts — and several
+   * hundred sequential round trips inside one HTTP request is not a slow
+   * regeneration, it is a timeout. The reads below are set-based, so they cost
+   * four queries whatever N is; only the queue work scales, and only with the
+   * number of people who actually have an account.
+   *
+   * A null time still reaches `scheduleReminder`, which removes the existing
+   * job before it checks. Unscheduling is a reschedule, and cancelling is what
+   * this does for it.
+   */
+  async scheduleMatchStartingMany(matchIds: readonly string[], now = new Date()): Promise<void> {
+    const ids = Array.from(new Set(matchIds.filter(Boolean)));
+    if (ids.length === 0) return;
+
+    const { data: matchRows, error } = await this.supabase.service
       .from('matches')
       .select('id, match_number_label, scheduled_at, red_registration_id, blue_registration_id')
-      .eq('id', matchId)
-      .maybeSingle();
+      .in('id', ids);
+    if (error) return;
+    const rows = (matchRows ?? []) as MatchStartRow[];
+    if (rows.length === 0) return;
 
-    if (error || !match) return;
-    const row = match as {
-      id: string;
-      match_number_label: string | null;
-      scheduled_at: string | null;
-      red_registration_id: string | null;
-      blue_registration_id: string | null;
-    };
-    const registrationIds = [row.red_registration_id, row.blue_registration_id].filter(
-      (id): id is string => Boolean(id),
+    const userIdsByMatch = await this.claimedUsersByMatch(rows);
+    const allUserIds = Array.from(new Set([...userIdsByMatch.values()].flat()));
+    if (allUserIds.length === 0) return;
+    const preferences = await this.getPreferencesByUser(allUserIds);
+
+    await Promise.all(
+      rows.flatMap((row) =>
+        (userIdsByMatch.get(row.id) ?? []).map((userId) => {
+          const preference = preferences.get(userId);
+          if (preference?.enabled === false) return undefined;
+          return this.scheduleReminder({
+            kind: 'match_starting',
+            entityId: row.id,
+            userId,
+            startsAt: row.scheduled_at,
+            leadMinutes: readLeadMinutes(preference, 'match_starting_minutes_before', 10),
+            title: 'Match starting soon',
+            body: `${row.match_number_label ?? 'Your match'} starts soon.`,
+            url: '/notifications',
+            now,
+          });
+        }),
+      ),
     );
-    if (registrationIds.length === 0) return;
+  }
+
+  /**
+   * Which accounts to alert for each bout: registration → person →
+   * `claimed_by_user_id`, two set-based reads for the whole batch.
+   *
+   * Kept per bout rather than flattened. Two bouts that share no fighter must
+   * not alert each other's people, and a single map of every user in the batch
+   * would do exactly that.
+   */
+  private async claimedUsersByMatch(rows: MatchStartRow[]): Promise<Map<string, string[]>> {
+    const registrationIds = Array.from(
+      new Set(
+        rows
+          .flatMap((row) => [row.red_registration_id, row.blue_registration_id])
+          .filter((id): id is string => Boolean(id)),
+      ),
+    );
+    if (registrationIds.length === 0) return new Map();
 
     const { data: registrations } = await this.supabase.service
       .from('registrations')
       .select('id, person_id')
       .in('id', registrationIds);
-    const personIds = ((registrations ?? []) as Array<{ person_id: string | null }>)
-      .map((registration) => registration.person_id)
-      .filter((id): id is string => Boolean(id));
-    if (personIds.length === 0) return;
+    const personByRegistration = new Map(
+      ((registrations ?? []) as Array<{ id: string; person_id: string | null }>).map((row) => [
+        row.id,
+        row.person_id,
+      ]),
+    );
+    const personIds = Array.from(
+      new Set([...personByRegistration.values()].filter((id): id is string => Boolean(id))),
+    );
+    if (personIds.length === 0) return new Map();
 
     const { data: persons } = await this.supabase.service
       .from('persons')
       .select('id, claimed_by_user_id')
       .in('id', personIds);
-    const userIds = Array.from(
-      new Set(
-        ((persons ?? []) as Array<{ claimed_by_user_id: string | null }>)
-          .map((person) => person.claimed_by_user_id)
-          .filter((id): id is string => Boolean(id)),
-      ),
+    const userByPerson = new Map(
+      ((persons ?? []) as Array<{ id: string; claimed_by_user_id: string | null }>).map((row) => [
+        row.id,
+        row.claimed_by_user_id,
+      ]),
     );
 
-    const preferences = await this.getPreferencesByUser(userIds);
-    await Promise.all(
-      userIds.map((userId) => {
-        const preference = preferences.get(userId);
-        if (preference?.enabled === false) return undefined;
-        return this.scheduleReminder({
-          kind: 'match_starting',
-          entityId: row.id,
-          userId,
-          startsAt: row.scheduled_at,
-          leadMinutes: readLeadMinutes(preference, 'match_starting_minutes_before', 10),
-          title: 'Match starting soon',
-          body: `${row.match_number_label ?? 'Your match'} starts soon.`,
-          url: '/notifications',
-          now,
-        });
-      }),
-    );
+    const byMatch = new Map<string, string[]>();
+    for (const row of rows) {
+      const userIds = [row.red_registration_id, row.blue_registration_id]
+        .map((registrationId) => (registrationId ? personByRegistration.get(registrationId) : null))
+        .map((personId) => (personId ? userByPerson.get(personId) : null))
+        .filter((id): id is string => Boolean(id));
+      if (userIds.length > 0) byMatch.set(row.id, Array.from(new Set(userIds)));
+    }
+    return byMatch;
   }
 
   async scheduleWorkshopSessionStarting(sessionId: string, now = new Date()): Promise<void> {
