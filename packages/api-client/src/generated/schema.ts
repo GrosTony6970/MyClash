@@ -3849,7 +3849,7 @@ export interface paths {
       path?: never;
       cookie?: never;
     };
-    /** Check fighter/referee time conflicts for a tournament (hard constraint) */
+    /** Check fighter/referee time conflicts for a tournament (hard constraint, org member) */
     get: operations['ConflictCheckController_checkConflicts'];
     put?: never;
     post?: never;
@@ -3883,7 +3883,7 @@ export interface paths {
       path?: never;
       cookie?: never;
     };
-    /** List active referee qualifications for an event */
+    /** List active referee qualifications for an event (org member) */
     get: operations['QualificationsController_list'];
     /** Create or update a referee qualification (organizer+) */
     put: operations['QualificationsController_upsert'];
@@ -3901,7 +3901,7 @@ export interface paths {
       path?: never;
       cookie?: never;
     };
-    /** List qualifications for a specific person */
+    /** List qualifications for a specific person (org member) */
     get: operations['QualificationsController_listForPerson'];
     put?: never;
     post?: never;
@@ -3921,7 +3921,7 @@ export interface paths {
     get?: never;
     put?: never;
     post?: never;
-    /** Soft-delete a qualification (active=false) */
+    /** Soft-delete a qualification (active=false, organizer+) */
     delete: operations['QualificationsController_deactivate'];
     options?: never;
     head?: never;
@@ -3935,7 +3935,7 @@ export interface paths {
       path?: never;
       cookie?: never;
     };
-    /** List system + event custom skills */
+    /** List system + event custom skills (org member) */
     get: operations['QualificationsController_listSkills'];
     put?: never;
     /** Create a custom skill for this event (organizer+) */

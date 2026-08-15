@@ -5,29 +5,53 @@
  *
  * Returns fighter/referee overlap conflicts for a tournament.
  * Hard constraint: enforce_fighter_referee_no_overlap (AGENTS.md rule #8).
+ *
+ * Row-to-input mapping lives in ./conflict-check-inputs, which is pure and
+ * carries the id-space rule this endpoint got wrong. Authorization is org
+ * membership: the answer names fighters and referees.
  */
 
-import { Controller, Get, Param, ParseUUIDPipe } from '@nestjs/common';
+import { Controller, Get, Param, ParseUUIDPipe, Req } from '@nestjs/common';
 import { ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
-import {
-  detectFighterRefereeConflicts,
-  type ConflictRefereeAssignment,
-  type ConflictScheduledMatch,
-  type RegistrationPersonMap,
-} from '@myclash/rulesets/dist/scheduling/index';
+import type { FastifyRequest } from 'fastify';
+import { detectFighterRefereeConflicts } from '@myclash/rulesets/dist/scheduling/index';
+import { assertTournamentMember } from '../../common/auth/event-authz';
+import { resolveRequestUserId } from '../../common/auth/request-user';
+import { OrganizationsService } from '../organizations/organizations.service';
 import { SupabaseService } from '../supabase/supabase.service';
+import {
+  toConflictAssignments,
+  toConflictMatches,
+  toRegistrationPersonMap,
+  type RawConflictAssignmentRow,
+  type RawConflictMatchRow,
+  type RawConflictRegistrationRow,
+} from './conflict-check-inputs';
 
 @ApiTags('phases')
 @Controller()
 export class ConflictCheckController {
-  constructor(private readonly supabase: SupabaseService) {}
+  constructor(
+    private readonly supabase: SupabaseService,
+    private readonly organizations: OrganizationsService,
+  ) {}
 
   @Get('tournaments/:tournamentId/conflict-check')
   @ApiOperation({
-    summary: 'Check fighter/referee time conflicts for a tournament (hard constraint)',
+    summary: 'Check fighter/referee time conflicts for a tournament (hard constraint, org member)',
   })
   @ApiParam({ name: 'tournamentId', type: 'string', format: 'uuid' })
-  async checkConflicts(@Param('tournamentId', ParseUUIDPipe) tournamentId: string) {
+  async checkConflicts(
+    @Param('tournamentId', ParseUUIDPipe) tournamentId: string,
+    @Req() req: FastifyRequest,
+  ) {
+    const userId = await resolveRequestUserId(req, this.supabase);
+    await assertTournamentMember(
+      { supabase: this.supabase, orgs: this.organizations },
+      tournamentId,
+      userId,
+    );
+
     // 0. Resolve the tournament → event scope + phase ids. Neither
     // `matches.tournament_id` nor `referee_assignments.tournament_id`
     // exists in the schema (matches link to phases; phases link to
@@ -55,17 +79,7 @@ export class ConflictCheckController {
           .neq('status', 'voided')
       : { data: [] };
 
-    const matches: ConflictScheduledMatch[] = (matchRows ?? []).map((m) => {
-      const r = m as Record<string, unknown>;
-      return {
-        id: r['id'] as string,
-        label: (r['match_number_label'] as string | null) ?? (r['id'] as string),
-        redRegistrationId: r['red_registration_id'] as string,
-        blueRegistrationId: r['blue_registration_id'] as string,
-        scheduledAt: (r['scheduled_at'] as string | null) ?? null,
-        durationMinutes: 5,
-      };
-    });
+    const matches = toConflictMatches((matchRows ?? []) as unknown as RawConflictMatchRow[]);
     const matchIds = matches.map((m) => m.id);
 
     // 2. Fetch referee assignments scoped to this tournament's matches.
@@ -85,61 +99,21 @@ export class ConflictCheckController {
             .in('match_id', matchIds)
         : { data: [] };
 
-    const refereeAssignments: ConflictRefereeAssignment[] = (refRows ?? []).map((r) => {
-      const row = r as Record<string, unknown>;
-      const person = row['global_persons'] as {
-        id: string;
-        given_name: string;
-        family_name: string;
-      } | null;
-      const match = row['matches'] as {
-        match_number_label: string | null;
-        scheduled_at: string | null;
-      } | null;
-
-      return {
-        matchId: row['match_id'] as string,
-        matchLabel: match?.match_number_label ?? (row['match_id'] as string),
-        personId: person?.id ?? '',
-        personName: person ? `${person.given_name} ${person.family_name}` : '',
-        role: row['role'] as string,
-        scheduledAt: match?.scheduled_at ?? null,
-        durationMinutes: 5,
-      };
-    });
-
     // 3. Fetch registration → person mapping for this tournament.
-    //    Project `persons.global_person_id` (not `persons.id`) so the
-    //    map keys live in the same id-space as
-    //    `referee_assignments.person_id`. Same shape of fix as the one
-    //    that closed the Denis-Allaume bug in assignment-board.service.
+    //    Projects `persons.global_person_id` (not `persons.id`) so the map keys
+    //    live in the same id-space as `referee_assignments.person_id`.
     const { data: regRows } = await this.supabase.service
       .from('registrations')
       .select('id, persons ( id, global_person_id, given_name, family_name )')
       .eq('tournament_id', tournamentId);
 
-    const registrationPersonMap: RegistrationPersonMap[] = (regRows ?? []).map((r) => {
-      const row = r as Record<string, unknown>;
-      const person = row['persons'] as {
-        id: string;
-        global_person_id: string | null;
-        given_name: string;
-        family_name: string;
-      } | null;
-      return {
-        registrationId: row['id'] as string,
-        personId: person?.global_person_id ?? '',
-        personName: person ? `${person.given_name} ${person.family_name}` : '',
-      };
-    });
-
-    // 4. Run conflict detection
-    const result = detectFighterRefereeConflicts(
+    // 4. Run conflict detection. Rows whose person cannot be resolved are
+    //    dropped by the mappers rather than keyed under '' — see
+    //    ./conflict-check-inputs for the false alarm that produced.
+    return detectFighterRefereeConflicts(
       matches,
-      refereeAssignments,
-      registrationPersonMap,
+      toConflictAssignments((refRows ?? []) as unknown as RawConflictAssignmentRow[]),
+      toRegistrationPersonMap((regRows ?? []) as unknown as RawConflictRegistrationRow[]),
     );
-
-    return result;
   }
 }
