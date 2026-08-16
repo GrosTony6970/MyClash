@@ -42,6 +42,11 @@ import {
   doubleElimOptionsFromDto,
   structuralConfigChanges,
 } from './double-elim-config';
+import {
+  findLiceCollisions,
+  liceCollisionMessage,
+  type LicePlacement,
+} from '../matches/lice-occupancy';
 import { buildRoundCode } from '../matches/round-code.helper';
 import {
   fetchRefereeAssignmentIndex,
@@ -2494,11 +2499,65 @@ export class PhasesService {
   }
 
   /**
+   * Refuse a whole-pool placement that double-books a piste.
+   *
+   * Shared by `reschedulePool` and `autoDistributePool`, both of which compute
+   * every placement before writing any of them — so the check runs once, on the
+   * complete set, and a refusal leaves nothing half-moved.
+   *
+   * Two exclusions matter. The pool's OWN matches are dropped from the occupant
+   * list, because they are the rows being moved and would otherwise collide with
+   * where they used to be. And `findLiceCollisions` checks the proposed set
+   * against itself as well, which is the half an outward-only check would miss:
+   * a re-fan can land two of this pool's own bouts on one slot with no
+   * pre-existing occupant involved.
+   *
+   * NOT called by `setPoolLice`. That one moves a pool between pistes without
+   * touching a clock, and "assign pistes for referee staffing, fix the times
+   * after" is a real two-step workflow — `07-populate-event` does exactly it.
+   * Refusing step one because step two has not happened yet would break a
+   * legitimate order of work. The line is: refuse where the caller chooses a
+   * (piste, time) pair, not where it chooses only a piste.
+   */
+  private async assertPoolPlacementsFree(
+    poolId: string,
+    proposed: readonly LicePlacement[],
+  ): Promise<void> {
+    const liceIds = [...new Set(proposed.map((p) => p.liceId).filter((id): id is string => !!id))];
+    if (liceIds.length === 0) return;
+
+    const { data, error } = await this.supabase.service
+      .from('matches')
+      .select('id, lice_id, scheduled_at')
+      .in('lice_id', liceIds)
+      .not('scheduled_at', 'is', null)
+      .not('status', 'eq', 'voided')
+      .neq('pool_id', poolId);
+    if (error) throw new BadRequestException(error.message);
+
+    const occupants = (
+      (data ?? []) as Array<{ id: string; lice_id: string | null; scheduled_at: string | null }>
+    ).map((row) => ({
+      matchId: row.id,
+      liceId: row.lice_id,
+      scheduledAt: row.scheduled_at,
+    }));
+
+    const collisions = findLiceCollisions(proposed, occupants);
+    if (collisions.length > 0) throw new ConflictException(liceCollisionMessage(collisions));
+  }
+
+  /**
    * Set (or clear) the lice for every match in a pool.
    *
    * Mirrors the per-match `liceId` field on PATCH /matches/:id but applied
    * to every match in the pool in one UPDATE — the matches-tab pool-header
    * lets the operator pick once instead of N times.
+   *
+   * Deliberately NOT guarded against piste collisions — see
+   * {@link assertPoolPlacementsFree}. It changes the piste and leaves every
+   * clock alone, so any overlap it creates is a step in a two-step workflow
+   * rather than a bad choice.
    */
   async setPoolLice(
     poolId: string,
@@ -2556,6 +2615,18 @@ export class PhasesService {
     if (matches.length === 0) return { poolId, updated: [] };
 
     const updates = computePoolReschedule(matches, dto.liceId ?? null, dto.startAtIso);
+
+    // Check the WHOLE proposed set before the first write. `computePoolReschedule`
+    // hands us every placement up front, so a refusal cannot leave half a pool
+    // moved — which a per-row check inside the loop below would.
+    await this.assertPoolPlacementsFree(
+      poolId,
+      updates.map((u) => ({
+        matchId: u.matchId,
+        liceId: u.liceId,
+        scheduledAt: u.scheduledAt,
+      })),
+    );
 
     // One UPDATE per row (PostgREST can't set different rows to different
     // values in one statement); independent rows, last-write-wins is safe.
@@ -2643,6 +2714,19 @@ export class PhasesService {
       startAtIso: dto.startAtIso,
       durationMinutes: dto.durationMinutes,
     });
+
+    // 3b. Refuse before writing anything. `distributePoolMatches` fans this pool
+    //     across lices without knowing what else already sits on them, so the
+    //     whole set is checked here — against existing occupants and against
+    //     itself — while it is still just arithmetic.
+    await this.assertPoolPlacementsFree(
+      poolId,
+      assignments.map((a) => ({
+        matchId: a.matchId,
+        liceId: a.liceId,
+        scheduledAt: a.scheduledAt,
+      })),
+    );
 
     // 4. Fan UPDATEs out: one per match (PostgREST can't UPDATE
     //    different rows to different values in a single statement).

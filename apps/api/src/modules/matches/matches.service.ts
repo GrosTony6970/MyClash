@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ConflictException,
   Injectable,
   Logger,
   NotFoundException,
@@ -13,6 +14,7 @@ import { MatchAlertRefresherService } from '../notifications/match-alert-refresh
 import { SupabaseService } from '../supabase/supabase.service';
 import { insertAuditLog } from '../../common/audit-log';
 import { buildRoundCode, bracketCodeConfig } from './round-code.helper';
+import { findLiceCollisions, liceCollisionMessage } from './lice-occupancy';
 import { fetchRefereeAssignmentIndex } from './referee-assignment-index';
 import { refereeNamesOnly, resolveMatchReferees } from './resolve-match-referees';
 import { ScoringService } from './scoring.service';
@@ -456,7 +458,18 @@ export class MatchesService {
     await this.matchAlerts.refresh(((data ?? []) as Array<{ id: string }>).map((row) => row.id));
   }
 
+  /**
+   * Place one bout on a piste at a time — the schedule grid's drag.
+   *
+   * Refuses a placement that double-books the piste. This route picks BOTH
+   * halves of a slot, so a collision means the caller chose a taken one; the
+   * piste-only writers (`update`, `setPoolLice`, venues) are deliberately not
+   * guarded, because "assign pistes now, fix the clock after" is a real
+   * two-step workflow and refusing step one would break it.
+   */
   async scheduleMatch(matchId: string, liceId: string | null, scheduledAt: string | null) {
+    await this.assertLiceFree(matchId, liceId || null, scheduledAt || null);
+
     const updates: Record<string, unknown> = {
       updated_at: new Date().toISOString(),
     };
@@ -477,6 +490,43 @@ export class MatchesService {
     // unschedule and left their followers'. One call cannot be half-remembered.
     await this.matchAlerts.refresh([matchId]);
     return data;
+  }
+
+  /**
+   * Refuse a single-bout placement that lands on an occupied piste.
+   *
+   * Reads only the day's other bouts on that strip — a bounded window keyed on
+   * the piste, not a whole-event scan. The moving bout is excluded by
+   * `findLiceCollisions` itself, so re-saving a bout where it already sits
+   * cannot refuse.
+   */
+  private async assertLiceFree(
+    matchId: string,
+    liceId: string | null,
+    scheduledAt: string | null,
+  ): Promise<void> {
+    // Clearing either half releases the strip; nothing to check.
+    if (!liceId || !scheduledAt) return;
+
+    const { data, error } = await this.supabase.service
+      .from('matches')
+      .select('id, lice_id, scheduled_at')
+      .eq('lice_id', liceId)
+      .not('scheduled_at', 'is', null)
+      .not('status', 'eq', 'voided');
+    if (error) throw new BadRequestException(error.message);
+
+    const collisions = findLiceCollisions(
+      [{ matchId, liceId, scheduledAt }],
+      (
+        (data ?? []) as Array<{ id: string; lice_id: string | null; scheduled_at: string | null }>
+      ).map((row) => ({
+        matchId: row.id,
+        liceId: row.lice_id,
+        scheduledAt: row.scheduled_at,
+      })),
+    );
+    if (collisions.length > 0) throw new ConflictException(liceCollisionMessage(collisions));
   }
 
   /**

@@ -50,6 +50,7 @@ function makeAwaitableChain(result: unknown) {
   const chain = Object.assign(promise, {
     select: vi.fn(),
     eq: vi.fn(),
+    neq: vi.fn(),
     in: vi.fn(),
     not: vi.fn(),
     limit: vi.fn(),
@@ -61,7 +62,18 @@ function makeAwaitableChain(result: unknown) {
     single: vi.fn().mockResolvedValue(result),
   });
   // All builder methods return the chain (Promise) itself
-  for (const key of ['select', 'eq', 'in', 'not', 'limit', 'order', 'insert', 'update', 'delete']) {
+  for (const key of [
+    'select',
+    'eq',
+    'neq',
+    'in',
+    'not',
+    'limit',
+    'order',
+    'insert',
+    'update',
+    'delete',
+  ]) {
     (chain as unknown as Record<string, unknown>)[key] = vi.fn().mockReturnValue(chain);
   }
   return chain;
@@ -258,6 +270,72 @@ describe('PhasesService', () => {
         await expect(
           service.generatePools('tournament-1', { discardScoredResults: true }, true, undefined),
         ).rejects.toBeInstanceOf(ForbiddenException);
+      });
+    });
+
+    // ── One piste runs one bout at a time ─────────────────────────────────
+    // reschedulePool and autoDistributePool both pick a piste AND a time, so a
+    // collision means they picked a taken one. setPoolLice picks only a piste
+    // and stays deliberately unguarded — see assertPoolPlacementsFree.
+    describe('piste double-booking', () => {
+      const POOL_CONTEXT = {
+        id: 'pool-1',
+        name: 'A',
+        phase_id: 'phase-1',
+        sort_order: 0,
+        phases: {
+          id: 'phase-1',
+          tournament_id: 't-1',
+          tournaments: {
+            event_id: 'event-1',
+            weapon: null,
+            events: { organization_id: 'org-1' },
+          },
+        },
+      };
+
+      /** pool context → scored check → pool matches → occupants. */
+      function queuePoolMove(poolMatches: unknown[], occupants: unknown[]) {
+        const ctxChain = makeChain({ data: null, error: null });
+        ctxChain.maybeSingle.mockResolvedValue({ data: POOL_CONTEXT, error: null });
+        const writeChain = makeChain({ data: null, error: null });
+        fromMock
+          .mockReturnValueOnce(ctxChain)
+          .mockReturnValueOnce(makeAwaitableChain({ data: [], error: null }))
+          .mockReturnValueOnce(makeAwaitableChain({ data: poolMatches, error: null }))
+          .mockReturnValueOnce(makeAwaitableChain({ data: occupants, error: null }))
+          .mockReturnValue(writeChain);
+        return { writeChain };
+      }
+
+      it('reschedulePool refuses onto an occupied piste, and writes nothing', async () => {
+        const { writeChain } = queuePoolMove(
+          [{ id: 'm-1', scheduled_at: '2026-05-21T09:00:00.000Z' }],
+          [{ id: 'other', lice_id: 'lice-1', scheduled_at: '2026-05-21T10:01:00.000Z' }],
+        );
+
+        await expect(
+          service.reschedulePool(
+            'pool-1',
+            { liceId: 'lice-1', startAtIso: '2026-05-21T10:00:00.000Z' },
+            'user-1',
+          ),
+        ).rejects.toBeInstanceOf(ConflictException);
+        // Checked on the WHOLE set before the first UPDATE, so a refusal cannot
+        // leave half a pool moved.
+        expect(writeChain.update).not.toHaveBeenCalled();
+      });
+
+      it('reschedulePool proceeds when the piste is free', async () => {
+        queuePoolMove([{ id: 'm-1', scheduled_at: '2026-05-21T09:00:00.000Z' }], []);
+
+        await expect(
+          service.reschedulePool(
+            'pool-1',
+            { liceId: 'lice-1', startAtIso: '2026-05-21T10:00:00.000Z' },
+            'user-1',
+          ),
+        ).resolves.toBeDefined();
       });
     });
 

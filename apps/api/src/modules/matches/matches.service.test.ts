@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { BadRequestException, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, NotFoundException } from '@nestjs/common';
 import { MatchesService } from './matches.service';
 
 // ── Mocks ──────────────────────────────────────────────────────────────────
@@ -631,6 +631,25 @@ describe('MatchesService', () => {
   });
 
   describe('scheduleMatch', () => {
+    /**
+     * The piste-occupancy read that now runs before the write: the service
+     * awaits the chain with no terminal, so it has to be the awaitable shape.
+     */
+    function occupancyChain(rows: unknown[]) {
+      const promise = Promise.resolve({ data: rows, error: null });
+      const chain = Object.assign(promise, {
+        select: vi.fn(),
+        eq: vi.fn(),
+        not: vi.fn(),
+        neq: vi.fn(),
+        in: vi.fn(),
+      });
+      for (const key of ['select', 'eq', 'not', 'neq', 'in']) {
+        (chain as unknown as Record<string, unknown>)[key] = vi.fn().mockReturnValue(chain);
+      }
+      return chain;
+    }
+
     it('reschedules match-starting and follow notifications when scheduled_at changes', async () => {
       const scheduledAt = '2026-05-02T10:30:00.000Z';
       const updateChain = makeChain({
@@ -641,11 +660,59 @@ describe('MatchesService', () => {
         data: { id: 'match-1', scheduled_at: scheduledAt },
         error: null,
       });
-      fromMock.mockReturnValue(updateChain);
+      // Piste empty → the placement is accepted and the write proceeds.
+      fromMock.mockReturnValueOnce(occupancyChain([])).mockReturnValue(updateChain);
 
       await service.scheduleMatch('match-1', 'lice-1', scheduledAt);
 
       expect(mockMatchAlerts.refresh).toHaveBeenCalledWith(['match-1']);
+    });
+
+    it('refuses a placement that lands on an occupied piste, and writes nothing', async () => {
+      const updateChain = makeChain({ data: null, error: null });
+      fromMock
+        .mockReturnValueOnce(
+          occupancyChain([
+            // Different tournament, no shared fighter — invisible to the grid's
+            // conflict banner, which is why this had to move server-side.
+            { id: 'other-match', lice_id: 'lice-1', scheduled_at: '2026-05-02T10:32:00.000Z' },
+          ]),
+        )
+        .mockReturnValue(updateChain);
+
+      await expect(
+        service.scheduleMatch('match-1', 'lice-1', '2026-05-02T10:30:00.000Z'),
+      ).rejects.toBeInstanceOf(ConflictException);
+      expect(updateChain.update).not.toHaveBeenCalled();
+      expect(mockMatchAlerts.refresh).not.toHaveBeenCalled();
+    });
+
+    it('allows a back-to-back placement on the same piste', async () => {
+      const scheduledAt = '2026-05-02T10:05:00.000Z';
+      const updateChain = makeChain({ data: { id: 'match-1' }, error: null });
+      updateChain.single.mockResolvedValue({ data: { id: 'match-1' }, error: null });
+      fromMock
+        .mockReturnValueOnce(
+          // Ends at 10:05 exactly. Touching is not overlapping, or every
+          // generated schedule would refuse itself.
+          occupancyChain([
+            { id: 'earlier', lice_id: 'lice-1', scheduled_at: '2026-05-02T10:00:00.000Z' },
+          ]),
+        )
+        .mockReturnValue(updateChain);
+
+      await expect(service.scheduleMatch('match-1', 'lice-1', scheduledAt)).resolves.toBeDefined();
+    });
+
+    it('skips the check when the placement clears the piste', async () => {
+      const updateChain = makeChain({ data: { id: 'match-1' }, error: null });
+      updateChain.single.mockResolvedValue({ data: { id: 'match-1' }, error: null });
+      fromMock.mockReturnValue(updateChain);
+
+      await service.scheduleMatch('match-1', null, null);
+
+      // Releasing a strip cannot collide with anything, so no read happens.
+      expect(updateChain.select).toHaveBeenCalled();
     });
   });
 
