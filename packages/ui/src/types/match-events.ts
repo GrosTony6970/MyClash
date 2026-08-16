@@ -23,13 +23,25 @@
  * Note the deliberate spelling split: exchange rows carry camelCase
  * `occurredAt` (an API-added alias), penalty rows carry raw `occurred_at`.
  */
-import type { MatchFormatConfig, PhaseType, TournamentScoringConfig } from '@myclash/types';
+import type {
+  MatchFormatConfig,
+  PenaltyCard,
+  PhaseType,
+  TournamentScoringConfig,
+} from '@myclash/types';
 
 export type MatchStatus = 'scheduled' | 'running' | 'paused' | 'completed' | 'voided';
 
 export type ExchangeType = 'clean' | 'afterblow' | 'double' | 'no_exchange';
 
-export type PenaltyCard = 'yellow' | 'red' | 'black';
+/**
+ * Re-exported, not redeclared. This union had three independent definitions —
+ * here, in @myclash/rulesets and (as `PenaltyCardColor`) in the pad's Dexie
+ * schema. Three copies of a three-member union is three chances for them to
+ * stop agreeing, and the pad now computes cards with the same function the
+ * server does, so they have to be the same type.
+ */
+export type { PenaltyCard };
 
 /** One row of `GET /matches/:id/exchanges`. */
 export interface ExchangeRow {

@@ -1,20 +1,41 @@
-export type PenaltyCard = 'yellow' | 'red' | 'black';
-export type PenaltyAccumulationScope = 'match' | 'phase' | 'tournament';
-export type PenaltySource = 'ruleset' | 'direct';
+/**
+ * Penalty ruleset IMPORT — turning a federation's CSV into entries.
+ *
+ * The sanction half of this file moved to `@myclash/types`: the cards, the
+ * accumulation ladder and the per-card default cost. It had to, because the
+ * referee pad needs to know which card a repeated offence earns, and
+ * `@myclash/rulesets` is deliberately unreachable from `apps/web-staff` — that
+ * is what keeps the AST-driven scoring engine off a tablet with no network
+ * ("Seed, don't resolve", ARCHITECTURE.md §7.3).
+ *
+ * A penalty catalogue is not the scoring engine. It is rows the pad already
+ * fetches. Splitting it this way lets the pad and the server compute a card
+ * with ONE function instead of two that can drift.
+ *
+ * What stays here is the CSV parser, which is server and tooling work — an
+ * operator uploads a rulebook, this reads it. No pad ever calls it.
+ *
+ * Everything moved is re-exported below, so `@myclash/rulesets` remains the
+ * import site every existing caller already uses.
+ */
+import { normalizePenaltyCard } from '@myclash/types';
+import type { PenaltyAccumulationScope, PenaltyRulesetEntry } from '@myclash/types';
 
-export interface PenaltyRulesetEntry {
-  groupNumber: number;
-  /**
-   * Identifier of the rule within its group. String to allow alphanumeric
-   * rulebook references like "R7a" or "B-12". The engine treats it as
-   * opaque — validation only enforces non-empty + a safe-char set at the
-   * input boundary (CSV parser and API DTO).
-   */
-  refNumber: string;
-  shortName: string;
-  description: string;
-  sanctions: readonly PenaltyCard[];
-}
+export {
+  computeDirectPenaltySanction,
+  computePenaltySanction,
+  normalizePenaltyCard,
+  penaltyCausesMatchForfeit,
+  penaltyScoreDelta,
+} from '@myclash/types';
+export type {
+  ExistingPenaltyForSanction,
+  PenaltyAccumulationScope,
+  PenaltyCard,
+  PenaltyRulesetEntry,
+  PenaltySanctionResult,
+  PenaltySource,
+} from '@myclash/types';
 
 export interface PenaltyRulesetDefinition {
   code: string;
@@ -33,79 +54,12 @@ export interface PenaltyRulesetMetadata {
   builtIn: boolean;
 }
 
-export interface ExistingPenaltyForSanction {
-  registrationId: string;
-  groupNumber?: number;
-  card: PenaltyCard;
-  source: PenaltySource;
-  voided?: boolean;
-}
-
-export interface PenaltySanctionResult {
-  card: PenaltyCard;
-  groupOccurrence: number;
-  scoreDelta: number;
-  causesMatchForfeit: boolean;
-}
-
-export function normalizePenaltyCard(value: string): PenaltyCard {
-  const normalized = value.trim().toLowerCase();
-  if (['jaune', 'yellow'].includes(normalized)) return 'yellow';
-  if (['rouge', 'red'].includes(normalized)) return 'red';
-  if (['noir', 'black'].includes(normalized)) return 'black';
-  throw new Error(`Unknown penalty card "${value}"`);
-}
-
-export function penaltyScoreDelta(card: PenaltyCard): number {
-  return card === 'red' ? -1 : 0;
-}
-
-export function penaltyCausesMatchForfeit(card: PenaltyCard): boolean {
-  return card === 'black';
-}
-
-export function computePenaltySanction(
-  entry: PenaltyRulesetEntry,
-  existingPenalties: ExistingPenaltyForSanction[],
-  registrationId = 'fighter-1',
-): PenaltySanctionResult {
-  const previousSameGroup = existingPenalties.filter(
-    (penalty) =>
-      !penalty.voided &&
-      penalty.source === 'ruleset' &&
-      penalty.registrationId === registrationId &&
-      penalty.groupNumber === entry.groupNumber,
-  ).length;
-  const groupOccurrence = previousSameGroup + 1;
-  const card = entry.sanctions[Math.min(groupOccurrence, entry.sanctions.length) - 1];
-  if (!card) {
-    throw new Error(
-      `Penalty entry ${entry.refNumber} has no sanction for occurrence ${groupOccurrence}`,
-    );
-  }
-  return {
-    card,
-    groupOccurrence,
-    scoreDelta: penaltyScoreDelta(card),
-    causesMatchForfeit: penaltyCausesMatchForfeit(card),
-  };
-}
-
-export function computeDirectPenaltySanction(card: PenaltyCard): PenaltySanctionResult {
-  return {
-    card,
-    groupOccurrence: 0,
-    scoreDelta: penaltyScoreDelta(card),
-    causesMatchForfeit: penaltyCausesMatchForfeit(card),
-  };
-}
-
 export function parsePenaltyRulesetCsv(
   csv: string,
   metadata: PenaltyRulesetMetadata,
 ): PenaltyRulesetDefinition {
   const rows = csv
-    .replace(/^\uFEFF/, '')
+    .replace(/^﻿/, '')
     .split(/\r?\n/)
     .map((line) => line.trim())
     .filter(Boolean)

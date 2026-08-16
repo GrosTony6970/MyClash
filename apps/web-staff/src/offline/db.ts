@@ -8,12 +8,20 @@
  */
 
 import Dexie, { type Table } from 'dexie';
+import type { PenaltyCard } from '@myclash/types';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 export type ExchangeType = 'clean' | 'afterblow' | 'double' | 'no_exchange';
 export type StrikerColor = 'red' | 'blue';
-export type PenaltyCardColor = 'yellow' | 'red' | 'black';
+/**
+ * Re-exported, not redeclared. This was the third independent copy of the same
+ * three-member union (packages/ui and packages/rulesets held the others). The
+ * pad now computes a card with the same function the server does, so it has to
+ * be the same type. The local alias stays because outbox rows have used the
+ * name since v3 and renaming a persisted field's type is not worth a migration.
+ */
+export type PenaltyCardColor = PenaltyCard;
 
 /**
  * What kind of scored artefact an outbox row carries.

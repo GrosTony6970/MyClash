@@ -16,6 +16,7 @@ export * from './match-clock';
 export * from './match-status';
 export * from './match-winner';
 export * from './password';
+export * from './penalties';
 export * from './pin-strength';
 export * from './programme';
 export * from './persons';
