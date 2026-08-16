@@ -6,6 +6,7 @@ import {
   Optional,
 } from '@nestjs/common';
 import { SupabaseService } from '../supabase/supabase.service';
+import { hasBeenFought } from '../matches/fought-match';
 // Value imports, not `import type`: Nest needs the runtime classes for DI
 // metadata. With `import type` these resolve to undefined and every Swiss round
 // silently stops advancing — see di-wiring.regression.test.ts.
@@ -143,7 +144,7 @@ export class SwissAdvanceService {
     if (!round) return [];
     const { data } = await this.supabase.service
       .from('swiss_rounds')
-      .select('round_number, status, matches(status)')
+      .select('round_number, status, matches(status, started_at)')
       .eq('phase_id', round.phaseId)
       .gt('round_number', round.roundNumber)
       .order('round_number', { ascending: true });
@@ -151,9 +152,15 @@ export class SwissAdvanceService {
     return ((data ?? []) as Array<Record<string, unknown>>).map((row) => ({
       roundNumber: row['round_number'] as number,
       status: row['status'] as string,
-      hasFoughtBout: ((row['matches'] ?? []) as Array<{ status: string }>).some((match) =>
-        ['running', 'paused', 'completed'].includes(match.status),
-      ),
+      // Voided is filtered here rather than in the select, because PostgREST
+      // filters on an embedded resource would drop the whole ROUND when none of
+      // its matches match — and a round with no fought bout is exactly what this
+      // needs to report. Answer-preserving: 'voided' was never in the set.
+      hasFoughtBout: (
+        (row['matches'] ?? []) as Array<{ status: string; started_at: string | null }>
+      )
+        .filter((match) => match.status !== 'voided')
+        .some((match) => hasBeenFought(match.status, match.started_at ?? null)),
     }));
   }
 

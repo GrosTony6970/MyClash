@@ -342,3 +342,55 @@ describe('SwissAdvanceService un-completion', () => {
     ).resolves.toBeUndefined();
   });
 });
+
+describe('SwissAdvanceService.roundsAhead', () => {
+  /**
+   * `hasFoughtBout` had no test, and it is not internal bookkeeping: it reaches
+   * the organiser as the warning copy on the un-completion confirm dialog (see
+   * uncomplete-confirm-copy.ts in web-admin). These pin the answer per status so
+   * the shared predicate cannot be swapped underneath it unnoticed.
+   */
+  const laterRound = (matches: Array<{ status: string; started_at: string | null }>) => ({
+    data: [{ round_number: 4, status: 'pending', matches }],
+    error: null,
+  });
+
+  const ask = async (matches: Array<{ status: string; started_at: string | null }>) => {
+    const supabase = mockSupabase({
+      matches: swissMatchRow(),
+      swiss_rounds: laterRound(matches),
+    });
+    return new SwissAdvanceService(as(supabase), pairingStub(), roundStateStub('running'))
+      .roundsAhead('m1')
+      .then((rounds) => rounds[0]?.hasFoughtBout);
+  };
+
+  it('reports a round holding a running, paused or completed bout as fought', async () => {
+    await expect(ask([{ status: 'running', started_at: null }])).resolves.toBe(true);
+    await expect(ask([{ status: 'paused', started_at: null }])).resolves.toBe(true);
+    await expect(ask([{ status: 'completed', started_at: null }])).resolves.toBe(true);
+  });
+
+  it('does not report a round of scheduled bouts as fought', async () => {
+    await expect(ask([{ status: 'scheduled', started_at: null }])).resolves.toBe(false);
+  });
+
+  it('does not let a voided bout make a round look fought', async () => {
+    // Excluded before the predicate is asked, the way the bracket callers do it:
+    // a voided bout carries `started_at` if it ever ran, and hasBeenFought says
+    // true for it. A round whose only activity was voided has not been drawn
+    // into, and must not block un-completing an earlier one.
+    await expect(ask([{ status: 'voided', started_at: '2026-05-21T10:00:00.000Z' }])).resolves.toBe(
+      false,
+    );
+  });
+
+  it('reads the whole round, not just its first bout', async () => {
+    await expect(
+      ask([
+        { status: 'scheduled', started_at: null },
+        { status: 'completed', started_at: null },
+      ]),
+    ).resolves.toBe(true);
+  });
+});
