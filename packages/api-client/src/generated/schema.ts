@@ -7265,6 +7265,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  '/api/v1/matches/{id}/penalty-scope': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Prior penalties the two fighters are accumulating against, in the ruleset’s scope. Lets the scoring pad resolve the next card the same way the server will. */
+    get: operations['PenaltiesController_getMatchPenaltyScope'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   '/api/v1/match-penalties/{id}/void': {
     parameters: {
       query?: never;
@@ -22318,6 +22335,25 @@ export interface operations {
     };
   };
   PenaltiesController_getMatchPenaltyRuleset: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  PenaltiesController_getMatchPenaltyScope: {
     parameters: {
       query?: never;
       header?: never;

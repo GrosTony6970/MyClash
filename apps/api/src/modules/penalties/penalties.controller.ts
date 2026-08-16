@@ -291,6 +291,24 @@ export class PenaltiesController {
     return this.penalties.getEffectiveRulesetForMatch(id);
   }
 
+  /**
+   * NOT `@Public()`, unlike `/matches/:id/penalties` beside it. That one is a
+   * per-match list a spectator display legitimately reads; this aggregates a
+   * fighter's cards across a whole tournament, and staff data gets a staff
+   * check. `authorizeMatchScoring` is match-scoped authorisation, not a
+   * signed-in test — the distinction the referees sweep was about.
+   */
+  @Get('matches/:id/penalty-scope')
+  @ApiOperation({
+    summary:
+      'Prior penalties the two fighters are accumulating against, in the ruleset’s scope. Lets the scoring pad resolve the next card the same way the server will.',
+  })
+  @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
+  async getMatchPenaltyScope(@Param('id', ParseUUIDPipe) id: string, @Req() req: FastifyRequest) {
+    await this.staff.authorizeMatchScoring(req, id);
+    return this.penalties.getPenaltyScopeForMatch(id);
+  }
+
   @Get('tournaments/:id/penalty-ruleset')
   @ApiOperation({ summary: 'Get the effective penalty ruleset for a tournament' })
   @ApiParam({ name: 'id', type: 'string', format: 'uuid' })

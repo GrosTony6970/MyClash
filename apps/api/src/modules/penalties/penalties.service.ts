@@ -1152,6 +1152,42 @@ export class PenaltiesService {
     return computePenaltySanction(entry, previous, dto.registrationId);
   }
 
+  /**
+   * The prior penalties this match's two fighters are accumulating against.
+   *
+   * EXISTS SO THE PAD CAN COMPUTE A CARD THE SAME WAY THE SERVER DOES. Which
+   * card a repeated offence earns is `sanctions[occurrence - 1]`, and the
+   * occurrence is a count of prior non-voided ruleset cards in the same group.
+   * WHERE that count is taken from is `accumulation_scope`: at 'match' it is
+   * this match, otherwise it is the whole tournament — and at tournament scope
+   * the priors sit in OTHER matches, which the pad has never seen. Without this
+   * the pad could only ever be right for one of the two scopes.
+   *
+   * Returns exactly the array `computePenaltySanction` consumes, so the pad
+   * feeds the server's own input into the server's own function. Divergence is
+   * then only possible through staleness, not through logic.
+   */
+  async getPenaltyScopeForMatch(matchId: string): Promise<{
+    accumulationScope: string;
+    priors: Record<string, ExistingPenaltyForSanction[]>;
+  }> {
+    const match = await this.getMatchContext(matchId);
+    const ruleset = match.penaltyRulesetId ? await this.getRuleset(match.penaltyRulesetId) : null;
+    const accumulationScope =
+      ((ruleset as Row | null)?.['accumulation_scope'] as string | undefined) ?? 'match';
+
+    const registrationIds = [match.redRegistrationId, match.blueRegistrationId].filter(
+      (id): id is string => Boolean(id),
+    );
+    const priors: Record<string, ExistingPenaltyForSanction[]> = {};
+    for (const registrationId of registrationIds) {
+      priors[registrationId] = match.penaltyRulesetId
+        ? await this.getExistingPenaltiesForScope(match, registrationId)
+        : [];
+    }
+    return { accumulationScope, priors };
+  }
+
   private async getExistingPenaltiesForScope(
     match: MatchContext,
     registrationId: string,
