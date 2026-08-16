@@ -24,7 +24,7 @@ import { useI18n } from '@myclash/next-i18n/client';
 import { useScoringTheme } from '../theme/ThemeProvider';
 import { ThemeSwitcher } from '../theme/ThemeSwitcher';
 import { sideStyle, roundLabel } from '@myclash/ui';
-import { useAdjacentMatches } from '@myclash/ui';
+import type { NextMatchInfo } from '@myclash/ui';
 import {
   displayUrlForMatch,
   isExternalHref,
@@ -35,7 +35,6 @@ import { useMatchGear, type MatchGear, type MatchGearSide } from '../lib/useMatc
 
 interface MatchHeaderProps {
   matchId: string;
-  apiUrl: string;
   matchCode: string;
   /** Header context line: Tournament · Pool · Piste (from match summary). */
   tournamentName?: string | null;
@@ -53,8 +52,16 @@ interface MatchHeaderProps {
   /** Optional override for back-link href (otherwise /lices/[liceId]). */
   backHref?: string | null;
   externalDisplayUrl?: string | null;
-  /** Bumped when something might have changed the lice queue. */
-  refreshKey: number;
+  /**
+   * The bouts either side of this one in the lice queue.
+   *
+   * Passed in rather than fetched. `MatchView` already calls
+   * `useAdjacentMatches` for the result overlay's "Next match →" action, and
+   * this header called it again with the same arguments — so `/neighbors` was
+   * fetched TWICE on every scored hit, both copies keyed on the same refresh.
+   */
+  previous: NextMatchInfo | null;
+  next: NextMatchInfo | null;
   /** Called when ⚙ Corrections is tapped. */
   onOpenCorrections: () => void;
   /** Best-of-N round state — the round counter chip only shows when bestOf > 1. */
@@ -66,7 +73,6 @@ interface MatchHeaderProps {
 
 export function MatchHeader({
   matchId,
-  apiUrl,
   matchCode,
   tournamentName,
   poolName,
@@ -79,7 +85,8 @@ export function MatchHeader({
   buildMatchHref = (id) => `/matches/${id}`,
   backHref,
   externalDisplayUrl,
-  refreshKey,
+  previous,
+  next,
   onOpenCorrections,
   bestOf = 1,
   currentRound = 1,
@@ -88,7 +95,6 @@ export function MatchHeader({
 }: MatchHeaderProps) {
   const { t } = useI18n();
   const { chromeScope } = useScoringTheme();
-  const { previous, next } = useAdjacentMatches(apiUrl, matchId, refreshKey);
   // Tournament · Phase · Piste — skips any part that's missing. Bracket and
   // Swiss matches have no pool, and used to leave the phase slot empty; they
   // fill it from the round token instead, named the same way the TV names it.

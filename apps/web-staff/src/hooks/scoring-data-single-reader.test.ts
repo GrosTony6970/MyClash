@@ -47,6 +47,14 @@ const SCANNED = ['src', 'app'];
 const SINGLE_READER = [
   { hook: 'usePenalties', module: 'usePenalties', owner: 'src/hooks/useMatchScoringData.ts' },
   { hook: 'useExchanges', module: 'useExchanges', owner: 'src/hooks/useMatchScoringData.ts' },
+  // Same fault, different shape: `MatchView` and `MatchHeader` both called this
+  // with the same arguments, so `/neighbors` was fetched twice per hit. It is
+  // imported from `@myclash/ui`, so the owner here is the component, not a hook.
+  {
+    hook: 'useAdjacentMatches',
+    module: '@myclash/ui',
+    owner: 'src/components/MatchView.tsx',
+  },
 ] as const;
 
 function sourceFiles(dir: string, found: string[] = []): string[] {
@@ -84,7 +92,12 @@ function importsHookAsValue(source: ts.SourceFile, hook: string, moduleName: str
     if (!ts.isImportDeclaration(statement)) continue;
     if (!ts.isStringLiteral(statement.moduleSpecifier)) continue;
     const specifier = statement.moduleSpecifier.text;
-    if (specifier.split('/').pop() !== moduleName) continue;
+    // Exact for a package (`@myclash/ui`), last segment for a relative path
+    // (`../hooks/usePenalties`). The last-segment test ALONE silently passed a
+    // real `useAdjacentMatches` violation, because `'@myclash/ui'.split('/')`
+    // ends in `ui` — a guard that cannot fail is worse than no guard, and the
+    // only reason this was caught is that the falsification was actually run.
+    if (specifier !== moduleName && specifier.split('/').pop() !== moduleName) continue;
 
     const clause = statement.importClause;
     if (!clause || clause.isTypeOnly) continue;

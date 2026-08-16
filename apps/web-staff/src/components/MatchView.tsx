@@ -150,7 +150,11 @@ export function MatchView({
   const [unlockBusy, setUnlockBusy] = useState(false);
   const [unlockError, setUnlockError] = useState<string | null>(null);
   // Next bout in the lice queue — powers the "Next match →" action on the result overlay.
-  const { next: nextMatch } = useAdjacentMatches(apiUrl, match.id, refreshKey);
+  const { previous: previousMatch, next: nextMatch } = useAdjacentMatches(
+    apiUrl,
+    match.id,
+    refreshKey,
+  );
   // Resume guard: when the operator starts/resumes at zero / in the soft
   // zone, hold the action here and ask first (continue anyway / end match).
   const [pendingResume, setPendingResume] = useState<'start' | 'resume' | null>(null);
@@ -515,7 +519,6 @@ export function MatchView({
     <div className="flex flex-1 flex-col bg-background">
       <MatchHeader
         matchId={match.id}
-        apiUrl={apiUrl}
         matchCode={match.roundCode ?? match.matchNumberLabel}
         tournamentName={match.tournamentName ?? null}
         poolName={match.poolName ?? null}
@@ -528,7 +531,8 @@ export function MatchView({
         backHref={backHref}
         buildMatchHref={buildMatchHref}
         externalDisplayUrl={externalDisplayUrl ?? null}
-        refreshKey={refreshKey}
+        previous={previousMatch}
+        next={nextMatch}
         onOpenCorrections={() => setDrawerOpen(true)}
         bestOf={bestOf}
         currentRound={currentRound}

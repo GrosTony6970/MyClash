@@ -859,7 +859,7 @@
     "apps/web-staff/src/components/ForfeitPanel.tsx:31",
     "apps/web-staff/src/components/MatchClock.tsx:50",
     "apps/web-staff/src/components/MatchCorrectionsDrawer.tsx:78",
-    "apps/web-staff/src/components/MatchHeader.tsx:67",
+    "apps/web-staff/src/components/MatchHeader.tsx:74",
     "apps/web-staff/src/components/MatchResultOverlay.tsx:129",
     "apps/web-staff/src/components/MatchResultOverlay.tsx:57",
     "apps/web-staff/src/components/MatchView.tsx:95",
