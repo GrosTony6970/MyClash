@@ -508,7 +508,6 @@
     "apps/web-admin/app/admin/system-versions/HostInfoCard.tsx:68",
     "apps/web-admin/app/admin/system-versions/RuntimeHealthCard.tsx:121",
     "apps/web-admin/app/admin/system-versions/RuntimeHealthCard.tsx:411",
-    "apps/web-admin/app/admin/system-versions/RuntimeHealthTrend.tsx:116",
     "apps/web-admin/app/admin/system-versions/TlsCertificatesCard.tsx:88",
     "apps/web-admin/app/admin/system-versions/page.tsx:73",
     "apps/web-admin/app/admin/users/AccountsPagination.tsx:24",

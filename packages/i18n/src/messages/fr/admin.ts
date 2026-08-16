@@ -2694,6 +2694,13 @@ export const admin = {
         title: 'Tendance',
         window: 'Dernières 24 h',
         samples: 'Échantillons',
+        rows: {
+          dbConnections: 'Connexions BDD',
+          redisMemory: 'Mémoire Redis',
+          queueWaiting: 'Files en attente',
+          diskUsed: 'Disque utilisé',
+        },
+        inspect: 'Inspecter la tendance à un instant. Utilisez les flèches gauche et droite.',
         empty:
           "Pas encore assez d'historique. Le moniteur conserve un échantillon toutes les quelques minutes.",
         loadError: "Impossible de charger l'historique des tendances.",

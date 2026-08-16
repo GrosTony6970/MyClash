@@ -2680,6 +2680,15 @@ export const admin = {
         title: 'Trend',
         window: 'Last 24 h',
         samples: 'Samples',
+        // Named for their subsystem, unlike the tiles above: the strip has no
+        // tile title over it to say which "Used" this is.
+        rows: {
+          dbConnections: 'DB connections',
+          redisMemory: 'Redis memory',
+          queueWaiting: 'Queue waiting',
+          diskUsed: 'Disk used',
+        },
+        inspect: 'Inspect the trend at a time. Use the left and right arrow keys.',
         empty: 'Not enough history yet. The monitor keeps a sample every few minutes.',
         loadError: 'Could not load the trend history.',
       },
