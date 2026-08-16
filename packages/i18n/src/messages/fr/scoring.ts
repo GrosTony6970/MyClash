@@ -212,6 +212,8 @@ export const scoring = {
     reopen: "Rouvrir l'assaut",
     reopening: 'Reouverture...',
     unlockFailed: 'Impossible de rouvrir cet assaut.',
+    configFromCache:
+      '⚠ Règles de score chargées depuis cette tablette — non confirmées avec le serveur.',
   },
   corrections: {
     onlineOnly: 'Connexion requise',

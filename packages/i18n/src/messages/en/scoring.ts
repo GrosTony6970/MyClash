@@ -211,6 +211,10 @@ export const scoring = {
     reopen: 'Reopen match',
     reopening: 'Reopening...',
     unlockFailed: 'Could not reopen this match.',
+    // The scoring buttons were seeded from the tablet, not confirmed with the
+    // server. Said out loud because the state this replaced was the federal
+    // default arming itself silently — and a wrong button is invisible.
+    configFromCache: '⚠ Scoring rules loaded from this tablet — not confirmed with the server.',
   },
   corrections: {
     onlineOnly: 'Online required',

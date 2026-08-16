@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import type { PenaltyCard, Penalty as MatchPenalty } from '@myclash/ui';
+import { fetchWithCache } from '../offline/cached-reads';
 
 // The card union and the `match_penalties` wire row are declared once in
 // @myclash/ui (packages/ui/src/types/match-events.ts) because the shared
@@ -72,7 +73,13 @@ export function usePenalties(
     setLoading(true);
     setError(null);
     Promise.all([
-      fetch(`${apiUrl}/api/v1/matches/${matchId}/penalty-ruleset`, {
+      // The catalogue is SETUP data — which entries exist and what card each
+      // one carries — so it is cached on the tablet. Without it an offline pad
+      // shows an empty penalty picker and no referee can card anyone. The
+      // penalties themselves are live match state and are never cached; a stale
+      // card list is the kind of thing the service worker's no-stale rule
+      // exists to prevent.
+      fetchWithCache<PenaltyRuleset | null>(apiUrl, `/api/v1/matches/${matchId}/penalty-ruleset`, {
         credentials: 'include',
         signal: controller.signal,
       }),
@@ -81,9 +88,9 @@ export function usePenalties(
         signal: controller.signal,
       }),
     ])
-      .then(async ([rulesetRes, penaltiesRes]) => {
-        if (rulesetRes.ok) {
-          setRuleset((await rulesetRes.json()) as PenaltyRuleset | null);
+      .then(async ([rulesetResult, penaltiesRes]) => {
+        if (rulesetResult) {
+          setRuleset(rulesetResult.body);
         }
         if (penaltiesRes.ok) {
           setPenalties((await penaltiesRes.json()) as MatchPenalty[]);

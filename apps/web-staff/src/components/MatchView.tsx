@@ -11,6 +11,7 @@ import { useScoringSubmit } from '../hooks/useScoringSubmit';
 import { refusalMessage, type RefusalBody } from '../lib/refusal-copy';
 import { nextSequence as outboxNextSequence } from '../offline/outbox';
 import type { SyncEngine } from '../offline/sync';
+import { fetchWithCache } from '../offline/cached-reads';
 import type { ClockState } from './MatchClock';
 import type { MatchFormatConfig, TournamentScoringConfig } from '@myclash/types';
 import {
@@ -155,25 +156,42 @@ export function MatchView({
     if (clockState?.status !== 'ended') setResultDismissed(false);
   }, [clockState?.status]);
 
-  // Fetch scoring config for this tournament
+  /**
+   * The tournament's scoring rules — the buttons the referee presses.
+   *
+   * Cached on the tablet, because the failure mode here is silent and
+   * permanent. This state starts at DEFAULT_SCORING_CONFIG (+2/+1, deductive)
+   * and the fetch was guarded `if (res.ok)`, so a failure left the federal
+   * default in place and said nothing. The match and the config are separate
+   * requests: on a weak hall network one lands and the other does not, and the
+   * pad then renders a working scoring surface with the WRONG buttons. A
+   * referee taps +2 on a tournament whose ruleset says +3, a 2 is queued, a 2
+   * is stored, and nothing ever mentions it.
+   *
+   * `configStale` drives the notice: seeded from the tablet, not confirmed with
+   * the server. Better than the default in every case, and unlike the default
+   * it admits what it is.
+   */
+  const [configStale, setConfigStale] = useState(false);
   useEffect(() => {
     if (!match.tournamentId) return;
     const controller = new AbortController();
-    fetch(`${apiUrl}/api/v1/tournaments/${match.tournamentId}/match-config`, {
+    let cancelled = false;
+    void fetchWithCache<{
+      scoringConfig: TournamentScoringConfig;
+      matchFormat: MatchFormatConfig;
+    }>(apiUrl, `/api/v1/tournaments/${match.tournamentId}/match-config`, {
       signal: controller.signal,
-    })
-      .then(async (res) => {
-        if (res.ok) {
-          const config = (await res.json()) as {
-            scoringConfig: TournamentScoringConfig;
-            matchFormat: MatchFormatConfig;
-          };
-          setScoringConfig(config.scoringConfig);
-          setMatchFormat(config.matchFormat);
-        }
-      })
-      .catch(() => undefined);
-    return () => controller.abort();
+    }).then((result) => {
+      if (cancelled || !result) return;
+      setScoringConfig(result.body.scoringConfig);
+      setMatchFormat(result.body.matchFormat);
+      setConfigStale(!result.fresh);
+    });
+    return () => {
+      cancelled = true;
+      controller.abort();
+    };
   }, [match.tournamentId, apiUrl]);
 
   // Fetch initial clock state
@@ -473,6 +491,16 @@ export function MatchView({
           >
             ↻ {unlockBusy ? t('scoring.match.reopening') : t('scoring.match.reopen')}
           </button>
+        </div>
+      )}
+
+      {/* The buttons below came off the tablet, not the server. Said out loud
+          because the alternative this replaced was the federal default arming
+          itself in silence — and a referee cannot tell +2 from +3 by looking
+          at a button that says +2. */}
+      {configStale && (
+        <div className="mx-4 mt-3 rounded-xl border border-warning/40 bg-warning/10 px-4 py-2 text-center text-xs font-bold text-warning">
+          {t('scoring.match.configFromCache')}
         </div>
       )}
 

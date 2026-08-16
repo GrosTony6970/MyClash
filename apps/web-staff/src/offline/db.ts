@@ -97,10 +97,33 @@ export interface RejectedEntry extends Omit<OutboxEntry, 'id'> {
 
 // ── Database ──────────────────────────────────────────────────────────────────
 
+/**
+ * A GET response held on the tablet so the pad can seed from it before the
+ * network answers — and instead of the network, when there is none.
+ *
+ * Setup data only: the tournament's scoring rules and its penalty catalogue.
+ * NOT live match state. The service worker deliberately caches no /api/
+ * response, and the reason is that serving a stale score is worse than serving
+ * none. Serving a stale BUTTON is not: the alternative is the federal default,
+ * which is silently wrong on a custom ruleset and says nothing about it.
+ *
+ * Keyed by request path, so the same table serves whatever else needs it later
+ * without inventing a second cache.
+ */
+export interface CachedRead {
+  /** Request path, e.g. `/api/v1/tournaments/:id/match-config`. */
+  path: string;
+  /** The parsed JSON body of the last successful response. */
+  body: unknown;
+  /** When it was fetched (ms) — what the pad shows as "last synced". */
+  fetchedAt: number;
+}
+
 export class ScoringDb extends Dexie {
   outbox!: Table<OutboxEntry, number>;
   synced!: Table<SyncedEntry, string>;
   rejected!: Table<RejectedEntry, number>;
+  reads!: Table<CachedRead, string>;
 
   constructor() {
     super('myclash-staff');
@@ -135,6 +158,21 @@ export class ScoringDb extends Dexie {
       outbox: '++id, matchId, clientUuid, createdAt',
       synced: 'clientUuid, matchId, serverId',
       rejected: '++id, matchId, clientUuid, rejectedAt',
+    });
+
+    // v4 adds `reads`, the setup-data cache. All four re-declared for the
+    // reason v2's comment gives: a Dexie version states the WHOLE schema, not a
+    // delta. `path` is the primary key; nothing queries by anything else, so
+    // there are no secondary indexes.
+    //
+    // No upgrade function. An empty `reads` is the correct starting state — the
+    // pad simply behaves as it did before until the first successful fetch
+    // fills it.
+    this.version(4).stores({
+      outbox: '++id, matchId, clientUuid, createdAt',
+      synced: 'clientUuid, matchId, serverId',
+      rejected: '++id, matchId, clientUuid, rejectedAt',
+      reads: 'path',
     });
   }
 }
