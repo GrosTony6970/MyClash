@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import type { PenaltyCard, Penalty as MatchPenalty } from '@myclash/ui';
+import type { ExistingPenaltyForSanction } from '@myclash/types';
+import { resolveEntryCard } from '../offline/resolve-entry-card';
 import { fetchWithCache } from '../offline/cached-reads';
 
 // The card union and the `match_penalties` wire row are declared once in
@@ -24,7 +26,23 @@ export interface PenaltyRulesetEntry {
 export interface PenaltyRuleset {
   id: string;
   name: string;
+  /**
+   * Where prior offences are counted from: 'match' or across the tournament.
+   * On the wire since the endpoint was written — `getRuleset` selects `*` — and
+   * dropped by this type until the pad needed to resolve a card itself.
+   */
+  accumulation_scope?: string | null;
+  /** Per-card point cost. Same story: always sent, never declared. */
+  yellow_card_points?: number | null;
+  red_card_points?: number | null;
+  black_card_points?: number | null;
   penalty_ruleset_entries?: PenaltyRulesetEntry[];
+}
+
+/** Prior cards the two fighters are accumulating against, from the API. */
+interface PenaltyScope {
+  accumulationScope: string;
+  priors: Record<string, ExistingPenaltyForSanction[]>;
 }
 
 interface UsePenaltiesResult {
@@ -42,6 +60,18 @@ interface UsePenaltiesResult {
    * the given card colour. Used by the per-side card counter chips.
    */
   countFor: (registrationId: string, card: PenaltyCard) => number;
+  /**
+   * Which card this entry will ACTUALLY produce for this fighter, counting the
+   * offences they already have in the same rule group.
+   *
+   * The picker used to show `entry.sanctions[0]` — always the FIRST-occurrence
+   * card. On a fighter's second offence in a group the button said yellow and
+   * the server issued red. Wrong online as much as offline.
+   *
+   * Same function the server calls, on the same input the server gathers, so
+   * the two cannot reach different answers by reasoning differently.
+   */
+  resolveCard: (entry: PenaltyRulesetEntry, registrationId: string) => PenaltyCard | undefined;
 }
 
 const ALL_CARDS: PenaltyCard[] = ['yellow', 'red', 'black'];
@@ -63,6 +93,7 @@ export function usePenalties(
   refreshKey: number,
 ): UsePenaltiesResult {
   const [ruleset, setRuleset] = useState<PenaltyRuleset | null>(null);
+  const [scope, setScope] = useState<PenaltyScope | null>(null);
   const [penalties, setPenalties] = useState<MatchPenalty[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -87,13 +118,24 @@ export function usePenalties(
         credentials: 'include',
         signal: controller.signal,
       }),
+      // Prior offences in the ruleset's accumulation scope. Cached for the same
+      // reason the catalogue is: at tournament scope these live in OTHER
+      // matches, so an offline pad cannot re-derive them and would silently
+      // under-count the occurrence — showing yellow where the server issues red.
+      fetchWithCache<PenaltyScope>(apiUrl, `/api/v1/matches/${matchId}/penalty-scope`, {
+        credentials: 'include',
+        signal: controller.signal,
+      }),
     ])
-      .then(async ([rulesetResult, penaltiesRes]) => {
+      .then(async ([rulesetResult, penaltiesRes, scopeResult]) => {
         if (rulesetResult) {
           setRuleset(rulesetResult.body);
         }
         if (penaltiesRes.ok) {
           setPenalties((await penaltiesRes.json()) as MatchPenalty[]);
+        }
+        if (scopeResult) {
+          setScope(scopeResult.body);
         }
       })
       .catch((err) => {
@@ -129,5 +171,18 @@ export function usePenalties(
   const countFor = (registrationId: string, card: PenaltyCard) =>
     active.filter((p) => p.registration_id === registrationId && p.card === card).length;
 
-  return { ruleset, penalties, active, ruleSetCards, loading, error, refresh, countFor };
+  const resolveCard = (entry: PenaltyRulesetEntry, registrationId: string) =>
+    resolveEntryCard(entry, registrationId, scope?.priors[registrationId]);
+
+  return {
+    ruleset,
+    penalties,
+    active,
+    ruleSetCards,
+    loading,
+    error,
+    refresh,
+    countFor,
+    resolveCard,
+  };
 }

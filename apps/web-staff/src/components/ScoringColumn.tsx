@@ -132,7 +132,11 @@ export function ScoringColumn({
   const otherStyle = sideStyle(config, side === 'red' ? 'blue' : 'red');
   const visibleClean = config.buttons.clean.filter((b) => b.visible);
   const visibleAfterblows = config.buttons.afterblow.filter((b) => b.visible);
-  const { ruleset, ruleSetCards, countFor } = usePenalties(apiUrl, matchId, penaltiesRefreshKey);
+  const { ruleset, ruleSetCards, countFor, resolveCard } = usePenalties(
+    apiUrl,
+    matchId,
+    penaltiesRefreshKey,
+  );
 
   const entries = useMemo(
     () =>
@@ -422,7 +426,11 @@ export function ScoringColumn({
           {quickEntries.length > 0 && (
             <div className="flex flex-wrap gap-1.5">
               {quickEntries.map((entry) => {
-                const card = entry.sanctions[0];
+                // The card this fighter will ACTUALLY get, not the
+                // first-occurrence one. `sanctions[0]` said yellow on a
+                // fighter's second offence in the group while the server issued
+                // red — wrong online as much as offline.
+                const card = resolveCard(entry, registrationId);
                 return (
                   <button
                     key={entry.id}
@@ -464,6 +472,7 @@ export function ScoringColumn({
                 entry={entry}
                 groupLabel={t('scoring.penalties.group')}
                 disabled={penaltyDisabled}
+                card={resolveCard(entry, registrationId)}
                 onClick={() => void submitPenalty({ rulesetEntryId: entry.id })}
               />
             ))}
@@ -482,13 +491,15 @@ function PenaltyEntryRow({
   groupLabel,
   disabled,
   onClick,
+  card,
 }: {
   entry: PenaltyRulesetEntry;
   groupLabel: string;
   disabled: boolean;
   onClick: () => void;
+  /** Resolved by the caller — see `resolveCard` in usePenalties. */
+  card: PenaltyCard | undefined;
 }) {
-  const card = entry.sanctions[0];
   return (
     <button
       type="button"
