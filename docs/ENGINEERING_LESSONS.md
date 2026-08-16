@@ -56,6 +56,23 @@ here.
   sync_error). The scorekeeper must never have to guess.
 - Realtime broadcast piggybacks on Postgres row changes (Supabase Realtime). Never broadcast as a
   separate publish step — that creates a "what's stored vs what's sent" split.
+- **`!res.ok` on the scoring pad is the OFFLINE path, not the not-found path.** The service worker
+  RESOLVES a synthetic `503 { error: 'offline' }` for every `/api/` call rather than throwing, and
+  it claims the page as soon as it activates. So `fetch` succeeds, `ok` is false, and any branch
+  that reads that as "the record is gone" fires on every request the moment wifi drops. The match
+  page did exactly that: the first hit a referee scored offline cleared the match and replaced the
+  whole scoring surface with "match unavailable", while the sync bar reported the hit safely
+  queued. Classify with `classifySyncFailure` before concluding anything is missing. The
+  corollary bites too — a `catch` block commented "offline: keep what we have" is UNREACHABLE for
+  `/api/` while the worker is active.
+- **A test that asserts only the queue can't see a blank pad.** Both offline E2E specs checked the
+  outbox row count, the pending badge and the server count, and every one of those passed with the
+  scoring surface gone, because the network bar renders outside the guard that cleared it. When the
+  thing under test is "the referee can keep working", assert that the controls are still there.
+- Cache setup data (a tournament's scoring rules, the penalty catalogue) in IndexedDB, never live
+  match state. The pad's buttons default to the federal `+2`/`+1`, so a config fetch that fails
+  silently arms the wrong values on a custom ruleset and the queued hit is permanently wrong. A
+  stale button beats a defaulted one — but only if the surface says which it is showing.
 
 ## Frontend & UX
 

@@ -187,7 +187,7 @@ App: `apps/web-marketing/index.html`. Served by Caddy (`FROM caddy:2-alpine`, ge
 | Monorepo tool                 | **pnpm workspaces** + **Turborepo**                             | Fast, simple, well-supported                                                                                                                                                                  |
 | Client state                  | **TanStack Query** (React Query) + **Zustand**                  | Server state vs UI state separation                                                                                                                                                           |
 | Forms                         | **React Hook Form** + **Zod**                                   | Schema validation shared with backend                                                                                                                                                         |
-| Heavy compute                 | **Web Workers** (via Comlink)                                   | Bracket generation, ranking computation, statistics aggregation off the main thread                                                                                                           |
+| Heavy compute                 | Main thread (see §6.1)                                          | Web Workers were the plan and are NOT implemented — no `new Worker(` and no Comlink anywhere in the repo                                                                                      |
 | Local-first storage (scoring) | **IndexedDB** (via Dexie.js)                                    | Offline exchange queue                                                                                                                                                                        |
 | Charts                        | **Recharts** + **D3** for custom viz                            | Statistics page                                                                                                                                                                               |
 | Testing                       | **Vitest** (unit) + **Playwright** (E2E)                        | Modern, fast                                                                                                                                                                                  |
@@ -204,7 +204,7 @@ The Next.js frontends talk to **NestJS for mutations** and to **Supabase Realtim
 
 Three distinct mechanisms, each addressing a different concern:
 
-1. **Web Workers** (Comlink) — bracket generation, ranking recomputation, exchange aggregation for stats. The scoring tablet must never freeze when the organizer adds 64 fighters.
+1. **Web Workers** (Comlink) — ASPIRATIONAL, not built. There is no worker and no Comlink dependency; bracket generation and ranking run server-side, and the pad does neither. Kept here as the intent for when a surface actually needs it, marked so nobody plans against it as though it exists.
 2. **Server Components (Next.js)** — public results pages render server-side, ship minimal JS.
 3. **Realtime subscriptions** — the UI listens to Supabase Realtime channels per Lice / per match, pushing updates without polling.
 
@@ -923,9 +923,34 @@ Additional rulesets are added by:
 ### 7.3 Where the engine runs
 
 - **Server side (NestJS)** — authoritative. All persisted scores, standings, and rankings are computed server-side.
-- **Client side (Web Worker)** — same module, used for instant UI feedback during scoring (optimistic) and for the offline scoring app. The shared package is published as `@myclash/rulesets`.
+- **Client side** — NOT the engine. `@myclash/rulesets` is deliberately NOT a dependency of `apps/web-staff` or `packages/ui`, and must not become one. See "Seed, don't resolve" below.
 
-This dual-runtime design is critical for the offline scoring tablet.
+The dual-runtime design in the line above was the original plan. What the offline
+tablet actually needs turned out to be smaller and stricter than shipping the
+engine to it.
+
+#### Seed, don't resolve
+
+**The pad never resolves a ruleset.** A tournament's scoring buttons are SEEDED
+into `tournaments.scoring_config_json` when the tournament is created
+(`buildScoringButtons` off the ruleset's grammar), and the pad renders that seed.
+It sends RAW button values; the server nets them under the tournament's afterblow
+mode at read.
+
+That is the whole reason offline scoring works on a federation's own custom
+ruleset. `ruleset-resolver.service.ts` can fall back to a DB-driven
+`FormulaRuleset` built from a stored AST — unreachable from a tablet with no
+network, and it must never become a pad dependency.
+
+`tests/e2e/08-offline-custom-ruleset.spec.ts` is the executable form of this
+rule: it authors a ruleset with `+3`/`+1` targets and asserts the pad shows those
+buttons and NO `+2` — a `+2` would mean the pad had fallen back to the federal
+default rather than rendering the seed.
+
+The one piece of scoring arithmetic the pad is allowed is
+`computeAfterblowDeltas` from `@myclash/types` — pure, no engine, and already
+used to label the afterblow buttons. `apps/web-staff/src/offline/pending-events.ts`
+uses it to show a provisional score for hits still in the outbox.
 
 ---
 
@@ -1149,7 +1174,7 @@ sequenceDiagram
   participant A as NestJS API
 
   P->>O: enqueue(exchange) — durable write first
-  P->>P: optimistic local apply (UI updates immediately)
+  P->>P: optimistic local apply (UI updates immediately — see pending-events.ts)
   E->>O: getAllPending() — insertion order
   loop each pending entry
     E->>A: POST /matches/{id}/exchanges { clientUuid, sequence, … }
@@ -1202,7 +1227,15 @@ resolve", whereas a server failure means "something needs a human". Both leave t
 
 ### 10.4 PWA requirements
 
-- Service Worker pre-caches the scoring app shell + the ruleset bundle.
+- Service Worker pre-caches the scoring app shell. There is NO ruleset bundle and
+  there must not be — see "Seed, don't resolve" in §7.3.
+- The Service Worker **resolves a synthetic `503 { error: 'offline' }`** for every
+  `/api/` call rather than throwing, and caches no API response. Any client code
+  branching on `!res.ok` is therefore on the OFFLINE path as often as the
+  not-found one: classify with `classifySyncFailure` before concluding a record
+  is gone. Setup data (the tournament's scoring rules, the penalty catalogue) is
+  cached separately in IndexedDB by `offline/cached-reads.ts`; live match state
+  never is.
 - Manifest installs as standalone tablet app.
 - The app must explicitly indicate its sync status prominently — the scorekeeper must always know. The implemented states are `idle | syncing | offline | error` (see the state machine in §10.2).
 
