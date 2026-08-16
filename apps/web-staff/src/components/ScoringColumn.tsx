@@ -47,6 +47,21 @@ interface ScoringColumnProps {
   fighterName: string;
   club?: string | null;
   score: number;
+  /**
+   * How much of `score` is still queued on the tablet and not yet on the
+   * server. Zero means the number is the server's. Non-zero marks it
+   * provisional — the referee is looking at their own hits plus the last thing
+   * the server confirmed, which is the honest answer offline and better than a
+   * number that has silently stopped moving.
+   */
+  provisionalDelta?: number;
+  /**
+   * Cards queued but not sent. A card's points come from the active penalty
+   * ruleset's per-card columns, which the pad does not read, so they are NOT in
+   * `score` — the caption says so rather than letting an incomplete number
+   * pass for a complete one.
+   */
+  queuedCardCount?: number;
   /** This side has won by reaching the point cap — highlights the score gold + cup. */
   reachedCap?: boolean;
   /** This side currently leads (not yet capped) — adds a subtle side-colour glow. */
@@ -96,6 +111,8 @@ export function ScoringColumn({
   fighterName,
   club,
   score,
+  provisionalDelta = 0,
+  queuedCardCount = 0,
   reachedCap,
   leading,
   readOnly,
@@ -214,6 +231,26 @@ export function ScoringColumn({
       >
         {score}
       </p>
+      {/* Under the numeral, deliberately OUTSIDE the button grid:
+          08-offline-custom-ruleset asserts that no `clean-hit-button` contains
+          the text "+2", so any numeric annotation inside those buttons would
+          red it — and would be the wrong place anyway, since this is about the
+          score rather than about what a button does. */}
+      {(provisionalDelta !== 0 || queuedCardCount > 0) && (
+        <p
+          data-testid="provisional-score"
+          data-provisional-delta={provisionalDelta}
+          className="mt-1 text-center text-[11px] font-semibold leading-tight text-warning"
+        >
+          {provisionalDelta !== 0 &&
+            t('scoring.lice.provisionalScore', { delta: String(provisionalDelta) })}
+          {queuedCardCount > 0 && (
+            <span className="block font-normal">
+              {t('scoring.lice.provisionalCardExcluded', { count: String(queuedCardCount) })}
+            </span>
+          )}
+        </p>
+      )}
       {pointCap !== undefined && !reverse && (
         <>
           <p className="-mt-2 text-center text-sm font-semibold tabular-nums text-muted">

@@ -187,6 +187,8 @@ export const scoring = {
     exchangesCount: 'Échanges : {count}',
     pending: 'en attente',
     pendingHint: 'Enregistré sur cette tablette — en attente d’envoi au serveur.',
+    provisionalScore: 'dont {delta} non envoyés',
+    provisionalCardExcluded: '{count} carton en attente non compté',
     cleanHitsHeader: 'Touche propre',
     pointsLabel: 'Points',
     point: 'point',

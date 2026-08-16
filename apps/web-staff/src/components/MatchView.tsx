@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { MatchHeader } from './MatchHeader';
 import { ScoringColumn } from './ScoringColumn';
 import { ScoringCenterControls } from './ScoringCenterControls';
@@ -12,6 +12,9 @@ import { refusalMessage, type RefusalBody } from '../lib/refusal-copy';
 import { nextSequence as outboxNextSequence } from '../offline/outbox';
 import type { SyncEngine } from '../offline/sync';
 import { fetchWithCache } from '../offline/cached-reads';
+import { useSyncState } from '../offline/use-sync-state';
+import { usePendingOutbox } from '../hooks/usePendingOutbox';
+import { pendingRowsForMatch, provisionalDeltas } from '../offline/pending-events';
 import type { ClockState } from './MatchClock';
 import type { MatchFormatConfig, TournamentScoringConfig } from '@myclash/types';
 import {
@@ -101,6 +104,10 @@ export function MatchView({
   buildMatchHref,
 }: MatchViewProps) {
   const { t } = useI18n();
+  // Drives the outbox re-read below: a BACKGROUND drain empties the queue with
+  // no mutation to notice it, and the provisional score would otherwise linger
+  // after the server had already accepted the hits.
+  const syncState = useSyncState(syncEngine ?? null);
   const [nextSequence, setNextSequence] = useState(1);
   // Seed the sequence counter — a fresh mount must NOT restart at 1 when the
   // match already has exchanges (mid-match reload, device swap, second pad):
@@ -377,9 +384,49 @@ export function MatchView({
   const limitMs =
     matchFormat.timerMode === 'countdown' && limitSeconds !== null ? limitSeconds * 1000 : null;
 
+  /**
+   * The score, plus what the tablet is still holding.
+   *
+   * `match.redScore` is the server's, and offline it stops moving — the read
+   * that refreshes it 503s. So a referee scoring three hits in a dead hall
+   * watched the number stand still with no way to tell whether the tablet had
+   * heard them. The queued hits are on disk; this adds them up.
+   *
+   * PROVISIONAL, AND SAID SO. The server remains the only thing that DERIVES a
+   * stored score — nothing here is written anywhere. This is the optimistic
+   * local apply ARCHITECTURE.md §10.2 has described since the sync engine was
+   * written and which was never implemented.
+   *
+   * Narrow race, self-correcting: between a POST succeeding and `markSynced`
+   * deleting the outbox row, a hit is on both sides and counts twice. It is
+   * one drain-loop iteration wide, and both reads re-run on the same triggers,
+   * so it settles on the next tick. The timeline and the double-count chip
+   * dedupe properly on `client_uuid` because 16-pad-ui asserts that count.
+   */
+  const pendingEntries = usePendingOutbox(match.id, refreshKey, syncState?.pendingCount ?? 0);
+  const provisional = useMemo(() => {
+    const { exchanges } = pendingRowsForMatch({
+      entries: pendingEntries,
+      config: scoringConfig,
+      serverExchanges: [],
+      serverPenalties: [],
+    });
+    return provisionalDeltas(exchanges);
+  }, [pendingEntries, scoringConfig]);
+  const redScore = match.redScore + provisional.red;
+  const blueScore = match.blueScore + provisional.blue;
+  // A queued CARD is not in that sum: its points come from the active penalty
+  // ruleset's per-card columns, which the pad does not read. The note under the
+  // score says so rather than presenting an incomplete number as a whole one.
+  const queuedCardCount = pendingEntries.filter((e) => (e.kind ?? 'exchange') === 'penalty').length;
+
   // Which side (if any) has won by reaching the point cap — drives the gold
   // score highlight. Reverse-aware (in reverse scoring, hitting 0 loses).
-  const capWinnerSide = pointCapWinnerSide(match.redScore, match.blueScore, matchFormat);
+  // Reads the provisional score on purpose: it only paints a numeral gold, and
+  // a referee needs to see the cap coming while the tablet is offline. It
+  // cannot end a bout — the result overlay gates on the CLOCK being ended, and
+  // ending the clock is a POST.
+  const capWinnerSide = pointCapWinnerSide(redScore, blueScore, matchFormat);
   const reverseScoring = matchFormat.scoringDirection === 'reverse_zero_loses';
 
   // Score-changing actions (exchange, penalty) recompute the score
@@ -515,9 +562,11 @@ export function MatchView({
           registrationId={match.redRegistrationId}
           fighterName={redName}
           club={match.redClub ?? null}
-          score={match.redScore}
+          score={redScore}
+          provisionalDelta={provisional.red}
+          queuedCardCount={queuedCardCount}
           reachedCap={capWinnerSide === 'red'}
-          leading={!reverseScoring && match.redScore > match.blueScore}
+          leading={!reverseScoring && redScore > blueScore}
           readOnly={!!match.lockedAt}
           pointCap={matchFormat.pointCap}
           reverse={reverseScoring}
@@ -571,9 +620,11 @@ export function MatchView({
           registrationId={match.blueRegistrationId}
           fighterName={blueName}
           club={match.blueClub ?? null}
-          score={match.blueScore}
+          score={blueScore}
+          provisionalDelta={provisional.blue}
+          queuedCardCount={queuedCardCount}
           reachedCap={capWinnerSide === 'blue'}
-          leading={!reverseScoring && match.blueScore > match.redScore}
+          leading={!reverseScoring && blueScore > redScore}
           readOnly={!!match.lockedAt}
           pointCap={matchFormat.pointCap}
           reverse={reverseScoring}

@@ -189,6 +189,11 @@ export const scoring = {
     // it sits inline on a 380px column beside the fighter name and the delta.
     pending: 'queued',
     pendingHint: 'Recorded on this tablet — waiting to reach the server.',
+    // Shown under the score when part of it is still on the tablet. Named
+    // "provisional" rather than "offline": the hits are real and recorded, it
+    // is only the server that has not seen them yet.
+    provisionalScore: 'includes {delta} not yet sent',
+    provisionalCardExcluded: '{count} queued card not counted yet',
     cleanHitsHeader: 'Clean hit',
     pointsLabel: 'Points',
     point: 'point',
