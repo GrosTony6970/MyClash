@@ -7,6 +7,7 @@ import { useSyncState } from '../../../src/offline/use-sync-state';
 import { useI18n } from '@myclash/next-i18n/client';
 import { getApiUrl } from '../../../src/lib/api-url';
 import { getSyncEngine } from '../../../src/offline/sync';
+import { classifySyncFailure, type FailureBody } from '../../../src/offline/failure-kind';
 import { safeReturnHref, staffRoutePrefix } from '../../../src/lib/nav';
 
 interface Props {
@@ -103,10 +104,26 @@ export default function MatchScoringPage({ params }: Props) {
           fetch(`${apiUrl}/api/v1/matches/${matchId}`, { credentials: 'include' }),
           fetch(`${apiUrl}/api/v1/matches/${matchId}/summary`, { credentials: 'include' }),
         ]);
-        // Hard requirement: the raw row must exist. If it doesn't,
-        // the match is gone (deleted / wrong id) — fall through to
-        // the unavailable state below.
+        // GONE vs UNREACHABLE. A bad status used to mean one thing here — the
+        // match is deleted — and that is wrong the moment the tablet loses
+        // wifi, because the service worker RESOLVES a synthetic 503 for every
+        // /api/ call rather than throwing. So `fetch` succeeds, `ok` is false,
+        // and this cleared the match. Every scored exchange bumps `refreshKey`
+        // and re-runs this effect, so the FIRST hit a referee scored offline
+        // replaced the whole scoring surface with "match unavailable" — with
+        // the outbox holding the hit safely and the network bar cheerfully
+        // reporting one queued. Nothing was lost; the referee simply could not
+        // score the next one.
+        //
+        // The `catch` below says it leaves the cached match in place, and it
+        // cannot: it is unreachable for /api/ while the worker is active.
+        // `classifySyncFailure` is the one owner of this question — its own
+        // docblock explains why a 503 reads as offline — and the body carries
+        // the worker's `{ error: 'offline' }` marker, the only unambiguous
+        // signal of the three, so it is worth parsing before deciding.
         if (!rawRes.ok) {
+          const body = (await rawRes.json().catch(() => null)) as FailureBody | null;
+          if (classifySyncFailure(rawRes.status, body) === 'offline') return;
           setMatch(null);
           return;
         }
@@ -194,7 +211,11 @@ export default function MatchScoringPage({ params }: Props) {
           awaitingRoundAdvance: raw.awaiting_round_advance ?? false,
         });
       } catch {
-        // Offline — leave the cached match in place
+        // A genuine throw: the request never got a response at all. That means
+        // the service worker is not controlling this page — local dev, or a
+        // first visit before it activates — because when it IS active every
+        // /api/ call resolves, and the offline branch above handles it. Same
+        // verdict either way: keep the match we already have.
       } finally {
         setLoading(false);
       }

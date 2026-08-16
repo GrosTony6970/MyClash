@@ -170,6 +170,13 @@ test('offline scoring queues an exchange and auto-syncs on reconnect', async ({
   await expect(bar).toHaveAttribute('data-pending', '1', { timeout: 15_000 });
   // Still offline → the server has NOT received the second exchange yet.
   expect(await serverExchangeCount()).toBe(1);
+  // …and the referee can still score the NEXT one. Everything above passes
+  // just as happily when the pad has replaced itself with "match unavailable",
+  // because the network bar renders outside that guard — which is exactly what
+  // it used to do. The service worker resolves a synthetic 503 rather than
+  // throwing, the page read that as "this match is gone", and scoring a hit
+  // re-runs the fetch that clears it. Assert the scoring surface survives.
+  await expect(cleanHit).toBeEnabled({ timeout: 15_000 });
 
   // ── 3) RECONNECT: the queue auto-drains and the server has both ──────────────
   await context.setOffline(false);
