@@ -47,6 +47,18 @@ interface PenaltyScope {
 
 interface UsePenaltiesResult {
   ruleset: PenaltyRuleset | null;
+  /**
+   * Prior offences per registration, straight from `/penalty-scope`, or null
+   * when that read has not landed.
+   *
+   * NULL IS LOAD-BEARING and must reach the caller as null. `resolveCard` below
+   * degrades to the first-occurrence card when it is missing, which is the
+   * right trade for labelling a button; a caller pricing a card into a score
+   * needs to know it is looking at a degraded answer. That endpoint is also the
+   * only one of the three here that is not `@Public()`, so it can stay null
+   * indefinitely on a lapsed session while the other two succeed.
+   */
+  priors: Record<string, ExistingPenaltyForSanction[]> | null;
   penalties: MatchPenalty[];
   /** Non-voided penalties only — what the operator typically wants. */
   active: MatchPenalty[];
@@ -176,6 +188,7 @@ export function usePenalties(
 
   return {
     ruleset,
+    priors: scope?.priors ?? null,
     penalties,
     active,
     ruleSetCards,

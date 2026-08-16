@@ -23,8 +23,8 @@ import { useScoringTheme } from '../theme/ThemeProvider';
 import { clockAdjustmentMs } from './clock-adjustment';
 import { refusalMessage, type RefusalBody } from '../lib/refusal-copy';
 import { buildUnifiedTimeline, ConfirmDialog, exchangeOptionLabel } from '@myclash/ui';
-import { useExchanges } from '../hooks/useExchanges';
-import { usePenalties, type PenaltyCard } from '../hooks/usePenalties';
+import type { PenaltyCard } from '../hooks/usePenalties';
+import type { MatchScoringData } from '../hooks/useMatchScoringData';
 import { ForfeitPanel } from './ForfeitPanel';
 
 const DIRECT_CARD_HEX: Record<PenaltyCard, string> = {
@@ -60,8 +60,14 @@ interface MatchCorrectionsDrawerProps {
   redRegistrationId: string;
   blueRegistrationId: string;
   config: TournamentScoringConfig;
-  /** Bumped after any scoring/correction so the picker re-fetches. */
-  refreshKey: number;
+  /**
+   * The match's events, read once by `MatchView`.
+   *
+   * This drawer is mounted unconditionally and returns null when shut — its
+   * `if (!open)` guard sits BELOW the hooks — so the two reads it used to make
+   * ran on every scored hit whether or not anyone had opened it.
+   */
+  scoring: MatchScoringData;
   /** Forfeit is only allowed while the match is running/paused and unlocked. */
   forfeitDisabled: boolean;
   /** Next penalty sequence + match-clock position — for direct cards. */
@@ -85,7 +91,7 @@ export function MatchCorrectionsDrawer({
   redRegistrationId,
   blueRegistrationId,
   config,
-  refreshKey,
+  scoring,
   forfeitDisabled,
   nextSequence,
   clockTimeMs,
@@ -99,8 +105,10 @@ export function MatchCorrectionsDrawer({
   const [adjustSeconds, setAdjustSeconds] = useState(10);
   const [selectedExchangeId, setSelectedExchangeId] = useState('');
 
-  const { active: activeExchanges } = useExchanges(apiUrl, matchId, refreshKey);
-  const { active: activePenalties, ruleSetCards } = usePenalties(apiUrl, matchId, refreshKey);
+  // SERVER rows, not the merged ones: the exchange picker offers rows the
+  // correction endpoints can actually act on, and a queued hit has no server id
+  // to void or edit.
+  const { activeExchanges, activePenalties, ruleSetCards } = scoring;
   const [dcFighter, setDcFighter] = useState<'red' | 'blue'>('red');
   const [dcReason, setDcReason] = useState('');
   const [dcConfirm, setDcConfirm] = useState<PenaltyCard | null>(null);

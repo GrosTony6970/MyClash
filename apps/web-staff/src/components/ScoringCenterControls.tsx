@@ -37,12 +37,9 @@ import {
   shouldWarnClock,
   type ClockState,
 } from './scoreboard-clock';
-import { useExchanges } from '../hooks/useExchanges';
-import { usePenalties } from '../hooks/usePenalties';
-import { usePendingOutbox } from '../hooks/usePendingOutbox';
-import { pendingRowsForMatch } from '../offline/pending-events';
+import type { MatchScoringData } from '../hooks/useMatchScoringData';
 import type { UseScoringSubmitResult } from '../hooks/useScoringSubmit';
-import { dequeueLastForMatch, pendingCount } from '../offline/outbox';
+import { dequeueLastForMatch } from '../offline/outbox';
 import { classifySyncFailure, type FailureBody } from '../offline/failure-kind';
 import type { SyncEngine } from '../offline/sync';
 import { isDoubleLoss } from './is-double-loss';
@@ -79,8 +76,8 @@ interface ScoringCenterControlsProps {
   onClockAction: (action: 'start' | 'halt' | 'resume' | 'end' | 'reopen' | 'reset_clock') => void;
   /** Shared scoring submit pipeline — Double + No exchange consume this. */
   submit: UseScoringSubmitResult;
-  /** Bumped externally when an exchange or penalty is recorded/voided. */
-  refreshKey: number;
+  /** The match's events, read once by `MatchView`. */
+  scoring: MatchScoringData;
   /**
    * Network state, from the page. Clear-last-exchange only needs it for the
    * half of the job that talks to the server — undoing a hit still sitting in
@@ -140,7 +137,7 @@ export function ScoringCenterControls({
   clockError,
   onClockAction,
   submit,
-  refreshKey,
+  scoring,
   online,
   syncEngine,
   onExchangeVoided,
@@ -163,26 +160,26 @@ export function ScoringCenterControls({
   const [clearBusy, setClearBusy] = useState(false);
   const [clearError, setClearError] = useState<string | null>(null);
   /**
-   * Hits queued for THIS match. Not the sync bar's count, which is
-   * `totalPendingCount()` across every match — reusing it would light this
-   * button up over another bout's backlog.
+   * Rows queued for THIS match. Not the sync bar's count, which is
+   * `totalPendingCount()` across every match — that would light this button up
+   * over another bout's backlog.
    *
    * Without it the button is dead exactly when it is needed most: score three
    * hits offline from a fresh match and the server list is still empty, so
    * `activeExchanges.length === 0` greys out an undo for three real hits.
+   *
+   * Read off the lifted hook rather than counted here. The local copy this
+   * replaces re-derived on `[matchId, refreshKey]`, which meant a BACKGROUND
+   * drain — a reconnect, or the engine retrying on its own — never moved it.
    */
-  const [pendingHere, setPendingHere] = useState(0);
-  useEffect(() => {
-    let cancelled = false;
-    void pendingCount(matchId).then((n) => {
-      if (!cancelled) setPendingHere(n);
-    });
-    return () => {
-      cancelled = true;
-    };
-    // `refreshKey` already bumps on every score mutation, so this re-derives
-    // exactly when the queue can have changed.
-  }, [matchId, refreshKey]);
+  const {
+    activeExchanges,
+    activePenalties,
+    pendingExchanges,
+    pendingPenalties,
+    pendingHere,
+    refreshExchanges,
+  } = scoring;
 
   // Live ticker — runs while running AND while halted so the wall-clock
   // TOTAL TIME keeps flowing through pauses (the big clock is unaffected:
@@ -206,44 +203,13 @@ export function ScoringCenterControls({
     return now - new Date(clockState.startedAt).getTime();
   }, [clockState?.startedAt, now]);
 
-  const { active: activeExchanges, refresh: refreshExchanges } = useExchanges(
-    apiUrl,
-    matchId,
-    refreshKey,
-  );
-  const { active: activePenalties } = usePenalties(apiUrl, matchId, refreshKey);
-
-  /**
-   * Hits the referee scored that have not reached the server yet.
-   *
-   * Offline every read here 503s and freezes, so without this the pad shows a
-   * referee nothing at all for the hit they just pressed — no row, no count, no
-   * score. The outbox has always held them; nothing ever read them back.
-   *
-   * `pendingCount` from the sync bar joins `refreshKey` as a trigger so a
-   * BACKGROUND drain re-reads: a reconnect empties the queue with no mutation
-   * to notice it, and these rows would otherwise linger after the server had
-   * already accepted them.
-   */
-  const pendingEntries = usePendingOutbox(matchId, refreshKey, pendingHere);
-  const pending = useMemo(
-    () =>
-      pendingRowsForMatch({
-        entries: pendingEntries,
-        config,
-        serverExchanges: activeExchanges,
-        serverPenalties: activePenalties,
-      }),
-    [pendingEntries, config, activeExchanges, activePenalties],
-  );
-
   // Queued doubles count. Max-doubles is a rule the referee acts on — a bout
   // ends on it — so a chip that stops moving offline is worse than no chip.
   // `isDoubleLoss` is gated on a COMPLETED match, so including these cannot
   // flip the DOUBLE LOSS banner on a bout still being fought.
   const doubleCount =
     activeExchanges.filter((e) => e.type === 'double').length +
-    pending.exchanges.filter((e) => e.type === 'double').length;
+    pendingExchanges.filter((e) => e.type === 'double').length;
   const maxDoubles = matchFormat.maxDoubleHits;
   const doubleLoss = isDoubleLoss(matchStatus, doubleCount, maxDoubles);
 
@@ -270,8 +236,8 @@ export function ScoringCenterControls({
         // orders on `occurredAt` then `sequence` and numbers the result 1..N,
         // so a queued hit lands where it belongs rather than being appended —
         // and the `#` numbers stay the shared ones every other surface uses.
-        exchanges: [...activeExchanges, ...pending.exchanges],
-        penalties: [...activePenalties, ...pending.penalties],
+        exchanges: [...activeExchanges, ...pendingExchanges],
+        penalties: [...activePenalties, ...pendingPenalties],
         redName,
         blueName,
         redRegId: redRegistrationId,
@@ -282,7 +248,8 @@ export function ScoringCenterControls({
     [
       activeExchanges,
       activePenalties,
-      pending,
+      pendingExchanges,
+      pendingPenalties,
       redName,
       blueName,
       redRegistrationId,
@@ -309,6 +276,9 @@ export function ScoringCenterControls({
    * Not a queued void. Deleting an unsynced row is strictly more correct than
    * voiding: it never leaves a `voided` row behind for a hit that never left
    * the tablet.
+   *
+   * No local count to decrement after a dequeue: `onExchangeVoided` bumps the
+   * refresh key on the same tick and the lifted outbox read follows.
    */
   async function clearLastExchange() {
     setClearBusy(true);
@@ -321,7 +291,6 @@ export function ScoringCenterControls({
       if (!syncEngine?.isDraining()) {
         const dequeued = await dequeueLastForMatch(matchId);
         if (dequeued) {
-          setPendingHere((n) => Math.max(0, n - 1));
           onExchangeVoided?.();
           return;
         }

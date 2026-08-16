@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { MatchHeader } from './MatchHeader';
 import { ScoringColumn } from './ScoringColumn';
 import { ScoringCenterControls } from './ScoringCenterControls';
@@ -13,8 +13,7 @@ import { nextSequence as outboxNextSequence } from '../offline/outbox';
 import type { SyncEngine } from '../offline/sync';
 import { fetchWithCache } from '../offline/cached-reads';
 import { useSyncState } from '../offline/use-sync-state';
-import { usePendingOutbox } from '../hooks/usePendingOutbox';
-import { pendingRowsForMatch, provisionalDeltas } from '../offline/pending-events';
+import { useMatchScoringData } from '../hooks/useMatchScoringData';
 import type { ClockState } from './MatchClock';
 import type { MatchFormatConfig, TournamentScoringConfig } from '@myclash/types';
 import {
@@ -256,6 +255,15 @@ export function MatchView({
         }
         const newState = (await res.json()) as ClockState;
         setClockState(newState);
+        // Ending the clock raises the result overlay, which reviews the whole
+        // bout. It used to fetch its own exchanges and penalties on mount, so
+        // they were current by construction; reading them from the lifted hook
+        // means nothing refetches unless this says so. `onRefresh` below is the
+        // PAGE's key, not this component's — it re-reads the match row and
+        // nothing else. Narrow on purpose: a clock action is not a scoring
+        // mutation, and bumping on every one would re-fetch the clock we were
+        // just handed.
+        if (newState.status === 'ended') setRefreshKey((k) => k + 1);
         // Bump the parent refresh so match.status updates (which gates
         // the scoring buttons + penalty picker).
         onRefresh();
@@ -397,33 +405,34 @@ export function MatchView({
    * local apply ARCHITECTURE.md §10.2 has described since the sync engine was
    * written and which was never implemented.
    *
-   * Narrow race, self-correcting: between a POST succeeding and `markSynced`
-   * deleting the outbox row, a hit is on both sides and counts twice. It is
-   * one drain-loop iteration wide, and both reads re-run on the same triggers,
-   * so it settles on the next tick. The timeline and the double-count chip
-   * dedupe properly on `client_uuid` because 16-pad-ui asserts that count.
+   * THE DRAIN RACE IS NOW DEDUPED, and it used to be double-counted here. This
+   * block passed empty server lists to `pendingRowsForMatch`, so between a POST
+   * succeeding and `markSynced` deleting the outbox row the hit was added twice
+   * — the timeline and the double-count chip deduped, the score did not. Going
+   * through `useMatchScoringData` means the same `client_uuid` dedupe every
+   * other surface gets.
+   *
+   * It swaps one narrow transient for another rather than removing it: the
+   * score can now read one hit LOW for a tick if `/exchanges` lands before the
+   * page's `/matches/:id`. Both settle on the next read, and a number that
+   * briefly lags is a smaller lie than one that briefly double-counts.
    */
-  const pendingEntries = usePendingOutbox(match.id, refreshKey, syncState?.pendingCount ?? 0);
-  const provisional = useMemo(() => {
-    const { exchanges, penalties } = pendingRowsForMatch({
-      entries: pendingEntries,
-      config: scoringConfig,
-      serverExchanges: [],
-      serverPenalties: [],
-    });
-    return provisionalDeltas({
-      exchanges,
-      penalties,
-      redRegistrationId: match.redRegistrationId,
-      blueRegistrationId: match.blueRegistrationId,
-    });
-  }, [pendingEntries, scoringConfig, match.redRegistrationId, match.blueRegistrationId]);
+  const scoring = useMatchScoringData({
+    apiUrl,
+    matchId: match.id,
+    refreshKey,
+    config: scoringConfig,
+    redRegistrationId: match.redRegistrationId,
+    blueRegistrationId: match.blueRegistrationId,
+    syncPendingCount: syncState?.pendingCount ?? 0,
+  });
+  const provisional = scoring.provisional;
   const redScore = match.redScore + provisional.red;
   const blueScore = match.blueScore + provisional.blue;
   // A queued CARD is not in that sum: its points come from the active penalty
   // ruleset's per-card columns, which the pad does not read. The note under the
   // score says so rather than presenting an incomplete number as a whole one.
-  const queuedCardCount = pendingEntries.filter((e) => (e.kind ?? 'exchange') === 'penalty').length;
+  const queuedCardCount = scoring.unpricedCards;
 
   // Which side (if any) has won by reaching the point cap — drives the gold
   // score highlight. Reverse-aware (in reverse scoring, hitting 0 loses).
@@ -560,7 +569,6 @@ export function MatchView({
       <div className="grid flex-1 grid-cols-1 gap-2 p-3 md:grid-cols-[minmax(260px,1fr)_minmax(280px,360px)_minmax(260px,1fr)]">
         <ScoringColumn
           side="red"
-          apiUrl={apiUrl}
           matchId={match.id}
           nextSequence={nextSequence}
           syncEngine={syncEngine}
@@ -581,7 +589,7 @@ export function MatchView({
           clockTimeMs={clockTimeMs}
           submit={submit}
           onPenaltyRecorded={handleScoreMutation}
-          penaltiesRefreshKey={refreshKey}
+          scoring={scoring}
         />
 
         <ScoringCenterControls
@@ -604,7 +612,7 @@ export function MatchView({
           clockError={clockError}
           onClockAction={(action) => void onClockAction(action)}
           submit={submit}
-          refreshKey={refreshKey}
+          scoring={scoring}
           online={networkStatus === 'online'}
           syncEngine={syncEngine}
           onExchangeVoided={handleExchangeVoided}
@@ -618,7 +626,6 @@ export function MatchView({
 
         <ScoringColumn
           side="blue"
-          apiUrl={apiUrl}
           matchId={match.id}
           nextSequence={nextSequence}
           syncEngine={syncEngine}
@@ -639,7 +646,7 @@ export function MatchView({
           clockTimeMs={clockTimeMs}
           submit={submit}
           onPenaltyRecorded={handleScoreMutation}
-          penaltiesRefreshKey={refreshKey}
+          scoring={scoring}
         />
       </div>
 
@@ -660,7 +667,7 @@ export function MatchView({
         nextSequence={nextSequence}
         clockTimeMs={clockTimeMs}
         config={scoringConfig}
-        refreshKey={refreshKey}
+        scoring={scoring}
         forfeitDisabled={
           (match.status !== 'running' && match.status !== 'paused') || !!match.lockedAt
         }
@@ -762,8 +769,6 @@ export function MatchView({
       {/* End-of-match review: winner, score, and how the bout got there. */}
       {clockState?.status === 'ended' && !resultDismissed && (
         <MatchResultOverlay
-          apiUrl={apiUrl}
-          matchId={match.id}
           redName={redName}
           blueName={blueName}
           redRegistrationId={match.redRegistrationId}
@@ -777,7 +782,7 @@ export function MatchView({
           scoringConfig={scoringConfig}
           matchFormat={matchFormat}
           clockState={clockState}
-          refreshKey={refreshKey}
+          scoring={scoring}
           nextMatchHref={
             nextMatch ? (buildMatchHref ?? ((id: string) => `/matches/${id}`))(nextMatch.id) : null
           }

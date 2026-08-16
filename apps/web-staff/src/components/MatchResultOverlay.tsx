@@ -9,9 +9,15 @@
  * the chart lights the matching row and pointing at a row lights the point.
  *
  * Its own component (rather than inline in MatchView) because it mounts only
- * when the clock ends: `useExchanges`/`usePenalties` then fetch once, at the
- * moment the bout finishes, instead of adding another live poll to a pad that
- * already runs two.
+ * when the clock ends — so the flow chart and the timeline cost nothing while
+ * the bout is being fought.
+ *
+ * IT NO LONGER FETCHES. It used to call `useExchanges`/`usePenalties` itself,
+ * which made its data current by construction: the fetch happened after the
+ * clock POST returned. Reading from the lifted hook removes that guarantee, so
+ * `MatchView` bumps its refresh key when a clock action lands on 'ended'. If
+ * this panel ever shows the bout as of the last scored hit rather than as of
+ * the final whistle, that bump is what broke.
  */
 
 import { useState } from 'react';
@@ -20,14 +26,11 @@ import type { MatchFormatConfig, TournamentScoringConfig } from '@myclash/types'
 import { sideStyle } from '@myclash/ui';
 import { useI18n } from '@myclash/next-i18n/client';
 import { useScoringTheme } from '../theme/ThemeProvider';
-import { useExchanges } from '../hooks/useExchanges';
-import { usePenalties } from '../hooks/usePenalties';
+import type { MatchScoringData } from '../hooks/useMatchScoringData';
 import { resolveMatchWinner } from '@myclash/types';
 import type { ClockState } from './MatchClock';
 
 export interface MatchResultOverlayProps {
-  apiUrl: string;
-  matchId: string;
   redName: string;
   blueName: string;
   redRegistrationId: string;
@@ -44,7 +47,8 @@ export interface MatchResultOverlayProps {
   scoringConfig: TournamentScoringConfig;
   matchFormat: MatchFormatConfig;
   clockState: ClockState | null;
-  refreshKey: number;
+  /** The match's events, read once by `MatchView`. */
+  scoring: MatchScoringData;
   nextMatchHref: string | null;
   onClose: () => void;
 }
@@ -116,12 +120,13 @@ function ResultHeadline({
 
 /**
  * The review itself: the flow chart and the numbered timeline, sharing one
- * highlight so scrubbing either lights the other. Both read from the rows this
- * component fetches once, on mount — which is the moment the bout ended.
+ * highlight so scrubbing either lights the other.
+ *
+ * Both read the rows `MatchView` already holds. This used to fetch its own on
+ * mount, which made them current by construction — see the note at the top of
+ * the file for what replaced that guarantee.
  */
 function BoutReview({
-  apiUrl,
-  matchId,
   redName,
   blueName,
   redRegistrationId,
@@ -132,15 +137,17 @@ function BoutReview({
   scoringConfig,
   matchFormat,
   clockState,
-  refreshKey,
+  scoring,
 }: Omit<MatchResultOverlayProps, 'redScore' | 'blueScore' | 'nextMatchHref' | 'onClose'>) {
   const { t } = useI18n();
   // The chart picks its own side colours in JS via sideColorsFor(config,
   // surface), so it needs the scope as a value — a CSS token cannot reach it.
   const { padScope } = useScoringTheme();
   const [highlight, setHighlight] = useState<number | null>(null);
-  const { active: exchanges } = useExchanges(apiUrl, matchId, refreshKey);
-  const { active: penalties } = usePenalties(apiUrl, matchId, refreshKey);
+  // SERVER rows only. `buildBoutFlow` charts the bout that happened; a queued
+  // row is one the server has not accepted, and plotting it would draw a point
+  // that may yet be refused.
+  const { activeExchanges: exchanges, activePenalties: penalties } = scoring;
 
   const events = buildUnifiedTimeline({
     exchanges,

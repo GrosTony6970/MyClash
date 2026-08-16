@@ -28,14 +28,14 @@ import { computeAfterblowDeltas } from '@myclash/types';
 import { useI18n } from '@myclash/next-i18n/client';
 import { useScoringTheme } from '../theme/ThemeProvider';
 import { outlineInkOn, sideStyle } from '@myclash/ui';
-import { usePenalties, type PenaltyCard, type PenaltyRulesetEntry } from '../hooks/usePenalties';
+import type { PenaltyCard, PenaltyRulesetEntry } from '../hooks/usePenalties';
+import type { MatchScoringData } from '../hooks/useMatchScoringData';
 import type { ExchangeSide, UseScoringSubmitResult } from '../hooks/useScoringSubmit';
 import { enqueue } from '../offline/outbox';
 import type { SyncEngine } from '../offline/sync';
 
 interface ScoringColumnProps {
   side: ExchangeSide;
-  apiUrl: string;
   matchId: string;
   nextSequence: number;
   /**
@@ -80,8 +80,14 @@ interface ScoringColumnProps {
   clockTimeMs: number | null;
   submit: UseScoringSubmitResult;
   onPenaltyRecorded?: () => void;
-  /** Bump to force the per-side penalty hook to refetch. */
-  penaltiesRefreshKey: number;
+  /**
+   * The match's events, read once by `MatchView`.
+   *
+   * This column used to call `usePenalties` itself, and it renders twice — so
+   * two of the four live copies of a three-request hook were here, re-running
+   * on every scored hit.
+   */
+  scoring: MatchScoringData;
 }
 
 // raw-color-exempt -- penalty-card colours are DOMAIN values, not decoration:
@@ -103,7 +109,6 @@ const CARD_LABEL: Record<PenaltyCard, string> = {
 
 export function ScoringColumn({
   side,
-  apiUrl,
   matchId,
   nextSequence,
   syncEngine,
@@ -124,7 +129,7 @@ export function ScoringColumn({
   clockTimeMs,
   submit,
   onPenaltyRecorded,
-  penaltiesRefreshKey,
+  scoring,
 }: ScoringColumnProps) {
   const { t } = useI18n();
   const { padScope } = useScoringTheme();
@@ -132,11 +137,7 @@ export function ScoringColumn({
   const otherStyle = sideStyle(config, side === 'red' ? 'blue' : 'red');
   const visibleClean = config.buttons.clean.filter((b) => b.visible);
   const visibleAfterblows = config.buttons.afterblow.filter((b) => b.visible);
-  const { ruleset, ruleSetCards, countFor, resolveCard } = usePenalties(
-    apiUrl,
-    matchId,
-    penaltiesRefreshKey,
-  );
+  const { ruleset, ruleSetCards, countFor, resolveCard } = scoring;
 
   const entries = useMemo(
     () =>
