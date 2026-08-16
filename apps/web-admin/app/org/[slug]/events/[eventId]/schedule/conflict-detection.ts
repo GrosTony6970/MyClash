@@ -13,7 +13,11 @@
 import { minutesIntoDayInZone } from '@myclash/time';
 
 export interface ScheduleMatchForConflict {
+  id: string;
   matchNumberLabel: string;
+  /** Canonical code (`LSW-P1-M1`). What every card on the board prints. */
+  roundCode?: string;
+  status: string;
   liceId: string | null;
   scheduledAt: string | null;
   durationMinutes: number;
@@ -24,10 +28,32 @@ export interface ScheduleMatchForConflict {
 }
 
 export interface Conflict {
+  /** The card label, not the raw number — see `conflictLabel`. */
   matchA: string;
   matchB: string;
+  /**
+   * Match ids for the two bouts. The banner names bouts by label, but labels
+   * are not unique across tournaments, so the grid's amber tint needs ids to
+   * point at the right cards. See `conflictLabel`.
+   */
+  matchAId: string;
+  matchBId: string;
   personName: string;
   time: string;
+}
+
+/**
+ * How a bout is named to the operator: the code its card shows.
+ *
+ * Every card on the board prints `roundCode || matchNumberLabel` —
+ * `DetailedMatchCards` and `MatchChip` both do. The banner printed
+ * `matchNumberLabel` alone, which for a bracket bout is a bare sequence number
+ * ("2"), so the banner and the card called the same fight different things.
+ * Worse, that number is not unique across tournaments: two tournaments can each
+ * hold a match "2", and a cross-tournament line read "2 and 2".
+ */
+function conflictLabel(m: ScheduleMatchForConflict): string {
+  return m.roundCode || m.matchNumberLabel;
 }
 
 /**
@@ -70,7 +96,13 @@ export function detectConflicts(
   }
 
   const conflicts: Conflict[] = [];
-  const scheduled = matches.filter((m) => m.scheduledAt && m.liceId);
+  // A voided bout is not happening, so it cannot double-book anybody. Voiding
+  // writes `status` and nothing else — it leaves `lice_id` and `scheduled_at`
+  // in place — and the grid payload has no status filter, so a cancelled fight
+  // arrived here as an occupant and could raise a conflict against a real one.
+  // The server has always excluded voided from its own occupancy query; this is
+  // the same rule on the same data.
+  const scheduled = matches.filter((m) => m.scheduledAt && m.liceId && m.status !== 'voided');
   for (let i = 0; i < scheduled.length; i++) {
     for (let j = i + 1; j < scheduled.length; j++) {
       const a = scheduled[i]!;
@@ -85,8 +117,10 @@ export function detectConflicts(
       const bEnd = bStart + b.durationMinutes * 60_000;
       if (aStart < bEnd && bStart < aEnd) {
         conflicts.push({
-          matchA: a.matchNumberLabel,
-          matchB: b.matchNumberLabel,
+          matchA: conflictLabel(a),
+          matchB: conflictLabel(b),
+          matchAId: a.id,
+          matchBId: b.id,
           personName: nameByRegistration.get(shared[0]!) ?? unknownFighterLabel,
           time: hhmmInZone(a.scheduledAt!, tz),
         });

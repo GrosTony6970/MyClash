@@ -1438,17 +1438,28 @@ export function ScheduleGrid({
 
   // S7b: conflict (fighter double-booked) + overlap (two blocks share a lice &
   // time) detection, surfaced as tints on the block grid + banners.
+  /**
+   * Which cards the fighter banner is talking about.
+   *
+   * By id, not by label. This used to collect `matchNumberLabel` strings and
+   * then tint every match on the day whose label matched — but that label is a
+   * bare sequence number for a bracket bout and is not unique across
+   * tournaments, so a conflict between two fights called "2" tinted every "2"
+   * on the board. It can also be empty string, which matched every unlabelled
+   * card at once. The conflict now carries the two ids it means.
+   *
+   * No day filter is needed: the views only look up their own day's matches, so
+   * an id from another day is never asked about.
+   */
   const conflictMatchIds = useMemo(() => {
     if (conflicts.length === 0) return EMPTY_STRING_SET;
-    const labels = new Set<string>();
-    for (const c of conflicts) {
-      labels.add(c.matchA);
-      labels.add(c.matchB);
-    }
     const ids = new Set<string>();
-    for (const m of scheduledOnActiveDay) if (labels.has(m.matchNumberLabel)) ids.add(m.id);
+    for (const c of conflicts) {
+      ids.add(c.matchAId);
+      ids.add(c.matchBId);
+    }
     return ids;
-  }, [conflicts, scheduledOnActiveDay]);
+  }, [conflicts]);
   const dayOverlaps = useMemo(() => detectScheduleOverlaps(dayBlocks), [dayBlocks]);
   /**
    * Fights sitting inside a break or admin bar. Warned, never blocked — see

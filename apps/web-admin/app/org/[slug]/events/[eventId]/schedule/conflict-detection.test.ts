@@ -4,9 +4,14 @@ import { detectConflicts, type ScheduleMatchForConflict } from './conflict-detec
 const TZ = 'Europe/Paris';
 const UNKNOWN = 'Unknown fighter';
 
+let idSeq = 0;
 function buildMatch(over: Partial<ScheduleMatchForConflict>): ScheduleMatchForConflict {
   return {
+    // Unique by default. A shared default id would make the id-based tint
+    // assertions below pass for the wrong reason.
+    id: `m-${++idSeq}`,
     matchNumberLabel: 'M?',
+    status: 'scheduled',
     liceId: 'lice-1',
     scheduledAt: '2026-05-29T10:30:00.000Z',
     durationMinutes: 10,
@@ -135,6 +140,112 @@ describe('detectConflicts', () => {
     );
 
     expect(conflicts[0]?.time).toBe('09:00');
+  });
+
+  /**
+   * The banner names a bout the way its card does. Every card on the board
+   * prints `roundCode || matchNumberLabel`; the banner printed the bare
+   * `matchNumberLabel`, so it called the same fight something else.
+   */
+  it('names a bout by the code its card shows, not the bare number', () => {
+    const conflicts = detectConflicts(
+      [
+        buildMatch({ matchNumberLabel: '2', roundCode: 'LSW-B-QF-M2', redRegistrationId: 'reg-x' }),
+        buildMatch({ matchNumberLabel: '5', roundCode: 'SSW-P1-M5', redRegistrationId: 'reg-x' }),
+      ],
+      TZ,
+      UNKNOWN,
+    );
+
+    expect(conflicts).toHaveLength(1);
+    expect([conflicts[0]?.matchA, conflicts[0]?.matchB]).toEqual(['LSW-B-QF-M2', 'SSW-P1-M5']);
+  });
+
+  it('falls back to the bare number when a bout carries no round code', () => {
+    const conflicts = detectConflicts(
+      [
+        buildMatch({ matchNumberLabel: 'L1-PA-M1', redRegistrationId: 'reg-x' }),
+        buildMatch({ matchNumberLabel: 'L1-PA-M2', redRegistrationId: 'reg-x' }),
+      ],
+      TZ,
+      UNKNOWN,
+    );
+
+    expect([conflicts[0]?.matchA, conflicts[0]?.matchB]).toEqual(['L1-PA-M1', 'L1-PA-M2']);
+  });
+
+  /**
+   * The grid tints the cards a conflict names. It used to match them by label,
+   * and `matchNumberLabel` is not unique across tournaments — two tournaments
+   * can each hold a match "2", so one conflict tinted both pairs. The conflict
+   * now carries the ids it means.
+   */
+  it('carries the ids of the two bouts, so the grid tints those cards and no others', () => {
+    const conflicts = detectConflicts(
+      [
+        buildMatch({ id: 'longsword-2', matchNumberLabel: '2', redRegistrationId: 'reg-x' }),
+        buildMatch({ id: 'longsword-7', matchNumberLabel: '7', redRegistrationId: 'reg-x' }),
+        // Same visible label as the first, different tournament, no shared
+        // fighter — it must not be dragged into the conflict by its label.
+        buildMatch({
+          id: 'sidesword-2',
+          matchNumberLabel: '2',
+          redRegistrationId: 'reg-other-a',
+          blueRegistrationId: 'reg-other-b',
+        }),
+      ],
+      TZ,
+      UNKNOWN,
+    );
+
+    expect(conflicts).toHaveLength(1);
+    expect([conflicts[0]?.matchAId, conflicts[0]?.matchBId]).toEqual([
+      'longsword-2',
+      'longsword-7',
+    ]);
+  });
+
+  /**
+   * Voiding a match writes `status` and nothing else — `lice_id` and
+   * `scheduled_at` stay — and the grid payload has no status filter, so a
+   * cancelled fight reached the banner as a real occupant. The server has
+   * always excluded voided from its own occupancy query.
+   */
+  it('ignores a voided bout, which is not happening and cannot double-book anyone', () => {
+    const conflicts = detectConflicts(
+      [
+        buildMatch({ matchNumberLabel: 'L1-PA-M1', redRegistrationId: 'reg-x' }),
+        buildMatch({ matchNumberLabel: 'L1-PA-M2', redRegistrationId: 'reg-x', status: 'voided' }),
+      ],
+      TZ,
+      UNKNOWN,
+    );
+
+    expect(conflicts).toEqual([]);
+  });
+
+  it('still reports a conflict between two completed bouts', () => {
+    // Only `voided` is excluded. A completed bout really did occupy the strip,
+    // and the server's occupancy query agrees — it filters `voided`, not status
+    // in general.
+    const conflicts = detectConflicts(
+      [
+        buildMatch({
+          matchNumberLabel: 'L1-PA-M1',
+          redRegistrationId: 'reg-x',
+          status: 'completed',
+        }),
+        buildMatch({
+          matchNumberLabel: 'L1-PA-M2',
+          redRegistrationId: 'reg-x',
+          status: 'completed',
+        }),
+      ],
+      TZ,
+      UNKNOWN,
+    );
+
+    expect(conflicts).toHaveLength(1);
   });
 
   it('follows the event zone rather than a fixed offset', () => {
