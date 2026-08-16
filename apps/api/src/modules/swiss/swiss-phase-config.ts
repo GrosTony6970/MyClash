@@ -1,5 +1,6 @@
 import { BadRequestException, NotFoundException } from '@nestjs/common';
 import type { SupabaseService } from '../supabase/supabase.service';
+import { FOUGHT_STATUSES } from '../matches/fought-match';
 import { parseSwissConfig, type SwissConfig } from './dto/swiss-config.dto';
 
 /**
@@ -72,11 +73,20 @@ export async function hasStartedDownstreamBracket(
       config['seedingStrategy'] === 'by-swiss-rank' || config['sourcePhaseId'] === swissPhaseId;
     if (!seededFromSwiss) continue;
 
+    // FOUGHT_STATUSES, not `.neq('status','scheduled')`. The old spelling
+    // counted a VOIDED bout as under way, and a voided bout is not being
+    // fought — it is the one status that is neither scheduled nor in play. That
+    // made an unfinalise refusable by a bracket whose only activity had already
+    // been undone, with no route forward for the organiser.
+    //
+    // The set rather than `hasBeenFought`, because this is an existence probe:
+    // `.limit(1)` has to stay, and calling the predicate would mean loading
+    // every match in the phase to filter it in JS.
     const { data: started } = await supabase.service
       .from('matches')
       .select('id')
       .eq('phase_id', row['id'] as string)
-      .neq('status', 'scheduled')
+      .in('status', [...FOUGHT_STATUSES])
       .limit(1);
     if (((started ?? []) as unknown[]).length > 0) return true;
   }

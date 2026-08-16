@@ -196,4 +196,35 @@ describe('hasStartedDownstreamBracket', () => {
     });
     await expect(hasStartedDownstreamBracket(as(supabase), 't1', 'swiss1')).resolves.toBe(false);
   });
+
+  it('asks for fought statuses, so a voided bout no longer counts as under way', async () => {
+    // `.neq('status','scheduled')` counted VOIDED as under way, and a voided
+    // bout is not being fought — it is the one status that is neither scheduled
+    // nor in play. An unfinalise was refusable by a bracket whose only activity
+    // had already been undone.
+    //
+    // Asserted on the QUERY because the double returns canned rows without
+    // applying filters, so the filter IS the observable behaviour here. Same
+    // approach as admin-dashboard-stats.service.test.ts.
+    const supabase = mockSupabase({
+      phases: {
+        data: [
+          { id: 'b1', type: 'single_elim', config_json: { seedingStrategy: 'by-swiss-rank' } },
+        ],
+        error: null,
+      },
+      matches: { data: [], error: null },
+    });
+    await hasStartedDownstreamBracket(as(supabase), 't1', 'swiss1');
+
+    const matchesChain = supabase.from.mock.results[1]?.value as {
+      in: { mock: { calls: unknown[][] } };
+      neq: { mock: { calls: unknown[][] } };
+    };
+    expect(matchesChain.in.mock.calls).toContainEqual([
+      'status',
+      ['running', 'paused', 'completed'],
+    ]);
+    expect(matchesChain.neq.mock.calls).toEqual([]);
+  });
 });
