@@ -8,6 +8,7 @@ import {
 import { recommendedRoundCount } from '@myclash/rulesets/dist/scheduling/index';
 import { SupabaseService } from '../supabase/supabase.service';
 import { insertAuditLog } from '../../common/audit-log';
+import { FOUGHT_STATUSES } from '../matches/fought-match';
 // Value imports, not `import type`: Nest DI metadata.
 import { SwissPairingService } from './swiss-pairing.service';
 import { SwissSeedingService } from './swiss-seeding.service';
@@ -307,12 +308,24 @@ export class SwissService {
     return (data as { id?: string } | null)?.id ?? null;
   }
 
+  /**
+   * Is any bout in this phase being fought?
+   *
+   * FOUGHT_STATUSES, not `.neq('status','scheduled')`. The old spelling counted
+   * a VOIDED bout as under way, so a phase whose only activity had already been
+   * undone could not be regenerated even with `?force=true` — and voided is the
+   * one status that is neither scheduled nor in play.
+   *
+   * The set rather than `hasBeenFought`, because this is an existence probe:
+   * `.limit(1)` has to stay, and calling the predicate would mean loading every
+   * match in the phase to filter it in JS.
+   */
   private async hasStartedMatch(phaseId: string): Promise<boolean> {
     const { data } = await this.supabase.service
       .from('matches')
       .select('id, status')
       .eq('phase_id', phaseId)
-      .neq('status', 'scheduled')
+      .in('status', [...FOUGHT_STATUSES])
       .limit(1);
     return ((data ?? []) as unknown[]).length > 0;
   }
