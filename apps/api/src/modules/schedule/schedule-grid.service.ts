@@ -5,6 +5,7 @@ import { SupabaseService } from '../supabase/supabase.service';
 import { OrganizationsService } from '../organizations/organizations.service';
 import { assertCanReadEvent } from '../../common/auth/event-authz';
 import { buildRoundCode, bracketCodeConfig } from '../matches/round-code.helper';
+import { DEFAULT_MATCH_DURATION_MINUTES } from './select-programme-block';
 
 export interface ScheduleGridMatch {
   id: string;
@@ -365,7 +366,14 @@ export class ScheduleGridService {
         tournamentName,
         tournamentColor: tournament?.color ?? null,
         tournamentSlug: tournament?.slug ?? null,
-        durationMinutes: 5,
+        // The grid's geometry and the server's piste-occupancy refusal both
+        // measure a bout with this number, so a drift between the two literals
+        // would put the banner and the 409 in disagreement — the operator would
+        // see a clash the server accepts, or the reverse, with nothing to say
+        // which is right. `DEFAULT_MATCH_DURATION_MINUTES` already names it, and
+        // its own docblock lists this line as one of the three places that
+        // "already agreed on it". Now there is one place.
+        durationMinutes: DEFAULT_MATCH_DURATION_MINUTES,
         phaseType: phase?.type ?? null,
         poolId: m.pool_id,
         poolName: pool?.name ?? null,

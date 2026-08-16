@@ -11,9 +11,14 @@
  * programme block covers "now".
  *
  * Not an invented number: `event_programme_blocks.match_duration_minutes`
- * defaults to 5 (migration 0028), `schedule-grid.service.ts` hardcodes 5 for
- * its cards, and the grid's SLOT_MINUTES is 5. Three places already agreed on
- * it; this names it once.
+ * defaults to 5 (migration 0028) and the grid's `SLOT_MINUTES` is 5.
+ *
+ * `schedule-grid.service.ts` used to hardcode a third 5 for its cards, and this
+ * docblock used to say so. It now imports this instead, which is what makes the
+ * agreement structural rather than a coincidence three files happen to share:
+ * the grid's geometry and `lice-occupancy`'s refusal measure a bout with the
+ * same number, so the banner and the 409 cannot disagree about whether two
+ * bouts overlap.
  */
 export const DEFAULT_MATCH_DURATION_MINUTES = 5;
 
