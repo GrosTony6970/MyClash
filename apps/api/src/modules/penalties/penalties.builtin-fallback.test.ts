@@ -163,4 +163,52 @@ describe('the built-in penalty ruleset every match falls back to', () => {
     expect(row?.['ruleset_id']).toBe('builtin-1');
     expect(row?.['ruleset_entry_id']).toBe('entry-1');
   });
+
+  /**
+   * A CHARACTERISATION test, not a fix — and it is here because the code reads
+   * like a bug that it is not.
+   *
+   * `createPenalty` prices a card with
+   * `match.penaltyRulesetId ? cardScoreDelta(row) : sanction.scoreDelta`, which
+   * looks like "only honour the row's columns when somebody pinned a ruleset" —
+   * leaving an unpinned tournament reading the built-in to decide WHICH card and
+   * then ignoring its columns for the price. It was written up as a bug on that
+   * reading, and the reading is wrong: `getMatchContext` already resolves that
+   * field to the EFFECTIVE id, built-in included, so the branch is taken.
+   *
+   * The falsification is what caught it. Replacing the fallback with `null`
+   * changed nothing, because the field was never null. This test now pins the
+   * behaviour so the next person to misread that ternary finds an answer.
+   *
+   * Tuned values on purpose: migration 0054 seeds 0 / -1 / 0, which is exactly
+   * what `penaltyScoreDelta` returns, so a test on seeded data cannot tell the
+   * two sources apart — the same reason this file's mock filters rows instead
+   * of answering every query identically.
+   */
+  it('prices a card from the built-in ruleset’s own columns, not the hardcoded default', async () => {
+    const { supabase, inserted } = filteringSupabase();
+    const service = new PenaltiesService(supabase as never);
+    // A first offence in group 1 takes `sanctions[0]` — yellow. The hardcoded
+    // default for yellow is 0; this row says a yellow costs 2.
+    BUILTIN['yellow_card_points'] = -2;
+
+    try {
+      await service.createPenalty(
+        'm-1',
+        {
+          clientUuid: 'b5e2c9f7-6d3e-4a8b-8c4f-2e1d9b6f7a3c',
+          sequence: 1,
+          registrationId: 'reg-blue',
+          rulesetEntryId: 'entry-1',
+          occurredAt: '2026-07-30T11:03:27.266Z',
+          clockTimeMs: null,
+        } as never,
+        { staffAccountId: 'staff-1' },
+      );
+
+      expect(inserted['match_penalties']?.[0]?.['score_delta']).toBe(-2);
+    } finally {
+      delete BUILTIN['yellow_card_points'];
+    }
+  });
 });

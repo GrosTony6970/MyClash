@@ -881,6 +881,15 @@ export class PenaltiesService {
     // columns and forfeit-scope settings. computePenaltySanction returns a
     // hardcoded `scoreDelta` based on card colour; the row's per-card
     // columns override that so operators can tune values per ruleset.
+    //
+    // THIS TERNARY LOOKS LIKE A BUG AND IS NOT. It reads as "only price from the
+    // row when a ruleset was pinned", which would leave an unpinned tournament
+    // reading the built-in for WHICH card and ignoring its columns for the
+    // price. `match.penaltyRulesetId` is already the EFFECTIVE id — see
+    // `getMatchContext`, which falls back to the built-in precisely so read and
+    // write resolve the same way. The null branch is reachable only when no
+    // built-in row exists at all, which is a broken install. Do not "fix" it
+    // into a second lookup; there is a test below pinning the behaviour.
     const activePenaltyRuleset = match.penaltyRulesetId
       ? await this.loadPenaltyRulesetRow(match.penaltyRulesetId)
       : null;
@@ -1001,9 +1010,14 @@ export class PenaltiesService {
   }
 
   /**
-   * Per-card point cost from the active penalty ruleset row. The row's
-   * yellow_/red_/black_card_points columns override the hardcoded
-   * penaltyScoreDelta() values that computePenaltySanction returns.
+   * Per-card point cost from the EFFECTIVE penalty ruleset row — pinned or
+   * built-in. The row's yellow_/red_/black_card_points columns override the
+   * hardcoded penaltyScoreDelta() values that computePenaltySanction returns.
+   *
+   * "Effective" is load-bearing. The caller used to consult these columns only
+   * for a PINNED ruleset, so the built-in's own values were read for the card
+   * and ignored for its price. One rule now: card points always come from the
+   * ruleset the match actually uses.
    */
   private cardScoreDelta(rulesetRow: Row, card: PenaltyCard): number {
     const key =
