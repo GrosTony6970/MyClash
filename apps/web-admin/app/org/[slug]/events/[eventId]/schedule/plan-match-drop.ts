@@ -1,3 +1,4 @@
+import { zonedDay } from '@myclash/time';
 import { placeWithShift } from './place-with-shift';
 import { matchSlotSpan, type SlotAssignment } from './block-geometry';
 
@@ -26,10 +27,34 @@ export interface PlannableMatch {
   durationMinutes: number;
 }
 
-/** True when `scheduledAtIso` falls on the same calendar day (UTC) as `dayIso`. */
-export function matchBelongsToDay(scheduledAtIso: string | null, dayIso: string): boolean {
+/**
+ * True when `scheduledAtIso` falls on `dayIso` **on the event's wall clock**.
+ *
+ * This used to be `scheduledAtIso.slice(0, 10) === dayIso`, which is the UTC
+ * day. The two agree for most of a competition day and part company either side
+ * of local midnight, and where that lands depends on the offset: east of UTC it
+ * is the small hours (a 00:30 bout in Paris is 22:30Z the day before, so it
+ * disappeared off day 2 and reappeared at the top of day 1), but WEST of UTC it
+ * moves into the working day — at UTC−7 the boundary is 17:00 local, so every
+ * afternoon bout filed under tomorrow.
+ *
+ * `zonedDay` is the repo's answer to this and predates the bug being noticed
+ * here: `schedule-csv.ts` and the public schedule already use it, and
+ * `block-move-plan.ts` carries a docblock warning against exactly the
+ * `toISOString().slice(0, 10)` this replaced. This finishes that migration.
+ *
+ * `tz` is REQUIRED rather than defaulted, because a default is how the UTC
+ * assumption survived: every call site has to name a clock, and `tsc` lists
+ * them. Note that no test can defend that — a later session adding
+ * `tz = DEFAULT_EVENT_TIMEZONE` reds nothing — so it is stated here instead.
+ */
+export function matchBelongsToDay(
+  scheduledAtIso: string | null,
+  dayIso: string,
+  tz: string,
+): boolean {
   if (!scheduledAtIso) return false;
-  return scheduledAtIso.slice(0, 10) === dayIso;
+  return zonedDay(scheduledAtIso, tz) === dayIso;
 }
 
 /**
@@ -43,17 +68,19 @@ export function occupantsOnLice(args: {
   matches: readonly PlannableMatch[];
   liceId: string;
   day: string;
+  /** Event timezone — the clock `day` is measured on. See `matchBelongsToDay`. */
+  tz: string;
   excludeId: string;
   slotOf: (iso: string) => number;
 }): Array<{ id: string; slot: number; span: number }> {
-  const { matches, liceId, day, excludeId, slotOf } = args;
+  const { matches, liceId, day, tz, excludeId, slotOf } = args;
   return matches
     .filter(
       (m) =>
         m.id !== excludeId &&
         m.liceId === liceId &&
         m.scheduledAt &&
-        matchBelongsToDay(m.scheduledAt, day),
+        matchBelongsToDay(m.scheduledAt, day, tz),
     )
     .map((m) => ({
       id: m.id,
@@ -77,12 +104,21 @@ export function planMatchDrop(args: {
   targetLiceId: string;
   slot: number;
   day: string;
+  /** Event timezone — the clock `day` is measured on. See `matchBelongsToDay`. */
+  tz: string;
   gridEndSlot: number;
   slotOf: (iso: string) => number;
 }): SlotAssignment[] {
-  const { matches, dropped, targetLiceId, slot, day, gridEndSlot, slotOf } = args;
+  const { matches, dropped, targetLiceId, slot, day, tz, gridEndSlot, slotOf } = args;
   const placement = placeWithShift({
-    items: occupantsOnLice({ matches, liceId: targetLiceId, day, excludeId: dropped.id, slotOf }),
+    items: occupantsOnLice({
+      matches,
+      liceId: targetLiceId,
+      day,
+      tz,
+      excludeId: dropped.id,
+      slotOf,
+    }),
     dropped: { id: dropped.id, slot, span: matchSlotSpan(dropped.durationMinutes) },
     dropSlot: slot,
     gridEndSlot,

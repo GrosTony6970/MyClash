@@ -17,6 +17,14 @@ import {
 const DAY = '2026-06-13';
 const LICE_A = 'lice-a';
 const LICE_B = 'lice-b';
+/**
+ * The existing cases below build their instants as `…T{hh:mm}Z`, so they are
+ * stated in UTC and read the same under any runner. Passing `'UTC'` keeps every
+ * one of them meaning exactly what it meant before `matchBelongsToDay` learned
+ * about zones. The zone-sensitive cases are their own block at the end, and they
+ * deliberately do NOT use this constant.
+ */
+const TZ = 'UTC';
 
 /** 5-minute slots from midnight, so the arithmetic in the tests is readable. */
 const slotOf = (iso: string) => {
@@ -39,13 +47,55 @@ const match = (
 
 describe('matchBelongsToDay', () => {
   it('compares the calendar date only', () => {
-    expect(matchBelongsToDay(at('09:00'), DAY)).toBe(true);
-    expect(matchBelongsToDay(at('23:59'), DAY)).toBe(true);
-    expect(matchBelongsToDay('2026-06-14T09:00:00.000Z', DAY)).toBe(false);
+    expect(matchBelongsToDay(at('09:00'), DAY, TZ)).toBe(true);
+    expect(matchBelongsToDay(at('23:59'), DAY, TZ)).toBe(true);
+    expect(matchBelongsToDay('2026-06-14T09:00:00.000Z', DAY, TZ)).toBe(false);
   });
 
   it('treats an unscheduled match as belonging to no day', () => {
-    expect(matchBelongsToDay(null, DAY)).toBe(false);
+    expect(matchBelongsToDay(null, DAY, TZ)).toBe(false);
+  });
+});
+
+/**
+ * The day a bout belongs to is the EVENT's day, not the UTC day.
+ *
+ * These use `America/Los_Angeles` on purpose, and neither of CI's two legs can
+ * stand in for it. The suite runs under `TZ=UTC` and `TZ=Europe/Paris`; UTC
+ * cannot see the bug at all, and Paris — which is also the default zone, the
+ * fixture zone and the dev box zone — only breaks between 00:00 and 02:00 local,
+ * which no real schedule reaches. A negative offset moves the boundary into the
+ * middle of a competition day: at UTC−7, 17:00 local is midnight UTC, so an
+ * afternoon bout used to file under tomorrow.
+ *
+ * Restore `scheduledAtIso.slice(0, 10)` and only this block reds. That contrast
+ * is the point — it is why the fix needed a third zone to be provable.
+ */
+describe('matchBelongsToDay across the local midnight boundary', () => {
+  const LA = 'America/Los_Angeles';
+
+  it('keeps a late-afternoon bout on its own local day', () => {
+    // 2026-06-13 17:30 in Los Angeles (PDT, UTC−7) is 00:30Z on the 14th.
+    expect(matchBelongsToDay('2026-06-14T00:30:00.000Z', '2026-06-13', LA)).toBe(true);
+    expect(matchBelongsToDay('2026-06-14T00:30:00.000Z', '2026-06-14', LA)).toBe(false);
+  });
+
+  it('keeps a bout just after local midnight on the new local day', () => {
+    // 2026-06-14 00:30 in Los Angeles is 07:30Z on the 14th — same date in UTC,
+    // so this one is the case the old code got right. It is here so the pair
+    // pins both sides of the boundary rather than only the half that moved.
+    expect(matchBelongsToDay('2026-06-14T07:30:00.000Z', '2026-06-14', LA)).toBe(true);
+  });
+
+  it('keeps a bout just after midnight in a positive offset on the new local day', () => {
+    // 2026-06-14 00:30 in Paris (CEST, UTC+2) is 22:30Z on the 13th — the
+    // original report, and the mirror image of the Los Angeles case.
+    expect(matchBelongsToDay('2026-06-13T22:30:00.000Z', '2026-06-14', 'Europe/Paris')).toBe(true);
+    expect(matchBelongsToDay('2026-06-13T22:30:00.000Z', '2026-06-13', 'Europe/Paris')).toBe(false);
+  });
+
+  it('treats an unreadable timestamp as belonging to no day', () => {
+    expect(matchBelongsToDay('not-a-date', DAY, LA)).toBe(false);
   });
 });
 
@@ -65,6 +115,7 @@ describe('occupantsOnLice', () => {
       matches: board,
       liceId: LICE_A,
       day: DAY,
+      tz: TZ,
       excludeId: 'dragged',
       slotOf,
     });
@@ -78,6 +129,7 @@ describe('occupantsOnLice', () => {
       matches: board,
       liceId: LICE_A,
       day: DAY,
+      tz: TZ,
       excludeId: 'here',
       slotOf,
     });
@@ -89,6 +141,7 @@ describe('occupantsOnLice', () => {
       matches: [match('m', LICE_A, '09:00', 20)],
       liceId: LICE_A,
       day: DAY,
+      tz: TZ,
       excludeId: 'x',
       slotOf,
     });
@@ -104,6 +157,7 @@ describe('planMatchDrop', () => {
       targetLiceId: LICE_A,
       slot: slotOf(at(hhmm)),
       day: DAY,
+      tz: TZ,
       gridEndSlot: slotOf(at('20:00')),
       slotOf,
     });

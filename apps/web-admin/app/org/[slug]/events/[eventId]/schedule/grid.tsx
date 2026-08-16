@@ -3,7 +3,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useI18n } from '@myclash/next-i18n/client';
 import { ConfirmDialog, accentClassFor } from '@myclash/ui';
-import { localeToBcp47, minutesIntoDayInZone, zonedDay } from '@myclash/time';
+import { minutesIntoDayInZone, zonedDay } from '@myclash/time';
+import { hhmmInZone } from './conflict-detection';
 import { resolveBlockAccent } from '@myclash/types';
 import { placeMultiWithShift } from './place-with-shift';
 import { computeHeaderRuns, type HeaderRunItem } from './compute-header-runs';
@@ -128,7 +129,7 @@ export function ScheduleGrid({
    *  nonces stay intact; the grid just places it. */
   configurePanel?: ReactNode;
 }) {
-  const { t, locale } = useI18n();
+  const { t } = useI18n();
   const apiUrl = getPublicApiUrl();
 
   // The read half and the write half each need something from the other: a
@@ -262,9 +263,9 @@ export function ScheduleGrid({
   const scheduledOnActiveDay = useMemo(
     () =>
       matches.filter(
-        (m) => m.scheduledAt && m.liceId && matchBelongsToDay(m.scheduledAt, activeDay),
+        (m) => m.scheduledAt && m.liceId && matchBelongsToDay(m.scheduledAt, activeDay, eventTz),
       ),
-    [matches, activeDay],
+    [matches, activeDay, eventTz],
   );
 
   // ── Block view model (one block per pool / bracket round) ─────────────────
@@ -617,7 +618,7 @@ export function ScheduleGrid({
         (m) =>
           m.liceId === targetLiceId &&
           m.scheduledAt &&
-          matchBelongsToDay(m.scheduledAt, activeDay) &&
+          matchBelongsToDay(m.scheduledAt, activeDay, eventTz) &&
           !groupMatchIds.has(m.id),
       )
       .map((m) => ({
@@ -743,6 +744,7 @@ export function ScheduleGrid({
       targetLiceId: liceId,
       slot,
       day: activeDay,
+      tz: eventTz,
       gridEndSlot,
       slotOf: (iso) => isoToSlotTz(iso, activeDay),
     });
@@ -788,7 +790,7 @@ export function ScheduleGrid({
   async function clearActiveDay() {
     if (!activeDay) return;
     const targets = matches.filter(
-      (m) => m.scheduledAt && m.liceId && matchBelongsToDay(m.scheduledAt, activeDay),
+      (m) => m.scheduledAt && m.liceId && matchBelongsToDay(m.scheduledAt, activeDay, eventTz),
     );
     if (targets.length === 0) {
       setPendingClear(false);
@@ -1039,7 +1041,7 @@ export function ScheduleGrid({
         m.liceId === liceId &&
         m.scheduledAt &&
         m.status === 'scheduled' &&
-        matchBelongsToDay(m.scheduledAt, activeDay),
+        matchBelongsToDay(m.scheduledAt, activeDay, eventTz),
     );
     if (future.length === 0) return;
     const futureIds = new Set(future.map((f) => f.id));
@@ -1269,19 +1271,24 @@ export function ScheduleGrid({
 
   function printSchedule() {
     const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    // Both columns speak the EVENT's clock, and this sheet is the reason it
+    // matters more here than anywhere else on the page: it gets printed and
+    // carried to a piste. The day was `slice(0, 10)` (the UTC day) and the time
+    // was an `Intl` call with no `timeZone` (the VIEWER's zone) — so an
+    // organiser printing from a laptop abroad handed the crew a sheet with the
+    // wrong times on it, and nothing on the paper said so. `hhmmInZone` is the
+    // one owner of a schedule clock time; a second `Intl` call here is how this
+    // drifted from the banner, which had the same bug and was fixed alone.
     const rows = matches
       .filter((m) => m.scheduledAt && m.liceId)
       .map((m) => ({
-        day: m.scheduledAt!.slice(0, 10),
+        day: zonedDay(m.scheduledAt!, eventTz) ?? '',
         lice: liceNameById.get(m.liceId!) ?? m.liceId!,
         startIso: m.scheduledAt!,
         cells: [
-          m.scheduledAt!.slice(0, 10),
+          zonedDay(m.scheduledAt!, eventTz) ?? '',
           liceNameById.get(m.liceId!) ?? m.liceId!,
-          new Intl.DateTimeFormat(localeToBcp47(locale), {
-            hour: '2-digit',
-            minute: '2-digit',
-          }).format(new Date(m.scheduledAt!)),
+          hhmmInZone(m.scheduledAt!, eventTz),
           m.roundCode || m.matchNumberLabel,
           m.tournamentName ?? '',
           t('organizer.schedulePage.grid.versus', {
