@@ -55,13 +55,6 @@ interface ScoringColumnProps {
    * number that has silently stopped moving.
    */
   provisionalDelta?: number;
-  /**
-   * Cards queued but not sent. A card's points come from the active penalty
-   * ruleset's per-card columns, which the pad does not read, so they are NOT in
-   * `score` — the caption says so rather than letting an incomplete number
-   * pass for a complete one.
-   */
-  queuedCardCount?: number;
   /** This side has won by reaching the point cap — highlights the score gold + cup. */
   reachedCap?: boolean;
   /** This side currently leads (not yet capped) — adds a subtle side-colour glow. */
@@ -117,7 +110,6 @@ export function ScoringColumn({
   club,
   score,
   provisionalDelta = 0,
-  queuedCardCount = 0,
   reachedCap,
   leading,
   readOnly,
@@ -138,6 +130,9 @@ export function ScoringColumn({
   const visibleClean = config.buttons.clean.filter((b) => b.visible);
   const visibleAfterblows = config.buttons.afterblow.filter((b) => b.visible);
   const { ruleset, ruleSetCards, countFor, resolveCard } = scoring;
+  // Per fighter, not per match: a card against blue used to be announced under
+  // red's numeral too, because the count was the whole match's.
+  const queuedCards = scoring.queuedCardsFor(registrationId);
 
   const entries = useMemo(
     () =>
@@ -241,17 +236,28 @@ export function ScoringColumn({
           the text "+2", so any numeric annotation inside those buttons would
           red it — and would be the wrong place anyway, since this is about the
           score rather than about what a button does. */}
-      {(provisionalDelta !== 0 || queuedCardCount > 0) && (
+      {(provisionalDelta !== 0 || queuedCards.priced > 0 || queuedCards.unpriced > 0) && (
         <p
           data-testid="provisional-score"
           data-provisional-delta={provisionalDelta}
+          data-queued-cards={queuedCards.priced}
+          data-unpriced-cards={queuedCards.unpriced}
           className="mt-1 text-center text-[11px] font-semibold leading-tight text-warning"
         >
           {provisionalDelta !== 0 &&
             t('scoring.lice.provisionalScore', { delta: String(provisionalDelta) })}
-          {queuedCardCount > 0 && (
+          {/* A priced card is in the numeral even when it is worth nothing —
+              yellow and black both cost zero under the built-in rulebook — so
+              this line is the only thing that tells the referee the tablet
+              heard the most common card there is. */}
+          {queuedCards.priced > 0 && (
             <span className="block font-normal">
-              {t('scoring.lice.provisionalCardExcluded', { count: String(queuedCardCount) })}
+              {t('scoring.lice.provisionalCardIncluded', { count: String(queuedCards.priced) })}
+            </span>
+          )}
+          {queuedCards.unpriced > 0 && (
+            <span className="block font-normal">
+              {t('scoring.lice.provisionalCardExcluded', { count: String(queuedCards.unpriced) })}
             </span>
           )}
         </p>

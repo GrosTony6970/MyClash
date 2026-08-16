@@ -193,6 +193,12 @@ export const scoring = {
     // "provisional" rather than "offline": the hits are real and recorded, it
     // is only the server that has not seen them yet.
     provisionalScore: 'includes {delta} not yet sent',
+    // Two different admissions, and they are not interchangeable. "Included"
+    // means the pad worked out what the card costs and put it in the number
+    // above — which is often nothing, because a yellow is worth zero points
+    // under the built-in rulebook, and the referee still needs to see the
+    // tablet heard them. "Not counted yet" means the pad could NOT work it out.
+    provisionalCardIncluded: '{count} queued card included',
     provisionalCardExcluded: '{count} queued card not counted yet',
     cleanHitsHeader: 'Clean hit',
     pointsLabel: 'Points',

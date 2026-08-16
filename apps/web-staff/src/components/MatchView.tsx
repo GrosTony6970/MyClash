@@ -429,10 +429,6 @@ export function MatchView({
   const provisional = scoring.provisional;
   const redScore = match.redScore + provisional.red;
   const blueScore = match.blueScore + provisional.blue;
-  // A queued CARD is not in that sum: its points come from the active penalty
-  // ruleset's per-card columns, which the pad does not read. The note under the
-  // score says so rather than presenting an incomplete number as a whole one.
-  const queuedCardCount = scoring.unpricedCards;
 
   // Which side (if any) has won by reaching the point cap — drives the gold
   // score highlight. Reverse-aware (in reverse scoring, hitting 0 loses).
@@ -577,7 +573,6 @@ export function MatchView({
           club={match.redClub ?? null}
           score={redScore}
           provisionalDelta={provisional.red}
-          queuedCardCount={queuedCardCount}
           reachedCap={capWinnerSide === 'red'}
           leading={!reverseScoring && redScore > blueScore}
           readOnly={!!match.lockedAt}
@@ -634,7 +629,6 @@ export function MatchView({
           club={match.blueClub ?? null}
           score={blueScore}
           provisionalDelta={provisional.blue}
-          queuedCardCount={queuedCardCount}
           reachedCap={capWinnerSide === 'blue'}
           leading={!reverseScoring && blueScore > redScore}
           readOnly={!!match.lockedAt}

@@ -6,7 +6,12 @@ import {
   type TournamentScoringConfig,
 } from '@myclash/types';
 import type { ExchangeRow, Penalty } from '@myclash/ui';
-import { pendingRowsForMatch, provisionalDeltas } from './pending-events';
+import {
+  cardCountFor,
+  pendingRowsForMatch,
+  provisionalDeltas,
+  queuedCardsFor,
+} from './pending-events';
 import type { OutboxEntry } from './db';
 
 let seq = 0;
@@ -125,7 +130,7 @@ describe('pendingRowsForMatch', () => {
   });
 
   it('routes a queued card to the penalty list, claiming no points without a catalogue', () => {
-    const { exchanges, penalties, unpricedCards } = map([
+    const { exchanges, penalties, unpricedCardUuids } = map([
       queued({ kind: 'penalty', registrationId: 'reg-red', rulesetEntryId: 'entry-1' }),
     ]);
     expect(exchanges).toEqual([]);
@@ -133,7 +138,7 @@ describe('pendingRowsForMatch', () => {
     expect(penalties[0]!.pending).toBe(true);
     expect(penalties[0]!.score_delta).toBe(0);
     expect(penalties[0]!.registration_id).toBe('reg-red');
-    expect(unpricedCards).toBe(1);
+    expect(unpricedCardUuids).toHaveLength(1);
   });
 
   it('reads a v2 row with no kind as an exchange', () => {
@@ -253,13 +258,13 @@ describe('pendingRowsForMatch', () => {
 
 describe('pricing a queued card', () => {
   it('prices a ruleset card from the catalogue’s per-card columns', () => {
-    const { penalties, unpricedCards } = priced([
+    const { penalties, unpricedCardUuids } = priced([
       queued({ kind: 'penalty', registrationId: 'reg-red', rulesetEntryId: 'entry-red' }),
     ]);
     expect(penalties[0]!.card).toBe('red');
     expect(penalties[0]!.score_delta).toBe(-1);
     expect(penalties[0]!.group_number).toBe(1);
-    expect(unpricedCards).toBe(0);
+    expect(unpricedCardUuids).toEqual([]);
   });
 
   /**
@@ -332,20 +337,20 @@ describe('pricing a queued card', () => {
    * yellow (0) on an offence the server prices red (−1).
    */
   it('refuses to price when the priors never loaded', () => {
-    const { penalties, unpricedCards } = priced(
+    const { penalties, unpricedCardUuids } = priced(
       [queued({ kind: 'penalty', registrationId: 'reg-red', rulesetEntryId: 'entry-ladder' })],
       null,
     );
     expect(penalties[0]!.score_delta).toBe(0);
-    expect(unpricedCards).toBe(1);
+    expect(unpricedCardUuids).toHaveLength(1);
   });
 
   it('refuses to price an entry the catalogue does not have', () => {
-    const { penalties, unpricedCards } = priced([
+    const { penalties, unpricedCardUuids } = priced([
       queued({ kind: 'penalty', registrationId: 'reg-red', rulesetEntryId: 'entry-gone' }),
     ]);
     expect(penalties[0]!.score_delta).toBe(0);
-    expect(unpricedCards).toBe(1);
+    expect(unpricedCardUuids).toHaveLength(1);
   });
 
   /**
@@ -353,11 +358,11 @@ describe('pricing a queued card', () => {
    * A direct card names its own colour, so the pad can follow it there.
    */
   it('prices a direct card from the built-in default when there is no ruleset', () => {
-    const { penalties, unpricedCards } = map([
+    const { penalties, unpricedCardUuids } = map([
       queued({ kind: 'penalty', registrationId: 'reg-red', directCard: 'red', reason: 'x' }),
     ]);
     expect(penalties[0]!.score_delta).toBe(-1);
-    expect(unpricedCards).toBe(0);
+    expect(unpricedCardUuids).toEqual([]);
   });
 
   /**
@@ -419,6 +424,106 @@ describe('pricing a queued card', () => {
     ]);
     expect(penalties[0]!.card).toBe('black');
     expect(penalties[0]!.causes_match_forfeit).toBe(false);
+  });
+});
+
+describe('card counts', () => {
+  const serverCard = (over: Partial<Penalty>): Penalty => ({
+    id: 'server-generated-id',
+    client_uuid: 'server-card',
+    sequence: 1,
+    registration_id: 'reg-red',
+    card: 'yellow',
+    source: 'ruleset',
+    short_name: null,
+    reason: null,
+    score_delta: 0,
+    causes_match_forfeit: false,
+    voided: false,
+    ...over,
+  });
+
+  /**
+   * The chip read the server only, so offline it froze while the referee kept
+   * carding. It is the counter they check before deciding whether the next
+   * offence in the group escalates.
+   */
+  it('counts a queued card on the chip alongside the server’s', () => {
+    const { penalties } = priced([
+      queued({ kind: 'penalty', registrationId: 'reg-red', rulesetEntryId: 'entry-ladder' }),
+    ]);
+    expect(
+      cardCountFor({
+        server: [serverCard({ card: 'yellow' })],
+        pending: penalties,
+        registrationId: 'reg-red',
+        card: 'yellow',
+      }),
+    ).toBe(2);
+  });
+
+  it('keeps the other fighter’s chip out of it', () => {
+    const { penalties } = priced([
+      queued({ kind: 'penalty', registrationId: 'reg-red', rulesetEntryId: 'entry-ladder' }),
+    ]);
+    expect(
+      cardCountFor({ server: [], pending: penalties, registrationId: 'reg-blue', card: 'yellow' }),
+    ).toBe(0);
+  });
+
+  it('puts a queued card on the chip for the colour it will ACTUALLY be', () => {
+    // Second offence in the group → red, not the entry's first sanction.
+    const { penalties } = priced(
+      [queued({ kind: 'penalty', registrationId: 'reg-red', rulesetEntryId: 'entry-ladder' })],
+      {
+        'reg-red': [
+          { registrationId: 'reg-red', groupNumber: 2, card: 'yellow', source: 'ruleset' },
+        ],
+        'reg-blue': [],
+      },
+    );
+    const chip = (card: PenaltyCard) =>
+      cardCountFor({ server: [], pending: penalties, registrationId: 'reg-red', card });
+    expect({ yellow: chip('yellow'), red: chip('red') }).toEqual({ yellow: 0, red: 1 });
+  });
+
+  it('ignores a voided server card', () => {
+    expect(
+      cardCountFor({
+        server: [serverCard({ voided: true })],
+        pending: [],
+        registrationId: 'reg-red',
+        card: 'yellow',
+      }),
+    ).toBe(0);
+  });
+
+  /**
+   * "Priced" is not "worth something". A yellow costs nothing under the
+   * built-in rulebook and is still fully accounted for — it belongs in the
+   * line that says the card is included, not the one that admits ignorance.
+   */
+  it('calls a priced zero-point card included, not excluded', () => {
+    const { penalties, unpricedCardUuids } = priced([
+      queued({ kind: 'penalty', registrationId: 'reg-red', rulesetEntryId: 'entry-ladder' }),
+    ]);
+    expect(
+      queuedCardsFor({ pending: penalties, unpricedCardUuids, registrationId: 'reg-red' }),
+    ).toEqual({ priced: 1, unpriced: 0 });
+  });
+
+  it('splits priced from unpriced for the fighter they are against', () => {
+    const { penalties, unpricedCardUuids } = priced([
+      queued({ kind: 'penalty', registrationId: 'reg-red', rulesetEntryId: 'entry-red' }),
+      queued({ kind: 'penalty', registrationId: 'reg-red', rulesetEntryId: 'entry-gone' }),
+      queued({ kind: 'penalty', registrationId: 'reg-blue', rulesetEntryId: 'entry-red' }),
+    ]);
+    const forSide = (registrationId: string) =>
+      queuedCardsFor({ pending: penalties, unpricedCardUuids, registrationId });
+    expect(forSide('reg-red')).toEqual({ priced: 1, unpriced: 1 });
+    // The count this replaced was the whole match's, so blue used to be told
+    // about red's unpriced card.
+    expect(forSide('reg-blue')).toEqual({ priced: 1, unpriced: 0 });
   });
 });
 

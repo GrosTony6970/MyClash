@@ -39,7 +39,12 @@ import {
   type PenaltyRulesetEntry,
 } from './usePenalties';
 import { usePendingOutbox } from './usePendingOutbox';
-import { pendingRowsForMatch, provisionalDeltas } from '../offline/pending-events';
+import {
+  cardCountFor,
+  pendingRowsForMatch,
+  provisionalDeltas,
+  queuedCardsFor as queuedCardsForRegistration,
+} from '../offline/pending-events';
 
 export interface MatchScoringData {
   // ── What the server has ────────────────────────────────────────────────────
@@ -58,6 +63,13 @@ export interface MatchScoringData {
    * below is incomplete and a surface showing it must say so.
    */
   unpricedCards: number;
+  /**
+   * Queued cards against ONE fighter, split by whether the pad could price
+   * them. Per-registration because the caption sits under a single fighter's
+   * numeral — the count it replaced was the whole match's, so a card against
+   * blue was announced under red's score too.
+   */
+  queuedCardsFor: (registrationId: string) => { priced: number; unpriced: number };
   /** Outbox rows for THIS match — what the clear-last-exchange button gates on. */
   pendingHere: number;
   /** What the queue adds to each side's score. Display only, never stored. */
@@ -98,9 +110,9 @@ export function useMatchScoringData(args: {
   );
   const {
     ruleset,
+    priors,
     ruleSetCards,
     active: activePenalties,
-    countFor,
     resolveCard,
   } = usePenalties(apiUrl, matchId, refreshKey);
 
@@ -113,8 +125,12 @@ export function useMatchScoringData(args: {
         config,
         serverExchanges: activeExchanges,
         serverPenalties: activePenalties,
+        // The catalogue and the prior offences the pad already holds — enough
+        // to say what a queued card will cost. Null in either slot means it
+        // cannot, and the count below says how many it could not.
+        pricing: { ruleset, priors },
       }),
-    [pendingEntries, config, activeExchanges, activePenalties],
+    [pendingEntries, config, activeExchanges, activePenalties, ruleset, priors],
   );
 
   const provisional = useMemo(
@@ -128,6 +144,21 @@ export function useMatchScoringData(args: {
     [pending, redRegistrationId, blueRegistrationId],
   );
 
+  const countFor = (registrationId: string, card: PenaltyCard) =>
+    cardCountFor({
+      server: activePenalties,
+      pending: pending.penalties,
+      registrationId,
+      card,
+    });
+
+  const queuedCardsFor = (registrationId: string) =>
+    queuedCardsForRegistration({
+      pending: pending.penalties,
+      unpricedCardUuids: pending.unpricedCardUuids,
+      registrationId,
+    });
+
   return {
     ruleset,
     ruleSetCards,
@@ -135,7 +166,8 @@ export function useMatchScoringData(args: {
     activePenalties,
     pendingExchanges: pending.exchanges,
     pendingPenalties: pending.penalties,
-    unpricedCards: pending.unpricedCards,
+    unpricedCards: pending.unpricedCardUuids.length,
+    queuedCardsFor,
     pendingHere: pendingEntries.length,
     provisional,
     countFor,

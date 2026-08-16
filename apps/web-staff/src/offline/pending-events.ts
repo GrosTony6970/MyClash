@@ -22,7 +22,11 @@
  *
  * Pure: no Dexie, no React, no I/O. The caller supplies the rows.
  */
-import { computeAfterblowDeltas, type TournamentScoringConfig } from '@myclash/types';
+import {
+  computeAfterblowDeltas,
+  type PenaltyCard,
+  type TournamentScoringConfig,
+} from '@myclash/types';
 import type { ExchangeRow, Penalty } from '@myclash/ui';
 import type { OutboxEntry } from './db';
 import { createCardPricer, type PricedCard, type QueuedCardPricing } from './price-queued-cards';
@@ -118,7 +122,16 @@ export function pendingRowsForMatch(args: {
    * price one at all.
    */
   pricing?: QueuedCardPricing;
-}): { exchanges: ExchangeRow[]; penalties: Penalty[]; unpricedCards: number } {
+}): {
+  exchanges: ExchangeRow[];
+  penalties: Penalty[];
+  /**
+   * `client_uuid` of every queued card the pad could not price — the ids, not a
+   * count, because a caller showing a caption under ONE fighter's numeral has
+   * to know which rows are theirs. A match-wide total cannot be split back up.
+   */
+  unpricedCardUuids: string[];
+} {
   const { entries, config, serverExchanges, serverPenalties } = args;
   const known = new Set<string>();
   for (const e of serverExchanges) if (e.client_uuid) known.add(e.client_uuid);
@@ -131,7 +144,7 @@ export function pendingRowsForMatch(args: {
 
   const exchanges: ExchangeRow[] = [];
   const penalties: Penalty[] = [];
-  let unpricedCards = 0;
+  const unpricedCardUuids: string[] = [];
 
   for (const entry of entries) {
     // Ahead of the pricer on purpose. A card in the window between a successful
@@ -147,7 +160,7 @@ export function pendingRowsForMatch(args: {
         rulesetEntryId: entry.rulesetEntryId,
         directCard: entry.directCard,
       });
-      if (!priced) unpricedCards += 1;
+      if (!priced) unpricedCardUuids.push(entry.clientUuid);
       penalties.push(pendingPenaltyRow(entry, priced));
       continue;
     }
@@ -173,7 +186,54 @@ export function pendingRowsForMatch(args: {
     });
   }
 
-  return { exchanges, penalties, unpricedCards };
+  return { exchanges, penalties, unpricedCardUuids };
+}
+
+/**
+ * A fighter's count of one card colour, server rows PLUS the queue.
+ *
+ * The chip under the club name read the server only, so offline it froze: the
+ * referee issued the fighter's second yellow and the counter stayed at one.
+ * That is the counter they look at before deciding whether the next offence in
+ * the group escalates, which makes a frozen one worse than most stale numbers.
+ *
+ * `pending` must already be deduped against `server` — `pendingRowsForMatch`
+ * does it — or a card in the drain window is counted twice.
+ */
+export function cardCountFor(args: {
+  server: readonly Penalty[];
+  pending: readonly Penalty[];
+  registrationId: string;
+  card: PenaltyCard;
+}): number {
+  const { server, pending, registrationId, card } = args;
+  const mine = (p: Penalty) => !p.voided && p.registration_id === registrationId && p.card === card;
+  return server.filter(mine).length + pending.filter(mine).length;
+}
+
+/**
+ * Queued cards against ONE fighter, split by whether the pad could price them.
+ *
+ * Per registration because the caption sits under a single fighter's numeral.
+ * The count this replaced was the whole match's, so a card against blue was
+ * announced under red's score too.
+ *
+ * PRICED IS NOT "WORTH SOMETHING". A yellow and a black are both worth zero
+ * under the built-in rulebook, and a card the pad fully accounted for belongs
+ * in the "included" line however little it moved the number — that line is the
+ * only thing telling the referee the tablet heard the commonest card there is.
+ * Only a card the pad could not work out at all goes in the other line.
+ */
+export function queuedCardsFor(args: {
+  pending: readonly Penalty[];
+  unpricedCardUuids: readonly string[];
+  registrationId: string;
+}): { priced: number; unpriced: number } {
+  const { pending, unpricedCardUuids, registrationId } = args;
+  const unpriced = new Set(unpricedCardUuids);
+  const mine = pending.filter((p) => p.registration_id === registrationId);
+  const notPriced = mine.filter((p) => p.client_uuid && unpriced.has(p.client_uuid)).length;
+  return { priced: mine.length - notPriced, unpriced: notPriced };
 }
 
 /**
