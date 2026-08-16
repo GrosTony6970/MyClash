@@ -133,6 +133,26 @@ describe('buildUnifiedTimeline', () => {
     config: DEFAULT_SCORING_CONFIG,
   };
 
+  /**
+   * `pending` marks a row the referee scored that is still queued on the
+   * tablet. Only the pad ever sets it — nothing server-side does — but the
+   * builder has to carry it through, because the pad merges its outbox into
+   * the same list the timeline renders. It must default to false rather than
+   * undefined so a surface reading it cannot mistake "not set" for "unknown".
+   */
+  it('carries a pending flag through, defaulting to false', () => {
+    const out = buildUnifiedTimeline({
+      ...base,
+      exchanges: [ex({ id: 'e1', sequence: 1 }), ex({ id: 'e2', sequence: 2, pending: true })],
+      penalties: [pen({ id: 'p1', sequence: 3, pending: true })],
+    });
+
+    const byRawId = new Map(out.map((e) => [e.rawId, e.pending]));
+    expect(byRawId.get('e1')).toBe(false);
+    expect(byRawId.get('e2')).toBe(true);
+    expect(byRawId.get('p1')).toBe(true);
+  });
+
   it('drops voided exchanges AND voided cards, then renumbers 1..N with no gaps', () => {
     const out = buildUnifiedTimeline({
       ...base,

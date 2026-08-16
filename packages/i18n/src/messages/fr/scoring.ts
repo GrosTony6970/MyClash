@@ -185,6 +185,8 @@ export const scoring = {
     },
     eventsHeader: 'Historique des échanges',
     exchangesCount: 'Échanges : {count}',
+    pending: 'en attente',
+    pendingHint: 'Enregistré sur cette tablette — en attente d’envoi au serveur.',
     cleanHitsHeader: 'Touche propre',
     pointsLabel: 'Points',
     point: 'point',

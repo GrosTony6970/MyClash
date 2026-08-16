@@ -58,6 +58,15 @@ export interface UnifiedEvent {
   note?: string | null;
   /** True when this card ended the match (the carded fighter forfeits). */
   forfeit?: boolean;
+  /**
+   * The row is queued on the tablet and has not reached the server yet.
+   *
+   * Set only by a surface that merges its own offline outbox into the list —
+   * the referee pad. Nothing server-side ever sets it, and no other surface
+   * should: a spectator display marking a row "pending" would be describing the
+   * referee's connection, not the bout.
+   */
+  pending?: boolean;
 }
 
 /** A row before its display number is assigned. */
@@ -221,6 +230,7 @@ export function buildUnifiedTimeline({
           : null,
         opponentDelta,
         note: e.type === 'no_exchange' ? noExchangeNote(e.no_exchange_reason, t) : null,
+        pending: e.pending ?? false,
       };
     });
 
@@ -249,6 +259,7 @@ export function buildUnifiedTimeline({
         card: p.card,
         delta: p.score_delta ? String(p.score_delta) : null,
         forfeit: p.causes_match_forfeit,
+        pending: p.pending ?? false,
       };
     });
 

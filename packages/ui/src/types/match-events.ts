@@ -38,6 +38,21 @@ export interface ExchangeRow {
   type: ExchangeType;
   voided: boolean;
   /**
+   * The client-generated UUID the server keys idempotency on.
+   *
+   * `listExchanges` does `select('*')` and spreads the raw row, so this has
+   * always been on the wire and the client simply never declared it. It is the
+   * dedupe key for a surface that merges its own outbox into this list: between
+   * a successful POST and `markSynced` committing, a row is on the server AND
+   * still queued locally, and counting it twice is a visible wrong number.
+   */
+  client_uuid?: string | null;
+  /**
+   * Queued on the tablet, not yet on the server. Never set by the API — only
+   * by the referee pad when it merges its outbox in. See `UnifiedEvent.pending`.
+   */
+  pending?: boolean;
+  /**
    * When the exchange was recorded (client clock, forwarded by the API).
    * REQUIRED: `orderedWithNumbers` sorts on it, so a surface that builds its
    * own rows (e.g. from a realtime payload) must supply it or the newest touch
@@ -103,6 +118,18 @@ export interface Penalty {
   /** Match-clock position (accumulated active ms) when recorded — drives
    *  the timeline's match-clock time. Null for legacy rows. */
   clock_time_ms?: number | null;
+  /**
+   * Which rule group this penalty came from. Raw column, already on the wire —
+   * `listMatchPenalties` does `select('*')` — and needed to count a fighter's
+   * prior offences in the same group, which is what decides whether the next
+   * one escalates to a heavier card.
+   */
+  group_number?: number | null;
+  /**
+   * Queued on the tablet, not yet on the server. Never set by the API — only
+   * by the referee pad when it merges its outbox in. See `UnifiedEvent.pending`.
+   */
+  pending?: boolean;
 }
 
 /**

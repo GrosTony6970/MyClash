@@ -185,6 +185,10 @@ export const scoring = {
     },
     eventsHeader: 'Exchange history',
     exchangesCount: 'Exchanges: {count}',
+    // A row the referee scored that is still queued on the tablet. Kept short:
+    // it sits inline on a 380px column beside the fighter name and the delta.
+    pending: 'queued',
+    pendingHint: 'Recorded on this tablet — waiting to reach the server.',
     cleanHitsHeader: 'Clean hit',
     pointsLabel: 'Points',
     point: 'point',

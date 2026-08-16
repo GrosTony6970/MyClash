@@ -202,7 +202,11 @@ export function MatchTimeline({
           <li
             key={ev.id}
             data-event-number={ev.number}
-            className={`${s.row}${active ? ` ${s.rowActive}` : ''}`}
+            data-pending={ev.pending ? 'true' : undefined}
+            // Dimmed, not hidden and not styled as an error. A queued row is a
+            // real hit the referee scored; the only thing not yet true about it
+            // is that the server has seen it.
+            className={`${s.row}${active ? ` ${s.rowActive}` : ''}${ev.pending ? ' opacity-60' : ''}`}
             {...(onHighlightChange
               ? {
                   onPointerEnter: () => onHighlightChange(ev.number),
@@ -237,6 +241,11 @@ export function MatchTimeline({
             {ev.forfeit && (
               <span className={`${s.muted} truncate min-w-0`}>
                 {t('scoring.liveMatch.matchLost')}
+              </span>
+            )}
+            {ev.pending && (
+              <span className={`${s.muted} flex-shrink-0`} title={t('scoring.lice.pendingHint')}>
+                ⟳ {t('scoring.lice.pending')}
               </span>
             )}
             {ev.delta && <span className={s.delta}>{ev.delta}</span>}
