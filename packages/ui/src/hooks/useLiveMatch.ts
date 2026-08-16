@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { ClockSnapshot, DisplayMatch, ExchangeRow, Penalty } from '../types/match-events';
 import { deriveFreshness, type Freshness } from './realtime-freshness';
+import { createCoalescer, type Coalescer } from './coalesce';
 
 // The wire shapes live in ../types/match-events (a leaf module the pure
 // timeline utils can import without depending on this hook). Re-exported here
@@ -185,6 +186,32 @@ export function useLiveMatch(
     void refresh();
   }, [refresh]);
 
+  /**
+   * Realtime signals go through a coalescer; nothing else does.
+   *
+   * The channel binds four tables with `event: '*'`, and each handler used to
+   * call `refresh` — four HTTP requests — directly. A bulk write like resetting
+   * a 16-exchange match therefore fired ~64 requests at EVERY subscribed
+   * display. See `coalesce.ts` for why the leading edge is kept.
+   *
+   * TWO REFS, and both are load-bearing. The coalescer's identity has to be
+   * stable because it feeds the subscription effect below, and an identity that
+   * churned would tear down and re-subscribe the channel on every render. But
+   * `refresh` is `useCallback([apiBaseUrl, matchId])`, so it changes when the
+   * match does — a coalescer built once around the FIRST `refresh` would go on
+   * refetching the OLD match after a navigation. So the stable coalescer calls
+   * through a ref that is kept current.
+   */
+  const refreshRef = useRef(refresh);
+  useEffect(() => {
+    refreshRef.current = refresh;
+  }, [refresh]);
+  const coalescerRef = useRef<Coalescer | null>(null);
+  // Lazy: `useRef(createCoalescer(...))` would construct a throwaway coalescer
+  // on every render, since the argument is evaluated before the ref is read.
+  coalescerRef.current ??= createCoalescer(() => refreshRef.current(), 200);
+  const scheduleRefresh = coalescerRef.current.schedule;
+
   // Supabase realtime subscription, with `pollMs` as its fallback. Both live
   // in one effect because the channel's status IS what starts and stops the
   // poll — splitting them is what let the two run at once.
@@ -208,12 +235,12 @@ export function useLiveMatch(
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'matches', filter: `id=eq.${matchId}` },
-        () => void refresh(),
+        () => scheduleRefresh(),
       )
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'exchanges', filter: `match_id=eq.${matchId}` },
-        () => void refresh(),
+        () => scheduleRefresh(),
       )
       .on(
         'postgres_changes',
@@ -223,12 +250,12 @@ export function useLiveMatch(
           table: 'match_penalties',
           filter: `match_id=eq.${matchId}`,
         },
-        () => void refresh(),
+        () => scheduleRefresh(),
       )
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'match_events', filter: `match_id=eq.${matchId}` },
-        () => void refresh(),
+        () => scheduleRefresh(),
       )
       .subscribe((status) => {
         setChannelStatus(status);
@@ -248,9 +275,12 @@ export function useLiveMatch(
       });
     return () => {
       stopPolling();
+      // Drops a pending trailing refresh. Also what stops a debounce armed for
+      // the OLD match firing after `matchId` changes.
+      coalescerRef.current?.cancel();
       void supabaseClient.removeChannel(channel);
     };
-  }, [matchId, supabaseClient, refresh, pollMs]);
+  }, [matchId, supabaseClient, refresh, scheduleRefresh, pollMs]);
 
   // A slow tick, running ONLY while degraded.
   //
