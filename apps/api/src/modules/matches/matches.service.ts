@@ -8,6 +8,7 @@ import {
 } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 import { bracketToken, computeAfterblowDeltas, type AfterblowMode } from '@myclash/types';
+import { DEFAULT_EVENT_TIMEZONE, dayStartUtcIso } from '@myclash/time';
 import { getEffectiveBestOf, normalizeMatchFormatConfig } from '@myclash/rulesets';
 import type { Match as RulesetMatch } from '@myclash/rulesets';
 import { MatchAlertRefresherService } from '../notifications/match-alert-refresher.service';
@@ -435,14 +436,31 @@ export class MatchesService {
    * grid: the operator wants to wipe an accidentally-misplaced pool
    * without losing the rest of the day's plan.
    *
-   * Day is matched in UTC against `[YYYY-MM-DDT00:00:00Z, next day)` —
-   * same convention the FE uses to decide which day a match belongs to.
+   * The day is the EVENT's day, resolved in the event's timezone. It used to be
+   * `[YYYY-MM-DDT00:00:00Z, next day)`, and this docblock used to say that was
+   * "the same convention the FE uses" — which is how the two drifted. The FE
+   * had already begun moving to `zonedDay` (schedule-csv, the public schedule)
+   * and this was still measuring UTC, so on a westward event the grid and this
+   * bulk clear disagreed about which bouts were on screen. A destructive action
+   * that erases a different set from the one the operator can see is the worst
+   * possible place for that gap.
+   *
+   * Each boundary resolves INDEPENDENTLY through `dayStartUtcIso`. A day is not
+   * always 24 hours: on a DST change it is 23 or 25, and a `+24h` range would
+   * clear an hour too much or too little exactly twice a year.
    */
   async clearPoolScheduleForDay(poolId: string, dayIso: string) {
-    const start = `${dayIso}T00:00:00.000Z`;
-    const nextDay = new Date(`${dayIso}T00:00:00.000Z`);
-    nextDay.setUTCDate(nextDay.getUTCDate() + 1);
-    const end = nextDay.toISOString();
+    const tz = await this.eventTimezoneForPool(poolId);
+    // Plain calendar arithmetic on a date string — no zone involved, the same
+    // walk `eachDay` makes. The zone is applied when each date becomes an
+    // instant, one line below.
+    const nextDate = new Date(`${dayIso}T00:00:00.000Z`);
+    nextDate.setUTCDate(nextDate.getUTCDate() + 1);
+    const start = dayStartUtcIso(dayIso, tz);
+    const end = dayStartUtcIso(nextDate.toISOString().slice(0, 10), tz);
+    if (!start || !end) {
+      throw new BadRequestException(`Cannot resolve day ${dayIso} in timezone ${tz}`);
+    }
 
     const { data, error } = await this.supabase.service
       .from('matches')
@@ -456,6 +474,32 @@ export class MatchesService {
       .select('id');
     if (error) throw new BadRequestException(error.message);
     await this.matchAlerts.refresh(((data ?? []) as Array<{ id: string }>).map((row) => row.id));
+  }
+
+  /**
+   * The clock an event's days are measured on.
+   *
+   * `pools` carry no event id — the chain is pool → phase → tournament → event,
+   * the same walk `orgIdForPool` and `EventReadOnlyGuard` make. One level deeper
+   * than those, because this wants the event row rather than its id.
+   *
+   * Falls back to the platform default rather than throwing: `events.timezone`
+   * is `NOT NULL DEFAULT 'Europe/Paris'` (migration 0102), so a null here means
+   * the embed shape surprised us, and refusing to clear a pool over that would
+   * be a worse failure than measuring the day the way we did yesterday.
+   */
+  private async eventTimezoneForPool(poolId: string): Promise<string> {
+    const { data, error } = await this.supabase.service
+      .from('pools')
+      .select('phases!inner(tournaments!inner(events!inner(timezone)))')
+      .eq('id', poolId)
+      .maybeSingle();
+    if (error) throw new BadRequestException(error.message);
+    if (!data) throw new NotFoundException(`Pool ${poolId} not found`);
+    const row = data as {
+      phases?: { tournaments?: { events?: { timezone?: string | null } | null } | null } | null;
+    };
+    return row.phases?.tournaments?.events?.timezone ?? DEFAULT_EVENT_TIMEZONE;
   }
 
   /**

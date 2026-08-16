@@ -719,6 +719,20 @@ describe('MatchesService', () => {
   // Slice 6 of the schedule overhaul: clear every match of a pool on a
   // given day. Backs the "Clear pool" action on the schedule grid.
   describe('clearPoolScheduleForDay', () => {
+    /**
+     * The day window is now resolved in the EVENT's timezone, so the service
+     * reads `pools` before it writes `matches`. `fromMock` therefore has to
+     * dispatch on the table name — a blanket `mockReturnValue` would hand the
+     * pool lookup the update chain and the tz would silently fall back to the
+     * default, which is exactly the value most of these assertions expect. The
+     * test would pass while proving nothing.
+     */
+    const poolChainFor = (timezone: string | null) =>
+      makeChain({
+        data: { phases: { tournaments: { events: { timezone } } } },
+        error: null,
+      });
+
     it('nulls lice_id + scheduled_at on every pool match scheduled on the given day', async () => {
       let updatePatch: Record<string, unknown> | null = null;
       const updateChain = makeChain({ data: null, error: null });
@@ -745,7 +759,9 @@ describe('MatchesService', () => {
         }),
       ) as never;
       updateChain.gte = vi.fn().mockReturnValue(updateChain) as never;
-      fromMock.mockReturnValue(updateChain);
+      fromMock.mockImplementation((table: string) =>
+        table === 'pools' ? poolChainFor('UTC') : updateChain,
+      );
 
       await service.clearPoolScheduleForDay('pool-1', '2026-05-02');
 
@@ -756,6 +772,67 @@ describe('MatchesService', () => {
       // Clearing a time IS a reschedule. This route told the queue nothing at
       // all until 2026-08-15, so every fight it wiped kept its "starting soon".
       expect(mockMatchAlerts.refresh).toHaveBeenCalledWith(['match-1', 'match-2']);
+    });
+
+    /**
+     * The window is the event's day, not the UTC day. Los Angeles rather than
+     * Paris on purpose: the suite already runs under UTC and Europe/Paris, and
+     * neither can see this — UTC is the old behaviour, and Paris shifts the
+     * boundary by an hour or two into the small hours where no fixture lives. A
+     * negative offset moves it into the middle of the competition day, which is
+     * where a real event would have met it.
+     */
+    it('measures the day on the event clock, not in UTC', async () => {
+      const updateChain = makeChain({ data: null, error: null });
+      updateChain.update = vi.fn().mockReturnValue(updateChain) as never;
+      updateChain.eq.mockReturnValue(updateChain);
+      updateChain.gte = vi.fn().mockReturnValue(updateChain) as never;
+      updateChain.lt = vi.fn().mockReturnValue(
+        Object.assign(Promise.resolve({ data: null, error: null }), {
+          select: vi.fn().mockReturnValue(Promise.resolve({ data: [], error: null })),
+        }),
+      ) as never;
+      fromMock.mockImplementation((table: string) =>
+        table === 'pools' ? poolChainFor('America/Los_Angeles') : updateChain,
+      );
+
+      await service.clearPoolScheduleForDay('pool-1', '2026-05-02');
+
+      // 2026-05-02 00:00 in Los Angeles (PDT, UTC-7) is 07:00Z the same day,
+      // and the next local midnight is 07:00Z on the 3rd. Under the old UTC
+      // window this cleared 2026-05-02T00:00Z–2026-05-03T00:00Z, which both
+      // spared that morning's bouts and wiped seven hours of the previous day.
+      expect(updateChain.gte).toHaveBeenCalledWith('scheduled_at', '2026-05-02T07:00:00.000Z');
+      expect(updateChain.lt).toHaveBeenCalledWith('scheduled_at', '2026-05-03T07:00:00.000Z');
+    });
+
+    /**
+     * A local day is 23 or 25 hours twice a year. An `end = start + 24h` range
+     * would clear an hour too little or too much on those two days, so each
+     * boundary resolves independently.
+     */
+    it('spans exactly one local day across a DST change', async () => {
+      const updateChain = makeChain({ data: null, error: null });
+      updateChain.update = vi.fn().mockReturnValue(updateChain) as never;
+      updateChain.eq.mockReturnValue(updateChain);
+      updateChain.gte = vi.fn().mockReturnValue(updateChain) as never;
+      updateChain.lt = vi.fn().mockReturnValue(
+        Object.assign(Promise.resolve({ data: null, error: null }), {
+          select: vi.fn().mockReturnValue(Promise.resolve({ data: [], error: null })),
+        }),
+      ) as never;
+      fromMock.mockImplementation((table: string) =>
+        table === 'pools' ? poolChainFor('Europe/Paris') : updateChain,
+      );
+
+      // Europe/Paris springs forward on 2026-03-29, so that local day is 23h.
+      await service.clearPoolScheduleForDay('pool-1', '2026-03-29');
+
+      const start = (updateChain.gte as unknown as ReturnType<typeof vi.fn>).mock
+        .calls[0]![1] as string;
+      const end = (updateChain.lt as unknown as ReturnType<typeof vi.fn>).mock
+        .calls[0]![1] as string;
+      expect(Date.parse(end) - Date.parse(start)).toBe(23 * 3600_000);
     });
   });
 
