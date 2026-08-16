@@ -13,7 +13,7 @@
 
 import { useEffect, useState } from 'react';
 import { getPublicApiUrl } from '@/lib/api-url';
-import { localeToBcp47, type AppLocale } from '@myclash/time';
+import { DEFAULT_EVENT_TIMEZONE, localeToBcp47, zonedDay, type AppLocale } from '@myclash/time';
 import { sideColorsForTokens } from '@myclash/ui';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
@@ -67,6 +67,8 @@ interface WorkshopEnrollment {
 
 interface PersonSchedule {
   personId: string;
+  /** The event's IANA zone — the clock the day headings below are measured on. */
+  timezone?: string | null;
   matches: ScheduleMatch[];
   refereeSlots: RefereeSlot[];
   workshops: WorkshopEnrollment[] | null;
@@ -183,7 +185,10 @@ export default function MySchedulePage() {
             ...(data.workshops ?? []).map((w) => w.sessionStart),
           ]
             .filter(Boolean)
-            .map((t) => t!.slice(0, 10));
+            // The event's day, not the UTC day. These two must agree with the
+            // grouping key below or the filter selects a heading that holds
+            // nothing — see the `byDay` comment.
+            .map((t) => zonedDay(t!, data.timezone ?? DEFAULT_EVENT_TIMEZONE) ?? t!.slice(0, 10));
           setDays([...new Set(allTimes)].sort());
         }
       })
@@ -247,10 +252,15 @@ export default function MySchedulePage() {
   // Conflict detection
   const conflicts = detectConflicts(sorted, t);
 
-  // Group by day
+  // Group by day, on the EVENT's clock. This and the day filter above are one
+  // decision made twice, so they have to use the same rule: a UTC key here and
+  // a zoned key there would offer a heading that matches nothing.
   const byDay = new Map<string, ScheduleItem[]>();
   for (const item of sorted) {
-    const day = item.time?.slice(0, 10) ?? 'unscheduled';
+    const day = item.time
+      ? (zonedDay(item.time, schedule?.timezone ?? DEFAULT_EVENT_TIMEZONE) ??
+        item.time.slice(0, 10))
+      : 'unscheduled';
     const arr = byDay.get(day) ?? [];
     arr.push(item);
     byDay.set(day, arr);

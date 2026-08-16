@@ -58,7 +58,7 @@ const poolScoped = (id: string, startsAt: string | null) => ({
   matches: null,
 });
 
-function buildService(assignments: unknown[]) {
+function buildService(assignments: unknown[], timezone: string | null = null) {
   const chains = new Map<string, Chain>();
   const supabase = {
     service: {
@@ -68,7 +68,9 @@ function buildService(assignments: unknown[]) {
             ? q({ data: assignments, error: null })
             : table === 'persons'
               ? q({ data: { global_person_id: 'gp-1' }, error: null })
-              : q({ data: [], error: null });
+              : table === 'events'
+                ? q({ data: timezone === null ? null : { timezone }, error: null })
+                : q({ data: [], error: null });
         if (!chains.has(table)) chains.set(table, chain);
         return chain;
       }),
@@ -106,6 +108,30 @@ describe('PublicScheduleService.getSchedule — referee slot ordering', () => {
     const schedule = await service.getSchedule('e-1', 'p-1', null);
     expect(schedule.refereeSlots.map((s) => s.matchId)).toEqual(['', '']);
     expect(schedule.refereeSlots.map((s) => s.id)).toEqual(['a-1', 'a-2']);
+  });
+
+  /**
+   * Every instant in this payload is UTC and the client groups them into days,
+   * which is only correct on the event's clock. Without the zone the client fell
+   * back to the UTC day, so a fighter at an event west of UTC saw an afternoon
+   * bout filed under tomorrow.
+   */
+  it('carries the event timezone, so the client can group by the event day', async () => {
+    const { service, chains } = buildService([], 'America/Los_Angeles');
+    const schedule = await service.getSchedule('e-1', 'p-1', null);
+    expect(schedule.timezone).toBe('America/Los_Angeles');
+    // Assert the projection, not only the value: this mock ignores the select
+    // string, so dropping `timezone` from the read leaves the fallback in place
+    // and a value-only assertion would still pass on Europe/Paris.
+    expect(chains.get('events')!.select).toHaveBeenCalledWith('timezone');
+  });
+
+  it('falls back to the platform default when the event row is unreadable', async () => {
+    // `events.timezone` is NOT NULL DEFAULT (migration 0102), so this only fires
+    // on an unreadable row — where a wrong day heading beats an empty schedule.
+    const { service } = buildService([], null);
+    const schedule = await service.getSchedule('e-1', 'p-1', null);
+    expect(schedule.timezone).toBe('Europe/Paris');
   });
 
   it('asks Postgres for a deterministic base order', async () => {

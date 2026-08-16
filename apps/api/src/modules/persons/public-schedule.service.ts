@@ -14,6 +14,7 @@
  */
 
 import { Injectable } from '@nestjs/common';
+import { DEFAULT_EVENT_TIMEZONE } from '@myclash/time';
 import { SupabaseService } from '../supabase/supabase.service';
 import { PrivacyService } from './privacy.service';
 import { computeMatchKind, fetchBracketRounds, fetchSwissRounds } from './match-kind.util';
@@ -103,6 +104,13 @@ export interface WorkshopEnrollment {
 
 export interface PersonSchedule {
   personId: string;
+  /**
+   * The event's IANA zone. Every instant below is UTC, and the client groups
+   * them into days — which is only correct on the event's clock. Without this
+   * the client fell back to the UTC day, so a fighter at an event west of UTC
+   * saw an afternoon bout filed under tomorrow.
+   */
+  timezone: string;
   matches: ScheduleMatch[];
   refereeSlots: RefereeSlot[];
   workshops: WorkshopEnrollment[] | null; // null = hidden by privacy
@@ -120,15 +128,30 @@ export class PublicScheduleService {
     personId: string,
     requesterPersonId: string | null,
   ): Promise<PersonSchedule> {
-    const [matches, refereeSlots, showWorkshops] = await Promise.all([
+    const [matches, refereeSlots, showWorkshops, timezone] = await Promise.all([
       this.fetchMatches(eventId, personId),
       this.fetchRefereeSlots(eventId, personId),
       this.privacy.canSeeWorkshops(personId, requesterPersonId),
+      this.fetchTimezone(eventId),
     ]);
 
     const workshops = showWorkshops ? await this.fetchWorkshops(eventId, personId) : null;
 
-    return { personId, matches, refereeSlots, workshops };
+    return { personId, timezone, matches, refereeSlots, workshops };
+  }
+
+  /**
+   * `events.timezone` is `NOT NULL DEFAULT 'Europe/Paris'` (migration 0102), so
+   * the fallback only fires when the row is unreadable — in which case a wrong
+   * day heading is a better failure than an empty schedule.
+   */
+  private async fetchTimezone(eventId: string): Promise<string> {
+    const { data } = await this.supabase.service
+      .from('events')
+      .select('timezone')
+      .eq('id', eventId)
+      .maybeSingle();
+    return (data as { timezone?: string | null } | null)?.timezone ?? DEFAULT_EVENT_TIMEZONE;
   }
 
   // ── Private fetchers ─────────────────────────────────────────────────────────

@@ -12,7 +12,7 @@ import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { ConfirmDialog, Modal, SkillBadge, tintBgClassFor, useToast } from '@myclash/ui';
 
-import { localeToBcp47, type AppLocale } from '@myclash/time';
+import { DEFAULT_EVENT_TIMEZONE, localeToBcp47, zonedDay, type AppLocale } from '@myclash/time';
 import { blockTint, resolveBlockAccent } from '@myclash/types';
 import type { CapacityWarning, RefereeConflict } from '@myclash/types';
 import { useI18n, type Translator } from '@myclash/next-i18n/client';
@@ -722,6 +722,8 @@ function AssignmentsTab({
   // Event days for the day filter; selectedDayIso null = all days.
   const [eventDayIsos, setEventDayIsos] = useState<string[]>([]);
   const [eventStartDateIso, setEventStartDateIso] = useState<string | null>(null);
+  /** The clock the day filter is measured on — see the pool filter below. */
+  const [eventTz, setEventTz] = useState<string>(DEFAULT_EVENT_TIMEZONE);
   const [selectedDayIso, setSelectedDayIso] = useState<string | null>(null);
   // Drag-drop: ref holds the dragged pool (no re-render); state highlights
   // the hovered drop cell.
@@ -746,12 +748,20 @@ function AssignmentsTab({
   );
   // Day filter: when a day is selected, keep only pools scheduled that day
   // (unscheduled pools — null start — only appear under "All days").
+  // `scheduledStart` is a real UTC instant, so `slice(0, 10)` read the UTC day
+  // and not the event's. The programme-block rows beside these are built from a
+  // day INDEX (see programmeBlockStartIso), so they were always on the event's
+  // clock — on an event west of UTC the two halves of this one filter disagreed
+  // about which day they were on. `zonedDay` is what the schedule grid, the CSV
+  // export and the public schedule already use.
   const visibleBoardPools = useMemo(
     () =>
       selectedDayIso
-        ? allBoardPools.filter((p) => p.scheduledStart?.slice(0, 10) === selectedDayIso)
+        ? allBoardPools.filter(
+            (p) => zonedDay(p.scheduledStart ?? null, eventTz) === selectedDayIso,
+          )
         : allBoardPools,
-    [allBoardPools, selectedDayIso],
+    [allBoardPools, selectedDayIso, eventTz],
   );
   const { blocks: timeslotBlocks, unscheduled: unscheduledBoardPools } = useMemo(
     () => groupPoolsByTimeslot(visibleBoardPools),
@@ -956,8 +966,13 @@ function AssignmentsTab({
     })
       .then(async (res) => {
         if (!res.ok) return;
-        const ev = (await res.json()) as { start_date: string; end_date?: string | null };
+        const ev = (await res.json()) as {
+          start_date: string;
+          end_date?: string | null;
+          timezone?: string | null;
+        };
         setEventStartDateIso(ev.start_date ?? null);
+        setEventTz(ev.timezone ?? DEFAULT_EVENT_TIMEZONE);
         setEventDayIsos(eachDayIso(ev.start_date, ev.end_date ?? null));
       })
       .catch(() => undefined);
