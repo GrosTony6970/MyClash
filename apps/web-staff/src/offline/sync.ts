@@ -331,6 +331,20 @@ export class SyncEngine {
     this.aborted = true;
   }
 
+  /**
+   * Is a drain running right now?
+   *
+   * Exposed for the pad's undo, which deletes the outbox tail locally when the
+   * hit has not reached the server. Mid-drain that entry may already have been
+   * POSTed and be waiting on `markSynced`, so deleting it would leave the hit on
+   * the server with the referee believing it undone. The undo takes the server
+   * path instead while this is true — and if a drain is running, the network is
+   * up, so that path works.
+   */
+  isDraining(): boolean {
+    return this.running;
+  }
+
   /** Current pending count without triggering a drain. */
   async getPendingCount(): Promise<number> {
     return totalPendingCount();

@@ -218,6 +218,7 @@ export const scoring = {
     actionFailed: 'Correction impossible.',
     defaultReason: 'Correction arbitre de table',
     clearLastExchange: 'Effacer le dernier échange',
+    clearLastFailed: 'Impossible d’effacer le dernier échange.',
     swapColor: 'Inverser les couleurs',
     swapSide: 'Inverser les cotes',
     resetMatch: 'Réinitialiser le match',

@@ -92,6 +92,34 @@ export async function clearMatch(matchId: string): Promise<void> {
 }
 
 /**
+ * Drop the most recent QUEUED exchange for a match — the referee's undo, when
+ * the hit has not reached the server yet.
+ *
+ * Pending means "not on the server", so this is a local delete rather than a
+ * void: it never creates a `voided` row for a hit that never left the tablet,
+ * which is also why it is the right answer online and not merely the offline
+ * fallback.
+ *
+ * Returns the entry it removed, or null when the outbox holds nothing for this
+ * match — in which case the last exchange IS on the server and the caller must
+ * go and void it there.
+ *
+ * Reads and deletes in ONE transaction. A drain running concurrently deletes
+ * the same row on success, and a read-then-delete would race it: we would
+ * report an undo for a hit the server had just accepted. The caller also checks
+ * `SyncEngine.isDraining()` first; this is the belt to that braces.
+ */
+export async function dequeueLastForMatch(matchId: string): Promise<OutboxEntry | null> {
+  return db.transaction('rw', db.outbox, async () => {
+    const pending = await db.outbox.where('matchId').equals(matchId).sortBy('id');
+    const last = pending[pending.length - 1];
+    if (!last?.id) return null;
+    await db.outbox.delete(last.id);
+    return last;
+  });
+}
+
+/**
  * Move an entry the server REFUSED (HTTP 400) out of the outbox and into
  * `rejected`, keeping the payload and recording why.
  *

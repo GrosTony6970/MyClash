@@ -522,6 +522,8 @@ export function MatchView({
           onClockAction={(action) => void onClockAction(action)}
           submit={submit}
           refreshKey={refreshKey}
+          online={networkStatus === 'online'}
+          syncEngine={syncEngine}
           onExchangeVoided={handleExchangeVoided}
           isBestOf={isBestOf}
           currentRound={currentRound}

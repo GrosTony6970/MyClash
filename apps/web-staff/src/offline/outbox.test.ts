@@ -13,6 +13,7 @@ import { db } from './db';
 import {
   bulkEnqueue,
   clearMatch,
+  dequeueLastForMatch,
   discardRejected,
   enqueue,
   getAllPending,
@@ -278,5 +279,71 @@ describe('performance', () => {
 
     expect(elapsed).toBeLessThan(500);
     expect(await pendingCount('perf-match')).toBe(1000);
+  });
+});
+
+// ── The referee's undo ────────────────────────────────────────────────────────
+// A queued hit has not reached the server, so undoing it is a local delete
+// rather than a void — which is what lets "Clear last exchange" work offline,
+// where it used to PATCH into a synthetic 503 and report success anyway.
+
+describe('dequeueLastForMatch', () => {
+  async function queue(matchId: string, sequence: number) {
+    return enqueue({
+      clientUuid: `uuid-${matchId}-${sequence}`,
+      matchId,
+      sequence,
+      type: 'clean',
+      occurredAt: new Date().toISOString(),
+      firstStrikerColor: 'red',
+      firstStrikeValue: 1,
+    });
+  }
+
+  it('removes the most recently queued hit and returns it', async () => {
+    await queue('match-1', 1);
+    await queue('match-1', 2);
+
+    const removed = await dequeueLastForMatch('match-1');
+
+    expect(removed?.sequence).toBe(2);
+    expect(await pendingCount('match-1')).toBe(1);
+  });
+
+  it('returns null when nothing is queued — the hit is on the server', async () => {
+    // The signal the caller needs to fall through to the server-side void
+    // instead of reporting an undo that removed nothing.
+    expect(await dequeueLastForMatch('match-1')).toBeNull();
+  });
+
+  it('never reaches into another match’s queue', async () => {
+    await queue('match-1', 1);
+    await queue('match-2', 1);
+
+    await dequeueLastForMatch('match-1');
+
+    expect(await pendingCount('match-1')).toBe(0);
+    expect(await pendingCount('match-2')).toBe(1);
+  });
+
+  it('lets nextSequence fall back, so the next hit reuses the number', async () => {
+    // nextSequence is max(outbox, synced) + 1. Undoing the tail has to give the
+    // number back, or the match grows a permanent gap in its sequence.
+    await queue('match-1', 1);
+    await queue('match-1', 2);
+    expect(await nextSequence('match-1')).toBe(3);
+
+    await dequeueLastForMatch('match-1');
+
+    expect(await nextSequence('match-1')).toBe(2);
+  });
+
+  it('undoes repeatedly, down to an empty queue', async () => {
+    await queue('match-1', 1);
+    await queue('match-1', 2);
+
+    expect(await dequeueLastForMatch('match-1')).not.toBeNull();
+    expect(await dequeueLastForMatch('match-1')).not.toBeNull();
+    expect(await dequeueLastForMatch('match-1')).toBeNull();
   });
 });

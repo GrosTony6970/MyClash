@@ -217,6 +217,7 @@ export const scoring = {
     actionFailed: 'Correction failed.',
     defaultReason: 'Scorekeeper correction',
     clearLastExchange: 'Clear last exchange',
+    clearLastFailed: 'Could not clear the last exchange.',
     swapColor: 'Swap fighter color',
     swapSide: 'Swap fighter side',
     resetMatch: 'Reset match',

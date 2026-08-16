@@ -40,6 +40,9 @@ import {
 import { useExchanges } from '../hooks/useExchanges';
 import { usePenalties } from '../hooks/usePenalties';
 import type { UseScoringSubmitResult } from '../hooks/useScoringSubmit';
+import { dequeueLastForMatch, pendingCount } from '../offline/outbox';
+import { classifySyncFailure, type FailureBody } from '../offline/failure-kind';
+import type { SyncEngine } from '../offline/sync';
 import { isDoubleLoss } from './is-double-loss';
 import { blackCardLossRegistrationId } from './black-card-loss';
 import { NoExchangeReasonDialog } from './NoExchangeReasonDialog';
@@ -76,6 +79,17 @@ interface ScoringCenterControlsProps {
   submit: UseScoringSubmitResult;
   /** Bumped externally when an exchange or penalty is recorded/voided. */
   refreshKey: number;
+  /**
+   * Network state, from the page. Clear-last-exchange only needs it for the
+   * half of the job that talks to the server — undoing a hit still sitting in
+   * the outbox works offline.
+   */
+  online: boolean;
+  /**
+   * The durable-sync engine. Needed to ask `isDraining()` before deleting the
+   * outbox tail: mid-drain that row may already be on the server.
+   */
+  syncEngine?: SyncEngine | null;
   /** Called after Clear-last-exchange voids a row. */
   onExchangeVoided?: () => void;
   /** Locked match → read-only: hide clock/scoring controls, keep timer + timeline. */
@@ -125,6 +139,8 @@ export function ScoringCenterControls({
   onClockAction,
   submit,
   refreshKey,
+  online,
+  syncEngine,
   onExchangeVoided,
   readOnly,
   isBestOf = false,
@@ -143,6 +159,28 @@ export function ScoringCenterControls({
   const [resetConfirmOpen, setResetConfirmOpen] = useState(false);
   const [noExchangeOpen, setNoExchangeOpen] = useState(false);
   const [clearBusy, setClearBusy] = useState(false);
+  const [clearError, setClearError] = useState<string | null>(null);
+  /**
+   * Hits queued for THIS match. Not the sync bar's count, which is
+   * `totalPendingCount()` across every match — reusing it would light this
+   * button up over another bout's backlog.
+   *
+   * Without it the button is dead exactly when it is needed most: score three
+   * hits offline from a fresh match and the server list is still empty, so
+   * `activeExchanges.length === 0` greys out an undo for three real hits.
+   */
+  const [pendingHere, setPendingHere] = useState(0);
+  useEffect(() => {
+    let cancelled = false;
+    void pendingCount(matchId).then((n) => {
+      if (!cancelled) setPendingHere(n);
+    });
+    return () => {
+      cancelled = true;
+    };
+    // `refreshKey` already bumps on every score mutation, so this re-derives
+    // exactly when the queue can have changed.
+  }, [matchId, refreshKey]);
 
   // Live ticker — runs while running AND while halted so the wall-clock
   // TOTAL TIME keeps flowing through pauses (the big clock is unaffected:
@@ -217,17 +255,68 @@ export function ScoringCenterControls({
     ],
   );
 
+  /**
+   * Undo the hit the referee actually scored.
+   *
+   * Two cases, and only one of them needs a network. The outbox already answers
+   * "is this exchange on the server?" — pending means no — so a queued hit is
+   * undone by deleting the local row, with no fetch at all. That is what makes
+   * this work offline, where it used to fire a PATCH, ignore the response, and
+   * report success over a synthetic 503 that voided nothing.
+   *
+   * ORDER MATTERS: outbox first, not `online` first. Online, `submit` enqueues
+   * then drains immediately, so the tail is normally already synced — but if
+   * that drain failed against a live network the entry is pending WHILE online,
+   * and voiding it server-side would 404 on an exchange the server never saw.
+   *
+   * Not a queued void. Deleting an unsynced row is strictly more correct than
+   * voiding: it never leaves a `voided` row behind for a hit that never left
+   * the tablet.
+   */
   async function clearLastExchange() {
-    const lastExchange = activeExchanges[activeExchanges.length - 1];
-    if (!lastExchange) return;
     setClearBusy(true);
+    setClearError(null);
     try {
-      await fetch(`${apiUrl}/api/v1/exchanges/${lastExchange.id}/void`, {
+      // Mid-drain the tail may already be POSTed and awaiting markSynced, so
+      // deleting it locally would leave the hit on the server with the referee
+      // believing it gone. A drain running means the network is up, so the
+      // server path below is available.
+      if (!syncEngine?.isDraining()) {
+        const dequeued = await dequeueLastForMatch(matchId);
+        if (dequeued) {
+          setPendingHere((n) => Math.max(0, n - 1));
+          onExchangeVoided?.();
+          return;
+        }
+      }
+
+      // Nothing queued → the last exchange is on the server.
+      const lastExchange = activeExchanges[activeExchanges.length - 1];
+      if (!lastExchange) return;
+      if (!online) {
+        setClearError(t('scoring.corrections.onlineOnly'));
+        return;
+      }
+
+      const res = await fetch(`${apiUrl}/api/v1/exchanges/${lastExchange.id}/void`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
         body: JSON.stringify({ reason: 'Clear last exchange (referee)' }),
       });
+      if (!res.ok) {
+        // Same classifier the outbox drain uses, so the pad has ONE failure
+        // vocabulary: the service worker's synthetic 503 reads as offline, not
+        // as the server having an opinion.
+        const body = (await res.json().catch(() => null)) as FailureBody | null;
+        const kind = classifySyncFailure(res.status, body);
+        setClearError(
+          kind === 'offline'
+            ? t('scoring.corrections.onlineOnly')
+            : (body?.message ?? t('scoring.corrections.clearLastFailed')),
+        );
+        return;
+      }
       refreshExchanges();
       onExchangeVoided?.();
     } finally {
@@ -433,7 +522,11 @@ export function ScoringCenterControls({
             </p>
             <button
               type="button"
-              disabled={activeExchanges.length === 0 || clearBusy}
+              // Pending hits count too. Offline the server list is frozen at
+              // whatever last loaded, so on a fresh match it is empty while the
+              // outbox holds real hits — gating on it alone kills the undo
+              // exactly when the referee needs it.
+              disabled={(activeExchanges.length === 0 && pendingHere === 0) || clearBusy}
               onClick={() => void clearLastExchange()}
               // `info`, not `danger`: clearing the last exchange is a routine
               // correction a referee makes constantly, and the cyan this
@@ -442,6 +535,11 @@ export function ScoringCenterControls({
             >
               ↶ {t('scoring.corrections.clearLastExchange')}
             </button>
+            {clearError && (
+              <p className="text-center text-xs text-danger" role="alert">
+                {clearError}
+              </p>
+            )}
           </div>
         </>
       )}
