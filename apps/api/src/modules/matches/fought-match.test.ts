@@ -12,19 +12,20 @@ describe('hasBeenFought', () => {
     expect(hasBeenFought(status, startedAt as string | null)).toBe(expected);
   });
 
-  it('counts a bout that was started and then reset', () => {
-    // The whole reason `started_at` is in the predicate. `resetMatch` puts the
-    // status back to 'scheduled' but leaves the clock's first start behind, so
-    // status alone reads this bout as untouched — and bracket advancement would
-    // rewrite a pairing somebody already fought.
+  it('counts a scheduled bout that still carries a start time', () => {
+    // NO CALL SITE CAN PRODUCE THIS ROW, and the predicate answers it anyway.
+    // `started_at` is written only alongside `status='running'` (clock.service)
+    // and cleared only alongside `status='scheduled'` (unplayedMatchColumns), so
+    // the two never disagree. Kept as defence: the cost of a wrong "no" is a
+    // played result discarded in silence. See the note in fought-match.ts.
     expect(hasBeenFought('scheduled', '2026-05-21T10:00:00.000Z')).toBe(true);
   });
 
-  it('is the case that separates it from scoredMatchesIn', () => {
-    // phases.service.ts#scoredMatchesIn answers the narrower question — "is
-    // scoring under way" — from status alone, and calls this same bout
-    // editable. Both answers are correct for their own question; this test
-    // exists so the difference is visible rather than looking like drift.
+  it('is the only case where it outruns scoredMatchesIn', () => {
+    // phases.service.ts#scoredMatchesIn reads the same three statuses without
+    // the `started_at` disjunct. This row is the entire difference between them
+    // — and it is unreachable, so today the two agree everywhere. The questions
+    // still differ, which is why they stay apart; see the comment there.
     const status = 'scheduled';
     const startedAt = '2026-05-21T10:00:00.000Z';
 
@@ -32,11 +33,12 @@ describe('hasBeenFought', () => {
     expect(['running', 'paused', 'completed'].includes(status)).toBe(false);
   });
 
-  it('does not care what a voided bout once did', () => {
-    // A voided bout carries `started_at` if it ever ran, and this returns true
-    // for it. That is intentional at both call sites: bracket-match-sync filters
-    // `status != 'voided'` before asking, and dependentClosure wants a voided
-    // child to still count as "do not silently discard".
+  it('counts a voided bout that once ran, and is never asked about one', () => {
+    // A voided bout keeps `started_at` if it ever ran, so this returns true.
+    // BOTH call sites exclude voided at the query — `loadSlotMatch` and the
+    // matches read inside `dependentClosure` each carry
+    // `.not('status', 'eq', 'voided')` — so the branch is unreachable at each.
+    // Asserted to pin the answer, not because anything depends on it.
     expect(hasBeenFought('voided', '2026-05-21T10:00:00.000Z')).toBe(true);
   });
 });

@@ -2369,8 +2369,11 @@ export class PhasesService {
    * edits, and the whole phase for `deleteAllPools`, which removes every match
    * at once and so cannot ask the per-pool question.
    *
-   * DELIBERATELY NARROWER THAN `hasBeenFought` (matches/fought-match.ts), which
-   * also counts `started_at`. Two predicates, two questions:
+   * THE SAME THREE STATUSES as `hasBeenFought` (matches/fought-match.ts), asked
+   * for a different reason. That one adds a `started_at` disjunct which cannot
+   * currently fire — the two columns are only ever written together — so today
+   * the two predicates agree on every row that exists. They are still separate,
+   * because the questions and the costs are not the same:
    *
    *   hasBeenFought      has this bout EVER been fought? Guards bracket
    *                      advancement and un-completion, where the cost of a
@@ -2379,17 +2382,11 @@ export class PhasesService {
    *                      schedule edits, where the cost of a wrong "yes" is an
    *                      organiser unable to move a bout nobody is fighting.
    *
-   * So a bout that was started and then reset — `status='scheduled'` with
-   * `started_at` still set — is fought to the first and editable to the second.
-   * That is the intended answer: `unplayedMatchColumns` deliberately preserves
-   * `lice_id` and `scheduled_at` through a reset precisely so the bout can be
-   * re-placed, and locking the pool would strand it.
-   *
-   * The two used to differ with nothing saying which was right, which reads as a
-   * bug every time somebody finds it. It is a decision. Widening this one is a
-   * behaviour change affecting ten call sites, most of them pure scheduling —
-   * setPoolLice, reschedulePool, autoDistributePool, the pool-member edits — and
-   * needs to be taken as one, not slipped in as a tidy-up.
+   * Agreeing today is not a reason to merge them. Widening this one to match
+   * `hasBeenFought` if that disjunct ever starts firing is a behaviour change
+   * affecting ten call sites, most of them pure scheduling — setPoolLice,
+   * reschedulePool, autoDistributePool, the pool-member edits — and needs to be
+   * taken as a decision, not slipped in as a tidy-up.
    */
   private async scoredMatchesIn(column: 'pool_id' | 'phase_id', id: string): Promise<string[]> {
     const { data, error } = await this.supabase.service

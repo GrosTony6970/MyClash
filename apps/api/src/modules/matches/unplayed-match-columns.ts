@@ -9,11 +9,15 @@
  *
  * Every field here is load-bearing for something downstream:
  *
- *   status / started_at   `hasStarted` in bracket-match-sync.ts is exactly
- *                         `started_at !== null || status ∈ {running,paused,
- *                         completed}`, and it is the whole gate on whether
- *                         advancement may rewrite the bout's pairing. Miss
- *                         either and a reseed is a silent skip.
+ *   status / started_at   `hasBeenFought` (matches/fought-match.ts) gates
+ *                         whether advancement may rewrite the bout's pairing.
+ *                         Clearing the two TOGETHER is what keeps its
+ *                         `started_at` disjunct from ever disagreeing with its
+ *                         status test: clear the status and leave the start
+ *                         time behind, and a replayed bout reads as fought for
+ *                         good. This object is the only writer that puts a
+ *                         played bout back to 'scheduled', so that property
+ *                         lives here and nowhere else.
  *   end_reason            'max_doubles' is read as a mutual loss by Swiss
  *                         standings and by the HEMA Ratings submission. Left
  *                         stale it makes both fighters lose a bout one of them

@@ -5,11 +5,6 @@
  * question: that module says which columns a never-played bout carries, this one
  * says how to recognise a played one.
  *
- * `started_at` matters as much as `status`. A bout that was started and then
- * reset sits at `status='scheduled'` with `started_at` still set — the clock
- * ran, exchanges may exist, and `unplayedMatchColumns` deliberately does NOT
- * clear the schedule placement. Reading status alone calls that bout untouched.
- *
  * It was spelled twice, in two files, with nothing saying which spelling was
  * right:
  *
@@ -20,9 +15,28 @@
  * whether bracket advancement may rewrite a bout's pairing, and `hasBeenFought`
  * is what stops un-doing a parent from silently discarding a played child.
  *
- * DELIBERATELY NOT the predicate `phases.service.ts#scoredMatchesIn` uses. That
- * one asks a narrower question — "is scoring under way" — and answers it from
- * status alone, on purpose. See the comment there.
+ * PRECONDITION: callers exclude voided rows before asking. Both do, at the
+ * query — `loadSlotMatch` in bracket-match-sync.ts and the matches read inside
+ * `dependentClosure` each carry `.not('status', 'eq', 'voided')`. This returns
+ * true for a voided bout that once ran, and nothing reaches it with one.
+ *
+ * THE `started_at` DISJUNCT CANNOT CURRENTLY CHANGE THE ANSWER, and is kept
+ * anyway. Exactly two writers touch `matches.started_at`: `clock.service.ts`
+ * sets it in the same update as `status='running'`, and `unplayedMatchColumns`
+ * nulls it in the same object as `status='scheduled'`. No insert sets it. So a
+ * non-null `started_at` implies the status is already one of the three below —
+ * except for voided, which the precondition excludes.
+ *
+ * That makes it defence against a row this codebase cannot write, and dropping
+ * it reds this module's unit tests and NOTHING else. Expected, not a hole in the
+ * coverage: there is no call-site test to write for an unreachable state. It
+ * stays because the cost of a wrong "no" here is a played result discarded in
+ * silence, and because the two columns moving together is a property of
+ * `unplayedMatchColumns`, not a guarantee of the schema.
+ *
+ * NOT the predicate `phases.service.ts#scoredMatchesIn` uses — the same three
+ * statuses, but a different question and a different cost of being wrong. See
+ * the comment there before merging them.
  *
  * Positional arguments because the two call sites disagree on casing: one holds
  * a camelCase view, the other a snake_case row.
