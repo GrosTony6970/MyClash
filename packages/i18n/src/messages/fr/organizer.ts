@@ -1895,10 +1895,13 @@ export const organizer = {
       barCollisionSingular: '⚠ {count} combat est programmé pendant une pause ou un bloc admin.',
       barCollisionPlural: '⚠ {count} combats sont programmés pendant une pause ou un bloc admin.',
       barCollisionLine: '{match} pendant {bar}',
-      overlapCountSingular:
-        '⚠ {count} chevauchement de blocs sur une lice — ajustez les heures ou les lices.',
-      overlapCountPlural:
-        '⚠ {count} chevauchements de blocs sur une lice — ajustez les heures ou les lices.',
+      liceStackCountSingular: '⚠ {count} lice fait tourner plusieurs combats à la fois.',
+      liceStackCountPlural: '⚠ {count} lices font tourner plusieurs combats à la fois.',
+      liceStackLine: '{lice} à {time} — {count} combats : {matches}',
+      liceStackLabelsMore: '+{count} autres',
+      liceStackRowsMore: '…et {count} autres.',
+      liceStackOtherDays: '{count} autres sur d’autres jours.',
+      unknownLice: 'Lice sans nom',
       viewLabel: 'Vue',
       viewBlocks: 'Blocs',
       viewDetailed: 'Grille détaillée',

@@ -46,7 +46,7 @@ import { BlockEditPopover, type BlockEditDraft } from './BlockEditPopover';
 import { computeLiceDrift } from './lice-drift';
 import { scheduleToCsv } from './schedule-csv';
 import { distributeGroups } from './auto-place';
-import { detectScheduleOverlaps } from './detect-overlaps';
+import { detectLiceStacks } from './detect-overlaps';
 import { detectBarCollisions } from './bar-collisions';
 import {
   hhmmToSlot,
@@ -1460,7 +1460,34 @@ export function ScheduleGrid({
     }
     return ids;
   }, [conflicts]);
-  const dayOverlaps = useMemo(() => detectScheduleOverlaps(dayBlocks), [dayBlocks]);
+  /**
+   * Lices running more than one bout at once, named.
+   *
+   * Two passes over disjoint sets. The active day's stacks are listed in full;
+   * the rest of the event is counted, so a strip double-booked on day 2 is not
+   * invisible to somebody looking at day 1. A safety advisory that only speaks
+   * about the day you happen to be on is the kind of silence this replaced.
+   */
+  // Threaded in rather than resolved inside the pure module, the way
+  // `unknownFighterLabel` is: the i18n lint cannot reach a non-JSX file, and a
+  // module that carried its own English would go untranslated in silence.
+  const unknownLiceLabel = t('organizer.schedulePage.grid.unknownLice');
+  const liceStacks = useMemo(
+    () => detectLiceStacks(scheduledOnActiveDay, eventTz, liceNameById, unknownLiceLabel),
+    [scheduledOnActiveDay, eventTz, liceNameById, unknownLiceLabel],
+  );
+  const otherDayStackCount = useMemo(
+    () =>
+      detectLiceStacks(
+        matches.filter(
+          (m) => m.scheduledAt && m.liceId && !matchBelongsToDay(m.scheduledAt, activeDay, eventTz),
+        ),
+        eventTz,
+        liceNameById,
+        unknownLiceLabel,
+      ).length,
+    [matches, activeDay, eventTz, liceNameById, unknownLiceLabel],
+  );
   /**
    * Fights sitting inside a break or admin bar. Warned, never blocked — see
    * `bar-collisions.ts`. Neither view checked this before: the Blocks view
@@ -1485,15 +1512,22 @@ export function ScheduleGrid({
     return detectBarCollisions(placed, bars);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- isoToSlotTz is a stable pure helper; excluded intentionally
   }, [bgvBreaks, scheduledOnActiveDay, activeDay]);
+  /**
+   * Which blocks to tint amber — derived from the same stacks the banner names,
+   * so the tint and the banner cannot disagree. It used to come from a separate
+   * block-level comparison, which is how a banner that missed real clashes came
+   * to sit beside a tint that invented them. A pool stacked on itself now tints,
+   * which the block comparison could never see.
+   */
   const overlapBlockKeys = useMemo(() => {
-    if (dayOverlaps.length === 0) return EMPTY_STRING_SET;
+    if (liceStacks.length === 0) return EMPTY_STRING_SET;
+    const stacked = new Set(liceStacks.flatMap((s) => s.matchIds));
     const keys = new Set<string>();
-    for (const o of dayOverlaps) {
-      keys.add(o.aKey);
-      keys.add(o.bKey);
+    for (const b of dayBlocks) {
+      if (b.matches.some((m) => stacked.has(m.id))) keys.add(b.key);
     }
     return keys;
-  }, [dayOverlaps]);
+  }, [liceStacks, dayBlocks]);
 
   // Slice 4: slot index for "now" on the active day. Null when the
   // active day isn't today, when the current time is before the grid
@@ -1778,15 +1812,55 @@ export function ScheduleGrid({
         </div>
       )}
 
-      {dayOverlaps.length > 0 && (
-        <div className="bg-warning/10 border border-warning/30 rounded-xl px-4 py-2 mb-4 text-sm">
+      {/* Amber, not red: the server allows these on purpose. `setPoolLice` and
+          the per-fight piste picker move a bout between strips without touching
+          its clock, because "assign pistes for staffing, fix the times after"
+          is a real two-step workflow. So this is an advisory, and it has to
+          NAME the clash — the count it replaced told the operator a number and
+          left them to find the strip themselves. */}
+      {(liceStacks.length > 0 || otherDayStackCount > 0) && (
+        <div className="bg-warning/10 border border-warning/30 rounded-xl px-4 py-3 mb-4 text-sm">
           <p className="font-semibold text-warning">
-            {dayOverlaps.length === 1
-              ? t('organizer.schedulePage.grid.overlapCountSingular', {
-                  count: dayOverlaps.length,
+            {liceStacks.length === 1
+              ? t('organizer.schedulePage.grid.liceStackCountSingular', {
+                  count: liceStacks.length,
                 })
-              : t('organizer.schedulePage.grid.overlapCountPlural', { count: dayOverlaps.length })}
+              : t('organizer.schedulePage.grid.liceStackCountPlural', {
+                  count: liceStacks.length,
+                })}
           </p>
+          <ul className="mt-1 space-y-0.5 text-xs text-foreground-secondary">
+            {liceStacks.slice(0, 8).map((s) => (
+              <li key={`${s.liceId}-${s.time}-${s.matchIds[0]}`}>
+                {t('organizer.schedulePage.grid.liceStackLine', {
+                  lice: s.liceName,
+                  time: s.time,
+                  count: s.matchIds.length,
+                  matches:
+                    s.matchLabels.length > 3
+                      ? `${s.matchLabels.slice(0, 3).join(', ')} ${t(
+                          'organizer.schedulePage.grid.liceStackLabelsMore',
+                          { count: s.matchLabels.length - 3 },
+                        )}`
+                      : s.matchLabels.join(', '),
+                })}
+              </li>
+            ))}
+            {liceStacks.length > 8 && (
+              <li>
+                {t('organizer.schedulePage.grid.liceStackRowsMore', {
+                  count: liceStacks.length - 8,
+                })}
+              </li>
+            )}
+            {otherDayStackCount > 0 && (
+              <li>
+                {t('organizer.schedulePage.grid.liceStackOtherDays', {
+                  count: otherDayStackCount,
+                })}
+              </li>
+            )}
+          </ul>
         </div>
       )}
 

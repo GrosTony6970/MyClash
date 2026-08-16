@@ -1924,8 +1924,19 @@ export const organizer = {
       refereeOwnBout: '{person} is down to referee {match}, their own fight',
       refereeOverlap:
         '{person} fights {fight} at {fightTime} and referees {refereeing} at {refereeTime}',
-      overlapCountSingular: '⚠ {count} block overlap on a lice — adjust the times or lices.',
-      overlapCountPlural: '⚠ {count} block overlaps on a lice — adjust the times or lices.',
+      // A lice running more than one bout at once. Amber, not red: the server
+      // allows this on purpose, because moving a pool between lices without
+      // touching its clock is a real two-step workflow. The count these
+      // replaced named no lice, no bout and no time, so there was nothing to
+      // act on. Shown when there is a lice named, or a count for another day.
+      liceStackCountSingular: '⚠ {count} lice is running more than one bout at once.',
+      liceStackCountPlural: '⚠ {count} lices are running more than one bout at once.',
+      liceStackLine: '{lice} at {time} — {count} bouts: {matches}',
+      liceStackLabelsMore: '+{count} more',
+      liceStackRowsMore: '…and {count} more.',
+      liceStackOtherDays: '{count} more on other days.',
+      // Never a lice id — see the no-raw-ids rule.
+      unknownLice: 'Unnamed lice',
       // A warning, not a block: an organiser running late does sometimes push
       // a bout through a nominal break to catch up.
       barCollisionSingular: '⚠ {count} fight is scheduled inside a break or admin block.',
