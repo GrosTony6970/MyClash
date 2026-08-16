@@ -26,6 +26,7 @@ import { resolveRequestUserId } from '../../common/auth/request-user';
 import { OrganizationsService } from '../organizations/organizations.service';
 import { SupabaseService } from '../supabase/supabase.service';
 import { AssignmentBoardService, REFEREE_ASSIGNMENT_ROLES } from './assignment-board.service';
+import { BlockOnCompletedEvent } from '../../common/event-readonly/block-on-completed.decorator';
 
 const manualAssignmentRequestSchema = z
   .object({
@@ -149,6 +150,7 @@ export class AssignmentBoardController {
     return this.assignments.preview(eventId);
   }
 
+  @BlockOnCompletedEvent()
   @Post('events/:eventId/referee-assignment-preview/apply')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Apply the current referee auto-assignment preview' })
@@ -197,6 +199,7 @@ export class AssignmentBoardController {
     return this.assignments.deleteAssignment(assignmentId);
   }
 
+  @BlockOnCompletedEvent()
   @Delete('events/:eventId/referee-assignments')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
@@ -211,6 +214,7 @@ export class AssignmentBoardController {
     return this.assignments.clearEventAssignments(eventId);
   }
 
+  @BlockOnCompletedEvent()
   @Delete('pools/:poolId/referee-assignments')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
@@ -226,6 +230,7 @@ export class AssignmentBoardController {
     return this.assignments.clearPoolAssignments(poolId);
   }
 
+  @BlockOnCompletedEvent()
   @Delete('swiss-rounds/:roundId/referee-assignments')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({

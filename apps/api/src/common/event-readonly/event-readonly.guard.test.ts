@@ -15,6 +15,7 @@ import type { ExecutionContext } from '@nestjs/common';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { EventReadOnlyGuard } from './event-readonly.guard';
 import { ALLOW_ON_ARCHIVED_EVENT_KEY } from './allow-on-archived.decorator';
+import { BLOCK_ON_COMPLETED_EVENT_KEY } from './block-on-completed.decorator';
 
 // ── Mock helpers ──────────────────────────────────────────────────────────────
 
@@ -41,10 +42,24 @@ function makeContext(opts: {
   body?: Record<string, unknown>;
   url?: string;
   allowOnArchived?: boolean;
+  blockOnCompleted?: boolean;
 }): ExecutionContext {
-  const { method = 'POST', params = {}, body = {}, url = '', allowOnArchived = false } = opts;
+  const {
+    method = 'POST',
+    params = {},
+    body = {},
+    url = '',
+    allowOnArchived = false,
+    blockOnCompleted = false,
+  } = opts;
 
-  reflectorGetAllAndOverride.mockReturnValue(allowOnArchived ? true : undefined);
+  // Keyed per metadata key: the guard now reads TWO, and a blanket
+  // mockReturnValue would make every route look like it carried both.
+  reflectorGetAllAndOverride.mockImplementation((key: string) => {
+    if (key === ALLOW_ON_ARCHIVED_EVENT_KEY) return allowOnArchived ? true : undefined;
+    if (key === BLOCK_ON_COMPLETED_EVENT_KEY) return blockOnCompleted ? true : undefined;
+    return undefined;
+  });
 
   return {
     switchToHttp: () => ({
@@ -375,5 +390,113 @@ describe('EventReadOnlyGuard', () => {
 
     expect(result).toBe(true);
     expect(fromMock).not.toHaveBeenCalled();
+  });
+
+  // ── @BlockOnCompletedEvent ────────────────────────────────────────────────
+  // A completed event is finished but not put away, and tidying the record is
+  // legitimate. Only the routes that DESTROY the plan carry the marker.
+
+  describe('completed events', () => {
+    it('refuses a marked route on a completed event', async () => {
+      const ctx = makeContext({
+        params: { tournamentId: 'tournament-1' },
+        blockOnCompleted: true,
+        url: '/api/v1/tournaments/tournament-1/generate-pools',
+      });
+      fromMock
+        // tournamentId → tournaments.event_id, then events.status
+        .mockReturnValueOnce(makeChain({ data: { event_id: EVENT_UUID }, error: null }))
+        .mockReturnValueOnce(makeChain({ data: { status: 'completed' }, error: null }));
+
+      await expect(guard.canActivate(ctx)).rejects.toBeInstanceOf(ForbiddenException);
+    });
+
+    it('allows an UNMARKED route on the same completed event', async () => {
+      // The half that makes this a scalpel rather than a freeze: re-timing a
+      // bout on a finished event is exactly the tidying we mean to permit.
+      const ctx = makeContext({
+        params: { tournamentId: 'tournament-1' },
+        url: '/api/v1/tournaments/tournament-1/pools',
+      });
+      fromMock
+        .mockReturnValueOnce(makeChain({ data: { event_id: EVENT_UUID }, error: null }))
+        .mockReturnValueOnce(makeChain({ data: { status: 'completed' }, error: null }));
+
+      expect(await guard.canActivate(ctx)).toBe(true);
+    });
+
+    it('allows a marked route while the event is still running', async () => {
+      const ctx = makeContext({
+        params: { tournamentId: 'tournament-1' },
+        blockOnCompleted: true,
+        url: '/api/v1/tournaments/tournament-1/generate-pools',
+      });
+      fromMock
+        .mockReturnValueOnce(makeChain({ data: { event_id: EVENT_UUID }, error: null }))
+        .mockReturnValueOnce(makeChain({ data: { status: 'running' }, error: null }));
+
+      expect(await guard.canActivate(ctx)).toBe(true);
+    });
+
+    it('FAILS CLOSED when a marked route cannot resolve its event', async () => {
+      // The whole reason the marker is read before the resolve. An unresolvable
+      // event means "not event-scoped" for the archived sweep, which runs on
+      // every route in the API and must pass. On a route somebody deliberately
+      // marked, the same silence means the protection has quietly stopped
+      // working — this file has shipped that failure twice. Loud beats silent.
+      const ctx = makeContext({ blockOnCompleted: true, url: '/api/v1/something-unscoped' });
+
+      await expect(guard.canActivate(ctx)).rejects.toBeInstanceOf(ForbiddenException);
+      expect(fromMock).not.toHaveBeenCalled();
+    });
+
+    it('still passes an unmarked route that cannot resolve its event', async () => {
+      const ctx = makeContext({ url: '/api/v1/something-unscoped' });
+
+      expect(await guard.canActivate(ctx)).toBe(true);
+    });
+  });
+
+  // ── Resolver branches added for the marked referee routes ─────────────────
+  // Without these the two DELETEs below resolve to null, and a marked route
+  // that cannot resolve now throws — so a missing branch is loud, not silent.
+
+  describe('referee route resolution', () => {
+    const ROUND_UUID = 'd1e2f3a4-b5c6-4d7e-8f9a-0b1c2d3e4f5a';
+    const ASSIGNMENT_UUID = 'e1f2a3b4-c5d6-4e7f-8a9b-0c1d2e3f4a5b';
+
+    it('resolves swiss-rounds/<uuid> through phases → tournaments', async () => {
+      fromMock
+        .mockReturnValueOnce(
+          makeChain({
+            data: { phases: { tournaments: { event_id: EVENT_UUID } } },
+            error: null,
+          }),
+        )
+        .mockReturnValueOnce(makeChain({ data: { status: 'completed' }, error: null }));
+      const ctx = makeContext({
+        method: 'DELETE',
+        params: { roundId: ROUND_UUID },
+        blockOnCompleted: true,
+        url: `/api/v1/swiss-rounds/${ROUND_UUID}/referee-assignments`,
+      });
+
+      await expect(guard.canActivate(ctx)).rejects.toBeInstanceOf(ForbiddenException);
+    });
+
+    it('resolves referee-assignments/<uuid> off its own event_id column', async () => {
+      fromMock
+        .mockReturnValueOnce(makeChain({ data: { event_id: EVENT_UUID }, error: null }))
+        .mockReturnValueOnce(makeChain({ data: { status: 'archived' }, error: null }));
+      const ctx = makeContext({
+        method: 'DELETE',
+        params: { id: ASSIGNMENT_UUID },
+        url: `/api/v1/referee-assignments/${ASSIGNMENT_UUID}`,
+      });
+
+      // Archived, not completed: this branch also closes a pre-existing hole
+      // where deleting an assignment on an ARCHIVED event was never checked.
+      await expect(guard.canActivate(ctx)).rejects.toBeInstanceOf(ForbiddenException);
+    });
   });
 });

@@ -18,6 +18,7 @@ import type { FastifyRequest } from 'fastify';
 import { ProgrammeService } from './programme.service';
 import { SupabaseService } from '../supabase/supabase.service';
 import { resolveRequestUserId } from '../../common/auth/request-user';
+import { BlockOnCompletedEvent } from '../../common/event-readonly/block-on-completed.decorator';
 import {
   CreateBlockDto,
   DelayDayDto,
@@ -89,6 +90,7 @@ export class ProgrammeController {
   }
 
   /** POST /api/v1/events/:eventId/programme/generate */
+  @BlockOnCompletedEvent()
   @Post('events/:eventId/programme/generate')
   @HttpCode(HttpStatus.OK)
   @ApiBearerAuth()
@@ -207,6 +209,7 @@ export class ProgrammeController {
   }
 
   /** DELETE /api/v1/events/:eventId/programme/blocks/:blockId */
+  @BlockOnCompletedEvent()
   @Delete('events/:eventId/programme/blocks/:blockId')
   @HttpCode(HttpStatus.OK)
   @ApiBearerAuth()
@@ -225,6 +228,7 @@ export class ProgrammeController {
   }
 
   /** DELETE /api/v1/events/:eventId/programme/full */
+  @BlockOnCompletedEvent()
   @Delete('events/:eventId/programme/full')
   @HttpCode(HttpStatus.OK)
   @ApiBearerAuth()

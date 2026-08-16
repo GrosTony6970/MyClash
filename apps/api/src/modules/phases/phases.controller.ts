@@ -28,6 +28,7 @@ import { EditBracketConfigDto } from './dto/edit-bracket-config.dto';
 import { ReseedBracketDto } from './dto/reseed-bracket.dto';
 import { PopulateBracketDto } from './dto/populate-bracket.dto';
 import type { FastifyRequest } from 'fastify';
+import { BlockOnCompletedEvent } from '../../common/event-readonly/block-on-completed.decorator';
 
 async function getUserId(req: FastifyRequest, supabase: SupabaseService): Promise<string> {
   const authHeader = req.headers['authorization'];
@@ -60,6 +61,7 @@ export class PhasesController {
    * Idempotent: returns 409 if pool phase already exists.
    * Use ?force=true to regenerate (deletes existing phase first).
    */
+  @BlockOnCompletedEvent()
   @Post('tournaments/:tournamentId/generate-pools')
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: 'Generate pool phase with Berger round-robin matches' })
@@ -242,6 +244,7 @@ export class PhasesController {
   }
 
   /** DELETE /api/v1/pools/:poolId */
+  @BlockOnCompletedEvent()
   @Delete('pools/:poolId')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Delete a single pool and its matches (org admin+)' })
@@ -252,6 +255,7 @@ export class PhasesController {
   }
 
   /** DELETE /api/v1/tournaments/:tournamentId/pools */
+  @BlockOnCompletedEvent()
   @Delete('tournaments/:tournamentId/pools')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Delete every pool in this tournament (org admin+)' })
@@ -285,6 +289,7 @@ export class PhasesController {
    * Idempotent: returns 409 if elim phase already exists.
    * Use ?force=true to regenerate.
    */
+  @BlockOnCompletedEvent()
   @Post('tournaments/:tournamentId/generate-bracket')
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: 'Generate single-elimination bracket phase' })
@@ -371,6 +376,7 @@ export class PhasesController {
     return this.phases.editBracketConfig(phaseId, userId, dto);
   }
 
+  @BlockOnCompletedEvent()
   @Post('phases/:phaseId/reseed')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Re-apply Round 1 seeding without regenerating (org admin+)' })
@@ -387,6 +393,7 @@ export class PhasesController {
     return this.phases.reseedBracketRoundOne(phaseId, userId, dto);
   }
 
+  @BlockOnCompletedEvent()
   @Delete('phases/:phaseId')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({
