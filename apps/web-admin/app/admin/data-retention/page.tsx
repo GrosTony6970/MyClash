@@ -57,7 +57,7 @@ export default function DataRetentionPage() {
   const { settings, error, busy, sweeping, save, runNow } = useRetentionSettings(t);
 
   return (
-    <div className="flex flex-col gap-6">
+    <main className="mx-auto flex max-w-[110rem] flex-col gap-6 px-6 py-8 lg:px-8">
       <AdminPageHeader
         title={t('admin.dataRetention.title')}
         subtitle={t('admin.dataRetention.subtitle')}
@@ -79,7 +79,7 @@ export default function DataRetentionPage() {
           <LastRunSection settings={settings} sweeping={sweeping} t={t} onRun={runNow} />
         </>
       )}
-    </div>
+    </main>
   );
 }
 
