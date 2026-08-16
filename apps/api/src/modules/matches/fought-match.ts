@@ -41,6 +41,20 @@
  * Positional arguments because the two call sites disagree on casing: one holds
  * a camelCase view, the other a snake_case row.
  */
+/**
+ * The statuses a fought bout can be sitting at.
+ *
+ * Exported because the SQL callers cannot use the predicate: an existence probe
+ * wants `.in('status', …).limit(1)` and must not load the rows to filter them in
+ * JS. They take the set, the row callers take the function, and neither spells
+ * the three strings out again. PostgREST's `.in()` wants a mutable array, so
+ * those sites pass `[...FOUGHT_STATUSES]`.
+ */
+export const FOUGHT_STATUSES = ['running', 'paused', 'completed'] as const;
+
 export function hasBeenFought(status: string, startedAt: string | null): boolean {
-  return startedAt !== null || ['running', 'paused', 'completed'].includes(status);
+  // Widen the haystack rather than cast the needle: `as readonly string[]` is
+  // true of the constant, where casting `status` would assert something about
+  // the caller's value that we have not checked.
+  return startedAt !== null || (FOUGHT_STATUSES as readonly string[]).includes(status);
 }

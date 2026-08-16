@@ -47,6 +47,7 @@ import {
   liceCollisionMessage,
   type LicePlacement,
 } from '../matches/lice-occupancy';
+import { FOUGHT_STATUSES } from '../matches/fought-match';
 import { buildRoundCode } from '../matches/round-code.helper';
 import {
   fetchRefereeAssignmentIndex,
@@ -2323,7 +2324,7 @@ export class PhasesService {
       .from('matches')
       .select('id, status')
       .eq('phase_id', phaseId)
-      .in('status', ['running', 'paused', 'completed']);
+      .in('status', [...FOUGHT_STATUSES]);
 
     if (error) throw new BadRequestException(error.message);
     const rows = (data ?? []) as Array<{ status: string }>;
@@ -2369,8 +2370,9 @@ export class PhasesService {
    * edits, and the whole phase for `deleteAllPools`, which removes every match
    * at once and so cannot ask the per-pool question.
    *
-   * THE SAME THREE STATUSES as `hasBeenFought` (matches/fought-match.ts), asked
-   * for a different reason. That one adds a `started_at` disjunct which cannot
+   * THE SAME THREE STATUSES as `hasBeenFought` (matches/fought-match.ts) — it
+   * reads the same `FOUGHT_STATUSES` — asked for a different reason. That one
+   * adds a `started_at` disjunct which cannot
    * currently fire — the two columns are only ever written together — so today
    * the two predicates agree on every row that exists. They are still separate,
    * because the questions and the costs are not the same:
@@ -2393,7 +2395,7 @@ export class PhasesService {
       .from('matches')
       .select('id, status')
       .eq(column, id)
-      .in('status', ['running', 'paused', 'completed']);
+      .in('status', [...FOUGHT_STATUSES]);
     if (error) throw new BadRequestException(error.message);
     return (data ?? []).map((row) => (row as { id: string }).id);
   }
