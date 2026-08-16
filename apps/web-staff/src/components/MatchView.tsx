@@ -405,14 +405,19 @@ export function MatchView({
    */
   const pendingEntries = usePendingOutbox(match.id, refreshKey, syncState?.pendingCount ?? 0);
   const provisional = useMemo(() => {
-    const { exchanges } = pendingRowsForMatch({
+    const { exchanges, penalties } = pendingRowsForMatch({
       entries: pendingEntries,
       config: scoringConfig,
       serverExchanges: [],
       serverPenalties: [],
     });
-    return provisionalDeltas(exchanges);
-  }, [pendingEntries, scoringConfig]);
+    return provisionalDeltas({
+      exchanges,
+      penalties,
+      redRegistrationId: match.redRegistrationId,
+      blueRegistrationId: match.blueRegistrationId,
+    });
+  }, [pendingEntries, scoringConfig, match.redRegistrationId, match.blueRegistrationId]);
   const redScore = match.redScore + provisional.red;
   const blueScore = match.blueScore + provisional.blue;
   // A queued CARD is not in that sum: its points come from the active penalty

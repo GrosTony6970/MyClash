@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_SCORING_CONFIG, type TournamentScoringConfig } from '@myclash/types';
+import {
+  DEFAULT_SCORING_CONFIG,
+  type ExistingPenaltyForSanction,
+  type PenaltyCard,
+  type TournamentScoringConfig,
+} from '@myclash/types';
 import type { ExchangeRow, Penalty } from '@myclash/ui';
 import { pendingRowsForMatch, provisionalDeltas } from './pending-events';
 import type { OutboxEntry } from './db';
@@ -24,6 +29,51 @@ function queued(over: Partial<OutboxEntry>): OutboxEntry {
 
 const map = (entries: OutboxEntry[], config: TournamentScoringConfig = DEFAULT_SCORING_CONFIG) =>
   pendingRowsForMatch({ entries, config, serverExchanges: [], serverPenalties: [] });
+
+/**
+ * A catalogue shaped like the built-in one: yellow and black cost nothing, red
+ * costs a point (migration 0054 seeds exactly these). `entry-ladder` is the
+ * interesting row — its sanctions escalate, which is the whole reason pricing
+ * has to be a fold rather than a lookup.
+ */
+const RULESET = {
+  yellow_card_points: 0,
+  red_card_points: -1,
+  black_card_points: 0,
+  penalty_ruleset_entries: [
+    {
+      id: 'entry-red',
+      group_number: 1,
+      ref_number: 1,
+      short_name: 'Straight red',
+      description: 'Always a red card',
+      sanctions: ['red'] as PenaltyCard[],
+    },
+    {
+      id: 'entry-ladder',
+      group_number: 2,
+      ref_number: 2,
+      short_name: 'Escalates',
+      description: 'Yellow, then red',
+      sanctions: ['yellow', 'red'] as PenaltyCard[],
+    },
+  ],
+};
+
+const NO_PRIORS: Record<string, ExistingPenaltyForSanction[]> = { 'reg-red': [], 'reg-blue': [] };
+
+/** Map with a full catalogue and empty priors — the ordinary online case. */
+const priced = (
+  entries: OutboxEntry[],
+  priors: Record<string, ExistingPenaltyForSanction[]> | null = NO_PRIORS,
+) =>
+  pendingRowsForMatch({
+    entries,
+    config: DEFAULT_SCORING_CONFIG,
+    serverExchanges: [],
+    serverPenalties: [],
+    pricing: { ruleset: RULESET, priors },
+  });
 
 describe('pendingRowsForMatch', () => {
   it('marks every row pending and keeps the client uuid as its id', () => {
@@ -74,8 +124,8 @@ describe('pendingRowsForMatch', () => {
     expect(exchanges.map((e) => e.scoreDelta)).toEqual([null, null]);
   });
 
-  it('routes a queued card to the penalty list, claiming no points', () => {
-    const { exchanges, penalties } = map([
+  it('routes a queued card to the penalty list, claiming no points without a catalogue', () => {
+    const { exchanges, penalties, unpricedCards } = map([
       queued({ kind: 'penalty', registrationId: 'reg-red', rulesetEntryId: 'entry-1' }),
     ]);
     expect(exchanges).toEqual([]);
@@ -83,6 +133,7 @@ describe('pendingRowsForMatch', () => {
     expect(penalties[0]!.pending).toBe(true);
     expect(penalties[0]!.score_delta).toBe(0);
     expect(penalties[0]!.registration_id).toBe('reg-red');
+    expect(unpricedCards).toBe(1);
   });
 
   it('reads a v2 row with no kind as an exchange', () => {
@@ -200,14 +251,194 @@ describe('pendingRowsForMatch', () => {
   });
 });
 
+describe('pricing a queued card', () => {
+  it('prices a ruleset card from the catalogue’s per-card columns', () => {
+    const { penalties, unpricedCards } = priced([
+      queued({ kind: 'penalty', registrationId: 'reg-red', rulesetEntryId: 'entry-red' }),
+    ]);
+    expect(penalties[0]!.card).toBe('red');
+    expect(penalties[0]!.score_delta).toBe(-1);
+    expect(penalties[0]!.group_number).toBe(1);
+    expect(unpricedCards).toBe(0);
+  });
+
+  /**
+   * THE FOLD. `computePenaltySanction` escalates on prior offences in the same
+   * rule group, so two cards queued off one entry are not independent — the
+   * second is the fighter's SECOND offence and takes the second sanction.
+   * Pricing each row against the untouched server priors would call both
+   * yellow, and the referee would watch a red card score nothing.
+   */
+  it('escalates a second queued card in the same rule group', () => {
+    const { penalties } = priced([
+      queued({ kind: 'penalty', registrationId: 'reg-red', rulesetEntryId: 'entry-ladder' }),
+      queued({ kind: 'penalty', registrationId: 'reg-red', rulesetEntryId: 'entry-ladder' }),
+    ]);
+    expect(penalties.map((p) => [p.card, p.score_delta])).toEqual([
+      ['yellow', 0],
+      ['red', -1],
+    ]);
+  });
+
+  it('does not escalate the other fighter’s card', () => {
+    const { penalties } = priced([
+      queued({ kind: 'penalty', registrationId: 'reg-red', rulesetEntryId: 'entry-ladder' }),
+      queued({ kind: 'penalty', registrationId: 'reg-blue', rulesetEntryId: 'entry-ladder' }),
+    ]);
+    expect(penalties.map((p) => p.card)).toEqual(['yellow', 'yellow']);
+  });
+
+  it('counts the offences the server already knows about', () => {
+    const { penalties } = priced(
+      [queued({ kind: 'penalty', registrationId: 'reg-red', rulesetEntryId: 'entry-ladder' })],
+      {
+        'reg-red': [
+          { registrationId: 'reg-red', groupNumber: 2, card: 'yellow', source: 'ruleset' },
+        ],
+        'reg-blue': [],
+      },
+    );
+    expect(penalties[0]!.card).toBe('red');
+  });
+
+  /**
+   * A DIRECT card is the referee overriding the catalogue. The server writes it
+   * `source: 'direct'` with a null group and excludes it from the ladder, so
+   * folding one in would escalate the next ruleset card off a card that does
+   * not count.
+   */
+  it('prices a direct card without folding it into the ladder', () => {
+    const { penalties } = priced([
+      queued({
+        kind: 'penalty',
+        registrationId: 'reg-red',
+        directCard: 'red',
+        reason: 'Unsporting',
+      }),
+      queued({ kind: 'penalty', registrationId: 'reg-red', rulesetEntryId: 'entry-ladder' }),
+    ]);
+    expect(penalties.map((p) => [p.source, p.card, p.score_delta])).toEqual([
+      ['direct', 'red', -1],
+      ['ruleset', 'yellow', 0],
+    ]);
+  });
+
+  /**
+   * The scope read is the ONLY one of the pad's three penalty fetches that is
+   * not @Public() — it runs authorizeMatchScoring — so a lapsed session leaves
+   * the catalogue loaded and the priors null indefinitely. `resolveEntryCard`
+   * degrades to the first-occurrence card in that case, which is the right
+   * trade for labelling a button and the wrong one for a score: it would claim
+   * yellow (0) on an offence the server prices red (−1).
+   */
+  it('refuses to price when the priors never loaded', () => {
+    const { penalties, unpricedCards } = priced(
+      [queued({ kind: 'penalty', registrationId: 'reg-red', rulesetEntryId: 'entry-ladder' })],
+      null,
+    );
+    expect(penalties[0]!.score_delta).toBe(0);
+    expect(unpricedCards).toBe(1);
+  });
+
+  it('refuses to price an entry the catalogue does not have', () => {
+    const { penalties, unpricedCards } = priced([
+      queued({ kind: 'penalty', registrationId: 'reg-red', rulesetEntryId: 'entry-gone' }),
+    ]);
+    expect(penalties[0]!.score_delta).toBe(0);
+    expect(unpricedCards).toBe(1);
+  });
+
+  /**
+   * With no ruleset the server falls back to `penaltyScoreDelta`, not to zero.
+   * A direct card names its own colour, so the pad can follow it there.
+   */
+  it('prices a direct card from the built-in default when there is no ruleset', () => {
+    const { penalties, unpricedCards } = map([
+      queued({ kind: 'penalty', registrationId: 'reg-red', directCard: 'red', reason: 'x' }),
+    ]);
+    expect(penalties[0]!.score_delta).toBe(-1);
+    expect(unpricedCards).toBe(0);
+  });
+
+  /**
+   * The dedupe runs first for a reason: a card in the window between a
+   * successful POST and `markSynced` is in the outbox AND in the priors, and
+   * pricing it again would make the NEXT card in its group look like a third
+   * offence.
+   */
+  it('does not let an already-synced card escalate the next one', () => {
+    const first = queued({
+      kind: 'penalty',
+      clientUuid: 'card-1',
+      registrationId: 'reg-red',
+      rulesetEntryId: 'entry-ladder',
+    });
+    const second = queued({
+      kind: 'penalty',
+      clientUuid: 'card-2',
+      registrationId: 'reg-red',
+      rulesetEntryId: 'entry-ladder',
+    });
+    const out = pendingRowsForMatch({
+      entries: [first, second],
+      config: DEFAULT_SCORING_CONFIG,
+      serverExchanges: [],
+      // The first card landed; the server counted it and the priors say so.
+      serverPenalties: [
+        {
+          id: 'server-generated-id',
+          client_uuid: 'card-1',
+          sequence: first.sequence,
+          registration_id: 'reg-red',
+          card: 'yellow',
+          source: 'ruleset',
+          short_name: null,
+          reason: null,
+          score_delta: 0,
+          causes_match_forfeit: false,
+          voided: false,
+        } satisfies Penalty,
+      ],
+      pricing: {
+        ruleset: RULESET,
+        priors: {
+          'reg-red': [
+            { registrationId: 'reg-red', groupNumber: 2, card: 'yellow', source: 'ruleset' },
+          ],
+          'reg-blue': [],
+        },
+      },
+    });
+    // Second offence, not third — and the third sanction does not exist.
+    expect(out.penalties.map((p) => [p.card, p.score_delta])).toEqual([['red', -1]]);
+  });
+
+  it('never claims a queued card ends the match', () => {
+    const { penalties } = priced([
+      queued({ kind: 'penalty', registrationId: 'reg-red', directCard: 'black', reason: 'x' }),
+    ]);
+    expect(penalties[0]!.card).toBe('black');
+    expect(penalties[0]!.causes_match_forfeit).toBe(false);
+  });
+});
+
 describe('provisionalDeltas', () => {
+  const deltas = (over: Partial<Parameters<typeof provisionalDeltas>[0]>) =>
+    provisionalDeltas({
+      exchanges: [],
+      penalties: [],
+      redRegistrationId: 'reg-red',
+      blueRegistrationId: 'reg-blue',
+      ...over,
+    });
+
   it('sums each side’s queued points', () => {
     const { exchanges } = map([
       queued({ firstStrikerColor: 'red', firstStrikeValue: 2 }),
       queued({ firstStrikerColor: 'blue', firstStrikeValue: 1 }),
       queued({ firstStrikerColor: 'red', firstStrikeValue: 3 }),
     ]);
-    expect(provisionalDeltas(exchanges)).toEqual({ red: 5, blue: 1 });
+    expect(deltas({ exchanges })).toEqual({ red: 5, blue: 1 });
   });
 
   it('gives the defender their points in full-afterblow mode', () => {
@@ -222,15 +453,57 @@ describe('provisionalDeltas', () => {
       ],
       { ...DEFAULT_SCORING_CONFIG, afterblowMode: 'full' },
     );
-    expect(provisionalDeltas(exchanges)).toEqual({ red: 2, blue: 1 });
+    expect(deltas({ exchanges })).toEqual({ red: 2, blue: 1 });
   });
 
   it('adds nothing for a double', () => {
     const { exchanges } = map([queued({ type: 'double', firstStrikerColor: undefined })]);
-    expect(provisionalDeltas(exchanges)).toEqual({ red: 0, blue: 0 });
+    expect(deltas({ exchanges })).toEqual({ red: 0, blue: 0 });
   });
 
   it('is zero on an empty queue', () => {
-    expect(provisionalDeltas([])).toEqual({ red: 0, blue: 0 });
+    expect(deltas({})).toEqual({ red: 0, blue: 0 });
+  });
+
+  /**
+   * A card's points land on the CARDED fighter, negative in the usual case —
+   * the same arithmetic `recomputeMatchScore` does server-side. Getting the
+   * side wrong here would move the wrong numeral, which reads as the opponent
+   * scoring.
+   */
+  it('takes a card’s points off the fighter who was carded', () => {
+    const { penalties } = priced([
+      queued({ kind: 'penalty', registrationId: 'reg-blue', rulesetEntryId: 'entry-red' }),
+    ]);
+    expect(deltas({ penalties })).toEqual({ red: 0, blue: -1 });
+  });
+
+  it('counts hits and cards together', () => {
+    const { exchanges, penalties } = priced([
+      queued({ firstStrikerColor: 'red', firstStrikeValue: 2 }),
+      queued({ kind: 'penalty', registrationId: 'reg-red', rulesetEntryId: 'entry-red' }),
+    ]);
+    expect(deltas({ exchanges, penalties })).toEqual({ red: 1, blue: 0 });
+  });
+
+  it('ignores a voided card', () => {
+    expect(
+      deltas({
+        penalties: [
+          {
+            id: 'p1',
+            sequence: 1,
+            registration_id: 'reg-red',
+            card: 'red',
+            source: 'ruleset',
+            short_name: null,
+            reason: null,
+            score_delta: -1,
+            causes_match_forfeit: false,
+            voided: true,
+          } satisfies Penalty,
+        ],
+      }),
+    ).toEqual({ red: 0, blue: 0 });
   });
 });

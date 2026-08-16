@@ -13,16 +13,19 @@
  * `buildUnifiedTimeline` can merge them with the server's, numbered in one
  * sequence, which is the invariant that module exists to hold.
  *
- * SEED, DON'T RESOLVE. No ruleset is resolved here and `@myclash/rulesets` is
- * not reachable from this app. The only arithmetic is `computeAfterblowDeltas`,
- * which `ScoringColumn` already calls to label its own buttons — turning that
- * same call into a timeline delta is a display change, not a new capability.
+ * SEED, DON'T RESOLVE. No SCORING ruleset is resolved here and
+ * `@myclash/rulesets` is not reachable from this app. The arithmetic is
+ * `computeAfterblowDeltas` for a hit and, via `./price-queued-cards`, the
+ * penalty catalogue's own per-card columns for a card — both on the allowlist in
+ * `ARCHITECTURE.md` §7.3, both the server's own functions, and neither of them
+ * the engine.
  *
  * Pure: no Dexie, no React, no I/O. The caller supplies the rows.
  */
 import { computeAfterblowDeltas, type TournamentScoringConfig } from '@myclash/types';
 import type { ExchangeRow, Penalty } from '@myclash/ui';
 import type { OutboxEntry } from './db';
+import { createCardPricer, type PricedCard, type QueuedCardPricing } from './price-queued-cards';
 
 /** Deltas an exchange contributes, on the pad's own reading of the config. */
 function localDeltas(
@@ -50,6 +53,43 @@ function localDeltas(
 }
 
 /**
+ * One queued card as a timeline row.
+ *
+ * `priced` is null when the pad could not honestly say what the card is worth —
+ * see `createCardPricer`. The row still renders, because a referee needs to see
+ * that the tablet heard them, but it falls back to the yellow-shaped
+ * placeholder this row carried before pricing existed: a shape, not a claim.
+ */
+function pendingPenaltyRow(entry: OutboxEntry, priced: PricedCard | null): Penalty {
+  return {
+    id: entry.clientUuid,
+    // The outbox key, so the dedupe recognises this row once the server has it —
+    // and so a merged timeline keys React on one value across the hand-over.
+    client_uuid: entry.clientUuid,
+    sequence: entry.sequence,
+    registration_id: entry.registrationId ?? '',
+    // The card this fighter will ACTUALLY get, counting the offences they
+    // already have in the same rule group.
+    card: priced?.card ?? entry.directCard ?? 'yellow',
+    source: priced?.source ?? (entry.directCard ? 'direct' : 'ruleset'),
+    group_number: priced?.groupNumber ?? null,
+    short_name: entry.reason ?? null,
+    reason: entry.reason ?? null,
+    score_delta: priced?.scoreDelta ?? 0,
+    // Stays false even for a black card. The server decides forfeit from the
+    // ruleset's first/second black-card SCOPE settings, which are not on the
+    // wire the pad reads, and a bout-ending claim is not something to guess at.
+    // A queued black card shows its colour and its points, and says nothing
+    // about ending the fight.
+    causes_match_forfeit: false,
+    voided: false,
+    occurred_at: entry.occurredAt,
+    clock_time_ms: entry.clockTimeMs ?? null,
+    pending: true,
+  };
+}
+
+/**
  * Queued rows for one match, as timeline rows, with anything the server already
  * knows about filtered out.
  *
@@ -72,43 +112,43 @@ export function pendingRowsForMatch(args: {
   config: TournamentScoringConfig;
   serverExchanges: readonly ExchangeRow[];
   serverPenalties: readonly Penalty[];
-}): { exchanges: ExchangeRow[]; penalties: Penalty[] } {
+  /**
+   * What the pad knows about the penalty catalogue. Omit it and every queued
+   * card comes back unpriced, which is what this module did before it could
+   * price one at all.
+   */
+  pricing?: QueuedCardPricing;
+}): { exchanges: ExchangeRow[]; penalties: Penalty[]; unpricedCards: number } {
   const { entries, config, serverExchanges, serverPenalties } = args;
   const known = new Set<string>();
   for (const e of serverExchanges) if (e.client_uuid) known.add(e.client_uuid);
   for (const p of serverPenalties) if (p.client_uuid) known.add(p.client_uuid);
 
+  // Built once per pass and driven in order: pricing a card is a fold over the
+  // fighter's prior offences, not a lookup. Created even with no pricing input
+  // so the refusal path is the same code either way.
+  const pricer = createCardPricer(args.pricing ?? { ruleset: null, priors: null });
+
   const exchanges: ExchangeRow[] = [];
   const penalties: Penalty[] = [];
+  let unpricedCards = 0;
 
   for (const entry of entries) {
+    // Ahead of the pricer on purpose. A card in the window between a successful
+    // POST and `markSynced` is in this queue AND in the priors the pricer was
+    // built from; folding it in again would invent an occurrence and escalate
+    // the next card in its group.
     if (known.has(entry.clientUuid)) continue;
 
     // Absent on rows written before v3, which were all exchanges.
     if ((entry.kind ?? 'exchange') === 'penalty') {
-      penalties.push({
-        id: entry.clientUuid,
-        sequence: entry.sequence,
-        registration_id: entry.registrationId ?? '',
-        // The card a queued penalty will actually carry depends on how many
-        // prior offences the fighter has in the same rule group, which is the
-        // penalty ruleset's business. Until the pad reads that, a queued card
-        // shows as a yellow-shaped placeholder rather than a claim.
-        card: entry.directCard ?? 'yellow',
-        source: entry.directCard ? 'direct' : 'ruleset',
-        short_name: entry.reason ?? null,
-        reason: entry.reason ?? null,
-        // Zero, not a guess. `score_delta` is computed server-side from the
-        // active ruleset's per-card columns, and the pad does not read those
-        // yet. `exchangeDeltaLabel` renders a zero as no delta, so the row
-        // shows the card and claims no points.
-        score_delta: 0,
-        causes_match_forfeit: false,
-        voided: false,
-        occurred_at: entry.occurredAt,
-        clock_time_ms: entry.clockTimeMs ?? null,
-        pending: true,
+      const priced = pricer.price({
+        registrationId: entry.registrationId ?? '',
+        rulesetEntryId: entry.rulesetEntryId,
+        directCard: entry.directCard,
       });
+      if (!priced) unpricedCards += 1;
+      penalties.push(pendingPenaltyRow(entry, priced));
       continue;
     }
 
@@ -133,22 +173,37 @@ export function pendingRowsForMatch(args: {
     });
   }
 
-  return { exchanges, penalties };
+  return { exchanges, penalties, unpricedCards };
 }
 
 /**
- * What the queued exchanges add to each side's score.
+ * What the whole queue adds to each side's score — hits and cards together.
  *
- * Exchanges only. A queued penalty contributes nothing here, because its
- * `score_delta` comes from the active penalty ruleset's per-card columns and
- * the pad does not read those yet — see `pendingRowsForMatch`. The caller is
- * expected to say so rather than present an incomplete number as a complete
- * one.
+ * ONE OWNER. This used to take exchanges alone and its docblock explained that
+ * a card contributed nothing because the pad could not price one. It can now,
+ * so a caller that summed only the exchanges would present an incomplete number
+ * as a whole one. Taking both lists is what makes that impossible to get wrong
+ * by omission.
+ *
+ * A card's delta lands on the CARDED fighter's own side, negative in the usual
+ * case — the same arithmetic `recomputeMatchScore` does server-side, and the
+ * same in best-of, where the server adds every non-voided penalty to the open
+ * round without filtering it by round the way it filters exchanges.
+ *
+ * An unpriced card carries `score_delta: 0` and so adds nothing here. That is
+ * only honest if the caller shows the count `pendingRowsForMatch` returns
+ * alongside it.
  */
-export function provisionalDeltas(rows: readonly ExchangeRow[]): { red: number; blue: number } {
+export function provisionalDeltas(args: {
+  exchanges: readonly ExchangeRow[];
+  penalties: readonly Penalty[];
+  redRegistrationId: string;
+  blueRegistrationId: string;
+}): { red: number; blue: number } {
+  const { exchanges, penalties, redRegistrationId, blueRegistrationId } = args;
   let red = 0;
   let blue = 0;
-  for (const row of rows) {
+  for (const row of exchanges) {
     const striker = row.scoringSide;
     if (!striker) continue;
     if (striker === 'red') {
@@ -158,6 +213,11 @@ export function provisionalDeltas(rows: readonly ExchangeRow[]): { red: number; 
       blue += row.scoreDelta ?? 0;
       red += row.defenderDelta ?? 0;
     }
+  }
+  for (const penalty of penalties) {
+    if (penalty.voided) continue;
+    if (penalty.registration_id === redRegistrationId) red += penalty.score_delta;
+    if (penalty.registration_id === blueRegistrationId) blue += penalty.score_delta;
   }
   return { red, blue };
 }
