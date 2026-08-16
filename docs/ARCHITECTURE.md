@@ -947,10 +947,46 @@ rule: it authors a ruleset with `+3`/`+1` targets and asserts the pad shows thos
 buttons and NO `+2` — a `+2` would mean the pad had fallen back to the federal
 default rather than rendering the seed.
 
-The one piece of scoring arithmetic the pad is allowed is
-`computeAfterblowDeltas` from `@myclash/types` — pure, no engine, and already
-used to label the afterblow buttons. `apps/web-staff/src/offline/pending-events.ts`
-uses it to show a provisional score for hits still in the outbox.
+#### What arithmetic the pad IS allowed
+
+The line this replaced said "the one piece of scoring arithmetic the pad is
+allowed is `computeAfterblowDeltas`". That stopped being true when `d9f8d593`
+shipped `resolveEntryCard`, and the doc was not amended — so the architecture
+asserted a boundary the code had already crossed. The rule below is the one the
+original sentence was reaching for.
+
+**The pad may run pure catalogue arithmetic over data it already fetches. It must
+never need the engine.**
+
+"The engine" means the AST-driven `FormulaRuleset` that
+`ruleset-resolver.service.ts` builds from a stored definition. It needs a
+database, so it is unreachable from a tablet in a dead hall, and it must never
+become a pad dependency. That is the whole content of this rule; everything else
+is a consequence.
+
+A PENALTY ruleset is not the engine. It is a catalogue of rows — entries, the
+card each occurrence carries, and per-card point values — that the pad already
+fetches in full from `GET /matches/:id/penalty-ruleset` and caches on the tablet.
+Reading arithmetic off a table you already hold is not resolving a ruleset.
+
+Allowed, all pure and all in `@myclash/types` so the pad and the server call the
+same function rather than reasoning separately:
+
+| Function                                             | The pad uses it to                                                    |
+| ---------------------------------------------------- | --------------------------------------------------------------------- |
+| `computeAfterblowDeltas`                             | label the afterblow buttons, and net a queued hit's provisional delta |
+| `computePenaltySanction` (via `resolveEntryCard`)    | show which card an entry will ACTUALLY produce for this fighter       |
+| `penaltyScoreDelta` + the ruleset's per-card columns | price a queued card into the provisional score                        |
+
+`packages/types/src/penalties.ts` argues this boundary at length in its own
+docblock and is the place to read next. Two rules keep the list honest: every
+entry is a function the SERVER also calls on the same input, and none of them
+may reach for a database. Anything failing either test belongs server-side.
+
+The provisional score itself remains display-only —
+`apps/web-staff/src/offline/pending-events.ts` computes it for rows still in the
+outbox, and nothing derived on the pad is ever stored. Hard rule 1 is unchanged:
+the server is the only thing that DERIVES a persisted score.
 
 ---
 
