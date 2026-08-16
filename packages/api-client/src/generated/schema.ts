@@ -10281,6 +10281,7 @@ export interface components {
       enforceDedicatedRefereeRest?: boolean;
       enforceFighterRefereeNoOverlap?: boolean;
       preferHighRatedReferees?: boolean;
+      discardScoredResults?: boolean;
     };
     GenerateBracketDto: {
       /** @enum {string} */
