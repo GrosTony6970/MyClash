@@ -184,7 +184,18 @@ export class SwissService {
         `Only the last round (${last.roundNumber}) can be deleted; rounds are cumulative.`,
       );
     }
-    if (last.matches.some((m) => m.status !== 'scheduled')) {
+    // FOUGHT_STATUSES, not `!== 'scheduled'`. The old spelling counted a VOIDED
+    // bout as under way, and this is the remedy the un-completion refusal sends
+    // organisers to by name — "delete that round first". A voided bout in the
+    // last round therefore blocked the documented way out, with nothing left to
+    // undo to clear it.
+    //
+    // The set rather than `hasBeenFought`, because the context row carries no
+    // `started_at`: requireContext selects id, registrations, status and
+    // end_reason. Widening a context read shared by updateConfig and withdraw
+    // for one guard buys nothing while that column cannot change the answer —
+    // see the note in fought-match.ts.
+    if (last.matches.some((m) => (FOUGHT_STATUSES as readonly string[]).includes(m.status))) {
       throw new ConflictException(`Round ${roundNumber} has a bout under way`);
     }
 
