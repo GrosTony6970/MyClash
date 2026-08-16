@@ -483,6 +483,7 @@ export function MatchView({
           apiUrl={apiUrl}
           matchId={match.id}
           nextSequence={nextSequence}
+          syncEngine={syncEngine}
           registrationId={match.redRegistrationId}
           fighterName={redName}
           club={match.redClub ?? null}
@@ -538,6 +539,7 @@ export function MatchView({
           apiUrl={apiUrl}
           matchId={match.id}
           nextSequence={nextSequence}
+          syncEngine={syncEngine}
           registrationId={match.blueRegistrationId}
           fighterName={blueName}
           club={match.blueClub ?? null}

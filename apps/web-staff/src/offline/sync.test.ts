@@ -393,3 +393,77 @@ describe('drain — a refused exchange (400)', () => {
     expect(await engine.getRejectedCount()).toBe(0);
   });
 });
+
+// ── Penalties ride the same queue ─────────────────────────────────────────────
+// A card is a scored artefact that changes the score through the ruleset, so it
+// belongs in the queue a hit goes through. It used to POST straight out, and a
+// card issued with no wifi was LOST.
+
+describe('drain — penalties', () => {
+  async function addPenalty(matchId: string, seq: number, uuid: string) {
+    return enqueue({
+      kind: 'penalty',
+      clientUuid: uuid,
+      matchId,
+      sequence: seq,
+      registrationId: 'reg-1',
+      occurredAt: '2026-05-21T10:00:00.000Z',
+      directCard: 'yellow',
+      reason: 'Excessive force',
+    });
+  }
+
+  it('posts a queued penalty to the penalties endpoint', async () => {
+    await addPenalty('m1', 1, 'uuid-pen-1');
+    mockFetch([{ status: 201, body: { id: 'server-pen-1' } }]);
+
+    await new SyncEngine(API_URL).drain();
+
+    const call = (globalThis.fetch as unknown as { mock: { calls: unknown[][] } }).mock.calls[0]!;
+    expect(call[0]).toBe(`${API_URL}/api/v1/matches/m1/penalties`);
+  });
+
+  it('sends the moment the card was ISSUED, not the moment it drained', async () => {
+    // The property that makes queueing a card safe at all: occurred_at is
+    // client-supplied and the server stores it verbatim.
+    await addPenalty('m1', 1, 'uuid-pen-2');
+    mockFetch([{ status: 201, body: { id: 'server-pen-2' } }]);
+
+    await new SyncEngine(API_URL).drain();
+
+    const call = (globalThis.fetch as unknown as { mock: { calls: unknown[][] } }).mock.calls[0]!;
+    const body = JSON.parse((call[1] as { body: string }).body) as Record<string, unknown>;
+    expect(body['occurredAt']).toBe('2026-05-21T10:00:00.000Z');
+    expect(body['directCard']).toBe('yellow');
+    expect(body['registrationId']).toBe('reg-1');
+  });
+
+  it('drains a v2 row with no `kind` to the exchanges endpoint', async () => {
+    // A referee upgrades mid-event with a queue on disk. Those rows predate the
+    // discriminator and are all exchanges; reading `kind` as required would
+    // route them nowhere.
+    await addExchange('m1', 1, 'uuid-legacy');
+    mockFetch([{ status: 201, body: { id: 'server-1' } }]);
+
+    await new SyncEngine(API_URL).drain();
+
+    const call = (globalThis.fetch as unknown as { mock: { calls: unknown[][] } }).mock.calls[0]!;
+    expect(call[0]).toBe(`${API_URL}/api/v1/matches/m1/exchanges`);
+  });
+
+  it('keeps one queue: a card and a hit drain in the order they were scored', async () => {
+    await addExchange('m1', 1, 'uuid-hit');
+    await addPenalty('m1', 2, 'uuid-card');
+    mockFetch([
+      { status: 201, body: { id: 's1' } },
+      { status: 201, body: { id: 's2' } },
+    ]);
+
+    await new SyncEngine(API_URL).drain();
+
+    const calls = (globalThis.fetch as unknown as { mock: { calls: unknown[][] } }).mock.calls;
+    expect(calls[0]![0]).toContain('/exchanges');
+    expect(calls[1]![0]).toContain('/penalties');
+    expect(await db.outbox.count()).toBe(0);
+  });
+});

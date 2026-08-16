@@ -237,6 +237,12 @@ export async function discardRejected(id: number): Promise<void> {
  * Next sequence number for a match.
  * = max(outbox sequences, synced sequences) + 1, or 1 if none.
  * Monotonically increasing even across reloads.
+ *
+ * Spans BOTH kinds, because the outbox holds both and the counter is shared:
+ * `exchanges` and `match_penalties` each have their own
+ * UNIQUE(match_id, sequence), so one series across the two never collides and
+ * is what orders the unified timeline. Since penalties joined the queue this
+ * also fixes the reload seed — a queued card used to be invisible to it.
  */
 export async function nextSequence(matchId: string): Promise<number> {
   const [outboxEntries, syncedEntries] = await Promise.all([

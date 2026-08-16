@@ -13,20 +13,50 @@ import Dexie, { type Table } from 'dexie';
 
 export type ExchangeType = 'clean' | 'afterblow' | 'double' | 'no_exchange';
 export type StrikerColor = 'red' | 'blue';
+export type PenaltyCardColor = 'yellow' | 'red' | 'black';
+
+/**
+ * What kind of scored artefact an outbox row carries.
+ *
+ * Absent on rows written before v3, which were all exchanges — read it as
+ * `?? 'exchange'` rather than assuming it is set. A referee upgrades mid-event
+ * with a queue on disk.
+ */
+export type OutboxKind = 'exchange' | 'penalty';
 
 export interface OutboxEntry {
   /** Auto-incremented local PK — determines drain order. */
   id?: number;
+  /**
+   * Which endpoint this row drains to. Undefined on v2 rows — see
+   * {@link OutboxKind}.
+   */
+  kind?: OutboxKind;
   /** Client-generated UUID — server uses this for idempotency. */
   clientUuid: string;
   matchId: string;
+  /**
+   * Shared across BOTH kinds on purpose. `exchanges` and `match_penalties` each
+   * carry their own UNIQUE(match_id, sequence), so one monotonic counter across
+   * the two never collides — and it is what orders the unified timeline. Each
+   * table simply ends up with gaps.
+   */
   sequence: number;
-  type: ExchangeType;
+  /** Exchange only. */
+  type?: ExchangeType;
   occurredAt: string; // ISO 8601
   firstStrikerColor?: StrikerColor;
   firstStrikeValue?: number;
   afterblowValue?: number;
   noExchangeReason?: string;
+  // ── Penalty only ───────────────────────────────────────────────────────────
+  /** Which fighter the card is against. Required for a penalty. */
+  registrationId?: string;
+  /** Ruleset-driven penalty: the catalogue entry the referee picked. */
+  rulesetEntryId?: string;
+  /** Direct card, bypassing the catalogue. Needs a reason server-side. */
+  directCard?: PenaltyCardColor;
+  reason?: string;
   /** Match-clock position (active ms) at record time — display metadata carried
    *  through sync so an offline exchange keeps its timeline clock label. */
   clockTimeMs?: number | null;
@@ -87,6 +117,21 @@ export class ScoringDb extends Dexie {
     // them here would drop them, and a referee upgrading mid-event can have
     // queued exchanges sitting in v1. Existing rows migrate untouched.
     this.version(2).stores({
+      outbox: '++id, matchId, clientUuid, createdAt',
+      synced: 'clientUuid, matchId, serverId',
+      rejected: '++id, matchId, clientUuid, rejectedAt',
+    });
+
+    // v3 lets the outbox carry penalties as well as exchanges. Same three
+    // tables, same indexes — `kind` is not indexed because nothing queries by
+    // it; the drain reads rows in id order and branches per row.
+    //
+    // All three re-declared for the reason v2's comment gives: a Dexie version
+    // states the WHOLE schema, not a delta. No upgrade function: existing rows
+    // are valid v3 rows with `kind` undefined, and every reader treats that as
+    // 'exchange'. Backfilling would rewrite a referee's queue mid-event to
+    // change nothing.
+    this.version(3).stores({
       outbox: '++id, matchId, clientUuid, createdAt',
       synced: 'clientUuid, matchId, serverId',
       rejected: '++id, matchId, clientUuid, rejectedAt',

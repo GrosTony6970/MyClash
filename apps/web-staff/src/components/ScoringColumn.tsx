@@ -30,12 +30,19 @@ import { useScoringTheme } from '../theme/ThemeProvider';
 import { outlineInkOn, sideStyle } from '@myclash/ui';
 import { usePenalties, type PenaltyCard, type PenaltyRulesetEntry } from '../hooks/usePenalties';
 import type { ExchangeSide, UseScoringSubmitResult } from '../hooks/useScoringSubmit';
+import { enqueue } from '../offline/outbox';
+import type { SyncEngine } from '../offline/sync';
 
 interface ScoringColumnProps {
   side: ExchangeSide;
   apiUrl: string;
   matchId: string;
   nextSequence: number;
+  /**
+   * Durable-sync engine. A card goes through the outbox like a hit, so this is
+   * what pushes it out once it is safely on disk.
+   */
+  syncEngine?: SyncEngine | null;
   registrationId: string;
   fighterName: string;
   club?: string | null;
@@ -84,6 +91,7 @@ export function ScoringColumn({
   apiUrl,
   matchId,
   nextSequence,
+  syncEngine,
   registrationId,
   fighterName,
   club,
@@ -139,6 +147,20 @@ export function ScoringColumn({
     );
   }, [entries, penaltyQuery]);
 
+  /**
+   * Record a card — durable-first, exactly like a hit.
+   *
+   * This used to POST straight out, so a card issued in a hall with no wifi
+   * errored and was LOST: the referee had to remember it and re-enter it later.
+   * A card is a scored artefact that changes the score through the ruleset, so
+   * it belongs in the same queue an exchange goes through.
+   *
+   * Nothing server-side had to change for this. `match_penalties.client_uuid`
+   * is NOT NULL UNIQUE (migration 0016), penalties.service.ts already dedupes
+   * on it, and `occurred_at` is client-supplied — so a card that drains twenty
+   * minutes later still records the moment the referee raised it. Only the
+   * outbox path was missing.
+   */
   async function submitPenalty(payload: {
     rulesetEntryId?: string;
     directCard?: PenaltyCard;
@@ -147,23 +169,21 @@ export function ScoringColumn({
     setPenaltySubmitting(true);
     setPenaltyError(null);
     try {
-      const res = await fetch(`${apiUrl}/api/v1/matches/${matchId}/penalties`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({
-          clientUuid: crypto.randomUUID(),
-          sequence: nextSequence,
-          registrationId,
-          occurredAt: new Date().toISOString(),
-          clockTimeMs,
-          ...payload,
-        }),
+      await enqueue({
+        kind: 'penalty',
+        clientUuid: crypto.randomUUID(),
+        matchId,
+        sequence: nextSequence,
+        registrationId,
+        occurredAt: new Date().toISOString(),
+        clockTimeMs,
+        ...payload,
       });
-      if (!res.ok) {
-        const body = (await res.json().catch(() => ({}))) as { message?: string };
-        throw new Error(body.message ?? 'Failed to record penalty');
-      }
+      // Online this drains immediately; offline it stays queued and goes on
+      // reconnect. A refusal on drain (locked match, stale sequence) lands in
+      // the quarantine inbox and reddens the sync bar — the existing path for a
+      // refused scored artefact.
+      await syncEngine?.drain();
       onPenaltyRecorded?.();
     } catch (err) {
       setPenaltyError(err instanceof Error ? err.message : 'Network error');

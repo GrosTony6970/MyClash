@@ -115,6 +115,8 @@ export const scoring = {
     typeAfterblow: 'Afterblow',
     typeDouble: 'Double',
     typeNoExchange: 'No exchange',
+    typePenalty: 'Penalty',
+    typeUnknown: 'Queued entry',
   },
   lice: {
     loadingMatch: 'Loading match...',

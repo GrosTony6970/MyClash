@@ -123,6 +123,8 @@ export const scoring = {
     typeAfterblow: 'Coup double retarde',
     typeDouble: 'Double',
     typeNoExchange: "Pas d'échange",
+    typePenalty: 'Pénalité',
+    typeUnknown: 'Entrée en attente',
   },
   lice: {
     loadingMatch: "Chargement de l'assaut...",

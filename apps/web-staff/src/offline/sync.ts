@@ -49,6 +49,13 @@ interface ExchangeResponse {
   id: string;
 }
 
+/** Highest `sequence` in a list response, or 0 when it carries none. */
+async function maxSequence(res: Response): Promise<number> {
+  const rows = (await res.json().catch(() => [])) as Array<{ sequence?: number | null }>;
+  if (!Array.isArray(rows)) return 0;
+  return rows.reduce((max, row) => Math.max(max, row.sequence ?? 0), 0);
+}
+
 // ── SyncEngine ────────────────────────────────────────────────────────────────
 
 export class SyncEngine {
@@ -108,6 +115,30 @@ export class SyncEngine {
     // any of that would be teaching the crew a screen they will never see.
     if (isDrillActive()) return Promise.resolve(offlineResponse());
 
+    // A penalty is a scored artefact like an exchange: same client_uuid
+    // idempotency (match_penalties.client_uuid is NOT NULL UNIQUE, migration
+    // 0016), same server-side dedupe, same client-supplied occurred_at — so a
+    // card drained twenty minutes later still records the moment it was issued.
+    // Only the URL and the body differ; everything below this method is
+    // kind-agnostic already.
+    if ((entry.kind ?? 'exchange') === 'penalty') {
+      return fetch(`${this.apiUrl}/api/v1/matches/${entry.matchId}/penalties`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          clientUuid: entry.clientUuid,
+          sequence,
+          registrationId: entry.registrationId,
+          occurredAt: entry.occurredAt,
+          clockTimeMs: entry.clockTimeMs ?? null,
+          ...(entry.rulesetEntryId ? { rulesetEntryId: entry.rulesetEntryId } : {}),
+          ...(entry.directCard ? { directCard: entry.directCard } : {}),
+          ...(entry.reason ? { reason: entry.reason } : {}),
+        }),
+      });
+    }
+
     return fetch(`${this.apiUrl}/api/v1/matches/${entry.matchId}/exchanges`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -151,15 +182,30 @@ export class SyncEngine {
     return { sequence, serverId: data.id ?? entry.clientUuid };
   }
 
-  /** Highest sequence this match has anywhere — server or local — plus one. */
+  /**
+   * Highest sequence this match has anywhere — server or local — plus one.
+   *
+   * BOTH server tables, not just exchanges. The counter is shared across
+   * exchanges and penalties (see `OutboxEntry.sequence`), so re-deriving from
+   * one of them can hand a retry a number the other already holds — and a
+   * sequence collision is the single most likely reason the entry was refused
+   * in the first place. Reading one table would fix the collision it was
+   * refused for and walk straight into its twin.
+   */
   private async freshSequence(matchId: string): Promise<number | null> {
     try {
-      const res = await fetch(`${this.apiUrl}/api/v1/matches/${matchId}/exchanges`, {
-        credentials: 'include',
-      });
-      if (!res.ok) return null;
-      const rows = (await res.json()) as Array<{ sequence?: number | null }>;
-      const serverMax = rows.reduce((max, row) => Math.max(max, row.sequence ?? 0), 0);
+      const [exchanges, penalties] = await Promise.all([
+        fetch(`${this.apiUrl}/api/v1/matches/${matchId}/exchanges`, { credentials: 'include' }),
+        fetch(`${this.apiUrl}/api/v1/matches/${matchId}/penalties`, { credentials: 'include' }),
+      ]);
+      // Exchanges must answer — it is the older endpoint and the one every
+      // match has. A penalties read that fails degrades to "no cards", which is
+      // still better than giving up on the retry entirely.
+      if (!exchanges.ok) return null;
+      const serverMax = Math.max(
+        await maxSequence(exchanges),
+        penalties.ok ? await maxSequence(penalties) : 0,
+      );
       return Math.max(serverMax + 1, await nextSequence(matchId));
     } catch {
       // Offline again — nothing to re-derive from. The caller quarantines.

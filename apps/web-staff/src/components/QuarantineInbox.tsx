@@ -29,6 +29,18 @@ function exchangeTypeLabel(type: ExchangeType, t: (key: string) => string): stri
 }
 
 /**
+ * What a held row is, in one word.
+ *
+ * The queue carries penalties as well as exchanges now, and a penalty has no
+ * `type` — so this row can no longer assume one. A pre-v3 row also has no
+ * `kind`; every reader treats that as 'exchange'.
+ */
+function entryLabel(entry: RejectedEntry, t: (key: string) => string): string {
+  if ((entry.kind ?? 'exchange') === 'penalty') return t('scoring.quarantine.typePenalty');
+  return entry.type ? exchangeTypeLabel(entry.type, t) : t('scoring.quarantine.typeUnknown');
+}
+
+/**
  * Loading the held entries and acting on one.
  *
  * Both actions go through the SyncEngine rather than the Dexie store directly,
@@ -99,9 +111,7 @@ function QuarantineRow({
   return (
     <li data-testid="quarantine-row" className="rounded-lg border border-border bg-surface p-3">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <span className="text-sm font-bold uppercase tracking-wide">
-          {exchangeTypeLabel(entry.type, t)}
-        </span>
+        <span className="text-sm font-bold uppercase tracking-wide">{entryLabel(entry, t)}</span>
         <span className="text-xs text-muted">
           {new Date(entry.rejectedAt).toLocaleTimeString()}
         </span>
