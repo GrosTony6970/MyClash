@@ -178,6 +178,59 @@ test('offline scoring queues an exchange and auto-syncs on reconnect', async ({
   // re-runs the fetch that clears it. Assert the scoring surface survives.
   await expect(cleanHit).toBeEnabled({ timeout: 15_000 });
 
+  // ── 2b) OFFLINE: a card the referee issues moves the score ───────────────────
+  /**
+   * A queued card used to be worth nothing on screen: the pad did not read the
+   * penalty ruleset's per-card point columns, so the row said "not counted yet"
+   * and the numeral did not move.
+   *
+   * Only a RED card moves anything under the built-in rulebook — migration 0054
+   * seeds yellow and black at 0 and red at −1 — so the entry is chosen from the
+   * ruleset the server is actually serving rather than hard-coded. A rulebook
+   * revision must not silently turn this into an assertion about zero.
+   *
+   * The column picker is the only offline path: the corrections drawer's direct
+   * card POSTs straight out instead of going through the outbox.
+   */
+  type WireEntry = { id: string; group_number: number; ref_number: number; sanctions: string[] };
+  const ruleset = await json<{ penalty_ruleset_entries?: WireEntry[] } | null>(
+    await ok(await request.get(api(`matches/${match.id}/penalty-ruleset`)), 'load penalty ruleset'),
+  );
+  // The picker sorts by (group, ref) and renders the first 30 only, so an entry
+  // past that window has no button to click.
+  const redFirst = [...(ruleset?.penalty_ruleset_entries ?? [])]
+    .sort((a, b) => a.group_number - b.group_number || a.ref_number - b.ref_number)
+    .slice(0, 30)
+    .find((e) => e.sanctions?.[0] === 'red');
+
+  if (!redFirst) {
+    // Skipped loudly rather than passed quietly: with no first-offence red in
+    // the picker there is no card whose points are visible, and asserting on a
+    // zero-point yellow would prove nothing about pricing.
+    test.info().annotations.push({
+      type: 'skipped-assertion',
+      description: 'no first-offence red card among the entries the picker renders',
+    });
+  } else {
+    const redColumn = page.locator('[data-testid="scoring-column"][data-side="red"]');
+    const provisional = redColumn.getByTestId('provisional-score');
+    // Step 2 already queued a red clean hit (+2), so red's delta starts at 2.
+    await expect(provisional).toHaveAttribute('data-provisional-delta', '2', { timeout: 15_000 });
+
+    await redColumn
+      .locator(`[data-testid="penalty-entry-button"][data-entry-id="${redFirst.id}"]`)
+      .click();
+
+    // −1 for the card, on top of the +2 already queued. The card is in the
+    // number, so it is reported as included and NOT as "not counted yet".
+    await expect(provisional).toHaveAttribute('data-provisional-delta', '1', { timeout: 15_000 });
+    await expect(provisional).toHaveAttribute('data-queued-cards', '1');
+    await expect(provisional).toHaveAttribute('data-unpriced-cards', '0');
+    // Still offline: the server has seen neither the hit nor the card.
+    expect(await serverExchangeCount()).toBe(1);
+    await expect(bar).toHaveAttribute('data-pending', '2', { timeout: 15_000 });
+  }
+
   // ── 3) RECONNECT: the queue auto-drains and the server has both ──────────────
   await context.setOffline(false);
   await expect(bar).toHaveAttribute('data-network', 'online', { timeout: 15_000 });

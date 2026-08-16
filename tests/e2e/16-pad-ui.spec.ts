@@ -126,6 +126,43 @@ test.describe('scoring pad UI', () => {
     const clockStatus = page.getByTestId('clock-status');
     const primaryClock = page.getByTestId('clock-primary-button');
 
+    // ── Count what the pad asks the server for ────────────────────────────────
+    /**
+     * Wrap `window.fetch` BEFORE the app loads, and count what the APP asked
+     * for rather than what left the machine.
+     *
+     * `page.on('request')` is the obvious instrument and the wrong one here: the
+     * pad's browser API base is same-origin, so every `/api/*` call goes through
+     * the service worker, which attributes the outbound request to the worker
+     * rather than the page. The wrap sits in front of that.
+     *
+     * Method is recorded with the path because the drain POSTs to
+     * `/matches/:id/exchanges` and a card POSTs to `/matches/:id/penalties` —
+     * the same paths the reads use. A substring match would count the write
+     * under test and turn "one" into "two".
+     */
+    await page.addInitScript(() => {
+      const log: string[] = [];
+      (window as unknown as { __apiCalls: string[] }).__apiCalls = log;
+      const original = window.fetch.bind(window);
+      window.fetch = (input: RequestInfo | URL, init?: RequestInit) => {
+        const url =
+          typeof input === 'string'
+            ? input
+            : input instanceof URL
+              ? input.href
+              : (input as Request).url;
+        const method = (
+          init?.method ??
+          (typeof input === 'object' && 'method' in input ? (input as Request).method : 'GET')
+        ).toUpperCase();
+        log.push(`${method} ${url}`);
+        return original(input as RequestInfo, init);
+      };
+    });
+    const apiCalls = (): Promise<string[]> =>
+      page.evaluate(() => (window as unknown as { __apiCalls: string[] }).__apiCalls.slice());
+
     // ── Open the pad ──────────────────────────────────────────────────────────
     await page.goto(`${staffBase}/matches/${match.matchId}`);
     await expect(page.getByTestId('network-bar')).toHaveAttribute('data-network', 'online', {
@@ -139,8 +176,44 @@ test.describe('scoring pad UI', () => {
     // ── 1) A clean hit — the one type that was already covered ────────────────
     // Kept as the baseline the rest is measured against, and as a check that the
     // TF_v1 grammar reached the pad (a `+2` button at all).
+    const callsBeforeHit = (await apiCalls()).length;
     await cleanHit('red', '+2').click();
     await expect.poll(exchangeCount, { timeout: 20_000 }).toBe(1);
+
+    /**
+     * ONE READ PER ENDPOINT PER SCORED HIT.
+     *
+     * Four components used to call `usePenalties` — `ScoringColumn` renders
+     * once per fighter, plus the centre column, plus the corrections drawer,
+     * which is mounted whether or not it is open. Three requests each, re-run on
+     * every hit: twelve. `useExchanges` added two more and `/neighbors` two.
+     *
+     * Counted, not asserted in prose. The re-check after the derived UI settles
+     * is the load-bearing half: polling to 1 and stopping would pass on the
+     * first sample and never see a fifth request arriving 200ms later.
+     */
+    const scoredHitReads = async (): Promise<Record<string, number>> => {
+      const calls = (await apiCalls()).slice(callsBeforeHit).filter((c) => c.startsWith('GET '));
+      const count = (path: string) => calls.filter((c) => c.includes(path)).length;
+      // The three penalty paths do not overlap as substrings: `/penalties` is
+      // not inside `/penalty-ruleset` or `/penalty-scope`.
+      return {
+        penaltyRuleset: count('/penalty-ruleset'),
+        penaltyScope: count('/penalty-scope'),
+        penalties: count('/penalties'),
+        exchanges: count('/exchanges'),
+        neighbors: count('/neighbors'),
+      };
+    };
+    await expect.poll(async () => (await scoredHitReads()).exchanges, { timeout: 20_000 }).toBe(1);
+    const reads = await scoredHitReads();
+    expect(reads, 'one read per endpoint per scored hit').toEqual({
+      penaltyRuleset: 1,
+      penaltyScope: 1,
+      penalties: 1,
+      exchanges: 1,
+      neighbors: 1,
+    });
     const clean = (await readExchanges())[0]!;
     expect({
       type: clean.type,
