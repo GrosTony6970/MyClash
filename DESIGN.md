@@ -155,6 +155,7 @@ spacing:
   container-form: 42rem # max-w-2xl
   container-default: 72rem # max-w-6xl
   container-wide: 80rem # max-w-7xl
+  container-console: 110rem # max-w-[110rem] — admin console, dense tables
 
 components:
   button-primary:
@@ -370,13 +371,23 @@ Admin has a tighter eyebrow: `text-[11px] font-semibold uppercase tracking-[0.14
 
 Pick **exactly one** container width per page:
 
-| Width       | When                                                       |
-| ----------- | ---------------------------------------------------------- |
-| `max-w-7xl` | Landing / marketing hero + grids                           |
-| `max-w-6xl` | **Default content** — events, tournaments, listings, `/me` |
-| `max-w-2xl` | Forms, single-column reading, detail                       |
+| Width            | When                                                        |
+| ---------------- | ----------------------------------------------------------- |
+| `max-w-[110rem]` | **Admin console** — dense tables and ledgers, desktop-first |
+| `max-w-7xl`      | Landing / marketing hero + grids                            |
+| `max-w-6xl`      | **Default content** — events, tournaments, listings, `/me`  |
+| `max-w-2xl`      | Forms, single-column reading, detail                        |
 
-Standard padding and centring: `mx-auto px-4 py-6 sm:px-6 lg:px-8`.
+Standard padding and centring: `mx-auto px-4 py-6 sm:px-6 lg:px-8`. The admin console pads a step
+wider — `mx-auto max-w-[110rem] px-6 py-8 lg:px-8` — because it is the one surface built around
+200-row tables rather than reading.
+
+**The shell never pads.** `SuperAdminShell`, `OrganizerAdminShell` and `PublicPersonalShell` all
+hand their content region out as a bare `flex-1`: horizontal space is the page's own business,
+because a shell that padded would fight every full-bleed grid inside it. So every page opens its
+own container. A page that forgets sits flush against the sidebar rail, and any header rule it
+draws runs from edge to edge — which is exactly what `/admin/data-retention` shipped.
+`apps/web-admin/src/components/admin-page-gutters.test.ts` reds when an admin page forgets.
 
 Stacking layers are tokenized (`--z-index-*` in `theme.css`), because "which number is the drawer?" is not a question anyone should answer twice:
 
@@ -467,5 +478,6 @@ Every rule here is a **distinction**, not a taste. The Overview predicts most of
 ### Layout and motion
 
 - **Do** pick exactly one container width, with `mx-auto px-4 py-6 sm:px-6 lg:px-8`.
+- **Do** let every page open its own container. No shell pads its content region.
 - **Do** keep motion between 120–420ms and wrap every animation in a `prefers-reduced-motion` guard.
 - **Don't** tokenize the animation easing. The hand-written keyframes use the CSS keyword `ease-out` (`cubic-bezier(0,0,0.58,1)`); Tailwind's `--ease-out` is `cubic-bezier(0,0,0.2,1)`. They are different curves.

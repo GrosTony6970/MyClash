@@ -40,7 +40,8 @@ The `/leagues` and `/display` layouts carry comments saying they sit outside the
 
 - **The admin eyebrow is tighter than the public one.** `text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500` — smaller and more letter-spaced than the root's `text-xs tracking-wider`. This is the tournament-programme entry look, and it's why an admin form doesn't read like an admin panel.
 - **`FormField`, not `Input`.** `FormField` is the light admin field. `@myclash/ui`'s `Input` is a _dark_ component and is currently misused on ~15 light admin pages — see [D6](known-deviations.md#d6--three-input-styles). Don't add more.
-- **`AdminPageHeader` on every page.** Eyebrow → FoilMark → Fraunces H1 → Geist subtitle, over `border-b border-slate-200 pb-6 mb-10`. This is the surface's signature.
+- **Every page opens its own container**, `mx-auto max-w-[110rem] px-6 py-8 lg:px-8`. Wider than the root default because this surface is tables. `SuperAdminShell`'s `#main-content` is a bare `flex-1` — it contributes no padding, and the 41 other pages under `/admin` supply their own. `apps/web-admin/src/components/admin-page-gutters.test.ts` reds if one forgets, which is how `/admin/data-retention` was caught rendering flush against the sidebar rail.
+- **`AdminPageHeader` on every page.** Eyebrow → FoilMark → Fraunces H1 → Geist subtitle, over `border-b border-slate-200 pb-6 mb-10`. This is the surface's signature. It draws no horizontal padding of its own, so on a page with no container that rule runs edge to edge.
 - **`DataTable` is the default container**, not `Card`. Hairline separators, no header fill.
 - **`BulkActionBar`** appears on selection: sticky bottom, slate-900 ink card.
 
