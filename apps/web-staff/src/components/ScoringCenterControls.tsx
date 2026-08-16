@@ -39,6 +39,8 @@ import {
 } from './scoreboard-clock';
 import { useExchanges } from '../hooks/useExchanges';
 import { usePenalties } from '../hooks/usePenalties';
+import { usePendingOutbox } from '../hooks/usePendingOutbox';
+import { pendingRowsForMatch } from '../offline/pending-events';
 import type { UseScoringSubmitResult } from '../hooks/useScoringSubmit';
 import { dequeueLastForMatch, pendingCount } from '../offline/outbox';
 import { classifySyncFailure, type FailureBody } from '../offline/failure-kind';
@@ -211,7 +213,37 @@ export function ScoringCenterControls({
   );
   const { active: activePenalties } = usePenalties(apiUrl, matchId, refreshKey);
 
-  const doubleCount = activeExchanges.filter((e) => e.type === 'double').length;
+  /**
+   * Hits the referee scored that have not reached the server yet.
+   *
+   * Offline every read here 503s and freezes, so without this the pad shows a
+   * referee nothing at all for the hit they just pressed — no row, no count, no
+   * score. The outbox has always held them; nothing ever read them back.
+   *
+   * `pendingCount` from the sync bar joins `refreshKey` as a trigger so a
+   * BACKGROUND drain re-reads: a reconnect empties the queue with no mutation
+   * to notice it, and these rows would otherwise linger after the server had
+   * already accepted them.
+   */
+  const pendingEntries = usePendingOutbox(matchId, refreshKey, pendingHere);
+  const pending = useMemo(
+    () =>
+      pendingRowsForMatch({
+        entries: pendingEntries,
+        config,
+        serverExchanges: activeExchanges,
+        serverPenalties: activePenalties,
+      }),
+    [pendingEntries, config, activeExchanges, activePenalties],
+  );
+
+  // Queued doubles count. Max-doubles is a rule the referee acts on — a bout
+  // ends on it — so a chip that stops moving offline is worse than no chip.
+  // `isDoubleLoss` is gated on a COMPLETED match, so including these cannot
+  // flip the DOUBLE LOSS banner on a bout still being fought.
+  const doubleCount =
+    activeExchanges.filter((e) => e.type === 'double').length +
+    pending.exchanges.filter((e) => e.type === 'double').length;
   const maxDoubles = matchFormat.maxDoubleHits;
   const doubleLoss = isDoubleLoss(matchStatus, doubleCount, maxDoubles);
 
@@ -234,8 +266,12 @@ export function ScoringCenterControls({
   const events = useMemo(
     () =>
       buildUnifiedTimeline({
-        exchanges: activeExchanges,
-        penalties: activePenalties,
+        // Server rows and queued rows in one list. `buildUnifiedTimeline`
+        // orders on `occurredAt` then `sequence` and numbers the result 1..N,
+        // so a queued hit lands where it belongs rather than being appended —
+        // and the `#` numbers stay the shared ones every other surface uses.
+        exchanges: [...activeExchanges, ...pending.exchanges],
+        penalties: [...activePenalties, ...pending.penalties],
         redName,
         blueName,
         redRegId: redRegistrationId,
@@ -246,6 +282,7 @@ export function ScoringCenterControls({
     [
       activeExchanges,
       activePenalties,
+      pending,
       redName,
       blueName,
       redRegistrationId,
