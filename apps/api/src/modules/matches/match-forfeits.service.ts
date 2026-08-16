@@ -20,6 +20,7 @@ import type { CreateMatchForfeitDto } from './dto/matches.dto';
 import { ClockService } from './clock.service';
 import { FrozenResultsGuard } from './frozen-results.guard';
 import { forfeitEndReason } from './forfeit-end-reason';
+import { hasBeenFought } from './fought-match';
 import { stampForfeitVoided } from './forfeit-void';
 
 /**
@@ -657,14 +658,29 @@ export class MatchForfeitsService {
     );
   }
 
+  /**
+   * Refuse when any of these bouts has been fought.
+   *
+   * Routed through `hasBeenFought` rather than spelling the statuses again, and
+   * excluding voided at the query the way its two other callers do — a voided
+   * bout carries no live result, so it is not a reason to refuse.
+   *
+   * Both changes are answer-preserving: 'voided' was never in the status set
+   * this used, and `started_at` cannot disagree with the status test on a row
+   * this codebase can write. See the note in fought-match.ts.
+   */
   private async assertNoneStarted(matchIds: string[], message: string): Promise<void> {
     if (matchIds.length === 0) return;
     const { data } = await this.supabase.service
       .from('matches')
-      .select('id, status')
-      .in('id', matchIds);
+      .select('id, status, started_at')
+      .in('id', matchIds)
+      .not('status', 'eq', 'voided');
     const started = (data ?? []).some((row) =>
-      ['running', 'paused', 'completed'].includes(String((row as Row)['status'])),
+      hasBeenFought(
+        String((row as Row)['status']),
+        ((row as Row)['started_at'] as string | null) ?? null,
+      ),
     );
     if (started) throw new BadRequestException(message);
   }
