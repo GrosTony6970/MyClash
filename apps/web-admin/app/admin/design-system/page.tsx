@@ -124,6 +124,30 @@ export default function DesignSystemPage() {
             className="bg-green-50 border border-green-200"
             caption={t('admin.designSystem.swatches.activePublished')}
           />
+          <Swatch
+            name="bg-chart-1"
+            hex="#2563EB"
+            className="bg-chart-1"
+            caption={t('admin.designSystem.swatches.chartSeries')}
+          />
+          <Swatch
+            name="bg-chart-2"
+            hex="#C026D3"
+            className="bg-chart-2"
+            caption={t('admin.designSystem.swatches.chartSeries')}
+          />
+          <Swatch
+            name="bg-chart-3"
+            hex="#0D9488"
+            className="bg-chart-3"
+            caption={t('admin.designSystem.swatches.chartSeries')}
+          />
+          <Swatch
+            name="bg-chart-4"
+            hex="#D97706"
+            className="bg-chart-4"
+            caption={t('admin.designSystem.swatches.chartSeries')}
+          />
         </div>
       </Section>
 

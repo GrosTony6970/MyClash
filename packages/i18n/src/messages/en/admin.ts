@@ -2270,6 +2270,7 @@ export const admin = {
       defaultMarker: 'Default marker',
       systemRows: 'System rows',
       activePublished: 'Active / published',
+      chartSeries: 'Chart series',
     },
     headerDemo: {
       eyebrow: 'Organisations',

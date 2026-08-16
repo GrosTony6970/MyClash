@@ -87,6 +87,20 @@
   --color-stage: #030712; /* gray-950 */
   --color-stage-foreground: #ffffff;
 
+  /* CHART SERIES: categorical identity on a chart — "which line is this", and
+   * nothing more. Deliberately NOT the status colours: those are reserved for
+   * badges and alerts, and the first chart to need them plots database health,
+   * where a green line and an amber line would be read as "healthy" and
+   * "warning" rather than as "Redis" and "disk".
+   *
+   * Blue / fuchsia / teal / amber separate on hue AND on lightness, so the set
+   * survives deuteranopia and protanopia. Colour is still only ever a redundant
+   * encoding here — every series carries its own label. */
+  --color-chart-1: #2563eb; /* blue-600 */
+  --color-chart-2: #c026d3; /* fuchsia-600 */
+  --color-chart-3: #0d9488; /* teal-600 */
+  --color-chart-4: #d97706; /* amber-600 */
+
   /* ── Stage type scale, fluid ────────────────────────────────────────────
    * The ONLY --text-* keys in this file, and they are jurisdictionally narrow:
    * the projector/kiosk stage surfaces ONLY (TVScoreboard, LiceWaitingDisplay).
@@ -219,6 +233,14 @@
 
   --color-corner-red: #ef4444; /* red-500 — brighter for contrast on dark */
   --color-corner-blue: #3b82f6; /* blue-500 */
+
+  /* One step lighter, as the statuses are: a 600-weight stroke on a dark card
+   * reads as a smudge. The hue order is preserved so a series keeps its
+   * identity across surfaces. */
+  --color-chart-1: #60a5fa; /* blue-400 */
+  --color-chart-2: #e879f9; /* fuchsia-400 */
+  --color-chart-3: #2dd4bf; /* teal-400 */
+  --color-chart-4: #fbbf24; /* amber-400 */
 }
 
 /* Light surface, as an explicit scope.
@@ -269,6 +291,11 @@
 
   --color-corner-red: #dc2626; /* red-600 */
   --color-corner-blue: #2563eb; /* blue-600 */
+
+  --color-chart-1: #2563eb; /* blue-600 */
+  --color-chart-2: #c026d3; /* fuchsia-600 */
+  --color-chart-3: #0d9488; /* teal-600 */
+  --color-chart-4: #d97706; /* amber-600 */
 }
 
 /* Personal-space accent — blue (web-public /me + auth). Default accent is red. */

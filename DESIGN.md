@@ -58,6 +58,14 @@ colors:
   stage: '#030712' # gray-950
   stage-foreground: '#ffffff'
 
+  # Chart: categorical series identity on a chart. NOT a status — a green line
+  # on a health panel would be read as "healthy" rather than as "which line".
+  # Hue AND lightness both separate, so the set survives colour blindness.
+  chart-1: '#2563eb' # blue-600
+  chart-2: '#c026d3' # fuchsia-600
+  chart-3: '#0d9488' # teal-600
+  chart-4: '#d97706' # amber-600
+
   # ── Accent scope [data-accent='personal'] — overrides ONLY these two. ──
   accent-personal: '#1d4ed8' # blue-700
   accent-personal-hover: '#2563eb' # blue-600
@@ -86,6 +94,11 @@ colors:
   dark-instructor: '#a78bfa'
   dark-corner-red: '#ef4444'
   dark-corner-blue: '#3b82f6'
+  # One step lighter, hue order preserved: a 600-weight stroke smudges on a dark card.
+  dark-chart-1: '#60a5fa'
+  dark-chart-2: '#e879f9'
+  dark-chart-3: '#2dd4bf'
+  dark-chart-4: '#fbbf24'
   # A bright chip on a dark page takes DARK ink, not white. See Colors.
   dark-danger-foreground: '#0f172a'
   dark-success-foreground: '#0f172a'
@@ -296,7 +309,7 @@ The palette is two inks on warm paper, plus a strictly-rationed vocabulary of si
 
 **`primary` is an alias for `accent`.** The DESIGN.md format wants a token named `primary`, so the front matter provides one as a reference. It is not a second token. The live CSS variable is `--color-accent`; **`--color-primary` does not exist and must not be created.** `accent` is also the honest name: this colour is the second ink, used once per page. Calling it "primary" would imply it is the dominant colour, which is a licence to paint with it — the exact misuse the Do's and Don'ts forbid.
 
-Colours fall into five families, and the families have jurisdictions:
+Colours fall into families, and the families have jurisdictions:
 
 | Family          | Tokens                                                                           | Jurisdiction                                             |
 | --------------- | -------------------------------------------------------------------------------- | -------------------------------------------------------- |
@@ -306,6 +319,7 @@ Colours fall into five families, and the families have jurisdictions:
 | **Strong**      | `strong`, `strong-foreground`, `strong-hover`                                    | A dark-neutral action — a slate button, a selected chip. |
 | **Domain**      | `corner-red`, `corner-blue`                                                      | Corner **defaults**. Live colour: `sideStyle()`.         |
 | **Stage**       | `stage`, `stage-foreground`                                                      | The chromeless projector surface only.                   |
+| **Chart**       | `chart-1` … `chart-4`                                                            | Which line is which, on a chart. Never a status.         |
 | **Gold**        | `gold`, `gold-text`                                                              | Placings and flourish.                                   |
 
 ### Gold is two tokens, and that is not an accident

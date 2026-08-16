@@ -21,7 +21,10 @@ function tokensInScope(selector: string): Set<string> {
   const end = THEME_CSS.indexOf('\n}', start);
   if (end === -1) throw new Error(`scope ${selector} is not closed`);
   const body = THEME_CSS.slice(start, end);
-  return new Set(Array.from(body.matchAll(/^\s*(--color-[a-z-]+):/gm), (m) => m[1] as string));
+  // [a-z0-9-], not [a-z-]: --color-chart-1..4 are numbered, and a name class
+  // that stops at letters skips them silently — the scope comparison then
+  // passes over a token the light scope never restored.
+  return new Set(Array.from(body.matchAll(/^\s*(--color-[a-z0-9-]+):/gm), (m) => m[1] as string));
 }
 
 describe('theme scope parity', () => {
@@ -49,7 +52,7 @@ describe('theme scope parity', () => {
     const themeEnd = THEME_CSS.indexOf('\n}', themeStart);
     const themeBody = THEME_CSS.slice(themeStart, themeEnd);
     const defaults = new Map(
-      Array.from(themeBody.matchAll(/^\s*(--color-[a-z-]+):\s*([^;]+);/gm), (m) => [
+      Array.from(themeBody.matchAll(/^\s*(--color-[a-z0-9-]+):\s*([^;]+);/gm), (m) => [
         m[1] as string,
         (m[2] as string).trim(),
       ]),
@@ -60,7 +63,7 @@ describe('theme scope parity', () => {
     const lightBody = THEME_CSS.slice(lightStart, lightEnd);
 
     const drifted: string[] = [];
-    for (const [, token, value] of lightBody.matchAll(/^\s*(--color-[a-z-]+):\s*([^;]+);/gm)) {
+    for (const [, token, value] of lightBody.matchAll(/^\s*(--color-[a-z0-9-]+):\s*([^;]+);/gm)) {
       const expected = defaults.get(token as string);
       if (expected !== undefined && expected !== (value as string).trim()) {
         drifted.push(`${token}: light=${(value as string).trim()} default=${expected}`);

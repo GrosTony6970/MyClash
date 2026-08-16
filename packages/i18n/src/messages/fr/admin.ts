@@ -2281,6 +2281,7 @@ export const admin = {
       defaultMarker: 'Marqueur par défaut',
       systemRows: 'Lignes système',
       activePublished: 'Actif / publie',
+      chartSeries: 'Série de graphique',
     },
     headerDemo: {
       eyebrow: 'Organisations',
