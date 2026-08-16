@@ -116,6 +116,21 @@ export interface ClockEvent {
 /** One row of `GET /matches/:id/penalties` (a raw `match_penalties` record). */
 export interface Penalty {
   id: string;
+  /**
+   * The client-generated UUID the server keys idempotency on — NOT `id`.
+   *
+   * `match_penalties` has both: `id UUID PRIMARY KEY DEFAULT gen_random_uuid()`
+   * and `client_uuid UUID NOT NULL UNIQUE` (migration 0016). They are never
+   * equal. `listMatchPenalties` does `select('*')`, so this has always been on
+   * the wire and the client simply never declared it.
+   *
+   * Load-bearing, exactly as it is on `ExchangeRow`: it is the dedupe key for a
+   * surface that merges its own outbox into this list. The pad keyed that
+   * dedupe on `id` instead, which cannot match an outbox row's `clientUuid`, so
+   * a card in the window between a successful POST and `markSynced` committing
+   * was rendered twice.
+   */
+  client_uuid?: string | null;
   sequence: number;
   registration_id: string;
   card: PenaltyCard;

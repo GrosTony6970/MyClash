@@ -119,10 +119,22 @@ describe('pendingRowsForMatch', () => {
     expect(out.exchanges).toEqual([]);
   });
 
+  /**
+   * THE SERVER ROW'S `id` IS NOT THE CLIENT UUID, and this test used to pretend
+   * it was — it set `id: 'card-uuid'` to match the outbox row's `clientUuid`,
+   * which is the one arrangement under which keying the dedupe on `id` works.
+   * A fixture built from the thing under test cannot falsify it, and this one
+   * stayed green over a dedupe that had never matched a real row in its life.
+   *
+   * `match_penalties` has `id UUID PRIMARY KEY DEFAULT gen_random_uuid()` beside
+   * `client_uuid UUID NOT NULL UNIQUE` (migration 0016), so the fixture now
+   * carries two different values, as the wire does.
+   */
   it('drops a queued card the server has already accepted', () => {
     const entry = queued({ kind: 'penalty', clientUuid: 'card-uuid', registrationId: 'reg-red' });
     const onServer = {
-      id: 'card-uuid',
+      id: 'server-generated-id',
+      client_uuid: 'card-uuid',
       sequence: 1,
       registration_id: 'reg-red',
       card: 'yellow',
@@ -142,6 +154,30 @@ describe('pendingRowsForMatch', () => {
     });
 
     expect(out.penalties).toEqual([]);
+  });
+
+  it('keeps a queued card the server has not seen', () => {
+    const out = pendingRowsForMatch({
+      entries: [queued({ kind: 'penalty', clientUuid: 'mine', registrationId: 'reg-red' })],
+      config: DEFAULT_SCORING_CONFIG,
+      serverExchanges: [],
+      serverPenalties: [
+        {
+          id: 'server-generated-id',
+          client_uuid: 'someone-elses',
+          sequence: 1,
+          registration_id: 'reg-blue',
+          card: 'yellow',
+          source: 'ruleset',
+          short_name: null,
+          reason: null,
+          score_delta: 0,
+          causes_match_forfeit: false,
+          voided: false,
+        } satisfies Penalty,
+      ],
+    });
+    expect(out.penalties).toHaveLength(1);
   });
 
   it('keeps a queued row the server has not seen', () => {

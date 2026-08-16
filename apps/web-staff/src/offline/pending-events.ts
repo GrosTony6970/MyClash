@@ -58,6 +58,14 @@ function localDeltas(
  * shows the referee one hit twice and can make the double count read 2/4 when
  * it is 1/4 — a rule they act on. `client_uuid` is the server's own idempotency
  * key, so it is the one field that identifies the same hit on both sides.
+ *
+ * BOTH SIDES READ `client_uuid`, AND THE PENALTY SIDE USED TO READ `id`.
+ * `match_penalties` carries both columns — `id` is `gen_random_uuid()`,
+ * `client_uuid` is what the pad sent (migration 0016) — so they are never equal
+ * and the card dedupe never once matched. It was invisible while a queued card
+ * claimed no points: the cost was a duplicated timeline row for one drain-loop
+ * tick. It stops being invisible the moment a card carries points, because the
+ * same tick then double-counts the score.
  */
 export function pendingRowsForMatch(args: {
   entries: readonly OutboxEntry[];
@@ -68,7 +76,7 @@ export function pendingRowsForMatch(args: {
   const { entries, config, serverExchanges, serverPenalties } = args;
   const known = new Set<string>();
   for (const e of serverExchanges) if (e.client_uuid) known.add(e.client_uuid);
-  for (const p of serverPenalties) if (p.id) known.add(p.id);
+  for (const p of serverPenalties) if (p.client_uuid) known.add(p.client_uuid);
 
   const exchanges: ExchangeRow[] = [];
   const penalties: Penalty[] = [];
