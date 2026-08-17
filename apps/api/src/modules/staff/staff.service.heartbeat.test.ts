@@ -51,7 +51,8 @@ function harness(
     svc as never as { requireStaffFromRequest: () => Promise<{ id: string; event_id: string }> },
     'requireStaffFromRequest',
   ).mockResolvedValue({ id: ACCOUNT, event_id: EVENT });
-  const updates = () => writesTo(supabase, 'event_staff_accounts').map((w) => w.row);
+  const updates = () =>
+    writesTo(supabase, 'event_staff_accounts').map((w) => w.row as Record<string, unknown>);
   const beats = () => writesTo(supabase, 'event_staff_accounts');
   return { svc, supabase, rpcCalls, updates, beats };
 }
