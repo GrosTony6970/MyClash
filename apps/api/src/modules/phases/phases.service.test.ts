@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { BadRequestException, ConflictException, ForbiddenException } from '@nestjs/common';
 import {
+  filtersFor,
   mockSupabase,
   queriedTables,
   scopedTo,
@@ -2067,25 +2068,6 @@ describe('PhasesService', () => {
 
   describe('listPoolsWithMatches', () => {
     /**
-     * The filter arguments a query on `table` was scoped by, routed by table.
-     *
-     * An ARGUMENT assertion, and weaker than an outcome one: it pins what
-     * crossed the wire, not what came back. Used for exactly one filter below —
-     * see the note on `.in('scope_type', …)`. If a second file needs this it
-     * belongs in supabase-chain.ts next to `selectsFor`, which is the same walk.
-     */
-    function filterArgs(
-      from: ReturnType<typeof mockSupabase>['from'],
-      table: string,
-      method: 'eq' | 'in',
-    ): unknown[][] {
-      return from.mock.calls.flatMap(([queried], index) => {
-        const call = from.mock.results[index];
-        if (queried !== table || call?.type !== 'return') return [];
-        return (call.value[method].mock.calls ?? []) as unknown[][];
-      });
-    }
-
     /**
      * Three phases, so both filters on the pool-phase lookup decide something:
      * another tournament's pool phase, and this tournament's bracket phase.
@@ -2305,7 +2287,7 @@ describe('PhasesService', () => {
        * filter excludes is a row the consumer would ignore anyway. A seeded row
        * that broke that CHECK would manufacture a gain rather than measure one.
        */
-      expect(filterArgs(supabase.from, 'referee_assignments', 'in')).toContainEqual([
+      expect(filtersFor(supabase.from, 'referee_assignments', 'in')).toContainEqual([
         'scope_type',
         ['pool', 'match'],
       ]);

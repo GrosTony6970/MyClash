@@ -3,7 +3,7 @@ import { promisify } from 'node:util';
 import { ForbiddenException, UnauthorizedException } from '@nestjs/common';
 import { describe, expect, it, vi } from 'vitest';
 import { StaffService } from './staff.service';
-import { mockSupabase, scopedTo, writesTo } from '../../common/testing/supabase-chain';
+import { filtersFor, mockSupabase, scopedTo, writesTo } from '../../common/testing/supabase-chain';
 
 const scrypt = promisify(scryptCallback);
 
@@ -112,10 +112,17 @@ describe('StaffService.login', () => {
 
     expect(result.token).toBe('signed-token');
     // Argument assertions, not outcomes: this one query carries `.ilike`, so the
-    // double cannot narrow it and a seeded fixture would be a lie.
-    const lookup = supabase.from.mock.results[1]?.value;
-    expect(lookup.eq).toHaveBeenCalledWith('event_id', EVENT);
-    expect(lookup.ilike).toHaveBeenCalledWith('username', 'marie');
+    // double cannot narrow it and a seeded fixture would be a lie. Routed by
+    // table rather than by call index — the account table is read three times in
+    // one sign-in, and an index would silently follow the wrong one.
+    expect(filtersFor(supabase.from, 'event_staff_accounts', 'eq')).toContainEqual([
+      'event_id',
+      EVENT,
+    ]);
+    expect(filtersFor(supabase.from, 'event_staff_accounts', 'ilike')).toContainEqual([
+      'username',
+      'marie',
+    ]);
   });
 
   it('stamps the sign-in against that account and no other', async () => {

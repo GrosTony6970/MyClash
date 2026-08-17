@@ -185,3 +185,26 @@ export function selectsFor(from: Mock<(table: string) => SupabaseChain>, table: 
     return call.value.select.mock.calls.map((args) => args[0] as string);
   });
 }
+
+/**
+ * Every argument list `method` was called with on `table`, in call order.
+ *
+ * The companion to {@link selectsFor}, routed by table for the same reason, and
+ * needed for the same kind of query: one that carries a filter the seeded double
+ * refuses to model — `ilike` is the case — so the whole read has to stay canned
+ * and its scope can only be asserted by argument.
+ *
+ * Prefer an outcome wherever the fixture can express one. This says the query
+ * ASKED for something, not that the answer depended on it.
+ */
+export function filtersFor(
+  from: Mock<(table: string) => SupabaseChain>,
+  table: string,
+  method: 'eq' | 'neq' | 'in' | 'is' | 'not' | 'ilike' | 'gte' | 'lt',
+): unknown[][] {
+  return from.mock.calls.flatMap(([queried], index) => {
+    const call = from.mock.results[index];
+    if (queried !== table || call?.type !== 'return') return [];
+    return (call.value[method].mock.calls ?? []) as unknown[][];
+  });
+}

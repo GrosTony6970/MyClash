@@ -1,7 +1,7 @@
 import { NotFoundException } from '@nestjs/common';
 import { describe, expect, it } from 'vitest';
 import { StaffService } from './staff.service';
-import { mockSupabase } from '../../common/testing/supabase-chain';
+import { filtersFor, mockSupabase } from '../../common/testing/supabase-chain';
 
 /**
  * The public piste display — the endpoint a venue TV points at.
@@ -62,10 +62,10 @@ describe('StaffService.getPublicLiceCurrent', () => {
 
     await service.getPublicLiceCurrent(`slug-${EVENT}`, 'Piste 1');
 
-    // from() call 0 is findEventBySlug on `events`; call 1 is the piste lookup.
-    const lookup = supabase.from.mock.results[1]?.value;
-    expect(lookup.eq).toHaveBeenCalledWith('event_id', EVENT);
-    expect(lookup.ilike).toHaveBeenCalledWith('name', 'Piste 1');
+    // Routed by table, not by call index: `lices` is read twice here, and an
+    // index would quietly follow whichever read moved.
+    expect(filtersFor(supabase.from, 'lices', 'eq')).toContainEqual(['event_id', EVENT]);
+    expect(filtersFor(supabase.from, 'lices', 'ilike')).toContainEqual(['name', 'Piste 1']);
   });
 
   it('answers with the bout running on that piste', async () => {
