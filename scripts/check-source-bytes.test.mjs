@@ -10,7 +10,7 @@ import {
   isControlByte,
   scanSources,
 } from './check-source-bytes.mjs';
-import { REPO_IGNORED_DIRS } from './lib/repo-scan.mjs';
+import { isWalkablePath } from './lib/repo-scan.mjs';
 
 // Fixtures are built from byte arrays on purpose. Typing a raw control byte
 // into this file would make the gate red on its own test — which is the whole
@@ -100,11 +100,9 @@ const trackedFiles = () =>
     .split('\0')
     .filter(Boolean);
 
-const isWalkable = (path) => !path.split('/').some((segment) => REPO_IGNORED_DIRS.has(segment));
-
 test('every tracked file the walk reaches is classified as source or as binary', () => {
   const unclassified = new Set();
-  for (const path of trackedFiles().filter(isWalkable)) {
+  for (const path of trackedFiles().filter(isWalkablePath)) {
     const known =
       SOURCE_SUFFIXES.some((suffix) => path.endsWith(suffix)) ||
       BINARY_SUFFIXES.some((suffix) => path.endsWith(suffix));

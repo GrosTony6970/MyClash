@@ -172,3 +172,20 @@ export function walkAllFiles(dir, options) {
 export function toRepoPath(absolute, root = process.cwd()) {
   return relative(root, absolute).split(sep).join('/');
 }
+
+/**
+ * Whether a repo path is one the walks above would have reached.
+ *
+ * The string counterpart to walkRepoFiles: the walk applies REPO_IGNORED_DIRS by
+ * skipping directories as it descends, this applies the same rule to a path that
+ * arrived from somewhere else — in practice `git ls-files`, which is how a test
+ * asks about TRACKED files rather than files on disk. Both answers must agree,
+ * or a check reports on a set its own gate never reads.
+ *
+ * Here rather than in the callers for the reason this module exists at all: the
+ * first copy of this predicate was a file-local const in one test, and a second
+ * caller is exactly how the eight private walk() copies above began.
+ */
+export function isWalkablePath(repoPath) {
+  return !repoPath.split('/').some((segment) => REPO_IGNORED_DIRS.has(segment));
+}

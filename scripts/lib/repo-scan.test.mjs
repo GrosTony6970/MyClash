@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join, relative, sep } from 'node:path';
 import test from 'node:test';
 
-import { REPO_IGNORED_DIRS, walkAllFiles, walkRepoFiles } from './repo-scan.mjs';
+import { REPO_IGNORED_DIRS, isWalkablePath, walkAllFiles, walkRepoFiles } from './repo-scan.mjs';
 
 const root = process.cwd();
 
@@ -206,6 +206,42 @@ test('an absent root throws by default and is empty only when asked', () => {
 
 test('a misspelled missingRoot is refused rather than silently strict', () => {
   assert.throws(() => walkRepoFiles(fixtureTree(), { missingRoot: 'emtpy' }), /missingRoot/u);
+});
+
+// ── isWalkablePath ───────────────────────────────────────────────────────────
+// The string counterpart to the walk, for callers that got their paths from git
+// rather than from readdirSync. It has to answer the same question the walk
+// does, or a check reports on files its own gate never reads.
+
+test('isWalkablePath agrees with the walk about what is ignored', () => {
+  for (const path of [
+    '.claude/skills/myclash-gates/SKILL.md',
+    '_bmad/bmm/config.yaml',
+    'apps/web-admin/.next/server/page.js',
+    'packages/ui/dist/index.js',
+    'apps/api/node_modules/x/index.js',
+  ]) {
+    assert.equal(isWalkablePath(path), false, path);
+  }
+});
+
+test('isWalkablePath keeps product source, including lookalike names', () => {
+  for (const path of [
+    'apps/api/src/main.ts',
+    'scripts/check-todos.mjs',
+    'package.json',
+    // Not a segment match: `dist` and `build` only count as whole path segments,
+    // so a file whose NAME contains one is still source.
+    'packages/ui/src/dist-helpers.ts',
+    'apps/web-admin/src/build-info.ts',
+  ]) {
+    assert.equal(isWalkablePath(path), true, path);
+  }
+});
+
+test('isWalkablePath ignores a directory at any depth, as the walk does', () => {
+  assert.equal(isWalkablePath('a/b/c/node_modules/d/e.js'), false);
+  assert.equal(isWalkablePath('node_modules/e.js'), false);
 });
 
 test(
