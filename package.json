@@ -55,7 +55,6 @@
     "format:check": "prettier --check \"**/*.{ts,tsx,js,jsx,mjs,cjs,json,md,yml,yaml,css}\"",
     "deploy:prod": "tsx scripts/deploy.ts",
     "rollback:prod": "tsx scripts/rollback.ts",
-    "seed": "tsx scripts/seed.ts",
     "seed:min": "tsx scripts/seed-min.ts",
     "gen:api-client": "tsx scripts/gen-api-client.ts",
     "prepare": "simple-git-hooks",
