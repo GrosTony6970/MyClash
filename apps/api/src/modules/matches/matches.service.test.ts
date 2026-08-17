@@ -12,15 +12,6 @@ import { MatchesService } from './matches.service';
 
 // ── Mocks ──────────────────────────────────────────────────────────────────
 
-/**
- * The positional double the write-path tests still use.
- *
- * Renamed off `mockSupabase` so it stops shadowing the shared export replacing
- * it — same name, different semantics, in 54 files across the repo. It goes
- * entirely once the write paths move too.
- */
-const fromMock = vi.fn();
-const legacySupabase = { service: { from: fromMock }, anon: {} };
 const mockScoring = {
   recomputeMatchScore: vi.fn().mockResolvedValue({ redScore: 0, blueScore: 0 }),
 };
@@ -37,39 +28,20 @@ const mockFrozenResults = {
   guardExchangeMutation: vi.fn().mockResolvedValue(null),
 };
 
-function makeChain(result: unknown) {
-  const chain = {
-    select: vi.fn() as ReturnType<typeof vi.fn>,
-    eq: vi.fn() as ReturnType<typeof vi.fn>,
-    gte: vi.fn() as ReturnType<typeof vi.fn>,
-    lt: vi.fn() as ReturnType<typeof vi.fn>,
-    order: vi.fn() as ReturnType<typeof vi.fn>,
-    insert: vi.fn() as ReturnType<typeof vi.fn>,
-    update: vi.fn() as ReturnType<typeof vi.fn>,
-    delete: vi.fn() as ReturnType<typeof vi.fn>,
-    limit: vi.fn() as ReturnType<typeof vi.fn>,
-    in: vi.fn() as ReturnType<typeof vi.fn>,
-    maybeSingle: vi.fn().mockResolvedValue(result),
-    single: vi.fn().mockResolvedValue(result),
-  };
-  chain.select.mockReturnValue(chain);
-  chain.eq.mockReturnValue(chain);
-  chain.order.mockReturnValue(chain);
-  chain.insert.mockReturnValue(chain);
-  chain.update.mockReturnValue(chain);
-  chain.delete.mockReturnValue(chain);
-  chain.limit.mockReturnValue(chain);
-  chain.in.mockReturnValue(chain);
-  return chain;
-}
-
 /**
  * One service over a Supabase double that routes by TABLE NAME, built per test.
  *
- * The shape it replaces reprogrammed a single module-level `fromMock` per test
+ * The shape this replaced reprogrammed a single module-level `fromMock` per test
  * with `mockReturnValueOnce` chains, so every answer was positional: insert one
  * `from()` call anywhere in a method and every later answer shifted by one while
- * the suite stayed green. A seed per table is what removes that coupling.
+ * the suite stayed green. That is a live defect class in this file's history —
+ * adding the round-state fetch to `createExchange` broke every sequenced test
+ * for it — and `vi.clearAllMocks()` does not drain the once-queue, so a test
+ * leaving chains unconsumed reached into the next one.
+ *
+ * A seed per table removes the coupling: a new query on a different table cannot
+ * move anyone else's answer, and a table nobody declared throws instead of
+ * quietly resolving to `{ data: null }`.
  */
 function makeService(seed: Record<string, TableSeed>, opts?: { frozen?: boolean }) {
   const supabase = mockSupabase(seed);
@@ -109,16 +81,12 @@ const summarySeed = (
 // ── Tests ──────────────────────────────────────────────────────────────────
 
 describe('MatchesService', () => {
-  let service: MatchesService;
-
+  // The collaborators stay module-level and their call counts are asserted per
+  // test, so they still need clearing. `clearAllMocks` resets calls and results
+  // but not implementations, which is what keeps the `mockResolvedValue`
+  // defaults above alive.
   beforeEach(() => {
     vi.clearAllMocks();
-    fromMock.mockReturnValue(makeChain({ data: null, error: null }));
-    service = new MatchesService(
-      legacySupabase as never,
-      mockScoring as never,
-      mockMatchAlerts as never,
-    );
   });
 
   // ── Match summary — canonical roundCode ──────────────────────────────────
@@ -260,16 +228,38 @@ describe('MatchesService', () => {
 
   // ── Idempotency on client_uuid ────────────────────────────────────────────
 
+  /**
+   * A bout ready to be scored, for the `matches` read `createExchange` makes.
+   *
+   * ONE row answers both reads on that table — the round-state fetch and
+   * `getAfterblowMode` — because a seeded table filters rather than replaying a
+   * queue. Under the old shape those were two positional entries, and inserting
+   * either one shifted every later answer in the test.
+   */
+  const scorableMatch = (over: Record<string, unknown> = {}) => ({
+    matches: {
+      rows: [
+        {
+          id: 'm1',
+          current_round: 1,
+          awaiting_round_advance: false,
+          phases: { tournaments: { scoring_config_json: { afterblowMode: 'full' } } },
+          ...over,
+        },
+      ],
+    },
+  });
+
+  const NEW_EXCHANGE = { data: null, error: null };
+
   describe('createExchange — idempotency', () => {
     it('returns existing exchange when client_uuid already exists (no duplicate insert)', async () => {
       const existingExchange = { id: 'ex-1', client_uuid: 'uuid-abc', match_id: 'm1', sequence: 1 };
+      const { service: exchangeService, supabase } = makeService({
+        exchanges: { rows: [existingExchange] },
+      });
 
-      // First call: client_uuid check returns existing
-      const checkChain = makeChain({ data: null, error: null });
-      checkChain.maybeSingle.mockResolvedValue({ data: existingExchange, error: null });
-      fromMock.mockReturnValue(checkChain);
-
-      const result = await service.createExchange('m1', {
+      const result = await exchangeService.createExchange('m1', {
         clientUuid: 'uuid-abc',
         sequence: 1,
         type: 'clean',
@@ -280,33 +270,27 @@ describe('MatchesService', () => {
 
       // Returns existing without calling insert
       expect((result as { id: string }).id).toBe('ex-1');
+      expect(supabase.writes).toEqual([]);
+      // Short-circuits before the round-state read, so `matches` is never asked
+      // for — which is why it is not seeded, and why this would throw if the
+      // idempotent return ever stopped returning early.
+      expect(queriedTables(supabase.from)).toEqual(['exchanges']);
       // Score should NOT be recomputed for duplicate
       expect(mockScoring.recomputeMatchScore).not.toHaveBeenCalled();
     });
 
     it('inserts new exchange when client_uuid is fresh', async () => {
       const newExchange = { id: 'ex-new', client_uuid: 'uuid-new', match_id: 'm1', sequence: 2 };
-
-      // client_uuid check: not found
-      const checkChain = makeChain({ data: null, error: null });
-      checkChain.maybeSingle.mockResolvedValue({ data: null, error: null });
-
-      // round state: single round, not awaiting
-      const roundChain = makeChain({
-        data: { current_round: 1, awaiting_round_advance: false },
-        error: null,
+      const { service: exchangeService, supabase } = makeService({
+        // Read then written: the idempotency check must miss, and the insert has
+        // to hand back the row the caller returns. A queue is the shape for that
+        // pair — but it is now scoped to ONE table, so the `matches` read between
+        // them cannot shift it.
+        exchanges: [NEW_EXCHANGE, { data: newExchange, error: null }],
+        ...scorableMatch(),
       });
 
-      // insert: success
-      const insertChain = makeChain({ data: null, error: null });
-      insertChain.single.mockResolvedValue({ data: newExchange, error: null });
-
-      fromMock
-        .mockReturnValueOnce(checkChain)
-        .mockReturnValueOnce(roundChain)
-        .mockReturnValueOnce(insertChain);
-
-      const result = await service.createExchange('m1', {
+      const result = await exchangeService.createExchange('m1', {
         clientUuid: 'uuid-new',
         sequence: 2,
         type: 'clean',
@@ -316,6 +300,11 @@ describe('MatchesService', () => {
       });
 
       expect((result as { id: string }).id).toBe('ex-new');
+      expect(writesTo(supabase, 'exchanges')[0]?.row).toMatchObject({
+        client_uuid: 'uuid-new',
+        match_id: 'm1',
+        sequence: 2,
+      });
       // Score IS recomputed after new insert
       expect(mockScoring.recomputeMatchScore).toHaveBeenCalledWith('m1');
     });
@@ -326,33 +315,24 @@ describe('MatchesService', () => {
       // treats 400 as a TERMINAL drop, so createExchange must append instead
       // of rejecting: retry with the server's max(sequence)+1.
       const appended = { id: 'ex-13', client_uuid: 'uuid-stale', match_id: 'm1', sequence: 13 };
-
-      const checkChain = makeChain({ data: null, error: null }); // client_uuid fresh
-      const roundChain = makeChain({
-        data: { current_round: 1, awaiting_round_advance: false },
-        error: null,
+      const { service: exchangeService, supabase } = makeService({
+        exchanges: [
+          NEW_EXCHANGE, // client_uuid fresh
+          {
+            data: null,
+            error: {
+              message:
+                'duplicate key value violates unique constraint "exchanges_match_id_sequence"',
+            },
+          },
+          NEW_EXCHANGE, // still not a client_uuid dup
+          { data: { sequence: 12 }, error: null }, // server max(sequence)
+          { data: appended, error: null }, // the retry
+        ],
+        ...scorableMatch(),
       });
-      const collidingInsert = makeChain({ data: null, error: null });
-      collidingInsert.single.mockResolvedValue({
-        data: null,
-        error: {
-          message: 'duplicate key value violates unique constraint "exchanges_match_id_sequence"',
-        },
-      });
-      const raceChain = makeChain({ data: null, error: null }); // still not a client_uuid dup
-      const maxSeqChain = makeChain({ data: { sequence: 12 }, error: null });
-      const retryInsert = makeChain({ data: null, error: null });
-      retryInsert.single.mockResolvedValue({ data: appended, error: null });
 
-      fromMock
-        .mockReturnValueOnce(checkChain)
-        .mockReturnValueOnce(roundChain)
-        .mockReturnValueOnce(collidingInsert)
-        .mockReturnValueOnce(raceChain)
-        .mockReturnValueOnce(maxSeqChain)
-        .mockReturnValueOnce(retryInsert);
-
-      const result = await service.createExchange('m1', {
+      const result = await exchangeService.createExchange('m1', {
         clientUuid: 'uuid-stale',
         sequence: 1,
         type: 'clean',
@@ -362,23 +342,22 @@ describe('MatchesService', () => {
       });
 
       expect((result as { sequence: number }).sequence).toBe(13);
-      expect(retryInsert.insert).toHaveBeenCalledWith(expect.objectContaining({ sequence: 13 }));
+      // The SECOND insert is the retry. Named by position in the recorded
+      // writes rather than by which chain variable happened to receive it.
+      expect(writesTo(supabase, 'exchanges')[1]?.row).toMatchObject({ sequence: 13 });
       expect(mockScoring.recomputeMatchScore).toHaveBeenCalledWith('m1');
     });
 
     it('rejects new exchange creation when event results are frozen', async () => {
-      service = new MatchesService(
-        legacySupabase as never,
-        mockScoring as never,
-        mockMatchAlerts as never,
-        mockFrozenResults as never,
-      );
+      // Seeded with NOTHING: the refusal happens before any query, so any read
+      // at all would throw on an unconfigured table.
+      const { service: exchangeService, supabase } = makeService({}, { frozen: true });
       mockFrozenResults.assertExchangeCreationAllowed.mockRejectedValueOnce(
         new BadRequestException('Event results are frozen'),
       );
 
       await expect(
-        service.createExchange(
+        exchangeService.createExchange(
           'm1',
           {
             clientUuid: 'uuid-new',
@@ -391,7 +370,7 @@ describe('MatchesService', () => {
           { userId: 'organizer-1' },
         ),
       ).rejects.toThrow(BadRequestException);
-      expect(fromMock).not.toHaveBeenCalled();
+      expect(supabase.from).not.toHaveBeenCalled();
       expect(mockScoring.recomputeMatchScore).not.toHaveBeenCalled();
     });
   });
@@ -404,25 +383,14 @@ describe('MatchesService', () => {
       afterblowMode: 'full' | 'deductive',
       firstStrikerColor: 'red' | 'blue',
     ) {
-      const checkChain = makeChain({ data: null, error: null }); // idempotency: fresh
-      const modeChain = makeChain({
-        data: { phases: { tournaments: { scoring_config_json: { afterblowMode } } } },
-        error: null,
-      });
-      const insertChain = makeChain({ data: null, error: null });
-      insertChain.single.mockResolvedValue({ data: { id: 'ex-ab' }, error: null });
-      const roundChain = makeChain({
-        data: { current_round: 1, awaiting_round_advance: false },
-        error: null,
+      const { service: exchangeService, supabase } = makeService({
+        exchanges: [NEW_EXCHANGE, { data: { id: 'ex-ab' }, error: null }],
+        ...scorableMatch({
+          phases: { tournaments: { scoring_config_json: { afterblowMode } } },
+        }),
       });
 
-      fromMock
-        .mockReturnValueOnce(checkChain) // exchanges — idempotency check
-        .mockReturnValueOnce(roundChain) // matches — round state (round_number + gate)
-        .mockReturnValueOnce(modeChain) // matches — getAfterblowMode
-        .mockReturnValueOnce(insertChain); // exchanges — insert
-
-      await service.createExchange('m1', {
+      await exchangeService.createExchange('m1', {
         clientUuid: 'uuid-ab',
         sequence: 3,
         type: 'afterblow',
@@ -432,7 +400,7 @@ describe('MatchesService', () => {
         afterblowValue: 1,
       });
 
-      return insertChain.insert.mock.calls[0]![0] as Record<string, number>;
+      return writesTo(supabase, 'exchanges')[0]?.row as Record<string, number>;
     }
 
     it('deductive: stores raw 2/1 but nets attacker +1 / defender 0', async () => {
@@ -461,54 +429,88 @@ describe('MatchesService', () => {
     it('sets voided=true, never deletes the row', async () => {
       const exchange = { id: 'ex-1', match_id: 'm1', voided: false };
       const voidedExchange = { id: 'ex-1', match_id: 'm1', voided: true, voided_reason: 'test' };
+      const { service: voidService, supabase } = makeService({
+        exchanges: [
+          { data: exchange, error: null },
+          { data: voidedExchange, error: null },
+        ],
+        audit_log: { rows: [] },
+      });
 
-      const fetchChain = makeChain({ data: null, error: null });
-      fetchChain.maybeSingle.mockResolvedValue({ data: exchange, error: null });
-
-      const updateChain = makeChain({ data: null, error: null });
-      updateChain.single.mockResolvedValue({ data: voidedExchange, error: null });
-
-      fromMock.mockReturnValueOnce(fetchChain).mockReturnValueOnce(updateChain);
-
-      const result = await service.voidExchange('ex-1', { reason: 'test' });
+      const result = await voidService.voidExchange('ex-1', { reason: 'test' });
 
       expect((result as { voided: boolean }).voided).toBe(true);
+      // A void is an UPDATE, and it names the exchange it hit. The old shape
+      // recorded neither: `expect(chain.update).toHaveBeenCalled()` is satisfied
+      // by voiding somebody else's exchange.
+      const [written] = writesTo(supabase, 'exchanges');
+      expect(written?.op).toBe('update');
+      expect(written?.row).toMatchObject({ voided: true, voided_reason: 'test' });
+      expect(scopedTo(written, 'id')).toBe('ex-1');
       // Score recomputed after void
       expect(mockScoring.recomputeMatchScore).toHaveBeenCalledWith('m1');
     });
 
-    it('throws BadRequestException when exchange is already voided', async () => {
-      const voidedExchange = { id: 'ex-1', match_id: 'm1', voided: true };
-      const chain = makeChain({ data: null, error: null });
-      chain.maybeSingle.mockResolvedValue({ data: voidedExchange, error: null });
-      fromMock.mockReturnValue(chain);
+    /**
+     * Voiding an exchange changes a published score, so it belongs in the
+     * record. Until 2026-08 only the FROZEN path wrote anything, leaving every
+     * edit on a live event untraceable — and nothing here noticed, because the
+     * private double answered the audit insert with the same canned null as
+     * everything else. Delete the call and no test moved.
+     */
+    it('records the void in the audit log, naming the exchange', async () => {
+      const exchange = { id: 'ex-1', match_id: 'm1', voided: false, sequence: 4 };
+      const { service: voidService, supabase } = makeService({
+        exchanges: [
+          { data: exchange, error: null },
+          { data: { ...exchange, voided: true }, error: null },
+        ],
+        audit_log: { rows: [] },
+      });
 
-      await expect(service.voidExchange('ex-1', {})).rejects.toThrow(BadRequestException);
+      await voidService.voidExchange(
+        'ex-1',
+        { reason: 'wrong call' },
+        { bypassFrozenReview: true },
+      );
+
+      const [audited] = writesTo(supabase, 'audit_log');
+      expect(audited?.row).toMatchObject({
+        action: 'exchange.voided',
+        entity_type: 'exchange',
+        entity_id: 'ex-1',
+      });
+    });
+
+    it('throws BadRequestException when exchange is already voided', async () => {
+      const { service: voidService } = makeService({
+        exchanges: { rows: [{ id: 'ex-1', match_id: 'm1', voided: true }] },
+      });
+
+      await expect(voidService.voidExchange('ex-1', {})).rejects.toThrow(BadRequestException);
     });
 
     it('throws NotFoundException for nonexistent exchange', async () => {
-      const chain = makeChain({ data: null, error: null });
-      chain.maybeSingle.mockResolvedValue({ data: null, error: null });
-      fromMock.mockReturnValue(chain);
+      const { service: voidService } = makeService({ exchanges: { rows: [] } });
 
-      await expect(service.voidExchange('nonexistent', {})).rejects.toThrow(NotFoundException);
+      await expect(voidService.voidExchange('nonexistent', {})).rejects.toThrow(NotFoundException);
     });
 
     it('creates a pending review request instead of voiding when event results are frozen', async () => {
-      service = new MatchesService(
-        legacySupabase as never,
-        mockScoring as never,
-        mockMatchAlerts as never,
-        mockFrozenResults as never,
-      );
       const exchange = { id: 'ex-1', match_id: 'm1', voided: false };
       const pending = { pendingReview: true, requestId: 'request-1', status: 'pending' };
-      const fetchChain = makeChain({ data: null, error: null });
-      fetchChain.maybeSingle.mockResolvedValue({ data: exchange, error: null });
-      fromMock.mockReturnValue(fetchChain);
+      const { service: voidService, supabase } = makeService(
+        {
+          exchanges: { rows: [exchange] },
+          // A caller with a context is lock-checked first, which reads `matches`.
+          // The private double answered that with the exchange fixture.
+          matches: { rows: [{ id: 'm1', locked_at: null }] },
+        },
+        { frozen: true },
+      );
       mockFrozenResults.guardExchangeMutation.mockResolvedValueOnce(pending);
 
-      const result = await service.voidExchange(
+      const result = await voidService.voidExchange(
         'ex-1',
         { reason: 'wrong exchange' },
         { userId: 'organizer-1' },
@@ -521,27 +523,25 @@ describe('MatchesService', () => {
         reason: 'wrong exchange',
         userId: 'organizer-1',
       });
-      expect(fetchChain.update).not.toHaveBeenCalled();
+      expect(supabase.writes).toEqual([]);
       expect(mockScoring.recomputeMatchScore).not.toHaveBeenCalled();
     });
   });
 
   describe('revertVoidExchange', () => {
     it('creates a pending review request instead of reverting when event results are frozen', async () => {
-      service = new MatchesService(
-        legacySupabase as never,
-        mockScoring as never,
-        mockMatchAlerts as never,
-        mockFrozenResults as never,
-      );
       const exchange = { id: 'ex-1', match_id: 'm1', voided: true };
       const pending = { pendingReview: true, requestId: 'request-1', status: 'pending' };
-      const fetchChain = makeChain({ data: null, error: null });
-      fetchChain.maybeSingle.mockResolvedValue({ data: exchange, error: null });
-      fromMock.mockReturnValue(fetchChain);
+      const { service: revertService, supabase } = makeService(
+        {
+          exchanges: { rows: [exchange] },
+          matches: { rows: [{ id: 'm1', locked_at: null }] },
+        },
+        { frozen: true },
+      );
       mockFrozenResults.guardExchangeMutation.mockResolvedValueOnce(pending);
 
-      const result = await service.revertVoidExchange('ex-1', { userId: 'organizer-1' });
+      const result = await revertService.revertVoidExchange('ex-1', { userId: 'organizer-1' });
 
       expect(result).toEqual(pending);
       expect(mockFrozenResults.guardExchangeMutation).toHaveBeenCalledWith({
@@ -550,7 +550,7 @@ describe('MatchesService', () => {
         reason: null,
         userId: 'organizer-1',
       });
-      expect(fetchChain.update).not.toHaveBeenCalled();
+      expect(supabase.writes).toEqual([]);
       expect(mockScoring.recomputeMatchScore).not.toHaveBeenCalled();
     });
   });
@@ -559,21 +559,19 @@ describe('MatchesService', () => {
 
   describe('approveFrozenExchangeEdit', () => {
     it('applies approved void requests without creating another frozen review request', async () => {
-      service = new MatchesService(
-        legacySupabase as never,
-        mockScoring as never,
-        mockMatchAlerts as never,
-        mockFrozenResults as never,
-      );
       const exchange = { id: 'ex-1', match_id: 'm1', voided: false };
-      const voidedExchange = { id: 'ex-1', match_id: 'm1', voided: true };
-      const fetchChain = makeChain({ data: null, error: null });
-      fetchChain.maybeSingle.mockResolvedValue({ data: exchange, error: null });
-      const updateChain = makeChain({ data: null, error: null });
-      updateChain.single.mockResolvedValue({ data: voidedExchange, error: null });
-      fromMock.mockReturnValueOnce(fetchChain).mockReturnValueOnce(updateChain);
+      const { service: approveService } = makeService(
+        {
+          exchanges: [
+            { data: exchange, error: null },
+            { data: { ...exchange, voided: true }, error: null },
+          ],
+          audit_log: { rows: [] },
+        },
+        { frozen: true },
+      );
 
-      await service.approveFrozenExchangeEdit(
+      await approveService.approveFrozenExchangeEdit(
         {
           id: 'request-1',
           exchange_id: 'ex-1',
@@ -590,22 +588,12 @@ describe('MatchesService', () => {
 
   describe('score recomputation', () => {
     it('recomputeMatchScore is called after every new exchange insert', async () => {
-      const checkChain = makeChain({ data: null, error: null });
-      checkChain.maybeSingle.mockResolvedValue({ data: null, error: null });
-
-      const insertChain = makeChain({ data: null, error: null });
-      insertChain.single.mockResolvedValue({ data: { id: 'ex-1' }, error: null });
-      const roundChain = makeChain({
-        data: { current_round: 1, awaiting_round_advance: false },
-        error: null,
+      const { service: exchangeService } = makeService({
+        exchanges: [NEW_EXCHANGE, { data: { id: 'ex-1' }, error: null }],
+        matches: { rows: [{ id: 'match-1', current_round: 1, awaiting_round_advance: false }] },
       });
 
-      fromMock
-        .mockReturnValueOnce(checkChain)
-        .mockReturnValueOnce(roundChain)
-        .mockReturnValueOnce(insertChain);
-
-      await service.createExchange('match-1', {
+      await exchangeService.createExchange('match-1', {
         clientUuid: 'fresh-uuid',
         sequence: 1,
         type: 'double',
@@ -622,20 +610,12 @@ describe('MatchesService', () => {
   // instead of wall-clock. The value must land on exchanges.clock_time_ms.
   describe('createExchange — clock time', () => {
     it('persists clock_time_ms from dto.clockTimeMs on the inserted row', async () => {
-      const checkChain = makeChain({ data: null, error: null });
-      checkChain.maybeSingle.mockResolvedValue({ data: null, error: null });
-      const insertChain = makeChain({ data: null, error: null });
-      insertChain.single.mockResolvedValue({ data: { id: 'ex-1' }, error: null });
-      const roundChain = makeChain({
-        data: { current_round: 1, awaiting_round_advance: false },
-        error: null,
+      const { service: exchangeService, supabase } = makeService({
+        exchanges: [NEW_EXCHANGE, { data: { id: 'ex-1' }, error: null }],
+        matches: { rows: [{ id: 'match-1', current_round: 1, awaiting_round_advance: false }] },
       });
-      fromMock
-        .mockReturnValueOnce(checkChain)
-        .mockReturnValueOnce(roundChain)
-        .mockReturnValueOnce(insertChain);
 
-      await service.createExchange('match-1', {
+      await exchangeService.createExchange('match-1', {
         clientUuid: 'uuid-clock',
         sequence: 1,
         type: 'clean',
@@ -645,9 +625,7 @@ describe('MatchesService', () => {
         clockTimeMs: 90_000,
       });
 
-      expect(insertChain.insert).toHaveBeenCalledWith(
-        expect.objectContaining({ clock_time_ms: 90_000 }),
-      );
+      expect(writesTo(supabase, 'exchanges')[0]?.row).toMatchObject({ clock_time_ms: 90_000 });
     });
   });
 
@@ -655,20 +633,12 @@ describe('MatchesService', () => {
   // and scoring is blocked between rounds (while awaiting_round_advance).
   describe('createExchange — best-of rounds', () => {
     it('stamps round_number from the match current_round on the inserted row', async () => {
-      const checkChain = makeChain({ data: null, error: null });
-      checkChain.maybeSingle.mockResolvedValue({ data: null, error: null });
-      const roundChain = makeChain({
-        data: { current_round: 3, awaiting_round_advance: false },
-        error: null,
+      const { service: exchangeService, supabase } = makeService({
+        exchanges: [NEW_EXCHANGE, { data: { id: 'ex-r3' }, error: null }],
+        matches: { rows: [{ id: 'match-1', current_round: 3, awaiting_round_advance: false }] },
       });
-      const insertChain = makeChain({ data: null, error: null });
-      insertChain.single.mockResolvedValue({ data: { id: 'ex-r3' }, error: null });
-      fromMock
-        .mockReturnValueOnce(checkChain)
-        .mockReturnValueOnce(roundChain)
-        .mockReturnValueOnce(insertChain);
 
-      await service.createExchange('match-1', {
+      await exchangeService.createExchange('match-1', {
         clientUuid: 'uuid-r3',
         sequence: 1,
         type: 'clean',
@@ -677,20 +647,17 @@ describe('MatchesService', () => {
         occurredAt: new Date().toISOString(),
       });
 
-      expect(insertChain.insert).toHaveBeenCalledWith(expect.objectContaining({ round_number: 3 }));
+      expect(writesTo(supabase, 'exchanges')[0]?.row).toMatchObject({ round_number: 3 });
     });
 
     it('rejects scoring while a round is awaiting advance', async () => {
-      const checkChain = makeChain({ data: null, error: null });
-      checkChain.maybeSingle.mockResolvedValue({ data: null, error: null });
-      const roundChain = makeChain({
-        data: { current_round: 2, awaiting_round_advance: true },
-        error: null,
+      const { service: exchangeService, supabase } = makeService({
+        exchanges: { rows: [] },
+        matches: { rows: [{ id: 'match-1', current_round: 2, awaiting_round_advance: true }] },
       });
-      fromMock.mockReturnValueOnce(checkChain).mockReturnValueOnce(roundChain);
 
       await expect(
-        service.createExchange('match-1', {
+        exchangeService.createExchange('match-1', {
           clientUuid: 'uuid-blocked',
           sequence: 1,
           type: 'clean',
@@ -699,6 +666,7 @@ describe('MatchesService', () => {
           occurredAt: new Date().toISOString(),
         }),
       ).rejects.toThrow(BadRequestException);
+      expect(supabase.writes).toEqual([]);
       expect(mockScoring.recomputeMatchScore).not.toHaveBeenCalled();
     });
   });
@@ -901,17 +869,23 @@ describe('MatchesService', () => {
   describe('throughput — 50+ exchanges/sec', () => {
     it('processes 50 exchange inserts in under 1 second (mocked DB)', async () => {
       const N = 50;
-      // Concurrency makes ordered mockReturnValueOnce non-deterministic (and the
-      // extra round-state fetch per insert amplifies that), so use a single
-      // default chain: idempotency + round fetch resolve null (fresh, round 1,
-      // not awaiting); inserts resolve with an id.
-      const chain = makeChain({ data: null, error: null });
-      chain.single.mockResolvedValue({ data: { id: 'ex' }, error: null });
-      fromMock.mockReturnValue(chain);
+      // Concurrency rules out a queue: fifty overlapping calls consume it in no
+      // fixed order. It also rules out `{ rows: [] }` — the insert ends
+      // `.select('*').single()`, and single() over zero rows is a real PGRST116,
+      // which `isUniqueViolation` does not match, so every insert would throw.
+      //
+      // CANNED is the right shape here and says so: the idempotency read misses,
+      // the round-state read leaves current_round at its default, and the insert
+      // resolves without error. Routed by table all the same, so the two reads
+      // can no longer be confused for one another.
+      const { service: exchangeService } = makeService({
+        exchanges: { data: null, error: null },
+        matches: { data: null, error: null },
+      });
 
       const start = Date.now();
       const promises = Array.from({ length: N }, (_, i) =>
-        service.createExchange('match-1', {
+        exchangeService.createExchange('match-1', {
           clientUuid: `uuid-${i}`,
           sequence: i + 1,
           type: 'clean',
@@ -928,12 +902,31 @@ describe('MatchesService', () => {
       expect(mockScoring.recomputeMatchScore).toHaveBeenCalledTimes(N);
     });
   });
+
   describe('match correction operations', () => {
+    /**
+     * Everything `resetMatch` touches: the lock read, the un-completion status
+     * read, the two bulk voids, the event probe and insert, and the final write.
+     *
+     * `matches` is read three times and written once, all from one seeded row —
+     * `.eq('id', 'match-1')` leaves exactly one survivor, which is what the
+     * final `.select('*').single()` needs.
+     */
+    const resettableMatch = (over: Record<string, unknown> = {}): Record<string, TableSeed> => ({
+      matches: { rows: [{ id: 'match-1', locked_at: null, status: 'scheduled', ...over }] },
+      exchanges: { rows: [] },
+      match_penalties: { rows: [] },
+      match_events: { rows: [] },
+    });
+
     it('resetMatch requires the exact confirmation phrase', async () => {
+      // Seeded with nothing: the refusal is on the phrase, before any query.
+      const { service: resetService, supabase } = makeService({});
+
       await expect(
-        service.resetMatch('match-1', { confirmation: 'reset', reason: 'test' }),
+        resetService.resetMatch('match-1', { confirmation: 'reset', reason: 'test' }),
       ).rejects.toThrow(BadRequestException);
-      expect(fromMock).not.toHaveBeenCalled();
+      expect(supabase.from).not.toHaveBeenCalled();
     });
 
     /**
@@ -948,40 +941,48 @@ describe('MatchesService', () => {
      * Ratings submission documents the same meaning, so BOTH fighters lose a
      * bout one of them just won, in the export that leaves the platform.
      *
-     * Asserted on the update object rather than through a replay because the
+     * Asserted on the recorded write rather than through a replay because the
      * reason has to be gone at the moment of the reset — a later re-completion
      * is exactly what does NOT repair it.
      */
     it('resetMatch clears the previous fight end reason and durations', async () => {
-      const matchUpdate = makeChain({ data: { id: 'match-1' }, error: null });
-      fromMock.mockImplementation((table: string) => {
-        if (table === 'matches') {
-          const chain = matchUpdate;
-          chain.maybeSingle.mockResolvedValue({
-            data: { id: 'match-1', locked_at: null },
-            error: null,
-          });
-          return chain;
-        }
-        return makeChain({ data: null, error: null });
-      });
+      const { service: resetService, supabase } = makeService(resettableMatch());
 
-      await service.resetMatch('match-1', {
+      await resetService.resetMatch('match-1', {
         confirmation: 'RESET MATCH',
         reason: 'replay the bout',
       });
 
-      expect(matchUpdate.update).toHaveBeenCalledWith(
-        expect.objectContaining({
-          status: 'scheduled',
-          end_reason: null,
-          duration_active_ms: null,
-          duration_total_ms: null,
-          winner_registration_id: null,
-          started_at: null,
-          ended_at: null,
-        }),
-      );
+      const [reset] = writesTo(supabase, 'matches');
+      expect(reset?.row).toMatchObject({
+        status: 'scheduled',
+        end_reason: null,
+        duration_active_ms: null,
+        duration_total_ms: null,
+        winner_registration_id: null,
+        started_at: null,
+        ended_at: null,
+      });
+      // Which bout. The old assertion could not say, so resetting the wrong one
+      // satisfied it.
+      expect(scopedTo(reset, 'id')).toBe('match-1');
+    });
+
+    /**
+     * The two bulk voids are scoped to this bout and nothing else. Unscoped,
+     * they void every exchange and every penalty in the database — and the
+     * canned double recorded only that a write happened, so that was invisible.
+     */
+    it('resetMatch voids only this bout exchanges and penalties', async () => {
+      const { service: resetService, supabase } = makeService(resettableMatch());
+
+      await resetService.resetMatch('match-1', {
+        confirmation: 'RESET MATCH',
+        reason: 'replay the bout',
+      });
+
+      expect(scopedTo(writesTo(supabase, 'exchanges')[0], 'match_id')).toBe('match-1');
+      expect(scopedTo(writesTo(supabase, 'match_penalties')[0], 'match_id')).toBe('match-1');
     });
 
     /**
@@ -993,33 +994,23 @@ describe('MatchesService', () => {
      * clearing it here needs no authority the call did not already have.
      */
     it('resetMatch clears the lock, so the bout can actually be scored again', async () => {
-      const matchUpdate = makeChain({ data: { id: 'match-1' }, error: null });
-      fromMock.mockImplementation((table: string) => {
-        if (table === 'matches') {
-          matchUpdate.maybeSingle.mockResolvedValue({
-            data: { id: 'match-1', locked_at: '2026-08-12T09:00:00.000Z' },
-            error: null,
-          });
-          return matchUpdate;
-        }
-        return makeChain({ data: null, error: null });
-      });
+      const { service: resetService, supabase } = makeService(
+        resettableMatch({ locked_at: '2026-08-12T09:00:00.000Z' }),
+      );
 
-      await service.resetMatch(
+      await resetService.resetMatch(
         'match-1',
         { confirmation: 'RESET MATCH', reason: 'replay the bout' },
         { userId: 'organiser-1', canOverrideLocked: true },
       );
 
-      expect(matchUpdate.update).toHaveBeenCalledWith(
-        expect.objectContaining({
-          locked_at: null,
-          locked_by_user_id: null,
-          locked_by_staff_account_id: null,
-          lock_source: null,
-          lock_reason: null,
-        }),
-      );
+      expect(writesTo(supabase, 'matches')[0]?.row).toMatchObject({
+        locked_at: null,
+        locked_by_user_id: null,
+        locked_by_staff_account_id: null,
+        lock_source: null,
+        lock_reason: null,
+      });
     });
 
     it('resetMatch fails loudly when the reset_match event cannot be written', async () => {
@@ -1027,68 +1018,51 @@ describe('MatchesService', () => {
       // Swallowed, it leaves a bout that reads `scheduled` to every list and
       // `ended` to the pad — and `VALID_TRANSITIONS.ended` is `['reopen']`, so
       // it cannot be started.
-      fromMock.mockImplementation((table: string) => {
-        if (table === 'match_events') {
-          const chain = makeChain({ data: null, error: null });
-          // The sequence probe succeeds; the insert is what fails. `insert` is
-          // awaited directly here (no terminal `.single()`), so the double has
-          // to resolve the result object rather than return the chain.
-          chain.maybeSingle.mockResolvedValue({ data: null, error: null });
-          chain.insert.mockResolvedValue({ error: { message: 'sequence conflict' } });
-          return chain;
-        }
-        const chain = makeChain({ data: { id: 'match-1' }, error: null });
-        chain.maybeSingle.mockResolvedValue({
-          data: { id: 'match-1', locked_at: null },
-          error: null,
-        });
-        return chain;
+      //
+      // A seeded table cannot carry an error, so this one table stays a queue:
+      // the sequence probe succeeds, the insert is what fails.
+      const { service: resetService } = makeService({
+        ...resettableMatch(),
+        match_events: [
+          { data: null, error: null },
+          { data: null, error: { message: 'sequence conflict' } },
+        ],
       });
 
       await expect(
-        service.resetMatch('match-1', { confirmation: 'RESET MATCH', reason: 'replay' }),
+        resetService.resetMatch('match-1', { confirmation: 'RESET MATCH', reason: 'replay' }),
       ).rejects.toThrow(BadRequestException);
     });
 
     it('swapFighterSide toggles visual side order only', async () => {
-      const lockChain = makeChain({ data: null, error: null });
-      lockChain.maybeSingle.mockResolvedValue({
-        data: { id: 'match-1', side_order: 'red_left', locked_at: null },
-        error: null,
+      const { service: swapService, supabase } = makeService({
+        // Read then written, and the caller returns the row the write handed
+        // back: the lock read first, the flipped row second.
+        matches: [
+          { data: { id: 'match-1', side_order: 'red_left', locked_at: null }, error: null },
+          { data: { id: 'match-1', side_order: 'blue_left' }, error: null },
+        ],
       });
-      const updateChain = makeChain({ data: null, error: null });
-      updateChain.single.mockResolvedValue({
-        data: { id: 'match-1', side_order: 'blue_left' },
-        error: null,
-      });
-      fromMock.mockReturnValueOnce(lockChain).mockReturnValueOnce(updateChain);
 
-      const result = await service.swapFighterSide('match-1');
+      const result = await swapService.swapFighterSide('match-1');
 
-      expect(updateChain.update).toHaveBeenCalledWith({
-        side_order: 'blue_left',
-        updated_at: expect.any(String),
-      });
+      const [flipped] = writesTo(supabase, 'matches');
+      expect(flipped?.row).toEqual({ side_order: 'blue_left', updated_at: expect.any(String) });
+      expect(scopedTo(flipped, 'id')).toBe('match-1');
       expect(result).toEqual({ id: 'match-1', side_order: 'blue_left' });
       expect(mockScoring.recomputeMatchScore).not.toHaveBeenCalled();
     });
 
     it('locked matches reject staff correction operations', async () => {
-      const exchangeChain = makeChain({ data: null, error: null });
-      exchangeChain.maybeSingle.mockResolvedValue({
-        data: { id: 'ex-1', match_id: 'match-1', voided: false },
-        error: null,
+      const { service: voidService, supabase } = makeService({
+        exchanges: { rows: [{ id: 'ex-1', match_id: 'match-1', voided: false }] },
+        matches: { rows: [{ id: 'match-1', locked_at: '2026-05-05T12:00:00.000Z' }] },
       });
-      const lockChain = makeChain({ data: null, error: null });
-      lockChain.maybeSingle.mockResolvedValue({
-        data: { id: 'match-1', locked_at: '2026-05-05T12:00:00.000Z' },
-        error: null,
-      });
-      fromMock.mockReturnValueOnce(exchangeChain).mockReturnValue(lockChain);
 
-      await expect(service.voidExchange('ex-1', {}, { staffAccountId: 'staff-1' })).rejects.toThrow(
-        BadRequestException,
-      );
+      await expect(
+        voidService.voidExchange('ex-1', {}, { staffAccountId: 'staff-1' }),
+      ).rejects.toThrow(BadRequestException);
+      expect(supabase.writes).toEqual([]);
     });
   });
 
@@ -1106,10 +1080,13 @@ describe('MatchesService', () => {
    */
   describe('update — a piste change is an alert change', () => {
     it('re-queues the alert when the piste moves', async () => {
-      fromMock.mockReturnValue(makeChain({ data: { id: 'match-1' }, error: null }));
+      const { service: updateService, supabase } = makeService({
+        matches: { rows: [{ id: 'match-1' }] },
+      });
 
-      await service.update('match-1', { liceId: 'lice-9' } as never);
+      await updateService.update('match-1', { liceId: 'lice-9' } as never);
 
+      expect(writesTo(supabase, 'matches')[0]?.row).toMatchObject({ lice_id: 'lice-9' });
       expect(mockMatchAlerts.refresh).toHaveBeenCalledWith(['match-1']);
     });
 
@@ -1118,9 +1095,9 @@ describe('MatchesService', () => {
       // is built from it — the referee's own alert comes off
       // `referee_assignments` — so refreshing here would be queue work for a
       // change no reader can see.
-      fromMock.mockReturnValue(makeChain({ data: { id: 'match-1' }, error: null }));
+      const { service: updateService } = makeService({ matches: { rows: [{ id: 'match-1' }] } });
 
-      await service.update('match-1', { refereeId: 'person-1' } as never);
+      await updateService.update('match-1', { refereeId: 'person-1' } as never);
 
       expect(mockMatchAlerts.refresh).not.toHaveBeenCalled();
     });
