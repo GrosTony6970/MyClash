@@ -297,16 +297,20 @@ describe('MatchCompletionService.onMatchUncompleted', () => {
     ).onMatchUncompleted('match-r1p1', { discardDependents: true, actor: ORGANISER });
 
     // The bout goes back to unplayed…
-    expect(supabase.writes.some((w) => w.table === 'exchanges' && w.row['voided'] === true)).toBe(
-      true,
-    );
     expect(
-      supabase.writes.some((w) => w.table === 'matches' && w.row['status'] === 'scheduled'),
+      supabase.writes.some((w) => w.table === 'exchanges' && (w.row as Row)['voided'] === true),
+    ).toBe(true);
+    expect(
+      supabase.writes.some(
+        (w) => w.table === 'matches' && (w.row as Row)['status'] === 'scheduled',
+      ),
     ).toBe(true);
     // …with the event that returns its clock to idle, without which the pad
     // could not start the replay.
     expect(
-      supabase.writes.some((w) => w.table === 'match_events' && w.row['type'] === 'reset_match'),
+      supabase.writes.some(
+        (w) => w.table === 'match_events' && (w.row as Row)['type'] === 'reset_match',
+      ),
     ).toBe(true);
     // …and the sides IT fed are cleared too, not just the root's. One level is
     // not enough: the stale-side bug just moves a round along.
@@ -375,7 +379,7 @@ describe('MatchCompletionService.onMatchUncompleted', () => {
     const voided = supabase.writes.filter((w) => w.table === 'match_forfeits');
     expect(voided).toHaveLength(1);
     expect(voided[0]?.row).toMatchObject({ voided_by_user_id: 'organiser-1' });
-    expect(voided[0]?.row['voided_at']).toEqual(expect.any(String));
+    expect((voided[0]?.row as Row)['voided_at']).toEqual(expect.any(String));
 
     // THE UN-DQ GUARD. Reopen on the pad reaches this same owner, so a
     // registration write here is a disqualification reversed by a clock button.
