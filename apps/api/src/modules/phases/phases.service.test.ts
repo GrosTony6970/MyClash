@@ -4,6 +4,7 @@ import {
   mockSupabase,
   queriedTables,
   scopedTo,
+  selectsFor,
   writesTo,
   type ChainResult,
   type SupabaseRow,
@@ -1154,64 +1155,70 @@ describe('PhasesService', () => {
   });
 
   describe('updateVisibility', () => {
-    it('publishes a phase and writes an audit log', async () => {
-      const phaseChain = makeChain({ data: null, error: null });
-      phaseChain.maybeSingle.mockResolvedValue({
-        data: {
-          id: 'phase-1',
-          type: 'pool',
-          visibility_status: 'hidden',
-          tournaments: { event_id: 'event-1', events: { organization_id: 'org-1' } },
-        },
-        error: null,
-      });
-      const updateChain = makeChain({ data: null, error: null });
-      updateChain.single.mockResolvedValue({
-        data: { id: 'phase-1', visibility_status: 'published' },
-        error: null,
-      });
-      const auditChain = makeChain({ data: null, error: null });
+    /**
+     * The phase under edit, and one belonging to somebody else.
+     *
+     * The decoy comes FIRST, so dropping `.eq('id', phaseId)` from any of the
+     * three `phases` statements resolves the wrong phase — a different
+     * organisation on the read, a PGRST116 on the update's `single()`.
+     */
+    const phases = (over: SupabaseRow = {}): SupabaseRow[] => [
+      {
+        id: 'phase-elsewhere',
+        type: 'pool',
+        tournament_id: 'tournament-9',
+        visibility_status: 'hidden',
+        tournaments: { event_id: 'event-9', events: { organization_id: 'org-elsewhere' } },
+      },
+      {
+        id: 'phase-1',
+        type: 'pool',
+        tournament_id: 'tournament-1',
+        visibility_status: 'hidden',
+        tournaments: { event_id: 'event-1', events: { organization_id: 'org-1' } },
+        ...over,
+      },
+    ];
 
-      fromMock
-        .mockReturnValueOnce(phaseChain)
-        .mockReturnValueOnce(updateChain)
-        .mockReturnValueOnce(auditChain);
+    it('publishes a phase and writes an audit log', async () => {
+      const { service, supabase } = makeService({
+        // Seeded as published because a seeded table is a fixture, not a
+        // database: the write is recorded rather than applied, so this row is
+        // what the UPDATE … RETURNING hands back. What the update SET is
+        // asserted from the recorded write below.
+        phases: { rows: phases({ visibility_status: 'published' }) },
+        audit_log: { rows: [] },
+      });
 
       await expect(
         service.updateVisibility('phase-1', 'actor-1', { visibility: 'published' }),
       ).resolves.toMatchObject({ visibility_status: 'published' });
       expect(mockOrgs.assertOrgRole).toHaveBeenCalledWith('org-1', 'actor-1', 'admin');
-      expect(updateChain.update).toHaveBeenCalledWith(
-        expect.objectContaining({
-          visibility_status: 'published',
-          published_by_user_id: 'actor-1',
-        }),
-      );
-      expect(auditChain.insert).toHaveBeenCalledWith(
-        expect.objectContaining({ action: 'phase.visibility_published' }),
-      );
+
+      const [updated] = writesTo(supabase, 'phases');
+      expect(updated?.row).toMatchObject({
+        visibility_status: 'published',
+        published_by_user_id: 'actor-1',
+      });
+      expect(scopedTo(updated, 'id')).toBe('phase-1');
+      expect(writesTo(supabase, 'audit_log')[0]?.row).toMatchObject({
+        action: 'phase.visibility_published',
+      });
     });
 
     it('requires confirmation before hiding a phase with started or completed matches', async () => {
-      const phaseChain = makeChain({ data: null, error: null });
-      phaseChain.maybeSingle.mockResolvedValue({
-        data: {
-          id: 'phase-1',
-          type: 'single_elim',
-          visibility_status: 'published',
-          tournaments: { event_id: 'event-1', events: { organization_id: 'org-1' } },
+      const { service } = makeService({
+        phases: { rows: phases({ type: 'single_elim', visibility_status: 'published' }) },
+        matches: {
+          rows: [
+            { id: 'match-1', phase_id: 'phase-1', status: 'running' },
+            { id: 'match-2', phase_id: 'phase-1', status: 'completed' },
+            // Another phase's finished bout. The counts are exact, so
+            // `.eq('phase_id', …)` slipping would raise completedMatchCount.
+            { id: 'match-elsewhere', phase_id: 'phase-9', status: 'completed' },
+          ],
         },
-        error: null,
       });
-      const matchesChain = makeAwaitableChain({
-        data: [
-          { id: 'match-1', status: 'running' },
-          { id: 'match-2', status: 'completed' },
-        ],
-        error: null,
-      });
-
-      fromMock.mockReturnValueOnce(phaseChain).mockReturnValueOnce(matchesChain);
 
       await expect(
         service.updateVisibility('phase-1', 'actor-1', { visibility: 'hidden' }),
@@ -1226,71 +1233,68 @@ describe('PhasesService', () => {
   });
 
   describe('editBracketConfig', () => {
-    function bracketPhase(type: 'single_elim' | 'double_elim' = 'double_elim') {
-      const phaseChain = makeChain({ data: null, error: null });
-      phaseChain.maybeSingle.mockResolvedValue({
-        data: {
+    /**
+     * One phase row answers both `phases` reads — getPhaseForVisibility and the
+     * config_json fetch ask the same row for different columns — and the
+     * update's `.eq('id', …).select(…).single()` narrows to it as well. The
+     * decoy in front is what makes that filter load-bearing on all three.
+     */
+    function bracketPhases(
+      config: Record<string, unknown>,
+      type: 'single_elim' | 'double_elim' = 'double_elim',
+    ): SupabaseRow[] {
+      return [
+        {
+          id: 'phase-elsewhere',
+          type: 'double_elim',
+          tournament_id: 'tournament-9',
+          visibility_status: 'hidden',
+          tournaments: { event_id: 'event-9', events: { organization_id: 'org-elsewhere' } },
+          config_json: {},
+        },
+        {
           id: 'phase-1',
           type,
           tournament_id: 'tournament-1',
           visibility_status: 'hidden',
           tournaments: { event_id: 'event-1', events: { organization_id: 'org-1' } },
+          config_json: config,
         },
-        error: null,
-      });
-      return phaseChain;
+      ];
     }
 
-    it('persists grandFinalReset to config_json when no matches have completed', async () => {
-      const phaseChain = bracketPhase('double_elim');
-      const configReadChain = makeChain({ data: null, error: null });
-      configReadChain.maybeSingle.mockResolvedValue({
-        data: { config_json: { bracketSize: 8, grandFinalReset: false } },
-        error: null,
-      });
-      const completedCheckChain = makeAwaitableChain({ data: [], error: null });
-      const updateChain = makeChain({ data: null, error: null });
-      updateChain.single.mockResolvedValue({
-        data: { id: 'phase-1', config_json: { grandFinalReset: true } },
-        error: null,
-      });
-      const auditChain = makeChain({ data: null, error: null });
+    /**
+     * Nothing completed in THIS phase. Both rows are decoys for the lock check
+     * (`.eq('phase_id', …).eq('status', 'completed')`): one is finished but
+     * belongs elsewhere, the other is here but has not been fought.
+     */
+    const NOTHING_COMPLETED: SupabaseRow[] = [
+      { id: 'match-scheduled', phase_id: 'phase-1', status: 'scheduled' },
+      { id: 'match-elsewhere', phase_id: 'phase-9', status: 'completed' },
+    ];
 
-      fromMock
-        .mockReturnValueOnce(phaseChain) // getPhaseForVisibility
-        .mockReturnValueOnce(configReadChain) // config_json read
-        .mockReturnValueOnce(completedCheckChain) // completed matches
-        .mockReturnValueOnce(updateChain) // phases update
-        .mockReturnValueOnce(auditChain); // audit log
+    it('persists grandFinalReset to config_json when no matches have completed', async () => {
+      const { service, supabase } = makeService({
+        phases: { rows: bracketPhases({ bracketSize: 8, grandFinalReset: false }) },
+        matches: { rows: NOTHING_COMPLETED },
+        audit_log: { rows: [] },
+      });
 
       const result = await service.editBracketConfig('phase-1', 'actor-1', {
         grandFinalReset: true,
       });
 
-      expect(updateChain.update).toHaveBeenCalledWith(
-        expect.objectContaining({
-          config_json: expect.objectContaining({ grandFinalReset: true }),
-        }),
-      );
+      expect(writesTo(supabase, 'phases')[0]?.row).toMatchObject({
+        config_json: expect.objectContaining({ grandFinalReset: true }),
+      });
       expect(result).toMatchObject({ id: 'phase-1' });
     });
 
     it('refuses the edit when at least one match has completed', async () => {
-      const phaseChain = bracketPhase('double_elim');
-      const configReadChain = makeChain({ data: null, error: null });
-      configReadChain.maybeSingle.mockResolvedValue({
-        data: { config_json: {} },
-        error: null,
+      const { service } = makeService({
+        phases: { rows: bracketPhases({}) },
+        matches: { rows: [{ id: 'match-final', phase_id: 'phase-1', status: 'completed' }] },
       });
-      const completedCheckChain = makeAwaitableChain({
-        data: [{ id: 'match-final' }],
-        error: null,
-      });
-
-      fromMock
-        .mockReturnValueOnce(phaseChain)
-        .mockReturnValueOnce(configReadChain)
-        .mockReturnValueOnce(completedCheckChain);
 
       await expect(
         service.editBracketConfig('phase-1', 'actor-1', { grandFinalReset: true }),
@@ -1298,18 +1302,10 @@ describe('PhasesService', () => {
     });
 
     it('rejects grandFinalReset edits on single-elim brackets', async () => {
-      const phaseChain = bracketPhase('single_elim');
-      const configReadChain = makeChain({ data: null, error: null });
-      configReadChain.maybeSingle.mockResolvedValue({
-        data: { config_json: {} },
-        error: null,
+      const { service } = makeService({
+        phases: { rows: bracketPhases({}, 'single_elim') },
+        matches: { rows: NOTHING_COMPLETED },
       });
-      const completedCheckChain = makeAwaitableChain({ data: [], error: null });
-
-      fromMock
-        .mockReturnValueOnce(phaseChain)
-        .mockReturnValueOnce(configReadChain)
-        .mockReturnValueOnce(completedCheckChain);
 
       await expect(
         service.editBracketConfig('phase-1', 'actor-1', { grandFinalReset: true }),
@@ -1327,18 +1323,10 @@ describe('PhasesService', () => {
       ['bronzeMatch', { secondChanceTarget: 'bronze' as const, bronzeMatch: false }],
       ['repechageEntrySize', { repechageEntrySize: 8 as const }],
     ])('refuses the in-place %s change and says to regenerate', async (_field, dto) => {
-      const phaseChain = bracketPhase('double_elim');
-      const configReadChain = makeChain({ data: null, error: null });
-      configReadChain.maybeSingle.mockResolvedValue({
-        data: { config_json: { bracketSize: 8, wbRounds: 3, lbRounds: 4 } },
-        error: null,
+      const { service } = makeService({
+        phases: { rows: bracketPhases({ bracketSize: 8, wbRounds: 3, lbRounds: 4 }) },
+        matches: { rows: NOTHING_COMPLETED },
       });
-      const completedCheckChain = makeAwaitableChain({ data: [], error: null });
-
-      fromMock
-        .mockReturnValueOnce(phaseChain)
-        .mockReturnValueOnce(configReadChain)
-        .mockReturnValueOnce(completedCheckChain);
 
       await expect(service.editBracketConfig('phase-1', 'actor-1', dto)).rejects.toThrow(
         /Regenerate the bracket/,
@@ -1347,22 +1335,11 @@ describe('PhasesService', () => {
 
     it('allows re-sending a structural value that is already stored', async () => {
       // Not a change, so not a rebuild — the form posts the whole podium struct.
-      const phaseChain = bracketPhase('double_elim');
-      const configReadChain = makeChain({ data: null, error: null });
-      configReadChain.maybeSingle.mockResolvedValue({
-        data: { config_json: { bracketSize: 8, secondChanceTarget: 'gold' } },
-        error: null,
+      const { service } = makeService({
+        phases: { rows: bracketPhases({ bracketSize: 8, secondChanceTarget: 'gold' }) },
+        matches: { rows: NOTHING_COMPLETED },
+        audit_log: { rows: [] },
       });
-      const completedCheckChain = makeAwaitableChain({ data: [], error: null });
-      const updateChain = makeChain({ data: null, error: null });
-      updateChain.single.mockResolvedValue({ data: { id: 'phase-1' }, error: null });
-
-      fromMock
-        .mockReturnValueOnce(phaseChain)
-        .mockReturnValueOnce(configReadChain)
-        .mockReturnValueOnce(completedCheckChain)
-        .mockReturnValueOnce(updateChain)
-        .mockReturnValueOnce(makeChain({ data: null, error: null }));
 
       await expect(
         service.editBracketConfig('phase-1', 'actor-1', {
@@ -1378,154 +1355,148 @@ describe('PhasesService', () => {
      * flipped the flag without creating the slot it controls, and the bracket
      * had no reset to play.
      */
+    /**
+     * Two rows that are NOT this phase's reset slot: a round-8 grand final that
+     * belongs here, and a round-9 reset that belongs to another bracket. The
+     * "does one already exist?" lookup has to skip both, or the insert below is
+     * silently skipped and the flag goes on lying.
+     */
+    const NOT_THE_RESET_SLOT: SupabaseRow[] = [
+      { id: 'slot-gf', phase_id: 'phase-1', round: 8, position: 1 },
+      { id: 'slot-reset-elsewhere', phase_id: 'phase-9', round: 9, position: 1 },
+    ];
+
     it('creates the reset slot when the option is turned on after generation', async () => {
-      const phaseChain = bracketPhase('double_elim');
-      const configReadChain = makeChain({ data: null, error: null });
-      configReadChain.maybeSingle.mockResolvedValue({
-        data: {
-          config_json: {
+      const { service, supabase } = makeService({
+        phases: {
+          rows: bracketPhases({
             bracketSize: 8,
             fighterCount: 8,
             wbRounds: 3,
             lbRounds: 4,
             grandFinalReset: false,
-          },
+          }),
         },
-        error: null,
+        matches: { rows: NOTHING_COMPLETED },
+        bracket_slots: { rows: NOT_THE_RESET_SLOT },
+        audit_log: { rows: [] },
       });
-      const completedCheckChain = makeAwaitableChain({ data: [], error: null });
-      const slotLookupChain = makeAwaitableChain({ data: [], error: null });
-      const slotInsertChain = makeAwaitableChain({ data: null, error: null });
-      const updateChain = makeChain({ data: null, error: null });
-      updateChain.single.mockResolvedValue({ data: { id: 'phase-1' }, error: null });
-
-      fromMock
-        .mockReturnValueOnce(phaseChain)
-        .mockReturnValueOnce(configReadChain)
-        .mockReturnValueOnce(completedCheckChain)
-        .mockReturnValueOnce(slotLookupChain) // existing reset slot?
-        .mockReturnValueOnce(slotInsertChain) // insert it
-        .mockReturnValueOnce(updateChain)
-        .mockReturnValueOnce(makeChain({ data: null, error: null }));
 
       await service.editBracketConfig('phase-1', 'actor-1', { grandFinalReset: true });
 
       // Round 9 = wbRounds(3) + lbRounds(4) + 2, and the refs must match what
       // the generator emits or advancement silently stalls forever.
-      expect(slotInsertChain.insert).toHaveBeenCalledWith(
-        expect.objectContaining({
-          round: 9,
-          position: 1,
-          source_a_ref: 'loser of GF',
-          source_b_ref: 'winner of GF',
-        }),
-      );
+      expect(writesTo(supabase, 'bracket_slots')[0]?.row).toMatchObject({
+        phase_id: 'phase-1',
+        round: 9,
+        position: 1,
+        source_a_ref: 'loser of GF',
+        source_b_ref: 'winner of GF',
+      });
     });
 
     it('drops the reset slot when the option is turned off', async () => {
-      const phaseChain = bracketPhase('double_elim');
-      const configReadChain = makeChain({ data: null, error: null });
-      configReadChain.maybeSingle.mockResolvedValue({
-        data: { config_json: { bracketSize: 8, wbRounds: 3, lbRounds: 4, grandFinalReset: true } },
-        error: null,
+      const { service, supabase } = makeService({
+        phases: {
+          rows: bracketPhases({ bracketSize: 8, wbRounds: 3, lbRounds: 4, grandFinalReset: true }),
+        },
+        matches: { rows: NOTHING_COMPLETED },
+        bracket_slots: { rows: NOT_THE_RESET_SLOT },
+        audit_log: { rows: [] },
       });
-      const completedCheckChain = makeAwaitableChain({ data: [], error: null });
-      const slotDeleteChain = makeAwaitableChain({ data: null, error: null });
-      const updateChain = makeChain({ data: null, error: null });
-      updateChain.single.mockResolvedValue({ data: { id: 'phase-1' }, error: null });
-
-      fromMock
-        .mockReturnValueOnce(phaseChain)
-        .mockReturnValueOnce(configReadChain)
-        .mockReturnValueOnce(completedCheckChain)
-        .mockReturnValueOnce(slotDeleteChain)
-        .mockReturnValueOnce(updateChain)
-        .mockReturnValueOnce(makeChain({ data: null, error: null }));
 
       await service.editBracketConfig('phase-1', 'actor-1', { grandFinalReset: false });
 
-      expect(slotDeleteChain.delete).toHaveBeenCalled();
-      expect(slotDeleteChain.eq).toHaveBeenCalledWith('round', 9);
+      // Both halves of the scope. Round alone would delete another bracket's
+      // reset; phase alone would delete this bracket's every slot.
+      const [dropped] = writesTo(supabase, 'bracket_slots');
+      expect(dropped?.op).toBe('delete');
+      expect(scopedTo(dropped, 'phase_id')).toBe('phase-1');
+      expect(scopedTo(dropped, 'round')).toBe(9);
     });
   });
 
   describe('reseedBracketRoundOne', () => {
+    const RESEED_PHASE: SupabaseRow = {
+      id: 'phase-1',
+      type: 'single_elim',
+      tournament_id: 'tournament-1',
+      visibility_status: 'hidden',
+      tournaments: { event_id: 'event-1', events: { organization_id: 'org-1' } },
+      config_json: {},
+    };
+
     /**
-     * Name-dispatched `from` rather than an ordered mockReturnValueOnce queue:
-     * matchRulesetForTournament issues its own lookups mid-flow, so any
-     * position-based sequence desyncs the moment that helper changes.
+     * Two slots the R1 read must not pick up: one in another bracket, one in a
+     * later round of this one. With both filters in place nothing comes back,
+     * which is what the four tests below want — and dropping either sends the
+     * re-seed on into `matches`, a table none of them seeds.
      */
-    function mockReseedTables(overrides: {
-      phaseConfig?: Record<string, unknown>;
-      registrations?: Array<{ id: string; seed: number | null; bib_number: number | null }>;
-    }) {
-      const phasesChain = makeChain({ data: null, error: null });
-      phasesChain.maybeSingle
-        .mockResolvedValueOnce({
-          data: {
-            id: 'phase-1',
-            type: 'single_elim',
-            tournament_id: 'tournament-1',
-            visibility_status: 'hidden',
-            tournaments: { event_id: 'event-1', events: { organization_id: 'org-1' } },
-          },
-          error: null,
-        })
-        .mockResolvedValueOnce({
-          data: { config_json: overrides.phaseConfig ?? {} },
-          error: null,
-        });
+    const NOT_R1_SLOTS: SupabaseRow[] = [
+      { id: 'slot-elsewhere', phase_id: 'phase-9', round: 1, position: 1 },
+      { id: 'slot-later-round', phase_id: 'phase-1', round: 5, position: 1 },
+    ];
 
-      const slotsChain = makeAwaitableChain({ data: [], error: null });
-      const regsChain = makeAwaitableChain({
-        data: overrides.registrations ?? [
-          { id: 'r1', seed: 1, bib_number: null },
-          { id: 'r2', seed: 2, bib_number: null },
-        ],
-        error: null,
+    /**
+     * One service for the re-seed path.
+     *
+     * The old shape dispatched `from` by name inside a `mockImplementation` and
+     * fed `phases` two ordered `maybeSingle` answers, because
+     * getPhaseForVisibility and the config_json read hit the same table. A
+     * seeded row carries both column sets at once, so the ordering goes away.
+     */
+    const reseedService = (registrations: SupabaseRow[]) =>
+      makeService({
+        phases: { rows: [RESEED_PHASE] },
+        bracket_slots: { rows: NOT_R1_SLOTS },
+        // CANNED, not seeded. This read ends
+        // `.order('seed', { ascending: true, nullsFirst: false })`, and the
+        // double refuses an order option it does not model rather than guess
+        // where nulls go — a wrong guess silently reorders a draw. Its filters
+        // are not what these tests are about; the projection and the persisted
+        // seed are.
+        registrations: { data: registrations, error: null },
+        tournaments: { rows: [{ id: 'tournament-1' }] },
+        audit_log: { rows: [] },
       });
-      const fallback = makeChain({ data: null, error: null });
 
-      fromMock.mockImplementation((table: string) => {
-        if (table === 'phases') return phasesChain;
-        if (table === 'bracket_slots') return slotsChain;
-        if (table === 'registrations') return regsChain;
-        return fallback;
-      });
-      return { phasesChain, regsChain };
-    }
+    const SEEDED_REGS: SupabaseRow[] = [
+      { id: 'r1', seed: 1, bib_number: null, tournament_id: 'tournament-1', status: 'registered' },
+      { id: 'r2', seed: 2, bib_number: null, tournament_id: 'tournament-1', status: 'registered' },
+    ];
 
     it('persists a reproducible PRNG seed for a random reseed', async () => {
-      const { phasesChain } = mockReseedTables({});
+      const { service, supabase } = reseedService(SEEDED_REGS);
 
       await service.reseedBracketRoundOne('phase-1', 'actor-1', { strategy: 'random' });
 
-      const updateArg = phasesChain.update.mock.calls.at(-1)?.[0] as {
-        config_json: Record<string, unknown>;
-      };
+      const stamped = writesTo(supabase, 'phases').at(-1);
+      const updateArg = stamped?.row as { config_json: Record<string, unknown> };
       expect(updateArg.config_json['seedingStrategy']).toBe('random');
       // Without a stored seed the draw could never be replayed after a dispute.
       expect(typeof updateArg.config_json['seedingRandomSeed']).toBe('number');
+      // And it lands on this phase only — an unscoped config_json write would
+      // stamp one tournament's draw strategy onto every bracket there is.
+      expect(scopedTo(stamped, 'id')).toBe('phase-1');
     });
 
     it('reads registrations with the rating embed only for by-rating', async () => {
-      const { regsChain } = mockReseedTables({});
-      await service.reseedBracketRoundOne('phase-1', 'actor-1', { strategy: 'by-rating' });
-      expect(regsChain.select).toHaveBeenCalledWith(
+      const rated = reseedService(SEEDED_REGS);
+      await rated.service.reseedBracketRoundOne('phase-1', 'actor-1', { strategy: 'by-rating' });
+      expect(selectsFor(rated.supabase.from, 'registrations')).toEqual([
         'id, seed, bib_number, persons(global_persons(hema_ratings_id))',
-      );
+      ]);
 
-      vi.clearAllMocks();
-      const plain = mockReseedTables({});
-      await service.reseedBracketRoundOne('phase-1', 'actor-1', { strategy: 'snake' });
-      expect(plain.regsChain.select).toHaveBeenCalledWith('id, seed, bib_number');
+      const plain = reseedService(SEEDED_REGS);
+      await plain.service.reseedBracketRoundOne('phase-1', 'actor-1', { strategy: 'snake' });
+      expect(selectsFor(plain.supabase.from, 'registrations')).toEqual(['id, seed, bib_number']);
     });
 
     it('refuses by-pool-rank rather than silently falling back to registration seed', async () => {
       // This service instance has no PoolStandingsService, which stands in for
       // "no pool results to seed from". The whole point of the strategy is that
       // it fails loudly instead of degrading to seed order.
-      mockReseedTables({});
+      const { service } = reseedService(SEEDED_REGS);
 
       await expect(
         service.reseedBracketRoundOne('phase-1', 'actor-1', { strategy: 'by-pool-rank' }),
@@ -1533,32 +1504,34 @@ describe('PhasesService', () => {
     });
 
     it('refuses when any R1 match has started', async () => {
-      const phaseChain = makeChain({ data: null, error: null });
-      phaseChain.maybeSingle.mockResolvedValue({
-        data: {
-          id: 'phase-1',
-          type: 'single_elim',
-          tournament_id: 'tournament-1',
-          visibility_status: 'hidden',
-          tournaments: { event_id: 'event-1', events: { organization_id: 'org-1' } },
+      const { service } = makeService({
+        phases: { rows: [RESEED_PHASE] },
+        bracket_slots: {
+          rows: [
+            {
+              id: 'slot-1',
+              phase_id: 'phase-1',
+              round: 1,
+              position: 1,
+              registration_a_id: 'r1',
+              registration_b_id: 'r8',
+            },
+            ...NOT_R1_SLOTS,
+          ],
         },
-        error: null,
+        // Only the running bout blocks. A scheduled one is what a fresh bracket
+        // looks like and a voided one never happened, so both are excluded by
+        // the two `.not(...)` filters — and the assertion names the id list
+        // exactly, so either slipping shows up.
+        matches: {
+          rows: [
+            { id: 'match-running', bracket_slot_id: 'slot-1', status: 'running' },
+            { id: 'match-waiting', bracket_slot_id: 'slot-1', status: 'scheduled' },
+            { id: 'match-cancelled', bracket_slot_id: 'slot-1', status: 'voided' },
+            { id: 'match-other-slot', bracket_slot_id: 'slot-elsewhere', status: 'running' },
+          ],
+        },
       });
-      const r1SlotsChain = makeAwaitableChain({
-        data: [
-          { id: 'slot-1', round: 1, position: 1, registration_a_id: 'r1', registration_b_id: 'r8' },
-        ],
-        error: null,
-      });
-      const blockingMatchesChain = makeAwaitableChain({
-        data: [{ id: 'match-running', bracket_slot_id: 'slot-1', status: 'running' }],
-        error: null,
-      });
-
-      fromMock
-        .mockReturnValueOnce(phaseChain)
-        .mockReturnValueOnce(r1SlotsChain)
-        .mockReturnValueOnce(blockingMatchesChain);
 
       await expect(
         service.reseedBracketRoundOne('phase-1', 'actor-1', { strategy: 'snake' }),
@@ -1573,12 +1546,21 @@ describe('PhasesService', () => {
   // ── deleteBracketPhase ───────────────────────────────────────────────────
 
   describe('deleteBracketPhase', () => {
-    const bracketPhaseRow = {
+    const bracketPhaseRow: SupabaseRow = {
       id: 'phase-1',
       tournament_id: 't1',
       type: 'single_elim',
       visibility_status: 'hidden',
       tournaments: { event_id: 'evt-1', events: { organization_id: 'org-1' } },
+    };
+
+    /** Another organisation's bracket, in front of it in the same table. */
+    const otherPhaseRow: SupabaseRow = {
+      id: 'phase-elsewhere',
+      tournament_id: 't9',
+      type: 'single_elim',
+      visibility_status: 'hidden',
+      tournaments: { event_id: 'evt-9', events: { organization_id: 'org-elsewhere' } },
     };
 
     it('deletes the phase row and leaves the assignment cleanup to the FK', async () => {
@@ -1588,64 +1570,61 @@ describe('PhasesService', () => {
       // null match_id at scope_type='match'. Migration 0179 makes the FK
       // CASCADE, which is the only action that agrees with that CHECK, and
       // this path stops being the one delete site in nine that got it right.
-      const phaseLookup = makeChain({ data: bracketPhaseRow, error: null });
-      phaseLookup.maybeSingle.mockResolvedValue({ data: bracketPhaseRow, error: null });
-
-      const matchesLookup = makeAwaitableChain({
-        data: [{ id: 'match-a' }, { id: 'match-b' }],
-        error: null,
+      const { service, supabase } = makeService({
+        phases: { rows: [otherPhaseRow, bracketPhaseRow] },
+        matches: {
+          rows: [
+            { id: 'match-a', phase_id: 'phase-1' },
+            { id: 'match-b', phase_id: 'phase-1' },
+            { id: 'match-elsewhere', phase_id: 'phase-elsewhere' },
+          ],
+        },
+        audit_log: { rows: [] },
       });
-      const phaseDelete = makeAwaitableChain({ data: null, error: null });
-      const auditInsert = makeAwaitableChain({ data: null, error: null });
-
-      fromMock
-        .mockReturnValueOnce(phaseLookup) // getPhaseForVisibility
-        .mockReturnValueOnce(matchesLookup) // matches.select where phase_id (audit count)
-        .mockReturnValueOnce(phaseDelete) // phases.delete .eq id
-        .mockReturnValueOnce(auditInsert); // audit_log.insert
 
       await service.deleteBracketPhase('phase-1', 'actor-1');
 
       expect(mockOrgs.assertOrgRole).toHaveBeenCalledWith('org-1', 'actor-1', 'admin');
-      expect(phaseDelete.delete).toHaveBeenCalled();
-      expect(phaseDelete.eq).toHaveBeenCalledWith('id', 'phase-1');
-      // The matches read survives ONLY to count them for the audit trail.
-      expect(auditInsert.insert).toHaveBeenCalledWith(
-        expect.objectContaining({ payload_json: expect.objectContaining({ matchCount: 2 }) }),
-      );
-      expect(fromMock).not.toHaveBeenCalledWith('referee_assignments');
+      const [dropped] = writesTo(supabase, 'phases');
+      expect(dropped?.op).toBe('delete');
+      expect(scopedTo(dropped, 'id')).toBe('phase-1');
+      // The matches read survives ONLY to count them for the audit trail — and
+      // the count is exact, so the third bout must stay out of it.
+      expect(writesTo(supabase, 'audit_log')[0]?.row).toMatchObject({
+        payload_json: expect.objectContaining({ matchCount: 2 }),
+      });
+      expect(queriedTables(supabase.from)).not.toContain('referee_assignments');
     });
 
     it('still deletes a phase that has no matches', async () => {
-      const phaseLookup = makeChain({ data: bracketPhaseRow, error: null });
-      phaseLookup.maybeSingle.mockResolvedValue({ data: bracketPhaseRow, error: null });
-
-      const matchesLookup = makeAwaitableChain({ data: [], error: null });
-      const phaseDelete = makeAwaitableChain({ data: null, error: null });
-      const auditInsert = makeAwaitableChain({ data: null, error: null });
-
-      fromMock
-        .mockReturnValueOnce(phaseLookup)
-        .mockReturnValueOnce(matchesLookup)
-        .mockReturnValueOnce(phaseDelete)
-        .mockReturnValueOnce(auditInsert);
+      const { service, supabase } = makeService({
+        phases: { rows: [bracketPhaseRow] },
+        matches: { rows: [] },
+        audit_log: { rows: [] },
+      });
 
       await service.deleteBracketPhase('phase-1', 'actor-1');
 
-      expect(phaseDelete.delete).toHaveBeenCalled();
+      expect(writesTo(supabase, 'phases')[0]?.op).toBe('delete');
     });
 
     it('rejects pool-type phases with a steering message', async () => {
-      const poolPhaseRow = {
-        id: 'phase-pool',
-        tournament_id: 't1',
-        type: 'pool',
-        visibility_status: 'hidden',
-        tournaments: { event_id: 'evt-1', events: { organization_id: 'org-1' } },
-      };
-      const phaseLookup = makeChain({ data: poolPhaseRow, error: null });
-      phaseLookup.maybeSingle.mockResolvedValue({ data: poolPhaseRow, error: null });
-      fromMock.mockReturnValueOnce(phaseLookup);
+      const { service } = makeService({
+        // The bracket phase sits in front of the pool one: drop
+        // `.eq('id', phaseId)` and the wrong phase is deleted outright.
+        phases: {
+          rows: [
+            bracketPhaseRow,
+            {
+              id: 'phase-pool',
+              tournament_id: 't1',
+              type: 'pool',
+              visibility_status: 'hidden',
+              tournaments: { event_id: 'evt-1', events: { organization_id: 'org-1' } },
+            },
+          ],
+        },
+      });
 
       await expect(service.deleteBracketPhase('phase-pool', 'actor-1')).rejects.toMatchObject({
         constructor: BadRequestException,
@@ -1654,9 +1633,7 @@ describe('PhasesService', () => {
     });
 
     it('propagates ForbiddenException when actor lacks admin role', async () => {
-      const phaseLookup = makeChain({ data: bracketPhaseRow, error: null });
-      phaseLookup.maybeSingle.mockResolvedValue({ data: bracketPhaseRow, error: null });
-      fromMock.mockReturnValueOnce(phaseLookup);
+      const { service } = makeService({ phases: { rows: [bracketPhaseRow] } });
 
       mockOrgs.assertOrgRole.mockRejectedValueOnce(new Error('Requires admin role or higher'));
 
