@@ -151,7 +151,7 @@ describe('ExportsService — HEMA Ratings submission', () => {
     const { filename, buffer } = await service.generateHemaRatingsZip('event-1');
     expect(filename).toBe('lyon-open-hemaratings.zip');
     // "PK\x03\x04" — a real zip local file header.
-    expect(buffer.subarray(0, 4).toString('binary')).toBe('PK');
+    expect(buffer.subarray(0, 4).toString('binary')).toBe('PK\x03\x04');
   });
 
   it('reports the files, counts and warnings it would ship', async () => {

@@ -306,6 +306,9 @@ describe('EventStatsService', () => {
             color: null,
             status: 'completed',
           },
+          // No weapon declared. Groups under the NULL_KEY sentinel rather than
+          // colliding with a real weapon, and sorts last.
+          { id: 't3', slug: 't3s', name: 'Open', weapon: null, color: null, status: 'completed' },
         ],
         error: null,
       },
@@ -333,13 +336,16 @@ describe('EventStatsService', () => {
           tv({ personId: 'p3', pointValue: 3, cleanHits: 6 }),
           tv({ personId: 'p3', pointValue: 1, cleanHits: 2 }),
         ],
+        t3: [tv({ personId: 'p4', pointValue: 1, cleanHits: 7 })],
       },
     });
 
     const res = await service.getEventStatistics('e1', 'user-1');
 
-    // Two weapon groups, sorted by weapon name asc.
-    expect(res.weaponBreakdown.map((w) => w.weapon)).toEqual(['longsword', 'rapier']);
+    // Three groups, sorted by weapon name asc with the weapon-less one last.
+    expect(res.weaponBreakdown.map((w) => w.weapon)).toEqual(['longsword', 'rapier', null]);
+    // The sentinel groups the rows; it must never surface as a weapon name.
+    expect(res.weaponBreakdown[2]!.hunters.map((h) => h.personId)).toEqual(['p4']);
 
     const [longsword, rapier] = res.weaponBreakdown;
     // Longsword: deep target = 2; distribution sorted asc; hunters at value 2.
