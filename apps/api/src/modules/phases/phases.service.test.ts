@@ -14,17 +14,16 @@ import { PhasesService } from './phases.service';
 
 // ── Mocks ──────────────────────────────────────────────────────────────────
 
-const fromMock = vi.fn();
-const legacyClient = { service: { from: fromMock }, anon: {} };
 const mockOrgs = { assertOrgRole: vi.fn().mockResolvedValue(undefined) };
 
 /**
  * One service over the shared Supabase double, which routes by TABLE NAME.
  *
- * What it replaces, describe by describe, is `fromMock.mockReturnValueOnce(a)
- * .mockReturnValueOnce(b)…` — a positional queue. Add one query anywhere
- * upstream and every later answer shifts by one while the suite stays green,
- * asserting against the wrong table. This file held 179 of those.
+ * What it replaced was `fromMock.mockReturnValueOnce(a).mockReturnValueOnce(b)…`
+ * — a positional queue. Add one query anywhere upstream and every later answer
+ * shifts by one while the suite stays green, asserting against the wrong table.
+ * This file held 179 of those, plus two local chain factories and seven
+ * hand-rolled table-dispatch blocks. It holds none.
  *
  * The second gain is the one the falsification sweep asked for. A canned
  * `{ data }` answers the same thing whatever the query filters on, so no filter
@@ -42,77 +41,6 @@ function makeService(seed: Record<string, TableSeed>) {
   const supabase = mockSupabase(seed);
   const service = new PhasesService(supabase as never, undefined, mockOrgs as never);
   return { service, supabase };
-}
-
-/**
- * Creates a mock Supabase query chain.
- * Returns a plain object (NOT a Promise) — safe to use without spreading.
- * For `await q` patterns (no terminal call), use `makeAwaitableChain`.
- */
-function makeChain(result: unknown) {
-  const chain = {
-    select: vi.fn() as ReturnType<typeof vi.fn>,
-    eq: vi.fn() as ReturnType<typeof vi.fn>,
-    in: vi.fn() as ReturnType<typeof vi.fn>,
-    not: vi.fn() as ReturnType<typeof vi.fn>,
-    limit: vi.fn() as ReturnType<typeof vi.fn>,
-    order: vi.fn() as ReturnType<typeof vi.fn>,
-    insert: vi.fn() as ReturnType<typeof vi.fn>,
-    update: vi.fn() as ReturnType<typeof vi.fn>,
-    delete: vi.fn() as ReturnType<typeof vi.fn>,
-    maybeSingle: vi.fn().mockResolvedValue(result),
-    single: vi.fn().mockResolvedValue(result),
-  };
-  chain.select.mockReturnValue(chain);
-  chain.eq.mockReturnValue(chain);
-  chain.in.mockReturnValue(chain);
-  chain.not.mockReturnValue(chain);
-  chain.limit.mockReturnValue(chain);
-  chain.order.mockReturnValue(chain);
-  chain.insert.mockReturnValue(chain);
-  chain.update.mockReturnValue(chain);
-  chain.delete.mockReturnValue(chain);
-  return chain;
-}
-
-/**
- * Creates a chain that is also awaitable (resolves to `result`).
- * Used for `const { data, error } = await q` patterns where the service
- * awaits the chain directly (no terminal method call).
- */
-function makeAwaitableChain(result: unknown) {
-  const promise = Promise.resolve(result);
-  // Attach chain methods that return the promise itself (so await works after chaining)
-  const chain = Object.assign(promise, {
-    select: vi.fn(),
-    eq: vi.fn(),
-    neq: vi.fn(),
-    in: vi.fn(),
-    not: vi.fn(),
-    limit: vi.fn(),
-    order: vi.fn(),
-    insert: vi.fn(),
-    update: vi.fn(),
-    delete: vi.fn(),
-    maybeSingle: vi.fn().mockResolvedValue(result),
-    single: vi.fn().mockResolvedValue(result),
-  });
-  // All builder methods return the chain (Promise) itself
-  for (const key of [
-    'select',
-    'eq',
-    'neq',
-    'in',
-    'not',
-    'limit',
-    'order',
-    'insert',
-    'update',
-    'delete',
-  ]) {
-    (chain as unknown as Record<string, unknown>)[key] = vi.fn().mockReturnValue(chain);
-  }
-  return chain;
 }
 
 // ── Tests ──────────────────────────────────────────────────────────────────
@@ -190,8 +118,6 @@ describe('PhasesService.generateBracket — authorization', () => {
 });
 
 describe('PhasesService', () => {
-  let service: PhasesService;
-
   beforeEach(() => {
     vi.clearAllMocks();
     // `clearAllMocks` drains call history, not the `…Once` queue: a rejection
@@ -199,8 +125,6 @@ describe('PhasesService', () => {
     // whichever later test does. Re-establish the permissive default, as the
     // authorization describe above already does.
     mockOrgs.assertOrgRole.mockResolvedValue(undefined);
-    fromMock.mockReturnValue(makeChain({ data: null, error: null }));
-    service = new PhasesService(legacyClient as never, undefined, mockOrgs as never);
   });
 
   // ── generatePools — idempotency ───────────────────────────────────────────
@@ -1031,9 +955,9 @@ describe('PhasesService', () => {
     });
 
     /**
-     * Table-name dispatch rather than ordered mockReturnValueOnce: this path
-     * fans out to phases / bracket_slots / matches in an order that shifts
-     * whenever a lookup is added, and an ordered queue silently desyncs.
+     * This path fans out to phases, bracket_slots and matches in an order that
+     * shifts whenever a lookup is added, which is why only `phases` keeps a
+     * queue here and it sits beside its own answers.
      */
     it('generates a play-in round and leaves the conditional reset match uncreated', async () => {
       const dto = { phaseType: 'double_elim', grandFinalReset: true } as const;
@@ -1882,9 +1806,9 @@ describe('PhasesService', () => {
     // projection carried a bare `liceId` and nothing else, so MatchCard's lice
     // pill and referee band — both already written — never rendered anywhere.
     //
-    // Dispatched by TABLE NAME rather than by a mockReturnValueOnce sequence:
-    // this method now issues seven reads and an ordered chain re-breaks every
-    // time one is added or moved.
+    // Seven reads on six tables, all routed by name: an ordered chain re-broke
+    // every time one was added or moved, and a hand-rolled dispatch block had
+    // to be kept in step with the method by hand.
     it('enriches slots with the piste name and the officiating crew', async () => {
       const { service } = makeService({
         phases: { rows: BRACKET_PHASES },
@@ -2651,32 +2575,45 @@ describe('PhasesService', () => {
     // shape so we don't accidentally leak privileged data through
     // a cheap polling endpoint.
     it("returns only the narrow score+winner shape for a tournament's matches", async () => {
-      // Rows carry the `phases` embed the query has to ask for, because there
-      // is no matches.tournament_id — the embed is the ONLY way to filter by
-      // tournament, and it must not reach the caller.
-      const rows = [
-        {
-          id: 'm-1',
-          status: 'completed',
-          red_score: 5,
-          blue_score: 3,
-          winner_registration_id: 'reg-blue',
-          phases: { tournament_id: 'tournament-1' },
+      /**
+       * `matches` carries no tournament_id — it hangs off phases — so the query
+       * filters THROUGH the embed with `.eq('phases.tournament_id', …)`. The
+       * double narrows on flat keys, so each row carries the dotted column name
+       * as well as the nested object: that dotted name is what PostgREST
+       * resolves the path to, and it is the only way a seeded row can answer an
+       * embedded filter at all. Neither reaches the caller — the mapper picks
+       * five fields by name.
+       */
+      const scoreRow = (id: string, over: SupabaseRow = {}): SupabaseRow => ({
+        id,
+        status: 'pending',
+        red_score: null,
+        blue_score: null,
+        winner_registration_id: null,
+        phases: { tournament_id: 'tournament-1' },
+        'phases.tournament_id': 'tournament-1',
+        ...over,
+      });
+
+      const { service, supabase } = makeService({
+        matches: {
+          rows: [
+            scoreRow('m-1', {
+              status: 'completed',
+              red_score: 5,
+              blue_score: 3,
+              winner_registration_id: 'reg-blue',
+            }),
+            scoreRow('m-2'),
+            // Another tournament's bout. There is no matches.tournament_id, so
+            // the embed filter is the only boundary between the two.
+            scoreRow('m-elsewhere', {
+              phases: { tournament_id: 'tournament-9' },
+              'phases.tournament_id': 'tournament-9',
+            }),
+          ],
         },
-        {
-          id: 'm-2',
-          status: 'pending',
-          red_score: null,
-          blue_score: null,
-          winner_registration_id: null,
-          phases: { tournament_id: 'tournament-1' },
-        },
-      ];
-      const matchesChain = makeChain({ data: rows, error: null });
-      // The chain resolves when awaited after `.eq(...)`; mirror the
-      // pattern used by listPoolsWithMatches's data selects.
-      matchesChain.eq.mockResolvedValue({ data: rows, error: null });
-      fromMock.mockReturnValueOnce(matchesChain);
+      });
 
       const result = await service.listMatchScores('tournament-1');
 
@@ -2702,13 +2639,9 @@ describe('PhasesService', () => {
       // The SELECT must NOT include privileged fields like referee_id
       // or lice_id — those should only come through the heavier
       // `pools-with-matches` endpoint that handles permissions properly.
-      expect(matchesChain.select).toHaveBeenCalledWith(
+      expect(selectsFor(supabase.from, 'matches')).toEqual([
         'id, status, red_score, blue_score, winner_registration_id, phases!inner(tournament_id)',
-      );
-      // Filtered THROUGH the embed. `matches.tournament_id` does not exist, and
-      // asking for it 400'd — which `if (error) return []` turned into an empty
-      // score list on every poll.
-      expect(matchesChain.eq).toHaveBeenCalledWith('phases.tournament_id', 'tournament-1');
+      ]);
     });
   });
 
@@ -2717,80 +2650,61 @@ describe('PhasesService', () => {
   // whole pool. Backend update is a single UPDATE matches SET lice_id=$1
   // WHERE pool_id=$2, gated by the same auth as the per-match PATCH.
   describe('setPoolLice', () => {
-    it('updates every match in the pool to the given liceId', async () => {
-      // Pool context lookup (private getPoolContext): pools.select.maybeSingle
-      const poolCtxChain = makeChain({
-        data: {
-          id: 'pool-1',
-          name: 'A',
-          phase_id: 'phase-1',
-          sort_order: 0,
-          phases: {
-            id: 'phase-1',
-            tournament_id: 'tournament-1',
-            tournaments: {
-              event_id: 'event-1',
-              weapon: 'longsword',
-              tournament_id: 'tournament-1',
-              events: { organization_id: 'org-1' },
-            },
-          },
+    /** A pool as getPoolContext reads it, embeds and all. */
+    const poolRow = (id: string, organizationId: string): SupabaseRow => ({
+      id,
+      name: 'A',
+      phase_id: 'phase-1',
+      sort_order: 0,
+      phases: {
+        id: 'phase-1',
+        tournament_id: 'tournament-1',
+        tournaments: {
+          event_id: 'event-1',
+          weapon: 'longsword',
+          tournament_id: 'tournament-1',
+          events: { organization_id: organizationId },
         },
-        error: null,
-      });
-      // assertPoolEditable: matches.select.eq.in (no started matches)
-      const editableChain = makeChain({ data: [], error: null });
-      editableChain.in.mockResolvedValue({ data: [], error: null });
-      // Bulk update: matches.update({lice_id}).eq('pool_id', poolId).select('id')
-      // — the ids come back from the write so the alerts can be refreshed.
-      const updateChain = makeChain({ data: null, error: null });
-      updateChain.select.mockResolvedValue({ data: [{ id: 'match-1' }], error: null });
+      },
+    });
 
-      fromMock
-        .mockReturnValueOnce(poolCtxChain)
-        .mockReturnValueOnce(editableChain)
-        .mockReturnValueOnce(updateChain);
+    /** Another organisation's pool, in front of it in the same table. */
+    const POOLS: SupabaseRow[] = [poolRow('pool-9', 'org-elsewhere'), poolRow('pool-1', 'org-1')];
+
+    /**
+     * Two bouts in this pool and one in the other. Every write and both reads
+     * below are scoped by pool_id, so the third row is what says so.
+     */
+    const MATCHES: SupabaseRow[] = [
+      { id: 'm-1', pool_id: 'pool-1', status: 'scheduled', lice_id: null },
+      { id: 'm-2', pool_id: 'pool-1', status: 'scheduled', lice_id: null },
+      { id: 'm-9', pool_id: 'pool-9', status: 'scheduled', lice_id: null },
+    ];
+
+    it('updates every match in the pool to the given liceId', async () => {
+      const { service, supabase } = makeService({
+        pools: { rows: POOLS },
+        matches: { rows: MATCHES },
+      });
 
       const result = await service.setPoolLice('pool-1', 'lice-1', 'user-1');
 
-      expect(updateChain.update).toHaveBeenCalledWith({ lice_id: 'lice-1' });
-      expect(updateChain.eq).toHaveBeenCalledWith('pool_id', 'pool-1');
+      expect(mockOrgs.assertOrgRole).toHaveBeenCalledWith('org-1', 'user-1', 'admin');
+      const [written] = writesTo(supabase, 'matches');
+      expect(written?.row).toEqual({ lice_id: 'lice-1' });
+      expect(scopedTo(written, 'pool_id')).toBe('pool-1');
       expect(result).toEqual({ poolId: 'pool-1', liceId: 'lice-1' });
     });
 
     it('clears the lice on every match when liceId is null', async () => {
-      const poolCtxChain = makeChain({
-        data: {
-          id: 'pool-1',
-          name: 'A',
-          phase_id: 'phase-1',
-          sort_order: 0,
-          phases: {
-            id: 'phase-1',
-            tournament_id: 'tournament-1',
-            tournaments: {
-              event_id: 'event-1',
-              weapon: 'longsword',
-              tournament_id: 'tournament-1',
-              events: { organization_id: 'org-1' },
-            },
-          },
-        },
-        error: null,
+      const { service, supabase } = makeService({
+        pools: { rows: POOLS },
+        matches: { rows: MATCHES },
       });
-      const editableChain = makeChain({ data: [], error: null });
-      editableChain.in.mockResolvedValue({ data: [], error: null });
-      const updateChain = makeChain({ data: null, error: null });
-      updateChain.select.mockResolvedValue({ data: [{ id: 'match-1' }], error: null });
-
-      fromMock
-        .mockReturnValueOnce(poolCtxChain)
-        .mockReturnValueOnce(editableChain)
-        .mockReturnValueOnce(updateChain);
 
       const result = await service.setPoolLice('pool-1', null, 'user-1');
 
-      expect(updateChain.update).toHaveBeenCalledWith({ lice_id: null });
+      expect(writesTo(supabase, 'matches')[0]?.row).toEqual({ lice_id: null });
       expect(result).toEqual({ poolId: 'pool-1', liceId: null });
     });
 
@@ -2803,8 +2717,9 @@ describe('PhasesService', () => {
      */
     it('re-queues the alerts for every match it re-pisted', async () => {
       const matchAlerts = { refresh: vi.fn().mockResolvedValue(undefined) };
+      const supabase = mockSupabase({ pools: { rows: POOLS }, matches: { rows: MATCHES } });
       const svc = new PhasesService(
-        legacyClient as never,
+        supabase as never,
         undefined,
         mockOrgs as never,
         undefined,
@@ -2814,116 +2729,52 @@ describe('PhasesService', () => {
         matchAlerts as never,
       );
 
-      const poolCtxChain = makeChain({
-        data: {
-          id: 'pool-1',
-          name: 'A',
-          phase_id: 'phase-1',
-          sort_order: 0,
-          phases: {
-            id: 'phase-1',
-            tournament_id: 'tournament-1',
-            tournaments: {
-              event_id: 'event-1',
-              weapon: 'longsword',
-              tournament_id: 'tournament-1',
-              events: { organization_id: 'org-1' },
-            },
-          },
-        },
-        error: null,
-      });
-      const editableChain = makeChain({ data: [], error: null });
-      editableChain.in.mockResolvedValue({ data: [], error: null });
-      const updateChain = makeChain({ data: null, error: null });
-      updateChain.select.mockResolvedValue({
-        data: [{ id: 'match-1' }, { id: 'match-2' }],
-        error: null,
-      });
-
-      fromMock
-        .mockReturnValueOnce(poolCtxChain)
-        .mockReturnValueOnce(editableChain)
-        .mockReturnValueOnce(updateChain);
-
       await svc.setPoolLice('pool-1', 'lice-9', 'user-1');
 
       // The ids come from the write's own RETURNING, so the projection is part
       // of the contract: drop `.select('id')` and there is nothing to refresh.
-      expect(updateChain.select).toHaveBeenCalledWith('id');
-      expect(matchAlerts.refresh).toHaveBeenCalledWith(['match-1', 'match-2']);
+      // And they are the POOL's bouts — the third seeded match belongs to
+      // another pool and must not be re-alerted.
+      expect(selectsFor(supabase.from, 'matches')).toContain('id');
+      expect(matchAlerts.refresh).toHaveBeenCalledWith(['m-1', 'm-2']);
     });
   });
 
   // ── setPoolRefereeRoleAssignment — pool-wide per-role assignment ───────
   describe('setPoolRefereeRoleAssignment', () => {
-    function makeAwaitableDeleteChain(result: unknown = { data: null, error: null }) {
-      const promise = Promise.resolve(result);
-      const chain = Object.assign(promise, {
-        select: vi.fn(),
-        eq: vi.fn(),
-        in: vi.fn(),
-        delete: vi.fn(),
-        insert: vi.fn().mockResolvedValue(result),
-        order: vi.fn(),
-        update: vi.fn(),
-        maybeSingle: vi.fn().mockResolvedValue(result),
-        single: vi.fn().mockResolvedValue(result),
-      });
-      for (const key of ['select', 'eq', 'in', 'delete', 'order', 'update']) {
-        (chain as unknown as Record<string, unknown>)[key] = vi.fn().mockReturnValue(chain);
-      }
-      return chain;
-    }
-
-    function poolContextChain() {
-      return makeChain({
-        data: {
-          id: 'pool-1',
-          name: 'A',
-          phase_id: 'phase-1',
-          sort_order: 0,
-          phases: {
-            id: 'phase-1',
+    const POOLS: SupabaseRow[] = [
+      {
+        id: 'pool-1',
+        name: 'A',
+        phase_id: 'phase-1',
+        sort_order: 0,
+        phases: {
+          id: 'phase-1',
+          tournament_id: 'tournament-1',
+          tournaments: {
+            event_id: 'event-1',
+            weapon: 'longsword',
             tournament_id: 'tournament-1',
-            tournaments: {
-              event_id: 'event-1',
-              weapon: 'longsword',
-              tournament_id: 'tournament-1',
-              events: { organization_id: 'org-1' },
-            },
+            events: { organization_id: 'org-1' },
           },
         },
-        error: null,
-      });
-    }
+      },
+    ];
+
+    /** Three bouts in the pool, one outside it. */
+    const MATCHES: SupabaseRow[] = [
+      { id: 'm-1', pool_id: 'pool-1', status: 'scheduled', lice_id: 'lice-1' },
+      { id: 'm-2', pool_id: 'pool-1', status: 'scheduled', lice_id: null },
+      { id: 'm-3', pool_id: 'pool-1', status: 'scheduled', lice_id: 'lice-2' },
+      { id: 'm-9', pool_id: 'pool-9', status: 'scheduled', lice_id: 'lice-9' },
+    ];
 
     it('inserts one assignment per match in the pool, scoped to (match, role)', async () => {
-      const editableChain = makeChain({ data: [], error: null });
-      editableChain.in.mockResolvedValue({ data: [], error: null });
-      // matches.select('id, lice_id').eq('pool_id', poolId) — list of pool matches
-      const matchesListChain = makeChain({ data: null, error: null });
-      matchesListChain.eq.mockResolvedValue({
-        data: [
-          { id: 'm-1', lice_id: 'lice-1' },
-          { id: 'm-2', lice_id: null },
-          { id: 'm-3', lice_id: 'lice-2' },
-        ],
-        error: null,
+      const { service, supabase } = makeService({
+        pools: { rows: POOLS },
+        matches: { rows: MATCHES },
+        referee_assignments: { rows: [] },
       });
-      const insertedRows: Array<Record<string, unknown>> = [];
-      const refereeChain = makeAwaitableDeleteChain();
-      refereeChain.insert = vi.fn((rows: Record<string, unknown>[]) => {
-        insertedRows.push(...rows);
-        return Promise.resolve({ data: null, error: null });
-      }) as never;
-
-      fromMock
-        .mockReturnValueOnce(poolContextChain())
-        .mockReturnValueOnce(editableChain)
-        .mockReturnValueOnce(matchesListChain)
-        .mockReturnValueOnce(refereeChain) // delete pass
-        .mockReturnValueOnce(refereeChain); // insert pass
 
       const result = await service.setPoolRefereeRoleAssignment(
         'pool-1',
@@ -2932,7 +2783,17 @@ describe('PhasesService', () => {
         'user-1',
       );
 
-      expect(refereeChain.delete).toHaveBeenCalled();
+      const [cleared, inserted] = writesTo(supabase, 'referee_assignments');
+      expect(cleared?.op).toBe('delete');
+      // The clear names the role and the bouts, so it cannot take another
+      // role's crew or another pool's.
+      expect(cleared?.filters).toEqual([
+        { method: 'eq', args: ['scope_type', 'match'] },
+        { method: 'eq', args: ['role', 'arbitre_declarant'] },
+        { method: 'in', args: ['match_id', ['m-1', 'm-2', 'm-3']] },
+      ]);
+
+      const insertedRows = inserted?.row as Array<Record<string, unknown>>;
       expect(insertedRows).toHaveLength(3);
       expect(insertedRows[0]).toMatchObject({
         event_id: 'event-1',
@@ -2955,27 +2816,16 @@ describe('PhasesService', () => {
     });
 
     it('only deletes existing assignments when refereeId is null', async () => {
-      const editableChain = makeChain({ data: [], error: null });
-      editableChain.in.mockResolvedValue({ data: [], error: null });
-      const matchesListChain = makeChain({ data: null, error: null });
-      matchesListChain.eq.mockResolvedValue({
-        data: [{ id: 'm-1', lice_id: null }],
-        error: null,
+      const { service, supabase } = makeService({
+        pools: { rows: POOLS },
+        matches: { rows: [MATCHES[0]!, MATCHES[3]!] },
+        referee_assignments: { rows: [] },
       });
-      const insertSpy = vi.fn();
-      const refereeChain = makeAwaitableDeleteChain();
-      refereeChain.insert = insertSpy as never;
-
-      fromMock
-        .mockReturnValueOnce(poolContextChain())
-        .mockReturnValueOnce(editableChain)
-        .mockReturnValueOnce(matchesListChain)
-        .mockReturnValueOnce(refereeChain);
 
       await service.setPoolRefereeRoleAssignment('pool-1', 'arbitre_assesseur', null, 'user-1');
 
-      expect(refereeChain.delete).toHaveBeenCalled();
-      expect(insertSpy).not.toHaveBeenCalled();
+      const writes = writesTo(supabase, 'referee_assignments');
+      expect(writes.map((write) => write.op)).toEqual(['delete']);
     });
   });
 
@@ -2992,144 +2842,115 @@ describe('PhasesService', () => {
    * every `loser of WBR1Px` went unfilled — freezing the entire losers bracket,
    * grand final and reset. Caught end-to-end by tests/e2e/09-double-elim.spec.ts.
    *
-   * Mocks dispatch on TABLE NAME rather than call order: this path's query
-   * sequence is long and order-based mockReturnValueOnce chains desync the
-   * moment a `from()` is added anywhere upstream.
+   * The query sequence here is long and conditional, so the fixture is seeded
+   * per table: the bracket lookup and the pool gate both read `phases` and only
+   * their filters tell them apart.
    */
   describe('populateBracket — one-sided slot match rows', () => {
     it('writes the seeded side into the matches row when the other side is unresolved', async () => {
-      const matchUpdates: Array<Record<string, unknown>> = [];
-      const matchInserts: unknown[] = [];
-
-      fromMock.mockImplementation((table: string) => {
-        switch (table) {
-          case 'phases': {
-            // Both the bracket-phase lookup and the pool-phase lookup land
-            // here; the pool lookup filters on type='pool' and must come back
-            // empty so populate takes the registration-seed path.
-            const chain = makeChain({ data: null, error: null });
-            let sawPoolFilter = false;
-            chain.eq.mockImplementation((col: string, val: string) => {
-              if (col === 'type' && val === 'pool') sawPoolFilter = true;
-              return chain;
-            });
-            chain.maybeSingle.mockImplementation(() =>
-              Promise.resolve({
-                data: sawPoolFilter
-                  ? null
-                  : {
-                      id: 'bracket-phase-1',
-                      type: 'double_elim',
-                      config_json: { wbRounds: 3, lbRounds: 4 },
-                      tournament_id: 'tournament-1',
-                      tournaments: { events: { organization_id: 'org-1' } },
-                    },
-                error: null,
-              }),
-            );
-            return chain;
-          }
-          case 'bracket_slots':
-            // One play-in-fed WB-R1 slot: side A is `seed 1`, side B waits on
-            // the play-in winner, so only A can be seeded now.
-            return makeAwaitableChain({
-              data: [
-                {
-                  id: 'slot-r1p1',
-                  round: 1,
-                  position: 1,
-                  source_a_ref: 'seed 1',
-                  source_b_ref: 'winner of WBR0P1',
-                },
-              ],
-              error: null,
-            });
-          case 'matches': {
-            const chain = makeChain({
-              data: { id: 'match-r1p1', status: 'scheduled' },
-              error: null,
-            });
-            chain.update.mockImplementation((payload: Record<string, unknown>) => {
-              matchUpdates.push(payload);
-              return chain;
-            });
-            chain.insert.mockImplementation((payload: unknown) => {
-              matchInserts.push(payload);
-              return chain;
-            });
-            // The blocking-matches guard awaits the chain directly.
-            (chain as unknown as { then: unknown }).then = (resolve: (v: unknown) => unknown) =>
-              resolve({ data: [], error: null });
-            return chain;
-          }
-          case 'registrations':
-            return makeAwaitableChain({
-              data: [{ id: 'reg-1', seed: 1, bib_number: null }],
-              error: null,
-            });
-          case 'tournaments':
-            return makeChain({
-              data: { ruleset_code: 'TF', ruleset_version: '1.0.0' },
-              error: null,
-            });
-          default:
-            return makeAwaitableChain({ data: null, error: null });
-        }
+      const { service: svc, supabase } = makeService({
+        // The bracket phase, and NO pool phase for this tournament, so the pool
+        // gate falls through to the registration-seed path. Both lookups read
+        // `phases` and only their filters tell them apart — which is exactly
+        // what the hand-rolled `sawPoolFilter` flag used to fake.
+        phases: {
+          rows: [
+            {
+              id: 'bracket-phase-1',
+              type: 'double_elim',
+              config_json: { wbRounds: 3, lbRounds: 4 },
+              tournament_id: 'tournament-1',
+              tournaments: { events: { organization_id: 'org-1' } },
+            },
+          ],
+        },
+        // One play-in-fed WB-R1 slot: side A is `seed 1`, side B waits on the
+        // play-in winner, so only A can be seeded now.
+        bracket_slots: {
+          rows: [
+            // Another bracket's R1 slot, and a later round of this one. The
+            // seeding read is scoped to this phase and to rounds 0-1, and
+            // either slipping would re-seed a slot nobody asked about.
+            {
+              id: 'slot-elsewhere',
+              phase_id: 'bracket-phase-9',
+              round: 1,
+              position: 1,
+              source_a_ref: 'seed 1',
+              source_b_ref: 'seed 8',
+            },
+            { id: 'slot-r2p1', phase_id: 'bracket-phase-1', round: 2, position: 1 },
+            {
+              id: 'slot-r1p1',
+              phase_id: 'bracket-phase-1',
+              round: 1,
+              position: 1,
+              source_a_ref: 'seed 1',
+              source_b_ref: 'winner of WBR0P1',
+            },
+          ],
+        },
+        matches: {
+          rows: [
+            { id: 'match-elsewhere', bracket_slot_id: 'slot-elsewhere', status: 'scheduled' },
+            { id: 'match-r1p1', bracket_slot_id: 'slot-r1p1', status: 'scheduled' },
+          ],
+        },
+        // Canned: this read ends `.order('seed', { nullsFirst: false })`, an
+        // option the double refuses to guess at rather than model.
+        registrations: { data: [{ id: 'reg-1', seed: 1, bib_number: null }], error: null },
+        tournaments: {
+          rows: [{ id: 'tournament-1', ruleset_code: 'TF', ruleset_version: '1.0.0' }],
+        },
+        audit_log: { rows: [] },
       });
 
-      const svc = new PhasesService(legacyClient as never, undefined, mockOrgs as never);
       await svc.populateBracket('tournament-1', {}, 'system');
 
+      const writes = writesTo(supabase, 'matches');
       // The whole point: the known side reaches the matches row even though the
       // other side is still null. Previously this list was empty.
-      expect(matchUpdates).toContainEqual({ red_registration_id: 'reg-1' });
+      expect(writes.map((write) => write.row)).toContainEqual({ red_registration_id: 'reg-1' });
+      // On THIS slot's bout, not whichever row the lookup happened to find.
+      expect(scopedTo(writes[0], 'id')).toBe('match-r1p1');
       // And no phantom row is inserted for a slot that cannot be played yet.
-      expect(matchInserts).toEqual([]);
+      expect(writes.filter((write) => write.op === 'insert')).toEqual([]);
     });
   });
 
   // ── populateBracket — perPool guard + source field ─────────────────────────
 
   describe('populateBracket — pool-gate honesty', () => {
-    function bracketPhaseChain() {
-      const chain = makeChain({ data: null, error: null });
-      chain.maybeSingle.mockResolvedValue({
-        data: {
-          id: 'bracket-phase-1',
-          type: 'single_elim',
-          config_json: {},
-          tournament_id: 'tournament-1',
-          tournaments: { events: { organization_id: 'org-1' } },
-        },
-        error: null,
-      });
-      return chain;
-    }
-    function emptyR1SlotsChain() {
-      // r1Slots query — return empty so the blocking-matches lookup is
-      // skipped (`slots.length > 0` guard) and we reach the pool gate.
-      return makeAwaitableChain({ data: [], error: null });
-    }
-    function poolPhaseExistsChain() {
-      const chain = makeChain({ data: null, error: null });
-      chain.maybeSingle.mockResolvedValue({ data: { id: 'pool-phase-1' }, error: null });
-      return chain;
-    }
-    function poolPhaseAbsentChain() {
-      const chain = makeChain({ data: null, error: null });
-      chain.maybeSingle.mockResolvedValue({ data: null, error: null });
-      return chain;
-    }
-    function registrationsChain(
-      rows: Array<{ id: string; seed: number; bib_number: number | null }>,
-    ) {
-      return makeAwaitableChain({ data: rows, error: null });
-    }
-    function auditLogChain() {
-      const chain = makeChain({ data: null, error: null });
-      (chain.insert as ReturnType<typeof vi.fn>).mockResolvedValue({ data: null, error: null });
-      return chain;
-    }
+    const BRACKET_PHASE: SupabaseRow = {
+      id: 'bracket-phase-1',
+      type: 'single_elim',
+      config_json: {},
+      tournament_id: 'tournament-1',
+      tournaments: { events: { organization_id: 'org-1' } },
+    };
+    /**
+     * Its presence is the whole gate: with it, populate must have standings.
+     *
+     * Seeded FIRST wherever it appears, so dropping `.in('type', [elim…])` from
+     * the bracket lookup resolves this row instead and the call goes wrong
+     * rather than staying green on ordering luck.
+     */
+    const POOL_PHASE: SupabaseRow = {
+      id: 'pool-phase-1',
+      type: 'pool',
+      config_json: {},
+      tournament_id: 'tournament-1',
+    };
+
+    /** Another tournament's bracket, which the lookup must not resolve. */
+    const BRACKET_ELSEWHERE: SupabaseRow = {
+      id: 'bracket-phase-9',
+      type: 'single_elim',
+      config_json: {},
+      tournament_id: 'tournament-9',
+      tournaments: { events: { organization_id: 'org-elsewhere' } },
+    };
+
     function makePoolStandingsMock(byPool: unknown, overall?: unknown) {
       return {
         getPoolStandings: vi
@@ -3140,21 +2961,39 @@ describe('PhasesService', () => {
       };
     }
 
-    it('refuses with ConflictException when pool phase exists but no pool data', async () => {
-      const poolStandings = makePoolStandingsMock({ pools: [] });
+    /**
+     * The bracket, its (optional) pool phase, and no R1 slots — empty on
+     * purpose, so the blocking-matches lookup is skipped by the
+     * `slots.length > 0` guard and the pool gate is what decides.
+     */
+    function populateService(
+      phases: SupabaseRow[],
+      poolStandings?: ReturnType<typeof makePoolStandingsMock>,
+      registrations: SupabaseRow[] = [],
+    ) {
+      const supabase = mockSupabase({
+        phases: { rows: [BRACKET_ELSEWHERE, ...phases] },
+        bracket_slots: { rows: [] },
+        registrations: { data: registrations, error: null },
+        tournaments: { rows: [{ id: 'tournament-1' }] },
+        audit_log: { rows: [] },
+      });
       const svc = new PhasesService(
-        legacyClient as never,
+        supabase as never,
         undefined,
         mockOrgs as never,
         undefined,
         undefined,
         poolStandings as never,
       );
+      return { svc, supabase };
+    }
 
-      fromMock
-        .mockReturnValueOnce(bracketPhaseChain())
-        .mockReturnValueOnce(emptyR1SlotsChain())
-        .mockReturnValueOnce(poolPhaseExistsChain());
+    it('refuses with ConflictException when pool phase exists but no pool data', async () => {
+      const { svc } = populateService(
+        [POOL_PHASE, BRACKET_PHASE],
+        makePoolStandingsMock({ pools: [] }),
+      );
 
       await expect(svc.populateBracket('tournament-1', {}, 'system')).rejects.toBeInstanceOf(
         ConflictException,
@@ -3162,26 +3001,12 @@ describe('PhasesService', () => {
     });
 
     it('returns source="registration-seed" for straight-to-bracket tournaments', async () => {
-      const svc = new PhasesService(
-        legacyClient as never,
-        undefined,
-        mockOrgs as never,
-        undefined,
-        undefined,
-        undefined, // poolStandings not wired — registration-seed fallback still fires
-      );
-
-      fromMock
-        .mockReturnValueOnce(bracketPhaseChain())
-        .mockReturnValueOnce(emptyR1SlotsChain())
-        .mockReturnValueOnce(poolPhaseAbsentChain())
-        .mockReturnValueOnce(
-          registrationsChain([
-            { id: 'r1', seed: 1, bib_number: null },
-            { id: 'r2', seed: 2, bib_number: null },
-          ]),
-        )
-        .mockReturnValueOnce(auditLogChain());
+      // No pool phase in the table, and poolStandings not wired — the
+      // registration-seed fallback still fires.
+      const { svc } = populateService([BRACKET_PHASE], undefined, [
+        { id: 'r1', seed: 1, bib_number: null },
+        { id: 'r2', seed: 2, bib_number: null },
+      ]);
 
       const result = await svc.populateBracket('tournament-1', {}, 'system');
       expect(result.source).toBe('registration-seed');
@@ -3212,21 +3037,7 @@ describe('PhasesService', () => {
           ],
         },
       );
-
-      const svc = new PhasesService(
-        legacyClient as never,
-        undefined,
-        mockOrgs as never,
-        undefined,
-        undefined,
-        poolStandings as never,
-      );
-
-      fromMock
-        .mockReturnValueOnce(bracketPhaseChain())
-        .mockReturnValueOnce(emptyR1SlotsChain())
-        .mockReturnValueOnce(poolPhaseExistsChain())
-        .mockReturnValueOnce(auditLogChain());
+      const { svc } = populateService([POOL_PHASE, BRACKET_PHASE], poolStandings);
 
       const result = await svc.populateBracket('tournament-1', {}, 'system');
       expect(result.source).toBe('pool-standings');
@@ -3237,61 +3048,87 @@ describe('PhasesService', () => {
 
   describe('listUnassignedFighters — waiting list excluded', () => {
     it('constrains the registrations query to active statuses (no waitlist/withdrawn)', async () => {
-      const regsChain = makeAwaitableChain({ data: [], error: null });
-      const poolMembersChain = makeAwaitableChain({ data: [], error: null });
-      fromMock.mockImplementation((table: string) => {
-        if (table === 'registrations') return regsChain;
-        if (table === 'pool_members') return poolMembersChain;
-        return makeAwaitableChain({ data: null, error: null });
+      const reg = (id: string, status: string, over: SupabaseRow = {}): SupabaseRow => ({
+        id,
+        status,
+        tournament_id: 'tournament-1',
+        persons: { given_name: id, family_name: 'Fighter', clubs: null, global_persons: null },
+        ...over,
+      });
+      const { service: svc } = makeService({
+        // Two active fighters here, one waitlisted, one withdrawn, and one
+        // active in another tournament. Only the first two may be offered.
+        registrations: {
+          rows: [
+            reg('r-active', 'registered'),
+            reg('r-checked-in', 'checked_in'),
+            reg('r-waiting', 'waitlist'),
+            reg('r-gone', 'withdrawn'),
+            reg('r-elsewhere', 'registered', { tournament_id: 'tournament-9' }),
+          ],
+        },
+        // Nobody is pooled yet. The dotted key is how the double answers a
+        // filter through an embed — see listMatchScores for the same shape.
+        pool_members: { rows: [] },
       });
       vi.spyOn(
-        service as unknown as { weightedRatingsForTournament: () => Promise<Map<string, number>> },
+        svc as unknown as { weightedRatingsForTournament: () => Promise<Map<string, number>> },
         'weightedRatingsForTournament',
       ).mockResolvedValue(new Map());
 
-      await service.listUnassignedFighters('tournament-1');
+      const result = await svc.listUnassignedFighters('tournament-1');
 
-      expect(regsChain.in).toHaveBeenCalledWith('status', ['registered', 'checked_in']);
+      expect(result.map((row) => row.registrationId)).toEqual(['r-active', 'r-checked-in']);
     });
   });
 
   describe('addPoolMember — waiting list guard', () => {
-    function stubPoolAuth() {
+    function stubPoolAuth(svc: PhasesService) {
       vi.spyOn(
-        service as unknown as { assertPoolEditAuth: () => Promise<{ tournamentId: string }> },
+        svc as unknown as { assertPoolEditAuth: () => Promise<{ tournamentId: string }> },
         'assertPoolEditAuth',
       ).mockResolvedValue({ tournamentId: 'tournament-1' });
       vi.spyOn(
-        service as unknown as { assertPoolEditable: () => Promise<void> },
+        svc as unknown as { assertPoolEditable: () => Promise<void> },
         'assertPoolEditable',
       ).mockResolvedValue(undefined);
       vi.spyOn(
-        service as unknown as { regeneratePoolMatches: () => Promise<void> },
+        svc as unknown as { regeneratePoolMatches: () => Promise<void> },
         'regeneratePoolMatches',
       ).mockResolvedValue(undefined);
     }
 
-    it('rejects adding a waitlisted registration to a pool', async () => {
-      stubPoolAuth();
-      const regChain = makeChain({ data: { id: 'reg-1', status: 'waitlist' }, error: null });
-      fromMock.mockImplementation((table: string) =>
-        table === 'registrations' ? regChain : makeAwaitableChain({ data: [], error: null }),
-      );
+    /** The registration under test, plus an active one it must not be mistaken for. */
+    const registrations = (status: string): SupabaseRow[] => [
+      { id: 'reg-other', status: 'registered' },
+      { id: 'reg-1', status },
+    ];
 
-      await expect(service.addPoolMember('pool-1', 'reg-1', 'user-1')).rejects.toThrow(
+    it('rejects adding a waitlisted registration to a pool', async () => {
+      const { service: svc } = makeService({
+        registrations: { rows: registrations('waitlist') },
+        pool_members: { rows: [] },
+      });
+      stubPoolAuth(svc);
+
+      await expect(svc.addPoolMember('pool-1', 'reg-1', 'user-1')).rejects.toThrow(
         BadRequestException,
       );
     });
 
     it('still adds an active (registered) fighter', async () => {
-      stubPoolAuth();
-      const regChain = makeChain({ data: { id: 'reg-1', status: 'registered' }, error: null });
-      fromMock.mockImplementation((table: string) =>
-        table === 'registrations' ? regChain : makeAwaitableChain({ data: [], error: null }),
-      );
+      const { service: svc, supabase } = makeService({
+        registrations: { rows: registrations('registered') },
+        pool_members: { rows: [] },
+      });
+      stubPoolAuth(svc);
 
-      const result = await service.addPoolMember('pool-1', 'reg-1', 'user-1');
+      const result = await svc.addPoolMember('pool-1', 'reg-1', 'user-1');
       expect(result).toMatchObject({ poolId: 'pool-1', registrationId: 'reg-1', moved: true });
+      expect(writesTo(supabase, 'pool_members')[0]?.row).toMatchObject({
+        pool_id: 'pool-1',
+        registration_id: 'reg-1',
+      });
     });
   });
 });
@@ -3308,13 +3145,16 @@ describe('PhasesService', () => {
  * (refused) are the transition this exists to make visible; a boolean would
  * paint both red.
  *
- * Mocks dispatch on TABLE NAME — this read makes a long, conditional sequence
- * of `from()` calls and an order-based chain desyncs the moment one is added.
+ * Every fixture here is a seeded table routed by name. The bracket lookup and
+ * computePoolGate's pool lookup both read `phases`, and the filters are what
+ * tell them apart — the old fixture had to watch for a `type='pool'` argument
+ * going past and flip a flag.
  */
 describe('PhasesService.getTournamentBracket — seeding drift', () => {
-  const FOUR_SEEDED_SLOTS = [
+  const FOUR_SEEDED_SLOTS: SupabaseRow[] = [
     {
       id: 's1',
+      phase_id: 'phase-1',
       round: 1,
       position: 1,
       source_a_type: 'seed',
@@ -3326,6 +3166,7 @@ describe('PhasesService.getTournamentBracket — seeding drift', () => {
     },
     {
       id: 's2',
+      phase_id: 'phase-1',
       round: 1,
       position: 2,
       source_a_type: 'seed',
@@ -3356,8 +3197,8 @@ describe('PhasesService.getTournamentBracket — seeding drift', () => {
     poolPhaseExists?: boolean;
     perPool?: unknown[];
     overallRows?: Array<{ rank: number; registrationId: string }>;
-    slots: unknown[];
-    matches?: Array<{ id: string; bracket_slot_id: string; status: string }>;
+    slots: SupabaseRow[];
+    matches?: SupabaseRow[];
     swiss?: {
       phaseId: string | null;
       roundCount: number;
@@ -3366,44 +3207,36 @@ describe('PhasesService.getTournamentBracket — seeding drift', () => {
       rows: Array<{ rank: number; registrationId: string; displayName: string }>;
     };
   }) {
-    fromMock.mockImplementation((table: string) => {
-      switch (table) {
-        case 'phases': {
-          // Both the bracket-phase lookup and computePoolGate's pool lookup
-          // land here; the pool one is the only caller filtering type='pool'.
-          const chain = makeChain({ data: null, error: null });
-          let poolLookup = false;
-          chain.eq.mockImplementation((column: string, value: string) => {
-            if (column === 'type' && value === 'pool') poolLookup = true;
-            return chain;
-          });
-          chain.maybeSingle.mockImplementation(() =>
-            Promise.resolve({
-              data: poolLookup
-                ? (input.poolPhaseExists ?? true)
-                  ? { id: 'pool-phase-1' }
-                  : null
-                : {
-                    id: 'phase-1',
-                    type: 'single_elim',
-                    visibility_status: 'published',
-                    config_json: {
-                      bracketSize: 4,
-                      seedingStrategy: input.strategy ?? 'snake',
-                    },
-                  },
-              error: null,
-            }),
-          );
-          return chain;
-        }
-        case 'bracket_slots':
-          return makeAwaitableChain({ data: input.slots, error: null });
-        case 'matches':
-          return makeAwaitableChain({ data: input.matches ?? [], error: null });
-        default:
-          return makeAwaitableChain({ data: [], error: null });
-      }
+    // Another tournament's pool phase is always present: the gate reads
+    // `phases` a second time, and this is what makes its tournament scope
+    // decide something rather than being restated.
+    const poolPhase: SupabaseRow[] = [
+      { id: 'pool-phase-9', tournament_id: 'tournament-9', type: 'pool' },
+      ...((input.poolPhaseExists ?? true)
+        ? [{ id: 'pool-phase-1', tournament_id: 'tournament-1', type: 'pool' }]
+        : []),
+    ];
+    const supabase = mockSupabase({
+      phases: {
+        rows: [
+          ...poolPhase,
+          {
+            id: 'phase-1',
+            tournament_id: 'tournament-1',
+            type: 'single_elim',
+            visibility_status: 'published',
+            config_json: { bracketSize: 4, seedingStrategy: input.strategy ?? 'snake' },
+          },
+        ],
+      },
+      bracket_slots: { rows: input.slots },
+      matches: { rows: input.matches ?? [] },
+      // Canned: the Swiss path reaches loadSeedableRegistrations, whose
+      // `.order('seed', { nullsFirst: false })` the double refuses to model —
+      // and the drift check swallows the throw as `not-applicable`, which is
+      // the quietest way this could have gone wrong.
+      registrations: { data: [], error: null },
+      tournaments: { rows: [{ id: 'tournament-1', event_id: null }] },
     });
 
     const poolStandings = {
@@ -3421,7 +3254,7 @@ describe('PhasesService.getTournamentBracket — seeding drift', () => {
       ? { getSwissStandings: vi.fn().mockResolvedValue(input.swiss) }
       : undefined;
     return new PhasesService(
-      legacyClient as never,
+      supabase as never,
       undefined,
       mockOrgs as never,
       undefined,
@@ -3433,7 +3266,7 @@ describe('PhasesService.getTournamentBracket — seeding drift', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    fromMock.mockReturnValue(makeChain({ data: null, error: null }));
+    mockOrgs.assertOrgRole.mockResolvedValue(undefined);
   });
 
   it('reports fresh when the slots still hold what the standings would put there', async () => {
@@ -3455,7 +3288,7 @@ describe('PhasesService.getTournamentBracket — seeding drift', () => {
     // lets the UI offer the CHEAP remedy — reset that one match and the next
     // pool completion heals the bracket for free.
     const service = buildService({
-      slots: [FOUR_SEEDED_SLOTS[0], { ...FOUR_SEEDED_SLOTS[1], registration_a_id: 'r9' }],
+      slots: [FOUR_SEEDED_SLOTS[0]!, { ...FOUR_SEEDED_SLOTS[1]!, registration_a_id: 'r9' }],
       matches: [{ id: 'm1', bracket_slot_id: 's1', status: 'running' }],
     });
 
@@ -3474,7 +3307,7 @@ describe('PhasesService.getTournamentBracket — seeding drift', () => {
     // bracket is about to heal itself. Showing "stale" here would send the
     // organiser to Regenerate for a bracket that needs nothing done to it.
     const service = buildService({
-      slots: [FOUR_SEEDED_SLOTS[0], { ...FOUR_SEEDED_SLOTS[1], registration_a_id: 'r9' }],
+      slots: [FOUR_SEEDED_SLOTS[0]!, { ...FOUR_SEEDED_SLOTS[1]!, registration_a_id: 'r9' }],
       perPool: [{ poolId: 'p1', poolName: 'Pool 1', status: 'running', rows: [] }],
     });
 
@@ -3489,7 +3322,7 @@ describe('PhasesService.getTournamentBracket — seeding drift', () => {
     // would put a warning on every random bracket after any roster edit.
     const service = buildService({
       strategy: 'random',
-      slots: [FOUR_SEEDED_SLOTS[0], { ...FOUR_SEEDED_SLOTS[1], registration_a_id: 'r9' }],
+      slots: [FOUR_SEEDED_SLOTS[0]!, { ...FOUR_SEEDED_SLOTS[1]!, registration_a_id: 'r9' }],
     });
 
     const result = await service.getTournamentBracket('tournament-1');
@@ -3507,7 +3340,7 @@ describe('PhasesService.getTournamentBracket — seeding drift', () => {
     // reshuffles on any withdrawal just as random does.
     const service = buildService({
       poolPhaseExists: false,
-      slots: [FOUR_SEEDED_SLOTS[0], { ...FOUR_SEEDED_SLOTS[1], registration_a_id: 'r9' }],
+      slots: [FOUR_SEEDED_SLOTS[0]!, { ...FOUR_SEEDED_SLOTS[1]!, registration_a_id: 'r9' }],
     });
 
     const result = await service.getTournamentBracket('tournament-1');
@@ -3523,6 +3356,7 @@ describe('PhasesService.getTournamentBracket — seeding drift', () => {
       slots: [
         {
           id: 's1',
+          phase_id: 'phase-1',
           round: 1,
           position: 1,
           source_a_type: 'seed',
@@ -3547,7 +3381,7 @@ describe('PhasesService.getTournamentBracket — seeding drift', () => {
     // what the organiser needs to see — so finality is asked before resolving.
     const service = buildService({
       strategy: 'by-swiss-rank',
-      slots: [FOUR_SEEDED_SLOTS[0], { ...FOUR_SEEDED_SLOTS[1], registration_a_id: 'r9' }],
+      slots: [FOUR_SEEDED_SLOTS[0]!, { ...FOUR_SEEDED_SLOTS[1]!, registration_a_id: 'r9' }],
       swiss: { phaseId: 'swiss-1', roundCount: 5, roundsCompleted: 3, rows: [] },
     });
 
@@ -3563,7 +3397,7 @@ describe('PhasesService.getTournamentBracket — seeding drift', () => {
   it('diffs against a FINISHED Swiss phase', async () => {
     const service = buildService({
       strategy: 'by-swiss-rank',
-      slots: [FOUR_SEEDED_SLOTS[0], { ...FOUR_SEEDED_SLOTS[1], registration_a_id: 'r9' }],
+      slots: [FOUR_SEEDED_SLOTS[0]!, { ...FOUR_SEEDED_SLOTS[1]!, registration_a_id: 'r9' }],
       swiss: {
         phaseId: 'swiss-1',
         roundCount: 4,
@@ -3593,6 +3427,7 @@ describe('PhasesService.getTournamentBracket — seeding drift', () => {
       slots: [
         {
           id: 's1',
+          phase_id: 'phase-1',
           round: 2,
           position: 1,
           source_a_type: 'winner_of',
