@@ -1,12 +1,46 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { BadRequestException, ConflictException, ForbiddenException } from '@nestjs/common';
+import {
+  mockSupabase,
+  queriedTables,
+  scopedTo,
+  writesTo,
+  type SupabaseRow,
+  type TableSeed,
+} from '../../common/testing/supabase-chain';
 import { PhasesService } from './phases.service';
 
 // ── Mocks ──────────────────────────────────────────────────────────────────
 
 const fromMock = vi.fn();
-const mockSupabase = { service: { from: fromMock }, anon: {} };
+const legacyClient = { service: { from: fromMock }, anon: {} };
 const mockOrgs = { assertOrgRole: vi.fn().mockResolvedValue(undefined) };
+
+/**
+ * One service over the shared Supabase double, which routes by TABLE NAME.
+ *
+ * What it replaces, describe by describe, is `fromMock.mockReturnValueOnce(a)
+ * .mockReturnValueOnce(b)…` — a positional queue. Add one query anywhere
+ * upstream and every later answer shifts by one while the suite stays green,
+ * asserting against the wrong table. This file held 179 of those.
+ *
+ * The second gain is the one the falsification sweep asked for. A canned
+ * `{ data }` answers the same thing whatever the query filters on, so no filter
+ * in it can be load-bearing; of the 113 PostgREST filters in phases.service.ts,
+ * 106 could be deleted with the whole 3,659-test API suite still green. A
+ * `{ rows: [...] }` seed really applies `.eq`/`.in`/`.not`, so every filter in
+ * the query starts deciding the answer at once.
+ *
+ * Seed `rows:` where the filtering is the point, `{ data }` where the test is
+ * about a null or an error branch. A table nobody declared throws rather than
+ * resolving quietly to `{ data: null }`, which is how the surface below got
+ * corrected on contact.
+ */
+function makeService(seed: Record<string, TableSeed>) {
+  const supabase = mockSupabase(seed);
+  const service = new PhasesService(supabase as never, undefined, mockOrgs as never);
+  return { service, supabase };
+}
 
 /**
  * Creates a mock Supabase query chain.
@@ -90,7 +124,18 @@ describe('PhasesService.generateBracket — authorization', () => {
    * was recorded. Its three siblings (populate, reseed, delete) have always
    * asserted org admin.
    */
-  let service: PhasesService;
+  /**
+   * Two tournaments, the WRONG one first.
+   *
+   * The org check reads `.eq('id', tournamentId).maybeSingle()`, and a seeded
+   * table hands back whatever survived the filters — so dropping that one filter
+   * resolves the other organisation, and the assertion below names it. On the
+   * canned double this fixture replaced, the same deletion changed nothing.
+   */
+  const TOURNAMENTS: SupabaseRow[] = [
+    { id: 't-elsewhere', events: { organization_id: 'org-elsewhere' } },
+    { id: 't-1', events: { organization_id: 'org-1' } },
+  ];
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -98,13 +143,10 @@ describe('PhasesService.generateBracket — authorization', () => {
     // permissive default so a `…Once` rejection below cannot leak into the
     // next describe if the code under test never consumes it.
     mockOrgs.assertOrgRole.mockResolvedValue(undefined);
-    service = new PhasesService(mockSupabase as never, undefined, mockOrgs as never);
   });
 
   it('asserts org admin before touching anything', async () => {
-    fromMock.mockReturnValue(
-      makeChain({ data: { id: 't-1', events: { organization_id: 'org-1' } }, error: null }),
-    );
+    const { service, supabase } = makeService({ tournaments: { rows: TOURNAMENTS } });
     mockOrgs.assertOrgRole.mockRejectedValue(new ForbiddenException('nope'));
 
     await expect(
@@ -112,12 +154,16 @@ describe('PhasesService.generateBracket — authorization', () => {
     ).rejects.toBeInstanceOf(ForbiddenException);
 
     expect(mockOrgs.assertOrgRole).toHaveBeenCalledWith('org-1', 'user-1', 'admin');
-    // Refused before the destructive delete, not after it.
-    expect(fromMock).not.toHaveBeenCalledWith('phases');
+    // Refused before the destructive delete, not after it. `phases` is not
+    // seeded at all, so reaching it throws at the moment of the violation
+    // rather than resolving quietly and failing an assertion afterwards.
+    expect(queriedTables(supabase.from)).toEqual(['tournaments']);
   });
 
   it('refuses when the tournament resolves to no organisation', async () => {
-    fromMock.mockReturnValue(makeChain({ data: null, error: null }));
+    // The id matches nothing, which is the only way `maybeSingle()` returns
+    // null here — the rows are present, the filter is what excludes them.
+    const { service } = makeService({ tournaments: { rows: TOURNAMENTS } });
 
     await expect(
       service.generateBracket('t-missing', { phaseType: 'single_elim' } as never, true, 'user-1'),
@@ -127,11 +173,17 @@ describe('PhasesService.generateBracket — authorization', () => {
 
   it('lets the system actor through, as the auto-advance paths rely on', async () => {
     // 'system' is the default and the sentinel populateBracket already uses.
-    fromMock.mockReturnValue(makeChain({ data: null, error: null }));
+    // No `tournaments` seed: the org lookup lives inside the actor branch, so
+    // the system path must never reach it — and would throw if it did.
+    const { service, supabase } = makeService({
+      phases: { rows: [] },
+      registrations: { rows: [] },
+    });
 
     await service.generateBracket('t-1', { phaseType: 'single_elim' } as never).catch(() => {});
 
     expect(mockOrgs.assertOrgRole).not.toHaveBeenCalled();
+    expect(queriedTables(supabase.from)).toEqual(['phases', 'registrations']);
   });
 });
 
@@ -140,17 +192,87 @@ describe('PhasesService', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    // `clearAllMocks` drains call history, not the `…Once` queue: a rejection
+    // queued by a test whose code path never reaches `assertOrgRole` lands on
+    // whichever later test does. Re-establish the permissive default, as the
+    // authorization describe above already does.
+    mockOrgs.assertOrgRole.mockResolvedValue(undefined);
     fromMock.mockReturnValue(makeChain({ data: null, error: null }));
-    service = new PhasesService(mockSupabase as never, undefined, mockOrgs as never);
+    service = new PhasesService(legacyClient as never, undefined, mockOrgs as never);
   });
 
   // ── generatePools — idempotency ───────────────────────────────────────────
 
   describe('generatePools — idempotency', () => {
+    /**
+     * A pool phase belonging to ANOTHER tournament, and the only row in its
+     * table.
+     *
+     * It does two jobs. It makes `.eq('tournament_id', …)` on the existing-phase
+     * check load-bearing: drop that filter and a regeneration that should have
+     * proceeded finds this row and refuses with a 409. And it is a single row on
+     * purpose — the phase insert reads the same seeded table back through
+     * `.select('id').single()`, which is a PGRST116 on two rows, so a second
+     * decoy would fail the insert rather than the filter. Hence one decoy per
+     * test, each aimed at a different filter.
+     */
+    const POOL_PHASE_ELSEWHERE: SupabaseRow = {
+      id: 'phase-elsewhere',
+      tournament_id: 'other-tournament',
+      type: 'pool',
+    };
+
+    /** The same trick for `.eq('type', 'pool')`: right tournament, wrong type. */
+    const BRACKET_PHASE_HERE: SupabaseRow = {
+      id: 'phase-bracket',
+      tournament_id: 'tournament-1',
+      type: 'single_elim',
+    };
+
+    /** Wrong tournament FIRST, so dropping `.eq('id', …)` resolves the wrong org. */
+    const TOURNAMENTS: SupabaseRow[] = [
+      {
+        id: 'other-tournament',
+        weapon: null,
+        event_id: 'event-9',
+        events: { organization_id: 'org-elsewhere' },
+      },
+      {
+        id: 'tournament-1',
+        weapon: null,
+        event_id: 'event-1',
+        events: { organization_id: 'org-1' },
+      },
+    ];
+
+    /** A registration row as the pool generator reads it, embed and all. */
+    const reg = (id: string, seed: number, over: SupabaseRow = {}): SupabaseRow => ({
+      id,
+      seed,
+      bib_number: null,
+      tournament_id: 'tournament-1',
+      status: 'registered',
+      persons: { club_id: null, global_persons: null },
+      ...over,
+    });
+
+    /**
+     * Two registrations the query must not return: one from another tournament,
+     * one withdrawn. Every test below counts fighters to decide the pool maths,
+     * so either one leaking in changes the answer — which is what makes
+     * `.eq('tournament_id', …)` and `.in('status', …)` load-bearing.
+     */
+    const REG_DECOYS: SupabaseRow[] = [
+      reg('r-elsewhere', 9, { tournament_id: 'other-tournament' }),
+      reg('r-withdrawn', 9, { status: 'withdrawn' }),
+    ];
+
     it('throws ConflictException when pool phase already exists (no force)', async () => {
-      const chain = makeChain({ data: null, error: null });
-      chain.maybeSingle.mockResolvedValue({ data: { id: 'phase-1' }, error: null });
-      fromMock.mockReturnValue(chain);
+      // Only `phases` is seeded: the refusal has to land before the tournament
+      // read, and an unseeded table throws if it ever stops doing so.
+      const { service } = makeService({
+        phases: { rows: [{ id: 'phase-1', tournament_id: 'tournament-1', type: 'pool' }] },
+      });
 
       await expect(service.generatePools('tournament-1', {}, false)).rejects.toThrow(
         ConflictException,
@@ -158,57 +280,47 @@ describe('PhasesService', () => {
     });
 
     it('deletes existing phase and regenerates when force=true', async () => {
-      const regsData = [
-        { id: 'r1', seed: 1, bib_number: null, persons: { club_id: 'club-1' } },
-        { id: 'r2', seed: 2, bib_number: null, persons: { club_id: 'club-2' } },
-        { id: 'r3', seed: 3, bib_number: null, persons: { club_id: 'club-1' } },
-        { id: 'r4', seed: 4, bib_number: null, persons: { club_id: 'club-2' } },
-      ];
-
-      // Phase check: existing phase found
-      const phaseCheckChain = makeChain({ data: null, error: null });
-      phaseCheckChain.maybeSingle.mockResolvedValue({ data: { id: 'old-phase' }, error: null });
-
-      // The tournament read moved AHEAD of the delete: the force path's scored-
-      // bout guard needs the owning org, and asking once the phase is gone is
-      // asking too late. It now also embeds events(organization_id).
-      const tournamentChain = makeChain({ data: { weapon: null }, error: null });
-
-      // Scored-bout check on the existing phase — empty, so force proceeds
-      // without needing `discardScoredResults`.
-      const scoredChain = makeAwaitableChain({ data: [], error: null });
-
-      // Delete chain
-      const deleteChain = makeChain({ data: null, error: null });
-      deleteChain.eq.mockResolvedValue({ data: null, error: null });
-
-      // Registrations query (awaitable — service does `await q`)
-      const regsChain = makeAwaitableChain({ data: regsData, error: null });
-
-      // Phase insert
-      const phaseInsertChain = makeChain({ data: null, error: null });
-      phaseInsertChain.single.mockResolvedValue({ data: { id: 'new-phase' }, error: null });
-
-      // Pool insert + pool_members + matches — use default chain
-      const defaultChain = makeChain({ data: null, error: null });
-      defaultChain.single.mockResolvedValue({ data: { id: 'pool-1' }, error: null });
-
-      fromMock
-        .mockReturnValueOnce(phaseCheckChain)
-        .mockReturnValueOnce(tournamentChain)
-        .mockReturnValueOnce(scoredChain)
-        .mockReturnValueOnce(deleteChain)
-        .mockReturnValueOnce(regsChain)
-        .mockReturnValueOnce(phaseInsertChain)
-        .mockReturnValue(defaultChain);
+      const { service, supabase } = makeService({
+        // One row, the phase being replaced — the insert reads this table back.
+        phases: { rows: [{ id: 'old-phase', tournament_id: 'tournament-1', type: 'pool' }] },
+        // The tournament read moved AHEAD of the delete: the force path's
+        // scored-bout guard needs the owning org, and asking once the phase is
+        // gone is asking too late. It also embeds events(organization_id).
+        tournaments: { rows: TOURNAMENTS },
+        // Nothing in the old phase was ever fought, so force proceeds without
+        // `discardScoredResults`. The completed bout belongs to another phase:
+        // drop `.eq('phase_id', …)` and the guard finds it and refuses; drop
+        // `.in('status', …)` and the scheduled one refuses instead.
+        matches: {
+          rows: [
+            { id: 'm-untouched', phase_id: 'old-phase', status: 'scheduled' },
+            { id: 'm-elsewhere', phase_id: 'another-phase', status: 'completed' },
+          ],
+        },
+        registrations: {
+          rows: [
+            reg('r1', 1, { persons: { club_id: 'club-1', global_persons: null } }),
+            reg('r2', 2, { persons: { club_id: 'club-2', global_persons: null } }),
+            reg('r3', 3, { persons: { club_id: 'club-1', global_persons: null } }),
+            reg('r4', 4, { persons: { club_id: 'club-2', global_persons: null } }),
+            ...REG_DECOYS,
+          ],
+        },
+        pools: { rows: [{ id: 'pool-1' }] },
+        pool_members: { rows: [] },
+      });
 
       // Should not throw
       await expect(
         service.generatePools('tournament-1', { poolCount: 2 }, true),
       ).resolves.toBeDefined();
-      expect(phaseInsertChain.insert).toHaveBeenCalledWith(
-        expect.objectContaining({ visibility_status: 'hidden' }),
-      );
+
+      // The delete names the row it took, which is the whole of what stands
+      // between a regeneration and another tournament's pools.
+      const [deleted, inserted] = writesTo(supabase, 'phases');
+      expect(deleted?.op).toBe('delete');
+      expect(scopedTo(deleted, 'id')).toBe('old-phase');
+      expect(inserted?.row).toMatchObject({ visibility_status: 'hidden' });
     });
 
     // ── force=true is not a licence to delete fought bouts ────────────────
@@ -216,27 +328,42 @@ describe('PhasesService', () => {
     // with them exchanges, penalties, events, forfeits and referee assignments.
     // It used to check only that the phase existed.
     describe('force=true vs scored bouts', () => {
-      /** phase check (found) → tournament (+org) → scored matches. */
-      function queueUpToScoredCheck(scored: unknown[]) {
-        const phaseCheckChain = makeChain({ data: null, error: null });
-        phaseCheckChain.maybeSingle.mockResolvedValue({ data: { id: 'old-phase' }, error: null });
-        const tournamentChain = makeChain({ data: null, error: null });
-        tournamentChain.maybeSingle.mockResolvedValue({
-          data: { weapon: null, event_id: 'event-1', events: { organization_id: 'org-1' } },
-          error: null,
+      /**
+       * The force path with `scored` bouts already fought in the phase it would
+       * delete.
+       *
+       * The two rows always present are decoys, one per filter on the guard: a
+       * bout in ANOTHER phase that HAS been fought, and one in this phase that
+       * has not. Drop `.eq('phase_id', …)` or `.in('status', …)` and a clean
+       * regeneration starts refusing.
+       */
+      function seedForceRegeneration(scored: SupabaseRow[]) {
+        return makeService({
+          phases: { rows: [{ id: 'old-phase', tournament_id: 'tournament-1', type: 'pool' }] },
+          tournaments: { rows: TOURNAMENTS },
+          matches: {
+            rows: [
+              { id: 'm-untouched', phase_id: 'old-phase', status: 'scheduled' },
+              { id: 'm-elsewhere', phase_id: 'another-phase', status: 'completed' },
+              ...scored,
+            ],
+          },
+          registrations: { rows: REG_DECOYS },
+          pools: { rows: [{ id: 'pool-1' }] },
+          pool_members: { rows: [] },
         });
-        const scoredChain = makeAwaitableChain({ data: scored, error: null });
-        const defaultChain = makeChain({ data: null, error: null });
-        fromMock
-          .mockReturnValueOnce(phaseCheckChain)
-          .mockReturnValueOnce(tournamentChain)
-          .mockReturnValueOnce(scoredChain)
-          .mockReturnValue(defaultChain);
-        return { defaultChain };
       }
 
+      /** `n` bouts in the phase under threat, each of them fought. */
+      const scoredBouts = (n: number): SupabaseRow[] =>
+        Array.from({ length: n }, (_, i) => ({
+          id: `m-scored-${i + 1}`,
+          phase_id: 'old-phase',
+          status: 'completed',
+        }));
+
       it('refuses, naming the count, when a bout in the phase has been scored', async () => {
-        queueUpToScoredCheck([{ id: 'm-1' }, { id: 'm-2' }]);
+        const { service } = seedForceRegeneration(scoredBouts(2));
 
         await expect(
           service.generatePools('tournament-1', {}, true, 'user-1'),
@@ -244,26 +371,28 @@ describe('PhasesService', () => {
       });
 
       it('does not delete the phase when it refuses', async () => {
-        const { defaultChain } = queueUpToScoredCheck([{ id: 'm-1' }]);
+        const { service, supabase } = seedForceRegeneration(scoredBouts(1));
 
         await service.generatePools('tournament-1', {}, true, 'user-1').catch(() => undefined);
 
         // The whole point: the 409 has to land BEFORE the CASCADE.
-        expect(defaultChain.delete).not.toHaveBeenCalled();
+        expect(writesTo(supabase, 'phases')).toEqual([]);
       });
 
       it('refuses the override for an admin — discarding results is an owner call', async () => {
-        queueUpToScoredCheck([{ id: 'm-1' }]);
+        const { service } = seedForceRegeneration(scoredBouts(1));
         mockOrgs.assertOrgRole.mockRejectedValueOnce(new ForbiddenException('not an owner'));
 
         await expect(
           service.generatePools('tournament-1', { discardScoredResults: true }, true, 'user-1'),
         ).rejects.toBeInstanceOf(ForbiddenException);
+        // Names the org the tournament actually belongs to — the seed holds a
+        // second tournament under a different one, so the read has to be scoped.
         expect(mockOrgs.assertOrgRole).toHaveBeenCalledWith('org-1', 'user-1', 'owner');
       });
 
       it('refuses the override when no actor can be identified', async () => {
-        queueUpToScoredCheck([{ id: 'm-1' }]);
+        const { service } = seedForceRegeneration(scoredBouts(1));
 
         // Fail CLOSED. The override lets a named human accept a permanent loss;
         // "we could not work out who you are" is not that.
@@ -294,48 +423,104 @@ describe('PhasesService', () => {
         },
       };
 
-      /** pool context → scored check → pool matches → occupants. */
-      function queuePoolMove(poolMatches: unknown[], occupants: unknown[]) {
-        const ctxChain = makeChain({ data: null, error: null });
-        ctxChain.maybeSingle.mockResolvedValue({ data: POOL_CONTEXT, error: null });
-        const writeChain = makeChain({ data: null, error: null });
-        fromMock
-          .mockReturnValueOnce(ctxChain)
-          .mockReturnValueOnce(makeAwaitableChain({ data: [], error: null }))
-          .mockReturnValueOnce(makeAwaitableChain({ data: poolMatches, error: null }))
-          .mockReturnValueOnce(makeAwaitableChain({ data: occupants, error: null }))
-          .mockReturnValue(writeChain);
-        return { writeChain };
+      /**
+       * The pool being moved: two bouts, five minutes apart, already on the
+       * piste they are being re-placed on.
+       *
+       * Already on it because that is what makes `.neq('pool_id', poolId)` on
+       * the occupant read load-bearing. Shifted five minutes, each bout lands
+       * where its SIBLING used to sit — so if the pool's own rows are not
+       * excluded from the occupant list, a re-save of a placement the pool
+       * already holds refuses itself. The service docstring says so; nothing
+       * held it.
+       */
+      const POOL_MATCHES: SupabaseRow[] = [
+        {
+          id: 'm-1',
+          pool_id: 'pool-1',
+          lice_id: 'lice-1',
+          status: 'scheduled',
+          match_number_label: 'A1',
+          scheduled_at: '2026-05-21T10:00:00.000Z',
+        },
+        {
+          id: 'm-2',
+          pool_id: 'pool-1',
+          lice_id: 'lice-1',
+          status: 'scheduled',
+          match_number_label: 'A2',
+          scheduled_at: '2026-05-21T10:05:00.000Z',
+        },
+      ];
+
+      /**
+       * Two rows the scoped reads must each skip:
+       *  - `m-cancelled` sits on the target piste at the target minute and is
+       *    voided, so only `.not('status', 'eq', 'voided')` keeps it out of the
+       *    occupant list;
+       *  - `m-other-pool-done` is a fought bout in another pool on another
+       *    piste, so only `.eq('pool_id', …)` on the scored-bout guard stops it
+       *    locking this pool.
+       */
+      const DECOYS: SupabaseRow[] = [
+        {
+          id: 'm-cancelled',
+          pool_id: 'pool-9',
+          lice_id: 'lice-1',
+          status: 'voided',
+          match_number_label: 'B1',
+          scheduled_at: '2026-05-21T10:06:00.000Z',
+        },
+        {
+          id: 'm-other-pool-done',
+          pool_id: 'pool-9',
+          lice_id: 'lice-2',
+          status: 'completed',
+          match_number_label: 'B2',
+          scheduled_at: '2026-05-21T10:06:00.000Z',
+        },
+      ];
+
+      /** The pool, its bouts, the decoys, and whatever else holds the piste. */
+      function seedPoolMove(occupants: SupabaseRow[] = []) {
+        return makeService({
+          pools: { rows: [POOL_CONTEXT] },
+          matches: { rows: [...POOL_MATCHES, ...DECOYS, ...occupants] },
+        });
       }
 
-      it('reschedulePool refuses onto an occupied piste, and writes nothing', async () => {
-        const { writeChain } = queuePoolMove(
-          [{ id: 'm-1', scheduled_at: '2026-05-21T09:00:00.000Z' }],
-          [{ id: 'other', lice_id: 'lice-1', scheduled_at: '2026-05-21T10:01:00.000Z' }],
-        );
+      /** Five minutes on, onto the piste the pool already sits on. */
+      const moveTo1005 = { liceId: 'lice-1', startAtIso: '2026-05-21T10:05:00.000Z' };
 
-        await expect(
-          service.reschedulePool(
-            'pool-1',
-            { liceId: 'lice-1', startAtIso: '2026-05-21T10:00:00.000Z' },
-            'user-1',
-          ),
-        ).rejects.toBeInstanceOf(ConflictException);
+      it('reschedulePool refuses onto an occupied piste, and writes nothing', async () => {
+        const { service, supabase } = seedPoolMove([
+          {
+            id: 'm-someone-else',
+            pool_id: 'pool-9',
+            lice_id: 'lice-1',
+            status: 'scheduled',
+            match_number_label: 'B3',
+            scheduled_at: '2026-05-21T10:06:00.000Z',
+          },
+        ]);
+
+        await expect(service.reschedulePool('pool-1', moveTo1005, 'user-1')).rejects.toBeInstanceOf(
+          ConflictException,
+        );
         // Checked on the WHOLE set before the first UPDATE, so a refusal cannot
         // leave half a pool moved.
-        expect(writeChain.update).not.toHaveBeenCalled();
+        expect(writesTo(supabase, 'matches')).toEqual([]);
       });
 
       it('reschedulePool proceeds when the piste is free', async () => {
-        queuePoolMove([{ id: 'm-1', scheduled_at: '2026-05-21T09:00:00.000Z' }], []);
+        const { service, supabase } = seedPoolMove();
 
-        await expect(
-          service.reschedulePool(
-            'pool-1',
-            { liceId: 'lice-1', startAtIso: '2026-05-21T10:00:00.000Z' },
-            'user-1',
-          ),
-        ).resolves.toBeDefined();
+        await expect(service.reschedulePool('pool-1', moveTo1005, 'user-1')).resolves.toBeDefined();
+        // One UPDATE per bout, each naming its own row.
+        expect(writesTo(supabase, 'matches').map((write) => scopedTo(write, 'id'))).toEqual([
+          'm-1',
+          'm-2',
+        ]);
       });
     });
 
@@ -345,30 +530,18 @@ describe('PhasesService', () => {
       // a single fighter — bergerSchedule(1) then threw and the request
       // crashed inside the NestJS handler. After the cap, poolCount=2 and
       // the distribution is [3, 2].
-      const fiveRegs = Array.from({ length: 5 }, (_, i) => ({
-        id: `r${i + 1}`,
-        seed: i + 1,
-        bib_number: null,
-        persons: { club_id: null },
-      }));
-
-      const phaseCheckChain = makeChain({ data: null, error: null });
-      phaseCheckChain.maybeSingle.mockResolvedValue({ data: null, error: null });
-      const regsChain = makeAwaitableChain({ data: fiveRegs, error: null });
-      const tournamentChain = makeChain({ data: { weapon: null }, error: null });
-      const phaseInsertChain = makeChain({ data: null, error: null });
-      phaseInsertChain.single.mockResolvedValue({ data: { id: 'new-phase' }, error: null });
-      const defaultChain = makeChain({ data: null, error: null });
-      defaultChain.single.mockResolvedValue({ data: { id: 'pool-x' }, error: null });
-
-      fromMock
-        .mockReturnValueOnce(phaseCheckChain)
-        // Tournament BEFORE registrations: the read was hoisted above the force
-        // path's delete so the scored-bout guard can resolve the owning org.
-        .mockReturnValueOnce(tournamentChain)
-        .mockReturnValueOnce(regsChain)
-        .mockReturnValueOnce(phaseInsertChain)
-        .mockReturnValue(defaultChain);
+      const { service } = makeService({
+        // The decoy belongs to another tournament: drop the scoping filter and
+        // this un-forced call finds a pool phase and refuses with a 409.
+        phases: { rows: [POOL_PHASE_ELSEWHERE] },
+        tournaments: { rows: TOURNAMENTS },
+        registrations: {
+          rows: [...Array.from({ length: 5 }, (_, i) => reg(`r${i + 1}`, i + 1)), ...REG_DECOYS],
+        },
+        pools: { rows: [{ id: 'pool-x' }] },
+        pool_members: { rows: [] },
+        matches: { rows: [] },
+      });
 
       const result = await service.generatePools('tournament-1', { targetSize: 2 }, false);
       expect(result.poolCount).toBe(2);
@@ -379,25 +552,16 @@ describe('PhasesService', () => {
       // (e.g. preview before the rest of the roster lands). The pool gets
       // written + the lone pool_member gets inserted, but bergerSchedule is
       // skipped so we don't crash on n<2. totalMatches stays 0.
-      const oneReg = [{ id: 'r1', seed: 1, bib_number: null, persons: { club_id: null } }];
-
-      const phaseCheckChain = makeChain({ data: null, error: null });
-      phaseCheckChain.maybeSingle.mockResolvedValue({ data: null, error: null });
-      const regsChain = makeAwaitableChain({ data: oneReg, error: null });
-      const tournamentChain = makeChain({ data: { weapon: null }, error: null });
-      const phaseInsertChain = makeChain({ data: null, error: null });
-      phaseInsertChain.single.mockResolvedValue({ data: { id: 'new-phase' }, error: null });
-      const defaultChain = makeChain({ data: null, error: null });
-      defaultChain.single.mockResolvedValue({ data: { id: 'pool-1' }, error: null });
-
-      fromMock
-        .mockReturnValueOnce(phaseCheckChain)
-        // Tournament BEFORE registrations: the read was hoisted above the force
-        // path's delete so the scored-bout guard can resolve the owning org.
-        .mockReturnValueOnce(tournamentChain)
-        .mockReturnValueOnce(regsChain)
-        .mockReturnValueOnce(phaseInsertChain)
-        .mockReturnValue(defaultChain);
+      const { service } = makeService({
+        // This decoy is the same tournament's BRACKET phase: drop
+        // `.eq('type', 'pool')` and the check finds it and refuses.
+        phases: { rows: [BRACKET_PHASE_HERE] },
+        tournaments: { rows: TOURNAMENTS },
+        registrations: { rows: [reg('r1', 1), ...REG_DECOYS] },
+        pools: { rows: [{ id: 'pool-1' }] },
+        pool_members: { rows: [] },
+        matches: { rows: [] },
+      });
 
       const result = await service.generatePools('tournament-1', { poolCount: 1 }, false);
       expect(result.poolCount).toBe(1);
@@ -405,31 +569,23 @@ describe('PhasesService', () => {
     });
 
     it('creates empty pools when there are zero registrations (operator pre-stages the layout)', async () => {
-      const phaseCheckChain = makeChain({ data: null, error: null });
-      phaseCheckChain.maybeSingle.mockResolvedValue({ data: null, error: null });
-
-      const regsChain = makeAwaitableChain({ data: [], error: null });
-      const tournamentChain = makeChain({ data: { weapon: null }, error: null });
-      const phaseInsertChain = makeChain({ data: null, error: null });
-      phaseInsertChain.single.mockResolvedValue({ data: { id: 'new-phase' }, error: null });
-      const poolInsertChain = makeChain({ data: null, error: null });
-      poolInsertChain.single.mockResolvedValue({ data: { id: 'pool-1' }, error: null });
-
-      fromMock
-        .mockReturnValueOnce(phaseCheckChain)
-        // Tournament BEFORE registrations: the read was hoisted above the force
-        // path's delete so the scored-bout guard can resolve the owning org.
-        .mockReturnValueOnce(tournamentChain)
-        .mockReturnValueOnce(regsChain)
-        .mockReturnValueOnce(phaseInsertChain)
-        .mockReturnValue(poolInsertChain);
+      const { service, supabase } = makeService({
+        phases: { rows: [POOL_PHASE_ELSEWHERE] },
+        tournaments: { rows: TOURNAMENTS },
+        // Only the two decoys. Either one leaking in gives 3 pools for 1
+        // fighter, which is the 400 below the count guard exists to raise.
+        registrations: { rows: REG_DECOYS },
+        pools: { rows: [{ id: 'pool-1' }] },
+        pool_members: { rows: [] },
+      });
 
       const result = await service.generatePools('tournament-1', { poolCount: 3 }, false);
       expect(result.poolCount).toBe(3);
       expect(result.totalMatches).toBe(0);
-      // pool_members.insert must NOT be called with [] (used to surface as 500).
-      // We can't directly assert "never called with []" across this loose mock,
-      // but the totalMatches=0 + lack of throw is the behavioural contract.
+      // pool_members.insert must NOT be called with [] (used to surface as a
+      // 500). `matches` is not seeded either — an empty pool writes to neither,
+      // and the double throws on a table nobody declared.
+      expect(writesTo(supabase, 'pool_members')).toEqual([]);
     });
   });
 
@@ -3063,7 +3219,7 @@ describe('PhasesService', () => {
     it('re-queues the alerts for every match it re-pisted', async () => {
       const matchAlerts = { refresh: vi.fn().mockResolvedValue(undefined) };
       const svc = new PhasesService(
-        mockSupabase as never,
+        legacyClient as never,
         undefined,
         mockOrgs as never,
         undefined,
@@ -3336,7 +3492,7 @@ describe('PhasesService', () => {
         }
       });
 
-      const svc = new PhasesService(mockSupabase as never, undefined, mockOrgs as never);
+      const svc = new PhasesService(legacyClient as never, undefined, mockOrgs as never);
       await svc.populateBracket('tournament-1', {}, 'system');
 
       // The whole point: the known side reaches the matches row even though the
@@ -3402,7 +3558,7 @@ describe('PhasesService', () => {
     it('refuses with ConflictException when pool phase exists but no pool data', async () => {
       const poolStandings = makePoolStandingsMock({ pools: [] });
       const svc = new PhasesService(
-        mockSupabase as never,
+        legacyClient as never,
         undefined,
         mockOrgs as never,
         undefined,
@@ -3422,7 +3578,7 @@ describe('PhasesService', () => {
 
     it('returns source="registration-seed" for straight-to-bracket tournaments', async () => {
       const svc = new PhasesService(
-        mockSupabase as never,
+        legacyClient as never,
         undefined,
         mockOrgs as never,
         undefined,
@@ -3473,7 +3629,7 @@ describe('PhasesService', () => {
       );
 
       const svc = new PhasesService(
-        mockSupabase as never,
+        legacyClient as never,
         undefined,
         mockOrgs as never,
         undefined,
@@ -3680,7 +3836,7 @@ describe('PhasesService.getTournamentBracket — seeding drift', () => {
       ? { getSwissStandings: vi.fn().mockResolvedValue(input.swiss) }
       : undefined;
     return new PhasesService(
-      mockSupabase as never,
+      legacyClient as never,
       undefined,
       mockOrgs as never,
       undefined,
