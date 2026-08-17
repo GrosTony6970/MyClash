@@ -243,6 +243,55 @@ describe('a seeded table refuses what it cannot model', () => {
     expect(ids[2]).toBe('b');
   });
 
+  // `select('id', { count: 'exact', head: true })` is how this codebase counts:
+  // PostgREST aggregates are disabled on the deployment, so a total arrives as a
+  // count with no rows. A fixture that answered zero to those would report an
+  // empty event as a full one, and vice versa.
+  const COUNTABLE = {
+    matches: {
+      rows: [
+        { id: 'a', status: 'completed' },
+        { id: 'b', status: 'completed' },
+        { id: 'c', status: 'voided' },
+      ],
+    },
+  } as const;
+
+  it('counts what the filters left, and returns no rows for a head query', async () => {
+    const res = await supabaseFrom(COUNTABLE)('matches')
+      .select('id', { count: 'exact', head: true })
+      .eq('status', 'completed');
+
+    expect(res.count).toBe(2);
+    expect(res.data).toBeNull();
+  });
+
+  it('counts the whole match, not the page a limit returned', async () => {
+    // PostgREST's exact count reports the size of the match; the limit only
+    // truncates the payload. Counting after the limit would report 1 of 1.
+    const res = await supabaseFrom(COUNTABLE)('matches')
+      .select('id', { count: 'exact' })
+      .eq('status', 'completed')
+      .limit(1);
+
+    expect(res.count).toBe(2);
+    expect(res.data).toHaveLength(1);
+  });
+
+  it('leaves count absent when the query did not ask for one', async () => {
+    const res = await supabaseFrom(COUNTABLE)('matches').select('id');
+
+    expect(res.count).toBeUndefined();
+    expect(res.data).toHaveLength(3);
+  });
+
+  it('throws on a count mode it cannot answer honestly', () => {
+    // `planned` and `estimated` are Postgres statistics, not a fact about these
+    // rows. Returning a number for them would be inventing one.
+    const chain = supabaseFrom(COUNTABLE)('matches');
+    expect(() => chain.select('id', { count: 'planned' })).toThrow(/count: "planned"/);
+  });
+
   it('still treats a bare array as a queue, never as rows', async () => {
     // A ChainResult and a table row are both plain objects, so sniffing would be
     // a guess — and a wrong guess silently changes what the test asserts.

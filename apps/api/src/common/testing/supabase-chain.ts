@@ -54,7 +54,6 @@ import { vi, type Mock } from 'vitest';
 import {
   buildChain,
   newQueryLog,
-  seededTableChain,
   type ChainResult,
   type RecordedWrite,
   type SeededTable,
@@ -62,6 +61,7 @@ import {
   type SupabaseRow,
   type TableSeed,
 } from './supabase-chain-internals';
+import { seededTableChain } from './supabase-chain-seeded';
 
 export type {
   ChainResult,
