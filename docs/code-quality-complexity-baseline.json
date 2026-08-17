@@ -1,6 +1,7 @@
 {
   "files": [
     "apps/api/src/common/event-readonly/event-readonly.guard.test.ts",
+    "apps/api/src/common/testing/supabase-chain.test.ts",
     "apps/api/src/modules/admin/admin-feature-flags.service.test.ts",
     "apps/api/src/modules/admin/admin-organizations.service.test.ts",
     "apps/api/src/modules/admin/admin-organizations.service.ts",

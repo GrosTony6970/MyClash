@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { ConflictException, ForbiddenException } from '@nestjs/common';
-import { mockSupabase, type RecordedWrite } from '../../common/testing/supabase-chain';
+import { mockSupabase, scopedTo, writesTo } from '../../common/testing/supabase-chain';
 import { MatchCompletionService } from './match-completion.service';
 
 /**
@@ -202,14 +202,6 @@ function uncompleteSupabase(fixture: {
     match_events: { rows: fixture.match_events ?? [] },
   });
 }
-
-/** Writes to `table`, in call order. */
-const writesTo = (supabase: { writes: RecordedWrite[] }, table: string) =>
-  supabase.writes.filter((write) => write.table === table);
-
-/** The value an `.eq(column, …)` scoped a write to, or undefined if unscoped. */
-const scopedTo = (write: RecordedWrite | undefined, column: string) =>
-  write?.filters.find((filter) => filter.method === 'eq' && filter.args[0] === column)?.args[1];
 
 const ORGANISER = { userId: 'organiser-1', canDiscardDependentResults: true };
 

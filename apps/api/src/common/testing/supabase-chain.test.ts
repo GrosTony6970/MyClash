@@ -1,5 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { mockSupabase, queriedTables, supabaseChain, supabaseFrom } from './supabase-chain';
+import {
+  mockSupabase,
+  queriedTables,
+  scopedTo,
+  selectsFor,
+  supabaseChain,
+  supabaseFrom,
+  writesTo,
+} from './supabase-chain';
 
 describe('supabaseChain', () => {
   it('returns itself from every filter, so chain length does not matter', async () => {
@@ -377,5 +385,52 @@ describe('not(column, is, value)', () => {
   it('still refuses an operator it does not model', () => {
     const chain = supabaseFrom({ matches: { rows: DAY_ROWS } })('matches');
     expect(() => chain.not('scheduled_at', 'gt', 1)).toThrow(/operator "gt"/);
+  });
+});
+
+// ── Assertion helpers ────────────────────────────────────────────────────────
+
+describe('writesTo / scopedTo', () => {
+  it('picks one table out of a cascade and names the row a write hit', async () => {
+    const supabase = mockSupabase({ matches: { rows: ROWS }, exchanges: { rows: [] } });
+    await supabase.service.from('exchanges').update({ voided: true }).eq('match_id', 'a');
+    await supabase.service.from('matches').update({ status: 'scheduled' }).eq('id', 'c');
+
+    expect(writesTo(supabase, 'matches')).toHaveLength(1);
+    expect(scopedTo(writesTo(supabase, 'matches')[0], 'id')).toBe('c');
+    expect(scopedTo(writesTo(supabase, 'exchanges')[0], 'match_id')).toBe('a');
+  });
+
+  it('reports an unscoped write as undefined rather than guessing', async () => {
+    const supabase = mockSupabase({ matches: { rows: ROWS } });
+    await supabase.service.from('matches').update({ status: 'scheduled' });
+    expect(scopedTo(writesTo(supabase, 'matches')[0], 'id')).toBeUndefined();
+  });
+});
+
+describe('selectsFor', () => {
+  it('collects one table projections and ignores another table', async () => {
+    const from = supabaseFrom({ matches: { rows: ROWS }, exchanges: { rows: [] } });
+    await from('matches').select('id, status');
+    await from('exchanges').select('sequence');
+    expect(selectsFor(from, 'matches')).toEqual(['id, status']);
+    expect(selectsFor(from, 'exchanges')).toEqual(['sequence']);
+  });
+
+  it('is not fooled by the order the tables were queried in', async () => {
+    // The index-based spelling reads results[0] and gets whichever table
+    // happened to go first. Inserting a query upstream would silently move it.
+    const from = supabaseFrom({ matches: { rows: ROWS }, exchanges: { rows: [] } });
+    await from('exchanges').select('sequence');
+    await from('matches').select('id, status');
+    expect(selectsFor(from, 'matches')).toEqual(['id, status']);
+  });
+
+  it('skips a call that threw, so the real failure is not buried', () => {
+    const from = supabaseFrom({ matches: { rows: ROWS } });
+    from('matches').select('id');
+    expect(() => from('phases')).toThrow(/unconfigured table/);
+    expect(selectsFor(from, 'matches')).toEqual(['id']);
+    expect(selectsFor(from, 'phases')).toEqual([]);
   });
 });

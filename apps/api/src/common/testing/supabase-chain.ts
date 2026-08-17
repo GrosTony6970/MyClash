@@ -153,3 +153,35 @@ export function mockSupabase(byTable: Readonly<Record<string, TableSeed>>): {
 export function queriedTables(from: Mock<(table: string) => SupabaseChain>): string[] {
   return from.mock.calls.map(([table]) => table);
 }
+
+/** Writes to `table`, in call order. */
+export const writesTo = (supabase: { writes: RecordedWrite[] }, table: string): RecordedWrite[] =>
+  supabase.writes.filter((write) => write.table === table);
+
+/** The value an `.eq(column, …)` scoped a write to, or undefined if unscoped. */
+export const scopedTo = (write: RecordedWrite | undefined, column: string): unknown =>
+  write?.filters.find((filter) => filter.method === 'eq' && filter.args[0] === column)?.args[1];
+
+/**
+ * Every projection string asked of `table`, in call order.
+ *
+ * Routed by TABLE, not by index. The obvious spelling —
+ * `from.mock.results[2].value.select.mock.calls[0][0]` — is order-dependent in
+ * exactly the way this module exists to remove: insert a query upstream and the
+ * assertion silently reads a different table's projection.
+ *
+ * Worth having at all because the double ignores the projection, so a value-only
+ * assertion stays green with the column deleted from the read. That is how a
+ * column can sit missing from a select for years under a passing suite.
+ *
+ * Results whose `type` is not `'return'` are skipped: `from()` THROWS on an
+ * unconfigured table, and reading `.select` off the recorded Error would bury
+ * that failure under a TypeError.
+ */
+export function selectsFor(from: Mock<(table: string) => SupabaseChain>, table: string): string[] {
+  return from.mock.calls.flatMap(([queried], index) => {
+    const call = from.mock.results[index];
+    if (queried !== table || call?.type !== 'return') return [];
+    return call.value.select.mock.calls.map((args) => args[0] as string);
+  });
+}
