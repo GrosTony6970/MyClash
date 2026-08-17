@@ -204,19 +204,39 @@ export function buildChain(
 }
 
 /**
- * Compare two cells for `order`.
- *
- * A null or absent value THROWS rather than sorting somewhere. Postgres orders
- * nulls last ascending and first descending; guessing that wrong would reorder a
- * result and let a test assert the wrong row with no sign of it. A fixture that
- * needs null ordering should say so and this should learn it.
+ * Compare two PRESENT cells for `order`. Nulls never reach here — where they
+ * sort is decided by {@link orderRows}, because it is a property of the query,
+ * not of the two values.
  */
-function compareCells(a: unknown, b: unknown, column: string): number {
-  if (a === null || a === undefined || b === null || b === undefined) {
-    throw unsupported('order', `column "${column}" holds null in this fixture`);
-  }
+function compareCells(a: unknown, b: unknown): number {
   if (typeof a === 'number' && typeof b === 'number') return a - b;
   return String(a).localeCompare(String(b));
+}
+
+/**
+ * Sort a seeded table the way Postgres would.
+ *
+ * Nulls sort as a block at one end, independent of the ascending flag — an
+ * absent column reads as null, matching `is`. Postgres puts that block LAST
+ * ascending and FIRST descending, and PostgREST's `nullsFirst` option overrides
+ * it, so the resolved rule is `nullsFirst ?? !ascending`. Getting this backwards
+ * would reorder a result and let a test assert the wrong row with no sign of it,
+ * which is why it is spelled out rather than left to sort's own null handling.
+ */
+function orderRows(
+  rows: SupabaseRow[],
+  { column, ascending, nullsFirst }: Ordering,
+): SupabaseRow[] {
+  const nullsLead = nullsFirst ?? !ascending;
+  return rows.sort((a, b) => {
+    const left = a[column] ?? null;
+    const right = b[column] ?? null;
+    if (left === null || right === null) {
+      if (left === null && right === null) return 0;
+      return (left === null ? 1 : -1) * (nullsLead ? -1 : 1);
+    }
+    return compareCells(left, right) * (ascending ? 1 : -1);
+  });
 }
 
 /**
@@ -260,32 +280,35 @@ const inRange =
  * them in — filters, then sort, then truncate. Applying `limit` early would take
  * the first rows seeded rather than the first rows wanted.
  */
+interface Ordering {
+  column: string;
+  ascending: boolean;
+  /** Undefined means "whatever Postgres would do", i.e. `!ascending`. */
+  nullsFirst: boolean | undefined;
+}
+
 interface RowSet {
   /** What survived, sorted and truncated — computed fresh on every read. */
   current(): SupabaseRow[];
   narrow(predicate: (row: SupabaseRow) => boolean): void;
-  orderBy(column: string, ascending: boolean): void;
+  orderBy(ordering: Ordering): void;
   limitTo(count: number): void;
 }
 
 function rowSet(seed: readonly SupabaseRow[]): RowSet {
   let working: SupabaseRow[] = [...seed];
-  let ordering: { column: string; ascending: boolean } | null = null;
+  let ordering: Ordering | null = null;
   let cap: number | null = null;
   return {
     current: () => {
-      const out = [...working];
-      if (ordering) {
-        const { column, ascending } = ordering;
-        out.sort((a, b) => compareCells(a[column], b[column], column) * (ascending ? 1 : -1));
-      }
+      const out = ordering ? orderRows([...working], ordering) : [...working];
       return cap === null ? out : out.slice(0, cap);
     },
     narrow: (predicate) => {
       working = working.filter(predicate);
     },
-    orderBy: (column, ascending) => {
-      ordering = { column, ascending };
+    orderBy: (next) => {
+      ordering = next;
     },
     limitTo: (count) => {
       cap = count;
@@ -330,11 +353,16 @@ function installNarrowing(chain: SupabaseChain, log: QueryLog, set: RowSet): voi
   chain.gte = vi.fn((c: string, v: unknown) => narrow('gte', [c, v], inRange('gte', c, v)));
   chain.lt = vi.fn((c: string, v: unknown) => narrow('lt', [c, v], inRange('lt', c, v)));
 
-  chain.order = vi.fn((column: string, options?: { ascending?: boolean }) => {
-    const extra = Object.keys(options ?? {}).filter((key) => key !== 'ascending');
+  chain.order = vi.fn((column: string, options?: { ascending?: boolean; nullsFirst?: boolean }) => {
+    const known = ['ascending', 'nullsFirst'];
+    const extra = Object.keys(options ?? {}).filter((key) => !known.includes(key));
     if (extra.length > 0) throw unsupported('order', `option "${extra[0]}"`);
     log.note('order', [column, options]);
-    set.orderBy(column, options?.ascending ?? true);
+    set.orderBy({
+      column,
+      ascending: options?.ascending ?? true,
+      nullsFirst: options?.nullsFirst,
+    });
     return chain;
   });
   chain.limit = vi.fn((count: number) => {

@@ -1373,12 +1373,10 @@ describe('PhasesService', () => {
       makeService({
         phases: { rows: [RESEED_PHASE] },
         bracket_slots: { rows: NOT_R1_SLOTS },
-        // CANNED, not seeded. This read ends
-        // `.order('seed', { ascending: true, nullsFirst: false })`, and the
-        // double refuses an order option it does not model rather than guess
-        // where nulls go — a wrong guess silently reorders a draw. Its filters
-        // are not what these tests are about; the projection and the persisted
-        // seed are.
+        // CANNED, not seeded — by choice, not by limitation. Its filters are
+        // not what these tests are about; the projection and the persisted seed
+        // are. (The double models `nullsFirst` since the staff slice, so seeding
+        // this read is now possible if a test ever needs its filters.)
         registrations: { data: registrations, error: null },
         tournaments: { rows: [{ id: 'tournament-1' }] },
         audit_log: { rows: [] },
@@ -2896,8 +2894,9 @@ describe('PhasesService', () => {
             { id: 'match-r1p1', bracket_slot_id: 'slot-r1p1', status: 'scheduled' },
           ],
         },
-        // Canned: this read ends `.order('seed', { nullsFirst: false })`, an
-        // option the double refuses to guess at rather than model.
+        // Canned by choice: this read's filters are not what the test asserts.
+        // Its `.order('seed', { nullsFirst: false })` is modelled now, so it
+        // could be seeded if a later test needs to narrow on it.
         registrations: { data: [{ id: 'reg-1', seed: 1, bib_number: null }], error: null },
         tournaments: {
           rows: [{ id: 'tournament-1', ruleset_code: 'TF', ruleset_version: '1.0.0' }],
@@ -3231,10 +3230,10 @@ describe('PhasesService.getTournamentBracket — seeding drift', () => {
       },
       bracket_slots: { rows: input.slots },
       matches: { rows: input.matches ?? [] },
-      // Canned: the Swiss path reaches loadSeedableRegistrations, whose
-      // `.order('seed', { nullsFirst: false })` the double refuses to model —
-      // and the drift check swallows the throw as `not-applicable`, which is
-      // the quietest way this could have gone wrong.
+      // Canned: the Swiss path reaches loadSeedableRegistrations, and an empty
+      // registration list is what this drift check wants. Note the check
+      // swallows a throw from here as `not-applicable`, so a seeded read that
+      // hit an unmodelled call would go quiet rather than red.
       registrations: { data: [], error: null },
       tournaments: { rows: [{ id: 'tournament-1', event_id: null }] },
     });

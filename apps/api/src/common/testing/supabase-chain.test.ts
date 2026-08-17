@@ -198,16 +198,49 @@ describe('a seeded table refuses what it cannot model', () => {
 
   it('throws on an order option it does not model', () => {
     const chain = supabaseFrom({ matches: { rows: ROWS } })('matches');
-    expect(() => chain.order('seq', { ascending: true, nullsFirst: true })).toThrow(
-      /option "nullsFirst"/,
+    expect(() => chain.order('seq', { ascending: true, descending: true })).toThrow(
+      /option "descending"/,
     );
   });
 
-  it('throws rather than guess where a null sorts', () => {
-    const chain = supabaseFrom({ matches: { rows: [{ id: 'a' }, { id: 'b', seq: 1 }] } })(
-      'matches',
-    );
-    expect(() => chain.order('seq').limit(1).maybeSingle()).toThrow(/holds null in this fixture/);
+  // Postgres sorts nulls LAST ascending and FIRST descending; `nullsFirst`
+  // overrides that. A fixture with a null in the sorted column is the common
+  // case, not an exotic one — `events.start_date` on a draft is null, and the
+  // picker orders on it.
+  const NULL_SORT = { matches: { rows: [{ id: 'a' }, { id: 'b', seq: 1 }] } } as const;
+
+  it('sorts nulls last when ascending, the Postgres default', async () => {
+    const { data } = await supabaseFrom(NULL_SORT)('matches').select().order('seq');
+    expect((data as Array<{ id: string }>).map((r) => r.id)).toEqual(['b', 'a']);
+  });
+
+  it('sorts nulls first when descending, the Postgres default', async () => {
+    const { data } = await supabaseFrom(NULL_SORT)('matches')
+      .select()
+      .order('seq', { ascending: false });
+    expect((data as Array<{ id: string }>).map((r) => r.id)).toEqual(['a', 'b']);
+  });
+
+  it('lets nullsFirst override the default in both directions', async () => {
+    const from = supabaseFrom(NULL_SORT);
+    const asc = await from('matches').select().order('seq', { nullsFirst: true });
+    expect((asc.data as Array<{ id: string }>).map((r) => r.id)).toEqual(['a', 'b']);
+
+    const desc = await from('matches')
+      .select()
+      .order('seq', { ascending: false, nullsFirst: false });
+    expect((desc.data as Array<{ id: string }>).map((r) => r.id)).toEqual(['b', 'a']);
+  });
+
+  it('treats an absent column the same as an explicit null, matching is()', async () => {
+    const { data } = await supabaseFrom({
+      matches: { rows: [{ id: 'a', seq: null }, { id: 'b', seq: 2 }, { id: 'c' }] },
+    })('matches')
+      .select()
+      .order('seq', { nullsFirst: true });
+    const ids = (data as Array<{ id: string }>).map((r) => r.id);
+    expect(ids.slice(0, 2).sort()).toEqual(['a', 'c']);
+    expect(ids[2]).toBe('b');
   });
 
   it('still treats a bare array as a queue, never as rows', async () => {
