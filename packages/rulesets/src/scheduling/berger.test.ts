@@ -93,6 +93,41 @@ describe('bergerSchedule', () => {
     expect(matches[0]?.label).toBe('L1-PA-M1');
   });
 
+  /**
+   * The property these three hold is not the spelling, it is that sorting the
+   * labels as TEXT gives the order the bouts are fought in.
+   *
+   * Three reads order a pool by this column in SQL — the spectator display's
+   * "Fight X / Y" and the two scheduling reads that hand out times — and
+   * Postgres sorts text, so an unpadded M10 lands ahead of M2. Comparing a
+   * plain `.sort()` against generation order is the same comparison Postgres
+   * makes.
+   */
+  it('leaves a pool under ten bouts unpadded, where text order already agrees', () => {
+    // Four fighters is six bouts. A zero there would be noise on the TV.
+    const labels = bergerSchedule(4).map((m) => m.label);
+    expect(labels[0]).toBe('L1-PA-M1');
+    expect([...labels].sort()).toEqual(labels);
+  });
+
+  it('pads once a pool reaches ten bouts, so M2 stays ahead of M10', () => {
+    // Six fighters is fifteen bouts — the size this was reported at.
+    const labels = bergerSchedule(6).map((m) => m.label);
+    expect(labels).toHaveLength(15);
+    expect(labels[0]).toBe('L1-PA-M01');
+    expect(labels[1]).toBe('L1-PA-M02');
+    expect(labels[14]).toBe('L1-PA-M15');
+    expect([...labels].sort()).toEqual(labels);
+  });
+
+  it('widens to three digits for a pool past ninety-nine bouts', () => {
+    const labels = bergerSchedule(15).map((m) => m.label);
+    expect(labels).toHaveLength(105);
+    expect(labels[0]).toBe('L1-PA-M001');
+    expect(labels[104]).toBe('L1-PA-M105');
+    expect([...labels].sort()).toEqual(labels);
+  });
+
   // ── Sequence numbers ──────────────────────────────────────────────────────
   it('sequence numbers are 1-indexed and contiguous', () => {
     const matches = bergerSchedule(6);

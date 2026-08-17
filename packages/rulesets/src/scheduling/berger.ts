@@ -26,13 +26,31 @@ export interface BergerMatch {
   sequence: number;
   homeIndex: number; // index into the registrationIds array
   awayIndex: number;
-  /** Match label: L{lice}-P{pool}-M{seq} */
+  /** Match label: `L{lice}-P{pool}-M{seq}`, seq zero-padded — see below. */
   label: string;
 }
 
 export interface BergerScheduleOptions {
   liceLabel?: string; // e.g. "1" → "L1"
   poolLabel?: string; // e.g. "A" → "PA"
+}
+
+/**
+ * Width of the sequence inside a pool's match labels, so a label sorts the way
+ * the number inside it does.
+ *
+ * Three reads order a pool's matches by `match_number_label` in SQL: the
+ * spectator display's "Fight X / Y", and the two scheduling reads that hand out
+ * times. Postgres sorts that column as TEXT, which puts M10 ahead of M2 the
+ * moment a pool reaches ten bouts — and a pool of five fighters is ten bouts,
+ * so that is the ordinary case rather than a large-pool edge.
+ *
+ * The width comes from the pool's own total: no padding below ten bouts, three
+ * digits past ninety-nine. Consumers that read the number back out of a label
+ * parse it with `Number`/`parseInt`, which ignore the zeros.
+ */
+function labelWidth(n: number): number {
+  return String(totalMatches(n)).length;
 }
 
 /**
@@ -59,6 +77,8 @@ export function bergerSchedule(n: number, options: BergerScheduleOptions = {}): 
   // Position 0 is the fixed pivot; positions 1..size-1 rotate.
   const rotation = Array.from({ length: size }, (_, i) => i);
 
+  const width = labelWidth(n);
+
   const matches: BergerMatch[] = [];
   let sequence = 1;
 
@@ -76,7 +96,7 @@ export function bergerSchedule(n: number, options: BergerScheduleOptions = {}): 
         sequence,
         homeIndex: home,
         awayIndex: away,
-        label: `L${lice}-P${pool}-M${sequence}`,
+        label: `L${lice}-P${pool}-M${String(sequence).padStart(width, '0')}`,
       });
       sequence++;
     }
