@@ -5,6 +5,7 @@ import {
   queriedTables,
   scopedTo,
   writesTo,
+  type ChainResult,
   type SupabaseRow,
   type TableSeed,
 } from '../../common/testing/supabase-chain';
@@ -593,40 +594,55 @@ describe('PhasesService', () => {
 
   describe('pool lifecycle', () => {
     it('addEmptyPool stands up a new phase + one pool when none exists', async () => {
-      const lookupPhase = makeChain({ data: null, error: null });
-      lookupPhase.maybeSingle.mockResolvedValue({ data: null, error: null });
-      const tournamentLookup = makeChain({
-        data: { events: { organization_id: 'org-1' } },
-        error: null,
+      const { service, supabase } = makeService({
+        // Wrong tournament first, so dropping `.eq('id', …)` resolves the
+        // wrong organisation and the role assertion below names it.
+        tournaments: {
+          rows: [
+            { id: 'other-tournament', events: { organization_id: 'org-elsewhere' } },
+            { id: 'tournament-1', events: { organization_id: 'org-1' } },
+          ],
+        },
+        // Another tournament's pool phase. There is none HERE, so one is stood
+        // up — and `insert(...).select('id').single()` reads this same row
+        // back, which is why there is one decoy and not two.
+        phases: {
+          rows: [{ id: 'phase-elsewhere', tournament_id: 'other-tournament', type: 'pool' }],
+        },
+        // Likewise: this pool hangs off another phase, so the "max sort_order"
+        // read finds nothing and the new pool is Pool 1 at sort_order 0.
+        pools: { rows: [{ id: 'pool-1', name: 'Pool 1', sort_order: 0, phase_id: 'phase-9' }] },
       });
-      const phaseInsert = makeChain({ data: null, error: null });
-      phaseInsert.single.mockResolvedValue({ data: { id: 'new-phase' }, error: null });
-      const existingPools = makeAwaitableChain({ data: [], error: null });
-      const poolInsert = makeChain({ data: null, error: null });
-      poolInsert.single.mockResolvedValue({
-        data: { id: 'pool-1', name: 'Pool 1', sort_order: 0 },
-        error: null,
-      });
-
-      fromMock
-        .mockReturnValueOnce(tournamentLookup)
-        .mockReturnValueOnce(lookupPhase)
-        .mockReturnValueOnce(phaseInsert)
-        .mockReturnValueOnce(existingPools)
-        .mockReturnValueOnce(poolInsert);
 
       const result = await service.addEmptyPool('tournament-1', 'user-1');
+
+      expect(mockOrgs.assertOrgRole).toHaveBeenCalledWith('org-1', 'user-1', 'admin');
+      // A phase was created rather than an existing one adopted.
+      expect(writesTo(supabase, 'phases')).toHaveLength(1);
+      // What was WRITTEN, not what the fixture handed back: the sort_order is
+      // computed from the pools already in this phase, and there are none.
+      expect(writesTo(supabase, 'pools')[0]?.row).toMatchObject({ name: 'Pool 1', sort_order: 0 });
       expect(result).toMatchObject({ id: 'pool-1', name: 'Pool 1', sortOrder: 0 });
     });
 
     it('deleteAllPools is a no-op when there is no pool phase', async () => {
-      const lookupPhase = makeChain({ data: null, error: null });
-      lookupPhase.maybeSingle.mockResolvedValue({ data: null, error: null });
-
-      fromMock.mockReturnValueOnce(lookupPhase);
+      // One decoy per filter on the lookup: another tournament's pool phase,
+      // and this tournament's BRACKET phase. Neither is this tournament's pool
+      // phase — and dropping either filter finds one of them and walks on into
+      // a `tournaments` read that is not seeded at all.
+      const { service, supabase } = makeService({
+        phases: {
+          rows: [
+            { id: 'pool-elsewhere', tournament_id: 'other-tournament', type: 'pool' },
+            { id: 'bracket-here', tournament_id: 'tournament-1', type: 'single_elim' },
+          ],
+        },
+      });
 
       // Should resolve without throwing or making destructive calls.
       await expect(service.deleteAllPools('tournament-1', 'user-1')).resolves.toBeUndefined();
+      expect(queriedTables(supabase.from)).toEqual(['phases']);
+      expect(supabase.writes).toEqual([]);
     });
 
     /**
@@ -638,76 +654,120 @@ describe('PhasesService', () => {
      * with it through ON DELETE CASCADE; there is nothing left to recover from.
      */
     it('deleteAllPools refuses once any bout in the phase has been scored', async () => {
-      const matchesQuery = makeAwaitableChain({
-        data: [{ id: 'match-9', status: 'completed' }],
-        error: null,
-      });
-      const deleteChain = makeChain({ data: null, error: null });
-      fromMock.mockImplementation((table: string) => {
-        if (table === 'phases') {
-          const chain = makeChain({ data: null, error: null });
-          chain.maybeSingle.mockResolvedValue({
-            data: { id: 'phase-1', tournament_id: 'tournament-1' },
-            error: null,
-          });
-          return chain;
-        }
-        if (table === 'tournaments') {
-          const chain = makeChain({ data: null, error: null });
-          chain.maybeSingle.mockResolvedValue({
-            data: { events: { organization_id: 'org-1' } },
-            error: null,
-          });
-          return chain;
-        }
-        if (table === 'matches') return matchesQuery;
-        return deleteChain;
+      const { service, supabase } = makeService({
+        phases: { rows: [{ id: 'phase-1', tournament_id: 'tournament-1', type: 'pool' }] },
+        tournaments: { rows: [{ id: 'tournament-1', events: { organization_id: 'org-1' } }] },
+        matches: { rows: [{ id: 'match-9', phase_id: 'phase-1', status: 'completed' }] },
       });
 
       await expect(service.deleteAllPools('tournament-1', 'user-1')).rejects.toThrow(
         ConflictException,
       );
-      // Refused BEFORE the destructive call, not after it.
-      expect(matchesQuery.delete).not.toHaveBeenCalled();
-      expect(deleteChain.delete).not.toHaveBeenCalled();
+      // Refused BEFORE the destructive call, not after it. `pools` and
+      // `pool_members` are not seeded either, so the cascade cannot even reach
+      // them without throwing.
+      expect(supabase.writes).toEqual([]);
     });
 
     it('deleteAllPools proceeds when nothing in the phase has been scored', async () => {
-      const matchesQuery = makeAwaitableChain({ data: [], error: null });
-      const generic = makeChain({ data: [], error: null });
-      fromMock.mockImplementation((table: string) => {
-        if (table === 'phases') {
-          const chain = makeChain({ data: null, error: null });
-          chain.maybeSingle.mockResolvedValue({
-            data: { id: 'phase-1', tournament_id: 'tournament-1' },
-            error: null,
-          });
-          return chain;
-        }
-        if (table === 'tournaments') {
-          const chain = makeChain({ data: null, error: null });
-          chain.maybeSingle.mockResolvedValue({
-            data: { events: { organization_id: 'org-1' } },
-            error: null,
-          });
-          return chain;
-        }
-        if (table === 'matches') return matchesQuery;
-        return generic;
+      const { service, supabase } = makeService({
+        phases: { rows: [{ id: 'phase-1', tournament_id: 'tournament-1', type: 'pool' }] },
+        tournaments: { rows: [{ id: 'tournament-1', events: { organization_id: 'org-1' } }] },
+        matches: {
+          rows: [
+            { id: 'm-1', phase_id: 'phase-1', status: 'scheduled' },
+            // Fought, but in another phase: `.eq('phase_id', …)` on the guard
+            // is the only thing stopping it locking this one.
+            { id: 'm-elsewhere', phase_id: 'phase-9', status: 'completed' },
+          ],
+        },
+        pools: {
+          rows: [
+            { id: 'pool-1', phase_id: 'phase-1' },
+            { id: 'pool-9', phase_id: 'phase-9' },
+          ],
+        },
+        pool_members: { rows: [] },
       });
 
       await expect(service.deleteAllPools('tournament-1', 'user-1')).resolves.toBeUndefined();
-      expect(matchesQuery.delete).toHaveBeenCalled();
+
+      // The documented order — matches, members, pools, phase — with every
+      // statement naming what it is allowed to take. A `pool_members` delete
+      // that reached pool-9 would take another phase's roster with it.
+      expect(supabase.writes.map((write) => `${write.table}.${write.op}`)).toEqual([
+        'matches.delete',
+        'pool_members.delete',
+        'pools.delete',
+        'phases.delete',
+      ]);
+      expect(scopedTo(writesTo(supabase, 'matches')[0], 'phase_id')).toBe('phase-1');
+      expect(writesTo(supabase, 'pool_members')[0]?.filters).toEqual([
+        { method: 'in', args: ['pool_id', ['pool-1']] },
+      ]);
+      expect(scopedTo(writesTo(supabase, 'pools')[0], 'phase_id')).toBe('phase-1');
+      expect(scopedTo(writesTo(supabase, 'phases')[0], 'id')).toBe('phase-1');
     });
   });
 
   // ── generateBracket — idempotency ─────────────────────────────────────────
 
   describe('generateBracket — idempotency', () => {
+    /**
+     * The answers `generateBracket` wants from `phases`, in the order it asks.
+     *
+     * This one table stays a per-table QUEUE rather than a `{ rows }` seed,
+     * because its four reads want four different things: nothing on the
+     * existence check, the new id back from the insert, the stored config on
+     * the read-back, and nothing again on the pool gate. A seeded table is a
+     * fixture and not a database — a write does not change what the next read
+     * of the same table returns — so no single seed can answer all four.
+     *
+     * The ordering that leaves behind is real, but it is scoped to ONE table
+     * and written next to its own answers. A new query on bracket_slots,
+     * matches or registrations can no longer shift it, and that cross-table
+     * shift is the desync this migration exists to remove.
+     */
+    const phasesQueue = (
+      config: Record<string, unknown>,
+      opts: { type?: string; bronzeUpdate?: boolean; rulesetLookup?: boolean } = {},
+    ): ChainResult[] => [
+      { data: null, error: null }, // 1. existence check — no elim phase yet
+      { data: { id: 'phase-new' }, error: null }, // 2. insert … .select('id').single()
+      // 3. the bronzeSlotId config update, whose result the service discards
+      ...(opts.bronzeUpdate ? [{ data: null, error: null }] : []),
+      // 4. matchRulesetForPhase — null falls back to the TF_v1 stamp
+      ...(opts.rulesetLookup ? [{ data: null, error: null }] : []),
+      {
+        // 5. getTournamentBracket reads the phase back
+        data: {
+          id: 'phase-new',
+          type: opts.type ?? 'single_elim',
+          visibility_status: 'hidden',
+          config_json: config,
+        },
+        error: null,
+      },
+      { data: null, error: null }, // 6. pool gate — straight-to-bracket
+    ];
+
+    /** `n` qualifying registrations, plus the two rows the query must skip. */
+    const qualifiers = (n: number): SupabaseRow[] => [
+      ...Array.from({ length: n }, (_, i) => ({
+        id: `r${i}`,
+        tournament_id: 'tournament-1',
+        status: 'registered',
+      })),
+      { id: 'r-elsewhere', tournament_id: 'other-tournament', status: 'registered' },
+      { id: 'r-withdrawn', tournament_id: 'tournament-1', status: 'withdrawn' },
+    ];
+
     it('throws ConflictException when bracket phase already exists (no force)', async () => {
-      const chain = makeChain({ data: null, error: null });
-      chain.maybeSingle.mockResolvedValue({ data: { id: 'phase-1' }, error: null });
-      fromMock.mockReturnValue(chain);
+      const { service } = makeService({
+        phases: {
+          rows: [{ id: 'phase-1', tournament_id: 'tournament-1', type: 'single_elim' }],
+        },
+      });
 
       await expect(service.generateBracket('tournament-1', {}, false)).rejects.toThrow(
         ConflictException,
@@ -715,25 +775,21 @@ describe('PhasesService', () => {
     });
 
     it('throws BadRequestException when fewer than 2 fighters qualify', async () => {
-      const oneReg = [{ id: 'r1' }];
+      const { service } = makeService({
+        phases: { rows: [] },
+        registrations: { rows: qualifiers(1) },
+      });
 
-      const phaseCheckChain = makeChain({ data: null, error: null });
-      phaseCheckChain.maybeSingle.mockResolvedValue({ data: null, error: null });
-
-      const regsChain = makeAwaitableChain({ data: oneReg, error: null });
-
-      fromMock.mockReturnValueOnce(phaseCheckChain).mockReturnValueOnce(regsChain);
-
+      // Named, not just typed: either decoy leaking into the count also ends in
+      // a BadRequestException — from the phase insert, several steps later —
+      // so only the message distinguishes the guard from the wreckage.
       await expect(service.generateBracket('tournament-1', {}, false)).rejects.toThrow(
-        BadRequestException,
+        'Need at least 2 fighters to generate a bracket',
       );
     });
 
     it('throws BadRequestException when generated bracket would exceed 128 slots', async () => {
-      const phaseCheckChain = makeChain({ data: null, error: null });
-      phaseCheckChain.maybeSingle.mockResolvedValue({ data: null, error: null });
-
-      fromMock.mockReturnValueOnce(phaseCheckChain);
+      const { service } = makeService({ phases: { rows: [] } });
 
       await expect(
         service.generateBracket('tournament-1', { qualifyCount: 256 }, false),
@@ -741,28 +797,12 @@ describe('PhasesService', () => {
     });
 
     it('creates bracket with correct structure for 8 fighters', async () => {
-      const eightRegs = Array.from({ length: 8 }, (_, i) => ({ id: `r${i}` }));
-
-      const phaseCheckChain = makeChain({ data: null, error: null });
-      phaseCheckChain.maybeSingle.mockResolvedValue({ data: null, error: null });
-
-      const regsChain = makeAwaitableChain({ data: eightRegs, error: null });
-
-      const phaseInsertChain = makeChain({ data: null, error: null });
-      phaseInsertChain.single.mockResolvedValue({ data: { id: 'phase-new' }, error: null });
-
-      const defaultChain = makeChain({ data: null, error: null });
-
-      // Trailing reads from the post-write getTournamentBracket() delegation.
-      // generateBracket now reads back the canonical shape so the response
-      // matches what GET /tournaments/:id/bracket returns.
-      const phaseReadChain = makeChain({ data: null, error: null });
-      phaseReadChain.maybeSingle.mockResolvedValue({
-        data: {
-          id: 'phase-new',
-          type: 'single_elim',
-          visibility_status: 'hidden',
-          config_json: {
+      const { service, supabase } = makeService({
+        // Trailing reads come from the post-write getTournamentBracket()
+        // delegation: generateBracket reads the canonical shape back so the
+        // response matches what GET /tournaments/:id/bracket returns.
+        phases: phasesQueue(
+          {
             bracketSize: 8,
             fighterCount: 8,
             byeCount: 0,
@@ -771,27 +811,29 @@ describe('PhasesService', () => {
             hasPlayInRound: false,
             rounds: 3,
           },
+          { rulesetLookup: true },
+        ),
+        registrations: { rows: qualifiers(8) },
+        // Eight slots for this phase, and one for another — the read-back is
+        // scoped by phase_id, and a ninth slot in the response would be
+        // another bracket's.
+        bracket_slots: {
+          rows: [
+            ...Array.from({ length: 8 }, (_, i) => ({
+              id: `s${i}`,
+              phase_id: 'phase-new',
+              round: 0,
+              position: i,
+            })),
+            { id: 's-elsewhere', phase_id: 'phase-9', round: 0, position: 9 },
+          ],
         },
-        error: null,
+        matches: { rows: [] },
+        tournaments: { rows: [{ id: 'tournament-1', event_id: null }] },
       });
-      const slotsReadChain = makeAwaitableChain({
-        data: Array.from({ length: 8 }, (_, i) => ({ id: `s${i}`, round: 0, position: i })),
-        error: null,
-      });
-
-      fromMock
-        .mockReturnValueOnce(phaseCheckChain)
-        .mockReturnValueOnce(regsChain)
-        .mockReturnValueOnce(phaseInsertChain)
-        .mockReturnValueOnce(defaultChain) // bracket_slots insert — no-op
-        .mockReturnValueOnce(phaseReadChain) // delegation read 1
-        .mockReturnValueOnce(slotsReadChain) // delegation read 2
-        .mockReturnValue(defaultChain);
 
       const result = await service.generateBracket('tournament-1', {}, false);
-      expect(phaseInsertChain.insert).toHaveBeenCalledWith(
-        expect.objectContaining({ visibility_status: 'hidden' }),
-      );
+      expect(writesTo(supabase, 'phases')[0]?.row).toMatchObject({ visibility_status: 'hidden' });
       expect((result as { bracketSize: number }).bracketSize).toBe(8);
       expect((result as { rounds: number }).rounds).toBe(3);
       expect((result as { byeCount: number }).byeCount).toBe(0);
@@ -801,25 +843,9 @@ describe('PhasesService', () => {
     });
 
     it('respects explicit bracketSize option', async () => {
-      const sixRegs = Array.from({ length: 6 }, (_, i) => ({ id: `r${i}` }));
-
-      const phaseCheckChain = makeChain({ data: null, error: null });
-      phaseCheckChain.maybeSingle.mockResolvedValue({ data: null, error: null });
-
-      const regsChain = makeAwaitableChain({ data: sixRegs, error: null });
-
-      const phaseInsertChain = makeChain({ data: null, error: null });
-      phaseInsertChain.single.mockResolvedValue({ data: { id: 'phase-new' }, error: null });
-
-      const defaultChain = makeChain({ data: null, error: null });
-
-      const phaseReadChain = makeChain({ data: null, error: null });
-      phaseReadChain.maybeSingle.mockResolvedValue({
-        data: {
-          id: 'phase-new',
-          type: 'single_elim',
-          visibility_status: 'hidden',
-          config_json: {
+      const { service } = makeService({
+        phases: phasesQueue(
+          {
             bracketSize: 8,
             fighterCount: 6,
             byeCount: 2,
@@ -828,22 +854,20 @@ describe('PhasesService', () => {
             hasPlayInRound: false,
             rounds: 3,
           },
+          { rulesetLookup: true },
+        ),
+        registrations: { rows: qualifiers(6) },
+        bracket_slots: {
+          rows: Array.from({ length: 8 }, (_, i) => ({
+            id: `s${i}`,
+            phase_id: 'phase-new',
+            round: 0,
+            position: i,
+          })),
         },
-        error: null,
+        matches: { rows: [] },
+        tournaments: { rows: [{ id: 'tournament-1', event_id: null }] },
       });
-      const slotsReadChain = makeAwaitableChain({
-        data: Array.from({ length: 8 }, (_, i) => ({ id: `s${i}`, round: 0, position: i })),
-        error: null,
-      });
-
-      fromMock
-        .mockReturnValueOnce(phaseCheckChain)
-        .mockReturnValueOnce(regsChain)
-        .mockReturnValueOnce(phaseInsertChain)
-        .mockReturnValueOnce(defaultChain) // bracket_slots insert — no-op
-        .mockReturnValueOnce(phaseReadChain) // delegation read 1
-        .mockReturnValueOnce(slotsReadChain) // delegation read 2
-        .mockReturnValue(defaultChain);
 
       const result = await service.generateBracket('tournament-1', { bracketSize: 8 }, false);
       expect((result as { bracketSize: number }).bracketSize).toBe(8);
@@ -857,55 +881,11 @@ describe('PhasesService', () => {
         bib_number: null,
       }));
 
-      const phaseCheckChain = makeChain({ data: null, error: null });
-      phaseCheckChain.maybeSingle.mockResolvedValue({ data: null, error: null });
-
       void regs; // explicit qualifyCount in DTO; registrations fetch no longer happens
 
-      const phaseInsertChain = makeChain({ data: null, error: null });
-      phaseInsertChain.single.mockResolvedValue({ data: { id: 'phase-new' }, error: null });
-
-      const bracketSlotInsertChain = makeAwaitableChain({
-        data: [
+      const { service, supabase } = makeService({
+        phases: phasesQueue(
           {
-            id: 'slot-playin-1',
-            phase_id: 'phase-new',
-            round: 0,
-            position: 1,
-            source_b_type: 'seed',
-            registration_a_id: null,
-            registration_b_id: null,
-          },
-          {
-            id: 'slot-playin-2',
-            phase_id: 'phase-new',
-            round: 0,
-            position: 2,
-            source_b_type: 'seed',
-            registration_a_id: null,
-            registration_b_id: null,
-          },
-        ],
-        error: null,
-      });
-      // createInitialBracketMatches now pre-creates a matches row for
-      // every non-bye slot, including play-in slots with null
-      // registrations — so a matchInsertChain MUST be queued.
-      // It first resolves the tournament's ruleset stamp (matchRulesetForPhase).
-      const rulesetChain = makeChain({
-        data: { tournaments: { ruleset_code: 'TF_v1', ruleset_version: '1.0.0' } },
-        error: null,
-      });
-      const matchInsertChain = makeAwaitableChain({ data: null, error: null });
-
-      // Trailing reads from the post-write getTournamentBracket() delegation.
-      const phaseReadChain = makeChain({ data: null, error: null });
-      phaseReadChain.maybeSingle.mockResolvedValue({
-        data: {
-          id: 'phase-new',
-          type: 'single_elim',
-          visibility_status: 'hidden',
-          config_json: {
             bracketSize: 16,
             mainBracketSize: 16,
             fighterCount: 18,
@@ -915,39 +895,51 @@ describe('PhasesService', () => {
             hasPlayInRound: true,
             rounds: 4,
           },
+          { rulesetLookup: true },
+        ),
+        // createInitialBracketMatches pre-creates a matches row for every
+        // non-bye slot, play-in slots with null registrations included, so
+        // these two are what come back from `insert(...).select(...)`.
+        bracket_slots: {
+          rows: [
+            {
+              id: 'slot-playin-1',
+              phase_id: 'phase-new',
+              round: 0,
+              position: 1,
+              source_b_type: 'seed',
+              registration_a_id: null,
+              registration_b_id: null,
+            },
+            {
+              id: 'slot-playin-2',
+              phase_id: 'phase-new',
+              round: 0,
+              position: 2,
+              source_b_type: 'seed',
+              registration_a_id: null,
+              registration_b_id: null,
+            },
+          ],
         },
-        error: null,
+        matches: { rows: [] },
+        tournaments: { rows: [{ id: 'tournament-1', event_id: null }] },
       });
-      const slotsReadChain = makeAwaitableChain({
-        data: Array.from({ length: 17 }, (_, i) => ({ id: `s${i}`, round: 0, position: i })),
-        error: null,
-      });
-
-      fromMock
-        .mockReturnValueOnce(phaseCheckChain)
-        .mockReturnValueOnce(phaseInsertChain)
-        .mockReturnValueOnce(bracketSlotInsertChain)
-        .mockReturnValueOnce(rulesetChain) // matchRulesetForPhase (phases → tournaments)
-        .mockReturnValueOnce(matchInsertChain) // pre-created bracket placeholder rows
-        .mockReturnValueOnce(phaseReadChain) // delegation read 1
-        .mockReturnValueOnce(slotsReadChain); // delegation read 2
 
       const result = await service.generateBracket('tournament-1', { qualifyCount: 18 }, false);
 
-      expect(phaseInsertChain.insert).toHaveBeenCalledWith(
-        expect.objectContaining({
-          config_json: expect.objectContaining({
-            bracketSize: 16,
-            mainBracketSize: 16,
-            fighterCount: 18,
-            byeCount: 14,
-            byeSeedCount: 14,
-            playInMatchCount: 2,
-            hasPlayInRound: true,
-          }),
+      expect(writesTo(supabase, 'phases')[0]?.row).toMatchObject({
+        config_json: expect.objectContaining({
+          bracketSize: 16,
+          mainBracketSize: 16,
+          fighterCount: 18,
+          byeCount: 14,
+          byeSeedCount: 14,
+          playInMatchCount: 2,
+          hasPlayInRound: true,
         }),
-      );
-      expect(bracketSlotInsertChain.insert).toHaveBeenCalledWith(
+      });
+      expect(writesTo(supabase, 'bracket_slots')[0]?.row).toEqual(
         expect.arrayContaining([
           // R1 slots are now created EMPTY by generateBracket — populate-bracket
           // seeds them from pool standings (or registrations) after pools finish.
@@ -981,34 +973,15 @@ describe('PhasesService', () => {
       // order, so a non-default strategy is stored verbatim and consumed later
       // by populateBracket. This replaces the old 501 guard.
       for (const strategy of ['by-rating', 'random', 'by-pool-rank'] as const) {
-        fromMock.mockReset();
-        const eightRegs = Array.from({ length: 8 }, (_, i) => ({ id: `r${i}` }));
-        const phaseCheckChain = makeChain({ data: null, error: null });
-        phaseCheckChain.maybeSingle.mockResolvedValue({ data: null, error: null });
-        const regsChain = makeAwaitableChain({ data: eightRegs, error: null });
-        const phaseInsertChain = makeChain({ data: null, error: null });
-        phaseInsertChain.single.mockResolvedValue({ data: { id: 'phase-new' }, error: null });
-        const defaultChain = makeChain({ data: null, error: null });
-        const phaseReadChain = makeChain({ data: null, error: null });
-        phaseReadChain.maybeSingle.mockResolvedValue({
-          data: {
-            id: 'phase-new',
-            type: 'single_elim',
-            visibility_status: 'hidden',
-            config_json: { bracketSize: 8, seedingStrategy: strategy },
-          },
-          error: null,
+        // A service per strategy, so nothing has to be reset between them.
+        const { service, supabase } = makeService({
+          phases: phasesQueue({ bracketSize: 8, seedingStrategy: strategy }),
+          registrations: { rows: qualifiers(8) },
+          // No slots come back, so no placeholder matches and no ruleset
+          // lookup — hence no `rulesetLookup` entry in the queue above.
+          bracket_slots: { rows: [] },
+          tournaments: { rows: [{ id: 'tournament-1', event_id: null }] },
         });
-        const slotsReadChain = makeAwaitableChain({ data: [], error: null });
-
-        fromMock
-          .mockReturnValueOnce(phaseCheckChain)
-          .mockReturnValueOnce(regsChain)
-          .mockReturnValueOnce(phaseInsertChain)
-          .mockReturnValueOnce(defaultChain)
-          .mockReturnValueOnce(phaseReadChain)
-          .mockReturnValueOnce(slotsReadChain)
-          .mockReturnValue(defaultChain);
 
         const result = await service.generateBracket(
           'tournament-1',
@@ -1016,50 +989,29 @@ describe('PhasesService', () => {
           false,
         );
 
-        expect(phaseInsertChain.insert).toHaveBeenCalledWith(
-          expect.objectContaining({
-            config_json: expect.objectContaining({ seedingStrategy: strategy }),
-          }),
-        );
+        expect(writesTo(supabase, 'phases')[0]?.row).toMatchObject({
+          config_json: expect.objectContaining({ seedingStrategy: strategy }),
+        });
         expect((result as { seedingStrategy: string }).seedingStrategy).toBe(strategy);
       }
     });
 
     it('persists seedingStrategy and grandFinalReset into phases.config_json', async () => {
-      const eightRegs = Array.from({ length: 8 }, (_, i) => ({ id: `r${i}` }));
-
-      const phaseCheckChain = makeChain({ data: null, error: null });
-      phaseCheckChain.maybeSingle.mockResolvedValue({ data: null, error: null });
-      const regsChain = makeAwaitableChain({ data: eightRegs, error: null });
-      const phaseInsertChain = makeChain({ data: null, error: null });
-      phaseInsertChain.single.mockResolvedValue({ data: { id: 'phase-new' }, error: null });
-      const defaultChain = makeChain({ data: null, error: null });
-      const phaseReadChain = makeChain({ data: null, error: null });
-      phaseReadChain.maybeSingle.mockResolvedValue({
-        data: {
-          id: 'phase-new',
-          type: 'double_elim',
-          visibility_status: 'hidden',
-          config_json: {
+      const { service, supabase } = makeService({
+        phases: phasesQueue(
+          {
             bracketSize: 8,
             fighterCount: 8,
             byeCount: 0,
             grandFinalReset: true,
             seedingStrategy: 'snake',
           },
-        },
-        error: null,
+          { type: 'double_elim' },
+        ),
+        registrations: { rows: qualifiers(8) },
+        bracket_slots: { rows: [] },
+        tournaments: { rows: [{ id: 'tournament-1', event_id: null }] },
       });
-      const slotsReadChain = makeAwaitableChain({ data: [], error: null });
-
-      fromMock
-        .mockReturnValueOnce(phaseCheckChain)
-        .mockReturnValueOnce(regsChain)
-        .mockReturnValueOnce(phaseInsertChain)
-        .mockReturnValueOnce(defaultChain) // bracket_slots insert
-        .mockReturnValueOnce(phaseReadChain) // delegation read 1
-        .mockReturnValueOnce(slotsReadChain) // delegation read 2
-        .mockReturnValue(defaultChain);
 
       const result = await service.generateBracket(
         'tournament-1',
@@ -1067,14 +1019,12 @@ describe('PhasesService', () => {
         false,
       );
 
-      expect(phaseInsertChain.insert).toHaveBeenCalledWith(
-        expect.objectContaining({
-          config_json: expect.objectContaining({
-            grandFinalReset: true,
-            seedingStrategy: 'snake',
-          }),
+      expect(writesTo(supabase, 'phases')[0]?.row).toMatchObject({
+        config_json: expect.objectContaining({
+          grandFinalReset: true,
+          seedingStrategy: 'snake',
         }),
-      );
+      });
       expect((result as { grandFinalReset: boolean }).grandFinalReset).toBe(true);
       expect((result as { seedingStrategy: string }).seedingStrategy).toBe('snake');
     });
@@ -1085,112 +1035,70 @@ describe('PhasesService', () => {
      * whenever a lookup is added, and an ordered queue silently desyncs.
      */
     it('generates a play-in round and leaves the conditional reset match uncreated', async () => {
-      const twelveRegs = Array.from({ length: 12 }, (_, i) => ({ id: `r${i}` }));
-      const inserts: Record<string, unknown[]> = { bracket_slots: [], matches: [] };
-      let slotRows: Array<Record<string, unknown>> = [];
+      const dto = { phaseType: 'double_elim', grandFinalReset: true } as const;
+      const registrations = { rows: qualifiers(12) };
+      const tournaments = { rows: [{ id: 'tournament-1', event_id: null }] };
 
-      fromMock.mockImplementation((table: string) => {
-        if (table === 'registrations') return makeAwaitableChain({ data: twelveRegs, error: null });
-        if (table === 'bracket_slots') {
-          const chain = makeAwaitableChain({ data: slotRows, error: null });
-          chain.insert = vi.fn((rows: Array<Record<string, unknown>>) => {
-            inserts['bracket_slots']!.push(...rows);
-            // Echo the rows back with ids, the way PostgREST's insert().select() does.
-            slotRows = rows.map((r, i) => ({ ...r, id: `slot-${i}` }));
-            return makeAwaitableChain({ data: slotRows, error: null });
-          }) as never;
-          return chain;
-        }
-        if (table === 'matches') {
-          const chain = makeAwaitableChain({ data: [], error: null });
-          chain.insert = vi.fn((rows: Array<Record<string, unknown>>) => {
-            inserts['matches']!.push(...rows);
-            return makeAwaitableChain({ data: rows, error: null });
-          }) as never;
-          return chain;
-        }
-        // phases: the existence check must miss, later reads return the phase.
-        const chain = makeChain({ data: null, error: null });
-        chain.single.mockResolvedValue({ data: { id: 'phase-new' }, error: null });
-        chain.maybeSingle.mockResolvedValue({ data: null, error: null });
-        return chain;
+      /**
+       * Run it once with no slots seeded, purely to record what the generator
+       * emits.
+       *
+       * PostgREST hands the inserted rows back, ids and all, from
+       * `insert(...).select(...)`; a seeded table cannot, because it is a
+       * fixture and not a database. So the echo is built HERE from the
+       * generator's own output rather than from a literal that could quietly
+       * drift away from it — and the second pass below replays the same call
+       * against it.
+       */
+      const probe = makeService({
+        phases: phasesQueue({ bracketSize: 8 }, { type: 'double_elim' }),
+        registrations,
+        bracket_slots: { rows: [] },
+        tournaments,
       });
+      await probe.service.generateBracket('tournament-1', dto, false);
+      const emitted = writesTo(probe.supabase, 'bracket_slots')[0]?.row as Array<
+        Record<string, unknown>
+      >;
+      // Annotated: spreading a Record<string, unknown> narrows to `{ id: string }`
+      // on inference, and the round lookups below then stop compiling.
+      const slotRows: SupabaseRow[] = emitted.map((row, i) => ({ ...row, id: `slot-${i}` }));
 
-      await service.generateBracket(
-        'tournament-1',
-        { phaseType: 'double_elim', grandFinalReset: true },
-        false,
-      );
+      const { service, supabase } = makeService({
+        phases: phasesQueue({ bracketSize: 8 }, { type: 'double_elim', rulesetLookup: true }),
+        registrations,
+        bracket_slots: { rows: slotRows },
+        matches: { rows: [] },
+        tournaments,
+      });
+      await service.generateBracket('tournament-1', dto, false);
 
-      const slots = inserts['bracket_slots'] as Array<{ round: number; source_a_ref: string }>;
       // 12 fighters trim to an 8-bracket, so 4 play-in matches sit at round 0.
-      expect(slots.filter((s) => s.round === 0).length).toBe(4);
+      expect(emitted.filter((s) => s['round'] === 0).length).toBe(4);
       // No byes: a bye has no loser, and the losers bracket feeds off WB losers.
-      expect(slots.some((s) => s.source_a_ref === 'bye')).toBe(false);
+      expect(emitted.some((s) => s['source_a_ref'] === 'bye')).toBe(false);
 
       // wbRounds=3, lbRounds=4 → GF is round 8 and the reset round 9. The reset
       // is only PLAYED when the losers-bracket entrant wins the grand final, so
       // it must not get a placeholder match at generation time.
       const resetSlotIds = slotRows.filter((r) => r['round'] === 9).map((r) => r['id']);
       expect(resetSlotIds.length).toBe(1);
-      const matchSlotIds = (inserts['matches'] as Array<{ bracket_slot_id: string }>).map(
-        (m) => m.bracket_slot_id,
-      );
+      const matchSlotIds = (
+        writesTo(supabase, 'matches')[0]?.row as Array<{ bracket_slot_id: string }>
+      ).map((m) => m.bracket_slot_id);
       expect(matchSlotIds).not.toContain(resetSlotIds[0]);
       // Every other slot does get one.
       expect(matchSlotIds.length).toBe(slotRows.length - 1);
     });
 
     it('captures bronzeSlotId on single-elim and exposes it on the bracket read', async () => {
-      const eightRegs = Array.from({ length: 8 }, (_, i) => ({ id: `r${i}` }));
-
-      const phaseCheckChain = makeChain({ data: null, error: null });
-      phaseCheckChain.maybeSingle.mockResolvedValue({ data: null, error: null });
-      const regsChain = makeAwaitableChain({ data: eightRegs, error: null });
-      const phaseInsertChain = makeChain({ data: null, error: null });
-      phaseInsertChain.single.mockResolvedValue({ data: { id: 'phase-new' }, error: null });
-
-      // Bracket slot insert returns the bronze slot (source_a_type='loser_of').
-      const slotInsertChain = makeAwaitableChain({
-        data: [
+      const { service, supabase } = makeService({
+        // createInitialBracketMatches pre-creates a matches row for every
+        // non-bye slot (R1, R2+, bronze) even with registrations still null,
+        // so both the bronze config update and the matchRulesetForPhase lookup
+        // land between the insert and the read-back.
+        phases: phasesQueue(
           {
-            id: 'slot-r1-1',
-            phase_id: 'phase-new',
-            round: 1,
-            position: 1,
-            source_a_type: 'seed',
-            source_b_type: 'seed',
-            registration_a_id: null,
-            registration_b_id: null,
-          },
-          {
-            id: 'slot-bronze',
-            phase_id: 'phase-new',
-            round: 3,
-            position: 2,
-            source_a_type: 'loser_of',
-            source_b_type: 'loser_of',
-            registration_a_id: null,
-            registration_b_id: null,
-          },
-        ],
-        error: null,
-      });
-
-      const phaseUpdateChain = makeChain({ data: null, error: null });
-      const rulesetChain = makeChain({
-        data: { tournaments: { ruleset_code: 'TF_v1', ruleset_version: '1.0.0' } },
-        error: null,
-      });
-      const matchInsertChain = makeChain({ data: null, error: null });
-
-      const phaseReadChain = makeChain({ data: null, error: null });
-      phaseReadChain.maybeSingle.mockResolvedValue({
-        data: {
-          id: 'phase-new',
-          type: 'single_elim',
-          visibility_status: 'hidden',
-          config_json: {
             bracketSize: 8,
             fighterCount: 8,
             byeCount: 0,
@@ -1198,39 +1106,49 @@ describe('PhasesService', () => {
             seedingStrategy: 'snake',
             bronzeSlotId: 'slot-bronze',
           },
+          { bronzeUpdate: true, rulesetLookup: true },
+        ),
+        registrations: { rows: qualifiers(8) },
+        // The insert reads these back, and the bronze slot is the one carrying
+        // source_a_type='loser_of'.
+        bracket_slots: {
+          rows: [
+            {
+              id: 'slot-r1-1',
+              phase_id: 'phase-new',
+              round: 1,
+              position: 1,
+              source_a_type: 'seed',
+              source_b_type: 'seed',
+              registration_a_id: null,
+              registration_b_id: null,
+            },
+            {
+              id: 'slot-bronze',
+              phase_id: 'phase-new',
+              round: 3,
+              position: 2,
+              source_a_type: 'loser_of',
+              source_b_type: 'loser_of',
+              registration_a_id: null,
+              registration_b_id: null,
+            },
+          ],
         },
-        error: null,
+        matches: { rows: [] },
+        tournaments: { rows: [{ id: 'tournament-1', event_id: null }] },
       });
-      const slotsReadChain = makeAwaitableChain({
-        data: [
-          { id: 'slot-r1-1', round: 1, position: 1 },
-          { id: 'slot-bronze', round: 3, position: 2 },
-        ],
-        error: null,
-      });
-
-      fromMock
-        .mockReturnValueOnce(phaseCheckChain)
-        .mockReturnValueOnce(regsChain)
-        .mockReturnValueOnce(phaseInsertChain)
-        .mockReturnValueOnce(slotInsertChain) // bracket_slots insert returns rows
-        .mockReturnValueOnce(phaseUpdateChain) // phases update (bronzeSlotId)
-        // createInitialBracketMatches now pre-creates a matches row for
-        // every non-bye slot (R1, R2+, bronze), even when registrations
-        // are still null — so the matches insert IS queued, preceded by
-        // the matchRulesetForPhase lookup.
-        .mockReturnValueOnce(rulesetChain)
-        .mockReturnValueOnce(matchInsertChain)
-        .mockReturnValueOnce(phaseReadChain) // delegation read 1
-        .mockReturnValueOnce(slotsReadChain); // delegation read 2
 
       const result = await service.generateBracket('tournament-1', {}, false);
 
-      expect(phaseUpdateChain.update).toHaveBeenCalledWith(
-        expect.objectContaining({
-          config_json: expect.objectContaining({ bronzeSlotId: 'slot-bronze' }),
-        }),
-      );
+      const [inserted, updated] = writesTo(supabase, 'phases');
+      expect(inserted?.op).toBe('insert');
+      expect(updated?.op).toBe('update');
+      expect(updated?.row).toMatchObject({
+        config_json: expect.objectContaining({ bronzeSlotId: 'slot-bronze' }),
+      });
+      // The update names the phase it stamps, not every phase in the table.
+      expect(scopedTo(updated, 'id')).toBe('phase-new');
       expect((result as { bronzeSlotId: string | null }).bronzeSlotId).toBe('slot-bronze');
     });
   });
