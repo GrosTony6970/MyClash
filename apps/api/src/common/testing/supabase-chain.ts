@@ -138,11 +138,50 @@ const unsupported = (method: string, detail: string): Error =>
       `Model it here, or seed this table with { data } if the filter is not what the test is about.`,
   );
 
+/** One filter a query was scoped by, in call order. */
+export interface RecordedFilter {
+  method: string;
+  args: readonly unknown[];
+}
+
+/**
+ * A write, with the filters that decided which rows it hit.
+ *
+ * The filters are the point. A record of `{ table, row }` alone says a match row
+ * was cleared and cannot say WHICH — so a cascade that clears the wrong bout
+ * still satisfies it.
+ */
+export interface RecordedWrite {
+  table: string;
+  op: (typeof WRITES)[number];
+  row: unknown;
+  filters: readonly RecordedFilter[];
+}
+
+const PASS_THROUGH_SET: ReadonlySet<string> = new Set(PASS_THROUGH);
+const WRITE_SET: ReadonlySet<string> = new Set(WRITES);
+
+/** Where one chain's filters accumulate. One chain is one query. */
+interface QueryLog {
+  filters: RecordedFilter[];
+  note(method: string, args: readonly unknown[]): void;
+}
+
+const newQueryLog = (): QueryLog => {
+  const filters: RecordedFilter[] = [];
+  return { filters, note: (method, args) => filters.push({ method, args }) };
+};
+
 /**
  * The lazy core. `resolve` runs at await time and at every terminal call, so a
  * filter applied after construction still counts.
  */
-function buildChain(resolve: () => ChainResult, rows: (() => SupabaseRow[]) | null): SupabaseChain {
+function buildChain(
+  resolve: () => ChainResult,
+  rows: (() => SupabaseRow[]) | null,
+  log: QueryLog,
+  sink: { table: string; writes: RecordedWrite[] } | null,
+): SupabaseChain {
   const chain = {
     then: (onFulfilled?: ((value: ChainResult) => unknown) | null, onRejected?: unknown) =>
       Promise.resolve(resolve()).then(
@@ -154,7 +193,27 @@ function buildChain(resolve: () => ChainResult, rows: (() => SupabaseRow[]) | nu
       Promise.resolve(resolve()).finally(onFinally ?? undefined),
   } as unknown as SupabaseChain;
 
-  for (const method of CHAINABLE) chain[method] = vi.fn(() => chain);
+  for (const method of CHAINABLE) {
+    chain[method] = vi.fn((...args: unknown[]) => {
+      // A projection does not scope a write; a filter does. Writes record
+      // themselves below rather than as their own scope.
+      if (!PASS_THROUGH_SET.has(method) && !WRITE_SET.has(method)) log.note(method, args);
+      return chain;
+    });
+  }
+
+  // Recorded when the verb is called, but carrying the LIVE filter array:
+  // PostgREST spells it `.update(row).eq('id', x)`, so the scope arrives after
+  // the verb. One chain is one query, so every filter on it belongs to this
+  // write whatever order they were called in.
+  if (sink) {
+    for (const op of WRITES) {
+      chain[op] = vi.fn((row?: unknown) => {
+        sink.writes.push({ table: sink.table, op, row, filters: log.filters });
+        return chain;
+      });
+    }
+  }
 
   if (!rows) {
     for (const method of TERMINAL) chain[method] = vi.fn(() => Promise.resolve(resolve()));
@@ -180,8 +239,11 @@ function buildChain(resolve: () => ChainResult, rows: (() => SupabaseRow[]) | nu
  * Thenable as well as chainable, because both spellings appear in this codebase:
  * `await sb.from(t).select().eq(...)` and `await sb.from(t).select().single()`.
  */
-export function supabaseChain(result: ChainResult = { data: null, error: null }): SupabaseChain {
-  return buildChain(() => result, null);
+export function supabaseChain(
+  result: ChainResult = { data: null, error: null },
+  sink: { table: string; writes: RecordedWrite[] } | null = null,
+): SupabaseChain {
+  return buildChain(() => result, null, newQueryLog(), sink);
 }
 
 /**
@@ -209,7 +271,10 @@ function compareCells(a: unknown, b: unknown, column: string): number {
  * them in — filters, then sort, then truncate. Applying `limit` early would take
  * the first rows seeded rather than the first rows wanted.
  */
-function seededTableChain(seed: readonly SupabaseRow[]): SupabaseChain {
+function seededTableChain(
+  seed: readonly SupabaseRow[],
+  sink: { table: string; writes: RecordedWrite[] } | null,
+): SupabaseChain {
   let working: SupabaseRow[] = [...seed];
   let ordering: { column: string; ascending: boolean } | null = null;
   let cap: number | null = null;
@@ -223,7 +288,8 @@ function seededTableChain(seed: readonly SupabaseRow[]): SupabaseChain {
     return cap === null ? out : out.slice(0, cap);
   };
 
-  const chain = buildChain(() => ({ data: rows(), error: null }), rows);
+  const log = newQueryLog();
+  const chain = buildChain(() => ({ data: rows(), error: null }), rows, log, sink);
 
   for (const method of UNSIMULATED) {
     chain[method] = vi.fn(() => {
@@ -231,33 +297,47 @@ function seededTableChain(seed: readonly SupabaseRow[]): SupabaseChain {
     });
   }
 
-  const narrow = (predicate: (row: SupabaseRow) => boolean): SupabaseChain => {
+  // Each override still logs: the filters are what tell a recorded write which
+  // rows it hit, so a narrowing method that forgot to note itself would leave a
+  // write looking unscoped.
+  const narrow = (
+    method: string,
+    args: readonly unknown[],
+    predicate: (row: SupabaseRow) => boolean,
+  ): SupabaseChain => {
+    log.note(method, args);
     working = working.filter(predicate);
     return chain;
   };
 
-  chain.eq = vi.fn((column: string, value: unknown) => narrow((row) => row[column] === value));
-  chain.neq = vi.fn((column: string, value: unknown) => narrow((row) => row[column] !== value));
+  chain.eq = vi.fn((column: string, value: unknown) =>
+    narrow('eq', [column, value], (row) => row[column] === value),
+  );
+  chain.neq = vi.fn((column: string, value: unknown) =>
+    narrow('neq', [column, value], (row) => row[column] !== value),
+  );
   chain.in = vi.fn((column: string, values: readonly unknown[]) =>
-    narrow((row) => values.includes(row[column])),
+    narrow('in', [column, values], (row) => values.includes(row[column])),
   );
   // A column absent from a fixture row reads as null, which is what an unset
   // nullable column actually looks like.
   chain.is = vi.fn((column: string, value: unknown) =>
-    narrow((row) => (row[column] ?? null) === value),
+    narrow('is', [column, value], (row) => (row[column] ?? null) === value),
   );
   chain.not = vi.fn((column: string, operator: string, value: unknown) => {
     if (operator !== 'eq') throw unsupported('not', `operator "${operator}"`);
-    return narrow((row) => row[column] !== value);
+    return narrow('not', [column, operator, value], (row) => row[column] !== value);
   });
 
   chain.order = vi.fn((column: string, options?: { ascending?: boolean }) => {
     const extra = Object.keys(options ?? {}).filter((key) => key !== 'ascending');
     if (extra.length > 0) throw unsupported('order', `option "${extra[0]}"`);
+    log.note('order', [column, options]);
     ordering = { column, ascending: options?.ascending ?? true };
     return chain;
   });
   chain.limit = vi.fn((count: number) => {
+    log.note('limit', [count]);
     cap = count;
     return chain;
   });
@@ -283,6 +363,7 @@ const isSeededTable = (seed: TableSeed): seed is SeededTable =>
  */
 export function supabaseFrom(
   byTable: Readonly<Record<string, TableSeed>>,
+  writes: RecordedWrite[] = [],
 ): Mock<(table: string) => SupabaseChain> {
   const tables = new Map<string, readonly SupabaseRow[]>();
   const queues = new Map<string, ChainResult[]>();
@@ -292,8 +373,9 @@ export function supabaseFrom(
   }
 
   return vi.fn((table: string): SupabaseChain => {
+    const sink = { table, writes };
     const seeded = tables.get(table);
-    if (seeded) return seededTableChain(seeded);
+    if (seeded) return seededTableChain(seeded, sink);
 
     const queue = queues.get(table);
     if (!queue || queue.length === 0) {
@@ -303,20 +385,27 @@ export function supabaseFrom(
       );
     }
     const next = queue.length > 1 ? queue.shift() : queue[0];
-    return supabaseChain(next);
+    return supabaseChain(next, sink);
   });
 }
 
 /**
  * A stand-in for SupabaseService. Cast at the call site:
  * `new Thing(mockSupabase({ phases: { data: [] } }) as unknown as SupabaseService)`.
+ *
+ * `writes` collects every insert/update/upsert/delete in call order, each with
+ * the filters that scoped it — so an assertion can name the row a cascade
+ * touched rather than only the table. Recorded for canned and seeded tables
+ * alike; a fixture is not changed by a write either way.
  */
 export function mockSupabase(byTable: Readonly<Record<string, TableSeed>>): {
   service: { from: Mock<(table: string) => SupabaseChain> };
   from: Mock<(table: string) => SupabaseChain>;
+  writes: RecordedWrite[];
 } {
-  const from = supabaseFrom(byTable);
-  return { service: { from }, from };
+  const writes: RecordedWrite[] = [];
+  const from = supabaseFrom(byTable, writes);
+  return { service: { from }, from, writes };
 }
 
 /** Tables a `from()` mock was actually asked for, in call order. */

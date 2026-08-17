@@ -210,3 +210,69 @@ describe('a seeded table refuses what it cannot model', () => {
     expect(data).toEqual([{ id: 'x' }]);
   });
 });
+
+// ── Recorded writes ──────────────────────────────────────────────────────────
+// `{ table, row }` alone says a match row was cleared and cannot say WHICH, so a
+// cascade that clears the wrong bout still satisfies it. The filters are what
+// make the assertion specific.
+
+describe('recorded writes', () => {
+  it('carries the filters that scoped the write, not just the table', async () => {
+    const supabase = mockSupabase({ matches: { rows: ROWS } });
+    await supabase.service
+      .from('matches')
+      .update({ red_registration_id: null })
+      .eq('id', 'b')
+      .eq('phase_id', 'p1');
+
+    expect(supabase.writes).toEqual([
+      {
+        table: 'matches',
+        op: 'update',
+        row: { red_registration_id: null },
+        filters: [
+          { method: 'eq', args: ['id', 'b'] },
+          { method: 'eq', args: ['phase_id', 'p1'] },
+        ],
+      },
+    ]);
+  });
+
+  it('records the filters even though they arrive after the verb', async () => {
+    // PostgREST spells it `.update(row).eq('id', x)`. Capturing at verb time
+    // would record an unscoped write and lose the only thing that names the row.
+    const supabase = mockSupabase({ matches: { rows: ROWS } });
+    await supabase.service.from('matches').delete().eq('id', 'c');
+    expect(supabase.writes[0]?.filters).toEqual([{ method: 'eq', args: ['id', 'c'] }]);
+  });
+
+  it('keeps two writes to one table apart rather than merging them', async () => {
+    const supabase = mockSupabase({ matches: { rows: ROWS } });
+    await supabase.service.from('matches').update({ status: 'scheduled' }).eq('id', 'a');
+    await supabase.service.from('matches').update({ status: 'scheduled' }).eq('id', 'b');
+    expect(supabase.writes.map((write) => write.filters)).toEqual([
+      [{ method: 'eq', args: ['id', 'a'] }],
+      [{ method: 'eq', args: ['id', 'b'] }],
+    ]);
+  });
+
+  it('records nothing for a read', async () => {
+    const supabase = mockSupabase({ matches: { rows: ROWS } });
+    await supabase.service.from('matches').select().eq('id', 'a');
+    expect(supabase.writes).toEqual([]);
+  });
+
+  it('records writes against a canned table too', async () => {
+    const supabase = mockSupabase({ audit_log: { data: null, error: null } });
+    await supabase.service.from('audit_log').insert({ kind: 'reset_match' });
+    expect(supabase.writes).toEqual([
+      { table: 'audit_log', op: 'insert', row: { kind: 'reset_match' }, filters: [] },
+    ]);
+  });
+
+  it('does not treat the projection as a scope', async () => {
+    const supabase = mockSupabase({ matches: { rows: ROWS } });
+    await supabase.service.from('matches').update({ status: 'x' }).select('id').eq('id', 'a');
+    expect(supabase.writes[0]?.filters).toEqual([{ method: 'eq', args: ['id', 'a'] }]);
+  });
+});
