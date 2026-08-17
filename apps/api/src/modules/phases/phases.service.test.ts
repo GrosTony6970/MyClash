@@ -1653,59 +1653,96 @@ describe('PhasesService', () => {
     // (by registration_a_id / registration_b_id) so the projection
     // returns the shape MatchCard actually consumes.
 
-    function phaseChain() {
-      return makeChain({
-        data: {
-          id: 'phase-1',
-          type: 'single_elim',
-          visibility_status: 'published',
-          config_json: { bracketSize: 4, fighterCount: 4, rounds: 2 },
+    /**
+     * Three phases, one of which is the bracket being read.
+     *
+     * The other two are one per filter on the lookup: an elimination phase in
+     * ANOTHER tournament, and this tournament's POOL phase. Either one resolving
+     * instead sends the slot read at a phase id that has no slots, so the whole
+     * projection comes back empty. The pool row doubles as the pool-gate answer,
+     * which reads the same table with `.eq('type', 'pool')`.
+     */
+    const BRACKET_PHASES: SupabaseRow[] = [
+      {
+        id: 'phase-elsewhere',
+        tournament_id: 'tournament-9',
+        type: 'single_elim',
+        visibility_status: 'published',
+        config_json: { bracketSize: 64 },
+      },
+      {
+        id: 'phase-pool',
+        tournament_id: 'tournament-1',
+        type: 'pool',
+        visibility_status: 'published',
+        config_json: {},
+      },
+      {
+        id: 'phase-1',
+        tournament_id: 'tournament-1',
+        type: 'single_elim',
+        visibility_status: 'published',
+        config_json: { bracketSize: 4, fighterCount: 4, rounds: 2 },
+      },
+    ];
+
+    /** A bracket_slots row carrying every column the projection reads. */
+    const slot = (id: string, over: SupabaseRow = {}): SupabaseRow => ({
+      id,
+      phase_id: 'phase-1',
+      round: 0,
+      position: 0,
+      source_a_type: null,
+      source_a_ref: null,
+      source_b_type: null,
+      source_b_ref: null,
+      registration_a_id: null,
+      registration_b_id: null,
+      ...over,
+    });
+
+    /** A slot in another bracket. Present in every fixture below, never read. */
+    const SLOT_ELSEWHERE = slot('s-elsewhere', { phase_id: 'phase-elsewhere', position: 9 });
+
+    /** The bracket read, with an unplaced event so lices and crew stay out. */
+    const bracketService = (seed: Record<string, TableSeed> = {}) =>
+      makeService({
+        phases: { rows: BRACKET_PHASES },
+        tournaments: {
+          rows: [
+            { id: 'tournament-9', event_id: 'ev-9' },
+            { id: 'tournament-1', event_id: null },
+          ],
         },
-        error: null,
+        ...seed,
       });
-    }
 
     it('resolves redFighterName + redClubAbbrev from registration_a_id (tracer)', async () => {
-      const slotsChain = makeAwaitableChain({
-        data: [
-          {
-            id: 's-1',
-            round: 0,
-            position: 0,
-            source_a_type: null,
-            source_a_ref: null,
-            source_b_type: null,
-            source_b_ref: null,
-            registration_a_id: 'reg-1',
-            registration_b_id: null,
-          },
-        ],
-        error: null,
-      });
-      const matchesChain = makeAwaitableChain({ data: [], error: null });
-      const regsChain = makeAwaitableChain({
-        data: [
-          {
-            id: 'reg-1',
-            persons: {
-              given_name: 'Alice',
-              family_name: 'Smith',
-              clubs: { name: 'Lyon AMHE' },
+      const { service } = bracketService({
+        bracket_slots: { rows: [SLOT_ELSEWHERE, slot('s-1', { registration_a_id: 'reg-1' })] },
+        matches: { rows: [] },
+        registrations: {
+          rows: [
+            {
+              id: 'reg-elsewhere',
+              persons: { given_name: 'Someone', family_name: 'Else', clubs: { name: 'Nowhere' } },
             },
-          },
-        ],
-        error: null,
+            {
+              id: 'reg-1',
+              persons: {
+                given_name: 'Alice',
+                family_name: 'Smith',
+                clubs: { name: 'Lyon AMHE' },
+              },
+            },
+          ],
+        },
       });
-      fromMock
-        .mockReturnValueOnce(phaseChain())
-        .mockReturnValueOnce(slotsChain)
-        .mockReturnValueOnce(matchesChain)
-        .mockReturnValueOnce(regsChain);
 
       const result = await service.getTournamentBracket('tournament-1');
-      const slot = result!.slots[0] as Record<string, unknown>;
-      expect(slot['redFighterName']).toBe('Alice Smith');
-      expect(slot['redClubAbbrev']).toBe('Lyon AMHE');
+      const found = result!.slots[0] as Record<string, unknown>;
+      expect(found['redFighterName']).toBe('Alice Smith');
+      expect(found['redClubAbbrev']).toBe('Lyon AMHE');
     });
 
     /**
@@ -1715,53 +1752,33 @@ describe('PhasesService', () => {
      * is a column, not a second fetch.
      */
     it('carries the planned start through the slot map, null when there is no bout', async () => {
-      const slotsChain = makeAwaitableChain({
-        data: [
-          {
-            id: 's-1',
-            round: 0,
-            position: 0,
-            source_a_type: null,
-            source_a_ref: null,
-            source_b_type: null,
-            source_b_ref: null,
-            registration_a_id: null,
-            registration_b_id: null,
-          },
-          {
-            id: 's-empty',
-            round: 0,
-            position: 1,
-            source_a_type: null,
-            source_a_ref: null,
-            source_b_type: null,
-            source_b_ref: null,
-            registration_a_id: null,
-            registration_b_id: null,
-          },
-        ],
-        error: null,
+      const { service } = bracketService({
+        bracket_slots: {
+          rows: [SLOT_ELSEWHERE, slot('s-1'), slot('s-empty', { position: 1 })],
+        },
+        matches: {
+          rows: [
+            {
+              id: 'm-1',
+              bracket_slot_id: 's-1',
+              status: 'scheduled',
+              red_score: null,
+              blue_score: null,
+              winner_registration_id: null,
+              lice_id: null,
+              scheduled_at: '2026-06-06T09:05:00.000Z',
+            },
+            // Another bracket's bout, timed. `.in('bracket_slot_id', slotIds)`
+            // is what keeps its clock off these two slots.
+            {
+              id: 'm-elsewhere',
+              bracket_slot_id: 's-elsewhere',
+              status: 'scheduled',
+              scheduled_at: '2026-06-06T18:00:00.000Z',
+            },
+          ],
+        },
       });
-      const matchesChain = makeAwaitableChain({
-        data: [
-          {
-            id: 'm-1',
-            bracket_slot_id: 's-1',
-            status: 'scheduled',
-            red_score: null,
-            blue_score: null,
-            winner_registration_id: null,
-            lice_id: null,
-            scheduled_at: '2026-06-06T09:05:00.000Z',
-          },
-        ],
-        error: null,
-      });
-      fromMock
-        .mockReturnValueOnce(phaseChain())
-        .mockReturnValueOnce(slotsChain)
-        .mockReturnValueOnce(matchesChain)
-        .mockReturnValueOnce(makeAwaitableChain({ data: [], error: null }));
 
       const result = await service.getTournamentBracket('tournament-1');
       const slots = result!.slots as Array<Record<string, unknown>>;
@@ -1774,125 +1791,91 @@ describe('PhasesService', () => {
     });
 
     it('carries status + red/blue scores + matchId from the linked match row', async () => {
-      const slotsChain = makeAwaitableChain({
-        data: [
-          {
-            id: 's-1',
-            round: 0,
-            position: 0,
-            source_a_type: null,
-            source_a_ref: null,
-            source_b_type: null,
-            source_b_ref: null,
-            registration_a_id: null,
-            registration_b_id: null,
-          },
-        ],
-        error: null,
+      // `registrations` is NOT seeded because the slot has no
+      // registration_a_id / registration_b_id; the impl skips that fetch
+      // entirely in that case, and the double throws if it stops doing so.
+      const { service } = bracketService({
+        bracket_slots: { rows: [SLOT_ELSEWHERE, slot('s-1')] },
+        matches: {
+          rows: [
+            {
+              id: 'match-1',
+              bracket_slot_id: 's-1',
+              status: 'completed',
+              red_score: 5,
+              blue_score: 3,
+            },
+            {
+              id: 'match-elsewhere',
+              bracket_slot_id: 's-elsewhere',
+              status: 'running',
+              red_score: 1,
+              blue_score: 2,
+            },
+          ],
+        },
       });
-      const matchesChain = makeAwaitableChain({
-        data: [
-          {
-            id: 'match-1',
-            bracket_slot_id: 's-1',
-            status: 'completed',
-            red_score: 5,
-            blue_score: 3,
-          },
-        ],
-        error: null,
-      });
-      // regsChain is NOT queued because the slot has no
-      // registration_a_id / registration_b_id; the impl skips the
-      // registrations fetch entirely in that case.
-      fromMock
-        .mockReturnValueOnce(phaseChain())
-        .mockReturnValueOnce(slotsChain)
-        .mockReturnValueOnce(matchesChain);
 
       const result = await service.getTournamentBracket('tournament-1');
-      const slot = result!.slots[0] as Record<string, unknown>;
-      expect(slot['matchId']).toBe('match-1');
-      expect(slot['status']).toBe('completed');
-      expect(slot['redScore']).toBe(5);
-      expect(slot['blueScore']).toBe(3);
+      const found = result!.slots[0] as Record<string, unknown>;
+      expect(found['matchId']).toBe('match-1');
+      expect(found['status']).toBe('completed');
+      expect(found['redScore']).toBe(5);
+      expect(found['blueScore']).toBe(3);
     });
 
     it('surfaces liceId from the linked match row (drives bracket → ScoringPad redirect)', async () => {
       // Frontend uses slot.liceId to build the cross-app scoring URL.
       // Without this projection the bracket click would always have to
       // fall through to the audit page.
-      const slotsChain = makeAwaitableChain({
-        data: [
-          {
-            id: 's-1',
-            round: 0,
-            position: 0,
-            source_a_type: null,
-            source_a_ref: null,
-            source_b_type: null,
-            source_b_ref: null,
-            registration_a_id: null,
-            registration_b_id: null,
-          },
-        ],
-        error: null,
+      const { service } = bracketService({
+        bracket_slots: { rows: [SLOT_ELSEWHERE, slot('s-1')] },
+        matches: {
+          rows: [
+            {
+              id: 'match-1',
+              bracket_slot_id: 's-1',
+              status: 'ready',
+              red_score: 0,
+              blue_score: 0,
+              lice_id: 'lice-42',
+            },
+          ],
+        },
       });
-      const matchesChain = makeAwaitableChain({
-        data: [
-          {
-            id: 'match-1',
-            bracket_slot_id: 's-1',
-            status: 'ready',
-            red_score: 0,
-            blue_score: 0,
-            lice_id: 'lice-42',
-          },
-        ],
-        error: null,
-      });
-      fromMock
-        .mockReturnValueOnce(phaseChain())
-        .mockReturnValueOnce(slotsChain)
-        .mockReturnValueOnce(matchesChain);
 
       const result = await service.getTournamentBracket('tournament-1');
-      const slot = result!.slots[0] as Record<string, unknown>;
-      expect(slot['liceId']).toBe('lice-42');
+      expect((result!.slots[0] as Record<string, unknown>)['liceId']).toBe('lice-42');
     });
 
     it("empty slot returns null-shaped fields (not undefined) so MatchCard renders '-'", async () => {
-      const slotsChain = makeAwaitableChain({
-        data: [
-          {
-            id: 's-1',
-            round: 0,
-            position: 0,
-            source_a_type: null,
-            source_a_ref: null,
-            source_b_type: null,
-            source_b_ref: null,
-            registration_a_id: null,
-            registration_b_id: null,
-          },
-        ],
-        error: null,
+      const { service } = bracketService({
+        bracket_slots: { rows: [SLOT_ELSEWHERE, slot('s-1')] },
+        // The other bracket's bout is here for realism only. Measured: dropping
+        // `.in('bracket_slot_id', slotIds)` changes nothing, because the caller
+        // keys the result by bracket_slot_id and simply never looks this row
+        // up. The filter narrows the wire and decides no outcome.
+        matches: {
+          rows: [
+            {
+              id: 'match-elsewhere',
+              bracket_slot_id: 's-elsewhere',
+              status: 'completed',
+              red_score: 5,
+              blue_score: 4,
+            },
+          ],
+        },
       });
-      const matchesChain = makeAwaitableChain({ data: [], error: null });
-      // regsChain skipped — see note in score test.
-      fromMock
-        .mockReturnValueOnce(phaseChain())
-        .mockReturnValueOnce(slotsChain)
-        .mockReturnValueOnce(matchesChain);
 
       const result = await service.getTournamentBracket('tournament-1');
-      const slot = result!.slots[0] as Record<string, unknown>;
-      expect(slot['redFighterName']).toBeNull();
-      expect(slot['blueFighterName']).toBeNull();
-      expect(slot['redScore']).toBeNull();
-      expect(slot['blueScore']).toBeNull();
-      expect(slot['matchId']).toBeNull();
-      expect(slot['status']).toBe('scheduled');
+      const found = result!.slots[0] as Record<string, unknown>;
+      expect(found['redFighterName']).toBeNull();
+      expect(found['blueFighterName']).toBeNull();
+      expect(found['redScore']).toBeNull();
+      expect(found['blueScore']).toBeNull();
+      expect(found['matchId']).toBeNull();
+      expect(found['status']).toBe('scheduled');
     });
 
     // Bracket cards could not say WHERE a bout runs or WHO calls it: the slot
@@ -1903,34 +1886,19 @@ describe('PhasesService', () => {
     // this method now issues seven reads and an ordered chain re-breaks every
     // time one is added or moved.
     it('enriches slots with the piste name and the officiating crew', async () => {
-      const byTable: Record<string, unknown> = {
-        phases: makeChain({
-          data: {
-            id: 'phase-1',
-            type: 'single_elim',
-            visibility_status: 'published',
-            config_json: { bracketSize: 4, fighterCount: 4, rounds: 2 },
-          },
-          error: null,
-        }),
-        bracket_slots: makeAwaitableChain({
-          data: [
-            {
-              id: 's-1',
-              round: 0,
-              position: 0,
-              source_a_type: null,
-              source_a_ref: null,
-              source_b_type: null,
-              source_b_ref: null,
-              registration_a_id: null,
-              registration_b_id: null,
-            },
+      const { service } = makeService({
+        phases: { rows: BRACKET_PHASES },
+        // This tournament DOES have an event here, which is what turns the
+        // piste and crew lookups on.
+        tournaments: {
+          rows: [
+            { id: 'tournament-9', event_id: 'ev-9' },
+            { id: 'tournament-1', event_id: 'ev-1' },
           ],
-          error: null,
-        }),
-        matches: makeAwaitableChain({
-          data: [
+        },
+        bracket_slots: { rows: [SLOT_ELSEWHERE, slot('s-1')] },
+        matches: {
+          rows: [
             {
               id: 'match-1',
               bracket_slot_id: 's-1',
@@ -1940,19 +1908,21 @@ describe('PhasesService', () => {
               lice_id: 'lice-2',
             },
           ],
-          error: null,
-        }),
-        tournaments: makeChain({ data: { event_id: 'ev-1' }, error: null }),
-        lices: makeAwaitableChain({
-          data: [
-            { id: 'lice-1', name: 'Lice 1' },
-            { id: 'lice-2', name: 'Lice 2' },
+        },
+        lices: {
+          rows: [
+            { id: 'lice-1', name: 'Lice 1', event_id: 'ev-1' },
+            { id: 'lice-2', name: 'Lice 2', event_id: 'ev-1' },
+            // Another event's piste, sharing an id with nothing here: the
+            // lookup is by event, so a slipped filter renames pistes across
+            // events.
+            { id: 'lice-2', name: 'Piste 2 elsewhere', event_id: 'ev-9' },
           ],
-          error: null,
-        }),
-        referee_assignments: makeAwaitableChain({
-          data: [
+        },
+        referee_assignments: {
+          rows: [
             {
+              event_id: 'ev-1',
               scope_type: 'match',
               match_id: 'match-1',
               pool_id: null,
@@ -1962,22 +1932,41 @@ describe('PhasesService', () => {
               status: 'confirmed',
               global_persons: { given_name: 'Marc', family_name: 'Lefevre' },
             },
+            // Same bout id, another event, and withdrawn: one decoy for
+            // `.eq('event_id', …)` and one for `.in('status', ACTIVE)`.
+            {
+              event_id: 'ev-9',
+              scope_type: 'match',
+              match_id: 'match-1',
+              pool_id: null,
+              lice_id: null,
+              person_id: 'gp-9',
+              role: 'arbitre_declarant',
+              status: 'confirmed',
+              global_persons: { given_name: 'Wrong', family_name: 'Event' },
+            },
+            {
+              event_id: 'ev-1',
+              scope_type: 'match',
+              match_id: 'match-1',
+              pool_id: null,
+              lice_id: null,
+              person_id: 'gp-8',
+              role: 'arbitre_declarant',
+              status: 'declined',
+              global_persons: { given_name: 'Stood', family_name: 'Down' },
+            },
           ],
-          error: null,
-        }),
-        referee_skills: makeAwaitableChain({
-          data: [{ id: 'arbitre_declarant', name: 'Déclarant', color: 'orange' }],
-          error: null,
-        }),
-      };
-      fromMock.mockImplementation(
-        (table: string) => byTable[table] ?? makeChain({ data: null, error: null }),
-      );
+        },
+        referee_skills: {
+          rows: [{ id: 'arbitre_declarant', name: 'Déclarant', color: 'orange' }],
+        },
+      });
 
       const result = await service.getTournamentBracket('tournament-1');
-      const slot = result!.slots[0] as Record<string, unknown>;
-      expect(slot['liceName']).toBe('Lice 2');
-      expect(slot['referees']).toEqual([
+      const found = result!.slots[0] as Record<string, unknown>;
+      expect(found['liceName']).toBe('Lice 2');
+      expect(found['referees']).toEqual([
         {
           role: 'arbitre_declarant',
           roleLabel: 'Déclarant',
@@ -1989,31 +1978,15 @@ describe('PhasesService', () => {
     });
 
     it('leaves an unplaced slot without a piste name and with no referees', async () => {
-      const slotsChain = makeAwaitableChain({
-        data: [
-          {
-            id: 's-1',
-            round: 0,
-            position: 0,
-            source_a_type: null,
-            source_a_ref: null,
-            source_b_type: null,
-            source_b_ref: null,
-            registration_a_id: null,
-            registration_b_id: null,
-          },
-        ],
-        error: null,
+      const { service } = bracketService({
+        bracket_slots: { rows: [SLOT_ELSEWHERE, slot('s-1')] },
+        matches: { rows: [] },
       });
-      fromMock
-        .mockReturnValueOnce(phaseChain())
-        .mockReturnValueOnce(slotsChain)
-        .mockReturnValueOnce(makeAwaitableChain({ data: [], error: null }));
 
       const result = await service.getTournamentBracket('tournament-1');
-      const slot = result!.slots[0] as Record<string, unknown>;
-      expect(slot['liceName']).toBeNull();
-      expect(slot['referees']).toEqual([]);
+      const found = result!.slots[0] as Record<string, unknown>;
+      expect(found['liceName']).toBeNull();
+      expect(found['referees']).toEqual([]);
     });
   });
 
@@ -2023,19 +1996,24 @@ describe('PhasesService', () => {
     // canonical round code the bracket view shows. Without this stamp,
     // the scoreboard fell through to "B{round}" — divergent from the
     // bracket card label.
+    /**
+     * The phase the slots hang off, and one that is not it. matchRulesetForPhase
+     * reads `phases` with `.eq('id', phaseId)`, so the decoy's ruleset is what
+     * a slipped filter would stamp onto every generated bout.
+     */
+    const RULESET_PHASES: SupabaseRow[] = [
+      {
+        id: 'phase-elsewhere',
+        tournaments: { ruleset_code: 'Generic_PointsCap', ruleset_version: '2.0.0' },
+      },
+      { id: 'phase-1', tournaments: { ruleset_code: 'TF_v1', ruleset_version: '1.0.0' } },
+    ];
+
     it('stamps match_number_label = String(slot.position) on every inserted row', async () => {
-      let inserted: Array<Record<string, unknown>> | null = null;
-      const insertChain = makeAwaitableChain({ data: null, error: null });
-      insertChain.insert = vi.fn((rows: Array<Record<string, unknown>>) => {
-        inserted = rows;
-        return Promise.resolve({ data: null, error: null });
-      }) as never;
-      // matchRulesetForPhase (phases → tournaments) runs before the insert.
-      const rulesetChain = makeChain({
-        data: { tournaments: { ruleset_code: 'TF_v1', ruleset_version: '1.0.0' } },
-        error: null,
+      const { service, supabase } = makeService({
+        phases: { rows: RULESET_PHASES },
+        matches: { rows: [] },
       });
-      fromMock.mockReturnValueOnce(rulesetChain).mockReturnValueOnce(insertChain);
 
       const slots = [
         {
@@ -2065,14 +2043,16 @@ describe('PhasesService', () => {
         'createInitialBracketMatches'
       ]!(slots);
 
-      expect(inserted).toEqual([
+      expect(writesTo(supabase, 'matches')[0]?.row).toEqual([
         expect.objectContaining({
           bracket_slot_id: 'slot-1',
           match_number_label: '1',
+          ruleset_code: 'TF_v1',
         }),
         expect.objectContaining({
           bracket_slot_id: 'slot-2',
           match_number_label: '2',
+          ruleset_code: 'TF_v1',
         }),
       ]);
     });
@@ -2086,18 +2066,10 @@ describe('PhasesService', () => {
     // played at a bye), and resolved-later sides carry null
     // registrations that get UPDATEd in by bracket-advance.
     it('inserts a row for every non-bye slot, including R2+ rows with null registrations', async () => {
-      let inserted: Array<Record<string, unknown>> | null = null;
-      const insertChain = makeAwaitableChain({ data: null, error: null });
-      insertChain.insert = vi.fn((rows: Array<Record<string, unknown>>) => {
-        inserted = rows;
-        return Promise.resolve({ data: null, error: null });
-      }) as never;
-      // matchRulesetForPhase (phases → tournaments) runs before the insert.
-      const rulesetChain = makeChain({
-        data: { tournaments: { ruleset_code: 'TF_v1', ruleset_version: '1.0.0' } },
-        error: null,
+      const { service, supabase } = makeService({
+        phases: { rows: RULESET_PHASES },
+        matches: { rows: [] },
       });
-      fromMock.mockReturnValueOnce(rulesetChain).mockReturnValueOnce(insertChain);
 
       const slots = [
         // R1 played match — both fighters known
@@ -2148,6 +2120,7 @@ describe('PhasesService', () => {
         'createInitialBracketMatches'
       ]!(slots);
 
+      const inserted = writesTo(supabase, 'matches')[0]?.row as Array<Record<string, unknown>>;
       expect(inserted).toEqual([
         expect.objectContaining({
           bracket_slot_id: 'slot-r1p1',
@@ -2166,74 +2139,111 @@ describe('PhasesService', () => {
         }),
       ]);
       // Bye slot must not appear.
-      expect(
-        (inserted as Array<Record<string, unknown>> | null)?.find(
-          (row) => row['bracket_slot_id'] === 'slot-r1p2-bye',
-        ),
-      ).toBeUndefined();
+      expect(inserted.find((row) => row['bracket_slot_id'] === 'slot-r1p2-bye')).toBeUndefined();
     });
   });
 
   describe('listPoolsWithMatches', () => {
+    /**
+     * The filter arguments a query on `table` was scoped by, routed by table.
+     *
+     * An ARGUMENT assertion, and weaker than an outcome one: it pins what
+     * crossed the wire, not what came back. Used for exactly one filter below —
+     * see the note on `.in('scope_type', …)`. If a second file needs this it
+     * belongs in supabase-chain.ts next to `selectsFor`, which is the same walk.
+     */
+    function filterArgs(
+      from: ReturnType<typeof mockSupabase>['from'],
+      table: string,
+      method: 'eq' | 'in',
+    ): unknown[][] {
+      return from.mock.calls.flatMap(([queried], index) => {
+        const call = from.mock.results[index];
+        if (queried !== table || call?.type !== 'return') return [];
+        return (call.value[method].mock.calls ?? []) as unknown[][];
+      });
+    }
+
+    /**
+     * Three phases, so both filters on the pool-phase lookup decide something:
+     * another tournament's pool phase, and this tournament's bracket phase.
+     */
+    const POOL_PHASES: SupabaseRow[] = [
+      { id: 'phase-elsewhere', tournament_id: 'tournament-9', type: 'pool' },
+      { id: 'phase-bracket', tournament_id: 'tournament-1', type: 'single_elim' },
+      { id: 'phase-1', tournament_id: 'tournament-1', type: 'pool' },
+    ];
+
+    const TOURNAMENTS: SupabaseRow[] = [
+      { id: 'tournament-9', event_id: 'event-9', weapon: 'rapier' },
+      { id: 'tournament-1', event_id: 'event-1', weapon: 'longsword' },
+    ];
+
+    /** Pool A, and one hanging off another tournament's phase. */
+    const POOLS: SupabaseRow[] = [
+      { id: 'pool-9', name: 'Pool Z', sort_order: 9, phase_id: 'phase-elsewhere' },
+      { id: 'pool-1', name: 'Pool A', sort_order: 0, phase_id: 'phase-1' },
+    ];
+
+    /** A view row carrying every column the mapper reads. */
+    const viewMatch = (id: string, over: SupabaseRow = {}): SupabaseRow => ({
+      match_id: id,
+      pool_id: 'pool-1',
+      tournament_id: 'tournament-1',
+      phase_type: 'pool',
+      lice_id: null,
+      lice_name: null,
+      lice_number: null,
+      red_registration_id: 'r-1',
+      blue_registration_id: 'r-2',
+      red_name: 'Red',
+      blue_name: 'Blue',
+      red_club: null,
+      blue_club: null,
+      red_score: null,
+      blue_score: null,
+      winner_registration_id: null,
+      status: 'pending',
+      match_number_label: `L1-PA-${id}`,
+      scheduled_at: null,
+      ...over,
+    });
+
+    /**
+     * Two bouts that must not reach Pool A: one from another tournament, one
+     * from this tournament's bracket. Both name pool-1 on purpose — the view is
+     * shared across every tournament in the deploy, so the two filters on it
+     * are the only things holding the boundary, and a decoy in a pool nobody
+     * renders would prove nothing. Both sort last, so a leak shows up as an
+     * extra match rather than a reordering.
+     */
+    const VIEW_DECOYS: SupabaseRow[] = [
+      viewMatch('m-elsewhere', { tournament_id: 'tournament-9', match_number_label: 'ZZZ-1' }),
+      viewMatch('m-bracket', { phase_type: 'single_elim', match_number_label: 'ZZZ-2' }),
+    ];
+
+    const listService = (seed: Record<string, TableSeed> = {}) =>
+      makeService({
+        phases: { rows: POOL_PHASES },
+        tournaments: { rows: TOURNAMENTS },
+        pools: { rows: POOLS },
+        matches: { rows: [{ id: 'm-1', phase_id: 'phase-1', referee_id: null }] },
+        // Read whenever the pool has bouts and the tournament has an event, so
+        // it is declared by default; the crew tests below replace it.
+        referee_assignments: { rows: [] },
+        ...seed,
+      });
+
     // Slice B of the canonical-round-code spec: the pool list and the
     // scoreboard previously rendered the same match under two different
     // identifiers because the pool tab built the code client-side.
     // `listPoolsWithMatches` must now ship a pre-built `roundCode` so the
     // FE renders it verbatim — same shape as `getMatchSummary`.
     it("returns a backend-built roundCode on each match (e.g. 'LSW-P1-M1')", async () => {
-      fromMock.mockImplementation((tableName: string) => {
-        if (tableName === 'phases') {
-          const chain = makeChain({ data: { id: 'phase-1' }, error: null });
-          chain.maybeSingle.mockResolvedValue({ data: { id: 'phase-1' }, error: null });
-          return chain;
-        }
-        if (tableName === 'tournaments') {
-          const tournamentRow = { event_id: 'event-1', weapon: 'longsword' };
-          const chain = makeChain({ data: tournamentRow, error: null });
-          chain.maybeSingle.mockResolvedValue({ data: tournamentRow, error: null });
-          chain.single.mockResolvedValue({ data: tournamentRow, error: null });
-          return chain;
-        }
-        if (tableName === 'pools') {
-          const chain = makeChain({ data: null, error: null });
-          chain.order.mockResolvedValue({
-            data: [{ id: 'pool-1', name: 'Pool A', sort_order: 0 }],
-            error: null,
-          });
-          return chain;
-        }
-        if (tableName === 'vw_tournament_query_matches') {
-          const chain = makeChain({ data: null, error: null });
-          chain.order.mockResolvedValue({
-            data: [
-              {
-                match_id: 'm-1',
-                pool_id: 'pool-1',
-                lice_id: null,
-                lice_name: null,
-                lice_number: null,
-                red_registration_id: 'r-1',
-                blue_registration_id: 'r-2',
-                red_name: 'Red',
-                blue_name: 'Blue',
-                red_club: null,
-                blue_club: null,
-                red_score: null,
-                blue_score: null,
-                status: 'pending',
-                match_number_label: 'L1-PA-M1',
-              },
-            ],
-            error: null,
-          });
-          return chain;
-        }
-        if (tableName === 'matches') {
-          const chain = makeChain({ data: [], error: null });
-          chain.eq.mockResolvedValue({ data: [], error: null });
-          return chain;
-        }
-        return makeChain({ data: null, error: null });
+      const { service } = listService({
+        vw_tournament_query_matches: {
+          rows: [viewMatch('m-1', { match_number_label: 'L1-PA-M1' }), ...VIEW_DECOYS],
+        },
       });
 
       const result = await service.listPoolsWithMatches('tournament-1');
@@ -2251,89 +2261,62 @@ describe('PhasesService', () => {
      * rule intact.
      */
     it('carries the planned start on each pool match, null for an unscheduled one', async () => {
-      // The SELECT STRING is asserted, not just the projected value. These
-      // mocks answer with whatever the fixture holds regardless of what was
-      // asked for, so dropping `scheduled_at` from the select alone would leave
-      // this test green while the real read returned nothing — the column was
-      // missing from that string for two years exactly this quietly.
-      let viewSelect = '';
-      fromMock.mockImplementation((tableName: string) => {
-        if (tableName === 'phases') {
-          const chain = makeChain({ data: { id: 'phase-1' }, error: null });
-          chain.maybeSingle.mockResolvedValue({ data: { id: 'phase-1' }, error: null });
-          return chain;
-        }
-        if (tableName === 'tournaments') {
-          const tournamentRow = { event_id: 'event-1', weapon: 'longsword' };
-          const chain = makeChain({ data: tournamentRow, error: null });
-          chain.maybeSingle.mockResolvedValue({ data: tournamentRow, error: null });
-          chain.single.mockResolvedValue({ data: tournamentRow, error: null });
-          return chain;
-        }
-        if (tableName === 'pools') {
-          const chain = makeChain({ data: null, error: null });
-          chain.order.mockResolvedValue({
-            data: [{ id: 'pool-1', name: 'Pool A', sort_order: 0 }],
-            error: null,
-          });
-          return chain;
-        }
-        if (tableName === 'vw_tournament_query_matches') {
-          const base = {
-            pool_id: 'pool-1',
-            lice_id: null,
-            lice_name: null,
-            lice_number: null,
-            red_registration_id: 'r-1',
-            blue_registration_id: 'r-2',
-            red_name: 'Red',
-            blue_name: 'Blue',
-            red_club: null,
-            blue_club: null,
-            red_score: null,
-            blue_score: null,
-            status: 'scheduled',
-          };
-          const chain = makeChain({ data: null, error: null });
-          chain.select.mockImplementation((cols: string) => {
-            viewSelect = cols;
-            return chain;
-          });
-          chain.order.mockResolvedValue({
-            data: [
-              {
-                ...base,
-                match_id: 'm-1',
-                match_number_label: 'L1-PA-M1',
-                scheduled_at: '2026-06-06T09:05:00.000Z',
-              },
-              {
-                ...base,
-                match_id: 'm-2',
-                match_number_label: 'L1-PA-M2',
-                scheduled_at: null,
-              },
-            ],
-            error: null,
-          });
-          return chain;
-        }
-        if (tableName === 'matches') {
-          const chain = makeChain({ data: [], error: null });
-          chain.eq.mockResolvedValue({ data: [], error: null });
-          return chain;
-        }
-        return makeChain({ data: null, error: null });
+      // The SELECT STRING is asserted, not just the projected value. The double
+      // ignores the projection entirely, so dropping `scheduled_at` from the
+      // select alone would leave this test green while the real read returned
+      // nothing — the column was missing from that string for two years exactly
+      // this quietly.
+      const { service, supabase } = listService({
+        vw_tournament_query_matches: {
+          rows: [
+            viewMatch('m-1', {
+              status: 'scheduled',
+              match_number_label: 'L1-PA-M1',
+              scheduled_at: '2026-06-06T09:05:00.000Z',
+            }),
+            viewMatch('m-2', { status: 'scheduled', match_number_label: 'L1-PA-M2' }),
+            ...VIEW_DECOYS,
+          ],
+        },
       });
 
       const result = await service.listPoolsWithMatches('tournament-1');
       const matches = result[0]?.matches as Array<Record<string, unknown>>;
 
-      expect(viewSelect).toContain('scheduled_at');
+      expect(selectsFor(supabase.from, 'vw_tournament_query_matches')[0]).toContain('scheduled_at');
+      expect(matches).toHaveLength(2);
       expect(matches[0]?.['scheduled_at']).toBe('2026-06-06T09:05:00.000Z');
       // A bout nobody has placed yet has no time. It must arrive as null rather
       // than be dropped, or the sheet cannot list it last.
       expect(matches[1]?.['scheduled_at']).toBeNull();
+    });
+
+    /** A referee_assignments row as the read projects it. */
+    const assignment = (over: SupabaseRow): SupabaseRow => ({
+      event_id: 'event-1',
+      scope_type: 'match',
+      match_id: null,
+      pool_id: null,
+      lice_id: null,
+      role: 'arbitre_declarant',
+      person_id: 'person-1',
+      global_persons: { display_name: null, given_name: null, family_name: null },
+      ...over,
+    });
+
+    /**
+     * The same crew, assigned in another event.
+     *
+     * `.eq('event_id', …)` is the only thing keeping it out: post-0063 the FK
+     * lives on referee_assignments.event_id and the table is shared across
+     * every tournament in the deploy.
+     */
+    const ASSIGNMENT_ELSEWHERE = assignment({
+      event_id: 'event-9',
+      match_id: 'm-1',
+      role: 'president',
+      person_id: 'person-99',
+      global_persons: { display_name: 'Wrong Event', given_name: null, family_name: null },
     });
 
     // Slice E of the per-role-referee spec: each match exposes a
@@ -2341,90 +2324,32 @@ describe('PhasesService', () => {
     // `referee_assignments`) so the FE renders one column per role
     // with the referee's NAME instead of a single column of UUIDs.
     it('includes a referees[] array per match with role + refereeId + refereeName', async () => {
-      fromMock.mockImplementation((tableName: string) => {
-        if (tableName === 'phases') {
-          const chain = makeChain({ data: { id: 'phase-1' }, error: null });
-          chain.maybeSingle.mockResolvedValue({ data: { id: 'phase-1' }, error: null });
-          return chain;
-        }
-        if (tableName === 'tournaments') {
-          const tournamentRow = { event_id: 'event-1', weapon: 'longsword' };
-          const chain = makeChain({ data: tournamentRow, error: null });
-          chain.maybeSingle.mockResolvedValue({ data: tournamentRow, error: null });
-          return chain;
-        }
-        if (tableName === 'pools') {
-          const chain = makeChain({ data: null, error: null });
-          chain.order.mockResolvedValue({
-            data: [{ id: 'pool-1', name: 'Pool A', sort_order: 0 }],
-            error: null,
-          });
-          return chain;
-        }
-        if (tableName === 'vw_tournament_query_matches') {
-          const chain = makeChain({ data: null, error: null });
-          chain.order.mockResolvedValue({
-            data: [
-              {
-                match_id: 'm-1',
-                pool_id: 'pool-1',
-                lice_id: null,
-                lice_name: null,
-                lice_number: null,
-                red_registration_id: 'r-1',
-                blue_registration_id: 'r-2',
-                red_name: 'Red',
-                blue_name: 'Blue',
-                red_club: null,
-                blue_club: null,
-                red_score: null,
-                blue_score: null,
-                status: 'pending',
-                match_number_label: 'L1-PA-M1',
+      const { service, supabase } = listService({
+        vw_tournament_query_matches: {
+          rows: [viewMatch('m-1', { match_number_label: 'L1-PA-M1' }), ...VIEW_DECOYS],
+        },
+        referee_assignments: {
+          rows: [
+            assignment({
+              match_id: 'm-1',
+              role: 'arbitre_declarant',
+              person_id: 'person-1',
+              global_persons: {
+                display_name: 'Alice',
+                given_name: 'Alice',
+                family_name: 'Smith',
               },
-            ],
-            error: null,
-          });
-          return chain;
-        }
-        if (tableName === 'matches') {
-          const chain = makeChain({ data: [], error: null });
-          chain.eq.mockResolvedValue({ data: [], error: null });
-          return chain;
-        }
-        if (tableName === 'referee_assignments') {
-          // Per-match assignments. The service joins global_persons for
-          // the display name (post-0063: referee_assignments.person_id
-          // → global_persons.id). The fetch is now scoped by event_id
-          // (via .eq) and scope_type (via .in), so the await resolves
-          // at .in('scope_type', [...]).
-          const chain = makeChain({ data: null, error: null });
-          chain.in.mockResolvedValue({
-            data: [
-              {
-                match_id: 'm-1',
-                pool_id: null,
-                role: 'arbitre_declarant',
-                person_id: 'person-1',
-                global_persons: {
-                  display_name: 'Alice',
-                  given_name: 'Alice',
-                  family_name: 'Smith',
-                },
-              },
-              {
-                match_id: 'm-1',
-                pool_id: null,
-                role: 'arbitre_assesseur',
-                person_id: 'person-2',
-                global_persons: { display_name: null, given_name: 'Bob', family_name: 'Jones' },
-              },
-            ],
-            error: null,
-          });
-          return chain;
-        }
-        return makeChain({ data: null, error: null });
+            }),
+            assignment({
+              match_id: 'm-1',
+              role: 'arbitre_assesseur',
+              person_id: 'person-2',
+              global_persons: { display_name: null, given_name: 'Bob', family_name: 'Jones' },
+            }),
+            ASSIGNMENT_ELSEWHERE,
+          ],
+        },
+        referee_skills: { rows: [] },
       });
 
       const result = await service.listPoolsWithMatches('tournament-1');
@@ -2446,6 +2371,22 @@ describe('PhasesService', () => {
           }),
         ]),
       );
+      // And nobody else's: the other event's president must not be here.
+      expect(match.referees).toHaveLength(2);
+
+      /**
+       * `.in('scope_type', ['pool','match'])` is asserted on its ARGUMENTS,
+       * which is weaker, and deliberately so — it is the one filter here that
+       * no fixture can make load-bearing. The grouping above keys on match_id
+       * then pool_id, and `referee_assignments_scope_check` (migration 0091)
+       * forbids a lice-scope row from carrying either, so every scope the
+       * filter excludes is a row the consumer would ignore anyway. A seeded row
+       * that broke that CHECK would manufacture a gain rather than measure one.
+       */
+      expect(filterArgs(supabase.from, 'referee_assignments', 'in')).toContainEqual([
+        'scope_type',
+        ['pool', 'match'],
+      ]);
     });
 
     // Pool-scope referee_assignments rows (written by the Referees →
@@ -2453,114 +2394,33 @@ describe('PhasesService', () => {
     // The Matches tab read must surface them so the operator's
     // assignments don't appear lost.
     it('surfaces a pool-scope assignment as the default on every match in the pool', async () => {
-      fromMock.mockImplementation((tableName: string) => {
-        if (tableName === 'phases') {
-          const chain = makeChain({ data: { id: 'phase-1' }, error: null });
-          chain.maybeSingle.mockResolvedValue({ data: { id: 'phase-1' }, error: null });
-          return chain;
-        }
-        if (tableName === 'tournaments') {
-          const tournamentRow = { event_id: 'event-1', weapon: 'longsword' };
-          const chain = makeChain({ data: tournamentRow, error: null });
-          chain.maybeSingle.mockResolvedValue({ data: tournamentRow, error: null });
-          return chain;
-        }
-        if (tableName === 'pools') {
-          const chain = makeChain({ data: null, error: null });
-          chain.order.mockResolvedValue({
-            data: [{ id: 'pool-1', name: 'Pool A', sort_order: 0 }],
-            error: null,
-          });
-          return chain;
-        }
-        if (tableName === 'vw_tournament_query_matches') {
-          const chain = makeChain({ data: null, error: null });
-          chain.order.mockResolvedValue({
-            data: [
-              {
-                match_id: 'm-1',
-                pool_id: 'pool-1',
-                lice_id: null,
-                lice_name: null,
-                lice_number: null,
-                red_registration_id: 'r-1',
-                blue_registration_id: 'r-2',
-                red_name: 'Red 1',
-                blue_name: 'Blue 1',
-                red_club: null,
-                blue_club: null,
-                red_score: null,
-                blue_score: null,
-                status: 'pending',
-                match_number_label: 'L1-PA-M1',
+      const { service } = listService({
+        vw_tournament_query_matches: {
+          rows: [
+            viewMatch('m-1', { red_name: 'Red 1', blue_name: 'Blue 1' }),
+            viewMatch('m-2', { red_name: 'Red 2', blue_name: 'Blue 2' }),
+            viewMatch('m-3', { red_name: 'Red 3', blue_name: 'Blue 3' }),
+            ...VIEW_DECOYS,
+          ],
+        },
+        referee_assignments: {
+          rows: [
+            // Single pool-scope row — the Assignments tab's write shape:
+            // scope_type='pool', pool_id=X, match_id=null.
+            assignment({
+              scope_type: 'pool',
+              pool_id: 'pool-1',
+              person_id: 'person-7',
+              global_persons: {
+                display_name: 'Joe Referee',
+                given_name: 'Joe',
+                family_name: 'Referee',
               },
-              {
-                match_id: 'm-2',
-                pool_id: 'pool-1',
-                lice_id: null,
-                lice_name: null,
-                lice_number: null,
-                red_registration_id: 'r-3',
-                blue_registration_id: 'r-4',
-                red_name: 'Red 2',
-                blue_name: 'Blue 2',
-                red_club: null,
-                blue_club: null,
-                red_score: null,
-                blue_score: null,
-                status: 'pending',
-                match_number_label: 'L1-PA-M2',
-              },
-              {
-                match_id: 'm-3',
-                pool_id: 'pool-1',
-                lice_id: null,
-                lice_name: null,
-                lice_number: null,
-                red_registration_id: 'r-5',
-                blue_registration_id: 'r-6',
-                red_name: 'Red 3',
-                blue_name: 'Blue 3',
-                red_club: null,
-                blue_club: null,
-                red_score: null,
-                blue_score: null,
-                status: 'pending',
-                match_number_label: 'L1-PA-M3',
-              },
-            ],
-            error: null,
-          });
-          return chain;
-        }
-        if (tableName === 'matches') {
-          const chain = makeChain({ data: [], error: null });
-          chain.eq.mockResolvedValue({ data: [], error: null });
-          return chain;
-        }
-        if (tableName === 'referee_assignments') {
-          // Single pool-scope row — the Assignments tab's write shape:
-          // scope_type='pool', pool_id=X, match_id=null.
-          const chain = makeChain({ data: null, error: null });
-          chain.in.mockResolvedValue({
-            data: [
-              {
-                match_id: null,
-                pool_id: 'pool-1',
-                role: 'arbitre_declarant',
-                person_id: 'person-7',
-                global_persons: {
-                  display_name: 'Joe Referee',
-                  given_name: 'Joe',
-                  family_name: 'Referee',
-                },
-              },
-            ],
-            error: null,
-          });
-          return chain;
-        }
-        return makeChain({ data: null, error: null });
+            }),
+            ASSIGNMENT_ELSEWHERE,
+          ],
+        },
+        referee_skills: { rows: [] },
       });
 
       const result = await service.listPoolsWithMatches('tournament-1');
@@ -2582,108 +2442,35 @@ describe('PhasesService', () => {
     });
 
     it('lets a per-match scope_type=match row override the pool default for that one match', async () => {
-      fromMock.mockImplementation((tableName: string) => {
-        if (tableName === 'phases') {
-          const chain = makeChain({ data: { id: 'phase-1' }, error: null });
-          chain.maybeSingle.mockResolvedValue({ data: { id: 'phase-1' }, error: null });
-          return chain;
-        }
-        if (tableName === 'tournaments') {
-          const tournamentRow = { event_id: 'event-1', weapon: 'longsword' };
-          const chain = makeChain({ data: tournamentRow, error: null });
-          chain.maybeSingle.mockResolvedValue({ data: tournamentRow, error: null });
-          return chain;
-        }
-        if (tableName === 'pools') {
-          const chain = makeChain({ data: null, error: null });
-          chain.order.mockResolvedValue({
-            data: [{ id: 'pool-1', name: 'Pool A', sort_order: 0 }],
-            error: null,
-          });
-          return chain;
-        }
-        if (tableName === 'vw_tournament_query_matches') {
-          const chain = makeChain({ data: null, error: null });
-          chain.order.mockResolvedValue({
-            data: [
-              {
-                match_id: 'm-1',
-                pool_id: 'pool-1',
-                lice_id: null,
-                lice_name: null,
-                lice_number: null,
-                red_registration_id: 'r-1',
-                blue_registration_id: 'r-2',
-                red_name: 'Red 1',
-                blue_name: 'Blue 1',
-                red_club: null,
-                blue_club: null,
-                red_score: null,
-                blue_score: null,
-                status: 'pending',
-                match_number_label: 'L1-PA-M1',
+      const { service } = listService({
+        vw_tournament_query_matches: {
+          rows: [viewMatch('m-1'), viewMatch('m-2'), ...VIEW_DECOYS],
+        },
+        referee_assignments: {
+          rows: [
+            assignment({
+              scope_type: 'pool',
+              pool_id: 'pool-1',
+              person_id: 'person-7',
+              global_persons: {
+                display_name: 'Joe Default',
+                given_name: 'Joe',
+                family_name: 'Default',
               },
-              {
-                match_id: 'm-2',
-                pool_id: 'pool-1',
-                lice_id: null,
-                lice_name: null,
-                lice_number: null,
-                red_registration_id: 'r-3',
-                blue_registration_id: 'r-4',
-                red_name: 'Red 2',
-                blue_name: 'Blue 2',
-                red_club: null,
-                blue_club: null,
-                red_score: null,
-                blue_score: null,
-                status: 'pending',
-                match_number_label: 'L1-PA-M2',
+            }),
+            assignment({
+              match_id: 'm-2',
+              person_id: 'person-9',
+              global_persons: {
+                display_name: 'Lea Override',
+                given_name: 'Lea',
+                family_name: 'Override',
               },
-            ],
-            error: null,
-          });
-          return chain;
-        }
-        if (tableName === 'matches') {
-          const chain = makeChain({ data: [], error: null });
-          chain.eq.mockResolvedValue({ data: [], error: null });
-          return chain;
-        }
-        if (tableName === 'referee_assignments') {
-          const chain = makeChain({ data: null, error: null });
-          chain.in.mockResolvedValue({
-            data: [
-              // Pool default — Joe is Déclarant for the whole pool
-              {
-                match_id: null,
-                pool_id: 'pool-1',
-                role: 'arbitre_declarant',
-                person_id: 'person-7',
-                global_persons: {
-                  display_name: 'Joe Default',
-                  given_name: 'Joe',
-                  family_name: 'Default',
-                },
-              },
-              // Per-match override — m-2 gets Lea as Déclarant instead
-              {
-                match_id: 'm-2',
-                pool_id: null,
-                role: 'arbitre_declarant',
-                person_id: 'person-9',
-                global_persons: {
-                  display_name: 'Lea Override',
-                  given_name: 'Lea',
-                  family_name: 'Override',
-                },
-              },
-            ],
-            error: null,
-          });
-          return chain;
-        }
-        return makeChain({ data: null, error: null });
+            }),
+            ASSIGNMENT_ELSEWHERE,
+          ],
+        },
+        referee_skills: { rows: [] },
       });
 
       const result = await service.listPoolsWithMatches('tournament-1');
@@ -2720,84 +2507,26 @@ describe('PhasesService', () => {
     // this commit fixes). If a future migration renames the embed
     // again, this tracer pops up first.
     it('reads the referee display name from the global_persons embed (post-0063)', async () => {
-      let refereeSelectCall = '';
-      fromMock.mockImplementation((tableName: string) => {
-        if (tableName === 'phases') {
-          const chain = makeChain({ data: { id: 'phase-1' }, error: null });
-          chain.maybeSingle.mockResolvedValue({ data: { id: 'phase-1' }, error: null });
-          return chain;
-        }
-        if (tableName === 'tournaments') {
-          const tournamentRow = { event_id: 'event-1', weapon: 'longsword' };
-          const chain = makeChain({ data: tournamentRow, error: null });
-          chain.maybeSingle.mockResolvedValue({ data: tournamentRow, error: null });
-          return chain;
-        }
-        if (tableName === 'pools') {
-          const chain = makeChain({ data: null, error: null });
-          chain.order.mockResolvedValue({
-            data: [{ id: 'pool-1', name: 'Pool A', sort_order: 0 }],
-            error: null,
-          });
-          return chain;
-        }
-        if (tableName === 'vw_tournament_query_matches') {
-          const chain = makeChain({ data: null, error: null });
-          chain.order.mockResolvedValue({
-            data: [
-              {
-                match_id: 'm-1',
-                pool_id: 'pool-1',
-                lice_id: null,
-                lice_name: null,
-                lice_number: null,
-                red_registration_id: 'r-1',
-                blue_registration_id: 'r-2',
-                red_name: 'Red',
-                blue_name: 'Blue',
-                red_club: null,
-                blue_club: null,
-                red_score: null,
-                blue_score: null,
-                status: 'pending',
-                match_number_label: 'L1-PA-M1',
+      const { service, supabase } = listService({
+        vw_tournament_query_matches: {
+          rows: [viewMatch('m-1'), ...VIEW_DECOYS],
+        },
+        referee_assignments: {
+          rows: [
+            assignment({
+              match_id: 'm-1',
+              role: 'arbitre_assesseur',
+              person_id: 'gp-1',
+              global_persons: {
+                display_name: null,
+                given_name: 'Joe',
+                family_name: 'Referee',
               },
-            ],
-            error: null,
-          });
-          return chain;
-        }
-        if (tableName === 'matches') {
-          const chain = makeChain({ data: [], error: null });
-          chain.eq.mockResolvedValue({ data: [], error: null });
-          return chain;
-        }
-        if (tableName === 'referee_assignments') {
-          const chain = makeChain({ data: null, error: null });
-          // Capture the select string so we can assert the embed name.
-          chain.select = vi.fn((columns: string) => {
-            refereeSelectCall = columns;
-            return chain;
-          });
-          chain.in.mockResolvedValue({
-            data: [
-              {
-                match_id: 'm-1',
-                pool_id: null,
-                role: 'arbitre_assesseur',
-                person_id: 'gp-1',
-                global_persons: {
-                  display_name: null,
-                  given_name: 'Joe',
-                  family_name: 'Referee',
-                },
-              },
-            ],
-            error: null,
-          });
-          return chain;
-        }
-        return makeChain({ data: null, error: null });
+            }),
+            ASSIGNMENT_ELSEWHERE,
+          ],
+        },
+        referee_skills: { rows: [] },
       });
 
       const result = await service.listPoolsWithMatches('tournament-1');
@@ -2805,6 +2534,7 @@ describe('PhasesService', () => {
         referees: Array<{ role: string; refereeId: string; refereeName: string }>;
       };
 
+      const refereeSelectCall = selectsFor(supabase.from, 'referee_assignments')[0] ?? '';
       expect(refereeSelectCall).toContain('global_persons');
       expect(refereeSelectCall).not.toMatch(/(?:^|,\s*)persons\s*\(/);
       expect(match.referees).toContainEqual(
@@ -2820,55 +2550,34 @@ describe('PhasesService', () => {
     // type and the mapper dropped both, so every consumer that wanted to say
     // which piste a pool runs on had to fetch the lices list separately.
     it('projects the piste name onto each match and collects the pool’s distinct pistes', async () => {
-      fromMock.mockImplementation((tableName: string) => {
-        if (tableName === 'phases') {
-          return makeChain({ data: { id: 'phase-1' }, error: null });
-        }
-        if (tableName === 'tournaments') {
-          return makeChain({ data: { event_id: 'event-1', weapon: 'longsword' }, error: null });
-        }
-        if (tableName === 'pools') {
-          return makeAwaitableChain({
-            data: [{ id: 'pool-1', name: 'Pool 1', sort_order: 0 }],
-            error: null,
-          });
-        }
-        if (tableName === 'vw_tournament_query_matches') {
-          return makeAwaitableChain({
-            data: [
-              {
-                match_id: 'm-1',
-                pool_id: 'pool-1',
-                lice_id: 'lice-1',
-                lice_name: 'Lice 1',
-                lice_number: 1,
-                status: 'completed',
-                match_number_label: 'M1',
-              },
-              {
-                match_id: 'm-2',
-                pool_id: 'pool-1',
-                lice_id: 'lice-2',
-                lice_name: 'Lice 2',
-                lice_number: 2,
-                status: 'scheduled',
-                match_number_label: 'M2',
-              },
-              // Same piste as m-1 — must not appear twice in liceNames.
-              {
-                match_id: 'm-3',
-                pool_id: 'pool-1',
-                lice_id: 'lice-1',
-                lice_name: 'Lice 1',
-                lice_number: 1,
-                status: 'scheduled',
-                match_number_label: 'M3',
-              },
-            ],
-            error: null,
-          });
-        }
-        return makeChain({ data: null, error: null });
+      const { service } = listService({
+        vw_tournament_query_matches: {
+          rows: [
+            viewMatch('m-1', {
+              lice_id: 'lice-1',
+              lice_name: 'Lice 1',
+              lice_number: 1,
+              status: 'completed',
+              match_number_label: 'M1',
+            }),
+            viewMatch('m-2', {
+              lice_id: 'lice-2',
+              lice_name: 'Lice 2',
+              lice_number: 2,
+              status: 'scheduled',
+              match_number_label: 'M2',
+            }),
+            // Same piste as m-1 — must not appear twice in liceNames.
+            viewMatch('m-3', {
+              lice_id: 'lice-1',
+              lice_name: 'Lice 1',
+              lice_number: 1,
+              status: 'scheduled',
+              match_number_label: 'M3',
+            }),
+            ...VIEW_DECOYS,
+          ],
+        },
       });
 
       const result = await service.listPoolsWithMatches('tournament-1');
@@ -2883,62 +2592,43 @@ describe('PhasesService', () => {
     // happens to override — so the header projection reads scope_type='pool'
     // and never the per-match merge the rows carry.
     it('projects only pool-scope assignments onto the pool header, labelled and coloured', async () => {
-      fromMock.mockImplementation((tableName: string) => {
-        if (tableName === 'phases') {
-          return makeChain({ data: { id: 'phase-1' }, error: null });
-        }
-        if (tableName === 'tournaments') {
-          return makeChain({ data: { event_id: 'event-1', weapon: 'longsword' }, error: null });
-        }
-        if (tableName === 'pools') {
-          return makeAwaitableChain({
-            data: [{ id: 'pool-1', name: 'Pool 1', sort_order: 0 }],
-            error: null,
-          });
-        }
-        if (tableName === 'vw_tournament_query_matches') {
-          return makeAwaitableChain({
-            data: [
-              {
-                match_id: 'm-1',
-                pool_id: 'pool-1',
-                lice_id: 'lice-1',
-                lice_name: 'Lice 1',
-                status: 'scheduled',
-                match_number_label: 'M1',
-              },
-            ],
-            error: null,
-          });
-        }
-        if (tableName === 'referee_assignments') {
-          return makeAwaitableChain({
-            data: [
-              {
-                match_id: null,
-                pool_id: 'pool-1',
-                role: 'arbitre_declarant',
-                person_id: 'gp-1',
-                global_persons: { display_name: 'Pool Crew' },
-              },
-              {
-                match_id: 'm-1',
-                pool_id: null,
-                role: 'arbitre_assesseur',
-                person_id: 'gp-2',
-                global_persons: { display_name: 'One-Off Override' },
-              },
-            ],
-            error: null,
-          });
-        }
-        if (tableName === 'referee_skills') {
-          return makeAwaitableChain({
-            data: [{ id: 'arbitre_declarant', name: 'Déclarant', color: 'orange' }],
-            error: null,
-          });
-        }
-        return makeChain({ data: null, error: null });
+      const { service } = listService({
+        vw_tournament_query_matches: {
+          rows: [
+            viewMatch('m-1', {
+              lice_id: 'lice-1',
+              lice_name: 'Lice 1',
+              status: 'scheduled',
+              match_number_label: 'M1',
+            }),
+            ...VIEW_DECOYS,
+          ],
+        },
+        referee_assignments: {
+          rows: [
+            assignment({
+              scope_type: 'pool',
+              pool_id: 'pool-1',
+              person_id: 'gp-1',
+              global_persons: { display_name: 'Pool Crew' },
+            }),
+            assignment({
+              match_id: 'm-1',
+              role: 'arbitre_assesseur',
+              person_id: 'gp-2',
+              global_persons: { display_name: 'One-Off Override' },
+            }),
+            ASSIGNMENT_ELSEWHERE,
+          ],
+        },
+        referee_skills: {
+          rows: [
+            { id: 'arbitre_declarant', name: 'Déclarant', color: 'orange' },
+            // Another role's chip, so `.in('id', roleIds)` has something to
+            // exclude rather than a table it can only match.
+            { id: 'president', name: 'Président', color: 'purple' },
+          ],
+        },
       });
 
       const result = await service.listPoolsWithMatches('tournament-1');
