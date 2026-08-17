@@ -115,17 +115,15 @@ describe('StaffService.updateAccount', () => {
     // The account exists — it is simply not this event's. Dropping the event
     // scope turns this into a successful cross-event edit.
     //
-    // The refusal arrives as a 400, not the 404 the source appears to intend:
-    // the read-back is `.single()`, which errors PGRST116 on nothing found, and
-    // that throws one line before `if (!data) throw new NotFoundException`.
-    // That NotFoundException is unreachable here and in resetPin below.
+    // A 404: the scoped update matches no row, `.single()` raises PGRST116, and
+    // `staffAccountWriteError` reads that as "this event does not own it".
     const { service, supabase } = build({
       event_staff_accounts: { rows: [accountRow(FOREIGN, OTHER_EVENT)] },
     });
 
     await expect(
       service.updateAccount(EVENT, FOREIGN, { status: 'disabled' } as never, USER),
-    ).rejects.toBeInstanceOf(BadRequestException);
+    ).rejects.toBeInstanceOf(NotFoundException);
     // The UPDATE is still issued; it simply matches nothing. What keeps it from
     // landing on the other event's row is the scope, which is asserted here.
     const [write] = writesTo(supabase, 'event_staff_accounts');
@@ -158,7 +156,7 @@ describe('StaffService.resetPin', () => {
 
     await expect(
       service.resetPin(EVENT, FOREIGN, { pin: '246810' } as never, USER),
-    ).rejects.toBeInstanceOf(BadRequestException);
+    ).rejects.toBeInstanceOf(NotFoundException);
   });
 
   it('resets the PIN of the named account only', async () => {

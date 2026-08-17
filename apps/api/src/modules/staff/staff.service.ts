@@ -232,7 +232,7 @@ export class StaffService {
         'id,event_id,display_name,username,status,role,disabled_at,last_login_at,created_at,updated_at',
       )
       .single();
-    if (error) throw new BadRequestException(error.message);
+    if (error) throw this.staffAccountWriteError(error);
     if (!data) throw new NotFoundException('Staff account not found');
     return data;
   }
@@ -246,9 +246,25 @@ export class StaffService {
       .eq('id', accountId)
       .select('id,event_id,display_name,username,status,updated_at')
       .single();
-    if (error) throw new BadRequestException(error.message);
+    if (error) throw this.staffAccountWriteError(error);
     if (!data) throw new NotFoundException('Staff account not found');
     return data;
+  }
+
+  /**
+   * The right exception for a scoped write that read nothing back.
+   *
+   * `updateAccount` and `resetPin` both end `.eq(event_id).eq(id).select().single()`,
+   * and `.single()` raises PGRST116 when the update matched no row. On these two
+   * paths that means this event does not own that account — a 404. Reporting it
+   * as a 400 carrying a PostgREST sentence tells the organiser their request was
+   * malformed when it was simply about someone else's staff.
+   *
+   * The guard refused either way; only the status and the message were wrong.
+   */
+  private staffAccountWriteError(error: { message: string; code?: string }): Error {
+    if (error.code === 'PGRST116') return new NotFoundException('Staff account not found');
+    return new BadRequestException(error.message);
   }
 
   async setLices(eventId: string, accountId: string, dto: SetStaffLicesDto, userId: string) {
