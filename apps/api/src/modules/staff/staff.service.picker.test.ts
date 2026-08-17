@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { StaffService } from './staff.service';
-import { mockSupabase, supabaseChain } from '../../common/testing/supabase-chain';
+import { mockSupabase, selectsFor } from '../../common/testing/supabase-chain';
 
 /**
  * `GET /staff-auth/events` is a `@Public()` route that lists events.
@@ -30,12 +30,26 @@ function eventRow(over: Record<string, unknown> = {}) {
     // The inner embed comes back as an array — event_staff_accounts.event_id is
     // not unique, so PostgREST does NOT flip it to an object.
     event_staff_accounts: [{ id: 'staff-1' }],
+    // The flat key the embedded filter reads. A seeded row answers
+    // `.eq('event_staff_accounts.status', …)` from this, not from the nested
+    // array above — PostgREST resolves the embed server-side, so there is
+    // nothing here to walk.
+    'event_staff_accounts.status': 'active',
     ...over,
   };
 }
 
+/**
+ * Seeded, not canned: the picker read ends
+ * `.order('start_date', { ascending: true, nullsFirst: false })`, and a draft
+ * with no date typed yet is exactly the event most likely to need a test
+ * sign-in. That combination is why the double learned where nulls sort.
+ *
+ * Rows carry the embedded filter's key flat — `'event_staff_accounts.status'` —
+ * because that is how a dotted filter reaches a seeded row.
+ */
 function serviceFor(rows: Array<Record<string, unknown>>) {
-  const supabase = mockSupabase({ events: { data: rows, error: null } });
+  const supabase = mockSupabase({ events: { rows } });
   return {
     service: new StaffService(supabase as never, {} as never, {} as never, {} as never),
     from: supabase.from,
@@ -72,31 +86,35 @@ describe('StaffService.listPickerEvents', () => {
   });
 
   it('requires an ACTIVE staff account on the event, via an inner embed', async () => {
-    const { service, from } = serviceFor([eventRow()]);
-    const chain = supabaseChain({ data: [eventRow()], error: null });
-    from.mockReturnValue(chain);
+    // An event whose only staff accounts are DISABLED is a door nobody holds a
+    // key to. It is dropped by the filter on the embedded table, not by the
+    // `!inner` — which only drops events with no staff rows at all.
+    const { service, from } = serviceFor([
+      eventRow({ id: 'e-open' }),
+      eventRow({ id: 'e-all-disabled', 'event_staff_accounts.status': 'disabled' }),
+    ]);
 
-    await service.listPickerEvents();
+    const rows = await service.listPickerEvents();
 
-    // The row filter is two parts and both must be present: the inner embed
-    // (which drops events with no staff rows at all) AND the status filter on
-    // the embedded table (which drops events whose only accounts are disabled).
-    // An `!inner` without the .eq would list an event nobody can sign into.
-    expect(chain.select.mock.calls[0]?.[0]).toContain('event_staff_accounts!inner');
-    expect(chain.eq).toHaveBeenCalledWith('event_staff_accounts.status', 'active');
+    expect(rows.map((r) => r.id)).toEqual(['e-open']);
+    // The projection is asserted separately because the double ignores it: the
+    // embed has to be `!inner`, or an event with no staff rows survives.
+    expect(selectsFor(from, 'events')[0]).toContain('event_staff_accounts!inner');
   });
 
   it('offers only statuses a staff session can actually be created for', async () => {
-    const { service, from } = serviceFor([eventRow()]);
-    const chain = supabaseChain({ data: [eventRow()], error: null });
-    from.mockReturnValue(chain);
-
-    await service.listPickerEvents();
-
     // `assertEventScorable` refuses completed and archived, so listing one
     // would offer a door that cannot open — the volunteer taps it, types their
     // PIN, and gets a 403 with no explanation of which part was wrong.
-    expect(chain.in).toHaveBeenCalledWith('status', ['draft', 'published', 'running']);
+    const { service } = serviceFor([
+      eventRow({ id: 'e-running', status: 'running' }),
+      eventRow({ id: 'e-done', status: 'completed' }),
+      eventRow({ id: 'e-archived', status: 'archived' }),
+    ]);
+
+    const rows = await service.listPickerEvents();
+
+    expect(rows.map((r) => r.id)).toEqual(['e-running']);
   });
 
   it('keeps test, club and draft events reachable', async () => {
