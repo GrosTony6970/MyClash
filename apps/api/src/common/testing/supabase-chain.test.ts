@@ -232,6 +232,59 @@ describe('a seeded table refuses what it cannot model', () => {
     expect((desc.data as Array<{ id: string }>).map((r) => r.id)).toEqual(['b', 'a']);
   });
 
+  // `.order('a').order('b')` is ONE sort by a, tie-broken by b — supabase-js
+  // appends each call to a single `order=a,b`. Keeping only the last key still
+  // returns a plausibly sorted list, which is why it needs pinning: a fixture
+  // whose two keys happen to agree would pass either way.
+  const TIED = {
+    matches: {
+      rows: [
+        { id: 'late-a', slot: 2, label: 'A' },
+        { id: 'early-b', slot: 1, label: 'B' },
+        { id: 'early-a', slot: 1, label: 'A' },
+      ],
+    },
+  } as const;
+
+  it('sorts on the first order key and breaks ties with the second', async () => {
+    const { data } = await supabaseFrom(TIED)('matches').select().order('slot').order('label');
+    expect((data as Array<{ id: string }>).map((r) => r.id)).toEqual([
+      'early-a',
+      'early-b',
+      'late-a',
+    ]);
+  });
+
+  it('does not let a later key outrank an earlier one', async () => {
+    // Reversed against the test above: if the last call won, `label` would put
+    // both A rows in front and this would read the same as sorting by label.
+    const { data } = await supabaseFrom(TIED)('matches').select().order('label').order('slot');
+    expect((data as Array<{ id: string }>).map((r) => r.id)).toEqual([
+      'early-a',
+      'late-a',
+      'early-b',
+    ]);
+  });
+
+  it('applies ascending and nullsFirst per key rather than globally', async () => {
+    // The null lands INSIDE the second group rather than at the end of the
+    // whole list, which is the difference between ranking by both keys and
+    // ranking by the last one: dropping `grp` here would read p, q, r.
+    const { data } = await supabaseFrom({
+      matches: {
+        rows: [
+          { id: 'p', grp: 1, at: '2026-05-05T09:00:00Z' },
+          { id: 'q', grp: 2, at: '2026-05-05T10:00:00Z' },
+          { id: 'r', grp: 2 },
+        ],
+      },
+    })('matches')
+      .select()
+      .order('grp', { ascending: false })
+      .order('at', { ascending: true, nullsFirst: false });
+    expect((data as Array<{ id: string }>).map((r) => r.id)).toEqual(['q', 'r', 'p']);
+  });
+
   it('treats an absent column the same as an explicit null, matching is()', async () => {
     const { data } = await supabaseFrom({
       matches: { rows: [{ id: 'a', seq: null }, { id: 'b', seq: 2 }, { id: 'c' }] },

@@ -30,7 +30,7 @@ function compareCells(a: unknown, b: unknown): number {
 }
 
 /**
- * Sort a seeded table the way Postgres would.
+ * Rank two rows on ONE sort key.
  *
  * Nulls sort as a block at one end, independent of the ascending flag — an
  * absent column reads as null, matching `is`. Postgres puts that block LAST
@@ -39,19 +39,38 @@ function compareCells(a: unknown, b: unknown): number {
  * would reorder a result and let a test assert the wrong row with no sign of it,
  * which is why it is spelled out rather than left to sort's own null handling.
  */
-function orderRows(
-  rows: SupabaseRow[],
-  { column, ascending, nullsFirst }: Ordering,
-): SupabaseRow[] {
-  const nullsLead = nullsFirst ?? !ascending;
+function compareOn(a: SupabaseRow, b: SupabaseRow, key: Ordering): number {
+  const { column, ascending, nullsFirst } = key;
+  const left = a[column] ?? null;
+  const right = b[column] ?? null;
+  if (left === null || right === null) {
+    if (left === null && right === null) return 0;
+    return (left === null ? 1 : -1) * ((nullsFirst ?? !ascending) ? -1 : 1);
+  }
+  return compareCells(left, right) * (ascending ? 1 : -1);
+}
+
+/**
+ * Sort a seeded table the way Postgres would, on EVERY key in turn.
+ *
+ * `.order('a').order('b')` is one query sorted by a and tie-broken by b, not two
+ * sorts where the last wins — supabase-js appends each call to a single
+ * `order=a,b`. Keeping only the last key is the quiet kind of wrong: it still
+ * returns a plausibly sorted list, so a fixture whose keys happen to agree
+ * passes while asserting nothing about the primary one. `resolveNextMatchOnLice`
+ * is why this matters here — it ranks by `status` before time, so the bout it
+ * calls "next" is decided by the key a last-wins model would drop.
+ *
+ * Ties fall through to seed order, because `sort` is stable and PostgREST
+ * likewise promises nothing beyond the keys it was given.
+ */
+function orderRows(rows: SupabaseRow[], keys: readonly Ordering[]): SupabaseRow[] {
   return rows.sort((a, b) => {
-    const left = a[column] ?? null;
-    const right = b[column] ?? null;
-    if (left === null || right === null) {
-      if (left === null && right === null) return 0;
-      return (left === null ? 1 : -1) * (nullsLead ? -1 : 1);
+    for (const key of keys) {
+      const verdict = compareOn(a, b, key);
+      if (verdict !== 0) return verdict;
     }
-    return compareCells(left, right) * (ascending ? 1 : -1);
+    return 0;
   });
 }
 
@@ -112,17 +131,18 @@ interface RowSet {
    */
   total(): number;
   narrow(predicate: (row: SupabaseRow) => boolean): void;
+  /** Appends a sort key. Each `.order()` call is a further tiebreaker. */
   orderBy(ordering: Ordering): void;
   limitTo(count: number): void;
 }
 
 function rowSet(seed: readonly SupabaseRow[]): RowSet {
   let working: SupabaseRow[] = [...seed];
-  let ordering: Ordering | null = null;
+  const orderings: Ordering[] = [];
   let cap: number | null = null;
   return {
     current: () => {
-      const out = ordering ? orderRows([...working], ordering) : [...working];
+      const out = orderings.length > 0 ? orderRows([...working], orderings) : [...working];
       return cap === null ? out : out.slice(0, cap);
     },
     total: () => working.length,
@@ -130,7 +150,7 @@ function rowSet(seed: readonly SupabaseRow[]): RowSet {
       working = working.filter(predicate);
     },
     orderBy: (next) => {
-      ordering = next;
+      orderings.push(next);
     },
     limitTo: (count) => {
       cap = count;
