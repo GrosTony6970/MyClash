@@ -37,7 +37,7 @@ export type TableSeed = ChainResult | ChainResult[] | SeededTable;
  * Deliberately short. Every entry is here because a module under test calls it;
  * see UNSIMULATED for why the rest throw rather than pass through.
  */
-const NARROWING = ['eq', 'neq', 'in', 'is', 'not', 'order', 'limit'] as const;
+const NARROWING = ['eq', 'neq', 'in', 'is', 'not', 'gte', 'lt', 'order', 'limit'] as const;
 
 /** Chain methods that describe the query without changing which rows come back. */
 const PASS_THROUGH = ['select', 'returns', 'throwOnError', 'abortSignal'] as const;
@@ -59,8 +59,6 @@ const WRITES = ['insert', 'update', 'upsert', 'delete'] as const;
  */
 const UNSIMULATED = [
   'gt',
-  'gte',
-  'lt',
   'lte',
   'like',
   'ilike',
@@ -222,6 +220,38 @@ function compareCells(a: unknown, b: unknown, column: string): number {
 }
 
 /**
+ * Order two cells for a RANGE filter, or report that they cannot be ordered.
+ *
+ * Deliberately not `compareCells`, which throws on null. The two nulls mean
+ * different things: a null in a sort column is a fixture that cannot express an
+ * order, while a null in a filtered column is a row Postgres simply excludes —
+ * `scheduled_at >= x` over NULL evaluates to NULL, which is not TRUE, so the row
+ * does not come back. `assertLiceFree` writing `.not('scheduled_at','is',null)`
+ * immediately before its window is the code saying it knows those rows exist.
+ *
+ * An ABSENT column reads the same as a null one, matching `is` above.
+ *
+ * Plain relational operators rather than `localeCompare`: the values reaching a
+ * range filter here are ISO-8601 instants and numbers, where byte order is the
+ * intended order and a locale-sensitive collation could only disagree.
+ */
+function rangeOrder(cell: unknown, value: unknown): number | null {
+  if (cell === null || cell === undefined || value === null || value === undefined) return null;
+  if (typeof cell === 'number' && typeof value === 'number') return cell - value;
+  const [a, b] = [String(cell), String(value)];
+  return a < b ? -1 : a > b ? 1 : 0;
+}
+
+/** `gte` / `lt` as a row predicate. A cell that cannot be ordered is excluded. */
+const inRange =
+  (operator: 'gte' | 'lt', column: string, value: unknown) =>
+  (row: SupabaseRow): boolean => {
+    const order = rangeOrder(row[column], value);
+    if (order === null) return false;
+    return operator === 'gte' ? order >= 0 : order < 0;
+  };
+
+/**
  * A builder over a seeded table.
  *
  * Filters narrow a PER-CALL copy: `from()` hands out a fresh chain each time, so
@@ -293,9 +323,12 @@ function installNarrowing(chain: SupabaseChain, log: QueryLog, set: RowSet): voi
     narrow('is', [c, v], (row) => (row[c] ?? null) === v),
   );
   chain.not = vi.fn((c: string, operator: string, v: unknown) => {
+    if (operator === 'is') return narrow('not', [c, operator, v], (r) => (r[c] ?? null) !== v);
     if (operator !== 'eq') throw unsupported('not', `operator "${operator}"`);
     return narrow('not', [c, operator, v], (row) => row[c] !== v);
   });
+  chain.gte = vi.fn((c: string, v: unknown) => narrow('gte', [c, v], inRange('gte', c, v)));
+  chain.lt = vi.fn((c: string, v: unknown) => narrow('lt', [c, v], inRange('lt', c, v)));
 
   chain.order = vi.fn((column: string, options?: { ascending?: boolean }) => {
     const extra = Object.keys(options ?? {}).filter((key) => key !== 'ascending');

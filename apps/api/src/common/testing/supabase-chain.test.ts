@@ -276,3 +276,106 @@ describe('recorded writes', () => {
     expect(supabase.writes[0]?.filters).toEqual([{ method: 'eq', args: ['id', 'a'] }]);
   });
 });
+
+// ── Range filters and the null check ─────────────────────────────────────────
+// The day window a bulk clear erases with, and the null check that runs before
+// a piste-occupancy read. Kept together because the two nulls behave DIFFERENTLY
+// on purpose: a null in a SORT column throws, because a fixture cannot express
+// where it belongs; a null in a FILTERED column is excluded, because Postgres
+// evaluates `col >= x` over NULL to NULL, and NULL is not TRUE.
+
+const DAY_START = '2026-05-02T00:00:00.000Z';
+const NEXT_DAY = '2026-05-03T00:00:00.000Z';
+const DAY = {
+  before: { id: 'before', scheduled_at: '2026-05-01T23:59:59.999Z' },
+  start: { id: 'start', scheduled_at: DAY_START },
+  inside: { id: 'inside', scheduled_at: '2026-05-02T10:30:00.000Z' },
+  end: { id: 'end', scheduled_at: NEXT_DAY },
+  unscheduled: { id: 'unscheduled', scheduled_at: null },
+  absent: { id: 'absent' },
+};
+const DAY_ROWS = Object.values(DAY);
+const idsOf = (data: unknown) => (data as Array<{ id: string }>).map((row) => row.id);
+
+describe('a seeded table filters a range', () => {
+  it('keeps the row ON the gte boundary and drops the one below it', async () => {
+    const from = supabaseFrom({ matches: { rows: DAY_ROWS } });
+    const { data } = await from('matches').select().gte('scheduled_at', DAY_START);
+    expect(idsOf(data)).toEqual(['start', 'inside', 'end']);
+  });
+
+  it('drops the row ON the lt boundary and keeps the one below it', async () => {
+    const from = supabaseFrom({ matches: { rows: DAY_ROWS } });
+    const { data } = await from('matches').select().lt('scheduled_at', NEXT_DAY);
+    expect(idsOf(data)).toEqual(['before', 'start', 'inside']);
+  });
+
+  it('models one local day as a half-open window', async () => {
+    const from = supabaseFrom({ matches: { rows: DAY_ROWS } });
+    const { data } = await from('matches')
+      .select()
+      .gte('scheduled_at', DAY_START)
+      .lt('scheduled_at', NEXT_DAY);
+    expect(idsOf(data)).toEqual(['start', 'inside']);
+  });
+
+  it('excludes a null or absent cell instead of throwing the way order does', async () => {
+    const from = supabaseFrom({ matches: { rows: [DAY.unscheduled, DAY.absent, DAY.inside] } });
+    const { data } = await from('matches').select().gte('scheduled_at', '1970-01-01T00:00:00.000Z');
+    expect(idsOf(data)).toEqual(['inside']);
+  });
+
+  it('orders numbers as numbers rather than as text', async () => {
+    // '9' sorts after '10' as text, so a sequence column would filter backwards.
+    const from = supabaseFrom({
+      exchanges: {
+        rows: [
+          { id: 'ninth', sequence: 9 },
+          { id: 'tenth', sequence: 10 },
+        ],
+      },
+    });
+    const { data } = await from('exchanges').select().gte('sequence', 10);
+    expect(idsOf(data)).toEqual(['tenth']);
+  });
+
+  it('records the window a write was scoped to, not only the table', async () => {
+    const supabase = mockSupabase({ matches: { rows: DAY_ROWS } });
+    await supabase.service
+      .from('matches')
+      .update({ scheduled_at: null })
+      .gte('scheduled_at', DAY_START)
+      .lt('scheduled_at', NEXT_DAY)
+      .select('id');
+    expect(supabase.writes[0]?.filters).toEqual([
+      { method: 'gte', args: ['scheduled_at', DAY_START] },
+      { method: 'lt', args: ['scheduled_at', NEXT_DAY] },
+    ]);
+  });
+});
+
+describe('not(column, is, value)', () => {
+  it('keeps rows holding a value and drops null and absent ones', async () => {
+    const from = supabaseFrom({ matches: { rows: [DAY.unscheduled, DAY.absent, DAY.inside] } });
+    const { data } = await from('matches').select().not('scheduled_at', 'is', null);
+    expect(idsOf(data)).toEqual(['inside']);
+  });
+
+  it('reads a non-null operand too', async () => {
+    const from = supabaseFrom({
+      matches: {
+        rows: [
+          { id: 'gone', status: 'voided' },
+          { id: 'live', status: 'scheduled' },
+        ],
+      },
+    });
+    const { data } = await from('matches').select().not('status', 'is', 'voided');
+    expect(idsOf(data)).toEqual(['live']);
+  });
+
+  it('still refuses an operator it does not model', () => {
+    const chain = supabaseFrom({ matches: { rows: DAY_ROWS } })('matches');
+    expect(() => chain.not('scheduled_at', 'gt', 1)).toThrow(/operator "gt"/);
+  });
+});
