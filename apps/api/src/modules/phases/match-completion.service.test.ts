@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { ConflictException, ForbiddenException } from '@nestjs/common';
+import { mockSupabase, type RecordedWrite } from '../../common/testing/supabase-chain';
 import { MatchCompletionService } from './match-completion.service';
 
 /**
@@ -165,62 +166,50 @@ function bracketFixture(foughtFinal: boolean) {
   };
 }
 
-/** Records every write so the assertions can be about effects, not calls. */
+/**
+ * The whole cascade's Supabase surface, on the shared double.
+ *
+ * `onMatchUncompleted` does very little itself. It hands off to
+ * `dependentClosure`, `revertMatchToUnplayed`, `readActiveForfeits` and
+ * `voidForfeitRecords` — and `dependentClosure` reaches `bracket-downstream`
+ * transitively, which is a fifth module and the one that reads `phases`.
+ *
+ * The private double this replaced seeded five tables. Four more — `exchanges`,
+ * `match_penalties`, `match_events` and `vw_tournament_query_matches` — were
+ * queried and fell through to `[]` in silence, so any test that turned on one of
+ * them was exercising an empty result nobody chose. The shared double throws on
+ * a table nobody declared, which is how this list became the real surface rather
+ * than the surface somebody remembered.
+ */
 function uncompleteSupabase(fixture: {
   slots: Row[];
   matches: Row[];
   match_forfeits?: Row[];
   registrations?: Row[];
+  exchanges?: Row[];
+  match_penalties?: Row[];
+  match_events?: Row[];
 }) {
-  const writes: Array<{ table: string; row: Row }> = [];
-  const tableRows: Record<string, Row[]> = {
-    bracket_slots: fixture.slots,
-    matches: fixture.matches,
-    phases: [{ id: 'phase-1', type: 'single_elim', config_json: { bracketSize: 4 } }],
-    match_forfeits: fixture.match_forfeits ?? [],
-    registrations: fixture.registrations ?? [],
-  };
-  const from = (table: string) => {
-    let rows: Row[] = tableRows[table] ?? [];
-    const api: Record<string, unknown> = {};
-    Object.assign(api, {
-      select: () => api,
-      order: () => api,
-      limit: () => api,
-      eq: (column: string, value: unknown) => {
-        rows = rows.filter((row) => row[column] === value);
-        return api;
-      },
-      in: (column: string, values: unknown[]) => {
-        rows = rows.filter((row) => values.includes(row[column]));
-        return api;
-      },
-      not: (column: string, _op: string, value: unknown) => {
-        rows = rows.filter((row) => row[column] !== value);
-        return api;
-      },
-      // `.is('voided_at', null)` — a column absent from a fixture row reads as
-      // null, which is what an un-voided forfeit record actually looks like.
-      is: (column: string, value: unknown) => {
-        rows = rows.filter((row) => (row[column] ?? null) === value);
-        return api;
-      },
-      update: (row: Row) => {
-        writes.push({ table, row });
-        return api;
-      },
-      insert: (row: Row) => {
-        writes.push({ table, row });
-        return Promise.resolve({ error: null });
-      },
-      maybeSingle: () => Promise.resolve({ data: rows[0] ?? null, error: null }),
-      single: () => Promise.resolve({ data: rows[0] ?? null, error: null }),
-      then: (resolve: (v: unknown) => unknown) => resolve({ data: rows, error: null }),
-    });
-    return api;
-  };
-  return { service: { from }, writes };
+  return mockSupabase({
+    bracket_slots: { rows: fixture.slots },
+    matches: { rows: fixture.matches },
+    vw_tournament_query_matches: { rows: fixture.matches },
+    phases: { rows: [{ id: 'phase-1', type: 'single_elim', config_json: { bracketSize: 4 } }] },
+    match_forfeits: { rows: fixture.match_forfeits ?? [] },
+    registrations: { rows: fixture.registrations ?? [] },
+    exchanges: { rows: fixture.exchanges ?? [] },
+    match_penalties: { rows: fixture.match_penalties ?? [] },
+    match_events: { rows: fixture.match_events ?? [] },
+  });
 }
+
+/** Writes to `table`, in call order. */
+const writesTo = (supabase: { writes: RecordedWrite[] }, table: string) =>
+  supabase.writes.filter((write) => write.table === table);
+
+/** The value an `.eq(column, …)` scoped a write to, or undefined if unscoped. */
+const scopedTo = (write: RecordedWrite | undefined, column: string) =>
+  write?.filters.find((filter) => filter.method === 'eq' && filter.args[0] === column)?.args[1];
 
 const ORGANISER = { userId: 'organiser-1', canDiscardDependentResults: true };
 
@@ -253,10 +242,15 @@ describe('MatchCompletionService.onMatchUncompleted', () => {
     // Until a re-completion happens the final would otherwise keep naming a
     // pair that has not earned it — and the pad validates nothing against the
     // slot before starting a bout.
-    expect(supabase.writes).toContainEqual({
-      table: 'matches',
-      row: { red_registration_id: null, blue_registration_id: null },
-    });
+    //
+    // Asserted WITH the row it was scoped to. The old shape recorded only the
+    // table, so clearing the wrong bout satisfied it — and the whole cascade is
+    // about which bout gets touched.
+    const cleared = writesTo(supabase, 'matches').find(
+      (write) => (write.row as Row)['red_registration_id'] === null,
+    );
+    expect(cleared?.row).toEqual({ red_registration_id: null, blue_registration_id: null });
+    expect(scopedTo(cleared, 'id')).toBe('match-final');
   });
 
   it('refuses, naming the count, when a later bout has been fought', async () => {
