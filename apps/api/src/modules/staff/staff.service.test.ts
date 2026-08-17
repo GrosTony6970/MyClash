@@ -127,7 +127,7 @@ describe('StaffService.getPublicMatchDisplay', () => {
   });
 
   // External-display redesign: the payload now needs to expose the
-  // pool name, fighter position within the pool (Fight 3 / 4), and
+  // pool name, fighter position within the pool (Fight 3 / 15), and
   // per-fighter club name + logo so the spectator display can render
   // the redesigned header without a follow-up call.
   describe('display redesign payload extensions', () => {
@@ -135,19 +135,38 @@ describe('StaffService.getPublicMatchDisplay', () => {
     const sibling = (id: string, poolId: string, label: string): SupabaseRow =>
       displayRow(id, { pool_id: poolId, match_number_label: label });
 
+    /** Every bout of a six-fighter pool except the one under test. */
+    const REST_OF_POOL = [
+      '01',
+      '02',
+      '04',
+      '05',
+      '06',
+      '07',
+      '08',
+      '09',
+      '10',
+      '11',
+      '12',
+      '13',
+      '14',
+      '15',
+    ];
+
     it('returns poolName + fightIndex + totalFightsInPool, and resolves club info per side', async () => {
-      // Four bouts in this pool and two in another. The pool stays under ten on
-      // purpose: `match_number_label` is sorted as TEXT, and the generator emits
-      // an unpadded sequence (L1-PA-M1 … L1-PA-M10), so a larger fixture would
-      // have to assert an order that is not the order the bouts are fought in.
+      // A pool of six fighters is fifteen bouts, so the label carries its zero
+      // (L1-PA-M03). That is the whole reason the zero exists: siblings are
+      // ordered by `match_number_label` in SQL and Postgres sorts it as TEXT,
+      // so an unpadded M10 would land ahead of M2 and this bout would report
+      // itself as Fight 10 of 15 rather than Fight 3.
       const rows: SupabaseRow[] = [
-        sibling('other-pool-1', OTHER_POOL, 'L1-PB-M1'),
-        sibling('other-pool-2', OTHER_POOL, 'L1-PB-M2'),
+        sibling('other-pool-1', OTHER_POOL, 'L1-PB-M01'),
+        sibling('other-pool-2', OTHER_POOL, 'L1-PB-M02'),
         displayRow('match-3', {
           status: 'running',
           red_score: 4,
           blue_score: 2,
-          match_number_label: 'L1-PA-M3',
+          match_number_label: 'L1-PA-M03',
           pool_id: POOL,
           lice_id: LICE,
           pools: { id: POOL, name: 'Pool A', sort_order: 0 },
@@ -162,9 +181,7 @@ describe('StaffService.getPublicMatchDisplay', () => {
           // here, so no photo, so the TV falls back to initials.
           blue: side('reg-b', 'Aleksandr', { club: { name: 'Lyon AMHE', logo_url: null } }),
         }),
-        sibling('match-1', POOL, 'L1-PA-M1'),
-        sibling('match-2', POOL, 'L1-PA-M2'),
-        sibling('match-4', POOL, 'L1-PA-M4'),
+        ...REST_OF_POOL.map((seq) => sibling(`match-${seq}`, POOL, `L1-PA-M${seq}`)),
       ];
       const { service } = serviceOn(rows);
 
@@ -172,7 +189,7 @@ describe('StaffService.getPublicMatchDisplay', () => {
 
       expect(payload['poolName']).toBe('Pool A');
       expect(payload['fightIndex']).toBe(3);
-      expect(payload['totalFightsInPool']).toBe(4);
+      expect(payload['totalFightsInPool']).toBe(15);
       expect(payload['redClub']).toEqual({
         name: 'Lyon AMHE',
         logoUrl: 'https://cdn.example/lyon.png',
