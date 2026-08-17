@@ -195,6 +195,14 @@ jobs:
         if: '!cancelled()'
         run: pnpm quality:todos
 
+      # A raw NUL makes git call the file BINARY: it produces no diff, so every
+      # change to it passes review unseen, and ripgrep skips it in silence while
+      # walking a directory. Four files sat like that. No existing gate could
+      # notice — they all walk with readdirSync, which reads the bytes fine.
+      - name: Check source files hold no raw control bytes
+        if: '!cancelled()'
+        run: pnpm quality:source-bytes
+
       - name: Check API docs coverage
         if: '!cancelled()'
         run: pnpm quality:api-docs

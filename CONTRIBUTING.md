@@ -88,6 +88,7 @@ pnpm turbo run test
 pnpm quality:peers               # peerDependencyRules — a non-camelCase key no-ops silently
 pnpm security:client-secrets     # no server secrets reachable from client bundles
 pnpm quality:todos               # untracked debt markers
+pnpm quality:source-bytes        # a raw NUL makes git call the file binary — no diff, no rg hit
 pnpm quality:api-docs            # API doc coverage
 pnpm quality:complexity          # per-function/file line budget
 pnpm quality:test-code-leak      # test code kept out of the emit surface

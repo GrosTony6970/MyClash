@@ -5,9 +5,9 @@ description: The real verification chain for this repo — what to run before pu
 
 # MyClash verification gates
 
-`pnpm lint && pnpm typecheck && pnpm test` is **not** the CI check. CI's Lint job runs twenty
-further steps — nineteen independent gates plus one build. Running only the three and pushing is
-the most common way to turn `main` red here.
+`pnpm lint && pnpm typecheck && pnpm test` is **not** the CI check. CI's Lint job runs twenty-four
+further steps — twenty-one independent gates plus three builds. Running only the three and pushing
+is the most common way to turn `main` red here.
 
 Source of truth: `.github/workflows/ci.yml`. If this file and that file disagree, the workflow wins.
 
@@ -38,6 +38,7 @@ pnpm turbo run test
 pnpm quality:peers               # peerDependencyRules — a non-camelCase key no-ops silently
 pnpm security:client-secrets     # no server secrets reachable from client bundles
 pnpm quality:todos               # untracked debt markers
+pnpm quality:source-bytes        # a raw NUL makes git call the file binary — no diff, no rg hit
 pnpm quality:api-docs            # API doc coverage
 pnpm quality:complexity          # per-function/file line budget (see below)
 pnpm quality:test-code-leak      # test code kept out of the emit surface
@@ -52,6 +53,9 @@ pnpm db:perf:fixture
 pnpm infra:review
 pnpm observability:review
 pnpm perf:review
+pnpm --filter @myclash/web-marketing build   # the bundle budgets need something to weigh
+pnpm perf:bundle:build                       # …and so do the page-load budgets
+pnpm perf:bundle -- --include-next --require-build   # without the flags it weighs nothing and passes
 pnpm test:scripts                # root scripts/ — outside the turbo graph
 pnpm docs:mermaid                # a broken diagram renders as grey text, it does not throw
 pnpm format:check                # last: prettier

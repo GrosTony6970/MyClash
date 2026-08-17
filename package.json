@@ -27,6 +27,7 @@
     "security:client-secrets": "node scripts/check-client-secret-boundaries.mjs",
     "security:audit": "pnpm audit --audit-level high",
     "quality:todos": "node scripts/check-todos.mjs",
+    "quality:source-bytes": "node scripts/check-source-bytes.mjs",
     "quality:api-docs": "node scripts/check-api-docs.mjs",
     "quality:complexity": "node scripts/check-complexity.mjs",
     "quality:test-code-leak": "node scripts/check-test-code-leak.mjs",
