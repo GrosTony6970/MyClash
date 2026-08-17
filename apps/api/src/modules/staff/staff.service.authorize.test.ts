@@ -2,7 +2,7 @@ import { ForbiddenException, NotFoundException, UnauthorizedException } from '@n
 import { describe, expect, it, vi } from 'vitest';
 import type { FastifyRequest } from 'fastify';
 import { StaffService, STAFF_COOKIE_NAME } from './staff.service';
-import { mockSupabase, queriedTables } from '../../common/testing/supabase-chain';
+import { mockSupabase, queriedTables, type TableSeed } from '../../common/testing/supabase-chain';
 
 /**
  * The `authorize*` family — the single choke point for every write to a bout.
@@ -31,12 +31,28 @@ import { mockSupabase, queriedTables } from '../../common/testing/supabase-chain
  *      non-boolean as `true`, so an unconfigured tournament must take the
  *      organizer branch in `authorizeMatchUnlock`. That default is the whole
  *      safety property: most tournaments never configure locking.
+ *
+ * Every table here is SEEDED rather than canned, and each one carries a decoy
+ * belonging to the OTHER event. That is what makes the `.eq()` in each query
+ * decide something: a canned fixture hands back the same row however the query
+ * is scoped, so a lost `.eq('id', …)` reads as a passing test. Decoys are seeded
+ * FIRST on purpose — these reads all end in `maybeSingle`, which takes the first
+ * surviving row, so a decoy sorted behind the real one could never be returned
+ * and the fixture would assert nothing.
  */
 
 const ORG = 'org-1';
 const EVENT = 'event-1';
 const MATCH = 'match-1';
 const LICE = 'lice-1';
+const ACCOUNT = 'staff-1';
+
+/** The neighbouring event every decoy belongs to. */
+const OTHER_ORG = 'org-2';
+const OTHER_EVENT = 'event-2';
+const OTHER_MATCH = 'match-2';
+const OTHER_LICE = 'lice-2';
+const OTHER_ACCOUNT = 'staff-2';
 
 /** `running` so `assertEventScorable` passes on the staff branch. */
 const EVENT_ROW = {
@@ -50,6 +66,19 @@ const EVENT_ROW = {
 };
 
 /**
+ * Last year's event, and COMPLETED — so a staff session that reads the wrong
+ * event row is refused by `assertEventScorable` rather than quietly scoring
+ * against it.
+ */
+const OTHER_EVENT_ROW = {
+  ...EVENT_ROW,
+  id: OTHER_EVENT,
+  organization_id: OTHER_ORG,
+  slug: 'fal-2025',
+  status: 'completed',
+};
+
+/**
  * The nested shape `getMatchContext` unwraps. PostgREST returns embedded
  * to-one rows as an object OR a single-element array depending on the relation,
  * and the service handles both — `nest: 'array'` exercises the branch nothing
@@ -57,8 +86,10 @@ const EVENT_ROW = {
  */
 function matchRow(
   opts: {
+    id?: string;
     liceId?: string | null;
     eventId?: string;
+    orgId?: string;
     lockConfigJson?: unknown;
     eventStatus?: string;
     nest?: 'object' | 'array';
@@ -68,23 +99,74 @@ function matchRow(
     id: 'tournament-1',
     event_id: opts.eventId ?? EVENT,
     lock_config_json: opts.lockConfigJson ?? null,
-    events: { organization_id: ORG, status: opts.eventStatus ?? 'running' },
+    events: { organization_id: opts.orgId ?? ORG, status: opts.eventStatus ?? 'running' },
   };
   const phases =
     opts.nest === 'array' ? [{ tournaments: [tournament] }] : { tournaments: tournament };
-  return { id: MATCH, lice_id: opts.liceId === undefined ? LICE : opts.liceId, phases };
+  return { id: opts.id ?? MATCH, lice_id: opts.liceId === undefined ? LICE : opts.liceId, phases };
 }
 
-function accountRow(role: string, status = 'active') {
+/**
+ * The bout in the other event. It differs on BOTH axes the two branches read —
+ * event for the staff branch, organisation for the organizer one — so losing
+ * `getMatchContext`'s `.eq('id', …)` is refused whichever way the caller came in.
+ */
+const DECOY_MATCH = matchRow({
+  id: OTHER_MATCH,
+  eventId: OTHER_EVENT,
+  orgId: OTHER_ORG,
+  liceId: OTHER_LICE,
+});
+
+function accountRow(role: string, status = 'active', over: Record<string, unknown> = {}) {
   return {
-    id: 'staff-1',
+    id: ACCOUNT,
     event_id: EVENT,
     display_name: 'Marie Dubois',
     username: 'marie',
     pin_hash: 'x',
     status,
     role,
+    ...over,
   };
+}
+
+/**
+ * One decoy per axis of `getAccountForEvent`'s two-filter read: same id in
+ * another event, and another id in this event. Both are `checkin` accounts, a
+ * role the scoring surfaces refuse — so whichever filter is lost, the wrong row
+ * comes back and the role gate names it.
+ */
+const ACCOUNT_DECOYS = [
+  accountRow('checkin', 'active', { event_id: OTHER_EVENT }),
+  accountRow('checkin', 'active', { id: OTHER_ACCOUNT }),
+];
+
+/**
+ * `isLiceAssigned` answers a BOOLEAN, so a decoy only bites where the answer
+ * should be "no": both rows below are assignments that exist but are not this
+ * account on this piste. They are the whole seed when `assigned: false`, so a
+ * lost filter turns a refusal into an admission.
+ */
+const ASSIGNMENT = { id: 'assignment-1', staff_account_id: ACCOUNT, lice_id: LICE };
+const ASSIGNMENT_DECOYS = [
+  { id: 'assignment-2', staff_account_id: OTHER_ACCOUNT, lice_id: LICE },
+  { id: 'assignment-3', staff_account_id: ACCOUNT, lice_id: OTHER_LICE },
+];
+
+/**
+ * `exchanges`, `match_penalties` and `match_forfeits` are one shape: a row that
+ * names the match to authorise against. `'found'` seeds the wanted row behind a
+ * decoy pointing at the other event's bout; `'missing'` seeds only that decoy,
+ * so a lost `.eq('id', …)` authorises a bout the caller never named instead of
+ * 404ing. A driver error cannot come from a seeded table, so it stays canned.
+ */
+type PointerSeed = 'found' | 'missing' | { error: string };
+
+function pointerSeed(id: string, seed: PointerSeed): TableSeed {
+  if (typeof seed === 'object') return { data: null, error: { message: seed.error } };
+  const decoy = { id: `${id}-elsewhere`, match_id: OTHER_MATCH };
+  return { rows: seed === 'found' ? [decoy, { id, match_id: MATCH }] : [decoy] };
 }
 
 const staffRequest = () =>
@@ -96,34 +178,35 @@ interface BuildOpts {
   userId?: string | null;
   /** Throws for the roles listed, resolves otherwise. */
   denyRoles?: readonly string[];
+  /** `null` seeds the decoy alone, so the wanted match does not exist. */
   match?: Record<string, unknown> | null;
   account?: Record<string, unknown>;
   assigned?: boolean;
-  exchange?: { data: unknown; error: { message: string } | null };
-  penalty?: { data: unknown; error: { message: string } | null };
-  forfeit?: { data: unknown; error: { message: string } | null };
+  exchange?: PointerSeed;
+  penalty?: PointerSeed;
+  forfeit?: PointerSeed;
 }
 
 function build(opts: BuildOpts = {}) {
-  const tables: Record<string, { data: unknown; error: { message: string } | null }> = {
-    matches: { data: opts.match === undefined ? matchRow() : opts.match, error: null },
-    events: { data: EVENT_ROW, error: null },
-    event_staff_accounts: { data: opts.account ?? accountRow('scoring'), error: null },
+  const match = opts.match === undefined ? matchRow() : opts.match;
+  const tables: Record<string, TableSeed> = {
+    matches: { rows: match ? [DECOY_MATCH, match] : [DECOY_MATCH] },
+    events: { rows: [OTHER_EVENT_ROW, EVENT_ROW] },
+    event_staff_accounts: { rows: [...ACCOUNT_DECOYS, opts.account ?? accountRow('scoring')] },
     event_staff_lice_assignments: {
-      data: opts.assigned === false ? null : { id: 'assignment-1' },
-      error: null,
+      rows: opts.assigned === false ? ASSIGNMENT_DECOYS : [...ASSIGNMENT_DECOYS, ASSIGNMENT],
     },
   };
-  if (opts.exchange) tables['exchanges'] = opts.exchange;
-  if (opts.penalty) tables['match_penalties'] = opts.penalty;
-  if (opts.forfeit) tables['match_forfeits'] = opts.forfeit;
+  if (opts.exchange) tables['exchanges'] = pointerSeed('exchange-1', opts.exchange);
+  if (opts.penalty) tables['match_penalties'] = pointerSeed('penalty-1', opts.penalty);
+  if (opts.forfeit) tables['match_forfeits'] = pointerSeed('forfeit-1', opts.forfeit);
 
   const supabase = mockSupabase(tables);
   const assertOrgRole = vi.fn((_org: string, _user: string, role: string) => {
     if (opts.denyRoles?.includes(role)) return Promise.reject(new ForbiddenException('no role'));
     return Promise.resolve(undefined);
   });
-  const jwt = { verify: () => ({ sub: 'staff-1', event_id: EVENT, type: 'staff' }) };
+  const jwt = { verify: () => ({ sub: ACCOUNT, event_id: EVENT, type: 'staff' }) };
 
   const svc = new StaffService(
     supabase as never,
@@ -360,7 +443,7 @@ describe('authorizeMatchUnlock', () => {
 
 describe('authorizeExchangeScoring', () => {
   it('resolves the match from the exchange and hands off', async () => {
-    const { svc } = build({ exchange: { data: { match_id: MATCH }, error: null } });
+    const { svc } = build({ exchange: 'found' });
     await expect(svc.authorizeExchangeScoring(staffRequest(), 'exchange-1')).resolves.toEqual({
       staffAccountId: 'staff-1',
       canOverrideLocked: false,
@@ -368,7 +451,7 @@ describe('authorizeExchangeScoring', () => {
   });
 
   it('404s an unknown exchange without touching the match', async () => {
-    const { svc, from } = build({ exchange: { data: null, error: null } });
+    const { svc, from } = build({ exchange: 'missing' });
     await expect(svc.authorizeExchangeScoring(staffRequest(), 'nope')).rejects.toThrow(
       /Exchange not found/i,
     );
@@ -376,7 +459,7 @@ describe('authorizeExchangeScoring', () => {
   });
 
   it('surfaces a driver error rather than reporting not-found', async () => {
-    const { svc } = build({ exchange: { data: null, error: { message: 'connection reset' } } });
+    const { svc } = build({ exchange: { error: 'connection reset' } });
     await expect(svc.authorizeExchangeScoring(staffRequest(), 'x')).rejects.toThrow(
       /connection reset/,
     );
@@ -385,14 +468,14 @@ describe('authorizeExchangeScoring', () => {
 
 describe('authorizePenaltyScoring', () => {
   it('resolves the match from the penalty and hands off', async () => {
-    const { svc } = build({ penalty: { data: { match_id: MATCH }, error: null } });
+    const { svc } = build({ penalty: 'found' });
     await expect(svc.authorizePenaltyScoring(staffRequest(), 'penalty-1')).resolves.toMatchObject({
       staffAccountId: 'staff-1',
     });
   });
 
   it('404s an unknown penalty without touching the match', async () => {
-    const { svc, from } = build({ penalty: { data: null, error: null } });
+    const { svc, from } = build({ penalty: 'missing' });
     await expect(svc.authorizePenaltyScoring(staffRequest(), 'nope')).rejects.toThrow(
       /Penalty not found/i,
     );
@@ -405,7 +488,7 @@ describe('authorizeForfeitOrganizer', () => {
     // The failure this exists for: swapping the delegate to
     // `authorizeMatchScoring` would let assigned piste staff reverse a forfeit.
     // A staff cookie must be refused with the organizer message, not admitted.
-    const { svc } = build({ forfeit: { data: { match_id: MATCH }, error: null } });
+    const { svc } = build({ forfeit: 'found' });
     await expect(svc.authorizeForfeitOrganizer(staffRequest(), 'forfeit-1')).rejects.toThrow(
       /Organizer session required/i,
     );
@@ -414,7 +497,7 @@ describe('authorizeForfeitOrganizer', () => {
   it('admits an editor', async () => {
     const { svc, assertOrgRole } = build({
       userId: 'user-1',
-      forfeit: { data: { match_id: MATCH }, error: null },
+      forfeit: 'found',
     });
     await expect(svc.authorizeForfeitOrganizer(bareRequest(), 'forfeit-1')).resolves.toEqual({
       userId: 'user-1',
@@ -425,7 +508,7 @@ describe('authorizeForfeitOrganizer', () => {
   });
 
   it('404s an unknown forfeit', async () => {
-    const { svc } = build({ userId: 'user-1', forfeit: { data: null, error: null } });
+    const { svc } = build({ userId: 'user-1', forfeit: 'missing' });
     await expect(svc.authorizeForfeitOrganizer(bareRequest(), 'nope')).rejects.toThrow(
       /Forfeit not found/i,
     );
