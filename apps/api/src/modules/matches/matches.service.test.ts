@@ -1,11 +1,26 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { BadRequestException, ConflictException, NotFoundException } from '@nestjs/common';
+import {
+  mockSupabase,
+  queriedTables,
+  scopedTo,
+  selectsFor,
+  writesTo,
+  type TableSeed,
+} from '../../common/testing/supabase-chain';
 import { MatchesService } from './matches.service';
 
 // ── Mocks ──────────────────────────────────────────────────────────────────
 
+/**
+ * The positional double the write-path tests still use.
+ *
+ * Renamed off `mockSupabase` so it stops shadowing the shared export replacing
+ * it — same name, different semantics, in 54 files across the repo. It goes
+ * entirely once the write paths move too.
+ */
 const fromMock = vi.fn();
-const mockSupabase = { service: { from: fromMock }, anon: {} };
+const legacySupabase = { service: { from: fromMock }, anon: {} };
 const mockScoring = {
   recomputeMatchScore: vi.fn().mockResolvedValue({ redScore: 0, blueScore: 0 }),
 };
@@ -48,6 +63,49 @@ function makeChain(result: unknown) {
   return chain;
 }
 
+/**
+ * One service over a Supabase double that routes by TABLE NAME, built per test.
+ *
+ * The shape it replaces reprogrammed a single module-level `fromMock` per test
+ * with `mockReturnValueOnce` chains, so every answer was positional: insert one
+ * `from()` call anywhere in a method and every later answer shifted by one while
+ * the suite stayed green. A seed per table is what removes that coupling.
+ */
+function makeService(seed: Record<string, TableSeed>, opts?: { frozen?: boolean }) {
+  const supabase = mockSupabase(seed);
+  const service = new MatchesService(
+    supabase as never,
+    mockScoring as never,
+    mockMatchAlerts as never,
+    opts?.frozen ? (mockFrozenResults as never) : undefined,
+  );
+  return { service, supabase };
+}
+
+/**
+ * Everything `getMatchSummary` reads for one bout.
+ *
+ * Nine tables, not the three the old fixture named. `events`,
+ * `referee_assignments` and the two `matches` reads were all answered by a
+ * blanket `{ data: null }` fallback that no one chose — the shared double throws
+ * on an undeclared table, which is how this became the real surface.
+ *
+ * `matches.lice_id` is null on purpose: a piste id here would send the summary
+ * on to `lices`, and that table would then have to be declared too.
+ * `referee_assignments: []` short-circuits `referee_skills` the same way.
+ */
+const summarySeed = (
+  view: Record<string, unknown>,
+  extra: Record<string, TableSeed> = {},
+): Record<string, TableSeed> => ({
+  vw_tournament_query_matches: { rows: [view] },
+  tournaments: { rows: [{ id: 't1', weapon: 'longsword' }] },
+  events: { rows: [{ id: 'event-1', timezone: 'UTC' }] },
+  matches: { rows: [{ id: view['match_id'], lice_id: null }] },
+  referee_assignments: { rows: [] },
+  ...extra,
+});
+
 // ── Tests ──────────────────────────────────────────────────────────────────
 
 describe('MatchesService', () => {
@@ -57,7 +115,7 @@ describe('MatchesService', () => {
     vi.clearAllMocks();
     fromMock.mockReturnValue(makeChain({ data: null, error: null }));
     service = new MatchesService(
-      mockSupabase as never,
+      legacySupabase as never,
       mockScoring as never,
       mockMatchAlerts as never,
     );
@@ -75,35 +133,27 @@ describe('MatchesService', () => {
       // Fixture: longsword tournament, pool A (sort_order=0 → number 1),
       // match label `L1-PA-M1` → formatRoundCode yields `LSW-P1-M1`
       // (the bare match sequence is pulled from the compound label).
-      fromMock.mockImplementation((tableName: string) => {
-        if (tableName === 'vw_tournament_query_matches') {
-          return makeChain({
-            data: {
-              match_id: 'm1',
-              match_number_label: 'L1-PA-M1',
-              status: 'scheduled',
-              pool_id: 'p1',
-              pool_name: 'Pool A',
-              bracket_round: null,
-              red_name: 'Alice',
-              blue_name: 'Bob',
-              red_club: 'AAA',
-              blue_club: 'BBB',
-              tournament_id: 't1',
-            },
-            error: null,
-          });
-        }
-        if (tableName === 'tournaments') {
-          return makeChain({ data: { weapon: 'longsword' }, error: null });
-        }
-        if (tableName === 'pools') {
-          return makeChain({ data: { sort_order: 0 }, error: null });
-        }
-        return makeChain({ data: null, error: null });
-      });
+      const { service: summaryService } = makeService(
+        summarySeed(
+          {
+            match_id: 'm1',
+            match_number_label: 'L1-PA-M1',
+            status: 'scheduled',
+            pool_id: 'p1',
+            pool_name: 'Pool A',
+            bracket_round: null,
+            red_name: 'Alice',
+            blue_name: 'Bob',
+            red_club: 'AAA',
+            blue_club: 'BBB',
+            tournament_id: 't1',
+            event_id: 'event-1',
+          },
+          { pools: { rows: [{ id: 'p1', sort_order: 0 }] } },
+        ),
+      );
 
-      const result = (await service.getMatchSummary('m1')) as { roundCode: string };
+      const result = (await summaryService.getMatchSummary('m1')) as { roundCode: string };
 
       expect(result.roundCode).toBe('LSW-P1-M1');
     });
@@ -113,39 +163,28 @@ describe('MatchesService', () => {
       // had to ALSO fetch the phase's bracketSize to translate
       // bracket_round → R16/QF/SF/F. Without this, the code fell back to
       // B{round} and diverged from the bracket-card label.
-      fromMock.mockImplementation((tableName: string) => {
-        if (tableName === 'vw_tournament_query_matches') {
-          return makeChain({
-            data: {
-              match_id: 'm-r16-1',
-              match_number_label: '1',
-              status: 'scheduled',
-              pool_id: null,
-              pool_name: null,
-              bracket_round: 1,
-              red_name: 'Alice',
-              blue_name: 'Bob',
-              red_club: null,
-              blue_club: null,
-              tournament_id: 't1',
-              phase_id: 'phase-1',
-            },
-            error: null,
-          });
-        }
-        if (tableName === 'tournaments') {
-          return makeChain({ data: { weapon: 'longsword' }, error: null });
-        }
-        if (tableName === 'phases') {
-          return makeChain({
-            data: { config_json: { bracketSize: 16 } },
-            error: null,
-          });
-        }
-        return makeChain({ data: null, error: null });
-      });
+      const { service: summaryService } = makeService(
+        summarySeed(
+          {
+            match_id: 'm-r16-1',
+            match_number_label: '1',
+            status: 'scheduled',
+            pool_id: null,
+            pool_name: null,
+            bracket_round: 1,
+            red_name: 'Alice',
+            blue_name: 'Bob',
+            red_club: null,
+            blue_club: null,
+            tournament_id: 't1',
+            event_id: 'event-1',
+            phase_id: 'phase-1',
+          },
+          { phases: { rows: [{ id: 'phase-1', config_json: { bracketSize: 16 } }] } },
+        ),
+      );
 
-      const result = (await service.getMatchSummary('m-r16-1')) as { roundCode: string };
+      const result = (await summaryService.getMatchSummary('m-r16-1')) as { roundCode: string };
 
       expect(result.roundCode).toBe('LSW-B-R16-M1');
     });
@@ -156,24 +195,24 @@ describe('MatchesService', () => {
   // scoreDelta) and the timeline reads clockTimeMs. Map the row so the
   // FE renders fighter, delta and match-clock time on exchange rows.
   describe('listExchanges — camelCase mapping', () => {
-    it('maps a raw clean/red row to scoringSide + scoreDelta + clockTimeMs', async () => {
-      const rawRow = {
-        id: 'ex-1',
-        sequence: 1,
-        type: 'clean',
-        voided: false,
-        occurred_at: '2026-05-05T10:00:00.000Z',
-        clock_time_ms: 90_000,
-        first_striker_color: 'red',
-        red_score_delta: 2,
-        blue_score_delta: 0,
-        afterblow_value: null,
-      };
-      const chain = makeChain({ data: null, error: null });
-      chain.order.mockResolvedValue({ data: [rawRow], error: null });
-      fromMock.mockReturnValue(chain);
+    const RAW_ROW = {
+      id: 'ex-1',
+      match_id: 'm1',
+      sequence: 1,
+      type: 'clean',
+      voided: false,
+      occurred_at: '2026-05-05T10:00:00.000Z',
+      clock_time_ms: 90_000,
+      first_striker_color: 'red',
+      red_score_delta: 2,
+      blue_score_delta: 0,
+      afterblow_value: null,
+    };
 
-      const result = (await service.listExchanges('m1')) as Array<Record<string, unknown>>;
+    it('maps a raw clean/red row to scoringSide + scoreDelta + clockTimeMs', async () => {
+      const { service: listService } = makeService({ exchanges: { rows: [RAW_ROW] } });
+
+      const result = (await listService.listExchanges('m1')) as Array<Record<string, unknown>>;
 
       expect(result[0]).toMatchObject({
         id: 'ex-1',
@@ -182,6 +221,40 @@ describe('MatchesService', () => {
         scoringSide: 'red',
         scoreDelta: 2,
       });
+    });
+
+    /**
+     * The timeline renders these in the order they arrive, and a bout replays
+     * from them. Seeded out of order because the old canned chain answered with
+     * whatever the fixture held whatever was asked — so `.order('sequence')`
+     * could have been reversed, or absent, with nothing to say so.
+     */
+    it('returns the exchanges in sequence order, not in fixture order', async () => {
+      const { service: listService } = makeService({
+        exchanges: {
+          rows: [
+            { ...RAW_ROW, id: 'ex-3', sequence: 3 },
+            { ...RAW_ROW, id: 'ex-1', sequence: 1 },
+            { ...RAW_ROW, id: 'ex-2', sequence: 2 },
+          ],
+        },
+      });
+
+      const result = (await listService.listExchanges('m1')) as Array<Record<string, unknown>>;
+
+      expect(result.map((row) => row['id'])).toEqual(['ex-1', 'ex-2', 'ex-3']);
+    });
+
+    it('reads only the exchanges of the bout it was asked for', async () => {
+      const { service: listService } = makeService({
+        exchanges: {
+          rows: [RAW_ROW, { ...RAW_ROW, id: 'other-bout', match_id: 'm2', sequence: 1 }],
+        },
+      });
+
+      const result = (await listService.listExchanges('m1')) as Array<Record<string, unknown>>;
+
+      expect(result.map((row) => row['id'])).toEqual(['ex-1']);
     });
   });
 
@@ -295,7 +368,7 @@ describe('MatchesService', () => {
 
     it('rejects new exchange creation when event results are frozen', async () => {
       service = new MatchesService(
-        mockSupabase as never,
+        legacySupabase as never,
         mockScoring as never,
         mockMatchAlerts as never,
         mockFrozenResults as never,
@@ -423,7 +496,7 @@ describe('MatchesService', () => {
 
     it('creates a pending review request instead of voiding when event results are frozen', async () => {
       service = new MatchesService(
-        mockSupabase as never,
+        legacySupabase as never,
         mockScoring as never,
         mockMatchAlerts as never,
         mockFrozenResults as never,
@@ -456,7 +529,7 @@ describe('MatchesService', () => {
   describe('revertVoidExchange', () => {
     it('creates a pending review request instead of reverting when event results are frozen', async () => {
       service = new MatchesService(
-        mockSupabase as never,
+        legacySupabase as never,
         mockScoring as never,
         mockMatchAlerts as never,
         mockFrozenResults as never,
@@ -487,7 +560,7 @@ describe('MatchesService', () => {
   describe('approveFrozenExchangeEdit', () => {
     it('applies approved void requests without creating another frozen review request', async () => {
       service = new MatchesService(
-        mockSupabase as never,
+        legacySupabase as never,
         mockScoring as never,
         mockMatchAlerts as never,
         mockFrozenResults as never,
@@ -632,87 +705,89 @@ describe('MatchesService', () => {
 
   describe('scheduleMatch', () => {
     /**
-     * The piste-occupancy read that now runs before the write: the service
-     * awaits the chain with no terminal, so it has to be the awaitable shape.
+     * The bout being placed, plus whatever already sits on the strip.
+     *
+     * `match-1` has to be the ONLY row carrying that id: the write ends
+     * `.eq('id', 'match-1').select('*').single()`, and a seeded table answers
+     * `single()` with a real PGRST116 when the count is not exactly one.
      */
-    function occupancyChain(rows: unknown[]) {
-      const promise = Promise.resolve({ data: rows, error: null });
-      const chain = Object.assign(promise, {
-        select: vi.fn(),
-        eq: vi.fn(),
-        not: vi.fn(),
-        neq: vi.fn(),
-        in: vi.fn(),
-      });
-      for (const key of ['select', 'eq', 'not', 'neq', 'in']) {
-        (chain as unknown as Record<string, unknown>)[key] = vi.fn().mockReturnValue(chain);
-      }
-      return chain;
-    }
+    const piste = (occupants: Array<Record<string, unknown>>): Record<string, TableSeed> => ({
+      matches: {
+        rows: [
+          { id: 'match-1', lice_id: null, scheduled_at: null, status: 'scheduled' },
+          ...occupants,
+        ],
+      },
+    });
+
+    const occupant = (over: Record<string, unknown> = {}) => ({
+      id: 'other-match',
+      lice_id: 'lice-1',
+      scheduled_at: '2026-05-02T10:32:00.000Z',
+      status: 'scheduled',
+      ...over,
+    });
 
     it('reschedules match-starting and follow notifications when scheduled_at changes', async () => {
-      const scheduledAt = '2026-05-02T10:30:00.000Z';
-      const updateChain = makeChain({
-        data: { id: 'match-1', scheduled_at: scheduledAt },
-        error: null,
-      });
-      updateChain.single.mockResolvedValue({
-        data: { id: 'match-1', scheduled_at: scheduledAt },
-        error: null,
-      });
       // Piste empty → the placement is accepted and the write proceeds.
-      fromMock.mockReturnValueOnce(occupancyChain([])).mockReturnValue(updateChain);
+      const { service: scheduleService } = makeService(piste([]));
 
-      await service.scheduleMatch('match-1', 'lice-1', scheduledAt);
+      await scheduleService.scheduleMatch('match-1', 'lice-1', '2026-05-02T10:30:00.000Z');
 
       expect(mockMatchAlerts.refresh).toHaveBeenCalledWith(['match-1']);
     });
 
     it('refuses a placement that lands on an occupied piste, and writes nothing', async () => {
-      const updateChain = makeChain({ data: null, error: null });
-      fromMock
-        .mockReturnValueOnce(
-          occupancyChain([
-            // Different tournament, no shared fighter — invisible to the grid's
-            // conflict banner, which is why this had to move server-side.
-            { id: 'other-match', lice_id: 'lice-1', scheduled_at: '2026-05-02T10:32:00.000Z' },
-          ]),
-        )
-        .mockReturnValue(updateChain);
+      // Different tournament, no shared fighter — invisible to the grid's
+      // conflict banner, which is why this had to move server-side.
+      const { service: scheduleService, supabase } = makeService(piste([occupant()]));
 
       await expect(
-        service.scheduleMatch('match-1', 'lice-1', '2026-05-02T10:30:00.000Z'),
+        scheduleService.scheduleMatch('match-1', 'lice-1', '2026-05-02T10:30:00.000Z'),
       ).rejects.toBeInstanceOf(ConflictException);
-      expect(updateChain.update).not.toHaveBeenCalled();
+      // Every table, not one chain: a refusal must leave the whole event alone.
+      expect(supabase.writes).toEqual([]);
       expect(mockMatchAlerts.refresh).not.toHaveBeenCalled();
     });
 
     it('allows a back-to-back placement on the same piste', async () => {
-      const scheduledAt = '2026-05-02T10:05:00.000Z';
-      const updateChain = makeChain({ data: { id: 'match-1' }, error: null });
-      updateChain.single.mockResolvedValue({ data: { id: 'match-1' }, error: null });
-      fromMock
-        .mockReturnValueOnce(
-          // Ends at 10:05 exactly. Touching is not overlapping, or every
-          // generated schedule would refuse itself.
-          occupancyChain([
-            { id: 'earlier', lice_id: 'lice-1', scheduled_at: '2026-05-02T10:00:00.000Z' },
-          ]),
-        )
-        .mockReturnValue(updateChain);
+      // Ends at 10:05 exactly (bouts default to five minutes). Touching is not
+      // overlapping, or every generated schedule would refuse itself.
+      const { service: scheduleService } = makeService(
+        piste([occupant({ id: 'earlier', scheduled_at: '2026-05-02T10:00:00.000Z' })]),
+      );
 
-      await expect(service.scheduleMatch('match-1', 'lice-1', scheduledAt)).resolves.toBeDefined();
+      await expect(
+        scheduleService.scheduleMatch('match-1', 'lice-1', '2026-05-02T10:05:00.000Z'),
+      ).resolves.toBeDefined();
+    });
+
+    /**
+     * A voided bout keeps its piste and its time on the row. Nothing in
+     * `lice-occupancy.ts` knows about status, so `.not('status','eq','voided')`
+     * on the read is the only thing stopping a cancelled bout from blocking the
+     * strip for the rest of the day — and the canned double answered with the
+     * fixture whatever the query asked, so that filter was never asserted.
+     */
+    it('ignores a voided bout sitting on the same piste at the same time', async () => {
+      const { service: scheduleService } = makeService(
+        piste([occupant({ id: 'cancelled', status: 'voided' })]),
+      );
+
+      await expect(
+        scheduleService.scheduleMatch('match-1', 'lice-1', '2026-05-02T10:30:00.000Z'),
+      ).resolves.toBeDefined();
     });
 
     it('skips the check when the placement clears the piste', async () => {
-      const updateChain = makeChain({ data: { id: 'match-1' }, error: null });
-      updateChain.single.mockResolvedValue({ data: { id: 'match-1' }, error: null });
-      fromMock.mockReturnValue(updateChain);
+      const { service: scheduleService, supabase } = makeService(piste([occupant()]));
 
-      await service.scheduleMatch('match-1', null, null);
+      await scheduleService.scheduleMatch('match-1', null, null);
 
-      // Releasing a strip cannot collide with anything, so no read happens.
-      expect(updateChain.select).toHaveBeenCalled();
+      // Releasing a strip cannot collide with anything, so the occupancy read
+      // never runs. One query, and it is the write — which is the actual claim,
+      // where "the write called select()" was not.
+      expect(queriedTables(supabase.from)).toEqual(['matches']);
     });
   });
 
@@ -720,57 +795,51 @@ describe('MatchesService', () => {
   // given day. Backs the "Clear pool" action on the schedule grid.
   describe('clearPoolScheduleForDay', () => {
     /**
-     * The day window is now resolved in the EVENT's timezone, so the service
-     * reads `pools` before it writes `matches`. `fromMock` therefore has to
-     * dispatch on the table name — a blanket `mockReturnValue` would hand the
-     * pool lookup the update chain and the tz would silently fall back to the
-     * default, which is exactly the value most of these assertions expect. The
-     * test would pass while proving nothing.
+     * The day window is resolved in the EVENT's timezone, so the service reads
+     * `pools` before it writes `matches`. Pools carry no event id of their own —
+     * the chain is pool → phase → tournament → event — so the embed rides on the
+     * seeded row.
      */
-    const poolChainFor = (timezone: string | null) =>
-      makeChain({
-        data: { phases: { tournaments: { events: { timezone } } } },
-        error: null,
-      });
+    const poolDay = (
+      timezone: string,
+      matches: Array<Record<string, unknown>>,
+    ): Record<string, TableSeed> => ({
+      pools: { rows: [{ id: 'pool-1', phases: { tournaments: { events: { timezone } } } }] },
+      matches: { rows: matches },
+    });
 
+    const bout = (id: string, scheduledAt: string) => ({
+      id,
+      pool_id: 'pool-1',
+      lice_id: 'lice-1',
+      scheduled_at: scheduledAt,
+    });
+
+    /**
+     * Asserted as the SET of bouts the window caught, not as the arguments the
+     * service handed `.gte()`. The old shape read `gte.mock.calls[0][1]`, which
+     * says the code asked for a boundary and nothing about which fights that
+     * boundary actually erases — the only thing the operator sees.
+     */
     it('nulls lice_id + scheduled_at on every pool match scheduled on the given day', async () => {
-      let updatePatch: Record<string, unknown> | null = null;
-      const updateChain = makeChain({ data: null, error: null });
-      updateChain.update = vi.fn((patch: Record<string, unknown>) => {
-        updatePatch = patch;
-        return updateChain;
-      }) as never;
-      // The service chains .update(...).eq('pool_id', …).gte('scheduled_at', …).lt(…)
-      // so the terminating chain.eq must resolve to a result.
-      updateChain.eq.mockReturnValue(updateChain);
-      // The chain now ends `.lt(…).select('id')`: the ids are only reachable
-      // from the write itself, because the filter is a day window over the very
-      // times it erases. Reading them back afterwards would match nothing.
-      const cleared = Promise.resolve({
-        data: [{ id: 'match-1' }, { id: 'match-2' }],
-        error: null,
-      });
-      updateChain.lt = vi.fn().mockReturnValue(
-        Object.assign(Promise.resolve({ data: null, error: null }), {
-          eq: vi.fn().mockReturnThis(),
-          gte: vi.fn().mockReturnThis(),
-          lt: vi.fn().mockReturnThis(),
-          select: vi.fn().mockReturnValue(cleared),
-        }),
-      ) as never;
-      updateChain.gte = vi.fn().mockReturnValue(updateChain) as never;
-      fromMock.mockImplementation((table: string) =>
-        table === 'pools' ? poolChainFor('UTC') : updateChain,
+      const { service: clearService, supabase } = makeService(
+        poolDay('UTC', [
+          bout('day-before', '2026-05-01T23:59:00.000Z'),
+          bout('match-1', '2026-05-02T09:00:00.000Z'),
+          bout('match-2', '2026-05-02T18:00:00.000Z'),
+          bout('day-after', '2026-05-03T00:00:00.000Z'),
+        ]),
       );
 
-      await service.clearPoolScheduleForDay('pool-1', '2026-05-02');
+      await clearService.clearPoolScheduleForDay('pool-1', '2026-05-02');
 
-      expect(updatePatch).toMatchObject({ lice_id: null, scheduled_at: null });
-      expect(updateChain.eq).toHaveBeenCalledWith('pool_id', 'pool-1');
-      expect(updateChain.gte).toHaveBeenCalledWith('scheduled_at', '2026-05-02T00:00:00.000Z');
-      expect(updateChain.lt).toHaveBeenCalledWith('scheduled_at', '2026-05-03T00:00:00.000Z');
+      const [cleared] = writesTo(supabase, 'matches');
+      expect(cleared?.row).toMatchObject({ lice_id: null, scheduled_at: null });
+      expect(scopedTo(cleared, 'pool_id')).toBe('pool-1');
       // Clearing a time IS a reschedule. This route told the queue nothing at
       // all until 2026-08-15, so every fight it wiped kept its "starting soon".
+      // The two bouts outside the window must survive — the one sitting exactly
+      // on the next local midnight is out, because the window is half-open.
       expect(mockMatchAlerts.refresh).toHaveBeenCalledWith(['match-1', 'match-2']);
     });
 
@@ -783,27 +852,25 @@ describe('MatchesService', () => {
      * where a real event would have met it.
      */
     it('measures the day on the event clock, not in UTC', async () => {
-      const updateChain = makeChain({ data: null, error: null });
-      updateChain.update = vi.fn().mockReturnValue(updateChain) as never;
-      updateChain.eq.mockReturnValue(updateChain);
-      updateChain.gte = vi.fn().mockReturnValue(updateChain) as never;
-      updateChain.lt = vi.fn().mockReturnValue(
-        Object.assign(Promise.resolve({ data: null, error: null }), {
-          select: vi.fn().mockReturnValue(Promise.resolve({ data: [], error: null })),
-        }),
-      ) as never;
-      fromMock.mockImplementation((table: string) =>
-        table === 'pools' ? poolChainFor('America/Los_Angeles') : updateChain,
+      // 2026-05-02 00:00 in Los Angeles (PDT, UTC-7) is 07:00Z the same day, and
+      // the next local midnight is 07:00Z on the 3rd. `previous-evening` is
+      // 22:00 on the 1st in Los Angeles but falls inside 2026-05-02 in UTC, so
+      // the old window wiped it while sparing that morning's real bouts.
+      //
+      // `next-local-day` sits past the upper boundary on purpose. Without a bout
+      // out there this test cannot see the upper bound go missing at all — which
+      // it could when the assertion was on `.gte()` and `.lt()`'s arguments.
+      const { service: clearService } = makeService(
+        poolDay('America/Los_Angeles', [
+          bout('previous-evening', '2026-05-02T05:00:00.000Z'),
+          bout('local-morning', '2026-05-02T16:00:00.000Z'),
+          bout('next-local-day', '2026-05-03T08:00:00.000Z'),
+        ]),
       );
 
-      await service.clearPoolScheduleForDay('pool-1', '2026-05-02');
+      await clearService.clearPoolScheduleForDay('pool-1', '2026-05-02');
 
-      // 2026-05-02 00:00 in Los Angeles (PDT, UTC-7) is 07:00Z the same day,
-      // and the next local midnight is 07:00Z on the 3rd. Under the old UTC
-      // window this cleared 2026-05-02T00:00Z–2026-05-03T00:00Z, which both
-      // spared that morning's bouts and wiped seven hours of the previous day.
-      expect(updateChain.gte).toHaveBeenCalledWith('scheduled_at', '2026-05-02T07:00:00.000Z');
-      expect(updateChain.lt).toHaveBeenCalledWith('scheduled_at', '2026-05-03T07:00:00.000Z');
+      expect(mockMatchAlerts.refresh).toHaveBeenCalledWith(['local-morning']);
     });
 
     /**
@@ -812,27 +879,20 @@ describe('MatchesService', () => {
      * boundary resolves independently.
      */
     it('spans exactly one local day across a DST change', async () => {
-      const updateChain = makeChain({ data: null, error: null });
-      updateChain.update = vi.fn().mockReturnValue(updateChain) as never;
-      updateChain.eq.mockReturnValue(updateChain);
-      updateChain.gte = vi.fn().mockReturnValue(updateChain) as never;
-      updateChain.lt = vi.fn().mockReturnValue(
-        Object.assign(Promise.resolve({ data: null, error: null }), {
-          select: vi.fn().mockReturnValue(Promise.resolve({ data: [], error: null })),
-        }),
-      ) as never;
-      fromMock.mockImplementation((table: string) =>
-        table === 'pools' ? poolChainFor('Europe/Paris') : updateChain,
+      // Europe/Paris springs forward on 2026-03-29, so that local day runs
+      // 2026-03-28T23:00Z → 2026-03-29T22:00Z, which is 23 hours. A `start + 24h`
+      // range would run to 23:00Z and take `next-day` with it — 00:30 on the
+      // 30th in Paris, and part of the following day's schedule.
+      const { service: clearService } = makeService(
+        poolDay('Europe/Paris', [
+          bout('last-bout', '2026-03-29T21:30:00.000Z'),
+          bout('next-day', '2026-03-29T22:30:00.000Z'),
+        ]),
       );
 
-      // Europe/Paris springs forward on 2026-03-29, so that local day is 23h.
-      await service.clearPoolScheduleForDay('pool-1', '2026-03-29');
+      await clearService.clearPoolScheduleForDay('pool-1', '2026-03-29');
 
-      const start = (updateChain.gte as unknown as ReturnType<typeof vi.fn>).mock
-        .calls[0]![1] as string;
-      const end = (updateChain.lt as unknown as ReturnType<typeof vi.fn>).mock
-        .calls[0]![1] as string;
-      expect(Date.parse(end) - Date.parse(start)).toBe(23 * 3600_000);
+      expect(mockMatchAlerts.refresh).toHaveBeenCalledWith(['last-bout']);
     });
   });
 
@@ -1067,61 +1127,53 @@ describe('MatchesService', () => {
   });
 
   describe('setRefereeRoleAssignment', () => {
-    // The service does `await this.supabase.service.from('referee_assignments').delete().eq(...).eq(...).eq(...)`,
-    // so the chain itself must be thenable. `makeChain` is not — patch
-    // it to a Promise-wrapped variant for the referee_assignments
-    // chain that resolves to { data: null, error: null } when awaited.
-    function makeAwaitableDeleteChain() {
-      const result = { data: null, error: null };
-      const promise = Promise.resolve(result);
-      const chain = Object.assign(promise, {
-        select: vi.fn(),
-        eq: vi.fn(),
-        delete: vi.fn(),
-        in: vi.fn(),
-        order: vi.fn(),
-        insert: vi.fn().mockResolvedValue(result),
-        update: vi.fn(),
-        maybeSingle: vi.fn().mockResolvedValue(result),
-        single: vi.fn().mockResolvedValue(result),
-      });
-      for (const key of ['select', 'eq', 'delete', 'in', 'order', 'update']) {
-        (chain as unknown as Record<string, unknown>)[key] = vi.fn().mockReturnValue(chain);
-      }
-      return chain;
-    }
+    /**
+     * One bout, its two registrations, and an empty assignment table.
+     *
+     * The real DB resolves the event in ONE query via
+     * matches → phases → tournaments.event_id, and match-scoped rows must be
+     * lice-null. NOTE: mocks cannot reproduce the real-DB failures this fixed
+     * (a missing phases.event_id column, and the scope CHECK forbidding a
+     * non-null lice_id on scope_type='match') — so these assertions pin the
+     * query and row SHAPE that the real DB requires.
+     */
+    const refereeSeed = (
+      registrations: Array<Record<string, unknown>>,
+    ): Record<string, TableSeed> => ({
+      matches: {
+        rows: [
+          {
+            id: 'match-1',
+            red_registration_id: 'reg-red',
+            blue_registration_id: 'reg-blue',
+            phases: { tournaments: { event_id: 'event-1' } },
+          },
+        ],
+      },
+      registrations: { rows: registrations },
+      referee_assignments: { rows: [] },
+    });
+
+    /** Two fighters, neither of them the referee being offered. */
+    const STRANGERS = [
+      { id: 'reg-red', persons: { global_person_id: 'person-2' } },
+      { id: 'reg-blue', persons: { global_person_id: 'person-3' } },
+    ];
 
     it('upserts a row in referee_assignments with scope_type=match', async () => {
-      let insertedRow: Record<string, unknown> | null = null;
-      const refereeChain = makeAwaitableDeleteChain();
-      refereeChain.insert = vi.fn((row: Record<string, unknown>) => {
-        insertedRow = row;
-        return Promise.resolve({ data: null, error: null });
-      }) as never;
+      const { service: refereeService, supabase } = makeService(refereeSeed(STRANGERS));
 
-      // The real DB resolves the event in ONE query via
-      // matches → phases → tournaments.event_id, and match-scoped rows must be
-      // lice-null. NOTE: mocks can't reproduce the real-DB failures this fixed
-      // (a missing phases.event_id column, and the scope CHECK forbidding a
-      // non-null lice_id on scope_type='match') — so these assertions pin the
-      // query/row SHAPE that the real DB requires.
-      fromMock.mockImplementation((tableName: string) => {
-        if (tableName === 'matches') {
-          return makeChain({
-            data: { phases: { tournaments: { event_id: 'event-1' } } },
-            error: null,
-          });
-        }
-        if (tableName === 'referee_assignments') {
-          return refereeChain;
-        }
-        return makeChain({ data: null, error: null });
-      });
+      await refereeService.setRefereeRoleAssignment('match-1', 'arbitre_declarant', 'person-1');
 
-      await service.setRefereeRoleAssignment('match-1', 'arbitre_declarant', 'person-1');
-
-      expect(refereeChain.delete).toHaveBeenCalled();
-      expect(insertedRow).toMatchObject({
+      const [cleared, inserted] = writesTo(supabase, 'referee_assignments');
+      // The delete's SCOPE, not merely that a delete happened. An unscoped clear
+      // would drop every assignment on the event and still satisfy the old
+      // `expect(chain.delete).toHaveBeenCalled()`.
+      expect(cleared?.op).toBe('delete');
+      expect(scopedTo(cleared, 'scope_type')).toBe('match');
+      expect(scopedTo(cleared, 'match_id')).toBe('match-1');
+      expect(scopedTo(cleared, 'role')).toBe('arbitre_declarant');
+      expect(inserted?.row).toMatchObject({
         event_id: 'event-1',
         person_id: 'person-1',
         scope_type: 'match',
@@ -1135,27 +1187,13 @@ describe('MatchesService', () => {
     });
 
     it('only deletes when refereeId is null (unassign)', async () => {
-      const refereeChain = makeAwaitableDeleteChain();
-      const insertSpy = vi.fn();
-      refereeChain.insert = insertSpy as never;
+      const { service: refereeService, supabase } = makeService(refereeSeed(STRANGERS));
 
-      fromMock.mockImplementation((tableName: string) => {
-        if (tableName === 'matches') {
-          return makeChain({
-            data: { phases: { tournaments: { event_id: 'event-1' } } },
-            error: null,
-          });
-        }
-        if (tableName === 'referee_assignments') {
-          return refereeChain;
-        }
-        return makeChain({ data: null, error: null });
-      });
+      await refereeService.setRefereeRoleAssignment('match-1', 'arbitre_declarant', null);
 
-      await service.setRefereeRoleAssignment('match-1', 'arbitre_declarant', null);
-
-      expect(refereeChain.delete).toHaveBeenCalled();
-      expect(insertSpy).not.toHaveBeenCalled();
+      expect(writesTo(supabase, 'referee_assignments').map((write) => write.op)).toEqual([
+        'delete',
+      ]);
     });
 
     // ── Hard rule 8 ────────────────────────────────────────────────────────
@@ -1166,150 +1204,126 @@ describe('MatchesService', () => {
     // nothing at all.
     //
     // Every case here asserts the SELECT STRING as well as the outcome. The
-    // mocks answer with whatever the fixture holds no matter what was asked
+    // double answers with whatever the fixture holds no matter what was asked
     // for, so a value-only assertion stays green with the column deleted from
     // the read. That is exactly how a column can sit missing from a select for
     // years with a full test suite passing over it.
     describe('setRefereeRoleAssignment — a fighter cannot referee their own match', () => {
-      /** A thenable chain: the registrations read ends on `.in()`, not `.single()`. */
-      function awaitableChain(result: { data: unknown; error: unknown }, sink: string[]) {
-        const promise = Promise.resolve(result);
-        const chain = Object.assign(promise, {
-          select: vi.fn(),
-          eq: vi.fn(),
-          delete: vi.fn(),
-          in: vi.fn(),
-          order: vi.fn(),
-          insert: vi.fn().mockResolvedValue(result),
-          update: vi.fn(),
-          maybeSingle: vi.fn().mockResolvedValue(result),
-          single: vi.fn().mockResolvedValue(result),
-        });
-        for (const key of ['eq', 'delete', 'in', 'order', 'update']) {
-          (chain as unknown as Record<string, unknown>)[key] = vi.fn().mockReturnValue(chain);
-        }
-        chain.select = vi.fn((arg: string) => {
-          sink.push(arg);
-          return chain;
-        }) as never;
-        return chain;
-      }
-
-      /**
-       * One bout, one referee candidate, and whatever the two registrations
-       * resolve to. `selects` collects every projection the service asks for.
-       */
-      function harness(registrationRows: unknown[]) {
-        const selects: string[] = [];
-        const refereeChain = makeAwaitableDeleteChain();
-        const inserted: Record<string, unknown>[] = [];
-        refereeChain.insert = vi.fn((row: Record<string, unknown>) => {
-          inserted.push(row);
-          return Promise.resolve({ data: null, error: null });
-        }) as never;
-
-        fromMock.mockImplementation((tableName: string) => {
-          if (tableName === 'matches') {
-            const chain = makeChain({
-              data: {
-                red_registration_id: 'reg-red',
-                blue_registration_id: 'reg-blue',
-                phases: { tournaments: { event_id: 'event-1' } },
-              },
-              error: null,
-            });
-            chain.select.mockImplementation((arg: string) => {
-              selects.push(arg);
-              return chain;
-            });
-            return chain;
-          }
-          if (tableName === 'registrations') {
-            return awaitableChain({ data: registrationRows, error: null }, selects);
-          }
-          if (tableName === 'referee_assignments') return refereeChain;
-          return makeChain({ data: null, error: null });
-        });
-
-        return { selects, inserted, refereeChain };
-      }
-
       it('refuses the red fighter, and reads the columns it judges on', async () => {
         // `person-1` is the referee being offered AND the global person behind
         // the red corner's registration.
-        const { selects, inserted, refereeChain } = harness([
-          { id: 'reg-red', persons: { global_person_id: 'person-1' } },
-          { id: 'reg-blue', persons: { global_person_id: 'person-2' } },
-        ]);
+        const { service: refereeService, supabase } = makeService(
+          refereeSeed([
+            { id: 'reg-red', persons: { global_person_id: 'person-1' } },
+            { id: 'reg-blue', persons: { global_person_id: 'person-2' } },
+          ]),
+        );
 
         await expect(
-          service.setRefereeRoleAssignment('match-1', 'arbitre_declarant', 'person-1'),
+          refereeService.setRefereeRoleAssignment('match-1', 'arbitre_declarant', 'person-1'),
         ).rejects.toThrow('A fighter cannot referee their own match');
 
         // Refused BEFORE anything was written — not deleted-then-refused, which
-        // would drop the crew that was already correct.
-        expect(refereeChain.delete).not.toHaveBeenCalled();
-        expect(inserted).toEqual([]);
+        // would drop the crew that was already correct. Across every table now,
+        // rather than one watched chain.
+        expect(supabase.writes).toEqual([]);
 
         // The projection, not just the answer. Delete either registration column
-        // from the match read and this reds.
-        expect(selects[0]).toContain('red_registration_id');
-        expect(selects[0]).toContain('blue_registration_id');
-        expect(selects[1]).toContain('global_person_id');
+        // from the match read and this reds. Collected by TABLE, so inserting a
+        // query upstream cannot silently move which projection is asserted.
+        expect(selectsFor(supabase.from, 'matches')[0]).toContain('red_registration_id');
+        expect(selectsFor(supabase.from, 'matches')[0]).toContain('blue_registration_id');
+        expect(selectsFor(supabase.from, 'registrations')[0]).toContain('global_person_id');
       });
 
       it('refuses the blue fighter too', async () => {
-        const { inserted } = harness([
-          { id: 'reg-red', persons: { global_person_id: 'person-2' } },
-          { id: 'reg-blue', persons: { global_person_id: 'person-1' } },
-        ]);
+        const { service: refereeService, supabase } = makeService(
+          refereeSeed([
+            { id: 'reg-red', persons: { global_person_id: 'person-2' } },
+            { id: 'reg-blue', persons: { global_person_id: 'person-1' } },
+          ]),
+        );
 
         await expect(
-          service.setRefereeRoleAssignment('match-1', 'arbitre_declarant', 'person-1'),
+          refereeService.setRefereeRoleAssignment('match-1', 'arbitre_declarant', 'person-1'),
         ).rejects.toThrow('A fighter cannot referee their own match');
-        expect(inserted).toEqual([]);
+        expect(supabase.writes).toEqual([]);
       });
 
       it('lets a referee who is not in the bout through', async () => {
-        const { inserted } = harness([
-          { id: 'reg-red', persons: { global_person_id: 'person-2' } },
-          { id: 'reg-blue', persons: { global_person_id: 'person-3' } },
-        ]);
+        const { service: refereeService, supabase } = makeService(refereeSeed(STRANGERS));
 
-        await service.setRefereeRoleAssignment('match-1', 'arbitre_declarant', 'person-1');
-        expect(inserted).toHaveLength(1);
-        expect(inserted[0]).toMatchObject({ person_id: 'person-1', match_id: 'match-1' });
+        await refereeService.setRefereeRoleAssignment('match-1', 'arbitre_declarant', 'person-1');
+
+        const [, inserted] = writesTo(supabase, 'referee_assignments');
+        expect(inserted?.row).toMatchObject({ person_id: 'person-1', match_id: 'match-1' });
       });
 
       it('compares global person ids, not the per-event persons.id', async () => {
         // THE failure mode this guard dies of. `referee_assignments.person_id`
         // is a `global_persons.id`; a registration reaches that space through
-        // `persons.global_person_id`. Read `persons.id` instead and the guard
-        // matches nothing, never fires, and looks perfectly healthy.
+        // `persons.global_person_id` — NOT `persons.id`, which is the per-event
+        // identity and a different space entirely. Read `persons.id` instead and
+        // the guard matches nothing, never fires, and looks perfectly healthy.
         //
         // Here the red fighter's per-event `persons.id` IS the referee id and
         // their global person is somebody else. A guard reading the wrong
         // column refuses this; the right one lets it through.
-        const { inserted } = harness([
-          { id: 'reg-red', persons: { id: 'person-1', global_person_id: 'person-9' } },
-          { id: 'reg-blue', persons: { id: 'person-8', global_person_id: 'person-2' } },
-        ]);
+        const { service: refereeService, supabase } = makeService(
+          refereeSeed([
+            { id: 'reg-red', persons: { id: 'person-1', global_person_id: 'person-9' } },
+            { id: 'reg-blue', persons: { id: 'person-8', global_person_id: 'person-2' } },
+          ]),
+        );
 
-        await service.setRefereeRoleAssignment('match-1', 'arbitre_declarant', 'person-1');
-        expect(inserted).toHaveLength(1);
+        await refereeService.setRefereeRoleAssignment('match-1', 'arbitre_declarant', 'person-1');
+
+        expect(writesTo(supabase, 'referee_assignments').map((write) => write.op)).toEqual([
+          'delete',
+          'insert',
+        ]);
       });
 
       it('does not collapse two unidentifiable fighters onto one empty key', async () => {
         // A registration with no global person is SKIPPED, never compared under
         // ''. Defaulting to an empty string would make every unlinked
         // registration match every unlinked referee.
-        const { inserted } = harness([
-          { id: 'reg-red', persons: { global_person_id: null } },
-          { id: 'reg-blue', persons: null },
-        ]);
+        const { service: refereeService, supabase } = makeService(
+          refereeSeed([
+            { id: 'reg-red', persons: { global_person_id: null } },
+            { id: 'reg-blue', persons: null },
+          ]),
+        );
 
-        await service.setRefereeRoleAssignment('match-1', 'arbitre_declarant', '');
-        expect(inserted).toHaveLength(1);
+        await refereeService.setRefereeRoleAssignment('match-1', 'arbitre_declarant', '');
+
+        expect(writesTo(supabase, 'referee_assignments').map((write) => write.op)).toEqual([
+          'delete',
+          'insert',
+        ]);
+      });
+
+      /**
+       * The registrations read is scoped `.in('id', [red, blue])`. Without that
+       * scope this third row — the same global person as the referee, but
+       * fighting in a different bout — would refuse an assignment that is
+       * perfectly legal. The canned double returned the whole fixture whatever
+       * was asked, so the scope was unasserted.
+       */
+      it('ignores a registration that belongs to another bout', async () => {
+        const { service: refereeService, supabase } = makeService(
+          refereeSeed([
+            ...STRANGERS,
+            { id: 'reg-elsewhere', persons: { global_person_id: 'person-1' } },
+          ]),
+        );
+
+        await refereeService.setRefereeRoleAssignment('match-1', 'arbitre_declarant', 'person-1');
+
+        expect(writesTo(supabase, 'referee_assignments').map((write) => write.op)).toEqual([
+          'delete',
+          'insert',
+        ]);
       });
     });
   });
