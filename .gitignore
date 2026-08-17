@@ -22,6 +22,7 @@ logs/
 cookies.txt
 server.out
 server.err
+/specs/*
 
 # ── Service-specific secrets ─────────────────────────────────────
 infra/scripts/reference/myfal/*        # owner's MyFAL scripts (privacy)
