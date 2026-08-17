@@ -197,34 +197,42 @@ describe('hasStartedDownstreamBracket', () => {
     await expect(hasStartedDownstreamBracket(as(supabase), 't1', 'swiss1')).resolves.toBe(false);
   });
 
-  it('asks for fought statuses, so a voided bout no longer counts as under way', async () => {
-    // `.neq('status','scheduled')` counted VOIDED as under way, and a voided
-    // bout is not being fought — it is the one status that is neither scheduled
-    // nor in play. An unfinalise was refusable by a bracket whose only activity
-    // had already been undone.
-    //
-    // Asserted on the QUERY because the double returns canned rows without
-    // applying filters, so the filter IS the observable behaviour here. Same
-    // approach as admin-dashboard-stats.service.test.ts.
-    const supabase = mockSupabase({
+  /**
+   * `.neq('status','scheduled')` counted VOIDED as under way, and a voided bout
+   * is not being fought — it is the one status that is neither scheduled nor in
+   * play. An unfinalise was refusable by a bracket whose only activity had
+   * already been undone.
+   *
+   * Seeded as `rows`, so these assert what the caller answers rather than which
+   * filter it asked for. `phases` stays canned on purpose: its fixture row has
+   * no `tournament_id`, so under `rows` the `.eq('tournament_id', …)` would
+   * filter it away and both cases would pass through the no-bracket branch
+   * without ever reaching a match.
+   */
+  const bracketWithMatches = (matches: Record<string, unknown>[]) =>
+    mockSupabase({
       phases: {
         data: [
           { id: 'b1', type: 'single_elim', config_json: { seedingStrategy: 'by-swiss-rank' } },
         ],
         error: null,
       },
-      matches: { data: [], error: null },
+      matches: { rows: matches },
     });
-    await hasStartedDownstreamBracket(as(supabase), 't1', 'swiss1');
 
-    const matchesChain = supabase.from.mock.results[1]?.value as {
-      in: { mock: { calls: unknown[][] } };
-      neq: { mock: { calls: unknown[][] } };
-    };
-    expect(matchesChain.in.mock.calls).toContainEqual([
-      'status',
-      ['running', 'paused', 'completed'],
+  it('counts a bracket as started when a bout beside the voided one was fought', async () => {
+    const supabase = bracketWithMatches([
+      { id: 'm1', phase_id: 'b1', status: 'voided' },
+      { id: 'm2', phase_id: 'b1', status: 'completed' },
     ]);
-    expect(matchesChain.neq.mock.calls).toEqual([]);
+    await expect(hasStartedDownstreamBracket(as(supabase), 't1', 'swiss1')).resolves.toBe(true);
+  });
+
+  it('does not count a bracket whose only activity was voided', async () => {
+    const supabase = bracketWithMatches([
+      { id: 'm1', phase_id: 'b1', status: 'voided' },
+      { id: 'm2', phase_id: 'b1', status: 'scheduled' },
+    ]);
+    await expect(hasStartedDownstreamBracket(as(supabase), 't1', 'swiss1')).resolves.toBe(false);
   });
 });

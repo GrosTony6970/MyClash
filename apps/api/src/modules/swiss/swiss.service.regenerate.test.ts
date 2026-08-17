@@ -45,27 +45,44 @@ describe('SwissService.generateSwiss — regenerating over an existing phase', (
     expect(queriedTables(supabase.from)).toEqual(['phases', 'matches']);
   });
 
-  it('asks for fought statuses, so a voided bout no longer blocks regeneration', async () => {
-    // `.neq('status','scheduled')` counted VOIDED as under way, so a phase whose
-    // only activity had already been undone could not be regenerated at all —
-    // voided is the one status that is neither scheduled nor in play.
-    //
-    // Asserted on the QUERY because the double returns canned rows without
-    // applying filters, so the filter is the observable behaviour here. Same
-    // approach as admin-dashboard-stats.service.test.ts.
-    const supabase = withExistingPhase([]);
+  /**
+   * `.neq('status','scheduled')` counted VOIDED as under way, so a phase whose
+   * only activity had already been undone could not be regenerated at all —
+   * voided is the one status that is neither scheduled nor in play.
+   *
+   * Seeded as `rows` so the filter narrows the fixture and the refusal becomes
+   * observable. `phases` stays canned: the query ends in `.maybeSingle()` and
+   * the fixture is a bare object, which is not a row set.
+   */
+  const withFoughtStatuses = (matches: Record<string, unknown>[]) =>
+    mockSupabase({
+      phases: { data: { id: 'swiss-1' }, error: null },
+      matches: { rows: matches },
+    });
+
+  it('still refuses when a voided bout sits beside a fought one', async () => {
+    const supabase = withFoughtStatuses([
+      { id: 'm1', phase_id: 'swiss-1', status: 'voided' },
+      { id: 'm2', phase_id: 'swiss-1', status: 'completed' },
+    ]);
     const service = new SwissService(as(supabase), ...unusedCollaborators());
 
-    await service.generateSwiss('t1', dto, true).catch(() => undefined);
+    await expect(service.generateSwiss('t1', dto, true)).rejects.toThrow(/bout under way/);
+  });
 
-    const matchesChain = supabase.from.mock.results[1]?.value as {
-      in: { mock: { calls: unknown[][] } };
-      neq: { mock: { calls: unknown[][] } };
-    };
-    expect(matchesChain.in.mock.calls).toContainEqual([
-      'status',
-      ['running', 'paused', 'completed'],
-    ]);
-    expect(matchesChain.neq.mock.calls).toEqual([]);
+  it('lets the guard go when the only activity was voided', async () => {
+    // Two halves, because a successful regeneration is out of reach here: past
+    // the guard the run deletes and inserts across swiss_entrants and
+    // swiss_rounds, and the collaborators are `{}` stubs — the file's own header
+    // says these tests reach the refusal "without configuring the rest of the
+    // generation path". So: the refusal is absent, AND the run carried on past
+    // `matches`. Either alone proves little; together they say the guard let go.
+    const supabase = withFoughtStatuses([{ id: 'm1', phase_id: 'swiss-1', status: 'voided' }]);
+    const service = new SwissService(as(supabase), ...unusedCollaborators());
+
+    const failure = await service.generateSwiss('t1', dto, true).catch((error: unknown) => error);
+
+    expect(String((failure as Error)?.message)).not.toMatch(/bout under way/);
+    expect(queriedTables(supabase.from).length).toBeGreaterThan(2);
   });
 });
