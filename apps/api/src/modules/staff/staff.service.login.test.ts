@@ -2,8 +2,15 @@ import { randomBytes, scrypt as scryptCallback } from 'node:crypto';
 import { promisify } from 'node:util';
 import { ForbiddenException, UnauthorizedException } from '@nestjs/common';
 import { describe, expect, it, vi } from 'vitest';
-import { StaffService } from './staff.service';
-import { filtersFor, mockSupabase, scopedTo, writesTo } from '../../common/testing/supabase-chain';
+import type { FastifyRequest } from 'fastify';
+import { StaffService, STAFF_COOKIE_NAME } from './staff.service';
+import {
+  filtersFor,
+  mockSupabase,
+  scopedTo,
+  selectsFor,
+  writesTo,
+} from '../../common/testing/supabase-chain';
 
 const scrypt = promisify(scryptCallback);
 
@@ -72,10 +79,15 @@ const liceRow = (id: string, eventId = EVENT) => ({
   events: { id: eventId, slug: `slug-${eventId}`, name: `Event ${eventId}`, status: 'running' },
 });
 
-function build(tables: Record<string, unknown>) {
+function build(tables: Record<string, unknown>, jwt: Record<string, unknown> = {}) {
   const supabase = mockSupabase(tables as never);
   const sign = vi.fn(() => 'signed-token');
-  const service = new StaffService(supabase as never, {} as never, { sign } as never, {} as never);
+  const service = new StaffService(
+    supabase as never,
+    {} as never,
+    { sign, ...jwt } as never,
+    {} as never,
+  );
   return { service, supabase, sign };
 }
 
@@ -295,5 +307,84 @@ describe('StaffService sign-in payload — assigned pistes', () => {
     });
 
     expect(result.me.lices[0]?.currentMatch?.id).toBe('match-next');
+  });
+});
+
+/**
+ * `/staff-auth/me` — the payload the pad re-reads on every launch, and the only
+ * way the staff app learns its own role.
+ *
+ * It reads `event_staff_accounts` TWICE: once to resolve the session, scoped by
+ * event AND id, then again for the payload itself, scoped by id ALONE. That
+ * second filter is what this describe exists for. Sign-in reaches the same
+ * method, but behind the canned queue above, where it decides nothing — so the
+ * fixture here seeds the table instead and lets both reads narrow it.
+ */
+describe('StaffService.getMe', () => {
+  const request = () =>
+    ({ cookies: { [STAFF_COOKIE_NAME]: 'token' }, headers: {} }) as unknown as FastifyRequest;
+  const verify = () => ({ sub: ACCOUNT, event_id: EVENT, type: 'staff' });
+
+  const withEvent = (account: Record<string, unknown>) => ({
+    ...account,
+    events: { id: EVENT, slug: 'slug-event-1', name: 'FAL', status: 'running' },
+  });
+
+  /**
+   * A colleague on the same event, seeded FIRST. The payload read filters on id
+   * alone and ends in `maybeSingle`, which takes the first surviving row — so
+   * this is exactly what losing that filter hands back, and it differs in both
+   * the things the payload is read for.
+   */
+  const ME_ROWS = [
+    withEvent(
+      accountRow('x', { id: OTHER_ACCOUNT, display_name: 'Someone Else', role: 'checkin' }),
+    ),
+    withEvent(accountRow('x')),
+  ];
+
+  it('answers for the account named in the cookie, not merely one in the event', async () => {
+    const { service } = build(
+      {
+        event_staff_accounts: { rows: ME_ROWS },
+        events: { rows: [eventRow(EVENT)] },
+        event_staff_lice_assignments: { rows: [] },
+      },
+      { verify },
+    );
+
+    const me = (await service.getMe(request())) as {
+      type: string;
+      account: { id: string; display_name: string; role: string };
+      lices: unknown[];
+    };
+
+    expect(me.type).toBe('staff');
+    expect(me.account.id).toBe(ACCOUNT);
+    expect(me.account.display_name).toBe('Marie Dubois');
+    // The role travels on this payload because the token carries none (0173):
+    // the landing route after sign-in and every role-specific nav item read it
+    // from here, so serving a colleague's row would re-role the tablet.
+    expect(me.account.role).toBe('scoring');
+    // An unassigned scoring account still gets the key, just no pistes.
+    expect(me.lices).toEqual([]);
+  });
+
+  it('never asks for the PIN hash on the payload read', async () => {
+    // The double ignores projections, so no value assertion can catch a
+    // pin_hash that creeps into this SELECT — and this payload is handed
+    // straight to the tablet.
+    const { service, supabase } = build(
+      {
+        event_staff_accounts: { rows: ME_ROWS },
+        events: { rows: [eventRow(EVENT)] },
+        event_staff_lice_assignments: { rows: [] },
+      },
+      { verify },
+    );
+
+    await service.getMe(request());
+
+    expect(selectsFor(supabase.from, 'event_staff_accounts').at(-1)).not.toMatch(/pin_hash/);
   });
 });
