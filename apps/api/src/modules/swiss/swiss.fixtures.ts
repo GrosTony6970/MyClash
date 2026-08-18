@@ -1,5 +1,5 @@
 /**
- * Fixtures shared by the SwissPairingService tests.
+ * Fixtures shared by the Swiss module's tests.
  *
  * TEST-ONLY. Named in `apps/api/tsconfig.build.json`'s exclude list, which is
  * what keeps it out of `dist/` — `scripts/check-test-code-leak.mjs` proves that
@@ -12,7 +12,8 @@
  * read.
  */
 import { DEFAULT_SWISS_POINTS, DEFAULT_SWISS_TIEBREAK_CHAIN } from './dto/swiss-config.dto';
-import type { SupabaseRow } from '../../common/testing/supabase-chain';
+import type { RecordedWrite, SupabaseRow } from '../../common/testing/supabase-chain';
+import { writesTo } from '../../common/testing/supabase-chain';
 import type { SupabaseService } from '../supabase/supabase.service';
 
 /** The double stands in for SupabaseService; every caller casts at the seam. */
@@ -107,3 +108,99 @@ export const readState = (over: Record<string, unknown> = {}) => ({
   swiss_rounds: { rows: [] as SupabaseRow[] },
   ...over,
 });
+
+// ── The round an override edits ──────────────────────────────────────────────
+
+/**
+ * One bout of the round under edit.
+ *
+ * Distinct from {@link bout}, which models a bout of a round already played:
+ * this one is still `scheduled` and carries the round it belongs to, because
+ * `setMatchSides` reaches the round through the match.
+ */
+export const editableBout = (
+  id: string,
+  red: string | null,
+  blue: string | null,
+  status = 'scheduled',
+): SupabaseRow => ({
+  id,
+  status,
+  swiss_round_id: 'sr2',
+  red_registration_id: red,
+  blue_registration_id: blue,
+});
+
+/**
+ * Round 2: four fighters, two bouts, nobody sitting out.
+ *
+ * `swiss_rounds` is read twice with different projections — once for the round
+ * itself, once by `loadRounds` for everybody's history — so it is seeded and
+ * one row answers both.
+ */
+export const round2 = (over: SupabaseRow = {}): SupabaseRow => ({
+  id: 'sr2',
+  phase_id: 'p1',
+  round_number: 2,
+  status: 'pending',
+  bye_registration_id: null,
+  pairing_meta_json: null,
+  matches: [editableBout('m1', 'r1', 'r2'), editableBout('m2', 'r3', 'r4')],
+  ...over,
+});
+
+/**
+ * Round 1, already played. Only r1 and r4 have met.
+ *
+ * Deliberately one recorded bout rather than a full round: the history is here
+ * to make exactly ONE of the pairings a swap creates a rematch, so a warning
+ * can be attributed to the pair it names.
+ */
+export const ROUND_1: SupabaseRow = {
+  id: 'sr1',
+  phase_id: 'p1',
+  round_number: 1,
+  status: 'completed',
+  bye_registration_id: null,
+  pairing_meta_json: null,
+  matches: [
+    { id: 'm-old-1', status: 'completed', red_registration_id: 'r1', blue_registration_id: 'r4' },
+  ],
+};
+
+export const clubbed = (registrationId: string, clubId: string | null): SupabaseRow => ({
+  ...entrant(registrationId),
+  registrations: { persons: { club_id: clubId } },
+});
+
+/** Four entrants, no two of them clubmates, plus one from another phase. */
+export const CLUBBED_ENTRANTS: SupabaseRow[] = [
+  clubbed('r1', 'club-a'),
+  clubbed('r2', 'club-b'),
+  clubbed('r3', 'club-c'),
+  clubbed('r4', null),
+  // Another phase's entrant, sharing a club with r1.
+  { ...entrant('rX', 'p2'), registrations: { persons: { club_id: 'club-a' } } },
+];
+
+/** Every table an override reads or writes. */
+export const overrideState = (over: Record<string, unknown> = {}) => ({
+  phases: { rows: [phaseRow()] },
+  swiss_entrants: { rows: CLUBBED_ENTRANTS },
+  swiss_rounds: { rows: [ROUND_1, round2()] },
+  matches: { rows: [editableBout('m1', 'r1', 'r2'), editableBout('m2', 'r3', 'r4')] },
+  audit_log: { rows: [] as SupabaseRow[] },
+  ...over,
+});
+
+/**
+ * Each write to `table`, paired with the row it was scoped to.
+ *
+ * An update names its row only through its filters, so `writesTo` alone cannot
+ * tell "moved r3 into m2" from "moved r3 into every bout in the event".
+ */
+export const wroteTo = (supabase: { writes: RecordedWrite[] }, table: string) =>
+  writesTo(supabase, table).map((write) => ({
+    id: write.filters.find((f) => f.method === 'eq' && f.args[0] === 'id')?.args[1],
+    row: write.row as SupabaseRow,
+  }));

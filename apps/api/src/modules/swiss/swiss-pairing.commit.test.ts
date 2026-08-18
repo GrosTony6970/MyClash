@@ -1,7 +1,7 @@
 import { BadRequestException } from '@nestjs/common';
 import { describe, expect, it, vi } from 'vitest';
 import { mockSupabase, writesTo, type SupabaseRow } from '../../common/testing/supabase-chain';
-import { asSupabase as as, readState } from './swiss-pairing.fixtures';
+import { asSupabase as as, readState } from './swiss.fixtures';
 import { SwissPairingService } from './swiss-pairing.service';
 
 /** The tables a commit writes to, on top of the ones a plan reads. */

@@ -45,7 +45,7 @@
     "src/common/testing/**/*.ts",
     "src/modules/exports/hema-ratings.fixtures.ts",
     "src/modules/staff/live-board.fixtures.ts",
-    "src/modules/swiss/swiss-pairing.fixtures.ts",
+    "src/modules/swiss/swiss.fixtures.ts",
     // Found by scripts/check-test-code-leak.mjs, not by inspection — a fifth
     // convention (*.harness.ts) that no glob written for the other four would
     // have caught. It imports no vitest, so only the "imported by tests and

@@ -11,7 +11,7 @@ import {
   readState,
   swissConfig as config,
   swissRound,
-} from './swiss-pairing.fixtures';
+} from './swiss.fixtures';
 import { SwissPairingService } from './swiss-pairing.service';
 
 const fighters = (plan: { pairings: Array<{ aId: string; bId: string }> }) =>
