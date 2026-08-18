@@ -166,6 +166,85 @@ describe('a seeded table', () => {
     expect((error as { code: string }).code).toBe('PGRST116');
   });
 
+  /**
+   * `insert(…).select()` is the one read a fixture cannot answer from its rows:
+   * the row did not exist a moment ago, and the id belongs to the database.
+   * Echoing what was written would hand back `undefined` for that id, and four
+   * sites in match-forfeits alone key their next write on it.
+   */
+  const LEDGER = {
+    forfeits: {
+      rows: [{ id: 'old-1', match_id: 'match-9' }],
+      returning: (row: Record<string, unknown>, index: number) => ({
+        id: `new-${index + 1}`,
+        ...row,
+      }),
+    },
+  } as const;
+
+  it('returns the stored row for an insert that asks for it back', async () => {
+    const { data } = await supabaseFrom(LEDGER)('forfeits')
+      .insert({ match_id: 'match-1' })
+      .select('*')
+      .single();
+    // The caller's column AND the id only the database could supply — not the
+    // rows already in the table, which is what an unfiltered read would give.
+    expect(data).toEqual({ id: 'new-1', match_id: 'match-1' });
+  });
+
+  it('stamps each row of a multi-row insert by its position', async () => {
+    const { data } = await supabaseFrom(LEDGER)('forfeits')
+      .insert([{ match_id: 'a' }, { match_id: 'b' }])
+      .select('*');
+    expect(data).toEqual([
+      { id: 'new-1', match_id: 'a' },
+      { id: 'new-2', match_id: 'b' },
+    ]);
+  });
+
+  it('leaves a bare insert resolving the way it always did', async () => {
+    // No select(), so PostgREST returns no representation and the caller only
+    // reads `error`. Many call sites spell it this way, and the point here is
+    // that asking for the stored row is what turns the stamp on — an insert
+    // that never asked must not start answering with what it wrote.
+    const { data, error } = await supabaseFrom(LEDGER)('forfeits').insert({ match_id: 'match-1' });
+    expect(error).toBeNull();
+    expect(data).toEqual([{ id: 'old-1', match_id: 'match-9' }]);
+  });
+
+  it('still reads the seeded rows when the query is not a write', async () => {
+    const { data } = await supabaseFrom(LEDGER)('forfeits').select('*').eq('id', 'old-1');
+    expect(data).toEqual([{ id: 'old-1', match_id: 'match-9' }]);
+  });
+
+  /**
+   * `returning` is purely ADDITIVE. Without it the read-back resolves from the
+   * fixture exactly as it always did — the older idiom, "seed the row the write
+   * reads back" — and some fixtures depend on the empty case: a bracket seed
+   * returns no slots on purpose, so the placeholder-match path never runs.
+   */
+  it('resolves an undeclared read-back from the fixture, as it always did', async () => {
+    const held = await supabaseFrom({ forfeits: { rows: [{ id: 'seeded-1' }] } })('forfeits')
+      .insert({ match_id: 'match-1' })
+      .select('*');
+    expect(held.data).toEqual([{ id: 'seeded-1' }]);
+
+    const empty = await supabaseFrom({ forfeits: { rows: [] } })('forfeits')
+      .insert({ match_id: 'match-1' })
+      .select('*');
+    expect(empty.data).toEqual([]);
+  });
+
+  it('returns the rows an update matched, which is what UPDATE … RETURNING gives', async () => {
+    // No `returning` needed: the rows that satisfy the filter ARE the rows the
+    // update touched, so the fixture already holds the answer.
+    const { data } = await supabaseFrom({ matches: { rows: ROWS } })('matches')
+      .update({ status: 'voided' })
+      .eq('id', 'b')
+      .select('id');
+    expect(data).toEqual([{ id: 'b', status: 'completed', seq: 1 }]);
+  });
+
   it('gives single() PGRST116 unless exactly one row survived', async () => {
     // classify.ts documents PGRST116 as "0 or >1 rows where single() wanted
     // exactly 1", and ten production files branch on it.

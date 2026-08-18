@@ -26,6 +26,19 @@ export type SupabaseRow = Record<string, unknown>;
  */
 export interface SeededTable {
   rows: readonly SupabaseRow[];
+  /**
+   * What the DATABASE adds to an inserted row, for `insert(…).select()`.
+   *
+   * A fixture is not a database: it cannot generate the id or the timestamps
+   * that a real INSERT … RETURNING hands back, and code downstream keys on
+   * them. Echoing the row as written would put `undefined` where an id belongs
+   * and carry it into every later write — so this is declared, not guessed, and
+   * a read-back with nothing declared THROWS rather than inventing one.
+   *
+   * Applied over the row as written. A function receives each row and its
+   * position, for the call that inserts more than one.
+   */
+  returning?: SupabaseRow | ((row: SupabaseRow, index: number) => SupabaseRow);
 }
 
 /** Everything a table may be configured with. */
@@ -222,4 +235,71 @@ export function buildChain(
     throw unsupported('csv', 'it would have to render rows as text');
   });
   return chain;
+}
+
+/**
+ * What an INSERT … RETURNING hands back, for a fixture that cannot generate one.
+ *
+ * Postgres stamps the row it stored: the caller's own columns plus the id and
+ * the timestamps it created. Four sites in match-forfeits alone key on that id
+ * immediately afterwards, so echoing the row as written would put `undefined`
+ * where an id belongs and carry it into every later write — silent, and exactly
+ * the class this module exists to remove. So the stamp is DECLARED by the seed,
+ * and a read-back with nothing declared throws rather than inventing one.
+ */
+export function stampWritten(
+  written: readonly SupabaseRow[],
+  seed: SeededTable,
+  seeded: readonly SupabaseRow[],
+): SupabaseRow[] {
+  const stamp = seed.returning;
+  // Purely additive. With no stamp declared the read-back resolves from the
+  // fixture exactly as it always did — which is the older idiom, "seed the row
+  // the write reads back", and some fixtures depend on the EMPTY case: a
+  // bracket seed returns no slots on purpose so the placeholder-match path
+  // never runs. Throwing here broke twelve of those.
+  if (!stamp) return [...seeded];
+  return written.map((row, index) => ({
+    ...row,
+    ...(typeof stamp === 'function' ? stamp(row, index) : stamp),
+  }));
+}
+
+/** The rows an `insert()` was given, as a list whether it was handed one or many. */
+const writtenRows = (row: unknown): SupabaseRow[] =>
+  Array.isArray(row) ? (row as SupabaseRow[]) : [row as SupabaseRow];
+
+/**
+ * What the chain has been ASKED for, which is what decides its answer.
+ *
+ * Held as one object so the installers below can be module-scope functions
+ * rather than closures inside `seededTableChain`, which is at its line budget.
+ */
+export interface ReadMode {
+  counting: 'exact' | null;
+  headOnly: boolean;
+  /**
+   * Rows an `insert()` was given, and whether `select()` then asked for them.
+   *
+   * PostgREST returns no rows for a write unless the caller asks for a
+   * representation, which supabase-js spells `.insert(x).select()`. A bare
+   * insert still resolves the way it always did, so the call sites that only
+   * check `error` are untouched.
+   */
+  written: SupabaseRow[] | null;
+  representation: boolean;
+}
+
+/**
+ * Note the rows an insert was handed.
+ *
+ * Wrapped, not replaced: the recorder `buildChain` installed is what puts the
+ * write in the log with the filters that scoped it.
+ */
+export function installInsert(chain: SupabaseChain, mode: ReadMode): void {
+  const record = chain.insert;
+  chain.insert = vi.fn((row?: unknown) => {
+    mode.written = writtenRows(row);
+    return record(row) as SupabaseChain;
+  });
 }

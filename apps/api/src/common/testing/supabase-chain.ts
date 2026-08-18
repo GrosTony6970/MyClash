@@ -23,6 +23,11 @@
  * query filters on. `{ table: { rows: [...] } }` is a SIMULATED TABLE: filters
  * narrow it, `order`/`limit` apply, and the terminals see what survived.
  *
+ * A simulated table may also declare `returning`, which is what an
+ * `insert(…).select()` hands back — the row as written plus the id and
+ * timestamps only a database can create. A read-back with nothing declared
+ * throws; inventing an id would put `undefined` into every write keyed on it.
+ *
  * New tests want `rows`. Canned is the legacy form, kept because eighteen files
  * depend on it and because a filter-free answer is still the right fixture for a
  * query whose filters are not what the test is about. Nothing infers one from
@@ -58,7 +63,6 @@ import {
   type RecordedWrite,
   type SeededTable,
   type SupabaseChain,
-  type SupabaseRow,
   type TableSeed,
 } from './supabase-chain-internals';
 import { seededTableChain } from './supabase-chain-seeded';
@@ -106,10 +110,10 @@ export function supabaseFrom(
   byTable: Readonly<Record<string, TableSeed>>,
   writes: RecordedWrite[] = [],
 ): Mock<(table: string) => SupabaseChain> {
-  const tables = new Map<string, readonly SupabaseRow[]>();
+  const tables = new Map<string, SeededTable>();
   const queues = new Map<string, ChainResult[]>();
   for (const [table, seed] of Object.entries(byTable)) {
-    if (isSeededTable(seed)) tables.set(table, seed.rows);
+    if (isSeededTable(seed)) tables.set(table, seed);
     else queues.set(table, Array.isArray(seed) ? [...seed] : [seed]);
   }
 

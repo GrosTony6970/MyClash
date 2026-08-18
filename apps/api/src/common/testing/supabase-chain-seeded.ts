@@ -15,6 +15,10 @@ import {
   UNSIMULATED,
   type QueryLog,
   type SupabaseChain,
+  installInsert,
+  stampWritten,
+  type ReadMode,
+  type SeededTable,
   type SupabaseRow,
   type WriteSink,
 } from './supabase-chain-internals';
@@ -292,53 +296,66 @@ function installNarrowing(chain: SupabaseChain, log: QueryLog, set: RowSet): voi
   });
 }
 
-export function seededTableChain(seed: readonly SupabaseRow[], sink: WriteSink): SupabaseChain {
-  const set = rowSet(seed);
-  const rows = () => set.current();
-  const log = newQueryLog();
+/**
+ * `select(…, { count, head })` — the shape a "how many?" query takes.
+ *
+ * `head: true` asks for the number WITHOUT the rows, which is why a caller that
+ * only wants a total does not pay for the payload. Answering it with rows and no
+ * count made every such call report zero, and a fixture that reports zero for a
+ * real count is the failure this module exists to avoid.
+ *
+ * Only `exact` is modelled. `planned` and `estimated` are Postgres statistics
+ * rather than a fact about these rows, so they throw rather than return a number
+ * a test would then assert on.
+ */
+function installSelect(chain: SupabaseChain, mode: ReadMode): void {
+  chain.select = vi.fn((projection?: string, options?: { count?: string; head?: boolean }) => {
+    if (options?.count !== undefined && options.count !== 'exact') {
+      throw unsupported('select', `count: "${options.count}"`);
+    }
+    if (options?.count === 'exact') mode.counting = 'exact';
+    if (options?.head) mode.headOnly = true;
+    // Asking for the stored row is what turns the stamp on.
+    if (mode.written) mode.representation = true;
+    // Deliberately NOT logged: a projection does not scope a write, and the
+    // filter log is what tells a recorded write which rows it hit.
+    void projection;
+    return chain;
+  });
+}
 
-  /**
-   * `select(…, { count, head })` — the shape a "how many?" query takes.
-   *
-   * `head: true` asks for the number WITHOUT the rows, which is why a caller
-   * that only wants a total does not pay for the payload. Answering it with
-   * rows and no count made every such call report zero, and a fixture that
-   * reports zero for a real count is the failure this module exists to avoid.
-   *
-   * Only `exact` is modelled. `planned` and `estimated` are Postgres statistics
-   * rather than a fact about these rows, so they throw rather than return a
-   * number a test would then assert on.
-   */
-  let counting: 'exact' | null = null;
-  let headOnly = false;
+/** Every unmodelled filter, as a thrower rather than a silent pass-through. */
+function installUnsupported(chain: SupabaseChain): void {
+  for (const method of UNSIMULATED) {
+    chain[method] = vi.fn(() => {
+      throw unsupported(method, 'no caller has needed it yet');
+    });
+  }
+}
+
+export function seededTableChain(seed: SeededTable, sink: WriteSink): SupabaseChain {
+  const set = rowSet(seed.rows);
+  const mode: ReadMode = { counting: null, headOnly: false, written: null, representation: false };
+  const rows = () =>
+    mode.written && mode.representation
+      ? stampWritten(mode.written, seed, set.current())
+      : set.current();
+  const log = newQueryLog();
 
   const chain = buildChain(
     () => ({
-      data: headOnly ? null : rows(),
+      data: mode.headOnly ? null : rows(),
       error: null,
-      ...(counting ? { count: set.total() } : {}),
+      ...(mode.counting ? { count: set.total() } : {}),
     }),
     rows,
     log,
     sink,
   );
 
-  for (const method of UNSIMULATED) {
-    chain[method] = vi.fn(() => {
-      throw unsupported(method, 'no caller has needed it yet');
-    });
-  }
-  chain.select = vi.fn((projection?: string, options?: { count?: string; head?: boolean }) => {
-    if (options?.count !== undefined && options.count !== 'exact') {
-      throw unsupported('select', `count: "${options.count}"`);
-    }
-    if (options?.count === 'exact') counting = 'exact';
-    if (options?.head) headOnly = true;
-    // Deliberately NOT logged: a projection does not scope a write, and the
-    // filter log is what tells a recorded write which rows it hit.
-    void projection;
-    return chain;
-  });
+  installUnsupported(chain);
+  installSelect(chain, mode);
   installNarrowing(chain, log, set);
+  installInsert(chain, mode);
   return chain;
 }
