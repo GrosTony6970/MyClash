@@ -691,6 +691,23 @@ function fakeSupabase(state: TableState) {
 }
 
 /**
+ * The rows a call wrote to one table, in order.
+ *
+ * An update names its row only through the filters that scoped it: this double
+ * is a fixture, not a database, so `updated.matches` alone cannot tell a
+ * restore of the two bouts one record closed from a restore of every bout in
+ * the event.
+ */
+function writtenIds(
+  supabase: { mutations: Array<{ table: string; filters: Array<[string, unknown]> }> },
+  table: string,
+) {
+  return supabase.mutations
+    .filter((mutation) => mutation.table === table)
+    .map((mutation) => mutation.filters.find(([column]) => column === 'id')?.[1]);
+}
+
+/**
  * Each test below pins a defect found by adversarial review of the override
  * slice and reproduced by execution before its fix. The assertion is not
  * "the code does X" but "this specific way of losing an organiser's
@@ -740,6 +757,62 @@ describe('MatchForfeitsService — override regressions', () => {
     expect(supabase.inserted.match_forfeits).toBeUndefined();
   });
 
+  /**
+   * The bracket as it stands when a round-1 fighter does not show: their own
+   * seeded slot, one more slot in the same round, and one in another phase.
+   *
+   * The reserve hunt reads every slot in THIS phase to learn who is already
+   * placed, so the other phase's slot is what proves that scope: it places
+   * `reg-spare`, and a lookup that reached it would decide the only reserve in
+   * the event is already in the bracket.
+   */
+  const BRACKET_SLOTS = [
+    {
+      id: 'slot-1',
+      phase_id: 'phase-1',
+      round: 1,
+      source_a_type: 'seed',
+      source_b_type: 'seed',
+      registration_a_id: 'reg-red',
+      registration_b_id: 'reg-blue',
+    },
+    {
+      id: 'slot-2',
+      phase_id: 'phase-1',
+      round: 1,
+      source_a_type: 'seed',
+      source_b_type: 'seed',
+      registration_a_id: 'reg-x',
+      registration_b_id: 'reg-y',
+    },
+    {
+      id: 'slot-9',
+      phase_id: 'phase-2',
+      round: 1,
+      source_a_type: 'seed',
+      source_b_type: 'seed',
+      registration_a_id: 'reg-spare',
+      registration_b_id: 'reg-z',
+    },
+  ];
+
+  /**
+   * Who is entered, and who could take the empty side.
+   *
+   * `reg-spare` is the one eligible reserve. The three rows above it each look
+   * like a better answer on one column and must not be taken: an unseeded
+   * entrant sorts last, a withdrawn one is not available at all, and the
+   * lowest seed in the list is entered in a different tournament.
+   */
+  const ENTRANTS = [
+    { id: 'reg-unseeded', tournament_id: 'tournament-1', status: 'checked_in', seed: null },
+    { id: 'reg-withdrawn', tournament_id: 'tournament-1', status: 'withdrawn', seed: 2 },
+    { id: 'reg-elsewhere', tournament_id: 'tournament-2', status: 'checked_in', seed: 1 },
+    { id: 'reg-spare', tournament_id: 'tournament-1', status: 'checked_in', seed: 9 },
+    { id: 'reg-red', tournament_id: 'tournament-1', status: 'checked_in', seed: 3 },
+    { id: 'reg-blue', tournament_id: 'tournament-1', status: 'checked_in', seed: 4 },
+  ];
+
   it('does not swap a reserve into the bracket when overriding a scheduled match', async () => {
     // Was: applyBracketForfeit read the PRE-write row, so status was still
     // 'scheduled', tryReplaceMainRoundOneFighter fired, and it reset the match
@@ -757,14 +830,8 @@ describe('MatchForfeitsService — override regressions', () => {
       // A round-1 seeded slot AND an unused registration — everything
       // tryReplaceMainRoundOneFighter needs to find a reserve and fire. Without
       // both, this test passes vacuously on the unfixed code.
-      bracket_slots: {
-        maybeSingle: { id: 'slot-1', phase_id: 'phase-1', round: 1, source_a_type: 'seed' },
-        select: [{ registration_a_id: 'reg-red', registration_b_id: 'reg-blue' }],
-      },
-      registrations: {
-        maybeSingle: { id: 'reg-red', status: 'checked_in' },
-        select: [{ id: 'reg-spare', status: 'checked_in', seed: 9 }],
-      },
+      bracket_slots: { rows: BRACKET_SLOTS },
+      registrations: { rows: ENTRANTS },
     });
     const service = new MatchForfeitsService(supabase as never, undefined as never);
 
@@ -798,28 +865,15 @@ describe('MatchForfeitsService — override regressions', () => {
         maybeSingle: matchRow({ phaseType: 'single_elim', status: 'scheduled' }),
         update: { id: 'match-1' },
       },
-      match_forfeits: { maybeSingle: null, insert: { id: 'forfeit-1' } },
+      match_forfeits: { rows: [], returning: { id: 'forfeit-1' } },
       phases: {
         maybeSingle: { id: 'phase-1', type: 'single_elim', tournament_id: 'tournament-1' },
       },
-      bracket_slots: {
-        // The registration ids matter here, unlike in the override test above
-        // which returns before reading them: they are what decides WHICH side
-        // the reserve replaces.
-        maybeSingle: {
-          id: 'slot-1',
-          phase_id: 'phase-1',
-          round: 1,
-          source_a_type: 'seed',
-          registration_a_id: 'reg-red',
-          registration_b_id: 'reg-blue',
-        },
-        select: [{ registration_a_id: 'reg-red', registration_b_id: 'reg-blue' }],
-      },
-      registrations: {
-        maybeSingle: { id: 'reg-red', status: 'checked_in' },
-        select: [{ id: 'reg-spare', status: 'checked_in', seed: 9 }],
-      },
+      // The registration ids matter here, unlike in the override test above
+      // which returns before reading them: they are what decides WHICH side
+      // the reserve replaces.
+      bracket_slots: { rows: BRACKET_SLOTS },
+      registrations: { rows: ENTRANTS },
     });
     const service = new MatchForfeitsService(supabase as never, undefined as never);
 
@@ -832,6 +886,17 @@ describe('MatchForfeitsService — override regressions', () => {
     expect(supabase.updated.bracket_slots?.[0]).toMatchObject({ registration_a_id: 'reg-spare' });
     expect(supabase.updated.matches).toHaveLength(1);
     expect(supabase.updated.matches?.[0]).toMatchObject({ red_registration_id: 'reg-spare' });
+    // Onto the fighter's own slot and their own bout, and no others.
+    expect(writtenIds(supabase, 'bracket_slots')).toEqual(['slot-1']);
+    expect(writtenIds(supabase, 'matches')).toEqual(['match-1']);
+    // The record is stamped twice on the way out — the reserve it named, then
+    // the result the bout ended at — and both name the record just written.
+    expect(writtenIds(supabase, 'match_forfeits')).toEqual(['forfeit-1', 'forfeit-1']);
+    // And it carries the fighter's state as it was, which is the only thing a
+    // later void can put them back to.
+    expect(supabase.inserted.match_forfeits?.[0]).toMatchObject({
+      previous_registration_state: { id: 'reg-red', status: 'checked_in' },
+    });
     // And the bout was never completed on the way there — no status write at
     // all, in either direction.
     expect(
@@ -1368,21 +1433,6 @@ describe('MatchForfeitsService — pool cascade void', () => {
       previous_match_state: { status: 'scheduled', red_score: 0, blue_score: 0 },
     },
   ];
-
-  /**
-   * The rows this void wrote to one table, in order.
-   *
-   * An update names its row only through the filters that scoped it, so
-   * `updated.matches` alone cannot tell a restore of the two bouts this record
-   * closed from a restore of every bout in the event.
-   */
-  const writtenIds = (
-    supabase: { mutations: Array<{ table: string; filters: Array<[string, unknown]> }> },
-    table: string,
-  ) =>
-    supabase.mutations
-      .filter((mutation) => mutation.table === table)
-      .map((mutation) => mutation.filters.find(([column]) => column === 'id')?.[1]);
 
   /** The bouts those records cover, plus one live bout that belongs to neither. */
   const matchRows = (childMatchStatus: string): SupabaseRow[] => [
