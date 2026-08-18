@@ -42,30 +42,67 @@ describe('loadSwissContext', () => {
   });
 
   it('loads entrants, rounds and matches for a valid phase', async () => {
+    // Every table here also holds a row belonging to ANOTHER phase. A fixture
+    // without them cannot tell a scoped read from an unscoped one.
     const supabase = mockSupabase({
-      phases: { data: { id: 'p1', config_json: CONFIG }, error: null },
+      phases: {
+        rows: [
+          { id: 'p1', tournament_id: 't1', type: 'swiss', config_json: CONFIG },
+          { id: 'p9', tournament_id: 't9', type: 'swiss', config_json: CONFIG },
+        ],
+      },
       swiss_entrants: {
-        data: [{ registration_id: 'r1', withdrawn_at_round: null, registrations: {} }],
-        error: null,
+        rows: [
+          { phase_id: 'p1', registration_id: 'r1', withdrawn_at_round: null, registrations: {} },
+          { phase_id: 'p9', registration_id: 'r9', withdrawn_at_round: null, registrations: {} },
+        ],
       },
       swiss_rounds: {
-        data: [{ id: 'sr1', round_number: 1, status: 'completed', bye_registration_id: null }],
-        error: null,
+        rows: [
+          { id: 'sr1', phase_id: 'p1', round_number: 1, status: 'completed' },
+          { id: 'sr9', phase_id: 'p9', round_number: 1, status: 'completed' },
+        ],
       },
-      matches: { data: [{ id: 'm1', swiss_round_id: 'sr1', status: 'completed' }], error: null },
+      matches: {
+        rows: [
+          { id: 'm1', phase_id: 'p1', swiss_round_id: 'sr1', status: 'completed' },
+          { id: 'm9', phase_id: 'p9', swiss_round_id: 'sr9', status: 'completed' },
+        ],
+      },
     });
 
     const context = await loadSwissContext(as(supabase), 't1');
     expect(context).toMatchObject({ tournamentId: 't1', phaseId: 'p1' });
-    expect(context?.entrants).toHaveLength(1);
-    expect(context?.rounds).toHaveLength(1);
-    expect(context?.matches).toHaveLength(1);
+    expect(context?.entrants.map((e) => e.registration_id)).toEqual(['r1']);
+    expect(context?.rounds.map((r) => r.id)).toEqual(['sr1']);
+    expect(context?.matches.map((m) => m.id)).toEqual(['m1']);
     expect(queriedTables(supabase.from)).toEqual([
       'phases',
       'swiss_entrants',
       'swiss_rounds',
       'matches',
     ]);
+  });
+
+  it('returns the rounds in the order they were fought', async () => {
+    // Seeded out of order on purpose. The standings count rounds completed off
+    // the front of this list, and the round card reads it as round 1, 2, 3.
+    const supabase = mockSupabase({
+      phases: { rows: [{ id: 'p1', tournament_id: 't1', type: 'swiss', config_json: CONFIG }] },
+      swiss_entrants: { rows: [] },
+      swiss_rounds: {
+        rows: [
+          { id: 'sr3', phase_id: 'p1', round_number: 3, status: 'pending' },
+          { id: 'sr1', phase_id: 'p1', round_number: 1, status: 'completed' },
+          { id: 'sr2', phase_id: 'p1', round_number: 2, status: 'completed' },
+        ],
+      },
+      matches: { rows: [] },
+    });
+
+    const context = await loadSwissContext(as(supabase), 't1');
+
+    expect(context?.rounds.map((r) => r.round_number)).toEqual([1, 2, 3]);
   });
 
   it('coerces null result sets to empty arrays rather than propagating null', async () => {
@@ -107,38 +144,60 @@ describe('loadScoringInputs', () => {
     expect(queriedTables(supabase.from)).toEqual([]);
   });
 
-  it('groups exchanges by match', async () => {
+  it('groups exchanges by match, skipping other bouts and voided hits', async () => {
+    // The two decoys are what the scope is for: an exchange of a bout nobody
+    // asked about, and a voided one. A voided hit counted here reads as points
+    // a fighter did not score.
     const supabase = mockSupabase({
       exchanges: {
-        data: [
+        rows: [
           { match_id: 'm1', type: 'single', first_striker_color: 'red', voided: false },
           { match_id: 'm1', type: 'double', first_striker_color: null, voided: false },
           { match_id: 'm2', type: 'single', first_striker_color: 'blue', voided: false },
+          { match_id: 'm1', type: 'single', first_striker_color: 'red', voided: true },
+          { match_id: 'm-elsewhere', type: 'single', first_striker_color: 'red', voided: false },
         ],
-        error: null,
       },
-      match_forfeits: ok,
+      match_forfeits: { rows: [] },
     });
     const { exchangesByMatch } = await loadScoringInputs(as(supabase), ['m1', 'm2']);
     expect(exchangesByMatch.get('m1')).toHaveLength(2);
     expect(exchangesByMatch.get('m2')).toHaveLength(1);
+    expect([...exchangesByMatch.keys()].sort()).toEqual(['m1', 'm2']);
   });
 
-  it('counts repeat forfeits per registration', async () => {
+  it('counts repeat forfeits per registration, and only real ones', async () => {
+    // Three decoys, one per axis: a RESULT OVERRIDE, which shares this table
+    // and is not a forfeit; a forfeit already voided; and a forfeit on a bout
+    // nobody asked about. Each one would inflate a fighter's F column.
+    const forfeit = (over: Record<string, unknown>) => ({
+      forfeiting_registration_id: 'r1',
+      match_id: 'm1',
+      reason: 'injury',
+      voided_at: null,
+      ...over,
+    });
     const supabase = mockSupabase({
-      exchanges: ok,
+      exchanges: { rows: [] },
       match_forfeits: {
-        data: [
-          { forfeiting_registration_id: 'r1', match_id: 'm1' },
-          { forfeiting_registration_id: 'r1', match_id: 'm2' },
-          { forfeiting_registration_id: 'r2', match_id: 'm3' },
+        rows: [
+          forfeit({}),
+          forfeit({ match_id: 'm2', reason: 'voluntary' }),
+          forfeit({ forfeiting_registration_id: 'r2', match_id: 'm3' }),
+          forfeit({ forfeiting_registration_id: 'r2', match_id: 'm3', reason: 'result_override' }),
+          forfeit({
+            forfeiting_registration_id: 'r2',
+            match_id: 'm3',
+            voided_at: '2026-08-18T10:00:00.000Z',
+          }),
+          forfeit({ forfeiting_registration_id: 'r3', match_id: 'm-elsewhere' }),
         ],
-        error: null,
       },
     });
     const { forfeitCountByReg } = await loadScoringInputs(as(supabase), ['m1', 'm2', 'm3']);
     expect(forfeitCountByReg.get('r1')).toBe(2);
     expect(forfeitCountByReg.get('r2')).toBe(1);
+    expect(forfeitCountByReg.has('r3')).toBe(false);
   });
 
   it('tolerates null rows from both reads', async () => {
@@ -174,10 +233,19 @@ describe('resolveTournamentRuleset', () => {
     ({ resolve: vi.fn().mockResolvedValue(resolved) }) as unknown as RulesetResolver;
 
   it('resolves and normalises the persisted shorthand version', async () => {
+    // A second tournament, on a different ruleset. Reading the wrong row here
+    // would score a whole event with an engine nobody chose.
     const supabase = mockSupabase({
       tournaments: {
-        data: { ruleset_code: 'TF_v1', ruleset_version: '1', ruleset_config: { x: 1 } },
-        error: null,
+        rows: [
+          { id: 't1', ruleset_code: 'TF_v1', ruleset_version: '1', ruleset_config: { x: 1 } },
+          {
+            id: 't9',
+            ruleset_code: 'Generic_PointsCap',
+            ruleset_version: '2.0.0',
+            ruleset_config: null,
+          },
+        ],
       },
     });
     const rulesets = resolver();
