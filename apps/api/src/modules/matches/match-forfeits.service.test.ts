@@ -820,9 +820,9 @@ describe('MatchForfeitsService — override regressions', () => {
     // 201, and the admin page reported success while the score never moved.
     // Correcting a mistyped override — or a match closed by a real forfeit,
     // the case migration 0177 exists for — was impossible through any UI.
-    const supabase = fakeSupabase({
-      matches: { maybeSingle: matchRow({ phaseType: 'pool', status: 'completed' }) },
-      match_forfeits: { maybeSingle: { id: 'forfeit-1', match_id: 'match-1', voided_at: null } },
+    const supabase = mockSupabase({
+      matches: { rows: [matchRow({ phaseType: 'pool', status: 'completed' })] },
+      match_forfeits: { rows: [{ id: 'forfeit-1', match_id: 'match-1', voided_at: null }] },
     });
     const service = new MatchForfeitsService(supabase as never, undefined as never);
 
@@ -833,16 +833,16 @@ describe('MatchForfeitsService — override regressions', () => {
         explicitScores: { forfeitingScore: 2, opponentScore: 5 },
       }),
     ).rejects.toBeInstanceOf(ConflictException);
-    expect(supabase.inserted.match_forfeits).toBeUndefined();
-    expect(supabase.updated.matches).toBeUndefined();
+    expect(writesOf(supabase, 'match_forfeits', 'insert')).toEqual([]);
+    expect(writesOf(supabase, 'matches', 'update')).toEqual([]);
   });
 
   it('keeps a repeated FORFEIT idempotent', async () => {
     // The other half of the same branch: a double-tap on the pad must still
     // return the existing row rather than erroring at the referee.
-    const supabase = fakeSupabase({
-      matches: { maybeSingle: matchRow({ phaseType: 'pool', status: 'running' }) },
-      match_forfeits: { maybeSingle: { id: 'forfeit-1', match_id: 'match-1', voided_at: null } },
+    const supabase = mockSupabase({
+      matches: { rows: [matchRow({ phaseType: 'pool', status: 'running' })] },
+      match_forfeits: { rows: [{ id: 'forfeit-1', match_id: 'match-1', voided_at: null }] },
     });
     const service = new MatchForfeitsService(supabase as never, undefined as never);
 
@@ -853,7 +853,7 @@ describe('MatchForfeitsService — override regressions', () => {
     });
 
     expect(result).toMatchObject({ id: 'forfeit-1' });
-    expect(supabase.inserted.match_forfeits).toBeUndefined();
+    expect(writesOf(supabase, 'match_forfeits', 'insert')).toEqual([]);
   });
 
   /**
@@ -917,12 +917,9 @@ describe('MatchForfeitsService — override regressions', () => {
     // 'scheduled', tryReplaceMainRoundOneFighter fired, and it reset the match
     // to 0-0 with a different fighter — discarding the override just written.
     // Replacing a no-show is a forfeit remedy; an override states a result.
-    const supabase = fakeSupabase({
-      matches: {
-        maybeSingle: matchRow({ phaseType: 'single_elim', status: 'scheduled' }),
-        update: { id: 'match-1' },
-      },
-      match_forfeits: { maybeSingle: null, insert: { id: 'override-1' } },
+    const supabase = mockSupabase({
+      matches: { rows: [matchRow({ phaseType: 'single_elim', status: 'scheduled' })] },
+      match_forfeits: { rows: [], returning: { id: 'override-1' } },
       // A round-1 seeded slot AND an unused registration — everything
       // tryReplaceMainRoundOneFighter needs to find a reserve and fire. Without
       // both, this test passes vacuously on the unfixed code.
@@ -937,10 +934,10 @@ describe('MatchForfeitsService — override regressions', () => {
       explicitScores: { forfeitingScore: 0, opponentScore: 5 },
     });
 
-    expect(supabase.updated.bracket_slots).toBeUndefined();
+    expect(writesOf(supabase, 'bracket_slots', 'update')).toEqual([]);
     // Exactly one write: the override. A second would be the revert to 0-0.
-    expect(supabase.updated.matches).toHaveLength(1);
-    expect(supabase.updated.matches?.[0]).toMatchObject({
+    expect(writesOf(supabase, 'matches', 'update')).toHaveLength(1);
+    expect(rowsOf(supabase, 'matches', 'update')[0]).toMatchObject({
       status: 'completed',
       red_score: 0,
       blue_score: 5,
@@ -956,11 +953,8 @@ describe('MatchForfeitsService — override regressions', () => {
     //
     // Deciding first means the bout is simply never completed, so the only write
     // is the fighter swap.
-    const supabase = fakeSupabase({
-      matches: {
-        maybeSingle: matchRow({ phaseType: 'single_elim', status: 'scheduled' }),
-        update: { id: 'match-1' },
-      },
+    const supabase = mockSupabase({
+      matches: { rows: [matchRow({ phaseType: 'single_elim', status: 'scheduled' })] },
       match_forfeits: { rows: [], returning: { id: 'forfeit-1' } },
       // The registration ids matter here, unlike in the override test above
       // which returns before reading them: they are what decides WHICH side
@@ -976,39 +970,43 @@ describe('MatchForfeitsService — override regressions', () => {
     });
 
     // The reserve is in, on the slot and on the row.
-    expect(supabase.updated.bracket_slots?.[0]).toMatchObject({ registration_a_id: 'reg-spare' });
-    expect(supabase.updated.matches).toHaveLength(1);
-    expect(supabase.updated.matches?.[0]).toMatchObject({ red_registration_id: 'reg-spare' });
+    expect(rowsOf(supabase, 'bracket_slots', 'update')[0]).toMatchObject({
+      registration_a_id: 'reg-spare',
+    });
+    expect(writesOf(supabase, 'matches', 'update')).toHaveLength(1);
+    expect(rowsOf(supabase, 'matches', 'update')[0]).toMatchObject({
+      red_registration_id: 'reg-spare',
+    });
     // Onto the fighter's own slot and their own bout, and no others.
-    expect(writtenIds(supabase, 'bracket_slots')).toEqual(['slot-1']);
-    expect(writtenIds(supabase, 'matches')).toEqual(['match-1']);
+    expect(idsWritten(supabase, 'bracket_slots')).toEqual(['slot-1']);
+    expect(idsWritten(supabase, 'matches')).toEqual(['match-1']);
     // The record is stamped twice on the way out — the reserve it named, then
     // the result the bout ended at — and both name the record just written.
-    expect(writtenIds(supabase, 'match_forfeits')).toEqual(['forfeit-1', 'forfeit-1']);
+    expect(idsWritten(supabase, 'match_forfeits')).toEqual(['forfeit-1', 'forfeit-1']);
     // And it carries the fighter's state as it was, which is the only thing a
     // later void can put them back to.
-    expect(supabase.inserted.match_forfeits?.[0]).toMatchObject({
+    expect(rowsOf(supabase, 'match_forfeits', 'insert')[0]).toMatchObject({
       previous_registration_state: { id: 'reg-red', status: 'checked_in' },
     });
     // And the bout was never completed on the way there — no status write at
     // all, in either direction.
-    expect(
-      (supabase.updated.matches ?? []).some((row) => 'status' in (row as Record<string, unknown>)),
-    ).toBe(false);
+    expect(rowsOf(supabase, 'matches', 'update').some((row) => 'status' in row)).toBe(false);
   });
 
   it('records the matches it FEEDS as dependents, never itself', async () => {
     // Was: applyBracketForfeit pushed the match's own id, so voidForfeit —
     // whose started-set includes 'completed' — fired on the very match being
     // voided. Every bracket forfeit and override was permanently unvoidable.
-    const supabase = fakeSupabase({
+    const supabase = mockSupabase({
       matches: {
-        maybeSingle: matchRow({ phaseType: 'single_elim', status: 'completed' }),
-        update: { id: 'match-1' },
-        select: [{ id: 'downstream-9', status: 'scheduled' }],
+        rows: [
+          matchRow({ phaseType: 'single_elim', status: 'completed' }),
+          { id: 'downstream-9', status: 'scheduled' },
+        ],
       },
       match_forfeits: { rows: [], returning: { id: 'override-1' } },
-      bracket_slots: { maybeSingle: null },
+      bracket_slots: { rows: [] },
+      registrations: { rows: [{ id: 'reg-red', status: 'checked_in' }] },
     });
     const bracketAdvance = {
       findDownstreamMatchIds: vi.fn(async () => ['downstream-9']),
@@ -1032,18 +1030,20 @@ describe('MatchForfeitsService — override regressions', () => {
     // Stored on the record just written, and on no other. The list is read by
     // one guard only — "has a dependent started" — so writing it to the wrong
     // record would refuse a void somewhere else in the bracket.
-    expect(writtenIds(supabase, 'match_forfeits')).toEqual(['override-1', 'override-1']);
+    expect(idsWritten(supabase, 'match_forfeits')).toEqual(['override-1', 'override-1']);
   });
 
   it('refuses to rewrite a locked match without the override-locked capability', async () => {
-    const supabase = fakeSupabase({
+    const supabase = mockSupabase({
       matches: {
-        maybeSingle: {
-          ...matchRow({ phaseType: 'pool', status: 'completed' }),
-          locked_at: '2026-08-10T09:00:00.000Z',
-        },
+        rows: [
+          {
+            ...matchRow({ phaseType: 'pool', status: 'completed' }),
+            locked_at: '2026-08-10T09:00:00.000Z',
+          },
+        ],
       },
-      match_forfeits: { maybeSingle: null },
+      match_forfeits: { rows: [] },
     });
     const service = new MatchForfeitsService(supabase as never, undefined as never);
 
@@ -1058,19 +1058,21 @@ describe('MatchForfeitsService — override regressions', () => {
         { staffAccountId: 'staff-1' },
       ),
     ).rejects.toThrow('Match is locked');
-    expect(supabase.inserted.match_forfeits).toBeUndefined();
+    expect(writesOf(supabase, 'match_forfeits', 'insert')).toEqual([]);
   });
 
   it('lets an actor holding canOverrideLocked through the lock', async () => {
-    const supabase = fakeSupabase({
+    const supabase = mockSupabase({
       matches: {
-        maybeSingle: {
-          ...matchRow({ phaseType: 'pool', status: 'completed' }),
-          locked_at: '2026-08-10T09:00:00.000Z',
-        },
-        update: { id: 'match-1' },
+        rows: [
+          {
+            ...matchRow({ phaseType: 'pool', status: 'completed' }),
+            locked_at: '2026-08-10T09:00:00.000Z',
+          },
+        ],
       },
-      match_forfeits: { maybeSingle: null, insert: { id: 'override-1' } },
+      match_forfeits: { rows: [], returning: { id: 'override-1' } },
+      registrations: { rows: [{ id: 'reg-red', status: 'checked_in' }] },
     });
     const service = new MatchForfeitsService(supabase as never, undefined as never);
 
@@ -1084,7 +1086,7 @@ describe('MatchForfeitsService — override regressions', () => {
       { userId: 'user-1', canOverrideLocked: true },
     );
 
-    expect(supabase.inserted.match_forfeits).toHaveLength(1);
+    expect(writesOf(supabase, 'match_forfeits', 'insert')).toHaveLength(1);
   });
 
   it('un-advances the bracket when a record is voided', async () => {
@@ -1093,7 +1095,7 @@ describe('MatchForfeitsService — override regressions', () => {
     // the winner it had propagated sitting in the next round. Advancement
     // fills a side only while it is null, so the replayed bout could never
     // correct it — the bracket kept the loser of the replay, silently.
-    const supabase = fakeSupabase({
+    const supabase = mockSupabase({
       match_forfeits: {
         rows: [
           {
@@ -1146,7 +1148,7 @@ describe('MatchForfeitsService — override regressions', () => {
     // it had before someone voided it. A voided bout holds no live result, so
     // it is not a reason to refuse; excluding it at the query is what makes the
     // predicate's stated precondition true.
-    const supabase = fakeSupabase({
+    const supabase = mockSupabase({
       match_forfeits: {
         rows: [
           {
@@ -1170,7 +1172,7 @@ describe('MatchForfeitsService — override regressions', () => {
 
     await service.voidForfeit('forfeit-1');
 
-    expect(supabase.updated.matches?.[0]).toMatchObject({ status: 'running' });
+    expect(rowsOf(supabase, 'matches', 'update')[0]).toMatchObject({ status: 'running' });
   });
 
   /**
@@ -1185,44 +1187,48 @@ describe('MatchForfeitsService — override regressions', () => {
    * over a played result and the scores are gone.
    */
   it('refuses to void a record whose match has been replayed since', async () => {
-    const supabase = fakeSupabase({
+    const supabase = mockSupabase({
       match_forfeits: {
-        maybeSingle: {
-          id: 'forfeit-1',
-          match_id: 'match-1',
-          voided_at: null,
-          previous_match_state: { status: 'scheduled', red_score: 0, blue_score: 0 },
-          // What the forfeit left: a 0–3 walkover to blue.
-          resulting_match_state: {
-            status: 'completed',
-            red_score: 0,
-            blue_score: 3,
-            winner_registration_id: 'reg-blue',
-            ended_at: '2026-08-12T09:00:00.000Z',
-            end_reason: 'forfeit',
+        rows: [
+          {
+            id: 'forfeit-1',
+            match_id: 'match-1',
+            voided_at: null,
+            previous_match_state: { status: 'scheduled', red_score: 0, blue_score: 0 },
+            // What the forfeit left: a 0–3 walkover to blue.
+            resulting_match_state: {
+              status: 'completed',
+              red_score: 0,
+              blue_score: 3,
+              winner_registration_id: 'reg-blue',
+              ended_at: '2026-08-12T09:00:00.000Z',
+              end_reason: 'forfeit',
+            },
           },
-        },
-        update: { id: 'forfeit-1' },
+        ],
       },
       matches: {
         // What the bout says now: reset, re-fought, red won it 5–2 on points.
-        maybeSingle: {
-          locked_at: null,
-          status: 'completed',
-          red_score: 5,
-          blue_score: 2,
-          winner_registration_id: 'reg-red',
-          ended_at: '2026-08-12T11:00:00.000Z',
-          end_reason: 'first_to_points',
-        },
+        rows: [
+          {
+            id: 'match-1',
+            locked_at: null,
+            status: 'completed',
+            red_score: 5,
+            blue_score: 2,
+            winner_registration_id: 'reg-red',
+            ended_at: '2026-08-12T11:00:00.000Z',
+            end_reason: 'first_to_points',
+          },
+        ],
       },
     });
     const service = new MatchForfeitsService(supabase as never, undefined as never);
 
     await expect(service.voidForfeit('forfeit-1')).rejects.toThrow(BadRequestException);
     // And nothing was written on the way to the refusal.
-    expect(supabase.updated.matches).toBeUndefined();
-    expect(supabase.updated.match_forfeits).toBeUndefined();
+    expect(writesOf(supabase, 'matches', 'update')).toEqual([]);
+    expect(writesOf(supabase, 'match_forfeits', 'update')).toEqual([]);
   });
 
   it('still voids when the match holds exactly the result the record produced', async () => {
@@ -1236,24 +1242,25 @@ describe('MatchForfeitsService — override regressions', () => {
       ended_at: '2026-08-12T09:00:00.000Z',
       end_reason: 'forfeit',
     };
-    const supabase = fakeSupabase({
+    const supabase = mockSupabase({
       match_forfeits: {
-        maybeSingle: {
-          id: 'forfeit-1',
-          match_id: 'match-1',
-          voided_at: null,
-          previous_match_state: { status: 'scheduled', red_score: 0, blue_score: 0 },
-          resulting_match_state: result,
-        },
-        update: { id: 'forfeit-1' },
+        rows: [
+          {
+            id: 'forfeit-1',
+            match_id: 'match-1',
+            voided_at: null,
+            previous_match_state: { status: 'scheduled', red_score: 0, blue_score: 0 },
+            resulting_match_state: result,
+          },
+        ],
       },
-      matches: { maybeSingle: { locked_at: null, ...result } },
+      matches: { rows: [{ id: 'match-1', locked_at: null, ...result }] },
     });
     const service = new MatchForfeitsService(supabase as never, undefined as never);
 
     await service.voidForfeit('forfeit-1');
 
-    expect(supabase.updated.matches).toContainEqual(
+    expect(rowsOf(supabase, 'matches', 'update')).toContainEqual(
       expect.objectContaining({ status: 'scheduled' }),
     );
   });
@@ -1262,33 +1269,37 @@ describe('MatchForfeitsService — override regressions', () => {
     // Pre-0186 rows carry `{}`. Refusing on no evidence would make every
     // historical record permanently unvoidable, so the guard abstains and the
     // old status-shaped protection is what remains.
-    const supabase = fakeSupabase({
+    const supabase = mockSupabase({
       match_forfeits: {
-        maybeSingle: {
-          id: 'forfeit-1',
-          match_id: 'match-1',
-          voided_at: null,
-          previous_match_state: { status: 'scheduled', red_score: 0, blue_score: 0 },
-          resulting_match_state: {},
-        },
-        update: { id: 'forfeit-1' },
+        rows: [
+          {
+            id: 'forfeit-1',
+            match_id: 'match-1',
+            voided_at: null,
+            previous_match_state: { status: 'scheduled', red_score: 0, blue_score: 0 },
+            resulting_match_state: {},
+          },
+        ],
       },
       matches: {
-        maybeSingle: {
-          locked_at: null,
-          status: 'completed',
-          red_score: 5,
-          blue_score: 2,
-          winner_registration_id: 'reg-red',
-          end_reason: 'first_to_points',
-        },
+        rows: [
+          {
+            id: 'match-1',
+            locked_at: null,
+            status: 'completed',
+            red_score: 5,
+            blue_score: 2,
+            winner_registration_id: 'reg-red',
+            end_reason: 'first_to_points',
+          },
+        ],
       },
     });
     const service = new MatchForfeitsService(supabase as never, undefined as never);
 
     await service.voidForfeit('forfeit-1');
 
-    expect(supabase.updated.matches).toContainEqual(
+    expect(rowsOf(supabase, 'matches', 'update')).toContainEqual(
       expect.objectContaining({ status: 'scheduled' }),
     );
   });
@@ -1299,25 +1310,28 @@ describe('MatchForfeitsService — override regressions', () => {
     // already emptied the downstream side, and the usual "replay the bout, let
     // completion advance the real winner" flow never runs on this path, so the
     // bracket stalled on a result it already had.
-    const supabase = fakeSupabase({
+    const supabase = mockSupabase({
       match_forfeits: {
-        maybeSingle: {
-          id: 'override-1',
-          match_id: 'match-1',
-          downstream_match_ids: ['downstream-9'],
-          voided_at: null,
-          previous_match_state: {
-            status: 'completed',
-            red_score: 5,
-            blue_score: 3,
-            winner_registration_id: 'reg-red',
+        rows: [
+          {
+            id: 'override-1',
+            match_id: 'match-1',
+            downstream_match_ids: ['downstream-9'],
+            voided_at: null,
+            previous_match_state: {
+              status: 'completed',
+              red_score: 5,
+              blue_score: 3,
+              winner_registration_id: 'reg-red',
+            },
           },
-        },
-        update: { id: 'override-1' },
+        ],
       },
       matches: {
-        maybeSingle: { locked_at: null },
-        select: [{ id: 'downstream-9', status: 'scheduled' }],
+        rows: [
+          { id: 'match-1', locked_at: null },
+          { id: 'downstream-9', status: 'scheduled' },
+        ],
       },
     });
     const matchCompletion = { onMatchCompleted: vi.fn(async () => {}) };
@@ -1340,18 +1354,19 @@ describe('MatchForfeitsService — override regressions', () => {
     // The normal case: the bout goes back to running and will advance its real
     // winner when it is replayed. Re-advancing here would propagate a winner
     // that the restored row no longer names.
-    const supabase = fakeSupabase({
+    const supabase = mockSupabase({
       match_forfeits: {
-        maybeSingle: {
-          id: 'forfeit-1',
-          match_id: 'match-1',
-          downstream_match_ids: [],
-          voided_at: null,
-          previous_match_state: { status: 'running', red_score: 2, blue_score: 3 },
-        },
-        update: { id: 'forfeit-1' },
+        rows: [
+          {
+            id: 'forfeit-1',
+            match_id: 'match-1',
+            downstream_match_ids: [],
+            voided_at: null,
+            previous_match_state: { status: 'running', red_score: 2, blue_score: 3 },
+          },
+        ],
       },
-      matches: { maybeSingle: { locked_at: null } },
+      matches: { rows: [{ id: 'match-1', locked_at: null }] },
     });
     const matchCompletion = { onMatchCompleted: vi.fn(async () => {}) };
     const service = new MatchForfeitsService(supabase as never, matchCompletion as never);
@@ -1362,23 +1377,24 @@ describe('MatchForfeitsService — override regressions', () => {
   });
 
   it('restores end_reason when a record is voided', async () => {
-    const supabase = fakeSupabase({
+    const supabase = mockSupabase({
       match_forfeits: {
-        maybeSingle: {
-          id: 'forfeit-1',
-          match_id: 'match-1',
-          downstream_match_ids: [],
-          voided_at: null,
-          previous_match_state: {
-            status: 'completed',
-            red_score: 0,
-            blue_score: 0,
-            end_reason: 'max_doubles',
+        rows: [
+          {
+            id: 'forfeit-1',
+            match_id: 'match-1',
+            downstream_match_ids: [],
+            voided_at: null,
+            previous_match_state: {
+              status: 'completed',
+              red_score: 0,
+              blue_score: 0,
+              end_reason: 'max_doubles',
+            },
           },
-        },
-        update: { id: 'forfeit-1' },
+        ],
       },
-      matches: { maybeSingle: { locked_at: null } },
+      matches: { rows: [{ id: 'match-1', locked_at: null }] },
     });
     const service = new MatchForfeitsService(supabase as never, undefined as never);
 
@@ -1386,16 +1402,16 @@ describe('MatchForfeitsService — override regressions', () => {
 
     // Without this the bout keeps end_reason 'override' and is exported to
     // HEMA Ratings as a draw instead of a mutual loss.
-    expect(supabase.updated.matches?.[0]).toMatchObject({ end_reason: 'max_doubles' });
+    expect(rowsOf(supabase, 'matches', 'update')[0]).toMatchObject({ end_reason: 'max_doubles' });
   });
 
   it('refuses to void a result inside a frozen event', async () => {
     // Symmetry: a result an actor may not write is one they may not erase.
-    const supabase = fakeSupabase({
+    const supabase = mockSupabase({
       match_forfeits: {
-        maybeSingle: { id: 'forfeit-1', match_id: 'match-1', voided_at: null },
+        rows: [{ id: 'forfeit-1', match_id: 'match-1', voided_at: null }],
       },
-      matches: { maybeSingle: { locked_at: null } },
+      matches: { rows: [{ id: 'match-1', locked_at: null }] },
     });
     const frozenResults = {
       assertResultMutationAllowed: vi.fn(async () => {
@@ -1413,13 +1429,13 @@ describe('MatchForfeitsService — override regressions', () => {
     await expect(service.voidForfeit('forfeit-1', { userId: 'user-1' })).rejects.toThrow(
       'Event results are frozen',
     );
-    expect(supabase.updated.matches).toBeUndefined();
+    expect(writesOf(supabase, 'matches', 'update')).toEqual([]);
   });
 
   it('refuses to void a locked match without the override-locked capability', async () => {
-    const supabase = fakeSupabase({
+    const supabase = mockSupabase({
       match_forfeits: {
-        maybeSingle: { id: 'forfeit-1', match_id: 'match-1', voided_at: null },
+        rows: [{ id: 'forfeit-1', match_id: 'match-1', voided_at: null }],
       },
       // Two bouts, one of them locked. The lock is a property of THIS bout, so
       // a read that cannot say which bout it looked at cannot enforce it.
@@ -1435,16 +1451,16 @@ describe('MatchForfeitsService — override regressions', () => {
     await expect(service.voidForfeit('forfeit-1', { staffAccountId: 'staff-1' })).rejects.toThrow(
       'Match is locked',
     );
-    expect(supabase.updated.matches).toBeUndefined();
+    expect(writesOf(supabase, 'matches', 'update')).toEqual([]);
   });
 
   it('asks the frozen-results guard before rewriting a result', async () => {
     // A completed event freezes its results; every sibling writer asks, and
     // this one did not — so an override could edit around the exchange-edit
     // review that exists to record exactly such a change.
-    const supabase = fakeSupabase({
-      matches: { maybeSingle: matchRow({ phaseType: 'pool', status: 'completed' }) },
-      match_forfeits: { maybeSingle: null },
+    const supabase = mockSupabase({
+      matches: { rows: [matchRow({ phaseType: 'pool', status: 'completed' })] },
+      match_forfeits: { rows: [] },
     });
     const frozenResults = {
       assertResultMutationAllowed: vi.fn(async () => {
@@ -1471,7 +1487,7 @@ describe('MatchForfeitsService — override regressions', () => {
       ),
     ).rejects.toThrow('Event results are frozen');
     expect(frozenResults.assertResultMutationAllowed).toHaveBeenCalledWith('match-1', 'user-1');
-    expect(supabase.inserted.match_forfeits).toBeUndefined();
+    expect(writesOf(supabase, 'match_forfeits', 'insert')).toEqual([]);
   });
 });
 
