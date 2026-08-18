@@ -117,7 +117,12 @@ export const swissConfigSchema = z
      */
     minRatingCoveragePercent: z.number().min(0).max(100).nullable().optional(),
     finalized: z
-      .object({ atRound: z.number().int().min(1), at: z.string(), byUserId: z.uuid() })
+      // Nullable, not an empty-string stand-in: the actor is resolved over the
+      // network while the guard verifies locally, so a blip yields no user on a
+      // request that was properly authenticated. Storing '' for that case wrote
+      // a config this very schema then refused, which made the WHOLE phase
+      // unreadable — unpairable, unviewable and impossible to resume.
+      .object({ atRound: z.number().int().min(1), at: z.string(), byUserId: z.uuid().nullable() })
       .strict()
       .nullable()
       .optional(),

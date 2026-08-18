@@ -34,7 +34,7 @@ export class SwissFinaliseService {
       // but unplayed round pending must not claim that round as a result.
       atRound: context.rounds.filter((r) => r.status === 'completed').length,
       at: new Date().toISOString(),
-      byUserId: actorUserId ?? '',
+      byUserId: actorUserId,
     };
     await writeSwissConfig(this.supabase, phaseId, { ...context.config, finalized });
     await insertAuditLog(this.supabase.service, {
