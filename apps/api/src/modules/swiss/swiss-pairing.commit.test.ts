@@ -1,7 +1,7 @@
 import { BadRequestException } from '@nestjs/common';
 import { describe, expect, it, vi } from 'vitest';
 import { mockSupabase, writesTo, type SupabaseRow } from '../../common/testing/supabase-chain';
-import { asSupabase as as, readState } from './swiss.fixtures';
+import { asSupabase as as, fieldOf, readState } from './swiss.fixtures';
 import { SwissPairingService } from './swiss-pairing.service';
 
 /** The tables a commit writes to, on top of the ones a plan reads. */
@@ -72,6 +72,27 @@ describe('SwissPairingService — committing a round', () => {
     expect(notifications.swissRoundPublished.mock.invocationCallOrder[0]).toBeGreaterThan(
       programme.scheduleGroupUnchecked.mock.invocationCallOrder[0] as number,
     );
+  });
+
+  it('numbers the boards so a plain text sort is bout order', async () => {
+    // Twenty fighters is ten boards, which is where the zero starts to matter.
+    // `listByPhase` and the schedule grid both order by `match_number_label` in
+    // SQL, and Postgres sorts that column as TEXT — so an unpadded board 10
+    // came back between board 1 and board 2.
+    const supabase = mockSupabase(commitState({ swiss_entrants: { rows: fieldOf(20) } }));
+    const service = new SwissPairingService(as(supabase));
+
+    await service.commitNextRound('p1');
+
+    const bouts = writesTo(supabase, 'matches')[0]?.row as SupabaseRow[];
+    const labels = bouts.map((row) => row['match_number_label'] as string);
+
+    expect(labels).toHaveLength(10);
+    // The property the two SQL reads depend on, asserted rather than the
+    // spelling: sorted as plain text, the labels are in board order.
+    expect([...labels].sort()).toEqual(labels);
+    expect(labels[0]).toBe('SW-R1-M01');
+    expect(labels.at(-1)).toBe('SW-R1-M10');
   });
 
   it('stamps the tournament’s own ruleset on every bout it generates', async () => {

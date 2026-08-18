@@ -73,14 +73,20 @@ export const entrant = (
   withdrawn_at_round: withdrawnAtRound,
 });
 
-/** Four entrants of p1, plus one belonging to the other phase. */
-export const FIELD_OF_FOUR: SupabaseRow[] = [
-  entrant('r1'),
-  entrant('r2'),
-  entrant('r3'),
-  entrant('r4'),
+/**
+ * `n` entrants of p1, named r1..rn, plus one belonging to the other phase.
+ *
+ * The foreign entrant is not decoration: every read of `swiss_entrants` is
+ * scoped by phase, and a field that contains only p1 cannot tell a scoped read
+ * from an unscoped one.
+ */
+export const fieldOf = (n: number): SupabaseRow[] => [
+  ...Array.from({ length: n }, (_, i) => entrant(`r${i + 1}`)),
   entrant('rX', 'p2'),
 ];
+
+/** Four entrants of p1, plus one belonging to the other phase. */
+export const FIELD_OF_FOUR: SupabaseRow[] = fieldOf(4);
 
 /** One bout of a recorded round, as `loadRounds` embeds them. */
 export const bout = (id: string, red: string, blue: string): SupabaseRow => ({

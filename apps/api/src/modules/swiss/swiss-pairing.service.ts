@@ -18,6 +18,7 @@ import { NotificationEventsService } from '../notifications/event-handlers/notif
 import { matchRulesetForPhase } from '../phases/match-ruleset';
 import { SwissStandingsService } from './swiss-standings.service';
 import { parseSwissConfig, type SwissConfig } from './dto/swiss-config.dto';
+import { swissMatchRows } from './swiss-match-rows';
 import {
   activeEntrants,
   buildSwissPlayers,
@@ -213,15 +214,7 @@ export class SwissPairingService {
     // TF_v1 and score non-TF tournaments with the wrong engine.
     const stamp = await matchRulesetForPhase(this.supabase.service, phaseId);
 
-    const rows = plan.pairings.map((pairing) => ({
-      phase_id: phaseId,
-      swiss_round_id: roundId,
-      red_registration_id: pairing.aId,
-      blue_registration_id: pairing.bId,
-      status: 'scheduled',
-      match_number_label: `SW-R${roundNumber}-M${pairing.board}`,
-      ...stamp,
-    }));
+    const rows = swissMatchRows(phaseId, roundId, roundNumber, plan, stamp);
 
     const { data, error } = await this.supabase.service.from('matches').insert(rows).select('id');
     if (error) throw new BadRequestException(error.message);
