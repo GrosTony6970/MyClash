@@ -4,6 +4,13 @@ import { BadRequestException, ForbiddenException, UnauthorizedException } from '
 import type { LegalAcceptanceService } from '../privacy/legal-acceptance.service';
 import { AuthService } from './auth.service';
 import { GuestJwtService } from './guest-jwt.service';
+import {
+  mockSupabase as seededSupabase,
+  scopedTo,
+  writesTo,
+  type RecordedWrite,
+  type TableSeed,
+} from '../../common/testing/supabase-chain';
 
 // ── Mocks ──────────────────────────────────────────────────────────────────
 
@@ -70,6 +77,28 @@ function makeAwaitableQueryChain(result: unknown) {
   chain.update.mockReturnValue(chain);
   return chain;
 }
+
+/**
+ * Routes `from()` by TABLE, for the describes that have been migrated off the
+ * ordered `mockReturnValueOnce` queue the rest of this file still uses.
+ *
+ * The queue is position-dependent: insert a query anywhere upstream and every
+ * later answer shifts by one while the suite stays green. Routing by table also
+ * lets a fixture NARROW, which is what turns the `.eq()` calls in the service
+ * from things a test can only assert were asked into things that decide its
+ * result.
+ */
+function seedTables(byTable: Record<string, TableSeed>) {
+  const seeded = seededSupabase(byTable);
+  fromMock.mockImplementation(seeded.from as never);
+  return seeded;
+}
+
+/** The `is('col', null)` scope on a recorded write, which `scopedTo` cannot see. */
+const isNullScoped = (write: RecordedWrite | undefined, column: string): boolean =>
+  (write?.filters ?? []).some(
+    (filter) => filter.method === 'is' && filter.args[0] === column && filter.args[1] === null,
+  );
 
 const mockMailService = {
   sendMagicLink: vi.fn().mockResolvedValue(undefined),
@@ -1423,103 +1452,172 @@ describe('AuthService', () => {
     });
   });
 
+  /**
+   * The silent auto-link of a user to their global profile, run at the tail of
+   * every login. Two routes reach it: an EMAIL match against an unclaimed
+   * profile, and — when that finds none — a repair from the Persons the user
+   * has already claimed.
+   *
+   * The whole method sits inside a `catch` that logs and returns, so a fixture
+   * the double refuses does NOT fail the test: it swallows the throw and
+   * reports a silent no-op as success. That is why every table here is seeded
+   * and why the assertions read the recorded WRITE. The old fixtures counted
+   * `from()` calls instead, which says the code stopped somewhere without
+   * saying it stopped before doing damage.
+   */
   describe('tryAutolinkGlobalPerson', () => {
-    it('repairs an existing claimed Person with exactly one unclaimed global profile', async () => {
-      const existingGlobalChain = makeQueryChain({ data: null, error: null });
-      const emailCandidatesChain = makeAwaitableQueryChain({ data: [], error: null });
-      const claimedPersonsChain = makeAwaitableQueryChain({
-        data: [{ global_person_id: 'global-1' }, { global_person_id: 'global-1' }],
-        error: null,
-      });
-      const existingGlobalBeforeLinkChain = makeQueryChain({ data: null, error: null });
-      const targetGlobalChain = makeQueryChain({
-        data: { id: 'global-1', claimed_by_user_id: null },
-        error: null,
-      });
-      const updateChain = makeQueryChain({ data: null, error: null });
-      fromMock
-        .mockReturnValueOnce(existingGlobalChain)
-        .mockReturnValueOnce(emailCandidatesChain)
-        .mockReturnValueOnce(claimedPersonsChain)
-        .mockReturnValueOnce(existingGlobalBeforeLinkChain)
-        .mockReturnValueOnce(targetGlobalChain)
-        .mockReturnValueOnce(updateChain);
+    const USER = 'user-1';
+    const EMAIL = 'fighter@example.com';
 
-      await service.tryAutolinkGlobalPerson('user-1', 'fighter@example.com');
-
-      expect(updateChain.update).toHaveBeenCalledWith(
-        expect.objectContaining({ claimed_by_user_id: 'user-1' }),
-      );
-      expect(updateChain.eq).toHaveBeenCalledWith('id', 'global-1');
-      expect(updateChain.is).toHaveBeenCalledWith('claimed_by_user_id', null);
+    const globalPerson = (over: Record<string, unknown> = {}) => ({
+      id: 'global-1',
+      email: EMAIL,
+      claimed_by_user_id: null,
+      merged_into_id: null,
+      club_id: null,
+      ...over,
     });
 
-    it('does not repair when claimed Persons point at multiple global profiles', async () => {
-      const existingGlobalChain = makeQueryChain({ data: null, error: null });
-      const emailCandidatesChain = makeAwaitableQueryChain({ data: [], error: null });
-      const claimedPersonsChain = makeAwaitableQueryChain({
-        data: [{ global_person_id: 'global-1' }, { global_person_id: 'global-2' }],
-        error: null,
-      });
-      fromMock
-        .mockReturnValueOnce(existingGlobalChain)
-        .mockReturnValueOnce(emailCandidatesChain)
-        .mockReturnValueOnce(claimedPersonsChain);
+    /**
+     * Seeded FIRST, so each is what a lost filter hands back. One per axis the
+     * profile reads narrow on: owned by someone else, this user's but merged
+     * away, unclaimed but merged, and a different person's email.
+     */
+    const GLOBAL_DECOYS = [
+      globalPerson({ id: 'global-taken', claimed_by_user_id: 'other-user', club_id: 'club-taken' }),
+      globalPerson({ id: 'global-merged', claimed_by_user_id: USER, merged_into_id: 'global-1' }),
+      globalPerson({ id: 'global-dupe', merged_into_id: 'global-1' }),
+      globalPerson({ id: 'global-other-email', email: 'someone-else@example.com' }),
+    ];
 
-      await service.tryAutolinkGlobalPerson('user-1', 'fighter@example.com');
+    /** Another user's claimed Person — newest, and with a club of its own. */
+    const PERSON_DECOY = {
+      id: 'p-other',
+      claimed_by_user_id: 'other-user',
+      global_person_id: 'global-taken',
+      club_id: 'club-other-user',
+      created_at: '2026-12-31T00:00:00Z',
+    };
 
-      expect(fromMock).toHaveBeenCalledTimes(3);
+    const claimedPerson = (over: Record<string, unknown> = {}) => ({
+      id: 'p-1',
+      claimed_by_user_id: USER,
+      global_person_id: 'global-1',
+      club_id: null,
+      created_at: '2026-03-01T00:00:00Z',
+      ...over,
     });
 
-    it('does not repair when the target global profile is owned by another user', async () => {
-      const existingGlobalChain = makeQueryChain({ data: null, error: null });
-      const emailCandidatesChain = makeAwaitableQueryChain({ data: [], error: null });
-      const claimedPersonsChain = makeAwaitableQueryChain({
-        data: [{ global_person_id: 'global-1' }],
-        error: null,
-      });
-      const existingGlobalBeforeLinkChain = makeQueryChain({ data: null, error: null });
-      const targetGlobalChain = makeQueryChain({
-        data: { id: 'global-1', claimed_by_user_id: 'other-user' },
-        error: null,
-      });
-      fromMock
-        .mockReturnValueOnce(existingGlobalChain)
-        .mockReturnValueOnce(emailCandidatesChain)
-        .mockReturnValueOnce(claimedPersonsChain)
-        .mockReturnValueOnce(existingGlobalBeforeLinkChain)
-        .mockReturnValueOnce(targetGlobalChain);
+    /** Carries a different email, so the candidate read finds none at all. */
+    const repairTarget = globalPerson({ email: 'not-the-login@example.com' });
 
-      await service.tryAutolinkGlobalPerson('user-1', 'fighter@example.com');
+    it('links by email match, and flips that profile’s Persons to claimed', async () => {
+      const seeded = seedTables({
+        global_persons: { rows: [...GLOBAL_DECOYS, globalPerson()] },
+        persons: { rows: [PERSON_DECOY, claimedPerson()] },
+      });
 
-      expect(fromMock).toHaveBeenCalledTimes(5);
+      await service.tryAutolinkGlobalPerson(USER, EMAIL);
+
+      const [link] = writesTo(seeded, 'global_persons');
+      expect(link?.row).toMatchObject({ claimed_by_user_id: USER });
+      expect(scopedTo(link, 'id')).toBe('global-1');
+      // The race guard: only claim a profile still unclaimed.
+      expect(isNullScoped(link, 'claimed_by_user_id')).toBe(true);
+
+      const [sync] = writesTo(seeded, 'persons');
+      expect(sync?.row).toEqual({ claim_status: 'claimed', claimed_by_user_id: USER });
+      expect(scopedTo(sync, 'global_person_id')).toBe('global-1');
+      expect(isNullScoped(sync, 'claimed_by_user_id')).toBe(true);
     });
 
-    it('flips linked persons to claimed when autolinking by email match', async () => {
-      const existingGlobalChain = makeQueryChain({ data: null, error: null });
-      const emailCandidatesChain = makeAwaitableQueryChain({
-        data: [{ id: 'global-1' }],
-        error: null,
+    it('repairs from a claimed Person when exactly one profile sits behind them', async () => {
+      const seeded = seedTables({
+        global_persons: { rows: [...GLOBAL_DECOYS, repairTarget] },
+        persons: { rows: [PERSON_DECOY, claimedPerson()] },
+        fighter_clubs: { rows: [] },
       });
-      const globalUpdateChain = makeQueryChain({ data: null, error: null });
-      const personsSyncChain = makeQueryChain({ data: null, error: null });
-      fromMock
-        .mockReturnValueOnce(existingGlobalChain)
-        .mockReturnValueOnce(emailCandidatesChain)
-        .mockReturnValueOnce(globalUpdateChain)
-        .mockReturnValueOnce(personsSyncChain);
 
-      await service.tryAutolinkGlobalPerson('user-1', 'fighter@example.com');
+      await service.tryAutolinkGlobalPerson(USER, EMAIL);
 
-      expect(globalUpdateChain.update).toHaveBeenCalledWith(
-        expect.objectContaining({ claimed_by_user_id: 'user-1' }),
-      );
-      expect(personsSyncChain.update).toHaveBeenCalledWith({
-        claim_status: 'claimed',
-        claimed_by_user_id: 'user-1',
+      const [link] = writesTo(seeded, 'global_persons');
+      expect(link?.row).toMatchObject({ claimed_by_user_id: USER });
+      expect(scopedTo(link, 'id')).toBe('global-1');
+      expect(isNullScoped(link, 'claimed_by_user_id')).toBe(true);
+    });
+
+    it('does not repair when the claimed Persons point at more than one profile', async () => {
+      const seeded = seedTables({
+        global_persons: { rows: [...GLOBAL_DECOYS, repairTarget] },
+        persons: {
+          rows: [
+            PERSON_DECOY,
+            claimedPerson(),
+            claimedPerson({ id: 'p-2', global_person_id: 'global-other-email' }),
+          ],
+        },
       });
-      expect(personsSyncChain.eq).toHaveBeenCalledWith('global_person_id', 'global-1');
-      expect(personsSyncChain.is).toHaveBeenCalledWith('claimed_by_user_id', null);
+
+      await service.tryAutolinkGlobalPerson(USER, EMAIL);
+
+      // What the old call-count assertion was reaching for, said directly:
+      // an ambiguous history links nothing at all.
+      expect(writesTo(seeded, 'global_persons')).toEqual([]);
+    });
+
+    it('does not repair onto a profile another user already owns', async () => {
+      const seeded = seedTables({
+        global_persons: { rows: [...GLOBAL_DECOYS, repairTarget] },
+        persons: { rows: [PERSON_DECOY, claimedPerson({ global_person_id: 'global-taken' })] },
+      });
+
+      await service.tryAutolinkGlobalPerson(USER, EMAIL);
+
+      expect(writesTo(seeded, 'global_persons')).toEqual([]);
+    });
+
+    /**
+     * `seedClubFromPersons` had never run. Its own best-effort `catch` swallowed
+     * a TypeError from the old double, which has no `.not`, so it aborted on its
+     * second query every time while function coverage reported it exercised.
+     */
+    it('seeds the profile’s club from the newest claimed Person that has one', async () => {
+      const seeded = seedTables({
+        global_persons: { rows: [...GLOBAL_DECOYS, repairTarget] },
+        persons: {
+          rows: [
+            PERSON_DECOY,
+            claimedPerson({ id: 'p-old', club_id: 'club-old', created_at: '2026-01-02T00:00:00Z' }),
+            claimedPerson({ id: 'p-new', club_id: 'club-new', created_at: '2026-06-01T00:00:00Z' }),
+            claimedPerson({ id: 'p-newest', created_at: '2026-12-01T00:00:00Z' }),
+          ],
+        },
+        fighter_clubs: {
+          rows: [
+            { id: 'fc-other', global_person_id: 'global-taken', role: 'main' },
+            { id: 'fc-secondary', global_person_id: 'global-1', role: 'secondary' },
+          ],
+        },
+      });
+
+      await service.tryAutolinkGlobalPerson(USER, EMAIL);
+
+      // `p-newest` is newer but has no club, and `p-other` is newer still but
+      // belongs to another user — so the club comes from `p-new`.
+      const [, club] = writesTo(seeded, 'global_persons');
+      expect(club?.row).toMatchObject({ club_id: 'club-new' });
+      expect(scopedTo(club, 'id')).toBe('global-1');
+      // Never overwrite a club the profile already has.
+      expect(isNullScoped(club, 'club_id')).toBe(true);
+
+      const [main] = writesTo(seeded, 'fighter_clubs');
+      expect(main?.op).toBe('insert');
+      expect(main?.row).toEqual({
+        global_person_id: 'global-1',
+        club_id: 'club-new',
+        role: 'main',
+        sort_order: 0,
+      });
     });
   });
 
