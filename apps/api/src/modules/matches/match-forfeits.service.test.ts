@@ -2,16 +2,52 @@ import { BadRequestException, ConflictException } from '@nestjs/common';
 import { describe, expect, it, vi } from 'vitest';
 import { MatchForfeitsService } from './match-forfeits.service';
 import { seededTableChain } from '../../common/testing/supabase-chain-seeded';
-import type { RecordedWrite, SeededTable, SupabaseRow } from '../../common/testing/supabase-chain';
+import {
+  mockSupabase,
+  scopedTo,
+  writesTo,
+  type RecordedWrite,
+  type SeededTable,
+  type SupabaseRow,
+} from '../../common/testing/supabase-chain';
+
+/**
+ * Views over the shared double's write log.
+ *
+ * The log is one list per table in call order, every verb together — so the
+ * kind has to be named. `createForfeit` inserts a record and then UPDATES it as
+ * the cascade resolves, and a reader that took every write to `match_forfeits`
+ * as an insert would see three phantom rows with no `match_id`.
+ *
+ * `idsWritten` is the one that matters most: an update or a delete names its
+ * row only through the filters that scoped it. The double is a fixture, not a
+ * database, so the written row alone cannot tell a restore of the two bouts one
+ * record closed from a restore of every bout in the event.
+ */
+type Writes = { writes: RecordedWrite[] };
+
+const writesOf = (supabase: Writes, table: string, op: RecordedWrite['op']): RecordedWrite[] =>
+  writesTo(supabase, table).filter((write) => write.op === op);
+
+const rowsOf = (supabase: Writes, table: string, op: RecordedWrite['op']): SupabaseRow[] =>
+  writesOf(supabase, table, op).map((write) => write.row as SupabaseRow);
+
+const idsWritten = (
+  supabase: Writes,
+  table: string,
+  op: RecordedWrite['op'] = 'update',
+): unknown[] => writesOf(supabase, table, op).map((write) => scopedTo(write, 'id'));
 
 describe('MatchForfeitsService', () => {
   it('records a voluntary forfeit as a 0-6 match loss and asks continuation through canContinue', async () => {
-    const supabase = fakeSupabase({
-      matches: {
-        maybeSingle: matchRow({ phaseType: 'pool', status: 'running' }),
-        update: { id: 'match-1' },
-      },
-      match_forfeits: { maybeSingle: null, insert: { id: 'forfeit-1' } },
+    // `registrations` is declared because `createForfeit` reads it on EVERY
+    // call — `previous_registration_state` is the fighter's status before the
+    // forfeit, so the record can restore it. The local double answered that
+    // read with silence, and the snapshot was empty in every test here.
+    const supabase = mockSupabase({
+      matches: { rows: [matchRow({ phaseType: 'pool', status: 'running' })] },
+      match_forfeits: { rows: [], returning: { id: 'forfeit-1' } },
+      registrations: { rows: [{ id: 'reg-red', status: 'checked_in' }] },
     });
     const service = new MatchForfeitsService(supabase as never, undefined as never);
 
@@ -21,7 +57,8 @@ describe('MatchForfeitsService', () => {
       canContinue: true,
     });
 
-    expect(supabase.inserted.match_forfeits?.[0]).toMatchObject({
+    expect(rowsOf(supabase, 'match_forfeits', 'insert')[0]).toMatchObject({
+      previous_registration_state: { id: 'reg-red', status: 'checked_in' },
       match_id: 'match-1',
       forfeiting_registration_id: 'reg-red',
       winner_registration_id: 'reg-blue',
@@ -31,7 +68,7 @@ describe('MatchForfeitsService', () => {
       opponent_score: 6,
       can_continue: true,
     });
-    expect(supabase.updated.matches?.[0]).toMatchObject({
+    expect(rowsOf(supabase, 'matches', 'update')[0]).toMatchObject({
       status: 'completed',
       winner_registration_id: 'reg-blue',
       red_score: 0,
@@ -45,7 +82,7 @@ describe('MatchForfeitsService', () => {
     // each match on all but one column: another pool, already finished, and
     // two strangers' bout. Seeded, so which bouts got closed is a fact about
     // the schedule rather than a list the fixture handed back.
-    const supabase = fakeSupabase({
+    const supabase = mockSupabase({
       matches: {
         rows: [
           matchRow({ phaseType: 'pool', status: 'running' }),
@@ -95,6 +132,9 @@ describe('MatchForfeitsService', () => {
         rows: [],
         returning: (row: SupabaseRow) => ({ id: `ff-${String(row['match_id'])}` }),
       },
+      // Declared because the withdrawal lands here. The local double answered
+      // an undeclared table with an empty fixture, so this write had no table.
+      registrations: { rows: [{ id: 'reg-red', status: 'checked_in' }] },
     });
     const service = new MatchForfeitsService(supabase as never, undefined as never);
 
@@ -105,10 +145,12 @@ describe('MatchForfeitsService', () => {
     });
 
     // Their own bout, then the two they had left. Nothing else.
-    expect(
-      (supabase.inserted.match_forfeits ?? []).map((row) => (row as SupabaseRow)['match_id']),
-    ).toEqual(['match-1', 'later-1', 'paused-1']);
-    expect(supabase.inserted.match_forfeits?.[1]).toMatchObject({
+    expect(rowsOf(supabase, 'match_forfeits', 'insert').map((row) => row['match_id'])).toEqual([
+      'match-1',
+      'later-1',
+      'paused-1',
+    ]);
+    expect(rowsOf(supabase, 'match_forfeits', 'insert')[1]).toMatchObject({
       match_id: 'later-1',
       forfeiting_registration_id: 'reg-red',
       winner_registration_id: 'reg-green',
@@ -116,31 +158,30 @@ describe('MatchForfeitsService', () => {
     });
     // The winner is read off each bout, so a bout closed from the blue corner
     // hands it to the fighter in red.
-    expect(supabase.inserted.match_forfeits?.[2]).toMatchObject({
+    expect(rowsOf(supabase, 'match_forfeits', 'insert')[2]).toMatchObject({
       match_id: 'paused-1',
       winner_registration_id: 'reg-white',
     });
     // Every one of those bouts is completed, and no others are touched.
-    expect(writtenIds(supabase, 'matches')).toEqual(['match-1', 'later-1', 'paused-1']);
+    expect(idsWritten(supabase, 'matches')).toEqual(['match-1', 'later-1', 'paused-1']);
     // The withdrawal itself lands on the fighter who withdrew.
-    expect(supabase.updated.registrations?.[0]).toMatchObject({ status: 'withdrawn' });
-    expect(writtenIds(supabase, 'registrations')).toEqual(['reg-red']);
+    expect(rowsOf(supabase, 'registrations', 'update')[0]).toMatchObject({ status: 'withdrawn' });
+    expect(idsWritten(supabase, 'registrations')).toEqual(['reg-red']);
   });
 
   it('rejects void when a downstream dependent match has started', async () => {
-    const supabase = fakeSupabase({
+    const supabase = mockSupabase({
       match_forfeits: {
-        maybeSingle: {
-          id: 'forfeit-1',
-          match_id: 'match-1',
-          downstream_match_ids: ['downstream-1'],
-          voided_at: null,
-        },
-        update: { id: 'forfeit-1' },
+        rows: [
+          {
+            id: 'forfeit-1',
+            match_id: 'match-1',
+            downstream_match_ids: ['downstream-1'],
+            voided_at: null,
+          },
+        ],
       },
-      matches: {
-        select: [{ id: 'downstream-1', status: 'running' }],
-      },
+      matches: { rows: [{ id: 'downstream-1', status: 'running' }] },
     });
     const service = new MatchForfeitsService(supabase as never, undefined as never);
 
@@ -184,14 +225,14 @@ describe('MatchForfeitsService', () => {
         ...mine,
       ],
     },
-    match_forfeits: { maybeSingle: null, insert: { id: 'forfeit-1' } },
-    registrations: { maybeSingle: { id: 'reg-red', status: 'checked_in' } },
+    match_forfeits: { rows: [], returning: { id: 'forfeit-1' } },
+    registrations: { rows: [{ id: 'reg-red', status: 'checked_in' }] },
   });
 
   it("auto-disqualifies a forfeit before the fighter's first match when the policy is on", async () => {
     // Nothing conditioned on match count before this; the per-reason
     // tournamentState ('voluntary' -> 'ask') cannot express it.
-    const supabase = fakeSupabase(otherBouts([]));
+    const supabase = mockSupabase(otherBouts([]));
     const service = new MatchForfeitsService(supabase as never, undefined as never);
 
     await service.createForfeit('match-1', {
@@ -200,15 +241,17 @@ describe('MatchForfeitsService', () => {
       canContinue: true,
     });
 
-    expect(supabase.updated.registrations?.[0]).toMatchObject({ status: 'disqualified' });
+    expect(rowsOf(supabase, 'registrations', 'update')[0]).toMatchObject({
+      status: 'disqualified',
+    });
     // On them, and on nobody else in the pool.
-    expect(writtenIds(supabase, 'registrations')).toEqual(['reg-red']);
+    expect(idsWritten(supabase, 'registrations')).toEqual(['reg-red']);
   });
 
   it('does not auto-disqualify when the fighter has already completed a match', async () => {
     // The only row added is one they actually fought and finished — in the BLUE
     // corner, so a count that only looks at red would still disqualify them.
-    const supabase = fakeSupabase(
+    const supabase = mockSupabase(
       otherBouts([
         {
           id: 'done-1',
@@ -226,7 +269,7 @@ describe('MatchForfeitsService', () => {
       canContinue: true,
     });
 
-    expect(supabase.updated.registrations?.[0]).toBeUndefined();
+    expect(writesOf(supabase, 'registrations', 'update')).toEqual([]);
   });
 
   /**
@@ -294,18 +337,19 @@ describe('MatchForfeitsService', () => {
     // "Disqualify after N forfeits" counts FORFEITS, not black cards. The
     // per-reason state and the penalty ruleset's black-card ordinal both key off
     // something else, so nothing in the codebase counted these.
-    const supabase = fakeSupabase({
+    const supabase = mockSupabase({
       matches: {
-        maybeSingle: matchRow({
-          phaseType: 'pool',
-          status: 'running',
-          tournamentPolicy: { disqualifyAfter: 2 },
-        }),
-        update: { id: 'match-1' },
+        rows: [
+          matchRow({
+            phaseType: 'pool',
+            status: 'running',
+            tournamentPolicy: { disqualifyAfter: 2 },
+          }),
+        ],
       },
       // One live forfeit of their own already; this one makes two.
       match_forfeits: forfeitHistory([]),
-      registrations: { maybeSingle: { id: 'reg-red', status: 'checked_in' } },
+      registrations: { rows: [{ id: 'reg-red', status: 'checked_in' }] },
     });
     const service = new MatchForfeitsService(supabase as never, undefined as never);
 
@@ -315,7 +359,9 @@ describe('MatchForfeitsService', () => {
       canContinue: true,
     });
 
-    expect(supabase.updated.registrations?.[0]).toMatchObject({ status: 'disqualified' });
+    expect(rowsOf(supabase, 'registrations', 'update')[0]).toMatchObject({
+      status: 'disqualified',
+    });
   });
 
   it('does not reach the threshold on rows that are not this fighter’s live forfeits', async () => {
@@ -323,20 +369,21 @@ describe('MatchForfeitsService', () => {
     // rows still match on some column each, and none of them should count — so
     // a threshold of 2 is not reached and nobody is disqualified.
     const history = forfeitHistory([]);
-    const supabase = fakeSupabase({
+    const supabase = mockSupabase({
       matches: {
-        maybeSingle: matchRow({
-          phaseType: 'pool',
-          status: 'running',
-          tournamentPolicy: { disqualifyAfter: 2 },
-        }),
-        update: { id: 'match-1' },
+        rows: [
+          matchRow({
+            phaseType: 'pool',
+            status: 'running',
+            tournamentPolicy: { disqualifyAfter: 2 },
+          }),
+        ],
       },
       match_forfeits: {
         ...history,
         rows: history.rows.filter((row) => row['id'] !== 'ff-mine'),
       },
-      registrations: { maybeSingle: { id: 'reg-red', status: 'checked_in' } },
+      registrations: { rows: [{ id: 'reg-red', status: 'checked_in' }] },
     });
     const service = new MatchForfeitsService(supabase as never, undefined as never);
 
@@ -346,18 +393,17 @@ describe('MatchForfeitsService', () => {
       canContinue: true,
     });
 
-    expect(supabase.updated.registrations?.[0]).toBeUndefined();
+    expect(writesOf(supabase, 'registrations', 'update')).toEqual([]);
   });
 
   it('leaves the per-reason state alone when no tournament policy is set', async () => {
-    const supabase = fakeSupabase({
-      matches: {
-        maybeSingle: matchRow({ phaseType: 'pool', status: 'running' }),
-        update: { id: 'match-1' },
-        count: 0,
-      },
-      match_forfeits: { maybeSingle: null, insert: { id: 'forfeit-1' }, count: 5 },
-      registrations: { maybeSingle: { id: 'reg-red', status: 'checked_in' } },
+    // Both counts are facts about the rows now: the fighter has fought nothing
+    // (this bout is the only match) and has no prior forfeit. With no policy
+    // set neither number can reach a threshold anyway, which is the point.
+    const supabase = mockSupabase({
+      matches: { rows: [matchRow({ phaseType: 'pool', status: 'running' })] },
+      match_forfeits: { rows: [], returning: { id: 'forfeit-1' } },
+      registrations: { rows: [{ id: 'reg-red', status: 'checked_in' }] },
     });
     const service = new MatchForfeitsService(supabase as never, undefined as never);
 
@@ -367,7 +413,7 @@ describe('MatchForfeitsService', () => {
       canContinue: true,
     });
 
-    expect(supabase.updated.registrations?.[0]).toBeUndefined();
+    expect(writesOf(supabase, 'registrations', 'update')).toEqual([]);
   });
 });
 
