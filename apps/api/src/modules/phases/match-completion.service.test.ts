@@ -16,15 +16,23 @@ import { MatchCompletionService } from './match-completion.service';
  * method's own name long after the actual call had been deleted.
  */
 
-/** Supabase double returning one match row with its phase embedded. */
-function supabaseFor(phase: { type: string; tournament_id: string } | null) {
-  const chain: Record<string, unknown> = {};
-  Object.assign(chain, {
-    select: vi.fn(() => chain),
-    eq: vi.fn(() => chain),
-    maybeSingle: vi.fn().mockResolvedValue({ data: phase ? { phases: phase } : null, error: null }),
-  });
-  return { service: { from: vi.fn(() => chain) } };
+/**
+ * The one read `onMatchCompleted` makes: the completed match, with its phase
+ * embedded.
+ *
+ * A second match is always seeded, in a different tournament. Without it the
+ * read's `.eq('id', matchId)` decides nothing — one row answers the same
+ * whether the query scopes itself or not — and an unscoped lookup here picks
+ * whichever match the database hands back first, then seeds THAT tournament's
+ * bracket.
+ */
+const OTHER_MATCH = {
+  id: 'm2',
+  phases: { type: 'pool', tournament_id: 't-elsewhere' },
+};
+
+function supabaseFor(phase: { type: string; tournament_id: string }) {
+  return mockSupabase({ matches: { rows: [{ id: 'm1', phases: phase }, OTHER_MATCH] } });
 }
 
 /** The freeze is non-optional now, so every construction has to supply it. */
