@@ -938,18 +938,26 @@ describe('MatchForfeitsService — override regressions', () => {
     // correct it — the bracket kept the loser of the replay, silently.
     const supabase = fakeSupabase({
       match_forfeits: {
-        maybeSingle: {
-          id: 'forfeit-1',
-          match_id: 'match-1',
-          downstream_match_ids: ['downstream-9'],
-          voided_at: null,
-          previous_match_state: { status: 'running', red_score: 2, blue_score: 3 },
-        },
-        update: { id: 'forfeit-1' },
+        rows: [
+          {
+            id: 'forfeit-1',
+            match_id: 'match-1',
+            parent_forfeit_id: null,
+            downstream_match_ids: ['downstream-9'],
+            voided_at: null,
+            previous_match_state: { status: 'running', red_score: 2, blue_score: 3 },
+          },
+        ],
       },
       matches: {
-        maybeSingle: { locked_at: null },
-        select: [{ id: 'downstream-9', status: 'scheduled' }],
+        rows: [
+          { id: 'match-1', status: 'completed', locked_at: null },
+          { id: 'downstream-9', status: 'scheduled' },
+          // A bout fought to a finish that this record does not feed. The
+          // dependent check reads the ids it was handed and no others — a wider
+          // read would refuse every void in a running event.
+          { id: 'match-8', status: 'completed', started_at: '2026-08-12T08:00:00.000Z' },
+        ],
       },
     });
     const bracketAdvance = {
@@ -973,6 +981,39 @@ describe('MatchForfeitsService — override regressions', () => {
         supabase.service.from as unknown as { mock: { invocationCallOrder: number[] } }
       ).mock.invocationCallOrder.at(-1) as number,
     );
+  });
+
+  it('voids over a dependent bout that was itself voided', async () => {
+    // The dependent check refuses over a bout that has been fought, and reads
+    // "fought" partly off `started_at` — which a voided bout keeps from the run
+    // it had before someone voided it. A voided bout holds no live result, so
+    // it is not a reason to refuse; excluding it at the query is what makes the
+    // predicate's stated precondition true.
+    const supabase = fakeSupabase({
+      match_forfeits: {
+        rows: [
+          {
+            id: 'forfeit-1',
+            match_id: 'match-1',
+            parent_forfeit_id: null,
+            downstream_match_ids: ['downstream-7'],
+            voided_at: null,
+            previous_match_state: { status: 'running', red_score: 2, blue_score: 3 },
+          },
+        ],
+      },
+      matches: {
+        rows: [
+          { id: 'match-1', status: 'completed', locked_at: null },
+          { id: 'downstream-7', status: 'voided', started_at: '2026-08-12T09:00:00.000Z' },
+        ],
+      },
+    });
+    const service = new MatchForfeitsService(supabase as never, undefined as never);
+
+    await service.voidForfeit('forfeit-1');
+
+    expect(supabase.updated.matches?.[0]).toMatchObject({ status: 'running' });
   });
 
   /**
@@ -1223,7 +1264,14 @@ describe('MatchForfeitsService — override regressions', () => {
       match_forfeits: {
         maybeSingle: { id: 'forfeit-1', match_id: 'match-1', voided_at: null },
       },
-      matches: { maybeSingle: { locked_at: '2026-08-10T09:00:00.000Z' } },
+      // Two bouts, one of them locked. The lock is a property of THIS bout, so
+      // a read that cannot say which bout it looked at cannot enforce it.
+      matches: {
+        rows: [
+          { id: 'match-1', status: 'completed', locked_at: '2026-08-10T09:00:00.000Z' },
+          { id: 'match-2', status: 'completed', locked_at: null },
+        ],
+      },
     });
     const service = new MatchForfeitsService(supabase as never, undefined as never);
 
