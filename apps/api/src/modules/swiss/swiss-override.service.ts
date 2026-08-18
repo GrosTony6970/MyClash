@@ -245,6 +245,13 @@ export class SwissOverrideService {
   }
 
   private swapWarnings(round: EditableRound, a: Position, b: Position): OverrideWarning[] {
+    // Both in the same bout: a side change, not a re-pairing, exactly as
+    // `applySwap` treats it. The two fighters still face each other, so no
+    // pairing is created and there is nothing to warn about. Asking the
+    // question below would compare each fighter with themselves, because the
+    // opponent waiting at the destination is the fighter arriving there.
+    if (a.kind === 'match' && b.kind === 'match' && a.match.id === b.match.id) return [];
+
     const aId = this.occupant(round, a);
     const bId = this.occupant(round, b);
     const warnings: OverrideWarning[] = [];

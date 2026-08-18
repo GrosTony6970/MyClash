@@ -36,6 +36,21 @@ describe('SwissOverrideService — swapping two fighters', () => {
     ]);
   });
 
+  it('treats two fighters in the same bout as a side change', async () => {
+    // r1 and r2 already face each other in m1. Exchanging them creates no new
+    // pairing, so there is nothing to warn about and nothing to confirm — and
+    // both sides move in ONE write, because they belong to the same bout.
+    // r1 and r2 each carry a club, which is what the same-club check needs to
+    // have an answer available at all.
+    const { supabase, service } = build();
+
+    await service.swapPairing('sr2', 'r1', 'r2', 'user-1');
+
+    expect(wroteTo(supabase, 'matches')).toEqual([
+      { id: 'm1', row: { red_registration_id: 'r2', blue_registration_id: 'r1' } },
+    ]);
+  });
+
   it('moves the bye by swapping the fighter who holds it', async () => {
     // "Give the bye to someone else" is not a separate operation — it is a
     // swap where one of the two positions is the bye.
