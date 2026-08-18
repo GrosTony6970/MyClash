@@ -1,6 +1,8 @@
 import { BadRequestException, ConflictException } from '@nestjs/common';
 import { describe, expect, it, vi } from 'vitest';
 import { MatchForfeitsService } from './match-forfeits.service';
+import { seededTableChain } from '../../common/testing/supabase-chain-seeded';
+import type { RecordedWrite, SupabaseRow } from '../../common/testing/supabase-chain';
 
 describe('MatchForfeitsService', () => {
   it('records a voluntary forfeit as a 0-6 match loss and asks continuation through canContinue', async () => {
@@ -94,24 +96,52 @@ describe('MatchForfeitsService', () => {
     await expect(service.voidForfeit('forfeit-1')).rejects.toThrow(BadRequestException);
   });
 
+  /**
+   * "Forfeit before 1st match → auto-DQ" counts the fighter's OTHER completed
+   * bouts, and three filters decide that count: completed only, this bout
+   * excluded, and either corner of the bout being theirs. A hardcoded `count`
+   * asserted the policy while proving nothing about who was counted — seed
+   * `matches` instead and the count is a fact about the rows.
+   *
+   * The history below is the same in both tests. Only whether the fighter is in
+   * it changes, which is the whole question the policy asks.
+   */
+  const DQ_MATCH = matchRow({
+    phaseType: 'pool',
+    status: 'running',
+    tournamentPolicy: { forfeitFighterBefore1stMatch: true },
+  });
+
+  const otherBouts = (mine: Record<string, unknown>[]) => ({
+    matches: {
+      rows: [
+        DQ_MATCH,
+        // Completed, but somebody else's bout entirely.
+        {
+          id: 'other-1',
+          status: 'completed',
+          red_registration_id: 'reg-x',
+          blue_registration_id: 'reg-y',
+        },
+        // Theirs, but not finished — a scheduled bout is not one they fought.
+        {
+          id: 'later-1',
+          status: 'scheduled',
+          red_registration_id: 'reg-red',
+          blue_registration_id: 'reg-z',
+        },
+        ...mine,
+      ],
+    },
+    match_forfeits: { maybeSingle: null, insert: { id: 'forfeit-1' } },
+    phases: { maybeSingle: { id: 'phase-1', type: 'pool', tournament_id: 'tournament-1' } },
+    registrations: { maybeSingle: { id: 'reg-red', status: 'checked_in' } },
+  });
+
   it("auto-disqualifies a forfeit before the fighter's first match when the policy is on", async () => {
-    // tournamentPolicy.forfeitFighterBefore1stMatch - "Forfeit before 1st match
-    // -> auto-DQ". Nothing conditioned on match count before this; the
-    // per-reason tournamentState ('voluntary' -> 'ask') cannot express it.
-    const supabase = fakeSupabase({
-      matches: {
-        maybeSingle: matchRow({
-          phaseType: 'pool',
-          status: 'running',
-          tournamentPolicy: { forfeitFighterBefore1stMatch: true },
-        }),
-        update: { id: 'match-1' },
-        count: 0, // no other completed match for this registration
-      },
-      match_forfeits: { maybeSingle: null, insert: { id: 'forfeit-1' } },
-      phases: { maybeSingle: { id: 'phase-1', type: 'pool', tournament_id: 'tournament-1' } },
-      registrations: { maybeSingle: { id: 'reg-red', status: 'checked_in' } },
-    });
+    // Nothing conditioned on match count before this; the per-reason
+    // tournamentState ('voluntary' -> 'ask') cannot express it.
+    const supabase = fakeSupabase(otherBouts([]));
     const service = new MatchForfeitsService(supabase as never, undefined as never);
 
     await service.createForfeit('match-1', {
@@ -124,20 +154,18 @@ describe('MatchForfeitsService', () => {
   });
 
   it('does not auto-disqualify when the fighter has already completed a match', async () => {
-    const supabase = fakeSupabase({
-      matches: {
-        maybeSingle: matchRow({
-          phaseType: 'pool',
-          status: 'running',
-          tournamentPolicy: { forfeitFighterBefore1stMatch: true },
-        }),
-        update: { id: 'match-1' },
-        count: 2,
-      },
-      match_forfeits: { maybeSingle: null, insert: { id: 'forfeit-1' } },
-      phases: { maybeSingle: { id: 'phase-1', type: 'pool', tournament_id: 'tournament-1' } },
-      registrations: { maybeSingle: { id: 'reg-red', status: 'checked_in' } },
-    });
+    // The only row added is one they actually fought and finished — in the BLUE
+    // corner, so a count that only looks at red would still disqualify them.
+    const supabase = fakeSupabase(
+      otherBouts([
+        {
+          id: 'done-1',
+          status: 'completed',
+          red_registration_id: 'reg-w',
+          blue_registration_id: 'reg-red',
+        },
+      ]),
+    );
     const service = new MatchForfeitsService(supabase as never, undefined as never);
 
     await service.createForfeit('match-1', {
@@ -401,8 +429,35 @@ type TableState = Record<
     update?: unknown;
     /** For `.select(col, { count: 'exact', head: true })` lookups. */
     count?: number;
+    /**
+     * A SIMULATED table: the shared double filters these rows, so `.eq()`,
+     * `.in()`, `.or()` and a `count` are facts about the fixture rather than
+     * numbers the test asserted into being. Prefer it — the canned keys above
+     * hand back the same answer whatever the query asked for.
+     */
+    rows?: SupabaseRow[];
   }
 >;
+
+/**
+ * A canned table's `maybeSingle`, resolving the filter-aware form.
+ *
+ * At module scope only to keep `chain` inside the line budget — the resolver
+ * form is the interesting part, and it is documented on TableState.
+ */
+function cannedMaybeSingle(
+  tableState: TableState[string],
+  filters: Array<[string, unknown]>,
+): { data: unknown; error: null } {
+  const seed = tableState.maybeSingle;
+  return {
+    data:
+      typeof seed === 'function'
+        ? (seed as (f: typeof filters) => unknown)(filters)
+        : (seed ?? null),
+    error: null,
+  };
+}
 
 function fakeSupabase(state: TableState) {
   const inserted: Record<string, unknown[]> = {};
@@ -415,6 +470,8 @@ function fakeSupabase(state: TableState) {
    *  missing from a projection cannot change behaviour here the way it does
    *  against Postgres. Recording the request is the only way to assert one. */
   const selects: Array<{ table: string; columns: string }> = [];
+  /** Writes the shared double records for `rows:` tables, mirrored below. */
+  const seededWrites: RecordedWrite[] = [];
   /** Records the projection and hands the chain back, so `select` stays one
    *  line inside `chain` — which is already at its length budget. */
   const recordSelect = (table: string, columns: unknown, api: unknown) => {
@@ -424,6 +481,12 @@ function fakeSupabase(state: TableState) {
 
   function chain(table: string) {
     const tableState = state[table] ?? {};
+    // A `rows:` table is handed to the shared seeded double, which narrows on
+    // the real filters. Its writes are mirrored into `inserted`/`updated` so a
+    // half-migrated fixture reads the same either way.
+    if (tableState.rows) {
+      return seededTableChain(tableState.rows, { table, writes: seededWrites });
+    }
     // One array per chain, shared BY REFERENCE with the recorded mutation: the
     // `.eq()` calls come after `.update()` in the fluent chain, so they have to
     // be able to land on an entry that was already pushed.
@@ -448,15 +511,7 @@ function fakeSupabase(state: TableState) {
       not: vi.fn(() => api),
       order: vi.fn(() => api),
       limit: vi.fn(() => api),
-      maybeSingle: vi.fn(() =>
-        Promise.resolve({
-          data:
-            typeof tableState.maybeSingle === 'function'
-              ? (tableState.maybeSingle as (f: Array<[string, unknown]>) => unknown)(filters)
-              : (tableState.maybeSingle ?? null),
-          error: null,
-        }),
-      ),
+      maybeSingle: vi.fn(() => Promise.resolve(cannedMaybeSingle(tableState, filters))),
       single: vi.fn(() =>
         Promise.resolve({ data: tableState.insert ?? tableState.update ?? null, error: null }),
       ),
@@ -473,10 +528,39 @@ function fakeSupabase(state: TableState) {
     return api;
   }
 
+  // Mirror the shared double's writes into the same shape the canned tables
+  // use, so a fixture can migrate one table at a time without rewriting every
+  // assertion in the file.
+  const mirrorSeededWrites = () => {
+    for (const write of seededWrites) {
+      const bucket = write.op === 'insert' ? inserted : updated;
+      bucket[write.table] = [...(bucket[write.table] ?? []), write.row];
+      if (write.op === 'update') {
+        mutations.push({
+          table: write.table,
+          row: write.row,
+          filters: write.filters.map((f) => [String(f.args[0]), f.args[1]] as [string, unknown]),
+        });
+      }
+    }
+    seededWrites.length = 0;
+  };
+
+  // Getters, because the mirror has to run AFTER the call under test and the
+  // tests read these properties directly.
   return {
-    inserted,
-    updated,
-    mutations,
+    get inserted() {
+      mirrorSeededWrites();
+      return inserted;
+    },
+    get updated() {
+      mirrorSeededWrites();
+      return updated;
+    },
+    get mutations() {
+      mirrorSeededWrites();
+      return mutations;
+    },
     selects,
     service: {
       from: vi.fn((table: string) => chain(table)),
