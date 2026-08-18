@@ -562,11 +562,25 @@ function cannedMaybeSingle(
  *
  * At module scope only to keep `chain` inside the line budget.
  */
-function seededChainFor(table: string, tableState: TableState[string], writes: RecordedWrite[]) {
-  return seededTableChain(
+function seededChainFor(
+  table: string,
+  tableState: TableState[string],
+  writes: RecordedWrite[],
+  selects: Array<{ table: string; columns: string }>,
+) {
+  const chain = seededTableChain(
     { rows: tableState.rows ?? [], returning: tableState.returning },
     { table, writes },
   );
+  // The shared double does not log projections on purpose — a projection does
+  // not scope a write, which is what its log is for. One test here asserts a
+  // projection, so record it on the way through and delegate.
+  const projected = chain.select;
+  chain.select = vi.fn((columns?: unknown, options?: unknown) => {
+    if (typeof columns === 'string') selects.push({ table, columns });
+    return projected(columns, options);
+  });
+  return chain;
 }
 
 function fakeSupabase(state: TableState) {
@@ -594,7 +608,7 @@ function fakeSupabase(state: TableState) {
     // A `rows:` table is handed to the shared seeded double, which narrows on
     // the real filters. Its writes are mirrored into `inserted`/`updated` so a
     // half-migrated fixture reads the same either way.
-    if (tableState.rows) return seededChainFor(table, tableState, seededWrites);
+    if (tableState.rows) return seededChainFor(table, tableState, seededWrites, selects);
     // One array per chain, shared BY REFERENCE with the recorded mutation: the
     // `.eq()` calls come after `.update()` in the fluent chain, so they have to
     // be able to land on an entry that was already pushed.
@@ -1263,32 +1277,79 @@ describe('MatchForfeitsService — override regressions', () => {
  * started", and a cascade's children are not dependents — they are effects.
  */
 describe('MatchForfeitsService — pool cascade void', () => {
+  const PARENT_ROW = {
+    id: 'forfeit-1',
+    match_id: 'match-1',
+    parent_forfeit_id: null,
+    forfeiting_registration_id: 'reg-red',
+    downstream_match_ids: [],
+    voided_at: null,
+    previous_match_state: { status: 'running', red_score: 2, blue_score: 3 },
+    previous_registration_state: { status: 'checked_in' },
+  };
+
   const CHILD_ROW = {
     id: 'child-1',
     match_id: 'later-1',
+    parent_forfeit_id: 'forfeit-1',
+    voided_at: null,
     previous_match_state: { status: 'scheduled', red_score: 0, blue_score: 0 },
   };
 
+  /**
+   * Two records the cascade must not carry down, and both are near misses.
+   *
+   * The voided child was dealt with separately — whatever was replayed on that
+   * bout afterwards is a real result. The other record is a root of its own on
+   * another bout, so a lost `parent_forfeit_id` scope would sweep up a
+   * withdrawal nobody asked to undo, and stamp this record twice on the way.
+   */
+  const DECOY_RECORDS = [
+    {
+      id: 'child-voided',
+      match_id: 'later-2',
+      parent_forfeit_id: 'forfeit-1',
+      voided_at: '2026-08-10T09:00:00.000Z',
+      previous_match_state: { status: 'scheduled', red_score: 0, blue_score: 0 },
+    },
+    {
+      id: 'forfeit-9',
+      match_id: 'match-9',
+      parent_forfeit_id: null,
+      voided_at: null,
+      previous_match_state: { status: 'scheduled', red_score: 0, blue_score: 0 },
+    },
+  ];
+
+  /**
+   * The rows this void wrote to one table, in order.
+   *
+   * An update names its row only through the filters that scoped it, so
+   * `updated.matches` alone cannot tell a restore of the two bouts this record
+   * closed from a restore of every bout in the event.
+   */
+  const writtenIds = (
+    supabase: { mutations: Array<{ table: string; filters: Array<[string, unknown]> }> },
+    table: string,
+  ) =>
+    supabase.mutations
+      .filter((mutation) => mutation.table === table)
+      .map((mutation) => mutation.filters.find(([column]) => column === 'id')?.[1]);
+
+  /** The bouts those records cover, plus one live bout that belongs to neither. */
+  const matchRows = (childMatchStatus: string): SupabaseRow[] => [
+    { id: 'match-1', status: 'completed', locked_at: null },
+    { id: 'later-1', status: childMatchStatus },
+    { id: 'later-2', status: 'scheduled' },
+    // Another bout, mid-fight, that this void has nothing to do with.
+    { id: 'match-9', status: 'running' },
+  ];
+
   /** Parent + one active child, the shape every cascade test below reads. */
-  function cascadeState(childMatchStatus: string, children: unknown[] = [CHILD_ROW]) {
+  function cascadeState(childMatchStatus: string, children: SupabaseRow[] = [CHILD_ROW]) {
     return {
-      match_forfeits: {
-        maybeSingle: {
-          id: 'forfeit-1',
-          match_id: 'match-1',
-          forfeiting_registration_id: 'reg-red',
-          downstream_match_ids: [],
-          voided_at: null,
-          previous_match_state: { status: 'running', red_score: 2, blue_score: 3 },
-          previous_registration_state: { status: 'checked_in' },
-        },
-        select: children,
-        update: { id: 'forfeit-1' },
-      },
-      matches: {
-        maybeSingle: { locked_at: null },
-        select: [{ id: 'later-1', status: childMatchStatus }],
-      },
+      match_forfeits: { rows: [PARENT_ROW, ...children, ...DECOY_RECORDS] },
+      matches: { rows: matchRows(childMatchStatus) },
     };
   }
 
@@ -1357,6 +1418,12 @@ describe('MatchForfeitsService — pool cascade void', () => {
     expect(supabase.updated.matches).toContainEqual(
       expect.objectContaining({ status: 'scheduled', red_score: 0, blue_score: 0 }),
     );
+    // And onto the two bouts this record closed, nothing else. An unscoped
+    // restore would put every match in the event back to a snapshot.
+    expect(writtenIds(supabase, 'matches')).toEqual(['match-1', 'later-1']);
+    // The withdrawal is undone too, on the fighter it withdrew and nobody else.
+    expect(supabase.updated.registrations?.[0]).toMatchObject({ status: 'checked_in' });
+    expect(writtenIds(supabase, 'registrations')).toEqual(['reg-red']);
   });
 
   it('stamps the children before the parent, so a crash mid-void converges', async () => {
@@ -1368,10 +1435,7 @@ describe('MatchForfeitsService — pool cascade void', () => {
 
     await service.voidForfeit('forfeit-1');
 
-    const stamped = supabase.mutations
-      .filter((mutation) => mutation.table === 'match_forfeits')
-      .map((mutation) => mutation.filters.find(([column]) => column === 'id')?.[1]);
-    expect(stamped).toEqual(['child-1', 'forfeit-1']);
+    expect(writtenIds(supabase, 'match_forfeits')).toEqual(['child-1', 'forfeit-1']);
   });
 
   it('does not rewrite a child match that is back in play', async () => {
@@ -1385,7 +1449,7 @@ describe('MatchForfeitsService — pool cascade void', () => {
 
     await service.voidForfeit('forfeit-1');
 
-    expect(supabase.updated.matches).toHaveLength(1); // the parent restore only
+    expect(writtenIds(supabase, 'matches')).toEqual(['match-1']); // the parent restore only
     expect(supabase.updated.match_forfeits).toHaveLength(2);
   });
 
@@ -1417,26 +1481,43 @@ describe('MatchForfeitsService — pool cascade void', () => {
     // The case `liveMatchIds` is blind to: reset, re-fought, `completed` again.
     // Not 'running' or 'paused', so it reads as untouched — the divergence
     // check is the only thing between a real replayed score and the snapshot.
-    const supabase = fakeSupabase(
-      cascadeState('completed', [
-        {
-          ...CHILD_ROW,
-          resulting_match_state: {
-            status: 'completed',
-            winner_registration_id: 'reg-green',
-            red_score: 0,
-            blue_score: 3,
-            end_reason: 'forfeit',
-          },
+    // The bout below says red won it 5-2 on points; the record says a 0-3
+    // walkover. Reading the wrong bout would compare the record against
+    // somebody else's result and answer either way by accident.
+    const state = cascadeState('completed', [
+      {
+        ...CHILD_ROW,
+        resulting_match_state: {
+          status: 'completed',
+          winner_registration_id: 'reg-green',
+          red_score: 0,
+          blue_score: 3,
+          end_reason: 'forfeit',
         },
-      ]),
-    );
+      },
+    ]);
+    const supabase = fakeSupabase({
+      ...state,
+      matches: {
+        rows: matchRows('completed').map((row) =>
+          row['id'] === 'later-1'
+            ? {
+                ...row,
+                winner_registration_id: 'reg-red',
+                red_score: 5,
+                blue_score: 2,
+                end_reason: 'first_to_points',
+              }
+            : row,
+        ),
+      },
+    });
     const service = new MatchForfeitsService(supabase as never, undefined as never);
 
     const result = await service.voidForfeit('forfeit-1');
 
     // The parent restore only — the child bout keeps whatever it was replayed to.
-    expect(supabase.updated.matches).toHaveLength(1);
+    expect(writtenIds(supabase, 'matches')).toEqual(['match-1']);
     // But the F must not stand for a bout somebody actually fought.
     expect(result.cascaded_forfeit_count).toBe(1);
     expect(supabase.updated.match_forfeits).toHaveLength(2);
