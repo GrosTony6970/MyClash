@@ -77,6 +77,7 @@
     "apps/api/src/modules/staff/staff.service.authorize.test.ts",
     "apps/api/src/modules/staff/staff.service.test.ts",
     "apps/api/src/modules/staff/staff.service.ts",
+    "apps/api/src/modules/swiss/swiss-advance.service.test.ts",
     "apps/api/src/modules/tournament-query/tournament-query.service.ts",
     "apps/api/src/modules/tournament-query/tournament-query.tools.service.ts",
     "apps/api/src/modules/venues/venues.service.test.ts",

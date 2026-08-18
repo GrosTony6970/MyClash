@@ -27,10 +27,22 @@ const pairingStub = (committed: unknown = null) =>
 const roundStateStub = (status: string) =>
   ({ refresh: vi.fn().mockResolvedValue(status) }) as unknown as SwissRoundStateService;
 
-/** A matches row whose embed resolves to round 2 of a Swiss phase on `phase-1`. */
+/**
+ * A matches row whose embed resolves to round 2 of a Swiss phase on `phase-1`,
+ * alongside a second Swiss bout from a LATER round of the same phase.
+ *
+ * The decoy is what makes the id scope decidable. Resolving the wrong bout
+ * here would advance from the wrong round.
+ */
 const swissMatchRow = (embed: unknown = { phase_id: 'phase-1', round_number: 2 }) => ({
-  data: { swiss_round_id: 'round-1', swiss_rounds: embed },
-  error: null,
+  rows: [
+    { id: 'm1', swiss_round_id: 'round-1', swiss_rounds: embed },
+    {
+      id: 'm-later',
+      swiss_round_id: 'round-4',
+      swiss_rounds: { phase_id: 'phase-1', round_number: 4 },
+    },
+  ],
 });
 
 /**
@@ -42,6 +54,40 @@ const swissMatchRow = (embed: unknown = { phase_id: 'phase-1', round_number: 2 }
  * throws — an omission here would read as a passing "did not advance".
  */
 const roundsAhead = (count: number) => ({ data: [], count, error: null });
+
+/**
+ * `phase-1` as configured, beside another phase that has been FINALISED.
+ *
+ * Reading the wrong row here either advances a frozen phase or refuses a live
+ * one, so the id scope has something to get wrong in both directions.
+ */
+const phaseRows = (over: Record<string, unknown> = {}) => ({
+  rows: [
+    { id: 'phase-1', config_json: config(over) },
+    {
+      id: 'phase-9',
+      config_json: config({
+        finalized: { atRound: 3, at: '2026-08-18T10:00:00.000Z', byUserId: null },
+      }),
+    },
+  ],
+});
+
+/**
+ * The rounds of `phase-1` up to and including round 2, plus the rows a wider
+ * read would take: an EARLIER round, and a later round of ANOTHER phase.
+ *
+ * `hasLaterRound` asks "is there a round drawn after this one", so both decoys
+ * would answer yes and stop an advance that should happen.
+ */
+const roundRows = (later: Array<Record<string, unknown>> = []) => ({
+  rows: [
+    { id: 'round-0', phase_id: 'phase-1', round_number: 1, status: 'completed', matches: [] },
+    { id: 'round-1', phase_id: 'phase-1', round_number: 2, status: 'completed', matches: [] },
+    { id: 'round-p9', phase_id: 'phase-9', round_number: 9, status: 'pending', matches: [] },
+    ...later,
+  ],
+});
 
 describe('SwissAdvanceService.onMatchCompleted', () => {
   it('does nothing when the optional collaborators are absent', async () => {
@@ -118,22 +164,28 @@ describe('SwissAdvanceService.onMatchCompleted', () => {
 
   it('refuses to advance a finalised phase', async () => {
     // Advancing would silently unfreeze standings the organiser has published.
+    // `finalized` is the freeze RECORD, not a boolean — a bare `true` fails the
+    // .strict() parse, which would leave the phase looking live. The second
+    // row is a LIVE phase: reading it instead of this one advances a phase
+    // whose standings have already been published.
     const supabase = mockSupabase({
       matches: swissMatchRow(),
       phases: {
-        // `finalized` is the freeze RECORD, not a boolean — a bare `true` fails
-        // the .strict() parse, which would leave the phase looking live.
-        data: {
-          config_json: config({
-            finalized: {
-              atRound: 5,
-              at: '2026-08-07T10:00:00.000Z',
-              byUserId: '11111111-1111-4111-8111-111111111111',
-            },
-          }),
-        },
-        error: null,
+        rows: [
+          {
+            id: 'phase-1',
+            config_json: config({
+              finalized: {
+                atRound: 5,
+                at: '2026-08-07T10:00:00.000Z',
+                byUserId: '11111111-1111-4111-8111-111111111111',
+              },
+            }),
+          },
+          { id: 'phase-9', config_json: config() },
+        ],
       },
+      swiss_rounds: roundRows(),
     });
     const pairing = pairingStub({ roundNumber: 2 });
     await new SwissAdvanceService(
@@ -145,10 +197,13 @@ describe('SwissAdvanceService.onMatchCompleted', () => {
   });
 
   it('advances when the round closed and the phase is live', async () => {
+    // Nothing is drawn after round 2 of THIS phase. The table still holds an
+    // earlier round and another phase's later one, either of which would stop
+    // the advance if the head count were not scoped.
     const supabase = mockSupabase({
       matches: swissMatchRow(),
-      phases: { data: { config_json: config() }, error: null },
-      swiss_rounds: roundsAhead(0),
+      phases: phaseRows(),
+      swiss_rounds: roundRows(),
     });
     const pairing = pairingStub({ roundNumber: 3 });
     await new SwissAdvanceService(
@@ -170,8 +225,11 @@ describe('SwissAdvanceService.onMatchCompleted', () => {
     // already-completed bout runs this whole path a second time.
     const supabase = mockSupabase({
       matches: swissMatchRow(),
-      phases: { data: { config_json: config() }, error: null },
-      swiss_rounds: roundsAhead(2),
+      phases: phaseRows(),
+      swiss_rounds: roundRows([
+        { id: 'round-3', phase_id: 'phase-1', round_number: 3, status: 'pending', matches: [] },
+        { id: 'round-4', phase_id: 'phase-1', round_number: 4, status: 'pending', matches: [] },
+      ]),
     });
     const pairing = pairingStub({ roundNumber: 5 });
     await new SwissAdvanceService(
@@ -186,8 +244,8 @@ describe('SwissAdvanceService.onMatchCompleted', () => {
   it('treats an unparseable phase config as not finalised', async () => {
     const supabase = mockSupabase({
       matches: swissMatchRow(),
-      phases: { data: { config_json: { garbage: true } }, error: null },
-      swiss_rounds: roundsAhead(0),
+      phases: { rows: [{ id: 'phase-1', config_json: { garbage: true } }] },
+      swiss_rounds: roundRows(),
     });
     const pairing = pairingStub({ roundNumber: 2 });
     await new SwissAdvanceService(
@@ -350,9 +408,17 @@ describe('SwissAdvanceService.roundsAhead', () => {
    * uncomplete-confirm-copy.ts in web-admin). These pin the answer per status so
    * the shared predicate cannot be swapped underneath it unnoticed.
    */
+  /**
+   * Round 4 of this phase, holding `matches`, beside the rows a wider read
+   * would take: round 1, which is BEHIND the bout being asked about, and
+   * another phase's round entirely.
+   */
   const laterRound = (matches: Array<{ status: string; started_at: string | null }>) => ({
-    data: [{ round_number: 4, status: 'pending', matches }],
-    error: null,
+    rows: [
+      { id: 'round-0', phase_id: 'phase-1', round_number: 1, status: 'completed', matches: [] },
+      { id: 'round-4', phase_id: 'phase-1', round_number: 4, status: 'pending', matches },
+      { id: 'round-p9', phase_id: 'phase-9', round_number: 9, status: 'pending', matches: [] },
+    ],
   });
 
   const ask = async (matches: Array<{ status: string; started_at: string | null }>) => {
@@ -364,6 +430,32 @@ describe('SwissAdvanceService.roundsAhead', () => {
       .roundsAhead('m1')
       .then((rounds) => rounds[0]?.hasFoughtBout);
   };
+
+  it('reports only the rounds of this phase drawn AFTER this one, in order', async () => {
+    // The bout under test is in round 2. Round 1 is behind it, round 9 belongs
+    // to another phase, and neither is something un-completing round 2 would
+    // disturb. The two that qualify come back lowest round first, because the
+    // organiser reads them as a list of what they are about to undo.
+    const supabase = mockSupabase({
+      matches: swissMatchRow(),
+      swiss_rounds: {
+        rows: [
+          { id: 'round-5', phase_id: 'phase-1', round_number: 5, status: 'pending', matches: [] },
+          { id: 'round-0', phase_id: 'phase-1', round_number: 1, status: 'completed', matches: [] },
+          { id: 'round-3', phase_id: 'phase-1', round_number: 3, status: 'pending', matches: [] },
+          { id: 'round-p9', phase_id: 'phase-9', round_number: 9, status: 'pending', matches: [] },
+        ],
+      },
+    });
+
+    const rounds = await new SwissAdvanceService(
+      as(supabase),
+      pairingStub(),
+      roundStateStub('running'),
+    ).roundsAhead('m1');
+
+    expect(rounds.map((r) => r.roundNumber)).toEqual([3, 5]);
+  });
 
   it('reports a round holding a running, paused or completed bout as fought', async () => {
     await expect(ask([{ status: 'running', started_at: null }])).resolves.toBe(true);
