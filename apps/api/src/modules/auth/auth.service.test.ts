@@ -14,6 +14,7 @@ import {
   mockSupabase as seededSupabase,
   queriedTables,
   scopedTo,
+  selectsFor,
   writesTo,
   type RecordedWrite,
   type SupabaseRow,
@@ -1976,6 +1977,156 @@ describe('AuthService', () => {
       // Raw token stays within the confirm DTO's 20..64 bound.
       expect(rawToken.length).toBeGreaterThanOrEqual(20);
       expect(rawToken.length).toBeLessThanOrEqual(64);
+    });
+  });
+
+  /**
+   * DELETE /me/global-person-link — "this isn't me".
+   *
+   * No test had ever called this method: function coverage read zero, so its
+   * one filter was not weakly held, it was never executed. The write clears
+   * `claimed_by_user_id` and reads the affected ids back, and the only thing
+   * deciding WHICH rows that is is the `.eq('claimed_by_user_id', user.id)`
+   * scope. Losing it unlinks every claimed profile on the platform and reports
+   * the first one as the caller's.
+   */
+  describe('unlinkGlobalPerson', () => {
+    const USER = 'user-123';
+    const session = () => ({ headers: { authorization: 'Bearer t' }, cookies: {} }) as never;
+
+    // The stranger is seeded FIRST, so an unscoped read returns their profile
+    // before the caller's and the wrong id comes back as "yours".
+    const seedLinks = (mine: SupabaseRow[]) =>
+      seedTables({
+        global_persons: {
+          rows: [{ id: 'global-99', claimed_by_user_id: 'other-user' }, ...mine],
+        },
+      });
+
+    it('clears the caller’s own link and names the profile it cleared', async () => {
+      mockAuthUser({ id: USER, email: 'fighter@example.com' });
+      const seeded = seedLinks([{ id: 'global-1', claimed_by_user_id: USER }]);
+
+      const result = await service.unlinkGlobalPerson(session());
+
+      expect(result).toEqual({ ok: true, unlinkedGlobalPersonId: 'global-1' });
+      const [cleared] = writesTo(seeded, 'global_persons');
+      expect(cleared?.row).toEqual(expect.objectContaining({ claimed_by_user_id: null }));
+      expect(scopedTo(cleared, 'claimed_by_user_id')).toBe(USER);
+    });
+
+    // Idempotent by contract: the UI offers the button whether or not a link
+    // exists. Reporting somebody else's profile here is the same defect as
+    // clearing it, one step earlier.
+    it('reports no link rather than a stranger’s when the caller has none', async () => {
+      mockAuthUser({ id: USER, email: 'fighter@example.com' });
+      seedLinks([]);
+
+      await expect(service.unlinkGlobalPerson(session())).resolves.toEqual({
+        ok: true,
+        unlinkedGlobalPersonId: null,
+      });
+    });
+
+    it('refuses without a session', async () => {
+      await expect(
+        service.unlinkGlobalPerson({ headers: {}, cookies: {} } as never),
+      ).rejects.toThrow(UnauthorizedException);
+    });
+  });
+
+  /**
+   * GET /me/global-person-search — the "find your profile" picker.
+   *
+   * Also never called by any test. Its three filters are what keep the list to
+   * profiles a caller could legitimately claim: not already claimed, not merged
+   * away, and actually matching what they typed. The read projects no email and
+   * no date of birth, so the rows are safe to show — but a profile that is
+   * already somebody's is not one to offer.
+   */
+  describe('searchGlobalPersonsForClaim', () => {
+    const session = () => ({ headers: { authorization: 'Bearer t' }, cookies: {} }) as never;
+
+    const PROFILES = [
+      { id: 'free', display_name: 'Jean Dupont', given_name: 'Jean', family_name: 'Dupont' },
+      {
+        id: 'taken',
+        display_name: 'Jean Moreau',
+        given_name: 'Jean',
+        family_name: 'Moreau',
+        claimed_by_user_id: 'other-user',
+      },
+      {
+        id: 'merged',
+        display_name: 'Jean Petit',
+        given_name: 'Jean',
+        family_name: 'Petit',
+        merged_into_id: 'free',
+      },
+      { id: 'other', display_name: 'Claire Blanc', given_name: 'Claire', family_name: 'Blanc' },
+      // Seeded LAST but sorts FIRST, so the ranking has to disagree with seed
+      // order for the assertion below to hold anything.
+      { id: 'free2', display_name: 'Alain Dupont', given_name: 'Alain', family_name: 'Dupont' },
+    ];
+
+    const search = async (q: string) => {
+      seedTables({ global_persons: { rows: PROFILES } });
+      mockAuthUser({ id: 'user-123', email: 'fighter@example.com' });
+      const rows = await service.searchGlobalPersonsForClaim(session(), q);
+      return rows.map((row) => row.id);
+    };
+
+    it('offers only profiles that are unclaimed, unmerged and matching', async () => {
+      // 'taken' and 'merged' both match the name; each is excluded by one
+      // filter, and 'other' by the name match itself.
+      await expect(search('Jean')).resolves.toEqual(['free']);
+    });
+
+    it('matches on any of the three name columns', async () => {
+      await expect(search('Moreau')).resolves.toEqual([]);
+      await expect(search('Blanc')).resolves.toEqual(['other']);
+    });
+
+    it('ranks the offers by display name, not by the order they were stored', async () => {
+      await expect(search('Dupont')).resolves.toEqual(['free2', 'free']);
+    });
+
+    // This list is shown for a name the caller typed, so it names people who
+    // have not agreed to anything. The double ignores projections, so no
+    // value assertion can see a widened select — only the select string can.
+    it('never asks for email or date of birth', async () => {
+      const seeded = seedTables({ global_persons: { rows: PROFILES } });
+      mockAuthUser({ id: 'user-123', email: 'fighter@example.com' });
+
+      await service.searchGlobalPersonsForClaim(session(), 'Jean');
+
+      const [projection] = selectsFor(seeded.from, 'global_persons');
+      expect(projection).not.toMatch(/email|date_of_birth/u);
+    });
+
+    it('returns nothing for a query too short to narrow, without asking', async () => {
+      const seeded = seedTables({ global_persons: { rows: PROFILES } });
+      mockAuthUser({ id: 'user-123', email: 'fighter@example.com' });
+
+      await expect(service.searchGlobalPersonsForClaim(session(), 'J')).resolves.toEqual([]);
+      expect(queriedTables(seeded.from)).toEqual([]);
+    });
+
+    // sanitizePostgrestFilterValue strips the PostgREST filter metacharacters,
+    // so a query made only of them survives as an empty string. Searching on it
+    // would build `display_name.ilike.%%` and offer the whole table.
+    it('returns nothing when the query is only filter syntax', async () => {
+      const seeded = seedTables({ global_persons: { rows: PROFILES } });
+      mockAuthUser({ id: 'user-123', email: 'fighter@example.com' });
+
+      await expect(service.searchGlobalPersonsForClaim(session(), ',()*')).resolves.toEqual([]);
+      expect(queriedTables(seeded.from)).toEqual([]);
+    });
+
+    it('refuses without a session', async () => {
+      await expect(
+        service.searchGlobalPersonsForClaim({ headers: {}, cookies: {} } as never, 'Jean'),
+      ).rejects.toThrow(UnauthorizedException);
     });
   });
 });
