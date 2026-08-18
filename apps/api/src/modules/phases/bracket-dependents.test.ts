@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { BadRequestException } from '@nestjs/common';
+import { mockSupabase } from '../../common/testing/supabase-chain';
 import { dependentClosure } from './bracket-dependents';
 import { doubleElimBracket, singleElimBracket } from '@myclash/rulesets/dist/scheduling/index';
 
@@ -20,42 +21,53 @@ interface Fixture {
   phase: Row;
 }
 
-/** A supabase double that answers the five reads `dependentClosure` makes. */
-function fakeSupabase(fixture: Fixture) {
-  const chainFor = (table: string) => {
-    let rows: Row[] =
-      table === 'bracket_slots'
-        ? fixture.slots
-        : table === 'matches'
-          ? fixture.matches
-          : table === 'phases'
-            ? [fixture.phase]
-            : [];
+/**
+ * A second phase, and one slot of it that stamps the refs this bracket's root
+ * stamps.
+ *
+ * `bracket_slots` constrains nothing about `source_*_ref`, so two phases of the
+ * same size emit the same strings — a second tournament's R2P1 is fed by
+ * `winner of R1P1` exactly like this one's. Without these rows the three phase
+ * scopes decide nothing: one phase and one phase's slots answer the same
+ * whether the query scopes itself or not.
+ */
+const OTHER_PHASE: Row = { id: 'phase-2', type: 'single_elim', config_json: {} };
 
-    const api: Record<string, unknown> = {};
-    const self = () => api;
-    Object.assign(api, {
-      select: self,
-      order: self,
-      limit: self,
-      eq: (column: string, value: unknown) => {
-        rows = rows.filter((row) => row[column] === value);
-        return api;
-      },
-      in: (column: string, values: unknown[]) => {
-        rows = rows.filter((row) => values.includes(row[column]));
-        return api;
-      },
-      not: (column: string, _op: string, value: unknown) => {
-        rows = rows.filter((row) => row[column] !== value);
-        return api;
-      },
-      maybeSingle: () => Promise.resolve({ data: rows[0] ?? null, error: null }),
-      then: (resolve: (v: unknown) => unknown) => resolve({ data: rows, error: null }),
-    });
-    return api;
-  };
-  return { from: (table: string) => chainFor(table) } as never;
+const FOREIGN_SLOT: Row = {
+  id: 'foreign-slot',
+  phase_id: 'phase-2',
+  round: 2,
+  position: 1,
+  // R1P1 is what a single-elimination root stamps, WBR1P1 a double-elimination
+  // one — so this slot is reachable from the root of every fixture below.
+  source_a_ref: 'winner of R1P1',
+  source_b_ref: 'winner of WBR1P1',
+};
+
+/**
+ * A live match on that foreign slot.
+ *
+ * Seeded so the `.in('bracket_slot_id', …)` verdict means something: the row
+ * exists, the filter excludes it, and the closure cannot observe it either way
+ * because `liveMatch` is keyed by slot id and read only for slots the
+ * phase-scoped query returned.
+ */
+const FOREIGN_MATCH: Row = {
+  id: 'foreign-match',
+  bracket_slot_id: 'foreign-slot',
+  status: 'completed',
+  started_at: '2026-08-12T09:00:00.000Z',
+  locked_at: null,
+  match_number_label: 'X',
+};
+
+/** The three tables `dependentClosure` reads, on the shared double. */
+function supabaseFor(fixture: Fixture) {
+  return mockSupabase({
+    bracket_slots: { rows: [...fixture.slots, FOREIGN_SLOT] },
+    matches: { rows: [...fixture.matches, FOREIGN_MATCH] },
+    phases: { rows: [fixture.phase, OTHER_PHASE] },
+  }).service as never;
 }
 
 /** Turn a generator's slot list into bracket_slots + one live match per slot. */
@@ -102,7 +114,7 @@ describe('dependentClosure', () => {
       matches: [{ id: 'pool-match', bracket_slot_id: null }],
       phase: { id: 'phase-1', type: 'pool', config_json: {} },
     };
-    const supabase = fakeSupabase(fixture);
+    const supabase = supabaseFor(fixture);
 
     expect(await dependentClosure(supabase, 'pool-match')).toEqual([]);
   });
@@ -118,7 +130,7 @@ describe('dependentClosure', () => {
     // Round 1 position 1 → its slot is index 0 in the generated order.
     const rootSlot = fixture.slots.find((s) => s['round'] === 1 && s['position'] === 1)!;
     const rootMatch = fixture.matches.find((m) => m['bracket_slot_id'] === rootSlot['id'])!;
-    const supabase = fakeSupabase(fixture);
+    const supabase = supabaseFor(fixture);
 
     const closure = await dependentClosure(supabase, rootMatch['id'] as string);
 
@@ -158,7 +170,7 @@ describe('dependentClosure', () => {
     const fixture = fixtureFrom(generated, phase);
     const rootSlot = fixture.slots.find((s) => s['round'] === 1 && s['position'] === 1)!;
     const rootMatch = fixture.matches.find((m) => m['bracket_slot_id'] === rootSlot['id'])!;
-    const supabase = fakeSupabase(fixture);
+    const supabase = supabaseFor(fixture);
 
     const closure = await dependentClosure(supabase, rootMatch['id'] as string);
 
@@ -173,7 +185,7 @@ describe('dependentClosure', () => {
     const rootSlot = fixture.slots.find((s) => s['round'] === 1 && s['position'] === 1)!;
     const rootMatch = fixture.matches.find((m) => m['bracket_slot_id'] === rootSlot['id'])!;
 
-    const closure = await dependentClosure(fakeSupabase(fixture), rootMatch['id'] as string);
+    const closure = await dependentClosure(supabaseFor(fixture), rootMatch['id'] as string);
 
     const rounds = closure.map((bout) => bout.round);
     expect([...rounds].sort((a, b) => b - a)).toEqual(rounds);
@@ -191,7 +203,7 @@ describe('dependentClosure', () => {
     finalMatch['status'] = 'completed';
     finalMatch['started_at'] = '2026-08-12T10:00:00.000Z';
 
-    const closure = await dependentClosure(fakeSupabase(fixture), rootMatch['id'] as string);
+    const closure = await dependentClosure(supabaseFor(fixture), rootMatch['id'] as string);
 
     expect(closure.find((bout) => bout.slotId === finalSlot['id'])?.hasBeenFought).toBe(true);
   });
@@ -212,12 +224,36 @@ describe('dependentClosure', () => {
     const finalMatch = fixture.matches.find((m) => m['bracket_slot_id'] === finalSlot['id'])!;
     finalMatch['status'] = 'voided';
 
-    const closure = await dependentClosure(fakeSupabase(fixture), rootMatch['id'] as string);
+    const closure = await dependentClosure(supabaseFor(fixture), rootMatch['id'] as string);
 
     const finalBout = closure.find((bout) => bout.slotId === finalSlot['id']);
     expect(finalBout).toBeDefined();
     expect(finalBout?.matchId).toBeNull();
     expect(finalBout?.hasBeenFought).toBe(false);
+  });
+
+  /**
+   * The phase scope is the only thing keeping the walk inside one bracket.
+   *
+   * Ref strings are not unique across the database: every 4-fighter single
+   * elimination stamps R1P1 and feeds its final `winner of R1P1`. So an
+   * unscoped slot read adopts another tournament's bouts as dependents of this
+   * one — and every caller of this closure either reverts them or refuses to
+   * proceed because of them.
+   */
+  it('stays inside the phase, even where another one stamps the same refs', async () => {
+    const bracket = singleElimBracket(4);
+    const phase = { id: 'phase-1', type: 'single_elim', config_json: { bracketSize: 4 } };
+    const fixture = fixtureFrom(slotsOf(bracket), phase);
+    const rootSlot = fixture.slots.find((s) => s['round'] === 1 && s['position'] === 1)!;
+    const rootMatch = fixture.matches.find((m) => m['bracket_slot_id'] === rootSlot['id'])!;
+
+    const closure = await dependentClosure(supabaseFor(fixture), rootMatch['id'] as string);
+
+    expect(closure.length).toBeGreaterThan(0);
+    expect(closure.every((bout) => fixture.slots.some((slot) => slot['id'] === bout.slotId))).toBe(
+      true,
+    );
   });
 
   /**
@@ -256,7 +292,7 @@ describe('dependentClosure', () => {
     }));
 
     await expect(
-      dependentClosure(fakeSupabase({ slots, matches, phase }), 'match-0'),
+      dependentClosure(supabaseFor({ slots, matches, phase }), 'match-0'),
     ).rejects.toThrow(BadRequestException);
   });
 });
