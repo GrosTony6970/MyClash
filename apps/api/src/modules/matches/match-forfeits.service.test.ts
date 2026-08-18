@@ -969,7 +969,7 @@ describe('MatchForfeitsService — override regressions', () => {
         update: { id: 'match-1' },
         select: [{ id: 'downstream-9', status: 'scheduled' }],
       },
-      match_forfeits: { maybeSingle: null, insert: { id: 'override-1' } },
+      match_forfeits: { rows: [], returning: { id: 'override-1' } },
       phases: {
         maybeSingle: { id: 'phase-1', type: 'single_elim', tournament_id: 'tournament-1' },
       },
@@ -994,6 +994,10 @@ describe('MatchForfeitsService — override regressions', () => {
 
     expect(result.downstream_match_ids).toEqual(['downstream-9']);
     expect(result.downstream_match_ids).not.toContain('match-1');
+    // Stored on the record just written, and on no other. The list is read by
+    // one guard only — "has a dependent started" — so writing it to the wrong
+    // record would refuse a void somewhere else in the bracket.
+    expect(writtenIds(supabase, 'match_forfeits')).toEqual(['override-1', 'override-1']);
   });
 
   it('refuses to rewrite a locked match without the override-locked capability', async () => {
