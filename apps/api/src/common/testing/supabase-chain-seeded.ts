@@ -97,6 +97,37 @@ function rangeOrder(cell: unknown, value: unknown): number | null {
   return a < b ? -1 : a > b ? 1 : 0;
 }
 
+/**
+ * `ilike` as Postgres means it.
+ *
+ * The pattern is a LIKE pattern, not a substring: `%` matches any run of
+ * characters, `_` matches exactly one, the comparison is case-insensitive, and
+ * it is anchored at BOTH ends. Callers use all three shapes — an exact value
+ * (`ilike('email', normalized)`), a prefix (`slug%`) and a contains (`%term%`)
+ * — so treating this as a plain substring test would quietly widen every exact
+ * one and let those tests assert less than they appear to.
+ *
+ * Regex metacharacters are escaped FIRST, so the dots in an email match dots
+ * rather than any character.
+ *
+ * A non-string cell never matches. `col ILIKE x` over NULL evaluates to NULL,
+ * which is not TRUE, so Postgres does not return the row.
+ */
+function likeMatcher(pattern: string): (cell: unknown) => boolean {
+  const source = pattern
+    .replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+    .replace(/%/g, '.*')
+    .replace(/_/g, '.');
+  const expression = new RegExp(`^${source}$`, 'i');
+  return (cell) => typeof cell === 'string' && expression.test(cell);
+}
+
+/** `ilike` as a row predicate, compiled once per call — the shape `inRange` uses. */
+const likeRow = (column: string, pattern: string) => {
+  const matches = likeMatcher(pattern);
+  return (row: SupabaseRow): boolean => matches(row[column]);
+};
+
 /** `gte` / `lt` as a row predicate. A cell that cannot be ordered is excluded. */
 const inRange =
   (operator: 'gte' | 'lt', column: string, value: unknown) =>
@@ -192,6 +223,7 @@ function installNarrowing(chain: SupabaseChain, log: QueryLog, set: RowSet): voi
     if (operator !== 'eq') throw unsupported('not', `operator "${operator}"`);
     return narrow('not', [c, operator, v], (row) => row[c] !== v);
   });
+  chain.ilike = vi.fn((c: string, p: string) => narrow('ilike', [c, p], likeRow(c, p)));
   chain.gte = vi.fn((c: string, v: unknown) => narrow('gte', [c, v], inRange('gte', c, v)));
   chain.lt = vi.fn((c: string, v: unknown) => narrow('lt', [c, v], inRange('lt', c, v)));
 

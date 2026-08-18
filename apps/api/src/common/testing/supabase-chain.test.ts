@@ -196,6 +196,64 @@ describe('a seeded table refuses what it cannot model', () => {
     expect(() => chain.not('status', 'in', ['voided'])).toThrow(/operator "in"/);
   });
 
+  /**
+   * `ilike` is a LIKE pattern, not a substring test, and 25 call sites across
+   * eleven modules rely on the difference: most pass an exact value, a few pass
+   * `prefix%`, a few pass `%term%`. Matching on substring would silently widen
+   * every exact one — which is how an email lookup starts matching the wrong
+   * person while its test still passes.
+   */
+  const NAMES = {
+    global_persons: {
+      rows: [
+        { id: 'a', email: 'Fighter@Example.com', name: 'Lyon AMHE' },
+        { id: 'b', email: 'other@example.com', name: 'Paris HEMA' },
+        { id: 'c', email: null, name: 'Club de Lyon' },
+        // Differs from `a` only where the dot is, so an unescaped pattern
+        // matches both and an escaped one matches neither but `a`.
+        { id: 'd', email: 'fighter@exampleXcom', name: 'Nowhere' },
+      ],
+    },
+  } as const;
+  const idsFrom = (data: unknown) => (data as Array<{ id: string }>).map((r) => r.id);
+
+  it('matches ilike case-insensitively and anchored, not as a substring', async () => {
+    const from = supabaseFrom(NAMES);
+    const exact = await from('global_persons').select().ilike('email', 'fighter@example.com');
+    expect(idsFrom(exact.data)).toEqual(['a']);
+
+    // 'example.com' is a substring of both emails but an ILIKE match for neither.
+    const substring = await from('global_persons').select().ilike('email', 'example.com');
+    expect(idsFrom(substring.data)).toEqual([]);
+  });
+
+  it('treats % as any run and _ as exactly one character', async () => {
+    const from = supabaseFrom(NAMES);
+    const contains = await from('global_persons').select().ilike('name', '%lyon%');
+    expect(idsFrom(contains.data)).toEqual(['a', 'c']);
+
+    const prefix = await from('global_persons').select().ilike('name', 'Lyon%');
+    expect(idsFrom(prefix.data)).toEqual(['a']);
+
+    const single = await from('global_persons').select().ilike('id', '_');
+    expect(idsFrom(single.data)).toEqual(['a', 'b', 'c', 'd']);
+  });
+
+  it('reads a dot in the pattern literally rather than as any character', async () => {
+    // `d` differs from `a` only at the dot. Leaving the regex escape out turns
+    // every email lookup into a wildcard, which is how a login matches the
+    // wrong account while its test still reads as passing.
+    const { data } = await supabaseFrom(NAMES)('global_persons')
+      .select()
+      .ilike('email', 'fighter@example.com');
+    expect(idsFrom(data)).toEqual(['a']);
+  });
+
+  it('never matches a null cell, because ILIKE over NULL is not TRUE', async () => {
+    const { data } = await supabaseFrom(NAMES)('global_persons').select().ilike('email', '%');
+    expect(idsFrom(data)).toEqual(['a', 'b', 'd']);
+  });
+
   it('throws on an order option it does not model', () => {
     const chain = supabaseFrom({ matches: { rows: ROWS } })('matches');
     expect(() => chain.order('seq', { ascending: true, descending: true })).toThrow(
