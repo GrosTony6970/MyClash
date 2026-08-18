@@ -2,7 +2,7 @@ import { BadRequestException, ConflictException } from '@nestjs/common';
 import { describe, expect, it, vi } from 'vitest';
 import { MatchForfeitsService } from './match-forfeits.service';
 import { seededTableChain } from '../../common/testing/supabase-chain-seeded';
-import type { RecordedWrite, SupabaseRow } from '../../common/testing/supabase-chain';
+import type { RecordedWrite, SeededTable, SupabaseRow } from '../../common/testing/supabase-chain';
 
 describe('MatchForfeitsService', () => {
   it('records a voluntary forfeit as a 0-6 match loss and asks continuation through canContinue', async () => {
@@ -177,6 +177,67 @@ describe('MatchForfeitsService', () => {
     expect(supabase.updated.registrations?.[0]).toBeUndefined();
   });
 
+  /**
+   * "Disqualify after N forfeits" counts this fighter's own live forfeits in
+   * this Tournament, and four filters decide which rows those are. A hardcoded
+   * `count` asserted the threshold while proving nothing about whose forfeits
+   * were counted, or whether a voided one still counted.
+   *
+   * The history below is one real prior forfeit and four rows that must not
+   * count: another fighter's, another Tournament's, one this fighter had voided,
+   * and an organiser's score correction, which shares the table but is not a
+   * forfeit at all. Seeded, so the count is a fact about rows — and the forfeit being
+   * recorded now needs its stored id, which only `returning` can supply.
+   */
+  const forfeitHistory = (mine: Record<string, unknown>[]) => ({
+    rows: [
+      {
+        id: 'ff-mine',
+        tournament_id: 'tournament-1',
+        forfeiting_registration_id: 'reg-red',
+        reason: 'voluntary',
+        voided_at: null,
+        match_id: 'match-8',
+      },
+      {
+        id: 'ff-other-fighter',
+        tournament_id: 'tournament-1',
+        forfeiting_registration_id: 'reg-blue',
+        reason: 'voluntary',
+        voided_at: null,
+        match_id: 'match-7',
+      },
+      {
+        id: 'ff-other-tournament',
+        tournament_id: 'tournament-2',
+        forfeiting_registration_id: 'reg-red',
+        reason: 'voluntary',
+        voided_at: null,
+        match_id: 'match-6',
+      },
+      {
+        id: 'ff-override',
+        tournament_id: 'tournament-1',
+        forfeiting_registration_id: 'reg-red',
+        // An organiser correcting a score. It shares this table but nobody
+        // forfeited, so it must not push anyone toward a disqualification.
+        reason: 'admin_correction',
+        voided_at: null,
+        match_id: 'match-4',
+      },
+      {
+        id: 'ff-voided',
+        tournament_id: 'tournament-1',
+        forfeiting_registration_id: 'reg-red',
+        reason: 'voluntary',
+        voided_at: '2026-01-01T00:00:00Z',
+        match_id: 'match-5',
+      },
+      ...mine,
+    ],
+    returning: { id: 'forfeit-new' },
+  });
+
   it('disqualifies on the Nth forfeit per tournamentPolicy.disqualifyAfter', async () => {
     // "Disqualify after N forfeits" counts FORFEITS, not black cards. The
     // per-reason state and the penalty ruleset's black-card ordinal both key off
@@ -190,8 +251,8 @@ describe('MatchForfeitsService', () => {
         }),
         update: { id: 'match-1' },
       },
-      // One prior non-voided forfeit; this one makes two.
-      match_forfeits: { maybeSingle: null, insert: { id: 'forfeit-2' }, count: 1 },
+      // One live forfeit of their own already; this one makes two.
+      match_forfeits: forfeitHistory([]),
       phases: { maybeSingle: { id: 'phase-1', type: 'pool', tournament_id: 'tournament-1' } },
       registrations: { maybeSingle: { id: 'reg-red', status: 'checked_in' } },
     });
@@ -204,6 +265,38 @@ describe('MatchForfeitsService', () => {
     });
 
     expect(supabase.updated.registrations?.[0]).toMatchObject({ status: 'disqualified' });
+  });
+
+  it('does not reach the threshold on rows that are not this fighter’s live forfeits', async () => {
+    // The same history with the fighter's one real prior forfeit removed. Four
+    // rows still match on some column each, and none of them should count — so
+    // a threshold of 2 is not reached and nobody is disqualified.
+    const history = forfeitHistory([]);
+    const supabase = fakeSupabase({
+      matches: {
+        maybeSingle: matchRow({
+          phaseType: 'pool',
+          status: 'running',
+          tournamentPolicy: { disqualifyAfter: 2 },
+        }),
+        update: { id: 'match-1' },
+      },
+      match_forfeits: {
+        ...history,
+        rows: history.rows.filter((row) => row['id'] !== 'ff-mine'),
+      },
+      phases: { maybeSingle: { id: 'phase-1', type: 'pool', tournament_id: 'tournament-1' } },
+      registrations: { maybeSingle: { id: 'reg-red', status: 'checked_in' } },
+    });
+    const service = new MatchForfeitsService(supabase as never, undefined as never);
+
+    await service.createForfeit('match-1', {
+      forfeitingRegistrationId: 'reg-red',
+      reason: 'voluntary',
+      canContinue: true,
+    });
+
+    expect(supabase.updated.registrations?.[0]).toBeUndefined();
   });
 
   it('leaves the per-reason state alone when no tournament policy is set', async () => {
@@ -436,6 +529,11 @@ type TableState = Record<
      * hand back the same answer whatever the query asked for.
      */
     rows?: SupabaseRow[];
+    /**
+     * What the database adds to an inserted row — the id a later write keys on.
+     * A `rows:` table whose insert is read back must declare it.
+     */
+    returning?: SeededTable['returning'];
   }
 >;
 
@@ -457,6 +555,18 @@ function cannedMaybeSingle(
         : (seed ?? null),
     error: null,
   };
+}
+
+/**
+ * A `rows:` table, handed to the shared double so the real filters narrow it.
+ *
+ * At module scope only to keep `chain` inside the line budget.
+ */
+function seededChainFor(table: string, tableState: TableState[string], writes: RecordedWrite[]) {
+  return seededTableChain(
+    { rows: tableState.rows ?? [], returning: tableState.returning },
+    { table, writes },
+  );
 }
 
 function fakeSupabase(state: TableState) {
@@ -484,9 +594,7 @@ function fakeSupabase(state: TableState) {
     // A `rows:` table is handed to the shared seeded double, which narrows on
     // the real filters. Its writes are mirrored into `inserted`/`updated` so a
     // half-migrated fixture reads the same either way.
-    if (tableState.rows) {
-      return seededTableChain(tableState.rows, { table, writes: seededWrites });
-    }
+    if (tableState.rows) return seededChainFor(table, tableState, seededWrites);
     // One array per chain, shared BY REFERENCE with the recorded mutation: the
     // `.eq()` calls come after `.update()` in the fluent chain, so they have to
     // be able to land on an entry that was already pushed.
