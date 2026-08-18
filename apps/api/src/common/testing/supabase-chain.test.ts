@@ -186,7 +186,7 @@ describe('a seeded table refuses what it cannot model', () => {
     // Passing through would hand back the whole table and the test would assert
     // less than it appears to — the same failure an unconfigured table throws on.
     const chain = supabaseFrom({ matches: { rows: ROWS } })('matches');
-    expect(() => chain.or('id.eq.a')).toThrow(/or is not simulated/);
+    expect(() => chain.contains('tags', ['x'])).toThrow(/contains is not simulated/);
     expect(() => chain.gt('seq', 1)).toThrow(/gt is not simulated/);
   });
 
@@ -252,6 +252,82 @@ describe('a seeded table refuses what it cannot model', () => {
   it('never matches a null cell, because ILIKE over NULL is not TRUE', async () => {
     const { data } = await supabaseFrom(NAMES)('global_persons').select().ilike('email', '%');
     expect(idsFrom(data)).toEqual(['a', 'b', 'd']);
+  });
+
+  /**
+   * `.or()` is the only filter that WIDENS, and seventeen call sites in eleven
+   * modules build one. A seeded table that refused it forced each of those
+   * reads to stay canned, which dropped every other filter in the same query to
+   * an argument assertion.
+   */
+  const BOUTS = {
+    matches: {
+      rows: [
+        { id: 'a', red: 'r1', blue: 'b1', seq: 2, voided_at: null },
+        { id: 'b', red: 'r2', blue: 'r1', seq: 10, voided_at: '2026-01-01' },
+        { id: 'c', red: 'r3', blue: 'b3', seq: 3 },
+      ],
+    },
+  } as const;
+
+  it('keeps a row that matches ANY sibling, not every one', async () => {
+    // 'a' matches only the red term and 'b' only the blue one. An AND here
+    // returns nothing at all; ignoring the filter returns 'c' as well.
+    const { data } = await supabaseFrom(BOUTS)('matches').select().or('red.eq.r1,blue.eq.r1');
+    expect(idsFrom(data)).toEqual(['a', 'b']);
+  });
+
+  it('reads a comma inside in.(…) as a value, not as a sibling separator', async () => {
+    // Splitting on every comma makes this four terms — three unparseable, and
+    // the one that parses narrows on half the list.
+    const { data } = await supabaseFrom(BOUTS)('matches')
+      .select()
+      .or('red.in.(r1,r3),blue.in.(nobody)');
+    expect(idsFrom(data)).toEqual(['a', 'c']);
+  });
+
+  it('matches an ilike sibling as a LIKE pattern', async () => {
+    const { data } = await supabaseFrom(BOUTS)('matches').select().or('red.ilike.R_,blue.ilike.b1');
+    expect(idsFrom(data)).toEqual(['a', 'b', 'c']);
+  });
+
+  it('sees a null cell through is, and only through is', async () => {
+    const from = supabaseFrom(BOUTS);
+    // 'c' has no voided_at column at all, which reads the same as null.
+    const nulls = await from('matches').select().or('voided_at.is.null');
+    expect(idsFrom(nulls.data)).toEqual(['a', 'c']);
+
+    const present = await from('matches').select().or('voided_at.not.is.null');
+    expect(idsFrom(present.data)).toEqual(['b']);
+
+    // `col <> 'x'` over NULL is NULL, which is not TRUE — the half of
+    // three-valued logic people expect to be symmetric and is not.
+    const other = await from('matches').select().or('voided_at.neq.2026-06-06');
+    expect(idsFrom(other.data)).toEqual(['b']);
+
+    // And `col = 'null'` is a comparison against the four-letter word, which no
+    // null row satisfies. Without the guard String(null) makes every one match.
+    const word = await from('matches').select().or('voided_at.eq.null');
+    expect(idsFrom(word.data)).toEqual([]);
+  });
+
+  it('compares the cell as text, because an or value arrives as text', async () => {
+    // `.eq('seq', 10)` is given a real number; '10' comes out of a URL. Strict
+    // equality here would match nothing and read as a filter that simply found
+    // no rows.
+    const { data } = await supabaseFrom(BOUTS)('matches').select().or('seq.eq.10');
+    expect(idsFrom(data)).toEqual(['b']);
+  });
+
+  it('throws on an or shape it does not model, rather than widening', () => {
+    const chain = () => supabaseFrom(BOUTS)('matches').select();
+    expect(() => chain().or('is_system.eq.true,and(a.eq.1,b.eq.2)')).toThrow(/nested and\(\)/);
+    expect(() => chain().or('code.like.x%')).toThrow(/operator "like"/);
+    expect(() => chain().or('seq.gte.2')).toThrow(/operator "gte"/);
+    expect(() => chain().or('red.not.eq.r1')).toThrow(/not\.eq/);
+    expect(() => chain().or('voided_at.is.unknown')).toThrow(/is\."unknown"/);
+    expect(() => chain().or('red.in.r1')).toThrow(/in without a \(list\)/);
+    expect(() => chain().or('')).toThrow(/an empty filter string/);
   });
 
   it('throws on an order option it does not model', () => {

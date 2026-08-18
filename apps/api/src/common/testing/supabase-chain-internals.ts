@@ -37,7 +37,19 @@ export type TableSeed = ChainResult | ChainResult[] | SeededTable;
  * Deliberately short. Every entry is here because a module under test calls it;
  * see UNSIMULATED for why the rest throw rather than pass through.
  */
-const NARROWING = ['eq', 'neq', 'in', 'is', 'not', 'gte', 'lt', 'ilike', 'order', 'limit'] as const;
+const NARROWING = [
+  'eq',
+  'neq',
+  'in',
+  'is',
+  'not',
+  'gte',
+  'lt',
+  'ilike',
+  'or',
+  'order',
+  'limit',
+] as const;
 
 /** Chain methods that describe the query without changing which rows come back. */
 const PASS_THROUGH = ['select', 'returns', 'throwOnError', 'abortSignal'] as const;
@@ -63,7 +75,6 @@ export const UNSIMULATED = [
   'like',
   'contains',
   'overlaps',
-  'or',
   'filter',
   'match',
   'range',

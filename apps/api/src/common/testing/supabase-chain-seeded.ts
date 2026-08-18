@@ -18,6 +18,7 @@ import {
   type SupabaseRow,
   type WriteSink,
 } from './supabase-chain-internals';
+import { parseOr, type OrTerm } from './supabase-chain-or';
 
 /**
  * Compare two PRESENT cells for `order`. Nulls never reach here — where they
@@ -128,6 +129,50 @@ const likeRow = (column: string, pattern: string) => {
   return (row: SupabaseRow): boolean => matches(row[column]);
 };
 
+/**
+ * One sibling of an `.or()` string, as a row predicate.
+ *
+ * `eq`, `neq` and `in` compare the cell's TEXT, because that is what an `.or`
+ * carries: PostgREST puts the value in a URL and Postgres casts it to the
+ * column's type, so `id.eq.7` matches a numeric 7 the same way `.eq('id', 7)`
+ * does. The chain methods keep strict equality — there the caller passed a real
+ * JS value and a type mismatch is a fixture bug worth surfacing.
+ *
+ * An absent or null cell matches none of them. `col = 'x'` over NULL evaluates
+ * to NULL, which is not TRUE, and so does `col <> 'x'` — a null row is excluded
+ * by `neq` as well, which is the half people expect to be symmetric and is not.
+ * `is` is the exception: it is the operator that can see a null.
+ */
+function orRow(term: OrTerm): (row: SupabaseRow) => boolean {
+  const { column, operator, negated, value } = term;
+  if (operator === 'is') {
+    return (row) => ((row[column] ?? null) === value) !== negated;
+  }
+  if (operator === 'ilike') return likeRow(column, value as string);
+  const present = (row: SupabaseRow) => (row[column] ?? null) !== null;
+  if (operator === 'in') {
+    const wanted = value as string[];
+    return (row) => present(row) && wanted.includes(String(row[column]));
+  }
+  const matches = (row: SupabaseRow) => String(row[column]) === value;
+  return operator === 'eq'
+    ? (row) => present(row) && matches(row)
+    : (row) => present(row) && !matches(row);
+}
+
+/**
+ * A whole `.or()` string as one predicate.
+ *
+ * Siblings are ORed, so a row survives if ANY term matches. That makes this the
+ * one filter that WIDENS, and the reason a seeded table cannot approximate `or`
+ * by ignoring it: every other unmodelled filter left out returns too many rows,
+ * and so does this one.
+ */
+function orPredicate(source: string): (row: SupabaseRow) => boolean {
+  const terms = parseOr(source).map((term) => orRow(term));
+  return (row) => terms.some((matches) => matches(row));
+}
+
 /** `gte` / `lt` as a row predicate. A cell that cannot be ordered is excluded. */
 const inRange =
   (operator: 'gte' | 'lt', column: string, value: unknown) =>
@@ -224,6 +269,7 @@ function installNarrowing(chain: SupabaseChain, log: QueryLog, set: RowSet): voi
     return narrow('not', [c, operator, v], (row) => row[c] !== v);
   });
   chain.ilike = vi.fn((c: string, p: string) => narrow('ilike', [c, p], likeRow(c, p)));
+  chain.or = vi.fn((source: string) => narrow('or', [source], orPredicate(source)));
   chain.gte = vi.fn((c: string, v: unknown) => narrow('gte', [c, v], inRange('gte', c, v)));
   chain.lt = vi.fn((c: string, v: unknown) => narrow('lt', [c, v], inRange('lt', c, v)));
 
