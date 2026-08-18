@@ -34,6 +34,14 @@ function swissMatchLabel(roundNumber: number, board: number, boardsInRound: numb
  * like is a decision about the format, while the insert is plumbing. `stamp`
  * is the tournament's ruleset, resolved by the caller because it needs a
  * database read.
+ *
+ * `aId` goes to red and `bId` to blue, and WHICH WAY ROUND IS ARBITRARY.
+ * `SwissPairing` calls the pair a pairing order, not a side assignment: `a` is
+ * merely the higher-ranked fighter, and swapping the sides must not change who
+ * fights whom. Nothing balances sides across rounds either — `SwissPlayer`
+ * tracks `hadBye` and no side history. So this line is deliberately held by no
+ * test: pinning it would make a change the engine's contract permits read as a
+ * regression.
  */
 export function swissMatchRows(
   phaseId: string,
