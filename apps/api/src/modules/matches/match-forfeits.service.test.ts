@@ -38,6 +38,67 @@ const idsWritten = (
   op: RecordedWrite['op'] = 'update',
 ): unknown[] => writesOf(supabase, table, op).map((write) => scopedTo(write, 'id'));
 
+/**
+ * "Disqualify after N forfeits" counts this fighter's own live forfeits in
+ * this Tournament, and four filters decide which rows those are. A hardcoded
+ * `count` asserted the threshold while proving nothing about whose forfeits
+ * were counted, or whether a voided one still counted.
+ *
+ * The history below is one real prior forfeit and four rows that must not
+ * count: another fighter's, another Tournament's, one this fighter had voided,
+ * and an organiser's score correction, which shares the table but is not a
+ * forfeit at all. Seeded, so the count is a fact about rows — and the forfeit being
+ * recorded now needs its stored id, which only `returning` can supply.
+ */
+const forfeitHistory = (mine: Record<string, unknown>[]) => ({
+  rows: [
+    {
+      id: 'ff-mine',
+      tournament_id: 'tournament-1',
+      forfeiting_registration_id: 'reg-red',
+      reason: 'voluntary',
+      voided_at: null,
+      match_id: 'match-8',
+    },
+    {
+      id: 'ff-other-fighter',
+      tournament_id: 'tournament-1',
+      forfeiting_registration_id: 'reg-blue',
+      reason: 'voluntary',
+      voided_at: null,
+      match_id: 'match-7',
+    },
+    {
+      id: 'ff-other-tournament',
+      tournament_id: 'tournament-2',
+      forfeiting_registration_id: 'reg-red',
+      reason: 'voluntary',
+      voided_at: null,
+      match_id: 'match-6',
+    },
+    {
+      id: 'ff-override',
+      tournament_id: 'tournament-1',
+      forfeiting_registration_id: 'reg-red',
+      // An organiser correcting a score. It shares this table but nobody
+      // forfeited, so it must not push anyone toward a disqualification.
+      reason: 'admin_correction',
+      voided_at: null,
+      match_id: 'match-4',
+    },
+    {
+      id: 'ff-voided',
+      tournament_id: 'tournament-1',
+      forfeiting_registration_id: 'reg-red',
+      reason: 'voluntary',
+      voided_at: '2026-01-01T00:00:00Z',
+      match_id: 'match-5',
+    },
+    ...mine,
+  ],
+  returning: { id: 'forfeit-new' },
+});
+
 describe('MatchForfeitsService', () => {
   it('records a voluntary forfeit as a 0-6 match loss and asks continuation through canContinue', async () => {
     // `registrations` is declared because `createForfeit` reads it on EVERY
@@ -272,67 +333,6 @@ describe('MatchForfeitsService', () => {
     expect(writesOf(supabase, 'registrations', 'update')).toEqual([]);
   });
 
-  /**
-   * "Disqualify after N forfeits" counts this fighter's own live forfeits in
-   * this Tournament, and four filters decide which rows those are. A hardcoded
-   * `count` asserted the threshold while proving nothing about whose forfeits
-   * were counted, or whether a voided one still counted.
-   *
-   * The history below is one real prior forfeit and four rows that must not
-   * count: another fighter's, another Tournament's, one this fighter had voided,
-   * and an organiser's score correction, which shares the table but is not a
-   * forfeit at all. Seeded, so the count is a fact about rows — and the forfeit being
-   * recorded now needs its stored id, which only `returning` can supply.
-   */
-  const forfeitHistory = (mine: Record<string, unknown>[]) => ({
-    rows: [
-      {
-        id: 'ff-mine',
-        tournament_id: 'tournament-1',
-        forfeiting_registration_id: 'reg-red',
-        reason: 'voluntary',
-        voided_at: null,
-        match_id: 'match-8',
-      },
-      {
-        id: 'ff-other-fighter',
-        tournament_id: 'tournament-1',
-        forfeiting_registration_id: 'reg-blue',
-        reason: 'voluntary',
-        voided_at: null,
-        match_id: 'match-7',
-      },
-      {
-        id: 'ff-other-tournament',
-        tournament_id: 'tournament-2',
-        forfeiting_registration_id: 'reg-red',
-        reason: 'voluntary',
-        voided_at: null,
-        match_id: 'match-6',
-      },
-      {
-        id: 'ff-override',
-        tournament_id: 'tournament-1',
-        forfeiting_registration_id: 'reg-red',
-        // An organiser correcting a score. It shares this table but nobody
-        // forfeited, so it must not push anyone toward a disqualification.
-        reason: 'admin_correction',
-        voided_at: null,
-        match_id: 'match-4',
-      },
-      {
-        id: 'ff-voided',
-        tournament_id: 'tournament-1',
-        forfeiting_registration_id: 'reg-red',
-        reason: 'voluntary',
-        voided_at: '2026-01-01T00:00:00Z',
-        match_id: 'match-5',
-      },
-      ...mine,
-    ],
-    returning: { id: 'forfeit-new' },
-  });
-
   it('disqualifies on the Nth forfeit per tournamentPolicy.disqualifyAfter', async () => {
     // "Disqualify after N forfeits" counts FORFEITS, not black cards. The
     // per-reason state and the penalty ruleset's black-card ordinal both key off
@@ -419,12 +419,10 @@ describe('MatchForfeitsService', () => {
 
 describe('MatchForfeitsService — result overrides', () => {
   it('overrides a COMPLETED match, which a forfeit may not touch', async () => {
-    const supabase = fakeSupabase({
-      matches: {
-        maybeSingle: matchRow({ phaseType: 'pool', status: 'completed' }),
-        update: { id: 'match-1' },
-      },
-      match_forfeits: { maybeSingle: null, insert: { id: 'override-1' } },
+    const supabase = mockSupabase({
+      matches: { rows: [matchRow({ phaseType: 'pool', status: 'completed' })] },
+      match_forfeits: { rows: [], returning: { id: 'override-1' } },
+      registrations: { rows: [{ id: 'reg-red', status: 'checked_in' }] },
     });
     const service = new MatchForfeitsService(supabase as never, undefined as never);
 
@@ -434,7 +432,7 @@ describe('MatchForfeitsService — result overrides', () => {
       explicitScores: { forfeitingScore: 3, opponentScore: 5 },
     });
 
-    expect(supabase.inserted.match_forfeits?.[0]).toMatchObject({
+    expect(rowsOf(supabase, 'match_forfeits', 'insert')[0]).toMatchObject({
       reason: 'admin_correction',
       score_policy: 'explicit',
       forfeiting_score: 3,
@@ -442,7 +440,7 @@ describe('MatchForfeitsService — result overrides', () => {
       winner_registration_id: 'reg-blue',
     });
     // The stated result, not one derived from the ruleset's per-reason policy.
-    expect(supabase.updated.matches?.[0]).toMatchObject({
+    expect(rowsOf(supabase, 'matches', 'update')[0]).toMatchObject({
       status: 'completed',
       red_score: 3,
       blue_score: 5,
@@ -454,8 +452,8 @@ describe('MatchForfeitsService — result overrides', () => {
   });
 
   it('still refuses a FORFEIT on a completed match', async () => {
-    const supabase = fakeSupabase({
-      matches: { maybeSingle: matchRow({ phaseType: 'pool', status: 'completed' }) },
+    const supabase = mockSupabase({
+      matches: { rows: [matchRow({ phaseType: 'pool', status: 'completed' })] },
     });
     const service = new MatchForfeitsService(supabase as never, undefined as never);
 
@@ -469,20 +467,23 @@ describe('MatchForfeitsService — result overrides', () => {
   });
 
   it('does not count an override toward tournamentPolicy.disqualifyAfter', async () => {
-    // The same shape that disqualifies on a forfeit: a threshold of 1 and
-    // five prior rows. A correction is not a forfeit, so nothing escalates.
-    const supabase = fakeSupabase({
+    // Exactly the shape that disqualifies on a forfeit, and BOTH counts are now
+    // facts about rows rather than numbers the fixture asserted into being: one
+    // live prior forfeit against a threshold of 1, and no other completed bout
+    // against `forfeitFighterBefore1stMatch`. Either rule fires on a forfeit. A
+    // correction is not one, so nothing escalates.
+    const supabase = mockSupabase({
       matches: {
-        maybeSingle: matchRow({
-          phaseType: 'pool',
-          status: 'completed',
-          tournamentPolicy: { disqualifyAfter: 1, forfeitFighterBefore1stMatch: true },
-        }),
-        update: { id: 'match-1' },
-        count: 0,
+        rows: [
+          matchRow({
+            phaseType: 'pool',
+            status: 'completed',
+            tournamentPolicy: { disqualifyAfter: 1, forfeitFighterBefore1stMatch: true },
+          }),
+        ],
       },
-      match_forfeits: { maybeSingle: null, insert: { id: 'override-1' }, count: 5 },
-      registrations: { maybeSingle: { id: 'reg-red', status: 'checked_in' } },
+      match_forfeits: forfeitHistory([]),
+      registrations: { rows: [{ id: 'reg-red', status: 'checked_in' }] },
     });
     const service = new MatchForfeitsService(supabase as never, undefined as never);
 
@@ -492,15 +493,18 @@ describe('MatchForfeitsService — result overrides', () => {
       explicitScores: { forfeitingScore: 0, opponentScore: 1 },
     });
 
-    expect(supabase.updated.registrations?.[0]).toBeUndefined();
+    expect(writesOf(supabase, 'registrations', 'update')).toEqual([]);
   });
 
   it('refuses an override once a dependent match has started', async () => {
-    const supabase = fakeSupabase({
+    const supabase = mockSupabase({
       matches: {
-        maybeSingle: matchRow({ phaseType: 'single_elim', status: 'completed' }),
-        select: [{ id: 'downstream-1', status: 'running' }],
+        rows: [
+          matchRow({ phaseType: 'single_elim', status: 'completed' }),
+          { id: 'downstream-1', status: 'running' },
+        ],
       },
+      match_forfeits: { rows: [] },
     });
     const bracketAdvance = {
       findDownstreamMatchIds: vi.fn(async () => ['downstream-1']),
@@ -520,20 +524,24 @@ describe('MatchForfeitsService — result overrides', () => {
         explicitScores: { forfeitingScore: 0, opponentScore: 1 },
       }),
     ).rejects.toThrow('Cannot override a result after a dependent match has started');
-    expect(supabase.inserted.match_forfeits).toBeUndefined();
+    expect(writesOf(supabase, 'match_forfeits', 'insert')).toEqual([]);
   });
 
   it('clears the downstream slot before re-advancing an overridden bracket match', async () => {
     // Advancement only fills a side that is still null, so without the clear
     // the re-advance is a silent no-op and the bracket keeps the old winner.
-    const supabase = fakeSupabase({
+    const supabase = mockSupabase({
       matches: {
-        maybeSingle: matchRow({ phaseType: 'single_elim', status: 'completed' }),
-        update: { id: 'match-1' },
-        select: [{ id: 'downstream-1', status: 'scheduled' }],
+        rows: [
+          matchRow({ phaseType: 'single_elim', status: 'completed' }),
+          // The dependent bout, still unfought — which is what lets the
+          // override through rather than being refused.
+          { id: 'downstream-1', status: 'scheduled' },
+        ],
       },
-      match_forfeits: { maybeSingle: null, insert: { id: 'override-1' } },
-      bracket_slots: { maybeSingle: null },
+      match_forfeits: { rows: [], returning: { id: 'override-1' } },
+      bracket_slots: { rows: [] },
+      registrations: { rows: [{ id: 'reg-red', status: 'checked_in' }] },
     });
     const bracketAdvance = {
       findDownstreamMatchIds: vi.fn(async () => ['downstream-1']),
