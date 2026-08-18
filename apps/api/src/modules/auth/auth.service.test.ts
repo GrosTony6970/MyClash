@@ -431,12 +431,13 @@ describe('AuthService', () => {
               : []),
           ],
         },
+        // Only the OTHER account's grant is a decoy here. There is no row this
+        // user could hold that `.in('role', ['admin','owner'])` would exclude:
+        // league_user_roles_role_check (migration 0015) permits exactly those
+        // two values, so the filter cannot narrow anything the database allows.
         league_user_roles: {
           rows: [
             { user_id: OTHER, role: 'admin' },
-            // This account holds a league role that is NOT admin or owner, so
-            // the role filter is what keeps "My leagues" out of their nav.
-            { user_id: USER, role: 'viewer' },
             ...(mine.leagueRole ? [{ user_id: USER, role: mine.leagueRole }] : []),
           ],
         },
@@ -623,7 +624,7 @@ describe('AuthService', () => {
     // must be true for an account holding only a personal league grant.
     it('reports hasLeagueRoles for an account with a direct league grant', async () => {
       mockAuthUser({ id: USER, email: 'league@example.com', user_metadata: {} });
-      seedMe({ leagueRole: 'admin' });
+      const seeded = seedMe({ leagueRole: 'admin' });
 
       const result = await service.getMe(claimedRequest('league-token'));
 
@@ -632,6 +633,12 @@ describe('AuthService', () => {
         organizations: [],
         hasLeagueRoles: true,
       });
+      // An argument assertion on purpose, and the only kind available: the role
+      // list matches the table's CHECK constraint exactly, so no seedable row
+      // can make it decide an outcome.
+      expect(filtersFor(seeded.from, 'league_user_roles', 'in')).toEqual([
+        ['role', ['admin', 'owner']],
+      ]);
     });
 
     it('does not query league roles for an anonymous visitor', async () => {
