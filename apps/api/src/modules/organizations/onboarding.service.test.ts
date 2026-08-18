@@ -4,6 +4,7 @@ import { LEGAL_POLICIES } from '@myclash/types';
 import { LegalAcceptanceService } from '../privacy/legal-acceptance.service';
 import { OnboardingService, type SignupResult } from './onboarding.service';
 import { RESERVED_SLUGS } from './dto/signup.dto';
+import { mockSupabase as seededSupabase, writesTo } from '../../common/testing/supabase-chain';
 
 /**
  * Every signup carries the published versions — the DTO requires them and the
@@ -148,7 +149,23 @@ describe('OnboardingService', () => {
 
   describe('signup — password path', () => {
     it('creates user and returns emailVerificationRequired', async () => {
-      fromMock.mockReturnValue(makeQueryChain({ data: null, error: null }));
+      /**
+       * organizations is read then written wanting two different answers — the
+       * slug check must find nothing, the insert must hand its row back — so it
+       * carries a QUEUE scoped to that one table. A single canned chain gave the
+       * insert a null row, and `org.id` on null threw into createOrgAndMembership's
+       * "tables may not exist yet" catch: the org and the owner membership were
+       * never created, in a test that passed.
+       */
+      const seeded = seededSupabase({
+        organizations: [
+          { data: null, error: null },
+          { data: { id: 'org-1' }, error: null },
+        ],
+        organization_members: { data: null, error: null },
+        legal_acceptances: { data: null, error: null },
+      });
+      fromMock.mockImplementation(seeded.from as never);
       createUserMock.mockResolvedValue({
         data: { user: { id: 'user-123' } },
         error: null,
@@ -171,6 +188,29 @@ describe('OnboardingService', () => {
       const typed = result as Extract<SignupResult, { type: 'password' }>;
       expect(typed.type).toBe('password');
       expect(typed.emailVerificationRequired).toBe(true);
+
+      // The point of organizer signup: an organization, owned by the account
+      // that just signed up.
+      const [org] = writesTo(seeded, 'organizations');
+      expect(org?.row).toEqual({
+        name: 'Lyon AMHE',
+        slug: 'lyon-amhe',
+        status: 'active',
+        created_by_user_id: 'user-123',
+      });
+      const [membership] = writesTo(seeded, 'organization_members');
+      expect(membership?.row).toEqual({
+        organization_id: 'org-1',
+        user_id: 'user-123',
+        role: 'owner',
+      });
+
+      // Sat in the same blind spot: what the owner agreed to is recorded
+      // against the account that agreed, not left to the signup form.
+      const [accepted] = writesTo(seeded, 'legal_acceptances');
+      expect(accepted?.row).toEqual(
+        expect.arrayContaining([expect.objectContaining({ user_id: 'user-123' })]),
+      );
     });
 
     it.each([
