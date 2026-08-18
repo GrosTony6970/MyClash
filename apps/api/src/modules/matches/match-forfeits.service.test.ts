@@ -1605,24 +1605,76 @@ describe('MatchForfeitsService — re-recorded forfeit under a live withdrawal',
  * a void would carry down.
  */
 describe('MatchForfeitsService — cascade context on the read', () => {
-  /** `match_forfeits` read twice in one call — discriminate on the filters. */
-  function forfeitReads(active: Record<string, unknown>, parent: unknown) {
-    return (filters: Array<[string, unknown]>) => {
-      const byId = filters.find(([column]) => column === 'id')?.[1];
-      return byId === undefined ? active : byId === active['parent_forfeit_id'] ? parent : null;
-    };
-  }
+  /**
+   * Every record one pool holds, seeded so the three reads this describe makes
+   * are facts about rows rather than answers a fixture handed back.
+   *
+   * The reads are "the live record on this bout", "how many live children would
+   * a void reopen" and "is the record that withdrew the fighter still standing".
+   * Each decoy below exists for one of the scopes that separates them: a VOIDED
+   * record on the same bout, a live record on another bout, and a child the
+   * organiser had already voided.
+   */
+  const RECORDS = [
+    // The withdrawal, on the bout where the fighter pulled out.
+    { id: 'root-1', match_id: 'match-1', parent_forfeit_id: null, voided_at: null },
+    // An earlier record on that same bout, voided — the live-record read must
+    // not find it.
+    {
+      id: 'stale-1',
+      match_id: 'match-1',
+      parent_forfeit_id: null,
+      voided_at: '2026-08-09T09:00:00.000Z',
+    },
+    // The three bouts the withdrawal closed.
+    {
+      id: 'child-1',
+      match_id: 'match-9',
+      parent_forfeit_id: 'root-1',
+      auto_created: true,
+      voided_at: null,
+    },
+    {
+      id: 'child-2',
+      match_id: 'match-10',
+      parent_forfeit_id: 'root-1',
+      auto_created: true,
+      voided_at: null,
+    },
+    {
+      id: 'child-3',
+      match_id: 'match-11',
+      parent_forfeit_id: 'root-1',
+      auto_created: true,
+      voided_at: null,
+    },
+    // A child the organiser already put back on the schedule. Off the record,
+    // so it is not a bout this void would reopen.
+    {
+      id: 'child-voided',
+      match_id: 'match-12',
+      parent_forfeit_id: 'root-1',
+      voided_at: '2026-08-10T09:00:00.000Z',
+    },
+    // Another voided record, on the bout child-1 covers.
+    {
+      id: 'stale-9',
+      match_id: 'match-9',
+      parent_forfeit_id: null,
+      voided_at: '2026-08-09T09:00:00.000Z',
+    },
+    // A child still pointing at a withdrawal that was voided and re-recorded.
+    // A re-recorded parent is a DIFFERENT row, so this one names a withdrawal
+    // that no longer stands.
+    { id: 'orphan-1', match_id: 'match-13', parent_forfeit_id: 'stale-9', voided_at: null },
+    // A one-bout forfeit that closed nothing else.
+    { id: 'solo-1', match_id: 'match-20', parent_forfeit_id: null, voided_at: null },
+  ];
+
+  const readState = () => ({ match_forfeits: { rows: RECORDS } });
 
   it('reports a child, and whether the record that withdrew the fighter still stands', async () => {
-    const supabase = fakeSupabase({
-      match_forfeits: {
-        maybeSingle: forfeitReads(
-          { id: 'child-1', match_id: 'match-9', parent_forfeit_id: 'root-1', auto_created: true },
-          { voided_at: null },
-        ),
-        count: 0,
-      },
-    });
+    const supabase = fakeSupabase(readState());
     const service = new MatchForfeitsService(supabase as never, undefined as never);
 
     const active = await service.getActiveForfeit('match-9');
@@ -1634,57 +1686,51 @@ describe('MatchForfeitsService — cascade context on the read', () => {
   });
 
   it('reports a child whose parent has already been voided', async () => {
-    const supabase = fakeSupabase({
-      match_forfeits: {
-        maybeSingle: forfeitReads(
-          { id: 'child-1', match_id: 'match-9', parent_forfeit_id: 'root-1' },
-          { voided_at: '2026-08-10T09:00:00.000Z' },
-        ),
-        count: 0,
-      },
-    });
+    const supabase = fakeSupabase(readState());
     const service = new MatchForfeitsService(supabase as never, undefined as never);
 
-    const active = await service.getActiveForfeit('match-9');
+    const active = await service.getActiveForfeit('match-13');
 
-    expect(active).toMatchObject({ cascade: { role: 'child', parentActive: false } });
+    expect(active).toMatchObject({
+      id: 'orphan-1',
+      cascade: { role: 'child', parentActive: false },
+    });
   });
 
   it('reports a root with the number of bouts its void would reopen', async () => {
-    const supabase = fakeSupabase({
-      match_forfeits: {
-        maybeSingle: { id: 'root-1', match_id: 'match-1', parent_forfeit_id: null },
-        count: 3,
-      },
-    });
+    // Three live children and one the organiser already voided. The count is
+    // what the confirm copy quotes, so a voided child counted here would
+    // promise the organiser a bout back that is already back.
+    const supabase = fakeSupabase(readState());
     const service = new MatchForfeitsService(supabase as never, undefined as never);
 
     const active = await service.getActiveForfeit('match-1');
 
-    expect(active).toMatchObject({ cascade: { role: 'root', childCount: 3, parentActive: false } });
+    expect(active).toMatchObject({
+      id: 'root-1',
+      cascade: { role: 'root', childCount: 3, parentActive: false },
+    });
   });
 
   it('reports a standalone record when it closed nothing but its own bout', async () => {
-    const supabase = fakeSupabase({
-      match_forfeits: {
-        maybeSingle: { id: 'solo-1', match_id: 'match-1', parent_forfeit_id: null },
-        count: 0,
-      },
-    });
+    const supabase = fakeSupabase(readState());
     const service = new MatchForfeitsService(supabase as never, undefined as never);
 
-    const active = await service.getActiveForfeit('match-1');
+    const active = await service.getActiveForfeit('match-20');
 
-    expect(active).toMatchObject({ cascade: { role: 'standalone', childCount: 0 } });
+    expect(active).toMatchObject({
+      id: 'solo-1',
+      cascade: { role: 'standalone', childCount: 0 },
+    });
   });
 
-  it('answers null for a match with no live record, without the extra reads', async () => {
-    // Passes pre-fix — a guard that the cascade block never turns "no record"
-    // into an object the FE would render as one.
-    const supabase = fakeSupabase({ match_forfeits: { maybeSingle: null } });
+  it('answers null for a bout whose record was voided, without the extra reads', async () => {
+    // match-12 carries a record; it is simply not live. Answering with it would
+    // render a void button for a bout that is already back on the schedule.
+    const supabase = fakeSupabase(readState());
     const service = new MatchForfeitsService(supabase as never, undefined as never);
 
-    expect(await service.getActiveForfeit('match-1')).toBeNull();
+    expect(await service.getActiveForfeit('match-12')).toBeNull();
     expect(supabase.service.from).toHaveBeenCalledTimes(1);
   });
 });
