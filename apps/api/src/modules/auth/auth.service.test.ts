@@ -10,6 +10,7 @@ import {
   scopedTo,
   writesTo,
   type RecordedWrite,
+  type SupabaseRow,
   type TableSeed,
 } from '../../common/testing/supabase-chain';
 
@@ -55,28 +56,6 @@ function makeQueryChain(result: unknown) {
     update: vi.fn().mockReturnThis(),
     delete: vi.fn().mockReturnThis(),
   };
-}
-
-function makeAwaitableQueryChain(result: unknown) {
-  const chain = Object.assign(Promise.resolve(result), {
-    select: vi.fn(),
-    eq: vi.fn(),
-    is: vi.fn(),
-    ilike: vi.fn(),
-    in: vi.fn(),
-    limit: vi.fn(),
-    order: vi.fn(),
-    update: vi.fn(),
-  });
-  chain.select.mockReturnValue(chain);
-  chain.eq.mockReturnValue(chain);
-  chain.is.mockReturnValue(chain);
-  chain.ilike.mockReturnValue(chain);
-  chain.in.mockReturnValue(chain);
-  chain.limit.mockReturnValue(chain);
-  chain.order.mockReturnValue(chain);
-  chain.update.mockReturnValue(chain);
-  return chain;
 }
 
 /**
@@ -356,65 +335,185 @@ describe('AuthService', () => {
     });
   });
 
+  /**
+   * `/me` — read on every page load, by claimed users, guests and nobody.
+   *
+   * The claimed branch alone touches five tables: the caller's roster profile,
+   * their platform tier, their workspaces, their avatar and their league
+   * grants. Every one of those reads sits inside a `catch` that falls back to
+   * empty, so a fixture that cannot serve a query produces a plausible-looking
+   * signed-in response rather than a failure.
+   *
+   * The old fixtures answered by CALL ORDER, and three separate comments in
+   * `buildClaimedResponse` record what that cost: each says a query is "kept
+   * last" or "appended LAST" because "inserting a query earlier silently hands
+   * every later one the wrong response". The test fixture was dictating where
+   * production queries were allowed to go. Routing by table removes that.
+   *
+   * Every table below carries a row belonging to ANOTHER account, so a lost
+   * scope does not return nothing — it returns somebody else's profile, tier,
+   * workspace list, avatar or league grant.
+   */
   describe('getMe', () => {
+    const USER = 'user-123';
+
+    const GUEST_PERSON = {
+      id: 'person-1',
+      given_name: 'Jean',
+      family_name: 'Dupont',
+      event_id: 'event-1',
+      claim_status: 'unclaimed',
+    };
+
+    const OTHER = 'other-user';
+    const soon = () => new Date(Date.now() + 3_600_000).toISOString();
+
+    /** One row per table, all belonging to a DIFFERENT account. */
+    const DECOY_PERSON = {
+      id: 'person-other',
+      claimed_by_user_id: OTHER,
+      given_name: 'Someone',
+      family_name: 'Else',
+      event_id: 'event-9',
+      claim_status: 'claimed',
+    };
+    const DECOY_MEMBERSHIP = {
+      user_id: OTHER,
+      role: 'owner',
+      organizations: { id: 'org-9', slug: 'not-mine', name: 'Not Mine' },
+    };
+    const DECOY_GLOBAL = {
+      id: 'global-other',
+      claimed_by_user_id: OTHER,
+      photo_url: 'https://cdn.example/not-me.jpg',
+    };
+    const GUEST_SESSIONS = [
+      // Revoked, and seeded first: a lost id scope reads as a revoked session,
+      // which the service reports as anonymous.
+      {
+        id: 'session-other',
+        device_label: 'Another tablet',
+        expires_at: soon(),
+        revoked_at: new Date().toISOString(),
+      },
+      { id: 'session-1', device_label: 'iPhone (Safari)', expires_at: soon(), revoked_at: null },
+    ];
+
+    interface MineSeed {
+      person?: SupabaseRow;
+      platformRole?: string;
+      memberships?: SupabaseRow[];
+      photoUrl?: string;
+      leagueRole?: string;
+    }
+
+    function seedMe(mine: MineSeed = {}) {
+      return seedTables({
+        persons: { rows: [DECOY_PERSON, GUEST_PERSON, ...(mine.person ? [mine.person] : [])] },
+        platform_roles: {
+          rows: [
+            { user_id: OTHER, role: 'super_admin' },
+            ...(mine.platformRole ? [{ user_id: USER, role: mine.platformRole }] : []),
+          ],
+        },
+        organization_members: { rows: [DECOY_MEMBERSHIP, ...(mine.memberships ?? [])] },
+        global_persons: {
+          rows: [
+            DECOY_GLOBAL,
+            ...(mine.photoUrl
+              ? [{ id: 'global-1', claimed_by_user_id: USER, photo_url: mine.photoUrl }]
+              : []),
+          ],
+        },
+        league_user_roles: {
+          rows: [
+            { user_id: OTHER, role: 'admin' },
+            // This account holds a league role that is NOT admin or owner, so
+            // the role filter is what keeps "My leagues" out of their nav.
+            { user_id: USER, role: 'viewer' },
+            ...(mine.leagueRole ? [{ user_id: USER, role: mine.leagueRole }] : []),
+          ],
+        },
+        guest_sessions: { rows: GUEST_SESSIONS },
+      });
+    }
+
+    beforeEach(() => {
+      seedMe();
+    });
+
+    const claimedRequest = (token = 'valid-token') =>
+      ({ headers: { authorization: `Bearer ${token}` }, cookies: {} }) as never;
+
+    const guestCookie = () =>
+      guestJwtService.sign(
+        { sub: 'session-1', person_id: 'person-1', event_id: 'event-1', type: 'guest' },
+        new Date(Date.now() + 3_600_000),
+      );
+
     it('returns anonymous when no token present', async () => {
-      const mockRequest = { headers: {}, cookies: {} } as never;
-      const result = await service.getMe(mockRequest);
+      const result = await service.getMe({ headers: {}, cookies: {} } as never);
       expect(result.type).toBe('anonymous');
     });
 
     it('returns claimed when valid Supabase token present', async () => {
       mockAuthUser({
-        id: 'user-123',
+        id: USER,
         email: 'organizer@example.com',
         user_metadata: { display_name: 'Jean Dupont' },
       });
 
-      const mockRequest = {
-        headers: { authorization: 'Bearer valid-token' },
-        cookies: {},
-      } as never;
+      const result = await service.getMe(claimedRequest());
 
-      const result = await service.getMe(mockRequest);
       expect(fetchMock).toHaveBeenCalledWith(
         'http://supabase-auth:9999/user',
         expect.objectContaining({
           method: 'GET',
-          headers: {
-            apikey: 'anon-key',
-            Authorization: 'Bearer valid-token',
-          },
+          headers: { apikey: 'anon-key', Authorization: 'Bearer valid-token' },
         }),
       );
       expect(getUserMock).not.toHaveBeenCalled();
       expect(result.type).toBe('claimed');
       expect(result.user?.email).toBe('organizer@example.com');
+      // Nothing seeded belongs to this account, so every admin axis is empty —
+      // and none of the other account's rows leaked into it.
       expect(result.admin).toEqual({
         platformRole: null,
         organizations: [],
         hasLeagueRoles: false,
       });
+      expect(result.user?.photo_url).toBeUndefined();
+      expect(result.person).toBeUndefined();
+    });
+
+    it('returns the caller own roster profile, not another account one', async () => {
+      mockAuthUser({ id: USER, email: 'fighter@example.com', user_metadata: {} });
+      seedMe({
+        person: {
+          id: 'person-mine',
+          claimed_by_user_id: USER,
+          given_name: 'Fighter',
+          family_name: 'One',
+          event_id: 'event-1',
+          claim_status: 'claimed',
+        },
+      });
+
+      const result = await service.getMe(claimedRequest());
+
+      expect(result.person?.id).toBe('person-mine');
+      expect(result.person?.given_name).toBe('Fighter');
     });
 
     it('includes the claimed user global profile photo when linked', async () => {
       mockAuthUser({
-        id: 'user-123',
+        id: USER,
         email: 'fighter@example.com',
         user_metadata: { display_name: 'Fighter One' },
       });
+      seedMe({ photoUrl: 'https://cdn.example/avatar.jpg' });
 
-      fromMock
-        .mockReturnValueOnce(makeQueryChain({ data: null, error: null })) // persons
-        .mockReturnValueOnce(makeQueryChain({ data: null, error: null })) // super_admin check
-        .mockReturnValueOnce(makeAwaitableQueryChain({ data: [], error: null })) // orgs list
-        .mockReturnValueOnce(
-          makeQueryChain({ data: { photo_url: 'https://cdn.example/avatar.jpg' }, error: null }),
-        ); // global_persons photo (last)
-
-      const result = await service.getMe({
-        headers: { authorization: 'Bearer valid-token' },
-        cookies: {},
-      } as never);
+      const result = await service.getMe(claimedRequest());
 
       expect(result.type).toBe('claimed');
       expect(result.user?.photo_url).toBe('https://cdn.example/avatar.jpg');
@@ -422,20 +521,13 @@ describe('AuthService', () => {
 
     it('returns super-admin landing context for platform admins', async () => {
       mockAuthUser({
-        id: 'admin-123',
+        id: USER,
         email: 'admin@example.com',
         user_metadata: { display_name: 'Super Admin' },
       });
+      seedMe({ platformRole: 'super_admin' });
 
-      fromMock
-        .mockReturnValueOnce(makeQueryChain({ data: null, error: null }))
-        .mockReturnValueOnce(makeQueryChain({ data: { role: 'super_admin' }, error: null }))
-        .mockReturnValueOnce(makeAwaitableQueryChain({ data: [], error: null }));
-
-      const result = await service.getMe({
-        headers: { authorization: 'Bearer admin-token' },
-        cookies: {},
-      } as never);
+      const result = await service.getMe(claimedRequest('admin-token'));
 
       expect(result.type).toBe('claimed');
       expect(result.admin).toEqual({
@@ -448,17 +540,10 @@ describe('AuthService', () => {
     // The tier is reported verbatim, not collapsed to a boolean. This is what
     // lets the console gate its nav per tier instead of all-or-nothing.
     it.each(['platform_admin', 'platform_viewer'])('reports the %s tier verbatim', async (role) => {
-      mockAuthUser({ id: `${role}-1`, email: `${role}@example.com` });
+      mockAuthUser({ id: USER, email: `${role}@example.com` });
+      seedMe({ platformRole: role });
 
-      fromMock
-        .mockReturnValueOnce(makeQueryChain({ data: null, error: null }))
-        .mockReturnValueOnce(makeQueryChain({ data: { role }, error: null }))
-        .mockReturnValueOnce(makeAwaitableQueryChain({ data: [], error: null }));
-
-      const result = await service.getMe({
-        headers: { authorization: 'Bearer t' },
-        cookies: {},
-      } as never);
+      const result = await service.getMe(claimedRequest());
 
       expect(result.admin).toEqual({
         platformRole: role,
@@ -468,35 +553,23 @@ describe('AuthService', () => {
     });
 
     it('returns organization landing context for organizer users', async () => {
-      mockAuthUser({
-        id: 'organizer-123',
-        email: 'organizer@example.com',
-        user_metadata: {},
+      mockAuthUser({ id: USER, email: 'organizer@example.com', user_metadata: {} });
+      seedMe({
+        memberships: [
+          {
+            user_id: USER,
+            role: 'owner',
+            organizations: { id: 'org-1', slug: 'lyon-amhe', name: 'Lyon AMHE' },
+          },
+          {
+            user_id: USER,
+            role: 'admin',
+            organizations: [{ id: 'org-2', slug: 'paris-hema', name: 'Paris HEMA' }],
+          },
+        ],
       });
 
-      fromMock
-        .mockReturnValueOnce(makeQueryChain({ data: null, error: null }))
-        .mockReturnValueOnce(makeQueryChain({ data: null, error: null }))
-        .mockReturnValueOnce(
-          makeAwaitableQueryChain({
-            data: [
-              {
-                role: 'owner',
-                organizations: { id: 'org-1', slug: 'lyon-amhe', name: 'Lyon AMHE' },
-              },
-              {
-                role: 'admin',
-                organizations: [{ id: 'org-2', slug: 'paris-hema', name: 'Paris HEMA' }],
-              },
-            ],
-            error: null,
-          }),
-        );
-
-      const result = await service.getMe({
-        headers: { authorization: 'Bearer organizer-token' },
-        cookies: {},
-      } as never);
+      const result = await service.getMe(claimedRequest('organizer-token'));
 
       expect(result.type).toBe('claimed');
       // `name` rides along for the sidebar workspace switcher, which lists a
@@ -518,31 +591,22 @@ describe('AuthService', () => {
     // unnamed row in the switcher menu is unpickable.
     it('drops a membership row whose organization has no name', async () => {
       mockAuthUser({
-        id: 'organizer-123',
+        id: USER,
         email: 'organizer@example.com',
         user_metadata: { display_name: 'Org Admin' },
       });
+      seedMe({
+        memberships: [
+          { user_id: USER, role: 'owner', organizations: { id: 'org-1', slug: 'lyon-amhe' } },
+          {
+            user_id: USER,
+            role: 'admin',
+            organizations: { id: 'org-2', slug: 'paris-hema', name: 'Paris HEMA' },
+          },
+        ],
+      });
 
-      fromMock
-        .mockReturnValueOnce(makeQueryChain({ data: null, error: null }))
-        .mockReturnValueOnce(makeQueryChain({ data: null, error: null }))
-        .mockReturnValueOnce(
-          makeAwaitableQueryChain({
-            data: [
-              { role: 'owner', organizations: { id: 'org-1', slug: 'lyon-amhe' } },
-              {
-                role: 'admin',
-                organizations: { id: 'org-2', slug: 'paris-hema', name: 'Paris HEMA' },
-              },
-            ],
-            error: null,
-          }),
-        );
-
-      const result = await service.getMe({
-        headers: { authorization: 'Bearer organizer-token' },
-        cookies: {},
-      } as never);
+      const result = await service.getMe(claimedRequest('organizer-token'));
 
       expect(result.admin?.organizations).toEqual([
         { id: 'org-2', slug: 'paris-hema', name: 'Paris HEMA', role: 'admin' },
@@ -552,19 +616,10 @@ describe('AuthService', () => {
     // Drives the "My leagues" nav entry and the /dashboard league branch, so it
     // must be true for an account holding only a personal league grant.
     it('reports hasLeagueRoles for an account with a direct league grant', async () => {
-      mockAuthUser({ id: 'league-admin-1', email: 'league@example.com', user_metadata: {} });
+      mockAuthUser({ id: USER, email: 'league@example.com', user_metadata: {} });
+      seedMe({ leagueRole: 'admin' });
 
-      fromMock
-        .mockReturnValueOnce(makeQueryChain({ data: null, error: null })) // persons
-        .mockReturnValueOnce(makeQueryChain({ data: null, error: null })) // super_admin check
-        .mockReturnValueOnce(makeAwaitableQueryChain({ data: [], error: null })) // orgs list
-        .mockReturnValueOnce(makeQueryChain({ data: null, error: null })) // photo
-        .mockReturnValueOnce(makeQueryChain({ data: [{ role: 'admin' }], error: null }));
-
-      const result = await service.getMe({
-        headers: { authorization: 'Bearer league-token' },
-        cookies: {},
-      } as never);
+      const result = await service.getMe(claimedRequest('league-token'));
 
       expect(result.admin).toEqual({
         platformRole: null,
@@ -588,58 +643,18 @@ describe('AuthService', () => {
         json: vi.fn().mockResolvedValue({ error: 'invalid_token' }),
       });
 
-      const mockRequest = {
-        headers: { authorization: 'Bearer bad-token' },
-        cookies: {},
-      } as never;
+      const result = await service.getMe(claimedRequest('bad-token'));
 
-      const result = await service.getMe(mockRequest);
       expect(result.type).toBe('anonymous');
       expect(getUserMock).not.toHaveBeenCalled();
     });
 
     it('returns guest when valid mc_guest cookie present (no Supabase token)', async () => {
-      const sessionChain = {
-        select: vi.fn().mockReturnThis(),
-        eq: vi.fn().mockReturnThis(),
-        maybeSingle: vi.fn().mockResolvedValue({
-          data: {
-            id: 'session-1',
-            device_label: 'iPhone (Safari)',
-            expires_at: new Date(Date.now() + 3600000).toISOString(),
-            revoked_at: null,
-          },
-          error: null,
-        }),
-      };
-      const personChain = {
-        select: vi.fn().mockReturnThis(),
-        eq: vi.fn().mockReturnThis(),
-        maybeSingle: vi.fn().mockResolvedValue({
-          data: {
-            id: 'person-1',
-            given_name: 'Jean',
-            family_name: 'Dupont',
-            event_id: 'event-1',
-            claim_status: 'unclaimed',
-          },
-          error: null,
-        }),
-      };
-      fromMock.mockReturnValueOnce(sessionChain).mockReturnValueOnce(personChain);
-
-      const expiresAt = new Date(Date.now() + 3600000);
-      const guestToken = guestJwtService.sign(
-        { sub: 'session-1', person_id: 'person-1', event_id: 'event-1', type: 'guest' },
-        expiresAt,
-      );
-
-      const mockRequest = {
+      const result = await service.getMe({
         headers: {},
-        cookies: { mc_guest: guestToken },
-      } as never;
+        cookies: { mc_guest: guestCookie() },
+      } as never);
 
-      const result = await service.getMe(mockRequest);
       expect(result.type).toBe('guest');
       expect(result.session?.device_label).toBe('iPhone (Safari)');
       expect(result.person?.given_name).toBe('Jean');
@@ -648,27 +663,17 @@ describe('AuthService', () => {
     });
 
     it('claimed wins when both Supabase token and guest cookie present; clears guest cookie', async () => {
-      mockAuthUser({
-        id: 'user-123',
-        email: 'organizer@example.com',
-        user_metadata: {},
-      });
+      mockAuthUser({ id: USER, email: 'organizer@example.com', user_metadata: {} });
+      const clearCookieMock = vi.fn();
 
-      const expiresAt = new Date(Date.now() + 3600000);
-      const guestToken = guestJwtService.sign(
-        { sub: 'session-1', person_id: 'person-1', event_id: 'event-1', type: 'guest' },
-        expiresAt,
+      const result = await service.getMe(
+        {
+          headers: { authorization: 'Bearer valid-token' },
+          cookies: { mc_guest: guestCookie() },
+        } as never,
+        { clearCookie: clearCookieMock } as never,
       );
 
-      const clearCookieMock = vi.fn();
-      const mockReply = { clearCookie: clearCookieMock } as never;
-
-      const mockRequest = {
-        headers: { authorization: 'Bearer valid-token' },
-        cookies: { mc_guest: guestToken },
-      } as never;
-
-      const result = await service.getMe(mockRequest, mockReply);
       expect(result.type).toBe('claimed');
       expect(getUserMock).not.toHaveBeenCalled();
       expect(clearCookieMock).toHaveBeenCalledWith(
