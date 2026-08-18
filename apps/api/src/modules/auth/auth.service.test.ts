@@ -1927,20 +1927,31 @@ describe('AuthService', () => {
   describe('requestGlobalPersonClaim', () => {
     it('stores only the hash and mails the raw token', async () => {
       mockAuthUser({ id: 'user-1', email: 'fighter@example.com' });
-      const personLoadChain = makeQueryChain({
-        data: {
-          id: 'global-1',
-          email: 'fighter@example.com',
-          display_name: 'Fighter One',
-          merged_into_id: null,
-          claimed_by_user_id: null,
+      // Somebody else's profile is seeded FIRST, already claimed. The load
+      // reads with maybeSingle, which takes row zero on a seeded table, so an
+      // unscoped read finds theirs and the request is refused as
+      // already-claimed — a profile id that stops selecting a profile.
+      const seeded = seedTables({
+        global_persons: {
+          rows: [
+            {
+              id: 'global-99',
+              email: 'someone.else@example.com',
+              display_name: 'Someone Else',
+              merged_into_id: null,
+              claimed_by_user_id: 'other-user',
+            },
+            {
+              id: 'global-1',
+              email: 'fighter@example.com',
+              display_name: 'Fighter One',
+              merged_into_id: null,
+              claimed_by_user_id: null,
+            },
+          ],
         },
-        error: null,
+        global_person_claim_tokens: { rows: [] },
       });
-      const tokenInsertChain = {
-        insert: vi.fn().mockResolvedValue({ error: null }),
-      };
-      fromMock.mockReturnValueOnce(personLoadChain).mockReturnValueOnce(tokenInsertChain);
 
       const result = await service.requestGlobalPersonClaim(
         { headers: { authorization: 'Bearer t' }, cookies: {} } as never,
@@ -1949,7 +1960,9 @@ describe('AuthService', () => {
 
       expect(result).toMatchObject({ status: 'confirmation_sent' });
 
-      const inserted = tokenInsertChain.insert.mock.calls[0]?.[0] as Record<string, unknown>;
+      const [issued] = writesTo(seeded, 'global_person_claim_tokens');
+      const inserted = issued?.row as Record<string, unknown>;
+      expect(inserted['global_person_id']).toBe('global-1');
       const magicLink = mockMailService.sendMagicLink.mock.calls[0]?.[0]?.magicLink as string;
       const rawToken = new URL(magicLink).searchParams.get('token') ?? '';
 
