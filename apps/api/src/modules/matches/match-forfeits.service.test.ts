@@ -42,22 +42,61 @@ describe('MatchForfeitsService', () => {
   });
 
   it('auto-forfeits later unstarted pool matches when fighter cannot continue', async () => {
+    // Withdrawing a fighter closes the bouts they have left IN THIS POOL, and
+    // only the ones nobody has fought. The four bouts below the two real ones
+    // each match on all but one column: another pool, already finished, and
+    // two strangers' bout. Seeded, so which bouts got closed is a fact about
+    // the schedule rather than a list the fixture handed back.
     const supabase = fakeSupabase({
       matches: {
-        maybeSingle: matchRow({ phaseType: 'pool', status: 'running' }),
-        update: { id: 'match-1' },
-        select: [
+        rows: [
+          matchRow({ phaseType: 'pool', status: 'running' }),
           {
             id: 'later-1',
+            pool_id: 'pool-1',
             red_registration_id: 'reg-red',
             blue_registration_id: 'reg-green',
             status: 'scheduled',
           },
+          // Halted mid-bout, not fought to a finish — this one closes too.
+          {
+            id: 'paused-1',
+            pool_id: 'pool-1',
+            red_registration_id: 'reg-white',
+            blue_registration_id: 'reg-red',
+            status: 'paused',
+          },
+          // Their bout in another pool. That pool's schedule is not this
+          // withdrawal's to close.
+          {
+            id: 'other-pool-1',
+            pool_id: 'pool-2',
+            red_registration_id: 'reg-red',
+            blue_registration_id: 'reg-green',
+            status: 'scheduled',
+          },
+          // Already fought. Re-forfeiting it would overwrite a real result.
+          {
+            id: 'done-1',
+            pool_id: 'pool-1',
+            red_registration_id: 'reg-red',
+            blue_registration_id: 'reg-grey',
+            status: 'completed',
+          },
+          // Two other fighters, in this pool, still to come.
+          {
+            id: 'strangers-1',
+            pool_id: 'pool-1',
+            red_registration_id: 'reg-x',
+            blue_registration_id: 'reg-y',
+            status: 'scheduled',
+          },
         ],
       },
-      match_forfeits: { maybeSingle: null, insert: { id: 'forfeit-1' } },
-      phases: { maybeSingle: { id: 'phase-1', type: 'pool', tournament_id: 'tournament-1' } },
-      tournaments: { maybeSingle: { id: 'tournament-1', ruleset_config: {} } },
+      match_forfeits: {
+        rows: [],
+        returning: (row: SupabaseRow) => ({ id: `ff-${String(row['match_id'])}` }),
+      },
     });
     const service = new MatchForfeitsService(supabase as never, undefined as never);
 
@@ -67,13 +106,27 @@ describe('MatchForfeitsService', () => {
       canContinue: false,
     });
 
-    expect(supabase.inserted.match_forfeits).toHaveLength(2);
+    // Their own bout, then the two they had left. Nothing else.
+    expect(
+      (supabase.inserted.match_forfeits ?? []).map((row) => (row as SupabaseRow)['match_id']),
+    ).toEqual(['match-1', 'later-1', 'paused-1']);
     expect(supabase.inserted.match_forfeits?.[1]).toMatchObject({
       match_id: 'later-1',
       forfeiting_registration_id: 'reg-red',
       winner_registration_id: 'reg-green',
       auto_created: true,
     });
+    // The winner is read off each bout, so a bout closed from the blue corner
+    // hands it to the fighter in red.
+    expect(supabase.inserted.match_forfeits?.[2]).toMatchObject({
+      match_id: 'paused-1',
+      winner_registration_id: 'reg-white',
+    });
+    // Every one of those bouts is completed, and no others are touched.
+    expect(writtenIds(supabase, 'matches')).toEqual(['match-1', 'later-1', 'paused-1']);
+    // The withdrawal itself lands on the fighter who withdrew.
+    expect(supabase.updated.registrations?.[0]).toMatchObject({ status: 'withdrawn' });
+    expect(writtenIds(supabase, 'registrations')).toEqual(['reg-red']);
   });
 
   it('rejects void when a downstream dependent match has started', async () => {
@@ -151,6 +204,8 @@ describe('MatchForfeitsService', () => {
     });
 
     expect(supabase.updated.registrations?.[0]).toMatchObject({ status: 'disqualified' });
+    // On them, and on nobody else in the pool.
+    expect(writtenIds(supabase, 'registrations')).toEqual(['reg-red']);
   });
 
   it('does not auto-disqualify when the fighter has already completed a match', async () => {
