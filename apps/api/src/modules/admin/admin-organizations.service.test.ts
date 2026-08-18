@@ -15,7 +15,7 @@ const listAuthAdminUsersMock = vi.fn();
 const createAuthAdminUserMock = vi.fn();
 const deleteAuthAdminUserMock = vi.fn();
 const getAuthAdminUserMock = vi.fn();
-const mockMail = { sendMagicLink: vi.fn() };
+const mockMail = { sendMagicLink: vi.fn(), sendOwnerWelcomePassword: vi.fn() };
 const mockConfig = { get: vi.fn((_key: string, fallback?: string) => fallback ?? 'myclash.fr') };
 
 const mockSupabase = {
@@ -133,6 +133,7 @@ describe('AdminOrganizationsService', () => {
       error: null,
     });
     mockMail.sendMagicLink.mockResolvedValue(undefined);
+    mockMail.sendOwnerWelcomePassword.mockResolvedValue(undefined);
     fromMock.mockReturnValue(makeChain({ data: null, error: null }));
     service = new AdminOrganizationsService(
       mockSupabase as never,
@@ -205,6 +206,19 @@ describe('AdminOrganizationsService', () => {
       );
       expect(mockMail.sendMagicLink).toHaveBeenCalledOnce();
       expect(result.magicLinkSent).toBe(true);
+      // The welcome email carries the credential, so it has to carry the SAME
+      // one the caller was handed — an owner mailed a different password than
+      // the console shows cannot sign in, and neither value is recoverable.
+      expect(mockMail.sendOwnerWelcomePassword).toHaveBeenCalledWith(
+        expect.objectContaining({
+          to: 'owner@example.com',
+          displayName: 'Owner Name',
+          orgName: 'Lyon AMHE',
+          temporaryPassword: result.owner!.temporaryPassword,
+          loginUrl: 'https://admin.myclash.localhost/login',
+          orgUrl: 'https://admin.myclash.localhost/org/lyon-amhe',
+        }),
+      );
       expect(authAdminMock.listUsers).not.toHaveBeenCalled();
       expect(authAdminMock.createUser).not.toHaveBeenCalled();
     });
