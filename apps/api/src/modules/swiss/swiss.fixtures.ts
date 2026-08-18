@@ -199,6 +199,132 @@ export const overrideState = (over: Record<string, unknown> = {}) => ({
   ...over,
 });
 
+// ── The organiser's Swiss view ───────────────────────────────────────
+
+/**
+ * A registration of t1, as both reads of that table see it.
+ *
+ * The admin view counts registrations and the seeder loads them; the two ask
+ * for different columns of the same rows, so one seeded table answers both.
+ */
+export const registration = (id: string, over: SupabaseRow = {}): SupabaseRow => ({
+  id,
+  tournament_id: 't1',
+  status: 'registered',
+  seed: null,
+  bib_number: null,
+  persons: { club_id: 'club-a', global_persons: { hema_ratings_id: null } },
+  ...over,
+});
+
+/**
+ * An entrant carrying the name embed the admin and public views display.
+ *
+ * Distinct from {@link clubbed}, which carries only `club_id`: the same-club
+ * warning needs the id to compare, these two surfaces need something to show.
+ */
+export const namedEntrant = (
+  registrationId: string,
+  givenName: string,
+  familyName: string,
+  club: { name: string; abbreviation: string | null } | null = null,
+): SupabaseRow => ({
+  ...entrant(registrationId),
+  registrations: {
+    id: registrationId,
+    persons: {
+      id: `person-${registrationId}`,
+      given_name: givenName,
+      family_name: familyName,
+      clubs: club ? { id: `club-${registrationId}`, ...club } : null,
+    },
+  },
+});
+
+/** A bout as the admin and public match reads project it. */
+export const viewBout = (id: string, label: string, over: SupabaseRow = {}): SupabaseRow => ({
+  id,
+  phase_id: 'p1',
+  swiss_round_id: 'sr1',
+  match_number_label: label,
+  status: 'scheduled',
+  scheduled_at: null,
+  red_registration_id: 'r1',
+  blue_registration_id: 'r2',
+  red_score: null,
+  blue_score: null,
+  winner_registration_id: null,
+  lices: { name: 'Piste 1', color_hex: '#ff0000' },
+  ...over,
+});
+
+/** Four fighters of t1, plus another tournament's and one who withdrew. */
+const ADMIN_REGISTRATIONS: SupabaseRow[] = [
+  registration('r1'),
+  registration('r2'),
+  registration('r3'),
+  registration('r4'),
+  registration('rOther', { tournament_id: 't2' }),
+  registration('rGone', { status: 'withdrawn' }),
+];
+
+/** p1, plus the same tournament's pool phase and another tournament's Swiss. */
+const ADMIN_PHASES: SupabaseRow[] = [
+  phaseRow(),
+  { id: 'p-pool', type: 'pool', tournament_id: 't1', config_json: null },
+  OTHER_PHASE,
+];
+
+/** The four entrants of p1 with their names, plus another phase's. */
+const ADMIN_ENTRANTS: SupabaseRow[] = [
+  namedEntrant('r1', 'Ada', 'Lovelace', { name: 'Club A', abbreviation: 'CLA' }),
+  namedEntrant('r2', 'Grace', 'Hopper', { name: 'Club B', abbreviation: null }),
+  namedEntrant('r3', 'Alan', 'Turing', null),
+  namedEntrant('r4', 'Edsger', 'Dijkstra', null),
+  { ...entrant('rX', 'p2'), registrations: null },
+];
+
+/** One completed round of p1, plus another phase's round. */
+const ADMIN_ROUNDS: SupabaseRow[] = [
+  swissRound({
+    id: 'sr1',
+    status: 'completed',
+    matches: [
+      { id: 'm1', red_registration_id: 'r1', blue_registration_id: 'r2', status: 'completed' },
+      { id: 'm2', red_registration_id: 'r3', blue_registration_id: 'r4', status: 'completed' },
+    ],
+  }),
+  swissRound({ id: 'sr-p2', phase_id: 'p2' }),
+];
+
+/** That round's two bouts, plus another phase's. */
+const ADMIN_MATCHES: SupabaseRow[] = [
+  viewBout('m1', 'SW-R1-M1'),
+  viewBout('m2', 'SW-R1-M2', { red_registration_id: 'r3', blue_registration_id: 'r4' }),
+  viewBout('m-p2', 'SW-R1-M1', { phase_id: 'p2', swiss_round_id: 'sr-p2' }),
+];
+
+/**
+ * Every table the organiser's Swiss route reads, each carrying one decoy.
+ *
+ * The decoys are the point: every read here is scoped, and a fixture holding
+ * only rows that belong cannot tell a scoped read from an unscoped one.
+ */
+export const adminState = (over: Record<string, unknown> = {}) => ({
+  registrations: { rows: ADMIN_REGISTRATIONS },
+  phases: { rows: ADMIN_PHASES },
+  swiss_entrants: { rows: ADMIN_ENTRANTS },
+  swiss_rounds: { rows: ADMIN_ROUNDS },
+  matches: { rows: ADMIN_MATCHES },
+  tournaments: {
+    rows: [
+      { id: 't1', weapon: 'longsword' },
+      { id: 't2', weapon: 'rapier' },
+    ],
+  },
+  ...over,
+});
+
 /**
  * Each write to `table`, paired with the row it was scoped to.
  *
