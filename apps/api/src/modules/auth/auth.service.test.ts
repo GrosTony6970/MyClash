@@ -1320,136 +1320,183 @@ describe('AuthService', () => {
     });
   });
 
+  /**
+   * The /me dashboard. Five reads run in one `Promise.all`, and every one of
+   * them ends in `if (error) return []` inside a `catch` that also returns
+   * `[]` — so a fixture that cannot serve a query does not fail the test, it
+   * silently produces an empty dashboard.
+   *
+   * Seeding all four tables is what makes the scoping decide the answer: every
+   * table carries a row belonging to somebody else, so a lost filter shows the
+   * signed-in user another person's profiles, duties or suggestions.
+   */
   describe('getPersonalSpace', () => {
-    it('returns claimed profile data and empty-safe commitment arrays', async () => {
-      mockAuthUser({
-        id: 'user-123',
-        email: 'fighter@example.com',
-        user_metadata: { display_name: 'Fighter One' },
+    const USER = 'user-123';
+    const EMAIL = 'fighter@example.com';
+
+    const person = (over: Record<string, unknown> = {}) => ({
+      id: 'p-1',
+      event_id: 'event-1',
+      given_name: 'Fighter',
+      family_name: 'One',
+      email: EMAIL,
+      claimed_by_user_id: USER,
+      claim_status: 'claimed',
+      global_person_id: 'global-1',
+      events: { id: 'event-1', name: 'FAL 2026' },
+      ...over,
+    });
+
+    const populated = () =>
+      seedTables({
+        persons: {
+          rows: [
+            person({ id: 'p-other-user', claimed_by_user_id: 'other-user', event_id: 'event-9' }),
+            // Same email, but already claimed — suggesting it would be wrong.
+            person({ id: 'p-taken', claimed_by_user_id: 'someone-else', event_id: 'event-8' }),
+            person(),
+            person({ id: 'p-claimable', claimed_by_user_id: null, event_id: 'event-2' }),
+          ],
+        },
+        global_persons: {
+          rows: [
+            { id: 'global-other', claimed_by_user_id: 'other-user', display_name: 'Someone Else' },
+            { id: 'global-1', claimed_by_user_id: USER, display_name: 'Fighter One' },
+          ],
+        },
+        referee_assignments: {
+          rows: [
+            { id: 'ra-other-1', person_id: 'global-other', created_at: '2026-01-01T00:00:00Z' },
+            { id: 'ra-other-2', person_id: 'global-other', created_at: '2026-01-02T00:00:00Z' },
+            { id: 'ra-1', person_id: 'global-1', created_at: '2026-02-01T00:00:00Z' },
+          ],
+        },
+        workshop_enrollments: {
+          rows: [
+            { id: 'we-other', user_id: 'other-user', enrolled_at: '2026-01-01T00:00:00Z' },
+            { id: 'we-1', user_id: USER, enrolled_at: '2026-02-01T00:00:00Z' },
+          ],
+        },
       });
 
-      fromMock
-        .mockReturnValueOnce(
-          makeAwaitableQueryChain({
-            data: [
-              {
-                id: 'person-1',
-                event_id: 'event-1',
-                given_name: 'Fighter',
-                family_name: 'One',
-              },
-            ],
-            error: null,
-          }),
-        )
-        .mockReturnValueOnce(
-          makeQueryChain({
-            data: {
-              id: 'global-1',
-              display_name: 'Fighter One',
-              is_fighter: true,
-              is_referee: false,
-              is_workshop_participant: true,
-            },
-            error: null,
-          }),
-        )
-        .mockReturnValueOnce(makeAwaitableQueryChain({ data: [], error: null }))
-        .mockReturnValueOnce(makeAwaitableQueryChain({ data: [], error: null }));
-
-      const result = await service.getPersonalSpace({
+    const read = () =>
+      service.getPersonalSpace({
         headers: { authorization: 'Bearer access-token' },
         cookies: {},
       } as never);
 
-      expect(result.user.email).toBe('fighter@example.com');
+    it('shows only this user’s profiles, duties and suggestions', async () => {
+      mockAuthUser({ id: USER, email: EMAIL, user_metadata: { display_name: 'Fighter One' } });
+      populated();
+
+      const result = await read();
+
+      expect(result.user.email).toBe(EMAIL);
       expect(result.profiles.globalPerson?.['id']).toBe('global-1');
-      expect(result.profiles.claimedPersons).toHaveLength(1);
+      expect(result.profiles.claimedPersons.map((p) => p['id'])).toEqual(['p-1']);
       expect(result.counts).toEqual({
         claimedPersons: 1,
         events: 1,
+        refereeAssignments: 1,
+        workshopEnrollments: 1,
+      });
+      // The referee read resolves the user to a global person FIRST; resolving
+      // the wrong one hands them another referee's duty list.
+      expect(result.commitments.refereeAssignments.map((a) => a['id'])).toEqual(['ra-1']);
+      expect(result.commitments.workshopEnrollments.map((w) => w['id'])).toEqual(['we-1']);
+      // An unclaimed roster row on the same email is a suggestion; one already
+      // claimed by somebody else is not.
+      expect(result.claimable.map((c) => c.id)).toEqual(['p-claimable']);
+    });
+
+    it('returns a safe empty state for signed-in users without linked profiles', async () => {
+      // A different account entirely: same seeded tables, nothing of theirs.
+      mockAuthUser({ id: 'user-new', email: 'new@example.com' });
+      populated();
+
+      const result = await read();
+
+      expect(result.profiles.globalPerson).toBeNull();
+      expect(result.profiles.claimedPersons).toEqual([]);
+      expect(result.claimable).toEqual([]);
+      expect(result.counts).toEqual({
+        claimedPersons: 0,
+        events: 0,
         refereeAssignments: 0,
         workshopEnrollments: 0,
       });
     });
-
-    it('returns a safe empty state for signed-in users without linked profiles', async () => {
-      mockAuthUser({ id: 'user-123', email: 'new@example.com' });
-
-      fromMock
-        .mockReturnValueOnce(makeAwaitableQueryChain({ data: [], error: null }))
-        .mockReturnValueOnce(makeQueryChain({ data: null, error: null }))
-        .mockReturnValueOnce(makeAwaitableQueryChain({ data: [], error: null }))
-        .mockReturnValueOnce(makeAwaitableQueryChain({ data: [], error: null }));
-
-      const result = await service.getPersonalSpace({
-        headers: { authorization: 'Bearer access-token' },
-        cookies: {},
-      } as never);
-
-      expect(result.profiles.globalPerson).toBeNull();
-      expect(result.profiles.claimedPersons).toEqual([]);
-      expect(result.counts.claimedPersons).toBe(0);
-    });
   });
 
   describe('claimPersons', () => {
+    const USER = 'user-1';
+    const EMAIL = 'fighter@example.com';
+
+    const claim = (ids: string[]) =>
+      service.claimPersons({ headers: { authorization: 'Bearer t' }, cookies: {} } as never, ids);
+
     it('claims roster profiles whose email matches and skips the rest', async () => {
-      mockAuthUser({ id: 'user-1', email: 'fighter@example.com' });
-      const okLookupChain = makeQueryChain({
-        data: { id: 'ok', email: 'Fighter@example.com', claimed_by_user_id: null },
+      mockAuthUser({ id: USER, email: EMAIL });
+      const seeded = seedTables({
+        persons: {
+          rows: [
+            // Seeded FIRST, so a lost `.eq('id', …)` claims whoever comes back
+            // rather than the row the caller named.
+            {
+              id: 'decoy',
+              email: 'someone@else.com',
+              claimed_by_user_id: null,
+              global_person_id: 'global-decoy',
+            },
+            {
+              id: 'ok',
+              email: 'Fighter@example.com',
+              claimed_by_user_id: null,
+              global_person_id: 'global-ok',
+            },
+            {
+              id: 'bad',
+              email: 'someone@else.com',
+              claimed_by_user_id: null,
+              global_person_id: null,
+            },
+          ],
+        },
+        global_persons: {
+          rows: [
+            { id: 'global-other', claimed_by_user_id: 'other-user', merged_into_id: null },
+            { id: 'global-ok', claimed_by_user_id: null, merged_into_id: null },
+          ],
+        },
+        fighter_clubs: { rows: [] },
       });
-      const okUpdateChain = makeQueryChain({ data: null });
-      const okPersonChain = makeQueryChain({
-        data: { global_person_id: 'global-ok' },
-        error: null,
-      });
-      const existingGlobalChain = makeQueryChain({ data: null, error: null });
-      const targetGlobalChain = makeQueryChain({
-        data: { id: 'global-ok', claimed_by_user_id: null },
-        error: null,
-      });
-      const globalUpdateChain = makeQueryChain({ data: null, error: null });
-      fromMock
-        .mockReturnValueOnce(okLookupChain)
-        .mockReturnValueOnce(okUpdateChain)
-        .mockReturnValueOnce(okPersonChain)
-        .mockReturnValueOnce(existingGlobalChain)
-        .mockReturnValueOnce(targetGlobalChain)
-        .mockReturnValueOnce(globalUpdateChain)
-        .mockReturnValueOnce(
-          makeQueryChain({
-            data: { id: 'bad', email: 'someone@else.com', claimed_by_user_id: null },
-          }),
-        );
 
-      const result = await service.claimPersons(
-        { headers: { authorization: 'Bearer t' }, cookies: {} } as never,
-        ['ok', 'bad'],
-      );
+      // Email match is case-insensitive; a different address is skipped.
+      await expect(claim(['ok', 'bad'])).resolves.toEqual({ claimed: 1 });
 
-      expect(result.claimed).toBe(1);
-      expect(globalUpdateChain.update).toHaveBeenCalledWith(
-        expect.objectContaining({ claimed_by_user_id: 'user-1' }),
-      );
-      expect(globalUpdateChain.eq).toHaveBeenCalledWith('id', 'global-ok');
-      expect(globalUpdateChain.is).toHaveBeenCalledWith('claimed_by_user_id', null);
+      const [flip] = writesTo(seeded, 'persons');
+      expect(flip?.row).toMatchObject({ claim_status: 'claimed', claimed_by_user_id: USER });
+      expect(scopedTo(flip, 'id')).toBe('ok');
+
+      // …and the claim carries through to the global profile behind that row.
+      const [link] = writesTo(seeded, 'global_persons');
+      expect(link?.row).toMatchObject({ claimed_by_user_id: USER });
+      expect(scopedTo(link, 'id')).toBe('global-ok');
+      expect(isNullScoped(link, 'claimed_by_user_id')).toBe(true);
     });
 
     it('never reassigns a profile already owned by another user', async () => {
-      mockAuthUser({ id: 'user-1', email: 'fighter@example.com' });
-      fromMock.mockReturnValueOnce(
-        makeQueryChain({
-          data: { id: 'p', email: 'fighter@example.com', claimed_by_user_id: 'someone-else' },
-        }),
-      );
+      mockAuthUser({ id: USER, email: EMAIL });
+      const seeded = seedTables({
+        persons: {
+          rows: [
+            { id: 'p', email: EMAIL, claimed_by_user_id: 'someone-else', global_person_id: 'g' },
+          ],
+        },
+      });
 
-      const result = await service.claimPersons(
-        { headers: { authorization: 'Bearer t' }, cookies: {} } as never,
-        ['p'],
-      );
-
-      expect(result.claimed).toBe(0);
+      await expect(claim(['p'])).resolves.toEqual({ claimed: 0 });
+      expect(writesTo(seeded, 'persons')).toEqual([]);
     });
   });
 
