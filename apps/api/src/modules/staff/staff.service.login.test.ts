@@ -154,7 +154,7 @@ describe('StaffService.login', () => {
 
   it('resolves the event by slug when the caller has no id', async () => {
     // Two events, and the slug is the only thing telling them apart. Lose it and
-    // maybeSingle hands back whichever row was seeded first.
+    // maybeSingle matches both, which is PGRST116 and no event at all.
     const hash = await pinHash(PIN);
     const { service, sign } = build({
       events: { rows: [eventRow(OTHER_EVENT), eventRow(EVENT)] },
@@ -331,10 +331,10 @@ describe('StaffService.getMe', () => {
   });
 
   /**
-   * A colleague on the same event, seeded FIRST. The payload read filters on id
-   * alone and ends in `maybeSingle`, which takes the first surviving row — so
-   * this is exactly what losing that filter hands back, and it differs in both
-   * the things the payload is read for.
+   * A colleague on the same event. The payload read filters on id alone and ends
+   * in `maybeSingle`, so losing that filter matches both of us — PGRST116, and a
+   * payload built from nobody. They differ in both the things it is read for, so
+   * a fixture that did resolve one of us would still be caught.
    */
   const ME_ROWS = [
     withEvent(

@@ -22,9 +22,10 @@ import { mockSupabase, selectsFor, type SupabaseRow } from '../../common/testing
  * the same rows, which is both what the database does and what lets each
  * `.eq()` in the service decide something.
  *
- * Decoys are seeded FIRST throughout: the single-row reads end in `maybeSingle`,
- * which takes the first surviving row, so a decoy behind the wanted one could
- * never come back and would guard nothing.
+ * Every single-row read ends in `maybeSingle`, which is nought-or-one: two
+ * surviving rows are PGRST116 and a null `data`, not the first of them. So a
+ * decoy guards its filter by making the unscoped read ambiguous, and the reads
+ * that ignore `error` then see nothing at all.
  */
 
 const LICE = 'lice-1';

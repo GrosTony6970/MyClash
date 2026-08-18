@@ -1275,14 +1275,12 @@ describe('AuthService', () => {
       expect(reply.send).toHaveBeenCalledWith({ next: '/dashboard' });
     });
 
-    // Regression guard. PostgREST nulls `data` and returns PGRST116 when
-    // .maybeSingle() matches more than one row, and hasAdminAccess ignores
-    // `error` — so reading organization_members with .maybeSingle() denied login
-    // to every user who belongs to two or more organizations. Still an argument
-    // assertion after the migration: the seeded double's maybeSingle returns row
-    // zero rather than raising PGRST116, so it cannot reproduce the failure and
-    // the two memberships below would log in either way.
-    it('reads organization_members with limit(1) rather than maybeSingle', async () => {
+    // Regression guard, and an OUTCOME one now that the double raises PGRST116
+    // on a multi-row maybeSingle like PostgREST does. hasAdminAccess ignores
+    // `error`, so reading organization_members with .maybeSingle() denied login
+    // to every user belonging to two or more organizations. This account holds
+    // exactly that: two memberships, which under maybeSingle read as none.
+    it('lets in an owner who belongs to more than one organization', async () => {
       fetchMock.mockResolvedValue({
         ok: true,
         json: vi.fn().mockResolvedValue({
@@ -1305,9 +1303,8 @@ describe('AuthService', () => {
         reply as never,
       );
 
-      expect(filtersFor(seeded.from, 'organization_members', 'limit')).toEqual([[1]]);
-      expect(filtersFor(seeded.from, 'organization_members', 'maybeSingle')).toEqual([]);
       expect(reply.send).toHaveBeenCalledWith({ next: '/dashboard' });
+      expect(filtersFor(seeded.from, 'organization_members', 'maybeSingle')).toEqual([]);
     });
   });
 
@@ -1778,6 +1775,33 @@ describe('AuthService', () => {
         role: 'main',
         sort_order: 0,
       });
+    });
+
+    // The method's own contract: idempotent, never overwrites a club the
+    // profile already has. This is also the only shape that can hold the
+    // early read's `.eq('id', …)` — with maybeSingle modelled faithfully, an
+    // unscoped read matches two rows and returns PGRST116, so the fixture has
+    // to distinguish "found a club" from "found nothing", not one row from
+    // another.
+    it('leaves a profile that already has a club alone', async () => {
+      const seeded = seedTables({
+        global_persons: {
+          rows: [
+            ...GLOBAL_DECOYS,
+            globalPerson({ email: 'not-the-login@example.com', club_id: 'club-existing' }),
+          ],
+        },
+        persons: {
+          rows: [PERSON_DECOY, claimedPerson({ id: 'p-new', club_id: 'club-new' })],
+        },
+        fighter_clubs: { rows: [] },
+      });
+
+      await service.tryAutolinkGlobalPerson(USER, EMAIL);
+
+      // Only the link write — no club update, and no "main" club row.
+      expect(writesTo(seeded, 'global_persons')).toHaveLength(1);
+      expect(writesTo(seeded, 'fighter_clubs')).toEqual([]);
     });
   });
 

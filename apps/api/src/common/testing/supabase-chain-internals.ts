@@ -200,7 +200,18 @@ export function buildChain(
     return chain;
   }
 
-  chain.maybeSingle = vi.fn(() => Promise.resolve({ data: rows()[0] ?? null, error: null }));
+  // `maybeSingle` means "nought or one", not "the first one". PostgREST nulls
+  // `data` and returns PGRST116 the moment two rows match, and a great many
+  // reads here ignore `error` — so a fixture that quietly handed back row zero
+  // let a filter that does not narrow pass as one that does, and hid the exact
+  // production failure (a user in two organizations reading as a member of
+  // none). Only `single` demands exactly one; `maybeSingle` still allows zero.
+  chain.maybeSingle = vi.fn(() => {
+    const found = rows();
+    return Promise.resolve(
+      found.length > 1 ? notExactlyOneRow() : { data: found[0] ?? null, error: null },
+    );
+  });
   chain.single = vi.fn(() => {
     const found = rows();
     return Promise.resolve(

@@ -35,10 +35,10 @@ import { mockSupabase, queriedTables, type TableSeed } from '../../common/testin
  * Every table here is SEEDED rather than canned, and each one carries a decoy
  * belonging to the OTHER event. That is what makes the `.eq()` in each query
  * decide something: a canned fixture hands back the same row however the query
- * is scoped, so a lost `.eq('id', …)` reads as a passing test. Decoys are seeded
- * FIRST on purpose — these reads all end in `maybeSingle`, which takes the first
- * surviving row, so a decoy sorted behind the real one could never be returned
- * and the fixture would assert nothing.
+ * is scoped, so a lost `.eq('id', …)` reads as a passing test. These reads all
+ * end in `maybeSingle`, which is nought-or-one — two surviving rows are PGRST116
+ * and a null `data` — so the decoy is what makes an unscoped read ambiguous
+ * rather than merely wrong.
  */
 
 const ORG = 'org-1';

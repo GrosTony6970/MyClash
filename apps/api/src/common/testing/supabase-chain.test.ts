@@ -138,7 +138,7 @@ describe('a seeded table', () => {
     expect(data).toEqual([{ id: 'c', status: 'voided', seq: 3 }]);
   });
 
-  it('gives maybeSingle the first survivor, and null when none survived', async () => {
+  it('gives maybeSingle the one survivor, and null when none survived', async () => {
     const from = supabaseFrom({ matches: { rows: ROWS } });
     await expect(from('matches').select().eq('id', 'b').maybeSingle()).resolves.toEqual({
       data: { id: 'b', status: 'completed', seq: 1 },
@@ -148,6 +148,22 @@ describe('a seeded table', () => {
       data: null,
       error: null,
     });
+  });
+
+  /**
+   * maybeSingle is "nought or one", not "the first one". Returning row zero on
+   * a match of two is the quiet kind of wrong: it hands back a plausible row
+   * where PostgREST hands back an error, so a filter that does not narrow reads
+   * exactly like one that does. It also hides a real production failure —
+   * hasAdminAccess takes .limit(1) precisely because a user in two
+   * organizations nulled a maybeSingle and read as a member of none.
+   */
+  it('gives maybeSingle PGRST116 when more than one row survived', async () => {
+    const { data, error } = await supabaseFrom({ matches: { rows: ROWS } })('matches')
+      .select()
+      .maybeSingle();
+    expect(data).toBeNull();
+    expect((error as { code: string }).code).toBe('PGRST116');
   });
 
   it('gives single() PGRST116 unless exactly one row survived', async () => {

@@ -201,8 +201,9 @@ export function selectsFor(from: Mock<(table: string) => SupabaseChain>, table: 
  * is which TERMINAL it used: `hasAdminAccess` takes `.limit(1)` rather than
  * `.maybeSingle()` because PostgREST nulls `data` on a multi-row maybeSingle
  * and that read ignores `error`, so a user in two organizations was denied
- * login. This double's maybeSingle returns row zero instead of raising
- * PGRST116, so it cannot reproduce that — only the call can be asserted.
+ * login. That IS reproducible now that maybeSingle raises PGRST116 on two rows,
+ * so prefer the outcome; these stay for the reads where the terminal itself is
+ * the thing under test.
  */
 export function filtersFor(
   from: Mock<(table: string) => SupabaseChain>,
