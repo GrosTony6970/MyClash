@@ -12,8 +12,6 @@ describe('MatchForfeitsService', () => {
         update: { id: 'match-1' },
       },
       match_forfeits: { maybeSingle: null, insert: { id: 'forfeit-1' } },
-      phases: { maybeSingle: { id: 'phase-1', type: 'pool', tournament_id: 'tournament-1' } },
-      tournaments: { maybeSingle: { id: 'tournament-1', ruleset_config: {} } },
     });
     const service = new MatchForfeitsService(supabase as never, undefined as never);
 
@@ -187,7 +185,6 @@ describe('MatchForfeitsService', () => {
       ],
     },
     match_forfeits: { maybeSingle: null, insert: { id: 'forfeit-1' } },
-    phases: { maybeSingle: { id: 'phase-1', type: 'pool', tournament_id: 'tournament-1' } },
     registrations: { maybeSingle: { id: 'reg-red', status: 'checked_in' } },
   });
 
@@ -308,7 +305,6 @@ describe('MatchForfeitsService', () => {
       },
       // One live forfeit of their own already; this one makes two.
       match_forfeits: forfeitHistory([]),
-      phases: { maybeSingle: { id: 'phase-1', type: 'pool', tournament_id: 'tournament-1' } },
       registrations: { maybeSingle: { id: 'reg-red', status: 'checked_in' } },
     });
     const service = new MatchForfeitsService(supabase as never, undefined as never);
@@ -340,7 +336,6 @@ describe('MatchForfeitsService', () => {
         ...history,
         rows: history.rows.filter((row) => row['id'] !== 'ff-mine'),
       },
-      phases: { maybeSingle: { id: 'phase-1', type: 'pool', tournament_id: 'tournament-1' } },
       registrations: { maybeSingle: { id: 'reg-red', status: 'checked_in' } },
     });
     const service = new MatchForfeitsService(supabase as never, undefined as never);
@@ -362,7 +357,6 @@ describe('MatchForfeitsService', () => {
         count: 0,
       },
       match_forfeits: { maybeSingle: null, insert: { id: 'forfeit-1' }, count: 5 },
-      phases: { maybeSingle: { id: 'phase-1', type: 'pool', tournament_id: 'tournament-1' } },
       registrations: { maybeSingle: { id: 'reg-red', status: 'checked_in' } },
     });
     const service = new MatchForfeitsService(supabase as never, undefined as never);
@@ -385,8 +379,6 @@ describe('MatchForfeitsService — result overrides', () => {
         update: { id: 'match-1' },
       },
       match_forfeits: { maybeSingle: null, insert: { id: 'override-1' } },
-      phases: { maybeSingle: { id: 'phase-1', type: 'pool', tournament_id: 'tournament-1' } },
-      tournaments: { maybeSingle: { id: 'tournament-1', ruleset_config: {} } },
     });
     const service = new MatchForfeitsService(supabase as never, undefined as never);
 
@@ -444,7 +436,6 @@ describe('MatchForfeitsService — result overrides', () => {
         count: 0,
       },
       match_forfeits: { maybeSingle: null, insert: { id: 'override-1' }, count: 5 },
-      phases: { maybeSingle: { id: 'phase-1', type: 'pool', tournament_id: 'tournament-1' } },
       registrations: { maybeSingle: { id: 'reg-red', status: 'checked_in' } },
     });
     const service = new MatchForfeitsService(supabase as never, undefined as never);
@@ -463,9 +454,6 @@ describe('MatchForfeitsService — result overrides', () => {
       matches: {
         maybeSingle: matchRow({ phaseType: 'single_elim', status: 'completed' }),
         select: [{ id: 'downstream-1', status: 'running' }],
-      },
-      phases: {
-        maybeSingle: { id: 'phase-1', type: 'single_elim', tournament_id: 'tournament-1' },
       },
     });
     const bracketAdvance = {
@@ -499,9 +487,6 @@ describe('MatchForfeitsService — result overrides', () => {
         select: [{ id: 'downstream-1', status: 'scheduled' }],
       },
       match_forfeits: { maybeSingle: null, insert: { id: 'override-1' } },
-      phases: {
-        maybeSingle: { id: 'phase-1', type: 'single_elim', tournament_id: 'tournament-1' },
-      },
       bracket_slots: { maybeSingle: null },
     });
     const bracketAdvance = {
@@ -531,6 +516,13 @@ describe('MatchForfeitsService — result overrides', () => {
   });
 });
 
+/**
+ * A match row as `loadMatch` reads it back.
+ *
+ * The phase and the tournament ride along on the row, through the embed the
+ * select asks for — this service never queries either table. A fixture entry
+ * for `phases` or `tournaments` answers nothing, so there is none.
+ */
 function matchRow(input: {
   phaseType: string;
   status: string;
@@ -777,7 +769,6 @@ describe('MatchForfeitsService — override regressions', () => {
     const supabase = fakeSupabase({
       matches: { maybeSingle: matchRow({ phaseType: 'pool', status: 'completed' }) },
       match_forfeits: { maybeSingle: { id: 'forfeit-1', match_id: 'match-1', voided_at: null } },
-      phases: { maybeSingle: { id: 'phase-1', type: 'pool', tournament_id: 'tournament-1' } },
     });
     const service = new MatchForfeitsService(supabase as never, undefined as never);
 
@@ -798,7 +789,6 @@ describe('MatchForfeitsService — override regressions', () => {
     const supabase = fakeSupabase({
       matches: { maybeSingle: matchRow({ phaseType: 'pool', status: 'running' }) },
       match_forfeits: { maybeSingle: { id: 'forfeit-1', match_id: 'match-1', voided_at: null } },
-      phases: { maybeSingle: { id: 'phase-1', type: 'pool', tournament_id: 'tournament-1' } },
     });
     const service = new MatchForfeitsService(supabase as never, undefined as never);
 
@@ -879,9 +869,6 @@ describe('MatchForfeitsService — override regressions', () => {
         update: { id: 'match-1' },
       },
       match_forfeits: { maybeSingle: null, insert: { id: 'override-1' } },
-      phases: {
-        maybeSingle: { id: 'phase-1', type: 'single_elim', tournament_id: 'tournament-1' },
-      },
       // A round-1 seeded slot AND an unused registration — everything
       // tryReplaceMainRoundOneFighter needs to find a reserve and fire. Without
       // both, this test passes vacuously on the unfixed code.
@@ -921,9 +908,6 @@ describe('MatchForfeitsService — override regressions', () => {
         update: { id: 'match-1' },
       },
       match_forfeits: { rows: [], returning: { id: 'forfeit-1' } },
-      phases: {
-        maybeSingle: { id: 'phase-1', type: 'single_elim', tournament_id: 'tournament-1' },
-      },
       // The registration ids matter here, unlike in the override test above
       // which returns before reading them: they are what decides WHICH side
       // the reserve replaces.
@@ -970,9 +954,6 @@ describe('MatchForfeitsService — override regressions', () => {
         select: [{ id: 'downstream-9', status: 'scheduled' }],
       },
       match_forfeits: { rows: [], returning: { id: 'override-1' } },
-      phases: {
-        maybeSingle: { id: 'phase-1', type: 'single_elim', tournament_id: 'tournament-1' },
-      },
       bracket_slots: { maybeSingle: null },
     });
     const bracketAdvance = {
@@ -1009,7 +990,6 @@ describe('MatchForfeitsService — override regressions', () => {
         },
       },
       match_forfeits: { maybeSingle: null },
-      phases: { maybeSingle: { id: 'phase-1', type: 'pool', tournament_id: 'tournament-1' } },
     });
     const service = new MatchForfeitsService(supabase as never, undefined as never);
 
@@ -1037,7 +1017,6 @@ describe('MatchForfeitsService — override regressions', () => {
         update: { id: 'match-1' },
       },
       match_forfeits: { maybeSingle: null, insert: { id: 'override-1' } },
-      phases: { maybeSingle: { id: 'phase-1', type: 'pool', tournament_id: 'tournament-1' } },
     });
     const service = new MatchForfeitsService(supabase as never, undefined as never);
 
@@ -1412,7 +1391,6 @@ describe('MatchForfeitsService — override regressions', () => {
     const supabase = fakeSupabase({
       matches: { maybeSingle: matchRow({ phaseType: 'pool', status: 'completed' }) },
       match_forfeits: { maybeSingle: null },
-      phases: { maybeSingle: { id: 'phase-1', type: 'pool', tournament_id: 'tournament-1' } },
     });
     const frozenResults = {
       assertResultMutationAllowed: vi.fn(async () => {
@@ -1531,8 +1509,6 @@ describe('MatchForfeitsService — pool cascade void', () => {
         ],
       },
       match_forfeits: { maybeSingle: null, insert: { id: 'forfeit-1' } },
-      phases: { maybeSingle: { id: 'phase-1', type: 'pool', tournament_id: 'tournament-1' } },
-      tournaments: { maybeSingle: { id: 'tournament-1', ruleset_config: {} } },
     });
     const service = new MatchForfeitsService(supabase as never, undefined as never);
 
@@ -1805,7 +1781,6 @@ describe('MatchForfeitsService — re-recorded forfeit under a live withdrawal',
         rows: overrides.records ?? [LIVE_ROOT, ...NEAR_MISSES],
         returning: (row: SupabaseRow) => ({ id: `ff-${String(row['match_id'])}` }),
       },
-      phases: { maybeSingle: { id: 'phase-1', type: 'pool', tournament_id: 'tournament-1' } },
       registrations: { maybeSingle: { id: 'reg-red', status: 'withdrawn' } },
     };
   }
@@ -1905,9 +1880,6 @@ describe('MatchForfeitsService — re-recorded forfeit under a live withdrawal',
       match_forfeits: {
         rows: [LIVE_ROOT],
         returning: { id: 'ff-match-1' },
-      },
-      phases: {
-        maybeSingle: { id: 'phase-1', type: 'single_elim', tournament_id: 'tournament-1' },
       },
       bracket_slots: { maybeSingle: null },
       registrations: { maybeSingle: { id: 'reg-red', status: 'checked_in' } },
