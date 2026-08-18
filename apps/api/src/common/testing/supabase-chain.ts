@@ -212,7 +212,19 @@ export function selectsFor(from: Mock<(table: string) => SupabaseChain>, table: 
 export function filtersFor(
   from: Mock<(table: string) => SupabaseChain>,
   table: string,
-  method: 'eq' | 'neq' | 'in' | 'is' | 'not' | 'ilike' | 'gte' | 'lt' | 'limit' | 'maybeSingle',
+  method:
+    | 'eq'
+    | 'neq'
+    | 'in'
+    | 'is'
+    | 'not'
+    | 'ilike'
+    | 'gte'
+    | 'gt'
+    | 'lte'
+    | 'lt'
+    | 'limit'
+    | 'maybeSingle',
 ): unknown[][] {
   return from.mock.calls.flatMap(([queried], index) => {
     const call = from.mock.results[index];

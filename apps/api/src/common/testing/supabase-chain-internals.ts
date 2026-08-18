@@ -57,6 +57,8 @@ const NARROWING = [
   'is',
   'not',
   'gte',
+  'gt',
+  'lte',
   'lt',
   'ilike',
   'or',
@@ -82,16 +84,7 @@ const WRITES = ['insert', 'update', 'upsert', 'delete'] as const;
  * unconfigured table throw rather than resolve to null. Implement one when a
  * caller needs it; do not make it quietly pass.
  */
-export const UNSIMULATED = [
-  'gt',
-  'lte',
-  'like',
-  'contains',
-  'overlaps',
-  'filter',
-  'match',
-  'range',
-] as const;
+export const UNSIMULATED = ['like', 'contains', 'overlaps', 'filter', 'match', 'range'] as const;
 
 /** Filters and modifiers — each returns the builder, so chains nest freely. */
 const CHAINABLE = [...PASS_THROUGH, ...WRITES, ...NARROWING, ...UNSIMULATED] as const;

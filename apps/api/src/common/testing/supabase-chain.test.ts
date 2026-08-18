@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  filtersFor,
   mockSupabase,
   queriedTables,
   scopedTo,
@@ -282,7 +283,58 @@ describe('a seeded table refuses what it cannot model', () => {
     // less than it appears to — the same failure an unconfigured table throws on.
     const chain = supabaseFrom({ matches: { rows: ROWS } })('matches');
     expect(() => chain.contains('tags', ['x'])).toThrow(/contains is not simulated/);
-    expect(() => chain.gt('seq', 1)).toThrow(/gt is not simulated/);
+    expect(() => chain.overlaps('tags', ['x'])).toThrow(/overlaps is not simulated/);
+  });
+
+  /**
+   * All four range comparisons, because a query usually pairs them: `gte` with
+   * `lt` for a half-open day window, `gt` with `lte` for "every round after
+   * this one, up to the last". Modelling only half of that pair leaves the
+   * other half throwing on a table the same test already seeded.
+   */
+  it('narrows on every range comparison, and excludes what cannot be ordered', async () => {
+    const seeded = () => supabaseFrom({ matches: { rows: [...ROWS, { id: 'x', seq: null }] } });
+    const seqs = async (build: (chain: ReturnType<ReturnType<typeof supabaseFrom>>) => unknown) => {
+      const { data } = (await build(seeded()('matches'))) as { data: Array<{ seq: number }> };
+      // Sorted here, not by the query: an unordered read comes back in seeded
+      // order, and this test is about which rows survive rather than their
+      // sequence.
+      return data.map((row) => row.seq).sort();
+    };
+
+    // ROWS carry seq 1, 2, 3; the fourth row's seq is null.
+    expect(await seqs((c) => c.select('*').gt('seq', 2))).toEqual([3]);
+    expect(await seqs((c) => c.select('*').gte('seq', 2))).toEqual([2, 3]);
+    expect(await seqs((c) => c.select('*').lt('seq', 2))).toEqual([1]);
+    expect(await seqs((c) => c.select('*').lte('seq', 2))).toEqual([1, 2]);
+
+    // A null cell is ordered against nothing, so no comparison selects it —
+    // which is what Postgres does with a WHERE that evaluates to NULL.
+    expect(await seqs((c) => c.select('*').gt('seq', 0))).not.toContain(null);
+  });
+
+  it('records a range comparison as one of the filters that scoped a write', async () => {
+    // An update names its rows only through its filters, so a comparison the
+    // log does not carry makes a scoped write read as an unscoped one.
+    const supabase = mockSupabase({ matches: { rows: ROWS } });
+
+    await supabase.service.from('matches').update({ status: 'voided' }).gt('seq', 2).lte('seq', 3);
+
+    expect(writesTo(supabase, 'matches')[0]?.filters).toEqual([
+      { method: 'gt', args: ['seq', 2] },
+      { method: 'lte', args: ['seq', 3] },
+    ]);
+  });
+
+  it('offers a range comparison on a CANNED table too, and records it', async () => {
+    // A canned table ignores filters by design, so the only way to assert its
+    // scope is by argument. The method still has to exist to be called at all.
+    const supabase = mockSupabase({ matches: { data: [], error: null } });
+
+    await supabase.service.from('matches').select('id').gt('seq', 2).lte('seq', 5);
+
+    expect(filtersFor(supabase.from, 'matches', 'gt')).toEqual([['seq', 2]]);
+    expect(filtersFor(supabase.from, 'matches', 'lte')).toEqual([['seq', 5]]);
   });
 
   it('throws on a not() operator other than eq', () => {

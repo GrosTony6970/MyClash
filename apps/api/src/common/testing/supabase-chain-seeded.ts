@@ -177,14 +177,25 @@ function orPredicate(source: string): (row: SupabaseRow) => boolean {
   return (row) => terms.some((matches) => matches(row));
 }
 
-/** `gte` / `lt` as a row predicate. A cell that cannot be ordered is excluded. */
+/**
+ * The four range comparisons as a row predicate.
+ *
+ * A cell that cannot be ordered against the value is EXCLUDED rather than
+ * guessed at, which is also how a NULL behaves in Postgres: every comparison
+ * against NULL is NULL, and a WHERE that is NULL does not select the row.
+ */
 const inRange =
-  (operator: 'gte' | 'lt', column: string, value: unknown) =>
+  (operator: RangeOperator, column: string, value: unknown) =>
   (row: SupabaseRow): boolean => {
     const order = rangeOrder(row[column], value);
     if (order === null) return false;
-    return operator === 'gte' ? order >= 0 : order < 0;
+    if (operator === 'gte') return order >= 0;
+    if (operator === 'gt') return order > 0;
+    if (operator === 'lte') return order <= 0;
+    return order < 0;
   };
+
+type RangeOperator = 'gte' | 'gt' | 'lte' | 'lt';
 
 /**
  * A builder over a seeded table.
@@ -246,6 +257,27 @@ function rowSet(seed: readonly SupabaseRow[]): RowSet {
  * looking unscoped while still filtering correctly — the quietest way this could
  * go wrong.
  */
+/**
+ * The four range comparisons, installed together because they are one rule.
+ *
+ * Split out of `installNarrowing` for its line budget, and it reads better
+ * here anyway: `gte`/`lt` bound a half-open window, `gt`/`lte` the other half.
+ */
+function installRanges(
+  chain: SupabaseChain,
+  narrow: (
+    method: string,
+    args: readonly unknown[],
+    predicate: (row: SupabaseRow) => boolean,
+  ) => SupabaseChain,
+): void {
+  for (const operator of ['gte', 'gt', 'lte', 'lt'] as const) {
+    chain[operator] = vi.fn((c: string, v: unknown) =>
+      narrow(operator, [c, v], inRange(operator, c, v)),
+    );
+  }
+}
+
 function installNarrowing(chain: SupabaseChain, log: QueryLog, set: RowSet): void {
   const narrow = (
     method: string,
@@ -274,8 +306,7 @@ function installNarrowing(chain: SupabaseChain, log: QueryLog, set: RowSet): voi
   });
   chain.ilike = vi.fn((c: string, p: string) => narrow('ilike', [c, p], likeRow(c, p)));
   chain.or = vi.fn((source: string) => narrow('or', [source], orPredicate(source)));
-  chain.gte = vi.fn((c: string, v: unknown) => narrow('gte', [c, v], inRange('gte', c, v)));
-  chain.lt = vi.fn((c: string, v: unknown) => narrow('lt', [c, v], inRange('lt', c, v)));
+  installRanges(chain, narrow);
 
   chain.order = vi.fn((column: string, options?: { ascending?: boolean; nullsFirst?: boolean }) => {
     const known = ['ascending', 'nullsFirst'];
