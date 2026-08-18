@@ -48,32 +48,14 @@ const mockSupabase = {
   },
 };
 
-function makeQueryChain(result: unknown) {
-  const resolved = result && typeof result === 'object' ? (result as Record<string, unknown>) : {};
-  return {
-    ...resolved,
-    select: vi.fn().mockReturnThis(),
-    eq: vi.fn().mockReturnThis(),
-    is: vi.fn().mockReturnThis(),
-    ilike: vi.fn().mockReturnThis(),
-    in: vi.fn().mockReturnThis(),
-    limit: vi.fn().mockReturnThis(),
-    order: vi.fn().mockReturnThis(),
-    maybeSingle: vi.fn().mockResolvedValue(result),
-    update: vi.fn().mockReturnThis(),
-    delete: vi.fn().mockReturnThis(),
-  };
-}
-
 /**
- * Routes `from()` by TABLE, for the describes that have been migrated off the
- * ordered `mockReturnValueOnce` queue the rest of this file still uses.
+ * Routes `from()` by TABLE. Every describe in this file uses it.
  *
- * The queue is position-dependent: insert a query anywhere upstream and every
- * later answer shifts by one while the suite stays green. Routing by table also
- * lets a fixture NARROW, which is what turns the `.eq()` calls in the service
- * from things a test can only assert were asked into things that decide its
- * result.
+ * What it replaced was an ordered `mockReturnValueOnce` queue, which is
+ * position-dependent: insert a query anywhere upstream and every later answer
+ * shifts by one while the suite stays green. Routing by table also lets a
+ * fixture NARROW, which is what turns the `.eq()` calls in the service from
+ * things a test can only assert were asked into things that decide its result.
  */
 function seedTables(byTable: Record<string, TableSeed>) {
   const seeded = seededSupabase(byTable);
@@ -118,10 +100,10 @@ const mockErasure = {
 };
 
 /**
- * Stubbed, not real: `buildClaimedResponse` drives ordered `mockReturnValueOnce`
- * chains on the Supabase mock, and a real LegalAcceptanceService would issue one
- * more `from()` at the end of every getMe test. The acceptance logic has its own
- * tests in privacy/legal-acceptance.service.test.ts.
+ * Stubbed, not real: a real LegalAcceptanceService reads its own tables, which
+ * every getMe fixture here would then have to declare to say nothing about
+ * acceptance. That logic has its own tests in
+ * privacy/legal-acceptance.service.test.ts.
  */
 const legalService = {
   assertCurrent: vi.fn((accepted: { terms?: string; privacy?: string }) => ({
@@ -172,7 +154,14 @@ describe('AuthService', () => {
       if (!value) throw new Error(`Missing config ${key}`);
       return value;
     });
-    fromMock.mockReturnValue(makeQueryChain({ data: null, error: null }));
+    // vi.clearAllMocks() clears calls, not implementations, so the previous
+    // test's seedTables would otherwise still be answering. Throwing rather than
+    // resolving to { data: null }: a query no fixture declared is the silence
+    // this whole file was migrated to remove, and it reads as a "not found"
+    // branch passing.
+    fromMock.mockImplementation((table: string) => {
+      throw new Error(`auth.service.test: query against unseeded table "${table}"`);
+    });
     refreshSessionMock.mockResolvedValue(null);
     getAuthUserMock.mockImplementation(async (accessToken: string) => {
       const response = await fetchMock('http://supabase-auth:9999/user', {
