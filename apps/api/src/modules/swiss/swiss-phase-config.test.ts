@@ -57,8 +57,17 @@ describe('writeSwissConfig', () => {
 });
 
 describe('readSwissConfig', () => {
-  it('parses a stored config blob', async () => {
-    const supabase = mockSupabase({ phases: { data: { config_json: CONFIG }, error: null } });
+  it('parses the stored config of the phase it was asked for', async () => {
+    // A second Swiss phase, configured differently. Reading the wrong row here
+    // pairs a round by the wrong method over the wrong number of rounds.
+    const supabase = mockSupabase({
+      phases: {
+        rows: [
+          { id: 'p1', config_json: CONFIG },
+          { id: 'p2', config_json: { ...CONFIG, roundCount: 9, pairingMethod: 'adjacent' } },
+        ],
+      },
+    });
     await expect(readSwissConfig(as(supabase), 'p1')).resolves.toMatchObject({
       roundCount: 5,
       pairingMethod: 'fold',
@@ -151,6 +160,38 @@ describe('hasStartedDownstreamBracket', () => {
       matches: { data: [{ id: 'm1' }], error: null },
     });
     await expect(hasStartedDownstreamBracket(as(supabase), 't1', 'swiss1')).resolves.toBe(true);
+  });
+
+  it('ignores a started bracket belonging to another tournament', async () => {
+    // One event runs several tournaments, each with its own Swiss and its own
+    // bracket. Reading past this tournament would freeze an organiser out of
+    // resuming their phase because somebody else's bracket had started.
+    const supabase = mockSupabase({
+      phases: {
+        rows: [
+          {
+            id: 'b1',
+            tournament_id: 't1',
+            type: 'single_elim',
+            config_json: { seedingStrategy: 'by-swiss-rank' },
+          },
+          {
+            id: 'b9',
+            tournament_id: 't9',
+            type: 'single_elim',
+            config_json: { seedingStrategy: 'by-swiss-rank' },
+          },
+        ],
+      },
+      matches: {
+        rows: [
+          { id: 'm1', phase_id: 'b1', status: 'scheduled' },
+          { id: 'm9', phase_id: 'b9', status: 'completed' },
+        ],
+      },
+    });
+
+    await expect(hasStartedDownstreamBracket(as(supabase), 't1', 'swiss1')).resolves.toBe(false);
   });
 
   it('matches on sourcePhaseId as well as seedingStrategy', async () => {
