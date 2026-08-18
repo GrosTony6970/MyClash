@@ -479,8 +479,7 @@ export class AuthService {
     const admin = await this.getAdminLandingContext(user.id);
 
     // Global profile photo (avatar in the personal-space sidebar). Best-effort:
-    // the user may not have a linked global_persons row yet. Kept last so it
-    // doesn't shift the ordered query mocks in getMe tests.
+    // the user may not have a linked global_persons row yet.
     let photoUrl: string | undefined;
     try {
       const { data: globalPerson } = await this.supabase.service
@@ -494,17 +493,13 @@ export class AuthService {
       // ignore — sidebar simply falls back to initials
     }
 
-    // Gates the "My leagues" nav entry + the /dashboard league branch. Appended
-    // after the photo query for the same reason it is kept last: inserting a
-    // query earlier shifts the ordered mocks in the getMe tests. Deliberately a
-    // cheap existence check rather than listManageable, whose count enrichment
-    // pulls every league_rankings row into memory — far too heavy for /me.
+    // Gates the "My leagues" nav entry + the /dashboard league branch.
+    // Deliberately a cheap existence check rather than listManageable, whose
+    // count enrichment pulls every league_rankings row into memory — far too
+    // heavy for /me.
     const hasLeagueRoles = await this.hasLeagueGrant(user.id);
 
-    // Appended LAST, for the same reason the two queries above are: the getMe
-    // tests drive ordered `mockReturnValueOnce` chains, and inserting a query
-    // earlier silently hands every later one the wrong response. One indexed
-    // lookup; it never throws (see LegalAcceptanceService.pendingFor).
+    // One indexed lookup; it never throws (see LegalAcceptanceService.pendingFor).
     const pendingLegal = await this.legal.pendingFor(user.id);
 
     return {
