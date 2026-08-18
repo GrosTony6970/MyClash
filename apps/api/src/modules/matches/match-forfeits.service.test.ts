@@ -1463,12 +1463,98 @@ describe('MatchForfeitsService — pool cascade void', () => {
  * standings carrying an F that named a withdrawal nothing pointed at.
  */
 describe('MatchForfeitsService — re-recorded forfeit under a live withdrawal', () => {
-  /** A pool state whose `match_forfeits.select` answers the root lookup. */
+  /**
+   * The withdrawal this bout belongs under: the fighter's own, in this pool,
+   * still on record, and one that actually withdrew them.
+   *
+   * `pool_id` lives on the match, so the lookup reaches it through an `!inner`
+   * embed and the row carries it as the flat key the embed spells.
+   */
+  const LIVE_ROOT = {
+    id: 'root-1',
+    match_id: 'match-8',
+    tournament_id: 'tournament-1',
+    forfeiting_registration_id: 'reg-red',
+    parent_forfeit_id: null,
+    can_continue: false,
+    voided_at: null,
+    'matches.pool_id': 'pool-1',
+    created_at: '2026-08-12T08:00:00.000Z',
+  };
+
+  /**
+   * One record per scope the lookup applies, each a near miss on everything
+   * else. Every one is NEWER than the withdrawal above, so a lost scope adopts
+   * it rather than failing quietly: the lookup takes the most recent match.
+   */
+  const NEAR_MISSES = [
+    // Their withdrawal from a different tournament — long over.
+    {
+      ...LIVE_ROOT,
+      id: 'ff-other-tournament',
+      match_id: 'match-2',
+      tournament_id: 'tournament-2',
+      created_at: '2026-08-12T09:00:00.000Z',
+    },
+    // Somebody else's withdrawal from this same pool.
+    {
+      ...LIVE_ROOT,
+      id: 'ff-other-fighter',
+      match_id: 'match-3',
+      forfeiting_registration_id: 'reg-blue',
+      created_at: '2026-08-12T09:01:00.000Z',
+    },
+    // A bout the withdrawal closed. It is an effect of the root, not a root —
+    // adopting it would build a tree two deep, which the cascade cannot reach.
+    {
+      ...LIVE_ROOT,
+      id: 'ff-child',
+      match_id: 'match-4',
+      parent_forfeit_id: 'root-1',
+      created_at: '2026-08-12T09:02:00.000Z',
+    },
+    // A one-bout forfeit: the fighter carried on afterwards, so it withdrew
+    // nobody and closed nothing else.
+    {
+      ...LIVE_ROOT,
+      id: 'ff-can-continue',
+      match_id: 'match-5',
+      can_continue: true,
+      created_at: '2026-08-12T09:03:00.000Z',
+    },
+    // A withdrawal the organiser voided. It names a withdrawal that no longer
+    // exists, which is why this lookup reads present state and never history.
+    {
+      ...LIVE_ROOT,
+      id: 'ff-voided',
+      match_id: 'match-6',
+      voided_at: '2026-08-11T09:00:00.000Z',
+      created_at: '2026-08-12T09:04:00.000Z',
+    },
+    // A withdrawal in another pool. The cascade that leaves this gap only
+    // reaches the fighter's remaining bouts in ONE pool, so it never closed
+    // this bout.
+    {
+      ...LIVE_ROOT,
+      id: 'ff-other-pool',
+      match_id: 'match-7',
+      'matches.pool_id': 'pool-2',
+      created_at: '2026-08-12T09:05:00.000Z',
+    },
+  ];
+
+  /**
+   * A pool state whose seeded `match_forfeits` answers the root lookup.
+   *
+   * The id the database stamps is derived from the bout, because a cascading
+   * forfeit inserts twice in one call and the second write keys on the first
+   * record's id.
+   */
   function poolStateWithLiveRoot(
     overrides: {
       status?: string;
       laterMatches?: unknown[];
-      root?: unknown[];
+      records?: SupabaseRow[];
     } = {},
   ) {
     return {
@@ -1478,10 +1564,8 @@ describe('MatchForfeitsService — re-recorded forfeit under a live withdrawal',
         select: overrides.laterMatches ?? [],
       },
       match_forfeits: {
-        maybeSingle: null,
-        // The one live root withdrawal for this fighter in this pool.
-        select: overrides.root ?? [{ id: 'root-1' }],
-        insert: { id: 'forfeit-2' },
+        rows: overrides.records ?? [LIVE_ROOT, ...NEAR_MISSES],
+        returning: (row: SupabaseRow) => ({ id: `ff-${String(row['match_id'])}` }),
       },
       phases: { maybeSingle: { id: 'phase-1', type: 'pool', tournament_id: 'tournament-1' } },
       registrations: { maybeSingle: { id: 'reg-red', status: 'withdrawn' } },
@@ -1537,10 +1621,11 @@ describe('MatchForfeitsService — re-recorded forfeit under a live withdrawal',
   });
 
   it('still roots a forfeit when no live withdrawal covers this fighter', async () => {
-    // The ordinary case, and the reason the lookup asks for present state: a
-    // root that was voided and re-recorded is a DIFFERENT row, so an empty
-    // result here must mean "root of its own", not "look at the history".
-    const supabase = fakeSupabase(poolStateWithLiveRoot({ root: [] }));
+    // The ordinary case, and where every near miss earns its place: six records
+    // sit in the table, each matching on all but one column, and not one of
+    // them is a withdrawal this bout belongs under. A lost scope adopts
+    // whichever it stopped excluding.
+    const supabase = fakeSupabase(poolStateWithLiveRoot({ records: NEAR_MISSES }));
     const service = new MatchForfeitsService(supabase as never, undefined as never);
 
     await service.createForfeit('match-1', {
@@ -1579,7 +1664,10 @@ describe('MatchForfeitsService — re-recorded forfeit under a live withdrawal',
         maybeSingle: matchRow({ phaseType: 'single_elim', status: 'scheduled' }),
         update: { id: 'match-1' },
       },
-      match_forfeits: { maybeSingle: null, select: [{ id: 'root-1' }], insert: { id: 'f-2' } },
+      match_forfeits: {
+        rows: [LIVE_ROOT],
+        returning: { id: 'ff-match-1' },
+      },
       phases: {
         maybeSingle: { id: 'phase-1', type: 'single_elim', tournament_id: 'tournament-1' },
       },
