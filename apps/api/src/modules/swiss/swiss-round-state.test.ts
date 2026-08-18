@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { mockSupabase } from '../../common/testing/supabase-chain';
+import { mockSupabase, writesTo } from '../../common/testing/supabase-chain';
 import type { SupabaseService } from '../supabase/supabase.service';
 import { deriveRoundStatus, SwissRoundStateService } from './swiss-round-state.service';
 
@@ -45,13 +45,9 @@ describe('deriveRoundStatus', () => {
   });
 });
 
-/** Every row written across every chain the double handed out. */
-const updateCalls = (supabase: { from: { mock: { results: Array<{ value: unknown }> } } }) =>
-  supabase.from.mock.results.flatMap((result) =>
-    ((result.value as { update: { mock: { calls: unknown[][] } } }).update.mock.calls ?? []).map(
-      (call) => call[0],
-    ),
-  );
+/** Every row written to `swiss_rounds`, with the filters that scoped it. */
+const updateCalls = (supabase: Parameters<typeof writesTo>[0]) =>
+  writesTo(supabase, 'swiss_rounds').map((write) => write.row);
 
 /**
  * The projection has to be computed on the state the caller is ABOUT to create.
@@ -63,8 +59,20 @@ const updateCalls = (supabase: { from: { mock: { results: Array<{ value: unknown
  * and writes nothing: an inverse that ships green and does nothing at all.
  */
 describe('SwissRoundStateService.refresh', () => {
+  /**
+   * The round under test, plus a second one of the same phase.
+   *
+   * The decoy is what makes the id scope decidable: without it the read
+   * returns the only row in the table whether or not it asked for one, and the
+   * update rewrites the same single row whatever it was scoped to.
+   */
   const round = (matches: Array<{ id: string; status: string }>, status = 'completed') => ({
-    swiss_rounds: { data: { id: 'round-1', status, matches }, error: null },
+    swiss_rounds: {
+      rows: [
+        { id: 'round-1', phase_id: 'p1', status, matches },
+        { id: 'round-2', phase_id: 'p1', status: 'pending', matches: [] },
+      ],
+    },
   });
 
   it('re-opens the round when the named bout is projected as unplayed', async () => {
@@ -116,5 +124,51 @@ describe('SwissRoundStateService.refresh', () => {
     );
 
     expect(next).toBe('completed');
+  });
+
+  it('writes the new status to the round it read, and to no other', async () => {
+    // The table holds a second round of the same phase. An unscoped update
+    // would drag it to the same status as this one.
+    const supabase = mockSupabase(
+      round([
+        { id: 'm1', status: 'completed' },
+        { id: 'm2', status: 'completed' },
+      ]),
+    );
+
+    await new SwissRoundStateService(supabase as unknown as SupabaseService).refresh(
+      'round-1',
+      'm1',
+    );
+
+    expect(writesTo(supabase, 'swiss_rounds')[0]?.filters).toEqual(
+      expect.arrayContaining([{ method: 'eq', args: ['id', 'round-1'] }]),
+    );
+  });
+});
+
+describe('SwissRoundStateService.isEditable', () => {
+  const rounds = mockSupabase({
+    swiss_rounds: {
+      rows: [
+        { id: 'round-1', phase_id: 'p1', status: 'pending' },
+        { id: 'round-2', phase_id: 'p1', status: 'running' },
+      ],
+    },
+  });
+
+  it('is true only while the round is still pending', async () => {
+    // Decision 3's override window, asked as a question: a pending round is
+    // open to pairing edits, and the first fighter on the piste closes it.
+    const service = new SwissRoundStateService(rounds as unknown as SupabaseService);
+
+    await expect(service.isEditable('round-1')).resolves.toBe(true);
+    await expect(service.isEditable('round-2')).resolves.toBe(false);
+  });
+
+  it('is false for a round that does not exist', async () => {
+    const service = new SwissRoundStateService(rounds as unknown as SupabaseService);
+
+    await expect(service.isEditable('round-gone')).resolves.toBe(false);
   });
 });
