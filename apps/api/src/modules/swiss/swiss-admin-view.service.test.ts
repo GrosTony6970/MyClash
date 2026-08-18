@@ -2,10 +2,10 @@ import { NotFoundException } from '@nestjs/common';
 import { describe, expect, it, vi } from 'vitest';
 import { mockSupabase } from '../../common/testing/supabase-chain';
 import {
-  adminState as state,
   asSupabase as as,
   namedEntrant,
   registration,
+  swissViewState as state,
   viewBout,
 } from './swiss.fixtures';
 import { SwissAdminViewService } from './swiss-admin-view.service';

@@ -305,12 +305,14 @@ const ADMIN_MATCHES: SupabaseRow[] = [
 ];
 
 /**
- * Every table the organiser's Swiss route reads, each carrying one decoy.
+ * Every table the two Swiss view surfaces read, each carrying one decoy.
  *
- * The decoys are the point: every read here is scoped, and a fixture holding
- * only rows that belong cannot tell a scoped read from an unscoped one.
+ * Shared by the organiser's route and the public one: they read the same
+ * tables, scoped the same way, and differ only in what they project. The
+ * decoys are the point — every read here is scoped, and a fixture holding only
+ * rows that belong cannot tell a scoped read from an unscoped one.
  */
-export const adminState = (over: Record<string, unknown> = {}) => ({
+export const swissViewState = (over: Record<string, unknown> = {}) => ({
   registrations: { rows: ADMIN_REGISTRATIONS },
   phases: { rows: ADMIN_PHASES },
   swiss_entrants: { rows: ADMIN_ENTRANTS },
@@ -318,8 +320,8 @@ export const adminState = (over: Record<string, unknown> = {}) => ({
   matches: { rows: ADMIN_MATCHES },
   tournaments: {
     rows: [
-      { id: 't1', weapon: 'longsword' },
-      { id: 't2', weapon: 'rapier' },
+      { id: 't1', weapon: 'longsword', scoring_config_json: null },
+      { id: 't2', weapon: 'rapier', scoring_config_json: null },
     ],
   },
   ...over,
