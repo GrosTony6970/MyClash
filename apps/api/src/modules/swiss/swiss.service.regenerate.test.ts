@@ -1,6 +1,6 @@
 import { ConflictException } from '@nestjs/common';
 import { describe, expect, it } from 'vitest';
-import { mockSupabase, queriedTables } from '../../common/testing/supabase-chain';
+import { mockSupabase, queriedTables, writesTo } from '../../common/testing/supabase-chain';
 import type { SupabaseService } from '../supabase/supabase.service';
 import type { SwissPairingService } from './swiss-pairing.service';
 import type { SwissSeedingService } from './swiss-seeding.service';
@@ -21,9 +21,22 @@ const unusedCollaborators = () => [{} as SwissPairingService, {} as SwissSeeding
 
 const dto = {} as GenerateSwissDto;
 
+/**
+ * A Swiss phase on t1, beside the two rows the phase lookup could wrongly
+ * take: this tournament's POOL phase, and another tournament's Swiss phase.
+ *
+ * Finding either instead means the existing phase goes unnoticed, and a
+ * regeneration that should have been refused silently creates a second one.
+ */
 const withExistingPhase = (matches: unknown[]) =>
   mockSupabase({
-    phases: { data: { id: 'swiss-1' }, error: null },
+    phases: {
+      rows: [
+        { id: 'swiss-1', tournament_id: 't1', type: 'swiss' },
+        { id: 'pool-1', tournament_id: 't1', type: 'pool' },
+        { id: 'swiss-9', tournament_id: 't9', type: 'swiss' },
+      ],
+    },
     matches: { data: matches, error: null },
   });
 
@@ -56,8 +69,11 @@ describe('SwissService.generateSwiss — regenerating over an existing phase', (
    */
   const withFoughtStatuses = (matches: Record<string, unknown>[]) =>
     mockSupabase({
-      phases: { data: { id: 'swiss-1' }, error: null },
-      matches: { rows: matches },
+      phases: { rows: [{ id: 'swiss-1', tournament_id: 't1', type: 'swiss' }] },
+      // A bout of ANOTHER phase, already completed. The probe must not see it:
+      // it would report this phase as under way and refuse a regeneration that
+      // nothing in this phase blocks.
+      matches: { rows: [...matches, { id: 'm-other', phase_id: 'other-1', status: 'completed' }] },
     });
 
   it('still refuses when a voided bout sits beside a fought one', async () => {
@@ -84,5 +100,20 @@ describe('SwissService.generateSwiss — regenerating over an existing phase', (
 
     expect(String((failure as Error)?.message)).not.toMatch(/bout under way/);
     expect(queriedTables(supabase.from).length).toBeGreaterThan(2);
+  });
+
+  it('deletes only the phase it found', async () => {
+    // The last statement of the force path, and the most destructive in the
+    // module: unscoped it empties `phases` for every tournament in the
+    // database. A delete names its rows only through its filters.
+    const supabase = withFoughtStatuses([{ id: 'm1', phase_id: 'swiss-1', status: 'voided' }]);
+    const service = new SwissService(as(supabase), ...unusedCollaborators());
+
+    await service.generateSwiss('t1', dto, true).catch(() => undefined);
+
+    expect(writesTo(supabase, 'phases')[0]).toMatchObject({
+      op: 'delete',
+      filters: [{ method: 'eq', args: ['id', 'swiss-1'] }],
+    });
   });
 });

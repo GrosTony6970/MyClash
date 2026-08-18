@@ -1,6 +1,6 @@
 import { ConflictException } from '@nestjs/common';
 import { describe, expect, it, vi } from 'vitest';
-import { mockSupabase } from '../../common/testing/supabase-chain';
+import { mockSupabase, writesTo } from '../../common/testing/supabase-chain';
 import type { SupabaseService } from '../supabase/supabase.service';
 import type { SwissPairingService } from './swiss-pairing.service';
 import type { SwissSeedingService } from './swiss-seeding.service';
@@ -74,5 +74,48 @@ describe('SwissService.deleteRound', () => {
     await expect(service(['scheduled']).deleteRound('p1', 2)).rejects.toBeInstanceOf(
       ConflictException,
     );
+  });
+
+  /**
+   * A DELETE names its rows only through its filters, and a seeded table is a
+   * fixture rather than a database — a delete changes nothing a later read can
+   * see. So the scope is asserted by argument here, which is the only form
+   * available and the reason the double records filters alongside writes.
+   *
+   * Both were held by nothing. Unscoped, the first statement empties `matches`
+   * for the whole database and the second empties `swiss_rounds`.
+   */
+  it('deletes only the bouts of the round it was asked for', async () => {
+    const supabase = writableSupabase();
+
+    await service(['scheduled', 'scheduled'], supabase).deleteRound('p1', 3);
+
+    expect(writesTo(supabase, 'matches')[0]).toMatchObject({
+      op: 'delete',
+      filters: [{ method: 'eq', args: ['swiss_round_id', 'round-3'] }],
+    });
+  });
+
+  it('deletes only the round it was asked for', async () => {
+    const supabase = writableSupabase();
+
+    await service(['scheduled', 'scheduled'], supabase).deleteRound('p1', 3);
+
+    expect(writesTo(supabase, 'swiss_rounds')[0]).toMatchObject({
+      op: 'delete',
+      filters: [{ method: 'eq', args: ['id', 'round-3'] }],
+    });
+  });
+
+  it('deletes the bouts BEFORE the round that owns them', async () => {
+    // matches.swiss_round_id is ON DELETE SET NULL, so dropping the round row
+    // first orphans its bouts: they survive with a null round, invisible to
+    // every Swiss read path and impossible to clear from the UI.
+    const supabase = writableSupabase();
+
+    await service(['scheduled'], supabase).deleteRound('p1', 3);
+
+    const tables = supabase.writes.map((write) => write.table);
+    expect(tables.indexOf('matches')).toBeLessThan(tables.indexOf('swiss_rounds'));
   });
 });
