@@ -5,6 +5,7 @@ import type { LegalAcceptanceService } from '../privacy/legal-acceptance.service
 import { AuthService } from './auth.service';
 import { GuestJwtService } from './guest-jwt.service';
 import {
+  filtersFor,
   mockSupabase as seededSupabase,
   scopedTo,
   writesTo,
@@ -1621,77 +1622,136 @@ describe('AuthService', () => {
     });
   });
 
+  /**
+   * Confirming a global-person claim from the emailed link — the one path that
+   * hands a user someone's competition history on the strength of a token.
+   *
+   * Every table is seeded so the two guards can be asserted as OUTCOMES rather
+   * than as arguments. The race guard is the interesting one: the claiming
+   * update is scoped `claimed_by_user_id IS NULL` and reads itself back, so
+   * seeding a profile already claimed makes that read-back return nothing —
+   * which is exactly the branch that refuses the claim.
+   */
   describe('confirmGlobalPersonClaim', () => {
-    it('flips linked persons to claimed on magic-link claim confirmation', async () => {
-      mockAuthUser({ id: 'user-1', email: 'fighter@example.com' });
-      const future = new Date(Date.now() + 3_600_000).toISOString();
-      const tokenLoadChain = makeQueryChain({
-        data: {
-          id: 'token-row-1',
-          user_id: 'user-1',
-          global_person_id: 'global-1',
-          expires_at: future,
-        },
-        error: null,
-      });
-      const globalUpdateChain = makeQueryChain({ data: { id: 'global-1' }, error: null });
-      const tokenDeleteChain = { delete: vi.fn().mockReturnThis(), eq: vi.fn().mockReturnThis() };
-      const personsSyncChain = makeQueryChain({ data: null, error: null });
-      fromMock
-        .mockReturnValueOnce(tokenLoadChain)
-        .mockReturnValueOnce(globalUpdateChain)
-        .mockReturnValueOnce(tokenDeleteChain)
-        .mockReturnValueOnce(personsSyncChain);
+    const USER = 'user-1';
+    const TOKEN = 'claim-token';
+    const hashOf = (raw: string) => createHash('sha256').update(raw).digest('hex');
 
-      const result = await service.confirmGlobalPersonClaim(
+    const tokenRow = (over: Record<string, unknown> = {}) => ({
+      id: 'token-row-1',
+      user_id: USER,
+      global_person_id: 'global-1',
+      expires_at: new Date(Date.now() + 3_600_000).toISOString(),
+      token_hash: hashOf(TOKEN),
+      ...over,
+    });
+
+    /** Another user's live token, seeded FIRST — what a lost hash filter finds. */
+    const TOKEN_DECOY = tokenRow({
+      id: 'token-other',
+      user_id: 'other-user',
+      global_person_id: 'global-2',
+      token_hash: hashOf('someone-elses-token'),
+    });
+
+    /** An unclaimed profile that is NOT the one the token names. */
+    const GLOBAL_DECOY = { id: 'global-other', claimed_by_user_id: null };
+    const unclaimedTarget = { id: 'global-1', claimed_by_user_id: null };
+
+    const confirm = (raw = TOKEN) =>
+      service.confirmGlobalPersonClaim(
         { headers: { authorization: 'Bearer t' }, cookies: {} } as never,
-        'claim-token',
+        raw,
       );
 
-      expect(result).toEqual({ status: 'claimed', globalPersonId: 'global-1' });
-      expect(personsSyncChain.update).toHaveBeenCalledWith({
-        claim_status: 'claimed',
-        claimed_by_user_id: 'user-1',
+    it('claims the profile the token names, and flips its Persons to claimed', async () => {
+      mockAuthUser({ id: USER, email: 'fighter@example.com' });
+      const seeded = seedTables({
+        global_person_claim_tokens: { rows: [TOKEN_DECOY, tokenRow()] },
+        global_persons: { rows: [GLOBAL_DECOY, unclaimedTarget] },
+        persons: { rows: [] },
       });
-      expect(personsSyncChain.eq).toHaveBeenCalledWith('global_person_id', 'global-1');
-      expect(personsSyncChain.is).toHaveBeenCalledWith('claimed_by_user_id', null);
+
+      await expect(confirm()).resolves.toEqual({ status: 'claimed', globalPersonId: 'global-1' });
+
+      const [claim] = writesTo(seeded, 'global_persons');
+      expect(claim?.row).toMatchObject({ claimed_by_user_id: USER });
+      expect(scopedTo(claim, 'id')).toBe('global-1');
+      expect(isNullScoped(claim, 'claimed_by_user_id')).toBe(true);
+
+      const [sync] = writesTo(seeded, 'persons');
+      expect(sync?.row).toEqual({ claim_status: 'claimed', claimed_by_user_id: USER });
+      expect(scopedTo(sync, 'global_person_id')).toBe('global-1');
+      expect(isNullScoped(sync, 'claimed_by_user_id')).toBe(true);
+    });
+
+    it('refuses a profile claimed in the racing window, and burns the token', async () => {
+      mockAuthUser({ id: USER, email: 'fighter@example.com' });
+      const seeded = seedTables({
+        global_person_claim_tokens: { rows: [TOKEN_DECOY, tokenRow()] },
+        global_persons: {
+          rows: [GLOBAL_DECOY, { id: 'global-1', claimed_by_user_id: 'someone-else' }],
+        },
+        persons: { rows: [] },
+      });
+
+      await expect(confirm()).rejects.toThrow(/already_claimed/);
+      // Nothing downstream may run on a claim that did not happen.
+      expect(writesTo(seeded, 'persons')).toEqual([]);
+      const [burn] = writesTo(seeded, 'global_person_claim_tokens');
+      expect(burn?.op).toBe('delete');
+      expect(scopedTo(burn, 'id')).toBe('token-row-1');
+    });
+
+    it('refuses a token issued to a different user', async () => {
+      mockAuthUser({ id: USER, email: 'fighter@example.com' });
+      const seeded = seedTables({
+        global_person_claim_tokens: { rows: [tokenRow({ user_id: 'other-user' })] },
+        global_persons: { rows: [unclaimedTarget] },
+        persons: { rows: [] },
+      });
+
+      await expect(confirm()).rejects.toThrow(/user_mismatch/);
+      expect(writesTo(seeded, 'global_persons')).toEqual([]);
+    });
+
+    it('burns an expired token instead of honouring it', async () => {
+      mockAuthUser({ id: USER, email: 'fighter@example.com' });
+      const seeded = seedTables({
+        global_person_claim_tokens: {
+          rows: [TOKEN_DECOY, tokenRow({ expires_at: new Date(Date.now() - 1_000).toISOString() })],
+        },
+        global_persons: { rows: [GLOBAL_DECOY, unclaimedTarget] },
+        persons: { rows: [] },
+      });
+
+      await expect(confirm()).rejects.toThrow(/expired_or_used/);
+      expect(writesTo(seeded, 'global_persons')).toEqual([]);
+      const [burn] = writesTo(seeded, 'global_person_claim_tokens');
+      expect(burn?.op).toBe('delete');
+      expect(scopedTo(burn, 'id')).toBe('token-row-1');
     });
 
     it('looks the token up by hash, never by the raw value', async () => {
-      mockAuthUser({ id: 'user-1', email: 'fighter@example.com' });
-      const future = new Date(Date.now() + 3_600_000).toISOString();
-      const tokenLoadChain = makeQueryChain({
-        data: {
-          id: 'token-row-1',
-          user_id: 'user-1',
-          global_person_id: 'global-1',
-          expires_at: future,
-        },
-        error: null,
+      mockAuthUser({ id: USER, email: 'fighter@example.com' });
+      const seeded = seedTables({
+        global_person_claim_tokens: { rows: [TOKEN_DECOY, tokenRow()] },
+        global_persons: { rows: [GLOBAL_DECOY, unclaimedTarget] },
+        persons: { rows: [] },
       });
-      const tokenDeleteChain = { delete: vi.fn().mockReturnThis(), eq: vi.fn().mockReturnThis() };
-      fromMock
-        .mockReturnValueOnce(tokenLoadChain)
-        .mockReturnValueOnce(makeQueryChain({ data: { id: 'global-1' }, error: null }))
-        .mockReturnValueOnce(tokenDeleteChain)
-        .mockReturnValueOnce(makeQueryChain({ data: null, error: null }));
 
-      await service.confirmGlobalPersonClaim(
-        { headers: { authorization: 'Bearer t' }, cookies: {} } as never,
-        'raw-claim-token',
-      );
+      await confirm();
 
-      expect(tokenLoadChain.eq).toHaveBeenCalledWith(
-        'token_hash',
-        createHash('sha256').update('raw-claim-token').digest('hex'),
-      );
+      const asked = filtersFor(seeded.from, 'global_person_claim_tokens', 'eq');
+      expect(asked).toContainEqual(['token_hash', hashOf(TOKEN)]);
       // The raw token must never reach the database, under any column.
-      for (const [column, value] of tokenLoadChain.eq.mock.calls) {
+      for (const [column, value] of asked) {
         expect(column).not.toBe('token');
-        expect(value).not.toBe('raw-claim-token');
+        expect(value).not.toBe(TOKEN);
       }
-      // Single-use delete keys on the surrogate id, not the secret.
-      expect(tokenDeleteChain.eq).toHaveBeenCalledWith('id', 'token-row-1');
+      // Single-use: the delete keys on the surrogate id, not the secret.
+      const [burn] = writesTo(seeded, 'global_person_claim_tokens');
+      expect(scopedTo(burn, 'id')).toBe('token-row-1');
     });
   });
 
