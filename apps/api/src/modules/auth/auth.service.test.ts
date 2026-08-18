@@ -1,12 +1,18 @@
 import { createHash } from 'node:crypto';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { BadRequestException, ForbiddenException, UnauthorizedException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ForbiddenException,
+  ServiceUnavailableException,
+  UnauthorizedException,
+} from '@nestjs/common';
 import type { LegalAcceptanceService } from '../privacy/legal-acceptance.service';
 import { AuthService } from './auth.service';
 import { GuestJwtService } from './guest-jwt.service';
 import {
   filtersFor,
   mockSupabase as seededSupabase,
+  queriedTables,
   scopedTo,
   writesTo,
   type RecordedWrite,
@@ -772,14 +778,53 @@ describe('AuthService', () => {
     });
   });
 
+  /**
+   * The login gate: who gets a session cookie at all.
+   *
+   * `hasAdminAccess` walks three tables in turn — platform tier, then org
+   * membership, then a direct league grant — and `assertNotLockedOut` reads a
+   * fourth before any of it becomes a cookie. Each read is scoped to the
+   * caller, and each sits where losing that scope hands the session to somebody
+   * else's credential rather than to nobody.
+   *
+   * So every table carries a STRANGER's row: an unrelated super admin, an
+   * unrelated org owner, an unrelated league admin, a feature flag that is not
+   * the lockdown one. The flag decoy is seeded FIRST because `maybeSingle` on a
+   * seeded table takes row zero — a decoy behind the wanted row can never be
+   * returned and would guard nothing.
+   *
+   * `tryAutolinkGlobalPerson` runs after every successful login, so
+   * global_persons and persons are declared too. A fixture that leaves a table
+   * out throws rather than silently skipping the step it belongs to.
+   */
+  const STRANGER = 'stranger-9';
+  const OTHER_FLAG = { key: 'maintenance_banner', enabled: true };
+
+  function seedLogin(over: Record<string, SupabaseRow[]> = {}) {
+    const base: Record<string, SupabaseRow[]> = {
+      platform_roles: [{ user_id: STRANGER, role: 'super_admin' }],
+      organization_members: [{ user_id: STRANGER, role: 'owner' }],
+      league_user_roles: [{ user_id: STRANGER, role: 'admin' }],
+      feature_flags: [OTHER_FLAG, { key: 'admin_lockdown', enabled: false }],
+      global_persons: [],
+      persons: [],
+    };
+    return seedTables(
+      Object.fromEntries(
+        Object.entries({ ...base, ...over }).map(([table, rows]) => [table, { rows }]),
+      ),
+    );
+  }
+
   describe('acceptOAuthSession', () => {
     it('sets cookies for an existing organizer member', async () => {
       mockAuthUser({ id: 'user-123', email: 'org@example.com' });
-
-      fromMock
-        .mockReturnValueOnce(makeQueryChain({ data: null, error: null }))
-        // organization_members is read with .limit(1), so it resolves to an array.
-        .mockReturnValueOnce(makeQueryChain({ data: [{ role: 'owner' }], error: null }));
+      seedLogin({
+        organization_members: [
+          { user_id: STRANGER, role: 'owner' },
+          { user_id: 'user-123', role: 'editor' },
+        ],
+      });
 
       const reply = makeReply();
       await service.acceptOAuthSession(
@@ -815,12 +860,19 @@ describe('AuthService', () => {
       expect(getUserMock).not.toHaveBeenCalled();
     });
 
-    it('rejects admin OAuth when user has no organization, platform or league role', async () => {
+    // `read_only` is the one organization role the login gate leaves out of its
+    // list, and the stranger holds every credential the gate accepts. So this
+    // refusal fails in three different ways if any of the three reads stops
+    // being scoped to the caller: it admits an outsider's org, an outsider's
+    // league grant, or the caller's own read-only seat.
+    it('refuses a read-only member holding none of a stranger’s grants', async () => {
       mockAuthUser({ id: 'user-123', email: 'outsider@example.com' });
-      fromMock
-        .mockReturnValueOnce(makeQueryChain({ data: null, error: null })) // platform_roles
-        .mockReturnValueOnce(makeQueryChain({ data: [], error: null })) // organization_members
-        .mockReturnValueOnce(makeQueryChain({ data: [], error: null })); // league_user_roles
+      seedLogin({
+        organization_members: [
+          { user_id: STRANGER, role: 'owner' },
+          { user_id: 'user-123', role: 'read_only' },
+        ],
+      });
 
       await expect(
         service.acceptOAuthSession(
@@ -835,6 +887,42 @@ describe('AuthService', () => {
       expect(getUserMock).not.toHaveBeenCalled();
     });
 
+    /**
+     * Lockdown is checked at LOGIN, not only by the interceptor: an organizer
+     * is refused a cookie outright while it is on, and platform staff of any
+     * tier still get one so somebody can turn it back off. Nothing tested
+     * either half — `assertNotLockedOut` had no test at all.
+     */
+    it('refuses an organizer while admin lockdown is on, but not platform staff', async () => {
+      const flags = [OTHER_FLAG, { key: 'admin_lockdown', enabled: true }];
+      const session = {
+        accessToken: 'access-token',
+        refreshToken: 'refresh-token',
+        mode: 'admin_login' as const,
+      };
+
+      mockAuthUser({ id: 'user-123', email: 'org@example.com' });
+      seedLogin({
+        feature_flags: flags,
+        organization_members: [{ user_id: 'user-123', role: 'owner' }],
+      });
+      await expect(service.acceptOAuthSession(session, makeReply() as never)).rejects.toThrow(
+        ServiceUnavailableException,
+      );
+
+      mockAuthUser({ id: 'staff-1', email: 'staff@example.com' });
+      seedLogin({
+        feature_flags: flags,
+        platform_roles: [
+          { user_id: STRANGER, role: 'super_admin' },
+          { user_id: 'staff-1', role: 'platform_viewer' },
+        ],
+      });
+      const reply = makeReply();
+      await service.acceptOAuthSession(session, reply as never);
+      expect(reply.send).toHaveBeenCalledWith({ next: '/dashboard' });
+    });
+
     // The lower platform tiers exist ONLY as platform_roles rows — no org, no
     // league grant. If this login gate stayed super-admin-exact they could not
     // reach the console at all and the whole feature would be invisible.
@@ -842,10 +930,12 @@ describe('AuthService', () => {
       'sets cookies for a %s whose only grant is the platform role',
       async (role) => {
         mockAuthUser({ id: `${role}-1`, email: `${role}@example.com` });
-        fromMock
-          .mockReturnValueOnce(makeQueryChain({ data: { role }, error: null })) // platform_roles
-          .mockReturnValueOnce(makeQueryChain({ data: [], error: null })) // organization_members
-          .mockReturnValueOnce(makeQueryChain({ data: [], error: null })); // league_user_roles
+        seedLogin({
+          platform_roles: [
+            { user_id: STRANGER, role: 'super_admin' },
+            { user_id: `${role}-1`, role },
+          ],
+        });
 
         const reply = makeReply();
         await service.acceptOAuthSession(
@@ -866,10 +956,12 @@ describe('AuthService', () => {
     // /admin/leagues/* endpoint, so login must not be what blocks them.
     it('sets cookies for an account whose only grant is a direct league role', async () => {
       mockAuthUser({ id: 'league-admin-1', email: 'league@example.com' });
-      fromMock
-        .mockReturnValueOnce(makeQueryChain({ data: null, error: null })) // platform_roles
-        .mockReturnValueOnce(makeQueryChain({ data: [], error: null })) // organization_members
-        .mockReturnValueOnce(makeQueryChain({ data: [{ role: 'admin' }], error: null }));
+      seedLogin({
+        league_user_roles: [
+          { user_id: STRANGER, role: 'admin' },
+          { user_id: 'league-admin-1', role: 'owner' },
+        ],
+      });
 
       const reply = makeReply();
       await service.acceptOAuthSession(
@@ -890,6 +982,7 @@ describe('AuthService', () => {
 
     it('creates organizer signup membership after Google session validation', async () => {
       mockAuthUser({ id: 'user-123', email: 'new@example.com' });
+      seedLogin();
       const reply = makeReply();
 
       await service.acceptOAuthSession(
@@ -912,35 +1005,39 @@ describe('AuthService', () => {
       expect(getUserMock).not.toHaveBeenCalled();
     });
 
+    // A neighbour is seeded FIRST on both tables, with an email the caller does
+    // not own and a global profile that is not theirs. `validatePersonClaim`
+    // reads with maybeSingle, so an unscoped read returns the neighbour and the
+    // claim is refused for the wrong reason — which is the shape of the bug
+    // where a claim lands on somebody else's roster row.
+    const CLAIMED_PERSON = '00000000-0000-0000-0000-000000000001';
+    const NEIGHBOUR = {
+      id: '00000000-0000-0000-0000-0000000000ff',
+      email: 'someone.else@example.com',
+      claim_status: 'unclaimed',
+      global_person_id: 'global-99',
+    };
+
     it('claims a Person when Google email matches the registered email', async () => {
       mockAuthUser({ id: 'user-123', email: 'jean@example.com' });
-      const personChain = makeQueryChain({
-        data: { id: 'person-1', email: 'jean@example.com', claim_status: 'unclaimed' },
-        error: null,
+      const seeded = seedLogin({
+        persons: [
+          NEIGHBOUR,
+          {
+            id: CLAIMED_PERSON,
+            email: 'jean@example.com',
+            claim_status: 'unclaimed',
+            global_person_id: 'global-1',
+          },
+        ],
+        global_persons: [
+          { id: 'global-99', email: 'nobody@example.com', claimed_by_user_id: STRANGER },
+          // A different email, so the autolink that follows every login finds
+          // no candidate of its own and this test stays about the claim.
+          { id: 'global-1', email: 'jean.old@example.com', claimed_by_user_id: null },
+        ],
+        fighter_clubs: [],
       });
-      const updateChain = makeQueryChain({ data: null, error: null });
-      const claimedPersonChain = makeQueryChain({
-        data: { global_person_id: 'global-1' },
-        error: null,
-      });
-      const existingGlobalChain = makeQueryChain({ data: null, error: null });
-      const targetGlobalChain = makeQueryChain({
-        data: { id: 'global-1', claimed_by_user_id: null },
-        error: null,
-      });
-      const globalUpdateChain = makeQueryChain({ data: null, error: null });
-      const existingGlobalAfterOAuthChain = makeQueryChain({
-        data: { id: 'global-1' },
-        error: null,
-      });
-      fromMock
-        .mockReturnValueOnce(personChain)
-        .mockReturnValueOnce(updateChain)
-        .mockReturnValueOnce(claimedPersonChain)
-        .mockReturnValueOnce(existingGlobalChain)
-        .mockReturnValueOnce(targetGlobalChain)
-        .mockReturnValueOnce(globalUpdateChain)
-        .mockReturnValueOnce(existingGlobalAfterOAuthChain);
 
       const reply = makeReply();
       await service.acceptOAuthSession(
@@ -948,26 +1045,26 @@ describe('AuthService', () => {
           accessToken: 'access-token',
           refreshToken: 'refresh-token',
           mode: 'person_claim',
-          personId: '00000000-0000-0000-0000-000000000001',
+          personId: CLAIMED_PERSON,
         },
         reply as never,
       );
 
-      expect(updateChain.update).toHaveBeenCalledWith({
-        claim_status: 'claimed',
-        claimed_by_user_id: 'user-123',
-      });
-      expect(globalUpdateChain.update).toHaveBeenCalledWith(
-        expect.objectContaining({ claimed_by_user_id: 'user-123' }),
-      );
-      expect(globalUpdateChain.eq).toHaveBeenCalledWith('id', 'global-1');
-      expect(globalUpdateChain.is).toHaveBeenCalledWith('claimed_by_user_id', null);
+      const [claim] = writesTo(seeded, 'persons');
+      expect(claim?.row).toEqual({ claim_status: 'claimed', claimed_by_user_id: 'user-123' });
+      expect(scopedTo(claim, 'id')).toBe(CLAIMED_PERSON);
+
+      const [link] = writesTo(seeded, 'global_persons');
+      expect(link?.row).toEqual(expect.objectContaining({ claimed_by_user_id: 'user-123' }));
+      expect(scopedTo(link, 'id')).toBe('global-1');
+      expect(isNullScoped(link, 'claimed_by_user_id')).toBe(true);
       expect(reply.send).toHaveBeenCalledWith({ next: '/' });
       expect(getUserMock).not.toHaveBeenCalled();
     });
 
     it('sets cookies for public personal-space OAuth without admin access', async () => {
       mockAuthUser({ id: 'user-123', email: 'fighter@example.com' });
+      const seeded = seedLogin();
 
       const reply = makeReply();
       await service.acceptOAuthSession(
@@ -984,11 +1081,8 @@ describe('AuthService', () => {
       // email and then checks already-claimed persons for a repairable
       // global_person_id. It must not claim new persons, platform roles,
       // or other admin-only tables.
-      expect(fromMock).toHaveBeenCalledWith('global_persons');
-      const otherTables = fromMock.mock.calls
-        .map((call: unknown[]) => call[0] as string)
-        .filter((name: string) => name !== 'global_persons' && name !== 'persons');
-      expect(otherTables).toEqual([]);
+      const asked = new Set(queriedTables(seeded.from));
+      expect(asked).toEqual(new Set(['global_persons', 'persons']));
       expect(reply.setCookie).toHaveBeenCalledWith(
         'sb-access-token',
         'access-token',
@@ -1005,12 +1099,12 @@ describe('AuthService', () => {
 
     it('rejects person claim when Google email does not match', async () => {
       mockAuthUser({ id: 'user-123', email: 'other@example.com' });
-      fromMock.mockReturnValueOnce(
-        makeQueryChain({
-          data: { id: 'person-1', email: 'jean@example.com', claim_status: 'unclaimed' },
-          error: null,
-        }),
-      );
+      const seeded = seedLogin({
+        persons: [
+          NEIGHBOUR,
+          { id: CLAIMED_PERSON, email: 'jean@example.com', claim_status: 'unclaimed' },
+        ],
+      });
 
       await expect(
         service.acceptOAuthSession(
@@ -1018,11 +1112,12 @@ describe('AuthService', () => {
             accessToken: 'access-token',
             refreshToken: 'refresh-token',
             mode: 'person_claim',
-            personId: '00000000-0000-0000-0000-000000000001',
+            personId: CLAIMED_PERSON,
           },
           makeReply() as never,
         ),
       ).rejects.toThrow(BadRequestException);
+      expect(writesTo(seeded, 'persons')).toEqual([]);
       expect(getUserMock).not.toHaveBeenCalled();
     });
 
@@ -1031,6 +1126,7 @@ describe('AuthService', () => {
         ok: false,
         json: vi.fn().mockResolvedValue({ error: 'invalid_token' }),
       });
+      const seeded = seedLogin();
 
       await expect(
         service.acceptOAuthSession(
@@ -1042,7 +1138,7 @@ describe('AuthService', () => {
           makeReply() as never,
         ),
       ).rejects.toThrow(UnauthorizedException);
-      expect(fromMock).not.toHaveBeenCalled();
+      expect(queriedTables(seeded.from)).toEqual([]);
       expect(getUserMock).not.toHaveBeenCalled();
     });
   });
@@ -1058,7 +1154,12 @@ describe('AuthService', () => {
           user: { id: 'admin-123', email: 'admin@example.com' },
         }),
       });
-      fromMock.mockReturnValueOnce(makeQueryChain({ data: { role: 'super_admin' }, error: null }));
+      seedLogin({
+        platform_roles: [
+          { user_id: STRANGER, role: 'super_admin' },
+          { user_id: 'admin-123', role: 'super_admin' },
+        ],
+      });
 
       const reply = makeReply();
       await service.passwordLogin(
@@ -1102,6 +1203,7 @@ describe('AuthService', () => {
         ok: false,
         json: vi.fn().mockResolvedValue({ error: 'invalid_grant' }),
       });
+      const seeded = seedLogin();
 
       await expect(
         service.passwordLogin(
@@ -1112,7 +1214,7 @@ describe('AuthService', () => {
           makeReply() as never,
         ),
       ).rejects.toThrow(UnauthorizedException);
-      expect(fromMock).not.toHaveBeenCalled();
+      expect(queriedTables(seeded.from)).toEqual([]);
       expect(signInWithPasswordMock).not.toHaveBeenCalled();
     });
 
@@ -1126,10 +1228,12 @@ describe('AuthService', () => {
           user: { id: 'user-123', email: 'person@example.com' },
         }),
       });
-      fromMock
-        .mockReturnValueOnce(makeQueryChain({ data: null, error: null })) // platform_roles
-        .mockReturnValueOnce(makeQueryChain({ data: [], error: null })) // organization_members
-        .mockReturnValueOnce(makeQueryChain({ data: [], error: null })); // league_user_roles
+      seedLogin({
+        organization_members: [
+          { user_id: STRANGER, role: 'owner' },
+          { user_id: 'user-123', role: 'read_only' },
+        ],
+      });
 
       await expect(
         service.passwordLogin(
@@ -1153,10 +1257,12 @@ describe('AuthService', () => {
           user: { id: 'league-admin-1', email: 'league@example.com' },
         }),
       });
-      fromMock
-        .mockReturnValueOnce(makeQueryChain({ data: null, error: null })) // platform_roles
-        .mockReturnValueOnce(makeQueryChain({ data: [], error: null })) // organization_members
-        .mockReturnValueOnce(makeQueryChain({ data: [{ role: 'admin' }], error: null }));
+      seedLogin({
+        league_user_roles: [
+          { user_id: STRANGER, role: 'admin' },
+          { user_id: 'league-admin-1', role: 'owner' },
+        ],
+      });
 
       const reply = makeReply();
       await service.passwordLogin(
@@ -1175,8 +1281,10 @@ describe('AuthService', () => {
     // Regression guard. PostgREST nulls `data` and returns PGRST116 when
     // .maybeSingle() matches more than one row, and hasAdminAccess ignores
     // `error` — so reading organization_members with .maybeSingle() denied login
-    // to every user who belongs to two or more organizations. Assert the query
-    // shape, since the mock cannot reproduce PostgREST's multi-row behaviour.
+    // to every user who belongs to two or more organizations. Still an argument
+    // assertion after the migration: the seeded double's maybeSingle returns row
+    // zero rather than raising PGRST116, so it cannot reproduce the failure and
+    // the two memberships below would log in either way.
     it('reads organization_members with limit(1) rather than maybeSingle', async () => {
       fetchMock.mockResolvedValue({
         ok: true,
@@ -1187,10 +1295,12 @@ describe('AuthService', () => {
           user: { id: 'multi-org-user', email: 'owner@example.com' },
         }),
       });
-      const orgChain = makeQueryChain({ data: [{ role: 'owner' }], error: null });
-      fromMock
-        .mockReturnValueOnce(makeQueryChain({ data: null, error: null }))
-        .mockReturnValueOnce(orgChain);
+      const seeded = seedLogin({
+        organization_members: [
+          { user_id: 'multi-org-user', role: 'owner', organization_id: 'org-a' },
+          { user_id: 'multi-org-user', role: 'editor', organization_id: 'org-b' },
+        ],
+      });
 
       const reply = makeReply();
       await service.passwordLogin(
@@ -1198,8 +1308,8 @@ describe('AuthService', () => {
         reply as never,
       );
 
-      expect(orgChain.limit).toHaveBeenCalledWith(1);
-      expect(orgChain.maybeSingle).not.toHaveBeenCalled();
+      expect(filtersFor(seeded.from, 'organization_members', 'limit')).toEqual([[1]]);
+      expect(filtersFor(seeded.from, 'organization_members', 'maybeSingle')).toEqual([]);
       expect(reply.send).toHaveBeenCalledWith({ next: '/dashboard' });
     });
   });

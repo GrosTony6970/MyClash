@@ -196,11 +196,18 @@ export function selectsFor(from: Mock<(table: string) => SupabaseChain>, table: 
  *
  * Prefer an outcome wherever the fixture can express one. This says the query
  * ASKED for something, not that the answer depended on it.
+ *
+ * `limit` and `maybeSingle` are in the list for the one read whose whole point
+ * is which TERMINAL it used: `hasAdminAccess` takes `.limit(1)` rather than
+ * `.maybeSingle()` because PostgREST nulls `data` on a multi-row maybeSingle
+ * and that read ignores `error`, so a user in two organizations was denied
+ * login. This double's maybeSingle returns row zero instead of raising
+ * PGRST116, so it cannot reproduce that — only the call can be asserted.
  */
 export function filtersFor(
   from: Mock<(table: string) => SupabaseChain>,
   table: string,
-  method: 'eq' | 'neq' | 'in' | 'is' | 'not' | 'ilike' | 'gte' | 'lt',
+  method: 'eq' | 'neq' | 'in' | 'is' | 'not' | 'ilike' | 'gte' | 'lt' | 'limit' | 'maybeSingle',
 ): unknown[][] {
   return from.mock.calls.flatMap(([queried], index) => {
     const call = from.mock.results[index];
