@@ -83,31 +83,35 @@ function isRawBody(body: unknown): body is BodyInit {
   );
 }
 
+/**
+ * The init this seam actually sends. `Omit` and not an intersection on the
+ * caller's side: `RequestInit & { body?: unknown }` narrows to `BodyInit`
+ * rather than widening it, so `body: { name }` would not compile.
+ */
+function requestInit(init: Omit<RequestInit, 'body'> & { body?: unknown }): RequestInit {
+  const { body, headers, ...rest } = init;
+  const sendsJson = body !== undefined && !isRawBody(body);
+  return {
+    // The session is an httpOnly cookie, so this is the default rather than the
+    // exception: 790 of the 867 existing sites pass it by hand.
+    credentials: 'include',
+    ...rest,
+    ...(body === undefined ? {} : { body: sendsJson ? JSON.stringify(body) : (body as BodyInit) }),
+    headers: {
+      ...(sendsJson ? { 'Content-Type': 'application/json' } : {}),
+      ...(headers as Record<string, string> | undefined),
+    },
+  };
+}
+
 export async function apiRequest<T>(
   baseUrl: string,
   path: string,
-  // `Omit` and not an intersection: `RequestInit & { body?: unknown }` narrows
-  // to `BodyInit` rather than widening, so `body: { name }` would not compile.
   init: Omit<RequestInit, 'body'> & { body?: unknown } = {},
 ): Promise<ApiResult<T>> {
-  const { body, headers, ...rest } = init;
-  const sendsJson = body !== undefined && !isRawBody(body);
-
   let res: Response;
   try {
-    res = await fetch(`${baseUrl}${path}`, {
-      // The session is an httpOnly cookie, so this is the default rather than
-      // the exception: 790 of the 867 existing sites pass it by hand.
-      credentials: 'include',
-      ...rest,
-      ...(body === undefined
-        ? {}
-        : { body: sendsJson ? JSON.stringify(body) : (body as BodyInit) }),
-      headers: {
-        ...(sendsJson ? { 'Content-Type': 'application/json' } : {}),
-        ...(headers as Record<string, string> | undefined),
-      },
-    });
+    res = await fetch(`${baseUrl}${path}`, requestInit(init));
   } catch (err) {
     return isAbortLike(err) ? { ok: false, kind: 'aborted' } : { ok: false, kind: 'network' };
   }

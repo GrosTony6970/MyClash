@@ -12,7 +12,9 @@ import {
 } from '@myclash/ui';
 import { localeToBcp47, type AppLocale } from '@myclash/time';
 import { useI18n } from '@myclash/next-i18n/client';
+import { apiRequest, type ApiFailure } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
+import { failureMessage } from '@/lib/api-failure';
 
 interface VenueArea {
   id: string;
@@ -89,16 +91,21 @@ export default function OrgVenuesPage() {
   const [editing, setEditing] = useState<VenueRow | null>(null);
   const [creating, setCreating] = useState(false);
 
+  // `apiRequest` never throws, so nothing here has a catch. Its `aborted`
+  // failure is the mount effect's own signal firing on unmount; the mutations
+  // below pass no signal, and the guard is what `failureMessage` demands before
+  // it will look at a failure.
   const loadVenues = useCallback(
-    async (id: string) => {
-      try {
-        const res = await fetch(`${apiUrl}/api/v1/organizations/${id}/venues`, {
-          credentials: 'include',
-        });
-        if (res.ok) setVenues((await res.json()) as VenueRow[]);
-      } catch {
-        setMessage(t('organizer.venues.loadError'));
+    async (id: string, signal?: AbortSignal) => {
+      const r = await apiRequest<VenueRow[]>(apiUrl, `/api/v1/organizations/${id}/venues`, {
+        signal,
+      });
+      if (r.ok) {
+        setVenues(r.data);
+        return;
       }
+      if (r.kind === 'aborted') return;
+      setMessage(failureMessage(r, t));
     },
     [t],
   );
@@ -106,49 +113,51 @@ export default function OrgVenuesPage() {
   // Org events power the modal's "attach to event" checklist. Non-fatal: if it
   // fails the checklist just shows the empty state. Archived events are hidden;
   // most recent first.
-  const loadEvents = useCallback(async (id: string) => {
-    try {
-      const res = await fetch(`${apiUrl}/api/v1/organizations/${id}/events`, {
-        credentials: 'include',
-      });
-      if (!res.ok) return;
-      const rows = (await res.json()) as Array<Record<string, unknown>>;
-      setEvents(
-        rows
-          .map((r) => ({
-            id: String(r['id']),
-            name: String(r['name'] ?? ''),
-            startDate: String(r['startDate'] ?? r['start_date'] ?? ''),
-            endDate: String(r['endDate'] ?? r['end_date'] ?? ''),
-            status: String(r['status'] ?? 'draft'),
-          }))
-          .filter((e) => e.status !== 'archived')
-          .sort((a, b) => (a.startDate < b.startDate ? 1 : a.startDate > b.startDate ? -1 : 0)),
-      );
-    } catch {
-      // non-fatal — the checklist falls back to its empty state
-    }
+  const loadEvents = useCallback(async (id: string, signal?: AbortSignal) => {
+    const r = await apiRequest<Array<Record<string, unknown>>>(
+      apiUrl,
+      `/api/v1/organizations/${id}/events`,
+      { signal },
+    );
+    if (!r.ok) return;
+    setEvents(
+      r.data
+        .map((row) => ({
+          id: String(row['id']),
+          name: String(row['name'] ?? ''),
+          startDate: String(row['startDate'] ?? row['start_date'] ?? ''),
+          endDate: String(row['endDate'] ?? row['end_date'] ?? ''),
+          status: String(row['status'] ?? 'draft'),
+        }))
+        .filter((e) => e.status !== 'archived')
+        .sort((a, b) => (a.startDate < b.startDate ? 1 : a.startDate > b.startDate ? -1 : 0)),
+    );
   }, []);
 
   useEffect(() => {
     if (!slug) return;
+    const controller = new AbortController();
     void (async () => {
       setLoading(true);
-      try {
-        const res = await fetch(`${apiUrl}/api/v1/organizations/slug/${encodeURIComponent(slug)}`, {
-          credentials: 'include',
-        });
-        if (!res.ok) {
-          setMessage(t('organizer.venues.loadError'));
-          return;
-        }
-        const org = (await res.json()) as { id: string };
-        setOrgId(org.id);
-        await Promise.all([loadVenues(org.id), loadEvents(org.id)]);
-      } finally {
+      const r = await apiRequest<{ id: string }>(
+        apiUrl,
+        `/api/v1/organizations/slug/${encodeURIComponent(slug)}`,
+        { signal: controller.signal },
+      );
+      if (!r.ok) {
+        if (r.kind === 'aborted') return;
+        setMessage(failureMessage(r, t));
         setLoading(false);
+        return;
       }
+      setOrgId(r.data.id);
+      await Promise.all([
+        loadVenues(r.data.id, controller.signal),
+        loadEvents(r.data.id, controller.signal),
+      ]);
+      setLoading(false);
     })();
+    return () => controller.abort();
   }, [slug, loadVenues, loadEvents, t]);
 
   const onDelete = async (venue: VenueRow) => {
@@ -159,24 +168,19 @@ export default function OrgVenuesPage() {
       }))
     )
       return;
-    try {
-      const res = await fetch(`${apiUrl}/api/v1/venues/${venue.id}`, {
-        method: 'DELETE',
-        credentials: 'include',
-      });
-      if (res.status === 409) {
-        const body = (await res.json().catch(() => null)) as { message?: string } | null;
-        setMessage(body?.message ?? t('organizer.venues.deleteInUse'));
+    const r = await apiRequest(apiUrl, `/api/v1/venues/${venue.id}`, { method: 'DELETE' });
+    if (!r.ok) {
+      if (r.kind === 'aborted') return;
+      // A venue still holding matches or sessions comes back 409 with the
+      // reason; the domain sentence is the fallback for the one that doesn't.
+      if (r.kind === 'http' && r.status === 409) {
+        setMessage(r.detail ?? t('organizer.venues.deleteInUse'));
         return;
       }
-      if (!res.ok) {
-        setMessage(t('organizer.venues.deleteError'));
-        return;
-      }
-      if (orgId) await loadVenues(orgId);
-    } catch {
-      setMessage(t('organizer.venues.deleteError'));
+      setMessage(failureMessage(r, t));
+      return;
     }
+    if (orgId) await loadVenues(orgId);
   };
 
   return (
@@ -334,15 +338,18 @@ export default function OrgVenuesPage() {
 const nextLiceName = (count: number) => `Lice ${count + 1}`;
 const nextAreaName = (count: number) => `Area ${count + 1}`;
 
-/** Pull a human error out of a failed response (RFC 9457 problem+json: `detail`,
- *  with the legacy `message` + status as fallbacks) so the modal can show the
- *  real reason instead of a generic "could not save". */
-async function responseErrorMessage(res: Response): Promise<string> {
-  const body = (await res.json().catch(() => null)) as {
-    detail?: string;
-    message?: string;
-  } | null;
-  return body?.detail || body?.message || `HTTP ${res.status}`;
+/**
+ * The modal throws a failed request into `save()`'s one catch, so it needs the
+ * reason as a string. Reading it used to be this file's own copy of the
+ * problem+json body parser — the third in the repo; `apiRequest` reports it now.
+ *
+ * An aborted request has no reason and none can arrive here: every call in the
+ * modal is user-initiated and passes no signal. Should one ever be given one,
+ * the empty message lands on `save()`'s existing generic fallback rather than
+ * showing the operator a blank alert.
+ */
+function failureReason(failure: ApiFailure, t: (key: string) => string): string {
+  return failure.kind === 'aborted' ? '' : failureMessage(failure, t);
 }
 
 interface VenueFormModalProps {
@@ -398,23 +405,22 @@ function VenueFormModal({ orgId, venue, events, onClose, onSaved }: VenueFormMod
     const blockedIds = await Promise.all(
       changed.map(async (eventId) => {
         const attach = selected.has(eventId);
-        const listRes = await fetch(`${apiUrl}/api/v1/events/${eventId}/venues`, {
-          credentials: 'include',
-        });
-        if (!listRes.ok) throw new Error(await responseErrorMessage(listRes));
-        const currentIds = ((await listRes.json()) as Array<{ id: string }>).map((v) => v.id);
+        const listRes = await apiRequest<Array<{ id: string }>>(
+          apiUrl,
+          `/api/v1/events/${eventId}/venues`,
+        );
+        if (!listRes.ok) throw new Error(failureReason(listRes, t));
+        const currentIds = listRes.data.map((v) => v.id);
         const venueIds = attach
           ? Array.from(new Set([...currentIds, venueId]))
           : currentIds.filter((id) => id !== venueId);
-        const putRes = await fetch(`${apiUrl}/api/v1/events/${eventId}/venues`, {
-          method: 'PUT',
-          credentials: 'include',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ venueIds }),
-        });
-        if (!putRes.ok) throw new Error(await responseErrorMessage(putRes));
-        const result = (await putRes.json()) as { blocked?: Array<{ venueId: string }> };
-        return (result.blocked ?? []).some((b) => b.venueId === venueId) ? eventId : null;
+        const putRes = await apiRequest<{ blocked?: Array<{ venueId: string }> }>(
+          apiUrl,
+          `/api/v1/events/${eventId}/venues`,
+          { method: 'PUT', body: { venueIds } },
+        );
+        if (!putRes.ok) throw new Error(failureReason(putRes, t));
+        return (putRes.data.blocked ?? []).some((b) => b.venueId === venueId) ? eventId : null;
       }),
     );
 
@@ -430,35 +436,28 @@ function VenueFormModal({ orgId, venue, events, onClose, onSaved }: VenueFormMod
     setSaving(true);
     setError(null);
     try {
+      const fields = {
+        name: name.trim(),
+        address: address.trim() || null,
+        hostsTournament,
+        hostsWorkshop,
+      };
       let venueId: string;
       if (isEdit) {
-        const res = await fetch(`${apiUrl}/api/v1/venues/${venue!.id}`, {
+        const res = await apiRequest(apiUrl, `/api/v1/venues/${venue!.id}`, {
           method: 'PATCH',
-          credentials: 'include',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            name: name.trim(),
-            address: address.trim() || null,
-            hostsTournament,
-            hostsWorkshop,
-          }),
+          body: fields,
         });
-        if (!res.ok) throw new Error(await responseErrorMessage(res));
+        if (!res.ok) throw new Error(failureReason(res, t));
         venueId = venue!.id;
       } else {
-        const res = await fetch(`${apiUrl}/api/v1/organizations/${orgId}/venues`, {
-          method: 'POST',
-          credentials: 'include',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            name: name.trim(),
-            address: address.trim() || null,
-            hostsTournament,
-            hostsWorkshop,
-          }),
-        });
-        if (!res.ok) throw new Error(await responseErrorMessage(res));
-        const created = (await res.json()) as { id: string };
+        const res = await apiRequest<{ id: string }>(
+          apiUrl,
+          `/api/v1/organizations/${orgId}/venues`,
+          { method: 'POST', body: fields },
+        );
+        if (!res.ok) throw new Error(failureReason(res, t));
+        const created = res.data;
         venueId = created.id;
         // Persist the lices/areas buffered during creation now that the venue
         // has an id (only for the hosts the operator actually enabled). Each
@@ -467,26 +466,22 @@ function VenueFormModal({ orgId, venue, events, onClose, onSaved }: VenueFormMod
         if (hostsTournament) {
           await Promise.all(
             lices.map(async (lice, index) => {
-              const r = await fetch(`${apiUrl}/api/v1/venues/${created.id}/lices`, {
+              const r = await apiRequest(apiUrl, `/api/v1/venues/${created.id}/lices`, {
                 method: 'POST',
-                credentials: 'include',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ name: lice.name.trim(), sortOrder: index }),
+                body: { name: lice.name.trim(), sortOrder: index },
               });
-              if (!r.ok) throw new Error(await responseErrorMessage(r));
+              if (!r.ok) throw new Error(failureReason(r, t));
             }),
           );
         }
         if (hostsWorkshop) {
           await Promise.all(
             areas.map(async (area, index) => {
-              const r = await fetch(`${apiUrl}/api/v1/venues/${created.id}/areas`, {
+              const r = await apiRequest(apiUrl, `/api/v1/venues/${created.id}/areas`, {
                 method: 'POST',
-                credentials: 'include',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ name: area.name.trim(), sortOrder: index }),
+                body: { name: area.name.trim(), sortOrder: index },
               });
-              if (!r.ok) throw new Error(await responseErrorMessage(r));
+              if (!r.ok) throw new Error(failureReason(r, t));
             }),
           );
         }
@@ -512,20 +507,14 @@ function VenueFormModal({ orgId, venue, events, onClose, onSaved }: VenueFormMod
       setNewArea(nextAreaName(areas.length + 1));
       return;
     }
-    try {
-      const res = await fetch(`${apiUrl}/api/v1/venues/${venue!.id}/areas`, {
-        method: 'POST',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: value }),
-      });
-      if (!res.ok) return;
-      const area = (await res.json()) as VenueArea;
-      setAreas([...areas, area]);
-      setNewArea(nextAreaName(areas.length + 1));
-    } catch {
-      // swallow — operator can retry
-    }
+    // Silent on failure by design — the operator can retry from the same field.
+    const res = await apiRequest<VenueArea>(apiUrl, `/api/v1/venues/${venue!.id}/areas`, {
+      method: 'POST',
+      body: { name: value },
+    });
+    if (!res.ok) return;
+    setAreas([...areas, res.data]);
+    setNewArea(nextAreaName(areas.length + 1));
   };
 
   const removeArea = async (areaId: string) => {
@@ -533,17 +522,8 @@ function VenueFormModal({ orgId, venue, events, onClose, onSaved }: VenueFormMod
       setAreas(areas.filter((a) => a.id !== areaId));
       return;
     }
-    try {
-      const res = await fetch(`${apiUrl}/api/v1/venue-areas/${areaId}`, {
-        method: 'DELETE',
-        credentials: 'include',
-      });
-      if (res.ok || res.status === 204) {
-        setAreas(areas.filter((a) => a.id !== areaId));
-      }
-    } catch {
-      // swallow
-    }
+    const res = await apiRequest(apiUrl, `/api/v1/venue-areas/${areaId}`, { method: 'DELETE' });
+    if (res.ok) setAreas(areas.filter((a) => a.id !== areaId));
   };
 
   const addLice = async () => {
@@ -554,20 +534,14 @@ function VenueFormModal({ orgId, venue, events, onClose, onSaved }: VenueFormMod
       setNewLice(nextLiceName(lices.length + 1));
       return;
     }
-    try {
-      const res = await fetch(`${apiUrl}/api/v1/venues/${venue!.id}/lices`, {
-        method: 'POST',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: value }),
-      });
-      if (!res.ok) return;
-      const lice = (await res.json()) as VenueLice;
-      setLices([...lices, lice]);
-      setNewLice(nextLiceName(lices.length + 1));
-    } catch {
-      // swallow — operator can retry
-    }
+    // Silent on failure by design — the operator can retry from the same field.
+    const res = await apiRequest<VenueLice>(apiUrl, `/api/v1/venues/${venue!.id}/lices`, {
+      method: 'POST',
+      body: { name: value },
+    });
+    if (!res.ok) return;
+    setLices([...lices, res.data]);
+    setNewLice(nextLiceName(lices.length + 1));
   };
 
   const removeLice = async (liceId: string) => {
@@ -575,17 +549,8 @@ function VenueFormModal({ orgId, venue, events, onClose, onSaved }: VenueFormMod
       setLices(lices.filter((l) => l.id !== liceId));
       return;
     }
-    try {
-      const res = await fetch(`${apiUrl}/api/v1/venue-lices/${liceId}`, {
-        method: 'DELETE',
-        credentials: 'include',
-      });
-      if (res.ok || res.status === 204) {
-        setLices(lices.filter((l) => l.id !== liceId));
-      }
-    } catch {
-      // swallow
-    }
+    const res = await apiRequest(apiUrl, `/api/v1/venue-lices/${liceId}`, { method: 'DELETE' });
+    if (res.ok) setLices(lices.filter((l) => l.id !== liceId));
   };
 
   return (

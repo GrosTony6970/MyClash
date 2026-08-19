@@ -33,7 +33,7 @@ const repoRoot = path.resolve(import.meta.dirname, '..');
  * nothing may raise it. A pull request that adds a file to the baseline has to
  * change this number too, where a reviewer sees it.
  */
-const BASELINE_SIZE = 248;
+const BASELINE_SIZE = 247;
 
 const ruleTester = new RuleTester({
   languageOptions: {

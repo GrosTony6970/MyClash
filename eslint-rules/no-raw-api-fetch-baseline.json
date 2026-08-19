@@ -134,7 +134,6 @@
     "apps/web-admin/app/org/[slug]/rulesets/scoring/page.tsx",
     "apps/web-admin/app/org/[slug]/settings/ai/page.tsx",
     "apps/web-admin/app/org/[slug]/settings/page.tsx",
-    "apps/web-admin/app/org/[slug]/venues/page.tsx",
     "apps/web-admin/app/reset-password/page.tsx",
     "apps/web-admin/src/components/HemaRatingsSuggest.tsx",
     "apps/web-admin/src/components/LeagueWorkspaceShell.tsx",
