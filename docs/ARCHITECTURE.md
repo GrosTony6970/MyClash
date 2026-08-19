@@ -399,6 +399,26 @@ From `match_events` and `exchanges`:
 
 The scoring pad displays both the active fight clock and a secondary "Temps total" wall-clock elapsed timer that ticks continuously once a match starts (including during halts), giving referees real-time awareness of judging pace.
 
+### 5.4bis Venues, and what `event_kind` changes
+
+`docs/HIERARCHY.md` is authoritative on vocabulary and carries two facts this document used to
+imply the opposite of.
+
+**A Venue is a place; a Lice is where matches happen, and they are not the same tree.** An
+organization owns Venues, each with optional Venue Areas and a `venue_lices` catalogue of reusable
+names. An Event owns Lices (`lices.event_id` required), each pointing at its physical home through
+nullable `venue_id` / `area_id` — nullable because an operator may create a lice before linking it.
+**A Venue Lice is not a Lice**: it is setup data that event creation copies from, and nothing is
+ever scheduled onto one. Served by `apps/api/src/modules/venues/`.
+
+**`events.event_kind` is `standard | test | club`** (migration `0162`). It is not cosmetic: `test`
+and `club` events are excluded from public listings, which is why `GET /events/:slug` returning 404
+for one is the policy working. Anything counting or listing events has to say which kinds it means.
+
+**Swiss is a first-class format**, alongside pools, single-elim and double-elim — not a variant of
+one. It has its own tables (`swiss_rounds`, `swiss_entrants`), its own module
+(`apps/api/src/modules/swiss/`), and its own staffing path.
+
 ### 5.5 Lifecycle state machines
 
 > **What is actually enforced.** The `CHECK` constraints below restrict the _set of legal values_; they
@@ -1090,6 +1110,11 @@ Web Push (VAPID), no native app. Users opt in from their profile screen. Prefere
 - Falls back to email for users with `enabled=false` for push but who opted in to email.
 - Organizers can send event-scoped broadcasts with severity `info`, `warning`, or `alert` to all event Persons, fighters, referees, fighters+referees, or selected Persons. Broadcasts persist in `event_broadcast_notifications` and `event_broadcast_recipients`; claimed users get push first, while unclaimed/no-push recipients receive email fallback.
 - Broadcasts may include `tournamentId` for tournament-scoped fighter/referee targeting. Pool/bracket publish flows use this to open editable "ready" notification drafts without auto-sending.
+- **Scheduling alone is not enough.** A delayed job carries the time the schedule had when it was
+  enqueued, so every subsequent reschedule leaves a stale alert in the queue.
+  `apps/api/src/modules/notifications/match-alert-refresher.service.ts` is the reconciliation half:
+  it re-derives the alerts a match should have and drops the ones it should not. Anything that
+  moves a match in time has to go through it.
 
 ---
 
@@ -1109,15 +1134,37 @@ construction and the pool match labels.
 
 ### 11quater.2 Referee Assignment
 
-The hardest piece. Each pool requires **3 referees**, one per role:
+The hardest piece.
 
-| Role (canonical code) | French display    | English gloss                            |
-| --------------------- | ----------------- | ---------------------------------------- |
-| `arbitre_declarant`   | Arbitre déclarant | Lead/Director referee                    |
-| `arbitre_assesseur`   | Arbitre assesseur | Assessor referee                         |
-| `arbitre_table`       | Arbitre de table  | Table referee (timing/scoring oversight) |
+**A role IS a `referee_skills.id` — there is no fixed set of three.** Migration `0041` introduced
+the `referee_skills` table and `0042_referee_qualifications_role_open.sql:6` dropped the `CHECK`
+that had pinned `role` to three literals, so a federation can define its own. `0060_staffing_slot_config.sql`
+then replaced the hard-coded trio with a **config-driven slot list**: each `(tournament, phase_type)`
+carries 1..6 slots, each slot allowing one or more skill ids. `StaffingService.getResolvedConfig`
+resolves in three steps:
 
-A user has zero or more `referee_qualifications` rows per event. A user qualified for a role with `rating=5` is highly trusted; `rating=1` means novice. Some users are qualified for all three roles, some for one.
+1. `tournament_slot_config` rows for `(tournament, phase_type)`
+2. `event_slot_config_default` rows for `(event, phase_type)`
+3. a hard-coded floor of three slots — `arbitre_declarant`, `arbitre_assesseur`, `arbitre_table`
+
+Step 3 is why the legacy trio still appears everywhere: it is the fallback for events that never
+open the Staffing tab, not the model. Anything that assumes exactly three roles is reading the
+floor and mistaking it for the rule.
+
+| Floor role (canonical code) | French display    | English gloss                            |
+| --------------------------- | ----------------- | ---------------------------------------- |
+| `arbitre_declarant`         | Arbitre déclarant | Lead/Director referee                    |
+| `arbitre_assesseur`         | Arbitre assesseur | Assessor referee                         |
+| `arbitre_table`             | Arbitre de table  | Table referee (timing/scoring oversight) |
+
+A user has zero or more `referee_qualifications` rows per event, each naming a skill id. `rating=5`
+is highly trusted; `rating=1` is novice. `referee_assignments.role` also stores a skill id, which is
+why `0060` needed no data migration.
+
+**Match-level assignment is a separate concern.** `apps/api/src/modules/referees/referee-match-assignments.*`
+serves `GET events/:eventId/referee-match-assignments` — a referee assigned to one bout rather than to
+a pool or a lice. Compensation counts it as 1, where a pool assignment expands to every completed match
+in the pool.
 
 **Inputs:**
 
@@ -1523,6 +1570,31 @@ This is intentional — preventing self-registration is what makes guest session
 - All admin actions (organizer/super) require **Supabase claimed accounts** with the appropriate `OrganizationMembership` row. Guest sessions cannot administer anything, ever.
 - Email masking: show first character + asterisks + domain first character + `***` + TLD. `jean.dupont@gmail.com` → `j***@g***.com`.
 - RLS policies key off `auth.uid()` for claimed actions and a JWT claim `mc_guest_person_id` for guest actions.
+
+### 12.5bis Authorization on the write path — where the boundary actually is
+
+**`AuthGuard` is authentication only.** A 200 from it means "we know who you are", never "you may
+do this". It is global, so every route needs identity unless marked `@Public()`.
+
+Authorization lives in the service layer, behind `assertOrgRole` — and this is the part that is
+easy to get wrong: **every event-scoped write goes through the service-role Supabase client, which
+is `BYPASSRLS`.** RLS does not apply on that path. The service-layer assertion is not defence in
+depth; it is the whole boundary. A write that skips it is unguarded, whatever the table's policies
+say.
+
+`apps/api/src/common/auth/event-authz.ts` is the shared form, resolving the org from the row rather
+than trusting the request. `MANAGE_EVENT_ROLE` is `'editor'`.
+
+**There is no platform-role bypass, deliberately.** A platform admin who is not a member of the org
+is refused, matching staff, leagues and workshops. `events.assertOwnerOrSuperAdmin` is not a
+counter-example — that guards ruleset re-pinning, a `super_admin`-exact data-integrity override.
+An admin who must edit a customer's schedule gets added to the organisation.
+
+Two related failure modes worth knowing: `@PlatformRole` on a `GET` is a silent no-op, and a guard
+that resolves the event by a params **name** fails open on a route that spells the param
+differently. `apps/api/src/common/event-readonly/` resolves by path for exactly that reason —
+`EventReadonlyGuard` blocks writes to archived and completed events, with
+`@AllowOnArchived()` / `@BlockOnCompleted()` as the deliberate exceptions.
 
 ### 12.6 Roles (unchanged from earlier draft)
 
@@ -2274,9 +2346,10 @@ build record.
 
 - **TypeScript strict mode** everywhere. No `any` without an `// AI:` justification comment.
 - **Zod** for all runtime validation; types derived from schemas.
-- **Conventional Commits** for commit messages.
-- **Trunk-based development**, short-lived feature branches, squash-merge.
-- **PR template** requires: linked issue, screenshots for UI, test coverage notes.
+- **Conventional Commits**, enforced by commitlint through the `commit-msg` hook.
+- **Work lands directly on `main`.** One slice, one commit, scoped to a single concern. There is
+  no branch-per-task and no PR ritual; several agent sessions commit here concurrently, so check
+  `git log --oneline -1` before staging and stage explicit paths.
 - **Code style**: Prettier + ESLint (`@typescript-eslint`), enforced in CI.
 - **API errors**: RFC 7807 Problem Details JSON format.
 - **Logging**: structured JSON logs (Pino), correlation IDs end-to-end.
@@ -2285,7 +2358,48 @@ build record.
 - **Time** always stored as `timestamptz` UTC; rendered in user's locale.
 - **Money** (future): `numeric(10,2)` only.
 
----
+### 20.1 The gate harness
+
+CI's Lint job runs `pnpm turbo run lint` plus twenty-five further steps, each its own verdict.
+`.claude/skills/myclash-gates/SKILL.md` holds the ordered chain; `.github/workflows/ci.yml` is the
+source of truth when they disagree.
+
+Fourteen of the nineteen `scripts/check-*.mjs` gates run through **`defineGate`**
+(`scripts/lib/gate.mjs`), which owns reporting, exit codes and anti-vacuity. Two invariants there
+are not obvious and are easy to break:
+
+- **A gate that examined nothing must say so.** `defineGate` refuses a bare `scanned: 0`; a run
+  with nothing to look at has to declare it by name through `nothingToCount(reason)`. This exists
+  because a gate that silently scans zero files reports success.
+- **A gate module must be inert on import.** `scripts/build-app-bundles.mjs` imports
+  `parseRequiredEnv` out of `check-client-env-contract.mjs` on the production bundle path, so a
+  gate that runs at import time would fire during a build.
+
+A `scanned` count over _files_ is still blind to a collapsed _rule_ — a gate can read a thousand
+files, match nothing, and exit 0. Count comparisons, not inputs.
+
+Adding a gate needs four registrations: the `package.json` script (the gate **alone**, never
+`&&`-chained), the `ci.yml` step with `if: '!cancelled()'`, an entry in `CI_GATES`
+(`apps/api/src/modules/admin/ci-health/gates.ts`) so the health card can notice it stopped running,
+and `CONTRIBUTING.md`.
+
+### 20.2 API service tests: the shared Supabase double
+
+Every API service test drives the same double, in `apps/api/src/common/testing/`:
+
+| Module                        | Owns                                                        |
+| ----------------------------- | ----------------------------------------------------------- |
+| `supabase-chain.ts`           | the entry point                                             |
+| `supabase-chain-internals.ts` | the lazy chain and the write log                            |
+| `supabase-chain-seeded.ts`    | row narrowing, ordering and counting over seeded tables     |
+| `supabase-chain-or.ts`        | `.or()` predicate parsing                                   |
+| `supabase-query-scan.ts`      | `selectsFor`, which reads the SELECT string a call issued   |
+| `migration-schema.ts`         | replays `packages/db/migrations/` so tests see real columns |
+
+Reach for these before hand-rolling a mock. Two traps they exist to close: a mock ignores the
+projection, so a test over a read is only real if it asserts the SELECT string (`selectsFor` does
+this, and works on seeded tables); and an ordered `mockReturnValueOnce` chain desynchronises the
+moment a service adds a query, turning a passing test into one that asserts the wrong call.
 
 ## 21. AI Coder Instructions
 
@@ -2401,9 +2515,29 @@ POST   /api/v1/events/:eventId/programme/generate  run scheduler + create worksh
 
 ### 24.4 Frontend
 
-- **Schedule tab** — split into Programme (new) + Grid (existing) sub-tabs.
-- **Programme planner** (`schedule/programme.tsx`) — collapsible config bar, day tabs, drag-drop block list, overflow warnings with "Suggest fit" / "Override" actions, "Generate schedule" button with confirmation modal.
+- **Schedule tab** — Programme and Grid sub-tabs, plus a Detailed grid.
+- **Programme planner** — collapsible config bar, day tabs, drag-drop block list, overflow warnings with "Suggest fit" / "Override" actions, "Generate schedule" with a confirmation modal.
 - **Workshop creation** — optional `Duration (min)` field used by the programme planner for block sizing.
+
+**This is the largest single subsystem in the repo**: 82 files under
+`apps/web-admin/app/org/[slug]/events/[eventId]/schedule/`, 29 of them colocated tests.
+The shape is deliberate and worth knowing before touching it — **pure geometry is separated from
+React**, so it can be tested without a DOM:
+
+- **Pure modules** (`block-geometry`, `bar-collisions`, `block-run-plans`, `plan-match-drop`,
+  `place-with-shift`, `detect-overlaps`, `lice-span`, `lice-drift`, `lice-utilization`,
+  `day-delay`, `panel-width`, `compute-header-runs`, `conflict-detection`, `break-edit-steps`,
+  `drag-payload`) — no imports from React, each with its own test file.
+- **Hooks** (`useScheduleData`, `useScheduleWrites`, `useScheduleUndo`, `useSchedulePrefs`,
+  `useProgrammeBars`, `useRefereeCrewConflicts`) — data, mutations and undo.
+- **Views** (`DetailedGridView` and its `Detailed*` parts, `MatchChip`, `UnscheduledPanel`,
+  `RefereeConflictBanner`, `RunningLateDialog`, `LicePlacementEditor`).
+- **Shared geometry** lives one level out, in `packages/schedule-core/` — the grid and
+  workshop-board maths both apps use.
+
+Two traps: `realtime-refetch-gate.ts` exists because a naive realtime subscription refetches over
+the user's in-flight drag, and `write-tracker.ts` because an optimistic move must be reconcilable
+against the server's answer. Neither is optional decoration.
 
 ---
 
