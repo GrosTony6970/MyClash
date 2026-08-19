@@ -1,14 +1,12 @@
 import { BadRequestException, ConflictException } from '@nestjs/common';
 import { describe, expect, it, vi } from 'vitest';
 import { MatchForfeitsService } from './match-forfeits.service';
-import { seededTableChain } from '../../common/testing/supabase-chain-seeded';
 import {
   mockSupabase,
   scopedTo,
   selectsFor,
   writesTo,
   type RecordedWrite,
-  type SeededTable,
   type SupabaseRow,
 } from '../../common/testing/supabase-chain';
 
@@ -602,192 +600,6 @@ function matchRow(input: {
         id: 'tournament-1',
         ruleset_config: input.tournamentPolicy ? { tournamentPolicy: input.tournamentPolicy } : {},
       },
-    },
-  };
-}
-
-type TableState = Record<
-  string,
-  {
-    /**
-     * A row, or a resolver over the `.eq()` filters that scoped the read.
-     *
-     * The resolver form exists because one table can be read twice in a single
-     * call with different intent — `loadActiveForfeit` keys on `match_id`, the
-     * cascade's parent probe keys on `id`. Discriminating on the FILTERS is
-     * order-independent; an ordered `mockReturnValueOnce` queue silently
-     * desyncs the moment a read is added anywhere upstream.
-     */
-    maybeSingle?: unknown | ((filters: Array<[string, unknown]>) => unknown);
-    select?: unknown[];
-    insert?: unknown;
-    update?: unknown;
-    /** For `.select(col, { count: 'exact', head: true })` lookups. */
-    count?: number;
-    /**
-     * A SIMULATED table: the shared double filters these rows, so `.eq()`,
-     * `.in()`, `.or()` and a `count` are facts about the fixture rather than
-     * numbers the test asserted into being. Prefer it — the canned keys above
-     * hand back the same answer whatever the query asked for.
-     */
-    rows?: SupabaseRow[];
-    /**
-     * What the database adds to an inserted row — the id a later write keys on.
-     * A `rows:` table whose insert is read back must declare it.
-     */
-    returning?: SeededTable['returning'];
-  }
->;
-
-/**
- * A canned table's `maybeSingle`, resolving the filter-aware form.
- *
- * At module scope only to keep `chain` inside the line budget — the resolver
- * form is the interesting part, and it is documented on TableState.
- */
-function cannedMaybeSingle(
-  tableState: TableState[string],
-  filters: Array<[string, unknown]>,
-): { data: unknown; error: null } {
-  const seed = tableState.maybeSingle;
-  return {
-    data:
-      typeof seed === 'function'
-        ? (seed as (f: typeof filters) => unknown)(filters)
-        : (seed ?? null),
-    error: null,
-  };
-}
-
-/**
- * A `rows:` table, handed to the shared double so the real filters narrow it.
- *
- * At module scope only to keep `chain` inside the line budget.
- */
-function seededChainFor(
-  table: string,
-  tableState: TableState[string],
-  writes: RecordedWrite[],
-  selects: Array<{ table: string; columns: string }>,
-) {
-  const chain = seededTableChain(
-    { rows: tableState.rows ?? [], returning: tableState.returning },
-    { table, writes },
-  );
-  // The shared double does not log projections on purpose — a projection does
-  // not scope a write, which is what its log is for. One test here asserts a
-  // projection, so record it on the way through and delegate.
-  const projected = chain.select;
-  chain.select = vi.fn((columns?: unknown, options?: unknown) => {
-    if (typeof columns === 'string') selects.push({ table, columns });
-    return projected(columns, options);
-  });
-  return chain;
-}
-
-function fakeSupabase(state: TableState) {
-  const inserted: Record<string, unknown[]> = {};
-  const updated: Record<string, unknown[]> = {};
-  /** Updates WITH the filters that scoped them — `updated` alone cannot say
-   *  which row was written, which is what a cascade's ordering needs. */
-  const mutations: Array<{ table: string; row: unknown; filters: Array<[string, unknown]> }> = [];
-  /** The column lists asked for. This double does NOT project — `select()`
-   *  hands back the whole fixture row whatever it was asked for — so a column
-   *  missing from a projection cannot change behaviour here the way it does
-   *  against Postgres. Recording the request is the only way to assert one. */
-  const selects: Array<{ table: string; columns: string }> = [];
-  /** Writes the shared double records for `rows:` tables, mirrored below. */
-  const seededWrites: RecordedWrite[] = [];
-  /** Records the projection and hands the chain back, so `select` stays one
-   *  line inside `chain` — which is already at its length budget. */
-  const recordSelect = (table: string, columns: unknown, api: unknown) => {
-    if (typeof columns === 'string') selects.push({ table, columns });
-    return api;
-  };
-
-  function chain(table: string) {
-    const tableState = state[table] ?? {};
-    // A `rows:` table is handed to the shared seeded double, which narrows on
-    // the real filters. Its writes are mirrored into `inserted`/`updated` so a
-    // half-migrated fixture reads the same either way.
-    if (tableState.rows) return seededChainFor(table, tableState, seededWrites, selects);
-    // One array per chain, shared BY REFERENCE with the recorded mutation: the
-    // `.eq()` calls come after `.update()` in the fluent chain, so they have to
-    // be able to land on an entry that was already pushed.
-    const filters: Array<[string, unknown]> = [];
-    const promise = Promise.resolve({
-      data: tableState.select ?? [],
-      count: tableState.count ?? 0,
-      error: null,
-    });
-    // Supabase's fluent query builder is both thenable and chainable in the code under test.
-    // The test double intentionally mirrors that hybrid shape.
-    const api: any = Object.assign(promise, {
-      select: vi.fn((columns?: unknown) => recordSelect(table, columns, api)),
-      eq: vi.fn((column: string, value: unknown) => {
-        filters.push([column, value]);
-        return api;
-      }),
-      neq: vi.fn(() => api),
-      is: vi.fn(() => api),
-      or: vi.fn(() => api),
-      in: vi.fn(() => api),
-      not: vi.fn(() => api),
-      order: vi.fn(() => api),
-      limit: vi.fn(() => api),
-      maybeSingle: vi.fn(() => Promise.resolve(cannedMaybeSingle(tableState, filters))),
-      single: vi.fn(() =>
-        Promise.resolve({ data: tableState.insert ?? tableState.update ?? null, error: null }),
-      ),
-      insert: vi.fn((row: unknown) => {
-        inserted[table] = [...(inserted[table] ?? []), row];
-        return api;
-      }),
-      update: vi.fn((row: unknown) => {
-        updated[table] = [...(updated[table] ?? []), row];
-        mutations.push({ table, row, filters });
-        return api;
-      }),
-    });
-    return api;
-  }
-
-  // Mirror the shared double's writes into the same shape the canned tables
-  // use, so a fixture can migrate one table at a time without rewriting every
-  // assertion in the file.
-  const mirrorSeededWrites = () => {
-    for (const write of seededWrites) {
-      const bucket = write.op === 'insert' ? inserted : updated;
-      bucket[write.table] = [...(bucket[write.table] ?? []), write.row];
-      if (write.op === 'update') {
-        mutations.push({
-          table: write.table,
-          row: write.row,
-          filters: write.filters.map((f) => [String(f.args[0]), f.args[1]] as [string, unknown]),
-        });
-      }
-    }
-    seededWrites.length = 0;
-  };
-
-  // Getters, because the mirror has to run AFTER the call under test and the
-  // tests read these properties directly.
-  return {
-    get inserted() {
-      mirrorSeededWrites();
-      return inserted;
-    },
-    get updated() {
-      mirrorSeededWrites();
-      return updated;
-    },
-    get mutations() {
-      mirrorSeededWrites();
-      return mutations;
-    },
-    selects,
-    service: {
-      from: vi.fn((table: string) => chain(table)),
     },
   };
 }
@@ -2041,7 +1853,7 @@ describe('MatchForfeitsService — cascade context on the read', () => {
   const readState = () => ({ match_forfeits: { rows: RECORDS } });
 
   it('reports a child, and whether the record that withdrew the fighter still stands', async () => {
-    const supabase = fakeSupabase(readState());
+    const supabase = mockSupabase(readState());
     const service = new MatchForfeitsService(supabase as never, undefined as never);
 
     const active = await service.getActiveForfeit('match-9');
@@ -2053,7 +1865,7 @@ describe('MatchForfeitsService — cascade context on the read', () => {
   });
 
   it('reports a child whose parent has already been voided', async () => {
-    const supabase = fakeSupabase(readState());
+    const supabase = mockSupabase(readState());
     const service = new MatchForfeitsService(supabase as never, undefined as never);
 
     const active = await service.getActiveForfeit('match-13');
@@ -2068,7 +1880,7 @@ describe('MatchForfeitsService — cascade context on the read', () => {
     // Three live children and one the organiser already voided. The count is
     // what the confirm copy quotes, so a voided child counted here would
     // promise the organiser a bout back that is already back.
-    const supabase = fakeSupabase(readState());
+    const supabase = mockSupabase(readState());
     const service = new MatchForfeitsService(supabase as never, undefined as never);
 
     const active = await service.getActiveForfeit('match-1');
@@ -2080,7 +1892,7 @@ describe('MatchForfeitsService — cascade context on the read', () => {
   });
 
   it('reports a standalone record when it closed nothing but its own bout', async () => {
-    const supabase = fakeSupabase(readState());
+    const supabase = mockSupabase(readState());
     const service = new MatchForfeitsService(supabase as never, undefined as never);
 
     const active = await service.getActiveForfeit('match-20');
@@ -2094,7 +1906,7 @@ describe('MatchForfeitsService — cascade context on the read', () => {
   it('answers null for a bout whose record was voided, without the extra reads', async () => {
     // match-12 carries a record; it is simply not live. Answering with it would
     // render a void button for a bout that is already back on the schedule.
-    const supabase = fakeSupabase(readState());
+    const supabase = mockSupabase(readState());
     const service = new MatchForfeitsService(supabase as never, undefined as never);
 
     expect(await service.getActiveForfeit('match-12')).toBeNull();
