@@ -13,7 +13,7 @@
 
 export type { paths, components, operations } from './generated/schema';
 
-import { parseBody } from './request';
+import { parseBody, readDetail } from './request';
 
 export { apiRequest, isAbortLike } from './request';
 export type { ApiFailure, ApiResult } from './request';
@@ -38,7 +38,10 @@ export class ApiClientError extends Error {
 
 async function toError(method: string, path: string, res: Response): Promise<ApiClientError> {
   const body = (await res.json().catch(() => null)) as ProblemBody | null;
-  const detail = body?.detail ?? body?.message;
+  // The same reader `apiRequest` uses. It had its own inline `detail ?? message`
+  // until 2026-08-19, which made two problem+json readers in one package that
+  // disagreed about a blank string.
+  const detail = readDetail(body);
   return new ApiClientError(
     detail
       ? `${method} ${path} failed (${res.status}): ${detail}`

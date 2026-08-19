@@ -1,7 +1,7 @@
 {
-  // TYPECHECK surface — see packages/rulesets/tsconfig.json. No tests today; the
-  // split is carried anyway so a missing tsconfig.build.json is always a gate
-  // failure rather than sometimes legitimate.
+  // TYPECHECK surface — see packages/rulesets/tsconfig.json. It covers the
+  // colocated tests; tsconfig.build.json is the narrower EMIT surface that
+  // leaves them out.
   "extends": "../../tsconfig.lib.json",
   "compilerOptions": {
     "outDir": "dist",

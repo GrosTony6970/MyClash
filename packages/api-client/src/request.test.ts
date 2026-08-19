@@ -119,6 +119,14 @@ describe('apiRequest — failures', () => {
     });
   });
 
+  it('treats a blank detail as no detail — whitespace tells the operator nothing', async () => {
+    stubFetch(() => json({ detail: '   ', message: 'Name is required' }, 400));
+
+    expect(failure(await apiRequest('http://api', '/api/v1/venues'))).toMatchObject({
+      detail: 'Name is required',
+    });
+  });
+
   it('survives a proxy HTML page on a failed response, with no detail to give', async () => {
     stubFetch(() => html(502));
 
@@ -211,7 +219,7 @@ describe('apiRequest — the request it sends', () => {
 
     const init = spy.mock.calls[0]?.[1] as RequestInit;
     expect(init.body).toBe('{"name":"Salle Nord"}');
-    expect(init.headers).toMatchObject({ 'Content-Type': 'application/json' });
+    expect(new Headers(init.headers).get('content-type')).toBe('application/json');
   });
 
   it('passes FormData through untouched — stringifying it would drop the upload', async () => {
@@ -223,7 +231,8 @@ describe('apiRequest — the request it sends', () => {
 
     const init = spy.mock.calls[0]?.[1] as RequestInit;
     expect(init.body).toBe(form);
-    expect(init.headers).not.toMatchObject({ 'Content-Type': 'application/json' });
+    // No content type at all: the boundary is the browser's to write.
+    expect(new Headers(init.headers).get('content-type')).toBeNull();
   });
 
   it('merges caller headers over the defaults', async () => {
@@ -234,10 +243,36 @@ describe('apiRequest — the request it sends', () => {
       body: { q: 1 },
     });
 
-    expect((spy.mock.calls[0]?.[1] as RequestInit).headers).toEqual({
-      Accept: 'text/csv',
-      'Content-Type': 'text/plain',
+    const sent = new Headers((spy.mock.calls[0]?.[1] as RequestInit).headers);
+    expect(sent.get('accept')).toBe('text/csv');
+    expect(sent.get('content-type')).toBe('text/plain');
+  });
+
+  it('keeps caller headers given as a Headers instance', async () => {
+    // Spreading one yields `{}`, so every header would have vanished in silence.
+    const spy = stubFetch(() => json({}));
+
+    await apiRequest('http://api', '/api/v1/exports', {
+      headers: new Headers({ Accept: 'text/csv', 'X-Request-Id': 'r1' }),
+      body: { q: 1 },
     });
+
+    const sent = new Headers((spy.mock.calls[0]?.[1] as RequestInit).headers);
+    expect(sent.get('accept')).toBe('text/csv');
+    expect(sent.get('x-request-id')).toBe('r1');
+    expect(sent.get('content-type')).toBe('application/json');
+  });
+
+  it('keeps caller headers given as an array of pairs', async () => {
+    const spy = stubFetch(() => json({}));
+
+    await apiRequest('http://api', '/api/v1/exports', {
+      headers: [['Accept', 'text/csv']],
+    });
+
+    expect(new Headers((spy.mock.calls[0]?.[1] as RequestInit).headers).get('accept')).toBe(
+      'text/csv',
+    );
   });
 });
 

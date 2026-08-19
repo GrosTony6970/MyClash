@@ -57,8 +57,12 @@ export function isAbortLike(err: unknown): boolean {
  * backward-compatible extension second. Today the exception filter emits both
  * carrying the same string, so the order is a statement of which one is the
  * contract rather than a behaviour change.
+ *
+ * A blank `detail` is treated as no detail and falls through to `message`: a
+ * screen that renders whitespace has told the operator nothing, and its own
+ * fallback sentence is better than an empty error box.
  */
-function readDetail(body: unknown): string | null {
+export function readDetail(body: unknown): string | null {
   if (typeof body !== 'object' || body === null) return null;
   const { detail, message } = body as { detail?: unknown; message?: unknown };
   if (typeof detail === 'string' && detail.trim()) return detail;
@@ -91,16 +95,20 @@ function isRawBody(body: unknown): body is BodyInit {
 function requestInit(init: Omit<RequestInit, 'body'> & { body?: unknown }): RequestInit {
   const { body, headers, ...rest } = init;
   const sendsJson = body !== undefined && !isRawBody(body);
+  // Through `Headers` and not a spread: `headers` is also allowed to be a
+  // `Headers` instance or an array of pairs, and spreading either produces
+  // nonsense — `{}` for the first, so every caller header would vanish without
+  // a word. The caller still wins on a collision, which is why the content type
+  // is only set when nothing already claims it.
+  const merged = new Headers(headers);
+  if (sendsJson && !merged.has('Content-Type')) merged.set('Content-Type', 'application/json');
   return {
     // The session is an httpOnly cookie, so this is the default rather than the
     // exception: 790 of the 867 existing sites pass it by hand.
     credentials: 'include',
     ...rest,
     ...(body === undefined ? {} : { body: sendsJson ? JSON.stringify(body) : (body as BodyInit) }),
-    headers: {
-      ...(sendsJson ? { 'Content-Type': 'application/json' } : {}),
-      ...(headers as Record<string, string> | undefined),
-    },
+    headers: merged,
   };
 }
 
