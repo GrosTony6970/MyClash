@@ -163,7 +163,7 @@ It is designed around three convictions:
 | **Referee assigner**           | Constraint-driven 3-role assignment with feasibility report.                                                                     |
 | **Statistics engine**          | Materialized views of fighter/tournament/event stats; mirrors lyonamhe.fr layout.                                                |
 | **Realtime layer**             | Supabase Realtime broadcasts row changes to subscribed clients.                                                                  |
-| **Offline outbox**             | IndexedDB queue on the scoring app, with idempotent server reconciliation.                                                       |
+| **Offline outbox**             | IndexedDB queue on the staff app, with idempotent server reconciliation.                                                         |
 | **Notification scheduler**     | BullMQ-driven web push for matches, workshops, schedule changes.                                                                 |
 | **Organizer AI assistant**     | Organization-BYOK draft-and-review assistant for tournament setup, pools, brackets, scheduling, and referee assignments.         |
 | **Tournament query assistant** | Organization-BYOK natural-language read-only query surface for tournament stats, lices, pools, brackets, schedule, and referees. |
@@ -189,7 +189,7 @@ It is designed around three convictions:
 
 - **Design language**: the **Tournament Manual** — Fraunces display + Geist body (+ JetBrains Mono for codes). Red accent (`#b91c1c`) on warm paper, gold for placings, a blue accent reserved for the personal space. Red and blue also carry rule semantics as the HEMA fighter corners, tokenized separately so they are never decoration. The FoilMark (a fencing foil's cross-guard) is the only ornament. **[`/DESIGN.md`](DESIGN.md) is canonical**; token values live in `packages/ui/src/theme.css`.
 - **Mobile-first**: every public app screen is built for one-handed phone use first. Desktop layouts are derived from mobile by widening, not redesigning.
-- **Tablet-first scoring app**: large, gloved-finger-friendly buttons. Color-coded (red fighter / blue fighter). High-contrast for outdoor lighting.
+- **Tablet-first staff app**: large, gloved-finger-friendly buttons. Color-coded (red fighter / blue fighter). High-contrast for outdoor lighting.
 - **Desktop-first admin**: dense, table-driven, drag-drop for scheduling.
 - **Per-event theming**: each event site adopts the organizer's logo, colors, and editorial content. Layout and components stay consistent — only the skin changes.
 - **Internationalization**: EN and FR both ship and are both mandatory — every `t()` key must resolve in each, gated by `packages/i18n/src/t-key-references.test.ts`. HEMA terminology had native review; referee role names stay in French.

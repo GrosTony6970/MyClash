@@ -22,24 +22,23 @@ For the full product overview, see [`myclash.md`](./myclash.md).
 
 ## Documentation
 
-| Document                                                         | Audience               | Purpose                                                     |
-| ---------------------------------------------------------------- | ---------------------- | ----------------------------------------------------------- |
-| [`myclash.md`](./myclash.md)                                     | Anyone                 | Product / functional / UX overview                          |
-| [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md)                 | Developers & AI agents | Master technical specification                              |
-| [`docs/GOLDEN_PATHS.md`](./docs/GOLDEN_PATHS.md)                 | Developers & QA        | End-to-end golden paths for manual and automated testing    |
-| [`docs/decisions/`](./docs/decisions/)                           | Developers             | Architecture Decision Records (ADRs)                        |
-| [`docs/OWNER_TASKS.md`](./docs/OWNER_TASKS.md)                   | Project owner          | Operational checklist (domains, hosting, legal, beta event) |
-| [`docs/PRE_DEPLOY_CHECKLIST.md`](./docs/PRE_DEPLOY_CHECKLIST.md) | Project owner          | Flat ordered checklist for first production deploy          |
-| [`CLAUDE.md`](./CLAUDE.md)                                       | AI coding agent        | Agent contract — hard rules, authority, workflow            |
-| [`DESIGN.md`](./DESIGN.md)                                       | Developers & designers | Canonical UI design language                                |
-| [`docs/ENGINEERING_LESSONS.md`](./docs/ENGINEERING_LESSONS.md)   | Developers & AI agents | Per-area rules learned the hard way                         |
+| Document                                                       | Audience               | Purpose                                                     |
+| -------------------------------------------------------------- | ---------------------- | ----------------------------------------------------------- |
+| [`myclash.md`](./myclash.md)                                   | Anyone                 | Product / functional / UX overview                          |
+| [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md)               | Developers & AI agents | Master technical specification                              |
+| [`docs/GOLDEN_PATHS.md`](./docs/GOLDEN_PATHS.md)               | Developers & QA        | End-to-end golden paths for manual and automated testing    |
+| [`docs/decisions/`](./docs/decisions/)                         | Developers             | Architecture Decision Records (ADRs)                        |
+| [`docs/OWNER_TASKS.md`](./docs/OWNER_TASKS.md)                 | Project owner          | Operational checklist (domains, hosting, legal, beta event) |
+| [`CLAUDE.md`](./CLAUDE.md)                                     | AI coding agent        | Agent contract — hard rules, authority, workflow            |
+| [`DESIGN.md`](./DESIGN.md)                                     | Developers & designers | Canonical UI design language                                |
+| [`docs/ENGINEERING_LESSONS.md`](./docs/ENGINEERING_LESSONS.md) | Developers & AI agents | Per-area rules learned the hard way                         |
 
 ---
 
 ## Quick start (developers)
 
 ```bash
-# Prereqs: Node 26+, pnpm 10.27+, Docker Desktop
+# Prereqs: Node 26+, pnpm 11.20+, Docker Desktop
 pnpm install
 cp .env.example .env       # edit values — at minimum set POSTGRES_PASSWORD and SUPABASE_JWT_SECRET
 
@@ -68,12 +67,13 @@ For the full Traefik-fronted dev stack with self-signed TLS at `*.myclash.localh
 
 ```
 myclash/
-├── apps/                # Four Next.js apps + NestJS api + static marketing site
+├── apps/                # Three Next.js apps + NestJS api + Astro marketing site
 │   ├── api/             # NestJS — domain logic, REST + WebSocket (port 4000)
 │   ├── web-public/      # Mobile-first PWA — public/spectator/competitor
-│   ├── web-staff/     # Tablet-first PWA — offline-first scoring
+│   ├── web-staff/       # Tablet-first PWA — offline-first scoring
 │   ├── web-admin/       # Desktop-first admin app — organiser + super-admin
-│   └── web-marketing/   # Astro 6 — myclash.fr apex landing, prerendered to dist/
+│   ├── web-marketing/   # Astro 6 — myclash.fr apex landing, prerendered to dist/
+│   └── pictures/        # Brand images (logo, hero, banner) — not an app
 ├── packages/            # Shared workspaces (consumed by the apps)
 │   ├── rulesets/        # @myclash/rulesets — TF_v1 scoring engine + custom-ruleset runtime
 │   ├── feature-flags/   # @myclash/feature-flags — curated toggle registry
@@ -92,8 +92,7 @@ myclash/
 │   └── scripts/         # Bash scripts that run ON THE VPS
 ├── scripts/             # Cross-platform Node scripts (run from dev machine)
 ├── docs/                # Project documentation
-├── memory/              # AI agent persistent memory
-└── tests/               # Top-level e2e + a11y suites
+└── tests/               # Top-level e2e + a11y + perf + drag suites
 ```
 
 ---
@@ -125,7 +124,7 @@ The production deployment is a 16-service Docker Compose stack on a single VPS, 
 - `api` — NestJS REST + WebSocket gateway on port 4000.
 - `worker` — same image as `api`, started with `--worker`. BullMQ consumer for stats, exports, Ratings sync.
 - `web-admin`, `web-public`, `web-staff` — Next.js per-app containers.
-- `web-marketing` — static HTML on nginx.
+- `web-marketing` — Astro, prerendered and served by Caddy (`FROM caddy:2-alpine`; `check-infra-review.mjs` asserts it).
 
 **Ops sidecar**
 

@@ -202,10 +202,17 @@ stack is probed successfully.
   if zero supply-chain exceptions are required.
 - Live TLS evidence is not repo-local. It must be recorded from the deployed
   `myclash.fr` stack with `pnpm infra:edge -- --domain myclash.fr`.
-- Current live DNS/edge check fails before deploy: apex/`www` do not yet serve
-  the MyClash Traefik TLS configuration, and subdomains refuse port 443.
+- Live DNS/edge state is not verifiable from this repository, and the note that
+  used to sit here — apex/`www` not yet serving the Traefik TLS configuration —
+  was written on 2026-05-13 and frozen. `myclash.fr` has since been advertised as
+  production. Re-run `pnpm infra:edge` against the live domain rather than
+  trusting either version of this line.
 
 ## Commands
+
+`pnpm infra:review` scans the **repository** — compose files, Dockerfiles, Traefik labels. It does
+**not** read this document, despite the shared name, so nothing here is machine-checked. The edge
+and plugin probes below need the live stack.
 
 ```bash
 pnpm infra:review

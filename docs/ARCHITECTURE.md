@@ -7,7 +7,6 @@
 > **Companion docs:**
 >
 > - `docs/OWNER_TASKS.md` — operational checklist for the project owner (full version, organized by project phase).
-> - `docs/PRE_DEPLOY_CHECKLIST.md` — flat ordered checklist for everything that must happen before first production deploy.
 > - `myclash.md` (root) — functional/design understanding of the app (product-level).
 > - `CLAUDE.md` (root) — the agent contract: hard rules, which docs are authoritative, workflow, verification.
 > - `DESIGN.md` (root) — canonical UI design language.
@@ -2129,6 +2128,15 @@ Traefik routes by Host header. Key mappings:
 | `traefik.${DOMAIN}` | `traefik`               | Dashboard, basic-auth gated via `TRAEFIK_DASHBOARD_AUTH`.                                                                                                               |
 | `studio.${DOMAIN}`  | `supabase-studio`       | Operator DB console. IP allowlist **and** basic auth, both mandatory. See §17.5.                                                                                        |
 
+**Every host in that table needs a DNS A record before the first deploy of an environment, and the
+easy ones to forget are `app`, `traefik` and `studio`.** Let's Encrypt cannot issue for a name that
+does not resolve, and its production endpoint allows only **5 failures per hour** — a shared budget
+across the whole certificate request. `studio` is the sharpest case: its router in
+`infra/docker-compose.prod.yml` carries no `profiles:` guard, so its certificate is requested on
+**every** deploy whether or not anyone uses Studio. `app` and `traefik` are additionally probed by
+the admin TLS-status card (`apps/api/src/modules/admin/tls-status.service.ts`). Add `www` as a
+CNAME to the apex, and a wildcard `*` record if per-event subdomains are ever wanted.
+
 ### 17.2 Environments
 
 - `.env.example` committed; `.env` gitignored.
@@ -2308,7 +2316,6 @@ myclash/
 │   ├── HIERARCHY.md                # canonical domain vocabulary
 │   ├── GOLDEN_PATHS.md             # end-to-end happy-path walkthroughs
 │   ├── DISASTER_RECOVERY.md        # backup/restore recovery runbook
-│   ├── PRE_DEPLOY_CHECKLIST.md     # pre-first-deploy checklist
 │   ├── SECURITY_POSTURE.md         # security posture notes
 │   └── *_REVIEW.md                 # periodic review reports
 ├── .github/workflows/

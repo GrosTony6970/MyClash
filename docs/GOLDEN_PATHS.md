@@ -1,6 +1,14 @@
 # MyClash — Golden Paths
 
-Canonical end-to-end flows used for manual smoke testing (Phase 10) and as the basis for Playwright E2E suites. Each path must pass on staging before a production ship.
+Canonical end-to-end flows for **manual** smoke testing. Each path must pass on staging before a
+production ship.
+
+**These are not the Playwright suites.** An earlier version of this line claimed they were the basis
+for them; no test references a `GP-N` (`grep -rn "GP-[0-9]" tests/` returns nothing), and
+`tests/e2e/` is organised by feature across 36 specs rather than by golden path. The eight paths
+below do not cover Swiss, leagues, archive/restore, the print pack, the live control room or AI
+settings, all of which have specs. Treat this as the manual checklist it is; `tests/e2e/README.md`
+is the automated inventory.
 
 Test matrix per path: **desktop Chrome · mobile Safari · mobile Chrome**
 
