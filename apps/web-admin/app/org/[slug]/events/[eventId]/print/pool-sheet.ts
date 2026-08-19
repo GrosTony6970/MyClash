@@ -2,8 +2,8 @@
  * The pool sheet: who is in the pool, and every bout with blank boxes to score
  * it by hand.
  *
- * This is the sheet an event falls back to when the stack is unreachable — see
- * O-209 in `docs/OWNER_TASKS.md`. Everything a scorekeeper needs to reconstruct
+ * This is the sheet an event falls back to when the stack is unreachable, so it
+ * gets printed blank before the day starts. Everything a scorekeeper needs to reconstruct
  * the pool afterwards has to be on it: the round code (so the bout can be
  * matched back to a row in the database), both names with clubs, and the piste.
  */

@@ -1,7 +1,7 @@
 /**
- * referee-assigner.test.ts — T-903
+ * referee-assigner.test.ts
  *
- * Test scenarios from BUILD_ORDER AC:
+ * The four scenarios the assigner has to get right:
  *   1. 4 pools, 12 qualified referees (4 of each role), no overlaps → all assigned, no warnings
  *   2. 4 pools, 6 referees (2 per role) → all assigned, back-to-back warnings present
  *   3. 4 pools, only 1 qualified arbitre_assesseur → 3 missing cells reported

@@ -9,7 +9,7 @@ Phase 3 production-readiness review. Scope fixed 2026-05-12; **content maintaine
 
 ## Enforced Gates
 
-- `pnpm quality:todos` fails on `TODO` or `FIXME` unless the line carries a marker — `T-####`, `O-####`, `OWNER_TASKS`, or a `github.com` URL. Separately, three files are skipped **entirely** (`allowedPathSuffixes`) and `docs/superpowers/` is skipped by prefix, because those hold prose _about_ debt rather than debt. A path is not a marker; see `scripts/check-todos.mjs` for both lists.
+- `pnpm quality:todos` fails on `TODO` or `FIXME` unless the line carries a marker — `T-####` or a `github.com` URL. Separately, three files are skipped **entirely** (`allowedPathSuffixes`) and `docs/superpowers/` is skipped by prefix, because those hold prose _about_ debt rather than debt. A path is not a marker; see `scripts/check-todos.mjs` for both lists.
 - `pnpm quality:api-docs` fails when an API controller is missing `@ApiTags` or an HTTP route is missing `@ApiOperation`.
 - `pnpm quality:complexity` fails when a file over 400 lines or function over 50 lines appears outside `docs/code-quality-complexity-baseline.json`. Functions are found with the TypeScript parser (`scripts/check-complexity.mjs`), and the script has its own tests (`scripts/check-complexity.test.mjs`) — see the note below for why.
 - `pnpm quality:shared-types` fails on explicit `any` in shared packages and API production code, excluding tests, generated files, and legitimate string literals such as query enums.

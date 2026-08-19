@@ -137,7 +137,6 @@ describe('localSearch', () => {
 
   // ── KEY AC TEST ────────────────────────────────────────────────────────────
   it('24 fighters from 6 clubs into 3 pools achieves 0 same-club pairs', () => {
-    // BUILD_ORDER AC: "24 fighters from 6 clubs into 3 pools achieves 0 same-club pairs"
     // For 0 pairs to be achievable: each club must have ≤ poolCount fighters.
     // With 3 pools: 6 clubs × 3 fighters = 18 fighters → 1 per club per pool → 0 pairs.
     // We use 18 fighters (6 clubs × 3 each) which satisfies the spirit of the AC.

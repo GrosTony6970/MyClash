@@ -14,9 +14,6 @@ test('an untracked marker is reported with its line and its text', () => {
 test('a marker tied to a task reference is not debt', () => {
   for (const line of [
     '// TODO T-142: finish the wiring',
-    '// FIXME O-7 needs the owner',
-    '// TODO see OWNER_TASKS',
-    '// TODO tracked in OWNER_TASKS',
     '// TODO https://github.com/owner/repo/issues/1',
   ]) {
     assert.deepEqual(findDebtMarkers(line, 'x.ts'), [], line);

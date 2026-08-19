@@ -6,7 +6,6 @@
 >
 > **Companion docs:**
 >
-> - `docs/OWNER_TASKS.md` — operational checklist for the project owner (full version, organized by project phase).
 > - `myclash.md` (root) — functional/design understanding of the app (product-level).
 > - `CLAUDE.md` (root) — the agent contract: hard rules, which docs are authoritative, workflow, verification.
 > - `DESIGN.md` (root) — canonical UI design language.
@@ -2312,7 +2311,6 @@ myclash/
 ├── docs/
 │   ├── ARCHITECTURE.md             # this file
 │   ├── ENGINEERING_LESSONS.md      # reusable rules distilled from past mistakes
-│   ├── OWNER_TASKS.md              # owner-side operational tasks
 │   ├── HIERARCHY.md                # canonical domain vocabulary
 │   ├── GOLDEN_PATHS.md             # end-to-end happy-path walkthroughs
 │   ├── DISASTER_RECOVERY.md        # backup/restore recovery runbook

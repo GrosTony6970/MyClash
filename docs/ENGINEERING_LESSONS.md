@@ -122,8 +122,6 @@ here.
   and auth gates that bounce the user to `/login` while `/api/v1/me` still returns 200.
   `pnpm typecheck` does **not** catch it: the sync type is still legal in Next 16. After every
   Next major bump, `grep -rln "params: { " apps/*/app/` and convert every hit.
-- When a build task references an `[O-NNN]` owner-side prerequisite that is not done, **stop and
-  notify the user** (`docs/OWNER_TASKS.md`). Do not improvise around it.
 
 ## Identity & auth
 
@@ -182,6 +180,15 @@ here.
 - Send **bilingual (FR + EN)** emails. The platform is French-first, not French-only.
 - **Never reveal whether an email is registered** in magic-link endpoints. Return the same generic
   message either way, or the roster becomes enumerable.
+
+## Observability
+
+- **A Sentry project slug lives at sentry.io, not in this repo.** `web-scoring` in
+  `apps/web-staff/next.config.ts` and `NEXT_PUBLIC_SENTRY_DSN_SCORING` across six files are
+  deliberately stale after the `web-scoring` → `web-staff` rename. Renaming them repo-side first
+  points uploads at a project that does not exist, and nothing fails loudly — the gap only shows
+  when a stack trace is needed and arrives unminified. Rename at sentry.io and reissue the DSN
+  first. The full reasoning sits at the literal itself.
 
 ## Ruleset engine
 

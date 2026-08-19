@@ -106,7 +106,8 @@ export class OrganizationsAdminController {
 
   /**
    * PATCH /api/v1/admin/organizations/:id/approve
-   * Explicit BUILD_ORDER T-1301 approval alias for reactivating organizers.
+   * Explicit approval alias for reactivating organizers, kept alongside the
+   * generic status PATCH because the intent reads better at the call site.
    */
   @Patch(':id/approve')
   @HttpCode(HttpStatus.NO_CONTENT)

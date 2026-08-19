@@ -22,16 +22,15 @@ For the full product overview, see [`myclash.md`](./myclash.md).
 
 ## Documentation
 
-| Document                                                       | Audience               | Purpose                                                     |
-| -------------------------------------------------------------- | ---------------------- | ----------------------------------------------------------- |
-| [`myclash.md`](./myclash.md)                                   | Anyone                 | Product / functional / UX overview                          |
-| [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md)               | Developers & AI agents | Master technical specification                              |
-| [`docs/GOLDEN_PATHS.md`](./docs/GOLDEN_PATHS.md)               | Developers & QA        | End-to-end golden paths for manual and automated testing    |
-| [`docs/decisions/`](./docs/decisions/)                         | Developers             | Architecture Decision Records (ADRs)                        |
-| [`docs/OWNER_TASKS.md`](./docs/OWNER_TASKS.md)                 | Project owner          | Operational checklist (domains, hosting, legal, beta event) |
-| [`CLAUDE.md`](./CLAUDE.md)                                     | AI coding agent        | Agent contract — hard rules, authority, workflow            |
-| [`DESIGN.md`](./DESIGN.md)                                     | Developers & designers | Canonical UI design language                                |
-| [`docs/ENGINEERING_LESSONS.md`](./docs/ENGINEERING_LESSONS.md) | Developers & AI agents | Per-area rules learned the hard way                         |
+| Document                                                       | Audience               | Purpose                                                  |
+| -------------------------------------------------------------- | ---------------------- | -------------------------------------------------------- |
+| [`myclash.md`](./myclash.md)                                   | Anyone                 | Product / functional / UX overview                       |
+| [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md)               | Developers & AI agents | Master technical specification                           |
+| [`docs/GOLDEN_PATHS.md`](./docs/GOLDEN_PATHS.md)               | Developers & QA        | End-to-end golden paths for manual and automated testing |
+| [`docs/decisions/`](./docs/decisions/)                         | Developers             | Architecture Decision Records (ADRs)                     |
+| [`CLAUDE.md`](./CLAUDE.md)                                     | AI coding agent        | Agent contract — hard rules, authority, workflow         |
+| [`DESIGN.md`](./DESIGN.md)                                     | Developers & designers | Canonical UI design language                             |
+| [`docs/ENGINEERING_LESSONS.md`](./docs/ENGINEERING_LESSONS.md) | Developers & AI agents | Per-area rules learned the hard way                      |
 
 ---
 

@@ -55,6 +55,15 @@ export default withSentryConfig(nextConfig, {
   // dev builds) the plugin skips upload and the build stays green. `org` is the
   // Sentry organisation slug — confirm the real value with the owner.
   org: 'myclash',
+  // `web-scoring` is DELIBERATE and must not be "corrected" to match this app's
+  // name. The app was renamed web-scoring → web-staff in 11db3c66, but a Sentry
+  // project slug lives server-side at sentry.io, not here. Renaming it repo-side
+  // first makes releases and source maps upload to a project that does not
+  // exist — silently, with the gap invisible until a stack trace is needed and
+  // arrives unminified. Rename the project at sentry.io and reissue its DSN
+  // first; then this literal and `NEXT_PUBLIC_SENTRY_DSN_SCORING` (.env.example,
+  // both Dockerfiles, both compose files, scripts/ensure-prod-env.mjs,
+  // scripts/check-observability-review.mjs) move together.
   project: 'web-scoring',
   authToken: process.env['SENTRY_AUTH_TOKEN'],
   // Match the release the runtime tags events with (GIT_COMMIT) so uploaded

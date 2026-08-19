@@ -105,8 +105,9 @@ record; there is no task queue to pick from.
   all land cleanly. Prefer root-cause and class-of-bug fixes over patches.
 - **Several agent sessions commit to this repo concurrently.** Check `git log --oneline -1` before
   staging, `git fetch` before pushing, and stage explicit paths — never `git add -A`.
-- If a task is ambiguous or contradicts the architecture, **stop and ask**. If it needs owner-side
-  action (`[needs O-NNN]` in `docs/OWNER_TASKS.md`) that isn't done, **stop and notify**.
+- If a task is ambiguous or contradicts the architecture, **stop and ask**. If it needs something
+  only the operator can do — a DNS record, a third-party account, a decision about the real event —
+  **stop and notify** rather than improvising around it.
 
 ---
 

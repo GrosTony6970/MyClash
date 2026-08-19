@@ -2,7 +2,7 @@ import type { MessageTree } from '../../message-tree.js';
 
 export const organizer = {
   /**
-   * The event-day paper fallback (O-209 in docs/OWNER_TASKS.md). Every string
+   * The event-day paper fallback, printed blank in case the stack dies. Every string
    * here ends up on paper handed to a scorekeeper, so it must translate - the
    * two older print helpers hardcode English headers, and that is the bug
    * this section exists not to repeat.

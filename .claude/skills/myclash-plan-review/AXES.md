@@ -68,8 +68,9 @@ The plan says a thing works. Does anything actually hold it?
 - **Anything new under `.claude/` needs a `.gitignore` negation.** `.claude/skills/*` is ignored and
   re-admitted one directory at a time. Without the line, `git status --porcelain -uall` prints
   nothing at all for the new directory and the work never leaves the machine that wrote it.
-- **Owner-side prerequisites.** Any `[needs O-NNN]` in `docs/OWNER_TASKS.md` that this plan depends
-  on must already be done — if not, stop and notify rather than planning around it.
+- **Owner-side prerequisites.** Anything only the operator can do — a DNS record, a third-party
+  account, a decision about the real event — must already be done, or the plan stops and notifies
+  rather than routing around it.
 - **Concurrent sessions.** Several agents commit here. Does the plan check `git log --oneline -1`
   before staging and `git fetch` before pushing, and stage explicit paths rather than `git add -A`?
 - **Does the plan assume a file that a rename moved?** `infra:review` pins paths and crashes on a

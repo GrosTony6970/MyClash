@@ -62,7 +62,7 @@ infra/scripts/restore.sh --from-s3 <TS>        # pull from Scaleway S3 then rest
 
 - **Fast, non-destructive, any docker host:** `bash infra/scripts/test-restore-roundtrip.sh` — dumps a disposable postgres, restores it with the hardened flags, asserts `auth.users` + rows round-trip, and asserts a truncated dump **fails and rolls back** (proving atomicity).
 - **Regression guard (CI):** `node --test infra/ops-runner/restore-script-guard.test.mjs` pins the critical flags/stop-list so a future edit can't silently drop them.
-- **Full drill (do once before launch, then periodically):** spin up a throwaway VM, deploy the stack, copy a real backup set over, run `infra/scripts/restore.sh`, and confirm a known event/fighter and a known uploaded image appear. Record it in `docs/OWNER_TASKS.md` as a verified restore.
+- **Full drill (do once before launch, then periodically):** spin up a throwaway VM, deploy the stack, copy a real backup set over, run `infra/scripts/restore.sh`, and confirm a known event/fighter and a known uploaded image appear.
 
 ## Post-restore checklist
 
