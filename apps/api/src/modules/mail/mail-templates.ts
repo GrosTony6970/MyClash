@@ -12,18 +12,15 @@
  *   - INLINE styles only. Email clients discard <style> blocks and external CSS.
  *   - Bilingual FR/EN side by side. MailService takes no locale and giving it
  *     one is its own concern; until then, both languages ship in every message.
- *   - Every interpolated value goes through `escapeHtml`. These bodies carry
- *     user-supplied names, org names and event names.
+ *   - Every interpolated value goes through `escapeHtml` — the shared one from
+ *     `@myclash/types`, which is deliberately the only copy. A private escaper
+ *     used to live here: five sequential `.replace()` passes that behaved
+ *     identically, which is exactly why it was worth deleting rather than
+ *     testing. These bodies carry user-supplied names, org names and event
+ *     names.
  */
 
-export function escapeHtml(value: string): string {
-  return value
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
-}
+import { escapeHtml } from '@myclash/types';
 
 /** Brand accent, matching `--color-accent`. Hard-coded because email cannot read a token. */
 const ACCENT = '#b91c1c';
