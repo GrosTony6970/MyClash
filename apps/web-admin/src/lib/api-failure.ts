@@ -1,15 +1,16 @@
 import type { ApiFailure } from '@myclash/api-client';
 
 /**
- * A failure worth showing. `aborted` is deliberately not in it: an abort is the
- * caller's own doing — a navigation, a re-render, a newer request — and it has
- * no message, so the caller has to return before it reaches this function.
- * Excluding the case here is what makes the compiler ask for that return.
- */
-export type ReportableFailure = Exclude<ApiFailure, { kind: 'aborted' }>;
-
-/**
- * Turn a structured `apiRequest` failure into a sentence for the operator.
+ * Turn a structured `apiRequest` failure into a sentence for the operator, or
+ * `null` when there is nothing to say.
+ *
+ * `null` is the aborted request: the caller's own doing — a navigation, an
+ * unmount, a newer request — and it has no message. This used to be an
+ * `Exclude<ApiFailure, { kind: 'aborted' }>` parameter, which read well and was
+ * wrong: it forced `if (failure.kind !== 'aborted')` at every call site, and on
+ * a request that passes no signal that guard is a branch which cannot fire.
+ * CLAUDE.md is explicit that such a branch is the bug. One `null` here replaces
+ * seven of them.
  *
  * The core cannot do this itself: hard rule 6 puts every user-facing string in
  * `en` and `fr`, and the shared package holds no catalogue. It is a plain
@@ -26,7 +27,7 @@ export type ReportableFailure = Exclude<ApiFailure, { kind: 'aborted' }>;
  * stack or connection string can arrive through this path.
  */
 export function failureMessage(
-  failure: ReportableFailure,
+  failure: ApiFailure,
   t: (key: string) => string,
   /**
    * Already translated, and read only when the response gave no reason of its
@@ -36,8 +37,10 @@ export function failureMessage(
    * for reading the body at all.
    */
   fallback?: string,
-): string {
+): string | null {
   switch (failure.kind) {
+    case 'aborted':
+      return null;
     case 'network':
       return t('common.apiFailure.network');
     case 'unauthenticated':

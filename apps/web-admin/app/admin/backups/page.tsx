@@ -176,10 +176,10 @@ export default function AdminBackupsPage() {
           }
           const failure = [statusRes, scheduleRes, backupsRes].find((res) => !res.ok);
           if (failure?.ok !== false) return;
-          // The unmount, or the reload that replaced this one. Used to be
-          // `err instanceof DOMException && err.name === 'AbortError'`.
-          if (failure.kind === 'aborted') return;
-          setError(failureMessage(failure, t, t('admin.backups.loadError')));
+          // No message means the unmount, or the reload that replaced this one.
+          // Used to be `err instanceof DOMException && err.name === 'AbortError'`.
+          const message = failureMessage(failure, t, t('admin.backups.loadError'));
+          if (message) setError(message);
           return;
         }
         setStatus(statusRes.data);
@@ -234,7 +234,8 @@ export default function AdminBackupsPage() {
     })
       .then((res) => {
         if (!res.ok) {
-          if (res.kind !== 'aborted') setError(failureMessage(res, t, t('admin.backups.runError')));
+          const message = failureMessage(res, t, t('admin.backups.runError'));
+          if (message) setError(message);
           return;
         }
         setOperation(res.data.operation);
@@ -273,9 +274,8 @@ export default function AdminBackupsPage() {
     })
       .then((res) => {
         if (!res.ok) {
-          if (res.kind !== 'aborted') {
-            setError(failureMessage(res, t, t('admin.backups.uploadError')));
-          }
+          const message = failureMessage(res, t, t('admin.backups.uploadError'));
+          if (message) setError(message);
           return;
         }
         setBackups((current) => [res.data.backup, ...current]);
@@ -298,9 +298,8 @@ export default function AdminBackupsPage() {
     })
       .then((res) => {
         if (!res.ok) {
-          if (res.kind !== 'aborted') {
-            setError(failureMessage(res, t, t('admin.backups.restoreError')));
-          }
+          const message = failureMessage(res, t, t('admin.backups.restoreError'));
+          if (message) setError(message);
           return;
         }
         setOperation(res.data.operation);
@@ -319,9 +318,8 @@ export default function AdminBackupsPage() {
     })
       .then((res) => {
         if (!res.ok) {
-          if (res.kind !== 'aborted') {
-            setError(failureMessage(res, t, t('admin.backups.deleteError')));
-          }
+          const message = failureMessage(res, t, t('admin.backups.deleteError'));
+          if (message) setError(message);
           return;
         }
         setNotice(
@@ -345,9 +343,8 @@ export default function AdminBackupsPage() {
     })
       .then((res) => {
         if (!res.ok) {
-          if (res.kind !== 'aborted') {
-            setError(failureMessage(res, t, t('admin.backups.scheduleSaveError')));
-          }
+          const message = failureMessage(res, t, t('admin.backups.scheduleSaveError'));
+          if (message) setError(message);
           return;
         }
         setSchedule(res.data);
@@ -371,9 +368,8 @@ export default function AdminBackupsPage() {
     })
       .then((res) => {
         if (!res.ok) {
-          if (res.kind !== 'aborted') {
-            setError(failureMessage(res, t, t('admin.backups.deleteAllError')));
-          }
+          const message = failureMessage(res, t, t('admin.backups.deleteAllError'));
+          if (message) setError(message);
           return;
         }
         const result = res.data;

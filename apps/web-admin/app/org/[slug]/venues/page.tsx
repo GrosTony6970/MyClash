@@ -91,10 +91,8 @@ export default function OrgVenuesPage() {
   const [editing, setEditing] = useState<VenueRow | null>(null);
   const [creating, setCreating] = useState(false);
 
-  // `apiRequest` never throws, so nothing here has a catch. Its `aborted`
-  // failure is the mount effect's own signal firing on unmount; the mutations
-  // below pass no signal, and the guard is what `failureMessage` demands before
-  // it will look at a failure.
+  // `apiRequest` never throws, so nothing here has a catch, and `failureMessage`
+  // answers `null` for the abort the mount effect's own signal causes.
   const loadVenues = useCallback(
     async (id: string, signal?: AbortSignal) => {
       const r = await apiRequest<VenueRow[]>(apiUrl, `/api/v1/organizations/${id}/venues`, {
@@ -104,8 +102,8 @@ export default function OrgVenuesPage() {
         setVenues(r.data);
         return;
       }
-      if (r.kind === 'aborted') return;
-      setMessage(failureMessage(r, t, t('organizer.venues.loadError')));
+      const message = failureMessage(r, t, t('organizer.venues.loadError'));
+      if (message) setMessage(message);
     },
     [t],
   );
@@ -145,8 +143,10 @@ export default function OrgVenuesPage() {
         { signal: controller.signal },
       );
       if (!r.ok) {
-        if (r.kind === 'aborted') return;
-        setMessage(failureMessage(r, t, t('organizer.venues.loadError')));
+        const message = failureMessage(r, t, t('organizer.venues.loadError'));
+        // Aborted: the effect that replaced this one owns the loading flag now.
+        if (!message) return;
+        setMessage(message);
         setLoading(false);
         return;
       }
@@ -170,14 +170,14 @@ export default function OrgVenuesPage() {
       return;
     const r = await apiRequest(apiUrl, `/api/v1/venues/${venue.id}`, { method: 'DELETE' });
     if (!r.ok) {
-      if (r.kind === 'aborted') return;
       // A venue still holding matches or sessions comes back 409 with the
       // reason; the domain sentence is the fallback for the one that doesn't.
       if (r.kind === 'http' && r.status === 409) {
         setMessage(r.detail ?? t('organizer.venues.deleteInUse'));
         return;
       }
-      setMessage(failureMessage(r, t, t('organizer.venues.deleteError')));
+      const message = failureMessage(r, t, t('organizer.venues.deleteError'));
+      if (message) setMessage(message);
       return;
     }
     if (orgId) await loadVenues(orgId);
@@ -343,13 +343,12 @@ const nextAreaName = (count: number) => `Area ${count + 1}`;
  * reason as a string. Reading it used to be this file's own copy of the
  * problem+json body parser — the third in the repo; `apiRequest` reports it now.
  *
- * An aborted request has no reason and none can arrive here: every call in the
- * modal is user-initiated and passes no signal. Should one ever be given one,
- * the empty message lands on `save()`'s existing generic fallback rather than
- * showing the operator a blank alert.
+ * `failureMessage` answers `null` for an aborted request, which has no reason to
+ * give. The empty message then lands on `save()`'s existing generic fallback
+ * rather than showing the operator a blank alert.
  */
 function failureReason(failure: ApiFailure, t: (key: string) => string): string {
-  return failure.kind === 'aborted' ? '' : failureMessage(failure, t);
+  return failureMessage(failure, t) ?? '';
 }
 
 interface VenueFormModalProps {

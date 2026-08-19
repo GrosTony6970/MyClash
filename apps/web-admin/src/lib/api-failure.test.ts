@@ -2,7 +2,9 @@ import { messages } from '@myclash/i18n/admin';
 import { createTranslator } from '@myclash/i18n/runtime';
 import { describe, expect, it } from 'vitest';
 
-import { failureMessage, type ReportableFailure } from './api-failure';
+import type { ApiFailure } from '@myclash/api-client';
+
+import { failureMessage } from './api-failure';
 
 // The real translators, not stubs. A stub would prove the routing and miss the
 // thing that actually breaks: a key that resolves to nothing. `t()` answers a
@@ -10,7 +12,7 @@ import { failureMessage, type ReportableFailure } from './api-failure';
 const en = createTranslator(messages.en);
 const fr = createTranslator(messages.fr);
 
-const EVERY_FAILURE: ReportableFailure[] = [
+const EVERY_FAILURE: ApiFailure[] = [
   { kind: 'network' },
   { kind: 'unauthenticated', status: 401 },
   { kind: 'unauthenticated', status: 403 },
@@ -19,6 +21,14 @@ const EVERY_FAILURE: ReportableFailure[] = [
 ];
 
 describe('failureMessage', () => {
+  it('has nothing to say about an abort', () => {
+    // The caller's own doing. `null` is what stops every call site from
+    // repeating a `kind !== 'aborted'` guard that, on an unsignalled request,
+    // could never fire.
+    expect(failureMessage({ kind: 'aborted' }, en)).toBeNull();
+    expect(failureMessage({ kind: 'aborted' }, en, 'Could not save.')).toBeNull();
+  });
+
   it('sends a network failure to the network string', () => {
     expect(failureMessage({ kind: 'network' }, en)).toBe(en('common.apiFailure.network'));
   });
@@ -75,7 +85,7 @@ describe('failureMessage', () => {
       ['fr', fr],
     ] as const) {
       for (const failure of EVERY_FAILURE) {
-        const message = failureMessage(failure, t);
+        const message = failureMessage(failure, t) ?? '';
         expect(message, `${locale} / ${failure.kind}`).not.toMatch(/^\[.+\]$/);
         expect(message.length, `${locale} / ${failure.kind}`).toBeGreaterThan(0);
       }
