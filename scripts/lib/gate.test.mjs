@@ -182,6 +182,32 @@ test('a scan that examined nothing is a broken gate, not a clean repo', () => {
   assert.doesNotMatch(stdout, /looked at everything/);
 });
 
+test('a zero count does not swallow findings the gate did report', () => {
+  // Validation runs before reporting, so an unconditional throw here would
+  // replace real output with "scanned nothing". check-edge-plugins rejects an
+  // unknown --mode before probing anything, and that message is the useful part.
+  const { status, stderr } = spawnGate(
+    returning(`{ findings: ['Unknown --mode value "staging"'], summary: 'unused', scanned: 0 }`),
+  );
+
+  assert.equal(status, 1);
+  assert.match(stderr, /- Unknown --mode value "staging"/);
+  assert.doesNotMatch(stderr, /scanned nothing/);
+});
+
+test('warnings alone do not excuse an empty scan', () => {
+  // A warning-only run still exits 0, which is exactly the silent pass the
+  // count exists to catch.
+  const { status, stderr } = spawnGate(
+    returning(
+      `{ findings: [{ level: 'warn', message: 'heads up' }], summary: 'unused', scanned: 0 }`,
+    ),
+  );
+
+  assert.equal(status, 1);
+  assert.match(stderr, /scanned nothing/);
+});
+
 test('a gate may say it had nothing to count, but only by name and with a reason', () => {
   // The opt-out exists because check-edge-plugins genuinely examines nothing
   // when the kill-switch has detached the middlewares. It must stay deliberate:

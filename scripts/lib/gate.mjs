@@ -150,17 +150,29 @@ function validate(name, result) {
       `${name}: run() returned no summary — a passing gate has to say what it saw`,
     );
   }
-  validateScanned(name, result.scanned);
+  validateScanned(name, result.scanned, result.findings);
   if (result.remedy !== undefined && (typeof result.remedy !== 'string' || !result.remedy)) {
     throw new TypeError(`${name}: remedy must be a non-empty string when given`);
   }
 }
 
-function validateScanned(name, scanned) {
+/**
+ * ── Why the zero only matters on an otherwise-clean run ─────────────────────
+ * Validation happens before reporting, so throwing on every zero would replace
+ * a gate's real findings with "scanned nothing" and lose them. A gate holding
+ * an error plainly examined something — check-edge-plugins rejects an unknown
+ * --mode before it probes anything, and that message is the useful output.
+ *
+ * The assertion exists to stop a SILENT PASS, so it fires exactly there: no
+ * errors to report, and nothing examined to justify saying so. Warnings do not
+ * count — a warning-only run still exits 0, which is the outcome being guarded.
+ */
+function validateScanned(name, scanned, findings) {
   if (reasonForCountingNothing(scanned)) return;
   if (typeof scanned !== 'number' || !Number.isFinite(scanned)) {
     throw new TypeError(`${name}: run() returned no scanned count`);
   }
+  if (findings.some((finding) => levelOf(finding) !== WARN)) return;
   if (scanned === 0) {
     throw new Error(`${name}: scanned nothing — the discovery step is broken, not the repo clean`);
   }
