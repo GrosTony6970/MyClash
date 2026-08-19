@@ -6,7 +6,6 @@
     "apps/web-admin/app/admin/ai/page.tsx",
     "apps/web-admin/app/admin/audit-log/AuditLogPanel.tsx",
     "apps/web-admin/app/admin/audit-log/PlatformLogPanel.tsx",
-    "apps/web-admin/app/admin/backups/page.tsx",
     "apps/web-admin/app/admin/clubs/page.tsx",
     "apps/web-admin/app/admin/data-quality/page.tsx",
     "apps/web-admin/app/admin/data-retention/page.tsx",

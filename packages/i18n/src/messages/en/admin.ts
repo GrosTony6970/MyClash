@@ -2312,7 +2312,6 @@ export const admin = {
     loading: 'Loading backups...',
     accessDenied: 'Access denied. Super admin required.',
     loadError: 'Failed to load backups.',
-    operationLoadError: 'Failed to refresh backup operation.',
     runBackup: 'Run backup',
     runStarted: 'Backup operation started.',
     runError: 'Could not start backup.',

@@ -4,8 +4,9 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
 import { Modal } from '@myclash/ui';
 import { useI18n } from '@myclash/next-i18n/client';
+import { apiRequest } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
-import { apiErrorMessage } from '@/lib/api-error';
+import { failureMessage } from '@/lib/api-failure';
 
 type BackupLocation = 'local' | 's3' | 'upload';
 type OperationStatus = 'queued' | 'running' | 'success' | 'failed';
@@ -159,42 +160,34 @@ export default function AdminBackupsPage() {
 
   const load = useCallback(() => {
     const controller = new AbortController();
-    Promise.all([
-      fetch(`${apiUrl}/api/v1/admin/backups/status`, {
-        credentials: 'include',
-        signal: controller.signal,
-      }),
-      fetch(`${apiUrl}/api/v1/admin/backups/schedule`, {
-        credentials: 'include',
-        signal: controller.signal,
-      }),
-      fetch(`${apiUrl}/api/v1/admin/backups`, {
-        credentials: 'include',
-        signal: controller.signal,
-      }),
+    const signal = controller.signal;
+    void Promise.all([
+      apiRequest<BackupStatus>(apiUrl, '/api/v1/admin/backups/status', { signal }),
+      apiRequest<BackupSchedule>(apiUrl, '/api/v1/admin/backups/schedule', { signal }),
+      apiRequest<BackupListResponse>(apiUrl, '/api/v1/admin/backups', { signal }),
     ])
-      .then(async ([statusRes, scheduleRes, backupsRes]) => {
-        if (statusRes.status === 401 || statusRes.status === 403) {
-          throw new Error(t('admin.backups.accessDenied'));
+      .then(([statusRes, scheduleRes, backupsRes]) => {
+        if (!statusRes.ok || !scheduleRes.ok || !backupsRes.ok) {
+          // Losing the session and lacking the platform role read the same to a
+          // guard; on this screen they read the same to the operator too.
+          if (!statusRes.ok && statusRes.kind === 'unauthenticated') {
+            setError(t('admin.backups.accessDenied'));
+            return;
+          }
+          const failure = [statusRes, scheduleRes, backupsRes].find((res) => !res.ok);
+          if (failure?.ok !== false) return;
+          // The unmount, or the reload that replaced this one. Used to be
+          // `err instanceof DOMException && err.name === 'AbortError'`.
+          if (failure.kind === 'aborted') return;
+          setError(failureMessage(failure, t, t('admin.backups.loadError')));
+          return;
         }
-        const failed = [statusRes, scheduleRes, backupsRes].find((res) => !res.ok);
-        if (failed) {
-          throw new Error(await apiErrorMessage(failed, t('admin.backups.loadError')));
-        }
-        const nextStatus = (await statusRes.json()) as BackupStatus;
-        const nextSchedule = (await scheduleRes.json()) as BackupSchedule;
-        const nextBackups = (await backupsRes.json()) as BackupListResponse;
-        setStatus(nextStatus);
-        setSchedule(nextSchedule);
-        setScheduleForm(scheduleToForm(nextSchedule));
-        setBackups(nextBackups.backups);
-        setOperation(nextStatus.runningOperation);
+        setStatus(statusRes.data);
+        setSchedule(scheduleRes.data);
+        setScheduleForm(scheduleToForm(scheduleRes.data));
+        setBackups(backupsRes.data.backups);
+        setOperation(statusRes.data.runningOperation);
         setError(null);
-      })
-      .catch((err: unknown) => {
-        if (!(err instanceof DOMException && err.name === 'AbortError')) {
-          setError(err instanceof Error ? err.message : t('admin.backups.loadError'));
-        }
       })
       .finally(() => setLoading(false));
 
@@ -206,25 +199,27 @@ export default function AdminBackupsPage() {
   useEffect(() => {
     if (!operation || !['queued', 'running'].includes(operation.status)) return;
     const timer = window.setInterval(() => {
-      fetch(`${apiUrl}/api/v1/admin/backups/operations/${operation.id}`, {
-        credentials: 'include',
-      })
-        .then(async (res) => {
-          if (!res.ok)
-            throw new Error(await apiErrorMessage(res, t('admin.backups.operationLoadError')));
-          const next = (await res.json()) as BackupOperation;
-          setPollFailed(false);
-          setOperation(next);
-          if (next.status === 'success' || next.status === 'failed') {
-            // Persist the outcome in state that load() won't clobber, so a
-            // failed restore keeps its error banner after the refresh lands.
-            setFinishedOp(next);
-            load();
-          }
-        })
-        // Surface the outage instead of silently freezing on a stale
-        // "running" — the interval keeps auto-retrying underneath.
-        .catch(() => setPollFailed(true));
+      void apiRequest<BackupOperation>(
+        apiUrl,
+        `/api/v1/admin/backups/operations/${operation.id}`,
+      ).then((res) => {
+        // Surface the outage instead of silently freezing on a stale "running"
+        // — the interval keeps auto-retrying underneath. Every failure means
+        // the same thing to this banner, which is why the message the old code
+        // built here was thrown into a `.catch` that discarded it.
+        if (!res.ok) {
+          setPollFailed(true);
+          return;
+        }
+        setPollFailed(false);
+        setOperation(res.data);
+        if (res.data.status === 'success' || res.data.status === 'failed') {
+          // Persist the outcome in state that load() won't clobber, so a
+          // failed restore keeps its error banner after the refresh lands.
+          setFinishedOp(res.data);
+          load();
+        }
+      });
     }, 2500);
     return () => window.clearInterval(timer);
   }, [apiUrl, load, operation, t]);
@@ -234,19 +229,17 @@ export default function AdminBackupsPage() {
     setNotice(null);
     setError(null);
     setFinishedOp(null);
-    fetch(`${apiUrl}/api/v1/admin/backups/run`, {
+    void apiRequest<{ operation: BackupOperation }>(apiUrl, '/api/v1/admin/backups/run', {
       method: 'POST',
-      credentials: 'include',
     })
-      .then(async (res) => {
-        if (!res.ok) throw new Error(await apiErrorMessage(res, t('admin.backups.runError')));
-        const data = (await res.json()) as { operation: BackupOperation };
-        setOperation(data.operation);
+      .then((res) => {
+        if (!res.ok) {
+          if (res.kind !== 'aborted') setError(failureMessage(res, t, t('admin.backups.runError')));
+          return;
+        }
+        setOperation(res.data.operation);
         setNotice(t('admin.backups.runStarted'));
       })
-      .catch((err: unknown) =>
-        setError(err instanceof Error ? err.message : t('admin.backups.runError')),
-      )
       .finally(() => setBusy(false));
   };
 
@@ -272,22 +265,24 @@ export default function AdminBackupsPage() {
     setBusy(true);
     setError(null);
     setNotice(null);
-    fetch(`${apiUrl}/api/v1/admin/backups/upload`, {
+    // FormData reaches fetch untouched — the seam only JSON-encodes a plain
+    // body, so the multipart boundary is still the browser's to set.
+    void apiRequest<{ backup: BackupSet }>(apiUrl, '/api/v1/admin/backups/upload', {
       method: 'POST',
-      credentials: 'include',
       body: formData,
     })
-      .then(async (res) => {
-        if (!res.ok) throw new Error(await apiErrorMessage(res, t('admin.backups.uploadError')));
-        const data = (await res.json()) as { backup: BackupSet };
-        setBackups((current) => [data.backup, ...current]);
+      .then((res) => {
+        if (!res.ok) {
+          if (res.kind !== 'aborted') {
+            setError(failureMessage(res, t, t('admin.backups.uploadError')));
+          }
+          return;
+        }
+        setBackups((current) => [res.data.backup, ...current]);
         setSelectedFilename(null);
         if (fileRef.current) fileRef.current.value = '';
         setNotice(t('admin.backups.uploadStaged'));
       })
-      .catch((err: unknown) =>
-        setError(err instanceof Error ? err.message : t('admin.backups.uploadError')),
-      )
       .finally(() => setBusy(false));
   };
 
@@ -297,26 +292,20 @@ export default function AdminBackupsPage() {
     setNotice(null);
     setFinishedOp(null);
     setPendingRestore(null);
-    fetch(`${apiUrl}/api/v1/admin/backups/restore`, {
+    void apiRequest<{ operation: BackupOperation }>(apiUrl, '/api/v1/admin/backups/restore', {
       method: 'POST',
-      credentials: 'include',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({
-        location,
-        backupId: backup.id,
-        includeStorage: true,
-        confirmed: true,
-      }),
+      body: { location, backupId: backup.id, includeStorage: true, confirmed: true },
     })
-      .then(async (res) => {
-        if (!res.ok) throw new Error(await apiErrorMessage(res, t('admin.backups.restoreError')));
-        const data = (await res.json()) as { operation: BackupOperation };
-        setOperation(data.operation);
+      .then((res) => {
+        if (!res.ok) {
+          if (res.kind !== 'aborted') {
+            setError(failureMessage(res, t, t('admin.backups.restoreError')));
+          }
+          return;
+        }
+        setOperation(res.data.operation);
         setNotice(t('admin.backups.restoreStarted'));
       })
-      .catch((err: unknown) =>
-        setError(err instanceof Error ? err.message : t('admin.backups.restoreError')),
-      )
       .finally(() => setBusy(false));
   };
 
@@ -325,13 +314,16 @@ export default function AdminBackupsPage() {
     setError(null);
     setNotice(null);
     setPendingDelete(null);
-    fetch(`${apiUrl}/api/v1/admin/backups/${backup.id}?location=${location}`, {
+    void apiRequest(apiUrl, `/api/v1/admin/backups/${backup.id}?location=${location}`, {
       method: 'DELETE',
-      credentials: 'include',
     })
-      .then(async (res) => {
-        if (!res.ok) throw new Error(await apiErrorMessage(res, t('admin.backups.deleteError')));
-        await res.json();
+      .then((res) => {
+        if (!res.ok) {
+          if (res.kind !== 'aborted') {
+            setError(failureMessage(res, t, t('admin.backups.deleteError')));
+          }
+          return;
+        }
         setNotice(
           t('admin.backups.deleteSuccess', {
             location: t(`admin.backups.locationsMap.${location}`),
@@ -339,9 +331,6 @@ export default function AdminBackupsPage() {
         );
         load();
       })
-      .catch((err: unknown) =>
-        setError(err instanceof Error ? err.message : t('admin.backups.deleteError')),
-      )
       .finally(() => setBusy(false));
   };
 
@@ -350,23 +339,21 @@ export default function AdminBackupsPage() {
     setBusy(true);
     setError(null);
     setNotice(null);
-    fetch(`${apiUrl}/api/v1/admin/backups/schedule`, {
+    void apiRequest<BackupSchedule>(apiUrl, '/api/v1/admin/backups/schedule', {
       method: 'PUT',
-      credentials: 'include',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify(scheduleForm),
+      body: scheduleForm,
     })
-      .then(async (res) => {
-        if (!res.ok)
-          throw new Error(await apiErrorMessage(res, t('admin.backups.scheduleSaveError')));
-        const nextSchedule = (await res.json()) as BackupSchedule;
-        setSchedule(nextSchedule);
-        setScheduleForm(scheduleToForm(nextSchedule));
+      .then((res) => {
+        if (!res.ok) {
+          if (res.kind !== 'aborted') {
+            setError(failureMessage(res, t, t('admin.backups.scheduleSaveError')));
+          }
+          return;
+        }
+        setSchedule(res.data);
+        setScheduleForm(scheduleToForm(res.data));
         setNotice(t('admin.backups.scheduleSaved'));
       })
-      .catch((err: unknown) =>
-        setError(err instanceof Error ? err.message : t('admin.backups.scheduleSaveError')),
-      )
       .finally(() => setBusy(false));
   };
 
@@ -374,19 +361,22 @@ export default function AdminBackupsPage() {
     setBusy(true);
     setError(null);
     setNotice(null);
-    fetch(`${apiUrl}/api/v1/admin/backups`, {
+    void apiRequest<{
+      deletedLocalSets: number;
+      deletedCloudSets: number;
+      failedFiles?: string[];
+    }>(apiUrl, '/api/v1/admin/backups', {
       method: 'DELETE',
-      credentials: 'include',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ confirmation: DELETE_ALL_TOKEN }),
+      body: { confirmation: DELETE_ALL_TOKEN },
     })
-      .then(async (res) => {
-        if (!res.ok) throw new Error(await apiErrorMessage(res, t('admin.backups.deleteAllError')));
-        const result = (await res.json()) as {
-          deletedLocalSets: number;
-          deletedCloudSets: number;
-          failedFiles?: string[];
-        };
+      .then((res) => {
+        if (!res.ok) {
+          if (res.kind !== 'aborted') {
+            setError(failureMessage(res, t, t('admin.backups.deleteAllError')));
+          }
+          return;
+        }
+        const result = res.data;
         const failed = result.failedFiles?.length ?? 0;
         // A wipe that quietly left files behind is worse than one that says so
         // — the operator's next move (rotate keys, start fresh) assumes empty.
@@ -401,9 +391,6 @@ export default function AdminBackupsPage() {
         setDeleteAllToken('');
         load();
       })
-      .catch((err: unknown) =>
-        setError(err instanceof Error ? err.message : t('admin.backups.deleteAllError')),
-      )
       .finally(() => setBusy(false));
   };
 

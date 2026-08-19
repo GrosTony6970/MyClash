@@ -2324,7 +2324,6 @@ export const admin = {
     loading: 'Chargement des sauvegardes...',
     accessDenied: 'Accès refusé. Super-administrateur requis.',
     loadError: 'Impossible de charger les sauvegardes.',
-    operationLoadError: "Impossible d'actualiser l'opération de sauvegarde.",
     runBackup: 'Lancer une sauvegarde',
     runStarted: 'Opération de sauvegarde lancée.',
     runError: 'Impossible de lancer la sauvegarde.',
