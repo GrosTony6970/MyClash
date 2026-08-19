@@ -13,12 +13,13 @@
   },
   "scripts": {
     "build": "node -e \"require('fs').rmSync('dist',{recursive:true,force:true})\" && tsc --project tsconfig.build.json",
-    "lint": "echo 'lint: no sources yet'",
+    "lint": "eslint src",
     "typecheck": "tsc --noEmit",
-    "test": "echo 'test: no tests yet (T-107)'"
+    "test": "vitest run"
   },
   "devDependencies": {
     "openapi-typescript": "^7.4.0",
-    "typescript": "^6.0.3"
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.10"
   }
 }

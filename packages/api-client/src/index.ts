@@ -13,6 +13,11 @@
 
 export type { paths, components, operations } from './generated/schema';
 
+import { parseBody } from './request';
+
+export { apiRequest, isAbortLike } from './request';
+export type { ApiFailure, ApiResult } from './request';
+
 /** RFC 9457 problem+json body shape emitted by the API's exception filter. */
 interface ProblemBody {
   detail?: string;
@@ -29,13 +34,6 @@ export class ApiClientError extends Error {
     super(message);
     this.name = 'ApiClientError';
   }
-}
-
-/** 204s and empty bodies resolve to undefined instead of a JSON parse error. */
-async function parseBody<T>(res: Response): Promise<T> {
-  if (res.status === 204) return undefined as T;
-  const text = await res.text();
-  return (text ? JSON.parse(text) : undefined) as T;
 }
 
 async function toError(method: string, path: string, res: Response): Promise<ApiClientError> {
