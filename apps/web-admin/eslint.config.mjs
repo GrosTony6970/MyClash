@@ -43,8 +43,8 @@ export default tseslint.config(
       'myclash/no-literal-string': 'error',
       'myclash/no-literal-locale': 'error',
       'myclash/no-module-translator-in-client': 'error',
-      // A ratchet: the ~867 existing hand-rolled fetches are baselined, and the
-      // list only shrinks. See eslint-rules/no-raw-api-fetch.mjs.
+      // A ratchet. The hand-rolled fetches that predate it are counted in
+      // eslint-rules/no-raw-api-fetch-baseline.json, and that count only shrinks.
       'myclash/no-raw-api-fetch': 'error',
     },
     languageOptions: {

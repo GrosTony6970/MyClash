@@ -50,8 +50,8 @@ export default tseslint.config(
       // The docker-internal API host must never reach the browser. The rule
       // self-detects 'use client', so it applies to every file.
       'myclash/no-server-api-url-leak': 'error',
-      // A ratchet: the existing hand-rolled fetches are baselined, and the list
-      // only shrinks. See eslint-rules/no-raw-api-fetch.mjs.
+      // A ratchet. The hand-rolled fetches that predate it are counted in
+      // eslint-rules/no-raw-api-fetch-baseline.json, and that count only shrinks.
       'myclash/no-raw-api-fetch': 'error',
     },
     languageOptions: {

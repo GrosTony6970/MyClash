@@ -24,16 +24,22 @@ import test from 'node:test';
 import { RuleTester } from 'eslint';
 import tseslint from 'typescript-eslint';
 
-import rule, { BASELINE, PERMANENTLY_EXEMPT } from './no-raw-api-fetch.mjs';
+import rule, { BASELINE, baselineTotal, PERMANENTLY_EXEMPT } from './no-raw-api-fetch.mjs';
 
 const repoRoot = path.resolve(import.meta.dirname, '..');
 
 /**
- * The exemption count, checked in beside the list. Converting files lowers it;
- * nothing may raise it. A pull request that adds a file to the baseline has to
- * change this number too, where a reviewer sees it.
+ * What the exemption list still permits, checked in beside it. Converting a
+ * CALL lowers the total; nothing may raise it. Both numbers are here because a
+ * file count alone would not move when a converted file keeps one last fetch —
+ * and would not move either when a listed file grows one.
  */
-const BASELINE_SIZE = 246;
+const BASELINE_FILES = 246;
+const BASELINE_CALLS = 833;
+
+/** A real baseline entry still carrying exactly two calls, for the tests below. */
+const TWO_CALL_FILE = [...BASELINE.entries()].find(([, allowed]) => allowed === 2)?.[0];
+if (!TWO_CALL_FILE) throw new Error('no baselined file carries exactly two calls');
 
 const ruleTester = new RuleTester({
   languageOptions: {
@@ -53,10 +59,10 @@ test('it flags a hand-rolled fetch, whatever shape the URL arrives in', () => {
       },
       // Something merely named like it.
       { code: "await fetchWithCache('/api/v1/matches');" },
-      // An already-baselined file is silent — that is what the baseline is.
+      // A baselined file stays silent for the calls it was already carrying.
       {
-        code: "await fetch('/api/v1/venues');",
-        filename: [...BASELINE][0],
+        code: "await fetch('/api/v1/a');\nawait fetch('/api/v1/b');",
+        filename: TWO_CALL_FILE,
       },
       // The offline layer owns its fetch permanently.
       {
@@ -84,6 +90,21 @@ test('it flags a hand-rolled fetch, whatever shape the URL arrives in', () => {
         code: 'export function Panel() {\n  const load = () => fetch(url);\n  return <button onClick={load}>go</button>;\n}',
         filename: 'Panel.tsx',
         errors: [{ messageId: 'rawFetch' }],
+      },
+      // The one this rule exists for: number 868, added to a file already on
+      // the list. A file-level allowlist would have said nothing at all.
+      {
+        code: "await fetch('/api/v1/a');\nawait fetch('/api/v1/b');\nawait fetch('/api/v1/c');",
+        filename: TWO_CALL_FILE,
+        errors: [{ messageId: 'overBaseline', line: 3 }],
+      },
+      // An exempted call does not spend the allowance, so the last one is over.
+      {
+        code:
+          "// raw-fetch-exempt — a static asset\nawait fetch('/logo.svg');\n" +
+          "await fetch('/api/v1/a');\nawait fetch('/api/v1/b');\nawait fetch('/api/v1/c');",
+        filename: TWO_CALL_FILE,
+        errors: [{ messageId: 'overBaseline', line: 5 }],
       },
     ],
   });
@@ -113,8 +134,13 @@ test('it is switched on in all three web apps', () => {
 test('the exemption list only ever shrinks', () => {
   assert.equal(
     BASELINE.size,
-    BASELINE_SIZE,
-    'the baseline changed size — lower the constant when you convert a file, and justify it out loud if you are raising it',
+    BASELINE_FILES,
+    'the baseline lists a different number of files — lower the constant when you convert one, and justify it out loud if you are raising it',
+  );
+  assert.equal(
+    baselineTotal(),
+    BASELINE_CALLS,
+    'the baseline permits a different number of hand-rolled calls — lower the constant when you convert one, and justify it out loud if you are raising it',
   );
 });
 
@@ -128,7 +154,7 @@ test('every exempted file is still there', () => {
       .split('\0')
       .filter(Boolean),
   );
-  const dead = [...BASELINE].filter((file) => !tracked.has(file));
+  const dead = [...BASELINE.keys()].filter((file) => !tracked.has(file));
   assert.deepEqual(
     dead,
     [],
@@ -136,10 +162,14 @@ test('every exempted file is still there', () => {
   );
 });
 
-test('the exemption list is sorted and free of duplicates', () => {
+test('the exemption list is sorted, and every allowance is a positive count', () => {
   const files = JSON.parse(
     readFileSync(path.join(repoRoot, 'eslint-rules', 'no-raw-api-fetch-baseline.json'), 'utf8'),
   ).files;
-  assert.equal(files.length, new Set(files).size, 'the baseline holds a duplicate');
-  assert.deepEqual(files, [...files].sort(), 'the baseline is not sorted');
+  const paths = Object.keys(files);
+  assert.deepEqual(paths, [...paths].sort(), 'the baseline is not sorted');
+  const wrong = Object.entries(files).filter(
+    ([, allowed]) => !Number.isInteger(allowed) || allowed < 1,
+  );
+  assert.deepEqual(wrong, [], 'an allowance is not a positive whole number of calls');
 });

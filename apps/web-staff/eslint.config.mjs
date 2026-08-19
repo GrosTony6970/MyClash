@@ -46,8 +46,9 @@ export default tseslint.config(
       // This app is the reason the rule exists — it sets data-theme on <body>,
       // so a raw palette class here silently ignores the scope it renders in.
       'myclash/no-raw-palette-color': 'error',
-      // A ratchet: the existing hand-rolled fetches are baselined and the list
-      // only shrinks. src/offline/** is permanently exempt — `fetchWithCache`
+      // A ratchet. The hand-rolled fetches that predate it are counted in
+      // eslint-rules/no-raw-api-fetch-baseline.json, and that count only shrinks.
+      // src/offline/** is permanently exempt — `fetchWithCache`
       // has to keep the pad scoring with no network at all, which is a
       // different job from the seam's. See eslint-rules/no-raw-api-fetch.mjs.
       'myclash/no-raw-api-fetch': 'error',
