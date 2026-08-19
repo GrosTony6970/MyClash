@@ -31,6 +31,11 @@ The plan says a thing works. Does anything actually hold it?
   hash, so a red gate can look clean for as long as its inputs sit still.
 - **Does the assertion name the thing?** A test over a database read must assert the SELECT string;
   mocks ignore the projection, so deleting a column leaves the test green.
+- **"The file exists" is not "the command works."** Four `packages/db` script aliases were broken
+  from the commit that added them until somebody ran one, because the rule covering them asserts only
+  that the target file is **tracked**. The sibling test at
+  [scripts/package-manifests.test.mjs:135](../../../scripts/package-manifests.test.mjs) closes that
+  class. A plan whose evidence is a file's existence has no evidence.
 
 ## 2. Prerequisites and hidden dependencies
 
@@ -38,12 +43,26 @@ The plan says a thing works. Does anything actually hold it?
   Rebuild `@myclash/rulesets` before the API typechecks and `@myclash/ui` before any app does, or the
   check passes on code that will not compile in Docker. Full chain in
   [../myclash-gates/SKILL.md](../myclash-gates/SKILL.md).
-- **Registration completeness.** A new CI gate needs **four** registrations, and the fourth is the
-  one that gets forgotten: the `package.json` script, the step in `.github/workflows/ci.yml` carrying
-  `if: '!cancelled()'`, the chain in `../myclash-gates/SKILL.md`, and an entry in `CI_GATES` in
-  [apps/api/src/modules/admin/ci-health/gates.ts](../../../apps/api/src/modules/admin/ci-health/gates.ts),
-  keyed by the step's display name. Miss the fourth and the health card cannot report a gate that
-  stopped running.
+- **Registration completeness.** A new CI gate needs **four** registrations, per
+  [scripts/package-manifests.test.mjs:12](../../../scripts/package-manifests.test.mjs): the
+  `package.json` script, the step in `.github/workflows/ci.yml` carrying `if: '!cancelled()'`, an
+  entry in `CI_GATES` in
+  [apps/api/src/modules/admin/ci-health/gates.ts](../../../apps/api/src/modules/admin/ci-health/gates.ts)
+  keyed by the step's display name, and `CONTRIBUTING.md`. The chain in
+  [../myclash-gates/SKILL.md](../myclash-gates/SKILL.md) moves with `CONTRIBUTING.md`. Miss the
+  `CI_GATES` one and the health card cannot report a gate that stopped running.
+- **Does the gate's own test pin its registration?** The pattern is
+  [scripts/check-design-drift.test.mjs:313-350](../../../scripts/check-design-drift.test.mjs): the
+  pnpm script is the gate **alone**, CI runs it as its own step, neither is `&&`-chained, and
+  `CI_GATES` carries the step name. A gate behind an `&&` is a gate that can silently not run — the
+  shape that hid eight gates for six weeks, and it hid this one inside a single pnpm script until
+  `5b5b7301` split it out.
+- **A workspace script must not call `../../scripts/*.mjs`.** pnpm sets the cwd to the package while
+  every root gate reads the cwd as the repo root, so the paths double and it dies with `ENOENT`.
+  Declare it in the root manifest. Guarded now, so a plan proposing one goes red.
+- **Anything new under `.claude/` needs a `.gitignore` negation.** `.claude/skills/*` is ignored and
+  re-admitted one directory at a time. Without the line, `git status --porcelain -uall` prints
+  nothing at all for the new directory and the work never leaves the machine that wrote it.
 - **Owner-side prerequisites.** Any `[needs O-NNN]` in `docs/OWNER_TASKS.md` that this plan depends
   on must already be done — if not, stop and notify rather than planning around it.
 - **Concurrent sessions.** Several agents commit here. Does the plan check `git log --oneline -1`
@@ -62,6 +81,10 @@ The plan says a thing works. Does anything actually hold it?
   offline, and the offline E2E tests must pass.
 - **Widening a shared union.** The compile errors in consuming apps _are_ the checklist — a plan that
   adds `default:` to silence them is hiding the work it was supposed to do.
+- **Renaming or splitting a `pnpm` script rots the docs, and nothing gates it.** No gate in the chain
+  compares prose against `package.json` script names. Splitting `design:lint` had to correct **ten**
+  documents, two of them inside `.claude/skills/`. Grep the old name repo-wide before calling a
+  rename done.
 - **Is a step genuinely irreversible?** Only then does a rollback path belong in the plan.
 
 ## 4. Security and access
