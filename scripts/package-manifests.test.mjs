@@ -109,6 +109,44 @@ test('every package.json script target resolves to a tracked file', () => {
   );
 });
 
+/**
+ * A workspace script may not reach outside its own package.
+ *
+ * ── The failure this closes ─────────────────────────────────────────────────
+ * packages/db carried four scripts spelled `node ../../scripts/<gate>.mjs`, and
+ * all four crashed. Every gate under scripts/ takes `process.cwd()` to be the
+ * repo root, but pnpm runs a script with the cwd set to its own package — so
+ * `pnpm --filter @myclash/db review` looked for migrations in
+ * packages/db/packages/db/migrations and died with ENOENT.
+ *
+ * The rule above could not see it: the target file is tracked, so it passed.
+ * "The file exists" and "the command works" are different questions, and the
+ * four sat broken from the commit that added them until somebody ran one.
+ *
+ * Deleting them was the fix — the root already exposes all four as `db:review`,
+ * `db:migrations:replay`, `db:perf:fixture` and `db:perf:explain`, which work
+ * because the root IS the cwd there. This keeps the class shut: any workspace
+ * script reaching up to a root script inherits the same broken assumption.
+ *
+ * `migrate` is the shape that is fine and must stay passing — `node
+ * scripts/migrate.mjs` resolves inside packages/db, which is why the API image
+ * can run it.
+ */
+test('a workspace script does not reach outside its own package', () => {
+  const escaping = scriptTargets(manifests())
+    .filter(({ manifest }) => path.posix.dirname(manifest) !== '.')
+    .filter(({ manifest, resolved }) => !resolved.startsWith(`${path.posix.dirname(manifest)}/`))
+    .map(
+      ({ manifest, name, token, resolved }) => `${manifest} "${name}" -> ${token} (${resolved})`,
+    );
+
+  assert.deepEqual(
+    escaping,
+    [],
+    'pnpm runs a script with the cwd set to its own package, and every gate under scripts/ reads process.cwd() as the repo root — so a workspace script calling one resolves its paths from the wrong place and crashes. Declare it in the root manifest instead',
+  );
+});
+
 // The rule above passes trivially if the extractor stops extracting. Two known
 // targets from two different manifests prove it still reads both the root and a
 // workspace. Named rather than counted: a numeric floor goes red every time

@@ -16,10 +16,6 @@
     "lint": "echo 'lint: no sources yet'",
     "typecheck": "tsc --noEmit",
     "test": "vitest run --passWithNoTests",
-    "review": "node ../../scripts/check-db-review.mjs",
-    "migrate:replay": "node ../../scripts/replay-db-migrations.mjs",
-    "perf:fixture": "node ../../scripts/db-synthetic-fixture.mjs --check",
-    "perf:explain": "node ../../scripts/db-explain-report.mjs",
     "migrate": "node scripts/migrate.mjs"
   },
   "dependencies": {
