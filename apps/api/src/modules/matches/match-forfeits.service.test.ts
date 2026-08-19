@@ -5,6 +5,7 @@ import { seededTableChain } from '../../common/testing/supabase-chain-seeded';
 import {
   mockSupabase,
   scopedTo,
+  selectsFor,
   writesTo,
   type RecordedWrite,
   type SeededTable,
@@ -792,23 +793,6 @@ function fakeSupabase(state: TableState) {
 }
 
 /**
- * The rows a call wrote to one table, in order.
- *
- * An update names its row only through the filters that scoped it: this double
- * is a fixture, not a database, so `updated.matches` alone cannot tell a
- * restore of the two bouts one record closed from a restore of every bout in
- * the event.
- */
-function writtenIds(
-  supabase: { mutations: Array<{ table: string; filters: Array<[string, unknown]> }> },
-  table: string,
-) {
-  return supabase.mutations
-    .filter((mutation) => mutation.table === table)
-    .map((mutation) => mutation.filters.find(([column]) => column === 'id')?.[1]);
-}
-
-/**
  * Each test below pins a defect found by adversarial review of the override
  * slice and reproduced by execution before its fix. The assertion is not
  * "the code does X" but "this specific way of losing an organiser's
@@ -1555,6 +1539,15 @@ describe('MatchForfeitsService — pool cascade void', () => {
     return {
       match_forfeits: { rows: [PARENT_ROW, ...children, ...DECOY_RECORDS] },
       matches: { rows: matchRows(childMatchStatus) },
+      // The fighter as the withdrawal left them, plus one who never withdrew.
+      // The restore puts `previous_registration_state` back, and the second row
+      // is what makes the write's scope decide something.
+      registrations: {
+        rows: [
+          { id: 'reg-red', status: 'withdrawn' },
+          { id: 'reg-green', status: 'checked_in' },
+        ],
+      },
     };
   }
 
@@ -1565,20 +1558,21 @@ describe('MatchForfeitsService — pool cascade void', () => {
     // guard therefore fired on matches this forfeit itself closed, and
     // `existingRecord` 409s an override on top, so the record could never be
     // undone by any route the product exposes.
-    const supabase = fakeSupabase({
+    const supabase = mockSupabase({
       matches: {
-        maybeSingle: matchRow({ phaseType: 'pool', status: 'running' }),
-        update: { id: 'match-1' },
-        select: [
+        rows: [
+          matchRow({ phaseType: 'pool', status: 'running' }),
           {
             id: 'later-1',
+            pool_id: 'pool-1',
             red_registration_id: 'reg-red',
             blue_registration_id: 'reg-green',
             status: 'scheduled',
           },
         ],
       },
-      match_forfeits: { maybeSingle: null, insert: { id: 'forfeit-1' } },
+      match_forfeits: { rows: [], returning: { id: 'forfeit-1' } },
+      registrations: { rows: [{ id: 'reg-red', status: 'checked_in' }] },
     });
     const service = new MatchForfeitsService(supabase as never, undefined as never);
 
@@ -1591,8 +1585,8 @@ describe('MatchForfeitsService — pool cascade void', () => {
     expect(result.downstream_match_ids).toEqual([]);
     // The cascade still runs — only its bookkeeping moved to parent_forfeit_id,
     // which is how the void reaches the children now.
-    expect(supabase.inserted.match_forfeits).toHaveLength(2);
-    expect(supabase.inserted.match_forfeits?.[1]).toMatchObject({
+    expect(writesOf(supabase, 'match_forfeits', 'insert')).toHaveLength(2);
+    expect(rowsOf(supabase, 'match_forfeits', 'insert')[1]).toMatchObject({
       match_id: 'later-1',
       parent_forfeit_id: 'forfeit-1',
       auto_created: true,
@@ -1602,43 +1596,43 @@ describe('MatchForfeitsService — pool cascade void', () => {
     // `resulting_match_state` stamp, so `match_forfeits` is legitimately
     // written — just never with this column.
     expect(
-      (supabase.updated.match_forfeits ?? []).some(
+      rowsOf(supabase, 'match_forfeits', 'update').some(
         (row) => 'downstream_match_ids' in (row as Record<string, unknown>),
       ),
     ).toBe(false);
   });
 
   it('voids the sub-forfeits when the parent record is voided', async () => {
-    const supabase = fakeSupabase(cascadeState('completed'));
+    const supabase = mockSupabase(cascadeState('completed'));
     const service = new MatchForfeitsService(supabase as never, undefined as never);
 
     const result = await service.voidForfeit('forfeit-1');
 
     expect(result.cascaded_forfeit_count).toBe(1);
-    expect(supabase.updated.match_forfeits).toHaveLength(2);
+    expect(writesOf(supabase, 'match_forfeits', 'update')).toHaveLength(2);
     // Off the record AND back on the schedule: standings key on voided_at, but
     // the bout itself has to be playable again.
-    expect(supabase.updated.matches).toContainEqual(
+    expect(rowsOf(supabase, 'matches', 'update')).toContainEqual(
       expect.objectContaining({ status: 'scheduled', red_score: 0, blue_score: 0 }),
     );
     // And onto the two bouts this record closed, nothing else. An unscoped
     // restore would put every match in the event back to a snapshot.
-    expect(writtenIds(supabase, 'matches')).toEqual(['match-1', 'later-1']);
+    expect(idsWritten(supabase, 'matches')).toEqual(['match-1', 'later-1']);
     // The withdrawal is undone too, on the fighter it withdrew and nobody else.
-    expect(supabase.updated.registrations?.[0]).toMatchObject({ status: 'checked_in' });
-    expect(writtenIds(supabase, 'registrations')).toEqual(['reg-red']);
+    expect(rowsOf(supabase, 'registrations', 'update')[0]).toMatchObject({ status: 'checked_in' });
+    expect(idsWritten(supabase, 'registrations')).toEqual(['reg-red']);
   });
 
   it('stamps the children before the parent, so a crash mid-void converges', async () => {
     // Parent-first would leave the children forfeited with no reachable remedy:
     // once the parent is voided, `existingRecord` no longer blocks a fresh
     // record on the parent match, and nothing points at the orphans.
-    const supabase = fakeSupabase(cascadeState('completed'));
+    const supabase = mockSupabase(cascadeState('completed'));
     const service = new MatchForfeitsService(supabase as never, undefined as never);
 
     await service.voidForfeit('forfeit-1');
 
-    expect(writtenIds(supabase, 'match_forfeits')).toEqual(['child-1', 'forfeit-1']);
+    expect(idsWritten(supabase, 'match_forfeits')).toEqual(['child-1', 'forfeit-1']);
   });
 
   it('does not rewrite a child match that is back in play', async () => {
@@ -1647,13 +1641,13 @@ describe('MatchForfeitsService — pool cascade void', () => {
     // row is still active. Restoring the snapshot over a live bout would wipe
     // its score — but the F must not stand for a bout being fought, so the
     // record still voids.
-    const supabase = fakeSupabase(cascadeState('running'));
+    const supabase = mockSupabase(cascadeState('running'));
     const service = new MatchForfeitsService(supabase as never, undefined as never);
 
     await service.voidForfeit('forfeit-1');
 
-    expect(writtenIds(supabase, 'matches')).toEqual(['match-1']); // the parent restore only
-    expect(supabase.updated.match_forfeits).toHaveLength(2);
+    expect(idsWritten(supabase, 'matches')).toEqual(['match-1']); // the parent restore only
+    expect(writesOf(supabase, 'match_forfeits', 'update')).toHaveLength(2);
   });
 
   it('asks for the column its divergence check reads', async () => {
@@ -1666,18 +1660,18 @@ describe('MatchForfeitsService — pool cascade void', () => {
     // it cannot see a child that was reset and re-fought all the way back to
     // 'completed' — that child got its real result overwritten by the snapshot.
     //
-    // Asserted on the request rather than on behaviour because this double does
+    // Asserted on the request rather than on behaviour because the double does
     // not project: it returns the whole fixture row whatever the select said,
     // so dropping the column again changes nothing it can observe.
-    const supabase = fakeSupabase(cascadeState('completed'));
+    const supabase = mockSupabase(cascadeState('completed'));
     const service = new MatchForfeitsService(supabase as never, undefined as never);
 
     await service.voidForfeit('forfeit-1');
 
-    const childQuery = supabase.selects.find(
-      (query) => query.table === 'match_forfeits' && query.columns.includes('previous_match_state'),
+    const childQuery = selectsFor(supabase.from, 'match_forfeits').find((columns) =>
+      columns.includes('previous_match_state'),
     );
-    expect(childQuery?.columns).toContain('resulting_match_state');
+    expect(childQuery).toContain('resulting_match_state');
   });
 
   it('leaves a child that was replayed to a finish, and still voids its record', async () => {
@@ -1699,7 +1693,7 @@ describe('MatchForfeitsService — pool cascade void', () => {
         },
       },
     ]);
-    const supabase = fakeSupabase({
+    const supabase = mockSupabase({
       ...state,
       matches: {
         rows: matchRows('completed').map((row) =>
@@ -1720,22 +1714,22 @@ describe('MatchForfeitsService — pool cascade void', () => {
     const result = await service.voidForfeit('forfeit-1');
 
     // The parent restore only — the child bout keeps whatever it was replayed to.
-    expect(writtenIds(supabase, 'matches')).toEqual(['match-1']);
+    expect(idsWritten(supabase, 'matches')).toEqual(['match-1']);
     // But the F must not stand for a bout somebody actually fought.
     expect(result.cascaded_forfeit_count).toBe(1);
-    expect(supabase.updated.match_forfeits).toHaveLength(2);
+    expect(writesOf(supabase, 'match_forfeits', 'update')).toHaveLength(2);
   });
 
   it('voids a childless record in a single write', async () => {
     // Passes pre-fix — a guard against the cascade double-stamping the parent
     // or fanning out a query per void on the common case.
-    const supabase = fakeSupabase(cascadeState('completed', []));
+    const supabase = mockSupabase(cascadeState('completed', []));
     const service = new MatchForfeitsService(supabase as never, undefined as never);
 
     const result = await service.voidForfeit('forfeit-1');
 
     expect(result.cascaded_forfeit_count).toBe(0);
-    expect(supabase.updated.match_forfeits).toHaveLength(1);
+    expect(writesOf(supabase, 'match_forfeits', 'update')).toHaveLength(1);
   });
 });
 
