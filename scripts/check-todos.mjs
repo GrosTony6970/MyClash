@@ -1,5 +1,6 @@
 import { readFileSync } from 'node:fs';
 
+import { defineGate } from './lib/gate.mjs';
 import { toRepoPath, walkRepoFiles } from './lib/repo-scan.mjs';
 
 const root = process.cwd();
@@ -15,7 +16,11 @@ const allowedPathSuffixes = new Set([
   'docs/pre-production-review-plan.md',
   'docs/CODE_QUALITY_REVIEW.md',
   'docs/DOC_REVIEW_2026-07-01.md',
+  // This gate and its test both have to SPELL the markers they look for. The
+  // test file is the sharper case: every fixture proving a marker is caught is
+  // itself a marker, so a gate that scanned its own test could never be tested.
   'scripts/check-todos.mjs',
+  'scripts/check-todos.test.mjs',
 ]);
 const allowedMarkers = [
   /\bT-\d+[a-z]?\b/i,
@@ -25,11 +30,11 @@ const allowedMarkers = [
   /https:\/\/github\.com\//,
 ];
 
-const violations = [];
-for (const file of walkRepoFiles(root, { extensions })) {
-  const repoPath = toRepoPath(file);
-  if (ignoredPathPrefixes.some((prefix) => repoPath.startsWith(prefix))) continue;
-  const source = readFileSync(file, 'utf8');
+/** Every untracked debt marker in one file. */
+export function findDebtMarkers(source, repoPath) {
+  if (allowedPathSuffixes.has(repoPath)) return [];
+
+  const found = [];
   source.split(/\r?\n/).forEach((line, index) => {
     // Case-SENSITIVE on purpose. The debt marker is conventionally uppercase, and
     // matching case-insensitively flags things that are not markers at all:
@@ -37,18 +42,46 @@ for (const file of walkRepoFiles(root, { extensions })) {
     // ('test', 'demo', 'sample', 'todo', 'tbd'), and tests/e2e uses `test.fixme`.
     // Both are code, not debt; neither can be fixed by adding a task marker.
     if (!/\b(TODO|FIXME)\b/.test(line)) return;
-    const allowed =
-      allowedPathSuffixes.has(repoPath) || allowedMarkers.some((marker) => marker.test(line));
-    if (!allowed) {
-      violations.push(`${repoPath}:${index + 1}: ${line.trim()}`);
-    }
+    if (allowedMarkers.some((marker) => marker.test(line))) return;
+    found.push(`${repoPath}:${index + 1}: ${line.trim()}`);
   });
+  return found;
 }
 
-if (violations.length) {
-  console.error('Untracked TODO/FIXME comments found. Add a task marker or remove the debt:');
-  for (const violation of violations) console.error(`  - ${violation}`);
-  process.exit(1);
+/**
+ * The rule over a list of paths, with the reader injected so the test can run it
+ * without a filesystem.
+ *
+ * `scanned` counts files the rule actually read. The prefix-ignored ones are
+ * skipped before that, so they do not inflate the number the harness checks for
+ * an empty scan; the allowlisted ones ARE read and simply cannot produce a
+ * finding, so they do.
+ */
+export function scanForDebtMarkers(paths, read = readFileSync, label = toRepoPath) {
+  const findings = [];
+  let scanned = 0;
+
+  for (const path of paths) {
+    const repoPath = label(path);
+    if (ignoredPathPrefixes.some((prefix) => repoPath.startsWith(prefix))) continue;
+    scanned += 1;
+    findings.push(...findDebtMarkers(read(path, 'utf8'), repoPath));
+  }
+
+  return { findings, scanned };
 }
 
-console.log('TODO/FIXME comments are either absent or tied to explicit review/task references.');
+export const gate = defineGate({
+  name: 'Untracked debt markers',
+  entry: import.meta.url,
+  run: () => {
+    const { findings, scanned } = scanForDebtMarkers(walkRepoFiles(root, { extensions }));
+    return {
+      findings,
+      scanned,
+      summary: `TODO/FIXME comments across ${scanned} file(s) are either absent or tied to explicit review/task references.`,
+      remedy:
+        'Add a task marker — T-NNN, O-NNN, BUILD_ORDER, OWNER_TASKS or a GitHub issue link — or remove the debt.',
+    };
+  },
+});

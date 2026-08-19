@@ -29,18 +29,19 @@ import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 
+import { defineGate } from './lib/gate.mjs';
+
 const repoRoot = process.cwd();
 const committedPath = join(repoRoot, 'packages/api-client/src/generated/schema.ts');
 const emitScript = join(repoRoot, 'apps/api/scripts/emit-openapi.cjs');
 const apiDist = join(repoRoot, 'apps/api/dist/app.module.js');
-const write = process.argv.includes('--write');
 
-if (!existsSync(apiDist)) {
-  console.error(
-    'apps/api/dist is missing. Run `pnpm --filter @myclash/api build` first —\n' +
-      'the OpenAPI document is built from the COMPILED app, not from source.',
-  );
-  process.exit(1);
+function resolveBin(fromPackageJson, packageName) {
+  const requireFrom = createRequire(fromPackageJson);
+  const manifestPath = requireFrom.resolve(`${packageName}/package.json`);
+  const { bin } = JSON.parse(readFileSync(manifestPath, 'utf8'));
+  const relative = typeof bin === 'string' ? bin : bin[packageName];
+  return join(dirname(manifestPath), relative);
 }
 
 // openapi-typescript is a devDependency of packages/api-client, so resolve it
@@ -53,73 +54,111 @@ const openapiTypescriptCli = resolveBin(
 );
 const prettierCli = resolveBin(join(repoRoot, 'package.json'), 'prettier');
 
-function resolveBin(fromPackageJson, packageName) {
-  const requireFrom = createRequire(fromPackageJson);
-  const manifestPath = requireFrom.resolve(`${packageName}/package.json`);
-  const { bin } = JSON.parse(readFileSync(manifestPath, 'utf8'));
-  const relative = typeof bin === 'string' ? bin : bin[packageName];
-  return join(dirname(manifestPath), relative);
+export function routes(source) {
+  return [...source.matchAll(/['"](\/api\/v1\/[^'"]*)['"]:\s*\{/g)].map((m) => m[1]);
 }
 
-const workDir = mkdtempSync(join(tmpdir(), 'openapi-drift-'));
-
-// ── Why cleanup is an 'exit' handler and not a `finally` ────────────────────
-// Every path out of the work below ends in process.exit(). That terminates the
-// process immediately and does NOT unwind the stack, so the `finally` block this
-// replaces never ran — on any path, success included. The gate leaked its temp
-// directory on every CI push and every local run from the day it was written;
-// 344 of them had piled up on one developer machine before anybody looked.
-//
-// 'exit' fires on all three ways out of this file: falling off the end,
-// process.exit(), and an uncaught exception. Only synchronous work is possible
-// in an exit handler, which rmSync is.
-process.on('exit', () => rmSync(workDir, { recursive: true, force: true }));
-
-const openapiPath = join(workDir, 'openapi.json');
-const generatedPath = join(workDir, 'schema.ts');
-
-execFileSync(process.execPath, [emitScript, openapiPath], { stdio: 'pipe' });
-execFileSync(process.execPath, [openapiTypescriptCli, openapiPath, '--output', generatedPath], {
-  stdio: 'pipe',
-});
-
-// Compare formatted, so the check tracks CONTENT and never trips on the
-// prettier pass the pre-commit hook applies to the committed copy.
-const formatted = format(readFileSync(generatedPath, 'utf8'));
-
-if (write) {
-  writeFileSync(committedPath, formatted);
-  console.log('Regenerated packages/api-client/src/generated/schema.ts');
-  process.exit(0);
+export function routeCount(source) {
+  return new Set(routes(source)).size;
 }
 
-const committed = readFileSync(committedPath, 'utf8');
-if (committed === formatted) {
-  console.log(`OpenAPI client is up to date (${routeCount(formatted)} routes).`);
-  process.exit(0);
+/** Whether this invocation regenerates the client instead of checking it. */
+export function isWriteMode(argv) {
+  return argv.includes('--write');
 }
 
-const added = routes(formatted).filter((r) => !routes(committed).includes(r));
-const removed = routes(committed).filter((r) => !routes(formatted).includes(r));
-console.error('packages/api-client/src/generated/schema.ts is out of date.\n');
-if (added.length > 0) console.error(`  ${added.length} route(s) missing from the client:`);
-for (const r of added.slice(0, 20)) console.error(`    + ${r}`);
-if (removed.length > 0) console.error(`  ${removed.length} route(s) no longer on the API:`);
-for (const r of removed.slice(0, 20)) console.error(`    - ${r}`);
-console.error('\nRegenerate with:  pnpm openapi:client');
-process.exit(1);
+/**
+ * The drift between the committed client and a freshly generated one.
+ *
+ * Route-by-route rather than a diff, because the useful question is which
+ * ROUTES disagree: the committed client was once missing 36 of them while still
+ * advertising 5 that had been deleted, and no line diff would have said so.
+ * Capped, because a client that has drifted far enough produces a wall nobody
+ * reads and the fix is the same either way.
+ */
+export function driftFindings(committed, formatted, cap = 20) {
+  if (committed === formatted) return [];
 
-function format(source) {
+  const inClient = new Set(routes(committed));
+  const onApi = new Set(routes(formatted));
+  const added = [...onApi].filter((route) => !inClient.has(route));
+  const removed = [...inClient].filter((route) => !onApi.has(route));
+  const findings = [];
+
+  for (const route of added.slice(0, cap))
+    findings.push(`+ ${route} is on the API, not in the client`);
+  for (const route of removed.slice(0, cap))
+    findings.push(`- ${route} is in the client, not on the API`);
+  for (const [label, list] of [
+    ['on the API', added],
+    ['in the client', removed],
+  ]) {
+    if (list.length > cap) findings.push(`… and ${list.length - cap} more route(s) ${label}`);
+  }
+
+  // Content can differ with no route added or removed — a changed request body,
+  // a renamed schema. Saying nothing there would report drift with an empty list.
+  if (!findings.length) {
+    findings.push('the route list matches, but the generated types differ');
+  }
+
+  return findings;
+}
+
+/** Emit the OpenAPI document, generate the client from it, and format it. */
+function generate() {
+  const workDir = mkdtempSync(join(tmpdir(), 'openapi-drift-'));
+  // Cleanup on 'exit' rather than in a `finally`. The harness never calls
+  // process.exit, so a `finally` would run today — but this file spent its whole
+  // life leaking 344 temp directories because one did not, and an exit handler
+  // cannot be undone by a future control-flow change.
+  process.on('exit', () => rmSync(workDir, { recursive: true, force: true }));
+
+  const openapiPath = join(workDir, 'openapi.json');
+  const generatedPath = join(workDir, 'schema.ts');
+  execFileSync(process.execPath, [emitScript, openapiPath], { stdio: 'pipe' });
+  execFileSync(process.execPath, [openapiTypescriptCli, openapiPath, '--output', generatedPath], {
+    stdio: 'pipe',
+  });
+
+  // Compare formatted, so the check tracks CONTENT and never trips on the
+  // prettier pass the pre-commit hook applies to the committed copy.
   return execFileSync(process.execPath, [prettierCli, '--stdin-filepath', committedPath], {
-    input: source,
+    input: readFileSync(generatedPath, 'utf8'),
     encoding: 'utf8',
   });
 }
 
-function routes(source) {
-  return [...source.matchAll(/['"](\/api\/v1\/[^'"]*)['"]:\s*\{/g)].map((m) => m[1]);
-}
+export const gate = defineGate({
+  name: 'OpenAPI client drift',
+  entry: import.meta.url,
+  run: ({ argv }) => {
+    if (!existsSync(apiDist)) {
+      throw new Error(
+        'apps/api/dist is missing. Run `pnpm --filter @myclash/api build` first —\n' +
+          'the OpenAPI document is built from the COMPILED app, not from source.',
+      );
+    }
 
-function routeCount(source) {
-  return new Set(routes(source)).size;
-}
+    const formatted = generate();
+
+    if (isWriteMode(argv)) {
+      writeFileSync(committedPath, formatted);
+      return {
+        findings: [],
+        scanned: routeCount(formatted),
+        summary: `Regenerated packages/api-client/src/generated/schema.ts (${routeCount(formatted)} routes).`,
+      };
+    }
+
+    return {
+      findings: driftFindings(readFileSync(committedPath, 'utf8'), formatted),
+      // Routes, not files: an emit that produced an empty document would other-
+      // wise compare two nothings and pass. This gate exists because exactly
+      // that went unnoticed for two months.
+      scanned: routeCount(formatted),
+      summary: `OpenAPI client is up to date (${routeCount(formatted)} routes).`,
+      remedy: 'Regenerate with:  pnpm openapi:client',
+    };
+  },
+});

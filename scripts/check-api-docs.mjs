@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
+import { defineGate } from './lib/gate.mjs';
 import { toRepoPath, walkRepoFiles } from './lib/repo-scan.mjs';
 
 const root = process.cwd();
@@ -24,27 +25,44 @@ function hasApiOperation(lines, decoratorIndex) {
   return false;
 }
 
-const violations = [];
-const controllers = walkRepoFiles(controllerRoot).filter((path) => path.endsWith('.controller.ts'));
-for (const controller of controllers) {
-  const repoPath = toRepoPath(controller);
-  const lines = readFileSync(controller, 'utf8').split(/\r?\n/);
+/** Every missing doc decorator in one controller. */
+export function findApiDocGaps(source, repoPath) {
+  const lines = source.split(/\r?\n/);
+  const found = [];
+
   if (!lines.some((line) => line.includes('@ApiTags('))) {
-    violations.push(`${repoPath}: missing @ApiTags`);
+    found.push(`${repoPath}: missing @ApiTags`);
   }
 
   lines.forEach((line, index) => {
     if (!httpDecorator.test(line)) return;
     if (!hasApiOperation(lines, index)) {
-      violations.push(`${repoPath}:${index + 1}: ${line.trim()} missing @ApiOperation`);
+      found.push(`${repoPath}:${index + 1}: ${line.trim()} missing @ApiOperation`);
     }
   });
+
+  return found;
 }
 
-if (violations.length) {
-  console.error('API documentation metadata gaps found:');
-  for (const violation of violations) console.error(`  - ${violation}`);
-  process.exit(1);
+/** The rule over a list of controllers, with the reader injected for the test. */
+export function scanControllers(paths, read = readFileSync, label = toRepoPath) {
+  return paths.flatMap((path) => findApiDocGaps(read(path, 'utf8'), label(path)));
 }
 
-console.log(`API documentation metadata covers ${controllers.length} controllers.`);
+export const gate = defineGate({
+  name: 'API documentation metadata',
+  entry: import.meta.url,
+  run: () => {
+    const controllers = walkRepoFiles(controllerRoot).filter((path) =>
+      path.endsWith('.controller.ts'),
+    );
+    return {
+      findings: scanControllers(controllers),
+      scanned: controllers.length,
+      summary: `API documentation metadata covers ${controllers.length} controllers.`,
+      remedy:
+        'Every controller needs @ApiTags and every HTTP route needs @ApiOperation. The OpenAPI\n' +
+        'document is generated from these, so a missing one is a route the typed client cannot describe.',
+    };
+  },
+});
