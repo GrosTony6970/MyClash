@@ -31,6 +31,8 @@
 import { readFileSync, existsSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 
+import { defineGate } from './lib/gate.mjs';
+
 const root = process.cwd();
 const PROD_COMPOSE = 'infra/docker-compose.prod.yml';
 const DEV_COMPOSE = 'infra/docker-compose.dev.yml';
@@ -151,26 +153,25 @@ export function scanRepo() {
     checked.push(`${app}: ${required.length} required`);
   }
 
-  if (!checked.length) {
-    throw new Error('no web apps scanned — discovery is broken, not the repo clean');
-  }
+  // The empty-scan assertion this function used to make by hand is now the
+  // harness's, via `scanned` below — one rule for the whole fleet.
   return { gaps, checked };
 }
 
-// ── CLI ──────────────────────────────────────────────────────────────────────
-// Guarded so the test file can import the rules without running a scan.
-const invokedDirectly = process.argv[1]?.endsWith('check-client-env-contract.mjs');
-if (invokedDirectly) {
-  const { gaps, checked } = scanRepo();
-  if (gaps.length) {
-    console.error('Client env contract broken:');
-    for (const gap of gaps) console.error(`  - ${gap}`);
-    console.error(
-      '\nEvery NEXT_PUBLIC_* in a next.config REQUIRED_PROD_ENV must be declared as a\n' +
+export const gate = defineGate({
+  name: 'Client env contract',
+  entry: import.meta.url,
+  run: () => {
+    const { gaps, checked } = scanRepo();
+    return {
+      findings: gaps,
+      scanned: checked.length,
+      summary: [`Client env contract holds (${checked.length} app(s)):`]
+        .concat(checked.map((line) => `  - ${line}`))
+        .join('\n'),
+      remedy:
+        'Every NEXT_PUBLIC_* in a next.config REQUIRED_PROD_ENV must be declared as a\n' +
         'Dockerfile ARG and passed by every compose file that builds that app.',
-    );
-    process.exit(1);
-  }
-  console.log(`Client env contract holds (${checked.length} app(s)):`);
-  for (const line of checked) console.log(`  - ${line}`);
-}
+    };
+  },
+});

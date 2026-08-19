@@ -35,6 +35,7 @@ import { readdirSync, readFileSync, existsSync, statSync } from 'node:fs';
 import { join, dirname, resolve } from 'node:path';
 import ts from 'typescript';
 
+import { defineGate } from './lib/gate.mjs';
 import { toRepoPath, walkRepoFiles } from './lib/repo-scan.mjs';
 
 const root = process.cwd();
@@ -356,26 +357,25 @@ export function scanRepo() {
     scanned.push(`${repoDir}: ${emitFiles.length} emitted file(s)`);
   }
 
-  if (!scanned.length) {
-    throw new Error('no workspaces scanned — discovery is broken, not the repo clean');
-  }
+  // The empty-scan assertion this function used to make by hand is now the
+  // harness's, via `scanned` below — one rule for the whole fleet.
   return { violations, scanned };
 }
 
-// ── CLI ──────────────────────────────────────────────────────────────────────
-// Guarded so the test file can import the rules without running a scan.
-const invokedDirectly = process.argv[1]?.endsWith('check-test-code-leak.mjs');
-if (invokedDirectly) {
-  const { violations, scanned } = scanRepo();
-  if (violations.length) {
-    console.error('Test code found in the compiled/shipped surface:');
-    for (const violation of violations) console.error(`  - ${violation}`);
-    console.error(
-      '\nThe emit surface is what apps/api/Dockerfile copies into production, where\n' +
+export const gate = defineGate({
+  name: 'Test code in the emit surface',
+  entry: import.meta.url,
+  run: () => {
+    const { violations, scanned } = scanRepo();
+    return {
+      findings: violations,
+      scanned: scanned.length,
+      summary: [`No test code in the emit surface (${scanned.length} workspace(s) checked):`]
+        .concat(scanned.map((line) => `  - ${line}`))
+        .join('\n'),
+      remedy:
+        'The emit surface is what apps/api/Dockerfile copies into production, where\n' +
         'vitest is not installed. Exclude these in the workspace tsconfig.build.json.',
-    );
-    process.exit(1);
-  }
-  console.log(`No test code in the emit surface (${scanned.length} workspace(s) checked):`);
-  for (const line of scanned) console.log(`  - ${line}`);
-}
+    };
+  },
+});

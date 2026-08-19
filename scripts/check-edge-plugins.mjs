@@ -1,4 +1,5 @@
 import { parseArgs, request } from './edge-probe.mjs';
+import { defineGate, nothingToCount } from './lib/gate.mjs';
 
 /**
  * Proves Traefik's plugin middlewares are BUILT AND ATTACHED, not merely
@@ -510,31 +511,52 @@ export async function checkEdgePlugins(args, env = process.env) {
   return { errors, warnings, skipped: false };
 }
 
-async function main() {
-  const args = parseArgs(process.argv.slice(2));
-  const { errors, warnings, skipped } = await checkEdgePlugins(args);
-
-  for (const warning of warnings) console.warn(`  ! ${warning}`);
-
-  if (errors.length > 0) {
-    console.error('Edge plugin review failed:');
-    for (const error of errors) console.error(`  - ${error}`);
-    console.error(`\n  ${RECOVERY}`);
-    process.exit(1);
-  }
-
-  if (skipped) process.exit(0);
-
-  const mode = args.mode ?? 'prod';
-  console.log(
-    `Edge plugin review passed (${mode}). GeoBlock and Fail2Ban middlewares are built ` +
-      'and attached to their routers.',
-  );
+/**
+ * How many assertions this configuration makes.
+ *
+ * Derived from the same lists the run uses rather than counted inside it, so it
+ * cannot drift into agreeing with a probe loop that stopped looping.
+ */
+export function assertionCount({ mode, deep }) {
+  const probes = mode === 'prod' ? PROD_PROBES.length : 0;
+  const api =
+    deep || mode === 'dev' ? EXPECTED_MIDDLEWARES.length + EXPECTED_ROUTERS[mode].length : 0;
+  return probes + api;
 }
 
-// Guarded so the test file can import the helpers without running a probe.
-// Same pattern (and same reason) as check-complexity.mjs and deploy.ts.
-const invokedDirectly = process.argv[1]?.endsWith('check-edge-plugins.mjs') ?? false;
-if (invokedDirectly) {
-  await main();
-}
+export const gate = defineGate({
+  name: 'Edge plugin review',
+  entry: import.meta.url,
+  run: async ({ argv }) => {
+    const args = parseArgs(argv);
+    const mode = args.mode ?? 'prod';
+    const deep = 'deep' in args && args.deep !== '0';
+    const { errors, warnings, skipped } = await checkEdgePlugins(args);
+    const findings = [
+      ...warnings.map((message) => ({ level: 'warn', message })),
+      ...errors.map((message) => ({ level: 'error', message })),
+    ];
+
+    // The kill-switch detached the middlewares deliberately, so there is nothing
+    // left on the edge to probe. Said by name rather than reported as a count of
+    // zero, which the harness reads as broken discovery.
+    if (skipped) {
+      return {
+        findings,
+        scanned: nothingToCount(
+          'TRAEFIK_PLUGINS=off detached the middlewares, so there is nothing on the edge to probe',
+        ),
+        summary: 'Edge plugin review skipped — the kill-switch is on.',
+      };
+    }
+
+    return {
+      findings,
+      scanned: assertionCount({ mode, deep }),
+      summary:
+        `Edge plugin review passed (${mode}). GeoBlock and Fail2Ban middlewares are built ` +
+        'and attached to their routers.',
+      remedy: `  ${RECOVERY}`,
+    };
+  },
+});

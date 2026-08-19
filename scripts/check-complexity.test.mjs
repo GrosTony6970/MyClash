@@ -1,6 +1,14 @@
 import assert from 'node:assert/strict';
+import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import test from 'node:test';
-import { findFunctionHotspots } from './check-complexity.mjs';
+import {
+  baselineFrom,
+  findFunctionHotspots,
+  unreviewed,
+  writeBaseline,
+} from './check-complexity.mjs';
 
 /** A function body of `n` filler lines, so total length is predictable. */
 function filler(n) {
@@ -168,4 +176,53 @@ test('returns hotspots in source order', () => {
     `function second() {\n${filler(60)}\n}`,
   ].join('\n');
   assert.deepEqual(labels(findFunctionHotspots(source, 'a.ts')), ['first', 'second']);
+});
+
+// ── The ledger ──────────────────────────────────────────────────────────────
+
+test('a hotspot already in the ledger is not new; one that is not, is', () => {
+  const hotspots = [
+    { id: 'a.ts:10', display: 'a.ts:10: 60 lines: known' },
+    { id: 'b.ts:20', display: 'b.ts:20: 70 lines: fresh' },
+  ];
+
+  assert.deepEqual(
+    unreviewed(hotspots, ['a.ts:10']).map((entry) => entry.id),
+    ['b.ts:20'],
+  );
+  assert.deepEqual(unreviewed(hotspots, ['a.ts:10', 'b.ts:20']), []);
+});
+
+test('the ledger keeps ids only, sorted, in both categories', () => {
+  // Sorted because the file is regenerated wholesale: unsorted output would
+  // produce a diff on every write and hide the entries that actually moved.
+  const next = baselineFrom({
+    fileHotspots: [
+      { id: 'z.ts', display: 'z.ts: 500 lines' },
+      { id: 'a.ts', display: 'a.ts: 900' },
+    ],
+    functionHotspots: [{ id: 'q.ts:9', display: 'q.ts:9: 60 lines: f' }],
+  });
+
+  assert.deepEqual(next, { files: ['a.ts', 'z.ts'], functions: ['q.ts:9'] });
+});
+
+test('a written ledger round-trips, and writes where it is told', () => {
+  // The destination is a parameter precisely so this test never touches the
+  // committed ledger: it is line-keyed, several sessions re-point it, and
+  // rewriting it wholesale discards entries somebody else is mid-way earning.
+  const dir = mkdtempSync(join(tmpdir(), 'complexity-baseline-'));
+  try {
+    const next = baselineFrom({
+      fileHotspots: [{ id: 'a.ts', display: 'a.ts: 900 lines' }],
+      functionHotspots: [{ id: 'b.ts:4', display: 'b.ts:4: 60 lines: f' }],
+    });
+    const target = join(dir, 'baseline.json');
+
+    assert.equal(writeBaseline(next, target), target);
+    assert.deepEqual(JSON.parse(readFileSync(target, 'utf8')), next);
+    assert.match(readFileSync(target, 'utf8'), /\n$/, 'the ledger ends with a newline');
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
 });

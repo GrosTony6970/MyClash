@@ -26,6 +26,7 @@ import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import ts from 'typescript';
 
+import { defineGate } from './lib/gate.mjs';
 import { toRepoPath, walkRepoFiles } from './lib/repo-scan.mjs';
 
 const root = process.cwd();
@@ -135,10 +136,21 @@ export function findFunctionHotspots(source, repoPath) {
   return hotspots.sort((a, b) => a.sortKey - b.sortKey);
 }
 
+/**
+ * Every hotspot in the repo, and how many files were read to find them.
+ *
+ * `scanned` is separate from the hotspot counts on purpose. The success line
+ * used to report hotspots only, so a walk that reached nothing produced zero
+ * hotspots and read as a clean repo — the one shape this gate cannot afford to
+ * confuse, since a silent pass here lets every other budget through with it.
+ */
 export function scanRepo() {
   const fileHotspots = [];
   const functionHotspots = [];
+  let scanned = 0;
+
   for (const file of walkRepoFiles(root, { extensions: scannedExtensions })) {
+    scanned += 1;
     const repoPath = toRepoPath(file);
     const source = readFileSync(file, 'utf8');
     const lines = countLines(source);
@@ -147,46 +159,68 @@ export function scanRepo() {
     }
     functionHotspots.push(...findFunctionHotspots(source, repoPath));
   }
-  return { fileHotspots, functionHotspots };
+
+  return { fileHotspots, functionHotspots, scanned };
 }
 
-// ── CLI ──────────────────────────────────────────────────────────────────────
-// Guarded so the test file can import the detector without running a scan.
-const invokedDirectly = process.argv[1] && process.argv[1].endsWith('check-complexity.mjs');
-if (invokedDirectly) {
-  const { fileHotspots, functionHotspots } = scanRepo();
+/** The ledger a scan would write: ids only, sorted, both categories. */
+export function baselineFrom({ fileHotspots, functionHotspots }) {
+  return {
+    files: fileHotspots.map((entry) => entry.id).sort(),
+    functions: functionHotspots.map((entry) => entry.id).sort(),
+  };
+}
 
-  if (process.argv.includes('--write-baseline')) {
-    const nextBaseline = {
-      files: fileHotspots.map((entry) => entry.id).sort(),
-      functions: functionHotspots.map((entry) => entry.id).sort(),
+/**
+ * Write the ledger.
+ *
+ * `target` is a parameter so a test can round-trip a baseline into a temp file.
+ * Writing the real one is destructive in a way no test should be: the ledger is
+ * line-keyed, several sessions re-point it, and rewriting it wholesale discards
+ * entries somebody else is mid-way through earning.
+ */
+export function writeBaseline(next, target = baselinePath) {
+  writeFileSync(target, `${JSON.stringify(next, null, 2)}\n`);
+  return target;
+}
+
+/** Hotspots the ledger has not already accepted. */
+export function unreviewed(hotspots, accepted) {
+  return hotspots.filter((entry) => !accepted.includes(entry.id));
+}
+
+export const gate = defineGate({
+  name: 'Complexity budget',
+  entry: import.meta.url,
+  run: ({ argv }) => {
+    const { fileHotspots, functionHotspots, scanned } = scanRepo();
+
+    if (argv.includes('--write-baseline')) {
+      const next = baselineFrom({ fileHotspots, functionHotspots });
+      writeBaseline(next);
+      return {
+        findings: [],
+        scanned,
+        summary: `Wrote complexity baseline with ${next.files.length} large files and ${next.functions.length} long functions.`,
+      };
+    }
+
+    const baseline = JSON.parse(readFileSync(baselinePath, 'utf8'));
+    return {
+      findings: [
+        ...unreviewed(fileHotspots, baseline.files).map(
+          (entry) => `new unreviewed large file — ${entry.display}`,
+        ),
+        ...unreviewed(functionHotspots, baseline.functions).map(
+          (entry) => `new unreviewed long function — ${entry.display}`,
+        ),
+      ],
+      scanned,
+      summary: `Complexity baseline covers ${fileHotspots.length} large files and ${functionHotspots.length} long functions across ${scanned} scanned file(s).`,
+      remedy:
+        `Split it, or accept it: re-point ${baselinePath.split(/[\\/]/).slice(-2).join('/')} with\n` +
+        '--write-baseline once HEAD is green and you have read the diff. The ledger is\n' +
+        'line-keyed, so an edit above a baselined function re-points it on its own.',
     };
-    writeFileSync(baselinePath, `${JSON.stringify(nextBaseline, null, 2)}\n`);
-    console.log(
-      `Wrote complexity baseline with ${nextBaseline.files.length} large files and ${nextBaseline.functions.length} long functions.`,
-    );
-    process.exit(0);
-  }
-
-  const baseline = JSON.parse(readFileSync(baselinePath, 'utf8'));
-  const newFileHotspots = fileHotspots.filter((entry) => !baseline.files.includes(entry.id));
-  const newFunctionHotspots = functionHotspots.filter(
-    (entry) => !baseline.functions.includes(entry.id),
-  );
-
-  if (newFileHotspots.length || newFunctionHotspots.length) {
-    if (newFileHotspots.length) {
-      console.error('New unreviewed large files:');
-      for (const entry of newFileHotspots) console.error(`  - ${entry.display}`);
-    }
-    if (newFunctionHotspots.length) {
-      console.error('New unreviewed long functions:');
-      for (const entry of newFunctionHotspots) console.error(`  - ${entry.display}`);
-    }
-    process.exit(1);
-  }
-
-  console.log(
-    `Complexity baseline covers ${fileHotspots.length} large files and ${functionHotspots.length} long functions.`,
-  );
-}
+  },
+});

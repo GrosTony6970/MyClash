@@ -15,6 +15,7 @@
 import { readFileSync } from 'node:fs';
 import { join, relative, sep } from 'node:path';
 
+import { defineGate } from './lib/gate.mjs';
 import { walkRepoFiles } from './lib/repo-scan.mjs';
 
 const root = process.cwd();
@@ -68,31 +69,44 @@ export function mostSpecificMatches(source, keys = forbiddenEnvKeys) {
   return matched.filter((key) => !matched.some((other) => other !== key && other.includes(key)));
 }
 
-/** Every leak in the frontend trees, as `path: KEY`. */
+/**
+ * Every leak in the frontend trees, as `path: KEY`, with the number of files
+ * read alongside it.
+ *
+ * The count is new. This gate used to report "no server-only secrets referenced"
+ * without saying what it had looked at, so a walk that reached nothing produced
+ * the same clean line as a walk that reached three app trees.
+ */
 export function scanFrontendRoots() {
   const leaks = [];
+  let scanned = 0;
+
   for (const frontendRoot of frontendRoots) {
     const absoluteRoot = join(root, frontendRoot);
     for (const file of walkRepoFiles(absoluteRoot, { extensions: scannedExtensions })) {
+      scanned += 1;
       const source = readFileSync(file, 'utf8');
       for (const key of mostSpecificMatches(source)) {
         leaks.push(`${relative(root, file).split(sep).join('/')}: ${key}`);
       }
     }
   }
-  return leaks;
+
+  return { leaks, scanned };
 }
 
-// ── CLI ──────────────────────────────────────────────────────────────────────
-// Guarded so the test file can import the rules without running a scan.
-const invokedDirectly = process.argv[1]?.endsWith('check-client-secret-boundaries.mjs');
-if (invokedDirectly) {
-  const leaks = scanFrontendRoots();
-  if (leaks.length) {
-    console.error('Server-only secrets referenced from frontend source:');
-    for (const leak of leaks) console.error(`  - ${leak}`);
-    process.exit(1);
-  }
-
-  console.log('Frontend source does not reference server-only secret environment keys.');
-}
+export const gate = defineGate({
+  name: 'Server-only secrets in frontend source',
+  entry: import.meta.url,
+  run: () => {
+    const { leaks, scanned } = scanFrontendRoots();
+    return {
+      findings: leaks,
+      scanned,
+      summary: `No server-only secret environment keys across ${scanned} frontend source file(s).`,
+      remedy:
+        'A key reachable from client source is a key in the browser bundle. Read it on the\n' +
+        'server and pass the answer, or expose a NEXT_PUBLIC_ value that is safe to publish.',
+    };
+  },
+});

@@ -1,7 +1,11 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { forbiddenEnvKeys, mostSpecificMatches } from './check-client-secret-boundaries.mjs';
+import {
+  forbiddenEnvKeys,
+  mostSpecificMatches,
+  scanFrontendRoots,
+} from './check-client-secret-boundaries.mjs';
 
 // The fixtures below are hand-written and use invented keys. None is derived
 // from forbiddenEnvKeys: a fixture built from the thing under test cannot
@@ -89,4 +93,17 @@ test('the keys taken over from infra:review are still in the list', () => {
   for (const key of ['SERVICE_ROLE', 'service_role', 'SEED_ADMIN', 'SEED_ADMIN_PASSWORD']) {
     assert.ok(forbiddenEnvKeys.includes(key), `${key} was removed with no owner to replace it`);
   }
+});
+
+test('the scan reports how many files it read, not how many leaked', () => {
+  // The count is what the harness checks for an empty scan, so it has to be the
+  // number of files READ. Before it existed this gate printed the same clean
+  // line whether it had walked three app trees or nothing at all.
+  const { leaks, scanned } = scanFrontendRoots();
+
+  assert.ok(Array.isArray(leaks));
+  assert.ok(
+    scanned > 100,
+    `the three web app trees hold thousands of scannable files; got ${scanned}`,
+  );
 });

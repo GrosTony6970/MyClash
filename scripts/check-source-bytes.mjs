@@ -35,6 +35,7 @@
  */
 import { readFileSync } from 'node:fs';
 
+import { defineGate } from './lib/gate.mjs';
 import { toRepoPath, walkRepoFiles } from './lib/repo-scan.mjs';
 
 const root = process.cwd();
@@ -161,28 +162,22 @@ export function scanSources(paths, read = readFileSync, label = toRepoPath) {
   return violations;
 }
 
-// ── CLI ──────────────────────────────────────────────────────────────────────
-// Guarded so the test file can import the rules without running a scan.
-const invokedDirectly = process.argv[1]?.endsWith('check-source-bytes.mjs');
-if (invokedDirectly) {
-  const paths = walkRepoFiles(root, { extensions: SOURCE_SUFFIXES });
-  // A scan over nothing passes. Say which of the two it is.
-  if (!paths.length) {
-    throw new Error('no source files scanned — the walk is broken, not the repo clean');
-  }
-
-  const violations = scanSources(paths);
-  if (violations.length) {
-    console.error('Control characters written as raw bytes in source:');
-    for (const violation of violations) console.error(`  - ${violation}`);
-    console.error(
-      '\nA raw NUL makes git treat the file as BINARY: it produces no diff, so every\n' +
+export const gate = defineGate({
+  name: 'Raw control bytes in source',
+  entry: import.meta.url,
+  run: () => {
+    const paths = walkRepoFiles(root, { extensions: SOURCE_SUFFIXES });
+    return {
+      findings: scanSources(paths),
+      // "A scan over nothing passes, say which of the two it is" was written by
+      // hand here first. The harness now requires it of every gate.
+      scanned: paths.length,
+      summary: `No raw control bytes in ${paths.length} source file(s).`,
+      remedy:
+        'A raw NUL makes git treat the file as BINARY: it produces no diff, so every\n' +
         'change to it passes review unseen. Ripgrep skips such a file silently while\n' +
         'walking a directory, and git grep reports only "Binary file ... matches".\n' +
         'The escape sequence compiles to exactly the same string.',
-    );
-    process.exit(1);
-  }
-
-  console.log(`No raw control bytes in ${paths.length} source file(s).`);
-}
+    };
+  },
+});
