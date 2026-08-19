@@ -121,7 +121,7 @@ when the task needs an independent pass over many files.
 | Work                                                                         | Delegate to                                                                                             |
 | ---------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
 | Reviewing a finished slice before commit                                     | `code-architecture-reviewer`                                                                            |
-| Reviewing a plan before implementation                                       | `plan-reviewer`                                                                                         |
+| Reviewing a plan before implementation                                       | `myclash-plan-review` skill; `plan-reviewer` agent for a cold pass on a large multi-file plan           |
 | Architecture or trade-off calls on a non-trivial change                      | `principal-engineer`                                                                                    |
 | Planning a multi-file refactor                                               | `refactor-planner`                                                                                      |
 | Advanced TypeScript type-system work (`packages/types`, generics, inference) | `voltagent-lang:typescript-pro`                                                                         |
