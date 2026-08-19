@@ -5,7 +5,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { asEventKind, countsTowardStats, toCsvCell } from '@myclash/types';
+import { asEventKind, countsTowardStats, escapeHtml, toCsvCell } from '@myclash/types';
 import { OrganizationsService } from '../organizations/organizations.service';
 import { SupabaseService } from '../supabase/supabase.service';
 import { hasPlatformTier } from '../../common/auth/platform-role';
@@ -1814,10 +1814,10 @@ export class LeaguesService {
     const rows = (standings.rows as Row[])
       .map((row) => {
         const fighter = row['global_persons'] as Row | null;
-        return `<tr><td>${escapeHtml(row['ranking_group_key'])}</td><td>${escapeHtml(row['rank'])}</td><td>${escapeHtml(fighter?.['display_name'] ?? row['global_person_id'])}</td><td>${escapeHtml(row['total_points'])}</td></tr>`;
+        return `<tr><td>${html(row['ranking_group_key'])}</td><td>${html(row['rank'])}</td><td>${html(fighter?.['display_name'] ?? row['global_person_id'])}</td><td>${html(row['total_points'])}</td></tr>`;
       })
       .join('');
-    return `<!doctype html><html><head><meta charset="utf-8"><title>${escapeHtml(league['name'])}</title><style>body{font-family:Arial,sans-serif}table{border-collapse:collapse;width:100%}td,th{border:1px solid #999;padding:6px}.medal{font-weight:700}</style></head><body><h1>${escapeHtml(league['name'])}</h1><table><thead><tr><th>Group</th><th>Rank</th><th>Fighter</th><th>Points</th></tr></thead><tbody>${rows}</tbody></table></body></html>`;
+    return `<!doctype html><html><head><meta charset="utf-8"><title>${html(league['name'])}</title><style>body{font-family:Arial,sans-serif}table{border-collapse:collapse;width:100%}td,th{border:1px solid #999;padding:6px}.medal{font-weight:700}</style></head><body><h1>${html(league['name'])}</h1><table><thead><tr><th>Group</th><th>Rank</th><th>Fighter</th><th>Points</th></tr></thead><tbody>${rows}</tbody></table></body></html>`;
   }
 
   private async computeTournamentContributions(
@@ -2196,10 +2196,9 @@ function slugifyLeagueName(name: string): string {
  */
 const csv = toCsvCell;
 
-function escapeHtml(value: unknown): string {
-  return String(value ?? '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
-}
+/**
+ * Coercion only — the escaping itself belongs to `@myclash/types`, same as `csv`
+ * above. This used to be a private escaper that missed `'`, which is exactly the
+ * divergence the shared one exists to prevent.
+ */
+const html = (value: unknown): string => escapeHtml(String(value ?? ''));
