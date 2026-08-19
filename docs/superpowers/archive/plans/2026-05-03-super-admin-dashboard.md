@@ -1,6 +1,6 @@
 # Super Admin Dashboard Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **Status (2026-08-19):** Shipped — `/admin` carries the dashboard this plan specifies: `review-queue/` for community rulesets, `feature-flags/`, and organization approve/suspend, with the reactivation alias still labelled `T-1301` in `apps/api/src/modules/admin/organizations.controller.ts`. Historical record; do not execute.
 
 **Goal:** Complete BUILD_ORDER `T-1301` by adding `/admin` dashboard coverage for organization approve/suspend, user disable, community ruleset approval, and feature flags.
 

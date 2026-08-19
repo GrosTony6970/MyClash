@@ -4,8 +4,6 @@
 
 <!-- -->
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
-
 **Goal:** Convert `/pools` into a tabbed page (planned as 3 tabs — Configure / Matches / Standings; a 4th **Referees** tab was added during delivery), expose 5 hidden referee-constraint pool-generation options with hover-help tooltips, ship the first per-pool matches view with inline lice + referee editing and tournament-driven side colors, and ship a greenfield ruleset-driven standings view with Overall + By-pool modes and live updates.
 
 **Architecture:** Frontend keeps the existing `/pools` URL but renders a tab shell with URL-hash routing (`#configure`/`#matches`/`#standings`; the shipped shell also adds `#referees`); progressive enablement based on pool + match state. Backend changes are additive: `GeneratePoolsDto` extension for 5 referee constraints (columns already exist in `pool_assignment_settings`), one new `referee_id` column on `matches`, a new general `UpdateMatchDto`, a new `PoolStandingsService` + `GET /tournaments/:id/pool-standings` endpoint that reads ruleset-declared `standingsColumns` + `rankingChain`, and `Ruleset` interface extensions exposing those declarations from each ruleset module. Realtime listens on the `matches` table for the pool phase via Supabase's existing channel pattern.

@@ -1,8 +1,6 @@
 # Configure tab — fixed-width wrapping pool cards — Implementation Plan
 
 > **Status (2026-07-01 doc review):** Superseded — the Configure-tab pool layout shipped as a vertical `flex flex-col gap-4` stack of `w-full` cards (one pool per row), not the `flex flex-wrap` + `w-72` wrapping row this plan proposed; neither the cited grid baseline nor the flex-wrap target exists in `apps/web-admin/app/org/[slug]/events/[eventId]/pools/page.tsx`. Audited against code.
->
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Swap the Configure tab's responsive grid (`grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4`) for a wrapping flex row of fixed-width (`w-72`) pool cards so as many fit per row as the container's actual width allows, with overflow wrapping to the next row.
 

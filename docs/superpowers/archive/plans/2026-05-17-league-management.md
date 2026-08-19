@@ -1,6 +1,6 @@
 # League Management Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **Status (2026-08-19):** Shipped, then extended — `apps/web-admin/app/admin/leagues/` holds `new/`, `[id]/`, `scoring-systems/` and a `league-utils.ts` with its own tests, rather than the single page this plan sketched. Historical record; do not execute.
 
 **Goal:** Add full league management to `/admin/leagues` — slug auto-gen, inline editing, deletion, scoring config editor, tournament link removal, and admin-initiated fuzzy tournament addition.
 

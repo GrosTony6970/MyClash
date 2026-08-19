@@ -1,6 +1,6 @@
 # Pools Realtime Rescope Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task.
+> **Status (2026-08-19):** Shipped — the pools page and its realtime merge live at `apps/web-admin/app/org/[slug]/events/[eventId]/pools/`, including `_tabs/match-scores-merge.ts`. Historical record; do not execute.
 
 **Goal:** Rescope the previously-deferred realtime work (Tasks 14 + 16 of the original Pools overhaul plan) by adding Supabase realtime subscriptions on the Matches and Standings tabs, with a polling fallback for websocket disconnects.
 

@@ -1,8 +1,6 @@
 # Inline "Create new club" on add-participant — Implementation Plan
 
 > **Status (2026-07-01 doc review):** Shipped — the feature works as designed, but Task 2's DTO was implemented with nestjs-zod (`createPersonSchema` + two `.refine()` rules), not the class-validator `@ValidatorConstraint` prescribed below. Audited against code.
->
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Let an organizer create an unknown club inline while adding a participant — one form submission creates both rows. Mirrors the existing CSV-import auto-create-unverified-club pattern.
 
