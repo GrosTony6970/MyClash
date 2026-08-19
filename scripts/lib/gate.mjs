@@ -38,8 +38,11 @@
  *   export const gate = defineGate({
  *     name: 'Untracked debt markers',
  *     entry: import.meta.url,
- *     run: ({ argv }) => ({ findings, summary, scanned }),
+ *     run: ({ argv }) => ({ findings, summary, scanned, remedy }),
  *   });
+ *
+ * `remedy` is optional and prints only when the gate failed; everything else is
+ * required.
  *
  * The returned object lets a test call `gate.run({ argv: [] })` and assert on
  * findings with no process, no exit code and no console involved.
@@ -122,6 +125,9 @@ function validate(name, result) {
   if (result.scanned === 0) {
     throw new Error(`${name}: scanned nothing — the discovery step is broken, not the repo clean`);
   }
+  if (result.remedy !== undefined && (typeof result.remedy !== 'string' || !result.remedy)) {
+    throw new TypeError(`${name}: remedy must be a non-empty string when given`);
+  }
 }
 
 /**
@@ -129,11 +135,20 @@ function validate(name, result) {
  *
  * Warnings first and unheaded, the way check-edge-tls.mjs already printed them:
  * they are context for the errors below, not a section of their own. Only
- * `finding.message` and `summary` reach the console — never the returned object.
- * check-edge-plugins findings can carry HTTP response detail from a host reached
- * with a bearer token, so the harness must not print more than the gate meant to.
+ * `finding.message`, `summary` and `remedy` reach the console — never the
+ * returned object. check-edge-plugins findings can carry HTTP response detail
+ * from a host reached with a bearer token, so the harness must not print more
+ * than the gate meant to.
+ *
+ * ── Why `remedy` is part of the contract ────────────────────────────────────
+ * Several gates close with a paragraph saying what to DO: check-openapi-drift
+ * names the regenerate command, check-mermaid explains that a bad diagram
+ * renders as grey text rather than failing, check-source-bytes spends four
+ * lines on why a raw NUL is worth caring about. That text is the difference
+ * between a list of paths and a fix, and it is only worth printing when the
+ * gate failed — so the harness owns when, and the gate owns what.
  */
-function report(name, { findings, summary }) {
+function report(name, { findings, summary, remedy }) {
   const warnings = findings.filter((finding) => levelOf(finding) === WARN);
   const errors = findings.filter((finding) => levelOf(finding) !== WARN);
 
@@ -142,6 +157,7 @@ function report(name, { findings, summary }) {
   if (errors.length) {
     console.error(`${name} failed:`);
     for (const error of errors) console.error(`  - ${messageOf(error)}`);
+    if (remedy) console.error(`\n${remedy}`);
     return false;
   }
 

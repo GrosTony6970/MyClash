@@ -192,6 +192,34 @@ test('a result missing its summary or its count is a broken gate', () => {
   assert.match(noCount.stderr, /no scanned count/);
 });
 
+test('the remedy prints after the findings, and only when the gate failed', () => {
+  // The paragraph saying what to DO is the difference between a list of paths
+  // and a fix — check-openapi-drift names the regenerate command there. Printing
+  // it on a pass would be noise on every green run.
+  const failed = spawnGate(
+    returning(
+      `{ findings: ['a.ts:1: bad'], summary: 'unused', scanned: 2, remedy: 'Regenerate with: pnpm openapi:client' }`,
+    ),
+  );
+  const passed = spawnGate(
+    returning(`{ findings: [], summary: 'ok', scanned: 2, remedy: 'Regenerate with: pnpm x' }`),
+  );
+
+  assert.equal(failed.status, 1);
+  assert.match(failed.stderr, /- a\.ts:1: bad[\s\S]*Regenerate with: pnpm openapi:client/);
+  assert.equal(passed.status, 0);
+  assert.doesNotMatch(passed.stderr, /Regenerate/);
+});
+
+test('a remedy that is not text is a broken gate', () => {
+  const { status, stderr } = spawnGate(
+    returning(`{ findings: [], summary: 'ok', scanned: 2, remedy: ['do', 'this'] }`),
+  );
+
+  assert.equal(status, 1);
+  assert.match(stderr, /remedy must be a non-empty string/);
+});
+
 test('a throw out of run is reported as a broken gate, with its stack', () => {
   const { status, stderr } = spawnGate(`
 defineGate({
