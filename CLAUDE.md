@@ -52,6 +52,46 @@ unwinding.
 
 ---
 
+## Writing code
+
+**Say what you assumed.** Put the assumption in the reply, not in your head. Two readings of a task
+means you present both and ask — never pick one silently. If a simpler approach exists than the one
+asked for, say so and push back once; then build what the operator decides.
+
+**Minimum code that solves the problem.** Every line is debt. No feature nobody asked for, no
+abstraction for a single caller, no configurability nobody requested — propose those and let the
+operator choose. If 200 lines could be 50, write the 50. Minimal is not golfed: one dense
+unreadable line is worse than four clear ones, and a simple solution still gets its explanation.
+
+**Surgical edits.** Every changed line traces to the request. Don't improve adjacent code, don't
+reformat, don't refactor what the task didn't touch. Unrelated dead code gets named in your report,
+not deleted. Orphans your own change created — now-unused imports, variables, functions — are yours
+to remove in the same commit. This bounds **what you touch**, not **how deep the fix goes**: a
+root-cause fix is still the right fix, and its own blast radius is not "adjacent code". Match the
+surrounding code — except in UI, where `docs/design/known-deviations.md` opens by warning that the
+pattern you are about to copy may be the one being removed. Read it before copying.
+
+**Every branch must be able to fire, and firing must leave a trace.** A resolution chain is the
+design when it resolves an ordinary case: staffing falls through to a hard-coded floor, locale runs
+cookie → `Accept-Language` → default, push falls back to email. A branch that **cannot** fire, or
+fires in silence, is the bug. `var(--event-primary, #c0392b)` had no producer anywhere in the repo,
+so the "fallback" was the only path that ever ran and shipped as the real accent for months
+(`docs/design/known-deviations.md`, D2). `t('k') || 'fallback'` is the same shape — `t()` returns a
+truthy `[k]`, so the `||` never fires and a French organiser gets English.
+
+**One owner per behaviour.** Rewrite the existing component before adding a second one. A second
+copy diverges silently, and a docstring claiming to be "the only copy" is usually the one that is
+wrong.
+
+**Name the race.** Two writers, an optimistic update and the server's answer, a realtime refetch
+landing mid-drag — say which one you are handling and how. `write-tracker.ts` and
+`realtime-refetch-gate.ts` exist because the schedule board has both.
+
+**Finish.** No placeholders, no stubs, no "wire this up later". `pnpm quality:todos` catches a bare
+marker; nothing catches a function that type-checks and does nothing.
+
+---
+
 ## Workflow
 
 Work is slice-based and paced by the operator, who runs a live test event and reports issues. Work
