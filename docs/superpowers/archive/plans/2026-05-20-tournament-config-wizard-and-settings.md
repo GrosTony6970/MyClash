@@ -12,7 +12,7 @@
 
 **Tech Stack:** NestJS + class-validator (backend), Next.js 16 App Router + React 19 + `@myclash/ui` (frontend), Supabase (DB), `@myclash/rulesets` (ruleset catalog), `@myclash/i18n` (EN + FR).
 
-**Spec:** [docs/superpowers/specs/2026-05-20-tournament-config-wizard-and-settings-design.md](docs/superpowers/specs/2026-05-20-tournament-config-wizard-and-settings-design.md)
+**Spec:** [docs/superpowers/archive/specs/2026-05-20-tournament-config-wizard-and-settings-design.md](docs/superpowers/archive/specs/2026-05-20-tournament-config-wizard-and-settings-design.md)
 
 ---
 

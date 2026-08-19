@@ -10,7 +10,7 @@
 
 **Tech Stack:** Next.js 16 + React + Tailwind CSS v4 (web-admin app).
 
-**Spec:** [`docs/superpowers/specs/2026-05-28-configure-tab-horizontal-pools-design.md`](../specs/2026-05-28-configure-tab-horizontal-pools-design.md)
+**Spec:** [`docs/superpowers/archive/specs/2026-05-28-configure-tab-horizontal-pools-design.md`](../specs/2026-05-28-configure-tab-horizontal-pools-design.md)
 
 ---
 
@@ -135,7 +135,7 @@ use the page scrollbar. Right sidebar and drag-drop unchanged.
 Scope: Configure tab only — Matches / Referees / Standings tabs
 keep their distinct layouts.
 
-Spec: docs/superpowers/specs/2026-05-28-configure-tab-horizontal-pools-design.md
+Spec: docs/superpowers/archive/specs/2026-05-28-configure-tab-horizontal-pools-design.md
 "
 ```
 
@@ -168,7 +168,7 @@ git push origin main
 
 ## Execution handoff
 
-Plan complete and saved to `docs/superpowers/plans/2026-05-28-configure-tab-horizontal-pools.md`. Two execution options:
+Plan complete and saved to `docs/superpowers/archive/plans/2026-05-28-configure-tab-horizontal-pools.md`. Two execution options:
 
 **1. Subagent-Driven (recommended)** — I dispatch a fresh subagent for Task 1, review on completion, fast iteration.
 

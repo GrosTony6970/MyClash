@@ -8,7 +8,7 @@
 
 **Tech Stack:** `@supabase/supabase-js` v2.105.1 (already a dep of web-admin), React 19, Next.js 16 App Router.
 
-**Spec:** [docs/superpowers/specs/2026-05-20-pools-overhaul-design.md](docs/superpowers/specs/2026-05-20-pools-overhaul-design.md)
+**Spec:** [docs/superpowers/archive/specs/2026-05-20-pools-overhaul-design.md](docs/superpowers/archive/specs/2026-05-20-pools-overhaul-design.md)
 
 ---
 

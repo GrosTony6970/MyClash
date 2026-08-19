@@ -10,7 +10,7 @@
 
 **Tech Stack:** React + Tailwind CSS, packaged as `@myclash/ui` (tsc → `dist/`). The admin Next.js app consumes the rebuilt artifact automatically through workspace linkage.
 
-**Spec:** [`docs/superpowers/specs/2026-05-28-bracket-card-thickness-design.md`](../specs/2026-05-28-bracket-card-thickness-design.md)
+**Spec:** [`docs/superpowers/archive/specs/2026-05-28-bracket-card-thickness-design.md`](../specs/2026-05-28-bracket-card-thickness-design.md)
 
 ---
 
@@ -331,7 +331,7 @@ rounded corners.
 BracketView's round-column wrapper bumps to the same min/max so the
 cards can actually reach their new ceiling.
 
-Spec: docs/superpowers/specs/2026-05-28-bracket-card-thickness-design.md"
+Spec: docs/superpowers/archive/specs/2026-05-28-bracket-card-thickness-design.md"
 ```
 
 - [ ] Push:
@@ -363,7 +363,7 @@ git push origin main
 
 ## Execution handoff
 
-Plan complete and saved to `docs/superpowers/plans/2026-05-28-bracket-card-thickness.md`. Two execution options:
+Plan complete and saved to `docs/superpowers/archive/plans/2026-05-28-bracket-card-thickness.md`. Two execution options:
 
 **1. Subagent-Driven (recommended)** — I dispatch a fresh subagent per task with two-stage review per task; fast iteration consistent with prior plans this session.
 

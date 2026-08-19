@@ -1,5 +1,7 @@
 # Runtime Health Dashboard + Alerting — Design Spec
 
+> **Status (2026-08-19):** Shipped. The Status line below still reads "pending implementation plan" — the plan was written and executed. Kept for the design reasoning.
+
 **Date:** 2026-07-24
 **Status:** Approved (design), pending implementation plan
 

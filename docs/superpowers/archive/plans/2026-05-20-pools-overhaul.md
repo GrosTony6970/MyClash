@@ -12,7 +12,7 @@
 
 **Tech Stack:** NestJS + Zod (via `nestjs-zod` / `createZodDto`; the shipped `GeneratePoolsDto` uses Zod, not the class-validator decorators shown in Task 1 below) + Drizzle (backend), Next.js 16 App Router + React 19 + `@myclash/ui` (frontend), Supabase Postgres + Realtime, `@myclash/rulesets`, `@myclash/i18n` (EN + FR).
 
-**Spec:** [docs/superpowers/specs/2026-05-20-pools-overhaul-design.md](docs/superpowers/specs/2026-05-20-pools-overhaul-design.md)
+**Spec:** [docs/superpowers/archive/specs/2026-05-20-pools-overhaul-design.md](docs/superpowers/archive/specs/2026-05-20-pools-overhaul-design.md)
 
 ---
 

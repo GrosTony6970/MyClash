@@ -1,6 +1,6 @@
 # Live Control Room — Follow-ups Round 2 Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **Status (2026-08-19):** Shipped — round-2 follow-ups to the live control room, which is live. Paths below name `apps/web-scoring`, renamed to `apps/web-staff` in `11db3c66`; read them as historical. The unchecked `- [ ]` boxes are an artefact of how the plan was written. Do not execute this plan.
 
 **Goal:** Clear the deferred follow-ups the round-1 whole-branch review left open — a real phone-usable Live board, a single health-label vocabulary, a next-up match deep-link, and three heartbeat test/robustness gaps.
 

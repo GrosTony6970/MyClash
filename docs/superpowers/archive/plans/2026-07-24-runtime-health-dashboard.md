@@ -1,6 +1,6 @@
 # Runtime Health Dashboard + Alerting Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **Status (2026-08-19):** Shipped — all four collectors exist in `apps/api/src/modules/admin/runtime-health/` (db, redis, queue, disk) alongside `runtime-health-monitor.worker.ts` and the alert-settings service, and the card landed at `apps/web-admin/app/admin/system-versions/RuntimeHealthCard.tsx`. The migration numbers pinned below as "next sequential" were taken; the tree is well past them. Do not execute this plan.
 
 **Goal:** Add a super-admin Runtime Health card (Postgres connections/size/cache/uptime, Redis memory, BullMQ queue depths, host disk) to `/admin/system-versions`, backed by one aggregated endpoint, with a threshold monitor that emails the operator on critical states and UI-editable alert settings.
 

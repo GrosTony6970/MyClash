@@ -1,5 +1,7 @@
 # Live control room — design
 
+> **Status (2026-08-19):** Shipped. The Status line below still reads "ready for implementation plan" — the plan was written and executed. Kept for the scope reasoning.
+
 **Date:** 2026-07-21
 **Status:** Approved (brainstorm) — ready for implementation plan
 **Related:** remediation-plan items **G12** (Live control room) and **G13** (scorer→organizer

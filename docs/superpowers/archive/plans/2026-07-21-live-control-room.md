@@ -1,6 +1,6 @@
 # Live Control Room Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **Status (2026-08-19):** Shipped — `staff.controller.ts` serves `GET events/:eventId/live-board`, `apps/web-admin/src/lib/live-board/` holds the merge/state/timing modules and their tests, and `tests/e2e/28-live-control-room.spec.ts` covers it end to end. The unchecked `- [ ]` boxes below are an artefact of how the plan was written, not open work. Do not execute this plan.
 
 **Goal:** Give organizers a live, per-piste operations board (scores + tablet health + attention) as a new "Live" menu in web-admin.
 
@@ -10,7 +10,7 @@
 
 ## Global Constraints
 
-- **Design doc:** `docs/superpowers/specs/2026-07-21-live-control-room-design.md` — the source of truth for scope. v1 = full board (all three lenses) + realtime scores + health + Acknowledge + deep-links. Deferred: expandable row detail, inline reassign, TV mode.
+- **Design doc:** `docs/superpowers/archive/specs/2026-07-21-live-control-room-design.md` — the source of truth for scope. v1 = full board (all three lenses) + realtime scores + health + Acknowledge + deep-links. Deferred: expandable row detail, inline reassign, TV mode.
 - **Migration numbering:** next prefix is `0149`; never renumber an applied migration.
 - **Tokenized UI only:** build with `@myclash/ui` components + semantic tokens (`bg-surface`, `text-foreground`, `text-muted`, `border-border`, `bg-danger`, `bg-warning`, `bg-success`); never raw palette classes or hex.
 - **i18n:** every `t()` key must exist in **both** `en` and `fr` in `packages/i18n/src/index.ts` (a lint test fails otherwise).

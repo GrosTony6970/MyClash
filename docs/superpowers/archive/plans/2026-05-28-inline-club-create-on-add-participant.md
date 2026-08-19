@@ -10,7 +10,7 @@
 
 **Tech Stack:** NestJS + Fastify + nestjs-zod (api; the DTO shipped as a Zod schema, not the class-validator approach described in Task 2), Next.js 16 + React + Tailwind (web-admin), Vitest (both sides), Supabase service-role for DB writes.
 
-**Spec:** [`docs/superpowers/specs/2026-05-28-inline-club-create-on-add-participant-design.md`](../specs/2026-05-28-inline-club-create-on-add-participant-design.md)
+**Spec:** [`docs/superpowers/archive/specs/2026-05-28-inline-club-create-on-add-participant-design.md`](../specs/2026-05-28-inline-club-create-on-add-participant-design.md)
 
 ---
 
@@ -924,7 +924,7 @@ No issues found.
 
 ## Execution handoff
 
-Plan complete and saved to `docs/superpowers/plans/2026-05-28-inline-club-create-on-add-participant.md`. Two execution options:
+Plan complete and saved to `docs/superpowers/archive/plans/2026-05-28-inline-club-create-on-add-participant.md`. Two execution options:
 
 **1. Subagent-Driven (recommended)** — I dispatch a fresh subagent per task, review between tasks, fast iteration.
 
