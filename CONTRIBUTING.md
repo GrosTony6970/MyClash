@@ -124,8 +124,8 @@ CI is the second line of defense, not the first.
 ## Workflow
 
 Work is slice-based: the maintainer runs a live test event, reports issues, and each slice lands as
-a scoped commit on `main`. `docs/BUILD_ORDER.md` is the historical build plan — it records how the
-project was built, not what happens next.
+a scoped commit on `main`. There is no task queue: the git history is the record of how the project
+was built.
 
 Human contributions are welcome — open an issue first for non-trivial changes so the work can be
 coordinated.

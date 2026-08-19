@@ -8,7 +8,7 @@ matching design spec (`…-design.md`).
 These are **historical build artifacts, not living documentation.** Nothing in
 the codebase, CI, or tooling depends on them. For the current system, use
 [../ARCHITECTURE.md](../ARCHITECTURE.md); for the task list, use
-[../BUILD_ORDER.md](../BUILD_ORDER.md).
+the git history.
 
 ## Active
 

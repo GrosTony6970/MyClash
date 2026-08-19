@@ -1,6 +1,6 @@
 # Hierarchy & terminology (canonical)
 
-> This document is **authoritative** for the MyClash data hierarchy and naming. If anything in `ARCHITECTURE.md`, `BUILD_ORDER.md`, `myclash.md`, or any code conflicts with this, this wins.
+> This document is **authoritative** for the MyClash data hierarchy and naming. If anything in `ARCHITECTURE.md`, `myclash.md`, or any code conflicts with this, this wins.
 
 Three separate structures live here, and confusing them is the mistake this file exists to prevent:
 the **competition hierarchy** (who fights whom, in what), the **physical space** (where it happens),

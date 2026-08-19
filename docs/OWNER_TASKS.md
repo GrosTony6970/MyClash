@@ -2,22 +2,39 @@
 
 > Operational checklist for **you** as project owner. These are tasks the AI coder cannot do.
 >
-> Organized by **when** they need to happen relative to the dev phases in `BUILD_ORDER.md`.
-> Task IDs use `O-NNN` and are referenced from BUILD_ORDER tasks where there's a hard dependency.
+> Task IDs use `O-NNN`. Phases O0–O3 below are the order they were originally needed in; the
+> platform has since shipped, so treat them as a reference list rather than a schedule.
 
 ---
 
-## Quickstart — First 7 days (to unblock dev)
+## The `[needs O-NNN]` rule
 
-Minimum to get the AI started on T-001:
+`CLAUDE.md` tells an agent to **stop and notify** rather than improvise when a piece of work
+depends on an owner task that has not happened. `[needs O-NNN]` is how that dependency is written,
+and this file is where the referenced task lives.
 
-1. **O-001 Domain** — buy `myclash.fr` or `myclash.io` (or accept the placeholder for local dev only).
-2. **O-004 GitHub repo** — create the repo, push the two doc files (`ARCHITECTURE.md`, `BUILD_ORDER.md`), commit `AGENTS.md` at root.
-3. **O-005 Repo hygiene** — branch protection on `main`, required CI checks, default reviewers (you).
-4. **O-007 VAPID keys** — generate and store as repo secrets (only blocks P12).
-5. **O-008 Google OAuth** — **deferred to v1.1**. Magic-link auth (via O-006) is sufficient at launch.
+The marker used to live only in the build-order document, which recorded the original task
+sequence and was deleted once every task in it had shipped. The dependencies it carried are below, with what can
+be verified from the repository today. **Verified-from-code is not the same as owner-confirmed** —
+the second column says what the tree proves, not what the owner has signed off.
 
-Everything else can wait until the relevant dev phase approaches.
+| Owner task                            | Was needed by                  | Evidence in the tree today                                          |
+| ------------------------------------- | ------------------------------ | ------------------------------------------------------------------- |
+| **O-002** hosting, **O-010** hosts    | Docker Compose + Traefik stack | `infra/docker-compose.prod.yml` deploys; the stack runs             |
+| **O-006** SMTP                        | magic-link claim flow          | `.env.example` carries the four `SMTP_*` keys                       |
+| **O-051** MyFAL reference scripts     | VPS bootstrap                  | `infra/scripts/vps-bootstrap.sh` shipped; the reference dir is gone |
+| **O-102** FAL 2026 raw exchange data  | the TF_v1 golden fixture       | `packages/rulesets/test/fixtures/fal2026.json` exists and is gated  |
+| **O-007** VAPID keys                  | push subscription endpoints    | `scripts/ensure-vapid-env.mjs` exists                               |
+| **O-106 + O-107** FR review, glossary | French translation             | 16 FR message modules; `docs/notes/glossary.md`                     |
+| **O-201–O-206**                       | pre-event dry run              | **owner-side; not verifiable from the repo**                        |
+| **O-104**, **O-301–O-303**            | running a real event           | **owner-side; not verifiable from the repo**                        |
+
+The two rows in bold are the ones that can still block work. Everything above them has a physical
+artefact in the tree, so an agent hitting `[needs O-NNN]` for one of those should check the artefact
+rather than stop.
+
+Individual task entries below carry no status marker unless one is written on them. If you close a
+task, say so on its entry — an unmarked entry reads as open, and the stop-and-notify rule fires on it.
 
 ---
 
@@ -63,15 +80,16 @@ Everything else can wait until the relevant dev phase approaches.
 - **Action**:
   - Create the repo (`myclash` or org-named).
   - License: AGPL-3.0 (already specified).
-  - Add `ARCHITECTURE.md`, `BUILD_ORDER.md`, `OWNER_TASKS.md`, `AGENTS.md` (this file), `README.md`.
+  - Add `ARCHITECTURE.md`, `OWNER_TASKS.md`, `AGENTS.md` (this file), `README.md`.
 
 ### O-005 · Repo hygiene
 
 - **When**: Day 1.
 - **Action**:
-  - Branch protection on `main`: require PR review (yourself or a co-maintainer), require CI checks green, no force-push.
+  - Branch protection on `main`: require CI checks green, no force-push. (Work lands directly on
+    `main` — see `CLAUDE.md` — so a PR-review requirement was dropped.)
   - Issue templates: bug, feature, ruleset proposal.
-  - PR template: link to BUILD_ORDER task, screenshots, test notes.
+  - PR template: screenshots, test notes.
   - Enable GitHub Discussions (community Q&A).
   - Enable Dependabot for npm + GitHub Actions.
 
@@ -197,7 +215,7 @@ Everything else can wait until the relevant dev phase approaches.
   - Confirm the public dataset URL/format is stable.
   - Ask about their preferred submission format for event results.
   - Mention MyClash as a potential pipeline; offer collaboration.
-- **Outcome**: Documented import + export contract in `docs/HEMA_RATINGS.md`.
+- **Outcome**: the import + export contract is documented in `docs/ARCHITECTURE.md` §11.
 
 ### O-104 · Beta event partner
 
@@ -238,7 +256,7 @@ Everything else can wait until the relevant dev phase approaches.
 ### O-107 · French HEMA terminology glossary
 
 - **When**: Before P14.
-- **Action**: Compile a glossary of HEMA terms in EN/FR pairs. Provide to the AI as `docs/glossary.md`. Examples:
+- **Action**: Compile a glossary of HEMA terms in EN/FR pairs. Provide to the AI as `docs/notes/glossary.md`. Examples:
   ```
   Lice → piste / arena
   Afterblow → riposte tardive

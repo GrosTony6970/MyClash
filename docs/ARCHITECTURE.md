@@ -6,7 +6,6 @@
 >
 > **Companion docs:**
 >
-> - `docs/BUILD_ORDER.md` — historical build plan (how the project was sequenced).
 > - `docs/OWNER_TASKS.md` — operational checklist for the project owner (full version, organized by project phase).
 > - `docs/PRE_DEPLOY_CHECKLIST.md` — flat ordered checklist for everything that must happen before first production deploy.
 > - `myclash.md` (root) — functional/design understanding of the app (product-level).
@@ -2304,7 +2303,6 @@ myclash/
 │   └── *.mjs                       # cross-cutting check/lint scripts
 ├── docs/
 │   ├── ARCHITECTURE.md             # this file
-│   ├── BUILD_ORDER.md              # historical build plan
 │   ├── ENGINEERING_LESSONS.md      # reusable rules distilled from past mistakes
 │   ├── OWNER_TASKS.md              # owner-side operational tasks
 │   ├── HIERARCHY.md                # canonical domain vocabulary

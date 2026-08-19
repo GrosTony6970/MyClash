@@ -55,8 +55,8 @@ unwinding.
 ## Workflow
 
 Work is slice-based and paced by the operator, who runs a live test event and reports issues. Work
-lands directly on `main`; there is no branch-per-task or PR ritual. `docs/BUILD_ORDER.md` is the
-historical build plan — it records how the project was built, not what to do next.
+lands directly on `main`; there is no branch-per-task or PR ritual. The git history is the build
+record; there is no task queue to pick from.
 
 - **Conventional Commits are enforced** by commitlint through the `commit-msg` hook
   (`feat(scope): …`, `fix(scope): …`). A commit message in any other shape is rejected.

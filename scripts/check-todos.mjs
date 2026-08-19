@@ -20,13 +20,7 @@ const allowedPathSuffixes = new Set([
   'scripts/check-todos.mjs',
   'scripts/check-todos.test.mjs',
 ]);
-const allowedMarkers = [
-  /\bT-\d+[a-z]?\b/i,
-  /\bO-\d+\b/i,
-  /BUILD_ORDER/,
-  /OWNER_TASKS/,
-  /https:\/\/github\.com\//,
-];
+const allowedMarkers = [/\bT-\d+[a-z]?\b/i, /\bO-\d+\b/i, /OWNER_TASKS/, /https:\/\/github\.com\//];
 
 /** Every untracked debt marker in one file. */
 export function findDebtMarkers(source, repoPath) {
@@ -79,7 +73,7 @@ export const gate = defineGate({
       scanned,
       summary: `TODO/FIXME comments across ${scanned} file(s) are either absent or tied to explicit review/task references.`,
       remedy:
-        'Add a task marker — T-NNN, O-NNN, BUILD_ORDER, OWNER_TASKS or a GitHub issue link — or remove the debt.',
+        'Add a task marker — T-NNN, O-NNN, OWNER_TASKS or a GitHub issue link — or remove the debt.',
     };
   },
 });
