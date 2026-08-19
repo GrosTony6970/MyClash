@@ -1,6 +1,19 @@
 import type { MessageTree } from '../../message-tree.js';
 
 export const common = {
+  // The structured failures `apiRequest` returns, mapped to a sentence by
+  // failureMessage() in each app's src/lib/api-failure.ts. Here rather than in
+  // one app's namespace because `common` is the one namespace every surface
+  // bundles, and all three apps hit the same API.
+  //
+  // There is no key for a failed HTTP response: the API answers problem+json
+  // and its `detail` IS the message, so a hardcoded string would be the thing
+  // that stopped a backup failure from ever saying why. `common.error` is the
+  // fallback for the response that gives no reason.
+  apiFailure: {
+    network: 'Could not reach the server. Check your connection and try again.',
+    unauthenticated: 'Your session has expired, or this is not yours to see. Sign in again.',
+  },
   cancel: 'Cancel',
   error: 'Something went wrong.',
   loading: 'Loading...',

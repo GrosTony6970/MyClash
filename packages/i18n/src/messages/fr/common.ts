@@ -4,6 +4,11 @@ import type { common as enCommon } from '../en/common.js';
 // Locked to EN's exact shape: a missing or extra key is a tsc error here,
 // which is the guarantee the single-file `satisfies Messages` used to give.
 export const common = {
+  apiFailure: {
+    network: 'Serveur injoignable. Vérifiez votre connexion puis réessayez.',
+    unauthenticated:
+      'Votre session a expiré, ou cette page ne vous est pas destinée. Reconnectez-vous.',
+  },
   cancel: 'Annuler',
   error: 'Une erreur est survenue.',
   loading: 'Chargement...',
