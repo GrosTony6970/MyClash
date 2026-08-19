@@ -112,6 +112,46 @@ It shares the product palette **by copy, not by import** (`#0f172a`, `#1e293b`, 
 - **The dead hex fallbacks in `Button.tsx` and `Card.tsx`.** Removed. Every app imports `theme.css`, so `--color-*` is always defined and the fallbacks never fired — proven zero-op by a byte-level check that no `--color-*` value changed. Card's fallbacks were also actively _wrong_ (`#111827` for a `#ffffff` surface), a textbook declarations-rot case. The stale comments claiming web-admin/web-staff "keep the gray look via the fallbacks" went with them.
 - **`AdminPageHeader` H1 + subtitle** retokenized to `text-foreground` / `text-foreground-secondary` (exact-value, zero render change).
 
+**FIXED (2026-08-19) — the survivor this sweep missed:**
+
+- **The three dead hex fallbacks in `EmptyState.tsx`.** Removed; it was the last
+  `var(--color-*, #hex)` in `packages/ui`. Same proof as above: the built stylesheet defines
+  `--color-muted` and `--color-foreground` in all three scopes, so `color:var(--color-muted,#4b5563)`
+  and `.text-muted{color:var(--color-muted)}` compute identically — and the token utilities were
+  already emitted in the same bundle, so no CSS was added either.
+
+  All three values were wrong, in two directions at once. `#ffffff` stood in for
+  `--color-foreground` — but `#ffffff` is `--color-surface`, the paper, so the fallback for the
+  ink was the background; had it ever fired the title would have been white-on-white. That is the
+  `Card.tsx` `#111827`-on-`#ffffff` defect mirrored. Worse, lines 23 and 28 gave **one token two
+  different fallbacks** five lines apart, assuming opposite surfaces: `#4b5563` is dark ink for a
+  light page, `#9ca3af` is light ink for a dark one. All three were `gray-*` in a `slate-*` system.
+
+  **Why the 2026-07-17 sweep missed it, and why nothing has flagged it since.** That pass was
+  scoped to the components `/admin/design-system` renders, and `EmptyState` is not on that page —
+  the premise was right, the discovery surface was a file list. Nothing else could see it either:
+  commit `23e9f9f5` had converted three _visible_ violations (`text-gray-600`, `text-white`,
+  `text-gray-400`) into three _invisible_ ones, and `no-raw-palette-color` matches only
+  `prefix-hue-number` class tokens while `check-design-drift` never opens a component file.
+
+---
+
+## D13 — `EmptyState` does not carry the FoilMark its contract promises
+
+**Rule broken:** `DESIGN.md` → Components says "**`EmptyState`** — every zero-state. Carries the
+FoilMark." It does not. The component renders a flex column with an icon, a title, a description
+and an action slot, and imports nothing.
+
+Left as a deviation rather than "corrected" in either direction, because the two fixes are
+opposite products: give every zero-state the FoilMark hairline, or admit the zero-state is
+deliberately plain and delete the clause. The first is a visible change across ~18 render sites;
+the second edits the contract. Neither is a sweep.
+
+**Adjacent, not fixed:** `web-admin` carries a second, unrelated `function EmptyState()` at
+`apps/web-admin/app/org/[slug]/events/[eventId]/pools/_tabs/StandingsTab.tsx:486`. It is fully
+tokenized and imports nothing from `@myclash/ui` — so this is a name collision rather than a
+divergent copy, but it is one grep away from being mistaken for the shared component.
+
 **Still open (each needs a value-shift decision or a new token — not a silent sweep):**
 
 - **`AdminPageHeader` eyebrow** is `text-red-800` (`#991b1b`). DESIGN.md says the eyebrow is _the accent_, but the accent is `#b91c1c` (red-700) — so the value-exact token is `accent-hover`, which is semantically the wrong token (a hover colour used at rest inverts under `[data-accent='personal']`). Fixing it to `text-accent` is correct but shifts the eyebrow red-800→red-700 across ~21 admin pages. Left for an explicit call.

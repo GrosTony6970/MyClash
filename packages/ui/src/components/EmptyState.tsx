@@ -20,13 +20,9 @@ export const EmptyState = ({
       ' ',
     )}
   >
-    {icon && <div className="text-5xl mb-4 text-[var(--color-muted,#4b5563)]">{icon}</div>}
-    <h3 className="font-display text-lg font-bold text-[var(--color-foreground,#ffffff)] mb-2">
-      {title}
-    </h3>
-    {description && (
-      <p className="text-[var(--color-muted,#9ca3af)] text-sm max-w-sm">{description}</p>
-    )}
+    {icon && <div className="text-5xl mb-4 text-muted">{icon}</div>}
+    <h3 className="font-display text-lg font-bold text-foreground mb-2">{title}</h3>
+    {description && <p className="text-muted text-sm max-w-sm">{description}</p>}
     {action && <div className="mt-6">{action}</div>}
   </div>
 );
