@@ -2365,7 +2365,7 @@ build record.
 
 ### 20.1 The gate harness
 
-CI's Lint job runs `pnpm turbo run lint` plus twenty-five further steps, each its own verdict.
+CI's Lint job runs `pnpm turbo run lint` plus twenty-six further steps, each its own verdict.
 `.claude/skills/myclash-gates/SKILL.md` holds the ordered chain; `.github/workflows/ci.yml` is the
 source of truth when they disagree.
 

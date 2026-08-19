@@ -260,6 +260,10 @@ jobs:
         if: '!cancelled()'
         run: pnpm quality:design-drift
 
+      - name: Check documentation drift
+        if: '!cancelled()'
+        run: pnpm quality:docs-drift
+
       - name: Check database review gates
         if: '!cancelled()'
         run: pnpm db:review

@@ -72,7 +72,7 @@ record; there is no task queue to pick from.
 
 ## Verification
 
-**`pnpm lint && pnpm typecheck && pnpm test` is not the check.** CI's Lint job runs twenty-five
+**`pnpm lint && pnpm typecheck && pnpm test` is not the check.** CI's Lint job runs twenty-six
 further steps, and shared packages must be built in the right order or a local pass means nothing.
 
 Use the **`myclash-gates` skill** — it holds the Lint job's ordered chain from

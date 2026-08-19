@@ -24,7 +24,7 @@ The facts, each re-checkable rather than taken on trust:
 - **Five cookies exist, all first-party.** `sb-access-token` / `sb-refresh-token` (the auth
   session), `mc_guest` (the signed guest-session cookie minted at
   `apps/api/src/modules/auth/guest-sessions.controller.ts`), `mc_locale` (the language the
-  user picked, read by `apps/web-public/src/i18n/server-locale.ts`), `mc_staff` (the event staff
+  user picked, read by `packages/next-i18n/src/server.ts`), `mc_staff` (the event staff
   PIN session, `apps/api/src/common/auth/auth.guard.ts:20`) and `mc_theme` (the scoring pad's
   theme preference). No advertising identifier, no cross-site cookie, no third-party domain.
   `mc_staff` is strictly necessary and `mc_theme` is user-set, so both sit inside the Art. 5(3)
