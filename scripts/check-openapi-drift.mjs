@@ -62,43 +62,52 @@ function resolveBin(fromPackageJson, packageName) {
 }
 
 const workDir = mkdtempSync(join(tmpdir(), 'openapi-drift-'));
+
+// ── Why cleanup is an 'exit' handler and not a `finally` ────────────────────
+// Every path out of the work below ends in process.exit(). That terminates the
+// process immediately and does NOT unwind the stack, so the `finally` block this
+// replaces never ran — on any path, success included. The gate leaked its temp
+// directory on every CI push and every local run from the day it was written;
+// 344 of them had piled up on one developer machine before anybody looked.
+//
+// 'exit' fires on all three ways out of this file: falling off the end,
+// process.exit(), and an uncaught exception. Only synchronous work is possible
+// in an exit handler, which rmSync is.
+process.on('exit', () => rmSync(workDir, { recursive: true, force: true }));
+
 const openapiPath = join(workDir, 'openapi.json');
 const generatedPath = join(workDir, 'schema.ts');
 
-try {
-  execFileSync(process.execPath, [emitScript, openapiPath], { stdio: 'pipe' });
-  execFileSync(process.execPath, [openapiTypescriptCli, openapiPath, '--output', generatedPath], {
-    stdio: 'pipe',
-  });
+execFileSync(process.execPath, [emitScript, openapiPath], { stdio: 'pipe' });
+execFileSync(process.execPath, [openapiTypescriptCli, openapiPath, '--output', generatedPath], {
+  stdio: 'pipe',
+});
 
-  // Compare formatted, so the check tracks CONTENT and never trips on the
-  // prettier pass the pre-commit hook applies to the committed copy.
-  const formatted = format(readFileSync(generatedPath, 'utf8'));
+// Compare formatted, so the check tracks CONTENT and never trips on the
+// prettier pass the pre-commit hook applies to the committed copy.
+const formatted = format(readFileSync(generatedPath, 'utf8'));
 
-  if (write) {
-    writeFileSync(committedPath, formatted);
-    console.log('Regenerated packages/api-client/src/generated/schema.ts');
-    process.exit(0);
-  }
-
-  const committed = readFileSync(committedPath, 'utf8');
-  if (committed === formatted) {
-    console.log(`OpenAPI client is up to date (${routeCount(formatted)} routes).`);
-    process.exit(0);
-  }
-
-  const added = routes(formatted).filter((r) => !routes(committed).includes(r));
-  const removed = routes(committed).filter((r) => !routes(formatted).includes(r));
-  console.error('packages/api-client/src/generated/schema.ts is out of date.\n');
-  if (added.length > 0) console.error(`  ${added.length} route(s) missing from the client:`);
-  for (const r of added.slice(0, 20)) console.error(`    + ${r}`);
-  if (removed.length > 0) console.error(`  ${removed.length} route(s) no longer on the API:`);
-  for (const r of removed.slice(0, 20)) console.error(`    - ${r}`);
-  console.error('\nRegenerate with:  pnpm openapi:client');
-  process.exit(1);
-} finally {
-  rmSync(workDir, { recursive: true, force: true });
+if (write) {
+  writeFileSync(committedPath, formatted);
+  console.log('Regenerated packages/api-client/src/generated/schema.ts');
+  process.exit(0);
 }
+
+const committed = readFileSync(committedPath, 'utf8');
+if (committed === formatted) {
+  console.log(`OpenAPI client is up to date (${routeCount(formatted)} routes).`);
+  process.exit(0);
+}
+
+const added = routes(formatted).filter((r) => !routes(committed).includes(r));
+const removed = routes(committed).filter((r) => !routes(formatted).includes(r));
+console.error('packages/api-client/src/generated/schema.ts is out of date.\n');
+if (added.length > 0) console.error(`  ${added.length} route(s) missing from the client:`);
+for (const r of added.slice(0, 20)) console.error(`    + ${r}`);
+if (removed.length > 0) console.error(`  ${removed.length} route(s) no longer on the API:`);
+for (const r of removed.slice(0, 20)) console.error(`    - ${r}`);
+console.error('\nRegenerate with:  pnpm openapi:client');
+process.exit(1);
 
 function format(source) {
   return execFileSync(process.execPath, [prettierCli, '--stdin-filepath', committedPath], {
