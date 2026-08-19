@@ -154,16 +154,18 @@ Platform-level admin (you). Functions:
 - Platform-wide stats and monitoring.
 - Feature flags.
 
-### 2.5 Marketing Site (static, apex domain)
+### 2.5 Marketing Site (prerendered, apex domain)
 
-`myclash.fr` — commercial landing page served as a static HTML file. No build step required. Content:
+`myclash.fr` — commercial landing page. **Astro 6**, prerendered to `dist/` and served by Caddy. It
+imports no `@myclash/ui` and no `theme.css`, which is why it is still on the legacy design language
+(see `docs/design/known-deviations.md`, D4). Content:
 
 - Product pitch and feature overview.
 - How-it-works flow.
 - Donation / support section (HelloAsso link).
 - Login CTA → `app.myclash.fr`.
 
-App: `apps/web-marketing/index.html`. Served by Caddy (`FROM caddy:2-alpine`, generated Caddyfile) or directly by Traefik file server. No Next.js runtime.
+App: `apps/web-marketing/` — Astro pages under `src/pages/`, built with `astro build` to `dist/`. Served by Caddy (`FROM caddy:2-alpine`, generated Caddyfile). No Next.js runtime. `/terms` and `/privacypolicy` must answer without a redirect — `LEGAL_POLICIES` in `packages/types/src/legal.ts` publishes those paths and `apps/web-marketing/test/site.test.mjs` asserts them.
 
 ---
 
@@ -187,7 +189,7 @@ App: `apps/web-marketing/index.html`. Served by Caddy (`FROM caddy:2-alpine`, ge
 | Monorepo tool                 | **pnpm workspaces** + **Turborepo**                             | Fast, simple, well-supported                                                                                                                                                                  |
 | Client state                  | **TanStack Query** (React Query) + **Zustand**                  | Server state vs UI state separation                                                                                                                                                           |
 | Forms                         | **React Hook Form** + **Zod**                                   | Schema validation shared with backend                                                                                                                                                         |
-| Heavy compute                 | Main thread (see §6.1)                                          | Web Workers were the plan and are NOT implemented — no `new Worker(` and no Comlink anywhere in the repo                                                                                      |
+| Heavy compute                 | Main thread                                                     | Web Workers were the plan and are NOT implemented — no `new Worker(` and no Comlink anywhere in the repo                                                                                      |
 | Local-first storage (scoring) | **IndexedDB** (via Dexie.js)                                    | Offline exchange queue                                                                                                                                                                        |
 | Charts                        | **Recharts** + **D3** for custom viz                            | Statistics page                                                                                                                                                                               |
 | Testing                       | **Vitest** (unit) + **Playwright** (E2E)                        | Modern, fast                                                                                                                                                                                  |
@@ -247,7 +249,7 @@ Three distinct mechanisms, each addressing a different concern:
 | `web-public`        | Public/Spectator + Competitor PWA. SSR public pages (`/e/[eventSlug]/...`).                                  |
 | `web-staff`         | Scorekeeper PWA. Heavily client-side, IndexedDB-backed.                                                      |
 | `web-admin`         | Organizer Admin + Super Admin SPA-like experience.                                                           |
-| `web-marketing`     | Static HTML on Caddy — `myclash.fr` apex landing page.                                                       |
+| `web-marketing`     | Astro, prerendered and served by Caddy — `myclash.fr` apex landing page.                                     |
 | `api`               | NestJS — domain logic, REST + WebSocket gateway, BullMQ producer.                                            |
 | `worker`            | NestJS in worker mode (`--worker`) — BullMQ consumer (stats, exports, Ratings sync, notifications).          |
 | `db`                | Postgres 17 from the Supabase image (`supabase/postgres:17.6.1.160`), with the Supabase init scripts.        |
@@ -303,15 +305,17 @@ Three relationships are easy to get wrong, so they are worth stating explicitly:
 
 - **`persons` vs `global_persons`.** `persons` is the organizer-created roster row, scoped to **one
   event**. `global_persons` is the cross-event identity a person is deduplicated onto at import. The FK
-  is `persons.global_fighter_id` — the column kept its old name when the table was renamed from
-  `fighters` in migration `0023`, so the name is a false friend.
+  is `persons.global_person_id` — migration `0023` renamed both the table (`fighters` →
+  `global_persons`) and this column (`global_fighter_id` → `global_person_id`,
+  `0023_global_persons.sql:37`). A `global_fighter_id` anywhere in code or docs predates that
+  migration and is wrong.
 - **A match hangs off a phase, not off a pool.** `matches.phase_id` is `NOT NULL` while `pool_id` and
   `bracket_slot_id` are both nullable — a pool bout carries `pool_id`, an elimination bout carries
   `bracket_slot_id`. Note `phase_id` has no FK constraint, only the `NOT NULL`.
 - **The ruleset is a pin, not a join.** `tournaments` stores `ruleset_code` + `ruleset_version` as a
   _pointer_ resolved at read time, not a foreign key. That choice has real consequences — see §7bis.
 
-### 5.2 Key tables (sketch — full DDL in `packages/db/src/schema/`)
+### 5.2 Key tables (sketch — the schema itself is `packages/db/migrations/`)
 
 ```sql
 -- Identity & multi-tenancy
@@ -677,12 +681,12 @@ event_broadcast_recipients (
 )
 ```
 
-This sketch is **non-exhaustive** — it predates several shipped feature waves. Other significant table families in `packages/db/src/schema/` (and their migrations) include:
+This sketch is **non-exhaustive** — it predates several shipped feature waves. Other significant table families (and their migrations) include:
 
 - **Leagues / Classement** — `leagues`, `league_organization_roles`, `league_user_roles`, plus league–tournament links, membership requests, groups and scoring systems (migrations `0015_leagues.sql`, `0069_league_membership_requests.sql`, and later). Cross-event standings aggregated from linked tournaments.
 - **Directory groups (People Hub)** — `directory_groups`, `directory_group_members` (migration `0114_directory_groups.sql`). User-curated groups of global persons for the `/me` people hub.
-- **AI subsystem** — organization-level AI provider settings, usage/budget tracking, organizer chatbot, and generated content: `generated_content` (migration `0119_generated_content.sql`) plus `fighter_ai_settings` (migration `0120_fighter_ai_settings.sql`) for fighter self-service AI, alongside the AI provider/usage tables (migrations `0115`–`0118`).
-- **Referee compensation** — see §13 (migration `0027_referee_compensation.sql`).
+- **AI subsystem** — organization-level AI provider settings, usage/budget tracking, organizer chatbot, and generated content: `ai_generated_content` (migration `0119_generated_content.sql` — the table is `ai_generated_content`; only the filename says `generated_content`) plus `fighter_ai_settings` (migration `0120_fighter_ai_settings.sql`) for fighter self-service AI, alongside the AI provider/usage tables (migrations `0115`–`0118`).
+- **Referee compensation** — see §23 (migration `0027_referee_compensation.sql`).
 
 ### 5.3 Exchange semantics
 
@@ -2738,24 +2742,24 @@ routing, same plugins. The deltas:
 
 The production stack is defined in [`infra/docker-compose.prod.yml`](../infra/docker-compose.prod.yml). That file is authoritative — this table is a navigation aid. Container names follow the `myclash-<service>` convention via the `COMPOSE_PROJECT_NAME` env var. All services share a single internal `myclash` network; only Traefik publishes ports 80/443.
 
-| Service             | Container                   | Image / Build                              | Role                                                                                                  |
-| ------------------- | --------------------------- | ------------------------------------------ | ----------------------------------------------------------------------------------------------------- |
-| `traefik`           | `myclash-traefik`           | `traefik:v3.7.10`                          | TLS termination (Let's Encrypt), label-based routing, dashboard at `traefik.${DOMAIN}`.               |
-| `db`                | `myclash-db`                | `supabase/postgres:17.6.1.160`             | Primary Postgres + Supabase init scripts (auth, realtime, postgrest roles). ICU `fr-FR`.              |
-| `redis`             | `myclash-redis`             | `redis:8-alpine3.23`                       | Cache + BullMQ queue + pub/sub. 512 MB max, appendonly.                                               |
-| `supabase-auth`     | `myclash-supabase-auth`     | `supabase/gotrue:v2.195.0`                 | Email magic link + Google OAuth. JWT TTL 3600 s. Served at `/auth/v1`.                                |
-| `supabase-realtime` | `myclash-supabase-realtime` | `supabase/realtime:v2.124.1`               | Phoenix Channels broadcasting Postgres row changes. Served at `/realtime/v1`.                         |
-| `supabase-storage`  | `myclash-supabase-storage`  | `supabase/storage-api:v1.68.9`             | S3-compatible storage (photos, club logos). 50 MB upload cap. Served at `/storage/v1`.                |
-| `supabase-rest`     | `myclash-supabase-rest`     | `postgrest/postgrest:v14.16`               | PostgREST over the public schema. Served at `/rest/v1`.                                               |
-| `supabase-meta`     | `myclash-supabase-meta`     | `supabase/postgres-meta:v0.96.8`           | Schema/DDL API for Studio. **Unrouted** — docker-network only, reachable solely by `supabase-studio`. |
-| `supabase-studio`   | `myclash-supabase-studio`   | `supabase/studio`                          | Operator DB console at `studio.${DOMAIN}`. Bypasses RLS — see §17.5.                                  |
-| `api`               | `myclash-api`               | Built from `apps/api/Dockerfile`           | NestJS REST + WebSocket gateway on internal port 4000. Depends on `db`, `redis`.                      |
-| `worker`            | `myclash-worker`            | Same as `api`, started with `--worker`     | BullMQ consumer — stats aggregation, exports, Ratings sync, push notifications.                       |
-| `web-admin`         | `myclash-web-admin`         | Built from `apps/web-admin/Dockerfile`     | Next.js 16 on internal port 3000. Routed at `admin.${DOMAIN}`.                                        |
-| `web-public`        | `myclash-web-public`        | Built from `apps/web-public/Dockerfile`    | Next.js 16 on internal port 3000. Routed at `app.${DOMAIN}`.                                          |
-| `web-staff`         | `myclash-web-staff`         | Built from `apps/web-staff/Dockerfile`     | Next.js 16 on internal port 3000. Routed at `staff.${DOMAIN}`.                                        |
-| `web-marketing`     | `myclash-web-marketing`     | Built from `apps/web-marketing/Dockerfile` | Static HTML on Caddy, port 80. Routed at `${DOMAIN}` and `www.${DOMAIN}` (apex redirect).             |
-| `ops-runner`        | `myclash-ops-runner`        | Built from `infra/ops-runner/Dockerfile`   | Bearer-authed sidecar with `/var/run/docker.sock`. Backups, restore, container lifecycle. See §17.4.  |
+| Service             | Container                   | Image / Build                              | Role                                                                                                       |
+| ------------------- | --------------------------- | ------------------------------------------ | ---------------------------------------------------------------------------------------------------------- |
+| `traefik`           | `myclash-traefik`           | `traefik:v3.7.10`                          | TLS termination (Let's Encrypt), label-based routing, dashboard at `traefik.${DOMAIN}`.                    |
+| `db`                | `myclash-db`                | `supabase/postgres:17.6.1.160`             | Primary Postgres + Supabase init scripts (auth, realtime, postgrest roles). ICU `fr-FR`.                   |
+| `redis`             | `myclash-redis`             | `redis:8-alpine3.23`                       | Cache + BullMQ queue + pub/sub. 512 MB max, appendonly.                                                    |
+| `supabase-auth`     | `myclash-supabase-auth`     | `supabase/gotrue:v2.195.0`                 | Email magic link + Google OAuth. JWT TTL 3600 s. Served at `/auth/v1`.                                     |
+| `supabase-realtime` | `myclash-supabase-realtime` | `supabase/realtime:v2.124.1`               | Phoenix Channels broadcasting Postgres row changes. Served at `/realtime/v1`.                              |
+| `supabase-storage`  | `myclash-supabase-storage`  | `supabase/storage-api:v1.68.9`             | S3-compatible storage (photos, club logos). 50 MB upload cap. Served at `/storage/v1`.                     |
+| `supabase-rest`     | `myclash-supabase-rest`     | `postgrest/postgrest:v14.16`               | PostgREST over the public schema. Served at `/rest/v1`.                                                    |
+| `supabase-meta`     | `myclash-supabase-meta`     | `supabase/postgres-meta:v0.96.8`           | Schema/DDL API for Studio. **Unrouted** — docker-network only, reachable solely by `supabase-studio`.      |
+| `supabase-studio`   | `myclash-supabase-studio`   | `supabase/studio`                          | Operator DB console at `studio.${DOMAIN}`. Bypasses RLS — see §17.5.                                       |
+| `api`               | `myclash-api`               | Built from `apps/api/Dockerfile`           | NestJS REST + WebSocket gateway on internal port 4000. Depends on `db`, `redis`.                           |
+| `worker`            | `myclash-worker`            | Same as `api`, started with `--worker`     | BullMQ consumer — stats aggregation, exports, Ratings sync, push notifications.                            |
+| `web-admin`         | `myclash-web-admin`         | Built from `apps/web-admin/Dockerfile`     | Next.js 16 on internal port 3000. Routed at `admin.${DOMAIN}`.                                             |
+| `web-public`        | `myclash-web-public`        | Built from `apps/web-public/Dockerfile`    | Next.js 16 on internal port 3000. Routed at `app.${DOMAIN}`.                                               |
+| `web-staff`         | `myclash-web-staff`         | Built from `apps/web-staff/Dockerfile`     | Next.js 16 on internal port 3000. Routed at `staff.${DOMAIN}`.                                             |
+| `web-marketing`     | `myclash-web-marketing`     | Built from `apps/web-marketing/Dockerfile` | Astro, prerendered, served by Caddy on port 80. Routed at `${DOMAIN}` and `www.${DOMAIN}` (apex redirect). |
+| `ops-runner`        | `myclash-ops-runner`        | Built from `infra/ops-runner/Dockerfile`   | Bearer-authed sidecar with `/var/run/docker.sock`. Backups, restore, container lifecycle. See §17.4.       |
 
 Traefik routes by Host header. Key mappings:
 
@@ -2894,37 +2898,27 @@ myclash/
 ├── apps/
 │   ├── api/                    # NestJS
 │   │   ├── src/
-│   │   │   ├── modules/
-│   │   │   │   ├── auth/
-│   │   │   │   ├── tournaments/
-│   │   │   │   ├── events/
-│   │   │   │   ├── matches/
-│   │   │   │   ├── exchanges/
-│   │   │   │   ├── fighters/
-│   │   │   │   ├── workshops/
-│   │   │   │   ├── referees/
-│   │   │   │   ├── schedule/         # unified My Schedule resolver
-│   │   │   │   ├── notifications/    # web push, prefs, BullMQ scheduler
-│   │   │   │   ├── stats/
-│   │   │   │   ├── exports/
-│   │   │   │   ├── hema-ratings/
-│   │   │   │   └── realtime/
+│   │   │   ├── common/               # cross-cutting: auth guards, event-authz,
+│   │   │   │                         #   event-readonly, testing doubles
+│   │   │   ├── modules/              # 51 feature modules — `ls apps/api/src/modules`
 │   │   │   ├── workers/
 │   │   │   └── main.ts
 │   │   └── test/
 │   ├── web-public/             # Next.js (PWA, mobile-first — spectator/competitor)
-│   ├── web-staff/            # Next.js (PWA, offline-first — scorekeeper)
+│   ├── web-staff/              # Next.js (PWA, offline-first — scorekeeper)
 │   ├── web-admin/              # Next.js (SPA — organiser + super-admin)
-│   └── web-marketing/          # Static HTML — marketing site (myclash.fr apex)
-├── packages/
-│   ├── ui/                     # Shared shadcn/ui components + Tournament Manual aesthetic
-│   ├── design-tokens/          # Fonts, color palette, spacing
-│   ├── db/                     # SQL migrations + the runner that applies them
+│   └── web-marketing/          # Astro — marketing site (myclash.fr apex)
+├── packages/                   # all ten, no others
+│   ├── ui/                     # Shared components + Tournament Manual aesthetic.
+│   │                           #   theme.css lives here — it IS the token source of truth
+│   ├── db/                     # SQL migrations + the runner that applies them. No ORM
 │   ├── rulesets/               # @myclash/rulesets — TF_v1 + custom-ruleset runtime
+│   ├── schedule-core/          # @myclash/schedule-core — pure schedule/grid geometry
 │   ├── feature-flags/          # @myclash/feature-flags — curated toggle registry
 │   ├── types/                  # Shared TS types (Match, Exchange, etc.)
 │   ├── api-client/             # Generated OpenAPI client
 │   ├── i18n/                   # Shared translation strings (EN + FR)
+│   ├── next-i18n/              # @myclash/next-i18n — the Next binding for the above
 │   └── time/                   # @myclash/time — shared time/date helpers
 ├── infra/
 │   ├── docker-compose.prod.yml     # prod compose (used by infra/scripts/*)
@@ -3062,11 +3056,11 @@ These are intentionally **not** in scope for v1.0 but are tracked here:
 
 ## 23. Referee Financial Compensation (T-1209)
 
-### 13.1 Overview
+### 23.1 Overview
 
 Organisations can compensate referees using a token-based system. Referees earn points per completed match based on their role and the competition phase. Tokens are converted to a monetary amount via configurable tiered brackets.
 
-### 13.2 Database (migration `0027_referee_compensation.sql`)
+### 23.2 Database (migration `0027_referee_compensation.sql`)
 
 | Table                                 | Purpose                                                                                  |
 | ------------------------------------- | ---------------------------------------------------------------------------------------- |
@@ -3082,7 +3076,7 @@ All tables have RLS enabled. FK columns have explicit indexes. Money columns use
 **Compensation phases:** `pool`, `bracket`, `finals`  
 **Finals detection:** application-side via `match_number_label` regex: `/FINAL|^F$|GOLD|BRONZE|3RD/i`
 
-### 13.3 API (`CompensationModule`)
+### 23.3 API (`CompensationModule`)
 
 ```text
 GET    /api/v1/compensation-plans                                   list (built-in + org + public)
@@ -3095,12 +3089,12 @@ PUT    /api/v1/compensation-plans/:planId/tiers                     replace all 
 GET    /api/v1/events/:eventId/compensation/settings                get plan + cap
 PUT    /api/v1/events/:eventId/compensation/settings                set plan + cap
 GET    /api/v1/events/:eventId/compensation/report                  compute live report
-PATCH  /api/v1/events/:eventId/compensation/payments/:userId        toggle paid status
+PATCH  /api/v1/events/:eventId/compensation/payments/:personId      toggle paid status
 ```
 
 The report is always computed fresh from live `referee_assignments` data. Pool assignments expand to all completed matches in the pool; lice assignments split matches by label into `bracket` vs `finals`; match-level assignments count as 1.
 
-### 13.4 Frontend
+### 23.4 Frontend
 
 - **Event page** (`/org/[slug]/events/[eventId]/compensation`) — plan selector, compensation table with expandable per-referee breakdowns, grand total, paid checkboxes.
 - **Org settings** (`/org/[slug]/settings/compensation`) — list built-in plans (read-only), create/edit/delete org plans, rates grid (3 roles × 3 phases), tiers table.
@@ -3111,7 +3105,7 @@ The report is always computed fresh from live `referee_assignments` data. Pool a
 
 A two-layer scheduling tool for tournament organisers.
 
-### 14.1 Overview
+### 24.1 Overview
 
 **Layer 1 — Programme** (`event_programme_blocks`): organisers build a high-level day plan as ordered blocks (Registration, Pool Session, Break, Workshop…). An auto-suggest algorithm builds the plan from event parameters. Blocks can be dragged to reorder.
 
@@ -3119,7 +3113,7 @@ A two-layer scheduling tool for tournament organisers.
 
 The Schedule tab splits into two sub-tabs: **Programme** and **Grid**.
 
-### 14.2 Database
+### 24.2 Database
 
 `event_programme_blocks` — stores blocks per event per day, ordered by `day_index` + `sort_order`. Columns: `block_type` (`admin|competition|workshop|break`), `label`, `competition_id`, `competition_phase`, `workshop_id`, `lice_count`, `start_time`, `end_time`, `match_gap_seconds` (default 15s), `match_duration_minutes`, `generated_at`.
 
@@ -3127,7 +3121,7 @@ The Schedule tab splits into two sub-tabs: **Programme** and **Grid**.
 
 `workshop_sessions.starts_at`/`ends_at` — made nullable; filled by the programme generator.
 
-### 14.3 API
+### 24.3 API
 
 ```text
 GET    /api/v1/events/:eventId/programme           list saved blocks
@@ -3140,7 +3134,7 @@ POST   /api/v1/events/:eventId/programme/generate  run scheduler + create worksh
 
 **Generate:** for each competition block, fetches matches ordered `match_number_label ASC` (Berger sequence) and calls `scheduleMatches()` constrained to the block's time window. For workshop blocks, upserts `workshop_sessions` with `startsAt`/`endsAt`.
 
-### 14.4 Frontend
+### 24.4 Frontend
 
 - **Schedule tab** — split into Programme (new) + Grid (existing) sub-tabs.
 - **Programme planner** (`schedule/programme.tsx`) — collapsible config bar, day tabs, drag-drop block list, overflow warnings with "Suggest fit" / "Override" actions, "Generate schedule" button with confirmation modal.
@@ -3152,14 +3146,14 @@ POST   /api/v1/events/:eventId/programme/generate  run scheduler + create worksh
 
 Real-time display of the current programme block and active fights, visible to all event participants without login.
 
-### 15.1 Overview
+### 25.1 Overview
 
 Two surfaces:
 
 - **web-admin banner** — collapsible "Now Playing" strip above the Schedule tab showing current block and per-lice match state. Refreshes every 15 seconds via polling.
 - **web-public `/e/[eventSlug]/live`** — phone-friendly public page with overview (all lices) and drill-down (single lice). Updates via Supabase Realtime `postgres_changes` on the `matches` table + 30s clock timer for block transitions.
 
-### 15.2 API
+### 25.2 API
 
 ```text
 GET /api/v1/events/:eventId/live-state   accepts UUID or human-readable slug; public
@@ -3181,7 +3175,7 @@ Response:
 
 Block detection: converts `day_index` offset from `event.start_date` + block `start_time`/`end_time` to wall-clock comparison against `now()`. No new database table.
 
-### 15.3 Frontend
+### 25.3 Frontend
 
 - **`schedule/live-now-banner.tsx`** — polls live-state every 15s; shows LIVE badge + block name + per-lice current/next match. Collapsible.
 - **`apps/web-public/app/e/[eventSlug]/live/page.tsx`** — overview: card grid per lice; drill-down via `?lice=<id>` query param showing full match details and up-next list. Realtime via `postgres_changes` subscription per lice.
@@ -3195,7 +3189,7 @@ Block detection: converts `day_index` offset from `event.start_date` + block `st
 
 Shared AI layer required by all AI-powered features (NLQ, Recap Generator, etc.). Provides LLM provider abstraction, encrypted BYOK API key storage at org level, per-event spend caps, and a settings UI.
 
-### 16.1 Database
+### 26.1 Database
 
 **`organization_ai_settings`** — one row per org, stores provider name + AES-256-GCM ciphertext + IV. RLS: owner/admin read; writes via service_role only.
 
@@ -3203,7 +3197,7 @@ Shared AI layer required by all AI-powered features (NLQ, Recap Generator, etc.)
 
 **`events.ai_spend_cap_eur`** — nullable `NUMERIC(10,4)` column added via migration `0029_ai_infrastructure.sql`. NULL = no cap.
 
-### 16.2 `ai-providers` NestJS Module
+### 26.2 `ai-providers` NestJS Module
 
 **Location:** `apps/api/src/modules/ai-providers/`
 
@@ -3228,7 +3222,7 @@ PUT    /api/v1/organizations/:orgId/ai-settings   → { provider, hasKey }  (sav
 DELETE /api/v1/organizations/:orgId/ai-settings   → 204
 ```
 
-### 16.3 `ai-usage` NestJS Module
+### 26.3 `ai-usage` NestJS Module
 
 **Location:** `apps/api/src/modules/ai-usage/`
 
@@ -3247,7 +3241,7 @@ getUsageSummary(eventId): Promise<{ totalSpendEur, cap, remainingEur, callCount 
 GET /api/v1/events/:eventId/ai-usage   → { totalSpendEur, cap, remainingEur, callCount }
 ```
 
-### 16.4 Organizer AI Tournament Setup Assistant (T-1213)
+### 26.4 Organizer AI Tournament Setup Assistant (T-1213)
 
 Organizer AI tools use the organization-scoped BYOK path (`organization_ai_settings`) and event spend caps (`ai_usage_log`). They must never use `platform_ai_settings`, which is reserved for super-admin tools.
 
@@ -3265,7 +3259,7 @@ POST  /api/v1/events/:eventId/ai-assistant/drafts/:draftId/apply
 
 V1 is constrained draft-and-review only. AI returns strict JSON actions for tournament config, pool planning, bracket generation, match-grid scheduling, and referee assignment. Organizers review or edit drafts before applying, and apply routes through existing deterministic tournament, phase, schedule, and referee assignment logic.
 
-### 16.5 Super-admin AI Data Quality (T-1305)
+### 26.5 Super-admin AI Data Quality (T-1305)
 
 Organizer BYOK keys are event/org scoped and must never power platform-super-admin scans. T-1305 adds a separate shared super-admin BYOK path:
 
@@ -3292,7 +3286,7 @@ PATCH /api/v1/admin/data-quality/findings/:id
 
 All routes are guarded by `SuperAdminGuard`. Scan behavior is rules-first: deterministic matching creates candidate bundles for duplicate global Persons, referee identity/link gaps, and duplicate clubs/schools. Only minimized evidence is sent to the configured LLM, which must return strict JSON ranking/explanation. Invalid AI output leaves a deterministic finding with `AI summary unavailable.` V1 is review-only and never auto-merges or auto-edits records.
 
-### 16.6 Natural-Language Tournament Query (T-1214)
+### 26.6 Natural-Language Tournament Query (T-1214)
 
 Organizer tournament queries use organization BYOK (`organization_ai_settings`) and event spend caps (`ai_usage_log`). They never use `platform_ai_settings`.
 
@@ -3316,7 +3310,7 @@ The LLM call receives a narrowed tool schema for the current tournament's weapon
 
 V1 tools cover fighter search/stats, match search, pool standings, lice status, fighter rankings, judge stats, club comparison, bracket status, tournament summary, pool completion estimates, schedule status, and lagging pools with referees.
 
-### 16.7 Frontend
+### 26.7 Frontend
 
 **Org AI settings** (`/org/[slug]/settings/ai`) — provider radio selector, password API key input, masked key-saved banner with date, Remove button, disabled-features amber banner when no key configured. Navigation tab added alongside "Compensation".
 
