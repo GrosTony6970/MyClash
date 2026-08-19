@@ -1,5 +1,0 @@
-{
-  "permissions": {
-    "allow": ["Bash(grep -E \"\\\\.\\(ts|tsx\\)$\")", "Bash(git add *)", "Bash(git commit -m ' *)"]
-  }
-}

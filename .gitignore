@@ -84,6 +84,13 @@ dev/
 .claude/skills/*
 !.claude/skills/myclash-gates/
 !.claude/skills/myclash-plan-review/
+# Seventeen SYMLINKS into .agents/skills/ are also tracked here. They predate
+# this rule and are deliberate: .agents/skills/ IS tracked, CLAUDE.md routes to
+# it (nestjs-best-practices, next-best-practices), and the symlinks are what
+# make those packs discoverable. gitignore cannot untrack them and should not —
+# no negation is needed for a file that is already tracked. What this glob is
+# for is the other kind: a REAL directory under .claude/skills/ describes one
+# developer's machine and does not belong in a public repo.
 .claude/settings.local.json
 .claude/hooks/node_modules/
 .claudeignore
