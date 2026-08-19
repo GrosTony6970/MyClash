@@ -33,8 +33,11 @@ anti-vacuity. Two invariants there are easy to break and expensive when broken:
 
 `lib/` holds six shared modules — `gate.mjs`, `repo-scan.mjs` (the repo walker and its ignore
 list), `db-rules.mjs`, `migrations.mjs`, `pinned-file.mjs`, `sql.mjs` — each with its own test.
-`pnpm test:scripts` runs `node --test` over `scripts/*.test.mjs` and `scripts/lib/*.test.mjs`: a
-glob over **`.mjs`**, so a test written as `.test.ts` is silently never run.
+`pnpm test:scripts` runs `node --test` over `scripts/*.test.mjs`, `scripts/lib/*.test.mjs`,
+`infra/ops-runner/*.test.mjs` and `eslint-rules/*.test.mjs`: a glob over **`.mjs`**, so a test
+written as `.test.ts` is silently never run. It is also where a test lands that binds as hard as a
+gate but does not want a gate's four registrations — the ESLint rules and the package manifests
+both sit here for that reason.
 
 Adding a gate takes four registrations — the `package.json` script (the gate **alone**, never
 `&&`-chained), the `ci.yml` step with `if: '!cancelled()'`, an entry in `CI_GATES`

@@ -8,6 +8,7 @@ import noLiteralStringRule from '../../eslint-rules/no-literal-string.mjs';
 import noLiteralLocaleRule from '../../eslint-rules/no-literal-locale.mjs';
 import noModuleTranslatorRule from '../../eslint-rules/no-module-translator-in-client.mjs';
 import noServerApiUrlLeakRule from '../../eslint-rules/no-server-api-url-leak.mjs';
+import noRawApiFetchRule from '../../eslint-rules/no-raw-api-fetch.mjs';
 
 export default tseslint.config(
   ...rootConfig,
@@ -26,6 +27,7 @@ export default tseslint.config(
           'no-literal-locale': noLiteralLocaleRule,
           'no-module-translator-in-client': noModuleTranslatorRule,
           'no-server-api-url-leak': noServerApiUrlLeakRule,
+          'no-raw-api-fetch': noRawApiFetchRule,
         },
       },
     },
@@ -48,6 +50,9 @@ export default tseslint.config(
       // The docker-internal API host must never reach the browser. The rule
       // self-detects 'use client', so it applies to every file.
       'myclash/no-server-api-url-leak': 'error',
+      // A ratchet: the existing hand-rolled fetches are baselined, and the list
+      // only shrinks. See eslint-rules/no-raw-api-fetch.mjs.
+      'myclash/no-raw-api-fetch': 'error',
     },
     languageOptions: {
       parserOptions: {

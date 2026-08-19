@@ -1902,7 +1902,9 @@ Custom `@myclash/i18n` package (`packages/i18n/`) — not `next-intl` or `i18nex
 
 ### ESLint enforcement
 
-Custom `no-literal-string` rule in `eslint-rules/no-literal-string.mjs` — fails the build on any hardcoded user-facing string not routed through `t()`. A `// i18n-ignore` escape hatch exists for technical strings (error codes, test IDs).
+Custom `no-literal-string` rule in `eslint-rules/no-literal-string.mjs` — fails the build on any hardcoded user-facing string not routed through `t()`. A `// i18n-exempt` escape hatch exists for technical strings (error codes, test IDs).
+
+`eslint-rules/` holds five more rules registered per app, including `no-raw-api-fetch.mjs` — the ratchet that keeps new `fetch` calls inside the `@myclash/api-client` seam. The ~867 that predate it are listed in `eslint-rules/no-raw-api-fetch-baseline.json`, which only ever shrinks; `eslint-rules/no-raw-api-fetch.test.mjs` asserts the rule fires, is switched on in all three apps, and that the list did not grow.
 
 ### Locale routing
 

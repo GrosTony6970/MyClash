@@ -7,6 +7,7 @@ import jsxA11y from 'eslint-plugin-jsx-a11y';
 import noLiteralStringRule from '../../eslint-rules/no-literal-string.mjs';
 import noLiteralLocaleRule from '../../eslint-rules/no-literal-locale.mjs';
 import noModuleTranslatorRule from '../../eslint-rules/no-module-translator-in-client.mjs';
+import noRawApiFetchRule from '../../eslint-rules/no-raw-api-fetch.mjs';
 
 export default tseslint.config(
   ...rootConfig,
@@ -20,6 +21,7 @@ export default tseslint.config(
           'no-literal-string': noLiteralStringRule,
           'no-literal-locale': noLiteralLocaleRule,
           'no-module-translator-in-client': noModuleTranslatorRule,
+          'no-raw-api-fetch': noRawApiFetchRule,
         },
       },
     },
@@ -41,6 +43,9 @@ export default tseslint.config(
       'myclash/no-literal-string': 'error',
       'myclash/no-literal-locale': 'error',
       'myclash/no-module-translator-in-client': 'error',
+      // A ratchet: the ~867 existing hand-rolled fetches are baselined, and the
+      // list only shrinks. See eslint-rules/no-raw-api-fetch.mjs.
+      'myclash/no-raw-api-fetch': 'error',
     },
     languageOptions: {
       parserOptions: {

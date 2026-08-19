@@ -64,7 +64,7 @@ pnpm perf:review
 pnpm --filter @myclash/web-marketing build   # the bundle budgets need something to weigh
 pnpm perf:bundle:build                       # …and so do the page-load budgets
 pnpm perf:bundle -- --include-next --require-build   # without the flags it weighs nothing and passes
-pnpm test:scripts                # root scripts/ — outside the turbo graph
+pnpm test:scripts                # root scripts/, infra/ops-runner/ and eslint-rules/ — outside the turbo graph
 pnpm docs:mermaid                # a broken diagram renders as grey text, it does not throw
 pnpm format:check                # last: prettier
 ```

@@ -1,5 +1,7 @@
 import { readFileSync } from 'node:fs';
 
+import { repoRelativeFilename } from './repo-relative-filename.mjs';
+
 const watchedProps = new Set(['title', 'aria-label', 'placeholder', 'alt', 'label']);
 const exemptElements = new Set(['code', 'kbd', 'pre', 'samp', 'script', 'style']);
 // User-facing message sinks OUTSIDE JSX — the historical blind spot of this
@@ -41,22 +43,8 @@ function parentElementName(node) {
   return elementName(parent.openingElement.name);
 }
 
-function relativeFilename(filename) {
-  const normalized = filename.replace(/\\/g, '/');
-  const cleaned = normalized.replace(/^\.\//, '');
-  if (cleaned.startsWith('app/') || cleaned.startsWith('src/')) {
-    const cwd = process.cwd().replace(/\\/g, '/');
-    const appsIndex = cwd.indexOf('/apps/');
-    if (appsIndex >= 0) {
-      return `${cwd.slice(appsIndex + 1)}/${cleaned}`;
-    }
-  }
-  const appsIndex = normalized.indexOf('/apps/');
-  return appsIndex >= 0 ? normalized.slice(appsIndex + 1) : normalized;
-}
-
 function isBaselined(context, node, messageId) {
-  const rel = relativeFilename(context.filename);
+  const rel = repoRelativeFilename(context.filename);
   const fileBaseline =
     baseline[rel] ??
     Object.entries(baseline).find(([file]) => file.endsWith(`/${rel.replace(/^\.\//, '')}`))?.[1] ??
