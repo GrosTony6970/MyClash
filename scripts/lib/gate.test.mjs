@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import test from 'node:test';
 import { pathToFileURL } from 'node:url';
 
-import { defineGate } from './gate.mjs';
+import { defineGate, nothingToCount } from './gate.mjs';
 
 const gateModule = JSON.stringify(pathToFileURL(join(import.meta.dirname, 'gate.mjs')).href);
 const realOtherModule = pathToFileURL(join(import.meta.dirname, 'repo-scan.mjs')).href;
@@ -180,6 +180,42 @@ test('a scan that examined nothing is a broken gate, not a clean repo', () => {
   assert.equal(status, 1);
   assert.match(stderr, /scanned nothing/);
   assert.doesNotMatch(stdout, /looked at everything/);
+});
+
+test('a gate may say it had nothing to count, but only by name and with a reason', () => {
+  // The opt-out exists because check-edge-plugins genuinely examines nothing
+  // when the kill-switch has detached the middlewares. It must stay deliberate:
+  // `scanned: 0` is the signature of broken discovery and can never mean this.
+  const opted = spawnGate(`
+import { nothingToCount } from ${gateModule};
+defineGate({
+  name: 'Fixture gate',
+  entry: import.meta.url,
+  run: () => ({
+    findings: [],
+    summary: 'nothing to do',
+    scanned: nothingToCount('the kill-switch returns before any probe runs'),
+  }),
+});`);
+
+  assert.equal(opted.status, 0);
+  assert.match(opted.stderr, /~ nothing to count: the kill-switch returns before any probe runs/);
+  assert.match(opted.stdout, /nothing to do/);
+});
+
+test('the opt-out refuses to be anonymous', () => {
+  assert.throws(() => nothingToCount(), /a reason is required/);
+  assert.throws(() => nothingToCount(''), /a reason is required/);
+});
+
+test('an object that is not the opt-out is still a missing count', () => {
+  // Otherwise any stray object would slip past the check the count exists for.
+  const { status, stderr } = spawnGate(
+    returning(`{ findings: [], summary: 'ok', scanned: { pretending: true } }`),
+  );
+
+  assert.equal(status, 1);
+  assert.match(stderr, /no scanned count/);
 });
 
 test('a result missing its summary or its count is a broken gate', () => {

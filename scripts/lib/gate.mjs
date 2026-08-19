@@ -54,6 +54,36 @@ import { fileURLToPath } from 'node:url';
  *  error — see `levelOf`. */
 const WARN = 'warn';
 
+const NOTHING_COUNTED = Symbol('nothing to count');
+
+/**
+ * Say, by name, that this run had nothing to count.
+ *
+ * ── Why this is not simply `scanned: 0` ─────────────────────────────────────
+ * A zero is the signature of a broken discovery step, and treating it as an
+ * acceptable answer would hand back the hole the count exists to close. A gate
+ * that genuinely examined nothing has to say so deliberately and give the
+ * reason, the same way scripts/lib/repo-scan.mjs makes a caller pick between
+ * `walkRepoFiles` and `walkAllFiles` rather than passing a boolean.
+ *
+ * It ships with its first real consumer rather than ahead of one:
+ * check-edge-plugins returns here when TRAEFIK_PLUGINS=off has detached the
+ * middlewares, because there is then nothing on the edge left to probe. The
+ * reason is printed, so a run that checked nothing never looks like a run that
+ * checked everything and found it clean.
+ */
+export function nothingToCount(reason) {
+  if (typeof reason !== 'string' || !reason) {
+    throw new TypeError('nothingToCount: a reason is required');
+  }
+  return { [NOTHING_COUNTED]: reason };
+}
+
+function reasonForCountingNothing(scanned) {
+  if (typeof scanned !== 'object' || scanned === null) return null;
+  return scanned[NOTHING_COUNTED] ?? null;
+}
+
 /**
  * Whether this module is the program node was asked to run.
  *
@@ -103,9 +133,10 @@ function messageOf(finding) {
  * Every one of these throws rather than defaults, because each default would be
  * a gate that reports less than it looks like it does. `scanned` is the one that
  * matters most: it is the count the rule actually examined AFTER filtering, and
- * a zero means the discovery step broke, not that the repo is clean. Exactly one
- * gate in the fleet asserted this before the harness; the other eighteen would
- * have passed a scan over nothing.
+ * a zero means the discovery step broke, not that the repo is clean. Three gates
+ * in the fleet asserted this before the harness — and they are three of the
+ * eight that were testable, which is the same correlation from another angle.
+ * The other sixteen would have passed a scan over nothing.
  */
 function validate(name, result) {
   if (!result || typeof result !== 'object') {
@@ -119,14 +150,19 @@ function validate(name, result) {
       `${name}: run() returned no summary — a passing gate has to say what it saw`,
     );
   }
-  if (typeof result.scanned !== 'number' || !Number.isFinite(result.scanned)) {
-    throw new TypeError(`${name}: run() returned no scanned count`);
-  }
-  if (result.scanned === 0) {
-    throw new Error(`${name}: scanned nothing — the discovery step is broken, not the repo clean`);
-  }
+  validateScanned(name, result.scanned);
   if (result.remedy !== undefined && (typeof result.remedy !== 'string' || !result.remedy)) {
     throw new TypeError(`${name}: remedy must be a non-empty string when given`);
+  }
+}
+
+function validateScanned(name, scanned) {
+  if (reasonForCountingNothing(scanned)) return;
+  if (typeof scanned !== 'number' || !Number.isFinite(scanned)) {
+    throw new TypeError(`${name}: run() returned no scanned count`);
+  }
+  if (scanned === 0) {
+    throw new Error(`${name}: scanned nothing — the discovery step is broken, not the repo clean`);
   }
 }
 
@@ -148,11 +184,16 @@ function validate(name, result) {
  * between a list of paths and a fix, and it is only worth printing when the
  * gate failed — so the harness owns when, and the gate owns what.
  */
-function report(name, { findings, summary, remedy }) {
+function report(name, { findings, summary, remedy, scanned }) {
   const warnings = findings.filter((finding) => levelOf(finding) === WARN);
   const errors = findings.filter((finding) => levelOf(finding) !== WARN);
 
   for (const warning of warnings) console.warn(`  ! ${messageOf(warning)}`);
+
+  // Said out loud, always: a run that examined nothing must never read like a
+  // run that examined everything and found it clean.
+  const nothing = reasonForCountingNothing(scanned);
+  if (nothing) console.warn(`  ~ nothing to count: ${nothing}`);
 
   if (errors.length) {
     console.error(`${name} failed:`);
