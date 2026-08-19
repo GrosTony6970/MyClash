@@ -101,6 +101,6 @@ The plan says a thing works. Does anything actually hold it?
 - **i18n.** Every user-facing string resolves in both `en` and `fr`. The i18n lint reads JSX only, so
   strings in `setError` or `throw` slip past it.
 - **Design tokens.** UI work uses tokens from `packages/ui/src/theme.css`, gated by
-  `pnpm design:lint`; raw colours are a finding.
+  `pnpm quality:design-drift`; raw colours are a finding.
 - **Vocabulary.** Event / Tournament / Workshop / Pool / Match / Exchange carry fixed meanings in
   `docs/HIERARCHY.md`. A plan using them loosely will build the wrong thing.

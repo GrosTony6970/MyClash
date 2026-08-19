@@ -96,7 +96,8 @@ pnpm quality:client-env          # client env build-arg contract
 pnpm --filter @myclash/api build # required: OpenAPI is emitted by booting dist/app.module
 pnpm quality:openapi-drift       # generated client vs live routes
 pnpm quality:shared-types        # shared-type leaks
-pnpm design:lint                 # DESIGN.md vs packages/ui/src/theme.css
+pnpm design:lint                 # designmd's own lint of DESIGN.md
+pnpm quality:design-drift        # DESIGN.md vs packages/ui/src/theme.css
 pnpm db:review                   # schema / RLS review gates
 pnpm db:realtime-bindings        # an unpublished table in any binding kills the channel
 pnpm db:perf:fixture

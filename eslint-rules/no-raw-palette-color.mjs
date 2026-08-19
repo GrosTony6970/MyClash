@@ -10,7 +10,7 @@
  * web-staff accumulated 137 of them: the app sets `data-theme='dark'` on
  * <body>, its light chrome could not express itself in tokens, and every one of
  * those surfaces hardcoded slate-* instead. Nothing caught it, because
- * `pnpm design:lint` only checks that DESIGN.md's documented VALUES match
+ * `pnpm quality:design-drift` only checks that DESIGN.md's documented VALUES match
  * theme.css — it never looks at how components spend them.
  *
  * Flags palette classes anywhere a class string can live (JSX className, a

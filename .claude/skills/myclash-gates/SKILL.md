@@ -5,8 +5,8 @@ description: The real verification chain for this repo — what to run before pu
 
 # MyClash verification gates
 
-`pnpm lint && pnpm typecheck && pnpm test` is **not** the CI check. CI's Lint job runs twenty-four
-further steps — twenty-one independent gates plus three builds. Running only the three and pushing
+`pnpm lint && pnpm typecheck && pnpm test` is **not** the CI check. CI's Lint job runs twenty-five
+further steps — twenty-two independent gates plus three builds. Running only the three and pushing
 is the most common way to turn `main` red here.
 
 Source of truth: `.github/workflows/ci.yml`. If this file and that file disagree, the workflow wins.
@@ -46,7 +46,8 @@ pnpm quality:client-env          # client env build-arg contract
 pnpm --filter @myclash/api build # required: OpenAPI is emitted by booting dist/app.module
 pnpm quality:openapi-drift       # generated client vs live routes
 pnpm quality:shared-types        # shared-type leaks
-pnpm design:lint                 # DESIGN.md vs packages/ui/src/theme.css
+pnpm design:lint                 # designmd's own lint of DESIGN.md
+pnpm quality:design-drift        # DESIGN.md vs packages/ui/src/theme.css
 pnpm db:review                   # schema/RLS review gates
 pnpm db:realtime-bindings        # an unpublished table in any binding kills the channel
 pnpm db:perf:fixture

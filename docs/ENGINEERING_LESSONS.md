@@ -78,7 +78,7 @@ here.
 
 - For UI, **`DESIGN.md` is canonical** — the "Tournament Manual" language (Fraunces + Geist,
   `#b91c1c` accent, gold for placings, FoilMark as the only ornament). Per-surface deltas live in
-  `docs/design/`; token values in `packages/ui/src/theme.css`, gated by `pnpm design:lint`.
+  `docs/design/`; token values in `packages/ui/src/theme.css`, gated by `pnpm quality:design-drift`.
   - **Why the gate exists (2026-07-17):** this line once claimed a Cinzel + Inter "prototype"
     language was canonical and pointed at `docs/prototype/`, a directory that only ever held a
     README. Three docs plus a dead `packages/design-tokens` all asserted a language the product

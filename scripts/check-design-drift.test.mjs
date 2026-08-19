@@ -312,26 +312,37 @@ test('the reported comparison count is the sum of the comparisons actually made'
 
 // ── Registration ─────────────────────────────────────────────────────────────
 
-test('package.json exposes the gate', () => {
+test('package.json exposes the gate on its own, not behind another linter', () => {
   const manifest = JSON.parse(readFileSync('package.json', 'utf8'));
 
-  // Note the `&&`: this gate runs behind `designmd lint` inside the pnpm script,
-  // so a red designmd would stop it running at all. Pinned here rather than
-  // fixed, because splitting it into its own CI step needs a fourth
-  // registration in apps/api (CI_GATES), which this change does not touch.
-  assert.equal(
-    manifest.scripts?.['design:lint'],
-    'designmd lint DESIGN.md && node scripts/check-design-drift.mjs',
-  );
+  // This used to be `designmd lint DESIGN.md && node scripts/check-design-drift.mjs`,
+  // so the token gate sat behind a linter it does not depend on and a red
+  // designmd would have stopped it running at all — the `&&` blindness that
+  // hid eight gates for six weeks, reproduced inside a single pnpm script.
+  assert.equal(manifest.scripts?.['quality:design-drift'], 'node scripts/check-design-drift.mjs');
+  assert.equal(manifest.scripts?.['design:lint'], 'designmd lint DESIGN.md');
 });
 
 test('CI runs the gate as its own step', () => {
   const ci = readFileSync('.github/workflows/ci.yml', 'utf8');
 
-  assert.ok(ci.includes('pnpm design:lint'), 'CI lint job must run pnpm design:lint');
+  assert.ok(ci.includes('pnpm quality:design-drift'), 'CI lint job must run the gate');
   assert.ok(
-    !/&&\s*pnpm design:lint/.test(ci),
-    'design:lint must be its own step, never &&-chained behind another gate',
+    !/&&\s*pnpm quality:design-drift/.test(ci),
+    'quality:design-drift must be its own step, never &&-chained behind another gate',
+  );
+});
+
+test('the API carries the new step in CI_GATES', () => {
+  // The API image ships built JS with no .github/ inside it, so the gate-health
+  // card cannot derive the expected list from the workflow. A step in neither
+  // CI_GATES nor CI_PLUMBING_STEPS reports nothing at all when it vanishes —
+  // no row marked skipped, simply no row.
+  const gates = readFileSync('apps/api/src/modules/admin/ci-health/gates.ts', 'utf8');
+
+  assert.ok(
+    gates.includes("step: 'Check DESIGN.md token drift'"),
+    'add the step to CI_GATES in apps/api, or the gate-health card cannot see it',
   );
 });
 

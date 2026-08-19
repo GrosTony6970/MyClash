@@ -69,4 +69,4 @@ Scoring never sets `data-accent`. The accent is red.
 
 - None outstanding. [D2](known-deviations.md#d2--four-reds-c0392b-is-the-products-other-red) (legacy red in `themeColor` / `manifest.json`) and [D8](known-deviations.md#d8--bare-z--and-rounded--numbers) are both resolved for this surface; `manifest.json` `background_color` is now the real `--color-background` value.
 
-> **Fixed:** this app previously loaded **no fonts at all** — it imported `theme.css` but never defined `--font-fraunces`/`--font-geist`/`--font-jetbrains`, so the tablet rendered display type in Georgia and body in system sans. Valid CSS, correct colours, silently wrong type. `pnpm design:lint` now asserts every app defines the font variables it references.
+> **Fixed:** this app previously loaded **no fonts at all** — it imported `theme.css` but never defined `--font-fraunces`/`--font-geist`/`--font-jetbrains`, so the tablet rendered display type in Georgia and body in system sans. Valid CSS, correct colours, silently wrong type. `pnpm quality:design-drift` now asserts every app defines the font variables it references.

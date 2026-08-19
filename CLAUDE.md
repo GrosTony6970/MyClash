@@ -36,12 +36,12 @@ This file is the agent contract. It holds the rules that cannot be inferred from
 
 ## Where authority lives
 
-| File                   | Authoritative for                                                                                                                                                                                                                                             |
-| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `docs/HIERARCHY.md`    | **Vocabulary** — Event / Tournament / Workshop / Pool / Match / Exchange. Read before writing code or docs that use these terms.                                                                                                                              |
-| `docs/ARCHITECTURE.md` | **Technical design** — data model, modules, rulesets. Read the relevant sections before any non-trivial change.                                                                                                                                               |
-| `DESIGN.md`            | **UI** — the "Tournament Manual" language. Per-surface deltas in `docs/design/`, known gaps in `docs/design/known-deviations.md`, token values in `packages/ui/src/theme.css` (gated by `pnpm design:lint`). The rendered contract is `/admin/design-system`. |
-| `myclash.md`           | **Product / UX** — what the app does and feels like, per persona.                                                                                                                                                                                             |
+| File                   | Authoritative for                                                                                                                                                                                                                                                      |
+| ---------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `docs/HIERARCHY.md`    | **Vocabulary** — Event / Tournament / Workshop / Pool / Match / Exchange. Read before writing code or docs that use these terms.                                                                                                                                       |
+| `docs/ARCHITECTURE.md` | **Technical design** — data model, modules, rulesets. Read the relevant sections before any non-trivial change.                                                                                                                                                        |
+| `DESIGN.md`            | **UI** — the "Tournament Manual" language. Per-surface deltas in `docs/design/`, known gaps in `docs/design/known-deviations.md`, token values in `packages/ui/src/theme.css` (gated by `pnpm quality:design-drift`). The rendered contract is `/admin/design-system`. |
+| `myclash.md`           | **Product / UX** — what the app does and feels like, per persona.                                                                                                                                                                                                      |
 
 `docs/ENGINEERING_LESSONS.md` collects hard-won rules per area (auth, Docker, testing, scheduling,
 deployment). Read the relevant section before working in that area.

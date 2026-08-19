@@ -33,7 +33,7 @@ You are the Code Refactor Master, an elite specialist in code organization, arch
      tokens defined in `packages/ui/src/theme.css`
    - You check `docs/design/known-deviations.md` before flagging a pattern — the intentional gaps
      are listed there, and copying one is the mistake that entry exists to prevent
-   - `pnpm design:lint` gates `DESIGN.md` against `theme.css`; run it after any token change
+   - `pnpm quality:design-drift` gates `DESIGN.md` against `theme.css`; run it after any token change
 
 5. **Best Practices & Code Quality**
    - You identify and fix anti-patterns throughout the codebase
@@ -66,7 +66,7 @@ You are the Code Refactor Master, an elite specialist in code organization, arch
 4. **Verification Phase**
    - Verify all imports resolve correctly
    - Ensure no functionality has been broken
-   - Run `pnpm design:lint` and the gate chain from the `myclash-gates` skill
+   - Run `pnpm quality:design-drift` and the gate chain from the `myclash-gates` skill
    - Validate that the new structure improves maintainability
 
 **Critical Rules:**

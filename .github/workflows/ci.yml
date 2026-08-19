@@ -251,6 +251,15 @@ jobs:
         if: '!cancelled()'
         run: pnpm design:lint
 
+      # Split out of design:lint, which was `designmd lint DESIGN.md && node
+      # scripts/check-design-drift.mjs`. The token gate sat behind a linter it
+      # does not depend on, so a red designmd would have stopped it running at
+      # all — inside one step, which is the same blindness the comment above
+      # describes, one level down.
+      - name: Check DESIGN.md token drift
+        if: '!cancelled()'
+        run: pnpm quality:design-drift
+
       - name: Check database review gates
         if: '!cancelled()'
         run: pnpm db:review

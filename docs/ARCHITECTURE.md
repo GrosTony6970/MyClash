@@ -2975,7 +2975,7 @@ myclash/
 └── turbo.json
 ```
 
-**Why these files at the root?** GitHub looks for `README.md` and `LICENSE` at root by convention; `CLAUDE.md` (with `AGENTS.md` pointing at it) must be at root so AI coders find it without configuration; `DESIGN.md` is the UI contract that `pnpm design:lint` diffs against the tokens; `myclash.md` is a product-level companion to the README. Everything else is grouped by purpose: `docs/` for project docs, `infra/scripts/` for VPS bash, `scripts/` for cross-platform Node.
+**Why these files at the root?** GitHub looks for `README.md` and `LICENSE` at root by convention; `CLAUDE.md` (with `AGENTS.md` pointing at it) must be at root so AI coders find it without configuration; `DESIGN.md` is the UI contract that `pnpm quality:design-drift` diffs against the tokens; `myclash.md` is a product-level companion to the README. Everything else is grouped by purpose: `docs/` for project docs, `infra/scripts/` for VPS bash, `scripts/` for cross-platform Node.
 
 ---
 
@@ -3038,7 +3038,7 @@ Two pointers worth repeating here, because this document is where an agent usual
   instruction, ask before deviating. If it is silent on a decision, ask — do not guess and write
   500 lines that need unwinding.
 - **For UI, `DESIGN.md` at the repo root is canonical**, with per-surface deltas in `docs/design/`
-  and token values in `packages/ui/src/theme.css` (gated by `pnpm design:lint`).
+  and token values in `packages/ui/src/theme.css` (gated by `pnpm quality:design-drift`).
 
 ---
 

@@ -293,7 +293,7 @@ The single recurring mark is the **FoilMark** (`packages/ui/src/components/FoilM
 
 ### Where the truth lives
 
-**Token source of truth: `packages/ui/src/theme.css`.** Tailwind v4 `@theme`, plain and deliberately not `@theme inline`, so the generated utilities resolve through `var(--color-*)` and the runtime scopes can override them. Every value in the front matter above is mirrored from that file and is checked against it by `pnpm design:lint`.
+**Token source of truth: `packages/ui/src/theme.css`.** Tailwind v4 `@theme`, plain and deliberately not `@theme inline`, so the generated utilities resolve through `var(--color-*)` and the runtime scopes can override them. Every value in the front matter above is mirrored from that file and is checked against it by `pnpm quality:design-drift`.
 
 **There is no second token package.** `packages/design-tokens/` used to exist, called itself the "canonical source of truth", described a Cinzel + Inter design, and was imported by nothing. It was deleted on 2026-07-17. If you find a doc, comment or memory that points at it, that doc is stale — fix it.
 
@@ -367,7 +367,7 @@ Three faces, loaded through `next/font/google` and referenced indirectly, so a f
 | **Geist**          | Body, labels, tables, numbers. Distinctive but neutral; read fast and at an angle.                                      | `--font-geist` → `--font-body`                       |
 | **JetBrains Mono** | Codes, slugs, IDs.                                                                                                      | `--font-jetbrains` → `--font-display`'s mono sibling |
 
-The indirection has a failure mode worth naming: `theme.css` declares `--font-display: var(--font-fraunces), …, Georgia, serif`. An app that imports `theme.css` but never defines `--font-fraunces` produces **valid CSS with correct colours that silently renders in Georgia**. `pnpm design:lint` asserts every app defines the font variables it references, because this shipped once already.
+The indirection has a failure mode worth naming: `theme.css` declares `--font-display: var(--font-fraunces), …, Georgia, serif`. An app that imports `theme.css` but never defines `--font-fraunces` produces **valid CSS with correct colours that silently renders in Georgia**. `pnpm quality:design-drift` asserts every app defines the font variables it references, because this shipped once already.
 
 ### The scale
 
