@@ -27,11 +27,11 @@ import { StatsView } from './StatsView';
 
 interface Props {
   tournamentId: string;
-  /** CSS colour string for section headings — the tournament's accent. */
-  accentColor: string;
+  /** The tournament's colour token — section headings take its legible tint. */
+  colorToken?: string | null;
 }
 
-export function StatsTab({ tournamentId, accentColor }: Props) {
+export function StatsTab({ tournamentId, colorToken }: Props) {
   const { t } = useI18n();
   const rootRef = useRef<HTMLDivElement | null>(null);
   const startedRef = useRef(false);
@@ -82,7 +82,7 @@ export function StatsTab({ tournamentId, accentColor }: Props) {
           overview={data.overview}
           fighters={data.fighters}
           targets={data.targets}
-          accentColor={accentColor}
+          colorToken={colorToken}
           t={t}
         />
       )}

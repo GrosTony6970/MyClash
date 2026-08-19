@@ -28,26 +28,29 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 }
 
 /**
- * Resolve slug → tournament id via the public standings route.
+ * Resolve slug → the tournament's id and colour token via the public standings route.
  *
  * `.../standings` is public, slug-based, and already returns the tournament
- * header including `id` (events.service.ts: `tournamentHeader`), on the draft
- * early-return path too. The sibling tournament page resolves the id exactly
- * this way (../page.tsx), so this adds no new API surface.
+ * header including `id` AND `color` (events.service.ts: `tournamentHeader`), on
+ * the draft early-return path too. The sibling tournament page resolves it
+ * exactly this way (../page.tsx), so this adds no new API surface — the colour
+ * was already in this response, merely dropped by the parse.
  */
-async function fetchTournamentId(
+async function fetchTournamentHeader(
   eventSlug: string,
   tournamentSlug: string,
   apiUrl: string,
-): Promise<string | null> {
+): Promise<{ id: string; colorToken: string | null } | null> {
   try {
     const res = await fetch(
       `${apiUrl}/api/v1/events/${eventSlug}/tournaments/${tournamentSlug}/standings`,
       { cache: 'no-store' },
     );
     if (!res.ok) return null;
-    const data = (await res.json()) as { tournament?: { id?: string } };
-    return data.tournament?.id ?? null;
+    const data = (await res.json()) as { tournament?: { id?: string; color?: string | null } };
+    const id = data.tournament?.id;
+    if (!id) return null;
+    return { id, colorToken: data.tournament?.color ?? null };
   } catch {
     return null;
   }
@@ -60,8 +63,8 @@ export default async function StatsPage({ params }: Props) {
   const t = await getServerT();
   const apiUrl = getServerApiUrl();
 
-  const tournamentId = await fetchTournamentId(eventSlug, tournamentSlug, apiUrl);
-  if (!tournamentId) {
+  const header = await fetchTournamentHeader(eventSlug, tournamentSlug, apiUrl);
+  if (!header) {
     return (
       <main className="flex min-h-screen items-center justify-center px-4 text-center">
         <div>
@@ -80,7 +83,7 @@ export default async function StatsPage({ params }: Props) {
     );
   }
 
-  const { overview, fighters, targets } = await fetchTournamentStats(tournamentId, apiUrl);
+  const { overview, fighters, targets } = await fetchTournamentStats(header.id, apiUrl);
 
   return (
     <main className="px-4 py-6 max-w-6xl mx-auto">
@@ -109,7 +112,7 @@ export default async function StatsPage({ params }: Props) {
         overview={overview}
         fighters={fighters}
         targets={targets}
-        accentColor="var(--event-accent, #f59e0b)"
+        colorToken={header.colorToken}
         t={t}
       />
     </main>

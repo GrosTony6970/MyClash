@@ -326,7 +326,7 @@ export default function PersonProfilePage() {
         <section className="mb-6">
           <h2
             className="text-xs font-semibold uppercase tracking-wider mb-3"
-            style={{ color: 'var(--event-accent, #f59e0b)' }}
+            style={{ color: 'var(--color-accent)' }}
           >
             {t('publicApp.following.upcoming')}
           </h2>
@@ -360,7 +360,7 @@ export default function PersonProfilePage() {
         <section className="mb-6">
           <h2
             className="text-xs font-semibold uppercase tracking-wider mb-3"
-            style={{ color: 'var(--event-accent, #f59e0b)' }}
+            style={{ color: 'var(--color-accent)' }}
           >
             {t('publicApp.following.refereeDuties')}
           </h2>
@@ -393,7 +393,7 @@ export default function PersonProfilePage() {
         <section>
           <h2
             className="text-xs font-semibold uppercase tracking-wider mb-3"
-            style={{ color: 'var(--event-accent, #f59e0b)' }}
+            style={{ color: 'var(--color-accent)' }}
           >
             {t('publicApp.following.results')}
           </h2>

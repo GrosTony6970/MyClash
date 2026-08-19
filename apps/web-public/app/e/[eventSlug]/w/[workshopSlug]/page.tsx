@@ -284,7 +284,7 @@ export default function WorkshopDetailPage() {
         <section>
           <h2
             className="text-xs font-semibold uppercase tracking-wider mb-3"
-            style={{ color: 'var(--event-accent, #f59e0b)' }}
+            style={{ color: 'var(--color-accent)' }}
           >
             {t('publicApp.workshopDetail.sessions')}
           </h2>

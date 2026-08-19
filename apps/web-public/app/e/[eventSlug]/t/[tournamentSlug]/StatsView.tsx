@@ -17,6 +17,7 @@
  */
 
 import type { TranslationValues } from '@myclash/i18n';
+import { tintTextClassFor } from '@myclash/ui';
 import type { FighterStats, Overview, TargetValueStats } from './stats-data';
 
 /** Structural translator type — satisfied by both `getServerT()` and `useI18n().t`. */
@@ -26,8 +27,12 @@ interface Props {
   overview: Overview | null;
   fighters: FighterStats[];
   targets: TargetValueStats;
-  /** CSS colour string for section headings (tournament accent, or a fallback). */
-  accentColor: string;
+  /**
+   * The tournament's colour token (e.g. 'red', 'blue'), or null when unset.
+   * Section headings take its legible tint, never the raw hue: at `text-xs` no
+   * raw tournament colour clears AA on the light page.
+   */
+  colorToken?: string | null;
   t: Translator;
 }
 
@@ -50,7 +55,7 @@ function pct(n: number, total: number): string {
 
 // ── Component ───────────────────────────────────────────────────────────────────
 
-export function StatsView({ overview, fighters, targets, accentColor, t }: Props) {
+export function StatsView({ overview, fighters, targets, colorToken, t }: Props) {
   // Sort fighters by hit_ratio desc (blow-based, mode-independent)
   const sorted = [...fighters].sort((a, b) => (b.hitRatio ?? -1) - (a.hitRatio ?? -1));
 
@@ -70,7 +75,9 @@ export function StatsView({ overview, fighters, targets, accentColor, t }: Props
   const totalDoubles = overview?.doublesCount ?? 0;
   const totalEx = overview?.exchangeCount ?? 1;
 
-  const headingStyle = { color: accentColor };
+  // Same idiom as the sibling views (PoolMatchesView, PoolsCompositionView): the
+  // tint map is the section-title colour, and an unset token falls to plain ink.
+  const headingClass = colorToken ? tintTextClassFor(colorToken) : 'text-foreground';
 
   return (
     <div>
@@ -100,7 +107,7 @@ export function StatsView({ overview, fighters, targets, accentColor, t }: Props
       {/* ── Exchange distribution ── */}
       {overview && overview.exchangeCount > 0 && (
         <section className="mb-8">
-          <h2 className="text-xs font-semibold uppercase tracking-wider mb-3" style={headingStyle}>
+          <h2 className={`text-xs font-semibold uppercase tracking-wider mb-3 ${headingClass}`}>
             {t('publicApp.tournamentStats.exchangeDistribution')}
           </h2>
           <div className="bg-surface border border-border rounded-xl p-4">
@@ -150,7 +157,7 @@ export function StatsView({ overview, fighters, targets, accentColor, t }: Props
       {/* ── Top 5 by blow ratio ── */}
       {overview && overview.topFighters.length > 0 && (
         <section className="mb-8">
-          <h2 className="text-xs font-semibold uppercase tracking-wider mb-3" style={headingStyle}>
+          <h2 className={`text-xs font-semibold uppercase tracking-wider mb-3 ${headingClass}`}>
             {t('publicApp.tournamentStats.topFightersTitle')}
           </h2>
           <div className="flex flex-col gap-2">
@@ -182,7 +189,7 @@ export function StatsView({ overview, fighters, targets, accentColor, t }: Props
       {/* ── Deep-target hunters ── */}
       {targets.hunters.length > 0 && (
         <section className="mb-8">
-          <h2 className="text-xs font-semibold uppercase tracking-wider mb-1" style={headingStyle}>
+          <h2 className={`text-xs font-semibold uppercase tracking-wider mb-1 ${headingClass}`}>
             {t('publicApp.tournamentStats.deepTargetsTitle')}
           </h2>
           <p className="text-xs text-muted mb-3">
@@ -209,7 +216,7 @@ export function StatsView({ overview, fighters, targets, accentColor, t }: Props
       {/* ── Target zones (1pt / 2pt / 3pt distribution) ── */}
       {targetTotal > 0 && (
         <section className="mb-8">
-          <h2 className="text-xs font-semibold uppercase tracking-wider mb-3" style={headingStyle}>
+          <h2 className={`text-xs font-semibold uppercase tracking-wider mb-3 ${headingClass}`}>
             {t('publicApp.tournamentStats.pointDistributionTitle')}
           </h2>
           <div className="bg-surface border border-border rounded-xl p-4">
@@ -240,7 +247,7 @@ export function StatsView({ overview, fighters, targets, accentColor, t }: Props
       {/* ── Per-fighter detailed table ── */}
       {sorted.length > 0 && (
         <section>
-          <h2 className="text-xs font-semibold uppercase tracking-wider mb-3" style={headingStyle}>
+          <h2 className={`text-xs font-semibold uppercase tracking-wider mb-3 ${headingClass}`}>
             {t('publicApp.tournamentStats.detailedStats')}
           </h2>
           <div className="overflow-x-auto">

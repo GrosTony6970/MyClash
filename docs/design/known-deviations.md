@@ -184,6 +184,61 @@ Note this is **not** a `metadataBase` or canonical bug: those are correct, and t
 
 ---
 
+## D11 — the event-tint mechanism has no producer
+
+**Rule broken:** none yet — this is a specified mechanism that was never built, recorded so the
+next person does not mistake it for one that works.
+
+`DESIGN.md` → _Event colour_ and `docs/design/web-public.md` both specify the tint as:
+
+```css
+--color-accent: var(--event-primary, #b91c1c);
+```
+
+Nothing in the repo sets `--event-primary`. Commit `02ed0977` (2026-06-02) scoped event theming
+down to logo + hero and deleted the block that produced `--event-primary`, `--event-secondary`
+and `--event-accent`. The only custom property any `/e/*` code writes today is
+`--event-hero-image`.
+
+So the tint is **inert, not broken**: because every consumer now reads `var(--color-accent)`
+directly, the missing producer changes nothing on screen. The spec is left in place deliberately —
+it describes the mechanism we still want, and `check-design-drift.mjs` is explicit that DESIGN.md
+carries intent while gates cover what is true.
+
+**Fix when someone owns it:** either build the producer (an `/e/[eventSlug]` layout that sets
+`--color-accent` from the event's colour) or retire the paragraph. Both are product calls.
+
+**Two consumer bugs this produced have been fixed**, and they are the reason this entry exists:
+
+- `var(--event-primary, #c0392b)` on 10 sites — the fallback was the shipped accent (D2, fixed
+  2026-07-17).
+- `var(--event-accent, #f59e0b)` on 5 sites / 9 headings — same disease, one variable name over,
+  so D2's by-name sweep never matched it. It shipped **raw gold at 2.06:1 on `text-xs` headings**,
+  an AA failure on three public pages, for roughly eleven weeks. Fixed 2026-08-19.
+
+---
+
+## D12 — the tournament's raw colour fails contrast as heading text
+
+**Rule broken:** WCAG 1.4.3. **Where:** `apps/web-public/app/e/[eventSlug]/t/[tournamentSlug]/page.tsx:288`.
+
+The tournament page paints its `<h1>` with `colorTokenToHex(tournamentColor)` — the raw hue. At
+`text-2xl` bold that is large text, so it needs 3:1, and **7 of the 13 configurable colours miss
+even that**: amber 2.06, yellow 1.84, gold 1.47, silver 1.42, green 2.18, teal 2.38, orange 2.68.
+The decorative bar beside it (`:282`) is fine — it is a fill, and `aria-hidden`.
+
+The system already owns the answer: `tintTextClassFor` maps each token to a `-700`/`-800`/`-900`
+shade, all 14 of which clear 4.5:1 (worst: green-700 at 4.80:1). The stats headings moved onto it
+on 2026-08-19; this `<h1>` did not, because a display heading losing its bright hue is a visible
+design change and deserves its own call.
+
+**Note the trap for whoever takes it:** `colorTokenToHex` and `ColorToken` cover different sets.
+A tournament may be configured `grey`, `brown` or `pink`; none is a token, so all three resolve to
+neutral slate through `asColorToken`. Moving the `<h1>` would drop those three tournaments' hue
+from their own title.
+
+---
+
 ## Fixed
 
 - ~~D9: `/lices` was dark while `/lices/[liceId]` was light~~ — tapping between the two piste screens flashed white. Fixed 2026-08-03: `/lices` had no `data-theme` at all, so it inherited the pad scope from `<body>`; both piste screens are now chrome and take `chromeScope`. The underlying decision — which regions are chrome — is now explicit in `apps/web-staff/src/theme/theme.ts` rather than implied by which screen was written when.

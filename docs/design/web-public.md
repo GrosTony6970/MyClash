@@ -39,7 +39,7 @@ On `/e/*` the organizer's colour tints the accent:
 
 **It tints one token.** Event colour is not a third surface: no background of its own, no type, no rules. The `EventHeader` identity band carries the event's identity; the page stays a page of the booklet.
 
-Several pages currently inline `var(--event-primary, #c0392b)` — the wrong fallback. See [D2](known-deviations.md#d2--four-reds-c0392b-is-the-products-other-red).
+**Nothing sets `--event-primary` today**, so the mechanism above is specification, not behaviour — see [D11](known-deviations.md#d11--the-event-tint-mechanism-has-no-producer). Pages must read `var(--color-accent)` directly. Two rounds of pages inlined an `--event-*` variable whose fallback was therefore the only colour that ever rendered: `--event-primary` ([D2](known-deviations.md#d2--fixed-the-legacy-red-c0392b-unified-onto-b91c1c)) and `--event-accent` (D11). Both are gone. Do not add a third.
 
 ## What differs
 

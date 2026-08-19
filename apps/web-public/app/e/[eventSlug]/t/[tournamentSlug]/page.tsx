@@ -507,7 +507,7 @@ export default async function TournamentPage({ params }: Props) {
             // Load-on-demand: StatsTab fetches the stats projections client-side
             // only when the tab is first opened, so the main tournament page
             // load stays light.
-            panel: <StatsTab tournamentId={tournament.id} accentColor={accentColor} />,
+            panel: <StatsTab tournamentId={tournament.id} colorToken={tournamentColor} />,
           },
         ]}
       />
