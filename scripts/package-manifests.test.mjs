@@ -11,9 +11,11 @@
  * ── Why a test and not a gate ───────────────────────────────────────────────
  * A new CI gate costs four registrations here — package.json, ci.yml, CI_GATES
  * in apps/api (the production image has no .github/ to read, so it carries the
- * expected list as a constant), and CONTRIBUTING.md — and gates.drift.test.ts
- * fails until all four exist. A test under scripts/ costs none, runs in CI under
- * the existing `pnpm test:scripts` step, and binds exactly as hard.
+ * expected list as a constant), and CONTRIBUTING.md. gates.drift.test.ts holds
+ * the first three, in both directions between ci.yml and CI_GATES; the
+ * CONTRIBUTING.md one is convention and nothing gates it. A test under scripts/
+ * costs none, runs in CI under the existing `pnpm test:scripts` step, and binds
+ * exactly as hard.
  *
  * ── Why TRACKED and not existsSync ──────────────────────────────────────────
  * Five targets are generated and absent from a fresh checkout (see

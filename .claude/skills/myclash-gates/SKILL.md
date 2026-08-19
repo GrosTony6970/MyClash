@@ -79,9 +79,14 @@ refactor when the function itself did not change. Refresh with `--write-baseline
 is green and you have audited the diff — and re-run the identity check **after** committing, since
 the pre-commit prettier pass shifts lines again.
 
-**Root `tests/` sits outside every gate.** The E2E suite at the repo root gets no typecheck and no
-lint — only `format:check`. Type errors and unused imports there reach `main` unnoticed; read it
-carefully, because nothing else will.
+**Root `tests/` gets no typecheck and no lint.** Type errors and unused imports in the E2E suite
+reach `main` unnoticed; read it carefully, because neither of those will catch them.
+
+It is **not** outside every gate, though. `scripts/lib/repo-scan.mjs` does not ignore `tests`, so
+`quality:complexity`, `quality:source-bytes` and `quality:todos` all walk it — and the complexity
+baseline carries 24 entries under `tests/`. Editing above one of them re-points the line-keyed
+baseline exactly as it would in `apps/`, which is the paragraph above biting in a directory nobody
+expects it to.
 
 **Concurrent sessions.** More than one agent commits to this repo. `git log --oneline -1` before
 staging and `git fetch` before pushing; re-run the gates after the fetch, not only before staging.

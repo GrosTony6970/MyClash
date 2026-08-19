@@ -72,11 +72,12 @@ historical build plan — it records how the project was built, not what to do n
 
 ## Verification
 
-**`pnpm lint && pnpm typecheck && pnpm test` is not the check.** CI's Lint job runs twenty further
-steps, and shared packages must be built in the right order or a local pass means nothing.
+**`pnpm lint && pnpm typecheck && pnpm test` is not the check.** CI's Lint job runs twenty-five
+further steps, and shared packages must be built in the right order or a local pass means nothing.
 
-Use the **`myclash-gates` skill** — it holds the full ordered chain from `.github/workflows/ci.yml`
-plus the build-ordering traps. Run it before every push.
+Use the **`myclash-gates` skill** — it holds the Lint job's ordered chain from
+`.github/workflows/ci.yml` plus the build-ordering traps. Run it before every push. Coverage and
+the E2E suite are separate CI jobs and go red on their own; the skill does not cover them.
 
 A task is done when its acceptance criteria pass with automated tests where possible and the gate
 chain is green. You are measured by tasks closed cleanly, not lines written.

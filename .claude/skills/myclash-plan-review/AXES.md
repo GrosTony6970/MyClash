@@ -43,14 +43,19 @@ The plan says a thing works. Does anything actually hold it?
   Rebuild `@myclash/rulesets` before the API typechecks and `@myclash/ui` before any app does, or the
   check passes on code that will not compile in Docker. Full chain in
   [../myclash-gates/SKILL.md](../myclash-gates/SKILL.md).
-- **Registration completeness.** A new CI gate needs **four** registrations, per
-  [scripts/package-manifests.test.mjs:12](../../../scripts/package-manifests.test.mjs): the
-  `package.json` script, the step in `.github/workflows/ci.yml` carrying `if: '!cancelled()'`, an
-  entry in `CI_GATES` in
+- **Registration completeness.** A new CI gate needs **four** registrations: the `package.json`
+  script, the step in `.github/workflows/ci.yml` carrying `if: '!cancelled()'`, an entry in
+  `CI_GATES` in
   [apps/api/src/modules/admin/ci-health/gates.ts](../../../apps/api/src/modules/admin/ci-health/gates.ts)
-  keyed by the step's display name, and `CONTRIBUTING.md`. The chain in
-  [../myclash-gates/SKILL.md](../myclash-gates/SKILL.md) moves with `CONTRIBUTING.md`. Miss the
-  `CI_GATES` one and the health card cannot report a gate that stopped running.
+  keyed by the step's display name, and `CONTRIBUTING.md`. Miss the `CI_GATES` one and the health
+  card cannot report a gate that stopped running.
+
+  **Only the first three are gated.** `gates.drift.test.ts` compares `ci.yml` against `CI_GATES` in
+  both directions and never opens `CONTRIBUTING.md`; no test does. So the fourth is convention, and
+  a plan that skips it produces exactly the doc rot the bullet on renaming scripts describes below.
+  The chain in [../myclash-gates/SKILL.md](../myclash-gates/SKILL.md) moves with `CONTRIBUTING.md`
+  and is equally ungated.
+
 - **Does the gate's own test pin its registration?** The pattern is
   [scripts/check-design-drift.test.mjs:313-350](../../../scripts/check-design-drift.test.mjs): the
   pnpm script is the gate **alone**, CI runs it as its own step, neither is `&&`-chained, and
@@ -73,8 +78,9 @@ The plan says a thing works. Does anything actually hold it?
 ## 3. Blast radius and failure modes
 
 - **Which gates does this turn red?** Walk the chain in `../myclash-gates/SKILL.md` and name them.
-  Root `tests/` sits outside every gate except `format:check`, so type errors there reach `main`
-  unnoticed.
+  Root `tests/` gets no typecheck and no lint, so type errors there reach `main` unnoticed — but it
+  **is** walked by `quality:complexity`, `quality:source-bytes` and `quality:todos`, and the
+  complexity baseline holds 24 entries under `tests/`.
 - **What breaks for the other sessions?** A shared-package change surfaces in consumers only under
   the full turbo pipeline; `pnpm --filter X typecheck` alone proves nothing.
 - **Offline scoring is non-negotiable.** Any change reaching the scoring app must keep it working

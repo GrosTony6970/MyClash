@@ -216,7 +216,7 @@ function pageLoadChunks(budget, requireBuild) {
     return {
       failures: [
         `${budget.name}: build-manifest.json names no rootMainFiles chunks. ` +
-          'Reconcile with apps/web-public/scripts/landing-bundle-budget.mjs.',
+          'Reconcile with scripts/build-app-bundles.mjs, which produces the build this reads.',
       ],
     };
   }

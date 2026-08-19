@@ -19,8 +19,10 @@ here.
   [`HIERARCHY.md`](HIERARCHY.md) — it is authoritative for these terms.
 - Use Supabase for what it is good at (auth, storage, realtime, the DB) and NestJS for business
   logic. Don't push domain code into Postgres functions.
-- Three frontend apps over a shared `packages/ui` beats one mega-app, because the scoring app has
-  materially different constraints (offline-first PWA).
+- Separate frontend apps over a shared `packages/ui` beats one mega-app, because the staff app has
+  materially different constraints (offline-first PWA). Three consume `packages/ui` — web-public,
+  web-staff, web-admin. The fourth, web-marketing, is Astro and shares the palette by copy rather
+  than by import; that is a known deviation, not the pattern.
 - Every `uuid` column pointing at a public-schema table needs a real `REFERENCES ...` clause in
   the migration, not just a naming convention. PostgREST embeds resolve through
   `information_schema.referential_constraints`, so without the FK the embed 400s with "Could not
@@ -122,8 +124,6 @@ here.
   Next major bump, `grep -rln "params: { " apps/*/app/` and convert every hit.
 - When a build task references an `[O-NNN]` owner-side prerequisite that is not done, **stop and
   notify the user** (`docs/OWNER_TASKS.md`). Do not improvise around it.
-- For local perf-budget builds of Next apps, allow a non-standalone build mode — it keeps budget
-  scripts on route assets and avoids Windows/pnpm trace edge cases.
 
 ## Identity & auth
 
