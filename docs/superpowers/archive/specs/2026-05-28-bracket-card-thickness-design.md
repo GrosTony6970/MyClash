@@ -1,6 +1,6 @@
 # Bracket MatchCard — wider cards + lift pills out of overflow-hidden
 
-> **Status (2026-07-01 doc review):** Shipped — cards were widened and pills reparented as designed, but the min-width floor was subsequently raised from the spec's 220px to 256px. Audited against code; see docs/DOC_REVIEW_2026-07-01.md.
+> **Status (2026-07-01 doc review):** Shipped — cards were widened and pills reparented as designed, but the min-width floor was subsequently raised from the spec's 220px to 256px. Audited against code.
 
 **Date:** 2026-05-28
 **Status:** Approved

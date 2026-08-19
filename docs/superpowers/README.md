@@ -21,9 +21,8 @@ the codebase, CI, or tooling depends on them. For the current system, use
 ## Archived
 
 Everything under [`archive/`](archive/) describes work that has **shipped** — or
-was **superseded** by what actually shipped. Kept for provenance only; per-file
-`Status` headers and the full audit are in
-[../DOC_REVIEW_2026-07-01.md](../DOC_REVIEW_2026-07-01.md).
+was **superseded** by what actually shipped. Kept for provenance only; each file
+carries a `Status` header recording what landed and how it differed from the plan.
 
 - [`archive/plans/`](archive/plans/) — 9 implementation plans
 - [`archive/specs/`](archive/specs/) — 12 design specs

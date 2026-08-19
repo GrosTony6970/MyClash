@@ -1,6 +1,6 @@
 # Tournament Configuration Wizard + Settings Implementation Plan
 
-> **Status (2026-07-01 doc review):** Superseded — the wizard, tabbed Settings page, `/rulesets` endpoint, and `/scoring-config`→`/settings` redirect all shipped (2026-06) and were then evolved past this plan (Settings now has 7 tabs, persistence switched to pluck-not-spread + default backfill). Kept for historical reference; do not re-execute. Audited against code; see docs/DOC_REVIEW_2026-07-01.md.
+> **Status (2026-07-01 doc review):** Superseded — the wizard, tabbed Settings page, `/rulesets` endpoint, and `/scoring-config`→`/settings` redirect all shipped (2026-06) and were then evolved past this plan (Settings now has 7 tabs, persistence switched to pluck-not-spread + default backfill). Kept for historical reference; do not re-execute. Audited against code.
 >
 > **For agentic workers (historical):** This plan is already SHIPPED and superseded — do NOT re-execute it. The unchecked `- [ ]` boxes below are point-in-time and were left as-authored; they do not mean work is outstanding.
 

@@ -1,6 +1,6 @@
 # Configure tab — fixed-width pool cards that wrap
 
-> **Status (2026-07-01 doc review):** Superseded — the `flex flex-wrap` + `w-72` wrapping layout below was not what shipped; the Configure tab renders pools as a single-column vertical stack of full-width cards (`flex flex-col gap-4` + `w-full`). Audited against code; see docs/DOC_REVIEW_2026-07-01.md.
+> **Status (2026-07-01 doc review):** Superseded — the `flex flex-wrap` + `w-72` wrapping layout below was not what shipped; the Configure tab renders pools as a single-column vertical stack of full-width cards (`flex flex-col gap-4` + `w-full`). Audited against code.
 
 **Date:** 2026-05-28
 **Status:** Approved

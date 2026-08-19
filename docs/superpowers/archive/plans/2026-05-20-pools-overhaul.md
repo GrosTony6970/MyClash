@@ -1,6 +1,6 @@
 # Pools Page Overhaul Implementation Plan
 
-> **Status (2026-07-01 doc review):** Shipped — the tab-shell pools page, 5 referee constraints, per-pool matches editing, and ruleset-driven standings all shipped to `main`. Two deltas vs. this plan: the delivered page ships a 4th **Referees** tab, and the `accentClassFor` color-token util moved into `@myclash/ui` rather than living in `_tabs/`. Audited against code; see docs/DOC_REVIEW_2026-07-01.md.
+> **Status (2026-07-01 doc review):** Shipped — the tab-shell pools page, 5 referee constraints, per-pool matches editing, and ruleset-driven standings all shipped to `main`. Two deltas vs. this plan: the delivered page ships a 4th **Referees** tab, and the `accentClassFor` color-token util moved into `@myclash/ui` rather than living in `_tabs/`. Audited against code.
 
 <!-- -->
 

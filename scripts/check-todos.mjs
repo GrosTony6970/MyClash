@@ -13,9 +13,7 @@ const extensions = ['.cjs', '.js', '.jsx', '.json', '.md', '.mjs', '.ts', '.tsx'
 // claim about debt, not debt, and it cannot be fixed by adding a task marker.
 const ignoredPathPrefixes = ['docs/superpowers/'];
 const allowedPathSuffixes = new Set([
-  'docs/pre-production-review-plan.md',
   'docs/CODE_QUALITY_REVIEW.md',
-  'docs/DOC_REVIEW_2026-07-01.md',
   // This gate and its test both have to SPELL the markers they look for. The
   // test file is the sharper case: every fixture proving a marker is caught is
   // itself a marker, so a gate that scanned its own test could never be tested.

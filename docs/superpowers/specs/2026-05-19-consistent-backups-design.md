@@ -1,6 +1,6 @@
 # Consistent Backups - Design Spec
 
-> **Status (2026-07-01 doc review):** Superseded — the backup-quiesce lock, `BACKUP_IN_PROGRESS` API rejection, and consistency `manifest.json` described below were never implemented; shipped backups use `pg_dump`'s default MVCC snapshot plus a plain storage-volume tar with no write pause, guarded only by ops-runner's single-operation `.ops.lock` mutex, and the sole write-block is the manual `read_only_mode` feature flag (`read-only.interceptor.ts`), unrelated to backups. Audited against code; see docs/DOC_REVIEW_2026-07-01.md.
+> **Status (2026-07-01 doc review):** Superseded — the backup-quiesce lock, `BACKUP_IN_PROGRESS` API rejection, and consistency `manifest.json` described below were never implemented; shipped backups use `pg_dump`'s default MVCC snapshot plus a plain storage-volume tar with no write pause, guarded only by ops-runner's single-operation `.ops.lock` mutex, and the sole write-block is the manual `read_only_mode` feature flag (`read-only.interceptor.ts`), unrelated to backups. Audited against code.
 
 ## Summary
 

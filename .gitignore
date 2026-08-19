@@ -25,8 +25,7 @@ server.err
 /specs/*
 
 # ── Service-specific secrets ─────────────────────────────────────
-infra/scripts/reference/myfal/*        # owner's MyFAL scripts (privacy)
-!infra/scripts/reference/myfal/README.md
+infra/scripts/reference/myfal/         # owner's MyFAL scripts (privacy)
 data/traefik/acme*.json
 data/app/google-oauth-tokens.json
 config/google-oauth-client.json

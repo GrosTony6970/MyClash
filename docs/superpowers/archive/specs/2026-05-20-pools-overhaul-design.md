@@ -1,6 +1,6 @@
 # Pools page overhaul: Configure / Matches / Standings
 
-> **Status (2026-07-01 doc review):** Shipped — Configure/Matches/Standings tabs, the color-token util, and their tests exist in the tree; the util landed in `@myclash/ui` with 15 tokens rather than the local 8-token path this spec sketched. Audited against code; see docs/DOC_REVIEW_2026-07-01.md.
+> **Status (2026-07-01 doc review):** Shipped — Configure/Matches/Standings tabs, the color-token util, and their tests exist in the tree; the util landed in `@myclash/ui` with 15 tokens rather than the local 8-token path this spec sketched. Audited against code.
 
 **Status**: design
 

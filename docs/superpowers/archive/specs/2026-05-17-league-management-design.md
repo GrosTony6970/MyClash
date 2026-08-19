@@ -1,6 +1,6 @@
 # League Management — Design Spec
 
-> **Status (2026-07-01 doc review):** Shipped — capabilities landed, but the admin UI is now split across multiple routes (`new/`, `[id]/edit/`, `[id]/requests/`, `scoring-systems/`) rather than the single `page.tsx` this spec describes. Audited against code; see docs/DOC_REVIEW_2026-07-01.md.
+> **Status (2026-07-01 doc review):** Shipped — capabilities landed, but the admin UI is now split across multiple routes (`new/`, `[id]/edit/`, `[id]/requests/`, `scoring-systems/`) rather than the single `page.tsx` this spec describes. Audited against code.
 
 _2026-05-17_
 

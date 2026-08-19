@@ -22,19 +22,18 @@ For the full product overview, see [`myclash.md`](./myclash.md).
 
 ## Documentation
 
-| Document                                                                     | Audience               | Purpose                                                     |
-| ---------------------------------------------------------------------------- | ---------------------- | ----------------------------------------------------------- |
-| [`myclash.md`](./myclash.md)                                                 | Anyone                 | Product / functional / UX overview                          |
-| [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md)                             | Developers & AI agents | Master technical specification                              |
-| [`docs/BUILD_ORDER.md`](./docs/BUILD_ORDER.md)                               | Developers             | Historical build plan — how the project was sequenced       |
-| [`docs/GOLDEN_PATHS.md`](./docs/GOLDEN_PATHS.md)                             | Developers & QA        | End-to-end golden paths for manual and automated testing    |
-| [`docs/decisions/`](./docs/decisions/)                                       | Developers             | Architecture Decision Records (ADRs)                        |
-| [`docs/OWNER_TASKS.md`](./docs/OWNER_TASKS.md)                               | Project owner          | Operational checklist (domains, hosting, legal, beta event) |
-| [`docs/PRE_DEPLOY_CHECKLIST.md`](./docs/PRE_DEPLOY_CHECKLIST.md)             | Project owner          | Flat ordered checklist for first production deploy          |
-| [`docs/pre-production-review-plan.md`](./docs/pre-production-review-plan.md) | Tech lead              | Staged review plan before production ship                   |
-| [`CLAUDE.md`](./CLAUDE.md)                                                   | AI coding agent        | Agent contract — hard rules, authority, workflow            |
-| [`DESIGN.md`](./DESIGN.md)                                                   | Developers & designers | Canonical UI design language                                |
-| [`docs/ENGINEERING_LESSONS.md`](./docs/ENGINEERING_LESSONS.md)               | Developers & AI agents | Per-area rules learned the hard way                         |
+| Document                                                         | Audience               | Purpose                                                     |
+| ---------------------------------------------------------------- | ---------------------- | ----------------------------------------------------------- |
+| [`myclash.md`](./myclash.md)                                     | Anyone                 | Product / functional / UX overview                          |
+| [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md)                 | Developers & AI agents | Master technical specification                              |
+| [`docs/BUILD_ORDER.md`](./docs/BUILD_ORDER.md)                   | Developers             | Historical build plan — how the project was sequenced       |
+| [`docs/GOLDEN_PATHS.md`](./docs/GOLDEN_PATHS.md)                 | Developers & QA        | End-to-end golden paths for manual and automated testing    |
+| [`docs/decisions/`](./docs/decisions/)                           | Developers             | Architecture Decision Records (ADRs)                        |
+| [`docs/OWNER_TASKS.md`](./docs/OWNER_TASKS.md)                   | Project owner          | Operational checklist (domains, hosting, legal, beta event) |
+| [`docs/PRE_DEPLOY_CHECKLIST.md`](./docs/PRE_DEPLOY_CHECKLIST.md) | Project owner          | Flat ordered checklist for first production deploy          |
+| [`CLAUDE.md`](./CLAUDE.md)                                       | AI coding agent        | Agent contract — hard rules, authority, workflow            |
+| [`DESIGN.md`](./DESIGN.md)                                       | Developers & designers | Canonical UI design language                                |
+| [`docs/ENGINEERING_LESSONS.md`](./docs/ENGINEERING_LESSONS.md)   | Developers & AI agents | Per-area rules learned the hard way                         |
 
 ---
 

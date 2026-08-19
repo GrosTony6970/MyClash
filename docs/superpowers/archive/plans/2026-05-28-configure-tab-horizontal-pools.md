@@ -1,6 +1,6 @@
 # Configure tab — fixed-width wrapping pool cards — Implementation Plan
 
-> **Status (2026-07-01 doc review):** Superseded — the Configure-tab pool layout shipped as a vertical `flex flex-col gap-4` stack of `w-full` cards (one pool per row), not the `flex flex-wrap` + `w-72` wrapping row this plan proposed; neither the cited grid baseline nor the flex-wrap target exists in `apps/web-admin/app/org/[slug]/events/[eventId]/pools/page.tsx`. Audited against code; see docs/DOC_REVIEW_2026-07-01.md.
+> **Status (2026-07-01 doc review):** Superseded — the Configure-tab pool layout shipped as a vertical `flex flex-col gap-4` stack of `w-full` cards (one pool per row), not the `flex flex-wrap` + `w-72` wrapping row this plan proposed; neither the cited grid baseline nor the flex-wrap target exists in `apps/web-admin/app/org/[slug]/events/[eventId]/pools/page.tsx`. Audited against code.
 >
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
