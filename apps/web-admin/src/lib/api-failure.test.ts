@@ -47,6 +47,28 @@ describe('failureMessage', () => {
     );
   });
 
+  it("prefers the caller's own fallback to the generic one", () => {
+    expect(
+      failureMessage(
+        { kind: 'http', status: 500, detail: null },
+        en,
+        'Could not save the schedule.',
+      ),
+    ).toBe('Could not save the schedule.');
+  });
+
+  it("never lets a fallback bury the server's reason", () => {
+    expect(
+      failureMessage({ kind: 'http', status: 409, detail: 'Venue is in use' }, en, 'Generic.'),
+    ).toBe('Venue is in use');
+  });
+
+  it('ignores the fallback for the failures that have their own string', () => {
+    expect(failureMessage({ kind: 'network' }, en, 'Generic.')).toBe(
+      en('common.apiFailure.network'),
+    );
+  });
+
   it('resolves every string it can emit, in en and in fr', () => {
     for (const [locale, t] of [
       ['en', en],

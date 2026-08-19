@@ -25,13 +25,24 @@ export type ReportableFailure = Exclude<ApiFailure, { kind: 'aborted' }>;
  * scrubbed to "Internal server error" by the API's exception filter, so no
  * stack or connection string can arrive through this path.
  */
-export function failureMessage(failure: ReportableFailure, t: (key: string) => string): string {
+export function failureMessage(
+  failure: ReportableFailure,
+  t: (key: string) => string,
+  /**
+   * Already translated, and read only when the response gave no reason of its
+   * own. A screen that can say "Could not save the backup schedule." should;
+   * `common.error` is for the one that has nothing better. It does NOT override
+   * `detail` — the server's reason beats a guess, which is the whole argument
+   * for reading the body at all.
+   */
+  fallback?: string,
+): string {
   switch (failure.kind) {
     case 'network':
       return t('common.apiFailure.network');
     case 'unauthenticated':
       return t('common.apiFailure.unauthenticated');
     case 'http':
-      return failure.detail ?? t('common.error');
+      return failure.detail ?? fallback ?? t('common.error');
   }
 }

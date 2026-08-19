@@ -105,7 +105,7 @@ export default function OrgVenuesPage() {
         return;
       }
       if (r.kind === 'aborted') return;
-      setMessage(failureMessage(r, t));
+      setMessage(failureMessage(r, t, t('organizer.venues.loadError')));
     },
     [t],
   );
@@ -146,7 +146,7 @@ export default function OrgVenuesPage() {
       );
       if (!r.ok) {
         if (r.kind === 'aborted') return;
-        setMessage(failureMessage(r, t));
+        setMessage(failureMessage(r, t, t('organizer.venues.loadError')));
         setLoading(false);
         return;
       }
@@ -177,7 +177,7 @@ export default function OrgVenuesPage() {
         setMessage(r.detail ?? t('organizer.venues.deleteInUse'));
         return;
       }
-      setMessage(failureMessage(r, t));
+      setMessage(failureMessage(r, t, t('organizer.venues.deleteError')));
       return;
     }
     if (orgId) await loadVenues(orgId);
