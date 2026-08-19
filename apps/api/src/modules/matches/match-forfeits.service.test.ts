@@ -1831,26 +1831,27 @@ describe('MatchForfeitsService — re-recorded forfeit under a live withdrawal',
   function poolStateWithLiveRoot(
     overrides: {
       status?: string;
-      laterMatches?: unknown[];
+      laterMatches?: SupabaseRow[];
       records?: SupabaseRow[];
     } = {},
   ) {
     return {
       matches: {
-        maybeSingle: matchRow({ phaseType: 'pool', status: overrides.status ?? 'running' }),
-        update: { id: 'match-2' },
-        select: overrides.laterMatches ?? [],
+        rows: [
+          matchRow({ phaseType: 'pool', status: overrides.status ?? 'running' }),
+          ...(overrides.laterMatches ?? []),
+        ],
       },
       match_forfeits: {
         rows: overrides.records ?? [LIVE_ROOT, ...NEAR_MISSES],
         returning: (row: SupabaseRow) => ({ id: `ff-${String(row['match_id'])}` }),
       },
-      registrations: { maybeSingle: { id: 'reg-red', status: 'withdrawn' } },
+      registrations: { rows: [{ id: 'reg-red', status: 'withdrawn' }] },
     };
   }
 
   it('hangs a re-recorded pool forfeit off the live root withdrawal', async () => {
-    const supabase = fakeSupabase(poolStateWithLiveRoot());
+    const supabase = mockSupabase(poolStateWithLiveRoot());
     const service = new MatchForfeitsService(supabase as never, undefined as never);
 
     await service.createForfeit('match-1', {
@@ -1859,7 +1860,7 @@ describe('MatchForfeitsService — re-recorded forfeit under a live withdrawal',
       canContinue: true,
     });
 
-    expect(supabase.inserted.match_forfeits?.[0]).toMatchObject({
+    expect(rowsOf(supabase, 'match_forfeits', 'insert')[0]).toMatchObject({
       match_id: 'match-1',
       parent_forfeit_id: 'root-1',
     });
@@ -1869,11 +1870,12 @@ describe('MatchForfeitsService — re-recorded forfeit under a live withdrawal',
     // Depth 2 is the failure. `cascadeVoidChildren` is ONE query deep, so
     // voiding the root would stamp this record and leave its own children
     // active — an F standing for a fighter who is back in the tournament.
-    const supabase = fakeSupabase(
+    const supabase = mockSupabase(
       poolStateWithLiveRoot({
         laterMatches: [
           {
             id: 'later-1',
+            pool_id: 'pool-1',
             red_registration_id: 'reg-red',
             blue_registration_id: 'reg-green',
             status: 'scheduled',
@@ -1889,8 +1891,8 @@ describe('MatchForfeitsService — re-recorded forfeit under a live withdrawal',
       canContinue: false,
     });
 
-    expect(supabase.inserted.match_forfeits).toHaveLength(2);
-    expect(supabase.inserted.match_forfeits?.[1]).toMatchObject({
+    expect(writesOf(supabase, 'match_forfeits', 'insert')).toHaveLength(2);
+    expect(rowsOf(supabase, 'match_forfeits', 'insert')[1]).toMatchObject({
       match_id: 'later-1',
       auto_created: true,
       parent_forfeit_id: 'root-1',
@@ -1902,7 +1904,7 @@ describe('MatchForfeitsService — re-recorded forfeit under a live withdrawal',
     // sit in the table, each matching on all but one column, and not one of
     // them is a withdrawal this bout belongs under. A lost scope adopts
     // whichever it stopped excluding.
-    const supabase = fakeSupabase(poolStateWithLiveRoot({ records: NEAR_MISSES }));
+    const supabase = mockSupabase(poolStateWithLiveRoot({ records: NEAR_MISSES }));
     const service = new MatchForfeitsService(supabase as never, undefined as never);
 
     await service.createForfeit('match-1', {
@@ -1911,7 +1913,9 @@ describe('MatchForfeitsService — re-recorded forfeit under a live withdrawal',
       canContinue: true,
     });
 
-    expect(supabase.inserted.match_forfeits?.[0]).toMatchObject({ parent_forfeit_id: null });
+    expect(rowsOf(supabase, 'match_forfeits', 'insert')[0]).toMatchObject({
+      parent_forfeit_id: null,
+    });
   });
 
   it('never inherits for an OVERRIDE', async () => {
@@ -1919,7 +1923,7 @@ describe('MatchForfeitsService — re-recorded forfeit under a live withdrawal',
     // it to a withdrawal would let voiding the withdrawal erase a result an
     // organiser stated — the record would vanish with a cascade it never
     // belonged to.
-    const supabase = fakeSupabase(poolStateWithLiveRoot({ status: 'completed' }));
+    const supabase = mockSupabase(poolStateWithLiveRoot({ status: 'completed' }));
     const service = new MatchForfeitsService(supabase as never, undefined as never);
 
     await service.createForfeit('match-1', {
@@ -1928,7 +1932,9 @@ describe('MatchForfeitsService — re-recorded forfeit under a live withdrawal',
       explicitScores: { forfeitingScore: 3, opponentScore: 5 },
     });
 
-    expect(supabase.inserted.match_forfeits?.[0]).toMatchObject({ parent_forfeit_id: null });
+    expect(rowsOf(supabase, 'match_forfeits', 'insert')[0]).toMatchObject({
+      parent_forfeit_id: null,
+    });
   });
 
   it('never inherits on a bracket match', async () => {
@@ -1936,17 +1942,14 @@ describe('MatchForfeitsService — re-recorded forfeit under a live withdrawal',
     // POOL bouts, so a bracket bout was never closed by that withdrawal. The
     // live root is present in this state on purpose: without the pool scope
     // this bout would adopt it.
-    const supabase = fakeSupabase({
-      matches: {
-        maybeSingle: matchRow({ phaseType: 'single_elim', status: 'scheduled' }),
-        update: { id: 'match-1' },
-      },
+    const supabase = mockSupabase({
+      matches: { rows: [matchRow({ phaseType: 'single_elim', status: 'scheduled' })] },
       match_forfeits: {
         rows: [LIVE_ROOT],
         returning: { id: 'ff-match-1' },
       },
-      bracket_slots: { maybeSingle: null },
-      registrations: { maybeSingle: { id: 'reg-red', status: 'checked_in' } },
+      bracket_slots: { rows: [] },
+      registrations: { rows: [{ id: 'reg-red', status: 'checked_in' }] },
     });
     const service = new MatchForfeitsService(supabase as never, undefined as never);
 
@@ -1956,7 +1959,9 @@ describe('MatchForfeitsService — re-recorded forfeit under a live withdrawal',
       canContinue: true,
     });
 
-    expect(supabase.inserted.match_forfeits?.[0]).toMatchObject({ parent_forfeit_id: null });
+    expect(rowsOf(supabase, 'match_forfeits', 'insert')[0]).toMatchObject({
+      parent_forfeit_id: null,
+    });
   });
 });
 
