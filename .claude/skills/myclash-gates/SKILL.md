@@ -5,9 +5,14 @@ description: The real verification chain for this repo — what to run before pu
 
 # MyClash verification gates
 
-`pnpm lint && pnpm typecheck && pnpm test` is **not** the CI check. CI's Lint job runs twenty-five
-further steps — twenty-two independent gates plus three builds. Running only the three and pushing
+`pnpm lint && pnpm typecheck && pnpm test` is **not** the CI check. CI's Lint job runs twenty-seven
+further steps — twenty-four independent gates plus three builds. Running only the three and pushing
 is the most common way to turn `main` red here.
+
+These counts are not gated. `check-docs-drift.mjs` derives the number from `ci.yml` and compares it
+against prose, but its corpus is `README`/`CONTRIBUTING`/`CLAUDE`/`myclash`/`DESIGN.md` plus
+`docs/**` — and `.claude/` is excluded from every repo scan. This file was stale by one gate until
+2026-08-19 and nothing noticed. When you add a gate, count `ci.yml` and correct this line by hand.
 
 Source of truth: `.github/workflows/ci.yml`. If this file and that file disagree, the workflow wins.
 
@@ -48,6 +53,8 @@ pnpm quality:openapi-drift       # generated client vs live routes
 pnpm quality:shared-types        # shared-type leaks
 pnpm design:lint                 # designmd's own lint of DESIGN.md
 pnpm quality:design-drift        # DESIGN.md vs packages/ui/src/theme.css
+pnpm quality:css-vars            # every var(--x) resolves, and no read hides behind a fallback
+pnpm quality:docs-drift          # prose vs engines, ci.yml, tests/e2e and the filesystem
 pnpm db:review                   # schema/RLS review gates
 pnpm db:realtime-bindings        # an unpublished table in any binding kills the channel
 pnpm db:perf:fixture

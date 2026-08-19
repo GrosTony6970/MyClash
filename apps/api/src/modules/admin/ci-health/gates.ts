@@ -59,6 +59,7 @@ export const CI_GATES: readonly CiGate[] = [
   { job: 'Lint', step: 'Check shared-type leaks' },
   { job: 'Lint', step: 'Check design system drift' },
   { job: 'Lint', step: 'Check DESIGN.md token drift' },
+  { job: 'Lint', step: 'Check CSS custom properties' },
   { job: 'Lint', step: 'Check documentation drift' },
   { job: 'Lint', step: 'Check database review gates' },
   { job: 'Lint', step: 'Check realtime bindings are published' },

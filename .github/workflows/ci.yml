@@ -260,6 +260,14 @@ jobs:
         if: '!cancelled()'
         run: pnpm quality:design-drift
 
+      # The other half of the design contract: check-design-drift compares
+      # DESIGN.md against theme.css and never opens a component, so a token that
+      # exists can still be read through a fallback that shipped as the real
+      # value (D2, D11) or as dead code (D5). This one reads the source.
+      - name: Check CSS custom properties
+        if: '!cancelled()'
+        run: pnpm quality:css-vars
+
       - name: Check documentation drift
         if: '!cancelled()'
         run: pnpm quality:docs-drift
