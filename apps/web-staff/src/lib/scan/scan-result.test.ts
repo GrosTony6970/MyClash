@@ -17,6 +17,19 @@ describe('classifyScanFailure', () => {
     expect(classifyScanFailure({ status: 404, body: { detail: 'pass_expired' } })).toBe('expired');
   });
 
+  it('prefers detail over message, the way the rest of the repo now reads a body', () => {
+    // They carry the same string today, so this only bites the day they stop.
+    // `detail` is the member RFC 9457 specifies and `message` the compatibility
+    // extension, and `readDetail` in @myclash/api-client reads them in that
+    // order — this file read them the other way round until 2026-08-20.
+    expect(
+      classifyScanFailure({
+        status: 404,
+        body: { detail: 'pass_expired', message: 'pass_not_recognized' },
+      }),
+    ).toBe('expired');
+  });
+
   it('treats the service worker offline 503 as offline, not as a server fault', () => {
     // apps/web-staff/public/sw.js turns a dead network into a synthetic 503.
     expect(classifyScanFailure({ status: 503 })).toBe('offline');

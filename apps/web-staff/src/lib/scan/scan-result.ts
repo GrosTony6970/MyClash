@@ -22,10 +22,23 @@ export type ScanFailure =
   | 'offline'
   | 'failed';
 
-/** The API's problem+json body, as @myclash/api-client surfaces it. */
-interface ApiFailure {
+/**
+ * What `ApiClientError` carries — NOT the exported `ApiFailure`.
+ *
+ * Named `ApiFailure` until 2026-08-20, which was a landmine: @myclash/api-client
+ * exports a type by that name, and it has no `body` at all. It carries a flat
+ * `detail`. Anyone who "tidied" this by importing the real one would have made
+ * every `failure?.body?.…` below permanently undefined, and `expired` and
+ * `unknown` unreachable with no type error to show for it — a volunteer
+ * scanning last month's pass would just read "failed".
+ *
+ * The shape here is the one `api.post` actually rejects with: `ApiClientError`
+ * (packages/api-client/src/index.ts), thrown by `redeemPass` in useDesk.ts and
+ * caught in ScanOverlay.tsx.
+ */
+interface ScanRejection {
   status?: number;
-  body?: { message?: string; detail?: string } | null;
+  body?: { detail?: string; message?: string } | null;
 }
 
 /**
@@ -41,14 +54,18 @@ interface ApiFailure {
  * a lie.
  */
 export function classifyScanFailure(err: unknown): ScanFailure {
-  const failure = err as ApiFailure | null;
+  const failure = err as ScanRejection | null;
   const status = failure?.status;
 
   if (status === 503 || status === 0 || status === undefined) return 'offline';
   if (status === 401 || status === 403) return 'forbidden';
   if (status >= 500) return 'failed';
 
-  const message = failure?.body?.message ?? failure?.body?.detail ?? '';
+  // `detail` first: it is the member RFC 9457 specifies, and `message` is the
+  // compatibility extension beside it. Both carry the same string today, so
+  // this is a statement about which one is the contract. Same order as
+  // `readDetail` in @myclash/api-client, which is the one owner of this read.
+  const message = failure?.body?.detail ?? failure?.body?.message ?? '';
   if (message.includes('pass_expired')) return 'expired';
   if (message.includes('pass_not_recognized')) return 'unknown';
   return 'failed';
