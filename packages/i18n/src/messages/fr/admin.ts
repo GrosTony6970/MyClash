@@ -464,7 +464,7 @@ export const admin = {
   },
   common: {
     sortAscLabel: 'Tri croissant',
-    sortDescLabel: 'Tri decroissant',
+    sortDescLabel: 'Tri décroissant',
     searchPlaceholder: 'Rechercher...',
     colorCustom: 'Personnalisée',
     somethingWentWrong: 'Une erreur est survenue',

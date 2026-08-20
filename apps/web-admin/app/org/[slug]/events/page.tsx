@@ -604,6 +604,8 @@ export default function OrgEventsListPage() {
                   currentKey={sortKey}
                   direction={sortKey === 'name' ? sortDir : null}
                   onToggle={toggleSort}
+                  ariaSortAsc={t('admin.common.sortAscLabel')}
+                  ariaSortDesc={t('admin.common.sortDescLabel')}
                 />
               </DataTableCell>
               <DataTableCell as="th">
@@ -613,6 +615,8 @@ export default function OrgEventsListPage() {
                   currentKey={sortKey}
                   direction={sortKey === 'createdAt' ? sortDir : null}
                   onToggle={toggleSort}
+                  ariaSortAsc={t('admin.common.sortAscLabel')}
+                  ariaSortDesc={t('admin.common.sortDescLabel')}
                 />
               </DataTableCell>
               <DataTableCell as="th">
@@ -622,6 +626,8 @@ export default function OrgEventsListPage() {
                   currentKey={sortKey}
                   direction={sortKey === 'createdBy' ? sortDir : null}
                   onToggle={toggleSort}
+                  ariaSortAsc={t('admin.common.sortAscLabel')}
+                  ariaSortDesc={t('admin.common.sortDescLabel')}
                 />
               </DataTableCell>
               <DataTableCell as="th" className="text-center">
@@ -632,6 +638,8 @@ export default function OrgEventsListPage() {
                   direction={sortKey === 'tournamentCount' ? sortDir : null}
                   onToggle={toggleSort}
                   align="center"
+                  ariaSortAsc={t('admin.common.sortAscLabel')}
+                  ariaSortDesc={t('admin.common.sortDescLabel')}
                 />
               </DataTableCell>
               <DataTableCell as="th" className="text-center">
@@ -642,6 +650,8 @@ export default function OrgEventsListPage() {
                   direction={sortKey === 'participantCount' ? sortDir : null}
                   onToggle={toggleSort}
                   align="center"
+                  ariaSortAsc={t('admin.common.sortAscLabel')}
+                  ariaSortDesc={t('admin.common.sortDescLabel')}
                 />
               </DataTableCell>
               <DataTableCell as="th">
@@ -651,6 +661,8 @@ export default function OrgEventsListPage() {
                   currentKey={sortKey}
                   direction={sortKey === 'startDate' ? sortDir : null}
                   onToggle={toggleSort}
+                  ariaSortAsc={t('admin.common.sortAscLabel')}
+                  ariaSortDesc={t('admin.common.sortDescLabel')}
                 />
               </DataTableCell>
               <DataTableCell as="th">
@@ -660,6 +672,8 @@ export default function OrgEventsListPage() {
                   currentKey={sortKey}
                   direction={sortKey === 'endDate' ? sortDir : null}
                   onToggle={toggleSort}
+                  ariaSortAsc={t('admin.common.sortAscLabel')}
+                  ariaSortDesc={t('admin.common.sortDescLabel')}
                 />
               </DataTableCell>
               <DataTableCell as="th">
@@ -669,6 +683,8 @@ export default function OrgEventsListPage() {
                   currentKey={sortKey}
                   direction={sortKey === 'visibility' ? sortDir : null}
                   onToggle={toggleSort}
+                  ariaSortAsc={t('admin.common.sortAscLabel')}
+                  ariaSortDesc={t('admin.common.sortDescLabel')}
                 />
               </DataTableCell>
               <DataTableCell as="th">{t('organizer.events.table.actions')}</DataTableCell>

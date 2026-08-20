@@ -14,9 +14,19 @@ export interface SortableHeaderProps {
   currentKey: string | null;
   direction: 'asc' | 'desc' | null;
   onToggle: (columnKey: string) => void;
-  /** Accessible label for the sort button — passed to aria-label. */
-  ariaSortAsc?: string;
-  ariaSortDesc?: string;
+  /**
+   * Accessible name for the sort button — appended to `label` as aria-label,
+   * so it is the sentence a screen reader reads out.
+   *
+   * Required, and deliberately not defaulted. packages/ui carries no
+   * dictionary of its own (see src/types/translator.ts), so a default here
+   * could only be an English literal — and an optional English default is a
+   * branch that fires silently: a caller that forgets these props ships
+   * "Sort ascending" to a French organiser and nothing goes red. Required
+   * makes the compiler name every site instead.
+   */
+  ariaSortAsc: string;
+  ariaSortDesc: string;
   className?: string;
   /**
    * Horizontal alignment for the label + chevron pair. Defaults to
@@ -33,8 +43,8 @@ export const SortableHeader: React.FC<SortableHeaderProps> = ({
   currentKey,
   direction,
   onToggle,
-  ariaSortAsc = 'Sort ascending',
-  ariaSortDesc = 'Sort descending',
+  ariaSortAsc,
+  ariaSortDesc,
   className = '',
   align = 'left',
 }) => {

@@ -17,9 +17,10 @@ export interface StandingsHeaderCellProps {
   align?: 'left' | 'center' | 'right';
   /** Extra classes forwarded to the sort button (e.g. accent colour for the score column). */
   className?: string;
-  /** Accessible sort labels (i18n). */
-  ariaSortAsc?: string;
-  ariaSortDesc?: string;
+  /** Accessible sort labels (i18n). Required — forwarded straight to
+   *  `SortableHeader`, which refuses an untranslated default. */
+  ariaSortAsc: string;
+  ariaSortDesc: string;
   /**
    * Horizontal anchor for the tooltip bubble. Use 'start' for the leftmost
    * header and 'end' for the rightmost so the bubble stays inside a
