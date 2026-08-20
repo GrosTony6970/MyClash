@@ -304,11 +304,8 @@ function SkillModal({
         // Surface the backend message rather than swallowing it behind a
         // generic toast — the cause (auth role, DB column, validation) is
         // otherwise impossible to diagnose from the UI alone.
-        const body = (await res.json().catch(() => null)) as {
-          message?: string | string[];
-        } | null;
-        const raw = Array.isArray(body?.message) ? body!.message.join(' · ') : body?.message;
-        setError(raw || t('organizer.refereesPage.skillSaveFailed'));
+        const body = (await res.json().catch(() => null)) as { message?: string } | null;
+        setError(body?.message || t('organizer.refereesPage.skillSaveFailed'));
         return;
       }
 

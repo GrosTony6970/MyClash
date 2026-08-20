@@ -102,20 +102,30 @@ describe('mutateSchedule', () => {
     expect((err as ScheduleMutationError).url).toBe('/api/v1/matches/m1/schedule');
   });
 
-  it('joins a class-validator message array', async () => {
+  it('surfaces a class-validator refusal as the one sentence the API sends', async () => {
+    // This used to feed `message: ['liceId must be a UUID', 'scheduledAt is
+    // invalid']` and assert the two were joined. No server has ever sent that:
+    // `normalizeMessage` in apps/api/src/common/api-exception.filter.ts
+    // collapses a class-validator array to its FIRST entry before the body
+    // leaves, and the full list ships separately under `details`. The mock was
+    // free to invent a shape the real contract forbids, so the join branch it
+    // covered could not fire in production and the test still passed.
     stubFetch(() =>
       Promise.resolve(
         response({
           status: 400,
           json: () =>
-            Promise.resolve({ message: ['liceId must be a UUID', 'scheduledAt is invalid'] }),
+            Promise.resolve({
+              message: 'liceId must be a UUID',
+              details: { validationErrors: ['liceId must be a UUID', 'scheduledAt is invalid'] },
+            }),
         }),
       ),
     );
 
     await expect(
       mutateSchedule('/api/v1/matches/m1/schedule', { method: 'PATCH', body: {} }),
-    ).rejects.toThrow('liceId must be a UUID, scheduledAt is invalid');
+    ).rejects.toThrow('liceId must be a UUID');
   });
 
   it('falls back to the status line when the error body is not JSON', async () => {

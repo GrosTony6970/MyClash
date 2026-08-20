@@ -259,15 +259,11 @@ export default function PoolsPage() {
       }
 
       if (!res.ok) {
-        // Try hard to surface the real server message — both the structured
-        // Nest field and any raw string body. Anything is better than the
-        // previous silent "Generation failed".
-        const body2 = (await res.json().catch(() => null)) as {
-          message?: string | string[];
-        } | null;
-        const message = Array.isArray(body2?.message)
-          ? body2!.message.join(', ')
-          : (body2?.message ?? t('admin.common.poolGenerationFailedHttp', { status: res.status }));
+        // Surface the real server message. Anything is better than the previous
+        // silent "Generation failed".
+        const body2 = (await res.json().catch(() => null)) as { message?: string } | null;
+        const message =
+          body2?.message ?? t('admin.common.poolGenerationFailedHttp', { status: res.status });
         throw new Error(message);
       }
 

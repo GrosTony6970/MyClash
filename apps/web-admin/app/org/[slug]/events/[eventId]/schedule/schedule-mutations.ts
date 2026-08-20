@@ -51,18 +51,17 @@ export class ScheduleMutationError extends Error {
 }
 
 /**
- * NestJS error bodies carry `message` as a string, or as an array of strings
- * when class-validator rejected the payload. Both shapes reach the operator, so
- * both are read; anything else falls back to the status line.
+ * The API's error body carries `message` as a string, always. A class-validator
+ * array is collapsed to its first entry by `normalizeMessage` in
+ * `api-exception.filter.ts` before it leaves the server, so an array shape
+ * never reaches here; anything that is not a usable string falls back to the
+ * status line.
  */
 async function messageFrom(res: Response): Promise<string> {
   try {
     const body: unknown = await res.json();
     const message = (body as { message?: unknown } | null)?.message;
     if (typeof message === 'string' && message.length > 0) return message;
-    if (Array.isArray(message) && message.length > 0) {
-      return message.filter((m): m is string => typeof m === 'string').join(', ');
-    }
   } catch {
     // Not JSON, or an empty body — the status line below is all we have.
   }

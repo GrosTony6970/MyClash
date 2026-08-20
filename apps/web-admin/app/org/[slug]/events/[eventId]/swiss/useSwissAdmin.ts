@@ -190,12 +190,10 @@ export async function swissMutate(
   });
   if (res.ok) return { ok: true, data: await res.json().catch(() => null) };
   const body = (await res.json().catch(() => null)) as {
-    message?: string | string[];
+    message?: string;
     details?: { warnings?: SwissOverrideWarning[] };
   } | null;
-  const message = Array.isArray(body?.message)
-    ? body.message.join(', ')
-    : (body?.message ?? `HTTP ${res.status}`);
+  const message = body?.message ?? `HTTP ${res.status}`;
   return {
     ok: false,
     status: res.status,

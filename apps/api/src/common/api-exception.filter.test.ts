@@ -95,6 +95,31 @@ describe('ApiExceptionFilter', () => {
     );
   });
 
+  it('sends the FIRST validation error as the reason, never the whole array', () => {
+    // The case above uses a one-element array, where "the first element" and
+    // "the whole array" are the same string — so it cannot see the collapse at
+    // `normalizeMessage`. Six web-admin screens carried an
+    // `Array.isArray(body.message)` branch that joined the list, and none of
+    // them ever fired, because neither `detail` nor `message` leaves here as an
+    // array. Those branches are gone; this is what says they can stay gone.
+    const { host, send } = makeHost();
+    const exception = new BadRequestException([
+      'email must be an email',
+      'name should not be empty',
+    ]);
+
+    new ApiExceptionFilter().catch(exception, host);
+
+    const body = send.mock.calls[0]?.[0] as ApiErrorResponse;
+    expect(body.detail).toBe('email must be an email');
+    expect(body.message).toBe('email must be an email');
+    // The rest is not lost, only moved. Nothing in any app reads this yet, so
+    // an operator who submits four bad fields is still told about one.
+    expect(body.details).toEqual({
+      validationErrors: ['email must be an email', 'name should not be empty'],
+    });
+  });
+
   it('preserves structured conflict payloads under details', () => {
     const { host, send } = makeHost();
     const exception = new ConflictException({

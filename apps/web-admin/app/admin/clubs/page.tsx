@@ -569,12 +569,10 @@ export default function AdminClubsPage() {
 
       if (!res.ok) {
         const data = (await res.json().catch(() => ({}))) as {
-          message?: string | string[];
+          message?: string;
           details?: { blockers?: unknown }; // ApiExceptionFilter nests extras here
         };
-        const message = Array.isArray(data.message)
-          ? data.message.join(', ')
-          : (data.message ?? t('admin.clubs.deleteError'));
+        const message = data.message ?? t('admin.clubs.deleteError');
         const blockerText = formatBlockers(data.details?.blockers);
         throw new Error(
           blockerText ? `${message}. ${t('admin.clubs.blockers')}: ${blockerText}` : message,

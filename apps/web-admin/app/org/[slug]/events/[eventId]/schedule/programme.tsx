@@ -232,8 +232,7 @@ export function ProgrammePlanner({
 
   async function readErrorMessage(res: Response, fallback: string): Promise<string> {
     try {
-      const body = (await res.json()) as { message?: string | string[]; error?: string };
-      if (Array.isArray(body.message)) return body.message.join(', ');
+      const body = (await res.json()) as { message?: string; error?: string };
       return body.message ?? body.error ?? fallback;
     } catch {
       return fallback;
