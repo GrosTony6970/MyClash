@@ -63,7 +63,7 @@ Two things this taught us:
 Every live `#c0392b` is gone. The original entry's two premises were both wrong, and finding that out changed the fix — recorded here because the wrong version is instructive:
 
 - **"It's the `events.primary_color` DB default."** No. The column was `themes.primary_color`, and migration **0086 already dropped it** (along with 5 sibling colour/font columns; `logo_url` went in 0084). No event has received that default since 0086. So there was **no migration to write** — the drizzle `themes` table was simply carrying 7 dead columns as stale drift. Those were deleted from the Drizzle schema mirror at the time (verified unread: the only live theme field is `hero_image_url`); the whole mirror has since gone, and `packages/db` now carries migrations only.
-- **"The event pages have a `#c0392b` fallback."** It wasn't a fallback — `--event-primary` has **no producer anywhere in the repo**, so `var(--event-primary, #c0392b)` rendered `#c0392b` unconditionally on every `/e/*` page. It was the _actual shipped accent_, not a safety net. The 10 sites now read `var(--color-accent)` — the token, which is `#b91c1c` on `/e/*` today and would inherit any future event tint set at the `--color-accent` level (the mechanism the contract actually specifies).
+- **"The event pages have a `#c0392b` fallback."** It wasn't a fallback — `--event-primary` has **no producer anywhere in the repo**, so `var(--event-primary, #c0392b)` rendered `#c0392b` unconditionally on every `/e/*` page. It was the _actual shipped accent_, not a safety net. The 10 sites now read `var(--color-accent)` — the token, which is `#b91c1c` on `/e/*`. This entry originally added "and would inherit any future event tint set at the `--color-accent` level, the mechanism the contract actually specifies". That was true of the contract as written and false of the product: migration 0086 had already retired per-event colour. The contract caught up on 2026-08-20 — see [D11](#d11--fixed-the-event-tint-spec-outlived-the-feature).
 
 Also unified: the 5 transactional-email CTA backgrounds (`mail.service.ts` — a literal is unavoidable in email, so the value was corrected), the scoring PWA `themeColor` + `manifest.json` `theme_color`, and two `organizations.dto.ts` doc/example strings.
 
@@ -221,37 +221,42 @@ Note this is **not** a `metadataBase` or canonical bug: those are correct, and t
 
 ---
 
-## D11 — the event-tint mechanism has no producer
+## D11 — FIXED: the event-tint spec outlived the feature
 
-**Rule broken:** none yet — this is a specified mechanism that was never built, recorded so the
-next person does not mistake it for one that works.
+**Fixed 2026-08-20 by deleting the specification, not by building the producer.** `DESIGN.md` and
+`docs/design/web-public.md` both specified the tint as `--color-accent: var(--event-primary, #b91c1c)`.
+Nothing set `--event-primary`.
 
-`DESIGN.md` → _Event colour_ and `docs/design/web-public.md` both specify the tint as:
+The reason matters, because the obvious reading is the wrong one. This was not an unbuilt feature
+waiting for someone. Migration **0086 retired per-event colour deliberately** and says so: the
+pickers were "write-only knobs" whose variables "weren't actually read by any component", and "the
+unified MyClash design … governs both apps from one set of design tokens". It names what carries
+per-event identity instead — `events.logo_url`, `themes.hero_image_url`, `organizations.brand_color`
+for the landing card, and `tournaments.color` inside the event subtree. Commit `02ed0977` then
+deleted the producer block. The spec simply outlived the deletion by about three months.
 
-```css
---color-accent: var(--event-primary, #b91c1c);
-```
-
-Nothing in the repo sets `--event-primary`. Commit `02ed0977` (2026-06-02) scoped event theming
-down to logo + hero and deleted the block that produced `--event-primary`, `--event-secondary`
-and `--event-accent`. The only custom property any `/e/*` code writes today is
-`--event-hero-image`.
-
-So the tint is **inert, not broken**: because every consumer now reads `var(--color-accent)`
-directly, the missing producer changes nothing on screen. The spec is left in place deliberately —
-it describes the mechanism we still want, and `check-design-drift.mjs` is explicit that DESIGN.md
-carries intent while gates cover what is true.
-
-**Fix when someone owns it:** either build the producer (an `/e/[eventSlug]` layout that sets
-`--color-accent` from the event's colour) or retire the paragraph. Both are product calls.
-
-**Two consumer bugs this produced have been fixed**, and they are the reason this entry exists:
+**A spec that outlives its feature grows consumers.** That is the lesson worth the entry. While the
+paragraph stood, two rounds of pages inlined an `--event-*` variable whose fallback was therefore
+the only colour that ever rendered:
 
 - `var(--event-primary, #c0392b)` on 10 sites — the fallback was the shipped accent (D2, fixed
   2026-07-17).
-- `var(--event-accent, #f59e0b)` on 5 sites / 9 headings — same disease, one variable name over,
+- `var(--event-accent, #f59e0b)` on 5 sites / 9 headings — the same disease one variable name over,
   so D2's by-name sweep never matched it. It shipped **raw gold at 2.06:1 on `text-xs` headings**,
   an AA failure on three public pages, for roughly eleven weeks. Fixed 2026-08-19.
+
+Both readings of the paragraph were dangerous. Read as intent, it invited someone to build a
+retired feature. Read as description, it invited exactly the two inlining bugs above.
+
+**Considered and rejected:** pointing the tint at `organizations.brand_color`, which is already on
+the wire — the event-by-slug query returns its row unprojected, and `fetchEventTheme` already calls
+that endpoint, so it would have cost about three edits. It is a free `TEXT` column with **no
+contrast constraint**, rendered today only as a decorative stripe. Promoting it to `--color-accent`
+would put an arbitrary hex behind headings and buttons, which is the defect D11 and D12 both were.
+If it is ever promoted, it needs a contrast guard first.
+
+`pnpm quality:css-vars` now rejects the shape that made this expensive, so a third round cannot
+reach `main` the way the first two did.
 
 ---
 

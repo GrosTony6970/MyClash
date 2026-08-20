@@ -31,15 +31,11 @@ Auth pages are the one place both switches are on at once — that's what makes 
 
 ## Event colour
 
-On `/e/*` the organizer's colour tints the accent:
+**There isn't one.** Migration 0086 retired the per-event colour pickers, and `/e/*` uses the same accent as the rest of the product, `#b91c1c`. The `EventHeader` identity band carries the event's identity, and the page stays a page of the booklet.
 
-```css
---color-accent: var(--event-primary, #b91c1c);
-```
+What still varies per event is identity, not palette: the logo, the hero image, and each tournament's colour inside its own subtree.
 
-**It tints one token.** Event colour is not a third surface: no background of its own, no type, no rules. The `EventHeader` identity band carries the event's identity; the page stays a page of the booklet.
-
-**Nothing sets `--event-primary` today**, so the mechanism above is specification, not behaviour — see [D11](known-deviations.md#d11--the-event-tint-mechanism-has-no-producer). Pages must read `var(--color-accent)` directly. Two rounds of pages inlined an `--event-*` variable whose fallback was therefore the only colour that ever rendered: `--event-primary` ([D2](known-deviations.md#d2--fixed-the-legacy-red-c0392b-unified-onto-b91c1c)) and `--event-accent` (D11). Both are gone. Do not add a third.
+Pages read `var(--color-accent)` directly. **Do not inline `var(--event-*, …)`** — nothing produces those variables, so the fallback is not a safety net, it is the colour that ships. That happened twice: `--event-primary` ([D2](known-deviations.md#d2--fixed-the-legacy-red-c0392b-unified-onto-b91c1c)) and `--event-accent` ([D11](known-deviations.md#d11--fixed-the-event-tint-spec-outlived-the-feature)), the second rendering raw gold at 2.06:1 on three public pages. `pnpm quality:css-vars` now rejects the shape.
 
 ## What differs
 

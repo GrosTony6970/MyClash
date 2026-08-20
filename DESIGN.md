@@ -355,7 +355,11 @@ Note `strong` **inverts** across the surface scope: `#0f172a` on light, `#e2e8f0
 
 ### Event colour
 
-On `/e/*` an organizer's colour tints the accent: `--color-accent: var(--event-primary, #b91c1c)`. It tints **one token**. Event colour is not a third surface — it gets no background, no type, and no rules of its own.
+**There isn't one, deliberately.** `/e/*` is governed by the same tokens as everything else, and the accent stays `#b91c1c` on every event. Migration 0086 retired the per-event colour pickers because they were write-only knobs — the variables they set were read by no component — and the unified design governs both apps from one set of tokens.
+
+An event still looks like itself, through identity rather than palette: its logo, its hero image, and its tournaments' colours inside the subtree. An organisation's `brand_color` tints its cards on the public landing page.
+
+Do not reintroduce a per-event tint by inlining `var(--event-*, …)` in a component. Nothing produces those variables, so the fallback becomes the shipped colour rather than a safety net — that shipped twice, as `#c0392b` and then as raw gold, and `pnpm quality:css-vars` now rejects the shape.
 
 ## Typography
 
