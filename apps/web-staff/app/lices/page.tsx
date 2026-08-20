@@ -5,7 +5,10 @@ import { useRouter } from 'next/navigation';
 import { useI18n } from '@myclash/next-i18n/client';
 import { useScoringTheme } from '../../src/theme/ThemeProvider';
 import { ThemeSwitcher } from '../../src/theme/ThemeSwitcher';
+import { apiRequest, fetchMe } from '@myclash/api-client';
 import { api } from '../../src/lib/api';
+import { getApiUrl } from '../../src/lib/api-url';
+import { resolveStaffSession } from '../../src/lib/staff-session-decision';
 import { isLiveStatus } from '../../src/components/partition-lice-matches';
 import { MatchStatusPill } from './[liceId]/_components/MatchStatusPill';
 import { StartOfflineDrill } from '../../src/components/StartOfflineDrill';
@@ -57,15 +60,17 @@ export default function LicePickerPage() {
   useEffect(() => {
     void (async () => {
       try {
-        // Staff PIN session, or fall back to a full-user session.
-        try {
-          await api.get('/api/v1/staff-auth/me');
-        } catch {
-          const me = await api.get<{ type: string }>('/api/v1/me').catch(() => null);
-          if (me?.type !== 'user') {
-            router.replace('/login');
-            return;
-          }
+        // Staff PIN session, or fall back to a claimed account session.
+        // This asked for `me.type !== 'user'` until 2026-08-20, behind a
+        // `{ type: string }` cast. /me answers claimed | guest | anonymous and
+        // never emitted 'user', so the fallback could not pass and every
+        // organiser without a PIN was bounced to /login holding a valid
+        // session. The decision is now a tested pure module.
+        const staff = await apiRequest(getApiUrl(), '/api/v1/staff-auth/me');
+        const account = staff.ok ? null : await fetchMe(getApiUrl());
+        if (resolveStaffSession(staff.ok, account?.ok ? account.data : null).kind === 'sign_in') {
+          router.replace('/login');
+          return;
         }
 
         let lices: Array<{

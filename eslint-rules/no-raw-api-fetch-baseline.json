@@ -235,7 +235,6 @@
     "apps/web-public/src/hooks/useWeaponOptions.ts": 1,
     "apps/web-public/src/theme/fetch-theme.ts": 1,
     "apps/web-staff/app/matches/[matchId]/page.tsx": 2,
-    "apps/web-staff/app/page.tsx": 1,
     "apps/web-staff/src/components/ForfeitPanel.tsx": 1,
     "apps/web-staff/src/components/MatchClock.tsx": 2,
     "apps/web-staff/src/components/MatchCorrectionsDrawer.tsx": 2,
