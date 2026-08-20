@@ -141,6 +141,14 @@ const adminDashboardPagePath = path.join(
   'dashboard',
   'page.tsx',
 );
+const adminLandingDecisionPath = path.join(
+  rootDir,
+  'apps',
+  'web-admin',
+  'src',
+  'components',
+  'admin-landing-decision.ts',
+);
 const bootstrapSuperAdminScriptPath = path.join(rootDir, 'scripts', 'bootstrap-super-admin.mjs');
 const seedMinScriptPath = path.join(rootDir, 'scripts', 'seed-min.ts');
 const superAdminPagePath = path.join(rootDir, 'apps', 'web-admin', 'app', 'admin', 'page.tsx');
@@ -580,6 +588,7 @@ const publicPersonalShellText = await pinned.readPinnedFile(publicPersonalShellP
 const publicEventRootPageText = await pinned.readPinnedFile(publicEventRootPagePath);
 const adminRootPageText = await pinned.readPinnedFile(adminRootPagePath);
 const adminDashboardPageText = await pinned.readPinnedFile(adminDashboardPagePath);
+const adminLandingDecisionText = await pinned.readPinnedFile(adminLandingDecisionPath);
 const bootstrapSuperAdminScriptText = await pinned.readPinnedFile(bootstrapSuperAdminScriptPath);
 const seedMinScriptText = await pinned.readPinnedFile(seedMinScriptPath);
 const superAdminPageText = await pinned.readPinnedFile(superAdminPagePath);
@@ -1355,22 +1364,28 @@ requireContains(
   'apps/web-public/app/e/[eventSlug]/page.tsx',
   'redirect(`/e/${eventSlug}/home`)',
 );
-// The routing lives in resolveLanding() (a discriminated-union resolver) rather
-// than inline window.location writes: super-admins with no org → /admin,
-// org members → their org, dual-role (super-admin + org) → the workspace
-// chooser, and the terminal no-workspace state. Assert the resolver's shape.
+// The routing is a discriminated-union resolver rather than inline
+// window.location writes: super-admins with no org → /admin, org members →
+// their org, dual-role (super-admin + org) → the workspace chooser, and the
+// terminal no-workspace state. Assert the resolver's shape.
+//
+// It moved out of the page and into `admin-landing-decision.ts` on 2026-08-20,
+// so that the branch ORDER — which is the subtle part, an org owner who also
+// holds a league grant must land on the org — could be unit-tested instead of
+// only observed in a browser. These assertions moved with it. The page keeps
+// the terminal-state one below, because rendering is still the page's job.
+const LANDING_DECISION_FILE = 'apps/web-admin/src/components/admin-landing-decision.ts';
+requireContains(adminLandingDecisionText, LANDING_DECISION_FILE, 'me.admin?.platformRole');
+requireContains(adminLandingDecisionText, LANDING_DECISION_FILE, "href: '/admin'");
+requireContains(adminLandingDecisionText, LANDING_DECISION_FILE, 'href: `/org/${firstOrg.slug}`');
+// The RETURN, not the union member. `kind: 'chooser'` alone also matches the
+// `AdminLanding` type declaration a few lines above, so it stayed green while
+// the branch that produces it was renamed away — verified by doing exactly that.
 requireContains(
-  adminDashboardPageText,
-  'apps/web-admin/app/dashboard/page.tsx',
-  'data.admin?.platformRole',
+  adminLandingDecisionText,
+  LANDING_DECISION_FILE,
+  "{ kind: 'chooser', organizerSlug: firstOrg.slug }",
 );
-requireContains(adminDashboardPageText, 'apps/web-admin/app/dashboard/page.tsx', "href: '/admin'");
-requireContains(
-  adminDashboardPageText,
-  'apps/web-admin/app/dashboard/page.tsx',
-  'href: `/org/${firstOrg.slug}`',
-);
-requireContains(adminDashboardPageText, 'apps/web-admin/app/dashboard/page.tsx', "kind: 'chooser'");
 requireContains(
   adminDashboardPageText,
   'apps/web-admin/app/dashboard/page.tsx',
