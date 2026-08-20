@@ -9,10 +9,22 @@ import { nextSortState, sortRows } from '../components/SortableHeader';
  * `getValue(row, key)` is how the hook reads the value for a given column —
  * the consumer decides what shape to return; the hook handles null-coalescing
  * and locale-aware comparison.
+ *
+ * `initial` opens the list already sorted. It seeds the state and nothing else:
+ * the cycle stays `nextSortState`, so the first click on the seeded column
+ * *advances* it (a list opened on `desc` goes to unsorted) rather than
+ * restarting at `asc`. A list that opens unsorted omits it.
+ *
+ * It exists because a list that opens newest-first is ordinary, and without it
+ * the organiser's Events list re-implemented this whole hook inline to get one.
  */
-export function useSortableList<T>(rows: readonly T[], getValue: (row: T, key: string) => unknown) {
-  const [sortKey, setSortKey] = useState<string | null>(null);
-  const [direction, setDirection] = useState<'asc' | 'desc' | null>(null);
+export function useSortableList<T>(
+  rows: readonly T[],
+  getValue: (row: T, key: string) => unknown,
+  initial?: { key: string | null; direction: 'asc' | 'desc' | null },
+) {
+  const [sortKey, setSortKey] = useState<string | null>(initial?.key ?? null);
+  const [direction, setDirection] = useState<'asc' | 'desc' | null>(initial?.direction ?? null);
 
   const sorted = useMemo(
     () => sortRows(rows, sortKey, direction, getValue),

@@ -27,10 +27,9 @@ import {
   Modal,
   SortableHeader,
   formatCountryName,
-  nextSortState,
-  sortRows,
   statusPillTone,
   tournamentStatusSemantic,
+  useSortableList,
 } from '@myclash/ui';
 import { allowsDirectHardDelete, asEventKind, EVENT_KINDS, type EventKind } from '@myclash/types';
 import { localeToBcp47, type AppLocale } from '@myclash/time';
@@ -125,6 +124,39 @@ function toForm(event: OrgEvent): EventForm {
   };
 }
 
+/** The list opens newest-first — an organiser's own events, most recent on top. */
+const INITIAL_SORT = { key: 'createdAt', direction: 'desc' } as const;
+
+/**
+ * Column key → the value `useSortableList` compares on.
+ *
+ * Module-level so its identity is stable across renders; the hook memoizes on
+ * it. `visibility` sorts on the underlying draft/published split rather than
+ * the badge text, so the order does not change with the locale.
+ */
+function getEventSortValue(row: OrgEvent, key: string): unknown {
+  switch (key) {
+    case 'name':
+      return row.name;
+    case 'createdAt':
+      return row.createdAt;
+    case 'createdBy':
+      return row.createdByUserName ?? '';
+    case 'startDate':
+      return row.startDate;
+    case 'endDate':
+      return row.endDate;
+    case 'tournamentCount':
+      return row.tournamentCount;
+    case 'participantCount':
+      return row.participantCount;
+    case 'visibility':
+      return row.status === 'draft' ? 0 : 1;
+    default:
+      return '';
+  }
+}
+
 export default function OrgEventsListPage() {
   const params = useParams<{ slug: string }>();
   const { slug } = params;
@@ -155,8 +187,6 @@ export default function OrgEventsListPage() {
   const [pendingDeletions, setPendingDeletions] = useState<Map<string, { id: string }>>(new Map());
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
-  const [sortKey, setSortKey] = useState<string | null>('createdAt');
-  const [sortDir, setSortDir] = useState<'asc' | 'desc' | null>('desc');
   // Venue editing: the org's venue catalogue (options) + the venues the event
   // currently spreads on (checked set), reconciled on save.
   const [orgVenues, setOrgVenues] = useState<
@@ -245,38 +275,12 @@ export default function OrgEventsListPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [slug, apiUrl]);
 
-  const sortedEvents = useMemo(
-    () =>
-      sortRows(events, sortKey, sortDir, (row, key) => {
-        switch (key) {
-          case 'name':
-            return row.name;
-          case 'createdAt':
-            return row.createdAt;
-          case 'createdBy':
-            return row.createdByUserName ?? '';
-          case 'startDate':
-            return row.startDate;
-          case 'endDate':
-            return row.endDate;
-          case 'tournamentCount':
-            return row.tournamentCount;
-          case 'participantCount':
-            return row.participantCount;
-          case 'visibility':
-            return row.status === 'draft' ? 0 : 1;
-          default:
-            return '';
-        }
-      }) as OrgEvent[],
-    [events, sortKey, sortDir],
-  );
-
-  function toggleSort(columnKey: string) {
-    const next = nextSortState(sortKey, sortDir, columnKey);
-    setSortKey(next.key);
-    setSortDir(next.direction);
-  }
+  const {
+    sorted: sortedEvents,
+    sortKey,
+    direction,
+    toggle: toggleSort,
+  } = useSortableList(events, getEventSortValue, INITIAL_SORT);
 
   function openEdit(event: OrgEvent) {
     setEditing(event);
@@ -602,7 +606,7 @@ export default function OrgEventsListPage() {
                   label={t('organizer.events.table.event')}
                   columnKey="name"
                   currentKey={sortKey}
-                  direction={sortKey === 'name' ? sortDir : null}
+                  direction={direction}
                   onToggle={toggleSort}
                   ariaSortAsc={t('admin.common.sortAscLabel')}
                   ariaSortDesc={t('admin.common.sortDescLabel')}
@@ -613,7 +617,7 @@ export default function OrgEventsListPage() {
                   label={t('organizer.events.table.created')}
                   columnKey="createdAt"
                   currentKey={sortKey}
-                  direction={sortKey === 'createdAt' ? sortDir : null}
+                  direction={direction}
                   onToggle={toggleSort}
                   ariaSortAsc={t('admin.common.sortAscLabel')}
                   ariaSortDesc={t('admin.common.sortDescLabel')}
@@ -624,7 +628,7 @@ export default function OrgEventsListPage() {
                   label={t('organizer.events.table.createdBy')}
                   columnKey="createdBy"
                   currentKey={sortKey}
-                  direction={sortKey === 'createdBy' ? sortDir : null}
+                  direction={direction}
                   onToggle={toggleSort}
                   ariaSortAsc={t('admin.common.sortAscLabel')}
                   ariaSortDesc={t('admin.common.sortDescLabel')}
@@ -635,7 +639,7 @@ export default function OrgEventsListPage() {
                   label={t('organizer.events.table.tournaments')}
                   columnKey="tournamentCount"
                   currentKey={sortKey}
-                  direction={sortKey === 'tournamentCount' ? sortDir : null}
+                  direction={direction}
                   onToggle={toggleSort}
                   align="center"
                   ariaSortAsc={t('admin.common.sortAscLabel')}
@@ -647,7 +651,7 @@ export default function OrgEventsListPage() {
                   label={t('organizer.events.table.participants')}
                   columnKey="participantCount"
                   currentKey={sortKey}
-                  direction={sortKey === 'participantCount' ? sortDir : null}
+                  direction={direction}
                   onToggle={toggleSort}
                   align="center"
                   ariaSortAsc={t('admin.common.sortAscLabel')}
@@ -659,7 +663,7 @@ export default function OrgEventsListPage() {
                   label={t('organizer.events.table.startDate')}
                   columnKey="startDate"
                   currentKey={sortKey}
-                  direction={sortKey === 'startDate' ? sortDir : null}
+                  direction={direction}
                   onToggle={toggleSort}
                   ariaSortAsc={t('admin.common.sortAscLabel')}
                   ariaSortDesc={t('admin.common.sortDescLabel')}
@@ -670,7 +674,7 @@ export default function OrgEventsListPage() {
                   label={t('organizer.events.table.endDate')}
                   columnKey="endDate"
                   currentKey={sortKey}
-                  direction={sortKey === 'endDate' ? sortDir : null}
+                  direction={direction}
                   onToggle={toggleSort}
                   ariaSortAsc={t('admin.common.sortAscLabel')}
                   ariaSortDesc={t('admin.common.sortDescLabel')}
@@ -681,7 +685,7 @@ export default function OrgEventsListPage() {
                   label={t('organizer.events.table.visibility')}
                   columnKey="visibility"
                   currentKey={sortKey}
-                  direction={sortKey === 'visibility' ? sortDir : null}
+                  direction={direction}
                   onToggle={toggleSort}
                   ariaSortAsc={t('admin.common.sortAscLabel')}
                   ariaSortDesc={t('admin.common.sortDescLabel')}
