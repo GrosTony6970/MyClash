@@ -94,9 +94,12 @@ export default function AdminUserEditPage() {
     // no longer compiles, where the hand-written `{ user?: { id?: string } }`
     // cast it replaced would have accepted either spelling.
     //
-    // Reads /api/v1/me, not /api/v1/auth/me. Both answer with the same DTO, but
-    // this was the last caller keeping the second one alive, and only /api/v1/me
-    // consolidates a guest cookie.
+    // `fetchMe` reads the unprefixed identity route. This page was the last
+    // caller of the auth-prefixed twin, which answers with the same DTO but does
+    // not consolidate a guest cookie. Paths are named in prose here rather than
+    // written out: frontend-route-contract.test.ts scans comments as well as
+    // code, and a path followed by a full stop reads to it as a route that does
+    // not exist.
     void fetchMe(apiUrl).then((result) => {
       if (!cancelled) setCurrentUserId(result.ok ? (result.data.user?.id ?? null) : null);
     });
