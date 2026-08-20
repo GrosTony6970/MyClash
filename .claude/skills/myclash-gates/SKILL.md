@@ -6,13 +6,17 @@ description: The real verification chain for this repo — what to run before pu
 # MyClash verification gates
 
 `pnpm lint && pnpm typecheck && pnpm test` is **not** the CI check. CI's Lint job runs twenty-seven
-further steps — twenty-four independent gates plus three builds. Running only the three and pushing
-is the most common way to turn `main` red here.
+further steps — twenty-four gates and three builds. Running only the three and pushing is the most
+common way to turn `main` red here.
 
-These counts are not gated. `check-docs-drift.mjs` derives the number from `ci.yml` and compares it
-against prose, but its corpus is `README`/`CONTRIBUTING`/`CLAUDE`/`myclash`/`DESIGN.md` plus
-`docs/**` — and `.claude/` is excluded from every repo scan. This file was stale by one gate until
-2026-08-19 and nothing noticed. When you add a gate, count `ci.yml` and correct this line by hand.
+Those three numbers **are** gated, as of 2026-08-20. `check-docs-drift.mjs` derives them from
+`ci.yml` and compares them against prose, and this file is now named in its corpus — the one
+exception to a corpus that otherwise reads `README`/`CONTRIBUTING`/`CLAUDE`/`myclash`/`DESIGN.md`
+plus `docs/**`. It has to be named rather than found, because `.claude/` is excluded from every
+repo scan, which is precisely how this line sat stale by one gate until 2026-08-19 with every gate
+green. Keep the opening sentence in the shape it has — spelled-out total, an em dash, then the
+gates and the builds. The gate matches that shape; a reword that drops the dash, or that says
+"plus" where it says "and", silently stops it matching and the number goes unchecked again.
 
 Source of truth: `.github/workflows/ci.yml`. If this file and that file disagree, the workflow wins.
 

@@ -299,6 +299,18 @@ test('the corpus is a real, non-trivial set of documents', () => {
   assert.ok(!files.some((f) => f.startsWith('docs/superpowers/')), 'the archive is out of scope');
 });
 
+test('the corpus reaches the one gate-chain doc that no scan can find', () => {
+  // .claude/ is in REPO_IGNORED_DIRS, so nothing walks it. That is exactly how
+  // myclash-gates/SKILL.md restated the CI gate count and sat stale by one gate
+  // until 2026-08-19 with every gate green. It is named in docCorpus by hand;
+  // drop the entry and the count goes unchecked again in silence, which is why
+  // this is pinned rather than left to the reviewer to notice.
+  assert.ok(
+    docCorpus().includes('.claude/skills/myclash-gates/SKILL.md'),
+    'the gate chain humans run must be checked like any other doc',
+  );
+});
+
 test('the gate passes on this repository, over a real number of comparisons', () => {
   const result = gate.run({ argv: [] });
   assert.deepEqual(result.findings, []);

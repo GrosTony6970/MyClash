@@ -42,9 +42,25 @@ const exists = (p) => existsSync(join(root, p));
  * The documents this gate reads. Deliberately NOT the whole tree:
  * `docs/superpowers/` is an archive of shipped plans whose paths are historical
  * by design, and `.agents/` is vendored third-party material.
+ *
+ * ── The one file from `.claude/` ────────────────────────────────────────────
+ * `myclash-gates/SKILL.md` is the verification chain a human actually runs, and
+ * it restates the same gate count derived from ci.yml below. It is named here
+ * rather than reached by a scan because `.claude/` is in REPO_IGNORED_DIRS, so
+ * nothing walks it — and that is exactly how the file sat stale by one gate
+ * until 2026-08-19 with every gate green. A count nobody checks is a count that
+ * drifts. The rest of `.claude/skills/` stays out: it is vendored or
+ * third-party, and only this file restates a number this gate can derive.
  */
 export function docCorpus() {
-  const files = ['README.md', 'CONTRIBUTING.md', 'CLAUDE.md', 'myclash.md', 'DESIGN.md'];
+  const files = [
+    'README.md',
+    'CONTRIBUTING.md',
+    'CLAUDE.md',
+    'myclash.md',
+    'DESIGN.md',
+    '.claude/skills/myclash-gates/SKILL.md',
+  ];
   for (const dir of ['docs', 'docs/design', 'docs/decisions']) {
     if (!exists(dir)) continue;
     for (const name of readdirSync(join(root, dir))) {
