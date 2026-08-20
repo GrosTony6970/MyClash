@@ -28,7 +28,7 @@
 /** Why a request did not produce data. `aborted` is a caller's own doing. */
 export type ApiFailure =
   | { kind: 'aborted' }
-  | { kind: 'unauthenticated'; status: 401 | 403 }
+  | { kind: 'unauthenticated'; status: 401 | 403; detail: string | null }
   | { kind: 'http'; status: number; detail: string | null }
   | { kind: 'network' };
 
@@ -128,13 +128,12 @@ export async function apiRequest<T>(
   }
 
   const status = res.status;
-  if (status === 401 || status === 403) {
-    // Both mean "this screen is not yours". Ten web-admin sites already branch
-    // on the pair together; `status` rides along for the caller that has to
-    // tell a login from a permission.
-    return { ok: false, kind: 'unauthenticated', status };
-  }
 
+  // The body is read BEFORE 401/403 are classified, which is the opposite of
+  // what this did until 2026-08-20. Returning early there threw away the one
+  // sentence a 403 has that we could not write ourselves — "You are not a
+  // referee on this pool" became the generic session string. The status still
+  // rides along for the caller that has to tell a login from a permission.
   let parsed: unknown;
   try {
     parsed = await parseBody<unknown>(res);
@@ -145,9 +144,19 @@ export async function apiRequest<T>(
     // HTML page where the API promised problem+json. On a failed response that
     // only costs us the reason; on a successful one the payload never arrived,
     // which is the same event as the socket dying.
+    if (status === 401 || status === 403) {
+      return { ok: false, kind: 'unauthenticated', status, detail: null };
+    }
     return res.ok
       ? { ok: false, kind: 'network' }
       : { ok: false, kind: 'http', status, detail: null };
+  }
+
+  // Spelled out at both sites rather than hoisted into a boolean: a
+  // `const isUnauthenticated = ...` does not narrow `status` to `401 | 403`,
+  // and the cast that would paper over it is how a 404 ends up in this branch.
+  if (status === 401 || status === 403) {
+    return { ok: false, kind: 'unauthenticated', status, detail: readDetail(parsed) };
   }
 
   if (!res.ok) return { ok: false, kind: 'http', status, detail: readDetail(parsed) };

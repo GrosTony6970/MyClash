@@ -14,8 +14,8 @@ const fr = createTranslator(messages.fr);
 
 const EVERY_FAILURE: ApiFailure[] = [
   { kind: 'network' },
-  { kind: 'unauthenticated', status: 401 },
-  { kind: 'unauthenticated', status: 403 },
+  { kind: 'unauthenticated', status: 401, detail: null },
+  { kind: 'unauthenticated', status: 403, detail: null },
   { kind: 'http', status: 500, detail: null },
   { kind: 'http', status: 409, detail: 'Venue is in use' },
 ];
@@ -33,15 +33,34 @@ describe('failureMessage', () => {
     expect(failureMessage({ kind: 'network' }, en)).toBe(en('common.apiFailure.network'));
   });
 
-  it('sends both unauthenticated statuses to the same string', () => {
+  it('sends both unauthenticated statuses to the same string when neither gave a reason', () => {
     const unauthenticated = en('common.apiFailure.unauthenticated');
-    expect(failureMessage({ kind: 'unauthenticated', status: 401 }, en)).toBe(unauthenticated);
-    expect(failureMessage({ kind: 'unauthenticated', status: 403 }, en)).toBe(unauthenticated);
+    expect(failureMessage({ kind: 'unauthenticated', status: 401, detail: null }, en)).toBe(
+      unauthenticated,
+    );
+    expect(failureMessage({ kind: 'unauthenticated', status: 403, detail: null }, en)).toBe(
+      unauthenticated,
+    );
+  });
+
+  it("prefers a 403's own reason — it names what you may not do", () => {
+    expect(
+      failureMessage(
+        { kind: 'unauthenticated', status: 403, detail: 'You are not a referee on this pool' },
+        en,
+      ),
+    ).toBe('You are not a referee on this pool');
+  });
+
+  it('ignores a 401 reason — "Unauthorized" says less than our own sentence', () => {
+    expect(
+      failureMessage({ kind: 'unauthenticated', status: 401, detail: 'Unauthorized' }, en),
+    ).toBe(en('common.apiFailure.unauthenticated'));
   });
 
   it('keeps the two generic failures distinguishable', () => {
     expect(failureMessage({ kind: 'network' }, en)).not.toBe(
-      failureMessage({ kind: 'unauthenticated', status: 401 }, en),
+      failureMessage({ kind: 'unauthenticated', status: 401, detail: null }, en),
     );
   });
 

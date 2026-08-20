@@ -54,7 +54,12 @@ export function failureMessage(
     case 'network':
       return t('common.apiFailure.network');
     case 'unauthenticated':
-      return t('common.apiFailure.unauthenticated');
+      // A 403 usually names the thing you may not do, and that beats our
+      // sentence. A 401 does not: the server's word for it is "Unauthorized",
+      // while ours says the session expired AND what to do about it.
+      return failure.status === 403
+        ? (failure.detail ?? t('common.apiFailure.unauthenticated'))
+        : t('common.apiFailure.unauthenticated');
     case 'http':
       return failure.detail ?? fallback ?? t('common.error');
   }

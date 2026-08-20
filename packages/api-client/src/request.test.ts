@@ -62,13 +62,14 @@ describe('apiRequest — success', () => {
 });
 
 describe('apiRequest — failures', () => {
-  it('reports 401 as unauthenticated, carrying the status', async () => {
+  it('reports 401 as unauthenticated, carrying the status and the reason', async () => {
     stubFetch(() => json({ detail: 'Unauthorized' }, 401));
 
     expect(failure(await apiRequest('http://api', '/api/v1/me'))).toEqual({
       ok: false,
       kind: 'unauthenticated',
       status: 401,
+      detail: 'Unauthorized',
     });
   });
 
@@ -79,6 +80,44 @@ describe('apiRequest — failures', () => {
       ok: false,
       kind: 'unauthenticated',
       status: 403,
+      detail: 'Forbidden',
+    });
+  });
+
+  it("keeps a 403's specific reason instead of discarding the body", async () => {
+    // The whole point of reading the body before classifying: this sentence
+    // cannot be reconstructed from the status.
+    stubFetch(() => json({ detail: 'You are not a referee on this pool' }, 403));
+
+    expect(failure(await apiRequest('http://api', '/api/v1/pools/p1/referees'))).toEqual({
+      ok: false,
+      kind: 'unauthenticated',
+      status: 403,
+      detail: 'You are not a referee on this pool',
+    });
+  });
+
+  it('treats a blank 403 reason as no reason', async () => {
+    stubFetch(() => json({ detail: '   ', message: '' }, 403));
+
+    expect(failure(await apiRequest('http://api', '/api/v1/admin/users'))).toEqual({
+      ok: false,
+      kind: 'unauthenticated',
+      status: 403,
+      detail: null,
+    });
+  });
+
+  it('still classifies a 403 whose body is not JSON at all', async () => {
+    // An edge proxy answering for the API. Reading the body first must not turn
+    // a permission failure into a network one.
+    stubFetch(() => html(403));
+
+    expect(failure(await apiRequest('http://api', '/api/v1/admin/users'))).toEqual({
+      ok: false,
+      kind: 'unauthenticated',
+      status: 403,
+      detail: null,
     });
   });
 
