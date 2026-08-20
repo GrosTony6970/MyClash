@@ -11,6 +11,8 @@ import { resolveAuthDecision } from './organizer-auth-decision';
 import { pickActiveHref } from './pick-active-href';
 import { EVENT_NAV_GROUPS, EVENT_NAV_OVERVIEW, useEventNavGroups } from './event-nav-groups';
 import { getPublicApiUrl } from '../lib/api-url';
+import { useIdentityGate } from '../hooks/useIdentityGate';
+import { IdentityUnverifiedBanner } from './IdentityUnverifiedBanner';
 import { WorkspaceSwitcher } from './WorkspaceSwitcher';
 import { resolveWorkspaceOptions, type WorkspaceMePayload } from './workspace-options';
 
@@ -84,16 +86,28 @@ export function OrganizerAdminShell({ children }: { children: ReactNode }) {
   const [open, setOpen] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
   const [switcherOpen, setSwitcherOpen] = useState(false);
+  // Intersected with WorkspaceMePayload so the org NAMES the switcher lists are
+  // visible to the type checker, not just present at runtime.
+  const identity = useIdentityGate<
+    Parameters<typeof resolveAuthDecision>[1] & WorkspaceMePayload & { user?: { email?: string } }
+  >(apiUrl);
+
+  // Derived during render, not copied into state by the effect below. Nothing
+  // else ever wrote them, so holding them as state bought a second source of
+  // truth and a cascading render — what `react-hooks/set-state-in-effect`
+  // objects to. The old code only escaped the rule by hiding the writes inside
+  // a `.then()`.
+  const identityMe = identity.state.status === 'resolved' ? identity.state.me : null;
   // Personal league grants only. Org-managed leagues already have a home under
   // this org's own Leagues entry, so offering /leagues for those would just be
   // a second door to the same room.
-  const [hasLeagueRoles, setHasLeagueRoles] = useState(false);
-  // Raw /me payload. Feeds the workspace switcher under the logo, which is the
-  // only way out of this org — to the console (platform staff of ANY tier are
-  // allowed into any org, see organizer-auth-decision) or to another club the
-  // same account belongs to.
-  const [me, setMe] = useState<WorkspaceMePayload | null>(null);
-  const [email, setEmail] = useState<string | null>(null);
+  const hasLeagueRoles = Boolean(identityMe?.admin?.hasLeagueRoles);
+  // The raw /me payload. Feeds the workspace switcher under the logo, which is
+  // the only way out of this org — to the console (platform staff of ANY tier
+  // are allowed into any org, see organizer-auth-decision) or to another club
+  // the same account belongs to.
+  const me: WorkspaceMePayload | null = identityMe;
+  const email = identityMe?.user?.email ?? null;
   const switcherRef = useRef<HTMLDivElement>(null);
 
   const drawerRef = useRef<HTMLDivElement>(null);
@@ -132,6 +146,12 @@ export function OrganizerAdminShell({ children }: { children: ReactNode }) {
   }, [switcherOpen]);
 
   // Auth gate — verifies the current session has access to this org.
+  //
+  // `useIdentityGate` owns the read and the retry. What it does NOT do is
+  // decide: being signed out arrives as a 200 carrying `type: 'anonymous'`
+  // (`me.controller.ts` is @Public() and says so in its own docstring), so the
+  // payload comes back raw and `resolveAuthDecision` reads it here.
+  //
   // `unauthenticated`        → /login (real auth failure).
   // `no_access`              → silent client-side replace to the user's first
   //                            real org. This handles the stale-link case where
@@ -141,51 +161,35 @@ export function OrganizerAdminShell({ children }: { children: ReactNode }) {
   //                            the session here; that was the source of the
   //                            "logged out after toggling event publish" report.
   // `allow`                  → no-op.
+  //
+  // `unreachable` deliberately does NOT redirect. It means the retries were
+  // spent without an answer, not that the operator is signed out — sending them
+  // to /login here is what turned a few seconds of bad wifi into a logout
+  // mid-event.
   useEffect(() => {
-    const controller = new AbortController();
-    fetch(`${apiUrl}/api/v1/me`, {
-      credentials: 'include',
-      signal: controller.signal,
-    })
-      .then(async (res) => {
-        if (!res.ok) {
-          window.location.replace('/login');
-          return;
-        }
-        // Intersected with WorkspaceMePayload so the org NAMES the switcher
-        // lists are visible to the type checker, not just present at runtime.
-        const data = (await res.json()) as Parameters<typeof resolveAuthDecision>[1] &
-          WorkspaceMePayload & {
-            user?: { email?: string };
-          };
-        setHasLeagueRoles(Boolean(data?.admin?.hasLeagueRoles));
-        setMe(data);
-        setEmail(data?.user?.email ?? null);
-        const decision = resolveAuthDecision(slug, data);
-        if (decision.kind === 'unauthenticated') {
-          window.location.replace('/login');
-        } else if (decision.kind === 'no_access') {
-          console.error('[OrganizerAdminShell] redirecting away from inaccessible slug', {
-            slug,
-            redirectTo: decision.redirectTo,
-            pathname,
-          });
-          // `router.replace` keeps the session intact and lands the user on
-          // a working route. Falls back to a hard nav if the target is /login.
-          if (decision.redirectTo === '/login') {
-            window.location.replace('/login');
-          } else {
-            router.replace(decision.redirectTo);
-          }
-        }
-      })
-      .catch((err: unknown) => {
-        if (!(err instanceof DOMException && err.name === 'AbortError')) {
-          window.location.replace('/login');
-        }
+    if (identity.state.status === 'checking' || identity.state.status === 'unreachable') return;
+    if (identity.state.status === 'denied') {
+      window.location.replace('/login');
+      return;
+    }
+    const decision = resolveAuthDecision(slug, identity.state.me);
+    if (decision.kind === 'unauthenticated') {
+      window.location.replace('/login');
+    } else if (decision.kind === 'no_access') {
+      console.error('[OrganizerAdminShell] redirecting away from inaccessible slug', {
+        slug,
+        redirectTo: decision.redirectTo,
+        pathname,
       });
-    return () => controller.abort();
-  }, [apiUrl, slug, pathname, router]);
+      // `router.replace` keeps the session intact and lands the user on
+      // a working route. Falls back to a hard nav if the target is /login.
+      if (decision.redirectTo === '/login') {
+        window.location.replace('/login');
+      } else {
+        router.replace(decision.redirectTo);
+      }
+    }
+  }, [identity.state, slug, pathname, router]);
 
   const orgBase = `/org/${slug}`;
   // Event base resolved from the context's selectedEventId — survives nav
@@ -627,6 +631,10 @@ export function OrganizerAdminShell({ children }: { children: ReactNode }) {
               </div>
             </div>
           </div>
+        )}
+
+        {identity.state.status === 'unreachable' && (
+          <IdentityUnverifiedBanner onRetry={identity.retry} />
         )}
 
         <div id="main-content" className="flex-1">

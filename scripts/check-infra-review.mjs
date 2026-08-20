@@ -251,6 +251,18 @@ const organizerShellPath = path.join(
   'components',
   'OrganizerAdminShell.tsx',
 );
+// The identity read both shells open with. It used to be a hand-rolled fetch
+// copied into each of them, which is why the `/api/v1/me` assertion below was
+// pinned to the shells; it is one hook now, so the URL is asserted where it
+// actually lives and the shells are asserted to still call it.
+const identityGatePath = path.join(
+  rootDir,
+  'apps',
+  'web-admin',
+  'src',
+  'hooks',
+  'useIdentityGate.ts',
+);
 const organizerDashboardPagePath = path.join(
   rootDir,
   'apps',
@@ -593,6 +605,7 @@ const superAdminLayoutText = await pinned.readPinnedFile(superAdminLayoutPath);
 const superAdminShellText = await pinned.readPinnedFile(superAdminShellPath);
 const organizerLayoutText = await pinned.readPinnedFile(organizerLayoutPath);
 const organizerShellText = await pinned.readPinnedFile(organizerShellPath);
+const identityGateText = await pinned.readPinnedFile(identityGatePath);
 const organizerDashboardPageText = await pinned.readPinnedFile(organizerDashboardPagePath);
 const organizerEventsPageText = await pinned.readPinnedFile(organizerEventsPagePath);
 const organizerEventPageText = await pinned.readPinnedFile(organizerEventPagePath);
@@ -1450,7 +1463,7 @@ requireContains(
 requireContains(
   superAdminShellText,
   'apps/web-admin/src/components/SuperAdminShell.tsx',
-  '/api/v1/me',
+  'useIdentityGate<',
 );
 requireContains(
   superAdminShellText,
@@ -1490,12 +1503,28 @@ requireContains(
 requireContains(
   organizerShellText,
   'apps/web-admin/src/components/OrganizerAdminShell.tsx',
-  '/api/v1/me',
+  'useIdentityGate<',
 );
 requireContains(
   organizerShellText,
   'apps/web-admin/src/components/OrganizerAdminShell.tsx',
   "window.location.replace('/login')",
+);
+// The hook the two lines above delegate to. Asserted here so the identity read
+// is still pinned to exactly one place: without this, both shells could keep
+// calling a hook that had stopped reading anything.
+//
+// QUOTED on purpose. `requireContains` is a substring match over the whole
+// file, comments included, and this hook's own docstring names the route in
+// prose — so the bare path was satisfied by the comment and the assertion
+// passed on a hook pointed at a different URL entirely. The quotes make it
+// match the string literal only.
+requireContains(identityGateText, 'apps/web-admin/src/hooks/useIdentityGate.ts', "'/api/v1/me'");
+requireContains(identityGateText, 'apps/web-admin/src/hooks/useIdentityGate.ts', 'apiRequest');
+requireContains(
+  identityGateText,
+  'apps/web-admin/src/hooks/useIdentityGate.ts',
+  'identityRetryDelayMs',
 );
 requireContains(
   organizerShellText,

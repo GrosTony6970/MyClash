@@ -11,6 +11,9 @@ export const common = {
   },
   cancel: 'Annuler',
   error: 'Une erreur est survenue.',
+  identityUnverified:
+    'Impossible de confirmer votre session. Vous êtes toujours connecté — le menu peut être incomplet.',
+  identityRetry: 'Réessayer',
   loading: 'Chargement...',
   passwordRules: {
     length: 'Au moins 12 caractères',

@@ -16,6 +16,12 @@ export const common = {
   },
   cancel: 'Cancel',
   error: 'Something went wrong.',
+  // Shown by both admin shells when the /me check ran out of retries. It has to
+  // say "still signed in" out loud: the operator's own reflex on a broken menu
+  // is to sign in again, and that is the one thing this state does NOT mean.
+  identityUnverified:
+    'Could not confirm your session. You are still signed in — the menu may be incomplete.',
+  identityRetry: 'Try again',
   loading: 'Loading...',
   // Rendered by the shared PasswordChecklist in packages/ui, on every
   // surface where a password is chosen. Kept at the top level rather than

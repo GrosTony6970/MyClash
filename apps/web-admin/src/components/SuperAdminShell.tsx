@@ -12,6 +12,8 @@ import {
   type NotificationsSummary,
 } from '../hooks/useNotificationsSummary';
 import { getPublicApiUrl } from '../lib/api-url';
+import { useIdentityGate } from '../hooks/useIdentityGate';
+import { IdentityUnverifiedBanner } from './IdentityUnverifiedBanner';
 import { WorkspaceSwitcher } from './WorkspaceSwitcher';
 import { resolveWorkspaceOptions, type WorkspaceMePayload } from './workspace-options';
 
@@ -180,14 +182,34 @@ export function SuperAdminShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
-  const [platformRole, setPlatformRole] = useState<PlatformRole | null>(null);
-  const [email, setEmail] = useState<string | null>(null);
-  // Raw /me payload, kept whole so the workspace switcher can list EVERY org
-  // this account belongs to. The previous shape stored one arbitrary slug —
+  const apiUrl = getPublicApiUrl();
+  const identity = useIdentityGate<
+    WorkspaceMePayload & { type?: string; user?: { email?: string } }
+  >(apiUrl);
+
+  // Derived during render, not copied into state by the effect below. They are
+  // pure functions of the identity payload and nothing else ever wrote them, so
+  // holding them as state bought a second source of truth and a cascading
+  // render — which is what `react-hooks/set-state-in-effect` objects to. The
+  // old code only escaped the rule by hiding the writes inside a `.then()`.
+  //
+  // ANY platform tier may enter the console; what differs is what the sidebar
+  // shows and what the API lets through once inside.
+  const admitted =
+    identity.state.status === 'resolved' &&
+    identity.state.me.type === 'claimed' &&
+    Boolean(identity.state.me.admin?.platformRole);
+  const identityMe = identity.state.status === 'resolved' ? identity.state.me : null;
+  const platformRole: PlatformRole | null =
+    admitted && identityMe?.admin?.platformRole
+      ? parsePlatformRole(identityMe.admin.platformRole)
+      : null;
+  const email = admitted ? (identityMe?.user?.email ?? null) : null;
+  // The raw /me payload, kept whole so the workspace switcher can list EVERY
+  // org this account belongs to. The previous shape stored one arbitrary slug —
   // the membership query has no ORDER BY, so a dual-role operator in two clubs
   // could reach exactly one of them, unpredictably.
-  const [me, setMe] = useState<WorkspaceMePayload | null>(null);
-  const apiUrl = getPublicApiUrl();
+  const me: WorkspaceMePayload | null = admitted ? identityMe : null;
   const drawerRef = useRef<HTMLDivElement>(null);
 
   useFocusTrap(open, drawerRef);
@@ -208,41 +230,18 @@ export function SuperAdminShell({ children }: { children: ReactNode }) {
     return () => document.removeEventListener('keydown', handleKey);
   }, [open]);
 
+  // The only thing left for an effect: navigating away. `useIdentityGate` owns
+  // the read and the retry, and everything the payload implies is derived above.
+  //
+  // `unreachable` deliberately does NOT redirect. It means the retries were
+  // spent without an answer, not that the operator is signed out — being signed
+  // out is a 200 carrying `type: 'anonymous'`, because `me.controller.ts` is
+  // @Public() and answers that way by design. Sending them to /login here is
+  // what turned a few seconds of bad wifi into a logout mid-event.
   useEffect(() => {
-    const controller = new AbortController();
-
-    fetch(`${apiUrl}/api/v1/me`, {
-      credentials: 'include',
-      signal: controller.signal,
-    })
-      .then(async (res) => {
-        if (!res.ok) {
-          window.location.replace('/login');
-          return;
-        }
-
-        const data = (await res.json()) as WorkspaceMePayload & {
-          type?: string;
-          user?: { email?: string };
-        };
-        // ANY platform tier may enter the console; what differs is what the
-        // sidebar shows and what the API lets through once inside.
-        if (data.type !== 'claimed' || !data.admin?.platformRole) {
-          window.location.replace('/login');
-          return;
-        }
-        setPlatformRole(parsePlatformRole(data.admin.platformRole));
-        setEmail(data.user?.email ?? null);
-        setMe(data);
-      })
-      .catch((err: unknown) => {
-        if (!(err instanceof DOMException && err.name === 'AbortError')) {
-          window.location.replace('/login');
-        }
-      });
-
-    return () => controller.abort();
-  }, [apiUrl]);
+    if (identity.state.status === 'checking' || identity.state.status === 'unreachable') return;
+    if (identity.state.status === 'denied' || !admitted) window.location.replace('/login');
+  }, [identity.state, admitted]);
 
   /**
    * Sections with their entries filtered to the caller's tier, and any section
@@ -475,6 +474,10 @@ export function SuperAdminShell({ children }: { children: ReactNode }) {
               </div>
             </div>
           </div>
+        )}
+
+        {identity.state.status === 'unreachable' && (
+          <IdentityUnverifiedBanner onRetry={identity.retry} />
         )}
 
         <div id="main-content" className="flex-1">
