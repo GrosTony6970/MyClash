@@ -283,10 +283,7 @@ export default async function TournamentPage({ params }: Props) {
           aria-hidden="true"
         />
         <div className="flex-1">
-          <h1
-            className="font-display text-2xl font-bold sm:text-3xl"
-            style={{ color: accentColor }}
-          >
+          <h1 className="font-display text-2xl font-bold sm:text-3xl text-foreground">
             {tournament.name}
           </h1>
           <p className="mt-0.5 text-sm text-muted">

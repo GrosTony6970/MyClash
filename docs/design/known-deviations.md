@@ -258,24 +258,28 @@ carries intent while gates cover what is true.
 
 ---
 
-## D12 — the tournament's raw colour fails contrast as heading text
+## D12 — FIXED: the tournament's raw colour is a fill, not ink
 
-**Rule broken:** WCAG 1.4.3. **Where:** `apps/web-public/app/e/[eventSlug]/t/[tournamentSlug]/page.tsx:288`.
+**Fixed 2026-08-20.** The tournament page painted its `<h1>` with `colorTokenToHex(tournamentColor)`
+— the raw hue. At `text-2xl` bold that is large text, needing only 3:1, and **7 of the 13
+configurable colours missed even that**:
 
-The tournament page paints its `<h1>` with `colorTokenToHex(tournamentColor)` — the raw hue. At
-`text-2xl` bold that is large text, so it needs 3:1, and **7 of the 13 configurable colours miss
-even that**: amber 2.06, yellow 1.84, gold 1.47, silver 1.42, green 2.18, teal 2.38, orange 2.68.
-The decorative bar beside it (`:282`) is fine — it is a fill, and `aria-hidden`.
+| silver | gold | yellow | amber | green | teal | orange |
+| ------ | ---- | ------ | ----- | ----- | ---- | ------ |
+| 1.42   | 1.47 | 1.84   | 2.06  | 2.18  | 2.38 | 2.68   |
 
-The system already owns the answer: `tintTextClassFor` maps each token to a `-700`/`-800`/`-900`
-shade, all 14 of which clear 4.5:1 (worst: green-700 at 4.80:1). The stats headings moved onto it
-on 2026-08-19; this `<h1>` did not, because a display heading losing its bright hue is a visible
-design change and deserves its own call.
+The title now reads `text-foreground`. **The colour did not move to a darker shade — it moved to
+the bar**, the `aria-hidden` fill beside the heading that already carried it. That is the general
+rule this entry exists to leave behind: a tournament's hue is safe as a fill and unsafe as ink, so
+give it the stripe and let the words stay legible. The `/me` twin had shipped it that way all
+along, which is what settled it.
 
-**Note the trap for whoever takes it:** `colorTokenToHex` and `ColorToken` cover different sets.
-A tournament may be configured `grey`, `brown` or `pink`; none is a token, so all three resolve to
-neutral slate through `asColorToken`. Moving the `<h1>` would drop those three tournaments' hue
-from their own title.
+`tintTextClassFor` was the other candidate — all 14 of its `-700`/`-800`/`-900` shades clear 4.5:1
+(worst: green-700 at 4.80:1) and the stats headings did move onto it. It was rejected **here**
+because `colorTokenToHex` and `ColorToken` cover different sets: a tournament may be configured
+`grey`, `brown` or `pink`, none of which is a token, so all three resolve to neutral slate through
+`asColorToken`. Tinting the title would have taken the hue off those three tournaments' own name.
+On a section heading that is a fair trade; on the title, it is not.
 
 ---
 
