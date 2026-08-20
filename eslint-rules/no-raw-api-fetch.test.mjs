@@ -162,6 +162,48 @@ test('every exempted file is still there', () => {
   );
 });
 
+test('the rule only tells you to import from somewhere that exists', () => {
+  // The rule told people to get `failureMessage` from '@/lib/api-failure' from
+  // the moment 2da7927e moved the mapper into @myclash/api-client and deleted
+  // that module. Nothing noticed: the firing tests above match on `messageId`
+  // and never read the sentence, and a lint message is the only instruction
+  // most callers of this rule will ever get.
+  //
+  // Matched by the SHAPE of a specifier, never by pairing quotes. The rawFetch
+  // message opens with "Don't", and that lone apostrophe desynchronises every
+  // quote after it — the first version of this test paired quotes, read only
+  // the overBaseline message as a result, and stayed green against exactly the
+  // defect it was written for.
+  const specifiers = new Set();
+  for (const [messageId, message] of Object.entries(rule.meta.messages)) {
+    const named = [...message.matchAll(/@(?:myclash\/[\w-]+|\/[\w./-]+)/gu)].map(([m]) => m);
+    // Per message, not pooled: a Set of both would be satisfied by one message
+    // naming the package twice while the other named nothing at all.
+    assert.ok(
+      named.length > 0,
+      `the "${messageId}" message names no module — it has stopped saying where to import from`,
+    );
+    for (const specifier of named) specifiers.add(specifier);
+  }
+
+  const workspacePackages = new Set(
+    execFileSync('git', ['ls-files', 'packages/*/package.json'], {
+      cwd: repoRoot,
+      encoding: 'utf8',
+    })
+      .split('\n')
+      .filter(Boolean)
+      .map((manifest) => JSON.parse(readFileSync(path.join(repoRoot, manifest), 'utf8')).name),
+  );
+
+  const dangling = [...specifiers].filter((specifier) => !workspacePackages.has(specifier));
+  assert.deepEqual(
+    dangling,
+    [],
+    'the rule names a module that is not a workspace package; an app-relative "@/" path cannot be one, and this rule is read from three different apps',
+  );
+});
+
 test('the exemption list is sorted, and every allowance is a positive count', () => {
   const files = JSON.parse(
     readFileSync(path.join(repoRoot, 'eslint-rules', 'no-raw-api-fetch-baseline.json'), 'utf8'),

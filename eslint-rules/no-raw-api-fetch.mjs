@@ -86,7 +86,7 @@ export default {
     },
     messages: {
       rawFetch:
-        "Don't hand-roll a fetch. Use `apiRequest` from '@myclash/api-client': it owns the session cookie, the problem+json `detail` read and the one abort classification, and it never throws, so this call site needs no catch. Map the failure with `failureMessage` from '@/lib/api-failure'. A deliberate non-API fetch takes a leading `// raw-fetch-exempt` comment with the reason.",
+        "Don't hand-roll a fetch. Use `apiRequest` from '@myclash/api-client': it owns the session cookie, the problem+json `detail` read and the one abort classification, and it never throws, so this call site needs no catch. Map the failure with `failureMessage`, from '@myclash/api-client' as well. A deliberate non-API fetch takes a leading `// raw-fetch-exempt` comment with the reason.",
       overBaseline:
         "This file is down to {{allowed}} hand-rolled fetch call(s) in eslint-rules/no-raw-api-fetch-baseline.json and this is number {{seen}}. The list only shrinks: move this call onto `apiRequest` from '@myclash/api-client' rather than raising the number.",
     },
