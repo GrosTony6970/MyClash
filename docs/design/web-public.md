@@ -23,7 +23,7 @@ Mobile-first. One column of attention. Generous margins. `max-w-6xl` for content
 | `/login`, `/reset-password`, OAuth callback              | `dark`                       | `personal`                          | Dark, blue                                              |
 | `/e/*/match/*/display`, `/e/*/lice/*/display`            | —                            | —                                   | Chromeless — see [`display-kiosk.md`](display-kiosk.md) |
 
-**`/me` is the proof that the two scopes are independent.** `PublicPersonalShell.tsx` sets `data-accent="personal"` on the outer `min-h-screen` wrapper (`:215`, `:226`) but `data-theme="dark"` only on the sidebar (`:228`) and the mobile drawer (`:307`). So the content area is a _light_ surface wearing a _blue_ accent, framed by _dark_ chrome. Three facts, two switches, no coupling.
+**`/me` is the proof that the two scopes are independent.** `PublicPersonalShell.tsx` sets `data-accent="personal"` on the outer `min-h-screen` wrapper (`:227`, `:241`) but `data-theme="dark"` only on the sidebar (`:243`) and the mobile drawer (`:325`). So the content area is a _light_ surface wearing a _blue_ accent, framed by _dark_ chrome. Three facts, two switches, no coupling.
 
 > The ratified UX contract (§5) described `/me/*` as wholesale dark. That was never what shipped. `/DESIGN.md` and this file describe the code.
 
