@@ -1,7 +1,15 @@
+import type { MeSession } from '@myclash/api-client';
+
 /**
  * Pure auth-gate decision for the LeagueWorkspaceShell (/leagues).
  *
- * Mirrors resolveAuthDecision for the organizer shell: extracted so the
+ * Shares `MeSession` with resolveAuthDecision rather than describing the payload
+ * again — the two now differ only in the question they ask, which is the point.
+ * This file used to open by saying it "mirrors" that function, a prose
+ * cross-reference standing in for an import, and prose is what let the eleven
+ * copies of this payload drift apart in the first place.
+ *
+ * Extracted from the shell so the
  * outcomes can be unit-tested without mounting React, and so "you are not
  * signed in" stays distinct from "you have nothing to manage here". Collapsing
  * the two into a /login redirect silently signs the operator out, which is the
@@ -14,21 +22,10 @@
  * admins, and admins/owners of an org that manages a league — must be let in
  * rather than bounced off a page that would have shown them something.
  */
-export type LeagueWorkspaceMePayload = {
-  type?: string;
-  admin?: {
-    platformRole?: string | null;
-    organizations?: Array<{ slug: string; role?: string }>;
-    hasLeagueRoles?: boolean;
-  };
-};
-
 export type LeagueWorkspaceDecision =
   { kind: 'allow' } | { kind: 'unauthenticated' } | { kind: 'no_access'; redirectTo: string };
 
-export function resolveLeagueWorkspaceDecision(
-  me: LeagueWorkspaceMePayload | null,
-): LeagueWorkspaceDecision {
+export function resolveLeagueWorkspaceDecision(me: MeSession | null): LeagueWorkspaceDecision {
   if (!me || me.type !== 'claimed') return { kind: 'unauthenticated' };
   if (me.admin?.platformRole) return { kind: 'allow' };
   if (me.admin?.hasLeagueRoles) return { kind: 'allow' };

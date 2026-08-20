@@ -1,3 +1,5 @@
+import type { MeSession } from '@myclash/api-client';
+
 /**
  * Pure auth-gate decision for the OrganizerAdminShell.
  *
@@ -13,25 +15,16 @@
  * `redirectTo` carries the recovery URL on `no_access` so the shell
  * can `router.replace` the user back to a working org route without
  * dropping their session.
+ *
+ * Takes `MeSession` — the shape generated from the API's own DTO — rather than
+ * a private `OrganizerMePayload`. That local type was one of eleven hand-written
+ * copies of this payload, and it widened `platformRole` to `string | null`; the
+ * generated one carries the real tier union.
  */
-export type OrganizerMePayload = {
-  type?: string;
-  admin?: {
-    /** Any platform tier enters any org workspace; null is an ordinary user. */
-    platformRole?: string | null;
-    organizations?: Array<{ slug: string }>;
-    /** Read by the shell to decide whether to offer the /leagues entry. */
-    hasLeagueRoles?: boolean;
-  };
-};
-
 export type OrganizerAuthDecision =
   { kind: 'allow' } | { kind: 'unauthenticated' } | { kind: 'no_access'; redirectTo: string };
 
-export function resolveAuthDecision(
-  slug: string,
-  me: OrganizerMePayload | null,
-): OrganizerAuthDecision {
+export function resolveAuthDecision(slug: string, me: MeSession | null): OrganizerAuthDecision {
   if (!me || me.type !== 'claimed') return { kind: 'unauthenticated' };
   if (me.admin?.platformRole) return { kind: 'allow' };
 

@@ -135,7 +135,7 @@
     "apps/web-admin/app/org/[slug]/settings/page.tsx": 4,
     "apps/web-admin/app/reset-password/page.tsx": 1,
     "apps/web-admin/src/components/HemaRatingsSuggest.tsx": 2,
-    "apps/web-admin/src/components/LeagueWorkspaceShell.tsx": 2,
+    "apps/web-admin/src/components/LeagueWorkspaceShell.tsx": 1,
     "apps/web-admin/src/components/OAuthCallback.tsx": 1,
     "apps/web-admin/src/components/OrganizerAdminShell.tsx": 1,
     "apps/web-admin/src/components/SuperAdminShell.tsx": 1,

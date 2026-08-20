@@ -11,10 +11,12 @@ import { resolveAuthDecision } from './organizer-auth-decision';
 import { pickActiveHref } from './pick-active-href';
 import { EVENT_NAV_GROUPS, EVENT_NAV_OVERVIEW, useEventNavGroups } from './event-nav-groups';
 import { getPublicApiUrl } from '../lib/api-url';
+import type { MeSession } from '@myclash/api-client';
+
 import { useIdentityGate } from '../hooks/useIdentityGate';
 import { IdentityUnverifiedBanner } from './IdentityUnverifiedBanner';
 import { WorkspaceSwitcher } from './WorkspaceSwitcher';
-import { resolveWorkspaceOptions, type WorkspaceMePayload } from './workspace-options';
+import { resolveWorkspaceOptions } from './workspace-options';
 
 const orgNavItems = [
   // `exact` so the org Overview (root) doesn't prefix-match and stay
@@ -86,11 +88,12 @@ export function OrganizerAdminShell({ children }: { children: ReactNode }) {
   const [open, setOpen] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
   const [switcherOpen, setSwitcherOpen] = useState(false);
-  // Intersected with WorkspaceMePayload so the org NAMES the switcher lists are
-  // visible to the type checker, not just present at runtime.
-  const identity = useIdentityGate<
-    Parameters<typeof resolveAuthDecision>[1] & WorkspaceMePayload & { user?: { email?: string } }
-  >(apiUrl);
+  // One generated type, not an intersection of three hand-written ones. This
+  // read used to be `Parameters<typeof resolveAuthDecision>[1] &
+  // WorkspaceMePayload & { user?: { email?: string } }` — three private copies
+  // of the /me payload stacked to cover each other's gaps, because the
+  // generated one was `Record<string, never>` and could not be used.
+  const identity = useIdentityGate<MeSession>(apiUrl);
 
   // Derived during render, not copied into state by the effect below. Nothing
   // else ever wrote them, so holding them as state bought a second source of
@@ -106,7 +109,7 @@ export function OrganizerAdminShell({ children }: { children: ReactNode }) {
   // the only way out of this org — to the console (platform staff of ANY tier
   // are allowed into any org, see organizer-auth-decision) or to another club
   // the same account belongs to.
-  const me: WorkspaceMePayload | null = identityMe;
+  const me: MeSession | null = identityMe;
   const email = identityMe?.user?.email ?? null;
   const switcherRef = useRef<HTMLDivElement>(null);
 

@@ -1,3 +1,4 @@
+import type { MeSession } from '@myclash/api-client';
 import { parsePlatformRole, type PlatformRole } from '@myclash/types';
 
 /**
@@ -15,14 +16,6 @@ import { parsePlatformRole, type PlatformRole } from '@myclash/types';
  * query carries no ORDER BY — so an operator in two clubs could reach exactly
  * one of them and had no way to tell which.
  */
-
-export type WorkspaceMePayload = {
-  admin?: {
-    /** Any truthy tier grants the platform workspace; null is an ordinary user. */
-    platformRole?: string | null;
-    organizations?: Array<{ slug?: string | null; name?: string | null }>;
-  } | null;
-};
 
 export type WorkspaceOption =
   | {
@@ -49,7 +42,7 @@ export type WorkspaceOptions = {
 const EMPTY: WorkspaceOptions = { options: [], current: null };
 
 export function resolveWorkspaceOptions(
-  me: WorkspaceMePayload | null,
+  me: MeSession | null,
   current: CurrentWorkspace,
 ): WorkspaceOptions {
   // `/me` not resolved yet. Returning nothing (rather than a one-item list) is
@@ -67,16 +60,20 @@ export function resolveWorkspaceOptions(
     });
   }
 
-  const orgs = (me.admin.organizations ?? [])
-    .map((org) => {
-      const slug = org.slug?.trim();
-      if (!slug) return null;
-      // Slug fallback so a row is never blank. The API drops nameless rows, so
-      // this only fires against an older API build.
-      const name = org.name?.trim() || slug;
-      return { kind: 'org' as const, href: `/org/${slug}`, slug, name };
-    })
-    .filter((org): org is Extract<WorkspaceOption, { kind: 'org' }> => org !== null)
+  // No blank-row guard here any more. `normalizeOrganizationMembership`
+  // (auth.service.ts:94) returns null unless id, slug, name AND role are all
+  // strings, and the caller filters those out — so the API cannot emit a
+  // nameless or slugless row, and `MeSession` now says so in the type. The old
+  // `org.slug?.trim() || null` fallback was guarding an "older API build", which
+  // is not a case this repo defends: the operator wipes and redeploys the whole
+  // stack every few commits. A branch that cannot fire is the bug.
+  const orgs = me.admin.organizations
+    .map((org) => ({
+      kind: 'org' as const,
+      href: `/org/${org.slug}`,
+      slug: org.slug,
+      name: org.name,
+    }))
     // Sorted by name, never by membership-row order: the query has no ORDER BY,
     // so "first org" is whatever Postgres felt like returning that request.
     .sort((a, b) => a.name.localeCompare(b.name));

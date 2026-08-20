@@ -12,10 +12,12 @@ import {
   type NotificationsSummary,
 } from '../hooks/useNotificationsSummary';
 import { getPublicApiUrl } from '../lib/api-url';
+import type { MeSession } from '@myclash/api-client';
+
 import { useIdentityGate } from '../hooks/useIdentityGate';
 import { IdentityUnverifiedBanner } from './IdentityUnverifiedBanner';
 import { WorkspaceSwitcher } from './WorkspaceSwitcher';
-import { resolveWorkspaceOptions, type WorkspaceMePayload } from './workspace-options';
+import { resolveWorkspaceOptions } from './workspace-options';
 
 interface NavItem {
   href: string;
@@ -183,9 +185,10 @@ export function SuperAdminShell({ children }: { children: ReactNode }) {
   const [open, setOpen] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
   const apiUrl = getPublicApiUrl();
-  const identity = useIdentityGate<
-    WorkspaceMePayload & { type?: string; user?: { email?: string } }
-  >(apiUrl);
+  // One generated type. Was `WorkspaceMePayload & { type?: string; user?: {
+  // email?: string } }` — a private copy patched with the two members it did
+  // not describe, which is what every one of the eleven copies looked like.
+  const identity = useIdentityGate<MeSession>(apiUrl);
 
   // Derived during render, not copied into state by the effect below. They are
   // pure functions of the identity payload and nothing else ever wrote them, so
@@ -209,7 +212,7 @@ export function SuperAdminShell({ children }: { children: ReactNode }) {
   // org this account belongs to. The previous shape stored one arbitrary slug —
   // the membership query has no ORDER BY, so a dual-role operator in two clubs
   // could reach exactly one of them, unpredictably.
-  const me: WorkspaceMePayload | null = admitted ? identityMe : null;
+  const me: MeSession | null = admitted ? identityMe : null;
   const drawerRef = useRef<HTMLDivElement>(null);
 
   useFocusTrap(open, drawerRef);

@@ -3,10 +3,10 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
 import { LanguageSwitcher, useI18n } from '@myclash/next-i18n/client';
-import {
-  resolveLeagueWorkspaceDecision,
-  type LeagueWorkspaceMePayload,
-} from './league-workspace-decision';
+import type { MeSession } from '@myclash/api-client';
+import { resolveLeagueWorkspaceDecision } from './league-workspace-decision';
+import { IdentityUnverifiedBanner } from './IdentityUnverifiedBanner';
+import { useIdentityGate } from '../hooks/useIdentityGate';
 import { getPublicApiUrl } from '../lib/api-url';
 
 /**
@@ -26,40 +26,33 @@ export function LeagueWorkspaceShell({ children }: { children: ReactNode }) {
   const { t } = useI18n();
   const router = useRouter();
   const apiUrl = getPublicApiUrl();
-  const [allowed, setAllowed] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
+  const identity = useIdentityGate<MeSession>(apiUrl);
 
+  // Derived during render rather than copied into state — nothing else writes
+  // it, so state would buy a second source of truth and a cascading render.
+  const decision =
+    identity.state.status === 'resolved' ? resolveLeagueWorkspaceDecision(identity.state.me) : null;
+
+  // The only thing left for an effect: navigating away.
   useEffect(() => {
-    const controller = new AbortController();
-
-    fetch(`${apiUrl}/api/v1/me`, { credentials: 'include', signal: controller.signal })
-      .then(async (res) => {
-        if (!res.ok) {
-          window.location.replace('/login');
-          return;
-        }
-        const decision = resolveLeagueWorkspaceDecision(
-          (await res.json()) as LeagueWorkspaceMePayload,
-        );
-        if (decision.kind === 'unauthenticated') {
-          window.location.replace('/login');
-          return;
-        }
-        if (decision.kind === 'no_access') {
-          // Their session is fine — they just have nothing here. Keep it.
-          router.replace(decision.redirectTo);
-          return;
-        }
-        setAllowed(true);
-      })
-      .catch((err: unknown) => {
-        if (!(err instanceof DOMException && err.name === 'AbortError')) {
-          window.location.replace('/login');
-        }
-      });
-
-    return () => controller.abort();
-  }, [apiUrl, router]);
+    // `unreachable` deliberately does NOT redirect. This shell used to send the
+    // operator to /login from both `!res.ok` and its catch, and neither branch
+    // was ever the signed-out path: being signed out is a 200 carrying
+    // `type: 'anonymous'`, which the decision below already handles. What those
+    // branches actually caught was a 5xx, a 429 or dropped wifi — and answered
+    // each by signing the operator out. Matches the fix both admin shells took
+    // in 00d19114.
+    if (identity.state.status === 'checking' || identity.state.status === 'unreachable') return;
+    if (identity.state.status === 'denied' || decision?.kind === 'unauthenticated') {
+      window.location.replace('/login');
+      return;
+    }
+    if (decision?.kind === 'no_access') {
+      // Their session is fine — they just have nothing here. Keep it.
+      router.replace(decision.redirectTo);
+    }
+  }, [identity.state.status, decision, router]);
 
   async function handleLogout() {
     if (loggingOut) return;
@@ -77,7 +70,12 @@ export function LeagueWorkspaceShell({ children }: { children: ReactNode }) {
   // Render nothing behind the gate. Both older shells paint their children
   // before the decision resolves, flashing the workspace at users who are about
   // to be redirected out of it; three lines is a cheap price not to inherit it.
-  if (!allowed) {
+  //
+  // `unreachable` is NOT held here. The operator has not been signed out and we
+  // cannot tell whether they belong — holding would strand them on a spinner
+  // over bad wifi, so the workspace renders with the banner saying the check
+  // did not complete.
+  if (decision?.kind !== 'allow' && identity.state.status !== 'unreachable') {
     return (
       <main className="flex min-h-screen items-center justify-center">
         <p className="text-sm text-muted">{t('common.loading')}</p>
@@ -87,6 +85,9 @@ export function LeagueWorkspaceShell({ children }: { children: ReactNode }) {
 
   return (
     <div className="min-h-screen bg-background">
+      {identity.state.status === 'unreachable' && (
+        <IdentityUnverifiedBanner onRetry={identity.retry} />
+      )}
       <header className="sticky top-0 z-header border-b border-border bg-surface">
         <div className="mx-auto flex w-full max-w-5xl items-center gap-4 px-6 py-3 lg:px-8">
           <div className="min-w-0">
