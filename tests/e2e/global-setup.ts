@@ -13,7 +13,7 @@ import { dirname } from 'node:path';
  * tournaments, persons, registrations, lices and matches — so the target env is
  * never left polluted, even if specs fail.
  *
- * password-login is throttled (3/hour per email), so we REUSE a stored session
+ * password-login is throttled (10/hour per email), so we REUSE a stored session
  * when it is fresh enough (cookies live ~1h) and only log in when needed. This
  * keeps rapid local iteration from hitting the rate limit.
  */

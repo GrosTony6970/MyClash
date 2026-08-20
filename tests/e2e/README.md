@@ -60,7 +60,7 @@ Two things it is careful about, both learned the hard way:
   `test` — by design. A checker built on it reports "already gone" for exactly the rows it
   failed to delete, which is the worst way for a cleanup to fail.
 - **It reuses the stored session** (`tests/e2e/.auth/admin.json`) when it is fresh, and only
-  logs in otherwise. Password login is throttled 3/hour per email, and a cleanup run must
+  logs in otherwise. Password login is throttled 10/hour per email, and a cleanup run must
   not spend the budget the next test run needs.
 
 It matches an `^e2e-` slug prefix, anchored: a real event merely containing "e2e" is never
@@ -134,14 +134,40 @@ The API throttles **every request** per client IP (120/min), not just writes. IP
 listed in the API's `THROTTLE_IP_WHITELIST` env var skip throttling entirely, so
 runs from a whitelisted network are **unpaced** (fast).
 
-> The organizer's IP used to be hardcoded in `apps/api/src/app.module.ts`; it now
-> has to be present in `THROTTLE_IP_WHITELIST` in the API's deployed environment.
+**The operator's own workstation is on that allowlist**, so a local
+`pnpm test:e2e:prod` is not rate-limited and does not need pacing. Read that as
+standing permission on the throttling question specifically: there is no need to
+re-raise "will this hit a rate limit / will this get me banned" before every run.
+It is **not** a statement about writing to a live event — that judgement is
+unchanged, and `global-setup` still creates and deletes its own throwaway event.
+
+The allowlist covers more than the 120/min global limit. `skipIf` is wired at the
+module level (`throttler-options.ts`) **and** re-checked inside the per-email
+guard, because a per-throttler `skipIf` replaces the module-level one instead of
+composing with it (`throttle-by-email.ts`). So from an allowlisted IP all three
+ceilings are skipped: the global 120/min, `AUTH_ACTION_THROTTLE` (10/h per IP)
+and `AUTH_EMAIL_THROTTLE` (10/h per email). Traefik's `fail2ban` jails carry the
+same address via `TRAEFIK_BAN_ALLOWLIST`, derived from the same variable by
+`infra/scripts/lib/traefik-env.sh` — one trusted-IP list, not two — so an
+allowlisted run is never banned either.
+
+> **The address is not written down anywhere in this repo, on purpose.** It lives
+> in `THROTTLE_IP_WHITELIST` in the API's deployed environment and nowhere else.
+> `throttle-whitelist.ts` says why in its own docstring: the repo is public, so a
+> literal would publish both a personal address and the precise list of IPs that
+> bypass login throttling. `infra/docker-compose.prod.yml` defines the fail2ban
+> middlewares as Compose labels rather than file-provider config for the same
+> reason. To check the current value, read the deployed env — do not copy it back
+> into the tree.
+>
 > If unpaced runs suddenly start returning 429s, that env var is the first thing
-> to check.
+> to check: a changed home IP is the usual cause.
 
 From a **non-whitelisted IP** (or CI), set `E2E_PACE_MS=550` to pace writes under
-the limit, e.g. `E2E_PACE_MS=550 pnpm test:e2e:prod`. Login throttling is separate
-and applies regardless of pacing; the suite logs in once per run.
+the limit, e.g. `E2E_PACE_MS=550 pnpm test:e2e:prod`. There, login throttling
+applies regardless of pacing — pacing spreads requests out, it does not raise a
+per-hour ceiling — which is why the suite logs in once per run and reuses the
+stored session.
 
 ## Participants CSV
 
