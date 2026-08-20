@@ -170,12 +170,15 @@ export default function OrgVenuesPage() {
     const r = await apiRequest(apiUrl, `/api/v1/venues/${venue.id}`, { method: 'DELETE' });
     if (!r.ok) {
       // A venue still holding matches or sessions comes back 409 with the
-      // reason; the domain sentence is the fallback for the one that doesn't.
-      if (r.kind === 'http' && r.status === 409) {
-        setMessage(r.detail ?? t('organizer.venues.deleteInUse'));
-        return;
-      }
-      const message = failureMessage(r, t, t('organizer.venues.deleteError'));
+      // reason, so that case gets a fallback of its own for the server that
+      // does not give one. Choosing the FALLBACK rather than reading `detail`
+      // here keeps one reader of the body: a second one would have silently
+      // missed the 5xx rule `failureMessage` gained on 2026-08-20.
+      const fallback =
+        r.kind === 'http' && r.status === 409
+          ? t('organizer.venues.deleteInUse')
+          : t('organizer.venues.deleteError');
+      const message = failureMessage(r, t, fallback);
       if (message) setMessage(message);
       return;
     }
