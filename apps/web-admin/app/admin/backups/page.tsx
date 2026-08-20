@@ -221,7 +221,7 @@ export default function AdminBackupsPage() {
       });
     }, 2500);
     return () => window.clearInterval(timer);
-  }, [apiUrl, load, operation, t]);
+  }, [apiUrl, load, operation]);
 
   const runBackup = () => {
     setBusy(true);
