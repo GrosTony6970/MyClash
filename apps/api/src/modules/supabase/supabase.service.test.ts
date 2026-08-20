@@ -76,6 +76,42 @@ describe('SupabaseService.getAuthUser', () => {
     expect(user?.app_metadata).toEqual({ provider: 'email' });
   });
 
+  it('falls back to local verify when GoTrue rate-limits us', async () => {
+    // A 429 is GoTrue refusing to ANSWER, not GoTrue rejecting the token. It
+    // used to land in the same bucket as a 401, so a burst of authenticated
+    // traffic turned a signed-in operator anonymous — and on a draft event
+    // that reads as `Event "<slug>" not found`, which is how this was found.
+    fetchMock.mockResolvedValue({ ok: false, status: 429, json: async () => ({}) });
+    const svc = new SupabaseService(makeConfig());
+    const token = jwt.sign({ sub: 'user-429', email: 'a@b.c' }, SECRET, { expiresIn: '1h' });
+    expect(await svc.getAuthUser(token)).toMatchObject({ id: 'user-429' });
+  });
+
+  it('falls back to local verify on a request timeout reported as 408', async () => {
+    fetchMock.mockResolvedValue({ ok: false, status: 408, json: async () => ({}) });
+    const svc = new SupabaseService(makeConfig());
+    const token = jwt.sign({ sub: 'user-408' }, SECRET, { expiresIn: '1h' });
+    expect(await svc.getAuthUser(token)).toMatchObject({ id: 'user-408' });
+  });
+
+  it('still rejects an expired token when GoTrue rate-limits us', async () => {
+    // The fallback widens WHEN we verify locally, never WHAT local verify
+    // accepts. Expiry and signature are still enforced.
+    fetchMock.mockResolvedValue({ ok: false, status: 429, json: async () => ({}) });
+    const svc = new SupabaseService(makeConfig());
+    const expired = jwt.sign({ sub: 'user-429b' }, SECRET, { expiresIn: -10 });
+    expect(await svc.getAuthUser(expired)).toBeNull();
+  });
+
+  it('still honours a 403 as a rejection, not an outage', async () => {
+    // The line between the two buckets: 401/403 are GoTrue judging the token
+    // (revoked, banned) and must keep winning over a locally-valid signature.
+    fetchMock.mockResolvedValue({ ok: false, status: 403, json: async () => ({}) });
+    const svc = new SupabaseService(makeConfig());
+    const token = jwt.sign({ sub: 'user-403' }, SECRET, { expiresIn: '1h' });
+    expect(await svc.getAuthUser(token)).toBeNull();
+  });
+
   it('falls back to local verify on a 5xx and rejects an expired token', async () => {
     fetchMock.mockResolvedValue({ ok: false, status: 503, json: async () => ({}) });
     const svc = new SupabaseService(makeConfig());

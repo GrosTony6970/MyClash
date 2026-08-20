@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { type SupabaseClient } from '@supabase/supabase-js';
 import * as jwt from 'jsonwebtoken';
 import { createInstrumentedClients } from './query-errors/install';
+import { classifyGoTrueFailure } from './gotrue-failure';
 
 /** How long to wait on GoTrue before treating it as unavailable (ms). */
 const GOTRUE_TIMEOUT_MS = 5000;
@@ -29,9 +30,11 @@ export interface SupabaseTokenResponse {
  * Result of asking GoTrue to validate an access token.
  *  - `ok`          — token is valid; `user` is populated.
  *  - `invalid`     — GoTrue actively rejected it (401/403/bad body). Not authed.
- *  - `unavailable` — GoTrue couldn't be reached (timeout/network/5xx); the
- *                    caller should fall back to local verification rather than
- *                    logging the user out over a transient blip.
+ *  - `unavailable` — GoTrue couldn't be reached OR wouldn't answer
+ *                    (timeout/network/5xx/429/408); the caller should fall back
+ *                    to local verification rather than logging the user out
+ *                    over a transient blip. `classifyGoTrueFailure` owns the
+ *                    line between the two.
  */
 type GoTrueValidation =
   { status: 'ok'; user: SupabaseAuthUser } | { status: 'invalid' } | { status: 'unavailable' };
@@ -196,11 +199,7 @@ export class SupabaseService {
       clearTimeout(timer);
     }
 
-    if (!response.ok) {
-      // 5xx → GoTrue is having a bad time; everything else (401/403/4xx) is a
-      // genuine rejection of this token.
-      return response.status >= 500 ? { status: 'unavailable' } : { status: 'invalid' };
-    }
+    if (!response.ok) return { status: classifyGoTrueFailure(response.status) };
 
     let body: unknown;
     try {
