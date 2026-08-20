@@ -1544,7 +1544,15 @@ export class AuthService {
       throw new BadRequestException('This profile has been merged');
     }
     if (row.claimed_by_user_id) {
-      throw new BadRequestException('Profile is already claimed');
+      // Carries a `code` for the same reason `already_pending` does below: the
+      // personal space tells these two refusals apart to pick which sentence to
+      // show, and matching on the English message is not something a client can
+      // do safely — the exception filter is free to reword it, and the reader
+      // is a French-speaking competitor's browser either way.
+      throw new BadRequestException({
+        code: 'already_claimed',
+        message: 'Profile is already claimed',
+      });
     }
     if (!row.email) {
       // §8 organizer-approval queue: no email on file → queue the

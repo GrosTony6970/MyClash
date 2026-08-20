@@ -90,8 +90,13 @@ function ClaimConfirm() {
         if (!response.ok) {
           let code: string | null = null;
           try {
-            const body = (await response.json()) as { message?: string; error?: string };
-            code = body.error ?? body.message ?? null;
+            // This endpoint throws its machine code AS the message
+            // (`expired_or_used`, `already_claimed`, `user_mismatch` in
+            // auth.service.ts), so `message` is what the branches below match.
+            // The read used to start with `body.error ??`, and the problem+json
+            // envelope has no `error` member — that half was always undefined.
+            const body = (await response.json()) as { message?: string };
+            code = body.message ?? null;
           } catch {
             /* body wasn't JSON — keep code null */
           }

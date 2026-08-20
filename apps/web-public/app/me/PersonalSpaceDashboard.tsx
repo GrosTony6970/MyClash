@@ -328,8 +328,16 @@ function ClaimSearchSection({ apiUrl }: { apiUrl: string }) {
       if (!res.ok) {
         let code = 'unknown';
         try {
-          const body = (await res.json()) as { message?: string; error?: string };
-          code = body.error ?? body.message ?? `http_${res.status}`;
+          // `details.code` is the only machine-readable half of this body. The
+          // envelope has no `error` member at all — this read used to start
+          // with `body.error ??`, which was always undefined — and `message` is
+          // an English sentence the API is free to reword, so it is the last
+          // resort rather than the thing being matched on.
+          const body = (await res.json()) as {
+            message?: string;
+            details?: { code?: string };
+          };
+          code = body.details?.code ?? body.message ?? `http_${res.status}`;
         } catch {
           code = `http_${res.status}`;
         }
@@ -386,7 +394,7 @@ function ClaimSearchSection({ apiUrl }: { apiUrl: string }) {
         <p className="mt-2 text-sm text-danger" role="alert">
           {claim.code === 'already_pending'
             ? t('publicApp.claim.errors.alreadyPending')
-            : claim.code === 'already_claimed' || claim.code === 'Profile is already claimed'
+            : claim.code === 'already_claimed'
               ? t('publicApp.claim.errors.alreadyClaimed')
               : t('publicApp.claim.errors.generic')}
         </p>

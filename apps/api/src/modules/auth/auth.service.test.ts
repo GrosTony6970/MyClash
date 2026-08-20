@@ -1991,6 +1991,40 @@ describe('AuthService', () => {
       expect(rawToken.length).toBeGreaterThanOrEqual(20);
       expect(rawToken.length).toBeLessThanOrEqual(64);
     });
+
+    it('refuses an already-claimed profile with a code, not just a sentence', async () => {
+      // The personal space picks which sentence to show by matching this code.
+      // It used to match the English message instead, because this refusal
+      // carried nothing else — and the exception filter is free to reword a
+      // message, while the reader is a French-speaking competitor's browser.
+      mockAuthUser({ id: 'user-1', email: 'fighter@example.com' });
+      seedTables({
+        global_persons: {
+          rows: [
+            {
+              id: 'global-1',
+              email: 'fighter@example.com',
+              display_name: 'Fighter One',
+              merged_into_id: null,
+              claimed_by_user_id: 'someone-else',
+            },
+          ],
+        },
+        global_person_claim_tokens: { rows: [] },
+      });
+
+      const refusal = await service
+        .requestGlobalPersonClaim(
+          { headers: { authorization: 'Bearer t' }, cookies: {} } as never,
+          'global-1',
+        )
+        .catch((err: unknown) => err);
+
+      expect(refusal).toBeInstanceOf(BadRequestException);
+      expect((refusal as BadRequestException).getResponse()).toMatchObject({
+        code: 'already_claimed',
+      });
+    });
   });
 
   /**
