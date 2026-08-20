@@ -92,6 +92,46 @@ describe('failureMessage', () => {
     ).toBe('Venue is in use');
   });
 
+  // The API's exception filter fills `detail` on every problem+json body, so a
+  // 500 always arrives carrying the scrubbed placeholder rather than nothing.
+  // Before this, that placeholder beat the screen's own localised sentence and
+  // `fallback` could only be reached via an edge proxy's non-JSON error page.
+  const SCRUBBED = 'Internal server error';
+
+  it("lets the screen's own sentence beat a scrubbed 5xx", () => {
+    expect(
+      failureMessage(
+        { kind: 'http', status: 500, detail: SCRUBBED },
+        en,
+        'Could not save the backup schedule.',
+      ),
+    ).toBe('Could not save the backup schedule.');
+  });
+
+  it('falls to the generic string on a scrubbed 5xx with no fallback', () => {
+    expect(failureMessage({ kind: 'http', status: 500, detail: SCRUBBED }, en)).toBe(
+      en('common.error'),
+    );
+  });
+
+  it('keeps a 503 reason — the one ≥500 the filter does not scrub', () => {
+    // OperationalUnavailableException: authored for the operator, always a 503.
+    expect(
+      failureMessage(
+        { kind: 'http', status: 503, detail: 'A restore is in progress. Try again shortly.' },
+        en,
+        'Could not save the backup schedule.',
+      ),
+    ).toBe('A restore is in progress. Try again shortly.');
+  });
+
+  it('still reaches the fallback when a proxy answered with no reason at all', () => {
+    // The case that used to be the ONLY way `fallback` was ever seen.
+    expect(
+      failureMessage({ kind: 'http', status: 502, detail: null }, en, 'Could not load backups.'),
+    ).toBe('Could not load backups.');
+  });
+
   it('ignores the fallback for the failures that have their own string', () => {
     expect(failureMessage({ kind: 'network' }, en, 'Generic.')).toBe(
       en('common.apiFailure.network'),

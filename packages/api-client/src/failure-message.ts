@@ -28,23 +28,44 @@ import type { ApiFailure } from './request';
  * CLAUDE.md is explicit that such a branch is the bug. One `null` here replaces
  * seven of them.
  *
- * For a failed response the API's own `detail` IS the message. Reading it is
- * the reason api-error.ts was written: a backup failure used to report nothing
- * more useful than "Could not delete backups." while the server's reason sat
- * unread in the body. It is English — the API authors it — which is exactly
- * what the 138 sites reading `body.message` already ship. The ≥500 bodies are
- * scrubbed to "Internal server error" by the API's exception filter, so no
- * stack or connection string can arrive through this path.
+ * ── 4xx: the server's reason wins, in English ───────────────────────────────
+ * For a failed 4xx the API's own `detail` IS the message. Reading it is the
+ * reason api-error.ts was written: a backup failure used to report nothing more
+ * useful than "Could not delete backups." while the server's reason sat unread
+ * in the body.
+ *
+ * That reason is English — the API authors it at ~1,900 throw sites and has no
+ * locale to author it in, since it does not depend on @myclash/i18n and is
+ * never told the request's language. Ruled on 2026-08-20 and settled: a French
+ * organiser reads English on a 4xx. The alternatives were costed and declined —
+ * dropping `detail` re-creates the bug above, and translating at the API is
+ * ~1,900 coded throws plus a key pair each. Do not re-open this by adding a
+ * "translate the detail" branch here; the decision is the API's to revisit.
+ *
+ * ── 5xx: the screen's own sentence wins ─────────────────────────────────────
+ * The exception filter scrubs every ≥500 body to the literal "Internal server
+ * error" so no stack or connection string can reach a browser. It also fills
+ * `detail` on EVERY problem+json body — so before 2026-08-20 that placeholder
+ * outranked the localised sentence the call site passed, and `fallback` could
+ * only ever be seen when the body was not JSON at all (an edge proxy's HTML
+ * error page). A branch that almost cannot fire is the bug CLAUDE.md names.
+ *
+ * 503 is the exception, and the reason is structural rather than a guess:
+ * `OperationalUnavailableException` is the filter's ONLY unscrubbed ≥500 path,
+ * its message is authored for the operator, and it is always a 503. Stated
+ * plainly because it is a client-side belief about the API — if a second
+ * unscrubbed 5xx is ever added, or that one stops being a 503, this goes wrong
+ * silently and the test named for it is what should catch it.
  */
 export function failureMessage(
   failure: ApiFailure,
   t: (key: string) => string,
   /**
-   * Already translated, and read only when the response gave no reason of its
-   * own. A screen that can say "Could not save the backup schedule." should;
-   * `common.error` is for the one that has nothing better. It does NOT override
-   * `detail` — the server's reason beats a guess, which is the whole argument
-   * for reading the body at all.
+   * Already translated. A screen that can say "Could not save the backup
+   * schedule." should; `common.error` is for the one that has nothing better.
+   * On a 4xx it does NOT override `detail` — the server's reason beats a guess,
+   * which is the whole argument for reading the body at all. On a scrubbed 5xx
+   * it does, because there the "reason" is a placeholder that says less.
    */
   fallback?: string,
 ): string | null {
@@ -61,6 +82,11 @@ export function failureMessage(
         ? (failure.detail ?? t('common.apiFailure.unauthenticated'))
         : t('common.apiFailure.unauthenticated');
     case 'http':
+      // A scrubbed 5xx carries a placeholder, not a reason. 503 is the one
+      // ≥500 the filter lets through with real words — see the header.
+      if (failure.status >= 500 && failure.status !== 503) {
+        return fallback ?? t('common.error');
+      }
       return failure.detail ?? fallback ?? t('common.error');
   }
 }
