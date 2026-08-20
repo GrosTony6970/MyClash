@@ -16,6 +16,7 @@ import {
   StatusBadge,
   useSortableList,
   useToast,
+  type SortableHeaderProps,
 } from '@myclash/ui';
 import { localeToBcp47 } from '@myclash/time';
 import { useUrlState } from '../../../src/hooks/useUrlState';
@@ -297,6 +298,16 @@ export default function AdminOrganizationsPage() {
     direction,
     toggle,
   } = useSortableList(orgs, getOrgSortValue);
+
+  /** Everything a sortable column header needs except its label. */
+  const sortProps = (columnKey: string): Omit<SortableHeaderProps, 'label'> => ({
+    columnKey,
+    currentKey: sortKey,
+    direction,
+    onToggle: toggle,
+    ariaSortAsc: t('admin.common.sortAscLabel'),
+    ariaSortDesc: t('admin.common.sortDescLabel'),
+  });
 
   return (
     <main className="mx-auto w-full max-w-[110rem] px-6 py-12 lg:px-8">
@@ -641,15 +652,7 @@ export default function AdminOrganizationsPage() {
         <DataTable>
           <DataTableHead>
             <DataTableCell as="th">
-              <SortableHeader
-                label={t('admin.organizations.table.name')}
-                columnKey="name"
-                currentKey={sortKey}
-                direction={direction}
-                onToggle={toggle}
-                ariaSortAsc={t('admin.common.sortAscLabel')}
-                ariaSortDesc={t('admin.common.sortDescLabel')}
-              />
+              <SortableHeader label={t('admin.organizations.table.name')} {...sortProps('name')} />
             </DataTableCell>
             <DataTableCell as="th">{t('admin.organizations.table.owner')}</DataTableCell>
             <DataTableCell as="th" className="text-center">
@@ -661,23 +664,13 @@ export default function AdminOrganizationsPage() {
             <DataTableCell as="th">
               <SortableHeader
                 label={t('admin.organizations.table.status')}
-                columnKey="status"
-                currentKey={sortKey}
-                direction={direction}
-                onToggle={toggle}
-                ariaSortAsc={t('admin.common.sortAscLabel')}
-                ariaSortDesc={t('admin.common.sortDescLabel')}
+                {...sortProps('status')}
               />
             </DataTableCell>
             <DataTableCell as="th">
               <SortableHeader
                 label={t('admin.organizations.table.created')}
-                columnKey="created"
-                currentKey={sortKey}
-                direction={direction}
-                onToggle={toggle}
-                ariaSortAsc={t('admin.common.sortAscLabel')}
-                ariaSortDesc={t('admin.common.sortDescLabel')}
+                {...sortProps('created')}
               />
             </DataTableCell>
             <DataTableCell as="th">{t('admin.organizations.table.actions')}</DataTableCell>

@@ -17,6 +17,7 @@ import {
   useSelection,
   useSortableList,
   useToast,
+  type SortableHeaderProps,
 } from '@myclash/ui';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useI18n } from '@myclash/next-i18n/client';
@@ -278,6 +279,16 @@ export default function AdminClubsPage() {
     direction,
     toggle,
   } = useSortableList(filteredClubs, getClubSortValue);
+
+  /** Everything a sortable column header needs except its label. */
+  const sortProps = (columnKey: string): Omit<SortableHeaderProps, 'label'> => ({
+    columnKey,
+    currentKey: sortKey,
+    direction,
+    onToggle: toggle,
+    ariaSortAsc: t('admin.common.sortAscLabel'),
+    ariaSortDesc: t('admin.common.sortDescLabel'),
+  });
 
   function startEdit(club: ClubRow) {
     setEditingId(club.id);
@@ -1047,49 +1058,17 @@ export default function AdminClubsPage() {
             {t('admin.clubs.logo')}
           </DataTableCell>
           <DataTableCell as="th">
-            <SortableHeader
-              label={t('admin.clubs.name')}
-              columnKey="name"
-              currentKey={sortKey}
-              direction={direction}
-              onToggle={toggle}
-              ariaSortAsc={t('admin.common.sortAscLabel')}
-              ariaSortDesc={t('admin.common.sortDescLabel')}
-            />
+            <SortableHeader label={t('admin.clubs.name')} {...sortProps('name')} />
           </DataTableCell>
           <DataTableCell as="th">{t('admin.clubs.abbreviation')}</DataTableCell>
           <DataTableCell as="th">
-            <SortableHeader
-              label={t('admin.clubs.city')}
-              columnKey="city"
-              currentKey={sortKey}
-              direction={direction}
-              onToggle={toggle}
-              ariaSortAsc={t('admin.common.sortAscLabel')}
-              ariaSortDesc={t('admin.common.sortDescLabel')}
-            />
+            <SortableHeader label={t('admin.clubs.city')} {...sortProps('city')} />
           </DataTableCell>
           <DataTableCell as="th">
-            <SortableHeader
-              label={t('admin.clubs.country')}
-              columnKey="country"
-              currentKey={sortKey}
-              direction={direction}
-              onToggle={toggle}
-              ariaSortAsc={t('admin.common.sortAscLabel')}
-              ariaSortDesc={t('admin.common.sortDescLabel')}
-            />
+            <SortableHeader label={t('admin.clubs.country')} {...sortProps('country')} />
           </DataTableCell>
           <DataTableCell as="th">
-            <SortableHeader
-              label={t('admin.clubs.createdAt')}
-              columnKey="createdAt"
-              currentKey={sortKey}
-              direction={direction}
-              onToggle={toggle}
-              ariaSortAsc={t('admin.common.sortAscLabel')}
-              ariaSortDesc={t('admin.common.sortDescLabel')}
-            />
+            <SortableHeader label={t('admin.clubs.createdAt')} {...sortProps('createdAt')} />
           </DataTableCell>
           <DataTableCell as="th">{t('admin.clubs.status')}</DataTableCell>
           <DataTableCell as="th">{t('admin.clubs.actions')}</DataTableCell>

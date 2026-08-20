@@ -16,6 +16,7 @@ import {
   rowActionClasses,
   useSortableList,
   useToast,
+  type SortableHeaderProps,
 } from '@myclash/ui';
 
 import type { LeagueRankingDimensions } from '@myclash/types';
@@ -266,6 +267,16 @@ export default function AdminLeaguesPage() {
     toggle,
   } = useSortableList(leagues, getLeagueSortValue);
 
+  /** Everything a sortable column header needs except its label. */
+  const sortProps = (columnKey: string): Omit<SortableHeaderProps, 'label'> => ({
+    columnKey,
+    currentKey: sortKey,
+    direction,
+    onToggle: toggle,
+    ariaSortAsc: t('admin.common.sortAscLabel'),
+    ariaSortDesc: t('admin.common.sortDescLabel'),
+  });
+
   return (
     <main className="mx-auto w-full max-w-[110rem] px-6 py-12 lg:px-8">
       <AdminPageHeader
@@ -398,59 +409,25 @@ export default function AdminLeaguesPage() {
               {t('admin.adminLeagues.colLogo')}
             </DataTableCell>
             <DataTableCell as="th">
-              <SortableHeader
-                label={t('admin.adminLeagues.colName')}
-                columnKey="name"
-                currentKey={sortKey}
-                direction={direction}
-                onToggle={toggle}
-                ariaSortAsc={t('admin.common.sortAscLabel')}
-                ariaSortDesc={t('admin.common.sortDescLabel')}
-              />
+              <SortableHeader label={t('admin.adminLeagues.colName')} {...sortProps('name')} />
             </DataTableCell>
             <DataTableCell as="th">
-              <SortableHeader
-                label={t('admin.adminLeagues.colYear')}
-                columnKey="year"
-                currentKey={sortKey}
-                direction={direction}
-                onToggle={toggle}
-                ariaSortAsc={t('admin.common.sortAscLabel')}
-                ariaSortDesc={t('admin.common.sortDescLabel')}
-              />
+              <SortableHeader label={t('admin.adminLeagues.colYear')} {...sortProps('year')} />
             </DataTableCell>
             <DataTableCell as="th">
               <SortableHeader
                 label={t('admin.adminLeagues.colGrouping')}
-                columnKey="category"
-                currentKey={sortKey}
-                direction={direction}
-                onToggle={toggle}
-                ariaSortAsc={t('admin.common.sortAscLabel')}
-                ariaSortDesc={t('admin.common.sortDescLabel')}
+                {...sortProps('category')}
               />
             </DataTableCell>
             <DataTableCell as="th">
               <SortableHeader
                 label={t('admin.adminLeagues.colScoringSystem')}
-                columnKey="scoringSystem"
-                currentKey={sortKey}
-                direction={direction}
-                onToggle={toggle}
-                ariaSortAsc={t('admin.common.sortAscLabel')}
-                ariaSortDesc={t('admin.common.sortDescLabel')}
+                {...sortProps('scoringSystem')}
               />
             </DataTableCell>
             <DataTableCell as="th">
-              <SortableHeader
-                label={t('admin.adminLeagues.colStatus')}
-                columnKey="status"
-                currentKey={sortKey}
-                direction={direction}
-                onToggle={toggle}
-                ariaSortAsc={t('admin.common.sortAscLabel')}
-                ariaSortDesc={t('admin.common.sortDescLabel')}
-              />
+              <SortableHeader label={t('admin.adminLeagues.colStatus')} {...sortProps('status')} />
             </DataTableCell>
             <DataTableCell as="th">{t('admin.adminLeagues.colPublic')}</DataTableCell>
             <DataTableCell as="th">{t('admin.adminLeagues.colActions')}</DataTableCell>

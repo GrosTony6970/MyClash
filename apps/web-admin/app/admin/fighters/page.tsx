@@ -10,6 +10,7 @@ import {
   SortableHeader,
   useConfirm,
   useSortableList,
+  type SortableHeaderProps,
 } from '@myclash/ui';
 import { localeToBcp47 } from '@myclash/time';
 import Link from 'next/link';
@@ -548,6 +549,16 @@ export default function AdminFightersPage() {
     toggle: togglePersonSort,
   } = useSortableList(persons, getPersonSortValue);
 
+  /** Everything a sortable column header needs except its label. */
+  const sortProps = (columnKey: string): Omit<SortableHeaderProps, 'label'> => ({
+    columnKey,
+    currentKey: personSortKey,
+    direction: personSortDir,
+    onToggle: togglePersonSort,
+    ariaSortAsc: t('admin.common.sortAscLabel'),
+    ariaSortDesc: t('admin.common.sortDescLabel'),
+  });
+
   // ── Render ───────────────────────────────────────────────────────────────────
 
   return (
@@ -635,24 +646,11 @@ export default function AdminFightersPage() {
               <DataTableCell as="th">
                 <SortableHeader
                   label={t('admin.globalProfiles.colName')}
-                  columnKey="displayName"
-                  currentKey={personSortKey}
-                  direction={personSortDir}
-                  onToggle={togglePersonSort}
-                  ariaSortAsc={t('admin.common.sortAscLabel')}
-                  ariaSortDesc={t('admin.common.sortDescLabel')}
+                  {...sortProps('displayName')}
                 />
               </DataTableCell>
               <DataTableCell as="th">
-                <SortableHeader
-                  label={t('admin.globalProfiles.colClub')}
-                  columnKey="club"
-                  currentKey={personSortKey}
-                  direction={personSortDir}
-                  onToggle={togglePersonSort}
-                  ariaSortAsc={t('admin.common.sortAscLabel')}
-                  ariaSortDesc={t('admin.common.sortDescLabel')}
-                />
+                <SortableHeader label={t('admin.globalProfiles.colClub')} {...sortProps('club')} />
               </DataTableCell>
               <DataTableCell as="th">{t('admin.globalProfiles.colRoles')}</DataTableCell>
               <DataTableCell as="th">{t('admin.globalProfiles.colCountry')}</DataTableCell>

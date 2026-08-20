@@ -30,6 +30,7 @@ import {
   statusPillTone,
   tournamentStatusSemantic,
   useSortableList,
+  type SortableHeaderProps,
 } from '@myclash/ui';
 import { allowsDirectHardDelete, asEventKind, EVENT_KINDS, type EventKind } from '@myclash/types';
 import { localeToBcp47, type AppLocale } from '@myclash/time';
@@ -281,6 +282,16 @@ export default function OrgEventsListPage() {
     direction,
     toggle: toggleSort,
   } = useSortableList(events, getEventSortValue, INITIAL_SORT);
+
+  /** Everything a sortable column header needs except its label. */
+  const sortProps = (columnKey: string): Omit<SortableHeaderProps, 'label'> => ({
+    columnKey,
+    currentKey: sortKey,
+    direction,
+    onToggle: toggleSort,
+    ariaSortAsc: t('admin.common.sortAscLabel'),
+    ariaSortDesc: t('admin.common.sortDescLabel'),
+  });
 
   function openEdit(event: OrgEvent) {
     setEditing(event);
@@ -602,93 +613,50 @@ export default function OrgEventsListPage() {
             <DataTableHead>
               <DataTableCell as="th">{t('organizer.events.table.logo')}</DataTableCell>
               <DataTableCell as="th">
-                <SortableHeader
-                  label={t('organizer.events.table.event')}
-                  columnKey="name"
-                  currentKey={sortKey}
-                  direction={direction}
-                  onToggle={toggleSort}
-                  ariaSortAsc={t('admin.common.sortAscLabel')}
-                  ariaSortDesc={t('admin.common.sortDescLabel')}
-                />
+                <SortableHeader label={t('organizer.events.table.event')} {...sortProps('name')} />
               </DataTableCell>
               <DataTableCell as="th">
                 <SortableHeader
                   label={t('organizer.events.table.created')}
-                  columnKey="createdAt"
-                  currentKey={sortKey}
-                  direction={direction}
-                  onToggle={toggleSort}
-                  ariaSortAsc={t('admin.common.sortAscLabel')}
-                  ariaSortDesc={t('admin.common.sortDescLabel')}
+                  {...sortProps('createdAt')}
                 />
               </DataTableCell>
               <DataTableCell as="th">
                 <SortableHeader
                   label={t('organizer.events.table.createdBy')}
-                  columnKey="createdBy"
-                  currentKey={sortKey}
-                  direction={direction}
-                  onToggle={toggleSort}
-                  ariaSortAsc={t('admin.common.sortAscLabel')}
-                  ariaSortDesc={t('admin.common.sortDescLabel')}
+                  {...sortProps('createdBy')}
                 />
               </DataTableCell>
               <DataTableCell as="th" className="text-center">
                 <SortableHeader
                   label={t('organizer.events.table.tournaments')}
-                  columnKey="tournamentCount"
-                  currentKey={sortKey}
-                  direction={direction}
-                  onToggle={toggleSort}
+                  {...sortProps('tournamentCount')}
                   align="center"
-                  ariaSortAsc={t('admin.common.sortAscLabel')}
-                  ariaSortDesc={t('admin.common.sortDescLabel')}
                 />
               </DataTableCell>
               <DataTableCell as="th" className="text-center">
                 <SortableHeader
                   label={t('organizer.events.table.participants')}
-                  columnKey="participantCount"
-                  currentKey={sortKey}
-                  direction={direction}
-                  onToggle={toggleSort}
+                  {...sortProps('participantCount')}
                   align="center"
-                  ariaSortAsc={t('admin.common.sortAscLabel')}
-                  ariaSortDesc={t('admin.common.sortDescLabel')}
                 />
               </DataTableCell>
               <DataTableCell as="th">
                 <SortableHeader
                   label={t('organizer.events.table.startDate')}
-                  columnKey="startDate"
-                  currentKey={sortKey}
-                  direction={direction}
-                  onToggle={toggleSort}
-                  ariaSortAsc={t('admin.common.sortAscLabel')}
-                  ariaSortDesc={t('admin.common.sortDescLabel')}
+                  {...sortProps('startDate')}
                 />
               </DataTableCell>
               <DataTableCell as="th">
                 <SortableHeader
                   label={t('organizer.events.table.endDate')}
-                  columnKey="endDate"
-                  currentKey={sortKey}
-                  direction={direction}
-                  onToggle={toggleSort}
-                  ariaSortAsc={t('admin.common.sortAscLabel')}
-                  ariaSortDesc={t('admin.common.sortDescLabel')}
+                  {...sortProps('endDate')}
                 />
               </DataTableCell>
               <DataTableCell as="th">
                 <SortableHeader
                   label={t('organizer.events.table.visibility')}
-                  columnKey="visibility"
-                  currentKey={sortKey}
-                  direction={direction}
-                  onToggle={toggleSort}
-                  ariaSortAsc={t('admin.common.sortAscLabel')}
-                  ariaSortDesc={t('admin.common.sortDescLabel')}
+                  {...sortProps('visibility')}
                 />
               </DataTableCell>
               <DataTableCell as="th">{t('organizer.events.table.actions')}</DataTableCell>
