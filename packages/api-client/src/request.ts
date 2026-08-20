@@ -12,8 +12,11 @@
  * Every failure comes back as a value the compiler makes you read.
  *
  * It carries no user-facing text (hard rule 6: every string ships in `en` and
- * `fr`). The failure is structured; each app maps it to `t(...)` with its own
- * keys.
+ * `fr`). The failure is structured, and `failure-message.ts` next door turns it
+ * into a sentence — naming i18n KEYS and taking the translator as a parameter,
+ * so no catalogue enters this package. That mapper sits here rather than in an
+ * app because it switches on `ApiFailure`: a new member of the union has to
+ * break it in the same package, in the same commit.
  *
  * The base URL is a PARAMETER and stays one. The three apps have three
  * genuinely different policies — browser-only, server/browser split, and

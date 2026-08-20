@@ -482,6 +482,9 @@ importers:
 
   packages/api-client:
     devDependencies:
+      '@myclash/i18n':
+        specifier: workspace:^
+        version: link:../i18n
       openapi-typescript:
         specifier: ^7.4.0
         version: 7.13.0(typescript@6.0.3)

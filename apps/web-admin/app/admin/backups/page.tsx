@@ -4,9 +4,8 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
 import { Modal } from '@myclash/ui';
 import { useI18n } from '@myclash/next-i18n/client';
-import { apiRequest } from '@myclash/api-client';
+import { apiRequest, failureMessage } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
-import { failureMessage } from '@/lib/api-failure';
 
 type BackupLocation = 'local' | 's3' | 'upload';
 type OperationStatus = 'queued' | 'running' | 'success' | 'failed';

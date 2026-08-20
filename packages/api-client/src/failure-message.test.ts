@@ -2,9 +2,9 @@ import { messages } from '@myclash/i18n/admin';
 import { createTranslator } from '@myclash/i18n/runtime';
 import { describe, expect, it } from 'vitest';
 
-import type { ApiFailure } from '@myclash/api-client';
+import type { ApiFailure } from './request';
 
-import { failureMessage } from './api-failure';
+import { failureMessage } from './failure-message';
 
 // The real translators, not stubs. A stub would prove the routing and miss the
 // thing that actually breaks: a key that resolves to nothing. `t()` answers a

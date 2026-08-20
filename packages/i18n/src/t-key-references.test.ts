@@ -78,6 +78,12 @@ const ROOTS = [
   'packages/ui/src',
   'packages/next-i18n/src',
   'packages/feature-flags/src',
+  // `failureMessage` names `common.apiFailure.*` and `common.error` but calls
+  // no `t()` of its own — it takes the translator as a parameter, so the app
+  // that renders the sentence is not the module that chooses the key. Without
+  // this root those keys are referenced from nowhere the sweep can see, and it
+  // asks you to delete strings that ship on every failed request.
+  'packages/api-client/src',
   // Holds key literals without calling `t()`: roundTokenLabel() maps a round
   // token to an i18n key so the module can stay locale-agnostic. Whitelisting
   // the `common.round.` prefix instead would have exempted that whole family

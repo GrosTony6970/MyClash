@@ -1,8 +1,24 @@
-import type { ApiFailure } from '@myclash/api-client';
+import type { ApiFailure } from './request';
 
 /**
  * Turn a structured `apiRequest` failure into a sentence for the operator, or
  * `null` when there is nothing to say.
+ *
+ * ── Why it lives beside `apiRequest` and not in an app ──────────────────────
+ * It switches on `ApiFailure`, and `ApiFailure` is declared one file away. A
+ * new member on that union has to break this switch in the same package, in the
+ * same commit — which is the whole reason the union is exhaustive and carries no
+ * `default:`. It started in web-admin, where a second copy was one converted
+ * web-public file away; `createApiClient` (four call sites) and `api-error.ts`
+ * (one consumer) are what happens when a shared mapper is a suggestion.
+ *
+ * It still holds no strings. `t` is a parameter and stays one: hard rule 6 puts
+ * every user-facing string in `en` and `fr`, and this package holds no
+ * catalogue. What it names is KEYS, and `common.apiFailure.*` is in the shared
+ * `common` namespace all three surfaces already compose. A plain function
+ * rather than a hook, so it can be unit-tested — there is no @testing-library
+ * in the repo and the app vitest configs map no `@/` alias, so a module
+ * reaching for either would be untestable by construction.
  *
  * `null` is the aborted request: the caller's own doing — a navigation, an
  * unmount, a newer request — and it has no message. This used to be an
@@ -11,12 +27,6 @@ import type { ApiFailure } from '@myclash/api-client';
  * a request that passes no signal that guard is a branch which cannot fire.
  * CLAUDE.md is explicit that such a branch is the bug. One `null` here replaces
  * seven of them.
- *
- * The core cannot do this itself: hard rule 6 puts every user-facing string in
- * `en` and `fr`, and the shared package holds no catalogue. It is a plain
- * function rather than a hook so it can be unit-tested — web-admin's vitest
- * config maps no `@/` alias and there is no @testing-library in the repo, so a
- * module that reached for either would be untestable by construction.
  *
  * For a failed response the API's own `detail` IS the message. Reading it is
  * the reason api-error.ts was written: a backup failure used to report nothing

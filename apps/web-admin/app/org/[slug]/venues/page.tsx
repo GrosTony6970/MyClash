@@ -12,9 +12,8 @@ import {
 } from '@myclash/ui';
 import { localeToBcp47, type AppLocale } from '@myclash/time';
 import { useI18n } from '@myclash/next-i18n/client';
-import { apiRequest, type ApiFailure } from '@myclash/api-client';
+import { apiRequest, failureMessage, type ApiFailure } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
-import { failureMessage } from '@/lib/api-failure';
 
 interface VenueArea {
   id: string;
