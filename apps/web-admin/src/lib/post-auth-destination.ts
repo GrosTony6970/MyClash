@@ -1,3 +1,4 @@
+import { apiRequest, fetchMe } from '@myclash/api-client';
 import { getPublicApiUrl } from './api-url';
 /**
  * Compute where to send an organizer right after a successful auth.
@@ -14,20 +15,15 @@ import { getPublicApiUrl } from './api-url';
  *    operator can create one).
  *
  * Safe to import from any client component.
+ *
+ * No try/catch: `apiRequest` never throws, so every failure arrives as a value
+ * and lands on `fallback` by the same path an unhelpful answer does. The old
+ * catch-all wrapped both reads and could not tell them apart.
  */
 
 const apiUrl = getPublicApiUrl();
 
 type OrgRole = 'owner' | 'admin' | 'scorekeeper' | 'viewer' | string;
-
-interface MeResponse {
-  type?: string;
-  admin?: {
-    // No platform-tier field here on purpose: this resolver only ever reads
-    // `organizations`. The old `isSuperAdmin` was declared and never read.
-    organizations?: Array<{ id: string; slug: string; role: OrgRole }>;
-  };
-}
 
 interface EventRow {
   id: string;
@@ -52,26 +48,17 @@ function pickAutoEvent(events: readonly EventRow[]): EventRow | null {
 }
 
 export async function resolvePostAuthDestination(fallback = '/dashboard'): Promise<string> {
-  try {
-    const meRes = await fetch(`${apiUrl}/api/v1/me`, { credentials: 'include' });
-    if (!meRes.ok) return fallback;
-    const me = (await meRes.json()) as MeResponse;
-    if (me.type !== 'claimed') return fallback;
+  const me = await fetchMe(apiUrl);
+  if (!me.ok || me.data.type !== 'claimed') return fallback;
 
-    const orgs = me.admin?.organizations ?? [];
-    const org = orgs.find((o) => isManageableRole(o.role));
-    if (!org) return fallback;
+  const org = (me.data.admin?.organizations ?? []).find((o) => isManageableRole(o.role));
+  if (!org) return fallback;
 
-    const eventsRes = await fetch(`${apiUrl}/api/v1/organizations/${org.id}/events`, {
-      credentials: 'include',
-    });
-    if (!eventsRes.ok) return `/org/${org.slug}/events`;
-    const events = (await eventsRes.json()) as EventRow[];
-    if (!Array.isArray(events) || events.length === 0) return `/org/${org.slug}/events`;
-
-    const chosen = pickAutoEvent(events);
-    return chosen ? `/org/${org.slug}/events/${chosen.id}` : `/org/${org.slug}/events`;
-  } catch {
-    return fallback;
+  const events = await apiRequest<EventRow[]>(apiUrl, `/api/v1/organizations/${org.id}/events`);
+  if (!events.ok || !Array.isArray(events.data) || events.data.length === 0) {
+    return `/org/${org.slug}/events`;
   }
+
+  const chosen = pickAutoEvent(events.data);
+  return chosen ? `/org/${org.slug}/events/${chosen.id}` : `/org/${org.slug}/events`;
 }

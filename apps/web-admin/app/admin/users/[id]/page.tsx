@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useConfirm } from '@myclash/ui';
 import type { PlatformRole } from '@myclash/types';
 import { useI18n } from '@myclash/next-i18n/client';
+import { fetchMe } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
 import { BackLink } from '@/components/BackLink';
 
@@ -86,16 +87,19 @@ export default function AdminUserEditPage() {
 
   useEffect(() => {
     let cancelled = false;
-    fetch(`${apiUrl}/api/v1/auth/me`, { credentials: 'include' })
-      // MeResponseDto NESTS the account: the id is at `user.id`, not at the top
-      // level. This read said `data.id`, so currentUserId was permanently null
-      // and the "you cannot change your own platform role" guard below it had
-      // never once fired.
-      .then(async (res) => (res.ok ? ((await res.json()) as { user?: { id?: string } }) : null))
-      .then((data) => {
-        if (!cancelled) setCurrentUserId(data?.user?.id ?? null);
-      })
-      .catch(() => undefined);
+    // MeResponseDto NESTS the account: the id is at `user.id`, not at the top
+    // level. This read said `data.id`, so currentUserId was permanently null
+    // and the "you cannot change your own platform role" guard below it had
+    // never once fired. `MeSession` is why that cannot recur — the old `data.id`
+    // no longer compiles, where the hand-written `{ user?: { id?: string } }`
+    // cast it replaced would have accepted either spelling.
+    //
+    // Reads /api/v1/me, not /api/v1/auth/me. Both answer with the same DTO, but
+    // this was the last caller keeping the second one alive, and only /api/v1/me
+    // consolidates a guest cookie.
+    void fetchMe(apiUrl).then((result) => {
+      if (!cancelled) setCurrentUserId(result.ok ? (result.data.user?.id ?? null) : null);
+    });
     return () => {
       cancelled = true;
     };

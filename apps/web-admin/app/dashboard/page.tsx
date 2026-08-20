@@ -2,65 +2,14 @@
 
 import { useEffect, useState } from 'react';
 import { useI18n } from '@myclash/next-i18n/client';
+import { fetchMe } from '@myclash/api-client';
 import { resolvePostAuthDestination } from '../../src/lib/post-auth-destination';
+import { resolveAdminLanding } from '@/components/admin-landing-decision';
 import { getPublicApiUrl } from '@/lib/api-url';
-
-type MeResponse = {
-  type: 'claimed' | 'guest' | 'anonymous';
-  admin?: {
-    platformRole: string | null;
-    organizations: Array<{ slug: string }>;
-    hasLeagueRoles?: boolean;
-  };
-};
-
-type Mode = 'redirecting' | 'chooser' | 'noWorkspace';
-
-type Landing =
-  | { kind: 'redirect'; href: string }
-  | { kind: 'chooser'; organizerSlug: string }
-  | { kind: 'noWorkspace' };
 
 const apiUrl = getPublicApiUrl();
 
-/**
- * Resolve where a freshly-authenticated admin session should go, from /me.
- *
- * Dual-role exception: a user who holds BOTH a platform role AND a membership
- * of at least one organization gets a `chooser` (not an automatic /admin
- * redirect). Forcing /admin used to strand the "sole operator" — an organiser
- * who also works the platform — on the console with no path to their
- * tournaments. Platform-only accounts still go straight to /admin.
- *
- * Applies to every tier, not just super-admin: a platform admin who also runs
- * their own club has exactly the same problem.
- */
-async function resolveLanding(): Promise<Landing> {
-  const res = await fetch(`${apiUrl}/api/v1/me`, { credentials: 'include' });
-  if (!res.ok) return { kind: 'redirect', href: '/login' };
-
-  const data = (await res.json()) as MeResponse;
-  if (data.type !== 'claimed') return { kind: 'redirect', href: '/login' };
-
-  const organizations = data.admin?.organizations ?? [];
-  const firstOrg = organizations.find((organization) => Boolean(organization.slug));
-
-  if (data.admin?.platformRole) {
-    return firstOrg
-      ? { kind: 'chooser', organizerSlug: firstOrg.slug }
-      : { kind: 'redirect', href: '/admin' };
-  }
-
-  if (firstOrg) return { kind: 'redirect', href: `/org/${firstOrg.slug}` };
-
-  // Checked AFTER the org branch: an org owner who also holds a personal league
-  // grant keeps landing on the org workspace they use daily, and reaches
-  // /leagues through the sidebar instead. This branch is for the account whose
-  // only grant is a league — previously a dead end here.
-  if (data.admin?.hasLeagueRoles) return { kind: 'redirect', href: '/leagues' };
-
-  return { kind: 'noWorkspace' };
-}
+type Mode = 'redirecting' | 'chooser' | 'noWorkspace';
 
 /**
  * /dashboard - landing page after organizer login. Resolves the user's admin
@@ -72,25 +21,24 @@ export default function DashboardPage() {
   const [organizerSlug, setOrganizerSlug] = useState<string | null>(null);
 
   useEffect(() => {
-    let cancelled = false;
-    resolveLanding()
-      .then((landing) => {
-        if (cancelled) return;
-        if (landing.kind === 'redirect') {
-          window.location.href = landing.href;
-        } else if (landing.kind === 'chooser') {
-          setOrganizerSlug(landing.organizerSlug);
-          setMode('chooser');
-        } else {
-          setMode('noWorkspace');
-        }
-      })
-      .catch(() => {
-        if (!cancelled) window.location.href = '/login';
-      });
-    return () => {
-      cancelled = true;
-    };
+    const controller = new AbortController();
+    void (async () => {
+      const result = await fetchMe(apiUrl, { signal: controller.signal });
+      if (result.ok === false && result.kind === 'aborted') return;
+      // A failed read hands the resolver null, which routes to /login. That is
+      // this page's honest answer either way: it has nothing of its own to show
+      // and no way to work out where else to send them.
+      const landing = resolveAdminLanding(result.ok ? result.data : null);
+      if (landing.kind === 'redirect') {
+        window.location.href = landing.href;
+      } else if (landing.kind === 'chooser') {
+        setOrganizerSlug(landing.organizerSlug);
+        setMode('chooser');
+      } else {
+        setMode('noWorkspace');
+      }
+    })();
+    return () => controller.abort();
   }, []);
 
   if (mode === 'chooser') {
