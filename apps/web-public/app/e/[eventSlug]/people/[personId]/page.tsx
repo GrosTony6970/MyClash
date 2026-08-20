@@ -10,6 +10,7 @@
  */
 
 import { useCallback, useEffect, useState } from 'react';
+import { fetchMe } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
@@ -82,14 +83,14 @@ export default function PersonProfilePage() {
   useEffect(() => {
     async function load() {
       try {
-        const [profileRes, scheduleRes, meRes] = await Promise.all([
+        const [profileRes, scheduleRes, me] = await Promise.all([
           fetch(`${apiUrl}/api/v1/events/${eventSlug}/persons/${personId}`, {
             credentials: 'include',
           }),
           fetch(`${apiUrl}/api/v1/events/${eventSlug}/people/${personId}/schedule`, {
             credentials: 'include',
           }),
-          fetch(`${apiUrl}/api/v1/me`, { credentials: 'include' }),
+          fetchMe(apiUrl),
         ]);
 
         if (profileRes.ok) {
@@ -98,10 +99,16 @@ export default function PersonProfilePage() {
           setFollowing(p.followState === 'following');
         }
         if (scheduleRes.ok) setSchedule((await scheduleRes.json()) as PersonSchedule);
-        if (meRes.ok) {
-          const me = (await meRes.json()) as { type?: string };
+        // Unreadable /me falls through to the existing 'claimed' default, which
+        // is what this did before: the viewer type only widens what the page
+        // offers, and the API refuses anything they may not do.
+        if (me.ok) {
           setViewerType(
-            me.type === 'guest' ? 'guest' : me.type === 'anonymous' ? 'anonymous' : 'claimed',
+            me.data.type === 'guest'
+              ? 'guest'
+              : me.data.type === 'anonymous'
+                ? 'anonymous'
+                : 'claimed',
           );
         }
       } catch {

@@ -3,7 +3,9 @@
 import { useEffect, useState, useSyncExternalStore } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
+import { fetchMe } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
+import { resolvePublicPersonal } from '@/components/public-personal-decision';
 import { LanguageSwitcher, useI18n } from '@myclash/next-i18n/client';
 
 type AuthState = 'unknown' | 'signed-out' | 'signed-in';
@@ -68,28 +70,14 @@ export function SiteHeader() {
     // Admin-access probe — a competitor who also holds an organiser/super-admin
     // grant gets an "Admin workspace" switch (they land here on the public root
     // after an admin Google login, so the affordance must live on this header).
-    fetch(`${apiUrl}/api/v1/me`, { credentials: 'include', signal: controller.signal })
-      .then(async (res) => {
-        if (!res.ok) return;
-        const data = (await res.json()) as {
-          admin?: {
-            platformRole?: string | null;
-            organizations?: Array<{ slug: string }>;
-            hasLeagueRoles?: boolean;
-          };
-        };
-        setHasAdminAccess(
-          Boolean(
-            data.admin &&
-            (data.admin.platformRole ||
-              (data.admin.organizations?.length ?? 0) > 0 ||
-              data.admin.hasLeagueRoles),
-          ),
-        );
-      })
-      .catch((err: unknown) => {
-        if (err instanceof Error && err.name === 'AbortError') return;
-      });
+    // Through the same resolver PublicPersonalShell uses. This derivation —
+    // "a platform tier OR any org membership OR a league grant" — was written
+    // out here a second time, and a union spelled twice is a union that drifts.
+    void fetchMe(apiUrl, { signal: controller.signal }).then((result) => {
+      if (!result.ok) return;
+      const decision = resolvePublicPersonal(result.data);
+      setHasAdminAccess(decision.kind === 'allow' && decision.hasAdminAccess);
+    });
 
     return () => controller.abort();
   }, [authState, apiUrl]);

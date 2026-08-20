@@ -12,6 +12,7 @@
  */
 
 import { useEffect, useState } from 'react';
+import { fetchMe } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
 import { DEFAULT_EVENT_TIMEZONE, localeToBcp47, zonedDay, type AppLocale } from '@myclash/time';
 import { sideColorsForTokens } from '@myclash/ui';
@@ -160,14 +161,9 @@ export default function MySchedulePage() {
 
   useEffect(() => {
     const controller = new AbortController();
-    fetch(`${apiUrl}/api/v1/me`, { credentials: 'include', signal: controller.signal })
-      .then(async (res) => {
-        if (res.ok) {
-          const me = (await res.json()) as { type?: string };
-          setIsGuest(me.type === 'guest');
-        }
-      })
-      .catch(() => undefined);
+    void fetchMe(apiUrl, { signal: controller.signal }).then((result) => {
+      if (result.ok) setIsGuest(result.data.type === 'guest');
+    });
     fetch(`${apiUrl}/api/v1/events/${eventSlug}/my-schedule`, {
       credentials: 'include',
       signal: controller.signal,

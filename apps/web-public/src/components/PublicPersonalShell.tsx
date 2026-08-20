@@ -6,7 +6,9 @@ import { usePathname } from 'next/navigation';
 import { useEffect, useState, type ReactNode } from 'react';
 import { Avatar, NavIcon, type NavIconName } from '@myclash/ui';
 import { useI18n } from '@myclash/next-i18n/client';
+import { fetchMe } from '@myclash/api-client';
 import { getPublicApiUrl } from '../lib/api-url';
+import { resolvePublicPersonal } from './public-personal-decision';
 import { BottomNav } from './BottomNav';
 import { MyEventsNav } from './me/MyEventsNav';
 import { useUnreadBroadcasts } from './me/useUnreadBroadcasts';
@@ -56,57 +58,40 @@ export function PublicPersonalShell({ children }: { children: ReactNode }) {
   useEffect(() => {
     const controller = new AbortController();
 
-    fetch(`${apiUrl}/api/v1/me`, {
-      credentials: 'include',
-      signal: controller.signal,
-    })
-      .then(async (response) => {
-        if (!response.ok) {
-          window.location.replace('/login');
-          return;
-        }
+    void (async () => {
+      const result = await fetchMe(apiUrl, { signal: controller.signal });
+      if (!result.ok && result.kind === 'aborted') return;
 
-        const data = (await response.json()) as {
-          type?: string;
-          user?: { email?: string; display_name?: string; photo_url?: string };
-          person?: { given_name?: string; family_name?: string };
-          admin?: {
-            platformRole?: string | null;
-            organizations?: Array<{ slug: string }>;
-            hasLeagueRoles?: boolean;
-          };
-        };
-        if (data.type !== 'claimed') {
-          window.location.replace('/login');
-          return;
-        }
+      // `reachable` is false only when the read FAILED. Being signed out is not
+      // a failure: /me is @Public() and answers `anonymous` with a 200, which
+      // the resolver reads as sign_in. This shell used to send both to /login,
+      // so a dropped connection signed a competitor out mid-event.
+      const decision = resolvePublicPersonal(
+        result.ok ? result.data : null,
+        result.ok || result.kind === 'unauthenticated',
+      );
 
-        const personName = [data.person?.given_name, data.person?.family_name]
-          .filter(Boolean)
-          .join(' ')
-          .trim();
-        setDisplayName(data.user?.display_name || personName || data.user?.email || null);
-        setPhotoUrl(data.user?.photo_url ?? null);
-        setHasAdminAccess(
-          Boolean(
-            data.admin &&
-            (data.admin.platformRole ||
-              (data.admin.organizations?.length ?? 0) > 0 ||
-              data.admin.hasLeagueRoles),
-          ),
-        );
+      if (decision.kind === 'sign_in') {
+        window.location.replace('/login');
+        return;
+      }
+      if (decision.kind === 'unverified') {
+        // Keep them where they are. Their cookie is untouched and every call the
+        // page makes still carries it; the chrome simply renders without a name.
         setReady(true);
-      })
-      .catch((error: unknown) => {
-        if (!(error instanceof DOMException && error.name === 'AbortError')) {
-          window.location.replace('/login');
-        }
-      });
+        return;
+      }
+
+      setDisplayName(decision.displayName);
+      setPhotoUrl(decision.photoUrl);
+      setHasAdminAccess(decision.hasAdminAccess);
+      setReady(true);
+    })();
 
     return () => controller.abort();
   }, [apiUrl]);
 
-  // The /me fetch above only runs on mount, so a photo changed on the co-mounted
+  // The /me read above only runs on mount, so a photo changed on the co-mounted
   // profile editor wouldn't show here until a full reload. FighterProfileClient
   // dispatches a `myclash:profile-photo` window event on upload/remove; mirror it.
   useEffect(() => {
