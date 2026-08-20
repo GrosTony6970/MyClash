@@ -9655,13 +9655,42 @@ export interface components {
       token: string;
       password: string;
     };
+    MeUserDto: {
+      id: string;
+      email: string;
+      display_name?: string;
+      photo_url?: string;
+    };
+    MePersonDto: {
+      id: string;
+      given_name: string;
+      family_name: string;
+      event_id: string;
+      claim_status: string;
+    };
+    MeOrganizationDto: {
+      id: string;
+      slug: string;
+      name: string;
+      role: string;
+    };
+    MeAdminDto: {
+      /** @enum {string|null} */
+      platformRole: 'platform_viewer' | 'platform_admin' | 'super_admin' | null;
+      organizations: components['schemas']['MeOrganizationDto'][];
+      hasLeagueRoles?: boolean;
+    };
+    MeGuestSessionDto: {
+      device_label: string;
+      expires_at: string;
+    };
     MeResponseDto: {
       /** @enum {string} */
       type: 'claimed' | 'guest' | 'anonymous';
-      user?: Record<string, never>;
-      person?: Record<string, never>;
-      admin?: Record<string, never>;
-      session?: Record<string, never>;
+      user?: components['schemas']['MeUserDto'];
+      person?: components['schemas']['MePersonDto'];
+      admin?: components['schemas']['MeAdminDto'];
+      session?: components['schemas']['MeGuestSessionDto'];
       pendingLegal?: ('terms' | 'privacy')[];
     };
     SignupDto: {

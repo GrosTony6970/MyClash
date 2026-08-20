@@ -208,10 +208,17 @@ export class AuthController {
   }
 
   /**
-   * GET /api/v1/me
+   * GET /api/v1/auth/me
    *
    * Returns the current identity: claimed user, guest session, or anonymous.
    * Reads the Supabase access token from the Authorization header or cookie.
+   *
+   * NOT `/api/v1/me` — this controller is `@Controller('auth')`, and the
+   * docstring said otherwise until 2026-08-20. The two are separate routes and
+   * `public-routes.test.ts` requires both to answer `anonymous` with a 200.
+   * They differ in one way: only `/api/v1/me` takes a `reply`, so only that one
+   * performs the guest-cookie consolidation. Read `me.controller.ts` before
+   * assuming a caller can be moved between them.
    */
   @Get('me')
   @ApiOperation({ summary: 'Get current identity' })
