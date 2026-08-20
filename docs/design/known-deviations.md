@@ -134,25 +134,22 @@ It shares the product palette **by copy, not by import** (`#0f172a`, `#1e293b`, 
   `text-gray-400`) into three _invisible_ ones, and `no-raw-palette-color` matches only
   `prefix-hue-number` class tokens while `check-design-drift` never opens a component file.
 
----
-
-## D13 — `EmptyState` does not carry the FoilMark its contract promises
-
-**Rule broken:** `DESIGN.md` → Components says "**`EmptyState`** — every zero-state. Carries the
-FoilMark." It does not. The component renders a flex column with an icon, a title, a description
-and an action slot, and imports nothing.
-
-Left as a deviation rather than "corrected" in either direction, because the two fixes are
-opposite products: give every zero-state the FoilMark hairline, or admit the zero-state is
-deliberately plain and delete the clause. The first is a visible change across ~18 render sites;
-the second edits the contract. Neither is a sweep.
-
-**Adjacent, not fixed:** `web-admin` carries a second, unrelated `function EmptyState()` at
-`apps/web-admin/app/org/[slug]/events/[eventId]/pools/_tabs/StandingsTab.tsx:486`. It is fully
-tokenized and imports nothing from `@myclash/ui` — so this is a name collision rather than a
-divergent copy, but it is one grep away from being mistaken for the shared component.
+- **`EmptyState` now carries the FoilMark** its contract promised (fixed 2026-08-20). `DESIGN.md`
+  had said "every zero-state. Carries the FoilMark" since the component was written, and for a year
+  it carried none — the component and the contract disagreed, and no gate reads a prose claim about
+  a component, so nothing could tell. It sits **above** the title, because `title` is the only
+  required prop and a flourish below it dangles on the many call sites that pass a title alone. It
+  is passed `text-muted` explicitly rather than taking FoilMark's `text-slate-300` default, which
+  would have added 18 render sites to the open deviation below. A render test now holds all three
+  facts, since prose plainly could not.
 
 **Still open (each needs a value-shift decision or a new token — not a silent sweep):**
+
+- **A second `EmptyState` exists.** `web-admin` carries an unrelated local
+  `function EmptyState()` at
+  `apps/web-admin/app/org/[slug]/events/[eventId]/pools/_tabs/StandingsTab.tsx:486`. It is fully
+  tokenized and imports nothing from `@myclash/ui` — a name collision rather than a divergent copy,
+  but one grep away from being mistaken for the shared component, and it did not gain the FoilMark.
 
 - **`AdminPageHeader` eyebrow** is `text-red-800` (`#991b1b`). DESIGN.md says the eyebrow is _the accent_, but the accent is `#b91c1c` (red-700) — so the value-exact token is `accent-hover`, which is semantically the wrong token (a hover colour used at rest inverts under `[data-accent='personal']`). Fixing it to `text-accent` is correct but shifts the eyebrow red-800→red-700 across ~21 admin pages. Left for an explicit call.
 - **`AdminPageHeader` border** `border-slate-200` (`#e2e8f0`) vs `border-border` (`#e7e5e4`, stone-200): sub-perceptual but non-zero.
