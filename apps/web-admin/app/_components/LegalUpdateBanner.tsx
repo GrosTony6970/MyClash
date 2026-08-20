@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { useI18n } from '@myclash/next-i18n/client';
+import { fetchMe } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
 import { currentLegalVersionFields, getLegalUrl } from '../../src/lib/legal-url';
 
@@ -26,17 +27,10 @@ export function LegalUpdateBanner() {
   useEffect(() => {
     let cancelled = false;
     async function load() {
-      try {
-        const res = await fetch(`${getPublicApiUrl()}/api/v1/me`, {
-          credentials: 'include',
-          cache: 'no-store',
-        });
-        if (!res.ok) return;
-        const body = (await res.json()) as { pendingLegal?: string[] };
-        if (!cancelled) setPending(body.pendingLegal ?? []);
-      } catch {
-        // A banner is not worth surfacing a network error for.
-      }
+      // No try/catch: `apiRequest` never throws, and a failed read simply
+      // leaves the banner hidden — which is what the old catch did, silently.
+      const result = await fetchMe(getPublicApiUrl(), { cache: 'no-store' });
+      if (!cancelled && result.ok) setPending(result.data.pendingLegal ?? []);
     }
     void load();
     return () => {

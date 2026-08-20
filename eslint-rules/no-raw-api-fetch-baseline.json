@@ -1,6 +1,6 @@
 {
   "files": {
-    "apps/web-admin/app/_components/LegalUpdateBanner.tsx": 2,
+    "apps/web-admin/app/_components/LegalUpdateBanner.tsx": 1,
     "apps/web-admin/app/admin/ai/budget/page.tsx": 4,
     "apps/web-admin/app/admin/ai/models/page.tsx": 2,
     "apps/web-admin/app/admin/ai/page.tsx": 2,
@@ -152,7 +152,7 @@
     "apps/web-admin/src/hooks/useWeaponOptions.ts": 1,
     "apps/web-admin/src/lib/live-board/useLiveBoard.ts": 3,
     "apps/web-admin/src/lib/selectable-rulesets.ts": 2,
-    "apps/web-public/app/_components/LegalUpdateBanner.tsx": 2,
+    "apps/web-public/app/_components/LegalUpdateBanner.tsx": 1,
     "apps/web-public/app/_components/PublicEventsBrowser.tsx": 4,
     "apps/web-public/app/_components/SiteHeader.tsx": 2,
     "apps/web-public/app/_components/organization-follows-store.ts": 3,
