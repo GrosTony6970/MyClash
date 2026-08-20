@@ -46,14 +46,29 @@ export const REPO_IGNORED_DIRS = new Set([
   // complexity baseline entries for files nobody wrote.
   '.agents',
   '.claude',
+  '.code-review-graph',
   '.codex',
+  '.gemini',
   '.kiro',
+  '.qoder',
   '.remember',
   '.understand-anything',
 
   // Gitignored, vendored tooling — not product source, and not ours to hold to
   // a complexity budget.
+  //
+  // `_bmad-output` is a separate entry because this list matches by EXACT NAME:
+  // `scan()` tests `ignoredDirs.has(entry.name)`, so `_bmad` never covered its
+  // sibling. That near-miss is why it went unnoticed, along with `.gemini`,
+  // `.qoder` and `.code-review-graph` above — tools nobody had installed when
+  // this list was last touched. All six are gitignored, so they exist on a
+  // developer's machine and in no CI checkout: a debt marker dropped in any of
+  // them reds `quality:todos` locally and stays green in CI forever, which is
+  // the exact failure this list was extracted to end.
   '_bmad',
+  '_bmad-output',
+  'data',
+  'hemaratings-export',
 ]);
 
 /** Explicit "descend into everything", so a call site reads as a decision. */

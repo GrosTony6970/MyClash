@@ -59,6 +59,17 @@ test('excludes build output, tool caches and test artefacts', () => {
     'node_modules',
     'playwright-report',
     'test-results',
+    // Gitignored, so they exist here and in no CI checkout. Every one was
+    // walked until 2026-08-20: a debt marker in any of them reds quality:todos
+    // locally and stays green in CI forever. `_bmad-output` is the instructive
+    // one — the list matches by exact name, so the `_bmad` entry never covered
+    // it, and the near-miss read as coverage.
+    '_bmad-output',
+    '.gemini',
+    '.qoder',
+    '.code-review-graph',
+    'data',
+    'hemaratings-export',
   ]) {
     assert.ok(REPO_IGNORED_DIRS.has(name), `${name} must be ignored`);
   }
