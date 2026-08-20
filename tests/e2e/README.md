@@ -40,7 +40,7 @@ pnpm e2e:cleanup                      # …and delete them
 pnpm test:e2e:prod tests/e2e/07-*.spec.ts  # run one test by number (here: test 7)
 ```
 
-Specs are numbered `01`…`36` (see the index below and the Status table), so you can run one by number.
+Specs are numbered `01`…`37` (see the index below and the Status table), so you can run one by number.
 
 ### Cleaning up leftovers — `pnpm e2e:cleanup`
 
@@ -112,6 +112,7 @@ the pass/fail record.
 | `34` | seeding drift          | `E2E_DRIFT`                                                                                                                                                                                                              |
 | `35` | forfeit cascade        | `E2E_FORFEIT`                                                                                                                                                                                                            |
 | `36` | uncomplete cascade     | `E2E_UNCOMPLETE`                                                                                                                                                                                                         |
+| `37` | api failure seam       | none for venues; `E2E_SUPERADMIN_EMAIL` / `E2E_SUPERADMIN_PASSWORD` for the backup console                                                                                                                               |
 
 </div>
 
@@ -1186,6 +1187,7 @@ of the bracket says afterwards:
 | 34  | Bracket seeding drift, all 4 states   | `34-seeding-drift.spec.ts`          | opt-in (`E2E_DRIFT=1`); see above        |
 | 35  | Pool forfeit cascade + re-record      | `35-forfeit-cascade.spec.ts`        | opt-in (`E2E_FORFEIT=1`); see above      |
 | 36  | Un-completing a bracket match         | `36-uncomplete-cascade.spec.ts`     | opt-in (`E2E_UNCOMPLETE=1`); see above   |
+| 37  | The api-failure seam in a browser     | `37-api-failure-seam.spec.ts`       | always (backup half needs super-admin)   |
 
 Every spec in the table above runs — there are no `test.fixme` flows left. The
 opt-in ones are gated purely on their env flag. The nightly does **not** set all of
