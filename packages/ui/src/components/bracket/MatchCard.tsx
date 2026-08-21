@@ -96,9 +96,28 @@ export function MatchCard({
   const blueIsYou =
     !!highlightRegistrationId && slot.blueRegistrationId === highlightRegistrationId;
 
-  const handleClick = onClick
-    ? () => onClick(slot.matchId, slot.id, slot.liceId ?? null)
-    : undefined;
+  /**
+   * A per-piste bracket is SCOPED to one Lice, not merely annotated with it.
+   *
+   * The scoring app's piste screen is the only caller that sets
+   * `highlightLiceId`, and on that screen the bracket answers one question:
+   * which of these is mine. So the same flag that rings this Lice's cards also
+   * decides which cards are live — ring them, dim the rest, and let only them
+   * open. The match list and the pool table on that same screen already refuse
+   * to open another piste's bout, and for a reason worth repeating: a tap that
+   * opens someone else's pad mid-event is how a bout gets recorded twice.
+   *
+   * Admin and public set no `highlightLiceId`, so `liceScoped` is false there
+   * and every card stays exactly as interactive as it is today — INCLUDING the
+   * empty ones, which the admin bracket needs clickable to open its override
+   * modal. That is what the `liceScoped ?` branch protects, and the reason this
+   * is gated rather than made unconditional.
+   */
+  const liceScoped = !!highlightLiceId;
+  const actionable = liceScoped ? isOnHighlightedLice && !!slot.matchId : true;
+
+  const handleClick =
+    onClick && actionable ? () => onClick(slot.matchId, slot.id, slot.liceId ?? null) : undefined;
 
   // Border + background priority: championship > bronze > TBD > ready/live > default.
   const borderClass = isChampionshipMatch
@@ -145,7 +164,17 @@ export function MatchCard({
     // rendering is unaffected.
     <div
       data-bracket-slot-id={slot.id}
-      className="relative flex w-full min-w-[256px] max-w-[360px] flex-col gap-1.5"
+      className={[
+        'relative flex w-full min-w-[256px] max-w-[360px] flex-col gap-1.5',
+        // Another piste's bout, on a bracket scoped to mine. Dimmed rather than
+        // hidden: this tree is also the operator's REFERENCE for who won the
+        // quarter-final feeding their semi, so the names and scores have to stay
+        // readable. Opacity and not a border or a fill for the same reason the
+        // lice highlight is a ring — see the note above `cardClasses`.
+        liceScoped && !isOnHighlightedLice ? 'opacity-60' : '',
+      ]
+        .filter(Boolean)
+        .join(' ')}
     >
       <div
         ref={refCallback}

@@ -22,6 +22,15 @@ export interface BracketHighlight {
    *
    * Set only by the scoring app's per-piste screen, where "which of these is
    * mine" is the operator's only question.
+   *
+   * ── It SCOPES the bracket, it does not merely annotate it ─────────────────
+   * Setting this does three things together, because on that screen they are
+   * one thing: this Lice's cards are ringed, the others are dimmed, and only
+   * this Lice's cards open. See `MatchCard`, which holds the rule and the
+   * reason. A caller that wants the ring without the scoping does not exist
+   * today; if one appears, split this into two fields rather than loosening
+   * the rule — an operator who can open another piste's bout in one tap is how
+   * a bout gets recorded twice.
    */
   highlightLiceId?: string | null;
 }

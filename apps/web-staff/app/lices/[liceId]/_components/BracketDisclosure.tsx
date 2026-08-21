@@ -1,6 +1,7 @@
 'use client';
 
 import { useRef, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import {
   BracketView,
   CollapsibleSection,
@@ -15,6 +16,22 @@ import { useScrollToBracketSlot } from '../../../../src/hooks/useScrollToBracket
 import { buildLiceBracketFocus } from '../../../../src/components/lice-pool-focus';
 import type { TournamentBracketPayload } from '../../../../src/components/tournament-context-types';
 import { ContextStatus } from './ContextStatus';
+
+/**
+ * Open a bracket card's bout on the pad.
+ *
+ * The same destination the match list and the pool table already push to, and
+ * the same rule about which bouts qualify — except that here the rule is
+ * enforced upstream: `highlightLiceId` scopes the bracket, so a card for
+ * another piste never reaches this handler at all. The null check stands
+ * because `onMatchClick`'s own contract allows an empty slot.
+ */
+function useOpenMatch(): (matchId: string | null) => void {
+  const router = useRouter();
+  return (matchId) => {
+    if (matchId) router.push(`/matches/${matchId}`);
+  };
+}
 
 /** The tree itself, in its own horizontal scroller. */
 function BracketTree({
@@ -34,6 +51,7 @@ function BracketTree({
   weapon: string | null;
   scrollerRef: React.RefObject<HTMLDivElement | null>;
 }) {
+  const openMatch = useOpenMatch();
   // Mandatory before rendering: without it the bronze match and the final
   // collapse onto the same card.
   const { bronze, mainSlots } = extractBronzeMatch(slots);
@@ -59,6 +77,7 @@ function BracketTree({
         redColor={asColorToken(sideColors?.red ?? 'red')}
         blueColor={asColorToken(sideColors?.blue ?? 'blue')}
         highlightLiceId={liceId}
+        onMatchClick={openMatch}
         showReferees
         t={t}
       />
