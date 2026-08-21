@@ -21,16 +21,21 @@
  * the pad only translates. Anything unrecognised falls through to the server's
  * own words rather than a generic apology — same principle as
  * `QuarantineInbox.tsx`, where the server's message is the useful part.
+ *
+ * ── That switch did not fire until 2026-08-21 ───────────────────────────────
+ * The codes below are thrown as `ConflictException({ message, foughtCount,
+ * code })`, and the exception filter used to send `code` at the top level from
+ * the STATUS — 'CONFLICT' — while the thrower's own code and payload went into
+ * `details`. So `body.code` never matched a case, and every refusal fell to
+ * `body.message`: the API English this file was written to stop a referee
+ * reading. The filter folds both throw shapes into one `code` now, and this
+ * takes an `ApiFailure`, which carries `code` and the payload bag separately.
+ *
+ * `foughtCount` was the same bug one level down — it lived in `details` too, so
+ * even a matching case would have said "a later bout" for three of them.
  */
 
-/** The shape a Nest exception body arrives in. All fields optional — a 503 from
- *  the service worker has none of them. */
-export interface RefusalBody {
-  message?: string;
-  code?: string;
-  error?: string;
-  foughtCount?: number;
-}
+import type { ApiFailure } from '@myclash/api-client';
 
 type Translate = (key: string, values?: Record<string, string | number>) => string;
 
@@ -50,20 +55,30 @@ const OFFLINE = 'scoring.corrections.offlineRefusal';
 const counted = (t: Translate, one: string, many: string, count: number): string =>
   count === 1 ? t(one) : t(many, { count });
 
+/** How many later bouts a refusal says would be discarded. */
+function foughtCount(details: Record<string, unknown> | null): number {
+  const count = details?.['foughtCount'];
+  return typeof count === 'number' && Number.isFinite(count) && count > 0 ? count : 1;
+}
+
 export function refusalMessage(
-  status: number,
-  body: RefusalBody | null | undefined,
+  failure: ApiFailure,
   t: Translate,
   fallbackKey: string,
-): string {
-  // The service worker's stand-in for "the network is not there". It has no
-  // `message`, so without this the operator gets the generic failure string and
-  // no hint that the pad is simply offline.
-  if (status === 503 || body?.error === 'offline') return t(OFFLINE);
+): string | null {
+  // The caller's own doing — nothing to say. Not reachable from the pad today,
+  // which passes no signal, but the mapper is the place that knows it.
+  if (failure.kind === 'aborted') return null;
 
-  switch (body?.code) {
+  // The pad is offline-capable and `sw.js` turns a dead network into a
+  // synthetic 503, so that IS the offline case rather than a server fault.
+  // A genuine `network` failure only happens before the worker installs.
+  if (failure.kind === 'network') return t(OFFLINE);
+  if (failure.status === 503) return t(OFFLINE);
+
+  switch (failure.code) {
     case 'dependent_results_would_be_discarded':
-      return counted(t, DEPENDENTS_ONE, DEPENDENTS_MANY, body.foughtCount ?? 1);
+      return counted(t, DEPENDENTS_ONE, DEPENDENTS_MANY, foughtCount(failure.details));
     case 'forfeit_withdrew_fighter':
       return t(FORFEIT_BLOCKED);
     case 'swiss_later_round_already_drawn':
@@ -78,7 +93,7 @@ export function refusalMessage(
   // the bout but may not discard what a later one produced. Kept as a status
   // check as well as a code, because `authorizeMatchScoring` can refuse earlier
   // than the un-completion owner and never reaches a code at all.
-  if (status === 403) return t(ORGANISER_ONLY);
+  if (failure.status === 403) return t(ORGANISER_ONLY);
 
-  return body?.message ?? t(fallbackKey);
+  return failure.detail ?? t(fallbackKey);
 }

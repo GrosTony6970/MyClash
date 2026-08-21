@@ -3,6 +3,8 @@
 import { useState } from 'react';
 import { ConfirmDialog } from '@myclash/ui';
 import { useI18n } from '@myclash/next-i18n/client';
+import { apiRequest } from '@myclash/api-client';
+import { refusalMessage } from '../lib/refusal-copy';
 
 type ForfeitReason = 'injury' | 'voluntary' | 'black_card_1' | 'black_card_2' | 'conduct_violation';
 type FighterColor = 'red' | 'blue';
@@ -54,29 +56,24 @@ export function ForfeitPanel({
   async function submit() {
     setSubmitting(true);
     setError(null);
-    try {
-      const res = await fetch(`${apiUrl}/api/v1/matches/${matchId}/forfeit`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({
-          forfeitingRegistrationId: fighter === 'red' ? redRegistrationId : blueRegistrationId,
-          reason,
-          canContinue: ASK_CONTINUE.has(reason) ? canContinue : undefined,
-          note: note.trim() || undefined,
-        }),
-      });
-      if (!res.ok) {
-        const body = (await res.json().catch(() => ({}))) as { message?: string };
-        throw new Error(body.message ?? t('scoring.forfeits.recordError'));
-      }
+    const result = await apiRequest(apiUrl, `/api/v1/matches/${matchId}/forfeit`, {
+      method: 'POST',
+      body: {
+        forfeitingRegistrationId: fighter === 'red' ? redRegistrationId : blueRegistrationId,
+        reason,
+        canContinue: ASK_CONTINUE.has(reason) ? canContinue : undefined,
+        note: note.trim() || undefined,
+      },
+    });
+    setSubmitting(false);
+
+    if (result.ok) {
       setNote('');
       onForfeitRecorded?.();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : t('scoring.forfeits.recordError'));
-    } finally {
-      setSubmitting(false);
+      return;
     }
+    const message = refusalMessage(result, t, 'scoring.forfeits.recordError');
+    if (message) setError(message);
   }
 
   const forfeitingName = fighter === 'red' ? redName : blueName;

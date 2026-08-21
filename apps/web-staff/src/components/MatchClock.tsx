@@ -13,6 +13,8 @@ import {
   formatClockMs,
   shouldWarnClock,
 } from './scoreboard-clock';
+import { apiRequest } from '@myclash/api-client';
+import { refusalMessage } from '../lib/refusal-copy';
 
 // Pure clock math lives in ./scoreboard-clock (unit-tested). Re-export the
 // helpers + types so existing `from './MatchClock'` imports keep resolving.
@@ -67,18 +69,15 @@ export default function MatchClock({
   const tickRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const fetchState = useCallback(async () => {
-    try {
-      const res = await fetch(`${apiUrl}/api/v1/matches/${matchId}/clock`, {
-        credentials: 'include',
-      });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const state = (await res.json()) as ClockState;
-      setClockState(state);
-      setDisplayMs(elapsedActiveMs(state, Date.now()));
-      onStateChange?.(state);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : t('scoring.clock.loadFailed'));
+    const result = await apiRequest<ClockState>(apiUrl, `/api/v1/matches/${matchId}/clock`);
+    if (result.ok) {
+      setClockState(result.data);
+      setDisplayMs(elapsedActiveMs(result.data, Date.now()));
+      onStateChange?.(result.data);
+      return;
     }
+    const message = refusalMessage(result, t, 'scoring.clock.loadFailed');
+    if (message) setError(message);
   }, [matchId, apiUrl, onStateChange, t]);
 
   useEffect(() => {
@@ -116,17 +115,14 @@ export default function MatchClock({
       setLoading(true);
       setError(null);
       try {
-        const res = await fetch(`${apiUrl}/api/v1/matches/${matchId}/clock`, {
+        const result = await apiRequest<ClockState>(apiUrl, `/api/v1/matches/${matchId}/clock`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          credentials: 'include',
-          body: JSON.stringify({ action, reason }),
+          body: { action, reason },
         });
-        if (!res.ok) {
-          const body = (await res.json()) as { message?: string };
-          throw new Error(body.message ?? t('scoring.clock.actionFailed'));
+        if (!result.ok) {
+          throw new Error(refusalMessage(result, t, 'scoring.clock.actionFailed') ?? '');
         }
-        const newState = (await res.json()) as ClockState;
+        const newState = result.data;
         setClockState(newState);
         setDisplayMs(elapsedActiveMs(newState, Date.now()));
         onStateChange?.(newState);

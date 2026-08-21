@@ -40,11 +40,12 @@ import {
 import type { MatchScoringData } from '../hooks/useMatchScoringData';
 import type { UseScoringSubmitResult } from '../hooks/useScoringSubmit';
 import { dequeueLastForMatch } from '../offline/outbox';
-import { classifySyncFailure, type FailureBody } from '../offline/failure-kind';
+import { classifySyncFailure } from '../offline/failure-kind';
 import type { SyncEngine } from '../offline/sync';
 import { isDoubleLoss } from './is-double-loss';
 import { blackCardLossRegistrationId } from './black-card-loss';
 import { NoExchangeReasonDialog } from './NoExchangeReasonDialog';
+import { apiRequest, failureMessage } from '@myclash/api-client';
 
 interface ScoringCenterControlsProps {
   matchId: string;
@@ -304,23 +305,24 @@ export function ScoringCenterControls({
         return;
       }
 
-      const res = await fetch(`${apiUrl}/api/v1/exchanges/${lastExchange.id}/void`, {
+      const result = await apiRequest(apiUrl, `/api/v1/exchanges/${lastExchange.id}/void`, {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ reason: 'Clear last exchange (referee)' }),
+        body: { reason: 'Clear last exchange (referee)' },
       });
-      if (!res.ok) {
-        // Same classifier the outbox drain uses, so the pad has ONE failure
-        // vocabulary: the service worker's synthetic 503 reads as offline, not
-        // as the server having an opinion.
-        const body = (await res.json().catch(() => null)) as FailureBody | null;
-        const kind = classifySyncFailure(res.status, body);
-        setClearError(
+      if (!result.ok) {
+        // Still the classifier the outbox drain uses, so the pad keeps ONE
+        // failure vocabulary: the service worker's synthetic 503 reads as
+        // offline, not as the server having an opinion. A `network` failure is
+        // the same event one layer down, which is the status 0 it already took.
+        const kind = classifySyncFailure(
+          result.kind === 'aborted' || result.kind === 'network' ? 0 : result.status,
+          null,
+        );
+        const message =
           kind === 'offline'
             ? t('scoring.corrections.onlineOnly')
-            : (body?.message ?? t('scoring.corrections.clearLastFailed')),
-        );
+            : failureMessage(result, t, t('scoring.corrections.clearLastFailed'));
+        if (message) setClearError(message);
         return;
       }
       refreshExchanges();

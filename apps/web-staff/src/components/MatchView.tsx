@@ -8,7 +8,7 @@ import { MatchCorrectionsDrawer } from './MatchCorrectionsDrawer';
 import { MatchResultOverlay } from './MatchResultOverlay';
 import { useI18n } from '@myclash/next-i18n/client';
 import { useScoringSubmit } from '../hooks/useScoringSubmit';
-import { refusalMessage, type RefusalBody } from '../lib/refusal-copy';
+import { refusalMessage } from '../lib/refusal-copy';
 import { nextSequence as outboxNextSequence } from '../offline/outbox';
 import type { SyncEngine } from '../offline/sync';
 import { fetchWithCache } from '../offline/cached-reads';
@@ -25,6 +25,7 @@ import { sideStyle, useAdjacentMatches } from '@myclash/ui';
 import { effectiveTimeLimitSeconds } from './scoreboard-clock';
 import { closedRoundWinner } from './round-winner';
 import { resumeBlockedByRuleset } from './resume-guard';
+import { apiRequest } from '@myclash/api-client';
 
 export interface MatchInfo {
   id: string;
@@ -120,17 +121,15 @@ export function MatchView({
     const controller = new AbortController();
     void (async () => {
       const seeds = [await outboxNextSequence(match.id)];
-      try {
-        const res = await fetch(`${apiUrl}/api/v1/matches/${match.id}/exchanges`, {
-          credentials: 'include',
-          signal: controller.signal,
-        });
-        if (res.ok) {
-          const rows = (await res.json()) as Array<{ sequence?: number | null }>;
-          seeds.push(rows.reduce((max, row) => Math.max(max, row.sequence ?? 0), 0) + 1);
-        }
-      } catch {
-        // Offline — the IndexedDB seed alone is correct for same-device reloads.
+      // Offline is the ordinary case here and says nothing: the IndexedDB seed
+      // alone is correct for a same-device reload.
+      const result = await apiRequest<Array<{ sequence?: number | null }>>(
+        apiUrl,
+        `/api/v1/matches/${match.id}/exchanges`,
+        { signal: controller.signal },
+      );
+      if (result.ok) {
+        seeds.push(result.data.reduce((max, row) => Math.max(max, row.sequence ?? 0), 0) + 1);
       }
       if (!cancelled) setNextSequence((n) => Math.max(n, ...seeds));
     })();
@@ -206,16 +205,13 @@ export function MatchView({
 
   // Fetch initial clock state
   const fetchClockState = useCallback(async () => {
-    try {
-      const res = await fetch(`${apiUrl}/api/v1/matches/${match.id}/clock`, {
-        credentials: 'include',
-      });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const state = (await res.json()) as ClockState;
-      setClockState(state);
-    } catch (err) {
-      setClockError(err instanceof Error ? err.message : t('scoring.clock.loadFailed'));
+    const result = await apiRequest<ClockState>(apiUrl, `/api/v1/matches/${match.id}/clock`);
+    if (result.ok) {
+      setClockState(result.data);
+      return;
     }
+    const message = refusalMessage(result, t, 'scoring.clock.loadFailed');
+    if (message) setClockError(message);
   }, [apiUrl, match.id, t]);
 
   useEffect(() => {
@@ -247,17 +243,14 @@ export function MatchView({
       setClockLoading(true);
       setClockError(null);
       try {
-        const res = await fetch(`${apiUrl}/api/v1/matches/${match.id}/clock`, {
+        const result = await apiRequest<ClockState>(apiUrl, `/api/v1/matches/${match.id}/clock`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          credentials: 'include',
-          body: JSON.stringify({ action }),
+          body: { action },
         });
-        if (!res.ok) {
-          const body = (await res.json().catch(() => ({}))) as RefusalBody;
-          throw new Error(refusalMessage(res.status, body, t, 'scoring.clock.actionFailed'));
+        if (!result.ok) {
+          throw new Error(refusalMessage(result, t, 'scoring.clock.actionFailed') ?? '');
         }
-        const newState = (await res.json()) as ClockState;
+        const newState = result.data;
         setClockState(newState);
         // Ending the clock raises the result overlay, which reviews the whole
         // bout. It used to fetch its own exchanges and penalties on mount, so
@@ -295,15 +288,12 @@ export function MatchView({
     setUnlockBusy(true);
     setUnlockError(null);
     try {
-      const res = await fetch(`${apiUrl}/api/v1/matches/${match.id}/unlock`, {
+      const result = await apiRequest(apiUrl, `/api/v1/matches/${match.id}/unlock`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({}),
+        body: {},
       });
-      if (!res.ok) {
-        const body = (await res.json().catch(() => ({}))) as RefusalBody;
-        throw new Error(refusalMessage(res.status, body, t, 'scoring.match.unlockFailed'));
+      if (!result.ok) {
+        throw new Error(refusalMessage(result, t, 'scoring.match.unlockFailed') ?? '');
       }
       onRefresh();
     } catch (err) {
@@ -327,15 +317,12 @@ export function MatchView({
     setRoundBusy(true);
     setClockError(null);
     try {
-      const res = await fetch(`${apiUrl}/api/v1/matches/${match.id}/rounds/advance`, {
+      const result = await apiRequest(apiUrl, `/api/v1/matches/${match.id}/rounds/advance`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({}),
+        body: {},
       });
-      if (!res.ok) {
-        const body = (await res.json().catch(() => ({}))) as { message?: string };
-        throw new Error(body.message ?? t('scoring.clock.actionFailed'));
+      if (!result.ok) {
+        throw new Error(refusalMessage(result, t, 'scoring.clock.actionFailed') ?? '');
       }
       await fetchClockState();
       onRefresh();
@@ -352,15 +339,12 @@ export function MatchView({
     setRoundBusy(true);
     setClockError(null);
     try {
-      const res = await fetch(`${apiUrl}/api/v1/matches/${match.id}/rounds/end`, {
+      const result = await apiRequest(apiUrl, `/api/v1/matches/${match.id}/rounds/end`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({}),
+        body: {},
       });
-      if (!res.ok) {
-        const body = (await res.json().catch(() => ({}))) as { message?: string };
-        throw new Error(body.message ?? t('scoring.clock.actionFailed'));
+      if (!result.ok) {
+        throw new Error(refusalMessage(result, t, 'scoring.clock.actionFailed') ?? '');
       }
       await fetchClockState();
       onRefresh();

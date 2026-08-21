@@ -21,11 +21,12 @@ import type { TournamentScoringConfig } from '@myclash/types';
 import { useI18n } from '@myclash/next-i18n/client';
 import { useScoringTheme } from '../theme/ThemeProvider';
 import { clockAdjustmentMs } from './clock-adjustment';
-import { refusalMessage, type RefusalBody } from '../lib/refusal-copy';
+import { refusalMessage } from '../lib/refusal-copy';
 import { buildUnifiedTimeline, ConfirmDialog, exchangeOptionLabel } from '@myclash/ui';
 import type { PenaltyCard } from '../hooks/usePenalties';
 import type { MatchScoringData } from '../hooks/useMatchScoringData';
 import { ForfeitPanel } from './ForfeitPanel';
+import { apiRequest } from '@myclash/api-client';
 
 const DIRECT_CARD_HEX: Record<PenaltyCard, string> = {
   yellow: '#eab308',
@@ -162,53 +163,38 @@ export function MatchCorrectionsDrawer({
   async function post(path: string, body: Record<string, unknown> = {}) {
     setBusy(true);
     setError(null);
-    try {
-      const res = await fetch(`${apiUrl}${path}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify(body),
-      });
-      if (!res.ok) {
-        const payload = (await res.json().catch(() => ({}))) as RefusalBody;
-        throw new Error(refusalMessage(res.status, payload, t, 'scoring.corrections.actionFailed'));
-      }
+    const result = await apiRequest(apiUrl, path, { method: 'POST', body });
+    setBusy(false);
+    if (result.ok) {
       onDone();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : t('scoring.corrections.actionFailed'));
-    } finally {
-      setBusy(false);
+      return;
     }
+    const refusal = refusalMessage(result, t, 'scoring.corrections.actionFailed');
+    if (refusal) setError(refusal);
   }
 
   async function editSelectedExchange() {
     if (!effectiveExchangeId) return;
     setBusy(true);
     setError(null);
-    try {
-      const res = await fetch(`${apiUrl}/api/v1/exchanges/${effectiveExchangeId}/edit`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({
-          reason: reason || t('scoring.corrections.defaultReason'),
-          clientUuid: crypto.randomUUID(),
-          sequence: 0,
-          type: 'no_exchange',
-          occurredAt: new Date().toISOString(),
-          noExchangeReason: 'other',
-        }),
-      });
-      if (!res.ok) {
-        const payload = (await res.json().catch(() => ({}))) as RefusalBody;
-        throw new Error(refusalMessage(res.status, payload, t, 'scoring.corrections.actionFailed'));
-      }
+    const result = await apiRequest(apiUrl, `/api/v1/exchanges/${effectiveExchangeId}/edit`, {
+      method: 'PATCH',
+      body: {
+        reason: reason || t('scoring.corrections.defaultReason'),
+        clientUuid: crypto.randomUUID(),
+        sequence: 0,
+        type: 'no_exchange',
+        occurredAt: new Date().toISOString(),
+        noExchangeReason: 'other',
+      },
+    });
+    setBusy(false);
+    if (result.ok) {
       onDone();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : t('scoring.corrections.actionFailed'));
-    } finally {
-      setBusy(false);
+      return;
     }
+    const refusal = refusalMessage(result, t, 'scoring.corrections.actionFailed');
+    if (refusal) setError(refusal);
   }
 
   async function submitDirectCard(card: PenaltyCard) {
