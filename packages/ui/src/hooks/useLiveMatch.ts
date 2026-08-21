@@ -155,8 +155,21 @@ export function useLiveMatch(
         }),
       ]);
       if (!matchRes.ok) {
-        const body = (await matchRes.json().catch(() => null)) as { message?: string } | null;
-        setLoadError({ status: matchRes.status, message: body?.message ?? matchRes.statusText });
+        // `detail` first: it is the member RFC 9457 specifies, and `message` is
+        // the compatibility extension the API fills with the same string today.
+        // Reading them in this order is what stops this hook going stale the
+        // day the two diverge. NOT converted to `apiRequest` on purpose — this
+        // package ships CJS with no tree-shaking, so a workspace dependency
+        // here is paid for by all three apps, and the hook renders no sentence
+        // of its own: it hands `{ status, message }` to its callers.
+        const body = (await matchRes.json().catch(() => null)) as {
+          detail?: string;
+          message?: string;
+        } | null;
+        setLoadError({
+          status: matchRes.status,
+          message: body?.detail ?? body?.message ?? matchRes.statusText,
+        });
         return;
       }
       setLoadError(null);
