@@ -31,16 +31,17 @@ import { ensureRoster } from './_bracket';
  * Every other spec shares the throwaway event from `global-setup`. This one must
  * not, for three separate reasons:
  *
- *   1. `GET staff/checkin/missing` assembles a PostgREST `.or()` filter from
+ *   1. The roster's next-bout hop assembles a PostgREST `.or()` filter from
  *      EVERY registration id in the event. The shared event ends a full run with
  *      ~200 people and several hundred registrations — a ~22 KB query string,
  *      which a proxy rejects long before PostgREST sees it. A healthy route
  *      would fail here for a reason that has nothing to do with the desk.
- *   2. `summary` counts every person in the event, so on the shared event the
+ *   2. The desk counts the roster it was sent, so on the shared event the
  *      numbers are meaningless and drift with whatever upstream specs added.
- *      Here `total` is exactly the roster this spec created.
- *   3. The roster is capped at 40 rows ordered by family name, so on a large
- *      event a fixture is simply invisible unless every read passes `?q=`.
+ *      Here the count is exactly the roster this spec created.
+ *   3. The roster returns the whole event up to a ceiling of 1000 and reports
+ *      `truncated` when it bites. On the shared event that is still one big
+ *      answer whose contents nothing in this spec controls.
  *
  * The event is `event_kind: 'test'`, which stays hard-deletable, and this spec
  * deletes it — `global-teardown` only ever removes the run's shared event.
@@ -71,6 +72,7 @@ interface RosterEntry {
   arrived: boolean;
   arrivedAt: string | null;
   via: string | null;
+  next: { scheduledAt: string; liceName: string | null } | null;
 }
 
 interface WeaponStatus {
@@ -86,10 +88,32 @@ interface GearEntry {
   weapons: WeaponStatus[];
 }
 
-interface MissingFighter {
-  person: RosterEntry;
-  next: { scheduledAt: string; liceName: string | null } | null;
+/**
+ * Both desks answer with an envelope, never a bare array.
+ *
+ * `truncated` is how a screen knows its tab counts describe rows a volunteer
+ * can actually scroll to.
+ */
+interface DeskList<T> {
+  entries: T[];
+  truncated: boolean;
 }
+
+/**
+ * The whole roster, exactly as the screen fetches it.
+ *
+ * No `?q=`: the desks search in the browser now, so a spec that filtered on the
+ * wire would be testing a code path the product no longer has.
+ */
+const deskRoster = async (api: Api): Promise<DeskList<RosterEntry>> =>
+  api.json<DeskList<RosterEntry>>(await api.get('staff/checkin/roster'));
+
+const gearList = async (api: Api): Promise<DeskList<GearEntry>> =>
+  api.json<DeskList<GearEntry>>(await api.get('staff/gear/roster'));
+
+/** What the desk's Arrived tab would show. */
+const arrivedCount = (entries: RosterEntry[]): number =>
+  entries.filter((entry) => entry.arrived).length;
 
 interface Fixture {
   eventId: string;
@@ -151,47 +175,41 @@ test.describe('staff desk', () => {
     try {
       const desk = apiFor(ctx);
 
-      // `total` is exact because this event holds exactly this roster — the
-      // whole reason the spec does not share the run event.
-      const before = await desk.json<{ arrived: number; total: number }>(
-        await desk.get('staff/checkin/summary'),
+      // The screen counts what it was sent, so this asserts the same numbers a
+      // volunteer reads off the tabs. Exact because this event holds exactly
+      // this roster — the whole reason the spec does not share the run event.
+      const before = await deskRoster(desk);
+      expect(before.entries, 'the desk is sent the roster this spec created').toHaveLength(
+        f.people.length,
       );
-      expect(before.total, 'the desk counts the roster this spec created').toBe(f.people.length);
-      expect(before.arrived, 'nobody has arrived yet').toBe(0);
+      expect(before.truncated, 'and this roster is nowhere near the ceiling').toBe(false);
+      expect(arrivedCount(before.entries), 'nobody has arrived yet').toBe(0);
 
       const target = f.people[0]!;
-      const roster = await desk.json<RosterEntry[]>(
-        await desk.get(`staff/checkin/roster?q=${encodeURIComponent(target.familyName)}`),
-      );
-      const found = roster.find((r) => r.personId === target.id);
-      expect(found, 'roster search must find a fighter by family name').toBeTruthy();
+      const found = before.entries.find((r) => r.personId === target.id);
+      expect(found, 'the whole roster must carry every fighter, unsearched').toBeTruthy();
       expect(found!.arrived, 'a fighter starts absent').toBe(false);
 
       // ── Arrive ────────────────────────────────────────────────────────────
       await desk.ok(await desk.post(`staff/checkin/${target.id}/arrive`, { data: {} }));
-      const afterArrive = await desk.json<{ arrived: number }>(
-        await desk.get('staff/checkin/summary'),
-      );
-      expect(afterArrive.arrived, 'arriving must move the counter').toBe(1);
+      expect(
+        arrivedCount((await deskRoster(desk)).entries),
+        'arriving must move the Arrived tab count',
+      ).toBe(1);
 
       // Twice is not a crash and not a double count. This is the UNIQUE index
       // from 0174 plus the upsert — a real constraint, not a mock's promise.
       await desk.ok(await desk.post(`staff/checkin/${target.id}/arrive`, { data: {} }));
       expect(
-        (await desk.json<{ arrived: number }>(await desk.get('staff/checkin/summary'))).arrived,
+        arrivedCount((await deskRoster(desk)).entries),
         'a second scan of the same fighter must be idempotent',
       ).toBe(1);
 
       // ── Undo ──────────────────────────────────────────────────────────────
       await desk.ok(await desk.post(`staff/checkin/${target.id}/undo`));
-      expect(
-        (await desk.json<{ arrived: number }>(await desk.get('staff/checkin/summary'))).arrived,
-        'undo must put the counter back',
-      ).toBe(0);
-      const afterUndo = await desk.json<RosterEntry[]>(
-        await desk.get(`staff/checkin/roster?q=${encodeURIComponent(target.familyName)}`),
-      );
-      const undone = afterUndo.find((r) => r.personId === target.id);
+      const afterUndo = await deskRoster(desk);
+      expect(arrivedCount(afterUndo.entries), 'undo must put the count back').toBe(0);
+      const undone = afterUndo.entries.find((r) => r.personId === target.id);
       expect(
         undone,
         'undo flips the state — the fighter must still be on the roster, not deleted',
@@ -206,33 +224,29 @@ test.describe('staff desk', () => {
     }
   });
 
-  test('missing-at-risk names the fighter whose bout is soonest', async ({ playwright }) => {
+  test('the roster says when each fighter is next due on', async ({ playwright }) => {
     test.setTimeout(180_000);
     const f = required(fixture);
     const { baseURL } = runContext();
     const ctx = await staffContext(playwright, baseURL, f, f.deskUser);
     try {
       const desk = apiFor(ctx);
-      const missing = await desk.json<MissingFighter[]>(await desk.get('staff/checkin/missing'));
+      const { entries } = await deskRoster(desk);
 
-      const entry = missing.find((m) => m.person.personId === f.scheduledPersonId);
-      expect(
-        entry,
-        'a fighter who has not arrived and has a scheduled bout must be at risk',
-      ).toBeTruthy();
-      // `next` is the entire product point: the desk sorts by who fights soonest.
-      // Without a scheduled match this endpoint has nothing to order by, which
-      // is why the fixture schedules one.
-      expect(entry!.next, 'the at-risk row must say when they are due on').toBeTruthy();
+      // This used to be its own screen behind its own endpoint. It is the desk's
+      // Not-arrived tab now, which orders by `next` — so the field has to be on
+      // the row, and the two-hop registrations to matches query behind it has to
+      // survive a real request rather than a mock.
+      const entry = entries.find((r) => r.personId === f.scheduledPersonId);
+      expect(entry, 'the scheduled fighter must be on the roster').toBeTruthy();
+      expect(entry!.next, 'their row must say when they are due on').toBeTruthy();
       expect(entry!.next!.scheduledAt, 'and carry a real timestamp').toBeTruthy();
 
-      // Arriving takes them off the list — the desk's whole feedback loop.
+      // Arriving moves them between tabs — the desk's whole feedback loop.
       await desk.ok(await desk.post(`staff/checkin/${f.scheduledPersonId}/arrive`, { data: {} }));
-      const after = await desk.json<MissingFighter[]>(await desk.get('staff/checkin/missing'));
-      expect(
-        after.some((m) => m.person.personId === f.scheduledPersonId),
-        'once they check in they must leave the at-risk list',
-      ).toBe(false);
+      const after = await deskRoster(desk);
+      const arrived = after.entries.find((r) => r.personId === f.scheduledPersonId);
+      expect(arrived!.arrived, 'once they check in they must leave the Not-arrived tab').toBe(true);
       await desk.ok(await desk.post(`staff/checkin/${f.scheduledPersonId}/undo`));
     } finally {
       await ctx.dispose();
@@ -249,9 +263,9 @@ test.describe('staff desk', () => {
     const organizer = await organizerContext(playwright, baseURL);
     try {
       const gear = apiFor(ctx);
-      const roster = await gear.json<GearEntry[]>(await gear.get('staff/gear/roster'));
+      const gearRoster = await gearList(gear);
 
-      const entry = roster.find((g) => g.person.personId === f.scheduledPersonId);
+      const entry = gearRoster.entries.find((g) => g.person.personId === f.scheduledPersonId);
       expect(entry, 'a registered fighter must appear on the gear table').toBeTruthy();
       expect(
         entry!.weapons.length,
@@ -285,19 +299,22 @@ test.describe('staff desk', () => {
       });
       expect(recorded.status(), 'recording a result answers 201').toBe(201);
 
-      const after = await gear.json<GearEntry[]>(await gear.get('staff/gear/roster'));
-      const checked = after.find((g) => g.person.personId === f.scheduledPersonId);
+      const after = await gearList(gear);
+      const checked = after.entries.find((g) => g.person.personId === f.scheduledPersonId);
       expect(checked!.weapons[0]!.result, 'the result must be readable back').toBe('pass');
 
-      // Summary counts a fighter only once EVERY entered weapon has a result,
-      // which is why it can sit below the number of people with a check.
-      const summary = await gear.json<{ checked: number; total: number }>(
-        await gear.get('staff/gear/summary'),
-      );
-      expect(summary.total, 'the gear table sees the same roster as the desk').toBe(
+      expect(after.entries, 'the gear table sees the same roster as the desk').toHaveLength(
         f.people.length,
       );
-      expect(summary.checked, 'the fighter whose only weapon passed now counts').toBeGreaterThan(0);
+      // A fighter is done only once EVERY entered weapon has a result, which is
+      // the bar the screen's Pass tab uses too.
+      const fullyChecked = after.entries.filter(
+        (g) => g.weapons.length > 0 && g.weapons.every((w) => w.result !== null),
+      );
+      expect(
+        fullyChecked.length,
+        'the fighter whose only weapon passed now counts',
+      ).toBeGreaterThan(0);
     } finally {
       await ctx.dispose();
       await organizer.dispose();
@@ -376,8 +393,8 @@ test.describe('staff desk', () => {
     // The matrix, driven for real rather than asserted against a mocked guard.
     // Three sessions, two surfaces, and the only allowed pairs are the diagonal.
     const cases = [
-      { user: f.deskUser, allowed: 'staff/checkin/summary', refused: 'staff/gear/summary' },
-      { user: f.gearUser, allowed: 'staff/gear/summary', refused: 'staff/checkin/summary' },
+      { user: f.deskUser, allowed: 'staff/checkin/roster', refused: 'staff/gear/roster' },
+      { user: f.gearUser, allowed: 'staff/gear/roster', refused: 'staff/checkin/roster' },
     ] as const;
 
     for (const c of cases) {
@@ -399,7 +416,7 @@ test.describe('staff desk', () => {
     const scoring = await staffContext(playwright, baseURL, f, f.scoringUser);
     try {
       const api = apiFor(scoring);
-      for (const path of ['staff/checkin/summary', 'staff/gear/summary']) {
+      for (const path of ['staff/checkin/roster', 'staff/gear/roster']) {
         expect((await api.get(path)).status(), `a scoring account must not reach ${path}`).toBe(
           403,
         );
@@ -519,7 +536,7 @@ async function createDeskEvent(
 
 /**
  * A tournament whose weapon resolves, two of the four registered, and one pool
- * match on a piste at a known time — the only way `missing.next` is non-null.
+ * match on a Lice at a known time — the only way a roster row's `next` is non-null.
  */
 async function scheduleOneBout(
   api: Api,
@@ -532,7 +549,7 @@ async function scheduleOneBout(
       data: { name: `Desk Cup ${token}`, slug: `desk-cup-${token}`, weapon: WEAPON, color: 'red' },
     }),
   );
-  // Only the first two register: the gear summary is only interesting when some
+  // Only the first two register: the gear tabs are only interesting when some
   // of the roster has weapons to check and some has none.
   for (const [index, person] of people.slice(0, 2).entries()) {
     await api.ok(

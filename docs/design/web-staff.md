@@ -55,7 +55,17 @@ Scoring never sets `data-accent`. The accent is red.
 
 - **The corners are the content.** They aren't accents here — they're the record of the bout, and the colour is the organiser's: resolve it with `sideColorsFor(config, 'dark')`, which reads the tournament's `sideColors` and clamps a black- or white-configured side so it stays visible on the dark stage. `corner-red` / `corner-blue` are only the fallback values. **Never hardcode a side colour on this surface** — that's the root rule, and this is where breaking it would corrupt a result.
 - **`StatusBadge` with an explicit `surface`.** There is no `Badge` component — the barrel exports `StatusBadge` only, defaulting to `surface='light'`. On this app pass the scope you are in: `surface={padScope}` inside the scoring pad, `surface={chromeScope}` on the lice screens. The palette is picked in JS, so unlike a semantic class it cannot follow the `[data-theme]` cascade — it has to be told.
-- **Routes:** `/lices`, `/lices/[liceId]`, `/matches/[matchId]`, `/offline`.
+- **Routes:** `/lices`, `/lices/[liceId]`, `/matches/[matchId]`, `/desk`, `/gear`, `/offline`.
+- **Every gated screen opens with `EventBanner`, except the pad.** Event name, logo and the
+  TEST / CLUB / DRAFT badge, plus who is signed in and the sign-out. It is placed by each page
+  _inside_ its own container — the shells here pad nothing and every page owns its `<main>`, its
+  `data-theme` scope and its `min-h-screen`, so chrome rendered above that would sit unpadded,
+  out of scope, and one banner-height past a single viewport. It scrolls away with the content.
+  `/matches/[matchId]` renders none: that screen is read mid-bout, and a sign-out button must not
+  be reachable there.
+- **The two desks are tabbed lists, not searches.** `/desk` and `/gear` fetch the whole event
+  roster once and filter it in the browser, so the count on every tab is the number of rows behind
+  it. `SegmentedTabs` with the count in the label, exactly as the login picker does it.
 - **Motion is functional.** `score-pop` (0.3s) and `shield-pulse` exist to make a score change _impossible to miss_ in peripheral vision. That's the one place motion earns its keep in this system.
 
 ## Don't
