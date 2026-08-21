@@ -275,9 +275,10 @@ describe('failureMessage', () => {
     ).toBe(en('common.apiFailure.tooManyRequests'));
   });
 
-  it('lets a screen with something better than "wait" keep its own sentence', () => {
-    // Unlike the 401 rule, where ours always wins: a screen that can name the
-    // action being throttled is more useful than the generic wait.
+  it('beats the caller’s fallback, which never says to wait', () => {
+    // The fallback here is what every throttled call site actually passes: the
+    // sentence for the ACTION. It says nothing about waiting, so letting it win
+    // would leave this branch unable to produce its own string even once.
     expect(
       failureMessage(
         {
@@ -289,9 +290,9 @@ describe('failureMessage', () => {
           details: null,
         },
         en,
-        'Too many logo uploads. Wait a minute.',
+        'Could not disable the account.',
       ),
-    ).toBe('Too many logo uploads. Wait a minute.');
+    ).toBe(en('common.apiFailure.tooManyRequests'));
   });
 
   // The API's exception filter fills `detail` on every problem+json body, so a

@@ -67,9 +67,13 @@ import type { ApiFailure } from './request';
  * that already said "Trop de requêtes…" traded it for an English class name.
  *
  * It sits with `blocked` rather than with the 4xx rule above, and for the same
- * reason: both are transient refusals whose English is machine noise. A screen
- * that has something better than "wait" still wins, because `fallback` is
- * checked first — unlike the 401 case, where ours always wins.
+ * reason: both are transient refusals whose English is machine noise. Ours wins
+ * outright, exactly as on a 401, and that is not the first instinct: letting a
+ * caller's fallback win reads as the polite default until you look at what the
+ * callers actually pass. All seven throttled sites pass the sentence for the
+ * ACTION — "Action failed", "Could not create the account" — which says nothing
+ * about waiting and nothing about why. A fallback-wins rule would have meant
+ * this branch could never once produce its own string.
  *
  * ── 5xx: the screen's own sentence wins ─────────────────────────────────────
  * The exception filter scrubs every ≥500 body to the literal "Internal server
@@ -143,10 +147,10 @@ export function failureMessage(
         ? (failure.detail ?? t('common.apiFailure.unauthenticated'))
         : t('common.apiFailure.unauthenticated');
     case 'http':
-      // A class name is not a reason — see the header. The fallback wins here,
-      // unlike the 401 case, because a screen may name what is being throttled.
+      // A class name is not a reason, and neither is "Action failed" — see the
+      // header. Ours wins outright, as it does on a 401.
       if (failure.status === 429) {
-        return fallback ?? t('common.apiFailure.tooManyRequests');
+        return t('common.apiFailure.tooManyRequests');
       }
       // A scrubbed 5xx carries a placeholder, not a reason. 503 is the one
       // ≥500 the filter lets through with real words — see the header.
