@@ -2894,7 +2894,6 @@ export const organizer = {
       all_qualified_have_time_conflict_with_other_pool:
         'Everyone qualified has a conflict at the same time.',
       no_candidates_after_scoring: 'No one passed the scoring filter.',
-      would_self_conflict_in_pool: 'They are already assigned to a different role in this pool.',
       all_qualified_unavailable_for_this_pool:
         'Everyone qualified is unavailable for this tournament or day.',
       all_qualified_fighting_in_parallel_pool:

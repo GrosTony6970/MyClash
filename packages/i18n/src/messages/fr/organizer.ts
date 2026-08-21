@@ -2867,8 +2867,6 @@ export const organizer = {
       all_qualified_have_time_conflict_with_other_pool:
         'Tous les arbitres qualifiés ont un conflit au même moment.',
       no_candidates_after_scoring: "Aucun candidat n'a passé le filtre de notation.",
-      would_self_conflict_in_pool:
-        'Cette personne est déjà affectée à un autre rôle dans cette poule.',
       all_qualified_unavailable_for_this_pool:
         'Tous les arbitres qualifiés sont indisponibles pour ce tournoi ou ce jour.',
       all_qualified_fighting_in_parallel_pool:
