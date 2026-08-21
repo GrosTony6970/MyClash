@@ -135,7 +135,7 @@ function normalizeException(
   const rawMessage = body['message'];
   const error = typeof body['error'] === 'string' ? body['error'] : undefined;
   const message = normalizeMessage(rawMessage, exception.message || error, statusCode);
-  const code = error ? labelToCode(error) : httpStatusCodeToCode(statusCode);
+  const code = normalizeCode(body['code'], error, statusCode);
   const details = buildDetails(body, rawMessage);
 
   return details === undefined ? { code, message } : { code, message, details };
@@ -154,9 +154,33 @@ function normalizeMessage(
   return httpStatusCodeToMessage(statusCode);
 }
 
+/**
+ * The one machine-readable name for what went wrong.
+ *
+ * Two shapes reach here, and until 2026-08-21 they landed in two different
+ * members. `throw new BadRequestException({ error: 'InstructorSelfEnrollment' })`
+ * became the top-level `code`; `throw new BadRequestException({ code:
+ * 'already_pending' })` became `details.code` and left `code` reading
+ * 'BAD_REQUEST'. So a browser had to know which convention its endpoint used,
+ * and the personal space matched an English sentence instead because the code it
+ * was looking for was one level down.
+ *
+ * An explicit `code` wins, verbatim: it is what the thrower chose, and the
+ * clients that match on it match the literal. `error` stays the fallback, still
+ * uppercased, because those six throw sites and their readers already agree.
+ */
+function normalizeCode(rawCode: unknown, error: string | undefined, statusCode: number): string {
+  if (typeof rawCode === 'string' && rawCode.trim()) return rawCode;
+  return error ? labelToCode(error) : httpStatusCodeToCode(statusCode);
+}
+
 function buildDetails(body: Record<string, unknown>, rawMessage: unknown): unknown {
   const details = Object.fromEntries(
-    Object.entries(body).filter(([key]) => !['statusCode', 'error', 'message'].includes(key)),
+    // `code` comes out with them: it is a top-level member now, and leaving a
+    // copy behind is how a reader ends up depending on the nested one again.
+    Object.entries(body).filter(
+      ([key]) => !['statusCode', 'error', 'message', 'code'].includes(key),
+    ),
   );
 
   if (Array.isArray(rawMessage) && rawMessage.every((item) => typeof item === 'string')) {

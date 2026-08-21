@@ -28,11 +28,19 @@
 /** Why a request did not produce data. `aborted` is a caller's own doing. */
 export type ApiFailure =
   | { kind: 'aborted' }
-  | { kind: 'unauthenticated'; status: 401 | 403; detail: string | null }
+  | { kind: 'unauthenticated'; status: 401 | 403; detail: string | null; code: string | null }
   | {
       kind: 'http';
       status: number;
       detail: string | null;
+      /**
+       * What went wrong, machine-readable — `already_pending`,
+       * `INSTRUCTOR_SELF_ENROLLMENT`. The half of problem+json a screen can
+       * branch on without matching English, which is what four of them were
+       * reduced to. Always present on a problem+json body; `null` only when an
+       * edge proxy answered with something else.
+       */
+      code: string | null;
       /**
        * Every field class-validator rejected, not just the first.
        *
@@ -85,6 +93,17 @@ export function readDetail(body: unknown): string | null {
   if (typeof detail === 'string' && detail.trim()) return detail;
   if (typeof message === 'string' && message.trim()) return message;
   return null;
+}
+
+/**
+ * The body's machine-readable `code`. One member now: the exception filter's
+ * `normalizeCode` folds the two throw shapes into it, so a client no longer has
+ * to know whether its endpoint used `error:` or a nested `code:`.
+ */
+export function readCode(body: unknown): string | null {
+  if (typeof body !== 'object' || body === null) return null;
+  const { code } = body as { code?: unknown };
+  return typeof code === 'string' && code.trim() ? code : null;
 }
 
 /**
@@ -157,11 +176,23 @@ function requestInit(init: Omit<RequestInit, 'body'> & { body?: unknown }): Requ
  * list was added, and only one of them grew it: the reason a body carries is
  * exactly the thing that must not depend on which branch built the failure.
  */
+/** The 401/403 failure. One owner, for the reason `httpFailure` has one. */
+function unauthenticatedFailure(status: 401 | 403, parsed: unknown): { ok: false } & ApiFailure {
+  return {
+    ok: false,
+    kind: 'unauthenticated',
+    status,
+    detail: readDetail(parsed),
+    code: readCode(parsed),
+  };
+}
+
 function httpFailure(status: number, parsed: unknown): { ok: false } & ApiFailure {
   return {
     ok: false,
     kind: 'http',
     status,
+    code: readCode(parsed),
     detail: readDetail(parsed),
     validationErrors: readValidationErrors(parsed),
   };
@@ -197,7 +228,7 @@ export async function apiRequest<T>(
     // only costs us the reason; on a successful one the payload never arrived,
     // which is the same event as the socket dying.
     if (status === 401 || status === 403) {
-      return { ok: false, kind: 'unauthenticated', status, detail: null };
+      return unauthenticatedFailure(status, undefined);
     }
     return res.ok ? { ok: false, kind: 'network' } : httpFailure(status, undefined);
   }
@@ -206,7 +237,7 @@ export async function apiRequest<T>(
   // `const isUnauthenticated = ...` does not narrow `status` to `401 | 403`,
   // and the cast that would paper over it is how a 404 ends up in this branch.
   if (status === 401 || status === 403) {
-    return { ok: false, kind: 'unauthenticated', status, detail: readDetail(parsed) };
+    return unauthenticatedFailure(status, parsed);
   }
 
   if (!res.ok) return httpFailure(status, parsed);

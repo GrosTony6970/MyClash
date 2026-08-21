@@ -120,6 +120,51 @@ describe('ApiExceptionFilter', () => {
     });
   });
 
+  it('puts an explicit code in the top-level member, verbatim', () => {
+    // Both throw shapes have to end up in the same place, or a browser has to
+    // know which convention its endpoint used. This one used to land in
+    // `details.code` while `code` read 'BAD_REQUEST'.
+    const { host, send } = makeHost();
+    const exception = new BadRequestException({
+      code: 'already_pending',
+      message: 'You already have a pending request for this profile',
+    });
+
+    new ApiExceptionFilter().catch(exception, host);
+
+    const body = send.mock.calls[0]?.[0] as ApiErrorResponse;
+    expect(body.code).toBe('already_pending');
+    expect(body.message).toBe('You already have a pending request for this profile');
+    // And exactly one copy of it — a leftover under `details` is how a reader
+    // goes back to depending on the nested one.
+    expect(body.details).toBeUndefined();
+  });
+
+  it('still uppercases an `error` label when no explicit code was thrown', () => {
+    const { host, send } = makeHost();
+    const exception = new BadRequestException({
+      error: 'InstructorSelfEnrollment',
+      message: 'An instructor cannot enrol on their own session',
+    });
+
+    new ApiExceptionFilter().catch(exception, host);
+
+    expect((send.mock.calls[0]?.[0] as ApiErrorResponse).code).toBe('INSTRUCTOR_SELF_ENROLLMENT');
+  });
+
+  it('prefers an explicit code to the error label when a body carries both', () => {
+    const { host, send } = makeHost();
+    const exception = new BadRequestException({
+      code: 'already_pending',
+      error: 'BadRequest',
+      message: 'nope',
+    });
+
+    new ApiExceptionFilter().catch(exception, host);
+
+    expect((send.mock.calls[0]?.[0] as ApiErrorResponse).code).toBe('already_pending');
+  });
+
   it('preserves structured conflict payloads under details', () => {
     const { host, send } = makeHost();
     const exception = new ConflictException({

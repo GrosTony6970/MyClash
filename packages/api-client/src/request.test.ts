@@ -70,6 +70,7 @@ describe('apiRequest — failures', () => {
       kind: 'unauthenticated',
       status: 401,
       detail: 'Unauthorized',
+      code: null,
     });
   });
 
@@ -81,6 +82,7 @@ describe('apiRequest — failures', () => {
       kind: 'unauthenticated',
       status: 403,
       detail: 'Forbidden',
+      code: null,
     });
   });
 
@@ -94,6 +96,7 @@ describe('apiRequest — failures', () => {
       kind: 'unauthenticated',
       status: 403,
       detail: 'You are not a referee on this pool',
+      code: null,
     });
   });
 
@@ -105,6 +108,7 @@ describe('apiRequest — failures', () => {
       kind: 'unauthenticated',
       status: 403,
       detail: null,
+      code: null,
     });
   });
 
@@ -118,6 +122,7 @@ describe('apiRequest — failures', () => {
       kind: 'unauthenticated',
       status: 403,
       detail: null,
+      code: null,
     });
   });
 
@@ -129,8 +134,43 @@ describe('apiRequest — failures', () => {
       kind: 'http',
       status: 409,
       detail: 'Venue is in use',
+      code: null,
       validationErrors: null,
     });
+  });
+
+  it('carries the machine-readable code, so a screen need not match English', async () => {
+    // Four screens were reduced to comparing the sentence because the code was
+    // not on the failure. Both API throw shapes land in this one member now.
+    stubFetch(() => json({ code: 'already_pending', detail: 'You already asked' }, 400));
+
+    expect(failure(await apiRequest('http://api', '/api/v1/me/global-person-claim'))).toMatchObject(
+      { code: 'already_pending', detail: 'You already asked' },
+    );
+  });
+
+  it('carries the code on a 403 too — a refusal is the case worth branching on', async () => {
+    stubFetch(() => json({ code: 'EVENT_LOCKED', detail: 'This event is locked' }, 403));
+
+    expect(failure(await apiRequest('http://api', '/api/v1/matches/m1'))).toMatchObject({
+      kind: 'unauthenticated',
+      code: 'EVENT_LOCKED',
+    });
+  });
+
+  it('reports a null code when a proxy answered with no problem+json at all', async () => {
+    stubFetch(() => html(502));
+
+    expect(failure(await apiRequest('http://api', '/api/v1/venues'))).toMatchObject({ code: null });
+  });
+
+  it('treats a blank code as no code — the same reading `detail` gets', async () => {
+    // A screen that branches on `code === ''` has branched on nothing. Blank
+    // has to arrive as absent or every comparison downstream needs its own
+    // trim, which is the duplication this seam exists to stop.
+    stubFetch(() => json({ code: '   ', detail: 'Bad request' }, 400));
+
+    expect(failure(await apiRequest('http://api', '/api/v1/events'))).toMatchObject({ code: null });
   });
 
   it('carries every rejected field, not only the one the API put in `detail`', async () => {
@@ -221,6 +261,7 @@ describe('apiRequest — failures', () => {
       kind: 'http',
       status: 502,
       detail: null,
+      code: null,
       validationErrors: null,
     });
   });

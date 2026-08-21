@@ -328,16 +328,11 @@ function ClaimSearchSection({ apiUrl }: { apiUrl: string }) {
       if (!res.ok) {
         let code = 'unknown';
         try {
-          // `details.code` is the only machine-readable half of this body. The
-          // envelope has no `error` member at all — this read used to start
-          // with `body.error ??`, which was always undefined — and `message` is
-          // an English sentence the API is free to reword, so it is the last
+          // `code` is the machine-readable half of this body. `message` is an
+          // English sentence the API is free to reword, so it is the last
           // resort rather than the thing being matched on.
-          const body = (await res.json()) as {
-            message?: string;
-            details?: { code?: string };
-          };
-          code = body.details?.code ?? body.message ?? `http_${res.status}`;
+          const body = (await res.json()) as { message?: string; code?: string };
+          code = body.code ?? body.message ?? `http_${res.status}`;
         } catch {
           code = `http_${res.status}`;
         }
