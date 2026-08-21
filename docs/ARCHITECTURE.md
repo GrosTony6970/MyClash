@@ -2495,7 +2495,10 @@ A two-layer scheduling tool for tournament organisers.
 
 **Layer 2 — Grid** (existing T-706): after pressing "Generate schedule", matches get `scheduledAt` + `liceId` assigned within each block's time window, and workshop sessions get `startsAt`/`endsAt`. The organiser fine-tunes on the 5-minute drag-drop grid.
 
-The Schedule tab splits into two sub-tabs: **Programme** and **Grid**.
+The grid is the workspace, and the programme planner is a panel inside its right sidebar, under
+the Unscheduled list — not a second tab. The Schedule tab used to split into a **Programme** and a
+**Grid** sub-tab; `schedule/page.tsx` now renders one `ScheduleGrid` and passes the planner in as its
+`configurePanel`.
 
 ### 24.2 Database
 
@@ -2507,20 +2510,31 @@ The Schedule tab splits into two sub-tabs: **Programme** and **Grid**.
 
 ### 24.3 API
 
+Twelve routes, all on `programme.controller.ts`. `GET` is the only `@Public()` one, and its
+visibility gate lives in the service.
+
 ```text
-GET    /api/v1/events/:eventId/programme           list saved blocks
-PUT    /api/v1/events/:eventId/programme           bulk save (replace all)
-POST   /api/v1/events/:eventId/programme/suggest   auto-suggest (no DB write)
-POST   /api/v1/events/:eventId/programme/generate  run scheduler + create workshop sessions
+GET    /api/v1/events/:eventId/programme                          list saved blocks
+PUT    /api/v1/events/:eventId/programme                          bulk save (replace all)
+POST   /api/v1/events/:eventId/programme/suggest                  auto-suggest (no DB write)
+POST   /api/v1/events/:eventId/programme/generate                 run the scheduler over saved blocks
+POST   /api/v1/events/:eventId/programme/blocks                   append one admin/break block
+PATCH  /api/v1/events/:eventId/programme/blocks/:blockId          rename one block
+PATCH  /api/v1/events/:eventId/programme/blocks/:blockId/move     move a block; cascade the day's matches
+PATCH  /api/v1/events/:eventId/programme/blocks/:blockId/resize   change a block's end time only
+DELETE /api/v1/events/:eventId/programme/blocks/:blockId          delete a block; unschedule its matches
+POST   /api/v1/events/:eventId/programme/delay                    push the rest of a day back by N minutes
+POST   /api/v1/events/:eventId/programme/schedule-group           re-fan a pool or bracket sub-tree
+DELETE /api/v1/events/:eventId/programme/full                     reset blocks and every match placement
 ```
 
 **Suggest algorithm:** places admin blocks (Registration+GearCheck, Referee Meeting) at Day 1 start, then competition pool blocks (in tournament `sort_order`), breaks between each, midday break at configured window, bracket blocks, then workshops. Returns `BlockWarning[]` for blocks whose time window is shorter than needed.
 
-**Generate:** for each competition block, fetches matches ordered `match_number_label ASC` (Berger sequence) and calls `scheduleMatches()` constrained to the block's time window. For workshop blocks, upserts `workshop_sessions` with `startsAt`/`endsAt`.
+**Generate:** for each competition block, fetches matches ordered `match_number_label ASC` (Berger sequence) and calls `scheduleMatches()` constrained to the block's time window. It does **not** touch `workshop_sessions` — workshops moved to their own board, and `generate` returns a hard-coded `workshopSessionsCreated: 0`. The route's own OpenAPI summary still promises workshop sessions.
 
 ### 24.4 Frontend
 
-- **Schedule tab** — Programme and Grid sub-tabs, plus a Detailed grid.
+- **Schedule tab** — the grid, with the programme planner as a collapsible panel in its right sidebar, plus a Detailed grid.
 - **Programme planner** — collapsible config bar, day tabs, drag-drop block list, overflow warnings with "Suggest fit" / "Override" actions, "Generate schedule" with a confirmation modal.
 - **Workshop creation** — optional `Duration (min)` field used by the programme planner for block sizing.
 

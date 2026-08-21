@@ -30,7 +30,7 @@ It is designed around three convictions:
 - Configure Lices (pistes) — multi-Lice scheduling.
 - Register fighters individually or via CSV import; suggest matches against global fighter database and HEMA Ratings.
 - **Pool populator** with configurable constraints: school separation, skill balancing using HEMA Ratings, manual override.
-- **Referee assignment**: manage referee qualifications (3 roles, per-role rating 1–5), auto-assign with constraint solver, see missing-role report, manually override.
+- **Referee assignment**: manage referee qualifications (a role is a referee skill the federation defines, per-role rating 1–5; three are seeded as a default), configure which slots each phase needs, auto-assign with constraint solver, see missing-role report, manually override.
 - AI setup assistant creates reviewed drafts for tournament configuration, pool plans, brackets, exact match-grid scheduling, and referee assignments using the organizer's BYOK key.
 - Natural-language tournament query lets organizers ask French or English questions such as "Quelles pistes sont en retard ?" or "Top 5 fighters by win rate"; AI selects a typed read-only tool and deterministic backend code renders the answer.
 - **Organizer chatbot**: a conversational, tool-using assistant that streams its progress over SSE — distinct from the one-shot setup-draft assistant and the read-only query panel.
@@ -39,7 +39,7 @@ It is designed around three convictions:
 - **Generated content**: AI-drafted, publishable tournament recaps, organizer content, and fighter performance insights (generate → publish/unpublish).
 - Generate single-elimination brackets from pool standings, including arbitrary-size fields with play-in matches for low seeds, then publish or unpublish pool/bracket visibility independently when ready.
 - Record fighter forfeits from scoring/admin with ruleset-configurable behavior for injury, voluntary withdrawal, black cards, and conduct violations, including pool auto-forfeits and bracket walkovers/replacements.
-- Schedule matches and workshops on a unified day grid.
+- Schedule matches on a day grid, and workshops on their own board — two boards, and two separate public pages.
 - Manage workshops: instructors (optional fighter link), descriptions, sessions, capacity, waitlists.
 - **Leagues / Classement**: org owners run multi-tournament leagues that aggregate standings across linked events/tournaments, with per-league organization and user roles, tournament/event linking and membership requests, on-demand recompute, and a public final report (CSV + printable HTML) export — managed in web-admin `/org/[slug]/leagues` and surfaced for competitors under `/me/leagues`.
 - Send event-wide notifications to everyone, fighters, referees, fighters and referees, or selected people with Info, Warning, and Alert severity; pool/bracket publish flows can prefill an editable "ready" broadcast.
