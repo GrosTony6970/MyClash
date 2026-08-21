@@ -78,23 +78,24 @@ A person registers once per **event**, then holds a registration per **tournamen
 
 ## Plain-language definitions
 
-| Term              | What it is                                                                                        | Example                             |
-| ----------------- | ------------------------------------------------------------------------------------------------- | ----------------------------------- |
-| **Organization**  | The entity (club, federation, individual) that runs events.                                       | Lyon AMHE; HEMA Bohemia             |
-| **Event**         | The multi-day gathering with a name, date(s), venue, and a roster of participants.                | "FAL 2026", "Swordfish 2027"        |
-| **Tournament**    | A specific competitive format inside an event: one weapon, one category, one ruleset.             | "FAL 2026 Longsword Open"           |
-| **Phase**         | A stage of a tournament with one format. `pool`, `single_elim`, `double_elim` or `swiss`.         | "Pools", then "Top 16"              |
-| **Pool**          | A round-robin group of fighters within a pool phase.                                              | "Pool A: 6 fighters"                |
-| **Bracket**       | The slot tree of an elimination phase. Not a table — `bracket_slots` rows.                        | Top 16 single-elim                  |
-| **Swiss round**   | One pairing round of a swiss phase.                                                               | "Round 3 of 5"                      |
-| **Match**         | A single fight between two registrations. Always belongs to a phase.                              | "Pool A · Match 7"                  |
-| **Exchange**      | The atomic scoring unit.                                                                          | "Clean hit, fighter A, head"        |
-| **Workshop**      | A teaching session inside an event. Has an instructor, a topic, capacity, and recurring sessions. | "Beginner Sword & Buckler workshop" |
-| **Venue**         | A place an organization runs events at. May have sub-areas.                                       | "Gymnase Jean Moulin"               |
-| **Lice**          | The fighting area a match is held on. Scoped to an event; optionally placed in a venue and area.  | "Lice 3"                            |
-| **Global Person** | One human, across every event. The cross-event identity.                                          | Jean Dupont, everywhere             |
-| **Person**        | That human at **one** event. Scoped by `event_id`.                                                | Jean Dupont at FAL 2026             |
-| **Registration**  | A person entered in **one** tournament.                                                           | Jean Dupont in the Longsword Open   |
+| Term              | What it is                                                                                                                                                | Example                             |
+| ----------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------- |
+| **Organization**  | The entity (club, federation, individual) that runs events.                                                                                               | Lyon AMHE; HEMA Bohemia             |
+| **Event**         | The multi-day gathering with a name, date(s), venue, and a roster of participants.                                                                        | "FAL 2026", "Swordfish 2027"        |
+| **Event day**     | One calendar day of an event, measured on the **event's** timezone — never the browser's, never UTC. Derived from a scheduled start; not a stored column. | "Sat 22/05" of a 22–23/05 event     |
+| **Tournament**    | A specific competitive format inside an event: one weapon, one category, one ruleset.                                                                     | "FAL 2026 Longsword Open"           |
+| **Phase**         | A stage of a tournament with one format. `pool`, `single_elim`, `double_elim` or `swiss`.                                                                 | "Pools", then "Top 16"              |
+| **Pool**          | A round-robin group of fighters within a pool phase.                                                                                                      | "Pool A: 6 fighters"                |
+| **Bracket**       | The slot tree of an elimination phase. Not a table — `bracket_slots` rows.                                                                                | Top 16 single-elim                  |
+| **Swiss round**   | One pairing round of a swiss phase.                                                                                                                       | "Round 3 of 5"                      |
+| **Match**         | A single fight between two registrations. Always belongs to a phase.                                                                                      | "Pool A · Match 7"                  |
+| **Exchange**      | The atomic scoring unit.                                                                                                                                  | "Clean hit, fighter A, head"        |
+| **Workshop**      | A teaching session inside an event. Has an instructor, a topic, capacity, and recurring sessions.                                                         | "Beginner Sword & Buckler workshop" |
+| **Venue**         | A place an organization runs events at. May have sub-areas.                                                                                               | "Gymnase Jean Moulin"               |
+| **Lice**          | The fighting area a match is held on. Scoped to an event; optionally placed in a venue and area.                                                          | "Lice 3"                            |
+| **Global Person** | One human, across every event. The cross-event identity.                                                                                                  | Jean Dupont, everywhere             |
+| **Person**        | That human at **one** event. Scoped by `event_id`.                                                                                                        | Jean Dupont at FAL 2026             |
+| **Registration**  | A person entered in **one** tournament.                                                                                                                   | Jean Dupont in the Longsword Open   |
 
 ## Roles
 
