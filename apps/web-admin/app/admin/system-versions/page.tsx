@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { ConfirmDialog, useToast } from '@myclash/ui';
 import { localeToBcp47, type AppLocale } from '@myclash/time';
 import { useI18n } from '@myclash/next-i18n/client';
+import { apiRequest, failureMessage } from '@myclash/api-client';
 import { HostInfoCard } from './HostInfoCard';
 import { TlsCertificatesCard } from './TlsCertificatesCard';
 import { RuntimeHealthCard } from './RuntimeHealthCard';
@@ -87,24 +88,24 @@ export default function AdminSystemVersionsPage() {
     ({ signal, refresh = false }: { signal?: AbortSignal; refresh?: boolean } = {}) => {
       if (refresh) setRefreshing(true);
 
-      fetch(`${apiUrl}/api/v1/admin/system-versions`, {
-        credentials: 'include',
-        signal,
-      })
-        .then(async (res) => {
-          if (res.status === 401 || res.status === 403) {
+      void apiRequest<SystemVersionsResponse>(apiUrl, '/api/v1/admin/system-versions', { signal })
+        .then((r) => {
+          if (r.ok) {
+            setVersions(r.data);
+            setError(null);
+            return;
+          }
+          // Losing the session and lacking the platform role read the same to
+          // the guard, and the same to the operator here — the same call
+          // admin/backups makes. `PlatformRoleGuard` only ever says "Platform
+          // access required", which names no tier.
+          if (r.kind === 'unauthenticated') {
             setError(t('admin.systemVersions.accessDenied'));
             return;
           }
-          if (!res.ok) throw new Error(t('admin.systemVersions.loadError'));
-          const data = (await res.json()) as SystemVersionsResponse;
-          setVersions(data);
-          setError(null);
-        })
-        .catch((err: unknown) => {
-          if (!(err instanceof DOMException && err.name === 'AbortError')) {
-            setError(err instanceof Error ? err.message : t('admin.systemVersions.loadError'));
-          }
+          // No message is the unmount, or the refresh that replaced this read.
+          const message = failureMessage(r, t, t('admin.systemVersions.loadError'));
+          if (message) setError(message);
         })
         .finally(() => {
           setLoading(false);
@@ -129,15 +130,20 @@ export default function AdminSystemVersionsPage() {
     const { componentKey, componentLabel, action } = pending;
     setBusyKey(componentKey);
     try {
-      const res = await fetch(
-        `${apiUrl}/api/v1/admin/system-versions/components/${encodeURIComponent(componentKey)}/${action}`,
-        { method: 'POST', credentials: 'include' },
+      const r = await apiRequest<ComponentActionResult>(
+        apiUrl,
+        `/api/v1/admin/system-versions/components/${encodeURIComponent(componentKey)}/${action}`,
+        { method: 'POST' },
       );
-      if (!res.ok) {
-        const body = (await res.json().catch(() => null)) as { message?: string } | null;
-        throw new Error(body?.message ?? `HTTP ${res.status}`);
+      if (!r.ok) {
+        // Reported here rather than thrown into the catch below: throwing would
+        // need a `?? ''` for the abort null, and this request passes no signal,
+        // so that fallback could never fire. `finally` still clears the busy key.
+        const reason = failureMessage(r, t, t('admin.common.componentActionFailed'));
+        if (reason) toast.error(t('admin.systemVersions.actions.failed', { message: reason }));
+        return;
       }
-      const result = (await res.json()) as ComponentActionResult;
+      const result = r.data;
       if (!result.ok) {
         throw new Error(
           result.stderr?.trim() ||

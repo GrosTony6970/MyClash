@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { localeToBcp47, type AppLocale } from '@myclash/time';
 import { DataTable, DataTableCell, DataTableHead, DataTableRow } from '@myclash/ui';
 import { useI18n } from '@myclash/next-i18n/client';
+import { apiRequest, failureMessage } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
 
 type CiGateVerdict = 'passed' | 'failed' | 'skipped' | 'cancelled' | 'not_reported';
@@ -94,16 +95,16 @@ function useCiHealth(t: Translate) {
     ({ signal, refresh = false }: { signal?: AbortSignal; refresh?: boolean } = {}) => {
       if (refresh) setRefreshing(true);
 
-      fetch(`${apiUrl}/api/v1/admin/system/ci-health`, { credentials: 'include', signal })
-        .then(async (res) => {
-          if (!res.ok) throw new Error(t('admin.systemVersions.ci.loadError'));
-          setHealth((await res.json()) as CiHealthResponse);
-          setError(null);
-        })
-        .catch((err: unknown) => {
-          if (!(err instanceof DOMException && err.name === 'AbortError')) {
-            setError(err instanceof Error ? err.message : t('admin.systemVersions.ci.loadError'));
+      void apiRequest<CiHealthResponse>(apiUrl, '/api/v1/admin/system/ci-health', { signal })
+        .then((r) => {
+          if (r.ok) {
+            setHealth(r.data);
+            setError(null);
+            return;
           }
+          // No message is the unmount, or the refresh that replaced this read.
+          const message = failureMessage(r, t, t('admin.systemVersions.ci.loadError'));
+          if (message) setError(message);
         })
         .finally(() => {
           setLoading(false);

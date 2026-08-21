@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { ConfirmDialog, useToast } from '@myclash/ui';
 import { localeToBcp47, type AppLocale } from '@myclash/time';
 import { useI18n } from '@myclash/next-i18n/client';
+import { apiRequest, failureMessage } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
 
 type TlsCertHealth = 'ok' | 'expiringSoon' | 'staging' | 'error';
@@ -102,17 +103,16 @@ export function TlsCertificatesCard() {
     ({ signal, refresh = false }: { signal?: AbortSignal; refresh?: boolean } = {}) => {
       if (refresh) setRefreshing(true);
 
-      fetch(`${apiUrl}/api/v1/admin/system/tls-status`, { credentials: 'include', signal })
-        .then(async (res) => {
-          if (!res.ok) throw new Error(t('admin.systemVersions.tls.loadError'));
-          const data = (await res.json()) as TlsStatusResponse;
-          setStatus(data);
-          setError(null);
-        })
-        .catch((err: unknown) => {
-          if (!(err instanceof DOMException && err.name === 'AbortError')) {
-            setError(err instanceof Error ? err.message : t('admin.systemVersions.tls.loadError'));
+      void apiRequest<TlsStatusResponse>(apiUrl, '/api/v1/admin/system/tls-status', { signal })
+        .then((r) => {
+          if (r.ok) {
+            setStatus(r.data);
+            setError(null);
+            return;
           }
+          // No message is the unmount, or the refresh that replaced this read.
+          const message = failureMessage(r, t, t('admin.systemVersions.tls.loadError'));
+          if (message) setError(message);
         })
         .finally(() => {
           setLoading(false);
@@ -133,15 +133,20 @@ export function TlsCertificatesCard() {
   async function confirmRenew() {
     setRenewing(true);
     try {
-      const res = await fetch(`${apiUrl}/api/v1/admin/system/tls-status/renew`, {
-        method: 'POST',
-        credentials: 'include',
-      });
-      if (!res.ok) {
-        const body = (await res.json().catch(() => null)) as { message?: string } | null;
-        throw new Error(body?.message ?? `HTTP ${res.status}`);
+      const r = await apiRequest<CertRenewalResult>(
+        apiUrl,
+        '/api/v1/admin/system/tls-status/renew',
+        { method: 'POST' },
+      );
+      if (!r.ok) {
+        // Reported here rather than thrown: no signal on this request, so the
+        // abort null is unreachable and a `??` for it could never fire.
+        const reason = failureMessage(r, t, t('admin.common.componentActionFailed'));
+        if (reason)
+          toast.error(t('admin.systemVersions.tls.actions.renewFailed', { message: reason }));
+        return;
       }
-      const result = (await res.json()) as CertRenewalResult;
+      const result = r.data;
       if (!result.ok) {
         throw new Error(
           result.stderr?.trim() ||

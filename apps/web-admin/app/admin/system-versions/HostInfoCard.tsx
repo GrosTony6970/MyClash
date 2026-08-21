@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { localeToBcp47, type AppLocale } from '@myclash/time';
 import { useI18n } from '@myclash/next-i18n/client';
+import { apiRequest, failureMessage } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
 import { formatBytes } from '@/lib/format-bytes';
 
@@ -78,17 +79,16 @@ export function HostInfoCard() {
     ({ signal, refresh = false }: { signal?: AbortSignal; refresh?: boolean } = {}) => {
       if (refresh) setRefreshing(true);
 
-      fetch(`${apiUrl}/api/v1/admin/system/host-info`, { credentials: 'include', signal })
-        .then(async (res) => {
-          if (!res.ok) throw new Error(t('admin.systemVersions.host.loadError'));
-          const data = (await res.json()) as HostInfoResponse;
-          setInfo(data);
-          setError(null);
-        })
-        .catch((err: unknown) => {
-          if (!(err instanceof DOMException && err.name === 'AbortError')) {
-            setError(err instanceof Error ? err.message : t('admin.systemVersions.host.loadError'));
+      void apiRequest<HostInfoResponse>(apiUrl, '/api/v1/admin/system/host-info', { signal })
+        .then((r) => {
+          if (r.ok) {
+            setInfo(r.data);
+            setError(null);
+            return;
           }
+          // No message is the unmount, or the refresh that replaced this read.
+          const message = failureMessage(r, t, t('admin.systemVersions.host.loadError'));
+          if (message) setError(message);
         })
         .finally(() => {
           setLoading(false);

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { useToast } from '@myclash/ui';
 import { localeToBcp47, type AppLocale } from '@myclash/time';
 import { useI18n } from '@myclash/next-i18n/client';
+import { apiRequest, failureMessage } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
 import { formatBytes } from '@/lib/format-bytes';
 import { RuntimeHealthTrend } from './RuntimeHealthTrend';
@@ -132,20 +133,16 @@ export function RuntimeHealthCard() {
   const load = useCallback(
     ({ signal, refresh = false }: { signal?: AbortSignal; refresh?: boolean } = {}) => {
       if (refresh) setRefreshing(true);
-      fetch(`${API}/api/v1/admin/system/runtime-health`, { credentials: 'include', signal })
-        .then(async (res) => {
-          if (!res.ok) throw new Error(t('admin.systemVersions.runtimeHealth.loadError'));
-          setHealth((await res.json()) as RuntimeHealth);
-          setError(null);
-        })
-        .catch((err: unknown) => {
-          if (!(err instanceof DOMException && err.name === 'AbortError')) {
-            setError(
-              err instanceof Error
-                ? err.message
-                : t('admin.systemVersions.runtimeHealth.loadError'),
-            );
+      void apiRequest<RuntimeHealth>(API, '/api/v1/admin/system/runtime-health', { signal })
+        .then((r) => {
+          if (r.ok) {
+            setHealth(r.data);
+            setError(null);
+            return;
           }
+          // No message is the unmount, or the refresh that replaced this read.
+          const message = failureMessage(r, t, t('admin.systemVersions.runtimeHealth.loadError'));
+          if (message) setError(message);
         })
         .finally(() => {
           setLoading(false);
@@ -158,14 +155,13 @@ export function RuntimeHealthCard() {
   useEffect(() => {
     const controller = new AbortController();
     void Promise.resolve().then(() => load({ signal: controller.signal }));
-    fetch(`${API}/api/v1/admin/system/runtime-health/alert-settings`, {
-      credentials: 'include',
+    // Silent by design: the card renders without alert settings, so a refusal
+    // here is not worth a banner over the health it did load.
+    void apiRequest<AlertSettings>(API, '/api/v1/admin/system/runtime-health/alert-settings', {
       signal: controller.signal,
-    })
-      .then(async (res) => {
-        if (res.ok) setSettings((await res.json()) as AlertSettings);
-      })
-      .catch(() => undefined);
+    }).then((r) => {
+      if (r.ok) setSettings(r.data);
+    });
     return () => controller.abort();
   }, [load]);
 
@@ -176,24 +172,22 @@ export function RuntimeHealthCard() {
       // UpdateAlertSettingsDto is a .strict() Zod schema — the ZodValidationPipe
       // rejects unknown keys, so the read-only `updatedAt` must never be sent.
       const { updatedAt: _omit, ...body } = settings;
-      const res = await fetch(`${API}/api/v1/admin/system/runtime-health/alert-settings`, {
-        method: 'PUT',
-        credentials: 'include',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify(body),
-      });
-      if (!res.ok) {
-        const resBody = (await res.json().catch(() => null)) as { message?: string } | null;
-        throw new Error(resBody?.message ?? `HTTP ${res.status}`);
-      }
-      setSettings((await res.json()) as AlertSettings);
-      toast.success(t('admin.systemVersions.runtimeHealth.settings.saved'));
-    } catch (err) {
-      toast.error(
-        err instanceof Error
-          ? err.message
-          : t('admin.systemVersions.runtimeHealth.settings.saveError'),
+      const r = await apiRequest<AlertSettings>(
+        API,
+        '/api/v1/admin/system/runtime-health/alert-settings',
+        { method: 'PUT', body },
       );
+      if (!r.ok) {
+        const reason = failureMessage(
+          r,
+          t,
+          t('admin.systemVersions.runtimeHealth.settings.saveError'),
+        );
+        if (reason) toast.error(reason);
+        return;
+      }
+      setSettings(r.data);
+      toast.success(t('admin.systemVersions.runtimeHealth.settings.saved'));
     } finally {
       setSaving(false);
     }

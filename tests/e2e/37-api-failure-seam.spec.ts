@@ -70,6 +70,8 @@ const COPY = {
   venuesLoadError: 'Could not load venues.',
   backupsTitle: 'Backup Management',
   backupsLoadError: 'Failed to load backups.',
+  systemVersionsLoadError: 'Failed to load system versions.',
+  systemVersionsAccessDenied: 'Access denied. Super admin required.',
   tournamentNotFound: 'Tournament not found',
   tournamentLoadFailed: "This tournament couldn't be loaded",
   claimTitle: 'Confirm your profile',
@@ -131,6 +133,9 @@ const BACKUPS_PATH = '/admin/backups';
 const VENUES_LIST = '**/api/v1/organizations/*/venues';
 /** One of the three the backups screen loads in parallel. */
 const BACKUPS_SCHEDULE = '**/api/v1/admin/backups/schedule';
+const SYSTEM_VERSIONS_PATH = '/admin/system-versions';
+/** Exact, not a prefix: the components sub-route must stay unstubbed. */
+const SYSTEM_VERSIONS_LOAD = '**/api/v1/admin/system-versions';
 
 /** What the API's exception filter actually sends (api-exception.filter.ts). */
 function problemJson(status: number, detail: string) {
@@ -326,6 +331,44 @@ test.describe('the api-failure seam — the backup console', () => {
 
     await expect(page.getByText(COPY.backupsLoadError)).toBeVisible();
     await expect(page.getByText('Internal server error')).toBeHidden();
+    await page.close();
+  });
+
+  // ── The system versions console, converted in the same slice ──────────────
+  //
+  // In THIS describe and not a new one: `auth/password-login` is throttled to
+  // 3/hour per email, so the platform session is reused rather than re-earned.
+
+  test("the versions console shows the server's own reason, not its fallback", async () => {
+    test.skip(!platform, 'set E2E_SUPERADMIN_EMAIL / E2E_SUPERADMIN_PASSWORD');
+    const page = await platform!.newPage();
+
+    const reason = 'The deploy manifest is being rewritten. Try again in a moment.';
+    await page.route(SYSTEM_VERSIONS_LOAD, (route) => route.fulfill(problemJson(409, reason)));
+    await page.goto(SYSTEM_VERSIONS_PATH);
+    await expectStayedOn(page, SYSTEM_VERSIONS_PATH);
+
+    await expect(page.getByText(reason)).toBeVisible();
+    await expect(page.getByText(COPY.systemVersionsLoadError)).toBeHidden();
+    await page.close();
+  });
+
+  test('a platform-role refusal keeps the screen’s own sentence', async () => {
+    test.skip(!platform, 'set E2E_SUPERADMIN_EMAIL / E2E_SUPERADMIN_PASSWORD');
+    const page = await platform!.newPage();
+
+    // Deliberate exception to "the server's reason wins": PlatformRoleGuard
+    // only ever says "Platform access required", which names no tier, and it is
+    // English-only. Same call admin/backups makes. If this ever starts showing
+    // the server's sentence, that decision was reversed by accident.
+    await page.route(SYSTEM_VERSIONS_LOAD, (route) =>
+      route.fulfill(problemJson(403, 'Platform access required')),
+    );
+    await page.goto(SYSTEM_VERSIONS_PATH);
+    await expectStayedOn(page, SYSTEM_VERSIONS_PATH);
+
+    await expect(page.getByText(COPY.systemVersionsAccessDenied)).toBeVisible();
+    await expect(page.getByText('Platform access required')).toBeHidden();
     await page.close();
   });
 });

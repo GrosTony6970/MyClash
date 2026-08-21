@@ -2,6 +2,7 @@
 
 import { useEffect, useState, type ReactNode } from 'react';
 import { useI18n } from '@myclash/next-i18n/client';
+import { apiRequest } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
 import { TrendChart, type TrendSample } from './TrendChart';
 
@@ -19,17 +20,20 @@ function useSeries(): { series: SeriesResponse | null; failed: boolean } {
 
   useEffect(() => {
     const controller = new AbortController();
-    fetch(`${API}/api/v1/admin/system/runtime-health/series?hours=${WINDOW_HOURS}`, {
-      credentials: 'include',
-      signal: controller.signal,
-    })
-      .then(async (res) => {
-        if (!res.ok) throw new Error('series');
-        setSeries((await res.json()) as SeriesResponse);
-      })
-      .catch((err: unknown) => {
-        if (!(err instanceof DOMException && err.name === 'AbortError')) setFailed(true);
-      });
+    void apiRequest<SeriesResponse>(
+      API,
+      `/api/v1/admin/system/runtime-health/series?hours=${WINDOW_HOURS}`,
+      { signal: controller.signal },
+    ).then((r) => {
+      if (r.ok) {
+        setSeries(r.data);
+        return;
+      }
+      // The chart shows its own empty state rather than a sentence, so the
+      // reason is not read here — only the abort is excluded, so leaving the
+      // page does not paint a failure on the way out.
+      if (r.kind !== 'aborted') setFailed(true);
+    });
     return () => controller.abort();
   }, []);
 
