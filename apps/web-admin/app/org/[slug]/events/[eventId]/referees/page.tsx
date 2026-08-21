@@ -1466,6 +1466,10 @@ function AssignmentsTab({
     );
   }
 
+  // One owner for the lock dimming, applied to the two wrappers that sandwich
+  // the filter card.
+  const lockedDimClass = board?.locked ? 'pointer-events-none opacity-60' : '';
+
   return (
     <section className="space-y-4">
       <div className="flex flex-wrap items-center gap-3">
@@ -1571,17 +1575,18 @@ function AssignmentsTab({
           {/* Slice A: when the board is locked, render a banner above
               the grid and grey out everything below it so the operator
               has an unmistakable signal. The Lock/Unlock buttons stay
-              live above this wrapper. */}
+              live above this wrapper.
+              The dimming is in TWO wrappers with the filter card between
+              them, undimmed: locking freezes assignments, not looking, and
+              this tab calls itself a read-only view. Splitting it here keeps
+              the order on screen — health, filters, timeline — unchanged. */}
           {board.locked && (
             <div className="flex items-center gap-2 rounded-lg border border-warning/30 bg-warning/10 px-4 py-2 text-sm text-warning">
               <span aria-hidden="true">🔒</span>
               <span>{t('organizer.refereesPage.lockedBanner')}</span>
             </div>
           )}
-          <div
-            className={board.locked ? 'pointer-events-none opacity-60' : ''}
-            aria-disabled={board.locked || undefined}
-          >
+          <div className={lockedDimClass} aria-disabled={board.locked || undefined}>
             <div id="referee-health-panel" className="scroll-mt-4">
               <AssignmentDiagnosticsPanel
                 board={board}
@@ -1592,17 +1597,22 @@ function AssignmentsTab({
                 togglesDisabled={isReadOnly || running || previewing}
               />
             </div>
-            {/* Day + tournament filter — scopes the timeline and the
-                by-timeslot view below. */}
-            <AssignmentFilters
-              days={eventDayIsos.map((iso) => ({ iso, label: formatDayShort(iso, locale) }))}
-              selectedDayIso={selectedDayIso}
-              onSelectDay={handleSelectDay}
-              tournaments={tournamentOptions}
-              selectedTournamentIds={selectedTournamentIds}
-              onToggleTournament={handleToggleTournament}
-              onSelectAllTournaments={() => setTournamentSelection(null)}
-            />
+          </div>
+          {/* Day + tournament filter — scopes the timeline and the
+              by-timeslot view below. Stays live on a locked board. */}
+          <AssignmentFilters
+            days={eventDayIsos.map((iso) => ({ iso, label: formatDayShort(iso, locale) }))}
+            selectedDayIso={selectedDayIso}
+            onSelectDay={handleSelectDay}
+            tournaments={tournamentOptions}
+            selectedTournamentIds={selectedTournamentIds}
+            onToggleTournament={handleToggleTournament}
+            onSelectAllTournaments={() => setTournamentSelection(null)}
+          />
+          <div
+            className={['space-y-4', lockedDimClass].join(' ').trim()}
+            aria-disabled={board.locked || undefined}
+          >
             {/* Event-wide timeline: every pool/bracket chip grouped by start
                 time, with the UNSCHEDULED chip row. Unscheduled chips expand
                 their card below; scheduled chips jump to their timeslot. */}
