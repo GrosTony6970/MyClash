@@ -52,7 +52,15 @@ export interface RefereeConflict {
   role: string;
   start: string | null;
   liceName?: string | null;
-  /** The other commitment it overlaps. */
+  /**
+   * The other commitment it overlaps.
+   *
+   * Overloaded by `kind`. For 'officiate_vs_fight' and 'double_booked' these
+   * name the clashing unit. For 'unavailable' there IS no other commitment:
+   * `otherPoolId` is '' and `otherPoolName` carries the TOURNAMENT name the
+   * referee is unavailable for, which is what
+   * `conflict.unavailableLine`'s {tournament} placeholder renders.
+   */
   otherPoolId: string;
   otherPoolName: string;
   otherLiceName?: string | null;
