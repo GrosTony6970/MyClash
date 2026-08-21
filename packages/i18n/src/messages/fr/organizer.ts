@@ -1703,15 +1703,15 @@ export const organizer = {
     refereesEmpty: 'Choisissez un tournoi pour gérer ses arbitres.',
     refereesTimelineTitle: "Timeline des poules de l'événement",
     refereesTimelineEmpty: 'Aucune poule planifiée pour le moment.',
-    refereesTimelineUnscheduled: 'Non planifie',
+    refereesTimelineUnscheduled: 'Non planifié',
     refereesLiceLabel: '{lice}',
     refereesConcurrentTitle: 'En parallèle',
     refereesConcurrentBody:
-      "{count} d'autres tournois chevauchent les votres. Les arbitres déjà affectes la-bas sont indisponibles.",
+      "{count} d'autres tournois chevauchent les vôtres. Les arbitres déjà affectés là-bas sont indisponibles.",
     refereesSlotCardsTitle: 'Poules du tournoi',
     refereesAssign: 'Affecter',
     refereesUnassign: 'Retirer',
-    refereesUnassigned: 'Non affecte',
+    refereesUnassigned: 'Non affecté',
   },
   schedulePage: {
     placement: {
@@ -2851,35 +2851,35 @@ export const organizer = {
     },
     tabIntros: {
       referees:
-        'Les personnes inscrites pour arbitrer cet événement. Chaque ligne montre leurs qualifications, disponibilites et le nombre de matchs déjà programmes à arbitrer.',
+        'Les personnes inscrites pour arbitrer cet événement. Chaque ligne montre leurs qualifications, disponibilités et le nombre de matchs déjà programmés à arbitrer.',
       qualifications:
-        'Définissez les compétences disponibles pour cet événement et qui possede chaque compétence — Declarant, Assesseur, Table, ou toute compétence personnalisée.',
+        'Définissez les compétences disponibles pour cet événement et qui possède chaque compétence — Déclarant, Assesseur, Table, ou toute compétence personnalisée.',
       staffing:
-        'Affectez automatiquement les arbitres selon leurs qualifications et disponibilites, puis ajustez le résultat à la main.',
+        'Affectez automatiquement les arbitres selon leurs qualifications et disponibilités, puis ajustez le résultat à la main.',
       assignments:
-        'Vue lecture seule de tout ce qui est planifié, avec ses Declarant / Assesseur / Table affectes. Verrouillez quand le résultat vous convient ; deverrouillez pour le retoucher.',
+        'Vue lecture seule de tout ce qui est planifié, avec ses Déclarant / Assesseur / Table affectés. Verrouillez quand le résultat vous convient ; déverrouillez pour le retoucher.',
     },
     unassignedReasons: {
       no_qualified_users: "Personne ayant cette qualification n'est inscrit.",
       all_qualified_already_assigned_to_pool:
-        'Tous les arbitres qualifies sont déjà affectes à un autre rôle ici.',
-      all_qualified_are_fighters_in_this_pool: 'Tous les arbitres qualifies combattent ici.',
+        'Tous les arbitres qualifiés sont déjà affectés à un autre rôle ici.',
+      all_qualified_are_fighters_in_this_pool: 'Tous les arbitres qualifiés combattent ici.',
       all_qualified_have_time_conflict_with_other_pool:
-        'Tous les arbitres qualifies ont un conflit au même moment.',
+        'Tous les arbitres qualifiés ont un conflit au même moment.',
       no_candidates_after_scoring: "Aucun candidat n'a passé le filtre de notation.",
       would_self_conflict_in_pool:
         'Cette personne est déjà affectée à un autre rôle dans cette poule.',
       all_qualified_unavailable_for_this_pool:
-        'Tous les arbitres qualifies sont indisponibles pour ce tournoi ou ce jour.',
+        'Tous les arbitres qualifiés sont indisponibles pour ce tournoi ou ce jour.',
       all_qualified_fighting_in_parallel_pool:
-        'Tous les arbitres qualifies combattent ailleurs au même moment.',
+        'Tous les arbitres qualifiés combattent ailleurs au même moment.',
     },
     rules: {
       title: 'Règles vérifiées',
-      toggleFailed: 'Impossible de mettre à jour le reglage de la regle.',
+      toggleFailed: 'Impossible de mettre à jour le réglage de la règle.',
       ownPool: {
         label: 'Son combat',
-        description: 'Un combattant ne peut pas arbitrer la poule ou le match ou il combat.',
+        description: 'Un combattant ne peut pas arbitrer la poule ou le match où il combat.',
       },
       officiateVsFight: {
         label: 'Arbitre vs combat',
@@ -2901,30 +2901,30 @@ export const organizer = {
         description: 'Les affectations respectent la disponibilité tournoi/jour de chaque arbitre.',
       },
       capacity: {
-        label: 'Capacite',
+        label: 'Capacité',
         description:
           "Avertit quand ce qui tourne en parallèle demande plus de postes que d'arbitres libres.",
       },
     },
     diagnostics: {
-      title: 'Sante des affectations',
+      title: 'Santé des affectations',
       coverage: '{filled} sur {total} postes pourvus',
       coverageNoneOpen: 'Tous les postes sont pourvus',
       unfilledLabel: 'Postes non pourvus, par raison :',
-      rosterHealth: "Sante de l'effectif",
+      rosterHealth: "Santé de l'effectif",
       rosterOk: 'Toutes les compétences sont couvertes.',
-      rosterShortBy: '{skill} : il manque {count} ({open} postes ouverts, {qualified} qualifies)',
+      rosterShortBy: '{skill} : il manque {count} ({open} postes ouverts, {qualified} qualifiés)',
     },
     catalogEmpty:
       'Aucune compétence pour le moment. Ajoutez une compétence personnalisée pour commencer.',
     catalogColColor: 'Couleur',
     catalogColName: 'Compétence',
-    catalogColCount: 'Arbitres qualifies',
+    catalogColCount: 'Arbitres qualifiés',
     catalogColActions: 'Actions',
     catalogSystemPill: 'Système',
     catalogEditAction: 'Modifier',
     catalogDeleteAction: 'Supprimer',
-    catalogDrillEyebrow: 'Arbitres qualifies pour',
+    catalogDrillEyebrow: 'Arbitres qualifiés pour',
     catalogDrillRatingLabel: 'Note',
     catalogDrillRatingUnset: 'Non note',
     catalogDrillRatingNotQualified: 'Non qualifie',
@@ -2976,14 +2976,14 @@ export const organizer = {
     eventBreadcrumb: 'Événement',
     refereesTitle: 'Arbitres',
     pageTitle: 'Espace arbitres',
-    unscheduled: 'Non planifie',
+    unscheduled: 'Non planifié',
     unavailableBadge: 'Indisponible',
     blockedReasons: {
       missing_qualification: 'Non qualifie pour ce rôle',
       fighter_referee_overlap: 'Combattant ici',
-      schedule_conflict: 'Occupe à ce créneau (combat ou arbitrage ailleurs)',
+      schedule_conflict: 'Occupé à ce créneau (combat ou arbitrage ailleurs)',
       unavailable: 'Indisponible pour ce tournoi ou ce jour',
-      duplicate_role_same_pool: 'Déjà affecte à un autre rôle ici',
+      duplicate_role_same_pool: 'Déjà affecté à un autre rôle ici',
     },
     conflict: {
       sectionTitle: 'Conflits de planning',
@@ -2992,14 +2992,14 @@ export const organizer = {
       alsoOfficiating: 'arbitre aussi {pool} au même moment',
       alsoOfficiatingVenue:
         'arbitre aussi {pool} a {venue} au même moment — un arbitre ne peut pas être dans deux lieux à la fois',
-      unavailableLine: 'affecte hors disponibilité ({tournament})',
+      unavailableLine: 'affecté hors disponibilité ({tournament})',
       unfillableTitle: 'Postes impossibles à pourvoir',
-      unfillableDetail: 'tous les arbitres qualifies sont occupes ou indisponibles',
-      capacityTitle: 'Capacite',
+      unfillableDetail: 'tous les arbitres qualifiés sont occupés ou indisponibles',
+      capacityTitle: 'Capacité',
       capacityLine:
         '{lices} en parallèle demandent {needed} postes, seulement {free} arbitres libres',
       rulesFooter:
-        'Règles : son combat · arbitre-vs-combat · double affectation · deux rôles · disponibilité · capacite',
+        'Règles : son combat · arbitre-vs-combat · double affectation · deux rôles · disponibilité · capacité',
     },
     byTimeslotTitle: 'Par créneau',
     idleLice: 'libre',
@@ -3045,7 +3045,7 @@ export const organizer = {
     noPoolsForAssignments:
       "Rien de planifié. Générez les poules ou un tableau avant d'affecter les arbitres.",
     missingAssignments: 'Affectations manquantes',
-    recommendedCandidates: 'Recommandes',
+    recommendedCandidates: 'Recommandés',
     warningCandidates: 'Eligibles avec avertissements',
     blockedCandidates: 'Bloques',
     backToPools: '← Poules',
