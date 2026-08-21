@@ -709,9 +709,10 @@ function AssignmentsTab({
       endTime: string;
     }>
   >([]);
-  // Event days for the day filter; selectedDayIso null = all days.
-  const [eventDayIsos, setEventDayIsos] = useState<string[]>([]);
+  // The event's own date span. The day filter's chip list is derived from it
+  // AND from where the board's units really sit — see eventDayIsos below.
   const [eventStartDateIso, setEventStartDateIso] = useState<string | null>(null);
+  const [eventEndDateIso, setEventEndDateIso] = useState<string | null>(null);
   /** The clock the day filter is measured on — see the pool filter below. */
   const [eventTz, setEventTz] = useState<string>(DEFAULT_EVENT_TIMEZONE);
   const [selectedDayIso, setSelectedDayIso] = useState<string | null>(null);
@@ -742,6 +743,13 @@ function AssignmentsTab({
   const allBoardPools = useMemo(
     () => (board ? [...board.pools, ...board.unscheduledPools] : []),
     [board],
+  );
+  // The day chips. The union with the board matters: a unit scheduled outside
+  // the event's own dates used to be reachable only under "All days", because
+  // the chips came from the event record and the cards came from the board.
+  const eventDayIsos = useMemo(
+    () => eventDayIsosFor(eventStartDateIso, eventEndDateIso, allBoardPools, eventTz),
+    [eventStartDateIso, eventEndDateIso, allBoardPools, eventTz],
   );
   // The tournaments the day filter currently offers, and the ids actually in
   // force — see `tournamentSelection` for why null resolves to "all of them".
@@ -996,15 +1004,8 @@ function AssignmentsTab({
           timezone?: string | null;
         };
         setEventStartDateIso(ev.start_date ?? null);
+        setEventEndDateIso(ev.end_date ?? null);
         setEventTz(ev.timezone ?? DEFAULT_EVENT_TIMEZONE);
-        setEventDayIsos(
-          eventDayIsosFor(
-            ev.start_date ?? null,
-            ev.end_date ?? null,
-            [],
-            ev.timezone ?? DEFAULT_EVENT_TIMEZONE,
-          ),
-        );
       })
       .catch(() => undefined);
     return () => controller.abort();
