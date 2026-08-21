@@ -5,6 +5,6 @@ export const metadata = {
   publicDescription: 'Free, open-source platform for HEMA event management.',
   adminTitle: 'MyClash Admin',
   adminDescription: 'MyClash organizer admin and super admin.',
-  scoringTitle: 'MyClash Scoring',
-  scoringDescription: 'Scorekeeper PWA - offline-first match exchange recording.',
+  scoringTitle: 'MyClash Staff',
+  scoringDescription: 'Staff PWA - offline-first check-in, gear check and match scoring.',
 } as const satisfies MessageTree;

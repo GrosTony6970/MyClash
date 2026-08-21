@@ -1,7 +1,7 @@
 {
-  "name": "MyClash Scoring",
-  "short_name": "Scoring",
-  "description": "MyClash scorekeeper app — offline-first PWA for recording match exchanges at the Lice.",
+  "name": "MyClash Staff",
+  "short_name": "Staff",
+  "description": "MyClash staff app — offline-first PWA for check-in, gear check and scoring at the Lice.",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#0f172a",
