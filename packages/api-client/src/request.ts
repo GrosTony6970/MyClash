@@ -29,7 +29,21 @@
 export type ApiFailure =
   | { kind: 'aborted' }
   | { kind: 'unauthenticated'; status: 401 | 403; detail: string | null }
-  | { kind: 'http'; status: number; detail: string | null }
+  | {
+      kind: 'http';
+      status: number;
+      detail: string | null;
+      /**
+       * Every field class-validator rejected, not just the first.
+       *
+       * `detail` carries ONE of them: the exception filter's `normalizeMessage`
+       * takes `rawMessage[0]` and puts the rest under `details.validationErrors`,
+       * so a form with four bad fields reported one and the operator fixed them
+       * one round trip at a time. Only on the `http` member — validation fails
+       * as a 400, and a guard refusing a request does not produce a field list.
+       */
+      validationErrors: string[] | null;
+    }
   | { kind: 'network' };
 
 export type ApiResult<T> = { ok: true; data: T } | ({ ok: false } & ApiFailure);
@@ -74,6 +88,26 @@ export function readDetail(body: unknown): string | null {
 }
 
 /**
+ * The rest of a class-validator refusal. `readDetail` returns its first entry;
+ * this returns all of them, in the order the API listed them.
+ *
+ * Read from `details.validationErrors`, which is where `buildDetails` in the
+ * API's exception filter puts the array it collapsed. Anything that is not a
+ * non-empty array of strings is no list at all — a `details` bag with other
+ * keys in it is the normal case, and only this one key is a field list.
+ */
+export function readValidationErrors(body: unknown): string[] | null {
+  if (typeof body !== 'object' || body === null) return null;
+  const { details } = body as { details?: unknown };
+  if (typeof details !== 'object' || details === null) return null;
+  const { validationErrors } = details as { validationErrors?: unknown };
+  if (!Array.isArray(validationErrors) || validationErrors.length === 0) return null;
+  return validationErrors.every((entry) => typeof entry === 'string' && entry.trim())
+    ? (validationErrors as string[])
+    : null;
+}
+
+/**
  * A body fetch can send as-is. Anything else is JSON — but `JSON.stringify` on
  * a `FormData` yields `"{}"` and drops the upload in silence, so the pass-through
  * cases are named rather than guessed at.
@@ -115,6 +149,24 @@ function requestInit(init: Omit<RequestInit, 'body'> & { body?: unknown }): Requ
   };
 }
 
+/**
+ * The `http` failure, read off whatever body arrived — `undefined` when an edge
+ * proxy served HTML where the API promised problem+json.
+ *
+ * One owner for both construction sites. They were two literals until the field
+ * list was added, and only one of them grew it: the reason a body carries is
+ * exactly the thing that must not depend on which branch built the failure.
+ */
+function httpFailure(status: number, parsed: unknown): { ok: false } & ApiFailure {
+  return {
+    ok: false,
+    kind: 'http',
+    status,
+    detail: readDetail(parsed),
+    validationErrors: readValidationErrors(parsed),
+  };
+}
+
 export async function apiRequest<T>(
   baseUrl: string,
   path: string,
@@ -147,9 +199,7 @@ export async function apiRequest<T>(
     if (status === 401 || status === 403) {
       return { ok: false, kind: 'unauthenticated', status, detail: null };
     }
-    return res.ok
-      ? { ok: false, kind: 'network' }
-      : { ok: false, kind: 'http', status, detail: null };
+    return res.ok ? { ok: false, kind: 'network' } : httpFailure(status, undefined);
   }
 
   // Spelled out at both sites rather than hoisted into a boolean: a
@@ -159,6 +209,6 @@ export async function apiRequest<T>(
     return { ok: false, kind: 'unauthenticated', status, detail: readDetail(parsed) };
   }
 
-  if (!res.ok) return { ok: false, kind: 'http', status, detail: readDetail(parsed) };
+  if (!res.ok) return httpFailure(status, parsed);
   return { ok: true, data: parsed as T };
 }

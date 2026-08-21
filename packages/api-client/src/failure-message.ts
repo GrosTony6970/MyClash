@@ -28,7 +28,14 @@ import type { ApiFailure } from './request';
  * CLAUDE.md is explicit that such a branch is the bug. One `null` here replaces
  * seven of them.
  *
- * ── 4xx: the server's reason wins, in English ───────────────────────────────
+ * ── 4xx: the server's reason wins, in English, and ALL of it ────────────────
+ * A class-validator refusal names every field it rejected, but `detail` carries
+ * only the first: `normalizeMessage` in the API's exception filter collapses
+ * the array and `buildDetails` puts the rest under `details.validationErrors`.
+ * Nothing read that until 2026-08-21, so an organiser who left four fields
+ * wrong was told about one, fixed it, and was told about the next.
+ *
+
  * For a failed 4xx the API's own `detail` IS the message. Reading it is the
  * reason api-error.ts was written: a backup failure used to report nothing more
  * useful than "Could not delete backups." while the server's reason sat unread
@@ -87,6 +94,18 @@ export function failureMessage(
       if (failure.status >= 500 && failure.status !== 503) {
         return fallback ?? t('common.error');
       }
+      // Every rejected field, ahead of `detail`, which is only the first of
+      // them. Deliberately not guarded on length: with one entry the join IS
+      // `detail`, so a `length > 1` test would be a branch whose two arms
+      // cannot be told apart.
+      if (failure.validationErrors) return failure.validationErrors.join(VALIDATION_SEPARATOR);
       return failure.detail ?? fallback ?? t('common.error');
   }
 }
+
+/**
+ * Between rejected fields. Each entry is a whole sentence ("email must be an
+ * email"), so a comma reads as though the list were one clause; the middle dot
+ * keeps them separate at a glance and needs no translation.
+ */
+const VALIDATION_SEPARATOR = ' · ';

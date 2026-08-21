@@ -3,7 +3,12 @@ import type { ApiFailure } from '@myclash/api-client';
 
 import { IDENTITY_MAX_ATTEMPTS, identityRetryDelayMs } from './identity-retry';
 
-const http = (status: number): ApiFailure => ({ kind: 'http', status, detail: null });
+const http = (status: number): ApiFailure => ({
+  kind: 'http',
+  status,
+  detail: null,
+  validationErrors: null,
+});
 
 describe('identityRetryDelayMs', () => {
   it('retries a dropped connection, then gives up inside the budget', () => {

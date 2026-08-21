@@ -129,6 +129,53 @@ describe('apiRequest — failures', () => {
       kind: 'http',
       status: 409,
       detail: 'Venue is in use',
+      validationErrors: null,
+    });
+  });
+
+  it('carries every rejected field, not only the one the API put in `detail`', async () => {
+    // A class-validator refusal: the filter puts `rawMessage[0]` in `detail`
+    // and the whole array under `details.validationErrors`.
+    stubFetch(() =>
+      json(
+        {
+          detail: 'email must be an email',
+          message: 'email must be an email',
+          details: {
+            validationErrors: ['email must be an email', 'name should not be empty'],
+          },
+        },
+        400,
+      ),
+    );
+
+    expect(failure(await apiRequest('http://api', '/api/v1/events'))).toMatchObject({
+      detail: 'email must be an email',
+      validationErrors: ['email must be an email', 'name should not be empty'],
+    });
+  });
+
+  it('reports no field list when `details` carries something else entirely', async () => {
+    // `details` is a general bag — a conflict puts its own payload there. Only
+    // `validationErrors` is a field list, and only when it holds strings.
+    stubFetch(() =>
+      json({ detail: 'Venue is in use', details: { blockers: [{ id: 'm1' }] } }, 409),
+    );
+
+    expect(failure(await apiRequest('http://api', '/api/v1/venues/v1'))).toMatchObject({
+      validationErrors: null,
+    });
+  });
+
+  it('rejects a field list that is empty or not all strings', async () => {
+    stubFetch(() => json({ detail: 'Bad request', details: { validationErrors: [] } }, 400));
+    expect(failure(await apiRequest('http://api', '/api/v1/events'))).toMatchObject({
+      validationErrors: null,
+    });
+
+    stubFetch(() => json({ detail: 'Bad request', details: { validationErrors: [{}, 3] } }, 400));
+    expect(failure(await apiRequest('http://api', '/api/v1/events'))).toMatchObject({
+      validationErrors: null,
     });
   });
 
@@ -174,6 +221,7 @@ describe('apiRequest — failures', () => {
       kind: 'http',
       status: 502,
       detail: null,
+      validationErrors: null,
     });
   });
 

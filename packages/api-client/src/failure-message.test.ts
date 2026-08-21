@@ -16,8 +16,8 @@ const EVERY_FAILURE: ApiFailure[] = [
   { kind: 'network' },
   { kind: 'unauthenticated', status: 401, detail: null },
   { kind: 'unauthenticated', status: 403, detail: null },
-  { kind: 'http', status: 500, detail: null },
-  { kind: 'http', status: 409, detail: 'Venue is in use' },
+  { kind: 'http', status: 500, detail: null, validationErrors: null },
+  { kind: 'http', status: 409, detail: 'Venue is in use', validationErrors: null },
 ];
 
 describe('failureMessage', () => {
@@ -65,21 +65,24 @@ describe('failureMessage', () => {
   });
 
   it("reports the API's own reason for a failed response", () => {
-    expect(failureMessage({ kind: 'http', status: 409, detail: 'Venue is in use' }, en)).toBe(
-      'Venue is in use',
-    );
+    expect(
+      failureMessage(
+        { kind: 'http', status: 409, detail: 'Venue is in use', validationErrors: null },
+        en,
+      ),
+    ).toBe('Venue is in use');
   });
 
   it('falls back to the generic string when the response gave no reason', () => {
-    expect(failureMessage({ kind: 'http', status: 500, detail: null }, en)).toBe(
-      en('common.error'),
-    );
+    expect(
+      failureMessage({ kind: 'http', status: 500, detail: null, validationErrors: null }, en),
+    ).toBe(en('common.error'));
   });
 
   it("prefers the caller's own fallback to the generic one", () => {
     expect(
       failureMessage(
-        { kind: 'http', status: 500, detail: null },
+        { kind: 'http', status: 500, detail: null, validationErrors: null },
         en,
         'Could not save the schedule.',
       ),
@@ -88,8 +91,65 @@ describe('failureMessage', () => {
 
   it("never lets a fallback bury the server's reason", () => {
     expect(
-      failureMessage({ kind: 'http', status: 409, detail: 'Venue is in use' }, en, 'Generic.'),
+      failureMessage(
+        { kind: 'http', status: 409, detail: 'Venue is in use', validationErrors: null },
+        en,
+        'Generic.',
+      ),
     ).toBe('Venue is in use');
+  });
+
+  it('names every rejected field, not just the first one the API put in detail', () => {
+    // `normalizeMessage` collapses a class-validator array to `rawMessage[0]`,
+    // so `detail` is one of four and the other three ride under
+    // `details.validationErrors`. Reading only `detail` told an organiser about
+    // one bad field, they fixed it, and the form rejected them again.
+    expect(
+      failureMessage(
+        {
+          kind: 'http',
+          status: 400,
+          detail: 'email must be an email',
+          validationErrors: [
+            'email must be an email',
+            'name should not be empty',
+            'startsAt must be a valid ISO date',
+          ],
+        },
+        en,
+      ),
+    ).toBe('email must be an email · name should not be empty · startsAt must be a valid ISO date');
+  });
+
+  it('beats the fallback with the field list, the same way a lone detail does', () => {
+    expect(
+      failureMessage(
+        {
+          kind: 'http',
+          status: 400,
+          detail: 'email must be an email',
+          validationErrors: ['email must be an email', 'name should not be empty'],
+        },
+        en,
+        'Could not save the event.',
+      ),
+    ).toBe('email must be an email · name should not be empty');
+  });
+
+  it('reads a one-entry list as the sentence it already was', () => {
+    // With one entry the join IS `detail`, which is why the mapper does not
+    // branch on length — the two arms could not be told apart.
+    expect(
+      failureMessage(
+        {
+          kind: 'http',
+          status: 400,
+          detail: 'email must be an email',
+          validationErrors: ['email must be an email'],
+        },
+        en,
+      ),
+    ).toBe('email must be an email');
   });
 
   // The API's exception filter fills `detail` on every problem+json body, so a
@@ -101,7 +161,7 @@ describe('failureMessage', () => {
   it("lets the screen's own sentence beat a scrubbed 5xx", () => {
     expect(
       failureMessage(
-        { kind: 'http', status: 500, detail: SCRUBBED },
+        { kind: 'http', status: 500, detail: SCRUBBED, validationErrors: null },
         en,
         'Could not save the backup schedule.',
       ),
@@ -109,16 +169,21 @@ describe('failureMessage', () => {
   });
 
   it('falls to the generic string on a scrubbed 5xx with no fallback', () => {
-    expect(failureMessage({ kind: 'http', status: 500, detail: SCRUBBED }, en)).toBe(
-      en('common.error'),
-    );
+    expect(
+      failureMessage({ kind: 'http', status: 500, detail: SCRUBBED, validationErrors: null }, en),
+    ).toBe(en('common.error'));
   });
 
   it('keeps a 503 reason — the one ≥500 the filter does not scrub', () => {
     // OperationalUnavailableException: authored for the operator, always a 503.
     expect(
       failureMessage(
-        { kind: 'http', status: 503, detail: 'A restore is in progress. Try again shortly.' },
+        {
+          kind: 'http',
+          status: 503,
+          detail: 'A restore is in progress. Try again shortly.',
+          validationErrors: null,
+        },
         en,
         'Could not save the backup schedule.',
       ),
@@ -128,7 +193,11 @@ describe('failureMessage', () => {
   it('still reaches the fallback when a proxy answered with no reason at all', () => {
     // The case that used to be the ONLY way `fallback` was ever seen.
     expect(
-      failureMessage({ kind: 'http', status: 502, detail: null }, en, 'Could not load backups.'),
+      failureMessage(
+        { kind: 'http', status: 502, detail: null, validationErrors: null },
+        en,
+        'Could not load backups.',
+      ),
     ).toBe('Could not load backups.');
   });
 
