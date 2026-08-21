@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ConflictException,
   ForbiddenException,
   Injectable,
   Logger,
@@ -198,8 +199,50 @@ export class StaffService {
       })
       .select('id,event_id,display_name,username,status,role,created_at,updated_at')
       .single();
-    if (error) throw new BadRequestException(error.message);
+    if (error) throw await this.createAccountError(error, eventId, dto.username);
     return { ...data, liceIds: [] };
+  }
+
+  /**
+   * A username already on this event is a conflict, not a malformed request.
+   *
+   * Until this existed the insert's error went out verbatim as a 400, so an
+   * organiser reusing a name read `duplicate key value violates unique
+   * constraint "idx_event_staff_accounts_event_username"` — the index name
+   * shipped to the browser, and the form had no code to branch on.
+   *
+   * The status is worth as much as the sentence: the account the organiser
+   * wants may exist but be DISABLED. `idx_event_staff_accounts_event_username`
+   * is not partial (`0018_event_staff_accounts.sql:22-23`), so a deactivated
+   * volunteer keeps their username and collides with a row the active list does
+   * not show. Re-enable is the answer there, and inventing a second name is not.
+   *
+   * PostgREST does not always forward `code`, so the sentence is the fallback
+   * test — the same pair `weapons-admin.service.ts:87` uses.
+   */
+  private async createAccountError(
+    error: { message: string; code?: string },
+    eventId: string,
+    username: string,
+  ): Promise<Error> {
+    const duplicate = error.code === '23505' || /duplicate key|unique/i.test(error.message ?? '');
+    if (!duplicate) return this.staffAccountWriteError(error);
+
+    // A lookup that fails or finds nothing must not mask the refusal: the
+    // conflict is already proven by the constraint, and only the extra detail
+    // is missing.
+    const { data } = await this.supabase.service
+      .from('event_staff_accounts')
+      .select('status')
+      .eq('event_id', eventId)
+      .eq('username', this.normalizeUsername(username))
+      .maybeSingle();
+
+    return new ConflictException({
+      code: 'staff_username_taken',
+      message: `The username "${this.normalizeUsername(username)}" is already used by a staff account on this event.`,
+      ...(data?.status === undefined ? {} : { existingStatus: data.status }),
+    });
   }
 
   async updateAccount(
