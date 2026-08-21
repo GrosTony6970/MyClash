@@ -34,8 +34,8 @@ const repoRoot = path.resolve(import.meta.dirname, '..');
  * file count alone would not move when a converted file keeps one last fetch —
  * and would not move either when a listed file grows one.
  */
-const BASELINE_FILES = 233;
-const BASELINE_CALLS = 793;
+const BASELINE_FILES = 232;
+const BASELINE_CALLS = 789;
 
 /** A real baseline entry still carrying exactly two calls, for the tests below. */
 const TWO_CALL_FILE = [...BASELINE.entries()].find(([, allowed]) => allowed === 2)?.[0];

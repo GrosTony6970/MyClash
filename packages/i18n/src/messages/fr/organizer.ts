@@ -2523,6 +2523,9 @@ export const organizer = {
     username: 'Identifiant',
     pin: 'PIN',
     createError: 'Impossible de créer le compte staff.',
+    usernameTaken: 'Cet identifiant est déjà utilisé par un compte staff de cet événement.',
+    usernameTakenDisabled:
+      'Cet identifiant appartient à un compte staff désactivé de cet événement. Réactivez-le au lieu d’en créer un second.',
     loading: 'Chargement des comptes staff...',
     loadError: 'Impossible de charger les comptes staff.',
     tabsLabel: 'Rôle du staff',

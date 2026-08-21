@@ -2560,6 +2560,9 @@ export const organizer = {
     username: 'Username',
     pin: 'PIN',
     createError: 'Could not create staff account.',
+    usernameTaken: 'That username is already used by a staff account on this event.',
+    usernameTakenDisabled:
+      'That username belongs to a disabled staff account on this event. Re-enable it instead of creating a second one.',
     loading: 'Loading staff accounts...',
     loadError: 'Could not load staff accounts.',
     tabsLabel: 'Staff role',

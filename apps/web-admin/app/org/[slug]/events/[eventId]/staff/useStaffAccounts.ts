@@ -2,8 +2,10 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import type { StaffRole } from '@myclash/types';
+import { apiRequest, type ApiResult } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
 import { useI18n } from '@myclash/next-i18n/client';
+import { createAccountProblem } from './create-account-feedback';
 import { pinProblem } from './pin-feedback';
 import type { EventInfo, Lice, StaffAccount } from './types';
 
@@ -19,14 +21,19 @@ interface StaffSnapshot {
   lices: Lice[];
 }
 
-/** Every write on this page is a JSON body on the admin's Supabase session cookie. */
-function sendJson(url: string, method: string, body: unknown): Promise<Response> {
-  return fetch(url, {
-    method,
-    headers: { 'Content-Type': 'application/json' },
-    credentials: 'include',
-    body: JSON.stringify(body),
-  });
+/**
+ * Every read and write on this page, on the admin's Supabase session cookie.
+ *
+ * `base` is a PATH, not a URL: `apiRequest` takes the origin separately, and
+ * `getPublicApiUrl()` is a pure read of an inlined literal, so calling it per
+ * request costs nothing and keeps the one owner of that value the only one.
+ */
+function staffRequest<T>(
+  base: string,
+  path: string,
+  init: Omit<RequestInit, 'body'> & { body?: unknown } = {},
+): Promise<ApiResult<T>> {
+  return apiRequest<T>(getPublicApiUrl(), `${base}${path}`, init);
 }
 
 /**
@@ -38,18 +45,23 @@ function sendJson(url: string, method: string, body: unknown): Promise<Response>
  * effect body, whether or not the write is actually behind an await. Keeping
  * the fetch state-free means the effect is honest about doing no synchronous
  * state work, rather than being written around the rule.
+ *
+ * `apiRequest` never throws, so the accounts read is the one that decides
+ * whether there is a snapshot at all — it throws here on purpose, because the
+ * caller's `.catch` is what puts the page into its load-error state. The event
+ * and the lices stay best-effort: neither is worth blanking the roster over.
  */
 async function fetchStaffSnapshot(base: string): Promise<StaffSnapshot> {
-  const [eventRes, staffRes, licesRes] = await Promise.all([
-    fetch(base, { credentials: 'include' }),
-    fetch(`${base}/staff-accounts`, { credentials: 'include' }),
-    fetch(`${base}/lices`, { credentials: 'include' }),
+  const [event, accounts, lices] = await Promise.all([
+    staffRequest<EventInfo>(base, ''),
+    staffRequest<StaffAccount[]>(base, '/staff-accounts'),
+    staffRequest<Lice[]>(base, '/lices'),
   ]);
-  if (!staffRes.ok) throw new Error('staff failed');
+  if (!accounts.ok) throw new Error('staff failed');
   return {
-    event: eventRes.ok ? ((await eventRes.json()) as EventInfo) : null,
-    accounts: (await staffRes.json()) as StaffAccount[],
-    lices: licesRes.ok ? ((await licesRes.json()) as Lice[]) : [],
+    event: event.ok ? event.data : null,
+    accounts: accounts.data,
+    lices: lices.ok ? lices.data : [],
   };
 }
 
@@ -67,7 +79,7 @@ async function fetchStaffSnapshot(base: string): Promise<StaffSnapshot> {
  * is how that baseline stops meaning anything.
  */
 export function useStaffAccounts(eventId: string) {
-  const base = `${getPublicApiUrl()}/api/v1/events/${eventId}`;
+  const base = `/api/v1/events/${eventId}`;
   const data = useStaffData(base);
   const lifecycle = useStaffLifecycleWrites(base, data.load);
   const config = useStaffConfigWrites(base, data.load);
@@ -133,9 +145,12 @@ function useStaffLifecycleWrites(base: string, load: () => Promise<void>) {
   const createAccount = useCallback(
     async (form: NewStaffAccount, role: StaffRole): Promise<boolean> => {
       setError(null);
-      const res = await sendJson(`${base}/staff-accounts`, 'POST', { ...form, role });
+      const res = await staffRequest(base, '/staff-accounts', {
+        method: 'POST',
+        body: { ...form, role },
+      });
       if (!res.ok) {
-        setError(t('organizer.staff.createError'));
+        setError(createAccountProblem(res, t));
         return false;
       }
       await load();
@@ -174,8 +189,8 @@ function patchAccount(
   base: string,
   account: StaffAccount,
   body: Record<string, unknown>,
-): Promise<Response> {
-  return sendJson(`${base}/staff-accounts/${account.id}`, 'PATCH', body);
+): Promise<ApiResult<unknown>> {
+  return staffRequest(base, `/staff-accounts/${account.id}`, { method: 'PATCH', body });
 }
 
 /** Writes that configure an existing account: its credential and its pistes. */
@@ -198,7 +213,10 @@ function useStaffConfigWrites(base: string, load: () => Promise<void>) {
       }
       // The new PIN is never echoed back, so a silent failure here is
       // indistinguishable from a typo at the tablet an hour later.
-      const res = await sendJson(`${base}/staff-accounts/${account.id}/reset-pin`, 'POST', { pin });
+      const res = await staffRequest(base, `/staff-accounts/${account.id}/reset-pin`, {
+        method: 'POST',
+        body: { pin },
+      });
       if (res.ok) setNotice(t('organizer.staff.resetPinDone'));
       else setError(t('organizer.staff.resetPinError'));
     },
@@ -210,7 +228,10 @@ function useStaffConfigWrites(base: string, load: () => Promise<void>) {
       const liceIds = checked
         ? [...account.liceIds, liceId]
         : account.liceIds.filter((existing) => existing !== liceId);
-      await sendJson(`${base}/staff-accounts/${account.id}/lices`, 'PUT', { liceIds });
+      await staffRequest(base, `/staff-accounts/${account.id}/lices`, {
+        method: 'PUT',
+        body: { liceIds },
+      });
       await load();
     },
     [base, load],
