@@ -2,6 +2,7 @@
 
 import { useI18n } from '@myclash/next-i18n/client';
 import { useScoringTheme } from '../../src/theme/ThemeProvider';
+import { MarkArrivedButton } from '../../src/components/MarkArrivedButton';
 import { PersonRow } from '../../src/components/PersonRow';
 import { useMissingAtRisk, type MissingFighter } from '../../src/lib/useDesk';
 
@@ -52,15 +53,10 @@ export function MissingAtRisk({ onBack, onMark }: Props) {
             <PersonRow
               key={entry.person.personId}
               person={entry.person}
-              actions={
-                <button
-                  type="button"
-                  onClick={() => onMark(entry.person.personId)}
-                  className="min-h-[44px] rounded-lg bg-accent px-5 text-sm font-bold text-accent-foreground [touch-action:manipulation]"
-                >
-                  {t('scoring.desk.markArrived')}
-                </button>
-              }
+              // No "Not arrived" label beside it, unlike the search results on
+              // /desk: every row on this screen is missing by definition, and
+              // the heading above says so.
+              actions={<MarkArrivedButton personId={entry.person.personId} onMark={onMark} />}
             >
               <NextBout next={entry.next} />
             </PersonRow>

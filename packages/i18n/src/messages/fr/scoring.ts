@@ -55,6 +55,7 @@ export const scoring = {
     noResults: 'Personne ne correspond à ce nom.',
     noClub: 'Sans club',
     markArrived: 'Arrivé',
+    notArrived: 'Pas arrivé',
     undo: 'Annuler',
     arrivedCount: '{arrived} / {total} arrivés',
     missingAtRisk: 'Absents à risque',

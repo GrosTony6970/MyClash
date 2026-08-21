@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useI18n } from '@myclash/next-i18n/client';
 import { useScoringTheme } from '../../src/theme/ThemeProvider';
+import { MarkArrivedButton } from '../../src/components/MarkArrivedButton';
 import { PersonRow } from '../../src/components/PersonRow';
 import { ScanOverlay } from '../../src/components/ScanOverlay';
 import { useDesk, type RosterEntry } from '../../src/lib/useDesk';
@@ -189,6 +190,14 @@ function DeskFooter({
  *
  * Deliberately the same slot rather than an extra Undo button: the volunteer's
  * hand is already there, and a mis-tap is corrected by tapping again.
+ *
+ * ── Both states now SAY which one they are ──────────────────────────────────
+ * A not-yet-arrived row used to carry no status text at all: the button was
+ * the only signal, and it was a filled `bg-accent` chip reading "Arrived". A
+ * past-tense word, filled in the colour this app uses for the active state, on
+ * a control nobody had pressed — volunteers read the queue as already checked
+ * in. The button is an outline now and the row states its status in words, at
+ * `text-base` so it is legible standing over a tablet on a table.
  */
 function ArrivalButton({
   person,
@@ -204,7 +213,7 @@ function ArrivalButton({
   if (person.arrived) {
     return (
       <div className="flex items-center gap-2">
-        <span className="text-xs font-semibold text-success">
+        <span className="text-base font-semibold text-success">
           {formatArrivedAt(person.arrivedAt)}
         </span>
         <button
@@ -219,13 +228,10 @@ function ArrivalButton({
   }
 
   return (
-    <button
-      type="button"
-      onClick={() => onMark(person.personId)}
-      className="min-h-[44px] rounded-lg bg-accent px-5 text-sm font-bold text-accent-foreground [touch-action:manipulation]"
-    >
-      {t('scoring.desk.markArrived')}
-    </button>
+    <div className="flex items-center gap-2">
+      <span className="text-base text-muted">{t('scoring.desk.notArrived')}</span>
+      <MarkArrivedButton personId={person.personId} onMark={onMark} />
+    </div>
   );
 }
 
