@@ -1635,7 +1635,10 @@ export class AuthService {
       throw new ServiceUnavailableException('Could not load token');
     }
     if (!tokenRow) {
-      throw new BadRequestException('expired_or_used');
+      throw new BadRequestException({
+        code: 'expired_or_used',
+        message: 'This confirmation link has expired or has already been used',
+      });
     }
     const t = tokenRow as {
       id: string;
@@ -1646,10 +1649,16 @@ export class AuthService {
     if (new Date(t.expires_at).getTime() < Date.now()) {
       // Best-effort cleanup; ignore errors.
       await this.supabase.service.from('global_person_claim_tokens').delete().eq('id', t.id);
-      throw new BadRequestException('expired_or_used');
+      throw new BadRequestException({
+        code: 'expired_or_used',
+        message: 'This confirmation link has expired or has already been used',
+      });
     }
     if (t.user_id !== user.id) {
-      throw new ForbiddenException('user_mismatch');
+      throw new ForbiddenException({
+        code: 'user_mismatch',
+        message: 'This confirmation link was issued to a different account',
+      });
     }
 
     // Race-guard: only set if still unclaimed.
@@ -1666,7 +1675,10 @@ export class AuthService {
     if (!updated) {
       // Someone else already claimed in the racing window.
       await this.supabase.service.from('global_person_claim_tokens').delete().eq('id', t.id);
-      throw new BadRequestException('already_claimed');
+      throw new BadRequestException({
+        code: 'already_claimed',
+        message: 'Profile is already claimed',
+      });
     }
 
     await this.supabase.service.from('global_person_claim_tokens').delete().eq('id', t.id);

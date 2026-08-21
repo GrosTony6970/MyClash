@@ -12,6 +12,7 @@
  */
 
 import type { Metadata } from 'next';
+import { apiRequest, failureDetail } from '@myclash/api-client';
 import { getServerApiUrl } from '@/lib/api-url';
 import { getServerT, resolveServerLocale } from '@myclash/next-i18n/server';
 import { BackLink } from '@/components/BackLink';
@@ -80,26 +81,21 @@ async function fetchTournamentData(
   tournamentSlug: string,
   apiUrl: string,
 ): Promise<FetchOutcome> {
-  try {
-    const res = await fetch(
-      `${apiUrl}/api/v1/events/${eventSlug}/tournaments/${tournamentSlug}/standings`,
-      { cache: 'no-store' },
-    );
-    if (res.ok) return { kind: 'ok', data: (await res.json()) as TournamentData };
-    if (res.status === 404) return { kind: 'not-found' };
-    const body = (await res.json().catch(() => null)) as { message?: string } | null;
-    return {
-      kind: 'server-error',
-      status: res.status,
-      message: body?.message ?? null,
-    };
-  } catch (err) {
-    return {
-      kind: 'server-error',
-      status: 0,
-      message: err instanceof Error ? err.message : null,
-    };
-  }
+  const result = await apiRequest<TournamentData>(
+    apiUrl,
+    `/api/v1/events/${eventSlug}/tournaments/${tournamentSlug}/standings`,
+    { cache: 'no-store' },
+  );
+  if (result.ok) return { kind: 'ok', data: result.data };
+  if (result.kind === 'http' && result.status === 404) return { kind: 'not-found' };
+  return {
+    kind: 'server-error',
+    // A network failure and an abort have no status of their own. Zero is what
+    // this page already used for "never reached the API", and the message below
+    // is what the reader sees either way.
+    status: result.kind === 'http' || result.kind === 'unauthenticated' ? result.status : 0,
+    message: failureDetail(result),
+  };
 }
 
 // ── Page ──────────────────────────────────────────────────────────────────────
@@ -517,17 +513,14 @@ export default async function TournamentPage({ params }: Props) {
  * locale (EN), and the public read falls back to EN anyway, so request EN.
  */
 async function fetchPublishedRecap(tournamentId: string, apiUrl: string): Promise<string | null> {
-  try {
-    const res = await fetch(
-      `${apiUrl}/api/v1/public/generated-content/tournament_recap/${tournamentId}?locale=en`,
-      { cache: 'no-store' },
-    );
-    if (!res.ok) return null;
-    const data = (await res.json()) as { content?: string } | null;
-    return data?.content ?? null;
-  } catch {
-    return null;
-  }
+  // Silent by design: no published recap is the ordinary case, and a page that
+  // renders every other tab should not fail over one that is empty.
+  const result = await apiRequest<{ content?: string } | null>(
+    apiUrl,
+    `/api/v1/public/generated-content/tournament_recap/${tournamentId}?locale=en`,
+    { cache: 'no-store' },
+  );
+  return result.ok ? (result.data?.content ?? null) : null;
 }
 
 async function fetchTournamentParticipants(
@@ -535,42 +528,43 @@ async function fetchTournamentParticipants(
   tournamentSlug: string,
   apiUrl: string,
 ): Promise<ParticipantsTabEntry[]> {
-  try {
-    const res = await fetch(
-      `${apiUrl}/api/v1/events/${encodeURIComponent(eventSlug)}/participants`,
-      { cache: 'no-store' },
-    );
-    if (!res.ok) return [];
-    const rows = (await res.json()) as Array<{
-      personId: string;
-      displayName: string;
-      clubName: string | null;
-      clubAbbrev: string | null;
-      isReferee?: boolean;
-      tournaments: Array<{
-        slug: string;
-        registrationState: 'active' | 'waitlist';
-        waitlistPosition?: number | null;
-        hemaRating?: { weightedRating: number; rank: number | null } | null;
-      }>;
+  type ParticipantRow = {
+    personId: string;
+    displayName: string;
+    clubName: string | null;
+    clubAbbrev: string | null;
+    isReferee?: boolean;
+    tournaments: Array<{
+      slug: string;
+      registrationState: 'active' | 'waitlist';
+      waitlistPosition?: number | null;
+      hemaRating?: { weightedRating: number; rank: number | null } | null;
     }>;
-    const entries: ParticipantsTabEntry[] = [];
-    for (const person of rows) {
-      const tournamentEntry = person.tournaments.find((t) => t.slug === tournamentSlug);
-      if (!tournamentEntry) continue;
-      entries.push({
-        personId: person.personId,
-        displayName: person.displayName,
-        clubName: person.clubName,
-        clubAbbrev: person.clubAbbrev,
-        registrationState: tournamentEntry.registrationState,
-        waitlistPosition: tournamentEntry.waitlistPosition ?? null,
-        isReferee: person.isReferee ?? false,
-        hemaRating: tournamentEntry.hemaRating ?? null,
-      });
-    }
-    return entries;
-  } catch {
-    return [];
+  };
+
+  // Silent by design: the Participants tab is one of several, and an empty list
+  // is what a reader sees rather than the whole page failing.
+  const result = await apiRequest<ParticipantRow[]>(
+    apiUrl,
+    `/api/v1/events/${encodeURIComponent(eventSlug)}/participants`,
+    { cache: 'no-store' },
+  );
+  if (!result.ok) return [];
+
+  const entries: ParticipantsTabEntry[] = [];
+  for (const person of result.data) {
+    const tournamentEntry = person.tournaments.find((t) => t.slug === tournamentSlug);
+    if (!tournamentEntry) continue;
+    entries.push({
+      personId: person.personId,
+      displayName: person.displayName,
+      clubName: person.clubName,
+      clubAbbrev: person.clubAbbrev,
+      registrationState: tournamentEntry.registrationState,
+      waitlistPosition: tournamentEntry.waitlistPosition ?? null,
+      isReferee: person.isReferee ?? false,
+      hemaRating: tournamentEntry.hemaRating ?? null,
+    });
   }
+  return entries;
 }

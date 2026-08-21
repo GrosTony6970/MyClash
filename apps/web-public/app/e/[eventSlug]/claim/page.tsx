@@ -3,6 +3,7 @@
 import { useSearchParams } from 'next/navigation';
 import { getPublicApiUrl } from '@/lib/api-url';
 import { Suspense, useState } from 'react';
+import { apiRequest, failureMessage } from '@myclash/api-client';
 import { GoogleIcon } from '@myclash/ui';
 import { useI18n } from '@myclash/next-i18n/client';
 import { createOAuthSupabaseClient } from '../../../../src/lib/oauth-supabase';
@@ -47,25 +48,18 @@ function ClaimForm() {
     setLoading(true);
     setError(null);
 
-    try {
-      const res = await fetch(`${apiUrl}/api/v1/auth/magic-link`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ email, type: 'claim', personId }),
-      });
+    const result = await apiRequest(apiUrl, '/api/v1/auth/magic-link', {
+      method: 'POST',
+      body: { email, type: 'claim', personId },
+    });
+    setLoading(false);
 
-      if (!res.ok) {
-        const body = (await res.json()) as { message?: string };
-        throw new Error(body.message ?? t('publicApp.claim.errors.generic'));
-      }
-
+    if (result.ok) {
       setSubmitted(true);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : t('publicApp.claim.errors.generic'));
-    } finally {
-      setLoading(false);
+      return;
     }
+    const message = failureMessage(result, t, t('publicApp.claim.errors.generic'));
+    if (message) setError(message);
   }
 
   if (submitted) {

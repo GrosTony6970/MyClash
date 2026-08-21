@@ -1,6 +1,7 @@
 'use client';
 
 import { Suspense, useEffect, useState } from 'react';
+import { apiRequest } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
 import { Button } from '@myclash/ui';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -78,29 +79,24 @@ function ClaimConfirm() {
         }
 
         phase = 'confirming';
-        const apiUrl = getPublicApiUrl();
-        const response = await fetch(`${apiUrl}/api/v1/me/claim-confirm`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          credentials: 'include',
+        const result = await apiRequest(getPublicApiUrl(), '/api/v1/me/claim-confirm', {
           signal: AbortSignal.timeout(15000),
-          body: JSON.stringify({ token }),
+          method: 'POST',
+          body: { token },
         });
 
-        if (!response.ok) {
-          let code: string | null = null;
-          try {
-            // This endpoint throws its machine code AS the message
-            // (`expired_or_used`, `already_claimed`, `user_mismatch` in
-            // auth.service.ts), so `message` is what the branches below match.
-            // The read used to start with `body.error ??`, and the problem+json
-            // envelope has no `error` member — that half was always undefined.
-            const body = (await response.json()) as { message?: string };
-            code = body.message ?? null;
-          } catch {
-            /* body wasn't JSON — keep code null */
-          }
-          throw new ServerRejectedError(response.status, response.statusText, code);
+        if (!result.ok) {
+          // The timeout fires as an abort, and this screen tells the reader the
+          // link timed out rather than going quiet — so it is thrown on rather
+          // than returned, unlike a caller that aborts on unmount.
+          if (result.kind === 'aborted') throw new DOMException('timed out', 'TimeoutError');
+          if (result.kind === 'network') throw new Error('network');
+          // `code` is the member the branches below match. This endpoint used
+          // to throw its machine code AS the message, so the read was
+          // `body.error ?? body.message` — `error` is not a member of the
+          // envelope at all, and `message` was a machine string where a
+          // competitor could have been shown a sentence.
+          throw new ServerRejectedError(result.status, result.detail ?? '', result.code);
         }
 
         phase = 'redirecting';

@@ -1878,7 +1878,12 @@ describe('AuthService', () => {
         persons: { rows: [] },
       });
 
-      await expect(confirm()).rejects.toThrow(/already_claimed/);
+      // The CODE, not the sentence. These refusals used to throw their machine
+      // code as the message, so the browser matched a message and a competitor
+      // could have been shown 'already_claimed' as prose.
+      await expect(confirm()).rejects.toMatchObject({
+        response: { code: 'already_claimed' },
+      });
       // Nothing downstream may run on a claim that did not happen.
       expect(writesTo(seeded, 'persons')).toEqual([]);
       const [burn] = writesTo(seeded, 'global_person_claim_tokens');
@@ -1894,7 +1899,7 @@ describe('AuthService', () => {
         persons: { rows: [] },
       });
 
-      await expect(confirm()).rejects.toThrow(/user_mismatch/);
+      await expect(confirm()).rejects.toMatchObject({ response: { code: 'user_mismatch' } });
       expect(writesTo(seeded, 'global_persons')).toEqual([]);
     });
 
@@ -1908,7 +1913,7 @@ describe('AuthService', () => {
         persons: { rows: [] },
       });
 
-      await expect(confirm()).rejects.toThrow(/expired_or_used/);
+      await expect(confirm()).rejects.toMatchObject({ response: { code: 'expired_or_used' } });
       expect(writesTo(seeded, 'global_persons')).toEqual([]);
       const [burn] = writesTo(seeded, 'global_person_claim_tokens');
       expect(burn?.op).toBe('delete');

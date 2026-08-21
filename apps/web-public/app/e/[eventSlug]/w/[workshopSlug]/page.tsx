@@ -10,6 +10,7 @@
  */
 
 import { useEffect, useState } from 'react';
+import { apiRequest, failureCode, failureMessage } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
 import { BackLink } from '@/components/BackLink';
 import { useParams, useSearchParams } from 'next/navigation';
@@ -47,6 +48,11 @@ interface Workshop {
   viewerIsInstructor: boolean;
 }
 
+/** Read twice — the first load, and the refresh after an enrolment lands. */
+function workshopPath(workshopSlug: string, eventSlug: string): string {
+  return `/api/v1/workshops/slug/${encodeURIComponent(workshopSlug)}?eventSlug=${encodeURIComponent(eventSlug)}`;
+}
+
 export default function WorkshopDetailPage() {
   const { t, locale } = useI18n();
   const params = useParams<{ eventSlug: string; workshopSlug: string }>();
@@ -74,23 +80,17 @@ export default function WorkshopDetailPage() {
 
   useEffect(() => {
     const controller = new AbortController();
-    fetch(
-      `${apiUrl}/api/v1/workshops/slug/${encodeURIComponent(workshopSlug)}?eventSlug=${encodeURIComponent(eventSlug)}`,
-      {
-        // The route is public, but send the session anyway: it's what lets the
-        // response carry `viewerIsInstructor` for the register button.
-        credentials: 'include',
-        signal: controller.signal,
-      },
-    )
-      .then(async (res) => {
-        setLoading(false);
-        if (res.ok) setWorkshop((await res.json()) as Workshop);
-      })
-      .catch((err: unknown) => {
-        setLoading(false);
-        if (err instanceof Error && err.name === 'AbortError') return;
-      });
+    // The route is public, but the seam sends the session anyway: it is what
+    // lets the response carry `viewerIsInstructor` for the register button.
+    void apiRequest<Workshop>(apiUrl, workshopPath(workshopSlug, eventSlug), {
+      signal: controller.signal,
+    }).then((result) => {
+      // An abort means this effect was replaced, so the state it would set
+      // belongs to a screen that is gone.
+      if (result.ok) setWorkshop(result.data);
+      else if (result.kind === 'aborted') return;
+      setLoading(false);
+    });
     return () => controller.abort();
   }, [workshopSlug, eventSlug, apiUrl]);
 
@@ -106,35 +106,34 @@ export default function WorkshopDetailPage() {
 
     setEnrolling(sessionId);
     try {
-      const res = await fetch(`${apiUrl}/api/v1/workshop-sessions/${sessionId}/enroll`, {
-        method: 'POST',
-        credentials: 'include',
-      });
+      const result = await apiRequest<{ status: string }>(
+        apiUrl,
+        `/api/v1/workshop-sessions/${sessionId}/enroll`,
+        { method: 'POST' },
+      );
 
-      if (res.ok) {
-        const data = (await res.json()) as { status: string };
-        const msg =
-          data.status === 'waitlisted'
+      if (result.ok) {
+        setToast(
+          result.data.status === 'waitlisted'
             ? t('publicApp.workshopDetail.addedToWaitlist')
-            : t('publicApp.workshopDetail.enrolledSuccess');
-        setToast(msg);
+            : t('publicApp.workshopDetail.enrolledSuccess'),
+        );
         setTimeout(() => setToast(null), 3000);
 
-        // Refresh workshop data
-        const refreshRes = await fetch(
-          `${apiUrl}/api/v1/workshops/slug/${encodeURIComponent(workshopSlug)}?eventSlug=${encodeURIComponent(eventSlug)}`,
-          { credentials: 'include' },
-        );
-        if (refreshRes.ok) setWorkshop((await refreshRes.json()) as Workshop);
-      } else {
-        const body = (await res.json()) as { code?: string; message?: string };
-        // The API answers in English; translate the one case the button can't
-        // pre-empt (guest session, or a page loaded before the tag was added).
-        setToast(
-          body.code === 'INSTRUCTOR_SELF_ENROLLMENT'
-            ? t('publicApp.workshopDetail.instructorCannotEnroll')
-            : (body.message ?? t('publicApp.workshopDetail.enrollmentFailed')),
-        );
+        const refreshed = await apiRequest<Workshop>(apiUrl, workshopPath(workshopSlug, eventSlug));
+        if (refreshed.ok) setWorkshop(refreshed.data);
+        return;
+      }
+
+      // The API answers in English, so the one case the button cannot pre-empt
+      // — a guest session, or a page loaded before the instructor tag was added
+      // — is translated here. Matched on the code rather than the sentence.
+      const refusal =
+        failureCode(result) === 'INSTRUCTOR_SELF_ENROLLMENT'
+          ? t('publicApp.workshopDetail.instructorCannotEnroll')
+          : failureMessage(result, t, t('publicApp.workshopDetail.enrollmentFailed'));
+      if (refusal) {
+        setToast(refusal);
         setTimeout(() => setToast(null), 3000);
       }
     } finally {

@@ -70,7 +70,43 @@ const COPY = {
   venuesLoadError: 'Could not load venues.',
   backupsTitle: 'Backup Management',
   backupsLoadError: 'Failed to load backups.',
+  tournamentNotFound: 'Tournament not found',
+  tournamentLoadFailed: "This tournament couldn't be loaded",
+  claimTitle: 'Confirm your profile',
+  claimEmailLabel: 'Your registered email',
+  claimSubmit: 'Send confirmation link',
+  claimGenericError: 'Something went wrong while requesting the claim.',
 } as const;
+
+/** The deployed web-public host. Sibling of `E2E_PUBLIC_URL` in `15` and `24`. */
+const PUBLIC_BASE = (process.env.E2E_PUBLIC_URL ?? 'https://app.myclash.fr').replace(/\/$/, '');
+
+/** The claim form's one request. */
+const MAGIC_LINK = '**/api/v1/auth/magic-link';
+
+/**
+ * Distinctive on purpose: it must be findable on the page and impossible to
+ * confuse with anything the screen could have said on its own.
+ */
+const FORCED_CLAIM_REASON = 'That profile belongs to a fighter who already signed in.';
+
+/**
+ * Fill the claim form and submit it.
+ *
+ * `personId` is a query parameter and the button is disabled without one. The
+ * value is never dereferenced here — every test using this stubs the request —
+ * so a made-up id keeps the run off the operator's real people.
+ */
+async function submitClaimForm(page: Page): Promise<void> {
+  await page.goto(`${PUBLIC_BASE}/e/${ctx.eventSlug}/claim?personId=e2e-not-a-real-person`, {
+    waitUntil: 'domcontentloaded',
+  });
+  await expect(page.getByRole('heading', { name: COPY.claimTitle })).toBeVisible({
+    timeout: 30_000,
+  });
+  await page.getByLabel(COPY.claimEmailLabel).fill('e2e@example.com');
+  await page.getByRole('button', { name: COPY.claimSubmit }).click();
+}
 
 const VENUES_PATH = `/org/${ctx.orgSlug}/venues`;
 const ORG_HOME_PATH = `/org/${ctx.orgSlug}`;
@@ -276,5 +312,71 @@ test.describe('the api-failure seam — the backup console', () => {
     await expect(page.getByText(COPY.backupsLoadError)).toBeVisible();
     await expect(page.getByText('Internal server error')).toBeHidden();
     await page.close();
+  });
+});
+
+/**
+ * web-public, which is a different app on a different host.
+ *
+ * ── What is asserted here, and what cannot be ────────────────────────────────
+ *
+ * Five web-public screens moved onto the seam. Three of them are not reachable
+ * from this harness and are named rather than skipped, because a skipped test
+ * reads as a green:
+ *
+ *   - `/me` and `/me/claim-confirm` need a COMPETITOR session. The harness
+ *     holds an organizer and a platform account; neither is the person whose
+ *     personal space those screens draw.
+ *   - the workshop enrolment refusal needs a published workshop with a session
+ *     on the throwaway event, which `global-setup` does not provision.
+ *
+ * The tournament page is asserted only through its 404 branch, and that is a
+ * property of the conversion rather than a shortcut: it loads SERVER-side, so
+ * `page.route` never sees the request and its 5xx branch cannot be forced from
+ * a browser at all. The 404 branch needs no stub — an unknown slug is a real
+ * 404 from the real API, and it is exactly the branch the rewrite had to keep
+ * (`result.kind === 'http' && result.status === 404`), because collapsing it
+ * once made every failure read as "tournament not found".
+ */
+test.describe('the api-failure seam — web-public', () => {
+  test('an unknown tournament still reads as missing, not as a server fault', async ({ page }) => {
+    await page.goto(`${PUBLIC_BASE}/e/${ctx.eventSlug}/t/does-not-exist-${Date.now()}`, {
+      waitUntil: 'domcontentloaded',
+    });
+
+    await expect(page.getByText(COPY.tournamentNotFound)).toBeVisible({ timeout: 30_000 });
+    // The other arm of the same branch. A 404 read as a server fault would put
+    // this heading up instead, which is the regression the tri-state exists for.
+    await expect(page.getByText(COPY.tournamentLoadFailed)).toBeHidden();
+  });
+
+  test("the claim form shows the server's own reason for a refusal", async ({ page }) => {
+    await page.route(MAGIC_LINK, (route) =>
+      route.fulfill({
+        status: 409,
+        contentType: 'application/problem+json',
+        body: JSON.stringify({ detail: FORCED_CLAIM_REASON, message: FORCED_CLAIM_REASON }),
+      }),
+    );
+
+    await submitClaimForm(page);
+
+    await expect(page.getByText(FORCED_CLAIM_REASON)).toBeVisible();
+    await expect(page.getByText(COPY.claimGenericError)).toBeHidden();
+  });
+
+  test('the claim form says the server is unreachable, in the reader’s language', async ({
+    page,
+    context,
+  }) => {
+    await context.addCookies([
+      { name: LOCALE_COOKIE, value: 'fr', domain: new URL(PUBLIC_BASE).hostname, path: '/' },
+    ]);
+    await page.route(MAGIC_LINK, (route) => route.abort('failed'));
+
+    await submitClaimForm(page);
+
+    await expect(page.getByText(COPY.networkFr)).toBeVisible();
+    await expect(page.getByText(COPY.networkEn)).toBeHidden();
   });
 });

@@ -64,6 +64,33 @@ import type { ApiFailure } from './request';
  * unscrubbed 5xx is ever added, or that one stops being a 503, this goes wrong
  * silently and the test named for it is what should catch it.
  */
+/**
+ * The failure's machine-readable code, or `null` when it has none.
+ *
+ * Two of the four `ApiFailure` members carry one, so a call site branching on a
+ * code has to narrow first — and `failure.kind !== 'aborted' && failure.code`
+ * is wrong, because `network` has no code either. Getting that narrowing right
+ * once here beats getting it right at every screen that tells one refusal from
+ * another.
+ */
+export function failureCode(failure: ApiFailure): string | null {
+  return failure.kind === 'http' || failure.kind === 'unauthenticated' ? failure.code : null;
+}
+
+/**
+ * The server's own sentence, or `null`. The same narrowing as `failureCode`,
+ * for the reader that cannot use `failureMessage` — a React Server Component
+ * has no translator on its side of the boundary, so it renders the API's
+ * sentence beside a status line rather than a localised one.
+ *
+ * Prefer `failureMessage` anywhere a `t` is in reach: it also picks the right
+ * string for a network failure, an abort and a scrubbed 5xx, which this does
+ * not.
+ */
+export function failureDetail(failure: ApiFailure): string | null {
+  return failure.kind === 'http' || failure.kind === 'unauthenticated' ? failure.detail : null;
+}
+
 export function failureMessage(
   failure: ApiFailure,
   t: (key: string) => string,

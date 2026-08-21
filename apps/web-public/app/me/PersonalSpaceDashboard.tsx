@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react';
 import { formatLocalizedDate } from '@myclash/types';
 import { useToast } from '@myclash/ui';
 import { useI18n } from '@myclash/next-i18n/client';
+import { apiRequest, failureCode } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
 import { DashboardToday } from '@/components/me/DashboardToday';
 
@@ -88,25 +89,25 @@ export function PersonalSpaceDashboard() {
   useEffect(() => {
     const controller = new AbortController();
 
-    fetch(`${apiUrl}/api/v1/me/personal-space`, {
-      credentials: 'include',
+    void apiRequest<PersonalSpaceResponse>(apiUrl, '/api/v1/me/personal-space', {
       signal: controller.signal,
-    })
-      .then(async (response) => {
-        if (response.status === 401) {
-          window.location.replace('/login');
-          return;
-        }
-        if (!response.ok) throw new Error('personal-space');
-        setData((await response.json()) as PersonalSpaceResponse);
-      })
-      .catch((loadError: unknown) => {
-        if (loadError instanceof DOMException && loadError.name === 'AbortError') return;
+    }).then((result) => {
+      if (result.ok) {
+        setData(result.data);
+      } else if (result.kind === 'aborted') {
+        // A newer effect owns the screen; setting `loading` would fight it.
+        return;
+      } else if (result.kind === 'unauthenticated' && result.status === 401) {
+        // Only a 401. A 403 means signed in and not allowed, and bouncing that
+        // to the login form asks the competitor to fix the one thing that is
+        // not wrong.
+        window.location.replace('/login');
+        return;
+      } else {
         setError(true);
-      })
-      .finally(() => {
-        setLoading(false);
-      });
+      }
+      setLoading(false);
+    });
 
     return () => controller.abort();
   }, [apiUrl]);
@@ -114,14 +115,10 @@ export function PersonalSpaceDashboard() {
   // Re-fetch after a user action (e.g. claiming a profile). Not called from an
   // effect, so it stays clear of the set-state-in-effect rule.
   async function reload(): Promise<void> {
-    try {
-      const response = await fetch(`${apiUrl}/api/v1/me/personal-space`, {
-        credentials: 'include',
-      });
-      if (response.ok) setData((await response.json()) as PersonalSpaceResponse);
-    } catch {
-      // keep current state on failure
-    }
+    // Keeps the current state on failure: the screen is already showing
+    // something true, and a refresh that could not run is not worth an error.
+    const result = await apiRequest<PersonalSpaceResponse>(apiUrl, '/api/v1/me/personal-space');
+    if (result.ok) setData(result.data);
   }
 
   const globalPerson = data?.profiles.globalPerson ?? null;
@@ -293,19 +290,18 @@ function ClaimSearchSection({ apiUrl }: { apiUrl: string }) {
     const controller = new AbortController();
     const timer = window.setTimeout(() => {
       setSearching(true);
-      fetch(`${apiUrl}/api/v1/me/global-person-search?q=${encodeURIComponent(trimmed)}`, {
-        credentials: 'include',
-        signal: controller.signal,
-      })
-        .then(async (res) => {
-          if (!res.ok) throw new Error('search');
-          setResults((await res.json()) as GlobalPersonSearchResult[]);
-        })
-        .catch((err: unknown) => {
-          if (err instanceof DOMException && err.name === 'AbortError') return;
-          setResults([]);
-        })
-        .finally(() => setSearching(false));
+      void apiRequest<GlobalPersonSearchResult[]>(
+        apiUrl,
+        `/api/v1/me/global-person-search?q=${encodeURIComponent(trimmed)}`,
+        { signal: controller.signal },
+      ).then((result) => {
+        // An abort is the next keystroke's search taking over; clearing the
+        // rows or the spinner here would flicker the list it is replacing.
+        if (result.ok) setResults(result.data);
+        else if (result.kind === 'aborted') return;
+        else setResults([]);
+        setSearching(false);
+      });
     }, 250);
 
     return () => {
@@ -318,36 +314,29 @@ function ClaimSearchSection({ apiUrl }: { apiUrl: string }) {
 
   async function startClaim(candidate: GlobalPersonSearchResult): Promise<void> {
     setClaim({ kind: 'requesting' });
-    try {
-      const res = await fetch(`${apiUrl}/api/v1/me/global-person-claim`, {
-        method: 'POST',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ globalPersonId: candidate.id }),
+    type ClaimReply =
+      { status: 'confirmation_sent'; redactedEmail: string } | { status: 'pending_approval' };
+
+    const result = await apiRequest<ClaimReply>(apiUrl, '/api/v1/me/global-person-claim', {
+      method: 'POST',
+      body: { globalPersonId: candidate.id },
+    });
+
+    if (!result.ok) {
+      if (result.kind === 'aborted') return;
+      // The machine-readable half. The render below tells `already_pending`
+      // from `already_claimed`; anything else lands on the generic sentence.
+      setClaim({
+        kind: 'error',
+        code: failureCode(result) ?? (result.kind === 'network' ? 'network' : 'unknown'),
       });
-      if (!res.ok) {
-        let code = 'unknown';
-        try {
-          // `code` is the machine-readable half of this body. `message` is an
-          // English sentence the API is free to reword, so it is the last
-          // resort rather than the thing being matched on.
-          const body = (await res.json()) as { message?: string; code?: string };
-          code = body.code ?? body.message ?? `http_${res.status}`;
-        } catch {
-          code = `http_${res.status}`;
-        }
-        setClaim({ kind: 'error', code });
-        return;
-      }
-      const body = (await res.json()) as
-        { status: 'confirmation_sent'; redactedEmail: string } | { status: 'pending_approval' };
-      if (body.status === 'pending_approval') {
-        setClaim({ kind: 'pending' });
-      } else {
-        setClaim({ kind: 'sent', redactedEmail: body.redactedEmail });
-      }
-    } catch {
-      setClaim({ kind: 'error', code: 'network' });
+      return;
+    }
+
+    if (result.data.status === 'pending_approval') {
+      setClaim({ kind: 'pending' });
+    } else {
+      setClaim({ kind: 'sent', redactedEmail: result.data.redactedEmail });
     }
   }
 
@@ -526,20 +515,13 @@ function UnlinkButton({ apiUrl, onUnlinked }: { apiUrl: string; onUnlinked: () =
 
   async function unlink(): Promise<void> {
     setState({ kind: 'pending' });
-    try {
-      const res = await fetch(`${apiUrl}/api/v1/me/global-person-link`, {
-        method: 'DELETE',
-        credentials: 'include',
-      });
-      if (!res.ok) {
-        setState({ kind: 'error' });
-        return;
-      }
-      onUnlinked();
-      setState({ kind: 'idle' });
-    } catch {
+    const result = await apiRequest(apiUrl, '/api/v1/me/global-person-link', { method: 'DELETE' });
+    if (!result.ok) {
       setState({ kind: 'error' });
+      return;
     }
+    onUnlinked();
+    setState({ kind: 'idle' });
   }
 
   if (state.kind === 'confirming' || state.kind === 'pending') {
@@ -610,20 +592,13 @@ function ClaimableCard({
   async function claim(personIds: string[]): Promise<void> {
     setBusy(true);
     setError(false);
-    try {
-      const res = await fetch(`${apiUrl}/api/v1/me/claim-persons`, {
-        method: 'POST',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ personIds }),
-      });
-      if (!res.ok) throw new Error('claim');
-      onClaimed();
-    } catch {
-      setError(true);
-    } finally {
-      setBusy(false);
-    }
+    const result = await apiRequest(apiUrl, '/api/v1/me/claim-persons', {
+      method: 'POST',
+      body: { personIds },
+    });
+    setBusy(false);
+    if (result.ok) onClaimed();
+    else setError(true);
   }
 
   return (

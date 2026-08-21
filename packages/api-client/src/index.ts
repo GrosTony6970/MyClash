@@ -17,7 +17,7 @@ import { parseBody, readDetail } from './request';
 
 export { apiRequest, isAbortLike } from './request';
 export type { ApiFailure, ApiResult } from './request';
-export { failureMessage } from './failure-message';
+export { failureCode, failureDetail, failureMessage } from './failure-message';
 export { fetchMe, ME_PATH } from './me';
 export type { MeSession, MeSessionType, MeAdmin } from './me';
 
