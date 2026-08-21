@@ -8924,47 +8924,10 @@ export interface paths {
       cookie?: never;
     };
     /**
-     * Search this event roster, each row carrying its arrival state
-     * @description Three letters is enough. Carries photo and club so the volunteer can confirm the person in front of them — two fighters with similar names is the failure this prevents.
+     * This whole event roster, each row carrying arrival state and next bout
+     * @description Unfiltered and unpaged: the desk searches, filters and counts in the browser, so a tab reading "Not arrived (63)" has 63 rows behind it. Carries photo and club so the volunteer can confirm the person in front of them — two fighters with similar names is the failure this prevents. `truncated` says when the event outgrew the ceiling.
      */
     get: operations['CheckinController_roster'];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/api/v1/staff/checkin/summary': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** Arrived / total for this event */
-    get: operations['CheckinController_summary'];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/api/v1/staff/checkin/missing': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /**
-     * Fighters who have not arrived, ordered by how soon they fight
-     * @description Unscheduled fighters sort last rather than being hidden: they are still missing, just not yet costing anyone time.
-     */
-    get: operations['CheckinController_missing'];
     put?: never;
     post?: never;
     delete?: never;
@@ -9038,30 +9001,10 @@ export interface paths {
       cookie?: never;
     };
     /**
-     * Search this event roster, each person expanded per entered weapon
-     * @description A pass is per weapon, so a fighter entered in longsword and rapier has two lines with independent results.
+     * This whole event roster, each person expanded per entered weapon
+     * @description Unfiltered and unpaged: the gear table searches, groups and counts in the browser. A pass is per weapon, so a fighter entered in longsword and rapier has two lines with independent results. `truncated` says when the event outgrew the ceiling.
      */
     get: operations['GearController_roster'];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/api/v1/staff/gear/summary': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /**
-     * Fully-checked / total for this event
-     * @description A fighter counts as checked only when EVERY weapon they are entered in has a result — a longsword pass says nothing about the rapier they fight with after lunch.
-     */
-    get: operations['GearController_summary'];
     put?: never;
     post?: never;
     delete?: never;
@@ -24796,42 +24739,6 @@ export interface operations {
   };
   CheckinController_roster: {
     parameters: {
-      query?: {
-        q?: string;
-      };
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-    };
-  };
-  CheckinController_summary: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-    };
-  };
-  CheckinController_missing: {
-    parameters: {
       query?: never;
       header?: never;
       path?: never;
@@ -24911,25 +24818,6 @@ export interface operations {
     };
   };
   GearController_roster: {
-    parameters: {
-      query?: {
-        q?: string;
-      };
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-    };
-  };
-  GearController_summary: {
     parameters: {
       query?: never;
       header?: never;

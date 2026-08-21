@@ -1,9 +1,13 @@
 /**
  * Pure shaping for the check-in desk — no Supabase, no Nest.
  *
- * Split out so the two decisions that actually carry product meaning (what a
- * desk row shows, and what "at risk" orders by) are unit-testable without a
- * query-builder double.
+ * Split out so the decision that actually carries product meaning — what a desk
+ * row shows — is unit-testable without a query-builder double.
+ *
+ * Ordering used to live here too (`orderMissingByUrgency`, for the separate
+ * missing-at-risk screen). That screen is now a tab on the desk, and the
+ * browser holds the whole roster, so the client sorts. Keeping a second copy
+ * here would be two owners of one order.
  */
 
 /** A `persons` row as the desk's select returns it. */
@@ -37,6 +41,17 @@ export interface RosterEntry {
   /** When they were marked present. Null while absent. */
   arrivedAt: string | null;
   via: string | null;
+  /**
+   * The soonest bout this person is scheduled for, or null.
+   *
+   * On the row rather than on a second endpoint because the desk's Not-arrived
+   * tab orders by it: the organiser chasing someone walks to a Lice, and a time
+   * with no place to go does not tell them where.
+   *
+   * Always null on the gear table — that surface shows no schedule, and a gear
+   * account has no reason to receive every fighter's next bout.
+   */
+  next: NextMatch | null;
 }
 
 export interface NextMatch {
@@ -46,9 +61,17 @@ export interface NextMatch {
   tournamentName: string | null;
 }
 
-export interface MissingFighter {
-  person: RosterEntry;
-  next: NextMatch | null;
+/**
+ * What a desk screen gets back: the list, plus whether the ceiling cut it.
+ *
+ * An envelope rather than a bare array because both desks now count what they
+ * were sent — a tab reads "Not arrived (63)" — and a silently truncated array
+ * would make every one of those numbers a claim the screen cannot honour.
+ * Shared by check-in and gear so the two screens read the same shape.
+ */
+export interface DeskList<T> {
+  entries: T[];
+  truncated: boolean;
 }
 
 /**
@@ -63,9 +86,14 @@ export interface MissingFighter {
  * simply has no photo, which the desk renders as a placeholder rather than as
  * an error.
  */
-export function mapRosterRow(person: RosterPersonRow, arrival: ArrivalRow | null): RosterEntry {
+export function mapRosterRow(
+  person: RosterPersonRow,
+  arrival: ArrivalRow | null,
+  next: NextMatch | null = null,
+): RosterEntry {
   const arrived = arrival?.state === 'present';
   return {
+    next,
     personId: person.id,
     givenName: person.given_name,
     familyName: person.family_name,
@@ -78,36 +106,4 @@ export function mapRosterRow(person: RosterPersonRow, arrival: ArrivalRow | null
     arrivedAt: arrived ? (arrival?.marked_at ?? null) : null,
     via: arrived ? (arrival?.via ?? null) : null,
   };
-}
-
-/**
- * Missing fighters, most urgent first.
- *
- * Ordered by when they next fight, because urgency is the entire question this
- * screen answers — alphabetical would bury the person due on piste 3 in twelve
- * minutes behind eleven people who fight this afternoon.
- *
- * Fighters with no scheduled bout sort LAST rather than being filtered out.
- * They are still missing; they are just not yet costing anyone time, and
- * dropping them would quietly shrink the "who isn't here" count that the desk
- * is trusted to be complete.
- */
-export function orderMissingByUrgency(entries: MissingFighter[]): MissingFighter[] {
-  return [...entries].sort((a, b) => {
-    const aAt = a.next?.scheduledAt ?? null;
-    const bAt = b.next?.scheduledAt ?? null;
-    if (aAt && bAt) return aAt.localeCompare(bAt) || compareByName(a, b);
-    if (aAt) return -1;
-    if (bAt) return 1;
-    // Both unscheduled: a stable, human order so the tail of the list does not
-    // reshuffle on every poll.
-    return compareByName(a, b);
-  });
-}
-
-function compareByName(a: MissingFighter, b: MissingFighter): number {
-  return (
-    a.person.familyName.localeCompare(b.person.familyName) ||
-    a.person.givenName.localeCompare(b.person.givenName)
-  );
 }

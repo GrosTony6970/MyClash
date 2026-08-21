@@ -17,6 +17,14 @@ interface Props {
    * wrong Marie.
    */
   actions: ReactNode;
+  /**
+   * A standing chip beside the name — the gear table's worst-result-wins state.
+   *
+   * Optional because the desk has none: an arrival is a two-state thing already
+   * spelled out in words by the action strip, and a second chip saying the same
+   * thing would be noise.
+   */
+  status?: ReactNode;
   /** Extra detail under the name — gear check hangs its per-weapon rows here. */
   children?: ReactNode;
 }
@@ -28,7 +36,7 @@ interface Props {
  * human standing in front of them, and two fighters with similar names is the
  * failure this prevents — a name alone does not prevent it.
  */
-export function PersonRow({ person, actions, children }: Props) {
+export function PersonRow({ person, actions, status, children }: Props) {
   const { t } = useI18n();
   const club = person.clubName ?? t('scoring.desk.noClub');
 
@@ -42,6 +50,7 @@ export function PersonRow({ person, actions, children }: Props) {
           </p>
           <p className="truncate text-sm text-muted">{club}</p>
         </div>
+        {status && <div className="shrink-0">{status}</div>}
         <div className="shrink-0">{actions}</div>
       </div>
       {children}

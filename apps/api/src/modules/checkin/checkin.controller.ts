@@ -7,13 +7,12 @@ import {
   Param,
   ParseUUIDPipe,
   Post,
-  Query,
   Req,
 } from '@nestjs/common';
 import { ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
 import type { FastifyRequest } from 'fastify';
 import { CheckinService } from './checkin.service';
-import { MarkArrivalDto, RosterQueryDto, ScanPassDto } from './dto';
+import { MarkArrivalDto, ScanPassDto } from './dto';
 
 /**
  * The check-in desk, for a staff account holding the `checkin` role.
@@ -34,28 +33,12 @@ export class CheckinController {
 
   @Get('roster')
   @ApiOperation({
-    summary: 'Search this event roster, each row carrying its arrival state',
+    summary: 'This whole event roster, each row carrying arrival state and next bout',
     description:
-      'Three letters is enough. Carries photo and club so the volunteer can confirm the person in front of them — two fighters with similar names is the failure this prevents.',
+      'Unfiltered and unpaged: the desk searches, filters and counts in the browser, so a tab reading "Not arrived (63)" has 63 rows behind it. Carries photo and club so the volunteer can confirm the person in front of them — two fighters with similar names is the failure this prevents. `truncated` says when the event outgrew the ceiling.',
   })
-  async roster(@Query() query: RosterQueryDto, @Req() req: FastifyRequest) {
-    return this.checkin.searchRoster(req, query.q);
-  }
-
-  @Get('summary')
-  @ApiOperation({ summary: 'Arrived / total for this event' })
-  async summary(@Req() req: FastifyRequest) {
-    return this.checkin.getSummary(req);
-  }
-
-  @Get('missing')
-  @ApiOperation({
-    summary: 'Fighters who have not arrived, ordered by how soon they fight',
-    description:
-      'Unscheduled fighters sort last rather than being hidden: they are still missing, just not yet costing anyone time.',
-  })
-  async missing(@Req() req: FastifyRequest) {
-    return this.checkin.getMissingAtRisk(req);
+  async roster(@Req() req: FastifyRequest) {
+    return this.checkin.listRoster(req);
   }
 
   /**

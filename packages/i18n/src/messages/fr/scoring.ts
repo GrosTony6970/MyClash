@@ -63,10 +63,19 @@ export const scoring = {
     markArrived: 'Arrivé',
     notArrived: 'Pas arrivé',
     undo: 'Annuler',
-    arrivedCount: '{arrived} / {total} arrivés',
-    missingAtRisk: 'Absents à risque',
-    missingTitle: 'Absents à risque',
+    tabAll: 'Tous',
+    tabArrived: 'Arrivés',
+    tabNotArrived: 'Pas arrivés',
+    tabsLabel: 'Filtrer la liste',
+    // Le retour depuis la lecture des QR. Toujours nécessaire après la
+    // transformation de l'écran des absents en onglet.
     backToDesk: 'Accueil',
+    // Partagé par les deux postes — le contrôle du matériel lit déjà ce groupe
+    // pour la recherche, le chargement et l'absence de résultat.
+    noResultsInTab: 'Personne sur cet onglet ne correspond à ce nom — {count} ailleurs.',
+    showAllMatches: 'Voir tous les résultats',
+    truncated:
+      "Les {count} premiers combattants sont affichés. Cet événement dépasse ce qu'un écran peut tenir.",
     everyoneArrived: 'Tout le monde est arrivé.',
     notScheduled: 'Pas encore programmé',
     actionError: "L'enregistrement a échoué. Réessayez.",
@@ -102,7 +111,16 @@ export const scoring = {
   },
   gear: {
     title: 'Contrôle du matériel',
-    checkedCount: '{checked} / {total} contrôlés',
+    tabAll: 'Tous',
+    tabUnchecked: 'À contrôler',
+    tabPass: 'Conformes',
+    tabConditional: 'Sous réserve',
+    tabFail: 'Refusés',
+    tabsLabel: 'Filtrer la liste',
+    standingUnchecked: 'À contrôler',
+    standingPass: 'Conforme',
+    standingConditional: 'Sous réserve',
+    standingFail: 'Refusé',
     notChecked: 'Non contrôlé',
     resultPass: 'Conforme',
     resultFail: 'Refusé',

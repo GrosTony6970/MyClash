@@ -1,11 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import {
-  mapRosterRow,
-  orderMissingByUrgency,
-  type ArrivalRow,
-  type MissingFighter,
-  type RosterPersonRow,
-} from './roster';
+import { mapRosterRow, type ArrivalRow, type RosterPersonRow } from './roster';
 
 function person(over: Partial<RosterPersonRow> & { id: string }): RosterPersonRow {
   return {
@@ -76,68 +70,21 @@ describe('mapRosterRow', () => {
     expect(row.clubName).toBeNull();
     expect(row.clubLogoUrl).toBeNull();
   });
-});
 
-describe('orderMissingByUrgency', () => {
-  function missing(id: string, scheduledAt: string | null, familyName = 'Zulu'): MissingFighter {
-    return {
-      person: mapRosterRow(person({ id, family_name: familyName }), null),
-      next:
-        scheduledAt === null
-          ? null
-          : { scheduledAt, liceName: null, poolName: null, tournamentName: null },
+  it('leaves next null unless a caller supplies one', () => {
+    // The gear table and the QR overlay both take this default: neither shows a
+    // schedule, and a gear account has no reason to receive one.
+    expect(mapRosterRow(person({ id: 'p1' }), null).next).toBeNull();
+  });
+
+  it('carries the next bout through when the desk supplies one', () => {
+    const next = {
+      scheduledAt: '2026-08-08T10:00:00.000Z',
+      liceName: 'Lice 3',
+      poolName: 'Pool A',
+      tournamentName: 'Longsword Open',
     };
-  }
 
-  it('puts the soonest fight first', () => {
-    const ordered = orderMissingByUrgency([
-      missing('late', '2026-08-08T14:00:00.000Z'),
-      missing('soon', '2026-08-08T10:00:00.000Z'),
-      missing('mid', '2026-08-08T11:00:00.000Z'),
-    ]);
-
-    expect(ordered.map((m) => m.person.personId)).toEqual(['soon', 'mid', 'late']);
-  });
-
-  it('sorts fighters with no scheduled bout LAST, without dropping them', () => {
-    // They are still missing — just not yet costing anyone time. Filtering them
-    // out would quietly shrink a count the desk is trusted to have complete.
-    const ordered = orderMissingByUrgency([
-      missing('unscheduled', null),
-      missing('scheduled', '2026-08-08T14:00:00.000Z'),
-    ]);
-
-    expect(ordered.map((m) => m.person.personId)).toEqual(['scheduled', 'unscheduled']);
-    expect(ordered).toHaveLength(2);
-  });
-
-  it('breaks ties by name so the list does not reshuffle on every poll', () => {
-    const sameTime = '2026-08-08T10:00:00.000Z';
-    const ordered = orderMissingByUrgency([
-      missing('b', sameTime, 'Bonnet'),
-      missing('a', sameTime, 'Alvarez'),
-    ]);
-
-    expect(ordered.map((m) => m.person.personId)).toEqual(['a', 'b']);
-  });
-
-  it('orders the unscheduled tail by name too, for the same reason', () => {
-    const ordered = orderMissingByUrgency([
-      missing('vik', null, 'Vik'),
-      missing('alvarez', null, 'Alvarez'),
-    ]);
-
-    expect(ordered.map((m) => m.person.personId)).toEqual(['alvarez', 'vik']);
-  });
-
-  it('does not mutate its input', () => {
-    const input = [
-      missing('late', '2026-08-08T14:00:00.000Z'),
-      missing('soon', '2026-08-08T10:00:00.000Z'),
-    ];
-
-    orderMissingByUrgency(input);
-
-    expect(input.map((m) => m.person.personId)).toEqual(['late', 'soon']);
+    expect(mapRosterRow(person({ id: 'p1' }), null, next).next).toEqual(next);
   });
 });

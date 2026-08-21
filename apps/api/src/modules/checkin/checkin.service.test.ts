@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { FastifyRequest } from 'fastify';
 import { CheckinService } from './checkin.service';
-import { mockSupabase, supabaseChain } from '../../common/testing/supabase-chain';
+import { mockSupabase, selectsFor, supabaseChain } from '../../common/testing/supabase-chain';
 
 /**
  * The desk's authorization contract.
@@ -59,7 +59,7 @@ describe('CheckinService authorization', () => {
       passDouble() as never,
     );
 
-    await service.searchRoster(REQ, 'mar');
+    await service.listRoster(REQ);
 
     expect(staff.service.requireStaffWithRole).toHaveBeenCalled();
     expect(staff.asked[0]).toEqual(['checkin']);
@@ -74,7 +74,7 @@ describe('CheckinService authorization', () => {
       passDouble() as never,
     );
 
-    await expect(service.searchRoster(REQ, 'mar')).rejects.toThrow(/cannot use this surface/i);
+    await expect(service.listRoster(REQ)).rejects.toThrow(/cannot use this surface/i);
   });
 
   it('refuses a gear account at the desk', async () => {
@@ -86,7 +86,127 @@ describe('CheckinService authorization', () => {
       passDouble() as never,
     );
 
-    await expect(service.searchRoster(REQ, 'mar')).rejects.toThrow(/cannot use this surface/i);
+    await expect(service.listRoster(REQ)).rejects.toThrow(/cannot use this surface/i);
+  });
+});
+
+describe('CheckinService.listRoster', () => {
+  const person = (id: string, familyName: string) => ({
+    id,
+    // The seeded double applies filters, and the roster query is scoped by
+    // event — a row without this is correctly invisible to it.
+    event_id: 'event-1',
+    given_name: 'Marie',
+    family_name: familyName,
+    club_id: null,
+    global_person_id: null,
+    clubs: null,
+    global_persons: null,
+  });
+
+  /** No registrations, so the two-hop next-bout query stops at the first one. */
+  const NO_SCHEDULE = {
+    event_arrivals: { data: [], error: null },
+    registrations: { data: [], error: null },
+  };
+
+  it('says so when the event outgrew the ceiling, instead of truncating in silence', async () => {
+    const staff = staffDouble('checkin');
+    const supabase = mockSupabase({
+      persons: {
+        rows: [person('p1', 'A'), person('p2', 'B'), person('p3', 'C'), person('p4', 'D')],
+      },
+      ...NO_SCHEDULE,
+    });
+    const service = new CheckinService(
+      supabase as never,
+      staff.service as never,
+      passDouble() as never,
+    );
+
+    // A ceiling of three against a roster of four. The desk counts what it was
+    // sent — "Not arrived (63)" over a silently clipped list is a number the
+    // screen cannot honour, which is the whole reason this flag exists.
+    const page = await service.listRoster(REQ, 3);
+
+    expect(page.entries).toHaveLength(3);
+    expect(page.truncated).toBe(true);
+  });
+
+  it('reports a complete roster as complete', async () => {
+    const staff = staffDouble('checkin');
+    const supabase = mockSupabase({
+      persons: { rows: [person('p1', 'A'), person('p2', 'B')] },
+      ...NO_SCHEDULE,
+    });
+    const service = new CheckinService(
+      supabase as never,
+      staff.service as never,
+      passDouble() as never,
+    );
+
+    const page = await service.listRoster(REQ, 3);
+
+    expect(page.entries).toHaveLength(2);
+    expect(page.truncated).toBe(false);
+  });
+
+  it('carries each fighter soonest bout, so the desk can order by urgency', async () => {
+    const staff = staffDouble('checkin');
+    const supabase = mockSupabase({
+      persons: { rows: [person('p1', 'A')] },
+      event_arrivals: { data: [], error: null },
+      registrations: { data: [{ id: 'r1', person_id: 'p1' }], error: null },
+      matches: {
+        data: [
+          {
+            id: 'm1',
+            scheduled_at: '2026-08-21T09:30:00Z',
+            red_registration_id: 'r1',
+            blue_registration_id: null,
+            lices: { name: 'Lice 3' },
+            pools: { name: 'Pool A' },
+            phases: { tournaments: { name: 'Longsword Open' } },
+          },
+        ],
+        error: null,
+      },
+    });
+    const service = new CheckinService(
+      supabase as never,
+      staff.service as never,
+      passDouble() as never,
+    );
+
+    const page = await service.listRoster(REQ);
+
+    // The Not-arrived tab replaced a separate missing-at-risk screen. Without
+    // this on the row the browser has nothing to sort by, and the organiser
+    // chasing someone is told a time but not where to walk.
+    expect(page.entries[0]?.next).toEqual({
+      scheduledAt: '2026-08-21T09:30:00Z',
+      liceName: 'Lice 3',
+      poolName: 'Pool A',
+      tournamentName: 'Longsword Open',
+    });
+  });
+
+  it('asks persons for the columns the desk row is built from', async () => {
+    const staff = staffDouble('checkin');
+    const supabase = mockSupabase({ persons: { rows: [person('p1', 'A')] }, ...NO_SCHEDULE });
+    const service = new CheckinService(
+      supabase as never,
+      staff.service as never,
+      passDouble() as never,
+    );
+
+    await service.listRoster(REQ);
+
+    // The double ignores the projection, so a value assertion stays green with
+    // a column deleted from the read. Photo and club are what let a volunteer
+    // tell two similar names apart — assert the SELECT itself.
+    expect(selectsFor(supabase.from, 'persons')[0]).toContain('global_persons(photo_url)');
+    expect(selectsFor(supabase.from, 'persons')[0]).toContain('clubs(name,logo_url)');
   });
 });
 
@@ -276,6 +396,9 @@ describe('CheckinService.redeemPass — the QR fast lane', () => {
       arrived: true,
       arrivedAt: '2026-08-08T09:12:00Z',
       via: 'qr',
+      // The QR overlay shows a face and a club, never a schedule — so the fast
+      // lane does not pay for the two-hop next-bout query the desk list runs.
+      next: null,
     });
   });
 

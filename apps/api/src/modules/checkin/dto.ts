@@ -48,20 +48,6 @@ const mailPassesSchema = z
   .strict();
 export class MailPassesDto extends createZodDto(mailPassesSchema) {}
 
-const rosterQuerySchema = z
-  .object({
-    /**
-     * The desk types three letters and expects the name.
-     *
-     * Optional: with no query the roster returns the first page unfiltered,
-     * which is what the missing-at-risk view and a first paint want. Capped at
-     * 120 because it is fed straight into a trigram match.
-     */
-    q: z.string().trim().max(120).optional(),
-  })
-  .strict();
-export class RosterQueryDto extends createZodDto(rosterQuerySchema) {}
-
 /**
  * A gear result, mirroring the `event_gear_checks_result_allowed` CHECK.
  */

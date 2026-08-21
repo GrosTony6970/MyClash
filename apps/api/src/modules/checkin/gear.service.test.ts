@@ -61,7 +61,7 @@ describe('GearService authorization', () => {
     const supabase = mockSupabase({ persons: { data: [], error: null } });
     const service = new GearService(supabase as never, staff as never);
 
-    await service.searchGearRoster(REQ, 'bonn');
+    await service.listGearRoster(REQ);
 
     expect(staff.requireStaffWithRole).toHaveBeenCalledWith(REQ, ['gear']);
   });
@@ -71,7 +71,7 @@ describe('GearService authorization', () => {
     const supabase = mockSupabase({ persons: { data: [], error: null } });
     const service = new GearService(supabase as never, staff as never);
 
-    await expect(service.searchGearRoster(REQ, 'bonn')).rejects.toThrow(/cannot use this surface/i);
+    await expect(service.listGearRoster(REQ)).rejects.toThrow(/cannot use this surface/i);
   });
 
   it('refuses a check-in account at the gear table', async () => {
@@ -80,7 +80,7 @@ describe('GearService authorization', () => {
     const supabase = mockSupabase({ persons: { data: [], error: null } });
     const service = new GearService(supabase as never, staff as never);
 
-    await expect(service.searchGearRoster(REQ, 'bonn')).rejects.toThrow(/cannot use this surface/i);
+    await expect(service.listGearRoster(REQ)).rejects.toThrow(/cannot use this surface/i);
   });
 });
 

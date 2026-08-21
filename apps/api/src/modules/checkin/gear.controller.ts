@@ -7,13 +7,12 @@ import {
   Param,
   ParseUUIDPipe,
   Post,
-  Query,
   Req,
 } from '@nestjs/common';
 import { ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
 import type { FastifyRequest } from 'fastify';
 import { GearService } from './gear.service';
-import { RecordGearCheckDto, RosterQueryDto } from './dto';
+import { RecordGearCheckDto } from './dto';
 
 /**
  * The gear-check table, for a staff account holding the `gear` role.
@@ -30,22 +29,12 @@ export class GearController {
 
   @Get('roster')
   @ApiOperation({
-    summary: 'Search this event roster, each person expanded per entered weapon',
+    summary: 'This whole event roster, each person expanded per entered weapon',
     description:
-      'A pass is per weapon, so a fighter entered in longsword and rapier has two lines with independent results.',
+      'Unfiltered and unpaged: the gear table searches, groups and counts in the browser. A pass is per weapon, so a fighter entered in longsword and rapier has two lines with independent results. `truncated` says when the event outgrew the ceiling.',
   })
-  async roster(@Query() query: RosterQueryDto, @Req() req: FastifyRequest) {
-    return this.gear.searchGearRoster(req, query.q);
-  }
-
-  @Get('summary')
-  @ApiOperation({
-    summary: 'Fully-checked / total for this event',
-    description:
-      'A fighter counts as checked only when EVERY weapon they are entered in has a result — a longsword pass says nothing about the rapier they fight with after lunch.',
-  })
-  async summary(@Req() req: FastifyRequest) {
-    return this.gear.getSummary(req);
+  async roster(@Req() req: FastifyRequest) {
+    return this.gear.listGearRoster(req);
   }
 
   @Get('match/:matchId')

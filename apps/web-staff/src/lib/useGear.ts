@@ -20,30 +20,23 @@ export interface GearEntry {
   weapons: WeaponStatus[];
 }
 
-const MIN_QUERY = 2;
-
-/** Pure I/O — see the same note in useDesk.ts for why this is not inside the hook. */
-function fetchGearRoster(term: string): Promise<GearEntry[]> {
-  const trimmed = term.trim();
-  const path =
-    trimmed.length >= MIN_QUERY
-      ? `/api/v1/staff/gear/roster?q=${encodeURIComponent(trimmed)}`
-      : '/api/v1/staff/gear/roster';
-  return api.get<GearEntry[]>(path);
+/** The roster, and whether the event outgrew what one screen can hold. */
+export interface GearList {
+  entries: GearEntry[];
+  truncated: boolean;
 }
 
-function fetchGearSummary(): Promise<{ checked: number; total: number } | null> {
-  return api
-    .get<{ checked: number; total: number }>('/api/v1/staff/gear/summary')
-    .catch(() => null);
+/** Pure I/O — see the same note in useDesk.ts for why this is not inside the hook. */
+function fetchGearRoster(): Promise<GearList> {
+  return api.get<GearList>('/api/v1/staff/gear/roster');
 }
 
 /**
  * The gear-check desk's data.
  *
- * Mirrors `useDesk` deliberately — same debounce, same refetch-after-write, and
- * for the same reason: two volunteers can work one roster at once, so the
- * server's answer must appear rather than this tablet's guess.
+ * Mirrors `useDesk` deliberately — one fetch, same refetch-after-write, and for
+ * the same reason: two volunteers can work one roster at once, so the server's
+ * answer must appear rather than this tablet's guess.
  */
 export function useGear() {
   const reads = useGearReads();
@@ -51,51 +44,47 @@ export function useGear() {
   return { ...reads, ...writes, error: reads.error ?? writes.error };
 }
 
-/** The search box, its per-weapon results, and the checked/total counter. */
+/**
+ * The whole roster with its per-weapon results, held locally.
+ *
+ * Fetched once rather than per keystroke, for the same reason as the desk: the
+ * screen groups fighters into pass / conditional / fail / still-to-check tabs
+ * and puts a count on each, and a count is only true of the list it was counted
+ * from.
+ */
 function useGearReads() {
   const [query, setQuery] = useState('');
   const [entries, setEntries] = useState<GearEntry[]>([]);
-  const [summary, setSummary] = useState<{ checked: number; total: number } | null>(null);
+  const [truncated, setTruncated] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<ApiFailure | null>(null);
 
   useEffect(() => {
     let cancelled = false;
-    const timer = setTimeout(() => {
-      fetchGearRoster(query)
-        .then((rows) => {
-          if (!cancelled) setEntries(rows);
-        })
-        .catch((err: unknown) => {
-          if (!cancelled) setError(failureFromError(err));
-        })
-        .finally(() => {
-          if (!cancelled) setLoading(false);
-        });
-    }, 250);
-    return () => {
-      cancelled = true;
-      clearTimeout(timer);
-    };
-  }, [query]);
-
-  useEffect(() => {
-    let cancelled = false;
-    void fetchGearSummary().then((next) => {
-      if (!cancelled && next) setSummary(next);
-    });
+    fetchGearRoster()
+      .then((page) => {
+        if (cancelled) return;
+        setEntries(page.entries);
+        setTruncated(page.truncated);
+      })
+      .catch((err: unknown) => {
+        if (!cancelled) setError(failureFromError(err));
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
     return () => {
       cancelled = true;
     };
   }, []);
 
   const reload = useCallback(async () => {
-    const [rows, next] = await Promise.all([fetchGearRoster(query), fetchGearSummary()]);
-    setEntries(rows);
-    if (next) setSummary(next);
-  }, [query]);
+    const page = await fetchGearRoster();
+    setEntries(page.entries);
+    setTruncated(page.truncated);
+  }, []);
 
-  return { query, setQuery, entries, summary, loading, error, reload };
+  return { query, setQuery, entries, truncated, loading, error, reload };
 }
 
 /** Recording a result. Refetches rather than editing local state optimistically. */

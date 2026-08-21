@@ -4,8 +4,8 @@ import { SupabaseService } from '../supabase/supabase.service';
 import { StaffService } from '../staff/staff.service';
 import { slugify } from '../fighters/weapon-import.util';
 import type { RecordGearCheckDto } from './dto';
-import { queryEventRoster } from './roster-query';
-import { mapRosterRow } from './roster';
+import { queryEventRoster, ROSTER_LIMIT } from './roster-query';
+import { mapRosterRow, type DeskList } from './roster';
 import {
   buildGearEntry,
   buildMatchGear,
@@ -14,6 +14,9 @@ import {
   type GearCheckRow,
   type MatchGear,
 } from './gear';
+
+/** The gear table's answer: the roster, and whether the ceiling cut it short. */
+export type GearList = DeskList<GearEntry>;
 
 /** Roles allowed to work the gear table. See `SCORING_ROLES` in staff.service.ts. */
 const GEAR_ROLES = ['gear'] as const;
@@ -52,11 +55,20 @@ export class GearService {
     private readonly staff: StaffService,
   ) {}
 
-  /** The roster, each person expanded into one line per weapon they are entered in. */
-  async searchGearRoster(req: FastifyRequest, q: string | undefined): Promise<GearEntry[]> {
+  /**
+   * The whole event roster, each person expanded into one line per weapon.
+   *
+   * Unfiltered and unpaged for the same reason the desk is: the gear table
+   * groups people into pass / conditional / fail / still-to-check tabs and puts
+   * a count on each, and a count is only true of a list it was computed from.
+   *
+   * Every row's `next` stays null — this surface shows no schedule, and a gear
+   * account has no reason to receive every fighter's next bout.
+   */
+  async listGearRoster(req: FastifyRequest, limit = ROSTER_LIMIT): Promise<GearList> {
     const staff = await this.staff.requireStaffWithRole(req, GEAR_ROLES);
-    const people = await queryEventRoster(this.supabase, staff.event_id, q);
-    if (people.length === 0) return [];
+    const { people, truncated } = await queryEventRoster(this.supabase, staff.event_id, limit);
+    if (people.length === 0) return { entries: [], truncated };
 
     const personIds = people.map((person) => person.id);
     const [weaponsByPerson, latest] = await Promise.all([
@@ -64,9 +76,12 @@ export class GearService {
       this.latestChecks(staff.event_id, personIds),
     ]);
 
-    return people.map((person) =>
-      buildGearEntry(mapRosterRow(person, null), weaponsByPerson.get(person.id) ?? [], latest),
-    );
+    return {
+      entries: people.map((person) =>
+        buildGearEntry(mapRosterRow(person, null), weaponsByPerson.get(person.id) ?? [], latest),
+      ),
+      truncated,
+    };
   }
 
   /**
@@ -101,28 +116,6 @@ export class GearService {
       .single();
     if (error) throw new BadRequestException(error.message);
     return data;
-  }
-
-  /** How many of this event's fighters have every entered weapon checked. */
-  async getSummary(req: FastifyRequest): Promise<{ checked: number; total: number }> {
-    const staff = await this.staff.requireStaffWithRole(req, GEAR_ROLES);
-    const people = await queryEventRoster(this.supabase, staff.event_id, undefined, 1000);
-    const personIds = people.map((person) => person.id);
-    const [weaponsByPerson, latest] = await Promise.all([
-      this.weaponsByPerson(staff.event_id, personIds),
-      this.latestChecks(staff.event_id, personIds),
-    ]);
-
-    // A fighter counts as checked when every weapon they are entered in has a
-    // result. Partial coverage is NOT checked: a longsword pass says nothing
-    // about the rapier they fight with after lunch.
-    const checked = people.filter((person) => {
-      const weapons = weaponsByPerson.get(person.id) ?? [];
-      return (
-        weapons.length > 0 && weapons.every((weapon) => latest.has(`${person.id}:${weapon.id}`))
-      );
-    }).length;
-    return { checked, total: people.length };
   }
 
   /**

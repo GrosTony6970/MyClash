@@ -4,15 +4,18 @@ import { SupabaseService } from '../supabase/supabase.service';
 import { StaffService } from '../staff/staff.service';
 import type { MarkArrivalDto } from './dto';
 import { PassService } from './pass.service';
-import { queryEventRoster, ROSTER_LIMIT } from './roster-query';
+import { queryEventRoster, ROSTER_LIMIT, type RosterPage } from './roster-query';
 import {
   mapRosterRow,
-  orderMissingByUrgency,
   type ArrivalRow,
-  type MissingFighter,
+  type DeskList,
+  type NextMatch,
   type RosterEntry,
   type RosterPersonRow,
 } from './roster';
+
+/** The desk's answer: the roster, and whether the ceiling cut it short. */
+export type RosterList = DeskList<RosterEntry>;
 
 /** Roles allowed to work the desk. See `SCORING_ROLES` in staff.service.ts. */
 const DESK_ROLES = ['checkin'] as const;
@@ -44,24 +47,34 @@ export class CheckinService {
   ) {}
 
   /**
-   * The roster, filtered by name, each row carrying its arrival state.
+   * The whole event roster, each row carrying its arrival state and next bout.
    *
    * Photo comes from `global_persons.photo_url` — local `persons` has none —
    * and the club logo through `persons.club_id`. Both are on the row because
    * the desk's job is confirming the human standing in front of the volunteer:
    * two fighters with similar names is the failure this prevents, and a name
    * alone does not prevent it.
+   *
+   * `next` is here rather than behind a second endpoint because the desk's
+   * Not-arrived tab orders by it — the tab replaced a separate missing-at-risk
+   * screen, and the browser cannot order by something it was not sent.
    */
-  async searchRoster(req: FastifyRequest, q: string | undefined): Promise<RosterEntry[]> {
+  async listRoster(req: FastifyRequest, limit = ROSTER_LIMIT): Promise<RosterList> {
     const staff = await this.staff.requireStaffWithRole(req, DESK_ROLES);
-    const people = await this.queryPeople(staff.event_id, q);
-    if (people.length === 0) return [];
+    const { people, truncated } = await this.queryPeople(staff.event_id, limit);
+    if (people.length === 0) return { entries: [], truncated };
 
-    const arrivals = await this.arrivalsFor(
-      staff.event_id,
-      people.map((person) => person.id),
-    );
-    return people.map((person) => mapRosterRow(person, arrivals.get(person.id) ?? null));
+    const personIds = people.map((person) => person.id);
+    const [arrivals, nextMatches] = await Promise.all([
+      this.arrivalsFor(staff.event_id, personIds),
+      this.nextMatchByPerson(personIds),
+    ]);
+    return {
+      entries: people.map((person) =>
+        mapRosterRow(person, arrivals.get(person.id) ?? null, nextMatches.get(person.id) ?? null),
+      ),
+      truncated,
+    };
   }
 
   /**
@@ -169,54 +182,16 @@ export class CheckinService {
     return data ?? { person_id: personId, state: 'absent', via: null };
   }
 
-  /** Arrived / total, for the desk footer. */
-  async getSummary(req: FastifyRequest): Promise<{ arrived: number; total: number }> {
-    const staff = await this.staff.requireStaffWithRole(req, DESK_ROLES);
-    return this.countArrivals(staff.event_id);
-  }
-
-  /**
-   * Who has not arrived, ordered by how soon they fight.
-   *
-   * The organiser's screen, and the whole payoff of capturing arrival at all.
-   * Ordered by urgency rather than alphabetically because urgency is the only
-   * question being asked; the unscheduled group sits last rather than being
-   * hidden, since they are still missing, just not yet costing anyone time.
-   */
-  async getMissingAtRisk(req: FastifyRequest): Promise<MissingFighter[]> {
-    const staff = await this.staff.requireStaffWithRole(req, DESK_ROLES);
-    const people = await this.queryPeople(staff.event_id, undefined, 500);
-    const arrivals = await this.arrivalsFor(
-      staff.event_id,
-      people.map((person) => person.id),
-    );
-    const missing = people.filter(
-      (person) => (arrivals.get(person.id)?.state ?? 'absent') !== 'present',
-    );
-    if (missing.length === 0) return [];
-
-    const nextMatches = await this.nextMatchByPerson(missing.map((person) => person.id));
-    return orderMissingByUrgency(
-      missing.map((person) => ({
-        person: mapRosterRow(person, arrivals.get(person.id) ?? null),
-        next: nextMatches.get(person.id) ?? null,
-      })),
-    );
-  }
-
   // ── queries ───────────────────────────────────────────────────────────────
 
-  private queryPeople(
-    eventId: string,
-    q: string | undefined,
-    limit = ROSTER_LIMIT,
-  ): Promise<RosterPersonRow[]> {
-    return queryEventRoster(this.supabase, eventId, q, limit);
+  private queryPeople(eventId: string, limit = ROSTER_LIMIT): Promise<RosterPage> {
+    return queryEventRoster(this.supabase, eventId, limit);
   }
 
   /** The same desk projection, for people already identified — the QR lane. */
-  private queryPeopleByIds(eventId: string, personIds: string[]): Promise<RosterPersonRow[]> {
-    return queryEventRoster(this.supabase, eventId, undefined, personIds.length, personIds);
+  private async queryPeopleByIds(eventId: string, personIds: string[]): Promise<RosterPersonRow[]> {
+    const { people } = await queryEventRoster(this.supabase, eventId, personIds.length, personIds);
+    return people;
   }
 
   private async arrivalsFor(
@@ -231,26 +206,6 @@ export class CheckinService {
       .in('person_id', personIds);
     if (error) throw new BadRequestException(error.message);
     return new Map(((data ?? []) as unknown as ArrivalRow[]).map((row) => [row.person_id, row]));
-  }
-
-  private async countArrivals(eventId: string): Promise<{ arrived: number; total: number }> {
-    // PostgREST aggregate functions are DISABLED on this deployment, so counts
-    // come from `head: true` + `count: 'exact'` rather than from a sum().
-    const [{ count: total, error: totalErr }, { count: arrived, error: arrivedErr }] =
-      await Promise.all([
-        this.supabase.service
-          .from('persons')
-          .select('id', { count: 'exact', head: true })
-          .eq('event_id', eventId),
-        this.supabase.service
-          .from('event_arrivals')
-          .select('id', { count: 'exact', head: true })
-          .eq('event_id', eventId)
-          .eq('state', 'present'),
-      ]);
-    if (totalErr) throw new BadRequestException(totalErr.message);
-    if (arrivedErr) throw new BadRequestException(arrivedErr.message);
-    return { arrived: arrived ?? 0, total: total ?? 0 };
   }
 
   /**
@@ -314,7 +269,7 @@ function indexEarliestByPerson(
   matches: Array<Record<string, unknown>>,
   personByReg: Map<string, string>,
 ) {
-  const byPerson = new Map<string, MissingFighter['next']>();
+  const byPerson = new Map<string, NextMatch>();
   for (const match of matches) {
     const sides = [match['red_registration_id'], match['blue_registration_id']];
     for (const regId of sides) {

@@ -14,6 +14,8 @@ export interface RosterEntry {
   arrived: boolean;
   arrivedAt: string | null;
   via: string | null;
+  /** The soonest bout this fighter is due on. Null when they have none. */
+  next: NextMatch | null;
 }
 
 export interface NextMatch {
@@ -23,13 +25,11 @@ export interface NextMatch {
   tournamentName: string | null;
 }
 
-export interface MissingFighter {
-  person: RosterEntry;
-  next: NextMatch | null;
+/** The roster, and whether the event outgrew what one screen can hold. */
+export interface RosterList {
+  entries: RosterEntry[];
+  truncated: boolean;
 }
-
-/** Three letters is where the search becomes useful; below that the API ignores it. */
-const MIN_QUERY = 2;
 
 /**
  * Pure I/O — no state.
@@ -40,19 +40,8 @@ const MIN_QUERY = 2;
  * body. Keeping the fetch state-free means the effect is honest rather than
  * written around the rule.
  */
-function fetchSummary(): Promise<{ arrived: number; total: number } | null> {
-  return api
-    .get<{ arrived: number; total: number }>('/api/v1/staff/checkin/summary')
-    .catch(() => null);
-}
-
-function fetchRoster(term: string): Promise<RosterEntry[]> {
-  const trimmed = term.trim();
-  const path =
-    trimmed.length >= MIN_QUERY
-      ? `/api/v1/staff/checkin/roster?q=${encodeURIComponent(trimmed)}`
-      : '/api/v1/staff/checkin/roster';
-  return api.get<RosterEntry[]>(path);
+function fetchRoster(): Promise<RosterList> {
+  return api.get<RosterList>('/api/v1/staff/checkin/roster');
 }
 
 /**
@@ -70,56 +59,51 @@ export function useDesk() {
   return { ...reads, ...writes, error: reads.error ?? writes.error };
 }
 
-/** The search box, its results, and the arrived/total counter. */
+/**
+ * The whole roster, held locally, plus the search box over it.
+ *
+ * ── Fetched once, not per keystroke ─────────────────────────────────────────
+ * This used to send the search term to the server on a 250ms debounce and take
+ * back at most 40 rows. It no longer does, and the reason is not speed: the
+ * screen now groups the roster into tabs with a count on each, and a count is
+ * only true of the list it was counted from. Search and filter run over the
+ * same fetched array, so a tab reading "Not arrived (63)" has 63 rows behind
+ * it. As a side effect the search stops touching the network at all, which is
+ * the right behaviour on venue wifi.
+ */
 function useDeskReads() {
   const [query, setQuery] = useState('');
   const [roster, setRoster] = useState<RosterEntry[]>([]);
-  const [summary, setSummary] = useState<{ arrived: number; total: number } | null>(null);
+  const [truncated, setTruncated] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<ApiFailure | null>(null);
 
-  // Debounced so a volunteer typing a name does not fire one request per
-  // keystroke on venue wifi. 250ms is below the threshold where the list feels
-  // like it lags behind the keyboard.
   useEffect(() => {
     let cancelled = false;
-    const timer = setTimeout(() => {
-      fetchRoster(query)
-        .then((rows) => {
-          if (!cancelled) setRoster(rows);
-        })
-        .catch((err: unknown) => {
-          if (!cancelled) setError(failureFromError(err));
-        })
-        .finally(() => {
-          if (!cancelled) setLoading(false);
-        });
-    }, 250);
-    return () => {
-      cancelled = true;
-      clearTimeout(timer);
-    };
-  }, [query]);
-
-  useEffect(() => {
-    let cancelled = false;
-    // fetchSummary swallows its own errors — the counter is informational and
-    // must never take the desk down with it.
-    void fetchSummary().then((next) => {
-      if (!cancelled && next) setSummary(next);
-    });
+    fetchRoster()
+      .then((page) => {
+        if (cancelled) return;
+        setRoster(page.entries);
+        setTruncated(page.truncated);
+      })
+      .catch((err: unknown) => {
+        if (!cancelled) setError(failureFromError(err));
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
     return () => {
       cancelled = true;
     };
   }, []);
 
   const reload = useCallback(async () => {
-    const [rows, next] = await Promise.all([fetchRoster(query), fetchSummary()]);
-    setRoster(rows);
-    if (next) setSummary(next);
-  }, [query]);
+    const page = await fetchRoster();
+    setRoster(page.entries);
+    setTruncated(page.truncated);
+  }, []);
 
-  return { query, setQuery, roster, summary, loading, error, reload };
+  return { query, setQuery, roster, truncated, loading, error, reload };
 }
 
 /**
@@ -177,31 +161,4 @@ function useDeskWrites(reload: () => Promise<void>) {
   );
 
   return { error, markArrived, undoArrival, redeemPass };
-}
-
-/** The missing-at-risk list. Fetched on demand — it is a second screen, not the desk. */
-export function useMissingAtRisk(enabled: boolean) {
-  const [missing, setMissing] = useState<MissingFighter[]>([]);
-  const [loading, setLoading] = useState(enabled);
-
-  useEffect(() => {
-    if (!enabled) return;
-    let cancelled = false;
-    api
-      .get<MissingFighter[]>('/api/v1/staff/checkin/missing')
-      .then((rows) => {
-        if (!cancelled) setMissing(rows);
-      })
-      .catch(() => {
-        if (!cancelled) setMissing([]);
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [enabled]);
-
-  return { missing, loading };
 }
