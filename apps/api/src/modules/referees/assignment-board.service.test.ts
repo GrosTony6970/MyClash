@@ -1,5 +1,6 @@
 import { BadRequestException, ConflictException } from '@nestjs/common';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { selectsFor } from '../../common/testing/supabase-chain';
 import { AssignmentBoardService } from './assignment-board.service';
 import { HARD_CODED_DEFAULT_SLOTS } from './staffing.service';
 
@@ -74,7 +75,7 @@ const BLUE_GLOBAL_ID = 'person-b-global';
  * referee days. Shared by every board fixture so a change to the candidate
  * pipeline is edited once instead of per-fixture.
  */
-function queueCandidateReads() {
+function queueCandidateReads(refereeDays: unknown[] = []) {
   fromMock
     .mockReturnValueOnce(
       makeChain({
@@ -116,16 +117,33 @@ function queueCandidateReads() {
       }),
     )
     // Slice 8: listCandidates now reads event_referee_tournaments +
-    // event_referee_days. Empty here — no fixture has granular allowlists, so
-    // the engine treats every candidate as available for every tournament + day.
+    // event_referee_days. Empty by default — most fixtures have no granular
+    // allowlist, so the engine treats every candidate as available for every
+    // tournament + day. `refereeDays` seeds the per-day one.
     .mockReturnValueOnce(makeChain({ data: [], error: null }))
-    .mockReturnValueOnce(makeChain({ data: [], error: null }));
+    .mockReturnValueOnce(makeChain({ data: refereeDays, error: null }));
 }
 
-function queueBoardReads(assignments: unknown[] = []) {
+/**
+ * Knobs the day-bucketing fixtures need. Defaults reproduce the board every
+ * other test in this file expects, so adding one is not a behaviour change for
+ * the existing cases.
+ */
+interface BoardReadOptions {
+  /** The `events` row. Carries the timezone the day index is measured on. */
+  event?: { start_date: string | null; timezone?: string | null };
+  /** When the pool's single match is scheduled. Sets the pool's window. */
+  matchScheduledAt?: string;
+  /** `event_referee_days` rows — the per-day availability allowlist. */
+  refereeDays?: unknown[];
+}
+
+function queueBoardReads(assignments: unknown[] = [], options: BoardReadOptions = {}) {
+  const event = options.event ?? { start_date: '2026-05-21' };
+  const matchScheduledAt = options.matchScheduledAt ?? '2026-05-21T10:00:00.000Z';
   fromMock
-    // Slice 8: loadContext now fetches event.start_date up front.
-    .mockReturnValueOnce(makeChain({ data: { start_date: '2026-05-21' }, error: null }))
+    // Slice 8: loadContext now fetches event.start_date + timezone up front.
+    .mockReturnValueOnce(makeChain({ data: event, error: null }))
     .mockReturnValueOnce(
       makeChain({ data: [{ id: 'tournament-1', name: 'Longsword' }], error: null }),
     )
@@ -159,7 +177,7 @@ function queueBoardReads(assignments: unknown[] = []) {
             matches: [
               {
                 id: 'match-1',
-                scheduled_at: '2026-05-21T10:00:00.000Z',
+                scheduled_at: matchScheduledAt,
                 lice_id: 'lice-1',
                 red_registration_id: 'reg-fighter-ref',
                 blue_registration_id: 'reg-b',
@@ -171,7 +189,7 @@ function queueBoardReads(assignments: unknown[] = []) {
       }),
     );
   // event_referees → … → referee days
-  queueCandidateReads();
+  queueCandidateReads(options.refereeDays ?? []);
   fromMock
     // registrations — now joined with persons(global_person_id) so the
     // map keys live in the same id-space as the candidate side.
@@ -661,6 +679,11 @@ describe('AssignmentBoardService', () => {
       return vi.spyOn(service as unknown as WithLoadContext, 'loadContext').mockResolvedValue({
         eventId: 'event-1',
         eventStartDate: null,
+        // Present because the real context carries it. The literal is cast
+        // `as never`, so a missing field takes no type error — and a day index
+        // asked for without a zone falls back to the runner's clock, which is
+        // the bug the zone was threaded through to remove.
+        eventTimezone: 'Europe/Paris',
         ruleSettings: DEFAULT_RULE_SETTINGS,
         tournaments: [],
         phases: [],
@@ -1018,6 +1041,77 @@ describe('AssignmentBoardService', () => {
           personId: POOL_2_REF,
         }),
       ).resolves.toBeDefined();
+    });
+  });
+
+  // ── The day a Pool falls on is the EVENT's day ────────────────────────────
+  //
+  // One instant, two events, two timezones on opposite sides of UTC. A server
+  // clock cannot tell them apart, so the DIFFERENCE between the two boards is
+  // the assertion — which makes these red under every runner zone rather than
+  // only under the one that happens to disagree with the container.
+  describe('per-day availability is bucketed on the event timezone', () => {
+    /** 22:00Z on 21 May: midday on the 22nd in Kiritimati (UTC+14), evening of
+     *  the 21st in New York (UTC-4). */
+    const INSTANT = '2026-05-21T22:00:00.000Z';
+    /** The pure referee is allowlisted for day 1 and no other day. */
+    const DAY_ONE_ONLY = [{ person_id: PURE_REF_GLOBAL_ID, day_index: 1 }];
+
+    function queueEventIn(timezone: string) {
+      queueBoardReads([], {
+        event: { start_date: '2026-05-21', timezone },
+        matchScheduledAt: INSTANT,
+        refereeDays: DAY_ONE_ONLY,
+      });
+    }
+
+    /** Whoever ended up holding a slot chip on the board. */
+    function assignedPersonIds(board: Awaited<ReturnType<AssignmentBoardService['getBoard']>>) {
+      return board.pools
+        .flatMap((pool) => pool.roleSlots)
+        .map((slot) => slot.assignment?.personId)
+        .filter((personId): personId is string => Boolean(personId));
+    }
+
+    /** Every blocked-reason the board recorded for one candidate, any slot. */
+    function blockedReasons(board: Awaited<ReturnType<AssignmentBoardService['getBoard']>>) {
+      return board.pools
+        .flatMap((pool) => pool.roleSlots)
+        .flatMap((slot) => slot.candidates.blocked)
+        .filter((candidate) => candidate.personId === PURE_REF_GLOBAL_ID)
+        .flatMap((candidate) => candidate.reasons);
+    }
+
+    it('getBoard blocks the referee on one event and not the other', async () => {
+      queueEventIn('Pacific/Kiritimati');
+      const east = await service.getBoard('event-1');
+      queueEventIn('America/New_York');
+      const west = await service.getBoard('event-1');
+
+      // Kiritimati: the Pool is on day 1, which the referee declared.
+      expect(blockedReasons(east)).not.toContain('unavailable');
+      // New York: the same instant is still day 0, which they did not.
+      expect(blockedReasons(west)).toContain('unavailable');
+      // The mock ignores the projection, so the column has to be asserted by
+      // name — deleting it from the read leaves every value assertion green.
+      expect(selectsFor(fromMock as never, 'events')[0]).toContain('timezone');
+    });
+
+    it('the engine drops the referee only when the event day is outside their availability', async () => {
+      queueEventIn('Pacific/Kiritimati');
+      const east = await service.previewBoard('event-1');
+      queueEventIn('America/New_York');
+      const west = await service.previewBoard('event-1');
+
+      expect(assignedPersonIds(east)).toContain(PURE_REF_GLOBAL_ID);
+      expect(assignedPersonIds(west)).not.toContain(PURE_REF_GLOBAL_ID);
+      // Name the rule that dropped them, on the slot only they can fill: the
+      // declarant slot has a second candidate who dies on the fighter filter
+      // first, so it reports a different reason.
+      const table = west.pools
+        .flatMap((pool) => pool.roleSlots)
+        .find((slot) => slot.role === 'arbitre_table');
+      expect(table?.missingReasons).toContain('all_qualified_unavailable_for_this_pool');
     });
   });
 });

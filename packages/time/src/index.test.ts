@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   calendarGapBetweenDays,
+  dayIndexInZone,
   dayStartUtcIso,
   formatCalendarGap,
   formatDate,
@@ -265,5 +266,43 @@ describe('formatDayCount', () => {
     expect(spaces(formatDayCount(3, 'en'))).toBe('3 days');
     expect(spaces(formatDayCount(1, 'fr'))).toBe('1 jour');
     expect(spaces(formatDayCount(3, 'fr'))).toBe('3 jours');
+  });
+});
+
+describe('dayIndexInZone', () => {
+  // Two zones on opposite sides of UTC, one shared instant. A server-clock
+  // implementation cannot tell them apart, so the DIFFERENCE is the assertion.
+  const KIRITIMATI = 'Pacific/Kiritimati'; // UTC+14, no DST
+  const INSTANT = '2026-05-21T22:00:00Z';
+  const START = '2026-05-21';
+
+  it('reads the day boundary in the event zone, not the runner zone', () => {
+    // 22:00Z is 12:00 on the 22nd in Kiritimati and 18:00 on the 21st in NY.
+    expect(dayIndexInZone(INSTANT, START, KIRITIMATI)).toBe(1);
+    expect(dayIndexInZone(INSTANT, START, NY)).toBe(0);
+  });
+
+  it('counts calendar days, so a DST change does not shift the index', () => {
+    // 2026-03-29 is the last Sunday of March: Paris springs forward, and that
+    // day is 23 hours long. The instant is 00:30 on the 30th, Paris time — two
+    // calendar days after the 28th, but only 47.5 hours after local midnight on
+    // the 28th, which elapsed-hours arithmetic floors to day 1.
+    expect(dayIndexInZone('2026-03-29T22:30:00Z', '2026-03-28', PARIS)).toBe(2);
+  });
+
+  it('clamps a date before the start day to 0 rather than going negative', () => {
+    expect(dayIndexInZone('2026-05-19T08:00:00Z', START, PARIS)).toBe(0);
+  });
+
+  it('returns null rather than falling back to the system zone', () => {
+    expect(dayIndexInZone(INSTANT, START, undefined)).toBeNull();
+    expect(dayIndexInZone(INSTANT, START, '')).toBeNull();
+    expect(dayIndexInZone(INSTANT, START, 'Nope/Nowhere')).toBeNull();
+  });
+
+  it('returns null on a missing or malformed start day, or a bad instant', () => {
+    expect(dayIndexInZone(INSTANT, null, PARIS)).toBeNull();
+    expect(dayIndexInZone(INSTANT, '21/05/2026', PARIS)).toBeNull();
+    expect(dayIndexInZone('not-a-date', START, PARIS)).toBeNull();
   });
 });

@@ -13,6 +13,7 @@ import {
   type RefereePoolSlot,
   type RefereeRole,
 } from '@myclash/rulesets/dist/scheduling/index';
+import { DEFAULT_EVENT_TIMEZONE, dayIndexInZone } from '@myclash/time';
 import { priorAssignmentsFromRows } from './prior-assignments';
 import { runEndIso } from '../schedule/run-end';
 import {
@@ -842,7 +843,11 @@ export class AssignmentBoardService {
     // Outside the referee's declared tournament/day availability.
     if (
       rules.enableAvailabilityRule &&
-      this.isUnavailable(candidate, pool, this.makeDayIndexOf(context.eventStartDate))
+      this.isUnavailable(
+        candidate,
+        pool,
+        this.makeDayIndexOf(context.eventStartDate, context.eventTimezone),
+      )
     ) {
       throw new BadRequestException('Referee is not available for this tournament or day');
     }
@@ -894,12 +899,22 @@ export class AssignmentBoardService {
     // Slice 8: event.start_date anchors dayIndex computation for the
     // per-day availability filter. Fetched up front so every pool can
     // resolve its own day index without re-querying.
+    //
+    // The timezone comes with it because a day boundary is only meaningful on
+    // some clock, and the event's is the one the organiser and the schedule
+    // board already use. Read from the same row rather than defaulted here, so
+    // an event on another continent buckets its own days.
     const { data: eventRow } = await this.supabase.service
       .from('events')
-      .select('start_date')
+      .select('start_date, timezone')
       .eq('id', eventId)
       .maybeSingle();
-    const eventStartDate = (eventRow as { start_date: string | null } | null)?.start_date ?? null;
+    const eventRowTyped = eventRow as { start_date: string | null; timezone: string | null } | null;
+    const eventStartDate = eventRowTyped?.start_date ?? null;
+    // `events.timezone` is NOT NULL DEFAULT 'Europe/Paris' (migration 0102), so
+    // a null here means the row was missing, not that the column was empty.
+    // Measuring the day the way the platform does beats refusing to load a board.
+    const eventTimezone = eventRowTyped?.timezone ?? DEFAULT_EVENT_TIMEZONE;
 
     // Per-rule toggles (own pool / officiate-vs-fight / …) gate every
     // enforcement point downstream: engine filters, candidate blocking,
@@ -911,6 +926,7 @@ export class AssignmentBoardService {
       return {
         eventId,
         eventStartDate,
+        eventTimezone,
         ruleSettings,
         tournaments,
         phases: [] as PhaseRow[],
@@ -1008,6 +1024,7 @@ export class AssignmentBoardService {
     return {
       eventId,
       eventStartDate,
+      eventTimezone,
       ruleSettings,
       tournaments,
       phases,
@@ -1579,9 +1596,6 @@ export class AssignmentBoardService {
     // config.bracket, 'finals' uses config.finals. Pools whose
     // tournament has no Staffing config get `slotDefinitions: undefined`,
     // which makes the engine fall back to LEGACY_DEFAULT_SLOTS.
-    const eventStartMs = context.eventStartDate
-      ? new Date(`${context.eventStartDate}T00:00:00.000Z`).getTime()
-      : null;
     const poolSlots: RefereePoolSlot[] = context.pools.map((pool) => {
       const config = context.slotConfigByTournament.get(pool.tournamentId);
       const kind = pool.kind ?? 'pool';
@@ -1592,14 +1606,13 @@ export class AssignmentBoardService {
         displayName: s.displayName,
         allowedSkillIds: s.allowedSkillIds,
       }));
-      // Slice 8: dayIndex floored from (poolStart - eventStart) / 86400000.
-      // Pools with no scheduled start get no dayIndex — the engine then
-      // skips the per-day filter for them.
-      let dayIndex: number | undefined;
-      if (eventStartMs !== null && pool.scheduledStart) {
-        const poolMs = new Date(pool.scheduledStart).getTime();
-        dayIndex = Math.max(0, Math.floor((poolMs - eventStartMs) / 86_400_000));
-      }
+      // Slice 8: dayIndex is the pool's calendar day in the EVENT's timezone,
+      // counted from event.start_date — the same clock the schedule board reads.
+      // Pools with no scheduled start, and events with no start date, get no
+      // dayIndex; the engine then skips the per-day filter for them.
+      const dayIndex =
+        dayIndexInZone(pool.scheduledStart, context.eventStartDate, context.eventTimezone) ??
+        undefined;
       return {
         poolId: pool.id,
         poolName: pool.name,
@@ -1675,12 +1688,11 @@ export class AssignmentBoardService {
     );
   }
 
-  private makeDayIndexOf(eventStartDate: string | null): (iso: string) => number {
-    const startMs = eventStartDate ? new Date(eventStartDate).setHours(0, 0, 0, 0) : null;
-    return (iso: string) =>
-      startMs == null
-        ? 0
-        : Math.max(0, Math.floor((new Date(iso).getTime() - startMs) / 86_400_000));
+  /** Day index in the EVENT's timezone, for the availability filter. Falls back
+   *  to day 0 when the event has no start date — the same "no per-day
+   *  restriction can apply" answer this returned before. */
+  private makeDayIndexOf(eventStartDate: string | null, tz: string): (iso: string) => number {
+    return (iso: string) => dayIndexInZone(iso, eventStartDate, tz) ?? 0;
   }
 
   /** Project the loaded context into the shared conflict-detector shape:
@@ -1830,7 +1842,7 @@ export class AssignmentBoardService {
     }
 
     // Shared inputs for the scheduling-conflict + availability checks.
-    const dayIndexOf = this.makeDayIndexOf(context.eventStartDate);
+    const dayIndexOf = this.makeDayIndexOf(context.eventStartDate, context.eventTimezone);
     const commitmentPools = this.buildCommitmentPools(context);
     const rules = context.ruleSettings;
 

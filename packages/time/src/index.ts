@@ -73,6 +73,41 @@ export function zonedDay(iso: string | null | undefined, tz: string): string | n
 }
 
 /**
+ * Which day of an event a UTC instant falls on: a 0-based index counted from
+ * the event's start date, with the day boundary read in the EVENT's timezone.
+ *
+ * The two dates are subtracted as plain calendar days, not as a span of hours.
+ * A day is not always 24 hours — on a DST change it is 23 or 25 — so dividing
+ * an elapsed-milliseconds difference by 86_400_000 misplaces an instant near
+ * midnight exactly twice a year. Both sides here are already whole days, so the
+ * quotient is exact.
+ *
+ * A date before `startDay` clamps to 0 rather than going negative, matching the
+ * callers that treat day 0 as "the first day of the event".
+ *
+ * `tz` is required and is never defaulted here. Luxon's `setZone(undefined)`
+ * resolves to the SYSTEM zone rather than reporting itself invalid, so a helper
+ * that shrugged at a missing zone would quietly answer with the server's clock —
+ * which is the exact bug this function exists to remove. Absent or unparseable
+ * input yields null, and the caller states its own fallback.
+ */
+export function dayIndexInZone(
+  iso: string | null | undefined,
+  startDay: string | null | undefined,
+  tz: string | null | undefined,
+): number | null {
+  if (!tz || !startDay || !YMD.test(startDay)) return null;
+  // An unusable zone string ('Nope/Nowhere') already fails inside zonedDay,
+  // which null-checks Luxon's `isValid`; only the absent case needs the guard
+  // above.
+  const day = zonedDay(iso, tz);
+  if (!day) return null;
+  const elapsed = Date.parse(`${day}T00:00:00.000Z`) - Date.parse(`${startDay}T00:00:00.000Z`);
+  if (Number.isNaN(elapsed)) return null;
+  return Math.max(0, Math.round(elapsed / 86_400_000));
+}
+
+/**
  * Locale-aware display of a UTC instant in the event timezone. Falls back to
  * an empty string on bad input so it's safe to drop straight into JSX.
  */
