@@ -518,7 +518,36 @@ services:
       # `select 1` correctly throughout. Upstream pairs this with the mount
       # below and we adopted neither — the same omission as POSTGRES_DB above.
       SNIPPETS_MANAGEMENT_FOLDER: /app/snippets
-      NEXT_PUBLIC_ENABLE_LOGS: 'false'
+      # What Studio tells the operator the REST API exposes. supabase-rest above
+      # serves `public` and nothing else, so left unset Studio's API-docs page
+      # advertises schemas PostgREST will refuse. The other two are upstream's
+      # own defaults, written out so they stop being invisible.
+      PGRST_DB_SCHEMAS: public
+      PGRST_DB_MAX_ROWS: '1000'
+      PGRST_DB_EXTRA_SEARCH_PATH: public
+      # Upstream's key. We carried NEXT_PUBLIC_ENABLE_LOGS: 'false' from the day
+      # the console shipped and it is not an upstream key at all — it appears
+      # nowhere in their compose, so it was a declaration that did nothing while
+      # the real switch sat at its default. A false declaration is worse than an
+      # absent one.
+      ENABLED_FEATURES_LOGS_ALL: 'false'
+      #
+      # Two upstream keys are deliberately NOT here.
+      #
+      # EDGE_FUNCTIONS_MANAGEMENT_FOLDER: MyClash ships no edge functions, so
+      # there is nothing for the Functions page to read.
+      #
+      # PG_META_CRYPTO_KEY (and CRYPTO_KEY on supabase-meta): upstream uses the
+      # pair to encrypt the connection string Studio hands to pg-meta. Absent on
+      # both sides they fall back to the same default and interoperate — proven,
+      # not assumed: /api/platform/pg-meta/default/query ran `select 1` correctly
+      # throughout the 2026-08-21 SQL Editor outage. The trade is that the
+      # string, which carries POSTGRES_PASSWORD, crosses the docker network in
+      # clear. What makes that acceptable is written on supabase-meta above:
+      # it is deliberately unrouted and answers UNAUTHENTICATED on that same
+      # network, so anything placed to read the string can already query the
+      # database directly. Encrypting it would protect nothing that is not
+      # already open.
       TZ: ${TZ}
     volumes:
       # Without the mount Studio still answers 200 — it just writes into the

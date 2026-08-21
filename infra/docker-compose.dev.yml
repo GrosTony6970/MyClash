@@ -352,7 +352,14 @@ services:
       # without this the snippets route 500s on every page load and takes the
       # whole editor with it.
       SNIPPETS_MANAGEMENT_FOLDER: /app/snippets
-      NEXT_PUBLIC_ENABLE_LOGS: 'false'
+      # See the prod compose for all four: PGRST_DB_SCHEMAS must match what
+      # supabase-rest actually serves, and ENABLED_FEATURES_LOGS_ALL is
+      # upstream's key — NEXT_PUBLIC_ENABLE_LOGS, which stood here, is not one
+      # and never did anything.
+      PGRST_DB_SCHEMAS: public
+      PGRST_DB_MAX_ROWS: '1000'
+      PGRST_DB_EXTRA_SEARCH_PATH: public
+      ENABLED_FEATURES_LOGS_ALL: 'false'
       TZ: ${TZ:-Europe/Paris}
     volumes:
       - dev_studio_snippets:/app/snippets
