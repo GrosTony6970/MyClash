@@ -1618,6 +1618,8 @@ function AssignmentsTab({
                 their card below; scheduled chips jump to their timeslot. */}
             <PoolTimelineGrid
               pools={timelinePools}
+              title={t('organizer.refereesPage.eventTimelineTitle')}
+              emptyLabel={t('organizer.refereesPage.eventTimelineEmpty')}
               breaks={timelineBreaks}
               onPoolClick={handleChipClick}
             />

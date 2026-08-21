@@ -144,7 +144,13 @@ export function RefereesTab({ eventId, tournamentId, isReadOnly }: Props) {
         </div>
       )}
 
-      <PoolTimelineGrid pools={timelinePools} />
+      {/* This mount really is pool-only — see timelinePools above — so it
+          keeps the pool-flavoured heading. */}
+      <PoolTimelineGrid
+        pools={timelinePools}
+        title={t('organizer.poolsPage.refereesTimelineTitle')}
+        emptyLabel={t('organizer.poolsPage.refereesTimelineEmpty')}
+      />
 
       {concurrentPools.length > 0 && (
         <ConcurrentPoolsPanel pools={concurrentPools} locale={locale} />

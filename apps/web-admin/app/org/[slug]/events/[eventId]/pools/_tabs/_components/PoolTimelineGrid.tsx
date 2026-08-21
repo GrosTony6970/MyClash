@@ -46,6 +46,15 @@ export interface TimelineBreak {
 
 interface Props {
   pools: TimelinePool[];
+  /**
+   * Heading and empty-state copy, already translated by the caller.
+   *
+   * The caller owns these because the two mounts show different things: the
+   * pools tab passes a pool-filtered list, so its heading may say "pool", while
+   * the referee workspace passes every kind of scheduled unit and must not.
+   */
+  title: string;
+  emptyLabel: string;
   /** Non-pool programme blocks to interleave as full-width bars. */
   breaks?: TimelineBreak[];
   /** When provided, chips become buttons — the assignments tab uses
@@ -61,7 +70,7 @@ function byLice(a: TimelinePool, b: TimelinePool): number {
   });
 }
 
-export function PoolTimelineGrid({ pools, breaks, onPoolClick }: Props) {
+export function PoolTimelineGrid({ pools, title, emptyLabel, breaks, onPoolClick }: Props) {
   const { locale, t } = useI18n();
   const { blocks, unscheduled } = useMemo(() => groupPoolsByTimeslot(pools), [pools]);
   const unscheduledByLice = useMemo(() => [...unscheduled].sort(byLice), [unscheduled]);
@@ -87,17 +96,13 @@ export function PoolTimelineGrid({ pools, breaks, onPoolClick }: Props) {
 
   return (
     <section className="rounded-lg border border-border bg-surface p-4">
-      <h3 className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted">
-        {t('organizer.poolsPage.refereesTimelineTitle')}
-      </h3>
+      <h3 className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted">{title}</h3>
       {/* The empty state stays INSIDE the card. It used to return a bare
           sentence and skip the section entirely, so the whole block vanished
           off the page — which reads as a broken page rather than as a filter
           that matched nothing, and the tournament filter makes it reachable
           on purpose. */}
-      {isEmpty && (
-        <p className="text-sm text-muted">{t('organizer.poolsPage.refereesTimelineEmpty')}</p>
-      )}
+      {isEmpty && <p className="text-sm text-muted">{emptyLabel}</p>}
       <div className="space-y-3">
         {rows.map((row) =>
           row.kind === 'break' ? (

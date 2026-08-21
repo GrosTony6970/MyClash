@@ -3027,6 +3027,11 @@ export const organizer = {
     collapseCard: 'Close',
     healthcheck: 'Healthcheck',
     dayFilterAll: 'All days',
+    // The workspace timeline carries every kind of scheduled unit — pools,
+    // bracket and finals cards, Swiss rounds — so it cannot borrow the pools
+    // tab's pool-flavoured heading.
+    eventTimelineTitle: 'Event timeline',
+    eventTimelineEmpty: 'Nothing scheduled yet.',
     dayFilterLabel: 'Day',
     tournamentFilterLabel: 'Tournament',
     tournamentFilterAll: 'All',

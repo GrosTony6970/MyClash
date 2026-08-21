@@ -3007,6 +3007,8 @@ export const organizer = {
     collapseCard: 'Fermer',
     healthcheck: 'Vérification',
     dayFilterAll: 'Tous les jours',
+    eventTimelineTitle: "Timeline de l'événement",
+    eventTimelineEmpty: 'Rien de planifié pour le moment.',
     dayFilterLabel: 'Jour',
     tournamentFilterLabel: 'Tournoi',
     tournamentFilterAll: 'Tous',
