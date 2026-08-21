@@ -56,7 +56,7 @@ export default function StaffLoginPage() {
             className="mx-auto mb-3 h-20 w-20"
           />
           <h1 className="text-2xl font-bold">{t('scoring.login.title')}</h1>
-          <p className="text-muted text-sm mt-1">{t('scoring.login.scorekeeperAccess')}</p>
+          <p className="text-muted text-sm mt-1">{t('scoring.login.staffAccess')}</p>
         </div>
 
         <StaffPinForm linkedEvent={linkedEvent} linkedUsername={linkedUsername} />
