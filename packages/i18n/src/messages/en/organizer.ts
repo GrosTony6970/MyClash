@@ -1717,9 +1717,9 @@ export const organizer = {
     refereesTimelineEmpty: 'No scheduled pools yet.',
     refereesTimelineUnscheduled: 'Unscheduled',
     refereesLiceLabel: '{lice}',
-    refereesConcurrentTitle: 'Pools running in parallel',
+    refereesConcurrentTitle: 'Running in parallel',
     refereesConcurrentBody:
-      '{count} pool(s) from other tournaments overlap with yours. Refs already booked there are unavailable.',
+      '{count} from other tournaments overlap with yours. Refs already booked there are unavailable.',
     refereesSlotCardsTitle: 'Tournament pools',
     refereesAssign: 'Assign',
     refereesUnassign: 'Unassign',
@@ -2882,43 +2882,42 @@ export const organizer = {
       qualifications:
         'Decide which skills exist for this event, and which referees have which skill — Déclarant, Assesseur, Table, or any custom skill you add.',
       staffing:
-        'Auto-assign referees to pools based on their qualifications and availability, then tune the result by hand.',
+        'Auto-assign referees based on their qualifications and availability, then tune the result by hand.',
       assignments:
-        "Read-only view of every pool with its assigned Déclarant / Assesseur / Table. Lock once you're happy with the result; unlock if you need to redo it.",
+        "Read-only view of everything scheduled, with its assigned Déclarant / Assesseur / Table. Lock once you're happy with the result; unlock if you need to redo it.",
     },
     unassignedReasons: {
       no_qualified_users: 'No one with this qualification is registered.',
       all_qualified_already_assigned_to_pool:
-        'Everyone qualified is already assigned to another role in this pool.',
-      all_qualified_are_fighters_in_this_pool: 'Everyone qualified is fighting in this pool.',
+        'Everyone qualified is already assigned to another role here.',
+      all_qualified_are_fighters_in_this_pool: 'Everyone qualified is fighting here.',
       all_qualified_have_time_conflict_with_other_pool:
-        'Everyone qualified has a conflict with another pool at the same time.',
+        'Everyone qualified has a conflict at the same time.',
       no_candidates_after_scoring: 'No one passed the scoring filter.',
       would_self_conflict_in_pool: 'They are already assigned to a different role in this pool.',
       all_qualified_unavailable_for_this_pool:
         'Everyone qualified is unavailable for this tournament or day.',
       all_qualified_fighting_in_parallel_pool:
-        'Everyone qualified is fighting in a parallel pool at the same time.',
+        'Everyone qualified is fighting elsewhere at the same time.',
     },
     rules: {
       title: 'Rules checked',
       toggleFailed: 'Could not update the rule setting.',
       ownPool: {
-        label: 'Own pool',
+        label: 'Own fight',
         description: 'A fighter cannot referee the pool or match they compete in.',
       },
       officiateVsFight: {
         label: 'Officiate vs fight',
-        description:
-          'A referee cannot officiate while fighting in another pool at an overlapping time.',
+        description: 'A referee cannot officiate while fighting elsewhere at an overlapping time.',
       },
       doubleBooked: {
         label: 'Double-booked',
-        description: 'A referee cannot officiate two pools whose schedules overlap.',
+        description: 'A referee cannot officiate twice at overlapping times.',
       },
       twoRoles: {
         label: 'Two roles',
-        description: 'One person cannot hold two referee roles on the same pool.',
+        description: 'One person cannot hold two referee roles on the same pool or match.',
       },
       availability: {
         label: 'Availability',
@@ -2926,7 +2925,8 @@ export const organizer = {
       },
       capacity: {
         label: 'Capacity',
-        description: 'Warns when parallel pools need more referee slots than referees are free.',
+        description:
+          'Warns when what runs in parallel needs more referee slots than referees are free.',
       },
     },
     diagnostics: {
@@ -3001,7 +3001,7 @@ export const organizer = {
     unavailableBadge: 'Unavailable',
     blockedReasons: {
       missing_qualification: 'Not qualified for this role',
-      fighter_referee_overlap: 'Competing in this pool',
+      fighter_referee_overlap: 'Competing here',
       schedule_conflict: 'Busy at this time (fighting or officiating elsewhere)',
       unavailable: 'Not available for this tournament or day',
       duplicate_role_same_pool: 'Already assigned another role here',
@@ -3017,9 +3017,9 @@ export const organizer = {
       unfillableTitle: 'Unfillable slots',
       unfillableDetail: 'all qualified referees are busy or unavailable',
       capacityTitle: 'Capacity',
-      capacityLine: '{lices} parallel pools need {needed} slots, only {free} referees free',
+      capacityLine: '{lices} running in parallel need {needed} slots, only {free} referees free',
       rulesFooter:
-        'Rules: own pool · officiate-vs-fight · double-booked · two roles · availability · capacity',
+        'Rules: own fight · officiate-vs-fight · double-booked · two roles · availability · capacity',
     },
     byTimeslotTitle: 'By time slot',
     idleLice: 'idle',
@@ -3057,12 +3057,13 @@ export const organizer = {
     clearAllConfirm: 'Clear every referee assignment for this event? This cannot be undone.',
     clearAllConfirmTitle: 'Clear all assignments',
     clearAllConfirmAction: 'Clear all',
-    clearPool: 'Clear pool assignments',
+    clearPool: 'Clear assignments',
     clearPoolConfirm: 'Clear every referee assignment for {poolName}? This cannot be undone.',
-    clearPoolConfirmTitle: 'Clear pool assignments',
-    clearPoolConfirmAction: 'Clear pool',
+    clearPoolConfirmTitle: 'Clear assignments',
+    clearPoolConfirmAction: 'Clear',
     clearFailed: 'Could not clear referee assignments.',
-    noPoolsForAssignments: 'No pools generated yet. Generate pools before assigning referees.',
+    noPoolsForAssignments:
+      'Nothing scheduled yet. Generate pools or a bracket before assigning referees.',
     missingAssignments: 'Missing assignments',
     recommendedCandidates: 'Recommended',
     warningCandidates: 'Eligible with warnings',

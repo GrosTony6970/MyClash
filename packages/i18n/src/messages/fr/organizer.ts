@@ -1705,9 +1705,9 @@ export const organizer = {
     refereesTimelineEmpty: 'Aucune poule planifiée pour le moment.',
     refereesTimelineUnscheduled: 'Non planifie',
     refereesLiceLabel: '{lice}',
-    refereesConcurrentTitle: 'Poules en parallèle',
+    refereesConcurrentTitle: 'En parallèle',
     refereesConcurrentBody:
-      "{count} poule(s) d'autres tournois chevauchent les votres. Les arbitres déjà affectes la-bas sont indisponibles.",
+      "{count} d'autres tournois chevauchent les votres. Les arbitres déjà affectes la-bas sont indisponibles.",
     refereesSlotCardsTitle: 'Poules du tournoi',
     refereesAssign: 'Affecter',
     refereesUnassign: 'Retirer',
@@ -2855,46 +2855,46 @@ export const organizer = {
       qualifications:
         'Définissez les compétences disponibles pour cet événement et qui possede chaque compétence — Declarant, Assesseur, Table, ou toute compétence personnalisée.',
       staffing:
-        'Affectez automatiquement les arbitres aux poules selon leurs qualifications et disponibilites, puis ajustez le résultat à la main.',
+        'Affectez automatiquement les arbitres selon leurs qualifications et disponibilites, puis ajustez le résultat à la main.',
       assignments:
-        'Vue lecture seule de chaque poule avec ses Declarant / Assesseur / Table affectes. Verrouillez quand le résultat vous convient ; deverrouillez pour le retoucher.',
+        'Vue lecture seule de tout ce qui est planifié, avec ses Declarant / Assesseur / Table affectes. Verrouillez quand le résultat vous convient ; deverrouillez pour le retoucher.',
     },
     unassignedReasons: {
       no_qualified_users: "Personne ayant cette qualification n'est inscrit.",
       all_qualified_already_assigned_to_pool:
-        'Tous les arbitres qualifies sont déjà affectes à un autre rôle dans cette poule.',
-      all_qualified_are_fighters_in_this_pool:
-        'Tous les arbitres qualifies combattent dans cette poule.',
+        'Tous les arbitres qualifies sont déjà affectes à un autre rôle ici.',
+      all_qualified_are_fighters_in_this_pool: 'Tous les arbitres qualifies combattent ici.',
       all_qualified_have_time_conflict_with_other_pool:
-        'Tous les arbitres qualifies ont un conflit avec une autre poule au même moment.',
+        'Tous les arbitres qualifies ont un conflit au même moment.',
       no_candidates_after_scoring: "Aucun candidat n'a passé le filtre de notation.",
       would_self_conflict_in_pool:
         'Cette personne est déjà affectée à un autre rôle dans cette poule.',
       all_qualified_unavailable_for_this_pool:
         'Tous les arbitres qualifies sont indisponibles pour ce tournoi ou ce jour.',
       all_qualified_fighting_in_parallel_pool:
-        'Tous les arbitres qualifies combattent dans une poule en parallèle au même moment.',
+        'Tous les arbitres qualifies combattent ailleurs au même moment.',
     },
     rules: {
       title: 'Règles vérifiées',
       toggleFailed: 'Impossible de mettre à jour le reglage de la regle.',
       ownPool: {
-        label: 'Sa poule',
+        label: 'Son combat',
         description: 'Un combattant ne peut pas arbitrer la poule ou le match ou il combat.',
       },
       officiateVsFight: {
         label: 'Arbitre vs combat',
         description:
-          "Un arbitre ne peut pas officier pendant qu'il combat dans une autre poule au même moment.",
+          "Un arbitre ne peut pas officier pendant qu'il combat ailleurs au même moment.",
       },
       doubleBooked: {
         label: 'Double affectation',
         description:
-          'Un arbitre ne peut pas officier deux poules dont les horaires se chevauchent.',
+          'Un arbitre ne peut pas officier deux fois sur des horaires qui se chevauchent.',
       },
       twoRoles: {
         label: 'Deux rôles',
-        description: 'Une même personne ne peut pas tenir deux rôles sur la même poule.',
+        description:
+          'Une même personne ne peut pas tenir deux rôles sur la même poule ou le même match.',
       },
       availability: {
         label: 'Disponibilité',
@@ -2903,7 +2903,7 @@ export const organizer = {
       capacity: {
         label: 'Capacite',
         description:
-          "Avertit quand les poules en parallèle demandent plus de postes que d'arbitres libres.",
+          "Avertit quand ce qui tourne en parallèle demande plus de postes que d'arbitres libres.",
       },
     },
     diagnostics: {
@@ -2980,7 +2980,7 @@ export const organizer = {
     unavailableBadge: 'Indisponible',
     blockedReasons: {
       missing_qualification: 'Non qualifie pour ce rôle',
-      fighter_referee_overlap: 'Combattant dans cette poule',
+      fighter_referee_overlap: 'Combattant ici',
       schedule_conflict: 'Occupe à ce créneau (combat ou arbitrage ailleurs)',
       unavailable: 'Indisponible pour ce tournoi ou ce jour',
       duplicate_role_same_pool: 'Déjà affecte à un autre rôle ici',
@@ -2997,9 +2997,9 @@ export const organizer = {
       unfillableDetail: 'tous les arbitres qualifies sont occupes ou indisponibles',
       capacityTitle: 'Capacite',
       capacityLine:
-        '{lices} poules en parallèle demandent {needed} postes, seulement {free} arbitres libres',
+        '{lices} en parallèle demandent {needed} postes, seulement {free} arbitres libres',
       rulesFooter:
-        'Règles : sa poule · arbitre-vs-combat · double affectation · deux rôles · disponibilité · capacite',
+        'Règles : son combat · arbitre-vs-combat · double affectation · deux rôles · disponibilité · capacite',
     },
     byTimeslotTitle: 'Par créneau',
     idleLice: 'libre',
@@ -3036,14 +3036,14 @@ export const organizer = {
       'Effacer toutes les affectations arbitres de cet événement ? Action irréversible.',
     clearAllConfirmTitle: 'Tout effacer',
     clearAllConfirmAction: 'Tout effacer',
-    clearPool: 'Effacer les affectations de la poule',
+    clearPool: 'Effacer les affectations',
     clearPoolConfirm:
       'Effacer toutes les affectations arbitres de {poolName} ? Action irréversible.',
-    clearPoolConfirmTitle: 'Effacer les affectations de la poule',
-    clearPoolConfirmAction: 'Effacer la poule',
+    clearPoolConfirmTitle: 'Effacer les affectations',
+    clearPoolConfirmAction: 'Effacer',
     clearFailed: "Impossible d'effacer les affectations arbitres.",
     noPoolsForAssignments:
-      "Aucune poule générée. Générez les poules avant d'affecter les arbitres.",
+      "Rien de planifié. Générez les poules ou un tableau avant d'affecter les arbitres.",
     missingAssignments: 'Affectations manquantes',
     recommendedCandidates: 'Recommandes',
     warningCandidates: 'Eligibles avec avertissements',

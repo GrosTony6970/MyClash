@@ -94,9 +94,11 @@ export function RefereesTab({ eventId, tournamentId, isReadOnly }: Props) {
   );
 
   /**
-   * Pools (from other tournaments) whose time window overlaps with any
-   * pool in this tournament. Used both for the concurrent-pools summary
-   * and to flag "busy in concurrent pool" candidates in the picker.
+   * Scheduled units from OTHER tournaments whose time window overlaps a pool
+   * in this one. Deliberately unfiltered by `kind`, unlike `tournamentPools`
+   * and `timelinePools` above: this set also builds `busyConcurrentUserIds`,
+   * and a referee booked on a bracket match at an overlapping time is just as
+   * busy as one booked on a pool. Filtering it would delete true conflicts.
    */
   const concurrentPools = useMemo(() => {
     if (tournamentPools.length === 0) return [] as AssignmentBoardPool[];
