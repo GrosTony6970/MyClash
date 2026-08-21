@@ -367,6 +367,11 @@ export class ProgrammeService {
       dayEndTime: dto.dayEndTime,
       parallelLiceCount: dto.parallelLiceCount,
       poolMatchDurationMinutes: dto.poolMatchDurationMinutes,
+      // Optional on the DTO, so it stays undefined for a client that predates
+      // the Swiss format and `buildSuggestion` falls back to the pool clock.
+      // Omitting it here made that fallback the ONLY path: whatever the
+      // organiser typed was dropped between the DTO and the config.
+      swissMatchDurationMinutes: dto.swissMatchDurationMinutes,
       eliminationMatchDurationMinutes: dto.eliminationMatchDurationMinutes,
       finalsMatchDurationMinutes: dto.finalsMatchDurationMinutes,
       matchGapSeconds: dto.matchGapSeconds,

@@ -6,6 +6,11 @@ const mockOrgs = { assertOrgRole: vi.fn() };
 const CALLER = 'user-1';
 import { ProgrammeService, decidePoolAffinity } from './programme.service';
 import type { SaveProgrammeDto, SuggestProgrammeDto } from './dto/programme.dto';
+import {
+  DEFAULT_SWISS_POINTS,
+  DEFAULT_SWISS_TIEBREAK_CHAIN,
+  type SwissConfig,
+} from '../swiss/dto/swiss-config.dto';
 
 const fromMock = vi.fn();
 const mockSupabase = { service: { from: fromMock } };
@@ -47,6 +52,42 @@ function makeChain(result: unknown) {
   }
 
   return chain;
+}
+
+/** A config that actually satisfies swissConfigSchema — the estimate parses it,
+ *  and an unparseable one silently counts zero Swiss bouts. */
+const SWISS_CONFIG: SwissConfig = {
+  roundCount: 5,
+  seedingStrategy: 'random',
+  pairingMethod: 'fold',
+  grouping: { kind: 'points' },
+  rankBy: 'swissPts',
+  points: { ...DEFAULT_SWISS_POINTS },
+  tiebreakChain: [...DEFAULT_SWISS_TIEBREAK_CHAIN],
+};
+
+/** The suggest payload every duration case starts from. */
+const SUGGEST_DTO = {
+  dayStartTime: '08:00',
+  dayEndTime: '18:00',
+  parallelLiceCount: 1,
+  poolMatchDurationMinutes: 5,
+  eliminationMatchDurationMinutes: 8,
+  finalsMatchDurationMinutes: 10,
+  matchGapSeconds: 15,
+  minRestMinutes: 10,
+  breakBetweenSessionsMinutes: 10,
+  middayBreakStart: '12:00',
+  middayBreakEnd: '13:00',
+  registrationDurationMinutes: 30,
+  gearCheckDurationMinutes: 15,
+  refereeMeetingDurationMinutes: 15,
+};
+
+/** 'HH:MM' as minutes past midnight, for measuring a block's length. */
+function timeToMinutes(hhmm: string): number {
+  const [h, m] = hhmm.split(':').map(Number);
+  return (h ?? 0) * 60 + (m ?? 0);
 }
 
 function programmeDto(overrides: Partial<SaveProgrammeDto> = {}): SaveProgrammeDto {
@@ -577,6 +618,44 @@ describe('ProgrammeService', () => {
 
     expect(suggestion.blocks.length).toBeGreaterThan(0);
     expect(suggestion.blocks.some((b) => b.blockType === 'workshop')).toBe(false);
+  });
+
+  it('builds the Swiss block on the Swiss bout length, not the pool one', async () => {
+    // The organiser typed 12 minutes for a Swiss bout and 5 for a pool bout.
+    // `suggest` used to assemble its config without the Swiss field at all, so
+    // `buildSuggestion`'s `?? poolMatchDurationMinutes` fallback was the only
+    // path that ever ran and the day plan was always built on the pool clock.
+    //
+    // Reads, in order: lices, tournaments, phases (stats), phases (bracket
+    // loader, none here), swiss_entrants. `assertWriter` is stubbed in
+    // beforeEach, so the authz read of `events` is not in this queue.
+    fromMock
+      .mockReturnValueOnce(makeChain({ data: [{ id: 'l1' }], error: null })) // lices
+      .mockReturnValueOnce(makeChain({ data: [{ id: 't1', name: 'Longsword' }], error: null }))
+      .mockReturnValueOnce(
+        makeChain({ data: [{ id: 'ph1', type: 'swiss', config_json: SWISS_CONFIG }], error: null }),
+      )
+      .mockReturnValueOnce(makeChain({ data: [], error: null })) // no bracket phases
+      .mockReturnValueOnce(
+        makeChain({
+          data: Array.from({ length: 8 }, () => ({ phase_id: 'ph1' })),
+          error: null,
+        }),
+      ); // swiss_entrants
+
+    const suggestion = await service.suggest(
+      'event-1',
+      { ...SUGGEST_DTO, poolMatchDurationMinutes: 5, swissMatchDurationMinutes: 12 } as never,
+      CALLER,
+    );
+
+    const swiss = suggestion.blocks.find((b) => b.competitionPhase === 'swiss');
+    expect(swiss?.matchDurationMinutes).toBe(12);
+    // 8 entrants x 5 rounds = 20 bouts on one lice, at 12 min + 15 s each =
+    // 245 min. Sized to fit inside 08:00-18:00 on purpose: an overrunning block
+    // is clamped to the window remainder, which is the same number for 5 and 12
+    // and would make this assertion a constant. On the pool clock it is 105.
+    expect(timeToMinutes(swiss!.endTime) - timeToMinutes(swiss!.startTime)).toBe(245);
   });
 
   it('carves the final round into a separate Finals block at the finals duration', async () => {
