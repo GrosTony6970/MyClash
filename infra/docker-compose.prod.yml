@@ -508,8 +508,24 @@ services:
       SUPABASE_ANON_KEY: ${SUPABASE_ANON_KEY}
       SUPABASE_SERVICE_KEY: ${SUPABASE_SERVICE_ROLE_KEY}
       AUTH_JWT_SECRET: ${SUPABASE_JWT_SECRET}
+      # Studio's SQL Editor keeps saved queries on DISK, not in Postgres. With
+      # this unset the snippets route throws on every page load and answers 500
+      # carrying the body {"data":[]} — a failure wearing a success shape, so
+      # the editor spins forever rather than showing an error. Both toasts the
+      # operator hit ("SNIPPETS_MANAGEMENT_FOLDER env var is not set" and the
+      # generic "API error happened while trying to communicate with the
+      # server") were that one 500; /api/platform/pg-meta/default/query answered
+      # `select 1` correctly throughout. Upstream pairs this with the mount
+      # below and we adopted neither — the same omission as POSTGRES_DB above.
+      SNIPPETS_MANAGEMENT_FOLDER: /app/snippets
       NEXT_PUBLIC_ENABLE_LOGS: 'false'
       TZ: ${TZ}
+    volumes:
+      # Without the mount Studio still answers 200 — it just writes into the
+      # container filesystem, so every saved query dies on the next recreate.
+      # That failure is invisible to a status-code probe, which is why the gate
+      # pins this line and not only the variable above.
+      - studio_snippets:/app/snippets
     depends_on:
       supabase-meta: { condition: service_healthy }
     healthcheck:
@@ -1203,3 +1219,8 @@ volumes:
     name: myclash-redis-data
   storage_data:
     name: myclash-storage-data
+  # Operator scratch: saved SQL Editor queries. Deliberately NOT in the nightly
+  # backup — infra/scripts/backup.sh archives myclash-storage-data alone, and
+  # these are throwaway queries, not data of record.
+  studio_snippets:
+    name: myclash-studio-snippets

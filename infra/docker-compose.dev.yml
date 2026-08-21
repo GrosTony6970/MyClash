@@ -348,8 +348,14 @@ services:
       SUPABASE_ANON_KEY: ${SUPABASE_ANON_KEY:-eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoiYW5vbiIsImlhdCI6MTYxMzUzMTk4NSwiZXhwIjo0NzY5MjA1OTg1fQ.HkSBOhFBMBNFBHFBHFBHFBHFBHFBHFBHFBHFBHFBHFB}
       SUPABASE_SERVICE_KEY: ${SUPABASE_SERVICE_ROLE_KEY:-eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoic2VydmljZV9yb2xlIiwiaWF0IjoxNjEzNTMxOTg1LCJleHAiOjQ3NjkyMDU5ODV9.HkSBOhFBMBNFBHFBHFBHFBHFBHFBHFBHFBHFBHFBHFB}
       AUTH_JWT_SECRET: ${SUPABASE_JWT_SECRET:-super-secret-jwt-token-with-at-least-32-characters-long}
+      # See the prod compose: Studio keeps saved SQL queries on disk, and
+      # without this the snippets route 500s on every page load and takes the
+      # whole editor with it.
+      SNIPPETS_MANAGEMENT_FOLDER: /app/snippets
       NEXT_PUBLIC_ENABLE_LOGS: 'false'
       TZ: ${TZ:-Europe/Paris}
+    volumes:
+      - dev_studio_snippets:/app/snippets
     ports:
       - '127.0.0.1:3010:3000' # loopback only — never 0.0.0.0
     depends_on:
@@ -663,3 +669,5 @@ volumes:
     name: myclash-dev-redis-data
   dev_storage_data:
     name: myclash-dev-storage-data
+  dev_studio_snippets:
+    name: myclash-dev-studio-snippets
