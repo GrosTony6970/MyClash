@@ -62,7 +62,10 @@ export const PROD_PROBES = [
     // hosts. /version was deliberately put under the prefix for this reason.
     host: (domain) => `staff.${domain}`,
     path: '/api/v1/version',
-    middlewares: 'myclash-geoblock-public + myclash-fail2ban-staff',
+    // No fail2ban on this router: it carries every authenticated call the pad
+    // makes, and the jails count 401/403. See myclash-staff-api in the prod
+    // compose file.
+    middlewares: 'myclash-geoblock-public',
     expect: 'hsts',
   },
   {

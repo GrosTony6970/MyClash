@@ -410,12 +410,13 @@ services:
       - traefik.http.routers.dev-api.rule=Host(`api.myclash.localhost`)
       - traefik.http.routers.dev-api.entrypoints=websecure
       - traefik.http.routers.dev-api.tls=true
-      # Carries the -staff ban rule as a volumetric backstop, matching prod's
-      # myclash-api. (This comment used to claim the scoring pad calls the API
-      # host directly. It does not: every pad fetch is relative to whatever
-      # origin served the bundle — see apps/web-staff/src/lib/api-url.ts — so
-      # they land on dev-staff-api below, not here.)
-      - traefik.http.routers.dev-api.middlewares=myclash-geoblock-public@file,myclash-fail2ban-staff@docker,myclash-compress@docker
+      # No fail2ban, matching prod's myclash-api — which never had one. The
+      # comment here claimed the opposite for as long as the label existed.
+      # (It also used to claim the scoring pad calls the API host directly. It
+      # does not: every pad fetch is relative to whatever origin served the
+      # bundle — see apps/web-staff/src/lib/api-url.ts — so they land on
+      # dev-staff-api below, not here.)
+      - traefik.http.routers.dev-api.middlewares=myclash-geoblock-public@file,myclash-compress@docker
       - traefik.http.services.dev-api.loadbalancer.server.port=4000
       - traefik.http.routers.dev-admin-api.rule=Host(`admin.myclash.localhost`) && PathPrefix(`/api/v1`)
       - traefik.http.routers.dev-admin-api.entrypoints=websecure
@@ -433,9 +434,10 @@ services:
       - traefik.http.routers.dev-staff-api.rule=Host(`staff.myclash.localhost`) && PathPrefix(`/api/v1`)
       - traefik.http.routers.dev-staff-api.entrypoints=websecure
       - traefik.http.routers.dev-staff-api.tls=true
-      # Public geo allow-list + the -staff jail, matching prod's
-      # myclash-staff-api middleware chain.
-      - traefik.http.routers.dev-staff-api.middlewares=myclash-geoblock-public@file,myclash-fail2ban-staff@docker,myclash-compress@docker
+      # Public geo allow-list and NO fail2ban, matching prod's myclash-staff-api
+      # middleware chain — the jail counts 401/403 and this router carries every
+      # authenticated call the pad makes. See that router's note in the prod file.
+      - traefik.http.routers.dev-staff-api.middlewares=myclash-geoblock-public@file,myclash-compress@docker
       # 30 beats dev-staff's rule-length default and stays BELOW dev-staff-auth's
       # 40, so the PIN-login pair below keeps winning on its own path.
       - traefik.http.routers.dev-staff-api.priority=30

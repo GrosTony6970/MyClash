@@ -2610,14 +2610,13 @@ for (const [router, variant] of Object.entries(geoblockRouters)) {
   }
 }
 
-// Fail2Ban guards only the surfaces the app itself does not rate-limit.
-// myclash-admin-api is excluded ON PURPOSE: sliding sessions make expired
-// cookies emit 401 bursts that are indistinguishable from an attack.
+// Fail2Ban guards LOGIN surfaces only. Both jails count 401/403, which on a
+// router carrying authenticated app traffic is a ban on real people rather than
+// on an attacker — see the refusal list below.
 const fail2banRouters = {
   'myclash-auth': 'MW_F2B_AUTH',
   'myclash-studio': 'MW_F2B_AUTH',
   'myclash-traefik-dashboard': 'MW_F2B_AUTH',
-  'myclash-staff-api': 'MW_F2B_STAFF',
   // Both halves of the staff-auth pair, or the endpoint goes back to being
   // unjailed on whichever host is missing.
   'myclash-staff-auth': 'MW_F2B_STAFF',
@@ -2632,11 +2631,32 @@ for (const [router, prefix] of Object.entries(fail2banRouters)) {
     errors.push(`Router ${router} must chain \${${prefix}} (fail2ban).`);
   }
 }
-if (/routers\.myclash-admin-api\.middlewares=[^\n]*fail2ban/u.test(composeText)) {
-  errors.push(
-    'myclash-admin-api must NOT chain fail2ban: expired sliding sessions emit parallel 401 bursts ' +
-      'that would ban legitimate admins. The admin country allow-list is the control there.',
+
+// The API routers that must stay UNJAILED, and why.
+//
+// Anchored on `routers.<name>.middlewares=` so `myclash-staff-api` cannot be
+// satisfied by a match inside `myclash-staff-auth`, and matching BOTH spellings:
+// prod chains the jails through `${MW_F2B_*}` for the TRAEFIK_PLUGINS=off
+// kill-switch, so a rule looking only for the literal `fail2ban` would have been
+// a refusal that could never fire on this file.
+const unjailedApiRouters = {
+  'myclash-admin-api':
+    'expired sliding sessions emit parallel 401 bursts that would ban legitimate admins. ' +
+    'The admin country allow-list is the control there.',
+  'myclash-staff-api':
+    'it carries every authenticated call the scoring pad makes, including a 20-second ' +
+    'heartbeat that runs on the login screen too. On 2026-08-21 the -staff jail answered a ' +
+    'gear-check POST with a synthesized 403 and took a venue off the air for 15 minutes — ' +
+    "a venue shares one NAT'd address. The API's own ThrottlerGuard is the control there.",
+};
+for (const [router, why] of Object.entries(unjailedApiRouters)) {
+  const pattern = new RegExp(
+    `routers\\.${escapeRegExp(router)}\\.middlewares=[^\\n]*(fail2ban|\\$\\{MW_F2B_)`,
+    'u',
   );
+  if (pattern.test(composeText)) {
+    errors.push(`${router} must NOT chain fail2ban: ${why}`);
+  }
 }
 
 // Dev's staff routers, mirroring prod's. Dev is where a router shape is first
@@ -2646,10 +2666,6 @@ if (/routers\.myclash-admin-api\.middlewares=[^\n]*fail2ban/u.test(composeText))
 const devStaffRouters = {
   'dev-staff-auth': 'myclash-geoblock-public@file',
   'dev-staff-auth-admin': 'myclash-geoblock-admin@file',
-  // The pad's own /api/v1 route. Same chain as prod's myclash-staff-api, which
-  // carries MW_F2B_STAFF as a volumetric backstop behind the API's own
-  // per-account throttle.
-  'dev-staff-api': 'myclash-geoblock-public@file',
 };
 for (const [router, geoblock] of Object.entries(devStaffRouters)) {
   const pattern = new RegExp(
@@ -2660,6 +2676,24 @@ for (const [router, geoblock] of Object.entries(devStaffRouters)) {
     errors.push(
       `infra/docker-compose.dev.yml router ${router} must chain ${geoblock} then ` +
         'myclash-fail2ban-staff@docker, matching its prod twin.',
+    );
+  }
+}
+
+// The dev twins of the unjailed API routers above. Pinned as a REFUSAL rather
+// than merely dropped from the list: a router that is only "no longer asserted"
+// is one the next edit can quietly re-jail, and the two files drift apart again
+// — which is how dev-api came to carry the jail under a comment claiming it
+// matched prod's myclash-api, which never had one.
+for (const router of ['dev-api', 'dev-staff-api', 'dev-admin-api']) {
+  const pattern = new RegExp(
+    `routers\\.${escapeRegExp(router)}\\.middlewares=[^\\n]*fail2ban`,
+    'u',
+  );
+  if (pattern.test(devComposeText)) {
+    errors.push(
+      `infra/docker-compose.dev.yml router ${router} must NOT chain fail2ban: it carries ` +
+        'authenticated app traffic, and the jails count 401/403. Same reason as its prod twin.',
     );
   }
 }
@@ -2748,9 +2782,12 @@ for (const [router, variant] of Object.entries(devGeoblockRouters)) {
     );
   }
 }
+// dev-api is NOT here. It carried myclash-fail2ban-staff@docker under a comment
+// claiming that matched prod's myclash-api, which has never chained a jail — so
+// this rule enforced the drift it was written to prevent. The refusal above is
+// what pins it now.
 for (const [router, middleware] of Object.entries({
   'dev-auth': 'myclash-fail2ban-auth@docker',
-  'dev-api': 'myclash-fail2ban-staff@docker',
 })) {
   const pattern = new RegExp(
     `traefik\\.http\\.routers\\.${escapeRegExp(router)}\\.middlewares=[^\\n]*${escapeRegExp(middleware)}`,

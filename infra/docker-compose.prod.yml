@@ -111,8 +111,17 @@ services:
       #
       # Thresholds are set by how many humans sit behind one public IP, not by
       # how strict we can be. Both are deliberately looser than the app's own
-      # limiter (10/h per IP on auth routes, 120/min global): this is a
-      # volumetric backstop, not the primary auth control.
+      # limiter (10/h per IP on auth routes, 600/min global — see
+      # throttle-profiles.ts): this is a volumetric backstop, not the primary
+      # auth control.
+      #
+      # BOTH JAILS RIDE LOGIN SURFACES ONLY. Counting 401/403 on a router that
+      # carries authenticated APP traffic bans real people: an expired sliding
+      # session emits a burst of 401s that is indistinguishable from an attack.
+      # That is why myclash-admin-api has never chained one, and why
+      # myclash-staff-api stopped on 2026-08-21 — the pad's 20-second heartbeat
+      # ran on the login screen too, so a signed-out tablet posted three 401s a
+      # minute forever and a venue shares one NAT'd address.
       #
       # -auth — login surfaces + this dashboard. Few humans per IP, and the
       # myclash-auth router reaches GoTrue directly with NO ThrottlerGuard in
@@ -661,9 +670,14 @@ services:
       - traefik.http.routers.myclash-staff-api.entrypoints=websecure
       - traefik.http.routers.myclash-staff-api.tls=true
       - traefik.http.routers.myclash-staff-api.tls.certresolver=letsencrypt
-      # The -staff jail rides this router as a volumetric backstop. The primary
-      # control is now @ThrottleByStaffAccount in the API (10/h per event+username).
-      - traefik.http.routers.myclash-staff-api.middlewares=${MW_GEO_PUBLIC}${MW_F2B_STAFF}myclash-security-headers@file,myclash-compress@file
+      # NO FAIL2BAN HERE. This router carries every authenticated call the pad
+      # makes, and the -staff jail counts 401/403 — so on 2026-08-21 it answered
+      # a gear-check POST with a synthesized 403 in 0ms and took the venue off
+      # the air for fifteen minutes. See the jail block above for the mechanism.
+      # Rate control on this surface is the API's own ThrottlerGuard (600/min per
+      # IP) plus @ThrottleByStaffAccount on the login route, and both answer 429
+      # to the one caller rather than banning the address for everyone.
+      - traefik.http.routers.myclash-staff-api.middlewares=${MW_GEO_PUBLIC}myclash-security-headers@file,myclash-compress@file
       - traefik.http.routers.myclash-staff-api.priority=30
       - traefik.http.routers.myclash-staff-api.service=myclash-api
       # ── Staff PIN login, jailed on EVERY host ────────────────────────────
