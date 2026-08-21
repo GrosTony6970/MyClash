@@ -12,7 +12,7 @@ import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { ConfirmDialog, Modal, SkillBadge, tintBgClassFor, useToast } from '@myclash/ui';
 
-import { DEFAULT_EVENT_TIMEZONE, localeToBcp47, zonedDay, type AppLocale } from '@myclash/time';
+import { DEFAULT_EVENT_TIMEZONE, localeToBcp47, type AppLocale } from '@myclash/time';
 import { blockTint, resolveBlockAccent } from '@myclash/types';
 import type { CapacityWarning, RefereeConflict } from '@myclash/types';
 import { useI18n, type Translator } from '@myclash/next-i18n/client';
@@ -24,7 +24,12 @@ import { AssignmentDiagnosticsPanel, type RuleKey } from './_components/Assignme
 import { PoolSlotCard } from './_components/PoolSlotCard';
 import { groupPoolsByTimeslot } from './_components/group-pools-by-timeslot';
 import { NO_LICE, liceColumnsFor } from './_components/timeslot-lice-columns';
-import { eventDayIsosFor } from './_components/filter-board-pools';
+import {
+  eventDayIsosFor,
+  filterBoardPools,
+  tournamentsForDay,
+} from './_components/filter-board-pools';
+import { AssignmentFilters } from './_components/AssignmentFilters';
 import {
   PoolTimelineGrid,
   type TimelineBreak,
@@ -710,6 +715,13 @@ function AssignmentsTab({
   /** The clock the day filter is measured on — see the pool filter below. */
   const [eventTz, setEventTz] = useState<string>(DEFAULT_EVENT_TIMEZONE);
   const [selectedDayIso, setSelectedDayIso] = useState<string | null>(null);
+  /**
+   * Tournament filter. `null` means "untouched", which resolves to every
+   * tournament the selected day has — so the default needs no effect to set
+   * it, and picking a day just resets this back to null. An explicit array
+   * (including an EMPTY one, which shows nothing) means the operator chose.
+   */
+  const [tournamentSelection, setTournamentSelection] = useState<string[] | null>(null);
   // Drag-drop: ref holds the dragged pool (no re-render); state highlights
   // the hovered drop cell.
   const dragPool = useRef<{
@@ -731,22 +743,30 @@ function AssignmentsTab({
     () => (board ? [...board.pools, ...board.unscheduledPools] : []),
     [board],
   );
-  // Day filter: when a day is selected, keep only pools scheduled that day
-  // (unscheduled pools — null start — only appear under "All days").
-  // `scheduledStart` is a real UTC instant, so `slice(0, 10)` read the UTC day
-  // and not the event's. The programme-block rows beside these are built from a
-  // day INDEX (see programmeBlockStartIso), so they were always on the event's
-  // clock — on an event west of UTC the two halves of this one filter disagreed
-  // about which day they were on. `zonedDay` is what the schedule grid, the CSV
-  // export and the public schedule already use.
+  // The tournaments the day filter currently offers, and the ids actually in
+  // force — see `tournamentSelection` for why null resolves to "all of them".
+  const tournamentOptions = useMemo(
+    () => tournamentsForDay(allBoardPools, selectedDayIso, eventTz),
+    [allBoardPools, selectedDayIso, eventTz],
+  );
+  const selectedTournamentIds = useMemo(
+    () => tournamentSelection ?? tournamentOptions.map((option) => option.id),
+    [tournamentSelection, tournamentOptions],
+  );
+  // Day + tournament filter, scoping the timeline AND the by-timeslot grid
+  // below it. The day is measured on the event's clock, never the browser's:
+  // `scheduledStart` is a real UTC instant, and the programme-block rows beside
+  // these are built from a day INDEX, so on an event west of UTC a `slice(0,10)`
+  // made the two halves of one filter disagree about which day they were on.
+  // Unscheduled pools (null start) only appear under "All days".
   const visibleBoardPools = useMemo(
     () =>
-      selectedDayIso
-        ? allBoardPools.filter(
-            (p) => zonedDay(p.scheduledStart ?? null, eventTz) === selectedDayIso,
-          )
-        : allBoardPools,
-    [allBoardPools, selectedDayIso, eventTz],
+      filterBoardPools(allBoardPools, {
+        dayIso: selectedDayIso,
+        tz: eventTz,
+        tournamentIds: selectedTournamentIds,
+      }),
+    [allBoardPools, selectedDayIso, eventTz, selectedTournamentIds],
   );
   const { blocks: timeslotBlocks, unscheduled: unscheduledBoardPools } = useMemo(
     () => groupPoolsByTimeslot(visibleBoardPools),
@@ -798,6 +818,25 @@ function AssignmentsTab({
     () => unscheduledBoardPools.find((p) => p.id === expandedPoolId) ?? null,
     [unscheduledBoardPools, expandedPoolId],
   );
+
+  // Picking a day drops any tournament choice made on the previous one: a
+  // tournament hidden on Saturday must not open Sunday already hidden. Done
+  // here rather than in an effect — react-hooks/set-state-in-effect is an
+  // error in this app.
+  function handleSelectDay(iso: string | null) {
+    setSelectedDayIso(iso);
+    setTournamentSelection(null);
+  }
+
+  // Toggling materialises the effective list first, so the first click off
+  // "all" keeps every other tournament on.
+  function handleToggleTournament(id: string) {
+    setTournamentSelection(
+      selectedTournamentIds.includes(id)
+        ? selectedTournamentIds.filter((current) => current !== id)
+        : [...selectedTournamentIds, id],
+    );
+  }
 
   // Timeline chip click: unscheduled chips toggle their expanded card;
   // scheduled chips jump to their timeslot section.
@@ -1552,39 +1591,17 @@ function AssignmentsTab({
                 togglesDisabled={isReadOnly || running || previewing}
               />
             </div>
-            {/* Day filter — scopes both the timeline and the by-timeslot
-                view. Only shown for multi-day events. */}
-            {eventDayIsos.length > 1 && (
-              <div className="flex flex-wrap items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => setSelectedDayIso(null)}
-                  className={[
-                    'rounded-full border px-3 py-1 text-xs font-semibold transition-colors',
-                    selectedDayIso === null
-                      ? 'border-accent bg-accent text-accent-foreground'
-                      : 'border-border bg-surface text-foreground-secondary hover:border-border',
-                  ].join(' ')}
-                >
-                  {t('organizer.refereesPage.dayFilterAll')}
-                </button>
-                {eventDayIsos.map((iso) => (
-                  <button
-                    key={iso}
-                    type="button"
-                    onClick={() => setSelectedDayIso(iso)}
-                    className={[
-                      'rounded-full border px-3 py-1 text-xs font-semibold capitalize transition-colors',
-                      selectedDayIso === iso
-                        ? 'border-accent bg-accent text-accent-foreground'
-                        : 'border-border bg-surface text-foreground-secondary hover:border-border',
-                    ].join(' ')}
-                  >
-                    {formatDayShort(iso, locale)}
-                  </button>
-                ))}
-              </div>
-            )}
+            {/* Day + tournament filter — scopes the timeline and the
+                by-timeslot view below. */}
+            <AssignmentFilters
+              days={eventDayIsos.map((iso) => ({ iso, label: formatDayShort(iso, locale) }))}
+              selectedDayIso={selectedDayIso}
+              onSelectDay={handleSelectDay}
+              tournaments={tournamentOptions}
+              selectedTournamentIds={selectedTournamentIds}
+              onToggleTournament={handleToggleTournament}
+              onSelectAllTournaments={() => setTournamentSelection(null)}
+            />
             {/* Event-wide timeline: every pool/bracket chip grouped by start
                 time, with the UNSCHEDULED chip row. Unscheduled chips expand
                 their card below; scheduled chips jump to their timeslot. */}
