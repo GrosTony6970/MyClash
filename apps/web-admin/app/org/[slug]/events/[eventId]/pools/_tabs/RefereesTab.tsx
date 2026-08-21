@@ -10,10 +10,9 @@
  * to the current tournament's pools.
  *
  * Layout (top → bottom):
- *   1. PoolTimelineGrid — every event pool grouped by start time, with
- *      this tournament's pools highlighted. Lets the operator see
- *      "4 pools at 09:00, break, 4 at 10:30" and reason about parallel
- *      ref availability.
+ *   1. PoolTimelineGrid — this tournament's pools grouped by start time.
+ *      Lets the operator see "4 pools at 09:00, break, 4 at 10:30" and
+ *      reason about parallel ref availability.
  *   2. Concurrent-pools list — pools (from other tournaments) whose
  *      time window overlaps with any pool in this tournament. Shows
  *      currently-assigned refs so the operator knows who's locked out.
@@ -145,7 +144,7 @@ export function RefereesTab({ eventId, tournamentId, isReadOnly }: Props) {
         </div>
       )}
 
-      <PoolTimelineGrid pools={timelinePools} highlightTournamentId={tournamentId} />
+      <PoolTimelineGrid pools={timelinePools} />
 
       {concurrentPools.length > 0 && (
         <ConcurrentPoolsPanel pools={concurrentPools} locale={locale} />

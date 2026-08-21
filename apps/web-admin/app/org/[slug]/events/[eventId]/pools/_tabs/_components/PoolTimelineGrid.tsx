@@ -7,9 +7,7 @@
  * Built in R3 of the Staffing overhaul. Renders a row per time block:
  * pools whose `scheduledStart` falls within 5 minutes of each other go
  * into the same block. Within each block, pool cards render in a flex
- * row — one per concurrent pool. The cards for pools belonging to the
- * "current tournament" (passed in via `highlightTournamentId`) get a
- * thick ring so the operator can spot their context at a glance.
+ * row — one per concurrent pool.
  *
  * Why this exists: when the organizer is staffing referees on the pool
  * page, they need to see "4 pools at 09:00, break, 4 pools at 10:30" so
@@ -50,9 +48,6 @@ interface Props {
   pools: TimelinePool[];
   /** Non-pool programme blocks to interleave as full-width bars. */
   breaks?: TimelineBreak[];
-  /** Pools of this tournament render with a highlight ring. Omit (the
-   *  event-level assignments tab) and no chip is highlighted. */
-  highlightTournamentId?: string | null;
   /** When provided, chips become buttons — the assignments tab uses
    *  this to expand an unscheduled pool's card / jump to a timeslot. */
   onPoolClick?: (pool: TimelinePool) => void;
@@ -66,7 +61,7 @@ function byLice(a: TimelinePool, b: TimelinePool): number {
   });
 }
 
-export function PoolTimelineGrid({ pools, breaks, highlightTournamentId, onPoolClick }: Props) {
+export function PoolTimelineGrid({ pools, breaks, onPoolClick }: Props) {
   const { locale, t } = useI18n();
   const { blocks, unscheduled } = useMemo(() => groupPoolsByTimeslot(pools), [pools]);
   const unscheduledByLice = useMemo(() => [...unscheduled].sort(byLice), [unscheduled]);
@@ -88,15 +83,21 @@ export function PoolTimelineGrid({ pools, breaks, highlightTournamentId, onPoolC
     [blocks, breaks],
   );
 
-  if (blocks.length === 0 && unscheduled.length === 0) {
-    return <p className="text-sm text-muted">{t('organizer.poolsPage.refereesTimelineEmpty')}</p>;
-  }
+  const isEmpty = blocks.length === 0 && unscheduled.length === 0;
 
   return (
     <section className="rounded-lg border border-border bg-surface p-4">
       <h3 className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted">
         {t('organizer.poolsPage.refereesTimelineTitle')}
       </h3>
+      {/* The empty state stays INSIDE the card. It used to return a bare
+          sentence and skip the section entirely, so the whole block vanished
+          off the page — which reads as a broken page rather than as a filter
+          that matched nothing, and the tournament filter makes it reachable
+          on purpose. */}
+      {isEmpty && (
+        <p className="text-sm text-muted">{t('organizer.poolsPage.refereesTimelineEmpty')}</p>
+      )}
       <div className="space-y-3">
         {rows.map((row) =>
           row.kind === 'break' ? (
@@ -122,12 +123,7 @@ export function PoolTimelineGrid({ pools, breaks, highlightTournamentId, onPoolC
               </div>
               <div className="flex flex-wrap gap-2">
                 {[...row.block.pools].sort(byLice).map((pool) => (
-                  <PoolCard
-                    key={pool.id}
-                    pool={pool}
-                    highlighted={pool.tournamentId === highlightTournamentId}
-                    onClick={onPoolClick}
-                  />
+                  <PoolCard key={pool.id} pool={pool} onClick={onPoolClick} />
                 ))}
               </div>
             </div>
@@ -140,12 +136,7 @@ export function PoolTimelineGrid({ pools, breaks, highlightTournamentId, onPoolC
             </div>
             <div className="flex flex-wrap gap-2">
               {unscheduledByLice.map((pool) => (
-                <PoolCard
-                  key={pool.id}
-                  pool={pool}
-                  highlighted={pool.tournamentId === highlightTournamentId}
-                  onClick={onPoolClick}
-                />
+                <PoolCard key={pool.id} pool={pool} onClick={onPoolClick} />
               ))}
             </div>
           </div>
@@ -157,19 +148,16 @@ export function PoolTimelineGrid({ pools, breaks, highlightTournamentId, onPoolC
 
 function PoolCard({
   pool,
-  highlighted,
   onClick,
 }: {
   pool: TimelinePool;
-  highlighted: boolean;
   onClick?: (pool: TimelinePool) => void;
 }) {
   // Chips are read-only on the pools tab; the assignments tab passes
   // onClick so a chip can expand its card / jump to its timeslot.
   const Tag = onClick ? 'button' : 'div';
   // Red ring means "needs a referee" — a pool with at least one empty slot.
-  // A fully-staffed pool is never red; the current-tournament context cue is
-  // kept as a subtle non-red border instead.
+  // A fully-staffed pool is never red.
   const incomplete = pool.totalSlotCount > 0 && pool.filledSlotCount < pool.totalSlotCount;
   return (
     <Tag
@@ -177,11 +165,7 @@ function PoolCard({
       className={[
         'rounded-md border bg-surface px-3 py-2 text-left text-xs shadow-sm transition-colors',
         onClick ? 'cursor-pointer' : '',
-        incomplete
-          ? 'border-danger ring-2 ring-danger/30'
-          : highlighted
-            ? 'border-border'
-            : 'border-border hover:border-border',
+        incomplete ? 'border-danger ring-2 ring-danger/30' : 'border-border',
       ].join(' ')}
       title={`${pool.tournamentName} - ${pool.name}`}
     >
