@@ -24,6 +24,7 @@ import { AssignmentDiagnosticsPanel, type RuleKey } from './_components/Assignme
 import { PoolSlotCard } from './_components/PoolSlotCard';
 import { groupPoolsByTimeslot } from './_components/group-pools-by-timeslot';
 import { NO_LICE, liceColumnsFor } from './_components/timeslot-lice-columns';
+import { eventDayIsosFor } from './_components/filter-board-pools';
 import {
   PoolTimelineGrid,
   type TimelineBreak,
@@ -508,19 +509,6 @@ function formatDayShort(value: string, locale: AppLocale) {
   }).format(new Date(value));
 }
 
-/** Inclusive list of YYYY-MM-DD between two ISO dates (UTC), for the day filter. */
-function eachDayIso(startIso: string, endIso: string | null): string[] {
-  if (!startIso) return [];
-  const start = new Date(`${startIso}T00:00:00.000Z`);
-  const end = endIso ? new Date(`${endIso}T00:00:00.000Z`) : start;
-  if (Number.isNaN(start.getTime()) || end.getTime() < start.getTime()) return [startIso];
-  const days: string[] = [];
-  for (const d = new Date(start); d.getTime() <= end.getTime(); d.setUTCDate(d.getUTCDate() + 1)) {
-    days.push(d.toISOString().slice(0, 10));
-  }
-  return days;
-}
-
 /**
  * Per-bout spacing of a multi-match unit, in minutes, so a drag re-fans it at
  * the cadence it already runs at instead of the server's 5-minute default.
@@ -970,7 +958,14 @@ function AssignmentsTab({
         };
         setEventStartDateIso(ev.start_date ?? null);
         setEventTz(ev.timezone ?? DEFAULT_EVENT_TIMEZONE);
-        setEventDayIsos(eachDayIso(ev.start_date, ev.end_date ?? null));
+        setEventDayIsos(
+          eventDayIsosFor(
+            ev.start_date ?? null,
+            ev.end_date ?? null,
+            [],
+            ev.timezone ?? DEFAULT_EVENT_TIMEZONE,
+          ),
+        );
       })
       .catch(() => undefined);
     return () => controller.abort();
