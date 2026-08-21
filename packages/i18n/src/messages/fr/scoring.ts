@@ -48,6 +48,12 @@ export const scoring = {
       badgeDraft: 'Brouillon',
     },
   },
+  access: {
+    wrongRoleTitle: 'Mauvais compte pour cet écran',
+    wrongRoleBody:
+      "Ce compte staff est prévu pour une autre tâche, donc rien ne sera enregistré ici. Allez à l'écran qu'il peut utiliser, ou connectez-vous avec le bon compte.",
+    wrongRoleAction: 'Aller à mon écran',
+  },
   desk: {
     title: 'Accueil',
     searchPlaceholder: 'Rechercher un nom',

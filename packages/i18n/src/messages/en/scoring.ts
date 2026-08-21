@@ -44,6 +44,12 @@ export const scoring = {
       badgeDraft: 'Draft',
     },
   },
+  access: {
+    wrongRoleTitle: 'Wrong account for this screen',
+    wrongRoleBody:
+      'This staff account is set up for a different job, so nothing here will save. Go to the screen it does work, or sign in with the right account.',
+    wrongRoleAction: 'Go to my screen',
+  },
   desk: {
     title: 'Check-in',
     searchPlaceholder: 'Search a name',
