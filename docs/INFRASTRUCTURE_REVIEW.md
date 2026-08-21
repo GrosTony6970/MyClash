@@ -91,12 +91,16 @@ chained one for that reason.
 
 `myclash-staff-api` chained one until 2026-08-21, described here as "volumetric
 only" — which it never was, because it counted `401,403`. The scoring pad's
-20-second heartbeat runs on the login screen too, so a signed-out tablet posted
-three 401s a minute indefinitely; the jail answered a gear-check POST with a
-synthesized 403 in 0 ms and took a venue off the air for its full 15-minute
-`bantime`. Rate control on that surface is now the API's own `ThrottlerGuard`
-(600/min per IP) plus `@ThrottleByStaffAccount` on the login route — both answer
-`429` to the one caller instead of banning the address for everyone behind it.
+20-second heartbeat sat in the **root layout**, so it ran on `/login` too and a
+signed-out tablet posted a 401 every beat: three a minute, indefinitely, against
+a threshold of 60 in 10 minutes, from a venue that shares one NAT'd address. Two
+tabs left open would have banned the hall for 15 minutes. The heartbeat now stops
+on a signed-out answer, but a jail one client bug away from that does not belong
+in front of an app surface.
+
+Rate control there is now the API's own `ThrottlerGuard` (600/min per IP) plus
+`@ThrottleByStaffAccount` on the login route — both answer `429` to the one
+caller instead of banning the address for everyone behind it.
 `check-infra-review.mjs` pins the removal as a refusal, in the prod and dev files
 alike.
 

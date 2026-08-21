@@ -71,10 +71,10 @@ describe('createApiClient error reading', () => {
     });
   });
 
-  // THE ONE THAT MATTERS. An edge proxy answers with HTML, not problem+json, so
-  // there is no detail and no code — and `failureMessage` reads that pair as an
-  // intermediary rather than a dead session. A gear-check POST hit exactly this
-  // on 2026-08-21 and the pad told the volunteer to sign in again.
+  // An edge proxy answers with HTML, not problem+json, so there is no detail and
+  // no code — and `failureMessage` reads that pair as an intermediary rather
+  // than a dead session. Without this the classification is lost before any
+  // screen sees it.
   it('classifies a bodiless 403 as unauthenticated with nothing in it', async () => {
     stub(new Response('<html>403 Forbidden</html>', { status: 403 }));
 

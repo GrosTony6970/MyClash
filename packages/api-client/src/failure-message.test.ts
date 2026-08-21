@@ -62,11 +62,10 @@ describe('failureMessage', () => {
     ).toBe(unauthenticated);
   });
 
-  // THE REGRESSION. A Traefik fail2ban jail answered a gear-check POST with a
-  // bare 403 in 0ms on 2026-08-21, and the pad told the volunteer their session
-  // had expired — sending them to a login screen that could not help. The API
-  // fills `detail` and `code` on every problem+json body, so a 401/403 carrying
-  // neither did not come from the API.
+  // The API fills `detail` and `code` on every problem+json body, so a 401/403
+  // carrying neither did not come from the API — an edge proxy, a jail or a
+  // captive portal answered for it. Those are transient, and "your session
+  // expired, sign in again" sends the operator to a screen that cannot help.
   it.each([401, 403] as const)(
     'calls a %i with no problem+json body an intermediary, not a dead session',
     (status) => {

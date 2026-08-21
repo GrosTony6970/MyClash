@@ -2644,10 +2644,10 @@ const unjailedApiRouters = {
     'expired sliding sessions emit parallel 401 bursts that would ban legitimate admins. ' +
     'The admin country allow-list is the control there.',
   'myclash-staff-api':
-    'it carries every authenticated call the scoring pad makes, including a 20-second ' +
-    'heartbeat that runs on the login screen too. On 2026-08-21 the -staff jail answered a ' +
-    'gear-check POST with a synthesized 403 and took a venue off the air for 15 minutes — ' +
-    "a venue shares one NAT'd address. The API's own ThrottlerGuard is the control there.",
+    'it carries every authenticated call the scoring pad makes, and a venue shares one ' +
+    "NAT'd address. The pad's 20-second heartbeat sat in the root layout until 2026-08-21, " +
+    'so a signed-out tablet posted three 401s a minute indefinitely against a threshold of ' +
+    "60 in 10 minutes. The API's own ThrottlerGuard is the control there.",
 };
 for (const [router, why] of Object.entries(unjailedApiRouters)) {
   const pattern = new RegExp(

@@ -49,6 +49,16 @@ import type { ApiFailure } from './request';
  * ~1,900 coded throws plus a key pair each. Do not re-open this by adding a
  * "translate the detail" branch here; the decision is the API's to revisit.
  *
+ * ── An intermediary is not a dead session ──────────────────────────────────
+ * The API fills `detail` AND `code` on every problem+json body it sends, so a
+ * 401 or 403 carrying neither did not come from the API. An edge proxy, a
+ * fail2ban jail, a WAF or a captive portal answered for it — none of which
+ * speaks problem+json, and all of which are transient.
+ *
+ * That case used to fall into the session string, which told the operator to
+ * sign in again: wrong, and worse than silence, because it sends them to a
+ * login screen that cannot clear it. `common.apiFailure.blocked` says to wait.
+ *
  * ── 5xx: the screen's own sentence wins ─────────────────────────────────────
  * The exception filter scrubs every ≥500 body to the literal "Internal server
  * error" so no stack or connection string can reach a browser. It also fills
@@ -109,15 +119,8 @@ export function failureMessage(
     case 'network':
       return t('common.apiFailure.network');
     case 'unauthenticated':
-      // Neither half of a problem+json body — so this did not come from the
-      // API, which fills `detail` and `code` on every one it sends. Something
-      // between the browser and the API answered instead. Saying "your session
-      // expired, sign in again" there is worse than saying nothing: it is
-      // wrong, and it sends the operator to a login screen that cannot help.
-      //
-      // This is not hypothetical. A Traefik fail2ban jail on the staff API
-      // router answered a gear check 403 in 0ms on 2026-08-21, and the pad told
-      // the volunteer their session had gone.
+      // Neither half of a problem+json body, so the API did not send this —
+      // see "an intermediary is not a dead session" in the header.
       if (failure.detail === null && failure.code === null) {
         return t('common.apiFailure.blocked');
       }

@@ -19,9 +19,9 @@
  * The Traefik `-staff` jail on the staff API router counted 401 and 403 —
  * 60 in 10 minutes earned the SOURCE IP a 15-minute ban, and a venue shares one
  * NAT'd address. Two tabs left on the login screen reach that on their own.
- * The jail is being taken off that router in the same slice; this is the other
- * half, because a client that hammers a route it cannot use is wrong whether or
- * not anything is counting.
+ * The jail came off that router in the same slice; this is the other half,
+ * because a client that hammers a route it cannot use is wrong whether or not
+ * anything is counting.
  *
  * ── Why only 401 and 403 stop it ────────────────────────────────────────────
  * They are the two answers that mean "not your session", and no amount of
