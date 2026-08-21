@@ -62,6 +62,8 @@ export function WeaponRow({ weapon, onRecord }: Props) {
         <WeaponState weapon={weapon} />
       </div>
 
+      <WeaponReason reason={weapon.reason} />
+
       {settled ? (
         <RecheckButton onClick={() => setRecheck(true)} />
       ) : (
@@ -73,6 +75,18 @@ export function WeaponRow({ weapon, onRecord }: Props) {
       )}
     </div>
   );
+}
+
+/**
+ * Why a weapon was passed conditionally, on its own line.
+ *
+ * It used to be appended to the state label as ` · {reason}`. A reason is a
+ * sentence — "left elbow armour is thin" — and inline it pushed the state off
+ * the row on a phone-width tablet, hiding the one word the volunteer came for.
+ */
+function WeaponReason({ reason }: { reason: string | null }) {
+  if (!reason) return null;
+  return <p className="mt-1 text-sm text-muted">{reason}</p>;
 }
 
 /**
@@ -97,6 +111,17 @@ function RecheckButton({ onClick }: { onClick: () => void }) {
  * Pass is one tap. Fail is one tap. Conditional opens the reason prompt —
  * it is the only one of the three that stops for input, because a conditional
  * with no text is indistinguishable from a pass at the piste.
+ *
+ * ── Three outlines, none of them filled ─────────────────────────────────────
+ * Pass used to carry `bg-accent`, as the expected one-tap action. Two things
+ * went wrong with that. The accent IS red (`--color-accent: #b91c1c`), so a
+ * filled Pass sat beside a red-outlined Fail and borrowed its meaning; and a
+ * filled button in a row of outlines reads as the CHOSEN one, so volunteers
+ * took an unchecked weapon for one already passed. There is no selected state
+ * here at all — a recorded result collapses this strip to `Re-check`.
+ *
+ * So none of the three is emphasised. Each keeps its own tone, which is the
+ * colour its result will be shown in afterwards.
  */
 function ResultButtons({
   onPass,
@@ -114,7 +139,7 @@ function ResultButtons({
       <button
         type="button"
         onClick={onPass}
-        className="min-h-[44px] flex-1 rounded-lg bg-accent px-4 text-sm font-bold text-accent-foreground [touch-action:manipulation]"
+        className="min-h-[44px] flex-1 rounded-lg border border-success px-4 text-sm font-bold text-success [touch-action:manipulation]"
       >
         {t('scoring.gear.resultPass')}
       </button>
@@ -136,16 +161,22 @@ function ResultButtons({
   );
 }
 
+/**
+ * The result, at `text-base` — larger than the weapon name beside it.
+ *
+ * Deliberate: the volunteer already knows which weapon they are holding, and
+ * this is the word they are looking for across a table. At `text-xs` it was the
+ * smallest thing on a row whose whole purpose is to carry it.
+ */
 function WeaponState({ weapon }: { weapon: WeaponStatus }) {
   const { t } = useI18n();
   if (!weapon.result) {
-    return <span className="text-xs text-muted">{t('scoring.gear.notChecked')}</span>;
+    return <span className="text-base text-muted">{t('scoring.gear.notChecked')}</span>;
   }
 
   return (
-    <span className={`text-xs font-semibold ${RESULT_TONE[weapon.result]}`}>
+    <span className={`text-base font-semibold ${RESULT_TONE[weapon.result]}`}>
       {t(RESULT_KEYS[weapon.result])}
-      {weapon.reason ? ` · ${weapon.reason}` : ''}
     </span>
   );
 }
