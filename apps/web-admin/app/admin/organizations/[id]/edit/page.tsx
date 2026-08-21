@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { useI18n } from '@myclash/next-i18n/client';
+import { apiRequest, failureMessage } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
 import { BackLink } from '@/components/BackLink';
 
@@ -44,19 +45,18 @@ export default function AdminOrgEditPage() {
   useEffect(() => {
     if (!orgId) return;
     const controller = new AbortController();
-    fetch(`${apiUrl}/api/v1/admin/organizations/${orgId}`, {
-      credentials: 'include',
+    void apiRequest<OrgDetail>(apiUrl, `/api/v1/admin/organizations/${orgId}`, {
       signal: controller.signal,
     })
-      .then(async (res) => {
-        if (!res.ok) throw new Error(t('admin.organizations.detail.loadError'));
-        const data = (await res.json()) as OrgDetail;
-        setForm({ name: data.name, slug: data.slug, slugDetached: true });
-        setError(null);
-      })
-      .catch((err: unknown) => {
-        if (err instanceof DOMException && err.name === 'AbortError') return;
-        setError(err instanceof Error ? err.message : t('admin.organizations.detail.loadError'));
+      .then((r) => {
+        if (r.ok) {
+          setForm({ name: r.data.name, slug: r.data.slug, slugDetached: true });
+          setError(null);
+          return;
+        }
+        // No message is the unmount.
+        const message = failureMessage(r, t, t('admin.organizations.detail.loadError'));
+        if (message) setError(message);
       })
       .finally(() => setLoading(false));
     return () => controller.abort();
@@ -68,19 +68,17 @@ export default function AdminOrgEditPage() {
     setBusy(true);
     setError(null);
     try {
-      const res = await fetch(`${apiUrl}/api/v1/admin/organizations/${orgId}`, {
+      const r = await apiRequest(apiUrl, `/api/v1/admin/organizations/${orgId}`, {
         method: 'PATCH',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: form.name.trim(), slug: form.slug.trim() }),
+        body: { name: form.name.trim(), slug: form.slug.trim() },
       });
-      if (!res.ok) {
-        const body = (await res.json().catch(() => ({}))) as { message?: string };
-        throw new Error(body.message ?? t('admin.organizations.edit.saveError'));
+      if (!r.ok) {
+        // No signal on this request, so the abort null cannot arrive here.
+        const message = failureMessage(r, t, t('admin.organizations.edit.saveError'));
+        if (message) setError(message);
+        return;
       }
       router.push('/admin/organizations');
-    } catch (err) {
-      setError(err instanceof Error ? err.message : t('admin.organizations.edit.saveError'));
     } finally {
       setBusy(false);
     }

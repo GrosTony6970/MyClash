@@ -719,7 +719,6 @@ export const admin = {
     description: 'Créer, inspecter, suspendre et recuperer les espaces organisateurs.',
     accessDenied: 'Accès refuse. Super-admin requis.',
     loadError: 'Impossible de charger les organisations',
-    genericError: 'Une erreur est survenue',
     loading: 'Chargement...',
     empty: 'Aucune organisation trouvée.',
     searchPlaceholder: 'Rechercher par nom...',

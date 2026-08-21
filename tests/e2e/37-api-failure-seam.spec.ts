@@ -72,6 +72,7 @@ const COPY = {
   backupsLoadError: 'Failed to load backups.',
   systemVersionsLoadError: 'Failed to load system versions.',
   systemVersionsAccessDenied: 'Access denied. Super admin required.',
+  organizationsLoadError: 'Failed to load organizations',
   tournamentNotFound: 'Tournament not found',
   tournamentLoadFailed: "This tournament couldn't be loaded",
   claimTitle: 'Confirm your profile',
@@ -136,6 +137,9 @@ const BACKUPS_SCHEDULE = '**/api/v1/admin/backups/schedule';
 const SYSTEM_VERSIONS_PATH = '/admin/system-versions';
 /** Exact, not a prefix: the components sub-route must stay unstubbed. */
 const SYSTEM_VERSIONS_LOAD = '**/api/v1/admin/system-versions';
+const ORGANIZATIONS_PATH = '/admin/organizations';
+/** The list read carries a query string, so this one IS a prefix match. */
+const ORGANIZATIONS_LOAD = '**/api/v1/admin/organizations?*';
 
 /** What the API's exception filter actually sends (api-exception.filter.ts). */
 function problemJson(status: number, detail: string) {
@@ -369,6 +373,20 @@ test.describe('the api-failure seam — the backup console', () => {
 
     await expect(page.getByText(COPY.systemVersionsAccessDenied)).toBeVisible();
     await expect(page.getByText('Platform access required')).toBeHidden();
+    await page.close();
+  });
+
+  test("the organizations console shows the server's own reason, not its fallback", async () => {
+    test.skip(!platform, 'set E2E_SUPERADMIN_EMAIL / E2E_SUPERADMIN_PASSWORD');
+    const page = await platform!.newPage();
+
+    const reason = 'That organisation list is being rebuilt. Try again shortly.';
+    await page.route(ORGANIZATIONS_LOAD, (route) => route.fulfill(problemJson(409, reason)));
+    await page.goto(ORGANIZATIONS_PATH);
+    await expectStayedOn(page, ORGANIZATIONS_PATH);
+
+    await expect(page.getByText(reason)).toBeVisible();
+    await expect(page.getByText(COPY.organizationsLoadError)).toBeHidden();
     await page.close();
   });
 });

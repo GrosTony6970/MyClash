@@ -21,6 +21,7 @@ import {
 import { localeToBcp47 } from '@myclash/time';
 import { useUrlState } from '../../../src/hooks/useUrlState';
 import { useI18n } from '@myclash/next-i18n/client';
+import { apiRequest, failureMessage } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
 
 interface OrgListItem {
@@ -127,20 +128,14 @@ export default function AdminOrganizationsPage() {
     setOwnerSearchLoading(true);
     const handle = setTimeout(() => {
       const params = new URLSearchParams({ q, perPage: '10' });
-      fetch(`${apiUrl}/api/v1/admin/users?${params}`, {
-        credentials: 'include',
-        signal: controller.signal,
-      })
-        .then(async (res) => {
-          if (!res.ok) throw new Error('search failed');
-          const data = (await res.json()) as {
-            users?: Array<{ id: string; email?: string; display_name?: string | null }>;
-          };
-          setOwnerResults(data.users ?? []);
-        })
-        .catch((err: unknown) => {
-          if (err instanceof DOMException && err.name === 'AbortError') return;
-          setOwnerResults([]);
+      void apiRequest<{
+        users?: Array<{ id: string; email?: string; display_name?: string | null }>;
+      }>(apiUrl, `/api/v1/admin/users?${params}`, { signal: controller.signal })
+        .then((r) => {
+          // Silent by design: this is a type-ahead. A banner under a picker the
+          // operator is still typing into would be noise, and the empty list
+          // already says the search found nothing.
+          setOwnerResults(r.ok ? (r.data.users ?? []) : []);
         })
         .finally(() => setOwnerSearchLoading(false));
     }, 200);
@@ -165,31 +160,28 @@ export default function AdminOrganizationsPage() {
 
     const controller = new AbortController();
 
-    fetch(`${apiUrl}/api/v1/admin/organizations?${params}`, {
-      credentials: 'include',
+    void apiRequest<OrgListItem[]>(apiUrl, `/api/v1/admin/organizations?${params}`, {
       signal: controller.signal,
-    })
-      .then(async (res) => {
-        if (cancelled) return;
-        if (res.status === 401 || res.status === 403) {
-          setError(t('admin.organizations.accessDenied'));
-          setLoading(false);
-          return;
-        }
-        if (!res.ok) throw new Error(t('admin.organizations.loadError'));
-        const data = (await res.json()) as OrgListItem[];
-        if (!cancelled) {
-          setOrgs(data);
-          setError(null);
-          setLoading(false);
-        }
-      })
-      .catch((err: unknown) => {
-        if (!cancelled && !(err instanceof DOMException && err.name === 'AbortError')) {
-          setError(err instanceof Error ? err.message : t('admin.organizations.genericError'));
-          setLoading(false);
-        }
-      });
+    }).then((r) => {
+      if (cancelled) return;
+      if (r.ok) {
+        setOrgs(r.data);
+        setError(null);
+        setLoading(false);
+        return;
+      }
+      // A dead session and a missing platform role read the same to the guard,
+      // and the same to the operator here — the call admin/backups makes.
+      if (r.kind === 'unauthenticated') {
+        setError(t('admin.organizations.accessDenied'));
+        setLoading(false);
+        return;
+      }
+      // No message is the unmount, or the search that replaced this read.
+      const message = failureMessage(r, t, t('admin.organizations.loadError'));
+      if (message) setError(message);
+      setLoading(false);
+    });
 
     return () => {
       cancelled = true;
@@ -213,27 +205,23 @@ export default function AdminOrganizationsPage() {
                 ownerDisplayName: form.ownerDisplayName || undefined,
               }
             : {};
-      const res = await fetch(`${apiUrl}/api/v1/admin/organizations`, {
+      const r = await apiRequest<CreateOrganizationResult>(apiUrl, '/api/v1/admin/organizations', {
         method: 'POST',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: form.name,
-          slug: form.slug,
-          ...ownerPayload,
-        }),
+        body: { name: form.name, slug: form.slug, ...ownerPayload },
       });
 
-      if (res.status === 401 || res.status === 403) {
-        throw new Error(t('admin.organizations.create.accessDenied'));
-      }
-      if (!res.ok) {
-        const data = (await res.json().catch(() => null)) as { message?: string } | null;
-        throw new Error(data?.message ?? t('admin.organizations.create.failed'));
+      if (!r.ok) {
+        if (r.kind === 'unauthenticated') {
+          throw new Error(t('admin.organizations.create.accessDenied'));
+        }
+        // This request passes no signal, so the abort null cannot arrive; the
+        // catch below still holds the generic sentence.
+        const reason = failureMessage(r, t, t('admin.organizations.create.failed'));
+        if (reason) throw new Error(reason);
+        return;
       }
 
-      const data = (await res.json()) as CreateOrganizationResult;
-      setCreateResult(data);
+      setCreateResult(r.data);
       setForm({
         name: '',
         slug: '',
@@ -264,15 +252,18 @@ export default function AdminOrganizationsPage() {
     setActionBusy(true);
     try {
       const method = action === 'delete' ? 'DELETE' : 'PATCH';
-      const url = `${apiUrl}/api/v1/admin/organizations/${orgId}${action !== 'delete' ? `/${action}` : ''}`;
-      const res = await fetch(url, { method, credentials: 'include' });
-      if (res.ok || res.status === 204) {
+      const path = `/api/v1/admin/organizations/${orgId}${action !== 'delete' ? `/${action}` : ''}`;
+      const r = await apiRequest(apiUrl, path, { method });
+      if (r.ok) {
         toast.success(t(`admin.organizations.actions.${action}`));
         setPendingAction(null);
         refresh();
-      } else {
-        toast.error(t('admin.organizations.actions.failed'));
+        return;
       }
+      // Used to report `actions.failed` whatever the API said, so an organiser
+      // told that a suspend was refused was never told why.
+      const message = failureMessage(r, t, t('admin.organizations.actions.failed'));
+      if (message) toast.error(message);
     } finally {
       setActionBusy(false);
     }

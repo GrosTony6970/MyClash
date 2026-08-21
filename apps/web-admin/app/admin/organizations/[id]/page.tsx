@@ -13,6 +13,7 @@ import {
 } from '@myclash/ui';
 import { localeToBcp47 } from '@myclash/time';
 import { useI18n } from '@myclash/next-i18n/client';
+import { apiRequest, failureMessage } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
 import { BackLink } from '@/components/BackLink';
 
@@ -139,20 +140,19 @@ export default function AdminOrgDetailPage({ params }: Props) {
     let cancelled = false;
     const controller = new AbortController();
 
-    fetch(`${apiUrl}/api/v1/admin/organizations/${orgId}`, {
-      credentials: 'include',
+    void apiRequest<OrgDetail>(apiUrl, `/api/v1/admin/organizations/${orgId}`, {
       signal: controller.signal,
     })
-      .then(async (res) => {
+      .then((r) => {
         if (cancelled) return;
-        if (!res.ok) throw new Error(t('admin.organizations.detail.loadError'));
-        setOrg((await res.json()) as OrgDetail);
-        setError(null);
-      })
-      .catch((err: unknown) => {
-        if (!cancelled && !(err instanceof DOMException && err.name === 'AbortError')) {
-          setError(err instanceof Error ? err.message : t('admin.organizations.genericError'));
+        if (r.ok) {
+          setOrg(r.data);
+          setError(null);
+          return;
         }
+        // No message is the unmount.
+        const message = failureMessage(r, t, t('admin.organizations.detail.loadError'));
+        if (message) setError(message);
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
@@ -179,19 +179,19 @@ export default function AdminOrgDetailPage({ params }: Props) {
       return;
 
     const method = action === 'delete' ? 'DELETE' : 'PATCH';
-    const url = `${apiUrl}/api/v1/admin/organizations/${orgId}${action !== 'delete' ? `/${action}` : ''}`;
-    const res = await fetch(url, { method, credentials: 'include' });
+    const path = `/api/v1/admin/organizations/${orgId}${action !== 'delete' ? `/${action}` : ''}`;
+    const r = await apiRequest(apiUrl, path, { method });
 
-    if (res.ok || res.status === 204) {
+    if (r.ok) {
       if (action === 'delete') {
         window.location.href = '/admin/organizations';
       } else {
         window.location.reload();
       }
-    } else {
-      const data = (await res.json().catch(() => null)) as { message?: string } | null;
-      toast.error(data?.message ?? t('admin.organizations.actions.failed'));
+      return;
     }
+    const message = failureMessage(r, t, t('admin.organizations.actions.failed'));
+    if (message) toast.error(message);
   }
 
   function openReassignPicker() {
@@ -227,32 +227,37 @@ export default function AdminOrgDetailPage({ params }: Props) {
     // than a partition and neither one alone covers both. Platform staff are
     // deliberately not fetched: a super-admin may not hold a membership at all,
     // and the lower tiers reach this picker through their own org anyway.
-    async function fetchScope(scope: 'user' | 'organizer') {
+    function fetchScope(scope: 'user' | 'organizer') {
       const params = new URLSearchParams();
       params.set('perPage', '20');
       params.set('scope', scope);
       if (search.trim()) params.set('q', search.trim());
-      const res = await fetch(`${apiUrl}/api/v1/admin/users?${params}`, {
-        credentials: 'include',
-      });
-      if (!res.ok) throw new Error(t('admin.organizations.detail.accountSearchFailed'));
-      const data = (await res.json()) as PlatformAccountListResponse;
-      return data.users ?? [];
+      return apiRequest<PlatformAccountListResponse>(apiUrl, `/api/v1/admin/users?${params}`);
     }
 
-    try {
-      const [plain, organisers] = await Promise.all([fetchScope('user'), fetchScope('organizer')]);
-      const byId = new Map<string, PlatformAccount>();
-      for (const account of [...plain, ...organisers]) byId.set(account.id, account);
-      setPlatformAccounts([...byId.values()]);
-    } catch (err) {
-      setPlatformError(
-        err instanceof Error ? err.message : t('admin.organizations.detail.accountSearchFailed'),
+    // Both results in hand before either is read, so one banner names the
+    // refusal rather than each scope racing to overwrite the other's — the
+    // shape admin/backups uses for its three-way load.
+    const results = await Promise.all([fetchScope('user'), fetchScope('organizer')]);
+    const failure = results.find((r) => !r.ok);
+    if (failure && !failure.ok) {
+      const message = failureMessage(
+        failure,
+        t,
+        t('admin.organizations.detail.accountSearchFailed'),
       );
+      if (message) setPlatformError(message);
       setPlatformAccounts([]);
-    } finally {
       setPlatformLoading(false);
+      return;
     }
+
+    const byId = new Map<string, PlatformAccount>();
+    for (const r of results) {
+      if (r.ok) for (const account of r.data.users ?? []) byId.set(account.id, account);
+    }
+    setPlatformAccounts([...byId.values()]);
+    setPlatformLoading(false);
   }
 
   async function submitAssignOwner(body: Record<string, unknown>, confirmLabel?: string) {
@@ -260,20 +265,18 @@ export default function AdminOrgDetailPage({ params }: Props) {
     if (confirmLabel && !(await confirm({ title: confirmLabel }))) return;
 
     setActionLoading(true);
-    const res = await fetch(`${apiUrl}/api/v1/admin/organizations/${orgId}/reassign-owner`, {
+    const r = await apiRequest(apiUrl, `/api/v1/admin/organizations/${orgId}/reassign-owner`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      credentials: 'include',
-      body: JSON.stringify(body),
+      body,
     });
     setActionLoading(false);
 
-    if (res.ok || res.status === 204) {
+    if (r.ok) {
       window.location.reload();
-    } else {
-      const data = (await res.json().catch(() => null)) as { message?: string } | null;
-      toast.error(data?.message ?? t('admin.organizations.detail.reassignFailed'));
+      return;
     }
+    const message = failureMessage(r, t, t('admin.organizations.detail.reassignFailed'));
+    if (message) toast.error(message);
   }
 
   async function handlePickExistingUser(userId: string, label: string) {
@@ -295,41 +298,35 @@ export default function AdminOrgDetailPage({ params }: Props) {
   async function handleAddMember(account: PlatformAccount) {
     if (!orgId || actionLoading) return;
     setActionLoading(true);
-    const res = await fetch(`${apiUrl}/api/v1/admin/users/${account.id}/organizations`, {
+    const r = await apiRequest(apiUrl, `/api/v1/admin/users/${account.id}/organizations`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      credentials: 'include',
-      body: JSON.stringify({ organizationId: orgId, role: addRole }),
+      body: { organizationId: orgId, role: addRole },
     });
     setActionLoading(false);
-    if (res.ok || res.status === 204) {
+    if (r.ok) {
       closePicker();
       window.location.reload();
-    } else {
-      const data = (await res.json().catch(() => null)) as { message?: string } | null;
-      toast.error(data?.message ?? t('admin.organizations.detail.addMemberFailed'));
+      return;
     }
+    const message = failureMessage(r, t, t('admin.organizations.detail.addMemberFailed'));
+    if (message) toast.error(message);
   }
 
   async function handleUpdateMemberRole(member: Member, role: string) {
     if (!orgId || actionLoading) return;
     setActionLoading(true);
-    const res = await fetch(
-      `${apiUrl}/api/v1/admin/users/${member.user_id}/organizations/${orgId}`,
-      {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ role }),
-      },
+    const r = await apiRequest(
+      apiUrl,
+      `/api/v1/admin/users/${member.user_id}/organizations/${orgId}`,
+      { method: 'PATCH', body: { role } },
     );
     setActionLoading(false);
-    if (res.ok || res.status === 204) {
+    if (r.ok) {
       window.location.reload();
-    } else {
-      const data = (await res.json().catch(() => null)) as { message?: string } | null;
-      toast.error(data?.message ?? t('admin.organizations.detail.roleUpdateFailed'));
+      return;
     }
+    const message = failureMessage(r, t, t('admin.organizations.detail.roleUpdateFailed'));
+    if (message) toast.error(message);
   }
 
   async function handleRemoveMember(member: Member) {
@@ -345,20 +342,18 @@ export default function AdminOrgDetailPage({ params }: Props) {
       return;
     }
     setActionLoading(true);
-    const res = await fetch(
-      `${apiUrl}/api/v1/admin/users/${member.user_id}/organizations/${orgId}`,
-      {
-        method: 'DELETE',
-        credentials: 'include',
-      },
+    const r = await apiRequest(
+      apiUrl,
+      `/api/v1/admin/users/${member.user_id}/organizations/${orgId}`,
+      { method: 'DELETE' },
     );
     setActionLoading(false);
-    if (res.ok || res.status === 204) {
+    if (r.ok) {
       window.location.reload();
-    } else {
-      const data = (await res.json().catch(() => null)) as { message?: string } | null;
-      toast.error(data?.message ?? t('admin.organizations.detail.removeMemberFailed'));
+      return;
     }
+    const message = failureMessage(r, t, t('admin.organizations.detail.removeMemberFailed'));
+    if (message) toast.error(message);
   }
 
   if (loading) {

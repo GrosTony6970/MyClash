@@ -717,7 +717,6 @@ export const admin = {
     description: 'Create, inspect, suspend, and recover organizer workspaces.',
     accessDenied: 'Access denied. Super admin required.',
     loadError: 'Failed to load organizations',
-    genericError: 'Something went wrong',
     loading: 'Loading...',
     empty: 'No organizations found.',
     searchPlaceholder: 'Search by name...',
