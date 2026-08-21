@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useI18n } from '@myclash/next-i18n/client';
+import { failureMessage } from '@myclash/api-client';
 import { useScoringTheme } from '../../src/theme/ThemeProvider';
 import { MarkArrivedButton } from '../../src/components/MarkArrivedButton';
 import { PersonRow } from '../../src/components/PersonRow';
@@ -26,6 +27,10 @@ export default function DeskPage() {
   const desk = useDesk();
   const [showMissing, setShowMissing] = useState(false);
   const [showScan, setShowScan] = useState(false);
+  // The server's own reason, with our sentence only as the fallback. Every
+  // refusal used to read "That did not save. Try again." — including a 403 from
+  // the edge, which no amount of trying again would have cleared.
+  const error = desk.error && failureMessage(desk.error, t, t('scoring.desk.actionError'));
 
   if (showMissing) {
     return <MissingAtRisk onBack={() => setShowMissing(false)} onMark={desk.markArrived} />;
@@ -52,7 +57,7 @@ export default function DeskPage() {
         <DeskHeader onScan={() => setShowScan(true)} />
         <DeskSearch query={desk.query} onQueryChange={desk.setQuery} />
 
-        {desk.error && <p className="mt-3 text-sm text-danger">{t('scoring.desk.actionError')}</p>}
+        {error && <p className="mt-3 text-sm text-danger">{error}</p>}
 
         <RosterList
           roster={desk.roster}

@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import { failureFromError, type ApiFailure } from '@myclash/api-client';
 import { api } from './api';
 import type { RosterEntry } from './useDesk';
 
@@ -56,7 +57,7 @@ function useGearReads() {
   const [entries, setEntries] = useState<GearEntry[]>([]);
   const [summary, setSummary] = useState<{ checked: number; total: number } | null>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<ApiFailure | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -65,8 +66,8 @@ function useGearReads() {
         .then((rows) => {
           if (!cancelled) setEntries(rows);
         })
-        .catch(() => {
-          if (!cancelled) setError('load');
+        .catch((err: unknown) => {
+          if (!cancelled) setError(failureFromError(err));
         })
         .finally(() => {
           if (!cancelled) setLoading(false);
@@ -99,7 +100,7 @@ function useGearReads() {
 
 /** Recording a result. Refetches rather than editing local state optimistically. */
 function useGearWrites(reload: () => Promise<void>) {
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<ApiFailure | null>(null);
 
   // Void-returning: wired straight to onClick, where a Promise-returning
   // handler is an eslint error because React neither awaits nor catches it.
@@ -112,7 +113,7 @@ function useGearWrites(reload: () => Promise<void>) {
           ...(reason ? { reason } : {}),
         })
         .then(() => reload())
-        .catch(() => setError('write'));
+        .catch((err: unknown) => setError(failureFromError(err)));
     },
     [reload],
   );

@@ -54,4 +54,39 @@ describe('createApiClient error reading', () => {
     expect((error as ApiClientError).message).toBe('GET /api/v1/venues failed: 400');
     expect((error as ApiClientError).status).toBe(400);
   });
+
+  it('carries the same structured failure the seam would have returned', async () => {
+    stub(problem({ detail: 'Venue is in use', code: 'already_pending' }, 409));
+
+    const error = (await createApiClient('http://api')
+      .delete('/api/v1/venues/v1')
+      .catch((e: unknown) => e)) as ApiClientError;
+    expect(error.failure).toEqual({
+      kind: 'http',
+      status: 409,
+      detail: 'Venue is in use',
+      code: 'already_pending',
+      details: null,
+      validationErrors: null,
+    });
+  });
+
+  // THE ONE THAT MATTERS. An edge proxy answers with HTML, not problem+json, so
+  // there is no detail and no code — and `failureMessage` reads that pair as an
+  // intermediary rather than a dead session. A gear-check POST hit exactly this
+  // on 2026-08-21 and the pad told the volunteer to sign in again.
+  it('classifies a bodiless 403 as unauthenticated with nothing in it', async () => {
+    stub(new Response('<html>403 Forbidden</html>', { status: 403 }));
+
+    const error = (await createApiClient('http://api')
+      .post('/api/v1/staff/gear/p1/w1', { result: 'conditional', reason: 'thin elbow' })
+      .catch((e: unknown) => e)) as ApiClientError;
+    expect(error.failure).toEqual({
+      kind: 'unauthenticated',
+      status: 403,
+      detail: null,
+      code: null,
+      details: null,
+    });
+  });
 });

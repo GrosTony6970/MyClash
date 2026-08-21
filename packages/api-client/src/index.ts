@@ -13,9 +13,11 @@
 
 export type { paths, components, operations } from './generated/schema';
 
-import { parseBody, readDetail } from './request';
+import type { ApiFailure } from './request';
+import { isAbortLike, parseBody, responseFailure } from './request';
+import { failureDetail } from './failure-message';
 
-export { apiRequest, isAbortLike } from './request';
+export { apiRequest, isAbortLike, responseFailure } from './request';
 export type { ApiFailure, ApiResult } from './request';
 export { failureCode, failureDetail, failureMessage } from './failure-message';
 export { fetchMe, ME_PATH } from './me';
@@ -33,6 +35,16 @@ export class ApiClientError extends Error {
     message: string,
     public readonly status: number,
     public readonly body: ProblemBody | null,
+    /**
+     * The same structured failure `apiRequest` returns, so a `catch` here can
+     * reach `failureMessage` instead of writing its own sentence.
+     *
+     * Without it the two check-in desks showed "That did not save. Try again."
+     * for every refusal alike, and the reason the server sent went in the bin —
+     * which is how a 403 from an edge ban read as a save that just needed
+     * retrying. `message` above is for a log; this is for a person.
+     */
+    public readonly failure: ApiFailure,
   ) {
     super(message);
     this.name = 'ApiClientError';
@@ -41,17 +53,32 @@ export class ApiClientError extends Error {
 
 async function toError(method: string, path: string, res: Response): Promise<ApiClientError> {
   const body = (await res.json().catch(() => null)) as ProblemBody | null;
-  // The same reader `apiRequest` uses. It had its own inline `detail ?? message`
-  // until 2026-08-19, which made two problem+json readers in one package that
-  // disagreed about a blank string.
-  const detail = readDetail(body);
+  // The same builder `apiRequest` uses, so both entry points of this package
+  // classify a refusal identically. Its `detail` is the one `readDetail` had its
+  // own inline copy of until 2026-08-19.
+  const failure = responseFailure(res.status, body);
+  const detail = failureDetail(failure);
   return new ApiClientError(
     detail
       ? `${method} ${path} failed (${res.status}): ${detail}`
       : `${method} ${path} failed: ${res.status}`,
     res.status,
     body,
+    failure,
   );
+}
+
+/**
+ * The `ApiFailure` behind anything `createApiClient` threw.
+ *
+ * Its methods reject rather than return, so a caller's `catch` holds an
+ * `unknown` — and every screen that wanted the reason had to re-derive it.
+ * Mirrors `apiRequest`'s own catch: a fetch that never reached the server is a
+ * network failure, unless the caller aborted it.
+ */
+export function failureFromError(err: unknown): ApiFailure {
+  if (err instanceof ApiClientError) return err.failure;
+  return isAbortLike(err) ? { kind: 'aborted' } : { kind: 'network' };
 }
 
 /**

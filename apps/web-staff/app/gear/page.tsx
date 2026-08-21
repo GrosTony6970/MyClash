@@ -1,6 +1,7 @@
 'use client';
 
 import { useI18n } from '@myclash/next-i18n/client';
+import { failureMessage } from '@myclash/api-client';
 import { useScoringTheme } from '../../src/theme/ThemeProvider';
 import { PersonRow } from '../../src/components/PersonRow';
 import { useGear, type GearEntry } from '../../src/lib/useGear';
@@ -22,6 +23,10 @@ export default function GearPage() {
   const { t } = useI18n();
   const { chromeScope } = useScoringTheme();
   const gear = useGear();
+  // The server's own reason, with our sentence only as the fallback. Every
+  // refusal used to read "That did not save. Try again." — including a 403 from
+  // the edge, which no amount of trying again would have cleared.
+  const error = gear.error && failureMessage(gear.error, t, t('scoring.desk.actionError'));
 
   return (
     <main data-theme={chromeScope} className="min-h-screen bg-background text-foreground">
@@ -39,7 +44,7 @@ export default function GearPage() {
           className="w-full rounded-lg border border-border bg-surface px-4 py-3 text-lg text-foreground placeholder-muted focus:outline-none focus:ring-2 focus:ring-accent"
         />
 
-        {gear.error && <p className="mt-3 text-sm text-danger">{t('scoring.desk.actionError')}</p>}
+        {error && <p className="mt-3 text-sm text-danger">{error}</p>}
 
         <GearList entries={gear.entries} loading={gear.loading} onRecord={gear.recordCheck} />
 

@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import { failureFromError, type ApiFailure } from '@myclash/api-client';
 import { api } from './api';
 
 export interface RosterEntry {
@@ -75,7 +76,7 @@ function useDeskReads() {
   const [roster, setRoster] = useState<RosterEntry[]>([]);
   const [summary, setSummary] = useState<{ arrived: number; total: number } | null>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<ApiFailure | null>(null);
 
   // Debounced so a volunteer typing a name does not fire one request per
   // keystroke on venue wifi. 250ms is below the threshold where the list feels
@@ -87,8 +88,8 @@ function useDeskReads() {
         .then((rows) => {
           if (!cancelled) setRoster(rows);
         })
-        .catch(() => {
-          if (!cancelled) setError('load');
+        .catch((err: unknown) => {
+          if (!cancelled) setError(failureFromError(err));
         })
         .finally(() => {
           if (!cancelled) setLoading(false);
@@ -131,7 +132,7 @@ function useDeskReads() {
  * that.
  */
 function useDeskWrites(reload: () => Promise<void>) {
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<ApiFailure | null>(null);
 
   // Void-returning on purpose: these are wired straight to onClick, and a
   // Promise-returning handler there is an eslint error (no-misused-promises)
@@ -143,7 +144,7 @@ function useDeskWrites(reload: () => Promise<void>) {
       void api
         .post(`/api/v1/staff/checkin/${personId}/arrive`, { via })
         .then(() => reload())
-        .catch(() => setError('write'));
+        .catch((err: unknown) => setError(failureFromError(err)));
     },
     [reload],
   );
@@ -154,7 +155,7 @@ function useDeskWrites(reload: () => Promise<void>) {
       void api
         .post(`/api/v1/staff/checkin/${personId}/undo`, {})
         .then(() => reload())
-        .catch(() => setError('write'));
+        .catch((err: unknown) => setError(failureFromError(err)));
     },
     [reload],
   );

@@ -209,9 +209,8 @@ function requestInit(init: Omit<RequestInit, 'body'> & { body?: unknown }): Requ
  * exactly the thing that must not depend on which branch built the failure.
  */
 /** The 401/403 failure. One owner, for the reason `httpFailure` has one. */
-function unauthenticatedFailure(status: 401 | 403, parsed: unknown): { ok: false } & ApiFailure {
+function unauthenticatedFailure(status: 401 | 403, parsed: unknown): ApiFailure {
   return {
-    ok: false,
     kind: 'unauthenticated',
     status,
     detail: readDetail(parsed),
@@ -220,9 +219,8 @@ function unauthenticatedFailure(status: 401 | 403, parsed: unknown): { ok: false
   };
 }
 
-function httpFailure(status: number, parsed: unknown): { ok: false } & ApiFailure {
+function httpFailure(status: number, parsed: unknown): ApiFailure {
   return {
-    ok: false,
     kind: 'http',
     status,
     code: readCode(parsed),
@@ -230,6 +228,25 @@ function httpFailure(status: number, parsed: unknown): { ok: false } & ApiFailur
     details: readDetails(parsed),
     validationErrors: readValidationErrors(parsed),
   };
+}
+
+/**
+ * Which failure a refused response is, from its status and its body.
+ *
+ * Exported because `createApiClient` needs the same answer. That wrapper throws
+ * an `ApiClientError` rather than returning a result, and its callers had no way
+ * to reach `failureMessage` — so the two desk screens rendered one sentence for
+ * every possible refusal and the server's reason went in the bin.
+ *
+ * The `401 || 403` test was spelled out at both of `apiRequest`'s call sites
+ * with a note explaining that a hoisted boolean does not narrow `status` to
+ * `401 | 403`. That is still true; the narrowing just lives here now, once,
+ * where a third caller cannot get it wrong.
+ */
+export function responseFailure(status: number, parsed: unknown): ApiFailure {
+  return status === 401 || status === 403
+    ? unauthenticatedFailure(status, parsed)
+    : httpFailure(status, parsed);
 }
 
 export async function apiRequest<T>(
@@ -261,19 +278,11 @@ export async function apiRequest<T>(
     // HTML page where the API promised problem+json. On a failed response that
     // only costs us the reason; on a successful one the payload never arrived,
     // which is the same event as the socket dying.
-    if (status === 401 || status === 403) {
-      return unauthenticatedFailure(status, undefined);
-    }
-    return res.ok ? { ok: false, kind: 'network' } : httpFailure(status, undefined);
+    return res.ok
+      ? { ok: false, kind: 'network' }
+      : { ok: false, ...responseFailure(status, undefined) };
   }
 
-  // Spelled out at both sites rather than hoisted into a boolean: a
-  // `const isUnauthenticated = ...` does not narrow `status` to `401 | 403`,
-  // and the cast that would paper over it is how a 404 ends up in this branch.
-  if (status === 401 || status === 403) {
-    return unauthenticatedFailure(status, parsed);
-  }
-
-  if (!res.ok) return httpFailure(status, parsed);
+  if (!res.ok) return { ok: false, ...responseFailure(status, parsed) };
   return { ok: true, data: parsed as T };
 }
