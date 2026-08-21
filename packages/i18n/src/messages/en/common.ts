@@ -13,6 +13,10 @@ export const common = {
   apiFailure: {
     network: 'Could not reach the server. Check your connection and try again.',
     unauthenticated: 'Your session has expired, or this is not yours to see. Sign in again.',
+    // Not the API refusing you — something between this device and the server
+    // did, so signing in again would not help. Says to wait, because the edge
+    // bans that cause this expire on their own.
+    blocked: 'The connection to the server was blocked. Wait a minute, then try again.',
   },
   cancel: 'Cancel',
   error: 'Something went wrong.',

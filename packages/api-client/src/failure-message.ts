@@ -109,6 +109,18 @@ export function failureMessage(
     case 'network':
       return t('common.apiFailure.network');
     case 'unauthenticated':
+      // Neither half of a problem+json body — so this did not come from the
+      // API, which fills `detail` and `code` on every one it sends. Something
+      // between the browser and the API answered instead. Saying "your session
+      // expired, sign in again" there is worse than saying nothing: it is
+      // wrong, and it sends the operator to a login screen that cannot help.
+      //
+      // This is not hypothetical. A Traefik fail2ban jail on the staff API
+      // router answered a gear check 403 in 0ms on 2026-08-21, and the pad told
+      // the volunteer their session had gone.
+      if (failure.detail === null && failure.code === null) {
+        return t('common.apiFailure.blocked');
+      }
       // A 403 usually names the thing you may not do, and that beats our
       // sentence. A 401 does not: the server's word for it is "Unauthorized",
       // while ours says the session expired AND what to do about it.

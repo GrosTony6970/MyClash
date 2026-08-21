@@ -8,6 +8,7 @@ export const common = {
     network: 'Serveur injoignable. Vérifiez votre connexion puis réessayez.',
     unauthenticated:
       'Votre session a expiré, ou cette page ne vous est pas destinée. Reconnectez-vous.',
+    blocked: 'La connexion au serveur a été bloquée. Attendez une minute, puis réessayez.',
   },
   cancel: 'Annuler',
   error: 'Une erreur est survenue.',

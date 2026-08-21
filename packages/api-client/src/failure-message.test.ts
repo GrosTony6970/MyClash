@@ -14,8 +14,12 @@ const fr = createTranslator(messages.fr);
 
 const EVERY_FAILURE: ApiFailure[] = [
   { kind: 'network' },
+  // Both shapes: a bare body reaches the intermediary string, one carrying a
+  // code reaches the session string. Without the second, the locale sweep below
+  // would stop covering `common.apiFailure.unauthenticated` entirely.
   { kind: 'unauthenticated', status: 401, detail: null, code: null, details: null },
   { kind: 'unauthenticated', status: 403, detail: null, code: null, details: null },
+  { kind: 'unauthenticated', status: 401, detail: null, code: 'UNAUTHORIZED', details: null },
   { kind: 'http', status: 500, detail: null, validationErrors: null, code: null, details: null },
   {
     kind: 'http',
@@ -40,21 +44,40 @@ describe('failureMessage', () => {
     expect(failureMessage({ kind: 'network' }, en)).toBe(en('common.apiFailure.network'));
   });
 
-  it('sends both unauthenticated statuses to the same string when neither gave a reason', () => {
+  it('sends both unauthenticated statuses to the same string when the API gave no reason', () => {
     const unauthenticated = en('common.apiFailure.unauthenticated');
+    // `code` present, `detail` absent: still the API answering, just without a
+    // sentence. Only a body carrying NEITHER is an intermediary — see below.
     expect(
       failureMessage(
-        { kind: 'unauthenticated', status: 401, detail: null, code: null, details: null },
+        { kind: 'unauthenticated', status: 401, detail: null, code: 'FORBIDDEN', details: null },
         en,
       ),
     ).toBe(unauthenticated);
     expect(
       failureMessage(
-        { kind: 'unauthenticated', status: 403, detail: null, code: null, details: null },
+        { kind: 'unauthenticated', status: 403, detail: null, code: 'FORBIDDEN', details: null },
         en,
       ),
     ).toBe(unauthenticated);
   });
+
+  // THE REGRESSION. A Traefik fail2ban jail answered a gear-check POST with a
+  // bare 403 in 0ms on 2026-08-21, and the pad told the volunteer their session
+  // had expired — sending them to a login screen that could not help. The API
+  // fills `detail` and `code` on every problem+json body, so a 401/403 carrying
+  // neither did not come from the API.
+  it.each([401, 403] as const)(
+    'calls a %i with no problem+json body an intermediary, not a dead session',
+    (status) => {
+      expect(
+        failureMessage(
+          { kind: 'unauthenticated', status, detail: null, code: null, details: null },
+          en,
+        ),
+      ).toBe(en('common.apiFailure.blocked'));
+    },
+  );
 
   it("prefers a 403's own reason — it names what you may not do", () => {
     expect(
@@ -80,13 +103,20 @@ describe('failureMessage', () => {
     ).toBe(en('common.apiFailure.unauthenticated'));
   });
 
-  it('keeps the two generic failures distinguishable', () => {
-    expect(failureMessage({ kind: 'network' }, en)).not.toBe(
-      failureMessage(
-        { kind: 'unauthenticated', status: 401, detail: null, code: null, details: null },
-        en,
-      ),
+  it('keeps the three generic failures distinguishable', () => {
+    // Unreachable server, dead session, and something in between refusing on
+    // the server's behalf. Three different things to do about it, so three
+    // different sentences.
+    const network = failureMessage({ kind: 'network' }, en);
+    const dead = failureMessage(
+      { kind: 'unauthenticated', status: 401, detail: null, code: 'UNAUTHORIZED', details: null },
+      en,
     );
+    const blocked = failureMessage(
+      { kind: 'unauthenticated', status: 401, detail: null, code: null, details: null },
+      en,
+    );
+    expect(new Set([network, dead, blocked]).size).toBe(3);
   });
 
   it("reports the API's own reason for a failed response", () => {
