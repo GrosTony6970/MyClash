@@ -76,6 +76,12 @@ const COPY = {
   claimEmailLabel: 'Your registered email',
   claimSubmit: 'Send confirmation link',
   claimGenericError: 'Something went wrong while requesting the claim.',
+  // The same three, in French. The locale test below sets `mc_locale=fr` before
+  // it navigates, so the form it has to fill in is French — and driving it with
+  // the English strings above is why that test could never reach its assertion.
+  claimTitleFr: 'Confirmez votre profil',
+  claimEmailLabelFr: 'Votre e-mail enregistré',
+  claimSubmitFr: 'Envoyer le lien de confirmation',
 } as const;
 
 /** The deployed web-public host. Sibling of `E2E_PUBLIC_URL` in `15` and `24`. */
@@ -97,15 +103,24 @@ const FORCED_CLAIM_REASON = 'That profile belongs to a fighter who already signe
  * value is never dereferenced here — every test using this stubs the request —
  * so a made-up id keeps the run off the operator's real people.
  */
-async function submitClaimForm(page: Page): Promise<void> {
+async function submitClaimForm(page: Page, locale: 'en' | 'fr' = 'en'): Promise<void> {
+  // The form renders in the reader's locale, so it has to be DRIVEN in that
+  // locale too. Hard-coding the English strings here made the one test that
+  // switches the reader to French fail on its own first line — never reaching
+  // the assertion it exists for.
+  const copy =
+    locale === 'fr'
+      ? { title: COPY.claimTitleFr, email: COPY.claimEmailLabelFr, submit: COPY.claimSubmitFr }
+      : { title: COPY.claimTitle, email: COPY.claimEmailLabel, submit: COPY.claimSubmit };
+
   await page.goto(`${PUBLIC_BASE}/e/${ctx.eventSlug}/claim?personId=e2e-not-a-real-person`, {
     waitUntil: 'domcontentloaded',
   });
-  await expect(page.getByRole('heading', { name: COPY.claimTitle })).toBeVisible({
+  await expect(page.getByRole('heading', { name: copy.title })).toBeVisible({
     timeout: 30_000,
   });
-  await page.getByLabel(COPY.claimEmailLabel).fill('e2e@example.com');
-  await page.getByRole('button', { name: COPY.claimSubmit }).click();
+  await page.getByLabel(copy.email).fill('e2e@example.com');
+  await page.getByRole('button', { name: copy.submit }).click();
 }
 
 const VENUES_PATH = `/org/${ctx.orgSlug}/venues`;
@@ -374,7 +389,7 @@ test.describe('the api-failure seam — web-public', () => {
     ]);
     await page.route(MAGIC_LINK, (route) => route.abort('failed'));
 
-    await submitClaimForm(page);
+    await submitClaimForm(page, 'fr');
 
     await expect(page.getByText(COPY.networkFr)).toBeVisible();
     await expect(page.getByText(COPY.networkEn)).toBeHidden();
