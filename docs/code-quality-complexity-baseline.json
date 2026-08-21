@@ -731,7 +731,7 @@
     "apps/web-public/app/auth/oauth/callback/page.tsx:91",
     "apps/web-public/app/clubs/[slug]/page.tsx:63",
     "apps/web-public/app/e/[eventSlug]/_components/EventHeader.tsx:110",
-    "apps/web-public/app/e/[eventSlug]/claim/page.tsx:11",
+    "apps/web-public/app/e/[eventSlug]/claim/page.tsx:42",
     "apps/web-public/app/e/[eventSlug]/display/NowLiveSection.tsx:144",
     "apps/web-public/app/e/[eventSlug]/display/NowLiveSection.tsx:50",
     "apps/web-public/app/e/[eventSlug]/display/page.tsx:84",

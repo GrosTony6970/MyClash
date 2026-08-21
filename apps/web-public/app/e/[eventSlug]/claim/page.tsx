@@ -2,11 +2,42 @@
 
 import { useSearchParams } from 'next/navigation';
 import { getPublicApiUrl } from '@/lib/api-url';
-import { Suspense, useState } from 'react';
+import { Suspense, useState, useSyncExternalStore } from 'react';
 import { apiRequest, failureMessage } from '@myclash/api-client';
 import { GoogleIcon } from '@myclash/ui';
 import { useI18n } from '@myclash/next-i18n/client';
 import { createOAuthSupabaseClient } from '../../../../src/lib/oauth-supabase';
+
+/**
+ * "Is React listening yet?" — the three arguments of `ClaimForm`'s `ready` check.
+ *
+ * ── The button used to lie, and the lie cost the whole page ──────────────────
+ * This route renders dynamically, so `useSearchParams()` resolves on the SERVER
+ * and the submit button ships in the HTML already enabled, before any JavaScript
+ * runs. A tap or an Enter in that window is handled by the BROWSER, not by
+ * `handleSubmit`, so its `preventDefault()` never happens.
+ *
+ * The form has no `action` and the email field has no `name` deliberately — an
+ * email in a query string is an email in the history and in every access log. So
+ * the browser's own submit is a GET to this path carrying NOTHING: it drops
+ * `?personId=`, the one value this screen cannot work without. The fighter lands
+ * back here with both controls dead and no message saying why, and the only way
+ * out is the original link.
+ *
+ * Gating both controls on this rather than adding a hidden `personId` field:
+ * that would merely make the accidental reload survivable. This stops it. A
+ * control that cannot act on a press must not invite one.
+ *
+ * `useSyncExternalStore` rather than a `useState` + `useEffect` pair, which is
+ * the same answer but trips `react-hooks/set-state-in-effect`. A server snapshot
+ * is what this hook is for; suppressing the rule to hand-roll it is the worse
+ * trade. Module scope so the subscribe callback is stable — an inline one
+ * re-subscribes on every render — and nothing ever changes, so it unsubscribes
+ * with a no-op.
+ */
+const subscribeToNothing = () => () => {};
+const onTheClient = () => true;
+const onTheServer = () => false;
 
 function ClaimForm() {
   const { t } = useI18n();
@@ -17,6 +48,9 @@ function ClaimForm() {
   const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+
+  // Both controls wait for this. See the note above the three callbacks.
+  const ready = useSyncExternalStore(subscribeToNothing, onTheClient, onTheServer);
 
   const apiUrl = getPublicApiUrl();
 
@@ -116,7 +150,7 @@ function ClaimForm() {
 
         <button
           type="submit"
-          disabled={loading || !personId}
+          disabled={loading || !personId || !ready}
           className="w-full bg-accent hover:bg-accent-hover disabled:opacity-50 text-accent-foreground font-semibold py-2 px-4 rounded-md transition-colors"
         >
           {loading ? t('publicApp.claim.sending') : t('publicApp.claim.sendConfirmationLink')}
@@ -128,7 +162,7 @@ function ClaimForm() {
         onClick={() => {
           void handleGoogleClaim();
         }}
-        disabled={loading || !personId}
+        disabled={loading || !personId || !ready}
         className="mt-3 w-full inline-flex items-center justify-center gap-2 border border-border hover:border-accent disabled:opacity-50 text-foreground font-semibold py-2 px-4 rounded-md transition-colors"
       >
         <GoogleIcon />
