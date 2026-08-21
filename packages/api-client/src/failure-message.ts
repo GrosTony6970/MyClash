@@ -59,6 +59,18 @@ import type { ApiFailure } from './request';
  * sign in again: wrong, and worse than silence, because it sends them to a
  * login screen that cannot clear it. `common.apiFailure.blocked` says to wait.
  *
+ * ── 429: a class name is not a reason ───────────────────────────
+ * The throttler is Nest's stock one (`throttler-options.ts` sets limits and
+ * trackers, never a message), so a refused request carries the literal
+ * "ThrottlerException: Too many requests". That is a 4xx, where `detail`
+ * outranks the fallback — so before this branch existed, converting a screen
+ * that already said "Trop de requêtes…" traded it for an English class name.
+ *
+ * It sits with `blocked` rather than with the 4xx rule above, and for the same
+ * reason: both are transient refusals whose English is machine noise. A screen
+ * that has something better than "wait" still wins, because `fallback` is
+ * checked first — unlike the 401 case, where ours always wins.
+ *
  * ── 5xx: the screen's own sentence wins ─────────────────────────────────────
  * The exception filter scrubs every ≥500 body to the literal "Internal server
  * error" so no stack or connection string can reach a browser. It also fills
@@ -131,6 +143,11 @@ export function failureMessage(
         ? (failure.detail ?? t('common.apiFailure.unauthenticated'))
         : t('common.apiFailure.unauthenticated');
     case 'http':
+      // A class name is not a reason — see the header. The fallback wins here,
+      // unlike the 401 case, because a screen may name what is being throttled.
+      if (failure.status === 429) {
+        return fallback ?? t('common.apiFailure.tooManyRequests');
+      }
       // A scrubbed 5xx carries a placeholder, not a reason. 503 is the one
       // ≥500 the filter lets through with real words — see the header.
       if (failure.status >= 500 && failure.status !== 503) {

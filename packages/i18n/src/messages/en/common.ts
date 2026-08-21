@@ -17,6 +17,11 @@ export const common = {
     // did, so signing in again would not help. Says to wait, because the edge
     // bans that cause this expire on their own.
     blocked: 'The connection to the server was blocked. Wait a minute, then try again.',
+    // A throttled request. The API's own words for it are
+    // "ThrottlerException: Too many requests" — a class name, not a sentence,
+    // and it would outrank a localized fallback on a 4xx like any other
+    // `detail`. This is the one refusal whose reason says less than ours.
+    tooManyRequests: 'Too many requests. Wait a moment and retry.',
   },
   cancel: 'Cancel',
   error: 'Something went wrong.',

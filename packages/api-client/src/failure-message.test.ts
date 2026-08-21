@@ -21,6 +21,17 @@ const EVERY_FAILURE: ApiFailure[] = [
   { kind: 'unauthenticated', status: 403, detail: null, code: null, details: null },
   { kind: 'unauthenticated', status: 401, detail: null, code: 'UNAUTHORIZED', details: null },
   { kind: 'http', status: 500, detail: null, validationErrors: null, code: null, details: null },
+  // The throttled request. This array is the ONLY input to the en/fr sweep at
+  // the bottom of this file, so without an entry here
+  // `common.apiFailure.tooManyRequests` would ship unswept in both locales.
+  {
+    kind: 'http',
+    status: 429,
+    detail: 'ThrottlerException: Too many requests',
+    validationErrors: null,
+    code: null,
+    details: null,
+  },
   {
     kind: 'http',
     status: 409,
@@ -241,6 +252,46 @@ describe('failureMessage', () => {
         en,
       ),
     ).toBe('email must be an email');
+  });
+
+  // Nest's stock ThrottlerException. Not a sentence — a class name with a colon
+  // in it — and on a 4xx `detail` outranks the fallback, so it would have been
+  // what an operator read on seven admin screens that already say better.
+  const THROTTLED = 'ThrottlerException: Too many requests';
+
+  it('answers a throttled request in the operator’s language, not the class name', () => {
+    expect(
+      failureMessage(
+        {
+          kind: 'http',
+          status: 429,
+          detail: THROTTLED,
+          validationErrors: null,
+          code: null,
+          details: null,
+        },
+        en,
+      ),
+    ).toBe(en('common.apiFailure.tooManyRequests'));
+  });
+
+  it('lets a screen with something better than "wait" keep its own sentence', () => {
+    // Unlike the 401 rule, where ours always wins: a screen that can name the
+    // action being throttled is more useful than the generic wait.
+    expect(
+      failureMessage(
+        {
+          kind: 'http',
+          status: 429,
+          detail: THROTTLED,
+          validationErrors: null,
+          code: null,
+          details: null,
+        },
+        en,
+        'Too many logo uploads. Wait a minute.',
+      ),
+    ).toBe('Too many logo uploads. Wait a minute.');
   });
 
   // The API's exception filter fills `detail` on every problem+json body, so a
