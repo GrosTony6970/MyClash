@@ -847,7 +847,6 @@ export const admin = {
     description: 'Créer, désactiver, restaurer et supprimer les comptes plateforme.',
     accessDenied: 'Accès refuse. Accès plateforme requis.',
     loadError: 'Impossible de charger les comptes plateforme',
-    genericError: 'Une erreur est survenue',
     loading: 'Chargement...',
     empty: 'Aucun compte plateforme trouve.',
     refresh: 'Rafraichir',

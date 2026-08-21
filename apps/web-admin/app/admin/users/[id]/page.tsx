@@ -5,9 +5,22 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useConfirm } from '@myclash/ui';
 import type { PlatformRole } from '@myclash/types';
 import { useI18n } from '@myclash/next-i18n/client';
+import { apiRequest, failureMessage, type ApiFailure } from '@myclash/api-client';
 import { fetchMe } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
 import { BackLink } from '@/components/BackLink';
+
+/**
+ * The refusal sentence, always a string.
+ *
+ * `failureMessage` answers `null` for an aborted request, and nine call sites
+ * below would each need that narrowing. None of them passes a signal, so the
+ * abort cannot arrive here at all — and if one ever gains one, falling to the
+ * caller's own fallback beats an empty error box.
+ */
+function reasonOr(failure: ApiFailure, t: (key: string) => string, fallback: string): string {
+  return failureMessage(failure, t, fallback) ?? fallback;
+}
 
 const ORG_ROLES = [
   'owner',
@@ -109,15 +122,12 @@ export default function AdminUserEditPage() {
   }, [apiUrl]);
 
   const fetchUser = useCallback(async () => {
-    const res = await fetch(`${apiUrl}/api/v1/admin/users/${userId}`, {
-      credentials: 'include',
-    });
-    if (!res.ok) {
-      throw new Error(t('admin.users.edit.saveError'));
+    const r = await apiRequest<{ user: AdminUser }>(apiUrl, `/api/v1/admin/users/${userId}`);
+    if (!r.ok) {
+      throw new Error(reasonOr(r, t, t('admin.users.edit.saveError')));
     }
-    const data = (await res.json()) as { user: AdminUser };
-    setUser(data.user);
-    setAccountForm({ email: data.user.email ?? '', displayName: data.user.display_name ?? '' });
+    setUser(r.data.user);
+    setAccountForm({ email: r.data.user.email ?? '', displayName: r.data.user.display_name ?? '' });
   }, [apiUrl, userId, t]);
 
   /**
@@ -126,14 +136,13 @@ export default function AdminUserEditPage() {
    * local view of "is the temp still valid".
    */
   const fetchTempPassword = useCallback(async () => {
-    const res = await fetch(`${apiUrl}/api/v1/admin/users/${userId}/temp-password`, {
-      credentials: 'include',
-    });
-    if (!res.ok) return;
-    const body = (await res.json()) as
-      { status: 'active'; password: string } | { status: 'password_changed' | 'expired' };
-    setTempPasswordStatus(body.status);
-    setTempPassword(body.status === 'active' ? body.password : null);
+    const r = await apiRequest<
+      { status: 'active'; password: string } | { status: 'password_changed' | 'expired' }
+    >(apiUrl, `/api/v1/admin/users/${userId}/temp-password`);
+    // Silent by design: the password row simply does not render.
+    if (!r.ok) return;
+    setTempPasswordStatus(r.data.status);
+    setTempPassword(r.data.status === 'active' ? r.data.password : null);
     setTempPasswordRevealed(false);
     setTempPasswordCopied(false);
   }, [apiUrl, userId]);
@@ -143,11 +152,10 @@ export default function AdminUserEditPage() {
       return;
     setBusy(true);
     try {
-      const res = await fetch(`${apiUrl}/api/v1/admin/users/${userId}/temp-password`, {
+      const r = await apiRequest(apiUrl, `/api/v1/admin/users/${userId}/temp-password`, {
         method: 'DELETE',
-        credentials: 'include',
       });
-      if (!res.ok) throw new Error(t('admin.users.edit.saveError'));
+      if (!r.ok) throw new Error(reasonOr(r, t, t('admin.users.edit.saveError')));
       await fetchTempPassword();
     } catch (err) {
       setError(err instanceof Error ? err.message : t('admin.users.edit.saveError'));
@@ -169,14 +177,14 @@ export default function AdminUserEditPage() {
   }
 
   const fetchOrgs = useCallback(async () => {
-    const res = await fetch(`${apiUrl}/api/v1/admin/organizations`, {
-      credentials: 'include',
-    });
-    if (!res.ok) {
-      throw new Error(t('admin.users.edit.saveError'));
+    const r = await apiRequest<{ organizations?: OrgRow[] } | OrgRow[]>(
+      apiUrl,
+      '/api/v1/admin/organizations',
+    );
+    if (!r.ok) {
+      throw new Error(reasonOr(r, t, t('admin.users.edit.saveError')));
     }
-    const data = (await res.json()) as { organizations?: OrgRow[] } | OrgRow[];
-    const list = Array.isArray(data) ? data : (data.organizations ?? []);
+    const list = Array.isArray(r.data) ? r.data : (r.data.organizations ?? []);
     setOrgs(list);
   }, [apiUrl, t]);
 
@@ -213,19 +221,14 @@ export default function AdminUserEditPage() {
     setError(null);
     setSavedFlash(false);
     try {
-      const res = await fetch(`${apiUrl}/api/v1/admin/users/${userId}`, {
+      const r = await apiRequest(apiUrl, `/api/v1/admin/users/${userId}`, {
         method: 'PATCH',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+        body: {
           email: accountForm.email.trim() || undefined,
           displayName: accountForm.displayName.trim(),
-        }),
+        },
       });
-      if (!res.ok) {
-        const body = (await res.json().catch(() => ({}))) as { message?: string };
-        throw new Error(body.message ?? t('admin.users.edit.saveError'));
-      }
+      if (!r.ok) throw new Error(reasonOr(r, t, t('admin.users.edit.saveError')));
       setSavedFlash(true);
       await fetchUser();
     } catch (err) {
@@ -239,16 +242,11 @@ export default function AdminUserEditPage() {
     setBusy(true);
     setError(null);
     try {
-      const res = await fetch(`${apiUrl}/api/v1/admin/users/${userId}/organizations/${orgId}`, {
+      const r = await apiRequest(apiUrl, `/api/v1/admin/users/${userId}/organizations/${orgId}`, {
         method: 'PATCH',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ role }),
+        body: { role },
       });
-      if (!res.ok) {
-        const body = (await res.json().catch(() => ({}))) as { message?: string };
-        throw new Error(body.message ?? t('admin.users.edit.roleUpdateError'));
-      }
+      if (!r.ok) throw new Error(reasonOr(r, t, t('admin.users.edit.roleUpdateError')));
       await fetchUser();
     } catch (err) {
       setError(err instanceof Error ? err.message : t('admin.users.edit.roleUpdateError'));
@@ -268,14 +266,10 @@ export default function AdminUserEditPage() {
     setBusy(true);
     setError(null);
     try {
-      const res = await fetch(`${apiUrl}/api/v1/admin/users/${userId}/organizations/${org.id}`, {
+      const r = await apiRequest(apiUrl, `/api/v1/admin/users/${userId}/organizations/${org.id}`, {
         method: 'DELETE',
-        credentials: 'include',
       });
-      if (!res.ok) {
-        const body = (await res.json().catch(() => ({}))) as { message?: string };
-        throw new Error(body.message ?? t('admin.users.edit.removeError'));
-      }
+      if (!r.ok) throw new Error(reasonOr(r, t, t('admin.users.edit.removeError')));
       await fetchUser();
     } catch (err) {
       setError(err instanceof Error ? err.message : t('admin.users.edit.removeError'));
@@ -294,16 +288,18 @@ export default function AdminUserEditPage() {
     setBusy(true);
     setError(null);
     try {
-      const res = await fetch(`${apiUrl}/api/v1/admin/users/${userId}/regenerate-temp-password`, {
-        method: 'POST',
-        credentials: 'include',
-      });
-      const body = (await res.json().catch(() => ({}))) as {
-        temporaryPassword?: string;
-        message?: string;
-      };
-      if (!res.ok || !body.temporaryPassword) {
-        throw new Error(body.message ?? t('admin.users.edit.regeneratePasswordFailed'));
+      const r = await apiRequest<{ temporaryPassword?: string }>(
+        apiUrl,
+        `/api/v1/admin/users/${userId}/regenerate-temp-password`,
+        { method: 'POST' },
+      );
+      if (!r.ok) {
+        throw new Error(reasonOr(r, t, t('admin.users.edit.regeneratePasswordFailed')));
+      }
+      // A 2xx with no password is the API answering the wrong shape, not a
+      // refusal, so there is no server sentence to read for it.
+      if (!r.data.temporaryPassword) {
+        throw new Error(t('admin.users.edit.regeneratePasswordFailed'));
       }
       // Re-reads the vault rather than trusting the response: this is the same
       // path the operator will use tomorrow, so exercising it now is what
@@ -323,14 +319,10 @@ export default function AdminUserEditPage() {
     setBusy(true);
     setError(null);
     try {
-      const res = await fetch(`${apiUrl}/api/v1/admin/users/${userId}/send-password-reset`, {
+      const r = await apiRequest(apiUrl, `/api/v1/admin/users/${userId}/send-password-reset`, {
         method: 'POST',
-        credentials: 'include',
       });
-      if (!res.ok) {
-        const body = (await res.json().catch(() => ({}))) as { message?: string };
-        throw new Error(body.message ?? t('admin.users.edit.sendResetEmailFailed'));
-      }
+      if (!r.ok) throw new Error(reasonOr(r, t, t('admin.users.edit.sendResetEmailFailed')));
       setResetEmailSent(true);
     } catch (err) {
       setError(err instanceof Error ? err.message : t('admin.users.edit.sendResetEmailFailed'));
@@ -355,20 +347,11 @@ export default function AdminUserEditPage() {
     setBusy(true);
     setError(null);
     try {
-      const res = await fetch(`${apiUrl}/api/v1/admin/users/${userId}/platform-role`, {
+      const r = await apiRequest(apiUrl, `/api/v1/admin/users/${userId}/platform-role`, {
         method: next ? 'PUT' : 'DELETE',
-        credentials: 'include',
-        ...(next
-          ? {
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ role: next }),
-            }
-          : {}),
+        ...(next ? { body: { role: next } } : {}),
       });
-      if (!res.ok) {
-        const body = (await res.json().catch(() => ({}))) as { message?: string };
-        throw new Error(body.message ?? t('admin.users.edit.platformRoleFailed'));
-      }
+      if (!r.ok) throw new Error(reasonOr(r, t, t('admin.users.edit.platformRoleFailed')));
       await fetchUser();
     } catch (err) {
       setError(err instanceof Error ? err.message : t('admin.users.edit.platformRoleFailed'));
@@ -382,16 +365,11 @@ export default function AdminUserEditPage() {
     setBusy(true);
     setError(null);
     try {
-      const res = await fetch(`${apiUrl}/api/v1/admin/users/${userId}/organizations`, {
+      const r = await apiRequest(apiUrl, `/api/v1/admin/users/${userId}/organizations`, {
         method: 'POST',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ organizationId: addOrgId, role: addRole }),
+        body: { organizationId: addOrgId, role: addRole },
       });
-      if (!res.ok) {
-        const body = (await res.json().catch(() => ({}))) as { message?: string };
-        throw new Error(body.message ?? t('admin.users.edit.addError'));
-      }
+      if (!r.ok) throw new Error(reasonOr(r, t, t('admin.users.edit.addError')));
       await fetchUser();
     } catch (err) {
       setError(err instanceof Error ? err.message : t('admin.users.edit.addError'));

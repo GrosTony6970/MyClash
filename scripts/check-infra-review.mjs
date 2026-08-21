@@ -1845,7 +1845,14 @@ for (const expected of [
 for (const expected of ['SegmentedTabs', 'admin.users.tabs.platform', 'AccountsPanel']) {
   requireContains(superAdminUsersPageText, 'apps/web-admin/app/admin/users/page.tsx', expected);
 }
-for (const expected of ['/api/v1/admin/users', 'common.tooManyRequests', 'actions.retry']) {
+// `common.tooManyRequests` is deliberately NOT pinned here any more. The panel
+// used to pick that sentence itself, per call site, with a `res.status === 429`
+// ternary; `failureMessage` in @myclash/api-client owns it now. A substring pin
+// would only re-assert the copy in the file that stopped choosing it, and the
+// behaviour has a real guard instead: failure-message.test.ts requires the
+// throttle sentence to beat a caller's fallback, and users/types.test.ts
+// requires `readError` to carry it through. Both are falsified.
+for (const expected of ['/api/v1/admin/users', 'actions.retry']) {
   requireContains(accountsPanelText, 'apps/web-admin/app/admin/users/AccountsPanel.tsx', expected);
 }
 for (const expected of [

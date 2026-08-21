@@ -4,6 +4,7 @@ import { useState, type FormEvent } from 'react';
 import type { PlatformRole } from '@myclash/types';
 import { useI18n } from '@myclash/next-i18n/client';
 import { getPublicApiUrl } from '@/lib/api-url';
+import { apiRequest } from '@myclash/api-client';
 import { readError, roleLabelKey } from './types';
 
 interface CreateUserResponse {
@@ -37,29 +38,24 @@ export function CreatePlatformAccountForm({ onCreated }: { onCreated: () => void
     setError(null);
     setResult(null);
 
-    const res = await fetch(`${apiUrl}/api/v1/admin/users`, {
+    const r = await apiRequest<CreateUserResponse>(apiUrl, '/api/v1/admin/users', {
       method: 'POST',
-      credentials: 'include',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
+      body: {
         email,
         displayName: displayName || undefined,
         platformRole: role || undefined,
-      }),
+      },
     });
 
     setCreating(false);
-    if (!res.ok) {
-      setError(
-        await readError(
-          res,
-          res.status === 429 ? t('common.tooManyRequests') : t('admin.users.create.failed'),
-        ),
-      );
+    if (!r.ok) {
+      // The 429 sentence used to be picked here; `failureMessage` owns it now.
+      const message = readError(r, t, t('admin.users.create.failed'));
+      if (message) setError(message);
       return;
     }
 
-    setResult((await res.json()) as CreateUserResponse);
+    setResult(r.data);
     setEmail('');
     setDisplayName('');
     setRole('');

@@ -66,6 +66,7 @@ const COPY = {
   networkEn: 'Could not reach the server. Check your connection and try again.',
   networkFr: 'Serveur injoignable. Vérifiez votre connexion puis réessayez.',
   unauthenticatedEn: 'Your session has expired, or this is not yours to see. Sign in again.',
+  tooManyRequestsEn: 'Too many requests. Wait a moment and retry.',
   venuesTitle: 'Venues',
   venuesLoadError: 'Could not load venues.',
   backupsTitle: 'Backup Management',
@@ -73,6 +74,7 @@ const COPY = {
   systemVersionsLoadError: 'Failed to load system versions.',
   systemVersionsAccessDenied: 'Access denied. Super admin required.',
   organizationsLoadError: 'Failed to load organizations',
+  usersLoadError: 'Failed to load platform accounts',
   tournamentNotFound: 'Tournament not found',
   tournamentLoadFailed: "This tournament couldn't be loaded",
   claimTitle: 'Confirm your profile',
@@ -140,6 +142,8 @@ const SYSTEM_VERSIONS_LOAD = '**/api/v1/admin/system-versions';
 const ORGANIZATIONS_PATH = '/admin/organizations';
 /** The list read carries a query string, so this one IS a prefix match. */
 const ORGANIZATIONS_LOAD = '**/api/v1/admin/organizations?*';
+const USERS_PATH = '/admin/users';
+const USERS_LOAD = '**/api/v1/admin/users?*';
 
 /** What the API's exception filter actually sends (api-exception.filter.ts). */
 function problemJson(status: number, detail: string) {
@@ -387,6 +391,25 @@ test.describe('the api-failure seam — the backup console', () => {
 
     await expect(page.getByText(reason)).toBeVisible();
     await expect(page.getByText(COPY.organizationsLoadError)).toBeHidden();
+    await page.close();
+  });
+
+  test('a throttled accounts console says to wait, not "failed"', async () => {
+    test.skip(!platform, 'set E2E_SUPERADMIN_EMAIL / E2E_SUPERADMIN_PASSWORD');
+    const page = await platform!.newPage();
+
+    // The one refusal where the server's words lose. Nest's throttler sends the
+    // literal "ThrottlerException: Too many requests" — a class name — and the
+    // screen's own fallback says nothing about waiting either.
+    await page.route(USERS_LOAD, (route) =>
+      route.fulfill(problemJson(429, 'ThrottlerException: Too many requests')),
+    );
+    await page.goto(USERS_PATH);
+    await expectStayedOn(page, USERS_PATH);
+
+    await expect(page.getByText(COPY.tooManyRequestsEn)).toBeVisible();
+    await expect(page.getByText('ThrottlerException')).toBeHidden();
+    await expect(page.getByText(COPY.usersLoadError)).toBeHidden();
     await page.close();
   });
 });

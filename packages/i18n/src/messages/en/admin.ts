@@ -843,7 +843,6 @@ export const admin = {
     description: 'Create, disable, restore, and remove platform accounts.',
     accessDenied: 'Access denied. Platform access required.',
     loadError: 'Failed to load platform accounts',
-    genericError: 'Something went wrong',
     loading: 'Loading...',
     empty: 'No platform accounts found.',
     refresh: 'Refresh',

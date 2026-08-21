@@ -1,3 +1,4 @@
+import { failureMessage, type ApiFailure } from '@myclash/api-client';
 import type { PlatformRole } from '@myclash/types';
 
 /**
@@ -69,32 +70,41 @@ function formatBlockers(blockers: unknown): string | null {
 }
 
 /**
- * Read the API's RFC 9457 problem body.
+ * The sentence for a refused account action, with the blockers appended.
  *
- * `blockers` sits under `details`, NOT at the top level: the API throws
- * `BadRequestException({ message, blockers })`, and ApiExceptionFilter moves
- * every key except `message`/`error`/`statusCode` into `details`. Reading
- * `data.blockers` finds nothing and degrades silently to a bare message — which
- * is why safe delete only ever said "this account still has references" without
- * ever naming one.
+ * `failureMessage` already picks between the server's reason, the caller's
+ * fallback and our own string for a throttle or a dead connection. What it
+ * cannot do is name WHAT is blocking a delete: `blockers` rides in the API's
+ * extension bag, because the API throws `BadRequestException({ message,
+ * blockers })` and the exception filter moves every key except
+ * `message`/`error`/`statusCode` into `details`. Reading `data.blockers` at the
+ * top level finds nothing and degrades in silence, which is why safe delete
+ * once said "this account still has references" without ever naming one.
  *
- * Pass `blockersLabel` (a localized string) to append them; `t` is not
- * reachable from module scope.
+ * Returns `null` for an aborted request, exactly as `failureMessage` does —
+ * there is nothing to tell the operator about their own navigation.
+ *
+ * Pass `blockersLabel` (already localized) to append them; `t` is a parameter
+ * because module scope cannot run a hook.
  */
-export async function readError(
-  res: Response,
+export function readError(
+  failure: ApiFailure,
+  t: (key: string) => string,
   fallback: string,
   blockersLabel?: string,
-): Promise<string> {
-  if (res.status === 429) return fallback;
-  try {
-    const data = (await res.json()) as { message?: unknown; details?: { blockers?: unknown } };
-    if (typeof data.message !== 'string') return fallback;
+): string | null {
+  const message = failureMessage(failure, t, fallback);
+  if (message === null) return null;
 
-    const blockerText = blockersLabel ? formatBlockers(data.details?.blockers) : null;
-    return blockerText ? `${data.message}. ${blockersLabel}: ${blockerText}` : data.message;
-  } catch {
-    // Keep the UI on the generic localized error when the API body is empty.
-  }
-  return fallback;
+  // The same narrowing `failureDetail` makes: only these two members carry a
+  // bag, and `network` has none either.
+  const details =
+    failure.kind === 'http' || failure.kind === 'unauthenticated' ? failure.details : null;
+  const blockerText = blockersLabel ? formatBlockers(details?.['blockers']) : null;
+  if (!blockerText) return message;
+  // The API's reason is a whole sentence and usually ends in a full stop, so
+  // joining with ". " produced "still has references.. Blocked by". Only add
+  // the stop when the sentence did not bring its own.
+  const separator = /[.!?]$/.test(message) ? ' ' : '. ';
+  return `${message}${separator}${blockersLabel}: ${blockerText}`;
 }

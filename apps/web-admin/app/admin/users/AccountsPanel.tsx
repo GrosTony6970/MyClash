@@ -7,6 +7,7 @@ import { getPublicApiUrl } from '@/lib/api-url';
 import { useAdminUsers } from './useAdminUsers';
 import { AccountsTable } from './AccountsTable';
 import { AccountsPagination } from './AccountsPagination';
+import { apiRequest } from '@myclash/api-client';
 import { getAccountLabel, readError, type AdminUser, type UsersTab } from './types';
 
 type Pending =
@@ -43,21 +44,18 @@ export function AccountsPanel({ tab }: { tab: UsersTab }) {
   async function performToggle(user: AdminUser, action: 'disable' | 'enable') {
     setActionBusy(true);
     try {
-      const res = await fetch(`${apiUrl}/api/v1/admin/users/${user.id}/${action}`, {
+      const r = await apiRequest(apiUrl, `/api/v1/admin/users/${user.id}/${action}`, {
         method: 'PATCH',
-        credentials: 'include',
       });
-      if (res.ok || res.status === 204) {
+      if (r.ok) {
         toast.success(t(`admin.users.actions.${action}`));
         setPending(null);
         refresh();
       } else {
-        toast.error(
-          await readError(
-            res,
-            res.status === 429 ? t('common.tooManyRequests') : t('admin.users.actions.failed'),
-          ),
-        );
+        // The 429 sentence used to be picked here. `failureMessage` owns that
+        // now, so the fallback is simply what this action is.
+        const message = readError(r, t, t('admin.users.actions.failed'));
+        if (message) toast.error(message);
       }
     } finally {
       setActionBusy(false);
@@ -67,11 +65,10 @@ export function AccountsPanel({ tab }: { tab: UsersTab }) {
   async function performDelete(user: AdminUser, mode: 'safe' | 'cleanup') {
     setActionBusy(true);
     try {
-      const res = await fetch(`${apiUrl}/api/v1/admin/users/${user.id}?mode=${mode}`, {
+      const r = await apiRequest(apiUrl, `/api/v1/admin/users/${user.id}?mode=${mode}`, {
         method: 'DELETE',
-        credentials: 'include',
       });
-      if (res.ok) {
+      if (r.ok) {
         toast.success(
           t(
             mode === 'safe'
@@ -82,13 +79,13 @@ export function AccountsPanel({ tab }: { tab: UsersTab }) {
         setPending(null);
         refresh();
       } else {
-        toast.error(
-          await readError(
-            res,
-            res.status === 429 ? t('common.tooManyRequests') : t('admin.users.actions.failed'),
-            t('admin.users.actions.blockers'),
-          ),
+        const message = readError(
+          r,
+          t,
+          t('admin.users.actions.failed'),
+          t('admin.users.actions.blockers'),
         );
+        if (message) toast.error(message);
       }
     } finally {
       setActionBusy(false);

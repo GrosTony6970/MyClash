@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { useI18n } from '@myclash/next-i18n/client';
+import { apiRequest, failureMessage } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
 import type { UserListResponse, UsersTab } from './types';
 
@@ -48,36 +49,31 @@ export function useAdminUsers(scope: UsersTab, page: number, perPage: number, se
     });
     if (debouncedSearch.trim()) params.set('q', debouncedSearch.trim());
 
-    fetch(`${apiUrl}/api/v1/admin/users?${params}`, {
-      credentials: 'include',
+    void apiRequest<UserListResponse>(apiUrl, `/api/v1/admin/users?${params}`, {
       signal: controller.signal,
-    })
-      .then(async (res) => {
-        if (cancelled) return;
-        if (res.status === 401 || res.status === 403) {
-          setState({ ...EMPTY, loading: false, error: t('admin.users.accessDenied') });
-          return;
-        }
-        if (res.status === 429) throw new Error(t('common.tooManyRequests'));
-        if (!res.ok) throw new Error(t('admin.users.loadError'));
-        const data = (await res.json()) as UserListResponse;
-        if (cancelled) return;
+    }).then((r) => {
+      if (cancelled) return;
+      if (r.ok) {
         setState({
-          users: data.users ?? [],
-          total: data.total ?? 0,
-          truncated: data.truncated === true,
+          users: r.data.users ?? [],
+          total: r.data.total ?? 0,
+          truncated: r.data.truncated === true,
           loading: false,
           error: null,
         });
-      })
-      .catch((err: unknown) => {
-        if (cancelled || (err instanceof DOMException && err.name === 'AbortError')) return;
-        setState({
-          ...EMPTY,
-          loading: false,
-          error: err instanceof Error ? err.message : t('admin.users.genericError'),
-        });
-      });
+        return;
+      }
+      // A dead session and a missing platform role read the same to the guard,
+      // and the same to the operator here — the call admin/backups makes.
+      if (r.kind === 'unauthenticated') {
+        setState({ ...EMPTY, loading: false, error: t('admin.users.accessDenied') });
+        return;
+      }
+      // No message is the unmount, or the search that replaced this read. The
+      // 429 sentence used to be picked here; `failureMessage` owns it now.
+      const message = failureMessage(r, t, t('admin.users.loadError'));
+      if (message) setState({ ...EMPTY, loading: false, error: message });
+    });
 
     return () => {
       cancelled = true;
