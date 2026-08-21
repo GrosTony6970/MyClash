@@ -2388,6 +2388,46 @@ for (const [label, serviceText] of [
   }
 }
 
+// Studio keeps saved SQL Editor queries on DISK. Unset, the snippets route
+// throws on every page load and answers 500 with the body {"data":[]} — a
+// failure wearing a success shape — which is what took the whole SQL Editor
+// down on 2026-08-21. Third instance of one class: a vendored upstream service
+// keeps upstream's defaults for every key we dropped (POSTGRES_DB was the
+// first, HOSTNAME above the second), so the keys we DID adopt get pinned here.
+//
+// The mount is pinned separately and is not decoration. With the variable set
+// and the volume gone, Studio answers 200 and writes into the container
+// filesystem, so every saved query dies on the next recreate — a failure no
+// status-code probe can see. Nothing else in this gate asserts anything about
+// a volume, so without these lines that variant would go unreported forever.
+for (const [label, serviceText, fileLabel, fileText, volumeName, volumeAlias] of [
+  [
+    'prod supabase-studio',
+    services.get('supabase-studio') ?? '',
+    'infra/docker-compose.prod.yml',
+    composeText,
+    'myclash-studio-snippets',
+    'studio_snippets',
+  ],
+  [
+    'dev supabase-studio',
+    devServices.get('supabase-studio') ?? '',
+    'infra/docker-compose.dev.yml',
+    devComposeText,
+    'myclash-dev-studio-snippets',
+    'dev_studio_snippets',
+  ],
+]) {
+  requireContains(serviceText, label, 'SNIPPETS_MANAGEMENT_FOLDER: /app/snippets');
+  requireContains(serviceText, label, `- ${volumeAlias}:/app/snippets`);
+  // Asserted through its `name:` override rather than the `studio_snippets:`
+  // key, for two reasons: the bare key also appears in the service mount above,
+  // so it would pass while the declaration was gone, and a newline-anchored
+  // string renders as an EMPTY error message — the failure names no line at
+  // all, which is indistinguishable from an unrelated red.
+  requireContains(fileText, fileLabel, `name: ${volumeName}`);
+}
+
 // ── Traefik edge plugins (GeoBlock + Fail2Ban) ──────────────────────────────
 // Plugins load ONLY at container start, so these declarations are what make a
 // fresh deploy come up with them already installed.
