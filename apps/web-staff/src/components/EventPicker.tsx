@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { SegmentedTabs } from '@myclash/ui';
 import { useI18n } from '@myclash/next-i18n/client';
 import { useRememberedEvent } from '../lib/last-event';
+import { eventKindTone, type EventKindTone } from '../lib/event-kind-badge';
 import {
   defaultPickerTab,
   partitionPickerEvents,
@@ -167,15 +168,18 @@ function EventRow({
  * tablet for — but a volunteer who signs into the wrong one should find out
  * here, on the login screen, and not after checking in ten fighters to a
  * rehearsal. `standard` gets no badge: it is the unremarkable case.
+ *
+ * The rule itself lives in `event-kind-badge.ts`, because the event banner goes
+ * on warning about the same event for the rest of the day and the two must not
+ * disagree about which events deserve a badge.
  */
 function KindBadge({ kind }: { kind: string }) {
   const { t } = useI18n();
-  if (kind === 'test') return <Badge tone="danger">{t('scoring.login.picker.badgeTest')}</Badge>;
-  if (kind === 'club') return <Badge tone="muted">{t('scoring.login.picker.badgeClub')}</Badge>;
-  return null;
+  const badge = eventKindTone(kind);
+  return badge ? <Badge tone={badge.tone}>{t(badge.labelKey)}</Badge> : null;
 }
 
-function Badge({ tone, children }: { tone: 'danger' | 'warning' | 'muted'; children: string }) {
+function Badge({ tone, children }: { tone: EventKindTone; children: string }) {
   const toneClass =
     tone === 'danger'
       ? 'border-danger text-danger'

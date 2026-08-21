@@ -48,6 +48,13 @@ export const scoring = {
       badgeDraft: 'Brouillon',
     },
   },
+  banner: {
+    // Sorti de `lice` en même temps que le bouton : il appartient maintenant à
+    // tous les écrans du staff, pas au seul choix de lice.
+    logout: 'Se deconnecter',
+    logoutConfirm: 'Se deconnecter ?',
+    logoutCancel: 'Rester',
+  },
   access: {
     wrongRoleTitle: 'Mauvais compte pour cet écran',
     wrongRoleBody:
@@ -161,7 +168,6 @@ export const scoring = {
       "Aucune lice ne vous est affectée aujourd'hui. Demandez à l'organisateur de vous affecter.",
     yourLices: 'Vos lices',
     selectLice: 'Choisissez une lice pour scorer',
-    logout: 'Se deconnecter',
     live: 'LIVE',
     online: 'EN LIGNE',
     offlineQueued: 'HORS LIGNE - échanges en attente locale',

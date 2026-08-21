@@ -6,6 +6,7 @@ import { SegmentedTabs } from '@myclash/ui';
 import { failureMessage } from '@myclash/api-client';
 import { useScoringTheme } from '../../src/theme/ThemeProvider';
 import { MarkArrivedButton } from '../../src/components/MarkArrivedButton';
+import { EventBanner } from '../../src/components/EventBanner';
 import { PersonRow } from '../../src/components/PersonRow';
 import { ScanOverlay } from '../../src/components/ScanOverlay';
 import { RosterNotice } from '../../src/components/RosterNotice';
@@ -58,6 +59,7 @@ export default function DeskPage() {
   return (
     <main data-theme={chromeScope} className="min-h-screen bg-background text-foreground">
       <div className="mx-auto flex min-h-screen max-w-2xl flex-col p-4">
+        <EventBanner />
         <DeskHeader onScan={() => setShowScan(true)} />
         <DeskSearch query={desk.query} onQueryChange={desk.setQuery} />
 

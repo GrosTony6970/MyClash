@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, type ReactNode } from 'react';
+import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
 import Link from 'next/link';
 import { useI18n } from '@myclash/next-i18n/client';
 import { apiRequest } from '@myclash/api-client';
@@ -8,6 +8,7 @@ import type { StaffRole } from '@myclash/types';
 import { getApiUrl } from '../lib/api-url';
 import { resolveScreenAccess, type ScreenAccess } from '../lib/screen-access';
 import { useScoringTheme } from '../theme/ThemeProvider';
+import type { BannerEvent } from './EventBanner';
 
 /**
  * Wraps a staff screen and tells the wrong account so, instead of letting it
@@ -32,39 +33,103 @@ import { useScoringTheme } from '../theme/ThemeProvider';
  * arrives.
  */
 export function StaffScreen({ requires, children }: { requires: StaffRole; children: ReactNode }) {
-  const access = useScreenAccess(requires);
+  const { access, session } = useScreenAccess(requires);
   if (access.kind === 'wrong_role') return <WrongAccount landingPath={access.landingPath} />;
-  return <>{children}</>;
+
+  return <StaffSessionContext.Provider value={session}>{children}</StaffSessionContext.Provider>;
 }
 
 /**
- * The signed-in staff account's role, resolved once per mount.
+ * The signed-in session, for the `EventBanner` each screen places itself.
+ *
+ * ── Why the banner is not rendered here ─────────────────────────────────────
+ * It was going to be, so that every gated screen got it without anyone having
+ * to remember. It cannot be: the shells in this app pad nothing, and each page
+ * opens its own `<main>` with its own `data-theme` scope, its own container and
+ * `min-h-screen`. A banner rendered above that `<main>` would sit unpadded and
+ * outside the page's theme scope, and would push every screen one banner-height
+ * past a single viewport.
+ *
+ * So the DATA has one owner here, the COMPONENT has one owner in
+ * `EventBanner.tsx`, and the page decides where in its own container the banner
+ * goes. The scoring pad simply never renders one — which is the right answer
+ * for a screen read mid-bout, where a sign-out button must not be reachable.
+ */
+export interface StaffSession {
+  event: BannerEvent | null;
+  accountName: string | null;
+}
+
+const StaffSessionContext = createContext<StaffSession>({ event: null, accountName: null });
+
+export function useStaffSession(): StaffSession {
+  return useContext(StaffSessionContext);
+}
+
+/**
+ * The signed-in staff account, resolved once per mount.
  *
  * `GET /api/v1/staff-auth/me` carries `account.role` and is gated on a session
  * rather than on a role, so every screen can ask it. Anything other than a
  * clean answer leaves the role `null`, which `resolveScreenAccess` reads as
  * "allow" — an organiser's claimed-account session and an unreachable API both
  * land there deliberately.
+ *
+ * It also carries the event and the account's display name, which the banner
+ * renders. Both ride THIS call rather than a second one: the fetch was already
+ * happening on every gated screen and was throwing everything but the role away.
  */
-function useScreenAccess(requires: StaffRole): ScreenAccess {
-  const [role, setRole] = useState<unknown>(null);
+function useScreenAccess(requires: StaffRole): { access: ScreenAccess; session: StaffSession } {
+  const [account, setAccount] = useState<StaffMeAccount | null>(null);
 
   useEffect(() => {
     let cancelled = false;
     void (async () => {
-      const staff = await apiRequest<{ account?: { role?: unknown } }>(
+      const staff = await apiRequest<{ account?: StaffMeAccount }>(
         getApiUrl(),
         '/api/v1/staff-auth/me',
       );
       if (cancelled || !staff.ok) return;
-      setRole(staff.data.account?.role ?? null);
+      setAccount(staff.data.account ?? null);
     })();
     return () => {
       cancelled = true;
     };
   }, []);
 
-  return resolveScreenAccess(requires, role);
+  return {
+    access: resolveScreenAccess(requires, account?.role ?? null),
+    session: { event: bannerEvent(account), accountName: account?.display_name ?? null },
+  };
+}
+
+/** The `/me` shape this screen reads. Snake-cased — the payload is the raw row. */
+interface StaffMeAccount {
+  role?: unknown;
+  display_name?: string | null;
+  events?: {
+    name?: string | null;
+    kind?: string | null;
+    status?: string | null;
+    logo_url?: string | null;
+  } | null;
+}
+
+/**
+ * The event, or null while the answer has not landed.
+ *
+ * Null rather than a placeholder name, so `EventBanner` can fall back to what
+ * this tablet remembers signing into instead of rendering an empty title.
+ */
+function bannerEvent(account: StaffMeAccount | null): BannerEvent | null {
+  const event = account?.events;
+  if (!event?.name) return null;
+  return {
+    name: event.name,
+    kind: event.kind ?? null,
+    status: event.status ?? null,
+    logoUrl: event.logo_url ?? null,
+  };
 }
 
 /**

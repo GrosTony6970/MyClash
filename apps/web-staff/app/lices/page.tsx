@@ -9,6 +9,7 @@ import { apiRequest, fetchMe } from '@myclash/api-client';
 import { api } from '../../src/lib/api';
 import { getApiUrl } from '../../src/lib/api-url';
 import { resolveStaffSession } from '../../src/lib/staff-session-decision';
+import { EventBanner } from '../../src/components/EventBanner';
 import { isLiveStatus } from '../../src/components/partition-lice-matches';
 import { MatchStatusPill } from './[liceId]/_components/MatchStatusPill';
 import { StartOfflineDrill } from '../../src/components/StartOfflineDrill';
@@ -43,19 +44,6 @@ export default function LicePickerPage() {
   const [assignments, setAssignments] = useState<LiceAssignment[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [loggingOut, setLoggingOut] = useState(false);
-
-  // Shared scoring tablets rotate between staff at multi-day events — without
-  // an explicit logout the staff PIN session lived until cookie expiry.
-  async function handleLogout() {
-    setLoggingOut(true);
-    try {
-      await api.post('/api/v1/staff-auth/logout');
-    } catch {
-      // Network failure — still return to login; the cookie stays server-bound.
-    }
-    router.replace('/login');
-  }
 
   useEffect(() => {
     void (async () => {
@@ -153,21 +141,14 @@ export default function LicePickerPage() {
         states above, centres.
       */}
       <div className="mx-auto w-full max-w-lg">
+        {/* Names the event and owns the sign-out this header used to carry. */}
+        <EventBanner />
         <header className="mb-6 flex items-start justify-between gap-4">
           <div>
             <h1 className="text-2xl font-bold">{t('scoring.lice.yourLices')}</h1>
             <p className="text-muted text-sm mt-1">{t('scoring.lice.selectLice')}</p>
           </div>
-          <div className="flex items-center gap-4">
-            <ThemeSwitcher />
-            <button
-              onClick={() => void handleLogout()}
-              disabled={loggingOut}
-              className="text-sm text-muted hover:text-foreground underline disabled:opacity-50"
-            >
-              {t('scoring.lice.logout')}
-            </button>
-          </div>
+          <ThemeSwitcher />
         </header>
 
         <div className="grid gap-4">

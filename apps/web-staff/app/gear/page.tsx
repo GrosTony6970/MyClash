@@ -5,6 +5,7 @@ import { useI18n } from '@myclash/next-i18n/client';
 import { SegmentedTabs, StatusBadge } from '@myclash/ui';
 import { failureMessage } from '@myclash/api-client';
 import { useScoringTheme } from '../../src/theme/ThemeProvider';
+import { EventBanner } from '../../src/components/EventBanner';
 import { PersonRow } from '../../src/components/PersonRow';
 import { RosterNotice } from '../../src/components/RosterNotice';
 import { useGear, type GearEntry } from '../../src/lib/useGear';
@@ -64,6 +65,7 @@ export default function GearPage() {
   return (
     <main data-theme={chromeScope} className="min-h-screen bg-background text-foreground">
       <div className="mx-auto flex min-h-screen max-w-2xl flex-col p-4">
+        <EventBanner />
         <h1 className="mb-3 font-display text-xl font-bold">{t('scoring.gear.title')}</h1>
 
         <input

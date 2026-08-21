@@ -1001,16 +1001,28 @@ export class StaffService {
    *
    * `lices` stays on the payload for all three roles and is simply empty for a
    * desk or gear account, which never has an assignment.
+   *
+   * The embedded event carries `logo_url` and `kind` because every staff screen
+   * banners the event it is signed into — a volunteer handed a borrowed tablet
+   * has to be able to tell a real event from yesterday's rehearsal, and `kind`
+   * is what makes the TEST badge possible. Both ride this call rather than a
+   * second fetch, so the banner costs no extra request.
    */
   private async getMeForStaff(staffAccountId: string) {
     const { data, error } = await this.supabase.service
       .from('event_staff_accounts')
-      .select('id,event_id,display_name,username,status,role,events(id,slug,name,status)')
+      .select(
+        'id,event_id,display_name,username,status,role,events(id,slug,name,status,event_kind,logo_url)',
+      )
       .eq('id', staffAccountId)
       .maybeSingle();
     if (error) throw new BadRequestException(error.message);
     if (!data) throw new UnauthorizedException('Staff account not found');
-    return { type: 'staff', account: data, lices: await this.getAssignedLices(staffAccountId) };
+    return {
+      type: 'staff',
+      account: withEventKind(data),
+      lices: await this.getAssignedLices(staffAccountId),
+    };
   }
 
   private async getAssignedLices(staffAccountId: string) {
@@ -1740,4 +1752,20 @@ export class StaffService {
       blueClub,
     };
   }
+}
+
+/**
+ * Publish `events.event_kind` as `kind`, the name every client already uses.
+ *
+ * The column is `event_kind` (migration 0162) and this payload is otherwise the
+ * raw row, so without this hop the staff app would read `account.events.kind`
+ * as undefined and its TEST badge could never render. `listPickerEvents` maps
+ * the same column the same way for the login screen — this keeps the two
+ * surfaces reading one name for one thing.
+ */
+function withEventKind(account: unknown): unknown {
+  const row = account as { events?: Record<string, unknown> | null };
+  if (!row.events) return account;
+  const { event_kind: eventKind, ...event } = row.events;
+  return { ...row, events: { ...event, kind: eventKind ?? 'standard' } };
 }

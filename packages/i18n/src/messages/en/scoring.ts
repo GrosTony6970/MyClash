@@ -44,6 +44,13 @@ export const scoring = {
       badgeDraft: 'Draft',
     },
   },
+  banner: {
+    // Moved out of `lice` when the sign-out button did: it is every staff
+    // screen's now, not the Lice picker's.
+    logout: 'Log out',
+    logoutConfirm: 'Log out?',
+    logoutCancel: 'Stay',
+  },
   access: {
     wrongRoleTitle: 'Wrong account for this screen',
     wrongRoleBody:
@@ -152,7 +159,6 @@ export const scoring = {
       'You have no Lice assignments for today. Ask the organizer to assign you to a Lice.',
     yourLices: 'Your Lices',
     selectLice: 'Select a Lice to start scoring',
-    logout: 'Log out',
     live: 'LIVE',
     online: 'ONLINE',
     offlineQueued: 'OFFLINE - exchanges queued locally',
