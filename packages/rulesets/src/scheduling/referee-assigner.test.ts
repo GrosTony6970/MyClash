@@ -9,7 +9,7 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { assignRefereesWithPools } from './referee-assigner';
+import { assignReferees, assignRefereesWithPools } from './referee-assigner';
 import type {
   AssignmentSettings,
   PoolSlot,
@@ -980,6 +980,51 @@ describe('Cross-pool fighting conflict', () => {
     expect(
       result.assignments.find((a) => a.personId === 'jocelyn' && a.poolId === 'p1'),
     ).toBeDefined();
+  });
+});
+
+// ── Re-entrancy: one run must not read another run's pools ──────────────────
+
+describe('the engine holds no state between runs', () => {
+  const WINDOW_B = { earliestStart: '2027-06-22T11:00:00Z', latestEnd: '2027-06-22T13:24:00Z' };
+
+  it('judges the officiate-vs-fight rule against the pools it was handed', () => {
+    // Run A: four pools, nobody fighting. Its pool list used to be parked in a
+    // module-level variable on the way in.
+    assignRefereesWithPools(
+      [
+        { ...makePool('a1', 'Pool 1'), ...WINDOW_B },
+        { ...makePool('a2', 'Pool 2'), ...WINDOW_B },
+      ],
+      [makeCandidate('other', 'Other Table', ['arbitre_table'])],
+      { ...DEFAULT_SETTINGS, enforceRefereeNoBackToBack: false },
+    );
+
+    // Run B: a different event entirely. Disjoint pool ids on purpose — reusing
+    // run A's would let its pools answer run B's question by accident and the
+    // test would pass with the bug present.
+    const jocelyn = makeCandidate(
+      'jocelyn',
+      'Jocelyn Chaumette',
+      ['arbitre_table'],
+      ['reg-jocelyn'],
+    );
+    const result = assignReferees(
+      [
+        {
+          ...makePool('b1', 'Her pool', ['reg-jocelyn', 'reg-bob']),
+          ...WINDOW_B,
+          memberPersonIds: ['jocelyn'],
+        },
+        { ...makePool('b2', 'Parallel pool'), ...WINDOW_B },
+      ],
+      [jocelyn],
+      { ...DEFAULT_SETTINGS, enforceRefereeNoBackToBack: false },
+    );
+
+    // She fights b1, and b2 runs at the same time, so she cannot officiate it.
+    // Reading run A's pools instead — where she fights nowhere — would book her.
+    expect(result.assignments.find((a) => a.personId === 'jocelyn')).toBeUndefined();
   });
 });
 

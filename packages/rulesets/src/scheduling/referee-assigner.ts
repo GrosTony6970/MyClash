@@ -310,6 +310,7 @@ export function assignReferees(
         settings,
         personAssignmentCount,
         personAssignedPools,
+        pools,
       );
 
       if (result.assigned) {
@@ -513,6 +514,15 @@ function assignSlot(
   settings: AssignmentSettings,
   personAssignmentCount: Map<string, number>,
   personAssignedPools: Map<string, string[]>,
+  // Every pool in THIS run. The officiate-vs-fight, double-booking and
+  // back-to-back rules all ask about pools other than the one being filled, so
+  // the whole set has to reach them. It used to arrive through a module-level
+  // variable that `assignRefereesWithPools` assigned on the way in, which made
+  // the engine non-re-entrant: a second run reading it mid-flight judged its
+  // slots against the first run's pools, and calling the exported
+  // `assignReferees` directly left it holding whatever the last run put there —
+  // or an empty array, which silently disables the officiate-vs-fight rule.
+  allPools: PoolSlot[],
 ): SlotAssignmentResult {
   const warnings: AssignmentWarning[] = [];
   const rejectionReasons: string[] = [];
@@ -626,7 +636,7 @@ function assignSlot(
     const poolStart = new Date(pool.earliestStart).getTime();
     const poolEnd = new Date(pool.latestEnd).getTime();
 
-    for (const otherPool of pools) {
+    for (const otherPool of allPools) {
       if (otherPool.poolId === pool.poolId) continue;
       if (!otherPool.earliestStart || !otherPool.latestEnd) continue;
 
@@ -662,7 +672,7 @@ function assignSlot(
     for (const existing of existingAssignments) {
       if (existing.personId !== candidate.personId) continue;
 
-      const assignedPool = pools.find((p) => p.poolId === existing.poolId);
+      const assignedPool = allPools.find((p) => p.poolId === existing.poolId);
       if (!assignedPool?.earliestStart || !assignedPool?.latestEnd) continue;
 
       const assignedStart = new Date(assignedPool.earliestStart).getTime();
@@ -697,9 +707,9 @@ function assignSlot(
     if (settings.enforceRefereeNoBackToBack) {
       const assignedPools = personAssignedPools.get(candidate.personId) ?? [];
       if (assignedPools.length > 0) {
-        const poolIndex = pools.indexOf(pool);
+        const poolIndex = allPools.indexOf(pool);
         const isBackToBack = assignedPools.some((pid) => {
-          const prevIndex = pools.findIndex((p) => p.poolId === pid);
+          const prevIndex = allPools.findIndex((p) => p.poolId === pid);
           return Math.abs(poolIndex - prevIndex) <= settings.refereeRestMinSlots;
         });
 
@@ -769,17 +779,19 @@ function assignSlot(
   };
 }
 
-// Need pools reference in assignSlot — pass it via closure (pre-R3 pattern,
-// kept for minimum-change behaviour).
-let pools: PoolSlot[] = [];
-
-// Re-export with pools captured
+/**
+ * Alias of {@link assignReferees}, kept because every caller uses this name.
+ *
+ * It used to do something: it parked its pool list in a module-level variable
+ * for `assignSlot` to read. That made the engine non-re-entrant, so the list is
+ * threaded through as an argument now and the two entry points are the same
+ * function. Nothing here holds state between runs.
+ */
 export function assignRefereesWithPools(
-  poolsArg: PoolSlot[],
+  pools: PoolSlot[],
   candidates: RefereeCandidate[],
   settings: AssignmentSettings,
   priorAssignments: PriorAssignment[] = [],
 ): AssignmentResult {
-  pools = poolsArg;
-  return assignReferees(poolsArg, candidates, settings, priorAssignments);
+  return assignReferees(pools, candidates, settings, priorAssignments);
 }
