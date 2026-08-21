@@ -250,10 +250,6 @@ export default function CompensationPage() {
 
   return (
     <main className="mx-auto p-8 max-w-[110rem]">
-      <CompensationTopNav
-        active="referees"
-        basePath={`/org/${slug}/events/${eventId}/compensation`}
-      />
       {/* Breadcrumb */}
       <div className="flex items-center gap-2 text-sm text-muted mb-1">
         <Link href={`/org/${slug}`} className="hover:text-foreground-secondary">
@@ -268,9 +264,13 @@ export default function CompensationPage() {
           {t('organizer.eventCompensation.breadcrumb')}
         </span>
       </div>
-      <h1 className="font-display font-bold text-2xl sm:text-3xl mb-6">
+      <h1 className="font-display font-bold text-2xl sm:text-3xl mb-4">
         {t('organizer.eventCompensation.title')}
       </h1>
+      <CompensationTopNav
+        active="referees"
+        basePath={`/org/${slug}/events/${eventId}/compensation`}
+      />
 
       {/* Settings panel */}
       <div className="bg-background border border-border rounded-xl p-4 mb-6">

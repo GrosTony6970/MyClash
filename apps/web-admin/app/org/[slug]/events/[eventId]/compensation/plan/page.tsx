@@ -296,11 +296,11 @@ export default function OrgCompensationPlansPage() {
 
   return (
     <main className="mx-auto p-8 max-w-[110rem]">
-      <CompensationTopNav active="plan" basePath={`/org/${slug}/events/${eventId}/compensation`} />
       <h1 className="font-display font-bold text-2xl sm:text-3xl mb-1">
         {t('organizer.compensationSettings.title')}
       </h1>
-      <p className="text-muted text-sm mb-6">{t('organizer.compensationSettings.description')}</p>
+      <p className="text-muted text-sm mb-4">{t('organizer.compensationSettings.description')}</p>
+      <CompensationTopNav active="plan" basePath={`/org/${slug}/events/${eventId}/compensation`} />
 
       {error && (
         <div className="bg-danger/10 border border-danger/30 text-danger rounded-lg px-4 py-3 mb-4 text-sm">
