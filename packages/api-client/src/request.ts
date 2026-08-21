@@ -28,7 +28,13 @@
 /** Why a request did not produce data. `aborted` is a caller's own doing. */
 export type ApiFailure =
   | { kind: 'aborted' }
-  | { kind: 'unauthenticated'; status: 401 | 403; detail: string | null; code: string | null }
+  | {
+      kind: 'unauthenticated';
+      status: 401 | 403;
+      detail: string | null;
+      code: string | null;
+      details: Record<string, unknown> | null;
+    }
   | {
       kind: 'http';
       status: number;
@@ -41,6 +47,19 @@ export type ApiFailure =
        * edge proxy answered with something else.
        */
       code: string | null;
+      /**
+       * The API's extension bag — whatever the thrower put on the exception
+       * body beyond `message`, `code` and `error`.
+       *
+       * Six screens read a field out of it and cannot be converted without it:
+       * `blockers` on a club or account delete, `foughtCount` on an uncomplete,
+       * `warnings` on a swiss override, `resolution` on a duplicate name,
+       * `reason`/`registeredCount`/`maxParticipants` on a full tournament. The
+       * payload differs per endpoint, so the reader narrows its own field —
+       * `Record<string, unknown>` rather than `unknown` so that narrowing is one
+       * property read and not a cast of the whole thing.
+       */
+      details: Record<string, unknown> | null;
       /**
        * Every field class-validator rejected, not just the first.
        *
@@ -104,6 +123,19 @@ export function readCode(body: unknown): string | null {
   if (typeof body !== 'object' || body === null) return null;
   const { code } = body as { code?: unknown };
   return typeof code === 'string' && code.trim() ? code : null;
+}
+
+/**
+ * The API's extension bag, or `null`. `buildDetails` in the exception filter
+ * builds it with `Object.fromEntries`, so it is always a plain object when it
+ * is there at all — an array or a scalar under this key is not something the
+ * API can produce, and reading one as a bag would hand a caller nonsense.
+ */
+export function readDetails(body: unknown): Record<string, unknown> | null {
+  if (typeof body !== 'object' || body === null) return null;
+  const { details } = body as { details?: unknown };
+  if (typeof details !== 'object' || details === null || Array.isArray(details)) return null;
+  return details as Record<string, unknown>;
 }
 
 /**
@@ -184,6 +216,7 @@ function unauthenticatedFailure(status: 401 | 403, parsed: unknown): { ok: false
     status,
     detail: readDetail(parsed),
     code: readCode(parsed),
+    details: readDetails(parsed),
   };
 }
 
@@ -194,6 +227,7 @@ function httpFailure(status: number, parsed: unknown): { ok: false } & ApiFailur
     status,
     code: readCode(parsed),
     detail: readDetail(parsed),
+    details: readDetails(parsed),
     validationErrors: readValidationErrors(parsed),
   };
 }

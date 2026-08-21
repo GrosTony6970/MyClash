@@ -8,6 +8,7 @@ const http = (status: number): ApiFailure => ({
   status,
   detail: null,
   code: null,
+  details: null,
   validationErrors: null,
 });
 
@@ -55,10 +56,16 @@ describe('identityRetryDelayMs', () => {
   it('does not retry 401/403 — an answer about identity, not a failure to get one', () => {
     // Abnormal on a @Public() route, but still the server telling us something.
     expect(
-      identityRetryDelayMs({ kind: 'unauthenticated', status: 401, detail: null, code: null }, 1),
+      identityRetryDelayMs(
+        { kind: 'unauthenticated', status: 401, detail: null, code: null, details: null },
+        1,
+      ),
     ).toBeNull();
     expect(
-      identityRetryDelayMs({ kind: 'unauthenticated', status: 403, detail: null, code: null }, 1),
+      identityRetryDelayMs(
+        { kind: 'unauthenticated', status: 403, detail: null, code: null, details: null },
+        1,
+      ),
     ).toBeNull();
   });
 });

@@ -71,6 +71,7 @@ describe('apiRequest — failures', () => {
       status: 401,
       detail: 'Unauthorized',
       code: null,
+      details: null,
     });
   });
 
@@ -83,6 +84,7 @@ describe('apiRequest — failures', () => {
       status: 403,
       detail: 'Forbidden',
       code: null,
+      details: null,
     });
   });
 
@@ -97,6 +99,7 @@ describe('apiRequest — failures', () => {
       status: 403,
       detail: 'You are not a referee on this pool',
       code: null,
+      details: null,
     });
   });
 
@@ -109,6 +112,7 @@ describe('apiRequest — failures', () => {
       status: 403,
       detail: null,
       code: null,
+      details: null,
     });
   });
 
@@ -123,6 +127,7 @@ describe('apiRequest — failures', () => {
       status: 403,
       detail: null,
       code: null,
+      details: null,
     });
   });
 
@@ -135,6 +140,7 @@ describe('apiRequest — failures', () => {
       status: 409,
       detail: 'Venue is in use',
       code: null,
+      details: null,
       validationErrors: null,
     });
   });
@@ -171,6 +177,54 @@ describe('apiRequest — failures', () => {
     stubFetch(() => json({ code: '   ', detail: 'Bad request' }, 400));
 
     expect(failure(await apiRequest('http://api', '/api/v1/events'))).toMatchObject({ code: null });
+  });
+
+  it("carries the API's extension bag, which six screens read a field out of", async () => {
+    // The payload differs per endpoint — this one is an uncomplete refusal, and
+    // without the count the pad says "a later bout" for three of them.
+    stubFetch(() =>
+      json(
+        {
+          code: 'dependent_results_would_be_discarded',
+          detail: '3 later bouts have already been fought.',
+          details: { foughtCount: 3 },
+        },
+        409,
+      ),
+    );
+
+    expect(failure(await apiRequest('http://api', '/api/v1/matches/m1/uncomplete'))).toMatchObject({
+      code: 'dependent_results_would_be_discarded',
+      details: { foughtCount: 3 },
+    });
+  });
+
+  it('carries the bag on a 403 too — a refusal is where the payload usually is', async () => {
+    // `uncomplete_requires_organiser` is a ForbiddenException with a payload:
+    // the scoring pad reads both halves to say who can undo the result.
+    stubFetch(() =>
+      json({ code: 'uncomplete_requires_organiser', details: { foughtCount: 2 } }, 403),
+    );
+
+    expect(failure(await apiRequest('http://api', '/api/v1/matches/m1/uncomplete'))).toMatchObject({
+      kind: 'unauthenticated',
+      details: { foughtCount: 2 },
+    });
+  });
+
+  it('reports a null bag rather than handing back something that is not one', async () => {
+    // `buildDetails` uses Object.fromEntries, so an array or a scalar here is
+    // not something the API can produce — and reading one as a bag would give
+    // a caller `details[0]` where it asked for `details.foughtCount`.
+    stubFetch(() => json({ detail: 'Bad request', details: ['not', 'a', 'bag'] }, 400));
+    expect(failure(await apiRequest('http://api', '/api/v1/events'))).toMatchObject({
+      details: null,
+    });
+
+    stubFetch(() => json({ detail: 'Bad request', details: 'nope' }, 400));
+    expect(failure(await apiRequest('http://api', '/api/v1/events'))).toMatchObject({
+      details: null,
+    });
   });
 
   it('carries every rejected field, not only the one the API put in `detail`', async () => {
@@ -262,6 +316,7 @@ describe('apiRequest — failures', () => {
       status: 502,
       detail: null,
       code: null,
+      details: null,
       validationErrors: null,
     });
   });

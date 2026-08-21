@@ -14,10 +14,17 @@ const fr = createTranslator(messages.fr);
 
 const EVERY_FAILURE: ApiFailure[] = [
   { kind: 'network' },
-  { kind: 'unauthenticated', status: 401, detail: null, code: null },
-  { kind: 'unauthenticated', status: 403, detail: null, code: null },
-  { kind: 'http', status: 500, detail: null, validationErrors: null, code: null },
-  { kind: 'http', status: 409, detail: 'Venue is in use', validationErrors: null, code: null },
+  { kind: 'unauthenticated', status: 401, detail: null, code: null, details: null },
+  { kind: 'unauthenticated', status: 403, detail: null, code: null, details: null },
+  { kind: 'http', status: 500, detail: null, validationErrors: null, code: null, details: null },
+  {
+    kind: 'http',
+    status: 409,
+    detail: 'Venue is in use',
+    validationErrors: null,
+    code: null,
+    details: null,
+  },
 ];
 
 describe('failureMessage', () => {
@@ -36,10 +43,16 @@ describe('failureMessage', () => {
   it('sends both unauthenticated statuses to the same string when neither gave a reason', () => {
     const unauthenticated = en('common.apiFailure.unauthenticated');
     expect(
-      failureMessage({ kind: 'unauthenticated', status: 401, detail: null, code: null }, en),
+      failureMessage(
+        { kind: 'unauthenticated', status: 401, detail: null, code: null, details: null },
+        en,
+      ),
     ).toBe(unauthenticated);
     expect(
-      failureMessage({ kind: 'unauthenticated', status: 403, detail: null, code: null }, en),
+      failureMessage(
+        { kind: 'unauthenticated', status: 403, detail: null, code: null, details: null },
+        en,
+      ),
     ).toBe(unauthenticated);
   });
 
@@ -51,6 +64,7 @@ describe('failureMessage', () => {
           status: 403,
           detail: 'You are not a referee on this pool',
           code: null,
+          details: null,
         },
         en,
       ),
@@ -60,7 +74,7 @@ describe('failureMessage', () => {
   it('ignores a 401 reason — "Unauthorized" says less than our own sentence', () => {
     expect(
       failureMessage(
-        { kind: 'unauthenticated', status: 401, detail: 'Unauthorized', code: null },
+        { kind: 'unauthenticated', status: 401, detail: 'Unauthorized', code: null, details: null },
         en,
       ),
     ).toBe(en('common.apiFailure.unauthenticated'));
@@ -68,7 +82,10 @@ describe('failureMessage', () => {
 
   it('keeps the two generic failures distinguishable', () => {
     expect(failureMessage({ kind: 'network' }, en)).not.toBe(
-      failureMessage({ kind: 'unauthenticated', status: 401, detail: null, code: null }, en),
+      failureMessage(
+        { kind: 'unauthenticated', status: 401, detail: null, code: null, details: null },
+        en,
+      ),
     );
   });
 
@@ -81,6 +98,7 @@ describe('failureMessage', () => {
           detail: 'Venue is in use',
           validationErrors: null,
           code: null,
+          details: null,
         },
         en,
       ),
@@ -90,7 +108,14 @@ describe('failureMessage', () => {
   it('falls back to the generic string when the response gave no reason', () => {
     expect(
       failureMessage(
-        { kind: 'http', status: 500, detail: null, validationErrors: null, code: null },
+        {
+          kind: 'http',
+          status: 500,
+          detail: null,
+          validationErrors: null,
+          code: null,
+          details: null,
+        },
         en,
       ),
     ).toBe(en('common.error'));
@@ -99,7 +124,14 @@ describe('failureMessage', () => {
   it("prefers the caller's own fallback to the generic one", () => {
     expect(
       failureMessage(
-        { kind: 'http', status: 500, detail: null, validationErrors: null, code: null },
+        {
+          kind: 'http',
+          status: 500,
+          detail: null,
+          validationErrors: null,
+          code: null,
+          details: null,
+        },
         en,
         'Could not save the schedule.',
       ),
@@ -115,6 +147,7 @@ describe('failureMessage', () => {
           detail: 'Venue is in use',
           validationErrors: null,
           code: null,
+          details: null,
         },
         en,
         'Generic.',
@@ -139,6 +172,7 @@ describe('failureMessage', () => {
             'startsAt must be a valid ISO date',
           ],
           code: null,
+          details: null,
         },
         en,
       ),
@@ -154,6 +188,7 @@ describe('failureMessage', () => {
           detail: 'email must be an email',
           validationErrors: ['email must be an email', 'name should not be empty'],
           code: null,
+          details: null,
         },
         en,
         'Could not save the event.',
@@ -172,6 +207,7 @@ describe('failureMessage', () => {
           detail: 'email must be an email',
           validationErrors: ['email must be an email'],
           code: null,
+          details: null,
         },
         en,
       ),
@@ -187,7 +223,14 @@ describe('failureMessage', () => {
   it("lets the screen's own sentence beat a scrubbed 5xx", () => {
     expect(
       failureMessage(
-        { kind: 'http', status: 500, detail: SCRUBBED, validationErrors: null, code: null },
+        {
+          kind: 'http',
+          status: 500,
+          detail: SCRUBBED,
+          validationErrors: null,
+          code: null,
+          details: null,
+        },
         en,
         'Could not save the backup schedule.',
       ),
@@ -197,7 +240,14 @@ describe('failureMessage', () => {
   it('falls to the generic string on a scrubbed 5xx with no fallback', () => {
     expect(
       failureMessage(
-        { kind: 'http', status: 500, detail: SCRUBBED, validationErrors: null, code: null },
+        {
+          kind: 'http',
+          status: 500,
+          detail: SCRUBBED,
+          validationErrors: null,
+          code: null,
+          details: null,
+        },
         en,
       ),
     ).toBe(en('common.error'));
@@ -213,6 +263,7 @@ describe('failureMessage', () => {
           detail: 'A restore is in progress. Try again shortly.',
           validationErrors: null,
           code: null,
+          details: null,
         },
         en,
         'Could not save the backup schedule.',
@@ -224,7 +275,14 @@ describe('failureMessage', () => {
     // The case that used to be the ONLY way `fallback` was ever seen.
     expect(
       failureMessage(
-        { kind: 'http', status: 502, detail: null, validationErrors: null, code: null },
+        {
+          kind: 'http',
+          status: 502,
+          detail: null,
+          validationErrors: null,
+          code: null,
+          details: null,
+        },
         en,
         'Could not load backups.',
       ),
