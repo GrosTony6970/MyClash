@@ -21,6 +21,7 @@ import Link from 'next/link';
 import { sideColorsFor } from '@myclash/ui';
 import type { TournamentScoringConfig } from '@myclash/types';
 import { DEFAULT_EVENT_TIMEZONE, localeToBcp47 } from '@myclash/time';
+import { apiRequest, failureMessage } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
 import { useI18n } from '@myclash/next-i18n/client';
 import {
@@ -143,25 +144,37 @@ export default function PrintPackPage() {
   // ── Event + tournament list ───────────────────────────────────────────────
   useEffect(() => {
     const controller = new AbortController();
-    const options = { credentials: 'include' as const, signal: controller.signal };
-    Promise.all([
-      fetch(`${apiUrl}/api/v1/events/${eventId}`, options).then((r) => r.json()),
-      fetch(`${apiUrl}/api/v1/events/${eventId}/tournaments`, options).then((r) => r.json()),
-      fetch(`${apiUrl}/api/v1/events/${eventId}/lices`, options).then((r) => r.json()),
+    const options = { signal: controller.signal };
+    void Promise.all([
+      apiRequest<{ name?: string; timezone?: string }>(
+        apiUrl,
+        `/api/v1/events/${eventId}`,
+        options,
+      ),
+      apiRequest<Tournament[]>(apiUrl, `/api/v1/events/${eventId}/tournaments`, options),
+      apiRequest<Array<{ id: string; name: string }>>(
+        apiUrl,
+        `/api/v1/events/${eventId}/lices`,
+        options,
+      ),
     ])
       .then(([event, tournamentRows, liceRows]) => {
-        setEventName((event as { name?: string }).name ?? '');
-        setEventTz((event as { timezone?: string }).timezone || DEFAULT_EVENT_TIMEZONE);
-        const list = (tournamentRows as Tournament[]) ?? [];
+        // All three used to be read with a bare `.json()`, so a refusal came
+        // back as a problem+json BODY cast to the expected shape — the print
+        // pack drew a sheet titled `undefined` rather than saying anything.
+        const failed = [event, tournamentRows, liceRows].find((r) => !r.ok);
+        if (failed && !failed.ok) {
+          const message = failureMessage(failed, t, t('organizer.printPack.loadError'));
+          if (message) setError(message);
+          return;
+        }
+        if (!event.ok || !tournamentRows.ok || !liceRows.ok) return;
+        setEventName(event.data.name ?? '');
+        setEventTz(event.data.timezone || DEFAULT_EVENT_TIMEZONE);
+        const list = tournamentRows.data ?? [];
         setTournaments(list);
         setSelected((current) => current ?? list[0]?.id ?? null);
-        setLices(
-          new Map((liceRows as Array<{ id: string; name: string }>).map((l) => [l.id, l.name])),
-        );
-      })
-      .catch((err: unknown) => {
-        if (err instanceof DOMException && err.name === 'AbortError') return;
-        setError(t('organizer.printPack.loadError'));
+        setLices(new Map(liceRows.data.map((l) => [l.id, l.name])));
       })
       .finally(() => setEventLoaded(true));
     return () => controller.abort();
@@ -171,27 +184,34 @@ export default function PrintPackPage() {
   useEffect(() => {
     if (!selected) return;
     const controller = new AbortController();
-    const options = { credentials: 'include' as const, signal: controller.signal };
-    Promise.all([
-      fetch(`${apiUrl}/api/v1/tournaments/${selected}`, options).then((r) => r.json()),
-      fetch(`${apiUrl}/api/v1/tournaments/${selected}/pools-with-matches`, options).then((r) =>
-        r.ok ? r.json() : [],
+    const options = { signal: controller.signal };
+    void Promise.all([
+      apiRequest<TournamentDetail>(apiUrl, `/api/v1/tournaments/${selected}`, options),
+      apiRequest<ApiPoolWithMatches[]>(
+        apiUrl,
+        `/api/v1/tournaments/${selected}/pools-with-matches`,
+        options,
       ),
       // A tournament with no bracket phase 404s here; that is a valid state
       // (pools only), not an error worth blocking the whole page for.
-      fetch(`${apiUrl}/api/v1/tournaments/${selected}/bracket`, options).then((r) =>
-        r.ok ? r.json() : null,
+      apiRequest<{ rounds: number; slots: ApiBracketSlot[] }>(
+        apiUrl,
+        `/api/v1/tournaments/${selected}/bracket`,
+        options,
       ),
     ])
       .then(([tournamentDetail, poolRows, bracketResult]) => {
-        setDetail(tournamentDetail as TournamentDetail);
-        setPools((poolRows as ApiPoolWithMatches[]) ?? []);
-        setBracket(bracketResult as { rounds: number; slots: ApiBracketSlot[] } | null);
+        if (!tournamentDetail.ok) {
+          // Same defect as the effect above: the detail read had no `.ok` check
+          // at all, so a refusal was cast to a TournamentDetail and printed.
+          const message = failureMessage(tournamentDetail, t, t('organizer.printPack.loadError'));
+          if (message) setError(message);
+          return;
+        }
+        setDetail(tournamentDetail.data);
+        setPools(poolRows.ok ? (poolRows.data ?? []) : []);
+        setBracket(bracketResult.ok ? bracketResult.data : null);
         setError(null);
-      })
-      .catch((err: unknown) => {
-        if (err instanceof DOMException && err.name === 'AbortError') return;
-        setError(t('organizer.printPack.loadError'));
       })
       // Marks this tournament as settled either way: an error must stop the
       // spinner, or the operator stares at "loading" with the reason already

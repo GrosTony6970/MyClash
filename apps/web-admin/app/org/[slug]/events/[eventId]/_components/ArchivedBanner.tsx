@@ -6,6 +6,7 @@ import { localeToBcp47 } from '@myclash/time';
 import { useI18n } from '@myclash/next-i18n/client';
 import { RequestDeletionModal } from '../../_components/RequestDeletionModal';
 import { getPublicApiUrl } from '@/lib/api-url';
+import { apiRequest, failureMessage } from '@myclash/api-client';
 
 interface DeletionRequest {
   id: string;
@@ -37,17 +38,14 @@ export function ArchivedBanner({ eventId, eventName, updatedAt }: Props) {
 
   useEffect(() => {
     let cancelled = false;
-    fetch(
-      `${apiUrl}/api/v1/deletion-requests/active?targetType=event&targetId=${encodeURIComponent(eventId)}`,
-      { credentials: 'include' },
-    )
-      .then((r) => (r.ok ? r.json() : null))
-      .then((data: DeletionRequest | null) => {
-        if (!cancelled) setPendingRequest(data);
-      })
-      .catch(() => {
-        if (!cancelled) setPendingRequest(null);
-      });
+    // Silent on a refusal, as before: this only decides which of two banners to
+    // draw, and `null` picks the plain one.
+    void apiRequest<DeletionRequest | null>(
+      apiUrl,
+      `/api/v1/deletion-requests/active?targetType=event&targetId=${encodeURIComponent(eventId)}`,
+    ).then((r) => {
+      if (!cancelled) setPendingRequest(r.ok ? r.data : null);
+    });
     return () => {
       cancelled = true;
     };
@@ -57,18 +55,16 @@ export function ArchivedBanner({ eventId, eventName, updatedAt }: Props) {
     if (!pendingRequest) return;
     setCancelling(true);
     try {
-      const res = await fetch(`${apiUrl}/api/v1/deletion-requests/${pendingRequest.id}/cancel`, {
+      const r = await apiRequest(apiUrl, `/api/v1/deletion-requests/${pendingRequest.id}/cancel`, {
         method: 'PATCH',
-        credentials: 'include',
       });
-      if (!res.ok) {
-        toast.error(t('common.error'));
+      if (!r.ok) {
+        const message = failureMessage(r, t, t('common.error'));
+        if (message) toast.error(message);
         return;
       }
       toast.success(t('organizer.deletionRequest.deletionRequestCancelled'));
       setRefreshKey((k) => k + 1);
-    } catch {
-      toast.error(t('common.error'));
     } finally {
       setCancelling(false);
     }

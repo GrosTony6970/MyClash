@@ -3,6 +3,7 @@
 import { useParams, useSearchParams } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
 import { useI18n } from '@myclash/next-i18n/client';
+import { apiRequest, failureMessage } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
 import { BackLink } from '@/components/BackLink';
 
@@ -67,24 +68,25 @@ export default function EventNotificationsPage() {
 
   useEffect(() => {
     const controller = new AbortController();
-    Promise.all([
-      fetch(`${apiUrl}/api/v1/events/${eventId}/persons`, {
-        credentials: 'include',
+    void Promise.all([
+      apiRequest<Person[]>(apiUrl, `/api/v1/events/${eventId}/persons`, {
         signal: controller.signal,
       }),
-      fetch(`${apiUrl}/api/v1/events/${eventId}/notifications/broadcasts`, {
-        credentials: 'include',
+      apiRequest<BroadcastHistory[]>(apiUrl, `/api/v1/events/${eventId}/notifications/broadcasts`, {
         signal: controller.signal,
       }),
-    ])
-      .then(async ([peopleResponse, historyResponse]) => {
-        if (peopleResponse.ok) setPeople((await peopleResponse.json()) as Person[]);
-        if (historyResponse.ok) setHistory((await historyResponse.json()) as BroadcastHistory[]);
-      })
-      .catch((error: unknown) => {
-        if (error instanceof Error && error.name === 'AbortError') return;
-        setMessage(t('organizer.broadcast.loadError'));
-      });
+    ]).then(([peopleResponse, historyResponse]) => {
+      if (peopleResponse.ok) setPeople(peopleResponse.data);
+      if (historyResponse.ok) setHistory(historyResponse.data);
+      // Both lists were tolerant and stay tolerant, but a refusal only ever
+      // reached the catch on a dropped connection — so a 403 on the recipient
+      // list left an empty picker with nothing to explain it.
+      const failed = [peopleResponse, historyResponse].find((r) => !r.ok);
+      if (failed && !failed.ok) {
+        const message = failureMessage(failed, t, t('organizer.broadcast.loadError'));
+        if (message) setMessage(message);
+      }
+    });
     return () => controller.abort();
   }, [apiUrl, eventId, t]);
 
@@ -103,31 +105,37 @@ export default function EventNotificationsPage() {
     setBusy(true);
     setMessage(null);
     try {
-      const response = await fetch(`${apiUrl}/api/v1/events/${eventId}/notifications/broadcast`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({
-          targetType,
-          severity,
-          title: title.trim(),
-          body: body.trim(),
-          tournamentId: tournamentId ?? undefined,
-          personIds: targetType === 'specific_persons' ? Array.from(selected) : undefined,
-        }),
-      });
-      if (!response.ok) throw new Error('send failed');
-      const result = (await response.json()) as { recipientCount: number };
-      setMessage(t('organizer.broadcast.sent', { count: result.recipientCount }));
+      const r = await apiRequest<{ recipientCount: number }>(
+        apiUrl,
+        `/api/v1/events/${eventId}/notifications/broadcast`,
+        {
+          method: 'POST',
+          body: {
+            targetType,
+            severity,
+            title: title.trim(),
+            body: body.trim(),
+            tournamentId: tournamentId ?? undefined,
+            personIds: targetType === 'specific_persons' ? Array.from(selected) : undefined,
+          },
+        },
+      );
+      if (!r.ok) {
+        // A refused broadcast says whether it was the recipient list, the
+        // severity or the event's own state. `throw new Error('send failed')`
+        // put all three behind one sentence.
+        const message = failureMessage(r, t, t('organizer.broadcast.sendError'));
+        if (message) setMessage(message);
+        return;
+      }
+      setMessage(t('organizer.broadcast.sent', { count: r.data.recipientCount }));
       setTitle('');
       setBody('');
-      const historyResponse = await fetch(
-        `${apiUrl}/api/v1/events/${eventId}/notifications/broadcasts`,
-        { credentials: 'include' },
+      const historyResponse = await apiRequest<BroadcastHistory[]>(
+        apiUrl,
+        `/api/v1/events/${eventId}/notifications/broadcasts`,
       );
-      if (historyResponse.ok) setHistory((await historyResponse.json()) as BroadcastHistory[]);
-    } catch {
-      setMessage(t('organizer.broadcast.sendError'));
+      if (historyResponse.ok) setHistory(historyResponse.data);
     } finally {
       setBusy(false);
     }

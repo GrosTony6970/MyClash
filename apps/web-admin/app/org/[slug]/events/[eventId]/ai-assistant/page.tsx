@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useParams, useSearchParams } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
 import { useI18n } from '@myclash/next-i18n/client';
+import { apiRequest, failureMessage } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
 import { BackLink } from '@/components/BackLink';
 
@@ -64,36 +65,33 @@ export default function EventAIAssistantPage() {
 
   useEffect(() => {
     const controller = new AbortController();
-    Promise.all([
-      fetch(`${apiUrl}/api/v1/organizations/slug/${slug}`, {
-        credentials: 'include',
+    void Promise.all([
+      apiRequest<{ id: string }>(apiUrl, `/api/v1/organizations/slug/${slug}`, {
         signal: controller.signal,
       }),
-      fetch(`${apiUrl}/api/v1/events/${eventId}/tournaments`, {
-        credentials: 'include',
+      apiRequest<Tournament[]>(apiUrl, `/api/v1/events/${eventId}/tournaments`, {
         signal: controller.signal,
       }),
-      fetch(`${apiUrl}/api/v1/events/${eventId}/ai-assistant/drafts`, {
-        credentials: 'include',
+      apiRequest<AssistantDraft[]>(apiUrl, `/api/v1/events/${eventId}/ai-assistant/drafts`, {
         signal: controller.signal,
       }),
-    ])
-      .then(async ([orgRes, tournamentRes, draftsRes]) => {
-        if (orgRes.ok) {
-          const org = (await orgRes.json()) as { id: string };
-          setOrgId(org.id);
-          const aiRes = await fetch(`${apiUrl}/api/v1/organizations/${org.id}/ai-settings`, {
-            credentials: 'include',
-            signal: controller.signal,
-          });
-          setAiReady(aiRes.ok && (await aiRes.json()) !== null);
-        } else {
-          setAiReady(false);
-        }
-        if (tournamentRes.ok) setTournaments((await tournamentRes.json()) as Tournament[]);
-        if (draftsRes.ok) setDrafts((await draftsRes.json()) as AssistantDraft[]);
-      })
-      .catch(() => undefined);
+    ]).then(async ([orgRes, tournamentRes, draftsRes]) => {
+      // `aiReady` gates the whole form, so a refused read still reads as NOT
+      // ready — unchanged.
+      if (orgRes.ok) {
+        setOrgId(orgRes.data.id);
+        const ai = await apiRequest<unknown>(
+          apiUrl,
+          `/api/v1/organizations/${orgRes.data.id}/ai-settings`,
+          { signal: controller.signal },
+        );
+        setAiReady(ai.ok && ai.data !== null);
+      } else {
+        setAiReady(false);
+      }
+      if (tournamentRes.ok) setTournaments(tournamentRes.data);
+      if (draftsRes.ok) setDrafts(draftsRes.data);
+    });
     return () => controller.abort();
   }, [apiUrl, eventId, slug]);
 
@@ -107,10 +105,11 @@ export default function EventAIAssistantPage() {
   );
 
   async function refreshDrafts() {
-    const res = await fetch(`${apiUrl}/api/v1/events/${eventId}/ai-assistant/drafts`, {
-      credentials: 'include',
-    });
-    if (res.ok) setDrafts((await res.json()) as AssistantDraft[]);
+    const r = await apiRequest<AssistantDraft[]>(
+      apiUrl,
+      `/api/v1/events/${eventId}/ai-assistant/drafts`,
+    );
+    if (r.ok) setDrafts(r.data);
   }
 
   function selectDraft(draft: AssistantDraft) {
@@ -123,26 +122,26 @@ export default function EventAIAssistantPage() {
     setError(null);
     setMessage(null);
     try {
-      const res = await fetch(`${apiUrl}/api/v1/events/${eventId}/ai-assistant/drafts`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({
-          draftType,
-          prompt,
-          tournamentId: selectedNeedsTournament ? tournamentId : undefined,
-        }),
-      });
-      if (!res.ok) {
-        const body = (await res.json()) as { message?: string };
-        throw new Error(body.message ?? t('organizer.aiAssistant.createError'));
+      const r = await apiRequest<AssistantDraft>(
+        apiUrl,
+        `/api/v1/events/${eventId}/ai-assistant/drafts`,
+        {
+          method: 'POST',
+          body: {
+            draftType,
+            prompt,
+            tournamentId: selectedNeedsTournament ? tournamentId : undefined,
+          },
+        },
+      );
+      if (!r.ok) {
+        const message = failureMessage(r, t, t('organizer.aiAssistant.createError'));
+        if (message) setError(message);
+        return;
       }
-      const draft = (await res.json()) as AssistantDraft;
-      selectDraft(draft);
+      selectDraft(r.data);
       setMessage(t('organizer.aiAssistant.createSuccess'));
       await refreshDrafts();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : t('organizer.aiAssistant.createError'));
     } finally {
       setBusy(false);
     }
@@ -152,24 +151,31 @@ export default function EventAIAssistantPage() {
     if (!selectedDraft) return;
     setBusy(true);
     setError(null);
+    // The `try` narrowed to the one thing that still throws: the operator edits
+    // the action list as raw JSON in a textarea, so `JSON.parse` is a real
+    // failure path and NOT an API one.
+    let actions: Array<Record<string, unknown>>;
     try {
-      const actions = JSON.parse(actionsJson) as Array<Record<string, unknown>>;
-      const res = await fetch(
-        `${apiUrl}/api/v1/events/${eventId}/ai-assistant/drafts/${selectedDraft.id}`,
-        {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          credentials: 'include',
-          body: JSON.stringify({ proposedActions: actions, status: 'ready' }),
-        },
+      actions = JSON.parse(actionsJson) as Array<Record<string, unknown>>;
+    } catch {
+      setError(t('organizer.aiAssistant.saveError'));
+      setBusy(false);
+      return;
+    }
+    try {
+      const r = await apiRequest<AssistantDraft>(
+        apiUrl,
+        `/api/v1/events/${eventId}/ai-assistant/drafts/${selectedDraft.id}`,
+        { method: 'PATCH', body: { proposedActions: actions, status: 'ready' } },
       );
-      if (!res.ok) throw new Error(t('organizer.aiAssistant.saveError'));
-      const updated = (await res.json()) as AssistantDraft;
-      setSelectedDraft(updated);
+      if (!r.ok) {
+        const message = failureMessage(r, t, t('organizer.aiAssistant.saveError'));
+        if (message) setError(message);
+        return;
+      }
+      setSelectedDraft(r.data);
       setMessage(t('organizer.aiAssistant.saveSuccess'));
       await refreshDrafts();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : t('organizer.aiAssistant.saveError'));
     } finally {
       setBusy(false);
     }
@@ -180,18 +186,20 @@ export default function EventAIAssistantPage() {
     setBusy(true);
     setError(null);
     try {
-      const res = await fetch(
-        `${apiUrl}/api/v1/events/${eventId}/ai-assistant/drafts/${selectedDraft.id}/apply`,
-        { method: 'POST', credentials: 'include' },
+      const r = await apiRequest(
+        apiUrl,
+        `/api/v1/events/${eventId}/ai-assistant/drafts/${selectedDraft.id}/apply`,
+        { method: 'POST' },
       );
-      if (!res.ok) {
-        const body = (await res.json()) as { message?: string };
-        throw new Error(body.message ?? t('organizer.aiAssistant.applyError'));
+      if (!r.ok) {
+        // Applying a draft writes real tournament configuration. When it is
+        // refused, which action collided is the only thing worth saying.
+        const message = failureMessage(r, t, t('organizer.aiAssistant.applyError'));
+        if (message) setError(message);
+        return;
       }
       setMessage(t('organizer.aiAssistant.applySuccess'));
       await refreshDrafts();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : t('organizer.aiAssistant.applyError'));
     } finally {
       setBusy(false);
     }
@@ -202,21 +210,19 @@ export default function EventAIAssistantPage() {
     setBusy(true);
     setError(null);
     try {
-      const res = await fetch(
-        `${apiUrl}/api/v1/events/${eventId}/ai-assistant/drafts/${selectedDraft.id}`,
-        {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          credentials: 'include',
-          body: JSON.stringify({ status: 'rejected' }),
-        },
+      const r = await apiRequest(
+        apiUrl,
+        `/api/v1/events/${eventId}/ai-assistant/drafts/${selectedDraft.id}`,
+        { method: 'PATCH', body: { status: 'rejected' } },
       );
-      if (!res.ok) throw new Error(t('organizer.aiAssistant.rejectError'));
+      if (!r.ok) {
+        const message = failureMessage(r, t, t('organizer.aiAssistant.rejectError'));
+        if (message) setError(message);
+        return;
+      }
       setMessage(t('organizer.aiAssistant.rejectSuccess'));
       setSelectedDraft(null);
       await refreshDrafts();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : t('organizer.aiAssistant.rejectError'));
     } finally {
       setBusy(false);
     }

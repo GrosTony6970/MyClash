@@ -2,6 +2,7 @@
 
 import { useI18n } from '@myclash/next-i18n/client';
 import { useEffect, useState } from 'react';
+import { apiRequest } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
 import { BackLink } from '@/components/BackLink';
 import { ReadinessRow } from '../_components/ReadinessPanel';
@@ -51,11 +52,9 @@ export function StartOfDay({ slug, eventId }: Props) {
  * setState — `react-hooks/set-state-in-effect` is an error in this repo.
  */
 function fetchReadiness(eventId: string): Promise<ReadinessReport | null> {
-  return fetch(`${getPublicApiUrl()}/api/v1/events/${eventId}/readiness`, {
-    credentials: 'include',
-  })
-    .then((res) => (res.ok ? (res.json() as Promise<ReadinessReport>) : null))
-    .catch(() => null);
+  return apiRequest<ReadinessReport>(getPublicApiUrl(), `/api/v1/events/${eventId}/readiness`).then(
+    (r) => (r.ok ? r.data : null),
+  );
 }
 
 function useReadiness(eventId: string) {

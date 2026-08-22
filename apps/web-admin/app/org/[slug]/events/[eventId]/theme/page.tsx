@@ -21,6 +21,7 @@ import { useParams, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { localeToBcp47 } from '@myclash/time';
 import { useI18n } from '@myclash/next-i18n/client';
+import { apiRequest, failureMessage } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
 
 const MAX_LOGO_BYTES = 10 * 1024 * 1024;
@@ -51,26 +52,24 @@ export default function BrandingEditorPage() {
 
   useEffect(() => {
     const controller = new AbortController();
-    Promise.all([
-      fetch(`${apiUrl}/api/v1/events/${eventId}`, {
-        credentials: 'include',
-        signal: controller.signal,
-      }),
-      fetch(`${apiUrl}/api/v1/events/${eventId}/theme`, {
-        credentials: 'include',
-        signal: controller.signal,
-      }),
+    void Promise.all([
+      apiRequest<{
+        name: string;
+        logo_url?: string | null;
+        start_date?: string | null;
+        end_date?: string | null;
+        city?: string | null;
+        country?: string | null;
+      }>(apiUrl, `/api/v1/events/${eventId}`, { signal: controller.signal }),
+      apiRequest<{ logoUrl?: string | null; heroImageUrl?: string | null } | null>(
+        apiUrl,
+        `/api/v1/events/${eventId}/theme`,
+        { signal: controller.signal },
+      ),
     ])
-      .then(async ([eventRes, themeRes]) => {
+      .then(([eventRes, themeRes]) => {
         if (eventRes.ok) {
-          const ev = (await eventRes.json()) as {
-            name: string;
-            logo_url?: string | null;
-            start_date?: string | null;
-            end_date?: string | null;
-            city?: string | null;
-            country?: string | null;
-          };
+          const ev = eventRes.data;
           setEventName(ev.name);
           if (typeof ev.logo_url === 'string') setLogoUrl(ev.logo_url);
           setEventStart(ev.start_date ?? null);
@@ -78,23 +77,23 @@ export default function BrandingEditorPage() {
           setEventCity(ev.city ?? null);
           setEventCountry(ev.country ?? null);
         }
-        if (themeRes.ok) {
-          const evTheme = (await themeRes.json()) as {
-            logoUrl?: string | null;
-            heroImageUrl?: string | null;
-          } | null;
-          if (evTheme) {
-            if (typeof evTheme.logoUrl === 'string') setLogoUrl(evTheme.logoUrl);
-            if (typeof evTheme.heroImageUrl === 'string') setHeroImageUrl(evTheme.heroImageUrl);
-          }
+        if (themeRes.ok && themeRes.data) {
+          const evTheme = themeRes.data;
+          if (typeof evTheme.logoUrl === 'string') setLogoUrl(evTheme.logoUrl);
+          if (typeof evTheme.heroImageUrl === 'string') setHeroImageUrl(evTheme.heroImageUrl);
         }
-      })
-      .catch((err: unknown) => {
-        if (err instanceof Error && err.name === 'AbortError') return;
+        // Both reads were tolerant before and stay tolerant — the preview draws
+        // with whatever landed. But a refusal used to reach nothing at all, so
+        // the first one now says why above the preview.
+        const failed = [eventRes, themeRes].find((r) => !r.ok);
+        if (failed && !failed.ok) {
+          const message = failureMessage(failed, t, t('organizer.branding.loadError'));
+          if (message) setError(message);
+        }
       })
       .finally(() => setLoading(false));
     return () => controller.abort();
-  }, [eventId, apiUrl]);
+  }, [eventId, apiUrl, t]);
 
   async function handleLogoUpload(file: File) {
     if (!ALLOWED_IMAGE_TYPES.has(file.type)) {
@@ -110,16 +109,16 @@ export default function BrandingEditorPage() {
     try {
       const formData = new FormData();
       formData.append('file', file);
-      const res = await fetch(`${apiUrl}/api/v1/events/${eventId}/logo`, {
+      const r = await apiRequest<{ url: string }>(apiUrl, `/api/v1/events/${eventId}/logo`, {
         method: 'POST',
-        credentials: 'include',
         body: formData,
       });
-      if (!res.ok) throw new Error(t('admin.common.uploadFailed'));
-      const data = (await res.json()) as { url: string };
-      setLogoUrl(data.url);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : t('admin.common.logoUploadFailed'));
+      if (!r.ok) {
+        const message = failureMessage(r, t, t('admin.common.logoUploadFailed'));
+        if (message) setError(message);
+        return;
+      }
+      setLogoUrl(r.data.url);
     } finally {
       setUploadingLogo(false);
     }
@@ -139,16 +138,16 @@ export default function BrandingEditorPage() {
     try {
       const formData = new FormData();
       formData.append('file', file);
-      const res = await fetch(`${apiUrl}/api/v1/events/${eventId}/hero`, {
+      const r = await apiRequest<{ url: string }>(apiUrl, `/api/v1/events/${eventId}/hero`, {
         method: 'POST',
-        credentials: 'include',
         body: formData,
       });
-      if (!res.ok) throw new Error(t('admin.common.uploadFailed'));
-      const data = (await res.json()) as { url: string };
-      setHeroImageUrl(data.url);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : t('admin.common.heroUploadFailed'));
+      if (!r.ok) {
+        const message = failureMessage(r, t, t('admin.common.heroUploadFailed'));
+        if (message) setError(message);
+        return;
+      }
+      setHeroImageUrl(r.data.url);
     } finally {
       setUploadingHero(false);
     }

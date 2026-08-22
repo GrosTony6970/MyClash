@@ -27,6 +27,7 @@ import {
 import { useRealtimeWithFallback } from '@/lib/supabase-browser';
 import { rankingToCsv, rankingToPrintHtml, type ExportRow } from './final-ranking-export';
 import { useI18n } from '@myclash/next-i18n/client';
+import { apiRequest } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
 
 type Translator = (key: string, values?: Record<string, string | number>) => string;
@@ -76,18 +77,17 @@ export default function FinalRankingPage() {
   // Load the event's tournaments once; seed the selection from ?tournamentId.
   useEffect(() => {
     const controller = new AbortController();
-    fetch(`${apiUrl}/api/v1/events/${eventId}/tournaments`, {
-      credentials: 'include',
+    // Tolerant, as before: an empty picker is its own empty state, and the
+    // ranking panel below says when it has nothing to draw.
+    void apiRequest<Tournament[]>(apiUrl, `/api/v1/events/${eventId}/tournaments`, {
       signal: controller.signal,
-    })
-      .then((res) => (res.ok ? res.json() : []))
-      .then((data: Tournament[]) => {
-        setTournaments(data);
-        const urlId = searchParams.get('tournamentId') ?? '';
-        const targetId = data.some((t) => t.id === urlId) ? urlId : (data[0]?.id ?? '');
-        setSelectedTournament(targetId);
-      })
-      .catch(() => undefined);
+    }).then((r) => {
+      const data = r.ok ? r.data : [];
+      setTournaments(data);
+      const urlId = searchParams.get('tournamentId') ?? '';
+      const targetId = data.some((t) => t.id === urlId) ? urlId : (data[0]?.id ?? '');
+      setSelectedTournament(targetId);
+    });
     return () => controller.abort();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [eventId]);
@@ -111,18 +111,14 @@ export default function FinalRankingPage() {
     const controller = new AbortController();
     setLoading(true);
     void Promise.all([
-      fetch(`${apiUrl}/api/v1/tournaments/${selectedTournament}/bracket`, {
-        credentials: 'include',
+      apiRequest<unknown>(apiUrl, `/api/v1/tournaments/${selectedTournament}/bracket`, {
         signal: controller.signal,
-      })
-        .then((res) => (res.ok ? res.json() : null))
-        .catch(() => null),
-      fetch(`${apiUrl}/api/v1/tournaments/${selectedTournament}/pool-standings?mode=overall`, {
-        credentials: 'include',
-        signal: controller.signal,
-      })
-        .then((res) => (res.ok ? res.json() : null))
-        .catch(() => null),
+      }).then((r) => (r.ok ? r.data : null)),
+      apiRequest<unknown>(
+        apiUrl,
+        `/api/v1/tournaments/${selectedTournament}/pool-standings?mode=overall`,
+        { signal: controller.signal },
+      ).then((r) => (r.ok ? r.data : null)),
     ])
       .then(([bracketData, standingsData]) => {
         setBracket(

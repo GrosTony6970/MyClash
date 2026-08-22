@@ -2,6 +2,7 @@
 
 import { useI18n } from '@myclash/next-i18n/client';
 import { useEffect, useState } from 'react';
+import { apiRequest } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
 import { BackLink } from '@/components/BackLink';
 
@@ -61,11 +62,10 @@ export function ClockReport({ slug, eventId }: { slug: string; eventId: string }
 
 /** Module scope and state-free — `react-hooks/set-state-in-effect` is an error here. */
 function fetchReport(eventId: string): Promise<ClockReport | null> {
-  return fetch(`${getPublicApiUrl()}/api/v1/events/${eventId}/clock-reconciliation`, {
-    credentials: 'include',
-  })
-    .then((res) => (res.ok ? (res.json() as Promise<ClockReport>) : null))
-    .catch(() => null);
+  return apiRequest<ClockReport>(
+    getPublicApiUrl(),
+    `/api/v1/events/${eventId}/clock-reconciliation`,
+  ).then((r) => (r.ok ? r.data : null));
 }
 
 function useClockReport(eventId: string) {

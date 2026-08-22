@@ -4,6 +4,7 @@ import type { ReactNode } from 'react';
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { ArchivedBanner } from './_components/ArchivedBanner';
+import { apiRequest } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
 
 interface EventInfo {
@@ -22,14 +23,11 @@ export default function EventLayout({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     let cancelled = false;
-    fetch(`${apiUrl}/api/v1/events/${eventId}`, { credentials: 'include' })
-      .then((r) => (r.ok ? r.json() : null))
-      .then((data: EventInfo | null) => {
-        if (!cancelled) setEvent(data);
-      })
-      .catch(() => {
-        if (!cancelled) setEvent(null);
-      });
+    // Silent by design: the only thing this read decides is whether to draw the
+    // archived banner, and the screen below it reports its own failures.
+    void apiRequest<EventInfo>(apiUrl, `/api/v1/events/${eventId}`).then((r) => {
+      if (!cancelled) setEvent(r.ok ? r.data : null);
+    });
     return () => {
       cancelled = true;
     };

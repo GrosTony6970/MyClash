@@ -3,6 +3,7 @@
 import { useRef, useState } from 'react';
 import { Modal, useToast } from '@myclash/ui';
 import { useI18n } from '@myclash/next-i18n/client';
+import { apiRequest, failureMessage } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
 
 interface Props {
@@ -60,35 +61,34 @@ export function RequestDeletionModal({
       // archived event. Do it first; bail (without creating a request) if it
       // fails so we don't leave the event in a half-changed state.
       if (willArchive) {
-        const archiveRes = await fetch(`${apiUrl}/api/v1/events/${targetId}`, {
+        const archived = await apiRequest(apiUrl, `/api/v1/events/${targetId}`, {
           method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          credentials: 'include',
-          body: JSON.stringify({ status: 'archived' }),
+          body: { status: 'archived' },
         });
-        if (!archiveRes.ok) {
-          setError(t('organizer.events.archiveError'));
+        if (!archived.ok) {
+          const message = failureMessage(archived, t, t('organizer.events.archiveError'));
+          if (message) setError(message);
           return;
         }
       }
-      const res = await fetch(`${apiUrl}/api/v1/deletion-requests`, {
+      const r = await apiRequest(apiUrl, '/api/v1/deletion-requests', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ targetType, targetId, reason: reason.trim() }),
+        body: { targetType, targetId, reason: reason.trim() },
       });
-      if (res.status === 409) {
-        setError(t('organizer.deletionRequest.deletionRequestConflict'));
-        return;
-      }
-      if (!res.ok) {
-        setError(t('organizer.deletionRequest.deletionRequestConflict'));
+      if (!r.ok) {
+        // Every refusal used to read as "a request is already pending", which
+        // is only true of the 409. It stays the fallback for that status and
+        // nothing else.
+        const fallback =
+          r.kind === 'http' && r.status === 409
+            ? t('organizer.deletionRequest.deletionRequestConflict')
+            : t('common.error');
+        const message = failureMessage(r, t, fallback);
+        if (message) setError(message);
         return;
       }
       toast.success(t('organizer.deletionRequest.deletionRequestSubmitted'));
       onSuccess();
-    } catch {
-      setError(t('organizer.deletionRequest.deletionRequestConflict'));
     } finally {
       setSubmitting(false);
     }

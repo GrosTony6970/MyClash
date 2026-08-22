@@ -479,7 +479,6 @@ export const admin = {
     deleteFailed: 'Échec de la suppression',
     createFailed: 'Échec de la création',
     updateFailed: 'Échec de la mise à jour',
-    uploadFailed: 'Échec du téléversement',
     removeFailed: 'Échec du retrait',
     importFailed: "Échec de l'import",
     loadFailedNoSave:

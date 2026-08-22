@@ -40,6 +40,7 @@ import { type ChangeEvent, type FormEvent, useEffect, useMemo, useRef, useState 
 import { useI18n } from '@myclash/next-i18n/client';
 import { validateLogoFile } from '../../../../src/lib/validate-logo-file';
 import { RequestDeletionModal } from './_components/RequestDeletionModal';
+import { apiRequest, failureMessage, type ApiFailure } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
 
 interface OrgEvent {
@@ -199,58 +200,76 @@ export default function OrgEventsListPage() {
   // can trigger its own hidden <input type="file">.
   const logoInputs = useRef<Record<string, HTMLInputElement | null>>({});
 
+  // Returns the failure rather than throwing it, so `load` below renders the
+  // API's own reason instead of the one sentence this used to throw for both of
+  // its two very different refusals.
   const fetchEvents = async (signal: AbortSignal) => {
-    const orgRes = await fetch(`${apiUrl}/api/v1/organizations/slug/${encodeURIComponent(slug)}`, {
-      credentials: 'include',
-      signal,
-    });
-    if (!orgRes.ok) throw new Error(t('organizer.events.loadError'));
-    const org = (await orgRes.json()) as { id: string; name: string };
+    const orgRes = await apiRequest<{ id: string; name: string }>(
+      apiUrl,
+      `/api/v1/organizations/slug/${encodeURIComponent(slug)}`,
+      { signal },
+    );
+    if (!orgRes.ok) return { failure: orgRes as ApiFailure };
+    const org = orgRes.data;
 
-    const eventsRes = await fetch(`${apiUrl}/api/v1/organizations/${org.id}/events`, {
-      credentials: 'include',
-      signal,
-    });
-    if (!eventsRes.ok) throw new Error(t('organizer.events.loadError'));
-    const rows = (await eventsRes.json()) as Array<Record<string, unknown>>;
+    const eventsRes = await apiRequest<Array<Record<string, unknown>>>(
+      apiUrl,
+      `/api/v1/organizations/${org.id}/events`,
+      { signal },
+    );
+    if (!eventsRes.ok) return { failure: eventsRes as ApiFailure };
 
     // Org venue catalogue — options for the per-event venue multi-select.
-    const venues = await fetch(`${apiUrl}/api/v1/organizations/${org.id}/venues`, {
-      credentials: 'include',
-      signal,
-    })
-      .then((r) => (r.ok ? r.json() : []))
-      .catch(() => []);
+    // Tolerant: an empty multi-select is its own empty state.
+    const venuesRes = await apiRequest<unknown[]>(
+      apiUrl,
+      `/api/v1/organizations/${org.id}/venues`,
+      { signal },
+    );
 
-    // Pending deletion requests for the org — one fetch, mapped by event id so
+    // Pending deletion requests for the org — one read, mapped by event id so
     // rows can show "under review" inline rather than the delete control.
-    const pendingRows = (await fetch(
-      `${apiUrl}/api/v1/organizations/${org.id}/deletion-requests?status=pending`,
-      { credentials: 'include', signal },
-    )
-      .then((r) => (r.ok ? r.json() : []))
-      .catch(() => [])) as Array<Record<string, unknown>>;
+    const pendingRes = await apiRequest<Array<Record<string, unknown>>>(
+      apiUrl,
+      `/api/v1/organizations/${org.id}/deletion-requests?status=pending`,
+      { signal },
+    );
     const pending = new Map<string, { id: string }>();
-    for (const row of pendingRows ?? []) {
+    for (const row of pendingRes.ok ? (pendingRes.data ?? []) : []) {
       const targetType = String(row['targetType'] ?? row['target_type'] ?? '');
       const targetId = String(row['targetId'] ?? row['target_id'] ?? '');
       const id = String(row['id'] ?? '');
       if (targetType === 'event' && targetId && id) pending.set(targetId, { id });
     }
 
-    return { orgName: org.name, events: rows.map(normalizeEvent), venues, pending };
+    // `failure: undefined` on the success shape so the two returns form a
+    // discriminated union — without it `result.failure` is a property TypeScript
+    // cannot find on one half.
+    return {
+      failure: undefined,
+      orgName: org.name,
+      events: eventsRes.data.map(normalizeEvent),
+      venues: venuesRes.ok ? venuesRes.data : [],
+      pending,
+    };
   };
 
   const load = () => {
     const controller = new AbortController();
     setLoading(true);
-    fetchEvents(controller.signal)
-      .then(({ orgName: nextOrgName, events: nextEvents, venues, pending }) => {
-        setOrgName(nextOrgName);
-        setEvents(nextEvents);
-        setPendingDeletions(pending);
+    void fetchEvents(controller.signal)
+      .then((result) => {
+        if (result.failure) {
+          // No message is the unmount, or the load that replaced this one.
+          const message = failureMessage(result.failure, t, t('organizer.events.loadError'));
+          if (message) setError(message);
+          return;
+        }
+        setOrgName(result.orgName);
+        setEvents(result.events);
+        setPendingDeletions(result.pending);
         setOrgVenues(
-          (venues ?? []) as Array<{
+          (result.venues ?? []) as Array<{
             id: string;
             name: string;
             hosts_tournament: boolean;
@@ -258,10 +277,6 @@ export default function OrgEventsListPage() {
           }>,
         );
         setError(null);
-      })
-      .catch((err: unknown) => {
-        if (err instanceof Error && err.name === 'AbortError') return;
-        setError(err instanceof Error ? err.message : t('organizer.events.loadError'));
       })
       .finally(() => setLoading(false));
     return controller;
@@ -308,15 +323,19 @@ export default function OrgEventsListPage() {
     setDraftingDesc(true);
     setDraftDescError(null);
     try {
-      const res = await fetch(
-        `${apiUrl}/api/v1/generated-content/organizer_content/${editing.id}/generate?locale=${locale}`,
-        { method: 'POST', credentials: 'include' },
+      const r = await apiRequest<{ content: string }>(
+        apiUrl,
+        `/api/v1/generated-content/organizer_content/${editing.id}/generate?locale=${locale}`,
+        { method: 'POST' },
       );
-      if (!res.ok) throw new Error(t('organizer.events.aiDraftError'));
-      const data = (await res.json()) as { content: string };
-      setForm((f) => (f ? { ...f, publicLandingMd: data.content } : f));
-    } catch (e) {
-      setDraftDescError(e instanceof Error ? e.message : t('organizer.events.aiDraftError'));
+      if (!r.ok) {
+        // A refused generation says whether it was the budget, the key or the
+        // provider. This is the one on this screen that costs money.
+        const message = failureMessage(r, t, t('organizer.events.aiDraftError'));
+        if (message) setDraftDescError(message);
+        return;
+      }
+      setForm((f) => (f ? { ...f, publicLandingMd: r.data.content } : f));
     } finally {
       setDraftingDesc(false);
     }
@@ -336,13 +355,13 @@ export default function OrgEventsListPage() {
   useEffect(() => {
     if (!editing) return;
     const controller = new AbortController();
-    fetch(`${apiUrl}/api/v1/events/${editing.id}/venues`, {
-      credentials: 'include',
+    // Tolerant: the multi-select opens with nothing ticked, and the save below
+    // reports its own refusal.
+    void apiRequest<Array<{ id: string }>>(apiUrl, `/api/v1/events/${editing.id}/venues`, {
       signal: controller.signal,
-    })
-      .then((r) => (r.ok ? r.json() : []))
-      .then((rows: Array<{ id: string }>) => setEventVenueIds(rows.map((v) => v.id)))
-      .catch(() => undefined);
+    }).then((r) => {
+      if (r.ok) setEventVenueIds(r.data.map((v) => v.id));
+    });
     return () => controller.abort();
   }, [editing, apiUrl]);
 
@@ -385,14 +404,14 @@ export default function OrgEventsListPage() {
       if (logoPendingFile) {
         const fd = new FormData();
         fd.append('file', logoPendingFile);
-        const upload = await fetch(`${apiUrl}/api/v1/events/${editing.id}/logo`, {
+        const upload = await apiRequest(apiUrl, `/api/v1/events/${editing.id}/logo`, {
           method: 'POST',
-          credentials: 'include',
           body: fd,
         });
         if (!upload.ok) {
-          const body = (await upload.json().catch(() => ({}))) as { message?: string };
-          throw new Error(body.message ?? t('organizer.events.logoUploadFailed'));
+          const message = failureMessage(upload, t, t('organizer.events.logoUploadFailed'));
+          if (message) setError(message);
+          return;
         }
       }
       const patchBody: Record<string, unknown> = {
@@ -406,28 +425,25 @@ export default function OrgEventsListPage() {
         eventKind: form.eventKind,
       };
       if (logoRemove && !logoPendingFile) patchBody['logoUrl'] = null;
-      const res = await fetch(`${apiUrl}/api/v1/events/${editing.id}`, {
+      const r = await apiRequest(apiUrl, `/api/v1/events/${editing.id}`, {
         method: 'PATCH',
-        credentials: 'include',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify(patchBody),
+        body: patchBody,
       });
-      if (!res.ok) {
-        const body = (await res.json()) as { message?: string };
-        throw new Error(body.message ?? t('organizer.events.saveError'));
+      if (!r.ok) {
+        const message = failureMessage(r, t, t('organizer.events.saveError'));
+        if (message) setError(message);
+        return;
       }
       // Reconcile the event's venues (adds links + seeds tournament lices;
       // safe-removes — venues with matches/sessions are reported as blocked).
       let blockedNames: string[] = [];
-      const venuesRes = await fetch(`${apiUrl}/api/v1/events/${editing.id}/venues`, {
-        method: 'PUT',
-        credentials: 'include',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ venueIds: eventVenueIds }),
-      });
+      const venuesRes = await apiRequest<{ blocked?: Array<{ venueId: string }> }>(
+        apiUrl,
+        `/api/v1/events/${editing.id}/venues`,
+        { method: 'PUT', body: { venueIds: eventVenueIds } },
+      );
       if (venuesRes.ok) {
-        const result = (await venuesRes.json()) as { blocked?: Array<{ venueId: string }> };
-        blockedNames = (result.blocked ?? []).map(
+        blockedNames = (venuesRes.data.blocked ?? []).map(
           (b) => orgVenues.find((v) => v.id === b.venueId)?.name ?? b.venueId,
         );
       }
@@ -438,8 +454,6 @@ export default function OrgEventsListPage() {
           : t('organizer.events.saved'),
       );
       load();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : t('organizer.events.saveError'));
     } finally {
       setBusyId(null);
     }
@@ -453,20 +467,16 @@ export default function OrgEventsListPage() {
     setError(null);
     setNotice(null);
     try {
-      const res = await fetch(`${apiUrl}/api/v1/events/${event.id}/${mode}`, {
-        method: 'POST',
-        credentials: 'include',
-      });
-      if (!res.ok) {
-        const body = (await res.json().catch(() => ({}))) as { message?: string };
-        throw new Error(body.message ?? t('organizer.events.visibilityError'));
+      const r = await apiRequest(apiUrl, `/api/v1/events/${event.id}/${mode}`, { method: 'POST' });
+      if (!r.ok) {
+        const message = failureMessage(r, t, t('organizer.events.visibilityError'));
+        if (message) setError(message);
+        return;
       }
       setNotice(
         t(mode === 'publish' ? 'organizer.events.published' : 'organizer.events.unpublished'),
       );
       load();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : t('organizer.events.visibilityError'));
     } finally {
       setBusyId(null);
     }
@@ -484,19 +494,17 @@ export default function OrgEventsListPage() {
     try {
       const fd = new FormData();
       fd.append('file', file);
-      const res = await fetch(`${apiUrl}/api/v1/events/${eventId}/logo`, {
+      const r = await apiRequest(apiUrl, `/api/v1/events/${eventId}/logo`, {
         method: 'POST',
-        credentials: 'include',
         body: fd,
       });
-      if (!res.ok) {
-        const body = (await res.json().catch(() => ({}))) as { message?: string };
-        throw new Error(body.message ?? t('organizer.events.logoUploadFailed'));
+      if (!r.ok) {
+        const message = failureMessage(r, t, t('organizer.events.logoUploadFailed'));
+        if (message) setError(message);
+        return;
       }
       setNotice(t('organizer.events.logoUploadSuccess'));
       load();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : t('organizer.events.logoUploadFailed'));
     } finally {
       setBusyId(null);
     }
@@ -508,19 +516,19 @@ export default function OrgEventsListPage() {
     setError(null);
     setNotice(null);
     try {
-      const res = await fetch(`${apiUrl}/api/v1/events/${confirmDelete.id}?mode=hard`, {
+      const r = await apiRequest(apiUrl, `/api/v1/events/${confirmDelete.id}?mode=hard`, {
         method: 'DELETE',
-        credentials: 'include',
       });
-      if (!res.ok) {
-        const body = (await res.json()) as { message?: string };
-        throw new Error(body.message ?? t('organizer.events.deleteError'));
+      if (!r.ok) {
+        // A hard delete is refused by what still points at the event. The
+        // operator has to know which, or the button just looks broken.
+        const message = failureMessage(r, t, t('organizer.events.deleteError'));
+        if (message) setError(message);
+        return;
       }
       setConfirmDelete(null);
       setNotice(t('organizer.events.deleted'));
       load();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : t('organizer.events.deleteError'));
     } finally {
       setBusyId(null);
     }
@@ -533,18 +541,16 @@ export default function OrgEventsListPage() {
     setError(null);
     setNotice(null);
     try {
-      const res = await fetch(`${apiUrl}/api/v1/deletion-requests/${pending.id}/cancel`, {
+      const r = await apiRequest(apiUrl, `/api/v1/deletion-requests/${pending.id}/cancel`, {
         method: 'PATCH',
-        credentials: 'include',
       });
-      if (!res.ok) {
-        const body = (await res.json().catch(() => ({}))) as { message?: string };
-        throw new Error(body.message ?? t('common.error'));
+      if (!r.ok) {
+        const message = failureMessage(r, t, t('common.error'));
+        if (message) setError(message);
+        return;
       }
       setNotice(t('organizer.deletionRequest.deletionRequestCancelled'));
       load();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : t('common.error'));
     } finally {
       setBusyId(null);
     }

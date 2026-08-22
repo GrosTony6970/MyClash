@@ -8,6 +8,7 @@ import { TournamentStatSection } from '../../../../../../src/components/statisti
 import { WeaponPointStatsSection } from '../../../../../../src/components/statistics/WeaponPointStats';
 import { RefereeWorkloadTable } from '../../../../../../src/components/statistics/RefereeWorkloadTable';
 import type { EventStatistics } from '../../../../../../src/components/statistics/types';
+import { apiRequest, failureMessage } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
 
 export default function EventStatisticsPage() {
@@ -22,19 +23,18 @@ export default function EventStatisticsPage() {
     // setState only inside the async callbacks (never synchronously in the
     // effect body) to satisfy react-hooks/set-state-in-effect.
     const controller = new AbortController();
-    fetch(`${apiUrl}/api/v1/events/${eventId}/statistics`, {
-      credentials: 'include',
+    void apiRequest<EventStatistics>(apiUrl, `/api/v1/events/${eventId}/statistics`, {
       signal: controller.signal,
-    })
-      .then(async (res) => {
-        if (!res.ok) throw new Error(t('organizer.eventStats.loadError'));
-        setData((await res.json()) as EventStatistics);
+    }).then((r) => {
+      if (r.ok) {
+        setData(r.data);
         setError(null);
-      })
-      .catch((err: unknown) => {
-        if (err instanceof DOMException && err.name === 'AbortError') return;
-        setError(err instanceof Error ? err.message : t('organizer.eventStats.loadError'));
-      });
+        return;
+      }
+      // No message is the unmount.
+      const message = failureMessage(r, t, t('organizer.eventStats.loadError'));
+      if (message) setError(message);
+    });
     return () => controller.abort();
   }, [eventId, apiUrl, t]);
 

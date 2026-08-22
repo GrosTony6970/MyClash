@@ -926,6 +926,8 @@ export const organizer = {
     noCap: 'No cap',
     save: 'Save',
     saving: 'Saving...',
+    timezoneSaveError: 'Could not change the event timezone.',
+    spendCapSaveError: 'Could not change the AI spend cap.',
     budgetUsed: 'EUR {spent} used of EUR {cap} cap',
     budgetNoCap: 'No cap set - EUR {spent} spent ({calls} calls)',
     archiveTitle: 'Archive',
@@ -2254,6 +2256,7 @@ export const organizer = {
   },
   branding: {
     title: 'Branding',
+    loadError: 'Could not load the branding for this event.',
     subtitle:
       'Per-event identity: logo and hero image. Page colors + typography come from the unified MyClash design tokens and apply across both the organiser and public apps.',
     logoUploadFailedBanner: 'Logo upload failed during event creation. Upload it again here.',

@@ -45,6 +45,7 @@ export const COPY = {
   rulesetsLoadError: 'Could not load curated rulesets.',
   leaguesLoadError: 'Could not load leagues',
   clubsLoadError: 'Failed to load clubs.',
+  eventsLoadError: 'Failed to load events.',
   discoverLoadError: 'Could not load the catalog.',
   tournamentNotFound: 'Tournament not found',
   tournamentLoadFailed: "This tournament couldn't be loaded",

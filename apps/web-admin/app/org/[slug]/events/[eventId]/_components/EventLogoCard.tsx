@@ -13,6 +13,7 @@
  */
 
 import { useRef, useState } from 'react';
+import { apiRequest, failureDetail } from '@myclash/api-client';
 import { validateLogoFile } from '../../../../../../src/lib/validate-logo-file';
 import { LogoCropperModal } from '../../../_components/LogoCropperModal';
 
@@ -83,18 +84,18 @@ export function EventLogoCard({
     try {
       const fd = new FormData();
       fd.append('file', file);
-      const res = await fetch(`${apiUrl}/api/v1/events/${eventId}/logo`, {
+      const r = await apiRequest(apiUrl, `/api/v1/events/${eventId}/logo`, {
         method: 'POST',
-        credentials: 'include',
         body: fd,
       });
-      if (!res.ok) {
-        const body = (await res.json().catch(() => ({}))) as { message?: string };
-        throw new Error(body.message ?? failedLabel);
+      if (!r.ok) {
+        // `failureDetail` and not `failureMessage`: this card takes its copy as
+        // props and has no translator of its own, so it renders the server's
+        // sentence or the localized label the parent handed it.
+        setError(failureDetail(r) ?? failedLabel);
+        return;
       }
       await onUploaded();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : failedLabel);
     } finally {
       setUploading(false);
     }

@@ -105,6 +105,13 @@ const ORG_LEAGUES_PATH = `/org/${ctx.orgSlug}/leagues`;
  * stays unstubbed.
  */
 const LEAGUE_CATALOG_LOAD = '**/api/v1/leagues';
+const ORG_EVENTS_PATH = `/org/${ctx.orgSlug}/events`;
+/**
+ * The org's event list. Exact, so the per-event venue and deletion-request
+ * reads the same screen makes stay unstubbed — this forces the ONE read the
+ * screen treats as fatal.
+ */
+const ORG_EVENTS_LOAD = '**/api/v1/organizations/*/events';
 const ORG_DISCOVER_PATH = `/org/${ctx.orgSlug}/rulesets/scoring?tab=discover`;
 /** The adoptable-ruleset catalogue behind the Discover tab. */
 const ORG_DISCOVER_LOAD = '**/api/v1/organizations/*/custom-rulesets/catalog';
@@ -216,6 +223,22 @@ test.describe('the api-failure seam — the org rulesets screen', () => {
 
     await expect(page.getByText(reason)).toBeVisible();
     await expect(page.getByText(COPY.rulesetsLoadError)).toBeHidden();
+  });
+});
+
+/**
+ * The organiser's event list — the screen an organiser opens first.
+ */
+test.describe('the api-failure seam — the org events list', () => {
+  test("a 4xx shows the server's own reason, not the screen's fallback", async ({ page }) => {
+    const reason = 'This organisation is being merged. Its events are read-only for a minute.';
+    await page.route(ORG_EVENTS_LOAD, (route) => route.fulfill(problemJson(409, reason)));
+
+    await page.goto(ORG_EVENTS_PATH);
+    await expectStayedOn(page, ORG_EVENTS_PATH);
+
+    await expect(page.getByText(reason)).toBeVisible();
+    await expect(page.getByText(COPY.eventsLoadError)).toBeHidden();
   });
 });
 

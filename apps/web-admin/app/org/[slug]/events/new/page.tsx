@@ -7,6 +7,7 @@ import { EVENT_KINDS, DEFAULT_EVENT_KIND, type EventKind } from '@myclash/types'
 import { IsoDatePicker } from '../../../../../src/components/IsoDatePicker';
 import { useI18n } from '@myclash/next-i18n/client';
 import { useOrganizerSelectedEvent } from '../../../../../src/components/organizer-event-context';
+import { apiRequest, failureMessage } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
 
 interface CatalogueVenue {
@@ -865,24 +866,23 @@ export default function NewEventPage() {
     let cancelled = false;
     void (async () => {
       try {
-        const orgRes = await fetch(
-          `${apiUrl}/api/v1/organizations/slug/${encodeURIComponent(slug)}`,
-          { credentials: 'include' },
+        // Silent on a refusal, as before: `handleCreate` re-resolves the org
+        // defensively and reports there, where the operator is actually acting.
+        const orgRes = await apiRequest<{ id: string }>(
+          apiUrl,
+          `/api/v1/organizations/slug/${encodeURIComponent(slug)}`,
         );
-        if (!orgRes.ok) return;
-        const org = (await orgRes.json()) as { id: string };
-        if (cancelled) return;
-        setOrgId(org.id);
-        const venuesRes = await fetch(`${apiUrl}/api/v1/organizations/${org.id}/venues`, {
-          credentials: 'include',
-        });
-        if (!venuesRes.ok) return;
-        const venues = (await venuesRes.json()) as CatalogueVenue[];
-        if (cancelled) return;
-        setCatalogue(venues);
+        if (!orgRes.ok || cancelled) return;
+        setOrgId(orgRes.data.id);
+        const venuesRes = await apiRequest<CatalogueVenue[]>(
+          apiUrl,
+          `/api/v1/organizations/${orgRes.data.id}/venues`,
+        );
+        if (!venuesRes.ok || cancelled) return;
+        setCatalogue(venuesRes.data);
         // If the org has no venues yet, force the operator into create-new
         // mode so the empty-state banner makes sense.
-        if (venues.length === 0) {
+        if (venuesRes.data.length === 0) {
           dispatch({ type: 'SET_VENUE_MODE', mode: 'new' });
         }
       } finally {
@@ -958,40 +958,56 @@ export default function NewEventPage() {
   async function handleCreate() {
     dispatch({ type: 'SUBMIT_START' });
 
+    // One place the wizard's three fatal refusals report from. `null` is the
+    // abort `failureMessage` answers with, and none of these pass a signal, so
+    // it falls back to the wizard's own generic sentence rather than clearing
+    // the banner.
+    const fail = (message: string | null) =>
+      dispatch({
+        type: 'SUBMIT_ERROR',
+        error: message ?? t('organizer.newEvent.validation.generic'),
+      });
+
     try {
       // Reuse the org id we loaded on mount; refetch defensively in case
       // the venues effect failed (network / 5xx) but the operator still
       // managed to fill the wizard.
       let resolvedOrgId = orgId;
       if (!resolvedOrgId) {
-        const orgRes = await fetch(
-          `${apiUrl}/api/v1/organizations/slug/${encodeURIComponent(slug)}`,
-          { credentials: 'include' },
+        const orgRes = await apiRequest<{ id: string }>(
+          apiUrl,
+          `/api/v1/organizations/slug/${encodeURIComponent(slug)}`,
         );
-        if (!orgRes.ok) throw new Error(t('organizer.newEvent.validation.organizationNotFound'));
-        const org = (await orgRes.json()) as { id: string };
-        resolvedOrgId = org.id;
+        if (!orgRes.ok) {
+          fail(failureMessage(orgRes, t, t('organizer.newEvent.validation.organizationNotFound')));
+          return;
+        }
+        resolvedOrgId = orgRes.data.id;
       }
 
-      const eventRes = await fetch(`${apiUrl}/api/v1/organizations/${resolvedOrgId}/events`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({
-          slug: state.slug,
-          name: state.name.trim(),
-          startDate: state.startDate,
-          endDate: state.endDate,
-          city: state.city.trim() || null,
-          country: state.country || null,
-          eventKind: state.eventKind,
-        }),
-      });
+      const eventRes = await apiRequest<{ id: string }>(
+        apiUrl,
+        `/api/v1/organizations/${resolvedOrgId}/events`,
+        {
+          method: 'POST',
+          body: {
+            slug: state.slug,
+            name: state.name.trim(),
+            startDate: state.startDate,
+            endDate: state.endDate,
+            city: state.city.trim() || null,
+            country: state.country || null,
+            eventKind: state.eventKind,
+          },
+        },
+      );
       if (!eventRes.ok) {
-        const body = (await eventRes.json()) as { message?: string };
-        throw new Error(body.message ?? t('organizer.newEvent.validation.createFailed'));
+        // A slug already taken, a date range the org refuses — the API names
+        // which, and every one of them used to read "Could not create event."
+        fail(failureMessage(eventRes, t, t('organizer.newEvent.validation.createFailed')));
+        return;
       }
-      const event = (await eventRes.json()) as { id: string };
+      const event = eventRes.data;
 
       // Materialise the venue. Mode 'new' creates a fresh venue in the
       // org catalogue; mode 'existing' simply reuses the picked id.
@@ -1006,40 +1022,38 @@ export default function NewEventPage() {
           venueHostsWorkshop = picked.hosts_workshop;
         }
       } else if (state.venueMode === 'new') {
-        const venueRes = await fetch(`${apiUrl}/api/v1/organizations/${resolvedOrgId}/venues`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          credentials: 'include',
-          body: JSON.stringify({
-            name: state.newVenueName.trim(),
-            address: state.newVenueAddress.trim() || undefined,
-            hostsTournament: state.newVenueHostsTournament,
-            hostsWorkshop: state.newVenueHostsWorkshop,
-          }),
-        });
+        const venueRes = await apiRequest<{ id: string }>(
+          apiUrl,
+          `/api/v1/organizations/${resolvedOrgId}/venues`,
+          {
+            method: 'POST',
+            body: {
+              name: state.newVenueName.trim(),
+              address: state.newVenueAddress.trim() || undefined,
+              hostsTournament: state.newVenueHostsTournament,
+              hostsWorkshop: state.newVenueHostsWorkshop,
+            },
+          },
+        );
         if (!venueRes.ok) {
-          const body = (await venueRes.json()) as { message?: string };
-          throw new Error(body.message ?? t('organizer.newEvent.validation.venueCreateFailed'));
+          fail(failureMessage(venueRes, t, t('organizer.newEvent.validation.venueCreateFailed')));
+          return;
         }
-        const created = (await venueRes.json()) as { id: string };
-        venueId = created.id;
+        venueId = venueRes.data.id;
         venueHostsTournament = state.newVenueHostsTournament;
         venueHostsWorkshop = state.newVenueHostsWorkshop;
       }
 
       // Lice rows linked to the venue (tournament-capable venues only).
       if (venueHostsTournament && state.liceNames.length > 0) {
+        // Follow-up writes on an event that already exists. They still
+        // discard their refusals, unchanged: the operator lands on the event,
+        // where the lices and areas are listed, so a dropped one is visible.
         await Promise.all(
           state.liceNames.map((name, index) =>
-            fetch(`${apiUrl}/api/v1/events/${event.id}/lices`, {
+            apiRequest(apiUrl, `/api/v1/events/${event.id}/lices`, {
               method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              credentials: 'include',
-              body: JSON.stringify({
-                name: name.trim(),
-                sortOrder: index,
-                venueId: venueId ?? undefined,
-              }),
+              body: { name: name.trim(), sortOrder: index, venueId: venueId ?? undefined },
             }),
           ),
         );
@@ -1050,11 +1064,9 @@ export default function NewEventPage() {
       if (venueHostsWorkshop && venueId && state.areaNames.length > 0) {
         await Promise.all(
           state.areaNames.map((name, index) =>
-            fetch(`${apiUrl}/api/v1/venues/${venueId}/areas`, {
+            apiRequest(apiUrl, `/api/v1/venues/${venueId}/areas`, {
               method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              credentials: 'include',
-              body: JSON.stringify({ name: name.trim(), sortOrder: index }),
+              body: { name: name.trim(), sortOrder: index },
             }),
           ),
         );
@@ -1067,9 +1079,8 @@ export default function NewEventPage() {
         // migration 0084.)
         const formData = new FormData();
         formData.append('file', logoFile);
-        const logoRes = await fetch(`${apiUrl}/api/v1/events/${event.id}/logo`, {
+        const logoRes = await apiRequest(apiUrl, `/api/v1/events/${event.id}/logo`, {
           method: 'POST',
-          credentials: 'include',
           body: formData,
         });
         if (!logoRes.ok) {
@@ -1082,11 +1093,9 @@ export default function NewEventPage() {
         // Operator pasted a URL instead of uploading a file —
         // mirror it onto events.logo_url via the theme upsert
         // (which now routes logoUrl to the events column).
-        await fetch(`${apiUrl}/api/v1/events/${event.id}/theme`, {
+        await apiRequest(apiUrl, `/api/v1/events/${event.id}/theme`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          credentials: 'include',
-          body: JSON.stringify({ logoUrl: pastedLogoUrl }),
+          body: { logoUrl: pastedLogoUrl },
         });
       }
 
@@ -1102,10 +1111,11 @@ export default function NewEventPage() {
       await refetchEvents();
       router.push(`/org/${slug}/events/${event.id}`);
     } catch (err) {
-      dispatch({
-        type: 'SUBMIT_ERROR',
-        error: err instanceof Error ? err.message : t('organizer.newEvent.validation.generic'),
-      });
+      // `apiRequest` does not throw, but two things inside this function still
+      // can: `refetchEvents` (the organizer event-picker context) and the
+      // router push. Neither has a reason worth quoting, so the wizard's own
+      // generic sentence is the honest one.
+      fail(err instanceof Error ? err.message : null);
     }
   }
 

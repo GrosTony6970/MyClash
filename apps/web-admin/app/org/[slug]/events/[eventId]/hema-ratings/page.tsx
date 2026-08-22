@@ -15,6 +15,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { useI18n } from '@myclash/next-i18n/client';
+import { apiRequest, failureMessage } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
 import { BackLink } from '@/components/BackLink';
 
@@ -61,22 +62,27 @@ function usePreview(apiUrl: string, eventId: string, t: Translate) {
   // (react-hooks/set-state-in-effect is an error in this app).
   useEffect(() => {
     const controller = new AbortController();
-    fetch(`${apiUrl}/api/v1/events/${eventId}/exports/hema-ratings/preview`, {
-      credentials: 'include',
-      signal: controller.signal,
-    })
-      .then(async (res) => {
+    void apiRequest<SubmissionPreview>(
+      apiUrl,
+      `/api/v1/events/${eventId}/exports/hema-ratings/preview`,
+      { signal: controller.signal },
+    )
+      .then((r) => {
+        if (r.ok) {
+          setPreview(r.data);
+          setError(null);
+          return;
+        }
         // A 400 here is the deliberate kind gate (test/club events are not
         // rated), not a build failure — say which, or the operator only sees a
-        // generic "could not build" and has no idea why.
-        if (res.status === 400) throw new Error(t('organizer.hemaRatings.blockedKind'));
-        if (!res.ok) throw new Error(t('organizer.hemaRatings.error'));
-        setPreview((await res.json()) as SubmissionPreview);
-        setError(null);
-      })
-      .catch((err: unknown) => {
-        if (controller.signal.aborted) return;
-        setError(err instanceof Error ? err.message : t('organizer.hemaRatings.error'));
+        // generic "could not build" and has no idea why. It is the FALLBACK
+        // now, so the server still wins wherever it explains itself.
+        const fallback =
+          r.kind === 'http' && r.status === 400
+            ? t('organizer.hemaRatings.blockedKind')
+            : t('organizer.hemaRatings.error');
+        const message = failureMessage(r, t, fallback);
+        if (message) setError(message);
       })
       .finally(() => {
         if (!controller.signal.aborted) setLoading(false);

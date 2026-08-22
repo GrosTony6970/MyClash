@@ -472,7 +472,6 @@ export const admin = {
     deleteFailed: 'Delete failed',
     createFailed: 'Create failed',
     updateFailed: 'Update failed',
-    uploadFailed: 'Upload failed',
     removeFailed: 'Remove failed',
     importFailed: 'Import failed',
     loadFailedNoSave:

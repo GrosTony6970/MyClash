@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { getPublicApiUrl } from '@/lib/api-url';
+import { apiRequest } from '@myclash/api-client';
 
 type EventStatus = 'draft' | 'published' | 'running' | 'completed' | 'archived';
 
@@ -21,16 +22,14 @@ export function useEventStatus(eventId: string): {
     let cancelled = false;
     // eslint-disable-next-line react-hooks/set-state-in-effect -- loading flag for an async fetch on mount; behaviour-preserving
     setIsLoading(true);
-    fetch(`${apiUrl}/api/v1/events/${eventId}`, { credentials: 'include' })
-      .then((r) => (r.ok ? r.json() : null))
-      .then((data: { status?: string } | null) => {
-        if (cancelled) return;
-        setStatus((data?.status ?? null) as EventStatus | null);
-        setIsLoading(false);
-      })
-      .catch(() => {
-        if (!cancelled) setIsLoading(false);
-      });
+    // Silent by design: this hook renders nothing itself, it hands a status to
+    // the screens around it, and `null` is the honest answer when the read did
+    // not land.
+    void apiRequest<{ status?: string }>(apiUrl, `/api/v1/events/${eventId}`).then((r) => {
+      if (cancelled) return;
+      setStatus(r.ok ? ((r.data.status ?? null) as EventStatus | null) : null);
+      setIsLoading(false);
+    });
     return () => {
       cancelled = true;
     };

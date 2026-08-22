@@ -4,6 +4,7 @@ import { useI18n } from '@myclash/next-i18n/client';
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { StatusBadge } from '@myclash/ui';
+import { apiRequest } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
 import { BackLink } from '@/components/BackLink';
 
@@ -32,18 +33,15 @@ function useReport(eventId: string): { report: Report | null; loading: boolean }
 
   const load = useCallback(
     async (signal: AbortSignal) => {
-      try {
-        const res = await fetch(`${getPublicApiUrl()}/api/v1/events/${eventId}/post-event-report`, {
-          credentials: 'include',
-          signal,
-        });
-        if (res.ok) setReport((await res.json()) as Report);
-      } catch {
-        // Leave the report null; the page says it could not load rather than
-        // rendering an all-clear it did not receive.
-      } finally {
-        if (!signal.aborted) setLoading(false);
-      }
+      // Leaves the report null on a refusal; the page says it could not load
+      // rather than rendering an all-clear it did not receive.
+      const r = await apiRequest<Report>(
+        getPublicApiUrl(),
+        `/api/v1/events/${eventId}/post-event-report`,
+        { signal },
+      );
+      if (r.ok) setReport(r.data);
+      if (!signal.aborted) setLoading(false);
     },
     [eventId],
   );
@@ -66,15 +64,13 @@ function useFeedback(eventId: string): FeedbackSummary | null {
 
   const load = useCallback(
     async (signal: AbortSignal) => {
-      try {
-        const res = await fetch(`${getPublicApiUrl()}/api/v1/events/${eventId}/feedback`, {
-          credentials: 'include',
-          signal,
-        });
-        if (res.ok) setSummary((await res.json()) as FeedbackSummary);
-      } catch {
-        // Silence beats a false empty state.
-      }
+      // Silence beats a false empty state.
+      const r = await apiRequest<FeedbackSummary>(
+        getPublicApiUrl(),
+        `/api/v1/events/${eventId}/feedback`,
+        { signal },
+      );
+      if (r.ok) setSummary(r.data);
     },
     [eventId],
   );

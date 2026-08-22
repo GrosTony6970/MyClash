@@ -31,6 +31,7 @@ import { PublishReadinessDialog } from './_components/PublishReadinessDialog';
 import { formatCountOfMax } from './format-count-of-max';
 import { eventVisibility } from './event-visibility';
 import { isOutstanding, type ReadinessReport } from './readiness-copy';
+import { apiRequest, failureMessage } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
 
 interface Tournament {
@@ -163,44 +164,38 @@ export default function EventDetailPage() {
   const [savingTz, setSavingTz] = useState(false);
   const [now] = useState(() => Date.now());
 
-  const reloadStats = (signal?: AbortSignal) =>
-    Promise.all([
-      fetch(`${apiUrl}/api/v1/events/${eventId}/dashboard-stats`, {
-        credentials: 'include',
-        ...(signal ? { signal } : {}),
-      }),
-      fetch(`${apiUrl}/api/v1/events/${eventId}/tournaments`, {
-        credentials: 'include',
-        ...(signal ? { signal } : {}),
-      }),
-    ])
-      .then(async ([statsRes, tourRes]) => {
-        if (!statsRes.ok) throw new Error(t('organizer.eventHub.dashboard.loadError'));
-        setStats((await statsRes.json()) as DashboardStats);
-        if (tourRes.ok) setTournaments((await tourRes.json()) as Tournament[]);
-        setStatsError(null);
-      })
-      .catch((err: unknown) => {
-        if (err instanceof DOMException && err.name === 'AbortError') return;
-        setStatsError(err instanceof Error ? err.message : t('common.error'));
-      });
+  const reloadStats = (signal?: AbortSignal) => {
+    const init = signal ? { signal } : {};
+    return Promise.all([
+      apiRequest<DashboardStats>(apiUrl, `/api/v1/events/${eventId}/dashboard-stats`, init),
+      apiRequest<Tournament[]>(apiUrl, `/api/v1/events/${eventId}/tournaments`, init),
+    ]).then(([statsRes, tourRes]) => {
+      if (!statsRes.ok) {
+        // No message is the unmount, or the reload that replaced this one.
+        const message = failureMessage(statsRes, t, t('organizer.eventHub.dashboard.loadError'));
+        if (message) setStatsError(message);
+        return;
+      }
+      setStats(statsRes.data);
+      if (tourRes.ok) setTournaments(tourRes.data);
+      setStatsError(null);
+    });
+  };
 
   // Readiness is its own request so a slow or failing checklist never delays
   // the numbers, and vice versa.
   const reloadReadiness = (signal?: AbortSignal) =>
-    fetch(`${apiUrl}/api/v1/events/${eventId}/readiness`, {
-      credentials: 'include',
+    apiRequest<ReadinessReport>(apiUrl, `/api/v1/events/${eventId}/readiness`, {
       ...(signal ? { signal } : {}),
-    })
-      .then(async (res) => {
-        if (!res.ok) throw new Error(t('organizer.readiness.loadError'));
-        setReadiness((await res.json()) as ReadinessReport);
+    }).then((r) => {
+      if (r.ok) {
+        setReadiness(r.data);
         setReadinessError(null);
-      })
-      .catch((err: unknown) => {
-        if (err instanceof DOMException && err.name === 'AbortError') return;
-        setReadinessError(err instanceof Error ? err.message : t('common.error'));
-      });
+        return;
+      }
+      const message = failureMessage(r, t, t('organizer.readiness.loadError'));
+      if (message) setReadinessError(message);
+    });
 
   useEffect(() => {
     const controller = new AbortController();
@@ -214,21 +209,16 @@ export default function EventDetailPage() {
     setTournamentBusy(tournamentId);
     setTournamentError(null);
     try {
-      const res = await fetch(`${apiUrl}/api/v1/tournaments/${tournamentId}`, {
+      const r = await apiRequest(apiUrl, `/api/v1/tournaments/${tournamentId}`, {
         method: 'PATCH',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status }),
+        body: { status },
       });
-      if (!res.ok) {
-        const body = (await res.json().catch(() => ({}))) as { message?: string };
-        throw new Error(body.message ?? t('organizer.eventHub.dashboard.statusUpdateError'));
+      if (!r.ok) {
+        const message = failureMessage(r, t, t('organizer.eventHub.dashboard.statusUpdateError'));
+        if (message) setTournamentError(message);
+        return;
       }
       await reloadStats();
-    } catch (err) {
-      setTournamentError(
-        err instanceof Error ? err.message : t('organizer.eventHub.dashboard.statusUpdateError'),
-      );
     } finally {
       setTournamentBusy(null);
     }
@@ -240,19 +230,17 @@ export default function EventDetailPage() {
     setTournamentBusy(tournament.id);
     setTournamentError(null);
     try {
-      const res = await fetch(`${apiUrl}/api/v1/tournaments/${tournament.id}/${mode}`, {
+      const r = await apiRequest(apiUrl, `/api/v1/tournaments/${tournament.id}/${mode}`, {
         method: 'POST',
-        credentials: 'include',
       });
-      if (!res.ok) {
-        const body = (await res.json().catch(() => ({}))) as { message?: string };
-        throw new Error(body.message ?? t('organizer.eventHub.dashboard.visibilityError'));
+      if (!r.ok) {
+        // Publishing is refused by name — an unseeded bracket, a tournament
+        // with no ruleset. That sentence used to be replaced by a generic one.
+        const message = failureMessage(r, t, t('organizer.eventHub.dashboard.visibilityError'));
+        if (message) setTournamentError(message);
+        return;
       }
       await reloadStats();
-    } catch (err) {
-      setTournamentError(
-        err instanceof Error ? err.message : t('organizer.eventHub.dashboard.visibilityError'),
-      );
     } finally {
       setTournamentBusy(null);
     }
@@ -285,17 +273,13 @@ export default function EventDetailPage() {
     setVisibilityBusy(true);
     setStatsError(null);
     try {
-      const res = await fetch(`${apiUrl}/api/v1/events/${eventId}/${mode}`, {
-        method: 'POST',
-        credentials: 'include',
-      });
-      if (!res.ok) {
-        const body = (await res.json().catch(() => ({}))) as { message?: string };
-        throw new Error(body.message ?? t('organizer.events.visibilityError'));
+      const r = await apiRequest(apiUrl, `/api/v1/events/${eventId}/${mode}`, { method: 'POST' });
+      if (!r.ok) {
+        const message = failureMessage(r, t, t('organizer.events.visibilityError'));
+        if (message) setStatsError(message);
+        return;
       }
       await Promise.all([reloadStats(), reloadReadiness()]);
-    } catch (err) {
-      setStatsError(err instanceof Error ? err.message : t('organizer.events.visibilityError'));
     } finally {
       setVisibilityBusy(false);
       // Closed on failure too: the error banner sits behind the dialog, so
@@ -306,39 +290,31 @@ export default function EventDetailPage() {
 
   useEffect(() => {
     const controller = new AbortController();
+    // AI status is optional on this dashboard: every read here stays silent on
+    // a refusal and the card simply does not appear.
     void (async () => {
-      try {
-        const orgRes = await fetch(`${apiUrl}/api/v1/organizations/slug/${slug}`, {
-          credentials: 'include',
-          signal: controller.signal,
-        });
-        if (!orgRes.ok) return;
-        const orgData = (await orgRes.json()) as { id: string };
+      const orgRes = await apiRequest<{ id: string }>(
+        apiUrl,
+        `/api/v1/organizations/slug/${slug}`,
+        { signal: controller.signal },
+      );
+      if (!orgRes.ok) return;
 
-        const aiRes = await fetch(`${apiUrl}/api/v1/organizations/${orgData.id}/ai-settings`, {
-          credentials: 'include',
-          signal: controller.signal,
-        });
-        if (aiRes.ok) {
-          const aiData = (await aiRes.json()) as {
-            provider: string;
-            hasKey: boolean;
-            updatedAt: string;
-          } | null;
-          if (aiData !== null) setAiEnabled(true);
-        }
+      const aiRes = await apiRequest<{
+        provider: string;
+        hasKey: boolean;
+        updatedAt: string;
+      } | null>(apiUrl, `/api/v1/organizations/${orgRes.data.id}/ai-settings`, {
+        signal: controller.signal,
+      });
+      if (aiRes.ok && aiRes.data !== null) setAiEnabled(true);
 
-        const usageRes = await fetch(`${apiUrl}/api/v1/events/${eventId}/ai-usage`, {
-          credentials: 'include',
-          signal: controller.signal,
-        });
-        if (usageRes.ok) {
-          const usageData = (await usageRes.json()) as AIUsage;
-          setAiUsage(usageData);
-          setSpendCap(String(usageData.cap ?? ''));
-        }
-      } catch {
-        // AI status is optional on this dashboard.
+      const usageRes = await apiRequest<AIUsage>(apiUrl, `/api/v1/events/${eventId}/ai-usage`, {
+        signal: controller.signal,
+      });
+      if (usageRes.ok) {
+        setAiUsage(usageRes.data);
+        setSpendCap(String(usageRes.data.cap ?? ''));
       }
     })();
     return () => controller.abort();
@@ -348,23 +324,25 @@ export default function EventDetailPage() {
     if (!eventId) return;
     setSavingCap(true);
     try {
-      await fetch(`${apiUrl}/api/v1/events/${eventId}`, {
+      const saved = await apiRequest(apiUrl, `/api/v1/events/${eventId}`, {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({
+        body: {
           aiSpendCapEur: (() => {
             const parsed = parseFloat(spendCap);
             return spendCap === '' || isNaN(parsed) ? null : parsed;
           })(),
-        }),
+        },
       });
-      const response = await fetch(`${apiUrl}/api/v1/events/${eventId}/ai-usage`, {
-        credentials: 'include',
-      });
-      if (response.ok) setAiUsage((await response.json()) as AIUsage);
-    } catch {
-      // Keep the previous budget value visible.
+      if (!saved.ok) {
+        // The write had NO `.ok` check at all, so a refused cap left the field
+        // showing the number the operator typed and the event running on the
+        // old one.
+        const message = failureMessage(saved, t, t('organizer.eventHub.spendCapSaveError'));
+        if (message) setStatsError(message);
+        return;
+      }
+      const usage = await apiRequest<AIUsage>(apiUrl, `/api/v1/events/${eventId}/ai-usage`);
+      if (usage.ok) setAiUsage(usage.data);
     } finally {
       setSavingCap(false);
     }
@@ -374,29 +352,33 @@ export default function EventDetailPage() {
   useEffect(() => {
     if (!eventId) return;
     const controller = new AbortController();
-    fetch(`${apiUrl}/api/v1/events/${eventId}`, {
-      credentials: 'include',
+    // Silent: the picker falls back to the app default, and the dashboard's own
+    // load above already reports if the event cannot be read at all.
+    void apiRequest<{ timezone?: string | null }>(apiUrl, `/api/v1/events/${eventId}`, {
       signal: controller.signal,
-    })
-      .then(async (res) => {
-        if (!res.ok) return;
-        const ev = (await res.json()) as { timezone?: string | null };
-        if (ev.timezone) setTimezone(ev.timezone);
-      })
-      .catch(() => undefined);
+    }).then((r) => {
+      if (r.ok && r.data.timezone) setTimezone(r.data.timezone);
+    });
     return () => controller.abort();
   }, [apiUrl, eventId]);
 
   async function handleSaveTimezone(next: string) {
+    const previous = timezone;
     setTimezone(next);
     setSavingTz(true);
     try {
-      await fetch(`${apiUrl}/api/v1/events/${eventId}`, {
+      const r = await apiRequest(apiUrl, `/api/v1/events/${eventId}`, {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ timezone: next }),
+        body: { timezone: next },
       });
+      if (r.ok) return;
+      // The picker moves the moment it is clicked and the write had no `.ok`
+      // check at all, so a refused change left the operator reading a timezone
+      // the event is not in — and every schedule time under it is drawn from
+      // this value.
+      setTimezone(previous);
+      const message = failureMessage(r, t, t('organizer.eventHub.timezoneSaveError'));
+      if (message) setStatsError(message);
     } finally {
       setSavingTz(false);
     }

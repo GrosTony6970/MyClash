@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { useI18n } from '@myclash/next-i18n/client';
+import { apiRequest, failureMessage } from '@myclash/api-client';
 
 interface Tournament {
   id: string;
@@ -87,17 +88,15 @@ export function TournamentQueryPanel(props: { apiUrl: string; tournaments: Tourn
     if (!activeTournamentId || question.trim().length < 4) return;
     const controller = new AbortController();
     const timer = window.setTimeout(() => {
-      fetch(`${apiUrl}/api/v1/tournaments/${activeTournamentId}/query/estimate`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        signal: controller.signal,
-        body: JSON.stringify({ question }),
-      })
-        .then(async (res) => {
-          if (res.ok) setEstimate((await res.json()) as Estimate);
-        })
-        .catch(() => undefined);
+      // Silent, as before: the cost estimate is a hint beside the Ask button
+      // that fires on every keystroke, and the ask itself reports the refusal.
+      void apiRequest<Estimate>(
+        apiUrl,
+        `/api/v1/tournaments/${activeTournamentId}/query/estimate`,
+        { method: 'POST', signal: controller.signal, body: { question } },
+      ).then((r) => {
+        if (r.ok) setEstimate(r.data);
+      });
     }, 250);
     return () => {
       window.clearTimeout(timer);
@@ -108,24 +107,19 @@ export function TournamentQueryPanel(props: { apiUrl: string; tournaments: Tourn
   useEffect(() => {
     if (!activeTournamentId) return;
     const controller = new AbortController();
-    Promise.all([
-      fetch(`${apiUrl}/api/v1/tournaments/${activeTournamentId}/query/history`, {
-        credentials: 'include',
+    void Promise.all([
+      apiRequest<{ queries: QueryHistoryItem[] }>(
+        apiUrl,
+        `/api/v1/tournaments/${activeTournamentId}/query/history`,
+        { signal: controller.signal },
+      ),
+      apiRequest<Settings>(apiUrl, `/api/v1/tournaments/${activeTournamentId}/query/settings`, {
         signal: controller.signal,
       }),
-      fetch(`${apiUrl}/api/v1/tournaments/${activeTournamentId}/query/settings`, {
-        credentials: 'include',
-        signal: controller.signal,
-      }),
-    ])
-      .then(async ([historyRes, settingsRes]) => {
-        if (historyRes.ok) {
-          const body = (await historyRes.json()) as { queries: QueryHistoryItem[] };
-          setHistory(body.queries.slice(0, 5));
-        }
-        if (settingsRes.ok) setSettings((await settingsRes.json()) as Settings);
-      })
-      .catch(() => undefined);
+    ]).then(([historyRes, settingsRes]) => {
+      if (historyRes.ok) setHistory(historyRes.data.queries.slice(0, 5));
+      if (settingsRes.ok) setSettings(settingsRes.data);
+    });
     return () => controller.abort();
   }, [apiUrl, activeTournamentId]);
 
@@ -140,46 +134,49 @@ export function TournamentQueryPanel(props: { apiUrl: string; tournaments: Tourn
     setError(null);
     setResponse(null);
     try {
-      const res = await fetch(`${apiUrl}/api/v1/tournaments/${activeTournamentId}/query`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ question: nextQuestion }),
-      });
-      if (!res.ok) {
-        const body = (await res.json()) as { message?: string };
-        throw new Error(body.message ?? t('organizer.tournamentQuery.queryError'));
+      const r = await apiRequest<QueryResponse>(
+        apiUrl,
+        `/api/v1/tournaments/${activeTournamentId}/query`,
+        { method: 'POST', body: { question: nextQuestion } },
+      );
+      if (!r.ok) {
+        // A refused query says whether it was the budget, the key or the
+        // question itself. Worth reading — this is the one that costs money.
+        const message = failureMessage(r, t, t('organizer.tournamentQuery.queryError'));
+        if (message) setError(message);
+        return;
       }
-      setResponse((await res.json()) as QueryResponse);
+      setResponse(r.data);
       await refreshHistory();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : t('organizer.tournamentQuery.queryError'));
     } finally {
       setBusy(false);
     }
   }
 
   async function refreshHistory() {
-    const res = await fetch(`${apiUrl}/api/v1/tournaments/${activeTournamentId}/query/history`, {
-      credentials: 'include',
-    });
-    if (res.ok) {
-      const body = (await res.json()) as { queries: QueryHistoryItem[] };
-      setHistory(body.queries.slice(0, 5));
-    }
+    const r = await apiRequest<{ queries: QueryHistoryItem[] }>(
+      apiUrl,
+      `/api/v1/tournaments/${activeTournamentId}/query/history`,
+    );
+    if (r.ok) setHistory(r.data.queries.slice(0, 5));
   }
 
   async function saveSettings() {
     if (!activeTournamentId) return;
     setBusy(true);
     try {
-      const res = await fetch(`${apiUrl}/api/v1/tournaments/${activeTournamentId}/query/settings`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify(settings),
-      });
-      if (res.ok) setSettings((await res.json()) as Settings);
+      const r = await apiRequest<Settings>(
+        apiUrl,
+        `/api/v1/tournaments/${activeTournamentId}/query/settings`,
+        { method: 'PATCH', body: settings },
+      );
+      if (!r.ok) {
+        // A refused save used to snap the controls back with no word at all.
+        const message = failureMessage(r, t, t('organizer.tournamentQuery.queryError'));
+        if (message) setError(message);
+        return;
+      }
+      setSettings(r.data);
     } finally {
       setBusy(false);
     }

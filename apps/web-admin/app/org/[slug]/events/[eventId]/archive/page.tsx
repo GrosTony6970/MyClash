@@ -6,6 +6,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
 import type { ReactNode } from 'react';
 import { useI18n } from '@myclash/next-i18n/client';
+import { apiRequest, failureMessage } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
 import { BackLink } from '@/components/BackLink';
 
@@ -63,25 +64,20 @@ export default function OrganizerArchivePage() {
 
   useEffect(() => {
     const controller = new AbortController();
-    Promise.all([
-      fetch(`${apiUrl}/api/v1/events/${eventId}`, {
-        credentials: 'include',
+    // Tolerant, as before: the export links draw from whatever landed and the
+    // restore half below reports its own failures.
+    void Promise.all([
+      apiRequest<EventInfo>(apiUrl, `/api/v1/events/${eventId}`, { signal: controller.signal }),
+      apiRequest<Tournament[]>(apiUrl, `/api/v1/events/${eventId}/tournaments`, {
         signal: controller.signal,
       }),
-      fetch(`${apiUrl}/api/v1/events/${eventId}/tournaments`, {
-        credentials: 'include',
-        signal: controller.signal,
-      }),
-    ])
-      .then(async ([eventRes, tournamentsRes]) => {
-        if (eventRes.ok) setEvent((await eventRes.json()) as EventInfo);
-        if (tournamentsRes.ok) {
-          const nextTournaments = (await tournamentsRes.json()) as Tournament[];
-          setTournaments(nextTournaments);
-          setSelectedTournamentId(nextTournaments[0]?.id ?? '');
-        }
-      })
-      .catch(() => undefined);
+    ]).then(([eventRes, tournamentsRes]) => {
+      if (eventRes.ok) setEvent(eventRes.data);
+      if (tournamentsRes.ok) {
+        setTournaments(tournamentsRes.data);
+        setSelectedTournamentId(tournamentsRes.data[0]?.id ?? '');
+      }
+    });
     return () => controller.abort();
   }, [apiUrl, eventId]);
 
@@ -102,18 +98,21 @@ export default function OrganizerArchivePage() {
     setBusy(true);
     setError(null);
     setNotice(null);
-    fetch(`${apiUrl}/api/v1/archive/restore-preview`, {
+    void apiRequest<RestorePreview>(apiUrl, '/api/v1/archive/restore-preview', {
       method: 'POST',
-      credentials: 'include',
       body: formData,
     })
-      .then(async (res) => {
-        if (!res.ok) throw new Error(t('organizer.archive.previewError'));
-        setPreview((await res.json()) as RestorePreview);
+      .then((r) => {
+        if (r.ok) {
+          setPreview(r.data);
+          return;
+        }
+        // The restore reader names the table or the version it choked on. That
+        // is the whole value of a preview step, and it was being replaced by
+        // "Could not read this archive."
+        const message = failureMessage(r, t, t('organizer.archive.previewError'));
+        if (message) setError(message);
       })
-      .catch((err: unknown) =>
-        setError(err instanceof Error ? err.message : t('organizer.archive.previewError')),
-      )
       .finally(() => setBusy(false));
   };
 
@@ -133,19 +132,19 @@ export default function OrganizerArchivePage() {
     setBusy(true);
     setError(null);
     setNotice(null);
-    fetch(`${apiUrl}/api/v1/archive/restore?${params.toString()}`, {
+    void apiRequest(apiUrl, `/api/v1/archive/restore?${params.toString()}`, {
       method: 'POST',
-      credentials: 'include',
       body: formData,
     })
-      .then(async (res) => {
-        if (!res.ok) throw new Error(t('organizer.archive.restoreError'));
-        setNotice(t('organizer.archive.restoreStarted'));
-        setConfirmation('');
+      .then((r) => {
+        if (r.ok) {
+          setNotice(t('organizer.archive.restoreStarted'));
+          setConfirmation('');
+          return;
+        }
+        const message = failureMessage(r, t, t('organizer.archive.restoreError'));
+        if (message) setError(message);
       })
-      .catch((err: unknown) =>
-        setError(err instanceof Error ? err.message : t('organizer.archive.restoreError')),
-      )
       .finally(() => setBusy(false));
   };
 

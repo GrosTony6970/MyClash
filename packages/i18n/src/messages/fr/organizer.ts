@@ -926,6 +926,8 @@ export const organizer = {
     noCap: 'Aucun plafond',
     save: 'Enregistrer',
     saving: 'Enregistrement...',
+    timezoneSaveError: "Impossible de changer le fuseau horaire de l'événement.",
+    spendCapSaveError: 'Impossible de changer le plafond de depense IA.',
     budgetUsed: '{spent} EUR utilises sur {cap} EUR',
     budgetNoCap: 'Aucun plafond - {spent} EUR depenses ({calls} appels)',
     archiveTitle: 'Archive',
@@ -2218,6 +2220,7 @@ export const organizer = {
   },
   branding: {
     title: 'Identité visuelle',
+    loadError: "Impossible de charger l'identité visuelle de cet événement.",
     subtitle:
       "Identité propre à l'événement : logo et bannière. Les couleurs et la typographie viennent des tokens de design unifiés MyClash et s'appliquent aux apps organisateur et publique.",
     logoUploadFailedBanner:

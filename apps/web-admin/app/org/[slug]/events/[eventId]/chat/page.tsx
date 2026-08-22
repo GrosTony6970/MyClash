@@ -7,6 +7,7 @@ import { useConfirm } from '@myclash/ui';
 import { useI18n } from '@myclash/next-i18n/client';
 import { MessageMarkdown } from './MessageMarkdown';
 import { ProposalCard, type ChatProposal } from './ProposalCard';
+import { apiRequest, failureMessage } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
 import { BackLink } from '@/components/BackLink';
 
@@ -100,35 +101,32 @@ export default function EventChatPage() {
 
   useEffect(() => {
     const controller = new AbortController();
-    Promise.all([
-      fetch(`${apiUrl}/api/v1/organizations/slug/${slug}`, {
-        credentials: 'include',
+    void Promise.all([
+      apiRequest<{ id: string }>(apiUrl, `/api/v1/organizations/slug/${slug}`, {
         signal: controller.signal,
       }),
-      fetch(`${apiUrl}/api/v1/events/${eventId}/chat/conversations`, {
-        credentials: 'include',
+      apiRequest<ConversationSummary[]>(apiUrl, `/api/v1/events/${eventId}/chat/conversations`, {
         signal: controller.signal,
       }),
-    ])
-      .then(async ([orgRes, convRes]) => {
-        if (orgRes.ok) {
-          const org = (await orgRes.json()) as { id: string };
-          setOrgId(org.id);
-          const aiRes = await fetch(`${apiUrl}/api/v1/organizations/${org.id}/ai-settings`, {
-            credentials: 'include',
-            signal: controller.signal,
-          });
-          setAiReady(aiRes.ok && (await aiRes.json()) !== null);
-        } else {
-          setAiReady(false);
-        }
-        if (convRes.ok) {
-          const list = (await convRes.json()) as ConversationSummary[];
-          setConversations(list);
-          if (list[0]) await openConversation(list[0].id, controller.signal);
-        }
-      })
-      .catch(() => undefined);
+    ]).then(async ([orgRes, convRes]) => {
+      // `aiReady` decides whether the composer is enabled at all, so a refused
+      // read has to read as NOT ready — that half is unchanged.
+      if (orgRes.ok) {
+        setOrgId(orgRes.data.id);
+        const ai = await apiRequest<unknown>(
+          apiUrl,
+          `/api/v1/organizations/${orgRes.data.id}/ai-settings`,
+          { signal: controller.signal },
+        );
+        setAiReady(ai.ok && ai.data !== null);
+      } else {
+        setAiReady(false);
+      }
+      if (convRes.ok) {
+        setConversations(convRes.data);
+        if (convRes.data[0]) await openConversation(convRes.data[0].id, controller.signal);
+      }
+    });
     return () => controller.abort();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [apiUrl, eventId, slug]);
@@ -142,18 +140,20 @@ export default function EventChatPage() {
   }, [renamingId]);
 
   async function openConversation(id: string, signal?: AbortSignal) {
-    const res = await fetch(`${apiUrl}/api/v1/events/${eventId}/chat/conversations/${id}`, {
-      credentials: 'include',
-      signal,
-    });
-    if (res.ok) setActive((await res.json()) as ConversationView);
+    const r = await apiRequest<ConversationView>(
+      apiUrl,
+      `/api/v1/events/${eventId}/chat/conversations/${id}`,
+      { signal },
+    );
+    if (r.ok) setActive(r.data);
   }
 
   async function refreshConversations() {
-    const res = await fetch(`${apiUrl}/api/v1/events/${eventId}/chat/conversations`, {
-      credentials: 'include',
-    });
-    if (res.ok) setConversations((await res.json()) as ConversationSummary[]);
+    const r = await apiRequest<ConversationSummary[]>(
+      apiUrl,
+      `/api/v1/events/${eventId}/chat/conversations`,
+    );
+    if (r.ok) setConversations(r.data);
   }
 
   function startNewConversation() {
@@ -177,18 +177,28 @@ export default function EventChatPage() {
     try {
       let conversationId = active?.id;
       if (!conversationId) {
-        const createRes = await fetch(`${apiUrl}/api/v1/events/${eventId}/chat/conversations`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          credentials: 'include',
-          body: JSON.stringify({}),
-        });
-        if (!createRes.ok) throw new Error(t('organizer.chat.errorSend'));
-        conversationId = ((await createRes.json()) as ConversationView).id;
+        const created = await apiRequest<ConversationView>(
+          apiUrl,
+          `/api/v1/events/${eventId}/chat/conversations`,
+          { method: 'POST', body: {} },
+        );
+        if (!created.ok) {
+          // Reported and returned rather than thrown: `?? ''` for the abort
+          // null would be a branch that cannot fire on a request with no
+          // signal, and the `finally` below still clears the busy flag.
+          const message = failureMessage(created, t, t('organizer.chat.errorSend'));
+          if (message) setError(message);
+          return;
+        }
+        conversationId = created.data.id;
       }
       setInput('');
 
-      // Stream turn-level progress via SSE (fetch reader — EventSource can't POST).
+      // The ONE hand-rolled fetch left on this surface, and it has to be. This
+      // is a streaming SSE POST read through `res.body.getReader()`; the seam
+      // reads a whole body with `parseBody` and hands back a value, so routing
+      // this through it would consume the stream before the first token could
+      // be rendered. It keeps its own `credentials` and its own abort handling.
       const res = await fetch(
         `${apiUrl}/api/v1/events/${eventId}/chat/conversations/${conversationId}/messages/stream`,
         {
@@ -244,15 +254,20 @@ export default function EventChatPage() {
     setBusy(true);
     setError(null);
     try {
-      const res = await fetch(
-        `${apiUrl}/api/v1/events/${eventId}/chat/conversations/${active.id}/proposals/${draftId}/${decision}`,
-        { method: 'POST', credentials: 'include' },
+      const r = await apiRequest<ConversationView | { conversation: ConversationView }>(
+        apiUrl,
+        `/api/v1/events/${eventId}/chat/conversations/${active.id}/proposals/${draftId}/${decision}`,
+        { method: 'POST' },
       );
-      if (!res.ok) throw new Error(t('organizer.chat.errorSend'));
-      const body = (await res.json()) as ConversationView | { conversation: ConversationView };
-      setActive('conversation' in body ? body.conversation : body);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : t('organizer.chat.errorSend'));
+      if (!r.ok) {
+        // A refused proposal names what it collided with — a match already
+        // scored, a lice already booked. That sentence used to be replaced by
+        // "Could not send the message."
+        const message = failureMessage(r, t, t('organizer.chat.errorSend'));
+        if (message) setError(message);
+        return;
+      }
+      setActive('conversation' in r.data ? r.data.conversation : r.data);
     } finally {
       setBusy(false);
     }
@@ -262,29 +277,33 @@ export default function EventChatPage() {
     const title = renameValue.trim();
     setRenamingId(null);
     if (!title) return;
-    const res = await fetch(`${apiUrl}/api/v1/events/${eventId}/chat/conversations/${id}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      credentials: 'include',
-      body: JSON.stringify({ title }),
-    });
-    if (res.ok) {
-      const updated = (await res.json()) as ConversationView;
-      if (active?.id === id) setActive(updated);
-      await refreshConversations();
+    const r = await apiRequest<ConversationView>(
+      apiUrl,
+      `/api/v1/events/${eventId}/chat/conversations/${id}`,
+      { method: 'PATCH', body: { title } },
+    );
+    if (!r.ok) {
+      // A refused rename used to snap the title back with no word at all.
+      const message = failureMessage(r, t, t('organizer.chat.errorSend'));
+      if (message) setError(message);
+      return;
     }
+    if (active?.id === id) setActive(r.data);
+    await refreshConversations();
   }
 
   async function removeConversation(id: string) {
     if (!(await confirm({ title: t('organizer.chat.deleteConfirm'), danger: true }))) return;
-    const res = await fetch(`${apiUrl}/api/v1/events/${eventId}/chat/conversations/${id}`, {
+    const r = await apiRequest(apiUrl, `/api/v1/events/${eventId}/chat/conversations/${id}`, {
       method: 'DELETE',
-      credentials: 'include',
     });
-    if (res.ok) {
-      if (active?.id === id) setActive(null);
-      await refreshConversations();
+    if (!r.ok) {
+      const message = failureMessage(r, t, t('organizer.chat.errorSend'));
+      if (message) setError(message);
+      return;
     }
+    if (active?.id === id) setActive(null);
+    await refreshConversations();
   }
 
   return (
