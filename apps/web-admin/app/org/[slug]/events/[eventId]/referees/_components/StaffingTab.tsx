@@ -186,12 +186,14 @@ export function StaffingTab({ eventId, apiUrl, skills, isReadOnly }: Props) {
     if (selectedTournamentId === 'event-default') return;
     setSaving(true);
     try {
-      const res = await fetch(
-        `${apiUrl}/api/v1/tournaments/${selectedTournamentId}/slot-config/reset`,
-        { method: 'POST', credentials: 'include' },
+      const r = await apiRequest(
+        apiUrl,
+        `/api/v1/tournaments/${selectedTournamentId}/slot-config/reset`,
+        { method: 'POST' },
       );
-      if (!res.ok) {
-        toast.error(t('organizer.staffing.resetError'));
+      if (!r.ok) {
+        const message = failureMessage(r, t, t('organizer.staffing.resetError'));
+        if (message) toast.error(message);
         return;
       }
       toast.success(t('organizer.staffing.resetDone'));
