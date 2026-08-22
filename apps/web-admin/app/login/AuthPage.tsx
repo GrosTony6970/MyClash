@@ -9,6 +9,7 @@ import { useI18n } from '@myclash/next-i18n/client';
 import { currentLegalVersionFields } from '../../src/lib/legal-url';
 import { createOAuthSupabaseClient } from '../../src/lib/oauth-supabase';
 import { resolvePostAuthDestination } from '../../src/lib/post-auth-destination';
+import { apiRequest, failureCode, failureMessage } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
 import {
   validateAccountStep,
@@ -107,24 +108,27 @@ export function AuthPage({ initialTab }: { initialTab: AuthTab }) {
     event.preventDefault();
     setLoadingAction('password');
     clearBanners();
-    try {
-      const res = await fetch(`${apiUrl}/api/v1/auth/password-login`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ email, password: draft.password, redirectTo: '/dashboard' }),
-      });
-      if (res.status === 503) throw new Error(t('admin.featureFlags.lockdownBanner'));
-      if (!res.ok) throw new Error(t('auth.login.errors.passwordLoginFailed'));
-
-      const body = (await res.json()) as LoginResponse;
-      // If the server picked a specific `next`, honour it; otherwise auto-route
-      // organizers straight into their primary org's auto-selected event.
-      window.location.href = body.next ?? (await resolvePostAuthDestination('/dashboard'));
-    } catch (err) {
-      setError(err instanceof Error ? err.message : t('auth.login.errors.passwordLoginFailed'));
+    const r = await apiRequest<LoginResponse>(apiUrl, '/api/v1/auth/password-login', {
+      method: 'POST',
+      body: { email, password: draft.password, redirectTo: '/dashboard' },
+    });
+    if (!r.ok) {
+      // A 503 here is the maintenance lockdown, and the screen's own sentence
+      // names it. Expressed as the FALLBACK so an `OperationalUnavailable`
+      // 503 — the one 5xx the filter leaves unscrubbed — still wins with its
+      // own words. The throttle sentence comes from the seam.
+      const fallback =
+        r.kind === 'http' && r.status === 503
+          ? t('admin.featureFlags.lockdownBanner')
+          : t('auth.login.errors.passwordLoginFailed');
+      const message = failureMessage(r, t, fallback);
+      if (message) setError(message);
       setLoadingAction(null);
+      return;
     }
+    // If the server picked a specific `next`, honour it; otherwise auto-route
+    // organizers straight into their primary org's auto-selected event.
+    window.location.href = r.data.next ?? (await resolvePostAuthDestination('/dashboard'));
   }
 
   async function handleMagicLink() {
@@ -132,16 +136,18 @@ export function AuthPage({ initialTab }: { initialTab: AuthTab }) {
     setLoadingAction('magic_link');
     clearBanners();
     try {
-      const res = await fetch(`${apiUrl}/api/v1/auth/magic-link`, {
+      const r = await apiRequest(apiUrl, '/api/v1/auth/magic-link', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ email: email.trim(), type: 'login', redirectTo: '/dashboard' }),
+        body: { email: email.trim(), type: 'login', redirectTo: '/dashboard' },
       });
-      if (!res.ok) throw new Error(t('auth.login.errors.magicLinkFailed'));
+      if (!r.ok) {
+        // The throttle is the refusal an operator actually meets here — three
+        // links an hour per address — and the seam says to wait, in French too.
+        const message = failureMessage(r, t, t('auth.login.errors.magicLinkFailed'));
+        if (message) setError(message);
+        return;
+      }
       setMessage(t('auth.login.checkEmail', { email: email.trim() }));
-    } catch (err) {
-      setError(err instanceof Error ? err.message : t('auth.login.errors.magicLinkFailed'));
     } finally {
       setLoadingAction(null);
     }
@@ -178,17 +184,16 @@ export function AuthPage({ initialTab }: { initialTab: AuthTab }) {
     setLoadingAction('reset');
     clearBanners();
     try {
-      await fetch(`${apiUrl}/api/v1/auth/public-password-reset`, {
+      // The outcome is deliberately ignored — see above. Telling the caller
+      // whether the address exists is exactly what this endpoint must not do,
+      // so the same "check your email" line is shown either way.
+      await apiRequest(apiUrl, '/api/v1/auth/public-password-reset', {
         method: 'POST',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
         // `type` picks the host the recovery link opens. Without it the server
         // defaults to the participant app and an organizer finishes the reset
         // on a domain they never asked about.
-        body: JSON.stringify({ email: email.trim(), type: 'login' }),
+        body: { email: email.trim(), type: 'login' },
       });
-    } catch {
-      // Deliberately swallowed — see above.
     } finally {
       setMessage(t('auth.login.resetCheckEmail'));
       setLoadingAction(null);
@@ -221,15 +226,21 @@ export function AuthPage({ initialTab }: { initialTab: AuthTab }) {
         return;
       }
       setSlugStatus({ checking: true, available: null });
-      try {
-        const res = await fetch(
-          `${apiUrl}/api/v1/auth/check-slug?slug=${encodeURIComponent(slug)}`,
-        );
-        const data = (await res.json()) as { available: boolean; reason?: 'reserved' | 'taken' };
-        setSlugStatus({ checking: false, available: data.available, reason: data.reason });
-      } catch {
-        setSlugStatus({ checking: false, available: null });
-      }
+      // The one call in this file that gains credentials it did not send. It
+      // probes a slug BEFORE any account exists, so the cookie is simply
+      // irrelevant here — harmless, unlike the two picker reads where the same
+      // omission made the API refuse the caller outright.
+      const r = await apiRequest<{ available: boolean; reason?: 'reserved' | 'taken' }>(
+        apiUrl,
+        `/api/v1/auth/check-slug?slug=${encodeURIComponent(slug)}`,
+      );
+      // `available: null` is the third state the hint renders as "checking
+      // failed" — a refusal must not read as "this slug is free".
+      setSlugStatus(
+        r.ok
+          ? { checking: false, available: r.data.available, reason: r.data.reason }
+          : { checking: false, available: null },
+      );
     },
     [apiUrl],
   );
@@ -279,22 +290,23 @@ export function AuthPage({ initialTab }: { initialTab: AuthTab }) {
       };
       if (intent === 'password') body['password'] = draft.password;
 
-      const res = await fetch(`${apiUrl}/api/v1/auth/signup`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify(body),
-      });
-      if (!res.ok) {
-        const data = (await res.json()) as { message?: string; code?: string };
+      const r = await apiRequest(apiUrl, '/api/v1/auth/signup', { method: 'POST', body });
+      if (!r.ok) {
         // The policy moved on while this tab was open. Say so in the user's
         // language rather than passing through the server's English sentence.
-        if (data.code === 'legal_version_stale') throw new Error(t('legal.accept.stale'));
-        throw new Error(data.message ?? t('admin.common.signupFailed'));
+        //
+        // Read through `failureCode` and NOT `detail`: this one is thrown as an
+        // explicit `code:`, which `normalizeCode` passes through verbatim — the
+        // mirror image of the `email_in_use` rule on the fighters console,
+        // where the marker lives in `detail` instead.
+        const message =
+          failureCode(r) === 'legal_version_stale'
+            ? t('legal.accept.stale')
+            : failureMessage(r, t, t('admin.common.signupFailed'));
+        if (message) setError(message);
+        return;
       }
       setDone({ intent, orgSlug });
-    } catch (err) {
-      setError(err instanceof Error ? err.message : t('admin.common.somethingWentWrong'));
     } finally {
       setLoadingAction(null);
     }

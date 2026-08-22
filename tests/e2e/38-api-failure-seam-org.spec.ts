@@ -118,6 +118,8 @@ const ORG_ROSTER_LOAD = '**/api/v1/events/*/persons';
 const ORG_TOURNAMENTS_PATH = `/org/${ctx.orgSlug}/events/${ctx.eventId}/tournaments`;
 /** The tournament list this screen is built on. */
 const ORG_TOURNAMENTS_LOAD = '**/api/v1/events/*/tournaments';
+/** The login screen's magic-link request. */
+const MAGIC_LINK_LOGIN = '**/api/v1/auth/magic-link';
 const ORG_DISCOVER_PATH = `/org/${ctx.orgSlug}/rulesets/scoring?tab=discover`;
 /** The adoptable-ruleset catalogue behind the Discover tab. */
 const ORG_DISCOVER_LOAD = '**/api/v1/organizations/*/custom-rulesets/catalog';
@@ -229,6 +231,41 @@ test.describe('the api-failure seam — the org rulesets screen', () => {
 
     await expect(page.getByText(reason)).toBeVisible();
     await expect(page.getByText(COPY.rulesetsLoadError)).toBeHidden();
+  });
+});
+
+/**
+ * The sign-in screen.
+ *
+ * Its own browser context with NO `storageState`: the config signs every other
+ * context in as the organizer, and a signed-in visitor is not who this screen
+ * is for. No login is spent — /login is public.
+ *
+ * The 429 is the refusal an operator actually meets here (login and magic-link
+ * are throttled per email), and it is also the one place the seam's own words
+ * beat the server's: Nest's throttler answers with the literal class name
+ * "ThrottlerException: Too many requests".
+ */
+test.describe('the api-failure seam — the sign-in screen', () => {
+  test('a throttled login link says to wait, not "failed"', async ({ browser }) => {
+    const anonymous = await browser.newContext({
+      baseURL: ctx.baseURL,
+      storageState: undefined,
+      ignoreHTTPSErrors: true,
+    });
+    const page = await anonymous.newPage();
+    await page.route(MAGIC_LINK_LOGIN, (route) =>
+      route.fulfill(problemJson(429, 'ThrottlerException: Too many requests')),
+    );
+
+    await page.goto('/login');
+    await page.getByLabel(COPY.loginEmailLabel).fill('e2e-throttle@example.com');
+    await page.getByRole('button', { name: COPY.loginSendLink }).click();
+
+    await expect(page.getByText(COPY.tooManyRequestsEn)).toBeVisible();
+    await expect(page.getByText('ThrottlerException')).toBeHidden();
+    await expect(page.getByText(COPY.magicLinkFailed)).toBeHidden();
+    await anonymous.close();
   });
 });
 

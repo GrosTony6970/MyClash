@@ -2,7 +2,6 @@
   "files": {
     "apps/web-admin/app/_components/LegalUpdateBanner.tsx": 1,
     "apps/web-admin/app/leagues/page.tsx": 1,
-    "apps/web-admin/app/login/AuthPage.tsx": 5,
     "apps/web-admin/app/org/[slug]/events/[eventId]/bracket/page.tsx": 16,
     "apps/web-admin/app/org/[slug]/events/[eventId]/chat/page.tsx": 1,
     "apps/web-admin/app/org/[slug]/events/[eventId]/pools/_tabs/MatchesTab.tsx": 10,
@@ -24,7 +23,6 @@
     "apps/web-admin/app/org/[slug]/events/[eventId]/swiss/useSwissAdmin.ts": 2,
     "apps/web-admin/app/reset-password/page.tsx": 1,
     "apps/web-admin/src/components/HemaRatingsSuggest.tsx": 2,
-    "apps/web-admin/src/components/OAuthCallback.tsx": 1,
     "apps/web-admin/src/components/organizer-event-context.tsx": 2,
     "apps/web-admin/src/components/statistics/TournamentStatSection.tsx": 1,
     "apps/web-admin/src/hooks/useAccountSearch.ts": 1,

@@ -6,6 +6,7 @@ import { useI18n } from '@myclash/next-i18n/client';
 import { createOAuthSupabaseClient } from '../lib/oauth-supabase';
 import { runOAuthCodeOnce } from '../lib/oauth-single-flight';
 import { resolvePostAuthDestination } from '../lib/post-auth-destination';
+import { apiRequest } from '@myclash/api-client';
 import { getPublicApiUrl } from '../lib/api-url';
 
 type OAuthMode = 'admin_login' | 'organizer_signup';
@@ -100,15 +101,20 @@ export function OAuthCallback({ mode }: { mode: OAuthMode }) {
             body['acceptedPrivacy'] = pending.acceptedPrivacy;
           }
 
-          const apiUrl = getPublicApiUrl();
-          const response = await fetch(`${apiUrl}/api/v1/auth/oauth/session`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            credentials: 'include',
-            body: JSON.stringify(body),
-          });
+          const r = await apiRequest<OAuthResponse>(
+            getPublicApiUrl(),
+            '/api/v1/auth/oauth/session',
+            {
+              method: 'POST',
+              body,
+            },
+          );
 
-          if (!response.ok) {
+          if (!r.ok) {
+            // Keeps its own i18n KEY rather than the server's sentence: this
+            // screen renders `t(key)` for every outcome, and the exchange
+            // failing means one thing to the person in front of it — this
+            // Google account is not authorised here.
             throw new OAuthCallbackFailure('auth.oauth.errors.notAuthorized');
           }
 
@@ -116,7 +122,7 @@ export function OAuthCallback({ mode }: { mode: OAuthMode }) {
             sessionStorage.removeItem(SIGNUP_STORAGE_KEY);
           }
 
-          const result = (await response.json()) as OAuthResponse;
+          const result = r.data;
           // Mirror the password-login path: server-picked `next` wins, otherwise
           // auto-route organizers into their primary org's auto-selected event.
           const destination = result.next ?? (await resolvePostAuthDestination('/dashboard'));
