@@ -8,6 +8,7 @@ import { TournamentVenuesEditor } from '../../_components/TournamentVenuesEditor
 import { TfRulesetControls } from '../../_shared/TfRulesetControls';
 import { useCustomiseFormat } from '../../_shared/useCustomiseFormat';
 import { isCodedRuleset } from '../../../../../../../../src/components/rulesets/ruleset-kind';
+import { apiRequest, failureMessage } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
 
 const apiUrl = getPublicApiUrl();
@@ -34,21 +35,24 @@ export function Step4Advanced({
   const [publishOnFinish, setPublishOnFinish] = useState(false);
 
   const load = useCallback(() => {
-    void fetch(`${apiUrl}/api/v1/tournaments/${tournamentId}`, { credentials: 'include' })
-      .then((r) => (r.ok ? r.json() : null))
-      .then((row) => {
-        if (!row) return;
-        setRulesetCode(row.ruleset_code);
-        setIsSystem(row.ruleset_is_system ?? true);
-        setBaseCode(row.ruleset_base_code ?? null);
+    // Silent read: the step shows the coded defaults until the row lands, and
+    // the save below reports its own refusal.
+    void apiRequest<Record<string, unknown>>(apiUrl, `/api/v1/tournaments/${tournamentId}`).then(
+      (r) => {
+        if (!r.ok) return;
+        const row = r.data;
+        setRulesetCode(row['ruleset_code'] as string);
+        setIsSystem((row['ruleset_is_system'] as boolean | undefined) ?? true);
+        setBaseCode((row['ruleset_base_code'] as string | null | undefined) ?? null);
         // Pluck-not-spread: see buildTfFromRow.ts for the rationale.
         setTf(
           buildTfFromRow(
-            (row.ruleset_config ?? {}) as Partial<RulesetConfigTF> & Record<string, unknown>,
+            (row['ruleset_config'] ?? {}) as Partial<RulesetConfigTF> & Record<string, unknown>,
             TF_DEFAULTS,
           ),
         );
-      });
+      },
+    );
   }, [tournamentId]);
 
   useEffect(() => {
@@ -67,19 +71,20 @@ export function Step4Advanced({
       // a ruleset with no TF-shaped config to send.
       const body: Record<string, unknown> = { wizardStep: 4 };
       if (tfLike) body['rulesetConfig'] = tf;
-      const res = await fetch(`${apiUrl}/api/v1/tournaments/${tournamentId}`, {
+      const r = await apiRequest(apiUrl, `/api/v1/tournaments/${tournamentId}`, {
         method: 'PATCH',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
+        body,
       });
-      if (!res.ok) {
-        const errBody = await res.text().catch(() => '');
-        throw new Error(`Save failed (${res.status}): ${errBody.slice(0, 200)}`);
+      if (!r.ok) {
+        // This built `Save failed (400): {"statusCode":400,"code":...` by hand
+        // — the status code AND 200 raw bytes of the problem+json envelope,
+        // pasted into a toast, in English only. Both of those strings were
+        // hardcoded, which hard rule 6 forbids.
+        const message = failureMessage(r, t, t('admin.common.saveFailed'));
+        if (message) toast.error(message);
+        return;
       }
       onFinish(publishOnFinish);
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'Error');
     } finally {
       setSaving(false);
     }

@@ -679,6 +679,7 @@ export const organizer = {
       finish: 'Finish',
       useDefaultsAndFinish: 'Use defaults and finish',
       finishedToast: 'Tournament saved.',
+      publishFailedToast: 'The tournament was saved but could not be published.',
     },
     settings: {
       title: 'Tournament settings',

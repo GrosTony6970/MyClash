@@ -47,6 +47,7 @@ export const COPY = {
   clubsLoadError: 'Failed to load clubs.',
   eventsLoadError: 'Failed to load events.',
   rosterLoadError: 'Could not load the roster.',
+  tournamentsLoadError: 'Failed to load tournaments.',
   discoverLoadError: 'Could not load the catalog.',
   tournamentNotFound: 'Tournament not found',
   tournamentLoadFailed: "This tournament couldn't be loaded",

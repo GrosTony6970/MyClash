@@ -11,6 +11,7 @@ import {
   type DisplayState,
 } from './buildDisplayConfigFromRow';
 import { DisplayPreview } from './DisplayPreview';
+import { apiRequest, failureMessage } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
 
 const apiUrl = getPublicApiUrl();
@@ -44,24 +45,29 @@ export function Step3Display({
   const logoInput = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
-    void fetch(`${apiUrl}/api/v1/tournaments/${tournamentId}`, { credentials: 'include' })
-      .then((r) => (r.ok ? r.json() : null))
-      .then((row) => {
-        if (!row) return;
-        setRulesetCode(row.ruleset_code);
-        setHasAfterblow(Boolean(row.ruleset_grammar?.hasAfterblow));
-        setLogoUrl((row.logo_url as string | null) ?? null);
+    // Silent read: the step shows its defaults until the row lands, and every
+    // save below reports its own refusal.
+    void apiRequest<Record<string, unknown>>(apiUrl, `/api/v1/tournaments/${tournamentId}`).then(
+      (r) => {
+        if (!r.ok) return;
+        const row = r.data;
+        setRulesetCode(row['ruleset_code'] as string);
+        setHasAfterblow(
+          Boolean((row['ruleset_grammar'] as { hasAfterblow?: boolean } | undefined)?.hasAfterblow),
+        );
+        setLogoUrl((row['logo_url'] as string | null) ?? null);
         // Pluck-not-spread, same as Step 2 / Step 4. The column is
         // `scoring_config_json` (the `_json` suffix matters — Step 3
         // previously read `row.scoring_config` and silently fell back
         // to defaults, hiding every saved button on reload).
         setData(
           buildDisplayConfigFromRow(
-            (row.scoring_config_json ?? {}) as Record<string, unknown>,
+            (row['scoring_config_json'] ?? {}) as Record<string, unknown>,
             DEFAULTS,
           ),
         );
-      });
+      },
+    );
   }, [tournamentId]);
 
   async function uploadLogo(file: File) {
@@ -74,20 +80,18 @@ export function Step3Display({
     try {
       const fd = new FormData();
       fd.append('file', file);
-      const res = await fetch(`${apiUrl}/api/v1/tournaments/${tournamentId}/logo`, {
-        method: 'POST',
-        credentials: 'include',
-        body: fd,
-      });
-      if (!res.ok) {
-        const body = (await res.json().catch(() => ({}))) as { message?: string };
-        throw new Error(body.message ?? t('organizer.events.logoUploadFailed'));
+      const r = await apiRequest<{ url: string }>(
+        apiUrl,
+        `/api/v1/tournaments/${tournamentId}/logo`,
+        { method: 'POST', body: fd },
+      );
+      if (!r.ok) {
+        const message = failureMessage(r, t, t('organizer.events.logoUploadFailed'));
+        if (message) toast.error(message);
+        return;
       }
-      const { url } = (await res.json()) as { url: string };
-      setLogoUrl(url);
+      setLogoUrl(r.data.url);
       toast.success(t('organizer.events.logoUploadSuccess'));
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : t('organizer.events.logoUploadFailed'));
     } finally {
       setUploadingLogo(false);
       if (logoInput.current) logoInput.current.value = '';
@@ -97,16 +101,16 @@ export function Step3Display({
   async function removeLogo() {
     setUploadingLogo(true);
     try {
-      const res = await fetch(`${apiUrl}/api/v1/tournaments/${tournamentId}`, {
+      const r = await apiRequest(apiUrl, `/api/v1/tournaments/${tournamentId}`, {
         method: 'PATCH',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ logoUrl: null }),
+        body: { logoUrl: null },
       });
-      if (!res.ok) throw new Error(t('admin.common.removeFailed'));
+      if (!r.ok) {
+        const message = failureMessage(r, t, t('admin.common.removeFailed'));
+        if (message) toast.error(message);
+        return;
+      }
       setLogoUrl(null);
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : t('admin.common.somethingWentWrong'));
     } finally {
       setUploadingLogo(false);
     }
@@ -115,11 +119,9 @@ export function Step3Display({
   async function saveAndAdvance() {
     setSaving(true);
     try {
-      const res = await fetch(`${apiUrl}/api/v1/tournaments/${tournamentId}`, {
+      const r = await apiRequest(apiUrl, `/api/v1/tournaments/${tournamentId}`, {
         method: 'PATCH',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+        body: {
           // Tournament identity color (`color`) is now set in
           // Step 1 Basics; this PATCH no longer overwrites it.
           scoringConfig: {
@@ -127,9 +129,13 @@ export function Step3Display({
             buttons: data.buttons,
           },
           wizardStep: 3,
-        }),
+        },
       });
-      if (!res.ok) throw new Error(t('admin.common.saveFailed'));
+      if (!r.ok) {
+        const message = failureMessage(r, t, t('admin.common.saveFailed'));
+        if (message) toast.error(message);
+        return;
+      }
       toast.success(t('organizer.tournaments.settings.saved'));
       window.history.replaceState(
         null,

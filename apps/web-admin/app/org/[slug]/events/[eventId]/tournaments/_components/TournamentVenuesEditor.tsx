@@ -3,6 +3,7 @@
 import { useI18n } from '@myclash/next-i18n/client';
 import { useEffect, useState } from 'react';
 import { useToast } from '@myclash/ui';
+import { apiRequest, failureMessage } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
 
 const apiUrl = getPublicApiUrl();
@@ -47,13 +48,17 @@ export function TournamentVenuesEditor({
 
   useEffect(() => {
     let cancelled = false;
-    Promise.all([
-      fetch(`${apiUrl}/api/v1/events/${eventId}/venues`, { credentials: 'include' }).then((r) =>
-        r.ok ? r.json() : [],
+    void Promise.all([
+      apiRequest<unknown>(apiUrl, `/api/v1/events/${eventId}/venues`).then((r) =>
+        r.ok ? r.data : [],
       ),
-      fetch(`${apiUrl}/api/v1/tournaments/${tournamentId}/phase-venues`, {
-        credentials: 'include',
-      }).then((r) => (r.ok ? r.json() : { pool: null, swiss: null, bracket: null })),
+      apiRequest<{
+        pool?: { id?: string } | null;
+        swiss?: { id?: string } | null;
+        bracket?: { id?: string } | null;
+      }>(apiUrl, `/api/v1/tournaments/${tournamentId}/phase-venues`).then((r) =>
+        r.ok ? r.data : { pool: null, swiss: null, bracket: null },
+      ),
     ])
       .then(([venueRows, phaseVenues]) => {
         if (cancelled) return;
@@ -86,25 +91,23 @@ export function TournamentVenuesEditor({
   async function save() {
     setSaving(true);
     try {
-      const res = await fetch(`${apiUrl}/api/v1/tournaments/${tournamentId}/phase-venues`, {
+      const r = await apiRequest(apiUrl, `/api/v1/tournaments/${tournamentId}/phase-venues`, {
         method: 'PUT',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+        body: {
           pool: poolVenueId || null,
           swiss: swissVenueId || null,
           bracket: bracketVenueId || null,
-        }),
+        },
       });
-      if (!res.ok) throw new Error(t('organizer.tournaments.venuesEditor.saveError'));
+      if (!r.ok) {
+        const message = failureMessage(r, t, t('organizer.tournaments.venuesEditor.saveError'));
+        if (message) toast.error(message);
+        return;
+      }
       setSavedPool(poolVenueId);
       setSavedSwiss(swissVenueId);
       setSavedBracket(bracketVenueId);
       toast.success(t('organizer.tournaments.venuesEditor.saved'));
-    } catch (e) {
-      toast.error(
-        e instanceof Error ? e.message : t('organizer.tournaments.venuesEditor.saveError'),
-      );
     } finally {
       setSaving(false);
     }
@@ -113,17 +116,19 @@ export function TournamentVenuesEditor({
   async function moveNow(kind: PhaseVenueKind) {
     setMovingKind(kind);
     try {
-      const res = await fetch(
-        `${apiUrl}/api/v1/tournaments/${tournamentId}/phase-venues/${kind}/apply`,
-        { method: 'POST', credentials: 'include' },
+      const r = await apiRequest<{ moved?: number }>(
+        apiUrl,
+        `/api/v1/tournaments/${tournamentId}/phase-venues/${kind}/apply`,
+        { method: 'POST' },
       );
-      if (!res.ok) throw new Error(t('organizer.tournaments.venuesEditor.moveError'));
-      const body = (await res.json()) as { moved?: number };
-      toast.success(t('organizer.tournaments.venuesEditor.moved', { count: body.moved ?? 0 }));
-    } catch (e) {
-      toast.error(
-        e instanceof Error ? e.message : t('organizer.tournaments.venuesEditor.moveError'),
-      );
+      if (!r.ok) {
+        // Moving a phase to another venue is refused by what is already booked
+        // there. That is the sentence an organiser needs mid-event.
+        const message = failureMessage(r, t, t('organizer.tournaments.venuesEditor.moveError'));
+        if (message) toast.error(message);
+        return;
+      }
+      toast.success(t('organizer.tournaments.venuesEditor.moved', { count: r.data.moved ?? 0 }));
     } finally {
       setMovingKind(null);
     }

@@ -11,6 +11,7 @@ import {
 import { TfRulesetControls } from '../../../_shared/TfRulesetControls';
 import { useCustomiseFormat } from '../../../_shared/useCustomiseFormat';
 import { isCodedRuleset } from '../../../../../../../../../src/components/rulesets/ruleset-kind';
+import { apiRequest, failureMessage } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
 
 const apiUrl = getPublicApiUrl();
@@ -26,20 +27,25 @@ export function AdvancedTab({ tournamentId }: { tournamentId: string }) {
   const [saving, setSaving] = useState(false);
 
   const load = useCallback(() => {
-    void fetch(`${apiUrl}/api/v1/tournaments/${tournamentId}`, { credentials: 'include' })
-      .then((r) => (r.ok ? r.json() : null))
-      .then((row) => {
-        if (!row) return;
+    // Silent read: the tab renders the coded defaults until the row lands, and
+    // the save below reports its own refusal.
+    void apiRequest<Record<string, unknown> & { ruleset_code: string }>(
+      apiUrl,
+      `/api/v1/tournaments/${tournamentId}`,
+    ).then((r) => {
+      if (r.ok) {
+        const row = r.data;
         setRulesetCode(row.ruleset_code);
-        setIsSystem(row.ruleset_is_system ?? true);
-        setBaseCode(row.ruleset_base_code ?? null);
+        setIsSystem((row['ruleset_is_system'] as boolean | undefined) ?? true);
+        setBaseCode((row['ruleset_base_code'] as string | null | undefined) ?? null);
         setTf(
           buildTfFromRow(
-            (row.ruleset_config ?? {}) as Partial<RulesetConfigTF> & Record<string, unknown>,
+            (row['ruleset_config'] ?? {}) as Partial<RulesetConfigTF> & Record<string, unknown>,
             TF_DEFAULTS,
           ),
         );
-      });
+      }
+    });
   }, [tournamentId]);
 
   useEffect(() => {
@@ -57,16 +63,16 @@ export function AdvancedTab({ tournamentId }: { tournamentId: string }) {
     try {
       const body: Record<string, unknown> = {};
       if (tfLike) body['rulesetConfig'] = tf;
-      const res = await fetch(`${apiUrl}/api/v1/tournaments/${tournamentId}`, {
+      const r = await apiRequest(apiUrl, `/api/v1/tournaments/${tournamentId}`, {
         method: 'PATCH',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
+        body,
       });
-      if (!res.ok) throw new Error(t('admin.common.saveFailed'));
+      if (!r.ok) {
+        const message = failureMessage(r, t, t('admin.common.saveFailed'));
+        if (message) toast.error(message);
+        return;
+      }
       toast.success(t('organizer.tournaments.settings.saved'));
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : t('admin.common.unknownError'));
     } finally {
       setSaving(false);
     }

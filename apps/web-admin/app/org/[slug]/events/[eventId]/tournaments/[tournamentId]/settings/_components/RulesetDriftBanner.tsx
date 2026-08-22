@@ -3,6 +3,7 @@
 import { useI18n } from '@myclash/next-i18n/client';
 import { useEffect, useState } from 'react';
 import { Button, useToast } from '@myclash/ui';
+import { apiRequest, failureMessage } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
 
 const apiUrl = getPublicApiUrl();
@@ -25,17 +26,14 @@ export function RulesetDriftBanner({ tournamentId }: { tournamentId: string }) {
   useEffect(() => {
     let cancelled = false;
     const controller = new AbortController();
-    fetch(`${apiUrl}/api/v1/tournaments/${tournamentId}/ruleset-drift`, {
-      credentials: 'include',
-      signal: controller.signal,
-    })
-      .then(async (res) => (res.ok ? ((await res.json()) as { drifted?: boolean }) : null))
-      .then((data) => {
-        if (!cancelled && data?.drifted) setDrifted(true);
-      })
-      .catch(() => {
-        // Drift is a best-effort integrity hint — never surface a fetch error.
-      });
+    // Drift is a best-effort integrity hint — never surface a read failure.
+    void apiRequest<{ drifted?: boolean }>(
+      apiUrl,
+      `/api/v1/tournaments/${tournamentId}/ruleset-drift`,
+      { signal: controller.signal },
+    ).then((r) => {
+      if (!cancelled && r.ok && r.data.drifted) setDrifted(true);
+    });
     return () => {
       cancelled = true;
       controller.abort();
@@ -45,16 +43,22 @@ export function RulesetDriftBanner({ tournamentId }: { tournamentId: string }) {
   async function acknowledge() {
     setBusy(true);
     try {
-      const res = await fetch(
-        `${apiUrl}/api/v1/tournaments/${tournamentId}/acknowledge-ruleset-drift`,
-        { method: 'POST', credentials: 'include' },
+      const r = await apiRequest(
+        apiUrl,
+        `/api/v1/tournaments/${tournamentId}/acknowledge-ruleset-drift`,
+        { method: 'POST' },
       );
-      if (res.ok) {
-        setDrifted(false);
-        toast.success(t('organizer.tournaments.settings.drift.acknowledged'));
-      } else {
-        toast.error(t('organizer.tournaments.settings.drift.acknowledgeError'));
+      if (!r.ok) {
+        const message = failureMessage(
+          r,
+          t,
+          t('organizer.tournaments.settings.drift.acknowledgeError'),
+        );
+        if (message) toast.error(message);
+        return;
       }
+      setDrifted(false);
+      toast.success(t('organizer.tournaments.settings.drift.acknowledged'));
     } finally {
       setBusy(false);
     }

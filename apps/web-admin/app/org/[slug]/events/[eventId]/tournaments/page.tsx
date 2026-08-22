@@ -22,6 +22,7 @@ import { RequestDeletionModal } from '../../_components/RequestDeletionModal';
 import { formatCountOfMax } from '../format-count-of-max';
 import { pillClassFor } from './_lib/pill-class-for';
 import { AttachToLeaguePanel } from './_components/AttachToLeaguePanel';
+import { apiRequest, failureMessage, type ApiFailure } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
 
 interface Tournament {
@@ -115,37 +116,38 @@ export default function EventTournamentsPage() {
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
+  // Returns the failure rather than throwing it, so `load` renders the API's
+  // own reason.
   const fetchTournaments = async (signal: AbortSignal) => {
-    const tourRes = await fetch(`${apiUrl}/api/v1/events/${eventId}/tournaments`, {
-      credentials: 'include',
-      signal,
-    });
-    if (!tourRes.ok) throw new Error(t('organizer.tournaments.loadError'));
-    const rows = (await tourRes.json()) as Array<Record<string, unknown>>;
-    return rows.map(normalizeTournament);
+    const r = await apiRequest<Array<Record<string, unknown>>>(
+      apiUrl,
+      `/api/v1/events/${eventId}/tournaments`,
+      { signal },
+    );
+    return r.ok
+      ? { rows: r.data.map(normalizeTournament), failure: undefined }
+      : { rows: undefined, failure: r as ApiFailure };
   };
 
   const fetchEventName = async (signal: AbortSignal) => {
-    const res = await fetch(`${apiUrl}/api/v1/events/${eventId}`, {
-      credentials: 'include',
-      signal,
-    });
-    if (!res.ok) return '';
-    const data = (await res.json()) as { name?: string };
-    return data.name ?? '';
+    // Silent: the header falls back to no name, and the list below reports.
+    const r = await apiRequest<{ name?: string }>(apiUrl, `/api/v1/events/${eventId}`, { signal });
+    return r.ok ? (r.data.name ?? '') : '';
   };
 
   const load = () => {
     const controller = new AbortController();
     setLoading(true);
-    fetchTournaments(controller.signal)
-      .then((rows) => {
-        setTournaments(rows);
+    void fetchTournaments(controller.signal)
+      .then((result) => {
+        if (result.failure) {
+          // No message is the unmount, or the load that replaced this one.
+          const message = failureMessage(result.failure, t, t('organizer.tournaments.loadError'));
+          if (message) setError(message);
+          return;
+        }
+        setTournaments(result.rows);
         setError(null);
-      })
-      .catch((err: unknown) => {
-        if (err instanceof Error && err.name === 'AbortError') return;
-        setError(err instanceof Error ? err.message : t('organizer.tournaments.loadError'));
       })
       .finally(() => setLoading(false));
     return controller;
@@ -153,15 +155,17 @@ export default function EventTournamentsPage() {
 
   useEffect(() => {
     const controller = new AbortController();
-    Promise.all([fetchTournaments(controller.signal), fetchEventName(controller.signal)])
-      .then(([rows, name]) => {
-        setTournaments(rows);
+    void Promise.all([fetchTournaments(controller.signal), fetchEventName(controller.signal)])
+      .then(([result, name]) => {
         setEventName(name);
+        if (result.failure) {
+          // No message is the unmount.
+          const message = failureMessage(result.failure, t, t('organizer.tournaments.loadError'));
+          if (message) setError(message);
+          return;
+        }
+        setTournaments(result.rows);
         setError(null);
-      })
-      .catch((err: unknown) => {
-        if (err instanceof Error && err.name === 'AbortError') return;
-        setError(err instanceof Error ? err.message : t('organizer.tournaments.loadError'));
       })
       .finally(() => setLoading(false));
     return () => controller.abort();
@@ -174,20 +178,19 @@ export default function EventTournamentsPage() {
     setError(null);
     setNotice(null);
     try {
-      const res = await fetch(`${apiUrl}/api/v1/tournaments/${tournament.id}`, {
+      const r = await apiRequest(apiUrl, `/api/v1/tournaments/${tournament.id}`, {
         method: 'PATCH',
-        credentials: 'include',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ status: nextStatus }),
+        body: { status: nextStatus },
       });
-      if (!res.ok) {
-        const body = (await res.json().catch(() => ({}))) as { message?: string };
-        throw new Error(body.message ?? t('organizer.tournaments.saveError'));
+      if (!r.ok) {
+        // Publishing is refused by name — an unseeded bracket, a missing
+        // ruleset — and that sentence used to be replaced by a generic one.
+        const message = failureMessage(r, t, t('organizer.tournaments.saveError'));
+        if (message) setError(message);
+        return;
       }
       setNotice(t('organizer.tournaments.statusUpdated'));
       load();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : t('organizer.tournaments.saveError'));
     } finally {
       setBusyId(null);
     }
@@ -198,17 +201,17 @@ export default function EventTournamentsPage() {
     setError(null);
     setNotice(null);
     try {
-      const res = await fetch(`${apiUrl}/api/v1/tournaments/${tournament.id}`, {
+      const r = await apiRequest(apiUrl, `/api/v1/tournaments/${tournament.id}`, {
         method: 'PATCH',
-        credentials: 'include',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ status: 'archived' }),
+        body: { status: 'archived' },
       });
-      if (!res.ok) throw new Error(t('organizer.tournaments.archiveError'));
+      if (!r.ok) {
+        const message = failureMessage(r, t, t('organizer.tournaments.archiveError'));
+        if (message) setError(message);
+        return;
+      }
       setNotice(t('organizer.tournaments.archived'));
       load();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : t('organizer.tournaments.archiveError'));
     } finally {
       setBusyId(null);
     }
@@ -220,19 +223,18 @@ export default function EventTournamentsPage() {
     setError(null);
     setNotice(null);
     try {
-      const res = await fetch(`${apiUrl}/api/v1/tournaments/${confirmDelete.id}`, {
+      const r = await apiRequest(apiUrl, `/api/v1/tournaments/${confirmDelete.id}`, {
         method: 'DELETE',
-        credentials: 'include',
       });
-      if (!res.ok) {
-        const body = (await res.json().catch(() => ({}))) as { message?: string };
-        throw new Error(body.message ?? t('organizer.tournaments.deleteError'));
+      if (!r.ok) {
+        // A hard delete is refused by what still points at the tournament.
+        const message = failureMessage(r, t, t('organizer.tournaments.deleteError'));
+        if (message) setError(message);
+        return;
       }
       setConfirmDelete(null);
       setNotice(t('organizer.tournaments.deleted'));
       load();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : t('organizer.tournaments.deleteError'));
     } finally {
       setBusyId(null);
     }

@@ -675,6 +675,7 @@ export const organizer = {
       finish: 'Terminer',
       useDefaultsAndFinish: 'Utiliser les defauts et terminer',
       finishedToast: 'Tournoi enregistre.',
+      publishFailedToast: "Le tournoi est enregistre mais n'a pas pu être publie.",
     },
     settings: {
       title: 'Paramètres du tournoi',

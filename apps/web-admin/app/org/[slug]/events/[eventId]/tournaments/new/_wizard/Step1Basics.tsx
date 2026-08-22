@@ -8,6 +8,7 @@ import { TOURNAMENT_COLORS } from '../../_lib/tournament-colors';
 import { matchWeapon } from './weapon-match';
 import { pickWizardDefaults } from './wizard-defaults';
 import { fetchSelectableRulesets } from '@/lib/selectable-rulesets';
+import { apiRequest, failureMessage } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
 
 const apiUrl = getPublicApiUrl();
@@ -67,16 +68,16 @@ export function Step1Basics({
       // Event-scoped, so an org-authored ruleset is selectable at all. The
       // bare /rulesets catalog is registry-only and can never contain one.
       fetchSelectableRulesets(apiUrl, eventId),
-      fetch(`${apiUrl}/api/v1/penalty-rulesets`, { credentials: 'include' }).then((r) =>
-        r.ok ? r.json() : [],
+      apiRequest<PenaltyRuleset[]>(apiUrl, '/api/v1/penalty-rulesets').then((r) =>
+        r.ok ? r.data : [],
       ),
     ]).then(([r, p]) => {
       setRulesets(r as Ruleset[]);
-      setPenaltyRulesets(p as PenaltyRuleset[]);
+      setPenaltyRulesets(p);
       // For a brand-new tournament, pre-select the TF ruleset + FFAMHE penalty.
       // (Resuming an existing draft loads its saved values below instead.)
       if (!initialTournamentId) {
-        const d = pickWizardDefaults(r as Ruleset[], p as PenaltyRuleset[]);
+        const d = pickWizardDefaults(r as Ruleset[], p);
         if (d.ruleset) {
           setRulesetCode(d.ruleset.code);
           setRulesetVersion(d.ruleset.version);
@@ -86,21 +87,27 @@ export function Step1Basics({
     });
 
     if (initialTournamentId) {
-      void fetch(`${apiUrl}/api/v1/tournaments/${initialTournamentId}`, { credentials: 'include' })
-        .then((r) => (r.ok ? r.json() : null))
-        .then((row) => {
-          if (!row) return;
-          setName(row.name);
-          setSlug(row.slug);
-          setWeapon(row.weapon ?? '');
-          setWeaponTouched(true);
-          setRulesetCode(row.ruleset_code);
-          setRulesetVersion(row.ruleset_version);
-          setPenaltyRulesetId(row.penalty_ruleset_id ?? '');
-          setColor((row.color as string | null) ?? '');
-          setMaxParticipants(row.max_participants != null ? String(row.max_participants) : '');
-          setMaxWaitlist(row.max_waitlist != null ? String(row.max_waitlist) : '');
-        });
+      // Silent read: an unresumed draft shows the blank form, and the save
+      // below reports its own refusal.
+      void apiRequest<Record<string, unknown>>(
+        apiUrl,
+        `/api/v1/tournaments/${initialTournamentId}`,
+      ).then((r) => {
+        if (!r.ok) return;
+        const row = r.data;
+        setName(row['name'] as string);
+        setSlug(row['slug'] as string);
+        setWeapon((row['weapon'] as string | null) ?? '');
+        setWeaponTouched(true);
+        setRulesetCode(row['ruleset_code'] as string);
+        setRulesetVersion(row['ruleset_version'] as string);
+        setPenaltyRulesetId((row['penalty_ruleset_id'] as string | null) ?? '');
+        setColor((row['color'] as string | null) ?? '');
+        const maxP = row['max_participants'] as number | null;
+        const maxW = row['max_waitlist'] as number | null;
+        setMaxParticipants(maxP != null ? String(maxP) : '');
+        setMaxWaitlist(maxW != null ? String(maxW) : '');
+      });
     }
   }, [initialTournamentId, eventId]);
 
@@ -116,11 +123,9 @@ export function Step1Basics({
 
       if (initialTournamentId) {
         // Resume flow — PATCH the existing draft
-        const res = await fetch(`${apiUrl}/api/v1/tournaments/${initialTournamentId}`, {
+        const r = await apiRequest(apiUrl, `/api/v1/tournaments/${initialTournamentId}`, {
           method: 'PATCH',
-          credentials: 'include',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
+          body: {
             name: name.trim(),
             weapon: weapon || null,
             rulesetCode,
@@ -129,38 +134,47 @@ export function Step1Basics({
             color: color || null,
             maxParticipants: parsedMaxParticipants,
             maxWaitlist: parsedMaxWaitlist,
-          }),
+          },
         });
         // Guard the response so a failed save surfaces a toast instead of
         // silently advancing the wizard and discarding the edits.
-        if (!res.ok) throw new Error(t('admin.common.updateFailed'));
+        if (!r.ok) {
+          const message = failureMessage(r, t, t('admin.common.updateFailed'));
+          if (message) toast.error(message);
+          return;
+        }
         onCreated(initialTournamentId);
       } else {
         // Initial flow — POST new draft tournament
-        const res = await fetch(`${apiUrl}/api/v1/events/${eventId}/tournaments`, {
-          method: 'POST',
-          credentials: 'include',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            name: name.trim(),
-            slug: slug || slugify(name),
-            weapon: weapon || undefined,
-            rulesetCode,
-            rulesetVersion,
-            penaltyRulesetId: penaltyRulesetId || undefined,
-            color: color || undefined,
-            maxParticipants: parsedMaxParticipants ?? undefined,
-            maxWaitlist: parsedMaxWaitlist ?? undefined,
-          }),
-        });
-        if (!res.ok) throw new Error(t('admin.common.createFailed'));
-        const created = await res.json();
-        const newUrl = `${window.location.pathname}?id=${created.id}&step=2`;
+        const r = await apiRequest<{ id: string }>(
+          apiUrl,
+          `/api/v1/events/${eventId}/tournaments`,
+          {
+            method: 'POST',
+            body: {
+              name: name.trim(),
+              slug: slug || slugify(name),
+              weapon: weapon || undefined,
+              rulesetCode,
+              rulesetVersion,
+              penaltyRulesetId: penaltyRulesetId || undefined,
+              color: color || undefined,
+              maxParticipants: parsedMaxParticipants ?? undefined,
+              maxWaitlist: parsedMaxWaitlist ?? undefined,
+            },
+          },
+        );
+        if (!r.ok) {
+          // A slug already used on this event is the usual refusal, and the API
+          // names it. Every one of them used to read "Create failed".
+          const message = failureMessage(r, t, t('admin.common.createFailed'));
+          if (message) toast.error(message);
+          return;
+        }
+        const newUrl = `${window.location.pathname}?id=${r.data.id}&step=2`;
         window.history.replaceState(null, '', newUrl);
-        onCreated(created.id);
+        onCreated(r.data.id);
       }
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : t('admin.common.somethingWentWrong'));
     } finally {
       setSubmitting(false);
     }

@@ -8,6 +8,7 @@ import { Step1Basics } from './Step1Basics';
 import { Step2MatchFormat } from './Step2MatchFormat';
 import { Step3Display } from './Step3Display';
 import { Step4Advanced } from './Step4Advanced';
+import { apiRequest, failureMessage } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
 
 type Step = 1 | 2 | 3 | 4;
@@ -40,14 +41,20 @@ export function WizardShell({ slug, eventId, initialTournamentId, initialStep }:
   function goBack() {
     if (step > 1) setStep((step - 1) as Step);
   }
-  function finish(publish: boolean) {
+  async function finish(publish: boolean) {
     if (publish && tournamentId) {
-      void fetch(`${getPublicApiUrl()}/api/v1/tournaments/${tournamentId}`, {
+      // The publish was fire-and-forget: the wizard toasted "created", pushed
+      // to the list, and a refused publish left a draft the operator believed
+      // was live. Awaited and reported now; the navigation still happens either
+      // way, because the tournament itself does exist.
+      const r = await apiRequest(getPublicApiUrl(), `/api/v1/tournaments/${tournamentId}`, {
         method: 'PATCH',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: 'published' }),
+        body: { status: 'published' },
       });
+      if (!r.ok) {
+        const message = failureMessage(r, t, t('organizer.tournaments.wizard.publishFailedToast'));
+        if (message) toast.error(message);
+      }
     }
     toast.success(t('organizer.tournaments.wizard.finishedToast'));
     router.push(`/org/${slug}/events/${eventId}/tournaments`);
@@ -112,7 +119,7 @@ export function WizardShell({ slug, eventId, initialTournamentId, initialStep }:
             tournamentId={tournamentId}
             eventId={eventId}
             onBack={goBack}
-            onFinish={finish}
+            onFinish={(publish) => void finish(publish)}
           />
         )}
       </div>

@@ -4,6 +4,7 @@ import { useI18n } from '@myclash/next-i18n/client';
 import { useEffect, useMemo, useState } from 'react';
 
 import { useToast } from '@myclash/ui';
+import { apiRequest, failureMessage } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
 
 const apiUrl = getPublicApiUrl();
@@ -56,35 +57,41 @@ export function MatchFormatTab({ tournamentId }: { tournamentId: string }) {
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    void fetch(`${apiUrl}/api/v1/tournaments/${tournamentId}`, { credentials: 'include' })
-      .then((r) => (r.ok ? r.json() : null))
-      .then((row) => {
-        if (!row) return;
-        setHasAfterblow(Boolean(row.ruleset_grammar?.hasAfterblow));
-        const rc = (row.ruleset_config ?? {}) as { matchFormat?: Partial<MatchFormat> };
-        const mf = rc.matchFormat ?? {};
-        const sc = (row.scoring_config_json ?? {}) as Partial<MatchFormat>;
-        setData({
-          pointCap: mf.pointCap ?? DEFAULTS.pointCap,
-          timerMode: mf.timerMode ?? DEFAULTS.timerMode,
-          timeLimitsSeconds: { ...DEFAULTS.timeLimitsSeconds, ...(mf.timeLimitsSeconds ?? {}) },
-          softClockLimitSeconds: mf.softClockLimitSeconds ?? DEFAULTS.softClockLimitSeconds,
-          maxDoubleHits: mf.maxDoubleHits ?? DEFAULTS.maxDoubleHits,
-          scoringDirection: mf.scoringDirection ?? DEFAULTS.scoringDirection,
-          afterblowMode: sc.afterblowMode ?? DEFAULTS.afterblowMode,
-          bestOf: { ...DEFAULTS.bestOf, ...(mf.bestOf ?? {}) },
-        });
-      });
+    // Silent read: the tab shows the coded defaults until the row lands, and
+    // the save below reports its own refusal.
+    void apiRequest<Record<string, unknown>>(apiUrl, `/api/v1/tournaments/${tournamentId}`).then(
+      (r) => {
+        if (r.ok) {
+          const row = r.data;
+          setHasAfterblow(
+            Boolean(
+              (row['ruleset_grammar'] as { hasAfterblow?: boolean } | undefined)?.hasAfterblow,
+            ),
+          );
+          const rc = (row['ruleset_config'] ?? {}) as { matchFormat?: Partial<MatchFormat> };
+          const mf = rc.matchFormat ?? {};
+          const sc = (row['scoring_config_json'] ?? {}) as Partial<MatchFormat>;
+          setData({
+            pointCap: mf.pointCap ?? DEFAULTS.pointCap,
+            timerMode: mf.timerMode ?? DEFAULTS.timerMode,
+            timeLimitsSeconds: { ...DEFAULTS.timeLimitsSeconds, ...(mf.timeLimitsSeconds ?? {}) },
+            softClockLimitSeconds: mf.softClockLimitSeconds ?? DEFAULTS.softClockLimitSeconds,
+            maxDoubleHits: mf.maxDoubleHits ?? DEFAULTS.maxDoubleHits,
+            scoringDirection: mf.scoringDirection ?? DEFAULTS.scoringDirection,
+            afterblowMode: sc.afterblowMode ?? DEFAULTS.afterblowMode,
+            bestOf: { ...DEFAULTS.bestOf, ...(mf.bestOf ?? {}) },
+          });
+        }
+      },
+    );
   }, [tournamentId]);
 
   async function save() {
     setSaving(true);
     try {
-      const res = await fetch(`${apiUrl}/api/v1/tournaments/${tournamentId}`, {
+      const r = await apiRequest(apiUrl, `/api/v1/tournaments/${tournamentId}`, {
         method: 'PATCH',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+        body: {
           rulesetConfig: {
             matchFormat: {
               pointCap: data.pointCap,
@@ -97,12 +104,17 @@ export function MatchFormatTab({ tournamentId }: { tournamentId: string }) {
             },
           },
           scoringConfig: { afterblowMode: data.afterblowMode },
-        }),
+        },
       });
-      if (!res.ok) throw new Error(t('admin.common.saveFailed'));
+      if (!r.ok) {
+        // A match format refused by class-validator names every bad field, not
+        // just the first — a point cap and a time limit both out of range are
+        // fixed in one pass now.
+        const message = failureMessage(r, t, t('admin.common.saveFailed'));
+        if (message) toast.error(message);
+        return;
+      }
       toast.success(t('organizer.tournaments.settings.saved'));
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : t('admin.common.somethingWentWrong'));
     } finally {
       setSaving(false);
     }

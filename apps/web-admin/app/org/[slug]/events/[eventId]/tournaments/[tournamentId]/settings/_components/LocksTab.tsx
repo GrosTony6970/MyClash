@@ -3,6 +3,7 @@
 import { useI18n } from '@myclash/next-i18n/client';
 import { useEffect, useState, type ReactNode } from 'react';
 import { Switch, useToast } from '@myclash/ui';
+import { apiRequest, failureMessage } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
 
 const apiUrl = getPublicApiUrl();
@@ -29,34 +30,38 @@ export function LocksTab({ tournamentId }: { tournamentId: string }) {
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    void fetch(`${apiUrl}/api/v1/tournaments/${tournamentId}`, { credentials: 'include' })
-      .then((r) => (r.ok ? r.json() : null))
-      .then((row) => {
-        if (!row) return;
-        const lc = (row.lock_config ?? {}) as Partial<LockConfig>;
-        setLock({
-          autoLockEnabled: lc.autoLockEnabled ?? LOCK_DEFAULTS.autoLockEnabled,
-          autoLockDelayMinutes: lc.autoLockDelayMinutes ?? LOCK_DEFAULTS.autoLockDelayMinutes,
-          autoLockCompletedPools: lc.autoLockCompletedPools ?? LOCK_DEFAULTS.autoLockCompletedPools,
-          autoLockCompletedBrackets:
-            lc.autoLockCompletedBrackets ?? LOCK_DEFAULTS.autoLockCompletedBrackets,
-        });
-      });
+    // Silent read: the tab shows the defaults until the row lands, and the save
+    // below reports its own refusal.
+    void apiRequest<Record<string, unknown>>(apiUrl, `/api/v1/tournaments/${tournamentId}`).then(
+      (r) => {
+        if (r.ok) {
+          const lc = (r.data['lock_config'] ?? {}) as Partial<LockConfig>;
+          setLock({
+            autoLockEnabled: lc.autoLockEnabled ?? LOCK_DEFAULTS.autoLockEnabled,
+            autoLockDelayMinutes: lc.autoLockDelayMinutes ?? LOCK_DEFAULTS.autoLockDelayMinutes,
+            autoLockCompletedPools:
+              lc.autoLockCompletedPools ?? LOCK_DEFAULTS.autoLockCompletedPools,
+            autoLockCompletedBrackets:
+              lc.autoLockCompletedBrackets ?? LOCK_DEFAULTS.autoLockCompletedBrackets,
+          });
+        }
+      },
+    );
   }, [tournamentId]);
 
   async function save() {
     setSaving(true);
     try {
-      const res = await fetch(`${apiUrl}/api/v1/tournaments/${tournamentId}`, {
+      const r = await apiRequest(apiUrl, `/api/v1/tournaments/${tournamentId}`, {
         method: 'PATCH',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ lockConfig: lock }),
+        body: { lockConfig: lock },
       });
-      if (!res.ok) throw new Error(t('admin.common.saveFailed'));
+      if (!r.ok) {
+        const message = failureMessage(r, t, t('admin.common.saveFailed'));
+        if (message) toast.error(message);
+        return;
+      }
       toast.success(t('organizer.tournaments.settings.saved'));
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : t('admin.common.unknownError'));
     } finally {
       setSaving(false);
     }

@@ -8,6 +8,7 @@ import {
   MATCH_FORMAT_DEFAULTS,
   type WizardMatchFormat,
 } from './buildMatchFormatFromRow';
+import { apiRequest, failureMessage } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
 
 const apiUrl = getPublicApiUrl();
@@ -32,31 +33,34 @@ export function Step2MatchFormat({
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    void fetch(`${apiUrl}/api/v1/tournaments/${tournamentId}`, { credentials: 'include' })
-      .then((r) => (r.ok ? r.json() : null))
-      .then((row) => {
-        if (!row) return;
-        setHasAfterblow(Boolean(row.ruleset_grammar?.hasAfterblow));
+    // Silent read: the step shows the coded defaults until the row lands, and
+    // the save below reports its own refusal.
+    void apiRequest<Record<string, unknown>>(apiUrl, `/api/v1/tournaments/${tournamentId}`).then(
+      (r) => {
+        if (!r.ok) return;
+        const row = r.data;
+        setHasAfterblow(
+          Boolean((row['ruleset_grammar'] as { hasAfterblow?: boolean } | undefined)?.hasAfterblow),
+        );
         // Pluck-not-spread to keep stray engine/legacy keys out of the
         // PATCH body — same discipline as Step 4. See buildMatchFormatFromRow.
         setData(
           buildMatchFormatFromRow(
-            (row.ruleset_config ?? {}) as Record<string, unknown>,
-            (row.scoring_config_json ?? {}) as Record<string, unknown>,
+            (row['ruleset_config'] ?? {}) as Record<string, unknown>,
+            (row['scoring_config_json'] ?? {}) as Record<string, unknown>,
             DEFAULTS,
           ),
         );
-      });
+      },
+    );
   }, [tournamentId]);
 
   async function saveAndAdvance() {
     setSaving(true);
     try {
-      const res = await fetch(`${apiUrl}/api/v1/tournaments/${tournamentId}`, {
+      const r = await apiRequest(apiUrl, `/api/v1/tournaments/${tournamentId}`, {
         method: 'PATCH',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+        body: {
           rulesetConfig: {
             matchFormat: {
               pointCap: data.pointCap,
@@ -77,9 +81,13 @@ export function Step2MatchFormat({
           // Recorded, not inferred: this PATCH's own scoringConfig makes the
           // server backfill buttons, which used to read as "Step 3 done".
           wizardStep: 2,
-        }),
+        },
       });
-      if (!res.ok) throw new Error(t('admin.common.saveFailed'));
+      if (!r.ok) {
+        const message = failureMessage(r, t, t('admin.common.saveFailed'));
+        if (message) toast.error(message);
+        return;
+      }
       toast.success(t('organizer.tournaments.settings.saved'));
       window.history.replaceState(
         null,

@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useToast } from '@myclash/ui';
 import { TOURNAMENT_SIDE_COLORS } from '@myclash/types';
 import { validateLogoFile } from '../../../../../../../../../src/lib/validate-logo-file';
+import { apiRequest, failureMessage } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
 
 const apiUrl = getPublicApiUrl();
@@ -61,41 +62,47 @@ export function DisplayTab({ tournamentId }: { tournamentId: string }) {
   const logoInput = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
-    void fetch(`${apiUrl}/api/v1/tournaments/${tournamentId}`, { credentials: 'include' })
-      .then((r) => (r.ok ? r.json() : null))
-      .then((row) => {
-        if (!row) return;
-        setHasAfterblow(Boolean(row.ruleset_grammar?.hasAfterblow));
-        setLogoUrl((row.logo_url as string | null) ?? null);
-        // The column is `scoring_config_json` (the `_json` suffix
-        // matters — DisplayTab previously read `row.scoring_config`
-        // and silently fell back to defaults, mirroring the Step 3
-        // wizard bug).
-        const sc = (row.scoring_config_json ?? {}) as {
-          display?: { sideColors?: { red: string; blue: string }; quickPenalties?: number[] };
-          buttons?: { clean?: CleanButton[]; afterblow?: AfterblowButton[] };
-        };
-        setData({
-          sideColors: sc.display?.sideColors ?? DEFAULTS.sideColors,
-          buttons: {
-            clean: sc.buttons?.clean ?? DEFAULTS.buttons.clean,
-            afterblow: sc.buttons?.afterblow ?? DEFAULTS.buttons.afterblow,
-          },
-          quickPenalties: sc.display?.quickPenalties ?? [],
-        });
-      });
+    // Silent reads: the tab shows its defaults until the row lands, and every
+    // save below reports its own refusal.
+    void apiRequest<Record<string, unknown>>(apiUrl, `/api/v1/tournaments/${tournamentId}`).then(
+      (r) => {
+        if (r.ok) {
+          const row = r.data;
+          setHasAfterblow(
+            Boolean(
+              (row['ruleset_grammar'] as { hasAfterblow?: boolean } | undefined)?.hasAfterblow,
+            ),
+          );
+          setLogoUrl((row['logo_url'] as string | null) ?? null);
+          // The column is `scoring_config_json` (the `_json` suffix
+          // matters — DisplayTab previously read `row.scoring_config`
+          // and silently fell back to defaults, mirroring the Step 3
+          // wizard bug).
+          const sc = (row['scoring_config_json'] ?? {}) as {
+            display?: { sideColors?: { red: string; blue: string }; quickPenalties?: number[] };
+            buttons?: { clean?: CleanButton[]; afterblow?: AfterblowButton[] };
+          };
+          setData({
+            sideColors: sc.display?.sideColors ?? DEFAULTS.sideColors,
+            buttons: {
+              clean: sc.buttons?.clean ?? DEFAULTS.buttons.clean,
+              afterblow: sc.buttons?.afterblow ?? DEFAULTS.buttons.afterblow,
+            },
+            quickPenalties: sc.display?.quickPenalties ?? [],
+          });
+        }
+      },
+    );
 
     // Effective penalty ruleset entries → the quick-pick pin picker below.
-    fetch(`${apiUrl}/api/v1/tournaments/${tournamentId}/penalty-ruleset`, {
-      credentials: 'include',
-    })
-      .then((r) => (r.ok ? r.json() : null))
-      .then((rs: { penalty_ruleset_entries?: PenaltyEntry[] } | null) => {
-        const entries = [...(rs?.penalty_ruleset_entries ?? [])];
-        entries.sort((a, b) => a.group_number - b.group_number || a.ref_number - b.ref_number);
-        setPenaltyEntries(entries);
-      })
-      .catch(() => {});
+    void apiRequest<{ penalty_ruleset_entries?: PenaltyEntry[] }>(
+      apiUrl,
+      `/api/v1/tournaments/${tournamentId}/penalty-ruleset`,
+    ).then((r) => {
+      const entries = [...(r.ok ? (r.data.penalty_ruleset_entries ?? []) : [])];
+      entries.sort((a, b) => a.group_number - b.group_number || a.ref_number - b.ref_number);
+      setPenaltyEntries(entries);
+    });
   }, [tournamentId]);
 
   async function uploadLogo(file: File) {
@@ -108,20 +115,18 @@ export function DisplayTab({ tournamentId }: { tournamentId: string }) {
     try {
       const fd = new FormData();
       fd.append('file', file);
-      const res = await fetch(`${apiUrl}/api/v1/tournaments/${tournamentId}/logo`, {
-        method: 'POST',
-        credentials: 'include',
-        body: fd,
-      });
-      if (!res.ok) {
-        const body = (await res.json().catch(() => ({}))) as { message?: string };
-        throw new Error(body.message ?? t('organizer.events.logoUploadFailed'));
+      const r = await apiRequest<{ url: string }>(
+        apiUrl,
+        `/api/v1/tournaments/${tournamentId}/logo`,
+        { method: 'POST', body: fd },
+      );
+      if (!r.ok) {
+        const message = failureMessage(r, t, t('organizer.events.logoUploadFailed'));
+        if (message) toast.error(message);
+        return;
       }
-      const { url } = (await res.json()) as { url: string };
-      setLogoUrl(url);
+      setLogoUrl(r.data.url);
       toast.success(t('organizer.events.logoUploadSuccess'));
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : t('organizer.events.logoUploadFailed'));
     } finally {
       setUploadingLogo(false);
       if (logoInput.current) logoInput.current.value = '';
@@ -131,16 +136,16 @@ export function DisplayTab({ tournamentId }: { tournamentId: string }) {
   async function removeLogo() {
     setUploadingLogo(true);
     try {
-      const res = await fetch(`${apiUrl}/api/v1/tournaments/${tournamentId}`, {
+      const r = await apiRequest(apiUrl, `/api/v1/tournaments/${tournamentId}`, {
         method: 'PATCH',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ logoUrl: null }),
+        body: { logoUrl: null },
       });
-      if (!res.ok) throw new Error(t('admin.common.removeFailed'));
+      if (!r.ok) {
+        const message = failureMessage(r, t, t('admin.common.removeFailed'));
+        if (message) toast.error(message);
+        return;
+      }
       setLogoUrl(null);
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : t('admin.common.unknownError'));
     } finally {
       setUploadingLogo(false);
     }
@@ -149,21 +154,21 @@ export function DisplayTab({ tournamentId }: { tournamentId: string }) {
   async function save() {
     setSaving(true);
     try {
-      const res = await fetch(`${apiUrl}/api/v1/tournaments/${tournamentId}`, {
+      const r = await apiRequest(apiUrl, `/api/v1/tournaments/${tournamentId}`, {
         method: 'PATCH',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+        body: {
           scoringConfig: {
             display: { sideColors: data.sideColors, quickPenalties: data.quickPenalties },
             buttons: data.buttons,
           },
-        }),
+        },
       });
-      if (!res.ok) throw new Error(t('admin.common.saveFailed'));
+      if (!r.ok) {
+        const message = failureMessage(r, t, t('admin.common.saveFailed'));
+        if (message) toast.error(message);
+        return;
+      }
       toast.success(t('organizer.tournaments.settings.saved'));
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : t('admin.common.unknownError'));
     } finally {
       setSaving(false);
     }

@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useConfirm, statusPillTone, reviewStatusSemantic } from '@myclash/ui';
 import { useI18n } from '@myclash/next-i18n/client';
+import { apiRequest, failureMessage } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
 
 const apiUrl = getPublicApiUrl();
@@ -60,33 +61,39 @@ export function AttachToLeaguePanel({ eventId }: Props) {
   const [loaded, setLoaded] = useState(false);
 
   const loadAttachments = useCallback(async () => {
-    try {
-      const res = await fetch(`${apiUrl}/api/v1/events/${eventId}/league-attachments`, {
-        credentials: 'include',
-      });
-      if (res.ok) setAttachments((await res.json()) as Attachment[]);
-    } catch {
-      // The panel surfaces submit/detach errors inline; a silent list-load
-      // failure just leaves the list empty.
-    }
+    // The panel surfaces submit/detach errors inline; a silent list-load
+    // failure just leaves the list empty.
+    const r = await apiRequest<Attachment[]>(
+      apiUrl,
+      `/api/v1/events/${eventId}/league-attachments`,
+    );
+    if (r.ok) setAttachments(r.data);
   }, [eventId]);
 
   const load = useCallback(() => {
+    // The second read sent NO credentials, so on a cross-origin API base URL
+    // the tournament picker was empty and the panel said nothing. The seam
+    // always sends them. Both reads were also cast straight off `.json()` with
+    // no `.ok` check, which turned a refusal into a problem+json body rendered
+    // as a list of leagues.
     void Promise.all([
-      fetch(`${apiUrl}/api/v1/leagues/attachable`, { credentials: 'include' }).then(
-        (res) => res.json() as Promise<League[]>,
-      ),
-      fetch(`${apiUrl}/api/v1/events/${eventId}/tournaments`).then(
-        (res) => res.json() as Promise<Tournament[]>,
-      ),
-    ])
-      .then(([leagueRows, tournamentRows]) => {
-        setLeagues(leagueRows);
-        setTournaments(tournamentRows);
-        setLeagueId(leagueRows[0]?.id ?? '');
-        setTournamentId(tournamentRows[0]?.id ?? '');
-      })
-      .catch(() => setMessage(t('admin.leagues.loadError')));
+      apiRequest<League[]>(apiUrl, '/api/v1/leagues/attachable'),
+      apiRequest<Tournament[]>(apiUrl, `/api/v1/events/${eventId}/tournaments`),
+    ]).then(([leagueRes, tournamentRes]) => {
+      if (leagueRes.ok) {
+        setLeagues(leagueRes.data);
+        setLeagueId(leagueRes.data[0]?.id ?? '');
+      }
+      if (tournamentRes.ok) {
+        setTournaments(tournamentRes.data);
+        setTournamentId(tournamentRes.data[0]?.id ?? '');
+      }
+      const failed = [leagueRes, tournamentRes].find((r) => !r.ok);
+      if (failed && !failed.ok) {
+        const message = failureMessage(failed, t, t('admin.leagues.loadError'));
+        if (message) setMessage(message);
+      }
+    });
     void loadAttachments();
     setLoaded(true);
   }, [eventId, loadAttachments, t]);
@@ -105,16 +112,15 @@ export function AttachToLeaguePanel({ eventId }: Props) {
       return;
     }
     const controller = new AbortController();
-    fetch(`${apiUrl}/api/v1/leagues/${leagueId}/groups`, {
-      credentials: 'include',
+    // Silent: a league with no groups and a refused read both leave the group
+    // picker empty, and the attach below works with no group.
+    void apiRequest<LeagueGroup[]>(apiUrl, `/api/v1/leagues/${leagueId}/groups`, {
       signal: controller.signal,
-    })
-      .then((res) => (res.ok ? (res.json() as Promise<LeagueGroup[]>) : []))
-      .then((rows) => {
-        setGroups(rows);
-        setGroupId(rows[0]?.id ?? '');
-      })
-      .catch(() => undefined);
+    }).then((r) => {
+      const rows = r.ok ? r.data : [];
+      setGroups(rows);
+      setGroupId(rows[0]?.id ?? '');
+    });
     return () => controller.abort();
   }, [leagueId]);
 
@@ -132,18 +138,21 @@ export function AttachToLeaguePanel({ eventId }: Props) {
 
   const submit = () => {
     setMessage(null);
-    fetch(`${apiUrl}/api/v1/admin/leagues/${leagueId}/tournaments/${tournamentId}/request`, {
-      method: 'POST',
-      credentials: 'include',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ groupId: groupId || null }),
-    })
-      .then((res) => {
-        if (!res.ok) throw new Error();
-        setMessage(t('admin.leagues.requestSent'));
-        void loadAttachments();
-      })
-      .catch(() => setMessage(t('admin.leagues.requestError')));
+    void apiRequest(
+      apiUrl,
+      `/api/v1/admin/leagues/${leagueId}/tournaments/${tournamentId}/request`,
+      { method: 'POST', body: { groupId: groupId || null } },
+    ).then((r) => {
+      if (!r.ok) {
+        // `throw new Error()` with no message at all, replaced by one fixed
+        // sentence — the API says which league or tournament refused, and why.
+        const message = failureMessage(r, t, t('admin.leagues.requestError'));
+        if (message) setMessage(message);
+        return;
+      }
+      setMessage(t('admin.leagues.requestSent'));
+      void loadAttachments();
+    });
   };
 
   const detach = async (attachment: Attachment) => {
@@ -151,14 +160,17 @@ export function AttachToLeaguePanel({ eventId }: Props) {
       return;
     setBusyDetach(attachment.id);
     try {
-      const res = await fetch(
-        `${apiUrl}/api/v1/admin/events/${eventId}/league-tournament-links/${attachment.id}`,
-        { method: 'PATCH', credentials: 'include' },
+      const r = await apiRequest(
+        apiUrl,
+        `/api/v1/admin/events/${eventId}/league-tournament-links/${attachment.id}`,
+        { method: 'PATCH' },
       );
-      if (!res.ok) throw new Error();
+      if (!r.ok) {
+        const message = failureMessage(r, t, t('admin.leagues.myRequests.detachError'));
+        if (message) setMessage(message);
+        return;
+      }
       void loadAttachments();
-    } catch {
-      setMessage(t('admin.leagues.myRequests.detachError'));
     } finally {
       setBusyDetach(null);
     }

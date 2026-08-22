@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { localeToBcp47 } from '@myclash/time';
 import { Button } from '@myclash/ui';
 import { useI18n } from '@myclash/next-i18n/client';
+import { apiRequest, failureMessage } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
 
 interface RecapContent {
@@ -20,7 +21,8 @@ type Locale = (typeof LOCALES)[number];
 export function RecapTab({ tournamentId }: { tournamentId: string }) {
   const { locale: uiLocale, t } = useI18n();
   const apiUrl = getPublicApiUrl();
-  const base = `${apiUrl}/api/v1/generated-content/tournament_recap/${tournamentId}`;
+  // A PATH, not a URL: the seam takes the base separately.
+  const base = `/api/v1/generated-content/tournament_recap/${tournamentId}`;
 
   const [locale, setLocale] = useState<Locale>('en');
   const [content, setContent] = useState<RecapContent | null>(null);
@@ -30,13 +32,11 @@ export function RecapTab({ tournamentId }: { tournamentId: string }) {
 
   useEffect(() => {
     let cancelled = false;
-    fetch(`${base}?locale=${locale}`, { credentials: 'include' })
-      .then((r) => (r.ok ? (r.json() as Promise<RecapContent | null>) : null))
-      .then((data) => {
-        if (!cancelled) setContent(data);
-      })
-      .catch(() => {
-        if (!cancelled) setContent(null);
+    // Silent: no recap yet and a refused read both render the empty state, and
+    // Generate below reports what the API said.
+    void apiRequest<RecapContent | null>(apiUrl, `${base}?locale=${locale}`)
+      .then((r) => {
+        if (!cancelled) setContent(r.ok ? r.data : null);
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
@@ -44,20 +44,23 @@ export function RecapTab({ tournamentId }: { tournamentId: string }) {
     return () => {
       cancelled = true;
     };
-  }, [base, locale]);
+  }, [apiUrl, base, locale]);
 
   async function generate() {
     setBusy(true);
     setError(null);
     try {
-      const res = await fetch(`${base}/generate?locale=${locale}`, {
+      const r = await apiRequest<RecapContent>(apiUrl, `${base}/generate?locale=${locale}`, {
         method: 'POST',
-        credentials: 'include',
       });
-      if (!res.ok) throw new Error(t('organizer.recap.error'));
-      setContent((await res.json()) as RecapContent);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : t('organizer.recap.error'));
+      if (!r.ok) {
+        // A refused generation says whether it was the budget, the key or the
+        // provider — this is the one on this tab that costs money.
+        const message = failureMessage(r, t, t('organizer.recap.error'));
+        if (message) setError(message);
+        return;
+      }
+      setContent(r.data);
     } finally {
       setBusy(false);
     }
@@ -67,14 +70,17 @@ export function RecapTab({ tournamentId }: { tournamentId: string }) {
     setBusy(true);
     setError(null);
     try {
-      const res = await fetch(`${base}/${publish ? 'publish' : 'unpublish'}?locale=${locale}`, {
-        method: 'POST',
-        credentials: 'include',
-      });
-      if (!res.ok) throw new Error(t('organizer.recap.error'));
-      setContent((await res.json()) as RecapContent);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : t('organizer.recap.error'));
+      const r = await apiRequest<RecapContent>(
+        apiUrl,
+        `${base}/${publish ? 'publish' : 'unpublish'}?locale=${locale}`,
+        { method: 'POST' },
+      );
+      if (!r.ok) {
+        const message = failureMessage(r, t, t('organizer.recap.error'));
+        if (message) setError(message);
+        return;
+      }
+      setContent(r.data);
     } finally {
       setBusy(false);
     }

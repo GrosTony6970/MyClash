@@ -3,6 +3,7 @@
 import { useI18n } from '@myclash/next-i18n/client';
 import { useState } from 'react';
 import { useConfirm, useToast } from '@myclash/ui';
+import { apiRequest, failureMessage } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
 
 const apiUrl = getPublicApiUrl();
@@ -33,15 +34,17 @@ export function useCustomiseFormat(tournamentId: string, onDone: () => void) {
     if (!ok) return;
     setCustomising(true);
     try {
-      const res = await fetch(`${apiUrl}/api/v1/tournaments/${tournamentId}/customise-format`, {
+      const r = await apiRequest(apiUrl, `/api/v1/tournaments/${tournamentId}/customise-format`, {
         method: 'POST',
-        credentials: 'include',
       });
-      if (!res.ok) throw new Error(t('admin.common.saveFailed'));
+      if (!r.ok) {
+        // Forking a coded format is refused by what already pins the original.
+        const message = failureMessage(r, t, t('admin.common.saveFailed'));
+        if (message) toast.error(message);
+        return;
+      }
       toast.success(t('admin.orgTournaments.customiseFormatSuccess'));
       onDone();
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : t('admin.common.unknownError'));
     } finally {
       setCustomising(false);
     }

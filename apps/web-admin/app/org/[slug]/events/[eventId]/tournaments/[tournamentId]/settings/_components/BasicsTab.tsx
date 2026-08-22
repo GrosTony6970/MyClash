@@ -8,6 +8,7 @@ import type { BucketDiff } from '@myclash/rulesets';
 import { useToast } from '@myclash/ui';
 import { useWeaponOptions } from '@/hooks/useWeaponOptions';
 import { RepinRulesetDialog } from './RepinRulesetDialog';
+import { apiRequest, failureMessage } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
 
 interface Ruleset {
@@ -65,54 +66,55 @@ export function BasicsTab({ tournamentId }: { tournamentId: string }) {
     if (!orgSlug) return;
     // Resolve org id from slug so we can hit the org-scoped penalty-rulesets
     // endpoint (which filters out other orgs' public rulesets).
-    void fetch(`${apiUrl}/api/v1/organizations/slug/${encodeURIComponent(orgSlug)}`, {
-      credentials: 'include',
-    })
-      .then((r) => (r.ok ? r.json() : null))
-      .then((org: { id: string } | null) => {
-        const penaltyEndpoint = org
-          ? `/api/v1/organizations/${org.id}/penalty-rulesets`
-          : '/api/v1/penalty-rulesets';
+    // Silent reads: the tab shows its loading line until the row lands, and
+    // every save below reports its own refusal. The org resolve falls back to
+    // the platform-wide penalty catalogue, exactly as before.
+    void apiRequest<{ id: string }>(
+      apiUrl,
+      `/api/v1/organizations/slug/${encodeURIComponent(orgSlug)}`,
+    ).then((orgRes) => {
+      const penaltyEndpoint = orgRes.ok
+        ? `/api/v1/organizations/${orgRes.data.id}/penalty-rulesets`
+        : '/api/v1/penalty-rulesets';
 
-        return Promise.all([
-          fetch(`${apiUrl}/api/v1/tournaments/${tournamentId}`, { credentials: 'include' }).then(
-            (r) => (r.ok ? r.json() : null),
-          ),
-          // Event-scoped, so an org-authored ruleset stays selectable here.
-          // The bare /rulesets catalog is registry-only and never contains one.
-          fetchSelectableRulesets(apiUrl, eventId),
-          fetch(`${apiUrl}${penaltyEndpoint}`, { credentials: 'include' }).then((r) =>
-            r.ok ? r.json() : [],
-          ),
-        ]).then(([row, r, p]) => {
-          if (row) {
-            setData({
-              name: row.name,
-              slug: row.slug,
-              weapon: row.weapon,
-              rulesetCode: row.ruleset_code,
-              rulesetVersion: row.ruleset_version,
-              penaltyRulesetId: row.penalty_ruleset_id,
-              maxParticipants: row.max_participants ?? null,
-              maxWaitlist: row.max_waitlist ?? null,
-            });
-            setOriginalRuleset({ code: row.ruleset_code, version: row.ruleset_version });
-          }
-          setRulesets(r as Ruleset[]);
-          setPenaltyRulesets(p as PenaltyRuleset[]);
-        });
+      return Promise.all([
+        apiRequest<Record<string, unknown>>(apiUrl, `/api/v1/tournaments/${tournamentId}`).then(
+          (r) => (r.ok ? r.data : null),
+        ),
+        // Event-scoped, so an org-authored ruleset stays selectable here.
+        // The bare /rulesets catalog is registry-only and never contains one.
+        fetchSelectableRulesets(apiUrl, eventId),
+        apiRequest<PenaltyRuleset[]>(apiUrl, penaltyEndpoint).then((r) => (r.ok ? r.data : [])),
+      ]).then(([row, r, p]) => {
+        if (row) {
+          setData({
+            name: row['name'] as string,
+            slug: row['slug'] as string,
+            weapon: row['weapon'] as string,
+            rulesetCode: row['ruleset_code'] as string,
+            rulesetVersion: row['ruleset_version'] as string,
+            penaltyRulesetId: (row['penalty_ruleset_id'] as string | null) ?? null,
+            maxParticipants: (row['max_participants'] as number | null) ?? null,
+            maxWaitlist: (row['max_waitlist'] as number | null) ?? null,
+          });
+          setOriginalRuleset({
+            code: row['ruleset_code'] as string,
+            version: row['ruleset_version'] as string,
+          });
+        }
+        setRulesets(r as Ruleset[]);
+        setPenaltyRulesets(p);
       });
+    });
   }, [tournamentId, orgSlug, eventId]);
 
   async function save() {
     if (!data) return;
     setSaving(true);
     try {
-      const res = await fetch(`${apiUrl}/api/v1/tournaments/${tournamentId}`, {
+      const r = await apiRequest(apiUrl, `/api/v1/tournaments/${tournamentId}`, {
         method: 'PATCH',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+        body: {
           // Send null (not undefined) so selecting "None" actually clears the
           // weapon — the DTO is nullish and the service maps null to a clear.
           name: data.name,
@@ -124,12 +126,14 @@ export function BasicsTab({ tournamentId }: { tournamentId: string }) {
           penaltyRulesetId: data.penaltyRulesetId,
           maxParticipants: data.maxParticipants,
           maxWaitlist: data.maxWaitlist,
-        }),
+        },
       });
-      if (!res.ok) throw new Error(t('admin.common.saveFailed'));
+      if (!r.ok) {
+        const message = failureMessage(r, t, t('admin.common.saveFailed'));
+        if (message) toast.error(message);
+        return;
+      }
       toast.success(t('organizer.tournaments.settings.saved'));
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : t('admin.common.unknownError'));
     } finally {
       setSaving(false);
     }
@@ -147,35 +151,35 @@ export function BasicsTab({ tournamentId }: { tournamentId: string }) {
   async function changeRuleset() {
     if (!data) return;
     setRepinError(null);
-    const res = await fetch(`${apiUrl}/api/v1/tournaments/${tournamentId}`, {
+    const r = await apiRequest(apiUrl, `/api/v1/tournaments/${tournamentId}`, {
       method: 'PATCH',
-      credentials: 'include',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ rulesetCode: data.rulesetCode, rulesetVersion: data.rulesetVersion }),
+      body: { rulesetCode: data.rulesetCode, rulesetVersion: data.rulesetVersion },
     });
-    if (res.ok) {
+    if (r.ok) {
       setOriginalRuleset({ code: data.rulesetCode, version: data.rulesetVersion });
       toast.success(t('admin.orgTournaments.changeRulesetSuccess'));
       return;
     }
-    if (res.status === 403) {
+    // NOT a message, and kept as it was: a 403 here means the commit-1 guard
+    // blocked the fast path because matches are scored, so the screen opens the
+    // audited re-pin ceremony instead of saying anything.
+    if (r.kind === 'unauthenticated' && r.status === 403) {
       setRepinDiff(null);
       setRepinOpen(true);
       // Load the computed lineage diff so the ceremony shows which buckets
       // change before the organiser justifies the re-pin. Advisory — the
       // ceremony still works if the preview fails.
-      const preview = (await fetch(
-        `${apiUrl}/api/v1/tournaments/${tournamentId}/repin-preview?rulesetCode=${encodeURIComponent(
+      const preview = await apiRequest<{ diff?: BucketDiff }>(
+        apiUrl,
+        `/api/v1/tournaments/${tournamentId}/repin-preview?rulesetCode=${encodeURIComponent(
           data.rulesetCode,
         )}&rulesetVersion=${encodeURIComponent(data.rulesetVersion)}`,
-        { credentials: 'include' },
-      )
-        .then((r) => (r.ok ? r.json() : null))
-        .catch(() => null)) as { diff?: BucketDiff } | null;
-      setRepinDiff(preview?.diff ?? null);
+      );
+      setRepinDiff(preview.ok ? (preview.data.diff ?? null) : null);
       return;
     }
-    toast.error(t('admin.common.saveFailed'));
+    const message = failureMessage(r, t, t('admin.common.saveFailed'));
+    if (message) toast.error(message);
   }
 
   /** Confirm the ceremony: POST the audited re-pin with the justification. */
@@ -184,26 +188,28 @@ export function BasicsTab({ tournamentId }: { tournamentId: string }) {
     setRepinBusy(true);
     setRepinError(null);
     try {
-      const res = await fetch(`${apiUrl}/api/v1/tournaments/${tournamentId}/repin-ruleset`, {
+      const r = await apiRequest(apiUrl, `/api/v1/tournaments/${tournamentId}/repin-ruleset`, {
         method: 'POST',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+        body: {
           rulesetCode: data.rulesetCode,
           rulesetVersion: data.rulesetVersion,
           justification,
-        }),
+        },
       });
-      if (res.status === 403) {
-        setRepinError(t('admin.orgTournaments.repinRulesetOwnerOnly'));
+      if (!r.ok) {
+        // The 403 here keeps the screen's own sentence: it names the tier the
+        // operator would need ("the ruleset's owner"), which the guard's own
+        // words do not. Every other refusal now carries the API's reason.
+        const message =
+          r.kind === 'unauthenticated' && r.status === 403
+            ? t('admin.orgTournaments.repinRulesetOwnerOnly')
+            : failureMessage(r, t, t('admin.common.saveFailed'));
+        if (message) setRepinError(message);
         return;
       }
-      if (!res.ok) throw new Error(t('admin.common.saveFailed'));
       setOriginalRuleset({ code: data.rulesetCode, version: data.rulesetVersion });
       setRepinOpen(false);
       toast.success(t('admin.orgTournaments.repinRulesetSuccess'));
-    } catch (e) {
-      setRepinError(e instanceof Error ? e.message : t('admin.common.unknownError'));
     } finally {
       setRepinBusy(false);
     }

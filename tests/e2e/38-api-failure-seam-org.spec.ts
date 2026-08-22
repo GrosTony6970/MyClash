@@ -115,6 +115,9 @@ const ORG_EVENTS_LOAD = '**/api/v1/organizations/*/events';
 const ORG_ROSTER_PATH = `/org/${ctx.orgSlug}/events/${ctx.eventId}/persons`;
 /** The roster read the participants screen opens with. */
 const ORG_ROSTER_LOAD = '**/api/v1/events/*/persons';
+const ORG_TOURNAMENTS_PATH = `/org/${ctx.orgSlug}/events/${ctx.eventId}/tournaments`;
+/** The tournament list this screen is built on. */
+const ORG_TOURNAMENTS_LOAD = '**/api/v1/events/*/tournaments';
 const ORG_DISCOVER_PATH = `/org/${ctx.orgSlug}/rulesets/scoring?tab=discover`;
 /** The adoptable-ruleset catalogue behind the Discover tab. */
 const ORG_DISCOVER_LOAD = '**/api/v1/organizations/*/custom-rulesets/catalog';
@@ -226,6 +229,22 @@ test.describe('the api-failure seam — the org rulesets screen', () => {
 
     await expect(page.getByText(reason)).toBeVisible();
     await expect(page.getByText(COPY.rulesetsLoadError)).toBeHidden();
+  });
+});
+
+/**
+ * The tournament list — the screen every draw and schedule surface hangs off.
+ */
+test.describe('the api-failure seam — the tournament list', () => {
+  test("a 4xx shows the server's own reason, not the screen's fallback", async ({ page }) => {
+    const reason = 'Tournaments are read-only while the bracket rebuild finishes.';
+    await page.route(ORG_TOURNAMENTS_LOAD, (route) => route.fulfill(problemJson(409, reason)));
+
+    await page.goto(ORG_TOURNAMENTS_PATH);
+    await expectStayedOn(page, ORG_TOURNAMENTS_PATH);
+
+    await expect(page.getByText(reason)).toBeVisible();
+    await expect(page.getByText(COPY.tournamentsLoadError)).toBeHidden();
   });
 });
 
