@@ -203,7 +203,6 @@
     "tests/e2e/29-league-multi-event.spec.ts",
     "tests/e2e/30-ai-settings.spec.ts",
     "tests/e2e/33-staff-desk.spec.ts",
-    "tests/e2e/37-api-failure-seam.spec.ts",
     "tests/e2e/_bracket.ts"
   ],
   "functions": [

@@ -40,7 +40,7 @@ pnpm e2e:cleanup                      # …and delete them
 pnpm test:e2e:prod tests/e2e/07-*.spec.ts  # run one test by number (here: test 7)
 ```
 
-Specs are numbered `01`…`37` (see the index below and the Status table), so you can run one by number.
+Specs are numbered `01`…`38` (see the index below and the Status table), so you can run one by number.
 
 ### Cleaning up leftovers — `pnpm e2e:cleanup`
 
@@ -74,45 +74,46 @@ the pass/fail record.
 
 <div style="overflow-x:auto">
 
-| #    | Spec                   | Opt-in flag                                                                                                                                                                                                              |
-| ---- | ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `01` | participants import    | `E2E_PARTICIPANTS_CSV`                                                                                                                                                                                                   |
-| `02` | create tournament      | — always runs                                                                                                                                                                                                            |
-| `03` | create event           | — always runs                                                                                                                                                                                                            |
-| `04` | schedule               | — always runs                                                                                                                                                                                                            |
-| `05` | referee board          | — always runs                                                                                                                                                                                                            |
-| `06` | offline sync           | `E2E_STAFF_URL`                                                                                                                                                                                                          |
-| `07` | populate event         | `E2E_LIVE_DURATION_S`, `E2E_LIVE_SIDESWORD`, `E2E_PACE_MS`, `E2E_PARTICIPANTS_CSV`, `E2E_POPULATE`                                                                                                                       |
-| `08` | offline custom ruleset | `E2E_STAFF_URL`                                                                                                                                                                                                          |
-| `09` | double elim            | `E2E_DOUBLE_ELIM`                                                                                                                                                                                                        |
-| `10` | scoring pad            | `E2E_SCORING_PAD`                                                                                                                                                                                                        |
-| `11` | league                 | `E2E_LEAGUE`                                                                                                                                                                                                             |
-| `12` | exports                | `E2E_EXPORTS`                                                                                                                                                                                                            |
-| `13` | privacy                | `E2E_PRIVACY`                                                                                                                                                                                                            |
-| `14` | compensation           | `E2E_COMPENSATION`                                                                                                                                                                                                       |
-| `15` | public site            | `E2E_PUBLIC_SITE`, `E2E_PUBLIC_URL`, `E2E_SCORING_URL`                                                                                                                                                                   |
-| `16` | pad ui                 | `E2E_PAD_UI`, `E2E_STAFF_URL`                                                                                                                                                                                            |
-| `17` | archive restore        | `E2E_ARCHIVE`                                                                                                                                                                                                            |
-| `18` | staff pad              | `E2E_STAFF`, `E2E_STAFF_URL`                                                                                                                                                                                             |
-| `19` | workshops              | `E2E_WORKSHOPS`                                                                                                                                                                                                          |
-| `20` | schedule               | `E2E_SCHEDULE`                                                                                                                                                                                                           |
-| `21` | referee assign         | `E2E_SCHEDULE`                                                                                                                                                                                                           |
-| `22` | swiss                  | `E2E_SWISS`                                                                                                                                                                                                              |
-| `23` | swiss seeding          | `E2E_SWISS`                                                                                                                                                                                                              |
-| `24` | swiss public           | `E2E_PUBLIC_URL`, `E2E_SWISS`                                                                                                                                                                                            |
-| `25` | swiss data             | `E2E_SWISS`                                                                                                                                                                                                              |
-| `26` | print pack             | — always runs                                                                                                                                                                                                            |
-| `27` | super admin            | `E2E_PLATFORM_ADMIN_EMAIL`, `E2E_PLATFORM_ADMIN_PASSWORD`, `E2E_PLATFORM_VIEWER_EMAIL`, `E2E_PLATFORM_VIEWER_PASSWORD`, `E2E_SUPER_ADMIN`; the console half also reads `E2E_SUPERADMIN_EMAIL`, `E2E_SUPERADMIN_PASSWORD` |
-| `28` | live control room      | `E2E_LIVE_BOARD`                                                                                                                                                                                                         |
-| `29` | league multi event     | `E2E_LEAGUE`                                                                                                                                                                                                             |
-| `30` | ai settings            | `E2E_AI`, `E2E_SUPERADMIN_EMAIL`, `E2E_SUPERADMIN_PASSWORD`                                                                                                                                                              |
-| `31` | ai generation          | `E2E_AI`, `E2E_AI_KEY`, `E2E_AI_PROVIDER`                                                                                                                                                                                |
-| `32` | ai organiser tools     | `E2E_AI`, `E2E_AI_KEY`, `E2E_AI_MODEL`, `E2E_AI_PROVIDER`                                                                                                                                                                |
-| `33` | staff desk             | `E2E_STAFF`                                                                                                                                                                                                              |
-| `34` | seeding drift          | `E2E_DRIFT`                                                                                                                                                                                                              |
-| `35` | forfeit cascade        | `E2E_FORFEIT`                                                                                                                                                                                                            |
-| `36` | uncomplete cascade     | `E2E_UNCOMPLETE`                                                                                                                                                                                                         |
-| `37` | api failure seam       | none for venues; `E2E_SUPERADMIN_EMAIL` / `E2E_SUPERADMIN_PASSWORD` for the backup console                                                                                                                               |
+| #    | Spec                     | Opt-in flag                                                                                                                                                                                                              |
+| ---- | ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `01` | participants import      | `E2E_PARTICIPANTS_CSV`                                                                                                                                                                                                   |
+| `02` | create tournament        | — always runs                                                                                                                                                                                                            |
+| `03` | create event             | — always runs                                                                                                                                                                                                            |
+| `04` | schedule                 | — always runs                                                                                                                                                                                                            |
+| `05` | referee board            | — always runs                                                                                                                                                                                                            |
+| `06` | offline sync             | `E2E_STAFF_URL`                                                                                                                                                                                                          |
+| `07` | populate event           | `E2E_LIVE_DURATION_S`, `E2E_LIVE_SIDESWORD`, `E2E_PACE_MS`, `E2E_PARTICIPANTS_CSV`, `E2E_POPULATE`                                                                                                                       |
+| `08` | offline custom ruleset   | `E2E_STAFF_URL`                                                                                                                                                                                                          |
+| `09` | double elim              | `E2E_DOUBLE_ELIM`                                                                                                                                                                                                        |
+| `10` | scoring pad              | `E2E_SCORING_PAD`                                                                                                                                                                                                        |
+| `11` | league                   | `E2E_LEAGUE`                                                                                                                                                                                                             |
+| `12` | exports                  | `E2E_EXPORTS`                                                                                                                                                                                                            |
+| `13` | privacy                  | `E2E_PRIVACY`                                                                                                                                                                                                            |
+| `14` | compensation             | `E2E_COMPENSATION`                                                                                                                                                                                                       |
+| `15` | public site              | `E2E_PUBLIC_SITE`, `E2E_PUBLIC_URL`, `E2E_SCORING_URL`                                                                                                                                                                   |
+| `16` | pad ui                   | `E2E_PAD_UI`, `E2E_STAFF_URL`                                                                                                                                                                                            |
+| `17` | archive restore          | `E2E_ARCHIVE`                                                                                                                                                                                                            |
+| `18` | staff pad                | `E2E_STAFF`, `E2E_STAFF_URL`                                                                                                                                                                                             |
+| `19` | workshops                | `E2E_WORKSHOPS`                                                                                                                                                                                                          |
+| `20` | schedule                 | `E2E_SCHEDULE`                                                                                                                                                                                                           |
+| `21` | referee assign           | `E2E_SCHEDULE`                                                                                                                                                                                                           |
+| `22` | swiss                    | `E2E_SWISS`                                                                                                                                                                                                              |
+| `23` | swiss seeding            | `E2E_SWISS`                                                                                                                                                                                                              |
+| `24` | swiss public             | `E2E_PUBLIC_URL`, `E2E_SWISS`                                                                                                                                                                                            |
+| `25` | swiss data               | `E2E_SWISS`                                                                                                                                                                                                              |
+| `26` | print pack               | — always runs                                                                                                                                                                                                            |
+| `27` | super admin              | `E2E_PLATFORM_ADMIN_EMAIL`, `E2E_PLATFORM_ADMIN_PASSWORD`, `E2E_PLATFORM_VIEWER_EMAIL`, `E2E_PLATFORM_VIEWER_PASSWORD`, `E2E_SUPER_ADMIN`; the console half also reads `E2E_SUPERADMIN_EMAIL`, `E2E_SUPERADMIN_PASSWORD` |
+| `28` | live control room        | `E2E_LIVE_BOARD`                                                                                                                                                                                                         |
+| `29` | league multi event       | `E2E_LEAGUE`                                                                                                                                                                                                             |
+| `30` | ai settings              | `E2E_AI`, `E2E_SUPERADMIN_EMAIL`, `E2E_SUPERADMIN_PASSWORD`                                                                                                                                                              |
+| `31` | ai generation            | `E2E_AI`, `E2E_AI_KEY`, `E2E_AI_PROVIDER`                                                                                                                                                                                |
+| `32` | ai organiser tools       | `E2E_AI`, `E2E_AI_KEY`, `E2E_AI_MODEL`, `E2E_AI_PROVIDER`                                                                                                                                                                |
+| `33` | staff desk               | `E2E_STAFF`                                                                                                                                                                                                              |
+| `34` | seeding drift            | `E2E_DRIFT`                                                                                                                                                                                                              |
+| `35` | forfeit cascade          | `E2E_FORFEIT`                                                                                                                                                                                                            |
+| `36` | uncomplete cascade       | `E2E_UNCOMPLETE`                                                                                                                                                                                                         |
+| `37` | api failure seam (admin) | `E2E_SUPERADMIN_EMAIL` / `E2E_SUPERADMIN_PASSWORD` — every test in it skips without them                                                                                                                                 |
+| `38` | api failure seam (org)   | none                                                                                                                                                                                                                     |
 
 </div>
 
@@ -1175,45 +1176,46 @@ of the bracket says afterwards:
 
 ## Status
 
-| #   | Flow                                  | Spec                                | State                                    |
-| --- | ------------------------------------- | ----------------------------------- | ---------------------------------------- |
-| 1   | CSV participant import                | `01-participants-import.spec.ts`    | active                                   |
-| 2   | Create tournament (wizard step 1)     | `02-create-tournament.spec.ts`      | active                                   |
-| 3   | Create event (wizard)                 | `03-create-event.spec.ts`           | active (step 1 + full happy path)        |
-| 4   | Schedule / programme                  | `04-schedule.spec.ts`               | active (page load + generate)            |
-| 5   | Referee auto-assign board             | `05-referee-board.spec.ts`          | active                                   |
-| 6   | Offline scoring sync (PWA)            | `06-offline-sync.spec.ts`           | active                                   |
-| 7   | Populate rich demo event              | `07-populate-event.spec.ts`         | opt-in (`E2E_POPULATE=1`); see above     |
-| 8   | Offline scoring on a custom ruleset   | `08-offline-custom-ruleset.spec.ts` | active                                   |
-| 9   | Double-elimination playthrough        | `09-double-elim.spec.ts`            | opt-in (`E2E_DOUBLE_ELIM=1`); see above  |
-| 10  | Scoring-pad server contract           | `10-scoring-pad.spec.ts`            | opt-in (`E2E_SCORING_PAD=1`)             |
-| 11  | League season                         | `11-league.spec.ts`                 | opt-in (`E2E_LEAGUE=1`); see above       |
-| 12  | Exports + HEMA Ratings bundle         | `12-exports.spec.ts`                | opt-in (`E2E_EXPORTS=1`); see above      |
-| 13  | Subject export + deletion requests    | `13-privacy.spec.ts`                | opt-in (`E2E_PRIVACY=1`); see above      |
-| 14  | Referee compensation                  | `14-compensation.spec.ts`           | opt-in (`E2E_COMPENSATION=1`); see above |
-| 15  | Public site on real data              | `15-public-site.spec.ts`            | opt-in (`E2E_PUBLIC_SITE=1`); see above  |
-| 16  | The pad's other buttons + the clock   | `16-pad-ui.spec.ts`                 | opt-in (`E2E_PAD_UI=1`); see above       |
-| 17  | Archive export → restore round-trip   | `17-archive-restore.spec.ts`        | opt-in (`E2E_ARCHIVE=1`); see above      |
-| 18  | Staff PIN login + the staff rules     | `18-staff-pad.spec.ts`              | opt-in (`E2E_STAFF=1`); see above        |
-| 19  | Workshops: seats, waitlist, staff     | `19-workshops.spec.ts`              | opt-in (`E2E_WORKSHOPS=1`); see above    |
-| 20  | Schedule generator invariants         | `20-schedule.spec.ts`               | opt-in (`E2E_SCHEDULE=1`); see above     |
-| 21  | Referee qualification + availability  | `21-referee-assign.spec.ts`         | opt-in (`E2E_SCHEDULE=1`); see above     |
-| 22  | Swiss rounds, auto-advance, the cut   | `22-swiss.spec.ts`                  | opt-in (`E2E_SWISS=1`); see above        |
-| 23  | Swiss seeding refusals + set-sides    | `23-swiss-seeding.spec.ts`          | opt-in (`E2E_SWISS=1`); see above        |
-| 24  | Swiss admin route + public tab render | `24-swiss-public.spec.ts`           | opt-in (`E2E_SWISS=1`); see above        |
-| 25  | Swiss archive + HEMA Ratings labels   | `25-swiss-data.spec.ts`             | opt-in (`E2E_SWISS=1`); see above        |
-| 26  | Print pack route builds its document  | `26-print-pack.spec.ts`             | always                                   |
-| 27  | Platform tier sweep + the console     | `27-super-admin.spec.ts`            | opt-in (`E2E_SUPER_ADMIN=1`); see above  |
-| 28  | Live control room + its realtime      | `28-live-control-room.spec.ts`      | opt-in (`E2E_LIVE_BOARD=1`); see above   |
-| 29  | League across several events          | `29-league-multi-event.spec.ts`     | opt-in (`E2E_LEAGUE=1`); see above       |
-| 30  | AI keys, budgets, kill-switches       | `30-ai-settings.spec.ts`            | opt-in (`E2E_AI=1`); see above           |
-| 31  | AI generation against a real provider | `31-ai-generation.spec.ts`          | opt-in (`E2E_AI=1` + key); **spends**    |
-| 32  | Organiser AI tools + their pages      | `32-ai-organiser-tools.spec.ts`     | opt-in (`E2E_AI=1` + key); **spends**    |
-| 33  | Check-in desk, gear table, passes     | `33-staff-desk.spec.ts`             | opt-in (`E2E_STAFF=1`); see above        |
-| 34  | Bracket seeding drift, all 4 states   | `34-seeding-drift.spec.ts`          | opt-in (`E2E_DRIFT=1`); see above        |
-| 35  | Pool forfeit cascade + re-record      | `35-forfeit-cascade.spec.ts`        | opt-in (`E2E_FORFEIT=1`); see above      |
-| 36  | Un-completing a bracket match         | `36-uncomplete-cascade.spec.ts`     | opt-in (`E2E_UNCOMPLETE=1`); see above   |
-| 37  | The api-failure seam in a browser     | `37-api-failure-seam.spec.ts`       | always (backup half needs super-admin)   |
+| #   | Flow                                    | Spec                                | State                                    |
+| --- | --------------------------------------- | ----------------------------------- | ---------------------------------------- |
+| 1   | CSV participant import                  | `01-participants-import.spec.ts`    | active                                   |
+| 2   | Create tournament (wizard step 1)       | `02-create-tournament.spec.ts`      | active                                   |
+| 3   | Create event (wizard)                   | `03-create-event.spec.ts`           | active (step 1 + full happy path)        |
+| 4   | Schedule / programme                    | `04-schedule.spec.ts`               | active (page load + generate)            |
+| 5   | Referee auto-assign board               | `05-referee-board.spec.ts`          | active                                   |
+| 6   | Offline scoring sync (PWA)              | `06-offline-sync.spec.ts`           | active                                   |
+| 7   | Populate rich demo event                | `07-populate-event.spec.ts`         | opt-in (`E2E_POPULATE=1`); see above     |
+| 8   | Offline scoring on a custom ruleset     | `08-offline-custom-ruleset.spec.ts` | active                                   |
+| 9   | Double-elimination playthrough          | `09-double-elim.spec.ts`            | opt-in (`E2E_DOUBLE_ELIM=1`); see above  |
+| 10  | Scoring-pad server contract             | `10-scoring-pad.spec.ts`            | opt-in (`E2E_SCORING_PAD=1`)             |
+| 11  | League season                           | `11-league.spec.ts`                 | opt-in (`E2E_LEAGUE=1`); see above       |
+| 12  | Exports + HEMA Ratings bundle           | `12-exports.spec.ts`                | opt-in (`E2E_EXPORTS=1`); see above      |
+| 13  | Subject export + deletion requests      | `13-privacy.spec.ts`                | opt-in (`E2E_PRIVACY=1`); see above      |
+| 14  | Referee compensation                    | `14-compensation.spec.ts`           | opt-in (`E2E_COMPENSATION=1`); see above |
+| 15  | Public site on real data                | `15-public-site.spec.ts`            | opt-in (`E2E_PUBLIC_SITE=1`); see above  |
+| 16  | The pad's other buttons + the clock     | `16-pad-ui.spec.ts`                 | opt-in (`E2E_PAD_UI=1`); see above       |
+| 17  | Archive export → restore round-trip     | `17-archive-restore.spec.ts`        | opt-in (`E2E_ARCHIVE=1`); see above      |
+| 18  | Staff PIN login + the staff rules       | `18-staff-pad.spec.ts`              | opt-in (`E2E_STAFF=1`); see above        |
+| 19  | Workshops: seats, waitlist, staff       | `19-workshops.spec.ts`              | opt-in (`E2E_WORKSHOPS=1`); see above    |
+| 20  | Schedule generator invariants           | `20-schedule.spec.ts`               | opt-in (`E2E_SCHEDULE=1`); see above     |
+| 21  | Referee qualification + availability    | `21-referee-assign.spec.ts`         | opt-in (`E2E_SCHEDULE=1`); see above     |
+| 22  | Swiss rounds, auto-advance, the cut     | `22-swiss.spec.ts`                  | opt-in (`E2E_SWISS=1`); see above        |
+| 23  | Swiss seeding refusals + set-sides      | `23-swiss-seeding.spec.ts`          | opt-in (`E2E_SWISS=1`); see above        |
+| 24  | Swiss admin route + public tab render   | `24-swiss-public.spec.ts`           | opt-in (`E2E_SWISS=1`); see above        |
+| 25  | Swiss archive + HEMA Ratings labels     | `25-swiss-data.spec.ts`             | opt-in (`E2E_SWISS=1`); see above        |
+| 26  | Print pack route builds its document    | `26-print-pack.spec.ts`             | always                                   |
+| 27  | Platform tier sweep + the console       | `27-super-admin.spec.ts`            | opt-in (`E2E_SUPER_ADMIN=1`); see above  |
+| 28  | Live control room + its realtime        | `28-live-control-room.spec.ts`      | opt-in (`E2E_LIVE_BOARD=1`); see above   |
+| 29  | League across several events            | `29-league-multi-event.spec.ts`     | opt-in (`E2E_LEAGUE=1`); see above       |
+| 30  | AI keys, budgets, kill-switches         | `30-ai-settings.spec.ts`            | opt-in (`E2E_AI=1`); see above           |
+| 31  | AI generation against a real provider   | `31-ai-generation.spec.ts`          | opt-in (`E2E_AI=1` + key); **spends**    |
+| 32  | Organiser AI tools + their pages        | `32-ai-organiser-tools.spec.ts`     | opt-in (`E2E_AI=1` + key); **spends**    |
+| 33  | Check-in desk, gear table, passes       | `33-staff-desk.spec.ts`             | opt-in (`E2E_STAFF=1`); see above        |
+| 34  | Bracket seeding drift, all 4 states     | `34-seeding-drift.spec.ts`          | opt-in (`E2E_DRIFT=1`); see above        |
+| 35  | Pool forfeit cascade + re-record        | `35-forfeit-cascade.spec.ts`        | opt-in (`E2E_FORFEIT=1`); see above      |
+| 36  | Un-completing a bracket match           | `36-uncomplete-cascade.spec.ts`     | opt-in (`E2E_UNCOMPLETE=1`); see above   |
+| 37  | The api-failure seam, `/admin` consoles | `37-api-failure-seam.spec.ts`       | needs super-admin; skips without it      |
+| 38  | The api-failure seam, org + public      | `38-api-failure-seam-org.spec.ts`   | always                                   |
 
 Every spec in the table above runs — there are no `test.fixme` flows left. The
 opt-in ones are gated purely on their env flag. The nightly does **not** set all of
