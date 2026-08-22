@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Button, Modal } from '@myclash/ui';
 import { useI18n } from '@myclash/next-i18n/client';
+import { apiRequest } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
 import {
   uncompleteConfirmCopy,
@@ -32,18 +33,20 @@ function usePreflight(matchId: string, refreshToken: number): UncompletePrefligh
 
   const load = useCallback(
     async (signal: AbortSignal) => {
-      try {
-        const res = await fetch(
-          `${getPublicApiUrl()}/api/v1/matches/${matchId}/uncomplete-preflight`,
-          { credentials: 'include', signal },
-        );
-        if (!res.ok) return;
-        setPreflight((await res.json()) as UncompletePreflight);
-      } catch {
-        // Silence beats a false all-clear: a panel that cannot load shows
-        // nothing, and the copy builder degrades to the generic sentence.
-        if (!signal.aborted) setPreflight(null);
+      // Silence beats a false all-clear: a panel that cannot load shows nothing,
+      // and the copy builder degrades to the generic sentence.
+      const r = await apiRequest<UncompletePreflight>(
+        getPublicApiUrl(),
+        `/api/v1/matches/${matchId}/uncomplete-preflight`,
+        { signal },
+      );
+      if (r.ok) {
+        setPreflight(r.data);
+        return;
       }
+      // A refusal leaves whatever is on screen; only a dropped connection or an
+      // unreadable body clears it, and an abort is a newer load's business.
+      if (r.kind === 'network') setPreflight(null);
     },
     [matchId],
   );

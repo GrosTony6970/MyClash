@@ -26,6 +26,7 @@ import { MailPassesButton } from './_components/MailPassesButton';
 import { WaitingListPanel } from './_components/WaitingListPanel';
 import { addToWaitingList, tryRegisterInTournament } from './_components/registration-helpers';
 import { useEventStatus } from '../_hooks/useEventStatus';
+import { apiRequest, failureMessage } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
 
 interface Person {
@@ -253,84 +254,70 @@ export default function ParticipantsPage() {
     const controller = new AbortController();
     // eslint-disable-next-line react-hooks/set-state-in-effect -- intentional loading flag before the fetch fan-out
     setLoading(true);
-    Promise.all([
-      fetch(`${apiUrl}/api/v1/events/${eventId}/persons`, {
-        credentials: 'include',
-        signal: controller.signal,
-      }),
-      fetch(`${apiUrl}/api/v1/events/${eventId}/registrations`, {
-        credentials: 'include',
-        signal: controller.signal,
-      }),
-      fetch(`${apiUrl}/api/v1/events/${eventId}/tournaments`, {
-        credentials: 'include',
-        signal: controller.signal,
-      }),
-    ])
-      .then(async ([pRes, rRes, tRes]) => {
-        setLoading(false);
-        if (pRes.ok) setPersons((await pRes.json()) as Person[]);
-        if (rRes.ok) setRegistrations((await rRes.json()) as Registration[]);
-        if (tRes.ok) {
-          const raw = (await tRes.json()) as Array<Tournament & { max_waitlist?: number | null }>;
-          setTournaments(
-            raw.map((t) => ({
-              id: t.id,
-              name: t.name,
-              color: t.color ?? null,
-              maxWaitlist: t.maxWaitlist ?? t.max_waitlist ?? null,
-            })),
-          );
-        }
-      })
-      .catch((err: unknown) => {
-        setLoading(false);
-        if (err instanceof Error && err.name === 'AbortError') return;
-      });
+    const init = { signal: controller.signal };
+    void Promise.all([
+      apiRequest<Person[]>(apiUrl, `/api/v1/events/${eventId}/persons`, init),
+      apiRequest<Registration[]>(apiUrl, `/api/v1/events/${eventId}/registrations`, init),
+      apiRequest<Array<Tournament & { max_waitlist?: number | null }>>(
+        apiUrl,
+        `/api/v1/events/${eventId}/tournaments`,
+        init,
+      ),
+    ]).then(([pRes, rRes, tRes]) => {
+      setLoading(false);
+      if (pRes.ok) setPersons(pRes.data);
+      if (rRes.ok) setRegistrations(rRes.data);
+      if (tRes.ok) {
+        setTournaments(
+          tRes.data.map((tournament) => ({
+            id: tournament.id,
+            name: tournament.name,
+            color: tournament.color ?? null,
+            maxWaitlist: tournament.maxWaitlist ?? tournament.max_waitlist ?? null,
+          })),
+        );
+      }
+      // The three lists were tolerant and stay tolerant — the roster draws from
+      // whatever landed — but a refusal reached nothing at all, so an empty
+      // roster and a refused roster looked identical.
+      const failed = [pRes, rRes, tRes].find((r) => !r.ok);
+      if (failed && !failed.ok) {
+        const message = failureMessage(failed, t, t('admin.orgPersons.loadError'));
+        if (message) setAddError(message);
+      }
+    });
     return () => controller.abort();
-  }, [eventId, apiUrl, refreshKey]);
+  }, [eventId, apiUrl, refreshKey, t]);
 
   // Fetch the event's referee list once per refresh.
   // Post-0063: every row carries a personId; userId is a derived display field.
   useEffect(() => {
     const controller = new AbortController();
-    fetch(`${apiUrl}/api/v1/events/${eventId}/referees`, {
-      credentials: 'include',
-      signal: controller.signal,
-    })
-      .then(async (res) => {
-        if (!res.ok) return;
-        const rows = (await res.json()) as Array<{
-          personId: string;
-          userId: string | null;
-        }>;
-        const persons = new Set<string>();
-        for (const r of rows) persons.add(r.personId);
-        setRefereePersonIds(persons);
-      })
-      .catch((err: unknown) => {
-        if (err instanceof Error && err.name === 'AbortError') return;
-      });
+    // Silent: this only decides which rows show the referee pill, and the
+    // roster read above already reports a refusal.
+    void apiRequest<Array<{ personId: string; userId: string | null }>>(
+      apiUrl,
+      `/api/v1/events/${eventId}/referees`,
+      { signal: controller.signal },
+    ).then((r) => {
+      if (!r.ok) return;
+      setRefereePersonIds(new Set(r.data.map((row) => row.personId)));
+    });
     return () => controller.abort();
   }, [eventId, apiUrl, refreshKey]);
 
   // Fetch the event's instructor roster once per refresh (mirrors referees).
   useEffect(() => {
     const controller = new AbortController();
-    fetch(`${apiUrl}/api/v1/events/${eventId}/instructors`, {
-      credentials: 'include',
-      signal: controller.signal,
-    })
-      .then(async (res) => {
-        if (!res.ok) return;
-        const rows = (await res.json()) as Array<{ personId: string; displayName: string }>;
-        const ids = new Set<string>();
-        for (const r of rows) ids.add(r.personId);
-        setInstructorPersonIds(ids);
-      })
-      .catch((err: unknown) => {
-        if (err instanceof Error && err.name === 'AbortError') return;
-      });
+    // Silent, same reason as the referee roster above.
+    void apiRequest<Array<{ personId: string; displayName: string }>>(
+      apiUrl,
+      `/api/v1/events/${eventId}/instructors`,
+      { signal: controller.signal },
+    ).then((r) => {
+      if (!r.ok) return;
+      setInstructorPersonIds(new Set(r.data.map((row) => row.personId)));
+    });
     return () => controller.abort();
   }, [eventId, apiUrl, refreshKey]);
 
@@ -359,15 +346,14 @@ export default function ParticipantsPage() {
       return;
     }
     const timer = setTimeout(() => {
-      fetch(`${apiUrl}/api/v1/global-persons?q=${encodeURIComponent(globalSearch)}`, {
-        credentials: 'include',
-      })
-        .then(async (res) => {
-          if (!res.ok) return;
-          const rows = (await res.json()) as Array<Record<string, unknown>>;
-          setGlobalSuggestions(rows.map(mapGlobalPersonSuggestion));
-        })
-        .catch(() => undefined);
+      // Silent: a suggestion list that will not load shows nothing, and the
+      // operator can still type the name in full.
+      void apiRequest<Array<Record<string, unknown>>>(
+        apiUrl,
+        `/api/v1/global-persons?q=${encodeURIComponent(globalSearch)}`,
+      ).then((r) => {
+        if (r.ok) setGlobalSuggestions(r.data.map(mapGlobalPersonSuggestion));
+      });
     }, 250);
     return () => clearTimeout(timer);
   }, [globalSearch, apiUrl]);
@@ -379,13 +365,12 @@ export default function ParticipantsPage() {
       return;
     }
     const timer = setTimeout(() => {
-      fetch(`${apiUrl}/api/v1/clubs?q=${encodeURIComponent(clubSearch)}&searchAbv=true`, {
-        credentials: 'include',
-      })
-        .then(async (res) => {
-          if (res.ok) setClubSuggestions((await res.json()) as ClubSuggestion[]);
-        })
-        .catch(() => undefined);
+      void apiRequest<ClubSuggestion[]>(
+        apiUrl,
+        `/api/v1/clubs?q=${encodeURIComponent(clubSearch)}&searchAbv=true`,
+      ).then((r) => {
+        if (r.ok) setClubSuggestions(r.data);
+      });
     }, 250);
     return () => clearTimeout(timer);
   }, [clubSearch, showAdd, selectedClubId, apiUrl]);
@@ -397,13 +382,12 @@ export default function ParticipantsPage() {
       return;
     }
     const timer = setTimeout(() => {
-      fetch(`${apiUrl}/api/v1/clubs?q=${encodeURIComponent(editClubSearch)}&searchAbv=true`, {
-        credentials: 'include',
-      })
-        .then(async (res) => {
-          if (res.ok) setEditClubSuggestions((await res.json()) as ClubSuggestion[]);
-        })
-        .catch(() => undefined);
+      void apiRequest<ClubSuggestion[]>(
+        apiUrl,
+        `/api/v1/clubs?q=${encodeURIComponent(editClubSearch)}&searchAbv=true`,
+      ).then((r) => {
+        if (r.ok) setEditClubSuggestions(r.data);
+      });
     }, 250);
     return () => clearTimeout(timer);
   }, [editClubSearch, editPerson, editClubId, apiUrl]);
@@ -506,12 +490,16 @@ export default function ParticipantsPage() {
       // no email there is nothing else to tell two people apart. It is a
       // suspicion, not a fact, so the refusal is resolvable: confirm once and
       // re-send. `details.resolution` is the API saying which flag clears it.
-      async function postPerson(allowDuplicateName: boolean): Promise<Response> {
-        return fetch(`${apiUrl}/api/v1/events/${eventId}/persons`, {
+      type CreatedPerson = {
+        id: string;
+        globalPersonId: string | null;
+        claimedByUserId?: string | null;
+        mintedIdentity?: 'unmatchable' | 'first_sighting' | null;
+      };
+      const postPerson = (allowDuplicateName: boolean) =>
+        apiRequest<CreatedPerson>(apiUrl, `/api/v1/events/${eventId}/persons`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          credentials: 'include',
-          body: JSON.stringify({
+          body: {
             givenName: addForm.givenName.trim(),
             familyName: addForm.familyName.trim(),
             email: addForm.email.trim() || null,
@@ -520,19 +508,16 @@ export default function ParticipantsPage() {
             hemaRatingsId,
             globalPersonId: selectedGlobalId || null,
             ...(allowDuplicateName ? { allowDuplicateName: true } : {}),
-          }),
+          },
         });
-      }
 
       let personRes = await postPerson(false);
-      if (personRes.status === 409) {
-        const body = (await personRes.json()) as {
-          message?: string;
-          details?: { resolution?: string };
-        };
-        if (body.details?.resolution !== 'allowDuplicateName') {
-          throw new Error(body.message ?? t('admin.common.createParticipantFailed'));
-        }
+      if (
+        !personRes.ok &&
+        personRes.kind === 'http' &&
+        personRes.status === 409 &&
+        personRes.details?.['resolution'] === 'allowDuplicateName'
+      ) {
         const confirmed = await confirm({
           title: t('admin.orgPersons.duplicateNameTitle'),
           description: t('admin.orgPersons.duplicateNameBody', {
@@ -547,15 +532,11 @@ export default function ParticipantsPage() {
         personRes = await postPerson(true);
       }
       if (!personRes.ok) {
-        const body = (await personRes.json()) as { message?: string };
-        throw new Error(body.message ?? t('admin.common.createParticipantFailed'));
+        const message = failureMessage(personRes, t, t('admin.common.createParticipantFailed'));
+        if (message) setAddError(message);
+        return;
       }
-      const person = (await personRes.json()) as {
-        id: string;
-        globalPersonId: string | null;
-        claimedByUserId?: string | null;
-        mintedIdentity?: 'unmatchable' | 'first_sighting' | null;
-      };
+      const person = personRes.data;
 
       // Post-0063: referee registration keys on the person's global_persons.id.
       // The backend's ensureEventReferee also accepts the event-scoped
@@ -564,37 +545,25 @@ export default function ParticipantsPage() {
       // still get auto-registered when isReferee is checked.
       if (addForm.isReferee) {
         const refereeId = person.globalPersonId ?? person.id;
-        const url = `${apiUrl}/api/v1/events/${eventId}/referees/${refereeId}`;
-        fetch(url, { method: 'POST', credentials: 'include' })
-          .then(async (res) => {
-            if (!res.ok) {
-              const body = (await res.json().catch(() => null)) as { message?: string } | null;
-              console.error('Referee registration failed', res.status, body);
-              toast.warning(t('organizer.persons.refereeRegistrationFailed'));
-            }
-          })
-          .catch((err: unknown) => {
-            console.error('Referee registration network error', err);
-            toast.warning(t('organizer.persons.refereeRegistrationFailed'));
-          });
+        void apiRequest(apiUrl, `/api/v1/events/${eventId}/referees/${refereeId}`, {
+          method: 'POST',
+        }).then((r) => {
+          if (r.ok) return;
+          const message = failureMessage(r, t, t('organizer.persons.refereeRegistrationFailed'));
+          if (message) toast.warning(message);
+        });
       }
 
       // Instructor tagging — same id-resolution rules as referees.
       if (addForm.isInstructor) {
         const instructorId = person.globalPersonId ?? person.id;
-        const url = `${apiUrl}/api/v1/events/${eventId}/instructors/${instructorId}`;
-        fetch(url, { method: 'POST', credentials: 'include' })
-          .then(async (res) => {
-            if (!res.ok) {
-              const body = (await res.json().catch(() => null)) as { message?: string } | null;
-              console.error('Instructor tagging failed', res.status, body);
-              toast.warning(t('organizer.persons.instructorRegistrationFailed'));
-            }
-          })
-          .catch((err: unknown) => {
-            console.error('Instructor tagging network error', err);
-            toast.warning(t('organizer.persons.instructorRegistrationFailed'));
-          });
+        void apiRequest(apiUrl, `/api/v1/events/${eventId}/instructors/${instructorId}`, {
+          method: 'POST',
+        }).then((r) => {
+          if (r.ok) return;
+          const message = failureMessage(r, t, t('organizer.persons.instructorRegistrationFailed'));
+          if (message) toast.warning(message);
+        });
       }
 
       // Per-tournament registrations — capture failures so a network blip
@@ -698,21 +667,20 @@ export default function ParticipantsPage() {
     setEditSaving(true);
     setEditError(null);
     try {
-      const res = await fetch(`${apiUrl}/api/v1/persons/${editPerson.id}`, {
+      const saved = await apiRequest(apiUrl, `/api/v1/persons/${editPerson.id}`, {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({
+        body: {
           givenName: editForm.givenName.trim(),
           familyName: editForm.familyName.trim(),
           email: editForm.email.trim() || null,
           clubId: editClubId || null,
           hemaRatingsId: editForm.hemaRatingsId.trim() || null,
-        }),
+        },
       });
-      if (!res.ok) {
-        const body = (await res.json()) as { message?: string };
-        throw new Error(body.message ?? t('admin.common.saveFailed'));
+      if (!saved.ok) {
+        const message = failureMessage(saved, t, t('admin.common.saveFailed'));
+        if (message) setEditError(message);
+        return;
       }
 
       // Diff tournament selection vs the original set.
@@ -751,9 +719,8 @@ export default function ParticipantsPage() {
           (x) => x.personId === editPerson.id && x.tournamentId === tournamentId,
         );
         if (!reg) continue;
-        const r = await fetch(`${apiUrl}/api/v1/registrations/${reg.id}`, {
+        const r = await apiRequest(apiUrl, `/api/v1/registrations/${reg.id}`, {
           method: 'DELETE',
-          credentials: 'include',
         });
         if (!r.ok) {
           const tour = tournaments.find((x) => x.id === tournamentId);
@@ -776,11 +743,14 @@ export default function ParticipantsPage() {
         if (!editPerson.globalPersonId) {
           toast.warning(t('organizer.persons.refereeUpdateFailed'));
         } else {
-          const url = `${apiUrl}/api/v1/events/${eventId}/referees/${editPerson.globalPersonId}`;
-          const method = editForm.isReferee ? 'POST' : 'DELETE';
-          const r = await fetch(url, { method, credentials: 'include' });
+          const r = await apiRequest(
+            apiUrl,
+            `/api/v1/events/${eventId}/referees/${editPerson.globalPersonId}`,
+            { method: editForm.isReferee ? 'POST' : 'DELETE' },
+          );
           if (!r.ok) {
-            toast.warning(t('organizer.persons.refereeUpdateFailed'));
+            const message = failureMessage(r, t, t('organizer.persons.refereeUpdateFailed'));
+            if (message) toast.warning(message);
           }
         }
       }
@@ -793,19 +763,20 @@ export default function ParticipantsPage() {
         if (!editPerson.globalPersonId) {
           toast.warning(t('organizer.persons.instructorUpdateFailed'));
         } else {
-          const url = `${apiUrl}/api/v1/events/${eventId}/instructors/${editPerson.globalPersonId}`;
-          const method = editForm.isInstructor ? 'POST' : 'DELETE';
-          const r = await fetch(url, { method, credentials: 'include' });
+          const r = await apiRequest(
+            apiUrl,
+            `/api/v1/events/${eventId}/instructors/${editPerson.globalPersonId}`,
+            { method: editForm.isInstructor ? 'POST' : 'DELETE' },
+          );
           if (!r.ok) {
-            toast.warning(t('organizer.persons.instructorUpdateFailed'));
+            const message = failureMessage(r, t, t('organizer.persons.instructorUpdateFailed'));
+            if (message) toast.warning(message);
           }
         }
       }
 
       setEditPerson(null);
       refresh();
-    } catch (err) {
-      setEditError(err instanceof Error ? err.message : t('admin.common.saveFailed'));
     } finally {
       setEditSaving(false);
     }
@@ -825,17 +796,24 @@ export default function ParticipantsPage() {
     if (!(await confirm({ title: t('admin.orgPersons.confirmCheckIn', { count: selected.size }) })))
       return;
     setBulkLoading(true);
+    let checkInFailures = 0;
     for (const personId of selected) {
       const reg = (registrationsByPersonId.get(personId) ?? []).find(
         (r) => r.tournamentId === activeTab,
       );
       if (!reg) continue;
-      await fetch(`${apiUrl}/api/v1/registrations/${reg.id}/status`, {
+      const r = await apiRequest(apiUrl, `/api/v1/registrations/${reg.id}/status`, {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ status: 'checked_in' }),
+        body: { status: 'checked_in' },
       });
+      // The write had no success check at all, so a refused bulk check-in
+      // reported nothing and the roster silently kept the old status.
+      if (!r.ok) checkInFailures += 1;
+    }
+    if (checkInFailures > 0) {
+      toast.warning(
+        t('organizer.persons.bulk.checkInPartial', { failed: String(checkInFailures) }),
+      );
     }
     setSelected(new Set());
     setBulkLoading(false);
@@ -943,11 +921,10 @@ export default function ParticipantsPage() {
       // fall back to event-scoped id when globalPersonId is absent
       // — ensureEventReferee resolves either.
       const targetId = person?.globalPersonId ?? personId;
-      const res = await fetch(`${apiUrl}/api/v1/events/${eventId}/referees/${targetId}`, {
+      const r = await apiRequest(apiUrl, `/api/v1/events/${eventId}/referees/${targetId}`, {
         method: 'POST',
-        credentials: 'include',
       });
-      if (res.ok) ok += 1;
+      if (r.ok) ok += 1;
     }
     setSelected(new Set());
     setBulkLoading(false);
@@ -970,11 +947,10 @@ export default function ParticipantsPage() {
     for (const personId of selected) {
       const person = persons.find((p) => p.id === personId);
       const targetId = person?.globalPersonId ?? personId;
-      const res = await fetch(`${apiUrl}/api/v1/events/${eventId}/referees/${targetId}`, {
+      const r = await apiRequest(apiUrl, `/api/v1/events/${eventId}/referees/${targetId}`, {
         method: 'DELETE',
-        credentials: 'include',
       });
-      if (res.ok) ok += 1;
+      if (r.ok) ok += 1;
     }
     setSelected(new Set());
     setBulkLoading(false);

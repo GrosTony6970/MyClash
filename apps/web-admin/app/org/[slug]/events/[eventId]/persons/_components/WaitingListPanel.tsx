@@ -11,6 +11,7 @@ import {
 } from '@myclash/ui';
 import { formatRosterName } from '../roster-name';
 import { useI18n } from '@myclash/next-i18n/client';
+import { apiRequest, failureMessage, type ApiFailure } from '@myclash/api-client';
 
 /**
  * Slice 5 of the tournament capacity + waitlist overhaul.
@@ -75,27 +76,39 @@ export function WaitingListPanel({
     return map;
   }, [registrations]);
 
+  /** A refused promote that means "the tournament is now full", or null. */
+  function fullTournamentRefusal(failure: ApiFailure): boolean {
+    return (
+      failure.kind === 'http' &&
+      failure.status === 409 &&
+      failure.details?.['reason'] === 'tournament_full'
+    );
+  }
+
   async function promote(reg: WaitlistRegistration, force = false) {
-    try {
-      const res = await fetch(
-        `${apiUrl}/api/v1/registrations/${reg.id}/promote${force ? '?force=true' : ''}`,
-        { method: 'POST', credentials: 'include' },
-      );
-      if (res.status === 409) {
-        const body = (await res.json().catch(() => null)) as { reason?: string } | null;
-        if (body?.reason === 'tournament_full') {
-          if (await confirm({ title: translate('admin.orgPersons.confirmWaitlistPromoteFull') })) {
-            return promote(reg, true);
-          }
-          return;
+    const r = await apiRequest(
+      apiUrl,
+      `/api/v1/registrations/${reg.id}/promote${force ? '?force=true' : ''}`,
+      { method: 'POST' },
+    );
+    if (!r.ok) {
+      // `reason` was read off the TOP of the 409 body and the API never puts it
+      // there: `buildDetails` in the exception filter moves every extra key
+      // under `details`. So this branch could not fire — the "tournament is
+      // full, promote anyway?" confirmation never appeared, and promoting the
+      // next fighter into a full tournament just said "Could not promote."
+      if (fullTournamentRefusal(r)) {
+        if (await confirm({ title: translate('admin.orgPersons.confirmWaitlistPromoteFull') })) {
+          return promote(reg, true);
         }
+        return;
       }
-      if (!res.ok) throw new Error(translate('admin.common.promoteFailed'));
-      toast.success(translate('admin.orgPersons.toastWaitlistPromoted'));
-      onChange();
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : translate('admin.common.somethingWentWrong'));
+      const message = failureMessage(r, translate, translate('admin.common.promoteFailed'));
+      if (message) toast.error(message);
+      return;
     }
+    toast.success(translate('admin.orgPersons.toastWaitlistPromoted'));
+    onChange();
   }
 
   async function remove(reg: WaitlistRegistration) {
@@ -103,32 +116,27 @@ export function WaitingListPanel({
       !(await confirm({ title: translate('admin.orgPersons.confirmWaitlistRemove'), danger: true }))
     )
       return;
-    try {
-      const res = await fetch(`${apiUrl}/api/v1/registrations/${reg.id}`, {
-        method: 'DELETE',
-        credentials: 'include',
-      });
-      if (!res.ok) throw new Error(translate('admin.common.removeFailed'));
-      toast.success(translate('admin.orgPersons.toastWaitlistRemoved'));
-      onChange();
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : translate('admin.common.somethingWentWrong'));
+    const r = await apiRequest(apiUrl, `/api/v1/registrations/${reg.id}`, { method: 'DELETE' });
+    if (!r.ok) {
+      const message = failureMessage(r, translate, translate('admin.common.removeFailed'));
+      if (message) toast.error(message);
+      return;
     }
+    toast.success(translate('admin.orgPersons.toastWaitlistRemoved'));
+    onChange();
   }
 
   async function reorder(tournamentId: string, orderedRegistrationIds: string[]) {
-    try {
-      const res = await fetch(`${apiUrl}/api/v1/tournaments/${tournamentId}/waitlist/reorder`, {
-        method: 'PATCH',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ orderedRegistrationIds }),
-      });
-      if (!res.ok) throw new Error(translate('admin.common.reorderFailed'));
-      onChange();
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : translate('admin.common.somethingWentWrong'));
+    const r = await apiRequest(apiUrl, `/api/v1/tournaments/${tournamentId}/waitlist/reorder`, {
+      method: 'PATCH',
+      body: { orderedRegistrationIds },
+    });
+    if (!r.ok) {
+      const message = failureMessage(r, translate, translate('admin.common.reorderFailed'));
+      if (message) toast.error(message);
+      return;
     }
+    onChange();
   }
 
   if (tournaments.length === 0) {

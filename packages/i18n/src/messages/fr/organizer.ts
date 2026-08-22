@@ -285,6 +285,7 @@ export const organizer = {
   },
   penaltyReviews: {
     title: 'Revisions de pénalités',
+    loadError: 'Impossible de charger les revisions de pénalités.',
     subtitle:
       'Un deuxieme carton noir dans le même tournoi signale le combattant pour revision de disqualification. Confirmez pour disqualifier son inscription, ou rejetez.',
     pendingTitle: 'Revisions en attente ({count})',
@@ -1304,6 +1305,7 @@ export const organizer = {
   },
   compensationSettings: {
     title: 'Plans de compensation',
+    deleteError: 'Impossible de supprimer le plan de compensation.',
     description: 'Gérer les taux de jetons et les paliers de conversion pour les arbitres.',
     organizationLoadError: 'Impossible de charger cette organisation.',
     loadPlansError: 'Impossible de charger les plans de compensation.',
@@ -1354,6 +1356,8 @@ export const organizer = {
   },
   eventCompensation: {
     event: 'Événement',
+    loadPlansError: 'Impossible de charger les grilles de compensation.',
+    markPaidError: 'Impossible de changer le statut de paiement.',
     breadcrumb: 'Compensation',
     title: 'Compensation des arbitres',
     settings: 'Paramètres',
@@ -2779,6 +2783,7 @@ export const organizer = {
       unregisterReferee: 'Desinscrire comme arbitre',
       registerRefereeConfirm: 'Inscrire {count} participant(s) comme arbitre ?',
       unregisterRefereeConfirm: 'Desinscrire {count} participant(s) comme arbitre ?',
+      checkInPartial: '{failed} pointage(s) refuse(s).',
       registerRefereeToast: '{count} participant(s) inscrit(s) comme arbitre pour cet événement.',
       unregisterRefereeToast: '{count} participant(s) desinscrit(s) comme arbitre.',
       deleteFromEvent: "Supprimer de l'événement",

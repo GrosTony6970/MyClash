@@ -289,6 +289,7 @@ export const organizer = {
   },
   penaltyReviews: {
     title: 'Penalty reviews',
+    loadError: 'Could not load the penalty reviews.',
     subtitle:
       'A second black card in the same tournament flags the fighter for disqualification review. Confirm to disqualify their registration, or dismiss.',
     pendingTitle: 'Pending reviews ({count})',
@@ -1306,6 +1307,7 @@ export const organizer = {
   },
   compensationSettings: {
     title: 'Compensation plans',
+    deleteError: 'Could not delete the compensation plan.',
     description: 'Manage token rates and conversion tiers for referee compensation.',
     organizationLoadError: 'Could not load this organization.',
     loadPlansError: 'Could not load compensation plans.',
@@ -1356,6 +1358,8 @@ export const organizer = {
   },
   eventCompensation: {
     event: 'Event',
+    loadPlansError: 'Could not load the compensation plans.',
+    markPaidError: 'Could not change the payment status.',
     breadcrumb: 'Compensation',
     title: 'Referee compensation',
     settings: 'Settings',
@@ -2807,6 +2811,7 @@ export const organizer = {
       unregisterReferee: 'Unregister as referee',
       registerRefereeConfirm: 'Register {count} participant(s) as referee?',
       unregisterRefereeConfirm: 'Unregister {count} participant(s) as referee?',
+      checkInPartial: '{failed} check-in(s) were refused.',
       registerRefereeToast: '{count} participant(s) now referee for this event.',
       unregisterRefereeToast: '{count} participant(s) unregistered as referee.',
       deleteFromEvent: 'Delete from event',

@@ -3,6 +3,7 @@
 import { useI18n } from '@myclash/next-i18n/client';
 import { useState } from 'react';
 import { useConfirm } from '@myclash/ui';
+import { apiRequest, failureMessage } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
 
 interface Props {
@@ -86,17 +87,21 @@ function useMailPasses(eventId: string, confirm: Confirm) {
   const dispatch = (resend: boolean): void => {
     setBusy(true);
     setError(null);
-    void fetch(`${getPublicApiUrl()}/api/v1/events/${eventId}/passes/mail`, {
+    void apiRequest<MailOutResult>(getPublicApiUrl(), `/api/v1/events/${eventId}/passes/mail`, {
       method: 'POST',
-      credentials: 'include',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ resend }),
+      body: { resend },
     })
-      .then(async (res) => {
-        if (!res.ok) throw new Error(String(res.status));
-        setResult((await res.json()) as MailOutResult);
+      .then((r) => {
+        if (r.ok) {
+          setResult(r.data);
+          return;
+        }
+        // A refused mail-out names the reason — no sender configured, a person
+        // with no address, the provider refusing the batch. All of them used to
+        // read "Could not send the passes."
+        const message = failureMessage(r, t, t('admin.orgPersons.passes.error'));
+        if (message) setError(message);
       })
-      .catch(() => setError(t('admin.orgPersons.passes.error')))
       .finally(() => setBusy(false));
   };
 

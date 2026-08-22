@@ -7,6 +7,7 @@ import type { CompensationPlan, CompensationPhase } from '@myclash/types';
 import { CompensationTopNav } from '../../../../../../../src/components/CompensationTopNav';
 import { rulesetHelp } from '@/components/rulesets/rulesetHelp';
 import { useI18n } from '@myclash/next-i18n/client';
+import { apiRequest, failureMessage } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
 
 /** A referee_skills catalog entry (the 3 system skills + this event's custom skills). */
@@ -95,34 +96,44 @@ export default function OrgCompensationPlansPage() {
 
   useEffect(() => {
     const controller = new AbortController();
-    fetch(`${apiUrl}/api/v1/organizations/slug/${encodeURIComponent(slug)}`, {
-      credentials: 'include',
-      signal: controller.signal,
-    })
-      .then(async (res) => {
-        if (!res.ok) {
-          throw new Error(t('organizer.compensationSettings.organizationLoadError'));
-        }
-        const org = (await res.json()) as { id: string };
-        setOrgId(org.id);
-        return fetch(`${apiUrl}/api/v1/compensation-plans`, {
-          credentials: 'include',
-          signal: controller.signal,
-        });
-      })
-      .then(async (res) => {
-        if (!res?.ok) {
-          throw new Error(t('organizer.compensationSettings.loadPlansError'));
-        }
-        setPlans((await res.json()) as CompensationPlan[]);
-      })
-      .catch((err: unknown) => {
-        if (err instanceof Error && err.name === 'AbortError') return;
-        setError(
-          err instanceof Error ? err.message : t('organizer.compensationSettings.loadPlansError'),
+    void (async () => {
+      try {
+        const orgRes = await apiRequest<{ id: string }>(
+          apiUrl,
+          `/api/v1/organizations/slug/${encodeURIComponent(slug)}`,
+          { signal: controller.signal },
         );
-      })
-      .finally(() => setLoading(false));
+        if (!orgRes.ok) {
+          const message = failureMessage(
+            orgRes,
+            t,
+            t('organizer.compensationSettings.organizationLoadError'),
+          );
+          if (message) setError(message);
+          return;
+        }
+        setOrgId(orgRes.data.id);
+        const plansRes = await apiRequest<CompensationPlan[]>(
+          apiUrl,
+          '/api/v1/compensation-plans',
+          {
+            signal: controller.signal,
+          },
+        );
+        if (!plansRes.ok) {
+          const message = failureMessage(
+            plansRes,
+            t,
+            t('organizer.compensationSettings.loadPlansError'),
+          );
+          if (message) setError(message);
+          return;
+        }
+        setPlans(plansRes.data);
+      } finally {
+        setLoading(false);
+      }
+    })();
     return () => controller.abort();
   }, [slug, apiUrl, t]);
 
@@ -130,17 +141,13 @@ export default function OrgCompensationPlansPage() {
   // source of the role rows, replacing the old hardcoded 3-role list.
   useEffect(() => {
     const controller = new AbortController();
-    fetch(`${apiUrl}/api/v1/events/${eventId}/referee-skills`, {
-      credentials: 'include',
+    // Silent: without it the rate grid falls back to the raw skill id, which
+    // the table already handles.
+    void apiRequest<RefereeSkill[]>(apiUrl, `/api/v1/events/${eventId}/referee-skills`, {
       signal: controller.signal,
-    })
-      .then(async (res) => {
-        if (!res.ok) return;
-        setSkills((await res.json()) as RefereeSkill[]);
-      })
-      .catch((err: unknown) => {
-        if (err instanceof Error && err.name === 'AbortError') return;
-      });
+    }).then((r) => {
+      if (r.ok) setSkills(r.data);
+    });
     return () => controller.abort();
   }, [eventId, apiUrl]);
 
@@ -171,31 +178,29 @@ export default function OrgCompensationPlansPage() {
     setCreating(true);
     setError(null);
     try {
-      const res = await fetch(`${apiUrl}/api/v1/organizations/${orgId}/compensation-plans`, {
-        method: 'POST',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: newName.trim(),
-          description: newDesc.trim() || undefined,
-          publicVisibility: newPublic,
-        }),
-      });
-      if (!res.ok) {
-        const body = (await res.json()) as { message?: string };
-        throw new Error(body.message ?? t('organizer.compensationSettings.createError'));
+      const r = await apiRequest<CompensationPlan>(
+        apiUrl,
+        `/api/v1/organizations/${orgId}/compensation-plans`,
+        {
+          method: 'POST',
+          body: {
+            name: newName.trim(),
+            description: newDesc.trim() || undefined,
+            publicVisibility: newPublic,
+          },
+        },
+      );
+      if (!r.ok) {
+        const message = failureMessage(r, t, t('organizer.compensationSettings.createError'));
+        if (message) setError(message);
+        return;
       }
-      const plan = (await res.json()) as CompensationPlan;
-      setPlans((prev) => [...prev, plan]);
+      setPlans((prev) => [...prev, r.data]);
       setShowNewForm(false);
       setNewName('');
       setNewDesc('');
       setNewPublic(false);
-      expandPlan(plan);
-    } catch (err) {
-      setError(
-        err instanceof Error ? err.message : t('organizer.compensationSettings.createError'),
-      );
+      expandPlan(r.data);
     } finally {
       setCreating(false);
     }
@@ -206,16 +211,18 @@ export default function OrgCompensationPlansPage() {
       !(await confirm({ title: t('organizer.compensationSettings.deleteConfirm'), danger: true }))
     )
       return;
-    try {
-      await fetch(`${apiUrl}/api/v1/compensation-plans/${planId}`, {
-        method: 'DELETE',
-        credentials: 'include',
-      });
-      setPlans((prev) => prev.filter((p) => p.id !== planId));
-      if (expandedId === planId) setExpandedId(null);
-    } catch {
-      // ignore
+    const r = await apiRequest(apiUrl, `/api/v1/compensation-plans/${planId}`, {
+      method: 'DELETE',
+    });
+    if (!r.ok) {
+      // The write had no success check at all, so a plan still pinned to an
+      // event vanished from the list and came back on the next load.
+      const message = failureMessage(r, t, t('organizer.compensationSettings.deleteError'));
+      if (message) setError(message);
+      return;
     }
+    setPlans((prev) => prev.filter((p) => p.id !== planId));
+    if (expandedId === planId) setExpandedId(null);
   }
 
   async function saveRates(planId: string) {
@@ -240,22 +247,17 @@ export default function OrgCompensationPlansPage() {
           tokensPerMatch: rr.tokensPerMatch,
         }));
       const rates = [...gridRates, ...preserved];
-      const res = await fetch(`${apiUrl}/api/v1/compensation-plans/${planId}/role-rates`, {
-        method: 'PUT',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ rates }),
-      });
-      if (!res.ok) {
-        const body = (await res.json()) as { message?: string };
-        throw new Error(body.message ?? t('organizer.compensationSettings.saveRatesError'));
-      }
-      const updated = (await res.json()) as CompensationPlan;
-      setPlans((prev) => prev.map((p) => (p.id === planId ? updated : p)));
-    } catch (err) {
-      setSaveError(
-        err instanceof Error ? err.message : t('organizer.compensationSettings.saveRatesError'),
+      const r = await apiRequest<CompensationPlan>(
+        apiUrl,
+        `/api/v1/compensation-plans/${planId}/role-rates`,
+        { method: 'PUT', body: { rates } },
       );
+      if (!r.ok) {
+        const message = failureMessage(r, t, t('organizer.compensationSettings.saveRatesError'));
+        if (message) setSaveError(message);
+        return;
+      }
+      setPlans((prev) => prev.map((p) => (p.id === planId ? r.data : p)));
     } finally {
       setSavingRates(false);
     }
@@ -270,22 +272,19 @@ export default function OrgCompensationPlansPage() {
         maxTokens: t.maxTokens ? parseFloat(t.maxTokens) : null,
         amount: parseFloat(t.amount) || 0,
       }));
-      const res = await fetch(`${apiUrl}/api/v1/compensation-plans/${planId}/tiers`, {
-        method: 'PUT',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ tiers }),
-      });
-      if (!res.ok) {
-        const body = (await res.json()) as { message?: string };
-        throw new Error(body.message ?? t('organizer.compensationSettings.saveTiersError'));
-      }
-      const updated = (await res.json()) as CompensationPlan;
-      setPlans((prev) => prev.map((p) => (p.id === planId ? updated : p)));
-    } catch (err) {
-      setSaveError(
-        err instanceof Error ? err.message : t('organizer.compensationSettings.saveTiersError'),
+      const r = await apiRequest<CompensationPlan>(
+        apiUrl,
+        `/api/v1/compensation-plans/${planId}/tiers`,
+        { method: 'PUT', body: { tiers } },
       );
+      if (!r.ok) {
+        // Overlapping or non-contiguous tiers are refused by range. That
+        // sentence is the only thing that tells the operator which row to fix.
+        const message = failureMessage(r, t, t('organizer.compensationSettings.saveTiersError'));
+        if (message) setSaveError(message);
+        return;
+      }
+      setPlans((prev) => prev.map((p) => (p.id === planId ? r.data : p)));
     } finally {
       setSavingTiers(false);
     }

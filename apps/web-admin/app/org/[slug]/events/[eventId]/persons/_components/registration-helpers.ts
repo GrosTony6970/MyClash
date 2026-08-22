@@ -9,7 +9,16 @@
  * affordance with one click.
  *
  * Pure functions — kept React-free for easy fetch-mocked unit tests.
+ *
+ * They carry the seam's `ApiFailure` rather than a plucked string. The two
+ * hardcoded English fallbacks that used to live here ('Registration failed',
+ * 'Could not add to the waiting list') broke hard rule 6 — and were also dead:
+ * no caller ever read the `message` field, they only count failures and list
+ * the tournaments or people involved. Handing the failure back leaves the
+ * sentence to `failureMessage` at whatever call site decides to render one.
  */
+
+import { apiRequest, type ApiFailure } from '@myclash/api-client';
 
 export type RegisterOutcome =
   | { status: 'ok'; data: unknown }
@@ -18,76 +27,45 @@ export type RegisterOutcome =
       registeredCount: number;
       maxParticipants: number;
     }
-  | { status: 'error'; message: string };
+  | { status: 'error'; failure: ApiFailure };
 
-interface BackendErrorBody {
-  statusCode?: number;
-  code?: string;
-  message?: string;
-  details?: {
-    reason?: string;
-    registeredCount?: number;
-    maxParticipants?: number;
-  };
+/** `details` is `Record<string, unknown>`; narrow one field at a time. */
+function numberFrom(value: unknown): number {
+  return typeof value === 'number' ? value : 0;
 }
-
-const FALLBACK_REGISTRATION_ERROR = 'Registration failed';
-const FALLBACK_WAITLIST_ERROR = 'Could not add to the waiting list';
 
 export async function tryRegisterInTournament(
   apiUrl: string,
   tournamentId: string,
   body: Record<string, unknown>,
 ): Promise<RegisterOutcome> {
-  let res: Response;
-  try {
-    res = await fetch(`${apiUrl}/api/v1/tournaments/${tournamentId}/registrations`, {
-      method: 'POST',
-      credentials: 'include',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    });
-  } catch (err) {
-    return {
-      status: 'error',
-      message: err instanceof Error ? err.message : FALLBACK_REGISTRATION_ERROR,
-    };
-  }
-  if (res.ok) {
-    const data = await res.json().catch(() => null);
-    return { status: 'ok', data };
-  }
-  const parsed = (await res.json().catch(() => ({}))) as BackendErrorBody;
-  if (res.status === 409 && parsed.details?.reason === 'tournament_full') {
+  const r = await apiRequest<unknown>(apiUrl, `/api/v1/tournaments/${tournamentId}/registrations`, {
+    method: 'POST',
+    body,
+  });
+  if (r.ok) return { status: 'ok', data: r.data ?? null };
+
+  // Read as a FIELD of the extension bag, not by matching English. `code` is
+  // the filter's own 'CONFLICT' here, so branching on it would compile, pass,
+  // and silently stop telling a full tournament from any other conflict.
+  if (r.kind === 'http' && r.status === 409 && r.details?.['reason'] === 'tournament_full') {
     return {
       status: 'full',
-      registeredCount: parsed.details.registeredCount ?? 0,
-      maxParticipants: parsed.details.maxParticipants ?? 0,
+      registeredCount: numberFrom(r.details['registeredCount']),
+      maxParticipants: numberFrom(r.details['maxParticipants']),
     };
   }
-  return {
-    status: 'error',
-    message: parsed.message ?? FALLBACK_REGISTRATION_ERROR,
-  };
+  return { status: 'error', failure: r };
 }
 
 export async function addToWaitingList(
   apiUrl: string,
   tournamentId: string,
   body: Record<string, unknown>,
-): Promise<{ ok: true } | { ok: false; message: string }> {
-  let res: Response;
-  try {
-    res = await fetch(`${apiUrl}/api/v1/tournaments/${tournamentId}/waitlist`, {
-      method: 'POST',
-      credentials: 'include',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    });
-  } catch (err) {
-    return { ok: false, message: err instanceof Error ? err.message : FALLBACK_WAITLIST_ERROR };
-  }
-  if (res.ok) return { ok: true };
-  const parsed = (await res.json().catch(() => ({}))) as BackendErrorBody;
-  return { ok: false, message: parsed.message ?? FALLBACK_WAITLIST_ERROR };
+): Promise<{ ok: true } | { ok: false; failure: ApiFailure }> {
+  const r = await apiRequest(apiUrl, `/api/v1/tournaments/${tournamentId}/waitlist`, {
+    method: 'POST',
+    body,
+  });
+  return r.ok ? { ok: true } : { ok: false, failure: r };
 }

@@ -112,6 +112,9 @@ const ORG_EVENTS_PATH = `/org/${ctx.orgSlug}/events`;
  * screen treats as fatal.
  */
 const ORG_EVENTS_LOAD = '**/api/v1/organizations/*/events';
+const ORG_ROSTER_PATH = `/org/${ctx.orgSlug}/events/${ctx.eventId}/persons`;
+/** The roster read the participants screen opens with. */
+const ORG_ROSTER_LOAD = '**/api/v1/events/*/persons';
 const ORG_DISCOVER_PATH = `/org/${ctx.orgSlug}/rulesets/scoring?tab=discover`;
 /** The adoptable-ruleset catalogue behind the Discover tab. */
 const ORG_DISCOVER_LOAD = '**/api/v1/organizations/*/custom-rulesets/catalog';
@@ -223,6 +226,25 @@ test.describe('the api-failure seam — the org rulesets screen', () => {
 
     await expect(page.getByText(reason)).toBeVisible();
     await expect(page.getByText(COPY.rulesetsLoadError)).toBeHidden();
+  });
+});
+
+/**
+ * The participants roster — the busiest screen of a live event.
+ *
+ * Its three list reads are tolerant by design, so this asserts the half that
+ * was missing: an empty roster and a REFUSED roster used to look identical.
+ */
+test.describe('the api-failure seam — the event roster', () => {
+  test('a refused roster says why instead of looking empty', async ({ page }) => {
+    const reason = 'The roster is locked while the check-in desk syncs. Try again in a minute.';
+    await page.route(ORG_ROSTER_LOAD, (route) => route.fulfill(problemJson(409, reason)));
+
+    await page.goto(ORG_ROSTER_PATH);
+    await expectStayedOn(page, ORG_ROSTER_PATH);
+
+    await expect(page.getByText(reason)).toBeVisible();
+    await expect(page.getByText(COPY.rosterLoadError)).toBeHidden();
   });
 });
 

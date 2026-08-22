@@ -24,6 +24,7 @@ import { FORFEIT_REASONS, OVERRIDE_REASONS, isOverrideReason } from '@myclash/ru
 import { localeToBcp47 } from '@myclash/time';
 import { useI18n } from '@myclash/next-i18n/client';
 import { PayloadCell, type PayloadLabel } from '../../../../../../../src/components/PayloadCell';
+import { apiRequest, failureMessage } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
 import { voidConfirmCopy, type ForfeitCascade } from './void-confirm-copy';
 import { UncompleteDialog, UncompleteHint } from './UncompleteConfirm';
@@ -265,49 +266,32 @@ export default function MatchDetailPage() {
   useEffect(() => {
     const controller = new AbortController();
 
-    Promise.all([
-      fetch(`${apiUrl}/api/v1/matches/${matchId}`, {
-        credentials: 'include',
-        signal: controller.signal,
-      }),
-      fetch(`${apiUrl}/api/v1/matches/${matchId}/summary`, {
-        credentials: 'include',
-        signal: controller.signal,
-      }),
-      fetch(`${apiUrl}/api/v1/matches/${matchId}/exchanges`, {
-        credentials: 'include',
-        signal: controller.signal,
-      }),
-      fetch(`${apiUrl}/api/v1/matches/${matchId}/audit-log?limit=50`, {
-        credentials: 'include',
-        signal: controller.signal,
-      }),
-      fetch(`${apiUrl}/api/v1/matches/${matchId}/forfeit`, {
-        credentials: 'include',
-        signal: controller.signal,
-      }),
-    ])
-      .then(async ([matchRes, summaryRes, exRes, auditRes, forfeitRes]) => {
-        setLoading(false);
-        if (matchRes.ok) setMatch((await matchRes.json()) as Match);
-        if (summaryRes.ok) setSummary((await summaryRes.json()) as MatchSummary);
-        if (exRes.ok) setExchanges((await exRes.json()) as Exchange[]);
-        // One live record per match is a DB invariant, so this is the record a
-        // second attempt would conflict with — and the one to void first.
-        if (forfeitRes.ok) setActiveForfeit((await forfeitRes.json()) as ActiveForfeit | null);
-        // Distinguish "no audit rows" from "the audit read failed" — a silent
-        // `if (ok)` here is how this section stayed permanently empty unnoticed.
-        if (auditRes.ok) {
-          setAuditLog((await auditRes.json()) as AuditEntry[]);
-          setAuditError(null);
-        } else {
-          setAuditError(t('organizer.matchDetail.auditLoadError'));
-        }
-      })
-      .catch((err: unknown) => {
-        setLoading(false);
-        if (err instanceof Error && err.name === 'AbortError') return;
-      });
+    const init = { signal: controller.signal };
+    void Promise.all([
+      apiRequest<Match>(apiUrl, `/api/v1/matches/${matchId}`, init),
+      apiRequest<MatchSummary>(apiUrl, `/api/v1/matches/${matchId}/summary`, init),
+      apiRequest<Exchange[]>(apiUrl, `/api/v1/matches/${matchId}/exchanges`, init),
+      apiRequest<AuditEntry[]>(apiUrl, `/api/v1/matches/${matchId}/audit-log?limit=50`, init),
+      apiRequest<ActiveForfeit | null>(apiUrl, `/api/v1/matches/${matchId}/forfeit`, init),
+    ]).then(([matchRes, summaryRes, exRes, auditRes, forfeitRes]) => {
+      setLoading(false);
+      if (matchRes.ok) setMatch(matchRes.data);
+      if (summaryRes.ok) setSummary(summaryRes.data);
+      if (exRes.ok) setExchanges(exRes.data);
+      // One live record per match is a DB invariant, so this is the record a
+      // second attempt would conflict with — and the one to void first.
+      if (forfeitRes.ok) setActiveForfeit(forfeitRes.data);
+      // Distinguish "no audit rows" from "the audit read failed" — a silent
+      // `if (ok)` here is how this section stayed permanently empty unnoticed.
+      // It says WHY now instead of one fixed sentence for every refusal.
+      if (auditRes.ok) {
+        setAuditLog(auditRes.data);
+        setAuditError(null);
+        return;
+      }
+      const message = failureMessage(auditRes, t, t('organizer.matchDetail.auditLoadError'));
+      if (message) setAuditError(message);
+    });
 
     return () => controller.abort();
     // `t` is memoized per locale by I18nProvider, so it only re-runs on a
@@ -325,22 +309,22 @@ export default function MatchDetailPage() {
     setVoidError(null);
 
     try {
-      const res = await fetch(`${apiUrl}/api/v1/exchanges/${voidTarget.id}/void`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ reason: voidReason.trim() }),
-      });
-
-      if (!res.ok) {
-        const body = (await res.json()) as { message?: string };
-        throw new Error(body.message ?? t('admin.common.voidFailed'));
+      const r = await apiRequest<PendingReviewResponse>(
+        apiUrl,
+        `/api/v1/exchanges/${voidTarget.id}/void`,
+        { method: 'PATCH', body: { reason: voidReason.trim() } },
+      );
+      if (!r.ok) {
+        // The forfeit-void rule is narrow and the API says exactly which of its
+        // conditions this exchange failed. That is the sentence an organiser
+        // needs to decide what to do next.
+        const message = failureMessage(r, t, t('admin.common.voidFailed'));
+        if (message) setVoidError(message);
+        return;
       }
-
-      const body = (await res.json()) as PendingReviewResponse;
-      if (body.pendingReview) {
+      if (r.data.pendingReview) {
         setPendingNotice(
-          t('organizer.matchDetail.correctionSubmitted', { id: body.requestId ?? '' }),
+          t('organizer.matchDetail.correctionSubmitted', { id: r.data.requestId ?? '' }),
         );
       } else {
         setPendingNotice(null);
@@ -348,8 +332,6 @@ export default function MatchDetailPage() {
       setVoidTarget(null);
       setVoidReason('');
       setRefreshKey((k) => k + 1);
-    } catch (err) {
-      setVoidError(err instanceof Error ? err.message : t('admin.common.voidFailed'));
     } finally {
       setVoidSaving(false);
     }
@@ -366,42 +348,39 @@ export default function MatchDetailPage() {
     )
       return;
 
-    const res = await fetch(`${apiUrl}/api/v1/exchanges/${exchangeId}/revert-void`, {
-      method: 'PATCH',
-      credentials: 'include',
-    });
-
-    if (res.ok) {
-      const body = (await res.json()) as PendingReviewResponse;
-      if (body.pendingReview) {
-        setPendingNotice(
-          t('organizer.matchDetail.correctionSubmitted', { id: body.requestId ?? '' }),
-        );
-      } else {
-        setPendingNotice(null);
-      }
-      setRefreshKey((k) => k + 1);
-    } else {
-      const body = (await res.json()) as { message?: string };
-      toast.error(body.message ?? t('admin.common.revertFailed'));
+    const r = await apiRequest<PendingReviewResponse>(
+      apiUrl,
+      `/api/v1/exchanges/${exchangeId}/revert-void`,
+      { method: 'PATCH' },
+    );
+    if (!r.ok) {
+      const message = failureMessage(r, t, t('admin.common.revertFailed'));
+      if (message) toast.error(message);
+      return;
     }
+    if (r.data.pendingReview) {
+      setPendingNotice(
+        t('organizer.matchDetail.correctionSubmitted', { id: r.data.requestId ?? '' }),
+      );
+    } else {
+      setPendingNotice(null);
+    }
+    setRefreshKey((k) => k + 1);
   }
 
   async function handleLockToggle() {
     if (!match) return;
     const endpoint = match.lockedAt ? 'unlock' : 'lock';
-    const res = await fetch(`${apiUrl}/api/v1/matches/${matchId}/${endpoint}`, {
+    const r = await apiRequest(apiUrl, `/api/v1/matches/${matchId}/${endpoint}`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      credentials: 'include',
-      body: JSON.stringify({ reason: 'Organizer manual lock toggle' }),
+      body: { reason: 'Organizer manual lock toggle' },
     });
-    if (res.ok) {
-      setRefreshKey((key) => key + 1);
-    } else {
-      const body = (await res.json().catch(() => ({}))) as { message?: string };
-      toast.error(body.message ?? t('admin.common.lockOperationFailed'));
+    if (!r.ok) {
+      const message = failureMessage(r, t, t('admin.common.lockOperationFailed'));
+      if (message) toast.error(message);
+      return;
     }
+    setRefreshKey((key) => key + 1);
   }
 
   /**
@@ -414,23 +393,24 @@ export default function MatchDetailPage() {
     if (!match) return;
     setReopening(true);
     try {
-      const res = await fetch(`${apiUrl}/api/v1/matches/${matchId}/clock`, {
+      const r = await apiRequest(apiUrl, `/api/v1/matches/${matchId}/clock`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({
+        body: {
           action: 'reopen',
           reason: 'Organizer re-opened ended match',
           discardDependentResults,
-        }),
+        },
       });
-      if (res.ok) {
-        setReopenOpen(false);
-        setRefreshKey((key) => key + 1);
-      } else {
-        const body = (await res.json().catch(() => ({}))) as { message?: string };
-        toast.error(body.message ?? t('admin.common.couldNotReopenMatch'));
+      if (!r.ok) {
+        // Re-opening an ended bout is refused by what it would empty. The
+        // pre-flight dialog says that up front, and this is the answer when
+        // the state changed between the dialog and the request.
+        const message = failureMessage(r, t, t('admin.common.couldNotReopenMatch'));
+        if (message) toast.error(message);
+        return;
       }
+      setReopenOpen(false);
+      setRefreshKey((key) => key + 1);
     } finally {
       setReopening(false);
     }
@@ -446,11 +426,9 @@ export default function MatchDetailPage() {
       return;
     }
     setForfeitSaving(true);
-    const res = await fetch(`${apiUrl}/api/v1/matches/${matchId}/forfeit`, {
+    const r = await apiRequest(apiUrl, `/api/v1/matches/${matchId}/forfeit`, {
       method: 'POST',
-      credentials: 'include',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
+      body: {
         forfeitingRegistrationId,
         reason: forfeitReason,
         // The DTO refuses canContinue on an override and requires the scores;
@@ -465,12 +443,15 @@ export default function MatchDetailPage() {
               opponentScore: Number(overrideWinningScore) || 0,
             }
           : undefined,
-      }),
+      },
     });
     setForfeitSaving(false);
-    if (!res.ok) {
-      const body = (await res.json().catch(() => ({}))) as { message?: string };
-      toast.error(body.message ?? t('admin.common.forfeitFailed'));
+    if (!r.ok) {
+      // A refused forfeit is a class-validator refusal as often as not, and
+      // `detail` carries only the FIRST bad field. `failureMessage` joins all
+      // of them, so an override with two bad scores is fixed in one pass.
+      const message = failureMessage(r, t, t('admin.common.forfeitFailed'));
+      if (message) toast.error(message);
       return;
     }
     setRefreshKey((key) => key + 1);
@@ -501,14 +482,13 @@ export default function MatchDetailPage() {
     if (!ok) return;
 
     setVoidingForfeit(true);
-    const res = await fetch(`${apiUrl}/api/v1/match-forfeits/${activeForfeit.id}/void`, {
+    const r = await apiRequest(apiUrl, `/api/v1/match-forfeits/${activeForfeit.id}/void`, {
       method: 'PATCH',
-      credentials: 'include',
     });
     setVoidingForfeit(false);
-    if (!res.ok) {
-      const body = (await res.json().catch(() => ({}))) as { message?: string };
-      toast.error(body.message ?? t('organizer.bracketPage.voidRecordFailed'));
+    if (!r.ok) {
+      const message = failureMessage(r, t, t('organizer.bracketPage.voidRecordFailed'));
+      if (message) toast.error(message);
       return;
     }
     setActiveForfeit(null);

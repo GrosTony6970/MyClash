@@ -5,6 +5,7 @@ import { useParams } from 'next/navigation';
 import { Fragment, useCallback, useEffect, useState } from 'react';
 import { useI18n } from '@myclash/next-i18n/client';
 import { useEventStatus } from '../_hooks/useEventStatus';
+import { apiRequest, failureMessage } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
 
 interface EventClub {
@@ -102,16 +103,19 @@ function EventClubsSection({
       setLoading(true);
       const params = new URLSearchParams({ scope: nextScope });
       if (nextQuery.trim()) params.set('q', nextQuery.trim());
-      const response = await fetch(`${apiUrl}/api/v1/events/${eventId}/clubs?${params}`, {
-        credentials: 'include',
+      const r = await apiRequest<EventClub[]>(apiUrl, `/api/v1/events/${eventId}/clubs?${params}`, {
         signal,
       });
-      if (!response.ok) {
-        const body = (await response.json().catch(() => null)) as { message?: string } | null;
-        const detail = body?.message ? `: ${body.message}` : '';
-        throw new Error(`${t('organizer.eventHub.clubs.loadError')} (${response.status})${detail}`);
+      if (!r.ok) {
+        // It used to build "Could not load clubs. (409): <reason>" by hand —
+        // the status code pasted into a sentence for the operator to read. The
+        // seam's reason stands on its own.
+        const message = failureMessage(r, t, t('organizer.eventHub.clubs.loadError'));
+        if (message) setError(message);
+        setLoading(false);
+        return;
       }
-      setClubs((await response.json()) as EventClub[]);
+      setClubs(r.data);
       setError(null);
       setLoading(false);
     },
@@ -137,22 +141,21 @@ function EventClubsSection({
     setError(null);
     setSuccess(null);
     try {
-      const response = await fetch(`${apiUrl}/api/v1/events/${eventId}/club-requests`, {
+      const r = await apiRequest(apiUrl, `/api/v1/events/${eventId}/club-requests`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({
+        body: {
           name: form.name.trim(),
           abbreviation: form.abbreviation.trim() || undefined,
           city: form.city.trim() || undefined,
           countryCode: form.countryCode.trim() || undefined,
           website: form.website.trim() || undefined,
           logoUrl: form.logoUrl.trim() || undefined,
-        }),
+        },
       });
-      if (!response.ok) {
-        const data = (await response.json().catch(() => ({}))) as { message?: string };
-        throw new Error(data.message ?? t('organizer.eventHub.clubs.submitError'));
+      if (!r.ok) {
+        const message = failureMessage(r, t, t('organizer.eventHub.clubs.submitError'));
+        if (message) setError(message);
+        return;
       }
       setForm(emptyClubRequest);
       setSuccess(t('organizer.eventHub.clubs.submitSuccess'));

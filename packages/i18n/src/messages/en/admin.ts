@@ -275,6 +275,7 @@ export const admin = {
   },
   orgPersons: {
     close: 'Close',
+    loadError: 'Could not load the roster.',
     loadingName: 'Loading {name}…',
     blocked: 'Blocked',
     fightingMatch: 'Fighting match',
@@ -471,6 +472,7 @@ export const admin = {
     saveFailed: 'Save failed',
     deleteFailed: 'Delete failed',
     createFailed: 'Create failed',
+    loadFailed: 'Load failed',
     updateFailed: 'Update failed',
     removeFailed: 'Remove failed',
     importFailed: 'Import failed',

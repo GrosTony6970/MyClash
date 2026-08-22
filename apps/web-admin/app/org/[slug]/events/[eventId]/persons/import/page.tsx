@@ -15,6 +15,7 @@ import type {
   ImportPreviewResponse,
   PreviewRow,
 } from '@myclash/types';
+import { apiRequest, failureMessage } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
 
 type Step = 'upload' | 'preview' | 'done';
@@ -197,18 +198,20 @@ export default function CsvImportPage() {
       const formData = new FormData();
       formData.append('file', file);
 
-      const res = await fetch(`${apiUrl}/api/v1/events/${eventId}/persons/import/preview`, {
-        method: 'POST',
-        credentials: 'include',
-        body: formData,
-      });
-
-      if (!res.ok) {
-        const body = (await res.json()) as { message?: string };
-        throw new Error(body.message ?? t('admin.common.previewFailed'));
+      const r = await apiRequest<ImportPreviewResponse>(
+        apiUrl,
+        `/api/v1/events/${eventId}/persons/import/preview`,
+        { method: 'POST', body: formData },
+      );
+      if (!r.ok) {
+        // The importer names the row and column it choked on — exactly what an
+        // operator fixing a spreadsheet needs.
+        const message = failureMessage(r, t, t('admin.common.previewFailed'));
+        if (message) setError(message);
+        return;
       }
 
-      const data = (await res.json()) as ImportPreviewResponse;
+      const data = r.data;
       setPreview(data);
 
       // Seed default decisions from server recommendations
@@ -249,21 +252,19 @@ export default function CsvImportPage() {
         formData.append('decisions', JSON.stringify(decisionPayload));
       }
 
-      const res = await fetch(`${apiUrl}/api/v1/events/${eventId}/persons/import`, {
-        method: 'POST',
-        credentials: 'include',
-        body: formData,
-      });
-
-      if (!res.ok) {
-        const body = (await res.json()) as { message?: string };
-        throw new Error(body.message ?? t('admin.common.importFailed'));
+      const r = await apiRequest<CsvImportReport>(
+        apiUrl,
+        `/api/v1/events/${eventId}/persons/import`,
+        { method: 'POST', body: formData },
+      );
+      if (!r.ok) {
+        const message = failureMessage(r, t, t('admin.common.importFailed'));
+        if (message) setError(message);
+        return;
       }
 
-      setReport((await res.json()) as CsvImportReport);
+      setReport(r.data);
       setStep('done');
-    } catch (err) {
-      setError(err instanceof Error ? err.message : t('admin.common.importFailed'));
     } finally {
       setUploading(false);
     }

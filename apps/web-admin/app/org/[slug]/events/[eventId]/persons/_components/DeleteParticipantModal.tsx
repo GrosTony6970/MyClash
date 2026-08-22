@@ -26,6 +26,7 @@ import { useEffect, useMemo, useState } from 'react';
 
 import { Modal } from '@myclash/ui';
 import { useI18n } from '@myclash/next-i18n/client';
+import { apiRequest, failureDetail, failureMessage, type ApiFailure } from '@myclash/api-client';
 
 interface BlockingMatch {
   matchId: string;
@@ -129,19 +130,19 @@ export function DeleteParticipantModal({
     void Promise.all(
       persons.map(async (p) => {
         const query = tournamentId ? `?tournamentId=${tournamentId}` : '';
-        const url = `${apiUrl}/api/v1/events/${eventId}/persons/${p.id}/assignments${query}`;
-        try {
-          const res = await fetch(url, { credentials: 'include' });
-          if (!res.ok) throw new Error(`Probe failed (${res.status})`);
-          const report = (await res.json()) as AssignmentReport;
-          return { personId: p.id, report, error: null };
-        } catch (err) {
-          return {
-            personId: p.id,
-            report: null,
-            error: err instanceof Error ? err.message : t('admin.common.probeFailed'),
-          };
-        }
+        const r = await apiRequest<AssignmentReport>(
+          apiUrl,
+          `/api/v1/events/${eventId}/persons/${p.id}/assignments${query}`,
+        );
+        if (r.ok) return { personId: p.id, report: r.data, error: null };
+        // It used to build "Probe failed (409)" by hand — a status code pasted
+        // into a sentence, with the API's own reason thrown away.
+        return {
+          personId: p.id,
+          report: null,
+          error:
+            failureMessage(r, t, t('admin.common.probeFailed')) ?? t('admin.common.probeFailed'),
+        };
       }),
     ).then((results) => {
       if (cancelled) return;
@@ -190,18 +191,20 @@ export function DeleteParticipantModal({
             (r) => r.personId === row.personId && r.tournamentId === tournamentId,
           );
           for (const reg of regs) {
-            const res = await fetch(
-              `${apiUrl}/api/v1/registrations/${reg.registrationId}/force-delete`,
-              { method: 'POST', credentials: 'include' },
+            const r = await apiRequest(
+              apiUrl,
+              `/api/v1/registrations/${reg.registrationId}/force-delete`,
+              { method: 'POST' },
             );
-            if (!res.ok) throw new Error(await extractBackendReason(res));
+            if (!r.ok) throw new Error(backendReason(r));
           }
         } else {
-          const res = await fetch(
-            `${apiUrl}/api/v1/persons/${row.personId}?force=true&eventId=${eventId}`,
-            { method: 'DELETE', credentials: 'include' },
+          const r = await apiRequest(
+            apiUrl,
+            `/api/v1/persons/${row.personId}?force=true&eventId=${eventId}`,
+            { method: 'DELETE' },
           );
-          if (!res.ok) throw new Error(await extractBackendReason(res));
+          if (!r.ok) throw new Error(backendReason(r));
         }
         succeeded.push(row.displayName);
       } catch (err) {
@@ -287,9 +290,11 @@ export function DeleteParticipantModal({
  * `ConflictException('…')` string. Falls back to `HTTP <status>` if
  * the body isn't JSON or the message is missing.
  */
-async function extractBackendReason(res: Response): Promise<string> {
-  const body = (await res.json().catch(() => null)) as { message?: string } | null;
-  return body?.message?.trim() || `HTTP ${res.status}`;
+function backendReason(failure: ApiFailure): string {
+  // The empty string on purpose: the caller already falls back to its own
+  // localized sentence when the message is blank, and the old `HTTP <status>`
+  // fallback put a status line in front of an operator as if it were a reason.
+  return failureDetail(failure)?.trim() ?? '';
 }
 
 function PersonAssignmentCard({ row }: { row: Row }) {

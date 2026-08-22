@@ -32,6 +32,7 @@ import {
   accentClassFor,
   fuzzyMatch,
   useConfirm,
+  useToast,
   useSortableList,
   statusPillClass,
   workshopStatusSemantic,
@@ -50,6 +51,7 @@ import {
 import { useWorkshopListFilters } from './useWorkshopListFilters';
 import { Time24Input } from '@/components/Time24Input';
 import { useI18n } from '@myclash/next-i18n/client';
+import { apiRequest, failureMessage } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
 
 interface NamedRef {
@@ -146,6 +148,10 @@ export default function WorkshopsAdminPage() {
   const { slug, eventId } = params;
   const apiUrl = getPublicApiUrl();
   const { confirm, confirmDialog } = useConfirm();
+  // New here. Ten writes on this page had NO success check at all — the board
+  // writes especially, where a refusal just made the card snap back on the
+  // next refresh with nothing said.
+  const toast = useToast();
   const { t, locale } = useI18n();
 
   const [workshops, setWorkshops] = useState<Workshop[]>([]);
@@ -158,20 +164,15 @@ export default function WorkshopsAdminPage() {
   useEffect(() => {
     let cancelled = false;
     void (async () => {
-      try {
-        const res = await fetch(`${apiUrl}/api/v1/events/${eventId}`, { credentials: 'include' });
-        if (!res.ok) return;
-        const ev = (await res.json()) as {
-          start_date: string;
-          end_date?: string | null;
-          timezone?: string | null;
-        };
-        if (cancelled) return;
-        setEventDays(eachDay(ev.start_date, ev.end_date ?? null));
-        if (ev.timezone) setEventTz(ev.timezone);
-      } catch {
-        /* day picker just stays empty */
-      }
+      // Silent: the day picker just stays empty.
+      const r = await apiRequest<{
+        start_date: string;
+        end_date?: string | null;
+        timezone?: string | null;
+      }>(apiUrl, `/api/v1/events/${eventId}`);
+      if (!r.ok || cancelled) return;
+      setEventDays(eachDay(r.data.start_date, r.data.end_date ?? null));
+      if (r.data.timezone) setEventTz(r.data.timezone);
     })();
     return () => {
       cancelled = true;
@@ -185,16 +186,12 @@ export default function WorkshopsAdminPage() {
   useEffect(() => {
     let cancelled = false;
     void (async () => {
-      try {
-        const res = await fetch(`${apiUrl}/api/v1/events/${eventId}/instructors`, {
-          credentials: 'include',
-        });
-        if (!res.ok) return;
-        const rows = (await res.json()) as Array<{ personId: string; displayName: string }>;
-        if (!cancelled) setEventInstructors(rows);
-      } catch {
-        /* picker stays empty */
-      }
+      // Silent: the instructor picker stays empty.
+      const r = await apiRequest<Array<{ personId: string; displayName: string }>>(
+        apiUrl,
+        `/api/v1/events/${eventId}/instructors`,
+      );
+      if (r.ok && !cancelled) setEventInstructors(r.data);
     })();
     return () => {
       cancelled = true;
@@ -321,14 +318,13 @@ export default function WorkshopsAdminPage() {
     setShowCreate(true);
     // Enrich with the long description (not present in the list payload).
     void (async () => {
-      try {
-        const res = await fetch(`${apiUrl}/api/v1/workshops/${w.id}`, { credentials: 'include' });
-        if (!res.ok) return;
-        const full = (await res.json()) as { descriptionMd?: string | null };
-        setForm((f) => ({ ...f, description: full.descriptionMd ?? '' }));
-      } catch {
-        /* description just stays blank */
-      }
+      // Silent: the description just stays blank, and the save below only
+      // touches it when one was typed.
+      const r = await apiRequest<{ descriptionMd?: string | null }>(
+        apiUrl,
+        `/api/v1/workshops/${w.id}`,
+      );
+      if (r.ok) setForm((f) => ({ ...f, description: r.data.descriptionMd ?? '' }));
     })();
   }
 
@@ -357,22 +353,18 @@ export default function WorkshopsAdminPage() {
   useEffect(() => {
     let cancelled = false;
     void (async () => {
-      try {
-        const orgRes = await fetch(
-          `${apiUrl}/api/v1/organizations/slug/${encodeURIComponent(slug)}`,
-          { credentials: 'include' },
-        );
-        if (!orgRes.ok) return;
-        const org = (await orgRes.json()) as { id: string };
-        if (cancelled) return;
-        const venuesRes = await fetch(`${apiUrl}/api/v1/organizations/${org.id}/venues`, {
-          credentials: 'include',
-        });
-        if (!venuesRes.ok) return;
-        const data = (await venuesRes.json()) as EventVenue[];
-        if (!cancelled) setVenues(data.filter((v) => v.hosts_workshop));
-      } catch {
-        /* swallow — picker shows empty + the warning hint */
+      // Silent: the picker shows empty plus its warning hint.
+      const orgRes = await apiRequest<{ id: string }>(
+        apiUrl,
+        `/api/v1/organizations/slug/${encodeURIComponent(slug)}`,
+      );
+      if (!orgRes.ok || cancelled) return;
+      const venuesRes = await apiRequest<EventVenue[]>(
+        apiUrl,
+        `/api/v1/organizations/${orgRes.data.id}/venues`,
+      );
+      if (venuesRes.ok && !cancelled) {
+        setVenues(venuesRes.data.filter((v) => v.hosts_workshop));
       }
     })();
     return () => {
@@ -384,20 +376,21 @@ export default function WorkshopsAdminPage() {
 
   useEffect(() => {
     const controller = new AbortController();
-    fetch(`${apiUrl}/api/v1/events/${eventId}/workshops`, {
-      credentials: 'include',
+    void apiRequest<Workshop[]>(apiUrl, `/api/v1/events/${eventId}/workshops`, {
       signal: controller.signal,
-    })
-      .then(async (res) => {
-        setLoading(false);
-        if (res.ok) setWorkshops((await res.json()) as Workshop[]);
-      })
-      .catch((err: unknown) => {
-        setLoading(false);
-        if (err instanceof Error && err.name === 'AbortError') return;
-      });
+    }).then((r) => {
+      setLoading(false);
+      if (r.ok) {
+        setWorkshops(r.data);
+        return;
+      }
+      // No message is the unmount, or the refresh that replaced this read. An
+      // empty list and a refused list used to look identical.
+      const message = failureMessage(r, t, t('admin.common.loadFailed'));
+      if (message) toast.error(message);
+    });
     return () => controller.abort();
-  }, [eventId, apiUrl, refreshKey]);
+  }, [eventId, apiUrl, refreshKey, t, toast]);
 
   // ── Create workshop ────────────────────────────────────────────────────────────
 
@@ -418,14 +411,16 @@ export default function WorkshopsAdminPage() {
     if (!logoBlob) return;
     const fd = new FormData();
     fd.append('file', new File([logoBlob], 'logo.png', { type: 'image/png' }));
-    const res = await fetch(`${apiUrl}/api/v1/workshops/${workshopId}/logo`, {
+    const r = await apiRequest(apiUrl, `/api/v1/workshops/${workshopId}/logo`, {
       method: 'POST',
-      credentials: 'include',
       body: fd,
     });
-    if (!res.ok) {
-      const body = (await res.json().catch(() => ({}))) as { message?: string };
-      throw new Error(body.message ?? t('admin.common.saveFailed'));
+    if (!r.ok) {
+      // Still throws: the caller keeps the modal open for a retry because the
+      // workshop itself is already saved. No signal here, so the abort
+      // `failureMessage` answers null for cannot arrive.
+      const reason = t('admin.common.saveFailed');
+      throw new Error(failureMessage(r, t, reason) ?? reason);
     }
   }
 
@@ -439,11 +434,9 @@ export default function WorkshopsAdminPage() {
 
     try {
       if (editingId) {
-        const patchRes = await fetch(`${apiUrl}/api/v1/workshops/${editingId}`, {
+        const patchRes = await apiRequest(apiUrl, `/api/v1/workshops/${editingId}`, {
           method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          credentials: 'include',
-          body: JSON.stringify({
+          body: {
             title: form.title.trim(),
             category: form.category.trim() || null,
             level: form.level.trim() || null,
@@ -460,11 +453,12 @@ export default function WorkshopsAdminPage() {
             // Only touch the description when one was typed, so editing
             // other fields never silently wipes an existing description.
             ...(form.description.trim() ? { descriptionMd: form.description.trim() } : {}),
-          }),
+          },
         });
         if (!patchRes.ok) {
-          const body = (await patchRes.json()) as { message?: string };
-          throw new Error(body.message ?? t('admin.common.saveFailed'));
+          const message = failureMessage(patchRes, t, t('admin.common.saveFailed'));
+          if (message) setFormError(message);
+          return;
         }
 
         // Reconcile instructors against the chosen set.
@@ -477,19 +471,16 @@ export default function WorkshopsAdminPage() {
         const nextIds = new Set(form.instructorIds);
         for (const id of nextIds) {
           if (!currentIds.has(id)) {
-            await fetch(`${apiUrl}/api/v1/workshops/${editingId}/instructors`, {
+            await apiRequest(apiUrl, `/api/v1/workshops/${editingId}/instructors`, {
               method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              credentials: 'include',
-              body: JSON.stringify({ globalPersonId: id }),
+              body: { globalPersonId: id },
             });
           }
         }
         for (const id of currentIds) {
           if (!nextIds.has(id)) {
-            await fetch(`${apiUrl}/api/v1/workshops/${editingId}/instructors/${id}`, {
+            await apiRequest(apiUrl, `/api/v1/workshops/${editingId}/instructors/${id}`, {
               method: 'DELETE',
-              credentials: 'include',
             });
           }
         }
@@ -498,20 +489,17 @@ export default function WorkshopsAdminPage() {
         const times = sessionTimesFromForm();
         const existing = current?.sessions[0] ?? null;
         if (times) {
-          await fetch(`${apiUrl}/api/v1/workshops/${editingId}/sessions`, {
+          await apiRequest(apiUrl, `/api/v1/workshops/${editingId}/sessions`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            credentials: 'include',
-            body: JSON.stringify({
+            body: {
               startTime: times.startTime,
               endTime: times.endTime,
               venueId: form.venueId || undefined,
-            }),
+            },
           });
         } else if (existing) {
-          await fetch(`${apiUrl}/api/v1/workshop-sessions/${existing.id}`, {
+          await apiRequest(apiUrl, `/api/v1/workshop-sessions/${existing.id}`, {
             method: 'DELETE',
-            credentials: 'include',
           });
         }
 
@@ -523,11 +511,9 @@ export default function WorkshopsAdminPage() {
       }
 
       // ── Create path ──
-      const res = await fetch(`${apiUrl}/api/v1/events/${eventId}/workshops`, {
+      const r = await apiRequest<{ id: string }>(apiUrl, `/api/v1/events/${eventId}/workshops`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({
+        body: {
           title: form.title.trim(),
           slug: form.slug.trim(),
           category: form.category.trim() || null,
@@ -540,34 +526,33 @@ export default function WorkshopsAdminPage() {
           status: form.status,
           color: form.color || undefined,
           venueId: form.venueId || undefined,
-        }),
+        },
       });
-      if (!res.ok) {
-        const body = (await res.json()) as { message?: string };
-        throw new Error(body.message ?? t('admin.common.createFailed'));
+      if (!r.ok) {
+        // A slug already used on this event is refused by name — and it is the
+        // most common thing to get wrong on this form.
+        const message = failureMessage(r, t, t('admin.common.createFailed'));
+        if (message) setFormError(message);
+        return;
       }
-      const created = (await res.json()) as { id: string };
+      const created = r.data;
 
       const times = sessionTimesFromForm();
       if (times) {
-        await fetch(`${apiUrl}/api/v1/workshops/${created.id}/sessions`, {
+        await apiRequest(apiUrl, `/api/v1/workshops/${created.id}/sessions`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          credentials: 'include',
-          body: JSON.stringify({
+          body: {
             startTime: times.startTime,
             endTime: times.endTime,
             venueId: form.venueId || undefined,
-          }),
+          },
         });
       }
 
       for (const globalPersonId of form.instructorIds) {
-        await fetch(`${apiUrl}/api/v1/workshops/${created.id}/instructors`, {
+        await apiRequest(apiUrl, `/api/v1/workshops/${created.id}/instructors`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          credentials: 'include',
-          body: JSON.stringify({ globalPersonId }),
+          body: { globalPersonId },
         });
       }
 
@@ -584,12 +569,15 @@ export default function WorkshopsAdminPage() {
 
   async function changeStatus(w: Workshop, next: string) {
     if (next === w.status) return;
-    await fetch(`${apiUrl}/api/v1/workshops/${w.id}`, {
+    const r = await apiRequest(apiUrl, `/api/v1/workshops/${w.id}`, {
       method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      credentials: 'include',
-      body: JSON.stringify({ status: next }),
+      body: { status: next },
     });
+    if (!r.ok) {
+      const message = failureMessage(r, t, t('admin.common.saveFailed'));
+      if (message) toast.error(message);
+      return;
+    }
     setRefreshKey((k) => k + 1);
   }
 
@@ -598,28 +586,46 @@ export default function WorkshopsAdminPage() {
   async function openRoster(sessionId: string) {
     setRosterSession(sessionId);
     setRosterLoading(true);
-    const res = await fetch(`${apiUrl}/api/v1/workshop-sessions/${sessionId}/roster`, {
-      credentials: 'include',
-    });
-    if (res.ok) setRoster((await res.json()) as RosterEntry[]);
+    const r = await apiRequest<RosterEntry[]>(
+      apiUrl,
+      `/api/v1/workshop-sessions/${sessionId}/roster`,
+    );
+    if (r.ok) {
+      setRoster(r.data);
+    } else {
+      const message = failureMessage(r, t, t('admin.common.loadFailed'));
+      if (message) toast.error(message);
+    }
     setRosterLoading(false);
   }
 
   async function handlePromote(sessionId: string, personId: string) {
-    await fetch(`${apiUrl}/api/v1/workshop-sessions/${sessionId}/promote/${personId}`, {
-      method: 'POST',
-      credentials: 'include',
-    });
+    const r = await apiRequest(
+      apiUrl,
+      `/api/v1/workshop-sessions/${sessionId}/promote/${personId}`,
+      { method: 'POST' },
+    );
+    if (!r.ok) {
+      // A full session refuses the promotion by name. The write had no success
+      // check at all, so the roster just re-rendered unchanged.
+      const message = failureMessage(r, t, t('admin.common.promoteFailed'));
+      if (message) toast.error(message);
+      return;
+    }
     await openRoster(sessionId);
   }
 
   async function handleRemove(sessionId: string, _personId: string) {
     if (!(await confirm({ title: t('admin.common.confirmRemoveEnrollment'), danger: true })))
       return;
-    await fetch(`${apiUrl}/api/v1/workshop-sessions/${sessionId}/enroll`, {
+    const r = await apiRequest(apiUrl, `/api/v1/workshop-sessions/${sessionId}/enroll`, {
       method: 'DELETE',
-      credentials: 'include',
     });
+    if (!r.ok) {
+      const message = failureMessage(r, t, t('admin.common.removeFailed'));
+      if (message) toast.error(message);
+      return;
+    }
     await openRoster(sessionId);
   }
 
@@ -632,13 +638,18 @@ export default function WorkshopsAdminPage() {
     }
     const controller = new AbortController();
     const timer = setTimeout(() => {
-      fetch(`${apiUrl}/api/v1/global-persons?q=${encodeURIComponent(gpSearch)}`, {
-        signal: controller.signal,
-      })
-        .then(async (res) => {
-          if (res.ok) setGpResults((await res.json()) as GlobalPersonResult[]);
-        })
-        .catch(() => undefined);
+      // NOT behaviour-preserving, and that is the point: this one sent NO
+      // credentials at all. `/global-persons` refuses an anonymous caller
+      // outright, so on a cross-origin API base URL the person picker returned
+      // nothing and said nothing — same-origin it worked only because the
+      // cookie rides along by default. The seam always sends them.
+      void apiRequest<GlobalPersonResult[]>(
+        apiUrl,
+        `/api/v1/global-persons?q=${encodeURIComponent(gpSearch)}`,
+        { signal: controller.signal },
+      ).then((r) => {
+        if (r.ok) setGpResults(r.data);
+      });
     }, 250);
     return () => {
       clearTimeout(timer);
@@ -647,12 +658,16 @@ export default function WorkshopsAdminPage() {
   }, [gpSearch, apiUrl]);
 
   async function linkEnrollmentToGlobalPerson(enrollmentId: string, globalPersonId: string) {
-    await fetch(`${apiUrl}/api/v1/global-persons/${globalPersonId}/link-workshop-enrollment`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      credentials: 'include',
-      body: JSON.stringify({ enrollmentId }),
-    });
+    const r = await apiRequest(
+      apiUrl,
+      `/api/v1/global-persons/${globalPersonId}/link-workshop-enrollment`,
+      { method: 'PATCH', body: { enrollmentId } },
+    );
+    if (!r.ok) {
+      const message = failureMessage(r, t, t('admin.common.saveFailed'));
+      if (message) toast.error(message);
+      return;
+    }
     setLinkingEnrollmentId(null);
     setGpSearch('');
     setGpResults([]);
@@ -708,16 +723,12 @@ export default function WorkshopsAdminPage() {
   useEffect(() => {
     let cancelled = false;
     void (async () => {
-      try {
-        const res = await fetch(`${apiUrl}/api/v1/events/${eventId}/workshop-breaks`, {
-          credentials: 'include',
-        });
-        if (!res.ok) return;
-        const rows = (await res.json()) as WorkshopBreak[];
-        if (!cancelled) setBreaks(rows);
-      } catch {
-        /* board just renders no breaks */
-      }
+      // Silent: the board just renders no breaks.
+      const r = await apiRequest<WorkshopBreak[]>(
+        apiUrl,
+        `/api/v1/events/${eventId}/workshop-breaks`,
+      );
+      if (r.ok && !cancelled) setBreaks(r.data);
     })();
     return () => {
       cancelled = true;
@@ -757,25 +768,31 @@ export default function WorkshopsAdminPage() {
       label: breakForm.label.trim() || null,
       color: breakForm.color || null,
     };
-    const url = editing
-      ? `${apiUrl}/api/v1/workshop-breaks/${editing.id}`
-      : `${apiUrl}/api/v1/events/${eventId}/workshop-breaks`;
-    await fetch(url, {
-      method: editing ? 'PATCH' : 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      credentials: 'include',
-      body: JSON.stringify(body),
-    });
+    const path = editing
+      ? `/api/v1/workshop-breaks/${editing.id}`
+      : `/api/v1/events/${eventId}/workshop-breaks`;
+    const r = await apiRequest(apiUrl, path, { method: editing ? 'PATCH' : 'POST', body });
+    if (!r.ok) {
+      // A break overlapping a placed session is refused by name; the write had
+      // no success check, so the modal closed as if it had worked.
+      const message = failureMessage(r, t, t('admin.common.saveFailed'));
+      if (message) toast.error(message);
+      return;
+    }
     setBreakModal(null);
     setRefreshKey((k) => k + 1);
   }
   async function deleteBreak() {
     const editing = breakModal && 'id' in breakModal ? breakModal : null;
     if (!editing) return;
-    await fetch(`${apiUrl}/api/v1/workshop-breaks/${editing.id}`, {
+    const r = await apiRequest(apiUrl, `/api/v1/workshop-breaks/${editing.id}`, {
       method: 'DELETE',
-      credentials: 'include',
     });
+    if (!r.ok) {
+      const message = failureMessage(r, t, t('admin.common.deleteFailed'));
+      if (message) toast.error(message);
+      return;
+    }
     setBreakModal(null);
     setRefreshKey((k) => k + 1);
   }
@@ -786,26 +803,34 @@ export default function WorkshopsAdminPage() {
     _sessionId: string | null,
     placement: { venueId: string; areaId: string | null; startTime: string; endTime: string },
   ) {
-    await fetch(`${apiUrl}/api/v1/workshops/${workshopId}/sessions`, {
+    // The race this touches: the board is optimistic, and the refresh below is
+    // what reconciles it. A refused placement used to leave the card where the
+    // operator dropped it until that refresh silently moved it back.
+    const r = await apiRequest(apiUrl, `/api/v1/workshops/${workshopId}/sessions`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      credentials: 'include',
-      body: JSON.stringify({
+      body: {
         startTime: placement.startTime,
         endTime: placement.endTime,
         venueId: placement.venueId,
         areaId: placement.areaId ?? undefined,
-      }),
+      },
     });
+    if (!r.ok) {
+      const message = failureMessage(r, t, t('admin.common.saveFailed'));
+      if (message) toast.error(message);
+    }
     setRefreshKey((k) => k + 1);
   }
 
   // ✕ on a card → delete its session, returning the workshop to the drawer.
   async function handleUnschedule(sessionId: string) {
-    await fetch(`${apiUrl}/api/v1/workshop-sessions/${sessionId}`, {
+    const r = await apiRequest(apiUrl, `/api/v1/workshop-sessions/${sessionId}`, {
       method: 'DELETE',
-      credentials: 'include',
     });
+    if (!r.ok) {
+      const message = failureMessage(r, t, t('admin.common.deleteFailed'));
+      if (message) toast.error(message);
+    }
     setRefreshKey((k) => k + 1);
   }
 
@@ -814,20 +839,23 @@ export default function WorkshopsAdminPage() {
     b: WorkshopBreak,
     times: { startTime: string; endTime: string },
   ) {
-    await fetch(`${apiUrl}/api/v1/workshop-breaks/${b.id}`, {
+    const r = await apiRequest(apiUrl, `/api/v1/workshop-breaks/${b.id}`, {
       method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      credentials: 'include',
-      body: JSON.stringify(times),
+      body: times,
     });
+    if (!r.ok) {
+      const message = failureMessage(r, t, t('admin.common.saveFailed'));
+      if (message) toast.error(message);
+    }
     setRefreshKey((k) => k + 1);
   }
 
   async function handleDeleteBreakById(id: string) {
-    await fetch(`${apiUrl}/api/v1/workshop-breaks/${id}`, {
-      method: 'DELETE',
-      credentials: 'include',
-    });
+    const r = await apiRequest(apiUrl, `/api/v1/workshop-breaks/${id}`, { method: 'DELETE' });
+    if (!r.ok) {
+      const message = failureMessage(r, t, t('admin.common.deleteFailed'));
+      if (message) toast.error(message);
+    }
     setRefreshKey((k) => k + 1);
   }
 

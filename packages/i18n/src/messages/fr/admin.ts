@@ -278,6 +278,7 @@ export const admin = {
   },
   orgPersons: {
     close: 'Fermer',
+    loadError: 'Impossible de charger la liste des participants.',
     loadingName: 'Chargement de {name}…',
     blocked: 'Bloqué',
     fightingMatch: 'Assaut en tant que combattant',
@@ -478,6 +479,7 @@ export const admin = {
     saveFailed: "Échec de l'enregistrement",
     deleteFailed: 'Échec de la suppression',
     createFailed: 'Échec de la création',
+    loadFailed: 'Échec du chargement',
     updateFailed: 'Échec de la mise à jour',
     removeFailed: 'Échec du retrait',
     importFailed: "Échec de l'import",

@@ -8,6 +8,7 @@ import type { CompensationReport } from '@myclash/types';
 import { CompensationTopNav } from '../../../../../../src/components/CompensationTopNav';
 import { useI18n } from '@myclash/next-i18n/client';
 import { compensationToCsv, compensationToPrintHtml } from './compensation-export';
+import { apiRequest, failureMessage } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
 
 const PHASE_LABEL_KEYS: Record<string, string> = {
@@ -69,50 +70,45 @@ export default function CompensationPage() {
 
   useEffect(() => {
     const controller = new AbortController();
-    Promise.all([
-      fetch(`${apiUrl}/api/v1/compensation-plans`, {
-        credentials: 'include',
+    void Promise.all([
+      apiRequest<PlanOption[]>(apiUrl, '/api/v1/compensation-plans', {
         signal: controller.signal,
       }),
-      fetch(`${apiUrl}/api/v1/events/${eventId}/compensation/settings`, {
-        credentials: 'include',
+      apiRequest<EventSettings | null>(apiUrl, `/api/v1/events/${eventId}/compensation/settings`, {
         signal: controller.signal,
       }),
-    ])
-      .then(async ([plansRes, settingsRes]) => {
-        if (plansRes.ok) {
-          const data = (await plansRes.json()) as PlanOption[];
-          setPlans(data);
-        }
-        if (settingsRes.ok) {
-          const data = (await settingsRes.json()) as EventSettings | null;
-          if (data) {
-            setSettings(data);
-            setSelectedPlanId(data.planId);
-            setMaxCap(data.maxCompensationAmount?.toString() ?? '');
-            setMinCap(data.minCompensationAmount?.toString() ?? '');
-          }
-        }
-      })
-      .catch(() => undefined);
+    ]).then(([plansRes, settingsRes]) => {
+      if (plansRes.ok) setPlans(plansRes.data);
+      if (settingsRes.ok && settingsRes.data) {
+        const data = settingsRes.data;
+        setSettings(data);
+        setSelectedPlanId(data.planId);
+        setMaxCap(data.maxCompensationAmount?.toString() ?? '');
+        setMinCap(data.minCompensationAmount?.toString() ?? '');
+      }
+      // Both reads were tolerant and stay tolerant — the plan picker and the
+      // caps render from whatever landed — but a refusal reached nothing at
+      // all, so an organiser saw an empty plan list with no reason for it.
+      const failed = [plansRes, settingsRes].find((r) => !r.ok);
+      if (failed && !failed.ok) {
+        const message = failureMessage(failed, t, t('organizer.eventCompensation.loadPlansError'));
+        if (message) setSettingsError(message);
+      }
+    });
     return () => controller.abort();
-  }, [eventId, apiUrl]);
+  }, [eventId, apiUrl, t]);
 
   // Referee-skills catalog for this event — labels breakdown rows by skill name
   // (a role is a referee_skills.id, incl. custom skills) instead of a raw ID.
   useEffect(() => {
     const controller = new AbortController();
-    fetch(`${apiUrl}/api/v1/events/${eventId}/referee-skills`, {
-      credentials: 'include',
+    // Silent: without it the breakdown falls back to the raw skill id, which
+    // the table already handles.
+    void apiRequest<RefereeSkill[]>(apiUrl, `/api/v1/events/${eventId}/referee-skills`, {
       signal: controller.signal,
-    })
-      .then(async (res) => {
-        if (!res.ok) return;
-        setSkills((await res.json()) as RefereeSkill[]);
-      })
-      .catch((err: unknown) => {
-        if (err instanceof Error && err.name === 'AbortError') return;
-      });
+    }).then((r) => {
+      if (r.ok) setSkills(r.data);
+    });
     return () => controller.abort();
   }, [eventId, apiUrl]);
 
@@ -125,18 +121,16 @@ export default function CompensationPage() {
     setLoadingReport(true);
     setError(null);
     try {
-      const res = await fetch(`${apiUrl}/api/v1/events/${eventId}/compensation/report`, {
-        credentials: 'include',
-      });
-      if (!res.ok) {
-        const body = (await res.json()) as { message?: string };
-        throw new Error(body.message ?? t('organizer.eventCompensation.loadReportError'));
-      }
-      setReport((await res.json()) as CompensationReport);
-    } catch (err) {
-      setError(
-        err instanceof Error ? err.message : t('organizer.eventCompensation.loadReportError'),
+      const r = await apiRequest<CompensationReport>(
+        apiUrl,
+        `/api/v1/events/${eventId}/compensation/report`,
       );
+      if (!r.ok) {
+        const message = failureMessage(r, t, t('organizer.eventCompensation.loadReportError'));
+        if (message) setError(message);
+        return;
+      }
+      setReport(r.data);
     } finally {
       setLoadingReport(false);
     }
@@ -147,55 +141,55 @@ export default function CompensationPage() {
     setSavingSettings(true);
     setSettingsError(null);
     try {
-      const res = await fetch(`${apiUrl}/api/v1/events/${eventId}/compensation/settings`, {
-        method: 'PUT',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          planId: selectedPlanId,
-          maxCompensationAmount: maxCap ? parseFloat(maxCap) : null,
-          minCompensationAmount: minCap ? parseFloat(minCap) : null,
-        }),
-      });
-      if (!res.ok) {
-        const body = (await res.json()) as { message?: string };
-        throw new Error(body.message ?? t('organizer.eventCompensation.saveSettingsError'));
-      }
-      const data = (await res.json()) as EventSettings;
-      setSettings(data);
-      await loadReport();
-    } catch (err) {
-      setSettingsError(
-        err instanceof Error ? err.message : t('organizer.eventCompensation.saveSettingsError'),
+      const r = await apiRequest<EventSettings>(
+        apiUrl,
+        `/api/v1/events/${eventId}/compensation/settings`,
+        {
+          method: 'PUT',
+          body: {
+            planId: selectedPlanId,
+            maxCompensationAmount: maxCap ? parseFloat(maxCap) : null,
+            minCompensationAmount: minCap ? parseFloat(minCap) : null,
+          },
+        },
       );
+      if (!r.ok) {
+        const message = failureMessage(r, t, t('organizer.eventCompensation.saveSettingsError'));
+        if (message) setSettingsError(message);
+        return;
+      }
+      setSettings(r.data);
+      await loadReport();
     } finally {
       setSavingSettings(false);
     }
   }
 
   async function togglePaid(personId: string, paid: boolean) {
-    try {
-      await fetch(`${apiUrl}/api/v1/events/${eventId}/compensation/payments/${personId}`, {
-        method: 'PATCH',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ paid }),
-      });
-      // Optimistic update
-      setReport((prev) => {
-        if (!prev) return prev;
-        return {
-          ...prev,
-          referees: prev.referees.map((r) =>
-            r.personId === personId
-              ? { ...r, paid, paidAt: paid ? new Date().toISOString() : null }
-              : r,
-          ),
-        };
-      });
-    } catch {
-      // Silent — reload will reconcile
+    const r = await apiRequest(
+      apiUrl,
+      `/api/v1/events/${eventId}/compensation/payments/${personId}`,
+      { method: 'PATCH', body: { paid } },
+    );
+    if (!r.ok) {
+      // The write had no success check at all, so a refused "mark as paid" left
+      // the tick in place and the referee unpaid in the ledger. This is money.
+      const message = failureMessage(r, t, t('organizer.eventCompensation.markPaidError'));
+      if (message) setError(message);
+      return;
     }
+    // Optimistic update
+    setReport((prev) => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        referees: prev.referees.map((r) =>
+          r.personId === personId
+            ? { ...r, paid, paidAt: paid ? new Date().toISOString() : null }
+            : r,
+        ),
+      };
+    });
   }
 
   function toggleExpand(personId: string) {

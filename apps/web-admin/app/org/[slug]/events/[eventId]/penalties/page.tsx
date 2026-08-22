@@ -15,6 +15,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { useConfirm, useToast } from '@myclash/ui';
 import { useI18n } from '@myclash/next-i18n/client';
+import { apiRequest, failureMessage } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
 
 interface Person {
@@ -58,59 +59,58 @@ export default function PenaltyReviewsPage() {
   const [personByRegistration, setPersonByRegistration] = useState<Map<string, string>>(new Map());
   const [loading, setLoading] = useState(true);
   const [refreshKey, setRefreshKey] = useState(0);
+  // New here. The tournament read is what the whole page is built on, and a
+  // refusal used to be swallowed by a bare `catch` — an empty review list that
+  // looked like "no fighter needs reviewing".
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     const controller = new AbortController();
     void (async () => {
       try {
+        const init = { signal: controller.signal };
         const [tRes, rRes, pRes] = await Promise.all([
-          fetch(`${apiUrl}/api/v1/events/${eventId}/tournaments`, {
-            credentials: 'include',
-            signal: controller.signal,
-          }),
-          fetch(`${apiUrl}/api/v1/events/${eventId}/registrations`, {
-            credentials: 'include',
-            signal: controller.signal,
-          }),
-          fetch(`${apiUrl}/api/v1/events/${eventId}/persons`, {
-            credentials: 'include',
-            signal: controller.signal,
-          }),
+          apiRequest<Tournament[]>(apiUrl, `/api/v1/events/${eventId}/tournaments`, init),
+          apiRequest<Registration[]>(apiUrl, `/api/v1/events/${eventId}/registrations`, init),
+          apiRequest<Person[]>(apiUrl, `/api/v1/events/${eventId}/persons`, init),
         ]);
-        if (!tRes.ok) return;
-        const tournamentRows = (await tRes.json()) as Tournament[];
-        setTournaments(tournamentRows);
+        if (!tRes.ok) {
+          // The whole page is a list of reviews per tournament, so without the
+          // tournaments there is nothing to draw — and it used to say nothing
+          // at all about why.
+          const message = failureMessage(tRes, t, t('organizer.penaltyReviews.loadError'));
+          if (message) setError(message);
+          return;
+        }
+        setTournaments(tRes.data);
 
         // registration_id → fighter display name (never raw ids in the UI).
         if (rRes.ok && pRes.ok) {
-          const registrations = (await rRes.json()) as Registration[];
-          const persons = (await pRes.json()) as Person[];
           const nameByPerson = new Map(
-            persons.map((p) => [p.id, `${p.givenName} ${p.familyName}`.trim()]),
+            pRes.data.map((p) => [p.id, `${p.givenName} ${p.familyName}`.trim()]),
           );
           setPersonByRegistration(
-            new Map(registrations.map((r) => [r.id, nameByPerson.get(r.personId) ?? ''])),
+            new Map(rRes.data.map((r) => [r.id, nameByPerson.get(r.personId) ?? ''])),
           );
         }
 
         const reviewLists = await Promise.all(
-          tournamentRows.map(async (tournament) => {
-            const res = await fetch(
-              `${apiUrl}/api/v1/tournaments/${tournament.id}/penalty-reviews`,
-              { credentials: 'include', signal: controller.signal },
+          tRes.data.map(async (tournament) => {
+            const res = await apiRequest<PenaltyReview[]>(
+              apiUrl,
+              `/api/v1/tournaments/${tournament.id}/penalty-reviews`,
+              init,
             );
-            return res.ok ? ((await res.json()) as PenaltyReview[]) : [];
+            return res.ok ? res.data : [];
           }),
         );
         setReviews(reviewLists.flat());
-      } catch {
-        // AbortError or network — keep whatever state we have.
       } finally {
         setLoading(false);
       }
     })();
     return () => controller.abort();
-  }, [apiUrl, eventId, refreshKey]);
+  }, [apiUrl, eventId, refreshKey, t]);
 
   const refresh = useCallback(() => setRefreshKey((k) => k + 1), []);
 
@@ -129,26 +129,21 @@ export default function PenaltyReviewsPage() {
       });
       if (!ok) return;
     }
-    try {
-      const res = await fetch(`${apiUrl}/api/v1/tournament-penalty-reviews/${review.id}`, {
-        method: 'PATCH',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status }),
-      });
-      if (!res.ok) {
-        const body = (await res.json().catch(() => null)) as { message?: string } | null;
-        throw new Error(body?.message ?? t('organizer.penaltyReviews.actionFailed'));
-      }
-      toast.success(
-        status === 'confirmed'
-          ? t('organizer.penaltyReviews.confirmedToast', { name })
-          : t('organizer.penaltyReviews.dismissedToast'),
-      );
-      refresh();
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : t('organizer.penaltyReviews.actionFailed'));
+    const r = await apiRequest(apiUrl, `/api/v1/tournament-penalty-reviews/${review.id}`, {
+      method: 'PATCH',
+      body: { status },
+    });
+    if (!r.ok) {
+      const message = failureMessage(r, t, t('organizer.penaltyReviews.actionFailed'));
+      if (message) toast.error(message);
+      return;
     }
+    toast.success(
+      status === 'confirmed'
+        ? t('organizer.penaltyReviews.confirmedToast', { name })
+        : t('organizer.penaltyReviews.dismissedToast'),
+    );
+    refresh();
   }
 
   const pending = reviews.filter((r) => r.status === 'pending');
@@ -165,6 +160,12 @@ export default function PenaltyReviewsPage() {
         </h1>
         <p className="mt-1 text-sm text-muted">{t('organizer.penaltyReviews.subtitle')}</p>
       </header>
+
+      {error && (
+        <div className="mb-4 rounded-md border border-danger/30 bg-danger/10 px-4 py-3 text-sm text-danger">
+          {error}
+        </div>
+      )}
 
       {loading ? (
         <p className="text-sm text-muted">{t('common.loading')}</p>
