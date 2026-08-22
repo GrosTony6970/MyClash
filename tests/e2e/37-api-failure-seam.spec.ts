@@ -53,6 +53,13 @@ const USERS_LOAD = '**/api/v1/admin/users?*';
 const RULESETS_PATH = '/admin/rulesets/scoring';
 /** Exact: the per-ruleset action routes below it must stay unstubbed. */
 const RULESETS_LOAD = '**/api/v1/admin/custom-rulesets';
+const LEAGUES_PATH = '/admin/leagues';
+/**
+ * Exact. The screen reads the whole league list from this one path and derives
+ * everything else from it; `*` stops at a slash, so the per-league roles,
+ * groups and link routes underneath stay unstubbed.
+ */
+const LEAGUES_LOAD = '**/api/v1/admin/leagues';
 
 test.describe('the api-failure seam — the backup console', () => {
   let platform: BrowserContext | null = null;
@@ -202,6 +209,20 @@ test.describe('the api-failure seam — the backup console', () => {
 
     await expect(page.getByText(reason)).toBeVisible();
     await expect(page.getByText(COPY.rulesetsLoadError)).toBeHidden();
+    await page.close();
+  });
+
+  test("the leagues console shows the server's own reason", async () => {
+    test.skip(!platform, 'set E2E_SUPERADMIN_EMAIL / E2E_SUPERADMIN_PASSWORD');
+    const page = await platform!.newPage();
+
+    const reason = 'League standings are being rebuilt. Try again in a minute.';
+    await page.route(LEAGUES_LOAD, (route) => route.fulfill(problemJson(409, reason)));
+    await page.goto(LEAGUES_PATH);
+    await expectStayedOn(page, LEAGUES_PATH);
+
+    await expect(page.getByText(reason)).toBeVisible();
+    await expect(page.getByText(COPY.leaguesLoadError)).toBeHidden();
     await page.close();
   });
 });

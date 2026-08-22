@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react';
 import { AdminPageHeader } from '@myclash/ui';
 import type { LeagueRankingDimensions } from '@myclash/types';
 import { useI18n } from '@myclash/next-i18n/client';
+import { apiRequest, failureMessage } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
 import { BackLink } from '@/components/BackLink';
 
@@ -90,24 +91,18 @@ export default function AdminLeagueRankingPage() {
   useEffect(() => {
     if (!leagueId) return;
     const controller = new AbortController();
-    fetch(`${apiUrl}/api/v1/admin/leagues/${leagueId}/standings`, {
-      credentials: 'include',
+    void apiRequest<StandingsPayload>(apiUrl, `/api/v1/admin/leagues/${leagueId}/standings`, {
       signal: controller.signal,
     })
-      .then(async (res) => {
-        if (!res.ok) {
-          const body = (await res.json().catch(() => ({}))) as { message?: string };
-          throw new Error(body.message ?? t('admin.common.loadStandingsFailed'));
+      .then((r) => {
+        if (r.ok) {
+          setData(r.data);
+          setError(null);
+          return;
         }
-        return (await res.json()) as StandingsPayload;
-      })
-      .then((payload) => {
-        setData(payload);
-        setError(null);
-      })
-      .catch((err: unknown) => {
-        if (err instanceof DOMException && err.name === 'AbortError') return;
-        setError(err instanceof Error ? err.message : t('admin.common.loadStandingsFailed'));
+        // No message is the unmount, or the read this one replaced.
+        const message = failureMessage(r, t, t('admin.common.loadStandingsFailed'));
+        if (message) setError(message);
       })
       .finally(() => setLoading(false));
     return () => controller.abort();
@@ -118,15 +113,15 @@ export default function AdminLeagueRankingPage() {
     const controller = new AbortController();
     // Club standings are supplementary: on failure the sub-table just stays
     // hidden, so this fetch never surfaces an error into the main page state.
-    fetch(`${apiUrl}/api/v1/admin/leagues/${leagueId}/club-standings`, {
-      credentials: 'include',
-      signal: controller.signal,
-    })
-      .then((res) => (res.ok ? (res.json() as Promise<ClubStandingsPayload>) : null))
-      .then((payload) => setClubData(payload))
-      .catch(() => {
-        /* ignore — supplementary data */
-      });
+    void apiRequest<ClubStandingsPayload>(
+      apiUrl,
+      `/api/v1/admin/leagues/${leagueId}/club-standings`,
+      { signal: controller.signal },
+    ).then((r) => {
+      // An abort is the effect that replaced this one; it owns the state now.
+      if (!r.ok && r.kind === 'aborted') return;
+      setClubData(r.ok ? r.data : null);
+    });
     return () => controller.abort();
   }, [leagueId]);
 

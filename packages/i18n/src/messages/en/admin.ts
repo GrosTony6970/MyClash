@@ -2092,6 +2092,7 @@ export const admin = {
         newNamePlaceholder: 'New group name',
         addButton: 'Add group',
         createError: 'Create group failed',
+        deleteError: 'Delete group failed',
       },
       tournaments: {
         heading: 'Linked tournaments',
@@ -2107,6 +2108,7 @@ export const admin = {
         detachConfirm: 'Detach this tournament from the league?',
         addError: 'Add failed',
         detachError: 'Detach failed',
+        groupChangeError: 'Group change failed',
       },
     },
     requestsPanel: {

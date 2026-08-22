@@ -6,6 +6,7 @@ import { useEffect, useMemo, useState } from 'react';
 import type { LeagueRankingDimensions as RankingDimensions } from '@myclash/types';
 import { FFAMHE_POINTS, fuzzyMatch, toSlug } from '../league-utils';
 import { useI18n } from '@myclash/next-i18n/client';
+import { apiRequest, failureMessage } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
 import { BackLink } from '@/components/BackLink';
 import {
@@ -125,20 +126,19 @@ export default function NewLeaguePage() {
     if (!slugDetached) setSlug(toSlug(name));
   }, [name, slugDetached]);
 
-  // Load lookup data
+  // Load lookup data. Both pickers stay empty on a refusal, as before: this
+  // page reports on the CREATE, and an empty picker is visible on its own.
   useEffect(() => {
-    void fetch(`${apiUrl}/api/v1/admin/organizations?perPage=200&excludePlatform=true`, {
-      credentials: 'include',
-    })
-      .then((r) => (r.ok ? r.json() : []))
-      .then((data: OrgOption[] | { organizations: OrgOption[] }) =>
-        setOrgs(Array.isArray(data) ? data : (data.organizations ?? [])),
-      )
-      .catch(() => undefined);
-    void fetch(`${apiUrl}/api/v1/events?status=all`, { credentials: 'include' })
-      .then((r) => (r.ok ? r.json() : []))
-      .then((data: EventOption[]) => setEvents(data ?? []))
-      .catch(() => undefined);
+    void apiRequest<OrgOption[] | { organizations: OrgOption[] }>(
+      apiUrl,
+      '/api/v1/admin/organizations?perPage=200&excludePlatform=true',
+    ).then((r) => {
+      if (!r.ok) return;
+      setOrgs(Array.isArray(r.data) ? r.data : (r.data.organizations ?? []));
+    });
+    void apiRequest<EventOption[]>(apiUrl, '/api/v1/events?status=all').then((r) => {
+      if (r.ok) setEvents(r.data ?? []);
+    });
   }, []);
 
   function handleLogoFile(file: File | null) {
@@ -177,12 +177,9 @@ export default function NewLeaguePage() {
 
   async function loadEventTournaments(eventId: string) {
     if (tournamentsByEvent[eventId]) return;
-    const res = await fetch(`${apiUrl}/api/v1/events/${eventId}/tournaments`, {
-      credentials: 'include',
-    });
-    if (!res.ok) return;
-    const data = (await res.json()) as TournamentOption[];
-    setTournamentsByEvent((prev) => ({ ...prev, [eventId]: data }));
+    const r = await apiRequest<TournamentOption[]>(apiUrl, `/api/v1/events/${eventId}/tournaments`);
+    if (!r.ok) return;
+    setTournamentsByEvent((prev) => ({ ...prev, [eventId]: r.data }));
   }
 
   function pickTournament(t: TournamentOption, eventName: string) {
@@ -215,11 +212,9 @@ export default function NewLeaguePage() {
       if (scoringSystem === 'custom') {
         scoringConfig['customPointsByRank'] = customPoints;
       }
-      const createRes = await fetch(`${apiUrl}/api/v1/admin/leagues`, {
+      const created = await apiRequest<{ id: string }>(apiUrl, '/api/v1/admin/leagues', {
         method: 'POST',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+        body: {
           name: name.trim(),
           slug: slug.trim(),
           seasonYear: parseInt(seasonYear, 10),
@@ -227,43 +222,44 @@ export default function NewLeaguePage() {
           scoringSystem,
           rankingDimensions,
           customPointsByRank: scoringSystem === 'custom' ? customPoints : undefined,
-        }),
+        },
       });
-      if (!createRes.ok) {
-        const body = (await createRes.json().catch(() => ({}))) as { message?: string };
-        throw new Error(body.message ?? t('admin.common.createFailed'));
+      if (!created.ok) {
+        const message = failureMessage(created, t, t('admin.common.createFailed'));
+        if (message) setError(message);
+        return;
       }
-      const league = (await createRes.json()) as { id: string };
-      const leagueId = league.id;
+      const leagueId = created.data.id;
+
+      // Everything below is a follow-up write on a league that already exists,
+      // and every one of them still discards its refusal. That is unchanged
+      // here on purpose: the operator lands on the edit page, which lists the
+      // logo, the owners, the orgs, the groups and the linked tournaments, so a
+      // dropped step is visible there. Naming it rather than hiding it.
 
       // Logo upload
       if (logoFile) {
         const form = new FormData();
         form.set('file', logoFile);
-        await fetch(`${apiUrl}/api/v1/admin/leagues/${leagueId}/logo`, {
+        await apiRequest(apiUrl, `/api/v1/admin/leagues/${leagueId}/logo`, {
           method: 'POST',
-          credentials: 'include',
           body: form,
         });
       }
 
       // Owners
       for (const userIdSel of selectedAccounts.map((a) => a.id)) {
-        await fetch(`${apiUrl}/api/v1/admin/leagues/${leagueId}/user-roles`, {
+        await apiRequest(apiUrl, `/api/v1/admin/leagues/${leagueId}/user-roles`, {
           method: 'POST',
-          credentials: 'include',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ userId: userIdSel, role: 'admin' }),
+          body: { userId: userIdSel, role: 'admin' },
         });
       }
 
       // Orgs
       for (const orgId of selectedOrgIds) {
-        await fetch(`${apiUrl}/api/v1/admin/leagues/${leagueId}/organization-roles`, {
+        await apiRequest(apiUrl, `/api/v1/admin/leagues/${leagueId}/organization-roles`, {
           method: 'POST',
-          credentials: 'include',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ organizationId: orgId, role: 'member' }),
+          body: { organizationId: orgId, role: 'member' },
         });
       }
 
@@ -274,35 +270,25 @@ export default function NewLeaguePage() {
       const groupIdByTmp = new Map<string, string>();
       for (const g of leagueGroups) {
         if (!g.name.trim()) continue;
-        const res = await fetch(`${apiUrl}/api/v1/admin/leagues/${leagueId}/groups`, {
-          method: 'POST',
-          credentials: 'include',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ name: g.name.trim(), sortOrder: g.sortOrder }),
-        });
-        if (res.ok) {
-          const created = (await res.json()) as { id: string };
-          groupIdByTmp.set(g.tmpId, created.id);
-        }
+        const group = await apiRequest<{ id: string }>(
+          apiUrl,
+          `/api/v1/admin/leagues/${leagueId}/groups`,
+          { method: 'POST', body: { name: g.name.trim(), sortOrder: g.sortOrder } },
+        );
+        if (group.ok) groupIdByTmp.set(g.tmpId, group.data.id);
       }
 
       // Tournaments
       for (const t of selectedTournaments) {
         const resolvedGroupId = t.groupTmpId ? (groupIdByTmp.get(t.groupTmpId) ?? null) : null;
-        await fetch(
-          `${apiUrl}/api/v1/admin/leagues/${leagueId}/tournaments/${t.tournamentId}/link`,
-          {
-            method: 'POST',
-            credentials: 'include',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ groupId: resolvedGroupId }),
-          },
+        await apiRequest(
+          apiUrl,
+          `/api/v1/admin/leagues/${leagueId}/tournaments/${t.tournamentId}/link`,
+          { method: 'POST', body: { groupId: resolvedGroupId } },
         );
       }
 
       router.push(`/admin/leagues/${leagueId}/edit?created=1`);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : t('admin.common.createFailed'));
     } finally {
       setSubmitting(false);
     }

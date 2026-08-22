@@ -2099,6 +2099,7 @@ export const admin = {
         newNamePlaceholder: 'Nom du nouveau groupe',
         addButton: 'Ajouter groupe',
         createError: 'Échec de la création du groupe',
+        deleteError: 'Échec de la suppression du groupe',
       },
       tournaments: {
         heading: 'Tournois lies',
@@ -2114,6 +2115,7 @@ export const admin = {
         detachConfirm: 'Detacher ce tournoi de la ligue ?',
         addError: "Échec de l'ajout",
         detachError: 'Échec du detachement',
+        groupChangeError: 'Échec du changement de groupe',
       },
     },
     requestsPanel: {

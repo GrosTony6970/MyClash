@@ -5,6 +5,7 @@ import { StatusBadge } from '@myclash/ui';
 import type { StatusSemantic } from '@myclash/ui';
 import { localeToBcp47, type AppLocale } from '@myclash/time';
 import { useI18n } from '@myclash/next-i18n/client';
+import { apiRequest } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
 
 type FreshnessState = 'frozen' | 'never_computed' | 'fresh' | 'stale';
@@ -34,17 +35,19 @@ function useLeagueFreshness(leagueId: string, refreshToken: number): FreshnessRe
 
   const load = useCallback(
     async (signal: AbortSignal) => {
-      try {
-        const res = await fetch(`${getPublicApiUrl()}/api/v1/admin/leagues/${leagueId}/freshness`, {
-          credentials: 'include',
-          signal,
-        });
-        if (!res.ok) return;
-        setReport((await res.json()) as FreshnessReport);
-      } catch {
-        // A badge that cannot load says nothing rather than claiming freshness.
-        if (!signal.aborted) setReport(null);
+      const r = await apiRequest<FreshnessReport>(
+        getPublicApiUrl(),
+        `/api/v1/admin/leagues/${leagueId}/freshness`,
+        { signal },
+      );
+      if (r.ok) {
+        setReport(r.data);
+        return;
       }
+      // A badge that cannot load says nothing rather than claiming freshness.
+      // A refusal leaves whatever is already up; only a dropped connection or
+      // an unreadable body clears it, and an abort is a newer load's business.
+      if (r.kind === 'network') setReport(null);
     },
     [leagueId],
   );

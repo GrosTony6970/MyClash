@@ -43,6 +43,7 @@ export const COPY = {
   organizationsLoadError: 'Failed to load organizations',
   usersLoadError: 'Failed to load platform accounts',
   rulesetsLoadError: 'Could not load curated rulesets.',
+  leaguesLoadError: 'Could not load leagues',
   tournamentNotFound: 'Tournament not found',
   tournamentLoadFailed: "This tournament couldn't be loaded",
   claimTitle: 'Confirm your profile',

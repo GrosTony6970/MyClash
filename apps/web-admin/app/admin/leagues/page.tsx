@@ -20,6 +20,7 @@ import {
 } from '@myclash/ui';
 
 import type { LeagueRankingDimensions } from '@myclash/types';
+import { apiRequest, failureMessage } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
 
 interface League {
@@ -88,27 +89,22 @@ export default function AdminLeaguesPage() {
   const [tab, setTab] = useState<AdminLeaguesTab>('list');
 
   const fetchLeagues = useCallback(
-    async (signal?: AbortSignal) => {
-      const res = await fetch(`${apiUrl}/api/v1/admin/leagues`, {
-        credentials: 'include',
-        signal,
-      });
-      if (!res.ok) throw new Error(t('admin.common.loadLeaguesFailed'));
-      return (await res.json()) as League[];
-    },
-    [t],
+    (signal?: AbortSignal) => apiRequest<League[]>(apiUrl, '/api/v1/admin/leagues', { signal }),
+    [],
   );
 
   useEffect(() => {
     const controller = new AbortController();
-    fetchLeagues(controller.signal)
-      .then((data) => {
-        setLeagues(data);
-        setError(null);
-      })
-      .catch((err: unknown) => {
-        if (err instanceof DOMException && err.name === 'AbortError') return;
-        setError(err instanceof Error ? err.message : t('admin.common.loadLeaguesFailed'));
+    void fetchLeagues(controller.signal)
+      .then((r) => {
+        if (r.ok) {
+          setLeagues(r.data);
+          setError(null);
+          return;
+        }
+        // No message is the unmount, or the read this one replaced.
+        const message = failureMessage(r, t, t('admin.common.loadLeaguesFailed'));
+        if (message) setError(message);
       })
       .finally(() => setLoading(false));
     return () => controller.abort();
@@ -123,21 +119,20 @@ export default function AdminLeaguesPage() {
     setBusyId(league.id);
     setError(null);
     try {
-      const res = await fetch(`${apiUrl}/api/v1/admin/leagues/${league.id}`, {
+      const r = await apiRequest(apiUrl, `/api/v1/admin/leagues/${league.id}`, {
         method: 'DELETE',
-        credentials: 'include',
       });
-      if (!res.ok) {
-        const body = (await res.json().catch(() => ({}))) as { message?: string };
-        throw new Error(body.message ?? t('admin.common.deleteFailed'));
+      if (!r.ok) {
+        const message = failureMessage(r, t, t('admin.common.deleteFailed'));
+        if (message) {
+          setError(message);
+          toast.error(message);
+        }
+        return;
       }
       setLeagues((prev) => prev.filter((l) => l.id !== league.id));
       toast.success(t('admin.adminLeagues.toastDeleted', { name: league.name }));
       setPendingDelete(null);
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : t('admin.common.deleteFailed');
-      setError(msg);
-      toast.error(msg);
     } finally {
       setBusyId(null);
     }
@@ -148,15 +143,17 @@ export default function AdminLeaguesPage() {
     setBusyId(league.id);
     setError(null);
     try {
-      const res = await fetch(`${apiUrl}/api/v1/admin/leagues/${league.id}`, {
+      const r = await apiRequest(apiUrl, `/api/v1/admin/leagues/${league.id}`, {
         method: 'PATCH',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status }),
+        body: { status },
       });
-      if (!res.ok) {
-        const body = (await res.json().catch(() => ({}))) as { message?: string };
-        throw new Error(body.message ?? t('admin.common.updateFailed'));
+      if (!r.ok) {
+        const message = failureMessage(r, t, t('admin.common.updateFailed'));
+        if (message) {
+          setError(message);
+          toast.error(message);
+        }
+        return;
       }
       // The API derives public_visibility from status (published <=> public);
       // mirror it here so the PUBLIC cell re-renders without a reload.
@@ -166,10 +163,6 @@ export default function AdminLeaguesPage() {
         ),
       );
       toast.success(t('admin.adminLeagues.statusUpdated'));
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : t('admin.common.updateFailed');
-      setError(msg);
-      toast.error(msg);
     } finally {
       setBusyId(null);
     }
@@ -192,24 +185,21 @@ export default function AdminLeaguesPage() {
     setCloneBusy(true);
     setError(null);
     try {
-      const res = await fetch(`${apiUrl}/api/v1/admin/leagues/${cloneTarget.id}/clone`, {
+      const r = await apiRequest<League>(apiUrl, `/api/v1/admin/leagues/${cloneTarget.id}/clone`, {
         method: 'POST',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ seasonYear: cloneYear, name: cloneName.trim() || undefined }),
+        body: { seasonYear: cloneYear, name: cloneName.trim() || undefined },
       });
-      if (!res.ok) {
-        const body = (await res.json().catch(() => ({}))) as { message?: string };
-        throw new Error(body.message ?? t('admin.common.updateFailed'));
+      if (!r.ok) {
+        const message = failureMessage(r, t, t('admin.common.updateFailed'));
+        if (message) {
+          setError(message);
+          toast.error(message);
+        }
+        return;
       }
-      const created = (await res.json()) as League;
-      setLeagues((prev) => [created, ...prev]);
-      toast.success(t('admin.adminLeagues.toastCloned', { name: created.name, year: cloneYear }));
+      setLeagues((prev) => [r.data, ...prev]);
+      toast.success(t('admin.adminLeagues.toastCloned', { name: r.data.name, year: cloneYear }));
       setCloneTarget(null);
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : t('admin.common.updateFailed');
-      setError(msg);
-      toast.error(msg);
     } finally {
       setCloneBusy(false);
     }
@@ -220,25 +210,25 @@ export default function AdminLeaguesPage() {
     setBusyId(league.id);
     setError(null);
     try {
-      const res = await fetch(
-        `${apiUrl}/api/v1/admin/leagues/${league.id}/${finalize ? 'finalize' : 'reopen'}`,
-        { method: 'POST', credentials: 'include' },
+      const r = await apiRequest<League>(
+        apiUrl,
+        `/api/v1/admin/leagues/${league.id}/${finalize ? 'finalize' : 'reopen'}`,
+        { method: 'POST' },
       );
-      if (!res.ok) {
-        const body = (await res.json().catch(() => ({}))) as { message?: string };
-        throw new Error(body.message ?? t('admin.common.updateFailed'));
+      if (!r.ok) {
+        const message = failureMessage(r, t, t('admin.common.updateFailed'));
+        if (message) {
+          setError(message);
+          toast.error(message);
+        }
+        return;
       }
-      const updated = (await res.json()) as League;
       setLeagues((prev) =>
-        prev.map((l) => (l.id === league.id ? { ...l, finalized_at: updated.finalized_at } : l)),
+        prev.map((l) => (l.id === league.id ? { ...l, finalized_at: r.data.finalized_at } : l)),
       );
       toast.success(
         finalize ? t('admin.adminLeagues.toastFinalized') : t('admin.adminLeagues.toastReopened'),
       );
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : t('admin.common.updateFailed');
-      setError(msg);
-      toast.error(msg);
     } finally {
       setBusyId(null);
     }

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { useI18n } from '@myclash/next-i18n/client';
+import { apiRequest } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
 
 interface Preflight {
@@ -14,17 +15,19 @@ function usePreflight(leagueId: string, refreshToken: number): Preflight | null 
 
   const load = useCallback(
     async (signal: AbortSignal) => {
-      try {
-        const res = await fetch(
-          `${getPublicApiUrl()}/api/v1/admin/leagues/${leagueId}/recompute-preflight`,
-          { credentials: 'include', signal },
-        );
-        if (!res.ok) return;
-        setPreflight((await res.json()) as Preflight);
-      } catch {
-        // Silence beats a false all-clear: a panel that cannot load shows nothing.
-        if (!signal.aborted) setPreflight(null);
+      const r = await apiRequest<Preflight>(
+        getPublicApiUrl(),
+        `/api/v1/admin/leagues/${leagueId}/recompute-preflight`,
+        { signal },
+      );
+      if (r.ok) {
+        setPreflight(r.data);
+        return;
       }
+      // Silence beats a false all-clear: a panel that cannot load shows nothing.
+      // A refusal leaves whatever is already up; only a dropped connection or
+      // an unreadable body clears it, and an abort is a newer load's business.
+      if (r.kind === 'network') setPreflight(null);
     },
     [leagueId],
   );

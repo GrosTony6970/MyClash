@@ -10,6 +10,7 @@ import { LeagueRequestsPanel } from '../../../../../src/components/league/League
 import { LeagueFreshnessBadge } from './LeagueFreshnessBadge';
 import { RecomputePreflight } from './RecomputePreflight';
 import { useI18n } from '@myclash/next-i18n/client';
+import { apiRequest, failureMessage } from '@myclash/api-client';
 import { useConfirm, useToast } from '@myclash/ui';
 import { localeToBcp47 } from '@myclash/time';
 import { getPublicApiUrl } from '@/lib/api-url';
@@ -151,17 +152,20 @@ export default function EditLeaguePage() {
   async function recomputeRankings() {
     setRecomputing(true);
     try {
-      const res = await fetch(`${apiUrl}/api/v1/admin/leagues/${leagueId}/recompute`, {
+      const r = await apiRequest(apiUrl, `/api/v1/admin/leagues/${leagueId}/recompute`, {
         method: 'POST',
-        credentials: 'include',
       });
-      if (!res.ok) throw new Error(t('admin.adminLeagues.recomputeFailed'));
+      if (!r.ok) {
+        // A refused recompute names the fighters it choked on — that is the
+        // whole reason RecomputePreflight exists, and the toast used to bin it.
+        const message = failureMessage(r, t, t('admin.adminLeagues.recomputeFailed'));
+        if (message) toast.error(message);
+        return;
+      }
       toast.success(t('admin.adminLeagues.recomputeDone'));
       // The badge is the proof the recompute landed, so refetch it here rather
       // than leaving a "stale" chip beside a button that just succeeded.
       setFreshnessToken((n) => n + 1);
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : t('admin.adminLeagues.recomputeFailed'));
     } finally {
       setRecomputing(false);
     }
@@ -220,12 +224,23 @@ export default function EditLeaguePage() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
+  // Reports its own failure rather than throwing it. Three save handlers call
+  // it after a successful write, inside their own `try` — while it threw, a
+  // failed REFRESH was reported as a failed SAVE.
   const loadLeague = useCallback(async () => {
-    const res = await fetch(`${apiUrl}/api/v1/admin/leagues`, { credentials: 'include' });
-    if (!res.ok) throw new Error(t('admin.leagues.editPage.loadError'));
-    const data = (await res.json()) as League[];
-    const found = data.find((l) => l.id === leagueId);
-    if (!found) throw new Error(t('admin.leagues.editPage.notFound'));
+    const r = await apiRequest<League[]>(apiUrl, '/api/v1/admin/leagues');
+    if (!r.ok) {
+      const message = failureMessage(r, t, t('admin.leagues.editPage.loadError'));
+      if (message) setError(message);
+      return;
+    }
+    const found = r.data.find((l) => l.id === leagueId);
+    // The list loaded and this id is not in it. Nothing came from the API to
+    // quote, so the screen's own sentence is all there is.
+    if (!found) {
+      setError(t('admin.leagues.editPage.notFound'));
+      return;
+    }
     setLeague(found);
     setName(found.name);
     setSeasonYear(String(found.season_year));
@@ -241,26 +256,20 @@ export default function EditLeaguePage() {
   }, [leagueId, t]);
 
   const loadVersionsForSystem = useCallback(async (systemId: string, code: string) => {
-    try {
-      const res = await fetch(
-        `${apiUrl}/api/v1/admin/league-scoring-systems/${systemId}/versions`,
-        { credentials: 'include' },
-      );
-      if (!res.ok) return;
-      const rows = (await res.json()) as ScoringSystemVersionRow[];
-      setVersionsByCode((prev) => ({ ...prev, [code]: rows }));
-    } catch {
-      // Silent — version dropdown just stays empty.
-    }
+    const r = await apiRequest<ScoringSystemVersionRow[]>(
+      apiUrl,
+      `/api/v1/admin/league-scoring-systems/${systemId}/versions`,
+    );
+    // Silent — version dropdown just stays empty.
+    if (r.ok) setVersionsByCode((prev) => ({ ...prev, [code]: r.data }));
   }, []);
 
   const loadScoringSystems = useCallback(async () => {
-    const res = await fetch(`${apiUrl}/api/v1/admin/league-scoring-systems`, {
-      credentials: 'include',
-    });
-    if (!res.ok) return;
-    const rows = (await res.json()) as ScoringSystemOption[];
-    setScoringSystemOptions(rows);
+    const r = await apiRequest<ScoringSystemOption[]>(
+      apiUrl,
+      '/api/v1/admin/league-scoring-systems',
+    );
+    if (r.ok) setScoringSystemOptions(r.data);
   }, []);
 
   // Whenever the selected scoring-system code changes, load its version
@@ -276,23 +285,19 @@ export default function EditLeaguePage() {
   }, [scoringSystem, scoringSystemOptions, versionsByCode, loadVersionsForSystem]);
 
   const loadAssignments = useCallback(async () => {
-    const [usersRes, orgsRes, linksRes, groupsRes] = await Promise.all([
-      fetch(`${apiUrl}/api/v1/admin/leagues/${leagueId}/user-roles`, { credentials: 'include' }),
-      fetch(`${apiUrl}/api/v1/admin/leagues/${leagueId}/organization-roles`, {
-        credentials: 'include',
-      }),
-      fetch(`${apiUrl}/api/v1/admin/leagues/${leagueId}/tournament-links`, {
-        credentials: 'include',
-      }),
-      fetch(`${apiUrl}/api/v1/admin/leagues/${leagueId}/groups`, { credentials: 'include' }),
+    const base = `/api/v1/admin/leagues/${leagueId}`;
+    const [users, orgs, links, leagueGroups] = await Promise.all([
+      apiRequest<UserRoleRow[]>(apiUrl, `${base}/user-roles`),
+      apiRequest<OrgRoleRow[]>(apiUrl, `${base}/organization-roles`),
+      apiRequest<TournamentLink[]>(apiUrl, `${base}/tournament-links`),
+      apiRequest<LeagueGroup[]>(apiUrl, `${base}/groups`),
     ]);
-    if (usersRes.ok) setUserRoles(((await usersRes.json()) as UserRoleRow[]) ?? []);
-    if (orgsRes.ok) setOrgRoles(((await orgsRes.json()) as OrgRoleRow[]) ?? []);
-    if (linksRes.ok) {
-      const data = (await linksRes.json()) as TournamentLink[];
-      setTournamentLinks(data.filter((l) => l.status !== 'removed'));
-    }
-    if (groupsRes.ok) setGroups(((await groupsRes.json()) as LeagueGroup[]) ?? []);
+    // Four independent panels: each fills in if its own read landed, exactly as
+    // before. The page's error line belongs to the league itself.
+    if (users.ok) setUserRoles(users.data ?? []);
+    if (orgs.ok) setOrgRoles(orgs.data ?? []);
+    if (links.ok) setTournamentLinks((links.data ?? []).filter((l) => l.status !== 'removed'));
+    if (leagueGroups.ok) setGroups(leagueGroups.data ?? []);
   }, [leagueId]);
 
   async function createGroup() {
@@ -301,20 +306,17 @@ export default function EditLeaguePage() {
     setBusy(true);
     setError(null);
     try {
-      const res = await fetch(`${apiUrl}/api/v1/admin/leagues/${leagueId}/groups`, {
+      const r = await apiRequest(apiUrl, `/api/v1/admin/leagues/${leagueId}/groups`, {
         method: 'POST',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, sortOrder: groups.length }),
+        body: { name, sortOrder: groups.length },
       });
-      if (!res.ok) {
-        const body = (await res.json().catch(() => ({}))) as { message?: string };
-        throw new Error(body.message ?? t('admin.leagues.editPage.groups.createError'));
+      if (!r.ok) {
+        const message = failureMessage(r, t, t('admin.leagues.editPage.groups.createError'));
+        if (message) setError(message);
+        return;
       }
       setNewGroupName('');
       await loadAssignments();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : t('admin.leagues.editPage.groups.createError'));
     } finally {
       setBusy(false);
     }
@@ -324,11 +326,16 @@ export default function EditLeaguePage() {
     if (!(await confirm({ title: t('admin.leagues.editPage.groups.deleteConfirm'), danger: true })))
       return;
     setBusy(true);
+    setError(null);
     try {
-      await fetch(`${apiUrl}/api/v1/admin/league-groups/${groupId}`, {
+      const r = await apiRequest(apiUrl, `/api/v1/admin/league-groups/${groupId}`, {
         method: 'DELETE',
-        credentials: 'include',
       });
+      if (!r.ok) {
+        const message = failureMessage(r, t, t('admin.leagues.editPage.groups.deleteError'));
+        if (message) setError(message);
+        return;
+      }
       await loadAssignments();
     } finally {
       setBusy(false);
@@ -337,13 +344,21 @@ export default function EditLeaguePage() {
 
   async function reassignLinkGroup(linkId: string, groupId: string | null) {
     setBusy(true);
+    setError(null);
     try {
-      await fetch(`${apiUrl}/api/v1/admin/league-tournament-links/${linkId}`, {
+      const r = await apiRequest(apiUrl, `/api/v1/admin/league-tournament-links/${linkId}`, {
         method: 'PATCH',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ groupId }),
+        body: { groupId },
       });
+      if (!r.ok) {
+        const message = failureMessage(
+          r,
+          t,
+          t('admin.leagues.editPage.tournaments.groupChangeError'),
+        );
+        if (message) setError(message);
+        return;
+      }
       await loadAssignments();
     } finally {
       setBusy(false);
@@ -352,26 +367,24 @@ export default function EditLeaguePage() {
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- initial async load populates form state from the API
-    void loadLeague().catch((err: unknown) => {
-      setError(err instanceof Error ? err.message : t('admin.leagues.editPage.loadError'));
+    void loadLeague();
+    void loadAssignments();
+    void loadScoringSystems();
+    void apiRequest<OrgOption[] | { organizations: OrgOption[] }>(
+      apiUrl,
+      '/api/v1/admin/organizations?excludePlatform=true',
+    ).then((r) => {
+      if (r.ok) {
+        setAllOrgs(Array.isArray(r.data) ? r.data : (r.data.organizations ?? []));
+        return;
+      }
+      const message = failureMessage(r, t, t('admin.leagues.editPage.orgsLoadError'));
+      if (message) setError(message);
     });
-    void loadAssignments().catch(() => undefined);
-    void loadScoringSystems().catch(() => undefined);
-    void fetch(`${apiUrl}/api/v1/admin/organizations?excludePlatform=true`, {
-      credentials: 'include',
-    })
-      .then(async (r) => {
-        if (!r.ok) throw new Error(t('admin.leagues.editPage.orgsLoadError'));
-        return (await r.json()) as OrgOption[] | { organizations: OrgOption[] };
-      })
-      .then((data) => setAllOrgs(Array.isArray(data) ? data : (data.organizations ?? [])))
-      .catch((err: unknown) => {
-        setError(err instanceof Error ? err.message : t('admin.leagues.editPage.orgsLoadError'));
-      });
-    void fetch(`${apiUrl}/api/v1/events?status=all`, { credentials: 'include' })
-      .then((r) => (r.ok ? r.json() : []))
-      .then((data: EventOption[]) => setAllEvents(data ?? []))
-      .catch(() => undefined);
+    // The event picker stays empty on a refusal, as before.
+    void apiRequest<EventOption[]>(apiUrl, '/api/v1/events?status=all').then((r) => {
+      if (r.ok) setAllEvents(r.data ?? []);
+    });
   }, [loadLeague, loadAssignments, loadScoringSystems, t]);
 
   // Organizations that already manage this league. An account that is admin or
@@ -423,12 +436,9 @@ export default function EditLeaguePage() {
 
   async function loadEventTournaments(eventId: string) {
     if (tournamentsByEvent[eventId]) return;
-    const res = await fetch(`${apiUrl}/api/v1/events/${eventId}/tournaments`, {
-      credentials: 'include',
-    });
-    if (!res.ok) return;
-    const data = (await res.json()) as TournamentOption[];
-    setTournamentsByEvent((prev) => ({ ...prev, [eventId]: data }));
+    const r = await apiRequest<TournamentOption[]>(apiUrl, `/api/v1/events/${eventId}/tournaments`);
+    if (!r.ok) return;
+    setTournamentsByEvent((prev) => ({ ...prev, [eventId]: r.data }));
   }
 
   function flashSaved(message: string) {
@@ -458,25 +468,22 @@ export default function EditLeaguePage() {
       if (scoringSystem === 'custom') {
         scoringConfig['customPointsByRank'] = customPoints;
       }
-      const res = await fetch(`${apiUrl}/api/v1/admin/leagues/${leagueId}`, {
+      const r = await apiRequest(apiUrl, `/api/v1/admin/leagues/${leagueId}`, {
         method: 'PATCH',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+        body: {
           name: name.trim(),
           description: description.trim() || null,
           status,
           scoringConfig,
-        }),
+        },
       });
-      if (!res.ok) {
-        const body = (await res.json().catch(() => ({}))) as { message?: string };
-        throw new Error(body.message ?? t('admin.leagues.editPage.basics.saveError'));
+      if (!r.ok) {
+        const message = failureMessage(r, t, t('admin.leagues.editPage.basics.saveError'));
+        if (message) setError(message);
+        return;
       }
       flashSaved(t('admin.leagues.editPage.savedFlash'));
       await loadLeague();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : t('admin.leagues.editPage.basics.saveError'));
     } finally {
       setBusy(false);
     }
@@ -496,19 +503,17 @@ export default function EditLeaguePage() {
     try {
       const form = new FormData();
       form.set('file', file);
-      const res = await fetch(`${apiUrl}/api/v1/admin/leagues/${leagueId}/logo`, {
+      const r = await apiRequest(apiUrl, `/api/v1/admin/leagues/${leagueId}/logo`, {
         method: 'POST',
-        credentials: 'include',
         body: form,
       });
-      if (!res.ok) {
-        const body = (await res.json().catch(() => ({}))) as { message?: string };
-        throw new Error(body.message ?? t('admin.leagues.editPage.logo.uploadError'));
+      if (!r.ok) {
+        const message = failureMessage(r, t, t('admin.leagues.editPage.logo.uploadError'));
+        if (message) setError(message);
+        return;
       }
       flashSaved(t('admin.leagues.editPage.logo.uploadFlash'));
       await loadLeague();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : t('admin.leagues.editPage.logo.uploadError'));
     } finally {
       setBusy(false);
     }
@@ -520,15 +525,16 @@ export default function EditLeaguePage() {
     setBusy(true);
     setError(null);
     try {
-      const res = await fetch(`${apiUrl}/api/v1/admin/leagues/${leagueId}/logo`, {
+      const r = await apiRequest(apiUrl, `/api/v1/admin/leagues/${leagueId}/logo`, {
         method: 'DELETE',
-        credentials: 'include',
       });
-      if (!res.ok) throw new Error(t('admin.leagues.editPage.logo.removeError'));
+      if (!r.ok) {
+        const message = failureMessage(r, t, t('admin.leagues.editPage.logo.removeError'));
+        if (message) setError(message);
+        return;
+      }
       flashSaved(t('admin.leagues.editPage.logo.removeFlash'));
       await loadLeague();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : t('admin.leagues.editPage.logo.removeError'));
     } finally {
       setBusy(false);
     }
@@ -538,19 +544,16 @@ export default function EditLeaguePage() {
     setBusy(true);
     setError(null);
     try {
-      const res = await fetch(`${apiUrl}/api/v1/admin/leagues/${leagueId}/user-roles`, {
+      const r = await apiRequest(apiUrl, `/api/v1/admin/leagues/${leagueId}/user-roles`, {
         method: 'POST',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId: userIdSel, role: 'admin' }),
+        body: { userId: userIdSel, role: 'admin' },
       });
-      if (!res.ok) {
-        const body = (await res.json().catch(() => ({}))) as { message?: string };
-        throw new Error(body.message ?? t('admin.leagues.editPage.owners.addError'));
+      if (!r.ok) {
+        const message = failureMessage(r, t, t('admin.leagues.editPage.owners.addError'));
+        if (message) setError(message);
+        return;
       }
       await loadAssignments();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : t('admin.leagues.editPage.owners.addError'));
     } finally {
       setBusy(false);
     }
@@ -562,14 +565,17 @@ export default function EditLeaguePage() {
     setBusy(true);
     setError(null);
     try {
-      const res = await fetch(
-        `${apiUrl}/api/v1/admin/leagues/${leagueId}/user-roles/${userIdSel}`,
-        { method: 'DELETE', credentials: 'include' },
+      const r = await apiRequest(
+        apiUrl,
+        `/api/v1/admin/leagues/${leagueId}/user-roles/${userIdSel}`,
+        { method: 'DELETE' },
       );
-      if (!res.ok) throw new Error(t('admin.leagues.editPage.owners.detachError'));
+      if (!r.ok) {
+        const message = failureMessage(r, t, t('admin.leagues.editPage.owners.detachError'));
+        if (message) setError(message);
+        return;
+      }
       await loadAssignments();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : t('admin.leagues.editPage.owners.detachError'));
     } finally {
       setBusy(false);
     }
@@ -579,19 +585,16 @@ export default function EditLeaguePage() {
     setBusy(true);
     setError(null);
     try {
-      const res = await fetch(`${apiUrl}/api/v1/admin/leagues/${leagueId}/organization-roles`, {
+      const r = await apiRequest(apiUrl, `/api/v1/admin/leagues/${leagueId}/organization-roles`, {
         method: 'POST',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ organizationId: orgId, role }),
+        body: { organizationId: orgId, role },
       });
-      if (!res.ok) {
-        const body = (await res.json().catch(() => ({}))) as { message?: string };
-        throw new Error(body.message ?? t('admin.leagues.editPage.orgs.addError'));
+      if (!r.ok) {
+        const message = failureMessage(r, t, t('admin.leagues.editPage.orgs.addError'));
+        if (message) setError(message);
+        return;
       }
       await loadAssignments();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : t('admin.leagues.editPage.orgs.addError'));
     } finally {
       setBusy(false);
     }
@@ -603,14 +606,17 @@ export default function EditLeaguePage() {
     setBusy(true);
     setError(null);
     try {
-      const res = await fetch(
-        `${apiUrl}/api/v1/admin/leagues/${leagueId}/organization-roles/${orgId}`,
-        { method: 'DELETE', credentials: 'include' },
+      const r = await apiRequest(
+        apiUrl,
+        `/api/v1/admin/leagues/${leagueId}/organization-roles/${orgId}`,
+        { method: 'DELETE' },
       );
-      if (!res.ok) throw new Error(t('admin.leagues.editPage.orgs.detachError'));
+      if (!r.ok) {
+        const message = failureMessage(r, t, t('admin.leagues.editPage.orgs.detachError'));
+        if (message) setError(message);
+        return;
+      }
       await loadAssignments();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : t('admin.leagues.editPage.orgs.detachError'));
     } finally {
       setBusy(false);
     }
@@ -620,24 +626,17 @@ export default function EditLeaguePage() {
     setBusy(true);
     setError(null);
     try {
-      const res = await fetch(
-        `${apiUrl}/api/v1/admin/leagues/${leagueId}/tournaments/${tournamentId}/link`,
-        {
-          method: 'POST',
-          credentials: 'include',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ groupId }),
-        },
+      const r = await apiRequest(
+        apiUrl,
+        `/api/v1/admin/leagues/${leagueId}/tournaments/${tournamentId}/link`,
+        { method: 'POST', body: { groupId } },
       );
-      if (!res.ok) {
-        const body = (await res.json().catch(() => ({}))) as { message?: string };
-        throw new Error(body.message ?? t('admin.leagues.editPage.tournaments.addError'));
+      if (!r.ok) {
+        const message = failureMessage(r, t, t('admin.leagues.editPage.tournaments.addError'));
+        if (message) setError(message);
+        return;
       }
       await loadAssignments();
-    } catch (err) {
-      setError(
-        err instanceof Error ? err.message : t('admin.leagues.editPage.tournaments.addError'),
-      );
     } finally {
       setBusy(false);
     }
@@ -654,18 +653,16 @@ export default function EditLeaguePage() {
     setBusy(true);
     setError(null);
     try {
-      const res = await fetch(`${apiUrl}/api/v1/admin/league-tournament-links/${linkId}`, {
+      const r = await apiRequest(apiUrl, `/api/v1/admin/league-tournament-links/${linkId}`, {
         method: 'PATCH',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: 'removed' }),
+        body: { status: 'removed' },
       });
-      if (!res.ok) throw new Error(t('admin.leagues.editPage.tournaments.detachError'));
+      if (!r.ok) {
+        const message = failureMessage(r, t, t('admin.leagues.editPage.tournaments.detachError'));
+        if (message) setError(message);
+        return;
+      }
       await loadAssignments();
-    } catch (err) {
-      setError(
-        err instanceof Error ? err.message : t('admin.leagues.editPage.tournaments.detachError'),
-      );
     } finally {
       setBusy(false);
     }
