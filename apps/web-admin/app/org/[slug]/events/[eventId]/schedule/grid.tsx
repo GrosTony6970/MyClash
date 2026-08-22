@@ -560,7 +560,10 @@ export function ScheduleGrid({
       setNewLiceName('');
       setShowAddLice(false);
     } catch (err) {
-      setAddLiceError(err instanceof Error ? err.message : t('admin.common.addLiceFailed'));
+      // Read through the same describer as the save banner. The reason a lice
+      // is refused — a duplicate name, an archived event — used to survive only
+      // because the transport put it on `Error.message`.
+      setAddLiceError(describeSaveError(err, t('admin.common.addLiceFailed')));
     } finally {
       setAddLiceBusy(false);
     }

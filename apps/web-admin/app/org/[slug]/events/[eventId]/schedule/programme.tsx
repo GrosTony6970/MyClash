@@ -10,7 +10,9 @@ import type {
 import { blockTint, resolveBlockAccent } from '@myclash/types';
 import { useConfirm } from '@myclash/ui';
 import { useI18n } from '@myclash/next-i18n/client';
+import { apiRequest, failureMessage } from '@myclash/api-client';
 import { minToTime, nextBlockStartTime, resequenceDay, timeToMin } from './programme-timeline';
+import { mutateSchedule, ScheduleMutationError } from './schedule-mutations';
 import { ColorSwatchPicker } from '@/components/ColorSwatchPicker';
 import { getPublicApiUrl } from '@/lib/api-url';
 
@@ -147,29 +149,25 @@ export function ProgrammePlanner({
     // for an event"), so silently starting from [] and letting the organizer
     // save would destroy the real programme. Any non-ok — 401, 5xx, a network
     // blip — has to be visible and has to block saving.
-    fetch(`${apiUrl}/api/v1/events/${eventId}/programme`, { credentials: 'include' })
-      .then(async (res) => {
-        if (res.ok) {
-          setBlocks((await res.json()) as ProgrammeBlock[]);
+    void apiRequest<ProgrammeBlock[]>(apiUrl, `/api/v1/events/${eventId}/programme`)
+      .then((r) => {
+        if (r.ok) {
+          setBlocks(r.data);
           return;
         }
         setLoadFailed(true);
       })
-      .catch(() => setLoadFailed(true))
       .finally(() => setLoading(false));
 
     // Default parallelLiceCount = number of lices configured for the event.
     // Only set if user hasn't already overridden the sentinel (0).
-    fetch(`${apiUrl}/api/v1/events/${eventId}/lices`, { credentials: 'include' })
-      .then(async (res) => {
-        if (!res.ok) return;
-        const lices = (await res.json()) as Array<{ id: string }>;
-        const count = Math.max(1, lices.length);
-        setConfig((prev) =>
-          prev.parallelLiceCount === 0 ? { ...prev, parallelLiceCount: count } : prev,
-        );
-      })
-      .catch(() => undefined);
+    void apiRequest<Array<{ id: string }>>(apiUrl, `/api/v1/events/${eventId}/lices`).then((r) => {
+      if (!r.ok) return;
+      const count = Math.max(1, r.data.length);
+      setConfig((prev) =>
+        prev.parallelLiceCount === 0 ? { ...prev, parallelLiceCount: count } : prev,
+      );
+    });
     // The lices fetch deliberately stays outside the refresh nonce —
     // the grid can't change the lice list.
   }, [eventId, apiUrl, programmeRefreshKey]);
@@ -202,17 +200,11 @@ export function ProgrammePlanner({
         // DTO requires >= 1; if the sentinel is still in place, fall back to 1.
         parallelLiceCount: Math.max(1, config.parallelLiceCount),
       };
-      const res = await fetch(`${apiUrl}/api/v1/events/${eventId}/programme/suggest`, {
-        method: 'POST',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      });
-      if (!res.ok) {
-        const body = (await res.json()) as { message?: string };
-        throw new Error(body.message ?? t('admin.common.suggestionFailed'));
-      }
-      const suggestion = (await res.json()) as ProgrammeSuggestion;
+      const suggestion = await mutateSchedule<ProgrammeSuggestion>(
+        `${apiUrl}/api/v1/events/${eventId}/programme/suggest`,
+        { method: 'POST', body: payload },
+      );
+      if (!suggestion) return;
       // Auto-save: every suggestion overwrites whatever was in
       // place before, so persist immediately. Operators no longer
       // need a second click on "Save programme" to make a fresh
@@ -222,7 +214,7 @@ export function ProgrammePlanner({
       setWarnings(suggestion.warnings);
       setActiveDay(0);
     } catch (err) {
-      setError(err instanceof Error ? err.message : t('admin.common.somethingWentWrong'));
+      setError(refusalMessage(err, t('admin.common.suggestionFailed')));
     } finally {
       setSuggesting(false);
     }
@@ -230,13 +222,18 @@ export function ProgrammePlanner({
 
   // ── Save ───────────────────────────────────────────────────────────────────
 
-  async function readErrorMessage(res: Response, fallback: string): Promise<string> {
-    try {
-      const body = (await res.json()) as { message?: string; error?: string };
-      return body.message ?? body.error ?? fallback;
-    } catch {
-      return fallback;
-    }
+  /**
+   * The one place this drawer turns a refused write into words.
+   *
+   * It replaces a second `readErrorMessage` — a private copy of the body read
+   * that `@myclash/api-client` owns, and one that stopped at `message`/`error`.
+   * A programme the API refuses is refused by NAME ("block 3 ends before it
+   * starts", every field a validator rejected), and each of those reasons now
+   * reaches the operator instead of the first one or none.
+   */
+  function refusalMessage(err: unknown, fallback: string): string | null {
+    if (err instanceof ScheduleMutationError) return failureMessage(err.failure, t, fallback);
+    return err instanceof Error ? err.message : fallback;
   }
 
   async function persistProgramme(blocksOverride?: ProgrammeBlock[]): Promise<ProgrammeBlock[]> {
@@ -263,14 +260,13 @@ export function ProgrammePlanner({
       minRestMinutes: b.minRestMinutes,
       colorHex: b.colorHex ?? null,
     }));
-    const res = await fetch(`${apiUrl}/api/v1/events/${eventId}/programme`, {
-      method: 'PUT',
-      credentials: 'include',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ blocks: payloadBlocks }),
-    });
-    if (!res.ok) throw new Error(await readErrorMessage(res, t('admin.common.saveFailed')));
-    return (await res.json()) as ProgrammeBlock[];
+    // Through the board's own transport, which throws on a refusal — the
+    // contract the three callers below already rely on.
+    const saved = await mutateSchedule<ProgrammeBlock[]>(
+      `${apiUrl}/api/v1/events/${eventId}/programme`,
+      { method: 'PUT', body: { blocks: payloadBlocks } },
+    );
+    return saved ?? [];
   }
 
   async function saveProgramme() {
@@ -281,7 +277,7 @@ export function ProgrammePlanner({
       setBlocks(saved);
       onBlocksChanged?.();
     } catch (err) {
-      setError(err instanceof Error ? err.message : t('admin.common.somethingWentWrong'));
+      setError(refusalMessage(err, t('admin.common.saveFailed')));
     } finally {
       setSaving(false);
     }
@@ -308,18 +304,15 @@ export function ProgrammePlanner({
     setResetting(true);
     setError(null);
     try {
-      const res = await fetch(`${apiUrl}/api/v1/events/${eventId}/programme/full`, {
+      await mutateSchedule(`${apiUrl}/api/v1/events/${eventId}/programme/full`, {
         method: 'DELETE',
-        credentials: 'include',
       });
-      if (!res.ok)
-        throw new Error(await readErrorMessage(res, t('admin.common.resetScheduleFailed')));
       setBlocks([]);
       setWarnings([]);
       setGenerateResult(null);
       onBlocksChanged?.();
     } catch (err) {
-      setError(err instanceof Error ? err.message : t('admin.common.somethingWentWrong'));
+      setError(refusalMessage(err, t('admin.common.resetScheduleFailed')));
     } finally {
       setResetting(false);
     }
@@ -345,30 +338,21 @@ export function ProgrammePlanner({
       // Scope generation to the ticked days; omit the body to mean "all days".
       const dayIndices = distinctDays.filter((d) => !skipDays.has(d));
       const scoped = dayIndices.length > 0 && dayIndices.length < distinctDays.length;
-      const res = await fetch(`${apiUrl}/api/v1/events/${eventId}/programme/generate`, {
-        method: 'POST',
-        credentials: 'include',
-        ...(scoped
-          ? {
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ dayIndices }),
-            }
-          : {}),
-      });
-      if (!res.ok) throw new Error(await readErrorMessage(res, t('admin.common.generationFailed')));
-      const result = (await res.json()) as GenerateResult;
+      const result = await mutateSchedule<GenerateResult>(
+        `${apiUrl}/api/v1/events/${eventId}/programme/generate`,
+        { method: 'POST', ...(scoped ? { body: { dayIndices } } : {}) },
+      );
+      if (!result) return;
       // Generation packs the day sequentially, so it may have shifted
       // admin/break/competition block times to remove overlaps. Re-fetch the
       // programme so the drawer list mirrors the persisted times instead of the
       // pre-generate ones (the grid already re-fetches via its refresh key).
-      try {
-        const refreshed = await fetch(`${apiUrl}/api/v1/events/${eventId}/programme`, {
-          credentials: 'include',
-        });
-        if (refreshed.ok) setBlocks((await refreshed.json()) as ProgrammeBlock[]);
-      } catch {
-        // Non-fatal — the list catches up on next drawer open.
-      }
+      // Non-fatal — the list catches up on next drawer open.
+      const refreshed = await apiRequest<ProgrammeBlock[]>(
+        apiUrl,
+        `/api/v1/events/${eventId}/programme`,
+      );
+      if (refreshed.ok) setBlocks(refreshed.data);
       // When 0 matches landed (e.g. no lices, no draw run), keep the
       // result on-screen here so the operator can read per-block
       // diagnostics. Only bubble up the success → drawer auto-close
@@ -382,7 +366,7 @@ export function ProgrammePlanner({
         onBlocksChanged?.();
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : t('admin.common.somethingWentWrong'));
+      setError(refusalMessage(err, t('admin.common.generationFailed')));
     } finally {
       setGenerating(false);
     }

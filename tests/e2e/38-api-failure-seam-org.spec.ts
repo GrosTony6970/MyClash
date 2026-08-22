@@ -120,6 +120,13 @@ const ORG_TOURNAMENTS_PATH = `/org/${ctx.orgSlug}/events/${ctx.eventId}/tourname
 const ORG_TOURNAMENTS_LOAD = '**/api/v1/events/*/tournaments';
 /** The login screen's magic-link request. */
 const MAGIC_LINK_LOGIN = '**/api/v1/auth/magic-link';
+const ORG_SCHEDULE_PATH = `/org/${ctx.orgSlug}/events/${ctx.eventId}/schedule`;
+/**
+ * The first of the board's four bootstrap reads, and the one whose refusal it
+ * reports under "Lices:". Exact, so the other three stay unstubbed and the
+ * banner names this endpoint rather than whichever raced ahead.
+ */
+const SCHEDULE_LICES_LOAD = '**/api/v1/events/*/lices';
 const ORG_DISCOVER_PATH = `/org/${ctx.orgSlug}/rulesets/scoring?tab=discover`;
 /** The adoptable-ruleset catalogue behind the Discover tab. */
 const ORG_DISCOVER_LOAD = '**/api/v1/organizations/*/custom-rulesets/catalog';
@@ -356,6 +363,35 @@ test.describe('the api-failure seam — the org leagues hub', () => {
 
     await expect(page.getByText(reason)).toBeVisible();
     await expect(page.getByText(COPY.leaguesLoadError)).toBeHidden();
+  });
+});
+
+/**
+ * The schedule board.
+ *
+ * Not a drag: `dragTo` hangs in this grid (see the drag specs), and the thing
+ * this batch changed is the READ path anyway. The board had a second fetch seam
+ * of its own — `schedule-mutations` and `schedule-reads` — that stopped at the
+ * body's `message`. A class-validator refusal puts its FIRST rejected field
+ * there and the rest under `details.validationErrors`, so an organiser was told
+ * about one field, fixed it, and was then told about the next.
+ */
+test.describe('the api-failure seam — the schedule board', () => {
+  test('a refused bootstrap read names every field the API rejected', async ({ page }) => {
+    const first = 'liceId must be a UUID';
+    const second = 'scheduledAt is not a valid ISO date';
+    await page.route(SCHEDULE_LICES_LOAD, (route) =>
+      route.fulfill(problemJson(400, first, { validationErrors: [first, second] })),
+    );
+
+    await page.goto(ORG_SCHEDULE_PATH);
+    await expectStayedOn(page, ORG_SCHEDULE_PATH);
+
+    // The banner names the endpoint, then the whole reason. The second field is
+    // the half that could not reach this screen before.
+    await expect(page.getByText(COPY.scheduleFetchLicesPrefix)).toBeVisible();
+    await expect(page.getByText(first)).toBeVisible();
+    await expect(page.getByText(second)).toBeVisible();
   });
 });
 

@@ -1,3 +1,4 @@
+import { apiRequest, type ApiFailure } from '@myclash/api-client';
 import { DEFAULT_EVENT_TIMEZONE } from '@myclash/time';
 import { eachDay } from '@myclash/schedule-core';
 import type {
@@ -11,9 +12,15 @@ import type { Lice, ProgrammeBlockRow, ScheduleMatch } from './schedule-types';
  * ./schedule-mutations.
  *
  * Pure: no React, no i18n, no `apiUrl` knowledge beyond the argument. A refusal
- * is a value, not an exception, and it carries only what the server said plus
- * which endpoint said it. Turning that into prose an operator should read is
- * the hook's job, because only the hook has `t()`.
+ * is a value, not an exception, and it carries the STRUCTURED failure plus which
+ * endpoint produced it. Turning that into prose an operator should read is the
+ * hook's job, because only the hook has `t()`.
+ *
+ * It used to carry a `message` string built here: `body.message`, or the
+ * invented English status line "502 Bad Gateway" when the body would not parse.
+ * Both are what `@myclash/api-client` already answers, and answers better — the
+ * RFC 9457 `detail` member, every field a validator rejected, and a word for a
+ * refusal that never reached the API at all.
  *
  * This lives apart from `useScheduleData` so it can be tested without a
  * renderer. That is not a formality: the timezone resolution below is the sort
@@ -21,8 +28,7 @@ import type { Lice, ProgrammeBlockRow, ScheduleMatch } from './schedule-types';
  */
 
 /** The bootstrap fetches, in call order. A refusal is reported by name. */
-export const BOOTSTRAP_SOURCES = ['lices', 'schedule', 'event', 'programme'] as const;
-export type BootstrapSource = (typeof BOOTSTRAP_SOURCES)[number];
+export type BootstrapSource = 'lices' | 'schedule' | 'event' | 'programme';
 
 /** GET /api/v1/events/:id resolves to `getEventBySlug`, which returns the raw
  *  Supabase row — snake_case. Don't paper over it with camelCase aliases
@@ -41,12 +47,17 @@ export interface ScheduleBootstrap {
   programmeBlocks: ProgrammeBlockRow[];
 }
 
-export type BootstrapResult =
-  { ok: true; data: ScheduleBootstrap } | { ok: false; source: BootstrapSource; message: string };
+/** A refused read: which endpoint said no, and what it said. */
+export interface ReadFailure {
+  source: BootstrapSource;
+  failure: ApiFailure;
+}
+
+export type BootstrapResult = { ok: true; data: ScheduleBootstrap } | ({ ok: false } & ReadFailure);
 
 export type ReloadResult =
   | { ok: true; matches: ScheduleMatch[]; programmeBlocks: ProgrammeBlockRow[] }
-  | { ok: false; status: number };
+  | ({ ok: false } & ReadFailure);
 
 /**
  * The programme rows the grid draws as full-width bars: registration, gear
@@ -57,56 +68,34 @@ export function barBlocksOnly(blocks: ProgrammeBlockRow[]): ProgrammeBlockRow[] 
   return blocks.filter((b) => b.blockType === 'admin' || b.blockType === 'break');
 }
 
-/** The upstream NestJS message, so the operator sees the real DB/auth/schema
- *  error rather than staring at an empty grid. */
-async function bodyMessage(res: Response): Promise<string> {
-  try {
-    const body = (await res.json()) as { message?: string };
-    return body.message ?? `${res.status} ${res.statusText}`;
-  } catch {
-    return `${res.status} ${res.statusText}`;
-  }
-}
-
 /** Load the four things the board needs to draw anything at all. */
 export async function loadBootstrap(
   apiUrl: string,
   eventId: string,
   signal: AbortSignal,
 ): Promise<BootstrapResult> {
-  const init = { credentials: 'include' as const, signal };
-  const responses = await Promise.all([
-    fetch(`${apiUrl}/api/v1/events/${eventId}/lices`, init),
-    fetch(`${apiUrl}/api/v1/events/${eventId}/schedule`, init),
-    fetch(`${apiUrl}/api/v1/events/${eventId}`, init),
-    fetch(`${apiUrl}/api/v1/events/${eventId}/programme`, init),
+  const [lices, schedule, event, programme] = await Promise.all([
+    apiRequest<Lice[]>(apiUrl, `/api/v1/events/${eventId}/lices`, { signal }),
+    apiRequest<ScheduleMatch[]>(apiUrl, `/api/v1/events/${eventId}/schedule`, { signal }),
+    apiRequest<EventRow>(apiUrl, `/api/v1/events/${eventId}`, { signal }),
+    apiRequest<ProgrammeBlockRow[]>(apiUrl, `/api/v1/events/${eventId}/programme`, { signal }),
   ]);
-  // Report the first non-OK in fetch order, matching the sequential gates this
+  // Report the first refusal in fetch order, matching the sequential gates this
   // replaced. One banner, naming which endpoint refused.
-  for (const [index, res] of responses.entries()) {
-    const source = BOOTSTRAP_SOURCES[index];
-    if (!res.ok && source) return { ok: false, source, message: await bodyMessage(res) };
-  }
-  const [licesRes, schedRes, eventRes, programmeRes] = responses as [
-    Response,
-    Response,
-    Response,
-    Response,
-  ];
-  const lices = (await licesRes.json()) as Lice[];
-  const matches = (await schedRes.json()) as ScheduleMatch[];
-  const ev = (await eventRes.json()) as EventRow;
-  const blocks = (await programmeRes.json()) as ProgrammeBlockRow[];
+  if (!lices.ok) return { ok: false, source: 'lices', failure: lices };
+  if (!schedule.ok) return { ok: false, source: 'schedule', failure: schedule };
+  if (!event.ok) return { ok: false, source: 'event', failure: event };
+  if (!programme.ok) return { ok: false, source: 'programme', failure: programme };
   return {
     ok: true,
     data: {
-      lices: lices.sort((a, b) => a.sortOrder - b.sortOrder),
-      matches,
+      lices: lices.data.sort((a, b) => a.sortOrder - b.sortOrder),
+      matches: schedule.data,
       // The event's own zone, never the app default when one is present. The
       // board's whole axis is built in it.
-      timezone: ev.timezone ?? DEFAULT_EVENT_TIMEZONE,
-      days: eachDay(ev.start_date, ev.end_date ?? null),
-      programmeBlocks: barBlocksOnly(blocks),
+      timezone: event.data.timezone ?? DEFAULT_EVENT_TIMEZONE,
+      days: eachDay(event.data.start_date, event.data.end_date ?? null),
+      programmeBlocks: barBlocksOnly(programme.data),
     },
   };
 }
@@ -117,7 +106,7 @@ export type RefereeConflictInputs = {
 };
 
 export type RefereeConflictInputsResult =
-  ({ ok: true } & RefereeConflictInputs) | { ok: false; status: number };
+  ({ ok: true } & RefereeConflictInputs) | { ok: false; failure: ApiFailure };
 
 /**
  * Who referees what, and which person each registration belongs to.
@@ -133,13 +122,17 @@ export async function loadRefereeConflictInputs(
   eventId: string,
   signal: AbortSignal,
 ): Promise<RefereeConflictInputsResult> {
-  const res = await fetch(`${apiUrl}/api/v1/events/${eventId}/referee-match-assignments`, {
-    credentials: 'include',
-    signal,
-  });
-  if (!res.ok) return { ok: false, status: res.status };
-  const body = (await res.json()) as RefereeConflictInputs;
-  return { ok: true, assignments: body.assignments ?? [], registrations: body.registrations ?? [] };
+  const r = await apiRequest<RefereeConflictInputs>(
+    apiUrl,
+    `/api/v1/events/${eventId}/referee-match-assignments`,
+    { signal },
+  );
+  if (!r.ok) return { ok: false, failure: r };
+  return {
+    ok: true,
+    assignments: r.data.assignments ?? [],
+    registrations: r.data.registrations ?? [],
+  };
 }
 
 /** One pool-scoped referee clash, as `packages/types` defines it. */
@@ -172,7 +165,14 @@ export interface RefereeCrewConflictsBody {
 }
 
 export type RefereeCrewConflictsResult =
-  ({ ok: true } & RefereeCrewConflictsBody) | { ok: false; status: number };
+  | ({ ok: true } & RefereeCrewConflictsBody)
+  /**
+   * `failure` is null for the second way this read can fail to answer: the
+   * server said yes and the body could not be used. There is no status to
+   * report for that, and inventing one would read as a refusal the API never
+   * sent.
+   */
+  | { ok: false; failure: ApiFailure | null };
 
 /**
  * True only for a body that actually carries the three toggles.
@@ -209,18 +209,18 @@ export async function loadRefereeCrewConflicts(
   eventId: string,
   signal?: AbortSignal,
 ): Promise<RefereeCrewConflictsResult> {
-  const res = await fetch(`${apiUrl}/api/v1/events/${eventId}/referee-crew-conflicts`, {
-    credentials: 'include',
-    signal,
-  });
-  if (!res.ok) return { ok: false, status: res.status };
-  const body: unknown = await res.json();
-  if (!hasCrewShape(body)) return { ok: false, status: res.status };
+  const r = await apiRequest<unknown>(
+    apiUrl,
+    `/api/v1/events/${eventId}/referee-crew-conflicts`,
+    signal ? { signal } : {},
+  );
+  if (!r.ok) return { ok: false, failure: r };
+  if (!hasCrewShape(r.data)) return { ok: false, failure: null };
   return {
     ok: true,
-    conflicts: body.conflicts,
-    rules: body.rules,
-    asOf: body.asOf ?? '',
+    conflicts: r.data.conflicts,
+    rules: r.data.rules,
+    asOf: r.data.asOf ?? '',
   };
 }
 
@@ -229,16 +229,17 @@ export async function loadScheduleAndProgramme(
   apiUrl: string,
   eventId: string,
 ): Promise<ReloadResult> {
-  const [schedRes, programmeRes] = await Promise.all([
-    fetch(`${apiUrl}/api/v1/events/${eventId}/schedule`, { credentials: 'include' }),
-    fetch(`${apiUrl}/api/v1/events/${eventId}/programme`, { credentials: 'include' }),
+  const [schedule, programme] = await Promise.all([
+    apiRequest<ScheduleMatch[]>(apiUrl, `/api/v1/events/${eventId}/schedule`),
+    apiRequest<ProgrammeBlockRow[]>(apiUrl, `/api/v1/events/${eventId}/programme`),
   ]);
-  if (!schedRes.ok || !programmeRes.ok) {
-    return { ok: false, status: (schedRes.ok ? programmeRes : schedRes).status };
-  }
+  // Named, where it used to report a bare status: a refused programme read said
+  // "Schedule: 403", which sends the operator to look at the wrong endpoint.
+  if (!schedule.ok) return { ok: false, source: 'schedule', failure: schedule };
+  if (!programme.ok) return { ok: false, source: 'programme', failure: programme };
   return {
     ok: true,
-    matches: (await schedRes.json()) as ScheduleMatch[],
-    programmeBlocks: barBlocksOnly((await programmeRes.json()) as ProgrammeBlockRow[]),
+    matches: schedule.data,
+    programmeBlocks: barBlocksOnly(programme.data),
   };
 }

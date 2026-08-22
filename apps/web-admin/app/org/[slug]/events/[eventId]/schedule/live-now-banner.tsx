@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import { apiRequest } from '@myclash/api-client';
 import { formatInZone, localeToBcp47, minutesIntoDayInZone } from '@myclash/time';
 import { useI18n } from '@myclash/next-i18n/client';
 import { getPublicApiUrl } from '@/lib/api-url';
@@ -52,15 +53,13 @@ export function LiveNowBanner({ eventId }: { eventId: string }) {
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   async function fetchState() {
-    try {
-      const res = await fetch(`${apiUrl}/api/v1/events/${eventId}/live-state`, {
-        credentials: 'include',
-        cache: 'no-store',
-      });
-      if (res.ok) setState((await res.json()) as LiveState);
-    } catch {
-      // Keep last known state
-    }
+    // Silent on a refusal, and deliberately so: this polls every 15 seconds
+    // beside a board that reports its own read failures, and the banner keeps
+    // the last state it knows rather than blanking on one bad poll.
+    const r = await apiRequest<LiveState>(apiUrl, `/api/v1/events/${eventId}/live-state`, {
+      cache: 'no-store',
+    });
+    if (r.ok) setState(r.data);
   }
 
   useEffect(() => {

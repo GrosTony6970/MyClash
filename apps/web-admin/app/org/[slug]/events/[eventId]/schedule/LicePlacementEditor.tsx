@@ -15,9 +15,10 @@
 
 import { useEffect, useState } from 'react';
 import { Modal } from '@myclash/ui';
+import { apiRequest, failureMessage } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
 import { useI18n } from '@myclash/next-i18n/client';
-import { mutateSchedule } from './schedule-mutations';
+import { mutateSchedule, ScheduleMutationError } from './schedule-mutations';
 
 interface VenueArea {
   id: string;
@@ -60,23 +61,19 @@ export function LicePlacementEditor({ eventId, lice, onClose, onSaved }: Props) 
     // One call covers both selects: the endpoint already embeds each venue's
     // areas, so picking a hall never costs a second round-trip.
     const controller = new AbortController();
-    fetch(`${apiUrl}/api/v1/events/${eventId}/venues`, {
-      credentials: 'include',
+    void apiRequest<EventVenue[]>(apiUrl, `/api/v1/events/${eventId}/venues`, {
       signal: controller.signal,
-    })
-      .then(async (res) => {
-        // A refused read used to fall through silently, leaving an empty hall
-        // dropdown indistinguishable from "this event has no venues".
-        if (!res.ok) {
-          setError(t('organizer.schedulePage.placement.loadFailed'));
-          return;
-        }
-        setVenues((await res.json()) as EventVenue[]);
-      })
-      .catch((err: unknown) => {
-        if (err instanceof Error && err.name === 'AbortError') return;
-        setError(t('organizer.schedulePage.placement.loadFailed'));
-      });
+    }).then((r) => {
+      // A refused read used to fall through silently, leaving an empty hall
+      // dropdown indistinguishable from "this event has no venues".
+      if (!r.ok) {
+        // No message is this dialog closing mid-read.
+        const message = failureMessage(r, t, t('organizer.schedulePage.placement.loadFailed'));
+        if (message) setError(message);
+        return;
+      }
+      setVenues(r.data);
+    });
     return () => controller.abort();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [eventId]);
@@ -102,9 +99,15 @@ export function LicePlacementEditor({ eventId, lice, onClose, onSaved }: Props) 
       await onSaved();
       onClose();
     } catch (err) {
-      setError(
-        err instanceof Error ? err.message : t('organizer.schedulePage.placement.saveFailed'),
-      );
+      // The API refuses a piste placed in a room of a building it does not
+      // stand in, and it says which. That reason used to survive only because
+      // the transport happened to put it on `Error.message`; it is structured
+      // now, and read as such.
+      const message =
+        err instanceof ScheduleMutationError
+          ? failureMessage(err.failure, t, t('organizer.schedulePage.placement.saveFailed'))
+          : t('organizer.schedulePage.placement.saveFailed');
+      if (message) setError(message);
     } finally {
       setBusy(false);
     }

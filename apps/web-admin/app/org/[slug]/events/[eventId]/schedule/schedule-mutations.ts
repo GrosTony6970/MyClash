@@ -21,11 +21,25 @@
  * the server cannot. The caller's recovery path is therefore always "refetch
  * from source of truth", which is also what makes the batch helper below safe.
  *
- * Pure: no React, no i18n, no `apiUrl` knowledge. It never invents user-facing
- * prose — a failure carries the server's own message, or a bare status line for
- * diagnosis. Turning either into something an operator should read is the
- * component's job, because only the component has `t()`.
+ * ── The transport is `apiRequest`, not `fetch` ──────────────────────────────
+ * This module used to own its own request: `credentials: 'include'`, a
+ * hand-rolled Content-Type, a `JSON.stringify`, a `try/catch` around the fetch
+ * and a `messageFrom` that read `body.message` and nothing else. That is the
+ * seam in `@myclash/api-client`, written a second time — and the copy was
+ * already behind: it never read the RFC 9457 `detail` member, it never read
+ * `details.validationErrors`, so a placement refused on four fields reported
+ * one, and it turned an unparseable body into the invented status line
+ * "502 Bad Gateway" — prose no operator asked for and no translator saw.
+ *
+ * What stays is the CONTRACT, which is this module's actual reason to exist: a
+ * refusal throws. `apiRequest` never throws by design, so the throw is built
+ * here, once, on top of it.
+ *
+ * Still pure: no React, no i18n. It carries the structured failure rather than
+ * a sentence, because only the component has `t()` — see `useScheduleWrites`.
  */
+
+import { apiRequest, failureDetail, type ApiFailure } from '@myclash/api-client';
 
 export interface MutateInit {
   method: 'POST' | 'PUT' | 'PATCH' | 'DELETE';
@@ -37,68 +51,64 @@ export interface MutateInit {
 /** Status used when the request never reached the server at all. */
 export const NETWORK_FAILURE_STATUS = 0;
 
+/** The HTTP status behind a failure, or zero when there was no response. */
+function statusOf(failure: ApiFailure): number {
+  return failure.kind === 'http' || failure.kind === 'unauthenticated'
+    ? failure.status
+    : NETWORK_FAILURE_STATUS;
+}
+
 export class ScheduleMutationError extends Error {
   /** HTTP status, or `NETWORK_FAILURE_STATUS` when there was no response. */
   readonly status: number;
   readonly url: string;
+  /**
+   * The refusal, structured. This is what a caller renders — `failureMessage`
+   * turns it into the operator's language, picks every rejected field over the
+   * first one, and knows a scrubbed 5xx has nothing worth showing. `message`
+   * below is for a console and a Sentry title; it is not user-facing.
+   */
+  readonly failure: ApiFailure;
 
-  constructor(message: string, status: number, url: string) {
+  constructor(message: string, url: string, failure: ApiFailure) {
     super(message);
     this.name = 'ScheduleMutationError';
-    this.status = status;
+    this.status = statusOf(failure);
     this.url = url;
+    this.failure = failure;
   }
 }
 
 /**
- * The API's error body carries `message` as a string, always. A class-validator
- * array is collapsed to its first entry by `normalizeMessage` in
- * `api-exception.filter.ts` before it leaves the server, so an array shape
- * never reaches here; anything that is not a usable string falls back to the
- * status line.
+ * A line for the console. The server's own reason when it sent one, otherwise
+ * the shape of the failure — never a sentence dressed up as one an operator
+ * should read, which is what the old `${status} ${statusText}` fallback was.
  */
-async function messageFrom(res: Response): Promise<string> {
-  try {
-    const body: unknown = await res.json();
-    const message = (body as { message?: unknown } | null)?.message;
-    if (typeof message === 'string' && message.length > 0) return message;
-  } catch {
-    // Not JSON, or an empty body — the status line below is all we have.
-  }
-  return `${res.status} ${res.statusText}`.trim();
+function diagnosis(failure: ApiFailure): string {
+  return failureDetail(failure) ?? `${failure.kind} ${statusOf(failure)}`;
 }
 
 /**
  * Issue one schedule write. Resolves with the parsed body (or null for an empty
  * one), throws `ScheduleMutationError` for any non-OK response and for a
  * network failure.
+ *
+ * Takes a FULL url rather than a path, so the base URL stays the caller's — the
+ * board resolves it once and hands the same string to every write.
  */
 export async function mutateSchedule<T = unknown>(
   url: string,
   init: MutateInit,
 ): Promise<T | null> {
-  let res: Response;
-  try {
-    res = await fetch(url, {
-      method: init.method,
-      credentials: 'include',
-      ...(init.body === undefined
-        ? {}
-        : { headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(init.body) }),
-      ...(init.signal ? { signal: init.signal } : {}),
-    });
-  } catch (err) {
-    // No response at all: offline, DNS, TLS, or an aborted request. The browser
-    // writes this message, not us — see the no-invented-prose note above.
-    throw new ScheduleMutationError(
-      err instanceof Error ? err.message : String(err),
-      NETWORK_FAILURE_STATUS,
-      url,
-    );
-  }
-  if (!res.ok) throw new ScheduleMutationError(await messageFrom(res), res.status, url);
-  if (res.status === 204) return null;
-  return (await res.json().catch(() => null)) as T | null;
+  const r = await apiRequest<T>('', url, {
+    method: init.method,
+    ...(init.body === undefined ? {} : { body: init.body }),
+    ...(init.signal ? { signal: init.signal } : {}),
+  });
+  if (!r.ok) throw new ScheduleMutationError(diagnosis(r), url, r);
+  // A 204 and an empty body both parse to undefined; the callers that read a
+  // result test for null.
+  return r.data ?? null;
 }
 
 export interface MutationBatchResult {
@@ -126,11 +136,12 @@ export async function mutateAll(
     failures.push(
       reason instanceof ScheduleMutationError
         ? reason
-        : new ScheduleMutationError(
-            reason instanceof Error ? reason.message : String(reason),
-            NETWORK_FAILURE_STATUS,
-            '',
-          ),
+        : // Something threw before the request was ever made. It reached no
+          // server, so it is classified as one that could not: the board is
+          // told the write did not land, which is the only true part.
+          new ScheduleMutationError(reason instanceof Error ? reason.message : String(reason), '', {
+            kind: 'network',
+          }),
     );
   }
   return { total: calls.length, failures };

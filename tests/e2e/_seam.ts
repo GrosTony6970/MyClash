@@ -52,6 +52,9 @@ export const COPY = {
   loginSendLink: 'Send login link',
   magicLinkFailed: 'Could not send a login link.',
   discoverLoadError: 'Could not load the catalog.',
+  /** The prefix the schedule board reports its first bootstrap read under
+   *  — `organizer.schedulePage.grid.fetchLices` is `'Lices: {message}'`. */
+  scheduleFetchLicesPrefix: 'Lices:',
   tournamentNotFound: 'Tournament not found',
   tournamentLoadFailed: "This tournament couldn't be loaded",
   claimTitle: 'Confirm your profile',
@@ -67,7 +70,17 @@ export const COPY = {
 } as const;
 
 /** What the API's exception filter actually sends (api-exception.filter.ts). */
-export function problemJson(status: number, detail: string) {
+export function problemJson(
+  status: number,
+  detail: string,
+  /**
+   * The filter's extension bag. `buildDetails` moves every key that is not
+   * `statusCode`/`error`/`message`/`code` under here, which is where a
+   * class-validator refusal's full field list travels — `detail` carries only
+   * the first of them.
+   */
+  details?: Record<string, unknown>,
+) {
   return {
     status,
     contentType: 'application/problem+json; charset=utf-8',
@@ -81,6 +94,7 @@ export function problemJson(status: number, detail: string) {
       path: '/forced',
       method: 'GET',
       timestamp: new Date().toISOString(),
+      ...(details ? { details } : {}),
     }),
   };
 }

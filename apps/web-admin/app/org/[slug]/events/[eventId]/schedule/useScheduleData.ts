@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useI18n } from '@myclash/next-i18n/client';
+import { apiRequest, failureMessage, type ApiFailure } from '@myclash/api-client';
 import { DEFAULT_EVENT_TIMEZONE } from '@myclash/time';
 import { useRealtimeWithFallback } from '@/lib/supabase-browser';
 import { detectConflicts, type Conflict } from './conflict-detection';
@@ -184,12 +185,11 @@ export function useScheduleData(args: {
   }, [matches, refereeInputs, eventTz, unknownFighterLabel]);
 
   const refetchLices = useCallback(async (): Promise<void> => {
-    const res = await fetch(`${apiUrl}/api/v1/events/${eventId}/lices`, {
-      credentials: 'include',
-    });
-    if (!res.ok) return;
-    const l = (await res.json()) as Lice[];
-    setLices(l.sort((a, b) => a.sortOrder - b.sortOrder));
+    // Silent by design: the lice strip keeps what it has, and every path that
+    // calls this already reports its own failure.
+    const r = await apiRequest<Lice[]>(apiUrl, `/api/v1/events/${eventId}/lices`);
+    if (!r.ok) return;
+    setLices(r.data.sort((a, b) => a.sortOrder - b.sortOrder));
   }, [apiUrl, eventId]);
 
   const refetchScheduleAndBlocks = useCallback(async (): Promise<void> => {
@@ -198,9 +198,7 @@ export function useScheduleData(args: {
     // the board showing state the server rejected — the exact failure `commit`
     // exists to prevent. A refusal has to be visible.
     if (!result.ok) {
-      setFetchError(
-        t('organizer.schedulePage.grid.fetchSchedule', { message: `${result.status}` }),
-      );
+      setFetchError(readMessage(t, result.source, result.failure));
       return;
     }
     setMatches(result.matches);
@@ -209,38 +207,37 @@ export function useScheduleData(args: {
 
   useEffect(() => {
     const controller = new AbortController();
-    loadBootstrap(apiUrl, eventId, controller.signal)
-      .then((result) => {
-        setLoading(false);
-        if (!result.ok) return setFetchError(bootstrapMessage(t, result.source, result.message));
-        setFetchError(null);
-        setLices(result.data.lices);
-        setMatches(result.data.matches);
-        setEventTz(result.data.timezone);
-        setDays(result.data.days);
-        if (result.data.days[0]) setActiveDay(result.data.days[0]);
-        setProgrammeBlocks(result.data.programmeBlocks);
-      })
-      .catch((err: unknown) => {
-        setLoading(false);
-        if (err instanceof Error && err.name === 'AbortError') return;
-        setFetchError(err instanceof Error ? err.message : t('admin.common.scheduleLoadFailed'));
-      });
+    // No `.catch`: the read path returns its failures as values now, so the
+    // only way this promise rejects is a bug in it. An abort arrives as a
+    // failure whose message is null, which clears the banner rather than
+    // writing "the user aborted a request" into it.
+    void loadBootstrap(apiUrl, eventId, controller.signal).then((result) => {
+      setLoading(false);
+      if (!result.ok) return setFetchError(readMessage(t, result.source, result.failure));
+      setFetchError(null);
+      setLices(result.data.lices);
+      setMatches(result.data.matches);
+      setEventTz(result.data.timezone);
+      setDays(result.data.days);
+      if (result.data.days[0]) setActiveDay(result.data.days[0]);
+      setProgrammeBlocks(result.data.programmeBlocks);
+    });
     return () => controller.abort();
   }, [eventId, apiUrl, t]);
 
   // Its own effect, not a fifth bootstrap fetch: a refusal here must not blank
-  // a board the operator can still schedule on. A rejected promise is the one
-  // outcome that would leave `refereeInputs` at null forever, which reads as
-  // "still loading" rather than "unavailable", so the catch names a status too.
+  // a board the operator can still schedule on. The refusal is stored rather
+  // than dropped — leaving `refereeInputs` at null reads as "still loading"
+  // instead of "unavailable", and an empty banner reads as "all clear".
   useEffect(() => {
     const controller = new AbortController();
-    loadRefereeConflictInputs(apiUrl, eventId, controller.signal)
-      .then(setRefereeInputs)
-      .catch((err: unknown) => {
-        if (err instanceof Error && err.name === 'AbortError') return;
-        setRefereeInputs({ ok: false, status: 0 });
-      });
+    void loadRefereeConflictInputs(apiUrl, eventId, controller.signal).then((result) => {
+      // The board unmounted, or moved to another event. Storing that would
+      // make the banner say the referee check is unavailable for an event
+      // nobody is looking at any more.
+      if (!result.ok && result.failure.kind === 'aborted') return;
+      setRefereeInputs(result);
+    });
     return () => controller.abort();
   }, [apiUrl, eventId]);
 
@@ -278,7 +275,11 @@ export function useScheduleData(args: {
 }
 
 /**
- * Which endpoint refused, in the operator's language.
+ * Which endpoint refused, in the operator's language, and why.
+ *
+ * `null` when there is nothing to say: the board aborted the read itself, by
+ * unmounting or by moving to another event. Both banners render only when they
+ * hold a string, so that clears them.
  *
  * A switch rather than a key map on purpose. The i18n sweep resolves keys that
  * appear as string literals at the call site; indexing a lookup table by
@@ -288,11 +289,13 @@ export function useScheduleData(args: {
  * (Writing that call shape out as an example here is itself enough to trip the
  * sweep — it matches source text, not syntax. Hence the prose.)
  */
-function bootstrapMessage(
+function readMessage(
   t: ReturnType<typeof useI18n>['t'],
   source: BootstrapSource,
-  message: string,
-): string {
+  failure: ApiFailure,
+): string | null {
+  const message = failureMessage(failure, t);
+  if (message === null) return null;
   switch (source) {
     case 'lices':
       return t('organizer.schedulePage.grid.fetchLices', { message });

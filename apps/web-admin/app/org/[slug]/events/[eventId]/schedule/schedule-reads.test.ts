@@ -28,12 +28,16 @@ import type { ProgrammeBlockRow } from './schedule-types';
 const API = 'https://api.test';
 const EVENT = 'evt-1';
 
+/**
+ * The double answers `text()`, not `json()`: the seam parses one string body
+ * and hands the result to every reader. A double that only spoke `json()` came
+ * back as a NETWORK failure for every case here.
+ */
 function jsonResponse(body: unknown, init?: { ok?: boolean; status?: number }): Response {
   return {
     ok: init?.ok ?? true,
     status: init?.status ?? 200,
-    statusText: 'Test',
-    json: async () => body,
+    text: async () => JSON.stringify(body),
   } as Response;
 }
 
@@ -124,13 +128,18 @@ describe('loadBootstrap', () => {
       },
     );
 
-    it('names which endpoint it was and carries the upstream message', async () => {
+    it('names which endpoint it was and carries the upstream reason', async () => {
       stubFetch([refused, jsonResponse([]), jsonResponse(EVENT_ROW), jsonResponse([])]);
       const result = await loadBootstrap(API, EVENT, new AbortController().signal);
-      expect(result).toEqual({
-        ok: false,
-        source: 'lices',
-        message: 'permission denied for table lices',
+      expect(result.ok).toBe(false);
+      if (result.ok) return;
+      expect(result.source).toBe('lices');
+      expect(result.failure).toMatchObject({
+        kind: 'unauthenticated',
+        status: 403,
+        detail: 'permission denied for table lices',
+        code: null,
+        details: null,
       });
     });
 
@@ -142,30 +151,49 @@ describe('loadBootstrap', () => {
       expect(result.source).toBe('schedule');
     });
 
-    it('falls back to the status line when the body is not JSON', async () => {
+    // Was: asserts the reported message is the literal "502 Bad Gateway", a
+    // string this module invented, in English, and put in the board's banner.
+    // An unreadable body means the API never answered for itself.
+    it('invents no prose when the body is not JSON', async () => {
       const notJson = {
         ok: false,
         status: 502,
-        statusText: 'Bad Gateway',
-        json: async () => {
-          throw new Error('not json');
-        },
+        text: async () => '<html>Bad Gateway</html>',
       } as unknown as Response;
       stubFetch([jsonResponse([]), jsonResponse([]), notJson, jsonResponse([])]);
       const result = await loadBootstrap(API, EVENT, new AbortController().signal);
       expect(result.ok).toBe(false);
       if (result.ok) return;
       expect(result.source).toBe('event');
-      expect(result.message).toBe('502 Bad Gateway');
+      expect(result.failure).toMatchObject({ kind: 'http', status: 502, detail: null });
+    });
+
+    // A read the board itself called off — an unmount, or a move to another
+    // event. It is a failure like any other here, and the hook above is what
+    // knows it has nothing to say about it.
+    it('reports an aborted bootstrap as an abort', async () => {
+      vi.stubGlobal(
+        'fetch',
+        vi.fn(() => Promise.reject(Object.assign(new Error('x'), { name: 'AbortError' }))),
+      );
+      const result = await loadBootstrap(API, EVENT, new AbortController().signal);
+      expect(result.ok).toBe(false);
+      if (result.ok) return;
+      expect(result.failure.kind).toBe('aborted');
     });
   });
 });
 
 describe('loadScheduleAndProgramme', () => {
-  it('reports the refusing response status, not the OK one', async () => {
+  // It used to report a bare status under the "Schedule:" banner whichever of
+  // the two refused, which sends the operator to look at the wrong endpoint.
+  it('names the refusing endpoint and its reason, not the OK one', async () => {
     stubFetch([jsonResponse([]), jsonResponse({ message: 'gone' }, { ok: false, status: 404 })]);
     const result = await loadScheduleAndProgramme(API, EVENT);
-    expect(result).toEqual({ ok: false, status: 404 });
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.source).toBe('programme');
+    expect(result.failure).toMatchObject({ kind: 'http', status: 404, detail: 'gone' });
   });
 
   it('filters the programme the same way the bootstrap does', async () => {
@@ -202,10 +230,12 @@ describe('loadRefereeConflictInputs', () => {
    * zero findings, which on a conflict banner reads as "all clear" — the one
    * thing a read that never happened must not be allowed to say.
    */
-  it('reports a refusal by status rather than returning an empty payload', async () => {
+  it('reports a refusal by reason rather than returning an empty payload', async () => {
     stubFetch([jsonResponse({ message: 'nope' }, { ok: false, status: 403 })]);
     const result = await loadRefereeConflictInputs(API, EVENT, new AbortController().signal);
-    expect(result).toEqual({ ok: false, status: 403 });
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.failure).toMatchObject({ kind: 'unauthenticated', status: 403, detail: 'nope' });
   });
 
   it('survives a payload missing an arm', async () => {
@@ -244,10 +274,12 @@ describe('loadRefereeCrewConflicts', () => {
     });
   });
 
-  it('reports a refusal by status', async () => {
+  it('reports a refusal by reason', async () => {
     stubFetch([jsonResponse({ message: 'nope' }, { ok: false, status: 403 })]);
     const result = await loadRefereeCrewConflicts(API, EVENT, new AbortController().signal);
-    expect(result).toEqual({ ok: false, status: 403 });
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.failure).toMatchObject({ kind: 'unauthenticated', status: 403, detail: 'nope' });
   });
 
   /**
@@ -262,13 +294,16 @@ describe('loadRefereeCrewConflicts', () => {
   it('refuses a 200 that does not carry the rules, rather than guessing them', async () => {
     stubFetch([jsonResponse({ conflicts: [], asOf: '2026-06-13T09:30:00.000Z' })]);
     const result = await loadRefereeCrewConflicts(API, EVENT, new AbortController().signal);
-    expect(result).toEqual({ ok: false, status: 200 });
+    // A null failure is the second way this read fails to answer: the server
+    // said yes and the body could not be used. There is no status to report,
+    // and inventing one reads as a refusal the API never sent.
+    expect(result).toEqual({ ok: false, failure: null });
   });
 
   it('refuses a body that is not an object at all', async () => {
     stubFetch([jsonResponse([])]);
     const result = await loadRefereeCrewConflicts(API, EVENT, new AbortController().signal);
-    expect(result).toEqual({ ok: false, status: 200 });
+    expect(result).toEqual({ ok: false, failure: null });
   });
 
   it('refuses a rules object missing one of the three toggles', async () => {
@@ -276,7 +311,7 @@ describe('loadRefereeCrewConflicts', () => {
       jsonResponse({ conflicts: [], rules: { officiateVsFight: true, doubleBooked: true } }),
     ]);
     const result = await loadRefereeCrewConflicts(API, EVENT, new AbortController().signal);
-    expect(result).toEqual({ ok: false, status: 200 });
+    expect(result).toEqual({ ok: false, failure: null });
   });
 
   it('accepts a well-formed body with nothing found', async () => {

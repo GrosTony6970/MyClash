@@ -496,7 +496,6 @@ export const admin = {
     rejectionFailed: 'Échec du rejet',
     commitFailed: 'Échec de la validation',
     revertFailed: 'Échec du retour en arrière',
-    scheduleLoadFailed: "Échec du chargement de l'horaire",
     logoTypeInvalid: 'Le logo doit être au format PNG, JPEG ou WebP.',
     logoTooLarge: 'Le logo doit faire 10 Mo ou moins.',
     heroTypeInvalid: 'La bannière doit être au format PNG, JPEG ou WebP.',

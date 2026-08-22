@@ -2,12 +2,8 @@
 
 import { useCallback, useMemo, useState } from 'react';
 import { useI18n } from '@myclash/next-i18n/client';
-import {
-  mutateAll,
-  mutateSchedule,
-  NETWORK_FAILURE_STATUS,
-  ScheduleMutationError,
-} from './schedule-mutations';
+import { failureMessage } from '@myclash/api-client';
+import { mutateAll, mutateSchedule, ScheduleMutationError } from './schedule-mutations';
 import { createWriteTracker } from './write-tracker';
 
 /**
@@ -50,8 +46,11 @@ export interface ScheduleWrites {
   track: <T>(work: () => Promise<T>) => Promise<T>;
   /** PATCH one match's lice + time. Throws if the server refused. */
   saveMatchPosition: (matchId: string, liceId: string, scheduledAt: string) => Promise<void>;
-  /** Turn a thrown write failure into something an operator can read. */
-  describeSaveError: (err: unknown) => string;
+  /** Turn a thrown write failure into something an operator can read. `null`
+   *  when there is nothing to say — a write this screen aborted itself. Every
+   *  banner it feeds renders only when it holds a string. `fallback` is this
+   *  caller's own sentence, used when the API sent no reason worth showing. */
+  describeSaveError: (err: unknown, fallback?: string) => string | null;
   /** Run one write. Returns false and re-reads the server on failure. */
   commit: (run: () => Promise<unknown>) => Promise<boolean>;
   /** Same contract for a fan-out. Every call is attempted before any report. */
@@ -87,11 +86,21 @@ export function useScheduleWrites(args: {
   );
 
   const describeSaveError = useCallback(
-    (err: unknown): string => {
-      // `schedule-mutations` reports "no response at all" as a status of zero
-      // and the browser's own message, which means nothing to an organiser.
-      if (err instanceof ScheduleMutationError && err.status === NETWORK_FAILURE_STATUS) {
-        return t('organizer.schedulePage.grid.saveFailedOffline');
+    (err: unknown, fallback?: string): string | null => {
+      if (err instanceof ScheduleMutationError) {
+        // The board keeps its own words for "no response at all". The seam's
+        // network line tells the operator to check their connection; this one
+        // is read under "Change not saved:", where what matters is that the
+        // board is showing a placement the server never took.
+        if (err.failure.kind === 'network') {
+          return t('organizer.schedulePage.grid.saveFailedOffline');
+        }
+        // Every other refusal is the API's to explain — every field it rejected
+        // rather than the first, the wait on a throttle, and the whole reason a
+        // guard gave. Until now this returned `err.message`, which was the
+        // server's first sentence or, when the body was unreadable, the invented
+        // English status line "502 Bad Gateway".
+        return failureMessage(err.failure, t, fallback);
       }
       return err instanceof Error ? err.message : String(err);
     },

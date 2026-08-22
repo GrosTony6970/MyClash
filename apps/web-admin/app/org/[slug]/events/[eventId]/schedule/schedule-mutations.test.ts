@@ -6,23 +6,27 @@ import {
   ScheduleMutationError,
 } from './schedule-mutations';
 
-/** Minimal Response stand-in — jsdom has no fetch, so we own both sides. */
-function response(init: {
-  ok?: boolean;
-  status: number;
-  statusText?: string;
-  json?: () => Promise<unknown>;
-}): Response {
+/**
+ * Minimal Response stand-in — jsdom has no fetch, so we own both sides.
+ *
+ * It answers `text()`, not `json()`: the seam parses one string body and hands
+ * the result to every reader, so a double that only spoke `json()` came back as
+ * a NETWORK failure for every case here and told us nothing.
+ */
+function response(init: { ok?: boolean; status: number; body?: string }): Response {
   return {
     ok: init.ok ?? (init.status >= 200 && init.status < 300),
     status: init.status,
-    statusText: init.statusText ?? '',
-    json: init.json ?? (() => Promise.resolve(null)),
+    text: () => Promise.resolve(init.body ?? ''),
   } as unknown as Response;
 }
 
 function stubFetch(impl: (url: string, init: RequestInit) => Promise<Response>): void {
   vi.stubGlobal('fetch', vi.fn(impl as unknown as typeof fetch));
+}
+
+function contentTypeOf(init: RequestInit | undefined): string | null {
+  return new Headers(init?.headers).get('Content-Type');
 }
 
 afterEach(() => {
@@ -44,7 +48,7 @@ describe('mutateSchedule', () => {
 
     expect(seen?.credentials).toBe('include');
     expect(seen?.method).toBe('PATCH');
-    expect(seen?.headers).toEqual({ 'Content-Type': 'application/json' });
+    expect(contentTypeOf(seen)).toBe('application/json');
     expect(seen?.body).toBe(JSON.stringify({ liceId: 'l1' }));
   });
 
@@ -58,14 +62,26 @@ describe('mutateSchedule', () => {
     await mutateSchedule('/api/v1/events/e1/programme/blocks/b1', { method: 'DELETE' });
 
     expect(seen?.body).toBeUndefined();
-    expect(seen?.headers).toBeUndefined();
+    expect(contentTypeOf(seen)).toBeNull();
+  });
+
+  // The board resolves the API base URL once and hands the same absolute string
+  // to every write, so this module must not prepend anything of its own.
+  it('keeps the caller url untouched', async () => {
+    let seen = '';
+    stubFetch((url) => {
+      seen = url;
+      return Promise.resolve(response({ status: 200 }));
+    });
+
+    await mutateSchedule('https://api.example.test/api/v1/lices/l1', { method: 'PATCH', body: {} });
+
+    expect(seen).toBe('https://api.example.test/api/v1/lices/l1');
   });
 
   it('returns the parsed body', async () => {
     stubFetch(() =>
-      Promise.resolve(
-        response({ status: 201, json: () => Promise.resolve({ block: { id: 'b9' } }) }),
-      ),
+      Promise.resolve(response({ status: 201, body: JSON.stringify({ block: { id: 'b9' } }) })),
     );
 
     await expect(
@@ -73,101 +89,117 @@ describe('mutateSchedule', () => {
     ).resolves.toEqual({ block: { id: 'b9' } });
   });
 
-  it('returns null for 204 without trying to parse a body', async () => {
-    const json = vi.fn(() => Promise.resolve(null));
-    stubFetch(() => Promise.resolve(response({ status: 204, json })));
+  it('returns null for 204 without trying to read a body', async () => {
+    const text = vi.fn(() => Promise.resolve(''));
+    stubFetch(() => Promise.resolve({ ok: true, status: 204, text } as unknown as Response));
 
     await expect(mutateSchedule('/api/v1/lices/l1', { method: 'DELETE' })).resolves.toBeNull();
-    expect(json).not.toHaveBeenCalled();
+    expect(text).not.toHaveBeenCalled();
   });
 
   // The whole point of the module: a non-OK response must be impossible to
   // ignore. This is the case that shipped broken — a rejected drag left the
   // chip moved on screen and unmoved in the database.
-  it('throws on a non-OK response, carrying the server message', async () => {
+  it('throws on a non-OK response, carrying the server reason', async () => {
     stubFetch(() =>
       Promise.resolve(
-        response({ status: 403, json: () => Promise.resolve({ message: 'Event is archived' }) }),
+        response({ status: 403, body: JSON.stringify({ message: 'Event is archived' }) }),
       ),
     );
 
-    const err = await mutateSchedule('/api/v1/matches/m1/schedule', {
+    const err = (await mutateSchedule('/api/v1/matches/m1/schedule', {
       method: 'PATCH',
       body: {},
-    }).catch((e: unknown) => e);
+    }).catch((e: unknown) => e)) as ScheduleMutationError;
 
     expect(err).toBeInstanceOf(ScheduleMutationError);
-    expect((err as ScheduleMutationError).message).toBe('Event is archived');
-    expect((err as ScheduleMutationError).status).toBe(403);
-    expect((err as ScheduleMutationError).url).toBe('/api/v1/matches/m1/schedule');
+    expect(err.message).toBe('Event is archived');
+    expect(err.status).toBe(403);
+    expect(err.url).toBe('/api/v1/matches/m1/schedule');
+    expect(err.failure.kind).toBe('unauthenticated');
   });
 
-  it('surfaces a class-validator refusal as the one sentence the API sends', async () => {
-    // This used to feed `message: ['liceId must be a UUID', 'scheduledAt is
-    // invalid']` and assert the two were joined. No server has ever sent that:
-    // `normalizeMessage` in apps/api/src/common/api-exception.filter.ts
-    // collapses a class-validator array to its FIRST entry before the body
-    // leaves, and the full list ships separately under `details`. The mock was
-    // free to invent a shape the real contract forbids, so the join branch it
-    // covered could not fire in production and the test still passed.
+  // Was: "surfaces a class-validator refusal as the one sentence the API
+  // sends", asserting only the first rejected field. That WAS the contract of
+  // the hand-rolled `messageFrom`, which read `body.message` and stopped there —
+  // so an organiser who left a lice and a start time both wrong was told about
+  // the lice, fixed it, and was then told about the time. The whole list ships
+  // under `details.validationErrors`, and the failure now carries it.
+  it('carries every field a class-validator refusal rejected, not just the first', async () => {
     stubFetch(() =>
       Promise.resolve(
         response({
           status: 400,
-          json: () =>
-            Promise.resolve({
-              message: 'liceId must be a UUID',
-              details: { validationErrors: ['liceId must be a UUID', 'scheduledAt is invalid'] },
-            }),
+          body: JSON.stringify({
+            message: 'liceId must be a UUID',
+            details: { validationErrors: ['liceId must be a UUID', 'scheduledAt is invalid'] },
+          }),
         }),
       ),
     );
 
-    await expect(
-      mutateSchedule('/api/v1/matches/m1/schedule', { method: 'PATCH', body: {} }),
-    ).rejects.toThrow('liceId must be a UUID');
+    const err = (await mutateSchedule('/api/v1/matches/m1/schedule', {
+      method: 'PATCH',
+      body: {},
+    }).catch((e: unknown) => e)) as ScheduleMutationError;
+
+    expect(err.failure).toMatchObject({
+      kind: 'http',
+      status: 400,
+      detail: 'liceId must be a UUID',
+      validationErrors: ['liceId must be a UUID', 'scheduledAt is invalid'],
+    });
   });
 
-  it('falls back to the status line when the error body is not JSON', async () => {
-    stubFetch(() =>
-      Promise.resolve(
-        response({
-          status: 502,
-          statusText: 'Bad Gateway',
-          json: () => Promise.reject(new Error('not json')),
-        }),
-      ),
-    );
+  // Was: asserts the thrown message is the literal "502 Bad Gateway". That
+  // string was invented here, in English, and went straight into the board's
+  // banner — prose no translator ever saw. An unreadable body means the API did
+  // not answer for itself; the failure says so and the component picks words.
+  it('invents no prose when the error body is not JSON', async () => {
+    stubFetch(() => Promise.resolve(response({ status: 502, body: '<html>Bad Gateway</html>' })));
 
-    await expect(mutateSchedule('/x', { method: 'POST', body: {} })).rejects.toThrow(
-      '502 Bad Gateway',
-    );
+    const err = (await mutateSchedule('/x', { method: 'POST', body: {} }).catch(
+      (e: unknown) => e,
+    )) as ScheduleMutationError;
+
+    expect(err.status).toBe(502);
+    expect(err.failure).toMatchObject({ kind: 'http', status: 502, detail: null });
   });
 
-  it('falls back to the status line when the body has no usable message', async () => {
-    stubFetch(() =>
-      Promise.resolve(
-        response({
-          status: 500,
-          statusText: 'Internal Server Error',
-          json: () => Promise.resolve({}),
-        }),
-      ),
-    );
+  it('invents no prose when the body has no usable message', async () => {
+    stubFetch(() => Promise.resolve(response({ status: 500, body: '{}' })));
 
-    await expect(mutateSchedule('/x', { method: 'POST', body: {} })).rejects.toThrow(
-      '500 Internal Server Error',
-    );
+    const err = (await mutateSchedule('/x', { method: 'POST', body: {} }).catch(
+      (e: unknown) => e,
+    )) as ScheduleMutationError;
+
+    expect(err.status).toBe(500);
+    expect(err.failure).toMatchObject({ kind: 'http', status: 500, detail: null });
   });
 
   it('turns a network failure into the same error type, with status 0', async () => {
     stubFetch(() => Promise.reject(new TypeError('Failed to fetch')));
 
-    const err = await mutateSchedule('/x', { method: 'POST', body: {} }).catch((e: unknown) => e);
+    const err = (await mutateSchedule('/x', { method: 'POST', body: {} }).catch(
+      (e: unknown) => e,
+    )) as ScheduleMutationError;
 
     expect(err).toBeInstanceOf(ScheduleMutationError);
-    expect((err as ScheduleMutationError).status).toBe(NETWORK_FAILURE_STATUS);
-    expect((err as ScheduleMutationError).message).toBe('Failed to fetch');
+    expect(err.status).toBe(NETWORK_FAILURE_STATUS);
+    expect(err.failure.kind).toBe('network');
+  });
+
+  // An abort still has to reach the caller as a throw. Swallowing it would
+  // resolve `null`, which reads as a write that landed and returned nothing.
+  it('reports an aborted write as an abort, not as a refusal', async () => {
+    stubFetch(() => Promise.reject(Object.assign(new Error('aborted'), { name: 'AbortError' })));
+
+    const err = (await mutateSchedule('/x', { method: 'POST', body: {} }).catch(
+      (e: unknown) => e,
+    )) as ScheduleMutationError;
+
+    expect(err.failure.kind).toBe('aborted');
+    expect(err.status).toBe(NETWORK_FAILURE_STATUS);
   });
 });
 
@@ -189,7 +221,7 @@ describe('mutateAll', () => {
       attempted.push(url);
       return Promise.resolve(
         url.includes('m2')
-          ? response({ status: 403, json: () => Promise.resolve({ message: 'nope' }) })
+          ? response({ status: 403, body: JSON.stringify({ message: 'nope' }) })
           : response({ status: 200 }),
       );
     });
@@ -223,6 +255,7 @@ describe('mutateAll', () => {
     expect(result.failures).toHaveLength(1);
     expect(result.failures[0]).toBeInstanceOf(ScheduleMutationError);
     expect(result.failures[0]?.message).toBe('thrown before the request');
+    expect(result.failures[0]?.failure.kind).toBe('network');
   });
 
   it('handles an empty fan-out', async () => {

@@ -489,7 +489,6 @@ export const admin = {
     rejectionFailed: 'Rejection failed',
     commitFailed: 'Commit failed',
     revertFailed: 'Revert failed',
-    scheduleLoadFailed: 'Schedule failed to load',
     logoTypeInvalid: 'Logo must be PNG, JPEG, or WebP.',
     logoTooLarge: 'Logo must be 10 MB or smaller.',
     heroTypeInvalid: 'Hero must be PNG, JPEG, or WebP.',

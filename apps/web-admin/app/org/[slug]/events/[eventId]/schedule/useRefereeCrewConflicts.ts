@@ -45,17 +45,17 @@ export function useRefereeCrewConflicts(args: {
   const { apiUrl, eventId, matches, isBusy } = args;
   const [result, setResult] = useState<RefereeCrewConflictsResult | null>(null);
 
-  // A rejected promise is the one outcome that would leave the state at null
-  // forever, which the banner reads as "still loading" rather than
-  // "unavailable". Status 0 is the marker for "the request never completed".
+  // The read returns its failures as values, so the state cannot be left at
+  // null by a rejection — and null is the one thing the banner reads as "still
+  // loading" rather than "unavailable". An abort is the exception: it means
+  // this board is gone or has moved on, and storing it would leave the next
+  // event's banner claiming the referee check is unavailable.
   const read = useCallback(
     (signal?: AbortSignal) =>
-      loadRefereeCrewConflicts(apiUrl, eventId, signal)
-        .then(setResult)
-        .catch((err: unknown) => {
-          if (err instanceof Error && err.name === 'AbortError') return;
-          setResult({ ok: false, status: 0 });
-        }),
+      loadRefereeCrewConflicts(apiUrl, eventId, signal).then((r) => {
+        if (!r.ok && r.failure?.kind === 'aborted') return;
+        setResult(r);
+      }),
     [apiUrl, eventId],
   );
 
