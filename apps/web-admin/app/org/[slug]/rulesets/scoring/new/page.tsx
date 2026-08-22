@@ -12,6 +12,7 @@ import type {
   Tiebreaker,
 } from '@myclash/rulesets';
 import { useI18n } from '@myclash/next-i18n/client';
+import { apiRequest, failureMessage } from '@myclash/api-client';
 import {
   RulesetForm,
   DEFAULT_MATCH_FORMAT_DEFAULTS,
@@ -136,32 +137,44 @@ export default function OrgNewScoringRulesetPage() {
     null,
   );
 
+  // Without the org id nothing on this page can be saved — `busy={busy || !orgId}`
+  // keeps the submit disabled — so a refused resolve has to be said out loud.
+  // It used to be swallowed, which left a form that could not be submitted and
+  // (with `?cloneFrom=`) a "Loading…" that never ended.
   useEffect(() => {
     if (!params.slug) return;
     let cancelled = false;
-    void fetch(`${apiUrl}/api/v1/organizations/slug/${encodeURIComponent(params.slug)}`, {
-      credentials: 'include',
-    })
-      .then((r) => (r.ok ? r.json() : null))
-      .then((org: { id?: string } | null) => {
-        if (!cancelled && org?.id) setOrgId(org.id);
-      });
+    void apiRequest<{ id: string }>(
+      apiUrl,
+      `/api/v1/organizations/slug/${encodeURIComponent(params.slug)}`,
+    ).then((r) => {
+      if (cancelled) return;
+      if (r.ok) {
+        setOrgId(r.data.id);
+        return;
+      }
+      const message = failureMessage(r, t, t('admin.rulesets.curatedLoadError'));
+      if (message) setError(message);
+      setCloneLoading(false);
+    });
     return () => {
       cancelled = true;
     };
-  }, [params.slug]);
+  }, [params.slug, t]);
 
   // Load the clone source from the org catalog (includes system + public + own).
   useEffect(() => {
     if (!orgId || !cloneFrom) return;
     let cancelled = false;
-    void fetch(`${apiUrl}/api/v1/organizations/${orgId}/custom-rulesets`, {
-      credentials: 'include',
-    })
-      .then((r) => (r.ok ? r.json() : []))
-      .then((rows: OrgRulesetCatalogRow[]) => {
-        if (cancelled) return;
-        const src = rows.find((r) => r.id === cloneFrom);
+    void apiRequest<OrgRulesetCatalogRow[]>(
+      apiUrl,
+      `/api/v1/organizations/${orgId}/custom-rulesets`,
+    )
+      .then((r) => {
+        // A catalog that will not load leaves a blank create form, which is
+        // still usable — same silence as before.
+        if (cancelled || !r.ok) return;
+        const src = r.data.find((row) => row.id === cloneFrom);
         if (!src) return;
         setInitial(cloneInitial(src));
         setCodedBase(cloneCodedBase(src));
@@ -218,39 +231,33 @@ export default function OrgNewScoringRulesetPage() {
                 if (!orgId) return;
                 setBusy(true);
                 setError(null);
-                try {
-                  // A coded copy goes to the fork endpoint (which reuses the
-                  // base's engine and stores the dials in tf_config); a formula
-                  // ruleset posts the flat shape to plain create, as before.
-                  const base = `${apiUrl}/api/v1/organizations/${orgId}/custom-rulesets`;
-                  const url = codedBase ? `${base}/fork` : base;
-                  const body = codedBase
-                    ? {
-                        baseCode: codedBase.baseCode,
-                        baseVersion: codedBase.baseVersion,
-                        name: data.name,
-                        description: data.description,
-                        version: data.version,
-                        targets: data.targets,
-                        tfConfig: codedRulesetTfConfig(data),
-                      }
-                    : data;
-                  const res = await fetch(url, {
-                    method: 'POST',
-                    credentials: 'include',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(body),
-                  });
-                  if (!res.ok) {
-                    const failure = (await res.json().catch(() => ({}))) as { message?: string };
-                    throw new Error(failure.message ?? t('admin.rulesets.actionFailed'));
-                  }
-                  const created = (await res.json()) as { id: string };
-                  router.push(`/org/${slugForLink}/rulesets/scoring/${created.id}/edit`);
-                } catch (err) {
-                  setError(err instanceof Error ? err.message : t('admin.rulesets.actionFailed'));
+                // A coded copy goes to the fork endpoint (which reuses the
+                // base's engine and stores the dials in tf_config); a formula
+                // ruleset posts the flat shape to plain create, as before.
+                const base = `/api/v1/organizations/${orgId}/custom-rulesets`;
+                const path = codedBase ? `${base}/fork` : base;
+                const body = codedBase
+                  ? {
+                      baseCode: codedBase.baseCode,
+                      baseVersion: codedBase.baseVersion,
+                      name: data.name,
+                      description: data.description,
+                      version: data.version,
+                      targets: data.targets,
+                      tfConfig: codedRulesetTfConfig(data),
+                    }
+                  : data;
+                const r = await apiRequest<{ id: string }>(apiUrl, path, {
+                  method: 'POST',
+                  body,
+                });
+                if (!r.ok) {
+                  const message = failureMessage(r, t, t('admin.rulesets.actionFailed'));
+                  if (message) setError(message);
                   setBusy(false);
+                  return;
                 }
+                router.push(`/org/${slugForLink}/rulesets/scoring/${r.data.id}/edit`);
               })()
             }
             onCancel={() => router.push(`/org/${slugForLink}/rulesets/scoring`)}

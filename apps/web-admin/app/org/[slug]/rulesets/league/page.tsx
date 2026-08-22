@@ -12,6 +12,7 @@ import {
   RowActionButton,
 } from '@myclash/ui';
 import { useI18n } from '@myclash/next-i18n/client';
+import { apiRequest, failureMessage } from '@myclash/api-client';
 import { RulesetsTopNav } from '../../../../../src/components/rulesets/RulesetsTopNav';
 import { ScoringSystemPreview } from '../../../../../src/components/league/ScoringSystemPreview';
 import { getPublicApiUrl } from '@/lib/api-url';
@@ -47,17 +48,15 @@ export default function OrgLeagueScoringSystemsPage() {
 
   useEffect(() => {
     let cancelled = false;
-    fetch(`${apiUrl}/api/v1/admin/league-scoring-systems`, { credentials: 'include' })
-      .then(async (res) => {
-        if (!res.ok) throw new Error(t('admin.rulesets.league.loadError'));
-        return (await res.json()) as LeagueScoringSystemRow[];
-      })
-      .then((data) => {
-        if (!cancelled) setRows(data);
-      })
-      .catch((err: unknown) => {
-        if (!cancelled)
-          setError(err instanceof Error ? err.message : t('admin.rulesets.league.loadError'));
+    void apiRequest<LeagueScoringSystemRow[]>(apiUrl, '/api/v1/admin/league-scoring-systems')
+      .then((r) => {
+        if (cancelled) return;
+        if (r.ok) {
+          setRows(r.data);
+          return;
+        }
+        const message = failureMessage(r, t, t('admin.rulesets.league.loadError'));
+        if (message) setError(message);
       })
       .finally(() => {
         if (!cancelled) setLoading(false);

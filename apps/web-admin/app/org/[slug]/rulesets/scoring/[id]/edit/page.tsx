@@ -14,6 +14,7 @@ import type {
   Tiebreaker,
 } from '@myclash/rulesets';
 import { useI18n } from '@myclash/next-i18n/client';
+import { apiRequest, failureMessage } from '@myclash/api-client';
 import {
   RulesetForm,
   type MatchFormatDefaults,
@@ -111,21 +112,29 @@ export default function OrgEditScoringRulesetPage() {
   const [forkDiff, setForkDiff] = useState<BucketDiff | null>(null);
   const [forkBaseCode, setForkBaseCode] = useState<string | null>(null);
 
-  // Resolve org id once.
+  // Resolve org id once. A refused resolve has to be said out loud: the read
+  // below is gated on `orgId`, so swallowing it left the page on "Loading…"
+  // with nothing to explain it.
   useEffect(() => {
     if (!params.slug) return;
     let cancelled = false;
-    void fetch(`${apiUrl}/api/v1/organizations/slug/${encodeURIComponent(params.slug)}`, {
-      credentials: 'include',
-    })
-      .then((r) => (r.ok ? r.json() : null))
-      .then((org: { id?: string } | null) => {
-        if (!cancelled && org?.id) setOrgId(org.id);
-      });
+    void apiRequest<{ id: string }>(
+      apiUrl,
+      `/api/v1/organizations/slug/${encodeURIComponent(params.slug)}`,
+    ).then((r) => {
+      if (cancelled) return;
+      if (r.ok) {
+        setOrgId(r.data.id);
+        return;
+      }
+      const message = failureMessage(r, t, t('admin.rulesets.loadOneError'));
+      if (message) setError(message);
+      setLoading(false);
+    });
     return () => {
       cancelled = true;
     };
-  }, [params.slug]);
+  }, [params.slug, t]);
 
   // Fetch the row from the org catalog (system + public + own) and find it by
   // id. The owner-gated detail endpoint can't return built-ins/shared rows, so
@@ -134,17 +143,25 @@ export default function OrgEditScoringRulesetPage() {
   useEffect(() => {
     if (!orgId || !params.id) return;
     let cancelled = false;
-    fetch(`${apiUrl}/api/v1/organizations/${orgId}/custom-rulesets`, {
-      credentials: 'include',
-    })
-      .then(async (res) => {
-        if (!res.ok) throw new Error(t('admin.rulesets.loadOneError'));
-        return (await res.json()) as OrgCustomRulesetDetail[];
-      })
-      .then((rows) => {
+    void apiRequest<OrgCustomRulesetDetail[]>(
+      apiUrl,
+      `/api/v1/organizations/${orgId}/custom-rulesets`,
+    )
+      .then((r) => {
         if (cancelled) return;
-        const data = rows.find((r) => r.id === params.id);
-        if (!data) throw new Error(t('admin.rulesets.loadOneError'));
+        if (!r.ok) {
+          const message = failureMessage(r, t, t('admin.rulesets.loadOneError'));
+          if (message) setError(message);
+          return;
+        }
+        const data = r.data.find((row) => row.id === params.id);
+        // The list loaded and this id is not in it — the org cannot see this
+        // ruleset. Nothing came from the API to quote, so the screen's own
+        // sentence is all there is.
+        if (!data) {
+          setError(t('admin.rulesets.loadOneError'));
+          return;
+        }
         if (data.base_code) {
           // Read the server-computed lineage lamps (a header above the editable
           // coded form), and remember the base engine so the form renders the
@@ -188,9 +205,6 @@ export default function OrgEditScoringRulesetPage() {
             `${t('admin.rulesets.submissionRejectedBanner')}: ${data.rejected_reason}`,
           );
         }
-      })
-      .catch((err: unknown) => {
-        setError(err instanceof Error ? err.message : t('admin.rulesets.loadOneError'));
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
@@ -259,38 +273,31 @@ export default function OrgEditScoringRulesetPage() {
                 if (!orgId) return;
                 setBusy(true);
                 setError(null);
-                try {
-                  // A coded fork's edits land in tf_config (the coded engine's
-                  // tunables), plus the flat grammar targets so the lineage lamp
-                  // and grammar resolver stay current. A formula ruleset sends the
-                  // flat shape as before.
-                  const body = isCodedRuleset(initial.code, forkBaseCode)
-                    ? {
-                        name: data.name,
-                        description: data.description,
-                        version: data.version,
-                        targets: data.targets,
-                        tfConfig: codedRulesetTfConfig(data),
-                      }
-                    : data;
-                  const res = await fetch(
-                    `${apiUrl}/api/v1/organizations/${orgId}/custom-rulesets/${params.id}`,
-                    {
-                      method: 'PATCH',
-                      credentials: 'include',
-                      headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify(body),
-                    },
-                  );
-                  if (!res.ok) {
-                    const b = (await res.json().catch(() => ({}))) as { message?: string };
-                    throw new Error(b.message ?? t('admin.rulesets.actionFailed'));
-                  }
-                  router.push(`/org/${slugForLink}/rulesets/scoring`);
-                } catch (err) {
-                  setError(err instanceof Error ? err.message : t('admin.rulesets.actionFailed'));
+                // A coded fork's edits land in tf_config (the coded engine's
+                // tunables), plus the flat grammar targets so the lineage lamp
+                // and grammar resolver stay current. A formula ruleset sends the
+                // flat shape as before.
+                const body = isCodedRuleset(initial.code, forkBaseCode)
+                  ? {
+                      name: data.name,
+                      description: data.description,
+                      version: data.version,
+                      targets: data.targets,
+                      tfConfig: codedRulesetTfConfig(data),
+                    }
+                  : data;
+                const r = await apiRequest(
+                  apiUrl,
+                  `/api/v1/organizations/${orgId}/custom-rulesets/${params.id}`,
+                  { method: 'PATCH', body },
+                );
+                if (!r.ok) {
+                  const message = failureMessage(r, t, t('admin.rulesets.actionFailed'));
+                  if (message) setError(message);
                   setBusy(false);
+                  return;
                 }
+                router.push(`/org/${slugForLink}/rulesets/scoring`);
               })()
             }
             onCancel={() => router.push(`/org/${slugForLink}/rulesets/scoring`)}

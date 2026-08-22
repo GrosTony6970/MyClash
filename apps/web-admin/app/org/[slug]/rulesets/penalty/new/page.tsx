@@ -3,6 +3,7 @@
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { useI18n } from '@myclash/next-i18n/client';
+import { apiRequest, failureMessage } from '@myclash/api-client';
 import {
   DEFAULT_PENALTY_RULESET_FORM_VALUES,
   PenaltyRulesetForm,
@@ -96,21 +97,18 @@ export default function OrgNewPenaltyRulesetPage() {
   useEffect(() => {
     if (!params.slug) return;
     let cancelled = false;
-    fetch(`${apiUrl}/api/v1/organizations/slug/${encodeURIComponent(params.slug)}`, {
-      credentials: 'include',
-    })
-      .then(async (res) => {
-        if (!res.ok) throw new Error(t('admin.penaltyRulesets.loadError'));
-        return (await res.json()) as { id: string };
-      })
-      .then((org) => {
-        if (!cancelled) setOrgId(org.id);
-      })
-      .catch((err: unknown) => {
-        if (!cancelled) {
-          setError(err instanceof Error ? err.message : t('admin.penaltyRulesets.loadError'));
-        }
-      });
+    void apiRequest<{ id: string }>(
+      apiUrl,
+      `/api/v1/organizations/slug/${encodeURIComponent(params.slug)}`,
+    ).then((r) => {
+      if (cancelled) return;
+      if (r.ok) {
+        setOrgId(r.data.id);
+        return;
+      }
+      const message = failureMessage(r, t, t('admin.penaltyRulesets.loadError'));
+      if (message) setError(message);
+    });
     return () => {
       cancelled = true;
     };
@@ -120,10 +118,11 @@ export default function OrgNewPenaltyRulesetPage() {
   useEffect(() => {
     if (!cloneFrom) return;
     let cancelled = false;
-    void fetch(`${apiUrl}/api/v1/penalty-rulesets/${cloneFrom}`, { credentials: 'include' })
-      .then((r) => (r.ok ? r.json() : null))
-      .then((data: PenaltyRulesetDetail | null) => {
-        if (!cancelled && data) setInitial(cloneInitial(data));
+    void apiRequest<PenaltyRulesetDetail>(apiUrl, `/api/v1/penalty-rulesets/${cloneFrom}`)
+      .then((r) => {
+        // A clone source that will not load leaves a blank create form, which
+        // is still usable — same silence as before.
+        if (!cancelled && r.ok) setInitial(cloneInitial(r.data));
       })
       .finally(() => {
         if (!cancelled) setCloneLoading(false);
@@ -163,26 +162,17 @@ export default function OrgNewPenaltyRulesetPage() {
               if (!orgId) return;
               setBusy(true);
               setError(null);
-              try {
-                const res = await fetch(`${apiUrl}/api/v1/penalty-rulesets`, {
-                  method: 'POST',
-                  credentials: 'include',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({
-                    ownerOrganizationId: orgId,
-                    ...data,
-                  }),
-                });
-                if (!res.ok) {
-                  const body = (await res.json().catch(() => ({}))) as { message?: string };
-                  throw new Error(body.message ?? t('admin.rulesets.actionFailed'));
-                }
-                const created = (await res.json()) as { id: string };
-                router.push(`/org/${slugForLink}/rulesets/penalty/${created.id}/edit`);
-              } catch (err) {
-                setError(err instanceof Error ? err.message : t('admin.rulesets.actionFailed'));
+              const r = await apiRequest<{ id: string }>(apiUrl, '/api/v1/penalty-rulesets', {
+                method: 'POST',
+                body: { ownerOrganizationId: orgId, ...data },
+              });
+              if (!r.ok) {
+                const message = failureMessage(r, t, t('admin.rulesets.actionFailed'));
+                if (message) setError(message);
                 setBusy(false);
+                return;
               }
+              router.push(`/org/${slugForLink}/rulesets/penalty/${r.data.id}/edit`);
             })()
           }
           onCancel={() => router.push(`/org/${slugForLink}/rulesets/penalty`)}

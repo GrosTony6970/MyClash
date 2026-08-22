@@ -131,6 +131,13 @@ async function submitClaimForm(page: Page, locale: 'en' | 'fr' = 'en'): Promise<
 
 const VENUES_PATH = `/org/${ctx.orgSlug}/venues`;
 const ORG_HOME_PATH = `/org/${ctx.orgSlug}`;
+const ORG_RULESETS_PATH = `/org/${ctx.orgSlug}/rulesets/scoring`;
+/**
+ * Exact, not a prefix. `*` stops at a slash in Playwright's glob, so the
+ * Discover tab's `.../custom-rulesets/catalog` read stays unstubbed — only the
+ * Manage list this screen opens on is forced.
+ */
+const ORG_RULESETS_LOAD = '**/api/v1/organizations/*/custom-rulesets';
 const BACKUPS_PATH = '/admin/backups';
 
 /** The org's venue list — the request the venue assertions force. */
@@ -277,6 +284,31 @@ test.describe('the api-failure seam — the venues screen', () => {
 
     await expect(page.getByText(COPY.networkFr)).toBeVisible();
     await expect(page.getByText(COPY.networkEn)).toBeHidden();
+  });
+});
+
+/**
+ * The organizer-side scoring rulesets list.
+ *
+ * Its own block rather than a case inside the venues one: it runs on the same
+ * default organizer context, but it is a different screen and reads a different
+ * endpoint, and grouping it under "the venues screen" would make the reporter
+ * lie about which surface went red.
+ *
+ * The slug resolve is deliberately left alone. Stubbing only the list read is
+ * what proves the reason travels from the SECOND request — a screen that gave
+ * up on the first one would show nothing here.
+ */
+test.describe('the api-failure seam — the org rulesets screen', () => {
+  test("a 4xx shows the server's own reason, not the screen's fallback", async ({ page }) => {
+    const reason = 'This organisation may not list rulesets while a merge is running.';
+    await page.route(ORG_RULESETS_LOAD, (route) => route.fulfill(problemJson(409, reason)));
+
+    await page.goto(ORG_RULESETS_PATH);
+    await expectStayedOn(page, ORG_RULESETS_PATH);
+
+    await expect(page.getByText(reason)).toBeVisible();
+    await expect(page.getByText(COPY.rulesetsLoadError)).toBeHidden();
   });
 });
 
