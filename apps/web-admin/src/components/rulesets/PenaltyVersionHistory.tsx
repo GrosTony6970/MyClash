@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { ConfirmDialog, HelpTooltip, useToast } from '@myclash/ui';
 import { useI18n } from '@myclash/next-i18n/client';
+import { apiRequest, failureMessage } from '@myclash/api-client';
 import { rulesetHelp } from './rulesetHelp';
 import { getPublicApiUrl } from '../../lib/api-url';
 
@@ -31,7 +32,8 @@ interface Props {
 export function PenaltyVersionHistory({ rulesetId, currentVersion }: Props) {
   const { t } = useI18n();
   const toast = useToast();
-  const base = `${apiUrl}/api/v1/penalty-rulesets/${rulesetId}`;
+  // A PATH, not a URL: the seam takes the base separately.
+  const base = `/api/v1/penalty-rulesets/${rulesetId}`;
 
   const [versions, setVersions] = useState<PenaltyVersionRow[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -40,16 +42,14 @@ export function PenaltyVersionHistory({ rulesetId, currentVersion }: Props) {
   const [publishing, setPublishing] = useState(false);
 
   const reload = useCallback(async () => {
-    try {
-      const res = await fetch(`${base}/versions`, { credentials: 'include' });
-      if (!res.ok) throw new Error(t('admin.penaltyRulesets.versionHistory.loadError'));
-      setVersions((await res.json()) as PenaltyVersionRow[]);
+    const r = await apiRequest<PenaltyVersionRow[]>(apiUrl, `${base}/versions`);
+    if (r.ok) {
+      setVersions(r.data);
       setError(null);
-    } catch (err) {
-      setError(
-        err instanceof Error ? err.message : t('admin.penaltyRulesets.versionHistory.loadError'),
-      );
+      return;
     }
+    const message = failureMessage(r, t, t('admin.penaltyRulesets.versionHistory.loadError'));
+    if (message) setError(message);
   }, [base, t]);
 
   useEffect(() => {
@@ -59,40 +59,38 @@ export function PenaltyVersionHistory({ rulesetId, currentVersion }: Props) {
 
   async function publish() {
     setPublishing(true);
-    try {
-      const res = await fetch(`${base}/publish`, {
-        method: 'POST',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({}),
-      });
-      if (!res.ok) {
-        const body = (await res.json().catch(() => ({}))) as { message?: string };
-        throw new Error(body.message ?? t('admin.penaltyRulesets.versionHistory.publishError'));
-      }
-      toast.success(t('admin.penaltyRulesets.versionHistory.publishSuccess'));
-      window.location.reload();
-    } catch (err) {
-      toast.error(
-        err instanceof Error ? err.message : t('admin.penaltyRulesets.versionHistory.publishError'),
-      );
+    // No `try`: `apiRequest` does not throw, and the success path deliberately
+    // leaves `publishing` set — the page is reloading out from under it.
+    const r = await apiRequest(apiUrl, `${base}/publish`, { method: 'POST', body: {} });
+    if (!r.ok) {
+      const message = failureMessage(r, t, t('admin.penaltyRulesets.versionHistory.publishError'));
+      if (message) toast.error(message);
       setPublishing(false);
+      return;
     }
+    toast.success(t('admin.penaltyRulesets.versionHistory.publishSuccess'));
+    window.location.reload();
   }
 
   async function confirmRollback() {
     if (!pendingRollback) return;
     setBusyId(pendingRollback.id);
     try {
-      const res = await fetch(`${base}/rollback`, {
+      const r = await apiRequest(apiUrl, `${base}/rollback`, {
         method: 'POST',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ versionId: pendingRollback.id }),
+        body: { versionId: pendingRollback.id },
       });
-      if (!res.ok) {
-        const body = (await res.json().catch(() => ({}))) as { message?: string };
-        throw new Error(body.message ?? t('admin.penaltyRulesets.versionHistory.rollbackError'));
+      if (!r.ok) {
+        // A ruleset a tournament already pins is refused with a 409 that names
+        // the tournament. That sentence used to be replaced by "Rollback
+        // failed."
+        const message = failureMessage(
+          r,
+          t,
+          t('admin.penaltyRulesets.versionHistory.rollbackError'),
+        );
+        if (message) toast.error(message);
+        return;
       }
       toast.success(
         t('admin.penaltyRulesets.versionHistory.rollbackSuccess', {
@@ -101,12 +99,6 @@ export function PenaltyVersionHistory({ rulesetId, currentVersion }: Props) {
       );
       setPendingRollback(null);
       window.location.reload();
-    } catch (err) {
-      toast.error(
-        err instanceof Error
-          ? err.message
-          : t('admin.penaltyRulesets.versionHistory.rollbackError'),
-      );
     } finally {
       setBusyId(null);
     }

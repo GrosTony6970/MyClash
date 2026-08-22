@@ -212,6 +212,7 @@ export const organizer = {
         namePlaceholder: 'Nom du groupe',
         addButton: 'Ajouter un groupe',
         createError: 'Impossible de créer le groupe',
+        deleteError: 'Impossible de supprimer le groupe',
       },
       tournaments: {
         empty: 'Aucun tournoi lie à cette ligue.',
@@ -234,6 +235,7 @@ export const organizer = {
         removeUserConfirm: 'Retirer cet administrateur ?',
         note: 'Les nouvelles organisations rejoignent via Découvrir et rejoindre ; les nouveaux administrateurs individuels sont ajoutes par un super-admin de la plateforme.',
         updateError: 'Impossible de mettre à jour le rôle',
+        removeError: 'Impossible de retirer',
       },
     },
   },

@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useToast } from '@myclash/ui';
 import { useI18n } from '@myclash/next-i18n/client';
+import { apiRequest, failureMessage } from '@myclash/api-client';
 import { getPublicApiUrl } from '../../lib/api-url';
 
 const apiUrl = getPublicApiUrl();
@@ -73,27 +74,29 @@ export function LeagueRequestsPanel({ leagueId, standalone = false, title }: Pro
   const reload = useCallback(async () => {
     setLoading(true);
     try {
+      const base = `/api/v1/admin/leagues/${leagueId}`;
       const [tRes, mRes] = await Promise.all([
-        fetch(`${apiUrl}/api/v1/admin/leagues/${leagueId}/requests?status=requested`, {
-          credentials: 'include',
-        }),
-        fetch(`${apiUrl}/api/v1/admin/leagues/${leagueId}/membership-requests?status=requested`, {
-          credentials: 'include',
-        }),
+        apiRequest<LeagueTournamentRequest[]>(apiUrl, `${base}/requests?status=requested`),
+        apiRequest<LeagueMembershipRequest[]>(
+          apiUrl,
+          `${base}/membership-requests?status=requested`,
+        ),
       ]);
-      if (!tRes.ok) throw new Error(t('admin.leagues.requestsPanel.loadTournamentError'));
-      const tData = (await tRes.json()) as LeagueTournamentRequest[];
-      setTournamentRows(tData);
-      if (mRes.ok) {
-        const mData = (await mRes.json()) as LeagueMembershipRequest[];
-        setMembershipRows(mData);
-      } else {
-        setMembershipRows([]);
+      if (!tRes.ok) {
+        const message = failureMessage(
+          tRes,
+          t,
+          t('admin.leagues.requestsPanel.loadTournamentError'),
+        );
+        if (message) setError(message);
+        return;
       }
-      setError(null);
-    } catch (err) {
+      setTournamentRows(tRes.data);
+      // The join-request list is tolerant — the tournament tab still renders —
+      // but a refused one used to blank it with no word at all.
+      setMembershipRows(mRes.ok ? mRes.data : []);
       setError(
-        err instanceof Error ? err.message : t('admin.leagues.requestsPanel.loadGenericError'),
+        mRes.ok ? null : failureMessage(mRes, t, t('admin.leagues.requestsPanel.loadGenericError')),
       );
     } finally {
       setLoading(false);
@@ -112,22 +115,22 @@ export function LeagueRequestsPanel({ leagueId, standalone = false, title }: Pro
       if (status === 'rejected' && rejectReason.trim()) {
         body['rejectionReason'] = rejectReason.trim();
       }
-      const res = await fetch(`${apiUrl}/api/v1/admin/league-tournament-links/${linkId}`, {
+      const r = await apiRequest(apiUrl, `/api/v1/admin/league-tournament-links/${linkId}`, {
         method: 'PATCH',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
+        body,
       });
-      if (!res.ok) {
-        const err = (await res.json().catch(() => ({}))) as { message?: string };
-        throw new Error(
-          err.message ??
-            t(
-              status === 'approved'
-                ? 'admin.leagues.requestsPanel.approvedFailed'
-                : 'admin.leagues.requestsPanel.rejectedFailed',
-            ),
+      if (!r.ok) {
+        const message = failureMessage(
+          r,
+          t,
+          t(
+            status === 'approved'
+              ? 'admin.leagues.requestsPanel.approvedFailed'
+              : 'admin.leagues.requestsPanel.rejectedFailed',
+          ),
         );
+        if (message) toast.error(message);
+        return;
       }
       toast.success(
         t(
@@ -139,16 +142,6 @@ export function LeagueRequestsPanel({ leagueId, standalone = false, title }: Pro
       setRejectingId(null);
       setRejectReason('');
       await reload();
-    } catch (err) {
-      toast.error(
-        err instanceof Error
-          ? err.message
-          : t(
-              status === 'approved'
-                ? 'admin.leagues.requestsPanel.approvedFailed'
-                : 'admin.leagues.requestsPanel.rejectedFailed',
-            ),
-      );
     } finally {
       setBusyId(null);
     }
@@ -161,22 +154,22 @@ export function LeagueRequestsPanel({ leagueId, standalone = false, title }: Pro
       if (status === 'rejected' && rejectReason.trim()) {
         body['reviewNote'] = rejectReason.trim();
       }
-      const res = await fetch(`${apiUrl}/api/v1/admin/league-membership-requests/${reqId}`, {
+      const r = await apiRequest(apiUrl, `/api/v1/admin/league-membership-requests/${reqId}`, {
         method: 'PATCH',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
+        body,
       });
-      if (!res.ok) {
-        const err = (await res.json().catch(() => ({}))) as { message?: string };
-        throw new Error(
-          err.message ??
-            t(
-              status === 'approved'
-                ? 'admin.leagues.requestsPanel.approvedFailed'
-                : 'admin.leagues.requestsPanel.rejectedFailed',
-            ),
+      if (!r.ok) {
+        const message = failureMessage(
+          r,
+          t,
+          t(
+            status === 'approved'
+              ? 'admin.leagues.requestsPanel.approvedFailed'
+              : 'admin.leagues.requestsPanel.rejectedFailed',
+          ),
         );
+        if (message) toast.error(message);
+        return;
       }
       toast.success(
         t(
@@ -188,16 +181,6 @@ export function LeagueRequestsPanel({ leagueId, standalone = false, title }: Pro
       setRejectingId(null);
       setRejectReason('');
       await reload();
-    } catch (err) {
-      toast.error(
-        err instanceof Error
-          ? err.message
-          : t(
-              status === 'approved'
-                ? 'admin.leagues.requestsPanel.approvedFailed'
-                : 'admin.leagues.requestsPanel.rejectedFailed',
-            ),
-      );
     } finally {
       setBusyId(null);
     }

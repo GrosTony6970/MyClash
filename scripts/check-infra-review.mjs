@@ -1460,10 +1460,15 @@ requireContains(
   'apps/web-admin/src/components/SuperAdminShell.tsx',
   '/api/v1/auth/logout',
 );
+// The logout must carry the session cookie. It used to say so by spelling
+// `credentials: 'include'` at the call site; it now goes through the
+// `apiRequest` seam, which sends credentials by default and is the only place
+// that decision is made. Assert the seam, not the snapshot — a shell that went
+// back to a hand-rolled fetch would drop the cookie and this would catch it.
 requireContains(
   superAdminShellText,
   'apps/web-admin/src/components/SuperAdminShell.tsx',
-  "credentials: 'include'",
+  'apiRequest(',
 );
 requireContains(
   superAdminShellText,
@@ -1505,10 +1510,11 @@ requireContains(
   'apps/web-admin/src/components/OrganizerAdminShell.tsx',
   '/api/v1/auth/logout',
 );
+// Same rule as the super-admin shell above: the seam owns `credentials`.
 requireContains(
   organizerShellText,
   'apps/web-admin/src/components/OrganizerAdminShell.tsx',
-  "credentials: 'include'",
+  'apiRequest(',
 );
 requireContains(
   organizerShellText,

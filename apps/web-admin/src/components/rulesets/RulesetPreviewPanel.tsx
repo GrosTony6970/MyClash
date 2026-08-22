@@ -9,6 +9,7 @@ import type {
   Tiebreaker,
 } from '@myclash/rulesets';
 import { useI18n } from '@myclash/next-i18n/client';
+import { apiRequest } from '@myclash/api-client';
 
 interface PreviewRow {
   stats: { victories: number; ties: number; losses: number };
@@ -62,21 +63,25 @@ export function RulesetPreviewPanel({
     let cancelled = false;
     const handle = setTimeout(() => {
       setLoading(true);
-      void fetch(validateUrl, {
+      // `validateUrl` arrives already absolute (the four authoring pages build it
+      // from their own org id), so the seam's base URL is the empty string here
+      // rather than a second resolver disagreeing with theirs.
+      void apiRequest<ValidateResponse>('', validateUrl, {
         method: 'POST',
-        credentials: 'include',
+        // The one place in this app that sets the content type by hand, and it
+        // has to: `body` is ALREADY a JSON string, because it doubles as this
+        // effect's debounce key. The seam only stamps `application/json` on a
+        // body it serialises itself, so a pre-serialised one would go out as a
+        // bare string with no content type at all.
         headers: { 'Content-Type': 'application/json' },
         body,
-      })
-        .then((r) => (r.ok ? (r.json() as Promise<ValidateResponse>) : null))
-        .then((data) => {
-          if (cancelled) return;
-          setResult(data);
-          setLoading(false);
-        })
-        .catch(() => {
-          if (!cancelled) setLoading(false);
-        });
+      }).then((r) => {
+        if (cancelled) return;
+        // A refused validate leaves the panel silent, as before: it fires on
+        // every keystroke, and the form's own Save reports the real refusal.
+        setResult(r.ok ? r.data : null);
+        setLoading(false);
+      });
     }, 400);
     return () => {
       cancelled = true;

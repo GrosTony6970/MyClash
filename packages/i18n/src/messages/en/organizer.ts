@@ -216,6 +216,7 @@ export const organizer = {
         namePlaceholder: 'Group name',
         addButton: 'Add group',
         createError: 'Could not create group',
+        deleteError: 'Could not delete group',
       },
       tournaments: {
         empty: 'No tournaments linked to this league.',
@@ -238,6 +239,7 @@ export const organizer = {
         removeUserConfirm: 'Remove this admin?',
         note: 'New organizations join via the Discover & join flow; new individual admins are added by a platform super-admin.',
         updateError: 'Could not update role',
+        removeError: 'Could not remove',
       },
     },
   },

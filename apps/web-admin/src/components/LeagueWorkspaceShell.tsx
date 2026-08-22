@@ -3,7 +3,7 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
 import { LanguageSwitcher, useI18n } from '@myclash/next-i18n/client';
-import type { MeSession } from '@myclash/api-client';
+import { apiRequest, type MeSession } from '@myclash/api-client';
 import { resolveLeagueWorkspaceDecision } from './league-workspace-decision';
 import { IdentityUnverifiedBanner } from './IdentityUnverifiedBanner';
 import { useIdentityGate } from '../hooks/useIdentityGate';
@@ -57,14 +57,11 @@ export function LeagueWorkspaceShell({ children }: { children: ReactNode }) {
   async function handleLogout() {
     if (loggingOut) return;
     setLoggingOut(true);
-    try {
-      await fetch(`${apiUrl}/api/v1/auth/logout`, {
-        method: 'POST',
-        credentials: 'include',
-      });
-    } finally {
-      window.location.assign('/login');
-    }
+    // `apiRequest` never throws, so the navigation no longer needs a `finally`
+    // to guarantee it runs. A refused logout is still not worth a sentence: the
+    // cookie is httpOnly and the browser is leaving for /login either way.
+    await apiRequest(apiUrl, '/api/v1/auth/logout', { method: 'POST' });
+    window.location.assign('/login');
   }
 
   // Render nothing behind the gate. Both older shells paint their children

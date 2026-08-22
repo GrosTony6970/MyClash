@@ -105,6 +105,9 @@ const ORG_LEAGUES_PATH = `/org/${ctx.orgSlug}/leagues`;
  * stays unstubbed.
  */
 const LEAGUE_CATALOG_LOAD = '**/api/v1/leagues';
+const ORG_DISCOVER_PATH = `/org/${ctx.orgSlug}/rulesets/scoring?tab=discover`;
+/** The adoptable-ruleset catalogue behind the Discover tab. */
+const ORG_DISCOVER_LOAD = '**/api/v1/organizations/*/custom-rulesets/catalog';
 
 test.describe('the api-failure seam — the venues screen', () => {
   test('loads against the real API', async ({ page }) => {
@@ -213,6 +216,24 @@ test.describe('the api-failure seam — the org rulesets screen', () => {
 
     await expect(page.getByText(reason)).toBeVisible();
     await expect(page.getByText(COPY.rulesetsLoadError)).toBeHidden();
+  });
+});
+
+/**
+ * The Discover tab's shared catalogue component, which both ruleset surfaces
+ * mount. Deep-linked with `?tab=discover` — the page opens on Manage otherwise,
+ * and the catalogue read never fires.
+ */
+test.describe('the api-failure seam — the ruleset discover tab', () => {
+  test("a 4xx shows the server's own reason, not the tab's fallback", async ({ page }) => {
+    const reason = 'The shared catalogue is being re-indexed. Try again in a minute.';
+    await page.route(ORG_DISCOVER_LOAD, (route) => route.fulfill(problemJson(409, reason)));
+
+    await page.goto(ORG_DISCOVER_PATH);
+    await expectStayedOn(page, `/org/${ctx.orgSlug}/rulesets/scoring`);
+
+    await expect(page.getByText(reason)).toBeVisible();
+    await expect(page.getByText(COPY.discoverLoadError)).toBeHidden();
   });
 });
 

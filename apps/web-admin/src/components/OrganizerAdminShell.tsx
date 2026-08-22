@@ -11,7 +11,7 @@ import { resolveAuthDecision } from './organizer-auth-decision';
 import { pickActiveHref } from './pick-active-href';
 import { EVENT_NAV_GROUPS, EVENT_NAV_OVERVIEW, useEventNavGroups } from './event-nav-groups';
 import { getPublicApiUrl } from '../lib/api-url';
-import type { MeSession } from '@myclash/api-client';
+import { apiRequest, type MeSession } from '@myclash/api-client';
 
 import { useIdentityGate } from '../hooks/useIdentityGate';
 import { IdentityUnverifiedBanner } from './IdentityUnverifiedBanner';
@@ -245,14 +245,11 @@ export function OrganizerAdminShell({ children }: { children: ReactNode }) {
   async function handleLogout() {
     if (loggingOut) return;
     setLoggingOut(true);
-    try {
-      await fetch(`${apiUrl}/api/v1/auth/logout`, {
-        method: 'POST',
-        credentials: 'include',
-      });
-    } finally {
-      window.location.assign('/login');
-    }
+    // `apiRequest` never throws, so the navigation no longer needs a `finally`
+    // to guarantee it runs. A refused logout is still not worth a sentence: the
+    // cookie is httpOnly and the browser is leaving for /login either way.
+    await apiRequest(apiUrl, '/api/v1/auth/logout', { method: 'POST' });
+    window.location.assign('/login');
   }
 
   // Picking a new event from the switcher: update context AND navigate to

@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { RowActionButton, useToast } from '@myclash/ui';
 import { useI18n } from '@myclash/next-i18n/client';
+import { apiRequest, failureMessage } from '@myclash/api-client';
 import { getPublicApiUrl } from '../../lib/api-url';
 
 const apiUrl = getPublicApiUrl();
@@ -27,13 +28,13 @@ export function RulesetExportButton({
     if (busy) return;
     setBusy(true);
     try {
-      const res = await fetch(`${apiUrl}${endpoint}`, { credentials: 'include' });
-      if (!res.ok) {
-        const body = (await res.json().catch(() => null)) as { message?: string } | null;
-        toast.error(body?.message ?? t('admin.rulesets.actionFailed'));
+      const r = await apiRequest<unknown>(apiUrl, endpoint);
+      if (!r.ok) {
+        const message = failureMessage(r, t, t('admin.rulesets.actionFailed'));
+        if (message) toast.error(message);
         return;
       }
-      const data = await res.json();
+      const data = r.data;
       const url = URL.createObjectURL(
         new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }),
       );

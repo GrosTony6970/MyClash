@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useI18n } from '@myclash/next-i18n/client';
+import { apiRequest, failureMessage } from '@myclash/api-client';
 import { RulesetDiscoverCard, type RulesetDiscoverCardProps } from './RulesetDiscoverCard';
 import { getPublicApiUrl } from '../../lib/api-url';
 
@@ -31,18 +32,16 @@ export function RulesetDiscoverTab({
   useEffect(() => {
     let cancelled = false;
     const controller = new AbortController();
-    fetch(`${apiUrl}${endpoint}`, { credentials: 'include', signal: controller.signal })
-      .then(async (res) => {
-        if (!res.ok) throw new Error(t('admin.rulesets.discover.loadError'));
-        return (await res.json()) as unknown[];
-      })
-      .then((data) => {
-        if (!cancelled) setRows(data ?? []);
-      })
-      .catch((err: unknown) => {
-        if (!cancelled && !(err instanceof DOMException && err.name === 'AbortError')) {
-          setError(err instanceof Error ? err.message : t('admin.rulesets.discover.loadError'));
+    void apiRequest<unknown[]>(apiUrl, endpoint, { signal: controller.signal })
+      .then((r) => {
+        if (cancelled) return;
+        if (r.ok) {
+          setRows(r.data ?? []);
+          return;
         }
+        // No message is the unmount, or the read this one replaced.
+        const message = failureMessage(r, t, t('admin.rulesets.discover.loadError'));
+        if (message) setError(message);
       })
       .finally(() => {
         if (!cancelled) setLoading(false);

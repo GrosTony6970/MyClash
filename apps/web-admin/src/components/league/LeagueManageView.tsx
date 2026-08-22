@@ -5,6 +5,7 @@ import { SegmentedTabs, useConfirm, useToast } from '@myclash/ui';
 import { localeToBcp47 } from '@myclash/time';
 import type { LeagueRankingDimensions } from '@myclash/types';
 import { useI18n } from '@myclash/next-i18n/client';
+import { apiRequest, failureMessage } from '@myclash/api-client';
 import { LeagueRequestsPanel } from './LeagueRequestsPanel';
 import { ScoringSystemPreview } from './ScoringSystemPreview';
 import { getPublicApiUrl } from '../../lib/api-url';
@@ -158,15 +159,20 @@ export function LeagueManageView({ leagueId, backHref, source }: LeagueManageVie
     }
   }, []);
 
+  // Reports its own failure rather than throwing it. Four save handlers call it
+  // after a successful write, inside their own `try` — while it threw, a failed
+  // REFRESH was reported to the operator as a failed SAVE.
   const loadLeague = useCallback(async () => {
     if (orgSlug === null) {
       // Personal workspace: one O(1) read, authorized per-league by
       // assertCanManageLeague. There is no org to scope to.
-      const res = await fetch(`${apiUrl}/api/v1/admin/leagues/${leagueId}`, {
-        credentials: 'include',
-      });
-      if (!res.ok) throw new Error(t('organizer.leagues.manage.notFound'));
-      applyLeague((await res.json()) as League);
+      const r = await apiRequest<League>(apiUrl, `/api/v1/admin/leagues/${leagueId}`);
+      if (!r.ok) {
+        const message = failureMessage(r, t, t('organizer.leagues.manage.notFound'));
+        if (message) setError(message);
+        return;
+      }
+      applyLeague(r.data);
       return;
     }
 
@@ -176,89 +182,79 @@ export function LeagueManageView({ leagueId, backHref, source }: LeagueManageVie
     // endpoint now exists: collapsing both routes onto it would let someone
     // with a direct grant open /org/{unrelated-slug}/leagues/{id} — no
     // escalation, since every mutation still asserts, but the URL would lie.
-    const orgRes = await fetch(
-      `${apiUrl}/api/v1/organizations/slug/${encodeURIComponent(orgSlug)}`,
-      {
-        credentials: 'include',
-      },
+    const orgRes = await apiRequest<{ id: string }>(
+      apiUrl,
+      `/api/v1/organizations/slug/${encodeURIComponent(orgSlug)}`,
     );
-    if (!orgRes.ok) throw new Error(t('organizer.leagues.manage.loadError'));
-    const orgData = (await orgRes.json()) as { id: string };
-    const res = await fetch(`${apiUrl}/api/v1/organizations/${orgData.id}/leagues`, {
-      credentials: 'include',
-    });
-    if (!res.ok) throw new Error(t('organizer.leagues.manage.loadError'));
-    const rows = (await res.json()) as League[];
-    const found = rows.find((l) => l.id === leagueId);
-    if (!found) throw new Error(t('organizer.leagues.manage.notFound'));
+    if (!orgRes.ok) {
+      const message = failureMessage(orgRes, t, t('organizer.leagues.manage.loadError'));
+      if (message) setError(message);
+      return;
+    }
+    const r = await apiRequest<League[]>(apiUrl, `/api/v1/organizations/${orgRes.data.id}/leagues`);
+    if (!r.ok) {
+      const message = failureMessage(r, t, t('organizer.leagues.manage.loadError'));
+      if (message) setError(message);
+      return;
+    }
+    const found = r.data.find((l) => l.id === leagueId);
+    // The list loaded and this league is not in it. Nothing came from the API
+    // to quote, so the screen's own sentence is all there is.
+    if (!found) {
+      setError(t('organizer.leagues.manage.notFound'));
+      return;
+    }
     applyLeague(found);
   }, [orgSlug, leagueId, t, applyLeague]);
 
   const loadAssignments = useCallback(async () => {
-    const [usersRes, orgsRes, linksRes, groupsRes] = await Promise.all([
-      fetch(`${apiUrl}/api/v1/admin/leagues/${leagueId}/user-roles`, { credentials: 'include' }),
-      fetch(`${apiUrl}/api/v1/admin/leagues/${leagueId}/organization-roles`, {
-        credentials: 'include',
-      }),
-      fetch(`${apiUrl}/api/v1/admin/leagues/${leagueId}/tournament-links`, {
-        credentials: 'include',
-      }),
-      fetch(`${apiUrl}/api/v1/admin/leagues/${leagueId}/groups`, { credentials: 'include' }),
+    const base = `/api/v1/admin/leagues/${leagueId}`;
+    const [users, orgs, links, leagueGroups] = await Promise.all([
+      apiRequest<UserRoleRow[]>(apiUrl, `${base}/user-roles`),
+      apiRequest<OrgRoleRow[]>(apiUrl, `${base}/organization-roles`),
+      apiRequest<TournamentLink[]>(apiUrl, `${base}/tournament-links`),
+      apiRequest<LeagueGroup[]>(apiUrl, `${base}/groups`),
     ]);
-    if (usersRes.ok) setUserRoles(((await usersRes.json()) as UserRoleRow[]) ?? []);
-    if (orgsRes.ok) setOrgRoles(((await orgsRes.json()) as OrgRoleRow[]) ?? []);
-    if (linksRes.ok) {
-      const data = (await linksRes.json()) as TournamentLink[];
-      setTournamentLinks(data.filter((l) => l.status !== 'removed'));
-    }
-    if (groupsRes.ok) setGroups(((await groupsRes.json()) as LeagueGroup[]) ?? []);
+    // Four independent panels: each fills in if its own read landed, exactly as
+    // before. The page's error line belongs to the league itself.
+    if (users.ok) setUserRoles(users.data ?? []);
+    if (orgs.ok) setOrgRoles(orgs.data ?? []);
+    if (links.ok) setTournamentLinks((links.data ?? []).filter((l) => l.status !== 'removed'));
+    if (leagueGroups.ok) setGroups(leagueGroups.data ?? []);
   }, [leagueId]);
 
   const loadScoringSystems = useCallback(async () => {
-    const res = await fetch(`${apiUrl}/api/v1/admin/league-scoring-systems`, {
-      credentials: 'include',
-    });
-    if (!res.ok) return;
-    setScoringSystemOptions((await res.json()) as ScoringSystemOption[]);
+    const r = await apiRequest<ScoringSystemOption[]>(
+      apiUrl,
+      '/api/v1/admin/league-scoring-systems',
+    );
+    if (r.ok) setScoringSystemOptions(r.data);
   }, []);
 
   const loadVersionsForSystem = useCallback(async (systemId: string, code: string) => {
-    try {
-      const res = await fetch(
-        `${apiUrl}/api/v1/admin/league-scoring-systems/${systemId}/versions`,
-        {
-          credentials: 'include',
-        },
-      );
-      if (!res.ok) return;
-      const rows = (await res.json()) as ScoringSystemVersionRow[];
-      setVersionsByCode((prev) => ({ ...prev, [code]: rows }));
-    } catch {
-      // Silent — version dropdown just stays empty.
-    }
+    const r = await apiRequest<ScoringSystemVersionRow[]>(
+      apiUrl,
+      `/api/v1/admin/league-scoring-systems/${systemId}/versions`,
+    );
+    // Silent — version dropdown just stays empty.
+    if (r.ok) setVersionsByCode((prev) => ({ ...prev, [code]: r.data }));
   }, []);
 
   useEffect(() => {
     let cancelled = false;
     void (async () => {
-      try {
-        await loadLeague();
-        if (!cancelled) setError(null);
-      } catch (err) {
-        if (!cancelled) {
-          setError(err instanceof Error ? err.message : t('organizer.leagues.manage.loadError'));
-        }
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
+      // `loadLeague` sets the error line itself now, so this only owns the
+      // spinner.
+      await loadLeague();
+      if (!cancelled) setLoading(false);
     })();
     // eslint-disable-next-line react-hooks/set-state-in-effect -- async data fetch; setState runs in promise callbacks, not synchronously
-    void loadAssignments().catch(() => undefined);
-    void loadScoringSystems().catch(() => undefined);
+    void loadAssignments();
+    void loadScoringSystems();
     return () => {
       cancelled = true;
     };
-  }, [loadLeague, loadAssignments, loadScoringSystems, t]);
+  }, [loadLeague, loadAssignments, loadScoringSystems]);
 
   useEffect(() => {
     if (scoringSystem === 'custom') return;
@@ -306,22 +302,20 @@ export function LeagueManageView({ leagueId, backHref, source }: LeagueManageVie
     setBusy(true);
     setError(null);
     try {
-      const res = await fetch(`${apiUrl}/api/v1/admin/leagues/${leagueId}`, {
+      const r = await apiRequest(apiUrl, `/api/v1/admin/leagues/${leagueId}`, {
         method: 'PATCH',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
+        body,
       });
-      if (!res.ok) {
-        const b = (await res.json().catch(() => ({}))) as { message?: string };
-        throw new Error(b.message ?? t('organizer.leagues.manage.saveError'));
+      if (!r.ok) {
+        const message = failureMessage(r, t, t('organizer.leagues.manage.saveError'));
+        if (message) {
+          setError(message);
+          toast.error(message);
+        }
+        return;
       }
       toast.success(t(successKey));
       await loadLeague();
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : t('organizer.leagues.manage.saveError');
-      setError(msg);
-      toast.error(msg);
     } finally {
       setBusy(false);
     }
@@ -360,23 +354,20 @@ export function LeagueManageView({ leagueId, backHref, source }: LeagueManageVie
     setBusy(true);
     setError(null);
     try {
-      const res = await fetch(`${apiUrl}/api/v1/admin/leagues/${leagueId}/groups`, {
+      const r = await apiRequest(apiUrl, `/api/v1/admin/leagues/${leagueId}/groups`, {
         method: 'POST',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: groupName, sortOrder: groups.length }),
+        body: { name: groupName, sortOrder: groups.length },
       });
-      if (!res.ok) {
-        const b = (await res.json().catch(() => ({}))) as { message?: string };
-        throw new Error(b.message ?? t('organizer.leagues.manage.groups.createError'));
+      if (!r.ok) {
+        const message = failureMessage(r, t, t('organizer.leagues.manage.groups.createError'));
+        if (message) {
+          setError(message);
+          toast.error(message);
+        }
+        return;
       }
       setNewGroupName('');
       await loadAssignments();
-    } catch (err) {
-      const msg =
-        err instanceof Error ? err.message : t('organizer.leagues.manage.groups.createError');
-      setError(msg);
-      toast.error(msg);
     } finally {
       setBusy(false);
     }
@@ -388,11 +379,19 @@ export function LeagueManageView({ leagueId, backHref, source }: LeagueManageVie
     )
       return;
     setBusy(true);
+    setError(null);
     try {
-      await fetch(`${apiUrl}/api/v1/admin/league-groups/${groupId}`, {
+      const r = await apiRequest(apiUrl, `/api/v1/admin/league-groups/${groupId}`, {
         method: 'DELETE',
-        credentials: 'include',
       });
+      if (!r.ok) {
+        const message = failureMessage(r, t, t('organizer.leagues.manage.groups.deleteError'));
+        if (message) {
+          setError(message);
+          toast.error(message);
+        }
+        return;
+      }
       await loadAssignments();
     } finally {
       setBusy(false);
@@ -410,20 +409,20 @@ export function LeagueManageView({ leagueId, backHref, source }: LeagueManageVie
     setBusy(true);
     setError(null);
     try {
-      const res = await fetch(`${apiUrl}/api/v1/admin/league-tournament-links/${linkId}`, {
+      const r = await apiRequest(apiUrl, `/api/v1/admin/league-tournament-links/${linkId}`, {
         method: 'PATCH',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: 'removed' }),
+        body: { status: 'removed' },
       });
-      if (!res.ok) throw new Error(t('organizer.leagues.manage.tournaments.detachError'));
+      if (!r.ok) {
+        const message = failureMessage(r, t, t('organizer.leagues.manage.tournaments.detachError'));
+        if (message) {
+          setError(message);
+          toast.error(message);
+        }
+        return;
+      }
       toast.success(t('organizer.leagues.manage.tournaments.detachedToast'));
       await loadAssignments();
-    } catch (err) {
-      const msg =
-        err instanceof Error ? err.message : t('organizer.leagues.manage.tournaments.detachError');
-      setError(msg);
-      toast.error(msg);
     } finally {
       setBusy(false);
     }
@@ -433,23 +432,20 @@ export function LeagueManageView({ leagueId, backHref, source }: LeagueManageVie
     setBusy(true);
     setError(null);
     try {
-      const res = await fetch(`${apiUrl}/api/v1/admin/leagues/${leagueId}/organization-roles`, {
+      const r = await apiRequest(apiUrl, `/api/v1/admin/leagues/${leagueId}/organization-roles`, {
         method: 'POST',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ organizationId, role }),
+        body: { organizationId, role },
       });
-      if (!res.ok) {
-        const b = (await res.json().catch(() => ({}))) as { message?: string };
-        throw new Error(b.message ?? t('organizer.leagues.manage.roles.updateError'));
+      if (!r.ok) {
+        const message = failureMessage(r, t, t('organizer.leagues.manage.roles.updateError'));
+        if (message) {
+          setError(message);
+          toast.error(message);
+        }
+        return;
       }
       toast.success(t('organizer.leagues.manage.savedToast'));
       await loadAssignments();
-    } catch (err) {
-      const msg =
-        err instanceof Error ? err.message : t('organizer.leagues.manage.roles.updateError');
-      setError(msg);
-      toast.error(msg);
     } finally {
       setBusy(false);
     }
@@ -464,14 +460,21 @@ export function LeagueManageView({ leagueId, backHref, source }: LeagueManageVie
     )
       return;
     setBusy(true);
+    setError(null);
     try {
-      await fetch(
-        `${apiUrl}/api/v1/admin/leagues/${leagueId}/organization-roles/${organizationId}`,
-        {
-          method: 'DELETE',
-          credentials: 'include',
-        },
+      const r = await apiRequest(
+        apiUrl,
+        `/api/v1/admin/leagues/${leagueId}/organization-roles/${organizationId}`,
+        { method: 'DELETE' },
       );
+      if (!r.ok) {
+        const message = failureMessage(r, t, t('organizer.leagues.manage.roles.removeError'));
+        if (message) {
+          setError(message);
+          toast.error(message);
+        }
+        return;
+      }
       await loadAssignments();
     } finally {
       setBusy(false);
@@ -487,11 +490,19 @@ export function LeagueManageView({ leagueId, backHref, source }: LeagueManageVie
     )
       return;
     setBusy(true);
+    setError(null);
     try {
-      await fetch(`${apiUrl}/api/v1/admin/leagues/${leagueId}/user-roles/${userId}`, {
+      const r = await apiRequest(apiUrl, `/api/v1/admin/leagues/${leagueId}/user-roles/${userId}`, {
         method: 'DELETE',
-        credentials: 'include',
       });
+      if (!r.ok) {
+        const message = failureMessage(r, t, t('organizer.leagues.manage.roles.removeError'));
+        if (message) {
+          setError(message);
+          toast.error(message);
+        }
+        return;
+      }
       await loadAssignments();
     } finally {
       setBusy(false);

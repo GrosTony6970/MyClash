@@ -3,14 +3,17 @@
 import { useRef, useState, type ChangeEvent } from 'react';
 import { rowActionClasses, useToast } from '@myclash/ui';
 import { useI18n } from '@myclash/next-i18n/client';
+import { apiRequest, failureMessage, type ApiFailure } from '@myclash/api-client';
 import { getPublicApiUrl } from '../../lib/api-url';
 
 const apiUrl = getPublicApiUrl();
 
 interface ImportOutcome {
   ok: boolean;
+  /** The file never left the browser: it is not JSON. Not an API failure. */
   invalid?: boolean;
-  message?: string;
+  /** The API's structured refusal, for `failureMessage` at the call site. */
+  failure?: ApiFailure;
 }
 
 /** Parse a ruleset file (fail fast on non-JSON) and POST its envelope. The
@@ -22,15 +25,11 @@ async function submitRulesetImport(endpoint: string, file: File): Promise<Import
   } catch {
     return { ok: false, invalid: true };
   }
-  const res = await fetch(`${apiUrl}${endpoint}`, {
-    method: 'POST',
-    credentials: 'include',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(envelope),
-  });
-  if (res.ok) return { ok: true };
-  const body = (await res.json().catch(() => null)) as { message?: string } | null;
-  return { ok: false, message: body?.message };
+  const r = await apiRequest(apiUrl, endpoint, { method: 'POST', body: envelope });
+  // The whole failure travels back, not a plucked string: the import endpoint
+  // names the row and column it choked on, and the caller needs `failureMessage`
+  // to reach it.
+  return r.ok ? { ok: true } : { ok: false, failure: r };
 }
 
 /**
@@ -62,8 +61,9 @@ export function RulesetImportButton({
         onImported();
       } else if (result.invalid) {
         toast.error(t('admin.rulesets.portability.invalidFile'));
-      } else {
-        toast.error(result.message ?? t('admin.rulesets.actionFailed'));
+      } else if (result.failure) {
+        const message = failureMessage(result.failure, t, t('admin.rulesets.actionFailed'));
+        if (message) toast.error(message);
       }
     } finally {
       setBusy(false);
