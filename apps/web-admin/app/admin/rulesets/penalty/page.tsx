@@ -15,6 +15,7 @@ import {
   useToast,
 } from '@myclash/ui';
 import { useI18n } from '@myclash/next-i18n/client';
+import { apiRequest, failureMessage } from '@myclash/api-client';
 import { RulesetsTopNav } from '../../../../src/components/rulesets/RulesetsTopNav';
 import { CreateRulesetCta } from '../../../../src/components/rulesets/CreateRulesetCta';
 import { RulesetBadge } from '../../../../src/components/rulesets/RulesetBadge';
@@ -73,21 +74,22 @@ export default function AdminPenaltyRulesetsPage() {
     if (!importForm.csv || !importForm.code.trim() || !importForm.name.trim()) return;
     setImporting(true);
     try {
-      const res = await fetch(`${apiUrl}/api/v1/penalty-rulesets/import-csv`, {
+      const r = await apiRequest(apiUrl, '/api/v1/penalty-rulesets/import-csv', {
         method: 'POST',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+        body: {
           code: importForm.code.trim(),
           version: importForm.version.trim() || '1',
           name: importForm.name.trim(),
           accumulationScope: importForm.accumulationScope,
           csv: importForm.csv,
-        }),
+        },
       });
-      if (!res.ok) {
-        const body = (await res.json().catch(() => null)) as { message?: string } | null;
-        throw new Error(body?.message ?? t('admin.penaltyRulesets.importFailed'));
+      if (!r.ok) {
+        // A CSV import is the one place the API's own sentence really earns its
+        // keep: it names the row and column it choked on.
+        const message = failureMessage(r, t, t('admin.penaltyRulesets.importFailed'));
+        if (message) toast.error(message);
+        return;
       }
       toast.success(t('admin.penaltyRulesets.importSuccess', { name: importForm.name.trim() }));
       setShowImport(false);
@@ -100,8 +102,6 @@ export default function AdminPenaltyRulesetsPage() {
         fileName: '',
       });
       refresh();
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : t('admin.penaltyRulesets.importFailed'));
     } finally {
       setImporting(false);
     }
@@ -110,21 +110,18 @@ export default function AdminPenaltyRulesetsPage() {
   useEffect(() => {
     let cancelled = false;
     const controller = new AbortController();
-    fetch(`${apiUrl}/api/v1/penalty-rulesets`, {
-      credentials: 'include',
+    void apiRequest<PenaltyRulesetRow[]>(apiUrl, '/api/v1/penalty-rulesets', {
       signal: controller.signal,
     })
-      .then(async (res) => {
-        if (!res.ok) throw new Error(t('admin.penaltyRulesets.loadError'));
-        return (await res.json()) as PenaltyRulesetRow[];
-      })
-      .then((data) => {
-        if (!cancelled) setRows(data);
-      })
-      .catch((err: unknown) => {
-        if (!cancelled && !(err instanceof DOMException && err.name === 'AbortError')) {
-          setError(err instanceof Error ? err.message : t('admin.penaltyRulesets.loadError'));
+      .then((r) => {
+        if (cancelled) return;
+        if (r.ok) {
+          setRows(r.data);
+          return;
         }
+        // No message is the unmount, or the refresh that replaced this read.
+        const message = failureMessage(r, t, t('admin.penaltyRulesets.loadError'));
+        if (message) setError(message);
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
@@ -139,25 +136,25 @@ export default function AdminPenaltyRulesetsPage() {
     if (!deleteTarget) return;
     setBusy(true);
     try {
-      const res = await fetch(`${apiUrl}/api/v1/penalty-rulesets/${deleteTarget}`, {
-        method: 'DELETE',
-        credentials: 'include',
-      });
-      if (res.ok || res.status === 204) {
-        // The API soft-archives (keeps it resolvable) instead of deleting when a
-        // tournament still pins the ruleset — tell the operator which happened.
-        const body = (await res.json().catch(() => null)) as { archived?: boolean } | null;
-        toast.success(
-          body?.archived
-            ? t('admin.rulesets.shared.toast.archived')
-            : t('admin.rulesets.shared.toast.deleted'),
-        );
-        setDeleteTarget(null);
-        refresh();
-      } else {
-        const body = (await res.json().catch(() => null)) as { message?: string } | null;
-        toast.error(body?.message ?? t('admin.rulesets.actionFailed'));
+      const r = await apiRequest<{ archived?: boolean } | undefined>(
+        apiUrl,
+        `/api/v1/penalty-rulesets/${deleteTarget}`,
+        { method: 'DELETE' },
+      );
+      if (!r.ok) {
+        const message = failureMessage(r, t, t('admin.rulesets.actionFailed'));
+        if (message) toast.error(message);
+        return;
       }
+      // The API soft-archives (keeps it resolvable) instead of deleting when a
+      // tournament still pins the ruleset — tell the operator which happened.
+      toast.success(
+        r.data?.archived
+          ? t('admin.rulesets.shared.toast.archived')
+          : t('admin.rulesets.shared.toast.deleted'),
+      );
+      setDeleteTarget(null);
+      refresh();
     } finally {
       setBusy(false);
     }
@@ -166,17 +163,16 @@ export default function AdminPenaltyRulesetsPage() {
   async function approveSharing(id: string) {
     setBusy(true);
     try {
-      const res = await fetch(`${apiUrl}/api/v1/penalty-rulesets/${id}/approve-sharing`, {
+      const r = await apiRequest(apiUrl, `/api/v1/penalty-rulesets/${id}/approve-sharing`, {
         method: 'POST',
-        credentials: 'include',
       });
-      if (res.ok) {
-        toast.success(t('admin.rulesets.approveForSharingSuccess'));
-        refresh();
-      } else {
-        const body = (await res.json().catch(() => null)) as { message?: string } | null;
-        toast.error(body?.message ?? t('admin.rulesets.actionFailed'));
+      if (!r.ok) {
+        const message = failureMessage(r, t, t('admin.rulesets.actionFailed'));
+        if (message) toast.error(message);
+        return;
       }
+      toast.success(t('admin.rulesets.approveForSharingSuccess'));
+      refresh();
     } finally {
       setBusy(false);
     }
@@ -186,23 +182,19 @@ export default function AdminPenaltyRulesetsPage() {
     if (!rejectShareTarget) return;
     setBusy(true);
     try {
-      const res = await fetch(
-        `${apiUrl}/api/v1/penalty-rulesets/${rejectShareTarget}/reject-sharing`,
-        {
-          method: 'POST',
-          credentials: 'include',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ reason: reason.trim() }),
-        },
+      const r = await apiRequest(
+        apiUrl,
+        `/api/v1/penalty-rulesets/${rejectShareTarget}/reject-sharing`,
+        { method: 'POST', body: { reason: reason.trim() } },
       );
-      if (res.ok) {
-        toast.success(t('admin.rulesets.rejectSubmissionSuccess'));
-        setRejectShareTarget(null);
-        refresh();
-      } else {
-        const body = (await res.json().catch(() => null)) as { message?: string } | null;
-        toast.error(body?.message ?? t('admin.rulesets.actionFailed'));
+      if (!r.ok) {
+        const message = failureMessage(r, t, t('admin.rulesets.actionFailed'));
+        if (message) toast.error(message);
+        return;
       }
+      toast.success(t('admin.rulesets.rejectSubmissionSuccess'));
+      setRejectShareTarget(null);
+      refresh();
     } finally {
       setBusy(false);
     }

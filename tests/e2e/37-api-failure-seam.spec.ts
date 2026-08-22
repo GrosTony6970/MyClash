@@ -75,6 +75,7 @@ const COPY = {
   systemVersionsAccessDenied: 'Access denied. Super admin required.',
   organizationsLoadError: 'Failed to load organizations',
   usersLoadError: 'Failed to load platform accounts',
+  rulesetsLoadError: 'Could not load curated rulesets.',
   tournamentNotFound: 'Tournament not found',
   tournamentLoadFailed: "This tournament couldn't be loaded",
   claimTitle: 'Confirm your profile',
@@ -144,6 +145,9 @@ const ORGANIZATIONS_PATH = '/admin/organizations';
 const ORGANIZATIONS_LOAD = '**/api/v1/admin/organizations?*';
 const USERS_PATH = '/admin/users';
 const USERS_LOAD = '**/api/v1/admin/users?*';
+const RULESETS_PATH = '/admin/rulesets/scoring';
+/** Exact: the per-ruleset action routes below it must stay unstubbed. */
+const RULESETS_LOAD = '**/api/v1/admin/custom-rulesets';
 
 /** What the API's exception filter actually sends (api-exception.filter.ts). */
 function problemJson(status: number, detail: string) {
@@ -410,6 +414,20 @@ test.describe('the api-failure seam — the backup console', () => {
     await expect(page.getByText(COPY.tooManyRequestsEn)).toBeVisible();
     await expect(page.getByText('ThrottlerException')).toBeHidden();
     await expect(page.getByText(COPY.usersLoadError)).toBeHidden();
+    await page.close();
+  });
+
+  test("the scoring rulesets list shows the server's own reason", async () => {
+    test.skip(!platform, 'set E2E_SUPERADMIN_EMAIL / E2E_SUPERADMIN_PASSWORD');
+    const page = await platform!.newPage();
+
+    const reason = 'A ruleset migration is running. Try again in a minute.';
+    await page.route(RULESETS_LOAD, (route) => route.fulfill(problemJson(409, reason)));
+    await page.goto(RULESETS_PATH);
+    await expectStayedOn(page, RULESETS_PATH);
+
+    await expect(page.getByText(reason)).toBeVisible();
+    await expect(page.getByText(COPY.rulesetsLoadError)).toBeHidden();
     await page.close();
   });
 });

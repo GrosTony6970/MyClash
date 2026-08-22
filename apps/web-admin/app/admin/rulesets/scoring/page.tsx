@@ -15,6 +15,7 @@ import {
   useToast,
 } from '@myclash/ui';
 import { useI18n } from '@myclash/next-i18n/client';
+import { apiRequest, failureMessage } from '@myclash/api-client';
 import { RulesetsTopNav } from '../../../../src/components/rulesets/RulesetsTopNav';
 import { CreateRulesetCta } from '../../../../src/components/rulesets/CreateRulesetCta';
 import { RulesetBadge } from '../../../../src/components/rulesets/RulesetBadge';
@@ -66,22 +67,18 @@ export default function AdminRulesetsPage() {
     let cancelled = false;
     const controller = new AbortController();
 
-    fetch(`${apiUrl}/api/v1/admin/custom-rulesets`, {
-      credentials: 'include',
+    void apiRequest<CustomRuleset[]>(apiUrl, '/api/v1/admin/custom-rulesets', {
       signal: controller.signal,
     })
-      .then(async (res) => {
+      .then((r) => {
         if (cancelled) return;
-        if (!res.ok) throw new Error(t('admin.rulesets.curatedLoadError'));
-        return (await res.json()) as CustomRuleset[];
-      })
-      .then((data) => {
-        if (!cancelled && data) setCurated(data);
-      })
-      .catch((err: unknown) => {
-        if (!cancelled && !(err instanceof DOMException && err.name === 'AbortError')) {
-          setError(err instanceof Error ? err.message : t('admin.rulesets.curatedLoadError'));
+        if (r.ok) {
+          setCurated(r.data);
+          return;
         }
+        // No message is the unmount, or the refresh that replaced this read.
+        const message = failureMessage(r, t, t('admin.rulesets.curatedLoadError'));
+        if (message) setError(message);
       })
       .finally(() => {
         if (!cancelled) setCuratedLoading(false);
@@ -96,9 +93,10 @@ export default function AdminRulesetsPage() {
     id: string,
     action: 'publish' | 'unpublish' | 'clone' | 'set-default' | 'approve-public',
   ) {
-    const url = `${apiUrl}/api/v1/admin/custom-rulesets/${id}/${action}`;
-    const res = await fetch(url, { method: 'POST', credentials: 'include' });
-    if (res.ok || res.status === 204) {
+    const r = await apiRequest(apiUrl, `/api/v1/admin/custom-rulesets/${id}/${action}`, {
+      method: 'POST',
+    });
+    if (r.ok) {
       toast.success(
         t(
           `admin.rulesets.${
@@ -111,10 +109,10 @@ export default function AdminRulesetsPage() {
         ),
       );
       refreshCurated();
-    } else {
-      const body = (await res.json().catch(() => null)) as { message?: string } | null;
-      toast.error(body?.message ?? t('admin.rulesets.actionFailed'));
+      return;
     }
+    const message = failureMessage(r, t, t('admin.rulesets.actionFailed'));
+    if (message) toast.error(message);
   }
 
   /**
@@ -126,23 +124,19 @@ export default function AdminRulesetsPage() {
     if (!rejectSubmissionTarget) return;
     setActionBusy(true);
     try {
-      const res = await fetch(
-        `${apiUrl}/api/v1/admin/custom-rulesets/${rejectSubmissionTarget}/reject-submission`,
-        {
-          method: 'POST',
-          credentials: 'include',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ reason: reason.trim() }),
-        },
+      const r = await apiRequest(
+        apiUrl,
+        `/api/v1/admin/custom-rulesets/${rejectSubmissionTarget}/reject-submission`,
+        { method: 'POST', body: { reason: reason.trim() } },
       );
-      if (res.ok) {
-        toast.success(t('admin.rulesets.rejectSubmissionSuccess'));
-        setRejectSubmissionTarget(null);
-        refreshCurated();
-      } else {
-        const body = (await res.json().catch(() => null)) as { message?: string } | null;
-        toast.error(body?.message ?? t('admin.rulesets.actionFailed'));
+      if (!r.ok) {
+        const message = failureMessage(r, t, t('admin.rulesets.actionFailed'));
+        if (message) toast.error(message);
+        return;
       }
+      toast.success(t('admin.rulesets.rejectSubmissionSuccess'));
+      setRejectSubmissionTarget(null);
+      refreshCurated();
     } finally {
       setActionBusy(false);
     }
@@ -152,24 +146,24 @@ export default function AdminRulesetsPage() {
     if (!deleteTarget) return;
     setActionBusy(true);
     try {
-      const res = await fetch(`${apiUrl}/api/v1/admin/custom-rulesets/${deleteTarget}`, {
-        method: 'DELETE',
-        credentials: 'include',
-      });
-      if (res.ok || res.status === 204) {
+      const r = await apiRequest<{ archived?: boolean } | undefined>(
+        apiUrl,
+        `/api/v1/admin/custom-rulesets/${deleteTarget}`,
+        { method: 'DELETE' },
+      );
+      if (r.ok) {
         // Soft-archived (kept resolvable) rather than deleted when a tournament
         // still pins it — reflect which happened.
-        const body = (await res.json().catch(() => null)) as { archived?: boolean } | null;
         toast.success(
-          body?.archived
+          r.data?.archived
             ? t('admin.rulesets.shared.toast.archived')
             : t('admin.rulesets.shared.toast.deleted'),
         );
         setDeleteTarget(null);
         refreshCurated();
       } else {
-        const body = (await res.json().catch(() => null)) as { message?: string } | null;
-        toast.error(body?.message ?? t('admin.rulesets.actionFailed'));
+        const message = failureMessage(r, t, t('admin.rulesets.actionFailed'));
+        if (message) toast.error(message);
       }
     } finally {
       setActionBusy(false);

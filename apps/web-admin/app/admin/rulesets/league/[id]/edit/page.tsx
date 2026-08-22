@@ -3,6 +3,7 @@
 import { useParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { useI18n } from '@myclash/next-i18n/client';
+import { apiRequest, failureMessage } from '@myclash/api-client';
 import {
   ScoringSystemForm,
   type ScoringSystemFormValues,
@@ -33,13 +34,14 @@ export default function EditScoringSystemPage() {
 
   useEffect(() => {
     // The list endpoint returns active rows; archived rows aren't editable.
-    void fetch(`${apiUrl}/api/v1/admin/league-scoring-systems`, { credentials: 'include' })
-      .then((r) => {
-        if (!r.ok) throw new Error(t('admin.rulesets.league.form.loadError'));
-        return r.json() as Promise<ScoringSystemRow[]>;
-      })
-      .then((rows) => {
-        const found = rows.find((r) => r.id === id);
+    void apiRequest<ScoringSystemRow[]>(apiUrl, '/api/v1/admin/league-scoring-systems').then(
+      (r) => {
+        if (!r.ok) {
+          const message = failureMessage(r, t, t('admin.rulesets.league.form.loadError'));
+          if (message) setError(message);
+          return;
+        }
+        const found = r.data.find((row) => row.id === id);
         if (!found) {
           setError(t('admin.rulesets.league.form.notFound'));
           return;
@@ -53,10 +55,8 @@ export default function EditScoringSystemPage() {
           pointsByRank: found.points_by_rank,
           tieBreakers: found.tie_breakers,
         });
-      })
-      .catch((err: unknown) =>
-        setError(err instanceof Error ? err.message : t('admin.rulesets.league.form.loadError')),
-      );
+      },
+    );
   }, [id, t]);
 
   if (error) {

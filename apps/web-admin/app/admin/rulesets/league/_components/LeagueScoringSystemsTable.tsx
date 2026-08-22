@@ -15,6 +15,7 @@ import {
   useToast,
 } from '@myclash/ui';
 import { useI18n } from '@myclash/next-i18n/client';
+import { apiRequest, failureMessage } from '@myclash/api-client';
 import { CreateRulesetCta } from '../../../../../src/components/rulesets/CreateRulesetCta';
 import { RulesetBadge } from '../../../../../src/components/rulesets/RulesetBadge';
 import { getPublicApiUrl } from '@/lib/api-url';
@@ -61,14 +62,17 @@ export function LeagueScoringSystemsTable({ readOnly = false }: Props) {
   const reload = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch(`${apiUrl}/api/v1/admin/league-scoring-systems`, {
-        credentials: 'include',
-      });
-      if (!res.ok) throw new Error(t('admin.rulesets.league.loadError'));
-      setRows((await res.json()) as LeagueScoringSystemRow[]);
+      const r = await apiRequest<LeagueScoringSystemRow[]>(
+        apiUrl,
+        '/api/v1/admin/league-scoring-systems',
+      );
+      if (!r.ok) {
+        const message = failureMessage(r, t, t('admin.rulesets.league.loadError'));
+        if (message) setError(message);
+        return;
+      }
+      setRows(r.data);
       setError(null);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : t('admin.rulesets.league.loadError'));
     } finally {
       setLoading(false);
     }
@@ -82,18 +86,16 @@ export function LeagueScoringSystemsTable({ readOnly = false }: Props) {
   async function doClone(row: LeagueScoringSystemRow) {
     setBusyId(row.id);
     try {
-      const res = await fetch(`${apiUrl}/api/v1/admin/league-scoring-systems/${row.id}/clone`, {
+      const r = await apiRequest(apiUrl, `/api/v1/admin/league-scoring-systems/${row.id}/clone`, {
         method: 'POST',
-        credentials: 'include',
       });
-      if (!res.ok) {
-        const body = (await res.json().catch(() => ({}))) as { message?: string };
-        throw new Error(body.message ?? t('admin.rulesets.league.cloneError'));
+      if (!r.ok) {
+        const message = failureMessage(r, t, t('admin.rulesets.league.cloneError'));
+        if (message) toast.error(message);
+        return;
       }
       toast.success(t('admin.rulesets.league.toast.cloned', { name: row.name }));
       await reload();
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : t('admin.rulesets.league.cloneError'));
     } finally {
       setBusyId(null);
     }
@@ -102,18 +104,20 @@ export function LeagueScoringSystemsTable({ readOnly = false }: Props) {
   async function doSetDefault(row: LeagueScoringSystemRow) {
     setBusyId(row.id);
     try {
-      const res = await fetch(
-        `${apiUrl}/api/v1/admin/league-scoring-systems/${row.id}/set-default`,
-        { method: 'PATCH', credentials: 'include' },
+      const r = await apiRequest(
+        apiUrl,
+        `/api/v1/admin/league-scoring-systems/${row.id}/set-default`,
+        { method: 'PATCH' },
       );
-      if (!res.ok) {
-        const body = (await res.json().catch(() => ({}))) as { message?: string };
-        throw new Error(body.message ?? t('admin.rulesets.shared.toast.defaultSet'));
+      if (!r.ok) {
+        // Both failure paths here fell back to `toast.defaultSet` — the SUCCESS
+        // string — so a refused set-default said "Default updated" in red.
+        const message = failureMessage(r, t, t('admin.rulesets.shared.toast.defaultSetError'));
+        if (message) toast.error(message);
+        return;
       }
       toast.success(t('admin.rulesets.shared.toast.defaultSet'));
       await reload();
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : t('admin.rulesets.shared.toast.defaultSet'));
     } finally {
       setBusyId(null);
     }
@@ -123,19 +127,21 @@ export function LeagueScoringSystemsTable({ readOnly = false }: Props) {
     if (!pendingDelete) return;
     setBusyId(pendingDelete.id);
     try {
-      const res = await fetch(`${apiUrl}/api/v1/admin/league-scoring-systems/${pendingDelete.id}`, {
-        method: 'DELETE',
-        credentials: 'include',
-      });
-      if (!res.ok) {
-        const body = (await res.json().catch(() => ({}))) as { message?: string };
-        throw new Error(body.message ?? t('admin.rulesets.shared.toast.deleted'));
+      const r = await apiRequest(
+        apiUrl,
+        `/api/v1/admin/league-scoring-systems/${pendingDelete.id}`,
+        { method: 'DELETE' },
+      );
+      if (!r.ok) {
+        // Same shape as set-default above: the refusal used to toast "Ruleset
+        // deleted" in red.
+        const message = failureMessage(r, t, t('admin.rulesets.shared.toast.deleteError'));
+        if (message) toast.error(message);
+        return;
       }
       toast.success(t('admin.rulesets.shared.toast.deleted'));
       setPendingDelete(null);
       await reload();
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : t('admin.rulesets.shared.toast.deleted'));
     } finally {
       setBusyId(null);
     }
@@ -146,22 +152,19 @@ export function LeagueScoringSystemsTable({ readOnly = false }: Props) {
     let deleted = 0;
     let failed = 0;
     for (const row of pendingBulkDelete) {
-      try {
-        const res = await fetch(`${apiUrl}/api/v1/admin/league-scoring-systems/${row.id}`, {
-          method: 'DELETE',
-          credentials: 'include',
-        });
-        if (!res.ok) {
-          failed += 1;
-          const body = (await res.json().catch(() => ({}))) as { message?: string };
-          toast.error(`${row.name}: ${body.message ?? t('admin.rulesets.shared.toast.deleted')}`);
-        } else {
-          deleted += 1;
-        }
-      } catch {
-        failed += 1;
-        toast.error(`${row.name}: ${t('admin.rulesets.shared.toast.deleted')}`);
+      const r = await apiRequest(apiUrl, `/api/v1/admin/league-scoring-systems/${row.id}`, {
+        method: 'DELETE',
+      });
+      if (r.ok) {
+        deleted += 1;
+        continue;
       }
+      failed += 1;
+      // Both arms of the old code named the row and then said "Ruleset
+      // deleted" — the SUCCESS string — when the delete had not happened. The
+      // dropped-connection arm said nothing else at all.
+      const message = failureMessage(r, t, t('admin.rulesets.shared.toast.deleteError'));
+      if (message) toast.error(`${row.name}: ${message}`);
     }
     toast.success(t('admin.rulesets.league.toast.bulkDeleted', { n: deleted, failed }));
     setPendingBulkDelete(null);

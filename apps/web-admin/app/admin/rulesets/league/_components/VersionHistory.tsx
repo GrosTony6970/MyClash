@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { ConfirmDialog, useToast } from '@myclash/ui';
 import { useI18n } from '@myclash/next-i18n/client';
+import { apiRequest, failureMessage } from '@myclash/api-client';
 import { ScoringSystemPreview } from '../../../../../src/components/league/ScoringSystemPreview';
 import { getPublicApiUrl } from '@/lib/api-url';
 
@@ -46,20 +47,17 @@ export function VersionHistory({ systemId, currentVersion }: Props) {
   const [busyId, setBusyId] = useState<string | null>(null);
 
   const reload = useCallback(async () => {
-    try {
-      const res = await fetch(
-        `${apiUrl}/api/v1/admin/league-scoring-systems/${systemId}/versions`,
-        { credentials: 'include' },
-      );
-      if (!res.ok) throw new Error(t('admin.rulesets.league.versionHistory.loadError'));
-      const data = (await res.json()) as VersionRow[];
-      setVersions(data);
-      setError(null);
-    } catch (err) {
-      setError(
-        err instanceof Error ? err.message : t('admin.rulesets.league.versionHistory.loadError'),
-      );
+    const r = await apiRequest<VersionRow[]>(
+      apiUrl,
+      `/api/v1/admin/league-scoring-systems/${systemId}/versions`,
+    );
+    if (!r.ok) {
+      const message = failureMessage(r, t, t('admin.rulesets.league.versionHistory.loadError'));
+      if (message) setError(message);
+      return;
     }
+    setVersions(r.data);
+    setError(null);
   }, [systemId, t]);
 
   useEffect(() => {
@@ -71,13 +69,19 @@ export function VersionHistory({ systemId, currentVersion }: Props) {
     if (!pendingRollback) return;
     setBusyId(pendingRollback.id);
     try {
-      const res = await fetch(
-        `${apiUrl}/api/v1/admin/league-scoring-systems/${systemId}/versions/${pendingRollback.id}/rollback`,
-        { method: 'POST', credentials: 'include' },
+      const r = await apiRequest(
+        apiUrl,
+        `/api/v1/admin/league-scoring-systems/${systemId}/versions/${pendingRollback.id}/rollback`,
+        { method: 'POST' },
       );
-      if (!res.ok) {
-        const body = (await res.json().catch(() => ({}))) as { message?: string };
-        throw new Error(body.message ?? t('admin.rulesets.league.versionHistory.rollbackError'));
+      if (!r.ok) {
+        const message = failureMessage(
+          r,
+          t,
+          t('admin.rulesets.league.versionHistory.rollbackError'),
+        );
+        if (message) toast.error(message);
+        return;
       }
       toast.success(
         t('admin.rulesets.league.versionHistory.rollbackSuccess', {
@@ -88,12 +92,6 @@ export function VersionHistory({ systemId, currentVersion }: Props) {
       // Reload the page so the form picks up the new current values
       // and the version-history list updates.
       window.location.reload();
-    } catch (err) {
-      toast.error(
-        err instanceof Error
-          ? err.message
-          : t('admin.rulesets.league.versionHistory.rollbackError'),
-      );
     } finally {
       setBusyId(null);
     }

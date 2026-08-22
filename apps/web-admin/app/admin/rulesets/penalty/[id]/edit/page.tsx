@@ -3,6 +3,7 @@
 import { useParams, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { useI18n } from '@myclash/next-i18n/client';
+import { apiRequest, failureMessage } from '@myclash/api-client';
 import {
   DEFAULT_PENALTY_RULESET_FORM_VALUES,
   PenaltyRulesetForm,
@@ -59,13 +60,15 @@ export default function EditPenaltyRulesetPage() {
   useEffect(() => {
     if (!id) return;
     let cancelled = false;
-    fetch(`${apiUrl}/api/v1/penalty-rulesets/${id}`, { credentials: 'include' })
-      .then(async (res) => {
-        if (!res.ok) throw new Error(t('admin.penaltyRulesets.loadError'));
-        return (await res.json()) as PenaltyRulesetDetail;
-      })
-      .then((data) => {
+    void apiRequest<PenaltyRulesetDetail>(apiUrl, `/api/v1/penalty-rulesets/${id}`)
+      .then((r) => {
         if (cancelled) return;
+        if (!r.ok) {
+          const message = failureMessage(r, t, t('admin.penaltyRulesets.loadError'));
+          if (message) setError(message);
+          return;
+        }
+        const data = r.data;
         const sorted = [...(data.penalty_ruleset_entries ?? [])].sort(
           (a, b) => a.sort_order - b.sort_order,
         );
@@ -97,9 +100,6 @@ export default function EditPenaltyRulesetPage() {
           builtIn: data.built_in,
           archived: Boolean(data.archived_at),
         });
-      })
-      .catch((err: unknown) => {
-        setError(err instanceof Error ? err.message : t('admin.penaltyRulesets.loadError'));
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
@@ -152,33 +152,28 @@ export default function EditPenaltyRulesetPage() {
               void (async () => {
                 setBusy(true);
                 setError(null);
-                try {
-                  const res = await fetch(`${apiUrl}/api/v1/penalty-rulesets/${id}`, {
-                    method: 'PATCH',
-                    credentials: 'include',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                      name: data.name,
-                      description: data.description,
-                      accumulationScope: data.accumulationScope,
-                      publicVisibility: data.publicVisibility,
-                      entries: data.entries,
-                      yellowCardPoints: data.yellowCardPoints,
-                      redCardPoints: data.redCardPoints,
-                      blackCardPoints: data.blackCardPoints,
-                      firstBlackCardForfeit: data.firstBlackCardForfeit,
-                      secondBlackCardForfeit: data.secondBlackCardForfeit,
-                    }),
-                  });
-                  if (!res.ok) {
-                    const body = (await res.json().catch(() => ({}))) as { message?: string };
-                    throw new Error(body.message ?? t('admin.rulesets.actionFailed'));
-                  }
-                  router.push('/admin/rulesets/penalty');
-                } catch (err) {
-                  setError(err instanceof Error ? err.message : t('admin.rulesets.actionFailed'));
+                const r = await apiRequest(apiUrl, `/api/v1/penalty-rulesets/${id}`, {
+                  method: 'PATCH',
+                  body: {
+                    name: data.name,
+                    description: data.description,
+                    accumulationScope: data.accumulationScope,
+                    publicVisibility: data.publicVisibility,
+                    entries: data.entries,
+                    yellowCardPoints: data.yellowCardPoints,
+                    redCardPoints: data.redCardPoints,
+                    blackCardPoints: data.blackCardPoints,
+                    firstBlackCardForfeit: data.firstBlackCardForfeit,
+                    secondBlackCardForfeit: data.secondBlackCardForfeit,
+                  },
+                });
+                if (!r.ok) {
+                  const message = failureMessage(r, t, t('admin.rulesets.actionFailed'));
+                  if (message) setError(message);
                   setBusy(false);
+                  return;
                 }
+                router.push('/admin/rulesets/penalty');
               })();
             }}
             onCancel={() => router.push('/admin/rulesets/penalty')}

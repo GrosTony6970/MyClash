@@ -3,6 +3,7 @@
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { useI18n } from '@myclash/next-i18n/client';
+import { apiRequest, failureMessage } from '@myclash/api-client';
 import {
   DEFAULT_PENALTY_RULESET_FORM_VALUES,
   PenaltyRulesetForm,
@@ -66,26 +67,17 @@ export default function NewPenaltyRulesetPage() {
           void (async () => {
             setBusy(true);
             setError(null);
-            try {
-              const res = await fetch(`${apiUrl}/api/v1/penalty-rulesets`, {
-                method: 'POST',
-                credentials: 'include',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  ownerOrganizationId: ADMIN_PLATFORM_OWNER_PLACEHOLDER,
-                  ...data,
-                }),
-              });
-              if (!res.ok) {
-                const body = (await res.json().catch(() => ({}))) as { message?: string };
-                throw new Error(body.message ?? t('admin.rulesets.actionFailed'));
-              }
-              const created = (await res.json()) as { id: string };
-              router.push(`/admin/rulesets/penalty/${created.id}/edit`);
-            } catch (err) {
-              setError(err instanceof Error ? err.message : t('admin.rulesets.actionFailed'));
+            const r = await apiRequest<{ id: string }>(apiUrl, '/api/v1/penalty-rulesets', {
+              method: 'POST',
+              body: { ownerOrganizationId: ADMIN_PLATFORM_OWNER_PLACEHOLDER, ...data },
+            });
+            if (!r.ok) {
+              const message = failureMessage(r, t, t('admin.rulesets.actionFailed'));
+              if (message) setError(message);
               setBusy(false);
+              return;
             }
+            router.push(`/admin/rulesets/penalty/${r.data.id}/edit`);
           })();
         }}
         onCancel={() => router.push('/admin/rulesets/penalty')}

@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useMemo, useState } from 'react';
 import { AdminPageHeader, useToast } from '@myclash/ui';
 import { useI18n } from '@myclash/next-i18n/client';
+import { apiRequest, failureMessage } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
 
 const apiUrl = getPublicApiUrl();
@@ -213,8 +214,8 @@ export function ScoringSystemForm({ mode, initial }: Props) {
     try {
       const url =
         mode === 'create'
-          ? `${apiUrl}/api/v1/admin/league-scoring-systems`
-          : `${apiUrl}/api/v1/admin/league-scoring-systems/${initial?.id}`;
+          ? '/api/v1/admin/league-scoring-systems'
+          : `/api/v1/admin/league-scoring-systems/${initial?.id}`;
       const method = mode === 'create' ? 'POST' : 'PATCH';
       const body =
         mode === 'create'
@@ -231,15 +232,16 @@ export function ScoringSystemForm({ mode, initial }: Props) {
               tieBreakers,
               description: description.trim() || null,
             };
-      const res = await fetch(url, {
-        method,
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-      });
-      if (!res.ok) {
-        const errBody = (await res.json().catch(() => ({}))) as { message?: string };
-        throw new Error(errBody.message ?? 'Save failed');
+      const r = await apiRequest(apiUrl, url, { method, body });
+      if (!r.ok) {
+        // The fallback used to be a hardcoded English 'Save failed', which hard
+        // rule 6 forbids and a French organiser read anyway.
+        const message = failureMessage(r, t, t('admin.rulesets.league.form.saveError'));
+        if (message) {
+          setError(message);
+          toast.error(message);
+        }
+        return;
       }
       toast.success(
         t(
@@ -249,10 +251,6 @@ export function ScoringSystemForm({ mode, initial }: Props) {
         ),
       );
       router.push('/admin/rulesets/league');
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : t('admin.rulesets.league.form.saveError');
-      setError(msg);
-      toast.error(msg);
     } finally {
       setBusy(false);
     }

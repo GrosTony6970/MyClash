@@ -1086,6 +1086,10 @@ export const admin = {
         archived:
           'Ruleset archived — it is still used by a tournament, so it was kept for those results.',
         defaultSet: 'Default updated',
+        // The failure twins. Both paths used to fall back to the SUCCESS string
+        // above, so a refused delete toasted "Ruleset deleted" in red.
+        defaultSetError: 'Could not set the default ruleset.',
+        deleteError: 'Could not delete the ruleset.',
       },
       form: {
         validation: {

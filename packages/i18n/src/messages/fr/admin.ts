@@ -1085,6 +1085,8 @@ export const admin = {
         archived:
           'Barème archive : il est encore utilisé par un tournoi, il a donc été conserve pour ces résultats.',
         defaultSet: 'Défaut mis à jour',
+        defaultSetError: 'Impossible de définir le règlement par défaut.',
+        deleteError: 'Impossible de supprimer le règlement.',
       },
       form: {
         validation: {

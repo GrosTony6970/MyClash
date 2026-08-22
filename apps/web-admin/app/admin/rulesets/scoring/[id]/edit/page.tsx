@@ -14,6 +14,7 @@ import type {
   Tiebreaker,
 } from '@myclash/rulesets';
 import { useI18n } from '@myclash/next-i18n/client';
+import { apiRequest, failureMessage } from '@myclash/api-client';
 import {
   RulesetForm,
   type MatchFormatDefaults,
@@ -94,31 +95,31 @@ export default function EditRulesetPage() {
 
   const loadVersions = useCallback(async () => {
     if (!id) return;
-    try {
-      const res = await fetch(`${apiUrl}/api/v1/admin/custom-rulesets/${id}/versions`, {
-        credentials: 'include',
-      });
-      if (!res.ok) throw new Error(t('admin.rulesets.versionHistoryLoadError'));
-      const data = (await res.json()) as VersionSnapshot[];
-      setVersions(data);
-      setVersionsError(null);
-    } catch (err) {
-      setVersionsError(
-        err instanceof Error ? err.message : t('admin.rulesets.versionHistoryLoadError'),
-      );
+    const r = await apiRequest<VersionSnapshot[]>(
+      apiUrl,
+      `/api/v1/admin/custom-rulesets/${id}/versions`,
+    );
+    if (!r.ok) {
+      const message = failureMessage(r, t, t('admin.rulesets.versionHistoryLoadError'));
+      if (message) setVersionsError(message);
+      return;
     }
+    setVersions(r.data);
+    setVersionsError(null);
   }, [id, t]);
 
   useEffect(() => {
     if (!id) return;
     let cancelled = false;
-    fetch(`${apiUrl}/api/v1/admin/custom-rulesets/${id}`, { credentials: 'include' })
-      .then(async (res) => {
-        if (!res.ok) throw new Error(t('admin.rulesets.loadOneError'));
-        return (await res.json()) as CustomRulesetDetail;
-      })
-      .then((data) => {
+    void apiRequest<CustomRulesetDetail>(apiUrl, `/api/v1/admin/custom-rulesets/${id}`)
+      .then((r) => {
         if (cancelled) return;
+        if (!r.ok) {
+          const message = failureMessage(r, t, t('admin.rulesets.loadOneError'));
+          if (message) setError(message);
+          return;
+        }
+        const data = r.data;
         const formula =
           data.score_formula && 'type' in (data.score_formula as object)
             ? (data.score_formula as FormulaNode)
@@ -140,9 +141,6 @@ export default function EditRulesetPage() {
           systemMetadata: data.systemMetadata,
         });
         setCurrentVersion(data.version);
-      })
-      .catch((err: unknown) => {
-        setError(err instanceof Error ? err.message : t('admin.rulesets.loadOneError'));
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
@@ -171,21 +169,19 @@ export default function EditRulesetPage() {
     if (!confirmed) return;
     setBusy(true);
     setError(null);
-    try {
-      const res = await fetch(
-        `${apiUrl}/api/v1/admin/custom-rulesets/${id}/versions/${snapshot.id}/rollback`,
-        { method: 'POST', credentials: 'include' },
-      );
-      if (!res.ok) {
-        const body = (await res.json().catch(() => ({}))) as { message?: string };
-        throw new Error(body.message ?? t('admin.rulesets.actionFailed'));
-      }
-      // Reload the form payload to reflect the restored draft.
-      window.location.reload();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : t('admin.rulesets.actionFailed'));
+    const r = await apiRequest(
+      apiUrl,
+      `/api/v1/admin/custom-rulesets/${id}/versions/${snapshot.id}/rollback`,
+      { method: 'POST' },
+    );
+    if (!r.ok) {
+      const message = failureMessage(r, t, t('admin.rulesets.actionFailed'));
+      if (message) setError(message);
       setBusy(false);
+      return;
     }
+    // Reload the form payload to reflect the restored draft.
+    window.location.reload();
   }
 
   async function handlePublishNewVersion() {
@@ -198,22 +194,17 @@ export default function EditRulesetPage() {
     if (nextVersion === null) return;
     setBusy(true);
     setError(null);
-    try {
-      const res = await fetch(`${apiUrl}/api/v1/admin/custom-rulesets/${id}/publish`, {
-        method: 'POST',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ nextVersion: nextVersion.trim() || undefined }),
-      });
-      if (!res.ok) {
-        const body = (await res.json().catch(() => ({}))) as { message?: string };
-        throw new Error(body.message ?? t('admin.rulesets.actionFailed'));
-      }
-      window.location.reload();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : t('admin.rulesets.actionFailed'));
+    const r = await apiRequest(apiUrl, `/api/v1/admin/custom-rulesets/${id}/publish`, {
+      method: 'POST',
+      body: { nextVersion: nextVersion.trim() || undefined },
+    });
+    if (!r.ok) {
+      const message = failureMessage(r, t, t('admin.rulesets.actionFailed'));
+      if (message) setError(message);
       setBusy(false);
+      return;
     }
+    window.location.reload();
   }
 
   return (
@@ -264,37 +255,32 @@ export default function EditRulesetPage() {
                 void (async () => {
                   setBusy(true);
                   setError(null);
-                  try {
-                    // A coded ruleset (TF v1 or a base_code fork of it) stores
-                    // its tunables in `tf_config` — the back-end merges that over
-                    // the coded defaults at tournament creation. A fork also
-                    // writes the flat grammar targets so its lineage lamp +
-                    // grammar resolver stay current. A formula ruleset sends the
-                    // sibling columns as before.
-                    const body = isCodedRuleset(initial.code, initial.baseCode)
-                      ? {
-                          name: data.name,
-                          description: data.description,
-                          version: data.version,
-                          ...(initial.baseCode ? { targets: data.targets } : {}),
-                          tfConfig: codedRulesetTfConfig(data),
-                        }
-                      : data;
-                    const res = await fetch(`${apiUrl}/api/v1/admin/custom-rulesets/${id}`, {
-                      method: 'PATCH',
-                      credentials: 'include',
-                      headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify(body),
-                    });
-                    if (!res.ok) {
-                      const resp = (await res.json().catch(() => ({}))) as { message?: string };
-                      throw new Error(resp.message ?? t('admin.rulesets.actionFailed'));
-                    }
-                    router.push('/admin/rulesets/scoring');
-                  } catch (err) {
-                    setError(err instanceof Error ? err.message : t('admin.rulesets.actionFailed'));
+                  // A coded ruleset (TF v1 or a base_code fork of it) stores
+                  // its tunables in `tf_config` — the back-end merges that over
+                  // the coded defaults at tournament creation. A fork also
+                  // writes the flat grammar targets so its lineage lamp +
+                  // grammar resolver stay current. A formula ruleset sends the
+                  // sibling columns as before.
+                  const body = isCodedRuleset(initial.code, initial.baseCode)
+                    ? {
+                        name: data.name,
+                        description: data.description,
+                        version: data.version,
+                        ...(initial.baseCode ? { targets: data.targets } : {}),
+                        tfConfig: codedRulesetTfConfig(data),
+                      }
+                    : data;
+                  const r = await apiRequest(apiUrl, `/api/v1/admin/custom-rulesets/${id}`, {
+                    method: 'PATCH',
+                    body,
+                  });
+                  if (!r.ok) {
+                    const message = failureMessage(r, t, t('admin.rulesets.actionFailed'));
+                    if (message) setError(message);
                     setBusy(false);
+                    return;
                   }
+                  router.push('/admin/rulesets/scoring');
                 })();
               }}
               onCancel={() => router.push('/admin/rulesets/scoring')}

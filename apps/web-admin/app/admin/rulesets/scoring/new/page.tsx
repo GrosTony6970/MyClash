@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { DEFAULT_FORMULA_CONSTANTS, DEFAULT_TARGETS } from '@myclash/rulesets';
 import { useI18n } from '@myclash/next-i18n/client';
+import { apiRequest, failureMessage } from '@myclash/api-client';
 import {
   RulesetForm,
   DEFAULT_MATCH_FORMAT_DEFAULTS,
@@ -58,23 +59,17 @@ export default function NewRulesetPage() {
           void (async () => {
             setBusy(true);
             setError(null);
-            try {
-              const res = await fetch(`${apiUrl}/api/v1/admin/custom-rulesets`, {
-                method: 'POST',
-                credentials: 'include',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(data),
-              });
-              if (!res.ok) {
-                const body = (await res.json().catch(() => ({}))) as { message?: string };
-                throw new Error(body.message ?? t('admin.rulesets.actionFailed'));
-              }
-              const created = (await res.json()) as { id: string };
-              router.push(`/admin/rulesets/scoring/${created.id}/edit`);
-            } catch (err) {
-              setError(err instanceof Error ? err.message : t('admin.rulesets.actionFailed'));
+            const r = await apiRequest<{ id: string }>(apiUrl, '/api/v1/admin/custom-rulesets', {
+              method: 'POST',
+              body: data,
+            });
+            if (!r.ok) {
+              const message = failureMessage(r, t, t('admin.rulesets.actionFailed'));
+              if (message) setError(message);
               setBusy(false);
+              return;
             }
+            router.push(`/admin/rulesets/scoring/${r.data.id}/edit`);
           })();
         }}
         onCancel={() => router.push('/admin/rulesets/scoring')}
