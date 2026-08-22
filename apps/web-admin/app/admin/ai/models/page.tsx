@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { AdminPageHeader, Button, type AiKeyModelOption, type AiKeyProvider } from '@myclash/ui';
 import { useI18n } from '@myclash/next-i18n/client';
+import { apiRequest, failureMessage } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
 
 type ModelsMap = Record<AiKeyProvider, AiKeyModelOption[]>;
@@ -35,16 +36,18 @@ export default function AdminAIModelsPage() {
 
   useEffect(() => {
     const controller = new AbortController();
-    fetch(`${apiUrl}/api/v1/ai/models`, { credentials: 'include', signal: controller.signal })
-      .then((res) => (res.ok ? (res.json() as Promise<ModelsMap>) : null))
-      .then((data) => {
-        if (data) setModels(data);
-      })
-      .catch((err: unknown) => {
-        if (!(err instanceof DOMException && err.name === 'AbortError')) {
-          setError(t('admin.aiSettings.loadError'));
-        }
-      });
+    void apiRequest<ModelsMap>(apiUrl, '/api/v1/ai/models', {
+      signal: controller.signal,
+    }).then((r) => {
+      if (r.ok) {
+        setModels(r.data);
+        return;
+      }
+      // A refusal used to be swallowed into `null` — an empty catalogue with no
+      // reason for it.
+      const message = failureMessage(r, t, t('admin.aiSettings.loadError'));
+      if (message) setError(message);
+    });
     return () => controller.abort();
   }, [apiUrl, t]);
 
@@ -54,16 +57,18 @@ export default function AdminAIModelsPage() {
     setSyncReport(null);
     try {
       // No body → diff the active platform key's provider against its live models.
-      const res = await fetch(`${apiUrl}/api/v1/admin/ai-settings/model-sync`, {
+      const r = await apiRequest<ModelSyncReport>(apiUrl, '/api/v1/admin/ai-settings/model-sync', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({}),
+        body: {},
       });
-      if (!res.ok) throw new Error(t('admin.aiSettings.modelSync.error'));
-      setSyncReport((await res.json()) as ModelSyncReport);
-    } catch (err) {
-      setSyncError(err instanceof Error ? err.message : t('admin.aiSettings.modelSync.error'));
+      if (!r.ok) {
+        // The provider's own refusal travels back here — a bad key, a rate
+        // limit, an unreachable provider — and each says something different.
+        const message = failureMessage(r, t, t('admin.aiSettings.modelSync.error'));
+        if (message) setSyncError(message);
+        return;
+      }
+      setSyncReport(r.data);
     } finally {
       setSyncing(false);
     }

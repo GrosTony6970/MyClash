@@ -1461,14 +1461,18 @@ requireContains(
   '/api/v1/auth/logout',
 );
 // The logout must carry the session cookie. It used to say so by spelling
-// `credentials: 'include'` at the call site; it now goes through the
-// `apiRequest` seam, which sends credentials by default and is the only place
-// that decision is made. Assert the seam, not the snapshot — a shell that went
-// back to a hand-rolled fetch would drop the cookie and this would catch it.
+// `credentials: 'include'` at the call site; it goes through the `apiRequest`
+// seam now, which sends credentials by default and is the only place that
+// decision is made. So pin the CALL, not the old snapshot.
+//
+// Not the import: an import survives the call being deleted, which is exactly
+// what this pin has to fail on. Not a bare `apiRequest(` either — a site with a
+// type argument reads `apiRequest<Row[]>(` — but this logout has no type
+// argument, so pinning its real shape costs nothing and actually discriminates.
 requireContains(
   superAdminShellText,
   'apps/web-admin/src/components/SuperAdminShell.tsx',
-  'apiRequest(',
+  "apiRequest(apiUrl, '/api/v1/auth/logout'",
 );
 requireContains(
   superAdminShellText,
@@ -1514,7 +1518,7 @@ requireContains(
 requireContains(
   organizerShellText,
   'apps/web-admin/src/components/OrganizerAdminShell.tsx',
-  'apiRequest(',
+  "apiRequest(apiUrl, '/api/v1/auth/logout'",
 );
 requireContains(
   organizerShellText,
@@ -1665,7 +1669,13 @@ requireContains(
   'apps/web-admin/app/admin/page.tsx',
   '/api/v1/admin/dashboard-stats',
 );
-requireContains(superAdminPageText, 'apps/web-admin/app/admin/page.tsx', "credentials: 'include'");
+// `credentials: 'include'` is deliberately NOT pinned here any more, for the
+// reason spelled out above AccountsPanel: this page used to spell the cookie
+// decision at each call site, and `apiRequest` owns it now. Every substring a
+// replacement pin could use is either the import — which survives the call
+// being deleted — or a literal a type argument breaks. The route pin above
+// still holds, and the real guard is `no-raw-api-fetch`, which now carries no
+// exemption for this file: a hand-rolled fetch here reds the Lint job.
 requireContains(
   superAdminPageText,
   'apps/web-admin/app/admin/page.tsx',
@@ -1909,13 +1919,17 @@ for (const expected of [
     expected,
   );
 }
+// `common.tooManyRequests` is deliberately NOT pinned here any more, for the
+// reason spelled out above AccountsPanel: the page used to pick that sentence
+// itself, in a `readErrorMessage` helper with a `res.status === 429` branch.
+// That helper is gone and `failureMessage` owns the rule, so a substring pin
+// would only re-assert copy in the file that stopped choosing it.
 for (const expected of [
   'startEditProfile',
   'admin.globalProfiles.clubCreateFromSearch',
   'searchAbv=true',
   'admin.globalProfiles.hemaRatingsId',
   'admin.globalProfiles.requiredNote',
-  'common.tooManyRequests',
   'actions.retry',
 ]) {
   requireContains(
@@ -1997,7 +2011,8 @@ for (const expected of [
   'admin.clubs.safeDelete',
   'admin.clubs.archive',
   'admin.clubs.cleanupDelete',
-  'common.tooManyRequests',
+  // `common.tooManyRequests` dropped here for the same reason as the fighters
+  // console above: the 429 branch moved into `failureMessage`.
   'actions.retry',
 ]) {
   requireContains(superAdminClubsPageText, 'apps/web-admin/app/admin/clubs/page.tsx', expected);

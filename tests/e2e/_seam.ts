@@ -44,6 +44,7 @@ export const COPY = {
   usersLoadError: 'Failed to load platform accounts',
   rulesetsLoadError: 'Could not load curated rulesets.',
   leaguesLoadError: 'Could not load leagues',
+  clubsLoadError: 'Failed to load clubs.',
   discoverLoadError: 'Could not load the catalog.',
   tournamentNotFound: 'Tournament not found',
   tournamentLoadFailed: "This tournament couldn't be loaded",

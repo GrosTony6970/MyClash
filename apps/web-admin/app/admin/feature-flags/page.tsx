@@ -10,6 +10,7 @@ import {
 import { AdminPageHeader } from '@myclash/ui';
 import { localeToBcp47, type AppLocale } from '@myclash/time';
 import { useI18n } from '@myclash/next-i18n/client';
+import { apiRequest, failureMessage } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
 
 interface FlagRow {
@@ -73,21 +74,18 @@ export default function AdminFeatureFlagsPage() {
 
   useEffect(() => {
     const controller = new AbortController();
-    fetch(`${apiUrl}/api/v1/admin/feature-flags`, {
-      credentials: 'include',
+    void apiRequest<FlagRow[]>(apiUrl, '/api/v1/admin/feature-flags', {
       signal: controller.signal,
     })
-      .then(async (res) => {
-        if (!res.ok) throw new Error(t('admin.featureFlags.loadError'));
-        return (await res.json()) as FlagRow[];
-      })
-      .then((data) => {
-        setRows(data);
-        setError(null);
-      })
-      .catch((err: unknown) => {
-        if (err instanceof DOMException && err.name === 'AbortError') return;
-        setError(err instanceof Error ? err.message : t('admin.featureFlags.loadError'));
+      .then((r) => {
+        if (r.ok) {
+          setRows(r.data);
+          setError(null);
+          return;
+        }
+        // No message is the unmount, or the refresh that replaced this read.
+        const message = failureMessage(r, t, t('admin.featureFlags.loadError'));
+        if (message) setError(message);
       })
       .finally(() => setLoading(false));
     return () => controller.abort();
@@ -100,18 +98,16 @@ export default function AdminFeatureFlagsPage() {
     setBusyKey(key);
     setError(null);
     try {
-      const res = await fetch(`${apiUrl}/api/v1/admin/feature-flags/${encodeURIComponent(key)}`, {
+      const r = await apiRequest(apiUrl, `/api/v1/admin/feature-flags/${encodeURIComponent(key)}`, {
         method: 'PUT',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
+        body,
       });
-      if (!res.ok && res.status !== 204) {
-        throw new Error(t('admin.featureFlags.toggleFailed'));
+      if (!r.ok) {
+        const message = failureMessage(r, t, t('admin.featureFlags.toggleFailed'));
+        if (message) setError(message);
+        return;
       }
       refresh();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : t('admin.featureFlags.toggleFailed'));
     } finally {
       setBusyKey(null);
     }

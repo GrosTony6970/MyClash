@@ -15,7 +15,8 @@ import {
 import { localeToBcp47 } from '@myclash/time';
 import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { useI18n, type Translator } from '@myclash/next-i18n/client';
+import { useI18n } from '@myclash/next-i18n/client';
+import { apiRequest, failureDetail, failureMessage } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
 
 // ── Types ──────────────────────────────────────────────────────────────────────
@@ -174,26 +175,11 @@ function FighterCard({ label, fighter }: { label: string; fighter: FighterRow | 
 
 // ── Page ───────────────────────────────────────────────────────────────────────
 
-// Takes the translator: this is module scope, where no hook can run, and the
-// module-level `t` is permanently English.
-async function readErrorMessage(t: Translator, res: Response, fallback: string): Promise<string> {
-  if (res.status === 429) return t('common.tooManyRequests');
-  try {
-    const body = (await res.json()) as { message?: unknown };
-    if (typeof body.message === 'string') {
-      // The fighters service translates the partial-unique-index
-      // violation on lower(email) into ConflictException('email_in_use').
-      // Surface a friendly i18n string rather than the raw code.
-      if (res.status === 409 && body.message === 'email_in_use') {
-        return t('admin.globalProfiles.errors.emailInUse');
-      }
-      return body.message;
-    }
-  } catch {
-    // Keep the localized fallback when the API body is empty.
-  }
-  return fallback;
-}
+// `readErrorMessage` used to live here — a private copy of the seam, plus one
+// branch nothing else had. It is deleted rather than relocated: no app vitest
+// config maps `@/`, so a test importing it could not resolve. Its 429 rule is
+// `failureMessage`'s now, and its `email_in_use` rule moved to the one call
+// site that can actually receive that code.
 
 type Tab = 'profiles' | 'create' | 'merge';
 
@@ -213,26 +199,22 @@ export default function AdminFightersPage() {
   async function searchPersons(q: string, signal?: AbortSignal) {
     setPersonsLoading(true);
     setPersonsError(null);
-    let res: Response;
-    try {
-      res = await fetch(`${apiUrl}/api/v1/global-persons?q=${encodeURIComponent(q.trim())}`, {
-        credentials: 'include',
-        signal,
-      });
-    } catch (err) {
-      // Aborted by a newer keystroke — stay in the loading state of the
-      // newer request rather than overwriting it with an error.
-      if (err instanceof DOMException && err.name === 'AbortError') return;
+    const r = await apiRequest<FighterRow[]>(
+      apiUrl,
+      `/api/v1/global-persons?q=${encodeURIComponent(q.trim())}`,
+      { signal },
+    );
+    if (r.ok) {
       setPersonsLoading(false);
-      setPersonsError(t('admin.globalProfiles.loadError'));
+      setPersons(r.data);
       return;
     }
+    const message = failureMessage(r, t, t('admin.globalProfiles.loadError'));
+    // No message is the abort a newer keystroke caused: stay in the newer
+    // request's loading state rather than overwriting it with an error.
+    if (!message) return;
     setPersonsLoading(false);
-    if (res.ok) {
-      setPersons((await res.json()) as FighterRow[]);
-      return;
-    }
-    setPersonsError(await readErrorMessage(t, res, t('admin.globalProfiles.loadError')));
+    setPersonsError(message);
   }
 
   // Debounced server-side search: fire `q=...` ~250 ms after each keystroke
@@ -296,17 +278,18 @@ export default function AdminFightersPage() {
       setClubResults([]);
       return;
     }
-    const res = await fetch(
-      `${apiUrl}/api/v1/clubs?q=${encodeURIComponent(q.trim())}&searchAbv=true`,
-      { credentials: 'include' },
+    const r = await apiRequest<ClubSearchResult[]>(
+      apiUrl,
+      `/api/v1/clubs?q=${encodeURIComponent(q.trim())}&searchAbv=true`,
     );
-    if (res.ok) {
-      setClubResults((await res.json()) as ClubSearchResult[]);
+    if (r.ok) {
+      setClubResults(r.data);
       setActiveClubIndex(0);
       setCreateError(null);
       return;
     }
-    setCreateError(await readErrorMessage(t, res, t('admin.globalProfiles.clubSearchError')));
+    const message = failureMessage(r, t, t('admin.globalProfiles.clubSearchError'));
+    if (message) setCreateError(message);
   }
 
   async function createClubFromProfileForm() {
@@ -315,20 +298,20 @@ export default function AdminFightersPage() {
     setCreatingClub(true);
     setCreateError(null);
     try {
-      const res = await fetch(`${apiUrl}/api/v1/clubs`, {
+      const r = await apiRequest<ClubSearchResult>(apiUrl, '/api/v1/clubs', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({
+        body: {
           name,
           abbreviation: form.clubAbbreviation.trim() || undefined,
           city: form.clubCity.trim() || undefined,
-        }),
+        },
       });
-      if (!res.ok) {
-        throw new Error(await readErrorMessage(t, res, t('admin.globalProfiles.clubCreateError')));
+      if (!r.ok) {
+        const message = failureMessage(r, t, t('admin.globalProfiles.clubCreateError'));
+        if (message) setCreateError(message);
+        return;
       }
-      const club = (await res.json()) as ClubSearchResult;
+      const club = r.data;
       setForm((f) => ({
         ...f,
         clubId: club.id,
@@ -337,10 +320,6 @@ export default function AdminFightersPage() {
         clubAbbreviation: club.abbreviation ?? f.clubAbbreviation,
       }));
       setClubResults([]);
-    } catch (err) {
-      setCreateError(
-        err instanceof Error ? err.message : t('admin.globalProfiles.clubCreateError'),
-      );
     } finally {
       setCreatingClub(false);
     }
@@ -351,8 +330,12 @@ export default function AdminFightersPage() {
     setCreateError(null);
     setCreateSuccess(null);
     try {
+      // Two local validations. They used to `throw` into this function's own
+      // catch; with the catch gone they report and return, and the `finally`
+      // below still clears the busy flag.
       if (!form.isFighter && !form.isReferee && !form.isWorkshopParticipant && !form.isInstructor) {
-        throw new Error(t('admin.globalProfiles.roleRequired'));
+        setCreateError(t('admin.globalProfiles.roleRequired'));
+        return;
       }
       // Convert the locale-formatted DOB to ISO before POST. Empty
       // input is fine (DOB is optional); a non-empty value that
@@ -362,19 +345,19 @@ export default function AdminFightersPage() {
       if (form.dateOfBirth.trim()) {
         const parsed = dateFormat.parse(form.dateOfBirth);
         if (!parsed) {
-          throw new Error(t('admin.globalProfiles.errors.dobFormat'));
+          setCreateError(t('admin.globalProfiles.errors.dobFormat'));
+          return;
         }
         dateOfBirthIso = parsed;
       }
       const displayName =
         form.displayName.trim() || `${form.givenName.trim()} ${form.familyName.trim()}`;
-      const res = await fetch(
-        `${apiUrl}/api/v1/global-persons${editingProfile ? `/${editingProfile.id}` : ''}`,
+      const r = await apiRequest(
+        apiUrl,
+        `/api/v1/global-persons${editingProfile ? `/${editingProfile.id}` : ''}`,
         {
           method: editingProfile ? 'PATCH' : 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          credentials: 'include',
-          body: JSON.stringify({
+          body: {
             givenName: form.givenName.trim(),
             familyName: form.familyName.trim(),
             displayName,
@@ -389,19 +372,28 @@ export default function AdminFightersPage() {
             isReferee: form.isReferee,
             isWorkshopParticipant: form.isWorkshopParticipant,
             isInstructor: form.isInstructor,
-          }),
+          },
         },
       );
-      if (!res.ok) {
-        throw new Error(
-          await readErrorMessage(
-            t,
-            res,
-            editingProfile
-              ? t('admin.globalProfiles.updateError')
-              : t('admin.globalProfiles.createError'),
-          ),
-        );
+      if (!r.ok) {
+        // The one refusal where the server's own words lose to ours: the
+        // fighters service turns the partial unique index on lower(email) into
+        // `ConflictException('email_in_use')`, so `detail` carries a CODE, not
+        // a sentence. Matched on `detail` and not on `code` — `code` is the
+        // filter's own 'CONFLICT' here, and reading it would compile, pass, and
+        // silently stop firing.
+        const message =
+          failureDetail(r) === 'email_in_use'
+            ? t('admin.globalProfiles.errors.emailInUse')
+            : failureMessage(
+                r,
+                t,
+                editingProfile
+                  ? t('admin.globalProfiles.updateError')
+                  : t('admin.globalProfiles.createError'),
+              );
+        if (message) setCreateError(message);
+        return;
       }
       setCreateSuccess(
         editingProfile
@@ -414,8 +406,6 @@ export default function AdminFightersPage() {
       // it survives the tab switch.
       setTab('profiles');
       void searchPersons(personQuery);
-    } catch (err) {
-      setCreateError(err instanceof Error ? err.message : t('admin.globalProfiles.saveError'));
     } finally {
       setCreating(false);
     }
@@ -443,24 +433,17 @@ export default function AdminFightersPage() {
 
   useEffect(() => {
     const controller = new AbortController();
-    fetch(`${apiUrl}/api/v1/fighters/merge/audit-log`, {
-      credentials: 'include',
+    void apiRequest<MergeAuditEntry[]>(apiUrl, '/api/v1/fighters/merge/audit-log', {
       signal: controller.signal,
-    })
-      .then(async (res) => {
-        if (!res.ok)
-          throw new Error(
-            await readErrorMessage(t, res, t('admin.globalProfiles.merge.auditLoadError')),
-          );
-        setAudits((await res.json()) as MergeAuditEntry[]);
-      })
-      .catch((err: unknown) => {
-        if (!(err instanceof DOMException && err.name === 'AbortError')) {
-          setMergeError(
-            err instanceof Error ? err.message : t('admin.globalProfiles.merge.somethingWrong'),
-          );
-        }
-      });
+    }).then((r) => {
+      if (r.ok) {
+        setAudits(r.data);
+        return;
+      }
+      // No message is the unmount, or the refresh that replaced this read.
+      const message = failureMessage(r, t, t('admin.globalProfiles.merge.auditLoadError'));
+      if (message) setMergeError(message);
+    });
     return () => controller.abort();
   }, [apiUrl, refreshKey, t]);
 
@@ -468,15 +451,17 @@ export default function AdminFightersPage() {
     if (!query.trim()) return;
     setLoading(true);
     setMergeError(null);
-    const res = await fetch(`${apiUrl}/api/v1/fighters?q=${encodeURIComponent(query.trim())}`, {
-      credentials: 'include',
-    });
+    const r = await apiRequest<FighterRow[]>(
+      apiUrl,
+      `/api/v1/fighters?q=${encodeURIComponent(query.trim())}`,
+    );
     setLoading(false);
-    if (!res.ok) {
-      setMergeError(await readErrorMessage(t, res, t('admin.globalProfiles.merge.searchFailed')));
+    if (!r.ok) {
+      const message = failureMessage(r, t, t('admin.globalProfiles.merge.searchFailed'));
+      if (message) setMergeError(message);
       return;
     }
-    setFighters((await res.json()) as FighterRow[]);
+    setFighters(r.data);
   }
 
   async function mergeFighters() {
@@ -490,14 +475,12 @@ export default function AdminFightersPage() {
       return;
     }
 
-    const res = await fetch(`${apiUrl}/api/v1/fighters/merge`, {
+    const r = await apiRequest(apiUrl, '/api/v1/fighters/merge', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      credentials: 'include',
-      body: JSON.stringify({ sourceId: source.id, targetId: target.id, reason: reason.trim() }),
+      body: { sourceId: source.id, targetId: target.id, reason: reason.trim() },
     });
 
-    if (res.ok) {
+    if (r.ok) {
       setSource(null);
       setTarget(null);
       setReason('');
@@ -506,21 +489,25 @@ export default function AdminFightersPage() {
       refreshAudits();
       return;
     }
-    setMergeError(await readErrorMessage(t, res, t('admin.globalProfiles.merge.mergeFailed')));
+    // A refused merge names what blocks it — a fighter with results in a
+    // running tournament, an identity that is not stable. That sentence used to
+    // be replaced by "Merge failed."
+    const message = failureMessage(r, t, t('admin.globalProfiles.merge.mergeFailed'));
+    if (message) setMergeError(message);
   }
 
   async function revertMerge(auditId: string) {
     if (!(await confirm({ title: t('admin.globalProfiles.merge.revertConfirm'), danger: true })))
       return;
-    const res = await fetch(`${apiUrl}/api/v1/fighters/merge/${auditId}/revert`, {
+    const r = await apiRequest(apiUrl, `/api/v1/fighters/merge/${auditId}/revert`, {
       method: 'POST',
-      credentials: 'include',
     });
-    if (res.ok || res.status === 204) {
+    if (r.ok) {
       refreshAudits();
       return;
     }
-    setMergeError(await readErrorMessage(t, res, t('admin.globalProfiles.merge.revertFailed')));
+    const message = failureMessage(r, t, t('admin.globalProfiles.merge.revertFailed'));
+    if (message) setMergeError(message);
   }
 
   // ── Sort over the current persons result set ─────────────────────────────

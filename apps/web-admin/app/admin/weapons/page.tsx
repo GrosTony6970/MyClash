@@ -13,6 +13,7 @@ import {
   useToast,
 } from '@myclash/ui';
 import { useI18n } from '@myclash/next-i18n/client';
+import { apiRequest, failureMessage } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
 
 interface WeaponRow {
@@ -45,22 +46,19 @@ export default function AdminWeaponsPage() {
     let cancelled = false;
     const controller = new AbortController();
 
-    fetch(`${apiUrl}/api/v1/admin/weapons`, {
-      credentials: 'include',
+    void apiRequest<WeaponRow[]>(apiUrl, '/api/v1/admin/weapons', {
       signal: controller.signal,
     })
-      .then(async (res) => {
-        if (!res.ok) throw new Error(String(res.status));
-        return (await res.json()) as WeaponRow[];
-      })
-      .then((rows) => {
+      .then((r) => {
         if (cancelled) return;
-        setWeapons(rows);
-        setError(null);
-      })
-      .catch((e: unknown) => {
-        if (cancelled || (e instanceof DOMException && e.name === 'AbortError')) return;
-        setError(t('admin.weapons.loadError'));
+        if (r.ok) {
+          setWeapons(r.data);
+          setError(null);
+          return;
+        }
+        // No message is the unmount, or the refresh that replaced this read.
+        const message = failureMessage(r, t, t('admin.weapons.loadError'));
+        if (message) setError(message);
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
@@ -75,22 +73,25 @@ export default function AdminWeaponsPage() {
   async function createWeapon(name: string) {
     setActionBusy(true);
     try {
-      const res = await fetch(`${apiUrl}/api/v1/admin/weapons`, {
+      const r = await apiRequest(apiUrl, '/api/v1/admin/weapons', {
         method: 'POST',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name }),
+        body: { name },
       });
-      if (res.status === 409) {
-        toast.error(t('admin.weapons.duplicateError'));
+      if (!r.ok) {
+        // A name already in the catalogue comes back 409, and that case keeps a
+        // fallback of its own for the server that gives no reason. Every other
+        // refusal used to read "Something went wrong."
+        const fallback =
+          r.kind === 'http' && r.status === 409
+            ? t('admin.weapons.duplicateError')
+            : t('admin.common.somethingWentWrong');
+        const message = failureMessage(r, t, fallback);
+        if (message) toast.error(message);
         return;
       }
-      if (!res.ok) throw new Error(String(res.status));
       toast.success(t('admin.weapons.created'));
       setAddOpen(false);
       refresh();
-    } catch {
-      toast.error(t('admin.common.somethingWentWrong'));
     } finally {
       setActionBusy(false);
     }
@@ -99,18 +100,18 @@ export default function AdminWeaponsPage() {
   async function renameWeapon(id: string, name: string) {
     setActionBusy(true);
     try {
-      const res = await fetch(`${apiUrl}/api/v1/admin/weapons/${id}`, {
+      const r = await apiRequest(apiUrl, `/api/v1/admin/weapons/${id}`, {
         method: 'PATCH',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name }),
+        body: { name },
       });
-      if (!res.ok) throw new Error(String(res.status));
+      if (!r.ok) {
+        const message = failureMessage(r, t, t('admin.common.somethingWentWrong'));
+        if (message) toast.error(message);
+        return;
+      }
       toast.success(t('admin.weapons.updated'));
       setRenameTarget(null);
       refresh();
-    } catch {
-      toast.error(t('admin.common.somethingWentWrong'));
     } finally {
       setActionBusy(false);
     }
@@ -119,17 +120,17 @@ export default function AdminWeaponsPage() {
   async function toggleActive(row: WeaponRow) {
     setActionBusy(true);
     try {
-      const res = await fetch(`${apiUrl}/api/v1/admin/weapons/${row.id}`, {
+      const r = await apiRequest(apiUrl, `/api/v1/admin/weapons/${row.id}`, {
         method: 'PATCH',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ active: !row.active }),
+        body: { active: !row.active },
       });
-      if (!res.ok) throw new Error(String(res.status));
+      if (!r.ok) {
+        const message = failureMessage(r, t, t('admin.common.somethingWentWrong'));
+        if (message) toast.error(message);
+        return;
+      }
       toast.success(t('admin.weapons.updated'));
       refresh();
-    } catch {
-      toast.error(t('admin.common.somethingWentWrong'));
     } finally {
       setActionBusy(false);
     }
@@ -138,16 +139,17 @@ export default function AdminWeaponsPage() {
   async function deleteWeapon(id: string) {
     setActionBusy(true);
     try {
-      const res = await fetch(`${apiUrl}/api/v1/admin/weapons/${id}`, {
-        method: 'DELETE',
-        credentials: 'include',
-      });
-      if (!res.ok && res.status !== 204) throw new Error(String(res.status));
+      const r = await apiRequest(apiUrl, `/api/v1/admin/weapons/${id}`, { method: 'DELETE' });
+      if (!r.ok) {
+        // A weapon a tournament still uses is refused by name. That sentence
+        // used to be replaced by "Something went wrong."
+        const message = failureMessage(r, t, t('admin.common.somethingWentWrong'));
+        if (message) toast.error(message);
+        return;
+      }
       toast.success(t('admin.weapons.deleted'));
       setDeleteTarget(null);
       refresh();
-    } catch {
-      toast.error(t('admin.common.somethingWentWrong'));
     } finally {
       setActionBusy(false);
     }

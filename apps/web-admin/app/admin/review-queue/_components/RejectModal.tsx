@@ -1,6 +1,7 @@
 'use client';
 
 import { useI18n } from '@myclash/next-i18n/client';
+import { apiRequest, failureMessage } from '@myclash/api-client';
 import { useState } from 'react';
 import { Modal } from '@myclash/ui';
 import type { ReviewQueueItem } from '../_types';
@@ -27,24 +28,17 @@ export function RejectModal({ item, apiUrl, onClose, onRejected }: RejectModalPr
     setSubmitting(true);
     setError(null);
     try {
-      const res = await fetch(
-        `${apiUrl}/api/v1/admin/review-queue/${item.type}/${item.id}/reject`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          credentials: 'include',
-          body: JSON.stringify({ rejectionReason: reason }),
-        },
+      const r = await apiRequest(
+        apiUrl,
+        `/api/v1/admin/review-queue/${item.type}/${item.id}/reject`,
+        { method: 'POST', body: { rejectionReason: reason } },
       );
-
-      if (!res.ok) {
-        const data = (await res.json().catch(() => ({}))) as { message?: string };
-        throw new Error(data.message ?? t('admin.reviewQueue.actionFailed'));
+      if (!r.ok) {
+        const message = failureMessage(r, t, t('admin.reviewQueue.actionFailed'));
+        if (message) setError(message);
+        return;
       }
-
       onRejected();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : t('admin.reviewQueue.actionFailed'));
     } finally {
       setSubmitting(false);
     }

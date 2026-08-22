@@ -4,6 +4,7 @@ import { localeToBcp47 } from '@myclash/time';
 import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 import { useI18n } from '@myclash/next-i18n/client';
+import { apiRequest, failureMessage } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
 
 type FindingStatus = 'open' | 'dismissed' | 'resolved';
@@ -69,18 +70,21 @@ export default function AdminDataQualityPage() {
 
   function loadData() {
     setLoading(true);
-    Promise.all([
-      fetch(`${apiUrl}/api/v1/admin/data-quality/scans`, { credentials: 'include' }),
-      fetch(`${apiUrl}/api/v1/admin/data-quality/findings`, { credentials: 'include' }),
+    void Promise.all([
+      apiRequest<DataQualityScan[]>(apiUrl, '/api/v1/admin/data-quality/scans'),
+      apiRequest<DataQualityFinding[]>(apiUrl, '/api/v1/admin/data-quality/findings'),
     ])
-      .then(async ([scanRes, findingRes]) => {
-        if (!scanRes.ok || !findingRes.ok) throw new Error(t('admin.dataQuality.loadError'));
-        setScans((await scanRes.json()) as DataQualityScan[]);
-        setFindings((await findingRes.json()) as DataQualityFinding[]);
-        setError(null);
-      })
-      .catch((err: unknown) => {
-        setError(err instanceof Error ? err.message : t('admin.dataQuality.loadError'));
+      .then(([scanRes, findingRes]) => {
+        if (scanRes.ok && findingRes.ok) {
+          setScans(scanRes.data);
+          setFindings(findingRes.data);
+          setError(null);
+          return;
+        }
+        const failed = scanRes.ok ? findingRes : scanRes;
+        if (failed.ok) return;
+        const message = failureMessage(failed, t, t('admin.dataQuality.loadError'));
+        if (message) setError(message);
       })
       .finally(() => setLoading(false));
   }
@@ -88,26 +92,26 @@ export default function AdminDataQualityPage() {
   useEffect(() => {
     const controller = new AbortController();
 
-    Promise.all([
-      fetch(`${apiUrl}/api/v1/admin/data-quality/scans`, {
-        credentials: 'include',
+    void Promise.all([
+      apiRequest<DataQualityScan[]>(apiUrl, '/api/v1/admin/data-quality/scans', {
         signal: controller.signal,
       }),
-      fetch(`${apiUrl}/api/v1/admin/data-quality/findings`, {
-        credentials: 'include',
+      apiRequest<DataQualityFinding[]>(apiUrl, '/api/v1/admin/data-quality/findings', {
         signal: controller.signal,
       }),
     ])
-      .then(async ([scanRes, findingRes]) => {
-        if (!scanRes.ok || !findingRes.ok) throw new Error(t('admin.dataQuality.loadError'));
-        setScans((await scanRes.json()) as DataQualityScan[]);
-        setFindings((await findingRes.json()) as DataQualityFinding[]);
-        setError(null);
-      })
-      .catch((err: unknown) => {
-        if (!(err instanceof DOMException && err.name === 'AbortError')) {
-          setError(err instanceof Error ? err.message : t('admin.dataQuality.loadError'));
+      .then(([scanRes, findingRes]) => {
+        if (scanRes.ok && findingRes.ok) {
+          setScans(scanRes.data);
+          setFindings(findingRes.data);
+          setError(null);
+          return;
         }
+        const failed = scanRes.ok ? findingRes : scanRes;
+        // No message is the unmount.
+        if (failed.ok) return;
+        const message = failureMessage(failed, t, t('admin.dataQuality.loadError'));
+        if (message) setError(message);
       })
       .finally(() => setLoading(false));
 
@@ -117,33 +121,31 @@ export default function AdminDataQualityPage() {
   async function runScan(mode: 'ai' | 'deterministic') {
     setScanning(true);
     setError(null);
-    const res = await fetch(`${apiUrl}/api/v1/admin/data-quality/scans`, {
+    const r = await apiRequest(apiUrl, '/api/v1/admin/data-quality/scans', {
       method: 'POST',
-      credentials: 'include',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ mode }),
+      body: { mode },
     });
     setScanning(false);
-    if (!res.ok) {
-      const body = (await res.json().catch(() => ({}))) as { message?: string };
-      setError(body.message ?? t('admin.dataQuality.scanError'));
+    if (!r.ok) {
+      const message = failureMessage(r, t, t('admin.dataQuality.scanError'));
+      if (message) setError(message);
       return;
     }
     loadData();
   }
 
   async function updateFindingStatus(id: string, status: FindingStatus) {
-    const res = await fetch(`${apiUrl}/api/v1/admin/data-quality/findings/${id}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      credentials: 'include',
-      body: JSON.stringify({ status }),
-    });
-    if (!res.ok) {
-      setError(t('admin.dataQuality.updateError'));
+    const r = await apiRequest<DataQualityFinding>(
+      apiUrl,
+      `/api/v1/admin/data-quality/findings/${id}`,
+      { method: 'PATCH', body: { status } },
+    );
+    if (!r.ok) {
+      const message = failureMessage(r, t, t('admin.dataQuality.updateError'));
+      if (message) setError(message);
       return;
     }
-    const updated = (await res.json()) as DataQualityFinding;
+    const updated = r.data;
     setFindings((current) => current.map((finding) => (finding.id === id ? updated : finding)));
   }
 

@@ -1771,7 +1771,6 @@ export const admin = {
     roleRequired: 'Sélectionnez au moins un rôle.',
     createError: 'Création impossible',
     updateError: 'Mise à jour impossible',
-    saveError: 'Sauvegarde impossible',
     errors: {
       emailInUse: 'Cet email est déjà lié à un autre profil global.',
       dobFormat:
@@ -1848,7 +1847,6 @@ export const admin = {
       sourceTargetDifferent: 'Source et cible doivent être differentes.',
       confirmMismatch: 'La saisie doit correspondre au nom affiche de la source.',
       auditLoadError: 'Chargement du journal de fusion impossible',
-      somethingWrong: 'Une erreur est survenue',
       searchFailed: 'Recherche de combattants impossible.',
       mergeFailed: 'Fusion impossible.',
       revertFailed: 'Annulation de la fusion impossible.',
@@ -2154,7 +2152,6 @@ export const admin = {
     exportCsv: 'Exporter CSV',
     accessDenied: 'Accès refuse. Super admin requis.',
     loadError: 'Échec du chargement du journal',
-    genericError: 'Une erreur est survenue',
     filters: {
       actorPlaceholder: 'ID utilisateur acteur',
       actionPlaceholder: 'Action',
@@ -2195,7 +2192,6 @@ export const admin = {
     subtitle: 'Flux chronologique des événements plateforme et opérationnels.',
     accessDenied: 'Accès refuse. Super admin requis.',
     loadError: 'Échec du chargement du journal plateforme',
-    genericError: 'Une erreur est survenue',
     empty: 'Aucun événement plateforme ne correspond à ces filtres.',
     truncatedNotice:
       'Affichage des événements les plus récents ; les plus anciens peuvent être masques.',

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useI18n } from '@myclash/next-i18n/client';
+import { apiRequest, failureMessage } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
 
 /**
@@ -108,21 +109,16 @@ export default function HemaRatingsAdminPage() {
 
   const loadFighters = useCallback(async () => {
     setLoadError(null);
-    try {
-      const res = await fetch(`${API_URL}/api/v1/admin/hema-ratings/fighters`, {
-        credentials: 'include',
-      });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const data = (await res.json()) as TrackedFighter[];
-      setFighters(data);
-      return data;
-    } catch (err) {
-      setLoadError(
-        err instanceof Error ? err.message : t('admin.common.loadTrackedFightersFailed'),
-      );
-      setFighters([]);
-      return [];
+    const r = await apiRequest<TrackedFighter[]>(API_URL, '/api/v1/admin/hema-ratings/fighters');
+    if (r.ok) {
+      setFighters(r.data);
+      return r.data;
     }
+    // It used to show `HTTP 502` — the status line, not a reason.
+    const message = failureMessage(r, t, t('admin.common.loadTrackedFightersFailed'));
+    if (message) setLoadError(message);
+    setFighters([]);
+    return [];
   }, [t]);
 
   useEffect(() => {
@@ -161,60 +157,58 @@ export default function HemaRatingsAdminPage() {
     stopSyncPolling();
     setSyncing(true);
     setSyncMessage(null);
-    try {
-      const res = await fetch(`${API_URL}/api/v1/admin/hema-ratings/sync`, {
-        method: 'POST',
-        credentials: 'include',
-      });
-      if (!res.ok && res.status !== 202) {
-        const body = (await res.json().catch(() => null)) as { message?: string } | null;
-        throw new Error(body?.message ?? `HTTP ${res.status}`);
-      }
-      // 202 — job enqueued. Switch to "waiting" message and start polling
-      // the fighters endpoint until syncedAt advances past preSyncedAt or
-      // the safety timeout fires.
-      await res.json().catch(() => null);
-      setSyncMessage(t('admin.hemaRatings.syncWaiting'));
-
-      pollIntervalRef.current = setInterval(() => {
-        void (async () => {
-          const next = await loadFighters();
-          const nextSyncedAt = next?.[0]?.syncedAt ?? null;
-          if (nextSyncedAt && nextSyncedAt !== preSyncedAt) {
-            stopSyncPolling();
-            setSyncing(false);
-            setSyncMessage(t('admin.hemaRatings.syncCompleted'));
-          }
-        })();
-      }, SYNC_POLL_INTERVAL_MS);
-
-      pollTimeoutRef.current = setTimeout(() => {
-        stopSyncPolling();
-        setSyncing(false);
-        setSyncMessage(t('admin.hemaRatings.syncTimeout'));
-      }, SYNC_POLL_TIMEOUT_MS);
-    } catch (err) {
+    // No `try`: `apiRequest` does not throw, and the two exits own their own
+    // cleanup — the failure path stops the poll and clears the flag, the
+    // success path hands both to the interval and the timeout below.
+    const r = await apiRequest(API_URL, '/api/v1/admin/hema-ratings/sync', { method: 'POST' });
+    if (!r.ok) {
       stopSyncPolling();
       setSyncing(false);
-      setSyncMessage(err instanceof Error ? err.message : t('admin.hemaRatings.syncFailed'));
+      const message = failureMessage(r, t, t('admin.hemaRatings.syncFailed'));
+      if (message) setSyncMessage(message);
+      return;
     }
+    // 202 — job enqueued. Switch to "waiting" message and start polling
+    // the fighters endpoint until syncedAt advances past preSyncedAt or
+    // the safety timeout fires.
+    setSyncMessage(t('admin.hemaRatings.syncWaiting'));
+
+    pollIntervalRef.current = setInterval(() => {
+      void (async () => {
+        const next = await loadFighters();
+        const nextSyncedAt = next?.[0]?.syncedAt ?? null;
+        if (nextSyncedAt && nextSyncedAt !== preSyncedAt) {
+          stopSyncPolling();
+          setSyncing(false);
+          setSyncMessage(t('admin.hemaRatings.syncCompleted'));
+        }
+      })();
+    }, SYNC_POLL_INTERVAL_MS);
+
+    pollTimeoutRef.current = setTimeout(() => {
+      stopSyncPolling();
+      setSyncing(false);
+      setSyncMessage(t('admin.hemaRatings.syncTimeout'));
+    }, SYNC_POLL_TIMEOUT_MS);
   }
 
   async function handleRefreshOne(globalPersonId: string) {
     setRefreshing((prev) => new Set(prev).add(globalPersonId));
     try {
-      const res = await fetch(
-        `${API_URL}/api/v1/admin/hema-ratings/fighters/${globalPersonId}/refresh`,
-        { method: 'POST', credentials: 'include' },
+      const r = await apiRequest(
+        API_URL,
+        `/api/v1/admin/hema-ratings/fighters/${globalPersonId}/refresh`,
+        { method: 'POST' },
       );
-      if (!res.ok) {
-        const body = (await res.json().catch(() => null)) as { message?: string } | null;
-        throw new Error(body?.message ?? `HTTP ${res.status}`);
+      if (!r.ok) {
+        // HEMA Ratings' own refusal travels back here — an unknown id, a rate
+        // limit, an unreachable upstream — and each says something different.
+        const message = failureMessage(r, t, t('admin.hemaRatings.refreshFailed'));
+        if (message) setSyncMessage(message);
+        return;
       }
       // Re-load the whole list so the row picks up the new ratings.
       await loadFighters();
-    } catch (err) {
-      setSyncMessage(err instanceof Error ? err.message : t('admin.hemaRatings.refreshFailed'));
     } finally {
       setRefreshing((prev) => {
         const next = new Set(prev);
@@ -228,13 +222,20 @@ export default function HemaRatingsAdminPage() {
     if (checkingHealth) return;
     setCheckingHealth(true);
     try {
-      const res = await fetch(`${API_URL}/api/v1/admin/hema-ratings/health`, {
-        credentials: 'include',
+      const r = await apiRequest<HealthResult>(API_URL, '/api/v1/admin/hema-ratings/health');
+      if (r.ok) {
+        setHealth(r.data);
+        return;
+      }
+      // The probe's own verdict, in the shape the panel renders. A refusal here
+      // is itself the health answer, so it fills the card rather than a banner.
+      setHealth({
+        ok: false,
+        status: r.kind === 'http' || r.kind === 'unauthenticated' ? r.status : null,
+        latencyMs: 0,
+        error:
+          failureMessage(r, t, t('admin.common.networkError')) ?? t('admin.common.networkError'),
       });
-      const body = (await res.json()) as HealthResult;
-      setHealth(body);
-    } catch {
-      setHealth({ ok: false, status: null, latencyMs: 0, error: t('admin.common.networkError') });
     } finally {
       setCheckingHealth(false);
     }
@@ -243,16 +244,13 @@ export default function HemaRatingsAdminPage() {
   async function handleOpenHistory() {
     setHistoryOpen(true);
     if (history) return;
-    try {
-      const res = await fetch(`${API_URL}/api/v1/admin/hema-ratings/sync-history?limit=10`, {
-        credentials: 'include',
-      });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const body = (await res.json()) as SyncHistoryEntry[];
-      setHistory(body);
-    } catch {
-      setHistory([]);
-    }
+    const r = await apiRequest<SyncHistoryEntry[]>(
+      API_URL,
+      '/api/v1/admin/hema-ratings/sync-history?limit=10',
+    );
+    // Silent, as before: the drawer shows its empty state rather than an error,
+    // and the operator can close and reopen it to retry.
+    setHistory(r.ok ? r.data : []);
   }
 
   async function handleSaveEdit(globalPersonId: string, newValue: string) {
@@ -263,22 +261,17 @@ export default function HemaRatingsAdminPage() {
       setSyncMessage(t('admin.hemaRatings.invalidRatingId'));
       return;
     }
-    try {
-      const res = await fetch(`${API_URL}/api/v1/admin/fighters/${globalPersonId}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ hemaRatingsId: trimmed || null }),
-      });
-      if (!res.ok) {
-        const body = (await res.json().catch(() => null)) as { message?: string } | null;
-        throw new Error(body?.message ?? `HTTP ${res.status}`);
-      }
-      setEditing(null);
-      await loadFighters();
-    } catch (err) {
-      setSyncMessage(err instanceof Error ? err.message : t('admin.hemaRatings.saveFailed'));
+    const r = await apiRequest(API_URL, `/api/v1/admin/fighters/${globalPersonId}`, {
+      method: 'PATCH',
+      body: { hemaRatingsId: trimmed || null },
+    });
+    if (!r.ok) {
+      const message = failureMessage(r, t, t('admin.hemaRatings.saveFailed'));
+      if (message) setSyncMessage(message);
+      return;
     }
+    setEditing(null);
+    await loadFighters();
   }
 
   return (

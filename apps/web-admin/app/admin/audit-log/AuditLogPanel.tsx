@@ -4,6 +4,7 @@ import { localeToBcp47 } from '@myclash/time';
 import { DataTable, DataTableCell, DataTableHead, DataTableRow } from '@myclash/ui';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useI18n } from '@myclash/next-i18n/client';
+import { apiRequest, failureMessage } from '@myclash/api-client';
 import { PayloadCell, type PayloadLabel } from '../../../src/components/PayloadCell';
 import { getPublicApiUrl } from '@/lib/api-url';
 
@@ -104,31 +105,30 @@ export function AuditLogPanel() {
     let cancelled = false;
     const controller = new AbortController();
 
-    fetch(`${apiUrl}/api/v1/admin/audit-log${queryString}`, {
-      credentials: 'include',
+    void apiRequest<AuditLogResponse>(apiUrl, `/api/v1/admin/audit-log${queryString}`, {
       signal: controller.signal,
-    })
-      .then(async (res) => {
-        if (cancelled) return;
-        if (res.status === 401 || res.status === 403) {
-          setError(t('admin.auditLog.accessDenied'));
-          setLoading(false);
-          return;
-        }
-        if (!res.ok) throw new Error(t('admin.auditLog.loadError'));
-        const data = (await res.json()) as AuditLogResponse;
-        if (!cancelled) {
-          setResponse(data);
-          setError(null);
-          setLoading(false);
-        }
-      })
-      .catch((err: unknown) => {
-        if (!cancelled && !(err instanceof DOMException && err.name === 'AbortError')) {
-          setError(err instanceof Error ? err.message : t('admin.auditLog.genericError'));
-          setLoading(false);
-        }
-      });
+    }).then((r) => {
+      if (cancelled) return;
+      if (r.ok) {
+        setResponse(r.data);
+        setError(null);
+        setLoading(false);
+        return;
+      }
+      // Losing the session and lacking the platform role read the same to a
+      // guard; on this screen they read the same to the operator too, and the
+      // server's own words for it name no tier. Same ruling as admin/backups.
+      if (r.kind === 'unauthenticated') {
+        setError(t('admin.auditLog.accessDenied'));
+        setLoading(false);
+        return;
+      }
+      const message = failureMessage(r, t, t('admin.auditLog.loadError'));
+      if (message) {
+        setError(message);
+        setLoading(false);
+      }
+    });
 
     return () => {
       cancelled = true;

@@ -28,7 +28,6 @@ export const common = {
   none: 'Aucun',
   optional: 'Facultatif',
   saving: 'Enregistrement...',
-  tooManyRequests: 'Trop de requêtes. Attendez un instant puis réessayez.',
   unknown: 'Inconnu',
   round: {
     final: 'Finale',

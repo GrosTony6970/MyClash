@@ -46,7 +46,6 @@ export const common = {
   none: 'None',
   optional: 'Optional',
   saving: 'Saving...',
-  tooManyRequests: 'Too many requests. Wait a moment and retry.',
   unknown: 'Unknown',
   // Human phase names, keyed by the round tokens formatRoundCode emits.
   // Resolved through roundTokenLabel() in @myclash/types so the TV display,

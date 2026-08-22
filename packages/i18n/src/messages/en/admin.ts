@@ -1766,7 +1766,6 @@ export const admin = {
     roleRequired: 'Select at least one role.',
     createError: 'Creation failed',
     updateError: 'Update failed',
-    saveError: 'Save failed',
     errors: {
       emailInUse: 'This email is already linked to another global profile.',
       dobFormat:
@@ -1843,7 +1842,6 @@ export const admin = {
       sourceTargetDifferent: 'Source and target must be different fighters.',
       confirmMismatch: 'Typed confirmation must match the source display name.',
       auditLoadError: 'Failed to load merge audit log',
-      somethingWrong: 'Something went wrong',
       searchFailed: 'Fighter search failed.',
       mergeFailed: 'Merge failed.',
       revertFailed: 'Merge revert failed.',
@@ -2147,7 +2145,6 @@ export const admin = {
     exportCsv: 'Export CSV',
     accessDenied: 'Access denied. Super admin required.',
     loadError: 'Failed to load audit log',
-    genericError: 'Something went wrong',
     filters: {
       actorPlaceholder: 'Actor user ID',
       actionPlaceholder: 'Action',
@@ -2188,7 +2185,6 @@ export const admin = {
     subtitle: 'Chronological feed of platform and operational events.',
     accessDenied: 'Access denied. Super admin required.',
     loadError: 'Failed to load platform log',
-    genericError: 'Something went wrong',
     empty: 'No platform events match these filters.',
     truncatedNotice: 'Showing the most recent events; older events may be hidden.',
     filters: {

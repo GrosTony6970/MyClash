@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { AdminPageHeader, FoilMark, MetricCard, StatsGrid } from '@myclash/ui';
 import { localeToBcp47 } from '@myclash/time';
 import { useI18n } from '@myclash/next-i18n/client';
+import { apiRequest, failureMessage } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
 
 type DashboardStats = {
@@ -57,27 +58,24 @@ export default function SuperAdminDashboardPage() {
   useEffect(() => {
     const controller = new AbortController();
 
-    fetch(`${apiUrl}/api/v1/admin/dashboard-stats`, {
-      credentials: 'include',
+    void apiRequest<DashboardStats>(apiUrl, '/api/v1/admin/dashboard-stats', {
       signal: controller.signal,
     })
-      .then(async (res) => {
-        if (res.status === 401 || res.status === 403) {
-          throw new Error(t('admin.dashboard.statsAccessDenied'));
+      .then((r) => {
+        if (r.ok) {
+          setStats(r.data);
+          setStatsError(null);
+          return;
         }
-        if (!res.ok) throw new Error(t('admin.dashboard.statsLoadError'));
-        return (await res.json()) as DashboardStats;
-      })
-      .then((data) => {
-        setStats(data);
-        setStatsError(null);
-      })
-      .catch((error: unknown) => {
-        if (!(error instanceof DOMException && error.name === 'AbortError')) {
-          setStatsError(
-            error instanceof Error ? error.message : t('admin.dashboard.statsLoadError'),
-          );
+        // Losing the session and lacking the platform role read the same to a
+        // guard; on this screen they read the same to the operator too, and the
+        // server's own words for it name no tier. Same ruling as admin/backups.
+        if (r.kind === 'unauthenticated') {
+          setStatsError(t('admin.dashboard.statsAccessDenied'));
+          return;
         }
+        const message = failureMessage(r, t, t('admin.dashboard.statsLoadError'));
+        if (message) setStatsError(message);
       })
       .finally(() => setLoadingStats(false));
 
@@ -90,29 +88,25 @@ export default function SuperAdminDashboardPage() {
     // Month-to-date window (UTC) so spend is comparable to the monthly ceiling;
     // a bare summary call returns all-time totals.
     const from = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)).toISOString();
-    Promise.all([
-      fetch(`${apiUrl}/api/v1/admin/ai-usage/summary?from=${encodeURIComponent(from)}`, {
-        credentials: 'include',
-        signal: controller.signal,
-      }).then((res) => (res.ok ? (res.json() as Promise<{ total: { costEur: number } }>) : null)),
-      fetch(`${apiUrl}/api/v1/admin/ai-settings`, {
-        credentials: 'include',
-        signal: controller.signal,
-      }).then((res) =>
-        res.ok ? (res.json() as Promise<{ monthlyBudgetEur: number | null }>) : null,
+    void Promise.all([
+      apiRequest<{ total: { costEur: number } }>(
+        apiUrl,
+        `/api/v1/admin/ai-usage/summary?from=${encodeURIComponent(from)}`,
+        { signal: controller.signal },
       ),
-    ])
-      .then(([usage, cfg]) => {
-        if (usage || cfg) {
-          setAiSummary({
-            spent: usage?.total.costEur ?? 0,
-            ceiling: cfg?.monthlyBudgetEur ?? null,
-          });
-        }
-      })
-      .catch(() => {
-        // Network error / abort — leave the AI section hidden.
+      apiRequest<{ monthlyBudgetEur: number | null }>(apiUrl, '/api/v1/admin/ai-settings', {
+        signal: controller.signal,
+      }),
+    ]).then(([usage, cfg]) => {
+      // A summary card, not a screen: if neither read landed the section stays
+      // hidden, exactly as before. The dashboard's own error line belongs to
+      // the stats read above.
+      if (!usage.ok && !cfg.ok) return;
+      setAiSummary({
+        spent: usage.ok ? usage.data.total.costEur : 0,
+        ceiling: cfg.ok ? cfg.data.monthlyBudgetEur : null,
       });
+    });
     return () => controller.abort();
   }, [apiUrl]);
 

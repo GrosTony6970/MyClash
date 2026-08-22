@@ -9,6 +9,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { DataTable, DataTableCell, DataTableHead, DataTableRow } from '@myclash/ui';
 import { useI18n } from '@myclash/next-i18n/client';
+import { apiRequest, failureMessage } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
 import { BackLink } from '@/components/BackLink';
 
@@ -44,13 +45,16 @@ export default function PendingClaimsPage() {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`${apiUrl}/api/v1/admin/global-person-claim-requests`, {
-        credentials: 'include',
-      });
-      if (!res.ok) throw new Error('list');
-      setRows((await res.json()) as PendingRequest[]);
-    } catch {
-      setError(t('admin.common.loadPendingClaimsFailed'));
+      const r = await apiRequest<PendingRequest[]>(
+        apiUrl,
+        '/api/v1/admin/global-person-claim-requests',
+      );
+      if (!r.ok) {
+        const message = failureMessage(r, t, t('admin.common.loadPendingClaimsFailed'));
+        if (message) setError(message);
+        return;
+      }
+      setRows(r.data);
     } finally {
       setLoading(false);
     }
@@ -65,17 +69,17 @@ export default function PendingClaimsPage() {
     setBusyId(id);
     setError(null);
     try {
-      const res = await fetch(`${apiUrl}/api/v1/admin/global-person-claim-requests/${id}/approve`, {
-        method: 'POST',
-        credentials: 'include',
-      });
-      if (!res.ok) {
-        const body = (await res.json().catch(() => ({}))) as { message?: string };
-        throw new Error(body.message ?? t('admin.common.approvalFailed'));
+      const r = await apiRequest(
+        apiUrl,
+        `/api/v1/admin/global-person-claim-requests/${id}/approve`,
+        { method: 'POST' },
+      );
+      if (!r.ok) {
+        const message = failureMessage(r, t, t('admin.common.approvalFailed'));
+        if (message) setError(message);
+        return;
       }
       await load();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : t('admin.common.approvalFailed'));
     } finally {
       setBusyId(null);
     }
@@ -89,21 +93,19 @@ export default function PendingClaimsPage() {
     setBusyId(id);
     setError(null);
     try {
-      const res = await fetch(`${apiUrl}/api/v1/admin/global-person-claim-requests/${id}/reject`, {
-        method: 'POST',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ reason: rejectReason.trim() }),
-      });
-      if (!res.ok) {
-        const body = (await res.json().catch(() => ({}))) as { message?: string };
-        throw new Error(body.message ?? t('admin.common.rejectionFailed'));
+      const r = await apiRequest(
+        apiUrl,
+        `/api/v1/admin/global-person-claim-requests/${id}/reject`,
+        { method: 'POST', body: { reason: rejectReason.trim() } },
+      );
+      if (!r.ok) {
+        const message = failureMessage(r, t, t('admin.common.rejectionFailed'));
+        if (message) setError(message);
+        return;
       }
       setRejectingId(null);
       setRejectReason('');
       await load();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : t('admin.common.rejectionFailed'));
     } finally {
       setBusyId(null);
     }

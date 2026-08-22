@@ -11,6 +11,7 @@ import {
 import { localeToBcp47 } from '@myclash/time';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useI18n } from '@myclash/next-i18n/client';
+import { apiRequest, failureMessage } from '@myclash/api-client';
 import { PayloadCell, type PayloadLabel } from '../../../src/components/PayloadCell';
 import { getPublicApiUrl } from '@/lib/api-url';
 
@@ -70,10 +71,8 @@ export default function ExchangeEditRequestsPage() {
   const [rejectTarget, setRejectTarget] = useState<ExchangeEditRequest | null>(null);
   const [rejectReason, setRejectReason] = useState('');
 
-  const endpoint = useMemo(
-    () => `${apiUrl}/api/v1/admin/exchange-edit-requests?status=${status}`,
-    [apiUrl, status],
-  );
+  // A path, not a URL: the seam takes the base separately.
+  const endpoint = useMemo(() => `/api/v1/admin/exchange-edit-requests?status=${status}`, [status]);
 
   const refresh = useCallback(() => {
     setLoading(true);
@@ -84,50 +83,48 @@ export default function ExchangeEditRequestsPage() {
     let cancelled = false;
     const controller = new AbortController();
 
-    fetch(endpoint, { credentials: 'include', signal: controller.signal })
-      .then(async (res) => {
-        if (cancelled) return;
-        if (res.status === 401 || res.status === 403) {
-          setError(t('admin.common.accessDeniedSuperAdmin'));
-          setLoading(false);
-          return;
-        }
-        if (!res.ok) throw new Error(t('admin.common.loadExchangeEditRequestsFailed'));
-        const data = (await res.json()) as ExchangeEditRequest[];
-        if (!cancelled) {
-          setItems(data);
-          setError(null);
-          setLoading(false);
-        }
-      })
-      .catch((err: unknown) => {
-        if (!cancelled && !(err instanceof DOMException && err.name === 'AbortError')) {
-          setError(err instanceof Error ? err.message : t('admin.common.somethingWentWrong'));
-          setLoading(false);
-        }
-      });
+    void apiRequest<ExchangeEditRequest[]>(apiUrl, endpoint, {
+      signal: controller.signal,
+    }).then((r) => {
+      if (cancelled) return;
+      if (r.ok) {
+        setItems(r.data);
+        setError(null);
+        setLoading(false);
+        return;
+      }
+      // The platform-role ruling — see admin/backups and the review queue.
+      if (r.kind === 'unauthenticated') {
+        setError(t('admin.common.accessDeniedSuperAdmin'));
+        setLoading(false);
+        return;
+      }
+      const message = failureMessage(r, t, t('admin.common.loadExchangeEditRequestsFailed'));
+      if (message) {
+        setError(message);
+        setLoading(false);
+      }
+    });
 
     return () => {
       cancelled = true;
       controller.abort();
     };
-  }, [endpoint, refreshKey, t]);
+  }, [apiUrl, endpoint, refreshKey, t]);
 
   async function approve(id: string) {
     setBusyId(id);
     setError(null);
     try {
-      const res = await fetch(`${apiUrl}/api/v1/admin/exchange-edit-requests/${id}/approve`, {
+      const r = await apiRequest(apiUrl, `/api/v1/admin/exchange-edit-requests/${id}/approve`, {
         method: 'POST',
-        credentials: 'include',
       });
-      if (!res.ok) {
-        const body = (await res.json()) as { message?: string };
-        throw new Error(body.message ?? t('admin.common.approvalFailed'));
+      if (!r.ok) {
+        const message = failureMessage(r, t, t('admin.common.approvalFailed'));
+        if (message) setError(message);
+        return;
       }
       refresh();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : t('admin.common.approvalFailed'));
     } finally {
       setBusyId(null);
     }
@@ -138,24 +135,19 @@ export default function ExchangeEditRequestsPage() {
     setBusyId(rejectTarget.id);
     setError(null);
     try {
-      const res = await fetch(
-        `${apiUrl}/api/v1/admin/exchange-edit-requests/${rejectTarget.id}/reject`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          credentials: 'include',
-          body: JSON.stringify({ reason: rejectReason.trim() }),
-        },
+      const r = await apiRequest(
+        apiUrl,
+        `/api/v1/admin/exchange-edit-requests/${rejectTarget.id}/reject`,
+        { method: 'POST', body: { reason: rejectReason.trim() } },
       );
-      if (!res.ok) {
-        const body = (await res.json()) as { message?: string };
-        throw new Error(body.message ?? t('admin.common.rejectionFailed'));
+      if (!r.ok) {
+        const message = failureMessage(r, t, t('admin.common.rejectionFailed'));
+        if (message) setError(message);
+        return;
       }
       setRejectTarget(null);
       setRejectReason('');
       refresh();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : t('admin.common.rejectionFailed'));
     } finally {
       setBusyId(null);
     }

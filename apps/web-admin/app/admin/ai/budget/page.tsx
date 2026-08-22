@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { AdminPageHeader } from '@myclash/ui';
 import { useI18n } from '@myclash/next-i18n/client';
+import { apiRequest, failureMessage } from '@myclash/api-client';
 import { AiBudgetView } from '@/components/ai/AiBudgetView';
 import { type UsageRollup } from '@/components/ai/AiUsageView';
 import { getPublicApiUrl } from '@/lib/api-url';
@@ -26,47 +27,56 @@ export default function AdminAIBudgetPage() {
   const [error, setError] = useState<string | null>(null);
 
   const refreshRollup = useCallback(async () => {
-    const res = await fetch(
-      `${apiUrl}/api/v1/admin/ai-usage/summary?from=${encodeURIComponent(monthStartIso())}`,
-      { credentials: 'include' },
+    // Silent on a refusal, as before: it runs after a save the operator already
+    // got an answer for, and the panel keeps its last good numbers.
+    const r = await apiRequest<UsageRollup>(
+      apiUrl,
+      `/api/v1/admin/ai-usage/summary?from=${encodeURIComponent(monthStartIso())}`,
     );
-    if (res.ok) setRollup((await res.json()) as UsageRollup);
+    if (r.ok) setRollup(r.data);
   }, [apiUrl]);
 
   useEffect(() => {
     const controller = new AbortController();
     const from = monthStartIso();
-    Promise.all([
-      fetch(`${apiUrl}/api/v1/admin/ai-settings`, {
-        credentials: 'include',
+    void Promise.all([
+      apiRequest<PlatformAIConfig>(apiUrl, '/api/v1/admin/ai-settings', {
         signal: controller.signal,
-      }).then((res) => (res.ok ? (res.json() as Promise<PlatformAIConfig>) : null)),
-      fetch(`${apiUrl}/api/v1/admin/ai-usage/summary?from=${encodeURIComponent(from)}`, {
-        credentials: 'include',
-        signal: controller.signal,
-      }).then((res) => (res.ok ? (res.json() as Promise<UsageRollup>) : null)),
-    ])
-      .then(([cfg, usage]) => {
-        if (cfg) setConfig(cfg);
-        if (usage) setRollup(usage);
-      })
-      .catch((err: unknown) => {
-        if (!(err instanceof DOMException && err.name === 'AbortError')) {
-          setError(t('admin.aiSettings.loadError'));
-        }
-      });
+      }),
+      apiRequest<UsageRollup>(
+        apiUrl,
+        `/api/v1/admin/ai-usage/summary?from=${encodeURIComponent(from)}`,
+        { signal: controller.signal },
+      ),
+    ]).then(([cfg, usage]) => {
+      if (cfg.ok) setConfig(cfg.data);
+      if (usage.ok) setRollup(usage.data);
+      // Both reads used to swallow a REFUSAL into `null` and only the dropped
+      // connection reached the catch — so a 403 on this console left it showing
+      // zeroes with nothing to explain them.
+      const failed = [cfg, usage].find((r) => !r.ok);
+      if (failed && !failed.ok) {
+        const message = failureMessage(failed, t, t('admin.aiSettings.loadError'));
+        if (message) setError(message);
+      }
+    });
     return () => controller.abort();
   }, [apiUrl, t]);
 
   async function saveBudget(value: number | null) {
-    const res = await fetch(`${apiUrl}/api/v1/admin/ai-settings/budget`, {
+    const r = await apiRequest<PlatformAIConfig>(apiUrl, '/api/v1/admin/ai-settings/budget', {
       method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      credentials: 'include',
-      body: JSON.stringify({ monthlyBudgetEur: value }),
+      body: { monthlyBudgetEur: value },
     });
-    if (!res.ok) throw new Error(t('admin.aiSettings.budgetError'));
-    setConfig((await res.json()) as PlatformAIConfig);
+    if (!r.ok) {
+      // Keeps throwing: `AiBudgetView` renders `e.message` in its own error
+      // line, and swallowing here would leave the field claiming it saved. It
+      // passes no signal, so the abort `failureMessage` answers null for cannot
+      // arrive; the fallback is what a future signal would land on.
+      const reason = t('admin.aiSettings.budgetError');
+      throw new Error(failureMessage(r, t, reason) ?? reason);
+    }
+    setConfig(r.data);
     await refreshRollup();
   }
 

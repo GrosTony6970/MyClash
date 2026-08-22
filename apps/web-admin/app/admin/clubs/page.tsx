@@ -21,6 +21,7 @@ import {
 } from '@myclash/ui';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useI18n } from '@myclash/next-i18n/client';
+import { apiRequest, failureMessage } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
 
 interface ClubRow {
@@ -166,24 +167,24 @@ export default function AdminClubsPage() {
         params.set('q', q.trim());
         params.set('searchAbv', 'true');
       }
-      const res = await fetch(`${apiUrl}/api/v1/clubs?${params.toString()}`, {
-        credentials: 'include',
-        signal,
-      });
-      if (res.status === 429) throw new Error(t('common.tooManyRequests'));
-      if (!res.ok) throw new Error(t('admin.clubs.loadError'));
-      return (await res.json()) as ClubRow[];
+      // The 429 line that used to live here is gone: `failureMessage` owns the
+      // throttle sentence now, and it wins over any fallback a caller passes.
+      return apiRequest<ClubRow[]>(apiUrl, `/api/v1/clubs?${params.toString()}`, { signal });
     },
-    [apiUrl, t],
+    [apiUrl],
   );
 
   const refreshClubs = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      setClubs(await fetchClubs(''));
-    } catch (err) {
-      setError(err instanceof Error ? err.message : t('common.error'));
+      const r = await fetchClubs('');
+      if (r.ok) {
+        setClubs(r.data);
+        return;
+      }
+      const message = failureMessage(r, t, t('admin.clubs.loadError'));
+      if (message) setError(message);
     } finally {
       setLoading(false);
     }
@@ -192,15 +193,16 @@ export default function AdminClubsPage() {
   useEffect(() => {
     const controller = new AbortController();
 
-    fetchClubs('', controller.signal)
-      .then((data) => {
-        setClubs(data);
-        setError(null);
-      })
-      .catch((err: unknown) => {
-        if (!(err instanceof DOMException && err.name === 'AbortError')) {
-          setError(err instanceof Error ? err.message : t('common.error'));
+    void fetchClubs('', controller.signal)
+      .then((r) => {
+        if (r.ok) {
+          setClubs(r.data);
+          setError(null);
+          return;
         }
+        // No message is the unmount, or the read this one replaced.
+        const message = failureMessage(r, t, t('admin.clubs.loadError'));
+        if (message) setError(message);
       })
       .finally(() => setLoading(false));
 
@@ -208,28 +210,24 @@ export default function AdminClubsPage() {
   }, [fetchClubs, t]);
 
   const fetchRequests = useCallback(
-    async (signal?: AbortSignal) => {
-      const res = await fetch(`${apiUrl}/api/v1/clubs/review-requests?status=pending`, {
-        credentials: 'include',
+    (signal?: AbortSignal) =>
+      apiRequest<ClubReviewRequest[]>(apiUrl, '/api/v1/clubs/review-requests?status=pending', {
         signal,
-      });
-      if (!res.ok) throw new Error(t('admin.clubs.requestsLoadError'));
-      return (await res.json()) as ClubReviewRequest[];
-    },
-    [apiUrl, t],
+      }),
+    [apiUrl],
   );
 
   useEffect(() => {
     const controller = new AbortController();
-    fetchRequests(controller.signal)
-      .then((data) => {
-        setRequests(data);
-        setError(null);
-      })
-      .catch((err: unknown) => {
-        if (!(err instanceof DOMException && err.name === 'AbortError')) {
-          setError(err instanceof Error ? err.message : t('common.error'));
+    void fetchRequests(controller.signal)
+      .then((r) => {
+        if (r.ok) {
+          setRequests(r.data);
+          setError(null);
+          return;
         }
+        const message = failureMessage(r, t, t('admin.clubs.requestsLoadError'));
+        if (message) setError(message);
       })
       .finally(() => setRequestLoading(false));
     return () => controller.abort();
@@ -377,20 +375,23 @@ export default function AdminClubsPage() {
     updateEditLogoPreview(file);
   }
 
+  // Keeps throwing on purpose. Three callers wrap it in their own `try` to undo
+  // half-applied state before letting the failure surface — a save that created
+  // the club but could not attach its logo must not read as a clean save.
   async function uploadLogoFor(clubId: string, file: File): Promise<string> {
     const form = new FormData();
     form.set('file', file);
-    const res = await fetch(`${apiUrl}/api/v1/clubs/${clubId}/logo`, {
+    const r = await apiRequest<{ url: string }>(apiUrl, `/api/v1/clubs/${clubId}/logo`, {
       method: 'POST',
-      credentials: 'include',
       body: form,
     });
-    if (!res.ok) {
-      const data = (await res.json().catch(() => ({}))) as { message?: string };
-      throw new Error(data.message ?? t('admin.clubs.logoUpdateError'));
+    if (!r.ok) {
+      // No signal is passed, so the abort `failureMessage` answers null for
+      // cannot arrive; the fallback is what a future signal would land on.
+      const reason = t('admin.clubs.logoUpdateError');
+      throw new Error(failureMessage(r, t, reason) ?? reason);
     }
-    const upload = (await res.json()) as { url: string };
-    return upload.url;
+    return r.data.url;
   }
 
   function applyLogoUrlToClub(clubId: string, logoUrl: string | null) {
@@ -435,19 +436,15 @@ export default function AdminClubsPage() {
     setError(null);
     setCreateSuccess(null);
     try {
-      const res = await fetch(`${apiUrl}/api/v1/clubs/${club.id}/logo`, {
-        method: 'DELETE',
-        credentials: 'include',
-      });
-      if (!res.ok) {
-        const data = (await res.json().catch(() => ({}))) as { message?: string };
-        throw new Error(data.message ?? t('admin.clubs.logoUpdateError'));
+      const r = await apiRequest(apiUrl, `/api/v1/clubs/${club.id}/logo`, { method: 'DELETE' });
+      if (!r.ok) {
+        const message = failureMessage(r, t, t('admin.clubs.logoUpdateError'));
+        if (message) setError(message);
+        return;
       }
       applyLogoUrlToClub(club.id, null);
       setCreateSuccess(t('admin.clubs.logoRemoved'));
       setLightboxClub(null);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : t('admin.clubs.logoUpdateError'));
     } finally {
       setLightboxBusy(false);
     }
@@ -464,19 +461,17 @@ export default function AdminClubsPage() {
         countryCode: editState.country_code.trim() || undefined,
       };
 
-      const res = await fetch(`${apiUrl}/api/v1/clubs/${id}`, {
+      const r = await apiRequest<ClubRow>(apiUrl, `/api/v1/clubs/${id}`, {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify(body),
+        body,
       });
-
-      if (!res.ok) {
-        const data = (await res.json().catch(() => ({}))) as { message?: string };
-        throw new Error(data.message ?? t('admin.common.saveFailed'));
+      if (!r.ok) {
+        const message = failureMessage(r, t, t('admin.common.saveFailed'));
+        if (message) setError(message);
+        return;
       }
 
-      let updated = (await res.json()) as ClubRow;
+      let updated = r.data;
       if (editLogoFile) {
         try {
           const url = await uploadLogoFor(id, editLogoFile);
@@ -503,26 +498,24 @@ export default function AdminClubsPage() {
     setError(null);
     setCreateSuccess(null);
     try {
-      const res = await fetch(`${apiUrl}/api/v1/clubs`, {
+      const r = await apiRequest<ClubRow>(apiUrl, '/api/v1/clubs', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({
+        body: {
           name: createState.name.trim(),
           abbreviation: createState.abbreviation.trim() || undefined,
           city: createState.city.trim() || undefined,
           countryCode: createState.country_code.trim() || undefined,
           website: createState.website.trim() || undefined,
           logoUrl: createState.logoUrl.trim() || undefined,
-        }),
+        },
       });
-
-      if (!res.ok) {
-        const data = (await res.json().catch(() => ({}))) as { message?: string };
-        throw new Error(data.message ?? t('admin.clubs.createError'));
+      if (!r.ok) {
+        const message = failureMessage(r, t, t('admin.clubs.createError'));
+        if (message) setError(message);
+        return false;
       }
 
-      let created = (await res.json()) as ClubRow;
+      let created = r.data;
       if (logoFile) {
         try {
           const url = await uploadLogoFor(created.id, logoFile);
@@ -562,21 +555,19 @@ export default function AdminClubsPage() {
     setError(null);
     setCreateSuccess(null);
     try {
-      const res = await fetch(`${apiUrl}/api/v1/clubs/${club.id}?mode=${mode}`, {
+      const r = await apiRequest(apiUrl, `/api/v1/clubs/${club.id}?mode=${mode}`, {
         method: 'DELETE',
-        credentials: 'include',
       });
 
-      if (!res.ok) {
-        const data = (await res.json().catch(() => ({}))) as {
-          message?: string;
-          details?: { blockers?: unknown }; // ApiExceptionFilter nests extras here
-        };
-        const message = data.message ?? t('admin.clubs.deleteError');
-        const blockerText = formatBlockers(data.details?.blockers);
-        throw new Error(
-          blockerText ? `${message}. ${t('admin.clubs.blockers')}: ${blockerText}` : message,
-        );
+      if (!r.ok) {
+        const reason = failureMessage(r, t, t('admin.clubs.deleteError'));
+        if (!reason) return;
+        // `details.blockers` is the API's extension bag — the per-table counts
+        // that say WHY the club will not go. Read as a field, not by matching
+        // English.
+        const blockerText = formatBlockers(r.kind === 'http' ? r.details?.['blockers'] : null);
+        setError(blockerText ? `${reason}. ${t('admin.clubs.blockers')}: ${blockerText}` : reason);
+        return;
       }
 
       setClubs((prev) => prev.filter((item) => item.id !== club.id));
@@ -587,8 +578,6 @@ export default function AdminClubsPage() {
             ? t('admin.clubs.cleanupSuccess', { club: club.name })
             : t('admin.clubs.deleteSuccess', { club: club.name }),
       );
-    } catch (err) {
-      setError(err instanceof Error ? err.message : t('admin.clubs.deleteError'));
     } finally {
       setDeletingId(null);
     }
@@ -600,24 +589,20 @@ export default function AdminClubsPage() {
     setError(null);
     try {
       const action = verified ? 'verify' : 'unverify';
-      const res = await fetch(`${apiUrl}/api/v1/clubs/${club.id}/${action}`, {
+      const r = await apiRequest<ClubRow>(apiUrl, `/api/v1/clubs/${club.id}/${action}`, {
         method: 'PATCH',
-        credentials: 'include',
       });
-      if (!res.ok) {
-        const data = (await res.json().catch(() => ({}))) as { message?: string };
-        throw new Error(data.message ?? t('admin.clubs.deleteError'));
+      if (!r.ok) {
+        const message = failureMessage(r, t, t('admin.clubs.deleteError'));
+        if (message) toast.error(message);
+        return;
       }
-      const updated = (await res.json()) as ClubRow;
-      setClubs((prev) => prev.map((c) => (c.id === club.id ? updated : c)));
+      setClubs((prev) => prev.map((c) => (c.id === club.id ? r.data : c)));
       toast.success(
         verified
           ? t('admin.clubs.verifySuccess', { club: club.name })
           : t('admin.clubs.unverifySuccess', { club: club.name }),
       );
-    } catch (err) {
-      const message = err instanceof Error ? err.message : t('admin.clubs.deleteError');
-      toast.error(message);
     } finally {
       setVerifyingId(null);
     }
@@ -631,21 +616,17 @@ export default function AdminClubsPage() {
     setError(null);
     try {
       const route = bulkRoute(action);
-      const res = await fetch(`${apiUrl}/api/v1/clubs/${route}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ ids }),
-      });
-      if (!res.ok) {
-        const body = (await res.json().catch(() => null)) as { message?: string } | null;
-        throw new Error(body?.message ?? t('admin.clubs.deleteError'));
-      }
-      const result = (await res.json()) as {
+      const r = await apiRequest<{
         succeeded: number;
         failed: number;
         errors: { id: string; message: string }[];
-      };
+      }>(apiUrl, `/api/v1/clubs/${route}`, { method: 'POST', body: { ids } });
+      if (!r.ok) {
+        const message = failureMessage(r, t, t('admin.clubs.deleteError'));
+        if (message) toast.error(message);
+        return;
+      }
+      const result = r.data;
 
       if (result.failed === 0) {
         toast.success(t(bulkSuccessKey(action), { count: String(result.succeeded) }));
@@ -660,9 +641,6 @@ export default function AdminClubsPage() {
       selection.clear();
       setPendingBulk(null);
       void refreshClubs();
-    } catch (err) {
-      const message = err instanceof Error ? err.message : t('admin.clubs.deleteError');
-      toast.error(message);
     } finally {
       setBulkBusy(false);
     }
@@ -681,26 +659,25 @@ export default function AdminClubsPage() {
     }
     setBulkBusy(true);
     try {
-      const res = await fetch(`${apiUrl}/api/v1/clubs/bulk-update`, {
+      const r = await apiRequest<{
+        succeeded: number;
+        failed: number;
+        errors: { id: string; message: string }[];
+      }>(apiUrl, '/api/v1/clubs/bulk-update', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({
+        body: {
           ids,
           city: city || undefined,
           countryCode: country || undefined,
           unverified: statusChange ? bulkEditStatus === 'unverified' : undefined,
-        }),
+        },
       });
-      if (!res.ok) {
-        const body = (await res.json().catch(() => null)) as { message?: string } | null;
-        throw new Error(body?.message ?? t('admin.clubs.deleteError'));
+      if (!r.ok) {
+        const message = failureMessage(r, t, t('admin.clubs.deleteError'));
+        if (message) toast.error(message);
+        return;
       }
-      const result = (await res.json()) as {
-        succeeded: number;
-        failed: number;
-        errors: { id: string; message: string }[];
-      };
+      const result = r.data;
       if (result.failed === 0) {
         toast.success(t('admin.clubs.bulkEditSuccess', { count: String(result.succeeded) }));
       } else {
@@ -717,8 +694,6 @@ export default function AdminClubsPage() {
       setBulkEditCountry('');
       setBulkEditStatus('no_change');
       void refreshClubs();
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : t('admin.clubs.deleteError'));
     } finally {
       setBulkBusy(false);
     }
@@ -734,9 +709,13 @@ export default function AdminClubsPage() {
   async function refreshRequests() {
     setRequestLoading(true);
     try {
-      setRequests(await fetchRequests());
-    } catch (err) {
-      setError(err instanceof Error ? err.message : t('admin.clubs.requestsLoadError'));
+      const r = await fetchRequests();
+      if (r.ok) {
+        setRequests(r.data);
+        return;
+      }
+      const message = failureMessage(r, t, t('admin.clubs.requestsLoadError'));
+      if (message) setError(message);
     } finally {
       setRequestLoading(false);
     }
@@ -747,23 +726,20 @@ export default function AdminClubsPage() {
     setError(null);
     setCreateSuccess(null);
     try {
-      const res = await fetch(`${apiUrl}/api/v1/clubs/review-requests/${id}/${action}`, {
+      const r = await apiRequest(apiUrl, `/api/v1/clubs/review-requests/${id}/${action}`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: body ? JSON.stringify(body) : JSON.stringify({}),
+        body: body ?? {},
       });
-      if (!res.ok) {
-        const data = (await res.json().catch(() => ({}))) as { message?: string };
-        throw new Error(data.message ?? t('admin.clubs.reviewError'));
+      if (!r.ok) {
+        const message = failureMessage(r, t, t('admin.clubs.reviewError'));
+        if (message) setError(message);
+        return;
       }
       await refreshRequests();
       await refreshClubs();
       setCreateSuccess(
         action === 'approve' ? t('admin.clubs.requestApproved') : t('admin.clubs.requestRejected'),
       );
-    } catch (err) {
-      setError(err instanceof Error ? err.message : t('admin.clubs.reviewError'));
     } finally {
       setReviewingId(null);
     }
@@ -773,12 +749,13 @@ export default function AdminClubsPage() {
     const value = linkQueryByRequest[requestId]?.trim() ?? '';
     if (!value) return;
     setError(null);
-    try {
-      const matches = await fetchClubs(value);
-      setLinkMatchesByRequest((current) => ({ ...current, [requestId]: matches }));
-    } catch (err) {
-      setError(err instanceof Error ? err.message : t('admin.clubs.loadError'));
+    const r = await fetchClubs(value);
+    if (!r.ok) {
+      const message = failureMessage(r, t, t('admin.clubs.loadError'));
+      if (message) setError(message);
+      return;
     }
+    setLinkMatchesByRequest((current) => ({ ...current, [requestId]: r.data }));
   }
 
   async function linkRequest(requestId: string, existingClubId: string) {
@@ -786,21 +763,18 @@ export default function AdminClubsPage() {
     setError(null);
     setCreateSuccess(null);
     try {
-      const res = await fetch(`${apiUrl}/api/v1/clubs/review-requests/${requestId}/link`, {
+      const r = await apiRequest(apiUrl, `/api/v1/clubs/review-requests/${requestId}/link`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ existingClubId }),
+        body: { existingClubId },
       });
-      if (!res.ok) {
-        const data = (await res.json().catch(() => ({}))) as { message?: string };
-        throw new Error(data.message ?? t('admin.clubs.reviewError'));
+      if (!r.ok) {
+        const message = failureMessage(r, t, t('admin.clubs.reviewError'));
+        if (message) setError(message);
+        return;
       }
       await refreshRequests();
       await refreshClubs();
       setCreateSuccess(t('admin.clubs.requestLinked'));
-    } catch (err) {
-      setError(err instanceof Error ? err.message : t('admin.clubs.reviewError'));
     } finally {
       setReviewingId(null);
     }

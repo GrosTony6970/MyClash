@@ -9,6 +9,7 @@ import Link from 'next/link';
 import { useMemo, useRef, useState } from 'react';
 import { getDateFormat } from '@myclash/types';
 import { useI18n } from '@myclash/next-i18n/client';
+import { apiRequest, failureMessage } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
 
 type RowStatus = 'ok' | 'invalid' | 'duplicate';
@@ -90,21 +91,20 @@ export default function GlobalPersonsImportPage() {
     try {
       const formData = new FormData();
       formData.append('file', file);
-      const res = await fetch(`${apiUrl}/api/v1/global-persons/import/preview`, {
+      const r = await apiRequest<PreviewResponse>(apiUrl, '/api/v1/global-persons/import/preview', {
         method: 'POST',
-        credentials: 'include',
         body: formData,
       });
-      if (!res.ok) {
-        const body = (await res.json().catch(() => ({}))) as { message?: string };
-        throw new Error(body.message ?? t('admin.common.previewFailed'));
+      if (!r.ok) {
+        // The importer names the row and column it choked on. That is exactly
+        // what an operator fixing a spreadsheet needs.
+        const message = failureMessage(r, t, t('admin.common.previewFailed'));
+        if (message) setError(message);
+        return;
       }
-      const data = (await res.json()) as PreviewResponse;
-      setPreview(data);
-      setDecisions(data.rows.map((row) => ({ ...row, action: defaultAction(row.status) })));
+      setPreview(r.data);
+      setDecisions(r.data.rows.map((row) => ({ ...row, action: defaultAction(row.status) })));
       setStep('review');
-    } catch (err) {
-      setError(err instanceof Error ? err.message : t('admin.common.previewFailed'));
     } finally {
       setBusy(false);
     }
@@ -135,20 +135,17 @@ export default function GlobalPersonsImportPage() {
           isWorkshopParticipant: row.fields.isWorkshopParticipant,
         })),
       };
-      const res = await fetch(`${apiUrl}/api/v1/global-persons/import`, {
+      const r = await apiRequest<CommitReport>(apiUrl, '/api/v1/global-persons/import', {
         method: 'POST',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
+        body,
       });
-      if (!res.ok) {
-        const data = (await res.json().catch(() => ({}))) as { message?: string };
-        throw new Error(data.message ?? t('admin.common.commitFailed'));
+      if (!r.ok) {
+        const message = failureMessage(r, t, t('admin.common.commitFailed'));
+        if (message) setError(message);
+        return;
       }
-      setReport((await res.json()) as CommitReport);
+      setReport(r.data);
       setStep('done');
-    } catch (err) {
-      setError(err instanceof Error ? err.message : t('admin.common.commitFailed'));
     } finally {
       setBusy(false);
     }

@@ -1,6 +1,7 @@
 'use client';
 
 import { useI18n } from '@myclash/next-i18n/client';
+import { apiRequest, failureMessage } from '@myclash/api-client';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { DataTable, DataTableCell, DataTableHead, useToast } from '@myclash/ui';
 
@@ -71,15 +72,16 @@ export default function ReviewQueuePage() {
 
   // ── Build endpoint ───────────────────────────────────────────────────────────
 
+  // Paths, not URLs: the seam takes the base separately.
   const endpoint = useMemo(() => {
     const params = new URLSearchParams();
     if (activeTab !== 'all') params.set('type', activeTab);
     if (statusFilter !== 'pending') params.set('status', statusFilter);
     const qs = params.toString();
-    return `${apiUrl}/api/v1/admin/review-queue${qs ? `?${qs}` : ''}`;
-  }, [apiUrl, activeTab, statusFilter]);
+    return `/api/v1/admin/review-queue${qs ? `?${qs}` : ''}`;
+  }, [activeTab, statusFilter]);
 
-  const pendingEndpoint = useMemo(() => `${apiUrl}/api/v1/admin/review-queue`, [apiUrl]);
+  const pendingEndpoint = '/api/v1/admin/review-queue';
 
   // ── Fetch main list ──────────────────────────────────────────────────────────
 
@@ -93,34 +95,36 @@ export default function ReviewQueuePage() {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- toggling loading flag before the fetch this effect performs
     setLoading(true);
 
-    fetch(endpoint, { credentials: 'include', signal: controller.signal })
-      .then(async (res) => {
+    void apiRequest<ReviewQueueItem[]>(apiUrl, endpoint, { signal: controller.signal }).then(
+      (r) => {
         if (cancelled) return;
-        if (res.status === 401 || res.status === 403) {
+        if (r.ok) {
+          setItems(r.data);
+          setError(null);
+          setLoading(false);
+          return;
+        }
+        // Losing the session and lacking the platform role read the same to a
+        // guard; on this screen they read the same to the operator too, and the
+        // server's own words for it name no tier. Same ruling as admin/backups.
+        if (r.kind === 'unauthenticated') {
           setError(t('admin.common.accessDeniedSuperAdmin'));
           setLoading(false);
           return;
         }
-        if (!res.ok) throw new Error(t('admin.common.loadReviewQueueFailed'));
-        const data = (await res.json()) as ReviewQueueItem[];
-        if (!cancelled) {
-          setItems(data);
-          setError(null);
+        const message = failureMessage(r, t, t('admin.common.loadReviewQueueFailed'));
+        if (message) {
+          setError(message);
           setLoading(false);
         }
-      })
-      .catch((err: unknown) => {
-        if (!cancelled && !(err instanceof DOMException && err.name === 'AbortError')) {
-          setError(err instanceof Error ? err.message : t('admin.common.somethingWentWrong'));
-          setLoading(false);
-        }
-      });
+      },
+    );
 
     return () => {
       cancelled = true;
       controller.abort();
     };
-  }, [endpoint, refreshKey, t]);
+  }, [apiUrl, endpoint, refreshKey, t]);
 
   // ── Fetch pending counts (all types, pending only) ───────────────────────────
 
@@ -128,19 +132,19 @@ export default function ReviewQueuePage() {
     let cancelled = false;
     const controller = new AbortController();
 
-    fetch(pendingEndpoint, { credentials: 'include', signal: controller.signal })
-      .then(async (res) => {
-        if (!res.ok || cancelled) return;
-        const data = (await res.json()) as ReviewQueueItem[];
-        if (!cancelled) setPendingItems(data);
-      })
-      .catch(() => undefined);
+    // Only feeds the per-tab counters, and the list above already reports the
+    // reason if the same read is refused. Silent, as before.
+    void apiRequest<ReviewQueueItem[]>(apiUrl, pendingEndpoint, {
+      signal: controller.signal,
+    }).then((r) => {
+      if (!cancelled && r.ok) setPendingItems(r.data);
+    });
 
     return () => {
       cancelled = true;
       controller.abort();
     };
-  }, [pendingEndpoint, refreshKey]);
+  }, [apiUrl, pendingEndpoint, refreshKey]);
 
   // ── Pending counts per tab ───────────────────────────────────────────────────
 

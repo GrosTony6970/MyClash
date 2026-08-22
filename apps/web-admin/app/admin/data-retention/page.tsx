@@ -15,6 +15,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { AdminPageHeader, Button } from '@myclash/ui';
 import { useI18n } from '@myclash/next-i18n/client';
+import { apiRequest, failureMessage } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
 
 interface RetentionSettings {
@@ -93,79 +94,81 @@ function useRetentionSettings(t: Translate) {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [sweeping, setSweeping] = useState(false);
-  const endpoint = `${apiUrl}/api/v1/admin/data-retention`;
+  // A path, not a URL: the seam takes the base separately.
+  const endpoint = '/api/v1/admin/data-retention';
 
   useEffect(() => {
     const controller = new AbortController();
     // setState stays inside the promise callbacks rather than the effect body —
     // satisfies react-hooks/set-state-in-effect.
-    loadSettings(endpoint, controller.signal)
-      .then(setSettings)
-      .catch((err: unknown) => {
-        if (err instanceof DOMException && err.name === 'AbortError') return;
-        setError(t('admin.dataRetention.loadError'));
-      });
+    void loadSettings(apiUrl, endpoint, controller.signal).then((r) => {
+      if (r.ok) {
+        setSettings(r.data);
+        return;
+      }
+      // No message is the unmount.
+      const message = failureMessage(r, t, t('admin.dataRetention.loadError'));
+      if (message) setError(message);
+    });
     return () => controller.abort();
-  }, [endpoint, t]);
+  }, [apiUrl, endpoint, t]);
 
   const save = useCallback<SaveFn>(
     async (patch) => {
       setBusy(true);
       setError(null);
       try {
-        setSettings(await patchSettings(endpoint, patch));
-      } catch {
-        setError(t('admin.dataRetention.saveError'));
+        const r = await patchSettings(apiUrl, endpoint, patch);
+        if (r.ok) {
+          setSettings(r.data);
+          return;
+        }
+        const message = failureMessage(r, t, t('admin.dataRetention.saveError'));
+        if (message) setError(message);
       } finally {
         setBusy(false);
       }
     },
-    [endpoint, t],
+    [apiUrl, endpoint, t],
   );
 
   const runNow = useCallback(async () => {
     setSweeping(true);
     setError(null);
     try {
-      setSettings(await runSweep(endpoint));
-    } catch {
-      setError(t('admin.dataRetention.runError'));
+      const r = await runSweep(apiUrl, endpoint);
+      if (r.ok) {
+        setSettings(r.data);
+        return;
+      }
+      const message = failureMessage(r, t, t('admin.dataRetention.runError'));
+      if (message) setError(message);
     } finally {
       setSweeping(false);
     }
-  }, [endpoint, t]);
+  }, [apiUrl, endpoint, t]);
 
   return { settings, error, busy, sweeping, save, runNow };
 }
 
-async function loadSettings(endpoint: string, signal: AbortSignal): Promise<RetentionSettings> {
-  const res = await fetch(endpoint, { credentials: 'include', signal });
-  if (!res.ok) throw new Error('load');
-  return (await res.json()) as RetentionSettings;
+// The three used to throw one-word sentinels — `'load'`, `'save'`, `'run'` —
+// which the hook caught and replaced with its own sentence, so the API's reason
+// for refusing a retention change never reached the operator at all. They return
+// the seam's result now and the hook renders it.
+function loadSettings(apiUrl: string, path: string, signal: AbortSignal) {
+  return apiRequest<RetentionSettings>(apiUrl, path, { signal });
 }
 
-async function patchSettings(
-  endpoint: string,
-  patch: Partial<RetentionSettings>,
-): Promise<RetentionSettings> {
-  const res = await fetch(endpoint, {
-    method: 'PATCH',
-    credentials: 'include',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(patch),
-  });
-  if (!res.ok) throw new Error('save');
-  return (await res.json()) as RetentionSettings;
+function patchSettings(apiUrl: string, path: string, patch: Partial<RetentionSettings>) {
+  return apiRequest<RetentionSettings>(apiUrl, path, { method: 'PATCH', body: patch });
 }
 
-async function runSweep(endpoint: string): Promise<RetentionSettings> {
-  const res = await fetch(`${endpoint}/run`, { method: 'POST', credentials: 'include' });
-  if (!res.ok) throw new Error('run');
+async function runSweep(apiUrl: string, path: string) {
+  const run = await apiRequest(apiUrl, `${path}/run`, { method: 'POST' });
+  if (!run.ok) return run;
   // Re-read rather than trusting the run response: the settings row also
   // carries lastRunAt / lastRunRemoved, which the sweep just wrote.
-  const reload = await fetch(endpoint, { credentials: 'include' });
-  if (!reload.ok) throw new Error('reload');
-  return (await reload.json()) as RetentionSettings;
+  return apiRequest<RetentionSettings>(apiUrl, path);
 }
 
 function EnabledSection({
