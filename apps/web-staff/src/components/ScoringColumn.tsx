@@ -24,7 +24,7 @@
 
 import { useMemo, useState } from 'react';
 import type { TournamentScoringConfig } from '@myclash/types';
-import { computeAfterblowDeltas } from '@myclash/types';
+import { afterblowButtonPoints } from './afterblow-button';
 import { useI18n } from '@myclash/next-i18n/client';
 import { useScoringTheme } from '../theme/ThemeProvider';
 import { outlineInkOn, sideStyle } from '@myclash/ui';
@@ -353,12 +353,8 @@ export function ScoringColumn({
           </p>
           <div className="grid grid-cols-2 gap-1.5">
             {visibleAfterblows.map((btn) => {
-              const d = computeAfterblowDeltas(
-                config.afterblowMode,
-                btn.attackerPts,
-                btn.defenderPts,
-              );
-              const isFull = config.afterblowMode === 'full';
+              const d = afterblowButtonPoints(config.afterblowMode, btn);
+              const isFull = d.layout === 'pills';
               return (
                 <button
                   key={btn.label}
@@ -406,9 +402,7 @@ export function ScoringColumn({
                     <>
                       {btn.label}
                       <span className="block text-[11px] font-normal opacity-70">
-                        {d.attackerDelta === 1
-                          ? `${d.attackerDelta} ${t('scoring.lice.point')}`
-                          : `${d.attackerDelta} ${t('scoring.lice.points')}`}
+                        {`${d.attackerDelta} ${t(d.pointsKey)}`}
                       </span>
                     </>
                   )}
