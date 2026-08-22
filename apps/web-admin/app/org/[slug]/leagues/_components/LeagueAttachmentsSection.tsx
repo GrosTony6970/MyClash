@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useConfirm, statusPillTone, reviewStatusSemantic } from '@myclash/ui';
 import { useI18n } from '@myclash/next-i18n/client';
+import { apiRequest, failureMessage } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
 
 const apiUrl = getPublicApiUrl();
@@ -68,22 +69,24 @@ export function LeagueAttachmentsSection({ orgId, leagueId }: Props) {
   const [busyDetach, setBusyDetach] = useState<string | null>(null);
 
   const loadAttachments = useCallback(async () => {
-    const res = await fetch(
-      `${apiUrl}/api/v1/organizations/${orgId}/league-attachments?leagueId=${leagueId}`,
-      { credentials: 'include' },
+    const r = await apiRequest<Attachment[]>(
+      apiUrl,
+      `/api/v1/organizations/${orgId}/league-attachments?leagueId=${leagueId}`,
     );
-    if (res.ok) setAttachments((await res.json()) as Attachment[]);
+    // Silent on a refusal, as before: this runs after an attach or a leave the
+    // operator already got an answer for, and the list keeps what it had.
+    if (r.ok) setAttachments(r.data);
   }, [orgId, leagueId]);
 
   const loadAll = useCallback(async () => {
     setLoading(true);
     try {
       const [tRes, gRes] = await Promise.all([
-        fetch(`${apiUrl}/api/v1/organizations/${orgId}/tournaments`, { credentials: 'include' }),
-        fetch(`${apiUrl}/api/v1/leagues/${leagueId}/groups`, { credentials: 'include' }),
+        apiRequest<OrgTournament[]>(apiUrl, `/api/v1/organizations/${orgId}/tournaments`),
+        apiRequest<LeagueGroup[]>(apiUrl, `/api/v1/leagues/${leagueId}/groups`),
       ]);
-      const tData = tRes.ok ? ((await tRes.json()) as OrgTournament[]) : [];
-      const gData = gRes.ok ? ((await gRes.json()) as LeagueGroup[]) : [];
+      const tData = tRes.ok ? tRes.data : [];
+      const gData = gRes.ok ? gRes.data : [];
       setTournaments(tData);
       setGroups(gData);
       setTournamentId(tData[0]?.id ?? '');
@@ -130,20 +133,21 @@ export function LeagueAttachmentsSection({ orgId, leagueId }: Props) {
     setBusy(true);
     setMessage(null);
     try {
-      const res = await fetch(
-        `${apiUrl}/api/v1/admin/leagues/${leagueId}/tournaments/${tournamentId}/request`,
-        {
-          method: 'POST',
-          credentials: 'include',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ groupId: groupId || null }),
-        },
+      const r = await apiRequest(
+        apiUrl,
+        `/api/v1/admin/leagues/${leagueId}/tournaments/${tournamentId}/request`,
+        { method: 'POST', body: { groupId: groupId || null } },
       );
-      if (!res.ok) throw new Error();
+      if (!r.ok) {
+        // The API says which league or tournament refused, and why. This used
+        // to `throw new Error()` with no message at all and print "Could not
+        // send the request." over the top of it.
+        const message = failureMessage(r, t, t('organizer.leagues.attach.error'));
+        if (message) setMessage(message);
+        return;
+      }
       setMessage(t('organizer.leagues.attach.sent'));
       await loadAttachments();
-    } catch {
-      setMessage(t('organizer.leagues.attach.error'));
     } finally {
       setBusy(false);
     }
@@ -156,14 +160,17 @@ export function LeagueAttachmentsSection({ orgId, leagueId }: Props) {
       return;
     setBusyDetach(a.id);
     try {
-      const res = await fetch(
-        `${apiUrl}/api/v1/admin/events/${eventId}/league-tournament-links/${a.id}`,
-        { method: 'PATCH', credentials: 'include' },
+      const r = await apiRequest(
+        apiUrl,
+        `/api/v1/admin/events/${eventId}/league-tournament-links/${a.id}`,
+        { method: 'PATCH' },
       );
-      if (!res.ok) throw new Error();
+      if (!r.ok) {
+        const message = failureMessage(r, t, t('organizer.leagues.attachments.detachError'));
+        if (message) setMessage(message);
+        return;
+      }
       await loadAttachments();
-    } catch {
-      setMessage(t('organizer.leagues.attachments.detachError'));
     } finally {
       setBusyDetach(null);
     }

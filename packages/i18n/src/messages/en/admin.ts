@@ -1546,6 +1546,7 @@ export const admin = {
       enableChat: 'Enable the organizer chatbot',
       availabilityHint:
         'Turn AI off for your organization without removing the key. A platform-wide disable always takes precedence.',
+      flagsError: 'Could not change the AI availability setting.',
     },
     modelSync: {
       title: 'Model sync',

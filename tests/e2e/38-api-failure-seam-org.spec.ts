@@ -98,6 +98,13 @@ const VENUES_LIST = '**/api/v1/organizations/*/venues';
  * Manage list this screen opens on is forced.
  */
 const ORG_RULESETS_LOAD = '**/api/v1/organizations/*/custom-rulesets';
+const ORG_LEAGUES_PATH = `/org/${ctx.orgSlug}/leagues`;
+/**
+ * The public league catalogue — one of the four tolerant list reads the hub
+ * makes after it resolves the organisation. Exact, so `/leagues/{id}/groups`
+ * stays unstubbed.
+ */
+const LEAGUE_CATALOG_LOAD = '**/api/v1/leagues';
 
 test.describe('the api-failure seam — the venues screen', () => {
   test('loads against the real API', async ({ page }) => {
@@ -206,6 +213,27 @@ test.describe('the api-failure seam — the org rulesets screen', () => {
 
     await expect(page.getByText(reason)).toBeVisible();
     await expect(page.getByText(COPY.rulesetsLoadError)).toBeHidden();
+  });
+});
+
+/**
+ * The organizer-side leagues hub.
+ *
+ * Its four list reads are tolerant by design — each tab renders whatever did
+ * load — so this asserts the half that was missing rather than the half that
+ * works: a refused list now says WHY above the tabs instead of leaving an empty
+ * Discover tab and no explanation.
+ */
+test.describe('the api-failure seam — the org leagues hub', () => {
+  test('a refused list says why instead of showing an empty tab', async ({ page }) => {
+    const reason = 'The league catalogue is being rebuilt. Try again in a minute.';
+    await page.route(LEAGUE_CATALOG_LOAD, (route) => route.fulfill(problemJson(409, reason)));
+
+    await page.goto(ORG_LEAGUES_PATH);
+    await expectStayedOn(page, ORG_LEAGUES_PATH);
+
+    await expect(page.getByText(reason)).toBeVisible();
+    await expect(page.getByText(COPY.leaguesLoadError)).toBeHidden();
   });
 });
 

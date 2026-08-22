@@ -5,6 +5,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { AiKeysManager } from '@myclash/ui';
 import { useI18n } from '@myclash/next-i18n/client';
+import { apiRequest, failureMessage } from '@myclash/api-client';
 import { AiUsageView, type UsageRollup } from '../../../../../src/components/ai/AiUsageView';
 import { AiBudgetView } from '../../../../../src/components/ai/AiBudgetView';
 import { getPublicApiUrl } from '@/lib/api-url';
@@ -29,50 +30,55 @@ export default function OrgAISettingsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // Both refreshers stay silent on a refusal, as before: they run after a
+  // change the operator already saw land, and the panel they fill keeps its
+  // last good numbers rather than blanking.
   const refreshRollup = useCallback(async () => {
     if (!orgId) return;
-    const res = await fetch(`${apiUrl}/api/v1/organizations/${orgId}/ai-usage/summary`, {
-      credentials: 'include',
-    });
-    if (res.ok) setRollup((await res.json()) as UsageRollup);
+    const r = await apiRequest<UsageRollup>(
+      apiUrl,
+      `/api/v1/organizations/${orgId}/ai-usage/summary`,
+    );
+    if (r.ok) setRollup(r.data);
   }, [apiUrl, orgId]);
 
   const refreshConfig = useCallback(async () => {
     if (!orgId) return;
-    const res = await fetch(`${apiUrl}/api/v1/organizations/${orgId}/ai-settings`, {
-      credentials: 'include',
-    });
-    if (res.ok) setConfig((await res.json()) as OrgAIConfig | null);
+    const r = await apiRequest<OrgAIConfig | null>(
+      apiUrl,
+      `/api/v1/organizations/${orgId}/ai-settings`,
+    );
+    if (r.ok) setConfig(r.data);
   }, [apiUrl, orgId]);
 
   useEffect(() => {
     const controller = new AbortController();
-    fetch(`${apiUrl}/api/v1/organizations/slug/${encodeURIComponent(slug)}`, {
-      credentials: 'include',
-      signal: controller.signal,
-    })
-      .then(async (res) => {
-        if (!res.ok) return;
-        const org = (await res.json()) as { id: string };
-        setOrgId(org.id);
-        const [cfgRes, usageRes] = await Promise.all([
-          fetch(`${apiUrl}/api/v1/organizations/${org.id}/ai-settings`, {
-            credentials: 'include',
-            signal: controller.signal,
-          }),
-          fetch(`${apiUrl}/api/v1/organizations/${org.id}/ai-usage/summary`, {
-            credentials: 'include',
-            signal: controller.signal,
-          }),
-        ]);
-        if (cfgRes.ok) setConfig((await cfgRes.json()) as OrgAIConfig | null);
-        if (usageRes.ok) setRollup((await usageRes.json()) as UsageRollup);
-      })
-      .catch((err: unknown) => {
-        if (err instanceof Error && err.name === 'AbortError') return;
-        setError(t('admin.common.loadAiSettingsFailed'));
-      })
-      .finally(() => setLoading(false));
+    void (async () => {
+      const org = await apiRequest<{ id: string }>(
+        apiUrl,
+        `/api/v1/organizations/slug/${encodeURIComponent(slug)}`,
+        { signal: controller.signal },
+      );
+      if (!org.ok) {
+        // No message is the unmount. Everything below is gated on the org id,
+        // so a refusal here left the page blank and silent until now.
+        const message = failureMessage(org, t, t('admin.common.loadAiSettingsFailed'));
+        if (message) setError(message);
+        setLoading(false);
+        return;
+      }
+      setOrgId(org.data.id);
+      const base = `/api/v1/organizations/${org.data.id}`;
+      const [cfg, usage] = await Promise.all([
+        apiRequest<OrgAIConfig | null>(apiUrl, `${base}/ai-settings`, {
+          signal: controller.signal,
+        }),
+        apiRequest<UsageRollup>(apiUrl, `${base}/ai-usage/summary`, { signal: controller.signal }),
+      ]);
+      if (cfg.ok) setConfig(cfg.data);
+      if (usage.ok) setRollup(usage.data);
+      setLoading(false);
+    })();
     return () => controller.abort();
   }, [slug, apiUrl, t]);
 
@@ -81,25 +87,40 @@ export default function OrgAISettingsPage() {
     organizerChatDisabled?: boolean;
   }) {
     if (!orgId) return;
-    const res = await fetch(`${apiUrl}/api/v1/organizations/${orgId}/ai-settings/flags`, {
-      method: 'PATCH',
-      credentials: 'include',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(patch),
-    });
-    if (res.ok) setConfig((await res.json()) as OrgAIConfig | null);
+    setError(null);
+    const r = await apiRequest<OrgAIConfig | null>(
+      apiUrl,
+      `/api/v1/organizations/${orgId}/ai-settings/flags`,
+      { method: 'PATCH', body: patch },
+    );
+    if (!r.ok) {
+      // A refused toggle used to snap back with no word at all, which reads as
+      // a checkbox that does not work rather than a refusal.
+      const message = failureMessage(r, t, t('admin.aiSettings.org.flagsError'));
+      if (message) setError(message);
+      return;
+    }
+    setConfig(r.data);
   }
 
   async function saveBudget(value: number | null) {
     if (!orgId) throw new Error(t('admin.aiSettings.budgetError'));
-    const res = await fetch(`${apiUrl}/api/v1/organizations/${orgId}/ai-settings/budget`, {
-      method: 'PATCH',
-      credentials: 'include',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ monthlyBudgetEur: value }),
-    });
-    if (!res.ok) throw new Error(t('admin.aiSettings.budgetError'));
-    setConfig((await res.json()) as OrgAIConfig | null);
+    const r = await apiRequest<OrgAIConfig | null>(
+      apiUrl,
+      `/api/v1/organizations/${orgId}/ai-settings/budget`,
+      { method: 'PATCH', body: { monthlyBudgetEur: value } },
+    );
+    if (!r.ok) {
+      // Keeps throwing: `AiBudgetView` renders `e.message` in its own error
+      // line, and swallowing here would leave the field claiming it saved. It
+      // passes no signal, so the abort `failureMessage` answers null for cannot
+      // arrive; the fallback is what a future signal would land on.
+      throw new Error(
+        failureMessage(r, t, t('admin.aiSettings.budgetError')) ??
+          t('admin.aiSettings.budgetError'),
+      );
+    }
+    setConfig(r.data);
     await refreshRollup();
   }
 

@@ -6,6 +6,7 @@ import { useParams } from 'next/navigation';
 import { SegmentedTabs, useToast } from '@myclash/ui';
 import { localeToBcp47 } from '@myclash/time';
 import { useI18n } from '@myclash/next-i18n/client';
+import { apiRequest, failureMessage } from '@myclash/api-client';
 import { LeagueAttachmentsSection } from './_components/LeagueAttachmentsSection';
 import { getPublicApiUrl } from '@/lib/api-url';
 
@@ -84,12 +85,16 @@ export default function OrgLeaguesPage() {
     setLoading(true);
     try {
       // Org row → orgId. Public endpoint.
-      const orgRes = await fetch(
-        `${apiUrl}/api/v1/organizations/slug/${encodeURIComponent(orgSlug)}`,
-        { credentials: 'include' },
+      const orgRes = await apiRequest<Record<string, unknown>>(
+        apiUrl,
+        `/api/v1/organizations/slug/${encodeURIComponent(orgSlug)}`,
       );
-      if (!orgRes.ok) throw new Error(t('organizer.leagues.orgLoadError'));
-      const orgData = (await orgRes.json()) as Record<string, unknown>;
+      if (!orgRes.ok) {
+        const message = failureMessage(orgRes, t, t('organizer.leagues.orgLoadError'));
+        if (message) setError(message);
+        return;
+      }
+      const orgData = orgRes.data;
       const orgRow: OrgRow = {
         id: String(orgData['id']),
         name: String(orgData['name'] ?? orgSlug),
@@ -101,34 +106,42 @@ export default function OrgLeaguesPage() {
       // truth for both the Membership tab and the Discover button state — it
       // includes member-role leagues and super-admin direct adds that have no
       // request row (the reported gap).
-      const memRes = await fetch(`${apiUrl}/api/v1/organizations/${orgRow.id}/league-memberships`, {
-        credentials: 'include',
-      });
-      const memData = memRes.ok ? ((await memRes.json()) as ManagedLeagueRow[]) : [];
+      const memRes = await apiRequest<ManagedLeagueRow[]>(
+        apiUrl,
+        `/api/v1/organizations/${orgRow.id}/league-memberships`,
+      );
+      const memData = memRes.ok ? memRes.data : [];
       setMemberships(memData);
       setMemberOfLeagueIds(new Set(memData.map((l) => l.id)));
 
       // Leagues this org manages (admin/owner role). Powers the Manage tab.
-      const managedRes = await fetch(`${apiUrl}/api/v1/organizations/${orgRow.id}/leagues`, {
-        credentials: 'include',
-      });
-      setManaged(managedRes.ok ? ((await managedRes.json()) as ManagedLeagueRow[]) : []);
+      const managedRes = await apiRequest<ManagedLeagueRow[]>(
+        apiUrl,
+        `/api/v1/organizations/${orgRow.id}/leagues`,
+      );
+      setManaged(managedRes.ok ? managedRes.data : []);
 
       // Public leagues list.
-      const leaguesRes = await fetch(`${apiUrl}/api/v1/leagues`, { credentials: 'include' });
-      const leaguesData = leaguesRes.ok ? ((await leaguesRes.json()) as LeagueRow[]) : [];
-      setLeagues(leaguesData);
+      const leaguesRes = await apiRequest<LeagueRow[]>(apiUrl, '/api/v1/leagues');
+      setLeagues(leaguesRes.ok ? leaguesRes.data : []);
 
       // This org's existing membership requests (drives the pending badge +
       // the Discover "Pending requests" section and withdraw).
-      const reqRes = await fetch(`${apiUrl}/api/v1/orgs/${orgRow.id}/league-requests`, {
-        credentials: 'include',
-      });
-      setRequests(reqRes.ok ? ((await reqRes.json()) as MembershipRequestRow[]) : []);
+      const reqRes = await apiRequest<MembershipRequestRow[]>(
+        apiUrl,
+        `/api/v1/orgs/${orgRow.id}/league-requests`,
+      );
+      setRequests(reqRes.ok ? reqRes.data : []);
 
-      setError(null);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : t('organizer.leagues.leaguesLoadError'));
+      // The four lists stay tolerant — each tab shows whatever did load — but a
+      // refused one used to be completely silent, so an organiser saw an empty
+      // Discover tab and no reason for it. The first failure now says why.
+      const failed = [memRes, managedRes, leaguesRes, reqRes].find((r) => !r.ok);
+      setError(
+        failed && !failed.ok
+          ? failureMessage(failed, t, t('organizer.leagues.leaguesLoadError'))
+          : null,
+      );
     } finally {
       setLoading(false);
     }
@@ -181,15 +194,14 @@ export default function OrgLeaguesPage() {
         message: messageDraft[leagueId]?.trim() || undefined,
         requestedRole: 'member' as const,
       };
-      const res = await fetch(`${apiUrl}/api/v1/orgs/${org.id}/league-requests`, {
+      const r = await apiRequest(apiUrl, `/api/v1/orgs/${org.id}/league-requests`, {
         method: 'POST',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
+        body,
       });
-      if (!res.ok) {
-        const err = (await res.json().catch(() => ({}))) as { message?: string };
-        throw new Error(err.message ?? t('organizer.leagues.joinFailedToast'));
+      if (!r.ok) {
+        const message = failureMessage(r, t, t('organizer.leagues.joinFailedToast'));
+        if (message) toast.error(message);
+        return;
       }
       toast.success(t('organizer.leagues.joinSuccessToast'));
       setMessageDraft((prev) => {
@@ -198,8 +210,6 @@ export default function OrgLeaguesPage() {
         return next;
       });
       await loadAll();
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : t('organizer.leagues.joinFailedToast'));
     } finally {
       setBusyLeagueId(null);
     }
@@ -209,18 +219,18 @@ export default function OrgLeaguesPage() {
     if (!org) return;
     setBusyLeagueId(requestId);
     try {
-      const res = await fetch(
-        `${apiUrl}/api/v1/orgs/${org.id}/league-requests/${requestId}/withdraw`,
-        { method: 'PATCH', credentials: 'include' },
+      const r = await apiRequest(
+        apiUrl,
+        `/api/v1/orgs/${org.id}/league-requests/${requestId}/withdraw`,
+        { method: 'PATCH' },
       );
-      if (!res.ok) {
-        const err = (await res.json().catch(() => ({}))) as { message?: string };
-        throw new Error(err.message ?? t('organizer.leagues.withdrawFailedToast'));
+      if (!r.ok) {
+        const message = failureMessage(r, t, t('organizer.leagues.withdrawFailedToast'));
+        if (message) toast.error(message);
+        return;
       }
       toast.success(t('organizer.leagues.withdrawSuccessToast'));
       await loadAll();
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : t('organizer.leagues.withdrawFailedToast'));
     } finally {
       setBusyLeagueId(null);
     }

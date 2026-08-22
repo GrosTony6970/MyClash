@@ -1550,6 +1550,7 @@ export const admin = {
       enableChat: 'Activer le chatbot organisateur',
       availabilityHint:
         "Desactivez l'IA pour votre organisation sans supprimer la clé. Une desactivation au niveau de la plateforme prime toujours.",
+      flagsError: "Impossible de modifier la disponibilité de l'IA.",
     },
     modelSync: {
       title: 'Synchronisation des modeles',

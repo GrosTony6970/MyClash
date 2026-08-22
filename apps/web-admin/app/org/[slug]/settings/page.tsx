@@ -20,6 +20,7 @@ import {
   useToast,
 } from '@myclash/ui';
 import { useI18n } from '@myclash/next-i18n/client';
+import { apiRequest, failureMessage } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
 
 interface OrgMember {
@@ -58,14 +59,14 @@ export default function OrgMembersPage() {
 
   const refreshMembers = useCallback(
     async (id: string) => {
-      const res = await fetch(`${apiUrl}/api/v1/organizations/${id}/members`, {
-        credentials: 'include',
-      });
-      if (res.status === 403) {
+      const r = await apiRequest<OrgMember[]>(apiUrl, `/api/v1/organizations/${id}/members`);
+      // A 403 here is not a message: the page swaps to a different panel that
+      // explains the org has no member list for this account. Left as it was.
+      if (!r.ok && r.kind === 'unauthenticated' && r.status === 403) {
         setMembersForbidden(true);
         return;
       }
-      if (res.ok) setMembers((await res.json()) as OrgMember[]);
+      if (r.ok) setMembers(r.data);
     },
     [apiUrl],
   );
@@ -74,14 +75,15 @@ export default function OrgMembersPage() {
     let cancelled = false;
     void (async () => {
       try {
-        const res = await fetch(`${apiUrl}/api/v1/organizations/slug/${encodeURIComponent(slug)}`, {
-          credentials: 'include',
-        });
-        if (!res.ok || cancelled) return;
-        const data = (await res.json()) as { id: string };
-        if (cancelled) return;
-        setOrgId(data.id);
-        await refreshMembers(data.id);
+        // A refused resolve leaves `orgId` null, and the render below already
+        // says the organisation could not be loaded. Silent here, as before.
+        const r = await apiRequest<{ id: string }>(
+          apiUrl,
+          `/api/v1/organizations/slug/${encodeURIComponent(slug)}`,
+        );
+        if (!r.ok || cancelled) return;
+        setOrgId(r.data.id);
+        await refreshMembers(r.data.id);
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -96,21 +98,18 @@ export default function OrgMembersPage() {
     if (!orgId || !newEmail.trim()) return;
     setAdding(true);
     try {
-      const res = await fetch(`${apiUrl}/api/v1/organizations/${orgId}/members`, {
+      const r = await apiRequest(apiUrl, `/api/v1/organizations/${orgId}/members`, {
         method: 'POST',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: newEmail.trim(), role: newRole }),
+        body: { email: newEmail.trim(), role: newRole },
       });
-      if (!res.ok) {
-        const body = (await res.json().catch(() => null)) as { message?: string } | null;
-        throw new Error(body?.message ?? t('organizer.orgSettings.addFailed'));
+      if (!r.ok) {
+        const message = failureMessage(r, t, t('organizer.orgSettings.addFailed'));
+        if (message) toast.error(message);
+        return;
       }
       toast.success(t('organizer.orgSettings.memberAdded'));
       setNewEmail('');
       await refreshMembers(orgId);
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : t('organizer.orgSettings.addFailed'));
     } finally {
       setAdding(false);
     }
@@ -126,20 +125,16 @@ export default function OrgMembersPage() {
       }))
     )
       return;
-    try {
-      const res = await fetch(`${apiUrl}/api/v1/organizations/${orgId}/members/${member.userId}`, {
-        method: 'DELETE',
-        credentials: 'include',
-      });
-      if (!res.ok) {
-        const body = (await res.json().catch(() => null)) as { message?: string } | null;
-        throw new Error(body?.message ?? t('organizer.orgSettings.removeFailed'));
-      }
-      toast.success(t('organizer.orgSettings.memberRemoved'));
-      await refreshMembers(orgId);
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : t('organizer.orgSettings.removeFailed'));
+    const r = await apiRequest(apiUrl, `/api/v1/organizations/${orgId}/members/${member.userId}`, {
+      method: 'DELETE',
+    });
+    if (!r.ok) {
+      const message = failureMessage(r, t, t('organizer.orgSettings.removeFailed'));
+      if (message) toast.error(message);
+      return;
     }
+    toast.success(t('organizer.orgSettings.memberRemoved'));
+    await refreshMembers(orgId);
   }
 
   if (loading) {

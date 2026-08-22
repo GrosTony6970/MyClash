@@ -6,6 +6,7 @@ import { type ChangeEvent, type FormEvent, useEffect, useRef, useState } from 'r
 import { AdminPageHeader, MetricCard, StatsGrid } from '@myclash/ui';
 import { DEFAULT_ORG_ACCENT } from '@myclash/types';
 import { useI18n } from '@myclash/next-i18n/client';
+import { apiRequest, failureMessage } from '@myclash/api-client';
 import { useOrganizerSelectedEvent } from '../../../src/components/organizer-event-context';
 import { ColorSwatchPicker } from '../../../src/components/ColorSwatchPicker';
 import { LogoCropperModal } from './_components/LogoCropperModal';
@@ -59,45 +60,53 @@ export default function OrgDashboardPage() {
   const logoInput = useRef<HTMLInputElement | null>(null);
   const orgName = org?.name ?? slug;
 
-  const loadOrg = (signal?: AbortSignal) =>
-    fetch(`${apiUrl}/api/v1/organizations/slug/${encodeURIComponent(slug)}`, {
-      credentials: 'include',
-      ...(signal ? { signal } : {}),
-    })
-      .then(async (res) => {
-        if (!res.ok) throw new Error(t('organizer.dashboard.failedStats'));
-        const raw = (await res.json()) as Record<string, unknown>;
-        const orgRow: OrgRow = {
-          id: String(raw['id']),
-          name: String(raw['name'] ?? slug),
-          slug: String(raw['slug'] ?? slug),
-          logoUrl:
-            typeof (raw['logo_url'] ?? raw['logoUrl']) === 'string'
-              ? String(raw['logo_url'] ?? raw['logoUrl'])
-              : null,
-          brandColor:
-            typeof (raw['brand_color'] ?? raw['brandColor']) === 'string'
-              ? String(raw['brand_color'] ?? raw['brandColor'])
-              : null,
-        };
-        setOrg(orgRow);
-        setNameDraft(orgRow.name);
-        setBrandColorDraft(orgRow.brandColor ?? '');
-        return fetch(`${apiUrl}/api/v1/organizations/${orgRow.id}/dashboard-stats`, {
-          credentials: 'include',
-          ...(signal ? { signal } : {}),
-        });
-      })
-      .then(async (res) => {
-        if (!res.ok) throw new Error(t('organizer.dashboard.failedStats'));
-        setStats((await res.json()) as DashboardStats);
-        setError(null);
-      })
-      .catch((err: unknown) => {
-        if (err instanceof Error && err.name === 'AbortError') return;
-        setError(err instanceof Error ? err.message : t('organizer.dashboard.failedStats'));
-      })
-      .finally(() => setLoading(false));
+  const loadOrg = async (signal?: AbortSignal) => {
+    const init = signal ? { signal } : {};
+    try {
+      const orgRes = await apiRequest<Record<string, unknown>>(
+        apiUrl,
+        `/api/v1/organizations/slug/${encodeURIComponent(slug)}`,
+        init,
+      );
+      if (!orgRes.ok) {
+        // No message is the unmount, or the load that replaced this one.
+        const message = failureMessage(orgRes, t, t('organizer.dashboard.failedStats'));
+        if (message) setError(message);
+        return;
+      }
+      const raw = orgRes.data;
+      const orgRow: OrgRow = {
+        id: String(raw['id']),
+        name: String(raw['name'] ?? slug),
+        slug: String(raw['slug'] ?? slug),
+        logoUrl:
+          typeof (raw['logo_url'] ?? raw['logoUrl']) === 'string'
+            ? String(raw['logo_url'] ?? raw['logoUrl'])
+            : null,
+        brandColor:
+          typeof (raw['brand_color'] ?? raw['brandColor']) === 'string'
+            ? String(raw['brand_color'] ?? raw['brandColor'])
+            : null,
+      };
+      setOrg(orgRow);
+      setNameDraft(orgRow.name);
+      setBrandColorDraft(orgRow.brandColor ?? '');
+      const statsRes = await apiRequest<DashboardStats>(
+        apiUrl,
+        `/api/v1/organizations/${orgRow.id}/dashboard-stats`,
+        init,
+      );
+      if (!statsRes.ok) {
+        const message = failureMessage(statsRes, t, t('organizer.dashboard.failedStats'));
+        if (message) setError(message);
+        return;
+      }
+      setStats(statsRes.data);
+      setError(null);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
     const controller = new AbortController();
@@ -122,21 +131,18 @@ export default function OrgDashboardPage() {
       const body: Record<string, unknown> = {};
       if (nameChanged) body['name'] = trimmed;
       if (brandColorChanged) body['brandColor'] = nextBrandColor;
-      const res = await fetch(`${apiUrl}/api/v1/organizations/${org.id}`, {
+      const r = await apiRequest(apiUrl, `/api/v1/organizations/${org.id}`, {
         method: 'PATCH',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
+        body,
       });
-      if (!res.ok) {
-        const body = (await res.json().catch(() => ({}))) as { message?: string };
-        throw new Error(body.message ?? t('organizer.dashboard.brand.saveError'));
+      if (!r.ok) {
+        const message = failureMessage(r, t, t('organizer.dashboard.brand.saveError'));
+        if (message) setError(message);
+        return;
       }
       setNotice(t('organizer.dashboard.brand.saved'));
       await loadOrg();
       await refetchOrg();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : t('organizer.dashboard.brand.saveError'));
     } finally {
       setBusy(false);
     }
@@ -158,14 +164,14 @@ export default function OrgDashboardPage() {
     try {
       const fd = new FormData();
       fd.append('file', file);
-      const res = await fetch(`${apiUrl}/api/v1/organizations/${org.id}/logo`, {
+      const r = await apiRequest<{ url?: string }>(apiUrl, `/api/v1/organizations/${org.id}/logo`, {
         method: 'POST',
-        credentials: 'include',
         body: fd,
       });
-      if (!res.ok) {
-        const body = (await res.json().catch(() => ({}))) as { message?: string };
-        throw new Error(body.message ?? t('organizer.events.logoUploadFailed'));
+      if (!r.ok) {
+        const message = failureMessage(r, t, t('organizer.events.logoUploadFailed'));
+        if (message) setError(message);
+        return;
       }
       // The BE returns { url } pointing at the freshly-uploaded public
       // storage path. Patch the local org state synchronously here so
@@ -175,15 +181,13 @@ export default function OrgDashboardPage() {
       // in-flight fetch, the second .then never runs, setOrg never
       // happens, preview stays on the initials fallback). Reading the
       // response body directly bypasses that path entirely.
-      const body = (await res.json().catch(() => ({}))) as { url?: string };
-      if (typeof body.url === 'string') {
-        setOrg((prev) => (prev ? { ...prev, logoUrl: body.url ?? null } : prev));
+      const uploaded = r.data?.url;
+      if (typeof uploaded === 'string') {
+        setOrg((prev) => (prev ? { ...prev, logoUrl: uploaded } : prev));
       }
       setNotice(t('organizer.events.logoUploadSuccess'));
       await loadOrg();
       await refetchOrg();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : t('organizer.events.logoUploadFailed'));
     } finally {
       setBusy(false);
     }
