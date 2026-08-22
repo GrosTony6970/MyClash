@@ -7,6 +7,7 @@ import { useRealtimeWithFallback } from '@/lib/supabase-browser';
 import { StandingsHeaderCell } from '@/components/standings/StandingsHeaderCell';
 import { useStandingsView } from '@/components/standings/useStandingsView';
 import { getColumnHelp } from '@/components/standings/columnHelp';
+import { apiRequest } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
 
 const apiUrl = getPublicApiUrl();
@@ -103,10 +104,14 @@ export function StandingsTab({ tournamentId, poolPhaseId }: StandingsTabProps) {
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- async fetch lifecycle: revalidating flag toggled before the network request resolves
     setRevalidating(true);
-    const url = `${apiUrl}/api/v1/tournaments/${tournamentId}/pool-standings?mode=${mode}`;
-    void fetch(url, { credentials: 'include' })
-      .then((r) => (r.ok ? r.json() : null))
-      .then((data) => {
+    // Silent: the table keeps the last standings it drew, and the page-level
+    // banner owns a refusal the operator has to act on.
+    void apiRequest<OverallResponse | ByPoolResponse>(
+      apiUrl,
+      `/api/v1/tournaments/${tournamentId}/pool-standings?mode=${mode}`,
+    )
+      .then((r) => {
+        const data = r.ok ? r.data : null;
         if (mode === 'overall') setOverall(data as OverallResponse);
         else setByPool(data as ByPoolResponse);
       })
@@ -117,14 +122,16 @@ export function StandingsTab({ tournamentId, poolPhaseId }: StandingsTabProps) {
   // standings can draw the qualification cut line after the Nth fighter.
   useEffect(() => {
     let cancelled = false;
-    void fetch(`${apiUrl}/api/v1/tournaments/${tournamentId}/bracket`, { credentials: 'include' })
-      .then((r) => (r.ok ? r.json() : null))
-      .then((data: { bracketSize?: number; mainBracketSize?: number } | null) => {
-        if (cancelled) return;
-        const size = data?.bracketSize ?? data?.mainBracketSize ?? null;
-        setBracketSize(typeof size === 'number' && size > 0 ? size : null);
-      })
-      .catch(() => {});
+    // Advisory: no bracket yet is the normal case, and it draws no cut line —
+    // the same outcome a refused read has to produce.
+    void apiRequest<{ bracketSize?: number; mainBracketSize?: number }>(
+      apiUrl,
+      `/api/v1/tournaments/${tournamentId}/bracket`,
+    ).then((r) => {
+      if (cancelled) return;
+      const size = r.ok ? (r.data.bracketSize ?? r.data.mainBracketSize ?? null) : null;
+      setBracketSize(typeof size === 'number' && size > 0 ? size : null);
+    });
     return () => {
       cancelled = true;
     };

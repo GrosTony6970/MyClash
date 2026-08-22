@@ -10,6 +10,7 @@ import { parseSideColors, type SideColors } from './parse-side-colors';
 import { mergeScores, type MatchScoreUpdate } from './match-scores-merge';
 import { countPoolFighters } from './count-pool-fighters';
 import { buildMatchScoringHref, STAFF_APP_PREFIX } from './build-scoring-href';
+import { apiRequest, failureDetail } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
 
 const apiUrl = getPublicApiUrl();
@@ -121,34 +122,32 @@ export function MatchesTab({ tournamentId, poolPhaseId, slug, eventId }: Matches
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- async fetch lifecycle: loading flag toggled before the network call resolves
     setLoading(true);
+    // Every one of the five is tolerant, and stays that way: the grid renders
+    // whatever landed, and each empty picker below is its own visible answer.
     void Promise.all([
-      fetch(`${apiUrl}/api/v1/tournaments/${tournamentId}/pools-with-matches`, {
-        credentials: 'include',
-      }).then((r) => (r.ok ? r.json() : [])),
-      fetch(`${apiUrl}/api/v1/tournaments/${tournamentId}`, {
-        credentials: 'include',
-      }).then((r) => (r.ok ? r.json() : null)),
-      fetch(`${apiUrl}/api/v1/events/${eventId}/lices`, {
-        credentials: 'include',
-      }).then((r) => (r.ok ? r.json() : [])),
+      apiRequest<PoolWithMatches[]>(
+        apiUrl,
+        `/api/v1/tournaments/${tournamentId}/pools-with-matches`,
+      ),
+      apiRequest<unknown>(apiUrl, `/api/v1/tournaments/${tournamentId}`),
+      apiRequest<Lice[]>(apiUrl, `/api/v1/events/${eventId}/lices`),
       // Post-0063: /events/:id/referees returns EventRefereeRow[] keyed
       // on global_persons.id, with qualifications embedded. The old
       // /persons?is_referee=true endpoint ignored the query param and
       // returned event-scoped persons.id values that no longer matched
       // the qualifications + referee_assignments identifier space.
-      fetch(`${apiUrl}/api/v1/events/${eventId}/referees`, {
-        credentials: 'include',
-      }).then((r) => (r.ok ? r.json() : [])),
-      fetch(`${apiUrl}/api/v1/tournaments/${tournamentId}/pool-match-role-config`, {
-        credentials: 'include',
-      }).then((r) => (r.ok ? r.json() : { roles: [] })),
-    ]).then(([poolsData, tournamentData, licesData, refereesData, roleConfigData]) => {
-      setPools(poolsData as PoolWithMatches[]);
-      setSideColors(parseSideColors(tournamentData));
-      setLices(licesData as Lice[]);
-      const refs = refereesData as Referee[];
+      apiRequest<Referee[]>(apiUrl, `/api/v1/events/${eventId}/referees`),
+      apiRequest<{ roles: RoleConfig[] }>(
+        apiUrl,
+        `/api/v1/tournaments/${tournamentId}/pool-match-role-config`,
+      ),
+    ]).then(([poolsRes, tournamentRes, licesRes, refereesRes, roleConfigRes]) => {
+      setPools(poolsRes.ok ? poolsRes.data : []);
+      setSideColors(parseSideColors(tournamentRes.ok ? tournamentRes.data : null));
+      setLices(licesRes.ok ? licesRes.data : []);
+      const refs = refereesRes.ok ? refereesRes.data : [];
       setReferees(refs);
-      setRoleConfig((roleConfigData as { roles: RoleConfig[] }).roles ?? []);
+      setRoleConfig(roleConfigRes.ok ? (roleConfigRes.data.roles ?? []) : []);
       // Build role → Set<personId> map for fast filtering when
       // populating each role-column's dropdown options. Source of truth
       // is the qualifications array embedded on each EventRefereeRow.
@@ -170,16 +169,13 @@ export function MatchesTab({ tournamentId, poolPhaseId, slug, eventId }: Matches
   // fallback poll. Object identity on unchanged rows lets React skip
   // the re-render → open <select> dropdowns stay open, no flicker.
   const syncScores = useCallback(async () => {
-    try {
-      const res = await fetch(`${apiUrl}/api/v1/tournaments/${tournamentId}/match-scores`, {
-        credentials: 'include',
-      });
-      if (!res.ok) return;
-      const updates = (await res.json()) as MatchScoreUpdate[];
-      setPools((prev) => mergeScores(prev, updates));
-    } catch {
-      // Network blip — leave state untouched. Next poll cycle retries.
-    }
+    // A blip leaves state untouched; the next poll cycle retries.
+    const r = await apiRequest<MatchScoreUpdate[]>(
+      apiUrl,
+      `/api/v1/tournaments/${tournamentId}/match-scores`,
+    );
+    if (!r.ok) return;
+    setPools((prev) => mergeScores(prev, r.data));
   }, [tournamentId]);
 
   useRealtimeWithFallback({
@@ -217,16 +213,14 @@ export function MatchesTab({ tournamentId, poolPhaseId, slug, eventId }: Matches
         matches: pool.matches.map((m) => (m.id === matchId ? { ...m, [dbField]: value } : m)),
       })),
     );
-    try {
-      const res = await fetch(`${apiUrl}/api/v1/matches/${matchId}`, {
-        method: 'PATCH',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ [field]: value }),
-      });
-      if (!res.ok) throw new Error('Update failed');
-    } catch (err) {
-      console.error('Match assignment update failed:', err);
+    const r = await apiRequest(apiUrl, `/api/v1/matches/${matchId}`, {
+      method: 'PATCH',
+      body: { [field]: value },
+    });
+    // Rollback IS a refetch here, as on the schedule board. The log carries the
+    // API's own reason rather than the fixed English this used to throw.
+    if (!r.ok) {
+      console.error('Match assignment update failed:', failureDetail(r) ?? r.kind);
       refresh();
     }
   }
@@ -261,16 +255,12 @@ export function MatchesTab({ tournamentId, poolPhaseId, slug, eventId }: Matches
         }),
       })),
     );
-    try {
-      const res = await fetch(`${apiUrl}/api/v1/matches/${matchId}/referee-role-assignments`, {
-        method: 'PUT',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ role, refereeId }),
-      });
-      if (!res.ok) throw new Error('Role assignment update failed');
-    } catch (err) {
-      console.error('Referee role assignment failed:', err);
+    const r = await apiRequest(apiUrl, `/api/v1/matches/${matchId}/referee-role-assignments`, {
+      method: 'PUT',
+      body: { role, refereeId },
+    });
+    if (!r.ok) {
+      console.error('Referee role assignment failed:', failureDetail(r) ?? r.kind);
       refresh();
     }
   }
@@ -288,16 +278,12 @@ export function MatchesTab({ tournamentId, poolPhaseId, slug, eventId }: Matches
           : pool,
       ),
     );
-    try {
-      const res = await fetch(`${apiUrl}/api/v1/pools/${poolId}/lice`, {
-        method: 'PUT',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ liceId }),
-      });
-      if (!res.ok) throw new Error('Pool lice update failed');
-    } catch (err) {
-      console.error('Pool lice update failed:', err);
+    const r = await apiRequest(apiUrl, `/api/v1/pools/${poolId}/lice`, {
+      method: 'PUT',
+      body: { liceId },
+    });
+    if (!r.ok) {
+      console.error('Pool lice update failed:', failureDetail(r) ?? r.kind);
       refresh();
     }
   }
@@ -319,16 +305,12 @@ export function MatchesTab({ tournamentId, poolPhaseId, slug, eventId }: Matches
         };
       }),
     );
-    try {
-      const res = await fetch(`${apiUrl}/api/v1/pools/${poolId}/referee-role-assignments`, {
-        method: 'PUT',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ role, refereeId }),
-      });
-      if (!res.ok) throw new Error('Pool referee role assignment failed');
-    } catch (err) {
-      console.error('Pool referee role assignment failed:', err);
+    const r = await apiRequest(apiUrl, `/api/v1/pools/${poolId}/referee-role-assignments`, {
+      method: 'PUT',
+      body: { role, refereeId },
+    });
+    if (!r.ok) {
+      console.error('Pool referee role assignment failed:', failureDetail(r) ?? r.kind);
       refresh();
     }
   }

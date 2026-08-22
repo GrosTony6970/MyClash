@@ -37,6 +37,7 @@ import {
   podiumPayload,
   type PodiumOptionsValue,
 } from './DoubleElimPodiumOptions';
+import { apiRequest, failureMessage } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
 
 interface Tournament {
@@ -278,25 +279,21 @@ export default function BracketPage() {
     setForfeitBusy(true);
     setForfeitError(null);
     try {
-      const res = await fetch(`${apiUrl}/api/v1/matches/${matchId}/forfeit`, {
+      const r = await apiRequest(apiUrl, `/api/v1/matches/${matchId}/forfeit`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({
-          forfeitingRegistrationId,
-          reason: forfeitReason,
-        }),
+        body: { forfeitingRegistrationId, reason: forfeitReason },
       });
-      if (!res.ok) {
-        const body = (await res.json().catch(() => ({}))) as { message?: string };
-        throw new Error(body.message ?? `HTTP ${res.status}`);
+      if (!r.ok) {
+        // A forfeit is refused by the engine's own rule — the bout is already
+        // scored, the void is narrower than this — and that sentence used to be
+        // replaced by the invented line "HTTP 409".
+        setForfeitError(failureMessage(r, t, t('admin.common.forfeitFailed')));
+        return;
       }
       resetForfeitDraft();
       setOverrideModal(null);
       setPickerFilter('');
       refreshBracket();
-    } catch (err) {
-      setForfeitError(err instanceof Error ? err.message : t('admin.common.forfeitFailed'));
     } finally {
       setForfeitBusy(false);
     }
@@ -371,25 +368,24 @@ export default function BracketPage() {
 
   useEffect(() => {
     const controller = new AbortController();
-    fetch(`${apiUrl}/api/v1/events/${eventId}/tournaments`, {
-      credentials: 'include',
+    // Silent: the picker stays empty, and every action below reports its own
+    // refusal against the tournament it was asked for.
+    void apiRequest<Tournament[]>(apiUrl, `/api/v1/events/${eventId}/tournaments`, {
       signal: controller.signal,
-    })
-      .then(async (res) => {
-        if (!res.ok) return;
-        const tournaments = (await res.json()) as Tournament[];
-        setTournaments(tournaments);
-        if (tournaments.length === 0) return;
-        // Default to the first tournament only when the URL doesn't
-        // already carry a valid tournamentId — preserves deep-links
-        // and the shared-link experience.
-        const urlTournamentId = searchParams.get('tournamentId') ?? '';
-        const targetId = tournaments.some((t) => t.id === urlTournamentId)
-          ? urlTournamentId
-          : tournaments[0]!.id;
-        setTimeout(() => setSelectedTournament(targetId), 0);
-      })
-      .catch(() => undefined);
+    }).then((r) => {
+      if (!r.ok) return;
+      const tournaments = r.data;
+      setTournaments(tournaments);
+      if (tournaments.length === 0) return;
+      // Default to the first tournament only when the URL doesn't
+      // already carry a valid tournamentId — preserves deep-links
+      // and the shared-link experience.
+      const urlTournamentId = searchParams.get('tournamentId') ?? '';
+      const targetId = tournaments.some((t) => t.id === urlTournamentId)
+        ? urlTournamentId
+        : tournaments[0]!.id;
+      setTimeout(() => setSelectedTournament(targetId), 0);
+    });
     return () => controller.abort();
     // searchParams is captured at initial load only — subsequent URL
     // changes from this page (via the selector below) shouldn't refire
@@ -415,24 +411,22 @@ export default function BracketPage() {
   useEffect(() => {
     if (!selectedTournament) return;
     const controller = new AbortController();
-    fetch(`${apiUrl}/api/v1/tournaments/${selectedTournament}`, {
-      credentials: 'include',
+    // Silent: the board falls back to the default side colours and no weapon
+    // label, which is also what a tournament that carries neither renders.
+    void apiRequest<{
+      weapon?: string | null;
+      scoring_config?: { display?: { sideColors?: { red: string; blue: string } } };
+    }>(apiUrl, `/api/v1/tournaments/${selectedTournament}`, {
       signal: controller.signal,
-    })
-      .then(async (res) => {
-        if (!res.ok) return;
-        const data = (await res.json()) as {
-          weapon?: string | null;
-          scoring_config?: { display?: { sideColors?: { red: string; blue: string } } };
-        } | null;
-        setTournamentWeapon(data?.weapon ?? null);
-        const sc = data?.scoring_config?.display?.sideColors;
-        if (sc) {
-          setRedColor((sc.red as ColorToken) ?? 'red');
-          setBlueColor((sc.blue as ColorToken) ?? 'blue');
-        }
-      })
-      .catch(() => undefined);
+    }).then((r) => {
+      if (!r.ok) return;
+      setTournamentWeapon(r.data.weapon ?? null);
+      const sc = r.data.scoring_config?.display?.sideColors;
+      if (sc) {
+        setRedColor((sc.red as ColorToken) ?? 'red');
+        setBlueColor((sc.blue as ColorToken) ?? 'blue');
+      }
+    });
     return () => controller.abort();
   }, [selectedTournament, apiUrl]);
 
@@ -462,22 +456,24 @@ export default function BracketPage() {
   useEffect(() => {
     if (!selectedTournament) return;
     const controller = new AbortController();
-    fetch(`${apiUrl}/api/v1/tournaments/${selectedTournament}/bracket`, {
-      credentials: 'include',
-      signal: controller.signal,
-    })
-      .then(async (res) => {
-        if (!res.ok) return;
-        const data = (await res.json()) as BracketResult | null;
-        if (data && data.slots?.length > 0) {
-          setBracket(data);
-          setBracketPhaseId(data.phaseId);
-          setExistingBracket(true);
-          if (data.phaseType === 'double_elim') setPhaseType('double_elim');
-          setEditPodium(podiumFromBracket(data));
-        }
-      })
-      .catch(() => undefined);
+    // Silent, and it has to be: no bracket yet is the normal case here, and it
+    // renders the "Configure your bracket" state — the same one a refused read
+    // has to leave in place.
+    void apiRequest<BracketResult | null>(
+      apiUrl,
+      `/api/v1/tournaments/${selectedTournament}/bracket`,
+      { signal: controller.signal },
+    ).then((r) => {
+      if (!r.ok) return;
+      const data = r.data;
+      if (data && data.slots?.length > 0) {
+        setBracket(data);
+        setBracketPhaseId(data.phaseId);
+        setExistingBracket(true);
+        if (data.phaseType === 'double_elim') setPhaseType('double_elim');
+        setEditPodium(podiumFromBracket(data));
+      }
+    });
     return () => controller.abort();
   }, [selectedTournament, apiUrl, bracketRefreshKey]);
 
@@ -492,36 +488,37 @@ export default function BracketPage() {
       return;
     }
     const controller = new AbortController();
-    fetch(`${apiUrl}/api/v1/tournaments/${selectedTournament}/registrations`, {
-      credentials: 'include',
+    // Silent: the override picker keeps whatever it last held, and the save it
+    // feeds reports its own refusal.
+    void apiRequest<
+      Array<{
+        id: string;
+        bib_number: number | null;
+        seed: number | null;
+        persons?: { given_name?: string | null; family_name?: string | null } | null;
+        global_persons?: { display_name?: string | null } | null;
+      }>
+    >(apiUrl, `/api/v1/tournaments/${selectedTournament}/registrations`, {
       signal: controller.signal,
-    })
-      .then(async (res) => {
-        if (!res.ok) return;
-        const raw = (await res.json()) as Array<{
-          id: string;
-          bib_number: number | null;
-          seed: number | null;
-          persons?: { given_name?: string | null; family_name?: string | null } | null;
-          global_persons?: { display_name?: string | null } | null;
-        }>;
-        const mapped: PickerRegistration[] = raw.map((row) => {
-          const composed = `${row.persons?.given_name ?? ''} ${
-            row.persons?.family_name ?? ''
-          }`.trim();
-          const displayName =
-            row.global_persons?.display_name?.trim() || composed || `Reg ${row.id.slice(0, 8)}`;
-          return {
-            id: row.id,
-            displayName,
-            bibNumber: row.bib_number,
-            seed: row.seed,
-          };
-        });
-        mapped.sort((a, b) => a.displayName.localeCompare(b.displayName));
-        setPickerRegistrations(mapped);
-      })
-      .catch(() => undefined);
+    }).then((r) => {
+      if (!r.ok) return;
+      const raw = r.data;
+      const mapped: PickerRegistration[] = raw.map((row) => {
+        const composed = `${row.persons?.given_name ?? ''} ${
+          row.persons?.family_name ?? ''
+        }`.trim();
+        const displayName =
+          row.global_persons?.display_name?.trim() || composed || `Reg ${row.id.slice(0, 8)}`;
+        return {
+          id: row.id,
+          displayName,
+          bibNumber: row.bib_number,
+          seed: row.seed,
+        };
+      });
+      mapped.sort((a, b) => a.displayName.localeCompare(b.displayName));
+      setPickerRegistrations(mapped);
+    });
     return () => controller.abort();
   }, [selectedTournament, apiUrl, bracketRefreshKey]);
 
@@ -536,14 +533,13 @@ export default function BracketPage() {
   // Event lices — for the per-fight lice pill + the edit-modal dropdown.
   useEffect(() => {
     const controller = new AbortController();
-    fetch(`${apiUrl}/api/v1/events/${eventId}/lices`, {
-      credentials: 'include',
+    // Silent: no lice list means the pill and the dropdown are empty, which is
+    // also what an event with no lices renders.
+    void apiRequest<EventLice[]>(apiUrl, `/api/v1/events/${eventId}/lices`, {
       signal: controller.signal,
-    })
-      .then(async (res) => {
-        if (res.ok) setLices((await res.json()) as EventLice[]);
-      })
-      .catch(() => undefined);
+    }).then((r) => {
+      if (r.ok) setLices(r.data);
+    });
     return () => controller.abort();
   }, [eventId, apiUrl]);
 
@@ -552,14 +548,13 @@ export default function BracketPage() {
   // refreshBracket) re-reads the assignments.
   useEffect(() => {
     const controller = new AbortController();
-    fetch(`${apiUrl}/api/v1/events/${eventId}/referee-assignment-board`, {
-      credentials: 'include',
+    // Silent: an unread board means the edit modal shows no role slots, and
+    // the save it feeds reports its own refusal.
+    void apiRequest<RefBoard>(apiUrl, `/api/v1/events/${eventId}/referee-assignment-board`, {
       signal: controller.signal,
-    })
-      .then(async (res) => {
-        if (res.ok) setRefereeBoard((await res.json()) as RefBoard);
-      })
-      .catch(() => undefined);
+    }).then((r) => {
+      if (r.ok) setRefereeBoard(r.data);
+    });
     return () => controller.abort();
   }, [eventId, apiUrl, bracketRefreshKey]);
 
@@ -567,14 +562,13 @@ export default function BracketPage() {
   // skill name instead of the raw skill id. Mirrors RefereesTab.
   useEffect(() => {
     const controller = new AbortController();
-    fetch(`${apiUrl}/api/v1/events/${eventId}/referee-skills`, {
-      credentials: 'include',
+    // Silent: without the skill names a role slot falls back to the built-in
+    // label, then to the raw key — a resolution chain that already handles it.
+    void apiRequest<RefereeSkill[]>(apiUrl, `/api/v1/events/${eventId}/referee-skills`, {
       signal: controller.signal,
-    })
-      .then(async (res) => {
-        if (res.ok) setRefereeSkills((await res.json()) as RefereeSkill[]);
-      })
-      .catch(() => undefined);
+    }).then((r) => {
+      if (r.ok) setRefereeSkills(r.data);
+    });
     return () => controller.abort();
   }, [eventId, apiUrl]);
 
@@ -676,33 +670,29 @@ export default function BracketPage() {
       // rather than ignoring them, so sending both would 400.
       if (phaseType === 'double_elim') Object.assign(body, podiumPayload(newPodium));
 
-      const res = await fetch(
-        `${apiUrl}/api/v1/tournaments/${selectedTournament}/generate-bracket${force ? '?force=true' : ''}`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          credentials: 'include',
-          body: JSON.stringify(body),
-        },
+      const r = await apiRequest<BracketResult>(
+        apiUrl,
+        `/api/v1/tournaments/${selectedTournament}/generate-bracket${force ? '?force=true' : ''}`,
+        { method: 'POST', body },
       );
 
-      if (res.status === 409) {
+      // NOT a message: a 409 means a bracket already exists, and the screen
+      // offers to overwrite it rather than saying anything.
+      if (!r.ok && r.kind === 'http' && r.status === 409) {
         setShowForceConfirm(true);
         return;
       }
 
-      if (!res.ok) {
-        const errBody = (await res.json()) as { message?: string };
-        throw new Error(errBody.message ?? t('admin.common.generationFailed'));
+      if (!r.ok) {
+        setError(failureMessage(r, t, t('admin.common.generationFailed')));
+        return;
       }
 
-      const result = (await res.json()) as BracketResult;
+      const result = r.data;
       setBracket(result);
       setBracketPhaseId(result.phaseId);
       setExistingBracket(true);
       setEditPodium(podiumFromBracket(result));
-    } catch (err) {
-      setError(err instanceof Error ? err.message : t('admin.common.generationFailed'));
     } finally {
       setGenerating(false);
     }
@@ -718,36 +708,34 @@ export default function BracketPage() {
       if (populateMode === 'top-n-per-pool' && populateTopN !== '') {
         body['topNPerPool'] = populateTopN;
       }
-      const res = await fetch(
-        `${apiUrl}/api/v1/tournaments/${selectedTournament}/populate-bracket`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          credentials: 'include',
-          body: JSON.stringify(body),
-        },
-      );
-      if (!res.ok) {
-        const errBody = (await res.json().catch(() => null)) as { message?: string } | null;
-        // On 409, prefer the BE's actual message — the API now emits
-        // two distinct refusals ("Pools have not finished yet" vs
-        // "No pool data available — generate pools and play matches
-        // first.") and the operator needs to know which one fired.
-        // Fall back to the canned i18n string only when the BE didn't
-        // attach a message.
-        const msg =
-          res.status === 409
-            ? (errBody?.message ?? t('organizer.bracket.autoPopulatePoolsNotFinished'))
-            : (errBody?.message ?? t('admin.common.populateFailed'));
-        throw new Error(msg);
-      }
       // `source` names the ORDERING the BE actually applied, not just the
       // table the fighters came from — a shuffled draw must not be reported
       // as "from pool standings".
-      const result = (await res.json().catch(() => ({}))) as {
+      const r = await apiRequest<{
         source?: 'pool-standings' | 'swiss-standings' | 'registration-seed' | 'rating' | 'random';
         warnings?: Array<{ code: string; fighters: string[]; ranks: number[] }>;
-      };
+      }>(apiUrl, `/api/v1/tournaments/${selectedTournament}/populate-bracket`, {
+        method: 'POST',
+        body,
+      });
+      if (!r.ok) {
+        // The API emits two distinct 409s here ("Pools have not finished yet"
+        // vs "No pool data available — generate pools and play matches
+        // first.") and the operator needs to know which one fired. The seam
+        // gives the server's reason precedence on every 4xx, so the two
+        // fallbacks below are only reached when it attached none.
+        setError(
+          failureMessage(
+            r,
+            t,
+            r.kind === 'http' && r.status === 409
+              ? t('organizer.bracket.autoPopulatePoolsNotFinished')
+              : t('admin.common.populateFailed'),
+          ),
+        );
+        return;
+      }
+      const result = r.data;
       const successKey =
         result.source === 'registration-seed'
           ? 'organizer.bracket.autoPopulateSuccessFromSeed'
@@ -768,8 +756,6 @@ export default function BracketPage() {
           : null,
       );
       refreshBracket();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : t('admin.common.populateFailed'));
     } finally {
       setPopulating(false);
     }
@@ -780,21 +766,18 @@ export default function BracketPage() {
     setDeleting(true);
     setError(null);
     try {
-      const res = await fetch(`${apiUrl}/api/v1/phases/${bracketPhaseId}`, {
+      const r = await apiRequest(apiUrl, `/api/v1/phases/${bracketPhaseId}`, {
         method: 'DELETE',
-        credentials: 'include',
       });
-      if (!res.ok && res.status !== 204) {
-        const errBody = (await res.json().catch(() => null)) as { message?: string } | null;
-        throw new Error(errBody?.message ?? t('admin.common.deleteFailed'));
+      if (!r.ok) {
+        setError(failureMessage(r, t, t('admin.common.deleteFailed')));
+        return;
       }
       // Drop client state and fall back to the empty state.
       setBracket(null);
       setBracketPhaseId(null);
       setExistingBracket(false);
       setShowDeleteConfirm(false);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : t('admin.common.deleteFailed'));
     } finally {
       setDeleting(false);
     }
@@ -842,15 +825,13 @@ export default function BracketPage() {
         const body: Record<string, string | null> = {};
         if (overrideModal.regAId !== undefined) body['registrationAId'] = overrideModal.regAId;
         if (overrideModal.regBId !== undefined) body['registrationBId'] = overrideModal.regBId;
-        const res = await fetch(`${apiUrl}/api/v1/bracket-slots/${overrideModal.slotId}`, {
+        const r = await apiRequest(apiUrl, `/api/v1/bracket-slots/${overrideModal.slotId}`, {
           method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          credentials: 'include',
-          body: JSON.stringify(body),
+          body,
         });
-        if (!res.ok) {
-          const errBody = (await res.json()) as { message?: string };
-          throw new Error(errBody.message ?? t('admin.common.overrideFailed'));
+        if (!r.ok) {
+          setOverrideError(failureMessage(r, t, t('admin.common.overrideFailed')));
+          return;
         }
       }
 
@@ -860,15 +841,13 @@ export default function BracketPage() {
         const slot = bracket?.slots.find((s) => s.id === overrideModal.slotId);
         const currentLiceId = slot?.liceId ?? null;
         if (overrideModal.liceId !== currentLiceId) {
-          const res = await fetch(`${apiUrl}/api/v1/matches/${matchId}`, {
+          const r = await apiRequest(apiUrl, `/api/v1/matches/${matchId}`, {
             method: 'PATCH',
-            headers: { 'Content-Type': 'application/json' },
-            credentials: 'include',
-            body: JSON.stringify({ liceId: overrideModal.liceId }),
+            body: { liceId: overrideModal.liceId },
           });
-          if (!res.ok) {
-            const errBody = (await res.json()) as { message?: string };
-            throw new Error(errBody.message ?? t('admin.common.liceUpdateFailed'));
+          if (!r.ok) {
+            setOverrideError(failureMessage(r, t, t('admin.common.liceUpdateFailed')));
+            return;
           }
         }
 
@@ -887,15 +866,17 @@ export default function BracketPage() {
             : c.refereeId,
         }));
         for (const change of diffRoleAssignments(current, draft)) {
-          const res = await fetch(`${apiUrl}/api/v1/matches/${matchId}/referee-role-assignments`, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            credentials: 'include',
-            body: JSON.stringify({ role: change.role, refereeId: change.refereeId }),
-          });
-          if (!res.ok) {
-            const errBody = (await res.json()) as { message?: string };
-            throw new Error(errBody.message ?? t('admin.common.refereeUpdateFailed'));
+          const r = await apiRequest(
+            apiUrl,
+            `/api/v1/matches/${matchId}/referee-role-assignments`,
+            {
+              method: 'PUT',
+              body: { role: change.role, refereeId: change.refereeId },
+            },
+          );
+          if (!r.ok) {
+            setOverrideError(failureMessage(r, t, t('admin.common.refereeUpdateFailed')));
+            return;
           }
         }
       }
@@ -903,8 +884,6 @@ export default function BracketPage() {
       setOverrideModal(null);
       setPickerFilter('');
       refreshBracket();
-    } catch (err) {
-      setOverrideError(err instanceof Error ? err.message : t('admin.common.overrideFailed'));
     } finally {
       setOverriding(false);
     }
@@ -915,26 +894,25 @@ export default function BracketPage() {
     setConfigSaving(true);
     setConfigError(null);
     try {
-      const res = await fetch(`${apiUrl}/api/v1/phases/${bracketPhaseId}/bracket-config`, {
+      const r = await apiRequest(apiUrl, `/api/v1/phases/${bracketPhaseId}/bracket-config`, {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
         // Only `grandFinalReset` is editable in place — the podium model and
         // the cutoff reshape the losers bracket, so the API refuses them here
         // and the form locks them.
-        body: JSON.stringify({ grandFinalReset: editPodium.grandFinalReset }),
+        body: { grandFinalReset: editPodium.grandFinalReset },
       });
-      if (res.status === 409) {
-        setConfigError(t('organizer.phaseVisibility.configLocked'));
+      if (!r.ok) {
+        // The 409 keeps the screen's own sentence: it names the state the
+        // bracket is IN — locked because a bout has been scored — which is
+        // what the form's disabled fields are already saying.
+        setConfigError(
+          r.kind === 'http' && r.status === 409
+            ? t('organizer.phaseVisibility.configLocked')
+            : failureMessage(r, t, t('admin.common.couldNotSaveConfig')),
+        );
         return;
       }
-      if (!res.ok) {
-        const errBody = (await res.json()) as { message?: string };
-        throw new Error(errBody.message ?? t('admin.common.couldNotSaveConfig'));
-      }
       refreshBracket();
-    } catch (err) {
-      setConfigError(err instanceof Error ? err.message : t('admin.common.couldNotSaveConfig'));
     } finally {
       setConfigSaving(false);
     }
@@ -946,30 +924,32 @@ export default function BracketPage() {
     setReseedError(null);
     setReseedMessage(null);
     try {
-      const res = await fetch(`${apiUrl}/api/v1/phases/${bracketPhaseId}/reseed`, {
+      const r = await apiRequest(apiUrl, `/api/v1/phases/${bracketPhaseId}/reseed`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ strategy: reseedStrategy }),
+        body: { strategy: reseedStrategy },
       });
-      if (res.status === 409) {
-        setReseedError(t('organizer.phaseVisibility.reseedBlocked'));
+      if (!r.ok) {
+        // Two refusals with a sentence of their own. The 409 names the state —
+        // a bout is scored, so a reseed would rewrite a played draw. The 501
+        // is the one that was BROKEN: the exception filter scrubs every ≥500
+        // body to "Internal server error", so reading the message put that
+        // placeholder on screen and the fallback below could not fire. The
+        // seam gives a scrubbed 5xx to the fallback, which is the sentence
+        // that actually names an unimplemented strategy.
+        const fallback =
+          r.kind === 'http' && r.status === 501
+            ? t('admin.common.strategyNotImplemented')
+            : t('admin.common.reseedFailed');
+        setReseedError(
+          r.kind === 'http' && r.status === 409
+            ? t('organizer.phaseVisibility.reseedBlocked')
+            : failureMessage(r, t, fallback),
+        );
         return;
-      }
-      if (res.status === 501) {
-        const errBody = (await res.json()) as { message?: string };
-        setReseedError(errBody.message ?? t('admin.common.strategyNotImplemented'));
-        return;
-      }
-      if (!res.ok) {
-        const errBody = (await res.json()) as { message?: string };
-        throw new Error(errBody.message ?? t('admin.common.reseedFailed'));
       }
       setReseedMessage(t('organizer.phaseVisibility.reseedSuccess'));
       setReseedOpen(false);
       refreshBracket();
-    } catch (err) {
-      setReseedError(err instanceof Error ? err.message : t('admin.common.reseedFailed'));
     } finally {
       setReseedRunning(false);
     }

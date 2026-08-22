@@ -24,6 +24,7 @@ import {
   type AssignmentBoardPool,
   type AssignmentBoardRoleSlot,
 } from '../../referees/_components/useAssignmentBoard';
+import { apiRequest, failureMessage } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
 
 export function RefereesTab({
@@ -79,13 +80,14 @@ export function RefereesTab({
   async function clearRound(roundId: string) {
     setClearing(true);
     try {
-      const res = await fetch(
-        `${getPublicApiUrl()}/api/v1/swiss-rounds/${roundId}/referee-assignments`,
-        { method: 'DELETE', credentials: 'include' },
+      const r = await apiRequest(
+        getPublicApiUrl(),
+        `/api/v1/swiss-rounds/${roundId}/referee-assignments`,
+        { method: 'DELETE' },
       );
-      if (!res.ok) {
-        const body = (await res.json().catch(() => ({}))) as { message?: string };
-        toast.error(body.message ?? t('organizer.swiss.referees.clearFailed'));
+      if (!r.ok) {
+        const message = failureMessage(r, t, t('organizer.swiss.referees.clearFailed'));
+        if (message) toast.error(message);
         return;
       }
       toast.success(t('organizer.swiss.referees.cleared'));

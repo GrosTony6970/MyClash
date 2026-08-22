@@ -536,7 +536,6 @@ export const admin = {
     passwordMinLength: 'Le mot de passe ne respecte pas les exigences',
     passwordsDoNotMatch: 'Les mots de passe ne correspondent pas',
     poolGenerationFailed: 'Échec de la génération des poules.',
-    poolGenerationFailedHttp: 'Échec de la génération des poules (HTTP {status}).',
     poolLockedScoringStarted:
       'La poule est verrouillée car le score a commencé dans au moins un assaut.',
     probeFailed: 'Échec de la vérification',

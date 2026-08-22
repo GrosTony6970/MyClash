@@ -28,6 +28,7 @@ import { StandingsTab } from './_tabs/StandingsTab';
 import { RefereesTab } from './_tabs/RefereesTab';
 import { parseHashTab } from './parse-hash-tab';
 import { useEventStatus } from '../_hooks/useEventStatus';
+import { apiRequest, failureMessage, type ApiResult } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -175,17 +176,17 @@ export default function PoolsPage() {
 
   useEffect(() => {
     const controller = new AbortController();
-    fetch(`${apiUrl}/api/v1/events/${eventId}/tournaments`, {
-      credentials: 'include',
-      signal: controller.signal,
-    })
-      .then(async (res) => {
-        if (!res.ok) return;
-        const t = (await res.json()) as Array<{ id: string; name: string }>;
-        setTournaments(t);
-        if (t.length > 0) setTimeout(() => setSelectedTournament(t[0]!.id), 0);
-      })
-      .catch(() => undefined);
+    // Silent: the picker stays empty and every action below reports its own
+    // refusal against the tournament it was asked for.
+    void apiRequest<Array<{ id: string; name: string }>>(
+      apiUrl,
+      `/api/v1/events/${eventId}/tournaments`,
+      { signal: controller.signal },
+    ).then((r) => {
+      if (!r.ok) return;
+      setTournaments(r.data);
+      if (r.data.length > 0) setTimeout(() => setSelectedTournament(r.data[0]!.id), 0);
+    });
     return () => controller.abort();
   }, [eventId, apiUrl]);
 
@@ -193,18 +194,18 @@ export default function PoolsPage() {
 
   async function loadPools(tournamentId: string, signal?: AbortSignal) {
     const [poolsRes, unassignedRes] = await Promise.all([
-      fetch(`${apiUrl}/api/v1/tournaments/${tournamentId}/pools`, {
-        credentials: 'include',
+      apiRequest<Pool[] | PoolsResponse>(apiUrl, `/api/v1/tournaments/${tournamentId}/pools`, {
         signal,
       }),
-      fetch(`${apiUrl}/api/v1/tournaments/${tournamentId}/unassigned-fighters`, {
-        credentials: 'include',
-        signal,
-      }),
+      apiRequest<UnassignedFighter[]>(
+        apiUrl,
+        `/api/v1/tournaments/${tournamentId}/unassigned-fighters`,
+        { signal },
+      ),
     ]);
 
     if (poolsRes.ok) {
-      const data = (await poolsRes.json()) as Pool[] | PoolsResponse;
+      const data = poolsRes.data;
       const nextPools = Array.isArray(data) ? data : data.pools;
       if (!Array.isArray(data)) {
         setPoolPhaseId(data.phaseId);
@@ -214,7 +215,7 @@ export default function PoolsPage() {
     }
 
     if (unassignedRes.ok) {
-      setUnassigned((await unassignedRes.json()) as UnassignedFighter[]);
+      setUnassigned(unassignedRes.data);
     }
   }
 
@@ -222,7 +223,7 @@ export default function PoolsPage() {
     if (!selectedTournament) return;
     const controller = new AbortController();
     // eslint-disable-next-line react-hooks/set-state-in-effect -- async fetch lifecycle: loadPools sets state only after the awaited request resolves
-    void loadPools(selectedTournament, controller.signal).catch(() => undefined);
+    void loadPools(selectedTournament, controller.signal);
     return () => controller.abort();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedTournament, apiUrl]);
@@ -243,34 +244,28 @@ export default function PoolsPage() {
       if (mode === 'poolCount') body['poolCount'] = poolCount;
       else body['targetSize'] = targetSize;
 
-      const res = await fetch(
-        `${apiUrl}/api/v1/tournaments/${selectedTournament}/generate-pools${force ? '?force=true' : ''}`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          credentials: 'include',
-          body: JSON.stringify(body),
-        },
+      // The response body is deliberately unread: the GET endpoint below is
+      // the source of truth for the full Pool[] shape (members included), and
+      // the generate POST returns a "matchCount only" summary.
+      const r = await apiRequest(
+        apiUrl,
+        `/api/v1/tournaments/${selectedTournament}/generate-pools${force ? '?force=true' : ''}`,
+        { method: 'POST', body },
       );
 
-      if (res.status === 409) {
+      // NOT a message: a 409 here means pools already exist, and the screen
+      // offers to overwrite them rather than saying anything.
+      if (!r.ok && r.kind === 'http' && r.status === 409) {
         setShowForceConfirm(true);
         return;
       }
 
-      if (!res.ok) {
-        // Surface the real server message. Anything is better than the previous
-        // silent "Generation failed".
-        const body2 = (await res.json().catch(() => null)) as { message?: string } | null;
-        const message =
-          body2?.message ?? t('admin.common.poolGenerationFailedHttp', { status: res.status });
-        throw new Error(message);
+      if (!r.ok) {
+        const message = failureMessage(r, t, t('admin.common.poolGenerationFailed'));
+        if (message) throw new Error(message);
+        return;
       }
 
-      // Discard the generate response body; the GET endpoint is the source of
-      // truth for the full Pool[] shape (members included). Re-fetching here
-      // avoids the "matchCount only" summary that the generate POST returns.
-      await res.json().catch(() => undefined);
       setExistingPhase(true);
       await loadPools(selectedTournament);
 
@@ -295,13 +290,15 @@ export default function PoolsPage() {
     setLifecycleBusy(true);
     setError(null);
     try {
-      const res = await fetch(`${apiUrl}/api/v1/pools/${pendingDeletePoolId}`, {
+      const r = await apiRequest(apiUrl, `/api/v1/pools/${pendingDeletePoolId}`, {
         method: 'DELETE',
-        credentials: 'include',
       });
-      if (!res.ok && res.status !== 204) {
-        const body = (await res.json().catch(() => null)) as { message?: string } | null;
-        throw new Error(body?.message ?? t('admin.common.couldNotDeletePool'));
+      if (!r.ok) {
+        // A pool is refused by what still points at it — a scored bout, a
+        // referee crew — and that sentence is the one the operator can act on.
+        const message = failureMessage(r, t, t('admin.common.couldNotDeletePool'));
+        if (message) throw new Error(message);
+        return;
       }
       toast.success(t('admin.common.poolDeletedToast'));
       setPendingDeletePoolId(null);
@@ -320,13 +317,13 @@ export default function PoolsPage() {
     setLifecycleBusy(true);
     setError(null);
     try {
-      const res = await fetch(`${apiUrl}/api/v1/tournaments/${selectedTournament}/pools`, {
+      const r = await apiRequest(apiUrl, `/api/v1/tournaments/${selectedTournament}/pools`, {
         method: 'DELETE',
-        credentials: 'include',
       });
-      if (!res.ok && res.status !== 204) {
-        const body = (await res.json().catch(() => null)) as { message?: string } | null;
-        throw new Error(body?.message ?? t('admin.common.couldNotClearPoolLayout'));
+      if (!r.ok) {
+        const message = failureMessage(r, t, t('admin.common.couldNotClearPoolLayout'));
+        if (message) throw new Error(message);
+        return;
       }
       toast.success(t('admin.common.allPoolsDeletedToast'));
       setPendingDeleteAll(false);
@@ -347,16 +344,17 @@ export default function PoolsPage() {
     setLifecycleBusy(true);
     setError(null);
     try {
-      const res = await fetch(`${apiUrl}/api/v1/tournaments/${selectedTournament}/pools/empty`, {
-        method: 'POST',
-        credentials: 'include',
-      });
-      if (!res.ok) {
-        const body = (await res.json().catch(() => null)) as { message?: string } | null;
-        throw new Error(body?.message ?? t('admin.common.couldNotAddEmptyPool'));
+      const r = await apiRequest<{ id: string; name: string; sortOrder: number }>(
+        apiUrl,
+        `/api/v1/tournaments/${selectedTournament}/pools/empty`,
+        { method: 'POST' },
+      );
+      if (!r.ok) {
+        const message = failureMessage(r, t, t('admin.common.couldNotAddEmptyPool'));
+        if (message) throw new Error(message);
+        return;
       }
-      const created = (await res.json()) as { id: string; name: string; sortOrder: number };
-      toast.success(t('admin.common.poolAddedToast', { name: created.name }));
+      toast.success(t('admin.common.poolAddedToast', { name: r.data.name }));
       setExistingPhase(true);
       await loadPools(selectedTournament);
     } catch (err) {
@@ -370,10 +368,13 @@ export default function PoolsPage() {
 
   async function checkConflicts() {
     if (!selectedTournament) return;
-    const res = await fetch(`${apiUrl}/api/v1/tournaments/${selectedTournament}/conflict-check`, {
-      credentials: 'include',
-    });
-    if (res.ok) setConflicts((await res.json()) as ConflictResult);
+    // Silent: the conflict strip stays as it was. It is re-read after every
+    // edit, and the edit itself already reported anything that refused.
+    const r = await apiRequest<ConflictResult>(
+      apiUrl,
+      `/api/v1/tournaments/${selectedTournament}/conflict-check`,
+    );
+    if (r.ok) setConflicts(r.data);
   }
 
   // Phase visibility is no longer an operator toggle — tournament status
@@ -395,31 +396,32 @@ export default function PoolsPage() {
 
   // ── Drag-drop pool member edit ──────────────────────────────────────────────
 
-  async function handlePoolEditResponse(res: Response): Promise<boolean> {
-    if (res.ok) {
+  /**
+   * The one reader for a pool edit's outcome. A 409 is its own banner — the
+   * pool is locked because scoring has started, which is a state rather than a
+   * mistake — and everything else is an error.
+   */
+  function handlePoolEditResult(r: ApiResult<unknown>): boolean {
+    if (r.ok) {
       setLockBanner(null);
       return true;
     }
-    if (res.status === 409) {
-      const body = (await res.json().catch(() => ({}))) as { message?: string };
-      setLockBanner(body.message ?? t('admin.common.poolLockedScoringStarted'));
+    if (r.kind === 'http' && r.status === 409) {
+      setLockBanner(failureMessage(r, t, t('admin.common.poolLockedScoringStarted')));
       return false;
     }
-    const body = (await res.json().catch(() => ({}))) as { message?: string };
-    setError(body.message ?? t('organizer.phaseVisibility.updateError'));
+    setError(failureMessage(r, t, t('organizer.phaseVisibility.updateError')));
     return false;
   }
 
   async function moveMemberToPool(registrationId: string, toPoolId: string) {
     setEditBusy(true);
     try {
-      const res = await fetch(`${apiUrl}/api/v1/pools/${toPoolId}/members`, {
+      const r = await apiRequest(apiUrl, `/api/v1/pools/${toPoolId}/members`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ registrationId }),
+        body: { registrationId },
       });
-      const ok = await handlePoolEditResponse(res);
+      const ok = handlePoolEditResult(r);
       if (ok) {
         await loadPools(selectedTournament);
         await checkConflicts();
@@ -432,11 +434,10 @@ export default function PoolsPage() {
   async function removeMemberFromPool(fromPoolId: string, registrationId: string) {
     setEditBusy(true);
     try {
-      const res = await fetch(`${apiUrl}/api/v1/pools/${fromPoolId}/members/${registrationId}`, {
+      const r = await apiRequest(apiUrl, `/api/v1/pools/${fromPoolId}/members/${registrationId}`, {
         method: 'DELETE',
-        credentials: 'include',
       });
-      const ok = await handlePoolEditResponse(res);
+      const ok = handlePoolEditResult(r);
       if (ok) {
         await loadPools(selectedTournament);
         await checkConflicts();
@@ -476,13 +477,11 @@ export default function PoolsPage() {
     }
     setRenameBusy(true);
     try {
-      const res = await fetch(`${apiUrl}/api/v1/pools/${poolId}`, {
+      const r = await apiRequest(apiUrl, `/api/v1/pools/${poolId}`, {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ name: next }),
+        body: { name: next },
       });
-      const ok = await handlePoolEditResponse(res);
+      const ok = handlePoolEditResult(r);
       if (ok) {
         setPools((prev) =>
           prev ? prev.map((p) => (p.id === poolId ? { ...p, name: next } : p)) : prev,

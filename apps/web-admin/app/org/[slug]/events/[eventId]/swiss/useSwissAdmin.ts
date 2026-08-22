@@ -11,6 +11,8 @@
  */
 
 import { useCallback, useEffect, useState } from 'react';
+import { useI18n } from '@myclash/next-i18n/client';
+import { apiRequest, failureMessage, type ApiFailure } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
 
 export interface SwissGrouping {
@@ -111,6 +113,7 @@ export interface UseSwissAdmin {
 
 export function useSwissAdmin(tournamentId: string, loadFailed: string): UseSwissAdmin {
   const apiUrl = getPublicApiUrl();
+  const { t } = useI18n();
   const [view, setView] = useState<SwissAdminView | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -119,22 +122,26 @@ export function useSwissAdmin(tournamentId: string, loadFailed: string): UseSwis
     async (signal?: AbortSignal) => {
       if (!tournamentId) return;
       setLoading(true);
-      try {
-        const res = await fetch(`${apiUrl}/api/v1/tournaments/${tournamentId}/swiss-admin`, {
-          credentials: 'include',
-          signal,
-        });
-        if (!res.ok) throw new Error(loadFailed);
-        setView((await res.json()) as SwissAdminView);
-        setError(null);
-      } catch (err) {
-        if (err instanceof DOMException && err.name === 'AbortError') return;
-        setError(err instanceof Error ? err.message : loadFailed);
-      } finally {
-        setLoading(false);
+      const r = await apiRequest<SwissAdminView>(
+        apiUrl,
+        `/api/v1/tournaments/${tournamentId}/swiss-admin`,
+        signal ? { signal } : {},
+      );
+      // The board unmounted, or moved to another tournament. Nothing to say,
+      // and nothing to stop spinning for either — a newer load owns that now.
+      if (!r.ok && r.kind === 'aborted') return;
+      setLoading(false);
+      if (!r.ok) {
+        // Was one fixed sentence for every refusal alike. A Swiss phase is
+        // refused by name — no entrants, a round already scored — and that is
+        // the half an organiser can act on.
+        setError(failureMessage(r, t, loadFailed));
+        return;
       }
+      setView(r.data);
+      setError(null);
     },
-    [apiUrl, tournamentId, loadFailed],
+    [apiUrl, tournamentId, loadFailed, t],
   );
 
   useEffect(() => {
@@ -166,7 +173,7 @@ export interface SwissOverrideWarning {
 
 export type SwissMutateResult =
   | { ok: true; data: unknown }
-  | { ok: false; status: number; message: string; warnings: SwissOverrideWarning[] };
+  | { ok: false; failure: ApiFailure; warnings: SwissOverrideWarning[] };
 
 /**
  * POST/PATCH/DELETE against the Swiss API, surfacing the server's own message
@@ -177,27 +184,23 @@ export type SwissMutateResult =
  * standard members out and moves anything else — here `warnings` — under
  * `details`. Reading `body.warnings` gets `undefined` and the operator is asked
  * to confirm something the dialog cannot name.
+ *
+ * The read of that bag is the seam's now — `ApiFailure.details` — and so is the
+ * reason, which used to be `body.message` or the invented line "HTTP 409".
  */
 export async function swissMutate(
   path: string,
   init: { method: string; body?: unknown },
 ): Promise<SwissMutateResult> {
-  const res = await fetch(`${getPublicApiUrl()}/api/v1${path}`, {
+  const r = await apiRequest<unknown>(getPublicApiUrl(), `/api/v1${path}`, {
     method: init.method,
-    credentials: 'include',
-    headers: init.body === undefined ? undefined : { 'Content-Type': 'application/json' },
-    body: init.body === undefined ? undefined : JSON.stringify(init.body),
+    ...(init.body === undefined ? {} : { body: init.body }),
   });
-  if (res.ok) return { ok: true, data: await res.json().catch(() => null) };
-  const body = (await res.json().catch(() => null)) as {
-    message?: string;
-    details?: { warnings?: SwissOverrideWarning[] };
-  } | null;
-  const message = body?.message ?? `HTTP ${res.status}`;
+  if (r.ok) return { ok: true, data: r.data ?? null };
+  const warnings = r.kind === 'http' ? r.details?.['warnings'] : undefined;
   return {
     ok: false,
-    status: res.status,
-    message,
-    warnings: body?.details?.warnings ?? [],
+    failure: r,
+    warnings: Array.isArray(warnings) ? (warnings as SwissOverrideWarning[]) : [],
   };
 }

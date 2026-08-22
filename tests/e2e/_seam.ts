@@ -52,6 +52,8 @@ export const COPY = {
   loginSendLink: 'Send login link',
   magicLinkFailed: 'Could not send a login link.',
   discoverLoadError: 'Could not load the catalog.',
+  refereeAssignmentsTab: 'Assignments',
+  refereeBoardLoadError: 'Could not load referee assignments.',
   /** The prefix the schedule board reports its first bootstrap read under
    *  — `organizer.schedulePage.grid.fetchLices` is `'Lices: {message}'`. */
   scheduleFetchLicesPrefix: 'Lices:',

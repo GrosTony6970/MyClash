@@ -14,6 +14,7 @@ import { useI18n } from '@myclash/next-i18n/client';
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { ConfirmDialog, useToast } from '@myclash/ui';
+import { apiRequest, failureMessage } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
 import {
   swissMutate,
@@ -70,21 +71,21 @@ export function ConfigureTab({
   useEffect(() => {
     if (!view?.phaseId) return;
     const controller = new AbortController();
-    void fetch(`${getPublicApiUrl()}/api/v1/tournaments/${tournamentId}/swiss-standings`, {
-      credentials: 'include',
-      signal: controller.signal,
-    })
-      .then(async (res) => (res.ok ? ((await res.json()) as StandingsPayload) : null))
-      .then((data) => {
-        setStandings(
-          (data?.rows ?? []).map((row) => ({
-            registrationId: row.registrationId,
-            displayName: row.displayName,
-            score: Number(row.stats['score'] ?? 0),
-          })),
-        );
-      })
-      .catch(() => undefined);
+    // Silent: the band preview is advisory, and a refused read leaves it empty
+    // rather than blocking the config form it sits beside.
+    void apiRequest<StandingsPayload>(
+      getPublicApiUrl(),
+      `/api/v1/tournaments/${tournamentId}/swiss-standings`,
+      { signal: controller.signal },
+    ).then((r) => {
+      setStandings(
+        (r.ok ? (r.data.rows ?? []) : []).map((row) => ({
+          registrationId: row.registrationId,
+          displayName: row.displayName,
+          score: Number(row.stats['score'] ?? 0),
+        })),
+      );
+    });
     return () => controller.abort();
   }, [tournamentId, view?.phaseId]);
 
@@ -101,7 +102,11 @@ export function ConfigureTab({
     try {
       const result = await fn();
       if (!result.ok) {
-        toast.error(result.message);
+        // The API's own reason, where this used to show `body.message` or the
+        // invented line "HTTP 409". A Swiss refusal names the round, the
+        // entrant or the config field it objects to.
+        const message = failureMessage(result.failure, t, t('admin.common.somethingWentWrong'));
+        if (message) toast.error(message);
         return false;
       }
       toast.success(label);

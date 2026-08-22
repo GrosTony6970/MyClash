@@ -21,6 +21,7 @@
  */
 
 import { useI18n } from '@myclash/next-i18n/client';
+import { apiRequest, failureMessage } from '@myclash/api-client';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Modal, SkillBadge, useToast } from '@myclash/ui';
 
@@ -97,40 +98,44 @@ export function StaffingTab({ eventId, apiUrl, skills, isReadOnly }: Props) {
   // Load tournaments once.
   useEffect(() => {
     const controller = new AbortController();
-    fetch(`${apiUrl}/api/v1/events/${eventId}/tournaments`, {
-      credentials: 'include',
-      signal: controller.signal,
-    })
-      .then(async (res) => {
-        if (!res.ok) return;
-        const rows = (await res.json()) as Array<{ id: string; name: string; status?: string }>;
-        setTournaments(rows.map((r) => ({ id: r.id, name: r.name, status: r.status })));
-      })
-      .catch(() => undefined);
+    // Silent: the target picker falls back to the event default, which is the
+    // view this tab opens on anyway.
+    void apiRequest<Array<{ id: string; name: string; status?: string }>>(
+      apiUrl,
+      `/api/v1/events/${eventId}/tournaments`,
+      { signal: controller.signal },
+    ).then((res) => {
+      if (!res.ok) return;
+      setTournaments(res.data.map((r) => ({ id: r.id, name: r.name, status: r.status })));
+    });
     return () => controller.abort();
   }, [eventId, apiUrl]);
+
+  /** Event default, or the selected tournament's own rows. Read and written. */
+  const slotConfigPath =
+    selectedTournamentId === 'event-default'
+      ? `/api/v1/events/${eventId}/slot-config`
+      : `/api/v1/tournaments/${selectedTournamentId}/slot-config`;
 
   // Load slot config whenever the target changes (tournament or event default).
   const loadConfig = useCallback(() => {
     const controller = new AbortController();
     setLoading(true);
-    const url =
-      selectedTournamentId === 'event-default'
-        ? `${apiUrl}/api/v1/events/${eventId}/slot-config`
-        : `${apiUrl}/api/v1/tournaments/${selectedTournamentId}/slot-config`;
-    fetch(url, { credentials: 'include', signal: controller.signal })
-      .then(async (res) => {
+    // Silent: the form stays on its last resolved config, and the save below
+    // reports its own refusal.
+    void apiRequest<ResolvedConfigResponse>(apiUrl, slotConfigPath, {
+      signal: controller.signal,
+    })
+      .then((res) => {
         if (!res.ok) return;
-        const data = (await res.json()) as ResolvedConfigResponse;
-        setResolved(data);
-        setConfig(toFormState(data));
+        setResolved(res.data);
+        setConfig(toFormState(res.data));
         // Default the override toggle to ON when tournament has its own rows.
-        setOverrideMode(!data.inheritsEventDefault && selectedTournamentId !== 'event-default');
+        setOverrideMode(!res.data.inheritsEventDefault && selectedTournamentId !== 'event-default');
       })
-      .catch(() => undefined)
       .finally(() => setLoading(false));
     return () => controller.abort();
-  }, [apiUrl, eventId, selectedTournamentId]);
+  }, [apiUrl, slotConfigPath, selectedTournamentId]);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- loadConfig sets state asynchronously in fetch callbacks, not synchronously
@@ -148,29 +153,25 @@ export function StaffingTab({ eventId, apiUrl, skills, isReadOnly }: Props) {
     const payload = { ...toApiPayload(config), confirmDestructive };
     setSaving(true);
     try {
-      const url =
-        selectedTournamentId === 'event-default'
-          ? `${apiUrl}/api/v1/events/${eventId}/slot-config`
-          : `${apiUrl}/api/v1/tournaments/${selectedTournamentId}/slot-config`;
-      const res = await fetch(url, {
-        method: 'PUT',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      });
-      if (res.status === 409) {
-        const body = (await res.json().catch(() => ({}))) as {
-          affectedAssignments?: AffectedAssignment[];
-        };
+      const r = await apiRequest(apiUrl, slotConfigPath, { method: 'PUT', body: payload });
+      // NOT a message: a 409 means the change would drop referees who are
+      // already assigned, and the dialog names them before asking again.
+      //
+      // Read from `details`, where it has always travelled. The API's exception
+      // filter moves every key that is not a standard problem+json member under
+      // `details`, so the top-level read this replaces returned undefined every
+      // time and the dialog listed nobody.
+      if (!r.ok && r.kind === 'http' && r.status === 409) {
+        const affected = r.details?.['affectedAssignments'];
         setPendingDestructive({
-          affected: body.affectedAssignments ?? [],
+          affected: Array.isArray(affected) ? (affected as AffectedAssignment[]) : [],
           payload,
         });
         return;
       }
-      if (!res.ok) {
-        const body = (await res.json().catch(() => ({}))) as { message?: string };
-        toast.error(body.message ?? t('organizer.staffing.saveError'));
+      if (!r.ok) {
+        const message = failureMessage(r, t, t('organizer.staffing.saveError'));
+        if (message) toast.error(message);
         return;
       }
       toast.success(t('organizer.staffing.saved'));

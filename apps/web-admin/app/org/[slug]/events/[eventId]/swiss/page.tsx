@@ -21,6 +21,7 @@ import Link from 'next/link';
 import { TournamentColorDot } from '@myclash/ui';
 import { parseHashTab } from '../pools/parse-hash-tab';
 import { useEventStatus } from '../_hooks/useEventStatus';
+import { apiRequest } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
 import { useSwissAdmin } from './useSwissAdmin';
 import { ConfigureTab } from './_tabs/ConfigureTab';
@@ -74,17 +75,17 @@ export default function SwissPage() {
 
   useEffect(() => {
     const controller = new AbortController();
-    fetch(`${apiUrl}/api/v1/events/${eventId}/tournaments`, {
-      credentials: 'include',
-      signal: controller.signal,
-    })
-      .then(async (res) => {
-        if (!res.ok) return;
-        const rows = (await res.json()) as Array<{ id: string; name: string }>;
-        setTournaments(rows);
-        if (rows.length > 0) setTimeout(() => setSelectedTournament(rows[0]!.id), 0);
-      })
-      .catch(() => undefined);
+    // Silent: the picker stays empty and every tab below reports its own
+    // refusal against the tournament it was asked for.
+    void apiRequest<Array<{ id: string; name: string }>>(
+      apiUrl,
+      `/api/v1/events/${eventId}/tournaments`,
+      { signal: controller.signal },
+    ).then((r) => {
+      if (!r.ok) return;
+      setTournaments(r.data);
+      if (r.data.length > 0) setTimeout(() => setSelectedTournament(r.data[0]!.id), 0);
+    });
     return () => controller.abort();
   }, [eventId, apiUrl]);
 

@@ -16,6 +16,7 @@
 
 import { useI18n } from '@myclash/next-i18n/client';
 import { useState } from 'react';
+import { failureMessage } from '@myclash/api-client';
 import { ConfirmDialog, useToast } from '@myclash/ui';
 import {
   swissMutate,
@@ -63,7 +64,11 @@ export function RoundsTab({
     try {
       const result = await fn();
       if (!result.ok) {
-        toast.error(result.message);
+        // The API's own reason, where this used to show `body.message` or the
+        // invented line "HTTP 409". A Swiss refusal names the round, the
+        // entrant or the config field it objects to.
+        const message = failureMessage(result.failure, t, t('admin.common.somethingWentWrong'));
+        if (message) toast.error(message);
         return result;
       }
       toast.success(label);
@@ -84,7 +89,7 @@ export function RoundsTab({
     );
     // 409 = the swap is legal but creates a rematch, a repeat bye or a same-club
     // pairing. Re-offer it rather than refusing: the organiser may well want it.
-    if (!result.ok && result.status === 409 && !confirm) {
+    if (!result.ok && result.failure.kind === 'http' && result.failure.status === 409 && !confirm) {
       setPendingSwap({ roundId, a, b, warnings: result.warnings });
     }
   }

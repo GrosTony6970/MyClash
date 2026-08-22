@@ -529,7 +529,6 @@ export const admin = {
     passwordMinLength: 'Password does not meet the requirements',
     passwordsDoNotMatch: 'Passwords do not match',
     poolGenerationFailed: 'Pool generation failed.',
-    poolGenerationFailedHttp: 'Pool generation failed (HTTP {status}).',
     poolLockedScoringStarted: 'Pool is locked because scoring has started in at least one match.',
     probeFailed: 'Probe failed',
     promoteFailed: 'Promote failed',

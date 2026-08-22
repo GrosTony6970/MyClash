@@ -16,6 +16,7 @@ import { escapeCsvCell } from '@myclash/types';
 import { StandingsHeaderCell } from '@/components/standings/StandingsHeaderCell';
 import { useStandingsView } from '@/components/standings/useStandingsView';
 import { getColumnHelp } from '@/components/standings/columnHelp';
+import { apiRequest } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
 
 interface StandingsColumn {
@@ -56,17 +57,16 @@ export function StandingsTab({ tournamentId }: { tournamentId: string }) {
   const load = useCallback(
     async (signal?: AbortSignal) => {
       setLoading(true);
-      try {
-        const res = await fetch(
-          `${getPublicApiUrl()}/api/v1/tournaments/${tournamentId}/swiss-standings`,
-          { credentials: 'include', signal },
-        );
-        if (res.ok) setData((await res.json()) as SwissStandings);
-      } catch {
-        // Left to the empty state — the page-level banner owns real errors.
-      } finally {
-        setLoading(false);
-      }
+      // Left to the empty state — the page-level banner owns real errors.
+      const r = await apiRequest<SwissStandings>(
+        getPublicApiUrl(),
+        `/api/v1/tournaments/${tournamentId}/swiss-standings`,
+        signal ? { signal } : {},
+      );
+      // An abort means a newer load is already running, and it owns the spinner.
+      if (!r.ok && r.kind === 'aborted') return;
+      if (r.ok) setData(r.data);
+      setLoading(false);
     },
     [tournamentId],
   );

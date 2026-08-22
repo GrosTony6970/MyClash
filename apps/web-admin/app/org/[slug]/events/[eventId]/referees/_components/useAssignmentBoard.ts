@@ -18,6 +18,8 @@
  */
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useI18n } from '@myclash/next-i18n/client';
+import { apiRequest, failureMessage } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
 // Type-only, so importing from a 'use client' component module is erased at
 // build time. Kept as the single definition rather than re-declared narrowly
@@ -121,6 +123,9 @@ export function useAssignmentBoard(
   messages: AssignmentBoardMessages,
 ): UseAssignmentBoard {
   const apiUrl = getPublicApiUrl();
+  // `messages` carries this screen's own sentences, already translated. `t` is
+  // here for the seam's mapper, which names KEYS and takes the translator.
+  const { t } = useI18n();
   const [board, setBoard] = useState<AssignmentBoard | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -131,16 +136,14 @@ export function useAssignmentBoard(
   // Lice names. Silent on failure: the consumer renders no label, never a UUID.
   useEffect(() => {
     const controller = new AbortController();
-    void fetch(`${apiUrl}/api/v1/events/${eventId}/lices`, {
-      credentials: 'include',
-      signal: controller.signal,
-    })
-      .then(async (res) => {
-        if (!res.ok) return;
-        const lices = (await res.json()) as Array<{ id: string; name: string }>;
-        setLiceNameById(new Map(lices.map((lice) => [lice.id, lice.name])));
-      })
-      .catch(() => undefined);
+    void apiRequest<Array<{ id: string; name: string }>>(
+      apiUrl,
+      `/api/v1/events/${eventId}/lices`,
+      { signal: controller.signal },
+    ).then((r) => {
+      if (!r.ok) return;
+      setLiceNameById(new Map(r.data.map((lice) => [lice.id, lice.name])));
+    });
     return () => controller.abort();
   }, [apiUrl, eventId]);
 
@@ -148,15 +151,14 @@ export function useAssignmentBoard(
   // renders the human name instead of the raw id.
   useEffect(() => {
     const controller = new AbortController();
-    void fetch(`${apiUrl}/api/v1/events/${eventId}/referee-skills`, {
-      credentials: 'include',
+    // Silent too: without the catalogue a chip keeps the default tint and the
+    // role renders its built-in label, which is the same resolution chain an
+    // event with no custom skills already runs.
+    void apiRequest<RefereeSkill[]>(apiUrl, `/api/v1/events/${eventId}/referee-skills`, {
       signal: controller.signal,
-    })
-      .then(async (res) => {
-        if (!res.ok) return;
-        setSkills((await res.json()) as RefereeSkill[]);
-      })
-      .catch(() => undefined);
+    }).then((r) => {
+      if (r.ok) setSkills(r.data);
+    });
     return () => controller.abort();
   }, [apiUrl, eventId]);
 
@@ -173,21 +175,24 @@ export function useAssignmentBoard(
     async (signal?: AbortSignal) => {
       setLoading(true);
       setError(null);
-      try {
-        const res = await fetch(`${apiUrl}/api/v1/events/${eventId}/referee-assignment-board`, {
-          credentials: 'include',
-          signal,
-        });
-        if (!res.ok) throw new Error(messages.loadFailed);
-        setBoard((await res.json()) as AssignmentBoard);
-      } catch (err) {
-        if (err instanceof DOMException && err.name === 'AbortError') return;
-        setError(err instanceof Error ? err.message : messages.loadFailed);
-      } finally {
-        setLoading(false);
+      const r = await apiRequest<AssignmentBoard>(
+        apiUrl,
+        `/api/v1/events/${eventId}/referee-assignment-board`,
+        signal ? { signal } : {},
+      );
+      // The workspace unmounted, or moved to another event. A newer load owns
+      // the spinner now.
+      if (!r.ok && r.kind === 'aborted') return;
+      setLoading(false);
+      if (!r.ok) {
+        // Was one fixed sentence for every refusal alike, including the 403
+        // that names the event scope the operator is missing.
+        setError(failureMessage(r, t, messages.loadFailed));
+        return;
       }
+      setBoard(r.data);
     },
-    [apiUrl, eventId, messages.loadFailed],
+    [apiUrl, eventId, messages.loadFailed, t],
   );
 
   useEffect(() => {
@@ -208,26 +213,25 @@ export function useAssignmentBoard(
       setBusy(true);
       setError(null);
       try {
-        const res = await fetch(`${apiUrl}/api/v1/events/${eventId}/referee-assignments`, {
-          method: 'POST',
-          credentials: 'include',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ poolId, role, userId }),
-        });
-        if (!res.ok) {
-          const body = (await res.json().catch(() => ({}))) as { message?: string };
-          throw new Error(body.message ?? messages.mutationFailed);
+        const r = await apiRequest<AssignmentBoard>(
+          apiUrl,
+          `/api/v1/events/${eventId}/referee-assignments`,
+          { method: 'POST', body: { poolId, role, userId } },
+        );
+        if (!r.ok) {
+          // Hard rule 8 refuses this by name — the person is fighting in a
+          // pool that overlaps the one they would referee — and that is the
+          // sentence the operator needs to pick somebody else.
+          setError(failureMessage(r, t, messages.mutationFailed));
+          return false;
         }
-        setBoard((await res.json()) as AssignmentBoard);
+        setBoard(r.data);
         return true;
-      } catch (err) {
-        setError(err instanceof Error ? err.message : messages.mutationFailed);
-        return false;
       } finally {
         setBusy(false);
       }
     },
-    [apiUrl, eventId, messages.mutationFailed],
+    [apiUrl, eventId, messages.mutationFailed, t],
   );
 
   const unassign = useCallback(
@@ -235,22 +239,19 @@ export function useAssignmentBoard(
       setBusy(true);
       setError(null);
       try {
-        const res = await fetch(`${apiUrl}/api/v1/referee-assignments/${assignmentId}`, {
+        const r = await apiRequest(apiUrl, `/api/v1/referee-assignments/${assignmentId}`, {
           method: 'DELETE',
-          credentials: 'include',
         });
-        if (!res.ok) {
-          const body = (await res.json().catch(() => ({}))) as { message?: string };
-          throw new Error(body.message ?? messages.mutationFailed);
+        if (!r.ok) {
+          setError(failureMessage(r, t, messages.mutationFailed));
+          return;
         }
         await load();
-      } catch (err) {
-        setError(err instanceof Error ? err.message : messages.mutationFailed);
       } finally {
         setBusy(false);
       }
     },
-    [apiUrl, messages.mutationFailed, load],
+    [apiUrl, messages.mutationFailed, load, t],
   );
 
   /**
@@ -266,26 +267,22 @@ export function useAssignmentBoard(
       const oldId = slot.assignment?.id;
       setBusy(true);
       setError(null);
-      try {
-        if (oldId) {
-          const res = await fetch(`${apiUrl}/api/v1/referee-assignments/${oldId}`, {
-            method: 'DELETE',
-            credentials: 'include',
-          });
-          if (!res.ok) {
-            const body = (await res.json().catch(() => ({}))) as { message?: string };
-            throw new Error(body.message ?? messages.mutationFailed);
-          }
+      if (oldId) {
+        const r = await apiRequest(apiUrl, `/api/v1/referee-assignments/${oldId}`, {
+          method: 'DELETE',
+        });
+        // The swap stops here rather than assigning the replacement on top of
+        // an assignment that is still standing.
+        if (!r.ok) {
+          setError(failureMessage(r, t, messages.mutationFailed));
+          setBusy(false);
+          return;
         }
-      } catch (err) {
-        setError(err instanceof Error ? err.message : messages.mutationFailed);
-        setBusy(false);
-        return;
       }
       setBusy(false);
       await manualAssign(suggestion.fromPoolId, slot.role, suggestion.toPersonId);
     },
-    [allBoardPools, apiUrl, messages.mutationFailed, manualAssign],
+    [allBoardPools, apiUrl, messages.mutationFailed, manualAssign, t],
   );
 
   return {

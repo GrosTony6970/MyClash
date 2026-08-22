@@ -120,6 +120,9 @@ const ORG_TOURNAMENTS_PATH = `/org/${ctx.orgSlug}/events/${ctx.eventId}/tourname
 const ORG_TOURNAMENTS_LOAD = '**/api/v1/events/*/tournaments';
 /** The login screen's magic-link request. */
 const MAGIC_LINK_LOGIN = '**/api/v1/auth/magic-link';
+const ORG_REFEREES_PATH = `/org/${ctx.orgSlug}/events/${ctx.eventId}/referees`;
+/** The assignment board the referees workspace opens on. */
+const REFEREE_BOARD_LOAD = '**/api/v1/events/*/referee-assignment-board';
 const ORG_SCHEDULE_PATH = `/org/${ctx.orgSlug}/events/${ctx.eventId}/schedule`;
 /**
  * The first of the board's four bootstrap reads, and the one whose refusal it
@@ -392,6 +395,29 @@ test.describe('the api-failure seam — the schedule board', () => {
     await expect(page.getByText(COPY.scheduleFetchLicesPrefix)).toBeVisible();
     await expect(page.getByText(first)).toBeVisible();
     await expect(page.getByText(second)).toBeVisible();
+  });
+});
+
+/**
+ * The referee assignment board.
+ *
+ * Its read used to be one of eleven `body.message` copies on this screen, each
+ * with its own fallback. Hard rule 8 is enforced here — a fighter may not
+ * referee a pool overlapping their own match — and the API refuses by name.
+ */
+test.describe('the api-failure seam — the referee assignment board', () => {
+  test("a 4xx shows the server's own reason, not the screen's fallback", async ({ page }) => {
+    const reason = 'Referee assignments are locked while the crew list is being rebuilt.';
+    await page.route(REFEREE_BOARD_LOAD, (route) => route.fulfill(problemJson(409, reason)));
+
+    await page.goto(ORG_REFEREES_PATH);
+    await expectStayedOn(page, ORG_REFEREES_PATH);
+    // The workspace opens on the referee LIST; the board is the second tab,
+    // and it is the only thing that reads the endpoint stubbed above.
+    await page.getByRole('button', { name: COPY.refereeAssignmentsTab }).click();
+
+    await expect(page.getByText(reason)).toBeVisible();
+    await expect(page.getByText(COPY.refereeBoardLoadError)).toBeHidden();
   });
 });
 

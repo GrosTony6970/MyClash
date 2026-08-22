@@ -38,6 +38,7 @@ import {
 import { AvailabilityChips } from './_components/AvailabilityChips';
 import { countQualifiedBySkill } from './count-qualified-by-skill';
 import { programmeBlockStartIso } from './_components/programme-block-instant';
+import { apiRequest, failureMessage, type ApiResult } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -282,13 +283,11 @@ function SkillModal({
     setError(null);
 
     try {
-      let res: Response;
+      let r: ApiResult<unknown>;
       if (mode === 'add') {
-        res = await fetch(`${apiUrl}/api/v1/events/${eventId}/referee-skills`, {
+        r = await apiRequest(apiUrl, `/api/v1/events/${eventId}/referee-skills`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          credentials: 'include',
-          body: JSON.stringify({ name: name.trim(), color, description: description.trim() }),
+          body: { name: name.trim(), color, description: description.trim() },
         });
       } else {
         // R4: on system skills only send description (name/colour are
@@ -298,27 +297,23 @@ function SkillModal({
           payload['name'] = name.trim();
           payload['color'] = color;
         }
-        res = await fetch(`${apiUrl}/api/v1/referee-skills/${skillId}`, {
+        r = await apiRequest(apiUrl, `/api/v1/referee-skills/${skillId}`, {
           method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          credentials: 'include',
-          body: JSON.stringify(payload),
+          body: payload,
         });
       }
 
-      if (!res.ok) {
-        // Surface the backend message rather than swallowing it behind a
+      if (!r.ok) {
+        // Surface the backend reason rather than swallowing it behind a
         // generic toast — the cause (auth role, DB column, validation) is
-        // otherwise impossible to diagnose from the UI alone.
-        const body = (await res.json().catch(() => null)) as { message?: string } | null;
-        setError(body?.message || t('organizer.refereesPage.skillSaveFailed'));
+        // otherwise impossible to diagnose from the UI alone. The network
+        // case used to reach this through a `catch`, and now comes back as a
+        // sentence in the reader's own language.
+        setError(failureMessage(r, t, t('organizer.refereesPage.skillSaveFailed')));
         return;
       }
 
       onSaved();
-    } catch {
-      // catch fires on network errors (no response body) — keep the generic toast.
-      setError(t('organizer.refereesPage.skillSaveFailed'));
     } finally {
       setSaving(false);
     }
@@ -330,38 +325,30 @@ function SkillModal({
     setError(null);
 
     try {
-      const res = await fetch(`${apiUrl}/api/v1/referee-skills/${skillId}`, {
+      const r = await apiRequest(apiUrl, `/api/v1/referee-skills/${skillId}`, {
         method: 'DELETE',
-        credentials: 'include',
       });
 
-      if (res.status === 409) {
-        // Parse conflict message — format: "Cannot delete skill: N active qualification(s) still reference it"
-        let count: number | null = null;
-        try {
-          const body = (await res.json()) as { message?: string };
-          const msg = body.message ?? '';
-          const match = /(\d+)\s+active/.exec(msg);
-          if (match) count = parseInt(match[1] ?? '0', 10);
-        } catch {
-          // ignore parse error
-        }
-        if (count !== null && count > 0) {
-          setError(t('organizer.refereesPage.skillDeleteConflict', { count }));
-        } else {
-          setError(t('organizer.refereesPage.skillDeleteInUse'));
-        }
+      // NOT the server's sentence: the count is pulled out of it and put into
+      // a localized one, because "3 active qualification(s) still reference it"
+      // is the half a French organiser cannot read.
+      if (!r.ok && r.kind === 'http' && r.status === 409) {
+        const match = /(\d+)\s+active/.exec(r.detail ?? '');
+        const count = match ? parseInt(match[1] ?? '0', 10) : null;
+        setError(
+          count !== null && count > 0
+            ? t('organizer.refereesPage.skillDeleteConflict', { count })
+            : t('organizer.refereesPage.skillDeleteInUse'),
+        );
         return;
       }
 
-      if (!res.ok) {
-        setError(t('organizer.refereesPage.skillDeleteFailed'));
+      if (!r.ok) {
+        setError(failureMessage(r, t, t('organizer.refereesPage.skillDeleteFailed')));
         return;
       }
 
       onDeleted?.();
-    } catch {
-      setError(t('organizer.refereesPage.skillDeleteFailed'));
     } finally {
       setDeleting(false);
     }
@@ -874,14 +861,11 @@ function AssignmentsTab({
     dragged: NonNullable<typeof dragPool.current>,
     liceId: string | null,
     blockStartIso: string,
-  ): Promise<Response> {
-    const json = { 'Content-Type': 'application/json' };
+  ): Promise<ApiResult<unknown>> {
     if (dragged.matchIds.length > 1) {
-      return fetch(`${apiUrl}/api/v1/events/${eventId}/programme/schedule-group`, {
+      return apiRequest(apiUrl, `/api/v1/events/${eventId}/programme/schedule-group`, {
         method: 'POST',
-        credentials: 'include',
-        headers: json,
-        body: JSON.stringify({
+        body: {
           matchIds: dragged.matchIds,
           liceIds: [liceId],
           startTime: blockStartIso,
@@ -889,23 +873,19 @@ function AssignmentsTab({
           ...(dragged.matchDurationMinutes
             ? { matchDurationMinutes: dragged.matchDurationMinutes }
             : {}),
-        }),
+        },
       });
     }
     const singleMatchId = dragged.matchIds[0];
     if (singleMatchId) {
-      return fetch(`${apiUrl}/api/v1/matches/${singleMatchId}/schedule`, {
+      return apiRequest(apiUrl, `/api/v1/matches/${singleMatchId}/schedule`, {
         method: 'PATCH',
-        credentials: 'include',
-        headers: json,
-        body: JSON.stringify({ liceId, scheduledAt: blockStartIso }),
+        body: { liceId, scheduledAt: blockStartIso },
       });
     }
-    return fetch(`${apiUrl}/api/v1/pools/${dragged.id}/reschedule`, {
+    return apiRequest(apiUrl, `/api/v1/pools/${dragged.id}/reschedule`, {
       method: 'POST',
-      credentials: 'include',
-      headers: json,
-      body: JSON.stringify({ liceId, startAtIso: blockStartIso }),
+      body: { liceId, startAtIso: blockStartIso },
     });
   }
 
@@ -921,16 +901,12 @@ function AssignmentsTab({
     setRunning(true);
     setError(null);
     try {
-      const res = await postPoolMove(dragged, liceId, blockStartIso);
-      if (!res.ok) {
-        const body = (await res.json().catch(() => ({}))) as { message?: string };
-        throw new Error(body.message ?? t('organizer.refereesPage.assignmentLoadFailed'));
+      const r = await postPoolMove(dragged, liceId, blockStartIso);
+      // Rollback IS a refetch, on the refused path as much as the accepted one:
+      // the card is already drawn where the operator dropped it.
+      if (!r.ok) {
+        setError(failureMessage(r, t, t('organizer.refereesPage.assignmentLoadFailed')));
       }
-      await loadBoard();
-    } catch (err) {
-      setError(
-        err instanceof Error ? err.message : t('organizer.refereesPage.assignmentLoadFailed'),
-      );
       await loadBoard();
     } finally {
       setRunning(false);
@@ -940,24 +916,20 @@ function AssignmentsTab({
   async function loadBoard(signal?: AbortSignal) {
     setLoading(true);
     setError(null);
-    try {
-      const res = await fetch(`${apiUrl}/api/v1/events/${eventId}/referee-assignment-board`, {
-        credentials: 'include',
-        signal,
-      });
-      if (!res.ok) {
-        const body = (await res.json().catch(() => ({}))) as { message?: string };
-        throw new Error(body.message ?? t('organizer.refereesPage.assignmentLoadFailed'));
-      }
-      setBoard((await res.json()) as AssignmentBoard);
-    } catch (err) {
-      if (err instanceof DOMException && err.name === 'AbortError') return;
-      setError(
-        err instanceof Error ? err.message : t('organizer.refereesPage.assignmentLoadFailed'),
-      );
-    } finally {
-      setLoading(false);
+    const r = await apiRequest<AssignmentBoard>(
+      apiUrl,
+      `/api/v1/events/${eventId}/referee-assignment-board`,
+      signal ? { signal } : {},
+    );
+    // The workspace unmounted, or moved to another event. A newer load owns
+    // the spinner now.
+    if (!r.ok && r.kind === 'aborted') return;
+    setLoading(false);
+    if (!r.ok) {
+      setError(failureMessage(r, t, t('organizer.refereesPage.assignmentLoadFailed')));
+      return;
     }
+    setBoard(r.data);
   }
 
   useEffect(() => {
@@ -972,18 +944,14 @@ function AssignmentsTab({
   // endpoint is unavailable.
   useEffect(() => {
     const controller = new AbortController();
-    void fetch(`${apiUrl}/api/v1/events/${eventId}/lices`, {
-      credentials: 'include',
-      signal: controller.signal,
-    })
-      .then(async (res) => {
-        if (!res.ok) return;
-        const lices = (await res.json()) as Array<{ id: string; name: string }>;
-        const map = new Map<string, string>();
-        for (const l of lices) map.set(l.id, l.name);
-        setLiceNameById(map);
-      })
-      .catch(() => undefined);
+    void apiRequest<Array<{ id: string; name: string }>>(
+      apiUrl,
+      `/api/v1/events/${eventId}/lices`,
+      { signal: controller.signal },
+    ).then((r) => {
+      if (!r.ok) return;
+      setLiceNameById(new Map(r.data.map((lice) => [lice.id, lice.name])));
+    });
     return () => controller.abort();
   }, [eventId, apiUrl]);
 
@@ -992,46 +960,36 @@ function AssignmentsTab({
   // errors quietly — the views just render without days / without breaks.
   useEffect(() => {
     const controller = new AbortController();
-    void fetch(`${apiUrl}/api/v1/events/${eventId}`, {
-      credentials: 'include',
-      signal: controller.signal,
-    })
-      .then(async (res) => {
-        if (!res.ok) return;
-        const ev = (await res.json()) as {
-          start_date: string;
-          end_date?: string | null;
-          timezone?: string | null;
-        };
-        setEventStartDateIso(ev.start_date ?? null);
-        setEventEndDateIso(ev.end_date ?? null);
-        setEventTz(ev.timezone ?? DEFAULT_EVENT_TIMEZONE);
-      })
-      .catch(() => undefined);
+    void apiRequest<{
+      start_date: string;
+      end_date?: string | null;
+      timezone?: string | null;
+    }>(apiUrl, `/api/v1/events/${eventId}`, { signal: controller.signal }).then((r) => {
+      if (!r.ok) return;
+      setEventStartDateIso(r.data.start_date ?? null);
+      setEventEndDateIso(r.data.end_date ?? null);
+      setEventTz(r.data.timezone ?? DEFAULT_EVENT_TIMEZONE);
+    });
     return () => controller.abort();
   }, [eventId, apiUrl]);
 
   useEffect(() => {
     const controller = new AbortController();
-    void fetch(`${apiUrl}/api/v1/events/${eventId}/programme`, {
-      credentials: 'include',
-      signal: controller.signal,
-    })
-      .then(async (res) => {
-        if (!res.ok) return;
-        const blocks = (await res.json()) as Array<{
-          id: string;
-          dayIndex: number;
-          blockType: string;
-          label: string;
-          startTime: string;
-          endTime: string;
-        }>;
-        // Competition blocks are the pool/bracket runs already shown as
-        // cards; keep only the surrounding non-competition blocks.
-        setProgrammeBlocks(blocks.filter((b) => b.blockType !== 'competition'));
-      })
-      .catch(() => undefined);
+    void apiRequest<
+      Array<{
+        id: string;
+        dayIndex: number;
+        blockType: string;
+        label: string;
+        startTime: string;
+        endTime: string;
+      }>
+    >(apiUrl, `/api/v1/events/${eventId}/programme`, { signal: controller.signal }).then((r) => {
+      if (!r.ok) return;
+      // Competition blocks are the pool/bracket runs already shown as
+      // cards; keep only the surrounding non-competition blocks.
+      setProgrammeBlocks(r.data.filter((b) => b.blockType !== 'competition'));
+    });
     return () => controller.abort();
   }, [eventId, apiUrl]);
 
@@ -1041,42 +999,41 @@ function AssignmentsTab({
   const [ruleSettings, setRuleSettings] = useState<Record<RuleKey, boolean> | null>(null);
   useEffect(() => {
     const controller = new AbortController();
-    void fetch(`${apiUrl}/api/v1/events/${eventId}/pool-assignment-settings`, {
-      credentials: 'include',
-      signal: controller.signal,
-    })
-      .then(async (res) => {
-        if (!res.ok) return;
-        const s = (await res.json()) as Record<RuleKey, boolean>;
-        setRuleSettings({
-          enableOwnPoolRule: s.enableOwnPoolRule ?? true,
-          enableOfficiateVsFightRule: s.enableOfficiateVsFightRule ?? true,
-          enableDoubleBookedRule: s.enableDoubleBookedRule ?? true,
-          enableTwoRolesRule: s.enableTwoRolesRule ?? true,
-          enableAvailabilityRule: s.enableAvailabilityRule ?? true,
-          enableCapacityRule: s.enableCapacityRule ?? true,
-        });
-      })
-      .catch(() => undefined);
+    void apiRequest<Record<RuleKey, boolean>>(
+      apiUrl,
+      `/api/v1/events/${eventId}/pool-assignment-settings`,
+      { signal: controller.signal },
+    ).then((r) => {
+      if (!r.ok) return;
+      const s = r.data;
+      setRuleSettings({
+        enableOwnPoolRule: s.enableOwnPoolRule ?? true,
+        enableOfficiateVsFightRule: s.enableOfficiateVsFightRule ?? true,
+        enableDoubleBookedRule: s.enableDoubleBookedRule ?? true,
+        enableTwoRolesRule: s.enableTwoRolesRule ?? true,
+        enableAvailabilityRule: s.enableAvailabilityRule ?? true,
+        enableCapacityRule: s.enableCapacityRule ?? true,
+      });
+    });
     return () => controller.abort();
   }, [eventId, apiUrl]);
 
   async function toggleRule(key: RuleKey, enabled: boolean) {
     const prev = ruleSettings;
     setRuleSettings((cur) => (cur ? { ...cur, [key]: enabled } : cur));
-    try {
-      const res = await fetch(`${apiUrl}/api/v1/events/${eventId}/pool-assignment-settings`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ [key]: enabled }),
-      });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      await loadBoard();
-    } catch {
+    const r = await apiRequest(apiUrl, `/api/v1/events/${eventId}/pool-assignment-settings`, {
+      method: 'PUT',
+      body: { [key]: enabled },
+    });
+    if (!r.ok) {
+      // The checkbox goes back to what the server still holds. Rule 8 is one
+      // of these and it CANNOT be switched off, so the API refuses that by
+      // name — a sentence the fixed one used to hide.
       setRuleSettings(prev ?? null);
-      setError(t('organizer.refereesPage.rules.toggleFailed'));
+      setError(failureMessage(r, t, t('organizer.refereesPage.rules.toggleFailed')));
+      return;
     }
+    await loadBoard();
   }
 
   /**
@@ -1088,17 +1045,16 @@ function AssignmentsTab({
     setPreviewing(true);
     setError(null);
     try {
-      const res = await fetch(
-        `${apiUrl}/api/v1/events/${eventId}/referee-assignment-board/preview`,
-        { method: 'POST', credentials: 'include' },
+      const r = await apiRequest<AssignmentBoard>(
+        apiUrl,
+        `/api/v1/events/${eventId}/referee-assignment-board/preview`,
+        { method: 'POST' },
       );
-      if (!res.ok) {
-        const body = (await res.json().catch(() => ({}))) as { message?: string };
-        throw new Error(body.message ?? t('organizer.refereesPage.previewFailed'));
+      if (!r.ok) {
+        setError(failureMessage(r, t, t('organizer.refereesPage.previewFailed')));
+        return;
       }
-      setBoard((await res.json()) as AssignmentBoard);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : t('organizer.refereesPage.previewFailed'));
+      setBoard(r.data);
     } finally {
       setPreviewing(false);
     }
@@ -1113,21 +1069,18 @@ function AssignmentsTab({
     setRunning(true);
     setError(null);
     try {
-      const res = await fetch(
-        `${apiUrl}/api/v1/events/${eventId}/referee-assignment-preview/apply`,
-        { method: 'POST', credentials: 'include' },
+      const r = await apiRequest(
+        apiUrl,
+        `/api/v1/events/${eventId}/referee-assignment-preview/apply`,
+        { method: 'POST' },
       );
-      if (!res.ok) {
-        const body = (await res.json().catch(() => ({}))) as { message?: string };
-        throw new Error(body.message ?? t('organizer.refereesPage.assignmentApplyFailed'));
+      if (!r.ok) {
+        setError(failureMessage(r, t, t('organizer.refereesPage.assignmentApplyFailed')));
+        return;
       }
       // After Apply, re-fetch the persisted-only board so the
       // dashed proposal chips become solid persisted chips.
       await loadBoard();
-    } catch (err) {
-      setError(
-        err instanceof Error ? err.message : t('organizer.refereesPage.assignmentApplyFailed'),
-      );
     } finally {
       setRunning(false);
     }
@@ -1137,22 +1090,20 @@ function AssignmentsTab({
     setRunning(true);
     setError(null);
     try {
-      const res = await fetch(`${apiUrl}/api/v1/events/${eventId}/referee-assignments`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ poolId, role, personId }),
-      });
-      if (!res.ok) {
-        const body = (await res.json().catch(() => ({}))) as { message?: string };
-        throw new Error(body.message ?? t('organizer.refereesPage.assignmentApplyFailed'));
+      const r = await apiRequest<AssignmentBoard>(
+        apiUrl,
+        `/api/v1/events/${eventId}/referee-assignments`,
+        { method: 'POST', body: { poolId, role, personId } },
+      );
+      if (!r.ok) {
+        // Hard rule 8 refuses this by name — the person is fighting in a pool
+        // that overlaps the one they would referee — and that is the sentence
+        // the operator needs in order to pick somebody else.
+        setError(failureMessage(r, t, t('organizer.refereesPage.assignmentApplyFailed')));
+        return;
       }
       setPicker(null);
-      setBoard((await res.json()) as AssignmentBoard);
-    } catch (err) {
-      setError(
-        err instanceof Error ? err.message : t('organizer.refereesPage.assignmentApplyFailed'),
-      );
+      setBoard(r.data);
     } finally {
       setRunning(false);
     }
@@ -1164,19 +1115,14 @@ function AssignmentsTab({
     setRunning(true);
     setError(null);
     try {
-      const res = await fetch(`${apiUrl}/api/v1/referee-assignments/${assignmentId}`, {
+      const r = await apiRequest(apiUrl, `/api/v1/referee-assignments/${assignmentId}`, {
         method: 'DELETE',
-        credentials: 'include',
       });
-      if (!res.ok) {
-        const body = (await res.json().catch(() => ({}))) as { message?: string };
-        throw new Error(body.message ?? t('organizer.refereesPage.assignmentApplyFailed'));
+      if (!r.ok) {
+        setError(failureMessage(r, t, t('organizer.refereesPage.assignmentApplyFailed')));
+        return;
       }
       await loadBoard();
-    } catch (err) {
-      setError(
-        err instanceof Error ? err.message : t('organizer.refereesPage.assignmentApplyFailed'),
-      );
     } finally {
       setRunning(false);
     }
@@ -1202,20 +1148,19 @@ function AssignmentsTab({
     setError(null);
     try {
       if (oldAssignmentId) {
-        const delRes = await fetch(`${apiUrl}/api/v1/referee-assignments/${oldAssignmentId}`, {
+        const r = await apiRequest(apiUrl, `/api/v1/referee-assignments/${oldAssignmentId}`, {
           method: 'DELETE',
-          credentials: 'include',
         });
-        if (!delRes.ok) {
-          const body = (await delRes.json().catch(() => ({}))) as { message?: string };
-          throw new Error(body.message ?? t('organizer.refereesPage.swapApplyFailed'));
+        // The swap stops here rather than assigning the replacement on top of
+        // an assignment that is still standing.
+        if (!r.ok) {
+          setError(failureMessage(r, t, t('organizer.refereesPage.swapApplyFailed')));
+          return;
         }
       }
       // Assign the new ref. The board response from POST is the
       // refreshed board, so we use it directly.
       await manualAssign(suggestion.fromPoolId, slot?.role ?? '', suggestion.toPersonId);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : t('organizer.refereesPage.swapApplyFailed'));
     } finally {
       setRunning(false);
     }
@@ -1225,19 +1170,15 @@ function AssignmentsTab({
     setLocking(true);
     setError(null);
     try {
-      const res = await fetch(`${apiUrl}/api/v1/events/${eventId}/lock-referee-assignments`, {
+      const r = await apiRequest(apiUrl, `/api/v1/events/${eventId}/lock-referee-assignments`, {
         method: 'POST',
-        credentials: 'include',
       });
-      if (!res.ok) {
-        const body = (await res.json().catch(() => ({}))) as { message?: string };
-        throw new Error(body.message ?? t('organizer.refereesPage.assignmentLockFailed'));
+      if (!r.ok) {
+        // A lock is refused by what is still unstaffed, and the API names it.
+        setError(failureMessage(r, t, t('organizer.refereesPage.assignmentLockFailed')));
+        return;
       }
       await loadBoard();
-    } catch (err) {
-      setError(
-        err instanceof Error ? err.message : t('organizer.refereesPage.assignmentLockFailed'),
-      );
     } finally {
       setLocking(false);
     }
@@ -1253,17 +1194,14 @@ function AssignmentsTab({
     setRunning(true);
     setError(null);
     try {
-      const res = await fetch(`${apiUrl}/api/v1/events/${eventId}/referee-assignments`, {
+      const r = await apiRequest(apiUrl, `/api/v1/events/${eventId}/referee-assignments`, {
         method: 'DELETE',
-        credentials: 'include',
       });
-      if (!res.ok) {
-        const body = (await res.json().catch(() => ({}))) as { message?: string };
-        throw new Error(body.message ?? t('organizer.refereesPage.clearFailed'));
+      if (!r.ok) {
+        setError(failureMessage(r, t, t('organizer.refereesPage.clearFailed')));
+        return;
       }
       await loadBoard();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : t('organizer.refereesPage.clearFailed'));
     } finally {
       setRunning(false);
     }
@@ -1273,17 +1211,14 @@ function AssignmentsTab({
     setRunning(true);
     setError(null);
     try {
-      const res = await fetch(`${apiUrl}/api/v1/pools/${poolId}/referee-assignments`, {
+      const r = await apiRequest(apiUrl, `/api/v1/pools/${poolId}/referee-assignments`, {
         method: 'DELETE',
-        credentials: 'include',
       });
-      if (!res.ok) {
-        const body = (await res.json().catch(() => ({}))) as { message?: string };
-        throw new Error(body.message ?? t('organizer.refereesPage.clearFailed'));
+      if (!r.ok) {
+        setError(failureMessage(r, t, t('organizer.refereesPage.clearFailed')));
+        return;
       }
       await loadBoard();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : t('organizer.refereesPage.clearFailed'));
     } finally {
       setRunning(false);
     }
@@ -1293,19 +1228,14 @@ function AssignmentsTab({
     setLocking(true);
     setError(null);
     try {
-      const res = await fetch(`${apiUrl}/api/v1/events/${eventId}/unlock-referee-assignments`, {
+      const r = await apiRequest(apiUrl, `/api/v1/events/${eventId}/unlock-referee-assignments`, {
         method: 'POST',
-        credentials: 'include',
       });
-      if (!res.ok) {
-        const body = (await res.json().catch(() => ({}))) as { message?: string };
-        throw new Error(body.message ?? t('organizer.refereesPage.assignmentUnlockFailed'));
+      if (!r.ok) {
+        setError(failureMessage(r, t, t('organizer.refereesPage.assignmentUnlockFailed')));
+        return;
       }
       await loadBoard();
-    } catch (err) {
-      setError(
-        err instanceof Error ? err.message : t('organizer.refereesPage.assignmentUnlockFailed'),
-      );
     } finally {
       setLocking(false);
     }
@@ -1873,64 +1803,58 @@ export default function RefereesPage() {
 
   useEffect(() => {
     const controller = new AbortController();
-    fetch(`${apiUrl}/api/v1/events/${eventId}/referee-skills`, {
-      credentials: 'include',
+    // Silent: an empty catalogue renders the "no skills yet" state, and every
+    // action on it below reports its own refusal.
+    void apiRequest<RefereeSkill[]>(apiUrl, `/api/v1/events/${eventId}/referee-skills`, {
       signal: controller.signal,
-    })
-      .then(async (res) => {
-        if (!res.ok) return;
-        const data = (await res.json()) as RefereeSkill[];
-        setSkills(data);
-      })
-      .catch((err: unknown) => {
-        if (err instanceof Error && err.name === 'AbortError') return;
-      });
+    }).then((r) => {
+      if (r.ok) setSkills(r.data);
+    });
     return () => controller.abort();
   }, [eventId, apiUrl, skillsKey]);
 
   // Slice 8: tournaments + event days for the availability chip columns.
   useEffect(() => {
     const controller = new AbortController();
-    Promise.all([
-      fetch(`${apiUrl}/api/v1/events/${eventId}/tournaments`, {
-        credentials: 'include',
-        signal: controller.signal,
-      }),
-      fetch(`${apiUrl}/api/v1/events/${eventId}`, {
-        credentials: 'include',
-        signal: controller.signal,
-      }),
-    ])
-      .then(async ([tRes, eRes]) => {
-        if (tRes.ok) {
-          const data = (await tRes.json()) as Array<{ id: string; name: string }>;
-          setEventTournaments(data.map((t) => ({ id: t.id, name: t.name })));
+    // Both silent: the availability chips just render without tournaments or
+    // without days, which is what an event carrying neither also renders.
+    void Promise.all([
+      apiRequest<Array<{ id: string; name: string }>>(
+        apiUrl,
+        `/api/v1/events/${eventId}/tournaments`,
+        { signal: controller.signal },
+      ),
+      apiRequest<{ start_date: string; end_date?: string | null }>(
+        apiUrl,
+        `/api/v1/events/${eventId}`,
+        { signal: controller.signal },
+      ),
+    ]).then(([tRes, eRes]) => {
+      if (tRes.ok) {
+        setEventTournaments(tRes.data.map((t) => ({ id: t.id, name: t.name })));
+      }
+      if (eRes.ok) {
+        // Events endpoint returns snake_case start_date / end_date.
+        const ev = eRes.data;
+        const start = new Date(`${ev.start_date}T00:00:00.000Z`);
+        const end = ev.end_date ? new Date(`${ev.end_date}T00:00:00.000Z`) : start;
+        const days: Array<{ index: number; label: string }> = [];
+        const cursor = new Date(start);
+        let idx = 0;
+        while (cursor.getTime() <= end.getTime()) {
+          days.push({
+            index: idx,
+            label: cursor.toLocaleDateString(localeToBcp47(locale), {
+              weekday: 'short',
+              day: 'numeric',
+            }),
+          });
+          cursor.setUTCDate(cursor.getUTCDate() + 1);
+          idx += 1;
         }
-        if (eRes.ok) {
-          // Events endpoint returns snake_case start_date / end_date.
-          const ev = (await eRes.json()) as { start_date: string; end_date?: string | null };
-          const start = new Date(`${ev.start_date}T00:00:00.000Z`);
-          const end = ev.end_date ? new Date(`${ev.end_date}T00:00:00.000Z`) : start;
-          const days: Array<{ index: number; label: string }> = [];
-          const cursor = new Date(start);
-          let idx = 0;
-          while (cursor.getTime() <= end.getTime()) {
-            days.push({
-              index: idx,
-              label: cursor.toLocaleDateString(localeToBcp47(locale), {
-                weekday: 'short',
-                day: 'numeric',
-              }),
-            });
-            cursor.setUTCDate(cursor.getUTCDate() + 1);
-            idx += 1;
-          }
-          setEventDays(days);
-        }
-      })
-      .catch((err: unknown) => {
-        if (err instanceof Error && err.name === 'AbortError') return;
-      });
+        setEventDays(days);
+      }
+    });
     return () => controller.abort();
   }, [eventId, apiUrl, locale]);
 
@@ -1942,44 +1866,32 @@ export default function RefereesPage() {
     // Subsequent refetches (refereesKey increments) keep existing data visible.
     if (!hasLoadedOnceRef.current) setLoading(true);
 
-    Promise.all([
-      fetch(`${apiUrl}/api/v1/events/${eventId}/referees`, {
-        credentials: 'include',
+    void Promise.all([
+      apiRequest<EventRefereeRow[]>(apiUrl, `/api/v1/events/${eventId}/referees`, {
         signal: controller.signal,
       }),
-      fetch(`${apiUrl}/api/v1/events/${eventId}/referee-qualifications`, {
-        credentials: 'include',
-        signal: controller.signal,
-      }),
-    ])
-      .then(async ([refRes, qualRes]) => {
-        setLoading(false);
-        hasLoadedOnceRef.current = true;
-        if (!refRes.ok || !qualRes.ok) return;
+      // The old endpoint returns records with personId (as person_id) and
+      // role (= skillId).
+      apiRequest<Array<{ id: string; personId?: string; person_id?: string; role: string }>>(
+        apiUrl,
+        `/api/v1/events/${eventId}/referee-qualifications`,
+        { signal: controller.signal },
+      ),
+    ]).then(([refRes, qualRes]) => {
+      setLoading(false);
+      hasLoadedOnceRef.current = true;
+      if (!refRes.ok || !qualRes.ok) return;
 
-        const refData = (await refRes.json()) as EventRefereeRow[];
-        setReferees(refData);
+      setReferees(refRes.data);
 
-        // Build qual id map: key = `${personId}:${skillId}` → qualId
-        // The old endpoint returns records with personId (as person_id) and role (= skillId)
-        const rawQuals = (await qualRes.json()) as Array<{
-          id: string;
-          personId?: string;
-          person_id?: string;
-          role: string;
-        }>;
-        const map = new Map<string, string>();
-        for (const q of rawQuals) {
-          const pid = q.personId ?? q.person_id;
-          if (pid) map.set(`${pid}:${q.role}`, q.id);
-        }
-        setQualIdMap(map);
-      })
-      .catch((err: unknown) => {
-        setLoading(false);
-        hasLoadedOnceRef.current = true;
-        if (err instanceof Error && err.name === 'AbortError') return;
-      });
+      // Build qual id map: key = `${personId}:${skillId}` → qualId
+      const map = new Map<string, string>();
+      for (const q of qualRes.data) {
+        const pid = q.personId ?? q.person_id;
+        if (pid) map.set(`${pid}:${q.role}`, q.id);
+      }
+      setQualIdMap(map);
+    });
 
     return () => controller.abort();
   }, [eventId, apiUrl, refereesKey]);
@@ -2001,14 +1913,14 @@ export default function RefereesPage() {
     const controller = new AbortController();
     const delay = trimmed.length === 0 ? 0 : 250;
     const timer = setTimeout(() => {
-      const url = trimmed
-        ? `${apiUrl}/api/v1/events/${eventId}/persons/lookup?q=${encodeURIComponent(trimmed)}`
-        : `${apiUrl}/api/v1/events/${eventId}/persons/lookup`;
-      fetch(url, { signal: controller.signal, credentials: 'include' })
-        .then(async (res) => {
-          if (res.ok) setSearchResults((await res.json()) as PersonResult[]);
-        })
-        .catch(() => undefined);
+      const path = trimmed
+        ? `/api/v1/events/${eventId}/persons/lookup?q=${encodeURIComponent(trimmed)}`
+        : `/api/v1/events/${eventId}/persons/lookup`;
+      // Silent: a search that finds nothing and a search that was refused both
+      // render the same empty dropdown. The next keystroke retries.
+      void apiRequest<PersonResult[]>(apiUrl, path, { signal: controller.signal }).then((r) => {
+        if (r.ok) setSearchResults(r.data);
+      });
     }, delay);
     return () => {
       clearTimeout(timer);
@@ -2025,14 +1937,14 @@ export default function RefereesPage() {
     }
     const controller = new AbortController();
     const timer = setTimeout(() => {
-      fetch(`${apiUrl}/api/v1/global-persons?q=${encodeURIComponent(globalSearch)}&roles=referee`, {
-        signal: controller.signal,
-        credentials: 'include',
-      })
-        .then(async (res) => {
-          if (res.ok) setGlobalResults((await res.json()) as GlobalPersonResult[]);
-        })
-        .catch(() => undefined);
+      // Silent, for the reason above.
+      void apiRequest<GlobalPersonResult[]>(
+        apiUrl,
+        `/api/v1/global-persons?q=${encodeURIComponent(globalSearch)}&roles=referee`,
+        { signal: controller.signal },
+      ).then((r) => {
+        if (r.ok) setGlobalResults(r.data);
+      });
     }, 250);
     return () => {
       clearTimeout(timer);
@@ -2043,16 +1955,12 @@ export default function RefereesPage() {
   // ── Actions ─────────────────────────────────────────────────────────────────
 
   async function addReferee(personId: string) {
-    try {
-      const res = await fetch(`${apiUrl}/api/v1/events/${eventId}/referees/${personId}`, {
-        method: 'POST',
-        credentials: 'include',
-      });
-      if (!res.ok) {
-        toast.error(t('organizer.refereesPage.addRefereeFailed'));
-      }
-    } catch {
-      toast.error(t('organizer.refereesPage.addRefereeFailed'));
+    const r = await apiRequest(apiUrl, `/api/v1/events/${eventId}/referees/${personId}`, {
+      method: 'POST',
+    });
+    if (!r.ok) {
+      const message = failureMessage(r, t, t('organizer.refereesPage.addRefereeFailed'));
+      if (message) toast.error(message);
     }
     setRefereesKey((k) => k + 1);
   }
@@ -2060,18 +1968,14 @@ export default function RefereesPage() {
   async function upsertQualification(personId: string, skillId: string, rating: number | null) {
     setSavingQual(`${personId}-${skillId}`);
     try {
-      const res = await fetch(`${apiUrl}/api/v1/events/${eventId}/referee-qualifications`, {
+      const r = await apiRequest(apiUrl, `/api/v1/events/${eventId}/referee-qualifications`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ personId, role: skillId, rating }),
+        body: { personId, role: skillId, rating },
       });
-      if (!res.ok) {
-        toast.error(t('organizer.refereesPage.qualificationSaveFailed'));
+      if (!r.ok) {
+        const message = failureMessage(r, t, t('organizer.refereesPage.qualificationSaveFailed'));
+        if (message) toast.error(message);
       }
-      setRefereesKey((k) => k + 1);
-    } catch {
-      toast.error(t('organizer.refereesPage.qualificationSaveFailed'));
       setRefereesKey((k) => k + 1);
     } finally {
       setSavingQual(null);
@@ -2088,16 +1992,13 @@ export default function RefereesPage() {
     }
     setSavingQual(`${personId}-${skillId}`);
     try {
-      const res = await fetch(`${apiUrl}/api/v1/referee-qualifications/${qualId}`, {
+      const r = await apiRequest(apiUrl, `/api/v1/referee-qualifications/${qualId}`, {
         method: 'DELETE',
-        credentials: 'include',
       });
-      if (!res.ok) {
-        toast.error(t('organizer.refereesPage.qualificationRemoveFailed'));
+      if (!r.ok) {
+        const message = failureMessage(r, t, t('organizer.refereesPage.qualificationRemoveFailed'));
+        if (message) toast.error(message);
       }
-      setRefereesKey((k) => k + 1);
-    } catch {
-      toast.error(t('organizer.refereesPage.qualificationRemoveFailed'));
       setRefereesKey((k) => k + 1);
     } finally {
       setSavingQual(null);
@@ -2112,26 +2013,21 @@ export default function RefereesPage() {
    * un-reference before retrying.
    */
   async function deleteSkill(skillId: string) {
-    try {
-      const res = await fetch(`${apiUrl}/api/v1/referee-skills/${skillId}`, {
-        method: 'DELETE',
-        credentials: 'include',
-      });
-      if (res.status === 409) {
-        const body = (await res.json().catch(() => ({}))) as { message?: string };
-        toast.error(body.message ?? t('organizer.refereesPage.catalogDeleteBlocked'));
-        return;
-      }
-      if (!res.ok) {
-        toast.error(t('organizer.refereesPage.catalogDeleteFailed'));
-        return;
-      }
-      toast.success(t('organizer.refereesPage.catalogDeleteSuccess'));
-      setSkillsKey((k) => k + 1);
-      setRefereesKey((k) => k + 1);
-    } catch {
-      toast.error(t('organizer.refereesPage.catalogDeleteFailed'));
+    const r = await apiRequest(apiUrl, `/api/v1/referee-skills/${skillId}`, { method: 'DELETE' });
+    if (!r.ok) {
+      // The 409's reason list is the whole point here — it names what still
+      // references the skill, which is what has to be un-referenced first.
+      const fallback =
+        r.kind === 'http' && r.status === 409
+          ? t('organizer.refereesPage.catalogDeleteBlocked')
+          : t('organizer.refereesPage.catalogDeleteFailed');
+      const message = failureMessage(r, t, fallback);
+      if (message) toast.error(message);
+      return;
     }
+    toast.success(t('organizer.refereesPage.catalogDeleteSuccess'));
+    setSkillsKey((k) => k + 1);
+    setRefereesKey((k) => k + 1);
   }
 
   /**
@@ -2140,24 +2036,17 @@ export default function RefereesPage() {
    * system skills too, scoped per event.
    */
   async function toggleSkillVisibility(skill: RefereeSkill, nextHidden: boolean) {
-    try {
-      const res = await fetch(
-        `${apiUrl}/api/v1/events/${eventId}/referee-skills/${skill.id}/visibility`,
-        {
-          method: 'PATCH',
-          credentials: 'include',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ isHidden: nextHidden }),
-        },
-      );
-      if (!res.ok) {
-        toast.error(t('organizer.refereesPage.catalogVisibilityFailed'));
-        return;
-      }
-      setSkillsKey((k) => k + 1);
-    } catch {
-      toast.error(t('organizer.refereesPage.catalogVisibilityFailed'));
+    const r = await apiRequest(
+      apiUrl,
+      `/api/v1/events/${eventId}/referee-skills/${skill.id}/visibility`,
+      { method: 'PATCH', body: { isHidden: nextHidden } },
+    );
+    if (!r.ok) {
+      const message = failureMessage(r, t, t('organizer.refereesPage.catalogVisibilityFailed'));
+      if (message) toast.error(message);
+      return;
     }
+    setSkillsKey((k) => k + 1);
   }
 
   /**
@@ -2165,21 +2054,16 @@ export default function RefereesPage() {
    * SkillCatalog re-renders in the new order.
    */
   async function reorderSkills(orderedSkillIds: string[]) {
-    try {
-      const res = await fetch(`${apiUrl}/api/v1/events/${eventId}/referee-skills/reorder`, {
-        method: 'PATCH',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ orderedSkillIds }),
-      });
-      if (!res.ok) {
-        toast.error(t('organizer.refereesPage.catalogReorderFailed'));
-        return;
-      }
-      setSkillsKey((k) => k + 1);
-    } catch {
-      toast.error(t('organizer.refereesPage.catalogReorderFailed'));
+    const r = await apiRequest(apiUrl, `/api/v1/events/${eventId}/referee-skills/reorder`, {
+      method: 'PATCH',
+      body: { orderedSkillIds },
+    });
+    if (!r.ok) {
+      const message = failureMessage(r, t, t('organizer.refereesPage.catalogReorderFailed'));
+      if (message) toast.error(message);
+      return;
     }
+    setSkillsKey((k) => k + 1);
   }
 
   async function updateAvailability(
@@ -2207,39 +2091,32 @@ export default function RefereesPage() {
       ),
     );
 
-    const res = await fetch(
-      `${apiUrl}/api/v1/events/${eventId}/referees/${personId}/availability`,
-      {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify(patch),
-      },
+    const r = await apiRequest(
+      apiUrl,
+      `/api/v1/events/${eventId}/referees/${personId}/availability`,
+      { method: 'PATCH', body: patch },
     );
 
-    if (!res.ok) {
-      // Revert
+    if (!r.ok) {
+      // Revert — the chips are already drawn as the operator set them.
       setRefereesKey((k) => k + 1);
-      toast.error(t('organizer.refereesPage.availabilitySaveFailed'));
+      const message = failureMessage(r, t, t('organizer.refereesPage.availabilitySaveFailed'));
+      if (message) toast.error(message);
     }
   }
 
   async function linkToGlobalPerson(qualificationId: string, globalPersonId: string) {
-    try {
-      const res = await fetch(
-        `${apiUrl}/api/v1/global-persons/${globalPersonId}/link-referee-qualification`,
-        {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          credentials: 'include',
-          body: JSON.stringify({ qualificationId }),
-        },
-      );
-      if (!res.ok) {
-        toast.error(t('organizer.refereesPage.linkProfileFailed'));
-      }
-    } catch {
-      toast.error(t('organizer.refereesPage.linkProfileFailed'));
+    const r = await apiRequest(
+      apiUrl,
+      `/api/v1/global-persons/${globalPersonId}/link-referee-qualification`,
+      { method: 'PATCH', body: { qualificationId } },
+    );
+    if (!r.ok) {
+      // A link is refused by name when the profile already carries another
+      // person's qualification — which is exactly the case an operator has to
+      // be told apart from a generic failure.
+      const message = failureMessage(r, t, t('organizer.refereesPage.linkProfileFailed'));
+      if (message) toast.error(message);
     }
     setLinkingPersonId(null);
     setGlobalSearch('');
@@ -2251,33 +2128,21 @@ export default function RefereesPage() {
     const nameParts = ref.displayName.split(' ');
     const givenName = nameParts[0] ?? ref.displayName;
     const familyName = nameParts.slice(1).join(' ') || givenName;
-    try {
-      const res = await fetch(`${apiUrl}/api/v1/global-persons`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({
-          givenName,
-          familyName,
-          displayName: ref.displayName,
-          isReferee: true,
-        }),
-      });
-      if (!res.ok) {
-        toast.error(t('organizer.refereesPage.createProfileFailed'));
-        setRefereesKey((k) => k + 1);
-        return;
-      }
-      const gp = (await res.json()) as { id: string };
-      // Find any qual id for this person
-      const firstQualId = Array.from(qualIdMap.entries()).find(([key]) =>
-        key.startsWith(`${ref.personId}:`),
-      )?.[1];
-      if (firstQualId) await linkToGlobalPerson(firstQualId, gp.id);
-    } catch {
-      toast.error(t('organizer.refereesPage.createProfileFailed'));
+    const r = await apiRequest<{ id: string }>(apiUrl, `/api/v1/global-persons`, {
+      method: 'POST',
+      body: { givenName, familyName, displayName: ref.displayName, isReferee: true },
+    });
+    if (!r.ok) {
+      const message = failureMessage(r, t, t('organizer.refereesPage.createProfileFailed'));
+      if (message) toast.error(message);
       setRefereesKey((k) => k + 1);
+      return;
     }
+    // Find any qual id for this person
+    const firstQualId = Array.from(qualIdMap.entries()).find(([key]) =>
+      key.startsWith(`${ref.personId}:`),
+    )?.[1];
+    if (firstQualId) await linkToGlobalPerson(firstQualId, r.data.id);
   }
 
   // ── Render ──────────────────────────────────────────────────────────────────
