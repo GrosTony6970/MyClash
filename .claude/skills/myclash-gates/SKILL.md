@@ -5,8 +5,8 @@ description: The real verification chain for this repo — what to run before pu
 
 # MyClash verification gates
 
-`pnpm lint && pnpm typecheck && pnpm test` is **not** the CI check. CI's Lint job runs twenty-seven
-further steps — twenty-four gates and three builds. Running only the three and pushing is the most
+`pnpm lint && pnpm typecheck && pnpm test` is **not** the CI check. CI's Lint job runs twenty-eight
+further steps — twenty-five gates and three builds. Running only the three and pushing is the most
 common way to turn `main` red here.
 
 Those three numbers **are** gated, as of 2026-08-20. `check-docs-drift.mjs` derives them from

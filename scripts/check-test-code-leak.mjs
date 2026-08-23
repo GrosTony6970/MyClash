@@ -36,6 +36,7 @@ import { join, dirname, resolve } from 'node:path';
 import ts from 'typescript';
 
 import { defineGate } from './lib/gate.mjs';
+import { emitProgramFiles } from './lib/emit-program.mjs';
 import { toRepoPath, walkRepoFiles } from './lib/repo-scan.mjs';
 
 const root = process.cwd();
@@ -290,29 +291,6 @@ export function findLeaks({
 
 // ── Per-workspace scan ───────────────────────────────────────────────────────
 
-function parseBuildConfig(configPath) {
-  const host = {
-    useCaseSensitiveFileNames: false,
-    readDirectory: ts.sys.readDirectory,
-    fileExists: ts.sys.fileExists,
-    readFile: ts.sys.readFile,
-    getCurrentDirectory: () => root,
-    onUnRecoverableConfigFileDiagnostic: (diagnostic) => {
-      throw new Error(ts.flattenDiagnosticMessageText(diagnostic.messageText, '\n'));
-    },
-  };
-  const parsed = ts.getParsedCommandLineOfConfigFile(configPath, {}, host);
-  if (!parsed) throw new Error(`could not parse ${toRepoPath(configPath)}`);
-  const errors = parsed.errors.filter((d) => d.category === ts.DiagnosticCategory.Error);
-  if (errors.length) {
-    const detail = errors
-      .map((d) => ts.flattenDiagnosticMessageText(d.messageText, '\n'))
-      .join('; ');
-    throw new Error(`${toRepoPath(configPath)}: ${detail}`);
-  }
-  return parsed.fileNames.map((file) => resolve(file));
-}
-
 export function scanRepo() {
   const globs = parseWorkspaceGlobs(readFileSync(join(root, 'pnpm-workspace.yaml'), 'utf8'));
   const violations = [];
@@ -336,7 +314,7 @@ export function scanRepo() {
       continue;
     }
 
-    const emitFiles = parseBuildConfig(configPath);
+    const emitFiles = emitProgramFiles(configPath, root);
     const allFiles = ['src', 'test']
       .flatMap((sub) => walkRepoFiles(join(dir, sub), WORKSPACE_SOURCES))
       .filter((file) => !/\.d\.ts$/.test(file))

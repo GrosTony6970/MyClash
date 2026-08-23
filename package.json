@@ -31,6 +31,7 @@
     "quality:api-docs": "node scripts/check-api-docs.mjs",
     "quality:complexity": "node scripts/check-complexity.mjs",
     "quality:test-code-leak": "node scripts/check-test-code-leak.mjs",
+    "quality:package-purity": "node scripts/check-package-purity.mjs",
     "quality:client-env": "node scripts/check-client-env-contract.mjs",
     "quality:peers": "pnpm peers check --lockfile-only",
     "openapi:emit": "pnpm --filter @myclash/api build && node apps/api/scripts/emit-openapi.cjs openapi.json",

@@ -219,6 +219,15 @@ jobs:
         if: '!cancelled()'
         run: pnpm quality:test-code-leak
 
+      # ARCHITECTURE.md 7.3 says @myclash/rulesets must never become a
+      # dependency of apps/web-staff or packages/ui, because the scoring pad
+      # has to work in a hall with no network. That was prose with no
+      # enforcement; this is the enforcement, plus the zero-dependency
+      # contract of @myclash/rules that makes obeying it possible.
+      - name: Check package purity
+        if: '!cancelled()'
+        run: pnpm quality:package-purity
+
       # Every NEXT_PUBLIC_* a web app requires at build time must be declared as
       # a Dockerfile ARG and passed by both compose files. Reviewing this
       # cheaply is the point: the check that already existed lives in

@@ -54,6 +54,7 @@ export const CI_GATES: readonly CiGate[] = [
   { job: 'Lint', step: 'Check API docs coverage' },
   { job: 'Lint', step: 'Check code complexity budget' },
   { job: 'Lint', step: 'Check test code is out of the emit surface' },
+  { job: 'Lint', step: 'Check package purity' },
   { job: 'Lint', step: 'Check client env contract' },
   { job: 'Lint', step: 'Check OpenAPI client drift' },
   { job: 'Lint', step: 'Check shared-type leaks' },

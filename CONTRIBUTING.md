@@ -14,7 +14,7 @@ Every pull request targeting `main` runs the following GitHub Actions jobs, all 
 | **Install dependencies**  | `CI / Install dependencies`                              | `pnpm install --frozen-lockfile`                                                                                                                                                                                                           |
 | **Build shared packages** | `CI / Build shared packages`                             | `pnpm turbo run build`, filtered to the 6 shared packages: `@myclash/types`, `rulesets`, `db`, `ui`, `i18n`, `api-client`                                                                                                                  |
 | **Typecheck**             | `CI / Typecheck`                                         | `pnpm turbo run typecheck` across all workspaces                                                                                                                                                                                           |
-| **Lint**                  | `CI / Lint`                                              | `pnpm turbo run lint` **plus twenty-four further independent gates and three builds** — see [Before pushing](#before-pushing) for the full list. Each runs as its own step with `if: '!cancelled()'`, so one failure never hides the rest. |
+| **Lint**                  | `CI / Lint`                                              | `pnpm turbo run lint` **plus twenty-five further independent gates and three builds** — see [Before pushing](#before-pushing) for the full list. Each runs as its own step with `if: '!cancelled()'`, so one failure never hides the rest. |
 | **Test**                  | `CI / Test`                                              | `pnpm turbo run test` (Vitest), run **twice** — once under `TZ=UTC`, once under `TZ=Europe/Paris`. Both are separate gates: a bug that only appears when the dev box, the fixture and the default timezone agree is invisible to one run.  |
 | **Shellcheck**            | `CI / Shellcheck infra scripts`                          | ShellCheck over `infra/scripts/`                                                                                                                                                                                                           |
 | **Dependency audit**      | `CI / Dependency audit`                                  | `pnpm audit --audit-level high`                                                                                                                                                                                                            |
@@ -70,7 +70,7 @@ Local URLs:
 ## Before pushing
 
 `pnpm lint && pnpm typecheck && pnpm test` is **not** the full check — CI's Lint job runs
-twenty-seven further steps, and shared packages must be built first or a local pass proves nothing
+twenty-eight further steps, and shared packages must be built first or a local pass proves nothing
 (`tsc` resolves workspace deps from `dist/` on disk, not through the pnpm symlink).
 
 `.github/workflows/ci.yml` is the source of truth. If this list and that file disagree, the
@@ -94,6 +94,7 @@ pnpm quality:source-bytes        # a raw NUL makes git call the file binary — 
 pnpm quality:api-docs            # API doc coverage
 pnpm quality:complexity          # per-function/file line budget
 pnpm quality:test-code-leak      # test code kept out of the emit surface
+pnpm quality:package-purity      # @myclash/rules stays dependency-free; the engine stays off the pad
 pnpm quality:client-env          # client env build-arg contract
 pnpm --filter @myclash/api build # required: OpenAPI is emitted by booting dist/app.module
 pnpm quality:openapi-drift       # generated client vs live routes
