@@ -881,7 +881,7 @@
     "infra/ops-runner/backup-core.mjs:154",
     "packages/rules/src/match-format.ts:235",
     "packages/rules/src/scheduling/local-search.ts:164",
-    "packages/rules/src/scheduling/single-elim.ts:144",
+    "packages/rules/src/scheduling/single-elim.ts:145",
     "packages/rules/src/tf_v1/score.ts:37",
     "packages/rulesets/src/formula/ruleset.ts:139",
     "packages/rulesets/src/generic_points_cap/index.ts:122",

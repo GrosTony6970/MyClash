@@ -204,6 +204,43 @@ describe('singleElimBracket', () => {
     expect(() => singleElimBracket(16, { bracketSize: 256 })).toThrow('128');
   });
 
+  it('puts the bronze match in the same round as the Final, told apart by position', () => {
+    const bracket = singleElimBracket(16);
+    const lastRound = bracket.slots.filter((slot) => slot.round === bracket.rounds);
+
+    // Two slots share the final round number. Nothing but position and the
+    // source type separates the Final from the bronze match, and
+    // BracketAdvanceService routes losers on exactly that pair.
+    expect(lastRound).toHaveLength(2);
+
+    const final = lastRound.find((slot) => slot.position === 1)!;
+    expect(final.sourceAType).toBe('winner_of');
+    expect(final.sourceBType).toBe('winner_of');
+
+    const bronze = lastRound.find((slot) => slot.position === 2)!;
+    expect(bronze.sourceAType).toBe('loser_of');
+    expect(bronze.sourceBType).toBe('loser_of');
+    expect(bronze.homeSource).toBe(`loser of R${bracket.rounds - 1}P1`);
+    expect(bronze.awaySource).toBe(`loser of R${bracket.rounds - 1}P2`);
+  });
+
+  it('emits a bronze match for every bracket with a semi-final, and none below', () => {
+    // There is no option that turns this off. `includeBronze` used to exist and
+    // was read as `!== false` with no caller ever passing it, so the only branch
+    // that could fire is the one asserted here.
+    for (const fighterCount of [4, 5, 8, 13, 16, 32]) {
+      const bracket = singleElimBracket(fighterCount);
+      const bronze = bracket.slots.filter(
+        (slot) => slot.round === bracket.rounds && slot.sourceAType === 'loser_of',
+      );
+      expect(bronze, `${fighterCount} fighters`).toHaveLength(1);
+    }
+
+    const twoFighters = singleElimBracket(2);
+    expect(twoFighters.bracketSize).toBe(2);
+    expect(twoFighters.slots.some((slot) => slot.sourceAType === 'loser_of')).toBe(false);
+  });
+
   it('all actual seeds appear exactly once across initial playable slots', () => {
     const n = 18;
     const bracket = singleElimBracket(n);

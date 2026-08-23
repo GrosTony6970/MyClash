@@ -8,14 +8,20 @@
  * Pure function — no DB, no I/O.
  *
  * Seeding convention (standard tournament seeding):
- *   - Bracket size = next power of 2 ≥ N
- *   - Byes fill the bracket to the next power of 2
- *   - Seed 1 vs seed (size), seed 2 vs seed (size-1), etc.
- *   - Byes are placed to protect top seeds (1 and 2 get byes if any)
+ *   - Bracket size rounds DOWN to the largest power of 2 below N, and the
+ *     surplus fighters meet in a play-in round (round 0). Nobody sits out.
+ *   - The top seeds skip the play-in; the rest are paired highest against
+ *     lowest, so seed 4 meets seed N, seed 5 meets seed N-1, and so on.
+ *   - Inside the main bracket, seed 1 meets seed (size), seed 2 meets
+ *     seed (size-1), etc.
  *
- * Example: 13 fighters → bracket size 16 → 3 byes
- *   Round 1 matchups (seed vs seed):
- *     1 vs bye, 8 vs 9, 5 vs 12, 4 vs 13, 3 vs bye, 6 vs 11, 7 vs 10, 2 vs bye
+ * Example: 13 fighters → bracket size 8 → 5 play-in matches, 3 seeds skip them
+ *   Round 0: 4 vs 13, 5 vs 12, 6 vs 11, 7 vs 10, 8 vs 9
+ *   Round 1: 1 vs W(R0P5), W(R0P1) vs W(R0P2), 2 vs W(R0P4), 3 vs W(R0P3)
+ *
+ * An explicit `bracketSize` opts out of all of that and takes the older path:
+ * the bracket is the size you asked for, the shortfall becomes real byes in
+ * round 1, and byes are placed to protect the top seeds.
  */
 
 export interface BracketSlot {
@@ -67,21 +73,16 @@ export interface SingleElimOptions {
    *   - Cut to top N: bracketSize=16 with fighterCount=20 → only top 16 qualify
    *   - Larger bracket: bracketSize=32 with fighterCount=24 → 8 byes
    *
-   * If not provided, defaults to nextPowerOf2(fighterCount).
+   * If not provided, the bracket rounds DOWN to the largest power of two below
+   * fighterCount and the surplus fighters meet in a play-in round.
    */
   bracketSize?: number;
-  /**
-   * Whether to include a bronze medal match (3rd place).
-   * Default: true when bracketSize >= 4.
-   */
-  includeBronze?: boolean;
 }
 
 export const MAX_SINGLE_ELIM_BRACKET_SIZE = 128;
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-/** Next power of 2 ≥ n */
 /** Highest power of 2 strictly below n. */
 function highestPowerOf2Below(n: number): number {
   let p = 1;
@@ -138,7 +139,7 @@ function buildSeedingOrder(size: number): Array<[number, number]> {
  * Generate a single-elimination bracket for N fighters.
  *
  * @param fighterCount  Number of qualified fighters
- * @param options       Optional: override bracket size, include bronze match
+ * @param options       Optional: override the bracket size
  * @returns             Complete bracket structure
  */
 export function singleElimBracket(
@@ -270,7 +271,17 @@ export function singleElimBracket(
   }
 
   // ── Bronze match (3rd place) ─────────────────────────────────────────────
-  if (bracketSize >= 4 && options.includeBronze !== false) {
+  //
+  // Unconditional above a semi-final. There used to be an `includeBronze`
+  // option here, read as `!== false` and never passed by any caller, so the
+  // `false` branch could not fire -- a switch that only ever reads one way is
+  // not a switch. Every bracket this repo generates has a bronze match; if one
+  // should not, that is a Tournament setting somebody has to ask for.
+  //
+  // The slot sits at the SAME round number as the Final. Only its position and
+  // its `loser_of` sources tell the two apart, and the advance service matches
+  // on those, so single-elim.test.ts pins it.
+  if (bracketSize >= 4) {
     slots.push({
       round: rounds,
       position: 2,
