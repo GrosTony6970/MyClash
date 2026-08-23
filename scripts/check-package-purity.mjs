@@ -20,8 +20,18 @@
  * workspace build graph". That is a PACKAGE constraint, not a capability one.
  *
  * `@myclash/rules` removes it by having no dependencies at all. This gate is
- * what stops that claim rotting, and it is deliberately three separate rules —
+ * what stops that claim rotting, and it is deliberately four separate rules —
  * each fails independently, and each is free.
+ *
+ * ── The risk the extraction itself created ─────────────────────────────────
+ * Rules 1-3 guard the wall. Rule 4 exists because MOVING the wall opened a
+ * different hole: the formula evaluator used to be unreachable from the pad by
+ * accident of packaging, and now it is reachable on purpose. Nothing resolves a
+ * ruleset there and "seed, don't resolve" still holds, but pad code could now
+ * evaluate a custom ruleset's formula locally and print a real score — breaking
+ * CLAUDE.md hard rule 1, where the server alone DERIVES a persisted score.
+ *
+ * So rule 4 reads the 7.3 allowlist table and holds the pad to it.
  *
  * ── Why the import rule is over the EMIT PROGRAM and not over src/ ──────────
  * Every colocated test in the package imports `vitest`. A rule spelled "nothing
@@ -56,6 +66,10 @@ export const PAD_REACHABLE = ['apps/web-staff', 'packages/ui'];
 
 /** The package that must stay out of everything in PAD_REACHABLE. */
 export const FORBIDDEN_ON_THE_PAD = '@myclash/rulesets';
+
+/** Every pad surface imports this package freely, so what it re-exports lands
+ *  on the pad as surely as a direct import would. */
+export const RE_EXPORTER = 'packages/types';
 
 const IMPORT_PATTERN = /(?:^|[^\w])(?:import|export)\s[^'"]*?from\s*['"]([^'"]+)['"]/gmu;
 const BARE_IMPORT_PATTERN = /(?:^|[^\w])import\s*['"]([^'"]+)['"]/gmu;
@@ -151,37 +165,179 @@ export function findEngineOnThePad(workspaces, read = readFileSync, label = toRe
   return { findings, dirsWalked };
 }
 
+/** Where the pad's allowlist is written down, in prose, today. */
+export const ALLOWLIST_DOC = 'docs/ARCHITECTURE.md';
+const ALLOWLIST_HEADING = '#### What arithmetic the pad IS allowed';
+
+/**
+ * Rule 4 — the pad may run only the arithmetic ARCHITECTURE.md 7.3 allows.
+ *
+ * ── The risk this closes, which the extraction itself created ───────────────
+ * Before `@myclash/rules` existed, the formula evaluator was UNREACHABLE from
+ * the scoring pad: it sat beside zod, and zod sat in a package the pad must not
+ * import. That was an accident, but it was also a wall.
+ *
+ * Moving the evaluator into a zero-dependency package removed the wall. Nothing
+ * resolves a ruleset on the pad and "seed, don't resolve" still holds — but pad
+ * code could now evaluate a custom ruleset's formula locally and print a real
+ * score. That breaks a different rule: CLAUDE.md hard rule 1, where the server
+ * is the only thing that DERIVES a persisted score.
+ *
+ * ── Why the doc is the source and not a list in this file ──────────────────
+ * 7.3 already carries the allowlist, as a three-row table, and
+ * `packages/types/src/penalties.ts` argues the boundary at length. A second list
+ * here would be a second owner, and the one that drifts is always the one
+ * nobody reads. So this parses the table: the doc IS the gate, the way
+ * check-docs-drift reads prose against the repo it describes.
+ *
+ * Type-only imports are ignored on purpose. A type erases at compile time and
+ * ships nothing; the risk is a VALUE the pad can call.
+ */
+export function parseAllowlist(doc) {
+  const start = doc.indexOf(ALLOWLIST_HEADING);
+  if (start === -1) {
+    throw new Error(
+      `${ALLOWLIST_DOC}: cannot find "${ALLOWLIST_HEADING}" — the allowlist this gate reads is gone or renamed`,
+    );
+  }
+  // Stop at the next heading of ANY level. Looking only for a deeper one runs
+  // past `## 7bis` and swallows unrelated tables — referee roles and phase
+  // types both parsed as pad permissions before this was pinned.
+  const rest = doc.slice(start + ALLOWLIST_HEADING.length);
+  const nextHeading = rest.search(/\n#{1,6} /u);
+  const section = rest.slice(0, nextHeading === -1 ? undefined : nextHeading);
+
+  const allowed = new Set();
+  for (const line of section.split(/\r?\n/u)) {
+    if (!line.startsWith('|') || /^\|\s*-+/u.test(line)) continue;
+    const firstCell = line.split('|')[1] ?? '';
+    for (const [, token] of firstCell.matchAll(/`([^`]+)`/gu)) {
+      // Backticked package names are context, not permission.
+      if (!token.includes('/') && /^[A-Za-z_$][\w$]*$/u.test(token)) allowed.add(token);
+    }
+  }
+
+  if (allowed.size === 0) {
+    throw new Error(
+      `${ALLOWLIST_DOC}: the 7.3 allowlist table parsed to zero entries — a reword must not silently permit everything`,
+    );
+  }
+  return allowed;
+}
+
+/**
+ * Value bindings a source file takes from `@myclash/rules`.
+ *
+ * `import type {...}` and an inline `type X` are both dropped: neither reaches
+ * the bundle, so neither can be called.
+ */
+export function valueBindingsFromRules(source) {
+  const found = [];
+  const pattern =
+    /\b(?:import|export)\s+(type\s+)?\{([^}]*)\}\s*from\s*['"]@myclash\/rules(?:\/[^'"]*)?['"]/gmu;
+  let match;
+  while ((match = pattern.exec(source)) !== null) {
+    if (match[1]) continue; // `import type { ... }` / `export type { ... }`
+    for (const raw of match[2].split(',')) {
+      const clause = raw.trim();
+      if (!clause || clause.startsWith('type ')) continue;
+      found.push(clause.split(/\s+as\s+/u)[0].trim());
+    }
+  }
+  return found;
+}
+
+/**
+ * Rule 4 over both routes a value can reach the pad: imported directly, or
+ * re-exported by `@myclash/types`, which every pad surface imports freely.
+ */
+export function findUnallowedPadArithmetic(
+  allowed,
+  sources,
+  read = readFileSync,
+  label = toRepoPath,
+) {
+  const findings = [];
+  let filesRead = 0;
+
+  for (const file of sources) {
+    filesRead += 1;
+    for (const binding of valueBindingsFromRules(read(file, 'utf8'))) {
+      if (allowed.has(binding)) continue;
+      findings.push(
+        `${label(file)} puts "${binding}" within reach of the scoring pad — ${ALLOWLIST_DOC} 7.3 lists what the pad may run, and this is not on it. Add a row with its reason, or keep the value off the pad's import path.`,
+      );
+    }
+  }
+
+  return { findings, filesRead };
+}
+
+/**
+ * Every file from which a value could reach the pad: the pad-reachable
+ * workspaces themselves, plus `@myclash/types`, which they all import freely and
+ * which therefore re-exports straight onto the pad.
+ */
+export function padImportSurface(workspaces = [...PAD_REACHABLE, RE_EXPORTER]) {
+  const files = [];
+  for (const workspace of workspaces) {
+    for (const dir of ['src', 'app']) {
+      const absolute = join(root, workspace, dir);
+      if (!existsSync(absolute)) continue;
+      files.push(...walkRepoFiles(absolute, { extensions: ['.ts', '.tsx'] }));
+    }
+  }
+  return files;
+}
+
 export function scanRepo(read = readFileSync) {
   const manifest = JSON.parse(read(join(root, PURE_PACKAGE, 'package.json'), 'utf8'));
   const emitFiles = emitProgramFiles(join(root, PURE_PACKAGE, 'tsconfig.build.json'), root);
 
   const pad = findEngineOnThePad(PAD_REACHABLE, read);
+  const allowed = parseAllowlist(read(join(root, ALLOWLIST_DOC), 'utf8'));
+  const arithmetic = findUnallowedPadArithmetic(allowed, padImportSurface(), read);
+
   const findings = [
     ...findDeclaredDependencies(manifest),
     ...findOutwardImports(emitFiles, read),
     ...pad.findings,
+    ...arithmetic.findings,
   ];
 
   // The manifest rule, plus every emitted file the import rule opened, plus
   // every source directory the pad rule walked. Counting only the emitted files
   // would report a healthy number for a run in which rule 3 walked nothing --
   // which is exactly what a renamed app directory would cause.
-  const scanned = 1 + emitFiles.length + pad.dirsWalked;
+  // The manifest rule, every emitted file the import rule opened, every source
+  // directory the pad rule walked, every allowlist row parsed, and every file
+  // rule 4 read. Counting only the emitted files would report a healthy number
+  // for a run in which rules 3 and 4 walked nothing -- which is exactly what a
+  // renamed app directory, or a reworded heading in ARCHITECTURE.md, would cause.
+  const scanned = 1 + emitFiles.length + pad.dirsWalked + allowed.size + arithmetic.filesRead;
 
-  return { findings, scanned, emitted: emitFiles.length, dirsWalked: pad.dirsWalked };
+  return {
+    findings,
+    scanned,
+    emitted: emitFiles.length,
+    dirsWalked: pad.dirsWalked,
+    allowed: allowed.size,
+    padFilesRead: arithmetic.filesRead,
+  };
 }
 
 export const gate = defineGate({
   name: 'Package purity',
   entry: import.meta.url,
   run: () => {
-    const { findings, scanned, emitted } = scanRepo();
+    const { findings, scanned, emitted, allowed } = scanRepo();
     return {
       findings,
       scanned,
       summary:
         `${PURE_PACKAGE} declares no runtime dependency and its ${emitted} emitted file(s) reach nothing outside it; ` +
-        `${FORBIDDEN_ON_THE_PAD} is absent from ${PAD_REACHABLE.join(' and ')}.`,
+        `${FORBIDDEN_ON_THE_PAD} is absent from ${PAD_REACHABLE.join(' and ')}; ` +
+        `every value reaching the pad from ${PURE_PACKAGE} is one of the ${allowed} on the ${ALLOWLIST_DOC} §7.3 allowlist.`,
       remedy:
         `The scoring pad must work with no network (ARCHITECTURE.md §7.3, "Seed, don't resolve"). ` +
         `If ${PURE_PACKAGE} genuinely needs something, the thing it needs is not pure — move the caller out, not the dependency in.`,

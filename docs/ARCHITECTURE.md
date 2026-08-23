@@ -674,6 +674,19 @@ docblock and is the place to read next. Two rules keep the list honest: every
 entry is a function the SERVER also calls on the same input, and none of them
 may reach for a database. Anything failing either test belongs server-side.
 
+**The table above is the gate, not a description of one.** `pnpm
+quality:package-purity` parses these rows and refuses any value that reaches the
+pad from `@myclash/rules` without one — whether imported directly or re-exported
+through `@myclash/types`, which every pad surface imports freely. Type-only
+imports are ignored: a type erases at compile time and cannot be called.
+
+That rule exists because the extraction created the risk it closes. The formula
+evaluator used to be unreachable from the pad by accident of packaging — it sat
+beside zod. Now it is pure and reachable, so nothing but this list stops pad code
+from evaluating a custom ruleset's formula locally and printing a real score,
+which hard rule 1 forbids. Adding a row is how you grant permission, and the row
+has to carry its reason.
+
 The provisional score itself remains display-only —
 `apps/web-staff/src/offline/pending-events.ts` computes it for rows still in the
 outbox, and nothing derived on the pad is ever stored. Hard rule 1 is unchanged:

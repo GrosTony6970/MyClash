@@ -3,15 +3,21 @@ import { readFileSync } from 'node:fs';
 import test from 'node:test';
 
 import {
+  ALLOWLIST_DOC,
   FORBIDDEN_ON_THE_PAD,
   PAD_REACHABLE,
   PURE_PACKAGE,
+  RE_EXPORTER,
   findDeclaredDependencies,
   findEngineOnThePad,
   findOutwardImports,
+  findUnallowedPadArithmetic,
   gate,
+  padImportSurface,
+  parseAllowlist,
   scanRepo,
   specifiersIn,
+  valueBindingsFromRules,
 } from './check-package-purity.mjs';
 
 /**
@@ -147,14 +153,144 @@ test('rule 3 counts the directories it walked, so a rename cannot shrink the sca
   assert.equal(dirsWalked, 3);
 });
 
+// ── Rule 4: the pad runs only allowlisted arithmetic ─────────────────────────
+
+const DOC = [
+  '#### What arithmetic the pad IS allowed',
+  '',
+  'Prose the parser must skip.',
+  '',
+  '| Function                                    | The pad uses it to |',
+  '| ------------------------------------------- | ------------------ |',
+  '| `computeAfterblowDeltas` (`@myclash/rules`) | net a queued hit   |',
+  '| `penaltyScoreDelta` + the per-card columns  | price a card       |',
+  '',
+  // A SHALLOWER heading on purpose. In the real document the next heading after
+  // the allowlist is `## 7bis`, not a `####`, and an earlier draft searched only
+  // for a deeper one — so it ran straight past and swallowed the referee-role
+  // and phase-type tables below. A `####` here would let that bug pass.
+  '## The next section',
+  '',
+  '| Role            | Meaning              |',
+  '| --------------- | -------------------- |',
+  '| `arbitre_table` | not a pad permission |',
+].join('\n');
+
+test('parseAllowlist reads the table and stops at the next heading', () => {
+  const allowed = parseAllowlist(DOC);
+
+  assert.deepEqual([...allowed].sort(), ['computeAfterblowDeltas', 'penaltyScoreDelta']);
+  // The referee-role table below the next heading is NOT a pad permission. An
+  // earlier draft searched only for a DEEPER heading, ran past `## 7bis` and
+  // swallowed two unrelated tables — nine entries instead of four.
+  assert.equal(allowed.has('arbitre_table'), false);
+});
+
+test('parseAllowlist ignores a backticked package name in the cell', () => {
+  // `@myclash/rules` appears in the first cell as context. Granting it would
+  // permit a whole package rather than a function.
+  assert.equal(parseAllowlist(DOC).has('@myclash/rules'), false);
+});
+
+test('parseAllowlist throws when the heading it anchors on is gone', () => {
+  assert.throws(() => parseAllowlist('# Another document\n\nNo allowlist here.\n'), /cannot find/u);
+});
+
+test('parseAllowlist throws rather than permitting everything on an empty table', () => {
+  const gutted = '#### What arithmetic the pad IS allowed\n\nThe table was deleted.\n';
+
+  assert.throws(() => parseAllowlist(gutted), /zero entries/u);
+});
+
+test('valueBindingsFromRules reports values and ignores types', () => {
+  const source = [
+    "import { computeAfterblowDeltas } from '@myclash/rules';",
+    "import type { AfterblowMode } from '@myclash/rules';",
+    "import { evaluateFormula, type FormulaNode } from '@myclash/rules';",
+    "export { renderFormula } from '@myclash/rules';",
+    "export type { MatchFormatConfig } from '@myclash/rules';",
+    "import { unrelated } from '@myclash/types';",
+  ].join('\n');
+
+  assert.deepEqual(valueBindingsFromRules(source).sort(), [
+    'computeAfterblowDeltas',
+    'evaluateFormula',
+    'renderFormula',
+  ]);
+});
+
+test('valueBindingsFromRules follows a renamed binding to its source name', () => {
+  assert.deepEqual(
+    valueBindingsFromRules("import { evaluateFormula as run } from '@myclash/rules';"),
+    ['evaluateFormula'],
+  );
+});
+
+test('rule 4 fires on a value the allowlist does not name', () => {
+  const read = () => "export { evaluateFormula } from '@myclash/rules';";
+  const { findings, filesRead } = findUnallowedPadArithmetic(
+    new Set(['computeAfterblowDeltas']),
+    ['/repo/packages/types/src/scoring-config.ts'],
+    read,
+    (f) => f,
+  );
+
+  assert.equal(filesRead, 1);
+  assert.equal(findings.length, 1);
+  assert.match(findings[0], /evaluateFormula/u);
+  assert.match(findings[0], /7\.3/u);
+});
+
+test('rule 4 stays quiet for an allowlisted value', () => {
+  const read = () => "export { computeAfterblowDeltas } from '@myclash/rules';";
+  const { findings } = findUnallowedPadArithmetic(
+    new Set(['computeAfterblowDeltas']),
+    ['/x.ts'],
+    read,
+    (f) => f,
+  );
+
+  assert.deepEqual(findings, []);
+});
+
+test('rule 4 covers the re-exporter, not only the pad workspaces', () => {
+  // A value reaches the pad just as surely through @myclash/types, which every
+  // pad surface imports freely. Scanning only apps/web-staff would miss it, and
+  // that is the route the one real crossing takes today.
+  const files = padImportSurface().map((f) => f.split('\\').join('/'));
+
+  assert.ok(
+    files.some((f) => f.includes(`${RE_EXPORTER}/src/`)),
+    `${RE_EXPORTER} must be in the surface rule 4 reads`,
+  );
+  assert.ok(files.some((f) => f.includes('apps/web-staff/src/')));
+});
+
+test('the real allowlist is exactly the four rows of the 7.3 table', () => {
+  const allowed = parseAllowlist(readFileSync(ALLOWLIST_DOC, 'utf8'));
+
+  // Pinned as a SET, not by spot-checks. A parser that over-reads still contains
+  // computeAfterblowDeltas and still lacks evaluateFormula, so asserting only
+  // those two would pass on a slice that swallowed the two tables below.
+  assert.deepEqual([...allowed].sort(), [
+    'computeAfterblowDeltas',
+    'computePenaltySanction',
+    'penaltyScoreDelta',
+    'resolveEntryCard',
+  ]);
+  assert.equal(allowed.has('evaluateFormula'), false, 'the pad must never derive a score');
+});
+
 // ── The real repo ────────────────────────────────────────────────────────────
 
 test('the repo is pure right now', () => {
-  const { findings, scanned, emitted, dirsWalked } = scanRepo();
+  const { findings, scanned, emitted, dirsWalked, allowed, padFilesRead } = scanRepo();
 
   assert.deepEqual(findings, []);
   assert.ok(emitted > 0, `${PURE_PACKAGE} emitted nothing — the tsconfig or the walk is broken`);
-  assert.equal(scanned, 1 + emitted + dirsWalked);
+  assert.ok(allowed > 0, 'the allowlist parsed to nothing');
+  assert.ok(padFilesRead > 0, 'rule 4 read no files');
+  assert.equal(scanned, 1 + emitted + dirsWalked + allowed + padFilesRead);
 });
 
 test('the gate reports what it saw', () => {
