@@ -28,8 +28,34 @@
 	root * /usr/share/caddy
 	encode zstd gzip
 
-	try_files {path}/index.html {path}
-	file_server
+	# GET /api/version — what this container is serving, matching the JSON the
+	# three Next apps answer from `app/api/version/route.ts`. There is no server
+	# here to run a handler, so Caddy answers it directly.
+	#
+	# `{env.GIT_COMMIT}` is read at RUNTIME from the container environment, not
+	# baked in. That is deliberate and mirrors the Next apps: making the commit a
+	# build arg would invalidate this image's layer cache on every commit, which
+	# is the cost `infra/docker-compose.prod.yml` already refuses to pay for
+	# SENTRY_RELEASE. The compose service passes GIT_COMMIT in `environment:`.
+	#
+	# In its own `handle` so it cannot fall into `try_files` below — which would
+	# rewrite it to /api/version/index.html and answer 404.html. The static
+	# serving keeps its original order inside the second `handle`; see the note
+	# above for why that order is load-bearing.
+	#
+	# The commit is NOT truncated to 8 here, unlike the API and the Next apps:
+	# the deploy scripts export a full `git rev-parse HEAD` and Caddy has no
+	# string operations. It is a prefix of what the others print, so comparing
+	# still works — read the first 8 characters.
+	handle /api/version {
+		header Content-Type application/json
+		respond `{"app":"web-marketing","commit":"{env.GIT_COMMIT}"}` 200
+	}
+
+	handle {
+		try_files {path}/index.html {path}
+		file_server
+	}
 
 	# `status` is load-bearing: without it file_server serves 404.html with a
 	# 200, which is the same soft-404 failure in a different costume — every

@@ -1050,6 +1050,11 @@ services:
     restart: unless-stopped
     environment:
       TZ: ${TZ}
+      # Read at runtime by the /api/version responder in the Caddyfile. An
+      # `environment:` key and not a build arg on purpose: a per-commit arg
+      # would invalidate this image's cache on every deploy, exactly as the
+      # api/web-* services note above.
+      GIT_COMMIT: ${GIT_COMMIT:-unknown}
     healthcheck:
       test: ['CMD-SHELL', 'wget -qO- http://localhost:80/ | head -c 100 || exit 1']
       interval: 30s
