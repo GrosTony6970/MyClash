@@ -41,3 +41,25 @@ export type {
 // validate an AUTHORED tree stay in @myclash/rulesets: authoring is resolution,
 // evaluating is application.
 export * from './formula';
+
+// The double-penalty term of a ranking score: a whitelisted key, or an authored
+// AST run by our own interpreter. The zod schema that validates a stored spec
+// stays in @myclash/rulesets.
+export {
+  DEFAULT_DOUBLE_PENALTY_FORMULA,
+  DOUBLE_PENALTY_FORMULAS,
+  DOUBLE_PENALTY_FORMULA_KEYS,
+  DOUBLE_PENALTY_VARIABLE,
+  FEDERAL_DOUBLE_PENALTY_AST,
+  doublePenalty,
+  evaluateDoublePenaltyAst,
+  formatDoublePenalty,
+  isDoublePenaltyAst,
+} from './tf_v1/double-penalty';
+export type { DoublePenaltyFormula, DoublePenaltySpec } from './tf_v1/double-penalty';
+
+// The TF_v1 ranking score. Its two Ruleset contract methods stay in
+// @myclash/rulesets: they normalise an unvalidated config first, and that is
+// resolution.
+export { WIN_BONUS, computeAggregates, computeScore } from './tf_v1/score';
+export type { FighterAggregates, ScoreOptions } from './tf_v1/score';
