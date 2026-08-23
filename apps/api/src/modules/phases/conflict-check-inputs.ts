@@ -2,7 +2,7 @@ import type {
   ConflictRefereeAssignment,
   ConflictScheduledMatch,
   RegistrationPersonMap,
-} from '@myclash/rulesets/dist/scheduling/index';
+} from '@myclash/rulesets/scheduling';
 
 /**
  * Rows to `detectFighterRefereeConflicts` inputs, for the hard-rule-8 check.

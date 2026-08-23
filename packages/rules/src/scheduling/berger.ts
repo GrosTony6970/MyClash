@@ -1,5 +1,5 @@
 /**
- * packages/rulesets/src/scheduling/berger.ts
+ * packages/rules/src/scheduling/berger.ts
  *
  * Berger table (circle method) for round-robin tournament scheduling.
  * Generates all matches for a pool in a deterministic, balanced order.

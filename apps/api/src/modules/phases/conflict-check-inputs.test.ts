@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { detectFighterRefereeConflicts } from '@myclash/rulesets/dist/scheduling/index';
+import { detectFighterRefereeConflicts } from '@myclash/rulesets/scheduling';
 import {
   toConflictAssignments,
   toConflictMatches,

@@ -117,6 +117,9 @@ importers:
       '@myclash/feature-flags':
         specifier: workspace:^
         version: link:../../packages/feature-flags
+      '@myclash/rules':
+        specifier: workspace:^
+        version: link:../../packages/rules
       '@myclash/rulesets':
         specifier: workspace:^
         version: link:../../packages/rulesets
@@ -247,6 +250,9 @@ importers:
       '@myclash/next-i18n':
         specifier: workspace:^
         version: link:../../packages/next-i18n
+      '@myclash/rules':
+        specifier: workspace:^
+        version: link:../../packages/rules
       '@myclash/rulesets':
         specifier: workspace:^
         version: link:../../packages/rulesets

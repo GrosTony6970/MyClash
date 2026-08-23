@@ -1,5 +1,5 @@
 /**
- * packages/rulesets/src/scheduling/local-search.ts
+ * packages/rules/src/scheduling/local-search.ts
  *
  * Local search optimizer for pool assignments.
  * ARCHITECTURE.md §11quater.1: "Iterate K = max(50, fighters * 2) times:

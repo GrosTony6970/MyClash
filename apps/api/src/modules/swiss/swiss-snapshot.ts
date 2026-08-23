@@ -14,7 +14,7 @@
  * within and across point groups.
  */
 
-import type { SwissPlayer } from '@myclash/rulesets/dist/scheduling/index';
+import type { SwissPlayer } from '@myclash/rules';
 import type { SwissConfig } from './dto/swiss-config.dto';
 
 export interface SwissMatchRecord {

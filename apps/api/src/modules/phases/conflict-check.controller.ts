@@ -14,7 +14,7 @@
 import { Controller, Get, Param, ParseUUIDPipe, Req } from '@nestjs/common';
 import { ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
 import type { FastifyRequest } from 'fastify';
-import { detectFighterRefereeConflicts } from '@myclash/rulesets/dist/scheduling/index';
+import { detectFighterRefereeConflicts } from '@myclash/rulesets/scheduling';
 import { assertTournamentMember } from '../../common/auth/event-authz';
 import { resolveRequestUserId } from '../../common/auth/request-user';
 import { OrganizationsService } from '../organizations/organizations.service';

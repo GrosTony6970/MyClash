@@ -4,7 +4,7 @@ import {
   doubleElimBracket,
   totalDoubleElimMatches,
 } from './double-elim';
-import { expectRefsResolve } from './double-elim-test-helpers';
+import { unresolvedRefs } from './double-elim-test-helpers';
 
 describe('doubleElimBracket', () => {
   describe('structure: 8 fighters', () => {
@@ -241,7 +241,7 @@ describe('doubleElimBracket', () => {
     });
 
     it('still resolves every ref', () => {
-      expectRefsResolve(b);
+      expect(unresolvedRefs(b)).toEqual([]);
     });
   });
 
@@ -250,8 +250,11 @@ describe('doubleElimBracket', () => {
 
     it('every advancement ref resolves to a real slot', () => {
       for (const n of sizes) {
-        expectRefsResolve(doubleElimBracket(n));
-        expectRefsResolve(doubleElimBracket(n, { grandFinalReset: true }));
+        expect(unresolvedRefs(doubleElimBracket(n)), `${n} fighters`).toEqual([]);
+        expect(
+          unresolvedRefs(doubleElimBracket(n, { grandFinalReset: true })),
+          `${n} fighters, grand-final reset`,
+        ).toEqual([]);
       }
     });
 
@@ -322,7 +325,7 @@ describe('doubleElimBracket', () => {
       const b = doubleElimBracket(10, { bracketSize: 8 });
       expect(b.bracketSize).toBe(8);
       expect(b.playInMatchCount).toBe(2);
-      expectRefsResolve(b);
+      expect(unresolvedRefs(b)).toEqual([]);
     });
 
     it('caps bracket size at 128', () => {

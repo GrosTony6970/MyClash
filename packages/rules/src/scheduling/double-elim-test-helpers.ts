@@ -1,13 +1,19 @@
 /**
- * Shared assertions for the double-elimination generator tests.
+ * Shared checks for the double-elimination generator tests.
  *
  * Lives in its own module so `double-elim.test.ts` (classical brackets) and
  * `double-elim-shape.test.ts` (podium options and repechage cutoffs) check the
  * SAME invariant. A ref that names a slot which doesn't exist is a permanent
- * deadlock, not a cosmetic bug, so this is the assertion that matters most.
+ * deadlock, not a cosmetic bug, so this is the check that matters most.
+ *
+ * It REPORTS rather than asserts. `@myclash/rules` has zero dependencies —
+ * that is the package's whole contract — and an `import { expect } from 'vitest'`
+ * here is the exact incident `scripts/check-test-code-leak.mjs` was written for:
+ * this file was emitted into the production api image, where vitest is not
+ * installed. Returning findings keeps the invariant in one place and leaves the
+ * assertion with the callers, which is where the test runner belongs.
  */
 
-import { expect } from 'vitest';
 import type { DoubleElimBracket, DoubleElimSlot } from './double-elim';
 
 /**
@@ -24,24 +30,37 @@ export function selfRef(slot: DoubleElimSlot, b: DoubleElimBracket): string {
   return slot.round === b.wbRounds + b.lbRounds + 1 ? 'GF' : 'GFRESET';
 }
 
-/** Assert every advancement ref resolves to a slot that actually exists. */
-export function expectRefsResolve(b: DoubleElimBracket): void {
+/**
+ * Every advancement ref that does NOT resolve to a slot which exists, plus every
+ * source ref in a shape nothing can advance through. Empty means the bracket is
+ * wired end to end.
+ */
+export function unresolvedRefs(b: DoubleElimBracket): string[] {
   const known = new Set(b.slots.map((s) => selfRef(s, b)));
+  const problems: string[] = [];
+
   for (const slot of b.slots) {
+    const from = selfRef(slot, b);
     for (const ref of [slot.homeSource, slot.awaySource]) {
       const advance = /^(?:winner|loser) of (.+)$/.exec(ref);
       if (advance) {
-        expect(known, `${ref} (from ${selfRef(slot, b)}) must name a real slot`).toContain(
-          advance[1]!,
-        );
+        if (!known.has(advance[1]!)) problems.push(`${ref} (from ${from}) names no real slot`);
         continue;
       }
+
       const seed = /^seed (\d+)$/.exec(ref);
-      expect(seed, `unrecognised source ref "${ref}"`).not.toBeNull();
-      expect(Number(seed![1])).toBeGreaterThanOrEqual(1);
-      expect(Number(seed![1])).toBeLessThanOrEqual(b.fighterCount);
+      if (!seed) {
+        problems.push(`unrecognised source ref "${ref}" (from ${from})`);
+        continue;
+      }
+      const number = Number(seed[1]);
+      if (number < 1 || number > b.fighterCount) {
+        problems.push(`${ref} (from ${from}) is outside 1..${b.fighterCount}`);
+      }
     }
   }
+
+  return problems;
 }
 
 /** Match counts per losers-bracket round, in round order. */

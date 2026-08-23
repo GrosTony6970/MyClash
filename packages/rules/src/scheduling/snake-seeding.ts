@@ -1,5 +1,5 @@
 /**
- * packages/rulesets/src/scheduling/snake-seeding.ts
+ * packages/rules/src/scheduling/snake-seeding.ts
  *
  * Snake-seeding pool distribution algorithm.
  * ARCHITECTURE.md §11quater.1: "Snake-distribute to pools: pool 1 gets seed 1,

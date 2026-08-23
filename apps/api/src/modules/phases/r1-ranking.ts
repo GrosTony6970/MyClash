@@ -15,7 +15,7 @@
  * ranked list, produced by PoolStandingsService and flattened by
  * `buildCrossPoolSnakeRanking` in bracket-r1-seeding.ts.
  */
-import { mulberry32 } from '@myclash/rulesets/dist/scheduling/index';
+import { mulberry32 } from '@myclash/rules';
 import type { RankedRegistration } from './bracket-r1-seeding';
 
 export interface SeedableRegistration {

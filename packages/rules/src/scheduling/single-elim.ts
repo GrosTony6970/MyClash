@@ -1,5 +1,5 @@
 /**
- * packages/rulesets/src/scheduling/single-elim.ts
+ * packages/rules/src/scheduling/single-elim.ts
  *
  * Single-elimination bracket generator.
  * ARCHITECTURE.md §11quater: "Generate a single-elimination bracket from

@@ -5,7 +5,7 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
-import { recommendedRoundCount } from '@myclash/rulesets/dist/scheduling/index';
+import { recommendedRoundCount } from '@myclash/rules';
 import { SupabaseService } from '../supabase/supabase.service';
 import { insertAuditLog } from '../../common/audit-log';
 import { FOUGHT_STATUSES } from '../matches/fought-match';

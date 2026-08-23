@@ -1,5 +1,5 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
-import { recommendedRoundCount } from '@myclash/rulesets/dist/scheduling/index';
+import { recommendedRoundCount } from '@myclash/rules';
 import { SupabaseService } from '../supabase/supabase.service';
 // Value imports, not `import type`: Nest DI metadata.
 import { SwissPairingService } from './swiss-pairing.service';

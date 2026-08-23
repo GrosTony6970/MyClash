@@ -1,5 +1,5 @@
 /**
- * packages/rulesets/src/scheduling/swiss-matching.ts
+ * packages/rules/src/scheduling/swiss-matching.ts
  *
  * The pairing search underneath `swiss.ts`.
  *

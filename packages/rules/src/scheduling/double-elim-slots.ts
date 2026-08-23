@@ -1,5 +1,5 @@
 /**
- * packages/rulesets/src/scheduling/double-elim-slots.ts
+ * packages/rules/src/scheduling/double-elim-slots.ts
  *
  * Slot shapes and per-section builders for the double-elimination generator.
  * Split out of `double-elim.ts` so that file stays focused on sizing,

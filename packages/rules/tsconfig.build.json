@@ -8,5 +8,14 @@
     "noEmit": false
   },
   "include": ["src/**/*.ts"],
-  "exclude": ["node_modules", "dist", "src/**/*.test.ts"]
+  "exclude": [
+    "node_modules",
+    "dist",
+    "src/**/*.test.ts",
+    // Test-only, but not named *.test.ts, so no glob catches it. Listed by path
+    // on purpose: scripts/check-test-code-leak.mjs proves the list is complete
+    // rather than trusting a naming convention. It no longer imports vitest, so
+    // shipping it would not crash any more — it is simply not production code.
+    "src/scheduling/double-elim-test-helpers.ts"
+  ]
 }

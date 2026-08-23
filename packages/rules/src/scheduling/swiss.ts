@@ -1,5 +1,5 @@
 /**
- * packages/rulesets/src/scheduling/swiss.ts
+ * packages/rules/src/scheduling/swiss.ts
  *
  * Swiss-system pairing. Given the current standings, produce the next round.
  *

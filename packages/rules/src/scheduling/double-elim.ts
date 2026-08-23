@@ -1,5 +1,5 @@
 /**
- * packages/rulesets/src/scheduling/double-elim.ts
+ * packages/rules/src/scheduling/double-elim.ts
  *
  * Double-elimination bracket generator.
  *

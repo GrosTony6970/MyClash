@@ -210,9 +210,11 @@ here.
   naive "double by inserting size+1-pos" approach produces wrong pairings.
 - Expose both `poolCount` and `targetSize` for pools, and `bracketSize` for brackets — organizers
   think in target sizes, not counts.
-- Keep scheduling algorithms as pure functions in `packages/rulesets/src/scheduling/`; the NestJS
+- Keep scheduling algorithms as pure functions in `packages/rules/src/scheduling/`; the NestJS
   layer (`pool-generator.ts`) does DB access and orchestration. That keeps them independently
-  testable and usable in a Web Worker.
+  testable and usable in a Web Worker. The referee assigner and the fighter/referee conflict check
+  stay in `packages/rulesets/src/scheduling/` — they read staff availability and registration
+  identities, which is resolution, not application.
 
 ## Testing
 

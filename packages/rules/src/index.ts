@@ -66,3 +66,8 @@ export type { DoublePenaltyFormula, DoublePenaltySpec } from './tf_v1/double-pen
 // resolution.
 export { WIN_BONUS, computeAggregates, computeScore } from './tf_v1/score';
 export type { FighterAggregates, ScoreOptions } from './tf_v1/score';
+
+// How a competition's Matches are laid out: pools, seeding, brackets, Swiss.
+// The referee assigner and the fighter/referee conflict check stay in
+// @myclash/rulesets — they read staff and identities, which is resolution.
+export * from './scheduling';

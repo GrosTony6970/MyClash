@@ -17,10 +17,6 @@
     "./scheduling/conflict-check": {
       "types": "./dist/scheduling/conflict-check.d.ts",
       "default": "./dist/scheduling/conflict-check.js"
-    },
-    "./dist/scheduling/index": {
-      "types": "./dist/scheduling/index.d.ts",
-      "default": "./dist/scheduling/index.js"
     }
   },
   "scripts": {

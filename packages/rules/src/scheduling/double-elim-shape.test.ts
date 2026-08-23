@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { doubleElimBracket, totalDoubleElimMatches } from './double-elim';
-import { expectRefsResolve, lbRoundSizes } from './double-elim-test-helpers';
+import { lbRoundSizes, unresolvedRefs } from './double-elim-test-helpers';
 
 /**
  * Podium options and repechage cutoffs — the Slice 2 surface of the
@@ -68,10 +68,14 @@ describe('repechage cutoff (repechageEntrySize)', () => {
     for (const size of [8, 16, 32, 64]) {
       for (const k of [8, 16, 32]) {
         if (k > size) continue;
-        expectRefsResolve(doubleElimBracket(size, { repechageEntrySize: k }));
-        expectRefsResolve(
-          doubleElimBracket(size, { repechageEntrySize: k, grandFinalReset: true }),
-        );
+        expect(
+          unresolvedRefs(doubleElimBracket(size, { repechageEntrySize: k })),
+          `bracket ${size}, repechage entry ${k}`,
+        ).toEqual([]);
+        expect(
+          unresolvedRefs(doubleElimBracket(size, { repechageEntrySize: k, grandFinalReset: true })),
+          `bracket ${size}, repechage entry ${k}, grand-final reset`,
+        ).toEqual([]);
       }
     }
   });
@@ -137,7 +141,7 @@ describe('secondChanceTarget: bronze', () => {
     expect(b.repechageEntryRound).toBe(3);
     // The WB final (round 5) still never drops; rounds 3-4 do.
     expect(wbDropRounds(b)).toEqual([3, 4]);
-    expectRefsResolve(b);
+    expect(unresolvedRefs(b)).toEqual([]);
   });
 
   it('rejects grandFinalReset — there is no grand final to reset', () => {

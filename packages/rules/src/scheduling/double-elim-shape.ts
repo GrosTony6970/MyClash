@@ -1,5 +1,5 @@
 /**
- * packages/rulesets/src/scheduling/double-elim-shape.ts
+ * packages/rules/src/scheduling/double-elim-shape.ts
  *
  * Sizing and validation for the double-elimination generator: turns a fighter
  * count plus operator options into the derived round counts every other piece

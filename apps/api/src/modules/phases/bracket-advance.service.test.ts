@@ -2,7 +2,7 @@ import { describe, it, expect, vi } from 'vitest';
 import { BadRequestException, ConflictException, NotFoundException } from '@nestjs/common';
 import { BracketAdvanceService } from './bracket-advance.service';
 import { buildSelfRef, grandFinalEndsBracket, resolveLoser } from './bracket-refs';
-import { singleElimBracket } from '@myclash/rulesets/dist/scheduling/index';
+import { singleElimBracket } from '@myclash/rules';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 

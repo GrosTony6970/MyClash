@@ -12,7 +12,7 @@ import {
   type RefereeCandidate,
   type RefereePoolSlot,
   type RefereeRole,
-} from '@myclash/rulesets/dist/scheduling/index';
+} from '@myclash/rulesets/scheduling';
 import { DEFAULT_EVENT_TIMEZONE, dayIndexInZone } from '@myclash/time';
 import { priorAssignmentsFromRows } from './prior-assignments';
 import { runEndIso } from '../schedule/run-end';

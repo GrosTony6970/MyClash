@@ -20,6 +20,7 @@
     "@google/genai": "^2.16.0",
     "@mistralai/mistralai": "^2.6.1",
     "@myclash/feature-flags": "workspace:^",
+    "@myclash/rules": "workspace:^",
     "@myclash/rulesets": "workspace:^",
     "@myclash/time": "workspace:^",
     "@myclash/types": "workspace:^",

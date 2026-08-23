@@ -1,4 +1,4 @@
-import type { PriorAssignment } from '@myclash/rulesets/dist/scheduling/index';
+import type { PriorAssignment } from '@myclash/rulesets/scheduling';
 
 /** Minimal shape of a persisted referee_assignments row (subset of
  *  RefereeAssignmentRow) needed to derive a prior. */
