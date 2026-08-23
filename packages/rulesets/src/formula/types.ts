@@ -50,7 +50,10 @@ export type {
 };
 
 const VariableSchema = z.enum(FORMULA_VARIABLE_KEYS);
-const OperatorSchema = z.enum(['+', '-', '*', '/']);
+
+/** The four arithmetic operators a formula may use, as data. */
+const FORMULA_OPERATORS = ['+', '-', '*', '/'] as const satisfies readonly BinaryOperator[];
+const OperatorSchema = z.enum(FORMULA_OPERATORS);
 
 /**
  * One SELF-referential node schema — the getters point back at this same
@@ -67,7 +70,7 @@ const OperatorSchema = z.enum(['+', '-', '*', '/']);
  *
  * A cycle emits a single `$ref` instead: the whole document is now 0.6 MB.
  */
-const FormulaNodeShape: z.ZodType<FormulaNode> = z.union([
+export const FormulaNodeShape: z.ZodType<FormulaNode> = z.union([
   z.object({ type: z.literal('literal'), value: z.number().finite() }),
   z.object({ type: z.literal('var'), name: VariableSchema }),
   z.object({
@@ -93,16 +96,55 @@ const FormulaNodeShape: z.ZodType<FormulaNode> = z.union([
  * `.pipe()` costs us the emitted JSON Schema — zod describes a pipe by its
  * INPUT side, which here is `unknown`, i.e. `{}`. That would document
  * `doublePenaltyFormula` as "anything" for every consumer of the typed client.
- * So we hand the shape's own JSON Schema back via `.meta()`, derived from
- * `FormulaNodeShape` rather than written out, so the two cannot drift.
+ * So we hand the shape's own JSON Schema back via `.meta()`.
  *
- * The one cost: `z.toJSONSchema` is now reachable at module load, and
- * web-admin imports this package, so its converter lands in that bundle. If
- * that ever matters, move the guarded schema into a server-only module and
- * export the bare shape here instead.
+ * ── Why this is written out and not derived ─────────────────────────────────
+ * It used to be `z.toJSONSchema(FormulaNodeShape, { io: 'input' })`, evaluated
+ * at MODULE LOAD. That put zod's JSON-Schema converter — and a run of it — into
+ * every bundle importing this package. `@myclash/rulesets` is a CommonJS barrel
+ * with no tree-shaking, so importing one constant from it (web-admin imports
+ * `DEFAULT_FORMULA_CONSTANTS`, `FORMULA_VARIABLE_KEYS`, `MAX_TARGETS` and more
+ * across twenty files) pulled the converter into the browser to build a
+ * document only the OpenAPI emit reads.
+ *
+ * Writing it out normally means a second copy that can drift. It does not here,
+ * for two reasons: both enums below are the SAME arrays the schema is built
+ * from, so the parts that actually change cannot disagree; and
+ * `formula-node-schema.test.ts` asserts this constant still deep-equals what
+ * `z.toJSONSchema` derives from the shape. The converter runs in the test,
+ * which is the one place it is needed.
  */
-const formulaNodeJsonSchema = z.toJSONSchema(FormulaNodeShape, { io: 'input' });
-delete (formulaNodeJsonSchema as { $schema?: unknown }).$schema;
+const FORMULA_NODE_JSON_SCHEMA = {
+  anyOf: [
+    {
+      type: 'object',
+      properties: {
+        type: { type: 'string', const: 'literal' },
+        value: { type: 'number' },
+      },
+      required: ['type', 'value'],
+    },
+    {
+      type: 'object',
+      properties: {
+        type: { type: 'string', const: 'var' },
+        name: { type: 'string', enum: [...FORMULA_VARIABLE_KEYS] },
+      },
+      required: ['type', 'name'],
+    },
+    {
+      type: 'object',
+      properties: {
+        type: { type: 'string', const: 'binop' },
+        op: { type: 'string', enum: [...FORMULA_OPERATORS] },
+        // The cycle, as the one `$ref` that keeps this document finite.
+        left: { $ref: '#' },
+        right: { $ref: '#' },
+      },
+      required: ['type', 'op', 'left', 'right'],
+    },
+  ],
+};
 
 export const FormulaNodeSchema: z.ZodType<FormulaNode> = z
   .unknown()
@@ -110,7 +152,7 @@ export const FormulaNodeSchema: z.ZodType<FormulaNode> = z
     message: `formula nests deeper than ${MAX_FORMULA_DEPTH} levels`,
   })
   .pipe(FormulaNodeShape)
-  .meta(formulaNodeJsonSchema) as unknown as z.ZodType<FormulaNode>;
+  .meta(FORMULA_NODE_JSON_SCHEMA) as unknown as z.ZodType<FormulaNode>;
 
 export const TiebreakerSchema: z.ZodType<Tiebreaker> = z.object({
   variable: VariableSchema,

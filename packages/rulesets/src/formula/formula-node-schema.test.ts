@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
-import { FormulaNodeSchema, MAX_FORMULA_DEPTH, exceedsMaxFormulaDepth } from './types';
+import {
+  FormulaNodeSchema,
+  FormulaNodeShape,
+  MAX_FORMULA_DEPTH,
+  exceedsMaxFormulaDepth,
+} from './types';
 import type { FormulaNode } from './types';
 
 const literal: FormulaNode = { type: 'literal', value: 1 };
@@ -85,5 +90,20 @@ describe('FormulaNodeSchema — JSON Schema stays finite', () => {
     const json = JSON.stringify(z.toJSONSchema(FormulaNodeSchema, { io: 'input' }));
     expect(json).toContain('binop');
     expect(json).toContain('literal');
+  });
+
+  it('serves the same document the converter would derive from the shape', () => {
+    // The `.meta()` document is WRITTEN OUT in types.ts, so that zod's
+    // JSON-Schema converter is not reachable at module load and does not ship
+    // to every browser bundle importing this CommonJS barrel. This is the check
+    // that paying that price bought nothing: run the converter here, in the one
+    // place it belongs, and require the hand-written copy to match it exactly.
+    const derived = z.toJSONSchema(FormulaNodeShape, { io: 'input' }) as Record<string, unknown>;
+    delete derived['$schema'];
+
+    const served = z.toJSONSchema(FormulaNodeSchema, { io: 'input' }) as Record<string, unknown>;
+    delete served['$schema'];
+
+    expect(served).toEqual(derived);
   });
 });
