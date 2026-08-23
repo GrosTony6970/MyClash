@@ -19,7 +19,7 @@ import type { MatchFormatConfig, TournamentScoringConfig } from '@myclash/types'
 import {
   DEFAULT_MATCH_FORMAT_CONFIG,
   DEFAULT_SCORING_CONFIG,
-  pointCapWinnerSide,
+  pointCapWinnerColor,
 } from '@myclash/types';
 import { sideStyle, useAdjacentMatches } from '@myclash/ui';
 import { effectiveTimeLimitSeconds } from './scoreboard-clock';
@@ -424,7 +424,7 @@ export function MatchView({
   // a referee needs to see the cap coming while the tablet is offline. It
   // cannot end a bout — the result overlay gates on the CLOCK being ended, and
   // ending the clock is a POST.
-  const capWinnerSide = pointCapWinnerSide(redScore, blueScore, matchFormat);
+  const capWinnerSide = pointCapWinnerColor({ redScore, blueScore }, matchFormat);
   const reverseScoring = matchFormat.scoringDirection === 'reverse_zero_loses';
 
   // Score-changing actions (exchange, penalty) recompute the score

@@ -21,7 +21,7 @@
  * type later.
  */
 import { computeAfterblowDeltas, type AfterblowMode } from './afterblow';
-import type { Exchange, Match, MatchScore } from './domain';
+import type { Exchange, Match, MatchScore, PhaseType } from './domain';
 
 export type ScoringDirection = 'normal' | 'reverse_zero_loses';
 export type TimerMode = 'countdown' | 'countup';
@@ -63,31 +63,53 @@ export interface MatchFormatConfig {
   };
 }
 
-export function isMedalMatch(match: Match): boolean {
-  const label = (match.matchNumberLabel ?? '').trim().toUpperCase();
+/**
+ * Medal matches are identified by their label, not their bracket round: a
+ * bronze match sits in the same round as nothing else, and the finals time
+ * limit is configured separately from the rest of the bracket.
+ */
+export function isMedalMatchLabel(label: string | null | undefined): boolean {
+  const normalized = (label ?? '').trim().toUpperCase();
   return (
-    label === 'F' ||
-    label === 'FINAL' ||
-    label === 'GOLD' ||
-    label === 'GOLD MEDAL MATCH' ||
-    label === '3RD' ||
-    label === 'BRONZE' ||
-    label === 'BRONZE MEDAL MATCH'
+    normalized === 'F' ||
+    normalized === 'FINAL' ||
+    normalized === 'GOLD' ||
+    normalized === 'GOLD MEDAL MATCH' ||
+    normalized === '3RD' ||
+    normalized === 'BRONZE' ||
+    normalized === 'BRONZE MEDAL MATCH'
   );
+}
+
+/**
+ * The time limit this match counts against, in seconds. `null` = no limit
+ * (the clock can only count up).
+ *
+ * Takes the phase and the label rather than a {@link Match}, because every
+ * scoreboard has those two and none of them has a whole match: the projector
+ * renders a row, the pad renders its own fetched summary. The Match-shaped
+ * entry point is {@link getEffectiveMatchTimeLimitSeconds}.
+ */
+export function effectiveTimeLimitSeconds(
+  config: MatchFormatConfig,
+  phaseType: PhaseType | undefined,
+  matchNumberLabel: string | null | undefined,
+): number | null {
+  if (phaseType === 'pool') return config.timeLimitsSeconds.pool;
+  // `?? pool` and not `?? bracket`: a Swiss round is a group stage, and a
+  // config written before Swiss existed carries no swiss key at all.
+  if (phaseType === 'swiss') {
+    return config.timeLimitsSeconds.swiss ?? config.timeLimitsSeconds.pool;
+  }
+  if (isMedalMatchLabel(matchNumberLabel)) return config.timeLimitsSeconds.finals;
+  return config.timeLimitsSeconds.bracket;
 }
 
 export function getEffectiveMatchTimeLimitSeconds(
   match: Match,
   config: MatchFormatConfig,
 ): number | null {
-  if (match.phaseType === 'pool') return config.timeLimitsSeconds.pool;
-  // `?? pool` and not `?? bracket`: a Swiss round is a group stage, and a
-  // config written before Swiss existed carries no swiss key at all.
-  if (match.phaseType === 'swiss') {
-    return config.timeLimitsSeconds.swiss ?? config.timeLimitsSeconds.pool;
-  }
-  if (isMedalMatch(match)) return config.timeLimitsSeconds.finals;
-  return config.timeLimitsSeconds.bracket;
+  return effectiveTimeLimitSeconds(config, match.phaseType, match.matchNumberLabel);
 }
 
 /**
@@ -100,7 +122,7 @@ export function getEffectiveBestOf(match: Match, config: MatchFormatConfig): num
   const bestOf = config.bestOf ?? { pool: 1, bracket: 1, finals: 1 };
   if (match.phaseType === 'pool') return bestOf.pool;
   if (match.phaseType === 'swiss') return bestOf.swiss ?? bestOf.pool;
-  if (isMedalMatch(match)) return bestOf.finals;
+  if (isMedalMatchLabel(match.matchNumberLabel)) return bestOf.finals;
   return bestOf.bracket;
 }
 
@@ -142,14 +164,26 @@ export function pointCapWinnerColor(
   return null;
 }
 
-export function computeMatchClockMs(
-  match: Match,
+/**
+ * Raw elapsed active ms → the numeral to put on the scoreboard. Countdown
+ * subtracts from the phase limit and clamps at zero; count-up (or a phase with
+ * no limit) returns elapsed unchanged.
+ *
+ * This is the number a referee reads AND the number the bout ends on. It had
+ * two implementations — one here and one in `@myclash/types` (match-clock.ts) —
+ * kept in step by a parity test in the API, the one place that could see both
+ * packages at once. Drift did not throw: it showed a referee 01:30 while the
+ * engine counted to 02:00.
+ */
+export function displayClockMs(
   elapsedMs: number,
   config: MatchFormatConfig,
+  phaseType: PhaseType | undefined,
+  matchNumberLabel: string | null | undefined,
 ): number {
   if (config.timerMode === 'countup') return Math.max(0, elapsedMs);
 
-  const limitSeconds = getEffectiveMatchTimeLimitSeconds(match, config);
+  const limitSeconds = effectiveTimeLimitSeconds(config, phaseType, matchNumberLabel);
   if (limitSeconds === null) return Math.max(0, elapsedMs);
   return Math.max(0, limitSeconds * 1000 - elapsedMs);
 }
@@ -168,6 +202,34 @@ export function isSoftClockLocked(
   if (limitSeconds === null) return false;
   const remainingMs = Math.max(0, limitSeconds * 1000 - elapsedMs);
   return remainingMs < config.softClockLimitSeconds * 1000;
+}
+
+/**
+ * Points EARNED → the scores a scoreboard shows, under the config's direction.
+ *
+ * In `reverse_zero_loses` a fighter starts at the point cap and their opponent
+ * takes it off them, so a side's score is what the OTHER side earned. That one
+ * rule is the whole transform, and it had a second hand-written copy in
+ * `packages/ui/src/utils/bout-flow.ts` — whose own docblock said it reproduces
+ * the engine's transform rather than the raw deltas, which is exactly the
+ * accident this package exists to stop.
+ *
+ * Penalties are deliberately NOT applied here. They land AFTER the direction
+ * transform (the order `recomputeMatchScore` uses), so a caller adds them to
+ * the result rather than to the earnings.
+ */
+export function applyScoringDirection(
+  config: Pick<MatchFormatConfig, 'pointCap' | 'scoringDirection'>,
+  redEarned: number,
+  blueEarned: number,
+): { redScore: number; blueScore: number } {
+  if (config.scoringDirection !== 'reverse_zero_loses') {
+    return { redScore: redEarned, blueScore: blueEarned };
+  }
+  return {
+    redScore: Math.max(0, config.pointCap - blueEarned),
+    blueScore: Math.max(0, config.pointCap - redEarned),
+  };
 }
 
 export function computeMatchFormatScore(
@@ -251,14 +313,7 @@ export function computeMatchFormatScore(
     };
   }
 
-  const redScore =
-    config.scoringDirection === 'reverse_zero_loses'
-      ? Math.max(0, config.pointCap - blueEarned)
-      : redEarned;
-  const blueScore =
-    config.scoringDirection === 'reverse_zero_loses'
-      ? Math.max(0, config.pointCap - redEarned)
-      : blueEarned;
+  const { redScore, blueScore } = applyScoringDirection(config, redEarned, blueEarned);
 
   return {
     redScore,
@@ -315,17 +370,32 @@ export interface RoundEvaluation {
 }
 
 /**
+ * How a round's exchanges become a score.
+ *
+ * A parameter and not a fixed call, because the API runs the RESOLVED ruleset's
+ * own `computeMatchScore` here: a custom ruleset must score a round of a
+ * best-of match exactly the way it scores a single-round match. The default
+ * covers every caller that has no resolved ruleset to hand.
+ */
+export type RoundScorer = (match: Match, roundExchanges: Exchange[]) => MatchScore;
+
+/**
  * Evaluate a single round from its (round-scoped) exchanges. Used by the
  * best-of round lifecycle: the open round is scored live and auto-closes on
- * point cap or pool max-doubles. Reuses the per-fight scoring + cap rules.
+ * point cap or pool max-doubles.
+ *
+ * The API had its own copy of the three checks below, as
+ * `ScoringService.evaluateOpenRound`, for one reason: it needed the resolved
+ * ruleset's scorer and this function hard-coded {@link computeMatchFormatScore}.
+ * `scoreRound` is that reason removed.
  */
 export function evaluateRound(
   match: Match,
   roundExchanges: Exchange[],
   config: MatchFormatConfig,
-  afterblowMode: AfterblowMode = 'full',
+  scoreRound: RoundScorer = (m, exchanges) => computeMatchFormatScore(m, exchanges, config),
 ): RoundEvaluation {
-  const score = computeMatchFormatScore(match, roundExchanges, config, afterblowMode);
+  const score = scoreRound(match, roundExchanges);
 
   if (isPointCapReached(score, config)) {
     return {

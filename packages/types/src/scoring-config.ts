@@ -34,19 +34,20 @@ export const TOURNAMENT_SIDE_COLORS = [
 export type TournamentSideColor = (typeof TOURNAMENT_SIDE_COLORS)[number];
 
 /**
- * Fallback match format for clients when a tournament carries no config.
+ * The default match format — the ONE copy, and the fallback clients use when a
+ * tournament carries no config.
  *
- * These values MUST match `MatchFormatConfigSchema`'s defaults in
- * `@myclash/rulesets` (match-format.ts). They had drifted — this copy said
- * pointCap 5 / 180s / softClock 0 / maxDoubleHits null while the schema said
- * 10 / 90s / 5 / 4 — so the scoring pad's fallback disagreed with what the
- * engine actually seeds into every tournament.
+ * There were two: this literal, and `MatchFormatConfigSchema.parse({})` in
+ * `@myclash/rulesets`. They had drifted — this copy said pointCap 5 / 180s /
+ * softClock 0 / maxDoubleHits null while the schema said 10 / 90s / 5 / 4 — so
+ * the scoring pad's fallback disagreed with what the engine seeds into every
+ * tournament, and nothing noticed because no package could see both.
  *
- * The rulesets schema is canonical because it is what `TFv1DefaultConfig`
- * seeds; this copy exists only because `@myclash/types` must not depend on
- * `@myclash/rulesets` (that edge would drag the engine into every app's
- * Docker build via `@myclash/ui`). Duplicated on purpose, kept in step by
- * `default-match-format.test.ts`.
+ * The literal is the owner and the schema now imports it, because this is the
+ * side the pad must reach: `@myclash/types` has no zod on its import path and
+ * `@myclash/rulesets` does. The schema's defaults still have to PRODUCE these
+ * values, and `packages/rulesets/src/match-format.test.ts` is where that is
+ * asserted — parse an empty config, compare against this.
  */
 export const DEFAULT_MATCH_FORMAT_CONFIG: MatchFormatConfig = {
   pointCap: 10,
@@ -154,27 +155,15 @@ export const DEFAULT_SCORING_CONFIG: TournamentScoringConfig = {
 export { computeAfterblowDeltas } from '@myclash/rules';
 
 /**
- * Which side has won by reaching the point cap, or null if neither has yet.
- * Reverse-aware: in `reverse_zero_loses` the side that hits 0 loses, so the
- * winner is its opponent. Mirrors the engine's point-cap winner rule and
- * drives the scoreboard's cap highlight.
+ * The point-cap winner and the scoring-direction transform, from the one place
+ * they are implemented.
+ *
+ * `pointCapWinnerSide(red, blue, config)` used to live here and was byte-identical
+ * to `pointCapWinnerColor` in `@myclash/rules` behind a different parameter
+ * shape — two numbers rather than the score object every caller already holds.
+ * A comment was the only thing pairing them.
  */
-export function pointCapWinnerSide(
-  redScore: number,
-  blueScore: number,
-  matchFormat: MatchFormatConfig,
-): 'red' | 'blue' | null {
-  if (matchFormat.scoringDirection === 'reverse_zero_loses') {
-    if (redScore <= 0 && blueScore <= 0) return null;
-    if (redScore <= 0) return 'blue';
-    if (blueScore <= 0) return 'red';
-    return null;
-  }
-  if (redScore >= matchFormat.pointCap && blueScore >= matchFormat.pointCap) return null;
-  if (redScore >= matchFormat.pointCap) return 'red';
-  if (blueScore >= matchFormat.pointCap) return 'blue';
-  return null;
-}
+export { applyScoringDirection, pointCapWinnerColor } from '@myclash/rules';
 
 // ── Deriving the scoring buttons from a ruleset's grammar ────────────────────
 
@@ -189,11 +178,12 @@ export function pointCapWinnerSide(
  *  - `weighted` — the retaliation is worth the target it hit, so the grid is
  *                 the full attacker x defender product.
  *
- * Mirrors the union on `RulesetMetadata.afterblowValuation` in
- * @myclash/rulesets. Duplicated rather than imported because this package has
- * no dependencies at all and rulesets does not depend on it — the same
- * arrangement `AfterblowMode` already has. A drift guard in the API asserts the
- * two stay identical.
+ * `RulesetMetadata.afterblowValuation` in @myclash/rulesets is this type — it
+ * used to be a second hand-written copy of the union, on the claim that neither
+ * package may import the other. That was never true in this direction:
+ * @myclash/rulesets already depends on @myclash/types, and only the reverse
+ * edge is forbidden. A drift guard in the API asserted the two copies stayed
+ * identical; the import makes them one, so the guard is gone.
  */
 export type AfterblowValuation = 'fixed' | 'weighted';
 

@@ -14,73 +14,29 @@
  *   - `packages/ui/src/components/TVScoreboard.tsx` — no countdown at all; the
  *     public projector always counted up, whatever the organiser configured.
  *
- * ── Duplication with @myclash/rulesets, on purpose ────────────────────────────
- * {@link effectiveTimeLimitSeconds} mirrors `getEffectiveMatchTimeLimitSeconds`
- * and {@link isMedalMatchLabel} mirrors `isMedalMatch`, both in
- * `@myclash/rulesets` (match-format.ts). Same reasoning as
- * {@link DEFAULT_MATCH_FORMAT_CONFIG}: the engine is deliberately
- * dependency-free (zod only), so `@myclash/types` must not import it — that edge
- * would drag the engine into every app's Docker build via `@myclash/ui`.
+ * ── It used to be duplicated with the engine, and is not any more ────────────
+ * `effectiveTimeLimitSeconds` mirrored `getEffectiveMatchTimeLimitSeconds` and
+ * `displayClockMs` mirrored `computeMatchClockMs`, both in `@myclash/rulesets`.
+ * The reason was a PACKAGE constraint: the engine sat beside zod, so
+ * `@myclash/types` could not import it without dragging zod into every app's
+ * Docker build via `@myclash/ui`. `apps/api/src/match-clock-parity.test.ts` was
+ * the one place that could see both packages at once, and it existed only to
+ * catch the drift.
  *
- * The engine is canonical, because the engine is what actually ENDS the match:
- * a display that disagrees is showing a referee a clock nobody will honour.
- * Drift fails in `apps/api/src/match-clock-parity.test.ts`, which is the one
- * place that can see both packages at once.
+ * `@myclash/rules` has no dependencies at all, so the constraint is gone and so
+ * are both copies: the functions below come from there, and the parity test
+ * went with the drift it guarded. What is left here is what the engine has no
+ * counterpart for — the warning threshold and the `MM:SS:CC` formatting.
  */
-import type { MatchFormatConfig } from './scoring-config';
+import {
+  displayClockMs,
+  effectiveTimeLimitSeconds,
+  type MatchFormatConfig,
+  type PhaseType,
+} from '@myclash/rules';
 
-/** `phases.type` — the four values the DB CHECK constraint allows. */
-export type PhaseType = 'pool' | 'single_elim' | 'double_elim' | 'swiss';
-
-/**
- * Medal matches are identified by their label, not their bracket round: a
- * bronze match sits in the same round as nothing else, and the finals time
- * limit is configured separately from the rest of the bracket.
- */
-export function isMedalMatchLabel(label: string | null | undefined): boolean {
-  const normalized = (label ?? '').trim().toUpperCase();
-  return ['F', 'FINAL', 'GOLD', 'GOLD MEDAL MATCH', '3RD', 'BRONZE', 'BRONZE MEDAL MATCH'].includes(
-    normalized,
-  );
-}
-
-/**
- * The time limit this match counts against, in seconds. `null` = no limit
- * (the clock can only count up).
- *
- * Mirrors the engine's dispatch exactly, including the Swiss rule: `swiss ??
- * pool` and NOT `?? bracket`, because a Swiss round is a group stage and a
- * config written before Swiss existed carries no `swiss` key at all.
- */
-export function effectiveTimeLimitSeconds(
-  matchFormat: MatchFormatConfig,
-  phaseType: PhaseType | undefined,
-  matchNumberLabel: string | null | undefined,
-): number | null {
-  if (phaseType === 'pool') return matchFormat.timeLimitsSeconds.pool;
-  if (phaseType === 'swiss') {
-    return matchFormat.timeLimitsSeconds.swiss ?? matchFormat.timeLimitsSeconds.pool;
-  }
-  if (isMedalMatchLabel(matchNumberLabel)) return matchFormat.timeLimitsSeconds.finals;
-  return matchFormat.timeLimitsSeconds.bracket;
-}
-
-/**
- * Raw elapsed active ms → the value to put on the scoreboard. Countdown
- * subtracts from the phase limit and clamps at zero; count-up (or a phase with
- * no limit) returns elapsed unchanged.
- */
-export function displayClockMs(
-  elapsedMs: number,
-  matchFormat: MatchFormatConfig,
-  phaseType: PhaseType | undefined,
-  matchNumberLabel: string | null | undefined,
-): number {
-  if (matchFormat.timerMode === 'countup') return Math.max(0, elapsedMs);
-  const limitSeconds = effectiveTimeLimitSeconds(matchFormat, phaseType, matchNumberLabel);
-  if (limitSeconds === null) return Math.max(0, elapsedMs);
-  return Math.max(0, limitSeconds * 1000 - elapsedMs);
-}
+export { displayClockMs, effectiveTimeLimitSeconds };
+export type { PhaseType };
 
 /**
  * Whether the clock is inside the last 10 seconds of the phase limit — the cue

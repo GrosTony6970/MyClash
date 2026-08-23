@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   computeAfterblowDeltas,
-  pointCapWinnerSide,
+  pointCapWinnerColor,
   DEFAULT_MATCH_FORMAT_CONFIG,
   type MatchFormatConfig,
 } from './scoring-config';
@@ -56,34 +56,34 @@ describe('computeAfterblowDeltas', () => {
   });
 });
 
-describe('pointCapWinnerSide', () => {
+describe('pointCapWinnerColor', () => {
   describe('normal scoring — first to the cap wins', () => {
     it('returns the side that reached the cap', () => {
-      expect(pointCapWinnerSide(5, 3, normalCap5)).toBe('red');
-      expect(pointCapWinnerSide(3, 5, normalCap5)).toBe('blue');
+      expect(pointCapWinnerColor({ redScore: 5, blueScore: 3 }, normalCap5)).toBe('red');
+      expect(pointCapWinnerColor({ redScore: 3, blueScore: 5 }, normalCap5)).toBe('blue');
     });
 
     it('returns null when neither side has reached the cap', () => {
-      expect(pointCapWinnerSide(3, 4, normalCap5)).toBeNull();
+      expect(pointCapWinnerColor({ redScore: 3, blueScore: 4 }, normalCap5)).toBeNull();
     });
 
     it('returns null when both somehow reached the cap', () => {
-      expect(pointCapWinnerSide(5, 5, normalCap5)).toBeNull();
+      expect(pointCapWinnerColor({ redScore: 5, blueScore: 5 }, normalCap5)).toBeNull();
     });
   });
 
   describe('reverse scoring — the side that hits zero loses', () => {
     it('returns the opponent of the side that hit zero', () => {
-      expect(pointCapWinnerSide(2, 0, reverseCap5)).toBe('red');
-      expect(pointCapWinnerSide(0, 2, reverseCap5)).toBe('blue');
+      expect(pointCapWinnerColor({ redScore: 2, blueScore: 0 }, reverseCap5)).toBe('red');
+      expect(pointCapWinnerColor({ redScore: 0, blueScore: 2 }, reverseCap5)).toBe('blue');
     });
 
     it('returns null while both fighters still have points', () => {
-      expect(pointCapWinnerSide(3, 2, reverseCap5)).toBeNull();
+      expect(pointCapWinnerColor({ redScore: 3, blueScore: 2 }, reverseCap5)).toBeNull();
     });
 
     it('returns null when both reached zero', () => {
-      expect(pointCapWinnerSide(0, 0, reverseCap5)).toBeNull();
+      expect(pointCapWinnerColor({ redScore: 0, blueScore: 0 }, reverseCap5)).toBeNull();
     });
   });
 });

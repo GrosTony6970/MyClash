@@ -21,7 +21,6 @@ import { refusalMessage } from '../lib/refusal-copy';
 export type { ClockStatus, ClockState } from './scoreboard-clock';
 export {
   formatClockMs,
-  isMedalMatchLabel,
   effectiveTimeLimitSeconds,
   displayClockMs,
   shouldWarnClock,

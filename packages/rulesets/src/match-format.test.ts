@@ -3,15 +3,16 @@ import type { Exchange, Match } from './types';
 import {
   DEFAULT_MATCH_FORMAT_CONFIG,
   computeAfterblowDeltas,
-  computeMatchClockMs,
   computeMatchFormatScore,
+  displayClockMs,
   evaluateRound,
   getEffectiveBestOf,
   getEffectiveMatchTimeLimitSeconds,
   getEffectiveMaxDoubles,
-  isMedalMatch,
+  isMedalMatchLabel,
   getPointCapWinnerRegistrationId,
   isSoftClockLocked,
+  MatchFormatConfigSchema,
   normalizeMatchFormatConfig,
   pointCapWinnerColor,
   roundWinTarget,
@@ -48,12 +49,31 @@ describe('match format config', () => {
     // These are the global baseline for any ruleset that doesn't override
     // its match-format blob. Bumping these is a deliberate behavior change
     // requested by the operator — every fresh tournament inherits them.
-    expect(DEFAULT_MATCH_FORMAT_CONFIG.pointCap).toBe(10);
-    expect(DEFAULT_MATCH_FORMAT_CONFIG.timeLimitsSeconds.pool).toBe(90);
-    expect(DEFAULT_MATCH_FORMAT_CONFIG.timeLimitsSeconds.bracket).toBe(90);
-    expect(DEFAULT_MATCH_FORMAT_CONFIG.timeLimitsSeconds.finals).toBe(90);
-    expect(DEFAULT_MATCH_FORMAT_CONFIG.softClockLimitSeconds).toBe(5);
-    expect(DEFAULT_MATCH_FORMAT_CONFIG.maxDoubleHits).toBe(4);
+    // Spelled out so a change still has to be deliberate.
+    expect(DEFAULT_MATCH_FORMAT_CONFIG).toEqual({
+      pointCap: 10,
+      scoringDirection: 'normal',
+      timerMode: 'countdown',
+      timeLimitsSeconds: { pool: 90, bracket: 90, finals: 90 },
+      softClockLimitSeconds: 5,
+      maxDoubleHits: 4,
+      maxDoubleHitOutcome: 'double_loss_zero_scores',
+      bestOf: { pool: 1, bracket: 1, finals: 1 },
+    });
+  });
+
+  it('parses an empty config to exactly the shared default', () => {
+    // The default is a plain literal in @myclash/types, which the scoring pad
+    // can reach and this package cannot be (zod sits on the path). The literal
+    // is therefore the owner, and this is the check that the schema's own
+    // defaults still PRODUCE it.
+    //
+    // They had drifted once, in the other direction: the client copy said
+    // pointCap 5 / 180s / softClock 0 / maxDoubleHits null while the schema
+    // said 10 / 90s / 5 / 4, and nothing caught it because no package could see
+    // both. `TFv1DefaultConfig` seeds what this parse produces, so a drift here
+    // hands a referee a clock the engine never agreed to.
+    expect(MatchFormatConfigSchema.parse({})).toEqual(DEFAULT_MATCH_FORMAT_CONFIG);
   });
 
   it('normalizes legacy TF_v1 matchFormat config into shared match format', () => {
@@ -158,8 +178,16 @@ describe('match format config', () => {
         config,
       ),
     ).toBe(180);
-    expect(isMedalMatch({ ...BASE_MATCH, matchNumberLabel: 'F' })).toBe(true);
   });
+
+  it.each(['F', 'final', ' Gold ', 'GOLD MEDAL MATCH', '3rd', 'Bronze', 'BRONZE MEDAL MATCH'])(
+    'reads %s as a medal match',
+    (label) => expect(isMedalMatchLabel(label)).toBe(true),
+  );
+
+  it.each([null, undefined, '', 'SF', 'QF-M1', 'FINALE'])('does not read %s as one', (label) =>
+    expect(isMedalMatchLabel(label)).toBe(false),
+  );
 
   it('detects soft clock lockout for stopped countdown clocks under the configured limit', () => {
     const config = {
@@ -175,7 +203,7 @@ describe('match format config', () => {
     expect(isSoftClockLocked({ ...BASE_MATCH, phaseType: 'pool' }, 176_000, true, config)).toBe(
       false,
     );
-    expect(computeMatchClockMs({ ...BASE_MATCH, phaseType: 'pool' }, 176_000, config)).toBe(4_000);
+    expect(displayClockMs(176_000, config, 'pool', null)).toBe(4_000);
   });
 
   it('nets afterblows per mode — full awards both, deductive subtracts from the attacker', () => {

@@ -17,19 +17,17 @@ import {
   registry,
   TF_v1,
   Generic_PointsCap,
+  evaluateRound,
   getEffectiveBestOf,
-  getEffectiveMaxDoubles,
   getPointCapWinnerRegistrationId,
-  isPointCapReached,
   normalizeMatchFormatConfig,
-  pointCapWinnerColor,
   roundWinTarget,
 } from '@myclash/rulesets';
 import type {
   Exchange as RulesetExchange,
   Match as RulesetMatch,
   MatchFormatConfig,
-  MatchScore as RulesetMatchScore,
+  RoundEvaluation,
   Ruleset,
 } from '@myclash/rulesets';
 import { SupabaseService } from '../supabase/supabase.service';
@@ -282,11 +280,11 @@ export class ScoringService {
   }
 
   /**
-   * Evaluate the OPEN round from its round-scoped exchanges. Uses the ruleset's
-   * own scorer (so per-round scoring matches single-round scoring for every
-   * ruleset), then applies the automatic round-end rules: first-to-pointCap, or
-   * pool-only max-doubles (a drawn round). Time expiry is operator-driven and
-   * handled by endRoundOnTime, never here.
+   * Evaluate the OPEN round from its round-scoped exchanges, scoring it with the
+   * RESOLVED ruleset's own scorer so per-round scoring matches single-round
+   * scoring for every ruleset. The automatic round-end rules — first-to-pointCap
+   * and pool-only max-doubles — live in `evaluateRound`. Time expiry is
+   * operator-driven and handled by endRoundOnTime, never here.
    */
   private evaluateOpenRound(
     ruleset: Ruleset,
@@ -294,26 +292,10 @@ export class ScoringService {
     openExchanges: RulesetExchange[],
     configWithMode: Record<string, unknown>,
     matchFormat: MatchFormatConfig,
-  ): {
-    score: RulesetMatchScore;
-    autoOver: boolean;
-    winnerColor: 'red' | 'blue' | null;
-    endReason: ClosedRound['endReason'];
-  } {
-    const score = ruleset.computeMatchScore(match, openExchanges, configWithMode);
-    if (isPointCapReached(score, matchFormat)) {
-      return {
-        score,
-        autoOver: true,
-        winnerColor: pointCapWinnerColor(score, matchFormat),
-        endReason: 'first_to_points',
-      };
-    }
-    const effectiveMaxDoubles = getEffectiveMaxDoubles(match, matchFormat);
-    if (effectiveMaxDoubles !== null && score.doubles >= effectiveMaxDoubles) {
-      return { score, autoOver: true, winnerColor: null, endReason: 'max_doubles' };
-    }
-    return { score, autoOver: false, winnerColor: null, endReason: null };
+  ): RoundEvaluation {
+    return evaluateRound(match, openExchanges, matchFormat, (m, exchanges) =>
+      ruleset.computeMatchScore(m, exchanges, configWithMode),
+    );
   }
 
   /**

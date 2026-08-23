@@ -184,7 +184,7 @@ const ALLOWLIST_HEADING = '#### What arithmetic the pad IS allowed';
  * is the only thing that DERIVES a persisted score.
  *
  * ── Why the doc is the source and not a list in this file ──────────────────
- * 7.3 already carries the allowlist, as a three-row table, and
+ * 7.3 already carries the allowlist as a table, and
  * `packages/types/src/penalties.ts` argues the boundary at length. A second list
  * here would be a second owner, and the one that drifts is always the one
  * nobody reads. So this parses the table: the doc IS the gate, the way

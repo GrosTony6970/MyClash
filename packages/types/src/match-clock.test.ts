@@ -3,7 +3,6 @@ import {
   displayClockMs,
   effectiveTimeLimitSeconds,
   formatClockMs,
-  isMedalMatchLabel,
   shouldWarnClock,
   type PhaseType,
 } from './match-clock';
@@ -52,17 +51,6 @@ describe('effectiveTimeLimitSeconds', () => {
     };
     expect(effectiveTimeLimitSeconds(unlimited, 'pool', null)).toBeNull();
   });
-});
-
-describe('isMedalMatchLabel', () => {
-  it.each(['F', 'final', ' Gold ', 'GOLD MEDAL MATCH', '3rd', 'Bronze', 'BRONZE MEDAL MATCH'])(
-    'accepts %s',
-    (label) => expect(isMedalMatchLabel(label)).toBe(true),
-  );
-
-  it.each([null, undefined, '', 'SF', 'QF-M1', 'FINALE'])('rejects %s', (label) =>
-    expect(isMedalMatchLabel(label)).toBe(false),
-  );
 });
 
 describe('displayClockMs', () => {

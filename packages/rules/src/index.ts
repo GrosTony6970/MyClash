@@ -14,17 +14,19 @@
 export { computeAfterblowDeltas } from './afterblow';
 export type { AfterblowMode } from './afterblow';
 
-export type { Exchange, ExchangeType, Match, MatchScore, StrikerColor } from './domain';
+export type { Exchange, ExchangeType, Match, MatchScore, PhaseType, StrikerColor } from './domain';
 
 export {
-  computeMatchClockMs,
+  applyScoringDirection,
   computeMatchFormatScore,
+  displayClockMs,
+  effectiveTimeLimitSeconds,
   evaluateRound,
   getEffectiveBestOf,
   getEffectiveMatchTimeLimitSeconds,
   getEffectiveMaxDoubles,
   getPointCapWinnerRegistrationId,
-  isMedalMatch,
+  isMedalMatchLabel,
   isPointCapReached,
   isSoftClockLocked,
   pointCapWinnerColor,
@@ -33,6 +35,7 @@ export {
 export type {
   MatchFormatConfig,
   RoundEvaluation,
+  RoundScorer,
   ScoringDirection,
   TimerMode,
 } from './match-format';

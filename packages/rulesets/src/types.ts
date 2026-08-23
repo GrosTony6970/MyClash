@@ -17,6 +17,12 @@ import type { Exchange, ExchangeType, Match, MatchScore, StrikerColor } from '@m
 
 export type { Exchange, ExchangeType, Match, MatchScore, StrikerColor };
 
+// `afterblowValuation` below was a second hand-written copy of this union. The
+// scoring buttons are DERIVED from it in @myclash/types, which this package
+// already depends on, so one import replaces the copy and the API drift guard
+// that watched them.
+import type { AfterblowValuation } from '@myclash/types';
+
 export interface Registration {
   id: string;
   seed: number | null;
@@ -123,7 +129,7 @@ export interface RulesetMetadata {
    * Declaring the rule is what lets the scoring buttons be DERIVED rather than
    * guessed by a seeding heuristic.
    */
-  afterblowValuation?: 'fixed' | 'weighted' | null;
+  afterblowValuation?: AfterblowValuation | null;
   /** The retaliation's worth under `fixed` valuation. Meaningless otherwise. */
   afterblowFixedValue?: number | null;
   /**

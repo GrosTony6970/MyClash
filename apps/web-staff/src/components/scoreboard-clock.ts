@@ -21,7 +21,6 @@ export {
   displayClockMs,
   effectiveTimeLimitSeconds,
   formatClockMs,
-  isMedalMatchLabel,
   shouldWarnClock,
   type PhaseType,
 } from '@myclash/types';

@@ -7,8 +7,8 @@
  *
  * The hard requirement is that the LAST point equals the score the surface
  * prints beside the chart. Summing `red_score_delta`/`blue_score_delta` does NOT
- * give that in three shipped configurations, so this module reproduces the
- * engine's transform rather than the raw deltas:
+ * give that in three shipped configurations, so this module CALLS the engine's
+ * transform — `applyScoringDirection` — rather than summing the raw deltas:
  *
  *   - `reverse_zero_loses` scores DOWN from the point cap (a side hitting 0
  *     loses), so the running total is `pointCap − opponentEarned`.
@@ -16,15 +16,17 @@
  *     zero, not the points earned.
  *   - In a best-of match `matches.red_score` holds the OPEN round only.
  *
- * See `computeMatchFormatScore` and `recomputeMatchScore` in the API — the order
- * of operations here (earn → direction → penalties) mirrors theirs deliberately.
+ * The order of operations (earn → direction → penalties) is `recomputeMatchScore`'s.
+ * The direction step used to be a hand-written copy of `computeMatchFormatScore`'s
+ * two lines, which is what `@myclash/rules` exists to stop; it is now the same
+ * function both call.
  *
  * Pure: no React, no I/O. Numbering is delegated to `ascendingWithNumbers` so
  * the chart's x-axis and the timeline's `#N` are the same number by
  * construction.
  */
 
-import type { MatchFormatConfig } from '@myclash/types';
+import { applyScoringDirection, type MatchFormatConfig } from '@myclash/types';
 import { ascendingWithNumbers } from './exchange-timeline';
 import { foldPauses, type BoutFlowPause } from './bout-flow-clock';
 import type { ClockEvent, ExchangeRow, Penalty, PenaltyCard } from '../types/match-events';
@@ -177,15 +179,15 @@ function penaltyDrafts(penalties: Penalty[], redRegId: string, blueRegId: string
 /** Run the drafts up into scores, applying the direction on the way. */
 function accumulate(
   ordered: (FlowDraft & { number: number })[],
-  cap: number,
-  reverse: boolean,
+  matchFormat: Pick<MatchFormatConfig, 'pointCap' | 'scoringDirection'>,
 ): { points: BoutFlowPoint[]; doubles: number } {
+  const reverse = matchFormat.scoringDirection === 'reverse_zero_loses';
   const points: BoutFlowPoint[] = [
     {
       number: 0,
       elapsedMs: 0,
-      red: reverse ? cap : 0,
-      blue: reverse ? cap : 0,
+      red: reverse ? matchFormat.pointCap : 0,
+      blue: reverse ? matchFormat.pointCap : 0,
       kind: 'origin',
       side: null,
       card: null,
@@ -205,12 +207,12 @@ function accumulate(
     bluePenalty += row.bluePenalty;
     if (row.isDouble) doubles += 1;
     // Direction first, penalties after — the order `recomputeMatchScore` uses.
-    // In reverse mode a side's score is what the OPPONENT has taken off it.
+    const directed = applyScoringDirection(matchFormat, redEarned, blueEarned);
     points.push({
       number: row.number,
       elapsedMs: row.elapsedMs,
-      red: (reverse ? Math.max(0, cap - blueEarned) : redEarned) + redPenalty,
-      blue: (reverse ? Math.max(0, cap - redEarned) : blueEarned) + bluePenalty,
+      red: directed.redScore + redPenalty,
+      blue: directed.blueScore + bluePenalty,
       kind: row.kind,
       side: row.side,
       card: row.card,
@@ -302,7 +304,7 @@ export function buildBoutFlow({
     ...exchangeDrafts(exchanges, inRound),
     ...penaltyDrafts(penalties, redRegId, blueRegId),
   ]);
-  const { points, doubles } = accumulate(ordered, cap, reverse);
+  const { points, doubles } = accumulate(ordered, matchFormat);
 
   // The double cap zeroes BOTH fighters. The cap is always reached on the last
   // double, which closes the match, so it is the final point that drops.

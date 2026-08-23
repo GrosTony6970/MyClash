@@ -663,11 +663,15 @@ enforces both halves of this section: that the package stays dependency-free, an
 that `@myclash/rulesets` never becomes a dependency of `apps/web-staff` or
 `packages/ui`. Before that gate existed the rule above was prose only.
 
-| Function                                             | The pad uses it to                                                    |
-| ---------------------------------------------------- | --------------------------------------------------------------------- |
-| `computeAfterblowDeltas` (`@myclash/rules`)          | label the afterblow buttons, and net a queued hit's provisional delta |
-| `computePenaltySanction` (via `resolveEntryCard`)    | show which card an entry will ACTUALLY produce for this fighter       |
-| `penaltyScoreDelta` + the ruleset's per-card columns | price a queued card into the provisional score                        |
+| Function                                             | The pad uses it to                                                                      |
+| ---------------------------------------------------- | --------------------------------------------------------------------------------------- |
+| `computeAfterblowDeltas` (`@myclash/rules`)          | label the afterblow buttons, and net a queued hit's provisional delta                   |
+| `computePenaltySanction` (via `resolveEntryCard`)    | show which card an entry will ACTUALLY produce for this fighter                         |
+| `penaltyScoreDelta` + the ruleset's per-card columns | price a queued card into the provisional score                                          |
+| `effectiveTimeLimitSeconds` (`@myclash/rules`)       | pick the phase time limit the bout is actually counting against                         |
+| `displayClockMs` (`@myclash/rules`)                  | turn elapsed active time into the numeral on the clock                                  |
+| `pointCapWinnerColor` (`@myclash/rules`)             | paint the score gold when a side reaches the cap                                        |
+| `applyScoringDirection` (`@myclash/rules`)           | read a `reverse_zero_loses` score down from the cap, on the pad and the bout-flow chart |
 
 `packages/types/src/penalties.ts` argues this boundary at length in its own
 docblock and is the place to read next. Two rules keep the list honest: every

@@ -13,6 +13,9 @@
 export type ExchangeType = 'clean' | 'afterblow' | 'double' | 'no_exchange';
 export type StrikerColor = 'red' | 'blue' | null;
 
+/** `phases.type` — the four values the DB CHECK constraint allows. */
+export type PhaseType = 'pool' | 'single_elim' | 'double_elim' | 'swiss';
+
 export interface Exchange {
   id: string;
   clientUuid: string;
@@ -34,7 +37,7 @@ export interface Match {
   rulesetCode: string;
   rulesetVersion: string;
   status: 'scheduled' | 'running' | 'paused' | 'completed' | 'voided';
-  phaseType?: 'pool' | 'single_elim' | 'double_elim' | 'swiss';
+  phaseType?: PhaseType;
   matchNumberLabel?: string | null;
 }
 

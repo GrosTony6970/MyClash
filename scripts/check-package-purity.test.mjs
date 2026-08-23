@@ -266,16 +266,27 @@ test('rule 4 covers the re-exporter, not only the pad workspaces', () => {
   assert.ok(files.some((f) => f.includes('apps/web-staff/src/')));
 });
 
-test('the real allowlist is exactly the four rows of the 7.3 table', () => {
+test('the real allowlist is exactly what the 7.3 table grants', () => {
   const allowed = parseAllowlist(readFileSync(ALLOWLIST_DOC, 'utf8'));
 
   // Pinned as a SET, not by spot-checks. A parser that over-reads still contains
   // computeAfterblowDeltas and still lacks evaluateFormula, so asserting only
   // those two would pass on a slice that swallowed the two tables below.
+  //
+  // Growing this list is meant to hurt: every name here is a rule the pad may
+  // run locally, and the pad running a rule the server disagrees with is the
+  // whole failure mode §7.3 exists to prevent. The clock and cap entries joined
+  // when their duplicate copies in @myclash/types were folded into the one
+  // implementation — the pad already ran that arithmetic, it just ran its own
+  // copy of it.
   assert.deepEqual([...allowed].sort(), [
+    'applyScoringDirection',
     'computeAfterblowDeltas',
     'computePenaltySanction',
+    'displayClockMs',
+    'effectiveTimeLimitSeconds',
     'penaltyScoreDelta',
+    'pointCapWinnerColor',
     'resolveEntryCard',
   ]);
   assert.equal(allowed.has('evaluateFormula'), false, 'the pad must never derive a score');

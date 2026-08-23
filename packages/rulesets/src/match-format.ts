@@ -1,41 +1,51 @@
 import { z } from 'zod';
 import {
-  computeMatchClockMs,
+  applyScoringDirection,
   computeMatchFormatScore,
+  displayClockMs,
+  effectiveTimeLimitSeconds,
   evaluateRound,
   getEffectiveBestOf,
   getEffectiveMatchTimeLimitSeconds,
   getEffectiveMaxDoubles,
   getPointCapWinnerRegistrationId,
-  isMedalMatch,
+  isMedalMatchLabel,
   isPointCapReached,
   isSoftClockLocked,
   pointCapWinnerColor,
   roundWinTarget,
   type MatchFormatConfig,
   type RoundEvaluation,
+  type RoundScorer,
   type ScoringDirection,
   type TimerMode,
 } from '@myclash/rules';
+// The default match format is a plain literal in @myclash/types — see its
+// docblock for why that side owns it. The schema below must still PRODUCE it,
+// which match-format.test.ts asserts by parsing an empty config.
+import { DEFAULT_MATCH_FORMAT_CONFIG } from '@myclash/types';
 
 // The arithmetic moved to @myclash/rules, which has no dependencies and is
 // therefore reachable from the scoring pad. Re-exported so nothing importing
 // from this module changed.
 export {
-  computeMatchClockMs,
+  DEFAULT_MATCH_FORMAT_CONFIG,
+  applyScoringDirection,
   computeMatchFormatScore,
+  displayClockMs,
+  effectiveTimeLimitSeconds,
   evaluateRound,
   getEffectiveBestOf,
   getEffectiveMatchTimeLimitSeconds,
   getEffectiveMaxDoubles,
   getPointCapWinnerRegistrationId,
-  isMedalMatch,
+  isMedalMatchLabel,
   isPointCapReached,
   isSoftClockLocked,
   pointCapWinnerColor,
   roundWinTarget,
 };
-export type { RoundEvaluation };
+export type { RoundEvaluation, RoundScorer };
 
 // Afterblow netting lives in @myclash/rules -- the zero-dependency core. This
 // file used to carry its own copy, and said why in a comment: kept local "so
@@ -118,8 +128,6 @@ const _schemaMatchesTheContract: Exact<SchemaOutput, MatchFormatConfig> = true;
 void _schemaMatchesTheContract;
 
 export type { MatchFormatConfig, ScoringDirection, TimerMode };
-
-export const DEFAULT_MATCH_FORMAT_CONFIG: MatchFormatConfig = MatchFormatConfigSchema.parse({});
 
 type LegacyMatchFormatConfig = {
   firstToPoints?: number | null;
