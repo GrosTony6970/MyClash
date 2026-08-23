@@ -1,0 +1,12 @@
+{
+  // TYPECHECK surface — tests included. See packages/rulesets/tsconfig.json for
+  // the full rationale of the typecheck/emit split.
+  "extends": "../../tsconfig.lib.json",
+  "compilerOptions": {
+    "outDir": "dist",
+    "rootDir": "src",
+    "noEmit": true
+  },
+  "include": ["src/**/*.ts"],
+  "exclude": ["node_modules", "dist"]
+}

@@ -1,29 +1,17 @@
 import { z } from 'zod';
 import type { Exchange, Match, MatchScore } from './types';
 
-/**
- * How afterblow points are applied. Mirrors `AfterblowMode` in `@myclash/types`
- * (and `computeAfterblowDeltas` below mirrors that package's function) — kept
- * local so the ruleset engine stays dependency-free (zod only) and isn't pulled
- * into every app Dockerfile's workspace build graph.
- *
- * - `full`: both fighters score their button points (attacker, defender).
- * - `deductive`: the afterblow is subtracted from the attacker
- *   (`max(0, attacker − defender)`, never negative) and the defender scores 0 —
- *   getting hit back costs the attacker points.
- */
-export type AfterblowMode = 'full' | 'deductive';
+// Afterblow netting lives in @myclash/rules -- the zero-dependency core. This
+// file used to carry its own copy, and said why in a comment: kept local "so
+// the ruleset engine stays dependency-free (zod only) and isn't pulled into
+// every app Dockerfile's workspace build graph". That was a PACKAGE constraint,
+// not a capability one. @myclash/rules has no dependencies at all, so the
+// reason is gone and the two copies are one. Re-exported so nothing importing
+// from this module changed.
+import { computeAfterblowDeltas, type AfterblowMode } from '@myclash/rules';
 
-export function computeAfterblowDeltas(
-  mode: AfterblowMode,
-  attackerPts: number,
-  defenderPts: number,
-): { attackerDelta: number; defenderDelta: number } {
-  if (mode === 'deductive') {
-    return { attackerDelta: Math.max(0, attackerPts - defenderPts), defenderDelta: 0 };
-  }
-  return { attackerDelta: attackerPts, defenderDelta: defenderPts };
-}
+export { computeAfterblowDeltas };
+export type { AfterblowMode };
 
 export const ScoringDirectionSchema = z.enum(['normal', 'reverse_zero_loses']);
 export const TimerModeSchema = z.enum(['countdown', 'countup']);

@@ -651,12 +651,21 @@ card each occurrence carries, and per-card point values — that the pad already
 fetches in full from `GET /matches/:id/penalty-ruleset` and caches on the tablet.
 Reading arithmetic off a table you already hold is not resolving a ruleset.
 
-Allowed, all pure and all in `@myclash/types` so the pad and the server call the
-same function rather than reasoning separately:
+Allowed, all pure, and reachable from the pad so it and the server call the SAME
+function rather than reasoning separately. The home is `@myclash/rules` for the
+scoring core and `@myclash/types` for the rest; `@myclash/types` re-exports what
+moved, so a caller importing from either resolves the one implementation.
+
+`@myclash/rules` exists for exactly this list. It has ZERO runtime dependencies —
+not even zod — which is what lets a rule live in one place instead of being copied
+into whichever package a caller could already reach. `pnpm quality:package-purity`
+enforces both halves of this section: that the package stays dependency-free, and
+that `@myclash/rulesets` never becomes a dependency of `apps/web-staff` or
+`packages/ui`. Before that gate existed the rule above was prose only.
 
 | Function                                             | The pad uses it to                                                    |
 | ---------------------------------------------------- | --------------------------------------------------------------------- |
-| `computeAfterblowDeltas`                             | label the afterblow buttons, and net a queued hit's provisional delta |
+| `computeAfterblowDeltas` (`@myclash/rules`)          | label the afterblow buttons, and net a queued hit's provisional delta |
 | `computePenaltySanction` (via `resolveEntryCard`)    | show which card an entry will ACTUALLY produce for this fighter       |
 | `penaltyScoreDelta` + the ruleset's per-card columns | price a queued card into the provisional score                        |
 
@@ -2365,7 +2374,7 @@ build record.
 
 ### 20.1 The gate harness
 
-CI's Lint job runs `pnpm turbo run lint` plus twenty-seven further steps, each its own verdict.
+CI's Lint job runs `pnpm turbo run lint` plus twenty-eight further steps, each its own verdict.
 `.claude/skills/myclash-gates/SKILL.md` holds the ordered chain; `.github/workflows/ci.yml` is the
 source of truth when they disagree.
 

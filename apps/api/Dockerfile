@@ -22,6 +22,7 @@ FROM base AS deps
 # Copy workspace manifests only (for cache efficiency)
 COPY package.json pnpm-workspace.yaml pnpm-lock.yaml ./
 COPY apps/api/package.json ./apps/api/
+COPY packages/rules/package.json ./packages/rules/
 COPY packages/types/package.json ./packages/types/
 COPY packages/rulesets/package.json ./packages/rulesets/
 COPY packages/time/package.json ./packages/time/
@@ -29,7 +30,7 @@ COPY packages/feature-flags/package.json ./packages/feature-flags/
 COPY packages/db/package.json ./packages/db/
 # Install with frozen lockfile; cache the pnpm store
 RUN --mount=type=cache,id=pnpm-store,target=/root/.local/share/pnpm/store \
-    pnpm install --frozen-lockfile --filter @myclash/api... --filter @myclash/types --filter @myclash/rulesets --filter @myclash/time --filter @myclash/feature-flags --filter @myclash/db
+    pnpm install --frozen-lockfile --filter @myclash/api... --filter @myclash/rules --filter @myclash/types --filter @myclash/rulesets --filter @myclash/time --filter @myclash/feature-flags --filter @myclash/db
 
 # ── builder ───────────────────────────────────────────────────────────────────
 FROM deps AS builder
@@ -46,11 +47,13 @@ FROM deps AS builder
 # Copy source
 COPY tsconfig.base.json tsconfig.lib.json ./
 COPY apps/api/ ./apps/api/
+COPY packages/rules/ ./packages/rules/
 COPY packages/types/ ./packages/types/
 COPY packages/rulesets/ ./packages/rulesets/
 COPY packages/time/ ./packages/time/
 COPY packages/feature-flags/ ./packages/feature-flags/
 # Build shared packages first, then the API
+RUN pnpm --filter @myclash/rules build
 RUN pnpm --filter @myclash/types build
 RUN pnpm --filter @myclash/rulesets build
 RUN pnpm --filter @myclash/time build
@@ -62,13 +65,14 @@ RUN pnpm --filter @myclash/api build
 FROM base AS prod-deps
 COPY package.json pnpm-workspace.yaml pnpm-lock.yaml ./
 COPY apps/api/package.json ./apps/api/
+COPY packages/rules/package.json ./packages/rules/
 COPY packages/types/package.json ./packages/types/
 COPY packages/rulesets/package.json ./packages/rulesets/
 COPY packages/time/package.json ./packages/time/
 COPY packages/feature-flags/package.json ./packages/feature-flags/
 COPY packages/db/package.json ./packages/db/
 RUN --mount=type=cache,id=pnpm-store,target=/root/.local/share/pnpm/store \
-    pnpm install --prod --frozen-lockfile --ignore-scripts --filter @myclash/api... --filter @myclash/types --filter @myclash/rulesets --filter @myclash/time --filter @myclash/feature-flags --filter @myclash/db
+    pnpm install --prod --frozen-lockfile --ignore-scripts --filter @myclash/api... --filter @myclash/rules --filter @myclash/types --filter @myclash/rulesets --filter @myclash/time --filter @myclash/feature-flags --filter @myclash/db
 
 # ── runner ────────────────────────────────────────────────────────────────────
 FROM node:${NODE_VERSION}-alpine AS runner
@@ -89,6 +93,9 @@ COPY --from=prod-deps --chown=nestjs:nodejs /app/package.json ./package.json
 COPY --from=prod-deps --chown=nestjs:nodejs /app/node_modules ./node_modules
 COPY --from=prod-deps --chown=nestjs:nodejs /app/apps/api/package.json ./apps/api/package.json
 COPY --from=prod-deps --chown=nestjs:nodejs /app/apps/api/node_modules ./apps/api/node_modules
+# @myclash/rules has ZERO dependencies, so it needs no node_modules COPY --
+# unlike rulesets, time and db below.
+COPY --from=prod-deps --chown=nestjs:nodejs /app/packages/rules/package.json ./packages/rules/package.json
 COPY --from=prod-deps --chown=nestjs:nodejs /app/packages/types/package.json ./packages/types/package.json
 COPY --from=prod-deps --chown=nestjs:nodejs /app/packages/rulesets/package.json ./packages/rulesets/package.json
 COPY --from=prod-deps --chown=nestjs:nodejs /app/packages/rulesets/node_modules ./packages/rulesets/node_modules
@@ -98,6 +105,7 @@ COPY --from=prod-deps --chown=nestjs:nodejs /app/packages/feature-flags/package.
 COPY --from=prod-deps --chown=nestjs:nodejs /app/packages/db/package.json ./packages/db/package.json
 COPY --from=prod-deps --chown=nestjs:nodejs /app/packages/db/node_modules ./packages/db/node_modules
 COPY --from=builder --chown=nestjs:nodejs /app/apps/api/dist ./apps/api/dist
+COPY --from=builder --chown=nestjs:nodejs /app/packages/rules/dist ./packages/rules/dist
 COPY --from=builder --chown=nestjs:nodejs /app/packages/types/dist ./packages/types/dist
 COPY --from=builder --chown=nestjs:nodejs /app/packages/rulesets/dist ./packages/rulesets/dist
 COPY --from=builder --chown=nestjs:nodejs /app/packages/time/dist ./packages/time/dist

@@ -1,0 +1,12 @@
+{
+  // EMIT surface. `extends` replaces include/exclude, so both are restated in
+  // full. This is also what `check-package-purity.mjs` reads: the purity rule is
+  // over the EMIT PROGRAM, not over src/, because every colocated test imports
+  // vitest and src/ would red on the package's own tests.
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": false
+  },
+  "include": ["src/**/*.ts"],
+  "exclude": ["node_modules", "dist", "src/**/*.test.ts"]
+}

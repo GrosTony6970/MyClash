@@ -13,6 +13,7 @@ WORKDIR /app
 FROM base AS deps
 COPY package.json pnpm-workspace.yaml pnpm-lock.yaml ./
 COPY apps/web-staff/package.json ./apps/web-staff/
+COPY packages/rules/package.json ./packages/rules/
 COPY packages/types/package.json ./packages/types/
 COPY packages/ui/package.json ./packages/ui/
 COPY packages/i18n/package.json ./packages/i18n/
@@ -22,6 +23,7 @@ COPY packages/feature-flags/package.json ./packages/feature-flags/
 RUN --mount=type=cache,id=pnpm-store,target=/root/.local/share/pnpm/store \
     pnpm install --frozen-lockfile \
       --filter @myclash/web-staff \
+      --filter @myclash/rules \
       --filter @myclash/types \
       --filter @myclash/ui \
       --filter @myclash/i18n \
@@ -79,6 +81,7 @@ ENV SENTRY_AUTH_TOKEN=${SENTRY_AUTH_TOKEN}
 
 COPY tsconfig.base.json tsconfig.lib.json ./
 COPY apps/web-staff/ ./apps/web-staff/
+COPY packages/rules/ ./packages/rules/
 COPY packages/types/ ./packages/types/
 COPY packages/ui/ ./packages/ui/
 COPY packages/i18n/ ./packages/i18n/
@@ -99,7 +102,8 @@ COPY packages/feature-flags/ ./packages/feature-flags/
 # otherwise write into one shared mount. Costs disk on the builder (a few hundred
 # MB per app); `docker builder prune` reclaims it.
 RUN --mount=type=cache,id=next-cache-web-staff,target=/app/apps/web-staff/.next/cache \
-    pnpm --filter @myclash/types build \
+    pnpm --filter @myclash/rules build \
+ && pnpm --filter @myclash/types build \
  && pnpm --filter @myclash/i18n build \
  && pnpm --filter @myclash/next-i18n build \
  && pnpm --filter @myclash/api-client build \

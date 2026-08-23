@@ -2,7 +2,7 @@
   "name": "@myclash/rulesets",
   "version": "0.0.0",
   "private": true,
-  "description": "MyClash ruleset engine \u2014 TF_v1 and plugin contract.",
+  "description": "MyClash ruleset engine — TF_v1 and plugin contract.",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {
@@ -36,6 +36,7 @@
     "vitest": "^4.1.10"
   },
   "dependencies": {
+    "@myclash/rules": "workspace:^",
     "@myclash/types": "workspace:^",
     "zod": "^4.4.3"
   }

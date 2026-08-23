@@ -4,7 +4,13 @@
  * Shared between API, scoring app, and admin app.
  */
 
-export type AfterblowMode = 'full' | 'deductive';
+import type { AfterblowMode } from '@myclash/rules';
+
+// Afterblow netting moved to @myclash/rules, the zero-dependency core both
+// this package and @myclash/rulesets can reach. Re-exported so no caller of
+// @myclash/types changed. See packages/rules/src/afterblow.ts for why the two
+// former copies existed and what removed the reason.
+export type { AfterblowMode };
 export type ScoringDirection = 'normal' | 'reverse_zero_loses';
 export type TimerMode = 'countdown' | 'countup';
 
@@ -175,25 +181,7 @@ export const DEFAULT_SCORING_CONFIG: TournamentScoringConfig = {
   },
 };
 
-/**
- * Compute the actual score deltas for an afterblow exchange, respecting the
- * afterblow mode.
- *
- * - `full`: both fighters score their button points (attacker, defender).
- * - `deductive`: the afterblow is subtracted from the attacker
- *   (`max(0, attackerPts − defenderPts)`, never negative) and the defender
- *   scores 0 — getting hit back costs the attacker points.
- */
-export function computeAfterblowDeltas(
-  mode: AfterblowMode,
-  attackerPts: number,
-  defenderPts: number,
-): { attackerDelta: number; defenderDelta: number } {
-  if (mode === 'deductive') {
-    return { attackerDelta: Math.max(0, attackerPts - defenderPts), defenderDelta: 0 };
-  }
-  return { attackerDelta: attackerPts, defenderDelta: defenderPts };
-}
+export { computeAfterblowDeltas } from '@myclash/rules';
 
 /**
  * Which side has won by reaching the point cap, or null if neither has yet.
