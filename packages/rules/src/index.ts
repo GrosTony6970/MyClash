@@ -36,3 +36,8 @@ export type {
   ScoringDirection,
   TimerMode,
 } from './match-format';
+
+// The formula AST, its evaluator and the stats it reads. The zod schemas that
+// validate an AUTHORED tree stay in @myclash/rulesets: authoring is resolution,
+// evaluating is application.
+export * from './formula';

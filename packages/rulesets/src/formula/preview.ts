@@ -17,7 +17,7 @@
  */
 import type { DerivedFighterStats, FormulaConfig } from './types';
 import { buildFormulaScope } from './ruleset';
-import { evaluateFormula } from './evaluator';
+import { evaluateFormula } from '@myclash/rules';
 
 export interface FormulaScoringSampleRow {
   stats: DerivedFighterStats;

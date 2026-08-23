@@ -18,9 +18,9 @@ import type {
   StandingsColumn,
   RankingRule,
 } from '../types';
-import { deriveFighterStats } from './derive-stats';
-import { evaluateFormula, type FormulaScope } from './evaluator';
-import { renderFormula } from './render';
+import { deriveFighterStats } from '@myclash/rules';
+import { evaluateFormula, type FormulaScope } from '@myclash/rules';
+import { renderFormula } from '@myclash/rules';
 import { doublePenalty, type DoublePenaltySpec } from '../tf_v1/double-penalty';
 import {
   FORMULA_VARIABLE_KEYS,

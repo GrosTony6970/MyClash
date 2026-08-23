@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Exchange, Match, Registration } from '../types';
-import { deriveFighterStats } from './derive-stats';
-import { evaluateFormula } from './evaluator';
+import { deriveFighterStats, evaluateFormula } from '@myclash/rules';
 import { createFormulaRuleset } from './ruleset';
 import {
   DEFAULT_FORMULA_CONSTANTS,

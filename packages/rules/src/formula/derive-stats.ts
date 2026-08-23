@@ -8,8 +8,8 @@
  *
  * Pure function. No DB, no I/O.
  */
-import { computeAfterblowDeltas, type AfterblowMode } from '../match-format';
-import type { Exchange, Match } from '../types';
+import { computeAfterblowDeltas, type AfterblowMode } from '../afterblow';
+import type { Exchange, Match } from '../domain';
 import type { DerivedFighterStats } from './types';
 
 interface MatchOutcome {

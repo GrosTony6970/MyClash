@@ -17,13 +17,10 @@ export type {
   VariableKey,
 } from './types';
 
-export { evaluateFormula } from './evaluator';
-export type { FormulaScope } from './evaluator';
-
-export { renderFormula } from './render';
-export type { RenderFormulaOptions } from './render';
-
-export { deriveFighterStats } from './derive-stats';
+// Evaluation and stat derivation moved to @myclash/rules — no dependencies,
+// so the scoring pad can reach them. Re-exported so no caller changed.
+export { deriveFighterStats, evaluateFormula, renderFormula } from '@myclash/rules';
+export type { FormulaScope, RenderFormulaOptions } from '@myclash/rules';
 
 export { createFormulaRuleset, buildFormulaScope } from './ruleset';
 export type { RulesetGrammar } from './ruleset';

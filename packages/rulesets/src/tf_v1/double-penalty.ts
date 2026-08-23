@@ -25,7 +25,7 @@
  * maths) can both reach it without an import cycle.
  */
 import { z } from 'zod';
-import { evaluateFormula, type FormulaScope } from '../formula/evaluator';
+import { evaluateFormula, type FormulaScope } from '@myclash/rules';
 import {
   FORMULA_VARIABLE_KEYS,
   FormulaNodeSchema,
