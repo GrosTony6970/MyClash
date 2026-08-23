@@ -93,10 +93,21 @@ COPY --from=prod-deps --chown=nestjs:nodejs /app/package.json ./package.json
 COPY --from=prod-deps --chown=nestjs:nodejs /app/node_modules ./node_modules
 COPY --from=prod-deps --chown=nestjs:nodejs /app/apps/api/package.json ./apps/api/package.json
 COPY --from=prod-deps --chown=nestjs:nodejs /app/apps/api/node_modules ./apps/api/node_modules
-# @myclash/rules has ZERO dependencies, so it needs no node_modules COPY --
-# unlike rulesets, time and db below.
+# EVERY package with a dependency needs its node_modules here, because that is
+# where pnpm puts the link — including a link to another WORKSPACE package.
+# `packages/rules` and `packages/feature-flags` are the only two that declare
+# none, so they are the only two with no node_modules COPY.
+#
+# `packages/types` was missed, and it took the api and the worker down on the
+# first deploy after `@myclash/types` gained a runtime dependency on
+# `@myclash/rules`. Both crash-looped on
+# `Cannot find module '@myclash/rules'` from `packages/types/dist/match-clock.js`.
+# Nothing caught it earlier: the image BUILDS fine (the builder stage has the
+# full workspace), and a missing runtime link only shows when a container
+# actually starts.
 COPY --from=prod-deps --chown=nestjs:nodejs /app/packages/rules/package.json ./packages/rules/package.json
 COPY --from=prod-deps --chown=nestjs:nodejs /app/packages/types/package.json ./packages/types/package.json
+COPY --from=prod-deps --chown=nestjs:nodejs /app/packages/types/node_modules ./packages/types/node_modules
 COPY --from=prod-deps --chown=nestjs:nodejs /app/packages/rulesets/package.json ./packages/rulesets/package.json
 COPY --from=prod-deps --chown=nestjs:nodejs /app/packages/rulesets/node_modules ./packages/rulesets/node_modules
 COPY --from=prod-deps --chown=nestjs:nodejs /app/packages/time/package.json ./packages/time/package.json
