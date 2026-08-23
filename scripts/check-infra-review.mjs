@@ -57,6 +57,7 @@
  */
 import path from 'node:path';
 
+import { runnerStageWorkspaces } from './lib/dockerfile-workspaces.mjs';
 import { createPinnedReader, isMissingPinnedFile } from './lib/pinned-file.mjs';
 
 const rootDir = path.resolve(import.meta.dirname, '..');
@@ -2193,6 +2194,9 @@ if (marketingDockerfile && !/FROM caddy:/u.test(marketingDockerfile.text)) {
 
 const apiDockerfile = dockerfiles.find((file) => file.filePath === 'apps/api/Dockerfile');
 if (apiDockerfile) {
+  // Derived, unlike the pinned COPY strings below: which packages need a
+  // node_modules is read off their own dependencies. See the function.
+  await assertApiImageShipsWorkspaceLinks(apiDockerfile.text, apiDockerfile.filePath);
   requireContains(
     apiDockerfile.text,
     apiDockerfile.filePath,
@@ -3014,4 +3018,89 @@ function assertManifestMountMatchesGenerator(generatorText, generatorLabel) {
 
 function escapeRegExp(value) {
   return value.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&');
+}
+
+/**
+ * A workspace package the api image ships must ship its `node_modules` too.
+ *
+ * ── The outage this closes ──────────────────────────────────────────────────
+ * pnpm links a workspace dependency into the DEPENDENT's `node_modules`, so
+ * `@myclash/types` depending on `@myclash/rules` means a link at
+ * `packages/types/node_modules/@myclash/rules`. The api Dockerfile's runner
+ * stage copies each package's `dist` and `package.json` by hand, and copies
+ * `node_modules` for some of them.
+ *
+ * `packages/types` was missed. The api and the worker both crash-looped on
+ * `Cannot find module '@myclash/rules'` thrown from
+ * `packages/types/dist/match-clock.js`, and prod was down until the COPY was
+ * added. Node had a dist it could load and no way to resolve what that dist
+ * required.
+ *
+ * Nothing could have caught it earlier. The image BUILDS fine either way,
+ * because the builder stage has the whole workspace — only a container that
+ * actually starts can fail this way, and no gate starts one. The hand-written
+ * COPY list simply went stale the moment a package gained its first dependency.
+ *
+ * ── Why it is derived ───────────────────────────────────────────────────────
+ * The requirement is read off each package's own `dependencies`, not pinned as
+ * a list here. A second list would rot exactly the way the Dockerfile's did.
+ * Declaring a dependency is the act that creates the need, so that is what this
+ * reads.
+ *
+ * Only the missing direction is a finding. A COPY of a `node_modules` that no
+ * longer exists fails the docker build loudly, so Docker already owns it.
+ *
+ * Only `COPY --from=` lines count. The runner also copies four web-app
+ * `package.json` files straight from the build context, as DATA for the version
+ * service — those are not part of the module tree and must not be asked for a
+ * `node_modules`. Being copied out of an earlier stage is what makes a workspace
+ * something Node will resolve through at runtime.
+ *
+ * The three Next images are deliberately out of scope: `output: 'standalone'`
+ * traces the runtime tree itself instead of copying packages by hand.
+ */
+async function assertApiImageShipsWorkspaceLinks(dockerfileText, dockerfileLabel) {
+  if (isMissingPinnedFile(dockerfileText)) return;
+
+  const {
+    manifests: copiedManifests,
+    modules: copiedModules,
+    hasRunnerStage,
+  } = runnerStageWorkspaces(dockerfileText);
+  if (!hasRunnerStage) {
+    errors.push(`${dockerfileLabel} must define a runner stage.`);
+    return;
+  }
+
+  if (copiedManifests.size === 0) {
+    errors.push(
+      `${dockerfileLabel}: no workspace package.json COPY lines found in the runner stage — ` +
+        'this check reads those to know what the image ships, so its pattern has rotted.',
+    );
+    return;
+  }
+
+  for (const workspace of [...copiedManifests].sort()) {
+    const manifestText = await pinned.readPinnedFile(
+      path.join(rootDir, ...workspace.split('/'), 'package.json'),
+    );
+    if (isMissingPinnedFile(manifestText)) continue;
+
+    let dependencies;
+    try {
+      dependencies = Object.keys(JSON.parse(manifestText).dependencies ?? {});
+    } catch {
+      errors.push(`${workspace}/package.json is not valid JSON.`);
+      continue;
+    }
+
+    if (dependencies.length > 0 && !copiedModules.has(workspace)) {
+      errors.push(
+        `${dockerfileLabel} ships ${workspace} but not ${workspace}/node_modules, and that ` +
+          `package depends on ${dependencies.join(', ')}. pnpm links a dependency into the ` +
+          'DEPENDENT\'s node_modules, so the container will throw "Cannot find module" at boot ' +
+          'while the image builds perfectly. Add the COPY next to the package.json one.',
+      );
+    }
+  }
 }
