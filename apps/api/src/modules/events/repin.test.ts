@@ -13,8 +13,8 @@
  */
 import { BadRequestException, ForbiddenException } from '@nestjs/common';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { registry, TF_v1, Generic_PointsCap } from '@myclash/rulesets';
 import { EventsService } from './events.service';
+import { createRulesetRegistry } from '../rulesets/ruleset-registry';
 
 const assertOrgRole = vi.fn();
 const EVENT_ROW = { id: 'e1', organization_id: 'org-1' };
@@ -101,6 +101,7 @@ function harness(opts: HarnessOpts) {
     { service: { from } } as never,
     { assertOrgRole } as never,
     {} as never,
+    createRulesetRegistry(),
     undefined,
     undefined,
     undefined,
@@ -129,9 +130,6 @@ describe('repinTournamentRuleset', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     assertOrgRole.mockResolvedValue(undefined);
-    if (!registry.has(TF_v1.code, TF_v1.version)) registry.register(TF_v1);
-    if (!registry.has(Generic_PointsCap.code, Generic_PointsCap.version))
-      registry.register(Generic_PointsCap);
   });
 
   it('re-points the tournament and records the audit with before/after placings', async () => {
@@ -219,9 +217,6 @@ describe('previewRepinBucketDiff', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     assertOrgRole.mockResolvedValue(undefined);
-    if (!registry.has(TF_v1.code, TF_v1.version)) registry.register(TF_v1);
-    if (!registry.has(Generic_PointsCap.code, Generic_PointsCap.version))
-      registry.register(Generic_PointsCap);
   });
 
   it('returns the from/to + bucket diff WITHOUT mutating or auditing', async () => {

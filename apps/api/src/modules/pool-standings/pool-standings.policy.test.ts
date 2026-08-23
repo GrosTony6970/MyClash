@@ -1,6 +1,8 @@
-import { describe, expect, it, vi, beforeAll, afterAll } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { PoolStandingsService } from './pool-standings.service';
-import { registry, TF_v1 } from '@myclash/rulesets';
+import { createRulesetRegistry } from '../rulesets/ruleset-registry';
+
+const registry = createRulesetRegistry();
 
 /**
  * tournamentPolicy behaviour in standings — split from the resolution suite so
@@ -39,14 +41,6 @@ function makeAwaitableChain(result: { data: unknown; error: unknown } = { data: 
   }
   return chain;
 }
-
-beforeAll(() => {
-  if (!registry.has('TF_v1', '1.0.0')) registry.register(TF_v1);
-});
-
-afterAll(() => {
-  registry.clear();
-});
 
 describe('standings — tournamentPolicy', () => {
   it('counts a forfeited match as a draw when tournamentPolicy.forfeitDrawsCount is on', async () => {

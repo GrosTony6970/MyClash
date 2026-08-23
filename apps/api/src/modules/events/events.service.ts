@@ -48,7 +48,7 @@ import type {
 import { PoolStandingsService } from '../pool-standings/pool-standings.service';
 import { RulesetResolver } from '../matches/ruleset-resolver.service';
 import { RulesetHashService } from '../ruleset-hash/ruleset-hash.service';
-import { diffRulesetBuckets, projectRulesetBuckets } from '@myclash/rulesets';
+import { diffRulesetBuckets, projectRulesetBuckets, RulesetRegistry } from '@myclash/rulesets';
 import type { BucketDiff, RulesetBucketInputs } from '@myclash/rulesets';
 import {
   normalizeTournamentLockConfig,
@@ -126,6 +126,7 @@ export class EventsService {
     private readonly supabase: SupabaseService,
     private readonly orgs: OrganizationsService,
     private readonly notificationEvents: NotificationEventsService,
+    private readonly registry: RulesetRegistry,
     private readonly leagues?: LeaguesService,
     private readonly clubs?: ClubsService,
     // Optional so existing direct-construction unit tests keep working; the
@@ -1297,6 +1298,7 @@ export class EventsService {
 
     const rulesetLabel = await resolveRulesetLabel(
       this.supabase,
+      this.registry,
       tournament['ruleset_code'] as string,
       (tournament['ruleset_version'] as string | null) ?? '1',
     );
@@ -2901,7 +2903,7 @@ export class EventsService {
     // +2/+1 hardcoded default. Until now the column stayed NULL until a PATCH,
     // and `GET /match-config` substituted DEFAULT_SCORING_CONFIG for NULL — so
     // a ruleset scoring head/torso/limb still got the two federal buttons.
-    const grammar = await resolveRulesetGrammar(this.supabase, code, version);
+    const grammar = await resolveRulesetGrammar(this.supabase, this.registry, code, version);
     // An explicit caller override still wins, merged the way a PATCH merges —
     // this stops the create DTO's `scoringConfig` being the silently-dropped
     // field it is today. Normalize once, so the stored blob is byte-identical
@@ -3002,13 +3004,13 @@ export class EventsService {
     const row = data as { ruleset_code?: string | null; ruleset_version?: string | null };
     const code = row.ruleset_code ?? 'TF_v1';
     const version = normalizeRulesetVersion(row.ruleset_version ?? '1');
-    const grammar = await resolveRulesetGrammar(this.supabase, code, version);
+    const grammar = await resolveRulesetGrammar(this.supabase, this.registry, code, version);
     // Whether the tournament points at the LOCKED built-in format (grey the
     // coded controls + offer "Customise this format") or at a base_code fork of
     // one (the controls are the org's to edit). ruleset_base_code is the coded
     // algorithm a fork reuses, so the admin UI knows a fork of TF_v1 still owns
     // winBonus/targets even though its code is no longer 'TF_v1'.
-    const isSystem = isSystemRuleset(code, version);
+    const isSystem = isSystemRuleset(this.registry, code, version);
     let baseCode: string | null = null;
     if (!isSystem) {
       const { data: rs } = await this.supabase.service
@@ -3218,7 +3220,7 @@ export class EventsService {
 
     const code = (row['ruleset_code'] as string | null) ?? 'TF_v1';
     const version = normalizeRulesetVersion((row['ruleset_version'] as string | null) ?? '1');
-    if (!isSystemRuleset(code, version)) {
+    if (!isSystemRuleset(this.registry, code, version)) {
       throw new BadRequestException(
         'Only a built-in format can be customised this way. This tournament already uses a custom ruleset — edit it directly.',
       );
@@ -3254,7 +3256,7 @@ export class EventsService {
     orgId: string,
     userId: string,
   ): Promise<Record<string, unknown>> {
-    const grammar = await resolveRulesetGrammar(this.supabase, code, version);
+    const grammar = await resolveRulesetGrammar(this.supabase, this.registry, code, version);
     const forkCode = `custom_${code.toLowerCase()}_fork_${Date.now().toString(36)}`;
     const forkRow = buildCodedForkRow({
       code: forkCode,
@@ -3508,7 +3510,12 @@ export class EventsService {
     version: string;
     config: Record<string, unknown>;
   }): Promise<RulesetBucketInputs> {
-    const grammar = await resolveRulesetGrammar(this.supabase, pin.code, pin.version);
+    const grammar = await resolveRulesetGrammar(
+      this.supabase,
+      this.registry,
+      pin.code,
+      pin.version,
+    );
     return projectRulesetBuckets({
       targets: grammar.targets,
       has_afterblow: grammar.hasAfterblow,
@@ -3647,8 +3654,8 @@ export class EventsService {
       created_at: string;
     };
     const [fromLabel, toLabel] = await Promise.all([
-      resolveRulesetLabel(this.supabase, row.from_code, row.from_version),
-      resolveRulesetLabel(this.supabase, row.to_code, row.to_version),
+      resolveRulesetLabel(this.supabase, this.registry, row.from_code, row.from_version),
+      resolveRulesetLabel(this.supabase, this.registry, row.to_code, row.to_version),
     ]);
     return {
       changedAt: row.created_at,

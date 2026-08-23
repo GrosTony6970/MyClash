@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { RulesetHashService } from './ruleset-hash.service';
+import { createRulesetRegistry } from '../rulesets/ruleset-registry';
 
 type TableState = Record<string, { maybeSingle?: unknown }>;
 
@@ -57,7 +58,10 @@ function stateFor(o: Overrides = {}): TableState {
 }
 
 const hashOf = (state: TableState) =>
-  new RulesetHashService(fakeSupabase(state) as never).computeTournamentContentHash('t-1');
+  new RulesetHashService(
+    fakeSupabase(state) as never,
+    createRulesetRegistry(),
+  ).computeTournamentContentHash('t-1');
 
 describe('RulesetHashService.computeTournamentContentHash', () => {
   it('produces a deterministic 64-char sha256 hex', async () => {
@@ -103,7 +107,10 @@ describe('RulesetHashService.computeTournamentContentHash', () => {
 
   it('returns null when the tournament is gone', async () => {
     const supabase = fakeSupabase({ tournaments: { maybeSingle: null } });
-    const hash = await new RulesetHashService(supabase as never).computeTournamentContentHash('x');
+    const hash = await new RulesetHashService(
+      supabase as never,
+      createRulesetRegistry(),
+    ).computeTournamentContentHash('x');
     expect(hash).toBeNull();
   });
 
@@ -112,6 +119,7 @@ describe('RulesetHashService.computeTournamentContentHash', () => {
     (state.tournaments!.maybeSingle as Record<string, unknown>).ruleset_content_hash = 'stalehash';
     const drift = await new RulesetHashService(
       fakeSupabase(state) as never,
+      createRulesetRegistry(),
     ).describeTournamentDrift('t-1');
     expect(drift.stored).toBe('stalehash');
     expect(drift.current).toMatch(/^[0-9a-f]{64}$/);
@@ -122,10 +130,12 @@ describe('RulesetHashService.computeTournamentContentHash', () => {
     const state = stateFor();
     const current = await new RulesetHashService(
       fakeSupabase(state) as never,
+      createRulesetRegistry(),
     ).computeTournamentContentHash('t-1');
     (state.tournaments!.maybeSingle as Record<string, unknown>).ruleset_content_hash = current;
     const drift = await new RulesetHashService(
       fakeSupabase(state) as never,
+      createRulesetRegistry(),
     ).describeTournamentDrift('t-1');
     expect(drift.drifted).toBe(false);
   });

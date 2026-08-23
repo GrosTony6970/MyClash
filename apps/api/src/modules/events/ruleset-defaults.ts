@@ -16,7 +16,7 @@
  *   rulesets, but callers (DTO, wizard, tests) may pass the shorthand "1".
  *   We normalise both to the same defaults entry.
  */
-import { DEFAULT_TARGETS, registry, type RulesetMetadata } from '@myclash/rulesets';
+import { DEFAULT_TARGETS, type RulesetMetadata, type RulesetRegistry } from '@myclash/rulesets';
 import { buildScoringButtons } from '@myclash/types';
 import type { SupabaseService } from '../supabase/supabase.service';
 import { deepMergeJson } from '../../common/deep-merge';
@@ -159,6 +159,7 @@ export async function freezeRulesetVersion(
  */
 export async function resolveRulesetGrammar(
   supabase: SupabaseService,
+  registry: RulesetRegistry,
   code: string,
   version: string,
 ): Promise<ResolvedRulesetGrammar> {
@@ -214,7 +215,7 @@ export function buildSeededScoringConfig(
  * in-memory registry (TF_v1, Generic_PointsCap, …) rather than a DB row. These
  * are the rulesets a "Customise this format" fork copies FROM.
  */
-export function isSystemRuleset(code: string, version: string): boolean {
+export function isSystemRuleset(registry: RulesetRegistry, code: string, version: string): boolean {
   return registry.has(code, normalizeRulesetVersion(version));
 }
 
@@ -226,6 +227,7 @@ export function isSystemRuleset(code: string, version: string): boolean {
  */
 export async function resolveRulesetLabel(
   supabase: SupabaseService,
+  registry: RulesetRegistry,
   code: string,
   version: string,
 ): Promise<string> {

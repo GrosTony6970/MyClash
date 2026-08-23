@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { Generic_PointsCap, GenericPointsCapDefaultConfig } from './index';
-import { registry } from '../registry';
+import { RulesetRegistry } from '../registry';
 import type { Exchange, Match } from '../types';
 
 const BASE_MATCH: Match = {
@@ -30,7 +30,10 @@ function makeEx(overrides: Partial<Exchange>): Exchange {
 }
 
 describe('Generic_PointsCap', () => {
-  beforeEach(() => registry.clear());
+  let registry: RulesetRegistry;
+  beforeEach(() => {
+    registry = new RulesetRegistry();
+  });
 
   it('registers in the registry', () => {
     registry.register(Generic_PointsCap);

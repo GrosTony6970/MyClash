@@ -30,6 +30,7 @@ import {
 } from '@myclash/rulesets';
 import type { SupabaseService } from '../supabase/supabase.service';
 import { resolveRulesetConfigDefaults, resolveRulesetGrammar } from './ruleset-defaults';
+import type { RulesetRegistry } from '@myclash/rulesets';
 import {
   codedConfigFromRow,
   CUSTOM_RULESET_CONFIG_COLUMNS,
@@ -81,11 +82,12 @@ export function bucketInputsFromRow(row: LineageRow): RulesetBucketInputs {
  */
 export async function bucketInputsForCode(
   supabase: SupabaseService,
+  registry: RulesetRegistry,
   code: string,
   version: string,
 ): Promise<RulesetBucketInputs> {
   const [grammar, config] = await Promise.all([
-    resolveRulesetGrammar(supabase, code, version),
+    resolveRulesetGrammar(supabase, registry, code, version),
     resolveRulesetConfigDefaults(supabase, code, version),
   ]);
   return projectRulesetBuckets({
@@ -109,6 +111,7 @@ export async function bucketInputsForCode(
  */
 export async function describeForkLineage(
   supabase: SupabaseService,
+  registry: RulesetRegistry,
   rows: readonly LineageRow[],
 ): Promise<Map<string, RulesetLineage | null>> {
   const out = new Map<string, RulesetLineage | null>();
@@ -137,7 +140,7 @@ export async function describeForkLineage(
   await Promise.all(
     [...baseKeys].map(async ([key, base]) => {
       if (!names.has(base.code)) return;
-      bases.set(key, await bucketInputsForCode(supabase, base.code, base.version));
+      bases.set(key, await bucketInputsForCode(supabase, registry, base.code, base.version));
     }),
   );
 

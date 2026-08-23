@@ -1,7 +1,7 @@
 import { BadRequestException, ForbiddenException } from '@nestjs/common';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { registry, TF_v1 } from '@myclash/rulesets';
 import { CustomRulesetsService } from './custom-rulesets.service';
+import { createRulesetRegistry } from '../../rulesets/ruleset-registry';
 
 const fromMock = vi.fn();
 const mockSupabase = { service: { from: fromMock } };
@@ -32,10 +32,7 @@ describe('CustomRulesetsService', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     // Register the TF_v1 built-in so hydration tests can resolve it.
-    if (!registry.has(TF_v1.code, TF_v1.version)) {
-      registry.register(TF_v1);
-    }
-    service = new CustomRulesetsService(mockSupabase as never);
+    service = new CustomRulesetsService(mockSupabase as never, createRulesetRegistry());
   });
 
   it('rejects creation with an invalid formula AST', async () => {
@@ -268,8 +265,7 @@ describe('publish/rollback grammar round-trip', () => {
   let service: CustomRulesetsService;
   beforeEach(() => {
     vi.clearAllMocks();
-    if (!registry.has(TF_v1.code, TF_v1.version)) registry.register(TF_v1);
-    service = new CustomRulesetsService(mockSupabase as never);
+    service = new CustomRulesetsService(mockSupabase as never, createRulesetRegistry());
   });
 
   const grammarRow = {

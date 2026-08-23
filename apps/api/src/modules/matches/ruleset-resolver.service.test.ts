@@ -19,9 +19,10 @@
  * the diff is over booleans.
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { registry, TF_v1 } from '@myclash/rulesets';
+import { TF_v1 } from '@myclash/rulesets';
 import { createFormulaRuleset } from '@myclash/rulesets';
 import { RulesetResolver } from './ruleset-resolver.service';
+import { createRulesetRegistry } from '../rulesets/ruleset-registry';
 
 const FORMULA = { type: 'var', name: 'victories' };
 const CONSTANTS = { pointsPerVictory: 3, pointsPerTie: 1, pointsPerLoss: 0, doublePenalty: 0 };
@@ -58,17 +59,16 @@ function makeResolver(rows: { parent?: unknown; snapshot?: unknown; row?: unknow
     };
     return chain;
   });
-  return { resolver: new RulesetResolver({ service: { from } } as never), selects };
+  return {
+    resolver: new RulesetResolver({ service: { from } } as never, createRulesetRegistry()),
+    selects,
+  };
 }
 
 describe('RulesetResolver — grammar', () => {
-  beforeEach(() => {
-    if (!registry.has(TF_v1.code, TF_v1.version)) registry.register(TF_v1);
-  });
-
   it('short-circuits a coded ruleset to the registry without touching the DB', async () => {
     const from = vi.fn();
-    const resolver = new RulesetResolver({ service: { from } } as never);
+    const resolver = new RulesetResolver({ service: { from } } as never, createRulesetRegistry());
     const ruleset = await resolver.resolve('TF_v1', '1.0.0');
     expect(ruleset?.code).toBe('TF_v1');
     expect(from).not.toHaveBeenCalled();
@@ -276,9 +276,7 @@ describe('RulesetResolver — grammar', () => {
 });
 
 describe('RulesetResolver — coded forks (base_code)', () => {
-  beforeEach(() => {
-    if (!registry.has(TF_v1.code, TF_v1.version)) registry.register(TF_v1);
-  });
+  beforeEach(() => {});
 
   it('resolves a base_code fork to the EXACT registry engine (scoring parity by construction)', async () => {
     // The whole point of the coded fork: it does not re-implement TF_v1's

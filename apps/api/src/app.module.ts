@@ -40,6 +40,7 @@ import { ProgrammeModule } from './modules/programme/programme.module';
 import { SwissModule } from './modules/swiss/swiss.module';
 import { RealtimeModule } from './modules/realtime/realtime.module';
 import { RegistrationsModule } from './modules/registrations/registrations.module';
+import { RulesetRegistryModule } from './modules/rulesets/ruleset-registry.module';
 import { RulesetsModule } from './modules/rulesets/rulesets.module';
 import { SupabaseModule } from './modules/supabase/supabase.module';
 import { EntityLabelModule } from './modules/entity-label/entity-label.module';
@@ -119,6 +120,7 @@ import { throttlerOptions } from './common/throttling/throttler-options';
     ExportsModule,
     WorkersModule,
     RealtimeModule,
+    RulesetRegistryModule,
     RulesetsModule,
     PoolStandingsModule,
     PeopleContextModule,

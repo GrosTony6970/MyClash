@@ -16,16 +16,34 @@
  * The mock dispatches by table name, not call order.
  */
 import { describe, expect, it, vi } from 'vitest';
-import { GenericPointsCapDefaultConfig, TFv1DefaultConfig } from '@myclash/rulesets';
+import { GenericPointsCapDefaultConfig, TF_v1, TFv1DefaultConfig } from '@myclash/rulesets';
 import type { SupabaseService } from '../supabase/supabase.service';
 import { describeForkLineage, type LineageRow } from './ruleset-lineage';
+import { createRulesetRegistry } from '../rulesets/ruleset-registry';
 
-/** The grammar TF_v1 declares, as migration 0143 backfilled it onto the row. */
+/**
+ * The grammar a fork of TF_v1 carries.
+ *
+ * `buildCodedForkRow` writes the base's RESOLVED grammar into these columns,
+ * and `resolveRulesetGrammar` resolves a built-in through the registry — so
+ * this is TF_v1's coded metadata, not whatever the `custom_rulesets` mirror row
+ * holds.
+ *
+ * Read off the metadata rather than retyped. It used to spell the targets
+ * "Deep target" / "Shallow target", which the engine does not declare and no
+ * migration ever wrote; the diff passed only because the registry was EMPTY in
+ * this file, so both sides fell through to the DB mirror instead of taking the
+ * registry short-circuit production always takes.
+ */
+const TF_TARGETS = TF_v1.metadata?.targets;
+if (!TF_TARGETS?.length) {
+  // Not `?? []`: an empty targets list would make every grammar comparison
+  // below vacuously equal, so the suite would pass while testing nothing.
+  throw new Error('TF_v1 declares no targets — these fixtures have nothing to model');
+}
+
 const TF_GRAMMAR = {
-  targets: [
-    { name: 'Deep target', value: 2 },
-    { name: 'Shallow target', value: 1 },
-  ],
+  targets: TF_TARGETS.map((target) => ({ ...target })),
   has_afterblow: true,
   afterblow_mode: 'deductive' as const,
   afterblow_valuation: 'fixed' as const,
@@ -115,7 +133,11 @@ describe('describeForkLineage', () => {
   it('lights NO lamp for a fresh fork that scores exactly like TF v1', async () => {
     // The regression: base tf_config lacks tournamentPolicy, fork's carries the
     // schema default. Projected from effective behaviour, they are the same.
-    const lineage = await describeForkLineage(fakeSupabase([TF_V1_DB_ROW]), [forkRow()]);
+    const lineage = await describeForkLineage(
+      fakeSupabase([TF_V1_DB_ROW]),
+      createRulesetRegistry(),
+      [forkRow()],
+    );
 
     expect(lineage.get('fork-1')).toEqual({
       base: 'TF v1',
@@ -144,7 +166,11 @@ describe('describeForkLineage', () => {
       afterblow_fixed_value: null,
     });
 
-    const lineage = await describeForkLineage(fakeSupabase([GENERIC_DB_ROW]), [fork]);
+    const lineage = await describeForkLineage(
+      fakeSupabase([GENERIC_DB_ROW]),
+      createRulesetRegistry(),
+      [fork],
+    );
 
     expect(lineage.get('fork-1')?.diff.rankingCompatible).toBe(true);
     expect(lineage.get('fork-1')?.diff).toMatchObject({
@@ -162,9 +188,9 @@ describe('describeForkLineage', () => {
       >,
     });
 
-    const diff = (await describeForkLineage(fakeSupabase([TF_V1_DB_ROW]), [fork])).get(
-      'fork-1',
-    )?.diff;
+    const diff = (
+      await describeForkLineage(fakeSupabase([TF_V1_DB_ROW]), createRulesetRegistry(), [fork])
+    ).get('fork-1')?.diff;
 
     expect(diff?.ranking).toBe('changed');
     expect(diff?.rankingCompatible).toBe(false);
@@ -179,9 +205,9 @@ describe('describeForkLineage', () => {
       ],
     });
 
-    const diff = (await describeForkLineage(fakeSupabase([TF_V1_DB_ROW]), [fork])).get(
-      'fork-1',
-    )?.diff;
+    const diff = (
+      await describeForkLineage(fakeSupabase([TF_V1_DB_ROW]), createRulesetRegistry(), [fork])
+    ).get('fork-1')?.diff;
 
     expect(diff?.grammar).toBe('changed');
     expect(diff?.ranking).toBe('unchanged');
@@ -193,7 +219,9 @@ describe('describeForkLineage', () => {
     (config['matchFormat'] as Record<string, unknown>)['pointCap'] = 15;
 
     const diff = (
-      await describeForkLineage(fakeSupabase([TF_V1_DB_ROW]), [forkRow({ tf_config: config })])
+      await describeForkLineage(fakeSupabase([TF_V1_DB_ROW]), createRulesetRegistry(), [
+        forkRow({ tf_config: config }),
+      ])
     ).get('fork-1')?.diff;
 
     expect(diff?.endConditions).toBe('changed');
@@ -209,7 +237,11 @@ describe('describeForkLineage', () => {
       tf_config: null,
     });
 
-    const lineage = await describeForkLineage(fakeSupabase([TF_V1_DB_ROW]), [standalone]);
+    const lineage = await describeForkLineage(
+      fakeSupabase([TF_V1_DB_ROW]),
+      createRulesetRegistry(),
+      [standalone],
+    );
 
     expect(lineage.get('formula-1')).toBeNull();
   });
@@ -218,7 +250,7 @@ describe('describeForkLineage', () => {
     const supabase = fakeSupabase([TF_V1_DB_ROW]);
     const rows = [forkRow(), forkRow({ id: 'fork-2', code: 'custom_tf_v1_fork_def' })];
 
-    const lineage = await describeForkLineage(supabase, rows);
+    const lineage = await describeForkLineage(supabase, createRulesetRegistry(), rows);
 
     expect(lineage.get('fork-1')?.base).toBe('TF v1');
     expect(lineage.get('fork-2')?.base).toBe('TF v1');
@@ -229,7 +261,7 @@ describe('describeForkLineage', () => {
   });
 
   it('degrades to no lamps rather than throwing when the base is gone', async () => {
-    const lineage = await describeForkLineage(fakeSupabase([]), [
+    const lineage = await describeForkLineage(fakeSupabase([]), createRulesetRegistry(), [
       forkRow({ base_code: 'Deleted_Base' }),
     ]);
 

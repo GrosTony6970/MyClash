@@ -1,20 +1,12 @@
 import { Controller, Get, NotFoundException, Param, ParseUUIDPipe, Req } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import type { FastifyRequest } from 'fastify';
-import { registry, TF_v1, Generic_PointsCap } from '@myclash/rulesets';
+import { RulesetRegistry } from '@myclash/rulesets';
 import { SupabaseService } from '../supabase/supabase.service';
 import { OrganizationsService } from '../organizations/organizations.service';
 import { resolveRequestUserId } from '../../common/auth/request-user';
 import { SelectableRulesetsService } from './selectable-rulesets.service';
 import { toRulesetSummary, type RulesetSummary } from './ruleset-summary';
-
-// Ensure all built-in rulesets are registered (idempotent — guarded with has()).
-// This mirrors the same guard in scoring.service.ts so either module can load first.
-for (const ruleset of [TF_v1, Generic_PointsCap]) {
-  if (!registry.has(ruleset.code, ruleset.version)) {
-    registry.register(ruleset);
-  }
-}
 
 @ApiTags('rulesets')
 @Controller('rulesets')
@@ -23,6 +15,7 @@ export class RulesetsController {
     private readonly selectable: SelectableRulesetsService,
     private readonly supabase: SupabaseService,
     private readonly orgs: OrganizationsService,
+    private readonly registry: RulesetRegistry,
   ) {}
 
   /**
@@ -35,7 +28,7 @@ export class RulesetsController {
   @Get()
   @ApiOperation({ summary: 'List the coded (built-in) rulesets' })
   list(): RulesetSummary[] {
-    return registry.list().map((ruleset) => toRulesetSummary(ruleset, false));
+    return this.registry.list().map((ruleset) => toRulesetSummary(ruleset, false));
   }
 
   /**

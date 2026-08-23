@@ -5,9 +5,9 @@
  * `GET /rulesets` returned `registry.list()` and nothing registers a DB row —
  * so an org could author, publish and share a ruleset it could never select.
  */
-import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { registry, TF_v1, Generic_PointsCap } from '@myclash/rulesets';
+import { describe, expect, it, vi } from 'vitest';
 import { SelectableRulesetsService } from './selectable-rulesets.service';
+import { createRulesetRegistry } from './ruleset-registry';
 
 function makeSupabase(result: { data?: unknown; error?: unknown }) {
   const chain = {
@@ -32,12 +32,6 @@ function fakeRuleset(code: string, version = '1.0.0') {
 }
 
 describe('SelectableRulesetsService', () => {
-  beforeEach(() => {
-    for (const ruleset of [TF_v1, Generic_PointsCap]) {
-      if (!registry.has(ruleset.code, ruleset.version)) registry.register(ruleset);
-    }
-  });
-
   it('always includes the coded built-ins', async () => {
     const { supabase } = makeSupabase({ data: [], error: null });
     const service = new SelectableRulesetsService(
@@ -45,6 +39,7 @@ describe('SelectableRulesetsService', () => {
       {
         resolve: vi.fn(),
       } as never,
+      createRulesetRegistry(),
     );
 
     const result = await service.listForOrganization('org-1');
@@ -59,7 +54,11 @@ describe('SelectableRulesetsService', () => {
       error: null,
     });
     const resolve = vi.fn().mockResolvedValue(fakeRuleset('custom_house'));
-    const service = new SelectableRulesetsService(supabase as never, { resolve } as never);
+    const service = new SelectableRulesetsService(
+      supabase as never,
+      { resolve } as never,
+      createRulesetRegistry(),
+    );
 
     const result = await service.listForOrganization('org-1');
     const custom = result.find((r) => r.code === 'custom_house');
@@ -75,7 +74,11 @@ describe('SelectableRulesetsService', () => {
       error: null,
     });
     const resolve = vi.fn().mockResolvedValue(null);
-    const service = new SelectableRulesetsService(supabase as never, { resolve } as never);
+    const service = new SelectableRulesetsService(
+      supabase as never,
+      { resolve } as never,
+      createRulesetRegistry(),
+    );
 
     const result = await service.listForOrganization('org-1');
     expect(result.find((r) => r.code === 'custom_draft')).toBeUndefined();
@@ -93,7 +96,11 @@ describe('SelectableRulesetsService', () => {
       .fn()
       .mockRejectedValueOnce(new Error('boom'))
       .mockResolvedValueOnce(fakeRuleset('custom_ok'));
-    const service = new SelectableRulesetsService(supabase as never, { resolve } as never);
+    const service = new SelectableRulesetsService(
+      supabase as never,
+      { resolve } as never,
+      createRulesetRegistry(),
+    );
 
     const result = await service.listForOrganization('org-1');
     expect(result.find((r) => r.code === 'custom_broken')).toBeUndefined();
@@ -107,6 +114,7 @@ describe('SelectableRulesetsService', () => {
       {
         resolve: vi.fn(),
       } as never,
+      createRulesetRegistry(),
     );
 
     await service.listForOrganization('org-1');
@@ -127,7 +135,11 @@ describe('SelectableRulesetsService', () => {
       error: null,
     });
     const resolve = vi.fn();
-    const service = new SelectableRulesetsService(supabase as never, { resolve } as never);
+    const service = new SelectableRulesetsService(
+      supabase as never,
+      { resolve } as never,
+      createRulesetRegistry(),
+    );
 
     const result = await service.listForOrganization('org-1');
     expect(result.filter((r) => r.code === 'TF_v1')).toHaveLength(1);
@@ -144,6 +156,7 @@ describe('SelectableRulesetsService', () => {
       {
         resolve: vi.fn(),
       } as never,
+      createRulesetRegistry(),
     );
 
     const result = await service.listForOrganization('org-1');

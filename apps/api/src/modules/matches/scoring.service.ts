@@ -14,9 +14,7 @@ import {
 // Value import, not `import type`: Nest needs the runtime class for DI metadata.
 import { MatchCompletionService } from '../phases/match-completion.service';
 import {
-  registry,
   TF_v1,
-  Generic_PointsCap,
   evaluateRound,
   getEffectiveBestOf,
   getPointCapWinnerRegistrationId,
@@ -33,17 +31,6 @@ import type {
 import { SupabaseService } from '../supabase/supabase.service';
 import { RulesetResolver } from './ruleset-resolver.service';
 import { ClockService } from './clock.service';
-
-// Register all built-in rulesets on module load
-// (idempotent — registry.register throws on duplicate, so we guard)
-function registerBuiltins() {
-  for (const ruleset of [TF_v1, Generic_PointsCap]) {
-    if (!registry.has(ruleset.code, ruleset.version)) {
-      registry.register(ruleset);
-    }
-  }
-}
-registerBuiltins();
 
 /**
  * A closed round in a best-of-N match, snapshotted into `matches.rounds_json`.

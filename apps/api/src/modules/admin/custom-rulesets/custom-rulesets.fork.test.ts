@@ -11,9 +11,10 @@
  */
 import { BadRequestException } from '@nestjs/common';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { registry, TF_v1 } from '@myclash/rulesets';
+import { TF_v1 } from '@myclash/rulesets';
 import { CustomRulesetsService } from './custom-rulesets.service';
 import type { ForkCustomRulesetDto } from './dto/custom-rulesets.dto';
+import { createRulesetRegistry } from '../../rulesets/ruleset-registry';
 
 const fromMock = vi.fn();
 const mockSupabase = { service: { from: fromMock } };
@@ -58,8 +59,7 @@ describe('CustomRulesetsService.forkForOrg', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    if (!registry.has(TF_v1.code, TF_v1.version)) registry.register(TF_v1);
-    service = new CustomRulesetsService(mockSupabase as never);
+    service = new CustomRulesetsService(mockSupabase as never, createRulesetRegistry());
   });
 
   it('creates a coded fork that reuses the base engine', async () => {

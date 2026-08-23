@@ -2,6 +2,7 @@ import { BadRequestException, ForbiddenException } from '@nestjs/common';
 import { describe, expect, it, vi } from 'vitest';
 import { CustomRulesetsService } from './custom-rulesets.service';
 import { buildRulesetExport } from '../../../common/ruleset-export';
+import { createRulesetRegistry } from '../../rulesets/ruleset-registry';
 
 // getById reads one custom_rulesets row via .select('*').eq('id').maybeSingle().
 function serviceWithRow(row: Record<string, unknown> | null) {
@@ -11,7 +12,10 @@ function serviceWithRow(row: Record<string, unknown> | null) {
     maybeSingle: vi.fn().mockResolvedValue({ data: row, error: null }),
   };
   const fromMock = vi.fn().mockReturnValue(chain);
-  return new CustomRulesetsService({ service: { from: fromMock } } as never);
+  return new CustomRulesetsService(
+    { service: { from: fromMock } } as never,
+    createRulesetRegistry(),
+  );
 }
 
 const formulaRow = {

@@ -12,9 +12,9 @@
  * desyncs the moment a query is added.
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { registry, TF_v1 } from '@myclash/rulesets';
 import { EventsService } from './events.service';
 import { buildCodedForkRow } from './ruleset-defaults';
+import { createRulesetRegistry } from '../rulesets/ruleset-registry';
 
 const assertOrgRole = vi.fn();
 
@@ -95,6 +95,7 @@ function forkHarness(current: Record<string, unknown>, systemName = 'TF_v1') {
     { service: { from } } as never,
     { assertOrgRole } as never,
     {} as never,
+    createRulesetRegistry(),
   );
   return { svc, captured: cap };
 }
@@ -112,7 +113,6 @@ describe('forkCodedRulesetForTournament', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     assertOrgRole.mockResolvedValue(undefined);
-    if (!registry.has(TF_v1.code, TF_v1.version)) registry.register(TF_v1);
   });
 
   it('creates a private coded fork carrying base_code + the tournament config', async () => {

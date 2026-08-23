@@ -1,10 +1,13 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { registry } from './registry';
+import { RulesetRegistry } from './registry';
 import { TF_v1 } from './tf_v1';
 
 describe('RulesetRegistry', () => {
+  // A fresh registry per case — the isolation `clear()` used to fake on a
+  // shared singleton.
+  let registry: RulesetRegistry;
   beforeEach(() => {
-    registry.clear();
+    registry = new RulesetRegistry();
   });
 
   it('register() adds a ruleset', () => {

@@ -24,7 +24,7 @@ export type {
 } from './types';
 
 // Registry
-export { registry } from './registry';
+export { RulesetRegistry } from './registry';
 export {
   BestOfConfigSchema,
   DEFAULT_MATCH_FORMAT_CONFIG,

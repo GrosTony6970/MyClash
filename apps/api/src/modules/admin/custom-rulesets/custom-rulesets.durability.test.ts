@@ -1,6 +1,7 @@
 import { ConflictException } from '@nestjs/common';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { CustomRulesetsService } from './custom-rulesets.service';
+import { createRulesetRegistry } from '../../rulesets/ruleset-registry';
 
 // Delist ≠ delete: a ruleset a tournament still pins must resolve forever, so
 // destructive/lifecycle actions on it either soft-archive (delete) or refuse
@@ -9,7 +10,10 @@ import { CustomRulesetsService } from './custom-rulesets.service';
 // cap (mirrors the custom-rulesets.catalog.test.ts split).
 describe('CustomRulesetsService — durability (delist ≠ delete)', () => {
   const fromMock = vi.fn();
-  const service = new CustomRulesetsService({ service: { from: fromMock } } as never);
+  const service = new CustomRulesetsService(
+    { service: { from: fromMock } } as never,
+    createRulesetRegistry(),
+  );
 
   const refParent = {
     id: 'r1',

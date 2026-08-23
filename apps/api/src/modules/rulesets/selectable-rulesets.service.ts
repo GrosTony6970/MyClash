@@ -18,7 +18,7 @@
  * page the organizer cannot debug. Listed and usable are the same set.
  */
 import { Injectable, Logger } from '@nestjs/common';
-import { registry, type Ruleset } from '@myclash/rulesets';
+import { RulesetRegistry, type Ruleset } from '@myclash/rulesets';
 import { SupabaseService } from '../supabase/supabase.service';
 import { RulesetResolver } from '../matches/ruleset-resolver.service';
 import { customRulesetOrgVisibilityFilter } from '../../common/custom-ruleset-visibility';
@@ -36,6 +36,7 @@ export class SelectableRulesetsService {
   constructor(
     private readonly supabase: SupabaseService,
     private readonly resolver: RulesetResolver,
+    private readonly registry: RulesetRegistry,
   ) {}
 
   /**
@@ -47,7 +48,7 @@ export class SelectableRulesetsService {
    * will short-circuit to anyway.
    */
   async listForOrganization(orgId: string): Promise<RulesetSummary[]> {
-    const coded = registry.list();
+    const coded = this.registry.list();
     const seen = new Set(coded.map((r) => `${r.code}@${r.version}`));
     const summaries = coded.map((r) => toRulesetSummary(r, false));
 

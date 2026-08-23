@@ -1,6 +1,9 @@
-import { describe, expect, it, vi, beforeAll, afterAll } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { PoolStandingsService } from './pool-standings.service';
-import { createFormulaRuleset, registry, TF_v1 } from '@myclash/rulesets';
+import { createFormulaRuleset } from '@myclash/rulesets';
+import { createRulesetRegistry } from '../rulesets/ruleset-registry';
+
+const registry = createRulesetRegistry();
 
 /**
  * Ruleset RESOLUTION for standings — split out of pool-standings.service.test.ts
@@ -39,14 +42,6 @@ function makeAwaitableChain(result: { data: unknown; error: unknown } = { data: 
   }
   return chain;
 }
-
-beforeAll(() => {
-  if (!registry.has('TF_v1', '1.0.0')) registry.register(TF_v1);
-});
-
-afterAll(() => {
-  registry.clear();
-});
 
 describe('ruleset resolution', () => {
   function stubTournament(code: string, version: string) {

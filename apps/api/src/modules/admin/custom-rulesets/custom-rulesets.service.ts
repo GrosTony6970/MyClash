@@ -18,7 +18,7 @@ import {
   FormulaNodeSchema,
   TFv1ConfigSchema,
   TiebreakerSchema,
-  registry,
+  RulesetRegistry,
   type DoublePenaltySpec,
   type FormulaConfig,
   type FormulaScoringPreview,
@@ -388,7 +388,10 @@ export function grammarColumns(dto: {
 export class CustomRulesetsService {
   private readonly logger = new Logger(CustomRulesetsService.name);
 
-  constructor(private readonly supabase: SupabaseService) {}
+  constructor(
+    private readonly supabase: SupabaseService,
+    private readonly registry: RulesetRegistry,
+  ) {}
 
   async list(): Promise<CustomRulesetRow[]> {
     const { data, error } = await this.supabase.service
@@ -420,7 +423,9 @@ export class CustomRulesetsService {
    */
   private hydrateSystemRow(row: CustomRulesetRow): CustomRulesetRowHydrated {
     if (!row.is_system) return row;
-    const coded = registry.has(row.code, row.version) ? registry.get(row.code, row.version) : null;
+    const coded = this.registry.has(row.code, row.version)
+      ? this.registry.get(row.code, row.version)
+      : null;
     if (!coded) return row;
     return {
       ...row,
@@ -927,7 +932,11 @@ export class CustomRulesetsService {
     // Lineage is computed here rather than on the client because only the server
     // can project a base's EFFECTIVE behaviour; this list is what the Manage
     // table and the edit page both read, so both get the identical lamps.
-    const lineage = await describeForkLineage(this.supabase, rows as unknown as LineageRow[]);
+    const lineage = await describeForkLineage(
+      this.supabase,
+      this.registry,
+      rows as unknown as LineageRow[],
+    );
     return rows.map((r) => ({ ...r, lineage: lineage.get(r.id) ?? null }));
   }
 
@@ -968,7 +977,7 @@ export class CustomRulesetsService {
         this.supabase,
         rows.map((r) => r.owner_organization_id),
       ),
-      describeForkLineage(this.supabase, rows),
+      describeForkLineage(this.supabase, this.registry, rows),
     ]);
     return rows.map((r) => ({
       id: r.id,
@@ -1081,7 +1090,7 @@ export class CustomRulesetsService {
     // Only a built-in can be a base: its algorithm is the thing being reused.
     // This is also what stops an org forking another org's row — adopting a
     // shared fork must re-base on that fork's OWN base, not on the fork.
-    if (!isSystemRuleset(dto.baseCode, baseVersion)) {
+    if (!isSystemRuleset(this.registry, dto.baseCode, baseVersion)) {
       throw new BadRequestException(
         `Only a built-in format can be customised this way. "${dto.baseCode}" is not one.`,
       );
@@ -1091,7 +1100,12 @@ export class CustomRulesetsService {
     // (dryRunRuleset takes this identical branch for a base_code row).
     this.assertGrammarNonEmpty(dto.targets);
 
-    const grammar = await resolveRulesetGrammar(this.supabase, dto.baseCode, baseVersion);
+    const grammar = await resolveRulesetGrammar(
+      this.supabase,
+      this.registry,
+      dto.baseCode,
+      baseVersion,
+    );
     const code = `custom_${dto.baseCode.toLowerCase()}_fork_${Date.now().toString(36)}`;
     const row = buildCodedForkRow({
       code,
@@ -1423,7 +1437,7 @@ export class CustomRulesetsService {
     const baseCode = (raw['base_code'] as string | null) ?? null;
     if (baseCode) {
       const baseVersion = (raw['base_version'] as string | null) ?? '1.0.0';
-      if (!isSystemRuleset(baseCode, baseVersion)) {
+      if (!isSystemRuleset(this.registry, baseCode, baseVersion)) {
         throw new BadRequestException(
           `This format is based on "${baseCode}", which is no longer available.`,
         );

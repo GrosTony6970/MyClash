@@ -2,6 +2,7 @@ import { NotFoundException } from '@nestjs/common';
 import { describe, expect, it, vi } from 'vitest';
 import { RulesetsController } from './rulesets.controller';
 import type { SelectableRulesetsService } from './selectable-rulesets.service';
+import { createRulesetRegistry } from './ruleset-registry';
 
 function makeController(overrides?: {
   selectable?: Partial<SelectableRulesetsService>;
@@ -30,6 +31,7 @@ function makeController(overrides?: {
     {
       assertOrgRole,
     } as never,
+    createRulesetRegistry(),
   );
   return { controller, selectable, assertOrgRole };
 }

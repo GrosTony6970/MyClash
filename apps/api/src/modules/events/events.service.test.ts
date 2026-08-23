@@ -7,6 +7,7 @@ import {
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { EventsService } from './events.service';
 import { ANONYMOUS_USER_ID } from '../../common/auth/request-user';
+import { createRulesetRegistry } from '../rulesets/ruleset-registry';
 
 const fromMock = vi.fn();
 
@@ -152,6 +153,7 @@ describe('EventsService', () => {
       { service: { from: fromMock } } as never,
       { assertOrgRole } as never,
       {} as never,
+      createRulesetRegistry(),
     );
   });
 
@@ -181,6 +183,7 @@ describe('EventsService', () => {
         { service: { from: fromMock } } as never,
         { assertOrgRole } as never,
         { organizerPublishedEvent } as never,
+        createRulesetRegistry(),
       );
       return { svc, organizerPublishedEvent, eventsChain };
     }
@@ -320,6 +323,7 @@ describe('EventsService', () => {
       { service: { from: fromMock } } as never,
       { assertOrgRole } as never,
       {} as never,
+      createRulesetRegistry(),
       undefined,
       {} as never,
     );
@@ -420,6 +424,7 @@ describe('EventsService', () => {
       { service: { from: fromMock } } as never,
       { assertOrgRole } as never,
       {} as never,
+      createRulesetRegistry(),
       undefined,
       {} as never,
     );
@@ -477,6 +482,7 @@ describe('EventsService', () => {
       { service: { from: fromMock } } as never,
       { assertOrgRole } as never,
       {} as never,
+      createRulesetRegistry(),
       undefined,
       {} as never,
     );
@@ -584,6 +590,7 @@ describe('EventsService', () => {
       { service: { from: fromMock } } as never,
       { assertOrgRole } as never,
       {} as never,
+      createRulesetRegistry(),
       undefined,
       {} as never,
     );
@@ -964,6 +971,7 @@ describe('EventsService', () => {
         { service: { from: fromMock } } as never,
         { assertOrgRole } as never,
         {} as never,
+        createRulesetRegistry(),
         { recomputeForEvent } as never,
       );
       const eventChain = makeChain({
@@ -1090,6 +1098,7 @@ describe('EventsService', () => {
       { service: { from: fromMock } } as never,
       { assertOrgRole } as never,
       {} as never,
+      createRulesetRegistry(),
       undefined,
       clubs as never,
     );
@@ -1335,6 +1344,7 @@ describe('EventsService', () => {
       { service: { from: fromMock, auth: { admin: { getUserById } } } } as never,
       { assertOrgRole } as never,
       {} as never,
+      createRulesetRegistry(),
     );
     assertOrgRole.mockResolvedValue(undefined);
 
@@ -1367,6 +1377,7 @@ describe('EventsService', () => {
       { service: { from: fromMock, auth: { admin: { getUserById } } } } as never,
       { assertOrgRole } as never,
       {} as never,
+      createRulesetRegistry(),
     );
     assertOrgRole.mockResolvedValue(undefined);
 
@@ -1407,6 +1418,7 @@ describe('EventsService', () => {
       { service: { from: fromMock, storage } } as never,
       { assertOrgRole } as never,
       {} as never,
+      createRulesetRegistry(),
     );
 
     const result = await service.uploadLogo('event-1', 'user-1', {
@@ -1484,6 +1496,7 @@ describe('EventsService', () => {
       { service: { from: fromMock, storage } } as never,
       { assertOrgRole } as never,
       {} as never,
+      createRulesetRegistry(),
     );
 
     const result = await service.uploadHero('event-1', 'user-1', {

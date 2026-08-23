@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { CustomRulesetsService } from './custom-rulesets.service';
+import { createRulesetRegistry } from '../../rulesets/ruleset-registry';
 
 // A thenable chain that supports `.or().order().order()` (the catalog query
 // shape), `.select().in()` (org-name + base-name resolution) and
@@ -82,7 +83,7 @@ describe('CustomRulesetsService.listCatalogForOrg', () => {
       ],
       organizations: [{ id: 'org-x', name: 'Org X' }],
     });
-    const svc = new CustomRulesetsService(supabase as never);
+    const svc = new CustomRulesetsService(supabase as never, createRulesetRegistry());
 
     const result = await svc.listCatalogForOrg('org-me');
 
@@ -138,7 +139,7 @@ describe('CustomRulesetsService.listCatalogForOrg', () => {
       ],
       organizations: [{ id: 'org-x', name: 'Org X' }],
     });
-    const svc = new CustomRulesetsService(supabase as never);
+    const svc = new CustomRulesetsService(supabase as never, createRulesetRegistry());
 
     const result = await svc.listCatalogForOrg('org-me');
 
@@ -175,7 +176,7 @@ describe('CustomRulesetsService.listCatalogForOrg', () => {
         },
       ],
     });
-    const svc = new CustomRulesetsService(supabase as never);
+    const svc = new CustomRulesetsService(supabase as never, createRulesetRegistry());
 
     const result = await svc.listCatalogForOrg('org-me');
 

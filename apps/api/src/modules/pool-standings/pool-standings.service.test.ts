@@ -1,6 +1,6 @@
-import { describe, expect, it, vi, beforeAll, afterAll } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { PoolStandingsService } from './pool-standings.service';
-import { registry, TF_v1 } from '@myclash/rulesets';
+import { createRulesetRegistry } from '../rulesets/ruleset-registry';
 
 const fromMock = vi.fn();
 const mockSupabase = { service: { from: fromMock } };
@@ -12,6 +12,7 @@ const mockSupabase = { service: { from: fromMock } };
  * in these tests is order-sensitive — one extra from() call desyncs every
  * subsequent expectation.
  */
+const registry = createRulesetRegistry();
 const resolverStub = {
   resolve: async (code: string, version: string) =>
     registry.has(code, version) ? registry.get(code, version) : null,
@@ -51,16 +52,6 @@ function makeAwaitableChain(result: { data: unknown; error: unknown } = { data: 
 }
 
 describe('PoolStandingsService', () => {
-  beforeAll(() => {
-    if (!registry.has('TF_v1', '1.0.0')) {
-      registry.register(TF_v1);
-    }
-  });
-
-  afterAll(() => {
-    registry.clear();
-  });
-
   it('returns empty rows and the ruleset columns when no matches are completed', async () => {
     const tournamentChain = makeChain({
       data: { id: 't-1', ruleset_code: 'TF_v1', ruleset_version: '1.0.0' },

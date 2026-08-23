@@ -5,7 +5,7 @@ import {
   canonicalizeScoringBehaviour,
   projectPenaltyBucketFromLive,
   projectPenaltyBucketFromSnapshot,
-  registry,
+  RulesetRegistry,
   stableStringify,
   type PenaltyBehaviourInput,
   type ScoringBehaviourInput,
@@ -51,7 +51,10 @@ type ScoringStructure =
 export class RulesetHashService {
   private readonly logger = new Logger(RulesetHashService.name);
 
-  constructor(private readonly supabase: SupabaseService) {}
+  constructor(
+    private readonly supabase: SupabaseService,
+    private readonly registry: RulesetRegistry,
+  ) {}
 
   /** The (scoring, penalty) pair-hash for a tournament, or null if it is gone. */
   async computeTournamentContentHash(tournamentId: string): Promise<string | null> {
@@ -132,7 +135,7 @@ export class RulesetHashService {
   private async buildScoringCanonical(t: TournamentHashRow): Promise<Record<string, unknown>> {
     const code = t.ruleset_code ?? 'TF_v1';
     const version = normalizeRulesetVersion(t.ruleset_version ?? '1');
-    const grammar = await resolveRulesetGrammar(this.supabase, code, version);
+    const grammar = await resolveRulesetGrammar(this.supabase, this.registry, code, version);
     const config = t.ruleset_config ?? {};
     const scoringConfig = t.scoring_config_json ?? {};
     const matchFormat = (config['matchFormat'] as Row | undefined) ?? null;
@@ -178,7 +181,7 @@ export class RulesetHashService {
    * snapshot, else the parent row).
    */
   private async resolveScoringStructure(code: string, version: string): Promise<ScoringStructure> {
-    if (registry.has(code, version))
+    if (this.registry.has(code, version))
       return { kind: 'coded', engineCode: code, engineVersion: version };
     const { data } = await this.supabase.service
       .from('custom_rulesets')

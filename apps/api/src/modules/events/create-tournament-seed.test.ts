@@ -14,9 +14,9 @@
  * queue, which desyncs the moment a query is added — the matches mock lesson.
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { registry, TF_v1, Generic_PointsCap } from '@myclash/rulesets';
 import { EventsService } from './events.service';
 import { buildSeededScoringConfig } from './ruleset-defaults';
+import { createRulesetRegistry } from '../rulesets/ruleset-registry';
 
 const assertOrgRole = vi.fn();
 
@@ -91,6 +91,7 @@ function seedHarness(opts?: { customRow?: Record<string, unknown> | null }) {
     { service: { from } } as never,
     { assertOrgRole } as never,
     {} as never,
+    createRulesetRegistry(),
   );
   return {
     svc,
@@ -103,9 +104,6 @@ describe('createTournament — seeds scoring_config_json', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     assertOrgRole.mockResolvedValue(undefined);
-    for (const r of [TF_v1, Generic_PointsCap]) {
-      if (!registry.has(r.code, r.version)) registry.register(r);
-    }
   });
 
   it('seeds the federal pad byte-for-byte for TF_v1', async () => {
@@ -312,6 +310,7 @@ describe('createTournament — seeds scoring_config_json', () => {
       { service: { from } } as never,
       { assertOrgRole } as never,
       {} as never,
+      createRulesetRegistry(),
     );
     await svc.createTournament('e1', { slug: 's', name: 'T', rulesetCode: 'TF_v1' } as never, 'u1');
     expect((payload as Record<string, unknown> | null)?.['wizard_step']).toBe(1);

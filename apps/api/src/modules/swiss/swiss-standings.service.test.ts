@@ -1,17 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { Generic_PointsCap, registry } from '@myclash/rulesets';
+
 import { mockSupabase, type SupabaseRow } from '../../common/testing/supabase-chain';
 import { RulesetResolver } from '../matches/ruleset-resolver.service';
 import { asSupabase as as, swissConfig } from './swiss.fixtures';
 import { SwissStandingsService } from './swiss-standings.service';
-
-// The built-in rulesets register as a side effect of importing ScoringService,
-// which this file has no reason to pull in. Registering the one the fixture
-// names keeps the resolver on its in-memory path — without it every lookup
-// falls through to a `custom_rulesets` read that is not part of this story.
-if (!registry.has(Generic_PointsCap.code, Generic_PointsCap.version)) {
-  registry.register(Generic_PointsCap);
-}
+import { createRulesetRegistry } from '../rulesets/ruleset-registry';
 
 /**
  * An entrant of p1, in the shape the standings reader joins names from.
@@ -104,7 +97,10 @@ const build = (over: Record<string, unknown> = {}) => {
   });
   return {
     supabase,
-    service: new SwissStandingsService(as(supabase), new RulesetResolver(as(supabase))),
+    service: new SwissStandingsService(
+      as(supabase),
+      new RulesetResolver(as(supabase), createRulesetRegistry()),
+    ),
   };
 };
 

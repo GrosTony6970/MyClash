@@ -21,6 +21,7 @@
 import { ForbiddenException } from '@nestjs/common';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { EventsService } from './events.service';
+import { createRulesetRegistry } from '../rulesets/ruleset-registry';
 
 const assertOrgRole = vi.fn();
 
@@ -115,6 +116,7 @@ function harness(opts: HarnessOpts) {
     { service: { from } } as never,
     { assertOrgRole } as never,
     {} as never,
+    createRulesetRegistry(),
   );
   return { svc, cap };
 }

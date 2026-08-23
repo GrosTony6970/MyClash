@@ -13,7 +13,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import {
   createFormulaRuleset,
-  registry,
+  RulesetRegistry,
   type FormulaConfig,
   type Ruleset,
   type RulesetGrammar,
@@ -75,7 +75,10 @@ export class RulesetResolver {
   private readonly logger = new Logger(RulesetResolver.name);
   private readonly cache = new Map<string, CachedEntry>();
 
-  constructor(private readonly supabase: SupabaseService) {}
+  constructor(
+    private readonly supabase: SupabaseService,
+    private readonly registry: RulesetRegistry,
+  ) {}
 
   /**
    * A CODED FORK (migration 0148) is a non-system row that carries `base_code`
@@ -91,7 +94,7 @@ export class RulesetResolver {
    */
   private resolveCodedBase(baseCode: string, baseVersion: string | null): Ruleset | null {
     const v = baseVersion ?? '1.0.0';
-    return registry.has(baseCode, v) ? registry.get(baseCode, v) : null;
+    return this.registry.has(baseCode, v) ? this.registry.get(baseCode, v) : null;
   }
 
   async resolve(code: string, version: string): Promise<Ruleset | null> {
@@ -101,8 +104,8 @@ export class RulesetResolver {
     if (cached && cached.expiresAt > now) return cached.ruleset;
 
     // 1. In-memory code registry: TF_v1, Generic_PointsCap.
-    if (registry.has(code, version)) {
-      const ruleset = registry.get(code, version);
+    if (this.registry.has(code, version)) {
+      const ruleset = this.registry.get(code, version);
       this.cache.set(cacheKey, { ruleset, expiresAt: now + CACHE_TTL_MS });
       return ruleset;
     }
