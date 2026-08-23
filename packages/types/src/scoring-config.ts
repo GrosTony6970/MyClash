@@ -4,49 +4,19 @@
  * Shared between API, scoring app, and admin app.
  */
 
-import type { AfterblowMode } from '@myclash/rules';
+import type { AfterblowMode, MatchFormatConfig, ScoringDirection, TimerMode } from '@myclash/rules';
 
 // Afterblow netting moved to @myclash/rules, the zero-dependency core both
 // this package and @myclash/rulesets can reach. Re-exported so no caller of
 // @myclash/types changed. See packages/rules/src/afterblow.ts for why the two
 // former copies existed and what removed the reason.
-export type { AfterblowMode };
-export type ScoringDirection = 'normal' | 'reverse_zero_loses';
-export type TimerMode = 'countdown' | 'countup';
+// MatchFormatConfig had TWO owners: this hand-written interface and
+// `z.infer<typeof MatchFormatConfigSchema>` in @myclash/rulesets. They were
+// structurally identical and nothing checked that they stayed so; each consumer
+// picked whichever package it could already import. The shape now lives in
+// @myclash/rules and the schema asserts against it at compile time.
+export type { AfterblowMode, MatchFormatConfig, ScoringDirection, TimerMode };
 
-export interface MatchFormatConfig {
-  pointCap: number;
-  scoringDirection: ScoringDirection;
-  timerMode: TimerMode;
-  timeLimitsSeconds: {
-    pool: number | null;
-    /**
-     * Optional on purpose: every ruleset config persisted before the Swiss
-     * format exists without this key, and `getEffectiveMatchTimeLimitSeconds`
-     * falls back to `pool` when it is absent. Giving it a default would
-     * rewrite those stored configs on the next round-trip.
-     */
-    swiss?: number | null;
-    bracket: number | null;
-    finals: number | null;
-  };
-  softClockLimitSeconds: number;
-  maxDoubleHits: number | null;
-  maxDoubleHitOutcome: 'double_loss_zero_scores';
-  /**
-   * Best-of-N rounds per phase. A match is decided by winning ⌈N/2⌉ rounds.
-   * 1 = single round (default everywhere — today's behaviour). Odd values only
-   * (1/3/5/7). Mirrors {@link timeLimitsSeconds} so each phase configures
-   * independently (e.g. single-round pools, BO3 bracket, BO5 finals).
-   */
-  bestOf: {
-    pool: number;
-    /** Optional, falling back to `pool` — same reasoning as `timeLimitsSeconds.swiss`. */
-    swiss?: number;
-    bracket: number;
-    finals: number;
-  };
-}
 export const TOURNAMENT_SIDE_COLORS = [
   'white',
   'black',

@@ -10,33 +10,12 @@ import type { ZodSchema } from 'zod';
 
 // ── Domain types (minimal — full types live in @myclash/types) ────────────────
 
-export type ExchangeType = 'clean' | 'afterblow' | 'double' | 'no_exchange';
-export type StrikerColor = 'red' | 'blue' | null;
+// The bout shapes moved to @myclash/rules, which has no dependencies, so the
+// arithmetic that reads them is reachable from the scoring pad. Re-exported so
+// nothing importing from this module changed.
+import type { Exchange, ExchangeType, Match, MatchScore, StrikerColor } from '@myclash/rules';
 
-export interface Exchange {
-  id: string;
-  clientUuid: string;
-  matchId: string;
-  sequence: number;
-  type: ExchangeType;
-  occurredAt: string;
-  firstStrikerColor: StrikerColor;
-  firstStrikeValue: 1 | 2 | null;
-  afterblowValue: 1 | 2 | null;
-  noExchangeReason: string | null;
-  voided: boolean;
-}
-
-export interface Match {
-  id: string;
-  redRegistrationId: string;
-  blueRegistrationId: string;
-  rulesetCode: string;
-  rulesetVersion: string;
-  status: 'scheduled' | 'running' | 'paused' | 'completed' | 'voided';
-  phaseType?: 'pool' | 'single_elim' | 'double_elim' | 'swiss';
-  matchNumberLabel?: string | null;
-}
+export type { Exchange, ExchangeType, Match, MatchScore, StrikerColor };
 
 export interface Registration {
   id: string;
@@ -60,19 +39,6 @@ export interface Event {
 }
 
 // ── Output types ──────────────────────────────────────────────────────────────
-
-export interface MatchScore {
-  redScore: number;
-  blueScore: number;
-  /** Derived aggregates for display */
-  redWins: number;
-  blueWins: number;
-  redTargetPoints: number;
-  blueTargetPoints: number;
-  redTimesHit: number;
-  blueTimesHit: number;
-  doubles: number;
-}
 
 export interface MatchEndDecision {
   isOver: boolean;

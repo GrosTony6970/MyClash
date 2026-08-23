@@ -1,5 +1,41 @@
 import { z } from 'zod';
-import type { Exchange, Match, MatchScore } from './types';
+import {
+  computeMatchClockMs,
+  computeMatchFormatScore,
+  evaluateRound,
+  getEffectiveBestOf,
+  getEffectiveMatchTimeLimitSeconds,
+  getEffectiveMaxDoubles,
+  getPointCapWinnerRegistrationId,
+  isMedalMatch,
+  isPointCapReached,
+  isSoftClockLocked,
+  pointCapWinnerColor,
+  roundWinTarget,
+  type MatchFormatConfig,
+  type RoundEvaluation,
+  type ScoringDirection,
+  type TimerMode,
+} from '@myclash/rules';
+
+// The arithmetic moved to @myclash/rules, which has no dependencies and is
+// therefore reachable from the scoring pad. Re-exported so nothing importing
+// from this module changed.
+export {
+  computeMatchClockMs,
+  computeMatchFormatScore,
+  evaluateRound,
+  getEffectiveBestOf,
+  getEffectiveMatchTimeLimitSeconds,
+  getEffectiveMaxDoubles,
+  getPointCapWinnerRegistrationId,
+  isMedalMatch,
+  isPointCapReached,
+  isSoftClockLocked,
+  pointCapWinnerColor,
+  roundWinTarget,
+};
+export type { RoundEvaluation };
 
 // Afterblow netting lives in @myclash/rules -- the zero-dependency core. This
 // file used to carry its own copy, and said why in a comment: kept local "so
@@ -63,9 +99,25 @@ export const MatchFormatConfigSchema = z.object({
   bestOf: BestOfConfigSchema,
 });
 
-export type MatchFormatConfig = z.infer<typeof MatchFormatConfigSchema>;
-export type ScoringDirection = z.infer<typeof ScoringDirectionSchema>;
-export type TimerMode = z.infer<typeof TimerModeSchema>;
+/**
+ * The shape is declared in `@myclash/rules`; this schema VALIDATES INTO it.
+ *
+ * That is the inversion the extraction is for. `MatchFormatConfig` used to be
+ * `z.infer<typeof MatchFormatConfigSchema>`, so every consumer of the type
+ * needed zod on its import path, and `@myclash/types` answered that by
+ * hand-writing a second structurally identical interface that nothing checked
+ * against this one.
+ *
+ * The assertion below is that check, and it is a compile error rather than a
+ * test: add a field to the schema without adding it to the interface, or change
+ * a type on either side, and this file stops compiling.
+ */
+type SchemaOutput = z.infer<typeof MatchFormatConfigSchema>;
+type Exact<A, B> = [A] extends [B] ? ([B] extends [A] ? true : false) : false;
+const _schemaMatchesTheContract: Exact<SchemaOutput, MatchFormatConfig> = true;
+void _schemaMatchesTheContract;
+
+export type { MatchFormatConfig, ScoringDirection, TimerMode };
 
 export const DEFAULT_MATCH_FORMAT_CONFIG: MatchFormatConfig = MatchFormatConfigSchema.parse({});
 
@@ -134,286 +186,4 @@ export function normalizeMatchFormatConfig(input: unknown): MatchFormatConfig {
         ? raw.maxDoubles
         : DEFAULT_MATCH_FORMAT_CONFIG.maxDoubleHits,
   });
-}
-
-export function isMedalMatch(match: Match): boolean {
-  const label = (match.matchNumberLabel ?? '').trim().toUpperCase();
-  return (
-    label === 'F' ||
-    label === 'FINAL' ||
-    label === 'GOLD' ||
-    label === 'GOLD MEDAL MATCH' ||
-    label === '3RD' ||
-    label === 'BRONZE' ||
-    label === 'BRONZE MEDAL MATCH'
-  );
-}
-
-export function getEffectiveMatchTimeLimitSeconds(
-  match: Match,
-  config: MatchFormatConfig,
-): number | null {
-  if (match.phaseType === 'pool') return config.timeLimitsSeconds.pool;
-  // `?? pool` and not `?? bracket`: a Swiss round is a group stage, and a
-  // config written before Swiss existed carries no swiss key at all.
-  if (match.phaseType === 'swiss') {
-    return config.timeLimitsSeconds.swiss ?? config.timeLimitsSeconds.pool;
-  }
-  if (isMedalMatch(match)) return config.timeLimitsSeconds.finals;
-  return config.timeLimitsSeconds.bracket;
-}
-
-/**
- * Effective best-of for this match by phase, mirroring the time-limit dispatch:
- * pool → bestOf.pool, swiss → bestOf.swiss ?? bestOf.pool, medal match →
- * bestOf.finals, else (bracket) → bestOf.bracket.
- * Returns 1 (single round) when bestOf is absent (legacy configs).
- */
-export function getEffectiveBestOf(match: Match, config: MatchFormatConfig): number {
-  const bestOf = config.bestOf ?? { pool: 1, bracket: 1, finals: 1 };
-  if (match.phaseType === 'pool') return bestOf.pool;
-  if (match.phaseType === 'swiss') return bestOf.swiss ?? bestOf.pool;
-  if (isMedalMatch(match)) return bestOf.finals;
-  return bestOf.bracket;
-}
-
-/** Round wins needed to take a best-of-N match: ⌈N/2⌉ (1 for a single round). */
-export function roundWinTarget(bestOf: number): number {
-  return Math.ceil(Math.max(1, bestOf) / 2);
-}
-
-/**
- * Effective max-doubles end condition by phase. The max-doubles "double loss"
- * rule applies in the group stages — pools and Swiss rounds — where a
- * double loss (0 points each) is a coherent result the standings can carry.
- * Bracket & finals must always produce a winner, so they never end on
- * max-doubles (single-round or best-of). A match without a known phase is
- * treated as non-group (no max-doubles), matching the time-limit dispatch's
- * default.
- */
-export function getEffectiveMaxDoubles(match: Match, config: MatchFormatConfig): number | null {
-  return match.phaseType === 'pool' || match.phaseType === 'swiss' ? config.maxDoubleHits : null;
-}
-
-/**
- * Which side reached the point cap, as a colour (mirrors
- * {@link getPointCapWinnerRegistrationId} without needing the registration ids).
- */
-export function pointCapWinnerColor(
-  score: Pick<MatchScore, 'redScore' | 'blueScore'>,
-  config: MatchFormatConfig,
-): 'red' | 'blue' | null {
-  if (config.scoringDirection === 'reverse_zero_loses') {
-    if (score.redScore <= 0 && score.blueScore <= 0) return null;
-    if (score.redScore <= 0) return 'blue';
-    if (score.blueScore <= 0) return 'red';
-    return null;
-  }
-  if (score.redScore >= config.pointCap && score.blueScore >= config.pointCap) return null;
-  if (score.redScore >= config.pointCap) return 'red';
-  if (score.blueScore >= config.pointCap) return 'blue';
-  return null;
-}
-
-export function computeMatchClockMs(
-  match: Match,
-  elapsedMs: number,
-  config: MatchFormatConfig,
-): number {
-  if (config.timerMode === 'countup') return Math.max(0, elapsedMs);
-
-  const limitSeconds = getEffectiveMatchTimeLimitSeconds(match, config);
-  if (limitSeconds === null) return Math.max(0, elapsedMs);
-  return Math.max(0, limitSeconds * 1000 - elapsedMs);
-}
-
-export function isSoftClockLocked(
-  match: Match,
-  elapsedMs: number,
-  clockRunning: boolean,
-  config: MatchFormatConfig,
-): boolean {
-  if (clockRunning || config.timerMode !== 'countdown' || config.softClockLimitSeconds <= 0) {
-    return false;
-  }
-
-  const limitSeconds = getEffectiveMatchTimeLimitSeconds(match, config);
-  if (limitSeconds === null) return false;
-  const remainingMs = Math.max(0, limitSeconds * 1000 - elapsedMs);
-  return remainingMs < config.softClockLimitSeconds * 1000;
-}
-
-export function computeMatchFormatScore(
-  match: Match,
-  exchanges: Exchange[],
-  config: MatchFormatConfig,
-  afterblowMode: AfterblowMode = 'full',
-): MatchScore {
-  const active = exchanges.filter((e) => !e.voided);
-
-  let redEarned = 0;
-  let blueEarned = 0;
-  let redTargetPoints = 0;
-  let blueTargetPoints = 0;
-  let redTimesHit = 0;
-  let blueTimesHit = 0;
-  let doubles = 0;
-
-  for (const ex of active) {
-    switch (ex.type) {
-      case 'clean':
-        if (ex.firstStrikerColor === 'red') {
-          redEarned += ex.firstStrikeValue ?? 0;
-          redTargetPoints += ex.firstStrikeValue ?? 0;
-          blueTimesHit += 1;
-        } else if (ex.firstStrikerColor === 'blue') {
-          blueEarned += ex.firstStrikeValue ?? 0;
-          blueTargetPoints += ex.firstStrikeValue ?? 0;
-          redTimesHit += 1;
-        }
-        break;
-
-      case 'afterblow': {
-        // Raw button values are stored on the exchange; the mode decides how
-        // they net. In 'deductive' the defender's afterblow is subtracted from
-        // the attacker (defender scores 0); in 'full' both keep their points.
-        const { attackerDelta, defenderDelta } = computeAfterblowDeltas(
-          afterblowMode,
-          ex.firstStrikeValue ?? 0,
-          ex.afterblowValue ?? 0,
-        );
-        if (ex.firstStrikerColor === 'red') {
-          redEarned += attackerDelta;
-          redTargetPoints += attackerDelta;
-          blueEarned += defenderDelta;
-          blueTargetPoints += defenderDelta;
-          redTimesHit += 1;
-        } else if (ex.firstStrikerColor === 'blue') {
-          blueEarned += attackerDelta;
-          blueTargetPoints += attackerDelta;
-          redEarned += defenderDelta;
-          redTargetPoints += defenderDelta;
-          blueTimesHit += 1;
-        }
-        break;
-      }
-
-      case 'double':
-        doubles += 1;
-        break;
-
-      case 'no_exchange':
-        break;
-    }
-  }
-
-  // Max-doubles "double loss" is a pool-only rule (bracket/finals must always
-  // resolve to a winner). getEffectiveMaxDoubles returns null off the pool phase.
-  const effectiveMaxDoubles = getEffectiveMaxDoubles(match, config);
-  if (effectiveMaxDoubles !== null && doubles >= effectiveMaxDoubles) {
-    return {
-      redScore: 0,
-      blueScore: 0,
-      redWins: 0,
-      blueWins: 0,
-      redTargetPoints,
-      blueTargetPoints,
-      redTimesHit,
-      blueTimesHit,
-      doubles,
-    };
-  }
-
-  const redScore =
-    config.scoringDirection === 'reverse_zero_loses'
-      ? Math.max(0, config.pointCap - blueEarned)
-      : redEarned;
-  const blueScore =
-    config.scoringDirection === 'reverse_zero_loses'
-      ? Math.max(0, config.pointCap - redEarned)
-      : blueEarned;
-
-  return {
-    redScore,
-    blueScore,
-    redWins: 0,
-    blueWins: 0,
-    redTargetPoints,
-    blueTargetPoints,
-    redTimesHit,
-    blueTimesHit,
-    doubles,
-  };
-}
-
-export function isPointCapReached(score: MatchScore, config: MatchFormatConfig): boolean {
-  if (config.scoringDirection === 'reverse_zero_loses') {
-    return score.redScore <= 0 || score.blueScore <= 0;
-  }
-  return score.redScore >= config.pointCap || score.blueScore >= config.pointCap;
-}
-
-export function getPointCapWinnerRegistrationId(
-  match: Match,
-  score: Pick<MatchScore, 'redScore' | 'blueScore'>,
-  config: MatchFormatConfig,
-): string | null {
-  if (config.scoringDirection === 'reverse_zero_loses') {
-    if (score.redScore <= 0 && score.blueScore <= 0) return null;
-    if (score.redScore <= 0) return match.blueRegistrationId;
-    if (score.blueScore <= 0) return match.redRegistrationId;
-    return null;
-  }
-
-  if (score.redScore >= config.pointCap && score.blueScore >= config.pointCap) return null;
-  if (score.redScore >= config.pointCap) return match.redRegistrationId;
-  if (score.blueScore >= config.pointCap) return match.blueRegistrationId;
-  return null;
-}
-
-/** A round's automatic end condition, evaluated from that round's exchanges. */
-export interface RoundEvaluation {
-  /** Live score of this round (current open round, or the round being closed). */
-  score: MatchScore;
-  /**
-   * True when the round ended on an AUTOMATIC condition (point cap, or pool
-   * max-doubles). Time-expiry is NOT automatic — it's operator-driven (the
-   * engine never sees the clock here), so `autoOver` is false when only time
-   * would end the round; the operator closes it via the End-round action.
-   */
-  autoOver: boolean;
-  /** Round winner when `autoOver`; null for a drawn round (pool max-doubles). */
-  winnerColor: 'red' | 'blue' | null;
-  endReason: 'first_to_points' | 'max_doubles' | null;
-}
-
-/**
- * Evaluate a single round from its (round-scoped) exchanges. Used by the
- * best-of round lifecycle: the open round is scored live and auto-closes on
- * point cap or pool max-doubles. Reuses the per-fight scoring + cap rules.
- */
-export function evaluateRound(
-  match: Match,
-  roundExchanges: Exchange[],
-  config: MatchFormatConfig,
-  afterblowMode: AfterblowMode = 'full',
-): RoundEvaluation {
-  const score = computeMatchFormatScore(match, roundExchanges, config, afterblowMode);
-
-  if (isPointCapReached(score, config)) {
-    return {
-      score,
-      autoOver: true,
-      winnerColor: pointCapWinnerColor(score, config),
-      endReason: 'first_to_points',
-    };
-  }
-
-  const effectiveMaxDoubles = getEffectiveMaxDoubles(match, config);
-  if (effectiveMaxDoubles !== null && score.doubles >= effectiveMaxDoubles) {
-    // Pool only: a max-doubles double-loss is a drawn round (no round win).
-    return { score, autoOver: true, winnerColor: null, endReason: 'max_doubles' };
-  }
-
-  return { score, autoOver: false, winnerColor: null, endReason: null };
 }
