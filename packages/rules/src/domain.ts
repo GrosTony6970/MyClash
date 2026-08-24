@@ -24,8 +24,19 @@ export interface Exchange {
   type: ExchangeType;
   occurredAt: string;
   firstStrikerColor: StrikerColor;
-  firstStrikeValue: 1 | 2 | null;
-  afterblowValue: 1 | 2 | null;
+  /**
+   * The target's value, as the referee pressed it. `1 | 2` was a lie: the DTO
+   * accepts 1..10 (`MAX_AUTHORED_TARGET_VALUE`), the column is a plain INTEGER
+   * with no CHECK, and the pad has typed these as `number` all along. The
+   * arithmetic that reads them never cared — it sums whatever it is given.
+   *
+   * The same wrong assumption is ALSO in SQL, and there it is a live defect
+   * rather than a type lie: `fighter_exchange_stats` buckets values 1, 2 and 3
+   * by hand (migration 0136), so a 4-point target is invisible in every stats
+   * column today. Fixing that needs a migration and is not this change.
+   */
+  firstStrikeValue: number | null;
+  afterblowValue: number | null;
   noExchangeReason: string | null;
   voided: boolean;
 }

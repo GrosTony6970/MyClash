@@ -285,8 +285,8 @@ export class ScoringService {
       type: e['type'] as RulesetExchange['type'],
       occurredAt: e['occurred_at'] as string,
       firstStrikerColor: (e['first_striker_color'] as RulesetExchange['firstStrikerColor']) ?? null,
-      firstStrikeValue: (e['first_strike_value'] as 1 | 2 | null) ?? null,
-      afterblowValue: (e['afterblow_value'] as 1 | 2 | null) ?? null,
+      firstStrikeValue: (e['first_strike_value'] as number | null) ?? null,
+      afterblowValue: (e['afterblow_value'] as number | null) ?? null,
       noExchangeReason: (e['no_exchange_reason'] as string | null) ?? null,
       voided: false,
     };

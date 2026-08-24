@@ -85,7 +85,7 @@ function computeScore(
         ? {
             ...exchange,
             type: 'clean',
-            firstStrikeValue: hitValue as 1 | 2,
+            firstStrikeValue: hitValue,
             afterblowValue: null,
           }
         : exchange,

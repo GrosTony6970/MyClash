@@ -20,7 +20,7 @@ import { TF_v1 } from './index';
 import { TFv1DefaultConfig } from './config';
 import type { Exchange, ScoredMatch } from '../types';
 
-function clean(matchId: string, seq: number, striker: 'red' | 'blue', value: 1 | 2 = 1): Exchange {
+function clean(matchId: string, seq: number, striker: 'red' | 'blue', value = 1): Exchange {
   return {
     id: `${matchId}-${seq}`,
     clientUuid: `${matchId}-${seq}`,
@@ -124,6 +124,19 @@ describe('TF_v1 scorePoolFighters', () => {
     // Deductive: r1 keeps 2 - 1 = 1, r2 gets 0. r1 = (3 + 1) / 1 = 4; r2 = 0.
     expect(score(['r1', 'r2'], matches, 'deductive').get('r1')).toBe(4);
     expect(score(['r1', 'r2'], matches, 'deductive').get('r2')).toBe(0);
+  });
+
+  it('scores a target worth more than 2, which the DTO has always allowed', () => {
+    // `Exchange.firstStrikeValue` was typed `1 | 2 | null` while the DTO accepts
+    // 1..10 and the column is a plain INTEGER. The arithmetic never cared, so
+    // this is the assertion the type was standing in the way of writing.
+    //
+    // The same assumption is ALSO in SQL and is a live defect there:
+    // `fighter_exchange_stats` buckets 1, 2 and 3 by hand (migration 0136), so a
+    // 4-point target is invisible in every stats column. That needs a migration.
+    const matches = [bout('m1', 'r1', 'r2', 'r1', [clean('m1', 1, 'red', 4)])];
+    // r1: (3 + 4) / 0 → 7. A value silently clamped to 2 would give 5.
+    expect(score(['r1', 'r2'], matches).get('r1')).toBe(7);
   });
 
   it('reads winBonus and the double penalty from the CONFIG, not from constants', () => {
