@@ -68,6 +68,37 @@ function linkGroupName(link: Row): string | null {
   return (link['league_groups'] as { name?: string } | null)?.name ?? null;
 }
 
+/**
+ * How many linked tournaments a recompute scores at once.
+ *
+ * Bounded rather than a bare `Promise.all`: each one costs roughly fifteen
+ * PostgREST round trips, so a twenty-link event would open three hundred
+ * requests at the same moment. Exported so a test can assert the bound it
+ * actually runs under instead of restating the number.
+ */
+export const RECOMPUTE_LINK_CONCURRENCY = 4;
+
+/**
+ * Run `task` over every item, at most `limit` at a time.
+ *
+ * Workers pull from a shared queue rather than taking a fixed slice, so one slow
+ * tournament does not hold its whole slice behind it. `shift()` returning
+ * undefined is the real end condition — the queue is what runs out.
+ */
+async function mapWithLimit<T>(
+  items: readonly T[],
+  limit: number,
+  task: (item: T) => Promise<void>,
+): Promise<void> {
+  const queue = [...items];
+  const workers = Array.from({ length: Math.min(limit, queue.length) }, async () => {
+    for (let item = queue.shift(); item !== undefined; item = queue.shift()) {
+      await task(item);
+    }
+  });
+  await Promise.all(workers);
+}
+
 @Injectable()
 export class LeaguesService {
   constructor(
@@ -1350,12 +1381,19 @@ export class LeaguesService {
     if (tournamentsById.size === 0) return { eventId, recomputedLeagues: [] };
     const work = await this.planLinkWork(eventId, tournamentsById);
 
-    // Carries the config forward so the ranking pass never looks one up again.
-    const affected = new Map<string, LeagueScoringConfig>();
-    for (const item of work) {
-      await this.recomputeLink(item.leagueId, item.tournament, item.groupName, item.config);
-      affected.set(item.leagueId, item.config);
-    }
+    // Links are scored concurrently. They are independent: each one replaces the
+    // rows for its own (league, tournament) pair, so two links of the same
+    // league never touch the same rows. The ranking pass below stays sequential
+    // and runs only once everything it reads has been written.
+    //
+    // Built from `work` rather than filled as each link finishes: completion
+    // order under concurrency is not stable, and this map decides both the order
+    // of the ranking pass and the order of the ids in the response. It also
+    // carries the config forward so the ranking pass never looks one up again.
+    const affected = new Map(work.map((item) => [item.leagueId, item.config]));
+    await mapWithLimit(work, RECOMPUTE_LINK_CONCURRENCY, (item) =>
+      this.recomputeLink(item.leagueId, item.tournament, item.groupName, item.config),
+    );
 
     for (const [leagueId, config] of affected) {
       await this.rankLeagueFromResults(leagueId, config);

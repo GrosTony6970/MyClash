@@ -7,7 +7,7 @@ import {
 import { describe, expect, it, vi } from 'vitest';
 import { mockSupabase, queriedTables, selectsFor } from '../../common/testing/supabase-chain';
 import { UpdateLeagueDto } from './dto/leagues.dto';
-import { LeaguesService } from './leagues.service';
+import { LeaguesService, RECOMPUTE_LINK_CONCURRENCY } from './leagues.service';
 
 type QueryResult = { data: unknown; error: { message: string } | null };
 
@@ -2224,6 +2224,70 @@ describe('LeaguesService.recomputeForEvent gathering', () => {
     return { service, supabase, scoring, placement, rpc };
   }
 
+  /**
+   * The same event with `count` linked tournaments, and a placement lookup that
+   * records how many are in flight at once.
+   *
+   * Separate from the seeder above because the concurrency bound only shows up
+   * with more links than workers, and because the placement mock has to hold
+   * open rather than resolve immediately.
+   */
+  function seedManyLinks(count: number, leagueIds: string[] = ['L1']) {
+    const inFlight = { now: 0, peak: 0 };
+    const leagueOf = (i: number) => leagueIds[i % leagueIds.length] as string;
+    const supabase = mockSupabase({
+      tournaments: {
+        rows: Array.from({ length: count }, (_, i) => ({
+          id: `t${i}`,
+          event_id: 'ev-1',
+          weapon: 'Longsword',
+          events: { event_kind: 'standard' },
+        })),
+      },
+      league_tournament_links: {
+        rows: Array.from({ length: count }, (_, i) => ({
+          league_id: leagueOf(i),
+          tournament_id: `t${i}`,
+          status: 'approved',
+          leagues: { ...LEAGUE, id: leagueOf(i) },
+          league_groups: null,
+        })),
+      },
+      league_tournament_results: { rows: [] },
+      league_rankings: { rows: [] },
+      registrations: { rows: [] },
+      matches: { rows: [] },
+    });
+    (supabase.service as unknown as Record<string, unknown>)['rpc'] = vi.fn(() =>
+      Promise.resolve({ data: null, error: null }),
+    );
+    const placement = {
+      getTournamentPlacements: vi.fn(async (tournamentId: string) => {
+        inFlight.now += 1;
+        inFlight.peak = Math.max(inFlight.peak, inFlight.now);
+        // Later links finish FIRST: the delay shrinks as the index grows, so
+        // completion order is the reverse of link order. Without that, a result
+        // assembled from completion order would still come out in link order and
+        // the ordering test would hold nothing.
+        const index = Number(tournamentId.slice(1));
+        await new Promise((resolve) => setTimeout(resolve, (count - index) * 2));
+        inFlight.now -= 1;
+        return { decided: false, byRegistrationId: new Map(), ordered: [] };
+      }),
+    };
+    const service = new LeaguesService(
+      supabase as never,
+      {} as never,
+      {
+        resolveConfig: vi.fn().mockResolvedValue({ tieBreakers: ['total_points'] }),
+        toTournamentContributions: vi.fn().mockReturnValue([]),
+        computeRankingsFromContributions: vi.fn().mockReturnValue([]),
+      } as never,
+      placement as never,
+    );
+    return { service, inFlight };
+  }
+
   it('resolves each league scoring config once, however many links it has', async () => {
     const { service, scoring } = seedTwoLinkedTournaments();
 
@@ -2262,6 +2326,32 @@ describe('LeaguesService.recomputeForEvent gathering', () => {
       (call) => (call[1] as Array<{ groupName: string | null }>)[0]?.groupName,
     );
     expect(groups).toEqual(['Open', 'Women']);
+  });
+
+  it('scores links concurrently, up to the declared bound and no further', async () => {
+    // More links than workers, so the ceiling is reachable. Without the bound a
+    // bare Promise.all would put all six in flight; without concurrency the peak
+    // would be one. Both are what this asserts against.
+    const { service, inFlight } = seedManyLinks(RECOMPUTE_LINK_CONCURRENCY + 2);
+
+    await service.recomputeForEvent('ev-1');
+
+    expect(inFlight.peak).toBe(RECOMPUTE_LINK_CONCURRENCY);
+    // Every worker drained: nothing left holding a slot when the recompute
+    // returned.
+    expect(inFlight.now).toBe(0);
+  });
+
+  it('reports the affected leagues in link order, not in completion order', async () => {
+    // Links alternate L1, L2, L1, L2… while the seeded delays make the LAST link
+    // finish first. So completion order starts with whichever league sits at the
+    // end, and link order starts with L1. Assembling the result as each link
+    // lands would make the response depend on how fast the database answered.
+    const { service } = seedManyLinks(4, ['L1', 'L2']);
+
+    const result = await service.recomputeForEvent('ev-1');
+
+    expect(result.recomputedLeagues).toEqual(['L1', 'L2']);
   });
 });
 
