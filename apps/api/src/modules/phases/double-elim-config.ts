@@ -15,7 +15,7 @@
  * added or removed in place.
  */
 
-import type { DoubleElimBracket, DoubleElimOptions } from '@myclash/rules';
+import type { DoubleElimBracket, DoubleElimOptions } from '@myclash/rules/scheduling';
 
 /** The subset of the generate/edit DTOs this module reads. */
 export interface DoubleElimOptionInput {

@@ -1,4 +1,4 @@
-import type { SwissRoundPlan } from '@myclash/rules';
+import type { SwissRoundPlan } from '@myclash/rules/scheduling';
 import type { MatchRulesetStamp } from '../phases/match-ruleset';
 
 /**

@@ -18,7 +18,7 @@
 
 import { useI18n } from '@myclash/next-i18n/client';
 import { useMemo } from 'react';
-import { bandsOf, type SwissPlayer } from '@myclash/rules';
+import { bandsOf, type SwissPlayer } from '@myclash/rules/scheduling';
 import type { SwissGrouping } from '../useSwissAdmin';
 
 export interface BandPreviewPlayer {

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { totalDoubleElimMatches } from '@myclash/rules';
+import { totalDoubleElimMatches } from '@myclash/rules/scheduling';
 import { rankSimulation, simulate } from './double-elim-simulation.harness';
 
 /**

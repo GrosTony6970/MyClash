@@ -67,7 +67,14 @@ export type { DoublePenaltyFormula, DoublePenaltySpec } from './tf_v1/double-pen
 export { WIN_BONUS, computeAggregates, computeScore } from './tf_v1/score';
 export type { FighterAggregates, ScoreOptions } from './tf_v1/score';
 
-// How a competition's Matches are laid out: pools, seeding, brackets, Swiss.
-// The referee assigner and the fighter/referee conflict check stay in
-// @myclash/rulesets — they read staff and identities, which is resolution.
-export * from './scheduling';
+// Competition scheduling — pools, seeding, brackets, Swiss — is reached through
+// `@myclash/rules/scheduling`, NOT from this barrel. Nothing the scoring pad runs
+// lays out a bracket, and this package is CJS with no tree-shaking, so
+// re-exporting it here shipped it to all three apps: `@myclash/types` re-exports
+// this barrel and every app imports `@myclash/types`. It cost ~5.3 KB gzip on
+// EVERY page load of web-staff, web-public and web-admin alike.
+//
+// `perf:bundle` does print that number, so this was visible rather than hidden
+// — it just never went red, because all three budgets had the headroom to
+// absorb it. Adding a value to this barrel spends that headroom everywhere at
+// once, which is why server-only maths gets a subpath instead.

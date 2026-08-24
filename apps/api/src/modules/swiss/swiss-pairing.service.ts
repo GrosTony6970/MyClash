@@ -6,7 +6,7 @@ import {
   NotFoundException,
   Optional,
 } from '@nestjs/common';
-import { planSwissRound, type SwissPlayer, type SwissRoundPlan } from '@myclash/rules';
+import { planSwissRound, type SwissPlayer, type SwissRoundPlan } from '@myclash/rules/scheduling';
 import { SupabaseService } from '../supabase/supabase.service';
 // Value imports, not `import type`: Nest needs the runtime class for DI.
 import { ProgrammeService } from '../programme/programme.service';

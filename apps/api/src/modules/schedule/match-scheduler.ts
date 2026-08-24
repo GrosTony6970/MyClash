@@ -16,7 +16,7 @@
  *   4. Return all matches with scheduled_at timestamps.
  */
 
-import { groupBracketBranches } from '@myclash/rules';
+import { groupBracketBranches } from '@myclash/rules/scheduling';
 
 export interface SchedulerMatch {
   id: string;

@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { BadRequestException } from '@nestjs/common';
 import { mockSupabase } from '../../common/testing/supabase-chain';
 import { dependentClosure } from './bracket-dependents';
-import { doubleElimBracket, singleElimBracket } from '@myclash/rules';
+import { doubleElimBracket, singleElimBracket } from '@myclash/rules/scheduling';
 
 /**
  * The closure is driven by the REAL generators rather than hand-built slot rows.

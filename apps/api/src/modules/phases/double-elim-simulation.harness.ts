@@ -20,7 +20,11 @@
  * ~150 lines of harness before its first assertion.
  */
 
-import { doubleElimBracket, type DoubleElimBracket, type DoubleElimOptions } from '@myclash/rules';
+import {
+  doubleElimBracket,
+  type DoubleElimBracket,
+  type DoubleElimOptions,
+} from '@myclash/rules/scheduling';
 import {
   computeFinalRanking,
   type FinalRankingEntry,

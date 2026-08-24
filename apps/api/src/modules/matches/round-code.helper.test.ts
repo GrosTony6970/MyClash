@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { singleElimBracket } from '@myclash/rules';
+import { singleElimBracket } from '@myclash/rules/scheduling';
 import { buildRoundCode } from './round-code.helper';
 
 // ── Round-code shape (regression for the position-off-by-one bug) ────────────

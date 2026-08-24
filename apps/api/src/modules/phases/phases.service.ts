@@ -19,7 +19,7 @@ import {
   singleElimBracket,
   doubleElimBracket,
   type Fighter,
-} from '@myclash/rules';
+} from '@myclash/rules/scheduling';
 import { SupabaseService } from '../supabase/supabase.service';
 import { insertAuditLog } from '../../common/audit-log';
 import { HemaRatingsService } from '../hema-ratings/hema-ratings.service';
