@@ -12,6 +12,7 @@
  * function that first kept the raw `first_strike_value` instead of bucketing it
  * into fixed columns — the shape migration 0189 later took for blow counts too.
  */
+import { byCodepoint } from '@myclash/rules/results';
 
 export interface TargetValueRow {
   registrationId: string;
@@ -76,10 +77,12 @@ export function aggregateTargetValues(rows: TargetValueRow[]): TargetValueStats 
   const hunters = [...byPerson.values()]
     .filter((h) => h.cleanHits > 0)
     .sort(
+      // Code points, not the runtime's locale: the same hunters would otherwise
+      // list in a different order on a developer's machine and in the container.
       (a, b) =>
         b.cleanHits - a.cleanHits ||
-        a.name.localeCompare(b.name) ||
-        a.personId.localeCompare(b.personId),
+        byCodepoint(a.name, b.name) ||
+        byCodepoint(a.personId, b.personId),
     )
     .slice(0, 5);
 

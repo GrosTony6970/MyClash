@@ -5,6 +5,8 @@
  * club is `global_persons.club_id`; club-less fighters collect into a separate
  * "Unaffiliated" bucket that is excluded from the ranked clubs.
  */
+
+import { byCodepoint } from './by-codepoint';
 type Row = Record<string, unknown>;
 
 export interface ClubStandingMember {
@@ -112,7 +114,7 @@ export function aggregateClubStandings(rows: Row[]): {
       memberCount: acc.members.size,
       medalCount: acc.medalCount,
       topMembers: [...acc.members.values()]
-        .sort((a, b) => b.points - a.points || a.name.localeCompare(b.name))
+        .sort((a, b) => b.points - a.points || byCodepoint(a.name, b.name))
         .slice(0, TOP_MEMBERS_LIMIT),
     }))
     .sort(
@@ -120,7 +122,7 @@ export function aggregateClubStandings(rows: Row[]): {
         b.totalPoints - a.totalPoints ||
         b.memberCount - a.memberCount ||
         b.medalCount - a.medalCount ||
-        a.name.localeCompare(b.name),
+        byCodepoint(a.name, b.name),
     );
 
   const unaffiliated: UnaffiliatedBucket | null =

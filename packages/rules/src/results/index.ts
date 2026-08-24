@@ -14,6 +14,10 @@
  * spelled `pool_members` / `registration_id` is a database projection, and
  * mapping it belongs in the API adapter.
  */
+// The terminal ordering key. Exported because the same machine-dependent
+// comparison it replaces also appears outside this package.
+export { byCodepoint } from './by-codepoint';
+
 export { applyRanking } from './standings';
 export type { DecidingTiebreak, StandingsRow } from './standings';
 

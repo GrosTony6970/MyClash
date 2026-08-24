@@ -9,6 +9,7 @@
  * It stays in the API adapter as `pool-rows.ts`.
  */
 import type { RankingRule } from '../ranking';
+import { byCodepoint } from './by-codepoint';
 
 /**
  * Why this fighter is ranked below the one directly above them: the first
@@ -73,31 +74,20 @@ export function applyRanking(rows: StandingsRow[], rankingChain: RankingRule[]):
 }
 
 /**
- * The terminal ordering key, compared by CODE POINT rather than by locale.
+ * ── Why the terminal key is here and not on the chains ──────────────────────
+ * `byCodepoint` orders, but it is deliberately NOT reported as a deciding
+ * tiebreak: see `decidingTiebreakBetween` below, which still runs the declared
+ * chain alone. Appending a terminal key to each ruleset's `rankingChain` instead
+ * would have made every exact tie report a deciding key, and
+ * `SwissStandingsService` builds its head-to-head tie blocks from
+ * `decidingTiebreak === null` -- so head-to-head would have stopped firing
+ * entirely. One owner here also covers the chains an organiser authors, which
+ * cannot be given a terminal key in advance.
  *
- * `localeCompare` with no locale argument uses whatever the runtime's default
- * is, so the same pool could rank differently on a developer's machine and in
- * the API container: `'Ähtäri'.localeCompare('Zoe')` is -1 under `en` and +1
- * under `sv`. Code points have no ICU data behind them, so they cannot drift
- * with a Node upgrade either. Same reasoning, and the same helper, as the
- * League's `compareRankings`.
- *
- * The cost is that accented names sort after `Z` and capitals before lowercase.
- * That is confined to fighters who are level on EVERY declared key, where the
- * order is presentation rather than placement.
- *
- * ── Why this is here and not on the chains ──────────────────────────────────
- * It orders, but it is deliberately NOT reported as a deciding tiebreak: see
- * `decidingTiebreakBetween` below, which still runs the declared chain alone.
- * Appending a terminal key to each ruleset's `rankingChain` instead would have
- * made every exact tie report a deciding key, and `SwissStandingsService` builds
- * its head-to-head tie blocks from `decidingTiebreak === null` -- so head-to-head
- * would have stopped firing entirely. One owner here also covers the chains an
- * organiser authors, which cannot be given a terminal key in advance.
+ * Why code points rather than a locale is in `by-codepoint.ts`, which is now
+ * genuinely the same helper the League's `compareRankings` uses. This file used
+ * to say that while holding its own private copy.
  */
-function byCodepoint(a: string, b: string): number {
-  return a < b ? -1 : a > b ? 1 : 0;
-}
 
 /**
  * The rankingChain key that ordered `me` below `above` — the FIRST key on which
