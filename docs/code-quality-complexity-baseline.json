@@ -625,7 +625,7 @@
     "apps/web-admin/app/org/[slug]/events/[eventId]/swiss/_components/LifecyclePanel.tsx:17",
     "apps/web-admin/app/org/[slug]/events/[eventId]/swiss/_components/RoundCard.tsx:125",
     "apps/web-admin/app/org/[slug]/events/[eventId]/swiss/_components/RoundCard.tsx:16",
-    "apps/web-admin/app/org/[slug]/events/[eventId]/swiss/_components/TiebreakChainField.tsx:34",
+    "apps/web-admin/app/org/[slug]/events/[eventId]/swiss/_components/TiebreakChainField.tsx:24",
     "apps/web-admin/app/org/[slug]/events/[eventId]/swiss/_tabs/ConfigureTab.tsx:43",
     "apps/web-admin/app/org/[slug]/events/[eventId]/swiss/_tabs/RefereesTab.tsx:30",
     "apps/web-admin/app/org/[slug]/events/[eventId]/swiss/_tabs/RoundsTab.tsx:29",

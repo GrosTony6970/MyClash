@@ -40,7 +40,8 @@
  *   K=16  gold 4,4,2,2,1,1   bronze+match 4,4,2,2,1   bronze no-match 4,4,2,2
  */
 
-export type SecondChanceTarget = 'gold' | 'bronze';
+export type { SecondChanceTarget } from '../ranking';
+import type { SecondChanceTarget } from '../ranking';
 
 export interface DoubleElimOptions {
   /**

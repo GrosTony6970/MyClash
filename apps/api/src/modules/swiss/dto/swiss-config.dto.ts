@@ -16,33 +16,16 @@ import { z } from 'zod';
  * makes an open list dangerous: a typo'd key would silently rank every fighter
  * on 0 rather than erroring, and the standings would look plausible.
  */
-export const SWISS_TIEBREAK_KEYS = [
-  /** Σ Swiss points of every opponent faced — the Swiss norm. */
-  'buchholz',
-  /** Buchholz minus the weakest opponent, damping one freak pairing. */
-  'buchholzCut1',
-  /** Σ points of beaten opponents + ½ Σ of drawn ones. */
-  'sonnebornBerger',
-  /** Σ opponent wins ÷ Σ opponent matches. */
-  'opponentWinPct',
-  /** Net result against the fighters still tied above this key. */
-  'headToHead',
-  /** The ruleset's own score. */
-  'score',
-  'wins',
-  'diff',
-  'ptsScored',
-  'doubles',
-  'hitsReceived',
-  /**
-   * Sentinel, not a stat: splices the ruleset's own `rankingChain` in at this
-   * position. Lets an organiser say "Buchholz first, then whatever this ruleset
-   * normally does" without restating the ruleset's rules.
-   */
-  'rulesetChain',
-] as const;
-
-export type SwissTiebreakKey = (typeof SWISS_TIEBREAK_KEYS)[number];
+/**
+ * The tiebreak vocabulary, from `@myclash/rules`. It lives there because
+ * `swiss-tiebreaks.ts` -- which turns a configured chain into RankingRule[] --
+ * is moving into the deterministic core, and the core cannot import this DTO.
+ * web-admin's picker reads the same list rather than mirroring it.
+ */
+export { SWISS_TIEBREAK_KEYS } from '@myclash/rules';
+export type { SwissTiebreakKey } from '@myclash/rules';
+import { SWISS_TIEBREAK_KEYS } from '@myclash/rules';
+import type { SwissTiebreakKey } from '@myclash/rules';
 
 export const SWISS_SEEDING_STRATEGIES = ['random', 'by-rating', 'by-pool-rank'] as const;
 export const SWISS_PAIRING_METHODS = ['fold', 'adjacent'] as const;

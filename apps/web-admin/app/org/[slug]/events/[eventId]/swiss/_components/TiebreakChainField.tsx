@@ -15,21 +15,11 @@
 
 import { useI18n } from '@myclash/next-i18n/client';
 
-/** Mirrors SWISS_TIEBREAK_KEYS on the API. */
-export const SWISS_TIEBREAK_KEYS = [
-  'buchholz',
-  'buchholzCut1',
-  'sonnebornBerger',
-  'opponentWinPct',
-  'headToHead',
-  'score',
-  'wins',
-  'diff',
-  'ptsScored',
-  'doubles',
-  'hitsReceived',
-  'rulesetChain',
-] as const;
+// The picker offers exactly what the API accepts. This list used to be copied
+// here under a comment saying it mirrored the API's; the copy is now the one in
+// `@myclash/rules`, which the API's DTO validates against too.
+export { SWISS_TIEBREAK_KEYS } from '@myclash/rules';
+import { SWISS_TIEBREAK_KEYS } from '@myclash/rules';
 
 export function TiebreakChainField({
   chain,

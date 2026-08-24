@@ -47,3 +47,14 @@ export {
 export type { MatchFormatConfig, ScoringDirection, TimerMode } from './match-format';
 
 export type { PhaseType } from './domain';
+
+/**
+ * Ranking vocabulary `@myclash/types` re-exports for its own final-ranking and
+ * league shapes. Type-only on purpose — a union erases, so these cost a client
+ * nothing, and none of the arithmetic that reads them is exported here.
+ */
+export type {
+  FinalRankingResultKind,
+  LeagueRankingDimensions,
+  SecondChanceTarget,
+} from './ranking';

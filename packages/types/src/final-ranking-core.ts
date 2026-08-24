@@ -36,8 +36,14 @@ export interface PoolEntry {
   poolScore: number | null;
 }
 
-/** Which podium model a double-elim bracket uses. */
-export type SecondChanceTarget = 'gold' | 'bronze';
+/**
+ * Which podium model a double-elim bracket uses, and how a fighter's placing
+ * was arrived at. Both are implemented in `@myclash/rules`: the bracket
+ * generator there emits the shape these read, and this module used to declare
+ * its own copy of each.
+ */
+export type { FinalRankingResultKind, SecondChanceTarget } from '@myclash/rules/pad';
+import type { FinalRankingResultKind, SecondChanceTarget } from '@myclash/rules/pad';
 
 /**
  * Bracket shape, needed to read a double-elim bracket's round numbering.
@@ -73,21 +79,6 @@ export interface RankingBracketShape {
    */
   repechageEntryRound?: number | null;
 }
-
-export type FinalRankingResultKind =
-  | 'champion'
-  | 'runnerUp'
-  | 'third'
-  | 'fourth'
-  | 'round'
-  | 'pool'
-  /**
-   * Placed by the Swiss standings rather than by a bracket result. Distinct
-   * from 'pool' because that kind means "never reached the bracket" and sorts
-   * strictly below every bracket entrant — a Swiss fighter placed 5th was not
-   * eliminated from anything.
-   */
-  | 'swiss';
 
 /** Which part of a double-elim bracket a fighter was eliminated in. */
 export type FinalRankingBracketSection = 'WB' | 'LB' | 'PLAYIN';

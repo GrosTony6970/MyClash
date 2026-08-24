@@ -16,6 +16,17 @@ export type { AfterblowMode } from './afterblow';
 
 export type { Exchange, ExchangeType, Match, MatchScore, PhaseType, StrikerColor } from './domain';
 
+// The vocabulary of ORDER, shared by every ranked table in the product. Two of
+// these unions had more than one owner before they landed here.
+export { SWISS_TIEBREAK_KEYS } from './ranking';
+export type {
+  FinalRankingResultKind,
+  LeagueRankingDimensions,
+  RankingRule,
+  SecondChanceTarget,
+  SwissTiebreakKey,
+} from './ranking';
+
 export {
   applyScoringDirection,
   computeMatchFormatScore,

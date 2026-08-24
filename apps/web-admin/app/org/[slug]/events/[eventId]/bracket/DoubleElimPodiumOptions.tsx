@@ -20,7 +20,11 @@ type Translator = (key: string, values?: Record<string, string | number>) => str
  * post-generation config card render exactly the same controls.
  */
 
-export type SecondChanceTarget = 'gold' | 'bronze';
+// The podium model the bracket generator actually reads. Declared here as its
+// own union until now, which meant three copies across the repo and nothing
+// pairing them.
+export type { SecondChanceTarget } from '@myclash/rules';
+import type { SecondChanceTarget } from '@myclash/rules';
 export type RepechageEntrySize = 8 | 16 | 32 | null;
 
 export interface PodiumOptionsValue {

@@ -93,12 +93,13 @@ export interface StandingsColumn {
   decimals?: number;
 }
 
-export interface RankingRule {
-  /** Matches a StandingsColumn.key. */
-  key: string;
-  /** 'desc' = higher is better. */
-  direction: 'asc' | 'desc';
-}
+/**
+ * One step of a ranking chain. Implemented in `@myclash/rules`, because
+ * `applyRanking` -- the sorter that executes a chain -- lives beside the rest
+ * of the deterministic core and cannot import this package.
+ */
+export type { RankingRule } from '@myclash/rules';
+import type { RankingRule } from '@myclash/rules';
 
 /**
  * Audit-friendly summary of a ruleset's defaults. Surfaced through
