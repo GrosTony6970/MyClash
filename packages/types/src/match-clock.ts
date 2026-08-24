@@ -33,7 +33,7 @@ import {
   effectiveTimeLimitSeconds,
   type MatchFormatConfig,
   type PhaseType,
-} from '@myclash/rules';
+} from '@myclash/rules/pad';
 
 export { displayClockMs, effectiveTimeLimitSeconds };
 export type { PhaseType };

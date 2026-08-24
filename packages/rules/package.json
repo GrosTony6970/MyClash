@@ -10,6 +10,10 @@
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
     },
+    "./pad": {
+      "types": "./dist/pad.d.ts",
+      "default": "./dist/pad.js"
+    },
     "./scheduling": {
       "types": "./dist/scheduling/index.d.ts",
       "default": "./dist/scheduling/index.js"

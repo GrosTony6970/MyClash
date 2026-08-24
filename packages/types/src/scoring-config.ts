@@ -4,7 +4,12 @@
  * Shared between API, scoring app, and admin app.
  */
 
-import type { AfterblowMode, MatchFormatConfig, ScoringDirection, TimerMode } from '@myclash/rules';
+import type {
+  AfterblowMode,
+  MatchFormatConfig,
+  ScoringDirection,
+  TimerMode,
+} from '@myclash/rules/pad';
 
 // Afterblow netting moved to @myclash/rules, the zero-dependency core both
 // this package and @myclash/rulesets can reach. Re-exported so no caller of
@@ -152,7 +157,7 @@ export const DEFAULT_SCORING_CONFIG: TournamentScoringConfig = {
   },
 };
 
-export { computeAfterblowDeltas } from '@myclash/rules';
+export { computeAfterblowDeltas } from '@myclash/rules/pad';
 
 /**
  * The point-cap winner and the scoring-direction transform, from the one place
@@ -163,7 +168,7 @@ export { computeAfterblowDeltas } from '@myclash/rules';
  * shape — two numbers rather than the score object every caller already holds.
  * A comment was the only thing pairing them.
  */
-export { applyScoringDirection, pointCapWinnerColor } from '@myclash/rules';
+export { applyScoringDirection, pointCapWinnerColor } from '@myclash/rules/pad';
 
 // ── Deriving the scoring buttons from a ruleset's grammar ────────────────────
 
