@@ -22,8 +22,12 @@ export interface LeagueDecidingTiebreak {
  * semantics of `compareRankings` in ./league-scoring.ts: more points /
  * participations / medals is better (desc); a *lower* double-hit average is
  * better (asc).
+ *
+ * Exported so that claim is checked rather than asserted in prose:
+ * `league-tiebreak-direction.test.ts` drives `compareRankings` with two rows
+ * differing in exactly one key and reads back which way it actually sorts.
  */
-const TIEBREAK_DIRECTION: Record<LeagueTieBreaker, 'asc' | 'desc'> = {
+export const TIEBREAK_DIRECTION: Record<LeagueTieBreaker, 'asc' | 'desc'> = {
   total_points: 'desc',
   participation_count: 'desc',
   medal_count: 'desc',
