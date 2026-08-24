@@ -19,7 +19,7 @@ export interface LeagueDecidingTiebreak {
 
 /**
  * Which direction wins for each tie-breaker — must match the comparison
- * semantics of `compareRankings` in league-scoring.service.ts: more points /
+ * semantics of `compareRankings` in ./league-scoring.ts: more points /
  * participations / medals is better (desc); a *lower* double-hit average is
  * better (asc).
  */

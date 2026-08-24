@@ -5,6 +5,7 @@ import {
   groupKey,
   medalFor,
   pointsForRank,
+  tiedOnChain,
 } from './league-scoring';
 import type {
   LeagueScoringConfig,
@@ -170,6 +171,71 @@ describe('computeRankingsFromContributions', () => {
     expect(rows.map((row) => row.totalPoints)).toEqual([16, 13]);
   });
 
+  it('gives EVERY ranking group a rank 1, not just the strongest', () => {
+    // The bug this replaces: ranks were numbered over the whole set, so the
+    // sidesword winner was stored as rank 3 behind two longsword fighters --
+    // and the public page finds champions with `row.rank === 1`, so that table
+    // showed none at all.
+    const rows = computeRankingsFromContributions({ tieBreakers: ['total_points'] }, [
+      contribution('f-a', { rankingGroupKey: 'longsword', fighterName: 'Alice', leaguePoints: 30 }),
+      contribution('f-b', { rankingGroupKey: 'longsword', fighterName: 'Bob', leaguePoints: 20 }),
+      contribution('f-x', { rankingGroupKey: 'sidesword', fighterName: 'Xena', leaguePoints: 15 }),
+      contribution('f-y', { rankingGroupKey: 'sidesword', fighterName: 'Yuri', leaguePoints: 10 }),
+    ]);
+
+    const rankIn = (group: string) =>
+      rows.filter((row) => row.rankingGroupKey === group).map((row) => [row.fighterId, row.rank]);
+
+    expect(rankIn('longsword')).toEqual([
+      ['f-a', 1],
+      ['f-b', 2],
+    ]);
+    expect(rankIn('sidesword')).toEqual([
+      ['f-x', 1],
+      ['f-y', 2],
+    ]);
+
+    for (const group of ['longsword', 'sidesword']) {
+      expect(
+        rows.filter((row) => row.rankingGroupKey === group && row.rank === 1),
+        `${group} must have exactly one champion`,
+      ).toHaveLength(1);
+    }
+  });
+
+  it('lets a weaker group outrank a stronger one, because they are separate competitions', () => {
+    const rows = computeRankingsFromContributions({ tieBreakers: ['total_points'] }, [
+      contribution('f-a', { rankingGroupKey: 'longsword', leaguePoints: 100 }),
+      contribution('f-x', { rankingGroupKey: 'sidesword', leaguePoints: 1 }),
+    ]);
+
+    expect(rows.every((row) => row.rank === 1)).toBe(true);
+  });
+
+  it('gives two fighters level on every configured key the SAME rank, and skips the next', () => {
+    const rows = computeRankingsFromContributions({ tieBreakers: ['total_points'] }, [
+      contribution('f-a', { fighterName: 'Alice', leaguePoints: 30 }),
+      contribution('f-b', { fighterName: 'Bob', leaguePoints: 20 }),
+      contribution('f-c', { fighterName: 'Carol', leaguePoints: 20 }),
+      contribution('f-d', { fighterName: 'Dan', leaguePoints: 10 }),
+    ]);
+
+    // Standard competition numbering: 1, 2, 2, 4 -- not 1, 2, 3, 4.
+    expect(rows.map((row) => row.rank)).toEqual([1, 2, 2, 4]);
+  });
+
+  it('does not share a rank when a later chain key separates them', () => {
+    const rows = computeRankingsFromContributions(
+      { tieBreakers: ['total_points', 'medal_count'] },
+      [
+        contribution('f-a', { fighterName: 'Alice', leaguePoints: 20, medal: 'gold' }),
+        contribution('f-b', { fighterName: 'Bob', leaguePoints: 20 }),
+      ],
+    );
+
+    expect(rows.map((row) => row.rank)).toEqual([1, 2]);
+  });
+
   it('prefers the LOWER double-hit average, unlike every other tie-breaker', () => {
     const rows = computeRankingsFromContributions(baseConfig, [
       contribution('f-a', { fighterName: 'Alice', leaguePoints: 16, doubleHits: 4 }),
@@ -191,6 +257,40 @@ describe('computeRankingsFromContributions', () => {
 
     expect(rows(['total_points', 'participation_count'])).toEqual(['f-a', 'f-b']);
     expect(rows(['participation_count', 'total_points'])).toEqual(['f-b', 'f-a']);
+  });
+});
+
+describe('tiedOnChain', () => {
+  it('reports a real tie where compareRankings never can', () => {
+    const [alice, bob] = computeRankingsFromContributions({ tieBreakers: ['total_points'] }, [
+      contribution('f-a', { fighterName: 'Alice', leaguePoints: 10 }),
+      contribution('f-b', { fighterName: 'Bob', leaguePoints: 10 }),
+    ]);
+
+    expect(tiedOnChain(alice!, bob!, ['total_points'])).toBe(true);
+    // The sort comparator ends in the fighter name, so it separates them even
+    // though nothing the organiser configured does. That difference is the
+    // whole reason both functions exist.
+    expect(compareRankings(alice!, bob!, ['total_points'])).not.toBe(0);
+  });
+
+  it('an empty chain makes everyone tied', () => {
+    const [alice, bob] = computeRankingsFromContributions({ tieBreakers: [] }, [
+      contribution('f-a', { fighterName: 'Alice', leaguePoints: 30 }),
+      contribution('f-b', { fighterName: 'Bob', leaguePoints: 10 }),
+    ]);
+
+    expect(tiedOnChain(alice!, bob!, [])).toBe(true);
+  });
+
+  it('the inverted double-hit key separates as readily as the rest', () => {
+    const [low, high] = computeRankingsFromContributions({ tieBreakers: ['double_hit_average'] }, [
+      contribution('f-a', { fighterName: 'Alice', doubleHits: 1 }),
+      contribution('f-b', { fighterName: 'Bob', doubleHits: 4 }),
+    ]);
+
+    expect(tiedOnChain(low!, high!, ['double_hit_average'])).toBe(false);
+    expect(tiedOnChain(low!, high!, ['total_points'])).toBe(true);
   });
 });
 
