@@ -203,7 +203,27 @@ export function compareRankings(
       return a.doubleHitAverage - b.doubleHitAverage;
     }
   }
-  return a.fighterName.localeCompare(b.fighterName) || a.fighterId.localeCompare(b.fighterId);
+  return byCodepoint(a.fighterName, b.fighterName) || byCodepoint(a.fighterId, b.fighterId);
+}
+
+/**
+ * The terminal key, compared by CODE POINT rather than by locale.
+ *
+ * `localeCompare` with no locale argument uses whatever the runtime's default
+ * is, so the same contributions could rank differently on a developer's machine
+ * and in the API container. `'Ähtäri'.localeCompare('Zoe')` is -1 under `en` and
+ * +1 under `sv`; nothing in this package should have an opinion that depends on
+ * where it is running.
+ *
+ * Code points are the one comparison with no ICU data behind it at all, so it
+ * cannot drift with a Node upgrade either. The cost is that accented names sort
+ * after `Z` and capitals before lowercase, which is ugly to read — but this key
+ * is only ever reached by fighters who are level on every configured
+ * tie-breaker, and those now SHARE a rank number. The order inside a tie group
+ * is presentation, not placement.
+ */
+function byCodepoint(a: string, b: string): number {
+  return a < b ? -1 : a > b ? 1 : 0;
 }
 
 function normalizeDimension(value: string | null | undefined): string {

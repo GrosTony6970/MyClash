@@ -326,6 +326,32 @@ describe('compareRankings', () => {
   });
 });
 
+describe('the terminal ordering key', () => {
+  const tied = (name: string, id: string) =>
+    computeRankingsFromContributions({ tieBreakers: ['total_points'] }, [
+      contribution(id, { fighterName: name, leaguePoints: 10 }),
+    ])[0]!;
+
+  it('orders by code point, so the runner locale cannot change a ranking', () => {
+    // `'Ähtäri'.localeCompare('Zoe')` is -1 under `en` and +1 under `sv`. Code
+    // points have no locale, so this assertion holds on every machine -- and it
+    // reds if anyone reintroduces localeCompare, because `en` would disagree.
+    expect(compareRankings(tied('Ähtäri', 'f-a'), tied('Zoe', 'f-b'), [])).toBeGreaterThan(0);
+    expect(compareRankings(tied('Émile', 'f-a'), tied('Zoe', 'f-b'), [])).toBeGreaterThan(0);
+    // Capitals before lowercase, for the same reason.
+    expect(compareRankings(tied('alice', 'f-a'), tied('Bob', 'f-b'), [])).toBeGreaterThan(0);
+  });
+
+  it('falls through to the fighter id when two fighters share a name', () => {
+    expect(
+      compareRankings(tied('Alex Martin', 'f-a'), tied('Alex Martin', 'f-b'), []),
+    ).toBeLessThan(0);
+    expect(
+      compareRankings(tied('Alex Martin', 'f-b'), tied('Alex Martin', 'f-a'), []),
+    ).toBeGreaterThan(0);
+  });
+});
+
 describe('medalFor', () => {
   it('follows the real podium for a bracket result', () => {
     expect(medalFor('champion', 1)).toBe('gold');
