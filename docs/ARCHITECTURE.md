@@ -574,18 +574,12 @@ export interface Ruleset {
   code: string; // "TF_v1"
   version: string; // "1.0.0"
   displayName: string;
-  configSchema: ZodSchema; // for validating ruleset_config
 
   /** Compute one match's score from its exchanges */
   computeMatchScore(match: Match, exchanges: Exchange[], config: unknown): MatchScore;
 
-  /** Decide if a match has ended (first-to-N, time-out, max-doubles, etc.) */
-  isMatchOver(
-    match: Match,
-    exchanges: Exchange[],
-    clockMs: number,
-    config: unknown,
-  ): MatchEndDecision;
+  /** Decide if a match has ended (first-to-N, max-doubles) */
+  isMatchOver(match: Match, score: MatchScore, config: unknown): MatchEndDecision;
 
   /** Compute pool standings from all matches */
   computePoolStandings(
@@ -595,10 +589,26 @@ export interface Ruleset {
     config: unknown,
   ): PoolStandingRow[];
 
-  /** Optional: compute event-level final ranking from pool + elim phases */
-  computeFinalRanking?(event: Event, phases: Phase[], config: unknown): FinalRankingRow[];
+  /** Declarative standings columns, and the tiebreak chain applied over them */
+  standingsColumns: StandingsColumn[];
+  rankingChain: RankingRule[];
+  metadata?: RulesetMetadata;
 }
 ```
+
+Three things the contract used to declare and no longer does, because nothing called them:
+
+- **`configSchema: ZodSchema`** had no production reader at all — only a test that existed
+  because the field did. A ruleset validates its own config inside its own methods.
+- **`isMatchOver`'s `clockMs`**, and the `time_limit` branch both built-ins hung off it. The only
+  production call passed a literal `0`, so that branch could never fire. A single fight that runs
+  out of time is completed by `ClockService`, which sets no winner and no end reason.
+- **`computeFinalRanking?`** was implemented by no ruleset and called by nobody. The real
+  final-ranking authority is a free function in `@myclash/rules`, and no ruleset influences it.
+
+`isMatchOver` also takes the SCORE rather than the exchanges. It used to re-derive the score for
+itself, so every bout was scored twice — and the caller adds penalties to its own copy afterwards,
+so the decision was made from a number nobody would ever see.
 
 ### 7.2 Built-in rulesets shipped at v1.0
 

@@ -11,7 +11,6 @@ import type { Exchange, Match, MatchEndDecision, MatchScore } from '../types';
 import {
   computeAfterblowDeltas,
   computeMatchFormatScore,
-  getEffectiveMatchTimeLimitSeconds,
   getEffectiveMaxDoubles,
   isPointCapReached,
   normalizeMatchFormatConfig,
@@ -75,39 +74,31 @@ export function computeMatchScore(
 // ── Match end decision ────────────────────────────────────────────────────────
 
 /**
- * Decide if a TF_v1 match has ended.
- * Checks: time limit, first-to-points, max-doubles.
+ * Decide if a TF_v1 match has ended: first-to-points, then max-doubles.
+ *
+ * Reads the SCORE the caller already holds instead of re-deriving it from the
+ * exchanges. Two things came out of the old shape. It scored every bout twice,
+ * once here and once in the caller. And the caller adds penalties to its copy
+ * afterwards, so this decided on a number nobody would ever see.
+ *
+ * The `time_limit` branch is gone with the `clockMs` parameter it read. The only
+ * production call passed a literal 0, so the branch could never fire; a single
+ * fight that runs out of time is completed by `ClockService`.
  */
-export function isMatchOver(
-  _match: Match,
-  exchanges: Exchange[],
-  clockMs: number,
-  config: TFv1Config,
-  afterblowMode: AfterblowMode = 'full',
-): MatchEndDecision {
-  const active = exchanges.filter((e) => !e.voided);
+export function isMatchOver(match: Match, score: MatchScore, config: TFv1Config): MatchEndDecision {
   const matchFormat = normalizeMatchFormatConfig(config.matchFormat);
 
-  const timeLimitSeconds = getEffectiveMatchTimeLimitSeconds(_match, matchFormat);
-  if (timeLimitSeconds !== null) {
-    if (clockMs >= timeLimitSeconds * 1000) {
-      return { isOver: true, reason: 'time_limit' };
-    }
-  }
-
-  const score = computeMatchScore(_match, active, config, afterblowMode);
   if (isPointCapReached(score, matchFormat)) {
     return { isOver: true, reason: 'first_to_points' };
   }
 
   // Max-doubles ends a match only in pools (bracket/finals must resolve to a
   // winner); getEffectiveMaxDoubles returns null off the pool phase.
-  const effectiveMaxDoubles = getEffectiveMaxDoubles(_match, matchFormat);
-  if (effectiveMaxDoubles !== null) {
-    const doubleCount = active.filter((e) => e.type === 'double').length;
-    if (doubleCount >= effectiveMaxDoubles) {
-      return { isOver: true, reason: 'max_doubles' };
-    }
+  // `score.doubles` is the count of non-voided `double` exchanges, which is
+  // exactly what this used to recount for itself.
+  const effectiveMaxDoubles = getEffectiveMaxDoubles(match, matchFormat);
+  if (effectiveMaxDoubles !== null && score.doubles >= effectiveMaxDoubles) {
+    return { isOver: true, reason: 'max_doubles' };
   }
 
   return { isOver: false, reason: null };

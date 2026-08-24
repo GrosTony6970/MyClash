@@ -6,7 +6,6 @@
  * All rulesets must implement this interface. The engine is pure:
  * no DB access, no I/O, no side effects. Inputs are plain data objects.
  */
-import type { ZodSchema } from 'zod';
 
 // ── Domain types (minimal — full types live in @myclash/types) ────────────────
 
@@ -34,16 +33,6 @@ export interface Pool {
   name: string;
 }
 
-export interface Phase {
-  id: string;
-  type: 'pool' | 'single_elim' | 'double_elim' | 'swiss';
-}
-
-export interface Event {
-  id: string;
-  name: string;
-}
-
 // ── Output types ──────────────────────────────────────────────────────────────
 
 export interface MatchEndDecision {
@@ -58,12 +47,6 @@ export interface PoolStandingRow {
   targetPoints: number;
   timesHit: number;
   doubles: number;
-  score: number;
-}
-
-export interface FinalRankingRow {
-  registrationId: string;
-  rank: number;
   score: number;
 }
 
@@ -182,9 +165,6 @@ export interface Ruleset {
   /** Human-readable name for display */
   displayName: string;
 
-  /** Zod schema for validating ruleset_config JSON */
-  configSchema: ZodSchema;
-
   /**
    * Compute one match's score from its exchanges.
    * Must be a pure function — no DB, no I/O.
@@ -192,15 +172,23 @@ export interface Ruleset {
   computeMatchScore(match: Match, exchanges: Exchange[], config: unknown): MatchScore;
 
   /**
-   * Decide if a match has ended.
+   * Decide if a match has ended, from the score the caller is about to persist.
+   *
+   * Takes the SCORE rather than the exchanges, for two reasons. It used to
+   * re-derive the score itself, so every call scored the same bout twice. And
+   * the caller adds penalties to the score after `computeMatchScore` returns
+   * (`ScoringService.recomputeMatchScore`), so a decision made from exchanges was
+   * made from a number nobody would ever see — a penalty could drop the
+   * cap-reacher back below the cap and leave a bout completed with no winner.
+   *
+   * There is no `clockMs` parameter. Nothing that calls this has a clock: the
+   * only production call passed a literal 0, so the `time_limit` branch could
+   * never fire. A single fight that runs out of time is completed by
+   * `ClockService`, not here.
+   *
    * Must be a pure function — no DB, no I/O.
    */
-  isMatchOver(
-    match: Match,
-    exchanges: Exchange[],
-    clockMs: number,
-    config: unknown,
-  ): MatchEndDecision;
+  isMatchOver(match: Match, score: MatchScore, config: unknown): MatchEndDecision;
 
   /**
    * Compute pool standings from all matches in the pool.
@@ -212,12 +200,6 @@ export interface Ruleset {
     registrations: Registration[],
     config: unknown,
   ): PoolStandingRow[];
-
-  /**
-   * Optional: compute event-level final ranking from pool + elim phases.
-   * Must be a pure function — no DB, no I/O.
-   */
-  computeFinalRanking?(event: Event, phases: Phase[], config: unknown): FinalRankingRow[];
 
   /** Declarative column schema for the pool-standings table. Dynamic columns shown
    *  alongside fixed Rank/Fighter/Status chrome columns. */

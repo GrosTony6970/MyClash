@@ -24,7 +24,6 @@ import { renderFormula } from '@myclash/rules';
 import { doublePenalty, type DoublePenaltySpec } from '../tf_v1/double-penalty';
 import {
   FORMULA_VARIABLE_KEYS,
-  FormulaConfigSchema,
   type FormulaConfig,
   type Tiebreaker,
   type VariableKey,
@@ -148,14 +147,12 @@ export function createFormulaRuleset(
     code,
     version,
     displayName,
-    configSchema: FormulaConfigSchema,
-
     computeMatchScore(match, exchanges, runtimeConfig) {
       return Generic_PointsCap.computeMatchScore(match, exchanges, runtimeConfig);
     },
 
-    isMatchOver(match, exchanges, clockMs, runtimeConfig) {
-      return Generic_PointsCap.isMatchOver(match, exchanges, clockMs, runtimeConfig);
+    isMatchOver(match, score, runtimeConfig) {
+      return Generic_PointsCap.isMatchOver(match, score, runtimeConfig);
     },
 
     computePoolStandings(

@@ -41,11 +41,4 @@ describe('RulesetRegistry', () => {
   it('list() returns empty array when nothing registered', () => {
     expect(registry.list()).toHaveLength(0);
   });
-
-  it('TF_v1 has a valid configSchema (Zod)', () => {
-    registry.register(TF_v1);
-    const r = registry.get('TF_v1', '1.0.0');
-    // configSchema.parse should not throw for empty object (uses defaults)
-    expect(() => r.configSchema.parse({})).not.toThrow();
-  });
 });

@@ -74,11 +74,15 @@ describe('Generic_PointsCap', () => {
   });
 
   describe('isMatchOver', () => {
+    /** The score the caller would hold, from this bout's exchanges. */
+    const scoreOf = (exchanges: Exchange[], config: unknown) =>
+      Generic_PointsCap.computeMatchScore(BASE_MATCH, exchanges, config);
+
     it('ends when red reaches pointsCap (default 10)', () => {
       const exchanges = Array.from({ length: 10 }, (_, i) =>
         makeEx({ id: `e${i}`, sequence: i + 1, firstStrikerColor: 'red' }),
       );
-      const result = Generic_PointsCap.isMatchOver(BASE_MATCH, exchanges, 0, {});
+      const result = Generic_PointsCap.isMatchOver(BASE_MATCH, scoreOf(exchanges, {}), {});
       expect(result.isOver).toBe(true);
       expect(result.reason).toBe('first_to_points');
     });
@@ -87,22 +91,20 @@ describe('Generic_PointsCap', () => {
       const exchanges = Array.from({ length: 9 }, (_, i) =>
         makeEx({ id: `e${i}`, sequence: i + 1, firstStrikerColor: 'red' }),
       );
-      const result = Generic_PointsCap.isMatchOver(BASE_MATCH, exchanges, 0, {});
+      const result = Generic_PointsCap.isMatchOver(BASE_MATCH, scoreOf(exchanges, {}), {});
       expect(result.isOver).toBe(false);
     });
 
-    it('ends at time limit (90s default)', () => {
-      const result = Generic_PointsCap.isMatchOver(BASE_MATCH, [], 90_000, {});
-      expect(result.isOver).toBe(true);
-      expect(result.reason).toBe('time_limit');
-    });
+    // The 'ends at time limit (90s default)' case went with the branch it
+    // covered: nothing passes a clock any more, and ClockService ends a bout
+    // that runs out of time.
 
     it('custom pointsCap=3 ends at 3 hits', () => {
       const config = { ...GenericPointsCapDefaultConfig, pointsCap: 3 };
       const exchanges = Array.from({ length: 3 }, (_, i) =>
         makeEx({ id: `e${i}`, sequence: i + 1, firstStrikerColor: 'blue' }),
       );
-      const result = Generic_PointsCap.isMatchOver(BASE_MATCH, exchanges, 0, config);
+      const result = Generic_PointsCap.isMatchOver(BASE_MATCH, scoreOf(exchanges, config), config);
       expect(result.isOver).toBe(true);
     });
   });

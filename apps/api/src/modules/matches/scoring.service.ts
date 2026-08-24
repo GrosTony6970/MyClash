@@ -154,6 +154,13 @@ export class ScoringService {
     }
 
     const score = ruleset.computeMatchScore(match, exchanges, configWithMode);
+    // Deliberately BEFORE the penalty loop below, because that is where the old
+    // `isMatchOver(match, exchanges, 0, config)` effectively read: it re-derived
+    // the score from the exchanges itself and never saw a penalty. Keeping the
+    // order preserves today's behaviour exactly; the split between this decision
+    // and the penalised score the winner is read from is a separate fix.
+    const matchEndDecision = ruleset.isMatchOver(match, score, configWithMode);
+
     for (const row of penaltyRows ?? []) {
       const penalty = row as Record<string, unknown>;
       const delta = (penalty['score_delta'] as number | null) ?? 0;
@@ -161,7 +168,6 @@ export class ScoringService {
       if (penalty['registration_id'] === match.blueRegistrationId) score.blueScore += delta;
     }
 
-    const matchEndDecision = ruleset.isMatchOver(match, exchanges, 0, configWithMode);
     const winnerRegistrationId =
       matchEndDecision.reason === 'first_to_points'
         ? getPointCapWinnerRegistrationId(match, score, matchFormat)

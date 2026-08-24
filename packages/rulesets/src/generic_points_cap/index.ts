@@ -13,7 +13,6 @@ import {
   DEFAULT_MATCH_FORMAT_CONFIG,
   MatchFormatConfigSchema,
   computeMatchFormatScore,
-  getEffectiveMatchTimeLimitSeconds,
   isPointCapReached,
   normalizeMatchFormatConfig,
 } from '../match-format';
@@ -97,23 +96,15 @@ function computeScore(
 
 // ── Match end ─────────────────────────────────────────────────────────────────
 
-function matchOver(
-  match: Match,
-  exchanges: Exchange[],
-  clockMs: number,
-  config: GenericPointsCapConfig,
-): MatchEndDecision {
-  const score = computeScore(match, exchanges, config);
-
+/**
+ * Reads the score the caller already holds. The `time_limit` branch went with
+ * the `clockMs` parameter — the only production call passed a literal 0, so it
+ * could never fire; `ClockService` ends a bout on time.
+ */
+function matchOver(score: MatchScore, config: GenericPointsCapConfig): MatchEndDecision {
   if (isPointCapReached(score, config.matchFormat)) {
     return { isOver: true, reason: 'first_to_points' };
   }
-
-  const timeLimitSeconds = getEffectiveMatchTimeLimitSeconds(match, config.matchFormat);
-  if (timeLimitSeconds !== null && clockMs >= timeLimitSeconds * 1000) {
-    return { isOver: true, reason: 'time_limit' };
-  }
-
   return { isOver: false, reason: null };
 }
 
@@ -203,16 +194,14 @@ export const Generic_PointsCap: Ruleset = {
   code: 'Generic_PointsCap',
   version: '1.0.0',
   displayName: 'Points Cap (Premier à N points)',
-  configSchema: GenericPointsCapConfigSchema,
 
   computeMatchScore(match: Match, exchanges: Exchange[], config: unknown) {
     const cfg = normalizeGenericPointsCapConfig(config);
     return computeScore(match, exchanges, cfg);
   },
 
-  isMatchOver(match: Match, exchanges: Exchange[], clockMs: number, config: unknown) {
-    const cfg = normalizeGenericPointsCapConfig(config);
-    return matchOver(match, exchanges, clockMs, cfg);
+  isMatchOver(_match: Match, score: MatchScore, config: unknown) {
+    return matchOver(score, normalizeGenericPointsCapConfig(config));
   },
 
   computePoolStandings(

@@ -16,7 +16,7 @@ import {
   DOUBLE_PENALTY_FORMULA_KEYS,
   type DoublePenaltyFormula,
 } from './score';
-import { TFv1DefaultConfig } from './config';
+import { TFv1DefaultConfig, type TFv1Config } from './config';
 import type { Exchange, Match } from '../types';
 
 // ── Fixtures ──────────────────────────────────────────────────────────────────
@@ -287,16 +287,19 @@ describe('computeMatchScore', () => {
 // ── isMatchOver ───────────────────────────────────────────────────────────────
 
 describe('isMatchOver', () => {
-  it('not over when clock < time limit', () => {
-    // Default time limit is 90s; 60s is comfortably under.
-    const result = isMatchOver(BASE_MATCH, [], 60_000, TFv1DefaultConfig);
-    expect(result.isOver).toBe(false);
-  });
+  /** The score the caller would hold, from this bout's exchanges. */
+  const scoreOf = (match: Match, exchanges: Exchange[], config: TFv1Config) =>
+    computeMatchScore(match, exchanges, config, 'full');
 
-  it('over when clock >= time limit (90s default)', () => {
-    const result = isMatchOver(BASE_MATCH, [], 90_000, TFv1DefaultConfig);
-    expect(result.isOver).toBe(true);
-    expect(result.reason).toBe('time_limit');
+  it('not over on an empty bout', () => {
+    // The time-limit cases that used to sit here went with the branch: nothing
+    // passes a clock any more, so a bout only ends on points or doubles.
+    const result = isMatchOver(
+      BASE_MATCH,
+      scoreOf(BASE_MATCH, [], TFv1DefaultConfig),
+      TFv1DefaultConfig,
+    );
+    expect(result.isOver).toBe(false);
   });
 
   it('over when first-to-points reached', () => {
@@ -313,7 +316,7 @@ describe('isMatchOver', () => {
         firstStrikeValue: 1,
       }),
     );
-    const result = isMatchOver(BASE_MATCH, exchanges, 0, config);
+    const result = isMatchOver(BASE_MATCH, scoreOf(BASE_MATCH, exchanges, config), config);
     expect(result.isOver).toBe(true);
     expect(result.reason).toBe('first_to_points');
   });
@@ -333,7 +336,8 @@ describe('isMatchOver', () => {
         firstStrikeValue: null,
       }),
     );
-    const result = isMatchOver({ ...BASE_MATCH, phaseType: 'pool' }, exchanges, 0, config);
+    const pool: Match = { ...BASE_MATCH, phaseType: 'pool' };
+    const result = isMatchOver(pool, scoreOf(pool, exchanges, config), config);
     expect(result.isOver).toBe(true);
     expect(result.reason).toBe('max_doubles');
   });
@@ -353,12 +357,8 @@ describe('isMatchOver', () => {
         firstStrikeValue: null,
       }),
     );
-    const bracket = isMatchOver(
-      { ...BASE_MATCH, phaseType: 'single_elim', matchNumberLabel: 'QF1' },
-      exchanges,
-      0,
-      config,
-    );
+    const bout: Match = { ...BASE_MATCH, phaseType: 'single_elim', matchNumberLabel: 'QF1' };
+    const bracket = isMatchOver(bout, scoreOf(bout, exchanges, config), config);
     expect(bracket.isOver).toBe(false);
   });
 });

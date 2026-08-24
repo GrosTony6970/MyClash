@@ -7,6 +7,7 @@
 import type {
   Exchange,
   Match,
+  MatchScore,
   Pool,
   Registration,
   Ruleset,
@@ -60,16 +61,14 @@ export const TF_v1: Ruleset = {
   code: 'TF_v1',
   version: '1.0.0',
   displayName: 'TF_v1',
-  configSchema: TFv1ConfigSchema,
 
   computeMatchScore(match: Match, exchanges: Exchange[], config: unknown) {
     const cfg = TFv1ConfigSchema.parse(config ?? TFv1DefaultConfig);
     return computeMatchScore(match, exchanges, cfg, readAfterblowMode(config));
   },
 
-  isMatchOver(match: Match, exchanges: Exchange[], clockMs: number, config: unknown) {
-    const cfg = TFv1ConfigSchema.parse(config ?? TFv1DefaultConfig);
-    return isMatchOver(match, exchanges, clockMs, cfg, readAfterblowMode(config));
+  isMatchOver(match: Match, score: MatchScore, config: unknown) {
+    return isMatchOver(match, score, TFv1ConfigSchema.parse(config ?? TFv1DefaultConfig));
   },
 
   computePoolStandings(
