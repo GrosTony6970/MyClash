@@ -23,7 +23,8 @@ import {
 } from './post-event-report';
 import { OrganizationsService } from '../organizations/organizations.service';
 import { EventsService } from '../events/events.service';
-import { StatsService, type TargetValueRow } from '../stats/stats.service';
+import { StatsService } from '../stats/stats.service';
+import { aggregateTargetValues, type TargetValueRow } from '../stats/target-value-stats';
 import { PoolStandingsService, type StandingsRow } from '../pool-standings/pool-standings.service';
 import {
   buildRefereeStats,
@@ -173,7 +174,7 @@ export class EventStatsService {
 
     const out: WeaponTargetStats[] = [];
     for (const [key, rows] of rowsByKey) {
-      const agg = StatsService.aggregateTargetValues(rows);
+      const agg = aggregateTargetValues(rows);
       // Skip weapons with no clean-hit data — nothing to show.
       if (agg.distribution.length === 0) continue;
       out.push({
@@ -196,7 +197,7 @@ export class EventStatsService {
     await this.loadEventForOrganizer(eventId, userId);
     await this.assertTournamentInEvent(eventId, tournamentId);
 
-    const [standings, fighters] = await Promise.all([
+    const [standings, fighterStats] = await Promise.all([
       this.poolStandings.getPoolStandings(tournamentId, 'overall'),
       this.stats.getFighterStats(tournamentId),
     ]);
@@ -215,7 +216,10 @@ export class EventStatsService {
           stats: r.stats,
         })),
       },
-      fighters,
+      fighters: fighterStats.fighters,
+      // How this tournament's ruleset values an afterblow, so the blow table can
+      // label its afterblow columns instead of asserting FFAMHE's flat 1.
+      afterblow: fighterStats.afterblow,
     };
   }
 

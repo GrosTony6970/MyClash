@@ -81,6 +81,7 @@ export function StatsTab({ tournamentId, colorToken }: Props) {
         <StatsView
           overview={data.overview}
           fighters={data.fighters}
+          afterblow={data.afterblow}
           targets={data.targets}
           colorToken={colorToken}
           t={t}

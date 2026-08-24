@@ -9,7 +9,51 @@
  */
 
 import { Injectable } from '@nestjs/common';
+import { normalizeRulesetVersion } from '../events/ruleset-row-projection';
 import { SupabaseService } from '../supabase/supabase.service';
+import {
+  aggregateTargetValues,
+  type TargetValueRow,
+  type TargetValueStats,
+} from './target-value-stats';
+// Value import, not `import type`: Nest needs the runtime class for DI metadata.
+import { RulesetResolver } from '../matches/ruleset-resolver.service';
+
+/** One point value, and this fighter's four blow counts at it. */
+export interface FighterBlowValueCounts {
+  /** The target's worth: `exchanges.first_strike_value`. 1 to 10. */
+  value: number;
+  hitsGiven: number;
+  afterblowGiven: number;
+  hitsReceived: number;
+  afterblowReceived: number;
+}
+
+/** One row of `fighter_blow_value_stats` (migration 0189). */
+export interface BlowValueRow extends FighterBlowValueCounts {
+  registrationId: string;
+}
+
+/**
+ * How this tournament's ruleset values an afterblow, so a reader can label the
+ * afterblow columns truthfully.
+ *
+ * The table heads them `✓2-1`: "struck for 2, took an afterblow worth 1". That
+ * `-1` was hardcoded. It is FFAMHE's rule — `fixed`, worth 1 whatever it landed
+ * on — but a ruleset may declare `weighted`, where the retaliation is worth the
+ * target it hit and no single number can label the column. Null when the
+ * ruleset has no afterblow concept at all.
+ */
+export interface AfterblowLabelRule {
+  valuation: 'fixed' | 'weighted' | null;
+  /** The retaliation's worth under `fixed`. Meaningless otherwise. */
+  fixedValue: number | null;
+}
+
+export interface FighterStatsResponse {
+  fighters: FighterExchangeStats[];
+  afterblow: AfterblowLabelRule;
+}
 
 export interface FighterExchangeStats {
   registrationId: string;
@@ -18,20 +62,17 @@ export interface FighterExchangeStats {
   familyName: string;
   clubName: string | null;
   doubles: number;
-  // lyonamhe.fr blow columns (mode-independent blow counts)
-  hitsGiven1: number;
-  afterblowGiven1: number;
-  hitsGiven2: number;
-  afterblowGiven2: number;
-  // Value-3 buckets (migration 0136) — 0 for the common 1/2-only rulesets
-  hitsGiven3: number;
-  afterblowGiven3: number;
-  hitsReceived1: number;
-  afterblowReceived1: number;
-  hitsReceived2: number;
-  afterblowReceived2: number;
-  hitsReceived3: number;
-  afterblowReceived3: number;
+  /**
+   * lyonamhe.fr blow columns, one entry per point value this fighter's bouts
+   * actually produced, ascending.
+   *
+   * This was twelve fixed fields — `hitsGiven1` through `afterblowReceived3` —
+   * so a target worth 4 or more was invisible in every one of them, while still
+   * counting in `blowsGiven`/`blowsReceived` and both ratios. A target may be
+   * worth 1 to 10. Migration 0189 keeps the raw value instead, so the set of
+   * buckets is read from the data rather than declared in advance.
+   */
+  byValue: FighterBlowValueCounts[];
   // Extended blow-based columns (always count the blow, regardless of afterblow mode)
   blowsGiven: number;
   blowsReceived: number;
@@ -63,33 +104,32 @@ export interface TournamentStatsOverview {
 }
 
 /** One (fighter, point-value) CLEAN-hit count row from tournament_target_value_stats. */
-export interface TargetValueRow {
-  registrationId: string;
-  personId: string;
-  givenName: string;
-  familyName: string;
-  clubName: string | null;
-  pointValue: number;
-  cleanHits: number;
-}
-
-/** Aggregated point-value stats for a tournament (or a weapon group). */
-export interface TargetValueStats {
-  /** Highest point value present (the "deep target"); null when there are no clean hits. */
-  maxValue: number | null;
-  /** Total clean hits per point value, ascending by value (stacked-bar source). */
-  distribution: Array<{ value: number; cleanHits: number }>;
-  /** Top-5 fighters by clean hits AT maxValue; ties by name. */
-  hunters: Array<{ personId: string; name: string; club: string | null; cleanHits: number }>;
-}
+export { aggregateTargetValues };
+export type { TargetValueRow, TargetValueStats };
 
 @Injectable()
 export class StatsService {
-  constructor(private readonly supabase: SupabaseService) {}
+  constructor(
+    private readonly supabase: SupabaseService,
+    private readonly rulesets: RulesetResolver,
+  ) {}
 
   // ── Fighter exchange stats ────────────────────────────────────────────────────
 
-  async getFighterStats(tournamentId: string): Promise<FighterExchangeStats[]> {
+  async getFighterStats(tournamentId: string): Promise<FighterStatsResponse> {
+    // Two reads, because they answer two different questions and neither can be
+    // folded into the other without repeating itself: one row per fighter for
+    // the totals and ratios, one row per (fighter, point value) for the blow
+    // buckets. Issued together — neither depends on the other's answer.
+    const [fighters, blowValues, afterblow] = await Promise.all([
+      this.fighterRows(tournamentId),
+      this.blowValueRows(tournamentId),
+      this.afterblowLabelRule(tournamentId),
+    ]);
+    return { fighters: StatsService.attachBlowValues(fighters, blowValues), afterblow };
+  }
+
+  async fighterRows(tournamentId: string): Promise<FighterExchangeStats[]> {
     // Computed on-read (always fresh); already ordered by hit_ratio DESC in SQL.
     const { data, error } = await this.supabase.service.rpc('fighter_exchange_stats', {
       p_tournament_id: tournamentId,
@@ -101,6 +141,79 @@ export class StatsService {
     }
 
     return ((data as Array<Record<string, unknown>> | null) ?? []).map((r) => this.mapStats(r));
+  }
+
+  /**
+   * Per-(fighter, point value) blow counts (migration 0189). A value with no
+   * blows produces no row, so this is also how the caller learns which point
+   * values the tournament used. Returns [] on error, mirroring the above.
+   */
+  async blowValueRows(tournamentId: string): Promise<BlowValueRow[]> {
+    const { data, error } = await this.supabase.service.rpc('fighter_blow_value_stats', {
+      p_tournament_id: tournamentId,
+    });
+    if (error) return [];
+    return ((data as Array<Record<string, unknown>> | null) ?? []).map((r) => ({
+      registrationId: r['registration_id'] as string,
+      value: Number(r['point_value'] ?? 0),
+      hitsGiven: Number(r['hits_given'] ?? 0),
+      afterblowGiven: Number(r['afterblow_given'] ?? 0),
+      hitsReceived: Number(r['hits_received'] ?? 0),
+      afterblowReceived: Number(r['afterblow_received'] ?? 0),
+    }));
+  }
+
+  /**
+   * Hang each fighter's blow rows off their stats row, ascending by value.
+   *
+   * Pure and static so it is unit-testable without Supabase, the same shape as
+   * `aggregateTargetValues` below.
+   */
+  static attachBlowValues(
+    fighters: FighterExchangeStats[],
+    rows: BlowValueRow[],
+  ): FighterExchangeStats[] {
+    const byRegistration = new Map<string, FighterBlowValueCounts[]>();
+    for (const row of rows) {
+      const { registrationId, ...counts } = row;
+      const bucket = byRegistration.get(registrationId);
+      if (bucket) bucket.push(counts);
+      else byRegistration.set(registrationId, [counts]);
+    }
+    for (const bucket of byRegistration.values()) bucket.sort((a, b) => a.value - b.value);
+    return fighters.map((fighter) => ({
+      ...fighter,
+      byValue: byRegistration.get(fighter.registrationId) ?? [],
+    }));
+  }
+
+  /**
+   * The tournament ruleset's afterblow valuation, for the column labels.
+   *
+   * Falls back to `{ valuation: null, fixedValue: null }` whenever the ruleset
+   * cannot be resolved, which renders the afterblow columns with no worth
+   * claimed rather than asserting FFAMHE's `-1` for a ruleset that never said
+   * so.
+   */
+  private async afterblowLabelRule(tournamentId: string): Promise<AfterblowLabelRule> {
+    const { data } = await this.supabase.service
+      .from('tournaments')
+      .select('ruleset_code, ruleset_version')
+      .eq('id', tournamentId)
+      .maybeSingle();
+    const row = data as { ruleset_code?: string; ruleset_version?: string } | null;
+    if (!row?.ruleset_code) return { valuation: null, fixedValue: null };
+
+    const ruleset = await this.rulesets.resolve(
+      row.ruleset_code,
+      normalizeRulesetVersion(row.ruleset_version ?? '1'),
+    );
+    const metadata = ruleset?.metadata;
+    if (!metadata?.hasAfterblow) return { valuation: null, fixedValue: null };
+    return {
+      valuation: metadata.afterblowValuation ?? null,
+      fixedValue: metadata.afterblowFixedValue ?? null,
+    };
   }
 
   // ── Target-value (point-value) stats ──────────────────────────────────────────
@@ -130,67 +243,18 @@ export class StatsService {
   /** Single-tournament aggregation for the public target-values endpoint. */
   async getTargetValueStats(tournamentId: string): Promise<TargetValueStats> {
     const rows = await this.getTargetValueRows(tournamentId);
-    return StatsService.aggregateTargetValues(rows);
-  }
-
-  /**
-   * Pure aggregation of target-value rows into { maxValue, distribution, hunters }.
-   * Accepts rows from one or several tournaments (concatenated) of the same weapon;
-   * the deep-target hunters are merged by personId across them. No Supabase — unit-testable.
-   */
-  static aggregateTargetValues(rows: TargetValueRow[]): TargetValueStats {
-    if (rows.length === 0) return { maxValue: null, distribution: [], hunters: [] };
-
-    // Distribution: sum clean hits per value, ascending.
-    const byValue = new Map<number, number>();
-    for (const r of rows) byValue.set(r.pointValue, (byValue.get(r.pointValue) ?? 0) + r.cleanHits);
-    const distribution = [...byValue.entries()]
-      .map(([value, cleanHits]) => ({ value, cleanHits }))
-      .sort((a, b) => a.value - b.value);
-
-    const lastBucket = distribution[distribution.length - 1];
-    const maxValue = lastBucket ? lastBucket.value : null;
-
-    // Hunters: clean hits AT maxValue, merged by person (a person can span
-    // tournaments of the same weapon).
-    const byPerson = new Map<
-      string,
-      { personId: string; name: string; club: string | null; cleanHits: number }
-    >();
-    for (const r of rows) {
-      if (r.pointValue !== maxValue) continue;
-      const existing = byPerson.get(r.personId);
-      if (existing) {
-        existing.cleanHits += r.cleanHits;
-        existing.club ??= r.clubName;
-      } else {
-        byPerson.set(r.personId, {
-          personId: r.personId,
-          name: `${r.givenName} ${r.familyName}`.trim(),
-          club: r.clubName,
-          cleanHits: r.cleanHits,
-        });
-      }
-    }
-
-    const hunters = [...byPerson.values()]
-      .filter((h) => h.cleanHits > 0)
-      .sort(
-        (a, b) =>
-          b.cleanHits - a.cleanHits ||
-          a.name.localeCompare(b.name) ||
-          a.personId.localeCompare(b.personId),
-      )
-      .slice(0, 5);
-
-    return { maxValue, distribution, hunters };
+    return aggregateTargetValues(rows);
   }
 
   // ── Tournament overview ───────────────────────────────────────────────────────
 
   async getTournamentOverview(tournamentId: string): Promise<TournamentStatsOverview> {
     const [statsRows, matchCount, exchangeCount] = await Promise.all([
-      this.getFighterStats(tournamentId),
+      // The per-fighter rows only. This overview reads doubles, club,
+      // both ratios and the blow totals -- all value-independent -- so it
+      // needs neither the point-value buckets nor the afterblow label, and
+      // skipping them saves two round trips per tournament.
+      this.fighterRows(tournamentId),
       this.countMatches(tournamentId),
       this.countExchanges(tournamentId),
     ]);
@@ -258,18 +322,9 @@ export class StatsService {
       familyName: r['family_name'] as string,
       clubName: (r['club_name'] as string | null) ?? null,
       doubles: Number(r['doubles'] ?? 0),
-      hitsGiven1: Number(r['hits_given_1'] ?? 0),
-      afterblowGiven1: Number(r['afterblow_given_1'] ?? 0),
-      hitsGiven2: Number(r['hits_given_2'] ?? 0),
-      afterblowGiven2: Number(r['afterblow_given_2'] ?? 0),
-      hitsGiven3: Number(r['hits_given_3'] ?? 0),
-      afterblowGiven3: Number(r['afterblow_given_3'] ?? 0),
-      hitsReceived1: Number(r['hits_received_1'] ?? 0),
-      afterblowReceived1: Number(r['afterblow_received_1'] ?? 0),
-      hitsReceived2: Number(r['hits_received_2'] ?? 0),
-      afterblowReceived2: Number(r['afterblow_received_2'] ?? 0),
-      hitsReceived3: Number(r['hits_received_3'] ?? 0),
-      afterblowReceived3: Number(r['afterblow_received_3'] ?? 0),
+      // Filled by attachBlowValues from the second RPC; the per-fighter
+      // function no longer knows which point values exist.
+      byValue: [],
       blowsGiven: Number(r['blows_given'] ?? 0),
       blowsReceived: Number(r['blows_received'] ?? 0),
       afterblowsReceivedTotal: Number(r['afterblows_received_total'] ?? 0),

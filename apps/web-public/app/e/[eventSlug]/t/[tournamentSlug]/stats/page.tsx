@@ -83,7 +83,7 @@ export default async function StatsPage({ params }: Props) {
     );
   }
 
-  const { overview, fighters, targets } = await fetchTournamentStats(header.id, apiUrl);
+  const { overview, fighters, afterblow, targets } = await fetchTournamentStats(header.id, apiUrl);
 
   return (
     <main className="px-4 py-6 max-w-6xl mx-auto">
@@ -111,6 +111,7 @@ export default async function StatsPage({ params }: Props) {
       <StatsView
         overview={overview}
         fighters={fighters}
+        afterblow={afterblow}
         targets={targets}
         colorToken={header.colorToken}
         t={t}

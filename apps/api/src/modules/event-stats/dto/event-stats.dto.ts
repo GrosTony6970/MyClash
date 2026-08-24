@@ -9,7 +9,7 @@
  */
 
 import type { StandingsColumn } from '@myclash/rulesets';
-import type { FighterExchangeStats } from '../../stats/stats.service';
+import type { AfterblowLabelRule, FighterExchangeStats } from '../../stats/stats.service';
 
 /** One podium finisher (top of the final ranking). */
 export interface EventStatsPodiumEntry {
@@ -102,4 +102,6 @@ export interface TournamentStatsDetailResponse {
     }>;
   };
   fighters: FighterExchangeStats[];
+  /** The ruleset's afterblow valuation, for the blow table's column labels. */
+  afterblow: AfterblowLabelRule;
 }

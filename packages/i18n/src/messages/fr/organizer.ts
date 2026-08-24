@@ -1153,8 +1153,10 @@ export const organizer = {
       colTotal: 'Total',
       colDoublePct: '% Dbl',
       colRatio: 'Ratio de touches',
+      afterblowWorthUnknownTitle:
+        'Ce règlement compte la riposte selon la cible touchée : l’en-tête n’annonce donc aucune valeur fixe',
       caption:
-        "✓ = a porte la première touche · ✗ = l'a reçue · 1/2/3 = valeur de cible · -1 = avec afterblow.",
+        "✓ = a porté la première touche · ✗ = l'a reçue · le nombre est la valeur de cible · après le tiret, la valeur de la riposte.",
     },
     deepTargets: {
       title: 'Chasseurs de cibles profondes',

@@ -17,7 +17,7 @@
  */
 
 import type { TranslationValues } from '@myclash/i18n';
-import { tintTextClassFor } from '@myclash/ui';
+import { blowCount, blowValueColumns, tintTextClassFor, type AfterblowRule } from '@myclash/ui';
 import type { FighterStats, Overview, TargetValueStats } from './stats-data';
 
 /** Structural translator type — satisfied by both `getServerT()` and `useI18n().t`. */
@@ -26,6 +26,8 @@ type Translator = (key: string, values?: TranslationValues) => string;
 interface Props {
   overview: Overview | null;
   fighters: FighterStats[];
+  /** How this tournament's ruleset values an afterblow, for the column headings. */
+  afterblow: AfterblowRule;
   targets: TargetValueStats;
   /**
    * The tournament's colour token (e.g. 'red', 'blue'), or null when unset.
@@ -55,23 +57,40 @@ function pct(n: number, total: number): string {
 
 // ── Component ───────────────────────────────────────────────────────────────────
 
-export function StatsView({ overview, fighters, targets, colorToken, t }: Props) {
+export function StatsView({ overview, fighters, afterblow, targets, colorToken, t }: Props) {
   // Sort fighters by hit_ratio desc (blow-based, mode-independent)
   const sorted = [...fighters].sort((a, b) => (b.hitRatio ?? -1) - (a.hitRatio ?? -1));
 
-  // Show value-3 columns only when the ruleset produced 3-pt hits (migration 0136).
-  const hasV3 = fighters.some(
-    (f) => f.hitsGiven3 + f.afterblowGiven3 + f.hitsReceived3 + f.afterblowReceived3 > 0,
-  );
+  // Columns come from the point values the bouts actually produced, so a
+  // 1-and-2 tournament renders exactly the four it always did and a ruleset with
+  // a 7-point target gets a column instead of vanishing (migration 0189). This
+  // replaced a `hasV3` flag over twelve fixed fields.
+  const blowCols = blowValueColumns(fighters, afterblow);
+  const blowTitleKey = {
+    hitsGiven: 'publicApp.tournamentStats.colCleanGivenTitle',
+    afterblowGiven: 'publicApp.tournamentStats.colAfterblowGivenTitle',
+    hitsReceived: 'publicApp.tournamentStats.colCleanReceivedTitle',
+    afterblowReceived: 'publicApp.tournamentStats.colAfterblowReceivedTitle',
+  } as const;
+  const blowCellClass = {
+    hitsGiven: 'text-green-700',
+    afterblowGiven: 'text-orange-600',
+    hitsReceived: 'text-red-600',
+    afterblowReceived: 'text-red-400',
+  } as const;
 
   // Point-value distribution (1pt/2pt/3pt) for the stacked bar.
   const targetTotal = targets.distribution.reduce((s, d) => s + d.cleanHits, 0);
   const DIST_COLORS = ['bg-amber-600', 'bg-red-800', 'bg-purple-700', 'bg-emerald-700'];
 
   // Exchange type distribution
-  const totalClean = fighters.reduce((s, f) => s + f.hitsGiven1 + f.hitsGiven2, 0) / 2; // each exchange counted twice (attacker + defender)
-  const totalAfterblows =
-    fighters.reduce((s, f) => s + f.afterblowGiven1 + f.afterblowGiven2, 0) / 2;
+  // Every value, not just 1 and 2 — summing two named buckets undercounted any
+  // tournament that used a deeper target. Halved because each exchange appears
+  // twice, once for the attacker and once for the defender.
+  const sumBlows = (kind: 'hitsGiven' | 'afterblowGiven') =>
+    fighters.reduce((sum, f) => sum + f.byValue.reduce((s, v) => s + v[kind], 0), 0) / 2;
+  const totalClean = sumBlows('hitsGiven');
+  const totalAfterblows = sumBlows('afterblowGiven');
   const totalDoubles = overview?.doublesCount ?? 0;
   const totalEx = overview?.exchangeCount ?? 1;
 
@@ -263,66 +282,19 @@ export function StatsView({ overview, fighters, targets, colorToken, t }: Props)
                   >
                     {t('publicApp.tournamentStats.colDoubles')}
                   </th>
-                  <th
-                    className="text-center py-2 px-1.5 font-medium text-green-700"
-                    title={t('publicApp.tournamentStats.colClean1GivenTitle')}
-                  >
-                    ✓1
-                  </th>
-                  <th
-                    className="text-center py-2 px-1.5 font-medium text-orange-600"
-                    title={t('publicApp.tournamentStats.colAfterblow1GivenTitle')}
-                  >
-                    ✓1-1
-                  </th>
-                  <th
-                    className="text-center py-2 px-1.5 font-medium text-green-700"
-                    title={t('publicApp.tournamentStats.colClean2GivenTitle')}
-                  >
-                    ✓2
-                  </th>
-                  <th
-                    className="text-center py-2 px-1.5 font-medium text-orange-600"
-                    title={t('publicApp.tournamentStats.colAfterblow2GivenTitle')}
-                  >
-                    ✓2-1
-                  </th>
-                  {hasV3 && (
-                    <>
-                      <th className="text-center py-2 px-1.5 font-medium text-green-700">✓3</th>
-                      <th className="text-center py-2 px-1.5 font-medium text-orange-600">✓3-1</th>
-                    </>
-                  )}
-                  <th
-                    className="text-center py-2 px-1.5 font-medium text-red-600"
-                    title={t('publicApp.tournamentStats.colClean1ReceivedTitle')}
-                  >
-                    ✗1
-                  </th>
-                  <th
-                    className="text-center py-2 px-1.5 font-medium text-red-400"
-                    title={t('publicApp.tournamentStats.colAfterblow1ReceivedTitle')}
-                  >
-                    ✗1-1
-                  </th>
-                  <th
-                    className="text-center py-2 px-1.5 font-medium text-red-600"
-                    title={t('publicApp.tournamentStats.colClean2ReceivedTitle')}
-                  >
-                    ✗2
-                  </th>
-                  <th
-                    className="text-center py-2 px-1.5 font-medium text-red-400"
-                    title={t('publicApp.tournamentStats.colAfterblow2ReceivedTitle')}
-                  >
-                    ✗2-1
-                  </th>
-                  {hasV3 && (
-                    <>
-                      <th className="text-center py-2 px-1.5 font-medium text-red-600">✗3</th>
-                      <th className="text-center py-2 px-1.5 font-medium text-red-400">✗3-1</th>
-                    </>
-                  )}
+                  {blowCols.map((col) => (
+                    <th
+                      key={`${col.kind}-${col.value}`}
+                      className={`text-center py-2 px-1.5 font-medium ${blowCellClass[col.kind]}`}
+                      title={
+                        col.worthUnknown
+                          ? t('publicApp.tournamentStats.afterblowWorthUnknownTitle')
+                          : t(blowTitleKey[col.kind])
+                      }
+                    >
+                      {col.label}
+                    </th>
+                  ))}
                   <th
                     className="text-center py-2 px-1.5 font-medium"
                     title={t('publicApp.tournamentStats.colTotalTitle')}
@@ -359,48 +331,19 @@ export function StatsView({ overview, fighters, targets, colorToken, t }: Props)
                       {f.clubName && <p className="text-muted text-xs">{f.clubName}</p>}
                     </td>
                     <td className="text-center py-2 px-1.5">{fmt(f.doubles)}</td>
-                    <td className="text-center py-2 px-1.5 text-green-700">{fmt(f.hitsGiven1)}</td>
-                    <td className="text-center py-2 px-1.5 text-orange-600">
-                      {fmt(f.afterblowGiven1)}
-                    </td>
-                    <td className="text-center py-2 px-1.5 text-green-700">{fmt(f.hitsGiven2)}</td>
-                    <td className="text-center py-2 px-1.5 text-orange-600">
-                      {fmt(f.afterblowGiven2)}
-                    </td>
-                    {hasV3 && (
-                      <>
-                        <td className="text-center py-2 px-1.5 text-green-700">
-                          {fmt(f.hitsGiven3)}
-                        </td>
-                        <td className="text-center py-2 px-1.5 text-orange-600">
-                          {fmt(f.afterblowGiven3)}
-                        </td>
-                      </>
-                    )}
-                    <td className="text-center py-2 px-1.5 text-red-600">{fmt(f.hitsReceived1)}</td>
-                    <td
-                      className="text-center py-2 px-1.5 text-red-400"
-                      title={t('publicApp.tournamentStats.blowAlwaysCountedTitle')}
-                    >
-                      {fmt(f.afterblowReceived1)}
-                    </td>
-                    <td className="text-center py-2 px-1.5 text-red-600">{fmt(f.hitsReceived2)}</td>
-                    <td
-                      className="text-center py-2 px-1.5 text-red-400"
-                      title={t('publicApp.tournamentStats.blowAlwaysCountedTitle')}
-                    >
-                      {fmt(f.afterblowReceived2)}
-                    </td>
-                    {hasV3 && (
-                      <>
-                        <td className="text-center py-2 px-1.5 text-red-600">
-                          {fmt(f.hitsReceived3)}
-                        </td>
-                        <td className="text-center py-2 px-1.5 text-red-400">
-                          {fmt(f.afterblowReceived3)}
-                        </td>
-                      </>
-                    )}
+                    {blowCols.map((col) => (
+                      <td
+                        key={`${col.kind}-${col.value}`}
+                        className={`text-center py-2 px-1.5 ${blowCellClass[col.kind]}`}
+                        title={
+                          col.kind === 'afterblowReceived'
+                            ? t('publicApp.tournamentStats.blowAlwaysCountedTitle')
+                            : undefined
+                        }
+                      >
+                        {fmt(blowCount(f.byValue, col))}
+                      </td>
+                    ))}
                     <td className="text-center py-2 px-1.5">{fmt(f.totalExchanges)}</td>
                     <td className="text-center py-2 px-1.5">
                       {f.totalExchanges > 0

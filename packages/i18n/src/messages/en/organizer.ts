@@ -1157,8 +1157,10 @@ export const organizer = {
       colTotal: 'Total',
       colDoublePct: 'Dbl %',
       colRatio: 'Hit ratio',
+      afterblowWorthUnknownTitle:
+        'This ruleset scores an afterblow by the target it hit, so the column heading claims no fixed worth',
       caption:
-        '✓ = landed the first strike · ✗ = received it · 1/2/3 = target value · -1 = with afterblow.',
+        '✓ = landed the first strike · ✗ = received it · the number is the target value · after the dash is the afterblow’s worth.',
     },
     deepTargets: {
       title: 'Deep-target hunters',

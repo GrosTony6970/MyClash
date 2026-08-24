@@ -4,6 +4,8 @@
  * matching the repo convention of per-app interface declarations).
  */
 
+import type { AfterblowRule, BlowValueCounts } from '@myclash/ui';
+
 export interface PodiumEntry {
   place: number;
   fighterName: string;
@@ -83,18 +85,12 @@ export interface FighterStats {
   familyName: string;
   clubName: string | null;
   doubles: number;
-  hitsGiven1: number;
-  afterblowGiven1: number;
-  hitsGiven2: number;
-  afterblowGiven2: number;
-  hitsGiven3: number;
-  afterblowGiven3: number;
-  hitsReceived1: number;
-  afterblowReceived1: number;
-  hitsReceived2: number;
-  afterblowReceived2: number;
-  hitsReceived3: number;
-  afterblowReceived3: number;
+  /**
+   * Blow counts keyed by the point value that occurred, ascending. Twelve fixed
+   * fields before (`hitsGiven1`..`afterblowReceived3`), so a target worth 4 or
+   * more had nowhere to appear. See migration 0189.
+   */
+  byValue: BlowValueCounts[];
   blowsGiven: number;
   blowsReceived: number;
   totalExchanges: number;
@@ -121,4 +117,6 @@ export interface TournamentDetail {
   tournamentId: string;
   standings: { columns: StandingsColumn[]; rows: StandingsRow[] };
   fighters: FighterStats[];
+  /** The ruleset's afterblow valuation, for the blow table column headings. */
+  afterblow: AfterblowRule;
 }

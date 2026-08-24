@@ -21,14 +21,32 @@ const fighters = Array.from({ length: FIGHTER_COUNT }, (_, index) => ({
   familyName: `Perf${index}`,
   clubName: `Club ${index % 10}`,
   doubles: index % 4,
-  hitsGiven1: 10 + (index % 5),
-  afterblowGiven1: index % 3,
-  hitsGiven2: 5 + (index % 4),
-  afterblowGiven2: index % 2,
-  hitsReceived1: 8 + (index % 4),
-  afterblowReceived1: index % 3,
-  hitsReceived2: 4 + (index % 2),
-  afterblowReceived2: index % 2,
+  // Three point values, one of them ABOVE the old fixed 1/2/3 buckets, so the
+  // harness weighs a table with the column count a real deep-target ruleset
+  // produces rather than the four it used to be capped at.
+  byValue: [
+    {
+      value: 1,
+      hitsGiven: 10 + (index % 5),
+      afterblowGiven: index % 3,
+      hitsReceived: 8 + (index % 4),
+      afterblowReceived: index % 3,
+    },
+    {
+      value: 2,
+      hitsGiven: 5 + (index % 4),
+      afterblowGiven: index % 2,
+      hitsReceived: 4 + (index % 2),
+      afterblowReceived: index % 2,
+    },
+    {
+      value: 5,
+      hitsGiven: index % 3,
+      afterblowGiven: index % 2,
+      hitsReceived: index % 2,
+      afterblowReceived: index % 3,
+    },
+  ],
   blowsGiven: 20 + index,
   blowsReceived: 12 + index,
   afterblowsReceivedTotal: index % 5,
@@ -71,7 +89,12 @@ globalThis.fetch = async (input: string | URL | Request): Promise<Response> => {
   }
 
   if (url.includes('/api/v1/tournaments/tournament-perf/stats/fighters')) {
-    return jsonResponse(fighters);
+    // { fighters, afterblow } since migration 0189 -- the counts, plus how the
+    // ruleset values an afterblow so the columns can be headed truthfully.
+    return jsonResponse({
+      fighters,
+      afterblow: { valuation: 'fixed', fixedValue: 1 },
+    });
   }
 
   return new Response(null, { status: 404 });

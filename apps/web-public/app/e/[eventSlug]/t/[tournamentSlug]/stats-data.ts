@@ -11,7 +11,21 @@
  * `no-server-api-url-leak` lint if pulled into a client file).
  */
 
+import type { AfterblowRule, BlowValueCounts } from '@myclash/ui';
+
 // ── API types ─────────────────────────────────────────────────────────────────
+
+/** GET /tournaments/:id/stats/fighters */
+export interface FighterStatsPayload {
+  fighters: FighterStats[];
+  afterblow: AfterblowRule;
+}
+
+/**
+ * No ruleset resolved, so the table claims no worth for an afterblow rather
+ * than heading the column with a number nobody declared.
+ */
+const EMPTY_AFTERBLOW: AfterblowRule = { valuation: null, fixedValue: null };
 
 export interface FighterStats {
   registrationId: string;
@@ -19,18 +33,12 @@ export interface FighterStats {
   familyName: string;
   clubName: string | null;
   doubles: number;
-  hitsGiven1: number;
-  afterblowGiven1: number;
-  hitsGiven2: number;
-  afterblowGiven2: number;
-  hitsGiven3: number;
-  afterblowGiven3: number;
-  hitsReceived1: number;
-  afterblowReceived1: number;
-  hitsReceived2: number;
-  afterblowReceived2: number;
-  hitsReceived3: number;
-  afterblowReceived3: number;
+  /**
+   * Blow counts keyed by the point value that occurred, ascending. Twelve fixed
+   * fields before (`hitsGiven1`..`afterblowReceived3`), so a target worth 4 or
+   * more had nowhere to appear. See migration 0189.
+   */
+  byValue: BlowValueCounts[];
   blowsGiven: number;
   blowsReceived: number;
   afterblowsReceivedTotal: number;
@@ -69,6 +77,8 @@ export const EMPTY_TARGETS: TargetValueStats = { maxValue: null, distribution: [
 export interface TournamentStats {
   overview: Overview | null;
   fighters: FighterStats[];
+  /** The ruleset's afterblow valuation, for the blow table column headings. */
+  afterblow: AfterblowRule;
   targets: TargetValueStats;
 }
 
@@ -100,11 +110,26 @@ export async function fetchTournamentStats(
     ]);
 
     const overview = overviewRes.ok ? ((await overviewRes.json()) as Overview) : null;
-    const fighters = fightersRes.ok ? ((await fightersRes.json()) as FighterStats[]) : [];
+    // The fighters endpoint returns { fighters, afterblow }: the counts, and how
+    // this tournament's ruleset values an afterblow so the columns can be headed
+    // truthfully rather than asserting FFAMHE's flat 1.
+    const fighterPayload = fightersRes.ok
+      ? ((await fightersRes.json()) as FighterStatsPayload)
+      : null;
     const targets = targetsRes.ok ? ((await targetsRes.json()) as TargetValueStats) : EMPTY_TARGETS;
 
-    return { overview, fighters, targets };
+    return {
+      overview,
+      fighters: fighterPayload?.fighters ?? [],
+      afterblow: fighterPayload?.afterblow ?? EMPTY_AFTERBLOW,
+      targets,
+    };
   } catch {
-    return { overview: null, fighters: [], targets: EMPTY_TARGETS };
+    return {
+      overview: null,
+      fighters: [],
+      afterblow: EMPTY_AFTERBLOW,
+      targets: EMPTY_TARGETS,
+    };
   }
 }

@@ -221,6 +221,13 @@ export {
 export type { SideColorToken, SideColorStyle } from './utils/side-color';
 
 export { formatMatchClock } from './utils/format-match-clock';
+export { blowCount, blowValueColumns, blowValuesPresent } from './utils/blow-value-columns';
+export type {
+  AfterblowRule,
+  BlowColumn,
+  BlowKind,
+  BlowValueCounts,
+} from './utils/blow-value-columns';
 
 // ── Unified match timeline (exchanges + cards, one contiguous numbering) ──
 // Shared by the scoring pad, the corrections drawer, the TV display and the

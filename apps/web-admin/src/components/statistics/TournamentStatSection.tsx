@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { blowCount, blowValueColumns, type AfterblowRule } from '@myclash/ui';
 import type { FighterStats, TournamentDetail, TournamentSummary } from './types';
 import { StandingsHeaderCell } from '@/components/standings/StandingsHeaderCell';
 import { useStandingsView } from '@/components/standings/useStandingsView';
@@ -29,9 +30,13 @@ function DistributionBar({
   doublesCount: number;
   t: Translate;
 }) {
-  // Each clean/afterblow blow is counted by both fighters → halve.
-  const clean = fighters.reduce((s, f) => s + f.hitsGiven1 + f.hitsGiven2, 0) / 2;
-  const afterblow = fighters.reduce((s, f) => s + f.afterblowGiven1 + f.afterblowGiven2, 0) / 2;
+  // Each clean/afterblow blow is counted by both fighters → halve. Summed over
+  // EVERY point value: adding two named buckets undercounted any tournament
+  // that used a deeper target.
+  const sumBlows = (kind: 'hitsGiven' | 'afterblowGiven') =>
+    fighters.reduce((sum, f) => sum + f.byValue.reduce((s, v) => s + v[kind], 0), 0) / 2;
+  const clean = sumBlows('hitsGiven');
+  const afterblow = sumBlows('afterblowGiven');
   const total = exchangeCount > 0 ? exchangeCount : 1;
   const pct = (n: number) => `${Math.round((n / total) * 100)}%`;
   const seg = [
@@ -62,41 +67,45 @@ function DistributionBar({
 }
 
 // ── Per-fighter blow table (lyonamhe.fr layout) ─────────────────────────────
-function DetailTable({ fighters, t }: { fighters: FighterStats[]; t: Translate }) {
+function DetailTable({
+  fighters,
+  afterblow,
+  t,
+}: {
+  fighters: FighterStats[];
+  afterblow: AfterblowRule;
+  t: Translate;
+}) {
   const sorted = [...fighters].sort((a, b) => (b.hitRatio ?? -1) - (a.hitRatio ?? -1));
-  // Show the value-3 columns only when the ruleset actually produced 3-pt hits,
-  // so the common 1/2 tournaments stay unchanged (migration 0136).
-  const hasV3 = fighters.some(
-    (f) => f.hitsGiven3 + f.afterblowGiven3 + f.hitsReceived3 + f.afterblowReceived3 > 0,
-  );
+  // Columns are derived from the point values the bouts actually produced, so a
+  // 1-and-2 tournament renders exactly the four it always did and a ruleset with
+  // a 7-point target gets a column instead of vanishing (migration 0189). This
+  // replaced a `hasV3` flag over twelve fixed fields.
+  const blowCols = blowValueColumns(fighters, afterblow);
   const doublePct = (f: FighterStats) =>
     f.totalExchanges > 0 ? `${Math.round((f.doubles / f.totalExchanges) * 100)}%` : '0%';
-  const numCols: Array<{ head: string; cls?: string; value: (f: FighterStats) => string }> = [
+  const numCols: Array<{
+    head: string;
+    cls?: string;
+    title?: string;
+    value: (f: FighterStats) => string;
+  }> = [
     { head: t('organizer.eventStats.detail.colDoubles'), value: (f) => fmt(f.doubles) },
-    { head: '✓1', cls: 'text-success', value: (f) => fmt(f.hitsGiven1) },
-    { head: '✓1-1', cls: 'text-warning', value: (f) => fmt(f.afterblowGiven1) },
-    { head: '✓2', cls: 'text-success', value: (f) => fmt(f.hitsGiven2) },
-    { head: '✓2-1', cls: 'text-warning', value: (f) => fmt(f.afterblowGiven2) },
-    ...(hasV3
-      ? [
-          { head: '✓3', cls: 'text-success', value: (f: FighterStats) => fmt(f.hitsGiven3) },
-          { head: '✓3-1', cls: 'text-warning', value: (f: FighterStats) => fmt(f.afterblowGiven3) },
-        ]
-      : []),
-    { head: '✗1', cls: 'text-danger', value: (f) => fmt(f.hitsReceived1) },
-    { head: '✗1-1', cls: 'text-danger', value: (f) => fmt(f.afterblowReceived1) },
-    { head: '✗2', cls: 'text-danger', value: (f) => fmt(f.hitsReceived2) },
-    { head: '✗2-1', cls: 'text-danger', value: (f) => fmt(f.afterblowReceived2) },
-    ...(hasV3
-      ? [
-          { head: '✗3', cls: 'text-danger', value: (f: FighterStats) => fmt(f.hitsReceived3) },
-          {
-            head: '✗3-1',
-            cls: 'text-danger',
-            value: (f: FighterStats) => fmt(f.afterblowReceived3),
-          },
-        ]
-      : []),
+    ...blowCols.map((col) => ({
+      head: col.label,
+      cls:
+        col.kind === 'hitsGiven'
+          ? 'text-success'
+          : col.kind === 'afterblowGiven'
+            ? 'text-warning'
+            : 'text-danger',
+      // `?` in place of a worth means the ruleset values an afterblow by the
+      // target it hit, so no single number can head the column.
+      title: col.worthUnknown
+        ? t('organizer.eventStats.detail.afterblowWorthUnknownTitle')
+        : undefined,
+      value: (f: FighterStats) => fmt(blowCount(f.byValue, col)),
+    })),
     { head: t('organizer.eventStats.detail.colTotal'), value: (f) => fmt(f.totalExchanges) },
     { head: t('organizer.eventStats.detail.colDoublePct'), value: doublePct },
   ];
@@ -113,7 +122,11 @@ function DetailTable({ fighters, t }: { fighters: FighterStats[]; t: Translate }
                 {t('organizer.eventStats.detail.colFighter')}
               </th>
               {numCols.map((c) => (
-                <th key={c.head} className={`px-1.5 py-2 text-center font-medium ${c.cls ?? ''}`}>
+                <th
+                  key={c.head}
+                  title={c.title}
+                  className={`px-1.5 py-2 text-center font-medium ${c.cls ?? ''}`}
+                >
                   {c.head}
                 </th>
               ))}
@@ -414,7 +427,7 @@ export function TournamentStatSection({
                 ) : null}
                 <StandingsTable detail={detail} t={t} />
                 {detail.fighters.length > 0 ? (
-                  <DetailTable fighters={detail.fighters} t={t} />
+                  <DetailTable fighters={detail.fighters} afterblow={detail.afterblow} t={t} />
                 ) : null}
               </div>
             )

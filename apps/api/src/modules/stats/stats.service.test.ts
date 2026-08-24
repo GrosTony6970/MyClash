@@ -27,14 +27,6 @@ function row(overrides: Record<string, unknown> = {}): Record<string, unknown> {
     family_name: 'Red',
     club_name: 'Lyon',
     doubles: 2,
-    hits_given_1: 1,
-    afterblow_given_1: 0,
-    hits_given_2: 0,
-    afterblow_given_2: 0,
-    hits_received_1: 1,
-    afterblow_received_1: 0,
-    hits_received_2: 0,
-    afterblow_received_2: 0,
     blows_given: 3,
     blows_received: 2,
     afterblows_received_total: 0,
@@ -47,27 +39,72 @@ function row(overrides: Record<string, unknown> = {}): Record<string, unknown> {
   };
 }
 
+/** A blow-value row, as `fighter_blow_value_stats` returns it (migration 0189). */
+function blowRow(overrides: Record<string, unknown> = {}): Record<string, unknown> {
+  return {
+    registration_id: 'r1',
+    point_value: 1,
+    hits_given: 0,
+    afterblow_given: 0,
+    hits_received: 0,
+    afterblow_received: 0,
+    ...overrides,
+  };
+}
+
+const resolveMock = vi.fn();
+const mockResolver = { resolve: resolveMock };
+
+/**
+ * The two RPCs answer on their function name, not on call order — the service
+ * issues them through Promise.all, so an ordered mock would depend on which
+ * settles first.
+ */
+function wireRpc(fighters: unknown[], blows: unknown[] = []) {
+  rpcMock.mockImplementation((fn: string) =>
+    Promise.resolve(
+      fn === 'fighter_blow_value_stats'
+        ? { data: blows, error: null }
+        : { data: fighters, error: null },
+    ),
+  );
+}
+
+/** tournaments.select(...).eq(...).maybeSingle() → the ruleset the bout used. */
+function wireTournament(rulesetCode: string | null = 'TF_v1', rulesetVersion = '1') {
+  const chain: Record<string, unknown> = {};
+  for (const k of ['select', 'eq']) chain[k] = vi.fn(() => chain);
+  chain['maybeSingle'] = vi.fn().mockResolvedValue({
+    data: rulesetCode ? { ruleset_code: rulesetCode, ruleset_version: rulesetVersion } : null,
+    error: null,
+  });
+  fromMock.mockReturnValue(chain);
+}
+
 function makeService() {
-  return new StatsService(mockSupabase as never);
+  return new StatsService(mockSupabase as never, mockResolver as never);
 }
 
 describe('StatsService', () => {
   beforeEach(() => {
     rpcMock.mockReset();
     fromMock.mockReset();
+    resolveMock.mockReset();
+    resolveMock.mockResolvedValue(null);
+    wireTournament(null);
   });
 
   describe('getFighterStats', () => {
     it('calls the on-read fighter_exchange_stats RPC and maps rows', async () => {
-      rpcMock.mockResolvedValue({ data: [row()], error: null });
+      wireRpc([row()]);
 
-      const result = await makeService().getFighterStats('tour-1');
+      const { fighters } = await makeService().getFighterStats('tour-1');
 
       expect(rpcMock).toHaveBeenCalledWith('fighter_exchange_stats', {
         p_tournament_id: 'tour-1',
       });
-      expect(result).toHaveLength(1);
-      expect(result[0]).toMatchObject({
+      expect(fighters).toHaveLength(1);
+      expect(fighters[0]).toMatchObject({
         registrationId: 'r1',
         givenName: 'Ann',
         familyName: 'Red',
@@ -81,43 +118,99 @@ describe('StatsService', () => {
       });
     });
 
-    it('returns [] when the function errors (e.g. pre-migration)', async () => {
+    it('returns no fighters when the function errors (e.g. pre-migration)', async () => {
       rpcMock.mockResolvedValue({ data: null, error: { message: 'missing function' } });
-      expect(await makeService().getFighterStats('tour-1')).toEqual([]);
+      expect((await makeService().getFighterStats('tour-1')).fighters).toEqual([]);
     });
 
     it('maps a null hit_ratio/point_ratio to null', async () => {
-      rpcMock.mockResolvedValue({
-        data: [row({ hit_ratio: null, point_ratio: null })],
-        error: null,
-      });
-      const [only] = await makeService().getFighterStats('tour-1');
+      wireRpc([row({ hit_ratio: null, point_ratio: null })]);
+      const [only] = (await makeService().getFighterStats('tour-1')).fighters;
       expect(only).toBeDefined();
       expect(only?.hitRatio).toBeNull();
       expect(only?.pointRatio).toBeNull();
     });
 
-    it('maps value-3 buckets (migration 0136), defaulting missing ones to 0', async () => {
-      rpcMock.mockResolvedValue({
-        data: [
-          row({
-            hits_given_3: 3,
-            afterblow_given_3: 1,
-            hits_received_3: 2,
-            afterblow_received_3: 0,
-          }),
-          row({ registration_id: 'r2' }), // no value-3 keys → all 0
+    it('carries a point value ABOVE 3, which the old fixed buckets could not', async () => {
+      // The defect this replaced: hits were counted into hits_given_1/2/3 only,
+      // so a target worth 4 or more was invisible in every blow column while
+      // still counting in blowsGiven and both ratios. A value is data now.
+      wireRpc(
+        [row()],
+        [
+          blowRow({ point_value: 1, hits_given: 2 }),
+          blowRow({ point_value: 7, hits_given: 1, afterblow_received: 3 }),
         ],
-        error: null,
+      );
+
+      const [fighter] = (await makeService().getFighterStats('tour-1')).fighters;
+
+      expect(fighter?.byValue).toEqual([
+        { value: 1, hitsGiven: 2, afterblowGiven: 0, hitsReceived: 0, afterblowReceived: 0 },
+        { value: 7, hitsGiven: 1, afterblowGiven: 0, hitsReceived: 0, afterblowReceived: 3 },
+      ]);
+    });
+
+    it('gives a fighter with no blows an empty list rather than dropping them', async () => {
+      wireRpc([row(), row({ registration_id: 'r2' })], [blowRow({ point_value: 2 })]);
+      const { fighters } = await makeService().getFighterStats('tour-1');
+      expect(fighters).toHaveLength(2);
+      expect(fighters[1]?.byValue).toEqual([]);
+    });
+
+    it("sorts each fighter's values ascending, whatever order SQL returned", async () => {
+      wireRpc([row()], [blowRow({ point_value: 5 }), blowRow({ point_value: 2 })]);
+      const [fighter] = (await makeService().getFighterStats('tour-1')).fighters;
+      expect(fighter?.byValue.map((v) => v.value)).toEqual([2, 5]);
+    });
+  });
+
+  describe('the afterblow label rule', () => {
+    it("reports the ruleset's own valuation, so the column is not headed -1 by assumption", async () => {
+      // The blow table heads its afterblow columns `✓2-1`: struck for 2, took an
+      // afterblow worth 1. That 1 is FFAMHE's rule, not every ruleset's.
+      wireRpc([row()]);
+      wireTournament('TF_v1', '1');
+      resolveMock.mockResolvedValue({
+        metadata: { hasAfterblow: true, afterblowValuation: 'fixed', afterblowFixedValue: 1 },
       });
-      const [a, b] = await makeService().getFighterStats('tour-1');
-      expect(a).toMatchObject({
-        hitsGiven3: 3,
-        afterblowGiven3: 1,
-        hitsReceived3: 2,
-        afterblowReceived3: 0,
+
+      const { afterblow } = await makeService().getFighterStats('tour-1');
+
+      expect(resolveMock).toHaveBeenCalledWith('TF_v1', '1.0.0');
+      expect(afterblow).toEqual({ valuation: 'fixed', fixedValue: 1 });
+    });
+
+    it('reports weighted, where no single number can label the column', async () => {
+      wireRpc([row()]);
+      wireTournament('custom_x', '2');
+      resolveMock.mockResolvedValue({
+        metadata: { hasAfterblow: true, afterblowValuation: 'weighted', afterblowFixedValue: null },
       });
-      expect(b).toMatchObject({ hitsGiven3: 0, afterblowGiven3: 0, hitsReceived3: 0 });
+
+      const { afterblow } = await makeService().getFighterStats('tour-1');
+
+      expect(afterblow).toEqual({ valuation: 'weighted', fixedValue: null });
+    });
+
+    it('claims nothing when the ruleset has no afterblow concept', async () => {
+      wireRpc([row()]);
+      wireTournament('Generic_PointsCap', '1');
+      resolveMock.mockResolvedValue({ metadata: { hasAfterblow: false } });
+
+      const { afterblow } = await makeService().getFighterStats('tour-1');
+
+      expect(afterblow).toEqual({ valuation: null, fixedValue: null });
+    });
+
+    it('claims nothing when the ruleset cannot be resolved at all', async () => {
+      wireRpc([row()]);
+      wireTournament('gone', '1');
+      resolveMock.mockResolvedValue(null);
+
+      const { afterblow } = await makeService().getFighterStats('tour-1');
+
+      expect(afterblow).toEqual({ valuation: null, fixedValue: null });
     });
   });
 
@@ -157,69 +250,6 @@ describe('StatsService', () => {
     it('returns [] when the function errors (pre-migration)', async () => {
       rpcMock.mockResolvedValue({ data: null, error: { message: 'missing function' } });
       expect(await makeService().getTargetValueRows('tour-1')).toEqual([]);
-    });
-  });
-
-  describe('aggregateTargetValues', () => {
-    const tv = (o: Partial<Parameters<typeof StatsService.aggregateTargetValues>[0][number]>) => ({
-      registrationId: 'r',
-      personId: 'p',
-      givenName: 'A',
-      familyName: 'B',
-      clubName: null as string | null,
-      pointValue: 1,
-      cleanHits: 1,
-      ...o,
-    });
-
-    it('returns nulls/empties for no rows', () => {
-      expect(StatsService.aggregateTargetValues([])).toEqual({
-        maxValue: null,
-        distribution: [],
-        hunters: [],
-      });
-    });
-
-    it('derives maxValue = highest value present (supports 3) and sorts distribution asc', () => {
-      const res = StatsService.aggregateTargetValues([
-        tv({ personId: 'p1', pointValue: 2, cleanHits: 5 }),
-        tv({ personId: 'p2', pointValue: 1, cleanHits: 3 }),
-        tv({ personId: 'p3', pointValue: 3, cleanHits: 2 }),
-      ]);
-      expect(res.maxValue).toBe(3);
-      expect(res.distribution).toEqual([
-        { value: 1, cleanHits: 3 },
-        { value: 2, cleanHits: 5 },
-        { value: 3, cleanHits: 2 },
-      ]);
-    });
-
-    it('ranks hunters by clean hits AT maxValue, ties by name, top 5', () => {
-      const res = StatsService.aggregateTargetValues([
-        tv({ personId: 'p1', givenName: 'Zoe', familyName: '', pointValue: 2, cleanHits: 4 }),
-        tv({ personId: 'p2', givenName: 'Amy', familyName: '', pointValue: 2, cleanHits: 4 }),
-        tv({ personId: 'p3', givenName: 'Bo', familyName: '', pointValue: 2, cleanHits: 7 }),
-        tv({ personId: 'p4', givenName: 'Cy', familyName: '', pointValue: 1, cleanHits: 9 }),
-      ]);
-      expect(res.maxValue).toBe(2);
-      // Bo (7) leads; tie at 4 broken by name → Amy before Zoe; p4 excluded (value 1 ≠ maxValue).
-      expect(res.hunters.map((h) => h.name)).toEqual(['Bo', 'Amy', 'Zoe']);
-    });
-
-    it('merges the same person across tournaments (sum clean hits at maxValue, keep club)', () => {
-      const res = StatsService.aggregateTargetValues([
-        tv({ personId: 'p1', givenName: 'Ann', familyName: 'R', pointValue: 2, cleanHits: 3 }),
-        tv({
-          personId: 'p1',
-          givenName: 'Ann',
-          familyName: 'R',
-          pointValue: 2,
-          cleanHits: 2,
-          clubName: 'Lyon',
-        }),
-      ]);
-      expect(res.hunters).toHaveLength(1);
-      expect(res.hunters[0]).toMatchObject({ personId: 'p1', cleanHits: 5, club: 'Lyon' });
     });
   });
 
