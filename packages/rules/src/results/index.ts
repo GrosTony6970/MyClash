@@ -59,7 +59,7 @@ export type {
   LinkedTournamentChange,
 } from './league-freshness';
 
-export { DEFAULT_LEAGUE_SCORING_CONFIG } from './league-types';
+export { DEFAULT_LEAGUE_SCORING_CONFIG, normalizeScoringConfig } from './league-types';
 export type {
   LeagueRankingDimensions,
   LeagueRankingRow,
@@ -78,3 +78,18 @@ export {
   medalFor,
   pointsForRank,
 } from './league-scoring';
+
+// A fighter's own record across every event they have entered.
+export { buildFighterCareer } from './fighter-career';
+export type {
+  BuildFighterCareerInput,
+  CareerExchangeInput,
+  CareerLeagueRankingInput,
+  CareerMatchInput,
+  CareerPenaltyInput,
+  CareerRegistrationInput,
+  FighterCareerStats,
+  FighterEventStat,
+  FighterPenalty,
+  TournamentPlacement,
+} from './fighter-career';

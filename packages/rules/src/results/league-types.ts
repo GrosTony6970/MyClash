@@ -86,3 +86,35 @@ export const DEFAULT_LEAGUE_SCORING_CONFIG: LeagueScoringConfig = {
   rankingDimensions: 'weapon',
   tieBreakers: ['total_points', 'participation_count', 'medal_count', 'double_hit_average'],
 };
+
+/**
+ * Fill a stored `leagues.scoring_config` blob out to a complete config.
+ *
+ * The column is JSON written by an admin screen and by migrations, so anything
+ * may be missing; every gap falls back to `DEFAULT_LEAGUE_SCORING_CONFIG`. An
+ * empty `tieBreakers` array counts as missing on purpose — a league with no
+ * chain at all would rank on the terminal fighter-name key alone.
+ *
+ * Was a free function in `apps/api`'s 2,204-line `leagues.service.ts` with five
+ * callers. It has no I/O and defaults against the shape declared above, so it
+ * belongs beside it.
+ */
+export function normalizeScoringConfig(input: unknown): LeagueScoringConfig {
+  const source = (input ?? {}) as Partial<LeagueScoringConfig> & {
+    scoringSystem?: LeagueScoringConfig['scoringSystem'];
+    rankingDimensions?: LeagueScoringConfig['rankingDimensions'];
+  };
+  const scoringSystem = source.scoringSystem ?? DEFAULT_LEAGUE_SCORING_CONFIG.scoringSystem;
+  const rankingDimensions =
+    source.rankingDimensions ?? DEFAULT_LEAGUE_SCORING_CONFIG.rankingDimensions;
+  const tieBreakers =
+    source.tieBreakers && source.tieBreakers.length > 0
+      ? source.tieBreakers
+      : DEFAULT_LEAGUE_SCORING_CONFIG.tieBreakers;
+  return {
+    scoringSystem,
+    rankingDimensions,
+    customPointsByRank: source.customPointsByRank,
+    tieBreakers,
+  };
+}

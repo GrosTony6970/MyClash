@@ -1,4 +1,4 @@
-import type { FinalRankingResultKind } from '@myclash/types';
+import type { FinalRankingResultKind } from '../ranking';
 
 export interface CareerRegistrationInput {
   id: string;

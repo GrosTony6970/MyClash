@@ -44,7 +44,7 @@ import {
   type CareerPenaltyInput,
   type CareerRegistrationInput,
   type TournamentPlacement,
-} from './fighter-career';
+} from '@myclash/rules/results';
 import {
   buildRefereeStats,
   type MatchFighters,

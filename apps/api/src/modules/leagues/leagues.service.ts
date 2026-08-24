@@ -10,11 +10,11 @@ import { OrganizationsService } from '../organizations/organizations.service';
 import { SupabaseService } from '../supabase/supabase.service';
 import { hasPlatformTier } from '../../common/auth/platform-role';
 import {
-  DEFAULT_LEAGUE_SCORING_CONFIG,
   type LeagueRankingRow,
   type LeagueScoringConfig,
   type LeagueTournamentContribution,
   type TournamentContributionInput,
+  normalizeScoringConfig,
 } from '@myclash/rules/results';
 import { LeagueScoringService } from './league-scoring.service';
 import {
@@ -2153,26 +2153,6 @@ export class LeaguesService {
     if (error) throw new BadRequestException(error.message);
     return (data ?? []) as Row[];
   }
-}
-
-function normalizeScoringConfig(input: unknown): LeagueScoringConfig {
-  const source = (input ?? {}) as Partial<LeagueScoringConfig> & {
-    scoringSystem?: LeagueScoringConfig['scoringSystem'];
-    rankingDimensions?: LeagueScoringConfig['rankingDimensions'];
-  };
-  const scoringSystem = source.scoringSystem ?? DEFAULT_LEAGUE_SCORING_CONFIG.scoringSystem;
-  const rankingDimensions =
-    source.rankingDimensions ?? DEFAULT_LEAGUE_SCORING_CONFIG.rankingDimensions;
-  const tieBreakers =
-    source.tieBreakers && source.tieBreakers.length > 0
-      ? source.tieBreakers
-      : DEFAULT_LEAGUE_SCORING_CONFIG.tieBreakers;
-  return {
-    scoringSystem,
-    rankingDimensions,
-    customPointsByRank: source.customPointsByRank,
-    tieBreakers,
-  };
 }
 
 /**
