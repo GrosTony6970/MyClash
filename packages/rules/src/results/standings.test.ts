@@ -4,8 +4,8 @@
  * turning "why am I 3rd?" into data a fighter page can render.
  */
 import { describe, expect, it } from 'vitest';
-import type { RankingRule } from '@myclash/rulesets';
-import { applyRanking, type StandingsRow } from './standings-rows';
+import type { RankingRule } from '../ranking';
+import { applyRanking, type StandingsRow } from './standings';
 
 const CHAIN: RankingRule[] = [
   { key: 'score', direction: 'desc' },

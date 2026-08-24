@@ -7,7 +7,8 @@ import type {
   Ruleset,
   StandingsColumn,
 } from '@myclash/rulesets';
-import { applyRanking, type PoolWithMembers, type StandingsRow } from './standings-rows';
+import { applyRanking, type StandingsRow } from '@myclash/rules/results';
+import type { PoolWithMembers } from './pool-rows';
 import { poolScoresByRegistration } from './ruleset-scores';
 
 /**

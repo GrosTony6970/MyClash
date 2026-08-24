@@ -65,8 +65,13 @@ import {
   parseSeed,
   seedingSourceKind,
   type RankedRegistration,
-} from './bracket-r1-seeding';
-import { rankBySeed, rankByRating, rankRandom, type SeedableRegistration } from './r1-ranking';
+} from '@myclash/rules/results';
+import {
+  rankBySeed,
+  rankByRating,
+  rankRandom,
+  type SeedableRegistration,
+} from '@myclash/rules/results';
 // Value import, not `import type`: Nest DI metadata.
 import { SwissStandingsService } from '../swiss/swiss-standings.service';
 import { MatchAlertRefresherService } from '../notifications/match-alert-refresher.service';

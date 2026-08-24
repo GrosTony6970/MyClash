@@ -1,4 +1,14 @@
-import type { RankingRule } from '@myclash/rulesets';
+/**
+ * The single ordering authority for standings, and the reason a fighter sits
+ * where they do.
+ *
+ * Was `apps/api/src/modules/pool-standings/standings-rows.ts`. `PoolWithMembers`
+ * did NOT come with it: that interface is a PostgREST embed shape
+ * (`pool_members`, `registration_id`, `persons`, `clubs`), and a database row
+ * shape crossing into the deterministic core is what the seam exists to stop.
+ * It stays in the API adapter as `pool-rows.ts`.
+ */
+import type { RankingRule } from '../ranking';
 
 /**
  * Why this fighter is ranked below the one directly above them: the first
@@ -27,24 +37,6 @@ export interface StandingsRow {
    * that build rows before ranking need not set it.
    */
   decidingTiebreak?: DecidingTiebreak | null;
-}
-
-/** A pool with its members, as embedded by the pools select. */
-export interface PoolWithMembers {
-  id: string;
-  name: string;
-  pool_members: Array<{
-    registration_id: string;
-    registrations: {
-      id: string;
-      persons: {
-        id: string;
-        given_name: string;
-        family_name: string;
-        clubs: { id: string; name: string; abbreviation: string | null } | null;
-      };
-    };
-  }>;
 }
 
 /**

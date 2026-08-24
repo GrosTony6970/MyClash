@@ -2,7 +2,8 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import { FORFEIT_REASONS } from '@myclash/rulesets';
 import type { StandingsColumn, RankingRule, Exchange, Ruleset } from '@myclash/rulesets';
 import { computeStandingsRows } from './compute-rows';
-import { applyRanking, type PoolWithMembers, type StandingsRow } from './standings-rows';
+import { applyRanking, type StandingsRow } from '@myclash/rules/results';
+import type { PoolWithMembers } from './pool-rows';
 import { SupabaseService } from '../supabase/supabase.service';
 // Value import ON PURPOSE — `import type` erases the DI metadata Nest needs to
 // resolve the provider (see modules/matches/di-wiring.regression.test.ts).
@@ -10,7 +11,7 @@ import { RulesetResolver } from '../matches/ruleset-resolver.service';
 import { normalizeRulesetVersion } from '../events/ruleset-defaults';
 
 // Re-exported so existing consumers keep importing StandingsRow from here.
-export type { StandingsRow } from './standings-rows';
+export type { StandingsRow } from '@myclash/rules/results';
 
 /**
  * The ruleset context a fighter page needs to EXPLAIN a placing, projected onto

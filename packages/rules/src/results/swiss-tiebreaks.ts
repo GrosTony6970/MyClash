@@ -1,5 +1,5 @@
-import type { RankingRule } from '@myclash/rulesets';
-import type { SwissTiebreakKey } from './dto/swiss-config.dto';
+import type { RankingRule } from '../ranking';
+import type { SwissTiebreakKey } from '../ranking';
 
 /**
  * The Swiss tiebreak keys, computed from who played whom.

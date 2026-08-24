@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { RankingRule } from '@myclash/rulesets';
+import type { RankingRule } from '../ranking';
 import {
   buildSwissRankingChain,
   headToHeadWithin,

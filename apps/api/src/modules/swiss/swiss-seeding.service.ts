@@ -2,9 +2,9 @@ import { BadRequestException, Injectable, Optional } from '@nestjs/common';
 import { SupabaseService } from '../supabase/supabase.service';
 // Value import, not `import type`: Nest DI metadata.
 import { HemaRatingsService } from '../hema-ratings/hema-ratings.service';
-import { rankByRating, rankRandom, type SeedableRegistration } from '../phases/r1-ranking';
+import { rankByRating, rankRandom, type SeedableRegistration } from '@myclash/rules/results';
 import { SWISS_DEFAULTS, type GenerateSwissDto } from './dto/swiss.dto';
-import type { RankedRegistration } from '../phases/bracket-r1-seeding';
+import type { RankedRegistration } from '@myclash/rules/results';
 
 export interface RatingCoverage {
   rated: number;

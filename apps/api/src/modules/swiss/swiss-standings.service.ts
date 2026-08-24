@@ -4,7 +4,7 @@ import { SupabaseService } from '../supabase/supabase.service';
 // Value import ON PURPOSE — `import type` erases the DI metadata Nest needs.
 import { RulesetResolver } from '../matches/ruleset-resolver.service';
 import { computeStandingsRows, type StandingsMember } from '../pool-standings/compute-rows';
-import { applyRanking, type StandingsRow } from '../pool-standings/standings-rows';
+import { applyRanking, type StandingsRow } from '@myclash/rules/results';
 import type { SwissConfig } from './dto/swiss-config.dto';
 import {
   loadScoringInputs,
@@ -22,7 +22,7 @@ import {
   opponentTiebreaks,
   type SwissOutcome,
   type SwissResultRecord,
-} from './swiss-tiebreaks';
+} from '@myclash/rules/results';
 
 export interface SwissStandingsRow extends StandingsRow {
   /** Decision 11: a withdrawal keeps its row, ranked on what it played. */
