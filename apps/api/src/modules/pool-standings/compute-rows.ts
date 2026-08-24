@@ -2,7 +2,6 @@ import { computeAggregates } from '@myclash/rulesets';
 import type {
   Exchange,
   FighterAggregates,
-  Match,
   RankingRule,
   Ruleset,
   StandingsColumn,
@@ -121,13 +120,10 @@ export function computeStandingsRows(input: ComputeRowsInput): StandingsRow[] {
 
     // Accumulate the canonical per-fighter aggregates from this match's
     // exchanges (hits given/received, doubles) + the win count the score
-    // formula needs. computeAggregates only reads redRegistrationId +
-    // exchange fields, so a minimal Match cast is enough.
+    // formula needs. `computeAggregates` asks for the one field it reads, so
+    // this is a plain object rather than a row cast into a domain type.
     const matchExchanges = exchangesByMatch.get(m.id) ?? [];
-    const rulesetMatch = {
-      redRegistrationId: m.red_registration_id,
-      blueRegistrationId: m.blue_registration_id,
-    } as unknown as Match;
+    const rulesetMatch = { redRegistrationId: m.red_registration_id };
     for (const regId of [m.red_registration_id, m.blue_registration_id]) {
       const acc = aggByReg.get(regId);
       if (!acc) continue;

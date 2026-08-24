@@ -33,10 +33,16 @@ export interface FighterAggregates {
 /**
  * Compute per-fighter aggregates from non-voided exchanges.
  * ARCHITECTURE.md §6.1.
+ *
+ * `match` is narrowed to the one field this reads. It used to take a whole
+ * `Match`, which meant the API's standings builder -- holding PostgREST rows,
+ * not domain objects -- had to invent one with `as unknown as Match` and a
+ * comment explaining that only two fields were needed. A signature that asks
+ * for what it uses removes both.
  */
 export function computeAggregates(
   registrationId: string,
-  match: Match,
+  match: Pick<Match, 'redRegistrationId'>,
   exchanges: Exchange[],
   isWinner: boolean,
   afterblowMode: AfterblowMode = 'full',
