@@ -495,6 +495,77 @@ describe('PhasesService', () => {
       expect(result.totalMatches).toBe(0);
     });
 
+    it('refuses an explicit poolCount larger than the field', async () => {
+      // The clamp above only runs on the auto-distribution branch, so an explicit
+      // poolCount walks straight past it. This is the guard that catches what it
+      // lets through: 5 pools for 3 fighters would leave two of them empty and
+      // silently gap the schedule.
+      //
+      // Nothing downstream is seeded on purpose. If the guard stops firing, pool
+      // generation proceeds and the double throws on the first unconfigured
+      // table — so this cannot pass by reaching a different refusal.
+      const { service, supabase } = makeService({
+        phases: { rows: [POOL_PHASE_ELSEWHERE] },
+        tournaments: { rows: TOURNAMENTS },
+        registrations: {
+          rows: [...Array.from({ length: 3 }, (_, i) => reg(`r${i + 1}`, i + 1)), ...REG_DECOYS],
+        },
+      });
+
+      await expect(
+        service.generatePools('tournament-1', { poolCount: 5 }, false),
+      ).rejects.toBeInstanceOf(BadRequestException);
+      // The counts are in the message the organiser reads, so pin both.
+      await expect(service.generatePools('tournament-1', { poolCount: 5 }, false)).rejects.toThrow(
+        'Cannot create 5 pools with only 3 fighters',
+      );
+      expect(writesTo(supabase, 'phases')).toEqual([]);
+    });
+
+    it('an explicit poolCount equal to the field makes every pool a singleton, and no matches', async () => {
+      // poolCount === fighterCount clears the guard above (3 is not > 3), so all
+      // three pools hold one fighter and the berger skip has to fire three times.
+      // The existing singleton test reaches that guard once; this proves it holds
+      // on repeat rather than by luck of there being a single pool.
+      //
+      // `matches` is deliberately not seeded: bergerSchedule(1) throws, and if the
+      // skip stopped firing the insert would hit an unconfigured table first.
+      const { service } = makeService({
+        phases: { rows: [BRACKET_PHASE_HERE] },
+        tournaments: { rows: TOURNAMENTS },
+        registrations: {
+          rows: [...Array.from({ length: 3 }, (_, i) => reg(`r${i + 1}`, i + 1)), ...REG_DECOYS],
+        },
+        pools: { rows: [{ id: 'pool-1' }] },
+        pool_members: { rows: [] },
+      });
+
+      const result = await service.generatePools('tournament-1', { poolCount: 3 }, false);
+      expect(result.poolCount).toBe(3);
+      expect(result.totalMatches).toBe(0);
+    });
+
+    it('caps poolCount at floor(N/2), not at a constant (7 fighters, targetSize=2 → 3 pools)', async () => {
+      // The 5→2 case above is satisfied by any cap of 2. This second point pins
+      // the formula: ceil(7/2) asks for 4 pools, floor(7/2) allows 3, and the
+      // distribution lands 3/2/2 — every pool round-robinnable, so berger runs
+      // for all three and totalMatches is 3 + 1 + 1.
+      const { service } = makeService({
+        phases: { rows: [POOL_PHASE_ELSEWHERE] },
+        tournaments: { rows: TOURNAMENTS },
+        registrations: {
+          rows: [...Array.from({ length: 7 }, (_, i) => reg(`r${i + 1}`, i + 1)), ...REG_DECOYS],
+        },
+        pools: { rows: [{ id: 'pool-x' }] },
+        pool_members: { rows: [] },
+        matches: { rows: [] },
+      });
+
+      const result = await service.generatePools('tournament-1', { targetSize: 2 }, false);
+      expect(result.poolCount).toBe(3);
+      expect(result.totalMatches).toBe(5);
+    });
+
     it('creates empty pools when there are zero registrations (operator pre-stages the layout)', async () => {
       const { service, supabase } = makeService({
         phases: { rows: [POOL_PHASE_ELSEWHERE] },
