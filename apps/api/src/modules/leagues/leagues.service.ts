@@ -46,6 +46,27 @@ export interface LeagueLogoUpload {
   mimetype: string;
 }
 
+/**
+ * Lift `events(organization_id, event_kind)` onto the tournament row itself.
+ *
+ * One owner, because the row is now read from two places: singly by
+ * `getTournamentWithEvent`, and in bulk by `recomputeForEvent`. Everything
+ * downstream reads the flat shape, so the two must agree.
+ */
+function flattenTournamentEvent(row: Row): Row {
+  const events = (row as Row & { events?: Row | null }).events ?? null;
+  return {
+    ...row,
+    organization_id: events?.['organization_id'],
+    event_kind: asEventKind(events?.['event_kind']),
+  };
+}
+
+/** The pool group a link was filed under, from the `league_groups(name)` embed. */
+function linkGroupName(link: Row): string | null {
+  return (link['league_groups'] as { name?: string } | null)?.name ?? null;
+}
+
 @Injectable()
 export class LeaguesService {
   constructor(
@@ -1326,50 +1347,116 @@ export class LeaguesService {
       await this.orgs.assertOrgRole(String((event as Row)['organization_id']), userId, 'admin');
     }
 
-    const { data: tournaments, error: tournamentError } = await this.supabase.service
+    const tournamentsById = await this.listEventTournaments(eventId);
+    if (tournamentsById.size === 0) return { eventId, recomputedLeagues: [] };
+    const work = await this.planLinkWork(eventId, tournamentsById);
+
+    // Carries the config forward so the ranking pass never looks one up again.
+    const affected = new Map<string, LeagueScoringConfig>();
+    for (const item of work) {
+      await this.recomputeLink(item.leagueId, item.tournament, item.groupName, item.config);
+      affected.set(item.leagueId, item.config);
+    }
+
+    for (const [leagueId, config] of affected) {
+      await this.rankLeagueFromResults(leagueId, config);
+    }
+
+    return { eventId, recomputedLeagues: [...affected.keys()] };
+  }
+
+  /**
+   * Every tournament of an event, keyed by id, with the event embed already
+   * flattened onto each row.
+   *
+   * One read for the whole event. The per-link work used to re-read one
+   * tournament at a time through `getTournamentWithEvent`, which is why this
+   * selects the same columns that method does.
+   */
+  private async listEventTournaments(eventId: string): Promise<Map<string, Row>> {
+    const { data, error } = await this.supabase.service
       .from('tournaments')
-      .select('id')
+      .select('*, events(organization_id, event_kind)')
       .eq('event_id', eventId);
-    if (tournamentError) throw new BadRequestException(tournamentError.message);
-    const tournamentIds = ((tournaments ?? []) as Row[]).map((row) => String(row['id']));
-    if (tournamentIds.length === 0) return { eventId, recomputedLeagues: [] };
+    if (error) throw new BadRequestException(error.message);
+    return new Map(
+      ((data ?? []) as Row[]).map((row) => [String(row['id']), flattenTournamentEvent(row)]),
+    );
+  }
 
-    const { data: links, error: linksError } = await this.supabase.service
+  /**
+   * What each approved link needs, gathered before any of the work runs.
+   *
+   * The scoring config is resolved ONCE per League here and carried on every
+   * item, including into the ranking pass. It used to be resolved inside the
+   * link loop AND again inside `recomputeLeagueRankings`, so a League linked to
+   * four tournaments of one event resolved the same config five times.
+   */
+  private async planLinkWork(
+    eventId: string,
+    tournamentsById: Map<string, Row>,
+  ): Promise<
+    Array<{
+      leagueId: string;
+      tournament: Row;
+      groupName: string | null;
+      config: LeagueScoringConfig;
+    }>
+  > {
+    // `league_groups(name)` rides along so the per-link group lookup disappears:
+    // links.group_id references league_groups(id) (migration 0048).
+    const { data: links, error } = await this.supabase.service
       .from('league_tournament_links')
-      .select('*, leagues(*)')
-      .in('tournament_id', tournamentIds)
+      .select('*, leagues(*), league_groups(name)')
+      .in('tournament_id', [...tournamentsById.keys()])
       .eq('status', 'approved');
-    if (linksError) throw new BadRequestException(linksError.message);
+    if (error) throw new BadRequestException(error.message);
 
-    const affectedLeagueIds = new Set<string>();
+    const configByLeague = new Map<string, LeagueScoringConfig>();
+    const work = [];
     for (const link of (links ?? []) as Row[]) {
       const league = link['leagues'] as Row | null;
-      if (!league) continue;
       // Freeze: a finalized season's standings must not move as late linked
       // events tick over, so skip it entirely — no results rewrite, no ranking
       // recompute. Reopen (clears finalized_at) lets recompute resume.
-      if (league['finalized_at']) continue;
-      const config = await this.scoring.resolveConfig(
-        normalizeScoringConfig(league['scoring_config']),
-      );
-      const contributions = await this.computeTournamentContributions(
-        String(link['league_id']),
-        String(link['tournament_id']),
-        config,
-      );
-      await this.replaceTournamentResults(
-        String(link['league_id']),
-        String(link['tournament_id']),
-        contributions,
-      );
-      affectedLeagueIds.add(String(link['league_id']));
-    }
+      if (!league || league['finalized_at']) continue;
 
-    for (const leagueId of affectedLeagueIds) {
-      await this.recomputeLeagueRankings(leagueId);
-    }
+      const tournamentId = String(link['tournament_id']);
+      const tournament = tournamentsById.get(tournamentId);
+      // The links were filtered by these very ids, so this cannot be missing. It
+      // throws rather than skipping because a silent skip would quietly drop a
+      // tournament's results the moment somebody widened that filter.
+      if (!tournament) {
+        throw new BadRequestException(
+          `Link names tournament ${tournamentId} outside event ${eventId}`,
+        );
+      }
 
-    return { eventId, recomputedLeagues: [...affectedLeagueIds] };
+      const leagueId = String(link['league_id']);
+      let config = configByLeague.get(leagueId);
+      if (!config) {
+        config = await this.scoring.resolveConfig(normalizeScoringConfig(league['scoring_config']));
+        configByLeague.set(leagueId, config);
+      }
+      work.push({ leagueId, tournament, groupName: linkGroupName(link), config });
+    }
+    return work;
+  }
+
+  /** One approved link: score its tournament, then replace that tournament's rows. */
+  private async recomputeLink(
+    leagueId: string,
+    tournament: Row,
+    groupName: string | null,
+    config: LeagueScoringConfig,
+  ) {
+    const contributions = await this.computeTournamentContributions(
+      leagueId,
+      tournament,
+      groupName,
+      config,
+    );
+    await this.replaceTournamentResults(leagueId, String(tournament['id']), contributions);
   }
 
   /**
@@ -1439,9 +1526,13 @@ export class LeaguesService {
   async getRecomputePreflight(leagueId: string, userId: string) {
     await this.assertCanManageLeague(leagueId, userId);
 
+    // Carries `league_groups(name)` for the same reason recomputeForEvent's query
+    // does: it is the one owner of the group name now that the per-link lookup
+    // is gone. This walks a single League's links, so there is no batch of
+    // tournament rows to draw on — each is still read on its own below.
     const { data: links, error: linksError } = await this.supabase.service
       .from('league_tournament_links')
-      .select('tournament_id, tournaments(name)')
+      .select('tournament_id, tournaments(name), league_groups(name)')
       .eq('league_id', leagueId)
       .eq('status', 'approved');
     if (linksError) throw new BadRequestException(linksError.message);
@@ -1450,7 +1541,8 @@ export class LeaguesService {
     const contributorIds = new Set<string>();
 
     for (const link of (links ?? []) as Row[]) {
-      const inputs = await this.buildContributionInputs(leagueId, String(link['tournament_id']));
+      const tournament = await this.getTournamentWithEvent(String(link['tournament_id']));
+      const inputs = await this.buildContributionInputs(leagueId, tournament, linkGroupName(link));
       const tournamentName = String((link['tournaments'] as { name?: string } | null)?.name ?? '');
       const missing = inputs.filter((input) => !input.fighterId);
       if (missing.length > 0) {
@@ -1494,9 +1586,23 @@ export class LeaguesService {
         'This league season is finalized. Reopen it before recomputing rankings.',
       );
     }
-    const config = await this.scoring.resolveConfig(
-      normalizeScoringConfig(league['scoring_config']),
+    return this.rankLeagueFromResults(
+      leagueId,
+      await this.scoring.resolveConfig(normalizeScoringConfig(league['scoring_config'])),
     );
+  }
+
+  /**
+   * Rank one League from its stored tournament results, with the scoring config
+   * already resolved.
+   *
+   * Split from `recomputeLeagueRankings` so `recomputeForEvent` can resolve each
+   * League's config once and reuse it here — resolving it again per League was
+   * one of two duplicate resolutions on that path. The freeze guard stays with
+   * the public method: `recomputeForEvent` filters finalized Leagues out before
+   * it ever gets here.
+   */
+  private async rankLeagueFromResults(leagueId: string, config: LeagueScoringConfig) {
     // The display name is EMBEDDED rather than left empty, and that is
     // load-bearing rather than cosmetic.
     //
@@ -1822,10 +1928,11 @@ export class LeaguesService {
 
   private async computeTournamentContributions(
     leagueId: string,
-    tournamentId: string,
+    tournament: Row,
+    groupName: string | null,
     config: LeagueScoringConfig,
   ): Promise<LeagueTournamentContribution[]> {
-    const inputs = await this.buildContributionInputs(leagueId, tournamentId);
+    const inputs = await this.buildContributionInputs(leagueId, tournament, groupName);
     // An unrated event kind or an undecided bracket yields no inputs, and the
     // scoring engine must not be reached in that case — the early returns used
     // to live in this method and tests guard that they still short-circuit.
@@ -1847,9 +1954,10 @@ export class LeaguesService {
    */
   private async buildContributionInputs(
     leagueId: string,
-    tournamentId: string,
+    tournament: Row,
+    groupName: string | null,
   ): Promise<TournamentContributionInput[]> {
-    const tournament = await this.getTournamentWithEvent(tournamentId);
+    const tournamentId = String(tournament['id']);
     // Only STANDARD events contribute to a league — test events are dry runs
     // and club events are internal activity. Returning no contributions makes
     // replaceTournamentResults delete any existing rows for this tournament, so
@@ -1867,10 +1975,9 @@ export class LeaguesService {
     // points never reflect a mid-play snapshot.
     const placements = await this.placement.getTournamentPlacements(tournamentId);
     if (!placements.decided) return [];
-    const [registrations, matches, groupName] = await Promise.all([
+    const [registrations, matches] = await Promise.all([
       this.listRegistrationsWithIdentity(tournamentId),
       this.listMatchesForTournament(tournamentId),
-      this.lookupLinkGroupName(leagueId, tournamentId),
     ]);
     const matchIds = matches.map((match) => String(match['id']));
     const exchanges =
@@ -1933,20 +2040,6 @@ export class LeaguesService {
       });
     }
     return inputs;
-  }
-
-  private async lookupLinkGroupName(
-    leagueId: string,
-    tournamentId: string,
-  ): Promise<string | null> {
-    const { data } = await this.supabase.service
-      .from('league_tournament_links')
-      .select('league_groups(name)')
-      .eq('league_id', leagueId)
-      .eq('tournament_id', tournamentId)
-      .maybeSingle();
-    const link = data as { league_groups?: { name?: string } | null } | null;
-    return link?.league_groups?.name ?? null;
   }
 
   private doubleHitsByRegistration(matches: Row[], exchanges: Row[]): Map<string, number> {
@@ -2019,12 +2112,7 @@ export class LeaguesService {
       .maybeSingle();
     if (error) throw new BadRequestException(error.message);
     if (!data) throw new NotFoundException(`Tournament ${tournamentId} not found`);
-    const row = data as Row & { events?: Row | null };
-    return {
-      ...row,
-      organization_id: row.events?.['organization_id'],
-      event_kind: asEventKind(row.events?.['event_kind']),
-    };
+    return flattenTournamentEvent(data as Row);
   }
 
   private async getLeagueById(leagueId: string): Promise<Row> {

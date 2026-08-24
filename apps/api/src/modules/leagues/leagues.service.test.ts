@@ -5,6 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { describe, expect, it, vi } from 'vitest';
+import { mockSupabase, queriedTables, selectsFor } from '../../common/testing/supabase-chain';
 import { UpdateLeagueDto } from './dto/leagues.dto';
 import { LeaguesService } from './leagues.service';
 
@@ -1748,17 +1749,28 @@ describe('LeaguesService placement-driven contributions', () => {
     expect(inputs.map((i) => i['fighterId'])).not.toContain('gp-c');
   });
 
+  /**
+   * The tournament row is PASSED IN, already flattened — the caller reads the
+   * event's tournaments once and hands each row down, so this method performs no
+   * tournament read of its own. `from` therefore throws: any read before the
+   * undecided/unrated gates is a regression, not a detail.
+   */
+  const STANDARD_TOURNAMENT = {
+    id: 't1',
+    event_id: 'e1',
+    weapon: 'Longsword',
+    organization_id: 'org-1',
+    event_kind: 'standard',
+  };
+  const noReads = {
+    service: {
+      from: vi.fn((table: string) => {
+        throw new Error(`unexpected read of ${table} before the gates`);
+      }),
+    },
+  };
+
   it('contributes nothing while the tournament is undecided (scoring engine untouched)', async () => {
-    const tournamentsChain = chain({
-      data: {
-        id: 't1',
-        event_id: 'e1',
-        weapon: 'Longsword',
-        events: { organization_id: 'org-1', event_kind: 'standard' },
-      },
-      error: null,
-    });
-    const supabase = { service: { from: vi.fn(() => tournamentsChain) } };
     const placement = {
       getTournamentPlacements: vi
         .fn()
@@ -1766,7 +1778,7 @@ describe('LeaguesService placement-driven contributions', () => {
     };
     const scoring = { toTournamentContributions: vi.fn() };
     const service = new LeaguesService(
-      supabase as never,
+      noReads as never,
       {} as never,
       scoring as never,
       placement as never,
@@ -1774,9 +1786,14 @@ describe('LeaguesService placement-driven contributions', () => {
 
     const result = await (
       service as unknown as {
-        computeTournamentContributions: (l: string, t: string, c: unknown) => Promise<unknown[]>;
+        computeTournamentContributions: (
+          l: string,
+          t: unknown,
+          g: string | null,
+          c: unknown,
+        ) => Promise<unknown[]>;
       }
-    ).computeTournamentContributions('L1', 't1', config);
+    ).computeTournamentContributions('L1', STANDARD_TOURNAMENT, null, config);
 
     expect(result).toEqual([]);
     expect(placement.getTournamentPlacements).toHaveBeenCalledWith('t1');
@@ -1790,20 +1807,10 @@ describe('LeaguesService placement-driven contributions', () => {
    */
   describe.each(['test', 'club'] as const)('%s events never contribute', (kind) => {
     it('returns no contributions and never reaches the placement service', async () => {
-      const tournamentsChain = chain({
-        data: {
-          id: 't1',
-          event_id: 'e1',
-          weapon: 'Longsword',
-          events: { organization_id: 'org-1', event_kind: kind },
-        },
-        error: null,
-      });
-      const supabase = { service: { from: vi.fn(() => tournamentsChain) } };
       const placement = { getTournamentPlacements: vi.fn() };
       const scoring = { toTournamentContributions: vi.fn() };
       const service = new LeaguesService(
-        supabase as never,
+        noReads as never,
         {} as never,
         scoring as never,
         placement as never,
@@ -1811,9 +1818,19 @@ describe('LeaguesService placement-driven contributions', () => {
 
       const result = await (
         service as unknown as {
-          computeTournamentContributions: (l: string, t: string, c: unknown) => Promise<unknown[]>;
+          computeTournamentContributions: (
+            l: string,
+            t: unknown,
+            g: string | null,
+            c: unknown,
+          ) => Promise<unknown[]>;
         }
-      ).computeTournamentContributions('L1', 't1', config);
+      ).computeTournamentContributions(
+        'L1',
+        { ...STANDARD_TOURNAMENT, event_kind: kind },
+        null,
+        config,
+      );
 
       expect(result).toEqual([]);
       // The gate short-circuits before any placement/scoring work.
@@ -2112,6 +2129,131 @@ describe('LeaguesService recompute freeze guard', () => {
   });
 });
 
+// ── recomputeForEvent reads once, not once per link ─────────────────────────
+
+describe('LeaguesService.recomputeForEvent gathering', () => {
+  const LEAGUE = { id: 'L1', finalized_at: null, scoring_config: {} };
+
+  /**
+   * Two tournaments of one event, both linked to the SAME league.
+   *
+   * The whole point of the shape is repetition: the old code resolved the
+   * scoring config once per link and then a THIRD time inside the ranking pass,
+   * and re-read each tournament and each link's pool group one at a time.
+   */
+  function seedTwoLinkedTournaments(placementDecided = false) {
+    const supabase = mockSupabase({
+      tournaments: {
+        rows: [
+          { id: 't1', event_id: 'ev-1', weapon: 'Longsword', events: { event_kind: 'standard' } },
+          { id: 't2', event_id: 'ev-1', weapon: 'Rapier', events: { event_kind: 'standard' } },
+          // Another event's tournament: it must not reach the links query.
+          { id: 't-elsewhere', event_id: 'ev-9', weapon: null, events: { event_kind: 'standard' } },
+        ],
+      },
+      league_tournament_links: {
+        rows: [
+          {
+            league_id: 'L1',
+            tournament_id: 't1',
+            status: 'approved',
+            leagues: LEAGUE,
+            league_groups: { name: 'Open' },
+          },
+          {
+            league_id: 'L1',
+            tournament_id: 't2',
+            status: 'approved',
+            leagues: LEAGUE,
+            league_groups: { name: 'Women' },
+          },
+        ],
+      },
+      league_tournament_results: { rows: [] },
+      league_rankings: { rows: [] },
+      // One fighter per tournament, so a decided placement produces a real
+      // contribution to read the group name off.
+      registrations: {
+        rows: [
+          {
+            id: 'reg-t1',
+            tournament_id: 't1',
+            persons: { global_person_id: 'gp-1', given_name: 'Ann', family_name: 'A' },
+          },
+          {
+            id: 'reg-t2',
+            tournament_id: 't2',
+            persons: { global_person_id: 'gp-2', given_name: 'Bo', family_name: 'B' },
+          },
+        ],
+      },
+      matches: { rows: [] },
+    });
+    const scoring = {
+      resolveConfig: vi.fn().mockResolvedValue({ tieBreakers: ['total_points'] }),
+      toTournamentContributions: vi.fn().mockReturnValue([]),
+      computeRankingsFromContributions: vi.fn().mockReturnValue([]),
+    };
+    const placement = {
+      getTournamentPlacements: vi.fn().mockResolvedValue({
+        decided: placementDecided,
+        byRegistrationId: new Map([
+          ['reg-t1', { place: 1, resultKind: 'champion' }],
+          ['reg-t2', { place: 1, resultKind: 'champion' }],
+        ]),
+        ordered: [],
+      }),
+    };
+    const service = new LeaguesService(
+      supabase as never,
+      {} as never,
+      scoring as never,
+      placement as never,
+    );
+    return { service, supabase, scoring, placement };
+  }
+
+  it('resolves each league scoring config once, however many links it has', async () => {
+    const { service, scoring } = seedTwoLinkedTournaments();
+
+    const result = await service.recomputeForEvent('ev-1');
+
+    expect(result.recomputedLeagues).toEqual(['L1']);
+    // Two links plus one ranking pass used to be three resolutions of the same
+    // config, each 1-2 reads of league_scoring_systems.
+    expect(scoring.resolveConfig).toHaveBeenCalledTimes(1);
+  });
+
+  it('reads the event tournaments and their links once each, not once per link', async () => {
+    const { service, supabase } = seedTwoLinkedTournaments();
+
+    await service.recomputeForEvent('ev-1');
+
+    const tables = queriedTables(supabase.from);
+    expect(tables.filter((t) => t === 'tournaments')).toHaveLength(1);
+    expect(tables.filter((t) => t === 'league_tournament_links')).toHaveLength(1);
+  });
+
+  it('carries the pool group down from the links query instead of re-reading it', async () => {
+    const { service, supabase, scoring } = seedTwoLinkedTournaments(true);
+
+    await service.recomputeForEvent('ev-1');
+
+    // The projection, not just the value: the double ignores the select string,
+    // so dropping the embed leaves a value-only assertion green.
+    expect(selectsFor(supabase.from, 'league_tournament_links')[0]).toContain(
+      'league_groups(name)',
+    );
+    // Both links reached the engine, each under its OWN group name — which is
+    // the part a single batched links query has to keep right.
+    expect(scoring.toTournamentContributions).toHaveBeenCalledTimes(2);
+    const groups = scoring.toTournamentContributions.mock.calls.map(
+      (call) => (call[1] as Array<{ groupName: string | null }>)[0]?.groupName,
+    );
+    expect(groups).toEqual(['Open', 'Women']);
+  });
+});
+
 describe('LeaguesService.getFreshness gathering', () => {
   /**
    * Records every filter the match query applies, because the reach from a
@@ -2215,12 +2357,31 @@ describe('LeaguesService.getRecomputePreflight', () => {
       eq: vi.fn((col: string) =>
         col === 'status'
           ? Promise.resolve({
-              data: [{ tournament_id: 'T1', tournaments: { name: 'Longsword' } }],
+              data: [
+                {
+                  tournament_id: 'T1',
+                  tournaments: { name: 'Longsword' },
+                  // The group name rides the links query now that the per-link
+                  // lookup is gone.
+                  league_groups: { name: 'Open' },
+                },
+              ],
               error: null,
             })
           : links,
       ),
     };
+    // The pre-flight walks ONE league's links, so it has no batch to draw on and
+    // still reads each tournament on its own.
+    const tournaments = chain({
+      data: {
+        id: 'T1',
+        event_id: 'e1',
+        weapon: 'Longsword',
+        events: { organization_id: 'org-1', event_kind: 'standard' },
+      },
+      error: null,
+    });
     const globalPersons: Record<string, unknown> = {
       select: vi.fn(() => globalPersons),
       in: vi.fn(() => globalPersons),
@@ -2236,6 +2397,7 @@ describe('LeaguesService.getRecomputePreflight', () => {
     const supabaseService = {
       from: vi.fn((table: string) => {
         if (table === 'league_tournament_links') return links;
+        if (table === 'tournaments') return tournaments;
         if (table === 'global_persons') return globalPersons;
         throw new Error(`unexpected table ${table}`);
       }),
