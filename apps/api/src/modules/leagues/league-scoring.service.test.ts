@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { LeagueScoringService } from './league-scoring.service';
-import type { LeagueScoringConfig, TournamentContributionInput } from './league.types';
+import type { LeagueScoringConfig, TournamentContributionInput } from '@myclash/rules/results';
 
 const baseConfig: LeagueScoringConfig = {
   scoringSystem: 'ffamhe_tf_2026',

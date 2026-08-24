@@ -36,3 +36,45 @@ export type {
 
 export { rankByRating, rankBySeed, rankRandom } from './r1-ranking';
 export type { SeedableRegistration } from './r1-ranking';
+
+// ── The League: cross-EVENT aggregation ─────────────────────────────────────
+// A league table is stale by DEFAULT — recompute is never triggered by a match
+// completing — which is the inverse of what a reader assumes, and why the
+// freshness rules are a module rather than a flag.
+export { attachDecidingTiebreaks, decidingTiebreakBetween } from './league-standings-rows';
+export type { LeagueDecidingTiebreak } from './league-standings-rows';
+
+export { aggregateClubStandings } from './league-club-standings';
+export type {
+  ClubStandingMember,
+  ClubStandingRow,
+  UnaffiliatedBucket,
+} from './league-club-standings';
+
+export { computeLeagueFreshness } from './league-freshness';
+export type {
+  LeagueFreshnessInput,
+  LeagueFreshnessReport,
+  LeagueFreshnessState,
+  LinkedTournamentChange,
+} from './league-freshness';
+
+export { DEFAULT_LEAGUE_SCORING_CONFIG } from './league-types';
+export type {
+  LeagueRankingDimensions,
+  LeagueRankingRow,
+  LeagueScoringConfig,
+  LeagueScoringSystem,
+  LeagueTieBreaker,
+  LeagueTournamentContribution,
+  TournamentContributionInput,
+} from './league-types';
+
+export {
+  FALLBACK_FFAMHE_2026,
+  compareRankings,
+  computeRankingsFromContributions,
+  groupKey,
+  medalFor,
+  pointsForRank,
+} from './league-scoring';

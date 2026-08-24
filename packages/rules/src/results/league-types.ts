@@ -1,4 +1,4 @@
-import type { FinalRankingResultKind, LeagueRankingDimensions } from '@myclash/types';
+import type { FinalRankingResultKind, LeagueRankingDimensions } from '../ranking';
 
 /**
  * Stored on `leagues.scoring_system`. The literals 'ffamhe_tf_2026' and
@@ -7,9 +7,9 @@ import type { FinalRankingResultKind, LeagueRankingDimensions } from '@myclash/t
  */
 export type LeagueScoringSystem = 'ffamhe_tf_2026' | 'custom' | (string & {});
 /**
- * Re-exported from `@myclash/types`, which owns it: the API and every admin
- * screen have to agree on this union, and when each wrote it out as a literal
- * they stopped agreeing. See that module for what the three values mean.
+ * Re-exported from `../ranking`, which owns it: the API and every admin screen
+ * have to agree on this union, and when each wrote it out as a literal they
+ * stopped agreeing. See that module for what the three values mean.
  */
 export type { LeagueRankingDimensions };
 export type LeagueTieBreaker =

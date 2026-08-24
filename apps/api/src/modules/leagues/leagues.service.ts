@@ -15,15 +15,15 @@ import {
   type LeagueScoringConfig,
   type LeagueTournamentContribution,
   type TournamentContributionInput,
-} from './league.types';
+} from '@myclash/rules/results';
 import { LeagueScoringService } from './league-scoring.service';
 import {
+  aggregateClubStandings,
+  attachDecidingTiebreaks,
   computeLeagueFreshness,
   type LeagueFreshnessReport,
   type LinkedTournamentChange,
-} from './league-freshness';
-import { attachDecidingTiebreaks } from './league-standings-rows';
-import { aggregateClubStandings } from './league-club-standings';
+} from '@myclash/rules/results';
 // Value import (NOT `import type`) — DI-injected, so the runtime needs the
 // class metadata preserved.
 import { TournamentPlacementService } from '../tournament-placement/tournament-placement.service';

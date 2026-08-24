@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { LeagueTieBreaker } from './league.types';
+import type { LeagueTieBreaker } from './league-types';
 import { attachDecidingTiebreaks, decidingTiebreakBetween } from './league-standings-rows';
 
 const DEFAULT_TIEBREAKERS: LeagueTieBreaker[] = [

@@ -1,4 +1,4 @@
-import type { LeagueTieBreaker } from './league.types';
+import type { LeagueTieBreaker } from './league-types';
 
 /**
  * Why this fighter is ranked below the one directly above them in the same
