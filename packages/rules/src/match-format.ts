@@ -140,7 +140,15 @@ export function roundWinTarget(bestOf: number): number {
  * treated as non-group (no max-doubles), matching the time-limit dispatch's
  * default.
  */
-export function getEffectiveMaxDoubles(match: Match, config: MatchFormatConfig): number | null {
+/**
+ * `match` is narrowed to the one field this reads. Callers that hold a finished
+ * bout rather than a whole Match — the pool-scoring path holds a `ScoredMatch`
+ * — can then ask directly instead of casting a row into a shape it is not.
+ */
+export function getEffectiveMaxDoubles(
+  match: Pick<Match, 'phaseType'>,
+  config: MatchFormatConfig,
+): number | null {
   return match.phaseType === 'pool' || match.phaseType === 'swiss' ? config.maxDoubleHits : null;
 }
 
@@ -233,7 +241,7 @@ export function applyScoringDirection(
 }
 
 export function computeMatchFormatScore(
-  match: Match,
+  match: Pick<Match, 'phaseType'>,
   exchanges: Exchange[],
   config: MatchFormatConfig,
   afterblowMode: AfterblowMode = 'full',

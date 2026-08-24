@@ -5,32 +5,19 @@
  * Implements the Ruleset interface from types.ts.
  */
 import type {
+  AfterblowMode,
   Exchange,
   Match,
   MatchScore,
-  Pool,
-  Registration,
   Ruleset,
+  ScorePoolFightersInput,
   StandingsColumn,
   RankingRule,
 } from '../types';
-import type { AfterblowMode } from '../match-format';
+import { computeAggregates, computeScore, type FighterAggregates } from '@myclash/rules';
 import { TFv1ConfigSchema, TFv1DefaultConfig, type TFv1Config } from './config';
 import { computeMatchScore, isMatchOver } from './score';
-import { computePoolStandings } from './standings';
 import { formatDoublePenalty } from './double-penalty';
-
-/**
- * `afterblowMode` lives in the tournament's `scoring_config_json`, not in the
- * ruleset config — the API attaches it onto the config object before calling
- * the engine. Read it off the raw config here, BEFORE `TFv1ConfigSchema.parse`
- * (Zod strips unknown keys), defaulting to 'full'.
- */
-function readAfterblowMode(config: unknown): AfterblowMode {
-  return (config as { afterblowMode?: unknown } | null)?.afterblowMode === 'deductive'
-    ? 'deductive'
-    : 'full';
-}
 
 const TF_V1_STANDINGS_COLUMNS: StandingsColumn[] = [
   // The TF_v1 ranking metric: (wins·winBonus + targetPoints) /
@@ -62,23 +49,61 @@ export const TF_v1: Ruleset = {
   version: '1.0.0',
   displayName: 'TF_v1',
 
-  computeMatchScore(match: Match, exchanges: Exchange[], config: unknown) {
+  computeMatchScore(
+    match: Match,
+    exchanges: Exchange[],
+    afterblowMode: AfterblowMode,
+    config: unknown,
+  ) {
     const cfg = TFv1ConfigSchema.parse(config ?? TFv1DefaultConfig);
-    return computeMatchScore(match, exchanges, cfg, readAfterblowMode(config));
+    return computeMatchScore(match, exchanges, cfg, afterblowMode);
   },
 
   isMatchOver(match: Match, score: MatchScore, config: unknown) {
     return isMatchOver(match, score, TFv1ConfigSchema.parse(config ?? TFv1DefaultConfig));
   },
 
-  computePoolStandings(
-    pool: Pool,
-    matches: Match[],
-    registrations: Registration[],
-    config: unknown,
-  ) {
+  scorePoolFighters({
+    registrationIds,
+    completedMatches,
+    afterblowMode,
+    config,
+  }: ScorePoolFightersInput) {
     const cfg = TFv1ConfigSchema.parse(config ?? TFv1DefaultConfig);
-    return computePoolStandings(pool, matches, registrations, cfg, readAfterblowMode(config));
+    const totals = new Map<string, FighterAggregates>(
+      registrationIds.map((id) => [id, { wins: 0, targetPoints: 0, timesHit: 0, doubles: 0 }]),
+    );
+
+    for (const match of completedMatches) {
+      for (const regId of [match.redRegistrationId, match.blueRegistrationId]) {
+        const running = totals.get(regId);
+        if (!running) continue;
+        const bout = computeAggregates(
+          regId,
+          match,
+          match.exchanges,
+          match.winnerRegistrationId === regId,
+          afterblowMode,
+        );
+        running.wins += bout.wins;
+        running.targetPoints += bout.targetPoints;
+        running.timesHit += bout.timesHit;
+        running.doubles += bout.doubles;
+      }
+    }
+
+    // winBonus and doublePenaltyFormula come from the ruleset config. They were
+    // hardcoded once, so a super-admin amending the federal rulebook changed a
+    // stored value the engine never read.
+    return new Map(
+      [...totals].map(([id, agg]) => [
+        id,
+        computeScore(agg, {
+          winBonus: cfg.winBonus,
+          doublePenaltyFormula: cfg.doublePenaltyFormula,
+        }),
+      ]),
+    );
   },
 
   standingsColumns: TF_V1_STANDINGS_COLUMNS,
@@ -113,7 +138,6 @@ export {
   type Target,
 } from './targets';
 export { computeMatchScore, isMatchOver } from './score';
-export { computePoolStandings } from './standings';
 export { doublePenalty, computeScore, computeAggregates } from './score';
 export {
   DOUBLE_PENALTY_FORMULAS,

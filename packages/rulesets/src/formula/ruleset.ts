@@ -8,16 +8,7 @@
  */
 import { Generic_PointsCap } from '../generic_points_cap';
 import type { AfterblowMode } from '../match-format';
-import type {
-  Exchange,
-  Match,
-  Pool,
-  PoolStandingRow,
-  Registration,
-  Ruleset,
-  StandingsColumn,
-  RankingRule,
-} from '../types';
+import type { Ruleset, StandingsColumn, RankingRule } from '../types';
 import { deriveFighterStats } from '@myclash/rules';
 import { evaluateFormula, type FormulaScope } from '@myclash/rules';
 import { renderFormula } from '@myclash/rules';
@@ -29,29 +20,6 @@ import {
   type VariableKey,
 } from './types';
 
-function buildExchangeIndex(matches: Match[]): Map<string, Exchange[]> {
-  const index = new Map<string, Exchange[]>();
-  for (const match of matches) {
-    const attached = (match as Match & { exchanges?: Exchange[] }).exchanges ?? [];
-    index.set(match.id, attached);
-  }
-  return index;
-}
-
-function compareTiebreakers(
-  scopeA: FormulaScope,
-  scopeB: FormulaScope,
-  tiebreakers: Tiebreaker[],
-): number {
-  for (const tb of tiebreakers) {
-    const va = scopeA[tb.variable] ?? 0;
-    const vb = scopeB[tb.variable] ?? 0;
-    if (va === vb) continue;
-    return tb.direction === 'desc' ? vb - va : va - vb;
-  }
-  return 0;
-}
-
 /**
  * Standings columns for a data-authored ruleset.
  *
@@ -61,7 +29,7 @@ function compareTiebreakers(
  * in-memory registry, which only holds the built-ins.
  *
  * `score` leads the table: it is THIS ruleset's `scoreFormula`, evaluated by
- * computePoolStandings below. The API must fill that column by asking the
+ * scorePoolFighters below. The API must fill that column by asking the
  * ruleset — deriving it itself would substitute TF_v1's hardcoded formula and
  * silently rank an org's pool by somebody else's algorithm.
  *
@@ -100,10 +68,10 @@ const TIEBREAK_COLUMN_BY_VARIABLE: Partial<Record<VariableKey, string>> = {
  * Rank by this ruleset's score, then by the author's own tiebreakers.
  *
  * The tiebreakers must be projected onto standings-column keys because the API
- * ranks rows with `applyRanking(rows, rankingChain)` over the rendered columns —
- * the sort inside computePoolStandings only orders the rows returned from there,
- * and would be lost when the API re-ranks (notably in "overall" mode, where rows
- * from every pool are flattened and ranked again).
+ * ranks rows with `applyRanking(rows, rankingChain)` over the rendered columns.
+ * This ruleset used to sort its own returned rows by the author's tiebreakers as
+ * well, which was dead work: that ordering was discarded, because "overall" mode
+ * flattens every pool and ranks them together.
  */
 function buildRankingChain(tiebreakers: Tiebreaker[]): RankingRule[] {
   const chain: RankingRule[] = [{ key: 'score', direction: 'desc' }];
@@ -147,53 +115,23 @@ export function createFormulaRuleset(
     code,
     version,
     displayName,
-    computeMatchScore(match, exchanges, runtimeConfig) {
-      return Generic_PointsCap.computeMatchScore(match, exchanges, runtimeConfig);
+    computeMatchScore(match, exchanges, _afterblowMode, runtimeConfig) {
+      // Match scoring delegates to Generic_PointsCap, which has no afterblow
+      // concept. The authored formula is the standings half, below.
+      return Generic_PointsCap.computeMatchScore(match, exchanges, _afterblowMode, runtimeConfig);
     },
 
     isMatchOver(match, score, runtimeConfig) {
       return Generic_PointsCap.isMatchOver(match, score, runtimeConfig);
     },
 
-    computePoolStandings(
-      _pool: Pool,
-      matches: Match[],
-      registrations: Registration[],
-      _runtimeConfig: unknown,
-    ): PoolStandingRow[] {
-      const exchangesByMatch = buildExchangeIndex(matches);
-      // afterblowMode is attached to the runtime config by the API (it lives in
-      // scoring_config_json). Net deductive afterblows in the derived stats.
-      const afterblowMode: AfterblowMode =
-        (_runtimeConfig as { afterblowMode?: unknown } | null)?.afterblowMode === 'deductive'
-          ? 'deductive'
-          : 'full';
-
-      const enriched = registrations.map((reg) => {
-        const stats = deriveFighterStats(reg.id, matches, exchangesByMatch, afterblowMode);
-        const scope = buildFormulaScope(stats, config);
-        const score = evaluateFormula(config.scoreFormula, scope);
-        return { reg, stats, scope, score };
-      });
-
-      enriched.sort((a, b) => {
-        if (b.score !== a.score) return b.score - a.score;
-        const cmp = compareTiebreakers(a.scope, b.scope, config.tiebreakers);
-        if (cmp !== 0) return cmp;
-        const seedA = a.reg.seed ?? a.reg.bibNumber ?? Number.POSITIVE_INFINITY;
-        const seedB = b.reg.seed ?? b.reg.bibNumber ?? Number.POSITIVE_INFINITY;
-        return seedA - seedB;
-      });
-
-      return enriched.map((row, idx) => ({
-        registrationId: row.reg.id,
-        rank: idx + 1,
-        wins: row.stats.victories,
-        targetPoints: row.stats.hitsGiven,
-        timesHit: row.stats.hitsReceived,
-        doubles: row.stats.doubleHits,
-        score: row.score,
-      }));
+    scorePoolFighters({ registrationIds, completedMatches, afterblowMode }) {
+      return new Map(
+        registrationIds.map((id) => {
+          const stats = deriveFighterStats(id, completedMatches, afterblowMode);
+          return [id, evaluateFormula(config.scoreFormula, buildFormulaScope(stats, config))];
+        }),
+      );
     },
 
     standingsColumns: FORMULA_STANDINGS_COLUMNS,
@@ -205,9 +143,9 @@ export function createFormulaRuleset(
      * would then read `undefined` and hide afterblow for exactly the rulesets
      * self-service is meant to empower.
      *
-     * `defaultAfterblowMode` is a SEED, not a runtime input: `computePoolStandings`
-     * above still reads the live mode off the runtime config, because exchanges
-     * store raw values netted at read.
+     * `defaultAfterblowMode` is a SEED, not a runtime input: `scorePoolFighters`
+     * above is HANDED the tournament's live mode, because exchanges store raw
+     * values netted at read.
      */
     metadata: {
       hasAfterblow,

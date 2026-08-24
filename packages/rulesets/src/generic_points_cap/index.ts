@@ -17,14 +17,14 @@ import {
   normalizeMatchFormatConfig,
 } from '../match-format';
 import type {
+  AfterblowMode,
   Exchange,
   Match,
   MatchEndDecision,
   MatchScore,
-  Pool,
-  PoolStandingRow,
-  Registration,
   Ruleset,
+  ScoredMatch,
+  ScorePoolFightersInput,
   StandingsColumn,
   RankingRule,
 } from '../types';
@@ -73,7 +73,7 @@ function normalizeGenericPointsCapConfig(config: unknown): GenericPointsCapConfi
 // ── Score computation ─────────────────────────────────────────────────────────
 
 function computeScore(
-  match: Match,
+  match: Pick<Match, 'phaseType'>,
   exchanges: Exchange[],
   config: GenericPointsCapConfig,
 ): MatchScore {
@@ -108,67 +108,53 @@ function matchOver(score: MatchScore, config: GenericPointsCapConfig): MatchEndD
   return { isOver: false, reason: null };
 }
 
-// ── Pool standings ────────────────────────────────────────────────────────────
+// ── Pool scoring ──────────────────────────────────────────────────────────────
 
-function standings(
-  _pool: Pool,
-  matches: Match[],
-  registrations: Registration[],
-  config: GenericPointsCapConfig,
-): PoolStandingRow[] {
-  const stats = new Map<string, { wins: number; ptsFor: number; ptsAgainst: number }>();
-  for (const reg of registrations) {
-    stats.set(reg.id, { wins: 0, ptsFor: 0, ptsAgainst: 0 });
-  }
+/**
+ * No algorithm score: rank by wins, then by points differential. The 1000
+ * multiplier is what keeps a win ahead of any realistic differential, so the
+ * two orderings compose into one number.
+ *
+ * Points for and against are re-derived from each bout's exchanges rather than
+ * read off the stored match score, because this ruleset remaps every hit to its
+ * configured `pointValues.hit` first.
+ */
+function scoreFighters({
+  registrationIds,
+  completedMatches,
+  config,
+}: {
+  registrationIds: string[];
+  completedMatches: ScoredMatch[];
+  config: GenericPointsCapConfig;
+}): Map<string, number> {
+  const stats = new Map(registrationIds.map((id) => [id, { wins: 0, ptsFor: 0, ptsAgainst: 0 }]));
 
-  for (const match of matches) {
-    if (match.status !== 'completed') continue;
-    const matchExchanges = (match as Match & { exchanges?: Exchange[] }).exchanges ?? [];
-    const score = computeScore(match, matchExchanges, config);
-    const winnerId = (match as Match & { winnerRegistrationId?: string }).winnerRegistrationId;
-
+  for (const match of completedMatches) {
+    // A finished bout carries no phase, so `getEffectiveMaxDoubles` inside the
+    // scorer returns null and a max-doubles bout is NOT zeroed here. That is
+    // what this path already did — it used to cast a PostgREST row into a
+    // `Match`, and the row has no `phaseType` either — so the omission was
+    // real, silent and untyped. Stated rather than accidental now. Whether
+    // pool standings SHOULD zero a max-doubles bout is a rules question, and
+    // changing it is not this refactor's to make.
+    const score = computeScore({ phaseType: undefined }, match.exchanges, config);
     const red = stats.get(match.redRegistrationId);
     const blue = stats.get(match.blueRegistrationId);
 
     if (red) {
-      red.wins += winnerId === match.redRegistrationId ? 1 : 0;
+      red.wins += match.winnerRegistrationId === match.redRegistrationId ? 1 : 0;
       red.ptsFor += score.redScore;
       red.ptsAgainst += score.blueScore;
     }
     if (blue) {
-      blue.wins += winnerId === match.blueRegistrationId ? 1 : 0;
+      blue.wins += match.winnerRegistrationId === match.blueRegistrationId ? 1 : 0;
       blue.ptsFor += score.blueScore;
       blue.ptsAgainst += score.redScore;
     }
   }
 
-  const rows = registrations.map((reg) => {
-    const s = stats.get(reg.id) ?? { wins: 0, ptsFor: 0, ptsAgainst: 0 };
-    return {
-      registrationId: reg.id,
-      rank: 0,
-      wins: s.wins,
-      targetPoints: s.ptsFor,
-      timesHit: s.ptsAgainst,
-      doubles: 0,
-      // No algorithm score — rank by wins, then pts differential
-      score: s.wins * 1000 + (s.ptsFor - s.ptsAgainst),
-      seed: reg.seed ?? reg.bibNumber ?? null,
-    };
-  });
-
-  rows.sort((a, b) => {
-    if (b.score !== a.score) return b.score - a.score;
-    const seedA = a.seed ?? Infinity;
-    const seedB = b.seed ?? Infinity;
-    return seedA - seedB;
-  });
-
-  rows.forEach((row, idx) => {
-    row.rank = idx + 1;
-  });
-
-  return rows.map(({ seed: _seed, ...row }) => row);
+  return new Map([...stats].map(([id, s]) => [id, s.wins * 1000 + (s.ptsFor - s.ptsAgainst)]));
 }
 
 // ── Standings / ranking declarations ─────────────────────────────────────────
@@ -195,23 +181,27 @@ export const Generic_PointsCap: Ruleset = {
   version: '1.0.0',
   displayName: 'Points Cap (Premier à N points)',
 
-  computeMatchScore(match: Match, exchanges: Exchange[], config: unknown) {
-    const cfg = normalizeGenericPointsCapConfig(config);
-    return computeScore(match, exchanges, cfg);
+  // This ruleset has no afterblow concept — `metadata.hasAfterblow` is false —
+  // so the mode is accepted and ignored rather than threaded on.
+  computeMatchScore(
+    match: Match,
+    exchanges: Exchange[],
+    _afterblowMode: AfterblowMode,
+    config: unknown,
+  ) {
+    return computeScore(match, exchanges, normalizeGenericPointsCapConfig(config));
   },
 
   isMatchOver(_match: Match, score: MatchScore, config: unknown) {
     return matchOver(score, normalizeGenericPointsCapConfig(config));
   },
 
-  computePoolStandings(
-    pool: Pool,
-    matches: Match[],
-    registrations: Registration[],
-    config: unknown,
-  ) {
-    const cfg = normalizeGenericPointsCapConfig(config);
-    return standings(pool, matches, registrations, cfg);
+  scorePoolFighters({ registrationIds, completedMatches, config }: ScorePoolFightersInput) {
+    return scoreFighters({
+      registrationIds,
+      completedMatches,
+      config: normalizeGenericPointsCapConfig(config),
+    });
   },
 
   standingsColumns: GENERIC_STANDINGS_COLUMNS,

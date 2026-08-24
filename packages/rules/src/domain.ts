@@ -41,6 +41,36 @@ export interface Match {
   matchNumberLabel?: string | null;
 }
 
+/**
+ * A finished bout, as the standings maths reads it: who fought, who won, and
+ * what happened in it.
+ *
+ * Every ruleset used to reach these two extra fields through a cast --
+ * `(match as Match & { exchanges?: Exchange[]; winnerRegistrationId?: string })`
+ * -- because `Match` carries neither, and the API then built a `Match` it did
+ * not have by casting a PostgREST row through `as unknown as`. Naming the shape
+ * that was actually being passed removes both.
+ *
+ * There is no `status`: a caller passes COMPLETED bouts. Every implementation
+ * used to filter for that itself, and the API's only caller had already
+ * filtered, so the field existed to be re-checked and never to be false.
+ *
+ * ── One disagreement this type does not settle ──────────────────────────────
+ * TF_v1 and Generic_PointsCap read `winnerRegistrationId` to count a win. The
+ * formula ruleset ignores it and calls the bout by raw score (`derive-stats.ts`,
+ * `deriveFighterStats`). So the two can disagree about who won a bout that was
+ * awarded against the points -- a forfeit, say. That is real, it predates this
+ * type, and putting both fields in one shape must not be read as having fixed
+ * it.
+ */
+export interface ScoredMatch {
+  id: string;
+  redRegistrationId: string;
+  blueRegistrationId: string;
+  winnerRegistrationId: string | null;
+  exchanges: Exchange[];
+}
+
 export interface MatchScore {
   redScore: number;
   blueScore: number;

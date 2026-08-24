@@ -576,18 +576,23 @@ export interface Ruleset {
   displayName: string;
 
   /** Compute one match's score from its exchanges */
-  computeMatchScore(match: Match, exchanges: Exchange[], config: unknown): MatchScore;
+  computeMatchScore(
+    match: Match,
+    exchanges: Exchange[],
+    afterblowMode: AfterblowMode,
+    config: unknown,
+  ): MatchScore;
 
   /** Decide if a match has ended (first-to-N, max-doubles) */
   isMatchOver(match: Match, score: MatchScore, config: unknown): MatchEndDecision;
 
-  /** Compute pool standings from all matches */
-  computePoolStandings(
-    pool: Pool,
-    matches: Match[],
-    registrations: Registration[],
-    config: unknown,
-  ): PoolStandingRow[];
+  /** This ruleset's `score` for each fighter, over a set of finished bouts */
+  scorePoolFighters(input: {
+    registrationIds: string[];
+    completedMatches: ScoredMatch[];
+    afterblowMode: AfterblowMode;
+    config: unknown;
+  }): Map<string, number>;
 
   /** Declarative standings columns, and the tiebreak chain applied over them */
   standingsColumns: StandingsColumn[];
@@ -595,6 +600,20 @@ export interface Ruleset {
   metadata?: RulesetMetadata;
 }
 ```
+
+**A ruleset returns scores, not standings.** `computePoolStandings` used to return a rank, wins,
+target points, times hit, doubles and score for each fighter, and sort them. Its only caller read
+`score` and discarded the rest, because ranking is done once, afterwards, by
+`applyRanking(rows, rankingChain)` — which also ranks the flattened cross-pool "overall" view,
+where a per-pool sort is meaningless. There were therefore two sorters, and TF_v1's private one
+used five keys while its DECLARED `rankingChain` used four. Asking a ruleset only for the score
+leaves one sorter and makes that divergence unrepresentable.
+
+**`afterblowMode` is a required parameter, and it is the TOURNAMENT's.** Exchanges store raw
+button values and are netted at read (§6.1). It used to be spliced onto the config object by the
+API and dug back out by each ruleset before its Zod parse, defaulting to `'full'` when absent —
+while the product default is `'deductive'`. A caller that forgot silently scored the bout the
+wrong way; a parameter cannot be forgotten.
 
 Three things the contract used to declare and no longer does, because nothing called them:
 

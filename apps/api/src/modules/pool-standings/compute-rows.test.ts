@@ -87,25 +87,17 @@ function exchange(over: Partial<Exchange>): Exchange {
  * score column from an absent one.
  */
 function stubRuleset(scores: Record<string, number> = {}) {
-  const computePoolStandings = vi.fn(
-    (_pool: unknown, _matches: unknown, registrations: Array<{ id: string }>) =>
-      registrations.map((registration, index) => ({
-        registrationId: registration.id,
-        rank: index + 1,
-        wins: 0,
-        targetPoints: 0,
-        timesHit: 0,
-        doubles: 0,
-        score: scores[registration.id] ?? 0,
-      })),
+  const scorePoolFighters = vi.fn(
+    ({ registrationIds }: { registrationIds: string[] }) =>
+      new Map(registrationIds.map((id) => [id, scores[id] ?? 0])),
   );
   const ruleset = {
     code: 'Stub',
     version: '1.0.0',
     displayName: 'Stub ruleset',
-    computePoolStandings,
+    scorePoolFighters,
   } as unknown as Ruleset;
-  return { ruleset, computePoolStandings };
+  return { ruleset, scorePoolFighters };
 }
 
 function input(over: Partial<ComputeRowsInput> = {}): ComputeRowsInput {
@@ -120,6 +112,7 @@ function input(over: Partial<ComputeRowsInput> = {}): ComputeRowsInput {
     drawnForfeitMatchIds: new Set(),
     ruleset: stubRuleset().ruleset,
     runtimeConfig: {},
+    afterblowMode: 'full',
     ...over,
   };
 }
@@ -215,7 +208,7 @@ describe('computeStandingsRows — the ruleset score', () => {
       input({ ruleset: stub.ruleset, completedMatches: [bout('m-1', A, 5, B, 3, A)] }),
     );
 
-    expect(stub.computePoolStandings).not.toHaveBeenCalled();
+    expect(stub.scorePoolFighters).not.toHaveBeenCalled();
   });
 
   it('takes the score from the ruleset and rounds it to two decimals', () => {
@@ -229,7 +222,7 @@ describe('computeStandingsRows — the ruleset score', () => {
       }),
     );
 
-    expect(stub.computePoolStandings).toHaveBeenCalledOnce();
+    expect(stub.scorePoolFighters).toHaveBeenCalledOnce();
     expect(statsOf(rows, A)['score']).toBe(3.14);
     expect(statsOf(rows, B)['score']).toBe(2);
   });
@@ -246,7 +239,7 @@ describe('computeStandingsRows — the ruleset score', () => {
       }),
     );
 
-    expect(stub.computePoolStandings).toHaveBeenCalledOnce();
+    expect(stub.scorePoolFighters).toHaveBeenCalledOnce();
     expect(statsOf(rows, A)['score']).toBe(3.14);
   });
 });

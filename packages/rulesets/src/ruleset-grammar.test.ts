@@ -14,6 +14,7 @@ import { TF_v1 } from './tf_v1';
 import { Generic_PointsCap } from './generic_points_cap';
 import { createFormulaRuleset } from './formula/ruleset';
 import { DEFAULT_FORMULA_CONSTANTS, type FormulaConfig } from './formula/types';
+import type { ScoredMatch } from './types';
 
 const config: FormulaConfig = {
   scoreFormula: { type: 'var', name: 'victories' },
@@ -107,47 +108,67 @@ describe('every ruleset declares its grammar', () => {
 });
 
 describe('defaultAfterblowMode is a seed, never a runtime input', () => {
-  it('standings still net afterblows by the TOURNAMENT mode, not the ruleset default', () => {
+  // One afterblow: red struck for 2, blue retaliated for 1.
+  const bout: ScoredMatch = {
+    id: 'm1',
+    redRegistrationId: 'r1',
+    blueRegistrationId: 'r2',
+    winnerRegistrationId: 'r1',
+    exchanges: [
+      {
+        id: 'e1',
+        clientUuid: 'e1',
+        matchId: 'm1',
+        sequence: 1,
+        type: 'afterblow',
+        occurredAt: '',
+        firstStrikerColor: 'red',
+        firstStrikeValue: 2,
+        afterblowValue: 1,
+        noExchangeReason: null,
+        voided: false,
+      },
+    ],
+  };
+
+  /** score = hitsGiven, so the netted target points ARE the score. */
+  const hitsGivenRuleset = (defaultAfterblowMode: 'full' | 'deductive') =>
+    createFormulaRuleset(
+      'custom_x',
+      '1.0.0',
+      'Custom',
+      { ...config, scoreFormula: { type: 'var', name: 'hitsGiven' } },
+      { hasAfterblow: true, defaultAfterblowMode },
+    );
+
+  it('scores by the TOURNAMENT mode it is handed, not the ruleset default', () => {
     // Exchanges store RAW button values and are netted at read. If the engine
     // preferred the ruleset's default over the tournament's live mode, editing
     // a ruleset would retroactively rewrite every score derived under it.
-    const ruleset = createFormulaRuleset('custom_x', '1.0.0', 'Custom', config, {
-      hasAfterblow: true,
-      defaultAfterblowMode: 'full',
+    //
+    // The ruleset here declares 'full'. The tournament says 'deductive', and
+    // deductive is what must win: attacker keeps 2 - 1 = 1, defender gets 0.
+    const scores = hitsGivenRuleset('full').scorePoolFighters({
+      registrationIds: ['r1', 'r2'],
+      completedMatches: [bout],
+      afterblowMode: 'deductive',
+      config: {},
     });
+    expect(scores.get('r1')).toBe(1);
+    expect(scores.get('r2')).toBe(0);
+  });
 
-    const rows = ruleset.computePoolStandings?.(
-      { id: 'p1' } as never,
-      [
-        {
-          id: 'm1',
-          status: 'completed',
-          redRegistrationId: 'r1',
-          blueRegistrationId: 'r2',
-          winnerRegistrationId: 'r1',
-          exchanges: [
-            {
-              id: 'e1',
-              matchId: 'm1',
-              type: 'afterblow',
-              firstStrikerColor: 'red',
-              firstStrikeValue: 2,
-              afterblowValue: 1,
-              voided: false,
-            },
-          ],
-        } as never,
-      ],
-      [{ id: 'r1' }, { id: 'r2' }] as never,
-      // Tournament says deductive; the ruleset default says full.
-      { afterblowMode: 'deductive' },
-    );
-
-    // Deductive: attacker keeps 2 - 1 = 1, defender gets 0. Under 'full' the
-    // defender would have scored 1, so this distinguishes the two.
-    const red = rows?.find((row) => row.registrationId === 'r1');
-    const blue = rows?.find((row) => row.registrationId === 'r2');
-    expect(red?.targetPoints).toBe(1);
-    expect(blue?.targetPoints).toBe(0);
+  it('and the other way round, so neither answer is the accidental one', () => {
+    // The ruleset declares 'deductive' and the tournament says 'full'. Under
+    // full both sides keep what they landed. Asserting only the case above
+    // would pass even if the mode were ignored and 'deductive' hardcoded.
+    const scores = hitsGivenRuleset('deductive').scorePoolFighters({
+      registrationIds: ['r1', 'r2'],
+      completedMatches: [bout],
+      afterblowMode: 'full',
+      config: {},
+    });
+    expect(scores.get('r1')).toBe(2);
+    expect(scores.get('r2')).toBe(1);
   });
 });

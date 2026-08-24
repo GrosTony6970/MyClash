@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import type { Exchange, Match, Registration } from '../types';
+import type { Exchange, Ruleset, ScoredMatch } from '../types';
+import { applyRanking } from '@myclash/rules/results';
 import { deriveFighterStats, evaluateFormula } from '@myclash/rules';
 import { createFormulaRuleset } from './ruleset';
 import {
@@ -59,118 +60,53 @@ describe('evaluateFormula', () => {
   });
 });
 
-describe('deriveFighterStats', () => {
-  function makeMatch(id: string, red: string, blue: string): Match {
-    return {
-      id,
-      redRegistrationId: red,
-      blueRegistrationId: blue,
-      rulesetCode: 'custom_test',
-      rulesetVersion: '1.0.0',
-      status: 'completed',
-    };
-  }
-
-  function exchange(
-    matchId: string,
-    striker: 'red' | 'blue' | null,
-    type: Exchange['type'],
-  ): Exchange {
-    return {
-      id: `${matchId}-${Math.random()}`,
-      clientUuid: 'c',
-      matchId,
-      sequence: 0,
-      type,
-      occurredAt: '',
-      firstStrikerColor: striker,
-      firstStrikeValue: striker ? 1 : null,
-      afterblowValue: null,
-      noExchangeReason: null,
-      voided: false,
-    };
-  }
-
-  it('counts victories, ties, losses and aggregates hits across matches', () => {
-    const matches = [
-      makeMatch('m1', 'fighter-A', 'fighter-B'),
-      makeMatch('m2', 'fighter-A', 'fighter-C'),
-      makeMatch('m3', 'fighter-A', 'fighter-D'),
-    ];
-    const exchanges = new Map<string, Exchange[]>([
-      // m1: A scores 2, B scores 1 → A wins
-      [
-        'm1',
-        [
-          exchange('m1', 'red', 'clean'),
-          exchange('m1', 'red', 'clean'),
-          exchange('m1', 'blue', 'clean'),
-        ],
-      ],
-      // m2: A scores 1, C scores 1 → tie
-      ['m2', [exchange('m2', 'red', 'clean'), exchange('m2', 'blue', 'clean')]],
-      // m3: D scores 2, A scores 0 → A loses, plus 1 double
-      [
-        'm3',
-        [
-          exchange('m3', 'blue', 'clean'),
-          exchange('m3', 'blue', 'clean'),
-          exchange('m3', null, 'double'),
-        ],
-      ],
-    ]);
-
-    const stats = deriveFighterStats('fighter-A', matches, exchanges);
-    expect(stats.victories).toBe(1);
-    expect(stats.ties).toBe(1);
-    expect(stats.losses).toBe(1);
-    expect(stats.doubleHits).toBe(1);
-    expect(stats.hitsGiven).toBe(3); // 2 + 1 + 0
-    expect(stats.hitsReceived).toBe(4); // 1 + 1 + 2
-  });
-
-  it('skips non-completed matches', () => {
-    const m = { ...makeMatch('m1', 'A', 'B'), status: 'scheduled' as const };
-    const stats = deriveFighterStats('A', [m], new Map());
-    expect(stats).toEqual({
-      victories: 0,
-      ties: 0,
-      losses: 0,
-      doubleHits: 0,
-      hitsGiven: 0,
-      hitsReceived: 0,
-    });
-  });
-});
-
 describe('createFormulaRuleset', () => {
-  function regOf(id: string, seed: number | null = null): Registration {
-    return { id, seed, bibNumber: null };
-  }
-
-  function makeMatch(
-    id: string,
-    red: string,
-    blue: string,
-    exchanges: Exchange[],
-  ): Match & { exchanges: Exchange[] } {
+  function makeMatch(id: string, red: string, blue: string, exchanges: Exchange[]): ScoredMatch {
     return {
       id,
       redRegistrationId: red,
       blueRegistrationId: blue,
-      rulesetCode: 'custom_test',
-      rulesetVersion: '1.0.0',
-      status: 'completed',
+      // Ignored by this ruleset: it calls a bout by raw score.
+      winnerRegistrationId: null,
       exchanges,
     };
   }
 
-  function ex(matchId: string, striker: 'red' | 'blue' | null, type: Exchange['type']): Exchange {
+  /**
+   * Score, then ORDER by the ruleset's declared chain — which is what the API
+   * does. The ruleset used to sort its own rows and the API discarded that
+   * ordering, so these assertions now run the path that actually decides
+   * placement.
+   */
+  function rankedIds(ruleset: Ruleset, ids: string[], matches: ScoredMatch[]): string[] {
+    const scores = ruleset.scorePoolFighters({
+      registrationIds: ids,
+      completedMatches: matches,
+      afterblowMode: 'full',
+      config: {},
+    });
+    const rows = ids.map((id) => ({
+      rank: 0,
+      registrationId: id,
+      displayName: id,
+      club: null,
+      status: 'completed' as const,
+      stats: { score: scores.get(id) ?? 0 },
+    }));
+    return applyRanking(rows, ruleset.rankingChain).map((r) => r.registrationId);
+  }
+
+  function ex(
+    matchId: string,
+    striker: 'red' | 'blue' | null,
+    type: Exchange['type'],
+    seq = 0,
+  ): Exchange {
     return {
-      id: `${matchId}-${Math.random()}`,
+      id: `${matchId}-${seq}-${striker ?? 'none'}-${type}`,
       clientUuid: 'c',
       matchId,
-      sequence: 0,
+      sequence: seq,
       type,
       occurredAt: '',
       firstStrikerColor: striker,
@@ -202,19 +138,17 @@ describe('createFormulaRuleset', () => {
       makeMatch('m3', 'B', 'C', [ex('m3', 'red', 'clean')]), // B wins (red=B)
     ];
 
-    const standings = ruleset.computePoolStandings(
-      { id: 'p1', name: 'Pool 1' },
-      matches,
-      [regOf('A'), regOf('B'), regOf('C')],
-      undefined,
-    );
+    const scores = ruleset.scorePoolFighters({
+      registrationIds: ['A', 'B', 'C'],
+      completedMatches: matches,
+      afterblowMode: 'full',
+      config: {},
+    });
 
-    expect(standings[0]?.registrationId).toBe('A');
-    expect(standings[0]?.score).toBe(2); // 2 victories - 0 losses
-    expect(standings[0]?.rank).toBe(1);
-    expect(standings[1]?.registrationId).toBe('B'); // 1 win, 1 loss → 0
-    expect(standings[2]?.registrationId).toBe('C'); // 0 wins, 2 losses → -2
-    expect(standings[2]?.score).toBe(-2);
+    expect(scores.get('A')).toBe(2); // 2 victories - 0 losses
+    expect(scores.get('B')).toBe(0); // 1 win, 1 loss
+    expect(scores.get('C')).toBe(-2); // 0 wins, 2 losses
+    expect(rankedIds(ruleset, ['A', 'B', 'C'], matches)).toEqual(['A', 'B', 'C']);
   });
 
   it('applies tie-breakers when scores are equal', () => {
@@ -241,17 +175,36 @@ describe('createFormulaRuleset', () => {
       ]),
     ];
 
-    const standings = ruleset.computePoolStandings(
-      { id: 'p1', name: 'Pool 1' },
-      matches,
-      [regOf('A'), regOf('B'), regOf('C')],
-      undefined,
-    );
+    // A and B both score 1, so the author's doubleHits tiebreaker decides —
+    // projected onto the `doubles` column and executed by applyRanking, which is
+    // the ONLY sorter now. The ruleset's own sort used to shadow this and then
+    // be thrown away.
+    const scores = ruleset.scorePoolFighters({
+      registrationIds: ['A', 'B', 'C'],
+      completedMatches: matches,
+      afterblowMode: 'full',
+      config: {},
+    });
+    expect(scores.get('A')).toBe(scores.get('B'));
 
-    // A wins the tie-break with B (0 doubles < 2 doubles)
-    expect(standings[0]?.registrationId).toBe('A');
-    expect(standings[1]?.registrationId).toBe('B');
-    expect(standings[2]?.registrationId).toBe('C');
+    const rows = [
+      { id: 'A', doubles: 0 },
+      { id: 'B', doubles: 2 },
+      { id: 'C', doubles: 0 },
+    ].map((r) => ({
+      rank: 0,
+      registrationId: r.id,
+      displayName: r.id,
+      club: null,
+      status: 'completed' as const,
+      stats: { score: scores.get(r.id) ?? 0, doubles: r.doubles },
+    }));
+
+    expect(applyRanking(rows, ruleset.rankingChain).map((r) => r.registrationId)).toEqual([
+      'A',
+      'B',
+      'C',
+    ]);
   });
 });
 
@@ -260,7 +213,7 @@ describe('named double-penalty sub-formula (FormulaRuleset scoring)', () => {
   // formula as `doublePenalty`, so a nonlinear penalty need not be inlined in
   // the score. Absent → the flat constant, so a ruleset with no double-hit
   // penalty is unchanged.
-  function matchWithDoubles(doubles: number): Match {
+  function matchWithDoubles(doubles: number): ScoredMatch {
     const exchanges: Exchange[] = Array.from({ length: doubles }, (_, i) => ({
       id: `d${i}`,
       clientUuid: 'c',
@@ -278,11 +231,9 @@ describe('named double-penalty sub-formula (FormulaRuleset scoring)', () => {
       id: 'm1',
       redRegistrationId: 'A',
       blueRegistrationId: 'B',
-      rulesetCode: 'custom_dp',
-      rulesetVersion: '1.0.0',
-      status: 'completed',
+      winnerRegistrationId: null,
       exchanges,
-    } as unknown as Match;
+    };
   }
 
   // score = victories - doublePenalty. With only doubles, victories = 0, so the
@@ -294,17 +245,15 @@ describe('named double-penalty sub-formula (FormulaRuleset scoring)', () => {
     right: { type: 'var', name: 'doublePenalty' },
   };
   const constants = { pointsPerVictory: 3, pointsPerTie: 1, pointsPerLoss: 0, doublePenalty: 0 };
-  const regs = [{ id: 'A' }, { id: 'B' }] as unknown as Registration[];
-
   function scoreForDoubles(config: FormulaConfig, doubles: number): number {
     const ruleset = createFormulaRuleset('custom_dp', '1.0.0', 'DP', config);
-    const rows = ruleset.computePoolStandings!(
-      { id: 'p1' } as never,
-      [matchWithDoubles(doubles)],
-      regs,
-      {},
-    );
-    return rows.find((r) => r.registrationId === 'A')!.score;
+    const scores = ruleset.scorePoolFighters({
+      registrationIds: ['A', 'B'],
+      completedMatches: [matchWithDoubles(doubles)],
+      afterblowMode: 'full',
+      config: {},
+    });
+    return scores.get('A') ?? 0;
   }
 
   it('applies a linear penalty formula through the doublePenalty variable', () => {

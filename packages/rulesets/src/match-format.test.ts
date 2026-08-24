@@ -144,17 +144,20 @@ describe('match format config', () => {
     ];
     const cfg = { ...DEFAULT_MATCH_FORMAT_CONFIG, maxDoubleHits: 2 };
 
-    const bracket = computeMatchFormatScore(
-      { ...BASE_MATCH, phaseType: 'single_elim', matchNumberLabel: 'QF1' },
-      exchanges,
-      cfg,
-    );
+    const quarterFinal: Match = {
+      ...BASE_MATCH,
+      phaseType: 'single_elim',
+      matchNumberLabel: 'QF1',
+    };
+    const bracket = computeMatchFormatScore(quarterFinal, exchanges, cfg);
     expect(bracket.redScore).toBe(2);
     expect(bracket.doubles).toBe(2);
 
+    const medalByLabelOnly: Match = { ...BASE_MATCH, matchNumberLabel: 'F' };
     expect(getEffectiveMaxDoubles({ ...BASE_MATCH, phaseType: 'pool' }, cfg)).toBe(2);
     expect(getEffectiveMaxDoubles({ ...BASE_MATCH, phaseType: 'single_elim' }, cfg)).toBeNull();
-    expect(getEffectiveMaxDoubles({ ...BASE_MATCH, matchNumberLabel: 'F' }, cfg)).toBeNull();
+    // A medal LABEL alone does not make it a pool: only phaseType is read.
+    expect(getEffectiveMaxDoubles(medalByLabelOnly, cfg)).toBeNull();
   });
 
   it('uses pool, bracket, and medal-match final time limits', () => {

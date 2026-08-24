@@ -14,7 +14,15 @@
 export { computeAfterblowDeltas } from './afterblow';
 export type { AfterblowMode } from './afterblow';
 
-export type { Exchange, ExchangeType, Match, MatchScore, PhaseType, StrikerColor } from './domain';
+export type {
+  Exchange,
+  ExchangeType,
+  Match,
+  MatchScore,
+  PhaseType,
+  ScoredMatch,
+  StrikerColor,
+} from './domain';
 
 // The vocabulary of ORDER, shared by every ranked table in the product. Two of
 // these unions had more than one owner before they landed here.

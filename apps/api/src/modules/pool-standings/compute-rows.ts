@@ -46,7 +46,12 @@ export interface ComputeRowsInput {
   drawnForfeitMatchIds: Set<string>;
   ruleset: Ruleset;
   runtimeConfig: unknown;
-  afterblowMode?: 'full' | 'deductive';
+  /**
+   * The TOURNAMENT's afterblow mode. Required: it changes every derived number,
+   * and a default of 'full' against a product default of 'deductive' is how a
+   * caller silently scores a bout the wrong way.
+   */
+  afterblowMode: 'full' | 'deductive';
   /**
    * Compute the ruleset's `score` even when the columns do not declare one.
    *
@@ -72,7 +77,7 @@ export function computeStandingsRows(input: ComputeRowsInput): StandingsRow[] {
     drawnForfeitMatchIds,
     ruleset,
     runtimeConfig,
-    afterblowMode = 'full',
+    afterblowMode,
     forceScore = false,
   } = input;
 
@@ -158,6 +163,7 @@ export function computeStandingsRows(input: ComputeRowsInput): StandingsRow[] {
           members,
           completedMatches,
           exchangesByMatch,
+          afterblowMode,
           runtimeConfig,
         )
       : new Map<string, number>();

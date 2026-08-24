@@ -1,7 +1,8 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { Generic_PointsCap, GenericPointsCapDefaultConfig } from './index';
 import { RulesetRegistry } from '../registry';
-import type { Exchange, Match } from '../types';
+import type { Exchange, Match, ScoredMatch } from '../types';
+import { applyRanking } from '@myclash/rules/results';
 
 const BASE_MATCH: Match = {
   id: 'm1',
@@ -47,7 +48,7 @@ describe('Generic_PointsCap', () => {
         makeEx({ id: 'e2', sequence: 2, firstStrikerColor: 'red' }),
         makeEx({ id: 'e3', sequence: 3, firstStrikerColor: 'blue' }),
       ];
-      const score = Generic_PointsCap.computeMatchScore(BASE_MATCH, exchanges, {});
+      const score = Generic_PointsCap.computeMatchScore(BASE_MATCH, exchanges, 'full', {});
       expect(score.redScore).toBe(2);
       expect(score.blueScore).toBe(1);
     });
@@ -59,14 +60,14 @@ describe('Generic_PointsCap', () => {
         firstStrikeValue: 1,
         afterblowValue: 1,
       });
-      const score = Generic_PointsCap.computeMatchScore(BASE_MATCH, [ex], {});
+      const score = Generic_PointsCap.computeMatchScore(BASE_MATCH, [ex], 'full', {});
       expect(score.redScore).toBe(1);
       expect(score.blueScore).toBe(0);
     });
 
     it('doubles do not score', () => {
       const ex = makeEx({ type: 'double', firstStrikerColor: null, firstStrikeValue: null });
-      const score = Generic_PointsCap.computeMatchScore(BASE_MATCH, [ex], {});
+      const score = Generic_PointsCap.computeMatchScore(BASE_MATCH, [ex], 'full', {});
       expect(score.redScore).toBe(0);
       expect(score.blueScore).toBe(0);
       expect(score.doubles).toBe(1);
@@ -76,7 +77,7 @@ describe('Generic_PointsCap', () => {
   describe('isMatchOver', () => {
     /** The score the caller would hold, from this bout's exchanges. */
     const scoreOf = (exchanges: Exchange[], config: unknown) =>
-      Generic_PointsCap.computeMatchScore(BASE_MATCH, exchanges, config);
+      Generic_PointsCap.computeMatchScore(BASE_MATCH, exchanges, 'full', config);
 
     it('ends when red reaches pointsCap (default 10)', () => {
       const exchanges = Array.from({ length: 10 }, (_, i) =>
@@ -109,35 +110,63 @@ describe('Generic_PointsCap', () => {
     });
   });
 
-  describe('computePoolStandings', () => {
-    it('ranks by wins first', () => {
-      const regs = [
-        { id: 'r1', seed: 1, bibNumber: null },
-        { id: 'r2', seed: 2, bibNumber: null },
-      ];
-      const match = {
-        id: 'm1',
-        redRegistrationId: 'r1',
-        blueRegistrationId: 'r2',
-        rulesetCode: 'Generic_PointsCap',
-        rulesetVersion: '1.0.0',
+  describe('scorePoolFighters', () => {
+    const bout: ScoredMatch = {
+      id: 'm1',
+      redRegistrationId: 'r1',
+      blueRegistrationId: 'r2',
+      winnerRegistrationId: 'r1',
+      exchanges: [
+        makeEx({ id: 'e1', sequence: 1, firstStrikerColor: 'red' }),
+        makeEx({ id: 'e2', sequence: 2, firstStrikerColor: 'red' }),
+        makeEx({ id: 'e3', sequence: 3, firstStrikerColor: 'red' }),
+      ],
+    };
+
+    const scores = () =>
+      Generic_PointsCap.scorePoolFighters({
+        registrationIds: ['r1', 'r2'],
+        completedMatches: [bout],
+        afterblowMode: 'full',
+        config: {},
+      });
+
+    it('puts a win a thousand ahead, so wins outrank any differential', () => {
+      // r1 won 3-0: 1 * 1000 + 3. r2 lost: 0 * 1000 - 3.
+      expect(scores().get('r1')).toBe(1003);
+      expect(scores().get('r2')).toBe(-3);
+    });
+
+    it('returns a score for a fighter who fought nothing', () => {
+      // A fighter with no bouts must still appear, or the standings table drops
+      // a row rather than showing a zero.
+      const withBye = Generic_PointsCap.scorePoolFighters({
+        registrationIds: ['r1', 'r2', 'r3'],
+        completedMatches: [bout],
+        afterblowMode: 'full',
+        config: {},
+      });
+      expect(withBye.get('r3')).toBe(0);
+    });
+
+    it('orders by the declared chain, which is the only sorter left', () => {
+      // The ruleset used to sort its own rows; the API discarded that ordering
+      // and re-ranked with applyRanking over the rendered columns. Only the
+      // second one ever decided a placement.
+      const rows = [
+        { id: 'r2', W: 0, diff: -3 },
+        { id: 'r1', W: 1, diff: 3 },
+      ].map((r) => ({
+        rank: 0,
+        registrationId: r.id,
+        displayName: r.id,
+        club: null,
         status: 'completed' as const,
-        winnerRegistrationId: 'r1',
-        exchanges: [
-          makeEx({ id: 'e1', sequence: 1, firstStrikerColor: 'red' }),
-          makeEx({ id: 'e2', sequence: 2, firstStrikerColor: 'red' }),
-          makeEx({ id: 'e3', sequence: 3, firstStrikerColor: 'red' }),
-        ],
-      };
-      const rows = Generic_PointsCap.computePoolStandings(
-        { id: 'pool-1', name: 'Pool A' },
-        [match],
-        regs,
-        {},
-      );
-      expect(rows[0]?.registrationId).toBe('r1');
-      expect(rows[0]?.wins).toBe(1);
-      expect(rows[1]?.wins).toBe(0);
+        stats: { W: r.W, diff: r.diff, ptsScored: 0 },
+      }));
+      expect(
+        applyRanking(rows, Generic_PointsCap.rankingChain).map((r) => r.registrationId),
+      ).toEqual(['r1', 'r2']);
     });
   });
 });

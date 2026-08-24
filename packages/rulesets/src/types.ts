@@ -12,9 +12,17 @@
 // The bout shapes moved to @myclash/rules, which has no dependencies, so the
 // arithmetic that reads them is reachable from the scoring pad. Re-exported so
 // nothing importing from this module changed.
-import type { Exchange, ExchangeType, Match, MatchScore, StrikerColor } from '@myclash/rules';
+import type {
+  AfterblowMode,
+  Exchange,
+  ExchangeType,
+  Match,
+  MatchScore,
+  ScoredMatch,
+  StrikerColor,
+} from '@myclash/rules';
 
-export type { Exchange, ExchangeType, Match, MatchScore, StrikerColor };
+export type { AfterblowMode, Exchange, ExchangeType, Match, MatchScore, ScoredMatch, StrikerColor };
 
 // `afterblowValuation` below was a second hand-written copy of this union. The
 // scoring buttons are DERIVED from it in @myclash/types, which this package
@@ -22,15 +30,16 @@ export type { Exchange, ExchangeType, Match, MatchScore, StrikerColor };
 // that watched them.
 import type { AfterblowValuation } from '@myclash/types';
 
-export interface Registration {
-  id: string;
-  seed: number | null;
-  bibNumber: number | null;
-}
-
-export interface Pool {
-  id: string;
-  name: string;
+/** What a ruleset needs to score a set of fighters over a set of finished bouts. */
+export interface ScorePoolFightersInput {
+  /** Every fighter to return a score for, including those who fought nothing. */
+  registrationIds: string[];
+  /** Finished bouts only. Each carries its own exchanges. */
+  completedMatches: ScoredMatch[];
+  /** The TOURNAMENT's afterblow mode. See `computeMatchScore`. */
+  afterblowMode: AfterblowMode;
+  /** The ruleset's own config blob, unvalidated. */
+  config: unknown;
 }
 
 // ── Output types ──────────────────────────────────────────────────────────────
@@ -38,16 +47,6 @@ export interface Pool {
 export interface MatchEndDecision {
   isOver: boolean;
   reason: 'time_limit' | 'first_to_points' | 'max_doubles' | 'manual' | null;
-}
-
-export interface PoolStandingRow {
-  registrationId: string;
-  rank: number;
-  wins: number;
-  targetPoints: number;
-  timesHit: number;
-  doubles: number;
-  score: number;
 }
 
 export interface FighterAggregates {
@@ -167,9 +166,21 @@ export interface Ruleset {
 
   /**
    * Compute one match's score from its exchanges.
+   *
+   * `afterblowMode` is REQUIRED and is the TOURNAMENT's, never the ruleset's.
+   * Exchanges store raw button values and are netted at read, so a caller that
+   * forgot to thread it used to get 'full' by default while the product default
+   * is 'deductive' — scoring the bout the wrong way, in silence. It used to be
+   * smuggled onto the config object; a parameter cannot be forgotten.
+   *
    * Must be a pure function — no DB, no I/O.
    */
-  computeMatchScore(match: Match, exchanges: Exchange[], config: unknown): MatchScore;
+  computeMatchScore(
+    match: Match,
+    exchanges: Exchange[],
+    afterblowMode: AfterblowMode,
+    config: unknown,
+  ): MatchScore;
 
   /**
    * Decide if a match has ended, from the score the caller is about to persist.
@@ -191,15 +202,27 @@ export interface Ruleset {
   isMatchOver(match: Match, score: MatchScore, config: unknown): MatchEndDecision;
 
   /**
-   * Compute pool standings from all matches in the pool.
+   * This ruleset's `score` for each fighter over a set of finished bouts.
+   *
+   * ── Why this is not `computePoolStandings` any more ────────────────────────
+   * That method took a Pool, took Registrations, and returned rank, wins,
+   * targetPoints, timesHit, doubles and score for each of them. Its only caller
+   * read `score` and discarded the other five, invented the Pool as
+   * `{ id: '', name: '' }`, invented Registrations with null seed and bib, and
+   * reached all of it through three `as unknown as` casts because it holds
+   * PostgREST rows and not domain objects.
+   *
+   * Ranking never lived here either. Each ruleset sorted its own rows and the
+   * API threw that ordering away, because `applyRanking(rows, rankingChain)` has
+   * to rank the flattened cross-pool "overall" view as well, where a per-pool
+   * sort is meaningless. So TF_v1 sorted on its own hardcoded five keys while
+   * its DECLARED `rankingChain` had four — two sorters, and the one that ran was
+   * not the one the ruleset published. Asking only for the score leaves one
+   * sorter and makes that divergence unrepresentable.
+   *
    * Must be a pure function — no DB, no I/O.
    */
-  computePoolStandings(
-    pool: Pool,
-    matches: Match[],
-    registrations: Registration[],
-    config: unknown,
-  ): PoolStandingRow[];
+  scorePoolFighters(input: ScorePoolFightersInput): Map<string, number>;
 
   /** Declarative column schema for the pool-standings table. Dynamic columns shown
    *  alongside fixed Rank/Fighter/Status chrome columns. */

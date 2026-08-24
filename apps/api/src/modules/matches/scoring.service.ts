@@ -22,6 +22,7 @@ import {
   roundWinTarget,
 } from '@myclash/rulesets';
 import type {
+  AfterblowMode,
   Exchange as RulesetExchange,
   Match as RulesetMatch,
   MatchFormatConfig,
@@ -126,13 +127,11 @@ export class ScoringService {
 
     const config = this.rulesetConfig(m['phases']);
     // afterblowMode lives in the tournament's scoring_config_json, not in
-    // ruleset_config. Attach it onto the config so the engine can net deductive
-    // afterblows (the engine reads it off the raw object before its Zod parse).
+    // ruleset_config. It used to be spliced ONTO the config object so the engine
+    // could dig it back out before its Zod parse; the contract takes it as a
+    // required parameter now, so the splice is gone and the config travels as
+    // the ruleset authored it.
     const afterblowMode = this.afterblowMode(m['phases']);
-    const configWithMode =
-      config && typeof config === 'object'
-        ? { ...(config as Record<string, unknown>), afterblowMode }
-        : { afterblowMode };
 
     const matchFormat = normalizeMatchFormatConfig(
       (config as { matchFormat?: unknown } | null)?.matchFormat ?? {},
@@ -144,7 +143,7 @@ export class ScoringService {
         matchId,
         match,
         ruleset,
-        configWithMode,
+        config,
         matchFormat,
         afterblowMode,
         rawRows,
@@ -153,13 +152,13 @@ export class ScoringService {
       });
     }
 
-    const score = ruleset.computeMatchScore(match, exchanges, configWithMode);
+    const score = ruleset.computeMatchScore(match, exchanges, afterblowMode, config);
     // Deliberately BEFORE the penalty loop below, because that is where the old
     // `isMatchOver(match, exchanges, 0, config)` effectively read: it re-derived
     // the score from the exchanges itself and never saw a penalty. Keeping the
     // order preserves today's behaviour exactly; the split between this decision
     // and the penalised score the winner is read from is a separate fix.
-    const matchEndDecision = ruleset.isMatchOver(match, score, configWithMode);
+    const matchEndDecision = ruleset.isMatchOver(match, score, config);
 
     for (const row of penaltyRows ?? []) {
       const penalty = row as Record<string, unknown>;
@@ -283,11 +282,12 @@ export class ScoringService {
     ruleset: Ruleset,
     match: RulesetMatch,
     openExchanges: RulesetExchange[],
-    configWithMode: Record<string, unknown>,
+    afterblowMode: AfterblowMode,
+    config: unknown,
     matchFormat: MatchFormatConfig,
   ): RoundEvaluation {
     return evaluateRound(match, openExchanges, matchFormat, (m, exchanges) =>
-      ruleset.computeMatchScore(m, exchanges, configWithMode),
+      ruleset.computeMatchScore(m, exchanges, afterblowMode, config),
     );
   }
 
@@ -349,15 +349,24 @@ export class ScoringService {
     matchId: string;
     match: RulesetMatch;
     ruleset: Ruleset;
-    configWithMode: Record<string, unknown>;
+    config: unknown;
     matchFormat: MatchFormatConfig;
-    afterblowMode: 'full' | 'deductive';
+    afterblowMode: AfterblowMode;
     rawRows: Record<string, unknown>[];
     penaltyRows: Record<string, unknown>[];
     matchRow: Record<string, unknown>;
   }): Promise<{ redScore: number; blueScore: number }> {
-    const { matchId, match, ruleset, configWithMode, matchFormat, rawRows, penaltyRows, matchRow } =
-      args;
+    const {
+      matchId,
+      match,
+      ruleset,
+      config,
+      afterblowMode,
+      matchFormat,
+      rawRows,
+      penaltyRows,
+      matchRow,
+    } = args;
     const winTarget = roundWinTarget(getEffectiveBestOf(match, matchFormat));
     const closedRounds = this.parseRoundsJson(matchRow['rounds_json']);
     const currentRound = (matchRow['current_round'] as number) ?? 1;
@@ -365,7 +374,14 @@ export class ScoringService {
     const openExchanges = rawRows
       .filter((r) => ((r['round_number'] as number | null) ?? 1) === currentRound)
       .map((r) => this.mapExchange(r));
-    const ev = this.evaluateOpenRound(ruleset, match, openExchanges, configWithMode, matchFormat);
+    const ev = this.evaluateOpenRound(
+      ruleset,
+      match,
+      openExchanges,
+      afterblowMode,
+      config,
+      matchFormat,
+    );
 
     let openRed = ev.score.redScore;
     let openBlue = ev.score.blueScore;
@@ -486,7 +502,8 @@ export class ScoringService {
       ctx.ruleset,
       ctx.match,
       openExchanges,
-      ctx.configWithMode,
+      ctx.afterblowMode,
+      ctx.config,
       ctx.matchFormat,
     );
     let openRed = ev.score.redScore;
@@ -532,7 +549,8 @@ export class ScoringService {
     match: RulesetMatch;
     matchRow: Record<string, unknown>;
     ruleset: Ruleset;
-    configWithMode: Record<string, unknown>;
+    config: unknown;
+    afterblowMode: AfterblowMode;
     matchFormat: MatchFormatConfig;
     rawRows: Record<string, unknown>[];
     penaltyRows: Record<string, unknown>[];
@@ -575,10 +593,6 @@ export class ScoringService {
 
     const config = this.rulesetConfig(m['phases']);
     const afterblowMode = this.afterblowMode(m['phases']);
-    const configWithMode =
-      config && typeof config === 'object'
-        ? { ...(config as Record<string, unknown>), afterblowMode }
-        : { afterblowMode };
     const matchFormat = normalizeMatchFormatConfig(
       (config as { matchFormat?: unknown } | null)?.matchFormat ?? {},
     );
@@ -587,7 +601,8 @@ export class ScoringService {
       match,
       matchRow: m,
       ruleset,
-      configWithMode,
+      config,
+      afterblowMode,
       matchFormat,
       rawRows: (exchangeRows ?? []) as Record<string, unknown>[],
       penaltyRows: (penaltyRows ?? []) as Record<string, unknown>[],

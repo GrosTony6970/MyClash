@@ -1,15 +1,12 @@
 /**
- * packages/rulesets/src/formula/derive-stats.ts
- *
- * Aggregate per-fighter stats from match + exchange data. The same data the
- * `Generic_PointsCap.computePoolStandings` engine uses, just packaged into the
+ * Aggregate per-fighter stats from a set of finished bouts, in the
  * `{ victories, ties, losses, doubleHits, hitsGiven, hitsReceived }` shape the
- * FormulaRuleset evaluates against.
+ * FormulaRuleset evaluates its authored score formula against.
  *
  * Pure function. No DB, no I/O.
  */
 import { computeAfterblowDeltas, type AfterblowMode } from '../afterblow';
-import type { Exchange, Match } from '../domain';
+import type { Exchange, ScoredMatch } from '../domain';
 import type { DerivedFighterStats } from './types';
 
 interface MatchOutcome {
@@ -48,11 +45,17 @@ function computeRawScore(exchanges: Exchange[], afterblowMode: AfterblowMode): M
   return { redScore: red, blueScore: blue };
 }
 
+/**
+ * `completedMatches` carry their own exchanges, so there is no second `Map`
+ * argument to keep in step with them — the caller used to build one by walking
+ * the same array this walks. `afterblowMode` is required: it changes every
+ * number below, and a parameter that defaults to 'full' while the product
+ * default is 'deductive' silently scores a bout the wrong way.
+ */
 export function deriveFighterStats(
   registrationId: string,
-  matches: Match[],
-  exchangesByMatch: Map<string, Exchange[]>,
-  afterblowMode: AfterblowMode = 'full',
+  completedMatches: ScoredMatch[],
+  afterblowMode: AfterblowMode,
 ): DerivedFighterStats {
   const stats: DerivedFighterStats = {
     victories: 0,
@@ -63,13 +66,12 @@ export function deriveFighterStats(
     hitsReceived: 0,
   };
 
-  for (const match of matches) {
-    if (match.status !== 'completed') continue;
+  for (const match of completedMatches) {
     const isRed = match.redRegistrationId === registrationId;
     const isBlue = match.blueRegistrationId === registrationId;
     if (!isRed && !isBlue) continue;
 
-    const exchanges = exchangesByMatch.get(match.id) ?? [];
+    const exchanges = match.exchanges;
     const { redScore, blueScore } = computeRawScore(exchanges, afterblowMode);
     const myScore = isRed ? redScore : blueScore;
     const oppScore = isRed ? blueScore : redScore;

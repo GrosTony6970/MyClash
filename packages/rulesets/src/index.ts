@@ -9,11 +9,11 @@ export type {
   ExchangeType,
   StrikerColor,
   Match,
-  Registration,
-  Pool,
+  ScoredMatch,
+  ScorePoolFightersInput,
+  AfterblowMode,
   MatchScore,
   MatchEndDecision,
-  PoolStandingRow,
   FighterAggregates,
   StandingsColumn,
   RankingRule,
@@ -83,7 +83,7 @@ export {
   withDerivedTargets,
   type Target,
 } from './tf_v1/targets';
-export { computeMatchScore, isMatchOver, computePoolStandings } from './tf_v1';
+export { computeMatchScore, isMatchOver } from './tf_v1';
 export { doublePenalty, computeScore, computeAggregates } from './tf_v1/score';
 // The double-penalty whitelist. Exported so the API validates authored formulas
 // against the same keys the engine dispatches on, instead of eval'ing a string.
