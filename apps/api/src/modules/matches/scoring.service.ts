@@ -153,12 +153,6 @@ export class ScoringService {
     }
 
     const score = ruleset.computeMatchScore(match, exchanges, afterblowMode, config);
-    // Deliberately BEFORE the penalty loop below, because that is where the old
-    // `isMatchOver(match, exchanges, 0, config)` effectively read: it re-derived
-    // the score from the exchanges itself and never saw a penalty. Keeping the
-    // order preserves today's behaviour exactly; the split between this decision
-    // and the penalised score the winner is read from is a separate fix.
-    const matchEndDecision = ruleset.isMatchOver(match, score, config);
 
     for (const row of penaltyRows ?? []) {
       const penalty = row as Record<string, unknown>;
@@ -167,6 +161,12 @@ export class ScoringService {
       if (penalty['registration_id'] === match.blueRegistrationId) score.blueScore += delta;
     }
 
+    // AFTER the penalties, so the end decision and the winner read the SAME
+    // number — the one the referee is looking at. They used to disagree: the
+    // decision was taken on the bare exchanges and the winner on the penalised
+    // score, so a penalty that dropped the cap-reacher back below the cap
+    // completed the bout with `end_reason: 'first_to_points'` and no winner.
+    const matchEndDecision = ruleset.isMatchOver(match, score, config);
     const winnerRegistrationId =
       matchEndDecision.reason === 'first_to_points'
         ? getPointCapWinnerRegistrationId(match, score, matchFormat)
@@ -174,6 +174,12 @@ export class ScoringService {
     // True only on the transition INTO completed — the guard makes the
     // side effects below (clock end) fire exactly once.
     const justCompleted = match.status !== 'completed' && matchEndDecision.isOver;
+    // And the transition back OUT. A penalty can now END a bout, so voiding one
+    // has to be able to reopen it — both paths call this method
+    // (`PenaltiesService`). Without this the bout would stay completed, holding
+    // a winner whose end condition no longer holds, in front of the referee who
+    // just voided the penalty.
+    const justReopened = match.status === 'completed' && !matchEndDecision.isOver;
     const matchUpdates: Record<string, unknown> = {
       red_score: score.redScore,
       blue_score: score.blueScore,
@@ -204,9 +210,41 @@ export class ScoringService {
       // the next slot filled. MatchCompletionService swallows and logs its own
       // errors, so this cannot fail the exchange that triggered it.
       await this.matchCompletion?.onMatchCompleted(matchId);
+    } else if (justReopened) {
+      await this.uncompleteBestEffort(matchId);
     }
 
     return { redScore: score.redScore, blueScore: score.blueScore };
+  }
+
+  /**
+   * Take a bout back out of `completed` when its end condition stops holding —
+   * today, when the penalty that ended it is voided.
+   *
+   * Best-effort for the same reason `endClockBestEffort` is: the score is
+   * already persisted, and `onMatchUncompleted` REFUSES by design when a frozen
+   * result, an active forfeit, a Swiss advance or an already-fought dependent
+   * bout stands in the way. A refusal must not fail the penalty void that
+   * triggered it — unlike `onMatchCompleted`, this one does not swallow its own
+   * errors.
+   *
+   * `discardDependents` is deliberately false. If the winner has already fought
+   * the next round, this refuses and logs rather than silently taking that
+   * later result down with it; undoing a played bout is an operator's decision.
+   */
+  private async uncompleteBestEffort(matchId: string): Promise<void> {
+    try {
+      await this.matchCompletion?.onMatchUncompleted(matchId, {
+        discardDependents: false,
+        reason: 'the bout no longer meets its end condition',
+      });
+    } catch (err) {
+      this.logger.warn(
+        `Match ${matchId} stayed completed though its end condition no longer holds: ${
+          err instanceof Error ? err.message : String(err)
+        }`,
+      );
+    }
   }
 
   /**

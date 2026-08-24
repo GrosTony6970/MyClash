@@ -232,3 +232,162 @@ describe('ScoringService — best-of rounds', () => {
     await expect(service.advanceRound('m1')).rejects.toThrow('Match is already completed');
   });
 });
+
+// ── The single-fight path ────────────────────────────────────────────────────
+
+/**
+ * `recomputeMatchScore`'s single-fight branch had NO test at all: the suite
+ * above only exercises best-of rounds. What is pinned here is that the end
+ * decision and the winner read the SAME score — the penalised one.
+ *
+ * The mock is the ordered sequence `wire()` uses, and it desyncs if a read is
+ * added or reordered: matches → exchanges → match_penalties → update.
+ */
+describe('ScoringService — a single fight, penalties included', () => {
+  const fromMock = vi.fn();
+  const supabase = { service: { from: fromMock } };
+  const rulesets = { resolve: vi.fn().mockResolvedValue(null) };
+  const clock = {
+    getClockState: vi.fn().mockResolvedValue({ status: 'halted' }),
+    clockAction: vi.fn().mockResolvedValue(undefined),
+  };
+  const matchCompletion = {
+    onMatchCompleted: vi.fn().mockResolvedValue(undefined),
+    onMatchUncompleted: vi.fn().mockResolvedValue(undefined),
+  };
+  let service: ScoringService;
+  let lastUpdate: Record<string, unknown> | null;
+
+  /** A bout with no best-of, so it takes the single-fight branch. */
+  const singleFightPhase = (over: Record<string, unknown> = {}) => ({
+    type: 'single_elim',
+    tournaments: {
+      ruleset_config: { matchFormat: { pointCap: 3, bestOf: { pool: 1, bracket: 1, finals: 1 } } },
+      scoring_config_json: null,
+      ...over,
+    },
+  });
+
+  function wireSingle(
+    match: Record<string, unknown>,
+    exchanges: unknown[],
+    penalties: unknown[] = [],
+  ) {
+    lastUpdate = null;
+    const updateChain = thenableResult({ id: 'm1' });
+    (updateChain['update'] as ReturnType<typeof vi.fn>).mockImplementation(
+      (patch: Record<string, unknown>) => {
+        lastUpdate = patch;
+        return updateChain;
+      },
+    );
+    fromMock
+      .mockReturnValueOnce(thenableResult(match))
+      .mockReturnValueOnce(thenableResult(exchanges))
+      .mockReturnValueOnce(thenableResult(penalties))
+      .mockReturnValueOnce(updateChain);
+  }
+
+  const penalty = (registrationId: string, delta: number) => ({
+    score_delta: delta,
+    registration_id: registrationId,
+  });
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    clock.getClockState.mockResolvedValue({ status: 'halted' });
+    rulesets.resolve.mockResolvedValue(null);
+    service = new ScoringService(
+      supabase as never,
+      rulesets as never,
+      clock as never,
+      matchCompletion as never,
+    );
+  });
+
+  it('ends the bout and names the winner when the cap is reached on exchanges alone', () => {
+    // The control: three points, no penalty. Establishes that the fixture DOES
+    // reach the cap, so the case below fails for the penalty and nothing else.
+    wireSingle(matchRow({ phases: singleFightPhase() }), [ex(1, 'red', 3)]);
+    return service.recomputeMatchScore('m1').then(() => {
+      expect(lastUpdate?.['status']).toBe('completed');
+      expect(lastUpdate?.['end_reason']).toBe('first_to_points');
+      expect(lastUpdate?.['winner_registration_id']).toBe('red');
+    });
+  });
+
+  it('a penalty that drops the cap-reacher below the cap un-ends the bout', async () => {
+    // Red scores 3 into a cap of 3, then loses a point to a penalty. Before the
+    // fix the decision was taken on the bare exchanges and said 'first_to_points'
+    // while the winner was read from the penalised 2 and came back NULL — a
+    // completed bout with a reason and nobody named.
+    wireSingle(matchRow({ phases: singleFightPhase() }), [ex(1, 'red', 3)], [penalty('red', -1)]);
+
+    const result = await service.recomputeMatchScore('m1');
+
+    expect(result.redScore).toBe(2);
+    expect(lastUpdate?.['status']).toBeUndefined();
+    expect(lastUpdate?.['end_reason']).toBeUndefined();
+    expect(lastUpdate?.['winner_registration_id']).toBeUndefined();
+  });
+
+  it('a penalty can also END a bout, by pushing the other fighter to the cap', async () => {
+    // Blue is on 2 and red concedes a penalty point to blue, taking blue to 3.
+    // The mirror of the case above: if the cap were still read off the bare
+    // exchanges this would not end at all.
+    wireSingle(matchRow({ phases: singleFightPhase() }), [ex(1, 'blue', 2)], [penalty('blue', 1)]);
+
+    await service.recomputeMatchScore('m1');
+
+    expect(lastUpdate?.['status']).toBe('completed');
+    expect(lastUpdate?.['end_reason']).toBe('first_to_points');
+    expect(lastUpdate?.['winner_registration_id']).toBe('blue');
+  });
+
+  it('reopens a completed bout when the penalty that ended it is voided', async () => {
+    // A voided penalty simply stops being read, so the recompute that follows
+    // sees a bout below the cap that is still marked completed. Both the write
+    // and the void call this method, so the transition has to run both ways.
+    wireSingle(
+      matchRow({ status: 'completed', winner_registration_id: 'red', phases: singleFightPhase() }),
+      [ex(1, 'red', 2)],
+      [],
+    );
+
+    await service.recomputeMatchScore('m1');
+
+    expect(matchCompletion.onMatchUncompleted).toHaveBeenCalledWith(
+      'm1',
+      expect.objectContaining({ discardDependents: false }),
+    );
+  });
+
+  it('does not reopen a bout that still meets its end condition', async () => {
+    wireSingle(
+      matchRow({ status: 'completed', winner_registration_id: 'red', phases: singleFightPhase() }),
+      [ex(1, 'red', 3)],
+      [],
+    );
+
+    await service.recomputeMatchScore('m1');
+
+    expect(matchCompletion.onMatchUncompleted).not.toHaveBeenCalled();
+  });
+
+  it('survives a refused reopen without failing the penalty void', async () => {
+    // onMatchUncompleted THROWS by design — a frozen result, an active forfeit,
+    // a Swiss advance, or a dependent bout that has already been fought. The
+    // void that triggered the recompute must still succeed.
+    matchCompletion.onMatchUncompleted.mockRejectedValueOnce(new Error('result is frozen'));
+    wireSingle(
+      matchRow({ status: 'completed', winner_registration_id: 'red', phases: singleFightPhase() }),
+      [ex(1, 'red', 2)],
+      [],
+    );
+
+    await expect(service.recomputeMatchScore('m1')).resolves.toEqual({
+      redScore: 2,
+      blueScore: 0,
+    });
+  });
+});
