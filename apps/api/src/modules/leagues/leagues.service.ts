@@ -17,6 +17,7 @@ import {
   normalizeScoringConfig,
 } from '@myclash/rules/results';
 import { LeagueScoringService } from './league-scoring.service';
+import { toRankingPayload, toTournamentResultPayload } from './league-replace-payloads';
 import {
   aggregateClubStandings,
   attachDecidingTiebreaks,
@@ -1035,15 +1036,13 @@ export class LeaguesService {
     // The rows go regardless of the freeze; only the RE-RANK is withheld from a
     // finalized season, whose published table must not move under it. Reopening
     // then recomputes without the removed tournament, which is the right answer.
+    // Clearing goes through `replaceTournamentResults` with an empty set rather
+    // than a delete of its own: replacing a tournament's rows has one owner, and
+    // an empty replacement IS the clearing.
     if (update.status !== undefined && update.status !== 'approved') {
       const tournamentId = String((link as Row)['tournament_id'] ?? '');
       if (tournamentId) {
-        const { error: resultsError } = await this.supabase.service
-          .from('league_tournament_results')
-          .delete()
-          .eq('league_id', leagueId)
-          .eq('tournament_id', tournamentId);
-        if (resultsError) throw new BadRequestException(resultsError.message);
+        await this.replaceTournamentResults(leagueId, tournamentId, []);
         const league = await this.getLeagueById(leagueId);
         if (!league['finalized_at']) await this.recomputeLeagueRankings(leagueId);
       }
@@ -2057,50 +2056,38 @@ export class LeaguesService {
     return result;
   }
 
+  /**
+   * Replace one tournament's contributions to a league, atomically.
+   *
+   * The delete and the insert live inside a Postgres function (migration 0190),
+   * so a rejected insert takes the delete back with it. As two PostgREST calls
+   * the delete committed on its own, and a failing insert left the league
+   * holding nothing for this tournament. An empty set is still a real answer —
+   * it is how an event turning unrated clears its rows — so the call is made
+   * either way rather than short-circuited.
+   */
   private async replaceTournamentResults(
     leagueId: string,
     tournamentId: string,
     contributions: LeagueTournamentContribution[],
   ) {
-    await this.supabase.service
-      .from('league_tournament_results')
-      .delete()
-      .eq('league_id', leagueId)
-      .eq('tournament_id', tournamentId);
-    if (contributions.length === 0) return;
-    const { error } = await this.supabase.service.from('league_tournament_results').insert(
-      contributions.map((row) => ({
-        league_id: row.leagueId,
-        tournament_id: row.tournamentId,
-        event_id: row.eventId,
-        global_person_id: row.fighterId,
-        ranking_group_key: row.rankingGroupKey,
-        final_rank: row.finalRank,
-        league_points: row.leaguePoints,
-        medal: row.medal,
-        double_hits: row.doubleHits,
-      })),
-    );
+    const { error } = await this.supabase.service.rpc('replace_league_tournament_results', {
+      p_league_id: leagueId,
+      p_tournament_id: tournamentId,
+      p_rows: contributions.map(toTournamentResultPayload),
+    });
     if (error) throw new BadRequestException(error.message);
   }
 
+  /**
+   * Replace a league's whole standings table, atomically. Same reasoning as
+   * `replaceTournamentResults`, and this is the one path that writes it.
+   */
   private async replaceRankings(leagueId: string, rankings: LeagueRankingRow[]) {
-    await this.supabase.service.from('league_rankings').delete().eq('league_id', leagueId);
-    if (rankings.length === 0) return;
-    const { error } = await this.supabase.service.from('league_rankings').insert(
-      rankings.map((row) => ({
-        league_id: row.leagueId,
-        ranking_group_key: row.rankingGroupKey,
-        global_person_id: row.fighterId,
-        rank: row.rank,
-        total_points: row.totalPoints,
-        participation_count: row.participationCount,
-        medal_count: row.medalCount,
-        double_hits_total: row.doubleHitsTotal,
-        double_hit_average: String(row.doubleHitAverage),
-        per_tournament: row.perTournament,
-      })),
-    );
+    const { error } = await this.supabase.service.rpc('replace_league_rankings', {
+      p_league_id: leagueId,
+      p_rows: rankings.map(toRankingPayload),
+    });
     if (error) throw new BadRequestException(error.message);
   }
 

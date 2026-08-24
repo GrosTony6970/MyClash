@@ -297,7 +297,10 @@ describe('LeaguesService.reviewTournamentLink — auto-grant member role on appr
     const linksUpdates: unknown[] = [];
     const orgRoleUpserts: UpsertCapture[] = [];
     /** Every `league_tournament_results` delete, as its filter pairs. */
-    const resultDeletes: Array<Record<string, unknown>> = [];
+    // Replacing a tournament's stored results is one rpc now (migration 0190),
+    // so what a test can inspect is the call's scope rather than a delete's
+    // filters. Same question: did it target THIS league and THIS tournament?
+    const resultReplaces: Array<Record<string, unknown>> = [];
     let rankingsRecomputed = 0;
     let lastUpdateStatus: string | null = null;
 
@@ -375,20 +378,12 @@ describe('LeaguesService.reviewTournamentLink — auto-grant member role on appr
           };
         }
 
-        // league_tournament_results: capture the delete's filters, so a test can
-        // prove it targeted THIS league and THIS tournament and nothing wider.
+        // league_tournament_results is now only READ here; the replace goes
+        // through the rpc below.
         if (table === 'league_tournament_results') {
-          const filters: Record<string, unknown> = {};
           const chain = {
             select: vi.fn(() => chain),
-            delete: vi.fn(() => {
-              resultDeletes.push(filters);
-              return chain;
-            }),
-            eq: vi.fn((column: string, value: unknown) => {
-              filters[column] = value;
-              return chain;
-            }),
+            eq: vi.fn(() => chain),
             then: (resolve: (value: unknown) => unknown) => resolve({ data: [], error: null }),
           };
           return chain;
@@ -405,6 +400,10 @@ describe('LeaguesService.reviewTournamentLink — auto-grant member role on appr
           maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
           single: vi.fn().mockResolvedValue({ data: null, error: null }),
         };
+      }),
+      rpc: vi.fn((fn: string, args: Record<string, unknown>) => {
+        if (fn === 'replace_league_tournament_results') resultReplaces.push(args);
+        return Promise.resolve({ data: null, error: null });
       }),
     };
 
@@ -424,7 +423,7 @@ describe('LeaguesService.reviewTournamentLink — auto-grant member role on appr
       service,
       linksUpdates,
       orgRoleUpserts,
-      resultDeletes,
+      resultReplaces,
       recomputedCount: () => rankingsRecomputed,
     };
   }
@@ -491,21 +490,27 @@ describe('LeaguesService.reviewTournamentLink — auto-grant member role on appr
    * no warning, just totals that are quietly wrong.
    */
   it('drops the tournament results when a link leaves approved, and re-ranks', async () => {
-    const { service, resultDeletes, recomputedCount } = buildReviewService({
+    const { service, resultReplaces, recomputedCount } = buildReviewService({
       tournamentOrgId: 'org-x',
     });
 
     await service.reviewTournamentLink('link-1', { status: 'removed' }, 'reviewer-1');
 
-    expect(resultDeletes, 'the removed tournament must lose its stored results').toHaveLength(1);
-    // Scoped to one league AND one tournament — a delete keyed on either alone
-    // would take the whole season, or the tournament's results in other leagues.
-    expect(resultDeletes[0]).toEqual({ league_id: 'league-1', tournament_id: 't-1' });
+    expect(resultReplaces, 'the removed tournament must lose its stored results').toHaveLength(1);
+    // Scoped to one league AND one tournament — the function deletes on these
+    // two parameters, so either one missing would take the whole season, or the
+    // tournament's results in every other league. An empty row set is the
+    // clearing itself, not an omission.
+    expect(resultReplaces[0]).toMatchObject({
+      p_league_id: 'league-1',
+      p_tournament_id: 't-1',
+      p_rows: [],
+    });
     expect(recomputedCount(), 'the table must be re-ranked without it').toBe(1);
   });
 
   it('still drops the results for a FINALIZED season, but leaves its frozen table alone', async () => {
-    const { service, resultDeletes, recomputedCount } = buildReviewService({
+    const { service, resultReplaces, recomputedCount } = buildReviewService({
       tournamentOrgId: 'org-x',
       finalizedAt: '2099-01-01T00:00:00.000Z',
     });
@@ -514,18 +519,18 @@ describe('LeaguesService.reviewTournamentLink — auto-grant member role on appr
 
     // The rows go either way — otherwise reopening the season would resurrect a
     // tournament that is no longer linked to it.
-    expect(resultDeletes).toHaveLength(1);
+    expect(resultReplaces).toHaveLength(1);
     // …but a finalized season's published table must not move under it, and
     // recomputeLeagueRankings would throw on one anyway.
     expect(recomputedCount(), 'a frozen table must not be re-ranked').toBe(0);
   });
 
   it('leaves the results alone on approval — only a link LEAVING approved clears them', async () => {
-    const { service, resultDeletes } = buildReviewService({ tournamentOrgId: 'org-x' });
+    const { service, resultReplaces } = buildReviewService({ tournamentOrgId: 'org-x' });
 
     await service.reviewTournamentLink('link-1', { status: 'approved' }, 'reviewer-1');
 
-    expect(resultDeletes).toHaveLength(0);
+    expect(resultReplaces).toHaveLength(0);
   });
 });
 
@@ -1201,6 +1206,8 @@ describe('LeaguesService.recomputeLeagueRankings — fighter names reach the tie
           maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
         };
       }),
+      // The standings write is one rpc now (migration 0190).
+      rpc: vi.fn(() => Promise.resolve({ data: null, error: null })),
     };
 
     const service = new LeaguesService(
@@ -2189,6 +2196,10 @@ describe('LeaguesService.recomputeForEvent gathering', () => {
       },
       matches: { rows: [] },
     });
+    // Both replaces are rpc calls (migration 0190); mockSupabase only builds a
+    // `from`, so the service client gains one here.
+    const rpc = vi.fn(() => Promise.resolve({ data: null, error: null }));
+    (supabase.service as unknown as Record<string, unknown>)['rpc'] = rpc;
     const scoring = {
       resolveConfig: vi.fn().mockResolvedValue({ tieBreakers: ['total_points'] }),
       toTournamentContributions: vi.fn().mockReturnValue([]),
@@ -2210,7 +2221,7 @@ describe('LeaguesService.recomputeForEvent gathering', () => {
       scoring as never,
       placement as never,
     );
-    return { service, supabase, scoring, placement };
+    return { service, supabase, scoring, placement, rpc };
   }
 
   it('resolves each league scoring config once, however many links it has', async () => {
