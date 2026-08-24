@@ -310,6 +310,91 @@ export function checkPaths(docs, resolve) {
   return { findings, compared };
 }
 
+/**
+ * ── The League's table inventory ────────────────────────────────────────────
+ *
+ * ARCHITECTURE.md §8bis.1 lists the tables a League is made of. That list is a
+ * cache of a lookup over `packages/db/migrations`, and every cache in this repo
+ * has eventually gone stale. A migration that adds a `league_*` table without
+ * touching the section is exactly the drift this gate exists for, and it is
+ * invisible to the path check because a table is not a file.
+ *
+ * Both directions are checked: a table the migrations create and the section
+ * omits, and a table the section claims that no migration creates.
+ */
+const MIGRATIONS = 'packages/db/migrations';
+const LEAGUE_TABLE_HEADING = '### 8bis.1 What a League is made of';
+const CREATE_LEAGUE_TABLE =
+  /CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?(?:public\.)?(leagues?[a-z_]*)/giu;
+
+/** Every `league*` table any migration creates. */
+export function leagueTablesInMigrations(sqlTexts) {
+  const tables = new Set();
+  for (const sql of sqlTexts) {
+    for (const [, name] of sql.matchAll(CREATE_LEAGUE_TABLE)) tables.add(name.toLowerCase());
+  }
+  return tables;
+}
+
+/**
+ * Every table name backticked in the FIRST column of the §8bis.1 table.
+ * Returns null when the section is absent, so a doc that never made the claim
+ * is not treated as a doc that lost it.
+ */
+export function leagueTablesInDoc(text) {
+  const start = text.indexOf(LEAGUE_TABLE_HEADING);
+  if (start === -1) return null;
+  const rest = text.slice(start + LEAGUE_TABLE_HEADING.length);
+  // Stop at the next heading of ANY level, so the following subsection's
+  // tables are not read as part of this inventory.
+  const end = rest.search(/\n#{1,6} /u);
+  const section = rest.slice(0, end === -1 ? undefined : end);
+
+  const claimed = new Set();
+  for (const line of section.split(/\r?\n/u)) {
+    if (!line.startsWith('|') || /^\|\s*-+/u.test(line)) continue;
+    const firstCell = line.split('|')[1] ?? '';
+    for (const [, token] of firstCell.matchAll(/`([a-z_]+)`/gu)) claimed.add(token);
+  }
+  return claimed;
+}
+
+export function checkLeagueTables(docs, actual) {
+  const findings = [];
+  let compared = 0;
+
+  for (const { path, text } of docs) {
+    const claimed = leagueTablesInDoc(text);
+    if (claimed === null) continue;
+
+    if (claimed.size === 0) {
+      findings.push({
+        message: `${path}: "${LEAGUE_TABLE_HEADING}" parsed to zero table names — a reword must not silently stop this checking anything.`,
+      });
+      continue;
+    }
+
+    for (const table of [...actual].sort()) {
+      compared += 1;
+      if (!claimed.has(table)) {
+        findings.push({
+          message: `${path}: packages/db/migrations creates \`${table}\`, and §8bis.1 does not list it. Add a row saying what it holds.`,
+        });
+      }
+    }
+    for (const table of [...claimed].sort()) {
+      compared += 1;
+      if (!actual.has(table)) {
+        findings.push({
+          message: `${path}: §8bis.1 lists \`${table}\`, which no migration creates. Remove the row, or repoint it.`,
+        });
+      }
+    }
+  }
+
+  return { findings, compared };
+}
+
 // ── The gate ─────────────────────────────────────────────────────────────────
 
 function specNumbersFrom(dir) {
@@ -336,12 +421,23 @@ export const gate = defineGate({
       ? checkSpecRange(read('tests/e2e/README.md'), specNumbersFrom('tests/e2e'))
       : { findings: [], compared: 0 };
     const paths = checkPaths(docs, exists);
+    const leagueTables = checkLeagueTables(
+      docs,
+      leagueTablesInMigrations(
+        exists(MIGRATIONS)
+          ? readdirSync(join(root, MIGRATIONS))
+              .filter((name) => name.endsWith('.sql'))
+              .map((name) => read(`${MIGRATIONS}/${name}`))
+          : [],
+      ),
+    );
 
     const findings = [
       ...versions.findings,
       ...gates.findings,
       ...specs.findings,
       ...paths.findings,
+      ...leagueTables.findings,
     ];
 
     // Each assertion must find its own claims. A pattern that stops matching is
@@ -351,6 +447,7 @@ export const gate = defineGate({
       ['CI gate count', gates],
       ['E2E spec range', specs],
       ['repository path', paths],
+      ['League table inventory', leagueTables],
     ]) {
       if (r.compared === 0) {
         findings.push({
@@ -359,11 +456,12 @@ export const gate = defineGate({
       }
     }
 
-    const compared = versions.compared + gates.compared + specs.compared + paths.compared;
+    const compared =
+      versions.compared + gates.compared + specs.compared + paths.compared + leagueTables.compared;
     return {
       findings,
       scanned: compared,
-      summary: `Docs match the repo: ${versions.compared} version, ${gates.compared} gate-count, ${specs.compared} spec-range and ${paths.compared} path assertions over ${docs.length} document(s) (${compared} comparisons).`,
+      summary: `Docs match the repo: ${versions.compared} version, ${gates.compared} gate-count, ${specs.compared} spec-range, ${paths.compared} path and ${leagueTables.compared} League-table assertions over ${docs.length} document(s) (${compared} comparisons).`,
       remedy:
         'Correct the prose, or correct the thing it describes. A count in prose is a cache of a lookup — prefer saying how to count.',
     };

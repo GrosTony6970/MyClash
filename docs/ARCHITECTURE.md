@@ -32,6 +32,7 @@ ugly, but cheaper than renumbering. Append new sections at the end instead.
 - [7. Scoring Engine & Ruleset Plugin System](#7-scoring-engine--ruleset-plugin-system)
 - [7bis. Ruleset authoring, sharing and pinning](#7bis-ruleset-authoring-sharing-and-pinning)
 - [8. Statistics Module](#8-statistics-module)
+- [8bis. The League (cross-event standings)](#8bis-the-league-cross-event-standings)
 - [9. Real-Time Architecture](#9-real-time-architecture)
 - [10. Offline-First Scoring (PWA + IndexedDB)](#10-offline-first-scoring-pwa--indexeddb)
 - [11. HEMA Ratings Integration](#11-hema-ratings-integration)
@@ -846,6 +847,139 @@ Two rules keep a pinned definition from shifting under a tournament:
 - **CSV** — full match + exchange dump.
 - **JSON** — full event data (for archival, HEMA Ratings submission).
 - **HEMA Ratings format** — see §11.
+
+---
+
+## 8bis. The League (cross-event standings)
+
+A **League** is the only mechanic in the product that spans Events. Everything in
+§5 stops at an Event boundary; a League reaches across a season, collects the
+results of Tournaments held at different Events by different organisations, and
+turns them into standings.
+
+### 8bis.1 What a League is made of
+
+| Table                            | Holds                                                                                              |
+| -------------------------------- | -------------------------------------------------------------------------------------------------- |
+| `leagues`                        | the season itself: name, slug, `season_year`, `status`, `scoring_config`, `finalized_at`           |
+| `league_groups`                  | the organiser's own divisions (`name`, `sort_order`), unique per League                            |
+| `league_tournament_links`        | which Tournaments count, and whether the link is `requested` / `approved` / `rejected` / `removed` |
+| `league_membership_requests`     | a club or organisation asking to join                                                              |
+| `league_organization_roles`      | which organisations may manage the League                                                          |
+| `league_user_roles`              | which individual users may manage it                                                               |
+| `league_scoring_systems`         | the registry of named point tables (`code`, `points_by_rank`, `tie_breakers`)                      |
+| `league_scoring_system_versions` | immutable published snapshots of those tables, addressed `code@version`                            |
+| `league_tournament_results`      | one row per Fighter per counted Tournament — the contribution                                      |
+| `league_rankings`                | the computed standings rows                                                                        |
+
+`leagues.status` runs `draft → published → archived` (§5.5). `finalized_at` is
+separate from `status` and means the season is **frozen**.
+
+### 8bis.2 How a result becomes a standing
+
+1. A Tournament is **linked** to a League. The link starts `requested`, and only
+   an `approved` link counts.
+2. When the Tournament is decided, its final ranking produces one
+   **contribution** per Fighter: a place, a `resultKind`, and the double-hit
+   count. `resultKind` is what separates a real bronze from a semi-final loss
+   with no bronze match, so no phantom medal is awarded.
+3. Each contribution earns points from the League's scoring system —
+   `pointsForRank`. The FFAMHE TF 2026 table awards 16 down to 1 across ranks
+   1–16, and nothing after rank 16.
+4. Each contribution is assigned a **ranking group key** — `groupKey` — which
+   decides which table it belongs in.
+5. Contributions are added up per Fighter per group, ordered by the League's
+   tie-breaker chain, and written to `league_rankings`.
+
+Steps 3–5 are pure and live in `@myclash/rules/results`. Only the gathering and
+the writing are in `apps/api`.
+
+### 8bis.3 Ranking dimensions: how many tables a League has
+
+`scoring_config.rankingDimensions` decides the shape of the whole season:
+
+| Value             | Produces                                         |
+| ----------------- | ------------------------------------------------ |
+| `weapon`          | one table per weapon; every group merged into it |
+| `weapon_category` | one table per weapon **per League group**        |
+| `group`           | one table per group, weapon ignored              |
+
+`weapon_category` is a historical name, not a description: it meant
+`tournaments.category` until migration 0049 dropped that column, and has meant
+the League group ever since. The stored value is deliberately left alone —
+renaming it would need a migration over every League's `scoring_config` for a
+string only developers read.
+
+A Tournament linked with no group normalises to `unknown`, so ungrouped
+Tournaments share a table rather than falling out of the standings entirely.
+
+**Each table is a separate competition and is numbered on its own.** Two Fighters
+level on every configured tie-breaker share a place and the next one down skips
+it (1, 2, 2, 4). The chain then ends in a fighter-name comparison whose only job
+is to make the order reproducible — it is never a ranking rule, and it compares
+by code point rather than by locale so a standing cannot depend on which machine
+computed it.
+
+### 8bis.4 Scoring systems are pinned, not copied
+
+`leagues.scoring_system` may be:
+
+- `custom` — the League carries its own `customPointsByRank` inline, no lookup;
+- `code` — resolves to the registry's current row (pre-0087 behaviour);
+- `code@version` — resolves to that published snapshot in
+  `league_scoring_system_versions`, falling back to the current row if the
+  snapshot is missing.
+
+This is the same "a pin is a pointer, resolved at read time" rule as §7bis.3,
+applied to a season rather than to a ruleset. `resolveConfig` is the one method
+on `LeagueScoringService` that does I/O; the rest of the class delegates to the
+pure core.
+
+### 8bis.5 Freshness: a League table is stale by default
+
+**Recompute is never triggered by a Match completing.** The only callers are an
+Event status change, the status-ticker worker, and the two manual endpoints. A
+League table is therefore out of date by default, and fresh only for as long as
+nothing has been fought since the last recompute — the inverse of what a reader
+assumes when they open a standings page, which is why freshness is a computed
+report rather than a stored flag.
+
+| State            | Meaning                                                          |
+| ---------------- | ---------------------------------------------------------------- |
+| `frozen`         | `finalized_at` is set. The table is frozen on purpose.           |
+| `never_computed` | Linked Tournaments exist but recompute has never run.            |
+| `fresh`          | Nothing has changed in any linked Tournament since the last run. |
+| `stale`          | At least one linked Tournament changed after the last run.       |
+
+Finalizing a season freezes it; reopening it resumes recompute.
+
+### 8bis.6 Endpoint surface
+
+Public reads are gated on `public_visibility` **and** `status = 'published'`; the
+`admin/` twins are gated on League-manage permission instead, so an organiser can
+still see a draft season's standings.
+
+| Route                                               | Purpose                                     |
+| --------------------------------------------------- | ------------------------------------------- |
+| `GET /leagues`, `/leagues/:slug`                    | discovery                                   |
+| `GET /leagues/:id/standings`                        | the tables, per ranking group               |
+| `GET /leagues/:id/club-standings`                   | the same results aggregated by club         |
+| `GET /leagues/:id/final-report.csv` / `.print.html` | end-of-season output                        |
+| `GET /admin/leagues/:id/recompute-preflight`        | what a recompute would refuse or warn about |
+| `POST /admin/leagues/:id/recompute`                 | run one                                     |
+| `POST /admin/leagues/:id/finalize` / `reopen`       | freeze and unfreeze the season              |
+
+### 8bis.7 Where the code lives
+
+- **`@myclash/rules/results`** — every rule: `pointsForRank`, `groupKey`,
+  `medalFor`, `compareRankings`, `tiedOnChain`,
+  `computeRankingsFromContributions`, `normalizeScoringConfig`,
+  `aggregateClubStandings`, `computeLeagueFreshness` and
+  `decidingTiebreakBetween`. Pure, and callable from a test with plain object
+  literals.
+- **`apps/api/src/modules/leagues`** — everything that touches the database:
+  gathering contributions, resolving a pinned scoring system, replacing the
+  rankings, and the authorization around all of it.
 
 ---
 

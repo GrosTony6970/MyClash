@@ -18,6 +18,7 @@ import test from 'node:test';
 import {
   ALLOWED_ABSENT,
   checkGateCount,
+  checkLeagueTables,
   checkPaths,
   checkSpecRange,
   checkVersions,
@@ -25,6 +26,8 @@ import {
   docCorpus,
   gate,
   isElided,
+  leagueTablesInDoc,
+  leagueTablesInMigrations,
   parseCount,
   requiredVersions,
 } from './check-docs-drift.mjs';
@@ -349,6 +352,94 @@ test('CONTRIBUTING lists the gate in the before-pushing chain', () => {
   // compares ci.yml against CI_GATES — so this test is the only thing holding it.
   const contributing = readFileSync('CONTRIBUTING.md', 'utf8');
   assert.ok(contributing.includes('pnpm quality:docs-drift'));
+});
+
+// ── The League's table inventory ─────────────────────────────────────────────
+
+const LEAGUE_DOC = [
+  '### 8bis.1 What a League is made of',
+  '',
+  'Prose the parser must skip, mentioning `leagues` in passing.',
+  '',
+  '| Table                     | Holds        |',
+  '| ------------------------- | ------------ |',
+  '| `leagues`                 | the season   |',
+  '| `league_groups`           | divisions    |',
+  '',
+  // A DEEPER heading on purpose: the inventory must stop here, or the table
+  // below is read as part of it.
+  '#### 8bis.1a Something else',
+  '',
+  '| Table              | Holds            |',
+  '| ------------------ | ---------------- |',
+  '| `league_unrelated` | not an inventory |',
+].join('\n');
+
+test('leagueTablesInMigrations finds every CREATE TABLE spelling', () => {
+  const tables = leagueTablesInMigrations([
+    'CREATE TABLE leagues (id UUID);',
+    'CREATE TABLE IF NOT EXISTS league_groups (id UUID);',
+    'CREATE TABLE IF NOT EXISTS public.league_rankings (id UUID);',
+    'CREATE TABLE matches (id UUID);',
+  ]);
+
+  assert.deepEqual([...tables].sort(), ['league_groups', 'league_rankings', 'leagues']);
+});
+
+test('leagueTablesInDoc reads the inventory and stops at the next heading', () => {
+  const claimed = leagueTablesInDoc(LEAGUE_DOC);
+
+  assert.deepEqual([...claimed].sort(), ['league_groups', 'leagues']);
+  assert.equal(claimed.has('league_unrelated'), false);
+});
+
+test('leagueTablesInDoc returns null for a doc that never made the claim', () => {
+  // Null, not empty: a document without the section has not LOST it, and must
+  // not be reported as having gutted the table.
+  assert.equal(leagueTablesInDoc('# Another document\n'), null);
+});
+
+test('the inventory fires on a table the migrations create and the doc omits', () => {
+  const { findings, compared } = checkLeagueTables(
+    [doc('docs/ARCHITECTURE.md', LEAGUE_DOC)],
+    new Set(['leagues', 'league_groups', 'league_rankings']),
+  );
+
+  assert.equal(findings.length, 1);
+  assert.match(findings[0].message, /creates `league_rankings`/u);
+  assert.ok(compared > 0);
+});
+
+test('the inventory fires on a table the doc claims and no migration creates', () => {
+  const { findings } = checkLeagueTables(
+    [doc('docs/ARCHITECTURE.md', LEAGUE_DOC)],
+    new Set(['leagues']),
+  );
+
+  assert.equal(findings.length, 1);
+  assert.match(findings[0].message, /lists `league_groups`, which no migration creates/u);
+});
+
+test('the inventory refuses a gutted table rather than passing vacuously', () => {
+  const gutted = '### 8bis.1 What a League is made of\n\nThe table was deleted.\n';
+  const { findings } = checkLeagueTables(
+    [doc('docs/ARCHITECTURE.md', gutted)],
+    new Set(['leagues']),
+  );
+
+  assert.equal(findings.length, 1);
+  assert.match(findings[0].message, /zero table names/u);
+});
+
+test('the inventory is silent when both sides agree', () => {
+  const { findings, compared } = checkLeagueTables(
+    [doc('docs/ARCHITECTURE.md', LEAGUE_DOC)],
+    new Set(['leagues', 'league_groups']),
+  );
+
+  assert.deepEqual(findings, []);
+  // Both directions counted: two tables checked each way.
+  assert.equal(compared, 4);
 });
 
 test('importing the gate does not run it', () => {
