@@ -48,6 +48,29 @@ export interface ClosedRound {
   endReason: 'first_to_points' | 'max_doubles' | 'time_limit' | null;
 }
 
+/**
+ * The match format a ruleset actually plays under.
+ *
+ * The doubles ceiling lives on the SHARED match format, so a tournament can
+ * carry one whatever its ruleset is — including `Generic_PointsCap`, which has
+ * no such rule. Stripping it here means the round lifecycle agrees with the
+ * ruleset: `evaluateRound` closes a round on max-doubles from this config, and
+ * it is deliberately ruleset-blind, so the gate has to happen before it.
+ *
+ * `hasMaxDoubles === false` is the only case that strips. An older ruleset that
+ * declares nothing keeps the ceiling, which is what every one of them did
+ * before the capability existed.
+ */
+function resolveMatchFormat(config: unknown, ruleset: Ruleset): MatchFormatConfig {
+  const matchFormat = normalizeMatchFormatConfig(
+    (config as { matchFormat?: unknown } | null)?.matchFormat ?? {},
+  );
+  if (ruleset.metadata?.hasMaxDoubles === false) {
+    return { ...matchFormat, maxDoubleHits: null };
+  }
+  return matchFormat;
+}
+
 @Injectable()
 export class ScoringService {
   private readonly logger = new Logger(ScoringService.name);
@@ -133,9 +156,7 @@ export class ScoringService {
     // the ruleset authored it.
     const afterblowMode = this.afterblowMode(m['phases']);
 
-    const matchFormat = normalizeMatchFormatConfig(
-      (config as { matchFormat?: unknown } | null)?.matchFormat ?? {},
-    );
+    const matchFormat = resolveMatchFormat(config, ruleset);
     // Best-of-N (bestOf > 1) runs the round lifecycle instead of the single-fight
     // path below. bestOf = 1 falls through to the exact existing behaviour.
     if (getEffectiveBestOf(match, matchFormat) > 1) {
@@ -651,9 +672,7 @@ export class ScoringService {
 
     const config = this.rulesetConfig(m['phases']);
     const afterblowMode = this.afterblowMode(m['phases']);
-    const matchFormat = normalizeMatchFormatConfig(
-      (config as { matchFormat?: unknown } | null)?.matchFormat ?? {},
-    );
+    const matchFormat = resolveMatchFormat(config, ruleset);
 
     return {
       match,

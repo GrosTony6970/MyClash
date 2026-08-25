@@ -115,6 +115,15 @@ export interface ResolvedRulesetGrammar {
   afterblowValuation: 'fixed' | 'weighted';
   afterblowFixedValue: number;
   defaultAfterblowMode: 'full' | 'deductive';
+  /**
+   * Whether the ruleset has a pool-only doubles CEILING. Drives whether the
+   * tournament form offers one, the way `hasAfterblow` drives afterblow.
+   *
+   * True for everything except `Generic_PointsCap`: the ceiling lives on the
+   * shared match format, so every ruleset inherited it, and a custom ruleset
+   * that says nothing keeps the behaviour it already had.
+   */
+  hasMaxDoubles: boolean;
 }
 
 export const FALLBACK_GRAMMAR: ResolvedRulesetGrammar = {
@@ -123,6 +132,7 @@ export const FALLBACK_GRAMMAR: ResolvedRulesetGrammar = {
   afterblowValuation: 'fixed',
   afterblowFixedValue: 1,
   defaultAfterblowMode: 'full',
+  hasMaxDoubles: true,
 };
 
 /** The `custom_rulesets` columns {@link grammarFromRow} reads. */
@@ -147,5 +157,8 @@ export function grammarFromRow(row: CustomRulesetGrammarRow): ResolvedRulesetGra
     afterblowValuation: hasAfterblow ? (row.afterblow_valuation ?? 'fixed') : 'fixed',
     afterblowFixedValue: hasAfterblow ? (row.afterblow_fixed_value ?? 1) : 1,
     defaultAfterblowMode: hasAfterblow ? (row.afterblow_mode ?? 'full') : 'full',
+    // An org-authored ruleset keeps the ceiling — the operator's ruling is that
+    // only `Generic_PointsCap` is without one.
+    hasMaxDoubles: true,
   };
 }

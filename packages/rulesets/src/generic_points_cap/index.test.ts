@@ -74,6 +74,64 @@ describe('Generic_PointsCap', () => {
     });
   });
 
+  describe('the doubles ceiling, which this ruleset does not have', () => {
+    /**
+     * The ceiling lives on the SHARED match format, so this ruleset inherited a
+     * default of 4 without ever having a rule for it. In a POOL — the only phase
+     * the ceiling applies to — that produced a bout nobody could finish: the
+     * scorer collapsed both sides to 0-0 at the 4th double, `isMatchOver` had no
+     * branch to end on, and every later hit was discarded by the same zeroing.
+     */
+    const poolMatch: Match = { ...BASE_MATCH, phaseType: 'pool' };
+    const doubles = (n: number) =>
+      Array.from({ length: n }, (_, i) =>
+        makeEx({ id: `d${i}`, type: 'double', firstStrikerColor: null, firstStrikeValue: null }),
+      );
+    const hit = makeEx({ type: 'clean', firstStrikerColor: 'red', firstStrikeValue: 1 });
+
+    it('keeps scoring past the inherited ceiling instead of collapsing to 0-0', () => {
+      const score = Generic_PointsCap.computeMatchScore(
+        poolMatch,
+        [hit, ...doubles(5)],
+        'full',
+        {},
+      );
+
+      expect(score.doubles).toBe(5);
+      expect(score.redScore).toBe(1);
+      expect(score.blueScore).toBe(0);
+    });
+
+    it('never ends a bout on doubles', () => {
+      const exchanges = [hit, ...doubles(5)];
+      const score = Generic_PointsCap.computeMatchScore(poolMatch, exchanges, 'full', {});
+
+      expect(Generic_PointsCap.isMatchOver(poolMatch, score, {})).toEqual({
+        isOver: false,
+        reason: null,
+      });
+    });
+
+    it('ignores an explicitly configured ceiling too', () => {
+      // An organiser can still type a number into a tournament that later
+      // switches ruleset. It must not come back to life.
+      const config = { matchFormat: { maxDoubleHits: 2 } };
+      const score = Generic_PointsCap.computeMatchScore(
+        poolMatch,
+        [hit, ...doubles(3)],
+        'full',
+        config,
+      );
+
+      expect(score.redScore).toBe(1);
+      expect(Generic_PointsCap.isMatchOver(poolMatch, score, config).isOver).toBe(false);
+    });
+
+    it('declares the absence, so the tournament form can stop offering one', () => {
+      expect(Generic_PointsCap.metadata?.hasMaxDoubles).toBe(false);
+    });
+  });
+
   describe('isMatchOver', () => {
     /** The score the caller would hold, from this bout's exchanges. */
     const scoreOf = (exchanges: Exchange[], config: unknown) =>

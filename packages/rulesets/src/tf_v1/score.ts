@@ -11,8 +11,7 @@ import type { Exchange, Match, MatchEndDecision, MatchScore } from '../types';
 import {
   computeAfterblowDeltas,
   computeMatchFormatScore,
-  getEffectiveMaxDoubles,
-  isPointCapReached,
+  endOnPointCapOrMaxDoubles,
   normalizeMatchFormatConfig,
   type AfterblowMode,
 } from '../match-format';
@@ -86,20 +85,8 @@ export function computeMatchScore(
  * fight that runs out of time is completed by `ClockService`.
  */
 export function isMatchOver(match: Match, score: MatchScore, config: TFv1Config): MatchEndDecision {
-  const matchFormat = normalizeMatchFormatConfig(config.matchFormat);
-
-  if (isPointCapReached(score, matchFormat)) {
-    return { isOver: true, reason: 'first_to_points' };
-  }
-
-  // Max-doubles ends a match only in pools (bracket/finals must resolve to a
-  // winner); getEffectiveMaxDoubles returns null off the pool phase.
-  // `score.doubles` is the count of non-voided `double` exchanges, which is
-  // exactly what this used to recount for itself.
-  const effectiveMaxDoubles = getEffectiveMaxDoubles(match, matchFormat);
-  if (effectiveMaxDoubles !== null && score.doubles >= effectiveMaxDoubles) {
-    return { isOver: true, reason: 'max_doubles' };
-  }
-
-  return { isOver: false, reason: null };
+  // The cap-then-ceiling decision is shared with `createFormulaRuleset`, which
+  // used to inherit a branchless one from Generic_PointsCap and get stuck at
+  // 0-0. One owner in `../match-format`.
+  return endOnPointCapOrMaxDoubles(match, score, normalizeMatchFormatConfig(config.matchFormat));
 }

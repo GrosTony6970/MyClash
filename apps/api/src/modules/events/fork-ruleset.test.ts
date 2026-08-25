@@ -180,6 +180,7 @@ describe('buildCodedForkRow (pure)', () => {
     afterblowValuation: 'fixed' as const,
     afterblowFixedValue: 1,
     defaultAfterblowMode: 'deductive' as const,
+    hasMaxDoubles: true,
   };
 
   it('maps grammar to columns and marks the row private + published', () => {

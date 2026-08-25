@@ -298,5 +298,8 @@ function fromMetadata(metadata: RulesetMetadata | undefined): ResolvedRulesetGra
     afterblowValuation: hasAfterblow ? (metadata?.afterblowValuation ?? 'fixed') : 'fixed',
     afterblowFixedValue: hasAfterblow ? (metadata?.afterblowFixedValue ?? 1) : 1,
     defaultAfterblowMode: hasAfterblow ? (metadata?.defaultAfterblowMode ?? 'full') : 'full',
+    // Only a ruleset that says `false` loses the ceiling. Anything silent keeps
+    // it, which is what every ruleset did before the capability existed.
+    hasMaxDoubles: metadata?.hasMaxDoubles !== false,
   };
 }

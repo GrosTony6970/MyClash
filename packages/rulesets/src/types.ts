@@ -99,6 +99,21 @@ export interface RulesetMetadata {
    */
   hasAfterblow?: boolean;
   /**
+   * Whether this ruleset has a doubles CEILING — the pool-only rule that ends a
+   * bout as a 0-0 double loss once both fighters have traded a set number of
+   * simultaneous hits.
+   *
+   * Declared for the same reason `hasAfterblow` is: the ceiling lives on the
+   * SHARED match format, so every ruleset embedding `MatchFormatConfigSchema`
+   * inherited it whether or not it had a rule for one. `Generic_PointsCap` did
+   * not, and the mismatch was a bout that could not be finished — the score
+   * collapsed to 0-0 at the cap while its `isMatchOver` had no branch to end on.
+   *
+   * Distinct from `doublePenaltyFormula`, which is TF_v1's per-double SCORE
+   * penalty. A ruleset can have one, both or neither.
+   */
+  hasMaxDoubles?: boolean;
+  /**
    * How an afterblow is WORTH points, when the ruleset has them at all.
    *
    *  - `fixed`    — the retaliation is always worth `afterblowFixedValue`,

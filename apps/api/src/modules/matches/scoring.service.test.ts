@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { ScoringService } from './scoring.service';
+import { Generic_PointsCap } from '@myclash/rulesets';
 
 // A Supabase query chain that is BOTH thenable (so a terminal `.order()` / `.eq()`
 // awaits to {data,error}) and resolves `.maybeSingle()` / `.single()`.
@@ -49,6 +50,16 @@ function matchRow(overrides: Record<string, unknown> = {}) {
 /** One card, as `recomputeBestOfRounds` reads it: delta, side, and its round. */
 function pen(registrationId: 'red' | 'blue', scoreDelta: number, round = 1) {
   return { score_delta: scoreDelta, registration_id: registrationId, round_number: round };
+}
+
+/** A double, which counts toward a doubles ceiling but scores for nobody. */
+function dbl(seq: number, round = 1) {
+  return {
+    ...ex(seq, 'red', 1, round),
+    type: 'double',
+    first_striker_color: null,
+    first_strike_value: null,
+  };
 }
 
 function ex(seq: number, color: 'red' | 'blue', value: number, round = 1) {
@@ -261,6 +272,43 @@ describe('ScoringService — best-of rounds', () => {
 
     await service.recomputeMatchScore('m1');
 
+    expect(lastUpdate).toMatchObject({ red_score: 1 });
+  });
+
+  /**
+   * The round lifecycle applies the doubles ceiling from the tournament's match
+   * format, and `evaluateRound` is deliberately ruleset-blind. Generic_PointsCap
+   * has no ceiling, so the format it plays under must not carry one — otherwise
+   * a round of a ruleset with no such rule closes on it anyway.
+   */
+  it('does not close a Generic_PointsCap round on the doubles ceiling', async () => {
+    rulesets.resolve.mockResolvedValue(Generic_PointsCap);
+    const poolPhase = {
+      type: 'pool',
+      tournaments: {
+        ruleset_config: {
+          matchFormat: {
+            pointCap: 10,
+            maxDoubleHits: 2,
+            bestOf: { pool: 3, bracket: 1, finals: 1 },
+          },
+        },
+        scoring_config_json: null,
+      },
+    };
+    const match = matchRow({
+      phases: poolPhase,
+      match_number_label: 'P1M1',
+      ruleset_code: 'Generic_PointsCap',
+    });
+    // Three doubles against a ceiling of two: TF_v1 would close the round here.
+    wire(match, [ex(1, 'red', 1), dbl(2), dbl(3), dbl(4)]);
+
+    await service.recomputeMatchScore('m1');
+
+    expect(lastUpdate?.['rounds_json']).toBeUndefined();
+    expect(lastUpdate?.['awaiting_round_advance']).toBe(false);
+    // And the hit still counts — the ceiling did not zero the round either.
     expect(lastUpdate).toMatchObject({ red_score: 1 });
   });
 

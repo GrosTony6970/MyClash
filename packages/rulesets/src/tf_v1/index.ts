@@ -111,6 +111,8 @@ export const TF_v1: Ruleset = {
 
   metadata: {
     hasAfterblow: true,
+    // The pool-only doubles ceiling is TF_v1's rule; Generic_PointsCap has none.
+    hasMaxDoubles: true,
     defaultAfterblowMode: 'deductive',
     // FFAMHE scores the retaliation at a flat 1 regardless of target — see
     // the ARCHITECTURE.md FAL columns (1-1, 2-1; no 2-2).

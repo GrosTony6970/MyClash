@@ -30,6 +30,9 @@ export function Step2MatchFormat({
   const toast = useToast();
   const [data, setData] = useState<MatchFormat>(DEFAULTS);
   const [hasAfterblow, setHasAfterblow] = useState(false);
+  // Defaults TRUE: every ruleset had a doubles ceiling before the capability
+  // existed, and the step shows coded defaults until the row lands.
+  const [hasMaxDoubles, setHasMaxDoubles] = useState(true);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -39,9 +42,10 @@ export function Step2MatchFormat({
       (r) => {
         if (!r.ok) return;
         const row = r.data;
-        setHasAfterblow(
-          Boolean((row['ruleset_grammar'] as { hasAfterblow?: boolean } | undefined)?.hasAfterblow),
-        );
+        const grammar = row['ruleset_grammar'] as
+          { hasAfterblow?: boolean; hasMaxDoubles?: boolean } | undefined;
+        setHasAfterblow(Boolean(grammar?.hasAfterblow));
+        setHasMaxDoubles(grammar?.hasMaxDoubles !== false);
         // Pluck-not-spread to keep stray engine/legacy keys out of the
         // PATCH body — same discipline as Step 4. See buildMatchFormatFromRow.
         setData(
@@ -207,14 +211,16 @@ export function Step2MatchFormat({
         suffix="s"
       />
 
-      <NumberField
-        label={t('organizer.tournaments.settings.maxDoubleHits')}
-        hint={t('organizer.tournaments.settings.maxDoubleHitsHelp')}
-        value={data.maxDoubleHits ?? 0}
-        onChange={(v) => setData({ ...data, maxDoubleHits: v })}
-        min={0}
-        max={20}
-      />
+      {hasMaxDoubles && (
+        <NumberField
+          label={t('organizer.tournaments.settings.maxDoubleHits')}
+          hint={t('organizer.tournaments.settings.maxDoubleHitsHelp')}
+          value={data.maxDoubleHits ?? 0}
+          onChange={(v) => setData({ ...data, maxDoubleHits: v })}
+          min={0}
+          max={20}
+        />
+      )}
 
       {hasAfterblow && (
         <SelectField

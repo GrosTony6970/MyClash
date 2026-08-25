@@ -48,7 +48,7 @@ export type GenericPointsCapConfig = z.infer<typeof GenericPointsCapConfigSchema
 export const GenericPointsCapDefaultConfig: GenericPointsCapConfig =
   GenericPointsCapConfigSchema.parse({});
 
-function normalizeGenericPointsCapConfig(config: unknown): GenericPointsCapConfig {
+export function normalizeGenericPointsCapConfig(config: unknown): GenericPointsCapConfig {
   const parsed = GenericPointsCapConfigSchema.parse(config ?? GenericPointsCapDefaultConfig);
   if (parsed.pointsCap !== undefined || parsed.timeLimitSeconds !== undefined) {
     return {
@@ -71,6 +71,40 @@ function normalizeGenericPointsCapConfig(config: unknown): GenericPointsCapConfi
 }
 
 // ── Score computation ─────────────────────────────────────────────────────────
+
+/**
+ * Generic_PointsCap has NO doubles ceiling.
+ *
+ * The ceiling lives on the SHARED match format, so every ruleset that embeds
+ * `MatchFormatConfigSchema` inherited it — including this one, which never had a
+ * rule for it. The result was a bout that could not be finished: at the 4th
+ * double (the schema's default) `computeMatchFormatScore` collapsed both scores
+ * to 0-0, `isMatchOver` below has no `max_doubles` branch to end on, and every
+ * further hit was discarded by the same zeroing. Verified against the engine
+ * before this was written.
+ *
+ * Stripped here rather than in the schema on purpose: `createFormulaRuleset`
+ * parses through this same schema and DOES keep the ceiling, so nulling it at
+ * parse time would take the rule away from org-authored rulesets too.
+ */
+function withoutMaxDoubles(config: GenericPointsCapConfig): GenericPointsCapConfig {
+  return { ...config, matchFormat: { ...config.matchFormat, maxDoubleHits: null } };
+}
+
+/**
+ * The scoring half, honouring whatever ceiling the config carries.
+ *
+ * Exported for `createFormulaRuleset`, which reuses this ruleset's hit remapping
+ * but keeps its doubles ceiling. `Generic_PointsCap.computeMatchScore` calls it
+ * through {@link withoutMaxDoubles}.
+ */
+export function computeGenericPointsCapScore(
+  match: Pick<Match, 'phaseType'>,
+  exchanges: Exchange[],
+  config: unknown,
+): MatchScore {
+  return computeScore(match, exchanges, normalizeGenericPointsCapConfig(config));
+}
 
 function computeScore(
   match: Pick<Match, 'phaseType'>,
@@ -131,13 +165,10 @@ function scoreFighters({
   const stats = new Map(registrationIds.map((id) => [id, { wins: 0, ptsFor: 0, ptsAgainst: 0 }]));
 
   for (const match of completedMatches) {
-    // A finished bout carries no phase, so `getEffectiveMaxDoubles` inside the
-    // scorer returns null and a max-doubles bout is NOT zeroed here. That is
-    // what this path already did — it used to cast a PostgREST row into a
-    // `Match`, and the row has no `phaseType` either — so the omission was
-    // real, silent and untyped. Stated rather than accidental now. Whether
-    // pool standings SHOULD zero a max-doubles bout is a rules question, and
-    // changing it is not this refactor's to make.
+    // No ceiling here, and that is now the RULE rather than an omission: this
+    // ruleset has no max-doubles concept at all (`metadata.hasMaxDoubles` is
+    // false), so there is nothing for pool standings to zero. `phaseType`
+    // stays undefined because a finished bout carries no phase.
     const score = computeScore({ phaseType: undefined }, match.exchanges, config);
     const red = stats.get(match.redRegistrationId);
     const blue = stats.get(match.blueRegistrationId);
@@ -189,7 +220,11 @@ export const Generic_PointsCap: Ruleset = {
     _afterblowMode: AfterblowMode,
     config: unknown,
   ) {
-    return computeScore(match, exchanges, normalizeGenericPointsCapConfig(config));
+    return computeScore(
+      match,
+      exchanges,
+      withoutMaxDoubles(normalizeGenericPointsCapConfig(config)),
+    );
   },
 
   isMatchOver(_match: Match, score: MatchScore, config: unknown) {
@@ -209,6 +244,9 @@ export const Generic_PointsCap: Ruleset = {
 
   metadata: {
     hasAfterblow: false,
+    // No doubles ceiling. Declared so the tournament form stops offering one,
+    // the same way `hasAfterblow` stops it offering afterblow controls.
+    hasMaxDoubles: false,
     defaultAfterblowMode: null,
     afterblowValuation: null,
     afterblowFixedValue: null,

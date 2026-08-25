@@ -327,6 +327,7 @@ describe('buildSeededScoringConfig (pure)', () => {
     afterblowValuation: 'fixed' as const,
     afterblowFixedValue: 1,
     defaultAfterblowMode: 'deductive' as const,
+    hasMaxDoubles: true,
   };
 
   it('produces the federal pad from the grammar alone', () => {

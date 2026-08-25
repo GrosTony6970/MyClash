@@ -54,6 +54,9 @@ export function MatchFormatTab({ tournamentId }: { tournamentId: string }) {
   // `rulesetCode === 'TF_v1'` literal — so the afterblow-mode control survives
   // a "Customise this format" fork (code becomes custom_*, grammar unchanged).
   const [hasAfterblow, setHasAfterblow] = useState(false);
+  // Defaults TRUE: every ruleset carried a doubles ceiling before the
+  // capability existed, and only `Generic_PointsCap` says otherwise.
+  const [hasMaxDoubles, setHasMaxDoubles] = useState(true);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -63,11 +66,10 @@ export function MatchFormatTab({ tournamentId }: { tournamentId: string }) {
       (r) => {
         if (r.ok) {
           const row = r.data;
-          setHasAfterblow(
-            Boolean(
-              (row['ruleset_grammar'] as { hasAfterblow?: boolean } | undefined)?.hasAfterblow,
-            ),
-          );
+          const grammar = row['ruleset_grammar'] as
+            { hasAfterblow?: boolean; hasMaxDoubles?: boolean } | undefined;
+          setHasAfterblow(Boolean(grammar?.hasAfterblow));
+          setHasMaxDoubles(grammar?.hasMaxDoubles !== false);
           const rc = (row['ruleset_config'] ?? {}) as { matchFormat?: Partial<MatchFormat> };
           const mf = rc.matchFormat ?? {};
           const sc = (row['scoring_config_json'] ?? {}) as Partial<MatchFormat>;
@@ -255,16 +257,18 @@ export function MatchFormatTab({ tournamentId }: { tournamentId: string }) {
         suffix="s"
       />
 
-      <NumberField
-        label={t('organizer.tournaments.settings.maxDoubleHits')}
-        hint={t('organizer.tournaments.settings.maxDoubleHitsHelp')}
-        value={data.maxDoubleHits ?? 0}
-        defaultValue={DEFAULTS.maxDoubleHits ?? 0}
-        onChange={(v) => setData({ ...data, maxDoubleHits: v })}
-        onReset={() => setData({ ...data, maxDoubleHits: DEFAULTS.maxDoubleHits })}
-        min={0}
-        max={20}
-      />
+      {hasMaxDoubles && (
+        <NumberField
+          label={t('organizer.tournaments.settings.maxDoubleHits')}
+          hint={t('organizer.tournaments.settings.maxDoubleHitsHelp')}
+          value={data.maxDoubleHits ?? 0}
+          defaultValue={DEFAULTS.maxDoubleHits ?? 0}
+          onChange={(v) => setData({ ...data, maxDoubleHits: v })}
+          onReset={() => setData({ ...data, maxDoubleHits: DEFAULTS.maxDoubleHits })}
+          min={0}
+          max={20}
+        />
+      )}
 
       {hasAfterblow && (
         <SelectField

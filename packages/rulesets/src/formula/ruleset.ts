@@ -6,8 +6,11 @@
  * Generic_PointsCap; only the standings/ranking path is custom — that's
  * where the formula lives.
  */
-import { Generic_PointsCap } from '../generic_points_cap';
-import type { AfterblowMode } from '../match-format';
+import {
+  computeGenericPointsCapScore,
+  normalizeGenericPointsCapConfig,
+} from '../generic_points_cap';
+import { endOnPointCapOrMaxDoubles, type AfterblowMode } from '../match-format';
 import type { Ruleset, StandingsColumn, RankingRule } from '../types';
 import { deriveFighterStats } from '@myclash/rules';
 import { evaluateFormula, type FormulaScope } from '@myclash/rules';
@@ -116,13 +119,29 @@ export function createFormulaRuleset(
     version,
     displayName,
     computeMatchScore(match, exchanges, _afterblowMode, runtimeConfig) {
-      // Match scoring delegates to Generic_PointsCap, which has no afterblow
-      // concept. The authored formula is the standings half, below.
-      return Generic_PointsCap.computeMatchScore(match, exchanges, _afterblowMode, runtimeConfig);
+      // Reuses Generic_PointsCap's hit remapping — it has no afterblow concept
+      // either, and the authored formula is the standings half, below.
+      //
+      // NOT `Generic_PointsCap.computeMatchScore`: that one strips the doubles
+      // ceiling, because Generic has no such rule. An org-authored ruleset KEEPS
+      // it, so this calls the scorer that honours the configured ceiling.
+      return computeGenericPointsCapScore(match, exchanges, runtimeConfig);
     },
 
+    /**
+     * Cap first, then the doubles ceiling — the same decision TF_v1 makes.
+     *
+     * This used to delegate to `Generic_PointsCap.isMatchOver`, which has no
+     * `max_doubles` branch because that ruleset has no ceiling. Scoring zeroed
+     * both fighters at the cap and nothing ended the bout, so it sat at 0-0 with
+     * every further hit discarded by the same zeroing.
+     */
     isMatchOver(match, score, runtimeConfig) {
-      return Generic_PointsCap.isMatchOver(match, score, runtimeConfig);
+      return endOnPointCapOrMaxDoubles(
+        match,
+        score,
+        normalizeGenericPointsCapConfig(runtimeConfig).matchFormat,
+      );
     },
 
     scorePoolFighters({ registrationIds, completedMatches, afterblowMode }) {
@@ -156,6 +175,9 @@ export function createFormulaRuleset(
       afterblowValuation: hasAfterblow ? (grammar?.afterblowValuation ?? 'fixed') : null,
       afterblowFixedValue: hasAfterblow ? (grammar?.afterblowFixedValue ?? 1) : null,
       targets: grammar?.targets ?? null,
+      // Org-authored rulesets KEEP the doubles ceiling (Generic_PointsCap does
+      // not), so the tournament form goes on offering one.
+      hasMaxDoubles: true,
       winBonus: null,
       doublePenaltyFormula: null,
       deepTargetDefault: null,

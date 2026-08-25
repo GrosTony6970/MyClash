@@ -14,12 +14,15 @@ import {
   isSoftClockLocked,
   pointCapWinnerColor,
   roundWinTarget,
+  type Match,
   type MatchFormatConfig,
+  type MatchScore,
   type RoundEvaluation,
   type RoundScorer,
   type ScoringDirection,
   type TimerMode,
 } from '@myclash/rules';
+import type { MatchEndDecision } from './types';
 // The default match format is a plain literal in @myclash/types — see its
 // docblock for why that side owns it. The schema below must still PRODUCE it,
 // which match-format.test.ts asserts by parsing an empty config.
@@ -194,4 +197,33 @@ export function normalizeMatchFormatConfig(input: unknown): MatchFormatConfig {
         ? raw.maxDoubles
         : DEFAULT_MATCH_FORMAT_CONFIG.maxDoubleHits,
   });
+}
+
+/**
+ * The end decision for a ruleset that HAS a doubles ceiling: first to the point
+ * cap, then max-doubles.
+ *
+ * One owner, because two rulesets need exactly this and they used not to agree.
+ * TF_v1 implemented it; `createFormulaRuleset` delegated to `Generic_PointsCap`,
+ * which has no ceiling and therefore no `max_doubles` branch — so an
+ * org-authored ruleset zeroed its scores at the cap and then had nothing to end
+ * on, leaving the bout stuck at 0-0 with every further hit discarded.
+ *
+ * Max-doubles ends a bout only in pools and Swiss rounds; bracket and finals
+ * must resolve to a winner, and `getEffectiveMaxDoubles` returns null there.
+ * `score.doubles` is the count of non-voided `double` exchanges.
+ */
+export function endOnPointCapOrMaxDoubles(
+  match: Pick<Match, 'phaseType'>,
+  score: MatchScore,
+  matchFormat: MatchFormatConfig,
+): MatchEndDecision {
+  if (isPointCapReached(score, matchFormat)) {
+    return { isOver: true, reason: 'first_to_points' };
+  }
+  const effectiveMaxDoubles = getEffectiveMaxDoubles(match, matchFormat);
+  if (effectiveMaxDoubles !== null && score.doubles >= effectiveMaxDoubles) {
+    return { isOver: true, reason: 'max_doubles' };
+  }
+  return { isOver: false, reason: null };
 }
