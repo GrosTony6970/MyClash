@@ -27,6 +27,30 @@ export type ScoringDirection = 'normal' | 'reverse_zero_loses';
 export type TimerMode = 'countdown' | 'countup';
 
 /**
+ * What happens to a bout that reaches the doubles ceiling. The ceiling itself
+ * ends the bout either way; this says what the result IS.
+ *
+ *   double_loss_zero_scores  both scores wiped, and it counts as a loss for
+ *                            each fighter — the federal reading, and the default
+ *   draw_zero_scores         both scores wiped, and it counts as a draw
+ *   result_stands            the bout simply stops: the scores on the board
+ *                            stand and whoever leads wins it
+ *
+ * The chosen value is resolved into `matches.end_reason` at completion rather
+ * than read back by every consumer. That matters because the readers include a
+ * SQL function and cross-event fighter stats, neither of which has the
+ * tournament's config in hand — see `maxDoubleHitEndReason`.
+ */
+export type MaxDoubleHitOutcome = 'double_loss_zero_scores' | 'draw_zero_scores' | 'result_stands';
+
+/**
+ * The `matches.end_reason` values a ceiling-ended bout can carry — one per
+ * {@link MaxDoubleHitOutcome}. Only `'max_doubles'` means loss for both.
+ */
+export type MaxDoubleHitEndReason =
+  'max_doubles' | 'max_doubles_draw' | 'max_doubles_result_stands';
+
+/**
  * A resolved match format. Plain data — this is what a ruleset RESOLVES TO, and
  * what the pad already carries in `tournaments.scoring_config_json`.
  */
@@ -48,7 +72,7 @@ export interface MatchFormatConfig {
   };
   softClockLimitSeconds: number;
   maxDoubleHits: number | null;
-  maxDoubleHitOutcome: 'double_loss_zero_scores';
+  maxDoubleHitOutcome: MaxDoubleHitOutcome;
   /**
    * Best-of-N rounds per phase. A match is decided by winning ceil(N/2) rounds.
    * 1 = single round (default everywhere). Odd values only. Mirrors
@@ -150,6 +174,53 @@ export function getEffectiveMaxDoubles(
   config: MatchFormatConfig,
 ): number | null {
   return match.phaseType === 'pool' || match.phaseType === 'swiss' ? config.maxDoubleHits : null;
+}
+
+/**
+ * Which side is ahead on the board, or null when level.
+ *
+ * Distinct from {@link pointCapWinnerColor}, which answers "who reached the
+ * cap". Under `result_stands` the bout ends on the CEILING, so nobody reached
+ * the cap and the winner is simply whoever leads.
+ */
+export function leadingColor(
+  score: Pick<MatchScore, 'redScore' | 'blueScore'>,
+): 'red' | 'blue' | null {
+  if (score.redScore > score.blueScore) return 'red';
+  if (score.blueScore > score.redScore) return 'blue';
+  return null;
+}
+
+/** Does reaching the ceiling wipe the board? Two of the three outcomes do. */
+export function maxDoubleHitZeroesScores(config: MatchFormatConfig): boolean {
+  return config.maxDoubleHitOutcome !== 'result_stands';
+}
+
+/**
+ * The `matches.end_reason` a ceiling-ended bout is recorded under.
+ *
+ * THE OUTCOME IS RESOLVED HERE, ONCE, AND TRAVELS AS THE REASON. Every reader
+ * of a finished bout would otherwise need the tournament's match format to
+ * interpret a single `'max_doubles'` marker — and the readers include a SQL
+ * function (`compact_fighter_stats`), cross-event fighter stats and the archive
+ * CSVs, none of which has that config in hand.
+ *
+ * Only `'max_doubles'` means LOSS FOR BOTH, which is what it has always meant,
+ * so Swiss standings, the HEMA Ratings export and the TV scoreboard keep working
+ * untouched. The other two values need no special case anywhere: a
+ * `'max_doubles_draw'` bout is 0-0 with no winner, which already reads as a
+ * draw, and a `'max_doubles_result_stands'` bout carries a real winner, which
+ * every winner-based reader already handles.
+ */
+export function maxDoubleHitEndReason(config: MatchFormatConfig): MaxDoubleHitEndReason {
+  switch (config.maxDoubleHitOutcome) {
+    case 'draw_zero_scores':
+      return 'max_doubles_draw';
+    case 'result_stands':
+      return 'max_doubles_result_stands';
+    default:
+      return 'max_doubles';
+  }
 }
 
 /**
@@ -304,10 +375,18 @@ export function computeMatchFormatScore(
     }
   }
 
-  // Max-doubles "double loss" is a pool-only rule (bracket/finals must always
-  // resolve to a winner). getEffectiveMaxDoubles returns null off the pool phase.
+  // Max-doubles is a pool-only rule (bracket/finals must always resolve to a
+  // winner). getEffectiveMaxDoubles returns null off the pool phase.
+  //
+  // Whether reaching it WIPES the scores is the organiser's choice: under
+  // `result_stands` the bout stops but the board stands, so there is nothing to
+  // zero and the fighter who leads wins it.
   const effectiveMaxDoubles = getEffectiveMaxDoubles(match, config);
-  if (effectiveMaxDoubles !== null && doubles >= effectiveMaxDoubles) {
+  if (
+    effectiveMaxDoubles !== null &&
+    doubles >= effectiveMaxDoubles &&
+    maxDoubleHitZeroesScores(config)
+  ) {
     return {
       redScore: 0,
       blueScore: 0,
@@ -374,7 +453,7 @@ export interface RoundEvaluation {
   autoOver: boolean;
   /** Round winner when `autoOver`; null for a drawn round (pool max-doubles). */
   winnerColor: 'red' | 'blue' | null;
-  endReason: 'first_to_points' | 'max_doubles' | null;
+  endReason: 'first_to_points' | MaxDoubleHitEndReason | null;
 }
 
 /**
@@ -416,8 +495,14 @@ export function evaluateRound(
 
   const effectiveMaxDoubles = getEffectiveMaxDoubles(match, config);
   if (effectiveMaxDoubles !== null && score.doubles >= effectiveMaxDoubles) {
-    // Pool only: a max-doubles double-loss is a drawn round (no round win).
-    return { score, autoOver: true, winnerColor: null, endReason: 'max_doubles' };
+    // Pool only. A wiped board is a drawn round (no round win for either side);
+    // under `result_stands` the board still holds a leader, so the round is won.
+    return {
+      score,
+      autoOver: true,
+      winnerColor: maxDoubleHitZeroesScores(config) ? null : leadingColor(score),
+      endReason: maxDoubleHitEndReason(config),
+    };
   }
 
   return { score, autoOver: false, winnerColor: null, endReason: null };

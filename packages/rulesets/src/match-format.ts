@@ -12,11 +12,16 @@ import {
   isMedalMatchLabel,
   isPointCapReached,
   isSoftClockLocked,
+  leadingColor,
+  maxDoubleHitEndReason,
+  maxDoubleHitZeroesScores,
   pointCapWinnerColor,
   roundWinTarget,
   type Match,
   type MatchFormatConfig,
   type MatchScore,
+  type MaxDoubleHitEndReason,
+  type MaxDoubleHitOutcome,
   type RoundEvaluation,
   type RoundScorer,
   type ScoringDirection,
@@ -45,10 +50,13 @@ export {
   isMedalMatchLabel,
   isPointCapReached,
   isSoftClockLocked,
+  leadingColor,
+  maxDoubleHitEndReason,
+  maxDoubleHitZeroesScores,
   pointCapWinnerColor,
   roundWinTarget,
 };
-export type { RoundEvaluation, RoundScorer };
+export type { MaxDoubleHitEndReason, MaxDoubleHitOutcome, RoundEvaluation, RoundScorer };
 
 // Afterblow netting lives in @myclash/rules -- the zero-dependency core. This
 // file used to carry its own copy, and said why in a comment: kept local "so
@@ -64,7 +72,11 @@ export type { AfterblowMode };
 
 export const ScoringDirectionSchema = z.enum(['normal', 'reverse_zero_loses']);
 export const TimerModeSchema = z.enum(['countdown', 'countup']);
-export const MaxDoubleHitOutcomeSchema = z.literal('double_loss_zero_scores');
+export const MaxDoubleHitOutcomeSchema = z.enum([
+  'double_loss_zero_scores',
+  'draw_zero_scores',
+  'result_stands',
+]);
 
 /** Best-of value: an odd integer ≥ 1 (1 = single round). */
 const BestOfValueSchema = z
@@ -223,7 +235,11 @@ export function endOnPointCapOrMaxDoubles(
   }
   const effectiveMaxDoubles = getEffectiveMaxDoubles(match, matchFormat);
   if (effectiveMaxDoubles !== null && score.doubles >= effectiveMaxDoubles) {
-    return { isOver: true, reason: 'max_doubles' };
+    // The organiser's chosen outcome is resolved into the REASON here, once.
+    // Every later reader of the finished bout then has the answer on the row —
+    // which the SQL stats function and the cross-event fighter stats need,
+    // because neither can reach the tournament's match format.
+    return { isOver: true, reason: maxDoubleHitEndReason(matchFormat) };
   }
   return { isOver: false, reason: null };
 }

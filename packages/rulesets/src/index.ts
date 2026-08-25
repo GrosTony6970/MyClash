@@ -40,12 +40,17 @@ export {
   isMedalMatchLabel,
   isPointCapReached,
   isSoftClockLocked,
+  leadingColor,
+  maxDoubleHitEndReason,
+  maxDoubleHitZeroesScores,
   normalizeMatchFormatConfig,
   pointCapWinnerColor,
   roundWinTarget,
 } from './match-format';
 export type {
   MatchFormatConfig,
+  MaxDoubleHitEndReason,
+  MaxDoubleHitOutcome,
   RoundEvaluation,
   RoundScorer,
   ScoringDirection,

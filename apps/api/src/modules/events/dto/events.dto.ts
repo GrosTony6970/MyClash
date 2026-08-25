@@ -216,6 +216,12 @@ const matchFormatSchema = z
     timeLimitsSeconds: timeLimitsSecondsSchema.optional(),
     softClockLimitSeconds: z.number().min(0).max(600).optional(),
     maxDoubleHits: z.number().min(0).max(20).nullish(),
+    // The schema is `.strict()`, so a key the organiser surface sends and this
+    // does not list 400s the whole PATCH. The ceiling has been configurable for
+    // a long time; what it DOES only became a choice with the three outcomes.
+    maxDoubleHitOutcome: z
+      .enum(['double_loss_zero_scores', 'draw_zero_scores', 'result_stands'])
+      .optional(),
     scoringDirection: z.enum(['normal', 'reverse_zero_loses']).optional(),
     bestOf: bestOfSchema.optional(),
   })

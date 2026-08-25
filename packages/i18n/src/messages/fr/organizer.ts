@@ -737,6 +737,10 @@ export const organizer = {
         'Nombre de manches; gagner la majorité des manches remporte le match. Manche unique = comportement actuel.',
       softClock: 'Horloge souple',
       maxDoubleHits: 'Doubles maximum',
+      maxDoubleHitOutcome: 'Résultat au plafond de doubles',
+      maxDoubleHitDoubleLoss: 'Défaite pour les deux, 0–0',
+      maxDoubleHitDraw: 'Match nul pour les deux, 0–0',
+      maxDoubleHitResultStands: "L'assaut s'arrête, le score reste",
       afterblowMode: 'Mode contre-frappe',
       afterblowFull: 'Complet',
       afterblowDeductive: 'Déductif',
@@ -754,7 +758,9 @@ export const organizer = {
       softClockHelp:
         "Quand le decompte passe sous ce nombre de secondes, la saisie des points est bloquée jusqu'à l'arrêt du chrono.",
       maxDoubleHitsHelp:
-        'Après ce nombre de doubles, les deux combattants perdent avec un score de 0–0. 0 = pas de limite.',
+        "L'assaut s'arrête après ce nombre de doubles. Ce que cela compte se règle ci-dessous. 0 = pas de limite.",
+      maxDoubleHitOutcomeHelp:
+        'Ce que compte un assaut arrêté par le plafond de doubles. Défaite pour les deux et Match nul pour les deux remettent le score à 0–0; Le score reste garde les points acquis et donne la victoire à celui qui mène.',
       afterblowModeHelp:
         "Complet : la contre-frappe rapporte des points au defenseur. Déductif : la contre-frappe est soustraite des points de l'attaquant et le defenseur marque 0.",
       scoringDirectionHelp:

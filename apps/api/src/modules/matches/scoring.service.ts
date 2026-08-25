@@ -18,6 +18,7 @@ import {
   evaluateRound,
   getEffectiveBestOf,
   getPointCapWinnerRegistrationId,
+  leadingColor,
   normalizeMatchFormatConfig,
   roundWinTarget,
 } from '@myclash/rulesets';
@@ -25,8 +26,10 @@ import type {
   AfterblowMode,
   Exchange as RulesetExchange,
   Match as RulesetMatch,
+  MatchEndDecision,
   MatchFormatConfig,
   MatchScore,
+  MaxDoubleHitEndReason,
   RoundEvaluation,
   Ruleset,
 } from '@myclash/rulesets';
@@ -47,7 +50,11 @@ export interface ClosedRound {
   redScore: number;
   blueScore: number;
   winnerColor: 'red' | 'blue' | null;
-  endReason: 'first_to_points' | 'max_doubles' | 'time_limit' | null;
+  /**
+   * The three max-doubles values are one per `maxDoubleHitOutcome`. Only
+   * `'max_doubles'` means loss for both; see `maxDoubleHitEndReason`.
+   */
+  endReason: 'first_to_points' | MaxDoubleHitEndReason | 'time_limit' | null;
 }
 
 /**
@@ -189,10 +196,12 @@ export class ScoringService {
     // score, so a penalty that dropped the cap-reacher back below the cap
     // completed the bout with `end_reason: 'first_to_points'` and no winner.
     const matchEndDecision = ruleset.isMatchOver(match, score, config);
-    const winnerRegistrationId =
-      matchEndDecision.reason === 'first_to_points'
-        ? getPointCapWinnerRegistrationId(match, score, matchFormat)
-        : null;
+    const winnerRegistrationId = this.endWinnerRegistrationId(
+      matchEndDecision.reason,
+      match,
+      score,
+      matchFormat,
+    );
     // True only on the transition INTO completed — the guard makes the
     // side effects below (clock end) fire exactly once.
     const justCompleted = match.status !== 'completed' && matchEndDecision.isOver;
@@ -263,6 +272,33 @@ export class ScoringService {
       if (row['registration_id'] === match.blueRegistrationId) blueScore += delta;
     }
     return { ...score, redScore, blueScore };
+  }
+
+  /**
+   * Who won a bout the engine has just ended, from the reason it ended for.
+   *
+   * `first_to_points` names the fighter who reached the cap.
+   * `max_doubles_result_stands` names whoever LEADS: that outcome stops the bout
+   * at the ceiling without wiping the board, so there is a real result to keep —
+   * a level board is a genuine draw and stays winner-less.
+   * `max_doubles` and `max_doubles_draw` both wipe the board, so neither has a
+   * winner to name; a plain `max_doubles` is a loss for both.
+   */
+  private endWinnerRegistrationId(
+    reason: MatchEndDecision['reason'],
+    match: RulesetMatch,
+    score: MatchScore,
+    matchFormat: MatchFormatConfig,
+  ): string | null {
+    if (reason === 'first_to_points') {
+      return getPointCapWinnerRegistrationId(match, score, matchFormat);
+    }
+    if (reason === 'max_doubles_result_stands') {
+      const leader = leadingColor(score);
+      if (leader === null) return null;
+      return leader === 'red' ? match.redRegistrationId : match.blueRegistrationId;
+    }
+    return null;
   }
 
   /**
@@ -574,9 +610,13 @@ export class ScoringService {
    * this looks for is not the current one.
    */
   private roundShouldReopen(closed: ClosedRound, ev: RoundEvaluation): boolean {
-    const closedAutomatically =
-      closed.endReason === 'first_to_points' || closed.endReason === 'max_doubles';
-    return closedAutomatically && !ev.autoOver;
+    // Everything except `time_limit` is an ENGINE closure, and `endRoundOnTime`
+    // is the only operator-driven closer — it writes exactly that value. Listing
+    // the engine's reasons instead would need a new entry each time one is
+    // added, and a reason nobody added to the list stops being reopenable in
+    // silence; the doubles ceiling grew two more the day this was written.
+    const closedByTheOperator = closed.endReason === 'time_limit' || closed.endReason === null;
+    return !closedByTheOperator && !ev.autoOver;
   }
 
   /**

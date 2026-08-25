@@ -18,6 +18,7 @@ import type {
   ExchangeType,
   Match,
   MatchScore,
+  MaxDoubleHitEndReason,
   ScoredMatch,
   StrikerColor,
 } from '@myclash/rules';
@@ -46,7 +47,11 @@ export interface ScorePoolFightersInput {
 
 export interface MatchEndDecision {
   isOver: boolean;
-  reason: 'time_limit' | 'first_to_points' | 'max_doubles' | 'manual' | null;
+  /**
+   * The three max-doubles values are one per `maxDoubleHitOutcome`, resolved at
+   * the moment the bout ends — only `'max_doubles'` means loss for both.
+   */
+  reason: 'time_limit' | 'first_to_points' | MaxDoubleHitEndReason | 'manual' | null;
 }
 
 export interface FighterAggregates {

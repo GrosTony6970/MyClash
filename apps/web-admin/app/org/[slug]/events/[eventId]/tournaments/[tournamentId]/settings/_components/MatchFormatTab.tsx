@@ -6,6 +6,9 @@ import { useEffect, useMemo, useState } from 'react';
 import { useToast } from '@myclash/ui';
 import { apiRequest, failureMessage } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
+// One owner for the option list, so the two surfaces cannot offer different
+// wording — or different values — for the same setting.
+import { MAX_DOUBLE_HIT_OUTCOME_OPTIONS } from '../../../new/_wizard/buildMatchFormatFromRow';
 
 const apiUrl = getPublicApiUrl();
 
@@ -15,6 +18,8 @@ interface MatchFormat {
   timeLimitsSeconds: { pool: number | null; bracket: number | null; finals: number | null };
   softClockLimitSeconds: number;
   maxDoubleHits: number | null;
+  /** What reaching the ceiling DOES. Only the first value is a loss for both. */
+  maxDoubleHitOutcome: 'double_loss_zero_scores' | 'draw_zero_scores' | 'result_stands';
   afterblowMode: 'full' | 'deductive';
   scoringDirection: 'normal' | 'reverse_zero_loses';
   bestOf: { pool: number; bracket: number; finals: number };
@@ -26,6 +31,7 @@ const DEFAULTS: MatchFormat = {
   timeLimitsSeconds: { pool: 180, bracket: 240, finals: 300 },
   softClockLimitSeconds: 60,
   maxDoubleHits: 3,
+  maxDoubleHitOutcome: 'double_loss_zero_scores',
   afterblowMode: 'full',
   scoringDirection: 'normal',
   bestOf: { pool: 1, bracket: 1, finals: 1 },
@@ -79,6 +85,7 @@ export function MatchFormatTab({ tournamentId }: { tournamentId: string }) {
             timeLimitsSeconds: { ...DEFAULTS.timeLimitsSeconds, ...(mf.timeLimitsSeconds ?? {}) },
             softClockLimitSeconds: mf.softClockLimitSeconds ?? DEFAULTS.softClockLimitSeconds,
             maxDoubleHits: mf.maxDoubleHits ?? DEFAULTS.maxDoubleHits,
+            maxDoubleHitOutcome: mf.maxDoubleHitOutcome ?? DEFAULTS.maxDoubleHitOutcome,
             scoringDirection: mf.scoringDirection ?? DEFAULTS.scoringDirection,
             afterblowMode: sc.afterblowMode ?? DEFAULTS.afterblowMode,
             bestOf: { ...DEFAULTS.bestOf, ...(mf.bestOf ?? {}) },
@@ -102,6 +109,7 @@ export function MatchFormatTab({ tournamentId }: { tournamentId: string }) {
               timeLimitsSeconds: data.timeLimitsSeconds,
               softClockLimitSeconds: data.softClockLimitSeconds,
               maxDoubleHits: data.maxDoubleHits,
+              maxDoubleHitOutcome: data.maxDoubleHitOutcome,
               bestOf: data.bestOf,
             },
           },
@@ -267,6 +275,23 @@ export function MatchFormatTab({ tournamentId }: { tournamentId: string }) {
           onReset={() => setData({ ...data, maxDoubleHits: DEFAULTS.maxDoubleHits })}
           min={0}
           max={20}
+        />
+      )}
+
+      {hasMaxDoubles && (
+        <SelectField
+          label={t('organizer.tournaments.settings.maxDoubleHitOutcome')}
+          hint={t('organizer.tournaments.settings.maxDoubleHitOutcomeHelp')}
+          value={data.maxDoubleHitOutcome}
+          defaultValue={DEFAULTS.maxDoubleHitOutcome}
+          onChange={(v) =>
+            setData({ ...data, maxDoubleHitOutcome: v as MatchFormat['maxDoubleHitOutcome'] })
+          }
+          onReset={() => setData({ ...data, maxDoubleHitOutcome: DEFAULTS.maxDoubleHitOutcome })}
+          options={MAX_DOUBLE_HIT_OUTCOME_OPTIONS.map((o) => ({
+            value: o.value,
+            label: t(o.labelKey),
+          }))}
         />
       )}
 

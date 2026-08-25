@@ -623,6 +623,84 @@ describe('ScoringService — a single fight, penalties included', () => {
     });
   });
 
+  /**
+   * The doubles ceiling stops the bout under every outcome; what changes is the
+   * RESULT. It is resolved into `end_reason` at completion so that later readers
+   * — including a SQL function and the cross-event fighter stats, which cannot
+   * reach the tournament's config — get the answer straight off the row.
+   */
+  it('names a winner when the ceiling is reached under result_stands', async () => {
+    const poolPhase = (outcome: string) => ({
+      type: 'pool',
+      tournaments: {
+        ruleset_config: {
+          matchFormat: {
+            pointCap: 10,
+            maxDoubleHits: 2,
+            maxDoubleHitOutcome: outcome,
+            bestOf: { pool: 1, bracket: 1, finals: 1 },
+          },
+        },
+        scoring_config_json: null,
+      },
+    });
+    wireSingle(
+      matchRow({ phases: poolPhase('result_stands'), match_number_label: 'P1M1' }),
+      [ex(1, 'red', 2), dbl(2), dbl(3)],
+      [],
+    );
+
+    await service.recomputeMatchScore('m1');
+
+    expect(lastUpdate).toMatchObject({
+      status: 'completed',
+      end_reason: 'max_doubles_result_stands',
+      winner_registration_id: 'red',
+      // The board is NOT wiped — that is what `result_stands` means.
+      red_score: 2,
+    });
+  });
+
+  it('wipes the board and names nobody under the two zeroing outcomes', async () => {
+    const poolPhase = (outcome: string) => ({
+      type: 'pool',
+      tournaments: {
+        ruleset_config: {
+          matchFormat: {
+            pointCap: 10,
+            maxDoubleHits: 2,
+            maxDoubleHitOutcome: outcome,
+            bestOf: { pool: 1, bracket: 1, finals: 1 },
+          },
+        },
+        scoring_config_json: null,
+      },
+    });
+
+    for (const [outcome, reason] of [
+      ['double_loss_zero_scores', 'max_doubles'],
+      ['draw_zero_scores', 'max_doubles_draw'],
+    ]) {
+      wireSingle(
+        matchRow({ phases: poolPhase(outcome!), match_number_label: 'P1M1' }),
+        [ex(1, 'red', 2), dbl(2), dbl(3)],
+        [],
+      );
+
+      await service.recomputeMatchScore('m1');
+
+      // Only 'max_doubles' means loss for both; the draw carries its own reason
+      // so nothing that special-cases the double loss picks it up.
+      expect(lastUpdate).toMatchObject({
+        status: 'completed',
+        end_reason: reason,
+        winner_registration_id: null,
+        red_score: 0,
+        blue_score: 0,
+      });
+    }
+  });
+
   it('does not reopen a bout that still meets its end condition', async () => {
     wireSingle(
       matchRow({ status: 'completed', winner_registration_id: 'red', phases: singleFightPhase() }),

@@ -10890,6 +10890,8 @@ export interface components {
           softClockLimitSeconds?: number;
           maxDoubleHits?: number | null;
           /** @enum {string} */
+          maxDoubleHitOutcome?: 'double_loss_zero_scores' | 'draw_zero_scores' | 'result_stands';
+          /** @enum {string} */
           scoringDirection?: 'normal' | 'reverse_zero_loses';
           bestOf?: {
             pool?: number;
@@ -10947,6 +10949,8 @@ export interface components {
           };
           softClockLimitSeconds?: number;
           maxDoubleHits?: number | null;
+          /** @enum {string} */
+          maxDoubleHitOutcome?: 'double_loss_zero_scores' | 'draw_zero_scores' | 'result_stands';
           /** @enum {string} */
           scoringDirection?: 'normal' | 'reverse_zero_loses';
           bestOf?: {

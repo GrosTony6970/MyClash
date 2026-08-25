@@ -741,6 +741,10 @@ export const organizer = {
         'Number of rounds; winning the majority of rounds takes the match. Single round = current behaviour.',
       softClock: 'Soft clock',
       maxDoubleHits: 'Max double hits',
+      maxDoubleHitOutcome: 'Result at the doubles ceiling',
+      maxDoubleHitDoubleLoss: 'Loss for both, 0–0',
+      maxDoubleHitDraw: 'Draw for both, 0–0',
+      maxDoubleHitResultStands: 'The bout stops, the score stands',
       afterblowMode: 'Afterblow mode',
       afterblowFull: 'Full',
       afterblowDeductive: 'Deductive',
@@ -756,7 +760,9 @@ export const organizer = {
       softClockHelp:
         'Once the countdown drops below this many seconds, scoring locks until the clock is stopped.',
       maxDoubleHitsHelp:
-        'After this many double hits both fighters lose with a 0–0 score. 0 = no limit.',
+        'The bout stops after this many double hits. What that counts as is set below. 0 = no limit.',
+      maxDoubleHitOutcomeHelp:
+        'What a bout stopped by the doubles ceiling counts as. Loss for both and Draw for both wipe the score to 0–0; The score stands keeps the points on the board and gives the win to whoever leads.',
       afterblowModeHelp:
         "Full: the afterblow still scores for the defender. Deductive: the afterblow is subtracted from the attacker's points and the defender scores 0.",
       scoringDirectionHelp:

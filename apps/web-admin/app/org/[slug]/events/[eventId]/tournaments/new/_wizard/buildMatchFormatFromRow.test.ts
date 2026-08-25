@@ -19,6 +19,7 @@ describe('buildMatchFormatFromRow', () => {
           timeLimitsSeconds: { pool: 200, bracket: 250, finals: 300 },
           softClockLimitSeconds: 45,
           maxDoubleHits: 4,
+          maxDoubleHitOutcome: 'draw_zero_scores',
           scoringDirection: 'reverse_zero_loses',
         },
       },
@@ -31,6 +32,7 @@ describe('buildMatchFormatFromRow', () => {
       timeLimitsSeconds: { pool: 200, bracket: 250, finals: 300 },
       softClockLimitSeconds: 45,
       maxDoubleHits: 4,
+      maxDoubleHitOutcome: 'draw_zero_scores',
       scoringDirection: 'reverse_zero_loses',
       afterblowMode: 'deductive',
       bestOf: { pool: 1, bracket: 1, finals: 1 },
@@ -60,6 +62,7 @@ describe('buildMatchFormatFromRow', () => {
       [
         'afterblowMode',
         'bestOf',
+        'maxDoubleHitOutcome',
         'maxDoubleHits',
         'pointCap',
         'scoringDirection',
@@ -69,6 +72,20 @@ describe('buildMatchFormatFromRow', () => {
       ].sort(),
     );
     expect(Object.keys(out.timeLimitsSeconds).sort()).toEqual(['bracket', 'finals', 'pool']);
+  });
+
+  it('falls back to the default outcome rather than round-tripping an unknown one', () => {
+    // The API DTO is `.strict()` and its enum has three members, so a stored
+    // value from outside that set would 400 the whole PATCH on the way back.
+    const out = buildMatchFormatFromRow(
+      {
+        matchFormat: { maxDoubleHitOutcome: 'something_else' },
+      } as unknown as Partial<WizardMatchFormatRow> & Record<string, unknown>,
+      {},
+      MATCH_FORMAT_DEFAULTS,
+    );
+
+    expect(out.maxDoubleHitOutcome).toBe('double_loss_zero_scores');
   });
 });
 

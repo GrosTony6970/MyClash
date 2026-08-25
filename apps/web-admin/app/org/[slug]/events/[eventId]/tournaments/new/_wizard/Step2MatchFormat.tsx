@@ -6,6 +6,7 @@ import { useToast } from '@myclash/ui';
 import {
   buildMatchFormatFromRow,
   MATCH_FORMAT_DEFAULTS,
+  MAX_DOUBLE_HIT_OUTCOME_OPTIONS,
   type WizardMatchFormat,
 } from './buildMatchFormatFromRow';
 import { apiRequest, failureMessage } from '@myclash/api-client';
@@ -73,6 +74,7 @@ export function Step2MatchFormat({
               timeLimitsSeconds: data.timeLimitsSeconds,
               softClockLimitSeconds: data.softClockLimitSeconds,
               maxDoubleHits: data.maxDoubleHits,
+              maxDoubleHitOutcome: data.maxDoubleHitOutcome,
               bestOf: data.bestOf,
             },
           },
@@ -219,6 +221,21 @@ export function Step2MatchFormat({
           onChange={(v) => setData({ ...data, maxDoubleHits: v })}
           min={0}
           max={20}
+        />
+      )}
+
+      {hasMaxDoubles && (
+        <SelectField
+          label={t('organizer.tournaments.settings.maxDoubleHitOutcome')}
+          hint={t('organizer.tournaments.settings.maxDoubleHitOutcomeHelp')}
+          value={data.maxDoubleHitOutcome}
+          onChange={(v) =>
+            setData({ ...data, maxDoubleHitOutcome: v as WizardMatchFormat['maxDoubleHitOutcome'] })
+          }
+          options={MAX_DOUBLE_HIT_OUTCOME_OPTIONS.map((o) => ({
+            value: o.value,
+            label: t(o.labelKey),
+          }))}
         />
       )}
 
