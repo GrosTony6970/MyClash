@@ -122,6 +122,46 @@ function fingerprintsOf(candidates: Candidate[]): Set<string> {
   return new Set(candidates.map((candidate) => candidate.fingerprint));
 }
 
+/** A row with its normalised fields computed once, not once per pair. */
+type PreparedPerson = { row: GlobalPersonRow; name: string; clubName: string };
+type PreparedClub = { row: ClubRow; name: string; city: string };
+
+function bucket(buckets: Map<string, number[]>, key: string, index: number): void {
+  const members = buckets.get(key) ?? [];
+  members.push(index);
+  buckets.set(key, members);
+}
+
+/**
+ * Every index pair that shares at least one blocking key, each pair once.
+ *
+ * Both duplicate predicates are an OR of equality tests on derived keys,
+ * and every one of those keys has a bucket — so a pair the predicate
+ * would accept always lands in some bucket together. The blocking is
+ * lossless, not a heuristic: it drops only pairs the predicate was
+ * always going to reject, which on a full table is nearly all of them.
+ *
+ * Add a reason to a predicate and you must add its bucket here, or the
+ * reason silently stops firing for pairs that share nothing else.
+ */
+function pairsSharingABucket(buckets: Map<string, number[]>): Array<[number, number]> {
+  const pairs: Array<[number, number]> = [];
+  const seen = new Set<string>();
+  for (const members of buckets.values()) {
+    for (let i = 0; i < members.length; i += 1) {
+      for (let j = i + 1; j < members.length; j += 1) {
+        const low = Math.min(members[i]!, members[j]!);
+        const high = Math.max(members[i]!, members[j]!);
+        const key = `${low}|${high}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        pairs.push([low, high]);
+      }
+    }
+  }
+  return pairs;
+}
+
 /**
  * Detect names that look like seed / test / demo records left behind
  * after a manual import or development run. Returns the rule that
@@ -495,88 +535,133 @@ export class AIDataQualityService {
   }
 
   private findGlobalPersonDuplicates(persons: GlobalPersonRow[]): Candidate[] {
-    const candidates: Candidate[] = [];
-    for (let i = 0; i < persons.length; i += 1) {
-      for (let j = i + 1; j < persons.length; j += 1) {
-        const first = persons[i]!;
-        const second = persons[j]!;
-        const evidence = this.globalPersonDuplicateEvidence(first, second);
-        if (!evidence) continue;
-        candidates.push(
-          this.candidate('global_person_duplicate', 'high', 0.86, {
-            globalPersonIds: [first.id, second.id],
-            evidence,
-          }),
-        );
+    // Soft-deleted and already-merged rows are not duplicates of anything;
+    // a merged person was otherwise reported as a duplicate of the very
+    // survivor it was merged into. `findIdentityGaps` and
+    // `findPlaceholderNames` already skip them.
+    const prepared: PreparedPerson[] = persons
+      .filter((row) => !row.deleted_at && !row.merged_into_id)
+      .map((row) => ({
+        row,
+        // Normalising once per row, not once per pair.
+        name: normalizeName(personName(row)),
+        clubName: normalizeName(row.club_name),
+      }));
+
+    const buckets = new Map<string, number[]>();
+    prepared.forEach((person, index) => {
+      if (person.row.hema_ratings_id) {
+        bucket(buckets, `hema:${normalizeName(person.row.hema_ratings_id)}`, index);
       }
+      if (person.row.claimed_by_user_id) {
+        bucket(buckets, `user:${normalizeName(person.row.claimed_by_user_id)}`, index);
+      }
+      if (person.name) bucket(buckets, `name:${person.name}`, index);
+    });
+
+    const candidates: Candidate[] = [];
+    for (const [i, j] of pairsSharingABucket(buckets)) {
+      const first = prepared[i]!;
+      const second = prepared[j]!;
+      const evidence = this.globalPersonDuplicateEvidence(first, second);
+      if (!evidence) continue;
+      candidates.push(
+        this.candidate('global_person_duplicate', 'high', 0.86, {
+          globalPersonIds: [first.row.id, second.row.id],
+          evidence,
+        }),
+      );
     }
     return candidates;
   }
 
   private globalPersonDuplicateEvidence(
-    first: GlobalPersonRow,
-    second: GlobalPersonRow,
+    first: PreparedPerson,
+    second: PreparedPerson,
   ): Record<string, unknown> | null {
     const reasons: string[] = [];
-    if (samePresent(first.hema_ratings_id, second.hema_ratings_id)) {
+    if (samePresent(first.row.hema_ratings_id, second.row.hema_ratings_id)) {
       reasons.push('same_hema_ratings_id');
     }
-    if (samePresent(first.claimed_by_user_id, second.claimed_by_user_id)) {
+    if (samePresent(first.row.claimed_by_user_id, second.row.claimed_by_user_id)) {
       reasons.push('same_claimed_user');
     }
-    const firstName = normalizeName(personName(first));
-    const secondName = normalizeName(personName(second));
-    if (firstName && firstName === secondName) reasons.push('same_normalized_name');
-    if (
-      first.club_name &&
-      second.club_name &&
-      normalizeName(first.club_name) === normalizeName(second.club_name)
-    ) {
+    if (first.name && first.name === second.name) reasons.push('same_normalized_name');
+
+    // Sharing a club is corroborating evidence, never a pair on its own.
+    // As a standalone reason it made every two members of one club a
+    // high-severity duplicate — 780 findings for a 40-member club, which
+    // is what starved the AI ranking budget. Checked after the early
+    // return, so it can only ever add to a pair something else found.
+    if (reasons.length === 0) return null;
+    if (first.row.club_name && second.row.club_name && first.clubName === second.clubName) {
       reasons.push('same_club_name');
     }
 
-    if (reasons.length === 0) return null;
     return {
       reasons,
-      persons: [this.safeGlobalPersonEvidence(first), this.safeGlobalPersonEvidence(second)],
+      persons: [
+        this.safeGlobalPersonEvidence(first.row),
+        this.safeGlobalPersonEvidence(second.row),
+      ],
     };
   }
 
   private findClubDuplicates(clubs: ClubRow[]): Candidate[] {
-    const candidates: Candidate[] = [];
-    for (let i = 0; i < clubs.length; i += 1) {
-      for (let j = i + 1; j < clubs.length; j += 1) {
-        const first = clubs[i]!;
-        const second = clubs[j]!;
-        const evidence = this.clubDuplicateEvidence(first, second);
-        if (!evidence) continue;
-        candidates.push(
-          this.candidate('club_duplicate', 'medium', 0.78, {
-            clubIds: [first.id, second.id],
-            evidence,
-          }),
-        );
+    const prepared: PreparedClub[] = clubs.map((row) => ({
+      row,
+      name: normalizeName(row.name),
+      city: normalizeName(row.city),
+    }));
+
+    const buckets = new Map<string, number[]>();
+    prepared.forEach((club, index) => {
+      if (club.row.abbreviation) {
+        bucket(buckets, `abbr:${normalizeName(club.row.abbreviation)}`, index);
       }
+      // Unguarded: two clubs with blank names compare equal today, and
+      // blocking must not quietly change that.
+      bucket(buckets, `name:${club.name}`, index);
+      if (club.row.city && club.row.country_code) {
+        bucket(buckets, `place:${club.city}|${club.row.country_code.toUpperCase()}`, index);
+      }
+    });
+
+    const candidates: Candidate[] = [];
+    for (const [i, j] of pairsSharingABucket(buckets)) {
+      const first = prepared[i]!;
+      const second = prepared[j]!;
+      const evidence = this.clubDuplicateEvidence(first, second);
+      if (!evidence) continue;
+      candidates.push(
+        this.candidate('club_duplicate', 'medium', 0.78, {
+          clubIds: [first.row.id, second.row.id],
+          evidence,
+        }),
+      );
     }
     return candidates;
   }
 
-  private clubDuplicateEvidence(first: ClubRow, second: ClubRow): Record<string, unknown> | null {
+  private clubDuplicateEvidence(
+    first: PreparedClub,
+    second: PreparedClub,
+  ): Record<string, unknown> | null {
     const reasons: string[] = [];
-    if (samePresent(first.abbreviation, second.abbreviation)) {
+    if (samePresent(first.row.abbreviation, second.row.abbreviation)) {
       reasons.push('same_abbreviation');
     }
-    if (normalizeName(first.name) === normalizeName(second.name)) {
+    if (first.name === second.name) {
       reasons.push('same_normalized_name');
     }
     if (
-      first.city &&
-      second.city &&
-      first.country_code &&
-      second.country_code &&
-      normalizeName(first.city) === normalizeName(second.city) &&
-      first.country_code.toUpperCase() === second.country_code.toUpperCase() &&
-      similarity(normalizeName(first.name), normalizeName(second.name)) >= 0.86
+      first.row.city &&
+      second.row.city &&
+      first.row.country_code &&
+      second.row.country_code &&
+      first.city === second.city &&
+      first.row.country_code.toUpperCase() === second.row.country_code.toUpperCase() &&
+      similarity(first.name, second.name) >= 0.86
     ) {
       reasons.push('same_city_country_similar_name');
     }
@@ -584,7 +669,7 @@ export class AIDataQualityService {
     if (reasons.length === 0) return null;
     return {
       reasons,
-      clubs: [this.safeClubEvidence(first), this.safeClubEvidence(second)],
+      clubs: [this.safeClubEvidence(first.row), this.safeClubEvidence(second.row)],
     };
   }
 

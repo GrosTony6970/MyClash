@@ -58,9 +58,22 @@ function findingsTable(existing: Array<{ id: string; fingerprint: string; status
 }
 
 /** The rows a scan handed to `upsert`, typed for assertions. */
-function upsertedRows(table: ReturnType<typeof findingsTable>) {
+function upsertedRows(table: ReturnType<typeof findingsTable>): Array<{
+  fingerprint: string;
+  finding_type: string;
+  status?: string;
+  entity_ids?: Record<string, string[]>;
+  evidence_json?: { reasons?: string[] };
+}> {
   const rows = table.upsert.mock.calls[0]?.[0] as
-    Array<{ fingerprint: string; finding_type: string; status?: string }> | undefined;
+    | Array<{
+        fingerprint: string;
+        finding_type: string;
+        status?: string;
+        entity_ids?: Record<string, string[]>;
+        evidence_json?: { reasons?: string[] };
+      }>
+    | undefined;
   return rows ?? [];
 }
 
@@ -707,6 +720,138 @@ describe('AIDataQualityService', () => {
 
     expect(warn).toHaveBeenCalledWith(expect.stringContaining('ranked 100 of'));
     warn.mockRestore();
+  });
+
+  // ── Duplicate finders: blocking keys ────────────────────────────────────
+  // Both finders now pair only rows that share a blocking key instead of
+  // scanning the whole table. Every reason in the predicates is equality
+  // on one of those keys, so this must lose nothing — the tests below
+  // drive each reason on its own, with the key it blocks on as the only
+  // thing linking the pair. Add a reason without adding its bucket and
+  // one of these goes red.
+
+  async function scanWith(rows: { persons?: unknown[]; clubs?: unknown[] }) {
+    const findings = findingsTable();
+    const scanInsert = chain({ id: 'scan-dup' });
+    const noop = chain(null);
+    fromMock.mockImplementation((table: string) => {
+      if (table === 'ai_data_quality_scans') return scanInsert;
+      if (table === 'ai_data_quality_findings') return findings;
+      if (table === 'global_persons') return chain(rows.persons ?? []);
+      if (table === 'clubs') return chain(rows.clubs ?? []);
+      if (table === 'referee_qualifications') return chain([]);
+      if (table === 'persons') return chain([]);
+      if (table === 'registrations') return chain([]);
+      return noop;
+    });
+    await newService().runDeterministicScan(null);
+    return upsertedRows(findings);
+  }
+
+  const duplicatesOf = (rows: Awaited<ReturnType<typeof scanWith>>, type: string) =>
+    rows.filter((row) => row.finding_type === type);
+
+  it('does not pair two members of the same club who share nothing else', async () => {
+    const rows = await scanWith({
+      persons: [
+        { id: 'gp-1', given_name: 'Alice', family_name: 'Martin', clubs: { name: 'Lyon AMHE' } },
+        { id: 'gp-2', given_name: 'Bruno', family_name: 'Petit', clubs: { name: 'Lyon AMHE' } },
+      ],
+    });
+
+    expect(duplicatesOf(rows, 'global_person_duplicate')).toHaveLength(0);
+  });
+
+  it('still pairs on a shared ratings id alone', async () => {
+    const rows = await scanWith({
+      persons: [
+        { id: 'gp-1', given_name: 'Alice', family_name: 'Martin', hema_ratings_id: '10458' },
+        { id: 'gp-2', given_name: 'Bruno', family_name: 'Petit', hema_ratings_id: '10458' },
+      ],
+    });
+
+    const dupes = duplicatesOf(rows, 'global_person_duplicate');
+    expect(dupes).toHaveLength(1);
+    expect(dupes[0]?.evidence_json?.reasons).toEqual(['same_hema_ratings_id']);
+  });
+
+  it('still pairs on a shared claiming user alone', async () => {
+    const rows = await scanWith({
+      persons: [
+        { id: 'gp-1', given_name: 'Alice', family_name: 'Martin', claimed_by_user_id: 'u-1' },
+        { id: 'gp-2', given_name: 'Bruno', family_name: 'Petit', claimed_by_user_id: 'u-1' },
+      ],
+    });
+
+    const dupes = duplicatesOf(rows, 'global_person_duplicate');
+    expect(dupes).toHaveLength(1);
+    expect(dupes[0]?.evidence_json?.reasons).toEqual(['same_claimed_user']);
+  });
+
+  it('still pairs on a shared normalised name alone, and keeps the club as corroboration', async () => {
+    const rows = await scanWith({
+      persons: [
+        { id: 'gp-1', given_name: 'Jean', family_name: 'Dupont', clubs: { name: 'Lyon AMHE' } },
+        { id: 'gp-2', display_name: 'Jean  DUPONT', clubs: { name: 'lyon amhe' } },
+      ],
+    });
+
+    const dupes = duplicatesOf(rows, 'global_person_duplicate');
+    expect(dupes).toHaveLength(1);
+    expect(dupes[0]?.evidence_json?.reasons).toEqual(['same_normalized_name', 'same_club_name']);
+  });
+
+  it('does not pair a merged or soft-deleted person with its survivor', async () => {
+    const rows = await scanWith({
+      persons: [
+        { id: 'gp-keep', given_name: 'Jean', family_name: 'Dupont' },
+        { id: 'gp-merged', given_name: 'Jean', family_name: 'Dupont', merged_into_id: 'gp-keep' },
+        { id: 'gp-gone', given_name: 'Jean', family_name: 'Dupont', deleted_at: '2026-01-01' },
+      ],
+    });
+
+    expect(duplicatesOf(rows, 'global_person_duplicate')).toHaveLength(0);
+  });
+
+  it('reports a pair that matches two blocking keys exactly once', async () => {
+    const rows = await scanWith({
+      clubs: [
+        { id: 'club-1', name: 'Lyon AMHE', abbreviation: 'LAMHE' },
+        { id: 'club-2', name: 'lyon  amhe', abbreviation: 'lamhe' },
+      ],
+    });
+
+    const dupes = duplicatesOf(rows, 'club_duplicate');
+    expect(dupes).toHaveLength(1);
+    expect(dupes[0]?.evidence_json?.reasons).toEqual(['same_abbreviation', 'same_normalized_name']);
+  });
+
+  it('still pairs clubs on a shared abbreviation alone', async () => {
+    const rows = await scanWith({
+      clubs: [
+        { id: 'club-1', name: 'Cercle des Armes', abbreviation: 'LAMHE' },
+        { id: 'club-2', name: 'Escrime Ancienne', abbreviation: 'LAMHE' },
+      ],
+    });
+
+    const dupes = duplicatesOf(rows, 'club_duplicate');
+    expect(dupes).toHaveLength(1);
+    expect(dupes[0]?.evidence_json?.reasons).toEqual(['same_abbreviation']);
+  });
+
+  it('still pairs clubs on city, country and a similar name alone', async () => {
+    // Same tokens in a different order: the normalised names differ, so
+    // only the city+country bucket can bring this pair together.
+    const rows = await scanWith({
+      clubs: [
+        { id: 'club-1', name: 'Lyon AMHE', city: 'Lyon', country_code: 'FR' },
+        { id: 'club-2', name: 'AMHE Lyon', city: 'lyon', country_code: 'fr' },
+      ],
+    });
+
+    const dupes = duplicatesOf(rows, 'club_duplicate');
+    expect(dupes).toHaveLength(1);
+    expect(dupes[0]?.evidence_json?.reasons).toEqual(['same_city_country_similar_name']);
   });
 
   it('does not close a finding the AI cap never reached', async () => {
