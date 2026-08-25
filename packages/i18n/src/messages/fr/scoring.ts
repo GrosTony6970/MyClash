@@ -332,6 +332,7 @@ export const scoring = {
   level: {
     refusedExtraTime: 'Scores à égalité. Jouez {seconds}s de prolongation.',
     refusedSuddenDeath: 'Scores à égalité. Continuez jusqu’à ce qu’un tireur mène.',
+    refusedTimeNotFinished: 'Scores à égalité, mais le temps n’est pas écoulé. Continuez l’assaut.',
     playExtraTime: 'Prolongation {seconds}s',
     playSuddenDeath: 'Mort subite',
     suddenDeathBanner: 'MORT SUBITE',

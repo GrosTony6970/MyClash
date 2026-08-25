@@ -49,6 +49,7 @@ const ORGANISER_ONLY = 'scoring.corrections.organiserOnly';
 const OFFLINE = 'scoring.corrections.offlineRefusal';
 const LEVEL_EXTRA_TIME = 'scoring.level.refusedExtraTime';
 const LEVEL_SUDDEN_DEATH = 'scoring.level.refusedSuddenDeath';
+const TIME_NOT_FINISHED = 'scoring.level.refusedTimeNotFinished';
 
 /**
  * `t()` has no plural engine, so one needs its own key rather than "the 1 later
@@ -107,6 +108,11 @@ export function refusalMessage(
       // one; the server's own message names it in English, which is exactly what
       // this file exists to keep off a referee's tablet.
       return levelAtTime(t, failure.details);
+    case 'time_not_finished':
+      // The OTHER level refusal, and it must not read like that one: the scores
+      // are level but the time is not up, so there is nothing to play yet —
+      // carry on fighting. No remedy is named because none applies.
+      return t(TIME_NOT_FINISHED);
     default:
       break;
   }

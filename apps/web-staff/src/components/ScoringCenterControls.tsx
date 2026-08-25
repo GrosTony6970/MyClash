@@ -35,6 +35,7 @@ import {
   effectiveTimeLimitSeconds,
   elapsedActiveMs,
   formatClockMs,
+  remedyToOffer,
   shouldWarnClock,
   suddenDeathElapsedMs,
   type ClockState,
@@ -220,6 +221,18 @@ export function ScoringCenterControls({
   const suddenDeathMs = suddenDeathElapsedMs(
     elapsedMs,
     matchFormat.timerMode === 'countdown' && limitSeconds !== null ? limitSeconds * 1000 : null,
+  );
+  // The remedy button, or nothing. Resolved HERE rather than where the chain is
+  // read, because this is the only place holding the LIVE elapsed time: the
+  // fetched clock is refreshed after a successful action, and a refused End is
+  // not one, so a bout crossing its limit would grow no button until something
+  // else happened to refetch.
+  const offeredRemedy = remedyToOffer(
+    levelPending,
+    elapsedMs,
+    matchFormat,
+    phaseType,
+    matchNumberLabel,
   );
 
   // eslint-disable-next-line react-hooks/preserve-manual-memoization -- intentional manual memo the React Compiler cannot preserve.
@@ -493,20 +506,21 @@ export function ScoringCenterControls({
               </button>
             )}
             {/* The remedy this LEVEL bout is waiting on. Shown only when the
-                phase's chain actually offers one, so a pool bout — whose chain
-                is a single draw — keeps the two buttons it has always had. The
-                SERVER still decides whether it applies; this only names it. */}
-            {levelPending && levelPending.kind !== 'draw' && onAdvanceLevelResolution && (
+                phase's chain offers one AND the bout's time has run out — a pool
+                bout, whose chain is a single draw, keeps the two buttons it has
+                always had, and no bout offers its remedy early. The SERVER still
+                decides whether it applies; this only names it. */}
+            {offeredRemedy && onAdvanceLevelResolution && (
               <button
                 type="button"
                 data-testid="level-resolution-button"
-                data-remedy={levelPending.kind}
+                data-remedy={offeredRemedy.kind}
                 disabled={clockLoading || roundBusy}
                 onClick={onAdvanceLevelResolution}
                 className="min-h-[44px] rounded-lg border-2 border-warning bg-warning/20 px-4 py-1.5 text-sm font-bold text-warning hover:bg-warning/30 active:bg-warning/40 disabled:opacity-40"
               >
-                {levelPending.kind === 'extra_time'
-                  ? t('scoring.level.playExtraTime', { seconds: levelPending.seconds })
+                {offeredRemedy.kind === 'extra_time'
+                  ? t('scoring.level.playExtraTime', { seconds: offeredRemedy.seconds })
                   : t('scoring.level.playSuddenDeath')}
               </button>
             )}

@@ -344,6 +344,9 @@ export const scoring = {
   level: {
     refusedExtraTime: 'Scores are level. Play {seconds}s of extra time.',
     refusedSuddenDeath: 'Scores are level. Play on until one fighter leads.',
+    // The bout is level but its time is NOT up. Nothing to play yet — the
+    // remedies come after the limit, never before it.
+    refusedTimeNotFinished: 'Scores are level, but time is not finished. Keep fighting.',
     playExtraTime: 'Extra time {seconds}s',
     playSuddenDeath: 'Sudden death',
     suddenDeathBanner: 'SUDDEN DEATH',

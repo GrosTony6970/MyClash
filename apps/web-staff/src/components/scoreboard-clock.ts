@@ -14,7 +14,13 @@
  * pad could run a Swiss match against a clock nobody would honour. Re-exported
  * below so this module stays the pad's single import.
  */
-import { displayClockMs, type MatchFormatConfig, type PhaseType } from '@myclash/types';
+import {
+  displayClockMs,
+  timeIsFinished,
+  type LevelStep,
+  type MatchFormatConfig,
+  type PhaseType,
+} from '@myclash/types';
 import type { ClockEvent } from '@myclash/ui';
 
 export {
@@ -22,6 +28,7 @@ export {
   effectiveTimeLimitSeconds,
   formatClockMs,
   shouldWarnClock,
+  timeIsFinished,
   type PhaseType,
 } from '@myclash/types';
 
@@ -85,6 +92,35 @@ export function elapsedActiveMs(state: ClockState | null, now: number): number {
 export function suddenDeathElapsedMs(elapsedMs: number, limitMs: number | null): number {
   if (limitMs === null) return Math.max(0, elapsedMs);
   return Math.max(0, elapsedMs - limitMs);
+}
+
+/**
+ * The remedy to OFFER on the button, or null for no button at all.
+ *
+ * The phase's chain says what a level bout plays; this says whether the referee
+ * may play it yet. The server refuses both the End and the advance while the
+ * bout still has time to run, so a button shown before then is one that answers
+ * with a 400 — and a scorekeeper mid-event cannot debug a 400.
+ *
+ * A `draw` step is not a remedy: the referee simply ends the bout, which is what
+ * a pool table's D column is for. It is filtered here rather than at the call
+ * site so both facts about the button live in one place.
+ *
+ * `elapsedMs` is passed in rather than read off `state`, because the caller
+ * holds the LIVE figure — a ticking `now` folded into the running interval —
+ * and a bout that crosses its limit mid-exchange has to grow the button then,
+ * not at the next refetch.
+ */
+export function remedyToOffer(
+  pending: LevelStep | null,
+  elapsedMs: number,
+  matchFormat: MatchFormatConfig,
+  phaseType: PhaseType | undefined,
+  matchNumberLabel: string | null | undefined,
+): LevelStep | null {
+  if (pending === null || pending.kind === 'draw') return null;
+  if (!timeIsFinished(elapsedMs, matchFormat, phaseType, matchNumberLabel)) return null;
+  return pending;
 }
 
 /** The number the big scoreboard clock shows for `state` at time `now`. */

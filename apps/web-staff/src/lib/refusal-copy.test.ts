@@ -191,6 +191,16 @@ describe('refusalMessage — level at time', () => {
     ).toBe('scoring.level.refusedSuddenDeath');
   });
 
+  it('says KEEP FIGHTING when the time is not up, not a remedy', () => {
+    // The other level refusal, and it must not read like this one's siblings:
+    // the scores are level but the bout still has time, so there is nothing to
+    // play yet. Telling a referee to start sudden death here would end a bout
+    // with a minute left on the clock.
+    expect(refusalMessage(refusal(400, { code: 'time_not_finished' }), t, FALLBACK)).toBe(
+      'scoring.level.refusedTimeNotFinished',
+    );
+  });
+
   it('falls back to sudden death when the remedy is missing or malformed', () => {
     // Sudden death is the fallback DELIBERATELY: it is the only remedy that
     // needs no number, so an unrecognised body still tells the referee

@@ -1,7 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_MATCH_FORMAT_CONFIG, type MatchFormatConfig } from '@myclash/types';
+import {
+  DEFAULT_MATCH_FORMAT_CONFIG,
+  type LevelStep,
+  type MatchFormatConfig,
+} from '@myclash/types';
 import {
   clockShouldTick,
+  remedyToOffer,
   scoreboardClockMs,
   suddenDeathElapsedMs,
   type ClockState,
@@ -124,5 +129,55 @@ describe('suddenDeathElapsedMs', () => {
   it('is the elapsed time when there is no limit to count from', () => {
     // A count-up tournament, or a phase configured with no time limit.
     expect(suddenDeathElapsedMs(45_000, null)).toBe(45_000);
+  });
+});
+
+/**
+ * Whether the pad offers the remedy button at all.
+ *
+ * The server refuses both the End and the advance while a level bout still has
+ * time to run, so a button shown before then is one that answers with a 400 —
+ * and a scorekeeper mid-event cannot debug a 400.
+ */
+describe('remedyToOffer', () => {
+  const EXTRA: LevelStep = { kind: 'extra_time', seconds: 60 };
+  const SUDDEN: LevelStep = { kind: 'sudden_death' };
+
+  it('offers nothing while the bout still has time', () => {
+    expect(remedyToOffer(EXTRA, 89_999, countdownPool90, 'pool', null)).toBeNull();
+  });
+
+  it('offers the chain step once the time is up', () => {
+    expect(remedyToOffer(EXTRA, 90_000, countdownPool90, 'pool', null)).toEqual(EXTRA);
+    expect(remedyToOffer(SUDDEN, 120_000, countdownPool90, 'pool', null)).toEqual(SUDDEN);
+  });
+
+  it('offers nothing for a draw step, which is not a remedy', () => {
+    // A drawn pool bout is a real result: the referee simply ends it, and the
+    // standings have a D column for it.
+    expect(remedyToOffer({ kind: 'draw' }, 120_000, countdownPool90, 'pool', null)).toBeNull();
+  });
+
+  it('offers nothing when the chain is spent', () => {
+    // Sudden death is already live — terminal, so there is nothing to advance
+    // to and the bout ends when one fighter leads.
+    expect(remedyToOffer(null, 120_000, countdownPool90, 'pool', null)).toBeNull();
+  });
+
+  it('holds the button in COUNT-UP too, where the limit is just as real', () => {
+    // `timerMode` is display only. A count-up bout with a 90s limit ends at 90s
+    // whether or not the numeral counts towards it.
+    const countupPool90: MatchFormatConfig = { ...countdownPool90, timerMode: 'countup' };
+    expect(remedyToOffer(EXTRA, 60_000, countupPool90, 'pool', null)).toBeNull();
+    expect(remedyToOffer(EXTRA, 90_000, countupPool90, 'pool', null)).toEqual(EXTRA);
+  });
+
+  it('offers at once when the phase has NO limit', () => {
+    // Nothing to wait for, so the chain decides such a bout immediately.
+    const noLimit: MatchFormatConfig = {
+      ...countdownPool90,
+      timeLimitsSeconds: { pool: null, bracket: 90, finals: 90 },
+    };
+    expect(remedyToOffer(EXTRA, 0, noLimit, 'pool', null)).toEqual(EXTRA);
   });
 });
