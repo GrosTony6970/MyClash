@@ -1675,6 +1675,8 @@ export const admin = {
     cronHint: 'Deterministic scan also runs automatically every day at 04:00 UTC.',
     scanning: 'Scanning...',
     findingsFromCandidates: '{count} candidates reviewed',
+    rankCapNotice:
+      'AI ranked {ranked} of {count} candidates. Run the deterministic scan to record them all.',
     status: 'Status',
     severity: 'Severity',
     type: 'Type',

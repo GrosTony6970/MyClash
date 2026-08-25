@@ -1680,6 +1680,8 @@ export const admin = {
     cronHint: 'Le scan deterministe est aussi execute automatiquement chaque jour a 04:00 UTC.',
     scanning: 'Scan...',
     findingsFromCandidates: '{count} candidats revus',
+    rankCapNotice:
+      "L'IA a classe {ranked} candidats sur {count}. Lancez le scan deterministe pour tous les enregistrer.",
     status: 'Statut',
     severity: 'Sévérité',
     type: 'Type',

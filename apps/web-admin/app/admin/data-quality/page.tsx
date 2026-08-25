@@ -203,6 +203,17 @@ export default function AdminDataQualityPage() {
                 count: scan.candidate_count,
               })}
             </div>
+            {/* Only the AI path caps how many candidates it ranks, and it
+                records every candidate it found — so a shortfall here is
+                exactly the cap having fired. */}
+            {scan.finding_count < scan.candidate_count && (
+              <div className="mt-2 text-xs text-warning">
+                {t('admin.dataQuality.rankCapNotice', {
+                  ranked: scan.finding_count,
+                  count: scan.candidate_count,
+                })}
+              </div>
+            )}
             <div className="mt-2 text-xs text-muted">
               {new Date(scan.started_at).toLocaleString(localeToBcp47(locale))}
             </div>

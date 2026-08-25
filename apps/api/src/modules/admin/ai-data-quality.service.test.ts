@@ -1,4 +1,4 @@
-import { BadRequestException } from '@nestjs/common';
+import { BadRequestException, Logger } from '@nestjs/common';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { AIDataQualityService, detectPlaceholderName } from './ai-data-quality.service';
 
@@ -629,6 +629,84 @@ describe('AIDataQualityService', () => {
     expect(second.update).toHaveBeenCalledWith(expect.objectContaining({ status: 'open' }));
     expect(second._update.in).toHaveBeenCalledWith('id', ['f-back']);
     expect(second._update.eq).toHaveBeenCalledWith('status', 'resolved');
+  });
+
+  // ── The AI ranking budget ───────────────────────────────────────────────
+  // Regression: the cap was a bare slice over the finder-ordered array, so
+  // person duplicates (first) could eat all 100 calls and `missing_field`
+  // (last) was never ranked. The capped length was also what got written
+  // as candidate_count, so the two modes reported different totals for the
+  // same data.
+
+  /** 20 identical persons (190 duplicate pairs) plus one missing club. */
+  function noisyRosterTables(findings: ReturnType<typeof findingsTable>, scanId: string) {
+    const scanInsert = chain({ id: scanId });
+    const noop = chain(null);
+    const persons = Array.from({ length: 20 }, (_, i) => ({
+      id: `gp-${i}`,
+      given_name: 'Jean',
+      family_name: 'Dupont',
+      hema_ratings_id: '10458',
+    }));
+    return (table: string) => {
+      if (table === 'ai_data_quality_scans') return scanInsert;
+      if (table === 'ai_data_quality_findings') return findings;
+      if (table === 'global_persons') return chain(persons);
+      if (table === 'clubs') return chain([]);
+      if (table === 'referee_qualifications') return chain([]);
+      if (table === 'persons')
+        return chain([
+          {
+            id: 'p-nofields',
+            event_id: 'e-1',
+            given_name: 'Anna',
+            family_name: 'Doe',
+            global_person_id: 'gp-0',
+            club_id: null,
+          },
+        ]);
+      if (table === 'registrations') return chain([]);
+      return noop;
+    };
+  }
+
+  it('spends the AI budget across finding types, so a missing field is still ranked', async () => {
+    const findings = findingsTable();
+    fromMock.mockImplementation(noisyRosterTables(findings, 'scan-budget'));
+
+    await newService().startScan('22222222-2222-4222-8222-222222222222');
+
+    const ranked = upsertedRows(findings);
+    expect(ranked).toHaveLength(100);
+    expect(ranked.map((row) => row.finding_type)).toContain('missing_field');
+  });
+
+  it('reports the true candidate total, so both modes agree on the same data', async () => {
+    const aiFindings = findingsTable();
+    fromMock.mockImplementation(noisyRosterTables(aiFindings, 'scan-total-ai'));
+    const ai = await newService().startScan('22222222-2222-4222-8222-222222222222');
+
+    const detFindings = findingsTable();
+    fromMock.mockImplementation(noisyRosterTables(detFindings, 'scan-total-det'));
+    const deterministic = await newService().runDeterministicScan(null);
+
+    expect(ai.candidateCount).toBeGreaterThan(100);
+    expect(ai.candidateCount).toBe(deterministic.candidateCount);
+    // Only the ranked slice is persisted on the AI path — which is what
+    // makes `finding_count < candidate_count` mean "the cap fired".
+    expect(ai.findingCount).toBe(100);
+    expect(deterministic.findingCount).toBe(deterministic.candidateCount);
+  });
+
+  it('logs a warning when the cap truncates, so it never fires in silence', async () => {
+    const warn = vi.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
+    const findings = findingsTable();
+    fromMock.mockImplementation(noisyRosterTables(findings, 'scan-warn'));
+
+    await newService().startScan('22222222-2222-4222-8222-222222222222');
+
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining('ranked 100 of'));
+    warn.mockRestore();
   });
 
   it('does not close a finding the AI cap never reached', async () => {

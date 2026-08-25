@@ -61,13 +61,49 @@ function toActorUuid(actorUserId: string | null): string | null {
 }
 
 /**
- * Cap how many candidates we feed to the LLM ranker. The deterministic
- * scan ignores this cap (it doesn't cost per call). With 5 finder
- * methods we can produce >100 candidates on noisy data; this prevents
- * a runaway bill on the AI path while still surfacing the most-
- * obvious cleanup work in the same scan.
+ * Cap how many candidates we feed to the LLM ranker — one paid call each.
+ * The deterministic scan ignores this cap (it doesn't cost per call).
+ * With seven finder methods we can produce far more than 100 candidates
+ * on noisy data; this prevents a runaway bill on the AI path.
+ *
+ * How the budget is spent is `interleaveByType`'s job, not this
+ * constant's.
  */
 const AI_RANK_CAP = 100;
+
+/**
+ * Spend the ranking budget round-robin across finding types rather than
+ * in finder order.
+ *
+ * `collectAllCandidates` concatenates the finders, so person duplicates
+ * come first and `missing_field` comes last. A roster with a few hundred
+ * duplicate pairs spent the whole budget on them and never ranked a
+ * single missing field. Taking one candidate per type per round gives
+ * every type a share of the budget, and each type keeps its own order.
+ */
+function interleaveByType(candidates: Candidate[], cap: number): Candidate[] {
+  const byType = new Map<FindingType, Candidate[]>();
+  for (const candidate of candidates) {
+    const queue = byType.get(candidate.type) ?? [];
+    queue.push(candidate);
+    byType.set(candidate.type, queue);
+  }
+
+  const queues = [...byType.values()];
+  const target = Math.min(cap, candidates.length);
+  const picked: Candidate[] = [];
+  // Terminates: once `round` passes the longest queue every candidate has
+  // been taken, so `picked.length` has reached `target`.
+  for (let round = 0; picked.length < target; round += 1) {
+    for (const queue of queues) {
+      const candidate = queue[round];
+      if (!candidate) continue;
+      picked.push(candidate);
+      if (picked.length >= target) return picked;
+    }
+  }
+  return picked;
+}
 
 /**
  * Chunk size for the reconcile pass's `.in()` filters. PostgREST puts
@@ -182,7 +218,12 @@ export class AIDataQualityService {
 
     try {
       const allCandidates = await this.collectAllCandidates();
-      const candidates = allCandidates.slice(0, AI_RANK_CAP);
+      const candidates = interleaveByType(allCandidates, AI_RANK_CAP);
+      if (candidates.length < allCandidates.length) {
+        this.logger.warn(
+          `Data quality AI scan ranked ${candidates.length} of ${allCandidates.length} candidates (cap ${AI_RANK_CAP}); the rest are unranked this run`,
+        );
+      }
       const findings = [];
 
       for (const candidate of candidates) {
@@ -198,8 +239,16 @@ export class AIDataQualityService {
       }
 
       await this.reconcileFindingStatuses(fingerprintsOf(allCandidates), startedAt);
-      await this.finishScan(scan.id, 'completed', candidates.length, findings.length);
-      return { scanId: scan.id, candidateCount: candidates.length, findingCount: findings.length };
+      // The true candidate total, not the capped one. Reporting the capped
+      // number made the two modes disagree on the same data, and hid the
+      // truncation completely — `finding_count < candidate_count` is now
+      // exactly what "the cap fired" looks like.
+      await this.finishScan(scan.id, 'completed', allCandidates.length, findings.length);
+      return {
+        scanId: scan.id,
+        candidateCount: allCandidates.length,
+        findingCount: findings.length,
+      };
     } catch (error) {
       await this.failScan(scan.id, error instanceof Error ? error.message : 'Unknown scan error');
       throw error;
@@ -242,9 +291,12 @@ export class AIDataQualityService {
   }
 
   /**
-   * Fan out all five finders and concat. Shared between the AI and
+   * Fan out all seven finders and concat. Shared between the AI and
    * deterministic paths so the rules stay in one place. Loads are
    * parallelised to keep the daily cron under a couple of seconds.
+   *
+   * The order here is finder order, not priority — `interleaveByType`
+   * is what decides which candidates the AI path can afford to rank.
    */
   private async collectAllCandidates(): Promise<Candidate[]> {
     const [persons, clubs, refereeQualifications, eventPersons, registrations] = await Promise.all([
