@@ -246,9 +246,14 @@ export function queuedCardsFor(args: {
  * by omission.
  *
  * A card's delta lands on the CARDED fighter's own side, negative in the usual
- * case — the same arithmetic `recomputeMatchScore` does server-side, and the
- * same in best-of, where the server adds every non-voided penalty to the open
- * round without filtering it by round the way it filters exchanges.
+ * case — the same arithmetic `recomputeMatchScore` does server-side.
+ *
+ * No round filter here, and none needed: these are OUTBOX rows, recorded in the
+ * round that is open right now. Advancing a round is a server call, so a pad
+ * holding a queue cannot have moved past the round its queue belongs to. The
+ * server does filter by round (migration 0191 gave a card a `round_number`, and
+ * `recomputeBestOfRounds` scores only the open round's cards) — it has to,
+ * because it holds every round's rows and this only ever holds one round's.
  *
  * An unpriced card carries `score_delta: 0` and so adds nothing here. That is
  * only honest if the caller shows the count `pendingRowsForMatch` returns

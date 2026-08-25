@@ -868,6 +868,17 @@ export class PenaltiesService {
       .maybeSingle();
     if (existing) return existing;
 
+    // Refused between rounds, exactly as `createExchange` refuses an exchange.
+    // A card is stamped with the open round; while a round is closed and waiting
+    // to be advanced, `current_round` names a round whose score is already
+    // banked in `rounds_json` and never re-derived — so the card would be
+    // recorded and then count for nothing, silently and permanently. The
+    // idempotency probe above still returns an already-recorded card, so a
+    // retry after the round closed is not refused.
+    if (match.awaitingRoundAdvance) {
+      throw new BadRequestException('Round ended — advance to the next round before scoring');
+    }
+
     if (![match.redRegistrationId, match.blueRegistrationId].includes(dto.registrationId)) {
       throw new BadRequestException('Penalty registration must belong to the current match');
     }
@@ -925,6 +936,11 @@ export class PenaltiesService {
       staff_account_id: context?.staffAccountId ?? null,
       occurred_at: dto.occurredAt,
       clock_time_ms: dto.clockTimeMs ?? null,
+      // Stamped from the match, never sent by the client — the same rule
+      // `createExchange` follows. A card queued offline drains into the round it
+      // was recorded in because advancing a round is a server call, so an
+      // offline pad cannot have moved past it.
+      round_number: match.currentRound,
       voided: false,
     };
 
@@ -1242,7 +1258,9 @@ export class PenaltiesService {
   private async getMatchContext(matchId: string): Promise<MatchContext> {
     const { data: matchData, error: matchError } = await this.supabase.service
       .from('matches')
-      .select('id, red_registration_id, blue_registration_id, phase_id, locked_at')
+      .select(
+        'id, red_registration_id, blue_registration_id, phase_id, locked_at, current_round, awaiting_round_advance',
+      )
       .eq('id', matchId)
       .maybeSingle();
     if (matchError) throw new BadRequestException(matchError.message);
@@ -1298,6 +1316,8 @@ export class PenaltiesService {
         (tournament['penalty_ruleset_id'] as string | null) ??
         (event['penalty_ruleset_id'] as string | null) ??
         (await this.loadBuiltInPenaltyRulesetId()),
+      currentRound: (match['current_round'] as number | null) ?? 1,
+      awaitingRoundAdvance: (match['awaiting_round_advance'] as boolean | null) ?? false,
     };
   }
 
@@ -1839,4 +1859,8 @@ interface MatchContext {
   eventId: string;
   organizationId: string;
   penaltyRulesetId: string | null;
+  /** The round open for scoring — what a new card is stamped with. */
+  currentRound: number;
+  /** A round auto-ended and the operator has not advanced yet. */
+  awaitingRoundAdvance: boolean;
 }

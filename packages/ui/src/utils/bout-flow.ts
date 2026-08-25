@@ -153,9 +153,14 @@ function exchangeDrafts(exchanges: ExchangeRow[], inRound: (r?: number | null) =
  * Cards carry no round_number: a card belongs to the bout, and the server adds
  * every non-voided card's delta to the score whatever round it landed in.
  */
-function penaltyDrafts(penalties: Penalty[], redRegId: string, blueRegId: string) {
+function penaltyDrafts(
+  penalties: Penalty[],
+  redRegId: string,
+  blueRegId: string,
+  inRound: (round?: number | null) => boolean,
+) {
   return penalties
-    .filter((p) => !p.voided)
+    .filter((p) => !p.voided && inRound(p.round_number))
     .map((p): FlowDraft => {
       const side: 'red' | 'blue' | null =
         p.registration_id === redRegId ? 'red' : p.registration_id === blueRegId ? 'blue' : null;
@@ -298,11 +303,15 @@ export function buildBoutFlow({
   const doubleLoss = endReason === 'max_doubles';
   // Best-of: only the open round, matching the server's own filter. A single
   // round match keeps every row, `round_number` unread.
+  //
+  // Penalties go through the SAME filter since migration 0191 gave them a round.
+  // They used not to, so a best-of chart re-applied every card from every round
+  // to the open round and drifted from the score beside it.
   const inRound = (round?: number | null) => bestOf <= 1 || (round ?? 1) === currentRound;
 
   const ordered = ascendingWithNumbers([
     ...exchangeDrafts(exchanges, inRound),
-    ...penaltyDrafts(penalties, redRegId, blueRegId),
+    ...penaltyDrafts(penalties, redRegId, blueRegId, inRound),
   ]);
   const { points, doubles } = accumulate(ordered, matchFormat);
 

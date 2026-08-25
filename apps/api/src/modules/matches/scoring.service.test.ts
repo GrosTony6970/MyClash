@@ -46,6 +46,11 @@ function matchRow(overrides: Record<string, unknown> = {}) {
   };
 }
 
+/** One card, as `recomputeBestOfRounds` reads it: delta, side, and its round. */
+function pen(registrationId: 'red' | 'blue', scoreDelta: number, round = 1) {
+  return { score_delta: scoreDelta, registration_id: registrationId, round_number: round };
+}
+
 function ex(seq: number, color: 'red' | 'blue', value: number, round = 1) {
   return {
     id: `e${seq}`,
@@ -75,7 +80,7 @@ describe('ScoringService — best-of rounds', () => {
   let lastUpdate: Record<string, unknown> | null;
 
   // recompute fetches: matches → exchanges → match_penalties, then updates matches.
-  function wire(match: Record<string, unknown>, exchanges: unknown[]) {
+  function wire(match: Record<string, unknown>, exchanges: unknown[], penalties: unknown[] = []) {
     lastUpdate = null;
     const updateChain = thenableResult({ id: 'm1' });
     (updateChain['update'] as ReturnType<typeof vi.fn>).mockImplementation(
@@ -87,7 +92,7 @@ describe('ScoringService — best-of rounds', () => {
     fromMock
       .mockReturnValueOnce(thenableResult(match))
       .mockReturnValueOnce(thenableResult(exchanges))
-      .mockReturnValueOnce(thenableResult([]))
+      .mockReturnValueOnce(thenableResult(penalties))
       .mockReturnValueOnce(updateChain);
   }
 
@@ -206,6 +211,57 @@ describe('ScoringService — best-of rounds', () => {
     await service.recomputeMatchScore('m1');
     expect(lastUpdate).toMatchObject({ status: 'completed', winner_registration_id: 'red' });
     expect(lastUpdate?.['awaiting_round_advance']).not.toBe(true);
+  });
+
+  /**
+   * A card belongs to the round it was given in (migration 0191).
+   *
+   * Before that column existed, every non-voided card in the bout was added to
+   * whichever round was open. In a BO3 a yellow from round 1 kept subtracting
+   * in rounds 2 and 3 — and round 1's snapshot in `rounds_json` had already
+   * banked it, so the same card was counted three times over a series.
+   */
+  it('a card from a CLOSED round does not follow the fighter into the next one', async () => {
+    const match = matchRow({
+      current_round: 2,
+      red_round_wins: 1,
+      rounds_json: [
+        { round: 1, redScore: 3, blueScore: 1, winnerColor: 'red', endReason: 'first_to_points' },
+      ],
+    });
+    // Round 2 is level at 1-1 on exchanges. Red carries a -1 card from round 1,
+    // which round 1 already paid for.
+    wire(match, [ex(1, 'red', 3, 1), ex(2, 'red', 1, 2), ex(3, 'blue', 1, 2)], [pen('red', -1, 1)]);
+
+    await service.recomputeMatchScore('m1');
+
+    expect(lastUpdate).toMatchObject({ red_score: 1, blue_score: 1, current_round: 2 });
+  });
+
+  it('a card given in the OPEN round is subtracted from it', async () => {
+    const match = matchRow({
+      current_round: 2,
+      red_round_wins: 1,
+      rounds_json: [
+        { round: 1, redScore: 3, blueScore: 1, winnerColor: 'red', endReason: 'first_to_points' },
+      ],
+    });
+    wire(match, [ex(1, 'red', 3, 1), ex(2, 'red', 1, 2), ex(3, 'blue', 1, 2)], [pen('red', -1, 2)]);
+
+    await service.recomputeMatchScore('m1');
+
+    expect(lastUpdate).toMatchObject({ red_score: 0, blue_score: 1, current_round: 2 });
+  });
+
+  it('a row written before the column existed reads as round 1', async () => {
+    // `?? 1` in the filter, matching the exchange filter beside it. Such a row
+    // belongs to round 1, which is where a single-round match's cards are.
+    const match = matchRow({ current_round: 1 });
+    wire(match, [ex(1, 'red', 2)], [{ score_delta: -1, registration_id: 'red' }]);
+
+    await service.recomputeMatchScore('m1');
+
+    expect(lastUpdate).toMatchObject({ red_score: 1 });
   });
 
   it('advanceRound rejects when no round is awaiting advance', async () => {

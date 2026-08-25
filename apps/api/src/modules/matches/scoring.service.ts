@@ -95,7 +95,7 @@ export class ScoringService {
 
     const { data: penaltyRows } = await this.supabase.service
       .from('match_penalties')
-      .select('score_delta, registration_id')
+      .select('score_delta, registration_id, round_number')
       .eq('match_id', matchId)
       .eq('voided', false);
 
@@ -377,6 +377,26 @@ export class ScoringService {
   }
 
   /**
+   * The penalties that belong to one round.
+   *
+   * A card carries the round it was given in (migration 0191), the way an
+   * exchange does. Before that column existed every non-voided card in the bout
+   * was added to whichever round was open, so in a BO3 a yellow from round 1
+   * kept subtracting in rounds 2 and 3 — while round 1's snapshot in
+   * `rounds_json` had already banked it.
+   *
+   * `?? 1` for the same reason the exchange filter has it: a row written before
+   * the column existed reads as round 1, which is where a single-round match's
+   * cards belong anyway.
+   */
+  private penaltiesInRound(
+    penaltyRows: Record<string, unknown>[],
+    round: number,
+  ): Record<string, unknown>[] {
+    return penaltyRows.filter((r) => ((r['round_number'] as number | null) ?? 1) === round);
+  }
+
+  /**
    * Round-aware recompute for best-of matches: scores the OPEN round, and when
    * that round auto-closes (cap / pool max-doubles) records the closure and
    * either completes the series (⌈bestOf/2⌉ round wins) or flags
@@ -423,7 +443,7 @@ export class ScoringService {
 
     let openRed = ev.score.redScore;
     let openBlue = ev.score.blueScore;
-    for (const row of penaltyRows) {
+    for (const row of this.penaltiesInRound(penaltyRows, currentRound)) {
       const delta = (row['score_delta'] as number | null) ?? 0;
       if (row['registration_id'] === match.redRegistrationId) openRed += delta;
       if (row['registration_id'] === match.blueRegistrationId) openBlue += delta;
@@ -546,7 +566,7 @@ export class ScoringService {
     );
     let openRed = ev.score.redScore;
     let openBlue = ev.score.blueScore;
-    for (const row of ctx.penaltyRows) {
+    for (const row of this.penaltiesInRound(ctx.penaltyRows, currentRound)) {
       const delta = (row['score_delta'] as number | null) ?? 0;
       if (row['registration_id'] === ctx.match.redRegistrationId) openRed += delta;
       if (row['registration_id'] === ctx.match.blueRegistrationId) openBlue += delta;
@@ -611,7 +631,7 @@ export class ScoringService {
       .order('sequence', { ascending: true });
     const { data: penaltyRows } = await this.supabase.service
       .from('match_penalties')
-      .select('score_delta, registration_id')
+      .select('score_delta, registration_id, round_number')
       .eq('match_id', matchId)
       .eq('voided', false);
 

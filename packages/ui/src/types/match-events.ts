@@ -138,6 +138,16 @@ export interface Penalty {
   short_name: string | null;
   reason: string | null;
   score_delta: number;
+  /**
+   * Which best-of round this card was given in (1 for a single-round match).
+   * Raw column, like the exchange's — `listMatchPenalties` does `select('*')`.
+   *
+   * Load-bearing for the same reason: `matches.red_score` holds the OPEN
+   * round's score, and since migration 0191 the server adds only that round's
+   * cards to it. A client that sums every round's penalties disagrees with the
+   * numeral on screen.
+   */
+  round_number?: number | null;
   causes_match_forfeit: boolean;
   voided: boolean;
   /** ISO timestamp the penalty was applied. */

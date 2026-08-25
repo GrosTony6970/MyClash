@@ -230,6 +230,35 @@ describe('buildBoutFlow — best-of rounds', () => {
     expect(final(s)).toEqual({ red: 2, blue: 4 });
   });
 
+  it('drops a card from a closed round, the way it drops that round’s exchanges', () => {
+    // The server adds only the open round's cards to `matches.red_score`
+    // (migration 0191). A chart that re-applied every round's cards would drift
+    // from the numeral printed beside it.
+    const s = build(
+      rows,
+      [card({ score_delta: -1, round_number: 1 })],
+      DEFAULT_MATCH_FORMAT_CONFIG,
+      {
+        bestOf: 3,
+        currentRound: 2,
+      },
+    );
+    expect(final(s)).toEqual({ red: 0, blue: 4 });
+  });
+
+  it('keeps a card given in the open round', () => {
+    const s = build(
+      rows,
+      [card({ score_delta: -1, round_number: 2 })],
+      DEFAULT_MATCH_FORMAT_CONFIG,
+      {
+        bestOf: 3,
+        currentRound: 2,
+      },
+    );
+    expect(final(s)).toEqual({ red: -1, blue: 4 });
+  });
+
   it('treats a null round_number as round 1', () => {
     const s = build([ex({ scoreDelta: 2, round_number: null })], [], DEFAULT_MATCH_FORMAT_CONFIG, {
       bestOf: 3,

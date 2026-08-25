@@ -132,6 +132,100 @@ describe('PenaltiesService', () => {
     expect(supabase.inserted.match_penalties?.[0]).toMatchObject({ clock_time_ms: 45_000 });
   });
 
+  /**
+   * A card is stamped with the round it was given in (migration 0191), taken
+   * from the match, never from the client — the same rule `createExchange`
+   * follows. The pad sends no round, so a card queued offline cannot claim a
+   * round the server has since moved past.
+   */
+  it('stamps the open round on the inserted penalty', async () => {
+    const supabase = fakeSupabase({
+      match_penalties: { maybeSingle: null, insert: { id: 'penalty-1', card: 'yellow' } },
+      matches: {
+        maybeSingle: {
+          id: 'match-1',
+          red_registration_id: 'reg-red',
+          blue_registration_id: 'reg-blue',
+          phase_id: 'phase-1',
+          current_round: 3,
+          awaiting_round_advance: false,
+        },
+      },
+      phases: { maybeSingle: { id: 'phase-1', tournament_id: 'tournament-1' } },
+      tournaments: {
+        maybeSingle: { id: 'tournament-1', event_id: 'event-1', penalty_ruleset_id: null },
+      },
+      events: {
+        maybeSingle: { id: 'event-1', organization_id: 'org-1', penalty_ruleset_id: null },
+      },
+    });
+    const service = new PenaltiesService(
+      supabase as never,
+      { recomputeMatchScore: vi.fn() } as never,
+    );
+
+    await service.createPenalty(
+      'match-1',
+      {
+        clientUuid: 'client-round',
+        sequence: 1,
+        registrationId: 'reg-red',
+        directCard: 'yellow',
+        reason: 'direct referee decision',
+        occurredAt: '2026-05-05T10:00:00.000Z',
+      },
+      { userId: 'scorekeeper-1' },
+    );
+
+    expect(supabase.inserted.match_penalties?.[0]).toMatchObject({ round_number: 3 });
+  });
+
+  it('refuses a card while a closed round is waiting to be advanced', async () => {
+    // The card would be stamped with a round whose score is already banked in
+    // `rounds_json` and never re-derived, so it would count for nothing —
+    // silently and permanently. Refused loudly instead, as an exchange is.
+    const supabase = fakeSupabase({
+      match_penalties: { maybeSingle: null, insert: { id: 'penalty-1', card: 'yellow' } },
+      matches: {
+        maybeSingle: {
+          id: 'match-1',
+          red_registration_id: 'reg-red',
+          blue_registration_id: 'reg-blue',
+          phase_id: 'phase-1',
+          current_round: 2,
+          awaiting_round_advance: true,
+        },
+      },
+      phases: { maybeSingle: { id: 'phase-1', tournament_id: 'tournament-1' } },
+      tournaments: {
+        maybeSingle: { id: 'tournament-1', event_id: 'event-1', penalty_ruleset_id: null },
+      },
+      events: {
+        maybeSingle: { id: 'event-1', organization_id: 'org-1', penalty_ruleset_id: null },
+      },
+    });
+    const service = new PenaltiesService(
+      supabase as never,
+      { recomputeMatchScore: vi.fn() } as never,
+    );
+
+    await expect(
+      service.createPenalty(
+        'match-1',
+        {
+          clientUuid: 'client-awaiting',
+          sequence: 1,
+          registrationId: 'reg-red',
+          directCard: 'yellow',
+          reason: 'direct referee decision',
+          occurredAt: '2026-05-05T10:00:00.000Z',
+        },
+        { userId: 'scorekeeper-1' },
+      ),
+    ).rejects.toThrow('advance to the next round');
+    expect(supabase.inserted.match_penalties ?? []).toEqual([]);
+  });
+
   it('black-card penalties complete the current match for the opponent', async () => {
     const supabase = fakeSupabase({
       match_penalties: {
