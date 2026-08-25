@@ -32,14 +32,27 @@ describe('deriveFighterStats', () => {
     };
   }
 
-  function bout(id: string, red: string, blue: string, exchanges: Exchange[]): ScoredMatch {
+  /**
+   * The STORED scores are stated, not implied by the exchanges: W/D/L comes from
+   * the bout's own result now, and those two can legitimately differ.
+   */
+  function bout(
+    id: string,
+    red: string,
+    blue: string,
+    exchanges: Exchange[],
+    redScore: number,
+    blueScore: number,
+    winnerRegistrationId: string | null = null,
+  ): ScoredMatch {
     return {
       id,
       redRegistrationId: red,
       blueRegistrationId: blue,
       endReason: null,
-      // This ruleset calls a bout by raw score, so the stored winner is not read.
-      winnerRegistrationId: null,
+      winnerRegistrationId,
+      redScore,
+      blueScore,
       exchanges,
     };
   }
@@ -47,22 +60,40 @@ describe('deriveFighterStats', () => {
   it('counts victories, ties, losses and aggregates hits across matches', () => {
     const bouts = [
       // m1: A scores 2, B scores 1 → A wins
-      bout('m1', 'fighter-A', 'fighter-B', [
-        exchange('m1', 'red', 'clean', 1),
-        exchange('m1', 'red', 'clean', 2),
-        exchange('m1', 'blue', 'clean', 3),
-      ]),
+      bout(
+        'm1',
+        'fighter-A',
+        'fighter-B',
+        [
+          exchange('m1', 'red', 'clean', 1),
+          exchange('m1', 'red', 'clean', 2),
+          exchange('m1', 'blue', 'clean', 3),
+        ],
+        2,
+        1,
+      ),
       // m2: A scores 1, C scores 1 → tie
-      bout('m2', 'fighter-A', 'fighter-C', [
-        exchange('m2', 'red', 'clean', 1),
-        exchange('m2', 'blue', 'clean', 2),
-      ]),
+      bout(
+        'm2',
+        'fighter-A',
+        'fighter-C',
+        [exchange('m2', 'red', 'clean', 1), exchange('m2', 'blue', 'clean', 2)],
+        1,
+        1,
+      ),
       // m3: D scores 2, A scores 0 → A loses, plus 1 double
-      bout('m3', 'fighter-A', 'fighter-D', [
-        exchange('m3', 'blue', 'clean', 1),
-        exchange('m3', 'blue', 'clean', 2),
-        exchange('m3', null, 'double', 3),
-      ]),
+      bout(
+        'm3',
+        'fighter-A',
+        'fighter-D',
+        [
+          exchange('m3', 'blue', 'clean', 1),
+          exchange('m3', 'blue', 'clean', 2),
+          exchange('m3', null, 'double', 3),
+        ],
+        0,
+        2,
+      ),
     ];
 
     const stats = deriveFighterStats('fighter-A', bouts, 'full');
@@ -78,7 +109,7 @@ describe('deriveFighterStats', () => {
     // The 'skips non-completed matches' case that used to sit here went with the
     // `status` field: `completedMatches` is finished bouts by contract, so a
     // scheduled one cannot be passed at all. This is the filter that remains.
-    const stats = deriveFighterStats('C', [bout('m1', 'A', 'B', [])], 'full');
+    const stats = deriveFighterStats('C', [bout('m1', 'A', 'B', [], 0, 0)], 'full');
     expect(stats).toEqual({
       victories: 0,
       ties: 0,
@@ -118,6 +149,11 @@ describe('deriveFighterStats at the doubles ceiling', () => {
     blueRegistrationId: 'B',
     winnerRegistrationId: null,
     endReason,
+    // Only the two ZEROING reasons wipe the board. Under `result_stands` — and
+    // on an ordinary bout — red's hit stands, which is the difference the test
+    // below turns on.
+    redScore: endReason === 'max_doubles' || endReason === 'max_doubles_draw' ? 0 : 1,
+    blueScore: 0,
     exchanges: [ex(1, 'red', 'clean'), ex(2, null, 'double')],
   });
 
@@ -134,15 +170,94 @@ describe('deriveFighterStats at the doubles ceiling', () => {
     });
   });
 
-  it('leaves the other two ceiling reasons to the raw score', () => {
-    // 'max_doubles_result_stands' keeps the board, which the raw score already
-    // reproduces; a null reason is every ordinary bout.
+  it('leaves the other two ceiling reasons to the board', () => {
+    // 'max_doubles_result_stands' keeps the board and a null reason is every
+    // ordinary bout, so both are decided by the stored score like anything else.
     for (const reason of ['max_doubles_result_stands', null]) {
       expect(deriveFighterStats('A', [ceilingBout(reason)], 'full')).toMatchObject({
         victories: 1,
         losses: 0,
       });
     }
+  });
+});
+
+describe('deriveFighterStats scores the bout that was fought', () => {
+  /**
+   * W/D/L used to come from a score RE-DERIVED from the exchanges, so anything
+   * that decided a bout other than the exchanges was invisible: a forfeit, a
+   * referee override, a penalty that flipped the result. And since
+   * `victories`/`ties`/`losses` ARE this ruleset's W/D/L variables, an
+   * org-authored pool derived W/D/L twice in one table, two different ways.
+   */
+  const ex = (seq: number, striker: 'red' | 'blue'): Exchange => ({
+    id: `m-${seq}`,
+    clientUuid: 'c',
+    matchId: 'm-ff',
+    sequence: seq,
+    type: 'clean',
+    occurredAt: '',
+    firstStrikerColor: striker,
+    firstStrikeValue: 1,
+    afterblowValue: null,
+    noExchangeReason: null,
+    voided: false,
+  });
+
+  // A was two hits up and then forfeited: `scorePolicy: 'keep_current'` leaves
+  // the board at 2-0 and names B the winner.
+  const forfeited: ScoredMatch = {
+    id: 'm-ff',
+    redRegistrationId: 'A',
+    blueRegistrationId: 'B',
+    winnerRegistrationId: 'B',
+    endReason: 'forfeit',
+    redScore: 2,
+    blueScore: 0,
+    exchanges: [ex(1, 'red'), ex(2, 'red')],
+  };
+
+  it('honours the recorded winner over the hits on the board', () => {
+    expect(deriveFighterStats('A', [forfeited], 'full')).toMatchObject({
+      victories: 0,
+      losses: 1,
+    });
+    expect(deriveFighterStats('B', [forfeited], 'full')).toMatchObject({
+      victories: 1,
+      losses: 0,
+    });
+  });
+
+  it('reads the STORED board, not one re-summed from the exchanges', () => {
+    // The distinction the forfeit above cannot show, because a recorded winner
+    // short-circuits the scores entirely. Here there is NO winner: the doubles
+    // ceiling wiped the board to 0-0 under `draw_zero_scores`, while the
+    // exchanges still say red landed one. Re-summing them calls it a victory.
+    const wiped: ScoredMatch = {
+      id: 'm-wiped',
+      redRegistrationId: 'A',
+      blueRegistrationId: 'B',
+      winnerRegistrationId: null,
+      endReason: 'max_doubles_draw',
+      redScore: 0,
+      blueScore: 0,
+      exchanges: [ex(1, 'red')],
+    };
+
+    expect(deriveFighterStats('A', [wiped], 'full')).toMatchObject({
+      victories: 0,
+      ties: 1,
+      losses: 0,
+    });
+  });
+
+  it('still counts the hits that were landed, which is a different question', () => {
+    // `hitsGiven`/`hitsReceived` are named for hits and stay on the exchanges.
+    // A really did land two, and forfeiting does not un-land them.
+    expect(deriveFighterStats('A', [forfeited], 'full')).toMatchObject({
+      hitsGiven: 2,
+      hitsReceived: 0,
+    });
   });
 });
 
@@ -153,6 +268,8 @@ describe('deriveFighterStats afterblow netting', () => {
     blueRegistrationId: 'B',
     winnerRegistrationId: null,
     endReason: null,
+    redScore: 2,
+    blueScore: 1,
     exchanges: [
       {
         id: 'e1',

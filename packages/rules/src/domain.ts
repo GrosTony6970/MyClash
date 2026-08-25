@@ -66,13 +66,19 @@ export interface Match {
  * used to filter for that itself, and the API's only caller had already
  * filtered, so the field existed to be re-checked and never to be false.
  *
- * ── One disagreement this type does not settle ──────────────────────────────
- * TF_v1 and Generic_PointsCap read `winnerRegistrationId` to count a win. The
- * formula ruleset ignores it and calls the bout by raw score (`derive-stats.ts`,
- * `deriveFighterStats`). So the two can disagree about who won a bout that was
- * awarded against the points -- a forfeit, say. That is real, it predates this
- * type, and putting both fields in one shape must not be read as having fixed
- * it.
+ * ── A disagreement this type used to carry ─────────────────────────────────
+ * TF_v1 and Generic_PointsCap read `winnerRegistrationId` to count a win, while
+ * the formula ruleset called the bout by a score it RE-DERIVED from `exchanges`
+ * — so the two disagreed about every bout awarded against the points. This
+ * paragraph used to say that was real and unfixed. It is fixed: every scorer
+ * reads the bout's own result through `boutOutcomes`, and the stored scores are
+ * on the type so none of them has to reconstruct one.
+ *
+ * The two score pairs here are NOT interchangeable, which is why both exist.
+ * `redScore`/`blueScore` are what the board finished on — penalties applied, the
+ * doubles ceiling's zeroing applied, a forfeit's policy applied. Anything summed
+ * from `exchanges` sees none of that and answers a different question: how many
+ * hits were landed.
  */
 export interface ScoredMatch {
   id: string;
@@ -89,6 +95,13 @@ export interface ScoredMatch {
    * winner) and need no special case.
    */
   endReason: string | null;
+  /**
+   * The bout's STORED scores — what the board finished on, penalties and the
+   * ceiling's zeroing included. Distinct from anything re-derived from
+   * `exchanges` below, which sees none of that.
+   */
+  redScore: number | null;
+  blueScore: number | null;
   exchanges: Exchange[];
 }
 

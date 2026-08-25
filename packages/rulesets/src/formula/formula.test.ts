@@ -67,8 +67,12 @@ describe('createFormulaRuleset', () => {
       redRegistrationId: red,
       blueRegistrationId: blue,
       endReason: null,
-      // Ignored by this ruleset: it calls a bout by raw score.
+      // No winner, so the board decides — and here it says what the exchanges
+      // do. Only clean hits and doubles appear below, and a double has no
+      // striker, so counting strikers is the whole score.
       winnerRegistrationId: null,
+      redScore: exchanges.filter((e) => e.firstStrikerColor === 'red').length,
+      blueScore: exchanges.filter((e) => e.firstStrikerColor === 'blue').length,
       exchanges,
     };
   }
@@ -234,6 +238,8 @@ describe('named double-penalty sub-formula (FormulaRuleset scoring)', () => {
       blueRegistrationId: 'B',
       winnerRegistrationId: null,
       endReason: null,
+      redScore: 0, // doubles only, so the board is level and nobody won it
+      blueScore: 0,
       exchanges,
     };
   }

@@ -175,6 +175,9 @@ describe('Generic_PointsCap', () => {
       blueRegistrationId: 'r2',
       winnerRegistrationId: 'r1',
       endReason: null,
+      // The recorded winner decides; the board agrees with it here.
+      redScore: 2,
+      blueScore: 0,
       exchanges: [
         makeEx({ id: 'e1', sequence: 1, firstStrikerColor: 'red' }),
         makeEx({ id: 'e2', sequence: 2, firstStrikerColor: 'red' }),

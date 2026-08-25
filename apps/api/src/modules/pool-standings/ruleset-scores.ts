@@ -15,6 +15,10 @@ import type { AfterblowMode, Exchange, Ruleset } from '@myclash/rulesets';
  * its published algorithm, Generic_PointsCap its wins/diff ordering, and a
  * FormulaRuleset evaluates the AST the organiser authored.
  *
+ * The STORED scores travel with the bout so a ruleset scores what was fought
+ * rather than a total re-derived from the exchanges — which see no penalty, no
+ * forfeit policy and no doubles-ceiling zeroing.
+ *
  * Ranking stays with the service's `applyRanking(rows, rankingChain)` as the
  * single ordering authority — it also ranks the flattened cross-pool "overall"
  * view, where a per-pool sort would be meaningless.
@@ -28,6 +32,8 @@ export function poolScoresByRegistration(
     blue_registration_id: string;
     winner_registration_id: string | null;
     end_reason: string | null;
+    red_score: number | null;
+    blue_score: number | null;
   }>,
   exchangesByMatch: Map<string, Exchange[]>,
   afterblowMode: AfterblowMode,
@@ -48,6 +54,8 @@ export function poolScoresByRegistration(
         // A double loss has no winner AND no points, so a ruleset reading
         // either would call it a draw. Only the reason can say otherwise.
         endReason: m.end_reason,
+        redScore: m.red_score,
+        blueScore: m.blue_score,
         exchanges: exchangesByMatch.get(m.id) ?? [],
       })),
       afterblowMode,

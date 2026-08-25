@@ -53,6 +53,10 @@ function bout(
     blueRegistrationId: blue,
     winnerRegistrationId: winner,
     endReason: null,
+    // TF_v1 counts a win off the recorded winner, so the board is incidental
+    // here — stated rather than implied so the fixture cannot be misread.
+    redScore: winner === red ? 1 : 0,
+    blueScore: winner === blue ? 1 : 0,
     exchanges,
   };
 }
