@@ -21,7 +21,9 @@ import {
   isDoubleLossBout,
   leadingColor,
   normalizeMatchFormatConfig,
+  pendingLevelStep,
   seriesResult,
+  timeIsFinished,
 } from '@myclash/rulesets';
 import type {
   AfterblowMode,
@@ -38,6 +40,7 @@ import { SupabaseService } from '../supabase/supabase.service';
 import { RulesetResolver } from './ruleset-resolver.service';
 import { ClockService } from './clock.service';
 import { popLastClosedRoundColumns, reopenedResultColumns } from './reopen-match-columns';
+import { endRefusal } from './level-at-time-refusal';
 
 /**
  * A closed round in a best-of-N match, snapshotted into `matches.rounds_json`.
@@ -771,10 +774,8 @@ export class ScoringService {
     const openRed = ev.score.redScore;
     const openBlue = ev.score.blueScore;
 
-    const winnerColor = openRed > openBlue ? 'red' : openBlue > openRed ? 'blue' : null;
-    if (winnerColor === null) {
-      throw new BadRequestException('Round is tied — play a sudden-death point to decide it');
-    }
+    const winnerColor = leadingColor({ redScore: openRed, blueScore: openBlue });
+    if (winnerColor === null) await this.refuseLevelRound(matchId, ctx);
 
     const closure = this.buildRoundClosure(
       ctx.match,
@@ -799,6 +800,44 @@ export class ScoringService {
     if (closure.justCompleted) await this.endClockBestEffort(matchId);
     else await this.haltClockBestEffort(matchId);
     return { redScore: openRed, blueScore: openBlue };
+  }
+
+  /**
+   * A round that is LEVEL when the operator ends it, and what happens instead.
+   *
+   * A round is a bout, so it follows the phase's chain exactly as a single bout
+   * does — through the same `endRefusal`, so the pad's existing
+   * `level_at_time_unresolved` copy covers this route with nothing added. It
+   * used to throw a bare string saying "play a sudden-death point": no `code`,
+   * so `refusal-copy.ts` fell through to the server's English on the tablet,
+   * and it named a remedy the organiser had never chosen — a pool best-of could
+   * not draw a round however its chain read.
+   *
+   * Returns only when the chain says `draw`, and then the caller closes the
+   * round drawn. Every other answer throws, so the caller's `winnerColor` stays
+   * null exactly when a drawn round is what the phase wants.
+   */
+  private async refuseLevelRound(
+    matchId: string,
+    ctx: { matchFormat: MatchFormatConfig; match: RulesetMatch },
+  ): Promise<void> {
+    const { matchFormat, match } = ctx;
+    const clock = await this.clock.getClockState(matchId);
+    // The round's OWN clock and the round's OWN chain: `advanceRound` resets
+    // both, so neither carries over from the round before it.
+    if (
+      !timeIsFinished(clock.totalActiveMs, matchFormat, match.phaseType, match.matchNumberLabel)
+    ) {
+      throw endRefusal({ reason: 'time_not_finished' });
+    }
+    const step = pendingLevelStep(
+      matchFormat,
+      match.phaseType,
+      match.matchNumberLabel,
+      clock.levelResolutionSteps,
+    );
+    if (step?.kind === 'draw') return;
+    throw endRefusal({ reason: 'level', step });
   }
 
   /** Load the full scoring context (match + exchanges + config) for a match. */
@@ -864,13 +903,23 @@ export class ScoringService {
     };
   }
 
-  /** Append a non-clock audit event to the match timeline (best-effort). */
+  /**
+   * Append a round event to the match timeline.
+   *
+   * `round_end` is an audit line and stays best-effort. `round_advance` is NOT:
+   * `computeClockState` reads it as the marker that puts the level-at-time chain
+   * back to the top, so THE EVENT IS THE STATE — the same reason
+   * `advanceLevelResolution` checks its own insert. A swallowed failure here
+   * would open the next round already in sudden death, with a skull on the pad
+   * and the End refused until someone led.
+   */
   private async appendRoundEvent(
     matchId: string,
     type: 'round_advance' | 'round_end',
     reason: string,
     actor?: { userId?: string; staffAccountId?: string },
   ): Promise<void> {
+    const isState = type === 'round_advance';
     try {
       const { data: lastEvent } = await this.supabase.service
         .from('match_events')
@@ -880,7 +929,7 @@ export class ScoringService {
         .limit(1)
         .maybeSingle();
       const sequence = ((lastEvent as { sequence: number } | null)?.sequence ?? 0) + 1;
-      await this.supabase.service.from('match_events').insert({
+      const { error } = await this.supabase.service.from('match_events').insert({
         match_id: matchId,
         sequence,
         type,
@@ -889,7 +938,9 @@ export class ScoringService {
         staff_account_id: actor?.staffAccountId ?? null,
         occurred_at: new Date().toISOString(),
       });
+      if (error && isState) throw new BadRequestException(error.message);
     } catch (err) {
+      if (isState) throw err;
       this.logger.warn(
         `Round event '${type}' not logged for match ${matchId}: ${
           err instanceof Error ? err.message : String(err)

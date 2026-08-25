@@ -22,7 +22,7 @@ import {
   pointCapWinnerColor,
 } from '@myclash/types';
 import { sideStyle, useAdjacentMatches } from '@myclash/ui';
-import { effectiveTimeLimitSeconds } from './scoreboard-clock';
+import { effectiveTimeLimitSeconds, levelChainApplies } from './scoreboard-clock';
 import { pendingLevelStep, type LevelStep } from '@myclash/types';
 import { closedRoundWinner } from './round-winner';
 import { resumeBlockedByRuleset } from './resume-guard';
@@ -227,16 +227,18 @@ export function MatchView({
   // the same chain so it can LABEL the button before pressing it, and so the
   // clock can wear a skull instead of a numeral once sudden death is live.
   //
-  // Levelness is the SERVER's scores, never the provisional ones: a queued hit
-  // has not landed, and offering to resolve a bout the tablet alone thinks is
-  // level would be a worse lie than offering nothing.
+  // A ROUND of a best-of match is a bout too, and works the chain from the top:
+  // `levelChainApplies` says when, and its own tests say why.
   //
   // Declared HERE, above `onClockAction`, because the resume challenge reads
   // `inSuddenDeath` — a bout in sudden death sits at 00:00 by design.
   const levelSteps = clockState?.levelResolutionSteps ?? 0;
-  const scoresAreLevel = (match.redScore ?? 0) === (match.blueScore ?? 0);
-  const levelChainApplies = scoresAreLevel && (match.bestOf ?? 1) <= 1;
-  const levelPending: LevelStep | null = levelChainApplies
+  const chainApplies = levelChainApplies({
+    redScore: match.redScore,
+    blueScore: match.blueScore,
+    awaitingRoundAdvance: match.awaitingRoundAdvance,
+  });
+  const levelPending: LevelStep | null = chainApplies
     ? pendingLevelStep(
         matchFormat,
         match.phaseType ?? undefined,
@@ -247,7 +249,7 @@ export function MatchView({
   // The step already APPLIED — one behind the pending one. Sudden death is
   // terminal, so it is live from the moment it was applied until someone leads.
   const levelApplied: LevelStep | null =
-    levelChainApplies && levelSteps > 0
+    chainApplies && levelSteps > 0
       ? pendingLevelStep(
           matchFormat,
           match.phaseType ?? undefined,

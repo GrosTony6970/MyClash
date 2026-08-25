@@ -225,6 +225,9 @@ describe('ClockService — what ending the clock records', () => {
 
     expect(eventTypesRead).toContain('level_resolution');
     expect(eventTypesRead).toContain('reset_match');
+    // `round_advance` is the third non-clock type on this read, and the one
+    // that puts the chain back to the top for the next round of a best-of.
+    expect(eventTypesRead).toContain('round_advance');
   });
 
   // ── The level-at-time chain ───────────────────────────────────────────────
@@ -525,6 +528,33 @@ describe('computeClockState — level resolution steps', () => {
     ]);
 
     expect(state.levelResolutionSteps).toBe(1);
+  });
+
+  it('starts the chain over on a round_advance', () => {
+    // Each ROUND of a best-of match is its own bout: it plays its own extra
+    // time and its own sudden death. Without this, round 2 opened already in
+    // sudden death — skull on the pad, End refused until someone led.
+    const state = service.computeClockState('m1', [
+      row('lr1', 'level_resolution'),
+      row('lr2', 'level_resolution'),
+      row('ra1', 'round_advance'),
+      row('lr3', 'level_resolution'),
+    ]);
+
+    expect(state.levelResolutionSteps).toBe(1);
+  });
+
+  it('keeps round_advance out of the clock timeline', () => {
+    // `ClockAction` does not carry it and the pad's unified timeline shows only
+    // what moved the clock — the clock is reset by its own events.
+    const state = service.computeClockState('m1', [
+      row('e1', 'start'),
+      row('ra1', 'round_advance', '2026-04-25T09:00:30.000Z'),
+      row('e2', 'halt', '2026-04-25T09:01:00.000Z'),
+    ]);
+
+    expect(state.events.map((e) => e.type)).toEqual(['start', 'halt']);
+    expect(state.activeMs).toBe(60_000);
   });
 });
 

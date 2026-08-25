@@ -95,6 +95,29 @@ export function suddenDeathElapsedMs(elapsedMs: number, limitMs: number | null):
 }
 
 /**
+ * Does the phase's level-at-time chain apply to this bout RIGHT NOW?
+ *
+ * Levelness is the SERVER's scores, never the provisional ones: a queued hit
+ * has not landed, and offering to resolve a bout the tablet alone thinks is
+ * level would be a worse lie than offering nothing.
+ *
+ * A best-of match used to be excluded outright, which left the referee stranded:
+ * the server refused a tied round and named sudden death, and the pad showed no
+ * remedy button, no skull and no count-up to play it with. Each ROUND is a bout
+ * and works the chain from the top — `advanceRound` resets both the clock and
+ * the chain — so the only best-of condition left is the round BREAK, where the
+ * scores on screen belong to a round that is already closed.
+ */
+export function levelChainApplies(match: {
+  redScore?: number | null;
+  blueScore?: number | null;
+  awaitingRoundAdvance?: boolean;
+}): boolean {
+  if (match.awaitingRoundAdvance) return false;
+  return (match.redScore ?? 0) === (match.blueScore ?? 0);
+}
+
+/**
  * The remedy to OFFER on the button, or null for no button at all.
  *
  * The phase's chain says what a level bout plays; this says whether the referee

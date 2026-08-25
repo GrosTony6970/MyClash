@@ -197,6 +197,16 @@ describe('ClockService.advanceLevelResolution', () => {
     expect(inserted.find((r) => r['type'] === 'adjust_time')?.['adjustment_ms']).toBe(-60_000);
   });
 
+  it('refuses between the rounds of a best-of match', async () => {
+    // The scores on the row are the CLOSED round's then — frozen, and often
+    // level, because a drawn round is exactly what puts them there. A remedy
+    // played against them burns a chain step on a round that is over.
+    wire(levelBracket({ awaiting_round_advance: true }));
+
+    await expect(service.advanceLevelResolution('m1')).rejects.toThrow(/advance to the next round/);
+    expect(inserted).toEqual([]);
+  });
+
   it('asks for the columns it decides on', async () => {
     // The chain answers with the whole fixture whatever the query asked for, so
     // every assertion above survives deleting these from the select while the
@@ -210,6 +220,7 @@ describe('ClockService.advanceLevelResolution', () => {
       'blue_score',
       'winner_registration_id',
       'match_number_label',
+      'awaiting_round_advance',
       'phases(',
     ]) {
       expect(matchProjection).toContain(column);

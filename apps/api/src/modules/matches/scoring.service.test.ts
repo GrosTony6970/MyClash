@@ -603,6 +603,37 @@ describe('ScoringService — best-of rounds', () => {
     await expect(service.advanceRound('m1')).rejects.toThrow('No round is awaiting advance');
   });
 
+  it('advanceRound REFUSES when the round_advance event cannot be written', async () => {
+    // That row is not an audit line: `computeClockState` reads it as the marker
+    // that puts the level-at-time chain back to the top. Swallowing the failure
+    // — which is what a round event used to do — would open round 2 already in
+    // sudden death, with a skull on the pad and the End refused until someone
+    // led. The clock reset below it stays best-effort.
+    const failingInsert = thenableResult(null);
+    (failingInsert['insert'] as ReturnType<typeof vi.fn>).mockReturnValue({
+      ...failingInsert,
+      then: (resolve: (v: unknown) => unknown) =>
+        resolve({ data: null, error: { message: 'match_events insert refused' } }),
+    });
+    fromMock
+      .mockReturnValueOnce(
+        thenableResult({
+          id: 'm1',
+          status: 'running',
+          awaiting_round_advance: true,
+          current_round: 1,
+        }),
+      )
+      .mockReturnValueOnce(thenableResult({ id: 'm1' }))
+      .mockReturnValueOnce(thenableResult({ sequence: 4 }))
+      .mockReturnValueOnce(failingInsert);
+
+    await expect(service.advanceRound('m1')).rejects.toThrow(/insert refused/);
+    // The chain reset never happened, so the clock must not have been reset
+    // either — the round is still the one the operator was on.
+    expect(clock.clockAction).not.toHaveBeenCalled();
+  });
+
   it('advanceRound rejects when the match is already completed', async () => {
     fromMock.mockReturnValueOnce(
       thenableResult({

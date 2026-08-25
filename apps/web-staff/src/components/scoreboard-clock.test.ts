@@ -6,6 +6,7 @@ import {
 } from '@myclash/types';
 import {
   clockShouldTick,
+  levelChainApplies,
   remedyToOffer,
   scoreboardClockMs,
   suddenDeathElapsedMs,
@@ -129,6 +130,42 @@ describe('suddenDeathElapsedMs', () => {
   it('is the elapsed time when there is no limit to count from', () => {
     // A count-up tournament, or a phase configured with no time limit.
     expect(suddenDeathElapsedMs(45_000, null)).toBe(45_000);
+  });
+});
+
+/**
+ * Whether the phase's level-at-time chain applies to this bout right now.
+ *
+ * A best-of match used to be excluded outright — `bestOf <= 1` — which left the
+ * referee stranded: the server refused a tied round and named sudden death, and
+ * the pad showed no remedy button, no skull and no count-up to play it with.
+ */
+describe('levelChainApplies', () => {
+  it('applies to a level bout, best-of or not', () => {
+    expect(levelChainApplies({ redScore: 2, blueScore: 2 })).toBe(true);
+    // The round is a bout: `advanceRound` resets the clock AND the chain, so a
+    // round works it from the top exactly as a single bout does.
+    expect(levelChainApplies({ redScore: 2, blueScore: 2, awaitingRoundAdvance: false })).toBe(
+      true,
+    );
+  });
+
+  it('does not apply while one fighter leads', () => {
+    expect(levelChainApplies({ redScore: 3, blueScore: 1 })).toBe(false);
+  });
+
+  it('does not apply during a best-of round BREAK', () => {
+    // The scores on screen belong to a round that is already closed — frozen,
+    // and often level, because a drawn round is what put them there. Offering a
+    // remedy against them burns a chain step on a round that is over.
+    expect(levelChainApplies({ redScore: 0, blueScore: 0, awaitingRoundAdvance: true })).toBe(
+      false,
+    );
+  });
+
+  it('treats a missing score as zero', () => {
+    expect(levelChainApplies({})).toBe(true);
+    expect(levelChainApplies({ redScore: null, blueScore: 1 })).toBe(false);
   });
 });
 

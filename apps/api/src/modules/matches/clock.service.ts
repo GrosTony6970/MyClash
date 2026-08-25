@@ -26,8 +26,8 @@ import {
   isLevelBout,
   matchFormatContext,
   timeLimitResult,
-  type EndRefusal,
 } from './time-limit-result';
+import { endRefusal } from './level-at-time-refusal';
 import {
   effectiveTimeLimitSeconds,
   pendingLevelStep,
@@ -66,61 +66,6 @@ export interface ClockState {
     reason: string | null;
     adjustmentMs: number | null;
   }>;
-}
-
-/**
- * Why the clock will not stop this bout, in words a referee can act on.
- *
- * Shaped like the tied-best-of-round refusal it sits beside: a message plus a
- * `code` the pad maps to its own localised copy. The messages are English on
- * purpose — a 4xx body is written for whoever reads the logs, and
- * `refusal-copy.ts` exists so the tablet never shows one.
- *
- * TWO CODES, because they are two different instructions. `time_not_finished`
- * says keep fighting; `level_at_time_unresolved` says the time is up and the
- * phase has a remedy to play. One code covering both would tell a referee to
- * play sudden death while there was still a minute on the clock.
- */
-function endRefusal(refusal: EndRefusal): BadRequestException {
-  if (refusal.reason === 'time_not_finished') {
-    return new BadRequestException({
-      message: 'Time is not finished — the bout cannot be stopped level before the limit',
-      code: 'time_not_finished',
-    });
-  }
-  return levelAtTimeRefusal(refusal.step);
-}
-
-/**
- * What the referee does about a bout that is LEVEL now that its time is up.
- *
- * A null step means the chain is spent, which can only mean sudden death is
- * already live: it is terminal, so there is nothing further to advance to and
- * the bout ends when someone LEADS. Not "on the next point" — one exchange can
- * score both fighters, or neither.
- */
-function levelAtTimeRefusal(step: LevelStep | null): BadRequestException {
-  const code = 'level_at_time_unresolved';
-  if (step === null) {
-    return new BadRequestException({
-      message: 'Scores are level in sudden death — the bout ends when one fighter leads',
-      code,
-      remedy: 'sudden_death',
-    });
-  }
-  if (step.kind === 'extra_time') {
-    return new BadRequestException({
-      message: `Scores are level — play ${step.seconds}s of extra time to decide it`,
-      code,
-      remedy: 'extra_time',
-      seconds: step.seconds,
-    });
-  }
-  return new BadRequestException({
-    message: 'Scores are level — play sudden death to decide it',
-    code,
-    remedy: 'sudden_death',
-  });
 }
 
 // Valid transitions
@@ -162,6 +107,10 @@ export class ClockService {
         'adjust_time',
         'reset_match',
         'level_resolution',
+        // Not a clock event either — it RESETS the chain, because each round of
+        // a best-of match is its own bout and works the chain from the top.
+        // Without it round 2 opened already in sudden death.
+        'round_advance',
       ])
       .order('occurred_at', { ascending: true })
       .order('sequence', { ascending: true });
@@ -376,7 +325,7 @@ export class ClockService {
       .select(
         'id, status, locked_at, red_registration_id, blue_registration_id, ' +
           'winner_registration_id, red_score, blue_score, match_number_label, ' +
-          'phases(type, tournaments(ruleset_config))',
+          'awaiting_round_advance, phases(type, tournaments(ruleset_config))',
       )
       .eq('id', matchId)
       .maybeSingle();
@@ -386,6 +335,12 @@ export class ClockService {
       throw new BadRequestException('Match is locked');
     }
     if (row['status'] === 'completed') throw new BadRequestException('Match is already completed');
+    // Between rounds of a best-of match the scores on the row are the CLOSED
+    // round's, frozen and often level. A remedy played against them would
+    // burn a chain step on a round that is already over.
+    if (row['awaiting_round_advance']) {
+      throw new BadRequestException('Round already ended — advance to the next round');
+    }
     if (!isLevelBout(row)) {
       throw new BadRequestException('Scores are not level — end the bout on the clock');
     }
@@ -494,6 +449,15 @@ export class ClockService {
     for (const e of rawEvents) {
       if (e.type === 'level_resolution') {
         levelResolutionSteps += 1;
+        continue;
+      }
+      // Starting the next round of a best-of match puts the chain back to the
+      // top: each round is its OWN bout, so it plays its own extra time and its
+      // own sudden death. Dropped from `clockRows` rather than merely counted,
+      // because `ClockAction` does not carry it and the pad's unified timeline
+      // shows only what moved the clock — the clock is reset separately.
+      if (e.type === 'round_advance') {
+        levelResolutionSteps = 0;
         continue;
       }
       // A reset puts the bout back to unplayed, so the chain starts over too —
