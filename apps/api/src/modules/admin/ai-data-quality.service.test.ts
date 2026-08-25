@@ -28,12 +28,40 @@ function chain(data: unknown = [], error: unknown = null) {
     upsert: vi.fn().mockReturnThis(),
     eq: vi.fn().mockReturnThis(),
     in: vi.fn().mockReturnThis(),
+    is: vi.fn().mockReturnThis(),
+    lt: vi.fn().mockReturnThis(),
     order: vi.fn().mockReturnThis(),
     limit: vi.fn().mockReturnThis(),
     single: vi.fn().mockResolvedValue({ data, error }),
     maybeSingle: vi.fn().mockResolvedValue({ data, error }),
   };
   return Object.assign(Promise.resolve({ data, error }), methods);
+}
+
+/**
+ * `ai_data_quality_findings` is read AND written inside one scan
+ * (upsert, then the reconcile pass selects and updates). A single
+ * `chain()` would hand the same canned rows to all three, so give each
+ * verb its own sub-chain and expose them for assertions.
+ */
+function findingsTable(existing: Array<{ id: string; fingerprint: string; status: string }> = []) {
+  const upsertChain = chain(null);
+  const selectChain = chain(existing);
+  const updateChain = chain(null);
+  return {
+    upsert: vi.fn((_rows: unknown, _options?: unknown) => upsertChain),
+    select: vi.fn((_columns: string) => selectChain),
+    update: vi.fn((_patch: Record<string, unknown>) => updateChain),
+    _select: selectChain,
+    _update: updateChain,
+  };
+}
+
+/** The rows a scan handed to `upsert`, typed for assertions. */
+function upsertedRows(table: ReturnType<typeof findingsTable>) {
+  const rows = table.upsert.mock.calls[0]?.[0] as
+    Array<{ fingerprint: string; finding_type: string; status?: string }> | undefined;
+  return rows ?? [];
 }
 
 describe('AIDataQualityService', () => {
@@ -487,6 +515,160 @@ describe('AIDataQualityService', () => {
     expect(scanInsert.insert).toHaveBeenCalledWith(
       expect.objectContaining({ actor_user_id: actorUuid }),
     );
+  });
+
+  // ── Status ownership ────────────────────────────────────────────────────
+  // The scan and the operator both write `status`, so the rule is who owns
+  // which transition. The scan never writes it on upsert (the column
+  // default supplies 'open' for a new fingerprint); it only closes what it
+  // can no longer see and reopens what comes back — and only on rows with
+  // no `reviewed_at`, which is the stamp `updateFindingStatus` always
+  // leaves and the scan never does.
+  //
+  // Regression: both row builders hard-coded `status: 'open'` and the
+  // upsert conflicts on the (scan-stable) fingerprint, so the 04:00 cron
+  // silently undid every dismissal.
+
+  /** Two global persons sharing a ratings id, plus their identity gaps. */
+  function duplicatePairTables(findings: ReturnType<typeof findingsTable>, scanId: string) {
+    const scanInsert = chain({ id: scanId });
+    const noop = chain(null);
+    return (table: string) => {
+      if (table === 'ai_data_quality_scans') return scanInsert;
+      if (table === 'ai_data_quality_findings') return findings;
+      if (table === 'global_persons')
+        return chain([
+          { id: 'gp-1', given_name: 'Jean', family_name: 'Dupont', hema_ratings_id: '10458' },
+          { id: 'gp-2', given_name: 'Jean', family_name: 'Dupont', hema_ratings_id: '10458' },
+        ]);
+      if (table === 'clubs') return chain([]);
+      if (table === 'referee_qualifications') return chain([]);
+      if (table === 'persons') return chain([]);
+      if (table === 'registrations') return chain([]);
+      return noop;
+    };
+  }
+
+  function newService() {
+    return new AIDataQualityService(
+      mockSupabase as never,
+      mockPlatformAI as never,
+      mockFlags as never,
+    );
+  }
+
+  it('never writes status on upsert, so a dismissal survives the deterministic rescan', async () => {
+    const findings = findingsTable();
+    fromMock.mockImplementation(duplicatePairTables(findings, 'scan-keep-det'));
+
+    await newService().runDeterministicScan(null);
+
+    const rows = upsertedRows(findings);
+    expect(rows.length).toBeGreaterThan(0);
+    for (const row of rows) expect(row).not.toHaveProperty('status');
+  });
+
+  it('never writes status on upsert on the AI path either', async () => {
+    const findings = findingsTable();
+    fromMock.mockImplementation(duplicatePairTables(findings, 'scan-keep-ai'));
+
+    await newService().startScan('22222222-2222-4222-8222-222222222222');
+
+    const rows = upsertedRows(findings);
+    expect(rows.length).toBeGreaterThan(0);
+    for (const row of rows) expect(row).not.toHaveProperty('status');
+  });
+
+  it('auto-resolves an unreviewed finding the finders no longer produce', async () => {
+    const findings = findingsTable([
+      { id: 'f-stale', fingerprint: 'no-longer-produced', status: 'open' },
+    ]);
+    fromMock.mockImplementation(duplicatePairTables(findings, 'scan-close'));
+
+    await newService().runDeterministicScan(null);
+
+    // The projection must carry the fingerprint and the status, or the
+    // partition below cannot be made — assert the string, not just the call.
+    expect(findings.select).toHaveBeenCalledWith('id, fingerprint, status');
+    expect(findings._select.is).toHaveBeenCalledWith('reviewed_at', null);
+    expect(findings._select.lt).toHaveBeenCalledWith('updated_at', expect.any(String));
+    expect(findings.update).toHaveBeenCalledWith(expect.objectContaining({ status: 'resolved' }));
+    expect(findings._update.in).toHaveBeenCalledWith('id', ['f-stale']);
+  });
+
+  it('guards the close write itself, not just the read that selected it', async () => {
+    // The select filters on status and reviewed_at, but an operator can
+    // dismiss the row in the window between that read and this write. The
+    // same two filters on the update close it.
+    const findings = findingsTable([
+      { id: 'f-stale', fingerprint: 'no-longer-produced', status: 'open' },
+    ]);
+    fromMock.mockImplementation(duplicatePairTables(findings, 'scan-guard'));
+
+    await newService().runDeterministicScan(null);
+
+    expect(findings._update.eq).toHaveBeenCalledWith('status', 'open');
+    expect(findings._update.is).toHaveBeenCalledWith('reviewed_at', null);
+  });
+
+  it('reopens a machine-resolved finding that the finders produce again', async () => {
+    const first = findingsTable();
+    fromMock.mockImplementation(duplicatePairTables(first, 'scan-probe'));
+    await newService().runDeterministicScan(null);
+    const duplicateFingerprint = upsertedRows(first).find(
+      (row) => row.finding_type === 'global_person_duplicate',
+    )?.fingerprint;
+    expect(duplicateFingerprint).toBeTruthy();
+
+    const second = findingsTable([
+      { id: 'f-back', fingerprint: duplicateFingerprint!, status: 'resolved' },
+    ]);
+    fromMock.mockImplementation(duplicatePairTables(second, 'scan-reopen'));
+    await newService().runDeterministicScan(null);
+
+    expect(second.update).toHaveBeenCalledWith(expect.objectContaining({ status: 'open' }));
+    expect(second._update.in).toHaveBeenCalledWith('id', ['f-back']);
+    expect(second._update.eq).toHaveBeenCalledWith('status', 'resolved');
+  });
+
+  it('does not close a finding the AI cap never reached', async () => {
+    // The reconcile pass keys on the FULL candidate set, not on the scan
+    // id. Keying on the scan id would auto-resolve every real finding the
+    // 100-call cap skipped — the cap fix and the auto-close destroying
+    // each other in silence.
+    const persons = Array.from({ length: 30 }, (_, i) => ({
+      id: `gp-${i}`,
+      given_name: 'Jean',
+      family_name: 'Dupont',
+      hema_ratings_id: '10458',
+    }));
+    const tables = (findings: ReturnType<typeof findingsTable>, scanId: string) => {
+      const scanInsert = chain({ id: scanId });
+      const noop = chain(null);
+      return (table: string) => {
+        if (table === 'ai_data_quality_scans') return scanInsert;
+        if (table === 'ai_data_quality_findings') return findings;
+        if (table === 'global_persons') return chain(persons);
+        if (table === 'clubs') return chain([]);
+        if (table === 'referee_qualifications') return chain([]);
+        if (table === 'persons') return chain([]);
+        if (table === 'registrations') return chain([]);
+        return noop;
+      };
+    };
+
+    const probe = findingsTable();
+    fromMock.mockImplementation(tables(probe, 'scan-cap-probe'));
+    await newService().runDeterministicScan(null);
+    const allRows = upsertedRows(probe);
+    expect(allRows.length).toBeGreaterThan(100);
+    const beyondTheCap = allRows[allRows.length - 1]!.fingerprint;
+
+    const capped = findingsTable([{ id: 'f-beyond', fingerprint: beyondTheCap, status: 'open' }]);
+    fromMock.mockImplementation(tables(capped, 'scan-cap'));
+    await newService().startScan('22222222-2222-4222-8222-222222222222');
+
+    expect(capped.update).not.toHaveBeenCalledWith(expect.objectContaining({ status: 'resolved' }));
   });
 });
 

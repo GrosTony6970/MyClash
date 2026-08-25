@@ -1,4 +1,9 @@
-import { BadRequestException, Injectable, ServiceUnavailableException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  Logger,
+  ServiceUnavailableException,
+} from '@nestjs/common';
 import { createHash } from 'crypto';
 import type {
   AIProvider,
@@ -63,6 +68,23 @@ function toActorUuid(actorUserId: string | null): string | null {
  * obvious cleanup work in the same scan.
  */
 const AI_RANK_CAP = 100;
+
+/**
+ * Chunk size for the reconcile pass's `.in()` filters. PostgREST puts
+ * filters in the query string, so an unbounded id list would build a URL
+ * no proxy will accept.
+ */
+const RECONCILE_CHUNK = 200;
+
+function chunked<T>(items: T[], size: number): T[][] {
+  const out: T[][] = [];
+  for (let i = 0; i < items.length; i += size) out.push(items.slice(i, i + size));
+  return out;
+}
+
+function fingerprintsOf(candidates: Candidate[]): Set<string> {
+  return new Set(candidates.map((candidate) => candidate.fingerprint));
+}
 
 /**
  * Detect names that look like seed / test / demo records left behind
@@ -134,6 +156,8 @@ export function detectPlaceholderName(value: string | null | undefined): {
 
 @Injectable()
 export class AIDataQualityService {
+  private readonly logger = new Logger(AIDataQualityService.name);
+
   constructor(
     private readonly supabase: SupabaseService,
     private readonly platformAI: PlatformAISettingsService,
@@ -153,10 +177,12 @@ export class AIDataQualityService {
       throw new BadRequestException('Super admin AI key is not configured');
     }
 
-    const scan = await this.createScan(actorUserId);
+    const startedAt = new Date().toISOString();
+    const scan = await this.createScan(actorUserId, startedAt);
 
     try {
-      const candidates = (await this.collectAllCandidates()).slice(0, AI_RANK_CAP);
+      const allCandidates = await this.collectAllCandidates();
+      const candidates = allCandidates.slice(0, AI_RANK_CAP);
       const findings = [];
 
       for (const candidate of candidates) {
@@ -171,6 +197,7 @@ export class AIDataQualityService {
           .upsert(findings, { onConflict: 'fingerprint' });
       }
 
+      await this.reconcileFindingStatuses(fingerprintsOf(allCandidates), startedAt);
       await this.finishScan(scan.id, 'completed', candidates.length, findings.length);
       return { scanId: scan.id, candidateCount: candidates.length, findingCount: findings.length };
     } catch (error) {
@@ -191,7 +218,8 @@ export class AIDataQualityService {
     candidateCount: number;
     findingCount: number;
   }> {
-    const scan = await this.createScan(actorUserId);
+    const startedAt = new Date().toISOString();
+    const scan = await this.createScan(actorUserId, startedAt);
     try {
       const candidates = await this.collectAllCandidates();
       const findings = candidates.map((candidate) =>
@@ -204,6 +232,7 @@ export class AIDataQualityService {
           .upsert(findings, { onConflict: 'fingerprint' });
       }
 
+      await this.reconcileFindingStatuses(fingerprintsOf(candidates), startedAt);
       await this.finishScan(scan.id, 'completed', candidates.length, findings.length);
       return { scanId: scan.id, candidateCount: candidates.length, findingCount: findings.length };
     } catch (error) {
@@ -287,19 +316,86 @@ export class AIDataQualityService {
     return data;
   }
 
-  private async createScan(actorUserId: string | null): Promise<{ id: string }> {
+  private async createScan(actorUserId: string | null, startedAt: string): Promise<{ id: string }> {
     const { data, error } = await this.supabase.service
       .from('ai_data_quality_scans')
       .insert({
         actor_user_id: toActorUuid(actorUserId),
         status: 'running',
-        started_at: new Date().toISOString(),
+        started_at: startedAt,
       })
       .select('id')
       .single();
 
     if (error) throw new BadRequestException(error.message);
     return data as { id: string };
+  }
+
+  /**
+   * Reconcile the statuses the machine owns, after a scan has upserted.
+   *
+   * The scan never writes `status` on upsert, so these are the only two
+   * transitions it drives — and both are restricted to rows no human has
+   * touched. `updateFindingStatus` always stamps `reviewed_at`; this pass
+   * never does, so `reviewed_at IS NULL` separates a machine decision from
+   * the operator's, and a dismissal is untouchable either way.
+   *
+   * - close: a finding the finders no longer produce becomes `resolved`,
+   *   so fixing the data clears the notification bell.
+   * - reopen: a machine-resolved finding produced again returns to `open`,
+   *   which is what keeps a regression from hiding behind our own close.
+   *
+   * `seen` is the FULL, pre-cap candidate set. The AI path ranks at most
+   * `AI_RANK_CAP` candidates and upserts only those, so keying this on the
+   * scan id instead would auto-resolve every real finding the cap never
+   * reached.
+   *
+   * The race is the 04:00 cron overlapping a manual scan, or an operator
+   * dismissing something mid-run: `updated_at < scanStartedAt` skips any
+   * row written after this scan began (including the rows it just
+   * upserted), and the status guard on each update closes the remaining
+   * window between the select and the write.
+   */
+  private async reconcileFindingStatuses(seen: Set<string>, scanStartedAt: string): Promise<void> {
+    const { data, error } = await this.supabase.service
+      .from('ai_data_quality_findings')
+      .select('id, fingerprint, status')
+      .in('status', ['open', 'resolved'])
+      .is('reviewed_at', null)
+      .lt('updated_at', scanStartedAt);
+    if (error) throw new BadRequestException(error.message);
+
+    const rows = (data ?? []) as Array<{ id: string; fingerprint: string; status: string }>;
+    const toClose = rows.filter((row) => row.status === 'open' && !seen.has(row.fingerprint));
+    const toReopen = rows.filter((row) => row.status === 'resolved' && seen.has(row.fingerprint));
+
+    await this.moveFindings(toClose, 'open', 'resolved');
+    await this.moveFindings(toReopen, 'resolved', 'open');
+
+    if (toClose.length > 0 || toReopen.length > 0) {
+      this.logger.log(
+        `Data quality reconcile: resolved ${toClose.length} finding(s) no longer detected, reopened ${toReopen.length}`,
+      );
+    }
+  }
+
+  private async moveFindings(
+    findings: Array<{ id: string }>,
+    from: string,
+    to: string,
+  ): Promise<void> {
+    for (const chunk of chunked(
+      findings.map((row) => row.id),
+      RECONCILE_CHUNK,
+    )) {
+      const { error } = await this.supabase.service
+        .from('ai_data_quality_findings')
+        .update({ status: to, updated_at: new Date().toISOString() })
+        .in('id', chunk)
+        .eq('status', from)
+        .is('reviewed_at', null);
+      if (error) throw new BadRequestException(error.message);
+    }
   }
 
   private async loadGlobalPersons(): Promise<GlobalPersonRow[]> {
@@ -737,7 +833,12 @@ export class AIDataQualityService {
       finding_type: candidate.type,
       severity: candidate.severity,
       confidence: 1.0,
-      status: 'open',
+      // No `status` — deliberately. The upsert conflicts on the fingerprint,
+      // which is stable across scans, so any column in this payload is
+      // written back on every run. A hard-coded 'open' here undid the
+      // operator's dismissal at 04:00 every day. The column default supplies
+      // 'open' for a new fingerprint; `reconcileFindingStatuses` owns every
+      // other machine-driven transition.
       entity_ids: candidate.entityIds,
       evidence_json: candidate.evidence,
       ai_summary: synthesizeSummary(candidate),
@@ -835,7 +936,7 @@ export class AIDataQualityService {
       finding_type: candidate.type,
       severity: ranking.severity,
       confidence: ranking.confidence,
-      status: 'open',
+      // No `status` — see `toDeterministicFindingRow`.
       entity_ids: candidate.entityIds,
       evidence_json: candidate.evidence,
       ai_summary: ranking.explanation,
