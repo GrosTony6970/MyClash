@@ -28,6 +28,12 @@ const SPENT = [
   { id: 'e2', type: 'halt', reason: null, occurred_at: '2026-04-25T09:01:30.000Z' },
 ];
 
+/** The same bout 30s in — a minute of the 90s still to fight. */
+const EARLY = [
+  { id: 'e1', type: 'start', reason: null, occurred_at: '2026-04-25T09:00:00.000Z' },
+  { id: 'e2', type: 'halt', reason: null, occurred_at: '2026-04-25T09:00:30.000Z' },
+];
+
 const step = (id: string) => ({
   id,
   type: 'level_resolution',
@@ -161,6 +167,34 @@ describe('ClockService.advanceLevelResolution', () => {
 
     wire(levelBracket({ locked_at: '2026-04-25T10:00:00.000Z' }));
     await expect(service.advanceLevelResolution('m1')).rejects.toThrow(/locked/);
+  });
+
+  it('refuses while the bout still has time to run', async () => {
+    // The other door onto the chain. Without this a referee could collect the
+    // extra time at 2-2 with a minute still to fight, and the chain would be
+    // spent before the bout was.
+    wire(levelBracket(), EARLY);
+
+    await expect(service.advanceLevelResolution('m1')).rejects.toThrow(/Time is not finished/);
+    expect(inserted).toEqual([]);
+  });
+
+  it('puts the seconds back in COUNT-UP too', async () => {
+    // `timerMode` is display only — the bout ends at the limit either way — so a
+    // count-up bout that did not rewind could have its End accepted the instant
+    // the extra time was granted, and the minute would exist only as advice.
+    wire(
+      levelBracket({
+        phases: {
+          type: 'single_elim',
+          tournaments: { ruleset_config: { matchFormat: { timerMode: 'countup' } } },
+        },
+      }),
+    );
+
+    await service.advanceLevelResolution('m1');
+
+    expect(inserted.find((r) => r['type'] === 'adjust_time')?.['adjustment_ms']).toBe(-60_000);
   });
 
   it('asks for the columns it decides on', async () => {

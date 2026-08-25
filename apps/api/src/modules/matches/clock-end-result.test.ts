@@ -27,8 +27,23 @@ function thenable(data: unknown) {
   return chain;
 }
 
-const RUNNING = [
+/**
+ * A halted clock with 90s of active time — the default phase limit, spent.
+ *
+ * IT MUST BE HALT-TERMINATED. An un-closed `start` replays as still running, so
+ * `computeClockState` bills it against the real `Date.now()` and every case
+ * below would satisfy the time guard by the calendar rather than by what it
+ * says. `end` is legal from `halted` just as it is from `running`.
+ */
+const SPENT = [
   { id: 'e1', type: 'start', reason: null, occurred_at: '2026-04-25T09:00:00.000Z' },
+  { id: 'e2', type: 'halt', reason: null, occurred_at: '2026-04-25T09:01:30.000Z' },
+];
+
+/** The same bout 30s in: a minute of the phase's 90s still to fight. */
+const EARLY = [
+  { id: 'e1', type: 'start', reason: null, occurred_at: '2026-04-25T09:00:00.000Z' },
+  { id: 'e2', type: 'halt', reason: null, occurred_at: '2026-04-25T09:00:30.000Z' },
 ];
 
 function matchRow(over: Record<string, unknown> = {}) {
@@ -68,7 +83,7 @@ describe('ClockService — what ending the clock records', () => {
    *   matches → match_events (replay) → match_events (next sequence)
    *   → match_events (insert) → matches (update) → match_events (replay again)
    */
-  function wireEnd(match: Record<string, unknown>, events: unknown[] = RUNNING) {
+  function wireEnd(match: Record<string, unknown>, events: unknown[] = SPENT) {
     // A REFUSED end consumes only the first two of the six, so the leftovers
     // would answer the next call's reads. Reset the queue rather than append.
     fromMock.mockReset();
@@ -107,7 +122,7 @@ describe('ClockService — what ending the clock records', () => {
   }
 
   /** The remedy a refused `end` named, from its problem body. */
-  async function refusalOf(match: Record<string, unknown>, events: unknown[] = RUNNING) {
+  async function refusalOf(match: Record<string, unknown>, events: unknown[] = SPENT) {
     wireEnd(match, events);
     try {
       await service.clockAction('m1', 'end');
@@ -226,7 +241,7 @@ describe('ClockService — what ending the clock records', () => {
 
   /** `n` steps already taken, as the timeline rows the clock replays. */
   const withSteps = (n: number) => [
-    ...RUNNING,
+    ...SPENT,
     ...Array.from({ length: n }, (_, i) => ({
       id: `lr${i}`,
       type: 'level_resolution',
@@ -274,6 +289,37 @@ describe('ClockService — what ending the clock records', () => {
     expect(lastUpdate?.['winner_registration_id']).toBeUndefined();
   });
 
+  // ── The time guard, in front of the chain ─────────────────────────────────
+
+  it('refuses a level bout that still has time, WITHOUT naming a remedy', async () => {
+    // The two refusals are both 400s and must not be confused: this one says
+    // keep fighting, the chain's says the time is up and here is what to play.
+    const body = await refusalOf(levelBracket(), EARLY);
+
+    expect(body).toMatchObject({ code: 'time_not_finished' });
+    expect(body['remedy']).toBeUndefined();
+    expect(lastUpdate).toBeNull();
+  });
+
+  it('refuses a level POOL bout early too — the guard is every phase', async () => {
+    // A pool chain is a single `draw`, so this bout WILL complete as a draw when
+    // its time is up. It still may not be stopped level before then.
+    expect(await refusalOf(matchRow({ red_score: 2, blue_score: 2 }), EARLY)).toMatchObject({
+      code: 'time_not_finished',
+    });
+  });
+
+  it('does not hold an already-completed level bout', async () => {
+    // A forfeit or a ceiling end stops its clock after the fact, from inside a
+    // bare `catch`. A refusal there would leave the clock running forever and
+    // the endcard unfired, so the completed check stays AHEAD of the guard.
+    wireEnd(levelBracket({ status: 'completed' }), EARLY);
+
+    await service.clockAction('m1', 'end');
+
+    expect(lastUpdate).toMatchObject({ status: 'completed' });
+  });
+
   it('ends a level bracket bout that already carries a forfeit winner', async () => {
     // A forfeit writes the winner and THEN stops the clock, and under a zeroing
     // score policy that row is 0-0. Reading the scores alone would call it level
@@ -297,6 +343,14 @@ describe('ClockService — what ending the clock records', () => {
  * whether the round route or this one owns the bout.
  */
 describe('timeLimitResult', () => {
+  /**
+   * Every case below ends a bout with the clock barely started, and passes
+   * BECAUSE the branch it exercises sits ahead of the time guard: a best-of
+   * match is the round route's, and a bout with a leader is decided whenever the
+   * referee stops it. Only a LEVEL bout has to wait for its time.
+   */
+  const ELAPSED_ZERO = 0;
+
   const bout = (over: Record<string, unknown> = {}) => ({
     red_registration_id: 'red',
     blue_registration_id: 'blue',
@@ -317,21 +371,25 @@ describe('timeLimitResult', () => {
     // `normalizeMatchFormatConfig({})` defaults bestOf to 1, so an older
     // tournament with no matchFormat block still resolves rather than falling
     // into the best-of branch and silently naming nobody.
-    expect(timeLimitResult(bout(), 0)).toEqual({
+    expect(timeLimitResult(bout(), 0, ELAPSED_ZERO)).toEqual({
       complete: { winner_registration_id: 'red', end_reason: 'time_limit' },
     });
   });
 
   it('follows the phase, not the label, for pool and swiss', () => {
     // Swiss falls back to the pool value when a config predates the format.
-    expect(timeLimitResult(withBestOf('pool', { pool: 3, bracket: 1, finals: 1 }), 0)).toEqual({
-      complete: {},
-    });
-    expect(timeLimitResult(withBestOf('swiss', { pool: 3, bracket: 1, finals: 1 }), 0)).toEqual({
+    expect(
+      timeLimitResult(withBestOf('pool', { pool: 3, bracket: 1, finals: 1 }), 0, ELAPSED_ZERO),
+    ).toEqual({
       complete: {},
     });
     expect(
-      timeLimitResult(withBestOf('pool', { pool: 1, bracket: 3, finals: 3 }), 0),
+      timeLimitResult(withBestOf('swiss', { pool: 3, bracket: 1, finals: 1 }), 0, ELAPSED_ZERO),
+    ).toEqual({
+      complete: {},
+    });
+    expect(
+      timeLimitResult(withBestOf('pool', { pool: 1, bracket: 3, finals: 3 }), 0, ELAPSED_ZERO),
     ).toMatchObject({ complete: { end_reason: 'time_limit' } });
   });
 
@@ -340,11 +398,76 @@ describe('timeLimitResult', () => {
     // that is single-round while the finals are best-of must not be confused
     // for one another here.
     const finalsAreBestOf = { pool: 1, bracket: 1, finals: 3 };
-    expect(timeLimitResult(withBestOf('single_elim', finalsAreBestOf, 'F'), 0)).toEqual({
+    expect(
+      timeLimitResult(withBestOf('single_elim', finalsAreBestOf, 'F'), 0, ELAPSED_ZERO),
+    ).toEqual({
       complete: {},
     });
-    expect(timeLimitResult(withBestOf('single_elim', finalsAreBestOf, 'QF1'), 0)).toMatchObject({
+    expect(
+      timeLimitResult(withBestOf('single_elim', finalsAreBestOf, 'QF1'), 0, ELAPSED_ZERO),
+    ).toMatchObject({
       complete: { end_reason: 'time_limit' },
+    });
+  });
+
+  it('refuses a LEVEL bout that still has time to run', () => {
+    // 30s into the default 90s. Ahead of the chain on purpose: the remedies are
+    // what the referee plays once the time is up, and a chain reachable before
+    // then is advice rather than a rule.
+    expect(timeLimitResult(bout({ red_score: 2, blue_score: 2 }), 0, 30_000)).toEqual({
+      refuse: { reason: 'time_not_finished' },
+    });
+  });
+
+  it('refuses on the phase limit the bout actually counts against', () => {
+    // A bracket bout billed at the pool clock would stop 60s early. The limit is
+    // dispatched by phase exactly as the best-of above it is.
+    const level = { red_score: 2, blue_score: 2 };
+    const perPhase = { pool: 30, bracket: 120, finals: 120 };
+    const asPool = bout({
+      ...level,
+      phases: {
+        type: 'pool',
+        tournaments: { ruleset_config: { matchFormat: { timeLimitsSeconds: perPhase } } },
+      },
+    });
+    const asBracket = bout({
+      ...level,
+      match_number_label: 'QF1',
+      phases: {
+        type: 'single_elim',
+        tournaments: { ruleset_config: { matchFormat: { timeLimitsSeconds: perPhase } } },
+      },
+    });
+
+    expect(timeLimitResult(asPool, 0, 60_000)).toEqual({ complete: {} });
+    expect(timeLimitResult(asBracket, 0, 60_000)).toEqual({
+      refuse: { reason: 'time_not_finished' },
+    });
+  });
+
+  it('lets a level bout complete when the phase has NO time limit', () => {
+    // The branch the guard would otherwise make unreachable. Null means there is
+    // no time to wait for, so the chain decides at once — a pool `draw` here.
+    const noLimit = bout({
+      red_score: 2,
+      blue_score: 2,
+      phases: {
+        type: 'pool',
+        tournaments: {
+          ruleset_config: { matchFormat: { timeLimitsSeconds: { pool: null } } },
+        },
+      },
+    });
+
+    expect(timeLimitResult(noLimit, 0, 0)).toEqual({ complete: {} });
+  });
+
+  it('does not hold a bout that has a LEADER', () => {
+    // The guard is for level bouts only. Stopping a 3-1 bout early is the
+    // referee's call and always was; what it stores is a separate question.
+    expect(timeLimitResult(bout(), 0, 1_000)).toMatchObject({
+      complete: { winner_registration_id: 'red' },
     });
   });
 
@@ -354,6 +477,7 @@ describe('timeLimitResult', () => {
       timeLimitResult(
         bout({ phases: [{ type: 'pool', tournaments: [{ ruleset_config: {} }] }] }),
         0,
+        ELAPSED_ZERO,
       ),
     ).toMatchObject({ complete: { winner_registration_id: 'red' } });
   });

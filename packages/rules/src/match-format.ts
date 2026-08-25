@@ -498,6 +498,36 @@ export function displayClockMs(
   return Math.max(0, limitSeconds * 1000 - elapsedMs);
 }
 
+/**
+ * Has this bout's time run out?
+ *
+ * The one owner of the rule the clock REFUSES on: a bout that is level may not
+ * be stopped while there is time left to fight, and the pad may not offer the
+ * remedy for a level bout before then either. Two copies of that comparison
+ * would let the pad offer a button the server answers with a 400 — and this
+ * package exists because `displayClockMs` had two copies and
+ * `effectiveTimeLimitSeconds` three, and both drifted.
+ *
+ * INDEPENDENT OF `timerMode`, which is display only: the bout ends at the limit
+ * whether or not the scoreboard counts towards it. Same reasoning as
+ * `shouldWarnClock` in `@myclash/types`.
+ *
+ * NO LIMIT CONFIGURED ANSWERS TRUE, which reads as a lie against the name and is
+ * said out loud here for that reason. A phase with no time limit has no time to
+ * wait for, so the guard must not hold a bout open forever; the caller's next
+ * question — the level-at-time chain — is the one that decides such a bout.
+ */
+export function timeIsFinished(
+  elapsedMs: number,
+  config: MatchFormatConfig,
+  phaseType: PhaseType | undefined,
+  matchNumberLabel: string | null | undefined,
+): boolean {
+  const limitSeconds = effectiveTimeLimitSeconds(config, phaseType, matchNumberLabel);
+  if (limitSeconds === null) return true;
+  return elapsedMs >= limitSeconds * 1000;
+}
+
 export function isSoftClockLocked(
   match: Match,
   elapsedMs: number,

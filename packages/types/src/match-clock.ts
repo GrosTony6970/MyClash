@@ -31,11 +31,12 @@
 import {
   displayClockMs,
   effectiveTimeLimitSeconds,
+  timeIsFinished,
   type MatchFormatConfig,
   type PhaseType,
 } from '@myclash/rules/pad';
 
-export { displayClockMs, effectiveTimeLimitSeconds };
+export { displayClockMs, effectiveTimeLimitSeconds, timeIsFinished };
 export type { PhaseType };
 
 /**

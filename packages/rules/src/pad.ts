@@ -52,6 +52,12 @@ export {
  * owner of which chain a medal match reads.
  */
 export { pendingLevelStep } from './match-format';
+
+/**
+ * Whether the bout's time has run out — so the pad withholds the remedy button
+ * until the server would accept it, instead of offering one that 400s.
+ */
+export { timeIsFinished } from './match-format';
 export type { LevelStep, MatchFormatConfig, ScoringDirection, TimerMode } from './match-format';
 
 export type { PhaseType } from './domain';

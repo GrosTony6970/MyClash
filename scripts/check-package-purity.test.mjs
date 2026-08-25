@@ -285,6 +285,10 @@ test('the real allowlist is exactly what the 7.3 table grants', () => {
   // it is a LOOKUP rather than a derivation: it reads which remedy a level bout
   // is waiting on out of config the pad already holds, so the pad can name it on
   // the button. The server still decides whether the remedy applies.
+  // `timeIsFinished` joined it for the same reason and is the same shape: one
+  // comparison against the phase limit the pad already renders the clock from,
+  // so the button stays hidden until the End would be accepted rather than
+  // offering a remedy the server answers with a 400.
   assert.deepEqual([...allowed].sort(), [
     'applyScoringDirection',
     'computeAfterblowDeltas',
@@ -295,6 +299,7 @@ test('the real allowlist is exactly what the 7.3 table grants', () => {
     'pendingLevelStep',
     'pointCapWinnerColor',
     'resolveEntryCard',
+    'timeIsFinished',
     'winnerColorFrom',
   ]);
   assert.equal(allowed.has('evaluateFormula'), false, 'the pad must never derive a score');

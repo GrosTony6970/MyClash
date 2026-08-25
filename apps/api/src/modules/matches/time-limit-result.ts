@@ -10,6 +10,7 @@ import {
   getEffectiveBestOf,
   normalizeMatchFormatConfig,
   pendingLevelStep,
+  timeIsFinished,
   winnerColorFrom,
 } from '@myclash/rulesets';
 import type { LevelStep, Match, MatchFormatConfig } from '@myclash/rulesets';
@@ -63,8 +64,15 @@ export function isLevelBout(match: Record<string, unknown>): boolean {
  * the bout that ran past zero: elapsed carries a hidden overshoot, and a flat
  * delta would give a clock that read 00:00 rather less than a minute.
  *
- * Zero in count-up, or with no phase limit: there is no limit to extend, so
- * extra time is an instruction to the referee rather than a clock mutation.
+ * Zero only with NO PHASE LIMIT: there is nothing to extend, so extra time is an
+ * instruction to the referee rather than a clock mutation.
+ *
+ * COUNT-UP MOVES TOO, and this used to say the opposite. `timerMode` is display
+ * only — the bout ends at the limit either way — so a count-up bout that did not
+ * rewind could have its End accepted the instant the extra time was granted, and
+ * the minute would exist only as advice. The numeral reads 03:00 → 02:00 and
+ * climbs back, which is what a minute of extra time is.
+ *
  * Deliberately NOT `clock-adjustment.ts`'s `clockAdjustmentMs`, which is a ±
  * delta from the shown remaining, clamped to the limit, and lives on the pad.
  */
@@ -78,10 +86,21 @@ export function extraTimeAdjustmentMs(
 }
 
 /**
- * What ending the clock does to a bout: complete it with these columns, or
- * refuse and name the remedy the bout is waiting on.
+ * Why the clock will not stop this bout.
+ *
+ * Two refusals, and telling them apart is the whole point: a bout still has
+ * time to run, or its time is up and the phase says play a remedy. They read
+ * the same on a tablet — the End button simply refuses — so each carries its
+ * own reason rather than one message trying to cover both.
  */
-export type EndOnClock = { complete: Record<string, unknown> } | { refuse: LevelStep | null };
+export type EndRefusal =
+  { reason: 'time_not_finished' } | { reason: 'level'; step: LevelStep | null };
+
+/**
+ * What ending the clock does to a bout: complete it with these columns, or
+ * refuse and say why.
+ */
+export type EndOnClock = { complete: Record<string, unknown> } | { refuse: EndRefusal };
 
 /**
  * The one owner of what ending the clock does.
@@ -116,13 +135,24 @@ export type EndOnClock = { complete: Record<string, unknown> } | { refuse: Level
  * `ScoringService` applies is about the doubles ceiling, which has nothing to do
  * with the clock. That is what keeps this a leaf and avoids a provider cycle.
  *
- * `levelStepsTaken` is REQUIRED. An optional trailing input is a silent
- * opt-out — a caller that forgets it gets today's behaviour and no error, which
- * is how a max-doubles bout kept reading as a draw on one page for a day.
+ * A LEVEL BOUT WITH TIME LEFT IS REFUSED BEFORE THE CHAIN IS CONSULTED. The
+ * chain was advisory without it: a referee could press End five seconds in, be
+ * told to play a minute of extra time, take the minute, press End again and be
+ * sent to sudden death — with none of that minute fought. Granting extra time
+ * moves elapsed back below the limit, so this branch is also what makes the
+ * granted time real. It does NOT re-test for a limit: `timeIsFinished` answers
+ * true when there is none, and writing that condition twice invites a second
+ * implementation that disagrees with the first.
+ *
+ * `levelStepsTaken` and `elapsedMs` are both REQUIRED. An optional trailing
+ * input is a silent opt-out — a caller that forgets it gets today's behaviour
+ * and no error, which is how a max-doubles bout kept reading as a draw on one
+ * page for a day.
  */
 export function timeLimitResult(
   match: Record<string, unknown>,
   levelStepsTaken: number,
+  elapsedMs: number,
 ): EndOnClock {
   const { matchFormat, phaseType, matchNumberLabel } = matchFormatContext(match);
   const bestOf = getEffectiveBestOf({ phaseType, matchNumberLabel } as Match, matchFormat);
@@ -150,13 +180,19 @@ export function timeLimitResult(
   // never what a finished one was.
   if (match['status'] === 'completed') return { complete: {} };
 
+  // Level with time still to run: nothing to decide yet. Ahead of the chain, so
+  // the remedies cannot be collected before the time that earns them.
+  if (!timeIsFinished(elapsedMs, matchFormat, phaseType, matchNumberLabel)) {
+    return { refuse: { reason: 'time_not_finished' } };
+  }
+
   // A `draw` step means the bout may simply complete, which is today's
   // behaviour and what a pool table's D column is for. Anything else is a
   // remedy the referee has to play out first, and a spent chain (null) means
   // sudden death is already live.
   const step = pendingLevelStep(matchFormat, phaseType, matchNumberLabel, levelStepsTaken);
   if (step?.kind === 'draw') return { complete: {} };
-  return { refuse: step };
+  return { refuse: { reason: 'level', step } };
 }
 
 /** A PostgREST embed arrives as an object or a one-element array. */

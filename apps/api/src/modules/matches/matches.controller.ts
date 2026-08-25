@@ -393,7 +393,8 @@ export class MatchesController {
    * Take a LEVEL bout one step down its phase's chain of remedies and apply it
    * (scorekeeper+). Extra time puts the seconds back on the clock; sudden death
    * records the step and leaves the clock alone. Refused when the scores are not
-   * level, or when the phase has no further remedy.
+   * level, when the bout still has TIME TO RUN, or when the phase has no further
+   * remedy.
    *
    * Goes to `ClockService` rather than through `MatchesService`: the decision is
    * plain match-format config with no ruleset to resolve, which is what keeps it

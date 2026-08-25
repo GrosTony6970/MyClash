@@ -26,8 +26,14 @@ import {
   isLevelBout,
   matchFormatContext,
   timeLimitResult,
+  type EndRefusal,
 } from './time-limit-result';
-import { effectiveTimeLimitSeconds, pendingLevelStep, type LevelStep } from '@myclash/rulesets';
+import {
+  effectiveTimeLimitSeconds,
+  pendingLevelStep,
+  timeIsFinished,
+  type LevelStep,
+} from '@myclash/rulesets';
 
 export type ClockAction =
   'start' | 'halt' | 'resume' | 'end' | 'reopen' | 'reset_clock' | 'adjust_time' | 'reset_match';
@@ -63,12 +69,30 @@ export interface ClockState {
 }
 
 /**
- * Why the clock refused to end a LEVEL bout, and what the referee does instead.
+ * Why the clock will not stop this bout, in words a referee can act on.
  *
- * Shaped like the tied-best-of-round refusal it sits beside: a message a referee
- * can act on, plus a `code` the pad maps to its own localised copy. The message
- * is English on purpose — a 4xx body is written for whoever reads the logs, and
+ * Shaped like the tied-best-of-round refusal it sits beside: a message plus a
+ * `code` the pad maps to its own localised copy. The messages are English on
+ * purpose — a 4xx body is written for whoever reads the logs, and
  * `refusal-copy.ts` exists so the tablet never shows one.
+ *
+ * TWO CODES, because they are two different instructions. `time_not_finished`
+ * says keep fighting; `level_at_time_unresolved` says the time is up and the
+ * phase has a remedy to play. One code covering both would tell a referee to
+ * play sudden death while there was still a minute on the clock.
+ */
+function endRefusal(refusal: EndRefusal): BadRequestException {
+  if (refusal.reason === 'time_not_finished') {
+    return new BadRequestException({
+      message: 'Time is not finished — the bout cannot be stopped level before the limit',
+      code: 'time_not_finished',
+    });
+  }
+  return levelAtTimeRefusal(refusal.step);
+}
+
+/**
+ * What the referee does about a bout that is LEVEL now that its time is up.
  *
  * A null step means the chain is spent, which can only mean sudden death is
  * already live: it is terminal, so there is nothing further to advance to and
@@ -197,12 +221,18 @@ export class ClockService {
 
     // What ending the clock would do — resolved BEFORE the event row is
     // written, because it can refuse and a refusal must leave the timeline as
-    // untouched as the row. See `levelAtTimeRefusal` for what the refusal says.
+    // untouched as the row. `totalActiveMs` rather than `activeMs`: it includes
+    // the interval still running, which is the elapsed time the referee is
+    // looking at. See `endRefusal` for what a refusal says.
     const ending =
       action === 'end'
-        ? timeLimitResult(match as unknown as Record<string, unknown>, current.levelResolutionSteps)
+        ? timeLimitResult(
+            match as unknown as Record<string, unknown>,
+            current.levelResolutionSteps,
+            current.totalActiveMs,
+          )
         : null;
-    if (ending && 'refuse' in ending) throw levelAtTimeRefusal(ending.refuse);
+    if (ending && 'refuse' in ending) throw endRefusal(ending.refuse);
 
     // Four of the six actions write a non-completed status, and the transition
     // table above cannot see that: it is keyed on the clock status replayed from
@@ -326,10 +356,16 @@ export class ClockService {
    * event IS the state. A swallowed failure would leave the chain where it was
    * and hand the referee the same remedy again, having already granted the time.
    *
+   * REFUSED WHILE THE BOUT STILL HAS TIME, exactly as the End is. This is the
+   * other door onto the chain, and a chain that can be walked down before the
+   * clock runs out is advice rather than a rule.
+   *
    * `extra_time` puts the seconds back on the clock and leaves it halted — the
-   * referee restarts when the fighters are ready. `sudden_death` touches the
-   * clock at all: there is no per-match limit to lift, the countdown simply sits
-   * at 00:00, and the pad shows a skull with a count-up instead of a numeral.
+   * referee restarts when the fighters are ready, in EITHER timer mode, because
+   * the limit is what the bout ends on and `timerMode` only says how it is
+   * shown. `sudden_death` does not touch the clock at all: there is no per-match
+   * limit to lift, the countdown simply sits at 00:00, and the pad shows a skull
+   * with a count-up instead of a numeral.
    */
   async advanceLevelResolution(
     matchId: string,
@@ -356,6 +392,12 @@ export class ClockService {
 
     const before = await this.getClockState(matchId);
     const { matchFormat, phaseType, matchNumberLabel } = matchFormatContext(row);
+    // The same guard the End carries, on the other door. Without it a referee
+    // could collect extra time at 2-2 with thirty seconds still to fight, and
+    // the chain would be spent before the bout was.
+    if (!timeIsFinished(before.totalActiveMs, matchFormat, phaseType, matchNumberLabel)) {
+      throw endRefusal({ reason: 'time_not_finished' });
+    }
     const step = pendingLevelStep(
       matchFormat,
       phaseType,
@@ -383,7 +425,7 @@ export class ClockService {
       const adjustment = extraTimeAdjustmentMs(
         step.seconds,
         before.totalActiveMs,
-        matchFormat.timerMode === 'countdown' && limitSeconds !== null ? limitSeconds * 1000 : null,
+        limitSeconds !== null ? limitSeconds * 1000 : null,
       );
       if (adjustment !== 0) {
         await this.adjustTime(matchId, adjustment, `extra time ${step.seconds}s`, {

@@ -4,6 +4,7 @@ import {
   effectiveTimeLimitSeconds,
   getEffectiveBestOf,
   pendingLevelStep,
+  timeIsFinished,
   type LevelStep,
   type Match,
   type MatchFormatConfig,
@@ -103,5 +104,56 @@ describe('chainAllowsLevelEnd', () => {
       true,
     );
     expect(chainAllowsLevelEnd(config({ pool: [SUDDEN] }), 'pool', null)).toBe(false);
+  });
+});
+
+/**
+ * Whether the bout's time has run out — the rule the clock REFUSES on.
+ *
+ * A level bout may not be stopped while there is time left to fight, and the pad
+ * may not offer the chain's remedy before then either. Both ask this, so the two
+ * cannot disagree about whether a button should exist.
+ */
+describe('timeIsFinished', () => {
+  const limits = (
+    timeLimitsSeconds: MatchFormatConfig['timeLimitsSeconds'],
+  ): MatchFormatConfig => ({ ...config(), timeLimitsSeconds });
+
+  it('answers on the limit, not before it', () => {
+    const c = limits({ pool: 90, bracket: 90, finals: 90 });
+    expect(timeIsFinished(89_999, c, 'pool', null)).toBe(false);
+    expect(timeIsFinished(90_000, c, 'pool', null)).toBe(true);
+    expect(timeIsFinished(200_000, c, 'pool', null)).toBe(true);
+  });
+
+  it('answers TRUE when the phase has no limit at all', () => {
+    // Reads as a lie against the name, and is deliberate: a phase with no time
+    // limit has no time to wait for, so the guard must not hold such a bout
+    // open forever. The level-at-time chain decides it instead.
+    expect(timeIsFinished(0, limits({ pool: null, bracket: 90, finals: 90 }), 'pool', null)).toBe(
+      true,
+    );
+  });
+
+  it('bills each phase against its OWN limit', () => {
+    // A bracket bout billed at the pool clock would stop a minute early. Swiss
+    // inherits pool, and a medal label is read against finals.
+    const c = limits({ pool: 60, bracket: 120, finals: 300 });
+    expect(timeIsFinished(60_000, c, 'pool', null)).toBe(true);
+    expect(timeIsFinished(60_000, c, 'swiss', null)).toBe(true);
+    expect(timeIsFinished(60_000, c, 'single_elim', 'QF1')).toBe(false);
+    expect(timeIsFinished(120_000, c, 'single_elim', 'QF1')).toBe(true);
+    expect(timeIsFinished(120_000, c, 'single_elim', 'F')).toBe(false);
+  });
+
+  it('ignores timerMode, which is display only', () => {
+    // The bout ends at the limit whether or not the scoreboard counts towards
+    // it — the same reading `shouldWarnClock` states in @myclash/types.
+    const countdown = limits({ pool: 90, bracket: 90, finals: 90 });
+    const countup: MatchFormatConfig = { ...countdown, timerMode: 'countup' };
+    expect(timeIsFinished(89_000, countup, 'pool', null)).toBe(
+      timeIsFinished(89_000, countdown, 'pool', null),
+    );
+    expect(timeIsFinished(90_000, countup, 'pool', null)).toBe(true);
   });
 });

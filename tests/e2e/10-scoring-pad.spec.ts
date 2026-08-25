@@ -65,7 +65,7 @@ test.describe('scoring pad', () => {
   }) => {
     test.setTimeout(300_000);
     const api = apiFor(request);
-    const { matchId } = await aMatch(api, 'clock');
+    const { matchId, redRegistrationId } = await aMatch(api, 'clock');
 
     const state = async () =>
       (
@@ -91,16 +91,105 @@ test.describe('scoring pad', () => {
     await api.ok(await act('resume'));
     expect(await state()).toBe('running');
 
+    // A bout that runs out of time NAMES its winner, and nothing else covered
+    // that end to end. Red leads 2-0 first, because a LEVEL bout is the one the
+    // clock refuses — the flow for that is the next test.
+    await hit(api, matchId, { type: 'clean', firstStrikerColor: 'red', firstStrikeValue: 2 });
+
     await api.ok(await act('end'));
     expect(await state()).toBe('ended');
-    // Ending the clock completes the match, even with no winner decided.
-    expect((await readMatch(api, matchId)).status).toBe('completed');
+    const ended = await readMatch(api, matchId);
+    expect(ended.status).toBe('completed');
+    expect(ended.winner_registration_id, 'the leader takes a bout that runs out of time').toBe(
+      redRegistrationId,
+    );
+    expect(ended.end_reason).toBe('time_limit');
 
     // `reopen` is the only way back, and it must clear the completion.
     await api.ok(await act('reopen'));
     expect(await state()).toBe('halted');
     const reopened = await readMatch(api, matchId);
     expect(reopened.status).not.toBe('completed');
+  });
+
+  /**
+   * A LEVEL bout may not be stopped before its time is up, and once it is up the
+   * phase's chain of remedies is what it plays instead. One match, the whole
+   * flow: refused early, extra time, refused again because that minute has to be
+   * fought, sudden death, and finally a hit that decides it.
+   *
+   * EVERY STEP ASSERTS THE `code`. Both refusals are 400s, so a test that checked
+   * only the status would pass while every End returned the wrong one — and
+   * telling those two apart is the single thing this flow exists for.
+   *
+   * The clock is halted throughout so the arithmetic is exact: a running clock
+   * keeps accumulating between the read and the assertion.
+   */
+  test('a level bracket bout waits for its time, then follows the chain', async ({ request }) => {
+    test.setTimeout(300_000);
+    const api = apiFor(request);
+    const { matchId, redRegistrationId } = await aMatch(api, 'level');
+
+    const act = (action: string) => api.post(`matches/${matchId}/clock`, { data: { action } });
+    const advance = () => api.post(`matches/${matchId}/level-resolution/advance`, { data: {} });
+    const endRefusal = async (): Promise<Record<string, unknown>> => {
+      const res = await act('end');
+      expect(res.status(), 'ending a level bout must be refused').toBe(400);
+      return (await res.json()) as Record<string, unknown>;
+    };
+    // Past the bracket's default 90s limit. Waiting it out in real time would
+    // put 90 idle seconds in the suite for every step of the chain.
+    const runTimeOut = async (): Promise<void> => {
+      await api.ok(
+        await api.post(`matches/${matchId}/clock/adjust`, { data: { adjustmentMs: 120_000 } }),
+      );
+    };
+
+    await api.ok(await act('start'));
+    await api.ok(await act('halt'));
+
+    // 0-0 seconds in. The refusal says keep fighting and names NO remedy.
+    const early = await endRefusal();
+    expect(early['code']).toBe('time_not_finished');
+    expect(early['details'], 'nothing to play yet').toBeUndefined();
+
+    // The advance route carries the same guard: the remedy cannot be collected
+    // while the bout still has time to run.
+    const earlyAdvance = await advance();
+    expect(earlyAdvance.status()).toBe(400);
+    expect((await earlyAdvance.json())['code']).toBe('time_not_finished');
+
+    await runTimeOut();
+
+    const atTime = await endRefusal();
+    expect(atTime['code']).toBe('level_at_time_unresolved');
+    expect(atTime['details']).toMatchObject({ remedy: 'extra_time', seconds: 60 });
+
+    await api.ok(await advance());
+    // Anchored on the DISPLAY, not a flat −60s: whatever overshoot elapsed had
+    // accumulated, the clock now reads exactly a minute of the 90s limit left.
+    expect(await clockMs(api, matchId), 'a minute back on the clock').toBe(30_000);
+
+    // THE REPAIR. Without the guard the referee could take the minute and end
+    // the bout immediately, and be sent to sudden death with none of it fought.
+    expect((await endRefusal())['code']).toBe('time_not_finished');
+
+    await runTimeOut();
+    const spent = await endRefusal();
+    expect(spent['code']).toBe('level_at_time_unresolved');
+    expect(spent['details']).toMatchObject({ remedy: 'sudden_death' });
+
+    await api.ok(await advance());
+    // Sudden death ends when one fighter LEADS, never "on the next point" — one
+    // exchange can score both of them, or neither.
+    expect((await endRefusal())['code']).toBe('level_at_time_unresolved');
+
+    await hit(api, matchId, { type: 'clean', firstStrikerColor: 'red', firstStrikeValue: 1 });
+    await api.ok(await act('end'));
+
+    const match = await readMatch(api, matchId);
+    expect(match.status).toBe('completed');
+    expect(match.winner_registration_id).toBe(redRegistrationId);
   });
 
   test('accumulated active time survives halt/resume and follows adjustments', async ({
