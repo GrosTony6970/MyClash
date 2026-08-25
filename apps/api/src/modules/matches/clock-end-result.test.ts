@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { ClockService } from './clock.service';
-import { timeLimitResult } from './time-limit-result';
+import { extraTimeAdjustmentMs, timeLimitResult } from './time-limit-result';
 
 /**
  * What the `end` clock action RECORDS.
@@ -60,6 +60,7 @@ describe('ClockService — what ending the clock records', () => {
   let service: ClockService;
   let lastUpdate: Record<string, unknown> | null;
   let matchProjection: string;
+  let eventTypesRead: string[];
 
   /**
    * `clockAction('end')` reads and writes in a fixed order, and the queue desyncs
@@ -67,14 +68,28 @@ describe('ClockService — what ending the clock records', () => {
    *   matches → match_events (replay) → match_events (next sequence)
    *   → match_events (insert) → matches (update) → match_events (replay again)
    */
-  function wireEnd(match: Record<string, unknown>) {
+  function wireEnd(match: Record<string, unknown>, events: unknown[] = RUNNING) {
+    // A REFUSED end consumes only the first two of the six, so the leftovers
+    // would answer the next call's reads. Reset the queue rather than append.
+    fromMock.mockReset();
     lastUpdate = null;
     matchProjection = '';
+    eventTypesRead = [];
     const matchChain = thenable(match);
     (matchChain['select'] as ReturnType<typeof vi.fn>).mockImplementation((cols: string) => {
       matchProjection = cols;
       return matchChain;
     });
+    const replay = () => {
+      const chain = thenable(events);
+      (chain['in'] as ReturnType<typeof vi.fn>).mockImplementation(
+        (_col: string, types: string[]) => {
+          eventTypesRead = types;
+          return chain;
+        },
+      );
+      return chain;
+    };
     const updateChain = thenable({ id: 'm1' });
     (updateChain['update'] as ReturnType<typeof vi.fn>).mockImplementation(
       (patch: Record<string, unknown>) => {
@@ -84,11 +99,22 @@ describe('ClockService — what ending the clock records', () => {
     );
     fromMock
       .mockReturnValueOnce(matchChain)
-      .mockReturnValueOnce(thenable(RUNNING))
+      .mockReturnValueOnce(replay())
       .mockReturnValueOnce(thenable({ sequence: 1 }))
       .mockReturnValueOnce(thenable(null))
       .mockReturnValueOnce(updateChain)
-      .mockReturnValueOnce(thenable(RUNNING));
+      .mockReturnValueOnce(replay());
+  }
+
+  /** The remedy a refused `end` named, from its problem body. */
+  async function refusalOf(match: Record<string, unknown>, events: unknown[] = RUNNING) {
+    wireEnd(match, events);
+    try {
+      await service.clockAction('m1', 'end');
+    } catch (err) {
+      return (err as { getResponse(): Record<string, unknown> }).getResponse();
+    }
+    throw new Error('expected the end to be refused');
   }
 
   beforeEach(() => {
@@ -160,9 +186,108 @@ describe('ClockService — what ending the clock records', () => {
 
     await service.clockAction('m1', 'end');
 
-    for (const column of ['red_score', 'blue_score', 'red_registration_id', 'phases(']) {
+    for (const column of [
+      'red_score',
+      'blue_score',
+      'red_registration_id',
+      // The decided test is the LADDER, not the scores — a forfeit names the
+      // winner on a row a zeroing score policy left 0-0.
+      'winner_registration_id',
+      'phases(',
+    ]) {
       expect(matchProjection).toContain(column);
     }
+  });
+
+  it('asks the timeline for the level-resolution steps', async () => {
+    // A SEPARATE capture from the select above: the event replay filters on
+    // `.in('type', [...])` and the mock chain returns itself whatever it is
+    // handed, so every chain assertion below passes with the type deleted from
+    // that list while the real read would never see one.
+    wireEnd(matchRow());
+
+    await service.clockAction('m1', 'end');
+
+    expect(eventTypesRead).toContain('level_resolution');
+    expect(eventTypesRead).toContain('reset_match');
+  });
+
+  // ── The level-at-time chain ───────────────────────────────────────────────
+
+  /** A level bracket bout — the case a draw cannot settle, because it cannot advance. */
+  const levelBracket = (over: Record<string, unknown> = {}) =>
+    matchRow({
+      red_score: 2,
+      blue_score: 2,
+      match_number_label: 'QF1',
+      phases: { type: 'single_elim', tournaments: { ruleset_config: {} } },
+      ...over,
+    });
+
+  /** `n` steps already taken, as the timeline rows the clock replays. */
+  const withSteps = (n: number) => [
+    ...RUNNING,
+    ...Array.from({ length: n }, (_, i) => ({
+      id: `lr${i}`,
+      type: 'level_resolution',
+      reason: null,
+      occurred_at: '2026-04-25T09:01:00.000Z',
+    })),
+  ];
+
+  it('refuses a level bracket bout and names the extra time it is waiting on', async () => {
+    // Default bracket chain: a minute of extra time, then sudden death. Today
+    // this completed as a draw, and a drawn elimination bout cannot advance —
+    // the round stalled with nothing to show for it.
+    expect(await refusalOf(levelBracket())).toMatchObject({
+      code: 'level_at_time_unresolved',
+      remedy: 'extra_time',
+      seconds: 60,
+    });
+    expect(lastUpdate).toBeNull();
+  });
+
+  it('refuses with SUDDEN DEATH once the extra time has been played', async () => {
+    expect(await refusalOf(levelBracket(), withSteps(1))).toMatchObject({
+      code: 'level_at_time_unresolved',
+      remedy: 'sudden_death',
+    });
+    expect((await refusalOf(levelBracket(), withSteps(1)))['seconds']).toBeUndefined();
+  });
+
+  it('refuses with the chain spent once sudden death is live', async () => {
+    // Nothing left to advance to, and that is not a dead end: the bout ends when
+    // one fighter LEADS. Not on the next point — an afterblow can score both.
+    const body = await refusalOf(levelBracket(), withSteps(2));
+    expect(body).toMatchObject({ remedy: 'sudden_death' });
+    expect(String(body['message'])).toMatch(/leads/);
+  });
+
+  it('still completes a level POOL bout as a draw', async () => {
+    // The default pool chain is a single `draw` step, so nothing changes here —
+    // a drawn pool bout is a real result and the standings have a D column.
+    wireEnd(matchRow({ red_score: 2, blue_score: 2 }));
+
+    await service.clockAction('m1', 'end');
+
+    expect(lastUpdate).toMatchObject({ status: 'completed' });
+    expect(lastUpdate?.['winner_registration_id']).toBeUndefined();
+  });
+
+  it('ends a level bracket bout that already carries a forfeit winner', async () => {
+    // A forfeit writes the winner and THEN stops the clock, and under a zeroing
+    // score policy that row is 0-0. Reading the scores alone would call it level
+    // and refuse — inside a `catch` that swallows the refusal, so the clock
+    // would simply never stop and the endcard would never fire.
+    wireEnd(levelBracket({ red_score: 0, blue_score: 0, winner_registration_id: 'blue' }));
+
+    await service.clockAction('m1', 'end');
+
+    expect(lastUpdate).toMatchObject({
+      status: 'completed',
+      winner_registration_id: 'blue',
+      end_reason: 'time_limit',
+    });
   });
 });
 
@@ -192,19 +317,22 @@ describe('timeLimitResult', () => {
     // `normalizeMatchFormatConfig({})` defaults bestOf to 1, so an older
     // tournament with no matchFormat block still resolves rather than falling
     // into the best-of branch and silently naming nobody.
-    expect(timeLimitResult(bout())).toMatchObject({
-      winner_registration_id: 'red',
-      end_reason: 'time_limit',
+    expect(timeLimitResult(bout(), 0)).toEqual({
+      complete: { winner_registration_id: 'red', end_reason: 'time_limit' },
     });
   });
 
   it('follows the phase, not the label, for pool and swiss', () => {
     // Swiss falls back to the pool value when a config predates the format.
-    expect(timeLimitResult(withBestOf('pool', { pool: 3, bracket: 1, finals: 1 }))).toEqual({});
-    expect(timeLimitResult(withBestOf('swiss', { pool: 3, bracket: 1, finals: 1 }))).toEqual({});
-    expect(timeLimitResult(withBestOf('pool', { pool: 1, bracket: 3, finals: 3 }))).toMatchObject({
-      end_reason: 'time_limit',
+    expect(timeLimitResult(withBestOf('pool', { pool: 3, bracket: 1, finals: 1 }), 0)).toEqual({
+      complete: {},
     });
+    expect(timeLimitResult(withBestOf('swiss', { pool: 3, bracket: 1, finals: 1 }), 0)).toEqual({
+      complete: {},
+    });
+    expect(
+      timeLimitResult(withBestOf('pool', { pool: 1, bracket: 3, finals: 3 }), 0),
+    ).toMatchObject({ complete: { end_reason: 'time_limit' } });
   });
 
   it('reads a medal match against bestOf.finals, not bestOf.bracket', () => {
@@ -212,16 +340,94 @@ describe('timeLimitResult', () => {
     // that is single-round while the finals are best-of must not be confused
     // for one another here.
     const finalsAreBestOf = { pool: 1, bracket: 1, finals: 3 };
-    expect(timeLimitResult(withBestOf('single_elim', finalsAreBestOf, 'F'))).toEqual({});
-    expect(timeLimitResult(withBestOf('single_elim', finalsAreBestOf, 'QF1'))).toMatchObject({
-      end_reason: 'time_limit',
+    expect(timeLimitResult(withBestOf('single_elim', finalsAreBestOf, 'F'), 0)).toEqual({
+      complete: {},
+    });
+    expect(timeLimitResult(withBestOf('single_elim', finalsAreBestOf, 'QF1'), 0)).toMatchObject({
+      complete: { end_reason: 'time_limit' },
     });
   });
 
   it('tolerates the embed arriving as a one-element array', () => {
     // PostgREST returns an embedded row either way depending on the join.
     expect(
-      timeLimitResult(bout({ phases: [{ type: 'pool', tournaments: [{ ruleset_config: {} }] }] })),
-    ).toMatchObject({ winner_registration_id: 'red' });
+      timeLimitResult(
+        bout({ phases: [{ type: 'pool', tournaments: [{ ruleset_config: {} }] }] }),
+        0,
+      ),
+    ).toMatchObject({ complete: { winner_registration_id: 'red' } });
+  });
+});
+
+/**
+ * How far down the chain a bout has been taken, replayed from its timeline.
+ *
+ * It rides on the clock's own read and must not reach the clock: the rows are
+ * counted out of the list before `computeClockState` replays it, so neither the
+ * `ClockAction` union nor the pad's unified timeline widens for them.
+ */
+describe('computeClockState — level resolution steps', () => {
+  const service = new ClockService(null as never);
+  const row = (id: string, type: string, occurred = '2026-04-25T09:00:00.000Z') => ({
+    id,
+    type,
+    reason: null,
+    occurred_at: occurred,
+  });
+
+  it('counts the steps and keeps them out of the clock', () => {
+    const state = service.computeClockState('m1', [
+      row('e1', 'start'),
+      row('lr1', 'level_resolution'),
+      row('e2', 'halt', '2026-04-25T09:01:00.000Z'),
+      row('lr2', 'level_resolution'),
+    ]);
+
+    expect(state.levelResolutionSteps).toBe(2);
+    // Neither the totals nor the timeline may notice them.
+    expect(state.events.map((e) => e.type)).toEqual(['start', 'halt']);
+    expect(state.status).toBe('halted');
+    expect(state.activeMs).toBe(60_000);
+  });
+
+  it('starts the chain over on a reset_match', () => {
+    // A reset puts the bout back to unplayed, so the remedies it had already
+    // played are gone too — the same semantics the clock gets for free.
+    const state = service.computeClockState('m1', [
+      row('lr1', 'level_resolution'),
+      row('lr2', 'level_resolution'),
+      row('r1', 'reset_match'),
+      row('lr3', 'level_resolution'),
+    ]);
+
+    expect(state.levelResolutionSteps).toBe(1);
+  });
+});
+
+/**
+ * Putting extra time back on a countdown.
+ *
+ * THE SIGN IS THE TRAP: `adjust_time` mutates ELAPSED and a countdown shows
+ * `limit − elapsed`, so granting time is a NEGATIVE adjustment.
+ */
+describe('extraTimeAdjustmentMs', () => {
+  it('lands the clock on exactly the seconds granted', () => {
+    // 90s limit, 90s elapsed — the bout is at 00:00. A minute of extra time
+    // means 60s remaining, i.e. 30s elapsed: an adjustment of −60s.
+    expect(extraTimeAdjustmentMs(60, 90_000, 90_000)).toBe(-60_000);
+  });
+
+  it('absorbs a clock that ran PAST zero', () => {
+    // Elapsed carries a hidden overshoot while the display sits pinned at 00:00,
+    // so a flat −60s would give a referee rather less than a minute. Anchoring
+    // on the display is what makes the granted time the time actually granted.
+    expect(extraTimeAdjustmentMs(60, 150_000, 90_000)).toBe(-120_000);
+  });
+
+  it('does nothing when there is no limit to extend', () => {
+    // Count-up, or a phase configured with no time limit: extra time is an
+    // instruction to the referee, not a clock mutation. Rewinding the numeral
+    // would be a lie about how long the bout has run.
+    expect(extraTimeAdjustmentMs(60, 90_000, null)).toBe(0);
   });
 });

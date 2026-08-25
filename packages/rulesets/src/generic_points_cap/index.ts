@@ -13,8 +13,8 @@ import {
   DEFAULT_MATCH_FORMAT_CONFIG,
   MatchFormatConfigSchema,
   computeMatchFormatScore,
-  isPointCapReached,
   normalizeMatchFormatConfig,
+  pointCapEndsBout,
 } from '../match-format';
 import type {
   AfterblowMode,
@@ -134,9 +134,19 @@ function computeScore(
  * Reads the score the caller already holds. The `time_limit` branch went with
  * the `clockMs` parameter — the only production call passed a literal 0, so it
  * could never fire; `ClockService` ends a bout on time.
+ *
+ * This ruleset has no doubles ceiling, so it cannot use
+ * `endOnPointCapOrMaxDoubles` — but the cap question is the same one, and
+ * `pointCapEndsBout` is the shared answer. Reaching the cap with NOBODY ahead
+ * (one afterblow scores both fighters) is not a finished bout, and completing it
+ * wrote a null winner that stalled the bracket.
  */
-function matchOver(score: MatchScore, config: GenericPointsCapConfig): MatchEndDecision {
-  if (isPointCapReached(score, config.matchFormat)) {
+function matchOver(
+  match: Pick<Match, 'phaseType' | 'matchNumberLabel'>,
+  score: MatchScore,
+  config: GenericPointsCapConfig,
+): MatchEndDecision {
+  if (pointCapEndsBout(match, score, config.matchFormat)) {
     return { isOver: true, reason: 'first_to_points' };
   }
   return { isOver: false, reason: null };
@@ -227,8 +237,8 @@ export const Generic_PointsCap: Ruleset = {
     );
   },
 
-  isMatchOver(_match: Match, score: MatchScore, config: unknown) {
-    return matchOver(score, normalizeGenericPointsCapConfig(config));
+  isMatchOver(match: Match, score: MatchScore, config: unknown) {
+    return matchOver(match, score, normalizeGenericPointsCapConfig(config));
   },
 
   scorePoolFighters({ registrationIds, completedMatches, config }: ScorePoolFightersInput) {

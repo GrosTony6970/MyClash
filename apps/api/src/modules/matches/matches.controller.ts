@@ -389,6 +389,26 @@ export class MatchesController {
   }
 
   /**
+   * POST /api/v1/matches/:id/level-resolution/advance
+   * Take a LEVEL bout one step down its phase's chain of remedies and apply it
+   * (scorekeeper+). Extra time puts the seconds back on the clock; sudden death
+   * records the step and leaves the clock alone. Refused when the scores are not
+   * level, or when the phase has no further remedy.
+   *
+   * Goes to `ClockService` rather than through `MatchesService`: the decision is
+   * plain match-format config with no ruleset to resolve, which is what keeps it
+   * off the resolver's provider graph.
+   */
+  @Post('matches/:id/level-resolution/advance')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Apply the next level-at-time remedy to a level bout (scorekeeper+)' })
+  @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
+  async advanceLevelResolution(@Param('id', ParseUUIDPipe) id: string, @Req() req: FastifyRequest) {
+    const actor = await this.staff.authorizeMatchScoring(req, id);
+    return this.clock.advanceLevelResolution(id, actor);
+  }
+
+  /**
    * PATCH /api/v1/exchanges/:id/void
    * Sets voided=true. Never deletes the row.
    */

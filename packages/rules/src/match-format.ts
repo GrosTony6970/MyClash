@@ -426,15 +426,52 @@ export function pointCapWinnerColor(
   config: MatchFormatConfig,
 ): 'red' | 'blue' | null {
   if (config.scoringDirection === 'reverse_zero_loses') {
-    if (score.redScore <= 0 && score.blueScore <= 0) return null;
+    // Both depleted: whoever is further from zero. Clamped at 0 by
+    // `applyScoringDirection`, so "both at zero" is level and answers nobody.
+    if (score.redScore <= 0 && score.blueScore <= 0) return leadingColor(score);
     if (score.redScore <= 0) return 'blue';
     if (score.blueScore <= 0) return 'red';
     return null;
   }
-  if (score.redScore >= config.pointCap && score.blueScore >= config.pointCap) return null;
+  // BOTH over the cap is reachable, twice over: one afterblow can score both
+  // sides, and a bout the level-at-time chain kept open sits AT the cap while
+  // sudden death runs. Answering "nobody" there completed a bout with a null
+  // winner and stalled the bracket — the same failure the chain exists to stop.
+  // Whoever leads has won it; a genuine tie still answers nobody.
+  if (score.redScore >= config.pointCap && score.blueScore >= config.pointCap) {
+    return leadingColor(score);
+  }
   if (score.redScore >= config.pointCap) return 'red';
   if (score.blueScore >= config.pointCap) return 'blue';
   return null;
+}
+
+/**
+ * Has the point cap actually FINISHED this bout?
+ *
+ * Reaching the cap is not the whole question, because both fighters can cross it
+ * on the SAME exchange — 9-9 plus a 1-1 afterblow in `full` mode is 10-10 — and
+ * nobody has then won. Completing there wrote a null winner, and a bracket round
+ * with a null winner never advances: the stalled round this slice exists to
+ * close, reached by one afterblow and with no clock action to refuse.
+ *
+ * So the phase's level-at-time chain decides, from its CONTENT: a phase that can
+ * end level does, and one that cannot keeps the bout open for the remedies —
+ * where the next scoring exchange puts someone ahead and finishes it.
+ *
+ * The doubles ceiling deliberately does NOT go through this. It is an explicit
+ * "stop this bout now" rule whose result is already the organiser's choice via
+ * `maxDoubleHitOutcome`, and blocking it would leave a bout at the ceiling with
+ * no exit at all.
+ */
+export function pointCapEndsBout(
+  match: Pick<Match, 'phaseType' | 'matchNumberLabel'>,
+  score: Pick<MatchScore, 'redScore' | 'blueScore'>,
+  config: MatchFormatConfig,
+): boolean {
+  if (!isPointCapReached(score as MatchScore, config)) return false;
+  if (leadingColor(score) !== null) return true;
+  return chainAllowsLevelEnd(config, match.phaseType, match.matchNumberLabel);
 }
 
 /**
@@ -621,17 +658,12 @@ export function getPointCapWinnerRegistrationId(
   score: Pick<MatchScore, 'redScore' | 'blueScore'>,
   config: MatchFormatConfig,
 ): string | null {
-  if (config.scoringDirection === 'reverse_zero_loses') {
-    if (score.redScore <= 0 && score.blueScore <= 0) return null;
-    if (score.redScore <= 0) return match.blueRegistrationId;
-    if (score.blueScore <= 0) return match.redRegistrationId;
-    return null;
-  }
-
-  if (score.redScore >= config.pointCap && score.blueScore >= config.pointCap) return null;
-  if (score.redScore >= config.pointCap) return match.redRegistrationId;
-  if (score.blueScore >= config.pointCap) return match.blueRegistrationId;
-  return null;
+  // The registration-id shape of {@link pointCapWinnerColor}, delegating so the
+  // two cannot answer differently — which they would have done the moment both
+  // fighters could sit over the cap at once.
+  const color = pointCapWinnerColor(score, config);
+  if (color === null) return null;
+  return color === 'red' ? match.redRegistrationId : match.blueRegistrationId;
 }
 
 /** A round's automatic end condition, evaluated from that round's exchanges. */

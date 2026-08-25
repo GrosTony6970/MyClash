@@ -47,6 +47,7 @@ export {
   getPointCapWinnerRegistrationId,
   isMedalMatchLabel,
   isPointCapReached,
+  pointCapEndsBout,
   boutOutcomes,
   chainAllowsLevelEnd,
   isDoubleLossBout,

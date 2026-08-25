@@ -11,6 +11,7 @@ import {
   getPointCapWinnerRegistrationId,
   isMedalMatchLabel,
   isPointCapReached,
+  pointCapEndsBout,
   boutOutcomes,
   chainAllowsLevelEnd,
   isDoubleLossBout,
@@ -56,6 +57,7 @@ export {
   getPointCapWinnerRegistrationId,
   isMedalMatchLabel,
   isPointCapReached,
+  pointCapEndsBout,
   boutOutcomes,
   chainAllowsLevelEnd,
   isDoubleLossBout,
@@ -301,13 +303,19 @@ export function normalizeMatchFormatConfig(input: unknown): MatchFormatConfig {
  * Max-doubles ends a bout only in pools and Swiss rounds; bracket and finals
  * must resolve to a winner, and `getEffectiveMaxDoubles` returns null there.
  * `score.doubles` is the count of non-voided `double` exchanges.
+ *
+ * The cap goes through `pointCapEndsBout` rather than `isPointCapReached`: both
+ * fighters can cross it on one afterblow, and a phase that cannot end level must
+ * keep the bout open for its remedies instead of completing it with no winner.
+ * The label is read for the same reason the time limit reads it — a medal match
+ * has its own chain.
  */
 export function endOnPointCapOrMaxDoubles(
-  match: Pick<Match, 'phaseType'>,
+  match: Pick<Match, 'phaseType' | 'matchNumberLabel'>,
   score: MatchScore,
   matchFormat: MatchFormatConfig,
 ): MatchEndDecision {
-  if (isPointCapReached(score, matchFormat)) {
+  if (pointCapEndsBout(match, score, matchFormat)) {
     return { isOver: true, reason: 'first_to_points' };
   }
   const effectiveMaxDoubles = getEffectiveMaxDoubles(match, matchFormat);

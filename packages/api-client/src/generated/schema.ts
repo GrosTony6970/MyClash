@@ -2606,6 +2606,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  '/api/v1/matches/{id}/level-resolution/advance': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Apply the next level-at-time remedy to a level bout (scorekeeper+) */
+    post: operations['MatchesController_advanceLevelResolution'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   '/api/v1/exchanges/{id}/void': {
     parameters: {
       query?: never;
@@ -15464,6 +15481,25 @@ export interface operations {
     };
   };
   MatchesController_endRound: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  MatchesController_advanceLevelResolution: {
     parameters: {
       query?: never;
       header?: never;
