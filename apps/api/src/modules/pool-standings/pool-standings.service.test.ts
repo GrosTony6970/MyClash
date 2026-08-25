@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { PoolStandingsService } from './pool-standings.service';
 import { createRulesetRegistry } from '../rulesets/ruleset-registry';
+import { selectsFor } from '../../common/testing/supabase-chain';
 
 const fromMock = vi.fn();
 const mockSupabase = { service: { from: fromMock } };
@@ -262,6 +263,16 @@ describe('PoolStandingsService', () => {
     expect(winner.stats['W']).toBe(1);
     expect(winner.stats['ptsScored']).toBe(5);
     expect(winner.stats['ptsConceded']).toBe(2);
+
+    // THE PROJECTION, asserted directly. The chains here are canned, so they
+    // answer with `end_reason` whether or not the query asked for it — delete
+    // the column from the select and every W/L/D test above still passes while
+    // PostgREST would stop returning it and the double-loss branch would never
+    // fire in production. Nothing else in this file watches the string.
+    const matchSelects = selectsFor(fromMock, 'matches');
+    expect(matchSelects.length).toBeGreaterThan(0);
+    // One read site in the service, so every recorded projection is that string.
+    for (const projection of matchSelects) expect(projection).toContain('end_reason');
   });
 
   it('derives hitsGiven/hitsReceived/doubles/score from exchanges + F from forfeits, ranked by score', () => {

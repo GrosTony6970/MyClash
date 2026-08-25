@@ -36,6 +36,8 @@ export interface ComputeRowsInput {
     red_score: number | null;
     blue_score: number | null;
     winner_registration_id: string | null;
+    /** `matches.end_reason` — 'max_doubles' means BOTH fighters LOST. */
+    end_reason: string | null;
   }>;
   columns: StandingsColumn[];
   rankingChain: RankingRule[];
@@ -109,9 +111,21 @@ export function computeStandingsRows(input: ComputeRowsInput): StandingsRow[] {
 
     if (drawnForfeitMatchIds.has(m.id)) {
       // tournamentPolicy.forfeitDrawsCount: the bout was forfeited, so record
-      // a draw for both instead of the win/loss the scores imply.
+      // a draw for both instead of the win/loss the scores imply. FIRST,
+      // because a forfeit is an explicit operator act and outranks the rest.
       red['D'] = (red['D'] ?? 0) + 1;
       blue['D'] = (blue['D'] ?? 0) + 1;
+    } else if (m.end_reason === 'max_doubles') {
+      // The doubles ceiling under `double_loss_zero_scores`: a LOSS FOR BOTH.
+      // It cannot be read off the scores, because the bout is 0-0 and would
+      // otherwise fall to the final `else` and score as a draw — which is how
+      // the same outcome was a double loss in Swiss points and a draw in the
+      // W/L/D columns of the very same Swiss table.
+      //
+      // The other two ceiling reasons need no branch: 'max_doubles_draw' IS a
+      // 0-0 draw, and 'max_doubles_result_stands' leaves a real score below.
+      red['L'] = (red['L'] ?? 0) + 1;
+      blue['L'] = (blue['L'] ?? 0) + 1;
     } else if (rs > bs) {
       red['W'] = (red['W'] ?? 0) + 1;
       blue['L'] = (blue['L'] ?? 0) + 1;

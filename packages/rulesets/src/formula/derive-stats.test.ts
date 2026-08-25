@@ -37,6 +37,7 @@ describe('deriveFighterStats', () => {
       id,
       redRegistrationId: red,
       blueRegistrationId: blue,
+      endReason: null,
       // This ruleset calls a bout by raw score, so the stored winner is not read.
       winnerRegistrationId: null,
       exchanges,
@@ -89,12 +90,69 @@ describe('deriveFighterStats', () => {
   });
 });
 
+describe('deriveFighterStats at the doubles ceiling', () => {
+  /**
+   * This scorer re-derives from the RAW exchanges, so the engine's 0-0 collapse
+   * is invisible to it. A bout stopped at the ceiling after two red hits was
+   * therefore recording a VICTORY for red and a loss for blue — worse than the
+   * draw the pool standings gave it, and in every organiser-authored formula.
+   */
+  const ex = (seq: number, striker: 'red' | null, type: Exchange['type']): Exchange => ({
+    id: `m-md-${seq}`,
+    clientUuid: 'c',
+    matchId: 'm-md',
+    sequence: seq,
+    type,
+    occurredAt: '',
+    firstStrikerColor: striker,
+    firstStrikeValue: striker ? 1 : null,
+    afterblowValue: null,
+    noExchangeReason: null,
+    voided: false,
+  });
+
+  // Red is one clean hit ahead when the second double reaches the ceiling.
+  const ceilingBout = (endReason: string | null): ScoredMatch => ({
+    id: 'm-md',
+    redRegistrationId: 'A',
+    blueRegistrationId: 'B',
+    winnerRegistrationId: null,
+    endReason,
+    exchanges: [ex(1, 'red', 'clean'), ex(2, null, 'double')],
+  });
+
+  it('counts a LOSS for both, not a victory for whoever was ahead', () => {
+    expect(deriveFighterStats('A', [ceilingBout('max_doubles')], 'full')).toMatchObject({
+      victories: 0,
+      losses: 1,
+      ties: 0,
+    });
+    expect(deriveFighterStats('B', [ceilingBout('max_doubles')], 'full')).toMatchObject({
+      victories: 0,
+      losses: 1,
+      ties: 0,
+    });
+  });
+
+  it('leaves the other two ceiling reasons to the raw score', () => {
+    // 'max_doubles_result_stands' keeps the board, which the raw score already
+    // reproduces; a null reason is every ordinary bout.
+    for (const reason of ['max_doubles_result_stands', null]) {
+      expect(deriveFighterStats('A', [ceilingBout(reason)], 'full')).toMatchObject({
+        victories: 1,
+        losses: 0,
+      });
+    }
+  });
+});
+
 describe('deriveFighterStats afterblow netting', () => {
   const afterblowBout = {
     id: 'm1',
     redRegistrationId: 'A',
     blueRegistrationId: 'B',
     winnerRegistrationId: null,
+    endReason: null,
     exchanges: [
       {
         id: 'e1',

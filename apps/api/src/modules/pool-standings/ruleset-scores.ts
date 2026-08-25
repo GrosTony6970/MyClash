@@ -27,6 +27,7 @@ export function poolScoresByRegistration(
     red_registration_id: string;
     blue_registration_id: string;
     winner_registration_id: string | null;
+    end_reason: string | null;
   }>,
   exchangesByMatch: Map<string, Exchange[]>,
   afterblowMode: AfterblowMode,
@@ -44,6 +45,9 @@ export function poolScoresByRegistration(
         redRegistrationId: m.red_registration_id,
         blueRegistrationId: m.blue_registration_id,
         winnerRegistrationId: m.winner_registration_id,
+        // A double loss has no winner AND no points, so a ruleset reading
+        // either would call it a draw. Only the reason can say otherwise.
+        endReason: m.end_reason,
         exchanges: exchangesByMatch.get(m.id) ?? [],
       })),
       afterblowMode,

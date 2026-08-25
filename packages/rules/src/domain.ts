@@ -79,6 +79,16 @@ export interface ScoredMatch {
   redRegistrationId: string;
   blueRegistrationId: string;
   winnerRegistrationId: string | null;
+  /**
+   * `matches.end_reason` — 'max_doubles' means BOTH fighters LOST.
+   *
+   * Needed here because neither of the two fields above can express it: a
+   * double loss has no winner AND no points, so a scorer reading either one
+   * calls it a draw. The other max-doubles reasons carry their own outcome
+   * (`max_doubles_draw` is a real draw, `max_doubles_result_stands` names a
+   * winner) and need no special case.
+   */
+  endReason: string | null;
   exchanges: Exchange[];
 }
 

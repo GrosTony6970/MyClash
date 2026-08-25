@@ -52,6 +52,7 @@ function bout(
     redRegistrationId: red,
     blueRegistrationId: blue,
     winnerRegistrationId: winner,
+    endReason: null,
     exchanges,
   };
 }

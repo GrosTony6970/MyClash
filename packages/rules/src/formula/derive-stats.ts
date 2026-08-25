@@ -83,7 +83,17 @@ export function deriveFighterStats(
       if (!ex.voided && ex.type === 'double') stats.doubleHits += 1;
     }
 
-    if (myScore > oppScore) stats.victories += 1;
+    // The doubles ceiling under `double_loss_zero_scores` is a LOSS FOR BOTH,
+    // and it cannot be read off the score here at all: this re-derives from the
+    // RAW exchanges, so the engine's 0-0 collapse is not even visible. A bout
+    // stopped at the ceiling after two red hits was scoring a VICTORY for red
+    // and a loss for blue in every organiser-authored formula.
+    //
+    // The other two ceiling reasons need no branch: 'max_doubles_draw' is a
+    // genuine draw and 'max_doubles_result_stands' keeps the board the raw
+    // score already reproduces.
+    if (match.endReason === 'max_doubles') stats.losses += 1;
+    else if (myScore > oppScore) stats.victories += 1;
     else if (myScore < oppScore) stats.losses += 1;
     else stats.ties += 1;
   }

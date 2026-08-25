@@ -145,6 +145,13 @@ describe('SwissStandingsService — the points a result is worth', () => {
     const standings = await service.getSwissStandings('t1');
 
     expect(points(standings.rows)).toEqual({ r1: 0, r2: 0 });
+    // AND the W/L/D columns beside them agree. They are filled by the shared
+    // pool helper, which was handed a projection with `end_reason` stripped —
+    // so one row of one table said double loss in Swiss points and DRAW in
+    // W/L/D, from the same loaded column.
+    for (const row of standings.rows) {
+      expect(row.stats).toMatchObject({ W: 0, L: 1, D: 0 });
+    }
   });
 
   it('awards the bye points to whoever sat the round out', async () => {

@@ -114,6 +114,7 @@ describe('defaultAfterblowMode is a seed, never a runtime input', () => {
     redRegistrationId: 'r1',
     blueRegistrationId: 'r2',
     winnerRegistrationId: 'r1',
+    endReason: null,
     exchanges: [
       {
         id: 'e1',

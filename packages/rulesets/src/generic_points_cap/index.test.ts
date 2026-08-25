@@ -174,6 +174,7 @@ describe('Generic_PointsCap', () => {
       redRegistrationId: 'r1',
       blueRegistrationId: 'r2',
       winnerRegistrationId: 'r1',
+      endReason: null,
       exchanges: [
         makeEx({ id: 'e1', sequence: 1, firstStrikerColor: 'red' }),
         makeEx({ id: 'e2', sequence: 2, firstStrikerColor: 'red' }),

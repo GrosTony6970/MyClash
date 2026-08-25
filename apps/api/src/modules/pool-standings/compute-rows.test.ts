@@ -53,6 +53,7 @@ function bout(
   blue: string,
   blueScore: number | null,
   winner: string | null = null,
+  endReason: string | null = null,
 ) {
   return {
     id,
@@ -61,6 +62,7 @@ function bout(
     red_score: redScore,
     blue_score: blueScore,
     winner_registration_id: winner,
+    end_reason: endReason,
   };
 }
 
@@ -136,6 +138,53 @@ describe('computeStandingsRows — win, loss and draw', () => {
     const rows = computeStandingsRows(input({ completedMatches: [bout('m-1', A, null, B, null)] }));
 
     expect(statsOf(rows, A)).toMatchObject({ D: 1, ptsScored: 0, ptsConceded: 0 });
+  });
+
+  /**
+   * A bout stopped by the doubles ceiling under `double_loss_zero_scores` is a
+   * LOSS FOR BOTH. It is 0-0, so the scores alone cannot say so — it used to
+   * fall to the final `else` and score as a draw, while Swiss read the same
+   * bout as a double loss from the same column.
+   */
+  it('records a LOSS for both when the bout ended on the doubles ceiling', () => {
+    const rows = computeStandingsRows(
+      input({ completedMatches: [bout('m-md', A, 0, B, 0, null, 'max_doubles')] }),
+    );
+
+    expect(statsOf(rows, A)).toMatchObject({ W: 0, L: 1, D: 0 });
+    expect(statsOf(rows, B)).toMatchObject({ W: 0, L: 1, D: 0 });
+  });
+
+  it('leaves the other two ceiling reasons to the scores, which already say it', () => {
+    // 'max_doubles_draw' IS a 0-0 draw and 'max_doubles_result_stands' keeps a
+    // real score, so neither needs a branch — that is why the outcome is
+    // resolved into the reason instead of read back from the config here.
+    const drawn = computeStandingsRows(
+      input({ completedMatches: [bout('m-d', A, 0, B, 0, null, 'max_doubles_draw')] }),
+    );
+    expect(statsOf(drawn, A)).toMatchObject({ W: 0, L: 0, D: 1 });
+
+    const stands = computeStandingsRows(
+      input({
+        completedMatches: [bout('m-s', A, 2, B, 0, A, 'max_doubles_result_stands')],
+      }),
+    );
+    expect(statsOf(stands, A)).toMatchObject({ W: 1, L: 0, D: 0 });
+    expect(statsOf(stands, B)).toMatchObject({ W: 0, L: 1, D: 0 });
+  });
+
+  it('lets an explicit forfeit draw outrank the ceiling', () => {
+    // Ordering, made visible: `drawnForfeitMatchIds` is an operator act and is
+    // checked first. Nothing produces this pair today; the test pins the rule
+    // rather than leaving it to whoever reads the if-chain next.
+    const rows = computeStandingsRows(
+      input({
+        completedMatches: [bout('m-both', A, 0, B, 0, null, 'max_doubles')],
+        drawnForfeitMatchIds: new Set(['m-both']),
+      }),
+    );
+
+    expect(statsOf(rows, A)).toMatchObject({ W: 0, L: 0, D: 1 });
   });
 
   it('forces a draw for a bout named in drawnForfeitMatchIds, whatever the scores say', () => {

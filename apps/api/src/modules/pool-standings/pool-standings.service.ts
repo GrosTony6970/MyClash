@@ -158,7 +158,7 @@ export class PoolStandingsService {
     const { data: matches, error: matchesError } = await this.supabase.service
       .from('matches')
       .select(
-        'id, pool_id, status, red_registration_id, blue_registration_id, red_score, blue_score, winner_registration_id',
+        'id, pool_id, status, red_registration_id, blue_registration_id, red_score, blue_score, winner_registration_id, end_reason',
       )
       .eq('phase_id', phaseId);
     if (matchesError) throw new BadRequestException(matchesError.message);
@@ -171,6 +171,7 @@ export class PoolStandingsService {
       red_score: number | null;
       blue_score: number | null;
       winner_registration_id: string | null;
+      end_reason: string | null;
     }>;
 
     // 4b. Exchanges + forfeits for completed matches — the source for the
@@ -279,6 +280,7 @@ export class PoolStandingsService {
       red_score: number | null;
       blue_score: number | null;
       winner_registration_id: string | null;
+      end_reason: string | null;
     }>,
     columns: StandingsColumn[],
     rankingChain: RankingRule[],

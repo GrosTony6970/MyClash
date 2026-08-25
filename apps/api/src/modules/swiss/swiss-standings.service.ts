@@ -165,6 +165,10 @@ export class SwissStandingsService {
         red_score: m.red_score,
         blue_score: m.blue_score,
         winner_registration_id: m.winner_registration_id,
+        // Swiss already LOADS this column and scores its own points column off
+        // it. Dropping it from the projection is what made one row say double
+        // loss in `swissPts` and draw in W/L/D, from the same helper.
+        end_reason: m.end_reason,
       })),
       columns,
       rankingChain: [],

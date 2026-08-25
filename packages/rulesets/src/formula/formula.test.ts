@@ -66,6 +66,7 @@ describe('createFormulaRuleset', () => {
       id,
       redRegistrationId: red,
       blueRegistrationId: blue,
+      endReason: null,
       // Ignored by this ruleset: it calls a bout by raw score.
       winnerRegistrationId: null,
       exchanges,
@@ -232,6 +233,7 @@ describe('named double-penalty sub-formula (FormulaRuleset scoring)', () => {
       redRegistrationId: 'A',
       blueRegistrationId: 'B',
       winnerRegistrationId: null,
+      endReason: null,
       exchanges,
     };
   }
