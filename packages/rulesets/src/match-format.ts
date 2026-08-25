@@ -12,17 +12,20 @@ import {
   isMedalMatchLabel,
   isPointCapReached,
   boutOutcomes,
+  chainAllowsLevelEnd,
   isDoubleLossBout,
   isSoftClockLocked,
   leadingColor,
   maxDoubleHitEndReason,
   maxDoubleHitZeroesScores,
+  pendingLevelStep,
   pointCapWinnerColor,
   roundWinTarget,
   winnerColorFrom,
   type Match,
   type MatchFormatConfig,
   type BoutOutcome,
+  type LevelStep,
   type MatchScore,
   type MaxDoubleHitEndReason,
   type MaxDoubleHitOutcome,
@@ -54,17 +57,20 @@ export {
   isMedalMatchLabel,
   isPointCapReached,
   boutOutcomes,
+  chainAllowsLevelEnd,
   isDoubleLossBout,
   isSoftClockLocked,
   leadingColor,
   maxDoubleHitEndReason,
   maxDoubleHitZeroesScores,
+  pendingLevelStep,
   pointCapWinnerColor,
   roundWinTarget,
   winnerColorFrom,
 };
 export type {
   BoutOutcome,
+  LevelStep,
   MaxDoubleHitEndReason,
   MaxDoubleHitOutcome,
   RoundEvaluation,
@@ -96,6 +102,55 @@ const BestOfValueSchema = z
   .number()
   .int()
   .refine((n) => n >= 1 && n % 2 === 1, { message: 'bestOf must be an odd number ≥ 1' });
+
+/**
+ * One remedy for a level bout. `extra_time` is the only one that is not
+ * terminal — see {@link LevelStep}.
+ */
+export const LevelStepSchema = z.discriminatedUnion('kind', [
+  z.object({ kind: z.literal('draw') }),
+  z.object({ kind: z.literal('sudden_death') }),
+  z.object({ kind: z.literal('extra_time'), seconds: z.number().int().min(1).max(3600) }),
+]);
+
+/**
+ * A phase's chain of remedies, at least one step long and ending on a terminal
+ * one.
+ *
+ * The refinement is what makes the bad state unrepresentable rather than
+ * merely undesirable: a chain ending in `extra_time` describes a bout that can
+ * come back level for ever, so the referee would work to the end of the chain
+ * and still have no way to finish the bout. It is a 400 in the organiser's
+ * editor instead.
+ */
+export const LevelChainSchema = z
+  .array(LevelStepSchema)
+  .min(1)
+  .refine((steps) => steps[steps.length - 1]?.kind !== 'extra_time', {
+    message: 'the last step must be draw or sudden_death — extra time can end level again',
+  });
+
+export const LevelAtTimeConfigSchema = z
+  .object({
+    pool: LevelChainSchema.default([{ kind: 'draw' }]),
+    /** Optional, falling back to `pool` — see `timeLimitsSeconds.swiss`. */
+    swiss: LevelChainSchema.optional(),
+    bracket: LevelChainSchema.default([
+      { kind: 'extra_time', seconds: 60 },
+      { kind: 'sudden_death' },
+    ]),
+    finals: LevelChainSchema.default([
+      { kind: 'extra_time', seconds: 60 },
+      { kind: 'sudden_death' },
+    ]),
+  })
+  // A FUNCTION default, unlike its number-valued siblings: an object literal
+  // default is ONE shared reference, and these values are arrays of objects.
+  .default(() => ({
+    pool: [{ kind: 'draw' as const }],
+    bracket: [{ kind: 'extra_time' as const, seconds: 60 }, { kind: 'sudden_death' as const }],
+    finals: [{ kind: 'extra_time' as const, seconds: 60 }, { kind: 'sudden_death' as const }],
+  }));
 
 export const BestOfConfigSchema = z
   .object({
@@ -135,6 +190,10 @@ export const MatchFormatConfigSchema = z.object({
   // Best-of-N rounds per phase; ⌈N/2⌉ round wins decides the match. 1 = single
   // round (default everywhere — unchanged behaviour). See getEffectiveBestOf.
   bestOf: BestOfConfigSchema,
+  // What a level bout is worth, per phase, as an ordered chain of remedies.
+  // Pool draws; bracket and finals play extra time and then sudden death. See
+  // `pendingLevelStep` and `chainAllowsLevelEnd`.
+  levelAtTime: LevelAtTimeConfigSchema,
 });
 
 /**
@@ -176,7 +235,12 @@ export function normalizeMatchFormatConfig(input: unknown): MatchFormatConfig {
     'maxDoubleHits' in raw ||
     // Route a config that carries ONLY bestOf through the strict-parse branch
     // below (which preserves it); the legacy branch would silently drop it.
-    'bestOf' in raw;
+    'bestOf' in raw ||
+    // Same for the level-at-time chain, and it is the same bug twice: the
+    // legacy branch rebuilds a config from three named legacy keys, so ANY
+    // modern key that arrives alone is discarded rather than rejected. The
+    // organiser's PATCH returned 200 and their chain was simply not there.
+    'levelAtTime' in raw;
 
   if (hasSharedShape) {
     const parsed = MatchFormatConfigSchema.parse(raw);

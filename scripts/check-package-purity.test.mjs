@@ -281,7 +281,10 @@ test('the real allowlist is exactly what the 7.3 table grants', () => {
   // copy of it. `winnerColorFrom` joined the same way: it is the ladder lifted
   // out of `resolveMatchWinner`, which the pad's end-of-clock overlay and the TV
   // endcard were already calling, so nothing new became reachable — the gate
-  // simply started being able to see it.
+  // simply started being able to see it. `pendingLevelStep` is the newest, and
+  // it is a LOOKUP rather than a derivation: it reads which remedy a level bout
+  // is waiting on out of config the pad already holds, so the pad can name it on
+  // the button. The server still decides whether the remedy applies.
   assert.deepEqual([...allowed].sort(), [
     'applyScoringDirection',
     'computeAfterblowDeltas',
@@ -289,6 +292,7 @@ test('the real allowlist is exactly what the 7.3 table grants', () => {
     'displayClockMs',
     'effectiveTimeLimitSeconds',
     'penaltyScoreDelta',
+    'pendingLevelStep',
     'pointCapWinnerColor',
     'resolveEntryCard',
     'winnerColorFrom',

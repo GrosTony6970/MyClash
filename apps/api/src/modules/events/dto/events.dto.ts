@@ -204,6 +204,36 @@ const bestOfSchema = z
   .strict();
 
 /**
+ * What a LEVEL bout is worth, per phase — an ordered chain of remedies the
+ * referee works down until someone leads. Mirrors the rulesets
+ * `LevelAtTimeConfigSchema` so the editor's PATCH round-trips into
+ * `ruleset_config.matchFormat.levelAtTime`.
+ *
+ * The refinement is repeated here rather than left to the engine so the 400
+ * arrives from the organiser's own request with a message about their own
+ * chain: a chain ending in extra time describes a bout that can come back level
+ * for ever and can therefore never be finished.
+ */
+const levelStepSchema = z.discriminatedUnion('kind', [
+  z.object({ kind: z.literal('draw') }).strict(),
+  z.object({ kind: z.literal('sudden_death') }).strict(),
+  z.object({ kind: z.literal('extra_time'), seconds: z.number().int().min(1).max(3600) }).strict(),
+]);
+const levelChainSchema = z
+  .array(levelStepSchema)
+  .min(1)
+  .refine((steps) => steps[steps.length - 1]?.kind !== 'extra_time', {
+    message: 'the last step must be draw or sudden_death — extra time can end level again',
+  });
+const levelAtTimeSchema = z
+  .object({
+    pool: levelChainSchema.optional(),
+    bracket: levelChainSchema.optional(),
+    finals: levelChainSchema.optional(),
+  })
+  .strict();
+
+/**
  * Match-format payload sent by the tournament creation wizard (Step 2)
  * and the per-tournament settings page. Persisted under
  * `tournaments.ruleset_config.matchFormat`. Field bounds mirror the
@@ -224,6 +254,7 @@ const matchFormatSchema = z
       .optional(),
     scoringDirection: z.enum(['normal', 'reverse_zero_loses']).optional(),
     bestOf: bestOfSchema.optional(),
+    levelAtTime: levelAtTimeSchema.optional(),
   })
   .strict();
 

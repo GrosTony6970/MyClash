@@ -6,6 +6,7 @@
 
 import type {
   AfterblowMode,
+  LevelStep,
   MatchFormatConfig,
   ScoringDirection,
   TimerMode,
@@ -20,7 +21,7 @@ import type {
 // structurally identical and nothing checked that they stayed so; each consumer
 // picked whichever package it could already import. The shape now lives in
 // @myclash/rules and the schema asserts against it at compile time.
-export type { AfterblowMode, MatchFormatConfig, ScoringDirection, TimerMode };
+export type { AfterblowMode, LevelStep, MatchFormatConfig, ScoringDirection, TimerMode };
 
 export const TOURNAMENT_SIDE_COLORS = [
   'white',
@@ -67,6 +68,15 @@ export const DEFAULT_MATCH_FORMAT_CONFIG: MatchFormatConfig = {
   maxDoubleHits: 4,
   maxDoubleHitOutcome: 'double_loss_zero_scores',
   bestOf: { pool: 1, bracket: 1, finals: 1 },
+  // A drawn pool bout is a real result and the standings have a D column for
+  // it. A drawn elimination bout cannot advance, so bracket and finals take a
+  // minute of extra time and then sudden death. `swiss` is absent on purpose —
+  // it inherits `pool`, the same way its clock does.
+  levelAtTime: {
+    pool: [{ kind: 'draw' }],
+    bracket: [{ kind: 'extra_time', seconds: 60 }, { kind: 'sudden_death' }],
+    finals: [{ kind: 'extra_time', seconds: 60 }, { kind: 'sudden_death' }],
+  },
 };
 
 export interface TournamentDisplayConfig {
@@ -169,6 +179,14 @@ export { computeAfterblowDeltas } from '@myclash/rules/pad';
  * A comment was the only thing pairing them.
  */
 export { applyScoringDirection, pointCapWinnerColor } from '@myclash/rules/pad';
+
+/**
+ * The remedy a level bout is waiting on. Re-exported here rather than imported
+ * from `@myclash/rules` by the pad directly: `apps/web-staff` has no dependency
+ * on that package and giving a workspace its first one is a Docker-image change,
+ * not a code change. This is the door every other rules value already uses.
+ */
+export { pendingLevelStep } from '@myclash/rules/pad';
 
 // ── Deriving the scoring buttons from a ruleset's grammar ────────────────────
 

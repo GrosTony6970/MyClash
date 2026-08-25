@@ -51,6 +51,56 @@ export type MaxDoubleHitEndReason =
   'max_doubles' | 'max_doubles_draw' | 'max_doubles_result_stands';
 
 /**
+ * One remedy for a bout that is LEVEL when it should be finished.
+ *
+ * `draw` and `sudden_death` are TERMINAL — a chain may end on either. Only
+ * `extra_time` is not, because a bout can come back level from it, so a chain
+ * ending there describes a bout the referee can never finish. The schema in
+ * `@myclash/rulesets` refuses one rather than leaving that state representable.
+ *
+ * SUDDEN DEATH IS NOT "THE NEXT POINT". One exchange can score BOTH fighters —
+ * a 1-1 or 2-2 afterblow in `full` mode — and a double scores neither, so a hit
+ * can land and leave the bout exactly as level as before. It runs until someone
+ * LEADS, however many exchanges that takes.
+ */
+export type LevelStep =
+  { kind: 'draw' } | { kind: 'sudden_death' } | { kind: 'extra_time'; seconds: number };
+
+/**
+ * Anything the match format configures PER PHASE.
+ *
+ * `swiss` is optional in all three of them for one reason, written out at
+ * {@link MatchFormatConfig.timeLimitsSeconds}: configs persisted before the
+ * Swiss format have no such key, and a Swiss round is a group stage, so it
+ * inherits `pool` rather than `bracket`.
+ */
+export interface ByPhase<T> {
+  pool: T;
+  swiss?: T;
+  bracket: T;
+  finals: T;
+}
+
+/**
+ * Which of the four per-phase values this match counts against.
+ *
+ * The dispatch had three hand-written copies — the time limit, best-of, and
+ * whatever was added next — differing only in which record they read. A medal
+ * match is identified by its LABEL rather than its bracket round, which is the
+ * part a fourth copy would most easily get wrong.
+ */
+function forPhase<T>(
+  byPhase: ByPhase<T>,
+  phaseType: PhaseType | undefined,
+  matchNumberLabel: string | null | undefined,
+): T {
+  if (phaseType === 'pool') return byPhase.pool;
+  if (phaseType === 'swiss') return byPhase.swiss ?? byPhase.pool;
+  if (isMedalMatchLabel(matchNumberLabel)) return byPhase.finals;
+  return byPhase.bracket;
+}
+
+/**
  * A resolved match format. Plain data — this is what a ruleset RESOLVES TO, and
  * what the pad already carries in `tournaments.scoring_config_json`.
  */
@@ -85,6 +135,20 @@ export interface MatchFormatConfig {
     bracket: number;
     finals: number;
   };
+  /**
+   * What a LEVEL bout is worth, per phase, as an ordered chain of remedies the
+   * referee works down until someone leads.
+   *
+   * A drawn pool bout is a real result — the standings have a D column for it.
+   * A drawn ELIMINATION bout is not: it cannot advance, so it completed with
+   * nobody through and stalled the round. The organiser now says which it is.
+   *
+   * The last step must be terminal ({@link LevelStep}), and the chain answers
+   * two separate questions: {@link pendingLevelStep} says what the referee does
+   * next, and {@link chainAllowsLevelEnd} says whether an AUTOMATIC end
+   * condition may leave this phase's bout level at all.
+   */
+  levelAtTime: ByPhase<LevelStep[]>;
 }
 
 /**
@@ -119,14 +183,7 @@ export function effectiveTimeLimitSeconds(
   phaseType: PhaseType | undefined,
   matchNumberLabel: string | null | undefined,
 ): number | null {
-  if (phaseType === 'pool') return config.timeLimitsSeconds.pool;
-  // `?? pool` and not `?? bracket`: a Swiss round is a group stage, and a
-  // config written before Swiss existed carries no swiss key at all.
-  if (phaseType === 'swiss') {
-    return config.timeLimitsSeconds.swiss ?? config.timeLimitsSeconds.pool;
-  }
-  if (isMedalMatchLabel(matchNumberLabel)) return config.timeLimitsSeconds.finals;
-  return config.timeLimitsSeconds.bracket;
+  return forPhase(config.timeLimitsSeconds, phaseType, matchNumberLabel);
 }
 
 export function getEffectiveMatchTimeLimitSeconds(
@@ -144,10 +201,54 @@ export function getEffectiveMatchTimeLimitSeconds(
  */
 export function getEffectiveBestOf(match: Match, config: MatchFormatConfig): number {
   const bestOf = config.bestOf ?? { pool: 1, bracket: 1, finals: 1 };
-  if (match.phaseType === 'pool') return bestOf.pool;
-  if (match.phaseType === 'swiss') return bestOf.swiss ?? bestOf.pool;
-  if (isMedalMatchLabel(match.matchNumberLabel)) return bestOf.finals;
-  return bestOf.bracket;
+  return forPhase(bestOf, match.phaseType, match.matchNumberLabel);
+}
+
+/**
+ * The remedy the referee applies NEXT to a level bout, or null when the chain
+ * is spent.
+ *
+ * `stepsTaken` is the number of `level_resolution` events on the bout since its
+ * last reset — the chain's position lives on the match timeline, not in a
+ * column, so it replays and resets exactly like the clock does.
+ *
+ * It is REQUIRED, not an optional trailing argument. The last two rules that
+ * took one had a caller that never passed it, and a silent opt-out reads as
+ * working code: a caller with nothing to say has to say `0` out loud.
+ *
+ * A `draw` here means the bout may simply complete, so the End is not refused —
+ * which is why the chain's position never runs past a terminal `draw`, and why
+ * a null return means one thing only: sudden death is live.
+ */
+export function pendingLevelStep(
+  config: MatchFormatConfig,
+  phaseType: PhaseType | undefined,
+  matchNumberLabel: string | null | undefined,
+  stepsTaken: number,
+): LevelStep | null {
+  const chain = forPhase(config.levelAtTime, phaseType, matchNumberLabel);
+  return chain[stepsTaken] ?? null;
+}
+
+/**
+ * May an AUTOMATIC end condition finish this phase's bout with nobody leading?
+ *
+ * The clock is not the only way a level bout completes. Both fighters can cross
+ * the point cap on the SAME exchange — 9-9 plus a 1-1 afterblow in `full` mode
+ * is 10-10 — and the point-cap winner is then nobody, so the bout completed
+ * with a null winner and a bracket round stalled with no clock action to refuse.
+ *
+ * So the chain owns that too, and it answers from its CONTENT rather than its
+ * position: a phase whose chain contains a `draw` can end level, and one that
+ * cannot must keep the bout open for the remedies instead. No server state is
+ * involved, so this cannot disagree with itself between two reads.
+ */
+export function chainAllowsLevelEnd(
+  config: MatchFormatConfig,
+  phaseType: PhaseType | undefined,
+  matchNumberLabel: string | null | undefined,
+): boolean {
+  return forPhase(config.levelAtTime, phaseType, matchNumberLabel).some((s) => s.kind === 'draw');
 }
 
 /** Round wins needed to take a best-of-N match: ⌈N/2⌉ (1 for a single round). */

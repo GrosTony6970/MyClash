@@ -10898,6 +10898,53 @@ export interface components {
             bracket?: number;
             finals?: number;
           };
+          levelAtTime?: {
+            pool?: (
+              | {
+                  /** @enum {string} */
+                  kind: 'draw';
+                }
+              | {
+                  /** @enum {string} */
+                  kind: 'sudden_death';
+                }
+              | {
+                  /** @enum {string} */
+                  kind: 'extra_time';
+                  seconds: number;
+                }
+            )[];
+            bracket?: (
+              | {
+                  /** @enum {string} */
+                  kind: 'draw';
+                }
+              | {
+                  /** @enum {string} */
+                  kind: 'sudden_death';
+                }
+              | {
+                  /** @enum {string} */
+                  kind: 'extra_time';
+                  seconds: number;
+                }
+            )[];
+            finals?: (
+              | {
+                  /** @enum {string} */
+                  kind: 'draw';
+                }
+              | {
+                  /** @enum {string} */
+                  kind: 'sudden_death';
+                }
+              | {
+                  /** @enum {string} */
+                  kind: 'extra_time';
+                  seconds: number;
+                }
+            )[];
+          };
         };
       };
       lockConfig?: {
@@ -10957,6 +11004,53 @@ export interface components {
             pool?: number;
             bracket?: number;
             finals?: number;
+          };
+          levelAtTime?: {
+            pool?: (
+              | {
+                  /** @enum {string} */
+                  kind: 'draw';
+                }
+              | {
+                  /** @enum {string} */
+                  kind: 'sudden_death';
+                }
+              | {
+                  /** @enum {string} */
+                  kind: 'extra_time';
+                  seconds: number;
+                }
+            )[];
+            bracket?: (
+              | {
+                  /** @enum {string} */
+                  kind: 'draw';
+                }
+              | {
+                  /** @enum {string} */
+                  kind: 'sudden_death';
+                }
+              | {
+                  /** @enum {string} */
+                  kind: 'extra_time';
+                  seconds: number;
+                }
+            )[];
+            finals?: (
+              | {
+                  /** @enum {string} */
+                  kind: 'draw';
+                }
+              | {
+                  /** @enum {string} */
+                  kind: 'sudden_death';
+                }
+              | {
+                  /** @enum {string} */
+                  kind: 'extra_time';
+                  seconds: number;
+                }
+            )[];
           };
         };
       };

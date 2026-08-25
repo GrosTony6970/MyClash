@@ -44,7 +44,15 @@ export {
   effectiveTimeLimitSeconds,
   pointCapWinnerColor,
 } from './match-format';
-export type { MatchFormatConfig, ScoringDirection, TimerMode } from './match-format';
+
+/**
+ * The remedy a level bout is waiting on, so the pad can NAME it on the button
+ * and know when sudden death is live. The phase dispatch behind it is the one
+ * `effectiveTimeLimitSeconds` uses; a second copy on the pad would be a second
+ * owner of which chain a medal match reads.
+ */
+export { pendingLevelStep } from './match-format';
+export type { LevelStep, MatchFormatConfig, ScoringDirection, TimerMode } from './match-format';
 
 export type { PhaseType } from './domain';
 

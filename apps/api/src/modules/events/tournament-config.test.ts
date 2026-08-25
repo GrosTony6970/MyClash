@@ -57,6 +57,43 @@ describe('tournament config validation', () => {
       }),
     ).toThrow(BadRequestException);
   });
+
+  it('accepts a level-at-time chain from the organiser surfaces', () => {
+    // The match-format schema is `.strict()`, so a key the editor sends and
+    // this does not list 400s the whole PATCH — the failure mode the Advanced
+    // tab hit for months. This is that check for the chain.
+    const config = validateTournamentRulesetConfig('TF_v1', {
+      matchFormat: {
+        levelAtTime: {
+          pool: [{ kind: 'draw' }],
+          bracket: [{ kind: 'extra_time', seconds: 60 }, { kind: 'sudden_death' }],
+          finals: [{ kind: 'sudden_death' }],
+        },
+      },
+    });
+
+    // `finals` is asserted because it is the one that does NOT match the
+    // default. Asserting only `bracket` passed while `normalizeMatchFormatConfig`
+    // was dropping the whole key: a config carrying only modern keys fell down
+    // the legacy branch, which rebuilds from three named legacy fields and
+    // discards everything else. The PATCH answered 200 with nothing saved.
+    expect(config.matchFormat.levelAtTime.finals).toEqual([{ kind: 'sudden_death' }]);
+    expect(config.matchFormat.levelAtTime.bracket).toEqual([
+      { kind: 'extra_time', seconds: 60 },
+      { kind: 'sudden_death' },
+    ]);
+  });
+
+  it('rejects a level-at-time chain that ends in extra time', () => {
+    // A chain ending in extra time describes a bout that can come back level
+    // for ever, so the referee reaches the end of it and still cannot finish
+    // the bout. Refused here, in the organiser's own request.
+    expect(() =>
+      validateTournamentRulesetConfig('TF_v1', {
+        matchFormat: { levelAtTime: { bracket: [{ kind: 'extra_time', seconds: 60 }] } },
+      }),
+    ).toThrow(BadRequestException);
+  });
 });
 
 import { defaultRulesetConfigFor, normalizeRulesetVersion } from './ruleset-defaults';

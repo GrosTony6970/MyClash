@@ -59,6 +59,13 @@ describe('match format config', () => {
       maxDoubleHits: 4,
       maxDoubleHitOutcome: 'double_loss_zero_scores',
       bestOf: { pool: 1, bracket: 1, finals: 1 },
+      // A drawn pool bout is a real result; a drawn elimination bout cannot
+      // advance, so those two play it out. No `swiss` key — it inherits `pool`.
+      levelAtTime: {
+        pool: [{ kind: 'draw' }],
+        bracket: [{ kind: 'extra_time', seconds: 60 }, { kind: 'sudden_death' }],
+        finals: [{ kind: 'extra_time', seconds: 60 }, { kind: 'sudden_death' }],
+      },
     });
   });
 
