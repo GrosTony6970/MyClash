@@ -54,6 +54,7 @@ export {
   pendingLevelStep,
   pointCapWinnerColor,
   roundWinTarget,
+  seriesResult,
   timeIsFinished,
   winnerColorFrom,
 } from './match-format';

@@ -22,6 +22,7 @@ import {
   pendingLevelStep,
   pointCapWinnerColor,
   roundWinTarget,
+  seriesResult,
   timeIsFinished,
   winnerColorFrom,
   type Match,
@@ -69,6 +70,7 @@ export {
   pendingLevelStep,
   pointCapWinnerColor,
   roundWinTarget,
+  seriesResult,
   timeIsFinished,
   winnerColorFrom,
 };

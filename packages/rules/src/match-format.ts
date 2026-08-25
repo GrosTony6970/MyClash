@@ -256,6 +256,48 @@ export function roundWinTarget(bestOf: number): number {
   return Math.ceil(Math.max(1, bestOf) / 2);
 }
 
+/** Where a best-of series stands once a round has closed. */
+export interface SeriesResult {
+  /** The series is finished — clinched, or out of rounds. */
+  over: boolean;
+  /** Who took it, or null for a DRAWN series (level on round wins). */
+  winnerColor: 'red' | 'blue' | null;
+  /** Over because the rounds ran out, rather than because someone clinched. */
+  roundsSpent: boolean;
+}
+
+/**
+ * Has this best-of series finished, and who won it?
+ *
+ * The win target is the usual way out and used to be the ONLY one, which left a
+ * series that could not reach it running forever: a round nobody won counts for
+ * neither side, so `advanceRound` kept opening rounds and the pad read
+ * "Round 4/3", "Round 5/3". `bestOf` is odd, so once no round can end level the
+ * target is always reached by round N — the second condition here is what makes
+ * that true rather than merely likely, and it fires wherever drawn rounds are
+ * possible: the doubles ceiling in a pool, or a phase chain containing a `draw`.
+ *
+ * A spent series goes to whoever is ahead on ROUND WINS, which needs no new
+ * rule — it is {@link leadingColor} over the two tallies, the same owner the
+ * board uses. Level on round wins is a drawn series, exactly as a single bout
+ * at the ceiling is a drawn bout.
+ */
+export function seriesResult(
+  closedRounds: ReadonlyArray<{ winnerColor: 'red' | 'blue' | null }>,
+  bestOf: number,
+): SeriesResult {
+  const redScore = closedRounds.filter((r) => r.winnerColor === 'red').length;
+  const blueScore = closedRounds.filter((r) => r.winnerColor === 'blue').length;
+  const target = roundWinTarget(bestOf);
+  const clinched = redScore >= target || blueScore >= target;
+  const roundsSpent = !clinched && closedRounds.length >= Math.max(1, bestOf);
+  return {
+    over: clinched || roundsSpent,
+    winnerColor: leadingColor({ redScore, blueScore }),
+    roundsSpent,
+  };
+}
+
 /**
  * Effective max-doubles end condition by phase. The max-doubles "double loss"
  * rule applies in the group stages — pools and Swiss rounds — where a

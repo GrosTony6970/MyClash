@@ -460,6 +460,137 @@ describe('ScoringService — best-of rounds', () => {
     expect(lastUpdate).toMatchObject({ awaiting_round_advance: true, red_round_wins: 1 });
   });
 
+  /**
+   * A series that runs out of rounds.
+   *
+   * Round wins used to be the ONLY way out, so a series carrying drawn rounds
+   * never reached the target: `advanceRound` kept opening rounds and the pad
+   * read "Round 4/3". Drawn rounds are reachable wherever the organiser allowed
+   * them — the doubles ceiling in a pool, below.
+   */
+  describe('a series whose rounds are spent', () => {
+    const CEILING_POOL = {
+      type: 'pool',
+      tournaments: {
+        ruleset_config: {
+          matchFormat: {
+            pointCap: 3,
+            maxDoubleHits: 2,
+            bestOf: { pool: 3, bracket: 1, finals: 1 },
+          },
+        },
+        scoring_config_json: null,
+      },
+    };
+    /** A pool BO3 on its LAST round, with `closed` already behind it. */
+    const lastRound = (closed: Array<Record<string, unknown>>) =>
+      matchRow({
+        phases: CEILING_POOL,
+        match_number_label: 'L1-P1-M01',
+        current_round: 3,
+        rounds_json: closed,
+        red_round_wins: closed.filter((r) => r['winnerColor'] === 'red').length,
+        blue_round_wins: closed.filter((r) => r['winnerColor'] === 'blue').length,
+      });
+    const wonBy = (round: number, winnerColor: 'red' | 'blue') => ({
+      round,
+      redScore: winnerColor === 'red' ? 3 : 0,
+      blueScore: winnerColor === 'blue' ? 3 : 0,
+      winnerColor,
+      endReason: 'first_to_points',
+    });
+    const ceilingDraw = (round: number) => ({
+      round,
+      redScore: 0,
+      blueScore: 0,
+      winnerColor: null,
+      endReason: 'max_doubles',
+    });
+    /** Two doubles in round 3 — the ceiling, so round 3 closes drawn. */
+    const ceilingInRound3 = [dbl(1, 3), dbl(2, 3)];
+
+    it('goes to whoever leads on ROUND WINS without reaching the target', async () => {
+      // Red took round 1; the ceiling drew rounds 2 and 3. Red never reached 2
+      // round wins, and this is the series that used to run to round 4.
+      wire(lastRound([wonBy(1, 'red'), ceilingDraw(2)]), ceilingInRound3);
+
+      await service.recomputeMatchScore('m1');
+
+      expect(lastUpdate).toMatchObject({
+        status: 'completed',
+        winner_registration_id: 'red',
+        awaiting_round_advance: false,
+        red_round_wins: 1,
+        blue_round_wins: 0,
+      });
+    });
+
+    it('records a spent series as `rounds_spent`, NOT as the last round`s ceiling', async () => {
+      // `isDoubleLossBout` reads 'max_doubles' as a loss for BOTH, and
+      // `compact_fighter_stats` repeats the literal in SQL — so borrowing the
+      // round's reason would record a loss for the fighter this row names as
+      // the winner.
+      wire(lastRound([wonBy(1, 'red'), ceilingDraw(2)]), ceilingInRound3);
+
+      await service.recomputeMatchScore('m1');
+
+      expect(lastUpdate?.['end_reason']).toBe('rounds_spent');
+    });
+
+    it('is a DRAWN series when the round wins are level', async () => {
+      // One round each, and the ceiling drew the decider. Not a loss for both:
+      // each of them won a round.
+      wire(lastRound([wonBy(1, 'red'), wonBy(2, 'blue')]), ceilingInRound3);
+
+      await service.recomputeMatchScore('m1');
+
+      expect(lastUpdate).toMatchObject({
+        status: 'completed',
+        winner_registration_id: null,
+        end_reason: 'rounds_spent',
+      });
+    });
+
+    it('keeps the ceiling result when EVERY round was a double loss', async () => {
+      // Then it describes the whole series, and the organiser's ruling for the
+      // phase survives into the standings.
+      wire(lastRound([ceilingDraw(1), ceilingDraw(2)]), ceilingInRound3);
+
+      await service.recomputeMatchScore('m1');
+
+      expect(lastUpdate).toMatchObject({
+        status: 'completed',
+        winner_registration_id: null,
+        end_reason: 'max_doubles',
+      });
+    });
+
+    it('does not put a spent series back to awaiting advance on a recompute', async () => {
+      // The last round is already closed, so this is the idempotent branch — it
+      // asks the same `seriesResult` the closure did. The row is still
+      // `running`, which is what makes the question a real one: the status
+      // check alone would answer it for a completed row whatever the series
+      // said, and awaiting advance on a spent series is the state that let the
+      // round number climb past `bestOf`.
+      const closed = [wonBy(1, 'red'), ceilingDraw(2), ceilingDraw(3)];
+      wire(
+        matchRow({
+          phases: CEILING_POOL,
+          match_number_label: 'L1-P1-M01',
+          status: 'running',
+          current_round: 3,
+          rounds_json: closed,
+          red_round_wins: 1,
+        }),
+        ceilingInRound3,
+      );
+
+      await service.recomputeMatchScore('m1');
+
+      expect(lastUpdate?.['awaiting_round_advance']).toBe(false);
+    });
+  });
+
   it('advanceRound rejects when no round is awaiting advance', async () => {
     fromMock.mockReturnValueOnce(
       thenableResult({

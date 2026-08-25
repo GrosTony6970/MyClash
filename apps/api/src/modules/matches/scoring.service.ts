@@ -18,9 +18,10 @@ import {
   evaluateRound,
   getEffectiveBestOf,
   getPointCapWinnerRegistrationId,
+  isDoubleLossBout,
   leadingColor,
   normalizeMatchFormatConfig,
-  roundWinTarget,
+  seriesResult,
 } from '@myclash/rulesets';
 import type {
   AfterblowMode,
@@ -435,8 +436,13 @@ export class ScoringService {
 
   /**
    * Build the matches-table updates for closing the current round (whether the
-   * series clinches or merely awaits operator advance). Shared by the automatic
+   * series ends or merely awaits operator advance). Shared by the automatic
    * close (point cap / max-doubles) and the operator's end-on-time close.
+   *
+   * `seriesResult` owns whether the series is finished, so the bound on the
+   * round number lives HERE rather than as a guard in `advanceRound`: nothing
+   * can leave a spent series awaiting advance, so a guard there could never
+   * fire, and a branch that cannot fire is the bug.
    */
   private buildRoundClosure(
     match: RulesetMatch,
@@ -446,38 +452,71 @@ export class ScoringService {
     openBlue: number,
     winnerColor: 'red' | 'blue' | null,
     endReason: ClosedRound['endReason'],
-    winTarget: number,
+    bestOf: number,
     currentStatus: string,
   ): { updates: Record<string, unknown>; justCompleted: boolean } {
     const newClosed: ClosedRound[] = [
       ...closedRounds,
       { round: currentRound, redScore: openRed, blueScore: openBlue, winnerColor, endReason },
     ];
-    const redWins = newClosed.filter((r) => r.winnerColor === 'red').length;
-    const blueWins = newClosed.filter((r) => r.winnerColor === 'blue').length;
+    const series = seriesResult(newClosed, bestOf);
     const updates: Record<string, unknown> = {
       rounds_json: newClosed,
-      red_round_wins: redWins,
-      blue_round_wins: blueWins,
+      red_round_wins: newClosed.filter((r) => r.winnerColor === 'red').length,
+      blue_round_wins: newClosed.filter((r) => r.winnerColor === 'blue').length,
     };
     let justCompleted = false;
-    if (redWins >= winTarget || blueWins >= winTarget) {
-      // Series clinched.
+    if (series.over) {
       updates['awaiting_round_advance'] = false;
       justCompleted = currentStatus !== 'completed';
       if (justCompleted) {
-        const now = new Date().toISOString();
         updates['status'] = 'completed';
-        updates['ended_at'] = now;
+        updates['ended_at'] = new Date().toISOString();
+        // A DRAWN series writes no winner, exactly as a single bout at the
+        // ceiling does. Only reachable where the organiser allowed a drawn
+        // round — the ceiling in a pool, or a phase chain containing a `draw`.
         updates['winner_registration_id'] =
-          redWins >= winTarget ? match.redRegistrationId : match.blueRegistrationId;
-        updates['end_reason'] = endReason;
+          series.winnerColor === 'red'
+            ? match.redRegistrationId
+            : series.winnerColor === 'blue'
+              ? match.blueRegistrationId
+              : null;
+        updates['end_reason'] = this.seriesEndReason(newClosed, series.roundsSpent, endReason);
       }
     } else {
-      // Round over but not clinched — wait for the operator to start the next.
+      // Round over but the series is not — wait for the operator to start the next.
       updates['awaiting_round_advance'] = true;
     }
     return { updates, justCompleted };
+  }
+
+  /**
+   * Why the SERIES ended, which is not always why its last round did.
+   *
+   * A clinched series takes the clinching round's reason, as it always has. A
+   * clinching round is one somebody WON, so `'max_doubles'` — a drawn round —
+   * can never arrive on that path and contradict the winner beside it.
+   *
+   * A series that merely ran out of rounds cannot borrow that reason, and this
+   * is the whole point of the branch: `isDoubleLossBout` reads `'max_doubles'`
+   * as a loss for BOTH fighters, and `compact_fighter_stats` (migration 0192)
+   * repeats the literal in SQL. A pool best-of that red led 1-0 with two ceiling
+   * rounds after it would have been recorded as a loss for the fighter the same
+   * row names as the winner — and a 1-1 series with a ceiling decider as a loss
+   * for two fighters who had won a round each.
+   *
+   * So the ceiling result survives only when it describes the whole series:
+   * every round a double loss, which forces the tally to 0-0 and the winner to
+   * nobody. Everything else says what actually happened — the rounds ran out.
+   */
+  private seriesEndReason(
+    closed: ClosedRound[],
+    roundsSpent: boolean,
+    lastEndReason: ClosedRound['endReason'],
+  ): string | null {
+    if (!roundsSpent) return lastEndReason;
+    if (closed.every((r) => isDoubleLossBout(r.endReason))) return 'max_doubles';
+    return 'rounds_spent';
   }
 
   /**
@@ -529,7 +568,7 @@ export class ScoringService {
       penaltyRows,
       matchRow,
     } = args;
-    const winTarget = roundWinTarget(getEffectiveBestOf(match, matchFormat));
+    const bestOf = getEffectiveBestOf(match, matchFormat);
     const closedRounds = this.parseRoundsJson(matchRow['rounds_json']);
     const currentRound = (matchRow['current_round'] as number) ?? 1;
 
@@ -572,20 +611,20 @@ export class ScoringService {
         openBlue,
         ev.winnerColor,
         ev.endReason,
-        winTarget,
+        bestOf,
         match.status,
       );
       Object.assign(updates, closure.updates);
       justCompleted = closure.justCompleted;
     } else {
       // Round in progress, or already closed (awaiting advance / completed).
-      const redWins = closedRounds.filter((r) => r.winnerColor === 'red').length;
-      const blueWins = closedRounds.filter((r) => r.winnerColor === 'blue').length;
-      const seriesOver = redWins >= winTarget || blueWins >= winTarget;
-      updates['red_round_wins'] = redWins;
-      updates['blue_round_wins'] = blueWins;
+      // The same `seriesResult` the closure used, so a repeated recompute of a
+      // series whose rounds are spent cannot put it back to awaiting advance.
+      const series = seriesResult(closedRounds, bestOf);
+      updates['red_round_wins'] = closedRounds.filter((r) => r.winnerColor === 'red').length;
+      updates['blue_round_wins'] = closedRounds.filter((r) => r.winnerColor === 'blue').length;
       updates['awaiting_round_advance'] =
-        currentAlreadyClosed && !seriesOver && match.status !== 'completed';
+        currentAlreadyClosed && !series.over && match.status !== 'completed';
     }
 
     await this.supabase.service.from('matches').update(updates).eq('id', matchId);
@@ -745,7 +784,7 @@ export class ScoringService {
       openBlue,
       winnerColor,
       'time_limit',
-      roundWinTarget(getEffectiveBestOf(ctx.match, ctx.matchFormat)),
+      getEffectiveBestOf(ctx.match, ctx.matchFormat),
       ctx.match.status,
     );
     const updates: Record<string, unknown> = {
