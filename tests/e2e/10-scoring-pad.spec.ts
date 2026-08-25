@@ -423,6 +423,85 @@ test.describe('scoring pad', () => {
     expect(again.status(), 'ending an already-ended round must be refused').toBe(400);
   });
 
+  /**
+   * A ROUND that is LEVEL, which used to be two separate dead ends.
+   *
+   * Both fighters can cross the cap on ONE exchange — a 1-1 afterblow in `full`
+   * mode at 4-4 of a cap of 5 — and the round used to close there with nobody
+   * winning it. A round nobody won counts for neither side, so the series never
+   * reached its target and the bout ran to round 4, then 5.
+   *
+   * Ending such a round on the clock used to be refused with a bare string
+   * naming sudden death, whatever the organiser's chain said and with no `code`
+   * for the pad to localise. Both now go through the phase's chain.
+   *
+   * No time limit (0 seconds), so `timeIsFinished` is true at once and the
+   * chain can be driven without waiting out a real 90-second phase clock.
+   */
+  test('a level best-of round stays open at the cap, then follows the chain', async ({
+    request,
+  }) => {
+    test.setTimeout(300_000);
+    const api = apiFor(request);
+    const { matchId } = await aMatch(api, 'bo3-level', {
+      afterblowMode: 'full',
+      bestOf: { pool: 3, bracket: 3, finals: 3 },
+      timeLimitsSeconds: { pool: 0, bracket: 0, finals: 0 },
+    });
+
+    // 4-4, one point short of the cap on both sides.
+    for (let i = 0; i < POINT_CAP - 1; i++) {
+      await hit(api, matchId, { type: 'clean', firstStrikerColor: 'red', firstStrikeValue: 1 });
+      await hit(api, matchId, { type: 'clean', firstStrikerColor: 'blue', firstStrikeValue: 1 });
+    }
+    // One afterblow puts BOTH on the cap.
+    await hit(api, matchId, {
+      type: 'afterblow',
+      firstStrikerColor: 'red',
+      firstStrikeValue: 1,
+      afterblowValue: 1,
+    });
+
+    let match = await readMatch(api, matchId);
+    expect({ red: match.red_score, blue: match.blue_score }).toEqual({
+      red: POINT_CAP,
+      blue: POINT_CAP,
+    });
+    expect(closedRounds(match), 'a level round must NOT close at the cap').toHaveLength(0);
+    expect(match.awaiting_round_advance).toBe(false);
+    expect(match.status).not.toBe('completed');
+
+    // Ending it names the phase's first remedy, with a code the pad localises.
+    const refused = await api.post(`matches/${matchId}/rounds/end`, { data: {} });
+    expect(refused.status()).toBe(400);
+    // `code` is a top-level member of the problem+json body; everything else
+    // the thrower passed is nested under `details` — which is where
+    // `refusal-copy.ts` reads the remedy from.
+    expect(await refused.json()).toMatchObject({
+      code: 'level_at_time_unresolved',
+      details: { remedy: 'extra_time', seconds: 60 },
+    });
+
+    // The referee plays it, and the round is still open.
+    await api.ok(await api.post(`matches/${matchId}/level-resolution/advance`, { data: {} }));
+    match = await readMatch(api, matchId);
+    expect(closedRounds(match)).toHaveLength(0);
+
+    // Still level, so the End now names the chain's terminal step instead.
+    const again = await api.post(`matches/${matchId}/rounds/end`, { data: {} });
+    expect(again.status()).toBe(400);
+    expect(await again.json()).toMatchObject({
+      code: 'level_at_time_unresolved',
+      details: { remedy: 'sudden_death' },
+    });
+
+    // One fighter leads, and the cap closes the round the ordinary way.
+    await hit(api, matchId, { type: 'clean', firstStrikerColor: 'red', firstStrikeValue: 1 });
+    match = await readMatch(api, matchId);
+    expect(closedRounds(match), 'a leader at the cap closes it').toHaveLength(1);
+    expect(match.red_round_wins).toBe(1);
+  });
+
   test('ending a round is refused on a single-round match', async ({ request }) => {
     test.setTimeout(300_000);
     const api = apiFor(request);
@@ -475,6 +554,9 @@ async function aMatch(
   opts: {
     afterblowMode?: 'full' | 'deductive';
     bestOf?: { pool: number; bracket: number; finals: number };
+    /** 0 = no limit, so `timeIsFinished` is true at once and the level-at-time
+     *  chain can be driven without waiting out a real phase clock. */
+    timeLimitsSeconds?: { pool: number; bracket: number; finals: number };
   } = {},
 ): Promise<{
   tournamentId: string;
@@ -498,7 +580,11 @@ async function aMatch(
     await api.patch(`tournaments/${tournament.id}`, {
       data: {
         rulesetConfig: {
-          matchFormat: { pointCap: POINT_CAP, ...(opts.bestOf ? { bestOf: opts.bestOf } : {}) },
+          matchFormat: {
+            pointCap: POINT_CAP,
+            ...(opts.bestOf ? { bestOf: opts.bestOf } : {}),
+            ...(opts.timeLimitsSeconds ? { timeLimitsSeconds: opts.timeLimitsSeconds } : {}),
+          },
         },
         ...(opts.afterblowMode ? { scoringConfig: { afterblowMode: opts.afterblowMode } } : {}),
       },
