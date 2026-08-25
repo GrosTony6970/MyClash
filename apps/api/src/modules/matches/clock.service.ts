@@ -20,6 +20,7 @@ import {
 import { SupabaseService } from '../supabase/supabase.service';
 // Value import, not `import type`: Nest needs the runtime class for DI metadata.
 import { MatchCompletionService } from '../phases/match-completion.service';
+import { popLastClosedRoundColumns } from './reopen-match-columns';
 
 export type ClockAction =
   'start' | 'halt' | 'resume' | 'end' | 'reopen' | 'reset_clock' | 'adjust_time' | 'reset_match';
@@ -220,28 +221,11 @@ export class ClockService {
       // correction, and clear the series winner/end_reason set on completion.
       // Single-round matches (no rounds_json) keep their winner so a bare
       // reopen → end round-trip preserves the result.
-      const rounds = Array.isArray((match as { rounds_json?: unknown }).rounds_json)
-        ? [...((match as { rounds_json?: unknown }).rounds_json as Record<string, unknown>[])]
-        : [];
-      if (rounds.length > 0) {
-        const popped = rounds.pop() as { round?: number } | undefined;
-        const redWins = rounds.filter(
-          (r) => (r as { winnerColor?: string }).winnerColor === 'red',
-        ).length;
-        const blueWins = rounds.filter(
-          (r) => (r as { winnerColor?: string }).winnerColor === 'blue',
-        ).length;
-        reopenUpdates['rounds_json'] = rounds.length ? rounds : null;
-        reopenUpdates['red_round_wins'] = redWins;
-        reopenUpdates['blue_round_wins'] = blueWins;
-        reopenUpdates['current_round'] =
-          typeof popped?.round === 'number'
-            ? popped.round
-            : ((match as { current_round?: number }).current_round ?? 1);
-        reopenUpdates['awaiting_round_advance'] = false;
-        reopenUpdates['winner_registration_id'] = null;
-        reopenUpdates['end_reason'] = null;
-      }
+      const poppedRound = popLastClosedRoundColumns(
+        (match as { rounds_json?: unknown }).rounds_json,
+        (match as { current_round?: number }).current_round ?? 1,
+      );
+      if (poppedRound) Object.assign(reopenUpdates, poppedRound);
       await this.supabase.service.from('matches').update(reopenUpdates).eq('id', matchId);
     }
 

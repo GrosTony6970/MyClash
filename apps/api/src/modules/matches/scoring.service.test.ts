@@ -87,6 +87,10 @@ describe('ScoringService — best-of rounds', () => {
     getClockState: vi.fn().mockResolvedValue({ status: 'halted' }),
     clockAction: vi.fn().mockResolvedValue(undefined),
   };
+  const matchCompletion = {
+    onMatchCompleted: vi.fn().mockResolvedValue(undefined),
+    onMatchUncompleted: vi.fn().mockResolvedValue(undefined),
+  };
   let service: ScoringService;
   let lastUpdate: Record<string, unknown> | null;
 
@@ -111,7 +115,13 @@ describe('ScoringService — best-of rounds', () => {
     vi.clearAllMocks();
     clock.getClockState.mockResolvedValue({ status: 'halted' });
     rulesets.resolve.mockResolvedValue(null);
-    service = new ScoringService(supabase as never, rulesets as never, clock as never);
+    matchCompletion.onMatchUncompleted.mockResolvedValue(undefined);
+    service = new ScoringService(
+      supabase as never,
+      rulesets as never,
+      clock as never,
+      matchCompletion as never,
+    );
   });
 
   it('keeps the round open while below the point cap', async () => {
@@ -312,6 +322,144 @@ describe('ScoringService — best-of rounds', () => {
     expect(lastUpdate).toMatchObject({ red_score: 1 });
   });
 
+  /**
+   * The round-end decision and the score recorded for that round are ONE number.
+   *
+   * `recomputeBestOfRounds` used to score the round, ask whether it was over,
+   * and only then add the cards — so a round could be snapshotted at 2 under a
+   * verdict taken on 3. Same split `a81fb0cf` closed for a single fight; it had
+   * to wait for a card to carry its round (migration 0191).
+   */
+  it('a card that takes a fighter to the cap CLOSES the round', async () => {
+    // Red is on 2 of a cap of 3 and blue concedes a penalty point, taking red
+    // to 3. Decided on the bare exchanges this round would not close at all.
+    wire(matchRow(), [ex(1, 'red', 2)], [pen('red', 1, 1)]);
+
+    await service.recomputeMatchScore('m1');
+
+    expect(lastUpdate).toMatchObject({
+      red_score: 3,
+      awaiting_round_advance: true,
+      red_round_wins: 1,
+    });
+    const rounds = lastUpdate?.['rounds_json'] as Array<Record<string, unknown>>;
+    expect(rounds[0]).toMatchObject({ redScore: 3, winnerColor: 'red' });
+  });
+
+  it('a card that drops the leader below the cap leaves the round open', async () => {
+    // The mirror, and the control on the case above: red reaches the cap on
+    // exchanges alone, then loses a point to a card. Decided on the bare
+    // exchanges the round closed anyway — banking a snapshot of 2 under a
+    // 'first_to_points' verdict nothing on the board supported.
+    wire(matchRow(), [ex(1, 'red', 3)], [pen('red', -1, 1)]);
+
+    await service.recomputeMatchScore('m1');
+
+    expect(lastUpdate).toMatchObject({ red_score: 2, awaiting_round_advance: false });
+    expect(lastUpdate?.['rounds_json']).toBeUndefined();
+  });
+
+  /** A card can now close a round, so voiding it has to reopen one. */
+  it('voiding the card that closed a round puts that round back on the board', async () => {
+    // Round 1 was closed at 3-0 by a +1 card; the card is voided, so the
+    // recompute sees 2 on the board under a round recorded as won.
+    const match = matchRow({
+      current_round: 1,
+      red_round_wins: 1,
+      awaiting_round_advance: true,
+      rounds_json: [
+        { round: 1, redScore: 3, blueScore: 0, winnerColor: 'red', endReason: 'first_to_points' },
+      ],
+    });
+    wire(match, [ex(1, 'red', 2)], []);
+
+    await service.recomputeMatchScore('m1');
+
+    expect(lastUpdate).toMatchObject({
+      red_score: 2,
+      rounds_json: null,
+      red_round_wins: 0,
+      blue_round_wins: 0,
+      awaiting_round_advance: false,
+      current_round: 1,
+    });
+  });
+
+  it('voiding the card that closed the CLINCHING round un-completes the bout too', async () => {
+    // BO3 at 2-0: round 2 was closed by a card and took the series with it.
+    const match = matchRow({
+      status: 'completed',
+      winner_registration_id: 'red',
+      current_round: 2,
+      red_round_wins: 2,
+      rounds_json: [
+        { round: 1, redScore: 3, blueScore: 0, winnerColor: 'red', endReason: 'first_to_points' },
+        { round: 2, redScore: 3, blueScore: 1, winnerColor: 'red', endReason: 'first_to_points' },
+      ],
+    });
+    wire(match, [ex(1, 'red', 3, 1), ex(2, 'red', 2, 2), ex(3, 'blue', 1, 2)], []);
+
+    await service.recomputeMatchScore('m1');
+
+    // The side effects ran, and the result columns moved with them.
+    expect(matchCompletion.onMatchUncompleted).toHaveBeenCalledWith(
+      'm1',
+      expect.objectContaining({ discardDependents: false }),
+    );
+    expect(lastUpdate).toMatchObject({
+      status: 'paused',
+      winner_registration_id: null,
+      end_reason: null,
+      ended_at: null,
+      red_round_wins: 1,
+      awaiting_round_advance: false,
+    });
+    expect(lastUpdate?.['rounds_json']).toHaveLength(1);
+  });
+
+  it('a REFUSED reopen leaves the round closed and the series standing', async () => {
+    // onMatchUncompleted refuses on a frozen result, an active forfeit, a Swiss
+    // advance or a dependent bout already fought. There is no transaction, so a
+    // refusal must leave BOTH halves untouched rather than half of each.
+    matchCompletion.onMatchUncompleted.mockRejectedValueOnce(new Error('result is frozen'));
+    const match = matchRow({
+      status: 'completed',
+      winner_registration_id: 'red',
+      current_round: 2,
+      red_round_wins: 2,
+      rounds_json: [
+        { round: 1, redScore: 3, blueScore: 0, winnerColor: 'red', endReason: 'first_to_points' },
+        { round: 2, redScore: 3, blueScore: 1, winnerColor: 'red', endReason: 'first_to_points' },
+      ],
+    });
+    wire(match, [ex(1, 'red', 3, 1), ex(2, 'red', 2, 2), ex(3, 'blue', 1, 2)], []);
+
+    await service.recomputeMatchScore('m1');
+
+    expect(lastUpdate?.['rounds_json']).toBeUndefined();
+    expect(lastUpdate?.['status']).toBeUndefined();
+  });
+
+  it('a round closed on TIME is not reopened when a card is voided', async () => {
+    // The operator ended that round. `rounds_json` exists because a time-ended
+    // round cannot be derived back from its exchanges, so nothing here may
+    // second-guess it — only the engine's own closures reopen.
+    const match = matchRow({
+      current_round: 1,
+      red_round_wins: 1,
+      awaiting_round_advance: true,
+      rounds_json: [
+        { round: 1, redScore: 2, blueScore: 1, winnerColor: 'red', endReason: 'time_limit' },
+      ],
+    });
+    wire(match, [ex(1, 'red', 1), ex(2, 'blue', 1)], []);
+
+    await service.recomputeMatchScore('m1');
+
+    expect(lastUpdate?.['rounds_json']).toBeUndefined();
+    expect(lastUpdate).toMatchObject({ awaiting_round_advance: true, red_round_wins: 1 });
+  });
+
   it('advanceRound rejects when no round is awaiting advance', async () => {
     fromMock.mockReturnValueOnce(
       thenableResult({
@@ -464,6 +612,15 @@ describe('ScoringService — a single fight, penalties included', () => {
       'm1',
       expect.objectContaining({ discardDependents: false }),
     );
+    // And the ROW moves. `onMatchUncompleted` owns only the side effects — its
+    // other callers write the status themselves — so asserting the call alone
+    // left the bout sitting at 'completed' with a winner it no longer has.
+    expect(lastUpdate).toMatchObject({
+      status: 'paused',
+      winner_registration_id: null,
+      end_reason: null,
+      ended_at: null,
+    });
   });
 
   it('does not reopen a bout that still meets its end condition', async () => {

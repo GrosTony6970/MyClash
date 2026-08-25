@@ -26,12 +26,14 @@ import type {
   Exchange as RulesetExchange,
   Match as RulesetMatch,
   MatchFormatConfig,
+  MatchScore,
   RoundEvaluation,
   Ruleset,
 } from '@myclash/rulesets';
 import { SupabaseService } from '../supabase/supabase.service';
 import { RulesetResolver } from './ruleset-resolver.service';
 import { ClockService } from './clock.service';
+import { popLastClosedRoundColumns, reopenedResultColumns } from './reopen-match-columns';
 
 /**
  * A closed round in a best-of-N match, snapshotted into `matches.rounds_json`.
@@ -173,14 +175,13 @@ export class ScoringService {
       });
     }
 
-    const score = ruleset.computeMatchScore(match, exchanges, afterblowMode, config);
-
-    for (const row of penaltyRows ?? []) {
-      const penalty = row as Record<string, unknown>;
-      const delta = (penalty['score_delta'] as number | null) ?? 0;
-      if (penalty['registration_id'] === match.redRegistrationId) score.redScore += delta;
-      if (penalty['registration_id'] === match.blueRegistrationId) score.blueScore += delta;
-    }
+    // Every card in the bout: a single fight has one round, so there is nothing
+    // to filter by — `current_round` never leaves 1.
+    const score = this.applyPenaltyDeltas(
+      ruleset.computeMatchScore(match, exchanges, afterblowMode, config),
+      match,
+      (penaltyRows ?? []) as Record<string, unknown>[],
+    );
 
     // AFTER the penalties, so the end decision and the winner read the SAME
     // number — the one the referee is looking at. They used to disagree: the
@@ -215,6 +216,13 @@ export class ScoringService {
       matchUpdates['end_reason'] = matchEndDecision.reason;
     }
 
+    // The side effects of an un-completion run BEFORE the row write, because
+    // `onMatchUncompleted` can REFUSE and there is no transaction to undo a
+    // half-applied reopen. Only once it has agreed do the result columns move.
+    if (justReopened && (await this.uncompleteBestEffort(matchId))) {
+      Object.assign(matchUpdates, reopenedResultColumns());
+    }
+
     // Persist derived scores back to matches row
     await this.supabase.service.from('matches').update(matchUpdates).eq('id', matchId);
 
@@ -231,11 +239,30 @@ export class ScoringService {
       // the next slot filled. MatchCompletionService swallows and logs its own
       // errors, so this cannot fail the exchange that triggered it.
       await this.matchCompletion?.onMatchCompleted(matchId);
-    } else if (justReopened) {
-      await this.uncompleteBestEffort(matchId);
     }
 
     return { redScore: score.redScore, blueScore: score.blueScore };
+  }
+
+  /**
+   * Add a set of cards to a score. The one owner, used by the single-fight path
+   * and — through the round scorer — by both best-of round-closing paths.
+   *
+   * `doubles` is untouched on purpose: a card is not an exchange, so it can
+   * never move a bout toward the doubles ceiling.
+   */
+  private applyPenaltyDeltas(
+    score: MatchScore,
+    match: RulesetMatch,
+    penaltyRows: Record<string, unknown>[],
+  ): MatchScore {
+    let { redScore, blueScore } = score;
+    for (const row of penaltyRows) {
+      const delta = (row['score_delta'] as number | null) ?? 0;
+      if (row['registration_id'] === match.redRegistrationId) redScore += delta;
+      if (row['registration_id'] === match.blueRegistrationId) blueScore += delta;
+    }
+    return { ...score, redScore, blueScore };
   }
 
   /**
@@ -249,22 +276,29 @@ export class ScoringService {
    * triggered it — unlike `onMatchCompleted`, this one does not swallow its own
    * errors.
    *
+   * RETURNS whether the reopen may proceed. Swallowing the refusal is not the
+   * same as ignoring it: the caller must not move the result columns when the
+   * side effects were refused, or the bracket keeps naming a winner the bout no
+   * longer has. That is the half-applied state this ordering exists to prevent.
+   *
    * `discardDependents` is deliberately false. If the winner has already fought
    * the next round, this refuses and logs rather than silently taking that
    * later result down with it; undoing a played bout is an operator's decision.
    */
-  private async uncompleteBestEffort(matchId: string): Promise<void> {
+  private async uncompleteBestEffort(matchId: string): Promise<boolean> {
     try {
       await this.matchCompletion?.onMatchUncompleted(matchId, {
         discardDependents: false,
         reason: 'the bout no longer meets its end condition',
       });
+      return true;
     } catch (err) {
       this.logger.warn(
         `Match ${matchId} stayed completed though its end condition no longer holds: ${
           err instanceof Error ? err.message : String(err)
         }`,
       );
+      return false;
     }
   }
 
@@ -331,11 +365,19 @@ export class ScoringService {
   }
 
   /**
-   * Evaluate the OPEN round from its round-scoped exchanges, scoring it with the
-   * RESOLVED ruleset's own scorer so per-round scoring matches single-round
-   * scoring for every ruleset. The automatic round-end rules — first-to-pointCap
-   * and pool-only max-doubles — live in `evaluateRound`. Time expiry is
-   * operator-driven and handled by endRoundOnTime, never here.
+   * Evaluate the OPEN round from its round-scoped exchanges AND its round-scoped
+   * cards, scoring it with the RESOLVED ruleset's own scorer so per-round scoring
+   * matches single-round scoring for every ruleset. The automatic round-end
+   * rules — first-to-pointCap and pool-only max-doubles — live in
+   * `evaluateRound`. Time expiry is operator-driven and handled by
+   * endRoundOnTime, never here.
+   *
+   * The cards go INSIDE the scorer, which is what the `RoundScorer` parameter
+   * exists for: the caller decides what "this round's score" means. Adding them
+   * afterwards is how the round-end decision and the score recorded for that
+   * round came to be two different numbers — the split `a81fb0cf` closed for a
+   * single fight, on the same argument. A card can now END a round, so the
+   * reverse has to hold too; see the reopen in `recomputeBestOfRounds`.
    */
   private evaluateOpenRound(
     ruleset: Ruleset,
@@ -344,9 +386,14 @@ export class ScoringService {
     afterblowMode: AfterblowMode,
     config: unknown,
     matchFormat: MatchFormatConfig,
+    roundPenalties: Record<string, unknown>[],
   ): RoundEvaluation {
     return evaluateRound(match, openExchanges, matchFormat, (m, exchanges) =>
-      ruleset.computeMatchScore(m, exchanges, afterblowMode, config),
+      this.applyPenaltyDeltas(
+        ruleset.computeMatchScore(m, exchanges, afterblowMode, config),
+        match,
+        roundPenalties,
+      ),
     );
   }
 
@@ -460,17 +507,14 @@ export class ScoringService {
       afterblowMode,
       config,
       matchFormat,
+      this.penaltiesInRound(penaltyRows, currentRound),
     );
 
-    let openRed = ev.score.redScore;
-    let openBlue = ev.score.blueScore;
-    for (const row of this.penaltiesInRound(penaltyRows, currentRound)) {
-      const delta = (row['score_delta'] as number | null) ?? 0;
-      if (row['registration_id'] === match.redRegistrationId) openRed += delta;
-      if (row['registration_id'] === match.blueRegistrationId) openBlue += delta;
-    }
+    const openRed = ev.score.redScore;
+    const openBlue = ev.score.blueScore;
 
-    const currentAlreadyClosed = closedRounds.some((r) => r.round === currentRound);
+    const closedCurrent = closedRounds.find((r) => r.round === currentRound);
+    const currentAlreadyClosed = closedCurrent !== undefined;
     const updates: Record<string, unknown> = {
       red_score: openRed,
       blue_score: openBlue,
@@ -478,6 +522,10 @@ export class ScoringService {
       updated_at: new Date().toISOString(),
     };
     let justCompleted = false;
+
+    if (currentAlreadyClosed && this.roundShouldReopen(closedCurrent, ev)) {
+      return this.reopenClosedRound({ matchId, match, matchRow, updates, openRed, openBlue });
+    }
 
     if (!currentAlreadyClosed && ev.autoOver) {
       const closure = this.buildRoundClosure(
@@ -508,6 +556,61 @@ export class ScoringService {
     if (justCompleted) await this.endClockBestEffort(matchId);
     else if (updates['awaiting_round_advance'] === true) await this.haltClockBestEffort(matchId);
 
+    return { redScore: openRed, blueScore: openBlue };
+  }
+
+  /**
+   * Does a closed round have to be reopened?
+   *
+   * Only a round the engine closed BY ITSELF, and only while the re-evaluation
+   * says its end condition no longer holds — which today means the card that
+   * closed it was voided. That is the mirror of a card being able to close a
+   * round; shipping the forward half alone installs a one-way door.
+   *
+   * A round closed on TIME is never reopened. The operator ended it, and
+   * `rounds_json` exists precisely because a time-ended round cannot be derived
+   * back from its exchanges. A round the series has already advanced PAST is not
+   * reachable here either: `current_round` has moved on, so the closed entry
+   * this looks for is not the current one.
+   */
+  private roundShouldReopen(closed: ClosedRound, ev: RoundEvaluation): boolean {
+    const closedAutomatically =
+      closed.endReason === 'first_to_points' || closed.endReason === 'max_doubles';
+    return closedAutomatically && !ev.autoOver;
+  }
+
+  /**
+   * Put the current round back on the board: pop its snapshot, re-derive the
+   * round-win tallies from what is left, and — when the closure had clinched the
+   * series — take the bout back out of `completed`.
+   *
+   * ORDER IS THE WHOLE GUARANTEE, because there is no transaction.
+   * `onMatchUncompleted` refuses on a frozen result, an active forfeit, a Swiss
+   * advance or a dependent bout already fought, so it runs FIRST and a refusal
+   * leaves the round closed and the series standing rather than half of each.
+   *
+   * The clock stays where the closure left it — halted. Restarting it for the
+   * reopened round is the operator's action, as it is after any round close.
+   */
+  private async reopenClosedRound(args: {
+    matchId: string;
+    match: RulesetMatch;
+    matchRow: Record<string, unknown>;
+    updates: Record<string, unknown>;
+    openRed: number;
+    openBlue: number;
+  }): Promise<{ redScore: number; blueScore: number }> {
+    const { matchId, match, matchRow, updates, openRed, openBlue } = args;
+    const popped = popLastClosedRoundColumns(
+      matchRow['rounds_json'],
+      (matchRow['current_round'] as number) ?? 1,
+    );
+    const seriesWasClinched = match.status === 'completed';
+    if (popped && (!seriesWasClinched || (await this.uncompleteBestEffort(matchId)))) {
+      Object.assign(updates, popped);
+      if (seriesWasClinched) Object.assign(updates, reopenedResultColumns());
+    }
+    await this.supabase.service.from('matches').update(updates).eq('id', matchId);
     return { redScore: openRed, blueScore: openBlue };
   }
 
@@ -584,14 +687,10 @@ export class ScoringService {
       ctx.afterblowMode,
       ctx.config,
       ctx.matchFormat,
+      this.penaltiesInRound(ctx.penaltyRows, currentRound),
     );
-    let openRed = ev.score.redScore;
-    let openBlue = ev.score.blueScore;
-    for (const row of this.penaltiesInRound(ctx.penaltyRows, currentRound)) {
-      const delta = (row['score_delta'] as number | null) ?? 0;
-      if (row['registration_id'] === ctx.match.redRegistrationId) openRed += delta;
-      if (row['registration_id'] === ctx.match.blueRegistrationId) openBlue += delta;
-    }
+    const openRed = ev.score.redScore;
+    const openBlue = ev.score.blueScore;
 
     const winnerColor = openRed > openBlue ? 'red' : openBlue > openRed ? 'blue' : null;
     if (winnerColor === null) {
