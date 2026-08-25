@@ -148,7 +148,7 @@ function computeRoundCodes(
 
 function buildMatchesCsv(matches: ArchiveRow[], roundCodes?: Map<string, string>): string {
   const lines = [
-    'match_id,round_code,match_label,status,red_registration_id,blue_registration_id,red_score,blue_score,winner_registration_id',
+    'match_id,round_code,match_label,status,red_registration_id,blue_registration_id,red_score,blue_score,winner_registration_id,end_reason',
   ];
   for (const match of matches) {
     const code = roundCodes?.get(match['id'] as string) ?? '';
@@ -163,6 +163,9 @@ function buildMatchesCsv(matches: ArchiveRow[], roundCodes?: Map<string, string>
         match['red_score'] ?? '',
         match['blue_score'] ?? '',
         match['winner_registration_id'] ?? '',
+        // Without it a 0-0 double loss is indistinguishable in the archive from
+        // a genuine draw, and the fact is gone for good once the event is.
+        match['end_reason'] ?? '',
       ].join(','),
     );
   }
@@ -201,7 +204,7 @@ function buildResultsReportCsv(
   // NAMES, and read as a lie for any tournament not run red-vs-blue. The
   // machine-readable archive CSVs keep their DB column names — those
   // round-trip on re-import.
-  const lines = ['round_code,match_label,fighter_1,fighter_2,score_1,score_2,winner'];
+  const lines = ['round_code,match_label,fighter_1,fighter_2,score_1,score_2,winner,end_reason'];
   for (const match of matches) {
     const red = registrationName(match['red_registration_id'], registrations, persons);
     const blue = registrationName(match['blue_registration_id'], registrations, persons);
@@ -216,6 +219,10 @@ function buildResultsReportCsv(
         match['red_score'] ?? '',
         match['blue_score'] ?? '',
         escapeCsvCell(winner),
+        // The winner cell is empty for every bout the engine gave no winner —
+        // a time-out, a genuine draw and a double loss all read the same
+        // without this. The organiser opens this one in Excel.
+        escapeCsvCell(String(match['end_reason'] ?? '')),
       ].join(','),
     );
   }

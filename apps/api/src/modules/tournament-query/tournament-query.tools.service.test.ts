@@ -116,3 +116,84 @@ describe('TournamentQueryToolsService · get_judge_stats', () => {
     expect(result.metadata?.notes).toContain('No judge assignments found');
   });
 });
+
+describe('TournamentQueryToolsService · the doubles ceiling', () => {
+  let service: TournamentQueryToolsService;
+
+  // Three bouts between the same pair, one per ceiling reason. Only the first
+  // is a loss for both; the draw belongs in neither column and the
+  // result-stands bout names a real winner.
+  const matchRows = [
+    {
+      tournament_id: 't-1',
+      match_id: 'm-1',
+      phase_type: 'pool',
+      pool_name: 'Pool A',
+      status: 'completed',
+      red_registration_id: 'r-1',
+      blue_registration_id: 'r-2',
+      red_name: 'Red One',
+      blue_name: 'Blue Two',
+      red_score: 0,
+      blue_score: 0,
+      winner_registration_id: null,
+      end_reason: 'max_doubles',
+    },
+    {
+      tournament_id: 't-1',
+      match_id: 'm-2',
+      phase_type: 'pool',
+      pool_name: 'Pool A',
+      status: 'completed',
+      red_registration_id: 'r-1',
+      blue_registration_id: 'r-2',
+      red_name: 'Red One',
+      blue_name: 'Blue Two',
+      red_score: 0,
+      blue_score: 0,
+      winner_registration_id: null,
+      end_reason: 'max_doubles_draw',
+    },
+    {
+      tournament_id: 't-1',
+      match_id: 'm-3',
+      phase_type: 'pool',
+      pool_name: 'Pool A',
+      status: 'completed',
+      red_registration_id: 'r-1',
+      blue_registration_id: 'r-2',
+      red_name: 'Red One',
+      blue_name: 'Blue Two',
+      red_score: 2,
+      blue_score: 0,
+      winner_registration_id: 'r-1',
+      end_reason: 'max_doubles_result_stands',
+    },
+  ];
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    service = new TournamentQueryToolsService(mockSupabase as never);
+    fromMock.mockImplementation((tableName: string) => {
+      if (tableName === 'vw_tournament_query_matches') {
+        return awaitableChain({ data: matchRows, error: null });
+      }
+      return awaitableChain({ data: [], error: null });
+    });
+  });
+
+  it('counts a double loss as a loss, not as a bout nobody lost', async () => {
+    // It has no winner, so the winner test credited neither side while the bout
+    // still counted toward `Matches` — deflating the win rate the organiser is
+    // shown and the one the assistant reasons from. The view carries
+    // `end_reason` from migration 0193; before that it could not be seen here
+    // at all.
+    const red = await service.execute(tournament, 'get_fighter_stats', { fighter_id: 'r-1' });
+    const blue = await service.execute(tournament, 'get_fighter_stats', { fighter_id: 'r-2' });
+
+    // Red won m-3, lost m-1 (double loss); m-2 is a draw and counts as neither.
+    expect(red.card).toMatchObject({ Matches: 3, Wins: 1, Losses: 1 });
+    // Blue lost m-1 (double loss) and m-3 (red won it).
+    expect(blue.card).toMatchObject({ Matches: 3, Wins: 0, Losses: 2 });
+  });
+});

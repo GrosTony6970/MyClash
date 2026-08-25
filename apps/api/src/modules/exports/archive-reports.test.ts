@@ -317,9 +317,23 @@ describe('names', () => {
       }),
     );
 
-    // round_code,match_label,fighter_1,fighter_2,score_1,score_2,winner
+    // round_code,match_label,fighter_1,fighter_2,score_1,score_2,winner,end_reason
     // match_label is the stored label as-is; the `M` prefix belongs to the code.
-    expect(reports.resultsCsv.split('\n')[1]).toBe('LSW-M1,1,,,,,');
+    expect(reports.resultsCsv.split('\n')[1]).toBe('LSW-M1,1,,,,,,');
+  });
+
+  it('names the end reason, so an empty winner cell is not ambiguous', () => {
+    // The winner cell is empty for a time-out, a genuine draw AND a doubles
+    // ceiling double loss. Without the reason the organiser's Excel copy cannot
+    // tell them apart, and the archive loses the fact once the event is gone.
+    const bout = { id: 'm-1', phase_id: 'ph-1', status: 'completed', end_reason: 'max_doubles' };
+    const reports = buildTournamentReports(
+      TOURNAMENT,
+      tables({ phases: [{ id: 'ph-1', tournament_id: 't-1', type: 'pool' }], matches: [bout] }),
+    );
+
+    expect(reports.resultsCsv.split('\n')[1]).toContain('max_doubles');
+    expect(reports.matchesCsv.split('\n')[1]).toContain('max_doubles');
   });
 });
 

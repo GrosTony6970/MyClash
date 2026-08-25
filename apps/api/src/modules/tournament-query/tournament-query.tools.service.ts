@@ -1,5 +1,6 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { SupabaseService } from '../supabase/supabase.service';
+import { isDoubleLossBout } from '@myclash/rulesets';
 import type {
   MatchStatus,
   PhaseFilter,
@@ -50,6 +51,8 @@ type MatchRow = {
   red_score?: number | null;
   blue_score?: number | null;
   winner_registration_id?: string | null;
+  /** `matches.end_reason` — 'max_doubles' means BOTH fighters LOST (0193). */
+  end_reason?: string | null;
   status: string;
   match_number_label?: string | null;
 };
@@ -677,9 +680,15 @@ export class TournamentQueryToolsService {
         const otherScore =
           color === 'red' ? Number(match.blue_score ?? 0) : Number(match.red_score ?? 0);
         stats[id].matches += 1;
-        stats[id].wins += match.winner_registration_id === id ? 1 : 0;
+        // A ceiling double loss has no winner, so the two tests below credited
+        // neither side — the bout counted toward `matches` and deflated the win
+        // rate the organiser is shown and the assistant reasons from.
+        const doubleLoss = isDoubleLossBout(match.end_reason ?? null);
+        stats[id].wins += !doubleLoss && match.winner_registration_id === id ? 1 : 0;
         stats[id].losses +=
-          match.winner_registration_id && match.winner_registration_id !== id ? 1 : 0;
+          doubleLoss || (match.winner_registration_id && match.winner_registration_id !== id)
+            ? 1
+            : 0;
         stats[id].pointsFor += ownScore;
         stats[id].pointsAgainst += otherScore;
         stats[id].doubles += Number(exchange?.doubles ?? 0);
