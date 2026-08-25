@@ -21,6 +21,7 @@ import { SupabaseService } from '../supabase/supabase.service';
 // Value import, not `import type`: Nest needs the runtime class for DI metadata.
 import { MatchCompletionService } from '../phases/match-completion.service';
 import { popLastClosedRoundColumns } from './reopen-match-columns';
+import { timeLimitResult } from './time-limit-result';
 
 export type ClockAction =
   'start' | 'halt' | 'resume' | 'end' | 'reopen' | 'reset_clock' | 'adjust_time' | 'reset_match';
@@ -105,7 +106,13 @@ export class ClockService {
     // Verify match exists
     const { data: match } = await this.supabase.service
       .from('matches')
-      .select('id, status, locked_at, started_at, rounds_json, current_round')
+      .select(
+        // The scores and the phase's match format are here so `end` can NAME
+        // the winner of a bout that ran out of time — see `timeLimitResult`.
+        'id, status, locked_at, started_at, rounds_json, current_round, ' +
+          'red_registration_id, blue_registration_id, red_score, blue_score, match_number_label, ' +
+          'phases(type, tournaments(ruleset_config))',
+      )
       .eq('id', matchId)
       .maybeSingle();
 
@@ -198,13 +205,14 @@ export class ClockService {
           ended_at: now,
           duration_active_ms: finalActiveMs,
           ...(durationTotalMs !== null ? { duration_total_ms: durationTotalMs } : {}),
+          ...timeLimitResult(match as unknown as Record<string, unknown>),
         })
         .eq('id', matchId);
       // Ending the clock completes the match, so the bracket must advance here
       // too — this and the point-cap path in ScoringService are the only ways a
-      // pad-scored match ever finishes. Note this update sets no winner: a
-      // match that ran out of time without one simply cannot advance, and
-      // onMatchCompleted correctly no-ops on a null winner_registration_id.
+      // pad-scored match ever finishes. It can advance now: the update above
+      // NAMES the leader, where it used to leave the winner null and strand
+      // every time-limit bout in the bracket.
       await this.matchCompletion?.onMatchCompleted(matchId);
     } else if (action === 'reopen') {
       // Reverses a prior 'end': clock goes back to halted with the
