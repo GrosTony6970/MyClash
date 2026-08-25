@@ -258,19 +258,7 @@ export class AIDataQualityService {
 
     try {
       const allCandidates = await this.collectAllCandidates();
-      const candidates = interleaveByType(allCandidates, AI_RANK_CAP);
-      if (candidates.length < allCandidates.length) {
-        this.logger.warn(
-          `Data quality AI scan ranked ${candidates.length} of ${allCandidates.length} candidates (cap ${AI_RANK_CAP}); the rest are unranked this run`,
-        );
-      }
-      const findings = [];
-
-      for (const candidate of candidates) {
-        const { ranking, usage, keyId } = await this.rankCandidate(candidate, activeKey.provider);
-        await this.logUsage(actorUserId, activeKey.provider, usage, keyId ?? activeKey.id);
-        findings.push(this.toFindingRow(scan.id, candidate, ranking));
-      }
+      const findings = await this.rankWithinBudget(allCandidates, activeKey, actorUserId, scan.id);
 
       if (findings.length > 0) {
         await this.supabase.service
@@ -983,6 +971,33 @@ export class AIDataQualityService {
       fingerprint: candidate.fingerprint,
       updated_at: new Date().toISOString(),
     };
+  }
+
+  /**
+   * Spend the AI ranking budget and build the finding rows for what it
+   * paid for. Returns only the ranked slice — the caller reports the full
+   * candidate total, which is what keeps the two scan modes agreeing.
+   */
+  private async rankWithinBudget(
+    allCandidates: Candidate[],
+    activeKey: { id: string; provider: AIProvider },
+    actorUserId: string,
+    scanId: string,
+  ) {
+    const candidates = interleaveByType(allCandidates, AI_RANK_CAP);
+    if (candidates.length < allCandidates.length) {
+      this.logger.warn(
+        `Data quality AI scan ranked ${candidates.length} of ${allCandidates.length} candidates (cap ${AI_RANK_CAP}); the rest are unranked this run`,
+      );
+    }
+
+    const findings = [];
+    for (const candidate of candidates) {
+      const { ranking, usage, keyId } = await this.rankCandidate(candidate, activeKey.provider);
+      await this.logUsage(actorUserId, activeKey.provider, usage, keyId ?? activeKey.id);
+      findings.push(this.toFindingRow(scanId, candidate, ranking));
+    }
+    return findings;
   }
 
   private async rankCandidate(
