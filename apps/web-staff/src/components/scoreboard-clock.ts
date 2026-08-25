@@ -41,6 +41,15 @@ export interface ClockState {
    * time ran, never where it stopped.
    */
   events?: ClockEvent[];
+  /**
+   * How far down the phase's level-at-time chain this bout has been taken. The
+   * pad reads it to NAME the remedy on its own button and to know when sudden
+   * death is live; the server still decides whether the remedy applies.
+   *
+   * Optional because an older API answers without it, and `?? 0` is then the
+   * start of the chain, which is what an un-resolved bout is.
+   */
+  levelResolutionSteps?: number;
 }
 
 /** Whether the UI's `now` ticker should run. Running is obvious; HALTED must
@@ -59,6 +68,23 @@ export function elapsedActiveMs(state: ClockState | null, now: number): number {
     return state.activeMs + (now - new Date(state.runningFrom).getTime());
   }
   return state.activeMs;
+}
+
+/**
+ * How long SUDDEN DEATH has been running — the count-up under the skull.
+ *
+ * Time since the countdown reached zero, so it needs no state of its own: the
+ * remedies before it have already moved `elapsedMs` (extra time is an
+ * `adjust_time` row), which puts the zero exactly where the referee saw it.
+ * Clamped at zero for the referee who declares sudden death with time still on
+ * the board — it starts when the clock expires, not when the step was recorded.
+ *
+ * With no phase limit — a count-up tournament — there is no zero to count from,
+ * so the elapsed time IS the answer.
+ */
+export function suddenDeathElapsedMs(elapsedMs: number, limitMs: number | null): number {
+  if (limitMs === null) return Math.max(0, elapsedMs);
+  return Math.max(0, elapsedMs - limitMs);
 }
 
 /** The number the big scoreboard clock shows for `state` at time `now`. */

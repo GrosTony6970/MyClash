@@ -763,6 +763,24 @@ export const organizer = {
         'The bout stops after this many double hits. What that counts as is set below. 0 = no limit.',
       maxDoubleHitOutcomeHelp:
         'What a bout stopped by the doubles ceiling counts as. Loss for both and Draw for both wipe the score to 0–0; The score stands keeps the points on the board and gives the win to whoever leads.',
+      levelAtTime: 'Level scores at time',
+      levelAtTimeHelp:
+        'What the referee does when the clock runs out and neither fighter leads. The steps are played in order until one of them does. A pool draw is a real result; an elimination bout cannot advance a draw, so it needs to be played out.',
+      levelAtTimePool: 'Pools',
+      levelAtTimeBracket: 'Bracket',
+      levelAtTimeFinals: 'Finals and medal matches',
+      levelStepDraw: 'Record a draw',
+      levelStepSuddenDeath: 'Sudden death',
+      levelStepExtraTime: 'Extra time',
+      levelStepSeconds: 'Seconds',
+      levelAddStep: 'Add a step',
+      levelRemoveStep: 'Remove this step',
+      levelMoveStepUp: 'Move up',
+      levelMoveStepDown: 'Move down',
+      levelLastStepMustBeTerminal:
+        'The last step must be Record a draw or Sudden death. A chain ending in extra time can come back level for ever, so the bout could never be finished.',
+      levelStepDrawHint: 'The bout is over and counts as a draw for both fighters.',
+      levelStepSuddenDeathHint: 'Play on with no clock until one fighter leads.',
       afterblowModeHelp:
         "Full: the afterblow still scores for the defender. Deductive: the afterblow is subtracted from the attacker's points and the defender scores 0.",
       scoringDirectionHelp:

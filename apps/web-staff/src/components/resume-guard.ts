@@ -10,12 +10,22 @@
 import type { MatchFormatConfig } from '@myclash/types';
 import { effectiveTimeLimitSeconds, type PhaseType } from './scoreboard-clock';
 
+/**
+ * `inSuddenDeath` is REQUIRED, not an optional trailing flag.
+ *
+ * Sudden death runs with the countdown sitting at 00:00 by design — that is
+ * what the state IS — so every single resume would meet this challenge, on the
+ * one surface where the referee is restarting the clock most often. An optional
+ * parameter would have let the one caller keep the old behaviour silently.
+ */
 export function resumeBlockedByRuleset(
   matchFormat: MatchFormatConfig,
   phaseType: PhaseType | undefined,
   matchNumberLabel: string | null | undefined,
   elapsedMs: number,
+  inSuddenDeath: boolean,
 ): boolean {
+  if (inSuddenDeath) return false;
   if (matchFormat.timerMode !== 'countdown') return false;
   const limitSeconds = effectiveTimeLimitSeconds(matchFormat, phaseType, matchNumberLabel);
   if (limitSeconds === null) return false;

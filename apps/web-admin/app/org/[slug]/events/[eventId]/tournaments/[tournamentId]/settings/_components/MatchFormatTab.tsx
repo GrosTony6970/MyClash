@@ -8,7 +8,15 @@ import { apiRequest, failureMessage } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
 // One owner for the option list, so the two surfaces cannot offer different
 // wording — or different values — for the same setting.
-import { MAX_DOUBLE_HIT_OUTCOME_OPTIONS } from '../../../new/_wizard/buildMatchFormatFromRow';
+import {
+  levelChainsFrom,
+  MAX_DOUBLE_HIT_OUTCOME_OPTIONS,
+} from '../../../new/_wizard/buildMatchFormatFromRow';
+import {
+  LevelAtTimeEditor,
+  levelChainsAreValid,
+  type LevelAtTimeChains,
+} from '../../../new/_wizard/LevelAtTimeEditor';
 
 const apiUrl = getPublicApiUrl();
 
@@ -23,6 +31,7 @@ interface MatchFormat {
   afterblowMode: 'full' | 'deductive';
   scoringDirection: 'normal' | 'reverse_zero_loses';
   bestOf: { pool: number; bracket: number; finals: number };
+  levelAtTime: LevelAtTimeChains;
 }
 
 const DEFAULTS: MatchFormat = {
@@ -35,6 +44,11 @@ const DEFAULTS: MatchFormat = {
   afterblowMode: 'full',
   scoringDirection: 'normal',
   bestOf: { pool: 1, bracket: 1, finals: 1 },
+  levelAtTime: {
+    pool: [{ kind: 'draw' }],
+    bracket: [{ kind: 'extra_time', seconds: 60 }, { kind: 'sudden_death' }],
+    finals: [{ kind: 'extra_time', seconds: 60 }, { kind: 'sudden_death' }],
+  },
 };
 
 // Best-of selector options — odd values only (the engine rejects even N).
@@ -86,6 +100,10 @@ export function MatchFormatTab({ tournamentId }: { tournamentId: string }) {
             softClockLimitSeconds: mf.softClockLimitSeconds ?? DEFAULTS.softClockLimitSeconds,
             maxDoubleHits: mf.maxDoubleHits ?? DEFAULTS.maxDoubleHits,
             maxDoubleHitOutcome: mf.maxDoubleHitOutcome ?? DEFAULTS.maxDoubleHitOutcome,
+            // Plucked, not spread: the API's match-format schema is `.strict()`
+            // and refines the last step, so an unrecognised stored shape must
+            // not round-trip back into it.
+            levelAtTime: levelChainsFrom(mf.levelAtTime, DEFAULTS.levelAtTime),
             scoringDirection: mf.scoringDirection ?? DEFAULTS.scoringDirection,
             afterblowMode: sc.afterblowMode ?? DEFAULTS.afterblowMode,
             bestOf: { ...DEFAULTS.bestOf, ...(mf.bestOf ?? {}) },
@@ -110,6 +128,7 @@ export function MatchFormatTab({ tournamentId }: { tournamentId: string }) {
               softClockLimitSeconds: data.softClockLimitSeconds,
               maxDoubleHits: data.maxDoubleHits,
               maxDoubleHitOutcome: data.maxDoubleHitOutcome,
+              levelAtTime: data.levelAtTime,
               bestOf: data.bestOf,
             },
           },
@@ -295,6 +314,12 @@ export function MatchFormatTab({ tournamentId }: { tournamentId: string }) {
         />
       )}
 
+      <LevelAtTimeEditor
+        value={data.levelAtTime}
+        onChange={(levelAtTime) => setData({ ...data, levelAtTime })}
+        t={t}
+      />
+
       {hasAfterblow && (
         <SelectField
           label={t('organizer.tournaments.settings.afterblowMode')}
@@ -331,7 +356,7 @@ export function MatchFormatTab({ tournamentId }: { tournamentId: string }) {
       <button
         type="button"
         onClick={() => void save()}
-        disabled={saving}
+        disabled={saving || !levelChainsAreValid(data.levelAtTime)}
         className="rounded-md bg-accent px-4 py-2 text-sm font-semibold text-accent-foreground hover:bg-accent-hover disabled:opacity-50"
       >
         {saving ? t('common.saving') : t('organizer.tournaments.settings.save')}

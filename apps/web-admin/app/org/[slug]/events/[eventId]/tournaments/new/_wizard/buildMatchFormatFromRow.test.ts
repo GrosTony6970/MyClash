@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   buildMatchFormatFromRow,
+  levelChainsFrom,
   type WizardMatchFormat,
   MATCH_FORMAT_DEFAULTS,
 } from './buildMatchFormatFromRow';
@@ -36,6 +37,7 @@ describe('buildMatchFormatFromRow', () => {
       scoringDirection: 'reverse_zero_loses',
       afterblowMode: 'deductive',
       bestOf: { pool: 1, bracket: 1, finals: 1 },
+      levelAtTime: MATCH_FORMAT_DEFAULTS.levelAtTime,
     });
   });
 
@@ -62,6 +64,7 @@ describe('buildMatchFormatFromRow', () => {
       [
         'afterblowMode',
         'bestOf',
+        'levelAtTime',
         'maxDoubleHitOutcome',
         'maxDoubleHits',
         'pointCap',
@@ -93,3 +96,51 @@ describe('buildMatchFormatFromRow', () => {
 interface WizardMatchFormatRow {
   matchFormat?: Partial<WizardMatchFormat>;
 }
+
+/**
+ * The level-at-time chain, hydrated from a stored row.
+ *
+ * The API's match-format schema is `.strict()` AND refines the last step, so a
+ * shape this hands back unrecognised does not fail loudly — it round-trips into
+ * the next PATCH and 400s a save the organiser never asked for.
+ */
+describe('levelChainsFrom', () => {
+  const DEFAULTS = MATCH_FORMAT_DEFAULTS.levelAtTime;
+
+  it('keeps a stored chain the editor can offer', () => {
+    const out = levelChainsFrom(
+      { bracket: [{ kind: 'extra_time', seconds: 45 }, { kind: 'draw' }] },
+      DEFAULTS,
+    );
+    expect(out.bracket).toEqual([{ kind: 'extra_time', seconds: 45 }, { kind: 'draw' }]);
+    // The phases the row said nothing about keep the defaults.
+    expect(out.pool).toEqual(DEFAULTS.pool);
+    expect(out.finals).toEqual(DEFAULTS.finals);
+  });
+
+  it('falls back rather than round-tripping a shape the API refuses', () => {
+    // A chain ending in extra time can come back level for ever; the engine
+    // and the DTO both reject one, so handing it back to the editor would put
+    // the organiser one Save away from a 400 on a field they did not touch.
+    expect(levelChainsFrom({ pool: [{ kind: 'extra_time', seconds: 30 }] }, DEFAULTS).pool).toEqual(
+      DEFAULTS.pool,
+    );
+    // An unknown step kind, extra time with no number, and an empty chain.
+    expect(levelChainsFrom({ pool: [{ kind: 'coin_toss' }] }, DEFAULTS).pool).toEqual(
+      DEFAULTS.pool,
+    );
+    expect(levelChainsFrom({ pool: [{ kind: 'extra_time' }] }, DEFAULTS).pool).toEqual(
+      DEFAULTS.pool,
+    );
+    expect(levelChainsFrom({ pool: [] }, DEFAULTS).pool).toEqual(DEFAULTS.pool);
+    expect(levelChainsFrom(null, DEFAULTS)).toEqual(DEFAULTS);
+  });
+
+  it('drops the extra keys a stored step may carry', () => {
+    const out = levelChainsFrom(
+      { pool: [{ kind: 'extra_time', seconds: 30, note: 'leak' }, { kind: 'sudden_death' }] },
+      DEFAULTS,
+    );
+    expect(JSON.stringify(out)).not.toContain('leak');
+  });
+});

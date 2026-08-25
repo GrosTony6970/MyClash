@@ -761,6 +761,24 @@ export const organizer = {
         "L'assaut s'arrête après ce nombre de doubles. Ce que cela compte se règle ci-dessous. 0 = pas de limite.",
       maxDoubleHitOutcomeHelp:
         'Ce que compte un assaut arrêté par le plafond de doubles. Défaite pour les deux et Match nul pour les deux remettent le score à 0–0; Le score reste garde les points acquis et donne la victoire à celui qui mène.',
+      levelAtTime: 'Scores à égalité au temps',
+      levelAtTimeHelp:
+        'Ce que fait l’arbitre quand le temps est écoulé et qu’aucun tireur ne mène. Les étapes sont jouées dans l’ordre jusqu’à ce que l’un d’eux mène. Un nul est un vrai résultat en poule ; en tableau il ne peut pas qualifier, il faut donc départager.',
+      levelAtTimePool: 'Poules',
+      levelAtTimeBracket: 'Tableau',
+      levelAtTimeFinals: 'Finales et matchs pour les médailles',
+      levelStepDraw: 'Enregistrer un nul',
+      levelStepSuddenDeath: 'Mort subite',
+      levelStepExtraTime: 'Prolongation',
+      levelStepSeconds: 'Secondes',
+      levelAddStep: 'Ajouter une étape',
+      levelRemoveStep: 'Supprimer cette étape',
+      levelMoveStepUp: 'Monter',
+      levelMoveStepDown: 'Descendre',
+      levelLastStepMustBeTerminal:
+        'La dernière étape doit être Enregistrer un nul ou Mort subite. Une suite qui se termine par une prolongation peut revenir à égalité indéfiniment : l’assaut ne pourrait jamais se terminer.',
+      levelStepDrawHint: 'L’assaut est terminé et compte comme un nul pour les deux tireurs.',
+      levelStepSuddenDeathHint: 'On continue sans chrono jusqu’à ce qu’un tireur mène.',
       afterblowModeHelp:
         "Complet : la contre-frappe rapporte des points au defenseur. Déductif : la contre-frappe est soustraite des points de l'attaquant et le defenseur marque 0.",
       scoringDirectionHelp:

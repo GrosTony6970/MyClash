@@ -47,6 +47,8 @@ const FORFEIT_BLOCKED = 'scoring.corrections.forfeitBlocked';
 const SWISS_AHEAD = 'scoring.corrections.swissRoundAhead';
 const ORGANISER_ONLY = 'scoring.corrections.organiserOnly';
 const OFFLINE = 'scoring.corrections.offlineRefusal';
+const LEVEL_EXTRA_TIME = 'scoring.level.refusedExtraTime';
+const LEVEL_SUDDEN_DEATH = 'scoring.level.refusedSuddenDeath';
 
 /**
  * `t()` has no plural engine, so one needs its own key rather than "the 1 later
@@ -59,6 +61,21 @@ const counted = (t: Translate, one: string, many: string, count: number): string
 function foughtCount(details: Record<string, unknown> | null): number {
   const count = details?.['foughtCount'];
   return typeof count === 'number' && Number.isFinite(count) && count > 0 ? count : 1;
+}
+
+/**
+ * What a referee does about a bout that is level when the clock runs out.
+ *
+ * Sudden death is the fallback, and deliberately: it is the only remedy that
+ * needs no number, so an unrecognised or missing `remedy` still tells the
+ * referee something true — play on until one of them leads.
+ */
+function levelAtTime(t: Translate, details: Record<string, unknown> | null): string {
+  const seconds = details?.['seconds'];
+  if (details?.['remedy'] === 'extra_time' && typeof seconds === 'number') {
+    return t(LEVEL_EXTRA_TIME, { seconds });
+  }
+  return t(LEVEL_SUDDEN_DEATH);
 }
 
 export function refusalMessage(
@@ -85,6 +102,11 @@ export function refusalMessage(
       return t(SWISS_AHEAD);
     case 'uncomplete_requires_organiser':
       return t(ORGANISER_ONLY);
+    case 'level_at_time_unresolved':
+      // The bout is level and the phase says play it out. `remedy` carries which
+      // one; the server's own message names it in English, which is exactly what
+      // this file exists to keep off a referee's tablet.
+      return levelAtTime(t, failure.details);
     default:
       break;
   }

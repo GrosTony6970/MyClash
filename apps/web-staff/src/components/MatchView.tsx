@@ -23,6 +23,7 @@ import {
 } from '@myclash/types';
 import { sideStyle, useAdjacentMatches } from '@myclash/ui';
 import { effectiveTimeLimitSeconds } from './scoreboard-clock';
+import { pendingLevelStep, type LevelStep } from '@myclash/types';
 import { closedRoundWinner } from './round-winner';
 import { resumeBlockedByRuleset } from './resume-guard';
 import { apiRequest } from '@myclash/api-client';
@@ -219,6 +220,43 @@ export function MatchView({
     void fetchClockState();
   }, [fetchClockState, refreshKey]);
 
+  // ── Level at time ──────────────────────────────────────────────────────────
+  //
+  // A bout that is LEVEL when the clock runs out follows the phase's chain of
+  // remedies. The server refuses the End and names what to play; the pad reads
+  // the same chain so it can LABEL the button before pressing it, and so the
+  // clock can wear a skull instead of a numeral once sudden death is live.
+  //
+  // Levelness is the SERVER's scores, never the provisional ones: a queued hit
+  // has not landed, and offering to resolve a bout the tablet alone thinks is
+  // level would be a worse lie than offering nothing.
+  //
+  // Declared HERE, above `onClockAction`, because the resume challenge reads
+  // `inSuddenDeath` — a bout in sudden death sits at 00:00 by design.
+  const levelSteps = clockState?.levelResolutionSteps ?? 0;
+  const scoresAreLevel = (match.redScore ?? 0) === (match.blueScore ?? 0);
+  const levelChainApplies = scoresAreLevel && (match.bestOf ?? 1) <= 1;
+  const levelPending: LevelStep | null = levelChainApplies
+    ? pendingLevelStep(
+        matchFormat,
+        match.phaseType ?? undefined,
+        match.matchNumberLabel,
+        levelSteps,
+      )
+    : null;
+  // The step already APPLIED — one behind the pending one. Sudden death is
+  // terminal, so it is live from the moment it was applied until someone leads.
+  const levelApplied: LevelStep | null =
+    levelChainApplies && levelSteps > 0
+      ? pendingLevelStep(
+          matchFormat,
+          match.phaseType ?? undefined,
+          match.matchNumberLabel,
+          levelSteps - 1,
+        )
+      : null;
+  const inSuddenDeath = levelApplied?.kind === 'sudden_death';
+
   // Clock state machine: POST + refresh. Start/Resume at zero remaining /
   // inside the soft-clock zone is challenged first (per the ruleset the
   // clock should not restart) — the modal proceeds with `force`.
@@ -235,6 +273,7 @@ export function MatchView({
           match.phaseType ?? undefined,
           match.matchNumberLabel,
           clockState?.activeMs ?? 0,
+          inSuddenDeath,
         )
       ) {
         setPendingResume(action);
@@ -277,6 +316,7 @@ export function MatchView({
       match.matchNumberLabel,
       matchFormat,
       clockState?.activeMs,
+      inSuddenDeath,
       onRefresh,
       t,
     ],
@@ -343,6 +383,27 @@ export function MatchView({
         method: 'POST',
         body: {},
       });
+      if (!result.ok) {
+        throw new Error(refusalMessage(result, t, 'scoring.clock.actionFailed') ?? '');
+      }
+      await fetchClockState();
+      onRefresh();
+    } catch (err) {
+      setClockError(err instanceof Error ? err.message : t('scoring.clock.actionFailed'));
+    } finally {
+      setRoundBusy(false);
+    }
+  }, [apiUrl, match.id, fetchClockState, onRefresh, t]);
+
+  const onAdvanceLevelResolution = useCallback(async () => {
+    setRoundBusy(true);
+    setClockError(null);
+    try {
+      const result = await apiRequest(
+        apiUrl,
+        `/api/v1/matches/${match.id}/level-resolution/advance`,
+        { method: 'POST', body: {} },
+      );
       if (!result.ok) {
         throw new Error(refusalMessage(result, t, 'scoring.clock.actionFailed') ?? '');
       }
@@ -605,6 +666,9 @@ export function MatchView({
           blueRoundWins={blueRoundWins}
           roundBusy={roundBusy}
           onEndRound={() => void onEndRound()}
+          levelPending={levelPending}
+          inSuddenDeath={inSuddenDeath}
+          onAdvanceLevelResolution={() => void onAdvanceLevelResolution()}
         />
 
         <ScoringColumn

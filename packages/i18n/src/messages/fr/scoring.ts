@@ -329,6 +329,14 @@ export const scoring = {
     startRound: 'Démarrer la manche {round}',
     endRound: 'Terminer la manche',
   },
+  level: {
+    refusedExtraTime: 'Scores à égalité. Jouez {seconds}s de prolongation.',
+    refusedSuddenDeath: 'Scores à égalité. Continuez jusqu’à ce qu’un tireur mène.',
+    playExtraTime: 'Prolongation {seconds}s',
+    playSuddenDeath: 'Mort subite',
+    suddenDeathBanner: 'MORT SUBITE',
+    suddenDeathHint: 'Se termine quand un tireur mène',
+  },
   freshness: {
     live: 'En direct',
     polling: 'Mises à jour ralenties',

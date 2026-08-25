@@ -29,7 +29,7 @@ const FALLBACK = 'scoring.corrections.actionFailed';
 /** A refusal as `apiRequest` reports it. */
 function refusal(
   status: number,
-  fields: { code?: string; detail?: string; details?: Record<string, unknown> } = {},
+  fields: { code?: string; detail?: string; details?: Record<string, unknown> | null } = {},
 ): ApiFailure {
   const base = {
     status,
@@ -159,5 +159,46 @@ describe('refusalMessage', () => {
 
   it('falls back to the caller’s key when there is no reason at all', () => {
     expect(refusalMessage(refusal(500), t, FALLBACK)).toBe(FALLBACK);
+  });
+});
+
+/**
+ * A LEVEL bout at time. The clock refuses to end it and names the remedy; this
+ * is where the API's English becomes something the referee reads in their own
+ * language, on the tablet, mid-bout.
+ */
+describe('refusalMessage — level at time', () => {
+  it('names the extra time, with the seconds the organiser configured', () => {
+    expect(
+      refusalMessage(
+        refusal(400, {
+          code: 'level_at_time_unresolved',
+          details: { remedy: 'extra_time', seconds: 60 },
+        }),
+        t,
+        FALLBACK,
+      ),
+    ).toBe('scoring.level.refusedExtraTime:{"seconds":60}');
+  });
+
+  it('names sudden death, which needs no number', () => {
+    expect(
+      refusalMessage(
+        refusal(400, { code: 'level_at_time_unresolved', details: { remedy: 'sudden_death' } }),
+        t,
+        FALLBACK,
+      ),
+    ).toBe('scoring.level.refusedSuddenDeath');
+  });
+
+  it('falls back to sudden death when the remedy is missing or malformed', () => {
+    // Sudden death is the fallback DELIBERATELY: it is the only remedy that
+    // needs no number, so an unrecognised body still tells the referee
+    // something true — play on until one of them leads.
+    for (const details of [null, {}, { remedy: 'extra_time' }, { remedy: 'coin_toss' }]) {
+      expect(
+        refusalMessage(refusal(400, { code: 'level_at_time_unresolved', details }), t, FALLBACK),
+      ).toBe('scoring.level.refusedSuddenDeath');
+    }
   });
 });

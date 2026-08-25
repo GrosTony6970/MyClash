@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_MATCH_FORMAT_CONFIG, type MatchFormatConfig } from '@myclash/types';
-import { clockShouldTick, scoreboardClockMs, type ClockState } from './scoreboard-clock';
+import {
+  clockShouldTick,
+  scoreboardClockMs,
+  suddenDeathElapsedMs,
+  type ClockState,
+} from './scoreboard-clock';
 
 const NOW = 1_000_000;
 
@@ -92,5 +97,32 @@ describe('clockShouldTick', () => {
     expect(clockShouldTick('halted')).toBe(true);
     expect(clockShouldTick('idle')).toBe(false);
     expect(clockShouldTick('ended')).toBe(false);
+  });
+});
+
+/**
+ * The count-up under the SKULL, once sudden death is live.
+ *
+ * It replaces the numeral rather than sitting beside it, because a countdown
+ * pinned at 00:00 tells the referee nothing about how long the deciding
+ * exchange has taken.
+ */
+describe('suddenDeathElapsedMs', () => {
+  it('counts from the moment the countdown reached zero', () => {
+    expect(suddenDeathElapsedMs(90_000, 90_000)).toBe(0);
+    expect(suddenDeathElapsedMs(112_000, 90_000)).toBe(22_000);
+  });
+
+  it('needs no state of its own after extra time was granted', () => {
+    // Extra time is an `adjust_time` row, so it has ALREADY moved elapsed: a
+    // 90s limit plus 60s of extra time reads as 30s elapsed, and the count-up
+    // starts again from the extended zero without being told about it.
+    expect(suddenDeathElapsedMs(30_000, 90_000)).toBe(0);
+    expect(suddenDeathElapsedMs(95_000, 90_000)).toBe(5_000);
+  });
+
+  it('is the elapsed time when there is no limit to count from', () => {
+    // A count-up tournament, or a phase configured with no time limit.
+    expect(suddenDeathElapsedMs(45_000, null)).toBe(45_000);
   });
 });

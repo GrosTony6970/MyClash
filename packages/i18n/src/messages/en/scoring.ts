@@ -338,6 +338,18 @@ export const scoring = {
     startRound: 'Start round {round}',
     endRound: 'End round',
   },
+  // What the referee does about a bout that is LEVEL when the clock runs out.
+  // The phase's chain decides: a pool bout is simply a draw, an elimination
+  // bout plays extra time and then sudden death.
+  level: {
+    refusedExtraTime: 'Scores are level. Play {seconds}s of extra time.',
+    refusedSuddenDeath: 'Scores are level. Play on until one fighter leads.',
+    playExtraTime: 'Extra time {seconds}s',
+    playSuddenDeath: 'Sudden death',
+    suddenDeathBanner: 'SUDDEN DEATH',
+    // Never "the next point decides": one exchange can score both fighters.
+    suddenDeathHint: 'Ends when one fighter leads',
+  },
   freshness: {
     live: 'Live',
     polling: 'Slower updates',

@@ -18,7 +18,7 @@
  */
 
 import { useEffect, useMemo, useState } from 'react';
-import type { MatchFormatConfig, TournamentScoringConfig } from '@myclash/types';
+import type { LevelStep, MatchFormatConfig, TournamentScoringConfig } from '@myclash/types';
 import { useI18n } from '@myclash/next-i18n/client';
 import { useScoringTheme } from '../theme/ThemeProvider';
 import {
@@ -32,9 +32,11 @@ import {
 import {
   clockShouldTick,
   displayClockMs,
+  effectiveTimeLimitSeconds,
   elapsedActiveMs,
   formatClockMs,
   shouldWarnClock,
+  suddenDeathElapsedMs,
   type ClockState,
 } from './scoreboard-clock';
 import type { MatchScoringData } from '../hooks/useMatchScoringData';
@@ -104,6 +106,17 @@ interface ScoringCenterControlsProps {
   roundBusy?: boolean;
   /** End the current round on time (best-of). Leader wins; tie → server rejects. */
   onEndRound?: () => void;
+  // ── Level at time ──
+  /**
+   * The remedy this LEVEL bout is waiting on, or null when there is none to
+   * play — a pool bout whose chain is a draw, a bout with a leader, or a bout
+   * already in sudden death with nothing left to advance to.
+   */
+  levelPending?: LevelStep | null;
+  /** Sudden death is live: the clock wears a skull and counts up. */
+  inSuddenDeath?: boolean;
+  /** Take the bout one step down its chain and apply the remedy. */
+  onAdvanceLevelResolution?: () => void;
 }
 
 /** Renders MM:SS at full size with the centiseconds (:CS) smaller + muted. */
@@ -149,6 +162,9 @@ export function ScoringCenterControls({
   blueRoundWins = 0,
   roundBusy = false,
   onEndRound,
+  levelPending = null,
+  inSuddenDeath = false,
+  onAdvanceLevelResolution,
 }: ScoringCenterControlsProps) {
   const { t } = useI18n();
   // This column IS the pad, so it takes the pad scope. Needed in JS because
@@ -197,6 +213,14 @@ export function ScoringCenterControls({
   const elapsedMs = useMemo(() => elapsedActiveMs(clockState, now), [clockState, now]);
   const shownMs = displayClockMs(elapsedMs, matchFormat, phaseType, matchNumberLabel);
   const warned = shouldWarnClock(elapsedMs, matchFormat, phaseType, matchNumberLabel);
+  // How long sudden death has been running — the count-up UNDER the skull. A
+  // countdown pinned at 00:00 says nothing about how long the deciding exchange
+  // has taken, which is the one number that matters once the chain is spent.
+  const limitSeconds = effectiveTimeLimitSeconds(matchFormat, phaseType, matchNumberLabel);
+  const suddenDeathMs = suddenDeathElapsedMs(
+    elapsedMs,
+    matchFormat.timerMode === 'countdown' && limitSeconds !== null ? limitSeconds * 1000 : null,
+  );
 
   // eslint-disable-next-line react-hooks/preserve-manual-memoization -- intentional manual memo the React Compiler cannot preserve.
   const totalMs = useMemo(() => {
@@ -380,22 +404,47 @@ export function ScoringCenterControls({
         );
       })()}
 
-      {/* Timer — countdown-aware; turns red in the final 10s of a countdown. */}
-      <p
-        className={`font-mono text-6xl font-black tabular-nums leading-none ${
-          warned
-            ? 'text-danger'
-            : status === 'running'
-              ? 'text-foreground'
-              : status === 'halted'
-                ? 'text-warning'
-                : status === 'ended'
-                  ? 'text-muted'
-                  : 'text-muted/70'
-        }`}
-      >
-        <ClockText ms={shownMs} />
-      </p>
+      {/* SUDDEN DEATH replaces the numeral with a skull and a count-up. A
+          countdown pinned at 00:00 tells the referee nothing, and the one
+          number that matters is how long the deciding exchange has taken.
+          It ends when a fighter LEADS — never "the next point", because one
+          afterblow can score both of them and leave the bout as level as it
+          was. Scoring keeps the pad's normal gate throughout. */}
+      {inSuddenDeath ? (
+        <div className="flex flex-col items-center gap-1" data-testid="sudden-death">
+          <span
+            className="text-6xl leading-none"
+            role="img"
+            aria-label={t('scoring.level.suddenDeathBanner')}
+          >
+            💀
+          </span>
+          <span className="text-xs font-bold uppercase tracking-widest text-danger">
+            {t('scoring.level.suddenDeathBanner')}
+          </span>
+          <span className="font-mono text-2xl font-black tabular-nums leading-none text-foreground">
+            <ClockText ms={suddenDeathMs} />
+          </span>
+          <span className="text-xs text-muted">{t('scoring.level.suddenDeathHint')}</span>
+        </div>
+      ) : (
+        /* Timer — countdown-aware; turns red in the final 10s of a countdown. */
+        <p
+          className={`font-mono text-6xl font-black tabular-nums leading-none ${
+            warned
+              ? 'text-danger'
+              : status === 'running'
+                ? 'text-foreground'
+                : status === 'halted'
+                  ? 'text-warning'
+                  : status === 'ended'
+                    ? 'text-muted'
+                    : 'text-muted/70'
+          }`}
+        >
+          <ClockText ms={shownMs} />
+        </p>
+      )}
 
       {/* Total time */}
       {clockState?.startedAt && (
@@ -441,6 +490,24 @@ export function ScoringCenterControls({
                 className="min-h-[44px] rounded-lg border-2 border-danger bg-danger/20 px-4 py-1.5 text-sm font-bold text-danger hover:bg-danger/30 active:bg-danger/40 disabled:opacity-40"
               >
                 {isBestOf ? t('scoring.rounds.endRound') : t('scoring.clock.endMatch')}
+              </button>
+            )}
+            {/* The remedy this LEVEL bout is waiting on. Shown only when the
+                phase's chain actually offers one, so a pool bout — whose chain
+                is a single draw — keeps the two buttons it has always had. The
+                SERVER still decides whether it applies; this only names it. */}
+            {levelPending && levelPending.kind !== 'draw' && onAdvanceLevelResolution && (
+              <button
+                type="button"
+                data-testid="level-resolution-button"
+                data-remedy={levelPending.kind}
+                disabled={clockLoading || roundBusy}
+                onClick={onAdvanceLevelResolution}
+                className="min-h-[44px] rounded-lg border-2 border-warning bg-warning/20 px-4 py-1.5 text-sm font-bold text-warning hover:bg-warning/30 active:bg-warning/40 disabled:opacity-40"
+              >
+                {levelPending.kind === 'extra_time'
+                  ? t('scoring.level.playExtraTime', { seconds: levelPending.seconds })
+                  : t('scoring.level.playSuddenDeath')}
               </button>
             )}
             {status === 'halted' && (

@@ -9,6 +9,7 @@ import {
   MAX_DOUBLE_HIT_OUTCOME_OPTIONS,
   type WizardMatchFormat,
 } from './buildMatchFormatFromRow';
+import { LevelAtTimeEditor, levelChainsAreValid } from './LevelAtTimeEditor';
 import { apiRequest, failureMessage } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
 
@@ -76,6 +77,7 @@ export function Step2MatchFormat({
               maxDoubleHits: data.maxDoubleHits,
               maxDoubleHitOutcome: data.maxDoubleHitOutcome,
               bestOf: data.bestOf,
+              levelAtTime: data.levelAtTime,
             },
           },
           // Only written when the ruleset HAS afterblow. This used to send
@@ -239,6 +241,12 @@ export function Step2MatchFormat({
         />
       )}
 
+      <LevelAtTimeEditor
+        value={data.levelAtTime}
+        onChange={(levelAtTime) => setData({ ...data, levelAtTime })}
+        t={t}
+      />
+
       {hasAfterblow && (
         <SelectField
           label={t('organizer.tournaments.settings.afterblowMode')}
@@ -279,7 +287,11 @@ export function Step2MatchFormat({
         <button
           type="button"
           onClick={() => void saveAndAdvance()}
-          disabled={saving}
+          // A chain ending in extra time is a 400 from the API's match-format
+          // schema, and the editor already says why in place. Blocking here
+          // means the organiser fixes it where they built it rather than
+          // reading a rejected save.
+          disabled={saving || !levelChainsAreValid(data.levelAtTime)}
           className="rounded-md bg-accent px-4 py-2 text-sm font-semibold text-accent-foreground hover:bg-accent-hover disabled:opacity-50"
         >
           {saving ? t('common.saving') : t('actions.next')}
