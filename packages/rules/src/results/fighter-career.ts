@@ -1,5 +1,5 @@
 import type { FinalRankingResultKind } from '../ranking';
-import { isDoubleLossBout } from '../match-format';
+import { boutOutcomes } from '../match-format';
 
 export interface CareerRegistrationInput {
   id: string;
@@ -218,14 +218,24 @@ export function buildFighterCareer(input: BuildFighterCareerInput) {
         exchanges: 0,
       } satisfies FighterEventStat);
 
+    // One rule, shared with the standings tables and the recent-form strip
+    // below. This used to consult the winner ALONE, so a bout with none — every
+    // bout that ran out of time, before the clock started naming one — counted
+    // toward `matches` and landed in NEITHER column, quietly inflating the
+    // denominator of every win rate on the page.
+    const outcome = boutOutcomes({
+      winnerRegistrationId: match.winnerRegistrationId,
+      redRegistrationId: match.redRegistrationId,
+      blueRegistrationId: match.blueRegistrationId,
+      redScore: match.redScore,
+      blueScore: match.blueScore,
+      endReason: match.endReason,
+    })[match.redRegistrationId === registrationId ? 'red' : 'blue'];
+
     for (const stats of [overall, weaponStats, yearStats, eventStats]) {
       stats.matches += 1;
-      // FIRST: a ceiling double loss has no winner, so the tests below file it
-      // as neither a win nor a loss while still counting the bout — quietly
-      // inflating the denominator of every win rate on the page.
-      if (isDoubleLossBout(match.endReason)) stats.losses += 1;
-      else if (match.winnerRegistrationId === registrationId) stats.wins += 1;
-      else if (match.winnerRegistrationId) stats.losses += 1;
+      if (outcome === 'win') stats.wins += 1;
+      else if (outcome === 'loss') stats.losses += 1;
     }
 
     byWeapon.set(weapon, weaponStats);
@@ -294,16 +304,18 @@ export function buildFighterCareer(input: BuildFighterCareerInput) {
           ? match.blueRegistrationId
           : null;
       if (!registrationId) return [];
-      // Same ordering, same reason: with no winner recorded this read as a
-      // draw, so the form badge showed a D and the streak survived a bout both
-      // fighters lost.
-      const outcome: 'win' | 'loss' | 'draw' = isDoubleLossBout(match.endReason)
-        ? 'loss'
-        : match.winnerRegistrationId === registrationId
-          ? 'win'
-          : match.winnerRegistrationId
-            ? 'loss'
-            : 'draw';
+      // The same owner as the tally above and the standings tables. This read a
+      // bout with no recorded winner as a DRAW while the tally read it as
+      // neither and the match-history strip read it as a win — three answers to
+      // one bout, on one profile.
+      const outcome = boutOutcomes({
+        winnerRegistrationId: match.winnerRegistrationId,
+        redRegistrationId: match.redRegistrationId,
+        blueRegistrationId: match.blueRegistrationId,
+        redScore: match.redScore,
+        blueScore: match.blueScore,
+        endReason: match.endReason,
+      })[match.redRegistrationId === registrationId ? 'red' : 'blue'];
       return [
         {
           matchId: match.id,

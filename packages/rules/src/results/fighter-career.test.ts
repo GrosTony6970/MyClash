@@ -146,6 +146,74 @@ describe('buildFighterCareer', () => {
     expect(career.recentForm.every((f) => f.outcome !== 'draw')).toBe(true);
   });
 
+  it('scores a 3-1 TIME-OUT the same way the strip and the standings do', () => {
+    const career = buildFighterCareer({
+      fighterId: 'fighter-1',
+      registrations: [
+        {
+          id: 'reg-1',
+          tournamentId: 'tournament-1',
+          tournamentName: 'Longsword Open',
+          tournamentSlug: 'longsword-open',
+          tournamentStatus: 'completed',
+          weapon: 'Longsword',
+          eventId: 'event-1',
+          eventName: 'FAL 2026',
+          eventSlug: 'fal-2026',
+          eventStatus: 'completed',
+          eventStartDate: '2026-03-01',
+          eventEndDate: '2026-03-02',
+        },
+      ],
+      matches: [
+        {
+          id: 'match-win',
+          tournamentId: 'tournament-1',
+          status: 'completed',
+          redRegistrationId: 'reg-1',
+          blueRegistrationId: 'reg-2',
+          winnerRegistrationId: 'reg-1',
+          endReason: null,
+          redScore: 5,
+          blueScore: 2,
+          scheduledAt: '2026-03-01T10:00:00Z',
+          matchNumberLabel: 'P1-M1',
+          opponentName: 'Blue Fighter',
+        },
+        {
+          id: 'match-loss',
+          tournamentId: 'tournament-1',
+          status: 'completed',
+          redRegistrationId: 'reg-3',
+          blueRegistrationId: 'reg-1',
+          winnerRegistrationId: null,
+          endReason: null,
+          redScore: 3,
+          blueScore: 1,
+          scheduledAt: '2026-03-01T11:00:00Z',
+          matchNumberLabel: 'P1-M2',
+          opponentName: 'Red Fighter',
+        },
+      ],
+      exchanges: [
+        { id: 'ex-1', matchId: 'match-win', type: 'double', voided: false },
+        { id: 'ex-2', matchId: 'match-win', type: 'clean', voided: false },
+        { id: 'ex-3', matchId: 'match-loss', type: 'double', voided: true },
+        { id: 'ex-4', matchId: 'match-loss', type: 'afterblow', voided: false },
+      ],
+      leagueRankings: [],
+    });
+
+    // reg-1 is BLUE here and 1-3 behind, so it is a loss. Three surfaces of one
+    // profile used to give this one bout three answers: the match-history strip
+    // said win/loss off the score, this tally counted it in `matches` and in
+    // NEITHER column, and the form badge below said D.
+    expect(career.stats.overall).toMatchObject({ wins: 1, losses: 1, matches: 2 });
+    // Same rule, same answer, so the badge and the streak agree with the tally.
+    expect(career.recentForm.map((f) => f.outcome)).toContain('loss');
+    expect(career.recentForm.every((f) => f.outcome !== 'draw')).toBe(true);
+  });
+
   // Regression: stats used to require the fighter's TOURNAMENT to be
   // status='completed'. Nothing ever sets that (the ticker only transitions
   // events, and only a manual organiser PATCH flips a tournament), so a fully

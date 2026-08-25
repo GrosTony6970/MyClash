@@ -215,6 +215,75 @@ export function isDoubleLossBout(endReason: string | null | undefined): boolean 
   return endReason === 'max_doubles';
 }
 
+/**
+ * Which side won, from the bout's own columns. The ladder, and nothing else.
+ *
+ * A recorded `winner_registration_id` decides, never the scores: a forfeit, a
+ * walkover or a referee override can award a bout to the fighter BEHIND on
+ * points, which is the canonical reason explicit scores exist at all.
+ *
+ * The score fallback below it is deliberate. A completed bout with no stored
+ * winner is ordinary rather than exotic — it is every genuine draw, and it was
+ * every time-limit bout until the clock started naming its own winner.
+ *
+ * A stored winner matching NEITHER side means the caller handed over a
+ * mismatched pairing, and answering "nobody" is honest where falling through to
+ * the scores would invent someone.
+ *
+ * Extracted from `resolveMatchWinner`, which keeps the status guard and its
+ * eight display call sites and now delegates the rule here — so the crown on a
+ * scoreboard and the W in a standings table cannot drift apart.
+ */
+export function winnerColorFrom(bout: {
+  winnerRegistrationId?: string | null;
+  redRegistrationId?: string | null;
+  blueRegistrationId?: string | null;
+  redScore?: number | null;
+  blueScore?: number | null;
+}): 'red' | 'blue' | null {
+  const winner = bout.winnerRegistrationId ?? null;
+  if (winner !== null) {
+    if (winner === bout.redRegistrationId) return 'red';
+    if (winner === bout.blueRegistrationId) return 'blue';
+    return null;
+  }
+  return leadingColor({ redScore: bout.redScore ?? 0, blueScore: bout.blueScore ?? 0 });
+}
+
+/** What one bout was worth to one fighter. */
+export type BoutOutcome = 'win' | 'loss' | 'draw';
+
+/**
+ * What a finished bout was worth to BOTH fighters.
+ *
+ * Returns the pair rather than one side's answer, because a double loss is the
+ * one outcome a single-sided view cannot express — and that is precisely how it
+ * kept getting lost. Five sites derived this rule for themselves and gave a
+ * 3-1 time-out five different answers, on the same fighter's profile.
+ *
+ * `endReason` is REQUIRED, not optional. The last version of this rule took it
+ * as an optional trailing parameter and one caller kept passing four arguments,
+ * so a max-doubles bout quietly read as a draw on the public person-schedule
+ * page. An optional input is a silent opt-out; a caller with nothing to say here
+ * has to say `null` out loud.
+ */
+export function boutOutcomes(bout: {
+  winnerRegistrationId?: string | null;
+  redRegistrationId?: string | null;
+  blueRegistrationId?: string | null;
+  redScore?: number | null;
+  blueScore?: number | null;
+  endReason: string | null;
+}): { red: BoutOutcome; blue: BoutOutcome } {
+  // First: a ceiling double loss is 0-0 with no winner, so both tests below it
+  // read it as a draw.
+  if (isDoubleLossBout(bout.endReason)) return { red: 'loss', blue: 'loss' };
+  const winner = winnerColorFrom(bout);
+  if (winner === 'red') return { red: 'win', blue: 'loss' };
+  if (winner === 'blue') return { red: 'loss', blue: 'win' };
+  return { red: 'draw', blue: 'draw' };
+}
+
 /** Does reaching the ceiling wipe the board? Two of the three outcomes do. */
 export function maxDoubleHitZeroesScores(config: MatchFormatConfig): boolean {
   return config.maxDoubleHitOutcome !== 'result_stands';

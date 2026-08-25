@@ -1051,11 +1051,15 @@ export class FightersService {
         myRegId === redId ? Number(match['blue_score'] ?? 0) : Number(match['red_score'] ?? 0);
 
       const outcome = deriveMatchOutcome(
-        myScore,
-        oppScore,
-        winnerRegId,
-        myRegId,
-        (match['end_reason'] as string | null) ?? null,
+        {
+          winnerRegistrationId: winnerRegId,
+          redRegistrationId: redId,
+          blueRegistrationId: blueId,
+          redScore: Number(match['red_score'] ?? 0),
+          blueScore: Number(match['blue_score'] ?? 0),
+          endReason: (match['end_reason'] as string | null) ?? null,
+        },
+        myRegId === redId ? 'red' : 'blue',
       );
 
       const phase = match['phases'] as Row | null;

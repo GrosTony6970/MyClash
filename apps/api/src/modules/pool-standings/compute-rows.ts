@@ -1,4 +1,5 @@
-import { computeAggregates, isDoubleLossBout } from '@myclash/rulesets';
+import { boutOutcomes, computeAggregates } from '@myclash/rulesets';
+import type { BoutOutcome } from '@myclash/rulesets';
 import type {
   Exchange,
   FighterAggregates,
@@ -24,6 +25,9 @@ import { poolScoresByRegistration } from './ruleset-scores';
  * The pool path must stay behaviour-identical through this move; that is what
  * pool-standings.service.test.ts guards.
  */
+
+/** The standings column each outcome lands in. */
+const COLUMN_FOR: Record<BoutOutcome, string> = { win: 'W', loss: 'L', draw: 'D' };
 
 export type StandingsMember = PoolWithMembers['pool_members'][number];
 
@@ -111,30 +115,26 @@ export function computeStandingsRows(input: ComputeRowsInput): StandingsRow[] {
 
     if (drawnForfeitMatchIds.has(m.id)) {
       // tournamentPolicy.forfeitDrawsCount: the bout was forfeited, so record
-      // a draw for both instead of the win/loss the scores imply. FIRST,
+      // a draw for both instead of the result the bout itself carries. FIRST,
       // because a forfeit is an explicit operator act and outranks the rest.
       red['D'] = (red['D'] ?? 0) + 1;
       blue['D'] = (blue['D'] ?? 0) + 1;
-    } else if (isDoubleLossBout(m.end_reason)) {
-      // The doubles ceiling under `double_loss_zero_scores`: a LOSS FOR BOTH.
-      // It cannot be read off the scores, because the bout is 0-0 and would
-      // otherwise fall to the final `else` and score as a draw — which is how
-      // the same outcome was a double loss in Swiss points and a draw in the
-      // W/L/D columns of the very same Swiss table.
-      //
-      // The other two ceiling reasons need no branch: 'max_doubles_draw' IS a
-      // 0-0 draw, and 'max_doubles_result_stands' leaves a real score below.
-      red['L'] = (red['L'] ?? 0) + 1;
-      blue['L'] = (blue['L'] ?? 0) + 1;
-    } else if (rs > bs) {
-      red['W'] = (red['W'] ?? 0) + 1;
-      blue['L'] = (blue['L'] ?? 0) + 1;
-    } else if (bs > rs) {
-      blue['W'] = (blue['W'] ?? 0) + 1;
-      red['L'] = (red['L'] ?? 0) + 1;
     } else {
-      red['D'] = (red['D'] ?? 0) + 1;
-      blue['D'] = (blue['D'] ?? 0) + 1;
+      // These columns used to be derived from the SCORES alone, so they
+      // contradicted the bout's own `winner_registration_id` wherever the two
+      // can differ — and a forfeit with `scorePolicy: 'keep_current'` keeps the
+      // live score while naming the OPPONENT as winner, so the fighter who
+      // forfeited was credited with the W in the table they are ranked on.
+      const outcome = boutOutcomes({
+        winnerRegistrationId: m.winner_registration_id,
+        redRegistrationId: m.red_registration_id,
+        blueRegistrationId: m.blue_registration_id,
+        redScore: rs,
+        blueScore: bs,
+        endReason: m.end_reason,
+      });
+      red[COLUMN_FOR[outcome.red]] = (red[COLUMN_FOR[outcome.red]] ?? 0) + 1;
+      blue[COLUMN_FOR[outcome.blue]] = (blue[COLUMN_FOR[outcome.blue]] ?? 0) + 1;
     }
 
     // Accumulate the canonical per-fighter aggregates from this match's

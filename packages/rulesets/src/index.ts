@@ -39,6 +39,7 @@ export {
   getPointCapWinnerRegistrationId,
   isMedalMatchLabel,
   isPointCapReached,
+  boutOutcomes,
   isDoubleLossBout,
   isSoftClockLocked,
   leadingColor,
@@ -47,8 +48,10 @@ export {
   normalizeMatchFormatConfig,
   pointCapWinnerColor,
   roundWinTarget,
+  winnerColorFrom,
 } from './match-format';
 export type {
+  BoutOutcome,
   MatchFormatConfig,
   MaxDoubleHitEndReason,
   MaxDoubleHitOutcome,

@@ -1,4 +1,8 @@
-import { isDoubleLossBout } from '@myclash/rulesets';
+import { boutOutcomes } from '@myclash/rulesets';
+import type { BoutOutcome } from '@myclash/rulesets';
+
+/** The bout columns the outcome rule reads, whichever shape the caller holds. */
+export type BoutSides = Parameters<typeof boutOutcomes>[0];
 
 /**
  * Pure builder for the public fighter profile's "recent matches" strip (live +
@@ -44,24 +48,21 @@ export interface ProfileRecentMatch {
   scheduledAt: string | null;
 }
 
-/** Winner-aware outcome from the fighter's perspective. An explicit winner wins;
- *  with no winner recorded, an equal score is a draw, otherwise the higher score
- *  wins. */
-export function deriveMatchOutcome(
-  myScore: number,
-  opponentScore: number,
-  winnerRegistrationId: string | null,
-  myRegistrationId: string | null,
-  endReason: string | null = null,
-): 'win' | 'loss' | 'draw' {
-  // FIRST, because a double loss is 0-0 with no winner and is therefore
-  // indistinguishable from a draw by either test below it.
-  if (isDoubleLossBout(endReason)) return 'loss';
-  if (!winnerRegistrationId) {
-    if (myScore === opponentScore) return 'draw';
-    return myScore > opponentScore ? 'win' : 'loss';
-  }
-  return winnerRegistrationId === myRegistrationId ? 'win' : 'loss';
+/**
+ * One bout from ONE fighter's side.
+ *
+ * The rule itself is `boutOutcomes` in `@myclash/rules`; this is the projection
+ * onto the side the caller cares about, kept because "did I win it" is what all
+ * three profile surfaces are actually asking.
+ *
+ * It takes the whole bout rather than a fighter-relative score pair on purpose.
+ * The previous shape was five positional arguments with an OPTIONAL trailing
+ * `endReason`, and one of the three callers kept passing four — so a max-doubles
+ * bout read as a draw on the public person-schedule page while reading as a loss
+ * everywhere else. A required object cannot be under-supplied by accident.
+ */
+export function deriveMatchOutcome(bout: BoutSides, side: 'red' | 'blue'): BoutOutcome {
+  return boutOutcomes(bout)[side];
 }
 
 /** Map one raw match row to the public recent-match shape. `ownRegistrationIds`
@@ -74,10 +75,7 @@ export function buildProfileRecentMatch(
   opponentNames: ReadonlyMap<string, string>,
 ): ProfileRecentMatch {
   const isRed = row.redRegistrationId != null && ownRegistrationIds.has(row.redRegistrationId);
-  const myRegistrationId = isRed ? row.redRegistrationId : row.blueRegistrationId;
   const opponentRegistrationId = isRed ? row.blueRegistrationId : row.redRegistrationId;
-  const myScore = isRed ? row.redScore : row.blueScore;
-  const opponentScore = isRed ? row.blueScore : row.redScore;
 
   return {
     id: row.id,
@@ -89,13 +87,7 @@ export function buildProfileRecentMatch(
     redScore: row.redScore,
     blueScore: row.blueScore,
     isRed,
-    outcome: deriveMatchOutcome(
-      myScore,
-      opponentScore,
-      row.winnerRegistrationId,
-      myRegistrationId,
-      row.endReason,
-    ),
+    outcome: deriveMatchOutcome(row, isRed ? 'red' : 'blue'),
     eventName: row.eventName,
     eventSlug: row.eventSlug,
     scheduledAt: row.scheduledAt,

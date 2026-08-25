@@ -11,6 +11,7 @@ import {
   getPointCapWinnerRegistrationId,
   isMedalMatchLabel,
   isPointCapReached,
+  boutOutcomes,
   isDoubleLossBout,
   isSoftClockLocked,
   leadingColor,
@@ -18,8 +19,10 @@ import {
   maxDoubleHitZeroesScores,
   pointCapWinnerColor,
   roundWinTarget,
+  winnerColorFrom,
   type Match,
   type MatchFormatConfig,
+  type BoutOutcome,
   type MatchScore,
   type MaxDoubleHitEndReason,
   type MaxDoubleHitOutcome,
@@ -50,6 +53,7 @@ export {
   getPointCapWinnerRegistrationId,
   isMedalMatchLabel,
   isPointCapReached,
+  boutOutcomes,
   isDoubleLossBout,
   isSoftClockLocked,
   leadingColor,
@@ -57,8 +61,15 @@ export {
   maxDoubleHitZeroesScores,
   pointCapWinnerColor,
   roundWinTarget,
+  winnerColorFrom,
 };
-export type { MaxDoubleHitEndReason, MaxDoubleHitOutcome, RoundEvaluation, RoundScorer };
+export type {
+  BoutOutcome,
+  MaxDoubleHitEndReason,
+  MaxDoubleHitOutcome,
+  RoundEvaluation,
+  RoundScorer,
+};
 
 // Afterblow netting lives in @myclash/rules -- the zero-dependency core. This
 // file used to carry its own copy, and said why in a comment: kept local "so

@@ -278,7 +278,10 @@ test('the real allowlist is exactly what the 7.3 table grants', () => {
   // whole failure mode §7.3 exists to prevent. The clock and cap entries joined
   // when their duplicate copies in @myclash/types were folded into the one
   // implementation — the pad already ran that arithmetic, it just ran its own
-  // copy of it.
+  // copy of it. `winnerColorFrom` joined the same way: it is the ladder lifted
+  // out of `resolveMatchWinner`, which the pad's end-of-clock overlay and the TV
+  // endcard were already calling, so nothing new became reachable — the gate
+  // simply started being able to see it.
   assert.deepEqual([...allowed].sort(), [
     'applyScoringDirection',
     'computeAfterblowDeltas',
@@ -288,6 +291,7 @@ test('the real allowlist is exactly what the 7.3 table grants', () => {
     'penaltyScoreDelta',
     'pointCapWinnerColor',
     'resolveEntryCard',
+    'winnerColorFrom',
   ]);
   assert.equal(allowed.has('evaluateFormula'), false, 'the pad must never derive a score');
 });

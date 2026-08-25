@@ -1,3 +1,5 @@
+import { winnerColorFrom } from '@myclash/rules';
+
 /**
  * Which side won a match — the one owner of that question.
  *
@@ -20,6 +22,11 @@
  * pairing, and answering "no winner" is honest where falling through to a score
  * comparison would invent one.
  *
+ * THE RULE ITSELF NOW LIVES IN `@myclash/rules` as `winnerColorFrom`, because
+ * the standings tables and a fighter's own record were deriving the same ladder
+ * for themselves and disagreeing with this. What stays here is the status guard
+ * and this signature — the eight display call sites are unaffected.
+ *
  * Pure: no React, no I/O.
  */
 export function resolveMatchWinner(input: {
@@ -35,18 +42,5 @@ export function resolveMatchWinner(input: {
   blueScore?: number | null;
 }): 'red' | 'blue' | null {
   if (input.status !== 'completed') return null;
-
-  const winner = input.winnerRegistrationId ?? null;
-  if (winner !== null) {
-    if (winner === input.redRegistrationId) return 'red';
-    if (winner === input.blueRegistrationId) return 'blue';
-    return null;
-  }
-
-  // No stored winner (time-limit / max-doubles / legacy) → higher score wins.
-  const red = input.redScore ?? 0;
-  const blue = input.blueScore ?? 0;
-  if (red > blue) return 'red';
-  if (blue > red) return 'blue';
-  return null;
+  return winnerColorFrom(input);
 }

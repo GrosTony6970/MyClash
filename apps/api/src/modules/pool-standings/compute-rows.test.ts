@@ -146,6 +146,17 @@ describe('computeStandingsRows — win, loss and draw', () => {
    * fall to the final `else` and score as a draw, while Swiss read the same
    * bout as a double loss from the same column.
    */
+  it('gives the W to the RECORDED winner, not to whoever is ahead on points', () => {
+    // A forfeit with `scorePolicy: 'keep_current'` keeps the live score and
+    // names the OPPONENT as winner, so a fighter who was 5-3 up when they
+    // forfeited was credited with the win in the table they are ranked on.
+    // These columns read the scores alone and never consulted the winner.
+    const rows = computeStandingsRows(input({ completedMatches: [bout('m-ff', A, 5, B, 3, B)] }));
+
+    expect(statsOf(rows, A)).toMatchObject({ W: 0, L: 1, D: 0 });
+    expect(statsOf(rows, B)).toMatchObject({ W: 1, L: 0, D: 0 });
+  });
+
   it('records a LOSS for both when the bout ended on the doubles ceiling', () => {
     const rows = computeStandingsRows(
       input({ completedMatches: [bout('m-md', A, 0, B, 0, null, 'max_doubles')] }),

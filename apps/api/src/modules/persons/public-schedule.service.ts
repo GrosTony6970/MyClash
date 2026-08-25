@@ -172,7 +172,7 @@ export class PublicScheduleService {
       .select(
         `
         id, match_number_label, status, scheduled_at,
-        red_score, blue_score, winner_registration_id,
+        red_score, blue_score, winner_registration_id, end_reason,
         red_registration_id, blue_registration_id,
         pools ( name ),
         lices ( name ),
@@ -219,10 +219,15 @@ export class PublicScheduleService {
           outcome:
             (m['status'] as string) === 'completed'
               ? deriveMatchOutcome(
-                  ((isRed ? m['red_score'] : m['blue_score']) as number) ?? 0,
-                  ((isRed ? m['blue_score'] : m['red_score']) as number) ?? 0,
-                  (m['winner_registration_id'] as string | null) ?? null,
-                  isRed ? redReg : blueReg,
+                  {
+                    winnerRegistrationId: (m['winner_registration_id'] as string | null) ?? null,
+                    redRegistrationId: redReg,
+                    blueRegistrationId: blueReg,
+                    redScore: (m['red_score'] as number) ?? 0,
+                    blueScore: (m['blue_score'] as number) ?? 0,
+                    endReason: (m['end_reason'] as string | null) ?? null,
+                  },
+                  isRed ? 'red' : 'blue',
                 )
               : null,
           isRed,
