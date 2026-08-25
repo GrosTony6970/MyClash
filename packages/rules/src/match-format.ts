@@ -707,7 +707,12 @@ export interface RoundEvaluation {
    * would end the round; the operator closes it via the End-round action.
    */
   autoOver: boolean;
-  /** Round winner when `autoOver`; null for a drawn round (pool max-doubles). */
+  /**
+   * Round winner when `autoOver`; null for a DRAWN round — the doubles ceiling,
+   * or a phase whose level-at-time chain contains a `draw` and whose round
+   * reached the cap level. A phase that cannot end level never answers null
+   * here, which is what bounds the series to its `bestOf` rounds.
+   */
   winnerColor: 'red' | 'blue' | null;
   endReason: 'first_to_points' | MaxDoubleHitEndReason | null;
 }
@@ -731,6 +736,11 @@ export type RoundScorer = (match: Match, roundExchanges: Exchange[]) => MatchSco
  * `ScoringService.evaluateOpenRound`, for one reason: it needed the resolved
  * ruleset's scorer and this function hard-coded {@link computeMatchFormatScore}.
  * `scoreRound` is that reason removed.
+ *
+ * The cap goes through {@link pointCapEndsBout} and the doubles ceiling
+ * deliberately does not — the same split, and for the same reasons, as the
+ * single-bout path in `endOnPointCapOrMaxDoubles`. Guarding the ceiling would
+ * leave a round at it with no way to end.
  */
 export function evaluateRound(
   match: Match,
@@ -740,7 +750,12 @@ export function evaluateRound(
 ): RoundEvaluation {
   const score = scoreRound(match, roundExchanges);
 
-  if (isPointCapReached(score, config)) {
+  // A ROUND asks the cap exactly what a single bout asks it, through the same
+  // owner. Asking `isPointCapReached` instead closed a bracket round 10-10 with
+  // nobody winning it — one 1-1 afterblow at 9-9 in `full` mode — and a round
+  // nobody won counts for neither side, so the series never reached its win
+  // target and the bout could not finish at all.
+  if (pointCapEndsBout(match, score, config)) {
     return {
       score,
       autoOver: true,

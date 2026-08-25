@@ -17,6 +17,7 @@ import { Generic_PointsCap } from './index';
 import {
   DEFAULT_MATCH_FORMAT_CONFIG,
   endOnPointCapOrMaxDoubles,
+  evaluateRound,
   pointCapEndsBout,
   pointCapWinnerColor,
 } from './match-format';
@@ -122,5 +123,68 @@ describe('the end decisions both rulesets run', () => {
     expect(
       Generic_PointsCap.isMatchOver(match({ phaseType: 'pool' }), score(10, 10), config),
     ).toEqual({ isOver: true, reason: 'first_to_points' });
+  });
+});
+
+/**
+ * A ROUND of a best-of match asks the cap the same question a single bout does.
+ *
+ * It used to ask `isPointCapReached`, so a bracket round closed 10-10 with
+ * nobody winning it. A round nobody won counts for neither side, so the series
+ * never reached its win target — the bout could not finish at all, and the pad
+ * counted on past "Round 4/3".
+ */
+describe('evaluateRound at the point cap', () => {
+  const roundMatch = (over: Partial<Match>): Match => ({
+    id: 'm1',
+    redRegistrationId: 'reg-red',
+    blueRegistrationId: 'reg-blue',
+    rulesetCode: 'Generic_PointsCap',
+    rulesetVersion: '1.0.0',
+    status: 'running',
+    ...over,
+  });
+  /** Score the round from a fixed board — the cap branch is what is under test,
+   *  not the arithmetic that reached it. */
+  const board = (red: number, blue: number) => () => score(red, blue);
+
+  it('keeps a level BRACKET round open', () => {
+    const ev = evaluateRound(roundMatch(BRACKET), [], CONFIG, board(10, 10));
+    expect(ev.autoOver).toBe(false);
+    expect(ev.winnerColor).toBeNull();
+    expect(ev.endReason).toBeNull();
+  });
+
+  it('closes a level POOL round as a draw — its chain says draw', () => {
+    const ev = evaluateRound(roundMatch(POOL), [], CONFIG, board(10, 10));
+    expect(ev).toMatchObject({ autoOver: true, winnerColor: null, endReason: 'first_to_points' });
+  });
+
+  it('still closes a bracket round to whoever leads at the cap', () => {
+    expect(evaluateRound(roundMatch(BRACKET), [], CONFIG, board(10, 3))).toMatchObject({
+      autoOver: true,
+      winnerColor: 'red',
+      endReason: 'first_to_points',
+    });
+    // The exchange after a 10-10 that was held open. It must finish, or the
+    // round's sudden death has no exit.
+    expect(evaluateRound(roundMatch(BRACKET), [], CONFIG, board(10, 12))).toMatchObject({
+      autoOver: true,
+      winnerColor: 'blue',
+      endReason: 'first_to_points',
+    });
+  });
+
+  it('leaves the doubles ceiling unguarded — it is an explicit stop', () => {
+    // Guarding it would leave a pool round at the ceiling with no way to end.
+    // The ceiling is pool-only, and the pool chain allows a draw anyway, so the
+    // difference shows on a bracket configured with a ceiling it will not use.
+    const capped: MatchFormatConfig = { ...CONFIG, maxDoubleHits: 2 };
+    const doubled = () => ({ ...score(1, 1), doubles: 2 });
+    expect(evaluateRound(roundMatch(POOL), [], capped, doubled)).toMatchObject({
+      autoOver: true,
+      winnerColor: null,
+      endReason: 'max_doubles',
+    });
   });
 });
