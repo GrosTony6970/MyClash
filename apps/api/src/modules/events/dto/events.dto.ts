@@ -178,11 +178,33 @@ const tournamentPolicySchema = z
   })
   .strict();
 
+/**
+ * One phase's time limit, where ZERO MEANS NO LIMIT — the same trap as
+ * {@link targetValuesSchema} above, one field over.
+ *
+ * Both organiser surfaces promise "0 = no limit" and nothing could keep the
+ * promise: the engine's schema is `.positive().nullable()`, a NumberField cannot
+ * produce a null, and this one admitted the 0 that `validateTournamentRulesetConfig`
+ * then rejected with "Too small: expected number to be >0".
+ *
+ * HERE rather than in the two onChange handlers, because this is the boundary
+ * that promised a value the engine refuses, and it is also where a hand-sent
+ * PATCH arrives. Both surfaces render `?? 0`, so a stored null round-trips back
+ * to a visible 0 untouched, and `deepMergeJson` writes a null through rather
+ * than skipping it — so this CLEARS a stored 90 rather than merging away.
+ */
+const timeLimitSecondsOrNull = z
+  .number()
+  .min(0)
+  .max(3600)
+  .nullish()
+  .transform((seconds) => (seconds === 0 ? null : seconds));
+
 const timeLimitsSecondsSchema = z
   .object({
-    pool: z.number().min(0).max(3600).nullish(),
-    bracket: z.number().min(0).max(3600).nullish(),
-    finals: z.number().min(0).max(3600).nullish(),
+    pool: timeLimitSecondsOrNull,
+    bracket: timeLimitSecondsOrNull,
+    finals: timeLimitSecondsOrNull,
   })
   .strict();
 

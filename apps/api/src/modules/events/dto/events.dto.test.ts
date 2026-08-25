@@ -65,6 +65,46 @@ describe('UpdateTournamentDto — rulesetConfig.matchFormat', () => {
       schema.safeParse({ rulesetConfig: { matchFormat: { bestOf: { semis: 3 } } } }).success,
     ).toBe(false);
   });
+
+  /**
+   * "0 = no limit" is what both organiser surfaces promise, and until this
+   * transform it was a promise nothing could keep: the PATCH was accepted here
+   * and then rejected by the engine's `.positive()` with "Too small: expected
+   * number to be >0", so the organiser did what the help text said and got
+   * engine-speak in a toast.
+   */
+  describe('a time limit of zero means NO limit', () => {
+    const parsedLimits = (
+      timeLimitsSeconds: Record<string, number | null>,
+    ): Record<string, unknown> => {
+      const parsed = schema.parse({ rulesetConfig: { matchFormat: { timeLimitsSeconds } } });
+      return (
+        parsed.rulesetConfig as { matchFormat: { timeLimitsSeconds: Record<string, unknown> } }
+      ).matchFormat.timeLimitsSeconds;
+    };
+
+    it('turns a zero into the null the engine understands', () => {
+      expect(parsedLimits({ pool: 0, bracket: 240, finals: 300 })).toEqual({
+        pool: null,
+        bracket: 240,
+        finals: 300,
+      });
+    });
+
+    it('leaves every real limit alone, on every phase', () => {
+      // The mirror, so the case above cannot pass on a schema that nulls
+      // everything — which would silently un-time a whole tournament.
+      expect(parsedLimits({ pool: 180, bracket: 0, finals: 0 })).toEqual({
+        pool: 180,
+        bracket: null,
+        finals: null,
+      });
+    });
+
+    it('keeps an explicit null a null', () => {
+      expect(parsedLimits({ pool: null, bracket: 90, finals: 90 })['pool']).toBeNull();
+    });
+  });
 });
 
 describe('UpdateTournamentDto — logoUrl', () => {
