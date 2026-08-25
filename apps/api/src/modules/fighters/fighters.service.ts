@@ -56,6 +56,7 @@ import {
 import { sideColorsFromScoringConfig } from '../events/side-colors';
 import {
   buildProfileRecentMatch,
+  deriveMatchOutcome,
   type ProfileRecentMatch,
   type RecentMatchRow,
 } from './recent-matches';
@@ -961,7 +962,7 @@ export class FightersService {
     let matchQ = this.supabase.service
       .from('matches')
       .select(
-        'id, status, scheduled_at, created_at, red_registration_id, blue_registration_id, winner_registration_id, red_score, blue_score, phases(tournament_id)',
+        'id, status, scheduled_at, created_at, red_registration_id, blue_registration_id, winner_registration_id, end_reason, red_score, blue_score, phases(tournament_id)',
         { count: 'exact' },
       )
       .or(
@@ -1049,12 +1050,13 @@ export class FightersService {
       const oppScore =
         myRegId === redId ? Number(match['blue_score'] ?? 0) : Number(match['red_score'] ?? 0);
 
-      let outcome: 'win' | 'loss' | 'draw';
-      if (!winnerRegId) {
-        outcome = myScore === oppScore ? 'draw' : myScore > oppScore ? 'win' : 'loss';
-      } else {
-        outcome = winnerRegId === myRegId ? 'win' : 'loss';
-      }
+      const outcome = deriveMatchOutcome(
+        myScore,
+        oppScore,
+        winnerRegId,
+        myRegId,
+        (match['end_reason'] as string | null) ?? null,
+      );
 
       const phase = match['phases'] as Row | null;
       return {
@@ -1355,7 +1357,7 @@ export class FightersService {
     const ids = [...ownRegistrationIds].join(',');
     const orFilter = `red_registration_id.in.(${ids}),blue_registration_id.in.(${ids})`;
     const columns =
-      'id, status, scheduled_at, created_at, match_number_label, red_registration_id, blue_registration_id, winner_registration_id, red_score, blue_score';
+      'id, status, scheduled_at, created_at, match_number_label, red_registration_id, blue_registration_id, winner_registration_id, end_reason, red_score, blue_score';
 
     // Running matches (usually 0–1) plus the most recent completed ones.
     const [liveRes, completedRes] = await Promise.all([
@@ -1410,6 +1412,7 @@ export class FightersService {
         redRegistrationId: redId,
         blueRegistrationId: blueId,
         winnerRegistrationId: (match['winner_registration_id'] as string | null) ?? null,
+        endReason: (match['end_reason'] as string | null) ?? null,
         redScore: Number(match['red_score'] ?? 0),
         blueScore: Number(match['blue_score'] ?? 0),
         eventName: String(event?.['name'] ?? ''),
@@ -1659,7 +1662,7 @@ export class FightersService {
     const { data, error } = await this.supabase.service
       .from('matches')
       .select(
-        'id, phase_id, status, red_registration_id, blue_registration_id, winner_registration_id, red_score, blue_score, scheduled_at, match_number_label, phases(tournament_id)',
+        'id, phase_id, status, red_registration_id, blue_registration_id, winner_registration_id, end_reason, red_score, blue_score, scheduled_at, match_number_label, phases(tournament_id)',
       )
       .or(
         `red_registration_id.in.(${registrationIds.join(',')}),blue_registration_id.in.(${registrationIds.join(',')})`,
@@ -1677,6 +1680,7 @@ export class FightersService {
         redRegistrationId: redId,
         blueRegistrationId: blueId,
         winnerRegistrationId: (row['winner_registration_id'] as string | null) ?? null,
+        endReason: (row['end_reason'] as string | null) ?? null,
         redScore: Number(row['red_score'] ?? 0),
         blueScore: Number(row['blue_score'] ?? 0),
         scheduledAt: (row['scheduled_at'] as string | null) ?? null,

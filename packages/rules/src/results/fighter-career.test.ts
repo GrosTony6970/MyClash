@@ -29,6 +29,7 @@ describe('buildFighterCareer', () => {
           redRegistrationId: 'reg-1',
           blueRegistrationId: 'reg-2',
           winnerRegistrationId: 'reg-1',
+          endReason: null,
           redScore: 5,
           blueScore: 2,
           scheduledAt: '2026-03-01T10:00:00Z',
@@ -42,6 +43,7 @@ describe('buildFighterCareer', () => {
           redRegistrationId: 'reg-3',
           blueRegistrationId: 'reg-1',
           winnerRegistrationId: 'reg-3',
+          endReason: null,
           redScore: 4,
           blueScore: 3,
           scheduledAt: '2026-03-01T11:00:00Z',
@@ -74,6 +76,74 @@ describe('buildFighterCareer', () => {
         doubleHitPercentage: 33.33,
       }),
     ]);
+  });
+
+  it('counts a doubles-ceiling bout as a LOSS, not as a match nobody lost', () => {
+    const career = buildFighterCareer({
+      fighterId: 'fighter-1',
+      registrations: [
+        {
+          id: 'reg-1',
+          tournamentId: 'tournament-1',
+          tournamentName: 'Longsword Open',
+          tournamentSlug: 'longsword-open',
+          tournamentStatus: 'completed',
+          weapon: 'Longsword',
+          eventId: 'event-1',
+          eventName: 'FAL 2026',
+          eventSlug: 'fal-2026',
+          eventStatus: 'completed',
+          eventStartDate: '2026-03-01',
+          eventEndDate: '2026-03-02',
+        },
+      ],
+      matches: [
+        {
+          id: 'match-win',
+          tournamentId: 'tournament-1',
+          status: 'completed',
+          redRegistrationId: 'reg-1',
+          blueRegistrationId: 'reg-2',
+          winnerRegistrationId: 'reg-1',
+          endReason: null,
+          redScore: 5,
+          blueScore: 2,
+          scheduledAt: '2026-03-01T10:00:00Z',
+          matchNumberLabel: 'P1-M1',
+          opponentName: 'Blue Fighter',
+        },
+        {
+          id: 'match-loss',
+          tournamentId: 'tournament-1',
+          status: 'completed',
+          redRegistrationId: 'reg-3',
+          blueRegistrationId: 'reg-1',
+          winnerRegistrationId: null,
+          endReason: 'max_doubles',
+          redScore: 0,
+          blueScore: 0,
+          scheduledAt: '2026-03-01T11:00:00Z',
+          matchNumberLabel: 'P1-M2',
+          opponentName: 'Red Fighter',
+        },
+      ],
+      exchanges: [
+        { id: 'ex-1', matchId: 'match-win', type: 'double', voided: false },
+        { id: 'ex-2', matchId: 'match-win', type: 'clean', voided: false },
+        { id: 'ex-3', matchId: 'match-loss', type: 'double', voided: true },
+        { id: 'ex-4', matchId: 'match-loss', type: 'afterblow', voided: false },
+      ],
+      leagueRankings: [],
+    });
+
+    // Still a loss. With no winner recorded it used to be counted in `matches`
+    // and in NEITHER column, quietly inflating the denominator of every win
+    // rate on the profile.
+    expect(career.stats.overall).toMatchObject({ wins: 1, losses: 1, matches: 2 });
+    // And the form badge says L, so the streak does not survive a bout both
+    // fighters lost — it read D there, from the same missing winner.
+    expect(career.recentForm.map((f) => f.outcome)).toContain('loss');
+    expect(career.recentForm.every((f) => f.outcome !== 'draw')).toBe(true);
   });
 
   // Regression: stats used to require the fighter's TOURNAMENT to be
@@ -110,6 +180,7 @@ describe('buildFighterCareer', () => {
           redRegistrationId: 'reg-1',
           blueRegistrationId: 'reg-2',
           winnerRegistrationId: 'reg-1',
+          endReason: null,
           redScore: 5,
           blueScore: 1,
           scheduledAt: '2027-04-10T10:00:00Z',
@@ -124,6 +195,7 @@ describe('buildFighterCareer', () => {
           redRegistrationId: 'reg-1',
           blueRegistrationId: 'reg-3',
           winnerRegistrationId: null,
+          endReason: null,
           redScore: 2,
           blueScore: 2,
           scheduledAt: '2027-04-10T11:00:00Z',
@@ -192,6 +264,7 @@ describe('buildFighterCareer', () => {
           redRegistrationId: 'reg-1',
           blueRegistrationId: 'reg-2',
           winnerRegistrationId: 'reg-1',
+          endReason: null,
           redScore: 5,
           blueScore: 1,
           scheduledAt: '2027-04-10T10:00:00Z',
@@ -399,6 +472,7 @@ describe('buildFighterCareer', () => {
           redRegistrationId: 'reg-1',
           blueRegistrationId: 'opp',
           winnerRegistrationId: 'opp',
+          endReason: null,
           redScore: 2,
           blueScore: 5,
           scheduledAt: '2026-01-01T09:00:00Z',
@@ -413,6 +487,7 @@ describe('buildFighterCareer', () => {
           redRegistrationId: 'reg-1',
           blueRegistrationId: 'opp',
           winnerRegistrationId: 'reg-1',
+          endReason: null,
           redScore: 5,
           blueScore: 3,
           scheduledAt: '2026-01-01T10:00:00Z',
@@ -426,6 +501,7 @@ describe('buildFighterCareer', () => {
           redRegistrationId: 'reg-1',
           blueRegistrationId: 'opp',
           winnerRegistrationId: 'reg-1',
+          endReason: null,
           redScore: 5,
           blueScore: 1,
           scheduledAt: '2026-01-01T11:00:00Z',
@@ -488,6 +564,7 @@ describe('buildFighterCareer', () => {
           redRegistrationId: 'reg-ls',
           blueRegistrationId: 'opp',
           winnerRegistrationId: 'reg-ls',
+          endReason: null,
           redScore: 5,
           blueScore: 1,
           scheduledAt: '2026-03-01T10:00:00Z',
@@ -501,6 +578,7 @@ describe('buildFighterCareer', () => {
           redRegistrationId: 'reg-rap',
           blueRegistrationId: 'opp',
           winnerRegistrationId: 'opp',
+          endReason: null,
           redScore: 2,
           blueScore: 5,
           scheduledAt: '2026-01-05T10:00:00Z',

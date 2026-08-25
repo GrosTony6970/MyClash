@@ -1,3 +1,5 @@
+import { isDoubleLossBout } from '@myclash/rulesets';
+
 /**
  * Pure builder for the public fighter profile's "recent matches" strip (live +
  * recent completed). Kept free of Supabase so the win/loss/draw derivation —
@@ -19,6 +21,8 @@ export interface RecentMatchRow {
   redRegistrationId: string | null;
   blueRegistrationId: string | null;
   winnerRegistrationId: string | null;
+  /** `matches.end_reason` — 'max_doubles' means BOTH fighters LOST. */
+  endReason: string | null;
   redScore: number;
   blueScore: number;
   eventName: string;
@@ -48,7 +52,11 @@ export function deriveMatchOutcome(
   opponentScore: number,
   winnerRegistrationId: string | null,
   myRegistrationId: string | null,
+  endReason: string | null = null,
 ): 'win' | 'loss' | 'draw' {
+  // FIRST, because a double loss is 0-0 with no winner and is therefore
+  // indistinguishable from a draw by either test below it.
+  if (isDoubleLossBout(endReason)) return 'loss';
   if (!winnerRegistrationId) {
     if (myScore === opponentScore) return 'draw';
     return myScore > opponentScore ? 'win' : 'loss';
@@ -81,7 +89,13 @@ export function buildProfileRecentMatch(
     redScore: row.redScore,
     blueScore: row.blueScore,
     isRed,
-    outcome: deriveMatchOutcome(myScore, opponentScore, row.winnerRegistrationId, myRegistrationId),
+    outcome: deriveMatchOutcome(
+      myScore,
+      opponentScore,
+      row.winnerRegistrationId,
+      myRegistrationId,
+      row.endReason,
+    ),
     eventName: row.eventName,
     eventSlug: row.eventSlug,
     scheduledAt: row.scheduledAt,

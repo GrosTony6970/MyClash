@@ -1,4 +1,4 @@
-import { computeAggregates } from '@myclash/rulesets';
+import { computeAggregates, isDoubleLossBout } from '@myclash/rulesets';
 import type {
   Exchange,
   FighterAggregates,
@@ -115,7 +115,7 @@ export function computeStandingsRows(input: ComputeRowsInput): StandingsRow[] {
       // because a forfeit is an explicit operator act and outranks the rest.
       red['D'] = (red['D'] ?? 0) + 1;
       blue['D'] = (blue['D'] ?? 0) + 1;
-    } else if (m.end_reason === 'max_doubles') {
+    } else if (isDoubleLossBout(m.end_reason)) {
       // The doubles ceiling under `double_loss_zero_scores`: a LOSS FOR BOTH.
       // It cannot be read off the scores, because the bout is 0-0 and would
       // otherwise fall to the final `else` and score as a draw — which is how

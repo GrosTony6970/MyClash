@@ -1,4 +1,5 @@
 import type { FinalRankingResultKind } from '../ranking';
+import { isDoubleLossBout } from '../match-format';
 
 export interface CareerRegistrationInput {
   id: string;
@@ -22,6 +23,8 @@ export interface CareerMatchInput {
   redRegistrationId: string | null;
   blueRegistrationId: string | null;
   winnerRegistrationId: string | null;
+  /** `matches.end_reason` — 'max_doubles' means BOTH fighters LOST. */
+  endReason: string | null;
   redScore: number;
   blueScore: number;
   scheduledAt: string | null;
@@ -217,7 +220,11 @@ export function buildFighterCareer(input: BuildFighterCareerInput) {
 
     for (const stats of [overall, weaponStats, yearStats, eventStats]) {
       stats.matches += 1;
-      if (match.winnerRegistrationId === registrationId) stats.wins += 1;
+      // FIRST: a ceiling double loss has no winner, so the tests below file it
+      // as neither a win nor a loss while still counting the bout — quietly
+      // inflating the denominator of every win rate on the page.
+      if (isDoubleLossBout(match.endReason)) stats.losses += 1;
+      else if (match.winnerRegistrationId === registrationId) stats.wins += 1;
       else if (match.winnerRegistrationId) stats.losses += 1;
     }
 
@@ -287,8 +294,12 @@ export function buildFighterCareer(input: BuildFighterCareerInput) {
           ? match.blueRegistrationId
           : null;
       if (!registrationId) return [];
-      const outcome: 'win' | 'loss' | 'draw' =
-        match.winnerRegistrationId === registrationId
+      // Same ordering, same reason: with no winner recorded this read as a
+      // draw, so the form badge showed a D and the streak survived a bout both
+      // fighters lost.
+      const outcome: 'win' | 'loss' | 'draw' = isDoubleLossBout(match.endReason)
+        ? 'loss'
+        : match.winnerRegistrationId === registrationId
           ? 'win'
           : match.winnerRegistrationId
             ? 'loss'

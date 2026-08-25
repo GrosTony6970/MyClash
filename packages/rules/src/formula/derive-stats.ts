@@ -7,6 +7,7 @@
  */
 import { computeAfterblowDeltas, type AfterblowMode } from '../afterblow';
 import type { Exchange, ScoredMatch } from '../domain';
+import { isDoubleLossBout } from '../match-format';
 import type { DerivedFighterStats } from './types';
 
 interface MatchOutcome {
@@ -92,7 +93,7 @@ export function deriveFighterStats(
     // The other two ceiling reasons need no branch: 'max_doubles_draw' is a
     // genuine draw and 'max_doubles_result_stands' keeps the board the raw
     // score already reproduces.
-    if (match.endReason === 'max_doubles') stats.losses += 1;
+    if (isDoubleLossBout(match.endReason)) stats.losses += 1;
     else if (myScore > oppScore) stats.victories += 1;
     else if (myScore < oppScore) stats.losses += 1;
     else stats.ties += 1;

@@ -13,6 +13,19 @@ describe('deriveMatchOutcome', () => {
     expect(deriveMatchOutcome(3, 5, null, 'reg-me')).toBe('loss');
     expect(deriveMatchOutcome(4, 4, null, 'reg-me')).toBe('draw');
   });
+
+  it('calls the doubles ceiling a LOSS, whichever side the fighter is on', () => {
+    // 0-0 with no winner is indistinguishable from a draw by both tests above,
+    // so the reason has to be read first. Both fighters lost this bout.
+    expect(deriveMatchOutcome(0, 0, null, 'reg-me', 'max_doubles')).toBe('loss');
+    expect(deriveMatchOutcome(0, 0, null, 'reg-opp', 'max_doubles')).toBe('loss');
+  });
+
+  it('leaves the other two ceiling reasons to the winner and the score', () => {
+    // 'max_doubles_draw' IS a draw; 'max_doubles_result_stands' has a winner.
+    expect(deriveMatchOutcome(0, 0, null, 'reg-me', 'max_doubles_draw')).toBe('draw');
+    expect(deriveMatchOutcome(2, 0, 'reg-me', 'reg-me', 'max_doubles_result_stands')).toBe('win');
+  });
 });
 
 describe('buildProfileRecentMatch', () => {
@@ -24,6 +37,7 @@ describe('buildProfileRecentMatch', () => {
     redRegistrationId: 'me',
     blueRegistrationId: 'opp',
     winnerRegistrationId: null,
+    endReason: null,
     redScore: 5,
     blueScore: 4,
     eventName: 'Fosse aux Lions',

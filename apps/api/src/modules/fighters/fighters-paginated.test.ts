@@ -133,6 +133,102 @@ describe('FightersService.listMatchesPaginated', () => {
     expect(item.status).toBe('completed');
   });
 
+  /**
+   * A bout stopped by the doubles ceiling is a LOSS FOR BOTH. It is 0-0 with no
+   * winner, so neither the winner test nor the score test can see it — the
+   * history showed the fighter a DRAW.
+   *
+   * This is the only test that covers the WIRING rather than the rule:
+   * `deriveMatchOutcome` is unit-tested next door, but stripping `end_reason`
+   * from the select and from the row mapping left all 140 tests in this module
+   * green while PostgREST would simply stop returning the column.
+   */
+  it('reads a doubles-ceiling bout as a loss, and asks for the column that says so', async () => {
+    const fighterId = 'fighter-uuid-002';
+    const regId = 'reg-002';
+    const oppRegId = 'opp-reg-002';
+    let matchesProjection = '';
+
+    const registration: Row = {
+      id: regId,
+      tournament_id: 't-002',
+      tournaments: {
+        id: 't-002',
+        name: 'Longsword Open',
+        weapon: 'Longsword',
+        events: { id: 'evt-002', name: 'HEMA Fest 2026', start_date: '2026-06-01', end_date: null },
+      },
+    };
+    const ceilingMatch: Row = {
+      id: 'm-002',
+      status: 'completed',
+      scheduled_at: '2026-06-01T10:00:00Z',
+      created_at: '2026-06-01T09:00:00Z',
+      red_registration_id: regId,
+      blue_registration_id: oppRegId,
+      winner_registration_id: null,
+      end_reason: 'max_doubles',
+      red_score: 0,
+      blue_score: 0,
+      phases: { tournament_id: 't-002' },
+    };
+
+    const supabaseStub = {
+      service: {
+        from: (table: string) => {
+          if (table === 'global_persons') {
+            return {
+              select: () => ({
+                eq: () => ({ maybeSingle: async () => ({ data: { id: fighterId }, error: null }) }),
+              }),
+            };
+          }
+          if (table === 'registrations') {
+            return {
+              select: () => ({
+                eq: () => ({ data: [registration], error: null, then: undefined }),
+                in: () => ({
+                  data: [{ id: oppRegId, persons: { global_persons: { display_name: 'Opp' } } }],
+                  error: null,
+                }),
+              }),
+            };
+          }
+          if (table === 'matches') {
+            return {
+              select: (cols: string) => {
+                matchesProjection = cols;
+                return {
+                  or: () => ({
+                    neq: () => ({
+                      order: () => ({
+                        order: () => ({
+                          range: () =>
+                            Promise.resolve({ data: [ceilingMatch], error: null, count: 1 }),
+                        }),
+                      }),
+                    }),
+                  }),
+                };
+              },
+            };
+          }
+          return { select: () => ({}) };
+        },
+      },
+    };
+
+    const result = await buildService(supabaseStub).listMatchesPaginated('some-slug', {
+      limit: 20,
+      offset: 0,
+    });
+
+    expect(result.items[0]?.outcome).toBe('loss');
+    // The canned stub answers with `end_reason` whether or not the query asked
+    // for it, so the projection has to be asserted directly.
+    expect(matchesProjection).toContain('end_reason');
+  });
+
   it('listMatchesPaginated respects limit + offset', async () => {
     const fighterId = 'fighter-uuid-002';
     const regId = 'reg-002';

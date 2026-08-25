@@ -191,6 +191,30 @@ export function leadingColor(
   return null;
 }
 
+/**
+ * Did this bout end as a LOSS FOR BOTH fighters?
+ *
+ * The one owner of the fact that `'max_doubles'` — and only that reason — means
+ * a double loss. It reads a raw `matches.end_reason`, because that is what every
+ * caller has: a completed bout, no config in hand.
+ *
+ * Here rather than inferred from the scores because it CANNOT be: a double loss
+ * is 0-0 with no winner, which is indistinguishable from a draw. Every consumer
+ * that tried to read the outcome off the score or the winner therefore got it
+ * wrong, each in its own way — a draw in the standings, a draw on a fighter's
+ * recent form, and a VICTORY for the leader in the formula rulesets.
+ *
+ * The other two ceiling reasons deliberately return false: `'max_doubles_draw'`
+ * IS a draw and `'max_doubles_result_stands'` carries a real winner, so both are
+ * already read correctly by every consumer.
+ *
+ * The SQL side (`compact_fighter_stats`) repeats the literal, because it cannot
+ * import this. That copy is named in the migration that carries it.
+ */
+export function isDoubleLossBout(endReason: string | null | undefined): boolean {
+  return endReason === 'max_doubles';
+}
+
 /** Does reaching the ceiling wipe the board? Two of the three outcomes do. */
 export function maxDoubleHitZeroesScores(config: MatchFormatConfig): boolean {
   return config.maxDoubleHitOutcome !== 'result_stands';

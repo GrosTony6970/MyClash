@@ -39,6 +39,7 @@ export {
   getPointCapWinnerRegistrationId,
   isMedalMatchLabel,
   isPointCapReached,
+  isDoubleLossBout,
   isSoftClockLocked,
   leadingColor,
   maxDoubleHitEndReason,
