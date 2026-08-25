@@ -396,6 +396,21 @@ test.describe('AI settings', () => {
           }),
         );
         expect(dismissed.status).toBe('dismissed');
+
+        // The regression that made this worth an E2E: both row builders
+        // hard-coded `status: 'open'` and the upsert conflicts on the
+        // fingerprint, which is stable across scans — so a rescan reopened
+        // every dismissal, and the 04:00 cron did it nightly. Rescan the
+        // same data and the dismissal must still stand.
+        await api.post('admin/data-quality/scans', { data: { mode: 'deterministic' } });
+        const stillDismissed = await api.json<{ id: string }[]>(
+          await api.get('admin/data-quality/findings?status=dismissed'),
+        );
+        expect(
+          stillDismissed.some((f) => f.id === target.id),
+          'a rescan must not undo the operator’s dismissal',
+        ).toBe(true);
+
         await api.patch(`admin/data-quality/findings/${target.id}`, { data: { status: 'open' } });
       }
     } finally {
