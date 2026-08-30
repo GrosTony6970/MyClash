@@ -36,7 +36,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Cache node_modules
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@v5
         with:
           path: |
             node_modules
@@ -62,7 +62,7 @@ jobs:
           cache: pnpm
 
       - name: Restore node_modules
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v5
         with:
           path: |
             node_modules
@@ -71,7 +71,7 @@ jobs:
           key: node-modules-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
 
       - name: Restore Turborepo cache
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: .turbo
           key: turbo-${{ runner.os }}-${{ github.sha }}
@@ -81,7 +81,7 @@ jobs:
         run: pnpm turbo run build --filter="@myclash/types" --filter="@myclash/rulesets" --filter="@myclash/db" --filter="@myclash/ui" --filter="@myclash/i18n" --filter="@myclash/api-client"
 
       - name: Save Turborepo cache
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@v5
         with:
           path: .turbo
           key: turbo-${{ runner.os }}-${{ github.sha }}
@@ -111,7 +111,7 @@ jobs:
           cache: pnpm
 
       - name: Restore node_modules
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v5
         with:
           path: |
             node_modules
@@ -146,7 +146,7 @@ jobs:
           cache: pnpm
 
       - name: Restore node_modules
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v5
         with:
           path: |
             node_modules
@@ -373,7 +373,7 @@ jobs:
           cache: pnpm
 
       - name: Restore node_modules
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v5
         with:
           path: |
             node_modules
