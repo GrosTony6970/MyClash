@@ -1,3 +1,5 @@
+import { readFileSync, readdirSync } from 'node:fs';
+import path from 'node:path';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { BadRequestException, ConflictException, ForbiddenException } from '@nestjs/common';
 import {
@@ -2820,12 +2822,51 @@ describe('PhasesService', () => {
       { id: 'm-9', pool_id: 'pool-9', status: 'scheduled', lice_id: 'lice-9' },
     ];
 
-    it('inserts one assignment per match in the pool, scoped to (match, role)', async () => {
+    /**
+     * The service over the double, plus a recorder for `.rpc`.
+     *
+     * The double has no `.rpc`, and it could not run a function body if it did,
+     * so the rollback is not something these tests can see — the Postgres replay
+     * proves that. What they hold is that the service writes nothing of its own
+     * around the call: a delete issued before the function is the bug's shape.
+     * `referee_assignments` stays seeded so such a write is RECORDED, not thrown.
+     */
+    function serviceWithRpc(
+      matches: SupabaseRow[],
+      answer: ChainResult = { data: null, error: null },
+    ) {
       const { service, supabase } = makeService({
         pools: { rows: POOLS },
-        matches: { rows: MATCHES },
+        matches: { rows: matches },
         referee_assignments: { rows: [] },
       });
+      const rpc = vi.fn().mockResolvedValue(answer);
+      Object.assign(supabase.service, { rpc });
+      return { service, supabase, rpc };
+    }
+
+    /** The migration that creates the function, as text. Refuses to find nothing. */
+    function replaceFunctionSql(): string {
+      const dir = path.resolve(
+        __dirname,
+        '..',
+        '..',
+        '..',
+        '..',
+        '..',
+        'packages',
+        'db',
+        'migrations',
+      );
+      const file = readdirSync(dir).find((name) =>
+        /^\d{4}_replace_match_referee_role\.sql$/u.test(name),
+      );
+      expect(file, 'no *_replace_match_referee_role.sql in packages/db/migrations').toBeTruthy();
+      return readFileSync(path.join(dir, file as string), 'utf8');
+    }
+
+    it('replaces the role on every match of the pool in one database call', async () => {
+      const { service, supabase, rpc } = serviceWithRpc(MATCHES);
 
       const result = await service.setPoolRefereeRoleAssignment(
         'pool-1',
@@ -2834,31 +2875,18 @@ describe('PhasesService', () => {
         'user-1',
       );
 
-      const [cleared, inserted] = writesTo(supabase, 'referee_assignments');
-      expect(cleared?.op).toBe('delete');
-      // The clear names the role and the bouts, so it cannot take another
-      // role's crew or another pool's.
-      expect(cleared?.filters).toEqual([
-        { method: 'eq', args: ['scope_type', 'match'] },
-        { method: 'eq', args: ['role', 'arbitre_declarant'] },
-        { method: 'in', args: ['match_id', ['m-1', 'm-2', 'm-3']] },
-      ]);
-
-      const insertedRows = inserted?.row as Array<Record<string, unknown>>;
-      expect(insertedRows).toHaveLength(3);
-      expect(insertedRows[0]).toMatchObject({
-        event_id: 'event-1',
-        person_id: 'person-7',
-        scope_type: 'match',
-        pool_id: null,
-        match_id: 'm-1',
-        lice_id: 'lice-1',
-        role: 'arbitre_declarant',
-        auto_assigned: false,
-        status: 'assigned',
+      // Two of the three bouts sit on a lice and the payload carries none. m-9 is
+      // another pool's bout, so the pool filter on the read is load-bearing.
+      expect(rpc).toHaveBeenCalledTimes(1);
+      expect(rpc).toHaveBeenCalledWith('replace_match_referee_role', {
+        p_event_id: 'event-1',
+        p_role: 'arbitre_declarant',
+        p_person_id: 'person-7',
+        p_match_ids: ['m-1', 'm-2', 'm-3'],
       });
-      expect(insertedRows[1]).toMatchObject({ match_id: 'm-2', lice_id: null });
-      expect(insertedRows[2]).toMatchObject({ match_id: 'm-3', lice_id: 'lice-2' });
+      // The delete and the insert used to be two calls, so a failed insert landed
+      // after the delete had committed. Nothing may be written outside the function.
+      expect(writesTo(supabase, 'referee_assignments')).toEqual([]);
       expect(result).toEqual({
         poolId: 'pool-1',
         role: 'arbitre_declarant',
@@ -2866,17 +2894,77 @@ describe('PhasesService', () => {
       });
     });
 
-    it('only deletes existing assignments when refereeId is null', async () => {
-      const { service, supabase } = makeService({
-        pools: { rows: POOLS },
-        matches: { rows: [MATCHES[0]!, MATCHES[3]!] },
-        referee_assignments: { rows: [] },
-      });
+    it('clears the role through the same call when refereeId is null', async () => {
+      const { service, supabase, rpc } = serviceWithRpc([MATCHES[0]!, MATCHES[3]!]);
 
       await service.setPoolRefereeRoleAssignment('pool-1', 'arbitre_assesseur', null, 'user-1');
 
-      const writes = writesTo(supabase, 'referee_assignments');
-      expect(writes.map((write) => write.op)).toEqual(['delete']);
+      expect(rpc).toHaveBeenCalledWith('replace_match_referee_role', {
+        p_event_id: 'event-1',
+        p_role: 'arbitre_assesseur',
+        p_person_id: null,
+        p_match_ids: ['m-1'],
+      });
+      expect(writesTo(supabase, 'referee_assignments')).toEqual([]);
+    });
+
+    it('a failed replace is a 400, and the service writes nothing of its own', async () => {
+      const { service, supabase } = serviceWithRpc(MATCHES, {
+        data: null,
+        error: {
+          message:
+            'insert or update on table "referee_assignments" violates foreign key constraint',
+          code: '23503',
+        },
+      });
+
+      await expect(
+        service.setPoolRefereeRoleAssignment('pool-1', 'arbitre_declarant', 'person-7', 'user-1'),
+      ).rejects.toBeInstanceOf(BadRequestException);
+      expect(writesTo(supabase, 'referee_assignments')).toEqual([]);
+    });
+
+    it('sends exactly the parameters the function declares', async () => {
+      const { service, rpc } = serviceWithRpc(MATCHES);
+
+      await service.setPoolRefereeRoleAssignment(
+        'pool-1',
+        'arbitre_declarant',
+        'person-7',
+        'user-1',
+      );
+
+      // The double ignores an rpc payload and rpc-function-conformance checks only
+      // the name, so a key renamed on either side would reach PostgREST as a call
+      // to a function that does not exist — with every suite green.
+      expect(rpc).toHaveBeenCalledTimes(1);
+      const payload = rpc.mock.calls[0]?.[1] as Record<string, unknown>;
+      const signature =
+        /create\s+or\s+replace\s+function\s+public\.replace_match_referee_role\s*\(([^)]*)\)/iu.exec(
+          replaceFunctionSql(),
+        );
+      expect(signature, 'no replace_match_referee_role signature in the migration').not.toBeNull();
+      const params = (signature?.[1] ?? '')
+        .split(',')
+        .map((entry) => entry.trim().split(/\s+/u)[0] ?? '')
+        .filter(Boolean);
+      expect(params.length).toBeGreaterThan(0);
+      expect([...params].sort()).toEqual(Object.keys(payload).sort());
+    });
+
+    it('the function writes no lice and no pool on a match-scoped row', () => {
+      const columns = /insert\s+into\s+public\.referee_assignments\s*\(([^)]*)\)/iu.exec(
+        replaceFunctionSql(),
+      );
+      // Found first: an absence check over a list that was never parsed passes
+      // with nothing checked.
+      expect(columns, 'no column list on the function insert').not.toBeNull();
+      const names = (columns?.[1] ?? '').split(',').map((column) => column.trim());
+      expect(names).toContain('match_id');
+      // referee_assignments_scope_check (0091): a scope_type='match' row must
+      // carry lice_id NULL and pool_id NULL.
+      expect(names).not.toContain('lice_id');
+      expect(names).not.toContain('pool_id');
     });
   });
 
