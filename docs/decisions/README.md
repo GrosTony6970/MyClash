@@ -47,3 +47,4 @@ What did we look at and reject? Why?
 | [ADR-014](./ADR-014-referee-filter-selection-model.md)        | Referee filters: day single-select, tournament multi-select | Accepted |
 | [ADR-015](./ADR-015-referee-workspace-speaks-unit-neutral.md) | Referee workspace avoids "pool"; no umbrella term minted    | Accepted |
 | [ADR-016](./ADR-016-referee-rules-one-checker.md)             | Referee rules: one checker; Impossible / Discouraged        | Accepted |
+| [ADR-017](./ADR-017-match-owns-its-time-window.md)            | Bout time window: Match owns it; Pool is a hull; plan wins  | Accepted |

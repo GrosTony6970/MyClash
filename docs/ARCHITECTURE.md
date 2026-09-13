@@ -1247,7 +1247,7 @@ async function getUserSchedule(userId: string, eventId: string): Promise<Schedul
 }
 ```
 
-Match times for conflict detection use a **buffer** (e.g. ±15 min) since match start times are estimates.
+A Match's time for conflict detection is its planned window, `[scheduled_at, scheduled_at + planned length)`, half-open and with no buffer: a conflict is an overlap, and "too close" is a rest rule. See [ADR-017](decisions/ADR-017-match-owns-its-time-window.md).
 
 ### 11bis.4 Capacity management
 

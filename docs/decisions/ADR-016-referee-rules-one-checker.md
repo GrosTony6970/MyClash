@@ -136,7 +136,7 @@ referees. That is a known gap with its own ticket, and it is not part of this de
   Confirm asks before sending, but nothing prevents it.
 - **Hard:** overlap is measured on the Pool windows the board derives today, which are estimates.
   An estimate that runs long can mark a workable assignment Impossible. Who owns a bout's time window
-  is a separate decision.
+  is a separate decision, recorded in [ADR-017](ADR-017-match-owns-its-time-window.md).
 - **Committed to:** no door writes a referee assignment without the checker, and no Impossible rule
   has a switch. Hard rule 8 in `CLAUDE.md` says so.
 - **Committed to:** until the build lands, the code still has the old switches and doors. This ADR
