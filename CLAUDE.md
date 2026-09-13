@@ -26,8 +26,11 @@ This file is the agent contract. It holds the rules that cannot be inferred from
 6. **All user-facing strings go through i18n**, in both `en` and `fr`. Never hardcode English.
 7. **Don't commit secrets, and never commit real rosters or personal data** — the repo is public
    (AGPL). `.env.example` is the canonical key list.
-8. **`enforce_fighter_referee_no_overlap` cannot be disabled.** A fighter may not referee a pool
-   overlapping their own match. Safety and integrity invariant.
+8. **Nobody referees while they are somewhere else.** No one may be assigned to referee while they
+   fight, referee elsewhere, or teach a Workshop at an overlapping time, or outside the availability
+   they declared. These rules have no setting and no override. Refereeing one's own Pool at another
+   time is a separate soft rule that can be switched off. Safety and integrity invariant — see
+   `docs/decisions/ADR-016-referee-rules-one-checker.md`.
 9. **One slice = one commit**, scoped to a single concern. Don't bundle unrelated changes.
 10. **Acceptance criteria are testable assertions.** If a task says "X works", demonstrate X with
     a test.

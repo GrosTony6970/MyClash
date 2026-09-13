@@ -57,4 +57,13 @@ Weapons, techniques and officiating. The structural terms above are deliberately
 | Arbitre de table       | (kept in French)                | Table referee         |
 | Instructor             | Instructeur                     |                       |
 
+## Referee assignment
+
+The levels [`../HIERARCHY.md`](../HIERARCHY.md) defines for "may this person referee here?".
+
+| English     | French      | Notes                                       |
+| ----------- | ----------- | ------------------------------------------- |
+| Impossible  | Impossible  | No setting, no override                     |
+| Discouraged | Déconseillé | The organiser may go ahead after confirming |
+
 This is a starting point. Add entries as they come up during translation work (P14).

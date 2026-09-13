@@ -46,3 +46,4 @@ What did we look at and reject? Why?
 | [ADR-013](./ADR-013-fighter-vocabulary.md)                    | Person / Global Person / Fighter vocabulary; bounded rename | Accepted |
 | [ADR-014](./ADR-014-referee-filter-selection-model.md)        | Referee filters: day single-select, tournament multi-select | Accepted |
 | [ADR-015](./ADR-015-referee-workspace-speaks-unit-neutral.md) | Referee workspace avoids "pool"; no umbrella term minted    | Accepted |
+| [ADR-016](./ADR-016-referee-rules-one-checker.md)             | Referee rules: one checker; Impossible / Discouraged        | Accepted |

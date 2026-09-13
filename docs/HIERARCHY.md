@@ -103,7 +103,7 @@ A person registers once per **event**, then holds a registration per **tournamen
 | ----------------------- | ----------------------------------------------------------- |
 | Event organizer         | Owns the event                                              |
 | Tournament admin        | Runs one or more tournaments inside an event                |
-| Workshop lead           | Teaches a workshop inside an event                          |
+| Instructor              | Teaches a workshop inside an event                          |
 | Scorekeeper             | Records exchanges in matches inside a tournament            |
 | Referee                 | Officiates matches inside a tournament                      |
 | Workshop attendee       | Enrolled in a workshop session                              |
@@ -118,6 +118,25 @@ splitting the two words would invent a difference the data does not carry.
 **Fighter is a role, never an entity.** It is not a table and not a synonym for Global Person. The
 `global_persons.is_fighter` flag is a **directory-discoverability** flag — "this person shows up in
 fighter listings" — not a statement about any tournament.
+
+**Instructor is the canonical word for the teaching role.** Say _Instructor_, not "Workshop lead", in
+code, UI and docs.
+
+## Referee assignment
+
+A **commitment** is anything that puts a person somewhere at a set time during an Event: fighting a
+Match, refereeing a Pool or Match, teaching a Workshop, or attending one.
+
+Whether a person may referee a Pool or Match is answered at one of three levels:
+
+- **Impossible** — the assignment would put the person in two places at once, or outside their
+  declared availability. No setting and no override.
+- **Discouraged** — a soft rule applies, for example refereeing one's own Pool at another time. The
+  organiser may go ahead after confirming. Each soft rule has one on/off switch per Event.
+- **Fine** — no rule applies.
+
+**"Locked" is not a level.** It is the referee board's freeze. See
+[ADR-016](decisions/ADR-016-referee-rules-one-checker.md).
 
 ## Code naming (locked-in)
 

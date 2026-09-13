@@ -46,7 +46,9 @@ Read the relevant one before asserting a rule; do not invent standards.
      AST evaluated by `evaluateFormula`.
    - **Every user-facing string goes through i18n, in both `en` and `fr`.**
    - **No secrets, and no real rosters or personal data** — the repo is public under AGPL.
-   - `enforce_fighter_referee_no_overlap` cannot be disabled.
+   - **Nobody referees while they are somewhere else** — fighting, refereeing elsewhere or teaching
+     a Workshop at an overlapping time, or outside declared availability. No setting, no override;
+     every door that writes a referee assignment asks the one checker (ADR-016).
    - Offline scoring in `web-staff` must keep working.
 
 2. **Implementation quality** — TypeScript strict-mode compliance, error handling and edge cases,
