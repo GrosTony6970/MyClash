@@ -2696,18 +2696,23 @@ the Unscheduled list — not a second tab. The Schedule tab used to split into a
 
 `event_programme_blocks` — stores blocks per event per day, ordered by `day_index` + `sort_order`. Columns: `block_type` (`admin|competition|workshop|break`), `label`, `competition_id`, `competition_phase`, `workshop_id`, `lice_count`, `start_time`, `end_time`, `match_gap_seconds` (default 15s), `match_duration_minutes`, `generated_at`.
 
+`event_programme_configs` — the planner sheet, one row per Event (migration 0195, ADR-018). Columns: `event_id` (primary key), `config_json`, `updated_at`. `config_json` holds the day's bounds, the midday break, the four bout lengths (pool, swiss, elimination, finals), the gap, the rest, the admin block durations, and `tournaments`: an array of rows, each naming a Tournament and any of the four lengths it sets for itself. `programmeConfigSchema` in `apps/api/src/modules/programme/dto/programme.dto.ts` validates it and owns the defaults, so a missing row reads as the defaults. The archive remaps the Tournament id inside each row. RLS mirrors `event_programme_blocks`.
+
 `workshops.duration_minutes` — optional column added to hold workshop duration for planning purposes.
 
 `workshop_sessions.starts_at`/`ends_at` — made nullable; filled by the programme generator.
 
 ### 24.3 API
 
-Twelve routes, all on `programme.controller.ts`. `GET` is the only `@Public()` one, and its
-visibility gate lives in the service.
+Fourteen routes, all on `programme.controller.ts`. `GET /programme` is the only `@Public()` one.
+Both reads apply the Event's visibility gate in the service; `GET /programme/config` also needs a
+signed-in caller.
 
 ```text
 GET    /api/v1/events/:eventId/programme                          list saved blocks
 PUT    /api/v1/events/:eventId/programme                          bulk save (replace all)
+GET    /api/v1/events/:eventId/programme/config                   read the planner sheet (defaults if none saved)
+PUT    /api/v1/events/:eventId/programme/config                   store the planner sheet
 POST   /api/v1/events/:eventId/programme/suggest                  auto-suggest (no DB write)
 POST   /api/v1/events/:eventId/programme/generate                 run the scheduler over saved blocks
 POST   /api/v1/events/:eventId/programme/blocks                   append one admin/break block

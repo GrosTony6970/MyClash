@@ -7,6 +7,7 @@ import {
   dragAfterAbandonedDrag,
   dragCardToCell,
   mockApi,
+  settledReadCount,
   openDetailedGrid,
   openRunningLateBoard,
   slotOfCard,
@@ -47,6 +48,49 @@ test.describe('schedule grid drag layer', () => {
     await expect(page.getByText('Piste 1').first()).toBeVisible();
     await expect(page.getByText('Piste 2').first()).toBeVisible();
     await expect(page.getByText('Lunch (13:00–14:00)')).toBeVisible();
+  });
+
+  /**
+   * The planner saves its sheet as the organiser types, and the board re-reads
+   * after the save. It must re-read WITHOUT remounting: the planner is rendered
+   * inside the grid, so a remount would take away the box being typed in. The
+   * box keeping focus through the save is what proves there was no remount.
+   */
+  test('saving the planner sheet re-reads the board and keeps the planner mounted', async ({
+    page,
+  }) => {
+    const api = await mockApi(page);
+    const realtimeDropped = page.waitForEvent('console', {
+      predicate: (message) => message.text().includes('[realtime] dropped'),
+    });
+    await page.goto(SCHEDULE_URL);
+    await expect(card(page, 'LSW-P1-M1')).toBeVisible();
+    const poolLength = page.getByLabel('Pool Match duration (min)', { exact: true });
+    await expect(poolLength).toHaveValue('5');
+    const sheetWrites = () =>
+      api.writes
+        .filter((r) => new URL(r.url()).pathname.endsWith('/programme/config'))
+        .map((r) => (r.postDataJSON() ?? {}) as Record<string, unknown>);
+    // A delta, counted only once the board has stopped reading on its own.
+    await realtimeDropped;
+    const readsBefore = await settledReadCount(api, '/schedule');
+
+    await poolLength.fill('7');
+
+    await expect.poll(() => sheetWrites().length).toBe(1);
+    expect(sheetWrites()[0]).toMatchObject({ poolMatchDurationMinutes: 7 });
+    await expect.poll(() => api.readCount('/schedule')).toBeGreaterThan(readsBefore);
+    await expect(poolLength).toBeFocused();
+    await expect(poolLength).toHaveValue('7');
+    expect(sheetWrites()).toHaveLength(1);
+
+    // Save remounts the grid and the planner. The sheet lives above that remount:
+    // no fresh read here, which could land before the last save and restore the 5.
+    const [sheetReads, licesReads] = [api.readCount('/config'), api.readCount('/lices')];
+    await page.getByRole('button', { name: 'Save programme' }).click();
+    await expect.poll(() => api.readCount('/lices')).toBeGreaterThan(licesReads);
+    await expect(poolLength).toHaveValue('7');
+    expect(api.readCount('/config')).toBe(sheetReads);
   });
 
   /**

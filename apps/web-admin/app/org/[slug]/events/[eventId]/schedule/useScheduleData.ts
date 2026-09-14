@@ -60,13 +60,15 @@ const NO_REFEREE_CONFLICTS: RefereeConflictRow[] = [];
  * The websocket's own 30 s poll fallback covers the unschedule-off-lice edge the
  * `lice_id` filter cannot see. It exists only while the socket is DOWN, which is
  * why the gate has to defer a suppressed refetch rather than drop it.
+ *
+ * Returns that gated re-read, for a change the socket cannot see.
  */
 function useScheduleRealtime(args: {
   eventId: string;
   liceIds: string[];
   refetch: () => Promise<void>;
   isBusy: () => boolean;
-}): void {
+}): () => void {
   const { eventId, liceIds, refetch, isBusy } = args;
   const refetchRef = useRef(refetch);
   // eslint-disable-next-line react-hooks/refs -- intentional render-time mirror of latest refetch fn for stable debounced callback
@@ -108,6 +110,7 @@ function useScheduleRealtime(args: {
     onFallbackPoll: scheduleRefetch,
     fallbackPollMs: 30_000,
   });
+  return scheduleRefetch;
 }
 
 export interface ScheduleData {
@@ -140,6 +143,9 @@ export interface ScheduleData {
   refereeCrewConflicts: RefereeCrewConflictsResult | null;
   refetchLices: () => Promise<void>;
   refetchScheduleAndBlocks: () => Promise<void>;
+  /** Re-read soon, the way a realtime event does: debounced, and held while a
+   *  local write is in flight, so the read cannot undo an optimistic move. */
+  refetchWhenIdle: () => void;
 }
 
 export function useScheduleData(args: {
@@ -251,7 +257,12 @@ export function useScheduleData(args: {
   });
 
   const liceIds = useMemo(() => lices.map((l) => l.id), [lices]);
-  useScheduleRealtime({ eventId, liceIds, refetch: refetchScheduleAndBlocks, isBusy });
+  const refetchWhenIdle = useScheduleRealtime({
+    eventId,
+    liceIds,
+    refetch: refetchScheduleAndBlocks,
+    isBusy,
+  });
 
   return {
     lices,
@@ -271,6 +282,7 @@ export function useScheduleData(args: {
     refereeCrewConflicts,
     refetchLices,
     refetchScheduleAndBlocks,
+    refetchWhenIdle,
   };
 }
 

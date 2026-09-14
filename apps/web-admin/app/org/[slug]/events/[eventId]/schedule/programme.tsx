@@ -10,9 +10,11 @@ import type {
 import { blockTint, resolveBlockAccent } from '@myclash/types';
 import { useConfirm } from '@myclash/ui';
 import { useI18n } from '@myclash/next-i18n/client';
-import { apiRequest, failureMessage } from '@myclash/api-client';
+import { apiRequest } from '@myclash/api-client';
 import { minToTime, nextBlockStartTime, resequenceDay, timeToMin } from './programme-timeline';
-import { mutateSchedule, ScheduleMutationError } from './schedule-mutations';
+import { mutateSchedule, refusalText } from './schedule-mutations';
+import { ProgrammeSheetInputs } from './sheet-inputs';
+import type { ProgrammeSheet } from './useProgrammeSheet';
 import { ColorSwatchPicker } from '@/components/ColorSwatchPicker';
 import { getPublicApiUrl } from '@/lib/api-url';
 
@@ -24,51 +26,13 @@ const BLOCK_TYPE_ICONS: Record<string, string> = {
   break: '☕',
 };
 
-interface SuggestConfig {
-  dayStartTime: string;
-  dayEndTime: string;
-  parallelLiceCount: number;
-  poolMatchDurationMinutes: number;
-  swissMatchDurationMinutes: number;
-  eliminationMatchDurationMinutes: number;
-  finalsMatchDurationMinutes: number;
-  matchGapSeconds: number;
-  minRestMinutes: number;
-  breakBetweenSessionsMinutes: number;
-  middayBreakStart: string;
-  middayBreakEnd: string;
-  registrationDurationMinutes: number;
-  gearCheckDurationMinutes: number;
-  refereeMeetingDurationMinutes: number;
-}
-
-// `parallelLiceCount: 0` is a sentinel — replaced at load time with the
-// actual number of lices configured for the event (run all in parallel).
-const DEFAULT_CONFIG: SuggestConfig = {
-  dayStartTime: '08:00',
-  dayEndTime: '19:00',
-  parallelLiceCount: 0,
-  poolMatchDurationMinutes: 5,
-  // A Swiss bout is a group-stage bout, so it defaults to the pool clock.
-  swissMatchDurationMinutes: 5,
-  eliminationMatchDurationMinutes: 8,
-  finalsMatchDurationMinutes: 10,
-  matchGapSeconds: 10,
-  minRestMinutes: 10,
-  breakBetweenSessionsMinutes: 10,
-  middayBreakStart: '12:00',
-  middayBreakEnd: '13:00',
-  registrationDurationMinutes: 60,
-  gearCheckDurationMinutes: 30,
-  refereeMeetingDurationMinutes: 30,
-};
-
 export function ProgrammePlanner({
   eventId,
   onGenerateDone,
   onBlocksChanged,
   topSuggestNonce,
   programmeRefreshKey,
+  sheet,
   generateScheduleLabel,
   generateGridLabel,
 }: {
@@ -103,6 +67,13 @@ export function ProgrammePlanner({
    * operator closing + re-opening it.
    */
   programmeRefreshKey?: number;
+  /**
+   * The Event's planner sheet. The page owns it, above the grid's remount key:
+   * the grid remounts this planner after Save, Reset and Generate and when its
+   * panel collapses, and a sheet read by a fresh mount could land before the
+   * last mount's save and put an old number back.
+   */
+  sheet: ProgrammeSheet;
   /** Localised button labels — fall back to English defaults if unset. */
   generateScheduleLabel?: string;
   generateGridLabel?: string;
@@ -113,7 +84,21 @@ export function ProgrammePlanner({
 
   const [blocks, setBlocks] = useState<ProgrammeBlock[]>([]);
   const [warnings, setWarnings] = useState<BlockWarning[]>([]);
-  const [config, setConfig] = useState<SuggestConfig>(DEFAULT_CONFIG);
+  /**
+   * The one place this drawer turns a refused write into words.
+   *
+   * It replaces a second `readErrorMessage` — a private copy of the body read
+   * that `@myclash/api-client` owns, and one that stopped at `message`/`error`.
+   * A programme the API refuses is refused by NAME ("block 3 ends before it
+   * starts", every field a validator rejected), and each of those reasons now
+   * reaches the operator instead of the first one or none.
+   */
+  function refusalMessage(err: unknown, fallback: string): string | null {
+    return refusalText(err, t, fallback);
+  }
+
+  // Null until the sheet loads: the browser holds no defaults of its own (ADR-018).
+  const config = sheet.config;
   const [activeDay, setActiveDay] = useState(0);
   const [loading, setLoading] = useState(true);
   /** Load failed → the board is not a trustworthy base for a replace-all save. */
@@ -141,7 +126,7 @@ export function ProgrammePlanner({
   // Workshops live on their own board — never list legacy workshop blocks here.
   const dayBlocks = blocks.filter((b) => b.dayIndex === activeDay && b.blockType !== 'workshop');
 
-  // ── Load saved blocks + default parallel-lice count ───────────────────────
+  // ── Load saved blocks ─────────────────────────────────────────────────────
 
   useEffect(() => {
     // A failed load must NOT look like an empty programme. PUT
@@ -158,51 +143,21 @@ export function ProgrammePlanner({
         setLoadFailed(true);
       })
       .finally(() => setLoading(false));
-
-    // Default parallelLiceCount = number of lices configured for the event.
-    // Only set if user hasn't already overridden the sentinel (0).
-    void apiRequest<Array<{ id: string }>>(apiUrl, `/api/v1/events/${eventId}/lices`).then((r) => {
-      if (!r.ok) return;
-      const count = Math.max(1, r.data.length);
-      setConfig((prev) =>
-        prev.parallelLiceCount === 0 ? { ...prev, parallelLiceCount: count } : prev,
-      );
-    });
-    // The lices fetch deliberately stays outside the refresh nonce —
-    // the grid can't change the lice list.
   }, [eventId, apiUrl, programmeRefreshKey]);
-
-  // Top "Generate schedule" button lives in the page header; clicking
-  // it bumps `topSuggestNonce` and we re-run suggest here. Skip the
-  // initial render (nonce === undefined) so we don't generate on mount.
-  const firstNonceRef = useRef(true);
-  useEffect(() => {
-    if (topSuggestNonce === undefined) return;
-    if (firstNonceRef.current) {
-      firstNonceRef.current = false;
-      return;
-    }
-    void suggest();
-    // suggest is intentionally not a dependency — defining it inside the
-    // component changes identity on every render; we just want the nonce
-    // to drive a single call per click.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [topSuggestNonce]);
 
   // ── Auto-suggest ───────────────────────────────────────────────────────────
 
   async function suggest() {
+    // Nothing to suggest from before the sheet loads; the header's nonce can
+    // change that early.
+    if (!config) return;
     setSuggesting(true);
     setError(null);
     try {
-      const payload: SuggestConfig = {
-        ...config,
-        // DTO requires >= 1; if the sentinel is still in place, fall back to 1.
-        parallelLiceCount: Math.max(1, config.parallelLiceCount),
-      };
+      await sheet.flush();
       const suggestion = await mutateSchedule<ProgrammeSuggestion>(
         `${apiUrl}/api/v1/events/${eventId}/programme/suggest`,
-        { method: 'POST', body: payload },
+        { method: 'POST', body: config },
       );
       if (!suggestion) return;
       // Auto-save: every suggestion overwrites whatever was in
@@ -220,21 +175,23 @@ export function ProgrammePlanner({
     }
   }
 
-  // ── Save ───────────────────────────────────────────────────────────────────
+  // Top "Generate schedule" button lives in the page header; clicking
+  // it bumps `topSuggestNonce` and we re-run suggest here. The nonce is
+  // compared with the one this mount started from. A "first run" flag used to
+  // stand in for that, and it survived StrictMode's second effect pass, which
+  // then ran Suggest on mount and replaced the saved programme.
+  const mountNonceRef = useRef(topSuggestNonce);
+  useEffect(() => {
+    if (topSuggestNonce === mountNonceRef.current) return;
+    mountNonceRef.current = topSuggestNonce;
+    void suggest();
+    // suggest is intentionally not a dependency — defining it inside the
+    // component changes identity on every render; we just want the nonce
+    // to drive a single call per click.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [topSuggestNonce]);
 
-  /**
-   * The one place this drawer turns a refused write into words.
-   *
-   * It replaces a second `readErrorMessage` — a private copy of the body read
-   * that `@myclash/api-client` owns, and one that stopped at `message`/`error`.
-   * A programme the API refuses is refused by NAME ("block 3 ends before it
-   * starts", every field a validator rejected), and each of those reasons now
-   * reaches the operator instead of the first one or none.
-   */
-  function refusalMessage(err: unknown, fallback: string): string | null {
-    if (err instanceof ScheduleMutationError) return failureMessage(err.failure, t, fallback);
-    return err instanceof Error ? err.message : fallback;
-  }
+  // ── Save ───────────────────────────────────────────────────────────────────
 
   async function persistProgramme(blocksOverride?: ProgrammeBlock[]): Promise<ProgrammeBlock[]> {
     // Backend DTO whitelists fields with forbidNonWhitelisted; drop
@@ -273,6 +230,8 @@ export function ProgrammePlanner({
     setSaving(true);
     setError(null);
     try {
+      // The grid remounts this panel after a save, so the sheet goes first.
+      await sheet.flush();
       const saved = await persistProgramme();
       setBlocks(saved);
       onBlocksChanged?.();
@@ -304,6 +263,7 @@ export function ProgrammePlanner({
     setResetting(true);
     setError(null);
     try {
+      await sheet.flush();
       await mutateSchedule(`${apiUrl}/api/v1/events/${eventId}/programme/full`, {
         method: 'DELETE',
       });
@@ -333,6 +293,7 @@ export function ProgrammePlanner({
     setGenerating(true);
     setError(null);
     try {
+      await sheet.flush();
       const saved = await persistProgramme();
       setBlocks(saved);
       // Scope generation to the ticked days; omit the body to mean "all days".
@@ -382,6 +343,7 @@ export function ProgrammePlanner({
    * picking a linked competition/workshop up front.
    */
   function addBlock() {
+    if (!config) return;
     const id =
       typeof crypto !== 'undefined' && 'randomUUID' in crypto
         ? crypto.randomUUID()
@@ -441,7 +403,7 @@ export function ProgrammePlanner({
   function handleDragOver(e: React.DragEvent, idx: number) {
     e.preventDefault();
     const from = dragIndex.current;
-    if (from === null || from === idx) return;
+    if (from === null || from === idx || !config) return;
 
     const dayBlockIds = dayBlocks.map((b) => b.id);
     const allBlocks = [...blocks];
@@ -484,62 +446,27 @@ export function ProgrammePlanner({
         <h2 className="text-xs font-semibold uppercase tracking-wider text-muted">
           {t('organizer.schedulePage.planner.configTitle')}
         </h2>
-        <div className="grid grid-cols-2 gap-x-3 gap-y-2">
-          {(
-            [
-              ['dayStart', 'dayStartTime', 'time'],
-              ['dayEnd', 'dayEndTime', 'time'],
-              ['parallelLices', 'parallelLiceCount', 'number'],
-              ['poolMatchDuration', 'poolMatchDurationMinutes', 'number'],
-              ['swissMatchDuration', 'swissMatchDurationMinutes', 'number'],
-              ['eliminationMatchDuration', 'eliminationMatchDurationMinutes', 'number'],
-              ['finalsMatchDuration', 'finalsMatchDurationMinutes', 'number'],
-              ['matchGap', 'matchGapSeconds', 'number'],
-              ['minRest', 'minRestMinutes', 'number'],
-              ['breakBetweenSessions', 'breakBetweenSessionsMinutes', 'number'],
-              ['middayBreakStart', 'middayBreakStart', 'time'],
-              ['middayBreakEnd', 'middayBreakEnd', 'time'],
-              ['registration', 'registrationDurationMinutes', 'number'],
-              ['gearCheck', 'gearCheckDurationMinutes', 'number'],
-              ['refereeMeeting', 'refereeMeetingDurationMinutes', 'number'],
-            ] as [string, keyof SuggestConfig, string][]
-          ).map(([labelKey, key, type]) => {
-            // Slice A of the schedule overhaul: 'time' fields use a
-            // custom HH:MM text input instead of <input type="time">.
-            // Native time pickers defer to the user's browser/OS
-            // locale — en-US users see AM/PM. The text input keeps
-            // the picker UX simple ("type the time") and the value
-            // shape is identical (HH:MM strings, what SuggestConfig
-            // already stores). Numeric pattern blocks junk input.
-            const isTime = type === 'time';
-            return (
-              <label key={key} className="flex flex-col gap-1">
-                <span className="text-xs text-muted">
-                  {t(`organizer.schedulePage.planner.config.${labelKey}`)}
-                </span>
-                <input
-                  type={isTime ? 'text' : type}
-                  inputMode={isTime ? 'numeric' : undefined}
-                  pattern={isTime ? '^([01]?[0-9]|2[0-3]):[0-5][0-9]$' : undefined}
-                  placeholder={isTime ? 'HH:MM' : undefined}
-                  maxLength={isTime ? 5 : undefined}
-                  value={config[key]}
-                  onChange={(e) =>
-                    setConfig((prev) => ({
-                      ...prev,
-                      [key]: type === 'number' ? Number(e.target.value) : e.target.value,
-                    }))
-                  }
-                  className="border border-border rounded-md px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
-                />
-              </label>
-            );
-          })}
-        </div>
+        {sheet.loadFailed && (
+          <div className="rounded-lg border border-danger/30 bg-danger/10 px-3 py-2 text-xs text-danger">
+            {t('organizer.schedulePage.planner.sheetLoadFailed')}
+          </div>
+        )}
+        {config && (
+          <ProgrammeSheetInputs
+            config={config}
+            tournaments={sheet.tournaments}
+            onEdit={sheet.edit}
+          />
+        )}
+        {sheet.saveError && (
+          <div className="rounded-lg border border-danger/30 bg-danger/10 px-3 py-2 text-xs text-danger">
+            {sheet.saveError}
+          </div>
+        )}
         <button
           onClick={() => void suggest()}
           data-testid="schedule-suggest"
-          disabled={suggesting}
+          disabled={suggesting || !config}
           className="w-full bg-accent hover:bg-accent-hover disabled:opacity-50 text-accent-foreground font-semibold py-2 px-4 rounded-md text-sm"
         >
           {suggesting
@@ -663,6 +590,7 @@ export function ProgrammePlanner({
         <button
           type="button"
           onClick={addBlock}
+          disabled={!config}
           className="mb-4 inline-flex items-center gap-1 rounded-md border border-dashed border-border px-3 py-1.5 text-xs font-medium text-foreground-secondary hover:border-muted hover:text-foreground"
         >
           {t('organizer.schedulePage.planner.addBlock')}

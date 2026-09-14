@@ -1815,9 +1815,13 @@ export const organizer = {
     planner: {
       configTitle: 'Configuration',
       config: {
+        groups: {
+          day: 'Journée',
+          bouts: 'Matchs',
+          blocks: 'Blocs',
+        },
         dayStart: 'Début de journée',
         dayEnd: 'Fin de journée',
-        parallelLices: 'Lices en parallèle',
         matchDuration: 'Durée de match (min)',
         poolMatchDuration: 'Durée de match de poule (min)',
         swissMatchDuration: 'Durée de match suisse (min)',
@@ -1827,11 +1831,24 @@ export const organizer = {
         minRest: 'Repos min / combattant (min)',
         breakBetweenSessions: 'Pause entre sessions (min)',
         middayBreakStart: 'Début de pause déjeuner',
-        middayBreakEnd: 'Fin de pause déjeuner',
-        registration: 'Accueil (min)',
-        gearCheck: 'Contrôle du matériel (min)',
+        middayBreakMinutes: 'Pause déjeuner (min)',
+        arrivalAndGearCheck: 'Accueil et contrôle du matériel (min)',
         refereeMeeting: 'Réunion des arbitres (min)',
+        sheetIsPlanningHint:
+          'Ces durées servent à planifier la journée. Une fois la journée lancée, utilisez les contrôles de retard : ils décalent les heures de début et gardent les durées.',
+        perTournament: {
+          title: 'Par tournoi (min)',
+          blankMeansEvent: "Laissez une case vide pour reprendre la durée de l'événement.",
+          pool: 'Poule',
+          swiss: 'Suisse',
+          elimination: 'Élim.',
+          finals: 'Finale',
+          inputAria: 'Durée de match {kind} pour {tournament}, en minutes',
+        },
       },
+      sheetLoadFailed:
+        "La feuille du planificateur n'a pas pu être chargée. Rechargez la page avant de la modifier.",
+      sheetSaveFailed: "La feuille du planificateur n'a pas été enregistrée.",
       generating: 'Génération…',
       resetConfirmTitle: 'Réinitialiser le programme ?',
       resetConfirmDescription:
@@ -2742,6 +2759,7 @@ export const organizer = {
       workshopEnrollments: 'Inscriptions aux ateliers',
       workshopBreaks: 'Pauses des ateliers',
       eventProgrammeBlocks: 'Blocs du programme',
+      eventProgrammeConfigs: 'Feuille du planificateur',
     },
     formats: {
       zip: 'Bundle ZIP',

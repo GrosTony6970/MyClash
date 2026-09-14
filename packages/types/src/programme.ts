@@ -59,29 +59,48 @@ export interface GenerateResult {
   blockDiagnostics?: BlockDiagnostic[];
 }
 
+/**
+ * One Tournament's own bout lengths on the planner sheet (ADR-018). Every length
+ * is optional: a blank one reads the Event's number.
+ */
+export interface TournamentLengths {
+  tournamentId: string;
+  poolMatchDurationMinutes?: number;
+  swissMatchDurationMinutes?: number;
+  eliminationMatchDurationMinutes?: number;
+  finalsMatchDurationMinutes?: number;
+}
+
+/**
+ * The planner's sheet: the one place an organiser types a bout length (ADR-018),
+ * in ADR-021's three groups. Stored per Event in `event_programme_configs`; the
+ * API's `programmeConfigSchema` validates every write and owns the defaults.
+ */
 export interface SuggestConfig {
+  // ── Day ──
   dayStartTime: string;
   dayEndTime: string;
-  parallelLiceCount: number;
-  /** Duration of a pool match, in minutes (drives the Pools bars). */
+  middayBreakStart: string;
+  /** How long the midday break lasts, from `middayBreakStart`, in minutes. */
+  middayBreakMinutes: number;
+
+  // ── Bouts ── every length is whole minutes above zero.
+  /** A pool bout. */
   poolMatchDurationMinutes: number;
-  /**
-   * Duration of a Swiss-round match, in minutes (drives the Swiss bars).
-   * Optional: a payload predating the Swiss format omits it, and the server
-   * falls back to `poolMatchDurationMinutes` — a Swiss bout is a group-stage
-   * bout, so the pool clock is the honest default.
-   */
+  /** A Swiss-round bout. Absent means the pool length. */
   swissMatchDurationMinutes?: number;
-  /** Duration of a non-final bracket match, in minutes (drives the Bracket bars). */
+  /** A bracket bout that is not a final. */
   eliminationMatchDurationMinutes: number;
-  /** Duration of a final-round match — gold + bronze (drives the Finals bars). */
+  /** A bout the planner's classifier calls a final (gold, bronze, grand final). */
   finalsMatchDurationMinutes: number;
   matchGapSeconds: number;
   minRestMinutes: number;
+  /** A Tournament's own lengths, read before the Event's. One row per Tournament. */
+  tournaments: TournamentLengths[];
+
+  // ── Blocks ──
   breakBetweenSessionsMinutes: number;
-  middayBreakStart: string;
-  middayBreakEnd: string;
-  registrationDurationMinutes: number;
-  gearCheckDurationMinutes: number;
   refereeMeetingDurationMinutes: number;
+  /** Registration and gear check: one block, in minutes. */
+  arrivalAndGearCheckMinutes: number;
 }

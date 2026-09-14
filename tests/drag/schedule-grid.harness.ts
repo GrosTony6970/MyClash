@@ -8,6 +8,7 @@ import {
   licesFixture,
   meFixture,
   programmeFixture,
+  sheetFixture,
   refereeCrewConflictsFixture,
   refereeMatchAssignmentsFixture,
   scheduleFixture,
@@ -52,6 +53,10 @@ export function readFixture(path: string, opts: MockOptions = {}): unknown | nul
   if (path.endsWith(`/events/${EVENT_ID}/lices`)) return licesFixture;
   if (path.endsWith(`/events/${EVENT_ID}/schedule`)) return opts.schedule ?? scheduleFixture;
   if (path.endsWith(`/events/${EVENT_ID}/programme`)) return programmeFixture;
+  // The planner reads its sheet and the Event's Tournaments once on mount. The
+  // fall-through `[]` is not a sheet, and the planner would report it unloaded.
+  if (path.endsWith(`/events/${EVENT_ID}/programme/config`)) return sheetFixture;
+  if (path.endsWith(`/events/${EVENT_ID}/tournaments`)) return [];
   // Both halves of the referee check. Unmocked they fall through to the `?? []`
   // in mockApi, and an array is not a crew payload — the board would raise a
   // "could not be read" banner in every spec in this file.
@@ -78,6 +83,7 @@ export function readFixture(path: string, opts: MockOptions = {}): unknown | nul
  */
 export function writeFixture(path: string): unknown {
   if (path.endsWith('/programme/suggest')) return { blocks: programmeFixture, warnings: [] };
+  if (path.endsWith('/programme/config')) return sheetFixture;
   if (path.endsWith(`/events/${EVENT_ID}/programme`)) return programmeFixture;
   return {};
 }
@@ -269,4 +275,32 @@ export async function dragAfterAbandonedDrag(
     },
     [abandonedText, roundCode, liceId, String(slot)],
   );
+}
+
+/**
+ * The read count for `suffix` once reads have stopped for two seconds.
+ *
+ * The harness's realtime socket always fails, and the board answers a dropped
+ * channel with one fallback re-read about 1.5 s later: `useRealtimeWithFallback`
+ * polls at once and the refetch gate debounces it. A spec that counts re-reads
+ * must let that one land first or it counts it. The sheet-save case in the spec stayed
+ * green with its own re-read deleted until it waited here.
+ */
+export async function settledReadCount(api: Harness, suffix: string): Promise<number> {
+  let count = api.readCount(suffix);
+  let changedAt = Date.now();
+  await expect
+    .poll(
+      () => {
+        const now = api.readCount(suffix);
+        if (now !== count) {
+          count = now;
+          changedAt = Date.now();
+        }
+        return Date.now() - changedAt;
+      },
+      { timeout: 15_000, intervals: [200] },
+    )
+    .toBeGreaterThanOrEqual(2_000);
+  return count;
 }

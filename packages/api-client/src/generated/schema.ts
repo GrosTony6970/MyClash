@@ -4429,6 +4429,24 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  '/api/v1/events/{eventId}/programme/config': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Read the Event's planner sheet: day bounds, bout lengths per Event and per Tournament, and block durations. The defaults when none was saved. */
+    get: operations['ProgrammeController_getConfig'];
+    /** Replace the Event's planner sheet (the organiser's team only) */
+    put: operations['ProgrammeController_putConfig'];
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   '/api/v1/events/{eventId}/programme/generate': {
     parameters: {
       query?: never;
@@ -10442,22 +10460,41 @@ export interface components {
         colorHex?: string | null;
       }[];
     };
-    SuggestProgrammeDto: {
+    ProgrammeConfigDto: {
+      /** @default 08:00 */
       dayStartTime: string;
+      /** @default 19:00 */
       dayEndTime: string;
-      parallelLiceCount: number;
+      /** @default 12:00 */
+      middayBreakStart: string;
+      /** @default 60 */
+      middayBreakMinutes: number;
+      /** @default 5 */
       poolMatchDurationMinutes: number;
       swissMatchDurationMinutes?: number;
+      /** @default 8 */
       eliminationMatchDurationMinutes: number;
+      /** @default 10 */
       finalsMatchDurationMinutes: number;
+      /** @default 10 */
       matchGapSeconds: number;
+      /** @default 10 */
       minRestMinutes: number;
+      /** @default [] */
+      tournaments: {
+        /** Format: uuid */
+        tournamentId: string;
+        poolMatchDurationMinutes?: number;
+        swissMatchDurationMinutes?: number;
+        eliminationMatchDurationMinutes?: number;
+        finalsMatchDurationMinutes?: number;
+      }[];
+      /** @default 10 */
       breakBetweenSessionsMinutes: number;
-      middayBreakStart: string;
-      middayBreakEnd: string;
-      registrationDurationMinutes: number;
-      gearCheckDurationMinutes: number;
+      /** @default 30 */
       refereeMeetingDurationMinutes: number;
+      /** @default 90 */
+      arrivalAndGearCheckMinutes: number;
     };
     CreateBlockDto: {
       dayIndex: number;
@@ -18139,7 +18176,49 @@ export interface operations {
     };
     requestBody: {
       content: {
-        'application/json': components['schemas']['SuggestProgrammeDto'];
+        'application/json': components['schemas']['ProgrammeConfigDto'];
+      };
+    };
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  ProgrammeController_getConfig: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        eventId: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  ProgrammeController_putConfig: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        eventId: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['ProgrammeConfigDto'];
       };
     };
     responses: {

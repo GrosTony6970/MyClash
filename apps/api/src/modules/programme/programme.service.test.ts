@@ -5,7 +5,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const mockOrgs = { assertOrgRole: vi.fn() };
 const CALLER = 'user-1';
 import { ProgrammeService, decidePoolAffinity } from './programme.service';
-import type { SaveProgrammeDto, SuggestProgrammeDto } from './dto/programme.dto';
+import type { ProgrammeConfigDto, SaveProgrammeDto } from './dto/programme.dto';
+import { PROGRAMME_CONFIG_DEFAULTS } from './dto/programme.dto';
 import {
   DEFAULT_SWISS_POINTS,
   DEFAULT_SWISS_TIEBREAK_CHAIN,
@@ -67,21 +68,20 @@ const SWISS_CONFIG: SwissConfig = {
 };
 
 /** The suggest payload every duration case starts from. */
-const SUGGEST_DTO = {
+const SUGGEST_DTO: ProgrammeConfigDto = {
   dayStartTime: '08:00',
   dayEndTime: '18:00',
-  parallelLiceCount: 1,
+  middayBreakStart: '12:00',
+  middayBreakMinutes: 60,
   poolMatchDurationMinutes: 5,
   eliminationMatchDurationMinutes: 8,
   finalsMatchDurationMinutes: 10,
   matchGapSeconds: 15,
   minRestMinutes: 10,
+  tournaments: [],
   breakBetweenSessionsMinutes: 10,
-  middayBreakStart: '12:00',
-  middayBreakEnd: '13:00',
-  registrationDurationMinutes: 30,
-  gearCheckDurationMinutes: 15,
   refereeMeetingDurationMinutes: 15,
+  arrivalAndGearCheckMinutes: 45,
 };
 
 /** 'HH:MM' as minutes past midnight, for measuring a block's length. */
@@ -176,22 +176,21 @@ function mkBracketMatch(id: string, label: string, slotId: string) {
 }
 
 /** Baseline suggest config with distinct pool / elimination / finals durations. */
-function suggestCfg(): SuggestProgrammeDto {
+function suggestCfg(): ProgrammeConfigDto {
   return {
     dayStartTime: '08:00',
     dayEndTime: '20:00',
-    parallelLiceCount: 2,
+    middayBreakStart: '12:00',
+    middayBreakMinutes: 60,
     poolMatchDurationMinutes: 5,
     eliminationMatchDurationMinutes: 8,
     finalsMatchDurationMinutes: 10,
     matchGapSeconds: 0,
     minRestMinutes: 10,
+    tournaments: [],
     breakBetweenSessionsMinutes: 10,
-    middayBreakStart: '12:00',
-    middayBreakEnd: '13:00',
-    registrationDurationMinutes: 30,
-    gearCheckDurationMinutes: 15,
     refereeMeetingDurationMinutes: 15,
+    arrivalAndGearCheckMinutes: 45,
   };
 }
 
@@ -595,29 +594,26 @@ describe('ProgrammeService', () => {
       .mockReturnValueOnce(makeChain({ data: [{ id: 'l1' }], error: null })) // lices
       .mockReturnValueOnce(makeChain({ data: [], error: null })); // tournaments
 
-    const suggestion = await service.suggest(
-      'event-1',
-      {
-        dayStartTime: '08:00',
-        dayEndTime: '18:00',
-        parallelLiceCount: 1,
-        poolMatchDurationMinutes: 5,
-        eliminationMatchDurationMinutes: 8,
-        finalsMatchDurationMinutes: 10,
-        matchGapSeconds: 15,
-        minRestMinutes: 10,
-        breakBetweenSessionsMinutes: 10,
-        middayBreakStart: '12:00',
-        middayBreakEnd: '13:00',
-        registrationDurationMinutes: 30,
-        gearCheckDurationMinutes: 15,
-        refereeMeetingDurationMinutes: 15,
-      } as never,
-      CALLER,
-    );
+    const suggestion = await service.suggest('event-1', SUGGEST_DTO, CALLER);
 
     expect(suggestion.blocks.length).toBeGreaterThan(0);
     expect(suggestion.blocks.some((b) => b.blockType === 'workshop')).toBe(false);
+  });
+
+  it('proposes no bar for a break or admin block the sheet sets to 0 minutes', async () => {
+    // The programme save refuses a bar that ends where it starts, and the sheet
+    // keeps the 0, so a zero-minute bar would fail every Suggest until changed.
+    fromMock
+      .mockReturnValueOnce(makeChain({ data: [{ id: 'l1' }], error: null })) // lices
+      .mockReturnValueOnce(makeChain({ data: [], error: null })); // tournaments
+
+    const suggestion = await service.suggest(
+      'event-1',
+      { ...SUGGEST_DTO, arrivalAndGearCheckMinutes: 0, refereeMeetingDurationMinutes: 0 },
+      CALLER,
+    );
+
+    expect(suggestion.blocks.filter((b) => b.blockType === 'admin')).toEqual([]);
   });
 
   it('builds the Swiss block on the Swiss bout length, not the pool one', async () => {
@@ -645,7 +641,7 @@ describe('ProgrammeService', () => {
 
     const suggestion = await service.suggest(
       'event-1',
-      { ...SUGGEST_DTO, poolMatchDurationMinutes: 5, swissMatchDurationMinutes: 12 } as never,
+      { ...SUGGEST_DTO, poolMatchDurationMinutes: 5, swissMatchDurationMinutes: 12 },
       CALLER,
     );
 
@@ -656,6 +652,100 @@ describe('ProgrammeService', () => {
     // is clamped to the window remainder, which is the same number for 5 and 12
     // and would make this assertion a constant. On the pool clock it is 105.
     expect(timeToMinutes(swiss!.endTime) - timeToMinutes(swiss!.startTime)).toBe(245);
+  });
+
+  it("builds a Tournament's Swiss block on that Tournament's own length", async () => {
+    // The sheet's row for a Tournament is read before the Event's number
+    // (ADR-018), so an Event at 12 minutes and this Tournament at 20 plans the
+    // block at 20. Same reads, in the same order, as the test above.
+    fromMock
+      .mockReturnValueOnce(makeChain({ data: [{ id: 'l1' }], error: null })) // lices
+      .mockReturnValueOnce(makeChain({ data: [{ id: 't1', name: 'Longsword' }], error: null }))
+      .mockReturnValueOnce(
+        makeChain({ data: [{ id: 'ph1', type: 'swiss', config_json: SWISS_CONFIG }], error: null }),
+      )
+      .mockReturnValueOnce(makeChain({ data: [], error: null })) // no bracket phases
+      .mockReturnValueOnce(
+        makeChain({
+          data: Array.from({ length: 8 }, () => ({ phase_id: 'ph1' })),
+          error: null,
+        }),
+      ); // swiss_entrants
+
+    const suggestion = await service.suggest(
+      'event-1',
+      {
+        ...SUGGEST_DTO,
+        swissMatchDurationMinutes: 12,
+        tournaments: [{ tournamentId: 't1', swissMatchDurationMinutes: 20 }],
+      },
+      CALLER,
+    );
+
+    const swiss = suggestion.blocks.find((b) => b.competitionPhase === 'swiss');
+    expect(swiss?.matchDurationMinutes).toBe(20);
+    // 20 bouts at 20 min + 15 s each = 405 min, still inside the day.
+    expect(timeToMinutes(swiss!.endTime) - timeToMinutes(swiss!.startTime)).toBe(405);
+  });
+
+  describe('the planner sheet', () => {
+    it('reads the defaults when the Event has no sheet yet', async () => {
+      const chain = makeChain({ data: null, error: null });
+      fromMock.mockReturnValueOnce(chain);
+
+      const sheet = await service.getConfig('event-1', () => Promise.resolve(CALLER));
+
+      expect(sheet).toEqual(PROGRAMME_CONFIG_DEFAULTS);
+      expect(fromMock).toHaveBeenCalledWith('event_programme_configs');
+      // The mock answers whatever the projection asks for, so the read itself
+      // is only proved by the string it sends.
+      expect(chain.select).toHaveBeenCalledWith('config_json');
+      expect(chain.eq).toHaveBeenCalledWith('event_id', 'event-1');
+    });
+
+    it('fills a stored sheet that lacks a field from the defaults', async () => {
+      fromMock.mockReturnValueOnce(
+        makeChain({ data: { config_json: { poolMatchDurationMinutes: 7 } }, error: null }),
+      );
+
+      const sheet = await service.getConfig('event-1', () => Promise.resolve(CALLER));
+
+      expect(sheet.poolMatchDurationMinutes).toBe(7);
+      expect(sheet.finalsMatchDurationMinutes).toBe(10);
+    });
+
+    it('opens a stored sheet that still carries a field the schema dropped', async () => {
+      // A sheet saved under an older field list, from a restored archive say.
+      // Refusing it would leave the planner unable to load, and so unable to
+      // save the sheet that fixes it.
+      fromMock.mockReturnValueOnce(
+        makeChain({
+          data: { config_json: { parallelLiceCount: 2, poolMatchDurationMinutes: 7 } },
+          error: null,
+        }),
+      );
+
+      const sheet = await service.getConfig('event-1', () => Promise.resolve(CALLER));
+
+      expect(sheet.poolMatchDurationMinutes).toBe(7);
+      expect(sheet).not.toHaveProperty('parallelLiceCount');
+    });
+
+    it('stores the sheet whole, one row per Event', async () => {
+      const dto: ProgrammeConfigDto = { ...PROGRAMME_CONFIG_DEFAULTS, poolMatchDurationMinutes: 7 };
+      const chain = makeChain({ data: { config_json: dto }, error: null });
+      fromMock.mockReturnValueOnce(chain);
+
+      const stored = await service.putConfig('event-1', dto, CALLER);
+
+      expect(fromMock).toHaveBeenCalledWith('event_programme_configs');
+      expect(chain.upsert).toHaveBeenCalledWith(
+        expect.objectContaining({ event_id: 'event-1', config_json: dto }),
+        { onConflict: 'event_id' },
+      );
+      expect(chain.select).toHaveBeenCalledWith('config_json');
+      expect(stored.poolMatchDurationMinutes).toBe(7);
+    });
   });
 
   it('carves the final round into a separate Finals block at the finals duration', async () => {

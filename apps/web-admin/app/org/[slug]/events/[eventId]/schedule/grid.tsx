@@ -112,6 +112,7 @@ export function ScheduleGrid({
   eventId,
   onProgrammeMutated,
   configurePanel,
+  sheetVersion,
 }: {
   slug: string;
   eventId: string;
@@ -128,6 +129,8 @@ export function ScheduleGrid({
    *  the Unscheduled list. Owned by the page so its generate/refresh
    *  nonces stay intact; the grid just places it. */
   configurePanel?: ReactNode;
+  /** Bumped by the page after each planner sheet save. The board re-reads on it. */
+  sheetVersion?: number;
 }) {
   const { t } = useI18n();
   const apiUrl = getPublicApiUrl();
@@ -171,9 +174,22 @@ export function ScheduleGrid({
     refereeCrewConflicts,
     refetchLices,
     refetchScheduleAndBlocks,
+    refetchWhenIdle,
   } = useScheduleData({ eventId, apiUrl, isBusy });
   // eslint-disable-next-line react-hooks/refs -- render-time mirror closing the read/write cycle described above
   refetchRef.current = refetchScheduleAndBlocks;
+
+  // A saved planner sheet changes no Match row, so the realtime binding on
+  // `matches` never fires for it. The board will read bout lengths from the sheet
+  // (ADR-018), so it re-reads after each save. The read goes through the realtime
+  // gate, so one landing mid-drag cannot undo the drag. The version this mount
+  // started from is not a save: the page keeps it across grid remounts.
+  const seenSheetVersion = useRef(sheetVersion);
+  useEffect(() => {
+    if (sheetVersion === seenSheetVersion.current) return;
+    seenSheetVersion.current = sheetVersion;
+    refetchWhenIdle();
+  }, [sheetVersion, refetchWhenIdle]);
 
   /**
    * The two things undo needs the board to be able to do. Both live here rather

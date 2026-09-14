@@ -1829,9 +1829,13 @@ export const organizer = {
     planner: {
       configTitle: 'Configuration',
       config: {
+        groups: {
+          day: 'Day',
+          bouts: 'Matches',
+          blocks: 'Blocks',
+        },
         dayStart: 'Day start',
         dayEnd: 'Day end',
-        parallelLices: 'Parallel lices',
         matchDuration: 'Match duration (min)',
         poolMatchDuration: 'Pool Match duration (min)',
         swissMatchDuration: 'Swiss Match duration (min)',
@@ -1841,11 +1845,24 @@ export const organizer = {
         minRest: 'Min rest / fighter (min)',
         breakBetweenSessions: 'Break between sessions (min)',
         middayBreakStart: 'Midday break start',
-        middayBreakEnd: 'Midday break end',
-        registration: 'Registration (min)',
-        gearCheck: 'Gear check (min)',
+        middayBreakMinutes: 'Midday break (min)',
+        arrivalAndGearCheck: 'Registration and gear check (min)',
         refereeMeeting: 'Referee meeting (min)',
+        sheetIsPlanningHint:
+          'These lengths plan the day. Once the day is running, use the running-late controls: they move start times and keep lengths.',
+        perTournament: {
+          title: 'Per Tournament (min)',
+          blankMeansEvent: "Leave a box blank to use the Event's length.",
+          pool: 'Pool',
+          swiss: 'Swiss',
+          elimination: 'Elim.',
+          finals: 'Finals',
+          inputAria: '{kind} Match length for {tournament}, in minutes',
+        },
       },
+      sheetLoadFailed:
+        'The planner sheet could not be loaded. Reload the page before you change it.',
+      sheetSaveFailed: 'The planner sheet was not saved.',
       generating: 'Generating…',
       resetConfirmTitle: 'Reset the schedule?',
       resetConfirmDescription:
@@ -2774,6 +2791,7 @@ export const organizer = {
       workshopEnrollments: 'Workshop enrolments',
       workshopBreaks: 'Workshop breaks',
       eventProgrammeBlocks: 'Programme blocks',
+      eventProgrammeConfigs: 'Planner sheet',
     },
     formats: {
       zip: 'ZIP bundle',

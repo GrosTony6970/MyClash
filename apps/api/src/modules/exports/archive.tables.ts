@@ -425,6 +425,15 @@ const TABLES = {
     key: 'eventProgrammeBlocks',
     collect: { event: EVENT_SCOPED, tournament: 'omit' },
   },
+  // The planner sheet (0195). A Tournament's own bout lengths name that
+  // Tournament INSIDE the JSON, where the column sweep cannot see it. Without
+  // the path a restored copy's rows would keep the source Event's Tournament
+  // ids, match none of the copy's Tournaments, and silently stop applying.
+  event_programme_configs: {
+    key: 'eventProgrammeConfigs',
+    collect: { event: EVENT_SCOPED, tournament: 'omit' },
+    json: [{ path: 'config_json.tournaments[].tournamentId', map: 'tournaments' }],
+  },
 } as const satisfies Record<string, ArchiveTableSpec>;
 
 export const ARCHIVE_TABLES: Readonly<Record<string, ArchiveTableSpec>> = TABLES;

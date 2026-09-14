@@ -13,6 +13,7 @@ import { OrganizationsService } from '../organizations/organizations.service';
 import { MatchAlertRefresherService } from '../notifications/match-alert-refresher.service';
 import { assertCanManageEvent, assertCanReadEvent } from '../../common/auth/event-authz';
 import { scheduleMatches } from '../schedule/match-scheduler';
+import { sheetLengthFor } from '../schedule/planned-length';
 import { poolBottleneckMinutes } from './pool-bottleneck';
 import {
   DAY_LAST_MIN,
@@ -32,11 +33,12 @@ import { parseSwissConfig } from '../swiss/dto/swiss-config.dto';
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 import type {
   CreateBlockDto,
+  ProgrammeConfigDto,
   SaveProgrammeDto,
   ScheduleGroupDto,
-  SuggestProgrammeDto,
   UpdateBlockLabelDto,
 } from './dto/programme.dto';
+import { storedProgrammeConfigSchema } from './dto/programme.dto';
 
 function timeToMin(t: string): number {
   const [h, m] = t.split(':').map(Number);
@@ -195,6 +197,49 @@ export class ProgrammeService {
       .order('sort_order', { ascending: true });
     if (error) throw new BadRequestException(error.message);
     return (data ?? []).map((r) => this.mapBlock(r as Record<string, unknown>));
+  }
+
+  // ── The planner sheet ──────────────────────────────────────────────────────
+
+  /**
+   * The Event's planner sheet (ADR-018). Anyone signed in who can see the Event
+   * may read it, behind the same visibility gate as the bars; the route is not
+   * `@Public()`, so the global guard has already refused an anonymous caller.
+   *
+   * No row reads as the schema's defaults, and a stored sheet missing a field is
+   * filled by them, because what is loaded goes through the schema. A field the
+   * schema dropped is ignored; a value it refuses is a server fault and surfaces
+   * as one.
+   */
+  async getConfig(eventId: string, resolveUserId: () => Promise<string>): Promise<SuggestConfig> {
+    await this.assertReader(eventId, resolveUserId);
+    const { data, error } = await this.supabase.service
+      .from('event_programme_configs')
+      .select('config_json')
+      .eq('event_id', eventId)
+      .maybeSingle();
+    if (error) throw new BadRequestException(error.message);
+    const row = data as { config_json: unknown } | null;
+    return storedProgrammeConfigSchema.parse(row?.config_json ?? {});
+  }
+
+  /** Store the sheet whole, one row per Event. Only the organiser's team may. */
+  async putConfig(
+    eventId: string,
+    dto: ProgrammeConfigDto,
+    userId: string,
+  ): Promise<SuggestConfig> {
+    await this.assertWriter(eventId, userId);
+    const { data, error } = await this.supabase.service
+      .from('event_programme_configs')
+      .upsert(
+        { event_id: eventId, config_json: dto, updated_at: new Date().toISOString() },
+        { onConflict: 'event_id' },
+      )
+      .select('config_json')
+      .single();
+    if (error) throw new BadRequestException(error.message);
+    return storedProgrammeConfigSchema.parse((data as { config_json: unknown }).config_json);
   }
 
   // ── Save (bulk replace) ────────────────────────────────────────────────────
@@ -358,32 +403,13 @@ export class ProgrammeService {
 
   async suggest(
     eventId: string,
-    dto: SuggestProgrammeDto,
+    dto: ProgrammeConfigDto,
     userId: string,
   ): Promise<ProgrammeSuggestion> {
     await this.assertWriter(eventId, userId);
-    const config: SuggestConfig = {
-      dayStartTime: dto.dayStartTime,
-      dayEndTime: dto.dayEndTime,
-      parallelLiceCount: dto.parallelLiceCount,
-      poolMatchDurationMinutes: dto.poolMatchDurationMinutes,
-      // Optional on the DTO, so it stays undefined for a client that predates
-      // the Swiss format and `buildSuggestion` falls back to the pool clock.
-      // Omitting it here made that fallback the ONLY path: whatever the
-      // organiser typed was dropped between the DTO and the config.
-      swissMatchDurationMinutes: dto.swissMatchDurationMinutes,
-      eliminationMatchDurationMinutes: dto.eliminationMatchDurationMinutes,
-      finalsMatchDurationMinutes: dto.finalsMatchDurationMinutes,
-      matchGapSeconds: dto.matchGapSeconds,
-      minRestMinutes: dto.minRestMinutes,
-      breakBetweenSessionsMinutes: dto.breakBetweenSessionsMinutes,
-      middayBreakStart: dto.middayBreakStart,
-      middayBreakEnd: dto.middayBreakEnd,
-      registrationDurationMinutes: dto.registrationDurationMinutes,
-      gearCheckDurationMinutes: dto.gearCheckDurationMinutes,
-      refereeMeetingDurationMinutes: dto.refereeMeetingDurationMinutes,
-    };
-    return this.buildSuggestion(eventId, config);
+    // The body IS the sheet (one schema), so it passes through whole. A field
+    // copied by hand here once dropped the Swiss length on the floor.
+    return this.buildSuggestion(eventId, dto);
   }
 
   private async buildSuggestion(eventId: string, cfg: SuggestConfig): Promise<ProgrammeSuggestion> {
@@ -392,12 +418,9 @@ export class ProgrammeService {
       .from('lices')
       .select('id')
       .eq('event_id', eventId);
-    const liceCount = (licesData ?? []).length || 1;
-    const parallelLice = Math.min(cfg.parallelLiceCount || liceCount, liceCount);
-    // A Swiss bout is a group-stage bout, so it inherits the pool clock unless
-    // the organiser sets its own. Optional on the DTO so payloads predating
-    // the Swiss format keep working.
-    const swissDurationMin = cfg.swissMatchDurationMinutes ?? cfg.poolMatchDurationMinutes;
+    // Every Lice of the Event runs in parallel: the Event's Lices decide the
+    // count, and the sheet carries none (ADR-021).
+    const parallelLice = (licesData ?? []).length || 1;
 
     // Load tournaments
     const { data: tournamentsData } = await this.supabase.service
@@ -519,7 +542,7 @@ export class ProgrammeService {
     let cursor = timeToMin(cfg.dayStartTime);
     const dayEndMin = timeToMin(cfg.dayEndTime);
     const middayStartMin = timeToMin(cfg.middayBreakStart);
-    const middayEndMin = timeToMin(cfg.middayBreakEnd);
+    const middayEndMin = middayStartMin + cfg.middayBreakMinutes;
     let dayIndex = 0;
     let sortOrder = 0;
     let middayInserted = false;
@@ -531,6 +554,10 @@ export class ProgrammeService {
       > & { minRestMinutes?: number },
       neededMin = 0,
     ): void => {
+      // A zero-minute break or admin bar means "none". The programme save
+      // refuses a bar that ends where it starts, and the sheet keeps the 0, so
+      // proposing one would fail every Suggest until the 0 was changed.
+      if (partial.blockType !== 'competition' && partial.startTime === partial.endTime) return;
       const b: ProgrammeBlock = {
         id: `new-${sortOrder}`,
         eventId,
@@ -589,7 +616,7 @@ export class ProgrammeService {
     };
 
     // Admin blocks (day 1 only)
-    const regMin = cfg.registrationDurationMinutes + cfg.gearCheckDurationMinutes;
+    const regMin = cfg.arrivalAndGearCheckMinutes;
     push({
       dayIndex: 0,
       blockType: 'admin',
@@ -624,12 +651,13 @@ export class ProgrammeService {
     for (const t of tournamentStats) {
       if (t.poolMatchCount === 0) continue;
       maybeInsertMidday();
+      const poolMin = sheetLengthFor('pool', cfg, t.id);
       // Pools run strict one-per-lice, so wall-clock = the busiest lice, not
       // ceil(total / lices). liceCount reflects the lices actually occupied.
       const { minutes: neededMin, licesUsed } = poolBottleneckMinutes(
         t.poolPerPoolCounts,
         parallelLice,
-        cfg.poolMatchDurationMinutes,
+        poolMin,
         cfg.matchGapSeconds,
       );
       const alloc = Math.min(Math.ceil(neededMin), dayEndMin - cursor);
@@ -645,7 +673,7 @@ export class ProgrammeService {
           startTime: clampedMinToTime(cursor),
           endTime: clampedMinToTime(cursor + alloc),
           matchGapSeconds: cfg.matchGapSeconds,
-          matchDurationMinutes: cfg.poolMatchDurationMinutes,
+          matchDurationMinutes: poolMin,
           minRestMinutes: cfg.minRestMinutes,
         },
         neededMin,
@@ -712,10 +740,11 @@ export class ProgrammeService {
     for (const t of tournamentStats) {
       if (t.swissMatchCount === 0) continue;
       maybeInsertMidday();
+      const swissMin = sheetLengthFor('swiss', cfg, t.id);
       const neededMin = computeNeededMin(
         t.swissMatchCount,
         parallelLice,
-        swissDurationMin,
+        swissMin,
         cfg.matchGapSeconds,
       );
       const alloc = Math.min(Math.ceil(neededMin), dayEndMin - cursor);
@@ -733,7 +762,7 @@ export class ProgrammeService {
           startTime: clampedMinToTime(cursor),
           endTime: clampedMinToTime(cursor + alloc),
           matchGapSeconds: cfg.matchGapSeconds,
-          matchDurationMinutes: swissDurationMin,
+          matchDurationMinutes: swissMin,
           minRestMinutes: cfg.minRestMinutes,
         },
         neededMin,
@@ -761,11 +790,17 @@ export class ProgrammeService {
       pushBracketBlock(
         t,
         eliminationMatchCount,
-        cfg.eliminationMatchDurationMinutes,
+        sheetLengthFor('elimination', cfg, t.id),
         'bracket',
         'Bracket',
       );
-      pushBracketBlock(t, t.finalsMatchCount, cfg.finalsMatchDurationMinutes, 'finals', 'Finals');
+      pushBracketBlock(
+        t,
+        t.finalsMatchCount,
+        sheetLengthFor('finals', cfg, t.id),
+        'finals',
+        'Finals',
+      );
     }
 
     return { blocks, warnings };

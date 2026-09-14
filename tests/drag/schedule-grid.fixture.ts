@@ -238,3 +238,23 @@ export const programmeFixture = [
     generatedAt: null,
   },
 ];
+
+/**
+ * The planner sheet as `GET /programme/config` returns it for an Event with no
+ * saved sheet: the schema's defaults (programme.dto.ts, PROGRAMME_CONFIG_DEFAULTS).
+ */
+export const sheetFixture = {
+  dayStartTime: '08:00',
+  dayEndTime: '19:00',
+  middayBreakStart: '12:00',
+  middayBreakMinutes: 60,
+  poolMatchDurationMinutes: 5,
+  eliminationMatchDurationMinutes: 8,
+  finalsMatchDurationMinutes: 10,
+  matchGapSeconds: 10,
+  minRestMinutes: 10,
+  tournaments: [],
+  breakBetweenSessionsMinutes: 10,
+  refereeMeetingDurationMinutes: 30,
+  arrivalAndGearCheckMinutes: 90,
+};

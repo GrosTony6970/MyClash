@@ -450,6 +450,17 @@ describe('ArchiveService', () => {
         end_time: '10:00',
       },
     ],
+    event_programme_configs: [
+      {
+        event_id: 'event-1',
+        // A Tournament's own lengths name it inside the JSON. The sentinel sweep
+        // below is what proves a restore remaps that id.
+        config_json: {
+          poolMatchDurationMinutes: 5,
+          tournaments: [{ tournamentId: 't-1', poolMatchDurationMinutes: 7 }],
+        },
+      },
+    ],
     workshop_breaks: [
       { id: 'wb-1', event_id: 'event-1', day_index: 0, start_time: '12:00', end_time: '13:00' },
     ],
@@ -512,6 +523,7 @@ describe('ArchiveService', () => {
     expect(archive.data.eventHiddenSkills).toHaveLength(1);
     expect(archive.data.eventInstructors).toHaveLength(1);
     expect(archive.data.eventProgrammeBlocks).toHaveLength(1);
+    expect(archive.data.eventProgrammeConfigs).toHaveLength(1);
     expect(archive.data.workshopBreaks).toHaveLength(1);
     expect(archive.data.eventVenues).toHaveLength(1);
     expect(archive.data.tournamentPhaseVenues).toHaveLength(1);

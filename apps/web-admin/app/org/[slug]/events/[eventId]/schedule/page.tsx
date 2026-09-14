@@ -8,6 +8,8 @@ import { ProgrammePlanner } from './programme';
 import { ScheduleGrid } from './grid';
 import { LiveNowBanner } from './live-now-banner';
 import { useI18n } from '@myclash/next-i18n/client';
+import { getPublicApiUrl } from '@/lib/api-url';
+import { useProgrammeSheet } from './useProgrammeSheet';
 
 export default function SchedulePage() {
   const params = useParams<{ slug: string; eventId: string }>();
@@ -21,9 +23,21 @@ export default function SchedulePage() {
   //   - programmeRefreshKey   → planner re-runs its mount fetch after the grid
   //                             mutates a block (inline ×, drag-move). Symmetric to
   //                             gridRefreshKey so both surfaces stay in sync (grid → drawer).
+  //   - sheetVersion          → grid re-reads, WITHOUT remounting, after the planner
+  //                             saves its sheet. The planner is rendered inside the
+  //                             grid, so a remount would take away the box being typed in.
   const [topSuggestNonce, _setTopSuggestNonce] = useState(0);
   const [gridRefreshKey, setGridRefreshKey] = useState(0);
   const [programmeRefreshKey, setProgrammeRefreshKey] = useState(0);
+  const [sheetVersion, setSheetVersion] = useState(0);
+  // The planner's sheet lives here, above the grid's `key`. The grid remounts
+  // the planner after Save, Reset and Generate and when its panel collapses; a
+  // sheet read by each fresh mount could land before the last mount's save.
+  const sheet = useProgrammeSheet({
+    apiUrl: getPublicApiUrl(),
+    eventId,
+    onSaved: () => setSheetVersion((v) => v + 1),
+  });
 
   // Toast surfaces the GenerateResult above the grid after a Generate run.
   const [generateToast, setGenerateToast] = useState<GenerateResult | null>(null);
@@ -138,6 +152,7 @@ export default function SchedulePage() {
           slug={slug}
           eventId={eventId}
           onProgrammeMutated={() => setProgrammeRefreshKey((k) => k + 1)}
+          sheetVersion={sheetVersion}
           configurePanel={
             <div className="rounded-xl border border-border bg-surface p-3">
               <h2 className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted">
@@ -155,6 +170,7 @@ export default function SchedulePage() {
                   setToastDetailsOpen(false);
                 }}
                 onBlocksChanged={() => setGridRefreshKey((k) => k + 1)}
+                sheet={sheet}
               />
             </div>
           }

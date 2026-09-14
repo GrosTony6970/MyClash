@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { ForbiddenException, NotFoundException } from '@nestjs/common';
 import { ProgrammeService } from './programme.service';
 import { LicesService } from '../lices/lices.service';
+import { PROGRAMME_CONFIG_DEFAULTS } from './dto/programme.dto';
 
 /**
  * The acceptance criterion for the slice: a member of ANOTHER organisation is
@@ -77,6 +78,7 @@ describe('a member of another organisation cannot write the programme', () => {
   const cases: Array<[string, (s: ProgrammeService) => Promise<unknown>]> = [
     ['saveBlocks', (s) => s.saveBlocks(EVENT_ID, { blocks: [] } as never, OUTSIDER)],
     ['suggest', (s) => s.suggest(EVENT_ID, {} as never, OUTSIDER)],
+    ['putConfig', (s) => s.putConfig(EVENT_ID, {} as never, OUTSIDER)],
     ['generate', (s) => s.generate(EVENT_ID, {}, OUTSIDER)],
     ['createBlock', (s) => s.createBlock(EVENT_ID, {} as never, OUTSIDER)],
     ['moveBlock', (s) => s.moveBlock(EVENT_ID, 'b1', { newStartTime: '10:00' }, OUTSIDER)],
@@ -117,6 +119,32 @@ describe('a member of another organisation cannot write the programme', () => {
     expect(typeof (svc as unknown as Record<string, unknown>)['scheduleGroupUnchecked']).toBe(
       'function',
     );
+  });
+});
+
+/**
+ * The planner sheet is readable by anyone signed in who can see the Event
+ * (ADR-018), so its read sits behind the Event's visibility gate rather than
+ * the editor bar. Anonymous callers never reach the service: the route is not
+ * `@Public()`, so the global guard refuses them first.
+ */
+describe('the planner sheet is read behind the Event visibility gate', () => {
+  function sheetReader(status: string) {
+    const orgs = refusingOrgs();
+    const rows = { events: { data: { status, organization_id: ORG_OWNER }, error: null } };
+    return new ProgrammeService(supabaseFor(rows) as never, orgs as never);
+  }
+
+  it('lets a member of another organisation read the sheet of a published Event', async () => {
+    await expect(
+      sheetReader('published').getConfig(EVENT_ID, () => Promise.resolve(OUTSIDER)),
+    ).resolves.toEqual(PROGRAMME_CONFIG_DEFAULTS);
+  });
+
+  it('hides the sheet of a draft Event from a member of another organisation', async () => {
+    await expect(
+      sheetReader('draft').getConfig(EVENT_ID, () => Promise.resolve(OUTSIDER)),
+    ).rejects.toThrow(NotFoundException);
   });
 });
 

@@ -23,17 +23,17 @@ import {
   CreateBlockDto,
   DelayDayDto,
   MoveBlockDto,
+  ProgrammeConfigDto,
   ResizeBlockDto,
   SaveProgrammeDto,
   ScheduleGroupDto,
-  SuggestProgrammeDto,
   UpdateBlockLabelDto,
 } from './dto/programme.dto';
 
 /**
  * `@Public()` is METHOD-level on `listBlocks`, never on the class. The public
  * event site reads the programme logged out, so a class-level guard here would
- * take that read down along with the ten writes.
+ * take that read down along with every write.
  *
  * Those ten had no authorization of any kind — including
  * `DELETE /programme/full`, which unschedules every match in the event. The
@@ -83,10 +83,42 @@ export class ProgrammeController {
   @ApiParam({ name: 'eventId', type: 'string', format: 'uuid' })
   async suggest(
     @Param('eventId', ParseUUIDPipe) eventId: string,
-    @Body() dto: SuggestProgrammeDto,
+    @Body() dto: ProgrammeConfigDto,
     @Req() req: FastifyRequest,
   ) {
     return this.programme.suggest(eventId, dto, await this.caller(req));
+  }
+
+  /**
+   * GET /api/v1/events/:eventId/programme/config
+   *
+   * Not `@Public()`: the global guard refuses an anonymous caller. Past it, the
+   * service applies the Event's visibility gate, so anyone signed in who can see
+   * the Event may read the sheet (ADR-018).
+   */
+  @Get('events/:eventId/programme/config')
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary:
+      "Read the Event's planner sheet: day bounds, bout lengths per Event and per Tournament, and block durations. The defaults when none was saved.",
+  })
+  @ApiParam({ name: 'eventId', type: 'string', format: 'uuid' })
+  getConfig(@Param('eventId', ParseUUIDPipe) eventId: string, @Req() req: FastifyRequest) {
+    return this.programme.getConfig(eventId, () => this.caller(req));
+  }
+
+  /** PUT /api/v1/events/:eventId/programme/config */
+  @BlockOnCompletedEvent()
+  @Put('events/:eventId/programme/config')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: "Replace the Event's planner sheet (the organiser's team only)" })
+  @ApiParam({ name: 'eventId', type: 'string', format: 'uuid' })
+  async putConfig(
+    @Param('eventId', ParseUUIDPipe) eventId: string,
+    @Body() dto: ProgrammeConfigDto,
+    @Req() req: FastifyRequest,
+  ) {
+    return this.programme.putConfig(eventId, dto, await this.caller(req));
   }
 
   /** POST /api/v1/events/:eventId/programme/generate */

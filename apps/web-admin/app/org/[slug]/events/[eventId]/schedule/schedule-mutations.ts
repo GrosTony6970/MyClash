@@ -39,7 +39,7 @@
  * a sentence, because only the component has `t()` — see `useScheduleWrites`.
  */
 
-import { apiRequest, failureDetail, type ApiFailure } from '@myclash/api-client';
+import { apiRequest, failureDetail, failureMessage, type ApiFailure } from '@myclash/api-client';
 
 export interface MutateInit {
   method: 'POST' | 'PUT' | 'PATCH' | 'DELETE';
@@ -145,4 +145,19 @@ export async function mutateAll(
     );
   }
   return { total: calls.length, failures };
+}
+
+/**
+ * A refused write in words, with the caller's own sentence as the fallback.
+ *
+ * The planner's writes and its sheet saves both read this, so a refusal is
+ * worded one way. `t` is passed in, which keeps this module free of i18n.
+ */
+export function refusalText(
+  err: unknown,
+  t: (key: string) => string,
+  fallback: string,
+): string | null {
+  if (err instanceof ScheduleMutationError) return failureMessage(err.failure, t, fallback);
+  return err instanceof Error ? err.message : fallback;
 }
