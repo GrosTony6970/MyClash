@@ -2,6 +2,8 @@
 
 **Date:** 2026-09-13
 **Status:** Accepted
+**Amended:** 2026-09-14 — the planned length is read live from the Event's planner sheet, not copied
+onto the Match when it is placed. See ADR-018.
 
 ## Context
 
@@ -55,12 +57,13 @@ Matches.**
 
 - A Match with a scheduled time occupies `[scheduled_at, scheduled_at + planned length)`. The
   interval is half-open: a Match that ends at 10:30 and one that starts at 10:30 do not overlap.
-- **The planned length is a property of the Match.** It is set when the Match is placed: `generate`
-  takes the bar's value, a hand placement takes the phase's default. It travels with the Match when
-  it moves, and it can be edited per Match or for a whole Pool. It never depends on the Match next
-  to it, on the bar under it, or on the fight clock. Where the number is stored, and the default
-  chain for a Match placed by hand, is a separate decision (W3, recorded in
-  [ADR-018](ADR-018-match-planned-length.md)).
+- **The planned length is the Event's number for the Match's kind.** The organiser types four
+  lengths on the planner's sheet, for pool, swiss, elimination and finals bouts, and every Match of
+  that kind in the Event reads the one that applies, live. Change the sheet and every Match of that
+  kind changes with it; Generate re-spaces the day. The one exception is a length typed on a Pool's
+  window, which those Matches keep until the day is generated again. A Match's length never depends
+  on the Match next to it, on the bar under it, or on the fight clock. The sheet, the override and
+  what the bars stop carrying are [ADR-018](ADR-018-match-planned-length.md).
 - The gap between Matches belongs to nobody. "Too close" is rest, not overlap. Rest is measured in
   minutes between windows and is decided separately (W7).
 - A Match with no scheduled time has no window.
@@ -129,15 +132,18 @@ Matches.**
   disagree. A Pool's end moves only when one of its Matches moves.
 - **Easy:** ADR-016's Impossible verdicts are measured on a window the organiser set. They are fixed
   by editing a Match, not by arguing with a median.
-- **Easy:** W3 has a rule to store: one planned length per Match, set at placement. W7 has edges to
+- **Easy:** W3 has a rule: one sheet per Event, read live, one override per Pool. W7 has edges to
   measure between: hull to hull, in minutes.
 - **Hard:** a Pool with a straggler blocks its referee across the hole, on purpose. The board must
   show the hull so the organiser sees why, and the per-Match assignment must be reachable from
   there.
 - **Hard:** two Pools alternating on one Lice have overlapping hulls. That is fine for the Lice, and
   a conflict only if the same person is in both, which is the checker's job.
-- **Hard:** until W3 lands a column, the planned length falls back to today's five minutes. The
-  shape is right before the number is.
+- **Hard:** until ADR-018 is built, every length is today's five minutes. The shape is right before
+  the number is.
+- **Hard:** because the sheet is read live, changing a length on it resizes every placed bout of
+  that kind at once while their starts stay put. A laid-out day shows overlaps until Generate is
+  pressed for it. The operator chose this for simplicity, knowing it.
 - **Committed to:** no reader mints a length; no plan moves without a click; the checker never reads
   a clock.
 
@@ -170,3 +176,7 @@ Matches.**
   public page shows a time that is no longer true.
 - **Put the function in `@myclash/types` or `@myclash/rulesets`.** Rejected: `types` must stay
   shapes and ships to the scoring pad; `rulesets` cannot reach the public app.
+- **A copy of the length stored on each Match when it is placed.** The first version of this record
+  chose it. Rejected by the operator on 2026-09-14 for simplicity: with the sheet as the only place
+  a number is typed, a copy would exist only to disagree with it. The price, a laid-out day that
+  shows overlaps after a sheet change until Generate runs, was accepted.
