@@ -49,3 +49,6 @@ What did we look at and reject? Why?
 | [ADR-016](./ADR-016-referee-rules-one-checker.md)             | Referee rules: one checker; Impossible / Discouraged        | Accepted |
 | [ADR-017](./ADR-017-match-owns-its-time-window.md)            | Bout time window: Match owns it; Pool is a hull; plan wins  | Accepted |
 | [ADR-018](./ADR-018-match-planned-length.md)                  | Bout length: planner sheet, read live; one Pool override    | Accepted |
+| [ADR-019](./ADR-019-referee-rest-cap-availability.md)         | Referee rest in slots, cap in bouts, availability windows   | Accepted |
+| [ADR-020](./ADR-020-crew-grain-pinned-repair.md)              | Crew = Pool or Match; hand-placed bouts pinned; repair      | Accepted |
+| [ADR-021](./ADR-021-schedule-board-shape.md)                  | Boards: one banner, rooms, day tabs, 12 fields, 2 routes    | Accepted |
