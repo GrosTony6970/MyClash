@@ -43,6 +43,9 @@ things open: the column, and where a Match placed by hand finds its number.
   validates it. The planner loads it when it opens and saves it on every field change. The
   defaults, 5/5/8/10 and the rest, live in that schema, which is the one owner of those numbers.
   The browser constant goes.
+- Through the API, anyone signed in who can see the Event may read the sheet; only the organiser's
+  team may write it. The sheet holds planning numbers and no personal data. What its own table buys
+  is that it never rides along in a public event payload.
 - Bars keep their per-bar length. It is seeded from the sheet at Suggest and editable per bar, as
   today.
 
@@ -91,6 +94,8 @@ things open: the column, and where a Match placed by hand finds its number.
 - **Hard:** a new table means a row-level security policy (mirroring the bars'), an entry in the
   archive-coverage registry, and the database review gates. That is the price of keeping the sheet
   out of the public event payloads.
+- **Hard:** an event file saved before the column exists cannot be restored once the constraint is
+  in place. Nothing is in production, so no such file matters; the restore is left as it is.
 - **Committed to:** no door places a Match without its length, and no code holds a bout length
   except the schema defaults of the sheet.
 
@@ -101,7 +106,10 @@ things open: the column, and where a Match placed by hand finds its number.
 - **Four columns on `events`.** Rejected: the planner would still forget its other settings.
 - **One JSON column on `events`.** Rejected after a check: the public events list selects every
   column of the event row (`apps/api/src/modules/events/events.service.ts`, `listEvents`), so the
-  sheet would ride out in a public payload. Its own table under the bars' policy keeps it private.
+  sheet would ride out in a public payload. Its own table keeps it out of those payloads.
+- **The sheet readable only by the organiser's team.** Rejected by the operator: the bars are already
+  public on the schedule, and the numbers are not secret. Anyone signed in who can see the Event may
+  read it; writing stays with the team.
 - **A length on `phases`, written by Generate.** Rejected: a phase that was never generated has
   none, so a second home is still needed.
 - **The bar under the drop, else five.** Rejected: that is today, with a five nobody chose.
