@@ -2,14 +2,24 @@
  * Build the "block" model for the schedule board: collapse scheduled matches
  * into ONE block per pool / per bracket round. A run fanned across several
  * lices is a single block that SPANS those lice columns (`liceIds`), sized to
- * its ACTUAL span (first fight start → last fight end), with the nested match
- * details (code · start · lice · fighters) for the inline accordion + per-lice
- * counts. The span is deliberately NOT padded — pipelined rounds must touch,
- * not overlap, so the board matches the detailed grid.
+ * its ACTUAL span — the hull of its matches' windows, earliest start → latest
+ * end (ADR-017) — with the nested match details (code · start · lice ·
+ * fighters) for the inline accordion + per-lice counts. The span is
+ * deliberately NOT padded — pipelined rounds must touch, not overlap, so the
+ * board matches the detailed grid.
+ *
+ * Every input carries its own `durationMinutes`; there is no fallback. A
+ * length that is not a positive number throws (see `matchWindowMs`), on
+ * purpose, rather than drawing a span nobody set. The throw lands during
+ * render: the organiser's schedule page and the public schedule page both fall
+ * to their error screen, naming no Match. It cannot fire today — the API sends
+ * a positive length on every row — and keeping it that way is the planner
+ * sheet's job once lengths come from it (ADR-018).
  *
  * Pure: no React, no I/O.
  */
 import { parseBracketRound } from './bracket-round-group';
+import { hullMs, matchWindowMs } from './match-window';
 
 export interface BlockMatchInput {
   id: string;
@@ -25,8 +35,8 @@ export interface BlockMatchInput {
   tournamentSlug?: string | null;
   redFighterName: string | null;
   blueFighterName: string | null;
-  /** Match length in minutes — drives block height + retime-on-resize. */
-  durationMinutes?: number;
+  /** Planned match length in minutes — the block ends at the latest of its matches' ends. */
+  durationMinutes: number;
   /** 'scheduled' | 'running' | 'completed' — drives the block status accent. */
   status?: string;
 }
@@ -37,7 +47,7 @@ export interface ScheduleBlockMatch {
   liceId: string;
   code: string;
   startIso: string;
-  durationMinutes?: number;
+  durationMinutes: number;
   status?: string;
   redFighterName: string | null;
   blueFighterName: string | null;
@@ -53,20 +63,10 @@ export interface ScheduleBlock {
   tournamentSlug: string | null;
   kind: 'pool' | 'bracket' | 'other';
   startIso: string;
-  /** Last fight's start + its duration — the run's true end, never padded. */
+  /** The latest end among its matches (the hull) — the run's true end, never padded. */
   endIso: string;
   matchCount: number;
   matches: ScheduleBlockMatch[];
-}
-
-/** Median gap (ms) between consecutive sorted start times; null if <2. */
-function medianGapMs(sortedMs: number[]): number | null {
-  if (sortedMs.length < 2) return null;
-  const gaps: number[] = [];
-  for (let i = 1; i < sortedMs.length; i++) gaps.push(sortedMs[i]! - sortedMs[i - 1]!);
-  gaps.sort((a, b) => a - b);
-  const mid = Math.floor(gaps.length / 2);
-  return gaps.length % 2 === 1 ? gaps[mid]! : Math.round((gaps[mid - 1]! + gaps[mid]!) / 2);
 }
 
 export function buildScheduleBlocks(matches: BlockMatchInput[]): ScheduleBlock[] {
@@ -104,15 +104,10 @@ export function buildScheduleBlocks(matches: BlockMatchInput[]): ScheduleBlock[]
       a.scheduledAt! < b.scheduledAt! ? -1 : a.scheduledAt! > b.scheduledAt! ? 1 : 0,
     );
     const first = sorted[0]!;
-    const last = sorted[sorted.length - 1]!;
-    const startMs = new Date(first.scheduledAt!).getTime();
-    const lastMs = new Date(last.scheduledAt!).getTime();
-    const intervalMs = medianGapMs(sorted.map((m) => new Date(m.scheduledAt!).getTime())) ?? 0;
-    // End at the LAST fight's real finish — its own duration, falling back to the
-    // run's median gap (then a nominal 5 min for a single-match block). No padding,
-    // so back-to-back rounds touch instead of overlapping.
-    const lastDurationMin = last.durationMinutes ?? (intervalMs > 0 ? intervalMs / 60_000 : 5);
-    const endMs = lastMs + lastDurationMin * 60_000;
+    // The run spans the hull of its matches' windows: earliest start to LATEST
+    // END, which is not the last start's end when a longer bout sits earlier.
+    // A group always holds at least one match, so the hull is never null.
+    const hull = hullMs(sorted.map((m) => matchWindowMs(m.scheduledAt!, m.durationMinutes)))!;
 
     const label =
       kind === 'pool'
@@ -133,8 +128,8 @@ export function buildScheduleBlocks(matches: BlockMatchInput[]): ScheduleBlock[]
       tournamentName: first.tournamentName,
       tournamentSlug: first.tournamentSlug ?? null,
       kind,
-      startIso: new Date(startMs).toISOString(),
-      endIso: new Date(endMs).toISOString(),
+      startIso: new Date(hull.startMs).toISOString(),
+      endIso: new Date(hull.endMs).toISOString(),
       matchCount: sorted.length,
       matches: sorted.map((m) => ({
         id: m.id,

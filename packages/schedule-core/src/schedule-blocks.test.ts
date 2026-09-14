@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { buildScheduleBlocks, type BlockMatchInput } from './schedule-blocks';
 
+/** A test bout length. Every input carries its own; the builder has no default. */
+const BOUT_MINUTES = 5;
+
 function poolMatch(
   id: string,
   startIso: string | null,
@@ -8,18 +11,19 @@ function poolMatch(
   n = 1,
   opts: { poolId?: string; poolName?: string; durationMinutes?: number } = {},
 ): BlockMatchInput {
+  const { poolId = 'pool-1', poolName = 'Pool 1', durationMinutes = BOUT_MINUTES } = opts;
   return {
     id,
     liceId,
     scheduledAt: startIso,
-    poolId: opts.poolId ?? 'pool-1',
-    poolName: opts.poolName ?? 'Pool 1',
+    poolId,
+    poolName,
     roundCode: `LSW-P1-M${n}`,
     phaseType: 'pool',
     tournamentName: 'Longsword Open',
     redFighterName: `Red ${n}`,
     blueFighterName: `Blue ${n}`,
-    durationMinutes: opts.durationMinutes,
+    durationMinutes,
   };
 }
 
@@ -35,6 +39,7 @@ function qfMatch(id: string, startIso: string, liceId: string, n: number): Block
     tournamentName: 'Longsword Open',
     redFighterName: 'X',
     blueFighterName: 'Y',
+    durationMinutes: BOUT_MINUTES,
   };
 }
 
@@ -62,7 +67,7 @@ describe('buildScheduleBlocks', () => {
   });
 
   it('ends at the last fight, never padded to a round boundary', () => {
-    // 22 matches every 5 min from 09:00 → last starts 10:45; +one 5-min slot.
+    // 22 matches every 5 min from 09:00 → last starts 10:45 and runs its own 5 min.
     const matches = Array.from({ length: 22 }, (_, i) =>
       poolMatch(
         `m${i}`,
@@ -73,10 +78,10 @@ describe('buildScheduleBlocks', () => {
     );
     const blk = buildScheduleBlocks(matches)[0]!;
     expect(blk.startIso).toBe('2027-06-21T09:00:00.000Z');
-    expect(blk.endIso).toBe('2027-06-21T10:50:00.000Z'); // 10:45 + median 5-min gap
+    expect(blk.endIso).toBe('2027-06-21T10:50:00.000Z');
   });
 
-  it('ends a block at the last fight’s own durationMinutes when present', () => {
+  it('ends a block at its matches’ own lengths', () => {
     const blk = buildScheduleBlocks([
       poolMatch('a', '2027-06-21T09:00:00.000Z', 'lice-1', 1, { durationMinutes: 8 }),
       poolMatch('b', '2027-06-21T09:08:00.000Z', 'lice-1', 2, { durationMinutes: 8 }),
@@ -85,9 +90,32 @@ describe('buildScheduleBlocks', () => {
     expect(blk.endIso).toBe('2027-06-21T09:16:00.000Z'); // 09:08 + 8 min
   });
 
-  it('falls back to a 5-min span for a single-match block', () => {
-    const blk = buildScheduleBlocks([poolMatch('a', '2027-06-21T09:00:00.000Z', 'lice-1', 1)])[0]!;
-    expect(blk.endIso).toBe('2027-06-21T09:05:00.000Z');
+  it('a single-match block spans exactly its own bout', () => {
+    const blk = buildScheduleBlocks([
+      poolMatch('a', '2027-06-21T09:00:00.000Z', 'lice-1', 1, { durationMinutes: 8 }),
+    ])[0]!;
+    expect(blk.endIso).toBe('2027-06-21T09:08:00.000Z');
+  });
+
+  it('refuses a match with no usable length instead of inventing one', () => {
+    // The median-gap and 5-minute fallbacks are gone. A builder that grew one
+    // back would draw this block instead of throwing.
+    expect(() =>
+      buildScheduleBlocks([
+        poolMatch('a', '2027-06-21T09:00:00.000Z', 'lice-1', 1, { durationMinutes: 0 }),
+      ]),
+    ).toThrow(RangeError);
+  });
+
+  it('ends at the latest END when a longer bout comes earlier (the hull, ADR-017)', () => {
+    // 09:00 for 30 min, then 09:05 for 5 min. The last START ends at 09:10, but
+    // the run is on the Lice until 09:30.
+    const blk = buildScheduleBlocks([
+      poolMatch('a', '2027-06-21T09:00:00.000Z', 'lice-1', 1, { durationMinutes: 30 }),
+      poolMatch('b', '2027-06-21T09:05:00.000Z', 'lice-1', 2, { durationMinutes: 5 }),
+    ])[0]!;
+    expect(blk.startIso).toBe('2027-06-21T09:00:00.000Z');
+    expect(blk.endIso).toBe('2027-06-21T09:30:00.000Z');
   });
 
   it('labels bracket rounds from the round code (single lice)', () => {

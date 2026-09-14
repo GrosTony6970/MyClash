@@ -35,7 +35,7 @@ interface RawMatch {
   tournamentName: string | null;
   tournamentColor: string | null;
   tournamentSlug: string | null;
-  durationMinutes?: number;
+  durationMinutes: number;
   status?: string;
 }
 

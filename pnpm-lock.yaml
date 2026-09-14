@@ -123,6 +123,9 @@ importers:
       '@myclash/rulesets':
         specifier: workspace:^
         version: link:../../packages/rulesets
+      '@myclash/schedule-core':
+        specifier: workspace:^
+        version: link:../../packages/schedule-core
       '@myclash/time':
         specifier: workspace:^
         version: link:../../packages/time

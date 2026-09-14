@@ -57,7 +57,11 @@
  */
 import path from 'node:path';
 
-import { runnerStageWorkspaces } from './lib/dockerfile-workspaces.mjs';
+import {
+  runnerStageWorkspaces,
+  runtimeWorkspaces,
+  unshippedRuntimeFiles,
+} from './lib/dockerfile-workspaces.mjs';
 import { createPinnedReader, isMissingPinnedFile } from './lib/pinned-file.mjs';
 
 const rootDir = path.resolve(import.meta.dirname, '..');
@@ -2197,6 +2201,7 @@ if (apiDockerfile) {
   // Derived, unlike the pinned COPY strings below: which packages need a
   // node_modules is read off their own dependencies. See the function.
   await assertApiImageShipsWorkspaceLinks(apiDockerfile.text, apiDockerfile.filePath);
+  await assertApiImageShipsItsRuntimeWorkspaces(apiDockerfile.text, apiDockerfile.filePath);
   requireContains(
     apiDockerfile.text,
     apiDockerfile.filePath,
@@ -3102,5 +3107,62 @@ async function assertApiImageShipsWorkspaceLinks(dockerfileText, dockerfileLabel
           'while the image builds perfectly. Add the COPY next to the package.json one.',
       );
     }
+  }
+}
+
+/**
+ * Every workspace package the api needs at runtime must be in its image at all.
+ *
+ * ── The blind spot next door ────────────────────────────────────────────────
+ * `assertApiImageShipsWorkspaceLinks` starts from the `package.json` lines the
+ * runner stage already copies. A package whose manifest was never copied is not
+ * on its list, so a package missing from the image entirely was invisible to
+ * it, and nothing looked at `dist` at all. CI does not see it either: the Trivy
+ * job builds this image, and a COPY whose source is missing fails that build,
+ * but a COPY that is simply absent builds clean and throws "Cannot find module"
+ * when the container starts.
+ *
+ * So this starts from the other end — what the api DECLARES, followed through
+ * each package's own dependencies — and demands a runner-stage `package.json`
+ * and `dist` for each. The `node_modules` half stays with the check above, which
+ * now sees every one of these manifests.
+ *
+ * An api that needs no workspace package at all is refused, not passed: that
+ * means the manifest or the `@myclash/<name>` → `packages/<name>` rule rotted.
+ */
+async function assertApiImageShipsItsRuntimeWorkspaces(dockerfileText, dockerfileLabel) {
+  if (isMissingPinnedFile(dockerfileText)) return;
+
+  const readManifest = async (workspace) => {
+    const text = await pinned.readPinnedFile(
+      path.join(rootDir, ...workspace.split('/'), 'package.json'),
+    );
+    if (isMissingPinnedFile(text)) return null;
+    try {
+      return JSON.parse(text);
+    } catch {
+      errors.push(`${workspace}/package.json is not valid JSON.`);
+      return null;
+    }
+  };
+
+  const apiManifest = await readManifest('apps/api');
+  if (!apiManifest) return;
+
+  const workspaces = await runtimeWorkspaces(apiManifest, readManifest);
+  if (workspaces.length === 0) {
+    errors.push(
+      'apps/api/package.json declares no @myclash/* dependency — the api cannot run without ' +
+        'workspace packages, so this check has stopped reading what it should.',
+    );
+    return;
+  }
+
+  for (const { workspace, missing } of unshippedRuntimeFiles(dockerfileText, workspaces)) {
+    errors.push(
+      `${dockerfileLabel} is missing ${missing.map((file) => `${workspace}/${file}`).join(' and ')} ` +
+        `in its runner stage, and the api needs ${workspace} at runtime. The image builds without it and the container ` +
+        'throws "Cannot find module" at boot. Add the runner-stage COPY next to the others.',
+    );
   }
 }

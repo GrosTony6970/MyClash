@@ -2,7 +2,7 @@
   "name": "@myclash/schedule-core",
   "version": "0.0.0",
   "private": true,
-  "description": "MyClash shared schedule-grid geometry + block model (pure). Consumed by web-admin and web-public.",
+  "description": "MyClash shared schedule-grid geometry + block model (pure). Consumed by web-admin, web-public and the API.",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {

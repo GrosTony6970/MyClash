@@ -22,6 +22,7 @@
     "@myclash/feature-flags": "workspace:^",
     "@myclash/rules": "workspace:^",
     "@myclash/rulesets": "workspace:^",
+    "@myclash/schedule-core": "workspace:^",
     "@myclash/time": "workspace:^",
     "@myclash/types": "workspace:^",
     "@nestjs/bullmq": "^11.0.5",
