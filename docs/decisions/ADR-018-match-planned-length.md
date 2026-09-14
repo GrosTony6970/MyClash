@@ -44,7 +44,13 @@ left open where the number lives and where a Match placed by hand finds it.
 - **The sheet is read live.** A Match has no copy of its length. Change a number on the sheet and
   every Match of that kind in the Event has the new length at once. Their starts do not move, so a
   laid-out day shows overlaps until Generate is pressed for it. The operator chose this for
-  simplicity, knowing it.
+  simplicity, knowing it. The sheet is a planning tool; on a running day the "+N" and "delay the
+  day" controls are the tool, because they move starts and keep lengths.
+- **The sheet may hold a Tournament's own lengths.** Bout lengths often differ between the
+  Tournaments of one Event, and the bars used to carry that. So the sheet holds the four Event
+  lengths and, optionally, the same four per Tournament, shown as one row per Tournament with blank
+  meaning "use the Event's". A Match reads its Tournament's number first, then the Event's. Still
+  one sheet, one table, one screen.
 
 ### The bars carry no numbers
 
@@ -57,10 +63,11 @@ left open where the number lives and where a Match placed by hand finds it.
 
 ### How a Match gets its length
 
-- Every Match reads the sheet's number for its kind: the pool length for a pool Match; the swiss
-  length, else the pool length, for a Swiss Match; the finals length for a bout the planner's
-  classifier calls finals; the elimination length for every other bracket Match. That holds whether
-  Generate placed the Match or a hand did.
+- Every Match reads the sheet's number for its kind, from its Tournament's row when that row has
+  one and from the Event's otherwise: the pool length for a pool Match; the swiss length, else the
+  pool length, for a Swiss Match; the finals length for a bout the planner's classifier calls
+  finals; the elimination length for every other bracket Match. That holds whether Generate placed
+  the Match or a hand did.
 - **The one override.** The run popover gains a "bout length" field. It writes
   `matches.planned_duration_override_minutes` on every Match of the run and respaces their starts
   from the run's start. A run of one Match is the per-Match case. A Match with an override reads it
@@ -124,6 +131,10 @@ left open where the number lives and where a Match placed by hand finds it.
   the same numbers.
 - **No override at all.** Rejected by the operator: a length typed on one Pool stays the one
   exception.
+- **One set of four lengths per Event, nothing per Tournament.** The amended record first said so.
+  Rejected the same day, on a coherence check: with the bars' numbers gone, a Tournament that is
+  always slower would have had no home for its length except per-Pool overrides that Generate
+  clears — two rulings cancelling each other. The per-Tournament row on the sheet closes that.
 - **`NOT NULL DEFAULT 5` on a per-Match column.** Rejected: the schema would mint the five
   ADR-017 forbids.
 - **Seconds.** Rejected: everything else is minutes.
