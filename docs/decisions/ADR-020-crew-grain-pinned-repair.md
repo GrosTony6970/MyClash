@@ -41,7 +41,10 @@
   row, not one row per Match, so a roster change keeps the crew.
 - Match-scoped rows remain for one Match's exception to its Pool's crew, and for Swiss and bracket
   bouts, whose units have no row of their own. Per-Match rows on a Pool's Matches are exceptions by
-  definition; a roster change that deletes those Matches deletes them, and the board says so.
+  definition, and a roster change rebuilds those Matches, so the exceptions cannot survive it.
+  **The roster change warns and asks first:** "This removes 2 per-bout referee exceptions in
+  Pool 3", listing them, and continues only on the organiser's yes. The Pool's crew is kept either
+  way.
 - One person per role per target: unique indexes on `(pool_id, role)` and `(match_id, role)`. The
   concurrent-save gap of `0194` closes with them.
 - **The piste is derived, never stored.** A referee must know where to go, and no crew row carries
@@ -102,3 +105,6 @@
   would be the surprise, not the fix.
 - **A separate "tidy up" command with local moves.** Rejected: a second algorithm to write and
   explain when the pin makes Generate the repair.
+- **Roster changes that silently drop per-bout exceptions, or refuse until they are cleared.**
+  Rejected: the first loses work without a word, the second blocks a fighter swap on a detail the
+  organiser can redo in a minute. Warn, list, ask.

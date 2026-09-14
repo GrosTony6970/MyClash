@@ -51,6 +51,9 @@ left four rules to choose a level and a unit. The code they replace:
   reading of rest: skip the next slot, not "N minutes".
 - Rest is between two duties only. A person's own fight and a duty are not subject to rest; their
   overlap is already Impossible.
+- Slots are counted within one event day, never across a night. A duty belongs to the day its first
+  bout starts on. A duty with no times yet sits in no slot and counts toward no cap until it gets
+  times, as ADR-016 says of overlap.
 - The switch is the existing `enforceRefereeNoBackToBack`; the number is the existing
   `referee_rest_min_slots`, validated as 0 to 5 everywhere, 0 meaning off. The number gets a field on
   the referee settings screen. The engine skips Discouraged candidates, as ADR-016 says, and the
@@ -85,6 +88,12 @@ left four rules to choose a level and a unit. The code they replace:
 - A `confirmed` assignment is never replaced or deleted without unlocking the board first. Every
   door that writes an assignment answers "locked" with a 409, the same way every door asks the
   checker.
+- **Confirm is the only sender of notifications.** After the board is confirmed, a Pool's time or
+  piste may still move (ADR-016 allows later changes and shows them red or amber). Nothing is sent
+  for that by itself; the change accumulates and the board shows the duty as changed since the last
+  confirmation. Pressing Confirm again sends one message per duty whose start, piste, person or
+  role changed since the previous confirmation, and nothing to the others. The operator chose this
+  over re-notifying on every material change: the organiser decides when the board is final again.
 
 ## Consequences
 
@@ -121,3 +130,6 @@ left four rules to choose a level and a unit. The code they replace:
 - **Keep whole-day availability.** Rejected: "I must leave at 16:00" could not be said.
 - **The lock stops auto-assign only.** Rejected: a confirmed referee was replaced silently by a
   single click.
+- **Re-notify a referee on every material change to a confirmed duty.** Rejected by the operator:
+  a board under repair would send a message per drag. Confirm, pressed again, sends the changes.
+- **Never re-notify.** Rejected: a referee would learn of a moved duty only from their schedule page.
