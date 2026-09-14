@@ -48,3 +48,4 @@ What did we look at and reject? Why?
 | [ADR-015](./ADR-015-referee-workspace-speaks-unit-neutral.md) | Referee workspace avoids "pool"; no umbrella term minted    | Accepted |
 | [ADR-016](./ADR-016-referee-rules-one-checker.md)             | Referee rules: one checker; Impossible / Discouraged        | Accepted |
 | [ADR-017](./ADR-017-match-owns-its-time-window.md)            | Bout time window: Match owns it; Pool is a hull; plan wins  | Accepted |
+| [ADR-018](./ADR-018-match-planned-length.md)                  | Bout length: column on the Match; Event keeps planner sheet | Accepted |

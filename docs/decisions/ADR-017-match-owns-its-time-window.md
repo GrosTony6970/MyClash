@@ -59,7 +59,8 @@ Matches.**
   takes the bar's value, a hand placement takes the phase's default. It travels with the Match when
   it moves, and it can be edited per Match or for a whole Pool. It never depends on the Match next
   to it, on the bar under it, or on the fight clock. Where the number is stored, and the default
-  chain for a Match placed by hand, is a separate decision (W3).
+  chain for a Match placed by hand, is a separate decision (W3, recorded in
+  [ADR-018](ADR-018-match-planned-length.md)).
 - The gap between Matches belongs to nobody. "Too close" is rest, not overlap. Rest is measured in
   minutes between windows and is decided separately (W7).
 - A Match with no scheduled time has no window.
