@@ -44,6 +44,14 @@
   definition; a roster change that deletes those Matches deletes them, and the board says so.
 - One person per role per target: unique indexes on `(pool_id, role)` and `(match_id, role)`. The
   concurrent-save gap of `0194` closes with them.
+- **The piste is derived, never stored.** A referee must know where to go, and no crew row carries
+  a Lice any more. A duty's piste is the piste of its Matches, read live: for a Match-scoped duty
+  the Match's `lice_id`; for a Pool-scoped duty the distinct Lices of the Pool's timed Matches, in
+  order of first start. A Pool that runs on two pistes, or whose straggler was moved, names both,
+  each with its times. Every surface that tells a referee where to be reads it the same way: the
+  referee board's unit card, the picker, the roster's assignment summary, the referee's own
+  schedule, and the assignment notification. The board's current pick, the first Match that happens
+  to have a piste in an unordered read (`assignment-board.service.ts:1393`), goes.
 - Staffing stays per Tournament per kind. There is no per-Match slot list. The design spec's
   "out of scope" ruling on per-Match staffing stands.
 
@@ -71,6 +79,8 @@
 - **Easy:** the loaded gun is gone: no scope exists that pays for a piste-day. The pay code has one
   fewer branch, and that branch could never fire.
 - **Easy:** a Pool's crew survives a roster change, because it is one row on the Pool.
+- **Easy:** the piste a referee is told follows the Matches. Move a Pool to another piste and every
+  surface says the new one, with nothing to update.
 - **Easy:** "pinned" has one meaning on both boards: made by hand, so automation leaves it alone.
 - **Hard:** a Pool whose bouts were all placed by hand is a Pool Generate can never tidy. Unpin by
   dragging to the tray, or reset the day.
