@@ -2356,7 +2356,7 @@ export interface paths {
     delete?: never;
     options?: never;
     head?: never;
-    /** Update lice and/or referee assignment for a match */
+    /** Update the lice of a match */
     patch: operations['MatchesController_update'];
     trace?: never;
   };
@@ -10120,8 +10120,6 @@ export interface components {
     UpdateMatchDto: {
       /** Format: uuid */
       liceId?: string | null;
-      /** Format: uuid */
-      refereeId?: string | null;
     };
     RefereeRoleAssignmentDto: {
       role: string;

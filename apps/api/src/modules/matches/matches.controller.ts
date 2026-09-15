@@ -205,7 +205,7 @@ export class MatchesController {
 
   @Patch('matches/:id')
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Update lice and/or referee assignment for a match' })
+  @ApiOperation({ summary: 'Update the lice of a match' })
   @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
   async update(
     @Param('id', ParseUUIDPipe) id: string,

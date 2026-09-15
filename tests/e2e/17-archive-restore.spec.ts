@@ -108,9 +108,6 @@ interface Fixture {
   bracket: Bracket;
   /** The archive JSON exported from the source event, verbatim. */
   eventArchiveText: string;
-  /** The match a referee was pinned to, by its bracket coordinates. */
-  refereeSlot: { round: number; position: number };
-  refereeName: string;
 }
 let fixture: Fixture;
 let restoredEventId: string | null = null;
@@ -161,15 +158,6 @@ test.describe('archive restore', () => {
     });
     const bracket = await readBracket(api, tournament.id);
 
-    // Pin a referee on one played match. `matches.referee_id` is an
-    // event-scoped `persons.id`, so a restore has to re-point it at the COPY's
-    // person — it did not, and this is the assertion that would have caught it.
-    const refereeSlot = bracket.slots.find((s) => s.matchId)!;
-    const referee = fighters[0]!;
-    await api.ok(
-      await api.patch(`matches/${refereeSlot.matchId}`, { data: { refereeId: referee.id } }),
-    );
-
     // ── Export ────────────────────────────────────────────────────────────
     const eventArchiveText = await (
       await api.ok(await api.get(`events/${event.id}/archive?include=scoring&format=json`))
@@ -189,8 +177,6 @@ test.describe('archive restore', () => {
       tournament,
       bracket,
       eventArchiveText,
-      refereeSlot: { round: refereeSlot.round, position: refereeSlot.position },
-      refereeName: personName(referee),
     };
 
     // ── Pre-flight: the manifest held to the data, not to itself ───────────
@@ -311,19 +297,6 @@ test.describe('archive restore', () => {
     );
     expect(copyNameByRegistration.get(copyChampion as string)).toBe(personName(sourceChampion!));
 
-    // ── The referee reference was re-pointed at the COPY's person ──────────
-    const copyRefereeSlot = copyBracket.slots.find(
-      (s) => s.round === refereeSlot.round && s.position === refereeSlot.position,
-    );
-    const copyMatch = await api.json<{ referee_id: string | null }>(
-      await api.get(`matches/${copyRefereeSlot!.matchId}`),
-    );
-    const copyReferee = copyPersons.find((p) => personLabel(p) === fixture.refereeName);
-    expect(
-      copyMatch.referee_id,
-      "the copy's match must name the copy's person, not the source event's",
-    ).toBe(copyReferee!.id);
-
     // ── Every match and every exchange, in one comparison ──────────────────
     // The archive's own reports are the cheapest complete artefact: `resultsCsv`
     // is entirely name-based (round code, both fighters, both scores, winner) so
@@ -342,9 +315,9 @@ test.describe('archive restore', () => {
     );
 
     // ── Nothing in the copy still names the source ─────────────────────────
-    // The generic form of the `matches.referee_id` assertion just above, and of
-    // the eight nested-id leaks before it. `mapFk` returns early on anything
-    // that is not a top-level string, so every id inside an array or an object
+    // The generic form of the eight nested-id leaks this sweep has caught.
+    // `mapFk` returns early on anything that is not a top-level string, so
+    // every id inside an array or an object
     // used to survive verbatim — with the FK satisfied, because the source rows
     // still exist, so nothing ever complained.
     //

@@ -58,8 +58,8 @@ type Checked = Pick<MyClashArchive, 'scope' | 'include' | 'data'>;
  * `matches.referee_id` is a roster id (0039) but is not checked: this app can
  * leave it naming another Event's person. A Tournament restored into another
  * Event carries only the persons its registrations name, so a referee who did
- * not fight keeps the source id, and `PATCH /matches` accepts any person. An
- * archive of either Event would then be refused for a record the app wrote.
+ * not fight keeps the source id. An archive of either Event would then be
+ * refused for a record the app wrote.
  */
 const ROSTER_REFERENCES: ReadonlySet<string> = new Set([
   'registrations.person_id',

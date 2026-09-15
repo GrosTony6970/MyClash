@@ -181,7 +181,6 @@ export class AdjustClockDto extends createZodDto(adjustClockSchema) {}
 const updateMatchSchema = z
   .object({
     liceId: z.uuid().nullish(),
-    refereeId: z.uuid().nullish(),
   })
   .strict();
 export class UpdateMatchDto extends createZodDto(updateMatchSchema) {}

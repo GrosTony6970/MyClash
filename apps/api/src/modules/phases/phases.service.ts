@@ -3155,8 +3155,8 @@ export class PhasesService {
 
     // 4b. Per-role match referee assignments (scope_type='match').
     // The pool tab renders one column per role with the referee's NAME
-    // — distinct from the legacy matches.referee_id single field which
-    // PATCH /matches/:id still writes.
+    // — distinct from the legacy matches.referee_id single field, which
+    // no API route writes any more.
     //
     // Post-0063: referee_assignments.person_id → global_persons(id).
     // The legacy `persons(...)` embed silently 400'd because there is

@@ -48,7 +48,6 @@ interface MatchRow {
   winner_registration_id: string | null;
   status: string;
   lice_id: string | null;
-  referee_id: string | null;
   match_number_label: string | null;
   /** Canonical round code (e.g. `LSW-P1-M1`) built on the backend
    *  by `listPoolsWithMatches`. The scoreboard ships the same field via
@@ -201,26 +200,21 @@ export function MatchesTab({ tournamentId, poolPhaseId, slug, eventId }: Matches
     fallbackPollMs: 30_000,
   });
 
-  async function updateMatchAssignment(
-    matchId: string,
-    field: 'liceId' | 'refereeId',
-    value: string | null,
-  ) {
-    const dbField = field === 'liceId' ? 'lice_id' : 'referee_id';
+  async function updateMatchLice(matchId: string, liceId: string | null) {
     setPools((prev) =>
       prev.map((pool) => ({
         ...pool,
-        matches: pool.matches.map((m) => (m.id === matchId ? { ...m, [dbField]: value } : m)),
+        matches: pool.matches.map((m) => (m.id === matchId ? { ...m, lice_id: liceId } : m)),
       })),
     );
     const r = await apiRequest(apiUrl, `/api/v1/matches/${matchId}`, {
       method: 'PATCH',
-      body: { [field]: value },
+      body: { liceId },
     });
     // Rollback IS a refetch here, as on the schedule board. The log carries the
     // API's own reason rather than the fixed English this used to throw.
     if (!r.ok) {
-      console.error('Match assignment update failed:', failureDetail(r) ?? r.kind);
+      console.error('Match Lice update failed:', failureDetail(r) ?? r.kind);
       refresh();
     }
   }
@@ -663,9 +657,7 @@ export function MatchesTab({ tournamentId, poolPhaseId, slug, eventId }: Matches
                             <td className="px-4 py-2" onClick={(e) => e.stopPropagation()}>
                               <select
                                 value={m.lice_id ?? ''}
-                                onChange={(e) =>
-                                  void updateMatchAssignment(m.id, 'liceId', e.target.value || null)
-                                }
+                                onChange={(e) => void updateMatchLice(m.id, e.target.value || null)}
                                 className="w-full rounded-md border border-border bg-surface px-2 py-1 text-xs"
                               >
                                 <option value="">{t('common.none')}</option>

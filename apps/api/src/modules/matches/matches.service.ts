@@ -619,8 +619,8 @@ export class MatchesService {
    * Writes go to `referee_assignments` with `scope_type='match'`. This
    * is the per-role-column write path used by the pool tab's matches
    * table — distinct from the legacy single `matches.referee_id`
-   * field that `update()` still maintains for back-compat. The legacy
-   * field stays on the schema until a follow-up backfill migration
+   * field, which no API route writes any more. The legacy field
+   * stays on the schema until a follow-up backfill migration
    * lands.
    *
    * Behaviour:
@@ -753,7 +753,6 @@ export class MatchesService {
     }
     const updates: Record<string, unknown> = {};
     if (dto.liceId !== undefined) updates['lice_id'] = dto.liceId;
-    if (dto.refereeId !== undefined) updates['referee_id'] = dto.refereeId;
     if (Object.keys(updates).length === 0) {
       throw new BadRequestException('No fields to update');
     }
@@ -771,11 +770,7 @@ export class MatchesService {
     // well as the time — frozen at enqueue — so moving a fight between pistes
     // without moving it in the clock leaves the alert naming the wrong one,
     // with a time that is still correct. Nothing about that looks broken.
-    //
-    // Only on a piste write. `referee_id` here is the legacy single-referee
-    // column; no alert body is built from it, and the referee's own alert comes
-    // off `referee_assignments`.
-    if (dto.liceId !== undefined) await this.matchAlerts.refresh([matchId]);
+    await this.matchAlerts.refresh([matchId]);
     return data;
   }
 

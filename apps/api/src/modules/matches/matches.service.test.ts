@@ -1128,8 +1128,8 @@ describe('MatchesService', () => {
 
   // ── Slice D ──────────────────────────────────────────────────────────────
   // Per-match referee assignment goes through `referee_assignments` with
-  // scope_type='match' (vs. the legacy single matches.referee_id field
-  // which the public PATCH still writes for back-compat). The setter
+  // scope_type='match' (vs. the legacy single matches.referee_id field,
+  // which no API route writes any more). The setter
   // always deletes the existing row for (match_id, role) and then either
   // stops (refereeId=null) or inserts the new row.
   /**
@@ -1161,18 +1161,6 @@ describe('MatchesService', () => {
 
       expect(writesTo(supabase, 'matches')[0]?.row).toMatchObject({ lice_id: 'lice-9' });
       expect(mockMatchAlerts.refresh).toHaveBeenCalledWith(['match-1']);
-    });
-
-    it('leaves the queue alone for the legacy referee column', async () => {
-      // `matches.referee_id` is the legacy single-referee field. No alert body
-      // is built from it — the referee's own alert comes off
-      // `referee_assignments` — so refreshing here would be queue work for a
-      // change no reader can see.
-      const { service: updateService } = makeService({ matches: { rows: [{ id: 'match-1' }] } });
-
-      await updateService.update('match-1', { refereeId: 'person-1' } as never);
-
-      expect(mockMatchAlerts.refresh).not.toHaveBeenCalled();
     });
   });
 
