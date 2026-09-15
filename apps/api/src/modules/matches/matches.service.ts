@@ -35,6 +35,7 @@ import type {
   UpdateMatchStatusDto,
   VoidExchangeDto,
 } from './dto/matches.dto';
+import { assertLicesBelongToEvent } from '../lices/lices-in-event';
 
 /**
  * Structurally `ScoringActor`. Kept local so this service does not import
@@ -326,6 +327,13 @@ export class MatchesService {
   }
 
   async createMatch(dto: CreateMatchDto) {
+    if (dto.liceId) {
+      await assertLicesBelongToEvent(
+        this.supabase.service,
+        await this.eventIdOfPhase(dto.phaseId),
+        [dto.liceId],
+      );
+    }
     const { data, error } = await this.supabase.service
       .from('matches')
       .insert({
@@ -347,6 +355,33 @@ export class MatchesService {
 
     if (error) throw new BadRequestException(error.message);
     return data;
+  }
+
+  /** The Event a Match belongs to, through its phase's Tournament. */
+  private async eventIdOfMatch(matchId: string): Promise<string> {
+    const { data, error } = await this.supabase.service
+      .from('matches')
+      .select('id, phases!inner(tournaments!inner(event_id))')
+      .eq('id', matchId)
+      .maybeSingle();
+    if (error) throw new BadRequestException(error.message);
+    const row = data as { phases?: { tournaments?: { event_id?: string } } } | null;
+    const eventId = row?.phases?.tournaments?.event_id;
+    if (!eventId) throw new NotFoundException(`Match ${matchId} not found`);
+    return eventId;
+  }
+
+  /** The Event a phase belongs to, through its Tournament. */
+  private async eventIdOfPhase(phaseId: string): Promise<string> {
+    const { data, error } = await this.supabase.service
+      .from('phases')
+      .select('id, tournaments!inner(event_id)')
+      .eq('id', phaseId)
+      .maybeSingle();
+    if (error) throw new BadRequestException(error.message);
+    const eventId = (data as { tournaments?: { event_id?: string } } | null)?.tournaments?.event_id;
+    if (!eventId) throw new NotFoundException(`Phase ${phaseId} not found`);
+    return eventId;
   }
 
   async updateStatus(matchId: string, dto: UpdateMatchStatusDto, context?: MatchActor) {
@@ -508,10 +543,15 @@ export class MatchesService {
    * Refuses a placement that double-books the piste. This route picks BOTH
    * halves of a slot, so a collision means the caller chose a taken one; the
    * piste-only writers (`update`, `setPoolLice`, venues) are deliberately not
-   * guarded, because "assign pistes now, fix the clock after" is a real
+   * guarded against double-booking, because "assign pistes now, fix the clock after" is a real
    * two-step workflow and refusing step one would break it.
    */
   async scheduleMatch(matchId: string, liceId: string | null, scheduledAt: string | null) {
+    if (liceId) {
+      await assertLicesBelongToEvent(this.supabase.service, await this.eventIdOfMatch(matchId), [
+        liceId,
+      ]);
+    }
     await this.assertLiceFree(matchId, liceId || null, scheduledAt || null);
 
     const updates: Record<string, unknown> = {
@@ -706,6 +746,11 @@ export class MatchesService {
   }
 
   async update(matchId: string, dto: UpdateMatchDto) {
+    if (dto.liceId) {
+      await assertLicesBelongToEvent(this.supabase.service, await this.eventIdOfMatch(matchId), [
+        dto.liceId,
+      ]);
+    }
     const updates: Record<string, unknown> = {};
     if (dto.liceId !== undefined) updates['lice_id'] = dto.liceId;
     if (dto.refereeId !== undefined) updates['referee_id'] = dto.refereeId;

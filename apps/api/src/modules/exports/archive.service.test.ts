@@ -951,9 +951,107 @@ describe('ArchiveService', () => {
     expect(inserted.referee_assignments?.[0]?.role).toBe('skill-custom');
   });
 
-  it('leaves no source id anywhere in a tournament copy sent to another event', async () => {
-    // The sentinel sweep, on the path it never covered.
+  /**
+   * A tournament restored into ANOTHER event kept the source event's Lice on
+   * every bout: the Lices were dropped from the copy, and `lice_id` has no
+   * fallback. Migration 0197 refuses that insert, after the tournament, its
+   * phases and Pools are already written. The copy now recreates the Lices its
+   * bouts use. `lice-unused` holds no bout and must stay behind.
+   */
+  const placedRows = (targetLices: Array<Record<string, unknown>> = []) => {
     const rows = rowsWithSecondEvent();
+    return {
+      ...rows,
+      lices: [
+        ...rows.lices,
+        { id: 'lice-unused', event_id: 'event-1', name: 'Piste 2', sort_order: 1 },
+        ...targetLices,
+      ],
+      matches: rows.matches.map((match) => ({ ...match, lice_id: 'lice-1' })),
+    };
+  };
+
+  const restorePlaced = async (
+    targetEventId: string,
+    targetLices?: Array<Record<string, unknown>>,
+  ) => {
+    const { service, inserted } = makeService(placedRows(targetLices));
+    const archive = await service.generateTournamentArchive('t-1', 'user-1', {
+      include: 'scoring',
+    });
+    await service.restoreArchiveCopy(Buffer.from(JSON.stringify(archive)), 'user-1', {
+      targetEventId,
+      confirmation: 'RESTORE MYCLASH ARCHIVE',
+    });
+    return inserted;
+  };
+
+  it('recreates in another event the Lices its bouts use, and only those', async () => {
+    const inserted = await restorePlaced('event-2');
+
+    expect(inserted.lices, 'the unused Lice stays behind').toHaveLength(1);
+    const [lice] = inserted.lices ?? [];
+    expect(lice).toMatchObject({ event_id: 'event-2', name: 'Piste 1', sort_order: 0 });
+    expect(lice?.id, 'under a new id').not.toBe('lice-1');
+    expect(inserted.matches?.[0]?.lice_id, 'the bout moves onto the copy').toBe(lice?.id);
+  });
+
+  it.each([
+    [['Piste 1'], 'Piste 1 (restored)'],
+    [['Piste 1', 'Piste 1 (restored)'], 'Piste 1 (restored 2)'],
+  ])('names the copy after the names the event already uses (%j)', async (names, expected) => {
+    const targetLices = names.map((name, index) => ({
+      id: `lice-there-${index}`,
+      event_id: 'event-2',
+      name,
+      sort_order: 3 + index,
+    }));
+
+    const inserted = await restorePlaced('event-2', targetLices);
+
+    // After the event's own Lices, so its grid keeps its order.
+    expect(inserted.lices?.[0]).toMatchObject({ name: expected, sort_order: 3 + names.length });
+  });
+
+  it('recreates several Lices in their source order, after the event’s own', async () => {
+    // Archived in the reverse of their sort order: the copies follow the source
+    // order, not the order the archive lists them in.
+    const rows = placedRows([
+      { id: 'lice-there', event_id: 'event-2', name: 'Arena', sort_order: 4 },
+    ]);
+    const lices: Array<Record<string, unknown>> = [
+      { id: 'lice-late', event_id: 'event-1', name: 'Piste 9', sort_order: 9 },
+      ...rows.lices,
+    ];
+    const matches: Array<Record<string, unknown>> = [
+      ...rows.matches,
+      { ...rows.matches[0], id: 'm-2', lice_id: 'lice-late' },
+    ];
+    const { service, inserted } = makeService({ ...rows, lices, matches });
+    const archive = await service.generateTournamentArchive('t-1', 'user-1', {
+      include: 'scoring',
+    });
+
+    await service.restoreArchiveCopy(Buffer.from(JSON.stringify(archive)), 'user-1', {
+      targetEventId: 'event-2',
+      confirmation: 'RESTORE MYCLASH ARCHIVE',
+    });
+
+    expect(inserted.lices?.map((lice) => lice.name)).toEqual(['Piste 1', 'Piste 9']);
+    expect(inserted.lices?.map((lice) => lice.sort_order)).toEqual([5, 6]);
+  });
+
+  it("keeps the event's own Lices when a tournament is restored into its own event", async () => {
+    const inserted = await restorePlaced('event-1');
+
+    expect(inserted.lices, 'nothing recreated').toBeUndefined();
+    expect(inserted.matches?.[0]?.lice_id).toBe('lice-1');
+  });
+
+  it('leaves no source id anywhere in a tournament copy sent to another event', async () => {
+    // The sentinel sweep, on the path it never covered. Its bout sits on a Lice,
+    // so a source Lice id left on the copy is a survivor too.
+    const rows = placedRows();
     const sourceIds = new Set<string>();
     for (const table of Object.values(rows) as Array<Record<string, unknown>[]>) {
       for (const row of table) {

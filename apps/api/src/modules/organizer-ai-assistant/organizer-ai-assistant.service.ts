@@ -12,6 +12,7 @@ import type {
   OrganizerAIDraftType,
   UpdateOrganizerAIDraftDto,
 } from './dto/organizer-ai-assistant.dto';
+import { assertLicesBelongToEvent } from '../lices/lices-in-event';
 
 type DraftStatus = 'draft' | 'ready' | 'failed' | 'applied' | 'rejected';
 
@@ -370,7 +371,7 @@ export class OrganizerAIAssistantService {
     if (kind === 'schedule_match') {
       await Promise.all([
         this.assertMatchBelongsToEvent(eventId, String(action['matchId'])),
-        this.assertLiceBelongsToEvent(eventId, String(action['liceId'])),
+        assertLicesBelongToEvent(this.supabase.service, eventId, [String(action['liceId'])]),
       ]);
       const { data, error } = await this.supabase.service
         .from('matches')
@@ -586,17 +587,6 @@ export class OrganizerAIAssistantService {
       .maybeSingle();
     if (error) throw new BadRequestException(error.message);
     if (!data) throw new BadRequestException('Tournament must belong to this event');
-  }
-
-  private async assertLiceBelongsToEvent(eventId: string, liceId: string) {
-    const { data, error } = await this.supabase.service
-      .from('lices')
-      .select('id')
-      .eq('id', liceId)
-      .eq('event_id', eventId)
-      .maybeSingle();
-    if (error) throw new BadRequestException(error.message);
-    if (!data) throw new BadRequestException('Lice must belong to this event');
   }
 
   private async assertPoolBelongsToEvent(eventId: string, poolId: string) {

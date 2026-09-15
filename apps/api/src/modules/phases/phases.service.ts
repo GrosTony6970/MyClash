@@ -146,6 +146,7 @@ type SeedingResolution =
 // computePoolGate vacuously "complete" and populateBracket fall back to
 // registration-seed instead of seeding from pool standings.
 import { PoolStandingsService } from '../pool-standings/pool-standings.service';
+import { assertLicesBelongToEvent } from '../lices/lices-in-event';
 
 @Injectable()
 export class PhasesService {
@@ -220,6 +221,11 @@ export class PhasesService {
     const organizationId =
       (tournament as { events?: { organization_id?: string } | null } | null)?.events
         ?.organization_id ?? null;
+    // Before the delete below, so a Lice of another Event is refused while
+    // nothing has changed yet.
+    if (dto.liceId && eventId) {
+      await assertLicesBelongToEvent(this.supabase.service, eventId, [dto.liceId]);
+    }
 
     // Delete existing pool phase if force=true
     if (existing && force) {
@@ -2567,8 +2573,9 @@ export class PhasesService {
     liceId: string | null,
     userId: string,
   ): Promise<{ poolId: string; liceId: string | null }> {
-    await this.assertPoolEditAuth(poolId, userId);
+    const ctx = await this.assertPoolEditAuth(poolId, userId);
     await this.assertPoolEditable(poolId);
+    await assertLicesBelongToEvent(this.supabase.service, ctx.eventId, [liceId]);
 
     const { data, error } = await this.supabase.service
       .from('matches')
@@ -2603,8 +2610,9 @@ export class PhasesService {
     poolId: string;
     updated: Array<{ matchId: string; liceId: string | null; scheduledAt: string | null }>;
   }> {
-    await this.assertPoolEditAuth(poolId, userId);
+    const ctx = await this.assertPoolEditAuth(poolId, userId);
     await this.assertPoolEditable(poolId);
+    await assertLicesBelongToEvent(this.supabase.service, ctx.eventId, [dto.liceId]);
 
     const { data: matchesData, error: matchesErr } = await this.supabase.service
       .from('matches')

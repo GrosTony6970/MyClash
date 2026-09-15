@@ -174,6 +174,15 @@ describe('StaffService.setLiceScorer', () => {
     expect(out.removedAccountIds).toEqual(['old']);
   });
 
+  it("refuses another Event's Lice before touching anything", async () => {
+    const { svc, supabase } = build({ accounts: [accountRow('a1')] });
+
+    await expect(
+      svc.setLiceScorer(req, EVENT, 'lice-elsewhere', { staffAccountId: 'a1' } as never),
+    ).rejects.toThrow('Every Lice must belong to this event');
+    expect(supabase.writes).toEqual([]);
+  });
+
   it('refuses a disabled account before touching anything', async () => {
     const { svc, supabase } = build({ accounts: [accountRow('a1', { status: 'disabled' })] });
 

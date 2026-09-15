@@ -46,6 +46,7 @@ import type {
 } from './dto/programme.dto';
 import { storedProgrammeConfigSchema } from './dto/programme.dto';
 import { readProgrammeSheet } from './programme-sheet';
+import { assertLicesBelongToEvent } from '../lices/lices-in-event';
 
 function timeToMin(t: string): number {
   const [h, m] = t.split(':').map(Number);
@@ -1605,6 +1606,7 @@ export class ProgrammeService {
     if (rows.length !== dto.matchIds.length || rows.some((r) => !eventPhaseIds.has(r.phase_id))) {
       throw new BadRequestException('Some matches do not belong to this event');
     }
+    await assertLicesBelongToEvent(this.supabase.service, eventId, dto.liceIds);
 
     // Lices in the operator's requested order (anchor i → liceIds[i]).
     const { data: liceRows } = await this.supabase.service

@@ -415,6 +415,12 @@ describe('PhasesService', () => {
         return makeService({
           pools: { rows: [POOL_CONTEXT] },
           matches: { rows: [...POOL_MATCHES, ...DECOYS, ...occupants] },
+          lices: {
+            rows: [
+              { id: 'lice-1', event_id: 'event-1' },
+              { id: 'lice-elsewhere', event_id: 'event-2' },
+            ],
+          },
         });
       }
 
@@ -451,6 +457,39 @@ describe('PhasesService', () => {
           'm-2',
         ]);
       });
+
+      it("reschedulePool refuses another Event's Lice, and writes nothing", async () => {
+        const { service, supabase } = seedPoolMove();
+
+        await expect(
+          service.reschedulePool('pool-1', { ...moveTo1005, liceId: 'lice-elsewhere' }, 'user-1'),
+        ).rejects.toThrow('Every Lice must belong to this event');
+        expect(writesTo(supabase, 'matches')).toEqual([]);
+      });
+    });
+
+    it("refuses another Event's Lice before the force delete takes the old phase", async () => {
+      // With force=true the old pool phase is deleted, and every bout under it
+      // with it. The refusal must land while that phase still exists. The Lice
+      // belongs to the decoy Tournament's Event, so a check against any Event but
+      // this one would pass.
+      const { service, supabase } = makeService({
+        phases: { rows: [{ id: 'old-phase', tournament_id: 'tournament-1', type: 'pool' }] },
+        tournaments: { rows: TOURNAMENTS },
+        // Never fought, so the scored-bout guard lets the force delete through.
+        matches: { rows: [{ id: 'm-untouched', phase_id: 'old-phase', status: 'scheduled' }] },
+        lices: {
+          rows: [
+            { id: 'lice-1', event_id: 'event-1' },
+            { id: 'lice-elsewhere', event_id: 'event-9' },
+          ],
+        },
+      });
+
+      await expect(
+        service.generatePools('tournament-1', { poolCount: 1, liceId: 'lice-elsewhere' }, true),
+      ).rejects.toThrow('Every Lice must belong to this event');
+      expect(supabase.writes).toEqual([]);
     });
 
     it('caps poolCount so no pool is forced to be a singleton (5 fighters, targetSize=2 → 2 pools)', async () => {
@@ -2734,10 +2773,18 @@ describe('PhasesService', () => {
       { id: 'm-9', pool_id: 'pool-9', status: 'scheduled', lice_id: null },
     ];
 
+    /** Two Lices of the Pool's Event and one of another Event. */
+    const LICES: SupabaseRow[] = [
+      { id: 'lice-1', event_id: 'event-1' },
+      { id: 'lice-9', event_id: 'event-1' },
+      { id: 'lice-elsewhere', event_id: 'event-2' },
+    ];
+
     it('updates every match in the pool to the given liceId', async () => {
       const { service, supabase } = makeService({
         pools: { rows: POOLS },
         matches: { rows: MATCHES },
+        lices: { rows: LICES },
       });
 
       const result = await service.setPoolLice('pool-1', 'lice-1', 'user-1');
@@ -2753,12 +2800,26 @@ describe('PhasesService', () => {
       const { service, supabase } = makeService({
         pools: { rows: POOLS },
         matches: { rows: MATCHES },
+        lices: { rows: LICES },
       });
 
       const result = await service.setPoolLice('pool-1', null, 'user-1');
 
       expect(writesTo(supabase, 'matches')[0]?.row).toEqual({ lice_id: null });
       expect(result).toEqual({ poolId: 'pool-1', liceId: null });
+    });
+
+    it("refuses another Event's Lice, and writes nothing", async () => {
+      const { service, supabase } = makeService({
+        pools: { rows: POOLS },
+        matches: { rows: MATCHES },
+        lices: { rows: LICES },
+      });
+
+      await expect(service.setPoolLice('pool-1', 'lice-elsewhere', 'user-1')).rejects.toThrow(
+        'Every Lice must belong to this event',
+      );
+      expect(writesTo(supabase, 'matches')).toEqual([]);
     });
 
     /**
@@ -2770,7 +2831,11 @@ describe('PhasesService', () => {
      */
     it('re-queues the alerts for every match it re-pisted', async () => {
       const matchAlerts = { refresh: vi.fn().mockResolvedValue(undefined) };
-      const supabase = mockSupabase({ pools: { rows: POOLS }, matches: { rows: MATCHES } });
+      const supabase = mockSupabase({
+        pools: { rows: POOLS },
+        matches: { rows: MATCHES },
+        lices: { rows: LICES },
+      });
       const svc = new PhasesService(
         supabase as never,
         undefined,

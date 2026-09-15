@@ -318,17 +318,19 @@ export class ArchiveService {
 
     data.events = [];
     data.themes = [];
-    data.lices = [];
-    // Restoring back into the event the tournament came from: the people and
-    // the custom referee skills are ALREADY there. Self-map their ids so every
+    // Restoring back into the event the tournament came from: the people, the
+    // custom referee skills and the Lices are ALREADY there. Self-map their ids so every
     // reference resolves to the existing rows, and carry none of them, or the
     // copy duplicates the whole roster and skill catalogue.
     //
     // Into a DIFFERENT event they are carried and re-minted, which is what
     // makes `referee_assignments.role` and `tournament_slot_allowed_skills.
     // skill_id` land on the target event's own skills instead of naming the
-    // source event's.
+    // source event's. The Lices its bouts use are recreated there too, or every
+    // restored bout would keep a Lice of the source event (see
+    // `licesForAnotherEvent`).
     if (options.targetEventId === archive.source.eventId) {
+      data.lices = [];
       for (const person of data.persons) {
         maps.persons.set(person['id'] as string, person['id'] as string);
       }
@@ -338,6 +340,8 @@ export class ArchiveService {
         maps.refereeSkills.set(skill['id'] as string, skill['id'] as string);
       }
       data.refereeSkills = [];
+    } else {
+      data.lices = await this.licesForAnotherEvent(data, options.targetEventId);
     }
     data.tournaments = [
       this.cleanRow({
@@ -466,6 +470,47 @@ export class ArchiveService {
     }
 
     return this.cleanRow(next);
+  }
+
+  /**
+   * The Lices a Tournament copy needs in another event: those of the source event
+   * that its bouts sit on, recreated there. Without them every restored bout keeps
+   * a Lice of the source event, which migration 0197 refuses after the Tournament,
+   * its phases and Pools are already written. Referee duties add none: a Tournament
+   * archive keeps only duties scoped to a Pool or a Match, and those carry no Lice
+   * (the scope check of migration 0091).
+   *
+   * A name the target event already uses gets " (restored)", then " (restored 2)"
+   * and so on. The copies sort after the target's own Lices, in source order. Two
+   * restores into one event at the same moment can pick the same name; nothing
+   * refuses a repeated Lice name.
+   */
+  private async licesForAnotherEvent(
+    data: ArchiveTables,
+    targetEventId: string,
+  ): Promise<ArchiveRow[]> {
+    const used = new Set(
+      data.matches
+        .map((match) => match['lice_id'])
+        .filter((id): id is string => typeof id === 'string'),
+    );
+    const kept = data.lices
+      .filter((lice) => used.has(lice['id'] as string))
+      .sort((a, b) => Number(a['sort_order'] ?? 0) - Number(b['sort_order'] ?? 0));
+    if (kept.length === 0) return [];
+
+    const existing = await this.listRowsByIds('lices', 'event_id', [targetEventId]);
+    const taken = new Set(existing.map((lice) => String(lice['name'])));
+    const lastSort = Math.max(-1, ...existing.map((lice) => Number(lice['sort_order'] ?? 0)));
+    return kept.map((lice, index) => {
+      const name = String(lice['name']);
+      let free = name;
+      for (let n = 1; taken.has(free); n++) {
+        free = n === 1 ? `${name} (restored)` : `${name} (restored ${n})`;
+      }
+      taken.add(free);
+      return { ...lice, name: free, sort_order: lastSort + 1 + index };
+    });
   }
 
   private remapSkillId(value: unknown, maps: IdMaps): unknown {

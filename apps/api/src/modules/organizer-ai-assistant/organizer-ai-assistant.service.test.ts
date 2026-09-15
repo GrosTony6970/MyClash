@@ -335,6 +335,45 @@ describe('OrganizerAIAssistantService', () => {
     );
   });
 
+  it("refuses to place a Match on another Event's Lice", async () => {
+    const matchesUpdate = vi.fn();
+    // Awaited after `.in()`: none of the Lices named is this Event's.
+    const lices = Object.assign(Promise.resolve({ data: [], error: null }), {
+      select: vi.fn(() => lices),
+      eq: vi.fn(() => lices),
+      in: vi.fn(() => lices),
+    });
+    mockSupabaseFrom.mockImplementation((table: string) => {
+      if (table === 'lices') return lices;
+      if (table === 'matches') {
+        const c = chain({ data: { id: 'm-1', phases: { tournaments: { event_id: 'event-1' } } } });
+        c.update = matchesUpdate.mockReturnValue(c);
+        return c;
+      }
+      if (table !== 'organizer_ai_assistant_drafts') return chain();
+      return chain({
+        data: {
+          id: 'draft-1',
+          event_id: 'event-1',
+          actor_user_id: 'user-1',
+          draft_type: 'schedule_grid',
+          status: 'ready',
+          proposed_actions_json: [
+            { kind: 'schedule_match', matchId: 'm-1', liceId: 'l-9', scheduledAt: 'now' },
+          ],
+          events: { organization_id: 'org-1' },
+        },
+      });
+    });
+
+    await expect(service().applyDraft('event-1', 'draft-1', 'user-1')).rejects.toThrow(
+      'Every Lice must belong to this event',
+    );
+    expect(matchesUpdate).not.toHaveBeenCalled();
+    expect(lices.eq).toHaveBeenCalledWith('event_id', 'event-1');
+    expect(lices.in).toHaveBeenCalledWith('id', ['l-9']);
+  });
+
   it('rejects unsafe draft action shapes before apply', async () => {
     mockSupabaseFrom.mockImplementation((table: string) => {
       if (table === 'organizer_ai_assistant_drafts') {

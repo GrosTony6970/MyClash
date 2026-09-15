@@ -2699,6 +2699,29 @@ describe('scheduleGroup', () => {
     ).rejects.toBeInstanceOf(BadRequestException);
   });
 
+  it("refuses another Event's Lice before placing anything", async () => {
+    // Placed on another Event's Lice, the group would count as an occupant
+    // there and show on that Event's live board.
+    const licesChain = makeChain({ data: [], error: null });
+    fromMock
+      .mockReturnValueOnce(sheetChain())
+      .mockReturnValueOnce(makeChain({ data: [{ id: 't1' }], error: null })) // tournaments
+      .mockReturnValueOnce(makeChain({ data: [{ id: 'phase-1' }], error: null })) // phases
+      .mockReturnValueOnce(makeChain({ data: [gm('m1')], error: null })) // group matches
+      .mockReturnValueOnce(licesChain); // none of the Lices is the Event's
+
+    await expect(
+      svc.scheduleGroup(
+        'event-1',
+        { matchIds: ['m1'], liceIds: ['l-elsewhere'], startTime: START, mode: 'pool' },
+        CALLER,
+      ),
+    ).rejects.toThrow('Every Lice must belong to this event');
+    expect(licesChain.eq).toHaveBeenCalledWith('event_id', 'event-1');
+    // Refused before the Lices' names, the occupants or any write.
+    expect(fromMock).toHaveBeenCalledTimes(5);
+  });
+
   it('keeps a pool group on one lice and persists each match', async () => {
     fromMock
       .mockReturnValueOnce(sheetChain({ matchGapSeconds: 0, minRestMinutes: 20 }))
@@ -2707,6 +2730,7 @@ describe('scheduleGroup', () => {
       .mockReturnValueOnce(
         makeChain({ data: [gm('m1'), gm('m2', { red_registration_id: 'r-m1' })], error: null }),
       ) // group matches
+      .mockReturnValueOnce(makeChain({ data: [{ id: 'l1' }], error: null })) // the Lices are the Event's
       .mockReturnValueOnce(
         makeChain({ data: [{ id: 'l1', name: 'L1', sort_order: 0 }], error: null }),
       ) // lices
@@ -2751,6 +2775,7 @@ describe('scheduleGroup', () => {
       .mockReturnValueOnce(makeChain({ data: [{ id: 't1' }], error: null })) // tournaments
       .mockReturnValueOnce(makeChain({ data: [{ id: 'phase-1' }], error: null })) // phases
       .mockReturnValueOnce(makeChain({ data: [gm('m1')], error: null })) // group matches
+      .mockReturnValueOnce(makeChain({ data: [{ id: 'l1' }], error: null })) // the Lices are the Event's
       .mockReturnValueOnce(
         makeChain({ data: [{ id: 'l1', name: 'L1', sort_order: 0 }], error: null }),
       ) // lices
@@ -2803,6 +2828,7 @@ describe('scheduleGroup', () => {
       .mockReturnValueOnce(makeChain({ data: [{ id: 't1' }], error: null })) // tournaments
       .mockReturnValueOnce(makeChain({ data: [{ id: 'phase-1' }], error: null })) // phases
       .mockReturnValueOnce(groupChain) // group matches
+      .mockReturnValueOnce(makeChain({ data: [{ id: 'l1' }], error: null })) // the Lices are the Event's
       .mockReturnValueOnce(
         makeChain({ data: [{ id: 'l1', name: 'L1', sort_order: 0 }], error: null }),
       ) // lices
@@ -2871,6 +2897,7 @@ describe('scheduleGroup', () => {
       .mockReturnValueOnce(makeChain({ data: [{ id: 't1' }], error: null })) // tournaments
       .mockReturnValueOnce(makeChain({ data: [{ id: 'phase-1' }], error: null })) // phases
       .mockReturnValueOnce(makeChain({ data: [sm('r1'), sm('r2')], error: null })) // group matches
+      .mockReturnValueOnce(makeChain({ data: [{ id: 'l1' }], error: null })) // the Lices are the Event's
       .mockReturnValueOnce(
         makeChain({ data: [{ id: 'l1', name: 'L1', sort_order: 0 }], error: null }),
       ) // lices
@@ -2907,6 +2934,7 @@ describe('scheduleGroup', () => {
           error: null,
         }),
       ) // group matches
+      .mockReturnValueOnce(makeChain({ data: [{ id: 'l1' }], error: null })) // the Lices are the Event's
       .mockReturnValueOnce(
         makeChain({ data: [{ id: 'l1', name: 'L1', sort_order: 0 }], error: null }),
       ) // lices

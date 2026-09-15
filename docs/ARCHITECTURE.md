@@ -406,6 +406,9 @@ imply the opposite of.
 organization owns Venues, each with optional Venue Areas and a `venue_lices` catalogue of reusable
 names. An Event owns Lices (`lices.event_id` required), each pointing at its physical home through
 nullable `venue_id` / `area_id` — nullable because an operator may create a lice before linking it.
+A Match is placed only on a Lice of its own Event: the API refuses another Event's Lice at every door
+that takes a Lice id from its caller (`apps/api/src/modules/lices/lices-in-event.ts`), and a trigger on `matches` refuses it underneath
+(migration `0197`).
 **A Venue Lice is not a Lice**: it is setup data that event creation copies from, and nothing is
 ever scheduled onto one. Served by `apps/api/src/modules/venues/`.
 

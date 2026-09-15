@@ -80,6 +80,16 @@ const summarySeed = (
 
 // ── Tests ──────────────────────────────────────────────────────────────────
 
+/** Two Lices of the Match's Event and one of another Event. */
+const LICES: Array<Record<string, unknown>> = [
+  { id: 'lice-1', event_id: 'event-1' },
+  { id: 'lice-9', event_id: 'event-1' },
+  { id: 'lice-elsewhere', event_id: 'event-2' },
+];
+
+/** The Match's Event, as the embed that reaches it returns it. */
+const IN_EVENT_1 = { phases: { tournaments: { event_id: 'event-1' } } };
+
 describe('MatchesService', () => {
   // The collaborators stay module-level and their call counts are asserted per
   // test, so they still need clearing. `clearAllMocks` resets calls and results
@@ -682,10 +692,11 @@ describe('MatchesService', () => {
     const piste = (occupants: Array<Record<string, unknown>>): Record<string, TableSeed> => ({
       matches: {
         rows: [
-          { id: 'match-1', lice_id: null, scheduled_at: null, status: 'scheduled' },
+          { id: 'match-1', lice_id: null, scheduled_at: null, status: 'scheduled', ...IN_EVENT_1 },
           ...occupants,
         ],
       },
+      lices: { rows: LICES },
     });
 
     const occupant = (over: Record<string, unknown> = {}) => ({
@@ -756,6 +767,21 @@ describe('MatchesService', () => {
       // never runs. One query, and it is the write — which is the actual claim,
       // where "the write called select()" was not.
       expect(queriedTables(supabase.from)).toEqual(['matches']);
+    });
+
+    it("refuses another Event's Lice, and writes nothing", async () => {
+      const { service: scheduleService, supabase } = makeService(piste([]));
+
+      await expect(
+        scheduleService.scheduleMatch('match-1', 'lice-elsewhere', '2026-05-02T10:30:00.000Z'),
+      ).rejects.toThrow('Every Lice must belong to this event');
+      expect(supabase.writes).toEqual([]);
+      expect(mockMatchAlerts.refresh).not.toHaveBeenCalled();
+      // The double returns the seeded embed whatever the projection names, so
+      // the path to the Match's Event is only proved by the string sent.
+      expect(selectsFor(supabase.from, 'matches')).toContain(
+        'id, phases!inner(tournaments!inner(event_id))',
+      );
     });
   });
 
@@ -1066,6 +1092,40 @@ describe('MatchesService', () => {
     });
   });
 
+  describe('createMatch — its Lice is one of its Event', () => {
+    /** The phase's Event decides; the decoy phase belongs to another Event. */
+    const seed = (): Record<string, TableSeed> => ({
+      phases: {
+        rows: [
+          { id: 'phase-elsewhere', tournaments: { event_id: 'event-2' } },
+          { id: 'phase-1', tournaments: { event_id: 'event-1' } },
+        ],
+      },
+      lices: { rows: LICES },
+      matches: { rows: [{ id: 'new-match' }] },
+    });
+    const dto = (liceId: string) =>
+      ({ phaseId: 'phase-1', liceId, redRegistrationId: 'r', blueRegistrationId: 'b' }) as never;
+
+    it("places a new Match on a Lice of its phase's Event", async () => {
+      const { service, supabase } = makeService(seed());
+
+      await service.createMatch(dto('lice-1'));
+
+      expect(writesTo(supabase, 'matches')[0]?.row).toMatchObject({ lice_id: 'lice-1' });
+      expect(selectsFor(supabase.from, 'phases')).toEqual(['id, tournaments!inner(event_id)']);
+    });
+
+    it("refuses another Event's Lice, and inserts nothing", async () => {
+      const { service, supabase } = makeService(seed());
+
+      await expect(service.createMatch(dto('lice-elsewhere'))).rejects.toThrow(
+        'Every Lice must belong to this event',
+      );
+      expect(supabase.writes).toEqual([]);
+    });
+  });
+
   // ── Slice D ──────────────────────────────────────────────────────────────
   // Per-match referee assignment goes through `referee_assignments` with
   // scope_type='match' (vs. the legacy single matches.referee_id field
@@ -1079,9 +1139,22 @@ describe('MatchesService', () => {
    * naming a piste the fight had left. That is why it was never noticed.
    */
   describe('update — a piste change is an alert change', () => {
+    it("refuses another Event's Lice, and writes nothing", async () => {
+      const { service: updateService, supabase } = makeService({
+        matches: { rows: [{ id: 'match-1', ...IN_EVENT_1 }] },
+        lices: { rows: LICES },
+      });
+
+      await expect(
+        updateService.update('match-1', { liceId: 'lice-elsewhere' } as never),
+      ).rejects.toThrow('Every Lice must belong to this event');
+      expect(supabase.writes).toEqual([]);
+    });
+
     it('re-queues the alert when the piste moves', async () => {
       const { service: updateService, supabase } = makeService({
-        matches: { rows: [{ id: 'match-1' }] },
+        matches: { rows: [{ id: 'match-1', ...IN_EVENT_1 }] },
+        lices: { rows: LICES },
       });
 
       await updateService.update('match-1', { liceId: 'lice-9' } as never);

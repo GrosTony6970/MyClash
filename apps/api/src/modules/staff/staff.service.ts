@@ -53,6 +53,7 @@ import type {
   StaffLoginDto,
   UpdateStaffAccountDto,
 } from './dto';
+import { assertLicesBelongToEvent } from '../lices/lices-in-event';
 
 const scrypt = promisify(scryptCallback);
 export const STAFF_COOKIE_NAME = 'mc_staff';
@@ -314,7 +315,7 @@ export class StaffService {
   async setLices(eventId: string, accountId: string, dto: SetStaffLicesDto, userId: string) {
     await this.assertCanManageEventStaff(eventId, userId);
     const account = await this.getAccountForEvent(eventId, accountId);
-    await this.assertLicesBelongToEvent(eventId, dto.liceIds);
+    await assertLicesBelongToEvent(this.supabase.service, eventId, dto.liceIds);
 
     const { error: deleteError } = await this.supabase.service
       .from('event_staff_lice_assignments')
@@ -373,7 +374,7 @@ export class StaffService {
     if (!userId) throw new UnauthorizedException('Organizer session required');
     const event = await this.getEventById(eventId);
     await this.orgs.assertOrgRole(event.organization_id, userId, 'scorekeeper');
-    await this.assertLicesBelongToEvent(eventId, [liceId]);
+    await assertLicesBelongToEvent(this.supabase.service, eventId, [liceId]);
 
     const accountId = dto.staffAccountId;
     if (accountId) {
@@ -1467,19 +1468,6 @@ export class StaffService {
     if (error) throw new BadRequestException(error.message);
     if (!data) throw new NotFoundException('Staff account not found');
     return data as StaffAccountRow;
-  }
-
-  private async assertLicesBelongToEvent(eventId: string, liceIds: string[]) {
-    if (liceIds.length === 0) return;
-    const { data, error } = await this.supabase.service
-      .from('lices')
-      .select('id')
-      .eq('event_id', eventId)
-      .in('id', liceIds);
-    if (error) throw new BadRequestException(error.message);
-    if ((data ?? []).length !== liceIds.length) {
-      throw new BadRequestException('All Lices must belong to the event');
-    }
   }
 
   private async listAssignmentsForEvent(eventId: string) {
