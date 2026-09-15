@@ -47,6 +47,7 @@ import type {
 import { storedProgrammeConfigSchema } from './dto/programme.dto';
 import { readProgrammeSheet } from './programme-sheet';
 import { assertLicesBelongToEvent } from '../lices/lices-in-event';
+import { assertTournamentsBelongToEvent, assertWorkshopsBelongToEvent } from '../events/in-event';
 
 function timeToMin(t: string): number {
   const [h, m] = t.split(':').map(Number);
@@ -194,6 +195,30 @@ export class ProgrammeService {
     await assertCanReadEvent({ supabase: this.supabase, orgs: this.orgs }, eventId, resolveUserId);
   }
 
+  /**
+   * Refuse a bar that names another Event's Tournament or Workshop, before any
+   * write. Nothing in the database ties a bar's ids to its Event. Generate reads a
+   * bar's Tournament by id alone (`fetchCompetitionMatches`), so a foreign id made
+   * it read another Event's bouts, and migration 0197 then refused their placement
+   * partway through, after the earlier bars' bouts were written.
+   */
+  private async assertBarsBelongToEvent(
+    eventId: string,
+    bars: ReadonlyArray<{ competitionId?: string | null; workshopId?: string | null }>,
+  ): Promise<void> {
+    const db = this.supabase.service;
+    await assertTournamentsBelongToEvent(
+      db,
+      eventId,
+      bars.map((bar) => bar.competitionId),
+    );
+    await assertWorkshopsBelongToEvent(
+      db,
+      eventId,
+      bars.map((bar) => bar.workshopId),
+    );
+  }
+
   // ── List ───────────────────────────────────────────────────────────────────
 
   /**
@@ -228,13 +253,23 @@ export class ProgrammeService {
     return readProgrammeSheet(this.supabase.service, eventId);
   }
 
-  /** Store the sheet whole, one row per Event. Only the organiser's team may. */
+  /**
+   * Store the sheet whole, one row per Event. Only the organiser's team may, and
+   * a row of lengths may name only one of this Event's Tournaments.
+   *
+   * THE RACE, named: the planner drops rows for Tournaments it did not load
+   * (`keepLiveRows`), but a Tournament deleted while the planner is open is still
+   * in its list, so the next save names it and is refused. Reloading the planner
+   * drops the row. The refusal is the operator's ruling (2026-09-15).
+   */
   async putConfig(
     eventId: string,
     dto: ProgrammeConfigDto,
     userId: string,
   ): Promise<SuggestConfig> {
     await this.assertWriter(eventId, userId);
+    const tournamentIds = dto.tournaments.map((row) => row.tournamentId);
+    await assertTournamentsBelongToEvent(this.supabase.service, eventId, tournamentIds);
     const { data, error } = await this.supabase.service
       .from('event_programme_configs')
       .upsert(
@@ -306,6 +341,7 @@ export class ProgrammeService {
   ): Promise<ProgrammeBlock[]> {
     await this.assertWriter(eventId, userId);
     this.validateBlocks(dto.blocks);
+    await this.assertBarsBelongToEvent(eventId, dto.blocks);
 
     if (dto.blocks.length === 0) {
       const { error: delError } = await this.supabase.service
@@ -1743,6 +1779,7 @@ export class ProgrammeService {
     userId: string,
   ): Promise<{ block: ProgrammeBlock }> {
     await this.assertWriter(eventId, userId);
+    await this.assertBarsBelongToEvent(eventId, [dto]);
     // Next sort_order on the day = max existing + 1 (computed in JS — PostgREST
     // has no MAX without an RPC). Ordered desc so the first row is the highest.
     const { data: existing } = await this.supabase.service

@@ -64,6 +64,15 @@ function sheetChain(config?: Record<string, unknown>) {
   return makeChain({ data: config ? { config_json: config } : null, error: null });
 }
 
+/**
+ * One read of the two `saveBlocks` opens with when its bars name a Tournament
+ * and a Workshop, as `programmeDto()`'s do: the named id comes back as this
+ * Event's. The refusal itself is tested in programme.bars-in-event.test.ts.
+ */
+function ownBarRead() {
+  return makeChain({ data: [{ id: 'own' }], error: null });
+}
+
 /** A config that actually satisfies swissConfigSchema — the estimate parses it,
  *  and an unparseable one silently counts zero Swiss bouts. */
 const SWISS_CONFIG: SwissConfig = {
@@ -295,8 +304,13 @@ describe('ProgrammeService', () => {
       error: null,
     });
     // Upsert FIRST, prune second — the order that keeps the previous
-    // programme intact when the write is refused.
-    fromMock.mockReturnValueOnce(upsertChain).mockReturnValueOnce(deleteChain);
+    // programme intact when the write is refused. Before either, the bars'
+    // Tournament and Workshop are read back as this Event's.
+    fromMock
+      .mockReturnValueOnce(ownBarRead())
+      .mockReturnValueOnce(ownBarRead())
+      .mockReturnValueOnce(upsertChain)
+      .mockReturnValueOnce(deleteChain);
 
     const saved = await service.saveBlocks('event-1', programmeDto(), CALLER);
 
@@ -321,7 +335,11 @@ describe('ProgrammeService', () => {
     it('does not delete anything when the write is refused', async () => {
       const upsertChain = makeChain({ data: null, error: { message: 'deadlock detected' } });
       const deleteChain = makeChain({ data: null, error: null });
-      fromMock.mockReturnValueOnce(upsertChain).mockReturnValueOnce(deleteChain);
+      fromMock
+        .mockReturnValueOnce(ownBarRead())
+        .mockReturnValueOnce(ownBarRead())
+        .mockReturnValueOnce(upsertChain)
+        .mockReturnValueOnce(deleteChain);
 
       await expect(service.saveBlocks('event-1', programmeDto(), CALLER)).rejects.toThrow(
         /deadlock detected/,

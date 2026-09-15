@@ -1,5 +1,5 @@
-import { BadRequestException } from '@nestjs/common';
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { assertRowsBelongToEvent } from '../events/in-event';
 
 /**
  * Refuse any Lice that is not one of this Event's.
@@ -14,17 +14,13 @@ import type { SupabaseClient } from '@supabase/supabase-js';
  * call.
  *
  * A `null` is skipped: clearing a Lice needs no check. A repeated id counts once.
+ * The check itself is `assertRowsBelongToEvent`, shared with Tournaments and
+ * Workshops.
  */
-export async function assertLicesBelongToEvent(
+export function assertLicesBelongToEvent(
   db: SupabaseClient,
   eventId: string,
   liceIds: ReadonlyArray<string | null | undefined>,
 ): Promise<void> {
-  const ids = [...new Set(liceIds.filter((id): id is string => id != null))];
-  if (ids.length === 0) return;
-  const { data, error } = await db.from('lices').select('id').eq('event_id', eventId).in('id', ids);
-  if (error) throw new BadRequestException(error.message);
-  if ((data ?? []).length !== ids.length) {
-    throw new BadRequestException('Every Lice must belong to this event');
-  }
+  return assertRowsBelongToEvent(db, 'lices', 'Lice', eventId, liceIds);
 }
