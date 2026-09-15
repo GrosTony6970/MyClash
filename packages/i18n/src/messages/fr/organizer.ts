@@ -1921,7 +1921,7 @@ export const organizer = {
       adding: 'Ajout…',
       add: 'Ajouter',
       loadFailedPrefix: "Échec du chargement de l'horaire :",
-      autoDistributeFailedPrefix: 'Échec de la répartition automatique :',
+      groupScheduleFailedPrefix: 'Échec de la programmation groupée :',
       saveFailedPrefix: 'Modification non enregistrée :',
       saveFailedOffline: 'Le serveur est injoignable.',
       saveFailedPartial: "{failed}/{total} modifications n'ont pas été enregistrées.",

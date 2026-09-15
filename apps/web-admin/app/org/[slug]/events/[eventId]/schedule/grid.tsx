@@ -537,9 +537,9 @@ export function ScheduleGrid({
   // the operator can aim the drop instead of guessing. Cleared on
   // drop, on cell-leave, and on drag-cancel.
   const [dragOverCell, setDragOverCell] = useState<{ liceId: string; slot: number } | null>(null);
-  // Surfaced when auto-distribute fails so the operator sees the error
-  // instead of a silent no-op.
-  const [autoDistributeError, setAutoDistributeError] = useState<string | null>(null);
+  // Why a group schedule failed: the server's reason for a re-fan across Lices,
+  // or one general line when some of the ticked groups did not schedule.
+  const [groupScheduleError, setGroupScheduleError] = useState<string | null>(null);
 
   // Slice C: inline "Add lice" form. Toggled by the toolbar button;
   // POSTs to /events/:id/lices then refetches the lice list so the
@@ -607,15 +607,15 @@ export function ScheduleGrid({
    * occupants past the group's tail via placeMultiWithShift. Shared
    * by the pool block and the bracket-round block.
    *
-   * Pre-P? the pool path fanned the pool across every lice via the
-   * BE's /auto-distribute endpoint, which (a) scattered the group the
-   * operator just dragged as a single unit and (b) silently no-op'd
-   * on occupied targets. We now layout client-side on a single lice
-   * and PATCH each affected match's new (liceId, scheduledAt).
+   * The pool path used to fan the pool across every lice through a backend
+   * door that has since been deleted, which (a) scattered the group the
+   * operator just dragged as a single unit and (b) silently no-op'd on
+   * occupied targets. The group now lays out client-side on a single lice
+   * and PATCHes each affected match's new (liceId, scheduledAt).
    */
   async function handleGroupDrop(groupMatchIds: Set<string>, targetLiceId: string, slot: number) {
     if (!activeDay) return;
-    setAutoDistributeError(null);
+    setGroupScheduleError(null);
 
     // 1. Gather the group's matches in stable order. Numeric label
     //    sort matches the BE scheduler's ordering after the
@@ -1149,7 +1149,7 @@ export function ScheduleGrid({
     if (!activeDay || matchIds.length === 0 || liceIds.length === 0) return false;
     try {
       // Same reason as `addLice`: this keeps the server's own reason in the
-      // auto-distribute banner, because a partial re-fan needs it. Tracked so
+      // group-schedule banner, because a partial re-fan needs it. Tracked so
       // realtime does not land mid-cascade.
       await track(() =>
         mutateSchedule(`${apiUrl}/api/v1/events/${eventId}/programme/schedule-group`, {
@@ -1167,7 +1167,7 @@ export function ScheduleGrid({
       // Keep the server's own reason. This endpoint can commit part of a re-fan
       // and still fail, so "could not re-fan" on its own leaves the operator
       // with nothing to act on.
-      setAutoDistributeError(describeSaveError(err));
+      setGroupScheduleError(describeSaveError(err));
       return false;
     }
   }
@@ -1224,7 +1224,7 @@ export function ScheduleGrid({
       setTickedKeys(new Set());
       return;
     }
-    setAutoDistributeError(null);
+    setGroupScheduleError(null);
     // Axis space, not instant space — see BATCH_SCHEDULE_START_HHMM.
     const dayStartSlot = hhmmToSlot(BATCH_SCHEDULE_START_HHMM, gridStartHour);
     const lastEnd = (liceId: string) => {
@@ -1255,7 +1255,7 @@ export function ScheduleGrid({
       okAll =
         (await postScheduleGroup(r.matchIds, allLiceIds, dayStartSlot, 'bracket-branch')) && okAll;
     }
-    if (!okAll) setAutoDistributeError(t('admin.common.someGroupsNotScheduled'));
+    if (!okAll) setGroupScheduleError(t('admin.common.someGroupsNotScheduled'));
     await refetchScheduleAndBlocks();
     setTickedKeys(new Set());
   }
@@ -1761,15 +1761,15 @@ export function ScheduleGrid({
         </div>
       )}
 
-      {autoDistributeError && (
+      {groupScheduleError && (
         <div className="bg-danger/10 border border-danger/30 rounded-xl px-4 py-3 mb-4 text-sm flex items-start gap-3">
           <span className="font-bold text-danger">
-            {t('organizer.schedulePage.grid.autoDistributeFailedPrefix')}
+            {t('organizer.schedulePage.grid.groupScheduleFailedPrefix')}
           </span>
-          <span className="text-danger">{autoDistributeError}</span>
+          <span className="text-danger">{groupScheduleError}</span>
           <button
             type="button"
-            onClick={() => setAutoDistributeError(null)}
+            onClick={() => setGroupScheduleError(null)}
             className="ml-auto text-danger hover:text-danger-hover font-bold"
           >
             ✕
