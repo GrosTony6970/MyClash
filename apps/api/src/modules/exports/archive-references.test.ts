@@ -95,18 +95,35 @@ describe('danglingReferences', () => {
     expect(found).toEqual([]);
   });
 
-  it("leaves a Match's referee alone, which this app can point at another Event", () => {
-    // A Tournament restored into another Event keeps a non-fighting referee's
-    // source id, and PATCH /matches takes any person: refusing it would refuse
-    // an archive the app wrote.
-    const refereeElsewhere = {
-      ...PHASE,
-      persons: [{ id: 'p-1' }],
-      matches: [{ id: 'm-1', phase_id: 'ph-1', referee_id: 'p-other-event' }],
-    };
+  it("finds a Match's referee that an event archive does not carry", () => {
+    // An event archive holds every person of its Event, so this referee is
+    // another Event's person, and a restored copy would point at them.
+    const found = danglingReferences(
+      archive('event', 'scoring', {
+        ...PHASE,
+        persons: [{ id: 'p-1' }],
+        matches: [
+          { id: 'm-1', phase_id: 'ph-1', referee_id: 'p-1' },
+          { id: 'm-2', phase_id: 'ph-1', referee_id: 'p-other-event' },
+        ],
+      }),
+    );
 
-    expect(danglingReferences(archive('event', 'scoring', refereeElsewhere))).toEqual([]);
-    expect(danglingReferences(archive('tournament', 'scoring', refereeElsewhere))).toEqual([]);
+    expect(found).toEqual([{ table: 'matches', column: 'referee_id', id: 'p-other-event' }]);
+  });
+
+  it("leaves alone a Match's referee that a tournament archive does not carry", () => {
+    // A tournament archive holds only the persons its registrations name, so a
+    // referee who did not fight is absent on purpose.
+    const found = danglingReferences(
+      archive('tournament', 'scoring', {
+        ...PHASE,
+        persons: [{ id: 'p-1' }],
+        matches: [{ id: 'm-1', phase_id: 'ph-1', referee_id: 'p-referee' }],
+      }),
+    );
+
+    expect(found).toEqual([]);
   });
 
   it("finds a referee's Tournament or day with no referee row to hang from", () => {

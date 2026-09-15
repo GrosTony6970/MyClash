@@ -22,8 +22,8 @@
  *   archive. A structure archive holds no Matches and keeps no duty on one
  *   (`archive.tables.ts`); one written before that rule still does, and its
  *   `match_id` passes unchecked.
- * - A `person_id` that names a global person, and `matches.referee_id` (see
- *   `ROSTER_REFERENCES`).
+ * - A `person_id` that names a global person, and `matches.referee_id` in a
+ *   tournament archive (see `ROSTER_REFERENCES`).
  * - A skill id: a system skill is shared by every event and passes through.
  * - An id inside a JSON column. It has no foreign key, so it cannot fail a
  *   restore, and a genuine archive can hold a stale one: force-deleting a
@@ -40,7 +40,7 @@ import {
   idMapNameForTable,
   type ArchiveTableName,
 } from './archive.tables';
-import type { MyClashArchive } from './archive.types';
+import type { ArchiveScope, MyClashArchive } from './archive.types';
 
 export interface DanglingReference {
   table: ArchiveTableName;
@@ -52,19 +52,23 @@ type Checked = Pick<MyClashArchive, 'scope' | 'include' | 'data'>;
 
 /**
  * Where a column swept through the `persons` map names the Event's roster, and
- * so must be in the archive. Everywhere else `person_id` names a GLOBAL person
- * (migrations 0062 and 0099), which no archive contains, and the unmapped id
- * passing through is correct.
+ * so must be in the archive, with the scopes that check it. Everywhere else
+ * `person_id` names a GLOBAL person (migrations 0062 and 0099), which no archive
+ * contains, and the unmapped id passing through is correct.
  *
- * `matches.referee_id` is a roster id (0039) but is not checked: this app could
- * leave it naming another Event's person. `PATCH /matches/:id` took any person,
- * and a Tournament copy in another Event kept a non-fighting referee's source
- * id. Both doors are closed, but rows written before still carry such ids, and
- * an archive of either Event would then be refused for a record the app wrote.
+ * `matches.referee_id` is a roster id (0039), checked in an event archive only.
+ * An event archive carries every person of its Event, so a referee it does not
+ * hold is another Event's person, and the copy would point at them. A tournament
+ * archive carries only the persons its registrations name, so a referee who did
+ * not fight is absent on purpose: a restore into the same Event keeps them, and
+ * one into another Event drops them (`restoreTournamentCopy`). A Match written
+ * before the match route stopped taking any person may still name another
+ * Event's referee: an event archive holding one is refused on purpose.
  */
-const ROSTER_REFERENCES: ReadonlySet<string> = new Set([
-  'registrations.person_id',
-  'person_privacy.person_id',
+const ROSTER_REFERENCES = new Map<string, ReadonlyArray<ArchiveScope>>([
+  ['registrations.person_id', ['event', 'tournament']],
+  ['person_privacy.person_id', ['event', 'tournament']],
+  ['matches.referee_id', ['event']],
 ]);
 
 /**
@@ -98,6 +102,7 @@ function carriedIds(archive: Checked): Map<IdMapName, Set<string>> {
 function checkedColumns(
   table: ArchiveTableName,
   carried: Map<IdMapName, Set<string>>,
+  scope: ArchiveScope,
 ): Array<[string, Set<string>]> {
   const shared = Object.entries(SHARED_FK_COLUMNS)
     .filter(([, column]) => column.target === undefined)
@@ -106,7 +111,9 @@ function checkedColumns(
   return [...shared, ...own].flatMap(([column, map]): Array<[string, Set<string>]> => {
     const ids = carried.get(map);
     if (!ids) return [];
-    if (map === 'persons' && !ROSTER_REFERENCES.has(`${table}.${column}`)) return [];
+    if (map === 'persons' && !ROSTER_REFERENCES.get(`${table}.${column}`)?.includes(scope)) {
+      return [];
+    }
     return [[column, ids]];
   });
 }
@@ -121,7 +128,9 @@ export function danglingReferences(archive: Checked): DanglingReference[] {
     }
   };
   for (const table of INSERT_ORDER) {
-    for (const [column, ids] of checkedColumns(table, carried)) check(table, column, ids);
+    for (const [column, ids] of checkedColumns(table, carried, archive.scope)) {
+      check(table, column, ids);
+    }
   }
   const referees = new Set(stringsIn(rowsIn(archive, 'event_referees'), 'person_id'));
   for (const table of REFEREE_ROSTER_CHILDREN) check(table, 'person_id', referees);
