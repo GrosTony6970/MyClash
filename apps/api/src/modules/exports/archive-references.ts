@@ -19,8 +19,9 @@
  *   value becomes the Event or Tournament restored into.
  * - A map no table in this archive can fill: `fighters` (global persons are in
  *   no archive), a table the scope omits, or a scoring table in a structure
- *   archive. A structure archive keeps match-scoped referee duties while it
- *   holds no Matches, so their `match_id` says nothing about the file.
+ *   archive. A structure archive holds no Matches and keeps no duty on one
+ *   (`archive.tables.ts`); one written before that rule still does, and its
+ *   `match_id` passes unchecked.
  * - A `person_id` that names a global person, and `matches.referee_id` (see
  *   `ROSTER_REFERENCES`).
  * - A skill id: a system skill is shared by every event and passes through.

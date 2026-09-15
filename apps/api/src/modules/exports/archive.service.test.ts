@@ -825,6 +825,51 @@ describe('ArchiveService', () => {
   });
 
   /**
+   * An event archive of structure only carries no Matches, so a duty on one would
+   * name a bout of the source event. It keeps the Pool duty and drops the Match
+   * duty; an archive with scores carries the Match and keeps both.
+   */
+  const dutyRows = () => {
+    const rows = scopedRows();
+    return {
+      ...rows,
+      pools: [{ id: 'pool-1', phase_id: 'ph-1' }],
+      referee_assignments: [
+        ...rows.referee_assignments,
+        { id: 'ra-pool', event_id: 'event-1', person_id: 'gp-1', pool_id: 'pool-1' },
+      ],
+    };
+  };
+
+  it.each([
+    ['structure', ['ra-pool']],
+    ['scoring', ['ra-1', 'ra-pool']],
+  ] as const)(
+    'keeps in an event archive of %s only the duties on what it carries',
+    async (include, ids) => {
+      const { service } = makeService(dutyRows());
+
+      const archive = await service.generateEventArchive('event-1', 'user-1', { include });
+
+      expect(archive.data.refereeAssignments?.map((duty) => duty['id']).sort()).toEqual(ids);
+    },
+  );
+
+  it('restores a structure archive with no duty naming a source Match', async () => {
+    const { service, inserted } = makeService(dutyRows());
+    const archive = await service.generateEventArchive('event-1', 'user-1', {
+      include: 'structure',
+    });
+
+    await service.restoreArchiveCopy(Buffer.from(JSON.stringify(archive)), 'user-1', {
+      targetOrganizationId: 'org-1',
+      confirmation: 'RESTORE MYCLASH ARCHIVE',
+    });
+
+    expect(inserted.referee_assignments?.map((duty) => duty.match_id ?? null)).toEqual([null]);
+  });
+
+  /**
    * A tournament restore inserted its tournament under a THIRD id.
    *
    * `restoreTournamentCopy` mints `restoredTournamentId`, points the id map at
@@ -1154,7 +1199,7 @@ describe('ArchiveService', () => {
    * contain, in either scope or content. Pinned against the fixtures, so a
    * registry change that makes a genuine archive look damaged goes red here,
    * before an organiser meets the refusal. The structure archive matters: it
-   * keeps a match-scoped referee duty while it holds no Matches.
+   * holds no Matches, so it must hold no duty on one either.
    */
   it.each([
     ['an event archive with scores', 'event', 'scoring'],
@@ -1167,7 +1212,8 @@ describe('ArchiveService', () => {
         ? await service.generateEventArchive('event-1', 'user-1', { include })
         : await service.generateTournamentArchive('t-1', 'user-1', { include });
 
-    expect(archive.data.refereeAssignments, 'the duty the include rule must skip').not.toEqual([]);
+    // The Match duty rides with its Match, so a scoring archive has one to check.
+    expect(archive.data.refereeAssignments).toHaveLength(include === 'scoring' ? 1 : 0);
     expect(danglingReferences(archive)).toEqual([]);
   });
 

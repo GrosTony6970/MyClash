@@ -60,6 +60,21 @@ const TOURNAMENT_POOL_SETTINGS = {
 } as const satisfies CollectRule;
 
 /**
+ * An event archive keeps every referee duty but one on a Match it does not
+ * carry. A structure archive carries no Matches, and such a duty's `match_id`
+ * names a bout of the source event: its restore fails once that event is
+ * deleted, and until then the copy's duty is deleted with the source bout
+ * (migration 0179 cascades). Nulling it is not an option, because the scope
+ * check of migration 0091 requires a Match on a Match duty.
+ */
+const EVENT_REFEREE_ASSIGNMENTS = {
+  from: 'event',
+  needs: ['matches'],
+  filter: (row, ctx) =>
+    typeof row['match_id'] !== 'string' || ctx.idsOf('matches').includes(row['match_id']),
+} as const satisfies CollectRule;
+
+/**
  * Referee assignments are event-scoped, so a tournament archive has to pick out
  * the ones pointing at a pool or a match it actually carries. In a
  * structure-only archive there are no matches, so only the pool assignments
@@ -334,7 +349,7 @@ const TABLES = {
   },
   referee_assignments: {
     key: 'refereeAssignments',
-    collect: { event: EVENT_SCOPED, tournament: TOURNAMENT_REFEREE_ASSIGNMENTS },
+    collect: { event: EVENT_REFEREE_ASSIGNMENTS, tournament: TOURNAMENT_REFEREE_ASSIGNMENTS },
     // role stores a referee_skills.id: system ids pass through, custom remap.
     skillIdColumns: ['role'],
   },

@@ -90,9 +90,10 @@ export type CollectRule = {
   /** Collected only in a `scoring` archive; a structure-only one leaves it empty. */
   readonly include?: 'scoring';
   /**
-   * Narrow the rows after fetching. Two tables need it, both only in tournament
-   * scope, where an event-wide query has to be cut down to one tournament's
-   * share. Anything the predicate reads must be named in `needs`.
+   * Narrow the rows after fetching. Two tables need it: in tournament scope an
+   * event-wide query is cut down to one tournament's share, and an event archive
+   * keeps only the referee duties on Matches it carries. Anything the predicate
+   * reads must be named in `needs`.
    */
   readonly filter?: (row: ArchiveRow, ctx: CollectContext) => boolean;
   /** Tables to resolve before `filter` runs. */
