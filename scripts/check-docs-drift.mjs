@@ -29,6 +29,7 @@
  * claims: a corpus with no version line and no gate-count sentence is a corpus
  * whose patterns have rotted, not one that is clean.
  */
+import { execFileSync } from 'node:child_process';
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 
@@ -261,6 +262,8 @@ export function checkSpecRange(readmeText, specNumbers) {
 /**
  * Paths that are correctly absent. Every entry needs a reason, because the
  * whole point of this assertion is that an absent path is normally a bug.
+ * Absent means git does not track it: a build output or an ignored file never
+ * satisfies a citation, whatever this machine happens to hold.
  *
  * Three classes recur, and all three are legitimate:
  *   - prose that describes something DELETED, in the past tense
@@ -291,7 +294,41 @@ export function isElided(p) {
 
 const PATH_IN_BACKTICKS = /`((?:apps|packages|scripts|infra|docs|tests)\/[A-Za-z0-9_./[\]-]+)`/g;
 
-export function checkPaths(docs, resolve) {
+/**
+ * Every path git tracks, with each directory that holds one.
+ *
+ * Citations resolve against this, never against the working tree. The gate used
+ * to ask `existsSync`, so `apps/web-marketing/dist` — a gitignored build output —
+ * resolved on any machine that had built the marketing site and failed on a
+ * clean checkout. CI's Lint job runs this gate before it builds anything, so the
+ * gate was red in CI on every push while it passed locally.
+ *
+ * There is no fallback to the filesystem. Without git the gate cannot run, and
+ * says so, rather than quietly trusting whatever is on disk again.
+ */
+export function trackedPaths(
+  listFiles = () =>
+    execFileSync('git', ['ls-files', '-z'], {
+      cwd: root,
+      encoding: 'utf8',
+      maxBuffer: 64 * 1024 * 1024,
+    }),
+) {
+  const tracked = new Set();
+  for (const file of listFiles().split('\0')) {
+    if (!file) continue;
+    const parts = file.split('/');
+    for (let depth = 1; depth <= parts.length; depth += 1) {
+      tracked.add(parts.slice(0, depth).join('/'));
+    }
+  }
+  return tracked;
+}
+
+/** A citation resolves when git tracks it as a file, or as a directory holding one. */
+export const trackedResolver = (tracked) => (path) => tracked.has(path.replace(/\/+$/, ''));
+
+export function checkPaths(docs, resolve = trackedResolver(trackedPaths())) {
   const findings = [];
   let compared = 0;
   const seen = new Set();
@@ -307,7 +344,7 @@ export function checkPaths(docs, resolve) {
       if (resolve(target)) continue;
       if (ALLOWED_ABSENT.has(target)) continue;
       findings.push({
-        message: `${path}: cites \`${target}\`, which does not exist. Repoint it, or add it to ALLOWED_ABSENT with the reason it is correctly absent.`,
+        message: `${path}: cites \`${target}\`, which git does not track. Commit it, repoint the citation, or add it to ALLOWED_ABSENT with the reason it is correctly absent.`,
       });
     }
   }
@@ -424,7 +461,7 @@ export const gate = defineGate({
     const specs = exists('tests/e2e/README.md')
       ? checkSpecRange(read('tests/e2e/README.md'), specNumbersFrom('tests/e2e'))
       : { findings: [], compared: 0 };
-    const paths = checkPaths(docs, exists);
+    const paths = checkPaths(docs);
     const leagueTables = checkLeagueTables(
       docs,
       leagueTablesInMigrations(

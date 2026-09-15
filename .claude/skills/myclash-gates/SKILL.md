@@ -58,7 +58,7 @@ pnpm quality:shared-types        # shared-type leaks
 pnpm design:lint                 # designmd's own lint of DESIGN.md
 pnpm quality:design-drift        # DESIGN.md vs packages/ui/src/theme.css
 pnpm quality:css-vars            # every var(--x) resolves, and no read hides behind a fallback
-pnpm quality:docs-drift          # prose vs engines, ci.yml, tests/e2e and the filesystem
+pnpm quality:docs-drift          # prose vs engines, ci.yml, tests/e2e and the tracked files
 pnpm db:review                   # schema/RLS review gates
 pnpm db:realtime-bindings        # an unpublished table in any binding kills the channel
 pnpm db:perf:fixture

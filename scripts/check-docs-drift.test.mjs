@@ -12,7 +12,7 @@
  * a clean corpus it never actually checked.
  */
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import test from 'node:test';
 
 import {
@@ -30,6 +30,8 @@ import {
   leagueTablesInMigrations,
   parseCount,
   requiredVersions,
+  trackedPaths,
+  trackedResolver,
 } from './check-docs-drift.mjs';
 
 const doc = (path, text) => ({ path, text });
@@ -243,7 +245,7 @@ test('a dangling path is caught — fifty of these existed with nothing looking'
     () => false,
   );
   assert.equal(r.findings.length, 1);
-  assert.match(r.findings[0].message, /packages\/db\/src\/schema\/.*does not exist/);
+  assert.match(r.findings[0].message, /packages\/db\/src\/schema\/.*git does not track/);
 });
 
 test('ALLOWED_ABSENT suppresses a path that is correctly absent', () => {
@@ -271,6 +273,43 @@ test('the same path cited twice in one doc is compared once', () => {
     () => true,
   );
   assert.equal(r.compared, 1);
+});
+
+test('trackedPaths holds every tracked file and each directory above it', () => {
+  const tracked = trackedPaths(() => 'apps/api/src/main.ts\0docs/x.md\0');
+
+  assert.deepEqual([...tracked].sort(), [
+    'apps',
+    'apps/api',
+    'apps/api/src',
+    'apps/api/src/main.ts',
+    'docs',
+    'docs/x.md',
+  ]);
+});
+
+test('trackedResolver accepts a tracked directory with or without its trailing slash', () => {
+  const resolve = trackedResolver(trackedPaths(() => 'packages/db/migrations/0001_init.sql\0'));
+
+  assert.ok(resolve('packages/db/migrations/'));
+  assert.ok(resolve('packages/db/migrations'));
+  assert.equal(resolve('packages/db/fixtures'), false);
+});
+
+test('by default a citation resolves through git, never through what is on disk', () => {
+  // `apps/api/node_modules` is on disk wherever these tests run, and git never
+  // tracks it: the shape of `apps/web-marketing/dist`, which resolved through
+  // existsSync on any machine that had built the site and failed in CI.
+  assert.ok(
+    existsSync('apps/api/node_modules'),
+    'the probe must exist for the test to mean anything',
+  );
+
+  const r = checkPaths([doc('a.md', 'see `apps/api/node_modules` and `apps/api/package.json`')]);
+
+  assert.equal(r.compared, 2);
+  assert.equal(r.findings.length, 1);
+  assert.match(r.findings[0].message, /`apps\/api\/node_modules`, which git does not track/);
 });
 
 // ── Anti-vacuity ─────────────────────────────────────────────────────────────
