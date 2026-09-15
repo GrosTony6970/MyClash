@@ -51,6 +51,9 @@
     // have caught. It imports no vitest, so only the "imported by tests and
     // nothing else" rule sees it.
     "src/modules/phases/double-elim-simulation.harness.ts",
+    // The organizer AI assistant's shared test doubles, split out when its
+    // service test reached the 400-line cap. It imports vitest.
+    "src/modules/organizer-ai-assistant/organizer-ai-assistant.harness.ts",
     // A sixth convention: an ordinary-looking module name. Its own header says
     // "Test-only: nothing in the running API parses the workflow (the container
     // has no .github/)" — it exists so gates.drift.test.ts can hold gates.ts to
