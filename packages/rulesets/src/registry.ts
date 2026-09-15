@@ -58,11 +58,14 @@ export class RulesetRegistry {
   }
 
   /**
-   * List all registered rulesets (sorted by code then version).
+   * List all registered rulesets, sorted by code, then by version. A version's numbers compare
+   * as numbers, so "2.0.0" sorts before "10.0.0".
    */
   list(): Ruleset[] {
     return [...this.store.values()].sort((a, b) =>
-      a.code !== b.code ? a.code.localeCompare(b.code) : a.version.localeCompare(b.version),
+      a.code !== b.code
+        ? a.code.localeCompare(b.code)
+        : a.version.localeCompare(b.version, undefined, { numeric: true }),
     );
   }
 

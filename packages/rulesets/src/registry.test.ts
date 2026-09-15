@@ -38,9 +38,11 @@ describe('RulesetRegistry', () => {
     expect(list[0]?.code).toBe('TF_v1');
   });
 
-  it('list() orders by code, then by version text within one code', () => {
+  it('list() orders by code, then by version', () => {
     // Registered out of order, so the result proves the sort rather than the
-    // insertion. Versions compare as text: "10.0.0" sorts before "2.0.0".
+    // insertion. A version's numbers compare as numbers: "2.0.0" sorts before
+    // "10.0.0", which a text sort would put first.
+    registry.register({ ...TF_v1, version: '10.0.0' });
     registry.register({ ...TF_v1, version: '2.0.0' });
     registry.register(TF_v1);
     registry.register({ ...TF_v1, code: 'A_v1' });
@@ -49,6 +51,7 @@ describe('RulesetRegistry', () => {
       'A_v1@1.0.0',
       'TF_v1@1.0.0',
       'TF_v1@2.0.0',
+      'TF_v1@10.0.0',
     ]);
   });
 
