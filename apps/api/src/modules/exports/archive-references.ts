@@ -55,11 +55,11 @@ type Checked = Pick<MyClashArchive, 'scope' | 'include' | 'data'>;
  * (migrations 0062 and 0099), which no archive contains, and the unmapped id
  * passing through is correct.
  *
- * `matches.referee_id` is a roster id (0039) but is not checked: this app can
- * leave it naming another Event's person. A Tournament restored into another
- * Event carries only the persons its registrations name, so a referee who did
- * not fight keeps the source id. An archive of either Event would then be
- * refused for a record the app wrote.
+ * `matches.referee_id` is a roster id (0039) but is not checked: this app could
+ * leave it naming another Event's person. `PATCH /matches/:id` took any person,
+ * and a Tournament copy in another Event kept a non-fighting referee's source
+ * id. Both doors are closed, but rows written before still carry such ids, and
+ * an archive of either Event would then be refused for a record the app wrote.
  */
 const ROSTER_REFERENCES: ReadonlySet<string> = new Set([
   'registrations.person_id',

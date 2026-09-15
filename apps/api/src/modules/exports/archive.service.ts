@@ -349,6 +349,16 @@ export class ArchiveService {
       data.refereeSkills = [];
     } else {
       data.lices = await this.licesForAnotherEvent(data, options.targetEventId);
+      // A bout's legacy referee is a person of the source event, and the copy
+      // carries only the persons its registrations name. A referee who did not
+      // fight has no person here, so the bout keeps none rather than naming the
+      // source event's person, whose referee duties would then list this bout.
+      const carried = new Set(data.persons.map((person) => person['id']));
+      data.matches = data.matches.map((match) =>
+        typeof match['referee_id'] !== 'string' || carried.has(match['referee_id'])
+          ? match
+          : { ...match, referee_id: null },
+      );
     }
     data.tournaments = [
       this.cleanRow({
