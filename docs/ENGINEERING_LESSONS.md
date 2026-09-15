@@ -122,6 +122,15 @@ here.
   and auth gates that bounce the user to `/login` while `/api/v1/me` still returns 200.
   `pnpm typecheck` does **not** catch it: the sync type is still legal in Next 16. After every
   Next major bump, `grep -rln "params: { " apps/*/app/` and convert every hit.
+- Each Next app's `next-env.d.ts` is generated, not tracked (`.gitignore`). `next dev`, `next build`
+  and `next typegen` all rewrite it, and `next dev` points it at `.next/dev/types`, so the tracked
+  copies dirtied the tree after every E2E run. `tsc --noEmit` passes without it: no app uses Next's
+  generated route types, and `next build` (CI's bundle build) checks pages against their routes.
+  Each layout's `globals.css` import still type-checks only because `next.config.ts` imports from
+  `'next'`, which loads Next's `*.css` declaration: remove every such import and CI's Typecheck
+  fails with TS2882 while a local run, which has a generated file, stays green.
+  Do not make `typecheck` run `next typegen` first: it loads `next.config.ts` as a production
+  build, and the required-env guard throws without the build-time `NEXT_PUBLIC_*` values.
 
 ## Identity & auth
 

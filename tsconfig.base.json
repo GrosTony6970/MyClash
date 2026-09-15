@@ -12,13 +12,12 @@
     "exactOptionalPropertyTypes": false,
     "esModuleInterop": true,
     "forceConsistentCasingInFileNames": true,
-    // LOAD-BEARING, not just a speed knob. Each web app's generated
-    // next-env.d.ts side-effect-imports ./.next/types/*.d.ts, which is
-    // gitignored and absent on a clean checkout — exactly the CI Typecheck
-    // job's shape, since `typecheck` never runs `next build`. Turning this off
-    // (a plausible hardening move) fails all three web apps with TS2882.
-    // It reproduces only on a clean tree: locally, once `next build` has run,
-    // the import resolves and nothing looks wrong.
+    // LOAD-BEARING, not just a speed knob. Turning it off (a plausible hardening
+    // move) fails all three web apps inside third-party declarations: TS2430 in
+    // @supabase/auth-js (webauthn.dom.d.ts), and TS2503 'JSX' in react-easy-crop
+    // for web-admin and web-public (measured 2026-09-15). It also hides TS2882
+    // from a local next-env.d.ts: Next writes that file (gitignored), and its
+    // side-effect imports of ./.next/types/*.d.ts fail once .next is gone.
     "skipLibCheck": true,
     // TypeScript 6 flipped this default false -> true, so the check is already
     // live. Set explicitly so it is visible rather than an invisible default:
