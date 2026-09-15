@@ -1,5 +1,6 @@
-import { ConflictException, ForbiddenException } from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException } from '@nestjs/common';
 import { describe, expect, it, vi } from 'vitest';
+import { danglingReferences } from './archive-references';
 import { ArchiveService } from './archive.service';
 import { ARCHIVE_COLLECTED_TABLES, TABLE_TO_ARCHIVE_KEY } from './archive.tables';
 
@@ -1095,6 +1096,106 @@ describe('ArchiveService', () => {
       `A tournament restored into a different event must be self-contained too:\n` +
         survivors.map((entry) => `  - ${entry}`).join('\n'),
     ).toEqual([]);
+  });
+
+  /**
+   * An archive this app wrote holds no reference to a record it does not
+   * contain, in either scope or content. Pinned against the fixtures, so a
+   * registry change that makes a genuine archive look damaged goes red here,
+   * before an organiser meets the refusal. The structure archive matters: it
+   * keeps a match-scoped referee duty while it holds no Matches.
+   */
+  it.each([
+    ['an event archive with scores', 'event', 'scoring'],
+    ['an event archive of structure only', 'event', 'structure'],
+    ['a tournament archive with scores', 'tournament', 'scoring'],
+  ] as const)('finds nothing missing in %s', async (_label, scope, include) => {
+    const { service } = makeService(scope === 'event' ? scopedRows() : placedRows());
+    const archive =
+      scope === 'event'
+        ? await service.generateEventArchive('event-1', 'user-1', { include })
+        : await service.generateTournamentArchive('t-1', 'user-1', { include });
+
+    expect(archive.data.refereeAssignments, 'the duty the include rule must skip').not.toEqual([]);
+    expect(danglingReferences(archive)).toEqual([]);
+  });
+
+  /** A generated tournament archive whose bout was moved onto a Lice the file does not hold. */
+  const archiveWithGhostLice = async () => {
+    const { service, inserted } = makeService(placedRows());
+    const archive = await service.generateTournamentArchive('t-1', 'user-1', {
+      include: 'scoring',
+    });
+    archive.data.matches = archive.data.matches?.map((match) => ({
+      ...match,
+      lice_id: 'lice-ghost',
+    }));
+    return { service, inserted, buffer: Buffer.from(JSON.stringify(archive)) };
+  };
+
+  it('previews an archive naming a Lice it does not contain as not restorable', async () => {
+    const { service, buffer } = await archiveWithGhostLice();
+
+    const preview = await service.previewRestore(buffer, 'user-1');
+
+    expect(preview.canRestore).toBe(false);
+    expect(preview.warnings).toEqual([expect.stringContaining('matches.lice_id lice-ghost')]);
+  });
+
+  it.each(['event-1', 'event-2'])(
+    'refuses to restore that archive into %s before writing anything',
+    async (targetEventId) => {
+      const { service, inserted, buffer } = await archiveWithGhostLice();
+
+      const refusal = service.restoreArchiveCopy(buffer, 'user-1', {
+        targetEventId,
+        confirmation: 'RESTORE MYCLASH ARCHIVE',
+      });
+
+      // The class alone would let any other 400 stand in for this refusal.
+      await expect(refusal).rejects.toBeInstanceOf(BadRequestException);
+      await expect(refusal).rejects.toThrow('matches.lice_id lice-ghost');
+      expect(inserted).toEqual({});
+    },
+  );
+
+  it('refuses an event archive whose bar names a Tournament it does not contain', async () => {
+    const { service, inserted } = makeService(scopedRows());
+    const archive = await service.generateEventArchive('event-1', 'user-1', {
+      include: 'structure',
+    });
+    archive.data.eventProgrammeBlocks = archive.data.eventProgrammeBlocks?.map((bar) => ({
+      ...bar,
+      competition_id: 't-elsewhere',
+    }));
+
+    await expect(
+      service.restoreArchiveCopy(Buffer.from(JSON.stringify(archive)), 'user-1', {
+        targetOrganizationId: 'org-1',
+        confirmation: 'RESTORE MYCLASH ARCHIVE',
+      }),
+    ).rejects.toThrow('event_programme_blocks.competition_id t-elsewhere');
+    expect(inserted).toEqual({});
+  });
+
+  it('does not stack a second "(restored)" on a copy of a copy', async () => {
+    const rows = placedRows([
+      { id: 'lice-there', event_id: 'event-2', name: 'Piste 1 (restored)', sort_order: 3 },
+    ]);
+    rows.lices = rows.lices.map((lice) =>
+      lice['id'] === 'lice-1' ? { ...lice, name: 'Piste 1 (restored)' } : lice,
+    );
+    const { service, inserted } = makeService(rows);
+    const archive = await service.generateTournamentArchive('t-1', 'user-1', {
+      include: 'scoring',
+    });
+
+    await service.restoreArchiveCopy(Buffer.from(JSON.stringify(archive)), 'user-1', {
+      targetEventId: 'event-2',
+      confirmation: 'RESTORE MYCLASH ARCHIVE',
+    });
+
+    expect(inserted.lices?.[0]?.name).toBe('Piste 1 (restored 2)');
   });
 
   it('keeps org-level venue references when the copy stays in the same org', async () => {

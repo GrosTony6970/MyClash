@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 import { createStoredZip } from '../../common/stored-zip';
+import { danglingReferences, describeDangling } from './archive-references';
 import { buildTournamentReports, emptyTournamentReports, safeFilename } from './archive-reports';
 import { ID_MAP_NAMES } from './archive.table-spec';
 import type { CollectContext, CollectRule, IdMapName } from './archive.table-spec';
@@ -168,6 +169,8 @@ export class ArchiveService {
     if (sourceStatus === 'running') {
       warnings.push('Archives captured from running events or tournaments cannot be restored.');
     }
+    const dangling = danglingReferences(archive);
+    if (dangling.length > 0) warnings.push(describeDangling(dangling));
 
     return {
       manifest: archive.manifest,
@@ -199,6 +202,10 @@ export class ArchiveService {
         'Cannot restore an archive captured while the source was running.',
       );
     }
+    // Before any write. A restore is not one transaction, so a reference that
+    // fails its foreign key halfway leaves every table before it written.
+    const dangling = danglingReferences(archive);
+    if (dangling.length > 0) throw new BadRequestException(describeDangling(dangling));
 
     if (archive.scope === 'event') {
       return this.restoreEventCopy(archive, userId, options);
@@ -481,9 +488,10 @@ export class ArchiveService {
    * (the scope check of migration 0091).
    *
    * A name the target event already uses gets " (restored)", then " (restored 2)"
-   * and so on. The copies sort after the target's own Lices, in source order. Two
-   * restores into one event at the same moment can pick the same name; nothing
-   * refuses a repeated Lice name.
+   * and so on, with any such suffix it already carries dropped first, so a copy of
+   * a copy reads "X (restored 2)", not "X (restored) (restored)". The copies sort
+   * after the target's own Lices, in source order. Two restores into one event at
+   * the same moment can pick the same name; nothing refuses a repeated Lice name.
    */
   private async licesForAnotherEvent(
     data: ArchiveTables,
@@ -504,9 +512,10 @@ export class ArchiveService {
     const lastSort = Math.max(-1, ...existing.map((lice) => Number(lice['sort_order'] ?? 0)));
     return kept.map((lice, index) => {
       const name = String(lice['name']);
+      const base = name.replace(/ \(restored(?: \d+)?\)$/, '');
       let free = name;
       for (let n = 1; taken.has(free); n++) {
-        free = n === 1 ? `${name} (restored)` : `${name} (restored ${n})`;
+        free = n === 1 ? `${base} (restored)` : `${base} (restored ${n})`;
       }
       taken.add(free);
       return { ...lice, name: free, sort_order: lastSort + 1 + index };
