@@ -38,6 +38,20 @@ describe('RulesetRegistry', () => {
     expect(list[0]?.code).toBe('TF_v1');
   });
 
+  it('list() orders by code, then by version text within one code', () => {
+    // Registered out of order, so the result proves the sort rather than the
+    // insertion. Versions compare as text: "10.0.0" sorts before "2.0.0".
+    registry.register({ ...TF_v1, version: '2.0.0' });
+    registry.register(TF_v1);
+    registry.register({ ...TF_v1, code: 'A_v1' });
+
+    expect(registry.list().map((ruleset) => `${ruleset.code}@${ruleset.version}`)).toEqual([
+      'A_v1@1.0.0',
+      'TF_v1@1.0.0',
+      'TF_v1@2.0.0',
+    ]);
+  });
+
   it('list() returns empty array when nothing registered', () => {
     expect(registry.list()).toHaveLength(0);
   });
