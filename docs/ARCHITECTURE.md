@@ -2694,7 +2694,7 @@ the Unscheduled list — not a second tab. The Schedule tab used to split into a
 
 ### 24.2 Database
 
-`event_programme_blocks` — stores blocks per event per day, ordered by `day_index` + `sort_order`. Columns: `block_type` (`admin|competition|workshop|break`), `label`, `competition_id`, `competition_phase`, `workshop_id`, `lice_count`, `start_time`, `end_time`, `match_gap_seconds` (default 15s), `match_duration_minutes`, `generated_at`.
+`event_programme_blocks` — stores blocks per event per day, ordered by `day_index` + `sort_order`. Columns: `block_type` (`admin|competition|workshop|break`), `label`, `competition_id`, `competition_phase`, `workshop_id`, `lice_count`, `start_time`, `end_time`, `generated_at`. A bar carries no bout length, gap or rest: they live on the planner sheet below (migration 0196).
 
 `event_programme_configs` — the planner sheet, one row per Event (migration 0195, ADR-018). Columns: `event_id` (primary key), `config_json`, `updated_at`. `config_json` holds the day's bounds, the midday break, the four bout lengths (pool, swiss, elimination, finals), the gap, the rest, the admin block durations, and `tournaments`: an array of rows, each naming a Tournament and any of the four lengths it sets for itself. `programmeConfigSchema` in `apps/api/src/modules/programme/dto/programme.dto.ts` validates it and owns the defaults, so a missing row reads as the defaults. The archive remaps the Tournament id inside each row. RLS mirrors `event_programme_blocks`.
 

@@ -502,26 +502,6 @@ function formatDayShort(value: string, locale: AppLocale) {
 }
 
 /**
- * Per-bout spacing of a multi-match unit, in minutes, so a drag re-fans it at
- * the cadence it already runs at instead of the server's 5-minute default.
- *
- * `scheduledEnd` is "last start + the inferred interval", so the window spans
- * exactly N intervals for N bouts. Null when it cannot be derived — the server
- * then picks its own default.
- */
-function unitMatchDurationMinutes(pool: {
-  matchIds?: string[];
-  scheduledStart: string | null;
-  scheduledEnd: string | null;
-}): number | null {
-  const count = pool.matchIds?.length ?? 0;
-  if (count < 1 || !pool.scheduledStart || !pool.scheduledEnd) return null;
-  const spanMs = new Date(pool.scheduledEnd).getTime() - new Date(pool.scheduledStart).getTime();
-  if (!Number.isFinite(spanMs) || spanMs <= 0) return null;
-  return Math.max(1, Math.round(spanMs / count / 60_000));
-}
-
-/**
  * Map a backend blocked-candidate reason code to a user-friendly i18n
  * string. Known codes are emitted by assignment-board.service.ts ~L1183:
  *   - 'missing_qualification' → not qualified for this role
@@ -715,8 +695,6 @@ function AssignmentsTab({
   const dragPool = useRef<{
     id: string;
     matchIds: string[];
-    /** Per-bout spacing of the dragged unit, so a re-fan keeps its cadence. */
-    matchDurationMinutes: number | null;
     liceId: string | null;
     scheduledStart: string | null;
   } | null>(null);
@@ -870,9 +848,6 @@ function AssignmentsTab({
           liceIds: [liceId],
           startTime: blockStartIso,
           mode: 'pool',
-          ...(dragged.matchDurationMinutes
-            ? { matchDurationMinutes: dragged.matchDurationMinutes }
-            : {}),
         },
       });
     }
@@ -1370,7 +1345,6 @@ function AssignmentsTab({
                                 dragPool.current = {
                                   id: pool.id,
                                   matchIds: pool.matchIds ?? [],
-                                  matchDurationMinutes: unitMatchDurationMinutes(pool),
                                   liceId: pool.liceId ?? null,
                                   scheduledStart: pool.scheduledStart,
                                 };

@@ -10,6 +10,7 @@ function makeMatches(count: number, fightersPerMatch = 2): SchedulerMatch[] {
     id: `match-${i + 1}`,
     redRegistrationId: `fighter-${((i * fightersPerMatch) % 20) + 1}`,
     blueRegistrationId: `fighter-${((i * fightersPerMatch + 1) % 20) + 2}`,
+    estimatedDurationMinutes: 5,
   }));
 }
 
@@ -48,18 +49,16 @@ describe('scheduleMatches', () => {
   it('no fighter has back-to-back matches without minRestMinutes rest', () => {
     // Fighter 1 appears in match 1 and match 2 — must have 10 min rest between
     const matches: SchedulerMatch[] = [
-      { id: 'm1', redRegistrationId: 'f1', blueRegistrationId: 'f2' },
-      { id: 'm2', redRegistrationId: 'f1', blueRegistrationId: 'f3' }, // f1 fights again
-      { id: 'm3', redRegistrationId: 'f4', blueRegistrationId: 'f5' },
+      { id: 'm1', redRegistrationId: 'f1', blueRegistrationId: 'f2', estimatedDurationMinutes: 5 },
+      { id: 'm2', redRegistrationId: 'f1', blueRegistrationId: 'f3', estimatedDurationMinutes: 5 }, // f1 fights again
+      { id: 'm3', redRegistrationId: 'f4', blueRegistrationId: 'f5', estimatedDurationMinutes: 5 },
     ];
     const lices = makeLices(2);
     const minRestMinutes = 10;
-    const defaultMatchDurationMinutes = 5;
 
     const result = scheduleMatches(matches, lices, {
       startTime: START,
       minRestMinutes,
-      defaultMatchDurationMinutes,
     });
 
     // Find m1 and m2 for fighter f1
@@ -79,14 +78,13 @@ describe('scheduleMatches', () => {
 
   it('respects minRestMinutes=0 (back-to-back allowed)', () => {
     const matches: SchedulerMatch[] = [
-      { id: 'm1', redRegistrationId: 'f1', blueRegistrationId: 'f2' },
-      { id: 'm2', redRegistrationId: 'f1', blueRegistrationId: 'f3' },
+      { id: 'm1', redRegistrationId: 'f1', blueRegistrationId: 'f2', estimatedDurationMinutes: 5 },
+      { id: 'm2', redRegistrationId: 'f1', blueRegistrationId: 'f3', estimatedDurationMinutes: 5 },
     ];
     const lices = makeLices(2);
     const result = scheduleMatches(matches, lices, {
       startTime: START,
       minRestMinutes: 0,
-      defaultMatchDurationMinutes: 5,
     });
 
     const m1 = result.scheduledMatches.find((s) => s.matchId === 'm1')!;
@@ -107,12 +105,12 @@ describe('scheduleMatches', () => {
       id: `match-${i + 1}`,
       redRegistrationId: `fighter-${i * 2 + 1}`,
       blueRegistrationId: `fighter-${i * 2 + 2}`,
+      estimatedDurationMinutes: 5,
     }));
     const lices = makeLices(4);
     const result = scheduleMatches(matches, lices, {
       startTime: START,
       minRestMinutes: 10,
-      defaultMatchDurationMinutes: 5,
     });
 
     expect(result.scheduledMatches).toHaveLength(28);
@@ -168,19 +166,54 @@ describe('scheduleMatches', () => {
   describe('pool affinity', () => {
     it('keeps every match of a single pool on one Lice (strict mode)', () => {
       const matches: SchedulerMatch[] = [
-        { id: 'a1', poolId: 'pool-A', redRegistrationId: 'f1', blueRegistrationId: 'f2' },
-        { id: 'a2', poolId: 'pool-A', redRegistrationId: 'f3', blueRegistrationId: 'f4' },
-        { id: 'a3', poolId: 'pool-A', redRegistrationId: 'f1', blueRegistrationId: 'f3' },
-        { id: 'b1', poolId: 'pool-B', redRegistrationId: 'f5', blueRegistrationId: 'f6' },
-        { id: 'b2', poolId: 'pool-B', redRegistrationId: 'f7', blueRegistrationId: 'f8' },
-        { id: 'b3', poolId: 'pool-B', redRegistrationId: 'f5', blueRegistrationId: 'f7' },
+        {
+          id: 'a1',
+          poolId: 'pool-A',
+          redRegistrationId: 'f1',
+          blueRegistrationId: 'f2',
+          estimatedDurationMinutes: 5,
+        },
+        {
+          id: 'a2',
+          poolId: 'pool-A',
+          redRegistrationId: 'f3',
+          blueRegistrationId: 'f4',
+          estimatedDurationMinutes: 5,
+        },
+        {
+          id: 'a3',
+          poolId: 'pool-A',
+          redRegistrationId: 'f1',
+          blueRegistrationId: 'f3',
+          estimatedDurationMinutes: 5,
+        },
+        {
+          id: 'b1',
+          poolId: 'pool-B',
+          redRegistrationId: 'f5',
+          blueRegistrationId: 'f6',
+          estimatedDurationMinutes: 5,
+        },
+        {
+          id: 'b2',
+          poolId: 'pool-B',
+          redRegistrationId: 'f7',
+          blueRegistrationId: 'f8',
+          estimatedDurationMinutes: 5,
+        },
+        {
+          id: 'b3',
+          poolId: 'pool-B',
+          redRegistrationId: 'f5',
+          blueRegistrationId: 'f7',
+          estimatedDurationMinutes: 5,
+        },
       ];
       const lices = makeLices(2);
       const result = scheduleMatches(matches, lices, {
         startTime: START,
         poolAffinity: 'strict',
         minRestMinutes: 0,
-        defaultMatchDurationMinutes: 5,
       });
 
       // Each pool collapses to a single Lice.
@@ -212,6 +245,7 @@ describe('scheduleMatches', () => {
           poolSortOrder: 0,
           redRegistrationId: `a-f${i * 2 + 1}`,
           blueRegistrationId: `a-f${i * 2 + 2}`,
+          estimatedDurationMinutes: 5,
         })),
         ...['b1', 'b2', 'b3', 'b4', 'b5'].map((id, i) => ({
           id,
@@ -219,6 +253,7 @@ describe('scheduleMatches', () => {
           poolSortOrder: 1,
           redRegistrationId: `b-f${i * 2 + 1}`,
           blueRegistrationId: `b-f${i * 2 + 2}`,
+          estimatedDurationMinutes: 5,
         })),
       ];
       const lices: SchedulerLice[] = [
@@ -229,7 +264,6 @@ describe('scheduleMatches', () => {
         startTime: START,
         poolAffinity: 'strict',
         minRestMinutes: 0,
-        defaultMatchDurationMinutes: 5,
       });
 
       const poolA = result.scheduledMatches.find((s) => s.matchId === 'a1')!;
@@ -246,6 +280,7 @@ describe('scheduleMatches', () => {
           poolSortOrder: 0,
           redRegistrationId: 'p1a',
           blueRegistrationId: 'p1b',
+          estimatedDurationMinutes: 5,
         },
         {
           id: 'p2',
@@ -253,6 +288,7 @@ describe('scheduleMatches', () => {
           poolSortOrder: 1,
           redRegistrationId: 'p2a',
           blueRegistrationId: 'p2b',
+          estimatedDurationMinutes: 5,
         },
         {
           id: 'p3',
@@ -260,6 +296,7 @@ describe('scheduleMatches', () => {
           poolSortOrder: 2,
           redRegistrationId: 'p3a',
           blueRegistrationId: 'p3b',
+          estimatedDurationMinutes: 5,
         },
         {
           id: 'p4',
@@ -267,6 +304,7 @@ describe('scheduleMatches', () => {
           poolSortOrder: 3,
           redRegistrationId: 'p4a',
           blueRegistrationId: 'p4b',
+          estimatedDurationMinutes: 5,
         },
       ];
       const lices: SchedulerLice[] = [
@@ -278,7 +316,6 @@ describe('scheduleMatches', () => {
         startTime: START,
         poolAffinity: 'strict',
         minRestMinutes: 0,
-        defaultMatchDurationMinutes: 5,
       });
 
       const liceOf = (id: string) => result.scheduledMatches.find((s) => s.matchId === id)!.liceId;
@@ -302,6 +339,7 @@ describe('scheduleMatches', () => {
           matchNumberLabel: 'M10',
           redRegistrationId: 'fa',
           blueRegistrationId: 'fb',
+          estimatedDurationMinutes: 5,
         },
         {
           id: 'b',
@@ -309,6 +347,7 @@ describe('scheduleMatches', () => {
           matchNumberLabel: 'M1',
           redRegistrationId: 'fc',
           blueRegistrationId: 'fd',
+          estimatedDurationMinutes: 5,
         },
         {
           id: 'c',
@@ -316,6 +355,7 @@ describe('scheduleMatches', () => {
           matchNumberLabel: 'M2',
           redRegistrationId: 'fe',
           blueRegistrationId: 'ff',
+          estimatedDurationMinutes: 5,
         },
         {
           id: 'd',
@@ -323,6 +363,7 @@ describe('scheduleMatches', () => {
           matchNumberLabel: 'M19',
           redRegistrationId: 'fg',
           blueRegistrationId: 'fh',
+          estimatedDurationMinutes: 5,
         },
       ];
       const lices: SchedulerLice[] = [{ id: 'lice-1', name: 'Lice 1', sortOrder: 0 }];
@@ -330,7 +371,6 @@ describe('scheduleMatches', () => {
         startTime: START,
         poolAffinity: 'strict',
         minRestMinutes: 0,
-        defaultMatchDurationMinutes: 5,
       });
       const ordered = [...result.scheduledMatches].sort(
         (a, b) => new Date(a.scheduledAt).getTime() - new Date(b.scheduledAt).getTime(),
@@ -349,6 +389,7 @@ describe('scheduleMatches', () => {
           matchNumberLabel: 'M1',
           redRegistrationId: 'rem',
           blueRegistrationId: 'ant',
+          estimatedDurationMinutes: 5,
         },
         {
           id: 'm2',
@@ -356,6 +397,7 @@ describe('scheduleMatches', () => {
           matchNumberLabel: 'M2',
           redRegistrationId: 'val',
           blueRegistrationId: 'cha',
+          estimatedDurationMinutes: 5,
         },
         {
           id: 'm3',
@@ -363,6 +405,7 @@ describe('scheduleMatches', () => {
           matchNumberLabel: 'M3',
           redRegistrationId: 'ale',
           blueRegistrationId: 'max',
+          estimatedDurationMinutes: 5,
         },
         {
           id: 'm19',
@@ -370,6 +413,7 @@ describe('scheduleMatches', () => {
           matchNumberLabel: 'M19',
           redRegistrationId: 'max',
           blueRegistrationId: 'val',
+          estimatedDurationMinutes: 5,
         },
       ];
       const lices: SchedulerLice[] = [{ id: 'lice-1', name: 'Lice 1', sortOrder: 0 }];
@@ -377,7 +421,6 @@ describe('scheduleMatches', () => {
         startTime: START,
         poolAffinity: 'strict',
         minRestMinutes: 10,
-        defaultMatchDurationMinutes: 5,
       });
       const m2 = result.scheduledMatches.find((s) => s.matchId === 'm2')!;
       const m19 = result.scheduledMatches.find((s) => s.matchId === 'm19')!;
@@ -391,17 +434,36 @@ describe('scheduleMatches', () => {
       // configured, each match should still get the earliest-available
       // Lice independently.
       const matches: SchedulerMatch[] = [
-        { id: 'm1', redRegistrationId: 'f1', blueRegistrationId: 'f2' },
-        { id: 'm2', redRegistrationId: 'f3', blueRegistrationId: 'f4' },
-        { id: 'm3', redRegistrationId: 'f5', blueRegistrationId: 'f6' },
-        { id: 'm4', redRegistrationId: 'f7', blueRegistrationId: 'f8' },
+        {
+          id: 'm1',
+          redRegistrationId: 'f1',
+          blueRegistrationId: 'f2',
+          estimatedDurationMinutes: 5,
+        },
+        {
+          id: 'm2',
+          redRegistrationId: 'f3',
+          blueRegistrationId: 'f4',
+          estimatedDurationMinutes: 5,
+        },
+        {
+          id: 'm3',
+          redRegistrationId: 'f5',
+          blueRegistrationId: 'f6',
+          estimatedDurationMinutes: 5,
+        },
+        {
+          id: 'm4',
+          redRegistrationId: 'f7',
+          blueRegistrationId: 'f8',
+          estimatedDurationMinutes: 5,
+        },
       ];
       const lices = makeLices(2);
       const result = scheduleMatches(matches, lices, {
         startTime: START,
         poolAffinity: 'off',
         minRestMinutes: 0,
-        defaultMatchDurationMinutes: 5,
       });
 
       // With no pool grouping, load should be balanced across the 2 Lices.
@@ -411,14 +473,25 @@ describe('scheduleMatches', () => {
 
     it('defaults to strict pool affinity (no opt-in required)', () => {
       const matches: SchedulerMatch[] = [
-        { id: 'a1', poolId: 'pool-A', redRegistrationId: 'f1', blueRegistrationId: 'f2' },
-        { id: 'a2', poolId: 'pool-A', redRegistrationId: 'f3', blueRegistrationId: 'f4' },
+        {
+          id: 'a1',
+          poolId: 'pool-A',
+          redRegistrationId: 'f1',
+          blueRegistrationId: 'f2',
+          estimatedDurationMinutes: 5,
+        },
+        {
+          id: 'a2',
+          poolId: 'pool-A',
+          redRegistrationId: 'f3',
+          blueRegistrationId: 'f4',
+          estimatedDurationMinutes: 5,
+        },
       ];
       const lices = makeLices(2);
       const result = scheduleMatches(matches, lices, {
         startTime: START,
         minRestMinutes: 0,
-        defaultMatchDurationMinutes: 5,
       });
 
       const used = new Set(result.scheduledMatches.map((s) => s.liceId));
@@ -441,6 +514,7 @@ function bracketMatches(size: number): SchedulerMatch[] {
         id: `R${r}P${p}`,
         redRegistrationId: `f${f++}`,
         blueRegistrationId: `f${f++}`,
+        estimatedDurationMinutes: 5,
         bracketRound: r,
         bracketPosition: p,
       });
@@ -453,7 +527,6 @@ describe('scheduleMatches — bracket-branch affinity', () => {
   const opts = {
     startTime: START,
     poolAffinity: 'bracket-branch' as const,
-    defaultMatchDurationMinutes: 5,
     transitionMinutes: 0,
     minRestMinutes: 0,
   };

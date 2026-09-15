@@ -212,9 +212,6 @@ export function ProgrammePlanner({
       liceCount: b.liceCount,
       startTime: b.startTime,
       endTime: b.endTime,
-      matchGapSeconds: b.matchGapSeconds,
-      matchDurationMinutes: b.matchDurationMinutes,
-      minRestMinutes: b.minRestMinutes,
       colorHex: b.colorHex ?? null,
     }));
     // Through the board's own transport, which throws on a refusal — the
@@ -366,9 +363,6 @@ export function ProgrammePlanner({
       liceCount: 0,
       startTime,
       endTime,
-      matchGapSeconds: 0,
-      matchDurationMinutes: 0,
-      minRestMinutes: 10,
       colorHex: null,
       generatedAt: null,
     };
@@ -792,54 +786,16 @@ function BlockRow({
       {expanded && (
         <div className="px-10 pb-3 grid grid-cols-2 gap-2 text-xs border-t border-current border-opacity-10 pt-2">
           {block.blockType === 'competition' && (
-            <>
-              <label className="flex flex-col gap-0.5">
-                <span className="text-muted">{t('organizer.schedulePage.planner.licesLabel')}</span>
-                <input
-                  type="number"
-                  min={1}
-                  value={block.liceCount}
-                  onChange={(e) => onChange({ liceCount: Number(e.target.value) })}
-                  className="border border-border rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-accent w-20"
-                />
-              </label>
-              <label className="flex flex-col gap-0.5">
-                <span className="text-muted">
-                  {t('organizer.schedulePage.planner.config.matchDuration')}
-                </span>
-                <input
-                  type="number"
-                  min={1}
-                  value={block.matchDurationMinutes}
-                  onChange={(e) => onChange({ matchDurationMinutes: Number(e.target.value) })}
-                  className="border border-border rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-accent w-20"
-                />
-              </label>
-              <label className="flex flex-col gap-0.5">
-                <span className="text-muted">
-                  {t('organizer.schedulePage.planner.config.matchGap')}
-                </span>
-                <input
-                  type="number"
-                  min={0}
-                  value={block.matchGapSeconds}
-                  onChange={(e) => onChange({ matchGapSeconds: Number(e.target.value) })}
-                  className="border border-border rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-accent w-20"
-                />
-              </label>
-              <label className="flex flex-col gap-0.5">
-                <span className="text-muted">
-                  {t('organizer.schedulePage.planner.config.minRest')}
-                </span>
-                <input
-                  type="number"
-                  min={0}
-                  value={block.minRestMinutes}
-                  onChange={(e) => onChange({ minRestMinutes: Number(e.target.value) })}
-                  className="border border-border rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-accent w-20"
-                />
-              </label>
-            </>
+            <label className="flex flex-col gap-0.5">
+              <span className="text-muted">{t('organizer.schedulePage.planner.licesLabel')}</span>
+              <input
+                type="number"
+                min={1}
+                value={block.liceCount}
+                onChange={(e) => onChange({ liceCount: Number(e.target.value) })}
+                className="border border-border rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-accent w-20"
+              />
+            </label>
           )}
           <label className="flex flex-col gap-0.5 col-span-2">
             <span className="text-muted">{t('organizer.schedulePage.planner.labelLabel')}</span>

@@ -42,6 +42,7 @@ import {
 } from './live-board';
 import type { LiveBoardPayload, LiveBoardProgress, LiveBoardTiming } from './live-board-payload';
 import { dayIndexFor } from '../schedule/select-programme-block';
+import { readProgrammeSheet } from '../programme/programme-sheet';
 import { normalizeTournamentLockConfig } from '../events/tournament-config';
 import type {
   CreateStaffAccountDto,
@@ -655,14 +656,14 @@ export class StaffService {
   }> {
     const db = this.supabase.service;
 
-    const [matchesRes, completedRes, accountsRes, assignments, refereeRows, blocksRes, progress] =
+    const [matchesRes, completedRes, accountsRes, assignments, refereeRows, plan, progress] =
       await Promise.all([
         this.queryBoardMatches(liceIds),
         this.queryCompletedTail(liceIds),
         this.queryBoardAccounts(eventId),
         this.listAssignmentsForEvent(eventId),
         fetchRefereeAssignmentIndex(db, eventId),
-        this.queryProgrammeBlocks(eventId, dayIndexFor(startDate, now.getTime())),
+        this.loadTimingInputs(eventId, dayIndexFor(startDate, now.getTime())),
         this.countBoutProgress(eventId),
       ]);
 
@@ -681,7 +682,7 @@ export class StaffService {
         lice_id: a.lice_id,
       })),
       refereesByMatchId: resolveBoardReferees(matches, liceIds, refereeRows),
-      timing: buildBoardTiming(blocksRes.data as Array<Record<string, unknown>> | null, now),
+      timing: buildBoardTiming(plan.blocks, now, plan.sheet),
       progress,
     };
   }
@@ -696,11 +697,20 @@ export class StaffService {
       .eq('event_id', eventId);
   }
 
+  /** The day's bars and the Event's sheet: what the board's bout length is read from. */
+  private async loadTimingInputs(eventId: string, dayIndex: number) {
+    const [blocksRes, sheet] = await Promise.all([
+      this.queryProgrammeBlocks(eventId, dayIndex),
+      readProgrammeSheet(this.supabase.service, eventId),
+    ]);
+    return { blocks: blocksRes.data as Array<Record<string, unknown>> | null, sheet };
+  }
+
   /** The programme for the day now running, in sort order. */
   private queryProgrammeBlocks(eventId: string, dayIndex: number) {
     return this.supabase.service
       .from('event_programme_blocks')
-      .select('id,label,start_time,end_time,match_duration_minutes,sort_order')
+      .select('id,label,start_time,end_time,competition_id,competition_phase,sort_order')
       .eq('event_id', eventId)
       .eq('day_index', dayIndex)
       .order('sort_order', { ascending: true });

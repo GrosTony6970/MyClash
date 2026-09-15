@@ -106,9 +106,6 @@ const programmeBlockSchema = z
     liceCount: z.number().int().min(0),
     startTime: z.string().regex(HH_MM),
     endTime: z.string().regex(HH_MM),
-    matchGapSeconds: z.number().int().min(0),
-    matchDurationMinutes: z.number().int().min(0),
-    minRestMinutes: z.number().int().min(0),
     colorHex: z.string().regex(HEX_COLOR).nullish(),
   })
   .strict();
@@ -182,9 +179,6 @@ const scheduleGroupSchema = z
     liceIds: z.array(z.uuid()),
     startTime: z.string().regex(/^\d{4}-\d{2}-\d{2}T/),
     mode: z.enum(['pool', 'bracket-branch']),
-    matchDurationMinutes: z.number().int().min(1).optional(),
-    matchGapSeconds: z.number().int().min(0).optional(),
-    minRestMinutes: z.number().int().min(0).optional(),
   })
   .strict();
 export class ScheduleGroupDto extends createZodDto(scheduleGroupSchema) {}
@@ -212,9 +206,6 @@ const createBlockSchema = z
     startTime: z.string().regex(HH_MM),
     endTime: z.string().regex(HH_MM),
     liceCount: z.number().int().min(0).optional(),
-    matchGapSeconds: z.number().int().min(0).optional(),
-    matchDurationMinutes: z.number().int().min(0).optional(),
-    minRestMinutes: z.number().int().min(0).optional(),
     competitionId: z.uuid().nullish(),
     competitionPhase: z.enum(['pool', 'swiss', 'bracket', 'finals']).nullish(),
     workshopId: z.uuid().nullish(),

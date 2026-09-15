@@ -278,6 +278,10 @@ export const ALLOWED_ABSENT = new Map([
     'apps/web-public/scripts/landing-bundle-budget.mjs',
     'past tense: records the per-app budget script that was removed',
   ],
+  [
+    'apps/api/src/modules/phases/pool-auto-distribute.ts',
+    'past tense: ADR-018 records the auto-distribute door it removed, deleted 2026-09',
+  ],
 ]);
 
 /** A path written for a human rather than for a filesystem. */

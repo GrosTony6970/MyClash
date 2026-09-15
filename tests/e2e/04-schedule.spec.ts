@@ -77,8 +77,6 @@ test('schedule: generate places pool matches on a lice', async ({ request }) => 
         startTime: '09:00',
         endTime: '18:00',
         liceCount: 1,
-        matchGapSeconds: 30,
-        matchDurationMinutes: 5,
         competitionId: tournamentId,
         competitionPhase: 'pool',
       },

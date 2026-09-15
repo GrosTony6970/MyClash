@@ -1,7 +1,7 @@
 import { ForbiddenException } from '@nestjs/common';
 import { describe, expect, it, vi } from 'vitest';
 import { StaffService } from './staff.service';
-import { mockSupabase, scopedTo, writesTo } from '../../common/testing/supabase-chain';
+import { mockSupabase, scopedTo, selectsFor, writesTo } from '../../common/testing/supabase-chain';
 
 /**
  * The Live board — the control-room screen an Event organizer watches.
@@ -43,6 +43,12 @@ const eventRow = (id: string) => ({
   status: 'running',
   start_date: '2026-07-21',
   end_date: '2099-12-31',
+});
+
+/** An Event's planner sheet, as stored. A field left out reads as the default. */
+const sheetRow = (eventId: string, config: Record<string, unknown>) => ({
+  event_id: eventId,
+  config_json: config,
 });
 
 /** A bout on a Lice. `scoped` is the embed countBoutProgress filters through. */
@@ -122,6 +128,7 @@ function boardTables(over: Record<string, unknown> = {}) {
       ],
     },
     event_programme_blocks: { rows: [] },
+    event_programme_configs: { rows: [] },
     referee_assignments: { rows: [] },
     ...over,
   };
@@ -225,39 +232,14 @@ describe('StaffService.getLiveBoard', () => {
 
   it('ships a timing basis even when the event has no programme block', async () => {
     // No block covering "now" is the default case, not an error — most events
-    // have no programme at all, and the board still has to date its clock.
-    const { svc } = build(boardTables());
-
-    const out = await svc.getLiveBoard(req, EVENT);
-
-    expect(out.timing.block).toBeNull();
-    expect(out.timing.matchDurationMinutes).toBe(5);
-    expect(Number.isNaN(Date.parse(out.timing.nowIso))).toBe(false);
-  });
-
-  it('reads the programme of the day now running, on this event', async () => {
-    // The event carries no start date, so `dayIndexFor` returns 0 whatever the
-    // clock says. Pinning the day that way keeps the decoys — day two, and
-    // another event's day one — as the only things the filters have to reject.
-    const block = (id: string, over: Record<string, unknown>) => ({
-      id,
-      event_id: EVENT,
-      day_index: 0,
-      label: id,
-      start_time: '00:00',
-      end_time: '23:59',
-      match_duration_minutes: 9,
-      sort_order: 0,
-      ...over,
-    });
+    // have no programme at all, and the board still has to date its clock. The
+    // length is then the Event's pool length from its own sheet.
     const { svc } = build(
       boardTables({
-        events: { rows: [eventRow(OTHER_EVENT), { ...eventRow(EVENT), start_date: null }] },
-        event_programme_blocks: {
+        event_programme_configs: {
           rows: [
-            block('blk-here', {}),
-            block('blk-day2', { day_index: 1, match_duration_minutes: 4 }),
-            block('blk-other-event', { event_id: OTHER_EVENT, match_duration_minutes: 3 }),
+            sheetRow(OTHER_EVENT, { poolMatchDurationMinutes: 4 }),
+            sheetRow(EVENT, { poolMatchDurationMinutes: 6 }),
           ],
         },
       }),
@@ -265,8 +247,110 @@ describe('StaffService.getLiveBoard', () => {
 
     const out = await svc.getLiveBoard(req, EVENT);
 
-    expect(out.timing.block?.id).toBe('blk-here');
-    expect(out.timing.matchDurationMinutes).toBe(9);
+    expect(out.timing.block).toBeNull();
+    expect(out.timing.matchDurationMinutes).toBe(6);
+    expect(Number.isNaN(Date.parse(out.timing.nowIso))).toBe(false);
+  });
+
+  it('fails the board when the sheet cannot be read, rather than timing bouts on a guess', async () => {
+    // The same policy as the board's other reads (bouts, history, accounts): the
+    // browser keeps the last board it had and shows the refresh error.
+    const { svc } = build(
+      boardTables({
+        event_programme_configs: { data: null, error: { message: 'statement timeout' } },
+      }),
+    );
+
+    await expect(svc.getLiveBoard(req, EVENT)).rejects.toThrow('statement timeout');
+  });
+
+  describe('the bout length of the bar running now', () => {
+    const TOURNAMENT = 'a1a1a1a1-1111-4111-8111-111111111111';
+    const SHEET = {
+      poolMatchDurationMinutes: 6,
+      swissMatchDurationMinutes: 7,
+      eliminationMatchDurationMinutes: 8,
+      finalsMatchDurationMinutes: 11,
+    };
+    const block = (id: string, over: Record<string, unknown>) => ({
+      id,
+      event_id: EVENT,
+      day_index: 0,
+      label: id,
+      start_time: '00:00',
+      end_time: '23:59',
+      block_type: 'competition',
+      competition_id: TOURNAMENT,
+      competition_phase: 'pool',
+      sort_order: 0,
+      ...over,
+    });
+    // The event carries no start date, so `dayIndexFor` returns 0 whatever the
+    // clock says. Pinning the day that way keeps the decoys — day two, and
+    // another event's day one, both finals bars listed after the real one — as
+    // the only things the filters have to reject.
+    const tablesWith = (here: Record<string, unknown>, sheet: Record<string, unknown> = {}) =>
+      boardTables({
+        events: { rows: [eventRow(OTHER_EVENT), { ...eventRow(EVENT), start_date: null }] },
+        event_programme_blocks: {
+          rows: [
+            block('blk-here', here),
+            block('blk-day2', { day_index: 1, competition_phase: 'finals' }),
+            block('blk-other-event', { event_id: OTHER_EVENT, competition_phase: 'finals' }),
+          ],
+        },
+        event_programme_configs: { rows: [sheetRow(EVENT, { ...SHEET, ...sheet })] },
+      });
+
+    it.each<[string, number]>([
+      ['pool', 6],
+      ['swiss', 7],
+      ['bracket', 8],
+      ['finals', 11],
+    ])('reads the sheet length for a %s bar', async (phase, minutes) => {
+      const { svc } = build(tablesWith({ competition_phase: phase }));
+
+      const out = await svc.getLiveBoard(req, EVENT);
+
+      expect(out.timing.block?.id).toBe('blk-here');
+      expect(out.timing.matchDurationMinutes).toBe(minutes);
+    });
+
+    it("reads the bar's Tournament row before the Event's length", async () => {
+      const { svc } = build(
+        tablesWith(
+          { competition_phase: 'finals' },
+          { tournaments: [{ tournamentId: TOURNAMENT, finalsMatchDurationMinutes: 9 }] },
+        ),
+      );
+
+      const out = await svc.getLiveBoard(req, EVENT);
+
+      expect(out.timing.matchDurationMinutes).toBe(9);
+    });
+
+    it("reads the Event's pool length while a break runs", async () => {
+      const { svc } = build(
+        tablesWith({ block_type: 'break', competition_id: null, competition_phase: null }),
+      );
+
+      const out = await svc.getLiveBoard(req, EVENT);
+
+      expect(out.timing.block?.id).toBe('blk-here');
+      expect(out.timing.matchDurationMinutes).toBe(6);
+    });
+
+    it("asks for the bar's Tournament and phase", async () => {
+      // The seeded double answers whatever the projection names, so the two
+      // columns the length depends on are only proved by the string sent.
+      const { svc, supabase } = build(tablesWith({}));
+
+      await svc.getLiveBoard(req, EVENT);
+
+      expect(selectsFor(supabase.from, 'event_programme_blocks')).toEqual([
+        'id,label,start_time,end_time,competition_id,competition_phase,sort_order',
+      ]);
+    });
   });
 });
 

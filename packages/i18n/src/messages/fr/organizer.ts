@@ -1822,7 +1822,6 @@ export const organizer = {
         },
         dayStart: 'Début de journée',
         dayEnd: 'Fin de journée',
-        matchDuration: 'Durée de match (min)',
         poolMatchDuration: 'Durée de match de poule (min)',
         swissMatchDuration: 'Durée de match suisse (min)',
         eliminationMatchDuration: "Durée de match d'élimination (min)",

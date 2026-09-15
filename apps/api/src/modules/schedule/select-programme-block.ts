@@ -7,11 +7,11 @@
  */
 
 /**
- * Planned length of one bout, used as the drift and overrun basis when no
- * programme block covers "now".
+ * Planned length of one bout, for the readers that do not yet take the planner
+ * sheet's length (ADR-018): the grid's cards and `lice-occupancy`'s refusal.
  *
- * Not an invented number: `event_programme_blocks.match_duration_minutes`
- * defaults to 5 (migration 0028) and the grid's `SLOT_MINUTES` is 5.
+ * Not an invented number: the sheet's pool length defaults to 5
+ * (`programmeConfigSchema`) and the grid's `SLOT_MINUTES` is 5.
  *
  * `schedule-grid.service.ts` used to hardcode a third 5 for its cards, and this
  * docblock used to say so. It now imports this instead, which is what makes the

@@ -167,8 +167,6 @@ test.describe('referee assignment', () => {
           startTime: '09:00',
           endTime: '18:00',
           liceCount: 1,
-          matchGapSeconds: 30,
-          matchDurationMinutes: 5,
           competitionId: tournament.id,
           competitionPhase: 'pool',
         },

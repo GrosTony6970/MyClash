@@ -22,8 +22,8 @@ export interface SchedulerMatch {
   id: string;
   redRegistrationId: string;
   blueRegistrationId: string;
-  /** Estimated duration in minutes (default: 5) */
-  estimatedDurationMinutes?: number;
+  /** The Match's planned length in minutes, from the planner sheet (ADR-018). */
+  estimatedDurationMinutes: number;
   /**
    * Optional pool grouping. When `poolAffinity === 'strict'` (default),
    * every match sharing a `poolId` lands on the same Lice. Bracket /
@@ -69,8 +69,6 @@ export interface SchedulerLice {
 export interface SchedulerOptions {
   /** Minimum rest between matches for a fighter, in minutes (default: 10) */
   minRestMinutes?: number;
-  /** Estimated match duration in minutes (default: 5) */
-  defaultMatchDurationMinutes?: number;
   /** Start time for the schedule (ISO string, default: now) */
   startTime?: string;
   /** Gap between matches on the same Lice in minutes (default: 2) */
@@ -121,7 +119,6 @@ export function scheduleMatches(
   }
 
   const minRest = (options.minRestMinutes ?? 10) * 60_000; // ms
-  const defaultDuration = (options.defaultMatchDurationMinutes ?? 5) * 60_000; // ms
   const transition = (options.transitionMinutes ?? 2) * 60_000; // ms
   const startTime = options.startTime ? new Date(options.startTime).getTime() : Date.now();
   const poolAffinity = options.poolAffinity ?? 'strict';
@@ -252,7 +249,7 @@ export function scheduleMatches(
 
     let cursor = liceStart;
     for (const match of orderedMatches) {
-      const duration = (match.estimatedDurationMinutes ?? 0) * 60_000 || defaultDuration;
+      const duration = match.estimatedDurationMinutes * 60_000;
       const redFree = fighterNextFree[match.redRegistrationId] ?? startTime;
       const blueFree = fighterNextFree[match.blueRegistrationId] ?? startTime;
       // Respect fighter rest minimums — if a fighter isn't ready, the

@@ -55,6 +55,15 @@ function makeChain(result: unknown) {
   return chain;
 }
 
+/**
+ * The planner sheet read that Generate and the re-fan open with
+ * (`readProgrammeSheet`). No argument is an Event with no saved sheet, which
+ * reads as the schema's defaults.
+ */
+function sheetChain(config?: Record<string, unknown>) {
+  return makeChain({ data: config ? { config_json: config } : null, error: null });
+}
+
 /** A config that actually satisfies swissConfigSchema — the estimate parses it,
  *  and an unparseable one silently counts zero Swiss bouts. */
 const SWISS_CONFIG: SwissConfig = {
@@ -105,9 +114,6 @@ function programmeDto(overrides: Partial<SaveProgrammeDto> = {}): SaveProgrammeD
         liceCount: 0,
         startTime: '08:00',
         endTime: '09:00',
-        matchGapSeconds: 0,
-        matchDurationMinutes: 0,
-        minRestMinutes: 0,
       },
       {
         id: 'new-break',
@@ -121,9 +127,6 @@ function programmeDto(overrides: Partial<SaveProgrammeDto> = {}): SaveProgrammeD
         liceCount: 0,
         startTime: '09:00',
         endTime: '09:15',
-        matchGapSeconds: 0,
-        matchDurationMinutes: 0,
-        minRestMinutes: 0,
       },
       {
         id: 'new-workshop',
@@ -137,9 +140,6 @@ function programmeDto(overrides: Partial<SaveProgrammeDto> = {}): SaveProgrammeD
         liceCount: 0,
         startTime: '09:15',
         endTime: '10:15',
-        matchGapSeconds: 0,
-        matchDurationMinutes: 0,
-        minRestMinutes: 0,
       },
       {
         id: 'new-competition',
@@ -153,9 +153,6 @@ function programmeDto(overrides: Partial<SaveProgrammeDto> = {}): SaveProgrammeD
         liceCount: 2,
         startTime: '10:15',
         endTime: '11:15',
-        matchGapSeconds: 15,
-        matchDurationMinutes: 5,
-        minRestMinutes: 10,
       },
     ],
     ...overrides,
@@ -264,8 +261,6 @@ describe('ProgrammeService', () => {
       lice_count: 0,
       start_time: '08:00:00',
       end_time: '09:00:00',
-      match_gap_seconds: 0,
-      match_duration_minutes: 0,
       generated_at: null,
     };
     fromMock.mockReturnValueOnce(makeChain({ data: [blockRow], error: null }));
@@ -277,7 +272,7 @@ describe('ProgrammeService', () => {
     expect(blocks[0]!.endTime).toBe('09:00');
   });
 
-  it('saves auto-suggested non-competition blocks with zero match duration', async () => {
+  it('saves auto-suggested non-competition blocks', async () => {
     const deleteChain = makeChain({ data: null, error: null });
     const upsertChain = makeChain({
       data: [
@@ -294,8 +289,6 @@ describe('ProgrammeService', () => {
           lice_count: 0,
           start_time: '08:00',
           end_time: '09:00',
-          match_gap_seconds: 0,
-          match_duration_minutes: 0,
           generated_at: null,
         },
       ],
@@ -310,18 +303,9 @@ describe('ProgrammeService', () => {
     expect(saved).toHaveLength(1);
     expect(upsertChain.upsert).toHaveBeenCalledWith(
       expect.arrayContaining([
-        expect.objectContaining({
-          block_type: 'admin',
-          match_duration_minutes: 0,
-        }),
-        expect.objectContaining({
-          block_type: 'break',
-          match_duration_minutes: 0,
-        }),
-        expect.objectContaining({
-          block_type: 'workshop',
-          match_duration_minutes: 0,
-        }),
+        expect.objectContaining({ block_type: 'admin' }),
+        expect.objectContaining({ block_type: 'break' }),
+        expect.objectContaining({ block_type: 'workshop' }),
       ]),
       { onConflict: 'id' },
     );
@@ -432,8 +416,6 @@ describe('ProgrammeService', () => {
             lice_count: 0,
             start_time: '12:00:00',
             end_time: '12:30:00',
-            match_gap_seconds: 0,
-            match_duration_minutes: 0,
             generated_at: null,
           },
           error: null,
@@ -480,8 +462,6 @@ describe('ProgrammeService', () => {
             lice_count: 0,
             start_time: '10:00:00',
             end_time: '10:15:00',
-            match_gap_seconds: 0,
-            match_duration_minutes: 0,
             color_hex: '#0ea5e9',
             generated_at: null,
           },
@@ -523,8 +503,6 @@ describe('ProgrammeService', () => {
             lice_count: 0,
             start_time: '12:00:00',
             end_time: '13:00:00',
-            match_gap_seconds: 0,
-            match_duration_minutes: 0,
             generated_at: null,
           },
           error: null,
@@ -546,8 +524,6 @@ describe('ProgrammeService', () => {
             lice_count: 0,
             start_time: '12:15:00',
             end_time: '13:00:00',
-            match_gap_seconds: 0,
-            match_duration_minutes: 0,
             generated_at: null,
           },
           error: null,
@@ -574,8 +550,6 @@ describe('ProgrammeService', () => {
           lice_count: 0,
           start_time: '12:00:00',
           end_time: '13:00:00',
-          match_gap_seconds: 0,
-          match_duration_minutes: 0,
           generated_at: null,
         },
         error: null,
@@ -646,7 +620,6 @@ describe('ProgrammeService', () => {
     );
 
     const swiss = suggestion.blocks.find((b) => b.competitionPhase === 'swiss');
-    expect(swiss?.matchDurationMinutes).toBe(12);
     // 8 entrants x 5 rounds = 20 bouts on one lice, at 12 min + 15 s each =
     // 245 min. Sized to fit inside 08:00-18:00 on purpose: an overrunning block
     // is clamped to the window remainder, which is the same number for 5 and 12
@@ -683,7 +656,6 @@ describe('ProgrammeService', () => {
     );
 
     const swiss = suggestion.blocks.find((b) => b.competitionPhase === 'swiss');
-    expect(swiss?.matchDurationMinutes).toBe(20);
     // 20 bouts at 20 min + 15 s each = 405 min, still inside the day.
     expect(timeToMinutes(swiss!.endTime) - timeToMinutes(swiss!.startTime)).toBe(405);
   });
@@ -784,9 +756,10 @@ describe('ProgrammeService', () => {
 
     const bracket = suggestion.blocks.find((b) => b.competitionPhase === 'bracket');
     const finals = suggestion.blocks.find((b) => b.competitionPhase === 'finals');
-    expect(bracket?.matchDurationMinutes).toBe(8);
+    // Two bouts a round on two pistes: one round each, at 8 and at 10 minutes.
+    expect(timeToMinutes(bracket!.endTime) - timeToMinutes(bracket!.startTime)).toBe(8);
     expect(bracket?.label).toBe('Longsword — Bracket');
-    expect(finals?.matchDurationMinutes).toBe(10);
+    expect(timeToMinutes(finals!.endTime) - timeToMinutes(finals!.startTime)).toBe(10);
     expect(finals?.label).toBe('Longsword — Finals');
   });
 
@@ -802,23 +775,8 @@ describe('ProgrammeService', () => {
     const suggestion = await service.suggest('event-1', suggestCfg(), CALLER);
 
     expect(suggestion.blocks.some((b) => b.competitionPhase === 'bracket')).toBe(false);
-    expect(
-      suggestion.blocks.find((b) => b.competitionPhase === 'finals')?.matchDurationMinutes,
-    ).toBe(10);
-  });
-
-  it('rejects competition blocks with zero match duration before deleting saved blocks', async () => {
-    const dto = programmeDto({
-      blocks: [
-        {
-          ...programmeDto().blocks[3]!,
-          matchDurationMinutes: 0,
-        },
-      ],
-    });
-
-    await expect(service.saveBlocks('event-1', dto, CALLER)).rejects.toThrow(BadRequestException);
-    expect(fromMock).not.toHaveBeenCalled();
+    const finals = suggestion.blocks.find((b) => b.competitionPhase === 'finals');
+    expect(timeToMinutes(finals!.endTime) - timeToMinutes(finals!.startTime)).toBe(10);
   });
 
   it('generates match schedules from persisted programme blocks', async () => {
@@ -836,13 +794,12 @@ describe('ProgrammeService', () => {
         lice_count: 1,
         start_time: '10:00',
         end_time: '10:30',
-        match_gap_seconds: 0,
-        match_duration_minutes: 5,
         generated_at: null,
       },
     ];
 
     fromMock
+      .mockReturnValueOnce(sheetChain())
       .mockReturnValueOnce(makeChain({ data: blockRows, error: null }))
       .mockReturnValueOnce(makeChain({ data: { start_date: '2026-05-21' }, error: null }))
       .mockReturnValueOnce(makeChain({ data: [{ id: 'lice-1', name: 'Lice 1' }], error: null }))
@@ -894,8 +851,6 @@ describe('ProgrammeService', () => {
         lice_count: 2,
         start_time: '10:00',
         end_time: '14:00',
-        match_gap_seconds: 0,
-        match_duration_minutes: 8,
         generated_at: null,
       },
     ];
@@ -905,6 +860,7 @@ describe('ProgrammeService', () => {
     });
 
     fromMock
+      .mockReturnValueOnce(sheetChain())
       .mockReturnValueOnce(makeChain({ data: blockRows, error: null })) // blocks
       .mockReturnValueOnce(makeChain({ data: { start_date: '2026-05-21' }, error: null })) // event
       .mockReturnValueOnce(
@@ -953,6 +909,174 @@ describe('ProgrammeService', () => {
     expect(scheduledIds).toHaveLength(4);
   });
 
+  it("spaces each pool bout at the sheet's length, gap and rest, and clears overrides", async () => {
+    // The bar carries no numbers (ADR-018). The Tournament's own pool length (7)
+    // beats the Event's (5), the gap is one minute and the rest twenty.
+    const T = 'a1a1a1a1-1111-4111-8111-111111111111';
+    const blockRows = [
+      {
+        id: 'block-1',
+        event_id: 'event-1',
+        day_index: 0,
+        sort_order: 0,
+        block_type: 'competition',
+        label: 'Pools',
+        competition_id: T,
+        competition_phase: 'pool',
+        workshop_id: null,
+        lice_count: 1,
+        start_time: '10:00',
+        end_time: '12:00',
+        generated_at: null,
+      },
+    ];
+    const bout = (id: string, red: string, blue: string) => ({
+      id,
+      red_registration_id: red,
+      blue_registration_id: blue,
+      pool_id: 'pool-1',
+      match_number_label: id,
+      phase_id: 'phase-1',
+    });
+    // a meets b, c meets d, then a meets c: the third waits out c's rest.
+    const bouts = [bout('M1', 'a', 'b'), bout('M2', 'c', 'd'), bout('M3', 'a', 'c')];
+    const sheet = sheetChain({
+      poolMatchDurationMinutes: 5,
+      matchGapSeconds: 60,
+      minRestMinutes: 20,
+      tournaments: [{ tournamentId: T, poolMatchDurationMinutes: 7 }],
+    });
+    const upsertChain = makeChain({ data: bouts.map((b) => ({ id: b.id })), error: null });
+
+    fromMock
+      .mockReturnValueOnce(sheet)
+      .mockReturnValueOnce(makeChain({ data: blockRows, error: null })) // blocks
+      .mockReturnValueOnce(makeChain({ data: { start_date: '2026-05-21' }, error: null })) // event
+      .mockReturnValueOnce(makeChain({ data: [{ id: 'lice-1', name: 'Lice 1' }], error: null })) // lices
+      .mockReturnValueOnce(makeChain({ data: [], error: null })) // tournament_phase_venues
+      .mockReturnValueOnce(makeChain({ data: [{ id: 'phase-1', type: 'pool' }], error: null })) // phases
+      .mockReturnValueOnce(makeChain({ data: [{ id: 'pool-1' }], error: null })) // pools
+      .mockReturnValueOnce(makeChain({ data: bouts, error: null })) // matches
+      .mockReturnValueOnce(upsertChain) // matches UPSERT
+      .mockReturnValueOnce(makeChain({ data: null, error: null })) // realized-window sync
+      .mockReturnValueOnce(makeChain({ data: null, error: null })); // generated_at stamp
+
+    await service.generate('event-1', {}, CALLER);
+
+    expect(sheet.select).toHaveBeenCalledWith('config_json');
+    const rows = upsertChain.upsert.mock.calls[0]![0] as Array<{
+      id: string;
+      scheduled_at: string;
+    }>;
+    const after = (id: string) =>
+      (Date.parse(rows.find((r) => r.id === id)!.scheduled_at) -
+        Date.parse(rows[0]!.scheduled_at)) /
+      60_000;
+    // M2 starts after M1's 7 minutes and the 1-minute gap. M3 waits for c, who
+    // finishes M2 at 15, plus 20 minutes of rest.
+    expect([after('M1'), after('M2'), after('M3')]).toEqual([0, 8, 35]);
+    expect(upsertChain.upsert).toHaveBeenCalledWith(
+      bouts.map((b) => ({
+        id: b.id,
+        phase_id: 'phase-1',
+        scheduled_at: expect.any(String),
+        lice_id: 'lice-1',
+        planned_duration_override_minutes: null,
+      })),
+      { onConflict: 'id' },
+    );
+  });
+
+  it('spaces a final at the finals length inside a lone bracket bar', async () => {
+    // The bar is a bracket bar, but its final round is finals bouts: each Match
+    // takes the length of its own kind, not the bar's.
+    const blockRows = [
+      {
+        id: 'block-1',
+        event_id: 'event-1',
+        day_index: 0,
+        sort_order: 0,
+        block_type: 'competition',
+        label: 'Bracket',
+        competition_id: 'tournament-1',
+        competition_phase: 'bracket',
+        workshop_id: null,
+        lice_count: 1,
+        start_time: '10:00',
+        end_time: '14:00',
+        generated_at: null,
+      },
+    ];
+    const upsertChain = makeChain({
+      data: [{ id: 'm1' }, { id: 'm2' }, { id: 'm3' }, { id: 'm4' }],
+      error: null,
+    });
+
+    fromMock
+      .mockReturnValueOnce(
+        sheetChain({
+          eliminationMatchDurationMinutes: 8,
+          finalsMatchDurationMinutes: 10,
+          matchGapSeconds: 0,
+          minRestMinutes: 0,
+        }),
+      )
+      .mockReturnValueOnce(makeChain({ data: blockRows, error: null })) // blocks
+      .mockReturnValueOnce(makeChain({ data: { start_date: '2026-05-21' }, error: null })) // event
+      .mockReturnValueOnce(
+        makeChain({
+          data: [{ id: 'lice-1', name: 'Lice 1', sort_order: 0, venue_id: null }],
+          error: null,
+        }),
+      ) // lices
+      .mockReturnValueOnce(makeChain({ data: [], error: null })) // tournament_phase_venues
+      .mockReturnValueOnce(makeChain({ data: [{ id: 'p1', type: 'single_elim' }], error: null })) // loadBracketMatches phases
+      .mockReturnValueOnce(
+        makeChain({
+          data: [
+            mkBracketMatch('m1', 'SF1', 's1'),
+            mkBracketMatch('m2', 'SF2', 's2'),
+            mkBracketMatch('m3', 'F', 's3'),
+            mkBracketMatch('m4', 'BM', 's4'),
+          ],
+          error: null,
+        }),
+      ) // bracket matches
+      .mockReturnValueOnce(
+        makeChain({
+          data: [
+            { id: 's1', round: 1, position: 1 },
+            { id: 's2', round: 1, position: 2 },
+            { id: 's3', round: 2, position: 1 },
+            { id: 's4', round: 2, position: 2 },
+          ],
+          error: null,
+        }),
+      ) // bracket_slots coords
+      .mockReturnValueOnce(upsertChain) // matches UPSERT
+      .mockReturnValueOnce(makeChain({ data: null, error: null })) // realized-window sync
+      .mockReturnValueOnce(makeChain({ data: null, error: null })); // generated_at stamp
+
+    await service.generate('event-1', {}, CALLER);
+
+    const rows = upsertChain.upsert.mock.calls[0]![0] as Array<{
+      id: string;
+      scheduled_at: string;
+    }>;
+    expect(rows).toHaveLength(4);
+    // One piste, no gap, no rest: each bout starts when the one before it ends,
+    // so the stride after a bout is that bout's own length.
+    const own: Record<string, number> = { m1: 8, m2: 8, m3: 10, m4: 10 };
+    const ordered = [...rows].sort((a, b) => a.scheduled_at.localeCompare(b.scheduled_at));
+    ordered.slice(1).forEach((row, i) => {
+      const before = ordered[i]!;
+      expect(
+        (Date.parse(row.scheduled_at) - Date.parse(before.scheduled_at)) / 60_000,
+        `the stride after ${before.id}`,
+      ).toBe(own[before.id]);
+    });
+  });
+
   // Generate's matches UPSERT silently swallowed any DB-side rejection
   // before this fix, so a stale "Generated N matches" banner could
   // appear even when zero rows actually persisted. The check matches
@@ -973,13 +1097,12 @@ describe('ProgrammeService', () => {
         lice_count: 1,
         start_time: '10:00',
         end_time: '10:30',
-        match_gap_seconds: 0,
-        match_duration_minutes: 5,
         generated_at: null,
       },
     ];
 
     fromMock
+      .mockReturnValueOnce(sheetChain())
       .mockReturnValueOnce(makeChain({ data: blockRows, error: null }))
       .mockReturnValueOnce(makeChain({ data: { start_date: '2026-05-21' }, error: null }))
       .mockReturnValueOnce(makeChain({ data: [{ id: 'lice-1', name: 'Lice 1' }], error: null }))
@@ -1032,13 +1155,12 @@ describe('ProgrammeService', () => {
         lice_count: 2,
         start_time: '10:00',
         end_time: '11:00',
-        match_gap_seconds: 0,
-        match_duration_minutes: 5,
         generated_at: null,
       },
     ];
 
     fromMock
+      .mockReturnValueOnce(sheetChain())
       .mockReturnValueOnce(makeChain({ data: blockRows, error: null }))
       .mockReturnValueOnce(makeChain({ data: { start_date: '2026-05-21' }, error: null }))
       .mockReturnValueOnce(makeChain({ data: [], error: null })); // ← no lices
@@ -1065,13 +1187,12 @@ describe('ProgrammeService', () => {
         lice_count: 1,
         start_time: '10:00',
         end_time: '10:30',
-        match_gap_seconds: 0,
-        match_duration_minutes: 5,
         generated_at: null,
       },
     ];
 
     fromMock
+      .mockReturnValueOnce(sheetChain())
       .mockReturnValueOnce(makeChain({ data: blockRows, error: null }))
       .mockReturnValueOnce(makeChain({ data: { start_date: '2026-05-21' }, error: null }))
       .mockReturnValueOnce(makeChain({ data: [{ id: 'lice-1', name: 'Lice 1' }], error: null }))
@@ -1127,8 +1248,6 @@ describe('ProgrammeService', () => {
         lice_count: 1,
         start_time: '10:00',
         end_time: '10:30',
-        match_gap_seconds: 0,
-        match_duration_minutes: 5,
         generated_at: null,
       },
     ];
@@ -1165,6 +1284,7 @@ describe('ProgrammeService', () => {
     })();
 
     fromMock
+      .mockReturnValueOnce(sheetChain())
       .mockReturnValueOnce(makeChain({ data: blockRows, error: null }))
       .mockReturnValueOnce(makeChain({ data: { start_date: '2026-05-21' }, error: null }))
       .mockReturnValueOnce(makeChain({ data: [{ id: 'lice-1', name: 'Lice 1' }], error: null }))
@@ -1214,8 +1334,6 @@ describe('ProgrammeService', () => {
         // the last minute the column can hold.
         start_time: '23:00',
         end_time: '23:30',
-        match_gap_seconds: 0,
-        match_duration_minutes: 5,
         generated_at: null,
       },
     ];
@@ -1252,6 +1370,7 @@ describe('ProgrammeService', () => {
     })();
 
     fromMock
+      .mockReturnValueOnce(sheetChain())
       .mockReturnValueOnce(makeChain({ data: blockRows, error: null }))
       .mockReturnValueOnce(makeChain({ data: { start_date: '2026-05-21' }, error: null }))
       .mockReturnValueOnce(makeChain({ data: [{ id: 'lice-1', name: 'Lice 1' }], error: null }))
@@ -1296,8 +1415,6 @@ describe('ProgrammeService', () => {
         lice_count: 0,
         start_time: '08:00',
         end_time: '10:00',
-        match_gap_seconds: 0,
-        match_duration_minutes: 0,
         generated_at: null,
       },
       {
@@ -1313,8 +1430,6 @@ describe('ProgrammeService', () => {
         lice_count: 1,
         start_time: '09:00',
         end_time: '09:30',
-        match_gap_seconds: 0,
-        match_duration_minutes: 5,
         generated_at: null,
       },
     ];
@@ -1333,6 +1448,7 @@ describe('ProgrammeService', () => {
     });
 
     fromMock
+      .mockReturnValueOnce(sheetChain())
       .mockReturnValueOnce(makeChain({ data: blockRows, error: null })) // blocks
       .mockReturnValueOnce(makeChain({ data: { start_date: '2026-05-21' }, error: null })) // event
       .mockReturnValueOnce(makeChain({ data: [{ id: 'lice-1', name: 'Lice 1' }], error: null })) // lices
@@ -1370,7 +1486,8 @@ describe('ProgrammeService', () => {
   });
 
   it('cascades a later break after a competition run that overflows its slot', async () => {
-    // A pool that actually runs 09:00–12:30 (7×30 min on one lice) must push a
+    // A pool that actually runs 09:00–12:30 (7 bouts at the sheet's 30 min on one
+    // lice, no gap) must push a
     // Lunch break stored at 12:00–13:00 down to 12:30–13:30 — no overlap. This
     // covers the case the old break-only shift handled, now via the unified pack.
     const blockRows = [
@@ -1387,8 +1504,6 @@ describe('ProgrammeService', () => {
         lice_count: 1,
         start_time: '09:00',
         end_time: '09:30',
-        match_gap_seconds: 0,
-        match_duration_minutes: 30,
         generated_at: null,
       },
       {
@@ -1404,8 +1519,6 @@ describe('ProgrammeService', () => {
         lice_count: 0,
         start_time: '12:00',
         end_time: '13:00',
-        match_gap_seconds: 0,
-        match_duration_minutes: 0,
         generated_at: null,
       },
     ];
@@ -1424,6 +1537,7 @@ describe('ProgrammeService', () => {
     });
 
     fromMock
+      .mockReturnValueOnce(sheetChain({ poolMatchDurationMinutes: 30, matchGapSeconds: 0 }))
       .mockReturnValueOnce(makeChain({ data: blockRows, error: null })) // blocks
       .mockReturnValueOnce(makeChain({ data: { start_date: '2026-05-21' }, error: null })) // event
       .mockReturnValueOnce(makeChain({ data: [{ id: 'lice-1', name: 'Lice 1' }], error: null })) // lices
@@ -1459,8 +1573,6 @@ describe('ProgrammeService', () => {
         lice_count: 0,
         start_time: '08:00',
         end_time: '09:00',
-        match_gap_seconds: 0,
-        match_duration_minutes: 0,
         generated_at: null,
       },
       {
@@ -1476,13 +1588,12 @@ describe('ProgrammeService', () => {
         lice_count: 0,
         start_time: '10:00',
         end_time: '10:30',
-        match_gap_seconds: 0,
-        match_duration_minutes: 0,
         generated_at: null,
       },
     ];
 
     fromMock
+      .mockReturnValueOnce(sheetChain())
       .mockReturnValueOnce(makeChain({ data: blockRows, error: null })) // blocks
       .mockReturnValueOnce(makeChain({ data: { start_date: '2026-05-21' }, error: null })) // event
       .mockReturnValueOnce(makeChain({ data: [{ id: 'lice-1', name: 'Lice 1' }], error: null })) // lices
@@ -1491,8 +1602,8 @@ describe('ProgrammeService', () => {
     const result = await service.generate('event-1', {}, CALLER);
 
     expect(result.matchesScheduled).toBe(0);
-    // blocks + event + lices + stamp = 4; no per-block shift writes.
-    expect(fromMock).toHaveBeenCalledTimes(4);
+    // sheet + blocks + event + lices + stamp = 5; no per-block shift writes.
+    expect(fromMock).toHaveBeenCalledTimes(5);
   });
 
   // ── Slice 5: drag a fixed block + cascade-shift later matches ──────────────
@@ -1637,8 +1748,6 @@ describe('ProgrammeService', () => {
           lice_count: 0,
           start_time: '09:00',
           end_time: '09:30',
-          match_gap_seconds: 0,
-          match_duration_minutes: 0,
           generated_at: null,
         },
         eventStartDate: '2026-06-02',
@@ -1688,8 +1797,6 @@ describe('ProgrammeService', () => {
           lice_count: 0,
           start_time: '09:00',
           end_time: '09:30',
-          match_gap_seconds: 0,
-          match_duration_minutes: 0,
           generated_at: null,
         },
         eventStartDate: '2026-06-02',
@@ -1730,8 +1837,6 @@ describe('ProgrammeService', () => {
           lice_count: 0,
           start_time: '09:00',
           end_time: '09:30',
-          match_gap_seconds: 0,
-          match_duration_minutes: 0,
           generated_at: null,
         },
         eventStartDate: '2026-06-02',
@@ -1761,8 +1866,6 @@ describe('ProgrammeService', () => {
           lice_count: 0,
           start_time: '14:00',
           end_time: '14:30',
-          match_gap_seconds: 0,
-          match_duration_minutes: 0,
           generated_at: null,
         },
         eventStartDate: '2026-06-02',
@@ -1811,8 +1914,6 @@ describe('ProgrammeService', () => {
           lice_count: 2,
           start_time: '09:00',
           end_time: '18:00',
-          match_gap_seconds: 0,
-          match_duration_minutes: 5,
           generated_at: null,
         },
         eventStartDate: '2099-03-01',
@@ -1849,8 +1950,6 @@ describe('ProgrammeService', () => {
         lice_count: 0,
         start_time: '09:00',
         end_time: '09:30',
-        match_gap_seconds: 0,
-        match_duration_minutes: 0,
         generated_at: null,
       };
       const blockUpdates: Array<{ id: string; payload: Record<string, unknown> }> = [];
@@ -1928,8 +2027,6 @@ describe('ProgrammeService', () => {
         lice_count: 0,
         start_time: '09:00',
         end_time: '09:30',
-        match_gap_seconds: 0,
-        match_duration_minutes: 0,
         generated_at: null,
       };
     }
@@ -2516,13 +2613,12 @@ describe('ProgrammeService', () => {
         lice_count: 2,
         start_time: '10:00',
         end_time: '11:00',
-        match_gap_seconds: 0,
-        match_duration_minutes: 5,
         generated_at: null,
       },
     ];
 
     fromMock
+      .mockReturnValueOnce(sheetChain())
       .mockReturnValueOnce(makeChain({ data: blockRows, error: null }))
       .mockReturnValueOnce(makeChain({ data: { start_date: '2026-05-21' }, error: null }))
       .mockReturnValueOnce(makeChain({ data: [{ id: 'lice-1', name: 'Lice 1' }], error: null }))
@@ -2555,6 +2651,7 @@ describe('scheduleGroup', () => {
   });
 
   const START = '2026-05-21T09:00:00.000Z';
+  const TOURNAMENT = 'a1a1a1a1-1111-4111-8111-111111111111';
   const gm = (id: string, over: Record<string, unknown> = {}) => ({
     id,
     red_registration_id: `r-${id}`,
@@ -2563,6 +2660,7 @@ describe('scheduleGroup', () => {
     match_number_label: id,
     phase_id: 'phase-1',
     bracket_slot_id: null,
+    phases: { type: 'pool', tournament_id: TOURNAMENT },
     ...over,
   });
 
@@ -2583,6 +2681,7 @@ describe('scheduleGroup', () => {
 
   it('rejects matches that are not in the event', async () => {
     fromMock
+      .mockReturnValueOnce(sheetChain())
       .mockReturnValueOnce(makeChain({ data: [{ id: 't1' }], error: null })) // tournaments
       .mockReturnValueOnce(makeChain({ data: [{ id: 'phase-1' }], error: null })) // phases
       .mockReturnValueOnce(makeChain({ data: [gm('m1', { phase_id: 'OTHER' })], error: null })); // matches
@@ -2602,9 +2701,12 @@ describe('scheduleGroup', () => {
 
   it('keeps a pool group on one lice and persists each match', async () => {
     fromMock
+      .mockReturnValueOnce(sheetChain({ matchGapSeconds: 0, minRestMinutes: 20 }))
       .mockReturnValueOnce(makeChain({ data: [{ id: 't1' }], error: null })) // tournaments
       .mockReturnValueOnce(makeChain({ data: [{ id: 'phase-1' }], error: null })) // phases
-      .mockReturnValueOnce(makeChain({ data: [gm('m1'), gm('m2')], error: null })) // group matches
+      .mockReturnValueOnce(
+        makeChain({ data: [gm('m1'), gm('m2', { red_registration_id: 'r-m1' })], error: null }),
+      ) // group matches
       .mockReturnValueOnce(
         makeChain({ data: [{ id: 'l1', name: 'L1', sort_order: 0 }], error: null }),
       ) // lices
@@ -2623,22 +2725,36 @@ describe('scheduleGroup', () => {
     );
     expect(res.scheduled).toHaveLength(2);
     expect(new Set(res.scheduled.map((s) => s.liceId))).toEqual(new Set(['l1']));
+    // m2 shares m1's red fighter, who rests the sheet's 20 minutes after m1's
+    // 5-minute bout.
+    const at = (id: string) =>
+      Date.parse(res.scheduled.find((row) => row.matchId === id)!.scheduledAt);
+    expect((at('m2') - at('m1')) / 60_000).toBe(25);
   });
 
-  it('appends after existing occupants via liceBusyUntil', async () => {
+  it("appends after an occupant at the occupant's own sheet length", async () => {
+    const occupantsChain = makeChain({
+      data: [
+        {
+          id: 'occ',
+          lice_id: 'l1',
+          scheduled_at: '2026-05-21T10:00:00.000Z',
+          phase_id: 'phase-1',
+          bracket_slot_id: null,
+          phases: { type: 'pool', tournament_id: TOURNAMENT },
+        },
+      ],
+      error: null,
+    });
     fromMock
+      .mockReturnValueOnce(sheetChain({ poolMatchDurationMinutes: 7 }))
       .mockReturnValueOnce(makeChain({ data: [{ id: 't1' }], error: null })) // tournaments
       .mockReturnValueOnce(makeChain({ data: [{ id: 'phase-1' }], error: null })) // phases
       .mockReturnValueOnce(makeChain({ data: [gm('m1')], error: null })) // group matches
       .mockReturnValueOnce(
         makeChain({ data: [{ id: 'l1', name: 'L1', sort_order: 0 }], error: null }),
       ) // lices
-      .mockReturnValueOnce(
-        makeChain({
-          data: [{ id: 'occ', lice_id: 'l1', scheduled_at: '2026-05-21T10:00:00.000Z' }],
-          error: null,
-        }),
-      ) // occupants
+      .mockReturnValueOnce(occupantsChain) // occupants
       .mockReturnValueOnce(makeChain({ data: null, error: null })); // update m1
     const res = await svc.scheduleGroup(
       'event-1',
@@ -2650,9 +2766,163 @@ describe('scheduleGroup', () => {
       },
       CALLER,
     );
-    expect(new Date(res.scheduled[0]!.scheduledAt).getTime()).toBeGreaterThanOrEqual(
-      new Date('2026-05-21T10:05:00.000Z').getTime(),
+    // The occupant ends at the sheet's 7-minute pool length, so the group starts
+    // exactly then.
+    expect(res.scheduled[0]!.scheduledAt).toBe('2026-05-21T10:07:00.000Z');
+    // The double answers whatever the projection asks for, so the occupant's
+    // phase, which its length depends on, is only proved by the string sent.
+    expect(occupantsChain.select).toHaveBeenCalledWith(
+      'id, lice_id, scheduled_at, phase_id, bracket_slot_id, phases(type, tournament_id)',
     );
+  });
+
+  it("spaces a bracket group at each Match's own kind, the final at the finals length", async () => {
+    // Two semis (round 1), then the final and the bronze (round 2), on one
+    // piste. The final round is counted over the phase's Matches.
+    const bm = (id: string, slot: string) =>
+      gm(id, {
+        pool_id: null,
+        bracket_slot_id: slot,
+        phases: { type: 'single_elim', tournament_id: TOURNAMENT },
+      });
+    const group = [bm('sf1', 's1'), bm('sf2', 's2'), bm('f', 's3'), bm('bm', 's4')];
+    const groupChain = makeChain({ data: group, error: null });
+    const phaseMatchesChain = makeChain({
+      data: group.map((m) => ({ phase_id: m.phase_id, bracket_slot_id: m.bracket_slot_id })),
+      error: null,
+    });
+    fromMock
+      .mockReturnValueOnce(
+        sheetChain({
+          eliminationMatchDurationMinutes: 8,
+          finalsMatchDurationMinutes: 10,
+          matchGapSeconds: 0,
+          minRestMinutes: 0,
+        }),
+      )
+      .mockReturnValueOnce(makeChain({ data: [{ id: 't1' }], error: null })) // tournaments
+      .mockReturnValueOnce(makeChain({ data: [{ id: 'phase-1' }], error: null })) // phases
+      .mockReturnValueOnce(groupChain) // group matches
+      .mockReturnValueOnce(
+        makeChain({ data: [{ id: 'l1', name: 'L1', sort_order: 0 }], error: null }),
+      ) // lices
+      .mockReturnValueOnce(makeChain({ data: [], error: null })) // occupants
+      .mockReturnValueOnce(phaseMatchesChain) // the phase's Matches
+      .mockReturnValueOnce(
+        makeChain({
+          data: [
+            { id: 's1', round: 1, position: 1 },
+            { id: 's2', round: 1, position: 2 },
+            { id: 's3', round: 2, position: 1 },
+            { id: 's4', round: 2, position: 2 },
+          ],
+          error: null,
+        }),
+      ) // bracket_slots
+      .mockReturnValueOnce(makeChain({ data: [], error: null })) // bracket shape: no phase found
+      .mockReturnValueOnce(makeChain({ data: null, error: null })) // update sf1
+      .mockReturnValueOnce(makeChain({ data: null, error: null })) // update sf2
+      .mockReturnValueOnce(makeChain({ data: null, error: null })) // update f
+      .mockReturnValueOnce(makeChain({ data: null, error: null })); // update bm
+
+    const res = await svc.scheduleGroup(
+      'event-1',
+      {
+        matchIds: group.map((m) => m.id),
+        liceIds: ['l1'],
+        startTime: START,
+        mode: 'bracket-branch',
+      },
+      CALLER,
+    );
+
+    expect(res.scheduled).toHaveLength(4);
+    const own: Record<string, number> = { sf1: 8, sf2: 8, f: 10, bm: 10 };
+    const ordered = [...res.scheduled].sort((a, b) => a.scheduledAt.localeCompare(b.scheduledAt));
+    ordered.slice(1).forEach((row, i) => {
+      const before = ordered[i]!;
+      expect(
+        (Date.parse(row.scheduledAt) - Date.parse(before.scheduledAt)) / 60_000,
+        `the stride after ${before.matchId}`,
+      ).toBe(own[before.matchId]);
+    });
+    // The double answers whatever the projection asks for; the phase the length
+    // depends on is only proved by the string sent.
+    expect(groupChain.select).toHaveBeenCalledWith(
+      'id, red_registration_id, blue_registration_id, pool_id, match_number_label, phase_id, bracket_slot_id, phases(type, tournament_id)',
+    );
+    expect(phaseMatchesChain.select).toHaveBeenCalledWith('phase_id, bracket_slot_id');
+    expect(phaseMatchesChain.in).toHaveBeenCalledWith('phase_id', ['phase-1']);
+  });
+
+  it("spaces a Swiss round at its Tournament's Swiss length", async () => {
+    // The Event's Swiss length is 12, this Tournament's is 13, and the gap is a
+    // minute. The Swiss pairing hands a round to the re-fan in 'pool' mode.
+    const sm = (id: string) =>
+      gm(id, { pool_id: null, phases: { type: 'swiss', tournament_id: TOURNAMENT } });
+    fromMock
+      .mockReturnValueOnce(
+        sheetChain({
+          swissMatchDurationMinutes: 12,
+          matchGapSeconds: 60,
+          tournaments: [{ tournamentId: TOURNAMENT, swissMatchDurationMinutes: 13 }],
+        }),
+      )
+      .mockReturnValueOnce(makeChain({ data: [{ id: 't1' }], error: null })) // tournaments
+      .mockReturnValueOnce(makeChain({ data: [{ id: 'phase-1' }], error: null })) // phases
+      .mockReturnValueOnce(makeChain({ data: [sm('r1'), sm('r2')], error: null })) // group matches
+      .mockReturnValueOnce(
+        makeChain({ data: [{ id: 'l1', name: 'L1', sort_order: 0 }], error: null }),
+      ) // lices
+      .mockReturnValueOnce(makeChain({ data: [], error: null })) // occupants
+      .mockReturnValueOnce(makeChain({ data: null, error: null })) // update r1
+      .mockReturnValueOnce(makeChain({ data: null, error: null })); // update r2
+
+    const res = await svc.scheduleGroup(
+      'event-1',
+      { matchIds: ['r1', 'r2'], liceIds: ['l1'], startTime: START, mode: 'pool' },
+      CALLER,
+    );
+
+    const starts = res.scheduled.map((r) => Date.parse(r.scheduledAt)).sort((a, b) => a - b);
+    expect((starts[1]! - starts[0]!) / 60_000).toBe(14);
+  });
+
+  it('refuses to guess a length when the bracket rounds cannot be read', async () => {
+    // A Match's kind depends on its round. A failed slot read would otherwise
+    // give every final the elimination length without a trace.
+    fromMock
+      .mockReturnValueOnce(sheetChain())
+      .mockReturnValueOnce(makeChain({ data: [{ id: 't1' }], error: null })) // tournaments
+      .mockReturnValueOnce(makeChain({ data: [{ id: 'phase-1' }], error: null })) // phases
+      .mockReturnValueOnce(
+        makeChain({
+          data: [
+            gm('f', {
+              pool_id: null,
+              bracket_slot_id: 's3',
+              phases: { type: 'single_elim', tournament_id: TOURNAMENT },
+            }),
+          ],
+          error: null,
+        }),
+      ) // group matches
+      .mockReturnValueOnce(
+        makeChain({ data: [{ id: 'l1', name: 'L1', sort_order: 0 }], error: null }),
+      ) // lices
+      .mockReturnValueOnce(makeChain({ data: [], error: null })) // occupants
+      .mockReturnValueOnce(
+        makeChain({ data: [{ phase_id: 'phase-1', bracket_slot_id: 's3' }], error: null }),
+      ) // the phase's Matches
+      .mockReturnValueOnce(makeChain({ data: null, error: { message: 'statement timeout' } })); // bracket_slots
+
+    await expect(
+      svc.scheduleGroup(
+        'event-1',
+        { matchIds: ['f'], liceIds: ['l1'], startTime: START, mode: 'bracket-branch' },
+        CALLER,
+      ),
+    ).rejects.toThrow('statement timeout');
   });
 });
 

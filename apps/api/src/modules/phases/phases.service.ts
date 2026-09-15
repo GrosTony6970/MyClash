@@ -55,7 +55,6 @@ import {
 } from '../matches/referee-assignment-index';
 import { resolveMatchReferees } from '../matches/resolve-match-referees';
 import { matchRulesetForPhase, matchRulesetForTournament } from './match-ruleset';
-import { distributePoolMatches, rotateLicesFrom } from './pool-auto-distribute';
 import { computePoolReschedule } from './pool-reschedule';
 import { poolMatchSortKey } from './pool-match-sort';
 import {
@@ -2392,7 +2391,7 @@ export class PhasesService {
    * Agreeing today is not a reason to merge them. Widening this one to match
    * `hasBeenFought` if that disjunct ever starts firing is a behaviour change
    * affecting ten call sites, most of them pure scheduling — setPoolLice,
-   * reschedulePool, autoDistributePool, the pool-member edits — and needs to be
+   * reschedulePool, the pool-member edits — and needs to be
    * taken as a decision, not slipped in as a tidy-up.
    */
   private async scoredMatchesIn(column: 'pool_id' | 'phase_id', id: string): Promise<string[]> {
@@ -2505,9 +2504,9 @@ export class PhasesService {
   /**
    * Refuse a whole-pool placement that double-books a piste.
    *
-   * Shared by `reschedulePool` and `autoDistributePool`, both of which compute
-   * every placement before writing any of them — so the check runs once, on the
-   * complete set, and a refusal leaves nothing half-moved.
+   * Used by `reschedulePool`, which computes every placement before writing
+   * any of them — so the check runs once, on the complete set, and a refusal
+   * leaves nothing half-moved.
    *
    * Two exclusions matter. The pool's OWN matches are dropped from the occupant
    * list, because they are the rows being moved and would otherwise collide with
@@ -2593,8 +2592,8 @@ export class PhasesService {
    * Move a whole pool to (liceId, startAtIso): set every match's lice to
    * `liceId` and shift the timed matches so the pool starts at
    * `startAtIso`, preserving their internal spacing. Backs the referee
-   * board's drag-drop (drop a pool card on a lice/timeslot cell). Unlike
-   * autoDistributePool this keeps the existing layout instead of re-fanning.
+   * board's drag-drop (drop a pool card on a lice/timeslot cell). It keeps
+   * the existing layout instead of re-fanning.
    */
   async reschedulePool(
     poolId: string,
@@ -2646,109 +2645,6 @@ export class PhasesService {
     await this.matchAlerts?.refresh(updates.map((u) => u.matchId));
 
     return { poolId, updated: updates };
-  }
-
-  /**
-   * Auto-distribute every match in a pool across the event's lices
-   * starting at (startAtIso, startLiceId). Match i goes to lice
-   * (i % parallelLices) at time start + floor(i / parallelLices) *
-   * durationMinutes. The lice list is the event's `lices` ordered by
-   * sort_order, rotated so it begins at startLiceId; if
-   * `parallelLices` is below the event's lice count we slice off the
-   * head, so the operator can fan a pool across 2 lices on a 4-lice
-   * setup.
-   */
-  async autoDistributePool(
-    poolId: string,
-    dto: {
-      startAtIso: string;
-      startLiceId: string | null;
-      durationMinutes: number;
-      parallelLices: number;
-    },
-    userId: string,
-  ): Promise<{
-    poolId: string;
-    updated: Array<{ matchId: string; liceId: string; scheduledAt: string }>;
-  }> {
-    const ctx = await this.assertPoolEditAuth(poolId, userId);
-    await this.assertPoolEditable(poolId);
-
-    if (dto.parallelLices <= 0) {
-      throw new BadRequestException('parallelLices must be >= 1');
-    }
-    if (dto.durationMinutes <= 0) {
-      throw new BadRequestException('durationMinutes must be >= 1');
-    }
-
-    // 1. Pool matches ordered by match_number_label — the Berger
-    //    generator emits labels like P1M1, P1M2, P2M1, … whose
-    //    lexicographic order matches the desired left-to-right,
-    //    top-to-bottom layout. matches has no sort_order column;
-    //    selecting it crashed autoDistributePool with `column
-    //    matches.sort_order does not exist`.
-    const { data: matchesData, error: matchesErr } = await this.supabase.service
-      .from('matches')
-      .select('id, match_number_label')
-      .eq('pool_id', poolId)
-      .order('match_number_label', { ascending: true });
-    if (matchesErr) throw new BadRequestException(matchesErr.message);
-    const matchIds = ((matchesData ?? []) as Array<{ id: string }>).map((m) => m.id);
-    if (matchIds.length === 0) return { poolId, updated: [] };
-
-    // 2. Event lices ordered by sort_order, rotated to start at the
-    //    operator's chosen lice, then truncated to `parallelLices`.
-    const { data: licesData, error: licesErr } = await this.supabase.service
-      .from('lices')
-      .select('id, sort_order')
-      .eq('event_id', ctx.eventId)
-      .order('sort_order', { ascending: true });
-    if (licesErr) throw new BadRequestException(licesErr.message);
-    const orderedLiceIds = ((licesData ?? []) as Array<{ id: string }>).map((l) => l.id);
-    if (orderedLiceIds.length === 0) {
-      throw new BadRequestException('Event has no lices configured.');
-    }
-    const rotated = rotateLicesFrom(orderedLiceIds, dto.startLiceId);
-    const liceIds = rotated.slice(0, Math.min(dto.parallelLices, rotated.length));
-
-    // 3. Pure math → one (matchId, liceId, scheduledAt) per match.
-    const assignments = distributePoolMatches({
-      matchIds,
-      liceIds,
-      startAtIso: dto.startAtIso,
-      durationMinutes: dto.durationMinutes,
-    });
-
-    // 3b. Refuse before writing anything. `distributePoolMatches` fans this pool
-    //     across lices without knowing what else already sits on them, so the
-    //     whole set is checked here — against existing occupants and against
-    //     itself — while it is still just arithmetic.
-    await this.assertPoolPlacementsFree(
-      poolId,
-      assignments.map((a) => ({
-        matchId: a.matchId,
-        liceId: a.liceId,
-        scheduledAt: a.scheduledAt,
-      })),
-    );
-
-    // 4. Fan UPDATEs out: one per match (PostgREST can't UPDATE
-    //    different rows to different values in a single statement).
-    //    Parallel network round-trips → still fast on a typical 6-match
-    //    pool. Last write wins per row — independent rows, no ordering.
-    const results = await Promise.all(
-      assignments.map(async (a) => {
-        const { error } = await this.supabase.service
-          .from('matches')
-          .update({ lice_id: a.liceId, scheduled_at: a.scheduledAt })
-          .eq('id', a.matchId);
-        if (error) throw new BadRequestException(error.message);
-        return a;
-      }),
-    );
-    await this.matchAlerts?.refresh(results.map((a) => a.matchId));
-
-    return { poolId, updated: results };
   }
 
   /**

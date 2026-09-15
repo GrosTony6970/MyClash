@@ -28,7 +28,7 @@ import { createBracketTournament, ensureRoster } from './_bracket';
  */
 const SCHEDULE = ['1', 'true', 'yes'].includes((process.env.E2E_SCHEDULE ?? '').toLowerCase());
 
-/** Block configuration. Every expectation below is derived from these. */
+/** Sheet and block configuration. Every expectation below is derived from these. */
 const LICE_COUNT = 2;
 const POOL_COUNT = 2;
 const MATCH_MINUTES = 5;
@@ -135,6 +135,21 @@ test.describe('schedule', () => {
       'suggest must propose a day, not an empty programme',
     ).toBeGreaterThan(0);
 
+    // ── The sheet the day is generated from ───────────────────────────────────
+    // A bout's length, the gap and the rest live on the Event's planner sheet,
+    // not on the bar (ADR-018). Fields left out take the sheet's defaults.
+    await api.ok(
+      await api.put(`events/${eventId}/programme/config`, {
+        data: {
+          poolMatchDurationMinutes: MATCH_MINUTES,
+          eliminationMatchDurationMinutes: MATCH_MINUTES,
+          finalsMatchDurationMinutes: MATCH_MINUTES,
+          matchGapSeconds: 0,
+          minRestMinutes: MIN_REST_MINUTES,
+        },
+      }),
+    );
+
     // ── The block this spec actually commits ──────────────────────────────────
     // `createBlock` answers `{ block }`, not the block itself.
     const { block } = await api.json<{ block: { id: string } }>(
@@ -146,9 +161,6 @@ test.describe('schedule', () => {
           startTime: BLOCK_START,
           endTime: BLOCK_END,
           liceCount: LICE_COUNT,
-          matchGapSeconds: 0,
-          matchDurationMinutes: MATCH_MINUTES,
-          minRestMinutes: MIN_REST_MINUTES,
           competitionId: tournament.id,
           competitionPhase: 'pool',
         },
@@ -202,8 +214,8 @@ test.describe('schedule', () => {
     }
 
     // ── Invariant 3: the rest minimum is honoured ─────────────────────────────
-    // Asserted from the block's OWN minRestMinutes, so it stays true if the
-    // constant above changes.
+    // Asserted from the minRestMinutes this spec stored on the sheet, so it stays
+    // true if the constant above changes.
     const minRestMs = MIN_REST_MINUTES * 60_000;
     for (const [fighter, bouts] of byFighter(placed)) {
       for (let i = 1; i < bouts.length; i++) {
@@ -211,7 +223,7 @@ test.describe('schedule', () => {
         expect(
           gap,
           `fighter ${fighter} gets only ${Math.round(gap / 60_000)} min between ` +
-            `${bouts[i - 1]!.id} and ${bouts[i]!.id}; the block promises ${MIN_REST_MINUTES}`,
+            `${bouts[i - 1]!.id} and ${bouts[i]!.id}; the sheet promises ${MIN_REST_MINUTES}`,
         ).toBeGreaterThanOrEqual(minRestMs);
       }
     }

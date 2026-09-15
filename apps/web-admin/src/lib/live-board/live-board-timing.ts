@@ -67,9 +67,9 @@ export function idleForSec(row: BoardRow, nowMs: number): number | null {
 /**
  * Seconds a running bout has exceeded its planned length.
  *
- * `matchDurationMinutes` is the programme block's planned slot (or the
- * documented default), so this is a schedule signal, not a rule about how long
- * a fight may last.
+ * `matchDurationMinutes` is the planner sheet's length for the kind of bar
+ * running now, else the Event's pool length, so this is a schedule signal, not
+ * a rule about how long a fight may last.
  */
 export function runningOverSec(
   row: BoardRow,

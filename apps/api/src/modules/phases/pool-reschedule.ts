@@ -7,7 +7,7 @@
  * match has a time, only the lice changes.
  *
  * Kept separate from PhasesService so the math is testable without
- * mocking supabase. Mirrors pool-auto-distribute.ts.
+ * mocking supabase.
  */
 export interface PoolRescheduleUpdate {
   matchId: string;

@@ -326,6 +326,25 @@ test('populate: 2 tournaments + 25 referees + 6 workshops + publish', async ({ r
   await adminBlock('Registration & Gear Check', '08:00', '08:45');
   await adminBlock('Referee meeting', '08:45', '09:00');
 
+  // The planner sheet holds the numbers Generate spaces bouts with (ADR-018).
+  // Every bout lasts 5 minutes with a 30-second gap. No fighter rest for the demo
+  // (the default is 10 min), so each pool's matches run back-to-back and render
+  // as ONE continuous card per pool instead of being split into rest-separated
+  // blocks.
+  await step('planner sheet: bout lengths, gap and rest', async () =>
+    reqOk(
+      await put(`events/${eventId}/programme/config`, {
+        data: {
+          poolMatchDurationMinutes: 5,
+          eliminationMatchDurationMinutes: 5,
+          finalsMatchDurationMinutes: 5,
+          matchGapSeconds: 30,
+          minRestMinutes: 0,
+        },
+      }),
+    ),
+  );
+
   // Default penalty ruleset = the built-in FFAMHE one, mirroring what the
   // create-tournament wizard pre-selects (apps/web-admin .../_wizard/wizard-defaults.ts:
   // prefer built_in, else code 'ffamhe_tf_2026'). null → omit it and let the API
@@ -452,12 +471,6 @@ test('populate: 2 tournaments + 25 referees + 6 workshops + publish', async ({ r
             startTime: `${startHour}:00`,
             endTime: `${Number(startHour) + 4}:00`,
             liceCount: liceIds.length,
-            matchGapSeconds: 30,
-            matchDurationMinutes: 5,
-            // No fighter rest for the demo (default is 10 min) so each pool's
-            // matches run back-to-back and render as ONE continuous card per
-            // pool instead of being split into rest-separated blocks.
-            minRestMinutes: 0,
             competitionId: tournamentId,
             competitionPhase: 'pool',
           },
@@ -1470,9 +1483,6 @@ test('populate: 2 tournaments + 25 referees + 6 workshops + publish', async ({ r
             startTime: `${startHour}:00`,
             endTime: `${Number(startHour) + 4}:00`,
             liceCount: liceIds.length,
-            matchGapSeconds: 30,
-            matchDurationMinutes: 5,
-            minRestMinutes: 0,
             competitionId: t.id,
             competitionPhase: 'bracket',
           },

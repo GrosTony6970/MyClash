@@ -1,4 +1,4 @@
-import type { SuggestConfig, TournamentLengths } from '@myclash/types';
+import type { ProgrammePhase, SuggestConfig, TournamentLengths } from '@myclash/types';
 
 /**
  * How long a bout of a given kind lasts, read from the Event's planner sheet.
@@ -10,10 +10,53 @@ import type { SuggestConfig, TournamentLengths } from '@myclash/types';
  * length, the Tournament's pool length, the Event's Swiss length, the Event's
  * pool length.
  *
- * Pure: the caller loads the sheet. Suggest is the first caller; Generate, the
- * re-fan and every reader of a Match's window follow in later slices.
+ * Pure: the caller loads the sheet. Suggest, Generate and the re-fan call it;
+ * every reader of a Match's window follows in a later slice.
  */
 export type MatchKind = 'pool' | 'swiss' | 'elimination' | 'finals';
+
+/**
+ * A bracket's final round: the highest round among the Matches that EXIST, or
+ * null when none resolves.
+ *
+ * Matches, not bracket slots. A double-elimination reset slot is generated one
+ * round past the grand final and has no Match until it is needed; a max over
+ * slots would call the grand final "elimination" while Suggest and Generate
+ * put it in the finals bar.
+ */
+export function finalRoundOf(rounds: ReadonlyArray<number | null>): number | null {
+  const known = rounds.filter((round): round is number => round != null);
+  return known.length > 0 ? Math.max(...known) : null;
+}
+
+/**
+ * A bracket Match is a finals bout when it sits in the final round: the gold
+ * final and the bronze, or the grand final and its reset. A Match whose round
+ * does not resolve is not.
+ */
+export function isFinalsMatch(round: number | null, finalRound: number | null): boolean {
+  return round != null && finalRound != null && round === finalRound;
+}
+
+/**
+ * The kind of bout a Match is, from its phase type (`pool`, `swiss`,
+ * `single_elim`, `double_elim`) and, for a bracket, its round against the
+ * bracket's final round.
+ */
+export function matchKind(
+  phaseType: string | null,
+  round: number | null,
+  finalRound: number | null,
+): MatchKind {
+  if (phaseType === 'pool') return 'pool';
+  if (phaseType === 'swiss') return 'swiss';
+  return isFinalsMatch(round, finalRound) ? 'finals' : 'elimination';
+}
+
+/** The kind of bout a programme bar schedules. A bracket bar holds elimination bouts. */
+export function barKind(phase: ProgrammePhase): MatchKind {
+  return phase === 'bracket' ? 'elimination' : phase;
+}
 
 export function sheetLengthFor(
   kind: MatchKind,

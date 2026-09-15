@@ -105,8 +105,6 @@ test('auto-assign fills a pool and respects the fighter-vs-referee conflict', as
         startTime: '09:00',
         endTime: '18:00',
         liceCount: 1,
-        matchGapSeconds: 30,
-        matchDurationMinutes: 5,
         competitionId: tournamentId,
         competitionPhase: 'pool',
       },

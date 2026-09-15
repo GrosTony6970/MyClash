@@ -13,7 +13,13 @@ import { OrganizationsService } from '../organizations/organizations.service';
 import { MatchAlertRefresherService } from '../notifications/match-alert-refresher.service';
 import { assertCanManageEvent, assertCanReadEvent } from '../../common/auth/event-authz';
 import { scheduleMatches } from '../schedule/match-scheduler';
-import { sheetLengthFor } from '../schedule/planned-length';
+import {
+  finalRoundOf,
+  isFinalsMatch,
+  matchKind,
+  sheetLengthFor,
+  type MatchKind,
+} from '../schedule/planned-length';
 import { poolBottleneckMinutes } from './pool-bottleneck';
 import {
   DAY_LAST_MIN,
@@ -39,6 +45,7 @@ import type {
   UpdateBlockLabelDto,
 } from './dto/programme.dto';
 import { storedProgrammeConfigSchema } from './dto/programme.dto';
+import { readProgrammeSheet } from './programme-sheet';
 
 function timeToMin(t: string): number {
   const [h, m] = t.split(':').map(Number);
@@ -107,6 +114,14 @@ interface BracketMatchRow {
   phase_type: string | null;
   bracket_round: number | null;
   bracket_position: number | null;
+}
+
+/** A Match as `sheetLengths` needs it: its phase, embedded, and its bracket slot. */
+interface SheetLengthRow {
+  id: string;
+  phase_id: string;
+  bracket_slot_id: string | null;
+  phases: { type: string; tournament_id: string };
 }
 
 function computeNeededMin(
@@ -205,22 +220,11 @@ export class ProgrammeService {
    * The Event's planner sheet (ADR-018). Anyone signed in who can see the Event
    * may read it, behind the same visibility gate as the bars; the route is not
    * `@Public()`, so the global guard has already refused an anonymous caller.
-   *
-   * No row reads as the schema's defaults, and a stored sheet missing a field is
-   * filled by them, because what is loaded goes through the schema. A field the
-   * schema dropped is ignored; a value it refuses is a server fault and surfaces
-   * as one.
+   * `readProgrammeSheet` says how a stored sheet is read.
    */
   async getConfig(eventId: string, resolveUserId: () => Promise<string>): Promise<SuggestConfig> {
     await this.assertReader(eventId, resolveUserId);
-    const { data, error } = await this.supabase.service
-      .from('event_programme_configs')
-      .select('config_json')
-      .eq('event_id', eventId)
-      .maybeSingle();
-    if (error) throw new BadRequestException(error.message);
-    const row = data as { config_json: unknown } | null;
-    return storedProgrammeConfigSchema.parse(row?.config_json ?? {});
+    return readProgrammeSheet(this.supabase.service, eventId);
   }
 
   /** Store the sheet whole, one row per Event. Only the organiser's team may. */
@@ -268,9 +272,6 @@ export class ProgrammeService {
       lice_count: b.liceCount,
       start_time: b.startTime,
       end_time: b.endTime,
-      match_gap_seconds: b.matchGapSeconds,
-      match_duration_minutes: b.matchDurationMinutes,
-      min_rest_minutes: b.minRestMinutes,
       color_hex: b.colorHex ?? null,
     };
   }
@@ -510,8 +511,9 @@ export class ProgrammeService {
       // matches are finals.
       const { rows: bracketRows, finalRound } = await this.loadBracketMatches(t.id);
       const bracketMatchCount = bracketRows.length;
-      const finalsMatchCount =
-        finalRound == null ? 0 : bracketRows.filter((r) => r.bracket_round === finalRound).length;
+      const finalsMatchCount = bracketRows.filter((r) =>
+        isFinalsMatch(r.bracket_round, finalRound),
+      ).length;
 
       const swissMatchCount = await this.estimateSwissMatchCount(
         phases.filter((p) => p.type === 'swiss'),
@@ -548,10 +550,7 @@ export class ProgrammeService {
     let middayInserted = false;
 
     const push = (
-      partial: Omit<
-        ProgrammeBlock,
-        'id' | 'eventId' | 'sortOrder' | 'generatedAt' | 'colorHex' | 'minRestMinutes'
-      > & { minRestMinutes?: number },
+      partial: Omit<ProgrammeBlock, 'id' | 'eventId' | 'sortOrder' | 'generatedAt' | 'colorHex'>,
       neededMin = 0,
     ): void => {
       // A zero-minute break or admin bar means "none". The programme save
@@ -564,9 +563,6 @@ export class ProgrammeService {
         sortOrder: sortOrder++,
         colorHex: null,
         generatedAt: null,
-        // Non-competition blocks don't schedule matches → rest is irrelevant (0);
-        // competition blocks override this with cfg.minRestMinutes below.
-        minRestMinutes: 0,
         ...partial,
       };
       blocks.push(b);
@@ -607,8 +603,6 @@ export class ProgrammeService {
           liceCount: 0,
           startTime: clampedMinToTime(cursor),
           endTime: clampedMinToTime(end),
-          matchGapSeconds: 0,
-          matchDurationMinutes: 0,
         });
         cursor = end;
         middayInserted = true;
@@ -627,8 +621,6 @@ export class ProgrammeService {
       liceCount: 0,
       startTime: clampedMinToTime(cursor),
       endTime: clampedMinToTime(cursor + regMin),
-      matchGapSeconds: 0,
-      matchDurationMinutes: 0,
     });
     advance(regMin);
 
@@ -642,8 +634,6 @@ export class ProgrammeService {
       liceCount: 0,
       startTime: clampedMinToTime(cursor),
       endTime: clampedMinToTime(cursor + cfg.refereeMeetingDurationMinutes),
-      matchGapSeconds: 0,
-      matchDurationMinutes: 0,
     });
     advance(cfg.refereeMeetingDurationMinutes);
 
@@ -672,9 +662,6 @@ export class ProgrammeService {
           liceCount: Math.max(1, licesUsed),
           startTime: clampedMinToTime(cursor),
           endTime: clampedMinToTime(cursor + alloc),
-          matchGapSeconds: cfg.matchGapSeconds,
-          matchDurationMinutes: poolMin,
-          minRestMinutes: cfg.minRestMinutes,
         },
         neededMin,
       );
@@ -690,8 +677,6 @@ export class ProgrammeService {
         liceCount: 0,
         startTime: clampedMinToTime(cursor),
         endTime: clampedMinToTime(cursor + cfg.breakBetweenSessionsMinutes),
-        matchGapSeconds: 0,
-        matchDurationMinutes: 0,
       });
       advance(cfg.breakBetweenSessionsMinutes);
     }
@@ -726,9 +711,6 @@ export class ProgrammeService {
           liceCount: parallelLice,
           startTime: clampedMinToTime(cursor),
           endTime: clampedMinToTime(cursor + alloc),
-          matchGapSeconds: cfg.matchGapSeconds,
-          matchDurationMinutes: durationMin,
-          minRestMinutes: cfg.minRestMinutes,
         },
         neededMin,
       );
@@ -761,9 +743,6 @@ export class ProgrammeService {
           liceCount: parallelLice,
           startTime: clampedMinToTime(cursor),
           endTime: clampedMinToTime(cursor + alloc),
-          matchGapSeconds: cfg.matchGapSeconds,
-          matchDurationMinutes: swissMin,
-          minRestMinutes: cfg.minRestMinutes,
         },
         neededMin,
       );
@@ -778,8 +757,6 @@ export class ProgrammeService {
         liceCount: 0,
         startTime: clampedMinToTime(cursor),
         endTime: clampedMinToTime(cursor + cfg.breakBetweenSessionsMinutes),
-        matchGapSeconds: 0,
-        matchDurationMinutes: 0,
       });
       advance(cfg.breakBetweenSessionsMinutes);
     }
@@ -818,6 +795,9 @@ export class ProgrammeService {
     // days' blocks/matches are left untouched.
     const dayFilter =
       opts?.dayIndices && opts.dayIndices.length > 0 ? new Set(opts.dayIndices) : null;
+    // Every bout is spaced at the sheet's length for its kind, with the sheet's
+    // gap and rest (ADR-018). The bars carry no numbers.
+    const sheet = await readProgrammeSheet(this.supabase.service, eventId);
     const { data: blocksData, error: blocksErr } = await this.supabase.service
       .from('event_programme_blocks')
       .select('*')
@@ -1012,11 +992,15 @@ export class ProgrammeService {
           isPool: block.competitionPhase === 'pool',
           matches,
         });
+        const tournamentId = block.competitionId;
         const result = scheduleMatches(
           matches.map((m) => ({
             id: m.id,
             redRegistrationId: m.red_registration_id,
             blueRegistrationId: m.blue_registration_id,
+            // By the Match's own kind, not the bar's: a lone bracket bar holds
+            // the final too, and the final runs at the finals length.
+            estimatedDurationMinutes: sheetLengthFor(m.kind, sheet, tournamentId),
             poolId: m.pool_id,
             poolSortOrder: m.pool_sort_order,
             matchNumberLabel: m.match_number_label,
@@ -1026,9 +1010,8 @@ export class ProgrammeService {
           blockLices.map((l) => ({ id: l.id, name: l.name, sortOrder: l.sort_order })),
           {
             startTime: blockStartDt.toISOString(),
-            defaultMatchDurationMinutes: block.matchDurationMinutes,
-            transitionMinutes: block.matchGapSeconds / 60,
-            minRestMinutes: block.minRestMinutes,
+            transitionMinutes: sheet.matchGapSeconds / 60,
+            minRestMinutes: sheet.minRestMinutes,
             // Pools stay on one lice; single-elim brackets use branch-aware
             // grouping; anything else is greedy.
             poolAffinity,
@@ -1065,11 +1048,14 @@ export class ProgrammeService {
         // conflict resolver fires — `matches.phase_id` is NOT NULL, so
         // omitting it crashes the round-trip even for rows that exist.
         const phaseByMatchId = new Map(matches.map((m) => [m.id, m.phase_id]));
+        // Generate clears a typed override on every Match it re-places: the
+        // sheet wins when a day is generated again (ADR-018).
         const matchesPayload = result.scheduledMatches.map((sm) => ({
           id: sm.matchId,
           phase_id: phaseByMatchId.get(sm.matchId),
           scheduled_at: sm.scheduledAt,
           lice_id: sm.liceId,
+          planned_duration_override_minutes: null,
         }));
         const { data: upserted, error: matchesErr } = await this.supabase.service
           .from('matches')
@@ -1596,24 +1582,26 @@ export class ProgrammeService {
       return { scheduled: [], imbalancePercent: 0, unscheduled: dto.matchIds };
     }
 
+    // Each bout is spaced at its own kind's sheet length, with the sheet's gap
+    // and rest (ADR-018).
+    const sheet = await readProgrammeSheet(this.supabase.service, eventId);
     const eventPhaseIds = await this.eventPhaseIds(eventId);
 
     const { data: matchRows, error: mErr } = await this.supabase.service
       .from('matches')
       .select(
-        'id, red_registration_id, blue_registration_id, pool_id, match_number_label, phase_id, bracket_slot_id',
+        'id, red_registration_id, blue_registration_id, pool_id, match_number_label, phase_id, bracket_slot_id, phases(type, tournament_id)',
       )
       .in('id', dto.matchIds);
     if (mErr) throw new BadRequestException(mErr.message);
-    const rows = (matchRows ?? []) as Array<{
-      id: string;
-      red_registration_id: string;
-      blue_registration_id: string;
-      pool_id: string | null;
-      match_number_label: string | null;
-      phase_id: string;
-      bracket_slot_id: string | null;
-    }>;
+    const rows = (matchRows ?? []) as unknown as Array<
+      SheetLengthRow & {
+        red_registration_id: string;
+        blue_registration_id: string;
+        pool_id: string | null;
+        match_number_label: string | null;
+      }
+    >;
     if (rows.length !== dto.matchIds.length || rows.some((r) => !eventPhaseIds.has(r.phase_id))) {
       throw new BadRequestException('Some matches do not belong to this event');
     }
@@ -1636,24 +1624,27 @@ export class ProgrammeService {
       .filter((l): l is { id: string; name: string; sortOrder: number } => l !== null);
     if (lices.length === 0) throw new BadRequestException('No valid lices to schedule onto');
 
-    const matchDuration = dto.matchDurationMinutes ?? 5;
-
     // Seed each lice's first-free time from its existing occupants (excluding
-    // the group) so the re-fan appends instead of overlapping them.
+    // the group) so the re-fan appends instead of overlapping them. An occupant
+    // ends at its own length, read like the group's.
     const groupIds = new Set(dto.matchIds);
     const { data: occRows } = await this.supabase.service
       .from('matches')
-      .select('id, lice_id, scheduled_at')
+      .select('id, lice_id, scheduled_at, phase_id, bracket_slot_id, phases(type, tournament_id)')
       .in('lice_id', dto.liceIds);
+    const occupants = (
+      (occRows ?? []) as unknown as Array<
+        SheetLengthRow & { lice_id: string | null; scheduled_at: string | null }
+      >
+    ).filter(
+      (o): o is SheetLengthRow & { lice_id: string; scheduled_at: string } =>
+        !groupIds.has(o.id) && !!o.lice_id && !!o.scheduled_at,
+    );
+    const { lengths, coords } = await this.sheetLengths(sheet, [...rows, ...occupants]);
     const liceBusyUntil: Record<string, string> = {};
-    for (const o of (occRows ?? []) as Array<{
-      id: string;
-      lice_id: string | null;
-      scheduled_at: string | null;
-    }>) {
-      if (groupIds.has(o.id) || !o.lice_id || !o.scheduled_at) continue;
+    for (const o of occupants) {
       const end = new Date(
-        new Date(o.scheduled_at).getTime() + matchDuration * 60_000,
+        new Date(o.scheduled_at).getTime() + lengths.get(o.id)! * 60_000,
       ).toISOString();
       if (!liceBusyUntil[o.lice_id] || liceBusyUntil[o.lice_id]! < end) {
         liceBusyUntil[o.lice_id] = end;
@@ -1661,10 +1652,6 @@ export class ProgrammeService {
     }
 
     const bracketSlotIds = rows.map((r) => r.bracket_slot_id).filter((id): id is string => !!id);
-    const coords =
-      dto.mode === 'bracket-branch'
-        ? await this.loadBracketCoords(bracketSlotIds)
-        : new Map<string, { round: number; position: number }>();
     const shape =
       dto.mode === 'bracket-branch'
         ? await this.loadBracketShape(bracketSlotIds)
@@ -1672,11 +1659,15 @@ export class ProgrammeService {
 
     const result = scheduleMatches(
       rows.map((r) => {
-        const c = r.bracket_slot_id ? coords.get(r.bracket_slot_id) : undefined;
+        const c =
+          dto.mode === 'bracket-branch' && r.bracket_slot_id
+            ? coords.get(r.bracket_slot_id)
+            : undefined;
         return {
           id: r.id,
           redRegistrationId: r.red_registration_id,
           blueRegistrationId: r.blue_registration_id,
+          estimatedDurationMinutes: lengths.get(r.id)!,
           poolId: dto.mode === 'pool' ? r.pool_id : null,
           matchNumberLabel: r.match_number_label,
           bracketRound: c?.round ?? null,
@@ -1688,9 +1679,8 @@ export class ProgrammeService {
       lices,
       {
         startTime: dto.startTime,
-        defaultMatchDurationMinutes: matchDuration,
-        transitionMinutes: (dto.matchGapSeconds ?? 0) / 60,
-        minRestMinutes: dto.minRestMinutes ?? 10,
+        transitionMinutes: sheet.matchGapSeconds / 60,
+        minRestMinutes: sheet.minRestMinutes,
         poolAffinity: dto.mode === 'pool' ? 'strict' : 'bracket-branch',
         liceBusyUntil,
       },
@@ -1775,9 +1765,6 @@ export class ProgrammeService {
         lice_count: dto.liceCount ?? 0,
         start_time: dto.startTime,
         end_time: dto.endTime,
-        match_gap_seconds: dto.matchGapSeconds ?? 0,
-        match_duration_minutes: dto.matchDurationMinutes ?? 0,
-        min_rest_minutes: dto.minRestMinutes ?? 10,
         color_hex: dto.colorHex ?? null,
       })
       .select('*')
@@ -1951,6 +1938,7 @@ export class ProgrammeService {
       phase_type: string | null;
       bracket_round: number | null;
       bracket_position: number | null;
+      kind: MatchKind;
     }>
   > {
     if (phase === 'pool') {
@@ -1997,24 +1985,31 @@ export class ProgrammeService {
         phase_type: 'pool',
         bracket_round: null,
         bracket_position: null,
+        kind: 'pool' as const,
       }));
     } else if (phase === 'swiss') {
-      return this.loadSwissMatches(tournamentId);
+      return (await this.loadSwissMatches(tournamentId)).map((r) => ({
+        ...r,
+        kind: 'swiss' as const,
+      }));
     } else {
       // Partition the bracket by final round so a 'bracket' block schedules the
       // elimination rounds and a 'finals' block schedules only the final round
       // (gold + bronze) — same classification the estimate used, so the two
       // blocks never fetch the same match twice.
-      const { rows, finalRound } = await this.loadBracketMatches(tournamentId);
-      if (phase === 'finals') {
-        return finalRound == null ? [] : rows.filter((r) => r.bracket_round === finalRound);
-      }
+      const loaded = await this.loadBracketMatches(tournamentId);
+      const rows = loaded.rows.map((r) => ({
+        ...r,
+        kind: matchKind(r.phase_type, r.bracket_round, loaded.finalRound),
+      }));
+      if (phase === 'finals') return rows.filter((r) => r.kind === 'finals');
       // 'bracket' (elimination): exclude the final round ONLY when a sibling
       // finals block will schedule it (opts.splitFinals). Without one — a legacy
-      // programme with a lone bracket block, or no resolvable round — keep every
-      // match so the final round is scheduled here rather than orphaned.
-      if (!opts?.splitFinals || finalRound == null) return rows;
-      return rows.filter((r) => r.bracket_round !== finalRound);
+      // programme with a lone bracket block — keep every match so the final
+      // round is scheduled here rather than orphaned. When no round resolves, no
+      // Match is finals and every one stays.
+      if (!opts?.splitFinals) return rows;
+      return rows.filter((r) => r.kind !== 'finals');
     }
   }
 
@@ -2117,6 +2112,64 @@ export class ProgrammeService {
       }));
   }
 
+  /**
+   * Each Match's planned length, read from the sheet by its kind and its
+   * Tournament (ADR-018), and the bracket coordinates loaded on the way.
+   *
+   * A bracket Match's kind needs its bracket's final round, counted over the
+   * Matches that exist in that phase, never over its slots (`finalRoundOf`). So
+   * the rows' bracket phases are read whole, once, and every slot id goes
+   * through one `bracket_slots` read.
+   *
+   * The re-fan is the only caller. ADR-018 moves this into the one helper every
+   * reader of a Match's window calls.
+   */
+  private async sheetLengths(
+    sheet: SuggestConfig,
+    rows: readonly SheetLengthRow[],
+  ): Promise<{
+    lengths: Map<string, number>;
+    coords: Map<string, { round: number; position: number }>;
+  }> {
+    const bracketPhaseIds = [
+      ...new Set(
+        rows
+          .filter((r) => r.phases.type === 'single_elim' || r.phases.type === 'double_elim')
+          .map((r) => r.phase_id),
+      ),
+    ];
+    let phaseMatches: Array<{ phase_id: string; bracket_slot_id: string | null }> = [];
+    if (bracketPhaseIds.length > 0) {
+      const { data, error } = await this.supabase.service
+        .from('matches')
+        .select('phase_id, bracket_slot_id')
+        .in('phase_id', bracketPhaseIds);
+      if (error) throw new BadRequestException(error.message);
+      phaseMatches = (data ?? []) as typeof phaseMatches;
+    }
+    const coords = await this.loadBracketCoords(
+      [...rows, ...phaseMatches].map((r) => r.bracket_slot_id).filter((id): id is string => !!id),
+    );
+    const roundOf = (slotId: string | null): number | null =>
+      slotId ? (coords.get(slotId)?.round ?? null) : null;
+    const finalRoundByPhase = new Map(
+      bracketPhaseIds.map((phaseId) => [
+        phaseId,
+        finalRoundOf(
+          phaseMatches.filter((m) => m.phase_id === phaseId).map((m) => roundOf(m.bracket_slot_id)),
+        ),
+      ]),
+    );
+    const lengths = new Map(
+      rows.map((r) => {
+        const finalRound = finalRoundByPhase.get(r.phase_id) ?? null;
+        const kind = matchKind(r.phases.type, roundOf(r.bracket_slot_id), finalRound);
+        return [r.id, sheetLengthFor(kind, sheet, r.phases.tournament_id)];
+      }),
+    );
+    return { lengths, coords };
+  }
+
   /** Slot id → {round, position} for bracket matches. Empty input = no query. */
   private async loadBracketCoords(
     slotIds: string[],
@@ -2124,10 +2177,13 @@ export class ProgrammeService {
     const map = new Map<string, { round: number; position: number }>();
     const ids = [...new Set(slotIds)];
     if (ids.length === 0) return map;
-    const { data } = await this.supabase.service
+    const { data, error } = await this.supabase.service
       .from('bracket_slots')
       .select('id, round, position')
       .in('id', ids);
+    // A Match's kind, and so its length, depends on its round: a failed read
+    // would silently give every final the elimination length.
+    if (error) throw new BadRequestException(error.message);
     for (const s of (data ?? []) as Array<{ id: string; round: number; position: number }>) {
       map.set(s.id, { round: s.round, position: s.position });
     }
@@ -2169,7 +2225,7 @@ export class ProgrammeService {
    * Load every non-pool (bracket) match for a tournament with its bracket
    * round resolved, plus the tournament's `finalRound` = the highest round
    * present. A match is a "finals" match (gold final + bronze, or the
-   * double-elim grand final / reset) iff `bracket_round === finalRound`;
+   * double-elim grand final / reset) iff `isFinalsMatch(bracket_round, finalRound)`;
    * everything else — including matches with no resolvable round — is an
    * "elimination" match. Single source of truth so the block-time estimate
    * (`buildSuggestion`) and the block→match routing (`fetchCompetitionMatches`)
@@ -2232,9 +2288,7 @@ export class ProgrammeService {
         bracket_position: c?.position ?? null,
       };
     });
-    const rounds = rows.map((r) => r.bracket_round).filter((r): r is number => r != null);
-    const finalRound = rounds.length > 0 ? Math.max(...rounds) : null;
-    return { rows, finalRound };
+    return { rows, finalRound: finalRoundOf(rows.map((r) => r.bracket_round)) };
   }
 
   private validateBlocks(blocks: SaveProgrammeDto['blocks']): void {
@@ -2259,11 +2313,6 @@ export class ProgrammeService {
           `Competition block "${block.label}" requires at least one lice`,
         );
       }
-      if (block.matchDurationMinutes < 1) {
-        throw new BadRequestException(
-          `Competition block "${block.label}" requires a match duration of at least 1 minute`,
-        );
-      }
     }
   }
 
@@ -2281,9 +2330,6 @@ export class ProgrammeService {
       liceCount: raw['lice_count'] as number,
       startTime: trimSeconds(raw['start_time'] as string),
       endTime: trimSeconds(raw['end_time'] as string),
-      matchGapSeconds: raw['match_gap_seconds'] as number,
-      matchDurationMinutes: raw['match_duration_minutes'] as number,
-      minRestMinutes: raw['min_rest_minutes'] as number,
       colorHex: (raw['color_hex'] as string | null) ?? null,
       generatedAt: (raw['generated_at'] as string | null) ?? null,
     };

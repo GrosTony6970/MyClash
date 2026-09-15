@@ -71,7 +71,6 @@ type ProgrammeRow = {
   label: string;
   start_time: string;
   end_time: string;
-  match_duration_minutes?: number | null;
 };
 
 type RefereeRow = {
@@ -194,9 +193,7 @@ export class TournamentQueryToolsService {
   private async programme(eventId: string, tournamentId: string): Promise<ProgrammeRow[]> {
     const { data, error } = await this.supabase.service
       .from('event_programme_blocks')
-      .select(
-        'event_id, competition_id, competition_phase, label, start_time, end_time, match_duration_minutes',
-      )
+      .select('event_id, competition_id, competition_phase, label, start_time, end_time')
       .eq('event_id', eventId);
     if (error) throw new BadRequestException(error.message);
     return ((data ?? []) as ProgrammeRow[]).filter(

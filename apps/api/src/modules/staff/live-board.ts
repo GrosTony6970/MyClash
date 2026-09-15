@@ -2,11 +2,9 @@
 
 import { resolveMatchReferees } from '../matches/resolve-match-referees';
 import type { RefereeAssignmentRow, ResolvedReferee } from '../matches/resolve-match-referees';
-import {
-  DEFAULT_MATCH_DURATION_MINUTES,
-  selectProgrammeBlocks,
-  toHHMM,
-} from '../schedule/select-programme-block';
+import type { ProgrammePhase, SuggestConfig } from '@myclash/types';
+import { barKind, sheetLengthFor } from '../schedule/planned-length';
+import { selectProgrammeBlocks, toHHMM } from '../schedule/select-programme-block';
 import type {
   BoardHealth,
   BoardAttention,
@@ -331,22 +329,32 @@ export function resolveBoardReferees(
  * No block covering "now" is the DEFAULT case, not an error: programme blocks
  * are optional and most events have none. Only overrun and projected-finish
  * read the duration; late and idle derive from scheduled_at and work either way.
+ *
+ * The length is the planner sheet's (ADR-018): for a competition bar covering
+ * now, its kind of bout in its Tournament; otherwise the Event's pool length.
+ * One number for the whole board is interim: ADR-018 gives each piste its own
+ * Match's length.
  */
 export function buildBoardTiming(
   blockRows: Array<Record<string, unknown>> | null,
   now: Date,
+  sheet: SuggestConfig,
 ): LiveBoardTiming {
   const blocks = (blockRows ?? []).map((r) => ({
     id: r['id'] as string,
     label: r['label'] as string,
     startTime: r['start_time'] as string,
     endTime: r['end_time'] as string,
-    matchDurationMinutes: r['match_duration_minutes'] as number,
+    competitionId: r['competition_id'] as string | null,
+    competitionPhase: r['competition_phase'] as ProgrammePhase | null,
   }));
   const { current } = selectProgrammeBlocks(blocks, toHHMM(now));
   return {
     nowIso: now.toISOString(),
-    matchDurationMinutes: current?.matchDurationMinutes ?? DEFAULT_MATCH_DURATION_MINUTES,
+    matchDurationMinutes:
+      current?.competitionId && current.competitionPhase
+        ? sheetLengthFor(barKind(current.competitionPhase), sheet, current.competitionId)
+        : sheet.poolMatchDurationMinutes,
     block: current
       ? {
           id: current.id,

@@ -14,11 +14,6 @@ export interface ProgrammeBlock {
   liceCount: number;
   startTime: string;
   endTime: string;
-  matchGapSeconds: number;
-  matchDurationMinutes: number;
-  /** Minimum rest per fighter between their matches, in minutes (competition
-   *  blocks only — the scheduler waits this long before re-pairing a fighter). */
-  minRestMinutes: number;
   /** Optional "#rrggbb" override for the bar tint; null = per-kind default. */
   colorHex: string | null;
   generatedAt: string | null;

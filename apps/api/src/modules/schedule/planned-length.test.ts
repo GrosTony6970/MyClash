@@ -1,7 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import type { SuggestConfig } from '@myclash/types';
 import { PROGRAMME_CONFIG_DEFAULTS } from '../programme/dto/programme.dto';
-import { sheetLengthFor, type MatchKind } from './planned-length';
+import {
+  barKind,
+  finalRoundOf,
+  isFinalsMatch,
+  matchKind,
+  sheetLengthFor,
+  type MatchKind,
+} from './planned-length';
 
 const LONGSWORD = 'longsword';
 const SABRE = 'sabre';
@@ -60,5 +67,65 @@ describe('sheetLengthFor', () => {
       tournaments: [{ tournamentId: LONGSWORD, poolMatchDurationMinutes: 7 }],
     });
     expect(sheetLengthFor('swiss', s, LONGSWORD)).toBe(7);
+  });
+});
+
+describe('finalRoundOf', () => {
+  it('is the highest round among the Matches that exist', () => {
+    expect(finalRoundOf([1, 3, 2, 3])).toBe(3);
+  });
+
+  it('ignores a Match whose round does not resolve', () => {
+    expect(finalRoundOf([null, 2, null])).toBe(2);
+  });
+
+  it('is null when no round resolves', () => {
+    expect(finalRoundOf([])).toBeNull();
+    expect(finalRoundOf([null])).toBeNull();
+  });
+});
+
+describe('isFinalsMatch', () => {
+  it('is true only in the final round', () => {
+    expect(isFinalsMatch(3, 3)).toBe(true);
+    expect(isFinalsMatch(2, 3)).toBe(false);
+  });
+
+  it('is false when either round is unknown', () => {
+    expect(isFinalsMatch(null, 3)).toBe(false);
+    expect(isFinalsMatch(3, null)).toBe(false);
+    expect(isFinalsMatch(null, null)).toBe(false);
+  });
+});
+
+describe('matchKind', () => {
+  it.each<[string, number | null, number | null, MatchKind]>([
+    ['pool', null, null, 'pool'],
+    ['swiss', null, null, 'swiss'],
+    ['single_elim', 3, 3, 'finals'],
+    ['single_elim', 2, 3, 'elimination'],
+    ['double_elim', 5, 5, 'finals'],
+    ['double_elim', null, 5, 'elimination'],
+  ])('a %s Match in round %s of %s is %s', (phaseType, round, finalRound, kind) => {
+    expect(matchKind(phaseType, round, finalRound)).toBe(kind);
+  });
+
+  it('calls the grand final finals when its reset slot has no Match yet', () => {
+    // The reset slot sits one round past the grand final and has no Match until
+    // it is needed. The final round is counted over Matches, so it is the grand
+    // final's round.
+    const roundsOfMatches = [1, 2, 3, 4];
+    expect(matchKind('double_elim', 4, finalRoundOf(roundsOfMatches))).toBe('finals');
+  });
+});
+
+describe('barKind', () => {
+  it.each<[Parameters<typeof barKind>[0], MatchKind]>([
+    ['pool', 'pool'],
+    ['swiss', 'swiss'],
+    ['bracket', 'elimination'],
+    ['finals', 'finals'],
+  ])('a %s bar holds %s bouts', (phase, kind) => {
+    expect(barKind(phase)).toBe(kind);
   });
 });

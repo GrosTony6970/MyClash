@@ -332,8 +332,8 @@ describe('PhasesService', () => {
     });
 
     // ── One piste runs one bout at a time ─────────────────────────────────
-    // reschedulePool and autoDistributePool both pick a piste AND a time, so a
-    // collision means they picked a taken one. setPoolLice picks only a piste
+    // reschedulePool picks a piste AND a time, so a collision means it picked
+    // a taken one. setPoolLice picks only a piste
     // and stays deliberately unguarded — see assertPoolPlacementsFree.
     describe('piste double-booking', () => {
       const POOL_CONTEXT = {

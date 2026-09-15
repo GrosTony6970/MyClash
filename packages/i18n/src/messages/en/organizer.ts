@@ -1836,7 +1836,6 @@ export const organizer = {
         },
         dayStart: 'Day start',
         dayEnd: 'Day end',
-        matchDuration: 'Match duration (min)',
         poolMatchDuration: 'Pool Match duration (min)',
         swissMatchDuration: 'Swiss Match duration (min)',
         eliminationMatchDuration: 'Elimination Match duration (min)',

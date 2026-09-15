@@ -3655,23 +3655,6 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  '/api/v1/pools/{poolId}/schedule/auto-distribute': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    put?: never;
-    /** Fan every match in a pool across the event lices in time slots starting at (startAtIso, startLiceId) (org admin+) */
-    post: operations['PhasesController_autoDistributePool'];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
   '/api/v1/pools/{poolId}/referee-role-assignments': {
     parameters: {
       query?: never;
@@ -10454,9 +10437,6 @@ export interface components {
         liceCount: number;
         startTime: string;
         endTime: string;
-        matchGapSeconds: number;
-        matchDurationMinutes: number;
-        minRestMinutes: number;
         colorHex?: string | null;
       }[];
     };
@@ -10504,9 +10484,6 @@ export interface components {
       startTime: string;
       endTime: string;
       liceCount?: number;
-      matchGapSeconds?: number;
-      matchDurationMinutes?: number;
-      minRestMinutes?: number;
       /** Format: uuid */
       competitionId?: string | null;
       /** @enum {string|null} */
@@ -10533,9 +10510,6 @@ export interface components {
       startTime: string;
       /** @enum {string} */
       mode: 'pool' | 'bracket-branch';
-      matchDurationMinutes?: number;
-      matchGapSeconds?: number;
-      minRestMinutes?: number;
     };
     UpdateBlockLabelDto: {
       label: string;
@@ -17000,25 +16974,6 @@ export interface operations {
     };
   };
   PhasesController_reschedulePool: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        poolId: string;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-    };
-  };
-  PhasesController_autoDistributePool: {
     parameters: {
       query?: never;
       header?: never;
