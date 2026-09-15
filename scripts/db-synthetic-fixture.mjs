@@ -10,6 +10,28 @@ const fixture = `-- Phase 4 synthetic realistic event dataset.
 
 BEGIN;
 
+-- A previous copy blocks its own removal: a registration refuses to lose its person, and a Match
+-- refuses to lose its red or blue registration (ON DELETE RESTRICT). So its Matches and
+-- registrations go first.
+DELETE FROM matches WHERE phase_id IN (
+  SELECT ph.id FROM phases ph
+  JOIN tournaments t ON t.id = ph.tournament_id
+  JOIN events e ON e.id = t.event_id
+  WHERE e.organization_id = '10000000-0000-4000-8000-000000000001'
+);
+DELETE FROM registrations WHERE tournament_id IN (
+  SELECT t.id FROM tournaments t
+  JOIN events e ON e.id = t.event_id
+  WHERE e.organization_id = '10000000-0000-4000-8000-000000000001'
+);
+-- Neither row hangs off the organization, so its cascade misses them: a second preference for the
+-- same user is refused (user_id is the key), and the audit row would pile up one copy per apply.
+DELETE FROM notification_preferences WHERE user_id IN (
+  SELECT p.claimed_by_user_id FROM persons p
+  JOIN events e ON e.id = p.event_id
+  WHERE e.organization_id = '10000000-0000-4000-8000-000000000001'
+);
+DELETE FROM audit_log WHERE action = 'phase4.synthetic_seed';
 DELETE FROM organizations WHERE id = '10000000-0000-4000-8000-000000000001';
 DELETE FROM clubs WHERE slug LIKE 'phase4-club-%';
 DELETE FROM global_persons WHERE slug LIKE 'phase4-fighter-%';
