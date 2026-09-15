@@ -57,8 +57,9 @@ left open where the number lives and where a Match placed by hand finds it.
 - `event_programme_blocks` loses `match_duration_minutes`, `match_gap_seconds` and
   `min_rest_minutes`, and the planner loses its per-bar fields for them. A bar is a time span, its
   Lices, a name and a colour.
-- Suggest sizes a bar and Generate spaces its Matches from the sheet, by the bar's kind (pool,
-  swiss, bracket, finals). The per-phase numbers the planner already computes from the sheet stop
+- Suggest sizes a bar from the sheet, by the bar's kind (pool, swiss, bracket, finals). Generate
+  spaces each Match from the sheet, by that Match's own kind, so a final inside a bracket bar runs
+  at the finals length. The per-phase numbers the planner already computes from the sheet stop
   being flattened into a per-bar copy.
 
 ### How a Match gets its length
