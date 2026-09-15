@@ -25,7 +25,6 @@ describe('OrganizerAIAssistantService.createDraft', () => {
       service().createDraft('event-1', 'user-1', {
         draftType: 'pool_plan',
         prompt: 'Make good pools',
-        tournamentId: 't-1',
       }),
     ).rejects.toThrow(NotFoundException);
 
@@ -72,7 +71,6 @@ describe('OrganizerAIAssistantService.createDraft', () => {
     const draft = await service().createDraft('event-1', 'user-1', {
       draftType: 'pool_plan',
       prompt: 'Make good pools',
-      tournamentId: 't-1',
     });
 
     expect(draft.status).toBe('failed');
@@ -115,7 +113,6 @@ describe('OrganizerAIAssistantService.createDraft', () => {
     await service().createDraft('event-1', 'user-1', {
       draftType: 'pool_plan',
       prompt: 'Make good pools',
-      tournamentId: 't-1',
     });
 
     expect(mockGenerateWithCap).toHaveBeenCalledWith(
@@ -176,7 +173,6 @@ describe('OrganizerAIAssistantService.createDraft', () => {
     const draft = await service().createDraft('event-1', 'user-1', {
       draftType: 'pool_plan',
       prompt: 'Make good pools',
-      tournamentId: 't-1',
     });
 
     expect(draft.status).toBe('ready');

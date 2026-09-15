@@ -36,14 +36,14 @@ function eventMatch() {
   return { matches, update, written };
 }
 
-/** The Lice read, awaited after `.in()`, answering with `rows`. */
-function liceRead(rows: Array<{ id: string }>) {
-  const lices = Object.assign(Promise.resolve({ data: rows, error: null }), {
-    select: vi.fn(() => lices),
-    eq: vi.fn(() => lices),
-    in: vi.fn(() => lices),
+/** The in-Event id read (of Lices or Tournaments), awaited after `.in()`, answering with `rows`. */
+function idRead(rows: Array<{ id: string }>) {
+  const read = Object.assign(Promise.resolve({ data: rows, error: null }), {
+    select: vi.fn(() => read),
+    eq: vi.fn(() => read),
+    in: vi.fn(() => read),
   });
-  return lices;
+  return read;
 }
 
 /** Applying a draft. Creating one is in organizer-ai-assistant.service.test.ts. */
@@ -128,12 +128,7 @@ describe('OrganizerAIAssistantService.applyDraft', () => {
           error: null,
         });
       }
-      if (table === 'tournaments') {
-        return chain({
-          data: { id: '11111111-1111-4111-8111-111111111111', event_id: 'event-1' },
-          error: null,
-        });
-      }
+      if (table === 'tournaments') return idRead([{ id: '11111111-1111-4111-8111-111111111111' }]);
       return chain();
     });
 
@@ -147,9 +142,37 @@ describe('OrganizerAIAssistantService.applyDraft', () => {
     );
   });
 
+  it("refuses to generate pools for another Event's Tournament", async () => {
+    // None of the Tournaments named is this Event's.
+    const tournaments = idRead([]);
+    mockSupabaseFrom.mockImplementation((table: string) => {
+      if (table === 'tournaments') return tournaments;
+      if (table !== 'organizer_ai_assistant_drafts') return chain();
+      return chain({
+        data: {
+          id: 'draft-1',
+          event_id: 'event-1',
+          actor_user_id: 'user-1',
+          draft_type: 'pool_plan',
+          status: 'ready',
+          proposed_actions_json: [{ kind: 'generate_pools', tournamentId: 't-9', targetSize: 8 }],
+          events: { organization_id: 'org-1' },
+        },
+      });
+    });
+
+    await expect(service().applyDraft('event-1', 'draft-1', 'user-1')).rejects.toThrow(
+      'Every Tournament must belong to this event',
+    );
+    expect(mockGeneratePools).not.toHaveBeenCalled();
+    expect(tournaments.select).toHaveBeenCalledWith('id');
+    expect(tournaments.eq).toHaveBeenCalledWith('event_id', 'event-1');
+    expect(tournaments.in).toHaveBeenCalledWith('id', ['t-9']);
+  });
+
   it('places a Match on a Lice of this Event, and refreshes its fight alert', async () => {
     const { matches, update, written } = eventMatch();
-    const lices = liceRead([{ id: 'l-1' }]);
+    const lices = idRead([{ id: 'l-1' }]);
     mockSupabaseFrom.mockImplementation((table: string) => {
       if (table === 'lices') return lices;
       if (table === 'matches') return matches;
@@ -177,7 +200,7 @@ describe('OrganizerAIAssistantService.applyDraft', () => {
   it("refuses to place a Match on another Event's Lice", async () => {
     const { matches, update } = eventMatch();
     // None of the Lices named is this Event's.
-    const lices = liceRead([]);
+    const lices = idRead([]);
     mockSupabaseFrom.mockImplementation((table: string) => {
       if (table === 'lices') return lices;
       if (table === 'matches') return matches;

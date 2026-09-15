@@ -11,6 +11,7 @@ import type {
 } from '../ai-providers/adapters/provider-adapter.interface';
 import { AIUsageService } from '../ai-usage/ai-usage.service';
 import { AdminFeatureFlagsService } from '../admin/admin-feature-flags.service';
+import { assertTournamentsBelongToEvent } from '../events/in-event';
 import { OrganizationsService } from '../organizations/organizations.service';
 import { OrganizerAIAssistantService } from '../organizer-ai-assistant/organizer-ai-assistant.service';
 import { SupabaseService } from '../supabase/supabase.service';
@@ -82,6 +83,7 @@ export class OrganizerChatService {
     dto: { tournamentId?: string | null; title?: string | null },
   ) {
     const event = await this.assertOrgAccess(eventId, userId);
+    await assertTournamentsBelongToEvent(this.supabase.service, eventId, [dto.tournamentId]);
     const { data, error } = await this.supabase.service
       .from('organizer_chat_conversations')
       .insert({

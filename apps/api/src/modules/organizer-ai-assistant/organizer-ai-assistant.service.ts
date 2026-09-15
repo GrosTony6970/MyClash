@@ -12,6 +12,7 @@ import type {
   OrganizerAIDraftType,
   UpdateOrganizerAIDraftDto,
 } from './dto/organizer-ai-assistant.dto';
+import { assertTournamentsBelongToEvent } from '../events/in-event';
 import { assertLicesBelongToEvent } from '../lices/lices-in-event';
 
 type DraftStatus = 'draft' | 'ready' | 'failed' | 'applied' | 'rejected';
@@ -72,6 +73,7 @@ export class OrganizerAIAssistantService {
   async createDraft(eventId: string, actorUserId: string, dto: CreateOrganizerAIDraftDto) {
     const event = await this.getEvent(eventId);
     await this.organizations.assertOrgRole(event.organization_id, actorUserId, 'admin');
+    await assertTournamentsBelongToEvent(this.supabase.service, eventId, [dto.tournamentId]);
     await this.assertOrganizerAIKey(event.organization_id);
 
     const result = await this.aiUsage.generateWithCap(event.organization_id, eventId, FEATURE, {
@@ -147,6 +149,8 @@ export class OrganizerAIAssistantService {
     const tournamentId =
       opts.tournamentId ??
       (typeof action['tournamentId'] === 'string' ? (action['tournamentId'] as string) : null);
+    // The id may be the model's own tool argument: it is checked like any caller's.
+    await assertTournamentsBelongToEvent(this.supabase.service, eventId, [tournamentId]);
 
     const row = {
       event_id: eventId,
@@ -323,7 +327,9 @@ export class OrganizerAIAssistantService {
       return { kind, result };
     }
     if (kind === 'generate_pools') {
-      await this.assertTournamentBelongsToEvent(eventId, String(action['tournamentId']));
+      await assertTournamentsBelongToEvent(this.supabase.service, eventId, [
+        String(action['tournamentId']),
+      ]);
       const result = await this.phases.generatePools(
         String(action['tournamentId']),
         {
@@ -352,7 +358,9 @@ export class OrganizerAIAssistantService {
       return { kind, result };
     }
     if (kind === 'generate_bracket') {
-      await this.assertTournamentBelongsToEvent(eventId, String(action['tournamentId']));
+      await assertTournamentsBelongToEvent(this.supabase.service, eventId, [
+        String(action['tournamentId']),
+      ]);
       const bracketDto: Record<string, unknown> = {
         qualifyCount: this.optionalNumber(action['qualifyCount']),
         bracketSize: this.optionalNumber(action['bracketSize']),
@@ -576,17 +584,6 @@ export class OrganizerAIAssistantService {
       .maybeSingle();
     if (error) throw new BadRequestException(error.message);
     if (!data) throw new NotFoundException('No AI provider configured for this organization');
-  }
-
-  private async assertTournamentBelongsToEvent(eventId: string, tournamentId: string) {
-    const { data, error } = await this.supabase.service
-      .from('tournaments')
-      .select('id')
-      .eq('id', tournamentId)
-      .eq('event_id', eventId)
-      .maybeSingle();
-    if (error) throw new BadRequestException(error.message);
-    if (!data) throw new BadRequestException('Tournament must belong to this event');
   }
 
   private async assertPoolBelongsToEvent(eventId: string, poolId: string) {
