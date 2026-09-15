@@ -25,6 +25,7 @@ SELECT
   'false'
 FROM generate_series(1, 12) AS i;
 
+-- 1 to 80 fight. 81 to 92 only referee, so no referee fights in a Pool they referee.
 INSERT INTO global_persons (id, slug, display_name, given_name, family_name, club_id, country_code, hema_ratings_id)
 SELECT
   ('10000000-0000-4000-8000-000000002' || lpad(i::text, 3, '0'))::uuid,
@@ -35,9 +36,9 @@ SELECT
   ('10000000-0000-4000-8000-000000001' || lpad(((i - 1) % 12 + 1)::text, 3, '0'))::uuid,
   CASE WHEN i % 3 = 0 THEN 'FR' WHEN i % 3 = 1 THEN 'DE' ELSE 'SE' END,
   (6000 + i)::text
-FROM generate_series(1, 80) AS i;
+FROM generate_series(1, 92) AS i;
 
-INSERT INTO events (id, organization_id, slug, name, location, start_date, end_date, status)
+INSERT INTO events (id, organization_id, slug, name, city, start_date, end_date, status)
 VALUES (
   '10000000-0000-4000-8000-000000000100',
   '10000000-0000-4000-8000-000000000001',
@@ -75,14 +76,13 @@ INSERT INTO notification_preferences (user_id, enabled)
 SELECT claimed_by_user_id, true FROM persons
 WHERE event_id = '10000000-0000-4000-8000-000000000100' AND claimed_by_user_id IS NOT NULL;
 
-INSERT INTO tournaments (id, event_id, slug, name, weapon, category, ruleset_code, status, sort_order)
+INSERT INTO tournaments (id, event_id, slug, name, weapon, ruleset_code, status, sort_order)
 VALUES (
   '10000000-0000-4000-8000-000000000300',
   '10000000-0000-4000-8000-000000000100',
   'longsword-open',
   'Longsword Open',
   'Longsword',
-  'Open',
   'TF_v1',
   'running',
   1
@@ -169,9 +169,10 @@ SELECT
 FROM generate_series(1, 60) AS m
 CROSS JOIN generate_series(1, 5) AS e;
 
-INSERT INTO referee_qualifications (user_id, event_id, role, rating, active)
+-- A referee is a global person: 0063 dropped user_id for person_id.
+INSERT INTO referee_qualifications (person_id, event_id, role, rating, active)
 SELECT
-  ('10000000-0000-4000-8000-000000004' || lpad(i::text, 3, '0'))::uuid,
+  ('10000000-0000-4000-8000-000000002' || lpad((80 + i)::text, 3, '0'))::uuid,
   '10000000-0000-4000-8000-000000000100',
   role,
   3 + (i % 3),
@@ -179,12 +180,13 @@ SELECT
 FROM generate_series(1, 12) AS i
 CROSS JOIN (VALUES ('arbitre_declarant'), ('arbitre_assesseur'), ('arbitre_table')) AS roles(role);
 
-INSERT INTO referee_assignments (event_id, user_id, scope_type, lice_id, pool_id, role, starts_at, ends_at, status, auto_assigned)
+-- A Pool duty names its Pool and no Lice: 0091's scope check.
+INSERT INTO referee_assignments (event_id, person_id, scope_type, lice_id, pool_id, role, starts_at, ends_at, status, auto_assigned)
 SELECT
   '10000000-0000-4000-8000-000000000100',
-  ('10000000-0000-4000-8000-000000004' || lpad(i::text, 3, '0'))::uuid,
+  ('10000000-0000-4000-8000-000000002' || lpad((80 + i)::text, 3, '0'))::uuid,
   'pool',
-  ('10000000-0000-4000-8000-00000000020' || (((i - 1) % 4) + 1))::uuid,
+  NULL,
   ('10000000-0000-4000-8000-00000000050' || (((i - 1) % 4) + 1))::uuid,
   CASE WHEN i % 3 = 0 THEN 'arbitre_declarant' WHEN i % 3 = 1 THEN 'arbitre_assesseur' ELSE 'arbitre_table' END,
   '2026-06-01 09:00:00+00',
