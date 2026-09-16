@@ -50,6 +50,15 @@ test('an interrupted run is not a passing run', () => {
   assert.equal(playwrightVerdict('\n  8 did not run\n  14 passed (12.0s)\n'), 'failed');
 });
 
+test('the github reporter summary is not an epilogue', () => {
+  // playwright.config.ts lists ['github'] BEFORE ['list'], and it prints the
+  // whole summary on one line with the newlines encoded, ahead of the real
+  // epilogue. Reading that as the end of the run would arm the exit early.
+  const output = '::notice title=Playwright Run Summary::  2 failed%0A  21 passed (54.2s)\n';
+
+  assert.equal(playwrightVerdict(output), 'pending');
+});
+
 test('a flaky run is a passing run', () => {
   // Playwright exits 0 on a retry that succeeded. `retries` is 0 in
   // playwright.config.ts today, so this guards the config, not the present.
