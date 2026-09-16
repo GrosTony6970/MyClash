@@ -85,7 +85,16 @@ export async function PublicHome({ eventSlug, personalShell = false }: Props) {
   } as const;
 
   return (
-    <main className="mx-auto flex w-full max-w-5xl flex-col gap-8 px-4 py-6 lg:max-w-6xl">
+    // Target of the root layout's "skip to main content" link (app/layout.tsx).
+    // Without the `id` that link takes focus and then does nothing; without
+    // `tabIndex` the browser scrolls but leaves focus on the link, so a screen
+    // reader never announces the arrival. Both were on the event page this home
+    // replaced (`089518ff`, the T-1403 accessibility pass).
+    <main
+      id="main-content"
+      tabIndex={-1}
+      className="mx-auto flex w-full max-w-5xl flex-col gap-8 px-4 py-6 lg:max-w-6xl"
+    >
       {personalShell ? (
         <BackLink href="/me/events" label={tr('publicApp.eventHome.backToEvents')} />
       ) : (

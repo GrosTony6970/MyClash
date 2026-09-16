@@ -26,6 +26,22 @@ export async function expectNoPageIssues(issues: PageIssue[]) {
   expect(issues, JSON.stringify(issues, null, 2)).toEqual([]);
 }
 
+/**
+ * Wait for the route's own `<main>`, not the route-level loading skeleton.
+ *
+ * A route-level `loading.tsx` renders its own `<main aria-busy="true">` around
+ * a spinner (`apps/web-public/app/e/[eventSlug]/loading.tsx`,
+ * `apps/web-admin/app/org/[slug]/loading.tsx`), so `waitForSelector('main')`
+ * resolves on the skeleton and Axe scans the spinner instead of the page — a
+ * scan that finds nothing and passes. Measured on the event home: a seeded
+ * critical violation went undetected in one run out of three until this
+ * selector replaced `'main'`, and in none of five afterwards. Use it on every
+ * route that has a `loading.tsx` above it; web-staff has none today.
+ */
+export function waitForPageMain(page: Page) {
+  return page.waitForSelector('main:not([aria-busy="true"])');
+}
+
 export async function expectNoCriticalAxeViolations(page: Page) {
   const results = await new AxeBuilder({ page })
     .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])

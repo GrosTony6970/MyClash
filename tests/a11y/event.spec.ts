@@ -1,11 +1,19 @@
 import { test, expect } from '@playwright/test';
-import { collectPageIssues, expectNoCriticalAxeViolations, expectNoPageIssues } from './helpers';
+import {
+  collectPageIssues,
+  expectNoCriticalAxeViolations,
+  expectNoPageIssues,
+  waitForPageMain,
+} from './helpers';
 
 test('event page - axe clean and skip link keyboard operable', async ({ page }) => {
   const issues = collectPageIssues(page);
 
-  await page.goto('http://localhost:3001/e/test-event');
-  await page.waitForSelector('main');
+  // `/e/test-event` is a redirect to this page (page.tsx). Landing on the
+  // redirect navigated the tab out from under Axe mid-scan, which arrives as
+  // "Execution context was destroyed". Ask for the final page.
+  await page.goto('http://localhost:3001/e/test-event/home');
+  await waitForPageMain(page);
 
   await expectNoCriticalAxeViolations(page);
 

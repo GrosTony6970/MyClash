@@ -40,9 +40,26 @@ export function at(hhmm: string): string {
   return `${DAY}T${String(utcHour).padStart(2, '0')}:${String(m ?? 0).padStart(2, '0')}:00.000Z`;
 }
 
+/** A `/api/v1/me` body for the owner of ORG_SLUG, shaped after `MeResponseDto`
+ *  by hand — root `tests/` is not a workspace, so no compiler checks it. Every
+ *  membership field is filled because the API cannot emit a partial row
+ *  (`normalizeOrganizationMembership`, auth.service.ts:94, drops any row missing
+ *  id, slug, name or role) and `workspace-options.ts:70-79` reads `name` and
+ *  sorts on it. Consumers: this spec's harness and tests/a11y/admin-wizard.spec.ts. */
 export const meFixture = {
   type: 'claimed',
-  admin: { platformRole: null, organizations: [{ slug: ORG_SLUG }], hasLeagueRoles: false },
+  admin: {
+    platformRole: null,
+    organizations: [
+      {
+        id: '77777777-7777-4777-8777-777777777777',
+        slug: ORG_SLUG,
+        name: 'Test Org',
+        role: 'owner',
+      },
+    ],
+    hasLeagueRoles: false,
+  },
 };
 
 export const eventFixture = {
