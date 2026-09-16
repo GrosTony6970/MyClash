@@ -71,8 +71,7 @@ npx tsc --project tsconfig.build.json --noEmit
 ```bash
 # Shared packages FIRST, in dependency order — the API and apps typecheck against
 # packages/*/dist on disk, so a partial build gives a green that lies.
-pnpm turbo run build --filter="@myclash/types" --filter="@myclash/rulesets" \
-  --filter="@myclash/db" --filter="@myclash/ui" --filter="@myclash/i18n" --filter="@myclash/api-client"
+pnpm turbo run build --filter="./packages/*"
 
 # Then a single workspace, if you need one
 pnpm --filter @myclash/api build

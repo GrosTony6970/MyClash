@@ -64,8 +64,19 @@ async function describePage(page: Page): Promise<string> {
   try {
     return await page.evaluate(() => {
       const text = (document.body?.innerText ?? '').replace(/\s+/g, ' ').trim();
+      // The navigation's own response. An empty page cannot say by itself whether
+      // the server sent nothing, sent an error, or sent HTML the browser never
+      // rendered — the status, type and size can. They belong to `loadedUrl`, which
+      // a client-side redirect leaves behind `url`. `null`, not `undefined`, so a
+      // field the browser does not report still shows up in the JSON.
+      const [nav] = performance.getEntriesByType('navigation') as PerformanceNavigationTiming[];
       return JSON.stringify({
         url: location.href,
+        loadedUrl: nav?.name ?? null,
+        status: nav?.responseStatus ?? null,
+        contentType: document.contentType,
+        bytes: nav?.decodedBodySize ?? null,
+        readyState: document.readyState,
         title: document.title,
         mains: document.querySelectorAll('main').length,
         body: text.slice(0, 400),

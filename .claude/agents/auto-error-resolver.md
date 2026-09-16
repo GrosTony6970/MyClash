@@ -148,11 +148,10 @@ git diff --name-only HEAD | grep -E '^(packages|apps)/' | cut -d/ -f2 | sort -u
 `dist/index.d.ts` **on disk**, not through the pnpm symlink, so a partial build produces either
 phantom errors or — worse — a phantom pass on code that will not compile in Docker.
 
-Build the shared packages first, in this order, then typecheck:
+Build every shared package first, then typecheck:
 
 ```bash
-pnpm turbo run build --filter="@myclash/types" --filter="@myclash/rulesets" \
-  --filter="@myclash/db" --filter="@myclash/ui" --filter="@myclash/i18n" --filter="@myclash/api-client"
+pnpm turbo run build --filter="./packages/*"
 ```
 
 Two traps this catches: `@myclash/rulesets` must be built before the API typechecks, and

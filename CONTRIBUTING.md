@@ -12,7 +12,7 @@ Every pull request targeting `main` runs the following GitHub Actions jobs, all 
 | Check                     | Workflow                                                 | What it does                                                                                                                                                                                                                               |
 | ------------------------- | -------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | **Install dependencies**  | `CI / Install dependencies`                              | `pnpm install --frozen-lockfile`                                                                                                                                                                                                           |
-| **Build shared packages** | `CI / Build shared packages`                             | `pnpm turbo run build`, filtered to the 6 shared packages: `@myclash/types`, `rulesets`, `db`, `ui`, `i18n`, `api-client`                                                                                                                  |
+| **Build shared packages** | `CI / Build shared packages`                             | `pnpm turbo run build --filter="./packages/*"` — every shared package, by path                                                                                                                                                             |
 | **Typecheck**             | `CI / Typecheck`                                         | `pnpm turbo run typecheck` across all workspaces                                                                                                                                                                                           |
 | **Lint**                  | `CI / Lint`                                              | `pnpm turbo run lint` **plus twenty-five further independent gates and three builds** — see [Before pushing](#before-pushing) for the full list. Each runs as its own step with `if: '!cancelled()'`, so one failure never hides the rest. |
 | **Test**                  | `CI / Test`                                              | `pnpm turbo run test` (Vitest), run **twice** — once under `TZ=UTC`, once under `TZ=Europe/Paris`. Both are separate gates: a bug that only appears when the dev box, the fixture and the default timezone agree is invisible to one run.  |
@@ -78,8 +78,7 @@ workflow wins.
 
 ```bash
 # 1. Shared packages first — the API and apps typecheck against their dist/
-pnpm turbo run build --filter="@myclash/types" --filter="@myclash/rulesets" \
-  --filter="@myclash/db" --filter="@myclash/ui" --filter="@myclash/i18n" --filter="@myclash/api-client"
+pnpm turbo run build --filter="./packages/*"
 
 # 2. The three everyone knows about
 pnpm turbo run typecheck

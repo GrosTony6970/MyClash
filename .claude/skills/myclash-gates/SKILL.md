@@ -27,8 +27,7 @@ pnpm symlink. Typechecking against a stale or missing `dist/` produces either ph
 worse — phantom passes.
 
 ```bash
-pnpm turbo run build --filter="@myclash/types" --filter="@myclash/rulesets" \
-  --filter="@myclash/db" --filter="@myclash/ui" --filter="@myclash/i18n" --filter="@myclash/api-client"
+pnpm turbo run build --filter="./packages/*"
 ```
 
 - **`@myclash/rulesets` must be built before the API typechecks** (`moduleResolution: node`).

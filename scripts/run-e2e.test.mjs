@@ -1,8 +1,9 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
+import http from 'node:http';
 import test from 'node:test';
 
-import { playwrightVerdict } from './run-e2e.mjs';
+import { playwrightVerdict, waitForServer } from './run-e2e.mjs';
 
 /**
  * The runner reads Playwright's output as it streams and decides two things
@@ -13,6 +14,9 @@ import { playwrightVerdict } from './run-e2e.mjs';
  *
  * The shapes below are `generateSummaryMessage`'s, playwright 1.62.1
  * `lib/runner/index.js:1183`.
+ *
+ * Before any of that, it decides whether each dev server is fit to test at all
+ * (`waitForServer`) — the tests after the verdict ones.
  */
 
 test('nothing is decided before the epilogue', () => {
@@ -69,6 +73,49 @@ test('colour in the stream does not hide the epilogue', () => {
   // FORCE_COLOR puts an escape between the line start and the count.
   assert.equal(playwrightVerdict('\n\x1b[31m  2 failed\x1b[39m\n'), 'failed');
 });
+
+/** A server that answers every request with `status`, on a port the OS picks. */
+async function answering(status) {
+  const answered = { count: 0 };
+  const server = http.createServer((_request, response) => {
+    answered.count += 1;
+    response.writeHead(status, status === 307 ? { location: '/login' } : {});
+    response.end();
+  });
+  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+  return { server, answered, url: `http://127.0.0.1:${server.address().port}` };
+}
+
+test(
+  'a server that answers its home page is ready, a redirect included',
+  { timeout: 10_000 },
+  async (t) => {
+    // web-admin's home page answers 307 to sign-in; the other two answer 200.
+    for (const status of [200, 307]) {
+      const { server, url } = await answering(status);
+      t.after(() => server.close());
+      await waitForServer({ name: 'web-admin', url }, 2_000);
+    }
+  },
+);
+
+test(
+  'a server answering 500 stops the run at once and names the app',
+  { timeout: 10_000 },
+  async (t) => {
+    // This is the defect. `next dev` answers `GET / 500` when the app cannot
+    // compile, the probe took any answer as ready, and the suite timed out on
+    // blank pages. A probe that retried a 5xx would hang here until the timeout.
+    const { server, answered, url } = await answering(500);
+    t.after(() => server.close());
+
+    await assert.rejects(
+      waitForServer({ name: 'web-admin', url }, 60_000),
+      /^Error: web-admin answered 500 at http:\/\/127\.0\.0\.1:\d+;/,
+    );
+    assert.equal(answered.count, 1, 'a 5xx was asked again');
+  },
+);
 
 test('importing the runner boots no dev server', () => {
   // The entry guard is what makes every test above possible, and it has to be

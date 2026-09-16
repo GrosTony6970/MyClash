@@ -38,10 +38,11 @@ export function playwrightVerdict(output) {
  * It was two minutes, and that killed every CI run of this job before the suite
  * could finish — three runs in a row ended at 133-140 s, the report was never
  * written, and the job reported a test failure that had not happened. The suite
- * is 53 s here on a cold `.next`; the CI runner needs more than 120 s for the
- * same work. So the number has to be one no healthy run can reach, and its only
- * job is to stop a wedged browser from holding the runner for the job's default
- * six hours.
+ * is 53 s here on a cold `.next`. Those CI runs were not doing that work: every
+ * page they opened was a 500 (see `waitForServer`), and each test waited out
+ * its own timeout on it. So the number has to be one no healthy run can reach,
+ * and its only job is to stop a wedged browser from holding the runner for the
+ * job's default six hours.
  */
 const HANG_GUARD_MS = 600_000;
 
@@ -98,19 +99,37 @@ const servers = [
 
 const children = [];
 
-function waitForUrl(url, timeoutMs = 60_000) {
+/**
+ * Resolves once a server answers its home page, and rejects at once on a 5xx.
+ *
+ * Any answer used to count as ready. A dev server that cannot compile still
+ * answers — `GET / 500` with Next's error page — so the suite ran against it:
+ * in CI, 21 of 23 tests timed out on blank pages for weeks, because the
+ * package artifact had no dist for three packages the apps import. A healthy
+ * home page answers 200, or 307 where it redirects to sign-in. A compile error
+ * does not clear by waiting, so a 5xx is not retried.
+ */
+export function waitForServer(server, timeoutMs = 60_000) {
   const startedAt = Date.now();
 
   return new Promise((resolve, reject) => {
     const poll = () => {
-      const request = http.get(url, (response) => {
+      const request = http.get(server.url, (response) => {
         response.resume();
+        if (response.statusCode >= 500) {
+          reject(
+            new Error(
+              `${server.name} answered ${response.statusCode} at ${server.url}; its dev server output in the job log says why`,
+            ),
+          );
+          return;
+        }
         resolve();
       });
 
       request.on('error', () => {
         if (Date.now() - startedAt > timeoutMs) {
-          reject(new Error(`Timed out waiting for ${url}`));
+          reject(new Error(`Timed out waiting for ${server.name} at ${server.url}`));
           return;
         }
         setTimeout(poll, 500);
@@ -249,7 +268,7 @@ async function main() {
   }
 
   try {
-    await Promise.all(servers.map((server) => waitForUrl(server.url)));
+    await Promise.all(servers.map((server) => waitForServer(server)));
     const exitCode = await runPlaywright();
     process.exitCode = exitCode;
   } finally {
@@ -258,11 +277,15 @@ async function main() {
 }
 
 // Only when this file IS the command. `scripts/run-e2e.test.mjs` imports
-// `playwrightVerdict` from here, and importing it must not boot three dev
-// servers (`scripts/lib/gate.mjs` spells out why every script needs this).
+// `playwrightVerdict` and `waitForServer` from here, and importing them must
+// not boot three dev servers (`scripts/lib/gate.mjs` spells out why every
+// script needs this).
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   main().catch(async (error) => {
     console.error(error);
+    // The job log that holds the line above needs admin rights to read; check-run
+    // annotations are public. An annotation shows the message's first line.
+    console.error(`::error title=E2E runner::${error.message}`);
     await Promise.all(children.map((child) => killChild(child)));
     process.exit(1);
   });

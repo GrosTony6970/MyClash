@@ -77,8 +77,13 @@ jobs:
           key: turbo-${{ runner.os }}-${{ github.sha }}
           restore-keys: turbo-${{ runner.os }}-
 
+      # Every package by path, never a list of names. The list named six, and turbo
+      # added what those six import — but next-i18n, time and schedule-core are
+      # imported only by apps, never by those six, so this artifact never carried
+      # them. The e2e job runs `next dev` straight on the artifact, so every page it
+      # opened was Next's 500 error page, for weeks.
       - name: Build packages
-        run: pnpm turbo run build --filter="@myclash/types" --filter="@myclash/rulesets" --filter="@myclash/db" --filter="@myclash/ui" --filter="@myclash/i18n" --filter="@myclash/api-client"
+        run: pnpm turbo run build --filter="./packages/*"
 
       - name: Save Turborepo cache
         uses: actions/cache/save@v4
