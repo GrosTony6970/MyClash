@@ -2501,6 +2501,8 @@ export const organizer = {
       conflictSegAndReferees: 'and referees',
       conflictSegUnscheduled: '(unscheduled — potential conflict)',
       conflictsReassignHint: 'Reassign referees before publishing this event.',
+      conflictsCheckFailed:
+        'Fighter/referee conflicts could not be checked. There may be some: retry before publishing.',
       lockBannerHint: 'Clear scores in the matches view to unlock the pool.',
       regenerateConfirmTitle: 'Regenerate pools?',
       regenerateConfirmBody:

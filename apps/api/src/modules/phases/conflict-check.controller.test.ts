@@ -1,4 +1,4 @@
-import { NotFoundException } from '@nestjs/common';
+import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { FastifyRequest } from 'fastify';
 import { ConflictCheckController } from './conflict-check.controller';
@@ -109,7 +109,7 @@ function tables(opts: { sheetPoolMinutes: number; m1: string; m2: string; m1Over
   };
 }
 
-function run(seed: ReturnType<typeof tables>) {
+function run(seed: Record<string, unknown>) {
   const supabase = mockSupabase(seed as unknown as Parameters<typeof mockSupabase>[0]);
   const controller = new ConflictCheckController(
     supabase as unknown as SupabaseService,
@@ -171,6 +171,24 @@ describe('ConflictCheckController — each bout at its planned length', () => {
 
     await expect(result).rejects.toBeInstanceOf(NotFoundException);
   });
+
+  it.each(['tournaments', 'phases', 'matches', 'referee_assignments', 'registrations'])(
+    'fails the check when the %s read fails, rather than answering an unchecked all-clear',
+    async (table) => {
+      // Each read left its list empty on an error, and an empty list of bouts,
+      // duties or fighters reads as "nobody is in two places at once". These
+      // times clash, so an answer of any kind here would be the false all-clear.
+      const seed = tables({
+        sheetPoolMinutes: 12,
+        m1: '2026-08-15T09:00:00Z',
+        m2: '2026-08-15T09:07:00Z',
+      });
+      const { result } = run({ ...seed, [table]: { data: null, error: { message: 'timeout' } } });
+
+      await expect(result).rejects.toBeInstanceOf(BadRequestException);
+      await expect(result).rejects.toThrow('timeout');
+    },
+  );
 
   it('touching bouts do not clash', async () => {
     const { result } = run(

@@ -11,7 +11,7 @@
  *   ✓ Fighter/referee conflict detection (hard constraint)
  */
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import {
@@ -27,6 +27,7 @@ import { MatchesTab } from './_tabs/MatchesTab';
 import { StandingsTab } from './_tabs/StandingsTab';
 import { RefereesTab } from './_tabs/RefereesTab';
 import { parseHashTab } from './parse-hash-tab';
+import { recordConflictCheck, type ConflictChecks } from './conflict-checks';
 import { useEventStatus } from '../_hooks/useEventStatus';
 import { apiRequest, failureMessage, type ApiResult } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
@@ -119,7 +120,12 @@ export default function PoolsPage() {
   const selectedTournamentObj = tournaments.find((t) => t.id === selectedTournament) ?? null;
   const [pools, setPools] = useState<Pool[] | null>(null);
   const [poolPhaseId, setPoolPhaseId] = useState<string | null>(null);
-  const [conflicts, setConflicts] = useState<ConflictResult | null>(null);
+  // Kept per Tournament, so a check that answers after a switch stays with its own.
+  const [conflictChecks, setConflictChecks] = useState<ConflictChecks<ConflictResult>>({});
+  const conflictCheckSeq = useRef(0);
+  const conflictCheck = conflictChecks[selectedTournament];
+  const conflicts = conflictCheck?.result ?? null;
+  const conflictCheckFailed = conflictCheck !== undefined && conflictCheck.result === null;
 
   // Config
   const [mode, setMode] = useState<'poolCount' | 'targetSize'>('targetSize');
@@ -368,13 +374,18 @@ export default function PoolsPage() {
 
   async function checkConflicts() {
     if (!selectedTournament) return;
-    // Silent: the conflict strip stays as it was. It is re-read after every
-    // edit, and the edit itself already reported anything that refused.
+    // A failed check SAYS so. Kept silent, it showed nothing, and nothing reads
+    // as "no fighter/referee conflicts" (hard rule 8). It replaces the old strip,
+    // which was read before the edit that asked for this check.
+    const tournamentId = selectedTournament;
+    const seq = ++conflictCheckSeq.current;
     const r = await apiRequest<ConflictResult>(
       apiUrl,
-      `/api/v1/tournaments/${selectedTournament}/conflict-check`,
+      `/api/v1/tournaments/${tournamentId}/conflict-check`,
     );
-    if (r.ok) setConflicts(r.data);
+    setConflictChecks((checks) =>
+      recordConflictCheck(checks, tournamentId, seq, r.ok ? r.data : null),
+    );
   }
 
   // Phase visibility is no longer an operator toggle — tournament status
@@ -645,6 +656,21 @@ export default function PoolsPage() {
                     {t('organizer.pools.page.conflictsReassignHint')}
                   </p>
                 )}
+              </div>
+            )}
+            {conflictCheckFailed && (
+              <div
+                role="alert"
+                className="flex flex-wrap items-center gap-3 rounded-xl border border-warning/30 bg-warning/10 px-4 py-3 text-sm text-warning"
+              >
+                <span>{t('organizer.pools.page.conflictsCheckFailed')}</span>
+                <button
+                  type="button"
+                  onClick={() => void checkConflicts()}
+                  className="w-fit rounded-md border border-warning/30 bg-surface px-3 py-1.5 text-xs font-semibold text-warning hover:bg-warning/10"
+                >
+                  {t('actions.retry')}
+                </button>
               </div>
             )}
 

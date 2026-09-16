@@ -9,9 +9,21 @@
  * Row-to-input mapping lives in ./conflict-check-inputs, which is pure and
  * carries the id-space rule this endpoint got wrong. Authorization is org
  * membership: the answer names fighters and referees.
+ *
+ * A failed read throws. It used to leave its list empty, and an empty list of
+ * bouts, duties or fighters reads as "nobody is in two places at once": an
+ * all-clear nobody had checked. The Pools page says the check failed instead.
  */
 
-import { Controller, Get, NotFoundException, Param, ParseUUIDPipe, Req } from '@nestjs/common';
+import {
+  BadRequestException,
+  Controller,
+  Get,
+  NotFoundException,
+  Param,
+  ParseUUIDPipe,
+  Req,
+} from '@nestjs/common';
 import { ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
 import type { FastifyRequest } from 'fastify';
 import { detectFighterRefereeConflicts } from '@myclash/rulesets/scheduling';
@@ -58,25 +70,27 @@ export class ConflictCheckController {
     // exists in the schema (matches link to phases; phases link to
     // tournaments; referee_assignments are event-scoped). Pre-resolving
     // here keeps the downstream filters honest.
-    const { data: tournamentRow } = await this.supabase.service
+    const { data: tournamentRow, error: tournamentErr } = await this.supabase.service
       .from('tournaments')
       .select('event_id')
       .eq('id', tournamentId)
       .maybeSingle();
+    if (tournamentErr) throw new BadRequestException(tournamentErr.message);
     const eventId = (tournamentRow as { event_id?: string } | null)?.event_id ?? null;
     // `tournaments.event_id` is NOT NULL, so no Event means no Tournament: it went
-    // after the membership check, or its read failed. Say so, rather than measure
-    // bouts against an Event nobody named.
+    // after the membership check. Say so, rather than measure bouts against an
+    // Event nobody named.
     if (!eventId) throw new NotFoundException('Tournament not found');
 
-    const { data: phaseRows } = await this.supabase.service
+    const { data: phaseRows, error: phasesErr } = await this.supabase.service
       .from('phases')
       .select('id')
       .eq('tournament_id', tournamentId);
+    if (phasesErr) throw new BadRequestException(phasesErr.message);
     const phaseIds = ((phaseRows ?? []) as Array<{ id: string }>).map((p) => p.id);
 
     // 1. Fetch all matches for this tournament's phases with scheduled_at.
-    const { data: matchRows } = phaseIds.length
+    const { data: matchRows, error: matchesErr } = phaseIds.length
       ? await this.supabase.service
           .from('matches')
           .select(
@@ -84,7 +98,8 @@ export class ConflictCheckController {
           )
           .in('phase_id', phaseIds)
           .neq('status', 'voided')
-      : { data: [] };
+      : { data: [], error: null };
+    if (matchesErr) throw new BadRequestException(matchesErr.message);
     const rows = (matchRows ?? []) as unknown as RawConflictMatchRow[];
 
     // Each bout at its own planned length (ADR-018), resolved once for the
@@ -105,7 +120,7 @@ export class ConflictCheckController {
 
     // 2. Fetch referee assignments scoped to this tournament's matches.
     // Post-0063: referee_assignments.person_id → global_persons.
-    const { data: refRows } = matchIds.length
+    const { data: refRows, error: refErr } = matchIds.length
       ? await this.supabase.service
           .from('referee_assignments')
           .select(
@@ -117,15 +132,17 @@ export class ConflictCheckController {
           )
           .eq('event_id', eventId)
           .in('match_id', matchIds)
-      : { data: [] };
+      : { data: [], error: null };
+    if (refErr) throw new BadRequestException(refErr.message);
 
     // 3. Fetch registration → person mapping for this tournament.
     //    Projects `persons.global_person_id` (not `persons.id`) so the map keys
     //    live in the same id-space as `referee_assignments.person_id`.
-    const { data: regRows } = await this.supabase.service
+    const { data: regRows, error: regErr } = await this.supabase.service
       .from('registrations')
       .select('id, persons ( id, global_person_id, given_name, family_name )')
       .eq('tournament_id', tournamentId);
+    if (regErr) throw new BadRequestException(regErr.message);
 
     // 4. Run conflict detection. Rows whose person cannot be resolved are
     //    dropped by the mappers rather than keyed under '' — see

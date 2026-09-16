@@ -2460,6 +2460,8 @@ export const organizer = {
       conflictSegAndReferees: 'et arbitre',
       conflictSegUnscheduled: '(non planifié — conflit potentiel)',
       conflictsReassignHint: "Réaffectez les arbitres avant de publier l'événement.",
+      conflictsCheckFailed:
+        "Les conflits combattant/arbitre n'ont pas pu être vérifiés. Il peut y en avoir : relancez la vérification avant de publier.",
       lockBannerHint: 'Effacez les scores dans la vue Matchs pour déverrouiller la poule.',
       regenerateConfirmTitle: 'Régénérer les poules ?',
       regenerateConfirmBody:
