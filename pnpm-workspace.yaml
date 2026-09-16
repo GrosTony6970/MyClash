@@ -92,22 +92,31 @@ peerDependencyRules:
 # is rarely the reason it is still load-bearing.
 overrides:
   fastify: ^5.11.2
-  # >=3.1.4 clears GHSA-4c8g-83qw-93j6; the previous ^3.1.2 pin resolved to
-  # exactly 3.1.2 and held the tree inside the advisory range.
-  fast-uri: ^3.1.5
+  # >=3.1.6 clears CVE-2026-75899/75931/75975/76172 (SSRF and host confusion).
+  # The pin is the floor AND the ceiling in practice: ^3.1.5 resolved to exactly
+  # 3.1.5, which is inside the advisory range, so the pin written to close the
+  # PREVIOUS advisory (GHSA-4c8g-83qw-93j6, cleared by >=3.1.4) was holding the
+  # tree on the vulnerable version. It reaches the API image through fastify →
+  # @fastify/ajv-compiler, so a stale floor here ships.
+  fast-uri: ^3.1.6
   cross-spawn: ^7.0.6
   glob: ^10.5.0
   minimatch: ^9.0.9
   picomatch: ^4.0.5
   import-in-the-middle: ^3.0.1
-  # >=0.35.0 clears GHSA-f88m-g3jw-g9cj (four inherited libvips CVEs). Only
-  # astro still asks for the 0.34 line; next@16 already resolves 0.35.3 on its
-  # own, and web-marketing declares it directly, so this drags exactly one
-  # consumer forward and collapses the tree from two copies of sharp to one.
-  sharp: ^0.35.0
+  # >=0.35.0 cleared GHSA-f88m-g3jw-g9cj (four inherited libvips CVEs); >=0.35.4
+  # clears GHSA-rgj7-g3m4-5g8c (two more, in libheif). Only astro still asks for
+  # the 0.34 line, and web-marketing declares sharp directly, so this drags
+  # exactly one consumer forward and collapses the tree from two copies to one.
+  #
+  # Raised to the advisory floor rather than left at ^0.35.0, which ALREADY
+  # allowed the fix while the lockfile sat on 0.35.3: a range that permits the
+  # patched version does not reach it on its own.
+  sharp: ^0.35.4
   # Transitive advisory floors. js-yaml is in the tree on two major lines at
   # once, so it needs a key per major — a bare `js-yaml` override would drag
   # the 5.x consumers back to 4.x.
-  'js-yaml@4': ^4.3.1
+  # >=4.3.2 clears GHSA-2883-xcg3-v3hh; ^4.3.1 resolved to exactly 4.3.1.
+  'js-yaml@4': ^4.3.2
   'js-yaml@5': ^5.2.3
   find-my-way: ^9.7.0
