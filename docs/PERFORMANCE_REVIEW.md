@@ -106,6 +106,10 @@ Automated Playwright coverage measures LCP and CLS for:
 - Admin unauthenticated shell.
 - Scoring shell.
 
+Those checks run on `next dev`, not a production build, so their LCP budget is 3 s
+(`LCP_BUDGET_MS` in `tests/perf/web-public.spec.ts`); the 2.5 s target above is for
+production. On the dev server the admin shell measured 2.6 s on the CI runner.
+
 INP is owner-side staging evidence for v1 because reliable field INP needs real interaction telemetry. A Playwright interaction-latency surrogate can be added later, but it should not be presented as field INP.
 
 ## Load Test

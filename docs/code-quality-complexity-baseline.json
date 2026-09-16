@@ -946,6 +946,6 @@
     "tests/e2e/_swiss.ts:180",
     "tests/e2e/global-setup.ts:25",
     "tests/e2e/global-teardown.ts:25",
-    "tests/perf/web-public.spec.ts:16"
+    "tests/perf/web-public.spec.ts:20"
   ]
 }
