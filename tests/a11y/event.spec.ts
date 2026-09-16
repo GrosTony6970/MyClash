@@ -3,11 +3,13 @@ import {
   collectPageIssues,
   expectNoCriticalAxeViolations,
   expectNoPageIssues,
+  stubPublicApi,
   waitForPageMain,
 } from './helpers';
 
 test('event page - axe clean and skip link keyboard operable', async ({ page }) => {
   const issues = collectPageIssues(page);
+  await stubPublicApi(page);
 
   // `/e/test-event` is a redirect to this page (page.tsx). Landing on the
   // redirect navigated the tab out from under Axe mid-scan, which arrives as

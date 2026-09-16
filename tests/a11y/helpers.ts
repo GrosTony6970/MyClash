@@ -26,6 +26,42 @@ export async function expectNoPageIssues(issues: PageIssue[]) {
   expect(issues, JSON.stringify(issues, null, 2)).toEqual([]);
 }
 
+/**
+ * Answer, inside the browser, the API calls a web-public page makes.
+ *
+ * No API runs in this harness. A call nobody answers fails, the browser logs
+ * "Failed to load resource", and `expectNoPageIssues` counts it. On Linux that
+ * failure arrives at once; on Windows it takes about two seconds, after the test
+ * has ended. So the event home and my-schedule specs passed locally and failed in
+ * CI with 4-5 of those errors, every one on the API's address.
+ *
+ * The flags and `/me` answers carry the API's real shapes: a `{}` flags answer
+ * crashes the page, because its readers assume `timeSimulation` is there
+ * (`apps/web-public/app/_components/SimulatedTimeBadge.tsx`,
+ * `packages/ui/src/hooks/time-simulation.ts`). Every other call gets `{}`.
+ * Register a spec's own routes AFTER this call: Playwright tries the last
+ * registered route first.
+ *
+ * The `{}` live-state answer also keeps the event home's realtime channel shut:
+ * `LiveNowSection` opens one only for Lices. A spec that answers live-state with
+ * Lices makes the page open a socket to the placeholder Supabase host in
+ * `scripts/run-e2e.mjs`, which nothing answers.
+ */
+export async function stubPublicApi(page: Page) {
+  await page.route('**/api/**', (route) => route.fulfill({ json: {} }));
+  await page.route('**/api/v1/public/feature-flags', (route) =>
+    route.fulfill({
+      json: {
+        maintenanceBanner: { enabled: false, message: null, severity: null },
+        realtimeDisabled: false,
+        timeSimulation: { enabled: false, simulatedNowIso: null, anchorRealIso: null },
+      },
+    }),
+  );
+  // Signed out is a 200 with this body, never a 401 (packages/api-client/src/me.ts).
+  await page.route('**/api/v1/me', (route) => route.fulfill({ json: { type: 'anonymous' } }));
+}
+
 /** Shorter than playwright.config.ts's 30 s test timeout ON PURPOSE. A wait that
  *  spends the whole test budget fails as a TEST timeout, and Playwright closes
  *  the page before anything can ask what was on it — which is how "waiting for

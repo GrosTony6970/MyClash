@@ -4,11 +4,13 @@ import {
   expectNoCriticalAxeViolations,
   expectNoPageIssues,
   focusUntil,
+  stubPublicApi,
   waitForPageMain,
 } from './helpers';
 
 test('my-schedule page - axe clean and keyboard operable', async ({ page }) => {
   const issues = collectPageIssues(page);
+  await stubPublicApi(page);
   await page.route('**/api/v1/events/**/my-schedule', (route) =>
     route.fulfill({
       json: {
