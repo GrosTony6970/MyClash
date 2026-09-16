@@ -8,8 +8,8 @@ export default defineConfig({
   timeout: 30_000,
   workers: 1,
   // html FIRST. Playwright ends reporters one at a time, in this order, and scripts/run-e2e.mjs
-  // kills it two seconds after its output first shows "passed" (list's summary). Listed second,
-  // the report could still be writing when that kill lands. CI uploads playwright-report/.
+  // kills it two seconds after `list` prints the epilogue. Listed second, the report could still
+  // be writing when that kill lands. CI uploads playwright-report/.
   reporter: [['html', { open: 'never' }], ['list']],
   use: { ...devices['Desktop Chrome'] },
   projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],

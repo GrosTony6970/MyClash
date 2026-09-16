@@ -1,6 +1,64 @@
 import { spawn } from 'node:child_process';
 import http from 'node:http';
+import path from 'node:path';
 import process from 'node:process';
+import { fileURLToPath } from 'node:url';
+
+/**
+ * What Playwright's output says so far: 'passed', 'failed' or 'pending'.
+ *
+ * Exported so it can be tested — importing this module runs nothing (see the
+ * entry guard at the bottom), which is the lesson `scripts/lib/gate.mjs` states
+ * at length: export is the only thing standing between a script and a test.
+ *
+ * It matches the EPILOGUE lines, anchored to the start of a line
+ * (`generateSummaryMessage`, playwright 1.62.1 `lib/runner/index.js:1183`).
+ * The old check was `output.includes('passed')` over the whole stream so far,
+ * so a test whose TITLE carried the word armed the kill timer mid-run — before
+ * a reporter had written anything — and the suite died green. A per-test line
+ * never starts with a bare count, so the anchor tells the two apart.
+ *
+ * 'failed' is the answer for any epilogue that is not a clean pass, and the
+ * epilogue prints `failed` first anyway. `interrupted` and `did not run` are in
+ * there because Ctrl+C on a local run prints them beside a `passed` count, and
+ * that run did not finish.
+ */
+export function playwrightVerdict(output) {
+  // Colour, when someone sets FORCE_COLOR, sits between the line start and the
+  // count, so it has to come off before the anchor can hold.
+  const plain = output.replace(/\u001B\[[0-9;]*m/g, '');
+  if (/^\s*\d+\s+(failed|interrupted|did not run)\b/m.test(plain)) return 'failed';
+  if (/^\s*\d+\s+passed\b/m.test(plain)) return 'passed';
+  return 'pending';
+}
+
+/**
+ * A hang guard, NOT a time budget.
+ *
+ * It was two minutes, and that killed every CI run of this job before the suite
+ * could finish — three runs in a row ended at 133-140 s, the report was never
+ * written, and the job reported a test failure that had not happened. The suite
+ * is 53 s here on a cold `.next`; the CI runner needs more than 120 s for the
+ * same work. So the number has to be one no healthy run can reach, and its only
+ * job is to stop a wedged browser from holding the runner for the job's default
+ * six hours.
+ */
+const HANG_GUARD_MS = 600_000;
+
+/**
+ * How long the runner waits, after Playwright's epilogue, for Playwright to
+ * exit on its own before killing it.
+ *
+ * ── Which path settles a run ────────────────────────────────────────────────
+ * Two can: `child.once('exit')`, carrying Playwright's own exit code, and this
+ * timer, carrying the parsed verdict. Measured on the real suite with a probe
+ * on both: the child's exit wins every time, at once, and this timer has not
+ * been seen to fire. It is the fallback for a Playwright that reports and then
+ * lingers — the reason it was written — and it is why `playwright.config.ts`
+ * lists the html reporter before `list`, so the report is on disk before the
+ * epilogue that arms this can print.
+ */
+const SUMMARY_EXIT_GRACE_MS = 2_000;
 
 const servers = [
   {
@@ -108,12 +166,13 @@ function runPlaywright() {
 
     let settled = false;
     let output = '';
-    let successExitTimer;
+    let summaryExitTimer;
     const watchdogTimer = setTimeout(() => {
-      const passed = /\b\d+\s+passed\b/.test(output) && !/\b\d+\s+failed\b/.test(output);
+      // Always 1: an epilogue would have settled ten minutes before this.
+      console.error(`Playwright hang guard fired after ${HANG_GUARD_MS / 1000}s — no summary.`);
       void killChild(child);
-      settle(passed ? 0 : 1);
-    }, 120_000);
+      settle(1);
+    }, HANG_GUARD_MS);
 
     const settle = (code) => {
       if (settled) {
@@ -121,9 +180,7 @@ function runPlaywright() {
       }
       settled = true;
       clearTimeout(watchdogTimer);
-      if (successExitTimer) {
-        clearTimeout(successExitTimer);
-      }
+      clearTimeout(summaryExitTimer);
       child.stdout.destroy();
       child.stderr.destroy();
       child.unref();
@@ -135,20 +192,18 @@ function runPlaywright() {
       output += text;
       stream.write(text);
 
-      if (output.includes('passed') && !output.includes('failed') && !successExitTimer) {
-        successExitTimer = setTimeout(() => {
+      if (playwrightVerdict(output) !== 'pending' && !summaryExitTimer) {
+        summaryExitTimer = setTimeout(() => {
           void killChild(child);
-          settle(0);
-        }, 2_000);
+          settle(playwrightVerdict(output) === 'passed' ? 0 : 1);
+        }, SUMMARY_EXIT_GRACE_MS);
       }
     };
 
     child.stdout.on('data', (chunk) => handleOutput(chunk, process.stdout));
     child.stderr.on('data', (chunk) => handleOutput(chunk, process.stderr));
 
-    child.once('exit', (code) => {
-      settle(code ?? 1);
-    });
+    child.once('exit', (code) => settle(code ?? 1));
   });
 }
 
@@ -202,8 +257,13 @@ async function main() {
   }
 }
 
-main().catch(async (error) => {
-  console.error(error);
-  await Promise.all(children.map((child) => killChild(child)));
-  process.exit(1);
-});
+// Only when this file IS the command. `scripts/run-e2e.test.mjs` imports
+// `playwrightVerdict` from here, and importing it must not boot three dev
+// servers (`scripts/lib/gate.mjs` spells out why every script needs this).
+if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  main().catch(async (error) => {
+    console.error(error);
+    await Promise.all(children.map((child) => killChild(child)));
+    process.exit(1);
+  });
+}
