@@ -10,6 +10,10 @@ export default defineConfig({
   // test file dies with "content contains invalid JS syntax". Passing a
   // JsxOptions object here overrides the inherited "preserve".
   oxc: { jsx: { runtime: 'automatic' } },
+  // tsconfig.json's `@/*` → `./src/*`, which Next reads and Vite does not by
+  // default. Without it, Vite refuses any page that imports `@/…` before a
+  // `vi.mock` can apply, so such a page could not be mounted in a test.
+  resolve: { tsconfigPaths: true },
   test: {
     globals: true,
     environment: 'jsdom',

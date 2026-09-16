@@ -225,11 +225,33 @@ export default function PoolsPage() {
     }
   }
 
+  async function checkConflicts() {
+    if (!selectedTournament) return;
+    // A failed check SAYS so. Kept silent, it showed nothing, and nothing reads
+    // as "no fighter/referee conflicts" (hard rule 8). It replaces the old strip,
+    // which is older than the load or the edit that asked for this check.
+    const tournamentId = selectedTournament;
+    const seq = ++conflictCheckSeq.current;
+    const r = await apiRequest<ConflictResult>(
+      apiUrl,
+      `/api/v1/tournaments/${tournamentId}/conflict-check`,
+    );
+    setConflictChecks((checks) =>
+      recordConflictCheck(checks, tournamentId, seq, r.ok ? r.data : null),
+    );
+  }
+
   useEffect(() => {
     if (!selectedTournament) return;
     const controller = new AbortController();
     // eslint-disable-next-line react-hooks/set-state-in-effect -- async fetch lifecycle: loadPools sets state only after the awaited request resolves
     void loadPools(selectedTournament, controller.signal);
+    // Checked whenever a Tournament's pools load, not only after an edit here:
+    // a referee set on a Match or a bout moved on the grid makes a clash without
+    // touching this page, and a Tournament never checked shows the same nothing
+    // as a clean one (hard rule 8). Not aborted on a switch: the answer is kept
+    // under the Tournament it was asked for (conflict-checks.ts).
+    void checkConflicts();
     return () => controller.abort();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedTournament, apiUrl]);
@@ -370,22 +392,6 @@ export default function PoolsPage() {
     } finally {
       setLifecycleBusy(false);
     }
-  }
-
-  async function checkConflicts() {
-    if (!selectedTournament) return;
-    // A failed check SAYS so. Kept silent, it showed nothing, and nothing reads
-    // as "no fighter/referee conflicts" (hard rule 8). It replaces the old strip,
-    // which was read before the edit that asked for this check.
-    const tournamentId = selectedTournament;
-    const seq = ++conflictCheckSeq.current;
-    const r = await apiRequest<ConflictResult>(
-      apiUrl,
-      `/api/v1/tournaments/${tournamentId}/conflict-check`,
-    );
-    setConflictChecks((checks) =>
-      recordConflictCheck(checks, tournamentId, seq, r.ok ? r.data : null),
-    );
   }
 
   // Phase visibility is no longer an operator toggle — tournament status
