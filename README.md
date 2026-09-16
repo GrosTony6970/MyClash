@@ -71,7 +71,7 @@ myclash/
 │   ├── web-public/      # Mobile-first PWA — public/spectator/competitor
 │   ├── web-staff/       # Tablet-first PWA — offline-first scoring
 │   ├── web-admin/       # Desktop-first admin app — organiser + super-admin
-│   ├── web-marketing/   # Astro 6 — myclash.fr apex landing, prerendered to dist/
+│   ├── web-marketing/   # Astro 7 — myclash.fr apex landing, prerendered to dist/
 │   └── pictures/        # Brand images (logo, hero, banner) — not an app
 ├── packages/            # Shared workspaces (consumed by the apps)
 │   ├── rulesets/        # @myclash/rulesets — TF_v1 scoring engine + custom-ruleset runtime

@@ -154,7 +154,7 @@ Platform-level admin (you). Functions:
 
 ### 2.5 Marketing Site (prerendered, apex domain)
 
-`myclash.fr` — commercial landing page. **Astro 6**, prerendered to `dist/` and served by Caddy. It
+`myclash.fr` — commercial landing page. **Astro 7**, prerendered to `dist/` and served by Caddy. It
 imports no `@myclash/ui` and no `theme.css`, which is why it is still on the legacy design language
 (see `docs/design/known-deviations.md`, D4). Content:
 

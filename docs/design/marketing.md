@@ -2,7 +2,7 @@
 
 > Delta against [`/DESIGN.md`](../../DESIGN.md). Only what this surface changes. The language, tokens and rules come from the root file — read it first.
 
-`myclash.fr` (apex) · **Astro 6**, prerendered to `dist/` (`output: 'static'`), served by Caddy · no Tailwind, no React
+`myclash.fr` (apex) · **Astro 7**, prerendered to `dist/` (`output: 'static'`), served by Caddy · no Tailwind, no React
 
 ## Read this first
 

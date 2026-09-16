@@ -87,7 +87,7 @@ Worth remembering _why_ it was dangerous rather than merely dead: its radius sca
 
 **Rule broken:** Typography (Fraunces + Geist). **Target: `web-marketing` adopts the Tournament Manual.**
 
-`apps/web-marketing` is **Astro 6**, prerendered to `dist/` and served by Caddy. It imports no `@myclash/ui`, no `theme.css`, and hand-rolls its palette in `src/styles/base.css`. It runs **Cinzel + Cormorant Garamond** — the language the product left behind. This is the source of the "Cinzel + Inter" claim that survived in the docs for months.
+`apps/web-marketing` is **Astro 7**, prerendered to `dist/` and served by Caddy. It imports no `@myclash/ui`, no `theme.css`, and hand-rolls its palette in `src/styles/base.css`. It runs **Cinzel + Cormorant Garamond** — the language the product left behind. This is the source of the "Cinzel + Inter" claim that survived in the docs for months.
 
 Two specific defects on top of the font stack:
 

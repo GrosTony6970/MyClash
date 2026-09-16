@@ -16,7 +16,7 @@ Review against what this repo is, not what a generic TypeScript project would be
 
 - **API** — NestJS 11 on Fastify (`apps/api`), global `ValidationPipe`, class-validator DTOs.
 - **Apps** — three Next.js 16 / React 19 PWAs: `web-admin` (organizer), `web-public` (spectator),
-  `web-staff` (offline-first scoring pad). Plus `web-marketing`, an Astro 6 static site.
+  `web-staff` (offline-first scoring pad). Plus `web-marketing`, an Astro 7 static site.
 - **Data** — Postgres 17 behind Supabase (PostgREST, GoTrue, Realtime, Storage). Schema changes are
   **numbered `.sql` migrations** in `packages/db/migrations/`; raw SQL is the sanctioned mechanism,
   not a smell. There is no ORM.

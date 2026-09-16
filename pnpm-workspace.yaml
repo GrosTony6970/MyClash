@@ -105,9 +105,9 @@ overrides:
   picomatch: ^4.0.5
   import-in-the-middle: ^3.0.1
   # >=0.35.0 cleared GHSA-f88m-g3jw-g9cj (four inherited libvips CVEs); >=0.35.4
-  # clears GHSA-rgj7-g3m4-5g8c (two more, in libheif). Only astro still asks for
-  # the 0.34 line, and web-marketing declares sharp directly, so this drags
-  # exactly one consumer forward and collapses the tree from two copies to one.
+  # clears GHSA-rgj7-g3m4-5g8c (two more, in libheif). next and astro 7 both ask
+  # for ^0.35.4 themselves; web-marketing declares `^0.35.3` directly, the one
+  # range left below the floor, so this pin holds that consumer on the fix.
   #
   # Raised to the advisory floor rather than left at ^0.35.0, which ALREADY
   # allowed the fix while the lockfile sat on 0.35.3: a range that permits the
