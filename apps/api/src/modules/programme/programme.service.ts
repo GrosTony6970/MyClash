@@ -11,6 +11,7 @@ import { SupabaseService } from '../supabase/supabase.service';
 // Value import, not `import type` — `import type` erases the DI metadata.
 import { OrganizationsService } from '../organizations/organizations.service';
 import { MatchAlertRefresherService } from '../notifications/match-alert-refresher.service';
+import { MatchPlacementService } from '../matches/match-placement.service';
 import { assertCanManageEvent, assertCanReadEvent } from '../../common/auth/event-authz';
 import { scheduleMatches } from '../schedule/match-scheduler';
 import {
@@ -165,6 +166,10 @@ export class ProgrammeService {
   constructor(
     private readonly supabase: SupabaseService,
     private readonly orgs: OrganizationsService,
+    // Required, and ahead of the optional one below on purpose: an absent
+    // placement service would let the re-fan write with no occupancy check and
+    // no sign of it.
+    private readonly placement: MatchPlacementService,
     /**
      * Five writes in this file move or clear a match's time, and every one of
      * them owes the queued "your fight starts soon" a refresh. Optional so the
@@ -1724,36 +1729,23 @@ export class ProgrammeService {
       },
     );
 
-    // `Promise.all` rejected on the FIRST failure while the other writes were
-    // already in flight and still committed — a partial re-fan reported as a
-    // flat 400, with no way to tell how much of it had landed.
+    // One batch through the placement owner. It attempts every write, refreshes
+    // the alerts of the rows that committed BEFORE it throws — a partly-applied
+    // re-fan still moved those bouts, and their alerts are wrong whether or not
+    // the caller gets a 400 — and its message says how many moved, so the
+    // caller knows a reload is required rather than assuming a no-op. Both grid
+    // callers refetch unconditionally, which is what makes that safe.
     //
-    // Every write is now attempted, and the error says how many moved, so the
-    // caller knows a reload is required rather than assuming a no-op. Both
-    // grid callers refetch unconditionally, which is what makes that safe.
-    const writes = await Promise.allSettled(
-      result.scheduledMatches.map(async (sm) => {
-        const { error } = await this.supabase.service
-          .from('matches')
-          .update({ lice_id: sm.liceId, scheduled_at: sm.scheduledAt })
-          .eq('id', sm.matchId);
-        if (error) throw new BadRequestException(`Failed to schedule match: ${error.message}`);
-        return sm.matchId;
-      }),
+    // The scheduler already avoided the pistes' existing occupants through
+    // `liceBusyUntil`; placement is what confirms it against the database.
+    await this.placement.placeMatches(
+      eventId,
+      result.scheduledMatches.map((sm) => ({
+        matchId: sm.matchId,
+        liceId: sm.liceId,
+        scheduledAt: sm.scheduledAt,
+      })),
     );
-    const committed = new Set(
-      writes.flatMap((w) => (w.status === 'fulfilled' ? [w.value as string] : [])),
-    );
-    const failed = writes.length - committed.size;
-    // Before the throw, deliberately. A partly-applied re-fan still moved the
-    // bouts in `committed`, and their alerts are wrong whether or not the
-    // caller gets a 400.
-    await this.matchAlerts?.refresh([...committed]);
-    if (failed > 0) {
-      throw new BadRequestException(
-        `Re-fan partly applied: ${committed.size}/${writes.length} matches moved. Reload the schedule before retrying.`,
-      );
-    }
 
     return {
       scheduled: result.scheduledMatches.map((sm) => ({
@@ -2160,8 +2152,13 @@ export class ProgrammeService {
    * the rows' bracket phases are read whole, once, and every slot id goes
    * through one `bracket_slots` read.
    *
-   * The re-fan is the only caller. ADR-018 moves this into the one helper every
-   * reader of a Match's window calls.
+   * The re-fan is the only caller, and it is the LAST one: every other reader
+   * takes `resolveMatchLengths` (`schedule/match-lengths.ts`) now. This is a
+   * second owner of the same question and it answers differently — it never
+   * reads `planned_duration_override_minutes`. Nothing writes a non-null
+   * override yet, so the two agree today; the moment one is written, the
+   * scheduler here would plan a run that `MatchPlacementService` then refuses.
+   * It goes when the re-fan moves to the helper.
    */
   private async sheetLengths(
     sheet: SuggestConfig,

@@ -1,6 +1,5 @@
 import {
   BadRequestException,
-  ConflictException,
   Injectable,
   Logger,
   NotFoundException,
@@ -15,7 +14,6 @@ import { MatchAlertRefresherService } from '../notifications/match-alert-refresh
 import { SupabaseService } from '../supabase/supabase.service';
 import { insertAuditLog } from '../../common/audit-log';
 import { buildRoundCode, bracketCodeConfig } from './round-code.helper';
-import { findLiceCollisions, liceCollisionMessage } from './lice-occupancy';
 import { fetchRefereeAssignmentIndex } from './referee-assignment-index';
 import { refereeNamesOnly, resolveMatchReferees } from './resolve-match-referees';
 import { ScoringService } from './scoring.service';
@@ -36,6 +34,7 @@ import type {
   VoidExchangeDto,
 } from './dto/matches.dto';
 import { assertLicesBelongToEvent } from '../lices/lices-in-event';
+import { MatchPlacementService } from './match-placement.service';
 
 /**
  * Structurally `ScoringActor`. Kept local so this service does not import
@@ -57,6 +56,7 @@ export class MatchesService {
     private readonly supabase: SupabaseService,
     private readonly scoring: ScoringService,
     private readonly matchAlerts: MatchAlertRefresherService,
+    private readonly placement: MatchPlacementService,
     @Optional() private readonly frozenResults?: FrozenResultsGuard,
     @Optional() private readonly matchCompletion?: MatchCompletionService,
   ) {}
@@ -327,11 +327,22 @@ export class MatchesService {
   }
 
   async createMatch(dto: CreateMatchDto) {
+    // A new bout goes through the same door as a moved one. It used to write
+    // `lice_id` and `scheduled_at` with no occupancy check at all, so a bout
+    // could be created straight onto a busy strip — `checkOnly` because there
+    // is nothing to update yet.
     if (dto.liceId) {
-      await assertLicesBelongToEvent(
-        this.supabase.service,
+      await this.placement.placeMatches(
         await this.eventIdOfPhase(dto.phaseId),
-        [dto.liceId],
+        [
+          {
+            matchId: null,
+            liceId: dto.liceId,
+            scheduledAt: dto.scheduledAt ?? null,
+            phaseId: dto.phaseId,
+          },
+        ],
+        { checkOnly: true },
       );
     }
     const { data, error } = await this.supabase.service
@@ -540,77 +551,29 @@ export class MatchesService {
   /**
    * Place one bout on a piste at a time — the schedule grid's drag.
    *
-   * Refuses a placement that double-books the piste. This route picks BOTH
-   * halves of a slot, so a collision means the caller chose a taken one; the
-   * piste-only writers (`update`, `setPoolLice`, venues) are deliberately not
-   * guarded against double-booking, because "assign pistes now, fix the clock after" is a real
+   * `MatchPlacementService` owns the refusal, the write and the alert refresh;
+   * this route only reads the row back for the grid. The piste-only writers
+   * (`update`, `setPoolLice`, venues) are deliberately not guarded against
+   * double-booking, because "assign pistes now, fix the clock after" is a real
    * two-step workflow and refusing step one would break it.
+   *
+   * A re-drop that does not move the bout CAN now refuse: the strip is judged
+   * over the bout's planned length from the Event's sheet (ADR-017/018), so
+   * lengthening the bouts can leave a run of them no longer fitting where they
+   * sit. The organiser is being told the sheet no longer matches the board.
    */
   async scheduleMatch(matchId: string, liceId: string | null, scheduledAt: string | null) {
-    if (liceId) {
-      await assertLicesBelongToEvent(this.supabase.service, await this.eventIdOfMatch(matchId), [
-        liceId,
-      ]);
-    }
-    await this.assertLiceFree(matchId, liceId || null, scheduledAt || null);
-
-    const updates: Record<string, unknown> = {
-      updated_at: new Date().toISOString(),
-    };
-    updates['lice_id'] = liceId || null;
-    updates['scheduled_at'] = scheduledAt || null;
+    await this.placement.placeMatches(await this.eventIdOfMatch(matchId), [
+      { matchId, liceId: liceId || null, scheduledAt: scheduledAt || null },
+    ]);
 
     const { data, error } = await this.supabase.service
       .from('matches')
-      .update(updates)
-      .eq('id', matchId)
       .select('*')
+      .eq('id', matchId)
       .single();
-
     if (error) throw new BadRequestException(error.message);
-    // Through the refresher rather than the two schedulers directly. This was
-    // the only write in the API that told the queue anything, and it still got
-    // it half right for months — it cancelled the fighter's own alert on an
-    // unschedule and left their followers'. One call cannot be half-remembered.
-    await this.matchAlerts.refresh([matchId]);
     return data;
-  }
-
-  /**
-   * Refuse a single-bout placement that lands on an occupied piste.
-   *
-   * Reads only the day's other bouts on that strip — a bounded window keyed on
-   * the piste, not a whole-event scan. The moving bout is excluded by
-   * `findLiceCollisions` itself, so re-saving a bout where it already sits
-   * cannot refuse.
-   */
-  private async assertLiceFree(
-    matchId: string,
-    liceId: string | null,
-    scheduledAt: string | null,
-  ): Promise<void> {
-    // Clearing either half releases the strip; nothing to check.
-    if (!liceId || !scheduledAt) return;
-
-    const { data, error } = await this.supabase.service
-      .from('matches')
-      .select('id, lice_id, scheduled_at')
-      .eq('lice_id', liceId)
-      .not('scheduled_at', 'is', null)
-      .not('status', 'eq', 'voided');
-    if (error) throw new BadRequestException(error.message);
-
-    const collisions = findLiceCollisions(
-      [{ matchId, liceId, scheduledAt }],
-      (
-        (data ?? []) as Array<{ id: string; lice_id: string | null; scheduled_at: string | null }>
-      ).map((row) => ({
-        matchId: row.id,
-        liceId: row.lice_id,
-        scheduledAt: row.scheduled_at,
-      })),
-    );
-    if (collisions.length > 0) throw new ConflictException(liceCollisionMessage(collisions));
   }
 
   /**

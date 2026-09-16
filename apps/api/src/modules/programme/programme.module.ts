@@ -3,6 +3,7 @@ import { ProgrammeController } from './programme.controller';
 import { ProgrammeService } from './programme.service';
 import { OrganizationsModule } from '../organizations/organizations.module';
 import { NotificationSchedulingModule } from '../notifications/notification-scheduling.module';
+import { MatchPlacementModule } from '../matches/match-placement.module';
 
 @Module({
   // OrganizationsModule imports only UserDirectoryModule + PrivacyModule, so
@@ -14,7 +15,7 @@ import { NotificationSchedulingModule } from '../notifications/notification-sche
   // import edges that re-enter it — see its header for the cycle it was cut to
   // break. A cycle here shows up only when Nest actually instantiates, so this
   // edge is proved at real boot by module-graph.test.ts, not by `tsc`.
-  imports: [OrganizationsModule, NotificationSchedulingModule],
+  imports: [OrganizationsModule, NotificationSchedulingModule, MatchPlacementModule],
   controllers: [ProgrammeController],
   providers: [ProgrammeService],
   exports: [ProgrammeService],

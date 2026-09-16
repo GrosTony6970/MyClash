@@ -6,22 +6,6 @@
  * supplies the clock. No I/O, no Nest.
  */
 
-/**
- * Planned length of one bout, for the readers that do not yet take the planner
- * sheet's length (ADR-018): the grid's cards and `lice-occupancy`'s refusal.
- *
- * Not an invented number: the sheet's pool length defaults to 5
- * (`programmeConfigSchema`) and the grid's `SLOT_MINUTES` is 5.
- *
- * `schedule-grid.service.ts` used to hardcode a third 5 for its cards, and this
- * docblock used to say so. It now imports this instead, which is what makes the
- * agreement structural rather than a coincidence three files happen to share:
- * the grid's geometry and `lice-occupancy`'s refusal measure a bout with the
- * same number, so the banner and the 409 cannot disagree about whether two
- * bouts overlap.
- */
-export const DEFAULT_MATCH_DURATION_MINUTES = 5;
-
 /** The shape `selectProgrammeBlocks` needs — a subset of ProgrammeBlock. */
 export interface BlockWindow {
   startTime: string;

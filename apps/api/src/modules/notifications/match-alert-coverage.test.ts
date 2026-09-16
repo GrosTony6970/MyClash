@@ -184,9 +184,15 @@ describe('match alert coverage', () => {
     expect(files.some((f) => f.endsWith('programme/programme.service.ts'))).toBe(true);
     expect(files.some((f) => f.endsWith('matches/matches.service.ts'))).toBe(true);
     expect(files.some((f) => f.endsWith('phases/phases.service.ts'))).toBe(true);
+    // The one owner of placing a Match. `scheduleMatch`, `createMatch`,
+    // `reschedulePool`, the re-fan and the assistant's `schedule_match` all
+    // write through it now, so it is where a forgotten refresh would live — and
+    // the assistant, which used to write the two columns itself, no longer
+    // touches `matches` at all.
+    expect(files.some((f) => f.endsWith('matches/match-placement.service.ts'))).toBe(true);
     expect(
       files.some((f) => f.endsWith('organizer-ai-assistant/organizer-ai-assistant.service.ts')),
-    ).toBe(true);
+    ).toBe(false);
     // The piste half. This file writes `lice_id` and NOTHING else, so it is the
     // one that proves the guard widened — under the time-only detector it was
     // asserted ABSENT, and a piste-only move is exactly the write that used to

@@ -8,6 +8,7 @@ import { FrozenResultsModule } from './frozen-results.module';
 import { MatchAuditService } from './match-audit.service';
 import { MatchAutoLockService } from './match-auto-lock.service';
 import { MatchForfeitsService } from './match-forfeits.service';
+import { MatchPlacementModule } from './match-placement.module';
 import { MatchesController } from './matches.controller';
 import { MatchesService } from './matches.service';
 import { RulesetResolverModule } from './ruleset-resolver.module';
@@ -25,6 +26,7 @@ import { ScoringService } from './scoring.service';
     RulesetResolverModule,
     FrozenResultsModule,
     OrganizationsModule,
+    MatchPlacementModule,
   ],
   controllers: [MatchesController],
   providers: [

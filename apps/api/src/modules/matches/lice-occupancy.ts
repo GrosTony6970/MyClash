@@ -12,24 +12,30 @@
  * requires the two bouts to SHARE A FIGHTER before it tests the clock, so two
  * tournaments on one piste — no shared registration — report nothing.
  *
- * HALF-OPEN INTERVALS. `[start, start + duration)`, so a bout that ends exactly
- * as the next begins does not collide. That matches `detect-overlaps.ts` and
- * `conflict-detection.ts` on the web-admin side, and it has to: a back-to-back
- * pair on one piste is the normal case, not a clash.
+ * HALF-OPEN INTERVALS. `[start, start + planned length)`, so a bout that ends
+ * exactly as the next begins does not collide. That matches `detect-overlaps.ts`
+ * and `conflict-detection.ts` on the web-admin side, and it has to: a
+ * back-to-back pair on one piste is the normal case, not a clash. The window
+ * itself is `matchWindowMs` from `@myclash/schedule-core` — one owner, so the
+ * board, the grid and this cannot disagree about where a bout ends.
  *
- * Pure — no Supabase, no Nest. The caller fetches the occupants and supplies the
- * placements; this decides. That is the part worth testing, and it keeps the
- * three service call sites down to a query plus a throw.
+ * Pure — no Supabase, no Nest. `MatchPlacementService` fetches the occupants,
+ * resolves every length from the Event's sheet and supplies the placements; this
+ * decides.
  */
-import { DEFAULT_MATCH_DURATION_MINUTES } from '../schedule/select-programme-block';
+import { matchWindowMs, overlapsHalfOpen, type TimeWindowMs } from '@myclash/schedule-core';
 
 /** A placement: where a bout is being put, or already sits. */
 export interface LicePlacement {
   matchId: string;
   liceId: string | null;
   scheduledAt: string | null;
-  /** Defaults to {@link DEFAULT_MATCH_DURATION_MINUTES} when absent. */
-  durationMinutes?: number;
+  /**
+   * The bout's PLANNED length, from the Event's sheet (ADR-018). Required: the
+   * five minutes this used to assume was shorter than most real bouts, so two
+   * that genuinely overlapped were reported as free.
+   */
+  durationMinutes: number;
 }
 
 export interface LiceCollision {
@@ -40,11 +46,9 @@ export interface LiceCollision {
   conflictingMatchId: string;
 }
 
-interface Interval {
+interface Interval extends TimeWindowMs {
   matchId: string;
   liceId: string;
-  start: number;
-  end: number;
 }
 
 /**
@@ -54,19 +58,15 @@ interface Interval {
  */
 function toInterval(placement: LicePlacement): Interval | null {
   if (!placement.liceId || !placement.scheduledAt) return null;
-  const start = new Date(placement.scheduledAt).getTime();
-  if (Number.isNaN(start)) return null;
-  const minutes = placement.durationMinutes ?? DEFAULT_MATCH_DURATION_MINUTES;
   return {
     matchId: placement.matchId,
     liceId: placement.liceId,
-    start,
-    end: start + minutes * 60_000,
+    ...matchWindowMs(placement.scheduledAt, placement.durationMinutes),
   };
 }
 
 function overlaps(a: Interval, b: Interval): boolean {
-  return a.liceId === b.liceId && a.start < b.end && b.start < a.end;
+  return a.liceId === b.liceId && overlapsHalfOpen(a, b);
 }
 
 /**

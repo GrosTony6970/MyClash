@@ -1,8 +1,8 @@
-import { BadRequestException } from '@nestjs/common';
+import { BadRequestException, ConflictException } from '@nestjs/common';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   chain,
-  matchAlerts,
+  placement,
   mockCreateTournament,
   mockGeneratePools,
   mockSupabaseFrom,
@@ -170,11 +170,9 @@ describe('OrganizerAIAssistantService.applyDraft', () => {
     expect(tournaments.in).toHaveBeenCalledWith('id', ['t-9']);
   });
 
-  it('places a Match on a Lice of this Event, and refreshes its fight alert', async () => {
-    const { matches, update, written } = eventMatch();
-    const lices = idRead([{ id: 'l-1' }]);
+  it('hands the placement owner the bout, its piste and its time', async () => {
+    const { matches } = eventMatch();
     mockSupabaseFrom.mockImplementation((table: string) => {
-      if (table === 'lices') return lices;
       if (table === 'matches') return matches;
       if (table !== 'organizer_ai_assistant_drafts') return chain();
       return scheduleDraft('l-1', '2026-06-01T09:00:00.000Z');
@@ -182,38 +180,32 @@ describe('OrganizerAIAssistantService.applyDraft', () => {
 
     const result = await service().applyDraft('event-1', 'draft-1', 'user-1');
 
-    expect(update).toHaveBeenCalledWith({
-      lice_id: 'l-1',
-      scheduled_at: '2026-06-01T09:00:00.000Z',
-    });
-    // The update writes the one Match the action names, and no other.
-    expect(written.eq).toHaveBeenCalledWith('id', 'm-1');
+    // The Lice check, the occupancy refusal, the write and the alert refresh
+    // all live in the placement owner now; this door used to do the write and
+    // none of the checking.
+    expect(placement.placeMatches).toHaveBeenCalledWith('event-1', [
+      { matchId: 'm-1', liceId: 'l-1', scheduledAt: '2026-06-01T09:00:00.000Z' },
+    ]);
     // The double answers whatever the projection names. The Match's Event is
     // resolved through this embed, so the string is the proof of the read.
     expect(matches.select).toHaveBeenCalledWith('id, phases(tournaments(event_id))');
-    expect(lices.eq).toHaveBeenCalledWith('event_id', 'event-1');
-    expect(lices.in).toHaveBeenCalledWith('id', ['l-1']);
-    expect(matchAlerts.refresh).toHaveBeenCalledWith(['m-1']);
     expect(result.appliedResults).toEqual([{ kind: 'schedule_match', result: { id: 'm-1' } }]);
   });
 
-  it("refuses to place a Match on another Event's Lice", async () => {
-    const { matches, update } = eventMatch();
-    // None of the Lices named is this Event's.
-    const lices = idRead([]);
+  it('applies nothing when the placement owner refuses', async () => {
+    const { matches } = eventMatch();
     mockSupabaseFrom.mockImplementation((table: string) => {
-      if (table === 'lices') return lices;
       if (table === 'matches') return matches;
       if (table !== 'organizer_ai_assistant_drafts') return chain();
-      return scheduleDraft('l-9', 'now');
+      return scheduleDraft('l-9', '2026-06-01T09:00:00.000Z');
     });
+    placement.placeMatches.mockRejectedValueOnce(
+      new ConflictException('Piste already busy: this bout overlaps match m-2'),
+    );
 
     await expect(service().applyDraft('event-1', 'draft-1', 'user-1')).rejects.toThrow(
-      'Every Lice must belong to this event',
+      'Piste already busy',
     );
-    expect(update).not.toHaveBeenCalled();
-    expect(lices.eq).toHaveBeenCalledWith('event_id', 'event-1');
-    expect(lices.in).toHaveBeenCalledWith('id', ['l-9']);
   });
 
   it('rejects unsafe draft action shapes before apply', async () => {

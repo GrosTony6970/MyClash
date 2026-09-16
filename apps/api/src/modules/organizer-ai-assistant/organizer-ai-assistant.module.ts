@@ -3,21 +3,22 @@ import { AIUsageModule } from '../ai-usage/ai-usage.module';
 import { EventsModule } from '../events/events.module';
 import { OrganizationsModule } from '../organizations/organizations.module';
 import { PhasesModule } from '../phases/phases.module';
-import { NotificationSchedulingModule } from '../notifications/notification-scheduling.module';
+import { MatchPlacementModule } from '../matches/match-placement.module';
 import { SupabaseModule } from '../supabase/supabase.module';
 import { OrganizerAIAssistantController } from './organizer-ai-assistant.controller';
 import { OrganizerAIAssistantService } from './organizer-ai-assistant.service';
 
 @Module({
-  // The notification LEAF: the `schedule_match` action writes a match time,
-  // so it owes the alerts built from that time a refresh.
+  // The placement LEAF: `schedule_match` puts a bout on a piste, and that door
+  // belongs to `MatchPlacementService` like every other. It owes the fighters'
+  // alerts a refresh too, which the placement service does for it.
   imports: [
     SupabaseModule,
     AIUsageModule,
     OrganizationsModule,
     EventsModule,
     PhasesModule,
-    NotificationSchedulingModule,
+    MatchPlacementModule,
   ],
   controllers: [OrganizerAIAssistantController],
   providers: [OrganizerAIAssistantService],

@@ -86,7 +86,7 @@ function orderRows(rows: SupabaseRow[], keys: readonly Ordering[]): SupabaseRow[
  * different things: a null in a sort column is a fixture that cannot express an
  * order, while a null in a filtered column is a row Postgres simply excludes —
  * `scheduled_at >= x` over NULL evaluates to NULL, which is not TRUE, so the row
- * does not come back. `assertLiceFree` writing `.not('scheduled_at','is',null)`
+ * does not come back. `MatchPlacementService.readOccupants` writing `.not('scheduled_at','is',null)`
  * immediately before its window is the code saying it knows those rows exist.
  *
  * An ABSENT column reads the same as a null one, matching `is` above.

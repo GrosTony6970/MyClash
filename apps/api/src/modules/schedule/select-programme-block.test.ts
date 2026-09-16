@@ -1,10 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import {
-  DEFAULT_MATCH_DURATION_MINUTES,
-  dayIndexFor,
-  selectProgrammeBlocks,
-  toHHMM,
-} from './select-programme-block';
+import { dayIndexFor, selectProgrammeBlocks, toHHMM } from './select-programme-block';
 
 const block = (startTime: string, endTime: string, id = startTime) => ({ id, startTime, endTime });
 
@@ -75,11 +70,5 @@ describe('toHHMM', () => {
   it('zero-pads both fields so the string compare stays valid', () => {
     expect(toHHMM(new Date(2026, 6, 21, 9, 5))).toBe('09:05');
     expect(toHHMM(new Date(2026, 6, 21, 14, 30))).toBe('14:30');
-  });
-});
-
-describe('DEFAULT_MATCH_DURATION_MINUTES', () => {
-  it('matches the event_programme_blocks column default', () => {
-    expect(DEFAULT_MATCH_DURATION_MINUTES).toBe(5);
   });
 });

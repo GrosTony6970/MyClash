@@ -6,8 +6,8 @@ const at = (hhmm: string) => `2026-05-21T${hhmm}:00.000Z`;
 describe('findLiceCollisions', () => {
   it('reports two bouts overlapping on one piste', () => {
     const collisions = findLiceCollisions(
-      [{ matchId: 'm-new', liceId: 'lice-1', scheduledAt: at('10:00') }],
-      [{ matchId: 'm-old', liceId: 'lice-1', scheduledAt: at('10:02') }],
+      [{ matchId: 'm-new', liceId: 'lice-1', scheduledAt: at('10:00'), durationMinutes: 5 }],
+      [{ matchId: 'm-old', liceId: 'lice-1', scheduledAt: at('10:02'), durationMinutes: 5 }],
     );
 
     expect(collisions).toEqual([
@@ -20,8 +20,8 @@ describe('findLiceCollisions', () => {
     // AFTER finding a shared registration, so two tournaments on one piste
     // reported nothing at all.
     const collisions = findLiceCollisions(
-      [{ matchId: 'longsword-1', liceId: 'lice-2', scheduledAt: at('14:00') }],
-      [{ matchId: 'sidesword-7', liceId: 'lice-2', scheduledAt: at('14:00') }],
+      [{ matchId: 'longsword-1', liceId: 'lice-2', scheduledAt: at('14:00'), durationMinutes: 5 }],
+      [{ matchId: 'sidesword-7', liceId: 'lice-2', scheduledAt: at('14:00'), durationMinutes: 5 }],
     );
 
     expect(collisions).toHaveLength(1);
@@ -31,8 +31,8 @@ describe('findLiceCollisions', () => {
     // Half-open intervals. A piste running 10:00, 10:05, 10:10 is the normal
     // case; refusing it would refuse every schedule the generator produces.
     const collisions = findLiceCollisions(
-      [{ matchId: 'm-2', liceId: 'lice-1', scheduledAt: at('10:05') }],
-      [{ matchId: 'm-1', liceId: 'lice-1', scheduledAt: at('10:00') }],
+      [{ matchId: 'm-2', liceId: 'lice-1', scheduledAt: at('10:05'), durationMinutes: 5 }],
+      [{ matchId: 'm-1', liceId: 'lice-1', scheduledAt: at('10:00'), durationMinutes: 5 }],
     );
 
     expect(collisions).toEqual([]);
@@ -40,21 +40,29 @@ describe('findLiceCollisions', () => {
 
   it('ignores a different piste at the same moment', () => {
     const collisions = findLiceCollisions(
-      [{ matchId: 'm-2', liceId: 'lice-2', scheduledAt: at('10:00') }],
-      [{ matchId: 'm-1', liceId: 'lice-1', scheduledAt: at('10:00') }],
+      [{ matchId: 'm-2', liceId: 'lice-2', scheduledAt: at('10:00'), durationMinutes: 5 }],
+      [{ matchId: 'm-1', liceId: 'lice-1', scheduledAt: at('10:00'), durationMinutes: 5 }],
     );
 
     expect(collisions).toEqual([]);
   });
 
   it('ignores a placement with no piste or no time', () => {
-    const occupants = [{ matchId: 'm-1', liceId: 'lice-1', scheduledAt: at('10:00') }];
+    const occupants = [
+      { matchId: 'm-1', liceId: 'lice-1', scheduledAt: at('10:00'), durationMinutes: 5 },
+    ];
 
     expect(
-      findLiceCollisions([{ matchId: 'm-2', liceId: null, scheduledAt: at('10:00') }], occupants),
+      findLiceCollisions(
+        [{ matchId: 'm-2', liceId: null, scheduledAt: at('10:00'), durationMinutes: 5 }],
+        occupants,
+      ),
     ).toEqual([]);
     expect(
-      findLiceCollisions([{ matchId: 'm-2', liceId: 'lice-1', scheduledAt: null }], occupants),
+      findLiceCollisions(
+        [{ matchId: 'm-2', liceId: 'lice-1', scheduledAt: null, durationMinutes: 5 }],
+        occupants,
+      ),
     ).toEqual([]);
   });
 
@@ -62,8 +70,8 @@ describe('findLiceCollisions', () => {
     // Re-saving a bout where it already sits must not refuse. Callers exclude
     // the moving rows from `occupants`, and this is the belt to that braces.
     const collisions = findLiceCollisions(
-      [{ matchId: 'm-1', liceId: 'lice-1', scheduledAt: at('10:00') }],
-      [{ matchId: 'm-1', liceId: 'lice-1', scheduledAt: at('10:00') }],
+      [{ matchId: 'm-1', liceId: 'lice-1', scheduledAt: at('10:00'), durationMinutes: 5 }],
+      [{ matchId: 'm-1', liceId: 'lice-1', scheduledAt: at('10:00'), durationMinutes: 5 }],
     );
 
     expect(collisions).toEqual([]);
@@ -75,8 +83,8 @@ describe('findLiceCollisions', () => {
     // pre-existing occupant being involved.
     const collisions = findLiceCollisions(
       [
-        { matchId: 'm-1', liceId: 'lice-1', scheduledAt: at('10:00') },
-        { matchId: 'm-2', liceId: 'lice-1', scheduledAt: at('10:03') },
+        { matchId: 'm-1', liceId: 'lice-1', scheduledAt: at('10:00'), durationMinutes: 5 },
+        { matchId: 'm-2', liceId: 'lice-1', scheduledAt: at('10:03'), durationMinutes: 5 },
       ],
       [],
     );
@@ -87,9 +95,9 @@ describe('findLiceCollisions', () => {
   it('reports a colliding pair once, not twice', () => {
     const collisions = findLiceCollisions(
       [
-        { matchId: 'm-1', liceId: 'lice-1', scheduledAt: at('10:00') },
-        { matchId: 'm-2', liceId: 'lice-1', scheduledAt: at('10:01') },
-        { matchId: 'm-3', liceId: 'lice-1', scheduledAt: at('10:02') },
+        { matchId: 'm-1', liceId: 'lice-1', scheduledAt: at('10:00'), durationMinutes: 5 },
+        { matchId: 'm-2', liceId: 'lice-1', scheduledAt: at('10:01'), durationMinutes: 5 },
+        { matchId: 'm-3', liceId: 'lice-1', scheduledAt: at('10:02'), durationMinutes: 5 },
       ],
       [],
     );
@@ -104,22 +112,30 @@ describe('findLiceCollisions', () => {
     ];
 
     expect(
-      findLiceCollisions([{ matchId: 'm-2', liceId: 'lice-1', scheduledAt: at('10:20') }], long),
+      findLiceCollisions(
+        [{ matchId: 'm-2', liceId: 'lice-1', scheduledAt: at('10:20'), durationMinutes: 5 }],
+        long,
+      ),
     ).toHaveLength(1);
     expect(
-      findLiceCollisions([{ matchId: 'm-2', liceId: 'lice-1', scheduledAt: at('10:30') }], long),
+      findLiceCollisions(
+        [{ matchId: 'm-2', liceId: 'lice-1', scheduledAt: at('10:30'), durationMinutes: 5 }],
+        long,
+      ),
     ).toEqual([]);
   });
 
-  it('survives an unparseable timestamp instead of colliding with everything', () => {
-    // NaN arithmetic makes every comparison false, which would silently PASS a
-    // bad placement. Dropping it is the same outcome, reached on purpose.
-    const collisions = findLiceCollisions(
-      [{ matchId: 'm-2', liceId: 'lice-1', scheduledAt: 'not-a-date' }],
-      [{ matchId: 'm-1', liceId: 'lice-1', scheduledAt: at('10:00') }],
-    );
-
-    expect(collisions).toEqual([]);
+  it('refuses an unparseable timestamp instead of quietly dropping it', () => {
+    // This used to return [] — NaN arithmetic makes every comparison false, so a
+    // bad placement PASSED. `matchWindowMs` throws instead, and
+    // `MatchPlacementService` refuses such a time with a 400 before it gets
+    // here, so the throw is a server fault rather than an organiser's mistake.
+    expect(() =>
+      findLiceCollisions(
+        [{ matchId: 'm-2', liceId: 'lice-1', scheduledAt: 'not-a-date', durationMinutes: 5 }],
+        [{ matchId: 'm-1', liceId: 'lice-1', scheduledAt: at('10:00'), durationMinutes: 5 }],
+      ),
+    ).toThrow(/cannot read the start time/i);
   });
 });
 

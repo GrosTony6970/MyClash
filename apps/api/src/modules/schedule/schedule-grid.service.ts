@@ -5,7 +5,7 @@ import { SupabaseService } from '../supabase/supabase.service';
 import { OrganizationsService } from '../organizations/organizations.service';
 import { assertCanReadEvent } from '../../common/auth/event-authz';
 import { buildRoundCode, bracketCodeConfig } from '../matches/round-code.helper';
-import { DEFAULT_MATCH_DURATION_MINUTES } from './select-programme-block';
+import { resolveMatchLengths } from './match-lengths';
 
 export interface ScheduleGridMatch {
   id: string;
@@ -83,6 +83,7 @@ interface MatchRow {
   swiss_round_id: string | null;
   red_registration_id: string | null;
   blue_registration_id: string | null;
+  planned_duration_override_minutes: number | null;
 }
 
 interface PoolRow {
@@ -203,7 +204,7 @@ export class ScheduleGridService {
     const { data: matchesData, error: matchesErr } = await this.supabase.service
       .from('matches')
       .select(
-        'id, match_number_label, status, lice_id, scheduled_at, started_at, ended_at, phase_id, pool_id, bracket_slot_id, swiss_round_id, red_registration_id, blue_registration_id',
+        'id, match_number_label, status, lice_id, scheduled_at, started_at, ended_at, phase_id, pool_id, bracket_slot_id, swiss_round_id, red_registration_id, blue_registration_id, planned_duration_override_minutes',
       )
       .in('phase_id', phaseIds)
       .order('scheduled_at', { ascending: true, nullsFirst: false })
@@ -305,6 +306,19 @@ export class ScheduleGridService {
       });
     }
 
+    // One resolution for the whole grid, not one per card (ADR-018:115-116).
+    // Every row here came back from `.in('phase_id', phaseIds)`, so `phase_id`
+    // is present whatever the column's nullable type says.
+    const lengths = await resolveMatchLengths(
+      this.supabase.service,
+      eventId,
+      matches.map((m) => ({
+        id: m.id,
+        phaseId: m.phase_id as string,
+        plannedDurationOverrideMinutes: m.planned_duration_override_minutes,
+      })),
+    );
+
     return matches.map((m): ScheduleGridMatch => {
       const phase = m.phase_id ? phaseById.get(m.phase_id) : null;
       const tournament = phase ? (tournamentById.get(phase.tournament_id) ?? null) : null;
@@ -366,14 +380,11 @@ export class ScheduleGridService {
         tournamentName,
         tournamentColor: tournament?.color ?? null,
         tournamentSlug: tournament?.slug ?? null,
-        // The grid's geometry and the server's piste-occupancy refusal both
-        // measure a bout with this number, so a drift between the two literals
-        // would put the banner and the 409 in disagreement — the operator would
-        // see a clash the server accepts, or the reverse, with nothing to say
-        // which is right. `DEFAULT_MATCH_DURATION_MINUTES` already names it, and
-        // its own docblock lists this line as one of the three places that
-        // "already agreed on it". Now there is one place.
-        durationMinutes: DEFAULT_MATCH_DURATION_MINUTES,
+        // The grid's geometry and the server's piste-occupancy refusal measure
+        // the same bout, so they read the same number: the Event's sheet,
+        // through `resolveMatchLengths` (ADR-018). It was a shared constant of
+        // five minutes, which agreed with itself and with no organiser.
+        durationMinutes: lengths.get(m.id) as number,
         phaseType: phase?.type ?? null,
         poolId: m.pool_id,
         poolName: pool?.name ?? null,

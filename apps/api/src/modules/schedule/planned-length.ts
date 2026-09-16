@@ -29,6 +29,31 @@ export function finalRoundOf(rounds: ReadonlyArray<number | null>): number | nul
   return known.length > 0 ? Math.max(...known) : null;
 }
 
+/** One bracket Match's phase and round, as `finalRoundsByPhase` needs them. */
+export interface BracketRoundRow {
+  phase_id: string;
+  round: number | null;
+}
+
+/**
+ * The final round of EACH bracket phase.
+ *
+ * Per phase, not per Tournament. A Tournament may hold more than one bracket —
+ * a main draw and a repechage — and their rounds are numbered independently, so
+ * one number over the pair would call one bracket's final an ordinary
+ * elimination bout and give it the wrong length. A phase with no readable round
+ * maps to null, which `isFinalsMatch` refuses.
+ */
+export function finalRoundsByPhase(rows: readonly BracketRoundRow[]): Map<string, number | null> {
+  const byPhase = new Map<string, Array<number | null>>();
+  for (const row of rows) {
+    const rounds = byPhase.get(row.phase_id);
+    if (rounds) rounds.push(row.round);
+    else byPhase.set(row.phase_id, [row.round]);
+  }
+  return new Map([...byPhase].map(([phaseId, rounds]) => [phaseId, finalRoundOf(rounds)]));
+}
+
 /**
  * A bracket Match is a finals bout when it sits in the final round: the gold
  * final and the bronze, or the grand final and its reset. A Match whose round

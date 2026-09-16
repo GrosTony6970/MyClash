@@ -12,6 +12,7 @@ import { OrganizationsModule } from '../organizations/organizations.module';
 import { PoolStandingsModule } from '../pool-standings/pool-standings.module';
 import { SwissCoreModule } from '../swiss/swiss-core.module';
 import { NotificationSchedulingModule } from '../notifications/notification-scheduling.module';
+import { MatchPlacementModule } from '../matches/match-placement.module';
 
 @Module({
   // SwissCoreModule, never SwissModule: MatchCompletionService has to invoke
@@ -33,6 +34,7 @@ import { NotificationSchedulingModule } from '../notifications/notification-sche
     PoolStandingsModule,
     SwissCoreModule,
     NotificationSchedulingModule,
+    MatchPlacementModule,
   ],
   controllers: [PhasesController, ConflictCheckController, BracketSlotsController],
   providers: [PhasesService, BracketAdvanceService, MatchCompletionService],

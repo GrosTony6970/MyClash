@@ -42,8 +42,18 @@ const mockOrgs = { assertOrgRole: vi.fn().mockResolvedValue(undefined) };
  */
 function makeService(seed: Record<string, TableSeed>) {
   const supabase = mockSupabase(seed);
-  const service = new PhasesService(supabase as never, undefined, mockOrgs as never);
-  return { service, supabase };
+  // Doubled, not exercised: it reads the sheet, the phases and the strip's
+  // occupants, none of which this file's fixtures carry. What it does is owned
+  // by `match-placement.service.test.ts`; what this file owns is the batch
+  // `reschedulePool` hands it.
+  const placement = { placeMatches: vi.fn(() => Promise.resolve()) };
+  const service = new PhasesService(
+    supabase as never,
+    placement as never,
+    undefined,
+    mockOrgs as never,
+  );
+  return { service, supabase, placement };
 }
 
 // ── Tests ──────────────────────────────────────────────────────────────────
@@ -334,7 +344,7 @@ describe('PhasesService', () => {
     // ── One piste runs one bout at a time ─────────────────────────────────
     // reschedulePool picks a piste AND a time, so a collision means it picked
     // a taken one. setPoolLice picks only a piste
-    // and stays deliberately unguarded — see assertPoolPlacementsFree.
+    // and stays deliberately unguarded — see setPoolLice's own docstring.
     describe('piste double-booking', () => {
       const POOL_CONTEXT = {
         id: 'pool-1',
@@ -427,43 +437,36 @@ describe('PhasesService', () => {
       /** Five minutes on, onto the piste the pool already sits on. */
       const moveTo1005 = { liceId: 'lice-1', startAtIso: '2026-05-21T10:05:00.000Z' };
 
-      it('reschedulePool refuses onto an occupied piste, and writes nothing', async () => {
-        const { service, supabase } = seedPoolMove([
-          {
-            id: 'm-someone-else',
-            pool_id: 'pool-9',
-            lice_id: 'lice-1',
-            status: 'scheduled',
-            match_number_label: 'B3',
-            scheduled_at: '2026-05-21T10:06:00.000Z',
-          },
+      it('hands the placement owner the whole Pool in one batch', async () => {
+        const { service, placement } = seedPoolMove();
+
+        await expect(service.reschedulePool('pool-1', moveTo1005, 'user-1')).resolves.toBeDefined();
+
+        // One batch, not one call per bout: the placement owner checks the set
+        // against itself as well as against the strip, so a refusal cannot
+        // leave half a Pool moved.
+        expect(placement.placeMatches).toHaveBeenCalledTimes(1);
+        expect(placement.placeMatches).toHaveBeenCalledWith('event-1', [
+          { matchId: 'm-1', liceId: 'lice-1', scheduledAt: '2026-05-21T10:05:00.000Z' },
+          { matchId: 'm-2', liceId: 'lice-1', scheduledAt: '2026-05-21T10:10:00.000Z' },
         ]);
+      });
+
+      it('writes nothing itself when the placement owner refuses', async () => {
+        const { service, supabase, placement } = seedPoolMove();
+        placement.placeMatches.mockRejectedValueOnce(new ConflictException('busy'));
 
         await expect(service.reschedulePool('pool-1', moveTo1005, 'user-1')).rejects.toBeInstanceOf(
           ConflictException,
         );
-        // Checked on the WHOLE set before the first UPDATE, so a refusal cannot
-        // leave half a pool moved.
         expect(writesTo(supabase, 'matches')).toEqual([]);
       });
 
-      it('reschedulePool proceeds when the piste is free', async () => {
+      it('writes nothing itself at all — the placement owner owns the UPDATE', async () => {
         const { service, supabase } = seedPoolMove();
 
-        await expect(service.reschedulePool('pool-1', moveTo1005, 'user-1')).resolves.toBeDefined();
-        // One UPDATE per bout, each naming its own row.
-        expect(writesTo(supabase, 'matches').map((write) => scopedTo(write, 'id'))).toEqual([
-          'm-1',
-          'm-2',
-        ]);
-      });
+        await service.reschedulePool('pool-1', moveTo1005, 'user-1');
 
-      it("reschedulePool refuses another Event's Lice, and writes nothing", async () => {
-        const { service, supabase } = seedPoolMove();
-
-        await expect(
-          service.reschedulePool('pool-1', { ...moveTo1005, liceId: 'lice-elsewhere' }, 'user-1'),
-        ).rejects.toThrow('Every Lice must belong to this event');
         expect(writesTo(supabase, 'matches')).toEqual([]);
       });
     });
@@ -2838,6 +2841,7 @@ describe('PhasesService', () => {
       });
       const svc = new PhasesService(
         supabase as never,
+        { placeMatches: vi.fn() } as never,
         undefined,
         mockOrgs as never,
         undefined,
@@ -3185,6 +3189,7 @@ describe('PhasesService', () => {
       });
       const svc = new PhasesService(
         supabase as never,
+        { placeMatches: vi.fn() } as never,
         undefined,
         mockOrgs as never,
         undefined,
@@ -3460,6 +3465,7 @@ describe('PhasesService.getTournamentBracket — seeding drift', () => {
       : undefined;
     return new PhasesService(
       supabase as never,
+      { placeMatches: vi.fn() } as never,
       undefined,
       mockOrgs as never,
       undefined,

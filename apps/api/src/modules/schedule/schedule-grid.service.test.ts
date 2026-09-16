@@ -16,6 +16,19 @@ vi.mock('../../common/auth/event-authz', () => ({
 }));
 const assertCanReadEventMock = vi.mocked(assertCanReadEvent);
 
+/**
+ * The length helper is mocked for the same reason: it makes reads of its own
+ * (the sheet, the phases, sometimes the bracket) and each would shift the queue.
+ * What it resolves is owned by `match-lengths.test.ts`; what this file owns is
+ * the rows handed to it and that its answer reaches the card — both asserted in
+ * `schedule-grid.service.lengths.test.ts`, which drives the same queue.
+ */
+vi.mock('./match-lengths', () => ({
+  resolveMatchLengths: vi.fn((_db: unknown, _eventId: string, inputs: Array<{ id: string }>) =>
+    Promise.resolve(new Map(inputs.map((input) => [input.id, 5]))),
+  ),
+}));
+
 const fromMock = vi.fn();
 const mockSupabase = { service: { from: fromMock } };
 const mockOrgs = { assertOrgRole: vi.fn() };

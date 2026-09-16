@@ -3,7 +3,7 @@ import { AIUsageService } from '../ai-usage/ai-usage.service';
 import { EventsService } from '../events/events.service';
 import { OrganizationsService } from '../organizations/organizations.service';
 import { PhasesService } from '../phases/phases.service';
-import { MatchAlertRefresherService } from '../notifications/match-alert-refresher.service';
+import { MatchPlacementService } from '../matches/match-placement.service';
 import { SupabaseService } from '../supabase/supabase.service';
 import { insertAuditLog } from '../../common/audit-log';
 import { parseModelJson } from '../../common/model-json';
@@ -13,7 +13,6 @@ import type {
   UpdateOrganizerAIDraftDto,
 } from './dto/organizer-ai-assistant.dto';
 import { assertTournamentsBelongToEvent } from '../events/in-event';
-import { assertLicesBelongToEvent } from '../lices/lices-in-event';
 
 type DraftStatus = 'draft' | 'ready' | 'failed' | 'applied' | 'rejected';
 
@@ -67,7 +66,7 @@ export class OrganizerAIAssistantService {
     private readonly organizations: OrganizationsService,
     private readonly events: EventsService,
     private readonly phases: PhasesService,
-    private readonly matchAlerts: MatchAlertRefresherService,
+    private readonly placement: MatchPlacementService,
   ) {}
 
   async createDraft(eventId: string, actorUserId: string, dto: CreateOrganizerAIDraftDto) {
@@ -377,22 +376,20 @@ export class OrganizerAIAssistantService {
       return { kind, result };
     }
     if (kind === 'schedule_match') {
-      await Promise.all([
-        this.assertMatchBelongsToEvent(eventId, String(action['matchId'])),
-        assertLicesBelongToEvent(this.supabase.service, eventId, [String(action['liceId'])]),
+      const matchId = String(action['matchId']);
+      await this.assertMatchBelongsToEvent(eventId, matchId);
+      // Through the one placement owner, which checks the Lice, refuses a time
+      // it cannot read and refuses a double-booked piste. This door used to
+      // write both columns with no occupancy check at all, so the assistant
+      // could drop a bout onto a busy strip and report success.
+      await this.placement.placeMatches(eventId, [
+        {
+          matchId,
+          liceId: String(action['liceId']),
+          scheduledAt: String(action['scheduledAt']),
+        },
       ]);
-      const { data, error } = await this.supabase.service
-        .from('matches')
-        .update({
-          lice_id: String(action['liceId']),
-          scheduled_at: String(action['scheduledAt']),
-        })
-        .eq('id', String(action['matchId']))
-        .select('id')
-        .single();
-      if (error) throw new BadRequestException(error.message);
-      await this.matchAlerts.refresh([String(action['matchId'])]);
-      return { kind, result: data };
+      return { kind, result: { id: matchId } };
     }
     if (kind === 'assign_referee') {
       if (typeof action['poolId'] === 'string') {

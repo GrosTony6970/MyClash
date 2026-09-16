@@ -62,9 +62,13 @@ export function chain(
   return base;
 }
 
-/** The `schedule_match` action writes a match time, so it owes the queued
- *  "your fight starts soon" a refresh. */
-export const matchAlerts = { refresh: vi.fn().mockResolvedValue(undefined) };
+/**
+ * The one owner of putting a Match on a piste. `schedule_match` hands it a
+ * batch; it checks the Lice, refuses a busy strip and refreshes the fighters'
+ * alerts. Doubled here — its behaviour is `match-placement.service.test.ts`'s,
+ * and what these cases own is the batch the assistant builds.
+ */
+export const placement = { placeMatches: vi.fn().mockResolvedValue(undefined) };
 
 export function service() {
   return new OrganizerAIAssistantService(
@@ -73,7 +77,7 @@ export function service() {
     orgs as never,
     events as never,
     phases as never,
-    matchAlerts as never,
+    placement as never,
   );
 }
 

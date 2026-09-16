@@ -54,7 +54,11 @@ function seeded() {
 
 /** The service, with the org-role check stubbed: authorization has its own suite. */
 function programme(supabase: ReturnType<typeof seeded>): ProgrammeService {
-  const service = new ProgrammeService(supabase as never, {} as never);
+  const service = new ProgrammeService(
+    supabase as never,
+    {} as never,
+    { placeMatches: vi.fn() } as never,
+  );
   vi.spyOn(
     service as never as { assertWriter: () => Promise<void> },
     'assertWriter',

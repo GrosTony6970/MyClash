@@ -45,13 +45,20 @@ const mockFrozenResults = {
  */
 function makeService(seed: Record<string, TableSeed>, opts?: { frozen?: boolean }) {
   const supabase = mockSupabase(seed);
+  // The placement service is doubled, not exercised. It makes reads of its own —
+  // the sheet, the phases, the strip's occupants — and this file seeds a table
+  // per query, so running it for real would need every one of those in every
+  // fixture. What it does is owned by `match-placement.service.test.ts`; what
+  // this file owns is the BATCH each route hands it.
+  const placement = { placeMatches: vi.fn(() => Promise.resolve()) };
   const service = new MatchesService(
     supabase as never,
     mockScoring as never,
     mockMatchAlerts as never,
+    placement as never,
     opts?.frozen ? (mockFrozenResults as never) : undefined,
   );
-  return { service, supabase };
+  return { service, supabase, placement };
 }
 
 /**
@@ -683,102 +690,70 @@ describe('MatchesService', () => {
 
   describe('scheduleMatch', () => {
     /**
-     * The bout being placed, plus whatever already sits on the strip.
-     *
-     * `match-1` has to be the ONLY row carrying that id: the write ends
-     * `.eq('id', 'match-1').select('*').single()`, and a seeded table answers
-     * `single()` with a real PGRST116 when the count is not exactly one.
+     * Placing a bout is `MatchPlacementService`'s job now — the Lice check, the
+     * occupancy refusal, the write and the alert refresh all live there, and
+     * `match-placement.service.test.ts` owns their behaviour. What this route
+     * still owns is the Event it hands over, the batch it builds, and reading
+     * the row back for the grid.
      */
-    const piste = (occupants: Array<Record<string, unknown>>): Record<string, TableSeed> => ({
+    const seed = (): Record<string, TableSeed> => ({
       matches: {
         rows: [
           { id: 'match-1', lice_id: null, scheduled_at: null, status: 'scheduled', ...IN_EVENT_1 },
-          ...occupants,
         ],
       },
       lices: { rows: LICES },
     });
 
-    const occupant = (over: Record<string, unknown> = {}) => ({
-      id: 'other-match',
-      lice_id: 'lice-1',
-      scheduled_at: '2026-05-02T10:32:00.000Z',
-      status: 'scheduled',
-      ...over,
-    });
-
-    it('reschedules match-starting and follow notifications when scheduled_at changes', async () => {
-      // Piste empty → the placement is accepted and the write proceeds.
-      const { service: scheduleService } = makeService(piste([]));
+    it('hands the placement owner one row: the bout, its piste and its time', async () => {
+      const { service: scheduleService, placement } = makeService(seed());
 
       await scheduleService.scheduleMatch('match-1', 'lice-1', '2026-05-02T10:30:00.000Z');
 
-      expect(mockMatchAlerts.refresh).toHaveBeenCalledWith(['match-1']);
+      expect(placement.placeMatches).toHaveBeenCalledWith('event-1', [
+        { matchId: 'match-1', liceId: 'lice-1', scheduledAt: '2026-05-02T10:30:00.000Z' },
+      ]);
     });
 
-    it('refuses a placement that lands on an occupied piste, and writes nothing', async () => {
-      // Different tournament, no shared fighter — invisible to the grid's
-      // conflict banner, which is why this had to move server-side.
-      const { service: scheduleService, supabase } = makeService(piste([occupant()]));
+    it('clears a piste through the same door rather than writing directly', async () => {
+      const { service: scheduleService, placement, supabase } = makeService(seed());
+
+      await scheduleService.scheduleMatch('match-1', null, null);
+
+      expect(placement.placeMatches).toHaveBeenCalledWith('event-1', [
+        { matchId: 'match-1', liceId: null, scheduledAt: null },
+      ]);
+      // The route itself writes nothing at all any more.
+      expect(supabase.writes).toEqual([]);
+    });
+
+    it('reads the row back for the grid after the placement lands', async () => {
+      const { service: scheduleService, supabase } = makeService(seed());
+
+      await expect(
+        scheduleService.scheduleMatch('match-1', 'lice-1', '2026-05-02T10:30:00.000Z'),
+      ).resolves.toMatchObject({ id: 'match-1' });
+      expect(selectsFor(supabase.from, 'matches')).toContain('*');
+    });
+
+    it('does not read the row back when the placement refuses', async () => {
+      const { service: scheduleService, placement, supabase } = makeService(seed());
+      placement.placeMatches.mockRejectedValueOnce(new ConflictException('busy'));
 
       await expect(
         scheduleService.scheduleMatch('match-1', 'lice-1', '2026-05-02T10:30:00.000Z'),
       ).rejects.toBeInstanceOf(ConflictException);
-      // Every table, not one chain: a refusal must leave the whole event alone.
       expect(supabase.writes).toEqual([]);
-      expect(mockMatchAlerts.refresh).not.toHaveBeenCalled();
+      expect(selectsFor(supabase.from, 'matches')).not.toContain('*');
     });
 
-    it('allows a back-to-back placement on the same piste', async () => {
-      // Ends at 10:05 exactly (bouts default to five minutes). Touching is not
-      // overlapping, or every generated schedule would refuse itself.
-      const { service: scheduleService } = makeService(
-        piste([occupant({ id: 'earlier', scheduled_at: '2026-05-02T10:00:00.000Z' })]),
-      );
-
-      await expect(
-        scheduleService.scheduleMatch('match-1', 'lice-1', '2026-05-02T10:05:00.000Z'),
-      ).resolves.toBeDefined();
-    });
-
-    /**
-     * A voided bout keeps its piste and its time on the row. Nothing in
-     * `lice-occupancy.ts` knows about status, so `.not('status','eq','voided')`
-     * on the read is the only thing stopping a cancelled bout from blocking the
-     * strip for the rest of the day — and the canned double answered with the
-     * fixture whatever the query asked, so that filter was never asserted.
-     */
-    it('ignores a voided bout sitting on the same piste at the same time', async () => {
-      const { service: scheduleService } = makeService(
-        piste([occupant({ id: 'cancelled', status: 'voided' })]),
-      );
-
-      await expect(
-        scheduleService.scheduleMatch('match-1', 'lice-1', '2026-05-02T10:30:00.000Z'),
-      ).resolves.toBeDefined();
-    });
-
-    it('skips the check when the placement clears the piste', async () => {
-      const { service: scheduleService, supabase } = makeService(piste([occupant()]));
-
-      await scheduleService.scheduleMatch('match-1', null, null);
-
-      // Releasing a strip cannot collide with anything, so the occupancy read
-      // never runs. One query, and it is the write — which is the actual claim,
-      // where "the write called select()" was not.
-      expect(queriedTables(supabase.from)).toEqual(['matches']);
-    });
-
-    it("refuses another Event's Lice, and writes nothing", async () => {
-      const { service: scheduleService, supabase } = makeService(piste([]));
-
-      await expect(
-        scheduleService.scheduleMatch('match-1', 'lice-elsewhere', '2026-05-02T10:30:00.000Z'),
-      ).rejects.toThrow('Every Lice must belong to this event');
-      expect(supabase.writes).toEqual([]);
-      expect(mockMatchAlerts.refresh).not.toHaveBeenCalled();
+    it("resolves the Match's own Event before handing it over", async () => {
       // The double returns the seeded embed whatever the projection names, so
       // the path to the Match's Event is only proved by the string sent.
+      const { service: scheduleService, supabase } = makeService(seed());
+
+      await scheduleService.scheduleMatch('match-1', 'lice-1', '2026-05-02T10:30:00.000Z');
+
       expect(selectsFor(supabase.from, 'matches')).toContain(
         'id, phases!inner(tournaments!inner(event_id))',
       );
@@ -1107,22 +1082,63 @@ describe('MatchesService', () => {
     const dto = (liceId: string) =>
       ({ phaseId: 'phase-1', liceId, redRegistrationId: 'r', blueRegistrationId: 'b' }) as never;
 
-    it("places a new Match on a Lice of its phase's Event", async () => {
-      const { service, supabase } = makeService(seed());
+    it("asks the placement owner first, naming the phase's Event", async () => {
+      const { service, supabase, placement } = makeService(seed());
 
       await service.createMatch(dto('lice-1'));
 
+      expect(placement.placeMatches).toHaveBeenCalledWith(
+        'event-1',
+        [
+          {
+            matchId: null,
+            liceId: 'lice-1',
+            scheduledAt: null,
+            phaseId: 'phase-1',
+          },
+        ],
+        { checkOnly: true },
+      );
       expect(writesTo(supabase, 'matches')[0]?.row).toMatchObject({ lice_id: 'lice-1' });
       expect(selectsFor(supabase.from, 'phases')).toEqual(['id, tournaments!inner(event_id)']);
     });
 
-    it("refuses another Event's Lice, and inserts nothing", async () => {
-      const { service, supabase } = makeService(seed());
+    it('inserts nothing when the placement owner refuses', async () => {
+      // New behaviour. This door wrote `lice_id` and `scheduled_at` with no
+      // occupancy check at all, so a bout could be created straight onto a
+      // busy strip.
+      const { service, supabase, placement } = makeService(seed());
+      placement.placeMatches.mockRejectedValueOnce(new ConflictException('busy'));
 
-      await expect(service.createMatch(dto('lice-elsewhere'))).rejects.toThrow(
-        'Every Lice must belong to this event',
-      );
+      await expect(service.createMatch(dto('lice-1'))).rejects.toBeInstanceOf(ConflictException);
       expect(supabase.writes).toEqual([]);
+    });
+
+    it('asks even when the new Match carries no time', async () => {
+      // `CreateMatchDto.scheduledAt` is optional, so this is the common case.
+      // The batch still has to reach the placement owner, or the Lice check
+      // does not run at all.
+      const { service, placement } = makeService(seed());
+
+      await service.createMatch(dto('lice-1'));
+
+      expect(placement.placeMatches).toHaveBeenCalledWith(
+        'event-1',
+        [{ matchId: null, liceId: 'lice-1', scheduledAt: null, phaseId: 'phase-1' }],
+        { checkOnly: true },
+      );
+    });
+
+    it('asks nothing when the new Match names no piste', async () => {
+      const { service, placement } = makeService(seed());
+
+      await service.createMatch({
+        phaseId: 'phase-1',
+        redRegistrationId: 'r',
+        blueRegistrationId: 'b',
+      } as never);
+
+      expect(placement.placeMatches).not.toHaveBeenCalled();
     });
   });
 

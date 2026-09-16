@@ -42,11 +42,7 @@ import {
   doubleElimOptionsFromDto,
   structuralConfigChanges,
 } from './double-elim-config';
-import {
-  findLiceCollisions,
-  liceCollisionMessage,
-  type LicePlacement,
-} from '../matches/lice-occupancy';
+import { MatchPlacementService } from '../matches/match-placement.service';
 import { FOUGHT_STATUSES } from '../matches/fought-match';
 import { buildRoundCode } from '../matches/round-code.helper';
 import {
@@ -154,6 +150,10 @@ export class PhasesService {
 
   constructor(
     private readonly supabase: SupabaseService,
+    // Required, and ahead of the optional ones on purpose: an absent placement
+    // service would let `reschedulePool` write with no occupancy check and no
+    // sign of it. Every hand-built construction in the tests passes it.
+    private readonly placement: MatchPlacementService,
     @Optional()
     private readonly hemaRatings?: HemaRatingsService,
     @Optional()
@@ -2508,65 +2508,18 @@ export class PhasesService {
   }
 
   /**
-   * Refuse a whole-pool placement that double-books a piste.
-   *
-   * Used by `reschedulePool`, which computes every placement before writing
-   * any of them — so the check runs once, on the complete set, and a refusal
-   * leaves nothing half-moved.
-   *
-   * Two exclusions matter. The pool's OWN matches are dropped from the occupant
-   * list, because they are the rows being moved and would otherwise collide with
-   * where they used to be. And `findLiceCollisions` checks the proposed set
-   * against itself as well, which is the half an outward-only check would miss:
-   * a re-fan can land two of this pool's own bouts on one slot with no
-   * pre-existing occupant involved.
-   *
-   * NOT called by `setPoolLice`. That one moves a pool between pistes without
-   * touching a clock, and "assign pistes for referee staffing, fix the times
-   * after" is a real two-step workflow — `07-populate-event` does exactly it.
-   * Refusing step one because step two has not happened yet would break a
-   * legitimate order of work. The line is: refuse where the caller chooses a
-   * (piste, time) pair, not where it chooses only a piste.
-   */
-  private async assertPoolPlacementsFree(
-    poolId: string,
-    proposed: readonly LicePlacement[],
-  ): Promise<void> {
-    const liceIds = [...new Set(proposed.map((p) => p.liceId).filter((id): id is string => !!id))];
-    if (liceIds.length === 0) return;
-
-    const { data, error } = await this.supabase.service
-      .from('matches')
-      .select('id, lice_id, scheduled_at')
-      .in('lice_id', liceIds)
-      .not('scheduled_at', 'is', null)
-      .not('status', 'eq', 'voided')
-      .neq('pool_id', poolId);
-    if (error) throw new BadRequestException(error.message);
-
-    const occupants = (
-      (data ?? []) as Array<{ id: string; lice_id: string | null; scheduled_at: string | null }>
-    ).map((row) => ({
-      matchId: row.id,
-      liceId: row.lice_id,
-      scheduledAt: row.scheduled_at,
-    }));
-
-    const collisions = findLiceCollisions(proposed, occupants);
-    if (collisions.length > 0) throw new ConflictException(liceCollisionMessage(collisions));
-  }
-
-  /**
    * Set (or clear) the lice for every match in a pool.
    *
    * Mirrors the per-match `liceId` field on PATCH /matches/:id but applied
    * to every match in the pool in one UPDATE — the matches-tab pool-header
    * lets the operator pick once instead of N times.
    *
-   * Deliberately NOT guarded against piste collisions — see
-   * {@link assertPoolPlacementsFree}. It changes the piste and leaves every
-   * clock alone, so any overlap it creates is a step in a two-step workflow
-   * rather than a bad choice.
+   * Deliberately NOT guarded against piste collisions, unlike every door that
+   * picks a (piste, time) pair — those go through `MatchPlacementService`. This
+   * one changes the piste and leaves every clock alone, and "assign pistes for
+   * referee staffing, fix the times after" is a real two-step workflow
+   * (`07-populate-event` does exactly it), so any overlap it creates is a step
+   * in that order of work rather than a bad choice.
    */
   async setPoolLice(
     poolId: string,
@@ -2612,7 +2565,6 @@ export class PhasesService {
   }> {
     const ctx = await this.assertPoolEditAuth(poolId, userId);
     await this.assertPoolEditable(poolId);
-    await assertLicesBelongToEvent(this.supabase.service, ctx.eventId, [dto.liceId]);
 
     const { data: matchesData, error: matchesErr } = await this.supabase.service
       .from('matches')
@@ -2627,30 +2579,18 @@ export class PhasesService {
 
     const updates = computePoolReschedule(matches, dto.liceId ?? null, dto.startAtIso);
 
-    // Check the WHOLE proposed set before the first write. `computePoolReschedule`
-    // hands us every placement up front, so a refusal cannot leave half a pool
-    // moved — which a per-row check inside the loop below would.
-    await this.assertPoolPlacementsFree(
-      poolId,
+    // One batch: `MatchPlacementService` checks the WHOLE proposed set — its own
+    // rows against each other as well as against the strip's occupants — before
+    // the first write, so a refusal cannot leave half a Pool moved. It owns the
+    // Lice check, the writes and the alert refresh too.
+    await this.placement.placeMatches(
+      ctx.eventId,
       updates.map((u) => ({
         matchId: u.matchId,
         liceId: u.liceId,
         scheduledAt: u.scheduledAt,
       })),
     );
-
-    // One UPDATE per row (PostgREST can't set different rows to different
-    // values in one statement); independent rows, last-write-wins is safe.
-    await Promise.all(
-      updates.map(async (u) => {
-        const { error } = await this.supabase.service
-          .from('matches')
-          .update({ lice_id: u.liceId, scheduled_at: u.scheduledAt })
-          .eq('id', u.matchId);
-        if (error) throw new BadRequestException(error.message);
-      }),
-    );
-    await this.matchAlerts?.refresh(updates.map((u) => u.matchId));
 
     return { poolId, updated: updates };
   }

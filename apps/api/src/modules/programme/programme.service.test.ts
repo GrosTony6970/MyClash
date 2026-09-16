@@ -218,6 +218,7 @@ describe('ProgrammeService', () => {
     const svc = new ProgrammeService(
       mockSupabase as never,
       mockOrgs as never,
+      { placeMatches: vi.fn() } as never,
       mockMatchAlerts as never,
     );
     vi.spyOn(
@@ -235,7 +236,11 @@ describe('ProgrammeService', () => {
     // before consuming all its mocks would otherwise leak fixtures
     // into the next test in file order.
     fromMock.mockReset();
-    service = new ProgrammeService(mockSupabase as never, mockOrgs as never);
+    service = new ProgrammeService(
+      mockSupabase as never,
+      mockOrgs as never,
+      { placeMatches: vi.fn() } as never,
+    );
     mockMatchAlerts.refresh.mockClear();
     // The org-role assertion reads `events` before every write, and the
     // visibility gate does the same before the one public read. These suites
@@ -2659,9 +2664,18 @@ describe('ProgrammeService', () => {
 
 describe('scheduleGroup', () => {
   let svc: ProgrammeService;
+  /**
+   * The placement owner, doubled. The re-fan's own reads are what this
+   * describe asserts — the sheet, the group, the Lices, the occupants — and the
+   * writes now belong to `MatchPlacementService`, whose behaviour is
+   * `match-placement.service.test.ts`'s. Its batch is asserted here instead of
+   * two queued update chains.
+   */
+  let placement: { placeMatches: ReturnType<typeof vi.fn> };
   beforeEach(() => {
     fromMock.mockReset();
-    svc = new ProgrammeService(mockSupabase as never, mockOrgs as never);
+    placement = { placeMatches: vi.fn(() => Promise.resolve()) };
+    svc = new ProgrammeService(mockSupabase as never, mockOrgs as never, placement as never);
     vi.spyOn(
       svc as never as { assertWriter: () => Promise<void> },
       'assertWriter',
@@ -2752,9 +2766,7 @@ describe('scheduleGroup', () => {
       .mockReturnValueOnce(
         makeChain({ data: [{ id: 'l1', name: 'L1', sort_order: 0 }], error: null }),
       ) // lices
-      .mockReturnValueOnce(makeChain({ data: [], error: null })) // occupants
-      .mockReturnValueOnce(makeChain({ data: null, error: null })) // update m1
-      .mockReturnValueOnce(makeChain({ data: null, error: null })); // update m2
+      .mockReturnValueOnce(makeChain({ data: [], error: null })); // occupants
     const res = await svc.scheduleGroup(
       'event-1',
       {
@@ -2767,6 +2779,16 @@ describe('scheduleGroup', () => {
     );
     expect(res.scheduled).toHaveLength(2);
     expect(new Set(res.scheduled.map((s) => s.liceId))).toEqual(new Set(['l1']));
+    // The return value is built from the scheduler's own answer, so without
+    // this the whole describe stays green with the write deleted.
+    expect(placement.placeMatches).toHaveBeenCalledExactlyOnceWith(
+      'event-1',
+      res.scheduled.map((row) => ({
+        matchId: row.matchId,
+        liceId: row.liceId,
+        scheduledAt: row.scheduledAt,
+      })),
+    );
     // m2 shares m1's red fighter, who rests the sheet's 20 minutes after m1's
     // 5-minute bout.
     const at = (id: string) =>
@@ -2797,8 +2819,7 @@ describe('scheduleGroup', () => {
       .mockReturnValueOnce(
         makeChain({ data: [{ id: 'l1', name: 'L1', sort_order: 0 }], error: null }),
       ) // lices
-      .mockReturnValueOnce(occupantsChain) // occupants
-      .mockReturnValueOnce(makeChain({ data: null, error: null })); // update m1
+      .mockReturnValueOnce(occupantsChain); // occupants
     const res = await svc.scheduleGroup(
       'event-1',
       {

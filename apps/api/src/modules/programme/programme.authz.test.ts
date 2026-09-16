@@ -66,7 +66,14 @@ const EVENT_ROWS = {
 
 function programme() {
   const orgs = refusingOrgs();
-  return { svc: new ProgrammeService(supabaseFor(EVENT_ROWS) as never, orgs as never), orgs };
+  return {
+    svc: new ProgrammeService(
+      supabaseFor(EVENT_ROWS) as never,
+      orgs as never,
+      { placeMatches: vi.fn() } as never,
+    ),
+    orgs,
+  };
 }
 
 function lices() {
@@ -132,7 +139,11 @@ describe('the planner sheet is read behind the Event visibility gate', () => {
   function sheetReader(status: string) {
     const orgs = refusingOrgs();
     const rows = { events: { data: { status, organization_id: ORG_OWNER }, error: null } };
-    return new ProgrammeService(supabaseFor(rows) as never, orgs as never);
+    return new ProgrammeService(
+      supabaseFor(rows) as never,
+      orgs as never,
+      { placeMatches: vi.fn() } as never,
+    );
   }
 
   it('lets a member of another organisation read the sheet of a published Event', async () => {
@@ -194,7 +205,7 @@ describe('an unannounced event is not readable from outside the org', () => {
     const orgs = refusingOrgs();
     const supabase = supabaseFor(draft(status)) as never;
     return {
-      programme: new ProgrammeService(supabase, orgs as never),
+      programme: new ProgrammeService(supabase, orgs as never, { placeMatches: vi.fn() } as never),
       lices: new LicesService(supabase, orgs as never),
     };
   }
