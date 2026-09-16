@@ -12,6 +12,18 @@ import {
   DEFAULT_SWISS_TIEBREAK_CHAIN,
   type SwissConfig,
 } from '../swiss/dto/swiss-config.dto';
+import { resolveMatchLengths } from '../schedule/match-lengths';
+
+// The re-fan asks the length helper, which has reads of its own and its own
+// test (every kind, the Tournament row, the override, two brackets). Mocked so
+// the ordered `from()` queues below stay the service's reads only. Every bout is
+// five minutes unless a test says otherwise.
+vi.mock('../schedule/match-lengths', () => ({
+  resolveMatchLengths: vi.fn((_db: unknown, _eventId: string, inputs: Array<{ id: string }>) =>
+    Promise.resolve(new Map(inputs.map((input) => [input.id, 5]))),
+  ),
+}));
+const resolveMatchLengthsMock = vi.mocked(resolveMatchLengths);
 
 const fromMock = vi.fn();
 const mockSupabase = { service: { from: fromMock } };
@@ -1091,6 +1103,106 @@ describe('ProgrammeService', () => {
     // so the stride after a bout is that bout's own length.
     const own: Record<string, number> = { m1: 8, m2: 8, m3: 10, m4: 10 };
     const ordered = [...rows].sort((a, b) => a.scheduled_at.localeCompare(b.scheduled_at));
+    ordered.slice(1).forEach((row, i) => {
+      const before = ordered[i]!;
+      expect(
+        (Date.parse(row.scheduled_at) - Date.parse(before.scheduled_at)) / 60_000,
+        `the stride after ${before.id}`,
+      ).toBe(own[before.id]);
+    });
+  });
+
+  it("spaces each bracket's own final at the finals length when a Tournament has two", async () => {
+    // A main bracket (p1: semis in round 1, final in round 2) and a second bracket
+    // (p2: its final is its round 1). Counted over the whole Tournament, the
+    // final round was 2 and p2's final ran at the elimination length.
+    const blockRows = [
+      {
+        id: 'block-1',
+        event_id: 'event-1',
+        day_index: 0,
+        sort_order: 0,
+        block_type: 'competition',
+        label: 'Bracket',
+        competition_id: 'tournament-1',
+        competition_phase: 'bracket',
+        workshop_id: null,
+        lice_count: 1,
+        start_time: '10:00',
+        end_time: '14:00',
+        generated_at: null,
+      },
+    ];
+    const upsertChain = makeChain({
+      data: [{ id: 'm1' }, { id: 'm2' }, { id: 'm3' }, { id: 'p2f' }],
+      error: null,
+    });
+
+    fromMock
+      .mockReturnValueOnce(
+        sheetChain({
+          eliminationMatchDurationMinutes: 8,
+          finalsMatchDurationMinutes: 10,
+          matchGapSeconds: 0,
+          minRestMinutes: 0,
+        }),
+      )
+      .mockReturnValueOnce(makeChain({ data: blockRows, error: null })) // blocks
+      .mockReturnValueOnce(makeChain({ data: { start_date: '2026-05-21' }, error: null })) // event
+      .mockReturnValueOnce(
+        makeChain({
+          data: [{ id: 'lice-1', name: 'Lice 1', sort_order: 0, venue_id: null }],
+          error: null,
+        }),
+      ) // lices
+      .mockReturnValueOnce(makeChain({ data: [], error: null })) // tournament_phase_venues
+      .mockReturnValueOnce(
+        makeChain({
+          data: [
+            { id: 'p1', type: 'single_elim' },
+            { id: 'p2', type: 'single_elim' },
+          ],
+          error: null,
+        }),
+      ) // loadBracketMatches phases
+      .mockReturnValueOnce(
+        makeChain({
+          data: [
+            mkBracketMatch('m1', 'SF1', 's1'),
+            mkBracketMatch('m2', 'SF2', 's2'),
+            mkBracketMatch('m3', 'F', 's3'),
+            { ...mkBracketMatch('p2f', 'F2', 's4'), phase_id: 'p2' },
+          ],
+          error: null,
+        }),
+      ) // bracket matches
+      .mockReturnValueOnce(
+        makeChain({
+          data: [
+            { id: 's1', round: 1, position: 1 },
+            { id: 's2', round: 1, position: 2 },
+            { id: 's3', round: 2, position: 1 },
+            { id: 's4', round: 1, position: 1 },
+          ],
+          error: null,
+        }),
+      ) // bracket_slots coords
+      .mockReturnValueOnce(upsertChain) // matches UPSERT
+      .mockReturnValueOnce(makeChain({ data: null, error: null })) // realized-window sync
+      .mockReturnValueOnce(makeChain({ data: null, error: null })); // generated_at stamp
+
+    await service.generate('event-1', {}, CALLER);
+
+    const rows = upsertChain.upsert.mock.calls[0]![0] as Array<{
+      id: string;
+      scheduled_at: string;
+    }>;
+    expect(rows).toHaveLength(4);
+    const own: Record<string, number> = { m1: 8, m2: 8, m3: 10, p2f: 10 };
+    const ordered = [...rows].sort((a, b) => a.scheduled_at.localeCompare(b.scheduled_at));
+    // The stride after a bout measures that bout, so the second bracket's final
+    // must not be the last one placed, or nothing here would measure it.
+    expect(ordered.at(-1)!.id).not.toBe('p2f');
     ordered.slice(1).forEach((row, i) => {
       const before = ordered[i]!;
       expect(
@@ -2674,6 +2786,7 @@ describe('scheduleGroup', () => {
   let placement: { placeMatches: ReturnType<typeof vi.fn> };
   beforeEach(() => {
     fromMock.mockReset();
+    resolveMatchLengthsMock.mockClear();
     placement = { placeMatches: vi.fn(() => Promise.resolve()) };
     svc = new ProgrammeService(mockSupabase as never, mockOrgs as never, placement as never);
     vi.spyOn(
@@ -2683,7 +2796,6 @@ describe('scheduleGroup', () => {
   });
 
   const START = '2026-05-21T09:00:00.000Z';
-  const TOURNAMENT = 'a1a1a1a1-1111-4111-8111-111111111111';
   const gm = (id: string, over: Record<string, unknown> = {}) => ({
     id,
     red_registration_id: `r-${id}`,
@@ -2692,7 +2804,7 @@ describe('scheduleGroup', () => {
     match_number_label: id,
     phase_id: 'phase-1',
     bracket_slot_id: null,
-    phases: { type: 'pool', tournament_id: TOURNAMENT },
+    planned_duration_override_minutes: null,
     ...over,
   });
 
@@ -2796,25 +2908,32 @@ describe('scheduleGroup', () => {
     expect((at('m2') - at('m1')) / 60_000).toBe(25);
   });
 
-  it("appends after an occupant at the occupant's own sheet length", async () => {
+  it("appends after an occupant at the occupant's own planned length", async () => {
     const occupantsChain = makeChain({
       data: [
         {
           id: 'occ',
           lice_id: 'l1',
           scheduled_at: '2026-05-21T10:00:00.000Z',
-          phase_id: 'phase-1',
-          bracket_slot_id: null,
-          phases: { type: 'pool', tournament_id: TOURNAMENT },
+          phase_id: 'phase-2',
+          planned_duration_override_minutes: null,
         },
       ],
       error: null,
     });
+    resolveMatchLengthsMock.mockResolvedValueOnce(
+      new Map([
+        ['m1', 9],
+        ['occ', 7],
+      ]),
+    );
     fromMock
-      .mockReturnValueOnce(sheetChain({ poolMatchDurationMinutes: 7 }))
+      .mockReturnValueOnce(sheetChain())
       .mockReturnValueOnce(makeChain({ data: [{ id: 't1' }], error: null })) // tournaments
       .mockReturnValueOnce(makeChain({ data: [{ id: 'phase-1' }], error: null })) // phases
-      .mockReturnValueOnce(makeChain({ data: [gm('m1')], error: null })) // group matches
+      .mockReturnValueOnce(
+        makeChain({ data: [gm('m1', { planned_duration_override_minutes: 9 })], error: null }),
+      ) // group matches
       .mockReturnValueOnce(makeChain({ data: [{ id: 'l1' }], error: null })) // the Lices are the Event's
       .mockReturnValueOnce(
         makeChain({ data: [{ id: 'l1', name: 'L1', sort_order: 0 }], error: null }),
@@ -2830,40 +2949,34 @@ describe('scheduleGroup', () => {
       },
       CALLER,
     );
-    // The occupant ends at the sheet's 7-minute pool length, so the group starts
-    // exactly then.
+    // The occupant ends at its planned 7 minutes, so the group starts exactly then.
     expect(res.scheduled[0]!.scheduledAt).toBe('2026-05-21T10:07:00.000Z');
-    // The double answers whatever the projection asks for, so the occupant's
-    // phase, which its length depends on, is only proved by the string sent.
+    // One resolution for the group and the occupants, each with its own phase
+    // and its own stored override.
+    expect(resolveMatchLengthsMock).toHaveBeenCalledTimes(1);
+    expect(resolveMatchLengthsMock.mock.calls[0]?.[1]).toBe('event-1');
+    expect(resolveMatchLengthsMock.mock.calls[0]?.[2]).toEqual([
+      { id: 'm1', phaseId: 'phase-1', plannedDurationOverrideMinutes: 9 },
+      { id: 'occ', phaseId: 'phase-2', plannedDurationOverrideMinutes: null },
+    ]);
+    // The double answers whatever the projection asks for, so the columns a
+    // length is resolved from are only proved by the string sent.
     expect(occupantsChain.select).toHaveBeenCalledWith(
-      'id, lice_id, scheduled_at, phase_id, bracket_slot_id, phases(type, tournament_id)',
+      'id, lice_id, scheduled_at, phase_id, planned_duration_override_minutes',
     );
   });
 
-  it("spaces a bracket group at each Match's own kind, the final at the finals length", async () => {
+  it("spaces a bracket group at each Match's own planned length", async () => {
     // Two semis (round 1), then the final and the bronze (round 2), on one
-    // piste. The final round is counted over the phase's Matches.
-    const bm = (id: string, slot: string) =>
-      gm(id, {
-        pool_id: null,
-        bracket_slot_id: slot,
-        phases: { type: 'single_elim', tournament_id: TOURNAMENT },
-      });
+    // piste. Which of them are finals is the helper's to say; the re-fan spaces
+    // each at the length it is handed.
+    const bm = (id: string, slot: string) => gm(id, { pool_id: null, bracket_slot_id: slot });
     const group = [bm('sf1', 's1'), bm('sf2', 's2'), bm('f', 's3'), bm('bm', 's4')];
     const groupChain = makeChain({ data: group, error: null });
-    const phaseMatchesChain = makeChain({
-      data: group.map((m) => ({ phase_id: m.phase_id, bracket_slot_id: m.bracket_slot_id })),
-      error: null,
-    });
+    const own: Record<string, number> = { sf1: 8, sf2: 8, f: 10, bm: 10 };
+    resolveMatchLengthsMock.mockResolvedValueOnce(new Map(Object.entries(own)));
     fromMock
-      .mockReturnValueOnce(
-        sheetChain({
-          eliminationMatchDurationMinutes: 8,
-          finalsMatchDurationMinutes: 10,
-          matchGapSeconds: 0,
-          minRestMinutes: 0,
-        }),
-      )
+      .mockReturnValueOnce(sheetChain({ matchGapSeconds: 0, minRestMinutes: 0 }))
       .mockReturnValueOnce(makeChain({ data: [{ id: 't1' }], error: null })) // tournaments
       .mockReturnValueOnce(makeChain({ data: [{ id: 'phase-1' }], error: null })) // phases
       .mockReturnValueOnce(groupChain) // group matches
@@ -2872,7 +2985,6 @@ describe('scheduleGroup', () => {
         makeChain({ data: [{ id: 'l1', name: 'L1', sort_order: 0 }], error: null }),
       ) // lices
       .mockReturnValueOnce(makeChain({ data: [], error: null })) // occupants
-      .mockReturnValueOnce(phaseMatchesChain) // the phase's Matches
       .mockReturnValueOnce(
         makeChain({
           data: [
@@ -2902,7 +3014,6 @@ describe('scheduleGroup', () => {
     );
 
     expect(res.scheduled).toHaveLength(4);
-    const own: Record<string, number> = { sf1: 8, sf2: 8, f: 10, bm: 10 };
     const ordered = [...res.scheduled].sort((a, b) => a.scheduledAt.localeCompare(b.scheduledAt));
     ordered.slice(1).forEach((row, i) => {
       const before = ordered[i]!;
@@ -2911,28 +3022,28 @@ describe('scheduleGroup', () => {
         `the stride after ${before.matchId}`,
       ).toBe(own[before.matchId]);
     });
-    // The double answers whatever the projection asks for; the phase the length
-    // depends on is only proved by the string sent.
+    // The double answers whatever the projection asks for; the columns a length
+    // is resolved from are only proved by the string sent.
     expect(groupChain.select).toHaveBeenCalledWith(
-      'id, red_registration_id, blue_registration_id, pool_id, match_number_label, phase_id, bracket_slot_id, phases(type, tournament_id)',
+      'id, red_registration_id, blue_registration_id, pool_id, match_number_label, phase_id, bracket_slot_id, planned_duration_override_minutes',
     );
-    expect(phaseMatchesChain.select).toHaveBeenCalledWith('phase_id, bracket_slot_id');
-    expect(phaseMatchesChain.in).toHaveBeenCalledWith('phase_id', ['phase-1']);
+    expect(resolveMatchLengthsMock.mock.calls[0]?.[2]).toEqual(
+      group.map((m) => ({ id: m.id, phaseId: 'phase-1', plannedDurationOverrideMinutes: null })),
+    );
   });
 
-  it("spaces a Swiss round at its Tournament's Swiss length", async () => {
-    // The Event's Swiss length is 12, this Tournament's is 13, and the gap is a
-    // minute. The Swiss pairing hands a round to the re-fan in 'pool' mode.
-    const sm = (id: string) =>
-      gm(id, { pool_id: null, phases: { type: 'swiss', tournament_id: TOURNAMENT } });
+  it("spaces a Swiss round at its planned length plus the sheet's gap", async () => {
+    // Each bout is planned at 13 minutes and the gap is a minute. The Swiss
+    // pairing hands a round to the re-fan in 'pool' mode.
+    const sm = (id: string) => gm(id, { pool_id: null });
+    resolveMatchLengthsMock.mockResolvedValueOnce(
+      new Map([
+        ['r1', 13],
+        ['r2', 13],
+      ]),
+    );
     fromMock
-      .mockReturnValueOnce(
-        sheetChain({
-          swissMatchDurationMinutes: 12,
-          matchGapSeconds: 60,
-          tournaments: [{ tournamentId: TOURNAMENT, swissMatchDurationMinutes: 13 }],
-        }),
-      )
+      .mockReturnValueOnce(sheetChain({ matchGapSeconds: 60 }))
       .mockReturnValueOnce(makeChain({ data: [{ id: 't1' }], error: null })) // tournaments
       .mockReturnValueOnce(makeChain({ data: [{ id: 'phase-1' }], error: null })) // phases
       .mockReturnValueOnce(makeChain({ data: [sm('r1'), sm('r2')], error: null })) // group matches
@@ -2954,42 +3065,29 @@ describe('scheduleGroup', () => {
     expect((starts[1]! - starts[0]!) / 60_000).toBe(14);
   });
 
-  it('refuses to guess a length when the bracket rounds cannot be read', async () => {
-    // A Match's kind depends on its round. A failed slot read would otherwise
-    // give every final the elimination length without a trace.
+  it('places nothing when the lengths cannot be resolved, rather than guessing one', async () => {
+    // A failed read inside the helper (the sheet, the phases, the bracket rounds)
+    // would otherwise space every bout on a length nobody set.
+    resolveMatchLengthsMock.mockRejectedValueOnce(new BadRequestException('statement timeout'));
     fromMock
       .mockReturnValueOnce(sheetChain())
       .mockReturnValueOnce(makeChain({ data: [{ id: 't1' }], error: null })) // tournaments
       .mockReturnValueOnce(makeChain({ data: [{ id: 'phase-1' }], error: null })) // phases
-      .mockReturnValueOnce(
-        makeChain({
-          data: [
-            gm('f', {
-              pool_id: null,
-              bracket_slot_id: 's3',
-              phases: { type: 'single_elim', tournament_id: TOURNAMENT },
-            }),
-          ],
-          error: null,
-        }),
-      ) // group matches
+      .mockReturnValueOnce(makeChain({ data: [gm('m1')], error: null })) // group matches
       .mockReturnValueOnce(makeChain({ data: [{ id: 'l1' }], error: null })) // the Lices are the Event's
       .mockReturnValueOnce(
         makeChain({ data: [{ id: 'l1', name: 'L1', sort_order: 0 }], error: null }),
       ) // lices
-      .mockReturnValueOnce(makeChain({ data: [], error: null })) // occupants
-      .mockReturnValueOnce(
-        makeChain({ data: [{ phase_id: 'phase-1', bracket_slot_id: 's3' }], error: null }),
-      ) // the phase's Matches
-      .mockReturnValueOnce(makeChain({ data: null, error: { message: 'statement timeout' } })); // bracket_slots
+      .mockReturnValueOnce(makeChain({ data: [], error: null })); // occupants
 
     await expect(
       svc.scheduleGroup(
         'event-1',
-        { matchIds: ['f'], liceIds: ['l1'], startTime: START, mode: 'bracket-branch' },
+        { matchIds: ['m1'], liceIds: ['l1'], startTime: START, mode: 'pool' },
         CALLER,
       ),
     ).rejects.toThrow('statement timeout');
+    expect(placement.placeMatches).not.toHaveBeenCalled();
   });
 });
 

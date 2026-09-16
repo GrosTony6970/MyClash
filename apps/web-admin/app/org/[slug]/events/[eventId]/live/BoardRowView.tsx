@@ -18,7 +18,6 @@ export function BoardRowView({
   row,
   state,
   nowMs,
-  matchDurationMinutes,
   expanded,
   onToggle,
   eventSlug,
@@ -33,7 +32,6 @@ export function BoardRowView({
   /** Derived once per tick by the board, so every surface agrees on the instant. */
   state: HealthState;
   nowMs: number;
-  matchDurationMinutes: number;
   expanded: boolean;
   onToggle: () => void;
   eventSlug: string | null;
@@ -47,7 +45,7 @@ export function BoardRowView({
   const { locale } = useI18n();
   const dim = isHealthy(state) ? 'opacity-60' : '';
   const cm = row.currentMatch;
-  const timing = timingReadout(row, nowMs, matchDurationMinutes, locale, t);
+  const timing = timingReadout(row, nowMs, locale, t);
   const detailId = useId();
   return (
     <li className={`py-2 text-sm ${dim}`} data-testid="live-row" data-lice-name={row.lice.name}>
@@ -155,7 +153,6 @@ export function BoardRowView({
           <BoardRowDetail
             row={row}
             nowMs={nowMs}
-            matchDurationMinutes={matchDurationMinutes}
             eventSlug={eventSlug}
             accounts={accounts}
             onAssignScorer={onAssignScorer}

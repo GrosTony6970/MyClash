@@ -13,9 +13,7 @@ import {
 import { NOW, agoIso, mkMatch, mkRow } from './live-board.fixtures';
 import type { BoardRow } from './types';
 
-const DURATION = 5;
-const stateAt = (row: BoardRow, nowMs = NOW): HealthState =>
-  deriveHealthState({ row, nowMs, matchDurationMinutes: DURATION });
+const stateAt = (row: BoardRow, nowMs = NOW): HealthState => deriveHealthState({ row, nowMs });
 const stateOf = (row: BoardRow) => stateAt(row);
 
 describe('deriveHealthState', () => {
@@ -134,10 +132,23 @@ describe('deriveHealthState', () => {
       deriveHealthState({
         row,
         nowMs: NOW,
-        matchDurationMinutes: DURATION,
         thresholds: { ...DEFAULT_THRESHOLDS, overrunGraceSec: 0 },
       }),
     ).toBe('late');
+  });
+
+  it('is not late while a bout is inside its OWN planned length', () => {
+    // 400 s into a 5-minute bout is over; 400 s into an 8-minute final is not.
+    const row = mkRow({
+      currentMatch: mkMatch({ startedAt: agoIso(400), plannedDurationMinutes: 8 }),
+    });
+    expect(
+      deriveHealthState({
+        row,
+        nowMs: NOW,
+        thresholds: { ...DEFAULT_THRESHOLDS, overrunGraceSec: 0 },
+      }),
+    ).toBe('synced');
   });
 });
 

@@ -67,12 +67,12 @@ export interface SchedulerLice {
 }
 
 export interface SchedulerOptions {
-  /** Minimum rest between matches for a fighter, in minutes (default: 10) */
-  minRestMinutes?: number;
+  /** Minimum rest between matches for a fighter, in minutes: the sheet's (ADR-018). */
+  minRestMinutes: number;
   /** Start time for the schedule (ISO string, default: now) */
   startTime?: string;
-  /** Gap between matches on the same Lice in minutes (default: 2) */
-  transitionMinutes?: number;
+  /** Gap between matches on the same Lice in minutes: the sheet's (ADR-018). */
+  transitionMinutes: number;
   /**
    * Pool→Lice grouping rule. `'strict'` (default) keeps every match
    * sharing a `poolId` on the same Lice — fighters stay on one strip
@@ -111,15 +111,15 @@ export interface ScheduleResult {
 export function scheduleMatches(
   matches: SchedulerMatch[],
   lices: SchedulerLice[],
-  options: SchedulerOptions = {},
+  options: SchedulerOptions,
 ): ScheduleResult {
   if (lices.length === 0) throw new Error('At least one Lice is required');
   if (matches.length === 0) {
     return { scheduledMatches: [], liceLoad: {}, imbalancePercent: 0, unscheduled: [] };
   }
 
-  const minRest = (options.minRestMinutes ?? 10) * 60_000; // ms
-  const transition = (options.transitionMinutes ?? 2) * 60_000; // ms
+  const minRest = options.minRestMinutes * 60_000; // ms
+  const transition = options.transitionMinutes * 60_000; // ms
   const startTime = options.startTime ? new Date(options.startTime).getTime() : Date.now();
   const poolAffinity = options.poolAffinity ?? 'strict';
 

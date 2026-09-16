@@ -16,15 +16,14 @@ import type { BoardRow } from './types';
 export function useBoardStates(
   rows: BoardRow[] | null,
   nowMs: number,
-  matchDurationMinutes: number,
 ): (row: BoardRow) => HealthState {
   const byLiceId = useMemo(() => {
     const map = new Map<string, HealthState>();
     for (const row of rows ?? []) {
-      map.set(row.lice.id, deriveHealthState({ row, nowMs, matchDurationMinutes }));
+      map.set(row.lice.id, deriveHealthState({ row, nowMs }));
     }
     return map;
-  }, [rows, nowMs, matchDurationMinutes]);
+  }, [rows, nowMs]);
 
   return (row: BoardRow) => byLiceId.get(row.lice.id) ?? 'unknown';
 }

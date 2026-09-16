@@ -20,14 +20,13 @@ interface WallRowProps {
   row: BoardRow;
   state: HealthState;
   nowMs: number;
-  matchDurationMinutes: number;
   locale: AppLocale;
   t: T;
 }
 
-export function WallRow({ row, state, nowMs, matchDurationMinutes, locale, t }: WallRowProps) {
+export function WallRow({ row, state, nowMs, locale, t }: WallRowProps) {
   const cm = row.currentMatch;
-  const timing = timingReadout(row, nowMs, matchDurationMinutes, locale, t);
+  const timing = timingReadout(row, nowMs, locale, t);
 
   return (
     <li className="flex items-center gap-4 border-b border-border/40 py-3">

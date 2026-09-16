@@ -31,6 +31,7 @@ export function mkMatch(over: Partial<BoardMatch> = {}): BoardMatch {
     poolName: null,
     tournamentName: null,
     phaseType: null,
+    plannedDurationMinutes: 5,
     referees: [],
     ...over,
   };

@@ -6,6 +6,7 @@ import { OrganizationsService } from '../organizations/organizations.service';
 import { assertCanReadEvent } from '../../common/auth/event-authz';
 import { buildRoundCode, bracketCodeConfig } from '../matches/round-code.helper';
 import { resolveMatchLengths } from './match-lengths';
+import { plannedLengthOf } from './planned-length';
 
 export interface ScheduleGridMatch {
   id: string;
@@ -384,7 +385,7 @@ export class ScheduleGridService {
         // the same bout, so they read the same number: the Event's sheet,
         // through `resolveMatchLengths` (ADR-018). It was a shared constant of
         // five minutes, which agreed with itself and with no organiser.
-        durationMinutes: lengths.get(m.id) as number,
+        durationMinutes: plannedLengthOf(lengths, m.id),
         phaseType: phase?.type ?? null,
         poolId: m.pool_id,
         poolName: pool?.name ?? null,

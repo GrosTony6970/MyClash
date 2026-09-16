@@ -285,6 +285,10 @@ export const ALLOWED_ABSENT = new Map([
     'apps/api/src/modules/phases/pool-auto-distribute.ts',
     'past tense: ADR-018 records the auto-distribute door it removed, deleted 2026-09',
   ],
+  [
+    'apps/api/src/modules/schedule/run-end.ts',
+    'past tense: ADR-017 records the median-gap run end slice 4 deleted, 2026-09',
+  ],
 ]);
 
 /** A path written for a human rather than for a filesystem. */

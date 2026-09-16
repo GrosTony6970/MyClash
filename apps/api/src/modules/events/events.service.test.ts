@@ -2,12 +2,24 @@ import {
   BadRequestException,
   ConflictException,
   ForbiddenException,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { EventsService } from './events.service';
 import { ANONYMOUS_USER_ID } from '../../common/auth/request-user';
 import { createRulesetRegistry } from '../rulesets/ruleset-registry';
+import { resolveMatchLengths } from '../schedule/match-lengths';
+
+// The length helper has reads of its own and its own test. Mocked so the
+// routed `from()` doubles below serve only this service's reads; an empty
+// batch resolves to an empty map, as the helper does without reading.
+vi.mock('../schedule/match-lengths', () => ({
+  resolveMatchLengths: vi.fn((_db: unknown, _eventId: string, inputs: Array<{ id: string }>) =>
+    Promise.resolve(new Map(inputs.map((input) => [input.id, 5]))),
+  ),
+}));
+const resolveMatchLengthsMock = vi.mocked(resolveMatchLengths);
 
 const fromMock = vi.fn();
 
@@ -2726,6 +2738,105 @@ describe('EventsService', () => {
           bracket: { id: 'v-2', name: 'Hall B' },
         },
       });
+    });
+
+    /**
+     * One Tournament with a long bout early, a short one last, and one nobody has
+     * placed; every other table the list reads is empty. Returns the bouts read.
+     */
+    function routeTournamentList() {
+      const tournamentsChain = makeChain({ data: null, error: null });
+      tournamentsChain.order.mockResolvedValue({
+        data: [{ id: 't-1', name: 'Longsword', max_participants: 12 }],
+        error: null,
+      });
+      const empty = () => makeAwaitableChain({ data: [], error: null });
+      const phasesChain = makeAwaitableChain({
+        data: [{ id: 'phase-pool-1', tournament_id: 't-1', type: 'pool', config_json: {} }],
+        error: null,
+      });
+      const bout = (id: string, scheduledAt: string | null, override: number | null) => ({
+        id,
+        phase_id: 'phase-pool-1',
+        planned_duration_override_minutes: override,
+        status: 'scheduled',
+        scheduled_at: scheduledAt,
+      });
+      // A long bout early, a short one last, and one nobody has placed.
+      const matchesChain = makeAwaitableChain({
+        data: [
+          bout('m-long', '2027-06-21T09:00:00.000Z', 30),
+          bout('m-last', '2027-06-21T09:10:00.000Z', null),
+          bout('m-unplaced', null, null),
+        ],
+        error: null,
+      });
+      fromMock.mockImplementation((table: string) => {
+        if (table === 'events') return publishedEventChain(makeChain);
+        if (table === 'tournaments') return tournamentsChain;
+        if (table === 'phases') return phasesChain;
+        if (table === 'matches') return matchesChain;
+        if (
+          ['registrations', 'pools', 'referee_assignments', 'tournament_phase_venues'].includes(
+            table,
+          )
+        ) {
+          return empty();
+        }
+        throw new Error(`unexpected table ${table}`);
+      });
+      return matchesChain;
+    }
+
+    type AgendaRow = { scheduledStart: string | null; scheduledEnd: string | null };
+
+    it('ends a Tournament when its last placed bout is planned to finish, not when it starts', async () => {
+      const matchesChain = routeTournamentList();
+      resolveMatchLengthsMock.mockResolvedValueOnce(
+        new Map([
+          ['m-long', 30],
+          ['m-last', 5],
+        ]),
+      );
+
+      const [row] = (await service.listTournaments('event-1', CALLER)) as AgendaRow[];
+
+      expect(row).toMatchObject({
+        scheduledStart: '2027-06-21T09:00:00.000Z',
+        // The long bout ends at 09:30; the last START was 09:10.
+        scheduledEnd: '2027-06-21T09:30:00.000Z',
+      });
+      expect(resolveMatchLengthsMock).toHaveBeenCalledTimes(1);
+      expect(resolveMatchLengthsMock.mock.calls[0]?.[1]).toBe('event-1');
+      expect(resolveMatchLengthsMock.mock.calls[0]?.[2]).toEqual([
+        { id: 'm-long', phaseId: 'phase-pool-1', plannedDurationOverrideMinutes: 30 },
+        { id: 'm-last', phaseId: 'phase-pool-1', plannedDurationOverrideMinutes: null },
+      ]);
+      // The double ignores the projection: assert the columns the lengths need.
+      expect(matchesChain.select).toHaveBeenCalledWith(
+        'id, phase_id, planned_duration_override_minutes, status, scheduled_at',
+      );
+    });
+
+    it('still lists every Tournament when the lengths cannot be read, its end unknown and the reason logged', async () => {
+      // The list feeds the public event home and most organiser pages; only the
+      // agenda's end needs a length. A failed read must not empty all of them.
+      routeTournamentList();
+      resolveMatchLengthsMock.mockRejectedValueOnce(new BadRequestException('statement timeout'));
+      const warn = vi.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
+
+      try {
+        const rows = (await service.listTournaments('event-1', CALLER)) as AgendaRow[];
+
+        expect(rows).toHaveLength(1);
+        expect(rows[0]).toMatchObject({
+          scheduledStart: '2027-06-21T09:00:00.000Z',
+          scheduledEnd: null,
+        });
+        expect(warn).toHaveBeenCalledWith(expect.stringContaining('statement timeout'));
+      } finally {
+        warn.mockRestore();
+      }
     });
   });
 

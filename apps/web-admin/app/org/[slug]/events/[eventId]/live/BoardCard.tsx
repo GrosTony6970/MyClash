@@ -17,7 +17,6 @@ export function BoardCard({
   row,
   state,
   nowMs,
-  matchDurationMinutes,
   slug,
   eventId,
   onAck,
@@ -26,7 +25,6 @@ export function BoardCard({
   row: BoardRow;
   state: HealthState;
   nowMs: number;
-  matchDurationMinutes: number;
   slug: string;
   eventId: string;
   onAck: (id: string) => void;
@@ -34,7 +32,7 @@ export function BoardCard({
 }) {
   const { locale } = useI18n();
   const cm = row.currentMatch;
-  const timing = timingReadout(row, nowMs, matchDurationMinutes, locale, t);
+  const timing = timingReadout(row, nowMs, locale, t);
   return (
     <li
       className="flex flex-col gap-1.5 py-3"

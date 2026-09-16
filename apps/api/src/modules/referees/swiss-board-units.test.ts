@@ -13,6 +13,8 @@ const ROUNDS: SwissUnitRound[] = [
 
 function match(overrides: Partial<SwissUnitMatch> & { id: string }): SwissUnitMatch {
   return {
+    phaseId: 'ph-1',
+    plannedDurationOverrideMinutes: null,
     swissRoundId: 'r1',
     liceId: 'lice-a',
     scheduledAt: null,
@@ -69,10 +71,9 @@ describe('groupSwissMatchesIntoUnits', () => {
     expect(units[0]!.matches).toHaveLength(2);
     expect(units[0]!.liceId).toBeNull();
     expect(units[0]!.scheduledStart).toBeNull();
-    expect(units[0]!.scheduledEnd).toBeNull();
   });
 
-  it('derives start and end from the bouts, matching the pool run-end rule', () => {
+  it('starts a unit at its earliest bout', () => {
     const units = groupSwissMatchesIntoUnits(ROUNDS, [
       match({ id: 'm1', scheduledAt: '2026-08-01T09:00:00.000Z' }),
       match({ id: 'm2', scheduledAt: '2026-08-01T09:10:00.000Z' }),
@@ -80,8 +81,6 @@ describe('groupSwissMatchesIntoUnits', () => {
     ]);
 
     expect(units[0]!.scheduledStart).toBe('2026-08-01T09:00:00.000Z');
-    // last start + the median 10-minute gap
-    expect(units[0]!.scheduledEnd).toBe('2026-08-01T09:30:00.000Z');
   });
 
   it('skips matches whose round is gone, rather than inventing a unit', () => {

@@ -29,7 +29,11 @@ describe('scheduleMatches', () => {
   it('schedules all matches when enough Lices available', () => {
     const matches = makeMatches(8);
     const lices = makeLices(2);
-    const result = scheduleMatches(matches, lices, { startTime: START });
+    const result = scheduleMatches(matches, lices, {
+      startTime: START,
+      minRestMinutes: 10,
+      transitionMinutes: 2,
+    });
     expect(result.scheduledMatches).toHaveLength(8);
     expect(result.unscheduled).toHaveLength(0);
   });
@@ -37,7 +41,11 @@ describe('scheduleMatches', () => {
   it('assigns each match a scheduledAt timestamp', () => {
     const matches = makeMatches(4);
     const lices = makeLices(2);
-    const result = scheduleMatches(matches, lices, { startTime: START });
+    const result = scheduleMatches(matches, lices, {
+      startTime: START,
+      minRestMinutes: 10,
+      transitionMinutes: 2,
+    });
     for (const sm of result.scheduledMatches) {
       expect(sm.scheduledAt).toBeTruthy();
       expect(new Date(sm.scheduledAt).getTime()).toBeGreaterThanOrEqual(new Date(START).getTime());
@@ -59,6 +67,7 @@ describe('scheduleMatches', () => {
     const result = scheduleMatches(matches, lices, {
       startTime: START,
       minRestMinutes,
+      transitionMinutes: 2,
     });
 
     // Find m1 and m2 for fighter f1
@@ -85,6 +94,7 @@ describe('scheduleMatches', () => {
     const result = scheduleMatches(matches, lices, {
       startTime: START,
       minRestMinutes: 0,
+      transitionMinutes: 2,
     });
 
     const m1 = result.scheduledMatches.find((s) => s.matchId === 'm1')!;
@@ -111,6 +121,7 @@ describe('scheduleMatches', () => {
     const result = scheduleMatches(matches, lices, {
       startTime: START,
       minRestMinutes: 10,
+      transitionMinutes: 2,
     });
 
     expect(result.scheduledMatches).toHaveLength(28);
@@ -120,7 +131,11 @@ describe('scheduleMatches', () => {
   it('single Lice: all matches on that Lice', () => {
     const matches = makeMatches(6);
     const lices = makeLices(1);
-    const result = scheduleMatches(matches, lices, { startTime: START });
+    const result = scheduleMatches(matches, lices, {
+      startTime: START,
+      minRestMinutes: 10,
+      transitionMinutes: 2,
+    });
     expect(result.scheduledMatches).toHaveLength(6);
     for (const sm of result.scheduledMatches) {
       expect(sm.liceId).toBe('lice-1');
@@ -133,7 +148,11 @@ describe('scheduleMatches', () => {
   it('matches on the same Lice are ordered chronologically', () => {
     const matches = makeMatches(6);
     const lices = makeLices(1);
-    const result = scheduleMatches(matches, lices, { startTime: START });
+    const result = scheduleMatches(matches, lices, {
+      startTime: START,
+      minRestMinutes: 10,
+      transitionMinutes: 2,
+    });
 
     const times = result.scheduledMatches.map((s) => new Date(s.scheduledAt).getTime());
     for (let i = 1; i < times.length; i++) {
@@ -144,19 +163,29 @@ describe('scheduleMatches', () => {
   // ── Edge cases ────────────────────────────────────────────────────────────
 
   it('returns empty result for 0 matches', () => {
-    const result = scheduleMatches([], makeLices(2), { startTime: START });
+    const result = scheduleMatches([], makeLices(2), {
+      startTime: START,
+      minRestMinutes: 10,
+      transitionMinutes: 2,
+    });
     expect(result.scheduledMatches).toHaveLength(0);
     expect(result.imbalancePercent).toBe(0);
   });
 
   it('throws when no Lices provided', () => {
-    expect(() => scheduleMatches(makeMatches(4), [])).toThrow('Lice');
+    expect(() =>
+      scheduleMatches(makeMatches(4), [], { minRestMinutes: 10, transitionMinutes: 2 }),
+    ).toThrow('Lice');
   });
 
   it('liceLoad tracks match count per Lice', () => {
     const matches = makeMatches(4);
     const lices = makeLices(2);
-    const result = scheduleMatches(matches, lices, { startTime: START });
+    const result = scheduleMatches(matches, lices, {
+      startTime: START,
+      minRestMinutes: 10,
+      transitionMinutes: 2,
+    });
     const totalLoad = Object.values(result.liceLoad).reduce((s, n) => s + n, 0);
     expect(totalLoad).toBe(4);
   });
@@ -214,6 +243,7 @@ describe('scheduleMatches', () => {
         startTime: START,
         poolAffinity: 'strict',
         minRestMinutes: 0,
+        transitionMinutes: 2,
       });
 
       // Each pool collapses to a single Lice.
@@ -264,6 +294,7 @@ describe('scheduleMatches', () => {
         startTime: START,
         poolAffinity: 'strict',
         minRestMinutes: 0,
+        transitionMinutes: 2,
       });
 
       const poolA = result.scheduledMatches.find((s) => s.matchId === 'a1')!;
@@ -316,6 +347,7 @@ describe('scheduleMatches', () => {
         startTime: START,
         poolAffinity: 'strict',
         minRestMinutes: 0,
+        transitionMinutes: 2,
       });
 
       const liceOf = (id: string) => result.scheduledMatches.find((s) => s.matchId === id)!.liceId;
@@ -371,6 +403,7 @@ describe('scheduleMatches', () => {
         startTime: START,
         poolAffinity: 'strict',
         minRestMinutes: 0,
+        transitionMinutes: 2,
       });
       const ordered = [...result.scheduledMatches].sort(
         (a, b) => new Date(a.scheduledAt).getTime() - new Date(b.scheduledAt).getTime(),
@@ -421,6 +454,7 @@ describe('scheduleMatches', () => {
         startTime: START,
         poolAffinity: 'strict',
         minRestMinutes: 10,
+        transitionMinutes: 2,
       });
       const m2 = result.scheduledMatches.find((s) => s.matchId === 'm2')!;
       const m19 = result.scheduledMatches.find((s) => s.matchId === 'm19')!;
@@ -464,6 +498,7 @@ describe('scheduleMatches', () => {
         startTime: START,
         poolAffinity: 'off',
         minRestMinutes: 0,
+        transitionMinutes: 2,
       });
 
       // With no pool grouping, load should be balanced across the 2 Lices.
@@ -492,6 +527,7 @@ describe('scheduleMatches', () => {
       const result = scheduleMatches(matches, lices, {
         startTime: START,
         minRestMinutes: 0,
+        transitionMinutes: 2,
       });
 
       const used = new Set(result.scheduledMatches.map((s) => s.liceId));
@@ -564,6 +600,8 @@ describe('scheduleMatches — bracket-branch affinity', () => {
     const result = scheduleMatches(bracketMatches(8), makeLices(4), {
       startTime: START,
       poolAffinity: 'off',
+      minRestMinutes: 10,
+      transitionMinutes: 2,
     });
     expect(result.scheduledMatches).toHaveLength(7);
     expect(result.unscheduled).toHaveLength(0);

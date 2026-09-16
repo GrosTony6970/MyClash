@@ -9,9 +9,10 @@
  *
  * Kept pure and I/O-free so the grouping is table-testable without going
  * through `AssignmentBoardService`'s positional Supabase mock chain.
+ *
+ * A unit's END is not decided here: every kind of unit ends by one rule, owned by
+ * `board-unit-ends.ts`, once the board has resolved its bouts' lengths.
  */
-
-import { runEndIso } from '../schedule/run-end';
 
 export interface SwissUnitRound {
   id: string;
@@ -21,6 +22,9 @@ export interface SwissUnitRound {
 
 export interface SwissUnitMatch {
   id: string;
+  /** With the override, what the bout's planned length is resolved from. */
+  phaseId: string;
+  plannedDurationOverrideMinutes: number | null;
   swissRoundId: string;
   liceId: string | null;
   scheduledAt: string | null;
@@ -42,7 +46,6 @@ export interface SwissBoardUnit {
   /** Ordered by start time, then id — the order the crew works them. */
   matches: SwissUnitMatch[];
   scheduledStart: string | null;
-  scheduledEnd: string | null;
 }
 
 /** Stable ordering: scheduled bouts by start time, unscheduled last, id breaks ties. */
@@ -87,7 +90,6 @@ export function groupSwissMatchesIntoUnits(
         liceId: match.liceId,
         matches: [],
         scheduledStart: null,
-        scheduledEnd: null,
       };
       byKey.set(key, unit);
     }
@@ -101,9 +103,6 @@ export function groupSwissMatchesIntoUnits(
       .map((m) => m.scheduledAt)
       .filter((iso): iso is string => iso !== null);
     unit.scheduledStart = starts[0] ?? null;
-    // Same end-time derivation pools use, so the referee board and the schedule
-    // grid agree on when a Swiss round's piste frees up.
-    unit.scheduledEnd = runEndIso(starts);
   }
 
   // Round order first so the board's unscheduled column reads 1, 2, 3…

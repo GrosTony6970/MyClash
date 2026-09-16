@@ -2,9 +2,8 @@
 
 import { resolveMatchReferees } from '../matches/resolve-match-referees';
 import type { RefereeAssignmentRow, ResolvedReferee } from '../matches/resolve-match-referees';
-import type { ProgrammePhase, SuggestConfig } from '@myclash/types';
-import { barKind, sheetLengthFor } from '../schedule/planned-length';
-import { selectProgrammeBlocks, toHHMM } from '../schedule/select-programme-block';
+import type { MatchLengthInput } from '../schedule/match-lengths';
+import { plannedLengthOf } from '../schedule/planned-length';
 import type {
   BoardHealth,
   BoardAttention,
@@ -13,7 +12,6 @@ import type {
   BoardRow,
   BoardScorer,
   LiveBoardAccount,
-  LiveBoardTiming,
 } from './live-board-payload';
 
 /**
@@ -36,6 +34,8 @@ export interface RawBoardMatch {
   started_at: string | null;
   ended_at: string | null;
   pool_id: string | null;
+  phase_id: string;
+  planned_duration_override_minutes: number | null;
   bracket_slots: { round?: number } | null;
   /**
    * The Swiss round, when this is a Swiss bout. `staff.service.ts` has been
@@ -96,6 +96,17 @@ export interface AssembleInput {
   assignments: Array<{ staff_account_id: string; lice_id: string }>;
   /** Officiating referees for the current bout, keyed by match id. */
   refereesByMatchId: Map<string, ResolvedReferee[]>;
+  /** Every bout's planned length, as `resolveMatchLengths` returns it for `matches`. */
+  plannedMinutesByMatchId: ReadonlyMap<string, number>;
+}
+
+/** What `resolveMatchLengths` needs of a board bout. */
+export function boardLengthInput(row: RawBoardMatch): MatchLengthInput {
+  return {
+    id: row.id,
+    phaseId: row.phase_id,
+    plannedDurationOverrideMinutes: row.planned_duration_override_minutes,
+  };
 }
 
 function fighterName(side: RawBoardMatch['red']): string | null {
@@ -105,7 +116,11 @@ function fighterName(side: RawBoardMatch['red']): string | null {
   return name.length ? name : null;
 }
 
-export function mapBoardMatch(row: RawBoardMatch, referees: ResolvedReferee[] = []): BoardMatch {
+export function mapBoardMatch(
+  row: RawBoardMatch,
+  plannedDurationMinutes: number,
+  referees: ResolvedReferee[] = [],
+): BoardMatch {
   return {
     id: row.id,
     redFighterName: fighterName(row.red),
@@ -129,6 +144,7 @@ export function mapBoardMatch(row: RawBoardMatch, referees: ResolvedReferee[] = 
     poolName: row.pools?.name ?? null,
     tournamentName: row.phases?.tournaments?.name ?? null,
     phaseType: row.phases?.type ?? null,
+    plannedDurationMinutes,
     referees: referees.map((r) => ({
       name: r.name,
       roleLabel: r.roleLabel,
@@ -276,7 +292,11 @@ function assembleRow(
       area: lice.venue_areas ? { id: lice.venue_areas.id, name: lice.venue_areas.name } : null,
     },
     currentMatch: currentRaw
-      ? mapBoardMatch(currentRaw, input.refereesByMatchId.get(currentRaw.id) ?? [])
+      ? mapBoardMatch(
+          currentRaw,
+          plannedLengthOf(input.plannedMinutesByMatchId, currentRaw.id),
+          input.refereesByMatchId.get(currentRaw.id) ?? [],
+        )
       : null,
     scorer: buildScorer(assigned),
     health: buildHealth(primary),
@@ -321,49 +341,6 @@ export function resolveBoardReferees(
     );
   }
   return byMatchId;
-}
-
-/**
- * The clock and bout length the board measures against.
- *
- * No block covering "now" is the DEFAULT case, not an error: programme blocks
- * are optional and most events have none. Only overrun and projected-finish
- * read the duration; late and idle derive from scheduled_at and work either way.
- *
- * The length is the planner sheet's (ADR-018): for a competition bar covering
- * now, its kind of bout in its Tournament; otherwise the Event's pool length.
- * One number for the whole board is interim: ADR-018 gives each piste its own
- * Match's length.
- */
-export function buildBoardTiming(
-  blockRows: Array<Record<string, unknown>> | null,
-  now: Date,
-  sheet: SuggestConfig,
-): LiveBoardTiming {
-  const blocks = (blockRows ?? []).map((r) => ({
-    id: r['id'] as string,
-    label: r['label'] as string,
-    startTime: r['start_time'] as string,
-    endTime: r['end_time'] as string,
-    competitionId: r['competition_id'] as string | null,
-    competitionPhase: r['competition_phase'] as ProgrammePhase | null,
-  }));
-  const { current } = selectProgrammeBlocks(blocks, toHHMM(now));
-  return {
-    nowIso: now.toISOString(),
-    matchDurationMinutes:
-      current?.competitionId && current.competitionPhase
-        ? sheetLengthFor(barKind(current.competitionPhase), sheet, current.competitionId)
-        : sheet.poolMatchDurationMinutes,
-    block: current
-      ? {
-          id: current.id,
-          label: current.label,
-          startTime: current.startTime,
-          endTime: current.endTime,
-        }
-      : null,
-  };
 }
 
 /** Flatten accounts + assignments into the reassign picker's option list. */

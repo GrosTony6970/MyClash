@@ -1,4 +1,5 @@
-import type { ProgrammePhase, SuggestConfig, TournamentLengths } from '@myclash/types';
+import { hullMs, matchWindowMs } from '@myclash/schedule-core';
+import type { SuggestConfig, TournamentLengths } from '@myclash/types';
 
 /**
  * How long a bout of a given kind lasts, read from the Event's planner sheet.
@@ -10,8 +11,9 @@ import type { ProgrammePhase, SuggestConfig, TournamentLengths } from '@myclash/
  * length, the Tournament's pool length, the Event's Swiss length, the Event's
  * pool length.
  *
- * Pure: the caller loads the sheet. Suggest, Generate and the re-fan call it;
- * every reader of a Match's window follows in a later slice.
+ * Pure: the caller loads the sheet. Suggest and Generate call `sheetLengthFor`
+ * with a sheet they already hold; every other reader asks `resolveMatchLengths`
+ * (`match-lengths.ts`), which calls it per Match.
  */
 export type MatchKind = 'pool' | 'swiss' | 'elimination' | 'finals';
 
@@ -55,6 +57,41 @@ export function finalRoundsByPhase(rows: readonly BracketRoundRow[]): Map<string
 }
 
 /**
+ * A Match's planned length from the map `resolveMatchLengths` returns, or a
+ * throw.
+ *
+ * The helper answers for every id it was asked about, so a miss means the
+ * caller looked up a Match it never resolved. Every reader used to fill that
+ * gap with a guess — five minutes, mostly — and a guessed length is how a
+ * referee was reported free while they fought. There is no default to fall
+ * back to on purpose.
+ */
+export function plannedLengthOf(lengths: ReadonlyMap<string, number>, matchId: string): number {
+  const minutes = lengths.get(matchId);
+  if (minutes === undefined) throw new Error(`No planned length for match ${matchId}`);
+  return minutes;
+}
+
+/**
+ * When a run of bouts — a Pool, a Swiss round on a piste, a Tournament — is
+ * planned to finish: the END of the hull of its placed bouts' windows
+ * (ADR-017), each as long as its planned length. The latest end, which is not
+ * the last start's end when a longer bout sits earlier.
+ *
+ * A bout with no time is ignored; a run with none placed has no end (null).
+ */
+export function plannedEndIso(
+  bouts: ReadonlyArray<{ scheduledAt: string | null; durationMinutes: number }>,
+): string | null {
+  const hull = hullMs(
+    bouts.flatMap((bout) =>
+      bout.scheduledAt === null ? [] : [matchWindowMs(bout.scheduledAt, bout.durationMinutes)],
+    ),
+  );
+  return hull ? new Date(hull.endMs).toISOString() : null;
+}
+
+/**
  * A bracket Match is a finals bout when it sits in the final round: the gold
  * final and the bronze, or the grand final and its reset. A Match whose round
  * does not resolve is not.
@@ -76,11 +113,6 @@ export function matchKind(
   if (phaseType === 'pool') return 'pool';
   if (phaseType === 'swiss') return 'swiss';
   return isFinalsMatch(round, finalRound) ? 'finals' : 'elimination';
-}
-
-/** The kind of bout a programme bar schedules. A bracket bar holds elimination bouts. */
-export function barKind(phase: ProgrammePhase): MatchKind {
-  return phase === 'bracket' ? 'elimination' : phase;
 }
 
 export function sheetLengthFor(

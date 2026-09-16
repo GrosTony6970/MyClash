@@ -11,13 +11,14 @@
  * membership: the answer names fighters and referees.
  */
 
-import { Controller, Get, Param, ParseUUIDPipe, Req } from '@nestjs/common';
+import { Controller, Get, NotFoundException, Param, ParseUUIDPipe, Req } from '@nestjs/common';
 import { ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
 import type { FastifyRequest } from 'fastify';
 import { detectFighterRefereeConflicts } from '@myclash/rulesets/scheduling';
 import { assertTournamentMember } from '../../common/auth/event-authz';
 import { resolveRequestUserId } from '../../common/auth/request-user';
 import { OrganizationsService } from '../organizations/organizations.service';
+import { resolveMatchLengths } from '../schedule/match-lengths';
 import { SupabaseService } from '../supabase/supabase.service';
 import {
   toConflictAssignments,
@@ -63,6 +64,10 @@ export class ConflictCheckController {
       .eq('id', tournamentId)
       .maybeSingle();
     const eventId = (tournamentRow as { event_id?: string } | null)?.event_id ?? null;
+    // `tournaments.event_id` is NOT NULL, so no Event means no Tournament: it went
+    // after the membership check, or its read failed. Say so, rather than measure
+    // bouts against an Event nobody named.
+    if (!eventId) throw new NotFoundException('Tournament not found');
 
     const { data: phaseRows } = await this.supabase.service
       .from('phases')
@@ -74,30 +79,45 @@ export class ConflictCheckController {
     const { data: matchRows } = phaseIds.length
       ? await this.supabase.service
           .from('matches')
-          .select('id, match_number_label, red_registration_id, blue_registration_id, scheduled_at')
+          .select(
+            'id, phase_id, planned_duration_override_minutes, match_number_label, red_registration_id, blue_registration_id, scheduled_at',
+          )
           .in('phase_id', phaseIds)
           .neq('status', 'voided')
       : { data: [] };
+    const rows = (matchRows ?? []) as unknown as RawConflictMatchRow[];
 
-    const matches = toConflictMatches((matchRows ?? []) as unknown as RawConflictMatchRow[]);
+    // Each bout at its own planned length (ADR-018), resolved once for the
+    // Tournament; the assignments below are scoped to these same Matches, so
+    // the one map covers both sides.
+    const lengths = await resolveMatchLengths(
+      this.supabase.service,
+      eventId,
+      rows.map((row) => ({
+        id: row.id,
+        phaseId: row.phase_id,
+        plannedDurationOverrideMinutes: row.planned_duration_override_minutes,
+      })),
+    );
+
+    const matches = toConflictMatches(rows, lengths);
     const matchIds = matches.map((m) => m.id);
 
     // 2. Fetch referee assignments scoped to this tournament's matches.
     // Post-0063: referee_assignments.person_id → global_persons.
-    const { data: refRows } =
-      eventId && matchIds.length
-        ? await this.supabase.service
-            .from('referee_assignments')
-            .select(
-              `
+    const { data: refRows } = matchIds.length
+      ? await this.supabase.service
+          .from('referee_assignments')
+          .select(
+            `
         match_id, role,
         global_persons ( id, given_name, family_name ),
         matches ( match_number_label, scheduled_at )
       `,
-            )
-            .eq('event_id', eventId)
-            .in('match_id', matchIds)
-        : { data: [] };
+          )
+          .eq('event_id', eventId)
+          .in('match_id', matchIds)
+      : { data: [] };
 
     // 3. Fetch registration → person mapping for this tournament.
     //    Projects `persons.global_person_id` (not `persons.id`) so the map keys
@@ -112,7 +132,7 @@ export class ConflictCheckController {
     //    ./conflict-check-inputs for the false alarm that produced.
     return detectFighterRefereeConflicts(
       matches,
-      toConflictAssignments((refRows ?? []) as unknown as RawConflictAssignmentRow[]),
+      toConflictAssignments((refRows ?? []) as unknown as RawConflictAssignmentRow[], lengths),
       toRegistrationPersonMap((regRows ?? []) as unknown as RawConflictRegistrationRow[]),
     );
   }

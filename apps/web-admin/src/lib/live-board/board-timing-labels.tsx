@@ -24,7 +24,6 @@ export interface TimingReadout {
 export function timingReadout(
   row: BoardRow,
   nowMs: number,
-  matchDurationMinutes: number,
   locale: AppLocale,
   t: (key: string, params?: Record<string, string | number>) => string,
 ): TimingReadout {
@@ -33,7 +32,7 @@ export function timingReadout(
 
   const elapsed = elapsedSec(row, nowMs);
   if (elapsed !== null) {
-    const over = runningOverSec(row, nowMs, matchDurationMinutes);
+    const over = runningOverSec(row, nowMs);
     const late = startedLateSec(row);
     // The bout clock stays MM:SS — it is a stopwatch a human watches tick.
     // Everything else is minute-scaled, because "over by 3 min" is what the

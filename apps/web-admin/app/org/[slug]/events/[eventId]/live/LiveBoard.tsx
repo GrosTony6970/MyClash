@@ -8,7 +8,6 @@ import { useLiveBoard } from '@/lib/live-board/useLiveBoard';
 import { groupBoardRows } from '@/lib/live-board/board-groups';
 import { partitionByHealth, sortBoardRows } from '@/lib/live-board/live-board-state';
 import { useBoardStates } from '@/lib/live-board/use-board-states';
-import { fallbackTiming } from '@/lib/live-board/live-board-timing';
 import { BoardRowView } from './BoardRowView';
 import { BoardCard } from './BoardCard';
 import { BoardSummary } from './BoardSummary';
@@ -50,7 +49,6 @@ export function LiveBoard({ slug, eventId }: { slug: string; eventId: string }) 
   const { t } = useI18n();
   const {
     rows,
-    timing,
     progress,
     accounts,
     eventSlug,
@@ -72,9 +70,8 @@ export function LiveBoard({ slug, eventId }: { slug: string; eventId: string }) 
   // per-row subscription would re-render every row's subtree on every tick for
   // a value the row is handed anyway.
   const { nowMs } = useSecondsClock(getPublicApiUrl());
-  const clock = timing ?? fallbackTiming(nowMs);
 
-  const stateOf = useBoardStates(rows, nowMs, clock.matchDurationMinutes);
+  const stateOf = useBoardStates(rows, nowMs);
   const isExpanded = (row: BoardRow): boolean =>
     expanded?.liceId === row.lice.id && expanded.matchId === (row.currentMatch?.id ?? null);
   const toggle = (row: BoardRow) =>
@@ -105,7 +102,6 @@ export function LiveBoard({ slug, eventId }: { slug: string; eventId: string }) 
         attention={attentionCount}
         progress={progress}
         nowMs={nowMs}
-        matchDurationMinutes={clock.matchDurationMinutes}
         mode={mode}
         onModeChange={setMode}
         stale={error === 'refresh'}
@@ -128,7 +124,6 @@ export function LiveBoard({ slug, eventId }: { slug: string; eventId: string }) 
                   row={row}
                   state={stateOf(row)}
                   nowMs={nowMs}
-                  matchDurationMinutes={clock.matchDurationMinutes}
                   expanded={isExpanded(row)}
                   onToggle={() => toggle(row)}
                   eventSlug={eventSlug}
@@ -154,7 +149,6 @@ export function LiveBoard({ slug, eventId }: { slug: string; eventId: string }) 
               row={row}
               state={stateOf(row)}
               nowMs={nowMs}
-              matchDurationMinutes={clock.matchDurationMinutes}
               slug={slug}
               eventId={eventId}
               onAck={(id) => void acknowledge(id)}
@@ -182,7 +176,6 @@ export function LiveBoard({ slug, eventId }: { slug: string; eventId: string }) 
                     row={row}
                     state={stateOf(row)}
                     nowMs={nowMs}
-                    matchDurationMinutes={clock.matchDurationMinutes}
                     slug={slug}
                     eventId={eventId}
                     onAck={(id) => void acknowledge(id)}

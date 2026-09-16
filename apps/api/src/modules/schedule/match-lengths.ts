@@ -5,6 +5,7 @@ import { readProgrammeSheet } from '../programme/programme-sheet';
 import {
   finalRoundsByPhase,
   matchKind,
+  plannedLengthOf,
   sheetLengthFor,
   type BracketRoundRow,
 } from './planned-length';
@@ -170,10 +171,10 @@ export async function resolveMatchWindows(
   const lengths = await resolveMatchLengths(db, eventId, inputs);
   return new Map(
     inputs.map((input) => {
-      const durationMinutes = lengths.get(input.id);
-      if (input.scheduledAt == null || durationMinutes === undefined) {
-        return [input.id, null];
-      }
+      if (input.scheduledAt == null) return [input.id, null];
+      // A length is never missing here — the helper answers for every input —
+      // and a missing one must not read as "no window", which overlaps nothing.
+      const durationMinutes = plannedLengthOf(lengths, input.id);
       return [input.id, { durationMinutes, ...matchWindowMs(input.scheduledAt, durationMinutes) }];
     }),
   );

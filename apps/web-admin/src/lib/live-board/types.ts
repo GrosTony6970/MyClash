@@ -31,6 +31,12 @@ export interface BoardMatch {
   poolName: string | null;
   tournamentName: string | null;
   phaseType: string | null;
+  /**
+   * How long this bout is planned to take, in minutes: the Event's sheet for its
+   * kind of bout, or the Match's own override (ADR-018). What overrun, late and
+   * the projected finish measure it against.
+   */
+  plannedDurationMinutes: number;
   referees: BoardReferee[];
 }
 
@@ -97,14 +103,6 @@ export interface BoardRow {
   lastCompleted: { matchId: string; label: string; endedAt: string | null } | null;
 }
 
-/** The clock the board measures elapsed, late and overrun against. */
-export interface LiveBoardTiming {
-  /** Server clock at assembly. */
-  nowIso: string;
-  matchDurationMinutes: number;
-  block: { id: string; label: string; startTime: string; endTime: string } | null;
-}
-
 export interface LiveBoardProgress {
   completed: number;
   total: number;
@@ -121,7 +119,6 @@ export interface LiveBoardAccount {
 
 export interface LiveBoardPayload {
   rows: BoardRow[];
-  timing: LiveBoardTiming;
   progress: LiveBoardProgress;
   accounts: LiveBoardAccount[];
   /** The EVENT slug, for the public piste-kiosk href. Not the org slug. */

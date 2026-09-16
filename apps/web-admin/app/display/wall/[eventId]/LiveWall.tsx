@@ -4,7 +4,6 @@ import { useI18n } from '@myclash/next-i18n/client';
 import { getPublicApiUrl } from '@/lib/api-url';
 import { groupBoardRows } from '@/lib/live-board/board-groups';
 import { sortBoardRows } from '@/lib/live-board/live-board-state';
-import { fallbackTiming } from '@/lib/live-board/live-board-timing';
 import { useBoardStates } from '@/lib/live-board/use-board-states';
 import { useLiveBoard } from '@/lib/live-board/useLiveBoard';
 import { WallRow } from './WallRow';
@@ -34,10 +33,9 @@ function StageMessage({ children }: { children: React.ReactNode }) {
  */
 export function LiveWall({ eventId }: { eventId: string }) {
   const { t, locale } = useI18n();
-  const { rows, timing, error } = useLiveBoard(eventId);
+  const { rows, error } = useLiveBoard(eventId);
   const { nowMs } = useSecondsClock(getPublicApiUrl());
-  const clock = timing ?? fallbackTiming(nowMs);
-  const stateOf = useBoardStates(rows, nowMs, clock.matchDurationMinutes);
+  const stateOf = useBoardStates(rows, nowMs);
 
   if (error === 'forbidden') return <StageMessage>{t('organizer.live.forbidden')}</StageMessage>;
   if (!rows) return <StageMessage>{t('common.loading')}</StageMessage>;
@@ -65,7 +63,6 @@ export function LiveWall({ eventId }: { eventId: string }) {
                 row={row}
                 state={stateOf(row)}
                 nowMs={nowMs}
-                matchDurationMinutes={clock.matchDurationMinutes}
                 locale={locale}
                 t={t}
               />

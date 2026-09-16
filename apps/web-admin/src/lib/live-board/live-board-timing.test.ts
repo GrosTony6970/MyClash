@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest';
 import {
   dueForSec,
   elapsedSec,
-  fallbackTiming,
   idleForSec,
   projectedFinishMs,
   runningOverSec,
@@ -85,41 +84,49 @@ describe('idleForSec', () => {
 describe('runningOverSec', () => {
   it('is the excess over the planned slot', () => {
     const row = mkRow({ currentMatch: mkMatch({ startedAt: agoIso(500) }) });
-    expect(runningOverSec(row, NOW, 5)).toBe(200);
+    expect(runningOverSec(row, NOW)).toBe(200);
+  });
+
+  it('measures each bout against its OWN planned length', () => {
+    // 500 s into an 8-minute bout is 20 s over; a board-wide five said 200.
+    const row = mkRow({
+      currentMatch: mkMatch({ startedAt: agoIso(500), plannedDurationMinutes: 8 }),
+    });
+    expect(runningOverSec(row, NOW)).toBe(20);
   });
 
   it('is zero, not negative, inside the slot', () => {
     const row = mkRow({ currentMatch: mkMatch({ startedAt: agoIso(60) }) });
-    expect(runningOverSec(row, NOW, 5)).toBe(0);
+    expect(runningOverSec(row, NOW)).toBe(0);
   });
 
-  it('is null when the bout has not started', () => {
-    expect(runningOverSec(mkRow({ currentMatch: null }), NOW, 5)).toBeNull();
+  it('is null when the bout has not started, and on an empty piste', () => {
+    expect(runningOverSec(mkRow({ currentMatch: mkMatch({ startedAt: null }) }), NOW)).toBeNull();
+    expect(runningOverSec(mkRow({ currentMatch: null }), NOW)).toBeNull();
   });
 });
 
 describe('projectedFinishMs', () => {
-  it('divides the remaining bouts across the pistes actually running', () => {
-    // 20 bouts over 4 pistes = 5 rounds of 5 min = 25 min.
-    expect(projectedFinishMs(NOW, 20, 4, 5)).toBe(NOW + 25 * 60_000);
+  const running = (...minutes: number[]) =>
+    minutes.map((m, i) => mkMatch({ id: `m${i}`, plannedDurationMinutes: m }));
+
+  it('divides the remaining bouts across the bouts actually running', () => {
+    // 20 bouts over 4 running = 5 rounds of 5 min = 25 min.
+    expect(projectedFinishMs(NOW, 20, running(5, 5, 5, 5))).toBe(NOW + 25 * 60_000);
   });
 
   it('rounds a partial round up', () => {
-    expect(projectedFinishMs(NOW, 5, 4, 5)).toBe(NOW + 2 * 5 * 60_000);
+    expect(projectedFinishMs(NOW, 5, running(5, 5, 5, 5))).toBe(NOW + 2 * 5 * 60_000);
+  });
+
+  it('times each round at the mean planned length of the bouts running now', () => {
+    // A 6-minute pool bout and a 10-minute final: 4 bouts left = 2 rounds of 8 min.
+    expect(projectedFinishMs(NOW, 4, running(6, 10))).toBe(NOW + 2 * 8 * 60_000);
   });
 
   it('is null with nothing left, or with nothing running', () => {
     // A projection off zero pistes is a divide-by-zero dressed as information.
-    expect(projectedFinishMs(NOW, 0, 4, 5)).toBeNull();
-    expect(projectedFinishMs(NOW, 20, 0, 5)).toBeNull();
-  });
-});
-
-describe('fallbackTiming', () => {
-  it('dates itself and uses the documented default slot', () => {
-    const timing = fallbackTiming(NOW);
-    expect(timing.block).toBeNull();
-    expect(timing.matchDurationMinutes).toBe(5);
-    expect(Date.parse(timing.nowIso)).toBe(NOW);
+    expect(projectedFinishMs(NOW, 0, running(5, 5, 5, 5))).toBeNull();
+    expect(projectedFinishMs(NOW, 20, [])).toBeNull();
   });
 });

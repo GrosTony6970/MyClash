@@ -1,7 +1,23 @@
 import { ForbiddenException } from '@nestjs/common';
-import { describe, expect, it, vi } from 'vitest';
-import { StaffService } from './staff.service';
-import { mockSupabase, scopedTo, selectsFor, writesTo } from '../../common/testing/supabase-chain';
+import { describe, expect, it } from 'vitest';
+import { scopedTo, selectsFor, writesTo } from '../../common/testing/supabase-chain';
+import {
+  ORG,
+  EVENT,
+  OTHER_EVENT,
+  LICE,
+  ACCOUNT,
+  req,
+  TOURNAMENT,
+  POOL_PHASE,
+  SWISS_PHASE,
+  SHEET,
+  sheetRow,
+  MATCH_ROWS,
+  matchRow,
+  boardTables,
+  build,
+} from './staff.service.live-board.harness';
 
 /**
  * The Live board — the control-room screen an Event organizer watches.
@@ -13,144 +29,15 @@ import { mockSupabase, scopedTo, selectsFor, writesTo } from '../../common/testi
  * running bout as the Lice's `lastCompleted`.
  *
  * It is now on the shared seeded double, so the filters are the real ones. Each
- * table below carries at least one decoy — another Event's Lice, another Lice's
- * bout, a voided bout — so a filter that stops narrowing changes an answer here
- * rather than going quiet.
+ * table in `staff.service.live-board.harness.ts` carries at least one decoy —
+ * another Event's Lice, another Lice's bout, a voided bout — so a filter that
+ * stops narrowing changes an answer here rather than going quiet.
  *
  * `countBoutProgress` reaches its Event through `phases!inner(tournaments!inner(
  * event_id))`, because `matches` has no event_id column. An embedded filter is
  * spelled with a dotted key, so the rows carry
  * `'phases.tournaments.event_id'` flat alongside whatever else they need.
  */
-
-const ORG = 'O1';
-const EVENT = 'E1';
-const OTHER_EVENT = 'E2';
-const LICE = 'L1';
-const OTHER_LICE = 'L2';
-const ACCOUNT = 'a1';
-
-const req = { cookies: {} } as never;
-
-const eventRow = (id: string) => ({
-  id,
-  // The decoy belongs to a DIFFERENT organisation. That is what makes the
-  // event lookup load-bearing: read the wrong row and the board asks for a
-  // role on the wrong organisation, which is the check standing in front of it.
-  organization_id: id === EVENT ? ORG : 'O2',
-  slug: `slug-${id}`,
-  name: `Event ${id}`,
-  status: 'running',
-  start_date: '2026-07-21',
-  end_date: '2099-12-31',
-});
-
-/** An Event's planner sheet, as stored. A field left out reads as the default. */
-const sheetRow = (eventId: string, config: Record<string, unknown>) => ({
-  event_id: eventId,
-  config_json: config,
-});
-
-/** A bout on a Lice. `scoped` is the embed countBoutProgress filters through. */
-const matchRow = (id: string, over: Record<string, unknown> = {}) => ({
-  id,
-  lice_id: LICE,
-  status: 'scheduled',
-  red_score: 0,
-  blue_score: 0,
-  match_number_label: `#${id}`,
-  scheduled_at: '2026-07-21T10:00:00Z',
-  started_at: null,
-  ended_at: null,
-  pool_id: null,
-  bracket_slots: null,
-  red: null,
-  blue: null,
-  'phases.tournaments.event_id': EVENT,
-  ...over,
-});
-
-/**
- * `matches` is ONE seeded table serving all three reads — the live bouts, the
- * completed tail and both head-only counts. That is exactly the case a queue
- * cannot express, because it would have to predict the order they interleave.
- */
-const MATCH_ROWS = [
-  matchRow('m1', { status: 'running', red_score: 1, started_at: '2026-07-21T10:01:00Z' }),
-  matchRow('m0', {
-    status: 'completed',
-    red_score: 5,
-    blue_score: 3,
-    scheduled_at: '2026-07-21T09:00:00Z',
-    started_at: '2026-07-21T09:00:00Z',
-    ended_at: '2026-07-21T09:20:00Z',
-  }),
-  matchRow('m-void', { status: 'voided' }),
-  matchRow('m-done-elsewhere', {
-    lice_id: OTHER_LICE,
-    status: 'completed',
-    ended_at: '2026-07-21T09:30:00Z',
-    'phases.tournaments.event_id': OTHER_EVENT,
-  }),
-  matchRow('m-elsewhere', {
-    lice_id: OTHER_LICE,
-    status: 'running',
-    'phases.tournaments.event_id': OTHER_EVENT,
-  }),
-];
-
-const account = (id: string, eventId: string, name: string) => ({
-  id,
-  event_id: eventId,
-  display_name: name,
-  username: name.toLowerCase(),
-  status: 'active',
-});
-
-/** The board's tables, each holding a decoy on the axis its query filters by. */
-function boardTables(over: Record<string, unknown> = {}) {
-  return {
-    events: { rows: [eventRow(OTHER_EVENT), eventRow(EVENT)] },
-    lices: {
-      rows: [
-        { id: LICE, event_id: EVENT, name: 'Piste 1', sort_order: 0 },
-        { id: OTHER_LICE, event_id: OTHER_EVENT, name: 'Piste 9', sort_order: 1 },
-      ],
-    },
-    matches: { rows: MATCH_ROWS },
-    event_staff_accounts: {
-      rows: [account(ACCOUNT, EVENT, 'Marie'), account('a9', OTHER_EVENT, 'Jean')],
-    },
-    event_staff_lice_assignments: {
-      rows: [
-        { event_id: EVENT, staff_account_id: ACCOUNT, lice_id: LICE },
-        { event_id: OTHER_EVENT, staff_account_id: 'a9', lice_id: OTHER_LICE },
-      ],
-    },
-    event_programme_blocks: { rows: [] },
-    event_programme_configs: { rows: [] },
-    referee_assignments: { rows: [] },
-    ...over,
-  };
-}
-
-function build(tables: Record<string, unknown>, orgRole: 'allow' | 'refuse' = 'allow') {
-  const supabase = mockSupabase(tables as never);
-  const assertOrgRole = vi.fn(async () => {
-    if (orgRole === 'refuse') throw new ForbiddenException('no role');
-  });
-  const svc = new StaffService(
-    supabase as never,
-    { assertOrgRole } as never,
-    {} as never,
-    {} as never,
-  );
-  vi.spyOn(
-    svc as never as { getSupabaseUserId: () => Promise<string> },
-    'getSupabaseUserId',
-  ).mockResolvedValue('U1');
-  return { svc, supabase, assertOrgRole };
-}
 
 describe('StaffService.getLiveBoard', () => {
   it('throws 403 when the caller lacks an org role on the event', async () => {
@@ -230,28 +117,6 @@ describe('StaffService.getLiveBoard', () => {
     expect(assertOrgRole).toHaveBeenCalledWith(ORG, 'U1', 'scorekeeper');
   });
 
-  it('ships a timing basis even when the event has no programme block', async () => {
-    // No block covering "now" is the default case, not an error — most events
-    // have no programme at all, and the board still has to date its clock. The
-    // length is then the Event's pool length from its own sheet.
-    const { svc } = build(
-      boardTables({
-        event_programme_configs: {
-          rows: [
-            sheetRow(OTHER_EVENT, { poolMatchDurationMinutes: 4 }),
-            sheetRow(EVENT, { poolMatchDurationMinutes: 6 }),
-          ],
-        },
-      }),
-    );
-
-    const out = await svc.getLiveBoard(req, EVENT);
-
-    expect(out.timing.block).toBeNull();
-    expect(out.timing.matchDurationMinutes).toBe(6);
-    expect(Number.isNaN(Date.parse(out.timing.nowIso))).toBe(false);
-  });
-
   it('fails the board when the sheet cannot be read, rather than timing bouts on a guess', async () => {
     // The same policy as the board's other reads (bouts, history, accounts): the
     // browser keeps the last board it had and shows the refresh error.
@@ -264,92 +129,76 @@ describe('StaffService.getLiveBoard', () => {
     await expect(svc.getLiveBoard(req, EVENT)).rejects.toThrow('statement timeout');
   });
 
-  describe('the bout length of the bar running now', () => {
-    const TOURNAMENT = 'a1a1a1a1-1111-4111-8111-111111111111';
-    const SHEET = {
-      poolMatchDurationMinutes: 6,
-      swissMatchDurationMinutes: 7,
-      eliminationMatchDurationMinutes: 8,
-      finalsMatchDurationMinutes: 11,
-    };
-    const block = (id: string, over: Record<string, unknown>) => ({
-      id,
-      event_id: EVENT,
-      day_index: 0,
-      label: id,
-      start_time: '00:00',
-      end_time: '23:59',
-      block_type: 'competition',
-      competition_id: TOURNAMENT,
-      competition_phase: 'pool',
-      sort_order: 0,
-      ...over,
+  describe('each bout at its own planned length (ADR-018)', () => {
+    // The running bout on the piste is m1. It used to be timed by the kind of
+    // the programme BAR running now, one number for every piste.
+    // A second bout is queued on the same piste, in another phase and with its
+    // own override, so a length looked up for the wrong bout cannot pass.
+    const queued = matchRow('m-next', {
+      phase_id: SWISS_PHASE,
+      planned_duration_override_minutes: 99,
+      scheduled_at: '2026-07-21T10:30:00Z',
     });
-    // The event carries no start date, so `dayIndexFor` returns 0 whatever the
-    // clock says. Pinning the day that way keeps the decoys — day two, and
-    // another event's day one, both finals bars listed after the real one — as
-    // the only things the filters have to reject.
-    const tablesWith = (here: Record<string, unknown>, sheet: Record<string, unknown> = {}) =>
+    const tablesWith = (running: Record<string, unknown>, sheet: Record<string, unknown> = {}) =>
       boardTables({
-        events: { rows: [eventRow(OTHER_EVENT), { ...eventRow(EVENT), start_date: null }] },
-        event_programme_blocks: {
+        matches: {
           rows: [
-            block('blk-here', here),
-            block('blk-day2', { day_index: 1, competition_phase: 'finals' }),
-            block('blk-other-event', { event_id: OTHER_EVENT, competition_phase: 'finals' }),
+            ...MATCH_ROWS.map((row) => (row.id === 'm1' ? { ...row, ...running } : row)),
+            queued,
           ],
         },
-        event_programme_configs: { rows: [sheetRow(EVENT, { ...SHEET, ...sheet })] },
+        event_programme_configs: {
+          rows: [
+            // Another Event's sheet, seeded first: the sheet read must narrow.
+            sheetRow(OTHER_EVENT, { poolMatchDurationMinutes: 4, swissMatchDurationMinutes: 4 }),
+            sheetRow(EVENT, { ...SHEET, ...sheet }),
+          ],
+        },
       });
 
     it.each<[string, number]>([
-      ['pool', 6],
-      ['swiss', 7],
-      ['bracket', 8],
-      ['finals', 11],
-    ])('reads the sheet length for a %s bar', async (phase, minutes) => {
-      const { svc } = build(tablesWith({ competition_phase: phase }));
+      [POOL_PHASE, 6],
+      [SWISS_PHASE, 7],
+    ])('gives a bout of phase %s the sheet length for its kind', async (phaseId, minutes) => {
+      const { svc } = build(tablesWith({ phase_id: phaseId }));
 
       const out = await svc.getLiveBoard(req, EVENT);
 
-      expect(out.timing.block?.id).toBe('blk-here');
-      expect(out.timing.matchDurationMinutes).toBe(minutes);
+      expect(out.rows[0]!.currentMatch?.id).toBe('m1');
+      expect(out.rows[0]!.currentMatch?.plannedDurationMinutes).toBe(minutes);
     });
 
-    it("reads the bar's Tournament row before the Event's length", async () => {
+    it("reads the bout's Tournament row before the Event's length", async () => {
       const { svc } = build(
         tablesWith(
-          { competition_phase: 'finals' },
-          { tournaments: [{ tournamentId: TOURNAMENT, finalsMatchDurationMinutes: 9 }] },
+          {},
+          { tournaments: [{ tournamentId: TOURNAMENT, poolMatchDurationMinutes: 9 }] },
         ),
       );
 
       const out = await svc.getLiveBoard(req, EVENT);
 
-      expect(out.timing.matchDurationMinutes).toBe(9);
+      expect(out.rows[0]!.currentMatch?.plannedDurationMinutes).toBe(9);
     });
 
-    it("reads the Event's pool length while a break runs", async () => {
-      const { svc } = build(
-        tablesWith({ block_type: 'break', competition_id: null, competition_phase: null }),
-      );
+    it("takes the bout's own override over the sheet", async () => {
+      const { svc } = build(tablesWith({ planned_duration_override_minutes: 13 }));
 
       const out = await svc.getLiveBoard(req, EVENT);
 
-      expect(out.timing.block?.id).toBe('blk-here');
-      expect(out.timing.matchDurationMinutes).toBe(6);
+      expect(out.rows[0]!.currentMatch?.plannedDurationMinutes).toBe(13);
     });
 
-    it("asks for the bar's Tournament and phase", async () => {
-      // The seeded double answers whatever the projection names, so the two
-      // columns the length depends on are only proved by the string sent.
+    it("asks the bouts read for each bout's phase and override", async () => {
+      // The seeded double answers whatever the projection names, so the columns
+      // a length is resolved from are only proved by the string sent.
       const { svc, supabase } = build(tablesWith({}));
 
       await svc.getLiveBoard(req, EVENT);
 
-      expect(selectsFor(supabase.from, 'event_programme_blocks')).toEqual([
-        'id,label,start_time,end_time,competition_id,competition_phase,sort_order',
-      ]);
+      expect(selectsFor(supabase.from, 'matches')).toContain(
+        'id,lice_id,status,red_score,blue_score,match_number_label,scheduled_at,started_at,ended_at,pool_id,phase_id,planned_duration_override_minutes,bracket_slots(round),swiss_rounds(round_number),pools(name),phases(type,tournaments(name)),red:registrations!matches_red_registration_id_fkey(persons(given_name,family_name)),blue:registrations!matches_blue_registration_id_fkey(persons(given_name,family_name))',
+      );
     });
   });
 });

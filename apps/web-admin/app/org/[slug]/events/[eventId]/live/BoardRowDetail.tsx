@@ -22,7 +22,6 @@ type T = ReturnType<typeof useI18n>['t'];
 interface DetailProps {
   row: BoardRow;
   nowMs: number;
-  matchDurationMinutes: number;
   eventSlug: string | null;
   accounts: LiveBoardAccount[];
   onAssignScorer: (liceId: string, staffAccountId: string | null) => Promise<string[]>;
@@ -34,7 +33,6 @@ interface DetailProps {
 export function BoardRowDetail({
   row,
   nowMs,
-  matchDurationMinutes,
   eventSlug,
   accounts,
   onAssignScorer,
@@ -45,7 +43,7 @@ export function BoardRowDetail({
   const cm = row.currentMatch;
   return (
     <div className="mt-2 grid gap-4 rounded-md bg-surface-2 p-3 text-sm md:grid-cols-3">
-      <BoutSection row={row} nowMs={nowMs} matchDurationMinutes={matchDurationMinutes} t={t} />
+      <BoutSection row={row} nowMs={nowMs} t={t} />
       <RefereeSection row={row} t={t} />
       <section className="flex flex-col gap-2">
         <h3 className="text-xs uppercase text-muted">{t('organizer.live.detail.scorer')}</h3>
@@ -79,20 +77,10 @@ export function BoardRowDetail({
 }
 
 /** What is being fought, how far in, and what came before. */
-function BoutSection({
-  row,
-  nowMs,
-  matchDurationMinutes,
-  t,
-}: {
-  row: BoardRow;
-  nowMs: number;
-  matchDurationMinutes: number;
-  t: T;
-}) {
+function BoutSection({ row, nowMs, t }: { row: BoardRow; nowMs: number; t: T }) {
   const { locale } = useI18n();
   const cm = row.currentMatch;
-  const timing = timingReadout(row, nowMs, matchDurationMinutes, locale, t);
+  const timing = timingReadout(row, nowMs, locale, t);
   const context = cm
     ? [cm.tournamentName, cm.poolName ?? (cm.round ? `R${cm.round}` : null), cm.matchNumberLabel]
         .filter(Boolean)

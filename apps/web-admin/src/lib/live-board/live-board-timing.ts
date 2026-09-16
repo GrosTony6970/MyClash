@@ -1,4 +1,4 @@
-import type { BoardRow, LiveBoardTiming } from './types';
+import type { BoardMatch, BoardRow } from './types';
 
 /**
  * The timing lens: how long a bout has been running, how far behind schedule a
@@ -65,47 +65,39 @@ export function idleForSec(row: BoardRow, nowMs: number): number | null {
 }
 
 /**
- * Seconds a running bout has exceeded its planned length.
+ * Seconds a running bout has exceeded its own planned length.
  *
- * `matchDurationMinutes` is the planner sheet's length for the kind of bar
- * running now, else the Event's pool length, so this is a schedule signal, not
- * a rule about how long a fight may last.
+ * The length is the bout's (`plannedDurationMinutes`: the Event's sheet for its
+ * kind, or its own override), so this is a schedule signal, not a rule about
+ * how long a fight may last.
  */
-export function runningOverSec(
-  row: BoardRow,
-  nowMs: number,
-  matchDurationMinutes: number,
-): number | null {
-  const elapsed = elapsedSec(row, nowMs);
+export function runningOverSec(row: BoardRow, nowMs: number): number | null {
+  const cm = row.currentMatch;
+  if (!cm) return null;
+  const elapsed = secondsBetween(cm.startedAt, nowMs);
   if (elapsed === null) return null;
-  return Math.max(0, elapsed - matchDurationMinutes * 60);
+  return Math.max(0, elapsed - cm.plannedDurationMinutes * 60);
 }
 
 /**
  * When the event is likely to finish, in epoch ms.
  *
- * Deliberately crude: bouts remaining × planned bout length ÷ pistes running,
- * offset from now. It answers "are we going to overrun by 20 minutes or by two
- * hours", which is the only resolution an organizer acts on. Null when nothing
- * is running or nothing is left — a projection off zero pistes is a divide by
- * zero dressed up as information.
+ * Deliberately crude: the bouts remaining, in rounds of the bouts running now,
+ * each round as long as the MEAN planned length of the bouts running now,
+ * offset from now. The bouts still to come are not on the board, so the ones on
+ * the pistes stand in for them. It answers "are we going to overrun by 20
+ * minutes or by two hours", which is the only resolution an organizer acts on.
+ * Null when nothing is running or nothing is left — a projection off zero
+ * pistes is a divide by zero dressed up as information.
  */
 export function projectedFinishMs(
   nowMs: number,
   remaining: number,
-  activePistes: number,
-  matchDurationMinutes: number,
+  running: readonly BoardMatch[],
 ): number | null {
-  if (remaining <= 0 || activePistes <= 0) return null;
-  const roundsLeft = Math.ceil(remaining / activePistes);
-  return nowMs + roundsLeft * matchDurationMinutes * 60_000;
-}
-
-/** The board's clock, defaulted for an API that has not shipped timing yet. */
-export function fallbackTiming(nowMs: number): LiveBoardTiming {
-  return {
-    nowIso: new Date(nowMs).toISOString(),
-    matchDurationMinutes: 5,
-    block: null,
-  };
+  if (remaining <= 0 || running.length === 0) return null;
+  const roundsLeft = Math.ceil(remaining / running.length);
+  const meanMinutes =
+    running.reduce((sum, bout) => sum + bout.plannedDurationMinutes, 0) / running.length;
+  return nowMs + roundsLeft * meanMinutes * 60_000;
 }

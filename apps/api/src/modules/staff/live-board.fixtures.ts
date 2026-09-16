@@ -34,6 +34,8 @@ export function match(over: Partial<RawBoardMatch> = {}): RawBoardMatch {
     started_at: null,
     ended_at: null,
     pool_id: null,
+    phase_id: 'ph1',
+    planned_duration_override_minutes: null,
     bracket_slots: null,
     red: null,
     blue: null,
@@ -58,7 +60,22 @@ export function account(over: Partial<BoardAccountInput> = {}): BoardAccountInpu
   };
 }
 
-/** One piste, nothing on it. */
+/**
+ * Every bout planned at the same length, whatever its id. For the cases that
+ * are not about length: a real map would make each of them restate its bouts'
+ * ids. Only `get` is read (`plannedLengthOf`).
+ */
+class EveryBoutLasts extends Map<string, number> {
+  constructor(private readonly minutes: number) {
+    super();
+  }
+
+  override get(): number {
+    return this.minutes;
+  }
+}
+
+/** One piste, nothing on it. Any bout put on it is planned at five minutes. */
 export function base(): AssembleInput {
   return {
     lices: [lice()],
@@ -67,5 +84,6 @@ export function base(): AssembleInput {
     accounts: [],
     assignments: [],
     refereesByMatchId: new Map<string, ResolvedReferee[]>(),
+    plannedMinutesByMatchId: new EveryBoutLasts(5),
   };
 }

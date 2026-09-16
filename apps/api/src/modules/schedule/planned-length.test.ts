@@ -2,10 +2,11 @@ import { describe, expect, it } from 'vitest';
 import type { SuggestConfig } from '@myclash/types';
 import { PROGRAMME_CONFIG_DEFAULTS } from '../programme/dto/programme.dto';
 import {
-  barKind,
   finalRoundOf,
   isFinalsMatch,
   matchKind,
+  plannedEndIso,
+  plannedLengthOf,
   sheetLengthFor,
   type MatchKind,
 } from './planned-length';
@@ -119,13 +120,43 @@ describe('matchKind', () => {
   });
 });
 
-describe('barKind', () => {
-  it.each<[Parameters<typeof barKind>[0], MatchKind]>([
-    ['pool', 'pool'],
-    ['swiss', 'swiss'],
-    ['bracket', 'elimination'],
-    ['finals', 'finals'],
-  ])('a %s bar holds %s bouts', (phase, kind) => {
-    expect(barKind(phase)).toBe(kind);
+describe('plannedLengthOf', () => {
+  it('reads a resolved length', () => {
+    expect(plannedLengthOf(new Map([['m1', 12]]), 'm1')).toBe(12);
+  });
+
+  it('throws for a Match that was never resolved, rather than guessing', () => {
+    expect(() => plannedLengthOf(new Map([['m1', 12]]), 'm2')).toThrow(
+      'No planned length for match m2',
+    );
+  });
+});
+
+describe('plannedEndIso', () => {
+  it('ends at the latest END, not at the last start plus anything', () => {
+    // A long bout early in the run finishes after the short one that starts last.
+    expect(
+      plannedEndIso([
+        { scheduledAt: '2026-08-01T09:00:00.000Z', durationMinutes: 30 },
+        { scheduledAt: '2026-08-01T09:10:00.000Z', durationMinutes: 5 },
+      ]),
+    ).toBe('2026-08-01T09:30:00.000Z');
+  });
+
+  it("gives a one-bout run that bout's own length", () => {
+    expect(plannedEndIso([{ scheduledAt: '2026-08-01T09:00:00.000Z', durationMinutes: 12 }])).toBe(
+      '2026-08-01T09:12:00.000Z',
+    );
+  });
+
+  it('ignores a bout with no time, and has no end when none has one', () => {
+    expect(
+      plannedEndIso([
+        { scheduledAt: '2026-08-01T09:00:00.000Z', durationMinutes: 7 },
+        { scheduledAt: null, durationMinutes: 60 },
+      ]),
+    ).toBe('2026-08-01T09:07:00.000Z');
+    expect(plannedEndIso([{ scheduledAt: null, durationMinutes: 7 }])).toBeNull();
+    expect(plannedEndIso([])).toBeNull();
   });
 });

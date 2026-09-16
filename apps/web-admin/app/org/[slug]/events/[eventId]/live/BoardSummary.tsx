@@ -21,7 +21,6 @@ interface StatsProps {
   attention: number;
   progress: LiveBoardProgress | null;
   nowMs: number;
-  matchDurationMinutes: number;
   t: T;
 }
 
@@ -60,25 +59,18 @@ export function BoardSummary({ mode, onModeChange, stale, ...stats }: SummaryPro
 }
 
 /** The at-a-glance numbers: what is running, what is behind, what is left. */
-function SummaryStats({
-  rows,
-  stateOf,
-  attention,
-  progress,
-  nowMs,
-  matchDurationMinutes,
-  t,
-}: StatsProps) {
+function SummaryStats({ rows, stateOf, attention, progress, nowMs, t }: StatsProps) {
   const { locale } = useI18n();
   const states = rows.map(stateOf);
-  const running = rows.filter((r) => r.currentMatch?.startedAt).length;
+  const runningBouts = rows.flatMap((r) => (r.currentMatch?.startedAt ? [r.currentMatch] : []));
+  const running = runningBouts.length;
   const idle = states.filter((s) => s === 'idle' || s === 'idle_stalled').length;
   const behind = states.filter((s) => s === 'late' || s === 'idle_stalled').length;
 
   const remaining = progress ? Math.max(0, progress.total - progress.completed) : 0;
-  // Projected off pistes actually RUNNING, not off pistes that exist: an event
+  // Projected off bouts actually RUNNING, not off pistes that exist: an event
   // with ten pistes and two scorers finishes at the pace of two.
-  const finishMs = projectedFinishMs(nowMs, remaining, running, matchDurationMinutes);
+  const finishMs = projectedFinishMs(nowMs, remaining, runningBouts);
 
   return (
     <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted">

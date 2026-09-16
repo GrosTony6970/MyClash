@@ -14,10 +14,12 @@ import { MatchAlertRefresherService } from '../notifications/match-alert-refresh
 import { MatchPlacementService } from '../matches/match-placement.service';
 import { assertCanManageEvent, assertCanReadEvent } from '../../common/auth/event-authz';
 import { scheduleMatches } from '../schedule/match-scheduler';
+import { resolveMatchLengths, type MatchLengthInput } from '../schedule/match-lengths';
 import {
-  finalRoundOf,
+  finalRoundsByPhase,
   isFinalsMatch,
   matchKind,
+  plannedLengthOf,
   sheetLengthFor,
   type MatchKind,
 } from '../schedule/planned-length';
@@ -119,12 +121,19 @@ interface BracketMatchRow {
   bracket_position: number | null;
 }
 
-/** A Match as `sheetLengths` needs it: its phase, embedded, and its bracket slot. */
-interface SheetLengthRow {
+/** A Match as `resolveMatchLengths` needs it. */
+interface LengthRow {
   id: string;
   phase_id: string;
-  bracket_slot_id: string | null;
-  phases: { type: string; tournament_id: string };
+  planned_duration_override_minutes: number | null;
+}
+
+function lengthInput(row: LengthRow): MatchLengthInput {
+  return {
+    id: row.id,
+    phaseId: row.phase_id,
+    plannedDurationOverrideMinutes: row.planned_duration_override_minutes,
+  };
 }
 
 function computeNeededMin(
@@ -551,10 +560,10 @@ export class ProgrammeService {
       // (the highest round — gold + bronze). Shares loadBracketMatches with
       // fetchCompetitionMatches so the estimate and the grid agree on which
       // matches are finals.
-      const { rows: bracketRows, finalRound } = await this.loadBracketMatches(t.id);
+      const { rows: bracketRows, finalRoundByPhase } = await this.loadBracketMatches(t.id);
       const bracketMatchCount = bracketRows.length;
       const finalsMatchCount = bracketRows.filter((r) =>
-        isFinalsMatch(r.bracket_round, finalRound),
+        isFinalsMatch(r.bracket_round, finalRoundByPhase.get(r.phase_id) ?? null),
       ).length;
 
       const swissMatchCount = await this.estimateSwissMatchCount(
@@ -1624,24 +1633,25 @@ export class ProgrammeService {
       return { scheduled: [], imbalancePercent: 0, unscheduled: dto.matchIds };
     }
 
-    // Each bout is spaced at its own kind's sheet length, with the sheet's gap
-    // and rest (ADR-018).
+    // Each bout is spaced at its own planned length (`resolveMatchLengths`, below),
+    // with the sheet's gap and rest (ADR-018).
     const sheet = await readProgrammeSheet(this.supabase.service, eventId);
     const eventPhaseIds = await this.eventPhaseIds(eventId);
 
     const { data: matchRows, error: mErr } = await this.supabase.service
       .from('matches')
       .select(
-        'id, red_registration_id, blue_registration_id, pool_id, match_number_label, phase_id, bracket_slot_id, phases(type, tournament_id)',
+        'id, red_registration_id, blue_registration_id, pool_id, match_number_label, phase_id, bracket_slot_id, planned_duration_override_minutes',
       )
       .in('id', dto.matchIds);
     if (mErr) throw new BadRequestException(mErr.message);
     const rows = (matchRows ?? []) as unknown as Array<
-      SheetLengthRow & {
+      LengthRow & {
         red_registration_id: string;
         blue_registration_id: string;
         pool_id: string | null;
         match_number_label: string | null;
+        bracket_slot_id: string | null;
       }
     >;
     if (rows.length !== dto.matchIds.length || rows.some((r) => !eventPhaseIds.has(r.phase_id))) {
@@ -1669,25 +1679,30 @@ export class ProgrammeService {
 
     // Seed each lice's first-free time from its existing occupants (excluding
     // the group) so the re-fan appends instead of overlapping them. An occupant
-    // ends at its own length, read like the group's.
+    // ends at its own length, resolved with the group's in one call — the same
+    // lengths `MatchPlacementService` then judges the placement by.
     const groupIds = new Set(dto.matchIds);
     const { data: occRows } = await this.supabase.service
       .from('matches')
-      .select('id, lice_id, scheduled_at, phase_id, bracket_slot_id, phases(type, tournament_id)')
+      .select('id, lice_id, scheduled_at, phase_id, planned_duration_override_minutes')
       .in('lice_id', dto.liceIds);
     const occupants = (
       (occRows ?? []) as unknown as Array<
-        SheetLengthRow & { lice_id: string | null; scheduled_at: string | null }
+        LengthRow & { lice_id: string | null; scheduled_at: string | null }
       >
     ).filter(
-      (o): o is SheetLengthRow & { lice_id: string; scheduled_at: string } =>
+      (o): o is LengthRow & { lice_id: string; scheduled_at: string } =>
         !groupIds.has(o.id) && !!o.lice_id && !!o.scheduled_at,
     );
-    const { lengths, coords } = await this.sheetLengths(sheet, [...rows, ...occupants]);
+    const lengths = await resolveMatchLengths(
+      this.supabase.service,
+      eventId,
+      [...rows, ...occupants].map(lengthInput),
+    );
     const liceBusyUntil: Record<string, string> = {};
     for (const o of occupants) {
       const end = new Date(
-        new Date(o.scheduled_at).getTime() + lengths.get(o.id)! * 60_000,
+        new Date(o.scheduled_at).getTime() + plannedLengthOf(lengths, o.id) * 60_000,
       ).toISOString();
       if (!liceBusyUntil[o.lice_id] || liceBusyUntil[o.lice_id]! < end) {
         liceBusyUntil[o.lice_id] = end;
@@ -1695,6 +1710,7 @@ export class ProgrammeService {
     }
 
     const bracketSlotIds = rows.map((r) => r.bracket_slot_id).filter((id): id is string => !!id);
+    const coords = await this.loadBracketCoords(bracketSlotIds);
     const shape =
       dto.mode === 'bracket-branch'
         ? await this.loadBracketShape(bracketSlotIds)
@@ -1710,7 +1726,7 @@ export class ProgrammeService {
           id: r.id,
           redRegistrationId: r.red_registration_id,
           blueRegistrationId: r.blue_registration_id,
-          estimatedDurationMinutes: lengths.get(r.id)!,
+          estimatedDurationMinutes: plannedLengthOf(lengths, r.id),
           poolId: dto.mode === 'pool' ? r.pool_id : null,
           matchNumberLabel: r.match_number_label,
           bracketRound: c?.round ?? null,
@@ -2031,7 +2047,11 @@ export class ProgrammeService {
       const loaded = await this.loadBracketMatches(tournamentId);
       const rows = loaded.rows.map((r) => ({
         ...r,
-        kind: matchKind(r.phase_type, r.bracket_round, loaded.finalRound),
+        kind: matchKind(
+          r.phase_type,
+          r.bracket_round,
+          loaded.finalRoundByPhase.get(r.phase_id) ?? null,
+        ),
       }));
       if (phase === 'finals') return rows.filter((r) => r.kind === 'finals');
       // 'bracket' (elimination): exclude the final round ONLY when a sibling
@@ -2143,69 +2163,6 @@ export class ProgrammeService {
       }));
   }
 
-  /**
-   * Each Match's planned length, read from the sheet by its kind and its
-   * Tournament (ADR-018), and the bracket coordinates loaded on the way.
-   *
-   * A bracket Match's kind needs its bracket's final round, counted over the
-   * Matches that exist in that phase, never over its slots (`finalRoundOf`). So
-   * the rows' bracket phases are read whole, once, and every slot id goes
-   * through one `bracket_slots` read.
-   *
-   * The re-fan is the only caller, and it is the LAST one: every other reader
-   * takes `resolveMatchLengths` (`schedule/match-lengths.ts`) now. This is a
-   * second owner of the same question and it answers differently — it never
-   * reads `planned_duration_override_minutes`. Nothing writes a non-null
-   * override yet, so the two agree today; the moment one is written, the
-   * scheduler here would plan a run that `MatchPlacementService` then refuses.
-   * It goes when the re-fan moves to the helper.
-   */
-  private async sheetLengths(
-    sheet: SuggestConfig,
-    rows: readonly SheetLengthRow[],
-  ): Promise<{
-    lengths: Map<string, number>;
-    coords: Map<string, { round: number; position: number }>;
-  }> {
-    const bracketPhaseIds = [
-      ...new Set(
-        rows
-          .filter((r) => r.phases.type === 'single_elim' || r.phases.type === 'double_elim')
-          .map((r) => r.phase_id),
-      ),
-    ];
-    let phaseMatches: Array<{ phase_id: string; bracket_slot_id: string | null }> = [];
-    if (bracketPhaseIds.length > 0) {
-      const { data, error } = await this.supabase.service
-        .from('matches')
-        .select('phase_id, bracket_slot_id')
-        .in('phase_id', bracketPhaseIds);
-      if (error) throw new BadRequestException(error.message);
-      phaseMatches = (data ?? []) as typeof phaseMatches;
-    }
-    const coords = await this.loadBracketCoords(
-      [...rows, ...phaseMatches].map((r) => r.bracket_slot_id).filter((id): id is string => !!id),
-    );
-    const roundOf = (slotId: string | null): number | null =>
-      slotId ? (coords.get(slotId)?.round ?? null) : null;
-    const finalRoundByPhase = new Map(
-      bracketPhaseIds.map((phaseId) => [
-        phaseId,
-        finalRoundOf(
-          phaseMatches.filter((m) => m.phase_id === phaseId).map((m) => roundOf(m.bracket_slot_id)),
-        ),
-      ]),
-    );
-    const lengths = new Map(
-      rows.map((r) => {
-        const finalRound = finalRoundByPhase.get(r.phase_id) ?? null;
-        const kind = matchKind(r.phases.type, roundOf(r.bracket_slot_id), finalRound);
-        return [r.id, sheetLengthFor(kind, sheet, r.phases.tournament_id)];
-      }),
-    );
-    return { lengths, coords };
-  }
-
   /** Slot id → {round, position} for bracket matches. Empty input = no query. */
   private async loadBracketCoords(
     slotIds: string[],
@@ -2259,18 +2216,22 @@ export class ProgrammeService {
 
   /**
    * Load every non-pool (bracket) match for a tournament with its bracket
-   * round resolved, plus the tournament's `finalRound` = the highest round
-   * present. A match is a "finals" match (gold final + bronze, or the
-   * double-elim grand final / reset) iff `isFinalsMatch(bracket_round, finalRound)`;
-   * everything else — including matches with no resolvable round — is an
-   * "elimination" match. Single source of truth so the block-time estimate
-   * (`buildSuggestion`) and the block→match routing (`fetchCompetitionMatches`)
-   * classify finals identically and never double-schedule. `finalRound` is
-   * null when no rounds resolve, which disables the finals split entirely.
+   * round resolved, plus each bracket phase's final round = the highest round
+   * among that phase's Matches (`finalRoundsByPhase`, the rule
+   * `resolveMatchLengths` uses). Per phase: a Tournament may hold two brackets,
+   * numbered independently, and one number over both called the smaller
+   * bracket's final an elimination bout. A match is a "finals" match (gold
+   * final + bronze, or the double-elim grand final / reset) iff
+   * `isFinalsMatch(bracket_round, its phase's final round)`; everything else —
+   * including matches with no resolvable round — is an "elimination" match.
+   * Single source of truth so the block-time estimate (`buildSuggestion`) and
+   * the block→match routing (`fetchCompetitionMatches`) classify finals
+   * identically and never double-schedule. A phase whose rounds do not resolve
+   * maps to null, which disables the finals split for it.
    */
   private async loadBracketMatches(tournamentId: string): Promise<{
     rows: BracketMatchRow[];
-    finalRound: number | null;
+    finalRoundByPhase: Map<string, number | null>;
   }> {
     const { data: phasesData } = await this.supabase.service
       .from('phases')
@@ -2285,7 +2246,7 @@ export class ProgrammeService {
       (p) => p.type === 'single_elim' || p.type === 'double_elim',
     );
     const bracketPhaseIds = bracketPhases.map((p) => p.id);
-    if (bracketPhaseIds.length === 0) return { rows: [], finalRound: null };
+    if (bracketPhaseIds.length === 0) return { rows: [], finalRoundByPhase: new Map() };
     const phaseTypeById = new Map(bracketPhases.map((p) => [p.id, p.type]));
 
     const { data: matchesData } = await this.supabase.service
@@ -2324,7 +2285,12 @@ export class ProgrammeService {
         bracket_position: c?.position ?? null,
       };
     });
-    return { rows, finalRound: finalRoundOf(rows.map((r) => r.bracket_round)) };
+    return {
+      rows,
+      finalRoundByPhase: finalRoundsByPhase(
+        rows.map((r) => ({ phase_id: r.phase_id, round: r.bracket_round })),
+      ),
+    };
   }
 
   private validateBlocks(blocks: SaveProgrammeDto['blocks']): void {

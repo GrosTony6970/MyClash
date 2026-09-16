@@ -61,8 +61,6 @@ export interface HealthInputs {
   row: BoardRow;
   /** From the shared seconds clock, so a simulated event reads correctly. */
   nowMs: number;
-  /** The programme block's planned bout length. */
-  matchDurationMinutes: number;
   thresholds?: Thresholds;
 }
 
@@ -81,7 +79,6 @@ export interface HealthInputs {
 export function deriveHealthState({
   row,
   nowMs,
-  matchDurationMinutes,
   thresholds = DEFAULT_THRESHOLDS,
 }: HealthInputs): HealthState {
   if (row.attention) return 'attention';
@@ -97,7 +94,7 @@ export function deriveHealthState({
     return 'idle';
   }
 
-  if (isLate(row, nowMs, matchDurationMinutes, thresholds)) return 'late';
+  if (isLate(row, nowMs, thresholds)) return 'late';
   if (row.health === null) return 'unknown';
 
   const h = row.health;
@@ -106,16 +103,11 @@ export function deriveHealthState({
   return 'synced';
 }
 
-/** Overdue to start, or running well past its planned slot. */
-function isLate(
-  row: BoardRow,
-  nowMs: number,
-  matchDurationMinutes: number,
-  thresholds: Thresholds,
-): boolean {
+/** Overdue to start, or running well past its own planned length. */
+function isLate(row: BoardRow, nowMs: number, thresholds: Thresholds): boolean {
   const due = dueForSec(row, nowMs);
   if (due !== null && due > thresholds.lateStartSec) return true;
-  const over = runningOverSec(row, nowMs, matchDurationMinutes);
+  const over = runningOverSec(row, nowMs);
   return over !== null && over > thresholds.overrunGraceSec;
 }
 

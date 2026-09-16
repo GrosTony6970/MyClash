@@ -26,6 +26,8 @@ import { NotificationEventsService } from '../notifications/event-handlers/notif
 import { LeaguesService } from '../leagues/leagues.service';
 import { ClubsService } from '../clubs/clubs.service';
 import { buildRoundCode } from '../matches/round-code.helper';
+import { resolveMatchLengths } from '../schedule/match-lengths';
+import { plannedEndIso, plannedLengthOf } from '../schedule/planned-length';
 import { derivePoolSchedule, type PoolMatchTimeRow } from './pool-schedule';
 import { sideColorsFromScoringConfig } from './side-colors';
 // A zod schema, not a provider — a plain file import, so no module edge to the
@@ -1745,20 +1747,52 @@ export class EventsService {
     const poolFightsCompleted = new Map<string, number>();
     const bracketFightsTotal = new Map<string, number>();
     const bracketFightsCompleted = new Map<string, number>();
-    // Earliest / latest scheduled match per tournament → drives the schedule
-    // window on the public event-home "Schedule" agenda.
+    // Earliest start and planned end per tournament → drives the schedule
+    // window on the public event-home "Schedule" agenda. The end is when the
+    // last placed bout is planned to finish, each at its planned length
+    // (ADR-017, ADR-018); it was the latest START, so the agenda closed a
+    // Tournament as its last bout began.
     const scheduledStartByTournament = new Map<string, string>();
-    const scheduledEndByTournament = new Map<string, string>();
+    const placedBoutsByTournament = new Map<
+      string,
+      Array<{ scheduledAt: string; durationMinutes: number }>
+    >();
     if (allPhaseIds.length > 0) {
       const { data: matchRows } = await this.supabase.service
         .from('matches')
-        .select('phase_id, status, scheduled_at')
+        .select('id, phase_id, planned_duration_override_minutes, status, scheduled_at')
         .in('phase_id', allPhaseIds);
-      for (const row of (matchRows ?? []) as Array<{
+      const rows = (matchRows ?? []) as Array<{
+        id: string;
         phase_id: string;
+        planned_duration_override_minutes: number | null;
         status: string | null;
         scheduled_at: string | null;
-      }>) {
+      }>;
+      // One resolution for the whole list, placed bouts only: an unplaced one
+      // has no window to end. The list feeds the public event home and most
+      // organiser pages, and only the agenda's end time needs a length. So when
+      // the lengths cannot be read the list still ships, every end unknown
+      // (null, never a guessed length), and the reason is logged.
+      const lengths = await resolveMatchLengths(
+        this.supabase.service,
+        eventId,
+        rows
+          .filter((row) => row.scheduled_at)
+          .map((row) => ({
+            id: row.id,
+            phaseId: row.phase_id,
+            plannedDurationOverrideMinutes: row.planned_duration_override_minutes,
+          })),
+      ).catch((err: unknown) => {
+        this.logger.warn(
+          `Planned lengths unreadable for event ${eventId}; every Tournament end is unknown: ${
+            err instanceof Error ? err.message : String(err)
+          }`,
+        );
+        return null;
+      });
+      for (const row of rows) {
         const poolTournamentId = poolPhaseIdToTournament.get(row.phase_id);
         const done = row.status === 'completed';
         const matchTournamentId = phaseIdToTournament.get(row.phase_id);
@@ -1767,9 +1801,13 @@ export class EventsService {
           if (!curStart || row.scheduled_at < curStart) {
             scheduledStartByTournament.set(matchTournamentId, row.scheduled_at);
           }
-          const curEnd = scheduledEndByTournament.get(matchTournamentId);
-          if (!curEnd || row.scheduled_at > curEnd) {
-            scheduledEndByTournament.set(matchTournamentId, row.scheduled_at);
+          if (lengths) {
+            const placed = placedBoutsByTournament.get(matchTournamentId) ?? [];
+            placed.push({
+              scheduledAt: row.scheduled_at,
+              durationMinutes: plannedLengthOf(lengths, row.id),
+            });
+            placedBoutsByTournament.set(matchTournamentId, placed);
           }
         }
         if (poolTournamentId) {
@@ -1873,7 +1911,7 @@ export class EventsService {
         bracketFightsCompleted: bracketFightsCompleted.get(id) ?? 0,
         refereeCount: refereeSets.get(id)?.size ?? 0,
         scheduledStart: scheduledStartByTournament.get(id) ?? null,
-        scheduledEnd: scheduledEndByTournament.get(id) ?? null,
+        scheduledEnd: plannedEndIso(placedBoutsByTournament.get(id) ?? []),
         phaseVenues: phaseVenuesByTournament.get(id) ?? emptyPhaseVenues(),
       };
     });

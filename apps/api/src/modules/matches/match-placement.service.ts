@@ -8,6 +8,7 @@ import { SupabaseService } from '../supabase/supabase.service';
 import { MatchAlertRefresherService } from '../notifications/match-alert-refresher.service';
 import { assertLicesBelongToEvent } from '../lices/lices-in-event';
 import { resolveMatchLengths } from '../schedule/match-lengths';
+import { plannedLengthOf } from '../schedule/planned-length';
 import { findLiceCollisions, liceCollisionMessage } from './lice-occupancy';
 
 /**
@@ -101,23 +102,6 @@ function lengthInputFor(placement: MatchPlacement, stored: Map<string, StoredMat
     id,
     phaseId: placement.phaseId ?? (stored.get(id)?.phase_id as string),
     plannedDurationOverrideMinutes: stored.get(id)?.planned_duration_override_minutes ?? null,
-  };
-}
-
-/**
- * Reading a resolved length by id, named rather than cast.
- *
- * Without a length `matchWindowMs` throws a RangeError, which reaches the
- * organiser as a scrubbed 500 saying nothing — the same ending the
- * unreadable-time check exists to avoid.
- */
-function lengthReader(lengths: Map<string, number>): (id: string) => number {
-  return (id) => {
-    const minutes = lengths.get(id);
-    if (minutes === undefined) {
-      throw new BadRequestException(`No planned length resolved for match ${id}`);
-    }
-    return minutes;
   };
 }
 
@@ -227,7 +211,6 @@ export class MatchPlacementService {
       })),
     ]);
 
-    const lengthOf = lengthReader(lengths);
     const collisions = findLiceCollisions(
       occupying.map((placement) => {
         const id = placement.matchId ?? PENDING_ID;
@@ -235,14 +218,14 @@ export class MatchPlacementService {
           matchId: id,
           liceId: placement.liceId,
           scheduledAt: placement.scheduledAt,
-          durationMinutes: lengthOf(id),
+          durationMinutes: plannedLengthOf(lengths, id),
         };
       }),
       occupants.map((row) => ({
         matchId: row.id,
         liceId: row.lice_id,
         scheduledAt: row.scheduled_at,
-        durationMinutes: lengthOf(row.id),
+        durationMinutes: plannedLengthOf(lengths, row.id),
       })),
     );
     if (collisions.length > 0) throw new ConflictException(liceCollisionMessage(collisions));

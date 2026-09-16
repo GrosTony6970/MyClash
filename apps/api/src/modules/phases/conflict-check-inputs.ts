@@ -3,6 +3,7 @@ import type {
   ConflictScheduledMatch,
   RegistrationPersonMap,
 } from '@myclash/rulesets/scheduling';
+import { plannedLengthOf } from '../schedule/planned-length';
 
 /**
  * Rows to `detectFighterRefereeConflicts` inputs, for the hard-rule-8 check.
@@ -32,11 +33,23 @@ import type {
  * the sibling note in
  * `modules/referees/referee-match-assignments.ts`.
  *
+ * ── EACH BOUT AT ITS OWN LENGTH ──────────────────────────────────────────────
+ *
+ * Both sides of an overlap are measured with the Match's planned length, which
+ * the controller resolves from the Event's sheet (`resolveMatchLengths`,
+ * ADR-018). Every bout used to count as five minutes, so a referee whose own
+ * twelve-minute final started seven minutes before the bout they referee was
+ * reported as free.
+ *
+ * A Match with no length in the map THROWS (`plannedLengthOf`). Guessing one is
+ * how the five got here, and a throw stops the check instead of reporting
+ * someone free.
+ *
  * Pure: no Supabase, no Nest.
  */
 
-/** Every bout is measured as one slot; the schema has no per-match duration. */
-const ASSUMED_MATCH_MINUTES = 5;
+/** Planned minutes per Match id, as `resolveMatchLengths` returns them. */
+export type MatchLengths = ReadonlyMap<string, number>;
 
 interface PersonEmbed {
   id?: string | null;
@@ -47,6 +60,8 @@ interface PersonEmbed {
 
 export interface RawConflictMatchRow {
   id: string;
+  phase_id: string;
+  planned_duration_override_minutes: number | null;
   match_number_label?: string | null;
   red_registration_id?: string | null;
   blue_registration_id?: string | null;
@@ -76,19 +91,23 @@ function fullName(person: PersonEmbed | null): string {
   return `${person.given_name ?? ''} ${person.family_name ?? ''}`.trim();
 }
 
-export function toConflictMatches(rows: readonly RawConflictMatchRow[]): ConflictScheduledMatch[] {
+export function toConflictMatches(
+  rows: readonly RawConflictMatchRow[],
+  lengths: MatchLengths,
+): ConflictScheduledMatch[] {
   return rows.map((row) => ({
     id: row.id,
     label: row.match_number_label ?? row.id,
     redRegistrationId: row.red_registration_id ?? '',
     blueRegistrationId: row.blue_registration_id ?? '',
     scheduledAt: row.scheduled_at ?? null,
-    durationMinutes: ASSUMED_MATCH_MINUTES,
+    durationMinutes: plannedLengthOf(lengths, row.id),
   }));
 }
 
 export function toConflictAssignments(
   rows: readonly RawConflictAssignmentRow[],
+  lengths: MatchLengths,
 ): ConflictRefereeAssignment[] {
   const assignments: ConflictRefereeAssignment[] = [];
   for (const row of rows) {
@@ -108,7 +127,7 @@ export function toConflictAssignments(
       personName: fullName(person),
       role: row.role,
       scheduledAt: match?.scheduled_at ?? null,
-      durationMinutes: ASSUMED_MATCH_MINUTES,
+      durationMinutes: plannedLengthOf(lengths, matchId),
     });
   }
   return assignments;

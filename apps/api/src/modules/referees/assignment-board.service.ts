@@ -15,7 +15,7 @@ import {
 } from '@myclash/rulesets/scheduling';
 import { DEFAULT_EVENT_TIMEZONE, dayIndexInZone } from '@myclash/time';
 import { priorAssignmentsFromRows } from './prior-assignments';
-import { runEndIso } from '../schedule/run-end';
+import { resolveMatchLengths } from '../schedule/match-lengths';
 import {
   detectConcurrencyShortage,
   detectRefereeConflicts,
@@ -36,6 +36,7 @@ import {
   type SwissUnitRound,
 } from './swiss-board-units';
 import { buildFightersByPool } from './fighter-pool-membership';
+import { finishBoardUnits, lengthInputsOf, type DraftBoardUnit } from './board-unit-ends';
 
 /**
  * The three legacy skill IDs. R3 made the engine accept any skill_id, so
@@ -140,6 +141,8 @@ export interface AssignmentBoardPool {
   matches: Array<{
     id: string;
     scheduledAt: string | null;
+    /** The bout's planned length from the Event's sheet or its own override (ADR-018). */
+    durationMinutes: number;
     liceId: string | null;
     redRegistrationId: string | null;
     blueRegistrationId: string | null;
@@ -257,7 +260,7 @@ function toSwissBoardPool(
   unit: SwissBoardUnit,
   tournament: TournamentRow | undefined,
   members: AssignmentBoardPool['members'],
-): AssignmentBoardPool {
+): DraftBoardUnit {
   return {
     id: unit.key,
     // `LSW-S3` — the unit is the whole round on this piste, so it carries no
@@ -275,7 +278,6 @@ function toSwissBoardPool(
     tournamentName: tournament?.name ?? '',
     liceId: unit.liceId,
     scheduledStart: unit.scheduledStart,
-    scheduledEnd: unit.scheduledEnd,
     kind: 'swiss',
     matchIds: unit.matches.map((m) => m.id),
     swissRound: unit.roundNumber,
@@ -284,6 +286,8 @@ function toSwissBoardPool(
     matches: unit.matches.map((m) => ({
       id: m.id,
       scheduledAt: m.scheduledAt,
+      phaseId: m.phaseId,
+      plannedDurationOverrideMinutes: m.plannedDurationOverrideMinutes,
       liceId: m.liceId,
       redRegistrationId: m.redRegistrationId,
       blueRegistrationId: m.blueRegistrationId,
@@ -381,6 +385,8 @@ interface PoolMemberRow {
 
 interface MatchRow {
   id: string;
+  phase_id: string;
+  planned_duration_override_minutes: number | null;
   scheduled_at: string | null;
   lice_id: string | null;
   red_registration_id: string | null;
@@ -1002,7 +1008,13 @@ export class AssignmentBoardService {
     // Swiss phases contribute one unit per (round × piste) — several bouts per
     // unit, unlike bracket's one.
     const swissPools = await this.loadSwissRoundsAsPools(tournamentIds, tournamentById);
-    const allPools = [...pools, ...swissPools, ...bracketPools];
+    // Every bout's planned length in ONE resolution for the whole board
+    // (ADR-018), then each unit's end from its bouts (`board-unit-ends.ts`).
+    const drafts = [...pools, ...swissPools, ...bracketPools];
+    const allPools = finishBoardUnits(
+      drafts,
+      await resolveMatchLengths(this.supabase.service, eventId, lengthInputsOf(drafts)),
+    );
 
     // Fighter source-of-truth: pool_members. listRegistrations above is
     // status-filtered ('registered'|'checked_in'), which silently drops
@@ -1053,7 +1065,7 @@ export class AssignmentBoardService {
   private async loadBracketAsPools(
     tournamentIds: string[],
     tournamentById: Map<string, TournamentRow>,
-  ): Promise<AssignmentBoardPool[]> {
+  ): Promise<DraftBoardUnit[]> {
     if (tournamentIds.length === 0) return [];
     const { data: bracketPhases, error: phErr } = await this.supabase.service
       .from('phases')
@@ -1072,7 +1084,7 @@ export class AssignmentBoardService {
     const { data: matches, error: mErr } = await this.supabase.service
       .from('matches')
       .select(
-        'id, phase_id, scheduled_at, lice_id, red_registration_id, blue_registration_id, bracket_slot_id',
+        'id, phase_id, planned_duration_override_minutes, scheduled_at, lice_id, red_registration_id, blue_registration_id, bracket_slot_id',
       )
       .in(
         'phase_id',
@@ -1083,6 +1095,7 @@ export class AssignmentBoardService {
     const matchRows = (matches ?? []) as Array<{
       id: string;
       phase_id: string;
+      planned_duration_override_minutes: number | null;
       scheduled_at: string | null;
       lice_id: string | null;
       red_registration_id: string | null;
@@ -1128,7 +1141,6 @@ export class AssignmentBoardService {
       const info = m.bracket_slot_id ? (slotInfo.get(m.bracket_slot_id) ?? null) : null;
       const maxRound = maxRoundByPhase.get(m.phase_id) ?? 0;
       const kind = AssignmentBoardService.classifyBracketMatchKind(info, maxRound);
-      const scheduledEnd = m.scheduled_at ? runEndIso([m.scheduled_at]) : null;
 
       return {
         id: `match-${m.id}`,
@@ -1150,7 +1162,6 @@ export class AssignmentBoardService {
         tournamentName: tournament?.name ?? '',
         liceId: m.lice_id,
         scheduledStart: m.scheduled_at,
-        scheduledEnd,
         kind,
         matchIds: [m.id],
         ...(info
@@ -1165,6 +1176,8 @@ export class AssignmentBoardService {
           {
             id: m.id,
             scheduledAt: m.scheduled_at,
+            phaseId: m.phase_id,
+            plannedDurationOverrideMinutes: m.planned_duration_override_minutes,
             liceId: m.lice_id,
             redRegistrationId: m.red_registration_id,
             blueRegistrationId: m.blue_registration_id,
@@ -1190,7 +1203,7 @@ export class AssignmentBoardService {
   private async loadSwissRoundsAsPools(
     tournamentIds: string[],
     tournamentById: Map<string, TournamentRow>,
-  ): Promise<AssignmentBoardPool[]> {
+  ): Promise<DraftBoardUnit[]> {
     const loaded = await this.loadSwissPhaseData(tournamentIds);
     if (!loaded) return [];
     const { tournamentIdByPhase, rounds, matches } = loaded;
@@ -1266,13 +1279,15 @@ export class AssignmentBoardService {
     const { data, error } = await this.supabase.service
       .from('matches')
       .select(
-        'id, swiss_round_id, scheduled_at, lice_id, red_registration_id, blue_registration_id',
+        'id, phase_id, planned_duration_override_minutes, swiss_round_id, scheduled_at, lice_id, red_registration_id, blue_registration_id',
       )
       .in('swiss_round_id', roundIds);
     if (error) throw new BadRequestException(error.message);
     return (
       (data ?? []) as Array<{
         id: string;
+        phase_id: string;
+        planned_duration_override_minutes: number | null;
         swiss_round_id: string | null;
         scheduled_at: string | null;
         lice_id: string | null;
@@ -1283,6 +1298,8 @@ export class AssignmentBoardService {
       .filter((m): m is typeof m & { swiss_round_id: string } => m.swiss_round_id !== null)
       .map((m) => ({
         id: m.id,
+        phaseId: m.phase_id,
+        plannedDurationOverrideMinutes: m.planned_duration_override_minutes,
         swissRoundId: m.swiss_round_id,
         liceId: m.lice_id,
         scheduledAt: m.scheduled_at,
@@ -1368,12 +1385,12 @@ export class AssignmentBoardService {
     phaseIds: string[],
     phaseToTournament: Map<string, string>,
     tournamentById: Map<string, TournamentRow>,
-  ): Promise<AssignmentBoardPool[]> {
+  ): Promise<DraftBoardUnit[]> {
     if (phaseIds.length === 0) return [];
     const { data, error } = await this.supabase.service
       .from('pools')
       .select(
-        'id, phase_id, name, sort_order, pool_members(registration_id, registrations(id, person_id, persons(id, global_person_id, given_name, family_name, club_id, clubs(name)))), matches(id, scheduled_at, lice_id, red_registration_id, blue_registration_id)',
+        'id, phase_id, name, sort_order, pool_members(registration_id, registrations(id, person_id, persons(id, global_person_id, given_name, family_name, club_id, clubs(name)))), matches(id, phase_id, planned_duration_override_minutes, scheduled_at, lice_id, red_registration_id, blue_registration_id)',
       )
       .in('phase_id', phaseIds)
       .order('sort_order', { ascending: true });
@@ -1387,9 +1404,6 @@ export class AssignmentBoardService {
         .sort();
       const phaseTournamentId = phaseToTournament.get(pool.phase_id);
       const tournament = phaseTournamentId ? tournamentById.get(phaseTournamentId) : undefined;
-      // End = last match start + inferred per-match interval, matching the
-      // schedule grid (not a hardcoded +5 min, which mismatched the grid).
-      const scheduledEnd = runEndIso(scheduledTimes);
       const liceId = matches.find((m) => m.lice_id)?.lice_id ?? null;
 
       return {
@@ -1399,7 +1413,6 @@ export class AssignmentBoardService {
         tournamentName: tournament?.name ?? '',
         liceId,
         scheduledStart: scheduledTimes[0] ?? null,
-        scheduledEnd,
         members: (pool.pool_members ?? []).map((member) => {
           const registration = this.firstRelation(member.registrations);
           const person = this.firstRelation(registration?.persons);
@@ -1422,6 +1435,8 @@ export class AssignmentBoardService {
         matches: matches.map((match) => ({
           id: match.id,
           scheduledAt: match.scheduled_at,
+          phaseId: match.phase_id,
+          plannedDurationOverrideMinutes: match.planned_duration_override_minutes,
           liceId: match.lice_id,
           redRegistrationId: match.red_registration_id,
           blueRegistrationId: match.blue_registration_id,
@@ -1623,7 +1638,7 @@ export class AssignmentBoardService {
         matches: pool.matches.map((match) => ({
           id: match.id,
           scheduledAt: match.scheduledAt,
-          durationMinutes: 5,
+          durationMinutes: match.durationMinutes,
           redRegistrationId: match.redRegistrationId ?? '',
           blueRegistrationId: match.blueRegistrationId ?? '',
         })),

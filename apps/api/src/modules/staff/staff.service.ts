@@ -12,7 +12,6 @@ import { promisify } from 'node:util';
 import { buildRoundCode, bracketCodeConfig } from '../matches/round-code.helper';
 import { fetchRefereeAssignmentIndex } from '../matches/referee-assignment-index';
 import { resolveMatchReferees } from '../matches/resolve-match-referees';
-import type { ResolvedReferee } from '../matches/resolve-match-referees';
 import {
   LICE_MATCH_SELECT,
   LICE_MATCH_STATUSES,
@@ -32,17 +31,17 @@ import { SupabaseService } from '../supabase/supabase.service';
 import { StaffJwtService } from './staff-jwt.service';
 import {
   assembleBoardRows,
+  boardLengthInput,
   buildBoardAccounts,
-  buildBoardTiming,
   resolveBoardReferees,
+  type AssembleInput,
   type BoardAccountInput,
   type RawBoardLice,
   type RawBoardMatch,
   type RawCompletedMatch,
 } from './live-board';
-import type { LiveBoardPayload, LiveBoardProgress, LiveBoardTiming } from './live-board-payload';
-import { dayIndexFor } from '../schedule/select-programme-block';
-import { readProgrammeSheet } from '../programme/programme-sheet';
+import type { LiveBoardPayload, LiveBoardProgress } from './live-board-payload';
+import { resolveMatchLengths } from '../schedule/match-lengths';
 import { normalizeTournamentLockConfig } from '../events/tournament-config';
 import type {
   CreateStaffAccountDto,
@@ -599,7 +598,6 @@ export class StaffService {
     const event = await this.getEventById(eventId);
     await this.orgs.assertOrgRole(event.organization_id, userId, 'scorekeeper');
 
-    const now = new Date();
     const { data: lices, error: liceErr } = await this.supabase.service
       .from('lices')
       // Inline literal, not a constant: the db-schema-conformance sweep only
@@ -613,7 +611,7 @@ export class StaffService {
     const liceRows = (lices ?? []) as unknown as RawBoardLice[];
     const liceIds = liceRows.map((l) => l.id);
 
-    const input = await this.loadLiveBoardInputs(eventId, event.start_date ?? null, liceIds, now);
+    const input = await this.loadLiveBoardInputs(eventId, liceIds);
 
     const rows = assembleBoardRows({
       lices: liceRows,
@@ -622,11 +620,11 @@ export class StaffService {
       accounts: input.accounts,
       assignments: input.assignments,
       refereesByMatchId: input.refereesByMatchId,
+      plannedMinutesByMatchId: input.plannedMinutesByMatchId,
     });
 
     return {
       rows,
-      timing: input.timing,
       progress: input.progress,
       accounts: buildBoardAccounts(input.accounts, input.assignments),
       eventSlug: event.slug,
@@ -634,37 +632,27 @@ export class StaffService {
   }
 
   /**
-   * Everything the board needs beyond the lices, in ONE round of parallel
-   * queries.
+   * Everything the board needs beyond the lices: one round of parallel queries,
+   * then the bouts' planned lengths.
    *
    * The lices have to be awaited first (their ids scope five of these), but
-   * nothing below depends on anything else below. That turns the old four
-   * serial hops into two — more queries, less wall clock.
+   * nothing in the parallel round depends on anything else in it. The lengths
+   * come last because they are resolved for the bouts that round returns: the
+   * helper's own reads (the sheet, the phases, a bracket's rounds) run after it.
    */
   private async loadLiveBoardInputs(
     eventId: string,
-    startDate: string | null,
     liceIds: string[],
-    now: Date,
-  ): Promise<{
-    matches: RawBoardMatch[];
-    recentCompleted: RawCompletedMatch[];
-    accounts: BoardAccountInput[];
-    assignments: Array<{ staff_account_id: string; lice_id: string }>;
-    refereesByMatchId: Map<string, ResolvedReferee[]>;
-    timing: LiveBoardTiming;
-    progress: LiveBoardProgress;
-  }> {
+  ): Promise<Omit<AssembleInput, 'lices'> & { progress: LiveBoardProgress }> {
     const db = this.supabase.service;
 
-    const [matchesRes, completedRes, accountsRes, assignments, refereeRows, plan, progress] =
+    const [matchesRes, completedRes, accountsRes, assignments, refereeRows, progress] =
       await Promise.all([
         this.queryBoardMatches(liceIds),
         this.queryCompletedTail(liceIds),
         this.queryBoardAccounts(eventId),
         this.listAssignmentsForEvent(eventId),
         fetchRefereeAssignmentIndex(db, eventId),
-        this.loadTimingInputs(eventId, dayIndexFor(startDate, now.getTime())),
         this.countBoutProgress(eventId),
       ]);
 
@@ -683,7 +671,12 @@ export class StaffService {
         lice_id: a.lice_id,
       })),
       refereesByMatchId: resolveBoardReferees(matches, liceIds, refereeRows),
-      timing: buildBoardTiming(plan.blocks, now, plan.sheet),
+      // Once for the whole board (ADR-018), after the bouts it measures.
+      plannedMinutesByMatchId: await resolveMatchLengths(
+        db,
+        eventId,
+        matches.map(boardLengthInput),
+      ),
       progress,
     };
   }
@@ -698,25 +691,6 @@ export class StaffService {
       .eq('event_id', eventId);
   }
 
-  /** The day's bars and the Event's sheet: what the board's bout length is read from. */
-  private async loadTimingInputs(eventId: string, dayIndex: number) {
-    const [blocksRes, sheet] = await Promise.all([
-      this.queryProgrammeBlocks(eventId, dayIndex),
-      readProgrammeSheet(this.supabase.service, eventId),
-    ]);
-    return { blocks: blocksRes.data as Array<Record<string, unknown>> | null, sheet };
-  }
-
-  /** The programme for the day now running, in sort order. */
-  private queryProgrammeBlocks(eventId: string, dayIndex: number) {
-    return this.supabase.service
-      .from('event_programme_blocks')
-      .select('id,label,start_time,end_time,competition_id,competition_phase,sort_order')
-      .eq('event_id', eventId)
-      .eq('day_index', dayIndex)
-      .order('sort_order', { ascending: true });
-  }
-
   /** The bouts occupying or queued on each piste. */
   private queryBoardMatches(liceIds: string[]) {
     if (liceIds.length === 0) return null;
@@ -727,7 +701,7 @@ export class StaffService {
         // the embed is the only route to a pool name here.
         // `phases(type,tournaments(name))` mirrors live-state.service.ts.
         .select(
-          'id,lice_id,status,red_score,blue_score,match_number_label,scheduled_at,started_at,ended_at,pool_id,bracket_slots(round),swiss_rounds(round_number),pools(name),phases(type,tournaments(name)),red:registrations!matches_red_registration_id_fkey(persons(given_name,family_name)),blue:registrations!matches_blue_registration_id_fkey(persons(given_name,family_name))',
+          'id,lice_id,status,red_score,blue_score,match_number_label,scheduled_at,started_at,ended_at,pool_id,phase_id,planned_duration_override_minutes,bracket_slots(round),swiss_rounds(round_number),pools(name),phases(type,tournaments(name)),red:registrations!matches_red_registration_id_fkey(persons(given_name,family_name)),blue:registrations!matches_blue_registration_id_fkey(persons(given_name,family_name))',
         )
         .in('lice_id', liceIds)
         .in('status', ['running', 'paused', 'scheduled'])

@@ -1,8 +1,19 @@
 import { BadRequestException, ConflictException } from '@nestjs/common';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { selectsFor } from '../../common/testing/supabase-chain';
+import { resolveMatchLengths } from '../schedule/match-lengths';
 import { AssignmentBoardService } from './assignment-board.service';
 import { HARD_CODED_DEFAULT_SLOTS } from './staffing.service';
+
+// The length helper is a plain module with reads of its own; its own test proves
+// the resolution. Mocked here so the positional `from()` queue below stays the
+// board's reads only. Every bout is five minutes unless a test says otherwise.
+vi.mock('../schedule/match-lengths', () => ({
+  resolveMatchLengths: vi.fn((_db: unknown, _eventId: string, inputs: Array<{ id: string }>) =>
+    Promise.resolve(new Map(inputs.map((input) => [input.id, 5]))),
+  ),
+}));
+const resolveMatchLengthsMock = vi.mocked(resolveMatchLengths);
 
 const fromMock = vi.fn();
 const mockSupabase = { service: { from: fromMock } };
@@ -130,6 +141,8 @@ function queueCandidateReads(refereeDays: unknown[] = []) {
  * the existing cases.
  */
 interface BoardReadOptions {
+  /** The Pool bout's own stored length, when a test needs one. */
+  matchOverride?: number;
   /** The `events` row. Carries the timezone the day index is measured on. */
   event?: { start_date: string | null; timezone?: string | null };
   /** When the pool's single match is scheduled. Sets the pool's window. */
@@ -177,6 +190,8 @@ function queueBoardReads(assignments: unknown[] = [], options: BoardReadOptions 
             matches: [
               {
                 id: 'match-1',
+                phase_id: 'phase-1',
+                planned_duration_override_minutes: options.matchOverride ?? null,
                 scheduled_at: matchScheduledAt,
                 lice_id: 'lice-1',
                 red_registration_id: 'reg-fighter-ref',
@@ -376,6 +391,106 @@ describe('AssignmentBoardService', () => {
   });
 
   // R4: bracket-match classification.
+  describe('each bout at its planned length (ADR-018)', () => {
+    it('resolves every bout ONCE for the whole board, with its phase and its own override', async () => {
+      queueBoardReads([], { matchOverride: 9 });
+
+      await service.getBoard('event-1');
+
+      expect(resolveMatchLengthsMock).toHaveBeenCalledTimes(1);
+      expect(resolveMatchLengthsMock.mock.calls[0]?.[1]).toBe('event-1');
+      expect(resolveMatchLengthsMock.mock.calls[0]?.[2]).toEqual([
+        { id: 'match-1', phaseId: 'phase-1', plannedDurationOverrideMinutes: 9 },
+      ]);
+    });
+
+    it("ends a Pool when its last bout's planned length runs out", async () => {
+      resolveMatchLengthsMock.mockResolvedValueOnce(new Map([['match-1', 12]]));
+      queueBoardReads();
+
+      const board = await service.getBoard('event-1');
+
+      // It was the last start plus five minutes, whatever the sheet said.
+      expect(board.pools[0]!.scheduledEnd).toBe('2026-05-21T10:12:00.000Z');
+    });
+
+    it("asks the Pools read for each bout's phase and override", async () => {
+      // The positional double ignores the projection: without this the columns
+      // could leave the embed and every value above would still be right.
+      queueBoardReads();
+
+      await service.getBoard('event-1');
+
+      expect(selectsFor(fromMock as never, 'pools')).toEqual([
+        'id, phase_id, name, sort_order, pool_members(registration_id, registrations(id, person_id, persons(id, global_person_id, given_name, family_name, club_id, clubs(name)))), matches(id, phase_id, planned_duration_override_minutes, scheduled_at, lice_id, red_registration_id, blue_registration_id)',
+      ]);
+    });
+
+    /**
+     * No Pools, no Swiss: one single-elimination phase with one bout on a piste.
+     * Same positional chain as `queueBoardReads` up to the bracket loader.
+     */
+    function queueBracketBoardReads() {
+      fromMock
+        .mockReturnValueOnce(makeChain({ data: { start_date: '2026-05-21' }, error: null }))
+        .mockReturnValueOnce(
+          makeChain({ data: [{ id: 'tournament-1', name: 'Longsword' }], error: null }),
+        )
+        .mockReturnValueOnce(makeChain({ data: [], error: null })); // pool phases
+      queueCandidateReads();
+      fromMock
+        .mockReturnValueOnce(makeChain({ data: [], error: null })) // registrations
+        .mockReturnValueOnce(makeChain({ data: [], error: null })) // assignments
+        .mockReturnValueOnce(makeChain({ data: [], error: null })) // lices → venue
+        .mockReturnValueOnce(
+          makeChain({
+            data: [{ id: 'bracket-phase-1', tournament_id: 'tournament-1', type: 'single_elim' }],
+            error: null,
+          }),
+        )
+        .mockReturnValueOnce(
+          makeChain({
+            data: [
+              {
+                id: 'bout-1',
+                phase_id: 'bracket-phase-1',
+                planned_duration_override_minutes: null,
+                scheduled_at: '2026-05-21T14:00:00.000Z',
+                lice_id: 'lice-1',
+                red_registration_id: 'reg-x',
+                blue_registration_id: 'reg-y',
+                bracket_slot_id: 'slot-1',
+              },
+            ],
+            error: null,
+          }),
+        )
+        .mockReturnValueOnce(
+          makeChain({
+            data: [{ id: 'slot-1', phase_id: 'bracket-phase-1', round: 1, position: 1 }],
+            error: null,
+          }),
+        )
+        .mockReturnValueOnce(makeChain({ data: [], error: null })); // swiss phases
+    }
+
+    it('ends a bracket bout at its own planned length and reads what that length needs', async () => {
+      resolveMatchLengthsMock.mockResolvedValueOnce(new Map([['bout-1', 15]]));
+      queueBracketBoardReads();
+
+      const board = await service.getBoard('event-1');
+
+      const unit = board.pools.find((p) => p.id === 'match-bout-1');
+      expect(unit?.scheduledEnd).toBe('2026-05-21T14:15:00.000Z');
+      expect(resolveMatchLengthsMock.mock.calls[0]?.[2]).toEqual([
+        { id: 'bout-1', phaseId: 'bracket-phase-1', plannedDurationOverrideMinutes: null },
+      ]);
+      expect(selectsFor(fromMock as never, 'matches')).toEqual([
+        'id, phase_id, planned_duration_override_minutes, scheduled_at, lice_id, red_registration_id, blue_registration_id, bracket_slot_id',
+      ]);
+    });
+  });
+
   describe('classifyBracketMatchKind (static)', () => {
     it('flags the final and bronze rounds as finals (round === maxRound)', () => {
       const info = { round: 4, position: 1, phaseId: 'phase-1' };
@@ -515,6 +630,8 @@ describe('AssignmentBoardService', () => {
     function swissMatch(id: string, liceId: string, hhmm: string, red: string, blue: string) {
       return {
         id,
+        phase_id: 'swiss-phase-1',
+        planned_duration_override_minutes: null,
         swiss_round_id: 'round-3',
         scheduled_at: `2026-05-21T${hhmm}:00.000Z`,
         lice_id: liceId,
@@ -538,6 +655,34 @@ describe('AssignmentBoardService', () => {
       expect(units[0]!.swissRoundId).toBe('round-3');
       expect(units[0]!.liceId).toBe('lice-1');
       expect(units[0]!.scheduledStart).toBe('2026-05-21T10:00:00.000Z');
+    });
+
+    it('ends each (round × piste) unit at its latest planned bout end', async () => {
+      resolveMatchLengthsMock.mockResolvedValueOnce(
+        new Map([
+          ['sw-1', 12],
+          ['sw-2', 12],
+          ['sw-3', 12],
+        ]),
+      );
+      queueSwissBoardReads();
+
+      const board = await service.getBoard('event-1');
+
+      const units = [...board.pools, ...board.unscheduledPools].filter((p) => p.kind === 'swiss');
+      // lice-1 runs 10:00 and 10:10; the second bout ends at 10:22.
+      expect(units.map((u) => [u.id, u.scheduledEnd])).toEqual([
+        ['swiss-round-3-lice-1', '2026-05-21T10:22:00.000Z'],
+        ['swiss-round-3-lice-2', '2026-05-21T10:12:00.000Z'],
+      ]);
+      expect(resolveMatchLengthsMock.mock.calls[0]?.[2]).toEqual([
+        { id: 'sw-1', phaseId: 'swiss-phase-1', plannedDurationOverrideMinutes: null },
+        { id: 'sw-2', phaseId: 'swiss-phase-1', plannedDurationOverrideMinutes: null },
+        { id: 'sw-3', phaseId: 'swiss-phase-1', plannedDurationOverrideMinutes: null },
+      ]);
+      expect(selectsFor(fromMock as never, 'matches')).toEqual([
+        'id, phase_id, planned_duration_override_minutes, swiss_round_id, scheduled_at, lice_id, red_registration_id, blue_registration_id',
+      ]);
     });
 
     it('blocks a fighter from reffing their own round on EITHER piste', async () => {
@@ -885,7 +1030,10 @@ describe('AssignmentBoardService', () => {
      * pool 2 holds match-2. Nobody fights in both — the only thing that can
      * collide here is a REFEREE.
      */
-    function queueTwoOverlappingPools(assignments: unknown[]) {
+    function queueTwoOverlappingPools(
+      assignments: unknown[],
+      pool2At = '2026-05-21T10:00:00.000Z',
+    ) {
       // A fallback for everything after the positional queue: an assignment
       // that is ACCEPTED goes on to delete and insert, and those reads are not
       // part of loadContext.
@@ -924,7 +1072,7 @@ describe('AssignmentBoardService', () => {
                 matches: [
                   {
                     id: 'match-2',
-                    scheduled_at: '2026-05-21T10:00:00.000Z',
+                    scheduled_at: pool2At,
                     lice_id: 'lice-2',
                     red_registration_id: 'reg-c',
                     blue_registration_id: 'reg-d',
@@ -995,6 +1143,45 @@ describe('AssignmentBoardService', () => {
           personId: POOL_2_REF,
         }),
       ).rejects.toThrow(/already officiating/);
+    });
+
+    it("refuses them when their fight's planned length runs into the pool they would referee", async () => {
+      // match-1 runs 10:00–10:12 at its planned 12 minutes and pool 2 starts at
+      // 10:08. Five minutes said match-1 was over at 10:05 and the referee free.
+      resolveMatchLengthsMock.mockResolvedValueOnce(
+        new Map([
+          ['match-1', 12],
+          ['match-2', 12],
+        ]),
+      );
+      queueTwoOverlappingPools([perMatchAssignment], '2026-05-21T10:08:00.000Z');
+
+      await expect(
+        service.applyManual('event-1', {
+          poolId: 'pool-2',
+          role: 'arbitre_declarant',
+          personId: POOL_2_REF,
+        }),
+      ).rejects.toThrow(/already officiating/);
+    });
+
+    it('accepts them when that fight is planned to end before the pool starts', async () => {
+      // The same two pools, match-1 planned at 7 minutes: over at 10:07, before 10:08.
+      resolveMatchLengthsMock.mockResolvedValueOnce(
+        new Map([
+          ['match-1', 7],
+          ['match-2', 7],
+        ]),
+      );
+      queueTwoOverlappingPools([perMatchAssignment], '2026-05-21T10:08:00.000Z');
+
+      await expect(
+        service.applyManual('event-1', {
+          poolId: 'pool-2',
+          role: 'arbitre_declarant',
+          personId: POOL_2_REF,
+        }),
+      ).resolves.toBeDefined();
     });
 
     it('still accepts them when the double-booking rule is switched off', async () => {
