@@ -601,7 +601,9 @@ export class MeEventsService {
         phaseType,
         bracketSize: config?.bracketSize ?? null,
         bracketSlotId: (match?.['bracket_slot_id'] as string | null) ?? null,
-        matchId: (match?.['id'] as string | null) ?? null,
+        // The row's own `match_id`: the `matches` embed selects no `id`, so
+        // reading it there gave the Swiss round lookup nothing to find.
+        matchId: (r['match_id'] as string | null) ?? null,
         matchKind: null as string | null,
         roundOfCount: null as number | null,
         swissRound: null as number | null,
@@ -632,9 +634,16 @@ export class MeEventsService {
     ];
     const roundBySlot = await fetchBracketRounds(this.supabase.service, slotIds);
     // Swiss round (match-scoped) — the number lives on swiss_rounds, so it
-    // needs the same kind of follow-up lookup the bracket round does.
+    // needs the same kind of follow-up lookup the bracket round does. Swiss
+    // duties only: the ids ride in the URL, and a referee's other duties
+    // would only lengthen it.
     const swissRoundByMatch = await fetchSwissRounds(this.supabase.service, [
-      ...new Set(assignments.map((a) => a.matchId).filter((x): x is string => !!x)),
+      ...new Set(
+        assignments
+          .filter((a) => a.phaseType === 'swiss')
+          .map((a) => a.matchId)
+          .filter((x): x is string => !!x),
+      ),
     ]);
     for (const a of assignments) {
       const round = a.bracketSlotId ? (roundBySlot.get(a.bracketSlotId) ?? null) : null;

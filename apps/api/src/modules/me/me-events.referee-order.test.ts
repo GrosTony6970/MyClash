@@ -65,7 +65,7 @@ function windowsAre(times: Record<string, [string, string | null]>) {
   );
 }
 
-function buildService(assignments: unknown) {
+function buildService(assignments: unknown, matches: unknown[] = []) {
   const chains = new Map<string, Chain>();
   const supabase = {
     service: {
@@ -75,7 +75,9 @@ function buildService(assignments: unknown) {
             ? q(assignments)
             : table === 'global_persons'
               ? q({ data: { id: 'gp-1' }, error: null })
-              : q({ data: [], error: null });
+              : table === 'matches'
+                ? q({ data: matches, error: null })
+                : q({ data: [], error: null });
         if (!chains.has(table)) chains.set(table, chain);
         return chain;
       }),
@@ -163,6 +165,37 @@ describe('MeEventsService.listMyEvents — referee duty times and order', () => 
       ['qf-late', '2027-05-23T13:21:00.000Z', '2027-05-23T13:29:00.000Z'],
       ['tbd', null, null],
     ]);
+  });
+
+  it("names a Swiss duty's round, looked up by the duty's own Match and no other", async () => {
+    windowsAre({});
+    const swiss = {
+      ...ASSIGNMENT('swiss-duty', { matchId: 'm-sw' }),
+      matches: {
+        bracket_slot_id: null,
+        pools: null,
+        phases: { type: 'swiss', config_json: null, tournaments: { name: 'Open' } },
+        lices: null,
+      },
+    };
+    const poolBout = {
+      ...ASSIGNMENT('pool-bout-duty', { matchId: 'm-pool' }),
+      matches: { ...swiss.matches, phases: { ...swiss.matches.phases, type: 'pool' } },
+    };
+    const { service, chains } = buildService(rows([swiss, poolBout]), [
+      { id: 'm-sw', swiss_rounds: { round_number: 3 } },
+    ]);
+
+    const events = await service.listMyEvents('user-1');
+
+    expect(events[0]!.refereeOf.find((r) => r.id === 'swiss-duty')).toMatchObject({
+      matchKind: 'swiss',
+      swissRound: 3,
+    });
+    // The double answers whatever is asked: assert the lookup asked for this Match.
+    const lookup = chains.get('matches');
+    expect(lookup?.select).toHaveBeenCalledWith('id, swiss_rounds(round_number)');
+    expect(lookup?.in).toHaveBeenCalledWith('id', ['m-sw']);
   });
 
   it('says so when the duties themselves cannot be read', async () => {
