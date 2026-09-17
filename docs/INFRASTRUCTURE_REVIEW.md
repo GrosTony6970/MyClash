@@ -220,8 +220,10 @@ stack is probed successfully.
 
 - Third-party images and Dockerfile bases are still tag-pinned but not
   digest-pinned. Registry access is needed to resolve and maintain digests.
-  Current mitigation: Dependabot Docker updates plus CI Trivy high/critical
-  image scanning. Owner target: pin by digest before final production sign-off
+  Current mitigation: the five app images' runner stages run `apk upgrade`,
+  and CI's Trivy legs scan a fresh build of each for high/critical findings.
+  Dependabot's Docker entry watches only `infra/`, so it does not cover the app
+  bases. Owner target: pin by digest before final production sign-off
   if zero supply-chain exceptions are required.
 - Live TLS evidence is not repo-local. It must be recorded from the deployed
   `myclash.fr` stack with `pnpm infra:edge -- --domain myclash.fr`.

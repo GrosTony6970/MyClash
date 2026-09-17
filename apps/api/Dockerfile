@@ -80,6 +80,12 @@ RUN --mount=type=cache,id=pnpm-store,target=/root/.local/share/pnpm/store \
 
 # ── runner ────────────────────────────────────────────────────────────────────
 FROM node:${NODE_VERSION}-alpine AS runner
+# Alpine ships package security fixes before the node image is republished
+# (openssl 3.5.8 was out while node:26-alpine still carried 3.5.7), so the
+# image takes them here. A host that reuses its build cache keeps the
+# packages from the first build of this layer; CI builds and scans fresh.
+# Refreshing on a host: docs/ENGINEERING_LESSONS.md, Cross-platform & deployment.
+RUN apk upgrade --no-cache
 
 # Silence DEP0205 (module.register) from import-in-the-middle via Sentry/OTel
 # on Node 26 — harmless upstream deprecation. Disables only this warning.

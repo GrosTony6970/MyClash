@@ -335,6 +335,16 @@ here.
   why production publishes nothing for Postgres and is reached by `compose exec` or an SSH tunnel to
   the container IP (ARCHITECTURE §17.6). If a publish is ever needed, bind it:
   `127.0.0.1:5432:5432`.
+- The app images' runner stages run `apk upgrade --no-cache`, so they carry Alpine's security
+  fixes before `node:26-alpine` or `caddy:2-alpine` is republished. **On a host that layer is
+  cached and then stands still.** `deploy.sh` and `redeploy.sh` build without `--pull` or
+  `--no-cache`, and `destroy.sh --full` removes built images but neither the build cache nor the
+  base tags. So production keeps the packages from the layer's first build while CI builds and
+  scans a fresh image, and a green Trivy leg stops describing production. To take newer fixes,
+  rebuild without the cache, then recreate the service:
+  `docker compose --env-file .env -f infra/docker-compose.prod.yml build --pull --no-cache <svc>`
+  then `infra/scripts/redeploy.sh <svc> --no-build`. (`redeploy.sh --pull` is a git pull, not a
+  docker pull.)
 
 ## Ops script conventions (inherited from MyFAL)
 

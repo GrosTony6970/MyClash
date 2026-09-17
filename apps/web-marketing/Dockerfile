@@ -37,6 +37,13 @@ RUN pnpm --filter @myclash/web-marketing build
 
 # ── runner ───────────────────────────────────────────────────────────────────
 FROM caddy:2-alpine AS runner
+# Alpine ships package security fixes before caddy:2-alpine is republished
+# (openssl, curl and c-ares were behind), so the image takes them here. A
+# host that reuses its build cache keeps the packages from the first build
+# of this layer; CI builds and scans fresh. Refreshing on a host:
+# docs/ENGINEERING_LESSONS.md, Cross-platform & deployment. Findings inside
+# the caddy binary itself need an upstream Caddy release.
+RUN apk upgrade --no-cache
 
 COPY --from=builder /app/apps/web-marketing/dist/ /usr/share/caddy/
 
