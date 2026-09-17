@@ -25,15 +25,16 @@ const scheduleDraft = (liceId: string, scheduledAt: string) =>
   });
 
 /**
- * A Match of this Event. Its update answers with a double of its own, so an
- * assertion on the update's filters cannot pass on the ownership read.
+ * The membership read of Match `m-1`, awaited after `.in()`: the row names its
+ * Event through its Phase's Tournament.
  */
-function eventMatch() {
-  const update = vi.fn();
-  const written = chain({ data: { id: 'm-1' } });
-  const matches = chain({ data: { id: 'm-1', phases: { tournaments: { event_id: 'event-1' } } } });
-  matches.update = update.mockReturnValue(written);
-  return { matches, update, written };
+function matchRead(eventId: string) {
+  const rows = [{ id: 'm-1', phases: { tournaments: { event_id: eventId } } }];
+  const read = Object.assign(Promise.resolve({ data: rows, error: null }), {
+    select: vi.fn(() => read),
+    in: vi.fn(() => read),
+  });
+  return read;
 }
 
 /** The in-Event id read (of Lices or Tournaments), awaited after `.in()`, answering with `rows`. */
@@ -171,7 +172,7 @@ describe('OrganizerAIAssistantService.applyDraft', () => {
   });
 
   it('hands the placement owner the bout, its piste and its time', async () => {
-    const { matches } = eventMatch();
+    const matches = matchRead('event-1');
     mockSupabaseFrom.mockImplementation((table: string) => {
       if (table === 'matches') return matches;
       if (table !== 'organizer_ai_assistant_drafts') return chain();
@@ -188,12 +189,56 @@ describe('OrganizerAIAssistantService.applyDraft', () => {
     ]);
     // The double answers whatever the projection names. The Match's Event is
     // resolved through this embed, so the string is the proof of the read.
-    expect(matches.select).toHaveBeenCalledWith('id, phases(tournaments(event_id))');
+    expect(matches.select).toHaveBeenCalledWith('id, phases!inner(tournaments!inner(event_id))');
+    expect(matches.in).toHaveBeenCalledWith('id', ['m-1']);
     expect(result.appliedResults).toEqual([{ kind: 'schedule_match', result: { id: 'm-1' } }]);
   });
 
+  it("refuses another Event's Match before handing it to the placement owner", async () => {
+    const matches = matchRead('event-2');
+    mockSupabaseFrom.mockImplementation((table: string) => {
+      if (table === 'matches') return matches;
+      if (table !== 'organizer_ai_assistant_drafts') return chain();
+      return scheduleDraft('l-1', '2026-06-01T09:00:00.000Z');
+    });
+
+    await expect(service().applyDraft('event-1', 'draft-1', 'user-1')).rejects.toThrow(
+      'Every Match must belong to this event',
+    );
+    expect(placement.placeMatches).not.toHaveBeenCalled();
+  });
+
+  it("refuses a referee on another Event's Match before writing the assignment", async () => {
+    const matches = matchRead('event-2');
+    const assignments = chain({ data: { id: 'ra-1' } });
+    mockSupabaseFrom.mockImplementation((table: string) => {
+      if (table === 'matches') return matches;
+      if (table === 'referee_assignments') return assignments;
+      if (table !== 'organizer_ai_assistant_drafts') return chain();
+      return chain({
+        data: {
+          id: 'draft-1',
+          event_id: 'event-1',
+          actor_user_id: 'user-1',
+          draft_type: 'referee_assignments',
+          status: 'ready',
+          proposed_actions_json: [
+            { kind: 'assign_referee', userId: 'p-1', role: 'referee', matchId: 'm-1' },
+          ],
+          events: { organization_id: 'org-1' },
+        },
+      });
+    });
+
+    await expect(service().applyDraft('event-1', 'draft-1', 'user-1')).rejects.toThrow(
+      'Every Match must belong to this event',
+    );
+    expect(matches.in).toHaveBeenCalledWith('id', ['m-1']);
+    expect(assignments.insert).not.toHaveBeenCalled();
+  });
+
   it('applies nothing when the placement owner refuses', async () => {
-    const { matches } = eventMatch();
+    const matches = matchRead('event-1');
     mockSupabaseFrom.mockImplementation((table: string) => {
       if (table === 'matches') return matches;
       if (table !== 'organizer_ai_assistant_drafts') return chain();

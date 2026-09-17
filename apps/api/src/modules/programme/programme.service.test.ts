@@ -2807,6 +2807,13 @@ describe('scheduleGroup', () => {
     planned_duration_override_minutes: null,
     ...over,
   });
+  /** The membership read: each Match with its Event, through its Phase's Tournament. */
+  const matchOf = (id: string, eventId: string) => ({
+    id,
+    phases: { tournaments: { event_id: eventId } },
+  });
+  const inEvent = (...ids: string[]) =>
+    makeChain({ data: ids.map((id) => matchOf(id, 'event-1')), error: null });
 
   it('returns empty without querying for an empty group', async () => {
     const res = await svc.scheduleGroup(
@@ -2823,24 +2830,30 @@ describe('scheduleGroup', () => {
     expect(fromMock).not.toHaveBeenCalled();
   });
 
-  it('rejects matches that are not in the event', async () => {
-    fromMock
-      .mockReturnValueOnce(sheetChain())
-      .mockReturnValueOnce(makeChain({ data: [{ id: 't1' }], error: null })) // tournaments
-      .mockReturnValueOnce(makeChain({ data: [{ id: 'phase-1' }], error: null })) // phases
-      .mockReturnValueOnce(makeChain({ data: [gm('m1', { phase_id: 'OTHER' })], error: null })); // matches
+  it("refuses another Event's Match before reading the group or placing anything", async () => {
+    const membership = makeChain({
+      data: [matchOf('m1', 'event-1'), matchOf('m-elsewhere', 'event-2'), matchOf('m2', 'event-1')],
+      error: null,
+    });
+    fromMock.mockReturnValueOnce(sheetChain()).mockReturnValueOnce(membership);
     await expect(
       svc.scheduleGroup(
         'event-1',
         {
-          matchIds: ['m1'],
+          matchIds: ['m1', 'm-elsewhere', 'm2'],
           liceIds: ['l1'],
           startTime: START,
           mode: 'pool',
         },
         CALLER,
       ),
-    ).rejects.toBeInstanceOf(BadRequestException);
+    ).rejects.toThrow('Every Match must belong to this event');
+    // The one owner's read, with the request's ids.
+    expect(membership.select).toHaveBeenCalledWith('id, phases!inner(tournaments!inner(event_id))');
+    expect(membership.in).toHaveBeenCalledWith('id', ['m1', 'm-elsewhere', 'm2']);
+    // Refused before the group's rows, the Lices, the occupants or any write.
+    expect(fromMock).toHaveBeenCalledTimes(2);
+    expect(placement.placeMatches).not.toHaveBeenCalled();
   });
 
   it("refuses another Event's Lice before placing anything", async () => {
@@ -2849,8 +2862,7 @@ describe('scheduleGroup', () => {
     const licesChain = makeChain({ data: [], error: null });
     fromMock
       .mockReturnValueOnce(sheetChain())
-      .mockReturnValueOnce(makeChain({ data: [{ id: 't1' }], error: null })) // tournaments
-      .mockReturnValueOnce(makeChain({ data: [{ id: 'phase-1' }], error: null })) // phases
+      .mockReturnValueOnce(inEvent('m1')) // the Matches are the Event's
       .mockReturnValueOnce(makeChain({ data: [gm('m1')], error: null })) // group matches
       .mockReturnValueOnce(licesChain); // none of the Lices is the Event's
 
@@ -2863,14 +2875,13 @@ describe('scheduleGroup', () => {
     ).rejects.toThrow('Every Lice must belong to this event');
     expect(licesChain.eq).toHaveBeenCalledWith('event_id', 'event-1');
     // Refused before the Lices' names, the occupants or any write.
-    expect(fromMock).toHaveBeenCalledTimes(5);
+    expect(fromMock).toHaveBeenCalledTimes(4);
   });
 
   it('keeps a pool group on one lice and persists each match', async () => {
     fromMock
       .mockReturnValueOnce(sheetChain({ matchGapSeconds: 0, minRestMinutes: 20 }))
-      .mockReturnValueOnce(makeChain({ data: [{ id: 't1' }], error: null })) // tournaments
-      .mockReturnValueOnce(makeChain({ data: [{ id: 'phase-1' }], error: null })) // phases
+      .mockReturnValueOnce(inEvent('m1', 'm2')) // the Matches are the Event's
       .mockReturnValueOnce(
         makeChain({ data: [gm('m1'), gm('m2', { red_registration_id: 'r-m1' })], error: null }),
       ) // group matches
@@ -2929,8 +2940,7 @@ describe('scheduleGroup', () => {
     );
     fromMock
       .mockReturnValueOnce(sheetChain())
-      .mockReturnValueOnce(makeChain({ data: [{ id: 't1' }], error: null })) // tournaments
-      .mockReturnValueOnce(makeChain({ data: [{ id: 'phase-1' }], error: null })) // phases
+      .mockReturnValueOnce(inEvent('m1')) // the Matches are the Event's
       .mockReturnValueOnce(
         makeChain({ data: [gm('m1', { planned_duration_override_minutes: 9 })], error: null }),
       ) // group matches
@@ -2977,8 +2987,7 @@ describe('scheduleGroup', () => {
     resolveMatchLengthsMock.mockResolvedValueOnce(new Map(Object.entries(own)));
     fromMock
       .mockReturnValueOnce(sheetChain({ matchGapSeconds: 0, minRestMinutes: 0 }))
-      .mockReturnValueOnce(makeChain({ data: [{ id: 't1' }], error: null })) // tournaments
-      .mockReturnValueOnce(makeChain({ data: [{ id: 'phase-1' }], error: null })) // phases
+      .mockReturnValueOnce(inEvent(...group.map((m) => m.id))) // the Matches are the Event's
       .mockReturnValueOnce(groupChain) // group matches
       .mockReturnValueOnce(makeChain({ data: [{ id: 'l1' }], error: null })) // the Lices are the Event's
       .mockReturnValueOnce(
@@ -3044,8 +3053,7 @@ describe('scheduleGroup', () => {
     );
     fromMock
       .mockReturnValueOnce(sheetChain({ matchGapSeconds: 60 }))
-      .mockReturnValueOnce(makeChain({ data: [{ id: 't1' }], error: null })) // tournaments
-      .mockReturnValueOnce(makeChain({ data: [{ id: 'phase-1' }], error: null })) // phases
+      .mockReturnValueOnce(inEvent('r1', 'r2')) // the Matches are the Event's
       .mockReturnValueOnce(makeChain({ data: [sm('r1'), sm('r2')], error: null })) // group matches
       .mockReturnValueOnce(makeChain({ data: [{ id: 'l1' }], error: null })) // the Lices are the Event's
       .mockReturnValueOnce(
@@ -3071,8 +3079,7 @@ describe('scheduleGroup', () => {
     resolveMatchLengthsMock.mockRejectedValueOnce(new BadRequestException('statement timeout'));
     fromMock
       .mockReturnValueOnce(sheetChain())
-      .mockReturnValueOnce(makeChain({ data: [{ id: 't1' }], error: null })) // tournaments
-      .mockReturnValueOnce(makeChain({ data: [{ id: 'phase-1' }], error: null })) // phases
+      .mockReturnValueOnce(inEvent('m1')) // the Matches are the Event's
       .mockReturnValueOnce(makeChain({ data: [gm('m1')], error: null })) // group matches
       .mockReturnValueOnce(makeChain({ data: [{ id: 'l1' }], error: null })) // the Lices are the Event's
       .mockReturnValueOnce(

@@ -50,7 +50,11 @@ import type {
 import { storedProgrammeConfigSchema } from './dto/programme.dto';
 import { readProgrammeSheet } from './programme-sheet';
 import { assertLicesBelongToEvent } from '../lices/lices-in-event';
-import { assertTournamentsBelongToEvent, assertWorkshopsBelongToEvent } from '../events/in-event';
+import {
+  assertMatchesBelongToEvent,
+  assertTournamentsBelongToEvent,
+  assertWorkshopsBelongToEvent,
+} from '../events/in-event';
 
 function timeToMin(t: string): number {
   const [h, m] = t.split(':').map(Number);
@@ -1636,7 +1640,7 @@ export class ProgrammeService {
     // Each bout is spaced at its own planned length (`resolveMatchLengths`, below),
     // with the sheet's gap and rest (ADR-018).
     const sheet = await readProgrammeSheet(this.supabase.service, eventId);
-    const eventPhaseIds = await this.eventPhaseIds(eventId);
+    await assertMatchesBelongToEvent(this.supabase.service, eventId, dto.matchIds);
 
     const { data: matchRows, error: mErr } = await this.supabase.service
       .from('matches')
@@ -1654,9 +1658,6 @@ export class ProgrammeService {
         bracket_slot_id: string | null;
       }
     >;
-    if (rows.length !== dto.matchIds.length || rows.some((r) => !eventPhaseIds.has(r.phase_id))) {
-      throw new BadRequestException('Some matches do not belong to this event');
-    }
     await assertLicesBelongToEvent(this.supabase.service, eventId, dto.liceIds);
 
     // Lices in the operator's requested order (anchor i → liceIds[i]).
@@ -1842,21 +1843,6 @@ export class ProgrammeService {
       throw new NotFoundException(`Block ${blockId} not found for event ${eventId}`);
     }
     return { block: this.mapBlock(updatedRow as Record<string, unknown>) };
-  }
-
-  /** Phase ids belonging to this event's tournaments (scope guard). */
-  private async eventPhaseIds(eventId: string): Promise<Set<string>> {
-    const { data: tournaments } = await this.supabase.service
-      .from('tournaments')
-      .select('id')
-      .eq('event_id', eventId);
-    const tournamentIds = ((tournaments ?? []) as Array<{ id: string }>).map((t) => t.id);
-    if (tournamentIds.length === 0) return new Set();
-    const { data: phases } = await this.supabase.service
-      .from('phases')
-      .select('id')
-      .in('tournament_id', tournamentIds);
-    return new Set(((phases ?? []) as Array<{ id: string }>).map((p) => p.id));
   }
 
   /**

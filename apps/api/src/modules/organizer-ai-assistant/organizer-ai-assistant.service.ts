@@ -12,7 +12,7 @@ import type {
   OrganizerAIDraftType,
   UpdateOrganizerAIDraftDto,
 } from './dto/organizer-ai-assistant.dto';
-import { assertTournamentsBelongToEvent } from '../events/in-event';
+import { assertMatchesBelongToEvent, assertTournamentsBelongToEvent } from '../events/in-event';
 
 type DraftStatus = 'draft' | 'ready' | 'failed' | 'applied' | 'rejected';
 
@@ -377,7 +377,7 @@ export class OrganizerAIAssistantService {
     }
     if (kind === 'schedule_match') {
       const matchId = String(action['matchId']);
-      await this.assertMatchBelongsToEvent(eventId, matchId);
+      await assertMatchesBelongToEvent(this.supabase.service, eventId, [matchId]);
       // Through the one placement owner, which checks the Lice, refuses a time
       // it cannot read and refuses a double-booked piste. This door used to
       // write both columns with no occupancy check at all, so the assistant
@@ -396,7 +396,7 @@ export class OrganizerAIAssistantService {
         await this.assertPoolBelongsToEvent(eventId, action['poolId']);
       }
       if (typeof action['matchId'] === 'string') {
-        await this.assertMatchBelongsToEvent(eventId, action['matchId']);
+        await assertMatchesBelongToEvent(this.supabase.service, eventId, [action['matchId']]);
       }
       // Post-0063: referee_assignments keys on person_id (= global_persons.id).
       // The AI draft DSL still labels the field "userId" for historical reasons
@@ -595,21 +595,6 @@ export class OrganizerAIAssistantService {
     )?.phases;
     if (phase?.tournaments?.event_id !== eventId) {
       throw new BadRequestException('Pool must belong to this event');
-    }
-  }
-
-  private async assertMatchBelongsToEvent(eventId: string, matchId: string) {
-    const { data, error } = await this.supabase.service
-      .from('matches')
-      .select('id, phases(tournaments(event_id))')
-      .eq('id', matchId)
-      .maybeSingle();
-    if (error) throw new BadRequestException(error.message);
-    const phase = (
-      data as { phases?: { tournaments?: { event_id?: string } | null } | null } | null
-    )?.phases;
-    if (phase?.tournaments?.event_id !== eventId) {
-      throw new BadRequestException('Match must belong to this event');
     }
   }
 
