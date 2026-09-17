@@ -10,13 +10,21 @@
 # --full     Complete reset: volumes + data/ + logs/ + runtime files.
 #            backups/ and .env are NEVER touched.
 #
+# --prune-cache  Also delete ALL build cache of the current Docker builder (`docker
+#            builder prune --all`), which is shared by everything built on this host.
+#            Combines with the modes above. The next build runs every step again,
+#            including each runtime image's `apk upgrade`; base images such as
+#            node:26-alpine are kept, so `compose build --pull` is still what
+#            refreshes those.
+#
 # --force    Skip every confirmation, including the --full one. Combine as
 #            `./destroy.sh --full --force` for an unattended wipe.
 #
 # destroy.sh <service...>   Selective: stop & remove only the named containers
 #            (docker compose rm -sf). Volumes, images, data/, logs/, and every other
 #            container are preserved. Pair with `redeploy.sh <service>` to recreate.
-#            Cannot be combined with --wipe-db / --full (those are whole-stack ops).
+#            Cannot be combined with --wipe-db / --full (whole-stack ops) or --prune-cache
+#            (host-wide).
 
 set -Eeuo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -33,7 +41,7 @@ source "$SCRIPT_DIR/lib/traefik-env.sh"
 
 usage() {
   cat <<'EOF'
-Usage: infra/scripts/destroy.sh [--wipe-db|--full] [--force]
+Usage: infra/scripts/destroy.sh [--wipe-db|--full] [--prune-cache] [--force]
        infra/scripts/destroy.sh <service...> [--force]
 
   (no args)    Remove containers + locally-built images. ALL data preserved.
@@ -41,9 +49,14 @@ Usage: infra/scripts/destroy.sh [--wipe-db|--full] [--force]
                data/ folder and logs/ are kept.
   --full       Complete reset: volumes + data/ + logs/ destroyed.
                backups/ and .env are NEVER touched.
+  --prune-cache
+               Also delete ALL build cache of the current Docker builder,
+               host-wide. The next build runs every step again, including
+               the runtime images' apk upgrade. Base images (node:26-alpine...)
+               are kept.
   <service...> Selective: stop & remove only the named containers.
                Volumes, images, data/, logs/, and other containers preserved.
-               Cannot be combined with --wipe-db / --full.
+               Cannot be combined with --wipe-db / --full / --prune-cache.
   --force      Skip ALL confirmation prompts, including the second
                "this cannot be undone" gate on --full. Intended for
                scripted wipe-and-redeploy: ./destroy.sh --full --force
@@ -53,12 +66,14 @@ EOF
 
 WIPE_DB=0
 FULL=0
+PRUNE_CACHE=0
 FORCE=0
 SERVICES=()
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --wipe-db) WIPE_DB=1; shift ;;
     --full)    FULL=1; shift ;;
+    --prune-cache) PRUNE_CACHE=1; shift ;;
     --force)   FORCE=1; shift ;;
     -h|--help) usage; exit 0 ;;
     -*) err "Unknown option: $1"; exit 1 ;;
@@ -70,8 +85,8 @@ COMPOSE=(docker compose --env-file "$ROOT_DIR/.env" -f infra/docker-compose.prod
 
 # ── Selective mode: remove only the named containers ─────────────
 if [[ "${#SERVICES[@]}" -gt 0 ]]; then
-  if [[ "$WIPE_DB" -eq 1 || "$FULL" -eq 1 ]]; then
-    err "Service names cannot be combined with --wipe-db / --full (whole-stack ops)."
+  if [[ "$WIPE_DB" -eq 1 || "$FULL" -eq 1 || "$PRUNE_CACHE" -eq 1 ]]; then
+    err "Service names cannot be combined with --wipe-db / --full (whole-stack) or --prune-cache (host-wide)."
     exit 1
   fi
 
@@ -106,6 +121,9 @@ elif [[ "$WIPE_DB" -eq 1 ]]; then
 else
   warn "This will remove containers and locally-built images"
   warn "Preserved:  Docker volumes  data/  logs/  backups/  .env"
+fi
+if [[ "$PRUNE_CACHE" -eq 1 ]]; then
+  warn "Also deletes ALL Docker build cache (the current builder, host-wide); the next build starts cold"
 fi
 
 if [[ "$FORCE" -ne 1 ]]; then
@@ -142,6 +160,14 @@ if [[ "$FULL" -eq 1 ]]; then
   rm -rf logs/api logs/traefik logs/web-public logs/web-staff logs/web-admin logs/db
   rm -f .last-deploy.json
   ok "data/, logs/, and runtime files removed"
+fi
+
+# Last, after the stack is down. Host-wide: the builder cache is not scoped to a
+# compose project. Under `set -e` a failed prune stops here, so a chained
+# `destroy.sh --prune-cache && deploy.sh` never builds from the cache it kept.
+if [[ "$PRUNE_CACHE" -eq 1 ]]; then
+  docker builder prune --all --force
+  ok "Docker build cache removed"
 fi
 
 echo

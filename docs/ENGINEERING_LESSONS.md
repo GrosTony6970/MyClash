@@ -338,10 +338,12 @@ here.
 - The app images' runner stages run `apk upgrade --no-cache`, so they carry Alpine's security
   fixes before `node:26-alpine` or `caddy:2-alpine` is republished. **On a host that layer is
   cached and then stands still.** `deploy.sh` and `redeploy.sh` build without `--pull` or
-  `--no-cache`, and `destroy.sh --full` removes built images but neither the build cache nor the
-  base tags. So production keeps the packages from the layer's first build while CI builds and
-  scans a fresh image, and a green Trivy leg stops describing production. To take newer fixes,
-  rebuild without the cache, then recreate the service:
+  `--no-cache`, and `destroy.sh` keeps the build cache unless given `--prune-cache` and never
+  removes the base tags. So production keeps the packages from the layer's first build while CI
+  builds and scans a fresh image on a fresh base, and a green Trivy leg stops describing
+  production. `destroy.sh --prune-cache` makes the next build re-run `apk upgrade`, but it keeps
+  the local base image (Node and npm included) and takes the stack down. What matches CI is a
+  fresh base without the cache, then a recreate:
   `docker compose --env-file .env -f infra/docker-compose.prod.yml build --pull --no-cache <svc>`
   then `infra/scripts/redeploy.sh <svc> --no-build`. (`redeploy.sh --pull` is a git pull, not a
   docker pull.)
