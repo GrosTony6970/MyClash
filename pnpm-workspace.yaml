@@ -120,3 +120,13 @@ overrides:
   'js-yaml@4': ^4.3.2
   'js-yaml@5': ^5.2.3
   find-my-way: ^9.7.0
+  # >=4.28.7 clears GHSA-c83g-rgw3-j3cx (unbounded query-cache growth) and
+  # GHSA-73wf-gq98-2v4g (a prototype write from custom stats). Every consumer's
+  # range (babel's ^4.24.0, webpack's ^4.28.1) already allowed the fix while
+  # the lockfile sat on 4.28.2. It arrives through lint and build tooling.
+  'browserslist@4': ^4.28.7
+  # >=3.3.18 clears GHSA-2v37-7h3g-55p8 (a custom generator loops when size is
+  # 0). Keyed to a major, as js-yaml and browserslist are: postcss asks for 3.x,
+  # and a bare key would drag a future 5.x consumer back. It arrives through
+  # postcss in next, vite and @tailwindcss/postcss: build and test tooling.
+  'nanoid@3': ^3.3.18
