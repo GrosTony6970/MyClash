@@ -607,7 +607,7 @@
     "apps/web-admin/app/org/[slug]/events/[eventId]/schedule/RefereeConflictBanner.tsx:85",
     "apps/web-admin/app/org/[slug]/events/[eventId]/schedule/RunningLateDialog.tsx:36",
     "apps/web-admin/app/org/[slug]/events/[eventId]/schedule/UnscheduledPanel.tsx:106",
-    "apps/web-admin/app/org/[slug]/events/[eventId]/schedule/detect-overlaps.ts:107",
+    "apps/web-admin/app/org/[slug]/events/[eventId]/schedule/detect-overlaps.ts:106",
     "apps/web-admin/app/org/[slug]/events/[eventId]/schedule/grid.tsx:110",
     "apps/web-admin/app/org/[slug]/events/[eventId]/schedule/grid.tsx:1291",
     "apps/web-admin/app/org/[slug]/events/[eventId]/schedule/grid.tsx:616",

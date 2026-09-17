@@ -34,9 +34,12 @@ export interface PlacedBlockMatch {
  * the cascade, the header runs and `placeWithShift` all assume. Seven call
  * sites had this inline.
  *
+ * The floor is today's behaviour, not a decision. The API measures real
+ * minutes, so a group drop that packs 8-minute bouts one slot apart lays them 5
+ * minutes apart, which the server's piste check must refuse. A known gap.
+ *
  * `barWarningSlotSpan` below is the same question asked for a warning, and
- * rounds instead. Today the two agree on every input the board ever sees; see
- * its note for why they are still two functions.
+ * rounds instead. The two disagree on real lengths; see its note.
  */
 export function matchSlotSpan(durationMinutes: number): number {
   return Math.max(1, Math.floor(durationMinutes / SLOT_MINUTES));
@@ -45,18 +48,18 @@ export function matchSlotSpan(durationMinutes: number): number {
 /**
  * The span the bar-collision detector measures a match by.
  *
- * IDENTICAL to `matchSlotSpan` for every match the board currently draws:
- * `/events/:id/schedule` returns a constant `durationMinutes` of 5, equal to
- * `SLOT_MINUTES`, so the quotient is exactly 1 and floor and round agree. The
- * divergence is unreachable, not a live over-report.
+ * NOT the same number as `matchSlotSpan`. `/events/:id/schedule` sends each
+ * bout's real planned length (the Match's own, else the planner's sheet), and
+ * the sheet's defaults are 5, 8 and 10 minutes. An 8-minute elimination is
+ * placed as one slot and warned on as two.
  *
- * It is kept, and named rather than left inline, for two reasons. Should
- * `durationMinutes` ever become a real column, rounding is the conservative
- * side — a bout spilling past a slot boundary would still warn against a break
- * bar it clips, and break-bar drops are warn-only by decision, so warning too
- * often is the harmless direction. And an eighth hand-written span expression
- * beside seven calls to one function is exactly the shape this module exists to
- * end.
+ * It rounds, and is named rather than left inline, for two reasons. Rounding
+ * warns at least as often as the placement's floor, and break-bar drops are
+ * warn-only by decision, so warning more is the harmless direction. It is not
+ * exact: a bout that spills less than half a slot past a boundary (7 minutes
+ * from 10:00, a break at 10:05) measures as one slot and does not warn. And an
+ * eighth hand-written span expression beside seven calls to one function is
+ * exactly the shape this module exists to end.
  *
  * The pin test asserts the direction (`matchSlotSpan <= barWarningSlotSpan`)
  * rather than the values: if that ever inverts, the board would warn LESS than

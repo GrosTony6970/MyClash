@@ -31,7 +31,6 @@
  *
  * Pure: no React, no I/O.
  */
-import { SLOT_MINUTES } from '@myclash/schedule-core';
 import { hhmmInZone } from './conflict-detection';
 
 /** A prospective placement in slot units — what a drag would land on. */
@@ -60,8 +59,8 @@ export function wouldOverlap(placement: SlotPlacement, occupants: SlotPlacement[
 /** What the stack detector needs to know about a bout on the board. */
 export interface LiceStackMatch {
   id: string;
-  /** Falls back to one slot when absent, as the block detector did. */
-  durationMinutes?: number;
+  /** The bout's planned length, as the API sends it (the Match's own, else the planner's sheet). */
+  durationMinutes: number;
   liceId: string | null;
   scheduledAt: string | null;
   status: string;
@@ -120,13 +119,12 @@ export function detectLiceStacks(
     // An unreadable timestamp is dropped rather than treated as epoch zero,
     // which would collide with everything on the strip.
     if (Number.isNaN(start)) continue;
-    const minutes = m.durationMinutes ?? SLOT_MINUTES;
     const list = byLice.get(m.liceId) ?? [];
     list.push({
       id: m.id,
       label: m.roundCode || m.matchNumberLabel,
       start,
-      end: start + minutes * 60_000,
+      end: start + m.durationMinutes * 60_000,
       iso: m.scheduledAt,
     });
     byLice.set(m.liceId, list);

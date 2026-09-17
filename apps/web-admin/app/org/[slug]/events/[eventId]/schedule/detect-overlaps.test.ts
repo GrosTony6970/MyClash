@@ -69,14 +69,13 @@ describe('detectLiceStacks — the block detector’s cases, at match level', ()
 
   it('does NOT flag two wide runs that pipeline sequentially on each shared lice', () => {
     // R16 then QF both span l1+l2. Their GLOBAL intervals overlap but PER LICE
-    // every fight is back-to-back — no real clash. (durationMinutes omitted →
-    // 5-min slot fallback.)
+    // every fight is back-to-back — no real clash.
     expect(
       stacks([
-        bout({ liceId: 'l1', scheduledAt: T(9), durationMinutes: undefined }),
-        bout({ liceId: 'l2', scheduledAt: T(9, 5), durationMinutes: undefined }),
-        bout({ liceId: 'l1', scheduledAt: T(9, 5), durationMinutes: undefined }),
-        bout({ liceId: 'l2', scheduledAt: T(9, 10), durationMinutes: undefined }),
+        bout({ liceId: 'l1', scheduledAt: T(9), durationMinutes: 5 }),
+        bout({ liceId: 'l2', scheduledAt: T(9, 5), durationMinutes: 5 }),
+        bout({ liceId: 'l1', scheduledAt: T(9, 5), durationMinutes: 5 }),
+        bout({ liceId: 'l2', scheduledAt: T(9, 10), durationMinutes: 5 }),
       ]),
     ).toEqual([]);
   });

@@ -45,13 +45,16 @@ describe('matchSlotSpan', () => {
     }
   });
 
-  it('agrees with the warning span on every duration the API actually sends', () => {
-    // GET /events/:id/schedule returns a constant durationMinutes of 5, equal to
-    // SLOT_MINUTES. So the two spans are the same number for every match the
-    // board draws, and the divergence above is latent rather than live. This
-    // reds if that constant moves off a slot boundary — at which point the
-    // divergence becomes real and someone has to decide it on purpose.
-    expect(barWarningSlotSpan(SLOT_MINUTES)).toBe(matchSlotSpan(SLOT_MINUTES));
+  it('places the sheet defaults 5, 8 and 10 on 1, 1 and 2 slots, and warns on 1, 2 and 2', () => {
+    // GET /events/:id/schedule sends real lengths; the planner's sheet defaults
+    // are 5 (pool), 8 (elimination) and 10 (finals) minutes. At 8 the two spans
+    // differ: placed as one slot, warned on as two. The direction test above
+    // would still pass if the warning floored too. The placement values pin
+    // today's floor, a known gap against real minutes (see `matchSlotSpan`),
+    // not a decision.
+    expect([matchSlotSpan(5), barWarningSlotSpan(5)]).toEqual([1, 1]);
+    expect([matchSlotSpan(8), barWarningSlotSpan(8)]).toEqual([1, 2]);
+    expect([matchSlotSpan(10), barWarningSlotSpan(10)]).toEqual([2, 2]);
   });
 });
 
