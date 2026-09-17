@@ -250,6 +250,41 @@ test('each page declares a canonical and both hreflang alternates', () => {
   }
 });
 
+test('a line break between an element and the text after it still reads as a space', () => {
+  /*
+   * Why the whitespace matters: see `compressHTML` in astro.config.mjs.
+   *
+   * The language switch is the live case. Its flag <span> and its label sit on
+   * separate lines in LangSwitch.astro, so under 'jsx' the built text reads
+   * "🇬🇧English". A flex gap hides that on screen, which is why this reads
+   * the markup and not the pixels. The case only exists while that line break
+   * does, so the source is checked first: on one line, the space would survive
+   * 'jsx' too and this test would pass whatever the config says.
+   */
+  const source = readFileSync(join(HERE, '..', 'src', 'components', 'LangSwitch.astro'), 'utf8');
+  assert.match(
+    source,
+    /<\/span>[ \t]*\r?\n\s*\{/u,
+    'LangSwitch.astro no longer puts its label on the line after the flag; pick another source line break for this test',
+  );
+
+  let seen = 0;
+  for (const [route, html] of pages) {
+    for (const [, inner] of html.matchAll(/<a\b[^>]*\blang-switch\b[^>]*>([\s\S]*?)<\/a>/gu)) {
+      seen += 1;
+      assert.match(
+        inner,
+        /<\/span>\s+\S/u,
+        `${route}: nothing separates the language switch's flag from its label: ${inner.trim()}`,
+      );
+    }
+  }
+  assert.ok(
+    seen >= 12,
+    `expected a nav and a footer <a class="lang-switch"> on six pages, saw ${seen}`,
+  );
+});
+
 test('the landing page stays within its first-paint budget', () => {
   /*
    * `pnpm perf:bundle` weighs emitted .js files, and Astro inlines this site's

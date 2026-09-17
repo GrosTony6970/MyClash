@@ -42,4 +42,14 @@ export default defineConfig({
   },
 
   devToolbar: { enabled: false },
+
+  /**
+   * Astro 7 changed the default to `'jsx'`, which deletes whitespace that holds
+   * a line break next to an element. The pages are .astro templates that
+   * Prettier cannot parse, so a link moved onto its own line would render
+   * glued to the word before it and no gate would see it. `true` keeps the
+   * Astro 6 rule: that whitespace collapses to one whitespace character, which
+   * renders as a space. test/site.test.mjs checks it.
+   */
+  compressHTML: true,
 });
