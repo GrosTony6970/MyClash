@@ -17,13 +17,14 @@
  * workshops/enrollment.service.ts), NOT the auth user id.
  */
 
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { asEventKind, isPubliclyVisible, type EventKind } from '@myclash/types';
 import { SupabaseService } from '../supabase/supabase.service';
 import { PublicScheduleService } from '../persons/public-schedule.service';
 // A zod schema, not a provider — plain file import, no module edge.
 import { parseSwissConfig } from '../swiss/dto/swiss-config.dto';
 import { computeMatchKind, fetchBracketRounds, fetchSwissRounds } from '../persons/match-kind.util';
+import { resolveDutyWindows } from '../schedule/duty-windows';
 
 type Row = Record<string, unknown>;
 
@@ -82,6 +83,9 @@ export interface MyEventRefereeOf {
   /** Bracket slot id for match-scoped assignments (null for pool/lice/swiss).
    *  Personal-space self-highlight key: matches BracketSlot.id on the bracket. */
   bracketSlotId: string | null;
+  /** The duty's planned window, worked out from the Matches it covers: its own
+   *  Match, or its Pool's placed Matches (ADR-017). Null when nothing is placed;
+   *  `endsAt` also null when the Event's planner sheet cannot be read. */
   startsAt: string | null;
   endsAt: string | null;
 }
@@ -244,6 +248,8 @@ export interface MyLeague {
 
 @Injectable()
 export class MeEventsService {
+  private readonly logger = new Logger(MeEventsService.name);
+
   constructor(
     private readonly supabase: SupabaseService,
     private readonly schedule: PublicScheduleService,
@@ -545,11 +551,11 @@ export class MeEventsService {
     }>
   > {
     if (!globalPersonId) return [];
-    const { data } = await this.supabase.service
+    const { data, error } = await this.supabase.service
       .from('referee_assignments')
       .select(
         `
-        id, role, starts_at, ends_at, pool_id,
+        id, role, event_id, pool_id, match_id,
         events ( id, slug, name, start_date, end_date, status, timezone, event_kind ),
         pools ( name, phases ( type, config_json, tournaments ( name ) ) ),
         matches (
@@ -561,10 +567,10 @@ export class MeEventsService {
         lices ( name, venues ( name ) )
       `,
       )
-      .eq('person_id', globalPersonId)
-      // Chronological is the only order that makes sense for a duty list; without
-      // this the rows come back in Postgres heap order.
-      .order('starts_at', { ascending: true, nullsFirst: false });
+      .eq('person_id', globalPersonId);
+    if (error) {
+      this.logger.warn(`Referee duties unreadable for ${globalPersonId}: ${error.message}`);
+    }
     const rows = Array.isArray(data) ? (data as Row[]) : [];
 
     const assignments = rows.map((r) => {
@@ -599,11 +605,26 @@ export class MeEventsService {
         matchKind: null as string | null,
         roundOfCount: null as number | null,
         swissRound: null as number | null,
-        startsAt: (r['starts_at'] as string | null) ?? null,
-        endsAt: (r['ends_at'] as string | null) ?? null,
+        startsAt: null as string | null,
+        endsAt: null as string | null,
         poolId: (r['pool_id'] as string | null) ?? null,
+        // The row's OWN scope, for its times: a Match-scoped duty covers its Match.
+        duty: {
+          eventId: r['event_id'] as string,
+          matchId: (r['match_id'] as string | null) ?? null,
+          poolId: (r['pool_id'] as string | null) ?? null,
+        },
       };
     });
+
+    // Every duty gets an answer; what could not be worked out is null, and logged.
+    const windows = await resolveDutyWindows(
+      this.supabase.service,
+      this.logger,
+      // A duty in an Event this list hides (a test Event) is never shown.
+      assignments.filter((a) => a.event !== null).map((a) => ({ id: a.id, ...a.duty })),
+    );
+    for (const a of assignments) Object.assign(a, windows.get(a.id));
 
     // Bracket round (match-scoped) — resolved without a matches→bracket_slots embed.
     const slotIds = [
@@ -682,7 +703,16 @@ export class MeEventsService {
       }
     }
 
-    return assignments.map((a) => ({
+    // Chronological, undated last: a duty list is read as "what do I do next".
+    // The starts are all ISO strings in UTC, so they compare as text.
+    const byStart = (a: { startsAt: string | null }, b: { startsAt: string | null }): number => {
+      if (a.startsAt === b.startsAt) return 0;
+      if (a.startsAt === null) return 1;
+      if (b.startsAt === null) return -1;
+      return a.startsAt < b.startsAt ? -1 : 1;
+    };
+
+    return [...assignments].sort(byStart).map((a) => ({
       id: a.id,
       event: a.event,
       role: a.role,

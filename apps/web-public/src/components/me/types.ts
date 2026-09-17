@@ -34,8 +34,8 @@ export interface RefereeSlot {
   matchId: string;
   matchNumberLabel: string;
   scheduledAt: string | null;
-  /** The assignment's own window — set for pool-/lice-scoped rows with no match,
-   *  so the schedule can place them on a day even without a per-match time. */
+  /** The duty's planned window, worked out by the API from the Matches it covers
+   *  (its own Match, or its Pool's placed Matches). Null when nothing is placed. */
   startsAt: string | null;
   endsAt: string | null;
   role: string;

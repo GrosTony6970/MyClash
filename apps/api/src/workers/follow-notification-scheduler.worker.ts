@@ -1,6 +1,7 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { InjectQueue } from '@nestjs/bullmq';
 import type { Queue } from 'bullmq';
+import { readDutyStart } from '../modules/schedule/duty-windows';
 import { SupabaseService } from '../modules/supabase/supabase.service';
 import {
   computeNotificationDelayMs,
@@ -44,11 +45,11 @@ interface RefereeAssignmentRow {
   id: string;
   person_id: string | null;
   event_id: string | null;
-  starts_at: string | null;
+  pool_id: string | null;
+  match_id: string | null;
   role: string | null;
   matches?: {
     match_number_label?: string | null;
-    scheduled_at?: string | null;
     lices?: { name?: string | null } | null;
   } | null;
 }
@@ -100,6 +101,8 @@ function readWorkshopLeadMinutes(row: NotificationPreferenceRow | undefined): nu
 
 @Injectable()
 export class FollowNotificationSchedulerService {
+  private readonly logger = new Logger(FollowNotificationSchedulerService.name);
+
   constructor(
     @InjectQueue(NOTIFICATION_QUEUE) private readonly queue: Queue,
     private readonly supabase: SupabaseService,
@@ -379,14 +382,17 @@ export class FollowNotificationSchedulerService {
   async scheduleRefereeStarting(assignmentId: string, now = new Date()): Promise<void> {
     const assignment = await this.getRefereeAssignment(assignmentId);
     if (!assignment?.person_id || !assignment.event_id) return;
-    const startsAt = assignment.starts_at ?? assignment.matches?.scheduled_at ?? null;
-    if (!startsAt) return;
 
     const personIds = await this.getEventPersonIds(assignment.person_id, assignment.event_id);
     if (personIds.length === 0) return;
 
     const follows = await this.getClaimedRefereeFollows(personIds);
     if (follows.length === 0) return;
+
+    // Read only once someone is waiting for it. The duty starts at its
+    // earliest placed Match.
+    const startsAt = await this.refereeDutyStart(assignment);
+    if (!startsAt) return;
 
     const preferences = await this.getPreferences(
       follows.map((follow) => follow.follower_user_id).filter((id): id is string => Boolean(id)),
@@ -423,14 +429,37 @@ export class FollowNotificationSchedulerService {
   }
 
   private async getRefereeAssignment(assignmentId: string): Promise<RefereeAssignmentRow | null> {
-    const { data } = await this.supabase.service
+    const { data, error } = await this.supabase.service
       .from('referee_assignments')
       .select(
-        'id, person_id, event_id, starts_at, role, matches ( match_number_label, scheduled_at, lices ( name ) )',
+        'id, person_id, event_id, pool_id, match_id, role, matches ( match_number_label, lices ( name ) )',
       )
       .eq('id', assignmentId)
       .maybeSingle();
+    if (error) {
+      this.logger.warn(
+        `Referee assignment ${assignmentId} unreadable; no follower reminder set: ${error.message}`,
+      );
+    }
     return (data as RefereeAssignmentRow | null) ?? null;
+  }
+
+  /** The duty's start, or null — logged — when its Matches cannot be read. */
+  private async refereeDutyStart(assignment: RefereeAssignmentRow): Promise<string | null> {
+    try {
+      return await readDutyStart(this.supabase.service, {
+        id: assignment.id,
+        matchId: assignment.match_id,
+        poolId: assignment.pool_id,
+      });
+    } catch (err) {
+      this.logger.warn(
+        `Referee assignment ${assignment.id}: its Matches are unreadable; no follower reminder set: ${
+          err instanceof Error ? err.message : String(err)
+        }`,
+      );
+      return null;
+    }
   }
 
   /** Bridge a referee's global identity to their event-scoped persons row(s). */

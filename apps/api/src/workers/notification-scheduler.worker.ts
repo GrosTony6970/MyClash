@@ -5,6 +5,7 @@ import type { Job, Queue } from 'bullmq';
 import { SentryReportingWorkerHost } from './sentry-reporting-worker-host';
 import * as webPush from 'web-push';
 import { MailService } from '../modules/mail/mail.service';
+import { readDutyStart } from '../modules/schedule/duty-windows';
 import { SupabaseService } from '../modules/supabase/supabase.service';
 
 export const NOTIFICATION_QUEUE = 'notification-scheduler';
@@ -178,8 +179,20 @@ export class WebPushSender {
   }
 }
 
+/** A `referee_assignments` row as the referee's own reminder reads it. */
+interface RefereeAssignmentRow {
+  id: string;
+  person_id: string | null;
+  pool_id: string | null;
+  match_id: string | null;
+  role: string | null;
+  matches?: { match_number_label?: string | null } | null;
+}
+
 @Injectable()
 export class NotificationSchedulerService {
+  private readonly logger = new Logger(NotificationSchedulerService.name);
+
   constructor(
     @InjectQueue(NOTIFICATION_QUEUE) private readonly queue: Queue,
     private readonly supabase: SupabaseService,
@@ -408,21 +421,8 @@ export class NotificationSchedulerService {
     // Post-0063: referee_assignments keys on person_id. Resolve to the
     // claimed user_id (notifications need a Supabase auth identity to
     // target). Unclaimed referees can't receive push/email — skip.
-    const { data: assignment } = await this.supabase.service
-      .from('referee_assignments')
-      .select('id, person_id, starts_at, role, matches ( match_number_label )')
-      .eq('id', assignmentId)
-      .maybeSingle();
-    if (!assignment) return;
-
-    const row = assignment as {
-      id: string;
-      person_id: string | null;
-      starts_at: string | null;
-      role: string | null;
-      matches?: { match_number_label?: string | null } | null;
-    };
-    if (!row.person_id) return;
+    const row = await this.getRefereeAssignment(assignmentId);
+    if (!row?.person_id) return;
 
     const { data: gp } = await this.supabase.service
       .from('global_persons')
@@ -436,11 +436,16 @@ export class NotificationSchedulerService {
     const preference = preferences.get(userId);
     if (preference?.enabled === false) return;
 
+    // Read only once a reminder can be set. A read that failed says nothing about
+    // the duty, so any older reminder stays; nothing placed cancels it below.
+    const start = await this.refereeDutyStart(row);
+    if (start === 'unreadable') return;
+
     await this.scheduleReminder({
       kind: 'referee_starting',
       entityId: row.id,
       userId,
-      startsAt: row.starts_at,
+      startsAt: start.startsAt,
       leadMinutes: readLeadMinutes(preference, 'referee_starting_minutes_before', 10),
       title: 'Referee slot starting soon',
       body: `${row.role ?? 'Your referee assignment'} starts soon${
@@ -449,6 +454,45 @@ export class NotificationSchedulerService {
       url: '/notifications',
       now,
     });
+  }
+
+  private async getRefereeAssignment(assignmentId: string): Promise<RefereeAssignmentRow | null> {
+    const { data, error } = await this.supabase.service
+      .from('referee_assignments')
+      .select('id, person_id, pool_id, match_id, role, matches ( match_number_label )')
+      .eq('id', assignmentId)
+      .maybeSingle();
+    if (error) {
+      this.logger.warn(
+        `Referee assignment ${assignmentId} unreadable; no reminder set: ${error.message}`,
+      );
+    }
+    return (data as RefereeAssignmentRow | null) ?? null;
+  }
+
+  /**
+   * The duty's start: its earliest placed Match, null when none is placed. The
+   * Matches unreadable is a different answer — `unreadable`, logged.
+   */
+  private async refereeDutyStart(
+    row: RefereeAssignmentRow,
+  ): Promise<{ startsAt: string | null } | 'unreadable'> {
+    try {
+      return {
+        startsAt: await readDutyStart(this.supabase.service, {
+          id: row.id,
+          matchId: row.match_id,
+          poolId: row.pool_id,
+        }),
+      };
+    } catch (err) {
+      this.logger.warn(
+        `Referee assignment ${row.id}: its Matches are unreadable; its reminder is left as it was: ${
+          err instanceof Error ? err.message : String(err)
+        }`,
+      );
+      return 'unreadable';
+    }
   }
 
   private async getPreferencesByUser(

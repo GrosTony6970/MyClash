@@ -536,6 +536,23 @@ describe('AssignmentBoardService', () => {
         }),
       ]),
     );
+    // A duty stores no time of its own (migration 0198): every reader works its
+    // window out from the Matches it covers, so a copy here would only go stale.
+    const rows = insertChain.insert.mock.calls[0]![0] as Array<Record<string, unknown>>;
+    for (const row of rows) {
+      expect(Object.keys(row).sort()).toEqual([
+        'auto_assigned',
+        'conflicts_jsonb',
+        'event_id',
+        'lice_id',
+        'match_id',
+        'person_id',
+        'pool_id',
+        'role',
+        'scope_type',
+        'status',
+      ]);
+    }
   });
 
   // ── Slice 7: Swiss (round × piste) units ─────────────────────────────────

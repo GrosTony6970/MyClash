@@ -16,10 +16,9 @@ import {
  * SQL to a database. So the file sat on four dropped columns
  * (`events.location`, `tournaments.category`, and `user_id` on both referee
  * tables) and `db:perf:explain` had nothing it could load. This reads each
- * INSERT's column list against the replayed schema, offline. W3 slice 5 plans to
- * drop `referee_assignments.starts_at` and `ends_at`, which the fixture still
- * writes; if it does so with `DROP COLUMN`, which the replay reads, this test
- * goes red.
+ * INSERT's column list against the replayed schema, offline. It went red, as
+ * meant, when 0198 dropped `referee_assignments.starts_at` and `ends_at` while
+ * the fixture still wrote them.
  *
  * It checks INSERT lists only: not the columns a DELETE or SELECT in the file
  * reads, not `phase4_explain.sql`, and not rows. A CHECK or a foreign key the

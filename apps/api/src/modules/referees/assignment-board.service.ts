@@ -307,8 +307,6 @@ interface RefereeAssignmentInsert {
   match_id: string | null;
   lice_id: null;
   role: string;
-  starts_at: string | null;
-  ends_at: string | null;
   auto_assigned: boolean;
   status: string;
   conflicts_jsonb: unknown[];
@@ -2163,8 +2161,6 @@ export class AssignmentBoardService {
         // anchored) fails the constraint and 400s the INSERT.
         lice_id: null,
         role: assignment.role,
-        starts_at: pool.scheduledStart,
-        ends_at: pool.scheduledEnd,
         auto_assigned: replaceAutoAssigned,
         status: 'assigned',
         conflicts_jsonb: [],

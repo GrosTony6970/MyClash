@@ -202,8 +202,9 @@ SELECT
 FROM generate_series(1, 12) AS i
 CROSS JOIN (VALUES ('arbitre_declarant'), ('arbitre_assesseur'), ('arbitre_table')) AS roles(role);
 
--- A Pool duty names its Pool and no Lice: 0091's scope check.
-INSERT INTO referee_assignments (event_id, person_id, scope_type, lice_id, pool_id, role, starts_at, ends_at, status, auto_assigned)
+-- A Pool duty names its Pool and no Lice: 0091's scope check. It stores no time
+-- (0198): its window is worked out from the Pool's Matches.
+INSERT INTO referee_assignments (event_id, person_id, scope_type, lice_id, pool_id, role, status, auto_assigned)
 SELECT
   '10000000-0000-4000-8000-000000000100',
   ('10000000-0000-4000-8000-000000002' || lpad((80 + i)::text, 3, '0'))::uuid,
@@ -211,8 +212,6 @@ SELECT
   NULL,
   ('10000000-0000-4000-8000-00000000050' || (((i - 1) % 4) + 1))::uuid,
   CASE WHEN i % 3 = 0 THEN 'arbitre_declarant' WHEN i % 3 = 1 THEN 'arbitre_assesseur' ELSE 'arbitre_table' END,
-  '2026-06-01 09:00:00+00',
-  '2026-06-01 13:00:00+00',
   'assigned',
   true
 FROM generate_series(1, 12) AS i;

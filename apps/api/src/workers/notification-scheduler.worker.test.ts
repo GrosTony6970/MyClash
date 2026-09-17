@@ -1,5 +1,7 @@
+import { Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { describe, expect, it, vi } from 'vitest';
+import { mockSupabase, selectsFor } from '../common/testing/supabase-chain';
 import {
   buildNotificationJobId,
   computeNotificationDelayMs,
@@ -30,6 +32,51 @@ function makeSupabaseFrom(rowsByTable: Record<string, unknown>) {
     chain.update.mockReturnValue(chain);
     return chain;
   });
+}
+
+/**
+ * A duty's Matches come from the seeded double, which applies `.in()`. The decoy
+ * Pool's Match is the earliest of all, and one Match of the duty's Pool is not
+ * placed. The helper filters by Pool twice (the `.in()`, then per duty), so the
+ * decoy shows only when both are lost; each alone is held in duty-windows.test.ts.
+ */
+const DUTY_MATCHES = [
+  {
+    id: 'm-late',
+    pool_id: 'pool-1',
+    phase_id: 'ph',
+    scheduled_at: '2026-05-02T12:05:00.000Z',
+    planned_duration_override_minutes: null,
+  },
+  {
+    id: 'm-early',
+    pool_id: 'pool-1',
+    phase_id: 'ph',
+    scheduled_at: '2026-05-02T12:00:00.000Z',
+    planned_duration_override_minutes: null,
+  },
+  {
+    id: 'm-unplaced',
+    pool_id: 'pool-1',
+    phase_id: 'ph',
+    scheduled_at: null,
+    planned_duration_override_minutes: null,
+  },
+  {
+    id: 'm-decoy',
+    pool_id: 'pool-decoy',
+    phase_id: 'ph',
+    scheduled_at: '2026-05-02T11:40:00.000Z',
+    planned_duration_override_minutes: null,
+  },
+];
+
+function withDutyMatches(
+  local: ReturnType<typeof makeSupabaseFrom>,
+  matches: Parameters<typeof mockSupabase>[0][string] = { rows: DUTY_MATCHES },
+) {
+  const seeded = mockSupabase({ matches });
+  return vi.fn((table: string) => (table === 'matches' ? seeded.from(table) : local(table)));
 }
 
 describe('notification scheduler jobs', () => {
@@ -303,45 +350,139 @@ describe('notification scheduler jobs', () => {
     );
   });
 
-  it('uses referee lead preferences for an assignment', async () => {
-    const queue = makeQueue();
-    const from = makeSupabaseFrom({
-      referee_assignments: {
-        data: {
-          id: 'assignment-1',
-          person_id: 'person-1',
-          starts_at: '2026-05-02T12:00:00.000Z',
-          role: 'arbitre_table',
-          matches: { match_number_label: 'L1-P1-M1' },
+  describe('a referee duty reminder', () => {
+    const tables = (assignment: Record<string, unknown>, claimed: string | null = 'user-1') =>
+      makeSupabaseFrom({
+        referee_assignments: {
+          data: {
+            id: 'assignment-1',
+            person_id: 'person-1',
+            pool_id: null,
+            match_id: null,
+            role: 'arbitre_table',
+            matches: null,
+            ...assignment,
+          },
+          error: null,
         },
-        error: null,
-      },
-      // Post-0063: scheduler resolves person_id → user_id via global_persons
-      // before targeting the notification.
-      global_persons: {
-        data: { claimed_by_user_id: 'user-1' },
-        error: null,
-      },
-      notification_preferences: {
-        data: [{ user_id: 'user-1', enabled: true, referee_starting_minutes_before: '12' }],
-        error: null,
-      },
+        // Post-0063: scheduler resolves person_id → user_id via global_persons
+        // before targeting the notification.
+        global_persons: { data: { claimed_by_user_id: claimed }, error: null },
+        notification_preferences: {
+          data: [{ user_id: 'user-1', enabled: true, referee_starting_minutes_before: '12' }],
+          error: null,
+        },
+      });
+
+    it("uses referee lead preferences, timed from its own Pool's earliest placed Match", async () => {
+      const queue = makeQueue();
+      const from = withDutyMatches(tables({ pool_id: 'pool-1' }));
+      const service = new NotificationSchedulerService(
+        queue as never,
+        { service: { from } } as never,
+      );
+
+      await service.scheduleRefereeAssignmentStarting(
+        'assignment-1',
+        new Date('2026-05-02T11:30:00.000Z'),
+      );
+
+      // 12:00 is the Pool's earliest placed Match; 12 minutes' lead from 11:30.
+      expect(queue.add).toHaveBeenCalledWith(
+        'send',
+        expect.objectContaining({ kind: 'referee_starting', userId: 'user-1' }),
+        expect.objectContaining({ delay: 18 * 60_000 }),
+      );
+      // The double ignores the projection: assert the read names no stored time.
+      expect(selectsFor(from as never, 'referee_assignments')).toEqual([
+        'id, person_id, pool_id, match_id, role, matches ( match_number_label )',
+      ]);
+      expect(selectsFor(from as never, 'matches')).toEqual([
+        'id, pool_id, phase_id, scheduled_at, planned_duration_override_minutes',
+      ]);
     });
-    const service = new NotificationSchedulerService(
-      queue as never,
-      { service: { from } } as never,
-    );
 
-    await service.scheduleRefereeAssignmentStarting(
-      'assignment-1',
-      new Date('2026-05-02T11:30:00.000Z'),
-    );
+    it('times a duty on one Match from that Match', async () => {
+      const queue = makeQueue();
+      const from = withDutyMatches(tables({ match_id: 'm-late' }));
+      const service = new NotificationSchedulerService(
+        queue as never,
+        { service: { from } } as never,
+      );
 
-    expect(queue.add).toHaveBeenCalledWith(
-      'send',
-      expect.objectContaining({ kind: 'referee_starting', userId: 'user-1' }),
-      expect.objectContaining({ delay: 18 * 60_000 }),
-    );
+      await service.scheduleRefereeAssignmentStarting(
+        'assignment-1',
+        new Date('2026-05-02T11:30:00.000Z'),
+      );
+
+      expect(queue.add).toHaveBeenCalledWith(
+        'send',
+        expect.objectContaining({ kind: 'referee_starting', userId: 'user-1' }),
+        expect.objectContaining({ delay: 23 * 60_000 }),
+      );
+    });
+
+    it('cancels the older reminder, and sets none, when nothing the duty covers is placed', async () => {
+      const older = { remove: vi.fn().mockResolvedValue(undefined) };
+      const queue = makeQueue();
+      queue.getJob.mockResolvedValue(older);
+      const from = withDutyMatches(tables({ match_id: 'm-unplaced' }));
+      const service = new NotificationSchedulerService(
+        queue as never,
+        { service: { from } } as never,
+      );
+
+      await service.scheduleRefereeAssignmentStarting(
+        'assignment-1',
+        new Date('2026-05-02T11:30:00.000Z'),
+      );
+
+      expect(queue.add).not.toHaveBeenCalled();
+      expect(older.remove).toHaveBeenCalledTimes(1);
+    });
+
+    it('reads no Match for a referee nobody can notify', async () => {
+      const queue = makeQueue();
+      const from = withDutyMatches(tables({ pool_id: 'pool-1' }, null));
+      const service = new NotificationSchedulerService(
+        queue as never,
+        { service: { from } } as never,
+      );
+
+      await service.scheduleRefereeAssignmentStarting(
+        'assignment-1',
+        new Date('2026-05-02T11:30:00.000Z'),
+      );
+
+      expect(selectsFor(from as never, 'matches')).toEqual([]);
+      expect(queue.add).not.toHaveBeenCalled();
+    });
+
+    it('says so, and leaves the older reminder alone, when the Matches cannot be read', async () => {
+      const warn = vi.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
+      const older = { remove: vi.fn().mockResolvedValue(undefined) };
+      const queue = makeQueue();
+      queue.getJob.mockResolvedValue(older);
+      const from = withDutyMatches(tables({ pool_id: 'pool-1' }), {
+        data: null,
+        error: { message: 'matches exploded' },
+      });
+      const service = new NotificationSchedulerService(
+        queue as never,
+        { service: { from } } as never,
+      );
+
+      await service.scheduleRefereeAssignmentStarting(
+        'assignment-1',
+        new Date('2026-05-02T11:30:00.000Z'),
+      );
+
+      expect(queue.add).not.toHaveBeenCalled();
+      expect(older.remove).not.toHaveBeenCalled();
+      expect(warn).toHaveBeenCalledTimes(1);
+      expect(String(warn.mock.calls[0]?.[0])).toContain('matches exploded');
+      warn.mockRestore();
+    });
   });
 });
 

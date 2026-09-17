@@ -1,4 +1,6 @@
+import { Logger } from '@nestjs/common';
 import { describe, expect, it, vi } from 'vitest';
+import { mockSupabase, selectsFor } from '../common/testing/supabase-chain';
 import { FollowNotificationSchedulerService } from './follow-notification-scheduler.worker';
 
 function makeQueue() {
@@ -27,6 +29,57 @@ function makeSupabaseFrom(rowsByTable: Record<string, unknown>) {
     return chain;
   });
 }
+
+/**
+ * A duty's Matches come from the seeded double, which applies `.in()`. The decoy
+ * Pool's Match is the earliest of all, and one Match of the duty's Pool is not
+ * placed. The helper filters by Pool twice (the `.in()`, then per duty), so the
+ * decoy shows only when both are lost; each alone is held in duty-windows.test.ts.
+ */
+const DUTY_MATCHES = [
+  {
+    id: 'm-late',
+    pool_id: 'pool-1',
+    phase_id: 'ph',
+    scheduled_at: '2026-05-02T12:05:00.000Z',
+    planned_duration_override_minutes: null,
+  },
+  {
+    id: 'm-early',
+    pool_id: 'pool-1',
+    phase_id: 'ph',
+    scheduled_at: '2026-05-02T12:00:00.000Z',
+    planned_duration_override_minutes: null,
+  },
+  {
+    id: 'm-unplaced',
+    pool_id: 'pool-1',
+    phase_id: 'ph',
+    scheduled_at: null,
+    planned_duration_override_minutes: null,
+  },
+  {
+    id: 'm-decoy',
+    pool_id: 'pool-decoy',
+    phase_id: 'ph',
+    scheduled_at: '2026-05-02T11:40:00.000Z',
+    planned_duration_override_minutes: null,
+  },
+];
+
+function withDutyMatches(
+  local: ReturnType<typeof makeSupabaseFrom>,
+  matches: Parameters<typeof mockSupabase>[0][string] = { rows: DUTY_MATCHES },
+) {
+  const seeded = mockSupabase({ matches });
+  return vi.fn((table: string) => (table === 'matches' ? seeded.from(table) : local(table)));
+}
+
+const FOLLOW = {
+  followed_person_id: 'person-ref',
+  follower_user_id: 'user-1',
+  notify_referee_start: true,
+};
 
 describe('follow notification scheduler — workshops, referees, unfollow', () => {
   it('queues delayed workshop-start notifications for claimed followers of the instructor', async () => {
@@ -144,5 +197,123 @@ describe('follow notification scheduler — workshops, referees, unfollow', () =
     expect(queue.getJob).toHaveBeenCalledWith('follow.match_starting.match-1.user-1');
     expect(queue.getJob).toHaveBeenCalledWith('follow.match_starting.match-2.user-1');
     expect(existingJob.remove).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe('follow notification scheduler — a followed referee starting', () => {
+  const tables = (assignment: Record<string, unknown>, follows: unknown[] = [FOLLOW]) =>
+    makeSupabaseFrom({
+      referee_assignments: {
+        data: {
+          id: 'assignment-1',
+          person_id: 'gp-ref',
+          event_id: 'event-1',
+          pool_id: null,
+          match_id: null,
+          role: 'arbitre_table',
+          matches: null,
+          ...assignment,
+        },
+        error: null,
+      },
+      persons: { data: [{ id: 'person-ref' }], error: null },
+      follows: { data: follows, error: null },
+      notification_preferences: {
+        data: [{ user_id: 'user-1', enabled: true, referee_starting_minutes_before: '10' }],
+        error: null,
+      },
+      global_persons: { data: { display_name: 'Ref Rita' }, error: null },
+    });
+
+  const service = (queue: ReturnType<typeof makeQueue>, from: unknown) =>
+    new FollowNotificationSchedulerService(queue as never, { service: { from } } as never);
+
+  it("queues each follower's alert from the duty's own Pool's earliest placed Match", async () => {
+    const queue = makeQueue();
+    const from = withDutyMatches(tables({ pool_id: 'pool-1' }));
+
+    await service(queue, from).scheduleRefereeStarting(
+      'assignment-1',
+      new Date('2026-05-02T11:30:00.000Z'),
+    );
+
+    // 12:00 is the Pool's earliest placed Match; 10 minutes' lead from 11:30.
+    expect(queue.add).toHaveBeenCalledTimes(1);
+    expect(queue.add).toHaveBeenCalledWith(
+      'send',
+      expect.objectContaining({
+        kind: 'follow_referee_starting',
+        entityId: 'assignment-1',
+        userId: 'user-1',
+      }),
+      expect.objectContaining({ delay: 20 * 60_000 }),
+    );
+    // The double ignores the projection: assert the read names no stored time.
+    expect(selectsFor(from as never, 'referee_assignments')).toEqual([
+      'id, person_id, event_id, pool_id, match_id, role, matches ( match_number_label, lices ( name ) )',
+    ]);
+    expect(selectsFor(from as never, 'matches')).toEqual([
+      'id, pool_id, phase_id, scheduled_at, planned_duration_override_minutes',
+    ]);
+  });
+
+  it('times a duty on one Match from that Match', async () => {
+    const queue = makeQueue();
+    const from = withDutyMatches(tables({ match_id: 'm-late' }));
+
+    await service(queue, from).scheduleRefereeStarting(
+      'assignment-1',
+      new Date('2026-05-02T11:30:00.000Z'),
+    );
+
+    expect(queue.add).toHaveBeenCalledWith(
+      'send',
+      expect.objectContaining({ kind: 'follow_referee_starting' }),
+      expect.objectContaining({ delay: 25 * 60_000 }),
+    );
+  });
+
+  it('queues nothing when nothing the duty covers is placed', async () => {
+    const queue = makeQueue();
+    const from = withDutyMatches(tables({ match_id: 'm-unplaced' }));
+
+    await service(queue, from).scheduleRefereeStarting(
+      'assignment-1',
+      new Date('2026-05-02T11:30:00.000Z'),
+    );
+
+    expect(queue.add).not.toHaveBeenCalled();
+  });
+
+  it('reads no Match when nobody follows the referee', async () => {
+    const queue = makeQueue();
+    const from = withDutyMatches(tables({ pool_id: 'pool-1' }, []));
+
+    await service(queue, from).scheduleRefereeStarting(
+      'assignment-1',
+      new Date('2026-05-02T11:30:00.000Z'),
+    );
+
+    expect(selectsFor(from as never, 'matches')).toEqual([]);
+    expect(queue.add).not.toHaveBeenCalled();
+  });
+
+  it('says so, and queues nothing, when the Matches cannot be read', async () => {
+    const warn = vi.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
+    const queue = makeQueue();
+    const from = withDutyMatches(tables({ pool_id: 'pool-1' }), {
+      data: null,
+      error: { message: 'matches exploded' },
+    });
+
+    await service(queue, from).scheduleRefereeStarting(
+      'assignment-1',
+      new Date('2026-05-02T11:30:00.000Z'),
+    );
+
+    expect(queue.add).not.toHaveBeenCalled();
+    expect(warn).toHaveBeenCalledTimes(1);
+    expect(String(warn.mock.calls[0]?.[0])).toContain('matches exploded');
+    warn.mockRestore();
   });
 });

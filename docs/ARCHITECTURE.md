@@ -1238,7 +1238,7 @@ async function getUserSchedule(userId: string, eventId: string): Promise<Schedul
     ...workshops.map(toScheduleItem),
   ];
 
-  // Annotate conflicts: any two items with overlapping [starts_at, ends_at]
+  // Annotate conflicts: any two items whose planned windows overlap
   for (const a of items)
     for (const b of items) {
       if (a.id !== b.id && rangesOverlap(a, b)) {
@@ -1360,7 +1360,7 @@ in the pool.
 
 **Inputs:**
 
-- The pool schedule (every `(pool_id, lice_id, starts_at, ends_at)` tuple).
+- The pool schedule: each Pool's Lice and its window, the hull of its Matches' planned windows (ADR-017).
 - The event's match schedule (so we know when each fighter is on the piste).
 - All `referee_qualifications` for the event.
 - All workshop enrollments per user (soft conflict).
@@ -1400,7 +1400,9 @@ in the pool.
 
 **Output:**
 
-- Assignments persisted to `referee_assignments` with `auto_assigned=true`.
+- Assignments persisted to `referee_assignments` with `auto_assigned=true`. A row stores its scope
+  (Pool or Match), not a time: every reader works the duty's window out from the Matches it covers
+  (migration 0198).
 - A **missing-role report**, structured for the admin UI:
   ```json
   {

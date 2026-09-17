@@ -13,19 +13,25 @@
  *   - 100ms p95 target (relies on DB indexes on person_id + event_id)
  */
 
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { DEFAULT_EVENT_TIMEZONE } from '@myclash/time';
 import { SupabaseService } from '../supabase/supabase.service';
 import { PrivacyService } from './privacy.service';
 import { computeMatchKind, fetchBracketRounds, fetchSwissRounds } from './match-kind.util';
 import { sideColorsFromScoringConfig, type SideColors } from '../events/side-colors';
 import { deriveMatchOutcome } from '../fighters/recent-matches';
+import { resolveDutyWindows } from '../schedule/duty-windows';
+import { resolveMatchLengths, type MatchLengthInput } from '../schedule/match-lengths';
+import { plannedLengthOf } from '../schedule/planned-length';
 
 export interface ScheduleMatch {
   id: string;
   matchNumberLabel: string;
   status: string;
   scheduledAt: string | null;
+  /** The Match's planned length in minutes, from the Event's planner sheet or
+   *  the Match's own override (ADR-018). Null when the sheet cannot be read. */
+  durationMinutes: number | null;
   opponentName: string | null;
   opponentClub: string | null;
   redScore: number;
@@ -64,8 +70,9 @@ export interface RefereeSlot {
   matchId: string;
   matchNumberLabel: string;
   scheduledAt: string | null;
-  /** The assignment's own window — set for pool-/lice-scoped rows that carry no
-   *  match, so the schedule can place them on a day even without a match time. */
+  /** The duty's planned window, worked out from the Matches it covers: its own
+   *  Match, or its Pool's placed Matches (ADR-017). Null when nothing is placed;
+   *  `endsAt` also null when the Event's planner sheet cannot be read. */
   startsAt: string | null;
   endsAt: string | null;
   role: string;
@@ -118,6 +125,8 @@ export interface PersonSchedule {
 
 @Injectable()
 export class PublicScheduleService {
+  private readonly logger = new Logger(PublicScheduleService.name);
+
   constructor(
     private readonly supabase: SupabaseService,
     private readonly privacy: PrivacyService,
@@ -171,7 +180,7 @@ export class PublicScheduleService {
       .from('matches')
       .select(
         `
-        id, match_number_label, status, scheduled_at,
+        id, match_number_label, status, scheduled_at, phase_id, planned_duration_override_minutes,
         red_score, blue_score, winner_registration_id, end_reason,
         red_registration_id, blue_registration_id,
         pools ( name ),
@@ -207,6 +216,12 @@ export class PublicScheduleService {
           matchNumberLabel: (m['match_number_label'] as string | null) ?? '',
           status: m['status'] as string,
           scheduledAt: (m['scheduled_at'] as string | null) ?? null,
+          lengthInput: {
+            id: m['id'] as string,
+            phaseId: m['phase_id'] as string,
+            plannedDurationOverrideMinutes:
+              (m['planned_duration_override_minutes'] as number | null) ?? null,
+          },
           opponentRegId: isRed ? blueReg : redReg,
           redScore: (m['red_score'] as number) ?? 0,
           blueScore: (m['blue_score'] as number) ?? 0,
@@ -255,11 +270,38 @@ export class PublicScheduleService {
       mapped.map((x) => x.opponentRegId).filter((id): id is string => Boolean(id)),
     );
 
-    return mapped.map(({ opponentRegId, ...rest }) => ({
+    // Published Matches only: the unpublished ones were dropped above.
+    const lengths = await this.plannedLengths(
+      eventId,
+      mapped.map((x) => x.lengthInput),
+    );
+
+    return mapped.map(({ opponentRegId, lengthInput, ...rest }) => ({
       ...rest,
+      durationMinutes: lengths ? plannedLengthOf(lengths, lengthInput.id) : null,
       opponentName: opponentRegId ? (opponentNames.get(opponentRegId) ?? null) : null,
       opponentClub: null,
     }));
+  }
+
+  /**
+   * Each Match's planned length, or null for all of them when the Event's sheet
+   * cannot be read — the rest of the schedule still renders, and the log says why.
+   */
+  private async plannedLengths(
+    eventId: string,
+    inputs: MatchLengthInput[],
+  ): Promise<Map<string, number> | null> {
+    try {
+      return await resolveMatchLengths(this.supabase.service, eventId, inputs);
+    } catch (err) {
+      this.logger.warn(
+        `Planned lengths unreadable for event ${eventId}; every Match length on this schedule is unknown: ${
+          err instanceof Error ? err.message : String(err)
+        }`,
+      );
+      return null;
+    }
   }
 
   /** Batched registration_id → "Given Family" (falls back to global display name). */
@@ -304,11 +346,11 @@ export class PublicScheduleService {
 
     // Embed the match (match-scoped rows) AND the assignment's own pool/lice
     // (pool-/lice-scoped rows that carry no match — e.g. a pool "Déclarant").
-    const { data } = await this.supabase.service
+    const { data, error } = await this.supabase.service
       .from('referee_assignments')
       .select(
         `
-        id, role, starts_at, ends_at, pool_id,
+        id, role, pool_id, match_id,
         pools ( id, name, phases ( type, config_json, visibility_status, tournaments ( name, slug ) ) ),
         lices ( name ),
         matches (
@@ -320,11 +362,11 @@ export class PublicScheduleService {
       `,
       )
       .eq('person_id', globalPersonId)
-      .eq('event_id', eventId)
-      // Base order for the pool-/lice-scoped rows; match-scoped rows are
-      // re-sorted below on their match time, which SQL can't reach from here.
-      .order('starts_at', { ascending: true, nullsFirst: false });
+      .eq('event_id', eventId);
 
+    if (error) {
+      this.logger.warn(`Referee duties unreadable for event ${eventId}: ${error.message}`);
+    }
     if (!data) return [];
 
     type PhaseEmbed = {
@@ -336,7 +378,13 @@ export class PublicScheduleService {
 
     // Carry phaseType/bracketSize alongside each slot for the match-kind derivation
     // below; they're stripped from the returned RefereeSlot.
-    type RawSlot = RefereeSlot & { phaseType: string | null; bracketSize: number | null };
+    // `duty` is the row's OWN scope, not the merged pool below: a Match-scoped
+    // duty whose Match sits in a Pool covers that Match, not the Pool.
+    type RawSlot = RefereeSlot & {
+      phaseType: string | null;
+      bracketSize: number | null;
+      duty: { matchId: string | null; poolId: string | null };
+    };
     const raw: RawSlot[] = (data as Array<Record<string, unknown>>).flatMap((a) => {
       const match = a['matches'] as Record<string, unknown> | null;
       const matchPool = match?.['pools'] as { id?: string; name?: string } | null;
@@ -362,8 +410,8 @@ export class PublicScheduleService {
         matchId: (match?.['id'] as string) ?? '',
         matchNumberLabel: (match?.['match_number_label'] as string | null) ?? '',
         scheduledAt: (match?.['scheduled_at'] as string | null) ?? null,
-        startsAt: (a['starts_at'] as string | null) ?? null,
-        endsAt: (a['ends_at'] as string | null) ?? null,
+        startsAt: null,
+        endsAt: null,
         role: a['role'] as string,
         poolName: pool?.name ?? null,
         poolId: (pool?.id as string | undefined) ?? (a['pool_id'] as string | null) ?? null,
@@ -379,8 +427,21 @@ export class PublicScheduleService {
         poolMatchCount: null,
         phaseType: (phase?.type as string | null) ?? null,
         bracketSize: phase?.config_json?.bracketSize ?? null,
+        duty: {
+          matchId: (a['match_id'] as string | null) ?? null,
+          poolId: (a['pool_id'] as string | null) ?? null,
+        },
       };
     });
+
+    // After the visibility filter, so an unpublished phase leaks no time. Every
+    // duty gets an answer; what could not be worked out is null, and logged.
+    const windows = await resolveDutyWindows(
+      this.supabase.service,
+      this.logger,
+      raw.map((slot) => ({ id: slot.id, eventId, ...slot.duty })),
+    );
+    for (const slot of raw) Object.assign(slot, windows.get(slot.id));
 
     // Match kind (pool / bracket round) — bracket round lives on bracket_slots.
     const slotIds = [...new Set(raw.map((s) => s.bracketSlotId).filter((x): x is string => !!x))];
@@ -457,10 +518,9 @@ export class PublicScheduleService {
       }
     }
 
-    // Chronological. The display time is the match's `scheduled_at` for a
-    // match-scoped row and the assignment's own `starts_at` for a pool-/lice-
-    // scoped one, so neither column alone can order the mixed list in SQL.
-    // Same key as the schedule view uses (`scheduledAt ?? startsAt`); undated last.
+    // Chronological, undated last. The key is the match's `scheduled_at` for a
+    // match-scoped row and the duty's computed start for a pool-scoped one —
+    // the same key the schedule view uses (`scheduledAt ?? startsAt`).
     const startMs = (s: RawSlot): number => {
       const iso = s.scheduledAt ?? s.startsAt;
       return iso ? new Date(iso).getTime() : Number.POSITIVE_INFINITY;
