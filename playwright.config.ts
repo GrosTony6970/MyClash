@@ -22,6 +22,13 @@ export default defineConfig({
   //    epilogue the runner reads.
   //  - `list` LAST: its epilogue is what arms the runner's two-second exit.
   reporter: [['html', { open: 'never' }], ['github'], ['list']],
-  use: { ...devices['Desktop Chrome'] },
+  // Service workers are blocked because every spec here answers the API with `page.route`, and a
+  // service worker's own requests never pass through it. web-staff registers its offline worker
+  // on load (`apps/web-staff/public/sw.js`): it precaches four pages and answers `/api/` itself, so
+  // those calls reached the dev server, came back 404, and failed `expectNoPageIssues` in the
+  // scoring spec whenever the worker took control before the test's last check — CI run
+  // 35226838601, after five green runs. Offline behaviour is tested by the prod suite in
+  // `tests/e2e` (`playwright.e2e.config.ts`), which this does not touch.
+  use: { ...devices['Desktop Chrome'], serviceWorkers: 'block' },
   projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
 });
