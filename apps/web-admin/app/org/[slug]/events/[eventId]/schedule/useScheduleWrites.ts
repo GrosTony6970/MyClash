@@ -4,6 +4,7 @@ import { useCallback, useMemo, useState } from 'react';
 import { useI18n } from '@myclash/next-i18n/client';
 import { failureMessage } from '@myclash/api-client';
 import { mutateAll, mutateSchedule, ScheduleMutationError } from './schedule-mutations';
+import type { RunWindowBody } from './run-window';
 import { createWriteTracker } from './write-tracker';
 
 /**
@@ -46,6 +47,10 @@ export interface ScheduleWrites {
   track: <T>(work: () => Promise<T>) => Promise<T>;
   /** PATCH one match's lice + time. Throws if the server refused. */
   saveMatchPosition: (matchId: string, liceId: string, scheduledAt: string) => Promise<void>;
+  /** POST one run window's save: the run's Matches, its start and, when it changed, its
+   *  bout length. The server lays the run and checks every piste as ONE batch (ADR-018).
+   *  Throws if the server refused. */
+  saveRunWindow: (body: RunWindowBody) => Promise<void>;
   /** Turn a thrown write failure into something an operator can read. `null`
    *  when there is nothing to say — a write this screen aborted itself. Every
    *  banner it feeds renders only when it holds a string. `fallback` is this
@@ -59,10 +64,11 @@ export interface ScheduleWrites {
 
 export function useScheduleWrites(args: {
   apiUrl: string;
+  eventId: string;
   /** The board's rollback path — see the note above. */
   refetch: () => Promise<void>;
 }): ScheduleWrites {
-  const { apiUrl, refetch } = args;
+  const { apiUrl, eventId, refetch } = args;
   const { t } = useI18n();
   const [saving, setSaving] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -83,6 +89,16 @@ export function useScheduleWrites(args: {
       }
     },
     [apiUrl],
+  );
+
+  const saveRunWindow = useCallback(
+    async (body: RunWindowBody): Promise<void> => {
+      await mutateSchedule(`${apiUrl}/api/v1/events/${eventId}/schedule/run`, {
+        method: 'POST',
+        body,
+      });
+    },
+    [apiUrl, eventId],
   );
 
   const describeSaveError = useCallback(
@@ -154,6 +170,7 @@ export function useScheduleWrites(args: {
     isBusy,
     track: tracker.track,
     saveMatchPosition,
+    saveRunWindow,
     describeSaveError,
     commit,
     commitAll,

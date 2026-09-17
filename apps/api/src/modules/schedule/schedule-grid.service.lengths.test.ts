@@ -92,6 +92,31 @@ describe('ScheduleGridService — a card is as wide as the sheet says', () => {
     ]);
   });
 
+  it("carries each card's typed length, and null where the sheet decides", async () => {
+    // The run window opens on this number. `durationMinutes` already applies it,
+    // but only this says whether the length was typed or read from the sheet.
+    queue([
+      match({ id: 'm1' }),
+      match({ id: 'm2', planned_duration_override_minutes: 7 }),
+      match({ id: 'm3' }),
+    ]);
+    resolveMatchLengthsMock.mockResolvedValue(
+      new Map([
+        ['m1', 5],
+        ['m2', 7],
+        ['m3', 5],
+      ]),
+    );
+
+    const rows = await service().listEventSchedule('e1', () => Promise.resolve('u1'));
+
+    expect(rows.map((r) => [r.id, r.plannedDurationOverrideMinutes])).toEqual([
+      ['m1', null],
+      ['m2', 7],
+      ['m3', null],
+    ]);
+  });
+
   it("hands the helper each Match's phase and its own stored override", async () => {
     queue([match({ id: 'm1', planned_duration_override_minutes: 9 })]);
     resolveMatchLengthsMock.mockResolvedValue(new Map([['m1', 9]]));

@@ -48,6 +48,12 @@ export interface MatchPlacement {
   scheduledAt: string | null;
   /** Only for a Match that does not exist yet; existing ones are read. */
   phaseId?: string;
+  /**
+   * The Match's own planned length (ADR-018). A number sets it, `null` clears it
+   * so the sheet decides again, and an absent key leaves the stored value alone.
+   * Only the run window sends one.
+   */
+  plannedDurationOverrideMinutes?: number | null;
 }
 
 export interface PlaceMatchesOptions {
@@ -91,17 +97,22 @@ const PENDING_ID = '__pending__';
 /**
  * What the length helper needs for one placement.
  *
- * The override is read from the row, never taken from the caller: no door sends
- * one today, and a parameter with no producer is a branch that cannot fire.
- * A Match that does not exist yet has no row, which is why `phaseId` is on the
- * placement at all — and no override either, so it takes the sheet's length.
+ * The override the placement names wins over the row's, `null` included: a
+ * batch that types a new length must be judged at the length it is about to
+ * write, or six bouts growing from 5 to 7 minutes would be checked at 5 and
+ * written at 7. With no key, the row's own override counts. A Match that does
+ * not exist yet has no row, which is why `phaseId` is on the placement at all —
+ * and no stored override either, so it takes the sheet's length.
  */
 function lengthInputFor(placement: MatchPlacement, stored: Map<string, StoredMatch>) {
   const id = placement.matchId ?? PENDING_ID;
   return {
     id,
     phaseId: placement.phaseId ?? (stored.get(id)?.phase_id as string),
-    plannedDurationOverrideMinutes: stored.get(id)?.planned_duration_override_minutes ?? null,
+    plannedDurationOverrideMinutes:
+      placement.plannedDurationOverrideMinutes !== undefined
+        ? placement.plannedDurationOverrideMinutes
+        : (stored.get(id)?.planned_duration_override_minutes ?? null),
   };
 }
 
@@ -250,6 +261,11 @@ export class MatchPlacementService {
           scheduled_at: placement.scheduledAt || null,
           updated_at: updatedAt,
         };
+        // Only when the caller named one: every other door moves a bout and
+        // leaves its typed length where it is.
+        if (placement.plannedDurationOverrideMinutes !== undefined) {
+          updates['planned_duration_override_minutes'] = placement.plannedDurationOverrideMinutes;
+        }
         const { error } = await this.supabase.service
           .from('matches')
           .update(updates)

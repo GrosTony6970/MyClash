@@ -26,6 +26,7 @@ const MATCH: ScheduleMatch = {
   tournamentName: null,
   tournamentColor: null,
   durationMinutes: 5,
+  plannedDurationOverrideMinutes: null,
   phaseType: null,
   poolId: null,
   poolName: null,

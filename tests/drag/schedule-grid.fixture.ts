@@ -114,6 +114,7 @@ function match(over: Record<string, unknown>) {
     tournamentColor: null,
     tournamentSlug: 'longsword-open',
     durationMinutes: 5,
+    plannedDurationOverrideMinutes: null,
     phaseType: 'pool',
     poolId: null,
     poolName: null,
@@ -147,6 +148,35 @@ export const scheduleFixture = [
     blueRegistrationId: 'reg-blue-2',
   }),
 ];
+
+/**
+ * One Pool of six bouts on Piste 1 from 10:43, five minutes apart — a run that
+ * does NOT start on a 5-minute slot. Its window shows the slot, 10:40, so a save
+ * that read that text back would move the whole run three minutes early.
+ */
+export const RUN_START = at('10:43');
+export const RUN_MATCH_IDS = [1, 2, 3, 4, 5, 6].map(
+  (n) => `88888888-8888-4888-8888-00000000000${n}`,
+);
+export function runScheduleFixture(typedLengthMinutes: number | null = null) {
+  const length = typedLengthMinutes ?? 5;
+  return RUN_MATCH_IDS.map((id, index) =>
+    match({
+      id,
+      matchNumberLabel: `M${index + 1}`,
+      roundCode: `LSW-PA-M${index + 1}`,
+      liceId: LICE_A,
+      scheduledAt: new Date(Date.parse(RUN_START) + index * length * 60_000).toISOString(),
+      durationMinutes: length,
+      plannedDurationOverrideMinutes: typedLengthMinutes,
+      poolId: 'pool-a',
+      poolName: 'Pool A',
+      // Six bouts, twelve fighters: shared defaults would raise a double booking.
+      redRegistrationId: `reg-red-run-${index}`,
+      blueRegistrationId: `reg-blue-run-${index}`,
+    }),
+  );
+}
 
 /**
  * The same day, running twenty minutes behind on Piste 1.

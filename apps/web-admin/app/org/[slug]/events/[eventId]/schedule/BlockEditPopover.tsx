@@ -11,10 +11,11 @@
  * Presentational — local draft state only, no I/O.
  */
 
-import { useState } from 'react';
+import { useId, useState } from 'react';
 import { Modal } from '@myclash/ui';
 import { ColorSwatchPicker } from '@/components/ColorSwatchPicker';
 import { useI18n } from '@myclash/next-i18n/client';
+import { MAX_BOUT_LENGTH_MINUTES, parseBoutLength } from './run-window';
 
 export interface BlockEditDraft {
   label: string;
@@ -23,6 +24,9 @@ export interface BlockEditDraft {
   liceIds: string[];
   /** "#rrggbb" or '' for the per-kind default. Only used in `break` mode. */
   colorHex: string;
+  /** The run's typed bout length in minutes, or null for the planner's sheet (ADR-018).
+   *  Only used in `block` mode. */
+  boutLengthMinutes: number | null;
 }
 
 interface Props {
@@ -63,6 +67,14 @@ export function BlockEditPopover({
   const [endHHMM, setEndHHMM] = useState(initial.endHHMM);
   const [liceIds, setLiceIds] = useState<string[]>(initial.liceIds);
   const [colorHex, setColorHex] = useState(initial.colorHex);
+  const [boutLengthText, setBoutLengthText] = useState(
+    initial.boutLengthMinutes === null ? '' : String(initial.boutLengthMinutes),
+  );
+  const boutLengthHintId = useId();
+  const boutLength = parseBoutLength(boutLengthText);
+  // Refused here rather than sent: the API would refuse it too, but only after
+  // the window had closed on a length the organiser can no longer see.
+  const boutLengthInvalid = boutLength.kind === 'invalid';
 
   function toggleLice(id: string) {
     setLiceIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
@@ -86,8 +98,17 @@ export function BlockEditPopover({
           </button>
           <button
             type="button"
-            disabled={busy}
-            onClick={() => onSave({ label, startHHMM, endHHMM, liceIds, colorHex })}
+            disabled={busy || boutLengthInvalid}
+            onClick={() =>
+              onSave({
+                label,
+                startHHMM,
+                endHHMM,
+                liceIds,
+                colorHex,
+                boutLengthMinutes: boutLength.kind === 'minutes' ? boutLength.minutes : null,
+              })
+            }
             className="rounded bg-accent px-3 py-1 text-xs font-semibold text-accent-foreground hover:bg-accent-hover disabled:opacity-50"
           >
             {t('organizer.schedulePage.editPopover.save')}
@@ -144,8 +165,35 @@ export function BlockEditPopover({
                 className="rounded border border-border px-2 py-1 text-sm font-mono focus:outline-none focus:ring-1 focus:ring-accent"
               />
             </label>
-          ) : null}
+          ) : (
+            <label className="flex flex-1 flex-col gap-1 text-xs">
+              <span className="font-semibold text-muted">
+                {t('organizer.schedulePage.editPopover.boutLengthLabel')}
+              </span>
+              {/* Text, not type="number": see `parseBoutLength`. */}
+              <input
+                type="text"
+                inputMode="numeric"
+                maxLength={4}
+                value={boutLengthText}
+                onChange={(e) => setBoutLengthText(e.target.value)}
+                aria-invalid={boutLengthInvalid}
+                aria-describedby={boutLengthHintId}
+                className="rounded border border-border px-2 py-1 text-sm font-mono focus:outline-none focus:ring-1 focus:ring-accent"
+              />
+            </label>
+          )}
         </div>
+        {mode === 'block' ? (
+          <p
+            id={boutLengthHintId}
+            className={`text-[11px] ${boutLengthInvalid ? 'text-danger' : 'text-muted'}`}
+          >
+            {t('organizer.schedulePage.editPopover.boutLengthHint', {
+              max: MAX_BOUT_LENGTH_MINUTES,
+            })}
+          </p>
+        ) : null}
 
         {mode === 'break' ? (
           <div className="flex flex-col gap-1 text-xs">

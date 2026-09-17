@@ -8798,6 +8798,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  '/api/v1/events/{eventId}/schedule/run': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Move one run of bouts to a start and, optionally, set or clear its bout length. The server lays the run and checks every piste in one save. */
+    post: operations['ScheduleRunController_saveRun'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   '/api/v1/deletion-requests': {
     parameters: {
       query?: never;
@@ -11528,6 +11545,12 @@ export interface components {
       venueId?: string | null;
       /** Format: uuid */
       areaId?: string | null;
+    };
+    ScheduleRunDto: {
+      matchIds: string[];
+      /** Format: date-time */
+      startAt: string;
+      plannedDurationOverrideMinutes?: number | null;
     };
     CreateDeletionRequestDto: {
       /** @enum {string} */
@@ -24726,6 +24749,29 @@ export interface operations {
       cookie?: never;
     };
     requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  ScheduleRunController_saveRun: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        eventId: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['ScheduleRunDto'];
+      };
+    };
     responses: {
       200: {
         headers: {

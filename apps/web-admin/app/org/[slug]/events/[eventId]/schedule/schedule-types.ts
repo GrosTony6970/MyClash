@@ -119,6 +119,9 @@ export interface ScheduleMatch {
    *  helpers in @myclash/ui. */
   tournamentColor: string | null;
   durationMinutes: number;
+  /** The run window's typed length, already applied to `durationMinutes`; null when the
+   *  planner's sheet decides. The window opens on it. */
+  plannedDurationOverrideMinutes: number | null;
   phaseType: string | null;
   /** Populated for pool-type matches; drives the per-pool colour tint
    *  on the grid card. Null for bracket / finals matches. */

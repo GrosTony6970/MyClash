@@ -41,6 +41,8 @@ export interface ScheduleGridMatch {
    *  Null when the tournament is missing/unresolved. */
   tournamentSlug: string | null;
   durationMinutes: number;
+  /** The run window's typed length, already applied to `durationMinutes`; null when the sheet decides. */
+  plannedDurationOverrideMinutes: number | null;
   /** 'pool' / 'single_elim' / 'double_elim' — drives the bracket-vs-pool chip on the grid. */
   phaseType: string | null;
   /** Populated for pool-type matches so the grid can group + colour-tint
@@ -386,6 +388,7 @@ export class ScheduleGridService {
         // through `resolveMatchLengths` (ADR-018). It was a shared constant of
         // five minutes, which agreed with itself and with no organiser.
         durationMinutes: plannedLengthOf(lengths, m.id),
+        plannedDurationOverrideMinutes: m.planned_duration_override_minutes,
         phaseType: phase?.type ?? null,
         poolId: m.pool_id,
         poolName: pool?.name ?? null,

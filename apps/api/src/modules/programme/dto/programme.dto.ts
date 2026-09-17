@@ -10,7 +10,7 @@ const HEX_COLOR = /^#[0-9a-fA-F]{6}$/;
  * rather than show one (a zero-length window at 10:00 does not overlap a bout
  * that starts at 10:00), and `matchWindowMs` refuses it outright.
  */
-const lengthMinutes = z.number().int().positive();
+export const lengthMinutes = z.number().int().positive();
 
 /** One Tournament's own lengths. A blank one reads the Event's number. */
 const tournamentLengthsSchema = z

@@ -1,68 +1,32 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it } from 'vitest';
 import { BadRequestException, ConflictException, NotFoundException } from '@nestjs/common';
 import {
   filtersFor,
-  mockSupabase,
   queriedTables,
   scopedTo,
   selectsFor,
   writesTo,
-  type TableSeed,
 } from '../../common/testing/supabase-chain';
-import { PROGRAMME_CONFIG_DEFAULTS } from '../programme/dto/programme.dto';
-import { MatchPlacementService } from './match-placement.service';
+import {
+  EVENT,
+  LICE,
+  TOURNAMENT,
+  alerts,
+  at,
+  makeService,
+  poolMatch,
+  seed,
+  sheet,
+} from './match-placement.fixtures';
 
 /**
  * The one owner of putting a Match on a piste, on the seeded double, running
  * `resolveMatchLengths` for real — because what is being asserted here IS the
  * length reaching the collision test. A doubled helper would let a five-minute
- * assumption back in without a red test.
+ * assumption back in without a red test. A typed length reaching that test is
+ * `match-placement.override.test.ts`; the seeded tables are shared through
+ * `match-placement.fixtures.ts`.
  */
-
-const EVENT = 'event-1';
-const TOURNAMENT = '11111111-1111-4111-8111-111111111111';
-const LICE = 'lice-1';
-
-const at = (hhmm: string) => `2026-05-21T${hhmm}:00.000Z`;
-
-/** The Event's sheet, defaults unless a case says otherwise. */
-function sheet(over: Record<string, unknown> = {}) {
-  return { rows: [{ event_id: EVENT, config_json: { ...PROGRAMME_CONFIG_DEFAULTS, ...over } }] };
-}
-
-function poolMatch(id: string, over: Record<string, unknown> = {}) {
-  return {
-    id,
-    phase_id: 'phase-pool',
-    lice_id: null,
-    scheduled_at: null,
-    status: 'scheduled',
-    planned_duration_override_minutes: null,
-    ...over,
-  };
-}
-
-function seed(over: Record<string, TableSeed> = {}): Record<string, TableSeed> {
-  return {
-    event_programme_configs: sheet(),
-    phases: { rows: [{ id: 'phase-pool', type: 'pool', tournament_id: TOURNAMENT }] },
-    lices: {
-      rows: [
-        { id: LICE, event_id: EVENT },
-        { id: 'lice-elsewhere', event_id: 'event-2' },
-      ],
-    },
-    matches: { rows: [poolMatch('m-1')] },
-    ...over,
-  };
-}
-
-const alerts = { refresh: vi.fn().mockResolvedValue(undefined) };
-
-function makeService(tables: Record<string, TableSeed>) {
-  const supabase = mockSupabase(tables);
-  return { service: new MatchPlacementService(supabase as never, alerts as never), supabase };
-}
 
 beforeEach(() => {
   alerts.refresh.mockClear();

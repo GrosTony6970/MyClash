@@ -10,6 +10,7 @@ describe('newBreakDraftFromCell', () => {
       endHHMM: '09:45',
       liceIds: [],
       colorHex: '',
+      boutLengthMinutes: null,
     });
   });
 

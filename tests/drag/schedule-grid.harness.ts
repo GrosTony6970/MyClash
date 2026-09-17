@@ -35,6 +35,8 @@ export interface Harness {
   scheduleWrites: () => Array<{ matchId: string; body: Record<string, unknown> }>;
   /** Bodies POSTed to the whole-day running-late endpoint. */
   delayWrites: () => Array<Record<string, unknown>>;
+  /** Bodies POSTed to the run window's save, `POST /events/:id/schedule/run`. */
+  runWrites: () => Array<Record<string, unknown>>;
   /** How many times a GET path suffix has been asked for. Lets a spec say "the
    *  board answered this from what it already had" rather than only that the
    *  answer appeared. */
@@ -43,15 +45,24 @@ export interface Harness {
 
 /** What a spec wants served instead of the defaults. */
 export interface MockOptions {
-  /** Overrides `scheduleFixture` — the running-late spec needs a late board. */
+  /** Overrides `scheduleFixture` — the running-late spec needs a late board. A
+   *  function is asked on every read, so a spec can serve what the server holds
+   *  after a write. */
   schedule?: unknown;
+  /** The answer a write to a path ending in the key gets, instead of a 200 — the
+   *  run window spec needs a refusal. */
+  writeAnswers?: Record<string, { status: number; json: unknown }>;
 }
 
 /** The GET payload for a bootstrap path, or null when this spec does not own it. */
 export function readFixture(path: string, opts: MockOptions = {}): unknown | null {
   if (path.endsWith('/me')) return meFixture;
   if (path.endsWith(`/events/${EVENT_ID}/lices`)) return licesFixture;
-  if (path.endsWith(`/events/${EVENT_ID}/schedule`)) return opts.schedule ?? scheduleFixture;
+  if (path.endsWith(`/events/${EVENT_ID}/schedule`)) {
+    return typeof opts.schedule === 'function'
+      ? (opts.schedule as () => unknown)()
+      : (opts.schedule ?? scheduleFixture);
+  }
   if (path.endsWith(`/events/${EVENT_ID}/programme`)) return programmeFixture;
   // The planner reads its sheet and the Event's Tournaments once on mount. The
   // fall-through `[]` is not a sheet, and the planner would report it unloaded.
@@ -98,6 +109,10 @@ export async function mockApi(page: Page, opts: MockOptions = {}): Promise<Harne
 
     if (request.method() !== 'GET') {
       writes.push(request);
+      const answer = Object.entries(opts.writeAnswers ?? {}).find(([suffix]) =>
+        path.endsWith(suffix),
+      )?.[1];
+      if (answer) return route.fulfill({ status: answer.status, json: answer.json });
       return route.fulfill({ status: 200, json: writeFixture(path) });
     }
     reads.push(path);
@@ -112,6 +127,10 @@ export async function mockApi(page: Page, opts: MockOptions = {}): Promise<Harne
     delayWrites: () =>
       writes
         .filter((r) => new URL(r.url()).pathname.endsWith('/programme/delay'))
+        .map((r) => (r.postDataJSON() ?? {}) as Record<string, unknown>),
+    runWrites: () =>
+      writes
+        .filter((r) => new URL(r.url()).pathname.endsWith(`/events/${EVENT_ID}/schedule/run`))
         .map((r) => (r.postDataJSON() ?? {}) as Record<string, unknown>),
     scheduleWrites: () =>
       writes

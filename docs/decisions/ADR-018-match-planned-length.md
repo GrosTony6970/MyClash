@@ -6,6 +6,8 @@
 placed and let bars carry their own. The operator asked for one place only. This version records
 that: the sheet is read live, the bars carry no numbers, and a length typed on a Pool is the one
 override.
+**Amended:** 2026-09-17 — how a Pool's bouts are spaced when its run is laid again. See
+"A Pool's run rests once, in the middle".
 
 ## Context
 
@@ -77,6 +79,38 @@ left open where the number lives and where a Match placed by hand finds it.
   respaces starts and touches no length.
 - Placing a Match writes no length. There is nothing for a forgetful writer to forget, so no
   constraint ties a length to a time. The override column is nullable and above zero when set.
+
+### A Pool's run rests once, in the middle
+
+The sheet's rest used to belong to the scheduler alone: Generate leaves a piste idle until every
+fighter of the bout it has just placed has rested, so a small Pool spreads across the morning. The
+run window made the hole visible. A four-fighter Pool typed at seven minutes came back laid back to
+back, which put a fighter on the piste ten seconds after their own bout, and nothing said so.
+
+The operator's rule, 2026-09-17:
+
+- A Pool's bouts run back to back, and each piste's queue takes ONE rest break in its middle.
+  Fifteen bouts on a piste break after the seventh, six after the third, and one bout takes none.
+  Two pistes each break on their own half, not on the run's.
+- The break lasts the sheet's rest, on top of the gap that already sits between two bouts.
+  The sheet holds one rest for the whole Event: a Tournament's own row carries bout lengths
+  only. That field is to become emptiable, an empty field meaning no break; today a rest of
+  zero already means it.
+- A Swiss round and a bracket round take no break. A fighter appears at most once in one.
+- The rule holds everywhere a Pool is laid: the run window, Generate and the re-fan.
+
+What the rule buys, and what it does not: a fighter is no longer asked to fight through a whole
+Pool without stopping. It does NOT separate two neighbouring bouts that share a fighter, and a
+round-robin produces those as a matter of course. A four-fighter Pool laid in Berger order runs
+`0v3, 1v2, 0v2, 3v1, 0v1, 2v3`, with the break in the middle: the second and third bouts share a
+fighter, so do the fourth and fifth, and only the gap stands between them. Generate's own rule —
+idle until every fighter of the bout just placed has rested — does separate them, which is what is
+given up when Generate moves onto this rule.
+
+The run window carries it from this build (`apps/api/src/modules/schedule/lay-run.ts`, applied by
+`schedule-run.service.ts` when every placed bout of the run names the same Pool). Generate and the
+re-fan still leave the scheduler's idle gap after every appearance; they and the emptiable field
+follow in the next commit.
 
 ### One function, every reader
 

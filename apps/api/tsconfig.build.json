@@ -57,6 +57,11 @@
     // The Live board's seeded tables, split out when its service test reached
     // the 400-line cap. It imports vitest.
     "src/modules/staff/staff.service.live-board.harness.ts",
+    // The placement owner's seeded tables, split out when its service test reached
+    // the 400-line cap. It imports vitest.
+    "src/modules/matches/match-placement.fixtures.ts",
+    // The run window save's seeded tables, split out for the same reason.
+    "src/modules/schedule/schedule-run.fixtures.ts",
     // A sixth convention: an ordinary-looking module name. Its own header says
     // "Test-only: nothing in the running API parses the workflow (the container
     // has no .github/)" — it exists so gates.drift.test.ts can hold gates.ts to

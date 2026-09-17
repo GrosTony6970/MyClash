@@ -2730,6 +2730,18 @@ POST   /api/v1/events/:eventId/programme/schedule-group           re-fan a pool 
 DELETE /api/v1/events/:eventId/programme/full                     reset blocks and every match placement
 ```
 
+**The run window's save** (ADR-018) lives in the schedule module, not here:
+`POST /api/v1/events/:eventId/schedule/run`, on `schedule-run.controller.ts` — its own class, because
+the grid read beside it is class-level `@Public()`. The body names the run's Matches (1–200), a start
+and, only when the organiser changed it, `plannedDurationOverrideMinutes` (a number sets it, `null`
+clears it). The server lays the run from the rows it reads: with no length, every placed bout moves by
+one amount and keeps its spacing; with one, each Lice's queue is re-laid from the start at the typed
+length, or at each bout's sheet length for `null`, plus the sheet's gap (`schedule/lay-run.ts`). The
+whole layout goes to `MatchPlacementService.placeMatches` as one batch, so the piste check reads the
+new length. This save is the one writer of `matches.planned_duration_override_minutes`
+(migration 0196) apart from Generate, which clears it. `GET /api/v1/events/:eventId/schedule` sends the column as
+`plannedDurationOverrideMinutes`, and the window opens on it when every bout of the run agrees.
+
 **Suggest algorithm:** places admin blocks (Registration+GearCheck, Referee Meeting) at Day 1 start, then competition pool blocks (in tournament `sort_order`), breaks between each, midday break at configured window, bracket blocks, then workshops. Returns `BlockWarning[]` for blocks whose time window is shorter than needed.
 
 **Generate:** for each competition block, fetches matches ordered `match_number_label ASC` (Berger sequence) and calls `scheduleMatches()` constrained to the block's time window. It does **not** touch `workshop_sessions` — workshops moved to their own board, and `generate` returns a hard-coded `workshopSessionsCreated: 0`. The route's own OpenAPI summary still promises workshop sessions.
@@ -2748,7 +2760,7 @@ React**, so it can be tested without a DOM:
 - **Pure modules** (`block-geometry`, `bar-collisions`, `block-run-plans`, `plan-match-drop`,
   `place-with-shift`, `detect-overlaps`, `lice-span`, `lice-drift`, `lice-utilization`,
   `day-delay`, `panel-width`, `compute-header-runs`, `conflict-detection`, `break-edit-steps`,
-  `drag-payload`) — no imports from React, each with its own test file.
+  `drag-payload`, `run-window`) — no imports from React, each with its own test file.
 - **Hooks** (`useScheduleData`, `useScheduleWrites`, `useScheduleUndo`, `useSchedulePrefs`,
   `useProgrammeBars`, `useRefereeCrewConflicts`) — data, mutations and undo.
 - **Views** (`DetailedGridView` and its `Detailed*` parts, `MatchChip`, `UnscheduledPanel`,

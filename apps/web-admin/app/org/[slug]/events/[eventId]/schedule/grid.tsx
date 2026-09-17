@@ -43,6 +43,7 @@ import { matchBelongsToDay, planMatchDrop } from './plan-match-drop';
 import { useScheduleData } from './useScheduleData';
 import { BlockGridView, type BgvBreak } from './BlockGridView';
 import { BlockEditPopover, type BlockEditDraft } from './BlockEditPopover';
+import { planRunWindowSave, sharedBoutLength } from './run-window';
 import { computeLiceDrift } from './lice-drift';
 import { scheduleToCsv } from './schedule-csv';
 import { distributeGroups } from './auto-place';
@@ -153,7 +154,8 @@ export function ScheduleGrid({
     describeSaveError,
     commit,
     commitAll,
-  } = useScheduleWrites({ apiUrl, refetch: rollback });
+    saveRunWindow,
+  } = useScheduleWrites({ apiUrl, eventId, refetch: rollback });
 
   // Everything the board reads: bootstrap, the two refetchers, realtime, and
   // the conflict derivation. See ./useScheduleData.
@@ -612,9 +614,16 @@ export function ScheduleGrid({
    * operator just dragged as a single unit and (b) silently no-op'd on
    * occupied targets. The group now lays out client-side on a single lice
    * and PATCHes each affected match's new (liceId, scheduledAt).
+   *
+   * Resolves false when a write was refused (the board has re-read by then), so
+   * the run window can stop before it re-times a run that did not move.
    */
-  async function handleGroupDrop(groupMatchIds: Set<string>, targetLiceId: string, slot: number) {
-    if (!activeDay) return;
+  async function handleGroupDrop(
+    groupMatchIds: Set<string>,
+    targetLiceId: string,
+    slot: number,
+  ): Promise<boolean> {
+    if (!activeDay) return false;
     setGroupScheduleError(null);
 
     // 1. Gather the group's matches in stable order. Numeric label
@@ -628,7 +637,7 @@ export function ScheduleGrid({
     const groupMatches = matches
       .filter((m) => groupMatchIds.has(m.id))
       .sort((a, b) => matchNumeric(a) - matchNumeric(b));
-    if (groupMatches.length === 0) return;
+    if (groupMatches.length === 0) return true;
 
     // 2. Current occupants of the target lice on the active day,
     //    EXCLUDING the group's own matches (they're being repositioned).
@@ -689,7 +698,7 @@ export function ScheduleGrid({
       if (original.scheduledAt === newScheduledAt && original.liceId === newLiceId) continue;
       writes.push(() => saveMatchPosition(item.id, newLiceId, newScheduledAt));
     }
-    await commitAll(writes);
+    return commitAll(writes);
   }
 
   /** Pool drop — all of the pool's matches as one group. */
@@ -1081,6 +1090,11 @@ export function ScheduleGrid({
   // (`editingBreak`, `creatingBreak`, `blockEditBusy`) belongs to the writes that
   // set it — see ./useProgrammeBars.
   const [editingBlock, setEditingBlock] = useState<ScheduleBlock | null>(null);
+  // The length the run window opened on, snapshotted beside the block it belongs
+  // to. Reading it again at save time would compare the organiser's untouched
+  // text against a value a re-read had changed underneath, and clear a length
+  // nobody touched.
+  const [openedBoutLength, setOpenedBoutLength] = useState<number | null>(null);
 
   // Optimistic apply + per-match PATCH for a set of (id, lice, time) updates.
   function applyMatchUpdates(updates: Array<{ id: string; liceId: string; scheduledAt: string }>) {
@@ -1172,22 +1186,86 @@ export function ScheduleGrid({
     }
   }
 
-  function changeBlockLices(block: ScheduleBlock, newLiceIds: string[]) {
+  /** Resolves false when the move was refused. */
+  async function changeBlockLices(block: ScheduleBlock, newLiceIds: string[]): Promise<boolean> {
+    if (!activeDay) return false;
     // Server re-fan or client relocate — decided in ./block-run-plans.
     const change = blockLiceChange(block, newLiceIds);
-    if (!change || !activeDay) return;
+    if (!change) return true;
     const startSlot = isoToSlotTz(block.startIso, activeDay);
     if (change.mode === 'refan') {
-      void (async () => {
-        await postScheduleGroup(change.matchIds, change.liceIds, startSlot, 'bracket-branch');
-        // No branch on the result: `postScheduleGroup` has already surfaced the
-        // server's own reason for a refusal, and the board re-reads either way
-        // because a failed re-fan may still have moved rows.
-        await refetchScheduleAndBlocks();
-      })();
+      const refanned = await postScheduleGroup(
+        change.matchIds,
+        change.liceIds,
+        startSlot,
+        'bracket-branch',
+      );
+      // `postScheduleGroup` has already surfaced the server's own reason for a
+      // refusal, and the board re-reads either way because a failed re-fan may
+      // still have moved rows.
+      await refetchScheduleAndBlocks();
+      return refanned;
+    }
+    return handleGroupDrop(new Set(change.matchIds), change.liceId, startSlot);
+  }
+
+  /** The start the run window shows: the run's slot on the axis, as HH:MM. */
+  function runStartHHMM(block: ScheduleBlock): string {
+    return slotToHHMM(isoToSlotTz(block.startIso, activeDay), gridStartHour);
+  }
+
+  /** The typed length a run window opens on — see `sharedBoutLength`. */
+  function runBoutLength(block: ScheduleBlock): number | null {
+    return sharedBoutLength(
+      block.matches.map((m) => m.id),
+      matches,
+    );
+  }
+
+  /** Open a run's window on the board as it reads now. */
+  function openRunWindow(block: ScheduleBlock): void {
+    setOpenedBoutLength(runBoutLength(block));
+    setEditingBlock(block);
+  }
+
+  /**
+   * The run window's save (ADR-018).
+   *
+   * An unreadable start is refused before anything moves. Then the Lice change,
+   * awaited: it may re-fan the run, and the run's new start and length must apply
+   * to where its bouts sit afterwards. Then ONE `schedule/run` save, when the
+   * start or the length changed: it sends ids, so the server lays the run from
+   * the rows it reads itself, never from this board's copy. No optimistic update
+   * — the server owns the layout and the lengths — and the board re-reads.
+   *
+   * Races: a realtime re-read landing mid-save is held off by `commit`, which
+   * tracks the write. Two organisers saving the same run at once is not guarded
+   * (a placement is checked, then written, with no transaction).
+   *
+   * MUST stay above `savePopover`: see `handleDrop` on the React Compiler.
+   */
+  async function saveRunEdit(block: ScheduleBlock, draft: BlockEditDraft): Promise<void> {
+    if (!activeDay) return;
+    const plan = planRunWindowSave({
+      runMatchIds: block.matches.map((m) => m.id),
+      runStartIso: block.startIso,
+      shownStartHHMM: runStartHHMM(block),
+      startHHMM: draft.startHHMM,
+      openedBoutLength,
+      boutLengthMinutes: draft.boutLengthMinutes,
+      day: activeDay,
+      tz: eventTz,
+    });
+    if (plan.kind === 'unreadable-start') {
+      setSaveError(t('organizer.schedulePage.editPopover.startUnreadable'));
       return;
     }
-    void handleGroupDrop(new Set(change.matchIds), change.liceId, startSlot);
+    if (liceSelectionChanged(block.liceIds, draft.liceIds)) {
+      if (!(await changeBlockLices(block, draft.liceIds))) return;
+    }
+    if (plan.kind === 'nothing') return;
+    const body = plan.body;
+    if (await commit(() => saveRunWindow(body))) await refetchScheduleAndBlocks();
   }
 
   function savePopover(draft: BlockEditDraft) {
@@ -1200,12 +1278,9 @@ export function ScheduleGrid({
     if (editingBlock) {
       const block = editingBlock;
       setEditingBlock(null);
-      // The popover shows no end field for a run, so only the start and the lice
-      // selection can have moved. `draft.endHHMM` is carried in and ignored.
-      retimeBlockStart(block, hhmmToSlot(draft.startHHMM, gridStartHour));
-      if (liceSelectionChanged(block.liceIds, draft.liceIds)) {
-        changeBlockLices(block, draft.liceIds);
-      }
+      // The popover shows no end field for a run, so only the start, the length
+      // and the lice selection can have moved. `draft.endHHMM` is ignored.
+      void saveRunEdit(block, draft);
     }
   }
 
@@ -2037,7 +2112,7 @@ export function ScheduleGrid({
                 slotHeightPx={slotHeightPx}
                 focusedTournament={focusedTournament}
                 onShiftLice={shiftLiceRemaining}
-                onEditBlock={setEditingBlock}
+                onEditBlock={openRunWindow}
                 onEditBreak={setEditingBreak}
                 onDeleteBlock={unscheduleRunBlock}
                 onDeleteBreak={(brk) => void deleteBlock(brk.id)}
@@ -2045,7 +2120,7 @@ export function ScheduleGrid({
                 onResizeBreakTime={(brk, newEnd) => void resizeBreakTimeTo(brk, newEnd)}
                 onResizeBlockStart={retimeBlockStart}
                 onResizeBreakStart={(brk, newStart) => void resizeBreakStartTo(brk, newStart)}
-                onResizeBlockLices={changeBlockLices}
+                onResizeBlockLices={(block, liceIds) => void changeBlockLices(block, liceIds)}
                 onBlockDragStart={(block) =>
                   beginDrag({ kind: 'viewBlock', matchIds: block.matches.map((m) => m.id) })
                 }
@@ -2114,17 +2189,17 @@ export function ScheduleGrid({
                   endHHMM: editingBreak.endTime,
                   liceIds: [],
                   colorHex: editingBreak.colorHex ?? '',
+                  boutLengthMinutes: null,
                 }
               : {
                   label: editingBlock?.label ?? '',
-                  startHHMM: editingBlock
-                    ? slotToHHMM(isoToSlotTz(editingBlock.startIso, activeDay), gridStartHour)
-                    : '',
+                  startHHMM: editingBlock ? runStartHHMM(editingBlock) : '',
                   endHHMM: editingBlock
                     ? slotToHHMM(isoToSlotTz(editingBlock.endIso, activeDay), gridStartHour)
                     : '',
                   liceIds: editingBlock?.liceIds ?? [],
                   colorHex: '',
+                  boutLengthMinutes: openedBoutLength,
                 }
           }
           lices={lices}

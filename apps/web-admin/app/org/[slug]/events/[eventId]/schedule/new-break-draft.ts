@@ -24,5 +24,6 @@ export function newBreakDraftFromCell(slot: number, label: string): BlockEditDra
     endHHMM: slotToHHMM(start + DEFAULT_SPAN_SLOTS),
     liceIds: [],
     colorHex: '',
+    boutLengthMinutes: null,
   };
 }

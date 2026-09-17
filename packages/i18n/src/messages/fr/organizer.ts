@@ -1787,6 +1787,10 @@ export const organizer = {
       colorDefault: 'Par défaut',
       colorAriaLabel: 'Couleur du bloc',
       licesLabel: 'Lices',
+      boutLengthLabel: 'Durée de match (min)',
+      boutLengthHint:
+        'Minutes entières, de 1 à {max}. Laissez vide pour reprendre la durée du planificateur.',
+      startUnreadable: "L'heure de début n'a pas pu être lue. Utilisez HH:MM, par exemple 09:30.",
       cancel: 'Annuler',
       save: 'Enregistrer',
     },
