@@ -8,6 +8,10 @@ export interface ScheduleMatch {
   matchNumberLabel: string;
   status: string;
   scheduledAt: string | null;
+  /** The bout's planned length in minutes, from the Event's planner sheet or the
+   *  bout's own override (ADR-018). Null when the API could not read the sheet:
+   *  the bout then has no end, and no length is invented for it. */
+  durationMinutes: number | null;
   opponentName: string | null;
   redScore: number;
   blueScore: number;
@@ -18,8 +22,8 @@ export interface ScheduleMatch {
   poolName: string | null;
   tournamentName: string | null;
   /** Tournament (competition) id — pairs with `phase` to key the scheduled
-   *  programme block, so the section header can show the block end (e.g. 11:30)
-   *  instead of the last match's start. Null when unresolved. */
+   *  programme block, so the section header ends no earlier than the block's end
+   *  (e.g. 11:30). Null when unresolved. */
   tournamentId: string | null;
   /** Coarse programme phase for block lookup — the PROGRAMME taxonomy, which
    *  carries `swiss` as a 4th token. Null unknown. */

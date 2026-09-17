@@ -3,8 +3,8 @@
 // slots into one card per assignment, and splitting a day into segments at
 // programme-break boundaries — are unit-testable in isolation.
 
-import { DEFAULT_DURATION_MS } from './conflicts';
-import type { RefereeSlot } from './types';
+import { fightWindow } from './conflicts';
+import type { RefereeSlot, ScheduleMatch } from './types';
 
 /** One referee card per pool / bracket-tier assignment (the many per-match
  *  referee_assignments folded together with a match count + time window). */
@@ -61,16 +61,18 @@ export function aggregateReferee(slots: RefereeSlot[]): RefereeAggregate[] {
   }
   return [...map.entries()].map(([key, group]) => {
     const base = group[0]!;
-    // Window from the match times when present, else the assignment's own
-    // starts_at/ends_at (pool-/lice-scoped rows carry no match). Matches use the
-    // project's default duration past each start; assignment rows use their real end.
+    // The window the API works out from the Matches each duty covers: its own
+    // Match, or its Pool's placed Matches (ADR-017). The start falls back to the
+    // Match's own time, the key the API sorts by: a start needs no length, so a
+    // placed duty keeps it when the API could not work its window out. The end
+    // has no fallback. A duty whose end the API does not know has none here.
     const ms = (iso: string | null): number => (iso ? new Date(iso).getTime() : NaN);
     const starts = group
       .map((s) => ms(s.scheduledAt ?? s.startsAt))
       .filter((n) => !Number.isNaN(n))
       .sort((a, b) => a - b);
     const ends = group
-      .map((s) => (s.scheduledAt ? ms(s.scheduledAt) + DEFAULT_DURATION_MS : ms(s.endsAt)))
+      .map((s) => ms(s.endsAt))
       .filter((n) => !Number.isNaN(n))
       .sort((a, b) => a - b);
     const startMs = starts.length ? starts[0]! : null;
@@ -94,6 +96,23 @@ export function aggregateReferee(slots: RefereeSlot[]): RefereeAggregate[] {
       endMs,
     };
   });
+}
+
+/**
+ * Where a fight group's header ends, as far as one bout is concerned: the later
+ * of the bout's own planned end and its programme block's end (operator ruling,
+ * 2026-09-17). The block says when the phase is planned to be over; a bout moved
+ * past it still ends when it ends, and a header that stops before a real bout is
+ * wrong. A bout whose length is unknown counts as ending at its start.
+ */
+export function fightHeaderEnd(
+  match: Pick<ScheduleMatch, 'scheduledAt' | 'durationMinutes'>,
+  blockEndMs: number | null,
+): number | null {
+  const startMs = match.scheduledAt ? Date.parse(match.scheduledAt) : NaN;
+  const ownEndMs = fightWindow(match)?.endMs ?? startMs;
+  if (Number.isNaN(ownEndMs)) return blockEndMs;
+  return blockEndMs == null ? ownEndMs : Math.max(ownEndMs, blockEndMs);
 }
 
 /** A day rendered as a chronological run of programme bars (hard dividers) and

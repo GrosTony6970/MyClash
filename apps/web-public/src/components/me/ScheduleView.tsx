@@ -7,10 +7,15 @@ import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { useI18n } from '@myclash/next-i18n/client';
 import { getPublicApiUrl } from '../../lib/api-url';
 import { CommitmentCard } from './CommitmentCard';
-import { detectConflicts, toTimed, type TimedItem } from './conflicts';
+import { detectConflicts, fightTimed, fightWindow, toTimed, type TimedItem } from './conflicts';
 import { kindAccentClass } from './kind-accent';
 import { matchKindHash, matchKindLabel } from './match-kind';
-import { aggregateReferee, partitionAtBars, type RefereeAggregate } from './schedule-model';
+import {
+  aggregateReferee,
+  fightHeaderEnd,
+  partitionAtBars,
+  type RefereeAggregate,
+} from './schedule-model';
 import { classifyTime, type TemporalState } from './schedule-time';
 import type {
   PersonSchedule,
@@ -53,8 +58,8 @@ export function ScheduleView({
   /** Non-commitment programme blocks (lunch, ceremonies…) shown as context. */
   programme,
   /** Scheduled competition-block ends (epoch ms) keyed
-   *  `${tournamentId}:${phase}` — used as a fight group's end (the block
-   *  boundary) instead of the last match's start. */
+   *  `${tournamentId}:${phase}`. A fight group's header ends no earlier than
+   *  its block's end — see `fightHeaderEnd`. */
   phaseEndByKey,
   /** When set, render the "Updated HH:MM (· offline)" stale badge. */
   updatedAt,
@@ -121,14 +126,16 @@ export function ScheduleView({
   };
 
   // Conflict detection spans matches + referee windows + workshops (bidirectional).
+  // Only items with a known end take part: a bout's planned length and a duty's end
+  // come from the API, and nothing here invents one.
   const timed: TimedItem[] = [
     ...schedule.matches.flatMap((m) => {
-      const ti = toTimed(`fight-${m.id}`, m.opponentName ?? m.matchNumberLabel, m.scheduledAt);
+      const ti = fightTimed(`fight-${m.id}`, m.opponentName ?? m.matchNumberLabel, m);
       return ti ? [ti] : [];
     }),
     ...referees.flatMap((r) =>
       r.startMs != null && r.endMs != null
-        ? [{ key: r.key, label: refereeTitle(r), start: r.startMs, end: r.endMs }]
+        ? [{ key: r.key, label: refereeTitle(r), startMs: r.startMs, endMs: r.endMs }]
         : [],
     ),
     ...(schedule.workshops ?? []).flatMap((w) => {
@@ -180,7 +187,7 @@ export function ScheduleView({
                 : null
               : i.kind === 'referee'
                 ? i.data.endMs
-                : null,
+                : (fightWindow(i.data)?.endMs ?? null),
           status: i.kind === 'fight' ? i.data.status : undefined,
         },
         now,
@@ -252,13 +259,16 @@ export function ScheduleView({
   } {
     if (item.kind === 'fight') {
       const start = item.data.scheduledAt ? new Date(item.data.scheduledAt).getTime() : null;
-      // Prefer the scheduled phase-block end (e.g. 11:30) over the last match's
-      // start; a match carries no duration, so the block boundary is the truth.
       const blockEnd =
         item.data.tournamentId && item.data.phase
           ? (phaseEndByKey?.get(`${item.data.tournamentId}:${item.data.phase}`) ?? null)
           : null;
-      return { pool: item.data.poolName, lice: item.data.liceName, start, end: blockEnd ?? start };
+      return {
+        pool: item.data.poolName,
+        lice: item.data.liceName,
+        start,
+        end: fightHeaderEnd(item.data, blockEnd),
+      };
     }
     if (item.kind === 'referee') {
       return {

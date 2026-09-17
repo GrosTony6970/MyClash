@@ -23,9 +23,9 @@ function addDays(ymd: string, days: number): string {
 }
 
 /** Scheduled end (epoch ms) of every competition phase block, keyed
- *  `${competitionId}:${competitionPhase}`. Lets the schedule show the block
- *  boundary (e.g. 11:30, rounded up by the generator) as a group's end instead
- *  of the last match's start. Same wall-clock→UTC path as `toContextRows`. */
+ *  `${competitionId}:${competitionPhase}`. A fight group's header ends no earlier
+ *  than its block (e.g. 11:30, rounded up by the generator), and later when a bout
+ *  runs past it. Same wall-clock→UTC path as `toContextRows`. */
 function phaseWindowsFrom(
   blocks: ProgrammeBlock[],
   startDate: string | null,

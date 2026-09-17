@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_DURATION_MS } from './conflicts';
-import { aggregateReferee, partitionAtBars, refereeAssignmentKey } from './schedule-model';
+import {
+  aggregateReferee,
+  fightHeaderEnd,
+  partitionAtBars,
+  refereeAssignmentKey,
+} from './schedule-model';
 import type { RefereeSlot } from './types';
 
 function slot(over: Partial<RefereeSlot>): RefereeSlot {
@@ -67,30 +71,51 @@ describe('refereeAssignmentKey', () => {
 
 describe('aggregateReferee', () => {
   it('folds a whole pool into one card with a match count', () => {
-    const slots = ['09:00', '09:22', '09:44'].map((hhmm, i) =>
+    // 8-minute bouts, given out of order: neither the first nor the last row holds
+    // the earliest start or the latest end, and the latest start plus five minutes
+    // is not the end either.
+    const slots = [
+      ['09:22', '09:30'],
+      ['09:00', '09:08'],
+      ['09:44', '09:52'],
+      ['09:30', '09:38'],
+    ].map(([start, end], i) =>
       slot({
         matchId: `m${i}`,
         matchKind: 'pool',
         poolId: 'p1',
         poolName: 'Pool 4',
-        scheduledAt: `2027-05-22T${hhmm}:00Z`,
+        scheduledAt: `2027-05-22T${start}:00Z`,
+        startsAt: `2027-05-22T${start}:00.000Z`,
+        endsAt: `2027-05-22T${end}:00.000Z`,
         liceName: i === 1 ? 'Lice 4' : null,
       }),
     );
     const [agg] = aggregateReferee(slots);
     expect(agg).toBeDefined();
-    expect(agg!.count).toBe(3);
+    expect(agg!.count).toBe(4);
     expect(agg!.poolName).toBe('Pool 4');
     // Representative lice is picked from whichever match carries one.
     expect(agg!.liceName).toBe('Lice 4');
-    // Window spans first→last match (+ default duration for the last).
+    // Window spans the earliest start to the latest end the API sent.
     expect(agg!.startIso).toBe('2027-05-22T09:00:00.000Z');
-    expect(agg!.endMs).toBe(new Date('2027-05-22T09:44:00Z').getTime() + DEFAULT_DURATION_MS);
+    expect(agg!.endMs).toBe(new Date('2027-05-22T09:52:00Z').getTime());
   });
 
-  it('derives a pool-scoped card window from starts_at/ends_at when there is no match', () => {
-    // A pool "Déclarant" assignment carries no match (scheduledAt null) — its
-    // window must come from the assignment's own starts_at/ends_at so the
+  it("keeps a placed duty's start, and gives it no end, when the API could not work its window out", () => {
+    // A failed read of the duty's Matches answers null for both ends, while the
+    // Match's own time still arrives: the card stays on its day instead of "TBD",
+    // and no length is invented for its end.
+    const [agg] = aggregateReferee([
+      slot({ matchId: 'm1', matchKind: 'pool', poolId: 'p1', scheduledAt: '2027-05-22T10:00:00Z' }),
+    ]);
+    expect(agg!.startMs).toBe(Date.parse('2027-05-22T10:00:00Z'));
+    expect(agg!.endMs).toBeNull();
+  });
+
+  it('derives a pool-scoped card window from the startsAt/endsAt the API works out', () => {
+    // A pool "Déclarant" duty covers no single Match (scheduledAt null): its
+    // window is the one the API works out from the Pool's placed Matches, so the
     // schedule can place it on the right day.
     const [agg] = aggregateReferee([
       slot({
@@ -122,6 +147,36 @@ describe('aggregateReferee', () => {
       slot({ matchId: '3', matchKind: 'final', bracketSlotId: 's1' }),
     ];
     expect(aggregateReferee(slots)).toHaveLength(3);
+  });
+});
+
+describe('fightHeaderEnd', () => {
+  const BLOCK_END = Date.parse('2027-05-22T11:30:00Z');
+  const bout = (hhmm: string, durationMinutes: number | null) => ({
+    scheduledAt: `2027-05-22T${hhmm}:00Z`,
+    durationMinutes,
+  });
+
+  it('ends at the block when the bout ends before it', () => {
+    expect(fightHeaderEnd(bout('11:05', 5), BLOCK_END)).toBe(BLOCK_END);
+  });
+
+  it('ends at the bout when the bout was moved past its block', () => {
+    expect(fightHeaderEnd(bout('11:40', 5), BLOCK_END)).toBe(Date.parse('2027-05-22T11:45:00Z'));
+  });
+
+  it("ends at the bout's own planned end when there is no block", () => {
+    expect(fightHeaderEnd(bout('11:05', 8), null)).toBe(Date.parse('2027-05-22T11:13:00Z'));
+  });
+
+  it('counts a bout whose length is unknown as ending at its start', () => {
+    expect(fightHeaderEnd(bout('11:40', null), BLOCK_END)).toBe(Date.parse('2027-05-22T11:40:00Z'));
+    expect(fightHeaderEnd(bout('11:05', null), null)).toBe(Date.parse('2027-05-22T11:05:00Z'));
+  });
+
+  it('ends at the block for an unplaced bout, and nowhere without one', () => {
+    expect(fightHeaderEnd({ scheduledAt: null, durationMinutes: 5 }, BLOCK_END)).toBe(BLOCK_END);
+    expect(fightHeaderEnd({ scheduledAt: null, durationMinutes: 5 }, null)).toBeNull();
   });
 });
 

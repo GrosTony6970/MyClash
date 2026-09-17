@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useParams } from 'next/navigation';
+import { overlapsHalfOpen } from '@myclash/schedule-core';
 import { formatInZone } from '@myclash/time';
 import { EmptyState, Skeleton } from '@myclash/ui';
 import { getPublicApiUrl } from '@/lib/api-url';
@@ -12,7 +13,7 @@ import {
   groupWorkshopsByDay,
   type WorkshopListItem,
 } from '@/components/workshops/workshop-grouping';
-import { overlaps, toTimed, type TimedItem } from '@/components/me/conflicts';
+import { dutyTimed, fightTimed, toTimed, type TimedItem } from '@/components/me/conflicts';
 import { useI18n } from '@myclash/next-i18n/client';
 import { useMyEvents, useMySchedule } from '@/components/me/hooks';
 import type { MyEventInfo, MyEventWorkshopTeaching } from '@/components/me/types';
@@ -94,20 +95,20 @@ function WorkshopsContent({
     }
   }, [workshops]);
 
-  // The user's fights + referee slots as timed windows, for conflict checks.
+  // The user's fights + referee duties as timed windows, for conflict checks. A
+  // duty's window is the one the API works out, so a Pool duty (no Match of its
+  // own) takes part too; an item whose end is unknown does not.
   const commitments = useMemo<TimedItem[]>(() => {
     if (!schedule) return [];
+    const referee = t('publicApp.me.schedule.referee');
     return [
       ...schedule.matches.flatMap((m) => {
-        const ti = toTimed(`fight-${m.id}`, m.opponentName ?? m.matchNumberLabel, m.scheduledAt);
+        const ti = fightTimed(`fight-${m.id}`, m.opponentName ?? m.matchNumberLabel, m);
         return ti ? [ti] : [];
       }),
       ...schedule.refereeSlots.flatMap((r) => {
-        const ti = toTimed(
-          `ref-${r.matchId}`,
-          `${t('publicApp.me.schedule.referee')} · ${r.matchNumberLabel}`,
-          r.scheduledAt,
-        );
+        const what = r.matchNumberLabel || r.poolName;
+        const ti = dutyTimed(`ref-${r.id}`, what ? `${referee} · ${what}` : referee, r);
         return ti ? [ti] : [];
       }),
     ];
@@ -119,11 +120,11 @@ function WorkshopsContent({
   const conflictFor = (s: WorkshopSession): string | null => {
     const ti = toTimed(`ws-${s.id}`, '', s.startsAt, s.endsAt);
     if (!ti) return null;
-    const clash = commitments.find((c) => overlaps(ti.start, ti.end, c.start, c.end));
+    const clash = commitments.find((c) => overlapsHalfOpen(ti, c));
     if (!clash) return null;
     return t('publicApp.me.workshops.conflictsWith', {
       item: clash.label,
-      time: fmtTime(new Date(clash.start).toISOString()),
+      time: fmtTime(new Date(clash.startMs).toISOString()),
     });
   };
 

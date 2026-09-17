@@ -21,6 +21,7 @@ test('my-schedule page - axe clean and keyboard operable', async ({ page }) => {
             matchNumberLabel: 'Pool 1 - Match 1',
             status: 'scheduled',
             scheduledAt: '2027-03-13T09:00:00.000Z',
+            durationMinutes: 5,
             opponentName: 'Ada Lovelace',
             redScore: 0,
             blueScore: 0,
@@ -32,9 +33,12 @@ test('my-schedule page - axe clean and keyboard operable', async ({ page }) => {
         ],
         refereeSlots: [
           {
+            id: 'duty-1',
             matchId: 'match-2',
             matchNumberLabel: 'Pool 2 - Match 3',
             scheduledAt: '2027-03-14T10:00:00.000Z',
+            startsAt: '2027-03-14T10:00:00.000Z',
+            endsAt: '2027-03-14T10:05:00.000Z',
             role: 'arbitre_table',
             poolName: 'Pool 2',
             tournamentName: 'Longsword Open',

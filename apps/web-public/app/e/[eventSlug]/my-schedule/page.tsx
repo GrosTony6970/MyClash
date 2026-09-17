@@ -14,6 +14,13 @@
 import { useEffect, useState } from 'react';
 import { fetchMe } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
+import {
+  detectConflicts,
+  dutyTimed,
+  fightTimed,
+  toTimed,
+  type TimedItem,
+} from '@/components/me/conflicts';
 import { DEFAULT_EVENT_TIMEZONE, localeToBcp47, zonedDay, type AppLocale } from '@myclash/time';
 import { sideColorsForTokens } from '@myclash/ui';
 import { useParams } from 'next/navigation';
@@ -37,6 +44,8 @@ interface ScheduleMatch {
   matchNumberLabel: string;
   status: string;
   scheduledAt: string | null;
+  /** Planned length in minutes (ADR-018); null when the API could not read the sheet. */
+  durationMinutes: number | null;
   opponentName: string | null;
   redScore: number;
   blueScore: number;
@@ -50,9 +59,13 @@ interface ScheduleMatch {
 }
 
 interface RefereeSlot {
+  id: string;
   matchId: string;
   matchNumberLabel: string;
   scheduledAt: string | null;
+  /** The duty's planned window, worked out by the API from the Matches it covers. */
+  startsAt: string | null;
+  endsAt: string | null;
   role: string;
   poolName: string | null;
   tournamentName: string | null;
@@ -103,43 +116,35 @@ function formatDay(iso: string, locale: AppLocale): string {
   });
 }
 
-function detectConflicts(items: ScheduleItem[], t: TranslateFn): Map<string, string[]> {
-  const conflicts = new Map<string, string[]>();
-  const timed = items.filter((i) => i.time);
+/**
+ * An item as a timed commitment, or null when its end is unknown. A bout ends at
+ * its planned length and a duty at the end the API works out. This page used to
+ * call two starts less than five minutes apart a clash, which flagged back-to-back
+ * bouts and missed a Workshop running over a bout an hour into it.
+ */
+function timedOf(item: ScheduleItem, t: TranslateFn): TimedItem | null {
+  const key = itemKey(item);
+  const label = itemLabel(item, t);
+  if (item.kind === 'match') return fightTimed(key, label, item.data);
+  if (item.kind === 'referee') return dutyTimed(key, label, item.data);
+  return toTimed(key, label, item.data.sessionStart, item.data.sessionEnd);
+}
 
-  for (let i = 0; i < timed.length; i++) {
-    for (let j = i + 1; j < timed.length; j++) {
-      const a = timed[i]!;
-      const b = timed[j]!;
-
-      const aStart = new Date(a.time!).getTime();
-      const bStart = new Date(b.time!).getTime();
-      const duration = 5 * 60_000; // 5 min default
-
-      if (Math.abs(aStart - bStart) < duration) {
-        const aKey = itemKey(a);
-        const bKey = itemKey(b);
-        const aLabel = itemLabel(a, t);
-        const bLabel = itemLabel(b, t);
-
-        conflicts.set(aKey, [...(conflicts.get(aKey) ?? []), bLabel]);
-        conflicts.set(bKey, [...(conflicts.get(bKey) ?? []), aLabel]);
-      }
-    }
-  }
-  return conflicts;
+/** What a duty is called: its Match's label, or its Pool's name for a whole-Pool duty. */
+function dutyName(slot: RefereeSlot): string {
+  return slot.matchNumberLabel || (slot.poolName ?? '');
 }
 
 function itemKey(item: ScheduleItem): string {
   if (item.kind === 'match') return `match-${item.data.id}`;
-  if (item.kind === 'referee') return `ref-${item.data.matchId}`;
+  if (item.kind === 'referee') return `ref-${item.data.id}`;
   return `ws-${item.data.workshopId}`;
 }
 
 function itemLabel(item: ScheduleItem, t: TranslateFn): string {
   if (item.kind === 'match') return item.data.matchNumberLabel;
   if (item.kind === 'referee')
-    return t('publicApp.mySchedule.refereeLabel', { match: item.data.matchNumberLabel });
+    return t('publicApp.mySchedule.refereeLabel', { match: dutyName(item.data) });
   return item.data.workshopName;
 }
 
@@ -177,7 +182,7 @@ export default function MySchedulePage() {
           // Collect unique days
           const allTimes = [
             ...data.matches.map((m) => m.scheduledAt),
-            ...data.refereeSlots.map((r) => r.scheduledAt),
+            ...data.refereeSlots.map((r) => r.scheduledAt ?? r.startsAt),
             ...(data.workshops ?? []).map((w) => w.sessionStart),
           ]
             .filter(Boolean)
@@ -229,7 +234,7 @@ export default function MySchedulePage() {
     ...schedule.refereeSlots.map((r): ScheduleItem => ({
       kind: 'referee',
       data: r,
-      time: r.scheduledAt,
+      time: r.scheduledAt ?? r.startsAt,
     })),
     ...(schedule.workshops ?? []).map((w): ScheduleItem => ({
       kind: 'workshop',
@@ -245,8 +250,13 @@ export default function MySchedulePage() {
   // Sort by time
   const sorted = [...filtered].sort((a, b) => getTime(a) - getTime(b));
 
-  // Conflict detection
-  const conflicts = detectConflicts(sorted, t);
+  // Conflict detection: overlapping windows, among the items whose end is known.
+  const conflicts = detectConflicts(
+    sorted.flatMap((item) => {
+      const timed = timedOf(item, t);
+      return timed ? [timed] : [];
+    }),
+  );
 
   // Group by day, on the EVENT's clock. This and the day filter above are one
   // decision made twice, so they have to use the same rule: a UTC key here and
@@ -449,7 +459,7 @@ export default function MySchedulePage() {
                       {item.kind === 'referee' && (
                         <>
                           <p className="font-semibold text-info">
-                            {t('publicApp.mySchedule.refereePrefix')} — {item.data.matchNumberLabel}
+                            {t('publicApp.mySchedule.refereePrefix')} — {dutyName(item.data)}
                           </p>
                           <p className="text-info text-xs mt-0.5">
                             {item.data.role.replace(/_/g, ' ')}

@@ -1,5 +1,4 @@
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_DURATION_MS } from './conflicts';
 import { classifyTime } from './schedule-time';
 
 const NOW = Date.UTC(2027, 4, 22, 12, 0, 0); // fixed reference "now"
@@ -35,9 +34,13 @@ describe('classifyTime — fights under a time simulation (window-driven)', () =
   // With a simulated clock, match statuses describe a moment hours away, so a
   // *scheduled* fight falls back to its slot window — this is what makes the
   // LIVE / NEXT badges move while simulating.
-  it('is live inside its slot window', () => {
+  it('is live inside its planned window', () => {
     expect(
-      classifyTime({ kind: 'fight', startMs: NOW - 1 * MIN, status: 'scheduled' }, NOW, true),
+      classifyTime(
+        { kind: 'fight', startMs: NOW - 1 * MIN, endMs: NOW + 4 * MIN, status: 'scheduled' },
+        NOW,
+        true,
+      ),
     ).toBe('live');
   });
 
@@ -47,10 +50,10 @@ describe('classifyTime — fights under a time simulation (window-driven)', () =
     ).toBe('upcoming');
   });
 
-  it('is past once the default window has elapsed — so NEXT advances', () => {
+  it('is past once its planned window has elapsed — so NEXT advances', () => {
     expect(
       classifyTime(
-        { kind: 'fight', startMs: NOW - (DEFAULT_DURATION_MS + MIN), status: 'scheduled' },
+        { kind: 'fight', startMs: NOW - 9 * MIN, endMs: NOW - 1 * MIN, status: 'scheduled' },
         NOW,
         true,
       ),
@@ -79,7 +82,7 @@ describe('classifyTime — fights under a time simulation (window-driven)', () =
     );
     expect(
       classifyTime(
-        { kind: 'fight', startMs: NOW - (DEFAULT_DURATION_MS + MIN), status: 'scheduled' },
+        { kind: 'fight', startMs: NOW - 9 * MIN, endMs: NOW - 1 * MIN, status: 'scheduled' },
         NOW,
       ),
     ).toBe('upcoming');
@@ -105,34 +108,34 @@ describe('classifyTime — workshops (window-driven)', () => {
     ).toBe('past');
   });
 
-  it('falls back to the default duration when end is null', () => {
-    // started 1 min ago, no end → live for DEFAULT_DURATION_MS
+  it('is past as soon as it starts when its end is unknown — never live for a guessed length', () => {
     expect(classifyTime({ kind: 'workshop', startMs: NOW - 1 * MIN, endMs: null }, NOW)).toBe(
-      'live',
+      'past',
     );
-    // started before the default window → past
-    expect(
-      classifyTime(
-        { kind: 'workshop', startMs: NOW - (DEFAULT_DURATION_MS + MIN), endMs: null },
-        NOW,
-      ),
-    ).toBe('past');
+    expect(classifyTime({ kind: 'workshop', startMs: NOW + 1 * MIN, endMs: null }, NOW)).toBe(
+      'upcoming',
+    );
   });
 });
 
-describe('classifyTime — referee slots (default-duration window)', () => {
+describe('classifyTime — referee slots (the window the API works out)', () => {
   it('is upcoming before start', () => {
-    expect(classifyTime({ kind: 'referee', startMs: NOW + 5 * MIN }, NOW)).toBe('upcoming');
+    expect(
+      classifyTime({ kind: 'referee', startMs: NOW + 5 * MIN, endMs: NOW + 40 * MIN }, NOW),
+    ).toBe('upcoming');
   });
 
-  it('is live within the default window after start', () => {
-    expect(classifyTime({ kind: 'referee', startMs: NOW - 1 * MIN }, NOW)).toBe('live');
+  it('is live for its whole window, past the five minutes it used to be given', () => {
+    expect(
+      classifyTime({ kind: 'referee', startMs: NOW - 20 * MIN, endMs: NOW + 20 * MIN }, NOW),
+    ).toBe('live');
   });
 
-  it('is past after the default window', () => {
-    expect(classifyTime({ kind: 'referee', startMs: NOW - (DEFAULT_DURATION_MS + MIN) }, NOW)).toBe(
-      'past',
-    );
+  it('is past once its end has passed, and from its start when the end is unknown', () => {
+    expect(
+      classifyTime({ kind: 'referee', startMs: NOW - 40 * MIN, endMs: NOW - 1 * MIN }, NOW),
+    ).toBe('past');
+    expect(classifyTime({ kind: 'referee', startMs: NOW - 1 * MIN }, NOW)).toBe('past');
   });
 });
 
