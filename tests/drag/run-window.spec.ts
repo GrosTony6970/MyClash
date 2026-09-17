@@ -144,7 +144,11 @@ test.describe('schedule grid run window', () => {
     await save(page).click();
 
     await expect.poll(() => api.scheduleWrites().length).toBe(6);
-    await expect(page.getByRole('alert')).toBeVisible();
+    // Filtered, not bare: Next's own route announcer is a second role="alert",
+    // and an unscoped one is a strict-mode violation in the built app.
+    await expect(
+      page.getByRole('alert').filter({ hasText: '6/6 changes were not saved.' }),
+    ).toBeVisible();
     // The refused fan-out re-reads the board. Letting the reads settle is what
     // gives a run save its chance to appear before this says none did.
     await settledReadCount(api, SCHEDULE_PATH);
