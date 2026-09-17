@@ -7,8 +7,8 @@ import { MatchPlacementService } from '../matches/match-placement.service';
 import { assertCanManageEvent } from '../../common/auth/event-authz';
 import { assertMatchesBelongToEvent } from '../events/in-event';
 import { readProgrammeSheet } from '../programme/programme-sheet';
-import { resolveMatchLengths } from './match-lengths';
-import { plannedLengthOf } from './planned-length';
+import { embeddedOne, resolveMatchLengths, type Embedded } from './match-lengths';
+import { plannedLengthOf, sheetRestFor } from './planned-length';
 import { layRun, shiftRun, type LaidBout, type RunBout } from './lay-run';
 import type { ScheduleRunDto } from './dto/schedule-run.dto';
 
@@ -18,6 +18,11 @@ interface RunRow {
   pool_id: string | null;
   lice_id: string | null;
   scheduled_at: string | null;
+  /** The bout's Tournament, for the rest its Pool takes: the sheet may carry a
+   *  rest for this Tournament alone. Embedded on this read rather than read
+   *  separately — `resolveMatchLengths` reads the same phases for its own
+   *  reasons, so this saves a third round trip, not a second. */
+  phases: Embedded<{ tournament_id: string }>;
 }
 
 type PlacedRunRow = RunRow & { lice_id: string; scheduled_at: string };
@@ -58,10 +63,12 @@ export class ScheduleRunService {
 
     const { data, error } = await db
       .from('matches')
-      .select('id, phase_id, pool_id, lice_id, scheduled_at')
+      .select('id, phase_id, pool_id, lice_id, scheduled_at, phases!inner(tournament_id)')
       .in('id', dto.matchIds);
     if (error) throw new BadRequestException(error.message);
-    const placed = ((data ?? []) as RunRow[]).filter(
+    // `as unknown as`, like the membership read next door: the builder is
+    // untyped, and the embed makes the two shapes disagree either way.
+    const placed = ((data ?? []) as unknown as RunRow[]).filter(
       (row): row is PlacedRunRow => row.lice_id != null && row.scheduled_at != null,
     );
     if (placed.length === 0) {
@@ -123,11 +130,20 @@ export class ScheduleRunService {
     const sheet = await readProgrammeSheet(db, eventId);
     const poolIds = new Set(placed.map((row) => row.pool_id));
     const isOnePool = poolIds.size === 1 && !poolIds.has(null);
+    // One Pool sits in one Tournament, so the first row names it for the run.
+    // `placed` is never empty here: `saveRun` refuses an unplaced run first.
+    // An unreadable Tournament is a server fault, and it is refused rather than
+    // quietly taking the Event's rest — a Pool that should run straight through
+    // would otherwise be given a break nobody asked for.
+    const tournamentId = embeddedOne(placed[0]!.phases)?.tournament_id;
+    if (!tournamentId) {
+      throw new BadRequestException('This run has no tournament. Reload the schedule.');
+    }
     return layRun({
       bouts: bouts.map((bout) => ({ ...bout, lengthMinutes: plannedLengthOf(lengths, bout.id) })),
       startMs,
       gapMs: sheet.matchGapSeconds * 1000,
-      midRestMs: isOnePool ? sheet.minRestMinutes * 60_000 : 0,
+      midRestMs: isOnePool ? sheetRestFor(sheet, tournamentId) * 60_000 : 0,
     });
   }
 }

@@ -64,6 +64,8 @@ export interface TournamentLengths {
   swissMatchDurationMinutes?: number;
   eliminationMatchDurationMinutes?: number;
   finalsMatchDurationMinutes?: number;
+  /** This Tournament's rest break. Absent reads the Event's; 0 is no break. */
+  minRestMinutes?: number;
 }
 
 /**
@@ -89,6 +91,10 @@ export interface SuggestConfig {
   /** A bout the planner's classifier calls a final (gold, bronze, grand final). */
   finalsMatchDurationMinutes: number;
   matchGapSeconds: number;
+  /**
+   * The rest break in the middle of a Pool's queue on each piste (ADR-018).
+   * Zero is no break, which is what an emptied box on the planner means.
+   */
   minRestMinutes: number;
   /** A Tournament's own lengths, read before the Event's. One row per Tournament. */
   tournaments: TournamentLengths[];

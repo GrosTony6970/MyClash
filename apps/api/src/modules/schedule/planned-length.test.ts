@@ -8,6 +8,7 @@ import {
   plannedEndIso,
   plannedLengthOf,
   sheetLengthFor,
+  sheetRestFor,
   type MatchKind,
 } from './planned-length';
 
@@ -17,6 +18,60 @@ const SABRE = 'sabre';
 function sheet(over: Partial<SuggestConfig> = {}): SuggestConfig {
   return { ...PROGRAMME_CONFIG_DEFAULTS, ...over };
 }
+
+describe('sheetRestFor', () => {
+  it("reads the Event's rest when the Tournament has no row", () => {
+    expect(sheetRestFor(sheet({ minRestMinutes: 12 }), LONGSWORD)).toBe(12);
+  });
+
+  it("reads the Event's rest when the Tournament's row leaves it blank", () => {
+    const s = sheet({
+      minRestMinutes: 12,
+      tournaments: [{ tournamentId: LONGSWORD, poolMatchDurationMinutes: 7 }],
+    });
+    expect(sheetRestFor(s, LONGSWORD)).toBe(12);
+  });
+
+  it("reads a Tournament's own rest before the Event's", () => {
+    const s = sheet({
+      minRestMinutes: 12,
+      // The deciding row sits second: a reader that took the first would pass
+      // this on the sabre row by accident.
+      tournaments: [
+        { tournamentId: SABRE, minRestMinutes: 3 },
+        { tournamentId: LONGSWORD, minRestMinutes: 20 },
+      ],
+    });
+    expect(sheetRestFor(s, LONGSWORD)).toBe(20);
+    expect(sheetRestFor(s, SABRE)).toBe(3);
+  });
+
+  it('lets a Tournament take no break where the Event takes one', () => {
+    // Zero is a rest, not a blank: absent and zero cannot be folded together.
+    const s = sheet({
+      minRestMinutes: 12,
+      // Deciding row second: with it first, a reader that takes `tournaments[0]`
+      // and ignores the id passes this by accident.
+      tournaments: [
+        { tournamentId: SABRE, minRestMinutes: 7 },
+        { tournamentId: LONGSWORD, minRestMinutes: 0 },
+      ],
+    });
+    expect(sheetRestFor(s, LONGSWORD)).toBe(0);
+  });
+
+  it("gives no break when the Event's own rest is zero", () => {
+    expect(sheetRestFor(sheet({ minRestMinutes: 0 }), LONGSWORD)).toBe(0);
+  });
+
+  it('reads the Event rest for a Tournament it does not know', () => {
+    const s = sheet({
+      minRestMinutes: 12,
+      tournaments: [{ tournamentId: SABRE, minRestMinutes: 3 }],
+    });
+    expect(sheetRestFor(s, 'a-tournament-with-no-row')).toBe(12);
+  });
+});
 
 describe('sheetLengthFor', () => {
   it.each<[MatchKind, number]>([

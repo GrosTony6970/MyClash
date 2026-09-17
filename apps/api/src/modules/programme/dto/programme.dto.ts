@@ -20,6 +20,8 @@ const tournamentLengthsSchema = z
     swissMatchDurationMinutes: lengthMinutes.optional(),
     eliminationMatchDurationMinutes: lengthMinutes.optional(),
     finalsMatchDurationMinutes: lengthMinutes.optional(),
+    // Not a length: zero is meaningful here, and it means no break.
+    minRestMinutes: z.number().int().min(0).optional(),
   })
   .strict();
 
@@ -48,6 +50,8 @@ const programmeConfigFields = {
   eliminationMatchDurationMinutes: lengthMinutes.default(8),
   finalsMatchDurationMinutes: lengthMinutes.default(10),
   matchGapSeconds: z.number().int().min(0).default(10),
+  // Zero is no break, and an emptied box on the planner saves zero. A
+  // Tournament's own row may carry its own.
   minRestMinutes: z.number().int().min(0).default(10),
   tournaments: z
     .array(tournamentLengthsSchema)

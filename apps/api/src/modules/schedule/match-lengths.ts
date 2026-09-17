@@ -51,16 +51,26 @@ interface PhaseRow {
   tournament_id: string;
 }
 
+/** An embedded row as PostgREST hands it over — see `embeddedOne`. */
+export type Embedded<T> = T | T[] | null | undefined;
+
 /**
- * PostgREST projects a one-to-one embed either as an object or as a
- * single-element array depending on the joined cardinality it infers. Both
- * shapes reach here for the same query, so both are read.
+ * The one row of a to-one embed.
+ *
+ * PostgREST projects such an embed either as an object or as a single-element
+ * array, depending on the joined cardinality it infers, and both shapes reach
+ * the same query. Every reader of an embedded row goes through here rather than
+ * guessing one shape: guessing gives `undefined` for the other, and a caller
+ * that then falls back to a default reads a wrong answer in silence.
  */
-type EmbeddedSlot = { round: number | null } | Array<{ round: number | null }> | null;
+export function embeddedOne<T>(value: Embedded<T>): T | null {
+  return (Array.isArray(value) ? value[0] : value) ?? null;
+}
+
+type EmbeddedSlot = Embedded<{ round: number | null }>;
 
 function roundOf(slot: EmbeddedSlot): number | null {
-  const one = Array.isArray(slot) ? (slot[0] ?? null) : slot;
-  return one?.round ?? null;
+  return embeddedOne(slot)?.round ?? null;
 }
 
 const BRACKET_TYPES = new Set(['single_elim', 'double_elim']);

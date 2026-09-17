@@ -10483,6 +10483,7 @@ export interface components {
         swissMatchDurationMinutes?: number;
         eliminationMatchDurationMinutes?: number;
         finalsMatchDurationMinutes?: number;
+        minRestMinutes?: number;
       }[];
       /** @default 10 */
       breakBetweenSessionsMinutes: number;

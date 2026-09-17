@@ -20,7 +20,8 @@ export const iso = (hhmmss: string) => `${DAY}T${hhmmss}.000Z`;
 export const MEMBERSHIP_SELECT = 'id, phases!inner(tournaments!inner(event_id))';
 // The stored length is deliberately absent: a run save either types one length
 // for every bout or hands them all back to the sheet, so no row's own counts.
-export const RUN_SELECT = 'id, phase_id, pool_id, lice_id, scheduled_at';
+export const RUN_SELECT =
+  'id, phase_id, pool_id, lice_id, scheduled_at, phases!inner(tournament_id)';
 
 export function row(
   id: string,
@@ -37,7 +38,9 @@ export function row(
     lice_id: liceId,
     scheduled_at: start === null ? null : iso(start),
     planned_duration_override_minutes: null,
-    phases: { tournaments: { event_id: EVENT } },
+    // Serves both reads: the membership check embeds the Event through the
+    // Tournament, the run read embeds the Tournament for its rest.
+    phases: { tournament_id: TOURNAMENT, tournaments: { event_id: EVENT } },
     ...over,
   };
 }

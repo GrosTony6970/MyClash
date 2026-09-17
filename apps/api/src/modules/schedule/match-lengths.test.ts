@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { filtersFor, mockSupabase, selectsFor } from '../../common/testing/supabase-chain';
 import { PROGRAMME_CONFIG_DEFAULTS } from '../programme/dto/programme.dto';
-import { resolveMatchLengths, resolveMatchWindows } from './match-lengths';
+import { embeddedOne, resolveMatchLengths, resolveMatchWindows } from './match-lengths';
 
 /**
  * The seeded double, not canned rows: every read here filters, and the point of
@@ -35,6 +35,30 @@ function phase(id: string, type: string, tournamentId = LONGSWORD) {
 function bracketMatch(id: string, phaseId: string, round: number | null) {
   return { id, phase_id: phaseId, bracket_slot_id: `slot-${id}`, bracket_slots: { round } };
 }
+
+describe('embeddedOne', () => {
+  // PostgREST hands a to-one embed over as an object or as a one-element array,
+  // for the same query. A reader that knows only one shape gets `undefined` for
+  // the other and, if it then falls back to a default, is wrong in silence.
+  it('reads the object shape', () => {
+    expect(embeddedOne({ tournament_id: 't1' })).toEqual({ tournament_id: 't1' });
+  });
+
+  it('reads the one-element array shape', () => {
+    expect(embeddedOne([{ tournament_id: 't1' }])).toEqual({ tournament_id: 't1' });
+  });
+
+  it('reads nothing as null, whichever way it arrives', () => {
+    expect(embeddedOne(null)).toBeNull();
+    expect(embeddedOne(undefined)).toBeNull();
+    expect(embeddedOne([])).toBeNull();
+  });
+
+  it('keeps a falsy embedded value rather than calling it nothing', () => {
+    // `[0]` on an array of one 0 is falsy; only a nullish check may answer null.
+    expect(embeddedOne([0])).toBe(0);
+  });
+});
 
 describe('resolveMatchLengths', () => {
   it('reads nothing at all for an empty batch', async () => {

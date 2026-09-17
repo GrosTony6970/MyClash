@@ -6,7 +6,11 @@ import type { TournamentLengths } from '@myclash/types';
  * change handler.
  */
 
-export type LengthField = Exclude<keyof TournamentLengths, 'tournamentId'>;
+/** Every number a Tournament's row can hold. */
+export type TournamentField = Exclude<keyof TournamentLengths, 'tournamentId'>;
+
+/** The four that are bout lengths: the row's length columns, in order. */
+export type LengthField = Exclude<TournamentField, 'minRestMinutes'>;
 
 export const LENGTH_FIELDS: readonly LengthField[] = [
   'poolMatchDurationMinutes',
@@ -15,26 +19,32 @@ export const LENGTH_FIELDS: readonly LengthField[] = [
   'finalsMatchDurationMinutes',
 ];
 
+/** Every field a row can carry, for deciding whether a row says anything. */
+const TOURNAMENT_FIELDS: readonly TournamentField[] = [...LENGTH_FIELDS, 'minRestMinutes'];
+
 /**
- * The rows after one box changes. A number sets that length; a blank box
- * removes it, because blank means "use the Event's" and 0 is not a length.
+ * The rows after one box on a Tournament's row changes. A number is kept —
+ * including 0, which is a rest of none — and a blank box removes the field, so
+ * the Tournament reads the Event's number again (ADR-018).
+ *
+ * One setter for every box: the rest behaves exactly as the four lengths do,
+ * and a second copy pinned to one field would only be somewhere for the two to
+ * drift apart.
  */
-export function withTournamentLength(
+export function withTournamentField(
   rows: readonly TournamentLengths[],
   tournamentId: string,
-  field: LengthField,
+  field: TournamentField,
   minutes: number | undefined,
 ): TournamentLengths[] {
   const hasRow = rows.some((row) => row.tournamentId === tournamentId);
   const base = hasRow ? rows : [...rows, { tournamentId }];
-  return base.map((row) =>
-    row.tournamentId === tournamentId ? setLength(row, field, minutes) : row,
-  );
+  return base.map((row) => (row.tournamentId === tournamentId ? set(row, field, minutes) : row));
 }
 
-function setLength(
+function set(
   row: TournamentLengths,
-  field: LengthField,
+  field: TournamentField,
   minutes: number | undefined,
 ): TournamentLengths {
   const { [field]: _previous, ...rest } = row;
@@ -53,6 +63,6 @@ export function keepLiveRows(
   return rows.filter(
     (row) =>
       knownTournamentIds.has(row.tournamentId) &&
-      LENGTH_FIELDS.some((field) => row[field] !== undefined),
+      TOURNAMENT_FIELDS.some((field) => row[field] !== undefined),
   );
 }

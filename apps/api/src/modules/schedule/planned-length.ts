@@ -115,6 +115,20 @@ export function matchKind(
   return isFinalsMatch(round, finalRound) ? 'finals' : 'elimination';
 }
 
+/**
+ * The rest break a Pool of this Tournament takes in the middle of each piste's
+ * queue, in minutes (ADR-018). Zero is no break.
+ *
+ * Same shape as `sheetLengthFor`: the Tournament's own number when its box has
+ * one, the Event's otherwise. A Tournament box left blank reads the Event's; a
+ * Tournament box holding 0 says this Tournament takes no break even where the
+ * Event does, which is why absent and zero cannot be folded together.
+ */
+export function sheetRestFor(sheet: SuggestConfig, tournamentId: string): number {
+  const row = sheet.tournaments.find((r) => r.tournamentId === tournamentId);
+  return row?.minRestMinutes ?? sheet.minRestMinutes;
+}
+
 export function sheetLengthFor(
   kind: MatchKind,
   sheet: SuggestConfig,

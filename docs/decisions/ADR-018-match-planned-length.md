@@ -94,9 +94,11 @@ The operator's rule, 2026-09-17:
   Fifteen bouts on a piste break after the seventh, six after the third, and one bout takes none.
   Two pistes each break on their own half, not on the run's.
 - The break lasts the sheet's rest, on top of the gap that already sits between two bouts.
-  The sheet holds one rest for the whole Event: a Tournament's own row carries bout lengths
-  only. That field is to become emptiable, an empty field meaning no break; today a rest of
-  zero already means it.
+  A Tournament's own row may carry its own rest beside its lengths, read before the Event's,
+  the same order a length follows.
+- **Zero is no break, and emptying the box saves zero.** The Event's rest box may be left
+  blank; a blank Tournament box still means "use the Event's", so that one keeps zero and
+  blank apart. One number, one meaning: there is no second way to say "no break".
 - A Swiss round and a bracket round take no break. A fighter appears at most once in one.
 - The rule holds everywhere a Pool is laid: the run window, Generate and the re-fan.
 
@@ -112,10 +114,13 @@ Generate's rule today is stricter — idle until every fighter of the bout just 
 and it is what spreads a small Pool across the morning. Moving Generate onto this rule gives that
 up on purpose.
 
-The run window carries it from this build (`apps/api/src/modules/schedule/lay-run.ts`, applied by
-`schedule-run.service.ts` when every placed bout of the run names the same Pool). Generate and the
-re-fan still leave the scheduler's idle gap after every appearance; they and the emptiable field
-follow in the next commit.
+The run window carries it (`apps/api/src/modules/schedule/lay-run.ts`, applied by
+`schedule-run.service.ts` when every placed bout of the run names the same Pool), and the sheet's
+rest field is emptiable and per-Tournament. Generate and the re-fan still leave the scheduler's
+idle gap after every appearance; moving them onto this rule is the commit that follows, and it
+drops that per-appearance idle everywhere. What it does not drop is the floor that keeps one
+fighter out of two bouts at once: a fighter is never placed in two overlapping bouts, whatever
+the rest is set to.
 
 ### One function, every reader
 
