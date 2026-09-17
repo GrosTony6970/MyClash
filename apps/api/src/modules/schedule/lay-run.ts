@@ -17,10 +17,11 @@
  * for a rest. A Swiss or bracket round runs back to back — a fighter appears at
  * most once in it.
  *
- * That break halves the run. It does NOT separate two neighbouring bouts that
- * share a fighter, which a round-robin produces as a matter of course: a
- * four-fighter Pool in Berger order has one either side of the break, with only
- * the gap between them. ADR-018 records the rule and its price.
+ * The break is a pause for the crew as much as for the fighters: on a long Pool
+ * the referee stands through every bout. The draw already spaces the fighters —
+ * a Berger round-robin puts a repeated fighter in two neighbouring bouts only in
+ * a Pool of three, four or five. In those three the gap alone separates them,
+ * which the operator accepted; ADR-018 says why.
  */
 
 /** A placed bout of the run, as it sits now. */

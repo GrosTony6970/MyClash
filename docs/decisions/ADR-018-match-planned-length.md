@@ -84,8 +84,9 @@ left open where the number lives and where a Match placed by hand finds it.
 
 The sheet's rest used to belong to the scheduler alone: Generate leaves a piste idle until every
 fighter of the bout it has just placed has rested, so a small Pool spreads across the morning. The
-run window made the hole visible. A four-fighter Pool typed at seven minutes came back laid back to
-back, which put a fighter on the piste ten seconds after their own bout, and nothing said so.
+run window laid a Pool with no pause in it at all, which is what brought the question up: a
+four-fighter Pool typed at seven minutes came back back to back, and a fighter was called again
+ten seconds after their own bout.
 
 The operator's rule, 2026-09-17:
 
@@ -99,13 +100,17 @@ The operator's rule, 2026-09-17:
 - A Swiss round and a bracket round take no break. A fighter appears at most once in one.
 - The rule holds everywhere a Pool is laid: the run window, Generate and the re-fan.
 
-What the rule buys, and what it does not: a fighter is no longer asked to fight through a whole
-Pool without stopping. It does NOT separate two neighbouring bouts that share a fighter, and a
-round-robin produces those as a matter of course. A four-fighter Pool laid in Berger order runs
-`0v3, 1v2, 0v2, 3v1, 0v1, 2v3`, with the break in the middle: the second and third bouts share a
-fighter, so do the fourth and fifth, and only the gap stands between them. Generate's own rule —
-idle until every fighter of the bout just placed has rested — does separate them, which is what is
-given up when Generate moves onto this rule.
+Who the break is for: the crew as much as the fighters. On a long Pool the referee, the timekeeper
+and the scorekeeper stand through every bout, and this gives them one pause in the middle of it.
+The fighters are already spaced by the draw. `bergerSchedule` puts a repeated fighter in two
+neighbouring bouts only in a Pool of three, four or five; from six fighters up it never does
+(`packages/rules/src/scheduling/berger.ts`). In those three small Pools a fighter can be called
+back after the gap alone, and the operator accepted it: a Pool of four is six short bouts, and
+waiting out a rest between them would cost the day more than it buys the fighter.
+
+Generate's rule today is stricter — idle until every fighter of the bout just placed has rested —
+and it is what spreads a small Pool across the morning. Moving Generate onto this rule gives that
+up on purpose.
 
 The run window carries it from this build (`apps/api/src/modules/schedule/lay-run.ts`, applied by
 `schedule-run.service.ts` when every placed bout of the run names the same Pool). Generate and the
