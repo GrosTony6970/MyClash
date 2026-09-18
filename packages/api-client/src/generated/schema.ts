@@ -19307,7 +19307,7 @@ export interface operations {
         };
         content?: never;
       };
-      /** @description Has registrations — cannot delete */
+      /** @description Has registrations — cannot delete; or eventId is not the person's event */
       400: {
         headers: {
           [name: string]: unknown;

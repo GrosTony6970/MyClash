@@ -831,9 +831,9 @@ export class PersonsService {
   }
 
   /**
-   * Side-fetch a representative email for a matched `global_persons` row
-   * and shape the response. Shared by the HEMA-ID and name branches of
-   * `findGlobalPersonMatch` so the two paths return identical shapes.
+   * Side-fetch a representative email for a matched `global_persons` row, MASKED:
+   * the match may sit on any organisation's roster. Shared by the HEMA-ID and name
+   * branches of `findGlobalPersonMatch` so the two paths return identical shapes.
    */
   private async hydrateGlobalPersonMatch(best: {
     id: string;
@@ -853,7 +853,7 @@ export class PersonsService {
       displayName: best.display_name,
       clubName: best.clubs?.name ?? null,
       abbreviation: best.clubs?.abbreviation ?? null,
-      email: (linkedPerson as { email: string | null } | null)?.email ?? null,
+      email: this.csv.maskEmail((linkedPerson as { email: string | null } | null)?.email) || null,
     };
   }
 

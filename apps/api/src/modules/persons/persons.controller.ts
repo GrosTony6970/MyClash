@@ -25,6 +25,9 @@ import {
 } from '@nestjs/swagger';
 import type { FastifyRequest } from 'fastify';
 import type { ImportDecision } from '@myclash/types';
+import { assertCanManageEvent, assertEventMember } from '../../common/auth/event-authz';
+import { assertCanManagePerson } from '../../common/auth/person-authz';
+import { OrganizationsService } from '../organizations/organizations.service';
 import { SupabaseService } from '../supabase/supabase.service';
 import { PersonsService } from './persons.service';
 import { AssignmentsService } from '../registrations/assignments.service';
@@ -74,6 +77,24 @@ async function readMultipart(
   return { buffer, fields };
 }
 
+/**
+ * An Event's roster: emails, dates of birth, notes.
+ *
+ * AUTHORIZATION IS PER ROUTE. Until 2026-09-18 no route here had any: with the
+ * guard in shadow mode a caller with no token read, edited and force-deleted any
+ * person, and the import preview answered an uploaded name with that person's
+ * email from any organisation's Event. Create and import resolved the caller only
+ * to stamp `created_by_user_id`.
+ *
+ * Two bars, the referee board's: reading needs membership at any role, changing
+ * needs `editor`. The preview is a change — the first step of an import, and it
+ * names people from any organisation's roster (their email masked). A route
+ * addressed by person id checks the Event the PERSON is on, never an id the caller
+ * sends. Every check runs before any upload is read.
+ *
+ * Deleting is `editor` too, although RLS `persons_delete` asks `admin`: the
+ * operator's ruling (2026-09-18), not an oversight.
+ */
 @ApiTags('persons')
 @ApiBearerAuth()
 @Controller()
@@ -82,17 +103,24 @@ export class PersonsController {
     private readonly persons: PersonsService,
     private readonly supabase: SupabaseService,
     private readonly assignments: AssignmentsService,
+    private readonly organizations: OrganizationsService,
   ) {}
+
+  /** Deps in the shape `event-authz` takes. */
+  private get authz() {
+    return { supabase: this.supabase, orgs: this.organizations };
+  }
 
   /**
    * GET /api/v1/events/:eventId/persons
-   * List all persons for an event (organizer only).
+   * List all persons for an event (any member of its organisation).
    */
   @Get('events/:eventId/persons')
   @ApiOperation({ summary: 'List persons for an event' })
   @ApiParam({ name: 'eventId', type: 'string', format: 'uuid' })
   @ApiResponse({ status: 200, description: 'Person list' })
-  async list(@Param('eventId', ParseUUIDPipe) eventId: string) {
+  async list(@Param('eventId', ParseUUIDPipe) eventId: string, @Req() req: FastifyRequest) {
+    await assertEventMember(this.authz, eventId, await getUserId(req, this.supabase));
     return this.persons.listPersons(eventId);
   }
 
@@ -111,7 +139,9 @@ export class PersonsController {
     @Body() dto: CreatePersonDto,
     @Req() req: FastifyRequest,
   ) {
-    return this.persons.createPerson(eventId, dto, await getUserId(req, this.supabase));
+    const userId = await getUserId(req, this.supabase);
+    await assertCanManageEvent(this.authz, eventId, userId);
+    return this.persons.createPerson(eventId, dto, userId);
   }
 
   /**
@@ -135,6 +165,7 @@ export class PersonsController {
     @Param('eventId', ParseUUIDPipe) eventId: string,
     @Req() req: FastifyRequest,
   ) {
+    await assertCanManageEvent(this.authz, eventId, await getUserId(req, this.supabase));
     const { buffer } = await readMultipart(req);
     if (!buffer) {
       return {
@@ -176,6 +207,8 @@ export class PersonsController {
   @ApiParam({ name: 'eventId', type: 'string', format: 'uuid' })
   @ApiResponse({ status: 200, description: 'Import report' })
   async importCsv(@Param('eventId', ParseUUIDPipe) eventId: string, @Req() req: FastifyRequest) {
+    const userId = await getUserId(req, this.supabase);
+    await assertCanManageEvent(this.authz, eventId, userId);
     const { buffer, fields } = await readMultipart(req);
 
     if (!buffer) {
@@ -197,19 +230,20 @@ export class PersonsController {
       }
     }
 
-    return this.persons.importCsv(eventId, buffer, await getUserId(req, this.supabase), decisions);
+    return this.persons.importCsv(eventId, buffer, userId, decisions);
   }
 
   /**
    * GET /api/v1/persons/:id
-   * Get a single person (organizer or self).
+   * Get a single person (any member of their Event's organisation).
    */
   @Get('persons/:id')
   @ApiOperation({ summary: 'Get a person by ID' })
   @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
   @ApiResponse({ status: 200, description: 'Person detail' })
   @ApiResponse({ status: 404, description: 'Not found' })
-  async getOne(@Param('id', ParseUUIDPipe) id: string) {
+  async getOne(@Param('id', ParseUUIDPipe) id: string, @Req() req: FastifyRequest) {
+    await assertCanManagePerson(this.authz, id, await getUserId(req, this.supabase), 'read_only');
     return this.persons.getPerson(id);
   }
 
@@ -221,7 +255,12 @@ export class PersonsController {
   @ApiOperation({ summary: 'Update a person' })
   @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
   @ApiResponse({ status: 200, description: 'Updated person' })
-  async update(@Param('id', ParseUUIDPipe) id: string, @Body() dto: UpdatePersonDto) {
+  async update(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: UpdatePersonDto,
+    @Req() req: FastifyRequest,
+  ) {
+    await assertCanManagePerson(this.authz, id, await getUserId(req, this.supabase));
     return this.persons.updatePerson(id, dto);
   }
 
@@ -235,7 +274,8 @@ export class PersonsController {
    * removes their registrations + scheduled matches + referee
    * assignments, then deletes the person. Refuses with 409 if any
    * match in that event has status running/paused/completed/forfeit/
-   * disqualified.
+   * disqualified. The named event must be the person's own: the purge probes
+   * that event's bouts, then deletes the person wherever they are.
    */
   @Delete('persons/:id')
   @HttpCode(HttpStatus.NO_CONTENT)
@@ -245,16 +285,28 @@ export class PersonsController {
   })
   @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
   @ApiResponse({ status: 204, description: 'Deleted' })
-  @ApiResponse({ status: 400, description: 'Has registrations — cannot delete' })
+  @ApiResponse({
+    status: 400,
+    description: "Has registrations — cannot delete; or eventId is not the person's event",
+  })
   @ApiResponse({ status: 409, description: 'Has blocking matches; force-purge refused' })
   async delete(
     @Param('id', ParseUUIDPipe) id: string,
+    @Req() req: FastifyRequest,
     @Query('force') force?: string,
     @Query('eventId') eventId?: string,
   ) {
+    const personEventId = await assertCanManagePerson(
+      this.authz,
+      id,
+      await getUserId(req, this.supabase),
+    );
     if (force === 'true') {
       if (!eventId) {
         throw new BadRequestException('force=true requires eventId');
+      }
+      if (eventId !== personEventId) {
+        throw new BadRequestException(`Person ${id} is not on the roster of event ${eventId}`);
       }
       await this.assignments.forceDeletePersonInEvent(id, eventId);
       return;

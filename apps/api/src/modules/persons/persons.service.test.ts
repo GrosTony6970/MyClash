@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { CsvImportService } from './csv-import.service';
 import { PersonsService } from './persons.service';
 import type { CreatePersonDto } from './dto/persons.dto';
 
@@ -379,5 +380,16 @@ describe('PersonsService.findGlobalPersonMatch — narrow query', () => {
     const hemaCall = eqCalls.find((c) => c.args[0] === 'hema_ratings_id');
     expect(hemaCall).toBeDefined();
     expect(String(hemaCall!.args[1])).toBe('6282');
+  });
+
+  it("masks the match's email: the person may sit on any organisation's roster", async () => {
+    const { supabase, queueResult } = makeRecordingSupabase();
+    const bruno = { id: 'gp-77', display_name: 'Bruno Keller', clubs: null };
+    queueResult('global_persons', { data: [bruno], error: null });
+    queueResult('persons', { data: { email: 'bruno.keller@example.test' }, error: null });
+    const csv = new CsvImportService();
+    const svc = new PersonsService(supabase as never, csv, {} as never, makeResolver() as never);
+    const match = (await invoke(svc, 'Bruno', 'Keller', '77')) as { email: string | null };
+    expect(match.email).toBe('b***@e***.test');
   });
 });
