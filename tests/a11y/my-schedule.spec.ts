@@ -75,9 +75,24 @@ const SCHEDULE = {
   ],
 };
 
-async function openMySchedule(page: Page): Promise<void> {
+/**
+ * The same day when the API could not read the Event's sheet: no bout has a
+ * length. Match 1 ends where the API fell back on, its next bout at 09:25 — so
+ * it runs over the 09:10 workshop. Match 4 is the day's last on its piste and
+ * has no end; nor has the Pool, which is no card. One card cannot be checked.
+ */
+const DEGRADED = {
+  ...SCHEDULE,
+  matches: [
+    { ...SCHEDULE.matches[0], durationMinutes: null, fallbackEndsAt: '2027-03-13T09:25:00.000Z' },
+    { ...SCHEDULE.matches[1], durationMinutes: null, fallbackEndsAt: null },
+  ],
+  poolSpans: [{ ...SCHEDULE.poolSpans[0], endsAt: null }],
+};
+
+async function openMySchedule(page: Page, schedule: object = SCHEDULE): Promise<void> {
   await stubPublicApi(page);
-  await page.route('**/api/v1/events/**/my-schedule', (route) => route.fulfill({ json: SCHEDULE }));
+  await page.route('**/api/v1/events/**/my-schedule', (route) => route.fulfill({ json: schedule }));
   await page.goto('http://localhost:3001/e/test-event/my-schedule');
   await waitForPageMain(page);
 }
@@ -112,6 +127,29 @@ test("my-schedule page - a workshop inside the fighter's Pool conflicts with it,
   await expect(page.getByText('⚠ Conflicts with: Pool 1 · Longsword Open')).toHaveCount(1);
   await expect(page.getByText('⚠ Conflicts with: Stick and guard')).toHaveCount(2);
   await expect(page.getByText(/Conflicts with/)).toHaveCount(3);
+  // Every end is known: the line is not there.
+  await expect(page.getByText(/couldn't work out/)).toHaveCount(0);
 
+  await expectNoPageIssues(issues);
+});
+
+test('my-schedule page - with no lengths, a bout ends at its next bout, and the page says what it cannot check', async ({
+  page,
+}) => {
+  const issues = collectPageIssues(page);
+  await openMySchedule(page, DEGRADED);
+
+  // One commitment: the line's own wording for one.
+  await expect(
+    page.getByText(
+      "We couldn't work out when 1 of your commitments ends, so it isn't checked for clashes.",
+    ),
+  ).toBeVisible();
+  // Match 1 and the workshop name each other; nothing else clashes.
+  await expect(page.getByText('⚠ Conflicts with: Stick and guard')).toHaveCount(1);
+  await expect(page.getByText('⚠ Conflicts with: Pool 1 - Match 1')).toHaveCount(1);
+  await expect(page.getByText(/Conflicts with/)).toHaveCount(2);
+
+  await expectNoCriticalAxeViolations(page);
   await expectNoPageIssues(issues);
 });

@@ -2,7 +2,16 @@ import { Logger } from '@nestjs/common';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { resolveDutyWindows, resolvePoolSpans } from '../schedule/duty-windows';
 import { resolveMatchLengths } from '../schedule/match-lengths';
-import { PublicScheduleService } from './public-schedule.service';
+import { resolveNextBoutEnds } from '../schedule/next-bout-end';
+import {
+  buildService,
+  fighterMatch,
+  matchScoped,
+  PHASE,
+  poolScoped,
+  projection,
+  rows,
+} from './public-schedule.fixtures';
 
 // The helpers are plain modules with reads of their own, proven by their own
 // tests. Mocked here so this file holds what the service hands them and what it
@@ -12,15 +21,20 @@ vi.mock('../schedule/duty-windows', () => ({
   resolvePoolSpans: vi.fn(),
 }));
 vi.mock('../schedule/match-lengths', () => ({ resolveMatchLengths: vi.fn() }));
+vi.mock('../schedule/next-bout-end', () => ({ resolveNextBoutEnds: vi.fn() }));
 
 const dutyWindows = vi.mocked(resolveDutyWindows);
 const poolSpans = vi.mocked(resolvePoolSpans);
 const matchLengths = vi.mocked(resolveMatchLengths);
+const nextBoutEnds = vi.mocked(resolveNextBoutEnds);
 
-/** Unless a case says otherwise, every Pool comes back untimed. */
+/** Unless a case says otherwise, every Pool comes back untimed, and no bout has a next bout. */
 beforeEach(() => {
   poolSpans.mockImplementation(async (_db, _logger, _eventId, pools) =>
     pools.map((pool) => ({ ...pool, startsAt: null, endsAt: null })),
+  );
+  nextBoutEnds.mockImplementation(
+    async (_db, _logger, _eventId, bouts) => new Map(bouts.map((bout) => [bout.id, null])),
   );
 });
 
@@ -29,61 +43,8 @@ beforeEach(() => {
  * `scheduled_at`) and pool-scoped rows (display time = the duty's start, worked
  * out from its Pool's Matches). No single column orders that mix, so the service
  * sorts on `scheduledAt ?? startsAt` — the same key the schedule view uses.
- *
- * Thenable query chain: every builder method returns the same object, which
- * also resolves. Mirrors me-events.list.test.
+ * The seeded rows are in `public-schedule.fixtures.ts`.
  */
-type Chain = Promise<unknown> & Record<string, ReturnType<typeof vi.fn>>;
-function q(result: unknown): Chain {
-  const promise = Promise.resolve(result) as Chain;
-  for (const m of ['select', 'eq', 'in', 'neq', 'order', 'or', 'not', 'maybeSingle']) {
-    promise[m] = vi.fn(() => promise);
-  }
-  return promise;
-}
-
-/** A projection with its layout whitespace collapsed, so it compares exactly. */
-const projection = (chain: Chain | undefined): string =>
-  String(chain?.select?.mock.calls[0]?.[0] ?? '')
-    .replace(/\s+/g, ' ')
-    .trim();
-
-const PHASE = {
-  visibility_status: 'published',
-  type: 'pool',
-  config_json: null,
-  tournaments: { name: 'Longsword Open', slug: 'longsword-open' },
-};
-
-/** A match-scoped duty. Its Match sits in a Pool, which the duty does NOT cover. */
-const matchScoped = (id: string, scheduledAt: string | null, phase: unknown = PHASE) => ({
-  id,
-  role: 'referee_table',
-  pool_id: null,
-  match_id: `m-${id}`,
-  pools: null,
-  lices: null,
-  matches: {
-    id: `m-${id}`,
-    match_number_label: id,
-    scheduled_at: scheduledAt,
-    bracket_slot_id: null,
-    pools: { id: 'pool-of-the-match', name: 'Pool 9' },
-    lices: null,
-    phases: phase,
-  },
-});
-
-/** A pool-scoped duty ("Déclarant"): no match, so its time comes from its Pool. */
-const poolScoped = (id: string) => ({
-  id,
-  role: 'referee_declarant',
-  pool_id: 'pool-1',
-  match_id: null,
-  pools: { id: 'pool-1', name: 'Pool 1', phases: PHASE },
-  lices: null,
-  matches: null,
-});
 
 /** The helper's answer: a window for every duty, untimed unless listed. */
 function windowsAre(times: Record<string, [string | null, string | null]>) {
@@ -98,47 +59,12 @@ function windowsAre(times: Record<string, [string | null, string | null]>) {
   );
 }
 
-function buildService(
-  assignments: unknown,
-  opts: { timezone?: string | null; registrations?: unknown[]; matches?: unknown[] } = {},
-) {
-  const chains = new Map<string, Chain[]>();
-  const supabase = {
-    service: {
-      from: vi.fn((table: string) => {
-        const chain =
-          table === 'referee_assignments'
-            ? q(assignments)
-            : table === 'persons'
-              ? q({ data: { global_person_id: 'gp-1' }, error: null })
-              : table === 'events'
-                ? q({ data: opts.timezone ? { timezone: opts.timezone } : null, error: null })
-                : table === 'registrations'
-                  ? q({ data: opts.registrations ?? [], error: null })
-                  : table === 'matches'
-                    ? q({ data: opts.matches ?? [], error: null })
-                    : q({ data: [], error: null });
-        chains.set(table, [...(chains.get(table) ?? []), chain]);
-        return chain;
-      }),
-    },
-  };
-  const privacy = { canSeeWorkshops: vi.fn(async () => false) };
-  return {
-    // No `orgs`: `getSchedule` gates nothing — the public door's gate has its own file.
-    service: new PublicScheduleService(supabase as never, privacy as never, {} as never),
-    supabase,
-    chains,
-  };
-}
-
-const rows = (data: unknown[]) => ({ data, error: null });
-
 afterEach(() => {
   vi.restoreAllMocks();
   dutyWindows.mockReset();
   poolSpans.mockReset();
   matchLengths.mockReset();
+  nextBoutEnds.mockReset();
 });
 
 describe('PublicScheduleService.getSchedule — referee slot times', () => {
@@ -274,34 +200,9 @@ describe('PublicScheduleService.getSchedule — referee slot times', () => {
   });
 });
 
-/** One of the fighter's own bouts, as the Match read returns it. */
-const fighterMatch = (
-  id: string,
-  override: number | null,
-  visibility = 'published',
-  pool: { id: string; name: string } | null = null,
-) => ({
-  id,
-  match_number_label: id,
-  status: 'scheduled',
-  scheduled_at: '2027-05-22T10:00:00Z',
-  phase_id: `phase-${id}`,
-  pool_id: pool?.id ?? null,
-  planned_duration_override_minutes: override,
-  red_score: 0,
-  blue_score: 0,
-  winner_registration_id: null,
-  end_reason: null,
-  red_registration_id: 'reg-1',
-  blue_registration_id: 'reg-2',
-  pools: pool ? { name: pool.name } : null,
-  lices: null,
-  phases: {
-    visibility_status: visibility,
-    type: 'pool',
-    tournaments: { id: 't-1', name: 'Open' },
-  },
-});
+/** What the fallback needs of each published bout: its piste and its time. */
+const PLAIN_REF = { id: 'plain', liceId: 'lice-plain', scheduledAt: '2027-05-22T10:00:00Z' };
+const TYPED_REF = { id: 'typed', liceId: 'lice-typed', scheduledAt: '2027-05-22T10:00:00Z' };
 
 describe("PublicScheduleService.getSchedule — a fighter's own Match lengths", () => {
   const withMatches = () =>
@@ -324,35 +225,51 @@ describe("PublicScheduleService.getSchedule — a fighter's own Match lengths", 
 
     const schedule = await service.getSchedule('e-1', 'p-1', null);
 
-    expect(schedule.matches.map((m) => [m.id, m.durationMinutes])).toEqual([
-      ['plain', 5],
-      ['typed', 9],
+    expect(schedule.matches.map((m) => [m.id, m.durationMinutes, m.fallbackEndsAt])).toEqual([
+      ['plain', 5, null],
+      ['typed', 9, null],
     ]);
+    // A known length leaves nothing to fall back on.
+    expect(nextBoutEnds).not.toHaveBeenCalled();
     expect(matchLengths).toHaveBeenCalledTimes(1);
     expect(matchLengths.mock.calls[0]?.[1]).toBe('e-1');
     expect(matchLengths.mock.calls[0]?.[2]).toEqual([
-      { id: 'plain', phaseId: 'phase-plain', plannedDurationOverrideMinutes: null },
-      { id: 'typed', phaseId: 'phase-typed', plannedDurationOverrideMinutes: 9 },
+      { ...PLAIN_REF, phaseId: 'phase-plain', plannedDurationOverrideMinutes: null },
+      { ...TYPED_REF, phaseId: 'phase-typed', plannedDurationOverrideMinutes: 9 },
     ]);
     expect(projection(chains.get('matches')?.[0])).toBe(
-      'id, match_number_label, status, scheduled_at, phase_id, pool_id, planned_duration_override_minutes, ' +
+      'id, match_number_label, status, scheduled_at, phase_id, pool_id, lice_id, planned_duration_override_minutes, ' +
         'red_score, blue_score, winner_registration_id, end_reason, ' +
         'red_registration_id, blue_registration_id, pools ( name ), lices ( name ), ' +
         'phases ( visibility_status, type, tournaments ( id, name, scoring_config_json ) )',
     );
   });
 
-  it('returns the Matches with no length, and says so, when the sheet cannot be read', async () => {
+  it('ends each Match at its next bout instead, and says so, when the sheet cannot be read', async () => {
     windowsAre({});
     const warn = vi.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
     matchLengths.mockRejectedValue(new Error('sheet refused'));
+    nextBoutEnds.mockResolvedValue(
+      new Map([
+        ['plain', '2027-05-22T10:20:00.000Z'],
+        ['typed', null],
+      ]),
+    );
     const { service } = withMatches();
 
     const schedule = await service.getSchedule('e-1', 'p-1', null);
 
-    expect(schedule.matches.map((m) => [m.id, m.durationMinutes])).toEqual([
-      ['plain', null],
-      ['typed', null],
+    expect(schedule.matches.map((m) => [m.id, m.durationMinutes, m.fallbackEndsAt])).toEqual([
+      ['plain', null, '2027-05-22T10:20:00.000Z'],
+      ['typed', null, null],
+    ]);
+    // The published bouts only, with their pistes and times, under this service's logger.
+    expect(nextBoutEnds).toHaveBeenCalledTimes(1);
+    expect(nextBoutEnds.mock.calls[0]?.[1]).toBeInstanceOf(Logger);
+    expect(nextBoutEnds.mock.calls[0]?.[2]).toBe('e-1');
+    expect(nextBoutEnds.mock.calls[0]?.[3]).toEqual([
+      expect.objectContaining(PLAIN_REF),
+      expect.objectContaining(TYPED_REF),
     ]);
     expect(warn).toHaveBeenCalledTimes(1);
     expect(String(warn.mock.calls[0]?.[0])).toContain('e-1');

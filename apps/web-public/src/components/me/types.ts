@@ -10,8 +10,13 @@ export interface ScheduleMatch {
   scheduledAt: string | null;
   /** The bout's planned length in minutes, from the Event's planner sheet or the
    *  bout's own override (ADR-018). Null when the API could not read the sheet:
-   *  the bout then has no end, and no length is invented for it. */
+   *  no length is invented for it, and the bout ends at `fallbackEndsAt`, if any. */
   durationMinutes: number | null;
+  /** Where the bout ends when it has no length: its next bout on the piste, or the
+   *  day's next break or admin bar — the API's fallback, never a second length.
+   *  Null when nothing follows it that day; absent in a copy cached before the
+   *  API sent it. */
+  fallbackEndsAt?: string | null;
   opponentName: string | null;
   redScore: number;
   blueScore: number;

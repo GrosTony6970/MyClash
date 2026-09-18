@@ -30,6 +30,7 @@ import { sideColorsFromScoringConfig, type SideColors } from '../events/side-col
 import { deriveMatchOutcome } from '../fighters/recent-matches';
 import { resolveDutyWindows, resolvePoolSpans } from '../schedule/duty-windows';
 import { resolveMatchLengths, type MatchLengthInput } from '../schedule/match-lengths';
+import { resolveNextBoutEnds, type BoutRef } from '../schedule/next-bout-end';
 import { plannedLengthOf } from '../schedule/planned-length';
 
 export interface ScheduleMatch {
@@ -40,6 +41,11 @@ export interface ScheduleMatch {
   /** The Match's planned length in minutes, from the Event's planner sheet or
    *  the Match's own override (ADR-018). Null when the sheet cannot be read. */
   durationMinutes: number | null;
+  /** Where the bout ends when `durationMinutes` is null: the next bout on its
+   *  piste that Event day, or the day's next break or admin bar — a FALLBACK
+   *  only (`next-bout-end.ts`). Null when there is a length, and when nothing
+   *  follows the bout that day. */
+  fallbackEndsAt: string | null;
   opponentName: string | null;
   opponentClub: string | null;
   redScore: number;
@@ -83,7 +89,8 @@ export interface RefereeSlot {
   scheduledAt: string | null;
   /** The duty's planned window, worked out from the Matches it covers: its own
    *  Match, or its Pool's placed Matches (ADR-017). Null when nothing is placed;
-   *  `endsAt` also null when the Event's planner sheet cannot be read. */
+   *  `endsAt` also null when the Event's planner sheet cannot be read and a
+   *  Match it covers has no next bout to end at. */
   startsAt: string | null;
   endsAt: string | null;
   role: string;
@@ -270,7 +277,7 @@ export class PublicScheduleService {
       .from('matches')
       .select(
         `
-        id, match_number_label, status, scheduled_at, phase_id, pool_id, planned_duration_override_minutes,
+        id, match_number_label, status, scheduled_at, phase_id, pool_id, lice_id, planned_duration_override_minutes,
         red_score, blue_score, winner_registration_id, end_reason,
         red_registration_id, blue_registration_id,
         pools ( name ),
@@ -306,9 +313,11 @@ export class PublicScheduleService {
           matchNumberLabel: (m['match_number_label'] as string | null) ?? '',
           status: m['status'] as string,
           scheduledAt: (m['scheduled_at'] as string | null) ?? null,
-          lengthInput: {
+          endInput: {
             id: m['id'] as string,
             phaseId: m['phase_id'] as string,
+            liceId: (m['lice_id'] as string | null) ?? null,
+            scheduledAt: (m['scheduled_at'] as string | null) ?? null,
             plannedDurationOverrideMinutes:
               (m['planned_duration_override_minutes'] as number | null) ?? null,
           },
@@ -362,17 +371,33 @@ export class PublicScheduleService {
     );
 
     // Published Matches only: the unpublished ones were dropped above.
-    const lengths = await this.plannedLengths(
+    const endOf = await this.boutEnds(
       eventId,
-      mapped.map((x) => x.lengthInput),
+      mapped.map((x) => x.endInput),
     );
 
-    return mapped.map(({ opponentRegId, lengthInput, ...rest }) => ({
+    return mapped.map(({ opponentRegId, endInput, ...rest }) => ({
       ...rest,
-      durationMinutes: lengths ? plannedLengthOf(lengths, lengthInput.id) : null,
+      ...endOf(endInput.id),
       opponentName: opponentRegId ? (opponentNames.get(opponentRegId) ?? null) : null,
       opponentClub: null,
     }));
+  }
+
+  /**
+   * How each bout ends: its planned length — or, when the Event's sheet cannot
+   * be read, at its next bout, a fallback only (`next-bout-end.ts`). Never both.
+   */
+  private async boutEnds(
+    eventId: string,
+    bouts: Array<MatchLengthInput & BoutRef>,
+  ): Promise<(id: string) => Pick<ScheduleMatch, 'durationMinutes' | 'fallbackEndsAt'>> {
+    const lengths = await this.plannedLengths(eventId, bouts);
+    if (lengths) {
+      return (id) => ({ durationMinutes: plannedLengthOf(lengths, id), fallbackEndsAt: null });
+    }
+    const next = await resolveNextBoutEnds(this.supabase.service, this.logger, eventId, bouts);
+    return (id) => ({ durationMinutes: null, fallbackEndsAt: next.get(id) ?? null });
   }
 
   /**

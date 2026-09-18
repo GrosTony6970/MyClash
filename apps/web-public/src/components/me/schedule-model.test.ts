@@ -113,6 +113,29 @@ describe('aggregateReferee', () => {
     expect(agg!.endMs).toBeNull();
   });
 
+  it('gives a card no end while any placed duty in it has none, however late the others end', () => {
+    // The API could not read the sheet: the 09:22 duty had no next bout to end at,
+    // and it may be the one that runs last — not the 09:44 duty that ends at 09:52.
+    const [agg] = aggregateReferee(
+      [
+        ['09:00', '2027-05-22T09:08:00.000Z'],
+        ['09:22', null],
+        ['09:44', '2027-05-22T09:52:00.000Z'],
+      ].map(([start, endsAt], i) =>
+        slot({
+          matchId: `m${i}`,
+          matchKind: 'pool',
+          poolId: 'p1',
+          scheduledAt: `2027-05-22T${start}:00Z`,
+          startsAt: `2027-05-22T${start}:00.000Z`,
+          endsAt,
+        }),
+      ),
+    );
+    expect(agg!.startMs).toBe(Date.parse('2027-05-22T09:00:00Z'));
+    expect(agg!.endMs).toBeNull();
+  });
+
   it('derives a pool-scoped card window from the startsAt/endsAt the API works out', () => {
     // A pool "Déclarant" duty covers no single Match (scheduledAt null): its
     // window is the one the API works out from the Pool's placed Matches, so the

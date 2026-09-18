@@ -63,23 +63,48 @@ export function toTimed(
 }
 
 /**
- * A bout's planned window: its start plus its planned length. Null when either is
- * unknown. The API sends no length when it cannot read the Event's sheet, and a
- * schedule cached before it sent one has no such field at all; `matchWindowMs`
- * throws on both, and here it would throw during render.
+ * A bout's planned window: its start plus its planned length. The API sends no
+ * length when it cannot read the Event's sheet — then the bout ends where the API
+ * fell back on, at its next bout (operator, 2026-09-18), or has no window when
+ * nothing follows it. A schedule cached before the API sent a length has no such
+ * field at all; `matchWindowMs` throws on both, and here it would throw during
+ * render.
  */
 export function fightWindow(
-  match: Pick<ScheduleMatch, 'scheduledAt' | 'durationMinutes'>,
+  match: Pick<ScheduleMatch, 'scheduledAt' | 'durationMinutes' | 'fallbackEndsAt'>,
 ): TimeWindowMs | null {
   const { scheduledAt, durationMinutes } = match;
   if (!scheduledAt || !Number.isFinite(Date.parse(scheduledAt))) return null;
+  if (durationMinutes == null) {
+    const startMs = Date.parse(scheduledAt);
+    const endMs = match.fallbackEndsAt ? Date.parse(match.fallbackEndsAt) : NaN;
+    // False for an end it cannot read, too: NaN is after nothing.
+    return endMs > startMs ? { startMs, endMs } : null;
+  }
   if (typeof durationMinutes !== 'number' || !Number.isFinite(durationMinutes)) return null;
   if (durationMinutes <= 0) return null;
   return matchWindowMs(scheduledAt, durationMinutes);
 }
 
+/**
+ * How many of a page's cards have a start and no window: commitments the clash
+ * check cannot see, which the page says in one line (operator, 2026-09-18). A
+ * card is what the page shows — a Pool span is none, and an unplaced card has
+ * no time to clash at.
+ */
+export function uncheckedCount(
+  cards: ReadonlyArray<{ key: string; time: string | null }>,
+  timed: readonly TimedItem[],
+): number {
+  const checked = new Set(timed.map((item) => item.key));
+  return cards.filter((card) => card.time !== null && !checked.has(card.key)).length;
+}
+
 /** What the two functions below need of a bout. Each page keeps its own bout type. */
-type Bout = Pick<ScheduleMatch, 'id' | 'scheduledAt' | 'durationMinutes' | 'poolId'>;
+type Bout = Pick<
+  ScheduleMatch,
+  'id' | 'scheduledAt' | 'durationMinutes' | 'fallbackEndsAt' | 'poolId'
+>;
 
 const poolSpanKey = (poolId: string): string => `pool-${poolId}`;
 

@@ -13,10 +13,17 @@ import {
   groupWorkshopsByDay,
   type WorkshopListItem,
 } from '@/components/workshops/workshop-grouping';
-import { dutyTimed, fightItems, toTimed, type TimedItem } from '@/components/me/conflicts';
+import { ClashCheckNotice } from '@/components/me/ClashCheckNotice';
+import {
+  dutyTimed,
+  fightItems,
+  toTimed,
+  uncheckedCount,
+  type TimedItem,
+} from '@/components/me/conflicts';
 import { useI18n } from '@myclash/next-i18n/client';
 import { useMyEvents, useMySchedule } from '@/components/me/hooks';
-import type { MyEventInfo, MyEventWorkshopTeaching } from '@/components/me/types';
+import type { MyEventInfo, MyEventWorkshopTeaching, PersonSchedule } from '@/components/me/types';
 
 type WorkshopSession = WorkshopListItem['sessions'][number];
 
@@ -33,6 +40,34 @@ export default function HubWorkshopsPage() {
       <WorkshopsContent event={myEvent.event} teaching={myEvent.workshopsTeaching} />
     </EventHubChrome>
   );
+}
+
+/**
+ * The user's fights, the Pools they fight in, and their referee duties as timed
+ * windows, for conflict checks — and how many fights and duties the check cannot
+ * see. A duty's window is the one the API works out, so a Pool duty (no Match of
+ * its own) takes part too; an item whose end is unknown does not. Workshops stay
+ * out: every enrolled session would clash with itself.
+ */
+function commitmentsOf(
+  schedule: PersonSchedule,
+  referee: string,
+): { commitments: TimedItem[]; unchecked: number } {
+  const boutKey = (m: PersonSchedule['matches'][number]) => `fight-${m.id}`;
+  const dutyKey = (r: PersonSchedule['refereeSlots'][number]) => `ref-${r.id}`;
+  const commitments = [
+    ...fightItems(schedule, boutKey, (m) => m.opponentName ?? m.matchNumberLabel),
+    ...schedule.refereeSlots.flatMap((r) => {
+      const what = r.matchNumberLabel || r.poolName;
+      const ti = dutyTimed(dutyKey(r), what ? `${referee} · ${what}` : referee, r);
+      return ti ? [ti] : [];
+    }),
+  ];
+  const cards = [
+    ...schedule.matches.map((m) => ({ key: boutKey(m), time: m.scheduledAt })),
+    ...schedule.refereeSlots.map((r) => ({ key: dutyKey(r), time: r.scheduledAt ?? r.startsAt })),
+  ];
+  return { commitments, unchecked: uncheckedCount(cards, commitments) };
 }
 
 function WorkshopsContent({
@@ -95,26 +130,13 @@ function WorkshopsContent({
     }
   }, [workshops]);
 
-  // The user's fights, the Pools they fight in, and their referee duties as timed
-  // windows, for conflict checks. A duty's window is the one the API works out, so
-  // a Pool duty (no Match of its own) takes part too; an item whose end is unknown
-  // does not. Workshops stay out: every enrolled session would clash with itself.
-  const commitments = useMemo<TimedItem[]>(() => {
-    if (!schedule) return [];
-    const referee = t('publicApp.me.schedule.referee');
-    return [
-      ...fightItems(
-        schedule,
-        (m) => `fight-${m.id}`,
-        (m) => m.opponentName ?? m.matchNumberLabel,
-      ),
-      ...schedule.refereeSlots.flatMap((r) => {
-        const what = r.matchNumberLabel || r.poolName;
-        const ti = dutyTimed(`ref-${r.id}`, what ? `${referee} · ${what}` : referee, r);
-        return ti ? [ti] : [];
-      }),
-    ];
-  }, [schedule, t]);
+  const { commitments, unchecked } = useMemo(
+    () =>
+      schedule
+        ? commitmentsOf(schedule, t('publicApp.me.schedule.referee'))
+        : { commitments: [], unchecked: 0 },
+    [schedule, t],
+  );
 
   const fmtTime = (iso: string | null) =>
     iso ? formatInZone(iso, tz, { hour: '2-digit', minute: '2-digit' }, tag) : '';
@@ -168,6 +190,7 @@ function WorkshopsContent({
 
   return (
     <div className="flex flex-col gap-6">
+      <ClashCheckNotice count={unchecked} />
       {groups.map((group) => (
         <section key={group.key}>
           <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted">

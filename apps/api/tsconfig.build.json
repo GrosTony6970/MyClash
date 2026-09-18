@@ -62,6 +62,8 @@
     "src/modules/matches/match-placement.fixtures.ts",
     // The run window save's seeded tables, split out for the same reason.
     "src/modules/schedule/schedule-run.fixtures.ts",
+    // The person schedule's seeded rows, split out for the same reason.
+    "src/modules/persons/public-schedule.fixtures.ts",
     // A sixth convention: an ordinary-looking module name. Its own header says
     // "Test-only: nothing in the running API parses the workflow (the container
     // has no .github/)" — it exists so gates.drift.test.ts can hold gates.ts to

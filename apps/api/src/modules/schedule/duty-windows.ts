@@ -1,6 +1,8 @@
 import { BadRequestException, type Logger } from '@nestjs/common';
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { hullMs } from '@myclash/schedule-core';
 import { resolveMatchLengths } from './match-lengths';
+import { resolveNextBoutEnds } from './next-bout-end';
 import { plannedEndIso, plannedLengthOf } from './planned-length';
 
 /**
@@ -42,12 +44,15 @@ export interface DutyWindow {
 interface DutyMatch {
   id: string;
   poolId: string | null;
+  /** The piste, for the next-bout fallback when no length can be read. */
+  liceId: string | null;
   phaseId: string;
   scheduledAt: string | null;
   plannedDurationOverrideMinutes: number | null;
 }
 
-const MATCH_COLUMNS = 'id, pool_id, phase_id, scheduled_at, planned_duration_override_minutes';
+const MATCH_COLUMNS =
+  'id, pool_id, lice_id, phase_id, scheduled_at, planned_duration_override_minutes';
 
 const messageOf = (err: unknown): string => (err instanceof Error ? err.message : String(err));
 
@@ -72,6 +77,7 @@ async function readMatches(
       return (data ?? []) as Array<{
         id: string;
         pool_id: string | null;
+        lice_id: string | null;
         phase_id: string;
         scheduled_at: string | null;
         planned_duration_override_minutes: number | null;
@@ -81,6 +87,7 @@ async function readMatches(
   return pages.flat().map((row) => ({
     id: row.id,
     poolId: row.pool_id,
+    liceId: row.lice_id,
     phaseId: row.phase_id,
     scheduledAt: row.scheduled_at,
     plannedDurationOverrideMinutes: row.planned_duration_override_minutes,
@@ -134,45 +141,67 @@ export async function readDutyStart(db: SupabaseClient, duty: DutyRef): Promise<
   return earliestStartIso(matches.get(duty.id) ?? []);
 }
 
+/** How one Event's placed Matches end: by planned length, or at their next bout. */
+type Ends = { lengths: Map<string, number> } | { nextBout: Map<string, string | null> };
+
 /**
- * The planned lengths of one Event's placed Matches, from that Event's sheet,
- * or null when they cannot be resolved — logged with the Event, naming `what`
- * loses its end.
+ * How one Event's placed Matches end: by their planned lengths, from that Event's
+ * sheet — or, when those cannot be resolved, at the next bout on their piste,
+ * a fallback only (`next-bout-end.ts`). The lost lengths are logged with the
+ * Event, naming `what` they cost.
  */
-async function eventLengths(
+async function eventEnds(
   db: SupabaseClient,
   logger: Pick<Logger, 'warn'>,
   eventId: string,
   matches: readonly DutyMatch[],
   what: string,
-): Promise<Map<string, number> | null> {
+): Promise<Ends> {
   const placed = new Map<string, DutyMatch>();
   for (const match of matches) if (match.scheduledAt !== null) placed.set(match.id, match);
   try {
-    return await resolveMatchLengths(db, eventId, [...placed.values()]);
+    return { lengths: await resolveMatchLengths(db, eventId, [...placed.values()]) };
   } catch (err) {
     logger.warn(
-      `Planned lengths unreadable for event ${eventId}; ${what} show no end: ${messageOf(err)}`,
+      `Planned lengths unreadable for event ${eventId}; ${what} end at the next bout, where one follows: ${messageOf(err)}`,
     );
-    return null;
+    return { nextBout: await resolveNextBoutEnds(db, logger, eventId, [...placed.values()]) };
   }
 }
 
-function dutyWindow(
-  matches: readonly DutyMatch[],
-  lengths: Map<string, number> | null,
-): DutyWindow {
+/**
+ * The end of the placed Matches' hull when each ends at its next bout — only when
+ * EVERY one has such an end: a Match whose end is unknown may be the one that
+ * runs last.
+ */
+function nextBoutEndIso(
+  timed: readonly DutyMatch[],
+  nextBout: ReadonlyMap<string, string | null>,
+): string | null {
+  const windows = timed.flatMap((match) => {
+    const end = nextBout.get(match.id);
+    return match.scheduledAt !== null && end
+      ? [{ startMs: Date.parse(match.scheduledAt), endMs: Date.parse(end) }]
+      : [];
+  });
+  if (windows.length < timed.length) return null;
+  const hull = hullMs(windows);
+  return hull ? new Date(hull.endMs).toISOString() : null;
+}
+
+function dutyWindow(matches: readonly DutyMatch[], ends: Ends): DutyWindow {
   const timed = matches.filter((match) => match.scheduledAt !== null);
   return {
     startsAt: earliestStartIso(matches),
-    endsAt: lengths
-      ? plannedEndIso(
-          timed.map((match) => ({
-            scheduledAt: match.scheduledAt,
-            durationMinutes: plannedLengthOf(lengths, match.id),
-          })),
-        )
-      : null,
+    endsAt:
+      'lengths' in ends
+        ? plannedEndIso(
+            timed.map((match) => ({
+              scheduledAt: match.scheduledAt,
+              durationMinutes: plannedLengthOf(ends.lengths, match.id),
+            })),
+          )
+        : nextBoutEndIso(timed, ends.nextBout),
   };
 }
 
@@ -182,9 +211,10 @@ function dutyWindow(
  *
  * Lengths are resolved once per Event, and each Event on its own: a sheet that
  * cannot be read (a stored value the schema refuses throws, by design) costs
- * that Event's duties their END and nothing else. Their start needs no length.
- * When the Matches themselves cannot be read, every duty is untimed. Both are
- * logged with the Events concerned; neither throws.
+ * that Event's duties their planned END and nothing else — they end at the next
+ * bout instead, where every Match they cover has one. Their start needs no
+ * length. When the Matches themselves cannot be read, every duty is untimed.
+ * Both are logged with the Events concerned; neither throws.
  */
 export async function resolveDutyWindows(
   db: SupabaseClient,
@@ -206,7 +236,7 @@ export async function resolveDutyWindows(
   await Promise.all(
     eventIds.map(async (eventId) => {
       const own = duties.filter((duty) => duty.eventId === eventId);
-      const lengths = await eventLengths(
+      const ends = await eventEnds(
         db,
         logger,
         eventId,
@@ -214,7 +244,7 @@ export async function resolveDutyWindows(
         'its referee duties',
       );
       for (const duty of own) {
-        windows.set(duty.id, dutyWindow(matchesByDuty.get(duty.id) ?? [], lengths));
+        windows.set(duty.id, dutyWindow(matchesByDuty.get(duty.id) ?? [], ends));
       }
     }),
   );
@@ -253,12 +283,12 @@ export async function resolvePoolSpans<P extends { poolId: string }>(
     );
     return pools.map((pool) => ({ ...pool, startsAt: null, endsAt: null }));
   }
-  const lengths = await eventLengths(db, logger, eventId, matches, 'its Pool spans');
+  const ends = await eventEnds(db, logger, eventId, matches, 'its Pool spans');
   return pools.map((pool) => ({
     ...pool,
     ...dutyWindow(
       matches.filter((match) => match.poolId === pool.poolId),
-      lengths,
+      ends,
     ),
   }));
 }

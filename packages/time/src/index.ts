@@ -73,6 +73,19 @@ export function zonedDay(iso: string | null | undefined, tz: string): string | n
 }
 
 /**
+ * The calendar day `days` after `day` (`YYYY-MM-DD`), or null on bad input.
+ *
+ * Calendar arithmetic with no zone: a programme bar stores its day as an index
+ * off the Event's first day, and a DST change moves the clock, never the date.
+ * Put a time on the result with `zonedToUtcIso` and the Event's zone.
+ */
+export function addDays(day: string | null | undefined, days: number): string | null {
+  if (!day || !YMD.test(day)) return null;
+  const dt = DateTime.fromISO(day, { zone: 'utc' }).plus({ days });
+  return dt.isValid ? dt.toFormat('yyyy-MM-dd') : null;
+}
+
+/**
  * Which day of an event a UTC instant falls on: a 0-based index counted from
  * the event's start date, with the day boundary read in the EVENT's timezone.
  *

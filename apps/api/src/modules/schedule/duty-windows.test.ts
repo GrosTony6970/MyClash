@@ -10,12 +10,15 @@ import { readDutyStart, resolveDutyWindows, resolvePoolSpans } from './duty-wind
  * lost its `.in()` is caught by the `filtersFor` checks — the helper filters
  * again per duty, so the decoy alone would not show it. The decoys and the
  * several-Pools case below hold that per-duty filter. The real `match-lengths`
- * runs underneath, so the lengths are the sheet's.
+ * runs underneath, so the lengths are the sheet's. No Match here has a piste and
+ * no bar is set, so where a sheet cannot be read, no next bout ends a Match
+ * either — `duty-windows.fallback.test.ts` holds that fallback.
  */
 
 const EVENT_A = 'event-a';
 const EVENT_B = 'event-b';
-const MATCH_COLUMNS = 'id, pool_id, phase_id, scheduled_at, planned_duration_override_minutes';
+const MATCH_COLUMNS =
+  'id, pool_id, lice_id, phase_id, scheduled_at, planned_duration_override_minutes';
 
 function match(
   id: string,
@@ -26,6 +29,7 @@ function match(
   return {
     id,
     pool_id: poolId,
+    lice_id: null,
     phase_id: over.phaseId ?? 'phase-a',
     scheduled_at: scheduledAt,
     planned_duration_override_minutes: over.override ?? null,
@@ -59,6 +63,13 @@ function db(over: { sheets?: unknown[]; matches?: unknown } = {}) {
       ],
     },
     matches: (over.matches ?? { rows: MATCHES }) as Parameters<typeof mockSupabase>[0][string],
+    events: {
+      rows: [
+        { id: EVENT_A, start_date: '2026-06-01', timezone: 'UTC' },
+        { id: EVENT_B, start_date: '2026-06-01', timezone: 'UTC' },
+      ],
+    },
+    event_programme_blocks: { rows: [] },
   });
   return { client: supabase.service as unknown as SupabaseClient, supabase };
 }
@@ -328,7 +339,7 @@ describe('resolvePoolSpans', () => {
     expect(supabase.from).not.toHaveBeenCalled();
   });
 
-  it('keeps every start and loses every end, and says so, when the sheet cannot be read', async () => {
+  it('keeps every start and, with no next bout, loses every end, and says so, when the sheet cannot be read', async () => {
     const { client } = db({
       matches: { rows: POOLS },
       sheets: [{ event_id: EVENT_A, config_json: { poolMatchDurationMinutes: 0 } }],

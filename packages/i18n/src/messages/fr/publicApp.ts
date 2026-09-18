@@ -468,6 +468,10 @@ export const publicApp = {
       emptyAll: 'Rien de prévu pour le moment.',
       matchCount: '{count} assauts',
       matchCountOne: '{count} assaut',
+      clashCheckIncomplete:
+        "Nous n'avons pas pu déterminer l'heure de fin de {count} de vos engagements : leurs conflits éventuels ne sont donc pas vérifiés.",
+      clashCheckIncompleteOne:
+        "Nous n'avons pas pu déterminer l'heure de fin de {count} de vos engagements : ses conflits éventuels ne sont donc pas vérifiés.",
     },
     workshops: {
       register: "S'inscrire",

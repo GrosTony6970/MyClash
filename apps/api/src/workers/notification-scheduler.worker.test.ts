@@ -398,7 +398,7 @@ describe('notification scheduler jobs', () => {
         'id, person_id, pool_id, match_id, role, matches ( match_number_label )',
       ]);
       expect(selectsFor(from as never, 'matches')).toEqual([
-        'id, pool_id, phase_id, scheduled_at, planned_duration_override_minutes',
+        'id, pool_id, lice_id, phase_id, scheduled_at, planned_duration_override_minutes',
       ]);
     });
 

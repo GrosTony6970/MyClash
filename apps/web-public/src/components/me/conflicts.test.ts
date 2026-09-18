@@ -6,6 +6,7 @@ import {
   fightWindow,
   spreadPoolConflicts,
   toTimed,
+  uncheckedCount,
   type TimedItem,
 } from './conflicts';
 import type { PoolSpan } from './types';
@@ -58,6 +59,48 @@ describe('fightWindow', () => {
   it('gives an unplaced bout, or one whose time cannot be read, no window', () => {
     expect(fightWindow({ scheduledAt: null, durationMinutes: 5 })).toBeNull();
     expect(fightWindow({ scheduledAt: 'not a time', durationMinutes: 5 })).toBeNull();
+  });
+
+  it('ends a bout with no length at the end the API fell back on: its next bout', () => {
+    expect(
+      fightWindow({ scheduledAt: at('10:00'), durationMinutes: null, fallbackEndsAt: at('10:20') }),
+    ).toEqual({ startMs: Date.parse(at('10:00')), endMs: Date.parse(at('10:20')) });
+  });
+
+  it('keeps the planned length over a fallback end', () => {
+    // The API never sends both; a length is the answer whenever there is one.
+    expect(
+      fightWindow({ scheduledAt: at('10:00'), durationMinutes: 8, fallbackEndsAt: at('10:20') }),
+    ).toEqual({ startMs: Date.parse(at('10:00')), endMs: Date.parse(at('10:08')) });
+  });
+
+  it('gives no window for a fallback end it cannot read, or one that is not after the start', () => {
+    for (const fallbackEndsAt of [null, 'not a time', at('10:00'), at('09:50')]) {
+      expect(
+        fightWindow({ scheduledAt: at('10:00'), durationMinutes: null, fallbackEndsAt }),
+      ).toBeNull();
+    }
+  });
+});
+
+describe('uncheckedCount', () => {
+  it('counts the cards with a start and no window — never an unplaced card, never a Pool span', () => {
+    const timed = [bout('fight-a', '10:00', 5), { ...workshop('pool-x', '10:00', '11:00') }];
+    const cards = [
+      { key: 'fight-a', time: at('10:00') },
+      { key: 'fight-b', time: at('10:30') },
+      { key: 'fight-tbd', time: null },
+      { key: 'ref-1', time: at('12:00') },
+    ];
+
+    // fight-b and ref-1: placed, and the check cannot see them. The span is no card.
+    expect(uncheckedCount(cards, timed)).toBe(2);
+  });
+
+  it('counts nothing when every placed card can be checked', () => {
+    expect(
+      uncheckedCount([{ key: 'fight-a', time: at('10:00') }], [bout('fight-a', '10:00', 5)]),
+    ).toBe(0);
   });
 });
 

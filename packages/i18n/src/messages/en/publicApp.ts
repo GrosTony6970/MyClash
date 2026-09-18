@@ -466,6 +466,10 @@ export const publicApp = {
       emptyAll: 'Nothing scheduled yet.',
       matchCount: '{count} matches',
       matchCountOne: '{count} match',
+      clashCheckIncomplete:
+        "We couldn't work out when {count} of your commitments end, so they aren't checked for clashes.",
+      clashCheckIncompleteOne:
+        "We couldn't work out when {count} of your commitments ends, so it isn't checked for clashes.",
     },
     workshops: {
       register: 'Register',

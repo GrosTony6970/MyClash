@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  addDays,
   calendarGapBetweenDays,
   dayIndexInZone,
   dayStartUtcIso,
@@ -53,6 +54,27 @@ describe('utcToZonedParts / zonedDay', () => {
       day: '2027-06-21',
       hhmm: '20:30',
     });
+  });
+});
+
+describe('addDays', () => {
+  it('counts calendar days across a month end, a year end and a leap day', () => {
+    expect(addDays('2027-01-31', 1)).toBe('2027-02-01');
+    expect(addDays('2027-12-31', 1)).toBe('2028-01-01');
+    expect(addDays('2028-02-28', 1)).toBe('2028-02-29');
+    expect(addDays('2027-06-05', 0)).toBe('2027-06-05');
+  });
+
+  it('moves one calendar day per day across a DST change', () => {
+    // Paris springs forward in the night of 27–28 March 2027: a 23-hour day.
+    expect(addDays('2027-03-27', 1)).toBe('2027-03-28');
+    expect(addDays('2027-03-27', 2)).toBe('2027-03-29');
+  });
+
+  it('answers null for a day it cannot read', () => {
+    expect(addDays('2027-02-30', 1)).toBeNull();
+    expect(addDays('27/03/2027', 1)).toBeNull();
+    expect(addDays(null, 1)).toBeNull();
   });
 });
 

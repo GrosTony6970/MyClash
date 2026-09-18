@@ -1,7 +1,7 @@
 'use client';
 
 import { useParams } from 'next/navigation';
-import { zonedToUtcIso } from '@myclash/time';
+import { addDays, zonedToUtcIso } from '@myclash/time';
 import type { ProgrammeBlock } from '@myclash/types';
 import { Skeleton } from '@myclash/ui';
 import { EventHubChrome, HubLoading, HubNotFound } from '@/components/me/EventHubChrome';
@@ -13,14 +13,6 @@ const DEFAULT_TZ = 'Europe/Paris';
 // Only non-commitment blocks become schedule context; competition/workshop
 // windows are already represented by the user's own bouts + workshops.
 const CONTEXT_BLOCK_TYPES = new Set<ProgrammeBlock['blockType']>(['break', 'admin']);
-
-/** A programme block stores wall-clock (dayIndex off the event start + HH:MM);
- *  resolve each to a UTC instant so ScheduleView groups it by the right day. */
-function addDays(ymd: string, days: number): string {
-  const [y, m, d] = ymd.split('-').map(Number);
-  const dt = new Date(Date.UTC(y ?? 1970, (m ?? 1) - 1, (d ?? 1) + days));
-  return dt.toISOString().slice(0, 10);
-}
 
 /** Scheduled end (epoch ms) of every competition phase block, keyed
  *  `${competitionId}:${competitionPhase}`. A fight group's header ends no earlier
@@ -51,6 +43,8 @@ function phaseWindowsFrom(
   return map;
 }
 
+/** A programme block stores wall-clock (dayIndex off the event start + HH:MM);
+ *  resolve each to a UTC instant so ScheduleView groups it by the right day. */
 function toContextRows(
   blocks: ProgrammeBlock[],
   startDate: string | null,

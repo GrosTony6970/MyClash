@@ -4,6 +4,8 @@
 **Status:** Accepted
 **Amended:** 2026-09-14 — the planned length is read live from the Event's planner sheet, not copied
 onto the Match when it is placed. See ADR-018.
+**Amended:** 2026-09-18 — when the sheet cannot be read, a person's schedule ends a Match at its
+next bout, as a fallback shown and checked on that schedule only. See "The window".
 
 ## Context
 
@@ -64,6 +66,14 @@ Matches.**
   window, which those Matches keep until the day is generated again. A Match's length never depends
   on the Match next to it, on the bar under it, or on the fight clock. The sheet, the override and
   what the bars stop carrying are [ADR-018](ADR-018-match-planned-length.md).
+- **A sheet that cannot be read leaves no length at all.** The grid, the referee board and the
+  placement checks then refuse. A person's schedule — the public pages and the `/me` lists — keeps
+  showing ends and checking clashes with a FALLBACK: a Match ends at the next bout on its Lice
+  that Event day, or at the day's next break or admin bar, whichever is earlier; with neither it
+  has no end, and the page says how many commitments it cannot check (operator, 2026-09-18;
+  `schedule/next-bout-end.ts`). A Pool, a duty, or a card folding several duties then ends only
+  when every Match it covers has such an end. The fallback is never a length, and no reader but a
+  person's schedule uses it.
 - The gap between Matches belongs to nobody. "Too close" is rest, not overlap. Rest is measured in
   minutes between windows and is decided separately (W7).
 - A Match with no scheduled time has no window.

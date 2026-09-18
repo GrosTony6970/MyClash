@@ -6,6 +6,7 @@ import { CollapsibleSection, EmptyState, useClock } from '@myclash/ui';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { useI18n } from '@myclash/next-i18n/client';
 import { getPublicApiUrl } from '../../lib/api-url';
+import { ClashCheckNotice } from './ClashCheckNotice';
 import { CommitmentCard } from './CommitmentCard';
 import {
   detectConflicts,
@@ -13,6 +14,7 @@ import {
   fightWindow,
   spreadPoolConflicts,
   toTimed,
+  uncheckedCount,
   type TimedItem,
 } from './conflicts';
 import { kindAccentClass } from './kind-accent';
@@ -516,6 +518,7 @@ export function ScheduleView({
 
   return (
     <div>
+      <ClashCheckNotice count={uncheckedCount(items, timed)} />
       {updatedAt != null && (
         <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-border bg-background px-3 py-1 text-[11px] font-semibold text-muted">
           <span

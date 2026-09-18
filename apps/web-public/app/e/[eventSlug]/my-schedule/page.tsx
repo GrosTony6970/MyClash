@@ -14,12 +14,14 @@
 import { useEffect, useState } from 'react';
 import { fetchMe } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
+import { ClashCheckNotice } from '@/components/me/ClashCheckNotice';
 import {
   detectConflicts,
   dutyTimed,
   fightItems,
   spreadPoolConflicts,
   toTimed,
+  uncheckedCount,
   type TimedItem,
 } from '@/components/me/conflicts';
 import type { PoolSpan } from '@/components/me/types';
@@ -48,6 +50,8 @@ interface ScheduleMatch {
   scheduledAt: string | null;
   /** Planned length in minutes (ADR-018); null when the API could not read the sheet. */
   durationMinutes: number | null;
+  /** With no length, where the API says the bout ends instead: its next bout. */
+  fallbackEndsAt?: string | null;
   opponentName: string | null;
   redScore: number;
   blueScore: number;
@@ -130,8 +134,8 @@ const matchKey = (match: ScheduleMatch): string => `match-${match.id}`;
 /**
  * Every commitment on the page as a timed item: the bouts AND their Pools (a
  * fighter is busy for the whole Pool), the duties, the workshops. An item whose
- * end is unknown takes no part: a bout ends at its planned length and a duty at
- * the end the API works out. This page used to call two starts less than five
+ * end is unknown takes no part: a bout ends at its planned length, or at the
+ * API's fallback end when it has none, and a duty at the end the API works out. This page used to call two starts less than five
  * minutes apart a clash, which flagged back-to-back bouts and missed a Workshop
  * running over a bout an hour into it. In time order, so each card lists what it
  * clashes with in the order the day runs.
@@ -166,6 +170,10 @@ function itemKey(item: ScheduleItem): string {
   if (item.kind === 'referee') return `ref-${item.data.id}`;
   return `ws-${item.data.workshopId}`;
 }
+
+/** The page's cards, as the clash check counts the ones it cannot see. */
+const cardsOf = (items: ScheduleItem[]) =>
+  items.map((item) => ({ key: itemKey(item), time: item.time }));
 
 function itemLabel(item: OtherItem, t: TranslateFn): string {
   if (item.kind === 'referee')
@@ -279,8 +287,9 @@ export default function MySchedulePage() {
   // A Pool's clashes show on every bout of that Pool.
   const shownMatches = sorted.flatMap((item) => (item.kind === 'match' ? [item.data] : []));
   const others = sorted.filter((item): item is OtherItem => item.kind !== 'match');
+  const timed = timedItems(shownMatches, others, schedule.poolSpans, t);
   const conflicts = spreadPoolConflicts(
-    detectConflicts(timedItems(shownMatches, others, schedule.poolSpans, t)),
+    detectConflicts(timed),
     { matches: shownMatches },
     matchKey,
   );
@@ -321,6 +330,8 @@ export default function MySchedulePage() {
           {focusMode ? t('publicApp.mySchedule.showAll') : t('publicApp.mySchedule.focusOnMe')}
         </button>
       </div>
+
+      <ClashCheckNotice count={uncheckedCount(cardsOf(sorted), timed)} />
 
       {/* The pass hangs off this page rather than /me because /me is
           claimed-only, and most participants at a real event are guests. This

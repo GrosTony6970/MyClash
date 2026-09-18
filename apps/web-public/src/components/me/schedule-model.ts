@@ -65,7 +65,9 @@ export function aggregateReferee(slots: RefereeSlot[]): RefereeAggregate[] {
     // Match, or its Pool's placed Matches (ADR-017). The start falls back to the
     // Match's own time, the key the API sorts by: a start needs no length, so a
     // placed duty keeps it when the API could not work its window out. The end
-    // has no fallback. A duty whose end the API does not know has none here.
+    // has no fallback here, and the card has one only when every placed duty in
+    // it does: a duty whose end the API does not know may be the one that runs
+    // last — the same rule the API keeps for a Pool (`duty-windows.ts`).
     const ms = (iso: string | null): number => (iso ? new Date(iso).getTime() : NaN);
     const starts = group
       .map((s) => ms(s.scheduledAt ?? s.startsAt))
@@ -76,7 +78,7 @@ export function aggregateReferee(slots: RefereeSlot[]): RefereeAggregate[] {
       .filter((n) => !Number.isNaN(n))
       .sort((a, b) => a - b);
     const startMs = starts.length ? starts[0]! : null;
-    const endMs = ends.length ? ends[ends.length - 1]! : null;
+    const endMs = ends.length > 0 && ends.length === starts.length ? ends[ends.length - 1]! : null;
     return {
       key,
       tournamentName: base.tournamentName,
@@ -103,10 +105,11 @@ export function aggregateReferee(slots: RefereeSlot[]): RefereeAggregate[] {
  * of the bout's own planned end and its programme block's end (operator ruling,
  * 2026-09-17). The block says when the phase is planned to be over; a bout moved
  * past it still ends when it ends, and a header that stops before a real bout is
- * wrong. A bout whose length is unknown counts as ending at its start.
+ * wrong. A bout with no window — no length, and no next bout to end at — counts
+ * as ending at its start.
  */
 export function fightHeaderEnd(
-  match: Pick<ScheduleMatch, 'scheduledAt' | 'durationMinutes'>,
+  match: Pick<ScheduleMatch, 'scheduledAt' | 'durationMinutes' | 'fallbackEndsAt'>,
   blockEndMs: number | null,
 ): number | null {
   const startMs = match.scheduledAt ? Date.parse(match.scheduledAt) : NaN;
