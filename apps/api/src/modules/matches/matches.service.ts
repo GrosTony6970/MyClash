@@ -564,7 +564,7 @@ export class MatchesService {
    */
   async scheduleMatch(matchId: string, liceId: string | null, scheduledAt: string | null) {
     await this.placement.placeMatches(await this.eventIdOfMatch(matchId), [
-      { matchId, liceId: liceId || null, scheduledAt: scheduledAt || null },
+      { matchId, liceId, scheduledAt },
     ]);
 
     const { data, error } = await this.supabase.service
