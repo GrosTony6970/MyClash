@@ -9,6 +9,8 @@ import { LiveStateController } from './live-state.controller';
 import { LiveStateService } from './live-state.service';
 import { ScheduleGridController } from './schedule-grid.controller';
 import { ScheduleGridService } from './schedule-grid.service';
+import { SchedulePlacementsController } from './schedule-placements.controller';
+import { SchedulePlacementsService } from './schedule-placements.service';
 import { ScheduleRunController } from './schedule-run.controller';
 import { ScheduleRunService } from './schedule-run.service';
 
@@ -22,8 +24,9 @@ import { ScheduleRunService } from './schedule-run.service';
     MyScheduleController,
     LiveStateController,
     ScheduleGridController,
+    SchedulePlacementsController,
     ScheduleRunController,
   ],
-  providers: [LiveStateService, ScheduleGridService, ScheduleRunService],
+  providers: [LiveStateService, ScheduleGridService, SchedulePlacementsService, ScheduleRunService],
 })
 export class ScheduleModule {}

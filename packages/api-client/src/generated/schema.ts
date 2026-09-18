@@ -8798,6 +8798,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  '/api/v1/events/{eventId}/schedule/placements': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Place or unschedule several bouts as one save. The server checks every piste for the whole batch before it writes a row. */
+    post: operations['SchedulePlacementsController_savePlacements'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   '/api/v1/events/{eventId}/schedule/run': {
     parameters: {
       query?: never;
@@ -11546,6 +11563,16 @@ export interface components {
       venueId?: string | null;
       /** Format: uuid */
       areaId?: string | null;
+    };
+    SchedulePlacementsDto: {
+      placements: {
+        /** Format: uuid */
+        matchId: string;
+        /** Format: uuid */
+        liceId: string | null;
+        /** Format: date-time */
+        scheduledAt: string | null;
+      }[];
     };
     ScheduleRunDto: {
       matchIds: string[];
@@ -24764,6 +24791,29 @@ export interface operations {
       cookie?: never;
     };
     requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  SchedulePlacementsController_savePlacements: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        eventId: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['SchedulePlacementsDto'];
+      };
+    };
     responses: {
       200: {
         headers: {

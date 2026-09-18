@@ -95,11 +95,11 @@ test.describe('schedule grid drag layer', () => {
 
   /**
    * The core contract. A drop re-times the DRAGGED match onto the cell's piste
-   * and time, in one PATCH carrying both fields.
+   * and time, in one save of one row carrying both fields.
    *
    * The six drag-payload refs are mutually nulled by hand at six sites today;
    * the failure that guards against is a stale ref naming the wrong match, so
-   * the id in the URL is the assertion that matters most here.
+   * the id in the row is the assertion that matters most here.
    */
   test('dropping a match on an empty cell re-times exactly that match', async ({ page }) => {
     const api = await openDetailedGrid(page);
@@ -108,16 +108,16 @@ test.describe('schedule grid drag layer', () => {
     const empty = (await slotOfCard(page, 'LSW-P1-M2', LICE_B)) + 24;
     await dragCardToCell(page, 'LSW-P1-M1', LICE_B, empty);
 
-    await expect.poll(() => api.scheduleWrites().length).toBe(1);
-    const write = api.scheduleWrites()[0]!;
+    await expect.poll(() => api.placementWrites().length).toBe(1);
+    const rows = api.placementRows(0);
 
-    expect(write.matchId).toBe(MATCH_1);
-    // The payload PATCH /matches/:id/schedule accepts: a piste and an instant,
-    // both present. A drop sending only one would move the card on screen and
-    // half-move it in the database.
-    expect(Object.keys(write.body).sort()).toEqual(['liceId', 'scheduledAt']);
-    expect(write.body['liceId']).toBe(LICE_B);
-    expect(typeof write.body['scheduledAt']).toBe('string');
+    expect(rows.map((r) => r['matchId'])).toEqual([MATCH_1]);
+    // A piste and an instant, both present. A drop sending only one would move
+    // the card on screen and half-move it in the database.
+    expect(Object.keys(rows[0]!).sort()).toEqual(['liceId', 'matchId', 'scheduledAt']);
+    expect(rows[0]!['liceId']).toBe(LICE_B);
+    expect(typeof rows[0]!['scheduledAt']).toBe('string');
+    expect(api.scheduleWrites()).toEqual([]);
   });
 
   /** The piste that lands is the drop target's, not the one the match came from. */
@@ -128,16 +128,16 @@ test.describe('schedule grid drag layer', () => {
     const empty = (await slotOfCard(page, 'LSW-P1-M1', LICE_A)) + 24;
     await dragCardToCell(page, 'LSW-P1-M2', LICE_A, empty);
 
-    await expect.poll(() => api.scheduleWrites().length).toBe(1);
-    const write = api.scheduleWrites()[0]!;
-    expect(write.matchId).toBe(MATCH_2);
-    expect(write.body['liceId']).toBe(LICE_A);
+    await expect.poll(() => api.placementWrites().length).toBe(1);
+    const rows = api.placementRows(0);
+    expect(rows.map((r) => r['matchId'])).toEqual([MATCH_2]);
+    expect(rows[0]!['liceId']).toBe(LICE_A);
   });
 
   /**
    * Dropping onto a slot another match already occupies CASCADES: the dragged
    * match takes the slot and the occupant is pushed clear, and both rows are
-   * written in one operation (`placeWithShift` → `commitAll`).
+   * written in one save (`placeWithShift` → `savePlacements`).
    *
    * This is the assertion most worth having before the split, because the
    * cascade is the part a refactor is most likely to drop — losing it is
@@ -155,20 +155,20 @@ test.describe('schedule grid drag layer', () => {
     const occupied = await slotOfCard(page, 'LSW-P1-M2', LICE_B);
     await dragCardToCell(page, 'LSW-P1-M1', LICE_B, occupied);
 
-    await expect.poll(() => api.scheduleWrites().length).toBe(2);
-    const writes = api.scheduleWrites();
+    await expect.poll(() => api.placementWrites().length).toBe(1);
+    const rows = api.placementRows(0);
 
     // Both the dragged match and the displaced occupant are written.
-    expect(writes.map((w) => w.matchId).sort()).toEqual([MATCH_1, MATCH_2].sort());
+    expect(rows.map((r) => r['matchId']).sort()).toEqual([MATCH_1, MATCH_2].sort());
     // Both land on the target lice, and neither is left without a time.
-    for (const w of writes) {
-      expect(w.body['liceId']).toBe(LICE_B);
-      expect(typeof w.body['scheduledAt']).toBe('string');
+    for (const row of rows) {
+      expect(row['liceId']).toBe(LICE_B);
+      expect(typeof row['scheduledAt']).toBe('string');
     }
     // The occupant is pushed LATER than the dragged match, not on top of it.
-    const dragged = writes.find((w) => w.matchId === MATCH_1)!;
-    const displaced = writes.find((w) => w.matchId === MATCH_2)!;
-    expect(String(displaced.body['scheduledAt']) > String(dragged.body['scheduledAt'])).toBe(true);
+    const dragged = rows.find((r) => r['matchId'] === MATCH_1)!;
+    const displaced = rows.find((r) => r['matchId'] === MATCH_2)!;
+    expect(String(displaced['scheduledAt']) > String(dragged['scheduledAt'])).toBe(true);
   });
 
   /**
@@ -181,7 +181,7 @@ test.describe('schedule grid drag layer', () => {
    * ref first — so abandoning a bar drag and then dragging a fight moved the BAR,
    * cascading every later match on the day, while the fight stayed put.
    *
-   * Delete the payload union and this reds: zero schedule writes, one block move.
+   * Delete the payload union and this reds: zero placement saves, one block move.
    */
   test('a drop ignores a payload left behind by an abandoned drag', async ({ page }) => {
     const api = await openDetailedGrid(page);
@@ -189,8 +189,8 @@ test.describe('schedule grid drag layer', () => {
     const empty = (await slotOfCard(page, 'LSW-P1-M2', LICE_B)) + 24;
     await dragAfterAbandonedDrag(page, 'Lunch', 'LSW-P1-M1', LICE_B, empty);
 
-    await expect.poll(() => api.scheduleWrites().length).toBe(1);
-    expect(api.scheduleWrites()[0]!.matchId).toBe(MATCH_1);
+    await expect.poll(() => api.placementWrites().length).toBe(1);
+    expect(api.placementRows(0).map((r) => r['matchId'])).toEqual([MATCH_1]);
     // And the abandoned bar did not move — that write is the failure mode, so
     // its absence is the assertion, not a side note.
     const blockMoves = api.writes.filter((r) => new URL(r.url()).pathname.endsWith('/move'));
@@ -204,7 +204,7 @@ test.describe('schedule grid drag layer', () => {
    * The second half is the one worth having. The keyboard listener is registered
    * once with an empty dependency array, and the optimistic update it reaches
    * rewrites the whole `matches` array — so an undo that resolved a stale copy
-   * of it would emit exactly the right PATCH and blank the board. That is
+   * of it would emit exactly the right save and blank the board. That is
    * invisible to any assertion about the request, which is all the other cases
    * here check.
    */
@@ -213,14 +213,14 @@ test.describe('schedule grid drag layer', () => {
 
     const empty = (await slotOfCard(page, 'LSW-P1-M2', LICE_B)) + 24;
     await dragCardToCell(page, 'LSW-P1-M1', LICE_B, empty);
-    await expect.poll(() => api.scheduleWrites().length).toBe(1);
+    await expect.poll(() => api.placementWrites().length).toBe(1);
 
     await page.keyboard.press('Control+z');
 
-    await expect.poll(() => api.scheduleWrites().length).toBe(2);
-    const undone = api.scheduleWrites()[1]!;
-    expect(undone.matchId).toBe(MATCH_1);
-    expect(undone.body['liceId']).toBe(LICE_A);
+    await expect.poll(() => api.placementWrites().length).toBe(2);
+    const undone = api.placementRows(1);
+    expect(undone.map((r) => r['matchId'])).toEqual([MATCH_1]);
+    expect(undone[0]!['liceId']).toBe(LICE_A);
 
     await expect(card(page, 'LSW-P1-M1')).toBeVisible();
     await expect(card(page, 'LSW-P1-M2')).toBeVisible();

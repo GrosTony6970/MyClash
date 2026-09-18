@@ -1954,7 +1954,6 @@ export const organizer = {
       // actually holds, so this banner is the only trace the operator gets.
       saveFailedPrefix: 'Change not saved:',
       saveFailedOffline: 'The server could not be reached.',
-      saveFailedPartial: '{failed}/{total} changes were not saved.',
       conflictCountSingular: '⚠ {count} scheduling conflict',
       conflictCountPlural: '⚠ {count} scheduling conflicts',
       // Shown when no match in the schedule carries the fighter's name. Never

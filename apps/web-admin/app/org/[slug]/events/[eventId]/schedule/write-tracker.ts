@@ -8,9 +8,9 @@
  * Those are the writes with the widest blast radius and the longest cascades,
  * and they were exactly the ones realtime was free to interrupt.
  *
- * A counter rather than a boolean because writes overlap: a group drop is a
- * fan-out of PATCHes, and the first one to finish must not report the board
- * idle while the rest are still going.
+ * A counter rather than a boolean because writes overlap: two quick gestures
+ * each send a save, and the first one to finish must not report the board idle
+ * while the other is still going.
  *
  * `saving` keeps its one job. It is a rendering signal — which card to dim —
  * and widening it to mean "busy" would have dimmed everything.

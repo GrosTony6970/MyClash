@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { inListChunks } from '../../common/postgrest-in-list';
 import { FollowNotificationSchedulerService } from '../../workers/follow-notification-scheduler.worker';
 import { NotificationSchedulerService } from '../../workers/notification-scheduler.worker';
 
@@ -51,11 +52,20 @@ export class MatchAlertRefresherService {
    * clearing is a reschedule, and both services cancel on a null time. A
    * piste-only change goes through here too — the body is rebuilt whole, so
    * there is no per-field variant to remember.
+   *
+   * `IN_LIST_MAX` bouts at a time. Each family reads its bouts, and then their
+   * fighters' registrations, by id in the URL. A day cleared from the board
+   * names every bout of the day, and a read that outgrew the URL would fail —
+   * silently, being best effort — and leave the alert of every cleared bout
+   * queued. This bounds the bout read at `IN_LIST_MAX` ids and the registration
+   * read at twice that (two a bout); it does not bound a family's own later
+   * reads, such as the followers' preferences.
    */
   async refresh(matchIds: readonly string[]): Promise<void> {
     const ids = Array.from(new Set(matchIds.filter(Boolean)));
-    if (ids.length === 0) return;
-    await this.personal.scheduleMatchStartingMany(ids);
-    await this.follows.scheduleMatchStartingMany(ids);
+    for (const chunk of inListChunks(ids)) {
+      await this.personal.scheduleMatchStartingMany(chunk);
+      await this.follows.scheduleMatchStartingMany(chunk);
+    }
   }
 }

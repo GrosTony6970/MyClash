@@ -2742,6 +2742,20 @@ new length. This save is the one writer of `matches.planned_duration_override_mi
 (migration 0196) apart from Generate, which clears it. `GET /api/v1/events/:eventId/schedule` sends the column as
 `plannedDurationOverrideMinutes`, and the window opens on it when every bout of the run agrees.
 
+**The board's batch save** sits beside it: `POST /api/v1/events/:eventId/schedule/placements`, on
+`schedule-placements.controller.ts`, also its own class and not `@Public()`. Every board gesture that
+moves bouts sends ONE body — a card drop with the neighbours it pushes, a Pool or round dragged, the
+run window's piste change, a resize, the "+N" catch-up, Clear run, Clear day, a card dropped on the
+Unscheduled panel, undo and redo. The body is `placements`: 1–2000 rows of `{ matchId, liceId,
+scheduledAt }`, each Match once, `null` to clear, no length. The service checks the editor bar, then
+that every Match is this Event's, then hands the batch as sent to `placeMatches`, which judges the
+pistes for the whole batch before it writes a row. The board used to send one
+`PATCH /api/v1/matches/:id/schedule` per bout, all at once, and the server judged each against bouts
+that had not moved yet, so a Pool dragged later could be half refused and split in two. That route
+stays: the referee board's single-bout drop still uses it. The batch's id reads — Event membership
+and the batch's own rows — go out 200 ids at a time, and the alert refresh takes 200 bouts at a time
+(`apps/api/src/common/postgrest-in-list.ts`). A signed-out caller gets 401, as on the single PATCH.
+
 **Suggest algorithm:** places admin blocks (Registration+GearCheck, Referee Meeting) at Day 1 start, then competition pool blocks (in tournament `sort_order`), breaks between each, midday break at configured window, bracket blocks, then workshops. Returns `BlockWarning[]` for blocks whose time window is shorter than needed.
 
 **Generate:** for each competition block, fetches matches ordered `match_number_label ASC` (Berger sequence) and calls `scheduleMatches()` constrained to the block's time window. It does **not** touch `workshop_sessions` — workshops moved to their own board, and `generate` returns a hard-coded `workshopSessionsCreated: 0`. The route's own OpenAPI summary still promises workshop sessions.

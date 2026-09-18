@@ -19,7 +19,7 @@
  * ROLLBACK IS A REFETCH, not a snapshot. Restoring a remembered previous state
  * at every call site drifts the moment one of them forgets a field; re-reading
  * the server cannot. The caller's recovery path is therefore always "refetch
- * from source of truth", which is also what makes the batch helper below safe.
+ * from source of truth".
  *
  * ── The transport is `apiRequest`, not `fetch` ──────────────────────────────
  * This module used to own its own request: `credentials: 'include'`, a
@@ -109,42 +109,6 @@ export async function mutateSchedule<T = unknown>(
   // A 204 and an empty body both parse to undefined; the callers that read a
   // result test for null.
   return r.data ?? null;
-}
-
-export interface MutationBatchResult {
-  total: number;
-  failures: ScheduleMutationError[];
-}
-
-/**
- * Run a fan-out of writes and report what failed.
- *
- * Deliberately NOT `Promise.all`: a drag that displaces neighbours issues one
- * PATCH per moved row, and rejecting on the first failure would leave the rest
- * in flight with the operator told nothing about them. Every call is attempted,
- * then the caller gets a count it can act on. It does not throw — a partial
- * failure is a real state that has to be reported, not an exception to unwind.
- */
-export async function mutateAll(
-  calls: ReadonlyArray<() => Promise<unknown>>,
-): Promise<MutationBatchResult> {
-  const settled = await Promise.allSettled(calls.map((call) => call()));
-  const failures: ScheduleMutationError[] = [];
-  for (const outcome of settled) {
-    if (outcome.status !== 'rejected') continue;
-    const reason: unknown = outcome.reason;
-    failures.push(
-      reason instanceof ScheduleMutationError
-        ? reason
-        : // Something threw before the request was ever made. It reached no
-          // server, so it is classified as one that could not: the board is
-          // told the write did not land, which is the only true part.
-          new ScheduleMutationError(reason instanceof Error ? reason.message : String(reason), '', {
-            kind: 'network',
-          }),
-    );
-  }
-  return { total: calls.length, failures };
 }
 
 /**

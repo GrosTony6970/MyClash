@@ -3,8 +3,9 @@
 import { useCallback, useMemo, useState } from 'react';
 import { useI18n } from '@myclash/next-i18n/client';
 import { failureMessage } from '@myclash/api-client';
-import { mutateAll, mutateSchedule, ScheduleMutationError } from './schedule-mutations';
+import { mutateSchedule, ScheduleMutationError } from './schedule-mutations';
 import type { RunWindowBody } from './run-window';
+import type { MatchPosition } from './useScheduleUndo';
 import { createWriteTracker } from './write-tracker';
 
 /**
@@ -13,8 +14,8 @@ import { createWriteTracker } from './write-tracker';
  * ./schedule-mutations is the transport: it throws on a non-OK response and
  * never invents prose. This is the layer above it — the one that owns whether a
  * write is in flight, turns a failure into words an operator can read, and
- * decides what happens next. Everything that changes the board calls `commit`
- * or `commitAll`; nothing calls `fetch`.
+ * decides what happens next. Everything that changes the board calls `commit`;
+ * nothing calls `fetch`.
  *
  * ROLLBACK IS A REFETCH. A failed write re-reads the server rather than
  * restoring a remembered value, so no call site can put back a stale or partial
@@ -29,12 +30,30 @@ import { createWriteTracker } from './write-tracker';
  * true only during a single-fight move and false during every block move, break
  * edit, delete and group re-fan. Those are the writes with the widest cascades,
  * and they were the ones realtime was free to interrupt. Every write that goes
- * through `commit`/`commitAll` is counted now, and `track` is exported for the
- * two that deliberately do not (they own their own error banner).
+ * through `commit` is counted now, and `track` is exported for the two that
+ * deliberately do not (they own their own error banner).
+ *
+ * ONE SAVE PER GESTURE. Every gesture whose bout positions the board works out
+ * itself sends `savePlacements` once, with every bout it moved. (Moving a bar,
+ * running late and the bracket re-fan have their own server doors.) It used to
+ * send one PATCH per bout, all at once, and the server judged each against
+ * bouts that had not moved yet — a
+ * Pool dragged fifteen minutes later put its first bouts where its last ones
+ * still sat, three PATCHes in six were refused, and the Pool was left split in
+ * two.
  */
 
+/** One bout of a batch save, where the board put it. Both null takes it off. */
+export type Placement = { matchId: string } & MatchPosition;
+
+/** These bouts taken off the board, as batch rows. */
+export function unschedulePlacements(matchIds: readonly string[]): Placement[] {
+  return matchIds.map((matchId) => ({ matchId, liceId: null, scheduledAt: null }));
+}
+
 export interface ScheduleWrites {
-  /** Match id currently being written, or null. Dims that card. */
+  /** The one bout a save is writing, or null. Dims that card. A save of several
+   *  bouts dims none: no single card is the one being written. */
   saving: string | null;
   /** A write the server refused. Distinct from a failed read — the board is
    *  showing something the database never accepted until the refetch lands. */
@@ -45,13 +64,10 @@ export interface ScheduleWrites {
   /** Count a write that does not go through `commit` as in flight. For the two
    *  callers that own their own error banner and must keep it. */
   track: <T>(work: () => Promise<T>) => Promise<T>;
-  /** PATCH one match's lice + time. Throws if the server refused. `null` for both
-   *  unschedules it — an empty string is refused, being neither a uuid nor a date. */
-  saveMatchPosition: (
-    matchId: string,
-    liceId: string | null,
-    scheduledAt: string | null,
-  ) => Promise<void>;
+  /** POST every bout one gesture moved, as ONE batch the server checks as a
+   *  whole. Throws if the server refused. `null` for both unschedules a bout —
+   *  an empty string is refused, being neither a uuid nor a date. */
+  savePlacements: (placements: readonly Placement[]) => Promise<void>;
   /** POST one run window's save: the run's Matches, its start and, when it changed, its
    *  bout length. The server lays the run and checks every piste as ONE batch (ADR-018).
    *  Throws if the server refused. */
@@ -63,8 +79,6 @@ export interface ScheduleWrites {
   describeSaveError: (err: unknown, fallback?: string) => string | null;
   /** Run one write. Returns false and re-reads the server on failure. */
   commit: (run: () => Promise<unknown>) => Promise<boolean>;
-  /** Same contract for a fan-out. Every call is attempted before any report. */
-  commitAll: (calls: ReadonlyArray<() => Promise<unknown>>) => Promise<boolean>;
 }
 
 export function useScheduleWrites(args: {
@@ -81,19 +95,19 @@ export function useScheduleWrites(args: {
   const tracker = useMemo(() => createWriteTracker(), []);
   const isBusy = useCallback(() => tracker.isBusy(), [tracker]);
 
-  const saveMatchPosition = useCallback(
-    async (matchId: string, liceId: string | null, scheduledAt: string | null): Promise<void> => {
-      setSaving(matchId);
+  const savePlacements = useCallback(
+    async (placements: readonly Placement[]): Promise<void> => {
+      setSaving(placements.length === 1 ? placements[0]!.matchId : null);
       try {
-        await mutateSchedule(`${apiUrl}/api/v1/matches/${matchId}/schedule`, {
-          method: 'PATCH',
-          body: { liceId, scheduledAt },
+        await mutateSchedule(`${apiUrl}/api/v1/events/${eventId}/schedule/placements`, {
+          method: 'POST',
+          body: { placements },
         });
       } finally {
         setSaving(null);
       }
     },
-    [apiUrl],
+    [apiUrl, eventId],
   );
 
   const saveRunWindow = useCallback(
@@ -143,41 +157,15 @@ export function useScheduleWrites(args: {
     [tracker, describeSaveError, refetch],
   );
 
-  const commitAll = useCallback(
-    async (calls: ReadonlyArray<() => Promise<unknown>>): Promise<boolean> => {
-      // The whole fan-out counts as one write, so the board is not reported
-      // idle between two PATCHes of the same operation.
-      const { total, failures } = await tracker.track(() => mutateAll(calls));
-      if (failures.length === 0) {
-        setSaveError(null);
-        return true;
-      }
-      // One failure out of one is just that failure; anything else is a partial
-      // fan-out, and the operator needs the count more than the first message.
-      setSaveError(
-        total === 1 && failures[0]
-          ? describeSaveError(failures[0])
-          : t('organizer.schedulePage.grid.saveFailedPartial', {
-              failed: failures.length,
-              total,
-            }),
-      );
-      await refetch();
-      return false;
-    },
-    [tracker, describeSaveError, refetch, t],
-  );
-
   return {
     saving,
     saveError,
     setSaveError,
     isBusy,
     track: tracker.track,
-    saveMatchPosition,
+    savePlacements,
     saveRunWindow,
     describeSaveError,
     commit,
-    commitAll,
   };
 }

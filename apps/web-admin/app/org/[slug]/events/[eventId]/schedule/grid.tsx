@@ -29,7 +29,7 @@ import { previewDayDelay, suggestDayDelay } from './day-delay';
 import { RunningLateDialog } from './RunningLateDialog';
 import { clampPanelWidth } from './panel-width';
 import { useSchedulePrefs } from './useSchedulePrefs';
-import { useScheduleWrites } from './useScheduleWrites';
+import { unschedulePlacements, useScheduleWrites, type Placement } from './useScheduleWrites';
 import { useProgrammeBars } from './useProgrammeBars';
 import { createBarRequest } from './programme-bar-requests';
 import {
@@ -150,10 +150,9 @@ export function ScheduleGrid({
     setSaveError,
     isBusy,
     track,
-    saveMatchPosition,
+    savePlacements,
     describeSaveError,
     commit,
-    commitAll,
     saveRunWindow,
   } = useScheduleWrites({ apiUrl, eventId, refetch: rollback });
 
@@ -196,11 +195,7 @@ export function ScheduleGrid({
   /**
    * The two things undo needs the board to be able to do. Both live here rather
    * than in the history hook because they are transport, and the hook owns
-   * ordering, not writes.
-   *
-   * `applyUndoPositions` writes through `commitAll` even for a single fight. A
-   * one-call fan-out reports the server's own message, exactly as `commit`
-   * does — the count only enters the wording from two failures up.
+   * ordering, not writes. An undo is one gesture, so it is one save.
    */
   const applyUndoPositions = useCallback(
     async (positions: Array<{ id: string } & MatchPosition>): Promise<boolean> => {
@@ -211,11 +206,13 @@ export function ScheduleGrid({
           return next ? { ...m, liceId: next.liceId, scheduledAt: next.scheduledAt } : m;
         }),
       );
-      return commitAll(
-        positions.map((p) => () => saveMatchPosition(p.id, p.liceId, p.scheduledAt)),
+      return commit(() =>
+        savePlacements(
+          positions.map((p) => ({ matchId: p.id, liceId: p.liceId, scheduledAt: p.scheduledAt })),
+        ),
       );
     },
-    [setMatches, commitAll, saveMatchPosition],
+    [setMatches, commit, savePlacements],
   );
   const recreateDeletedBlock = useCallback(
     async (block: DeletedBlock): Promise<boolean> => {
@@ -599,7 +596,7 @@ export function ScheduleGrid({
     if (!plan) return;
     const ids = new Set(plan.matchIds);
     setMatches(matches.map((m) => (ids.has(m.id) ? { ...m, liceId: null, scheduledAt: null } : m)));
-    void commitAll(plan.matchIds.map((id) => () => saveMatchPosition(id, null, null)));
+    void commit(() => savePlacements(unschedulePlacements(plan.matchIds)));
     history.push({ kind: 'unschedule', label: plan.label, matches: plan.prior });
   }
 
@@ -613,7 +610,7 @@ export function ScheduleGrid({
    * door that has since been deleted, which (a) scattered the group the
    * operator just dragged as a single unit and (b) silently no-op'd on
    * occupied targets. The group now lays out client-side on a single lice
-   * and PATCHes each affected match's new (liceId, scheduledAt).
+   * and saves each affected match's new (liceId, scheduledAt) in one batch.
    *
    * Resolves false when a write was refused (the board has re-read by then), so
    * the run window can stop before it re-times a run that did not move.
@@ -684,10 +681,10 @@ export function ScheduleGrid({
     });
     setMatches(updated);
 
-    // 6. PATCH every match whose (liceId, scheduledAt) actually changed, as
-    //    one reported operation — a partial failure rolls the board back to
-    //    the server's version rather than leaving the group half-placed.
-    const writes: Array<() => Promise<unknown>> = [];
+    // 6. Save every match whose (liceId, scheduledAt) actually changed, as ONE
+    //    batch the server checks as a whole — a refusal re-reads the server. A
+    //    drop that moved nothing sends nothing: the server refuses an empty batch.
+    const rows: Placement[] = [];
     for (const item of placement.items) {
       const original = matches.find((m) => m.id === item.id);
       if (!original) continue;
@@ -696,9 +693,9 @@ export function ScheduleGrid({
         ? targetLiceId
         : (original.liceId ?? targetLiceId);
       if (original.scheduledAt === newScheduledAt && original.liceId === newLiceId) continue;
-      writes.push(() => saveMatchPosition(item.id, newLiceId, newScheduledAt));
+      rows.push({ matchId: item.id, liceId: newLiceId, scheduledAt: newScheduledAt });
     }
-    return commitAll(writes);
+    return rows.length === 0 || commit(() => savePlacements(rows));
   }
 
   /** Pool drop — all of the pool's matches as one group. */
@@ -781,14 +778,11 @@ export function ScheduleGrid({
     );
     setMatches(matches.map((m) => ({ ...m, ...(placedById.get(m.id) ?? {}) })));
     // The dropped match and every neighbour the shift displaced are ONE
-    // operation to the operator, so they are reported as one: any rejection
-    // re-reads the server instead of leaving half the column moved on screen
-    // and unmoved in the database.
-    void commitAll(
-      plan.map((p) => {
-        const placed = placedById.get(p.id)!;
-        return () => saveMatchPosition(p.id, placed.liceId, placed.scheduledAt);
-      }),
+    // operation to the operator, so they are ONE save the server checks as a
+    // whole: a refusal re-reads the server instead of leaving half the column
+    // moved on screen and unmoved in the database.
+    void commit(() =>
+      savePlacements(plan.map((p) => ({ matchId: p.id, ...placedById.get(p.id)! }))),
     );
   }
 
@@ -826,23 +820,14 @@ export function ScheduleGrid({
     }
     setClearingDay(true);
     try {
-      // Fan out PATCHes in parallel. Last write wins per match — no
-      // ordering required since each touches its own row.
+      // One save for the whole day, however many bouts it holds.
       //
-      // The local state is applied only AFTER the writes are known to have
+      // The local state is applied only AFTER the write is known to have
       // landed. This used to run the other way round: a 401 emptied the whole
       // day on screen while every match stayed scheduled in the database, on
       // the pad and on the public display, and the operator then re-scheduled
       // on top of rows that were never cleared.
-      const ok = await commitAll(
-        targets.map(
-          (m) => () =>
-            mutateSchedule(`${apiUrl}/api/v1/matches/${m.id}/schedule`, {
-              method: 'PATCH',
-              body: { liceId: null, scheduledAt: null },
-            }),
-        ),
-      );
+      const ok = await commit(() => savePlacements(unschedulePlacements(targets.map((m) => m.id))));
       if (!ok) return;
       const targetIds = new Set(targets.map((m) => m.id));
       const updated = matches.map((m) =>
@@ -964,7 +949,7 @@ export function ScheduleGrid({
 
   // Drop a dragged block / unscheduled pool / round onto a lice in the block
   // view: place its matches sequentially (5-min apart) after that lice's last
-  // scheduled match (or 09:00 if empty). Persists each via the schedule PATCH.
+  // scheduled match (or 09:00 if empty). Saved as one batch by handleGroupDrop.
   function handleBlockViewDrop(liceId: string, slot: number) {
     const payload = takeDrag();
     setDragOverLiceId(null);
@@ -1003,7 +988,7 @@ export function ScheduleGrid({
     setMatches(
       matches.map((m) => (m.id === match.id ? { ...m, liceId: null, scheduledAt: null } : m)),
     );
-    void commit(() => saveMatchPosition(match.id, null, null));
+    void commit(() => savePlacements(unschedulePlacements([match.id])));
   }
 
   // ── Live drift: how late/early each lice is running on the active day ──────
@@ -1061,7 +1046,7 @@ export function ScheduleGrid({
   );
 
   // Push a lice's not-yet-started future matches by the drift, to re-align the
-  // rest of the day after a delay. Optimistic + per-match PATCH.
+  // rest of the day after a delay. Optimistic, then one save.
   function shiftLiceRemaining(liceId: string, driftMin: number) {
     if (!driftMin || !activeDay) return;
     const future = matches.filter(
@@ -1079,8 +1064,10 @@ export function ScheduleGrid({
       futureIds.has(m.id) ? { ...m, scheduledAt: shifted(m.scheduledAt!) } : m,
     );
     setMatches(updated);
-    void commitAll(
-      future.map((f) => () => saveMatchPosition(f.id, liceId, shifted(f.scheduledAt!))),
+    void commit(() =>
+      savePlacements(
+        future.map((f) => ({ matchId: f.id, liceId, scheduledAt: shifted(f.scheduledAt!) })),
+      ),
     );
   }
 
@@ -1096,7 +1083,7 @@ export function ScheduleGrid({
   // nobody touched.
   const [openedBoutLength, setOpenedBoutLength] = useState<number | null>(null);
 
-  // Optimistic apply + per-match PATCH for a set of (id, lice, time) updates.
+  // Optimistic apply + one save for a set of (id, lice, time) updates.
   function applyMatchUpdates(updates: Array<{ id: string; liceId: string; scheduledAt: string }>) {
     if (updates.length === 0) return;
     const byId = new Map(updates.map((u) => [u.id, u]));
@@ -1106,7 +1093,11 @@ export function ScheduleGrid({
         : m,
     );
     setMatches(updated);
-    void commitAll(updates.map((u) => () => saveMatchPosition(u.id, u.liceId, u.scheduledAt)));
+    void commit(() =>
+      savePlacements(
+        updates.map((u) => ({ matchId: u.id, liceId: u.liceId, scheduledAt: u.scheduledAt })),
+      ),
+    );
   }
 
   // Vertical resize / end edit: respace each lice's sub-run of the block across
@@ -1493,8 +1484,8 @@ export function ScheduleGrid({
   const [pendingRunClear, setPendingRunClear] = useState<HeaderRunGroup | null>(null);
   const [clearingRun, setClearingRun] = useState(false);
 
-  /** Unschedule one run's matches (the header's click action). Per-match
-   *  PATCHes rather than the pool-day DELETE endpoint so it works for any
+  /** Unschedule one run's matches (the header's click action). The board's
+   *  batch save rather than the pool-day DELETE endpoint so it works for any
    *  run subset — a separated pool cluster or a bracket round alike. */
   async function clearRun(group: HeaderRunGroup) {
     setClearingRun(true);
@@ -1504,7 +1495,7 @@ export function ScheduleGrid({
         ids.has(m.id) ? { ...m, liceId: null, scheduledAt: null } : m,
       );
       setMatches(updated);
-      await commitAll(group.matchIds.map((id) => () => saveMatchPosition(id, null, null)));
+      await commit(() => savePlacements(unschedulePlacements(group.matchIds)));
     } finally {
       setClearingRun(false);
       setPendingRunClear(null);

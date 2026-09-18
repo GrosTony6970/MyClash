@@ -1,6 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
-  mutateAll,
   mutateSchedule,
   NETWORK_FAILURE_STATUS,
   ScheduleMutationError,
@@ -200,65 +199,5 @@ describe('mutateSchedule', () => {
 
     expect(err.failure.kind).toBe('aborted');
     expect(err.status).toBe(NETWORK_FAILURE_STATUS);
-  });
-});
-
-describe('mutateAll', () => {
-  it('reports no failures when every call succeeds', async () => {
-    stubFetch(() => Promise.resolve(response({ status: 200 })));
-    const calls = ['m1', 'm2', 'm3'].map(
-      (id) => () => mutateSchedule(`/api/v1/matches/${id}/schedule`, { method: 'PATCH', body: {} }),
-    );
-
-    await expect(mutateAll(calls)).resolves.toEqual({ total: 3, failures: [] });
-  });
-
-  // A drag that displaces neighbours fires one PATCH per moved row. Promise.all
-  // would reject on the first failure and leave the rest unreported.
-  it('attempts every call and collects the failures', async () => {
-    const attempted: string[] = [];
-    stubFetch((url) => {
-      attempted.push(url);
-      return Promise.resolve(
-        url.includes('m2')
-          ? response({ status: 403, body: JSON.stringify({ message: 'nope' }) })
-          : response({ status: 200 }),
-      );
-    });
-    const calls = ['m1', 'm2', 'm3'].map(
-      (id) => () => mutateSchedule(`/api/v1/matches/${id}/schedule`, { method: 'PATCH', body: {} }),
-    );
-
-    const result = await mutateAll(calls);
-
-    expect(attempted).toHaveLength(3);
-    expect(result.total).toBe(3);
-    expect(result.failures).toHaveLength(1);
-    expect(result.failures[0]?.message).toBe('nope');
-  });
-
-  it('does not reject even when every call fails', async () => {
-    stubFetch(() => Promise.reject(new TypeError('offline')));
-    const calls = ['m1', 'm2'].map(
-      (id) => () => mutateSchedule(`/api/v1/matches/${id}/schedule`, { method: 'PATCH', body: {} }),
-    );
-
-    const result = await mutateAll(calls);
-
-    expect(result.failures).toHaveLength(2);
-    expect(result.failures.every((f) => f instanceof ScheduleMutationError)).toBe(true);
-  });
-
-  it('wraps a non-ScheduleMutationError rejection rather than dropping it', async () => {
-    const result = await mutateAll([() => Promise.reject(new Error('thrown before the request'))]);
-
-    expect(result.failures).toHaveLength(1);
-    expect(result.failures[0]).toBeInstanceOf(ScheduleMutationError);
-    expect(result.failures[0]?.message).toBe('thrown before the request');
-    expect(result.failures[0]?.failure.kind).toBe('network');
-  });
-
-  it('handles an empty fan-out', async () => {
-    await expect(mutateAll([])).resolves.toEqual({ total: 0, failures: [] });
   });
 });

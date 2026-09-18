@@ -13,6 +13,7 @@ import {
   refereeMatchAssignmentsFixture,
   scheduleFixture,
 } from './schedule-grid.fixture';
+import { SINGLE_MATCH_PATCH, createPisteOccupancy, type OccupancyRow } from './piste-occupancy';
 
 /**
  * The plumbing behind tests/drag/schedule-grid.spec.ts: API mocking, the request
@@ -31,12 +32,16 @@ export const SCHEDULE_URL = `${ADMIN}/org/${ORG_SLUG}/events/${EVENT_ID}/schedul
 
 export interface Harness {
   writes: Request[];
-  /** Writes to PATCH /matches/:id/schedule, parsed. */
-  scheduleWrites: () => Array<{ matchId: string; body: Record<string, unknown> }>;
+  /** URLs of single-Match `PATCH /matches/:id/schedule` writes. The board sends none. */
+  scheduleWrites: () => string[];
   /** Bodies POSTed to the whole-day running-late endpoint. */
   delayWrites: () => Array<Record<string, unknown>>;
   /** Bodies POSTed to the run window's save, `POST /events/:id/schedule/run`. */
   runWrites: () => Array<Record<string, unknown>>;
+  /** Bodies POSTed to the batch door, `POST /events/:id/schedule/placements`. */
+  placementWrites: () => Array<Record<string, unknown>>;
+  /** The rows of the `n`th of those bodies. */
+  placementRows: (n: number) => Array<Record<string, unknown>>;
   /** How many times a GET path suffix has been asked for. Lets a spec say "the
    *  board answered this from what it already had" rather than only that the
    *  answer appeared. */
@@ -52,6 +57,9 @@ export interface MockOptions {
   /** The answer a write to a path ending in the key gets, instead of a 200 — the
    *  run window spec needs a refusal. */
   writeAnswers?: Record<string, { status: number; json: unknown }>;
+  /** A server with a memory (./piste-occupancy): a placement is refused when its
+   *  piste is still held, and every `/schedule` read serves the moved state. */
+  occupancy?: true;
 }
 
 /** The GET payload for a bootstrap path, or null when this spec does not own it. */
@@ -99,9 +107,16 @@ export function writeFixture(path: string): unknown {
   return {};
 }
 
+const SCHEDULE_PATH = `/events/${EVENT_ID}/schedule`;
+
 export async function mockApi(page: Page, opts: MockOptions = {}): Promise<Harness> {
   const writes: Request[] = [];
   const reads: string[] = [];
+  // Seeded from the schedule this spec serves; from then on the model is the
+  // schedule, so a read after a write shows what the write did.
+  const model = opts.occupancy
+    ? createPisteOccupancy(readFixture(SCHEDULE_PATH, opts) as OccupancyRow[])
+    : null;
 
   await page.route('**/api/v1/**', async (route) => {
     const request = route.request();
@@ -113,32 +128,37 @@ export async function mockApi(page: Page, opts: MockOptions = {}): Promise<Harne
         path.endsWith(suffix),
       )?.[1];
       if (answer) return route.fulfill({ status: answer.status, json: answer.json });
+      const refused = model?.judgeWrite(path, request.postDataJSON() ?? {});
+      if (refused) return route.fulfill({ status: refused.status, json: refused.json });
       return route.fulfill({ status: 200, json: writeFixture(path) });
     }
     reads.push(path);
+    if (model && path.endsWith(SCHEDULE_PATH)) return route.fulfill({ json: model.rows() });
     // Anything unrecognised must still answer — an unrouted request stalls the
     // mount effect and the page never finishes loading.
     return route.fulfill({ json: readFixture(path, opts) ?? [] });
   });
+  return requestLog(writes, reads);
+}
+
+/** What the assertions read: the writes sent and the reads asked for, so far. */
+function requestLog(writes: Request[], reads: string[]): Harness {
+  /** The bodies of the writes whose path ends with `suffix`, in the order sent. */
+  const bodiesTo = (suffix: string) =>
+    writes
+      .filter((r) => new URL(r.url()).pathname.endsWith(suffix))
+      .map((r) => (r.postDataJSON() ?? {}) as Record<string, unknown>);
+  const placements = () => bodiesTo(`${SCHEDULE_PATH}/placements`);
 
   return {
     writes,
     readCount: (pathSuffix) => reads.filter((p) => p.endsWith(pathSuffix)).length,
-    delayWrites: () =>
-      writes
-        .filter((r) => new URL(r.url()).pathname.endsWith('/programme/delay'))
-        .map((r) => (r.postDataJSON() ?? {}) as Record<string, unknown>),
-    runWrites: () =>
-      writes
-        .filter((r) => new URL(r.url()).pathname.endsWith(`/events/${EVENT_ID}/schedule/run`))
-        .map((r) => (r.postDataJSON() ?? {}) as Record<string, unknown>),
+    delayWrites: () => bodiesTo('/programme/delay'),
+    runWrites: () => bodiesTo(`${SCHEDULE_PATH}/run`),
+    placementWrites: placements,
+    placementRows: (n) => (placements()[n]?.['placements'] ?? []) as Array<Record<string, unknown>>,
     scheduleWrites: () =>
-      writes
-        .filter((r) => /\/matches\/[0-9a-f-]{36}\/schedule$/i.test(new URL(r.url()).pathname))
-        .map((r) => ({
-          matchId: new URL(r.url()).pathname.split('/').slice(-2)[0] as string,
-          body: (r.postDataJSON() ?? {}) as Record<string, unknown>,
-        })),
+      writes.map((r) => r.url()).filter((url) => SINGLE_MATCH_PATCH.test(new URL(url).pathname)),
   };
 }
 

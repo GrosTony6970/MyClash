@@ -24,16 +24,16 @@ import {
  * Sending bouts back to the Unscheduled list, in a real browser.
  *
  * Four doors on the board unschedule — the × on a run, a run header's Clear, a
- * card dropped on the Unscheduled panel, and undo — and all four sent
- * `{ liceId: '', scheduledAt: '' }`. `PATCH /matches/:id/schedule` refuses that
- * body: an empty string is neither a uuid nor a date (`ScheduleMatchDto`). The
- * organiser saw the run vanish, then "n/n changes were not saved", then the bouts
- * come back on the re-read. "Clear the day" built its own null body and worked.
+ * card dropped on the Unscheduled panel, and undo — and all four once sent
+ * `{ liceId: '', scheduledAt: '' }`, which the API refuses: an empty string is
+ * neither a uuid nor a date. The organiser saw the run vanish, then "n/n changes
+ * were not saved", then the bouts come back on the re-read. Each door now sends
+ * ONE save, every bout of it a `null` row.
  *
  * THE BODY ASSERTION IS THE NET. This harness answers 200 to every write, the
- * refused body included, so the board clears on screen either way. The body the
- * API takes, `{ liceId: null, scheduledAt: null }`, is pinned on the API side by
- * `matches.dto.schedule-match.test.ts`.
+ * refused body included, so the board clears on screen either way. The row the
+ * API takes, `{ matchId, liceId: null, scheduledAt: null }`, is pinned on the API
+ * side by `schedule-placements.dto.test.ts`.
  *
  * Every case lets the failed socket's catch-up read land BEFORE it acts. The
  * harness serves the same schedule to every read, so a read landing after the
@@ -41,7 +41,7 @@ import {
  * then pass or fail on timing rather than on the gesture.
  */
 
-const UNSCHEDULE = { liceId: null, scheduledAt: null };
+const unscheduled = (matchId: string) => ({ matchId, liceId: null, scheduledAt: null });
 const SCHEDULE_PATH = `/events/${EVENT_ID}/schedule`;
 
 /** The panel's own count. A bout sent back becomes a chip there carrying the same
@@ -60,12 +60,13 @@ async function openRunBoard(page: Page): Promise<Harness> {
   return api;
 }
 
-/** Every run bout was sent back, each with the body the API accepts. */
+/** Every run bout was sent back in one save, each with the row the API accepts. */
 async function expectRunUnscheduled(api: Harness): Promise<void> {
-  await expect.poll(() => api.scheduleWrites().length).toBe(6);
-  const writes = api.scheduleWrites();
-  expect(writes.map((w) => w.matchId).sort()).toEqual([...RUN_MATCH_IDS].sort());
-  for (const write of writes) expect(write.body).toEqual(UNSCHEDULE);
+  await expect.poll(() => api.placementWrites().length).toBe(1);
+  const rows = api.placementRows(0);
+  expect(rows.map((r) => r['matchId']).sort()).toEqual([...RUN_MATCH_IDS].sort());
+  for (const row of rows) expect(row).toEqual(unscheduled(row['matchId'] as string));
+  expect(api.scheduleWrites()).toEqual([]);
 }
 
 test.describe('schedule grid unschedule', () => {
@@ -103,8 +104,8 @@ test.describe('schedule grid unschedule', () => {
 
     await dropCardOnPanel(page, 'LSW-P1-M1');
 
-    await expect.poll(() => api.scheduleWrites().length).toBe(1);
-    expect(api.scheduleWrites()[0]).toEqual({ matchId: MATCH_1, body: UNSCHEDULE });
+    await expect.poll(() => api.placementWrites().length).toBe(1);
+    expect(api.placementRows(0)).toEqual([unscheduled(MATCH_1)]);
     await expect(gridCard(page, 'LSW-P1-M1')).toHaveCount(0);
     await expect(unscheduledHeading(page, 1)).toBeVisible();
   });
@@ -118,15 +119,15 @@ test.describe('schedule grid unschedule', () => {
 
     const empty = (await slotOfCard(page, 'LSW-P1-M2', LICE_B)) + 24;
     await dragCardToCell(page, 'LSW-P1-M3', LICE_B, empty);
-    await expect.poll(() => api.scheduleWrites().length).toBe(1);
-    expect(api.scheduleWrites()[0]!.body['liceId']).toBe(LICE_B);
+    await expect.poll(() => api.placementWrites().length).toBe(1);
+    expect(api.placementRows(0)[0]!['liceId']).toBe(LICE_B);
     await expect(gridCard(page, 'LSW-P1-M3')).toHaveCount(1);
     await expect(unscheduledHeading(page, 0)).toBeVisible();
 
     await page.keyboard.press('Control+z');
 
-    await expect.poll(() => api.scheduleWrites().length).toBe(2);
-    expect(api.scheduleWrites()[1]).toEqual({ matchId: MATCH_3, body: UNSCHEDULE });
+    await expect.poll(() => api.placementWrites().length).toBe(2);
+    expect(api.placementRows(1)).toEqual([unscheduled(MATCH_3)]);
     await expect(gridCard(page, 'LSW-P1-M3')).toHaveCount(0);
     await expect(unscheduledHeading(page, 1)).toBeVisible();
   });

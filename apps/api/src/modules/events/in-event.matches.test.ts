@@ -82,6 +82,31 @@ describe('assertMatchesBelongToEvent', () => {
     await expect(refusal).rejects.toThrow('Every Match must belong to this event');
   });
 
+  it('reads 200 ids at a time, and judges every piece', async () => {
+    // A day cleared from the board names every bout of it. One `.in()` of them
+    // all would outgrow the URL; a read of the first piece alone would miss a
+    // foreign bout named after it.
+    const own = Array.from({ length: 201 }, (_, n) => `own-${n}`);
+    const supabase = mockSupabase({
+      matches: { rows: [...own.map((id) => match(id, 'event-1')), match('elsewhere', 'event-2')] },
+    });
+
+    await expect(
+      assertMatchesBelongToEvent(supabase.service as never, 'event-1', own),
+    ).resolves.toBeUndefined();
+    expect(filtersFor(supabase.from, 'matches', 'in')).toEqual([
+      ['id', own.slice(0, 200)],
+      ['id', own.slice(200)],
+    ]);
+
+    await expect(
+      assertMatchesBelongToEvent(supabase.service as never, 'event-1', [
+        ...own.slice(0, 200),
+        'elsewhere',
+      ]),
+    ).rejects.toThrow('Every Match must belong to this event');
+  });
+
   it('reads nothing when no Match is named', async () => {
     const supabase = seeded();
 

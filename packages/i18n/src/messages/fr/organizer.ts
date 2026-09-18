@@ -1930,7 +1930,6 @@ export const organizer = {
       groupScheduleFailedPrefix: 'Échec de la programmation groupée :',
       saveFailedPrefix: 'Modification non enregistrée :',
       saveFailedOffline: 'Le serveur est injoignable.',
-      saveFailedPartial: "{failed}/{total} modifications n'ont pas été enregistrées.",
       conflictCountSingular: '⚠ {count} conflit de programmation',
       conflictCountPlural: '⚠ {count} conflits de programmation',
       unknownFighter: 'Tireur inconnu',

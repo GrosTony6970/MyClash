@@ -1,5 +1,6 @@
 import { BadRequestException } from '@nestjs/common';
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { inListChunks } from '../../common/postgrest-in-list';
 
 /** The Event-owned tables a caller may name by id. Each carries a required `event_id`. */
 type EventOwnedTable = 'lices' | 'tournaments' | 'workshops';
@@ -78,9 +79,11 @@ interface MatchEventRow {
  * would be read and the rest of the batch committed before anything failed; and a
  * referee assignment has no database guard at all.
  *
- * The same rules as `assertRowsBelongToEvent`: one read, a repeated id counts
- * once, and an id that does not exist is refused like a foreign one, with the
- * same sentence, so the answer does not say which Event holds it.
+ * The same rules as `assertRowsBelongToEvent`: a repeated id counts once, and an
+ * id that does not exist is refused like a foreign one, with the same sentence,
+ * so the answer does not say which Event holds it. One read per `IN_LIST_MAX`
+ * ids: the schedule board's batch names every bout of a day, which can pass what
+ * one URL holds.
  */
 export async function assertMatchesBelongToEvent(
   db: SupabaseClient,
@@ -89,13 +92,19 @@ export async function assertMatchesBelongToEvent(
 ): Promise<void> {
   const named = [...new Set(matchIds)];
   if (named.length === 0) return;
-  const { data, error } = await db
-    .from('matches')
-    .select('id, phases!inner(tournaments!inner(event_id))')
-    .in('id', named);
-  if (error) throw new BadRequestException(error.message);
+  const pages = await Promise.all(
+    inListChunks(named).map(async (chunk) => {
+      const { data, error } = await db
+        .from('matches')
+        .select('id, phases!inner(tournaments!inner(event_id))')
+        .in('id', chunk);
+      if (error) throw new BadRequestException(error.message);
+      return (data ?? []) as unknown as MatchEventRow[];
+    }),
+  );
   const own = new Set(
-    ((data ?? []) as unknown as MatchEventRow[])
+    pages
+      .flat()
       .filter((row) => row.phases?.tournaments?.event_id === eventId)
       .map((row) => row.id),
   );

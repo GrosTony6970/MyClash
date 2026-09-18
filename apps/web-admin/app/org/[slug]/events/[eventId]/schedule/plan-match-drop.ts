@@ -14,9 +14,9 @@ import { matchSlotSpan, type SlotAssignment } from './block-geometry';
  * collision check.
  *
  * The result is deliberately ONE list. The dropped match and its displaced
- * neighbours are a single operation to the operator, so they are written as one
- * fan-out and a rejection re-reads the server rather than leaving half a column
- * moved on screen and unmoved in the database.
+ * neighbours are a single operation to the operator, so they are saved as one
+ * batch the server checks as a whole, and a refusal re-reads the server rather
+ * than leaving half a column moved on screen and unmoved in the database.
  */
 
 /** What the planner needs to know about any match on the board. */

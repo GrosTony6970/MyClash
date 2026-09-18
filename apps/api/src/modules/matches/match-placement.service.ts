@@ -4,6 +4,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { inListChunks } from '../../common/postgrest-in-list';
 import { SupabaseService } from '../supabase/supabase.service';
 import { MatchAlertRefresherService } from '../notifications/match-alert-refresher.service';
 import { assertLicesBelongToEvent } from '../lices/lices-in-event';
@@ -160,15 +161,22 @@ export class MatchPlacementService {
     await this.write(placements);
   }
 
-  /** The stored rows of the batch, keyed by id. A missing id is a 404. */
+  /**
+   * The stored rows of the batch, keyed by id. A missing id is a 404. One read
+   * per `IN_LIST_MAX` ids: the board's batch can name every bout of a day.
+   */
   private async loadBatch(ids: readonly string[]): Promise<Map<string, StoredMatch>> {
-    if (ids.length === 0) return new Map();
-    const { data, error } = await this.supabase.service
-      .from('matches')
-      .select('id, phase_id, planned_duration_override_minutes')
-      .in('id', ids);
-    if (error) throw new BadRequestException(error.message);
-    const rows = new Map(((data ?? []) as StoredMatch[]).map((row) => [row.id, row]));
+    const pages = await Promise.all(
+      inListChunks(ids).map(async (chunk) => {
+        const { data, error } = await this.supabase.service
+          .from('matches')
+          .select('id, phase_id, planned_duration_override_minutes')
+          .in('id', chunk);
+        if (error) throw new BadRequestException(error.message);
+        return (data ?? []) as StoredMatch[];
+      }),
+    );
+    const rows = new Map(pages.flat().map((row) => [row.id, row]));
     for (const id of ids) {
       if (!rows.has(id)) throw new NotFoundException(`Match ${id} not found`);
     }

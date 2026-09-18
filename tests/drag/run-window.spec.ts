@@ -1,6 +1,7 @@
 import { test, expect, type Page } from '@playwright/test';
 import {
   EVENT_ID,
+  LICE_B,
   RUN_MATCH_IDS,
   RUN_START,
   at,
@@ -27,6 +28,7 @@ import {
 
 const SCHEDULE_PATH = `/events/${EVENT_ID}/schedule`;
 const RUN_PATH = `/events/${EVENT_ID}/schedule/run`;
+const PLACEMENTS_PATH = `/events/${EVENT_ID}/schedule/placements`;
 
 /** Loads the board on the six-bout Pool and opens that run's window. */
 async function openRunWindow(
@@ -46,7 +48,6 @@ async function openRunWindow(
 
 /** Every write's path, in the order the browser sent it. */
 const writePaths = (api: Harness) => api.writes.map((r) => new URL(r.url()).pathname);
-const isMatchPatch = (path: string) => /\/matches\/[0-9a-f-]{36}\/schedule$/i.test(path);
 
 const dialog = (page: Page) => page.getByRole('dialog');
 const lengthField = (page: Page) => dialog(page).getByLabel('Match length (min)', { exact: true });
@@ -100,10 +101,10 @@ test.describe('schedule grid run window', () => {
   });
 
   test('moves the run to its new piste BEFORE it asks for the new length', async ({ page }) => {
-    // A Pool's piste change is a client relocate: six PATCHes, one per bout. The
-    // server lays the run from the rows it reads, so those rows must already sit
-    // on the new piste when the run save arrives — otherwise the length is laid
-    // out against the piste the operator just left.
+    // A Pool's piste change is a client relocate: one batch save of its six
+    // bouts. The server lays the run from the rows it reads, so those rows must
+    // already sit on the new piste when the run save arrives — otherwise the
+    // length is laid out against the piste the operator just left.
     const { api } = await openRunWindow(page);
 
     await dialog(page).getByRole('checkbox', { name: 'Piste 2' }).check();
@@ -112,28 +113,27 @@ test.describe('schedule grid run window', () => {
     await save(page).click();
 
     await expect.poll(() => api.runWrites().length).toBe(1);
-    expect(api.scheduleWrites()).toHaveLength(6);
+    expect(api.placementWrites()).toHaveLength(1);
+    const rows = api.placementRows(0);
+    expect(rows.map((r) => r['matchId']).sort()).toEqual([...RUN_MATCH_IDS].sort());
+    for (const row of rows) expect(row['liceId']).toBe(LICE_B);
+    expect(api.scheduleWrites()).toEqual([]);
     const paths = writePaths(api);
-    const lastPatch = paths.findLastIndex(isMatchPatch);
-    const runSave = paths.findIndex((p) => p.endsWith(RUN_PATH));
-    expect(lastPatch).toBeGreaterThanOrEqual(0);
-    expect(runSave).toBeGreaterThan(lastPatch);
+    const relocate = paths.findIndex((p) => p.endsWith(PLACEMENTS_PATH));
+    expect(relocate).toBeGreaterThanOrEqual(0);
+    expect(paths.findIndex((p) => p.endsWith(RUN_PATH))).toBeGreaterThan(relocate);
   });
 
   test('sends no run save at all when the piste change is refused', async ({ page }) => {
-    // The key matches the single-Match PATCH, not `…/schedule/run`, which ends
-    // differently. A half-applied save is the thing being prevented: the run
-    // must not be re-laid at a new length on a piste it never reached.
+    // The key is the batch door's, not `…/schedule/run`'s. A half-applied save
+    // is the thing being prevented: the run must not be re-laid at a new length
+    // on a piste it never reached.
+    const sentence = 'Piste already busy: this bout overlaps match LSW-PA-M4';
     const { api } = await openRunWindow(page, {
       writeAnswers: {
-        '/schedule': {
+        [PLACEMENTS_PATH]: {
           status: 409,
-          json: {
-            type: 'about:blank',
-            title: 'Conflict',
-            status: 409,
-            detail: 'Piste already busy: this bout overlaps match LSW-PA-M4',
-          },
+          json: { type: 'about:blank', title: 'Conflict', status: 409, detail: sentence },
         },
       },
     });
@@ -143,13 +143,11 @@ test.describe('schedule grid run window', () => {
     await lengthField(page).fill('7');
     await save(page).click();
 
-    await expect.poll(() => api.scheduleWrites().length).toBe(6);
+    await expect.poll(() => api.placementWrites().length).toBe(1);
     // Filtered, not bare: Next's own route announcer is a second role="alert",
     // and an unscoped one is a strict-mode violation in the built app.
-    await expect(
-      page.getByRole('alert').filter({ hasText: '6/6 changes were not saved.' }),
-    ).toBeVisible();
-    // The refused fan-out re-reads the board. Letting the reads settle is what
+    await expect(page.getByRole('alert').filter({ hasText: sentence })).toBeVisible();
+    // The refused save re-reads the board. Letting the reads settle is what
     // gives a run save its chance to appear before this says none did.
     await settledReadCount(api, SCHEDULE_PATH);
     expect(api.runWrites()).toEqual([]);

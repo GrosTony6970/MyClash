@@ -161,6 +161,37 @@ describe('MatchPlacementService.placeMatches', () => {
     expect(alerts.refresh).toHaveBeenCalledExactlyOnceWith(['m-1', 'm-2']);
   });
 
+  it('reads a batch of 201 bouts in two pieces, and still finds a missing one', async () => {
+    // The board's batch can name more bouts than one URL holds. A read of the
+    // first piece alone would call every later bout missing.
+    const ids = Array.from({ length: 201 }, (_, n) => `m-${n}`);
+    const batch = ids.map((matchId, n) => ({
+      matchId,
+      liceId: LICE,
+      scheduledAt: new Date(Date.parse(at('08:00')) + n * 5 * 60_000).toISOString(),
+    }));
+    const { service, supabase } = makeService(
+      seed({ matches: { rows: ids.map((id) => poolMatch(id)) } }),
+    );
+
+    await service.placeMatches(EVENT, batch);
+
+    expect(
+      filtersFor(supabase.from, 'matches', 'in').filter(([column]) => column === 'id'),
+    ).toEqual([
+      ['id', ids.slice(0, 200)],
+      ['id', ids.slice(200)],
+    ]);
+    expect(writesTo(supabase, 'matches')).toHaveLength(201);
+
+    const shortOne = makeService(
+      seed({ matches: { rows: ids.slice(0, 200).map((id) => poolMatch(id)) } }),
+    );
+    await expect(shortOne.service.placeMatches(EVENT, batch)).rejects.toThrow(
+      new NotFoundException('Match m-200 not found'),
+    );
+  });
+
   it('asks the occupant read for the columns a length needs, and skips voided bouts', async () => {
     const { service, supabase } = makeService(
       seed({
