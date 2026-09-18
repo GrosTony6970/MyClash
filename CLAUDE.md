@@ -136,6 +136,8 @@ before the finding, use Simplified Technical English (one idea per sentence, act
 words), and use the nouns from `docs/HIERARCHY.md` rather than table, class or service names. File
 and line references still belong there — after the plain sentence, not instead of it.
 
+Ask questions in ELI5 style, with a concrete story before the ruling.
+
 ---
 
 ## BMad planning toolkit
