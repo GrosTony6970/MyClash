@@ -8,8 +8,11 @@
  * answers exactly what an unknown person gets, so the route confirms nobody.
  */
 import { NotFoundException } from '@nestjs/common';
+import * as jwt from 'jsonwebtoken';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { mockSupabase, queriedTables } from '../../common/testing/supabase-chain';
+import { GuestJwtService } from '../auth/guest-jwt.service';
+import { ParticipantIdentityService } from '../auth/participant-identity.service';
 import { PublicScheduleController } from './public-schedule.controller';
 import { PublicScheduleService } from './public-schedule.service';
 
@@ -66,7 +69,7 @@ function door(opts: { userId?: string; member?: boolean } = {}) {
     persons: {
       rows: [
         { id: ANNA, event_id: DRAFT, global_person_id: null },
-        { id: CARL, event_id: OPEN, global_person_id: null },
+        { id: CARL, event_id: OPEN, global_person_id: null, claimed_by_user_id: 'u-carl' },
       ],
     },
     registrations: {
@@ -80,6 +83,12 @@ function door(opts: { userId?: string; member?: boolean } = {}) {
     },
     referee_assignments: { rows: [] },
     workshop_enrollments: { rows: [] },
+    guest_sessions: {
+      rows: [
+        { id: 'gs-live', revoked_at: null },
+        { id: 'gs-signed-out', revoked_at: '2027-05-22T08:00:00+00:00' },
+      ],
+    },
   });
   const getUser = vi.fn(async () => ({ data: { user: opts.userId ? { id: opts.userId } : null } }));
   const supabase = { ...db, anon: { auth: { getUser } } };
@@ -88,15 +97,28 @@ function door(opts: { userId?: string; member?: boolean } = {}) {
       if (!opts.member) throw new Error('not a member');
     }),
   };
-  const service = new PublicScheduleService(
-    supabase as never,
-    { canSeeWorkshops: async () => false } as never,
-    orgs as never,
-  );
-  const guestJwt = { verify: vi.fn() };
-  const controller = new PublicScheduleController(service, guestJwt as never, supabase as never);
+  // Hidden workshops show to the person themself only, as the real PrivacyService does.
+  const privacy = {
+    canSeeWorkshops: async (person: string, viewer: string | null) => person === viewer,
+  };
+  const service = new PublicScheduleService(supabase as never, privacy as never, orgs as never);
+  const guestJwt = new GuestJwtService({ getOrThrow: () => GUEST_SECRET } as never);
+  const identity = new ParticipantIdentityService(supabase as never, guestJwt);
+  const controller = new PublicScheduleController(service, identity, supabase as never);
   return { controller, service, from: db.from, orgs };
 }
+
+const GUEST_SECRET = 'the-server-guest-secret';
+/** A guest cookie the server signed, for a session and person. */
+const guest = (sub: string, person: string, event: string) =>
+  ({
+    headers: {},
+    cookies: {
+      mc_guest: jwt.sign({ sub, person_id: person, event_id: event, type: 'guest' }, GUEST_SECRET, {
+        expiresIn: 3600,
+      }),
+    },
+  }) as never;
 
 const anonymous = { headers: {}, cookies: {} } as never;
 const signedIn = { headers: { authorization: 'Bearer t' }, cookies: {} } as never;
@@ -111,6 +133,13 @@ describe('GET /events/:eventId/people/:personId/schedule', () => {
     await expect(refusal).rejects.toBeInstanceOf(NotFoundException);
     await expect(refusal).rejects.toThrow(`Event "${DRAFT}" not found`);
     expect(queriedTables(from)).toEqual(['events']);
+
+    // Not even the viewer's own guest session is read for a refused request.
+    const asGuest = door();
+    await expect(
+      asGuest.controller.getSchedule(DRAFT, ANNA, guest('gs-live', ANNA, DRAFT)),
+    ).rejects.toThrow(`Event "${DRAFT}" not found`);
+    expect(queriedTables(asGuest.from)).toEqual(['events']);
 
     // Signed in is not enough: the account must belong to the organisation.
     const outsider = door({ userId: 'u-outsider', member: false });
@@ -159,6 +188,26 @@ describe('GET /events/:eventId/people/:personId/schedule', () => {
     const { controller } = door();
     const schedule = await controller.getSchedule(OPEN, CARL, anonymous);
     expect(boutsOf(schedule)).toEqual(['carl-bout']);
+  });
+
+  it("shows a person's hidden workshops only on their own guest session, and not once it is signed out", async () => {
+    const { controller } = door();
+    // `null` is "hidden"; an empty list is "shown, and there are none".
+    const own = await controller.getSchedule(OPEN, CARL, guest('gs-live', CARL, OPEN));
+    expect(own.workshops).toEqual([]);
+    const signedOut = await controller.getSchedule(OPEN, CARL, guest('gs-signed-out', CARL, OPEN));
+    expect(signedOut.workshops).toBeNull();
+    const otherEvent = await controller.getSchedule(OPEN, CARL, guest('gs-live', CARL, DRAFT));
+    expect(otherEvent.workshops).toBeNull();
+    expect((await controller.getSchedule(OPEN, CARL, anonymous)).workshops).toBeNull();
+  });
+
+  it('shows a signed-in person their own hidden workshops, and nobody else', async () => {
+    const byCookie = { headers: {}, cookies: { 'sb-access-token': 't' } } as never;
+    const own = door({ userId: 'u-carl' });
+    expect((await own.controller.getSchedule(OPEN, CARL, byCookie)).workshops).toEqual([]);
+    const someoneElse = door({ userId: 'u-someone-else' });
+    expect((await someoneElse.controller.getSchedule(OPEN, CARL, byCookie)).workshops).toBeNull();
   });
 });
 

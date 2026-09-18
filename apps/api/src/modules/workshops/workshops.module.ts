@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { WorkersModule } from '../../workers/workers.module';
+import { AuthModule } from '../auth/auth.module';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { OrganizationsModule } from '../organizations/organizations.module';
 import { PersonsModule } from '../persons/persons.module';
@@ -9,7 +10,7 @@ import { WorkshopsController } from './workshops.controller';
 import { WorkshopsService } from './workshops.service';
 
 @Module({
-  imports: [WorkersModule, NotificationsModule, OrganizationsModule, PersonsModule],
+  imports: [WorkersModule, AuthModule, NotificationsModule, OrganizationsModule, PersonsModule],
   controllers: [WorkshopsController],
   providers: [WorkshopsService, EnrollmentService, FeedbackService],
   exports: [WorkshopsService, EnrollmentService, FeedbackService],

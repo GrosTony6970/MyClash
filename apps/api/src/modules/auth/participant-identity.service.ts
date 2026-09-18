@@ -1,7 +1,7 @@
 import { Injectable, UnauthorizedException } from '@nestjs/common';
 import type { FastifyRequest } from 'fastify';
 import { SupabaseService } from '../supabase/supabase.service';
-import { GuestJwtService } from './guest-jwt.service';
+import { GuestJwtService, type GuestJwtPayload } from './guest-jwt.service';
 
 /**
  * "Which `persons` row is the caller, at this event?"
@@ -51,7 +51,7 @@ export class ParticipantIdentityService {
     const cookies = (req as FastifyRequest & { cookies?: Record<string, string> }).cookies;
     return (
       (await this.fromClaimedUser(cookies?.['sb-access-token'], eventId)) ??
-      this.fromGuestSession(cookies?.['mc_guest'], eventId)
+      (await this.fromGuestSession(cookies?.['mc_guest'], eventId))
     );
   }
 
@@ -87,15 +87,34 @@ export class ParticipantIdentityService {
    * identity here rather than as an error: the caller may still be a claimed
    * user, and a stale guest cookie is a normal thing for a shared tablet to be
    * carrying.
+   *
+   * A signed-out session is no identity either. "Sign out this device" stamps
+   * `revoked_at` on the session row and the cookie's signature stays valid until
+   * the Event ends + 7 days, so only the row can say the session is over. A
+   * failed read throws rather than answering "signed out": it is not a verdict,
+   * and treating it as one would sign every guest out on a database blip.
    */
-  private fromGuestSession(guestToken: string | undefined, eventId: string): string | null {
+  private async fromGuestSession(
+    guestToken: string | undefined,
+    eventId: string,
+  ): Promise<string | null> {
     if (!guestToken) return null;
+    let payload: GuestJwtPayload;
     try {
-      const payload = this.guestJwt.verify(guestToken);
-      return payload.event_id === eventId ? payload.person_id : null;
+      payload = this.guestJwt.verify(guestToken);
     } catch {
       // Expired or forged. Indistinguishable from absent, and treated the same.
       return null;
     }
+    if (payload.event_id !== eventId) return null;
+
+    const { data, error } = await this.supabase.service
+      .from('guest_sessions')
+      .select('revoked_at')
+      .eq('id', payload.sub)
+      .maybeSingle();
+    if (error) throw new Error(`Guest session ${payload.sub} unreadable: ${error.message}`);
+    const session = data as { revoked_at: string | null } | null;
+    return session && !session.revoked_at ? payload.person_id : null;
   }
 }

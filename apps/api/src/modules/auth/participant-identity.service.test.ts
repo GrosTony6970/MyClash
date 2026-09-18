@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { FastifyRequest } from 'fastify';
 import { ParticipantIdentityService } from './participant-identity.service';
-import { mockSupabase, supabaseFrom } from '../../common/testing/supabase-chain';
+import { mockSupabase, selectsFor, supabaseFrom } from '../../common/testing/supabase-chain';
 
 const EVENT = 'event-1';
 const OTHER_EVENT = 'event-2';
@@ -28,11 +28,21 @@ function supabaseWith(opts: { userId?: string | null; personId?: string | null }
   };
 }
 
-function guestJwt(payload: { person_id: string; event_id: string } | Error) {
+/** The guest session rows the service checks for sign-out. */
+const SESSIONS = {
+  guest_sessions: {
+    rows: [
+      { id: 'gs-live', revoked_at: null },
+      { id: 'gs-signed-out', revoked_at: '2027-05-22T08:00:00+00:00' },
+    ],
+  },
+};
+
+function guestJwt(payload: { sub?: string; person_id: string; event_id: string } | Error) {
   return {
     verify: vi.fn(() => {
       if (payload instanceof Error) throw payload;
-      return payload;
+      return { sub: 'gs-live', ...payload };
     }),
   };
 }
@@ -76,12 +86,42 @@ describe('ParticipantIdentityService — claimed accounts', () => {
 
 describe('ParticipantIdentityService — guest sessions', () => {
   it('resolves the person named by the guest JWT', async () => {
-    const supabase = mockSupabase({});
+    const supabase = mockSupabase(SESSIONS);
     const guest = guestJwt({ person_id: 'person-guest', event_id: EVENT });
     const service = new ParticipantIdentityService(supabase as never, guest as never);
 
     await expect(service.resolvePersonId(req({ mc_guest: 'tok' }), EVENT)).resolves.toBe(
       'person-guest',
+    );
+    // The double ignores the projection: only this holds the column the check reads.
+    expect(selectsFor(supabase.from, 'guest_sessions')).toEqual(['revoked_at']);
+  });
+
+  it('treats a signed-out session as no identity, although its cookie still verifies', async () => {
+    const supabase = mockSupabase(SESSIONS);
+    const guest = guestJwt({ sub: 'gs-signed-out', person_id: 'person-guest', event_id: EVENT });
+    const service = new ParticipantIdentityService(supabase as never, guest as never);
+
+    await expect(service.resolvePersonId(req({ mc_guest: 'tok' }), EVENT)).resolves.toBeNull();
+  });
+
+  it('treats a session with no row as no identity', async () => {
+    const supabase = mockSupabase(SESSIONS);
+    const guest = guestJwt({ sub: 'gs-gone', person_id: 'person-guest', event_id: EVENT });
+    const service = new ParticipantIdentityService(supabase as never, guest as never);
+
+    await expect(service.resolvePersonId(req({ mc_guest: 'tok' }), EVENT)).resolves.toBeNull();
+  });
+
+  it('fails loudly when the session row cannot be read, rather than signing the guest out', async () => {
+    const supabase = mockSupabase({
+      guest_sessions: { data: null, error: { message: 'connection reset' } },
+    });
+    const guest = guestJwt({ person_id: 'person-guest', event_id: EVENT });
+    const service = new ParticipantIdentityService(supabase as never, guest as never);
+
+    await expect(service.resolvePersonId(req({ mc_guest: 'tok' }), EVENT)).rejects.toThrow(
+      /connection reset/,
     );
   });
 
@@ -123,7 +163,7 @@ describe('ParticipantIdentityService.requirePersonId', () => {
   });
 
   it('returns the id when one is', async () => {
-    const supabase = mockSupabase({});
+    const supabase = mockSupabase(SESSIONS);
     const guest = guestJwt({ person_id: 'person-guest', event_id: EVENT });
     const service = new ParticipantIdentityService(supabase as never, guest as never);
 

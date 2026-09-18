@@ -171,11 +171,15 @@ export class PublicScheduleService {
    *
    * A person of another Event gets the answer an unknown person gets, so the
    * route confirms nobody.
+   *
+   * Who the viewer is (it unhides the workshops a person hid, for that person
+   * only) is asked after both checks: it costs a sign-in lookup or a guest
+   * session read, and a refused request needs neither.
    */
   async getPublicSchedule(
     eventId: string,
     personId: string,
-    requesterPersonId: string | null,
+    resolveViewerPersonId: () => Promise<string | null>,
     resolveUserId: () => Promise<string>,
   ): Promise<PersonSchedule> {
     await assertCanReadEvent({ supabase: this.supabase, orgs: this.orgs }, eventId, resolveUserId);
@@ -187,7 +191,7 @@ export class PublicScheduleService {
       .maybeSingle();
     if (error) throw new BadRequestException(error.message);
     if (!data) throw new NotFoundException(`Person "${personId}" not found`);
-    return this.getSchedule(eventId, personId, requesterPersonId);
+    return this.getSchedule(eventId, personId, await resolveViewerPersonId());
   }
 
   async getSchedule(

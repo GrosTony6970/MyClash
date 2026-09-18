@@ -14,7 +14,7 @@
 import { Controller, Get, Param, ParseUUIDPipe, Req } from '@nestjs/common';
 import { ApiOperation, ApiParam, ApiResponse, ApiTags } from '@nestjs/swagger';
 import type { FastifyRequest } from 'fastify';
-import { GuestJwtService } from '../auth/guest-jwt.service';
+import { ParticipantIdentityService } from '../auth/participant-identity.service';
 import { Public } from '../../common/auth/public.decorator';
 import { resolveRequestUserId } from '../../common/auth/request-user';
 import { SupabaseService } from '../supabase/supabase.service';
@@ -27,7 +27,7 @@ import { PublicScheduleService } from './public-schedule.service';
 export class PublicScheduleController {
   constructor(
     private readonly schedule: PublicScheduleService,
-    private readonly guestJwt: GuestJwtService,
+    private readonly identity: ParticipantIdentityService,
     private readonly supabase: SupabaseService,
   ) {}
 
@@ -42,22 +42,14 @@ export class PublicScheduleController {
     @Param('personId', ParseUUIDPipe) personId: string,
     @Req() req: FastifyRequest,
   ) {
-    // Resolve requester's person_id from guest cookie (if present)
-    const requesterPersonId = this.resolveRequesterPersonId(req);
-    return this.schedule.getPublicSchedule(eventId, personId, requesterPersonId, () =>
-      resolveRequestUserId(req, this.supabase),
+    return this.schedule.getPublicSchedule(
+      eventId,
+      personId,
+      // Is the viewer this person? Only then do workshops they hid still show. The
+      // one owner of that answer checks the cookie's signature, its Event and that
+      // the guest session was not signed out.
+      () => this.identity.resolvePersonId(req, eventId),
+      () => resolveRequestUserId(req, this.supabase),
     );
-  }
-
-  private resolveRequesterPersonId(req: FastifyRequest): string | null {
-    try {
-      const cookies = (req as FastifyRequest & { cookies?: Record<string, string> }).cookies;
-      const token = cookies?.['mc_guest'];
-      if (!token) return null;
-      const payload = this.guestJwt.verify(token);
-      return payload.person_id ?? null;
-    } catch {
-      return null;
-    }
   }
 }

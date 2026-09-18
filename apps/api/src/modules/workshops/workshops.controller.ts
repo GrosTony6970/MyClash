@@ -15,6 +15,7 @@ import {
   Get,
   HttpCode,
   HttpStatus,
+  NotFoundException,
   Param,
   ParseUUIDPipe,
   Patch,
@@ -33,6 +34,7 @@ import {
 import { createZodDto } from 'nestjs-zod';
 import { z } from 'zod';
 import type { FastifyRequest } from 'fastify';
+import { ParticipantIdentityService } from '../auth/participant-identity.service';
 import { BroadcastNotificationsService } from '../notifications/broadcast-notifications.service';
 import { SupabaseService } from '../supabase/supabase.service';
 import { EnrollmentService } from './enrollment.service';
@@ -174,6 +176,8 @@ export class WorkshopsController {
     private readonly supabase: SupabaseService,
     private readonly broadcasts: BroadcastNotificationsService,
     private readonly feedback: FeedbackService,
+    // Value import: a type-only import erases the metadata Nest resolves this by.
+    private readonly identity: ParticipantIdentityService,
   ) {}
 
   // ── Workshops CRUD ────────────────────────────────────────────────────────────
@@ -603,8 +607,15 @@ export class WorkshopsController {
 
   // ── Private ───────────────────────────────────────────────────────────────────
 
+  /**
+   * The caller's person at the Event that owns this session. The Event comes
+   * first so the answer is scoped to it: `persons` is event-scoped, and a guest
+   * cookie names its own Event.
+   */
   private async resolvePersonId(req: FastifyRequest, sessionId: string): Promise<string> {
-    return this.resolvePersonIdForEvent(req, await this.eventIdForSession(sessionId));
+    const eventId = await this.eventIdForSession(sessionId);
+    if (!eventId) throw new NotFoundException(`Workshop session ${sessionId} not found`);
+    return this.identity.requirePersonId(req, eventId);
   }
 
   /** Workshop-scoped variant (feedback is per-workshop, not per-session). */
@@ -612,63 +623,27 @@ export class WorkshopsController {
     req: FastifyRequest,
     workshopId: string,
   ): Promise<string> {
-    const { data } = await this.supabase.service
+    const { data, error } = await this.supabase.service
       .from('workshops')
       .select('event_id')
       .eq('id', workshopId)
       .maybeSingle();
+    // A failed read is not "no such workshop": telling a participant their
+    // workshop does not exist during a database blip would be a lie.
+    if (error) throw new Error(`Workshop ${workshopId} unreadable: ${error.message}`);
     const eventId = (data as { event_id?: string } | null)?.event_id ?? null;
-    return this.resolvePersonIdForEvent(req, eventId);
-  }
-
-  /**
-   * Resolve the caller to an EVENT-SCOPED persons.id. A user claimed in several
-   * events has one persons row per event; scoping to `eventId` keeps the write on
-   * the right person. Falls back to the guest session's person_id.
-   */
-  private async resolvePersonIdForEvent(
-    req: FastifyRequest,
-    eventId: string | null,
-  ): Promise<string> {
-    const cookies = (req as FastifyRequest & { cookies?: Record<string, string> }).cookies;
-
-    const accessToken = cookies?.['sb-access-token'];
-    if (accessToken) {
-      const { data } = await this.supabase.anon.auth.getUser(accessToken);
-      if (data.user) {
-        let query = this.supabase.service
-          .from('persons')
-          .select('id')
-          .eq('claimed_by_user_id', data.user.id);
-        if (eventId) query = query.eq('event_id', eventId);
-        const { data: person } = await query.maybeSingle();
-        if (person) return (person as { id: string }).id;
-      }
-    }
-
-    const guestToken = cookies?.['mc_guest'];
-    if (guestToken) {
-      // Decode without verification to get person_id (guard already verified)
-      try {
-        const payload = JSON.parse(
-          Buffer.from(guestToken.split('.')[1] ?? '', 'base64').toString(),
-        ) as { person_id?: string };
-        if (payload.person_id) return payload.person_id;
-      } catch {
-        // Invalid token
-      }
-    }
-
-    throw new Error('Authentication required');
+    if (!eventId) throw new NotFoundException(`Workshop ${workshopId} not found`);
+    return this.identity.requirePersonId(req, eventId);
   }
 
   /** Resolve a workshop session's owning event id (session → workshop → event). */
   private async eventIdForSession(sessionId: string): Promise<string | null> {
-    const { data } = await this.supabase.service
+    const { data, error } = await this.supabase.service
       .from('workshop_sessions')
       .select('workshops ( event_id )')
       .eq('id', sessionId)
       .maybeSingle();
+    if (error) throw new Error(`Workshop session ${sessionId} unreadable: ${error.message}`);
     const raw = (data as { workshops?: unknown } | null)?.workshops;
     const workshop = (Array.isArray(raw) ? raw[0] : raw) as { event_id?: string } | null;
     return workshop?.event_id ?? null;
