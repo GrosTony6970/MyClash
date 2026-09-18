@@ -125,7 +125,8 @@ function buildService(
   };
   const privacy = { canSeeWorkshops: vi.fn(async () => false) };
   return {
-    service: new PublicScheduleService(supabase as never, privacy as never),
+    // No `orgs`: `getSchedule` gates nothing — the public door's gate has its own file.
+    service: new PublicScheduleService(supabase as never, privacy as never, {} as never),
     supabase,
     chains,
   };

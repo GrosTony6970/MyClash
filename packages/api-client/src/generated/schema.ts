@@ -19391,6 +19391,13 @@ export interface operations {
         };
         content?: never;
       };
+      /** @description Event hidden from the caller, or person not in it */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
     };
   };
   PrivacyController_getPrivacy: {

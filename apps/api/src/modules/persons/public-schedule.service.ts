@@ -3,8 +3,14 @@
  *
  * Returns any Person's schedule with privacy filters applied.
  * Shared between:
- *   - GET /events/:eventId/people/:personId/schedule (public)
- *   - GET /my-schedule (T-805, authenticated)
+ *   - GET /events/:eventId/people/:personId/schedule (public) — through
+ *     `getPublicSchedule`, which gates the Event and the person first
+ *   - GET /events/:eventId/my-schedule (T-805) and /me/upcoming — straight to
+ *     `getSchedule`: both resolve the person from the caller's own identity for
+ *     that Event, so the person is in that Event by construction. That identity
+ *     is only as strong as its source: a guest picks themselves off the roster
+ *     (`POST /events/:eventId/guest-sessions`), and that mint does not check
+ *     whether the Event is a draft.
  *
  * AC:
  *   - matches + referee_slots always included
@@ -13,8 +19,10 @@
  *   - 100ms p95 target (relies on DB indexes on person_id + event_id)
  */
 
-import { Injectable, Logger } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { DEFAULT_EVENT_TIMEZONE } from '@myclash/time';
+import { assertCanReadEvent } from '../../common/auth/event-authz';
+import { OrganizationsService } from '../organizations/organizations.service';
 import { SupabaseService } from '../supabase/supabase.service';
 import { PrivacyService } from './privacy.service';
 import { computeMatchKind, fetchBracketRounds, fetchSwissRounds } from './match-kind.util';
@@ -149,7 +157,38 @@ export class PublicScheduleService {
   constructor(
     private readonly supabase: SupabaseService,
     private readonly privacy: PrivacyService,
+    private readonly orgs: OrganizationsService,
   ) {}
+
+  /**
+   * The @Public door. Two checks, both before any read of the schedule:
+   *
+   * - the Event must be one the caller may see — the gate the public grid uses,
+   *   so a draft Event's roster is not one request away for anyone holding ids;
+   * - the person must be in THAT Event. The bout read finds registrations by
+   *   person alone and `persons` is event-scoped, so without this a draft
+   *   Event's fighter was readable under any open Event's id.
+   *
+   * A person of another Event gets the answer an unknown person gets, so the
+   * route confirms nobody.
+   */
+  async getPublicSchedule(
+    eventId: string,
+    personId: string,
+    requesterPersonId: string | null,
+    resolveUserId: () => Promise<string>,
+  ): Promise<PersonSchedule> {
+    await assertCanReadEvent({ supabase: this.supabase, orgs: this.orgs }, eventId, resolveUserId);
+    const { data, error } = await this.supabase.service
+      .from('persons')
+      .select('id')
+      .eq('id', personId)
+      .eq('event_id', eventId)
+      .maybeSingle();
+    if (error) throw new BadRequestException(error.message);
+    if (!data) throw new NotFoundException(`Person "${personId}" not found`);
+    return this.getSchedule(eventId, personId, requesterPersonId);
+  }
 
   async getSchedule(
     eventId: string,
