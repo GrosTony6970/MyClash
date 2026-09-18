@@ -20,7 +20,7 @@ import { PrivacyService } from './privacy.service';
 import { computeMatchKind, fetchBracketRounds, fetchSwissRounds } from './match-kind.util';
 import { sideColorsFromScoringConfig, type SideColors } from '../events/side-colors';
 import { deriveMatchOutcome } from '../fighters/recent-matches';
-import { resolveDutyWindows } from '../schedule/duty-windows';
+import { resolveDutyWindows, resolvePoolSpans } from '../schedule/duty-windows';
 import { resolveMatchLengths, type MatchLengthInput } from '../schedule/match-lengths';
 import { plannedLengthOf } from '../schedule/planned-length';
 
@@ -48,6 +48,9 @@ export interface ScheduleMatch {
    * The client resolves tokens to hex via `sideStyle`.
    */
   sideColors: SideColors;
+  /** The Pool this bout belongs to — the key into `PersonSchedule.poolSpans`. Null
+   *  for a Swiss or bracket bout. */
+  poolId: string | null;
   poolName: string | null;
   tournamentName: string | null;
   /** Tournament (competition) id — pairs with `phase` to key the scheduled
@@ -109,6 +112,20 @@ export interface WorkshopEnrollment {
   location: string | null;
 }
 
+/**
+ * One of the fighter's Pools, from its earliest placed Match to the planned end
+ * of its last, whoever fights them. A fighter is busy for the whole of it, not
+ * only their own bouts (ADR-017's hull; operator, 2026-09-17). Null times where
+ * nothing is placed or the span could not be worked out.
+ */
+export interface PoolSpan {
+  poolId: string;
+  poolName: string | null;
+  tournamentName: string | null;
+  startsAt: string | null;
+  endsAt: string | null;
+}
+
 export interface PersonSchedule {
   personId: string;
   /**
@@ -119,6 +136,8 @@ export interface PersonSchedule {
    */
   timezone: string;
   matches: ScheduleMatch[];
+  /** The Pools of `matches`, one entry each. */
+  poolSpans: PoolSpan[];
   refereeSlots: RefereeSlot[];
   workshops: WorkshopEnrollment[] | null; // null = hidden by privacy
 }
@@ -137,8 +156,8 @@ export class PublicScheduleService {
     personId: string,
     requesterPersonId: string | null,
   ): Promise<PersonSchedule> {
-    const [matches, refereeSlots, showWorkshops, timezone] = await Promise.all([
-      this.fetchMatches(eventId, personId),
+    const [{ matches, poolSpans }, refereeSlots, showWorkshops, timezone] = await Promise.all([
+      this.fetchFights(eventId, personId),
       this.fetchRefereeSlots(eventId, personId),
       this.privacy.canSeeWorkshops(personId, requesterPersonId),
       this.fetchTimezone(eventId),
@@ -146,7 +165,35 @@ export class PublicScheduleService {
 
     const workshops = showWorkshops ? await this.fetchWorkshops(eventId, personId) : null;
 
-    return { personId, timezone, matches, refereeSlots, workshops };
+    return { personId, timezone, matches, poolSpans, refereeSlots, workshops };
+  }
+
+  /**
+   * The fighter's bouts, then the spans of their Pools — after, because the bouts
+   * name the Pools, and still alongside the duty read rather than behind it.
+   * Published bouts only name a Pool: `fetchMatches` dropped the rest.
+   */
+  private async fetchFights(
+    eventId: string,
+    personId: string,
+  ): Promise<{ matches: ScheduleMatch[]; poolSpans: PoolSpan[] }> {
+    const matches = await this.fetchMatches(eventId, personId);
+    // One entry per Pool, in the order its first bout comes: a Map keeps the first
+    // insertion's place, and every bout of a Pool carries the same names.
+    const pools = new Map<string, Omit<PoolSpan, 'startsAt' | 'endsAt'>>();
+    for (const m of matches) {
+      if (m.poolId) {
+        pools.set(m.poolId, {
+          poolId: m.poolId,
+          poolName: m.poolName,
+          tournamentName: m.tournamentName,
+        });
+      }
+    }
+    const poolSpans = await resolvePoolSpans(this.supabase.service, this.logger, eventId, [
+      ...pools.values(),
+    ]);
+    return { matches, poolSpans };
   }
 
   /**
@@ -180,7 +227,7 @@ export class PublicScheduleService {
       .from('matches')
       .select(
         `
-        id, match_number_label, status, scheduled_at, phase_id, planned_duration_override_minutes,
+        id, match_number_label, status, scheduled_at, phase_id, pool_id, planned_duration_override_minutes,
         red_score, blue_score, winner_registration_id, end_reason,
         red_registration_id, blue_registration_id,
         pools ( name ),
@@ -246,6 +293,7 @@ export class PublicScheduleService {
                 )
               : null,
           isRed,
+          poolId: (m['pool_id'] as string | null) ?? null,
           poolName: pool?.name ?? null,
           tournamentName: phase?.tournaments?.name ?? null,
           tournamentId: phase?.tournaments?.id ?? null,

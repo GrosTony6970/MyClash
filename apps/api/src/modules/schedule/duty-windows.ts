@@ -136,13 +136,15 @@ export async function readDutyStart(db: SupabaseClient, duty: DutyRef): Promise<
 
 /**
  * The planned lengths of one Event's placed Matches, from that Event's sheet,
- * or null — logged with the Event — when they cannot be resolved.
+ * or null when they cannot be resolved — logged with the Event, naming `what`
+ * loses its end.
  */
 async function eventLengths(
   db: SupabaseClient,
   logger: Pick<Logger, 'warn'>,
   eventId: string,
   matches: readonly DutyMatch[],
+  what: string,
 ): Promise<Map<string, number> | null> {
   const placed = new Map<string, DutyMatch>();
   for (const match of matches) if (match.scheduledAt !== null) placed.set(match.id, match);
@@ -150,7 +152,7 @@ async function eventLengths(
     return await resolveMatchLengths(db, eventId, [...placed.values()]);
   } catch (err) {
     logger.warn(
-      `Planned lengths unreadable for event ${eventId}; its referee duties show no end: ${messageOf(err)}`,
+      `Planned lengths unreadable for event ${eventId}; ${what} show no end: ${messageOf(err)}`,
     );
     return null;
   }
@@ -209,6 +211,7 @@ export async function resolveDutyWindows(
         logger,
         eventId,
         own.flatMap((duty) => matchesByDuty.get(duty.id) ?? []),
+        'its referee duties',
       );
       for (const duty of own) {
         windows.set(duty.id, dutyWindow(matchesByDuty.get(duty.id) ?? [], lengths));
@@ -216,4 +219,46 @@ export async function resolveDutyWindows(
     }),
   );
   return windows;
+}
+
+/**
+ * A fighter's Pools, each with the span a Pool duty on it would have: from the
+ * Pool's earliest placed Match to the planned end of its last, whoever fights
+ * them (ADR-017). A fighter is busy for their whole Pool, not only their own
+ * bouts (operator, 2026-09-17) — the reason a referee on a Pool is on the Lice
+ * between its Matches, and the same span.
+ *
+ * One Event: a fighter's schedule is read per Event. Every Pool asked about
+ * comes back, in order and with whatever it carried in, with null times where
+ * nothing is placed or known. A failed read is logged, never thrown, as for the
+ * duties.
+ */
+export async function resolvePoolSpans<P extends { poolId: string }>(
+  db: SupabaseClient,
+  logger: Pick<Logger, 'warn'>,
+  eventId: string,
+  pools: readonly P[],
+): Promise<Array<P & DutyWindow>> {
+  // No Pools reads nothing: the read is chunked, and no chunk means no request.
+  let matches: DutyMatch[];
+  try {
+    matches = await readMatches(
+      db,
+      'pool_id',
+      pools.map((pool) => pool.poolId),
+    );
+  } catch (err) {
+    logger.warn(
+      `Pool spans unreadable for event ${eventId}; every Pool is untimed: ${messageOf(err)}`,
+    );
+    return pools.map((pool) => ({ ...pool, startsAt: null, endsAt: null }));
+  }
+  const lengths = await eventLengths(db, logger, eventId, matches, 'its Pool spans');
+  return pools.map((pool) => ({
+    ...pool,
+    ...dutyWindow(
+      matches.filter((match) => match.poolId === pool.poolId),
+      lengths,
+    ),
+  }));
 }

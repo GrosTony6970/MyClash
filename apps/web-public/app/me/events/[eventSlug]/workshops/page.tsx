@@ -13,7 +13,7 @@ import {
   groupWorkshopsByDay,
   type WorkshopListItem,
 } from '@/components/workshops/workshop-grouping';
-import { dutyTimed, fightTimed, toTimed, type TimedItem } from '@/components/me/conflicts';
+import { dutyTimed, fightItems, toTimed, type TimedItem } from '@/components/me/conflicts';
 import { useI18n } from '@myclash/next-i18n/client';
 import { useMyEvents, useMySchedule } from '@/components/me/hooks';
 import type { MyEventInfo, MyEventWorkshopTeaching } from '@/components/me/types';
@@ -95,17 +95,19 @@ function WorkshopsContent({
     }
   }, [workshops]);
 
-  // The user's fights + referee duties as timed windows, for conflict checks. A
-  // duty's window is the one the API works out, so a Pool duty (no Match of its
-  // own) takes part too; an item whose end is unknown does not.
+  // The user's fights, the Pools they fight in, and their referee duties as timed
+  // windows, for conflict checks. A duty's window is the one the API works out, so
+  // a Pool duty (no Match of its own) takes part too; an item whose end is unknown
+  // does not. Workshops stay out: every enrolled session would clash with itself.
   const commitments = useMemo<TimedItem[]>(() => {
     if (!schedule) return [];
     const referee = t('publicApp.me.schedule.referee');
     return [
-      ...schedule.matches.flatMap((m) => {
-        const ti = fightTimed(`fight-${m.id}`, m.opponentName ?? m.matchNumberLabel, m);
-        return ti ? [ti] : [];
-      }),
+      ...fightItems(
+        schedule,
+        (m) => `fight-${m.id}`,
+        (m) => m.opponentName ?? m.matchNumberLabel,
+      ),
       ...schedule.refereeSlots.flatMap((r) => {
         const what = r.matchNumberLabel || r.poolName;
         const ti = dutyTimed(`ref-${r.id}`, what ? `${referee} · ${what}` : referee, r);
@@ -122,9 +124,11 @@ function WorkshopsContent({
     if (!ti) return null;
     const clash = commitments.find((c) => overlapsHalfOpen(ti, c));
     if (!clash) return null;
+    // The whole window, not its start: a Pool that starts at 10:00 and clashes
+    // with a 10:31 session would read as no clash at "(10:00)".
     return t('publicApp.me.workshops.conflictsWith', {
       item: clash.label,
-      time: fmtTime(new Date(clash.startMs).toISOString()),
+      time: `${fmtTime(new Date(clash.startMs).toISOString())}–${fmtTime(new Date(clash.endMs).toISOString())}`,
     });
   };
 

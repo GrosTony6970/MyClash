@@ -2,19 +2,21 @@ import { describe, expect, it } from 'vitest';
 import {
   detectConflicts,
   dutyTimed,
-  fightTimed,
+  fightItems,
   fightWindow,
+  spreadPoolConflicts,
   toTimed,
   type TimedItem,
 } from './conflicts';
+import type { PoolSpan } from './types';
 
 const at = (hhmm: string): string => `2027-05-22T${hhmm}:00Z`;
 
 /** A bout as a timed commitment, labelled by its key. */
 function bout(key: string, hhmm: string, durationMinutes: number | null): TimedItem {
-  const timed = fightTimed(key, key, { scheduledAt: at(hhmm), durationMinutes });
-  if (!timed) throw new Error(`bout ${key} has no window`);
-  return timed;
+  const window = fightWindow({ scheduledAt: at(hhmm), durationMinutes });
+  if (!window) throw new Error(`bout ${key} has no window`);
+  return { key, label: key, ...window };
 }
 
 function workshop(key: string, from: string, to: string): TimedItem {
@@ -118,5 +120,134 @@ describe('detectConflicts', () => {
     expect(conflicts.get('ws')).toEqual(['a', 'b']);
     expect(conflicts.get('a')).toEqual(['ws']);
     expect(conflicts.has('c')).toBe(false);
+  });
+});
+
+/**
+ * Anna's day. Pool A: bouts at 10:00, 10:25 and 11:05, and one whose length is
+ * unknown at 10:40, all in a Pool that spans 10:00–11:10 — the middle bouts are
+ * the ones a lazy rule would miss. Pool B: one bout at 10:50, inside Pool A's
+ * span. A Swiss bout at 12:00 belongs to no Pool.
+ */
+const bouts = [
+  { id: 'a1', poolId: 'pool-a', scheduledAt: at('10:00'), durationMinutes: 5 },
+  { id: 'a2', poolId: 'pool-a', scheduledAt: at('10:25'), durationMinutes: 5 },
+  { id: 'a-unknown', poolId: 'pool-a', scheduledAt: at('10:40'), durationMinutes: null },
+  { id: 'b1', poolId: 'pool-b', scheduledAt: at('10:50'), durationMinutes: 5 },
+  { id: 'a3', poolId: 'pool-a', scheduledAt: at('11:05'), durationMinutes: 5 },
+  { id: 'swiss', poolId: null, scheduledAt: at('12:00'), durationMinutes: 5 },
+];
+const span = (poolId: string, name: string, from: string, to: string | null): PoolSpan => ({
+  poolId,
+  poolName: name,
+  tournamentName: 'Open',
+  startsAt: at(from),
+  endsAt: to ? at(to) : null,
+});
+const anna = {
+  matches: bouts,
+  poolSpans: [
+    span('pool-a', 'Pool A', '10:00', '11:10'),
+    span('pool-b', 'Pool B', '10:50', '10:55'),
+    // Its end is unknown, so it takes no part.
+    span('pool-untimed', 'Pool U', '15:00', null),
+  ],
+};
+const fightKey = (m: { id: string }) => `fight-${m.id}`;
+const matchKey = (m: { id: string }) => `match-${m.id}`;
+
+describe('fightItems', () => {
+  it('gives every bout with a window and every timed Pool span, each naming its Pool', () => {
+    const items = fightItems(anna, fightKey, (m) => `bout ${m.id}`);
+
+    expect(items.map((item) => [item.key, item.label, item.poolId, item.spanOf])).toEqual([
+      ['fight-a1', 'bout a1', 'pool-a', undefined],
+      ['fight-a2', 'bout a2', 'pool-a', undefined],
+      ['fight-b1', 'bout b1', 'pool-b', undefined],
+      ['fight-a3', 'bout a3', 'pool-a', undefined],
+      ['fight-swiss', 'bout swiss', undefined, undefined],
+      ['pool-pool-a', 'Pool A · Open', undefined, 'pool-a'],
+      ['pool-pool-b', 'Pool B · Open', undefined, 'pool-b'],
+    ]);
+    expect(items.find((item) => item.key === 'pool-pool-a')).toMatchObject({
+      startMs: Date.parse(at('10:00')),
+      endMs: Date.parse(at('11:10')),
+    });
+  });
+
+  it('reads a schedule cached before the API sent Pools, without a span and without throwing', () => {
+    // The /me pages paint first from localStorage, and nothing validates that copy.
+    const cached = JSON.parse(
+      JSON.stringify({ matches: [{ ...bouts[0], poolId: undefined }] }),
+    ) as {
+      matches: typeof bouts;
+    };
+
+    expect(
+      fightItems(cached, fightKey, (m) => m.id).map((item) => [item.key, item.poolId]),
+    ).toEqual([['fight-a1', undefined]]);
+  });
+});
+
+describe('a Pool span in detectConflicts', () => {
+  const conflicts = detectConflicts([
+    ...fightItems(anna, fightKey, (m) => `bout ${m.id}`),
+    workshop('ws', '10:31', '10:45'),
+  ]);
+
+  it("flags a workshop that falls between the fighter's bouts against their Pool", () => {
+    expect(conflicts.get('ws')).toEqual(['Pool A · Open']);
+  });
+
+  it('never flags a Pool against its own bouts', () => {
+    for (const key of ['fight-a1', 'fight-a2', 'fight-a3']) expect(conflicts.has(key)).toBe(false);
+  });
+
+  it("flags another Pool's bout inside the span, and the two Pools against each other", () => {
+    expect(conflicts.get('fight-b1')).toEqual(['Pool A · Open']);
+    expect(conflicts.get('pool-pool-a')).toEqual(['bout b1', 'Pool B · Open', 'ws']);
+    expect(conflicts.get('pool-pool-b')).toEqual(['Pool A · Open']);
+  });
+
+  it('still flags two bouts of one Pool that overlap, on two pistes', () => {
+    // A Pool can run on two pistes at once; Anna in two of its bouts at 10:25 is
+    // a real clash, not something her Pool's span covers.
+    const twoPistes = {
+      ...anna,
+      matches: [
+        ...bouts,
+        { id: 'a-piste2', poolId: 'pool-a', scheduledAt: at('10:27'), durationMinutes: 5 },
+      ],
+    };
+
+    const clashes = detectConflicts(fightItems(twoPistes, fightKey, (m) => `bout ${m.id}`));
+
+    expect(clashes.get('fight-a2')).toEqual(['bout a-piste2']);
+    expect(clashes.get('fight-a-piste2')).toEqual(['bout a2']);
+  });
+});
+
+describe('spreadPoolConflicts', () => {
+  it.each([
+    ['the /me schedule', fightKey],
+    ['the old my-schedule page', matchKey],
+  ])("shows a Pool's clashes on every one of its bouts on %s", (_page, boutKey) => {
+    const spread = spreadPoolConflicts(
+      detectConflicts([
+        ...fightItems(anna, boutKey, (m) => `bout ${m.id}`),
+        workshop('ws', '10:31', '10:45'),
+      ]),
+      anna,
+      boutKey,
+    );
+
+    const poolA = ['bout b1', 'Pool B · Open', 'ws'];
+    // The middle bouts and the bout with no window of its own are in the Pool too.
+    for (const id of ['a1', 'a2', 'a-unknown', 'a3']) {
+      expect(spread.get(boutKey({ id }))).toEqual(poolA);
+    }
+    // Pool B's bout already clashed with Pool A directly: listed once.
+    expect(spread.get(boutKey({ id: 'b1' }))).toEqual(['Pool A · Open']);
+    expect(spread.has(boutKey({ id: 'swiss' }))).toBe(false);
   });
 });

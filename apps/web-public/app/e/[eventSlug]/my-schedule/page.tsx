@@ -17,10 +17,12 @@ import { getPublicApiUrl } from '@/lib/api-url';
 import {
   detectConflicts,
   dutyTimed,
-  fightTimed,
+  fightItems,
+  spreadPoolConflicts,
   toTimed,
   type TimedItem,
 } from '@/components/me/conflicts';
+import type { PoolSpan } from '@/components/me/types';
 import { DEFAULT_EVENT_TIMEZONE, localeToBcp47, zonedDay, type AppLocale } from '@myclash/time';
 import { sideColorsForTokens } from '@myclash/ui';
 import { useParams } from 'next/navigation';
@@ -53,6 +55,8 @@ interface ScheduleMatch {
   /** The tournament's configured side colours — per match, since a schedule
    *  can span tournaments with different palettes. */
   sideColors?: { red: string; blue: string } | null;
+  /** The bout's Pool — the key into `PersonSchedule.poolSpans`. */
+  poolId: string | null;
   poolName: string | null;
   tournamentName: string | null;
   liceName: string | null;
@@ -84,6 +88,8 @@ interface PersonSchedule {
   /** The event's IANA zone — the clock the day headings below are measured on. */
   timezone?: string | null;
   matches: ScheduleMatch[];
+  /** The fighter's Pools, each spanning all of its bouts: busy for the whole of it. */
+  poolSpans: PoolSpan[];
   refereeSlots: RefereeSlot[];
   workshops: WorkshopEnrollment[] | null;
 }
@@ -116,18 +122,38 @@ function formatDay(iso: string, locale: AppLocale): string {
   });
 }
 
+/** A duty or a workshop — the items that are not bouts. */
+type OtherItem = Exclude<ScheduleItem, { kind: 'match' }>;
+
+const matchKey = (match: ScheduleMatch): string => `match-${match.id}`;
+
 /**
- * An item as a timed commitment, or null when its end is unknown. A bout ends at
- * its planned length and a duty at the end the API works out. This page used to
- * call two starts less than five minutes apart a clash, which flagged back-to-back
- * bouts and missed a Workshop running over a bout an hour into it.
+ * Every commitment on the page as a timed item: the bouts AND their Pools (a
+ * fighter is busy for the whole Pool), the duties, the workshops. An item whose
+ * end is unknown takes no part: a bout ends at its planned length and a duty at
+ * the end the API works out. This page used to call two starts less than five
+ * minutes apart a clash, which flagged back-to-back bouts and missed a Workshop
+ * running over a bout an hour into it. In time order, so each card lists what it
+ * clashes with in the order the day runs.
  */
-function timedOf(item: ScheduleItem, t: TranslateFn): TimedItem | null {
-  const key = itemKey(item);
-  const label = itemLabel(item, t);
-  if (item.kind === 'match') return fightTimed(key, label, item.data);
-  if (item.kind === 'referee') return dutyTimed(key, label, item.data);
-  return toTimed(key, label, item.data.sessionStart, item.data.sessionEnd);
+function timedItems(
+  matches: ScheduleMatch[],
+  others: OtherItem[],
+  poolSpans: PoolSpan[],
+  t: TranslateFn,
+): TimedItem[] {
+  return [
+    ...fightItems({ matches, poolSpans }, matchKey, (m) => m.matchNumberLabel),
+    ...others.flatMap((item) => {
+      const key = itemKey(item);
+      const label = itemLabel(item, t);
+      const timed =
+        item.kind === 'referee'
+          ? dutyTimed(key, label, item.data)
+          : toTimed(key, label, item.data.sessionStart, item.data.sessionEnd);
+      return timed ? [timed] : [];
+    }),
+  ].sort((a, b) => a.startMs - b.startMs);
 }
 
 /** What a duty is called: its Match's label, or its Pool's name for a whole-Pool duty. */
@@ -136,13 +162,12 @@ function dutyName(slot: RefereeSlot): string {
 }
 
 function itemKey(item: ScheduleItem): string {
-  if (item.kind === 'match') return `match-${item.data.id}`;
+  if (item.kind === 'match') return matchKey(item.data);
   if (item.kind === 'referee') return `ref-${item.data.id}`;
   return `ws-${item.data.workshopId}`;
 }
 
-function itemLabel(item: ScheduleItem, t: TranslateFn): string {
-  if (item.kind === 'match') return item.data.matchNumberLabel;
+function itemLabel(item: OtherItem, t: TranslateFn): string {
   if (item.kind === 'referee')
     return t('publicApp.mySchedule.refereeLabel', { match: dutyName(item.data) });
   return item.data.workshopName;
@@ -251,11 +276,13 @@ export default function MySchedulePage() {
   const sorted = [...filtered].sort((a, b) => getTime(a) - getTime(b));
 
   // Conflict detection: overlapping windows, among the items whose end is known.
-  const conflicts = detectConflicts(
-    sorted.flatMap((item) => {
-      const timed = timedOf(item, t);
-      return timed ? [timed] : [];
-    }),
+  // A Pool's clashes show on every bout of that Pool.
+  const shownMatches = sorted.flatMap((item) => (item.kind === 'match' ? [item.data] : []));
+  const others = sorted.filter((item): item is OtherItem => item.kind !== 'match');
+  const conflicts = spreadPoolConflicts(
+    detectConflicts(timedItems(shownMatches, others, schedule.poolSpans, t)),
+    { matches: shownMatches },
+    matchKey,
   );
 
   // Group by day, on the EVENT's clock. This and the day filter above are one

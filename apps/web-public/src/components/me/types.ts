@@ -19,6 +19,9 @@ export interface ScheduleMatch {
   /** The tournament's configured fighter-side colour tokens. Per match, since a
    *  personal schedule spans tournaments with different palettes. */
   sideColors?: { red: string; blue: string } | null;
+  /** The bout's Pool — the key into `PersonSchedule.poolSpans`. Null for a Swiss or
+   *  bracket bout; absent in a copy cached before the API sent it. */
+  poolId?: string | null;
   poolName: string | null;
   tournamentName: string | null;
   /** Tournament (competition) id — pairs with `phase` to key the scheduled
@@ -73,9 +76,22 @@ export interface WorkshopEnrollment {
   location: string | null;
 }
 
+/** One of the fighter's Pools, from its earliest placed bout to the planned end of
+ *  its last, whoever fights them — a fighter is busy for all of it. Null times
+ *  where the API could not work them out. */
+export interface PoolSpan {
+  poolId: string;
+  poolName: string | null;
+  tournamentName: string | null;
+  startsAt: string | null;
+  endsAt: string | null;
+}
+
 export interface PersonSchedule {
   personId: string;
   matches: ScheduleMatch[];
+  /** The Pools of `matches`. Absent in a copy cached before the API sent it. */
+  poolSpans?: PoolSpan[];
   refereeSlots: RefereeSlot[];
   workshops: WorkshopEnrollment[] | null;
 }

@@ -6,14 +6,29 @@
 // the API (ADR-018); an item whose end is unknown has no window and takes no part
 // in the check. This file used to add five minutes to every start, and a guessed
 // length is what the Event's planner sheet replaced.
+//
+// A fighter is busy for their whole Pool, not only their own bouts (operator,
+// 2026-09-17): the Pool's span — first placed bout to the end of its last,
+// whoever fights them — is a commitment too, and clashes like any other.
 
 import { matchWindowMs, overlapsHalfOpen, type TimeWindowMs } from '@myclash/schedule-core';
-import type { RefereeSlot, ScheduleMatch } from './types';
+import type { PoolSpan, RefereeSlot, ScheduleMatch } from './types';
 
 export interface TimedItem extends TimeWindowMs {
   key: string;
   label: string;
+  /** On a bout: the Pool it belongs to. */
+  poolId?: string;
+  /** On a Pool's span: the Pool it spans. */
+  spanOf?: string;
 }
+
+/**
+ * A Pool's span never clashes with its own bouts, which it covers by definition.
+ * Two bouts of one Pool still can: a Pool may run on two pistes at once.
+ */
+const covers = (span: TimedItem, bout: TimedItem): boolean =>
+  span.spanOf !== undefined && span.spanOf === bout.poolId;
 
 /** Map of item key → labels of the items it conflicts with (bidirectional). */
 export function detectConflicts(items: TimedItem[]): Map<string, string[]> {
@@ -23,6 +38,7 @@ export function detectConflicts(items: TimedItem[]): Map<string, string[]> {
       const a = items[i];
       const b = items[j];
       if (!a || !b) continue;
+      if (covers(a, b) || covers(b, a)) continue;
       if (overlapsHalfOpen(a, b)) {
         conflicts.set(a.key, [...(conflicts.get(a.key) ?? []), b.label]);
         conflicts.set(b.key, [...(conflicts.get(b.key) ?? []), a.label]);
@@ -62,14 +78,58 @@ export function fightWindow(
   return matchWindowMs(scheduledAt, durationMinutes);
 }
 
-/** A bout as a timed commitment, or null when it has no window. */
-export function fightTimed(
-  key: string,
-  label: string,
-  match: Pick<ScheduleMatch, 'scheduledAt' | 'durationMinutes'>,
-): TimedItem | null {
-  const span = fightWindow(match);
-  return span ? { key, label, ...span } : null;
+/** What the two functions below need of a bout. Each page keeps its own bout type. */
+type Bout = Pick<ScheduleMatch, 'id' | 'scheduledAt' | 'durationMinutes' | 'poolId'>;
+
+const poolSpanKey = (poolId: string): string => `pool-${poolId}`;
+
+/**
+ * A fighter's bouts AND the spans of their Pools, as timed items — together,
+ * because they come from the same bouts, and a page that took the bouts without
+ * the spans would drop the whole-Pool rule in silence. A bout with no window is
+ * left out; its Pool's span still takes part. Each page names its own bout keys.
+ *
+ * `poolSpans` is absent in a schedule cached before the API sent it: the /me
+ * pages paint that copy first, and nothing validates it.
+ */
+export function fightItems<M extends Bout>(
+  schedule: { matches: readonly M[]; poolSpans?: readonly PoolSpan[] },
+  boutKey: (match: M) => string,
+  labelOf: (match: M) => string,
+): TimedItem[] {
+  const bouts = schedule.matches.flatMap((match): TimedItem[] => {
+    const window = fightWindow(match);
+    if (!window) return [];
+    const poolId = match.poolId ?? undefined;
+    return [{ key: boutKey(match), label: labelOf(match), ...window, poolId }];
+  });
+  const spans = (schedule.poolSpans ?? []).flatMap((span): TimedItem[] => {
+    const label = [span.poolName, span.tournamentName].filter(Boolean).join(' · ');
+    const timed = toTimed(poolSpanKey(span.poolId), label, span.startsAt, span.endsAt);
+    return timed ? [{ ...timed, spanOf: span.poolId }] : [];
+  });
+  return [...bouts, ...spans];
+}
+
+/**
+ * A Pool's span has no card of its own, so what it clashes with is shown on its
+ * Pool's bout cards — every one of them, a bout with no window included, since it
+ * is still in the Pool (operator, 2026-09-18). A bout that also clashes with the
+ * same item directly lists it once.
+ */
+export function spreadPoolConflicts<M extends Bout>(
+  conflicts: Map<string, string[]>,
+  schedule: { matches: readonly M[] },
+  boutKey: (match: M) => string,
+): Map<string, string[]> {
+  const spread = new Map(conflicts);
+  for (const match of schedule.matches) {
+    const fromSpan = match.poolId ? conflicts.get(poolSpanKey(match.poolId)) : undefined;
+    if (!fromSpan) continue;
+    const key = boutKey(match);
+    spread.set(key, [...new Set([...(spread.get(key) ?? []), ...fromSpan])]);
+  }
+  return spread;
 }
 
 /**

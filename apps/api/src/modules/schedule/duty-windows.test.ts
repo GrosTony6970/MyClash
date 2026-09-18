@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { filtersFor, mockSupabase, selectsFor } from '../../common/testing/supabase-chain';
 import { PROGRAMME_CONFIG_DEFAULTS } from '../programme/dto/programme.dto';
-import { readDutyStart, resolveDutyWindows } from './duty-windows';
+import { readDutyStart, resolveDutyWindows, resolvePoolSpans } from './duty-windows';
 
 /**
  * The seeded double, which applies `.in()`, and decoys: another Pool with an
@@ -270,6 +270,91 @@ describe('resolveDutyWindows', () => {
     expect([...windows.entries()]).toEqual([
       ['d1', { startsAt: null, endsAt: null }],
       ['d2', { startsAt: null, endsAt: null }],
+    ]);
+    expect(log.warn).toHaveBeenCalledTimes(1);
+    expect(String(log.warn.mock.calls[0]?.[0])).toContain('matches exploded');
+    expect(String(log.warn.mock.calls[0]?.[0])).toContain(EVENT_A);
+  });
+});
+
+describe('resolvePoolSpans', () => {
+  /**
+   * Pool X's earliest start and latest end both sit in MIDDLE rows, so neither
+   * "first row" nor "last row" can pass for the span. Pool Y is read in the same
+   * call; the decoy Pool, earlier and later than both, is never asked about.
+   */
+  const POOLS = [
+    match('x1', 'pool-x', '2026-06-01T10:30:00+00:00'),
+    match('x2', 'pool-x', '2026-06-01T10:00:00+00:00'),
+    match('x3', 'pool-x', '2026-06-01T11:10:00+00:00'),
+    match('x4', 'pool-x', '2026-06-01T10:45:00+00:00'),
+    match('x-unplaced', 'pool-x', null),
+    match('y1', 'pool-y', '2026-06-01T15:00:00+00:00'),
+    match('decoy', 'pool-decoy', '2026-06-01T08:00:00+00:00'),
+    match('decoy-late', 'pool-decoy', '2026-06-01T18:00:00+00:00'),
+  ];
+  const asked = [
+    { poolId: 'pool-x', poolName: 'Pool X' },
+    { poolId: 'pool-y', poolName: 'Pool Y' },
+  ];
+
+  it('spans each Pool over ALL its placed Matches, whoever fights them, and keeps what it was given', async () => {
+    const { client, supabase } = db({ matches: { rows: POOLS } });
+
+    const spans = await resolvePoolSpans(client, logger(), EVENT_A, asked);
+
+    expect(spans).toEqual([
+      {
+        poolId: 'pool-x',
+        poolName: 'Pool X',
+        startsAt: '2026-06-01T10:00:00.000Z',
+        endsAt: '2026-06-01T11:15:00.000Z',
+      },
+      {
+        poolId: 'pool-y',
+        poolName: 'Pool Y',
+        startsAt: '2026-06-01T15:00:00.000Z',
+        endsAt: '2026-06-01T15:05:00.000Z',
+      },
+    ]);
+    expect(selectsFor(supabase.from, 'matches')).toEqual([MATCH_COLUMNS]);
+    expect(filtersFor(supabase.from, 'matches', 'in')).toEqual([['pool_id', ['pool-x', 'pool-y']]]);
+  });
+
+  it('reads nothing for a fighter in no Pool', async () => {
+    const { client, supabase } = db();
+
+    expect(await resolvePoolSpans(client, logger(), EVENT_A, [])).toEqual([]);
+    expect(supabase.from).not.toHaveBeenCalled();
+  });
+
+  it('keeps every start and loses every end, and says so, when the sheet cannot be read', async () => {
+    const { client } = db({
+      matches: { rows: POOLS },
+      sheets: [{ event_id: EVENT_A, config_json: { poolMatchDurationMinutes: 0 } }],
+    });
+    const log = logger();
+
+    const spans = await resolvePoolSpans(client, log, EVENT_A, asked);
+
+    expect(spans.map((span) => [span.poolId, span.startsAt, span.endsAt])).toEqual([
+      ['pool-x', '2026-06-01T10:00:00.000Z', null],
+      ['pool-y', '2026-06-01T15:00:00.000Z', null],
+    ]);
+    expect(log.warn).toHaveBeenCalledTimes(1);
+    expect(String(log.warn.mock.calls[0]?.[0])).toContain(EVENT_A);
+    expect(String(log.warn.mock.calls[0]?.[0])).toContain('Pool spans');
+  });
+
+  it('answers every Pool untimed, and says so, when the Matches cannot be read', async () => {
+    const { client } = db({ matches: { data: null, error: { message: 'matches exploded' } } });
+    const log = logger();
+
+    const spans = await resolvePoolSpans(client, log, EVENT_A, asked);
+
+    expect(spans).toEqual([
+      { poolId: 'pool-x', poolName: 'Pool X', startsAt: null, endsAt: null },
+      { poolId: 'pool-y', poolName: 'Pool Y', startsAt: null, endsAt: null },
     ]);
     expect(log.warn).toHaveBeenCalledTimes(1);
     expect(String(log.warn.mock.calls[0]?.[0])).toContain('matches exploded');

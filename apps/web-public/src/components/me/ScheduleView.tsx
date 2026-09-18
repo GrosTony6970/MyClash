@@ -7,7 +7,14 @@ import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { useI18n } from '@myclash/next-i18n/client';
 import { getPublicApiUrl } from '../../lib/api-url';
 import { CommitmentCard } from './CommitmentCard';
-import { detectConflicts, fightTimed, fightWindow, toTimed, type TimedItem } from './conflicts';
+import {
+  detectConflicts,
+  fightItems,
+  fightWindow,
+  spreadPoolConflicts,
+  toTimed,
+  type TimedItem,
+} from './conflicts';
 import { kindAccentClass } from './kind-accent';
 import { matchKindHash, matchKindLabel } from './match-kind';
 import {
@@ -125,14 +132,12 @@ export function ScheduleView({
     return phase ? `${ref} · ${phase}` : ref;
   };
 
-  // Conflict detection spans matches + referee windows + workshops (bidirectional).
-  // Only items with a known end take part: a bout's planned length and a duty's end
-  // come from the API, and nothing here invents one.
+  // Conflict detection spans matches and their Pools + referee windows + workshops
+  // (bidirectional). Only items with a known end take part: a bout's planned length
+  // and a duty's end come from the API, and nothing here invents one.
+  const boutKey = (m: ScheduleMatch) => `fight-${m.id}`;
   const timed: TimedItem[] = [
-    ...schedule.matches.flatMap((m) => {
-      const ti = fightTimed(`fight-${m.id}`, m.opponentName ?? m.matchNumberLabel, m);
-      return ti ? [ti] : [];
-    }),
+    ...fightItems(schedule, boutKey, (m) => m.opponentName ?? m.matchNumberLabel),
     ...referees.flatMap((r) =>
       r.startMs != null && r.endMs != null
         ? [{ key: r.key, label: refereeTitle(r), startMs: r.startMs, endMs: r.endMs }]
@@ -143,12 +148,12 @@ export function ScheduleView({
       return ti ? [ti] : [];
     }),
   ];
-  const conflicts = detectConflicts(timed);
+  const conflicts = spreadPoolConflicts(detectConflicts(timed), schedule, boutKey);
 
   const items: DisplayItem[] = [
     ...schedule.matches.map((m): DisplayItem => ({
       kind: 'fight',
-      key: `fight-${m.id}`,
+      key: boutKey(m),
       time: m.scheduledAt,
       data: m,
     })),

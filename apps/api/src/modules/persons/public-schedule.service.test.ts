@@ -1,17 +1,28 @@
 import { Logger } from '@nestjs/common';
-import { afterEach, describe, expect, it, vi } from 'vitest';
-import { resolveDutyWindows } from '../schedule/duty-windows';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { resolveDutyWindows, resolvePoolSpans } from '../schedule/duty-windows';
 import { resolveMatchLengths } from '../schedule/match-lengths';
 import { PublicScheduleService } from './public-schedule.service';
 
-// Both helpers are plain modules with reads of their own, proven by their own
+// The helpers are plain modules with reads of their own, proven by their own
 // tests. Mocked here so this file holds what the service hands them and what it
 // does with the answer.
-vi.mock('../schedule/duty-windows', () => ({ resolveDutyWindows: vi.fn() }));
+vi.mock('../schedule/duty-windows', () => ({
+  resolveDutyWindows: vi.fn(),
+  resolvePoolSpans: vi.fn(),
+}));
 vi.mock('../schedule/match-lengths', () => ({ resolveMatchLengths: vi.fn() }));
 
 const dutyWindows = vi.mocked(resolveDutyWindows);
+const poolSpans = vi.mocked(resolvePoolSpans);
 const matchLengths = vi.mocked(resolveMatchLengths);
+
+/** Unless a case says otherwise, every Pool comes back untimed. */
+beforeEach(() => {
+  poolSpans.mockImplementation(async (_db, _logger, _eventId, pools) =>
+    pools.map((pool) => ({ ...pool, startsAt: null, endsAt: null })),
+  );
+});
 
 /**
  * Referee slots mix two shapes: match-scoped rows (display time = the match's
@@ -125,6 +136,7 @@ const rows = (data: unknown[]) => ({ data, error: null });
 afterEach(() => {
   vi.restoreAllMocks();
   dutyWindows.mockReset();
+  poolSpans.mockReset();
   matchLengths.mockReset();
 });
 
@@ -261,29 +273,36 @@ describe('PublicScheduleService.getSchedule — referee slot times', () => {
   });
 });
 
-describe("PublicScheduleService.getSchedule — a fighter's own Match lengths", () => {
-  const fighterMatch = (id: string, override: number | null, visibility = 'published') => ({
-    id,
-    match_number_label: id,
-    status: 'scheduled',
-    scheduled_at: '2027-05-22T10:00:00Z',
-    phase_id: `phase-${id}`,
-    planned_duration_override_minutes: override,
-    red_score: 0,
-    blue_score: 0,
-    winner_registration_id: null,
-    end_reason: null,
-    red_registration_id: 'reg-1',
-    blue_registration_id: 'reg-2',
-    pools: null,
-    lices: null,
-    phases: {
-      visibility_status: visibility,
-      type: 'pool',
-      tournaments: { id: 't-1', name: 'Open' },
-    },
-  });
+/** One of the fighter's own bouts, as the Match read returns it. */
+const fighterMatch = (
+  id: string,
+  override: number | null,
+  visibility = 'published',
+  pool: { id: string; name: string } | null = null,
+) => ({
+  id,
+  match_number_label: id,
+  status: 'scheduled',
+  scheduled_at: '2027-05-22T10:00:00Z',
+  phase_id: `phase-${id}`,
+  pool_id: pool?.id ?? null,
+  planned_duration_override_minutes: override,
+  red_score: 0,
+  blue_score: 0,
+  winner_registration_id: null,
+  end_reason: null,
+  red_registration_id: 'reg-1',
+  blue_registration_id: 'reg-2',
+  pools: pool ? { name: pool.name } : null,
+  lices: null,
+  phases: {
+    visibility_status: visibility,
+    type: 'pool',
+    tournaments: { id: 't-1', name: 'Open' },
+  },
+});
 
+describe("PublicScheduleService.getSchedule — a fighter's own Match lengths", () => {
   const withMatches = () =>
     buildService(rows([]), {
       registrations: [{ id: 'reg-1', tournament_id: 't-1' }],
@@ -315,7 +334,7 @@ describe("PublicScheduleService.getSchedule — a fighter's own Match lengths", 
       { id: 'typed', phaseId: 'phase-typed', plannedDurationOverrideMinutes: 9 },
     ]);
     expect(projection(chains.get('matches')?.[0])).toBe(
-      'id, match_number_label, status, scheduled_at, phase_id, planned_duration_override_minutes, ' +
+      'id, match_number_label, status, scheduled_at, phase_id, pool_id, planned_duration_override_minutes, ' +
         'red_score, blue_score, winner_registration_id, end_reason, ' +
         'red_registration_id, blue_registration_id, pools ( name ), lices ( name ), ' +
         'phases ( visibility_status, type, tournaments ( id, name, scoring_config_json ) )',
@@ -336,5 +355,42 @@ describe("PublicScheduleService.getSchedule — a fighter's own Match lengths", 
     ]);
     expect(warn).toHaveBeenCalledTimes(1);
     expect(String(warn.mock.calls[0]?.[0])).toContain('e-1');
+  });
+});
+
+describe("PublicScheduleService.getSchedule — a fighter's Pools", () => {
+  it('hands the helper each published Pool once, in the order met, and passes its spans on', async () => {
+    // Pool A comes back after Pool B; the unpublished Pool and the Swiss bout stay out.
+    windowsAre({});
+    poolSpans.mockImplementation(async (_db, _logger, _eventId, pools) =>
+      pools.map((pool) => ({ ...pool, startsAt: `${pool.poolId}@`, endsAt: `@${pool.poolId}` })),
+    );
+    const a = { id: 'pool-a', name: 'Pool A' };
+    const { service } = buildService(rows([]), {
+      registrations: [{ id: 'reg-1', tournament_id: 't-1' }],
+      matches: [
+        fighterMatch('a1', null, 'published', a),
+        fighterMatch('b1', null, 'published', { id: 'pool-b', name: 'Pool B' }),
+        fighterMatch('a2', null, 'published', a),
+        fighterMatch('hidden', null, 'draft', { id: 'pool-h', name: 'Pool H' }),
+        fighterMatch('swiss', null),
+      ],
+    });
+
+    const schedule = await service.getSchedule('e-1', 'p-1', null);
+
+    expect(poolSpans).toHaveBeenCalledTimes(1);
+    expect(poolSpans.mock.calls[0]?.[1]).toBeInstanceOf(Logger);
+    expect(poolSpans.mock.calls[0]?.[2]).toBe('e-1');
+    expect(poolSpans.mock.calls[0]?.[3]).toEqual([
+      { poolId: 'pool-a', poolName: 'Pool A', tournamentName: 'Open' },
+      { poolId: 'pool-b', poolName: 'Pool B', tournamentName: 'Open' },
+    ]);
+    expect(schedule.poolSpans.map((s) => [s.poolId, s.startsAt, s.endsAt])).toEqual([
+      ['pool-a', 'pool-a@', '@pool-a'],
+      ['pool-b', 'pool-b@', '@pool-b'],
+    ]);
+    // a1, b1, a2, swiss — the unpublished bout was dropped before any of this.
+    expect(schedule.matches.map((m) => m.poolId)).toEqual(['pool-a', 'pool-b', 'pool-a', null]);
   });
 });
