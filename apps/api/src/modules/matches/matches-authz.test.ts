@@ -1,6 +1,8 @@
 /**
- * Every HTTP handler in the matches module must let the caller's identity reach
- * a decision, unless it is declared public.
+ * Two routes in the matches module that must authorize a SPECIFIC way. The
+ * general rule — every handler reaches something that can refuse the caller —
+ * moved to `common/auth/route-authz.test.ts` on 2026-09-18, which reads every
+ * controller and follows the calls into the services. This file is its origin.
  *
  * The referees module was swept for this on 2026-08-15 and twenty routes were
  * found with no authorization of any kind. That sweep was scoped to
@@ -14,17 +16,11 @@
  *   - `POST /phases/:phaseId/matches` said "(org admin+)" in its own summary and
  *     enforced nothing, the same shape `scheduleMatch` was fixed for earlier.
  *
- * Neither touched the request object at all. That is the invariant here: a
- * handler either calls an `assert…`/`authorize…` helper itself, or resolves a
- * user id and hands it to a service that does. It cannot prove the service
- * really authorizes — but it makes "the identity never left the wire" a test
- * failure, and both faults failed exactly that way.
- *
- * WHAT IS DIFFERENT FROM THE REFEREES SWEEP. This controller genuinely serves
- * public reads — a spectator watching a live bout needs the clock and the
- * exchanges with no account at all. Those carry `@Public()`, which is the
- * concept the referees test said it lacked. A handler is exempt only when it
- * says so out loud, so adding a route silently is not a way through.
+ * Neither touched the request object at all. The rule this file first held —
+ * the caller's identity must reach the handler — also passed a route that
+ * resolves the caller only to stamp a row, which is why the API-wide test
+ * follows the calls further. What stays here is how each of the two routes
+ * must decide.
  */
 import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -34,15 +30,10 @@ import ts from 'typescript';
 const MODULE_DIR = join(__dirname);
 const HTTP_DECORATORS = new Set(['Get', 'Post', 'Put', 'Patch', 'Delete']);
 
-/** A handler passes when identity reaches a decision by either route. */
-const AUTHORIZES = /\b(assert[A-Z]\w*|authorize[A-Z]\w*)\s*\(/;
-const RESOLVES_IDENTITY = /\b(getUserId|resolveRequestUserId)\s*\(/;
-
 interface Handler {
   file: string;
   name: string;
   text: string;
-  isPublic: boolean;
 }
 
 function decoratorName(decorator: ts.Decorator): string | null {
@@ -62,12 +53,7 @@ function handlersIn(file: string, source: string): Handler[] {
         .map(decoratorName)
         .filter((n): n is string => n !== null);
       if (names.some((n) => HTTP_DECORATORS.has(n))) {
-        handlers.push({
-          file,
-          name: node.name.text,
-          text: node.getText(sourceFile),
-          isPublic: names.includes('Public'),
-        });
+        handlers.push({ file, name: node.name.text, text: node.getText(sourceFile) });
       }
     }
     ts.forEachChild(node, visit);
@@ -85,26 +71,7 @@ function allHandlers(): Handler[] {
 
 describe('matches module authorization', () => {
   it('finds the routes, so an empty sweep cannot pass as a clean one', () => {
-    const handlers = allHandlers();
-    expect(handlers.length).toBeGreaterThanOrEqual(25);
-    // And it really can tell the two kinds apart, or the exemption below is
-    // either exempting everything or nothing.
-    expect(handlers.filter((h) => h.isPublic).length).toBeGreaterThan(0);
-    expect(handlers.filter((h) => !h.isPublic).length).toBeGreaterThan(0);
-  });
-
-  it('lets no handler decide without knowing who is asking', () => {
-    const offenders = allHandlers()
-      .filter((h) => !h.isPublic)
-      .filter((h) => !AUTHORIZES.test(h.text) && !RESOLVES_IDENTITY.test(h.text))
-      .map((h) => `${h.file}#${h.name}`);
-
-    expect(
-      offenders,
-      'these routes never let the caller identity reach a decision — they either ' +
-        'need an authorize/assert helper, or a @Public() declaring the read open:\n  ' +
-        offenders.join('\n  '),
-    ).toEqual([]);
+    expect(allHandlers().length).toBeGreaterThanOrEqual(25);
   });
 
   it('gates the per-match referee write on the event, not just on being logged in', () => {

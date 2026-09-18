@@ -1,6 +1,5 @@
 /**
- * Every HTTP handler in the referees module must let the caller's identity reach
- * a decision.
+ * The referee assignment board authorizes every route in the controller itself.
  *
  * On 2026-08-15 twenty routes across four controllers in this module had NO
  * authorization of any kind. Under the global `AuthGuard` they required *a*
@@ -8,15 +7,9 @@
  * authenticated user could read any event's referee roster, and
  * `DELETE /events/:eventId/referee-assignments` would wipe it.
  *
- * None of the twenty touched the request object at all. That is the invariant
- * this asserts: a handler either calls an `assert…` helper itself, or resolves a
- * user id and hands it to a service that does. It cannot prove the service
- * really authorizes — but it makes "the identity never left the wire" a test
- * failure, and every one of the twenty failed exactly that way.
- *
- * Scoped to `modules/referees` on purpose. Widening it to the whole API is worth
- * doing and is a bigger job: some controllers legitimately serve public reads
- * behind `@Public()`, and this has no concept of that yet.
+ * The general rule this file first held, scoped to this module, moved to
+ * `common/auth/route-authz.test.ts` on 2026-09-18: every controller, followed
+ * into the services. What stays here is the board's own stricter rule.
  */
 import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -26,9 +19,8 @@ import ts from 'typescript';
 const MODULE_DIR = join(__dirname);
 const HTTP_DECORATORS = new Set(['Get', 'Post', 'Put', 'Patch', 'Delete']);
 
-/** A handler passes when identity reaches a decision by either route. */
+/** The board's handlers call an `assert…` helper themselves. */
 const AUTHORIZES = /\bassert[A-Z]\w*\s*\(/;
-const RESOLVES_IDENTITY = /\b(getUserId|resolveRequestUserId)\s*\(/;
 
 interface Handler {
   file: string;
@@ -76,17 +68,6 @@ describe('referees module authorization', () => {
     expect(allHandlers().length).toBeGreaterThanOrEqual(20);
   });
 
-  it('lets the caller identity reach a decision in every route', () => {
-    const unguarded = allHandlers()
-      .filter((h) => !AUTHORIZES.test(h.text) && !RESOLVES_IDENTITY.test(h.text))
-      .map((h) => `${h.file} → ${h.name}`);
-
-    expect(
-      unguarded,
-      `these handlers never look at who is calling:\n  ${unguarded.join('\n  ')}`,
-    ).toEqual([]);
-  });
-
   /**
    * The board is the one that mattered most: it both reads a roster of real
    * names and offers a route that deletes the whole thing.
@@ -96,7 +77,7 @@ describe('referees module authorization', () => {
     const withoutAssert = board.filter((h) => !AUTHORIZES.test(h.text)).map((h) => h.name);
 
     // The count is the point: it makes a NEW route a deliberate edit here
-    // rather than something that slips in behind the loop above.
+    // rather than something that slips in behind the API-wide rule.
     expect(board.length).toBe(12);
     expect(withoutAssert).toEqual([]);
   });
