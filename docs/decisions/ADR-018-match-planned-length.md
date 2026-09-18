@@ -90,9 +90,13 @@ ten seconds after their own bout.
 
 The operator's rule, 2026-09-17:
 
-- A Pool's bouts run back to back, and each piste's queue takes ONE rest break in its middle.
-  Fifteen bouts on a piste break after the seventh, six after the third, and one bout takes none.
-  Two pistes each break on their own half, not on the run's.
+- A Pool's bouts run back to back, and the Pool takes ONE rest break in the middle of its
+  queue on each piste it runs on. Fifteen bouts on a piste break after the seventh, six after
+  the third, and one bout takes none. A Pool spread over two pistes stops once, which both
+  crews take together — each piste breaks on its own half, not on the pair's.
+- The break belongs to the POOL, not to the piste. A piste running three Pools back to back
+  breaks three times, once inside each of them, rather than once for the whole stretch
+  (operator, 2026-09-18). The crew that stands through a Pool gets its pause in that Pool.
 - The break lasts the sheet's rest, on top of the gap that already sits between two bouts.
   A Tournament's own row may carry its own rest beside its lengths, read before the Event's,
   the same order a length follows.
@@ -110,17 +114,30 @@ neighbouring bouts only in a Pool of three, four or five; from six fighters up i
 back after the gap alone, and the operator accepted it: a Pool of four is six short bouts, and
 waiting out a rest between them would cost the day more than it buys the fighter.
 
-Generate's rule today is stricter — idle until every fighter of the bout just placed has rested —
-and it is what spreads a small Pool across the morning. Moving Generate onto this rule gives that
+Generate's old rule was stricter — idle until every fighter of the bout just placed had rested —
+and it was what spread a small Pool across the morning. Moving Generate onto this rule gave that
 up on purpose.
 
-The run window carries it (`apps/api/src/modules/schedule/lay-run.ts`, applied by
-`schedule-run.service.ts` when every placed bout of the run names the same Pool), and the sheet's
-rest field is emptiable and per-Tournament. Generate and the re-fan still leave the scheduler's
-idle gap after every appearance; moving them onto this rule is the commit that follows, and it
-drops that per-appearance idle everywhere. What it does not drop is the floor that keeps one
-fighter out of two bouts at once: a fighter is never placed in two overlapping bouts, whatever
-the rest is set to.
+Every door that lays a Pool takes the break: the run window
+(`apps/api/src/modules/schedule/lay-run.ts`, applied by `schedule-run.service.ts`), Generate,
+and the re-fan (both through `match-scheduler.ts`). `boutsBeforeRest` owns how far into a queue
+the break falls — half of it, rounded down.
+
+The two doors reach that helper by different routes, and it is worth writing down why they
+still agree. Generate measures a UNIT, and a unit is one Pool, laid whole on one piste. The run
+window measures a PISTE's queue, and it breaks at all only when every placed bout of the run
+names the same Pool. So both are measuring the same thing on every input either can be given:
+one Pool's bouts on one piste. Hand `layRun` the bouts of three different Pools and it would
+break once rather than three times — but the service never does, because the run would not be
+one Pool and the break would be zero. The agreement rests on that guard, not on the helper.
+
+The scheduler's old rule — a piste left idle until every fighter of the bout just placed had
+rested — is gone with it, everywhere, not only inside a Pool. What is NOT gone is the floor
+underneath: within one lay, a fighter is never placed in two bouts at once, whatever the rest
+is set to. That is not a rest and it has no setting. It is a property of one lay and not of the
+day: nothing compares a re-fanned group against a fighter's bouts elsewhere on the board,
+because the placement owner checks pistes and not people. Closing that is the referee checker's
+shape (ADR-016), not this rule's.
 
 ### One function, every reader
 

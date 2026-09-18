@@ -43,8 +43,9 @@ type PlacedRunRow = RunRow & { lice_id: string; scheduled_at: string };
  * Only PLACED bouts take part — a bout with no piste or no time has no position
  * to keep or re-lay. Bouts already fought move with the rest (operator ruling).
  * A Pool's re-lay takes one rest break in the middle of each piste's queue, the
- * length of the sheet's rest; Generate and the re-fan still leave the scheduler's
- * idle gap after every appearance, and follow this rule in the next commit.
+ * length of the sheet's rest for its Tournament. Generate and the re-fan take
+ * the same break, measured over the Pool rather than the piste — ADR-018 says
+ * where the two differ and why.
  * Not transactional, like every placement: the check is all-or-nothing, the
  * writes are per row, and a partial write says so.
  */

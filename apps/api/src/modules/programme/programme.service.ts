@@ -14,13 +14,19 @@ import { MatchAlertRefresherService } from '../notifications/match-alert-refresh
 import { MatchPlacementService } from '../matches/match-placement.service';
 import { assertCanManageEvent, assertCanReadEvent } from '../../common/auth/event-authz';
 import { scheduleMatches } from '../schedule/match-scheduler';
-import { resolveMatchLengths, type MatchLengthInput } from '../schedule/match-lengths';
+import {
+  embeddedOne,
+  resolveMatchLengths,
+  type Embedded,
+  type MatchLengthInput,
+} from '../schedule/match-lengths';
 import {
   finalRoundsByPhase,
   isFinalsMatch,
   matchKind,
   plannedLengthOf,
   sheetLengthFor,
+  sheetRestFor,
   type MatchKind,
 } from '../schedule/planned-length';
 import { poolBottleneckMinutes } from './pool-bottleneck';
@@ -1066,7 +1072,8 @@ export class ProgrammeService {
           {
             startTime: blockStartDt.toISOString(),
             transitionMinutes: sheet.matchGapSeconds / 60,
-            minRestMinutes: sheet.minRestMinutes,
+            // The bar's own Tournament, as its lengths are read above.
+            midRestMinutes: sheetRestFor(sheet, tournamentId),
             // Pools stay on one lice; single-elim brackets use branch-aware
             // grouping; anything else is greedy.
             poolAffinity,
@@ -1645,7 +1652,7 @@ export class ProgrammeService {
     const { data: matchRows, error: mErr } = await this.supabase.service
       .from('matches')
       .select(
-        'id, red_registration_id, blue_registration_id, pool_id, match_number_label, phase_id, bracket_slot_id, planned_duration_override_minutes',
+        'id, red_registration_id, blue_registration_id, pool_id, match_number_label, phase_id, bracket_slot_id, planned_duration_override_minutes, phases!inner(tournament_id)',
       )
       .in('id', dto.matchIds);
     if (mErr) throw new BadRequestException(mErr.message);
@@ -1656,6 +1663,7 @@ export class ProgrammeService {
         pool_id: string | null;
         match_number_label: string | null;
         bracket_slot_id: string | null;
+        phases: Embedded<{ tournament_id: string }>;
       }
     >;
     await assertLicesBelongToEvent(this.supabase.service, eventId, dto.liceIds);
@@ -1710,6 +1718,17 @@ export class ProgrammeService {
       }
     }
 
+    // One re-fanned group is one Pool or one bracket, so one Tournament. Every
+    // row is compared rather than the first: `.in()` has no order, and a group
+    // naming two Tournaments has no single rest to take.
+    const groupTournamentIds = new Set(
+      rows.map((r) => embeddedOne(r.phases)?.tournament_id ?? null),
+    );
+    const groupTournamentId = [...groupTournamentIds][0];
+    if (groupTournamentIds.size !== 1 || !groupTournamentId) {
+      throw new BadRequestException('Every Match of a group must be in one tournament');
+    }
+
     const bracketSlotIds = rows.map((r) => r.bracket_slot_id).filter((id): id is string => !!id);
     const coords = await this.loadBracketCoords(bracketSlotIds);
     const shape =
@@ -1740,7 +1759,11 @@ export class ProgrammeService {
       {
         startTime: dto.startTime,
         transitionMinutes: sheet.matchGapSeconds / 60,
-        minRestMinutes: sheet.minRestMinutes,
+        // The group's Tournament, for its rest. A bracket takes no break
+        // whatever this says. Refused rather than guessed, as the run window
+        // refuses it: falling back to the Event's rest would give a Pool a
+        // break its Tournament had switched off, and say nothing.
+        midRestMinutes: sheetRestFor(sheet, groupTournamentId),
         poolAffinity: dto.mode === 'pool' ? 'strict' : 'bracket-branch',
         liceBusyUntil,
       },

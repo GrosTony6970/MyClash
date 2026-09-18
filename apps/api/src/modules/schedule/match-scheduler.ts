@@ -1,21 +1,21 @@
 /**
  * apps/api/src/modules/schedule/match-scheduler.ts
  *
- * Match-to-Lice scheduler.
- * ARCHITECTURE.md §11quater: assigns generated matches to Lices respecting
- * per-fighter rest minimums and balancing load across Lices.
+ * Match-to-Lice scheduler: assigns generated matches to Lices, breaking a Pool
+ * once in the middle of its queue and balancing load across Lices.
  *
  * Pure scheduling logic — no DB access. The caller fetches data and persists results.
  *
  * Algorithm:
  *   1. Build a timeline per Lice (list of scheduled matches with start times).
  *   2. For each unscheduled match, find the earliest Lice slot where:
- *      - Both fighters have had at least minRestMinutes since their last match.
+ *      - Neither fighter is still in an earlier bout (nobody fights twice at once).
  *      - The Lice is available (previous match has ended).
  *   3. Assign to the Lice with the earliest available slot (greedy, balances load).
  *   4. Return all matches with scheduled_at timestamps.
  */
 
+import { boutsBeforeRest } from './lay-run';
 import { groupBracketBranches } from '@myclash/rules/scheduling';
 
 export interface SchedulerMatch {
@@ -67,8 +67,19 @@ export interface SchedulerLice {
 }
 
 export interface SchedulerOptions {
-  /** Minimum rest between matches for a fighter, in minutes: the sheet's (ADR-018). */
-  minRestMinutes: number;
+  /**
+   * The rest break a Pool takes in the middle of each piste's queue, in minutes
+   * — the sheet's rest for the Tournament being laid (ADR-018). Zero is no
+   * break. A Swiss round and a bracket take none, whatever this says: a
+   * fighter appears at most once in one.
+   *
+   * This used to be a rest after EVERY appearance, which left the piste idle
+   * until each fighter was ready and spread a small Pool across the morning.
+   * The operator replaced it with the one middle break (2026-09-17). What did
+   * NOT go with it is the floor below: a fighter is never placed in two bouts
+   * at once, whatever this is set to.
+   */
+  midRestMinutes: number;
   /** Start time for the schedule (ISO string, default: now) */
   startTime?: string;
   /** Gap between matches on the same Lice in minutes: the sheet's (ADR-018). */
@@ -118,7 +129,7 @@ export function scheduleMatches(
     return { scheduledMatches: [], liceLoad: {}, imbalancePercent: 0, unscheduled: [] };
   }
 
-  const minRest = options.minRestMinutes * 60_000; // ms
+  const midRest = options.midRestMinutes * 60_000; // ms
   const transition = options.transitionMinutes * 60_000; // ms
   const startTime = options.startTime ? new Date(options.startTime).getTime() : Date.now();
   const poolAffinity = options.poolAffinity ?? 'strict';
@@ -238,22 +249,26 @@ export function scheduleMatches(
     const liceStart = liceNextFree[assignedLice.id] ?? startTime;
 
     // Schedule every match in this unit sequentially on the assigned
-    // Lice — iterating in numeric label order so rest constraints
-    // catch back-to-back appearances of the same fighter. Bracket-branch
-    // units are already ordered by (round, position); re-sorting by label
-    // would scramble rounds, so keep their order.
+    // Lice — iterating in numeric label order, which is the order the draw
+    // put them in and the order the break is measured against.
+    // Bracket-branch units are already ordered by (round, position);
+    // re-sorting by label would scramble rounds, so keep their order.
     const orderedMatches =
       poolAffinity === 'bracket-branch'
         ? unit.matches
         : [...unit.matches].sort((a, b) => matchNumericOrder(a) - matchNumericOrder(b));
 
+    // Only a Pool breaks, and only in the middle of its own queue.
+    const restAfter = unit.poolId != null ? boutsBeforeRest(orderedMatches.length) : 0;
+    let placedInUnit = 0;
     let cursor = liceStart;
     for (const match of orderedMatches) {
       const duration = match.estimatedDurationMinutes * 60_000;
       const redFree = fighterNextFree[match.redRegistrationId] ?? startTime;
       const blueFree = fighterNextFree[match.blueRegistrationId] ?? startTime;
-      // Respect fighter rest minimums — if a fighter isn't ready, the
-      // Lice sits idle until they are.
+      // Nobody fights twice at once: a fighter still in an earlier bout holds
+      // this one back, and the Lice sits idle until they are out of it. This
+      // is a floor, not a rest — see `midRestMinutes`.
       const start = Math.max(cursor, redFree, blueFree);
       const end = start + duration;
 
@@ -266,8 +281,10 @@ export function scheduleMatches(
       });
 
       cursor = end + transition;
-      fighterNextFree[match.redRegistrationId] = end + minRest;
-      fighterNextFree[match.blueRegistrationId] = end + minRest;
+      placedInUnit += 1;
+      if (placedInUnit === restAfter) cursor += midRest;
+      fighterNextFree[match.redRegistrationId] = end;
+      fighterNextFree[match.blueRegistrationId] = end;
     }
     liceNextFree[assignedLice.id] = cursor;
   }

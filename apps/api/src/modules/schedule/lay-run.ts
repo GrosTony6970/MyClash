@@ -44,6 +44,24 @@ export interface LaidBout {
   scheduledAt: string;
 }
 
+/**
+ * How many bouts of a piste's queue run before its one rest break. Zero means
+ * none, so a queue of one is never broken.
+ *
+ * Half the queue, rounded down: fifteen bouts break after the seventh, six after
+ * the third. Exported because Generate lays a Pool by the same rule, and two
+ * copies of "where the break goes" would be two answers for one Pool depending
+ * on which door laid it.
+ *
+ * The QUEUE is one Pool's bouts on one piste, at both doors — the break belongs
+ * to the Pool, not to the piste (ADR-018). Here that holds because the caller
+ * passes a rest only when the whole run is one Pool; for Generate it holds
+ * because a unit is one Pool. Neither counts a piste's whole day.
+ */
+export function boutsBeforeRest(queueLength: number): number {
+  return Math.floor(queueLength / 2);
+}
+
 function byStartThenId(a: RunBout, b: RunBout): number {
   return a.startMs - b.startMs || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
 }
@@ -73,7 +91,7 @@ export function layRun(args: {
   }
   const laid: LaidBout[] = [];
   for (const [liceId, queue] of queues) {
-    const restAfter = Math.floor(queue.length / 2);
+    const restAfter = boutsBeforeRest(queue.length);
     let atMs = args.startMs;
     let placed = 0;
     for (const bout of [...queue].sort(byStartThenId)) {

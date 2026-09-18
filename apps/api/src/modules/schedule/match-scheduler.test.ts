@@ -31,7 +31,7 @@ describe('scheduleMatches', () => {
     const lices = makeLices(2);
     const result = scheduleMatches(matches, lices, {
       startTime: START,
-      minRestMinutes: 10,
+      midRestMinutes: 10,
       transitionMinutes: 2,
     });
     expect(result.scheduledMatches).toHaveLength(8);
@@ -43,7 +43,7 @@ describe('scheduleMatches', () => {
     const lices = makeLices(2);
     const result = scheduleMatches(matches, lices, {
       startTime: START,
-      minRestMinutes: 10,
+      midRestMinutes: 10,
       transitionMinutes: 2,
     });
     for (const sm of result.scheduledMatches) {
@@ -52,58 +52,86 @@ describe('scheduleMatches', () => {
     }
   });
 
-  // ── KEY AC TEST: no back-to-back matches without rest ─────────────────────
+  // ── KEY AC TEST: a Pool breaks once, and nobody fights twice at once ──────
 
-  it('no fighter has back-to-back matches without minRestMinutes rest', () => {
-    // Fighter 1 appears in match 1 and match 2 — must have 10 min rest between
-    const matches: SchedulerMatch[] = [
-      { id: 'm1', redRegistrationId: 'f1', blueRegistrationId: 'f2', estimatedDurationMinutes: 5 },
-      { id: 'm2', redRegistrationId: 'f1', blueRegistrationId: 'f3', estimatedDurationMinutes: 5 }, // f1 fights again
-      { id: 'm3', redRegistrationId: 'f4', blueRegistrationId: 'f5', estimatedDurationMinutes: 5 },
-    ];
-    const lices = makeLices(2);
-    const minRestMinutes = 10;
-
-    const result = scheduleMatches(matches, lices, {
-      startTime: START,
-      minRestMinutes,
-      transitionMinutes: 2,
-    });
-
-    // Find m1 and m2 for fighter f1
-    const m1 = result.scheduledMatches.find((s) => s.matchId === 'm1')!;
-    const m2 = result.scheduledMatches.find((s) => s.matchId === 'm2')!;
-
-    expect(m1).toBeDefined();
-    expect(m2).toBeDefined();
-
-    const m1End = new Date(m1.estimatedEndAt).getTime();
-    const m2Start = new Date(m2.scheduledAt).getTime();
-    const restMs = m2Start - m1End;
-    const restMinutes = restMs / 60_000;
-
-    expect(restMinutes).toBeGreaterThanOrEqual(minRestMinutes);
-  });
-
-  it('respects minRestMinutes=0 (back-to-back allowed)', () => {
+  it('lets a fighter be called back as soon as their own bout ends', () => {
+    // The operator's rule (2026-09-17) replaced the rest after every appearance
+    // with one break in the middle of a Pool's queue. These two bouts are not a
+    // Pool's, so no break falls between them however long the rest is set.
     const matches: SchedulerMatch[] = [
       { id: 'm1', redRegistrationId: 'f1', blueRegistrationId: 'f2', estimatedDurationMinutes: 5 },
       { id: 'm2', redRegistrationId: 'f1', blueRegistrationId: 'f3', estimatedDurationMinutes: 5 },
     ];
-    const lices = makeLices(2);
-    const result = scheduleMatches(matches, lices, {
+
+    const result = scheduleMatches(matches, makeLices(2), {
       startTime: START,
-      minRestMinutes: 0,
-      transitionMinutes: 2,
+      midRestMinutes: 10,
+      transitionMinutes: 0,
     });
 
     const m1 = result.scheduledMatches.find((s) => s.matchId === 'm1')!;
     const m2 = result.scheduledMatches.find((s) => s.matchId === 'm2')!;
-    const m1End = new Date(m1.estimatedEndAt).getTime();
-    const m2Start = new Date(m2.scheduledAt).getTime();
+    expect(m2.scheduledAt).toBe(m1.estimatedEndAt);
+  });
 
-    // With 0 rest, m2 can start immediately after m1 ends (+ transition gap only)
-    expect(m2Start).toBeGreaterThanOrEqual(m1End);
+  it('never puts one fighter in two bouts at once, whatever the rest says', () => {
+    // The floor the rest rule did NOT take with it. Set to zero so nothing else
+    // could be holding the second bout back.
+    const matches: SchedulerMatch[] = [
+      { id: 'm1', redRegistrationId: 'f1', blueRegistrationId: 'f2', estimatedDurationMinutes: 5 },
+      { id: 'm2', redRegistrationId: 'f3', blueRegistrationId: 'f1', estimatedDurationMinutes: 5 },
+    ];
+
+    const result = scheduleMatches(matches, makeLices(2), {
+      startTime: START,
+      midRestMinutes: 0,
+      transitionMinutes: 0,
+    });
+
+    const m1 = result.scheduledMatches.find((s) => s.matchId === 'm1')!;
+    const m2 = result.scheduledMatches.find((s) => s.matchId === 'm2')!;
+    expect(new Date(m2.scheduledAt).getTime()).toBeGreaterThanOrEqual(
+      new Date(m1.estimatedEndAt).getTime(),
+    );
+  });
+
+  it("breaks a Pool's queue once, in its middle", () => {
+    // SEVEN bouts of one Pool on one piste, not six: half of six is three either
+    // way it is rounded, so a six-bout queue cannot tell the rule from its
+    // neighbour, and a break repeating every third bout would fall on the last
+    // one and be invisible. Seven separates all three. Every fighter is unique,
+    // so the no-double-booking floor can never be what moved a bout.
+    const matches: SchedulerMatch[] = [1, 2, 3, 4, 5, 6, 7].map((n) => ({
+      id: `m${n}`,
+      redRegistrationId: `red${n}`,
+      blueRegistrationId: `blue${n}`,
+      estimatedDurationMinutes: 5,
+      poolId: 'pool-a',
+      matchNumberLabel: `M${n}`,
+    }));
+
+    const result = scheduleMatches(matches, makeLices(1), {
+      startTime: START,
+      midRestMinutes: 10,
+      transitionMinutes: 0,
+      poolAffinity: 'strict',
+    });
+
+    const startedAt = (id: string) =>
+      result.scheduledMatches.find((s) => s.matchId === id)!.scheduledAt;
+    const from = (minutes: number) =>
+      new Date(new Date(START).getTime() + minutes * 60_000).toISOString();
+
+    expect(['m1', 'm2', 'm3', 'm4', 'm5', 'm6', 'm7'].map(startedAt)).toEqual([
+      from(0),
+      from(5),
+      from(10),
+      // The break, once: after the third of seven.
+      from(25),
+      from(30),
+      from(35),
+      from(40),
+    ]);
   });
 
   // ── KEY AC TEST: Lices balanced within 5% ────────────────────────────────
@@ -120,7 +148,7 @@ describe('scheduleMatches', () => {
     const lices = makeLices(4);
     const result = scheduleMatches(matches, lices, {
       startTime: START,
-      minRestMinutes: 10,
+      midRestMinutes: 10,
       transitionMinutes: 2,
     });
 
@@ -133,7 +161,7 @@ describe('scheduleMatches', () => {
     const lices = makeLices(1);
     const result = scheduleMatches(matches, lices, {
       startTime: START,
-      minRestMinutes: 10,
+      midRestMinutes: 10,
       transitionMinutes: 2,
     });
     expect(result.scheduledMatches).toHaveLength(6);
@@ -150,7 +178,7 @@ describe('scheduleMatches', () => {
     const lices = makeLices(1);
     const result = scheduleMatches(matches, lices, {
       startTime: START,
-      minRestMinutes: 10,
+      midRestMinutes: 10,
       transitionMinutes: 2,
     });
 
@@ -165,7 +193,7 @@ describe('scheduleMatches', () => {
   it('returns empty result for 0 matches', () => {
     const result = scheduleMatches([], makeLices(2), {
       startTime: START,
-      minRestMinutes: 10,
+      midRestMinutes: 10,
       transitionMinutes: 2,
     });
     expect(result.scheduledMatches).toHaveLength(0);
@@ -174,7 +202,7 @@ describe('scheduleMatches', () => {
 
   it('throws when no Lices provided', () => {
     expect(() =>
-      scheduleMatches(makeMatches(4), [], { minRestMinutes: 10, transitionMinutes: 2 }),
+      scheduleMatches(makeMatches(4), [], { midRestMinutes: 10, transitionMinutes: 2 }),
     ).toThrow('Lice');
   });
 
@@ -183,7 +211,7 @@ describe('scheduleMatches', () => {
     const lices = makeLices(2);
     const result = scheduleMatches(matches, lices, {
       startTime: START,
-      minRestMinutes: 10,
+      midRestMinutes: 10,
       transitionMinutes: 2,
     });
     const totalLoad = Object.values(result.liceLoad).reduce((s, n) => s + n, 0);
@@ -242,7 +270,7 @@ describe('scheduleMatches', () => {
       const result = scheduleMatches(matches, lices, {
         startTime: START,
         poolAffinity: 'strict',
-        minRestMinutes: 0,
+        midRestMinutes: 0,
         transitionMinutes: 2,
       });
 
@@ -293,7 +321,7 @@ describe('scheduleMatches', () => {
       const result = scheduleMatches(matches, lices, {
         startTime: START,
         poolAffinity: 'strict',
-        minRestMinutes: 0,
+        midRestMinutes: 0,
         transitionMinutes: 2,
       });
 
@@ -346,7 +374,7 @@ describe('scheduleMatches', () => {
       const result = scheduleMatches(matches, lices, {
         startTime: START,
         poolAffinity: 'strict',
-        minRestMinutes: 0,
+        midRestMinutes: 0,
         transitionMinutes: 2,
       });
 
@@ -402,7 +430,7 @@ describe('scheduleMatches', () => {
       const result = scheduleMatches(matches, lices, {
         startTime: START,
         poolAffinity: 'strict',
-        minRestMinutes: 0,
+        midRestMinutes: 0,
         transitionMinutes: 2,
       });
       const ordered = [...result.scheduledMatches].sort(
@@ -453,7 +481,7 @@ describe('scheduleMatches', () => {
       const result = scheduleMatches(matches, lices, {
         startTime: START,
         poolAffinity: 'strict',
-        minRestMinutes: 10,
+        midRestMinutes: 10,
         transitionMinutes: 2,
       });
       const m2 = result.scheduledMatches.find((s) => s.matchId === 'm2')!;
@@ -497,7 +525,7 @@ describe('scheduleMatches', () => {
       const result = scheduleMatches(matches, lices, {
         startTime: START,
         poolAffinity: 'off',
-        minRestMinutes: 0,
+        midRestMinutes: 0,
         transitionMinutes: 2,
       });
 
@@ -526,7 +554,7 @@ describe('scheduleMatches', () => {
       const lices = makeLices(2);
       const result = scheduleMatches(matches, lices, {
         startTime: START,
-        minRestMinutes: 0,
+        midRestMinutes: 0,
         transitionMinutes: 2,
       });
 
@@ -564,8 +592,27 @@ describe('scheduleMatches — bracket-branch affinity', () => {
     startTime: START,
     poolAffinity: 'bracket-branch' as const,
     transitionMinutes: 0,
-    minRestMinutes: 0,
+    midRestMinutes: 0,
   };
+
+  it('gives a bracket branch no break, however long the rest is set', () => {
+    // A whole branch on one lice is ONE unit, which is what makes this case
+    // different from an unpooled match: an unpooled match is a unit of one, and
+    // a unit of one has no middle to break in either way. A fighter appears at
+    // most once in a bracket, so it runs straight through.
+    const result = scheduleMatches(bracketMatches(16), makeLices(1), {
+      ...opts,
+      midRestMinutes: 10,
+    });
+
+    const byStart = [...result.scheduledMatches].sort(
+      (a, b) => Date.parse(a.scheduledAt) - Date.parse(b.scheduledAt),
+    );
+    expect(byStart).toHaveLength(15);
+    expect(byStart.slice(1).map((m) => m.scheduledAt)).toEqual(
+      byStart.slice(0, -1).map((m) => m.estimatedEndAt),
+    );
+  });
 
   it('keeps each quarter-final sub-tree on one lice, across four lices', () => {
     const result = scheduleMatches(bracketMatches(32), makeLices(4), opts);
@@ -600,7 +647,7 @@ describe('scheduleMatches — bracket-branch affinity', () => {
     const result = scheduleMatches(bracketMatches(8), makeLices(4), {
       startTime: START,
       poolAffinity: 'off',
-      minRestMinutes: 10,
+      midRestMinutes: 10,
       transitionMinutes: 2,
     });
     expect(result.scheduledMatches).toHaveLength(7);
@@ -612,7 +659,7 @@ describe('scheduleMatches — bracket-branch affinity', () => {
     const result = scheduleMatches(makeMatches(2), makeLices(1), {
       startTime: START,
       poolAffinity: 'off',
-      minRestMinutes: 0,
+      midRestMinutes: 0,
       transitionMinutes: 0,
       liceBusyUntil: { 'lice-1': busyUntil },
     });

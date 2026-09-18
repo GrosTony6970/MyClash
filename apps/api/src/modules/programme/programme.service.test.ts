@@ -18,7 +18,13 @@ import { resolveMatchLengths } from '../schedule/match-lengths';
 // test (every kind, the Tournament row, the override, two brackets). Mocked so
 // the ordered `from()` queues below stay the service's reads only. Every bout is
 // five minutes unless a test says otherwise.
-vi.mock('../schedule/match-lengths', () => ({
+import type * as MatchLengths from '../schedule/match-lengths';
+
+vi.mock('../schedule/match-lengths', async (importOriginal) => ({
+  // The real module, with only the read doubled. A hand-written `embeddedOne`
+  // here would be a second copy of it: green the day it is written, silently
+  // stale the day the real one grows a guard.
+  ...(await importOriginal<typeof MatchLengths>()),
   resolveMatchLengths: vi.fn((_db: unknown, _eventId: string, inputs: Array<{ id: string }>) =>
     Promise.resolve(new Map(inputs.map((input) => [input.id, 5]))),
   ),
@@ -973,13 +979,17 @@ describe('ProgrammeService', () => {
       match_number_label: id,
       phase_id: 'phase-1',
     });
-    // a meets b, c meets d, then a meets c: the third waits out c's rest.
+    // a meets b, c meets d, then a meets c. Three bouts of one Pool, so the
+    // queue breaks once after the first (half of three, rounded down).
     const bouts = [bout('M1', 'a', 'b'), bout('M2', 'c', 'd'), bout('M3', 'a', 'c')];
     const sheet = sheetChain({
       poolMatchDurationMinutes: 5,
       matchGapSeconds: 60,
+      // The Event's 20 is deliberately NOT the number expected below: the bar
+      // names a Tournament, and a reader that took the Event's rest would space
+      // this Pool differently.
       minRestMinutes: 20,
-      tournaments: [{ tournamentId: T, poolMatchDurationMinutes: 7 }],
+      tournaments: [{ tournamentId: T, poolMatchDurationMinutes: 7, minRestMinutes: 12 }],
     });
     const upsertChain = makeChain({ data: bouts.map((b) => ({ id: b.id })), error: null });
 
@@ -1007,9 +1017,10 @@ describe('ProgrammeService', () => {
       (Date.parse(rows.find((r) => r.id === id)!.scheduled_at) -
         Date.parse(rows[0]!.scheduled_at)) /
       60_000;
-    // M2 starts after M1's 7 minutes and the 1-minute gap. M3 waits for c, who
-    // finishes M2 at 15, plus 20 minutes of rest.
-    expect([after('M1'), after('M2'), after('M3')]).toEqual([0, 8, 35]);
+    // M1 runs 7 minutes, then the 1-minute gap, then the Tournament's 12-minute
+    // break lands: M2 starts at 20 and M3 follows it at 28. Nobody waits on a
+    // rest of their own any more — a is free from 7 and c from 27.
+    expect([after('M1'), after('M2'), after('M3')]).toEqual([0, 20, 28]);
     expect(upsertChain.upsert).toHaveBeenCalledWith(
       bouts.map((b) => ({
         id: b.id,
@@ -1622,7 +1633,8 @@ describe('ProgrammeService', () => {
 
   it('cascades a later break after a competition run that overflows its slot', async () => {
     // A pool that actually runs 09:00–12:30 (7 bouts at the sheet's 30 min on one
-    // lice, no gap) must push a
+    // lice, no gap, and its mid-queue break switched off so the overflow is the
+    // only thing moving anything) must push a
     // Lunch break stored at 12:00–13:00 down to 12:30–13:30 — no overlap. This
     // covers the case the old break-only shift handled, now via the unified pack.
     const blockRows = [
@@ -1672,7 +1684,9 @@ describe('ProgrammeService', () => {
     });
 
     fromMock
-      .mockReturnValueOnce(sheetChain({ poolMatchDurationMinutes: 30, matchGapSeconds: 0 }))
+      .mockReturnValueOnce(
+        sheetChain({ poolMatchDurationMinutes: 30, matchGapSeconds: 0, minRestMinutes: 0 }),
+      )
       .mockReturnValueOnce(makeChain({ data: blockRows, error: null })) // blocks
       .mockReturnValueOnce(makeChain({ data: { start_date: '2026-05-21' }, error: null })) // event
       .mockReturnValueOnce(makeChain({ data: [{ id: 'lice-1', name: 'Lice 1' }], error: null })) // lices
@@ -2796,6 +2810,7 @@ describe('scheduleGroup', () => {
   });
 
   const START = '2026-05-21T09:00:00.000Z';
+  const GROUP_T = 'c3c3c3c3-3333-4333-8333-333333333333';
   const gm = (id: string, over: Record<string, unknown> = {}) => ({
     id,
     red_registration_id: `r-${id}`,
@@ -2805,6 +2820,9 @@ describe('scheduleGroup', () => {
     phase_id: 'phase-1',
     bracket_slot_id: null,
     planned_duration_override_minutes: null,
+    // The read embeds the group's Tournament, for the rest its Pool takes. A row
+    // without it made every case here fall back to the Event's rest instead.
+    phases: { tournament_id: GROUP_T },
     ...over,
   });
   /** The membership read: each Match with its Event, through its Phase's Tournament. */
@@ -2912,11 +2930,73 @@ describe('scheduleGroup', () => {
         scheduledAt: row.scheduledAt,
       })),
     );
-    // m2 shares m1's red fighter, who rests the sheet's 20 minutes after m1's
-    // 5-minute bout.
+    // Two bouts of one Pool: half of two is one, so the break falls between them
+    // — 5 minutes of bout, then the sheet's 20. It is the BREAK that puts them 25
+    // apart, not the shared fighter. The rest after every appearance is gone, and
+    // the floor that replaced it is held in `match-scheduler.test.ts`.
     const at = (id: string) =>
       Date.parse(res.scheduled.find((row) => row.matchId === id)!.scheduledAt);
     expect((at('m2') - at('m1')) / 60_000).toBe(25);
+  });
+
+  it("takes the group Tournament's own rest, not the Event's", async () => {
+    // Without this the new read is held by nothing but the select string: every
+    // other case here leaves the Tournament's rest blank, blank reads the Event's,
+    // so both numbers agree and either could be the one being used.
+    fromMock
+      .mockReturnValueOnce(
+        sheetChain({
+          matchGapSeconds: 0,
+          minRestMinutes: 20,
+          tournaments: [{ tournamentId: GROUP_T, minRestMinutes: 8 }],
+        }),
+      )
+      .mockReturnValueOnce(inEvent('m1', 'm2'))
+      .mockReturnValueOnce(makeChain({ data: [gm('m1'), gm('m2')], error: null }))
+      .mockReturnValueOnce(makeChain({ data: [{ id: 'l1' }], error: null }))
+      .mockReturnValueOnce(
+        makeChain({ data: [{ id: 'l1', name: 'L1', sort_order: 0 }], error: null }),
+      )
+      .mockReturnValueOnce(makeChain({ data: [], error: null }));
+
+    const res = await svc.scheduleGroup(
+      'event-1',
+      { matchIds: ['m1', 'm2'], liceIds: ['l1'], startTime: START, mode: 'pool' },
+      CALLER,
+    );
+
+    const at = (id: string) =>
+      Date.parse(res.scheduled.find((row) => row.matchId === id)!.scheduledAt);
+    // 5 minutes of bout, then the Tournament's 8 — not the Event's 20.
+    expect((at('m2') - at('m1')) / 60_000).toBe(13);
+  });
+
+  it('refuses a group whose Matches sit in two tournaments', async () => {
+    // One group is one Pool or one bracket, so one rest. Two Tournaments have no
+    // single answer, and taking either one silently spaces the other wrongly.
+    fromMock
+      .mockReturnValueOnce(sheetChain({ matchGapSeconds: 0 }))
+      .mockReturnValueOnce(inEvent('m1', 'm2'))
+      .mockReturnValueOnce(
+        makeChain({
+          data: [gm('m1'), gm('m2', { phases: { tournament_id: 'another-tournament' } })],
+          error: null,
+        }),
+      )
+      .mockReturnValueOnce(makeChain({ data: [{ id: 'l1' }], error: null }))
+      .mockReturnValueOnce(
+        makeChain({ data: [{ id: 'l1', name: 'L1', sort_order: 0 }], error: null }),
+      )
+      .mockReturnValueOnce(makeChain({ data: [], error: null }));
+
+    await expect(
+      svc.scheduleGroup(
+        'event-1',
+        { matchIds: ['m1', 'm2'], liceIds: ['l1'], startTime: START, mode: 'pool' },
+        CALLER,
+      ),
+    ).rejects.toThrow('Every Match of a group must be in one tournament');
+    expect(placement.placeMatches).not.toHaveBeenCalled();
   });
 
   it("appends after an occupant at the occupant's own planned length", async () => {
@@ -3034,7 +3114,7 @@ describe('scheduleGroup', () => {
     // The double answers whatever the projection asks for; the columns a length
     // is resolved from are only proved by the string sent.
     expect(groupChain.select).toHaveBeenCalledWith(
-      'id, red_registration_id, blue_registration_id, pool_id, match_number_label, phase_id, bracket_slot_id, planned_duration_override_minutes',
+      'id, red_registration_id, blue_registration_id, pool_id, match_number_label, phase_id, bracket_slot_id, planned_duration_override_minutes, phases!inner(tournament_id)',
     );
     expect(resolveMatchLengthsMock.mock.calls[0]?.[2]).toEqual(
       group.map((m) => ({ id: m.id, phaseId: 'phase-1', plannedDurationOverrideMinutes: null })),
