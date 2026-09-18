@@ -150,6 +150,27 @@ export const scheduleFixture = [
 ];
 
 /**
+ * The two-bout board plus a third bout nobody has placed yet. It has no Pool, so
+ * the Unscheduled panel shows it as its own chip, draggable and labelled with
+ * its round code — which is what lets `dragCardToCell` pick it up from there.
+ */
+export const MATCH_3 = '99999999-9999-4999-8999-999999999999';
+export const unscheduledFixture = [
+  ...scheduleFixture,
+  match({
+    id: MATCH_3,
+    matchNumberLabel: 'M3',
+    roundCode: 'LSW-P1-M3',
+    liceId: null,
+    scheduledAt: null,
+    redFighterName: 'Fifth Fighter',
+    blueFighterName: 'Sixth Fighter',
+    redRegistrationId: 'reg-red-3',
+    blueRegistrationId: 'reg-blue-3',
+  }),
+];
+
+/**
  * One Pool of six bouts on Piste 1 from 10:43, five minutes apart — a run that
  * does NOT start on a 5-minute slot. Its window shows the slot, 10:40, so a save
  * that read that text back would move the whole run three minutes early.

@@ -212,7 +212,7 @@ export function ScheduleGrid({
         }),
       );
       return commitAll(
-        positions.map((p) => () => saveMatchPosition(p.id, p.liceId ?? '', p.scheduledAt ?? '')),
+        positions.map((p) => () => saveMatchPosition(p.id, p.liceId, p.scheduledAt)),
       );
     },
     [setMatches, commitAll, saveMatchPosition],
@@ -599,7 +599,7 @@ export function ScheduleGrid({
     if (!plan) return;
     const ids = new Set(plan.matchIds);
     setMatches(matches.map((m) => (ids.has(m.id) ? { ...m, liceId: null, scheduledAt: null } : m)));
-    void commitAll(plan.matchIds.map((id) => () => saveMatchPosition(id, '', '')));
+    void commitAll(plan.matchIds.map((id) => () => saveMatchPosition(id, null, null)));
     history.push({ kind: 'unschedule', label: plan.label, matches: plan.prior });
   }
 
@@ -1003,7 +1003,7 @@ export function ScheduleGrid({
     setMatches(
       matches.map((m) => (m.id === match.id ? { ...m, liceId: null, scheduledAt: null } : m)),
     );
-    void commit(() => saveMatchPosition(match.id, '', ''));
+    void commit(() => saveMatchPosition(match.id, null, null));
   }
 
   // ── Live drift: how late/early each lice is running on the active day ──────
@@ -1504,7 +1504,7 @@ export function ScheduleGrid({
         ids.has(m.id) ? { ...m, liceId: null, scheduledAt: null } : m,
       );
       setMatches(updated);
-      await commitAll(group.matchIds.map((id) => () => saveMatchPosition(id, '', '')));
+      await commitAll(group.matchIds.map((id) => () => saveMatchPosition(id, null, null)));
     } finally {
       setClearingRun(false);
       setPendingRunClear(null);

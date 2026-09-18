@@ -45,8 +45,13 @@ export interface ScheduleWrites {
   /** Count a write that does not go through `commit` as in flight. For the two
    *  callers that own their own error banner and must keep it. */
   track: <T>(work: () => Promise<T>) => Promise<T>;
-  /** PATCH one match's lice + time. Throws if the server refused. */
-  saveMatchPosition: (matchId: string, liceId: string, scheduledAt: string) => Promise<void>;
+  /** PATCH one match's lice + time. Throws if the server refused. `null` for both
+   *  unschedules it — an empty string is refused, being neither a uuid nor a date. */
+  saveMatchPosition: (
+    matchId: string,
+    liceId: string | null,
+    scheduledAt: string | null,
+  ) => Promise<void>;
   /** POST one run window's save: the run's Matches, its start and, when it changed, its
    *  bout length. The server lays the run and checks every piste as ONE batch (ADR-018).
    *  Throws if the server refused. */
@@ -77,7 +82,7 @@ export function useScheduleWrites(args: {
   const isBusy = useCallback(() => tracker.isBusy(), [tracker]);
 
   const saveMatchPosition = useCallback(
-    async (matchId: string, liceId: string, scheduledAt: string): Promise<void> => {
+    async (matchId: string, liceId: string | null, scheduledAt: string | null): Promise<void> => {
       setSaving(matchId);
       try {
         await mutateSchedule(`${apiUrl}/api/v1/matches/${matchId}/schedule`, {

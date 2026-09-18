@@ -171,9 +171,10 @@ export async function slotOfCard(page: Page, roundCode: string, liceId: string):
   return slot;
 }
 
-/** Loads the grid and switches to the Detailed view, where the cells live. */
-export async function openDetailedGrid(page: Page): Promise<Harness> {
-  const harness = await mockApi(page);
+/** Loads the grid and switches to the Detailed view, where the cells live. The
+ *  schedule `opts` serves must still place LSW-P1-M1, the card it waits on. */
+export async function openDetailedGrid(page: Page, opts: MockOptions = {}): Promise<Harness> {
+  const harness = await mockApi(page, opts);
   await page.goto(SCHEDULE_URL);
   await expect(card(page, 'LSW-P1-M1')).toBeVisible();
   await page.getByRole('button', { name: 'Detailed grid' }).click();
@@ -322,4 +323,51 @@ export async function settledReadCount(api: Harness, suffix: string): Promise<nu
     )
     .toBeGreaterThanOrEqual(2_000);
   return count;
+}
+
+/**
+ * A card ON THE DETAILED GRID carrying `roundCode`, and nothing else.
+ *
+ * `card()` searches the whole page, and a bout sent back to the Unscheduled panel
+ * becomes a chip there that is draggable and shows the same round code — so
+ * "the card left the grid" can only be asked of the grid. The cards share one
+ * parent with the drop cells, which is what this scopes to.
+ */
+export function gridCard(page: Page, roundCode: string) {
+  return page
+    .locator('[data-lice-id][data-slot]')
+    .first()
+    .locator('..')
+    .locator('[draggable="true"]')
+    .filter({ hasText: roundCode });
+}
+
+/**
+ * Drags a Detailed-grid card onto the Unscheduled panel.
+ *
+ * Only a Detailed card (or a panel chip) starts a single-bout drag; a block-view
+ * card starts a block drag, which the panel's drop ignores. The drop is fired on
+ * the panel's "all placed" line, and bubbles to the panel's own drop handler — so
+ * it works only while every bout is placed and that line is showing.
+ */
+export async function dropCardOnPanel(page: Page, roundCode: string): Promise<void> {
+  await page.evaluate((code) => {
+    const cell = document.querySelector('[data-lice-id][data-slot]');
+    const src = [...(cell?.parentElement?.querySelectorAll('[draggable="true"]') ?? [])].find((e) =>
+      (e.textContent ?? '').includes(code),
+    );
+    const dst = [...document.querySelectorAll('p')].find(
+      (e) => e.textContent === 'All matches placed on the grid.',
+    );
+    if (!src) throw new Error(`no grid card matching ${code}`);
+    if (!dst) throw new Error('no Unscheduled panel drop line');
+    const dataTransfer = new DataTransfer();
+    const fire = (el: Element, type: string) =>
+      el.dispatchEvent(new DragEvent(type, { bubbles: true, cancelable: true, dataTransfer }));
+    fire(src, 'dragstart');
+    fire(dst, 'dragenter');
+    fire(dst, 'dragover');
+    fire(dst, 'drop');
+    fire(src, 'dragend');
+  }, roundCode);
 }

@@ -620,7 +620,7 @@
     "apps/web-admin/app/org/[slug]/events/[eventId]/schedule/useRefereeCrewConflicts.ts:37",
     "apps/web-admin/app/org/[slug]/events/[eventId]/schedule/useScheduleData.ts:151",
     "apps/web-admin/app/org/[slug]/events/[eventId]/schedule/useScheduleUndo.ts:67",
-    "apps/web-admin/app/org/[slug]/events/[eventId]/schedule/useScheduleWrites.ts:65",
+    "apps/web-admin/app/org/[slug]/events/[eventId]/schedule/useScheduleWrites.ts:70",
     "apps/web-admin/app/org/[slug]/events/[eventId]/statistics/page.tsx:14",
     "apps/web-admin/app/org/[slug]/events/[eventId]/swiss/_components/FormatSection.tsx:21",
     "apps/web-admin/app/org/[slug]/events/[eventId]/swiss/_components/GroupingField.tsx:30",
