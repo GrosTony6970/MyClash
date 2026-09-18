@@ -524,6 +524,10 @@ async function createDeskEvent(
     }),
   );
   createdEventIds.push(event.id);
+  // Published, as at a real venue. A participant picks themselves off the roster
+  // for the pass leg below, and a draft Event's roster is its organisation's
+  // alone: the guest-session mint refuses a draft to anyone outside it.
+  await api.ok(await api.post(`events/${event.id}/publish`, { data: {} }));
 
   const people = await ensureRoster(api, event.id, [
     { givenName: 'Deskcheck', familyName: `Alpha${token}` },

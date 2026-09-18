@@ -1,9 +1,11 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Delete,
   HttpCode,
   HttpStatus,
+  NotFoundException,
   Param,
   ParseUUIDPipe,
   Post,
@@ -18,7 +20,11 @@ import type { FastifyReply, FastifyRequest } from 'fastify';
 import { ConfigService } from '@nestjs/config';
 import { SupabaseService } from '../supabase/supabase.service';
 import { buildClearCookieOptions, buildSessionCookieOptions } from '../../security/http-security';
+import { assertCanReadEventRow, type EventVisibilityRow } from '../../common/auth/event-authz';
 import { Public } from '../../common/auth/public.decorator';
+import { resolveRequestUserId } from '../../common/auth/request-user';
+// Value import: a type-only import erases the metadata Nest resolves this by.
+import { OrganizationsService } from '../organizations/organizations.service';
 import { LegalAcceptanceService } from '../privacy/legal-acceptance.service';
 import { GuestJwtService } from './guest-jwt.service';
 
@@ -39,6 +45,7 @@ export class GuestSessionsController {
     private readonly guestJwt: GuestJwtService,
     private readonly config: ConfigService,
     private readonly legal: LegalAcceptanceService,
+    private readonly orgs: OrganizationsService,
   ) {}
 
   /**
@@ -58,13 +65,17 @@ export class GuestSessionsController {
   @ApiOperation({ summary: 'Create a guest session (participant picks themselves)' })
   @ApiParam({ name: 'eventId', type: 'string', format: 'uuid' })
   @ApiResponse({ status: 201, description: 'Guest session created, cookie set' })
-  @ApiResponse({ status: 404, description: 'Person not found in this event' })
+  @ApiResponse({ status: 401, description: 'Person not found in this event' })
+  @ApiResponse({ status: 404, description: 'Event unknown, or hidden from the caller' })
   async create(
     @Param('eventId', ParseUUIDPipe) eventId: string,
     @Body() dto: CreateGuestSessionDto,
     @Req() req: FastifyRequest,
     @Res() reply: FastifyReply,
   ): Promise<void> {
+    // 0. Only an Event the caller may see — not a draft outside its organisation
+    const endDate = await this.joinableEventEnd(eventId, req);
+
     // 1. Verify person belongs to this event
     const { data: person, error: personError } = await this.supabase.service
       .from('persons')
@@ -77,14 +88,7 @@ export class GuestSessionsController {
       throw new UnauthorizedException('Person not found in this event');
     }
 
-    // 2. Fetch event end_date to compute session expiry
-    const { data: event } = await this.supabase.service
-      .from('events')
-      .select('end_date')
-      .eq('id', eventId)
-      .maybeSingle();
-
-    const endDate = event ? new Date((event as { end_date: string }).end_date) : new Date();
+    // 2. The session lasts until the Event's end + 7 days
     const expiresAt = new Date(endDate.getTime() + 7 * 24 * 60 * 60 * 1000); // +7 days
 
     // 3. Detect device label from User-Agent
@@ -198,6 +202,29 @@ export class GuestSessionsController {
   }
 
   // ── Private helpers ──────────────────────────────────────────────────────────
+
+  /**
+   * The end of an Event a guest may join, read once with its status.
+   *
+   * A draft Event is its organisation's alone. The roster search that leads to
+   * the mint refuses one; without the same gate here, anyone holding two ids
+   * could become a draft Event's fighter and read their schedule. An unknown
+   * Event answers exactly as a hidden one, so the route confirms no draft.
+   */
+  private async joinableEventEnd(eventId: string, req: FastifyRequest): Promise<Date> {
+    const { data, error } = await this.supabase.service
+      .from('events')
+      .select('status, organization_id, end_date')
+      .eq('id', eventId)
+      .maybeSingle();
+    if (error) throw new BadRequestException(error.message);
+    if (!data) throw new NotFoundException(`Event "${eventId}" not found`);
+    const event = data as EventVisibilityRow & { end_date: string };
+    await assertCanReadEventRow({ supabase: this.supabase, orgs: this.orgs }, eventId, event, () =>
+      resolveRequestUserId(req, this.supabase),
+    );
+    return new Date(event.end_date);
+  }
 
   private parseDeviceLabel(ua: string): string {
     if (/iPhone/i.test(ua)) return 'iPhone (Safari)';

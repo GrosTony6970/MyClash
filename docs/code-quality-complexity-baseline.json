@@ -258,7 +258,7 @@
     "apps/api/src/modules/auth/auth.service.ts:313",
     "apps/api/src/modules/auth/auth.service.ts:370",
     "apps/api/src/modules/auth/auth.service.ts:448",
-    "apps/api/src/modules/auth/guest-sessions.controller.ts:55",
+    "apps/api/src/modules/auth/guest-sessions.controller.ts:62",
     "apps/api/src/modules/compensation/compensation.service.ts:259",
     "apps/api/src/modules/deletion-requests/deletion-requests.service.ts:219",
     "apps/api/src/modules/deletion-requests/deletion-requests.service.ts:52",

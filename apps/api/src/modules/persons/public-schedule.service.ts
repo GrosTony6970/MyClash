@@ -9,8 +9,8 @@
  *     `getSchedule`: both resolve the person from the caller's own identity for
  *     that Event, so the person is in that Event by construction. That identity
  *     is only as strong as its source: a guest picks themselves off the roster
- *     (`POST /events/:eventId/guest-sessions`), and that mint does not check
- *     whether the Event is a draft.
+ *     (`POST /events/:eventId/guest-sessions`) with no proof, by design
+ *     (ARCHITECTURE.md §12).
  *
  * AC:
  *   - matches + referee_slots always included
