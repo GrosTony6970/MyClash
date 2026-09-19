@@ -10635,8 +10635,6 @@ export interface components {
     CreateRegistrationDto: {
       /** Format: uuid */
       personId: string;
-      /** Format: uuid */
-      fighterId?: string;
       seed?: number;
       bibNumber?: number;
       hemaRatingsId?: string;

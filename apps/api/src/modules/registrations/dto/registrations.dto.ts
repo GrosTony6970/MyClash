@@ -20,7 +20,6 @@ export const REGISTRATION_STATUS_TRANSITIONS: Record<string, string[]> = {
 const createRegistrationSchema = z
   .object({
     personId: z.uuid(),
-    fighterId: z.uuid().optional(),
     seed: z.number().int().min(1).optional(),
     bibNumber: z.number().int().min(1).optional(),
     hemaRatingsId: z.string().optional(),

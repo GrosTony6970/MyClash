@@ -13,6 +13,20 @@ import {
   type OrgRole,
 } from './event-authz';
 
+/** The Event the person is on — `persons.event_id` — or null for no such person. */
+export async function eventIdForPerson(
+  supabase: EventAuthzDeps['supabase'],
+  personId: string,
+): Promise<string | null> {
+  const { data, error } = await supabase.service
+    .from('persons')
+    .select('event_id')
+    .eq('id', personId)
+    .maybeSingle();
+  if (error) throw new BadRequestException(error.message);
+  return data ? String((data as { event_id: string }).event_id) : null;
+}
+
 /**
  * Assert the caller holds `minRole` on the Event the person is on, and return
  * THAT EVENT's id — not the organisation's, unlike the `assertCanManage*` family:
@@ -25,14 +39,8 @@ export async function assertCanManagePerson(
   userId: string,
   minRole: OrgRole = MANAGE_EVENT_ROLE,
 ): Promise<string> {
-  const { data, error } = await deps.supabase.service
-    .from('persons')
-    .select('event_id')
-    .eq('id', personId)
-    .maybeSingle();
-  if (error) throw new BadRequestException(error.message);
-  if (!data) throw new NotFoundException(`Person ${personId} not found`);
-  const eventId = String((data as { event_id: string }).event_id);
+  const eventId = await eventIdForPerson(deps.supabase, personId);
+  if (!eventId) throw new NotFoundException(`Person ${personId} not found`);
   await assertCanManageEvent(deps, eventId, userId, minRole);
   return eventId;
 }

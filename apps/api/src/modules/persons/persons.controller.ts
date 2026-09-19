@@ -12,7 +12,6 @@ import {
   Post,
   Query,
   Req,
-  UnauthorizedException,
 } from '@nestjs/common';
 import {
   ApiBearerAuth,
@@ -27,24 +26,12 @@ import type { FastifyRequest } from 'fastify';
 import type { ImportDecision } from '@myclash/types';
 import { assertCanManageEvent, assertEventMember } from '../../common/auth/event-authz';
 import { assertCanManagePerson } from '../../common/auth/person-authz';
+import { requireRequestUserId } from '../../common/auth/request-user';
 import { OrganizationsService } from '../organizations/organizations.service';
 import { SupabaseService } from '../supabase/supabase.service';
 import { PersonsService } from './persons.service';
 import { AssignmentsService } from '../registrations/assignments.service';
 import { CreatePersonDto, UpdatePersonDto } from './dto/persons.dto';
-
-/** Resolve the authenticated user UUID from the Supabase access token. */
-async function getUserId(req: FastifyRequest, supabase: SupabaseService): Promise<string> {
-  const authHeader = req.headers['authorization'];
-  const cookies = (req as FastifyRequest & { cookies?: Record<string, string> }).cookies;
-  const token = authHeader?.startsWith('Bearer ')
-    ? authHeader.slice(7)
-    : cookies?.['sb-access-token'];
-  if (!token) throw new UnauthorizedException('Authentication required');
-  const user = await supabase.getAuthUser(token);
-  if (!user?.id) throw new UnauthorizedException('Invalid or expired session');
-  return user.id;
-}
 
 /** Read all multipart parts, returning file buffer + any JSON fields. */
 async function readMultipart(
@@ -120,7 +107,7 @@ export class PersonsController {
   @ApiParam({ name: 'eventId', type: 'string', format: 'uuid' })
   @ApiResponse({ status: 200, description: 'Person list' })
   async list(@Param('eventId', ParseUUIDPipe) eventId: string, @Req() req: FastifyRequest) {
-    await assertEventMember(this.authz, eventId, await getUserId(req, this.supabase));
+    await assertEventMember(this.authz, eventId, await requireRequestUserId(req, this.supabase));
     return this.persons.listPersons(eventId);
   }
 
@@ -139,7 +126,7 @@ export class PersonsController {
     @Body() dto: CreatePersonDto,
     @Req() req: FastifyRequest,
   ) {
-    const userId = await getUserId(req, this.supabase);
+    const userId = await requireRequestUserId(req, this.supabase);
     await assertCanManageEvent(this.authz, eventId, userId);
     return this.persons.createPerson(eventId, dto, userId);
   }
@@ -165,7 +152,7 @@ export class PersonsController {
     @Param('eventId', ParseUUIDPipe) eventId: string,
     @Req() req: FastifyRequest,
   ) {
-    await assertCanManageEvent(this.authz, eventId, await getUserId(req, this.supabase));
+    await assertCanManageEvent(this.authz, eventId, await requireRequestUserId(req, this.supabase));
     const { buffer } = await readMultipart(req);
     if (!buffer) {
       return {
@@ -207,7 +194,7 @@ export class PersonsController {
   @ApiParam({ name: 'eventId', type: 'string', format: 'uuid' })
   @ApiResponse({ status: 200, description: 'Import report' })
   async importCsv(@Param('eventId', ParseUUIDPipe) eventId: string, @Req() req: FastifyRequest) {
-    const userId = await getUserId(req, this.supabase);
+    const userId = await requireRequestUserId(req, this.supabase);
     await assertCanManageEvent(this.authz, eventId, userId);
     const { buffer, fields } = await readMultipart(req);
 
@@ -243,7 +230,12 @@ export class PersonsController {
   @ApiResponse({ status: 200, description: 'Person detail' })
   @ApiResponse({ status: 404, description: 'Not found' })
   async getOne(@Param('id', ParseUUIDPipe) id: string, @Req() req: FastifyRequest) {
-    await assertCanManagePerson(this.authz, id, await getUserId(req, this.supabase), 'read_only');
+    await assertCanManagePerson(
+      this.authz,
+      id,
+      await requireRequestUserId(req, this.supabase),
+      'read_only',
+    );
     return this.persons.getPerson(id);
   }
 
@@ -260,7 +252,7 @@ export class PersonsController {
     @Body() dto: UpdatePersonDto,
     @Req() req: FastifyRequest,
   ) {
-    await assertCanManagePerson(this.authz, id, await getUserId(req, this.supabase));
+    await assertCanManagePerson(this.authz, id, await requireRequestUserId(req, this.supabase));
     return this.persons.updatePerson(id, dto);
   }
 
@@ -299,7 +291,7 @@ export class PersonsController {
     const personEventId = await assertCanManagePerson(
       this.authz,
       id,
-      await getUserId(req, this.supabase),
+      await requireRequestUserId(req, this.supabase),
     );
     if (force === 'true') {
       if (!eventId) {

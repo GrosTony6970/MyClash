@@ -484,16 +484,6 @@ export class RegistrationsService {
   private async resolveFighterForRegistration(
     dto: CreateRegistrationDto,
   ): Promise<{ fighterId: string | null; mintedIdentity: IdentityMintReason | null }> {
-    if (dto.fighterId) {
-      if (dto.hemaRatingsId) {
-        await this.supabase.service
-          .from('global_persons')
-          .update({ hema_ratings_id: dto.hemaRatingsId })
-          .eq('id', dto.fighterId);
-      }
-      return { fighterId: dto.fighterId, mintedIdentity: null };
-    }
-
     const { data: person, error } = await this.supabase.service
       .from('persons')
       .select(

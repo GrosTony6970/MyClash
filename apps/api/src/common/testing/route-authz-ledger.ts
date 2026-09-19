@@ -23,24 +23,6 @@
  * are pinned.
  */
 export const UNDECIDED: Readonly<Record<string, string>> = {
-  // registrations — the roster's entries. The per-Event list hands out the ids
-  // that delete and force-delete accept.
-  'modules/registrations/registrations.controller.ts#RegistrationsController.create': 'write',
-  'modules/registrations/registrations.controller.ts#RegistrationsController.addToWaitlist':
-    'write',
-  'modules/registrations/registrations.controller.ts#RegistrationsController.updateStatus': 'write',
-  'modules/registrations/registrations.controller.ts#RegistrationsController.promote': 'write',
-  'modules/registrations/registrations.controller.ts#RegistrationsController.reorderWaitlist':
-    'write',
-  'modules/registrations/registrations.controller.ts#RegistrationsController.delete': 'write',
-  'modules/registrations/registrations.controller.ts#RegistrationsController.forceDelete':
-    'write: deletes unplayed bouts',
-  'modules/registrations/registrations.controller.ts#RegistrationsController.list':
-    'read: persons.email',
-  'modules/registrations/registrations.controller.ts#RegistrationsController.listForEvent': 'read',
-  'modules/registrations/registrations.controller.ts#RegistrationsController.getAssignments':
-    'read',
-
   // phases — the bracket and the Pools, draft Events and hidden phases included.
   'modules/phases/bracket-slots.controller.ts#BracketSlotsController.overrideSlot':
     'write: moves a fighter in any bracket',

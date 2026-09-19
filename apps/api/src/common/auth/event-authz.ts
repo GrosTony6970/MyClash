@@ -84,7 +84,7 @@ async function orgIdForPool(supabase: SupabaseService, poolId: string): Promise<
 }
 
 /** A tournament belongs to exactly one event — `tournaments.event_id`. */
-async function orgIdForTournament(
+export async function eventIdForTournament(
   supabase: SupabaseService,
   tournamentId: string,
 ): Promise<string> {
@@ -95,7 +95,14 @@ async function orgIdForTournament(
     .maybeSingle();
   if (error) throw new BadRequestException(error.message);
   if (!data) throw new NotFoundException(`Tournament ${tournamentId} not found`);
-  return orgIdForEvent(supabase, String((data as { event_id: string }).event_id));
+  return String((data as { event_id: string }).event_id);
+}
+
+async function orgIdForTournament(
+  supabase: SupabaseService,
+  tournamentId: string,
+): Promise<string> {
+  return orgIdForEvent(supabase, await eventIdForTournament(supabase, tournamentId));
 }
 
 /**

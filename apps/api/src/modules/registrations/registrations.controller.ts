@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Delete,
@@ -10,12 +11,33 @@ import {
   Patch,
   Post,
   Query,
+  Req,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
+import type { FastifyRequest } from 'fastify';
+import { assertEventMember, assertTournamentMember } from '../../common/auth/event-authz';
+import { assertCanManagePerson } from '../../common/auth/person-authz';
+import {
+  assertCanManageRegistration,
+  assertCanManageTournament,
+  assertCanRegister,
+} from '../../common/auth/registration-authz';
+import { requireRequestUserId } from '../../common/auth/request-user';
+import { OrganizationsService } from '../organizations/organizations.service';
+import { SupabaseService } from '../supabase/supabase.service';
 import { RegistrationsService } from './registrations.service';
 import { AssignmentsService } from './assignments.service';
 import { CreateRegistrationDto, UpdateRegistrationStatusDto } from './dto/registrations.dto';
 
+/**
+ * A tournament's entries: who is registered, on the waitlist, checked in.
+ *
+ * The persons routes' two bars: reading needs membership of the Event's
+ * organisation at any role (the rows carry each entrant's email); changing
+ * needs `editor`, as RLS `registrations_write` does. A route addressed by a
+ * tournament, a registration or a person checks the Event that row is on, never
+ * an id the caller sends. Callers are the admin pages only.
+ */
 @ApiTags('registrations')
 @ApiBearerAuth()
 @Controller()
@@ -23,9 +45,21 @@ export class RegistrationsController {
   constructor(
     private readonly registrations: RegistrationsService,
     private readonly assignments: AssignmentsService,
+    private readonly supabase: SupabaseService,
+    private readonly organizations: OrganizationsService,
   ) {}
 
-  /** GET /api/v1/events/:eventId/persons/:personId/assignments */
+  /** Deps in the shape `event-authz` takes. */
+  private get authz() {
+    return { supabase: this.supabase, orgs: this.organizations };
+  }
+
+  /**
+   * GET /api/v1/events/:eventId/persons/:personId/assignments
+   *
+   * Checked on the PERSON's Event, which must be the one in the path: the
+   * referee half of the report reads the person's rows in every Event.
+   */
   @Get('events/:eventId/persons/:personId/assignments')
   @ApiOperation({
     summary:
@@ -36,8 +70,13 @@ export class RegistrationsController {
   async getAssignments(
     @Param('eventId', ParseUUIDPipe) eventId: string,
     @Param('personId', ParseUUIDPipe) personId: string,
+    @Req() req: FastifyRequest,
     @Query('tournamentId') tournamentId?: string,
   ) {
+    const userId = await requireRequestUserId(req, this.supabase);
+    if ((await assertCanManagePerson(this.authz, personId, userId, 'read_only')) !== eventId) {
+      throw new BadRequestException(`Person ${personId} is not on the roster of event ${eventId}`);
+    }
     return this.assignments.getEventAssignments(eventId, personId, tournamentId);
   }
 
@@ -45,7 +84,12 @@ export class RegistrationsController {
   @Get('tournaments/:tournamentId/registrations')
   @ApiOperation({ summary: 'List registrations for a tournament' })
   @ApiParam({ name: 'tournamentId', type: 'string', format: 'uuid' })
-  async list(@Param('tournamentId', ParseUUIDPipe) tournamentId: string) {
+  async list(
+    @Param('tournamentId', ParseUUIDPipe) tournamentId: string,
+    @Req() req: FastifyRequest,
+  ) {
+    const userId = await requireRequestUserId(req, this.supabase);
+    await assertTournamentMember(this.authz, tournamentId, userId);
     return this.registrations.list(tournamentId);
   }
 
@@ -53,7 +97,8 @@ export class RegistrationsController {
   @Get('events/:eventId/registrations')
   @ApiOperation({ summary: 'List every registration across all tournaments under an event' })
   @ApiParam({ name: 'eventId', type: 'string', format: 'uuid' })
-  async listForEvent(@Param('eventId', ParseUUIDPipe) eventId: string) {
+  async listForEvent(@Param('eventId', ParseUUIDPipe) eventId: string, @Req() req: FastifyRequest) {
+    await assertEventMember(this.authz, eventId, await requireRequestUserId(req, this.supabase));
     return this.registrations.listForEvent(eventId);
   }
 
@@ -65,7 +110,10 @@ export class RegistrationsController {
   async create(
     @Param('tournamentId', ParseUUIDPipe) tournamentId: string,
     @Body() dto: CreateRegistrationDto,
+    @Req() req: FastifyRequest,
   ) {
+    const userId = await requireRequestUserId(req, this.supabase);
+    await assertCanRegister(this.authz, tournamentId, dto.personId, userId);
     return this.registrations.create(tournamentId, dto);
   }
 
@@ -83,7 +131,10 @@ export class RegistrationsController {
   async addToWaitlist(
     @Param('tournamentId', ParseUUIDPipe) tournamentId: string,
     @Body() dto: CreateRegistrationDto,
+    @Req() req: FastifyRequest,
   ) {
+    const userId = await requireRequestUserId(req, this.supabase);
+    await assertCanRegister(this.authz, tournamentId, dto.personId, userId);
     return this.registrations.addToWaitlist(tournamentId, dto);
   }
 
@@ -101,7 +152,13 @@ export class RegistrationsController {
   async updateStatus(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: UpdateRegistrationStatusDto,
+    @Req() req: FastifyRequest,
   ) {
+    await assertCanManageRegistration(
+      this.authz,
+      id,
+      await requireRequestUserId(req, this.supabase),
+    );
     return this.registrations.updateStatus(id, dto.status);
   }
 
@@ -115,7 +172,16 @@ export class RegistrationsController {
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Promote a waitlist entry to registered (?force=true to override cap)' })
   @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
-  async promote(@Param('id', ParseUUIDPipe) id: string, @Query('force') forceParam?: string) {
+  async promote(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Req() req: FastifyRequest,
+    @Query('force') forceParam?: string,
+  ) {
+    await assertCanManageRegistration(
+      this.authz,
+      id,
+      await requireRequestUserId(req, this.supabase),
+    );
     const force = forceParam === 'true';
     await this.registrations.promoteFromWaitlist(id, force);
     return { promoted: true };
@@ -124,7 +190,8 @@ export class RegistrationsController {
   /**
    * PATCH /api/v1/tournaments/:tournamentId/waitlist/reorder
    *
-   * Slice 3c: rewrite the waitlist order in one bulk call.
+   * Slice 3c: rewrite the waitlist order in one bulk call. The service refuses
+   * an id that is not on this tournament's waitlist.
    */
   @Patch('tournaments/:tournamentId/waitlist/reorder')
   @HttpCode(HttpStatus.NO_CONTENT)
@@ -133,7 +200,10 @@ export class RegistrationsController {
   async reorderWaitlist(
     @Param('tournamentId', ParseUUIDPipe) tournamentId: string,
     @Body() dto: { orderedRegistrationIds: string[] },
+    @Req() req: FastifyRequest,
   ) {
+    const userId = await requireRequestUserId(req, this.supabase);
+    await assertCanManageTournament(this.authz, tournamentId, userId);
     await this.registrations.reorderWaitlist(tournamentId, dto.orderedRegistrationIds);
   }
 
@@ -142,7 +212,12 @@ export class RegistrationsController {
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Delete a registration' })
   @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
-  async delete(@Param('id', ParseUUIDPipe) id: string) {
+  async delete(@Param('id', ParseUUIDPipe) id: string, @Req() req: FastifyRequest) {
+    await assertCanManageRegistration(
+      this.authz,
+      id,
+      await requireRequestUserId(req, this.supabase),
+    );
     await this.registrations.delete(id);
   }
 
@@ -162,7 +237,12 @@ export class RegistrationsController {
       'Force-delete a registration and its unplayed matches; 409 if any blocking match exists',
   })
   @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
-  async forceDelete(@Param('id', ParseUUIDPipe) id: string) {
+  async forceDelete(@Param('id', ParseUUIDPipe) id: string, @Req() req: FastifyRequest) {
+    await assertCanManageRegistration(
+      this.authz,
+      id,
+      await requireRequestUserId(req, this.supabase),
+    );
     await this.assignments.forceDeleteRegistration(id);
   }
 }
