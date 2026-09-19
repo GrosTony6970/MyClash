@@ -1984,6 +1984,7 @@ export const organizer = {
       ctrlClickHint: 'Ctrl/⌘-clic pour ouvrir la saisie des scores',
       runHeaderHintSingular: '({count} match) — glisser pour déplacer · cliquer pour vider',
       runHeaderHintPlural: '({count} matchs) — glisser pour déplacer · cliquer pour vider',
+      poolRest: 'Pause · {minutes} min',
       blockBarTitle:
         '{start} – {end} · {label} · glisser pour déplacer (décale les matchs suivants)',
       addBreakTitle: 'Ajouter une pause',

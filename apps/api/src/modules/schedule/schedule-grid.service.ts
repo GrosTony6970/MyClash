@@ -5,51 +5,10 @@ import { SupabaseService } from '../supabase/supabase.service';
 import { OrganizationsService } from '../organizations/organizations.service';
 import { assertCanReadEvent } from '../../common/auth/event-authz';
 import { buildRoundCode, bracketCodeConfig } from '../matches/round-code.helper';
+import { readProgrammeSheet } from '../programme/programme-sheet';
 import { resolveMatchLengths } from './match-lengths';
-import { plannedLengthOf } from './planned-length';
-
-export interface ScheduleGridMatch {
-  id: string;
-  matchNumberLabel: string;
-  /**
-   * Canonical match code via formatRoundCode (LSW-P1-M1 for
-   * pools, LSW-B-QF-M1 for brackets). Built per-row in the service
-   * so the sidebar + grid both read the same identifier the
-   * scoring app and exports already show.
-   */
-  roundCode: string;
-  status: string;
-  liceId: string | null;
-  scheduledAt: string | null;
-  /** Actual run timing — present once the match has started/ended; drives
-   *  the schedule's per-lice "running late" drift indicator. */
-  startedAt: string | null;
-  endedAt: string | null;
-  redFighterName: string | null;
-  blueFighterName: string | null;
-  redRegistrationId: string;
-  blueRegistrationId: string;
-  tournamentName: string | null;
-  /** Tournament identity colour (ColorToken string). Lets the grid
-   *  tint every match card by its parent tournament so the schedule
-   *  reads as a horizontal flow of tournaments. Null when the
-   *  tournament has no color set; the FE's tint helpers fall back
-   *  to the default token. */
-  tournamentColor: string | null;
-  /** Tournament slug — lets a read-only grid (e.g. the public event
-   *  schedule) link a block to its `/e/{slug}/t/{tournamentSlug}` page.
-   *  Null when the tournament is missing/unresolved. */
-  tournamentSlug: string | null;
-  durationMinutes: number;
-  /** The run window's typed length, already applied to `durationMinutes`; null when the sheet decides. */
-  plannedDurationOverrideMinutes: number | null;
-  /** 'pool' / 'single_elim' / 'double_elim' — drives the bracket-vs-pool chip on the grid. */
-  phaseType: string | null;
-  /** Populated for pool-type matches so the grid can group + colour-tint
-   *  matches by pool. Null for bracket / finals matches. */
-  poolId: string | null;
-  poolName: string | null;
-}
+import { plannedLengthOf, sheetRestFor } from './planned-length';
+import type { ScheduleGridMatch } from './schedule-grid-match';
 
 interface PhaseRow {
   id: string;
@@ -309,9 +268,11 @@ export class ScheduleGridService {
       });
     }
 
-    // One resolution for the whole grid, not one per card (ADR-018:115-116).
-    // Every row here came back from `.in('phase_id', phaseIds)`, so `phase_id`
-    // is present whatever the column's nullable type says.
+    // One resolution for the whole grid, not one per card (ADR-018:115-116),
+    // from one read of the sheet — the lengths and the Pools' rests. Every row
+    // here came back from `.in('phase_id', phaseIds)`, so `phase_id` is present
+    // whatever the column's nullable type says.
+    const sheet = await readProgrammeSheet(this.supabase.service, eventId);
     const lengths = await resolveMatchLengths(
       this.supabase.service,
       eventId,
@@ -320,6 +281,7 @@ export class ScheduleGridService {
         phaseId: m.phase_id as string,
         plannedDurationOverrideMinutes: m.planned_duration_override_minutes,
       })),
+      sheet,
     );
 
     return matches.map((m): ScheduleGridMatch => {
@@ -392,6 +354,7 @@ export class ScheduleGridService {
         phaseType: phase?.type ?? null,
         poolId: m.pool_id,
         poolName: pool?.name ?? null,
+        poolRestMinutes: m.pool_id && phase ? sheetRestFor(sheet, phase.tournament_id) : null,
       };
     });
   }

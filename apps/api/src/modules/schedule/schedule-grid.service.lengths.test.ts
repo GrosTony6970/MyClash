@@ -2,13 +2,14 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ScheduleGridService } from './schedule-grid.service';
 import { assertCanReadEvent } from '../../common/auth/event-authz';
 import { resolveMatchLengths } from './match-lengths';
+import { readProgrammeSheet } from '../programme/programme-sheet';
 
 /**
  * Where a grid card's WIDTH comes from.
  *
  * Its own file rather than more cases in `schedule-grid.service.test.ts`: that
  * one is at the 400-line budget, and it drives `from()` as an ordered queue, so
- * both files mock the same two collaborators the same way (see its header).
+ * both files mock the same collaborators the same way (see its header).
  *
  * The card used to be five minutes wide, always — a constant shared with the
  * server's occupancy refusal so the two "could not disagree". They agreed with
@@ -21,6 +22,11 @@ vi.mock('../../common/auth/event-authz', () => ({
 
 vi.mock('./match-lengths', () => ({ resolveMatchLengths: vi.fn() }));
 const resolveMatchLengthsMock = vi.mocked(resolveMatchLengths);
+
+/** The Event rests 10 minutes mid-Pool; Longsword ('t1') rests 7. */
+const SHEET = { minRestMinutes: 10, tournaments: [{ tournamentId: 't1', minRestMinutes: 7 }] };
+vi.mock('../programme/programme-sheet', () => ({ readProgrammeSheet: vi.fn() }));
+const readProgrammeSheetMock = vi.mocked(readProgrammeSheet);
 
 const fromMock = vi.fn();
 const mockSupabase = { service: { from: fromMock } };
@@ -72,6 +78,7 @@ describe('ScheduleGridService — a card is as wide as the sheet says', () => {
   beforeEach(() => {
     fromMock.mockReset();
     resolveMatchLengthsMock.mockReset();
+    readProgrammeSheetMock.mockReset().mockResolvedValue(SHEET as never);
     vi.mocked(assertCanReadEvent).mockResolvedValue(undefined as never);
   });
 
@@ -155,5 +162,32 @@ describe('ScheduleGridService — a card is as wide as the sheet says', () => {
     await service().listEventSchedule('e1', () => Promise.resolve('u1'));
 
     expect(resolveMatchLengthsMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("gives a Pool bout its Tournament's mid-Pool rest, and a bout outside a Pool none", async () => {
+    fromMock.mockReturnValueOnce(makeChain({ data: [TOURNAMENT], error: null }));
+    fromMock.mockReturnValueOnce(makeChain({ data: [POOL_PHASE], error: null }));
+    const inPool = match({ id: 'm1', pool_id: 'pool-1' });
+    fromMock.mockReturnValueOnce(makeChain({ data: [inPool, match({ id: 'm2' })], error: null }));
+    fromMock.mockReturnValueOnce(
+      makeChain({ data: [{ id: 'pool-1', name: 'Pool 1', sort_order: 0 }], error: null }),
+    );
+    fromMock.mockReturnValueOnce(makeChain({ data: [], error: null })); // names view
+    resolveMatchLengthsMock.mockResolvedValue(
+      new Map([
+        ['m1', 5],
+        ['m2', 5],
+      ]),
+    );
+
+    const rows = await service().listEventSchedule('e1', () => Promise.resolve('u1'));
+
+    expect(rows.map((r) => [r.id, r.poolRestMinutes])).toEqual([
+      ['m1', 7],
+      ['m2', null],
+    ]);
+    // One read of the sheet, shared with the lengths.
+    expect(readProgrammeSheetMock).toHaveBeenCalledTimes(1);
+    expect(resolveMatchLengthsMock.mock.calls[0]?.[3]).toBe(SHEET);
   });
 });

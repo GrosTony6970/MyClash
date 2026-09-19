@@ -11,9 +11,12 @@ import type { HeaderRunGroup } from './schedule-types';
  * One tinted band + bold strip per contiguous same-pool / same-bracket-round
  * run on a lice ("Pool 1", "Semi-finals", …).
  *
- * Separating a match — another lice, a time gap, another fight wedged in —
- * splits the run, so each cluster keeps its own header and the header's drag
- * and clear scope to just that cluster.
+ * Separating a match — another lice, a gap of a row or more that is not the
+ * Pool's rest, another fight wedged in — splits the run, so each cluster keeps
+ * its own header and the header's drag and clear scope to just that cluster.
+ *
+ * The Pool's own rest inside the run is drawn, labelled with its length, in
+ * the rows it leaves empty: an unmarked hole reads as a missing bout.
  *
  * The band is `pointer-events: none` on purpose: it covers the fights inside
  * the run, and without that the operator could no longer drag an individual
@@ -55,6 +58,23 @@ export function DetailedRunHeaders({ groups, rowFor, onClearRun, onDragStart, on
                 zIndex: 5,
               }}
             />
+            {group.rests.map((rest) => (
+              <div
+                key={rest.startSlot}
+                className="pointer-events-none flex items-center justify-center overflow-hidden border-y border-dashed border-border bg-surface text-xs font-semibold text-foreground-secondary"
+                style={{
+                  gridColumn: group.liceIndex + 2,
+                  gridRow: `${rowFor(rest.startSlot)} / ${rowFor(rest.endSlot)}`,
+                  marginLeft: '1px',
+                  marginRight: '1px',
+                  zIndex: 6,
+                }}
+              >
+                <span className="truncate px-2">
+                  {t('organizer.schedulePage.grid.poolRest', { minutes: rest.minutes })}
+                </span>
+              </div>
+            ))}
             {/* The strip the operator drags to move the whole run. It carries a
                 bracketRound payload — a plain matchIds group — so the drop lands
                 on the existing group-drop path, which re-fans pools and rounds

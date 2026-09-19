@@ -1,5 +1,6 @@
 import { BadRequestException } from '@nestjs/common';
 import type { SupabaseClient } from '@supabase/supabase-js';
+import type { SuggestConfig } from '@myclash/types';
 import { matchWindowMs, type TimeWindowMs } from '@myclash/schedule-core';
 import { readProgrammeSheet } from '../programme/programme-sheet';
 import {
@@ -126,10 +127,12 @@ export async function resolveMatchLengths(
   db: SupabaseClient,
   eventId: string,
   inputs: readonly MatchLengthInput[],
+  /** The Event's sheet, when the caller has read it for something else too. */
+  sheetRead?: SuggestConfig,
 ): Promise<Map<string, number>> {
   if (inputs.length === 0) return new Map();
 
-  const sheet = await readProgrammeSheet(db, eventId);
+  const sheet = sheetRead ?? (await readProgrammeSheet(db, eventId));
 
   const phaseIds = [...new Set(inputs.map((input) => input.phaseId))];
   const phasesRes = await db.from('phases').select('id, type, tournament_id').in('id', phaseIds);

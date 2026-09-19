@@ -10,7 +10,7 @@
  *
  * Shapes are copied from the real projections, not invented:
  *   - lices are SNAKE_CASE with an embedded venue (lices.service.ts:29)
- *   - matches are camelCase ScheduleGridMatch (schedule-grid.service.ts:5)
+ *   - matches are camelCase ScheduleGridMatch (schedule-grid-match.ts)
  *   - programme blocks are camelCase ProgrammeBlock (programme.service mapBlock)
  * A fixture that drifts from those is worse than no fixture: it would keep
  * passing while the real grid broke.
@@ -118,6 +118,7 @@ function match(over: Record<string, unknown>) {
     phaseType: 'pool',
     poolId: null,
     poolName: null,
+    poolRestMinutes: null,
     ...over,
   };
 }

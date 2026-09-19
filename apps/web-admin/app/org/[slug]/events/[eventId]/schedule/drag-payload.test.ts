@@ -30,6 +30,7 @@ const MATCH: ScheduleMatch = {
   phaseType: null,
   poolId: null,
   poolName: null,
+  poolRestMinutes: null,
 };
 
 describe('draggedMatchIds', () => {

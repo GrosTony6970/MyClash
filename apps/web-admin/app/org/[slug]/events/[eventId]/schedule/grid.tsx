@@ -36,10 +36,10 @@ import {
   barWarningSlotSpan,
   matchSlotSpan,
   respaceBlockSlots,
-  retimeBlockSlots,
-  type SlotAssignment,
+  retimeBlockMinutes,
+  type MinuteAssignment,
 } from './block-geometry';
-import { matchBelongsToDay, planMatchDrop } from './plan-match-drop';
+import { matchBelongsToDay, planMatchDrop, sameInstant } from './plan-match-drop';
 import { useScheduleData } from './useScheduleData';
 import { BlockGridView, type BgvBreak } from './BlockGridView';
 import { BlockEditPopover, type BlockEditDraft } from './BlockEditPopover';
@@ -50,7 +50,10 @@ import { distributeGroups } from './auto-place';
 import { detectLiceStacks } from './detect-overlaps';
 import { detectBarCollisions } from './bar-collisions';
 import {
+  SLOT_MINUTES,
+  axisMinutesToTime,
   hhmmToSlot,
+  isoToAxisMinutes,
   isoToSlot,
   nowSlotForDay,
   slotToHHMM,
@@ -259,6 +262,16 @@ export function ScheduleGrid({
     (iso: string, day: string) => isoToSlot(iso, day, eventTz, gridStartHour),
     [eventTz, gridStartHour],
   );
+  // The same axis in exact minutes. Every gesture MOVES bouts by these; the
+  // slot pair above only draws them (see `matchSlotSpan`).
+  const isoToAxisMinutesTz = useCallback(
+    (iso: string, day: string) => isoToAxisMinutes(iso, day, eventTz, gridStartHour),
+    [eventTz, gridStartHour],
+  );
+  const axisMinutesToTimeTz = useCallback(
+    (minutes: number, day: string) => axisMinutesToTime(minutes, day, eventTz, gridStartHour),
+    [eventTz, gridStartHour],
+  );
 
   // ── Derived geometry ──────────────────────────────────────────────────────
   //
@@ -327,7 +340,11 @@ export function ScheduleGrid({
   // row with no time label and no drop target behind it: visible, unreadable
   // and impossible to move.
   const gridEndSlot = useMemo(() => {
-    const blockEndSlots = dayBlocks.map((b) => isoToSlotTz(b.endIso, activeDay));
+    // A run's real end, rounded UP to a row: an 8-minute bout at 19:54 ends at
+    // 20:02, and an axis that stopped at 20:00 had no room to push it into.
+    const blockEndSlots = dayBlocks.map((b) =>
+      Math.ceil(isoToAxisMinutesTz(b.endIso, activeDay) / SLOT_MINUTES),
+    );
     const breakEndSlots = blocksOnActiveDay
       .filter((b) => b.blockType !== 'competition')
       .map((b) => b.startSlot + b.span);
@@ -341,8 +358,7 @@ export function ScheduleGrid({
       dayEndHHMM,
       startHour: gridStartHour,
     });
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- isoToSlotTz is a stable pure helper; excluded intentionally
-  }, [dayBlocks, blocksOnActiveDay, activeDay]);
+  }, [dayBlocks, blocksOnActiveDay, activeDay, isoToAxisMinutesTz, gridStartHour]);
 
   /**
    * Every write to a programme bar — break, admin slot, workshop band — plus the
@@ -601,10 +617,11 @@ export function ScheduleGrid({
   }
 
   /**
-   * Group drop: place every match in `groupMatchIds` sequentially on
-   * the target lice starting at `slot`, displacing any existing
-   * occupants past the group's tail via placeMultiWithShift. Shared
-   * by the pool block and the bracket-round block.
+   * Group drop: place every match in `groupMatchIds` back to back on the
+   * target lice from `atMinutes` (exact minutes on the axis, each bout as long
+   * as its real length), displacing any existing occupants past the group's
+   * tail via placeMultiWithShift. Shared by the pool block and the
+   * bracket-round block.
    *
    * The pool path used to fan the pool across every lice through a backend
    * door that has since been deleted, which (a) scattered the group the
@@ -618,7 +635,7 @@ export function ScheduleGrid({
   async function handleGroupDrop(
     groupMatchIds: Set<string>,
     targetLiceId: string,
-    slot: number,
+    atMinutes: number,
   ): Promise<boolean> {
     if (!activeDay) return false;
     setGroupScheduleError(null);
@@ -648,61 +665,66 @@ export function ScheduleGrid({
       )
       .map((m) => ({
         id: m.id,
-        slot: isoToSlotTz(m.scheduledAt!, activeDay),
-        span: matchSlotSpan(m.durationMinutes),
+        at: isoToAxisMinutesTz(m.scheduledAt!, activeDay),
+        length: m.durationMinutes,
       }));
 
-    // 3. Group's drop set, ordered. The .slot field is unused by
+    // 3. Group's drop set, ordered. The .at field is unused by
     //    placeMultiWithShift (it computes the real positions); the
-    //    .span is what determines how much room the group takes.
+    //    .length, in real minutes, is how much room the group takes.
     const dropped = groupMatches.map((m) => ({
       id: m.id,
-      slot: 0,
-      span: matchSlotSpan(m.durationMinutes),
+      at: 0,
+      length: m.durationMinutes,
     }));
 
     // 4. Compute the new layout.
     const placement = placeMultiWithShift({
       items: occupants,
       dropped,
-      dropSlot: slot,
-      gridEndSlot,
+      dropAt: atMinutes,
+      gridEnd: gridEndSlot * SLOT_MINUTES,
     });
-    const slotById = new Map(placement.items.map((it) => [it.id, it.slot]));
 
-    // 5. Apply optimistically.
-    const updated = matches.map((m) => {
-      const newSlot = slotById.get(m.id);
-      if (newSlot == null) return m;
-      const newScheduledAt = slotToTimeTz(newSlot, activeDay);
-      const newLiceId = groupMatchIds.has(m.id) ? targetLiceId : (m.liceId ?? targetLiceId);
-      if (m.scheduledAt === newScheduledAt && m.liceId === newLiceId) return m;
-      return { ...m, scheduledAt: newScheduledAt, liceId: newLiceId };
-    });
-    setMatches(updated);
-
-    // 6. Save every match whose (liceId, scheduledAt) actually changed, as ONE
-    //    batch the server checks as a whole — a refusal re-reads the server. A
-    //    drop that moved nothing sends nothing: the server refuses an empty batch.
+    // 5. Every match whose (liceId, scheduledAt) actually changed: applied
+    //    optimistically, then saved as ONE batch the server checks as a whole —
+    //    a refusal re-reads the server. A drop that moved nothing sends nothing:
+    //    the server refuses an empty batch.
     const rows: Placement[] = [];
     for (const item of placement.items) {
       const original = matches.find((m) => m.id === item.id);
       if (!original) continue;
-      const newScheduledAt = slotToTimeTz(item.slot, activeDay);
-      const newLiceId = groupMatchIds.has(item.id)
-        ? targetLiceId
-        : (original.liceId ?? targetLiceId);
-      if (original.scheduledAt === newScheduledAt && original.liceId === newLiceId) continue;
-      rows.push({ matchId: item.id, liceId: newLiceId, scheduledAt: newScheduledAt });
+      const scheduledAt = axisMinutesToTimeTz(item.at, activeDay);
+      const liceId = groupMatchIds.has(item.id) ? targetLiceId : (original.liceId ?? targetLiceId);
+      if (sameInstant(original.scheduledAt, scheduledAt) && original.liceId === liceId) continue;
+      rows.push({ matchId: item.id, liceId, scheduledAt });
     }
+    const moved = new Map(rows.map((row) => [row.matchId, row]));
+    setMatches(
+      matches.map((m) => {
+        const row = moved.get(m.id);
+        return row ? { ...m, liceId: row.liceId, scheduledAt: row.scheduledAt } : m;
+      }),
+    );
     return rows.length === 0 || commit(() => savePlacements(rows));
   }
 
   /** Pool drop — all of the pool's matches as one group. */
-  function handlePoolDrop(poolId: string, targetLiceId: string, slot: number) {
+  function handlePoolDrop(poolId: string, targetLiceId: string, atMinutes: number) {
     const ids = new Set(matches.filter((m) => m.poolId === poolId).map((m) => m.id));
-    return handleGroupDrop(ids, targetLiceId, slot);
+    return handleGroupDrop(ids, targetLiceId, atMinutes);
   }
+
+  /** Minute assignments → where each bout now sits, as the board and the API
+   *  hold it. The moving maths is in ./block-geometry and ./plan-match-drop;
+   *  only the timezone belongs to the component. Declared above `handleDrop`,
+   *  which reads it — see there. */
+  const placedAt = (assignments: MinuteAssignment[]) =>
+    assignments.map((a) => ({
+      id: a.id,
+      liceId: a.liceId,
+      scheduledAt: axisMinutesToTimeTz(a.atMinutes, activeDay),
+    }));
 
   /**
    * A drop on one Detailed-view cell.
@@ -735,10 +757,10 @@ export function ScheduleGrid({
         void moveBlockTo(payload.id, slot);
         return;
       case 'pool':
-        void handlePoolDrop(payload.poolId, liceId, slot);
+        void handlePoolDrop(payload.poolId, liceId, slot * SLOT_MINUTES);
         return;
       case 'bracketRound':
-        void handleGroupDrop(new Set(payload.matchIds), liceId, slot);
+        void handleGroupDrop(new Set(payload.matchIds), liceId, slot * SLOT_MINUTES);
         return;
       // The Blocks view's own payloads. Only one view is mounted at a time so
       // neither can reach this handler; they are named rather than swept into
@@ -751,31 +773,28 @@ export function ScheduleGrid({
     }
     const match = payload.match;
     if (!activeDay) return;
-    const newScheduledAt = slotToTimeTz(slot, activeDay);
-    // Same-cell drop = no-op; don't pollute the undo stack.
-    if (match.liceId === liceId && match.scheduledAt === newScheduledAt) return;
-    history.push({
-      kind: 'move',
-      matchId: match.id,
-      from: { liceId: match.liceId, scheduledAt: match.scheduledAt },
-      to: { liceId, scheduledAt: newScheduledAt },
-    });
-
     // Where the dropped match and every neighbour it displaces end up. The
     // cascade arithmetic is in ./plan-match-drop; only the timezone is ours.
     const plan = planMatchDrop({
       matches,
       dropped: match,
       targetLiceId: liceId,
-      slot,
+      dropAtMinutes: slot * SLOT_MINUTES,
       day: activeDay,
       tz: eventTz,
-      gridEndSlot,
-      slotOf: (iso) => isoToSlotTz(iso, activeDay),
+      gridEndMinutes: gridEndSlot * SLOT_MINUTES,
+      minuteOf: (iso) => isoToAxisMinutesTz(iso, activeDay),
     });
-    const placedById = new Map(
-      plan.map((p) => [p.id, { liceId: p.liceId, scheduledAt: slotToTimeTz(p.slot, activeDay) }]),
-    );
+    const placedById = new Map(placedAt(plan).map(({ id, ...placed }) => [id, placed]));
+    const to = placedById.get(match.id)!;
+    // Same-cell drop = no-op; don't pollute the undo stack.
+    if (match.liceId === liceId && sameInstant(match.scheduledAt, to.scheduledAt)) return;
+    history.push({
+      kind: 'move',
+      matchId: match.id,
+      from: { liceId: match.liceId, scheduledAt: match.scheduledAt },
+      to,
+    });
     setMatches(matches.map((m) => ({ ...m, ...(placedById.get(m.id) ?? {}) })));
     // The dropped match and every neighbour the shift displaced are ONE
     // operation to the operator, so they are ONE save the server checks as a
@@ -948,8 +967,8 @@ export function ScheduleGrid({
   }, [matches]);
 
   // Drop a dragged block / unscheduled pool / round onto a lice in the block
-  // view: place its matches sequentially (5-min apart) after that lice's last
-  // scheduled match (or 09:00 if empty). Saved as one batch by handleGroupDrop.
+  // view: its matches go back to back, each as long as its real length, from
+  // the row released over. Saved as one batch by handleGroupDrop.
   function handleBlockViewDrop(liceId: string, slot: number) {
     const payload = takeDrag();
     setDragOverLiceId(null);
@@ -964,7 +983,7 @@ export function ScheduleGrid({
 
     // Drop at the grid slot the operator released over (snapped to 15 min),
     // re-fanning the run onto the target lice and shifting any occupants.
-    void handleGroupDrop(new Set(ids), liceId, snapSlot(slot));
+    void handleGroupDrop(new Set(ids), liceId, snapSlot(slot) * SLOT_MINUTES);
   }
 
   /**
@@ -1101,42 +1120,31 @@ export function ScheduleGrid({
   }
 
   // Vertical resize / end edit: respace each lice's sub-run of the block across
-  // [start, newEnd] so a multi-lice bracket keeps its parallel layout.
-  /** Slot assignments -> the wire shape. The slot maths is in ./block-geometry;
-   *  only the timezone resolution belongs to the component. */
-  function commitSlots(assignments: SlotAssignment[]): void {
-    if (assignments.length === 0) return;
-    applyMatchUpdates(
-      assignments.map((a) => ({
-        id: a.id,
-        liceId: a.liceId,
-        scheduledAt: slotToTimeTz(a.slot, activeDay),
-      })),
-    );
-  }
-
+  // [start, newEnd] so a multi-lice bracket keeps its parallel layout. An even
+  // respace the operator asked for, so it stays on the rows they dragged to.
   function resizeBlockTimeTo(block: ScheduleBlock, newEndSlot: number) {
     if (!activeDay) return;
-    commitSlots(
-      respaceBlockSlots({
-        matches: block.matches,
-        startSlot: isoToSlotTz(block.startIso, activeDay),
-        endSlot: newEndSlot,
-      }),
+    const respaced = respaceBlockSlots({
+      matches: block.matches,
+      startSlot: isoToSlotTz(block.startIso, activeDay),
+      endSlot: newEndSlot,
+    });
+    applyMatchUpdates(
+      placedAt(
+        respaced.map((a) => ({ id: a.id, liceId: a.liceId, atMinutes: a.slot * SLOT_MINUTES })),
+      ),
     );
   }
 
-  // Shift the whole block (every lice) so it starts at newStartSlot, preserving
-  // its internal layout.
+  // Shift the whole block (every lice) so its first bout starts ON the row the
+  // top edge was dropped at, every bout by the same exact minutes: a run laid
+  // between rows keeps its spacing.
   function retimeBlockStart(block: ScheduleBlock, newStartSlot: number) {
     if (!activeDay) return;
-    commitSlots(
-      retimeBlockSlots({
-        matches: block.matches,
-        currentStartSlot: isoToSlotTz(block.startIso, activeDay),
-        newStartSlot,
-        slotOf: (iso) => isoToSlotTz(iso, activeDay),
-      }),
+    const minuteOf = (iso: string) => isoToAxisMinutesTz(iso, activeDay);
+    const deltaMinutes = newStartSlot * SLOT_MINUTES - minuteOf(block.startIso);
+    applyMatchUpdates(
+      placedAt(retimeBlockMinutes({ matches: block.matches, deltaMinutes, minuteOf })),
     );
   }
 
@@ -1144,11 +1152,11 @@ export function ScheduleGrid({
   // group-drop placer (shifts occupants). A bracket re-fan across lices is
   // branch-aware and needs the backend — wired in Phase 3 (S12).
   // POST a group (pool or bracket sub-tree) to the branch-aware schedule-group
-  // endpoint. Returns ok; the caller refetches.
+  // endpoint, laid from `startTime`. Returns ok; the caller refetches.
   async function postScheduleGroup(
     matchIds: string[],
     liceIds: string[],
-    startSlot: number,
+    startTime: string,
     mode: 'pool' | 'bracket-branch',
   ): Promise<boolean> {
     if (!activeDay || matchIds.length === 0 || liceIds.length === 0) return false;
@@ -1159,12 +1167,7 @@ export function ScheduleGrid({
       await track(() =>
         mutateSchedule(`${apiUrl}/api/v1/events/${eventId}/programme/schedule-group`, {
           method: 'POST',
-          body: {
-            matchIds,
-            liceIds,
-            startTime: slotToTimeTz(startSlot, activeDay),
-            mode,
-          },
+          body: { matchIds, liceIds, startTime, mode },
         }),
       );
       return true;
@@ -1183,12 +1186,13 @@ export function ScheduleGrid({
     // Server re-fan or client relocate — decided in ./block-run-plans.
     const change = blockLiceChange(block, newLiceIds);
     if (!change) return true;
-    const startSlot = isoToSlotTz(block.startIso, activeDay);
+    // Either way the run keeps its exact start: its row would move a 10:43 run
+    // to 10:40.
     if (change.mode === 'refan') {
       const refanned = await postScheduleGroup(
         change.matchIds,
         change.liceIds,
-        startSlot,
+        block.startIso,
         'bracket-branch',
       );
       // `postScheduleGroup` has already surfaced the server's own reason for a
@@ -1197,7 +1201,8 @@ export function ScheduleGrid({
       await refetchScheduleAndBlocks();
       return refanned;
     }
-    return handleGroupDrop(new Set(change.matchIds), change.liceId, startSlot);
+    const startMinutes = isoToAxisMinutesTz(block.startIso, activeDay);
+    return handleGroupDrop(new Set(change.matchIds), change.liceId, startMinutes);
   }
 
   /** The start the run window shows: the run's slot on the axis, as HH:MM. */
@@ -1312,14 +1317,15 @@ export function ScheduleGrid({
     for (const pl of placements) {
       const pool = pools.find((p) => p.poolId === pl.key);
       if (pool) {
-        okAll =
-          (await postScheduleGroup(pool.matchIds, [pl.liceId], pl.startSlot, 'pool')) && okAll;
+        const start = slotToTimeTz(pl.startSlot, activeDay);
+        okAll = (await postScheduleGroup(pool.matchIds, [pl.liceId], start, 'pool')) && okAll;
       }
     }
     const allLiceIds = lices.map((l) => l.id);
+    const dayStart = slotToTimeTz(dayStartSlot, activeDay);
     for (const r of brackets) {
       okAll =
-        (await postScheduleGroup(r.matchIds, allLiceIds, dayStartSlot, 'bracket-branch')) && okAll;
+        (await postScheduleGroup(r.matchIds, allLiceIds, dayStart, 'bracket-branch')) && okAll;
     }
     if (!okAll) setGroupScheduleError(t('admin.common.someGroupsNotScheduled'));
     await refetchScheduleAndBlocks();
@@ -1419,10 +1425,10 @@ export function ScheduleGrid({
   }
 
   // Per-run grid headers: pools AND bracket rounds group into contiguous
-  // same-key runs per lice (computeHeaderRuns). Separating a match —
-  // another lice, a time gap, or a different match wedged in — splits the
-  // run, so each cluster keeps its own header, and the header's drag /
-  // clear scopes to just that cluster's matches.
+  // same-key runs per lice (computeHeaderRuns). Separating a match — another
+  // lice, a gap of a row or more that is not the Pool's rest, or a different
+  // match wedged in — splits the run, so each cluster keeps its own header,
+  // and the header's drag / clear scopes to just that cluster's matches.
   const headerRunsOnActiveDay = useMemo<HeaderRunGroup[]>(() => {
     if (!activeDay) return [];
     const items: HeaderRunItem[] = [];
@@ -1449,6 +1455,9 @@ export function ScheduleGrid({
         liceIndex,
         slot: isoToSlotTz(m.scheduledAt!, activeDay),
         span: matchSlotSpan(m.durationMinutes),
+        atMinutes: isoToAxisMinutesTz(m.scheduledAt!, activeDay),
+        lengthMinutes: m.durationMinutes,
+        restMinutes: m.poolRestMinutes ?? 0,
       });
     }
     return computeHeaderRuns(items).map((run) => {
@@ -1464,10 +1473,10 @@ export function ScheduleGrid({
         liceIndex: run.liceIndex,
         matchCount: run.matchIds.length,
         matchIds: run.matchIds,
+        rests: run.rests,
       };
     });
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- isoToSlotTz is a stable pure helper; excluded intentionally
-  }, [scheduledOnActiveDay, visibleLices, activeDay]);
+  }, [scheduledOnActiveDay, visibleLices, activeDay, isoToSlotTz, isoToAxisMinutesTz]);
 
   // Reserve-space layout: distinct slots where a run header begins. Every
   // content item at/after such a slot shifts down POOL_HEADER_SPAN rows per

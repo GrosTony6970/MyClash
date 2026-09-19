@@ -3,9 +3,11 @@ import {
   SLOT_HEIGHT_MAX,
   SLOT_HEIGHT_MIN,
   SNAP_SLOTS,
+  axisMinutesToTime,
   computeVenueGroups,
   formatSlotTime,
   hhmmToSlot,
+  isoToAxisMinutes,
   isoToSlot,
   minutesToSlot,
   nowSlotForDay,
@@ -46,6 +48,46 @@ describe('schedule-grid-geometry', () => {
 
     it('anchors slot 0 at 08:00 wall-clock in the event tz (Paris summer = 06:00Z)', () => {
       expect(slotToTime(0, '2027-06-21', 'Europe/Paris')).toBe('2027-06-21T06:00:00.000Z');
+    });
+  });
+
+  describe('isoToAxisMinutes / axisMinutesToTime', () => {
+    const DAY = '2027-06-21';
+    const PARIS = 'Europe/Paris';
+
+    it('reads a start between rows exactly, where the slot floors it', () => {
+      // 10:07:10 in Paris (summer) is 08:07:10Z; the axis starts at 08:00 Paris.
+      const iso = '2027-06-21T08:07:10.000Z';
+      expect(isoToAxisMinutes(iso, DAY, PARIS)).toBeCloseTo(127 + 10 / 60, 9);
+      expect(isoToSlot(iso, DAY, PARIS)).toBe(25);
+    });
+
+    it('turns minutes back into the same instant, to the millisecond, in any zone', () => {
+      for (const tz of [PARIS, 'America/New_York', 'Asia/Tokyo']) {
+        for (const iso of ['2027-06-21T08:07:10.000Z', '2027-06-21T09:59:59.999Z']) {
+          expect(axisMinutesToTime(isoToAxisMinutes(iso, DAY, tz), DAY, tz)).toBe(iso);
+        }
+      }
+    });
+
+    it('agrees with the slot axis on every row, and floors to it between rows', () => {
+      for (let s = 0; s <= 144; s++) {
+        const onRow = slotToTime(s, DAY, PARIS);
+        expect(isoToAxisMinutes(onRow, DAY, PARIS)).toBe(s * 5);
+        expect(isoToSlot(onRow, DAY, PARIS)).toBe(s);
+        const between = new Date(Date.parse(onRow) + 150_000).toISOString();
+        expect(Math.floor(isoToAxisMinutes(between, DAY, PARIS) / 5)).toBe(
+          isoToSlot(between, DAY, PARIS),
+        );
+      }
+    });
+
+    it('counts from the derived origin, and below it goes negative', () => {
+      // 07:30 Paris: 30 minutes after a 07:00 origin, 30 before the default 08:00.
+      const iso = '2027-06-21T05:30:00.000Z';
+      expect(isoToAxisMinutes(iso, DAY, PARIS, 7)).toBe(30);
+      expect(isoToAxisMinutes(iso, DAY, PARIS)).toBe(-30);
+      expect(axisMinutesToTime(-30, DAY, PARIS)).toBe(iso);
     });
   });
 

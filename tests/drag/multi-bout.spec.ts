@@ -1,6 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
 import {
-  EVENT_ID,
   LICE_A,
   LICE_B,
   MATCH_1,
@@ -10,14 +9,18 @@ import {
   runScheduleFixture,
 } from './schedule-grid.fixture';
 import {
-  SCHEDULE_URL,
   dragCardToCell,
-  mockApi,
   openDetailedGrid,
   settledReadCount,
   slotOfCard,
-  type Harness,
 } from './schedule-grid.harness';
+import {
+  SCHEDULE_PATH,
+  STRIP,
+  openRunBlocks,
+  openRunGrid,
+  placementStatus,
+} from './stateful-board';
 
 /**
  * A gesture that moves several bouts is ONE save, judged as a whole.
@@ -37,43 +40,9 @@ import {
  * operator put them.
  */
 
-const SCHEDULE_PATH = `/events/${EVENT_ID}/schedule`;
-const STRIP = 'Pool A - Longsword Open';
-
 /** The board's "Change not saved:" banner — where every refused write lands. */
 const saveErrorBanner = (page: Page) =>
   page.getByRole('alert').filter({ hasText: 'Change not saved:' });
-
-/** The status the server answered the `n`th batch with, once that answer has landed. */
-async function placementStatus(api: Harness, n = 0): Promise<number | undefined> {
-  const posts = api.writes.filter((r) =>
-    new URL(r.url()).pathname.endsWith('/schedule/placements'),
-  );
-  return (await posts[n]?.response())?.status();
-}
-
-/** The six-bout run in the Blocks view, catch-up read settled, server stateful. */
-async function openRunBlocks(page: Page, schedule: unknown = runScheduleFixture()) {
-  const api = await mockApi(page, { schedule, occupancy: true });
-  await page.goto(SCHEDULE_URL);
-  await expect(page.getByRole('button', { name: 'Edit Pool A', exact: true })).toBeVisible();
-  await settledReadCount(api, SCHEDULE_PATH);
-  return api;
-}
-
-/** The six-bout run on the Detailed grid, catch-up read settled, server stateful. */
-async function openRunGrid(
-  page: Page,
-  schedule: unknown = runScheduleFixture(),
-): Promise<{ api: Harness; startSlot: number }> {
-  const api = await mockApi(page, { schedule, occupancy: true });
-  await page.goto(SCHEDULE_URL);
-  await expect(page.getByRole('button', { name: 'Edit Pool A', exact: true })).toBeVisible();
-  await page.getByRole('button', { name: 'Detailed grid' }).click();
-  await expect(page.locator('[data-lice-id][data-slot]').first()).toBeAttached();
-  await settledReadCount(api, SCHEDULE_PATH);
-  return { api, startSlot: await slotOfCard(page, 'LSW-PA-M1', LICE_A) };
-}
 
 test.describe('multi-bout gestures are one save', () => {
   // A desktop workspace; see schedule-grid.spec.ts.

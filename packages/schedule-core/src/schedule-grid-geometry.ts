@@ -74,9 +74,41 @@ export function slotToTime(
   tz: string,
   startHour = GRID_START_HOUR,
 ): string {
+  return axisMinutesToTime(slot * SLOT_MINUTES, day, tz, startHour);
+}
+
+/** The instant the axis starts at, in epoch milliseconds. */
+function axisOriginMs(day: string, tz: string, startHour: number): number {
   const start = dayStartUtcIso(day, tz, startHour);
-  const base = start ? new Date(start) : new Date(`${day}T00:00:00Z`);
-  return new Date(base.getTime() + slot * SLOT_MINUTES * 60_000).toISOString();
+  return Date.parse(start ?? `${day}T00:00:00Z`);
+}
+
+/**
+ * UTC ISO instant → minutes after the axis start, exact: 10:07:10 is 127⅙
+ * minutes after 08:00, and a start before the axis is negative.
+ *
+ * The board MOVES bouts by these and DRAWS them in `isoToSlot`'s 5-minute rows.
+ * A slot floors, so packing in slots laid an 8-minute bout one row (five
+ * minutes) before its neighbour, and the server refused the overlap.
+ */
+export function isoToAxisMinutes(
+  iso: string,
+  day: string,
+  tz: string,
+  startHour = GRID_START_HOUR,
+): number {
+  return (Date.parse(iso) - axisOriginMs(day, tz, startHour)) / 60_000;
+}
+
+/** Minutes after the axis start → UTC ISO instant; the exact inverse of
+ *  `isoToAxisMinutes`, to the millisecond. */
+export function axisMinutesToTime(
+  minutes: number,
+  day: string,
+  tz: string,
+  startHour = GRID_START_HOUR,
+): string {
+  return new Date(axisOriginMs(day, tz, startHour) + Math.round(minutes * 60_000)).toISOString();
 }
 
 /** UTC ISO instant → slot index on the `tz` axis (clamped ≥ 0). */

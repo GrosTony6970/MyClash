@@ -3,6 +3,7 @@ import {
   matchBelongsToDay,
   occupantsOnLice,
   planMatchDrop,
+  sameInstant,
   type PlannableMatch,
 } from './plan-match-drop';
 
@@ -11,7 +12,7 @@ import {
  * onto an occupied slot must push the occupant out of the way rather than
  * double-book the lice. One browser spec covers it end to end; these cover the
  * decisions that feed it, which is where the plausible mistakes are — the wrong
- * occupant set, the wrong span, or a match colliding with itself.
+ * occupant set, the wrong length, or a match colliding with itself.
  */
 
 const DAY = '2026-06-13';
@@ -26,10 +27,10 @@ const LICE_B = 'lice-b';
  */
 const TZ = 'UTC';
 
-/** 5-minute slots from midnight, so the arithmetic in the tests is readable. */
-const slotOf = (iso: string) => {
+/** Minutes from midnight, so the arithmetic in the tests is readable. */
+const minuteOf = (iso: string) => {
   const [h, m] = iso.slice(11, 16).split(':').map(Number);
-  return (h! * 60 + m!) / 5;
+  return h! * 60 + m!;
 };
 const at = (hhmm: string) => `${DAY}T${hhmm}:00.000Z`;
 
@@ -99,6 +100,18 @@ describe('matchBelongsToDay across the local midnight boundary', () => {
   });
 });
 
+describe('sameInstant', () => {
+  it("matches the database's time text against the board's", () => {
+    expect(sameInstant('2026-06-13T08:43:00+00:00', '2026-06-13T08:43:00.000Z')).toBe(true);
+    expect(sameInstant('2026-06-13T10:43:00+02:00', '2026-06-13T08:43:00.000Z')).toBe(true);
+  });
+
+  it('tells two instants apart, and an unplaced bout from any time', () => {
+    expect(sameInstant('2026-06-13T08:43:00+00:00', '2026-06-13T08:43:01.000Z')).toBe(false);
+    expect(sameInstant(null, '2026-06-13T08:43:00.000Z')).toBe(false);
+  });
+});
+
 describe('occupantsOnLice', () => {
   const board = [
     match('here', LICE_A, '09:00'),
@@ -117,7 +130,7 @@ describe('occupantsOnLice', () => {
       day: DAY,
       tz: TZ,
       excludeId: 'dragged',
-      slotOf,
+      minuteOf,
     });
     expect(out.map((o) => o.id).sort()).toEqual(['also-here', 'here']);
   });
@@ -131,21 +144,22 @@ describe('occupantsOnLice', () => {
       day: DAY,
       tz: TZ,
       excludeId: 'here',
-      slotOf,
+      minuteOf,
     });
     expect(out.map((o) => o.id)).not.toContain('here');
   });
 
-  it('reports each occupant in slots and spans', () => {
+  it('reports each occupant at its exact start and its real length, in minutes', () => {
+    // 09:07 and 8 minutes: a 5-minute slot would floor both, to 09:05 and one row.
     const out = occupantsOnLice({
-      matches: [match('m', LICE_A, '09:00', 20)],
+      matches: [match('m', LICE_A, '09:07', 8)],
       liceId: LICE_A,
       day: DAY,
       tz: TZ,
       excludeId: 'x',
-      slotOf,
+      minuteOf,
     });
-    expect(out[0]).toEqual({ id: 'm', slot: slotOf(at('09:00')), span: 4 });
+    expect(out[0]).toEqual({ id: 'm', at: 547, length: 8 });
   });
 });
 
@@ -155,28 +169,67 @@ describe('planMatchDrop', () => {
       matches,
       dropped,
       targetLiceId: LICE_A,
-      slot: slotOf(at(hhmm)),
+      dropAtMinutes: minuteOf(at(hhmm)),
       day: DAY,
       tz: TZ,
-      gridEndSlot: slotOf(at('20:00')),
-      slotOf,
+      gridEndMinutes: minuteOf(at('20:00')),
+      minuteOf,
     });
 
   it('places a match on an empty slot and moves nothing else', () => {
     const dropped = match('drag', LICE_B, '15:00');
     const out = plan([dropped, match('far', LICE_A, '09:00')], dropped, '11:00');
-    expect(out).toEqual([{ id: 'drag', liceId: LICE_A, slot: slotOf(at('11:00')) }]);
+    expect(out).toEqual([{ id: 'drag', liceId: LICE_A, atMinutes: minuteOf(at('11:00')) }]);
   });
 
   it('cascades the occupant out of the way on a collision', () => {
     const dropped = match('drag', LICE_B, '15:00');
     const sitting = match('sitting', LICE_A, '09:00');
     const out = plan([dropped, sitting], dropped, '09:00');
-    expect(out[0]).toEqual({ id: 'drag', liceId: LICE_A, slot: slotOf(at('09:00')) });
+    expect(out[0]).toEqual({ id: 'drag', liceId: LICE_A, atMinutes: minuteOf(at('09:00')) });
     expect(out.map((o) => o.id)).toContain('sitting');
     // The displaced match ends up strictly later, never on top of the new one.
     const displaced = out.find((o) => o.id === 'sitting')!;
-    expect(displaced.slot).toBeGreaterThan(out[0]!.slot);
+    expect(displaced.atMinutes).toBeGreaterThan(out[0]!.atMinutes);
+  });
+
+  it('pushes the occupant to where an 8-minute bout ends, not a row later', () => {
+    const dropped = match('drag', LICE_B, '15:00', 8);
+    const out = plan([dropped, match('sitting', LICE_A, '09:00', 8)], dropped, '09:00');
+    expect(out).toEqual([
+      { id: 'drag', liceId: LICE_A, atMinutes: 540 },
+      { id: 'sitting', liceId: LICE_A, atMinutes: 548 },
+    ]);
+  });
+
+  it('starts the dropped match when a bout still running at the drop ends', () => {
+    // 'running' is 09:04–09:12 and draws on the 09:00 row only; the 09:10 row
+    // looks free. The drop lands at 09:12 and 'running' keeps its place.
+    const dropped = match('drag', LICE_B, '15:00', 8);
+    const out = plan([dropped, match('running', LICE_A, '09:04', 8)], dropped, '09:10');
+    expect(out).toEqual([{ id: 'drag', liceId: LICE_A, atMinutes: 552 }]);
+  });
+
+  it('leaves out a neighbour the float minutes push to the time it already has', () => {
+    // Exact minutes after 08:00: 'running' is 08:10:20–08:15:20, the drop on
+    // 08:15 lands at 08:15:20 and ends at 08:23:20 — where 'next' already is.
+    // As floats the tail is 23.333…6 and 'next' is 23.333…2.
+    const exact = (iso: string) => (Date.parse(iso) - Date.parse(at('08:00'))) / 60_000;
+    const sec = (hhmmss: string) => `${DAY}T${hhmmss}.000Z`;
+    const dropped = match('drag', LICE_B, '15:00', 8);
+    const running = { ...match('running', LICE_A, null, 5), scheduledAt: sec('08:10:20') };
+    const next = { ...match('next', LICE_A, null, 5), scheduledAt: sec('08:23:20') };
+    const out = planMatchDrop({
+      matches: [dropped, running, next],
+      dropped,
+      targetLiceId: LICE_A,
+      dropAtMinutes: 15,
+      day: DAY,
+      tz: TZ,
+      gridEndMinutes: 720,
+      minuteOf: exact,
+    });
+    expect(out).toEqual([{ id: 'drag', liceId: LICE_A, atMinutes: exact(sec('08:15:20')) }]);
   });
 
   it('puts the dropped match first, so the caller can report it as the subject', () => {
@@ -209,7 +262,7 @@ describe('planMatchDrop', () => {
   it('schedules a match that had no lice or time at all', () => {
     const dropped = match('fresh', null, null);
     const out = plan([dropped], dropped, '09:00');
-    expect(out).toEqual([{ id: 'fresh', liceId: LICE_A, slot: slotOf(at('09:00')) }]);
+    expect(out).toEqual([{ id: 'fresh', liceId: LICE_A, atMinutes: minuteOf(at('09:00')) }]);
   });
 
   it('does not double-book when a match is dropped onto its own lice', () => {

@@ -3,37 +3,37 @@ import { placeMultiWithShift, placeWithShift, type PlaceableItem } from './place
 
 const END = 144; // 12h × 12 slots/h = 144
 
-function item(id: string, slot: number, span = 1): PlaceableItem {
-  return { id, slot, span };
+function item(id: string, at: number, length = 1): PlaceableItem {
+  return { id, at, length };
 }
 
 describe('placeWithShift', () => {
-  it('places the dropped item at dropSlot when nothing is in the way', () => {
+  it('places the dropped item at dropAt when nothing is in the way', () => {
     const result = placeWithShift({
       items: [item('a', 0), item('b', 5)],
       dropped: item('drop', 1),
-      dropSlot: 2,
-      gridEndSlot: END,
+      dropAt: 2,
+      gridEnd: END,
     });
     expect(result.shifted).toEqual([]);
     expect(result.upwardFallback).toBe(false);
     const drop = result.items.find((i) => i.id === 'drop')!;
-    expect(drop.slot).toBe(2);
+    expect(drop.at).toBe(2);
   });
 
   it('shifts a single occupant downward when the drop lands on top of it', () => {
     const result = placeWithShift({
       items: [item('a', 2, 2)],
       dropped: item('drop', 2),
-      dropSlot: 2,
-      gridEndSlot: END,
+      dropAt: 2,
+      gridEnd: END,
     });
     expect(result.upwardFallback).toBe(false);
     const drop = result.items.find((i) => i.id === 'drop')!;
     const a = result.items.find((i) => i.id === 'a')!;
-    expect(drop.slot).toBe(2);
-    // 'a' must start at-or-after drop.slot + drop.span = 3.
-    expect(a.slot).toBeGreaterThanOrEqual(drop.slot + drop.span);
+    expect(drop.at).toBe(2);
+    // 'a' must start at-or-after drop.at + drop.length = 3.
+    expect(a.at).toBeGreaterThanOrEqual(drop.at + drop.length);
     expect(result.shifted.map((i) => i.id)).toEqual(['a']);
   });
 
@@ -43,11 +43,11 @@ describe('placeWithShift', () => {
     const result = placeWithShift({
       items: [item('a', 0, 2), item('b', 2, 2), item('c', 4, 2)],
       dropped: item('drop', 0, 2),
-      dropSlot: 0,
-      gridEndSlot: END,
+      dropAt: 0,
+      gridEnd: END,
     });
     expect(result.upwardFallback).toBe(false);
-    const byId = Object.fromEntries(result.items.map((i) => [i.id, i.slot]));
+    const byId = Object.fromEntries(result.items.map((i) => [i.id, i.at]));
     expect(byId.drop).toBe(0);
     expect(byId.a).toBe(2);
     expect(byId.b).toBe(4);
@@ -59,11 +59,11 @@ describe('placeWithShift', () => {
     const result = placeWithShift({
       items: [item('a', 5, 2)],
       dropped: item('drop', 2, 3),
-      dropSlot: 2,
-      gridEndSlot: END,
+      dropAt: 2,
+      gridEnd: END,
     });
     expect(result.shifted).toEqual([]);
-    expect(result.items.find((i) => i.id === 'a')!.slot).toBe(5);
+    expect(result.items.find((i) => i.id === 'a')!.at).toBe(5);
   });
 
   it('falls back to upward shift when downward would run past the grid end', () => {
@@ -71,26 +71,44 @@ describe('placeWithShift', () => {
     const result = placeWithShift({
       items: [item('tail', END - 1, 1)],
       dropped: item('drop', 1),
-      dropSlot: END - 1,
-      gridEndSlot: END,
+      dropAt: END - 1,
+      gridEnd: END,
     });
     expect(result.upwardFallback).toBe(true);
     const drop = result.items.find((i) => i.id === 'drop')!;
     const tail = result.items.find((i) => i.id === 'tail')!;
-    expect(drop.slot).toBe(END - 1);
+    expect(drop.at).toBe(END - 1);
     // Tail moved up to make room.
-    expect(tail.slot).toBeLessThan(END - 1);
+    expect(tail.at).toBeLessThan(END - 1);
+  });
+
+  it('lands after an item that started earlier and is still running at the drop', () => {
+    // 8-long items at 0, 8 and 16; the drop is on 15, where 'b' still runs. 'b'
+    // keeps its place, the drop starts at its end, and only 'c' is pushed.
+    const result = placeWithShift({
+      items: [item('a', 0, 8), item('b', 8, 8), item('c', 16, 8)],
+      dropped: item('drop', 0, 8),
+      dropAt: 15,
+      gridEnd: END,
+    });
+    expect(Object.fromEntries(result.items.map((i) => [i.id, i.at]))).toEqual({
+      a: 0,
+      b: 8,
+      drop: 16,
+      c: 24,
+    });
+    expect(result.shifted.map((i) => i.id)).toEqual(['c']);
   });
 
   it('does not move items above the drop point in the normal (downward) path', () => {
     const result = placeWithShift({
       items: [item('above', 0, 2), item('on', 5, 2)],
       dropped: item('drop', 2),
-      dropSlot: 5,
-      gridEndSlot: END,
+      dropAt: 5,
+      gridEnd: END,
     });
     expect(result.upwardFallback).toBe(false);
-    expect(result.items.find((i) => i.id === 'above')!.slot).toBe(0);
+    expect(result.items.find((i) => i.id === 'above')!.at).toBe(0);
     expect(result.shifted.map((i) => i.id)).toEqual(['on']);
   });
 });
@@ -102,11 +120,11 @@ describe('placeMultiWithShift', () => {
     const result = placeMultiWithShift({
       items: [],
       dropped: [item('p1', 0, 1), item('p2', 0, 1), item('p3', 0, 1)],
-      dropSlot: 10,
-      gridEndSlot: END,
+      dropAt: 10,
+      gridEnd: END,
     });
     expect(result.upwardFallback).toBe(false);
-    expect(result.items.map((i) => [i.id, i.slot])).toEqual([
+    expect(result.items.map((i) => [i.id, i.at])).toEqual([
       ['p1', 10],
       ['p2', 11],
       ['p3', 12],
@@ -118,24 +136,24 @@ describe('placeMultiWithShift', () => {
     const result = placeMultiWithShift({
       items: [item('existing', 10, 2)],
       dropped: [item('p1', 0, 1), item('p2', 0, 1), item('p3', 0, 1)],
-      dropSlot: 10,
-      gridEndSlot: END,
+      dropAt: 10,
+      gridEnd: END,
     });
     expect(result.upwardFallback).toBe(false);
     // Pool occupies slots 10, 11, 12 → existing must start at 13.
-    expect(result.items.find((i) => i.id === 'existing')!.slot).toBe(13);
+    expect(result.items.find((i) => i.id === 'existing')!.at).toBe(13);
   });
 
   it('cascades multiple downstream items past the pool without losing order', () => {
     const result = placeMultiWithShift({
       items: [item('a', 10, 2), item('b', 12, 2), item('c', 14, 2)],
       dropped: [item('p1', 0, 1), item('p2', 0, 1), item('p3', 0, 1)],
-      dropSlot: 10,
-      gridEndSlot: END,
+      dropAt: 10,
+      gridEnd: END,
     });
     expect(result.upwardFallback).toBe(false);
     // Pool ends at 13; a → 13, b pushes past a (15), c pushes past b (17).
-    const byId = Object.fromEntries(result.items.map((i) => [i.id, i.slot]));
+    const byId = Object.fromEntries(result.items.map((i) => [i.id, i.at]));
     expect(byId.a).toBe(13);
     expect(byId.b).toBe(15);
     expect(byId.c).toBe(17);
@@ -145,24 +163,39 @@ describe('placeMultiWithShift', () => {
     const result = placeMultiWithShift({
       items: [item('above', 0, 1), item('tail', END - 1, 1)],
       dropped: [item('p1', 0, 1), item('p2', 0, 1)],
-      dropSlot: END - 2,
-      gridEndSlot: END,
+      dropAt: END - 2,
+      gridEnd: END,
     });
     expect(result.upwardFallback).toBe(true);
     // Pool sits at END-2 and END-1 → `tail` (was at END-1) can't be
     // pushed past the grid end, so the upward path kicks in.
     // The 'above' item gets pushed up to make room.
-    const byId = Object.fromEntries(result.items.map((i) => [i.id, i.slot]));
+    const byId = Object.fromEntries(result.items.map((i) => [i.id, i.at]));
     expect(byId.p1).toBe(END - 2);
     expect(byId.p2).toBe(END - 1);
+  });
+
+  it('starts the pool after an item still running at the drop', () => {
+    const result = placeMultiWithShift({
+      items: [item('running', 5, 8), item('later', 14, 2)],
+      dropped: [item('p1', 0, 2), item('p2', 0, 2)],
+      dropAt: 10,
+      gridEnd: END,
+    });
+    expect(Object.fromEntries(result.items.map((i) => [i.id, i.at]))).toEqual({
+      running: 5,
+      p1: 13,
+      p2: 15,
+      later: 17,
+    });
   });
 
   it('returns the items unchanged when the dropped pool is empty', () => {
     const result = placeMultiWithShift({
       items: [item('a', 5, 2)],
       dropped: [],
-      dropSlot: 10,
-      gridEndSlot: END,
+      dropAt: 10,
+      gridEnd: END,
     });
     expect(result.shifted).toEqual([]);
     expect(result.items).toEqual([item('a', 5, 2)]);

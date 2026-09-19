@@ -5,7 +5,7 @@ import {
   clampBlockSpan,
   matchSlotSpan,
   respaceBlockSlots,
-  retimeBlockSlots,
+  retimeBlockMinutes,
   type PlacedBlockMatch,
 } from './block-geometry';
 
@@ -36,7 +36,7 @@ describe('matchSlotSpan', () => {
   });
 
   it('is never larger than the span the collision detector warns on', () => {
-    // If this ever inverts, the board would warn LESS than it places, which is
+    // If this ever inverts, the board would warn LESS than it draws, which is
     // the dangerous direction. Compares the two named functions, not a copy of
     // one of them: an inline `Math.round` here would pass while the real
     // detector used something else entirely.
@@ -45,13 +45,13 @@ describe('matchSlotSpan', () => {
     }
   });
 
-  it('places the sheet defaults 5, 8 and 10 on 1, 1 and 2 slots, and warns on 1, 2 and 2', () => {
+  it('draws the sheet defaults 5, 8 and 10 on 1, 1 and 2 rows, and warns on 1, 2 and 2', () => {
     // GET /events/:id/schedule sends real lengths; the planner's sheet defaults
     // are 5 (pool), 8 (elimination) and 10 (finals) minutes. At 8 the two spans
-    // differ: placed as one slot, warned on as two. The direction test above
-    // would still pass if the warning floored too. The placement values pin
-    // today's floor, a known gap against real minutes (see `matchSlotSpan`),
-    // not a decision.
+    // differ: drawn as one row, warned on as two. The direction test above
+    // would still pass if the warning floored too. The drawn values floor on
+    // purpose — a ceiling draws two back-to-back 8-minute bouts on top of each
+    // other — and nothing that moves a bout reads them (see `matchSlotSpan`).
     expect([matchSlotSpan(5), barWarningSlotSpan(5)]).toEqual([1, 1]);
     expect([matchSlotSpan(8), barWarningSlotSpan(8)]).toEqual([1, 2]);
     expect([matchSlotSpan(10), barWarningSlotSpan(10)]).toEqual([2, 2]);
@@ -140,32 +140,32 @@ describe('respaceBlockSlots', () => {
   });
 });
 
-describe('retimeBlockSlots', () => {
-  const slotOf = (iso: string) => Number(iso);
-  const matches = [at('a', 'L1', '10'), at('b', 'L1', '14'), at('c', 'L2', '10')];
+describe('retimeBlockMinutes', () => {
+  // Minutes on the axis, read straight from the fake instant: a run at 163, 171
+  // and 179 is 10:43, 10:51 and 10:59 on an 08:00 axis — between rows, 8 apart.
+  const minuteOf = (iso: string) => Number(iso);
+  const matches = [at('a', 'L1', '163'), at('b', 'L1', '171'), at('c', 'L2', '179')];
 
-  it('shifts every match by the same delta, keeping the internal layout', () => {
-    const out = retimeBlockSlots({ matches, currentStartSlot: 10, newStartSlot: 30, slotOf });
+  it('shifts every match by the same minutes from its exact start', () => {
+    const out = retimeBlockMinutes({ matches, deltaMinutes: 17, minuteOf });
     expect(out).toEqual([
-      { id: 'a', liceId: 'L1', slot: 30 },
-      { id: 'b', liceId: 'L1', slot: 34 },
-      { id: 'c', liceId: 'L2', slot: 30 },
+      { id: 'a', liceId: 'L1', atMinutes: 180 },
+      { id: 'b', liceId: 'L1', atMinutes: 188 },
+      { id: 'c', liceId: 'L2', atMinutes: 196 },
     ]);
   });
 
   it('shifts backwards too', () => {
-    const out = retimeBlockSlots({ matches, currentStartSlot: 10, newStartSlot: 4, slotOf });
-    expect(out.map((o) => o.slot)).toEqual([4, 8, 4]);
+    const out = retimeBlockMinutes({ matches, deltaMinutes: -13, minuteOf });
+    expect(out.map((o) => o.atMinutes)).toEqual([150, 158, 166]);
   });
 
-  it('issues no writes when the block is already there', () => {
-    expect(retimeBlockSlots({ matches, currentStartSlot: 10, newStartSlot: 10, slotOf })).toEqual(
-      [],
-    );
+  it('issues no writes when the block does not move', () => {
+    expect(retimeBlockMinutes({ matches, deltaMinutes: 0, minuteOf })).toEqual([]);
   });
 
   it('keeps every match on its own lice', () => {
-    const out = retimeBlockSlots({ matches, currentStartSlot: 10, newStartSlot: 30, slotOf });
+    const out = retimeBlockMinutes({ matches, deltaMinutes: 17, minuteOf });
     expect(out.map((o) => o.liceId)).toEqual(['L1', 'L1', 'L2']);
   });
 });

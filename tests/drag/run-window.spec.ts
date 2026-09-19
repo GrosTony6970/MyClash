@@ -117,6 +117,8 @@ test.describe('schedule grid run window', () => {
     const rows = api.placementRows(0);
     expect(rows.map((r) => r['matchId']).sort()).toEqual([...RUN_MATCH_IDS].sort());
     for (const row of rows) expect(row['liceId']).toBe(LICE_B);
+    // It moves to the new piste at its own start, 10:43 — not at its row, 10:40.
+    expect(rows.find((r) => r['matchId'] === RUN_MATCH_IDS[0])!['scheduledAt']).toBe(RUN_START);
     expect(api.scheduleWrites()).toEqual([]);
     const paths = writePaths(api);
     const relocate = paths.findIndex((p) => p.endsWith(PLACEMENTS_PATH));

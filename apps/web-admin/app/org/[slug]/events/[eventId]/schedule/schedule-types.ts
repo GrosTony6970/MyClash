@@ -11,6 +11,8 @@
  * what `/events/:eventId/programme` returns.
  */
 
+import type { HeaderRunRest } from './compute-header-runs';
+
 export interface Lice {
   id: string;
   name: string;
@@ -66,6 +68,9 @@ export interface HeaderRunGroup {
   liceIndex: number;
   matchCount: number;
   matchIds: string[];
+  /** The Pool's rest inside the run — the rows it leaves empty, drawn as a
+   *  labelled band — and its real length in minutes. See ./compute-header-runs. */
+  rests: HeaderRunRest[];
 }
 
 /**
@@ -127,4 +132,8 @@ export interface ScheduleMatch {
    *  on the grid card. Null for bracket / finals matches. */
   poolId: string | null;
   poolName: string | null;
+  /** The rest the sheet gives this bout's Pool in its middle, in minutes (the
+   *  crew's pause the server lays after half the bouts). The Pool's header
+   *  strip spans it and the grid draws it. Null outside a Pool. */
+  poolRestMinutes: number | null;
 }

@@ -28,6 +28,10 @@ vi.mock('./match-lengths', () => ({
     Promise.resolve(new Map(inputs.map((input) => [input.id, 5]))),
   ),
 }));
+// The sheet read too (the lengths and the Pools' rests), for the same reason.
+vi.mock('../programme/programme-sheet', () => ({
+  readProgrammeSheet: vi.fn(() => Promise.resolve({ minRestMinutes: 10, tournaments: [] })),
+}));
 
 const fromMock = vi.fn();
 const mockSupabase = { service: { from: fromMock } };

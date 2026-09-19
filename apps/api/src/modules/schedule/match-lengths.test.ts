@@ -84,6 +84,24 @@ describe('resolveMatchLengths', () => {
     expect(filtersFor(supabase.from, 'phases', 'in')).toEqual([['id', ['p1']]]);
   });
 
+  it('reads no sheet when the caller hands it one, and measures by that one', async () => {
+    const { client, supabase } = db({
+      event_programme_configs: { rows: sheetRow() },
+      phases: { rows: [phase('p1', 'pool')] },
+    });
+    const sheet = { ...PROGRAMME_CONFIG_DEFAULTS, poolMatchDurationMinutes: 7 };
+
+    const lengths = await resolveMatchLengths(
+      client,
+      EVENT,
+      [{ id: 'm1', phaseId: 'p1', plannedDurationOverrideMinutes: null }],
+      sheet,
+    );
+
+    expect(lengths.get('m1')).toBe(7);
+    expect(selectsFor(supabase.from, 'event_programme_configs')).toEqual([]);
+  });
+
   it('never reads matches when no phase in the batch is a bracket', async () => {
     const { client, supabase } = db({
       event_programme_configs: { rows: sheetRow() },

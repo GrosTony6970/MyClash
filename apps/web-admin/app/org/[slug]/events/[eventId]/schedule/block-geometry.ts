@@ -5,8 +5,8 @@ import { respaceMatchesEvenly } from './lice-span';
  * The slot arithmetic behind the programme-block writes.
  *
  * Pure: no React, no fetch, no timezone. Everything here works in slot indices
- * and hands slots back; turning a slot into an ISO instant needs the event
- * timezone and stays in the hook.
+ * or axis minutes and hands the same back; turning either into an ISO instant
+ * needs the event timezone and stays in the hook.
  *
  * This exists because the same three calculations were written out by hand at
  * eleven call sites inside one 3000-line component, where nothing could test
@@ -20,6 +20,14 @@ export interface SlotAssignment {
   slot: number;
 }
 
+/** One match's new start, in exact minutes on the axis — how the board MOVES a
+ *  bout. The caller resolves the minutes to a time. */
+export interface MinuteAssignment {
+  id: string;
+  liceId: string;
+  atMinutes: number;
+}
+
 /** What the block writers need to know about a match already on the board. */
 export interface PlacedBlockMatch {
   id: string;
@@ -28,15 +36,18 @@ export interface PlacedBlockMatch {
 }
 
 /**
- * How many 5-minute slots a match occupies on the board.
+ * How many 5-minute rows a match is DRAWN over on the board.
  *
- * Floors, so an 8-minute bout claims one slot rather than two — which is what
- * the cascade, the header runs and `placeWithShift` all assume. Seven call
- * sites had this inline.
+ * Drawing only: the Detailed cards and the header strips' rows. Floors, so an
+ * 8-minute bout draws one row rather than two, and two back-to-back 8-minute
+ * bouts never draw on top of each other (a ceiling would). The batch schedule
+ * also reads it, to guess where each piste's day ends before it asks the
+ * server, which lays the group after whatever is there.
  *
- * The floor is today's behaviour, not a decision. The API measures real
- * minutes, so a group drop that packs 8-minute bouts one slot apart lays them 5
- * minutes apart, which the server's piste check must refuse. A known gap.
+ * Nothing on the board that MOVES a bout reads it. The drop cascade, the group
+ * drop and the top-edge move work in exact minutes from each bout's real length:
+ * packed in floored rows, an 8-minute bout's neighbour started five minutes
+ * after it, and the server refused the batch as overlapping itself.
  *
  * `barWarningSlotSpan` below is the same question asked for a warning, and
  * rounds instead. The two disagree on real lengths; see its note.
@@ -51,10 +62,10 @@ export function matchSlotSpan(durationMinutes: number): number {
  * NOT the same number as `matchSlotSpan`. `/events/:id/schedule` sends each
  * bout's real planned length (the Match's own, else the planner's sheet), and
  * the sheet's defaults are 5, 8 and 10 minutes. An 8-minute elimination is
- * placed as one slot and warned on as two.
+ * drawn as one row and warned on as two.
  *
  * It rounds, and is named rather than left inline, for two reasons. Rounding
- * warns at least as often as the placement's floor, and break-bar drops are
+ * warns at least as often as the drawing's floor, and break-bar drops are
  * warn-only by decision, so warning more is the harmless direction. It is not
  * exact: a bout that spills less than half a slot past a boundary (7 minutes
  * from 10:00, a break at 10:05) measures as one slot and does not warn. And an
@@ -63,7 +74,7 @@ export function matchSlotSpan(durationMinutes: number): number {
  *
  * The pin test asserts the direction (`matchSlotSpan <= barWarningSlotSpan`)
  * rather than the values: if that ever inverts, the board would warn LESS than
- * it places, which is the dangerous way round.
+ * it draws, which is the dangerous way round.
  */
 export function barWarningSlotSpan(durationMinutes: number): number {
   return Math.max(1, Math.round(durationMinutes / SLOT_MINUTES));
@@ -117,20 +128,27 @@ export function respaceBlockSlots(args: {
 }
 
 /**
- * Move a whole block so it starts at `newStartSlot`, preserving its internal
- * layout — every match shifts by the same delta, on its own lice.
+ * Move a whole block by `deltaMinutes`, preserving its internal layout — every
+ * match shifts by the same number of minutes from its EXACT start, on its own
+ * lice.
  *
- * Returns an empty list when the block is already there, so the caller issues
- * no writes rather than a no-op fan-out.
+ * It shifted floored slots, which snapped every bout to its 5-minute row: a run
+ * of 8-minute bouts at 10:43, 10:51, 10:59, moved to the 11:00 line, landed at
+ * 11:00, 11:10, 11:15, and the last two overlapped.
+ *
+ * Returns an empty list when the block does not move, so the caller issues no
+ * writes rather than a no-op batch.
  */
-export function retimeBlockSlots(args: {
+export function retimeBlockMinutes(args: {
   matches: readonly PlacedBlockMatch[];
-  currentStartSlot: number;
-  newStartSlot: number;
-  slotOf: (iso: string) => number;
-}): SlotAssignment[] {
-  const { matches, currentStartSlot, newStartSlot, slotOf } = args;
-  const delta = newStartSlot - currentStartSlot;
-  if (delta === 0) return [];
-  return matches.map((m) => ({ id: m.id, liceId: m.liceId, slot: slotOf(m.startIso) + delta }));
+  deltaMinutes: number;
+  minuteOf: (iso: string) => number;
+}): MinuteAssignment[] {
+  const { matches, deltaMinutes, minuteOf } = args;
+  if (deltaMinutes === 0) return [];
+  return matches.map((m) => ({
+    id: m.id,
+    liceId: m.liceId,
+    atMinutes: minuteOf(m.startIso) + deltaMinutes,
+  }));
 }

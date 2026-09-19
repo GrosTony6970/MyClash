@@ -1,17 +1,19 @@
 import { zonedDay } from '@myclash/time';
-import { placeWithShift } from './place-with-shift';
-import { matchSlotSpan, type SlotAssignment } from './block-geometry';
+import { placeWithShift, type PlaceableItem } from './place-with-shift';
+import type { MinuteAssignment } from './block-geometry';
 
 /**
  * Where every match ends up when the operator drops one on a cell — the dropped
  * match and every neighbour the cascade displaces.
  *
- * Pure, and in slots rather than times: resolving a slot to an instant needs the
- * event timezone, which is the component's business. `placeWithShift` already
- * owns the cascade arithmetic and is tested; this is the layer that decides what
- * to feed it, which is where the interesting mistakes live — the wrong occupant
- * set, the wrong span, or forgetting to exclude the dragged match from its own
- * collision check.
+ * Pure, and in minutes on the axis rather than times: resolving minutes to an
+ * instant needs the event timezone, which is the component's business.
+ * `placeWithShift` already owns the cascade arithmetic and is tested; this is
+ * the layer that decides what to feed it, which is where the interesting
+ * mistakes live — the wrong occupant set, the wrong length, or forgetting to
+ * exclude the dragged match from its own collision check. The length was wrong
+ * once: fed in floored 5-minute slots, an 8-minute bout pushed its neighbour
+ * only five minutes on, and the server refused the overlap.
  *
  * The result is deliberately ONE list. The dropped match and its displaced
  * neighbours are a single operation to the operator, so they are saved as one
@@ -58,7 +60,20 @@ export function matchBelongsToDay(
 }
 
 /**
- * The matches already sitting on one lice on one day, as placeable items.
+ * True when two times name the same instant, whatever their format.
+ *
+ * The schedule read serves the database's own text ("…T08:43:00+00:00") and
+ * the board writes `toISOString()` ("…T08:43:00.000Z"). Compared as strings,
+ * an unmoved bout read as moved, and every group drop re-sent every bout on the
+ * piste that day — so an old overlap between two of them refused the drop.
+ */
+export function sameInstant(a: string | null, b: string): boolean {
+  return a !== null && Date.parse(a) === Date.parse(b);
+}
+
+/**
+ * The matches already sitting on one lice on one day, as placeable items: each
+ * at its exact start, as long as its real length, in minutes.
  *
  * `excludeId` drops the match being dragged. Without it a match dropped back
  * onto its own column collides with itself and the cascade shoves the whole
@@ -71,9 +86,9 @@ export function occupantsOnLice(args: {
   /** Event timezone — the clock `day` is measured on. See `matchBelongsToDay`. */
   tz: string;
   excludeId: string;
-  slotOf: (iso: string) => number;
-}): Array<{ id: string; slot: number; span: number }> {
-  const { matches, liceId, day, tz, excludeId, slotOf } = args;
+  minuteOf: (iso: string) => number;
+}): PlaceableItem[] {
+  const { matches, liceId, day, tz, excludeId, minuteOf } = args;
   return matches
     .filter(
       (m) =>
@@ -82,11 +97,7 @@ export function occupantsOnLice(args: {
         m.scheduledAt &&
         matchBelongsToDay(m.scheduledAt, day, tz),
     )
-    .map((m) => ({
-      id: m.id,
-      slot: slotOf(m.scheduledAt!),
-      span: matchSlotSpan(m.durationMinutes),
-    }));
+    .map((m) => ({ id: m.id, at: minuteOf(m.scheduledAt!), length: m.durationMinutes }));
 }
 
 /**
@@ -94,39 +105,59 @@ export function occupantsOnLice(args: {
  *
  * The caller decides whether the drop is worth making at all. The same-cell
  * no-op test stays there on purpose: it compares the resolved instant rather
- * than the slot — a match sitting at 09:02 dropped onto the 09:00 slot IS
- * re-timed, and a slot comparison would call that a no-op — and it also gates
+ * than the cell — a match sitting at 09:02 dropped onto the 09:00 cell IS
+ * re-timed, and a cell comparison would call that a no-op — and it also gates
  * the undo push, which is the component's state.
  */
 export function planMatchDrop(args: {
   matches: readonly PlannableMatch[];
   dropped: PlannableMatch;
   targetLiceId: string;
-  slot: number;
+  dropAtMinutes: number;
   day: string;
   /** Event timezone — the clock `day` is measured on. See `matchBelongsToDay`. */
   tz: string;
-  gridEndSlot: number;
-  slotOf: (iso: string) => number;
-}): SlotAssignment[] {
-  const { matches, dropped, targetLiceId, slot, day, tz, gridEndSlot, slotOf } = args;
+  gridEndMinutes: number;
+  minuteOf: (iso: string) => number;
+}): MinuteAssignment[] {
+  const { matches, dropped, targetLiceId, dropAtMinutes, day, tz, gridEndMinutes, minuteOf } = args;
+  const occupants = occupantsOnLice({
+    matches,
+    liceId: targetLiceId,
+    day,
+    tz,
+    excludeId: dropped.id,
+    minuteOf,
+  });
   const placement = placeWithShift({
-    items: occupantsOnLice({
-      matches,
-      liceId: targetLiceId,
-      day,
-      tz,
-      excludeId: dropped.id,
-      slotOf,
-    }),
-    dropped: { id: dropped.id, slot, span: matchSlotSpan(dropped.durationMinutes) },
-    dropSlot: slot,
-    gridEndSlot,
+    items: occupants,
+    dropped: { id: dropped.id, at: dropAtMinutes, length: dropped.durationMinutes },
+    dropAt: dropAtMinutes,
+    gridEnd: gridEndMinutes,
   });
   // Everything the cascade touched stays on the target lice — a displaced
-  // neighbour was already there, and the dropped match is arriving.
+  // neighbour was already there, and the dropped match is arriving: where it
+  // landed, which is later than the drop when a bout there is still running.
+  const landed = placement.items.find((item) => item.id === dropped.id)!;
+  // A neighbour "pushed" by less than a millisecond has not moved, and is not
+  // re-sent: the server would check it again, old overlaps and all.
+  const wasAt = new Map(occupants.map((o) => [o.id, o.at]));
+  const moved = placement.shifted.filter((s) => !sameMillisecond(s.at, wasAt.get(s.id)!));
   return [
-    { id: dropped.id, liceId: targetLiceId, slot },
-    ...placement.shifted.map((s) => ({ id: s.id, liceId: targetLiceId, slot: s.slot })),
+    { id: dropped.id, liceId: targetLiceId, atMinutes: landed.at },
+    ...moved.map((s) => ({ id: s.id, liceId: targetLiceId, atMinutes: s.at })),
   ];
+}
+
+/**
+ * True when two positions on the axis, in minutes, name the same millisecond —
+ * the one the board saves (`axisMinutesToTime` rounds to it).
+ *
+ * Minutes are floats. 08:10:20 is 10.333…4 minutes after 08:00, so a bout
+ * landing when a 5-minute bout from 08:10:20 ends, 8 minutes long, ends at
+ * 23.333…6 — a hair past a neighbour at 08:23:20, which reads 23.333…2. The
+ * cascade "pushes" that neighbour to the time it already has.
+ */
+function sameMillisecond(aMinutes: number, bMinutes: number): boolean {
+  return Math.round(aMinutes * 60_000) === Math.round(bMinutes * 60_000);
 }

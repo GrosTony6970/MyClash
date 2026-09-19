@@ -134,7 +134,8 @@ Matches.**
 - the columns `referee_assignments.starts_at` and `ends_at`;
 - the unimplemented "±15 min buffer" promise in `docs/ARCHITECTURE.md`.
 
-`SLOT_MINUTES` stays. It is grid geometry, not a length.
+`SLOT_MINUTES` stays. It is grid geometry, not a length: the schedule board draws a Match in
+5-minute rows, and moves it by its exact start and its planned length.
 
 ## Consequences
 

@@ -2023,6 +2023,7 @@ export const organizer = {
       ctrlClickHint: 'Ctrl/⌘-click to open scoring',
       runHeaderHintSingular: '({count} match) — drag to move · click to clear',
       runHeaderHintPlural: '({count} matches) — drag to move · click to clear',
+      poolRest: 'Rest · {minutes} min',
       blockBarTitle: '{start} – {end} · {label} · drag to move (cascade-shifts later matches)',
       addBreakTitle: 'Add break',
       clearDayTitle: 'Clear day?',
