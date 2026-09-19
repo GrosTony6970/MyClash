@@ -37,7 +37,7 @@
  */
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
-import { describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it } from 'vitest';
 import ts from 'typescript';
 
 const API_SRC = join(__dirname, '..', '..');
@@ -175,12 +175,23 @@ function alertWriteFiles(): string[] {
 
 describe('match alert coverage', () => {
   /**
+   * One walk of the whole API tree, shared by every case. Every case used to
+   * walk the tree itself, about 0.4 s against vitest's 5 s limit. The first walk
+   * also warms up the TypeScript parser, and on CI's Test job the first case went
+   * over 5 s on two commits in a row (2026-09-19). The walk grows with the API,
+   * so the hook sets its own 60 s limit.
+   */
+  let files: readonly string[];
+  beforeAll(() => {
+    files = alertWriteFiles();
+  }, 60_000);
+
+  /**
    * The detector has to actually see the five services it was built for, or
    * every assertion below passes by finding nothing. A guard that has silently
    * stopped detecting is worse than no guard: it reads as coverage.
    */
   it('finds the writes it is meant to police', () => {
-    const files = alertWriteFiles();
     expect(files.some((f) => f.endsWith('programme/programme.service.ts'))).toBe(true);
     expect(files.some((f) => f.endsWith('matches/matches.service.ts'))).toBe(true);
     expect(files.some((f) => f.endsWith('phases/phases.service.ts'))).toBe(true);
@@ -208,13 +219,12 @@ describe('match alert coverage', () => {
    * exemption entry for it.
    */
   it('does not flag a file that only reads the alert columns', () => {
-    const files = alertWriteFiles();
     expect(files.some((f) => f.endsWith('events/event-readiness.ts'))).toBe(false);
     expect(files.some((f) => f.endsWith('matches/referee-assignment-index.ts'))).toBe(false);
   });
 
   it('leaves no write of a match time or piste without a refresh', () => {
-    const offenders = Array.from(new Set(alertWriteFiles()))
+    const offenders = Array.from(new Set(files))
       .filter((file) => !EXEMPT.some((allowed) => file.endsWith(allowed)))
       .filter((file) => !readFileSync(file, 'utf8').includes(REFRESHER))
       .map((file) => file.slice(file.indexOf('apps/api/')));
