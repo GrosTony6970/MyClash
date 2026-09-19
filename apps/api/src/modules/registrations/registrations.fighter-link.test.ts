@@ -207,4 +207,54 @@ describe('RegistrationsService fighter linking', () => {
     expect(fighterUpdateChain.update).toHaveBeenCalledWith({ hema_ratings_id: '456' });
     expect(regChain.insert.mock.calls[0]?.[0]).not.toHaveProperty('fighter_id');
   });
+
+  // The roster page sends null for an empty HEMA Ratings field. Null means "no
+  // id given" (operator ruling 32): it never clears the linked global profile,
+  // which other Events share.
+  it('leaves the linked global profile alone when the HEMA Ratings id is null', async () => {
+    const personChain = makeChain({ data: null, error: null });
+    personChain.maybeSingle.mockResolvedValue({
+      data: personRow({ global_person_id: 'fighter-1' }),
+      error: null,
+    });
+    const regChain = makeChain({ data: null, error: null });
+    regChain.single.mockResolvedValue({ data: { id: 'reg-1' }, error: null });
+
+    fromMock
+      .mockReturnValueOnce(personChain)
+      .mockReturnValueOnce(noCapTournamentChain())
+      .mockReturnValueOnce(makeAwaitableChain({ data: [], error: null }))
+      .mockReturnValueOnce(regChain);
+
+    await service.create('tournament-1', { personId: 'person-1', hemaRatingsId: null });
+
+    expect(fromMock.mock.calls.map(([table]) => table)).not.toContain('global_persons');
+    expect(regChain.insert).toHaveBeenCalledWith(
+      expect.objectContaining({ person_id: 'person-1' }),
+    );
+  });
+
+  it("passes an unlinked person's own HEMA Ratings id to the resolver when the body's is null", async () => {
+    mockResolver.resolveOrCreateGlobalPerson.mockResolvedValue({ id: 'fighter-1', created: false });
+    const personChain = makeChain({ data: null, error: null });
+    personChain.maybeSingle.mockResolvedValue({
+      data: personRow({ hema_ratings_id: '789' }),
+      error: null,
+    });
+    const regChain = makeChain({ data: null, error: null });
+    regChain.single.mockResolvedValue({ data: { id: 'reg-1' }, error: null });
+
+    fromMock
+      .mockReturnValueOnce(personChain)
+      .mockReturnValueOnce(makeChain({ data: null, error: null }))
+      .mockReturnValueOnce(noCapTournamentChain())
+      .mockReturnValueOnce(makeAwaitableChain({ data: [], error: null }))
+      .mockReturnValueOnce(regChain);
+
+    await service.create('tournament-1', { personId: 'person-1', hemaRatingsId: null });
+
+    expect(mockResolver.resolveOrCreateGlobalPerson).toHaveBeenCalledWith(
+      expect.objectContaining({ hemaRatingsId: '789' }),
+    );
+  });
 });

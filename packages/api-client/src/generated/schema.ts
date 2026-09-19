@@ -10637,7 +10637,7 @@ export interface components {
       personId: string;
       seed?: number;
       bibNumber?: number;
-      hemaRatingsId?: string;
+      hemaRatingsId?: string | null;
     };
     UpdateRegistrationStatusDto: {
       /** @enum {string} */

@@ -22,7 +22,9 @@ const createRegistrationSchema = z
     personId: z.uuid(),
     seed: z.number().int().min(1).optional(),
     bibNumber: z.number().int().min(1).optional(),
-    hemaRatingsId: z.string().optional(),
+    // Null = no id given: the roster page sends it for an empty field. It never
+    // clears a stored id (registrations.service.ts, resolveFighterForRegistration).
+    hemaRatingsId: z.string().nullable().optional(),
   })
   .strict();
 export class CreateRegistrationDto extends createZodDto(createRegistrationSchema) {}
