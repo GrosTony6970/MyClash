@@ -24,8 +24,6 @@
  */
 export const UNDECIDED: Readonly<Record<string, string>> = {
   // phases — the bracket and the Pools, draft Events and hidden phases included.
-  'modules/phases/bracket-slots.controller.ts#BracketSlotsController.overrideSlot':
-    'write: moves a fighter in any bracket',
   'modules/phases/phases.controller.ts#PhasesController.getBracket': 'read',
   'modules/phases/phases.controller.ts#PhasesController.listPools': 'read',
   'modules/phases/phases.controller.ts#PhasesController.listPoolsWithMatches': 'read',

@@ -3872,7 +3872,7 @@ export interface paths {
     delete?: never;
     options?: never;
     head?: never;
-    /** Override bracket slot registrations (organiser only) */
+    /** Override bracket slot registrations (org admin+) */
     patch: operations['BracketSlotsController_overrideSlot'];
     trace?: never;
   };

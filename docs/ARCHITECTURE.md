@@ -1492,9 +1492,12 @@ Slot references stored in `bracket_slots.source_a_ref` / `source_b_ref`:
 ### 11sexies.5 Override endpoint
 
 ```
-PATCH /api/v1/bracket-slots/:slotId   [organizer+]
+PATCH /api/v1/bracket-slots/:slotId   [org admin+, on the slot's own Event]
 Body: { registrationAId?: string | null, registrationBId?: string | null }
 ```
+
+A registration named in the body must be entered in the slot's own tournament; one from another
+tournament and an unknown id get the same 400.
 
 Setting a value to `null` cancels the assignment and voids the downstream match if it hasn't started. This gives organisers full control on top of automatic advancement.
 
