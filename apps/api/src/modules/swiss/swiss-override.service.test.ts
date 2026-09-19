@@ -9,6 +9,7 @@ import {
   clubbed,
   overrideState as state,
   phaseRow,
+  registration,
   round2,
   swissConfig,
   wroteTo,
@@ -110,6 +111,21 @@ describe('SwissOverrideService — swapping two fighters', () => {
     await expect(service.swapPairing('sr2', 'r1', 'r9', 'user-1')).rejects.toThrow(
       /Fighter r9 is not in round 2/,
     );
+  });
+
+  it('answers a fighter entered elsewhere exactly as one who exists nowhere', async () => {
+    // Only the round is searched. A friendlier refusal that looked the id up
+    // would tell the caller which ids exist in other tournaments.
+    const answers: unknown[] = [];
+    for (const rows of [[registration('r9', { tournament_id: 't2' })], []]) {
+      const { service } = build({ registrations: { rows } });
+      const refusal = await service
+        .swapPairing('sr2', 'r1', 'r9', 'user-1')
+        .catch((error: unknown) => error);
+      expect(refusal).toBeInstanceOf(BadRequestException);
+      answers.push((refusal as BadRequestException).getResponse());
+    }
+    expect(answers[1]).toEqual(answers[0]);
   });
 });
 

@@ -8,7 +8,7 @@
  * WHY IT FOLLOWS CALLS INTO SERVICES. The module tests before it passed a
  * handler as soon as it resolved the caller's id. That passed `createPerson`,
  * which resolved the id only to stamp `created_by_user_id`, and eight Swiss
- * writes that resolve it only for the audit log and accept a null. So a handler
+ * writes that resolved it only for the audit log and accepted a null. So a handler
  * passes here only when a REFUSER is reachable: in the handler, in a same-class
  * method or same-file function, in a method of an injected service, or in an
  * imported function — followed through the real import, up to MAX_HOPS away.

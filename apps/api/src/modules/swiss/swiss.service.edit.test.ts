@@ -1,7 +1,13 @@
 import { ConflictException, NotFoundException } from '@nestjs/common';
 import { describe, expect, it } from 'vitest';
 import { mockSupabase, writesTo, type SupabaseRow } from '../../common/testing/supabase-chain';
-import { asSupabase as as, phaseRow, swissConfig, swissRound } from './swiss.fixtures';
+import {
+  asSupabase as as,
+  phaseRow,
+  registration,
+  swissConfig,
+  swissRound,
+} from './swiss.fixtures';
 import { SwissPairingService } from './swiss-pairing.service';
 import type { SwissSeedingService } from './swiss-seeding.service';
 import { parseSwissConfig } from './dto/swiss-config.dto';
@@ -180,6 +186,19 @@ describe('SwissService.withdraw — taking a fighter out mid-phase', () => {
 
     await expect(service.withdraw('p1', 'r9', 'u1')).rejects.toBeInstanceOf(NotFoundException);
     expect(writesTo(supabase, 'swiss_entrants')).toHaveLength(0);
+  });
+
+  it('answers a fighter entered elsewhere exactly as one who exists nowhere', async () => {
+    // Only the phase's entrants are searched. A friendlier refusal that looked
+    // the id up would tell the caller which ids exist in other tournaments.
+    const answers: unknown[] = [];
+    for (const rows of [[registration('r9', { tournament_id: 't2' })], []]) {
+      const { service } = build({ registrations: { rows } });
+      const refusal = await service.withdraw('p1', 'r9', 'u1').catch((error: unknown) => error);
+      expect(refusal).toBeInstanceOf(NotFoundException);
+      answers.push((refusal as NotFoundException).getResponse());
+    }
+    expect(answers[1]).toEqual(answers[0]);
   });
 
   it('leaves a fighter who has already withdrawn where they were', async () => {

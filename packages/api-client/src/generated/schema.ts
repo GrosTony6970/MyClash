@@ -7479,7 +7479,7 @@ export interface paths {
       cookie?: never;
     };
     /**
-     * The organiser view of a Swiss phase
+     * The organiser view of a Swiss phase (org member)
      * @description Config, entrant roster with names and withdrawals, and every round with its pairings and validity. Answers for a tournament with no Swiss phase too, so the Configure tab can propose a round count for the field.
      */
     get: operations['SwissController_getAdminView'];
@@ -7501,7 +7501,7 @@ export interface paths {
     get?: never;
     put?: never;
     /**
-     * Generate a Swiss phase
+     * Generate a Swiss phase (org admin+)
      * @description Creates the phase, freezes its field and pairs round 1. Coexists with a pool phase — pools → Swiss → bracket is a valid three-stage tournament.
      */
     post: operations['SwissController_generate'];
@@ -7519,13 +7519,13 @@ export interface paths {
       cookie?: never;
     };
     /**
-     * Preview the next round
+     * Preview the next round (org member)
      * @description Read-only. Shows the pairings, bye and warnings without writing anything.
      */
     get: operations['SwissController_previewNextRound'];
     put?: never;
     /**
-     * Commit the next round
+     * Commit the next round (org admin+)
      * @description Normally unnecessary — a round auto-pairs when the previous one completes. This is the manual door for a round that needs re-triggering.
      */
     post: operations['SwissController_commitNextRound'];
@@ -7548,7 +7548,7 @@ export interface paths {
     delete?: never;
     options?: never;
     head?: never;
-    /** Update the Swiss configuration */
+    /** Update the Swiss configuration (org admin+) */
     patch: operations['SwissController_updateConfig'];
     trace?: never;
   };
@@ -7562,7 +7562,7 @@ export interface paths {
     get?: never;
     put?: never;
     /**
-     * Withdraw a fighter
+     * Withdraw a fighter (org admin+)
      * @description Excluded from later pairings; played results stand and still count toward opponents.
      */
     post: operations['SwissController_withdraw'];
@@ -7582,7 +7582,7 @@ export interface paths {
     get?: never;
     put?: never;
     post?: never;
-    /** Delete the last round (only while nothing in it has started) */
+    /** Delete the last round, only while nothing in it has started (org admin+) */
     delete: operations['SwissController_deleteRound'];
     options?: never;
     head?: never;
@@ -7598,7 +7598,7 @@ export interface paths {
     };
     get?: never;
     put?: never;
-    /** Freeze the standings and resolve the podium */
+    /** Freeze the standings and resolve the podium (org admin+) */
     post: operations['SwissController_finalise'];
     delete?: never;
     options?: never;
@@ -7616,7 +7616,7 @@ export interface paths {
     get?: never;
     put?: never;
     /**
-     * Resume a finalised phase
+     * Resume a finalised phase (org admin+)
      * @description Refused once a bracket seeded from these standings has a bout under way.
      */
     post: operations['SwissController_resume'];
@@ -7636,7 +7636,7 @@ export interface paths {
     get?: never;
     put?: never;
     /**
-     * Swap two fighters
+     * Swap two fighters (org admin+)
      * @description The default override. Invariant-preserving: everyone still appears once and there is still one bye. Either fighter may be the bye holder. 409 with warnings unless confirm is set.
      */
     post: operations['SwissController_swap'];
@@ -7660,8 +7660,8 @@ export interface paths {
     options?: never;
     head?: never;
     /**
-     * Set both sides of a Swiss match
-     * @description The escape hatch. Can leave the round invalid; the response carries the validation, and an invalid round blocks the next one.
+     * Set both sides of a Swiss match (org admin+)
+     * @description The escape hatch. Can leave the round invalid; the response carries the validation, and an invalid round blocks the next one. Each fighter must be entered in the match's tournament.
      */
     patch: operations['SwissController_setSides'];
     trace?: never;

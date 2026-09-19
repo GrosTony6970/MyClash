@@ -203,6 +203,25 @@ describe('rankFromCompletedPools', () => {
     ).rejects.toThrow(/needs a pool phase/);
   });
 
+  it("refuses another tournament's source phase with the answer an unknown one gets", async () => {
+    // pool-9 is complete: read, it would seed t1's Swiss with another
+    // tournament's fighters. The same 400 tells the caller no id exists elsewhere.
+    const supabase = mockSupabase({
+      phases: completedPool.phases,
+      matches: { rows: [{ id: 'm9', phase_id: 'pool-9', status: 'completed' }] },
+      pool_members: { rows: [member('reg-9', 1, 1, 'pool-9')] },
+    });
+    const answers: unknown[] = [];
+    for (const named of ['pool-9', 'no-such-phase']) {
+      const refusal = await new SwissSeedingService(as(supabase))
+        .rankFromCompletedPools('t1', named)
+        .catch((error: unknown) => error);
+      expect(refusal).toBeInstanceOf(BadRequestException);
+      answers.push((refusal as BadRequestException).getResponse());
+    }
+    expect(answers[1]).toEqual(answers[0]);
+  });
+
   it('refuses when the pool phase has no bouts at all', async () => {
     const supabase = mockSupabase({ ...completedPool, matches: { rows: [] } });
     await expect(

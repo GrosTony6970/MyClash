@@ -236,8 +236,10 @@ export class SwissService {
       // resolved by the seeder when the request does not name one. Writing the
       // request's null instead persisted a config that failed its own schema —
       // the phase row and its entrants were inserted, then every read of it
-      // 400'd with "has an invalid config".
-      sourcePhaseId: dto.sourcePhaseId ?? ranked.sourcePhaseId,
+      // 400'd with "has an invalid config". Never the request's own id: only
+      // the seeder checks it against this tournament, and only for
+      // `by-pool-rank`; any other draw reads no phase and records none.
+      sourcePhaseId: ranked.sourcePhaseId,
       pairingMethod: dto.pairingMethod ?? SWISS_DEFAULTS.pairingMethod,
       grouping: dto.grouping ?? SWISS_DEFAULTS.grouping,
       rankBy: dto.rankBy ?? SWISS_DEFAULTS.rankBy,

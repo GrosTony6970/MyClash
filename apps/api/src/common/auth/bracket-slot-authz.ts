@@ -11,7 +11,11 @@
 import { BadRequestException, NotFoundException } from '@nestjs/common';
 import type { SupabaseService } from '../../modules/supabase/supabase.service';
 import type { EventAuthzDeps } from './event-authz';
-import { assertCanManageTournament } from './registration-authz';
+import {
+  assertCanManageTournament,
+  assertEnteredInTournament,
+  tournamentIdForPhase,
+} from './registration-authz';
 
 async function tournamentIdForBracketSlot(
   supabase: SupabaseService,
@@ -23,25 +27,16 @@ async function tournamentIdForBracketSlot(
     .eq('id', slotId)
     .maybeSingle();
   if (error) throw new BadRequestException(error.message);
-  if (!slot) throw new NotFoundException(`Bracket slot ${slotId} not found`);
-  const { data: phase, error: phaseError } = await supabase.service
-    .from('phases')
-    .select('tournament_id')
-    .eq('id', (slot as { phase_id: string }).phase_id)
-    .maybeSingle();
-  if (phaseError) throw new BadRequestException(phaseError.message);
-  if (!phase) throw new NotFoundException(`Bracket slot ${slotId} not found`);
-  return String((phase as { tournament_id: string }).tournament_id);
+  const missing = `Bracket slot ${slotId} not found`;
+  if (!slot) throw new NotFoundException(missing);
+  return tournamentIdForPhase(supabase, (slot as { phase_id: string }).phase_id, missing);
 }
 
 /**
  * Assert the caller may put `registrationIds` into the slot: `admin` on its
  * Event, and every registration named (null empties a side) entered in the
- * slot's own tournament.
- *
- * The same 400 for a registration of another tournament and for no such
- * registration, and only after the role check: a 403 or a 404 would tell the
- * caller which ids exist elsewhere.
+ * slot's own tournament — one 400 for "elsewhere" and "unknown", only after the
+ * role check.
  */
 export async function assertCanFillBracketSlot(
   deps: EventAuthzDeps,
@@ -51,16 +46,10 @@ export async function assertCanFillBracketSlot(
 ): Promise<void> {
   const tournamentId = await tournamentIdForBracketSlot(deps.supabase, slotId);
   await assertCanManageTournament(deps, tournamentId, userId, 'admin');
-  const named = registrationIds.filter((id): id is string => typeof id === 'string');
-  if (named.length === 0) return;
-  const { data, error } = await deps.supabase.service
-    .from('registrations')
-    .select('id')
-    .eq('tournament_id', tournamentId)
-    .in('id', named);
-  if (error) throw new BadRequestException(error.message);
-  const entered = new Set(((data ?? []) as Array<{ id: string }>).map((row) => row.id));
-  if (named.some((id) => !entered.has(id))) {
-    throw new BadRequestException('A fighter in a bracket slot must be entered in its tournament');
-  }
+  await assertEnteredInTournament(
+    deps.supabase,
+    tournamentId,
+    registrationIds,
+    'A fighter in a bracket slot must be entered in its tournament',
+  );
 }

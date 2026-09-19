@@ -171,6 +171,17 @@ describe('SwissService.generateSwiss — the config it builds', () => {
     expect(typeof config.seedingRandomSeed).toBe('number');
   });
 
+  it('records no source phase for a draw that read none', async () => {
+    // A random draw reads no phase, so a source phase named in the request —
+    // another tournament's, or no phase at all — was never checked. Storing
+    // it would record a source the order did not come from.
+    const { supabase, service } = build();
+
+    await service.generateSwiss('t1', dto({ seedingStrategy: 'random', sourcePhaseId: 'p-t2' }));
+
+    expect(insertedPhase(supabase)['config_json']).toMatchObject({ sourcePhaseId: null });
+  });
+
   it('records the draw against the phase it created', async () => {
     const { supabase, service } = build();
 

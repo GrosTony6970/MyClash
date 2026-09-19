@@ -30,19 +30,6 @@ export const UNDECIDED: Readonly<Record<string, string>> = {
   'modules/phases/phases.controller.ts#PhasesController.listUnassignedFighters': 'read',
   'modules/phases/phases.controller.ts#PhasesController.listMatchScores': 'read',
 
-  // swiss — every write resolves the caller for the audit log only.
-  'modules/swiss/swiss.controller.ts#SwissController.generate': 'write',
-  'modules/swiss/swiss.controller.ts#SwissController.commitNextRound': 'write',
-  'modules/swiss/swiss.controller.ts#SwissController.updateConfig': 'write',
-  'modules/swiss/swiss.controller.ts#SwissController.withdraw': 'write',
-  'modules/swiss/swiss.controller.ts#SwissController.deleteRound': 'write',
-  'modules/swiss/swiss.controller.ts#SwissController.finalise': 'write',
-  'modules/swiss/swiss.controller.ts#SwissController.resume': 'write',
-  'modules/swiss/swiss.controller.ts#SwissController.swap': 'write',
-  'modules/swiss/swiss.controller.ts#SwissController.setSides': 'write',
-  'modules/swiss/swiss.controller.ts#SwissController.getAdminView': 'read',
-  'modules/swiss/swiss.controller.ts#SwissController.previewNextRound': 'read',
-
   // clubs and platform-wide identities.
   'modules/clubs/clubs.controller.ts#ClubsController.create': 'write: a VERIFIED club',
   'modules/clubs/clubs.controller.ts#ClubsController.update': 'write: any club, public page',
