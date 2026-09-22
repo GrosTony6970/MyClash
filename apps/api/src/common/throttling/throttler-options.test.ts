@@ -222,7 +222,10 @@ describe('staff-pin throttler (wired)', () => {
     expect(await postStaff('/t/staff-other', body, '10.23.0.99')).toBe(429);
   });
 
-  it('normalizes case on both halves, so capitalization is not a way around it', async () => {
+  // Spacing as well as case: the login body puts no character rule on the
+  // username and sign-in trims before the lookup, so `  REF3  ` reaches `ref3`
+  // and has to spend `ref3`'s allowance.
+  it('normalizes case and spacing on both halves, so neither is a way around it', async () => {
     delete process.env.THROTTLE_IP_WHITELIST;
 
     for (let i = 0; i < 10; i++) {
@@ -237,8 +240,34 @@ describe('staff-pin throttler (wired)', () => {
     expect(
       await postStaff(
         '/t/staff-login',
-        { eventSlugOrCode: 'Case-Event', username: 'REF3' },
+        { eventSlugOrCode: ' Case-Event ', username: '  REF3  ' },
         '10.24.0.99',
+      ),
+    ).toBe(429);
+  });
+
+  // Ruling 52: sign-in finds the event by its id when one is sent and never
+  // reads the typed name then, so a made-up name per try must not be a fresh
+  // allowance for the same account.
+  it('counts by the event id when one is sent, whatever event name comes with it', async () => {
+    delete process.env.THROTTLE_IP_WHITELIST;
+    const eventId = '2a7d0f4e-1b3c-4d5e-8f60-718293a4b5c6';
+
+    for (let i = 0; i < 10; i++) {
+      expect(
+        await postStaff(
+          '/t/staff-login',
+          { eventId, eventSlugOrCode: `made-up-${i}`, username: 'ref6' },
+          `10.29.0.${i}`,
+        ),
+      ).toBe(200);
+    }
+    // Postgres reads a uuid in either case, so capitals are the same event.
+    expect(
+      await postStaff(
+        '/t/staff-login',
+        { eventId: eventId.toUpperCase(), eventSlugOrCode: 'made-up-99', username: 'ref6' },
+        '10.29.0.99',
       ),
     ).toBe(429);
   });

@@ -1,6 +1,7 @@
 import { SetMetadata, type CustomDecorator, type ExecutionContext } from '@nestjs/common';
 import { createHash } from 'node:crypto';
 import { isThrottleWhitelisted } from './throttle-whitelist';
+import { normalizeStaffUsername } from '../../modules/staff/normalize-username';
 
 /** Name of the staff-account-keyed throttler registered in AppModule. */
 export const STAFF_PIN_THROTTLER = 'staff-pin';
@@ -16,18 +17,23 @@ const THROTTLE_BY_STAFF_ACCOUNT = 'throttle:by-staff-account';
 export const ThrottleByStaffAccount = (): CustomDecorator =>
   SetMetadata(THROTTLE_BY_STAFF_ACCOUNT, true);
 
+/** Case-folding for the event half, which is an id or a slug, not a username. */
+const lowerTrimmed = (value: unknown): string =>
+  typeof value === 'string' ? value.trim().toLowerCase() : '';
+
 /**
  * The bucket identity: one event, one username.
  *
- * Keyed on `eventSlugOrCode` rather than `eventId` because the slug is the
- * REQUIRED field (`staffLoginSchema`) and the id is optional — the login
- * picker sends both, the `?event=<slug>` QR deep link sends only the slug, so
- * the slug is the one value present on every path. Resolving slug → id here
+ * Keyed on `eventId` when the body carries one, else on `eventSlugOrCode` —
+ * the same order `StaffService.login` resolves the event in (operator ruling
+ * 52). Keying on the slug alone let a caller send the real id with a made-up
+ * slug on every attempt: sign-in ignored that slug, so each spelling of it was
+ * a fresh allowance against the same account. Resolving slug → id here instead
  * would mean a database round-trip inside a guard, before the caller has
- * authenticated, which is a worse trade than the residual below.
+ * authenticated.
  *
- * Residual: the field accepts an event's slug OR its code, so a caller who
- * knows both gets two allowances instead of one. 20 attempts an hour is still
+ * Residual: the id path and the `?event=<slug>` QR path are two buckets, so a
+ * caller who knows both gets 20 attempts an hour instead of 10. That is still
  * 360× tighter than the 7,200 the global per-IP limit permits on its own.
  *
  * Never `req.ip`: an entire venue shares one NAT address on tournament day, so
@@ -37,13 +43,14 @@ export const ThrottleByStaffAccount = (): CustomDecorator =>
  */
 function staffAccountKey(req: { body?: unknown }): string {
   // Guards run before the validation pipe, so this is raw input: it may be
-  // absent or any type. Both halves are lowercased because neither the event
-  // lookup nor the username lookup is case-sensitive — without it, `Ref1` and
-  // `ref1` would get an allowance each.
-  const body = req.body as { eventSlugOrCode?: unknown; username?: unknown } | undefined;
-  const event =
-    typeof body?.eventSlugOrCode === 'string' ? body.eventSlugOrCode.trim().toLowerCase() : '';
-  const username = typeof body?.username === 'string' ? body.username.trim().toLowerCase() : '';
+  // absent or any type. The username goes through the SAME normalizer the
+  // account lookup uses, so no spelling the lookup accepts can be a bucket of
+  // its own; the event half is case-folded because Postgres reads a uuid in
+  // either case and `Open-2026` and `open-2026` must not get an allowance each.
+  const body = req.body as
+    { eventId?: unknown; eventSlugOrCode?: unknown; username?: unknown } | undefined;
+  const event = lowerTrimmed(body?.eventId) || lowerTrimmed(body?.eventSlugOrCode);
+  const username = normalizeStaffUsername(body?.username);
   // A partial key would bucket every malformed request together, so demand both.
   if (!event || !username) return '';
   return `${event}|${username}`;

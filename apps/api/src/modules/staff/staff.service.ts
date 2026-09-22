@@ -53,6 +53,7 @@ import type {
   UpdateStaffAccountDto,
 } from './dto';
 import { assertLicesBelongToEvent } from '../lices/lices-in-event';
+import { normalizeStaffUsername } from './normalize-username';
 
 const scrypt = promisify(scryptCallback);
 export const STAFF_COOKIE_NAME = 'mc_staff';
@@ -189,7 +190,7 @@ export class StaffService {
       .insert({
         event_id: eventId,
         display_name: dto.displayName.trim(),
-        username: this.normalizeUsername(dto.username),
+        username: normalizeStaffUsername(dto.username),
         pin_hash: await this.hashPin(dto.pin),
         status: 'active',
         // Omitted rather than defaulted here: the column's own DEFAULT 'scoring'
@@ -236,12 +237,12 @@ export class StaffService {
       .from('event_staff_accounts')
       .select('status')
       .eq('event_id', eventId)
-      .eq('username', this.normalizeUsername(username))
+      .eq('username', normalizeStaffUsername(username))
       .maybeSingle();
 
     return new ConflictException({
       code: 'staff_username_taken',
-      message: `The username "${this.normalizeUsername(username)}" is already used by a staff account on this event.`,
+      message: `The username "${normalizeStaffUsername(username)}" is already used by a staff account on this event.`,
       ...(data?.status === undefined ? {} : { existingStatus: data.status }),
     });
   }
@@ -255,7 +256,7 @@ export class StaffService {
     await this.assertCanManageEventStaff(eventId, userId);
     const updates: Record<string, unknown> = { updated_at: new Date().toISOString() };
     if (dto.displayName !== undefined) updates['display_name'] = dto.displayName.trim();
-    if (dto.username !== undefined) updates['username'] = this.normalizeUsername(dto.username);
+    if (dto.username !== undefined) updates['username'] = normalizeStaffUsername(dto.username);
     if (dto.status !== undefined) {
       updates['status'] = dto.status;
       updates['disabled_at'] = dto.status === 'disabled' ? new Date().toISOString() : null;
@@ -424,7 +425,10 @@ export class StaffService {
       .from('event_staff_accounts')
       .select('id,event_id,display_name,username,pin_hash,status,role')
       .eq('event_id', event.id)
-      .ilike('username', this.normalizeUsername(dto.username))
+      // Exact, never `ilike` (ruling 48): `_` and `%` in a typed name were
+      // wildcards that reached another account. Every writer stores the
+      // normalized form, so equality on it is case-insensitive by construction.
+      .eq('username', normalizeStaffUsername(dto.username))
       .maybeSingle();
     if (error) throw new BadRequestException(error.message);
     if (!account) throw new UnauthorizedException('Invalid staff credentials');
@@ -1462,10 +1466,6 @@ export class StaffService {
       .maybeSingle();
     if (error) throw new BadRequestException(error.message);
     return Boolean(data);
-  }
-
-  private normalizeUsername(username: string) {
-    return username.trim().toLowerCase();
   }
 
   /**

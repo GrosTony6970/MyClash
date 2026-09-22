@@ -1,18 +1,24 @@
-import { randomBytes, scrypt as scryptCallback } from 'node:crypto';
-import { promisify } from 'node:util';
 import { ForbiddenException, UnauthorizedException } from '@nestjs/common';
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import type { FastifyRequest } from 'fastify';
-import { StaffService, STAFF_COOKIE_NAME } from './staff.service';
+import { STAFF_COOKIE_NAME } from './staff.service';
+import { filtersFor, scopedTo, selectsFor, writesTo } from '../../common/testing/supabase-chain';
 import {
-  filtersFor,
-  mockSupabase,
-  scopedTo,
-  selectsFor,
-  writesTo,
-} from '../../common/testing/supabase-chain';
-
-const scrypt = promisify(scryptCallback);
+  ACCOUNT,
+  EVENT,
+  LICE,
+  OTHER_ACCOUNT,
+  OTHER_EVENT,
+  OTHER_LICE,
+  PIN,
+  accountRow,
+  build,
+  eventRow,
+  liceRow,
+  pinHash,
+  signInQueue,
+  withEvent,
+} from './staff.service.login.fixtures';
 
 /**
  * Staff sign-in — the door onto the scoring pad.
@@ -22,90 +28,18 @@ const scrypt = promisify(scryptCallback);
  * load-bearing in nothing. As with the admin surface, these run service-role
  * and RLS is not underneath them.
  *
- * One shape constraint drives the fixtures here. The account lookup is
- * `.eq('event_id', …).ilike('username', …)`, and the double refuses `ilike` on a
- * seeded table rather than silently returning every row — so that ONE query has
- * to stay canned, and its two filters can only be argument assertions. Every
- * other read in the flow is on a different table and is seeded, which is why the
- * piste and bout cases below assert outcomes instead.
+ * `event_staff_accounts` is a per-table QUEUE here: sign-in reads it, stamps it,
+ * then reads it back for the `me` payload. So the account lookup's filters are
+ * argument assertions in this file, and the cases that need the lookup itself
+ * to decide seed the table instead, in staff.service.login.username.test.ts —
+ * seeding works for both (the seeded row carries the read-back's embed), the
+ * queue is simply what this file was written with. Every other read in the flow
+ * is on a different table and is seeded, which is why the piste and bout cases
+ * below assert outcomes.
  *
- * `event_staff_accounts` is a per-table QUEUE: sign-in reads it, stamps it, then
- * reads it back for the `me` payload, and those three want different answers.
+ * The rows and builders live in staff.service.login.fixtures.ts, shared with
+ * that file.
  */
-
-const ORG = 'org-1';
-const EVENT = 'event-1';
-const OTHER_EVENT = 'event-2';
-const ACCOUNT = 'staff-1';
-const OTHER_ACCOUNT = 'staff-2';
-const LICE = 'lice-1';
-const OTHER_LICE = 'lice-2';
-
-const PIN = '246810';
-
-/** The stored format `verifyPin` expects: `scrypt:<salt b64>:<key b64>`. */
-async function pinHash(pin: string) {
-  const salt = randomBytes(16);
-  const key = (await scrypt(pin, salt, 32)) as Buffer;
-  return `scrypt:${salt.toString('base64')}:${key.toString('base64')}`;
-}
-
-const eventRow = (id: string, over: Record<string, unknown> = {}) => ({
-  id,
-  organization_id: ORG,
-  slug: `slug-${id}`,
-  name: `Event ${id}`,
-  status: 'running',
-  start_date: '2026-08-08',
-  end_date: '2099-12-31',
-  ...over,
-});
-
-const accountRow = (hash: string, over: Record<string, unknown> = {}) => ({
-  id: ACCOUNT,
-  event_id: EVENT,
-  display_name: 'Marie Dubois',
-  username: 'marie',
-  pin_hash: hash,
-  status: 'active',
-  role: 'scoring',
-  ...over,
-});
-
-const liceRow = (id: string, eventId = EVENT) => ({
-  id,
-  name: `Piste ${id}`,
-  event_id: eventId,
-  events: { id: eventId, slug: `slug-${eventId}`, name: `Event ${eventId}`, status: 'running' },
-});
-
-function build(tables: Record<string, unknown>, jwt: Record<string, unknown> = {}) {
-  const supabase = mockSupabase(tables as never);
-  const sign = vi.fn(() => 'signed-token');
-  const service = new StaffService(
-    supabase as never,
-    {} as never,
-    { sign, ...jwt } as never,
-    {} as never,
-  );
-  return { service, supabase, sign };
-}
-
-/**
- * The three `event_staff_accounts` answers one sign-in consumes, in order: the
- * credential lookup, the last_login_at stamp, then the `me` read-back.
- */
-const signInQueue = (account: Record<string, unknown>) => [
-  { data: account, error: null },
-  { data: null, error: null },
-  {
-    data: {
-      ...account,
-      events: { id: EVENT, slug: 'slug-event-1', name: 'FAL', status: 'running' },
-    },
-    error: null,
-  },
-];
 
 describe('StaffService.login', () => {
   it('matches the username within the caller event, case-folded and trimmed', async () => {
@@ -123,15 +57,14 @@ describe('StaffService.login', () => {
     } as never);
 
     expect(result.token).toBe('signed-token');
-    // Argument assertions, not outcomes: this one query carries `.ilike`, so the
-    // double cannot narrow it and a seeded fixture would be a lie. Routed by
-    // table rather than by call index — the account table is read three times in
-    // one sign-in, and an index would silently follow the wrong one.
+    // Argument assertions on the canned queue. Routed by table rather than by
+    // call index — the account table is read three times in one sign-in, and an
+    // index would silently follow the wrong one.
     expect(filtersFor(supabase.from, 'event_staff_accounts', 'eq')).toContainEqual([
       'event_id',
       EVENT,
     ]);
-    expect(filtersFor(supabase.from, 'event_staff_accounts', 'ilike')).toContainEqual([
+    expect(filtersFor(supabase.from, 'event_staff_accounts', 'eq')).toContainEqual([
       'username',
       'marie',
     ]);
@@ -171,6 +104,33 @@ describe('StaffService.login', () => {
     // Read the resolved event off the SESSION, not off the `me` payload: `me`
     // comes from a canned read and would say `event-1` however the slug
     // resolved. The signed claim is the one thing downstream trusts.
+    expect(sign).toHaveBeenCalledWith(
+      expect.objectContaining({ event_id: EVENT }),
+      expect.anything(),
+    );
+  });
+
+  /**
+   * The PIN bucket keys on the id when the body carries one (ruling 52), so
+   * sign-in must resolve by the id too. Were that order to flip, a caller could
+   * send the real slug with a fresh random uuid each time: the uuid would never
+   * be read, and every attempt would be a new bucket.
+   */
+  it('resolves the event by the id, not the name sent beside it', async () => {
+    const hash = await pinHash(PIN);
+    const { service, sign } = build({
+      events: { rows: [eventRow(OTHER_EVENT), eventRow(EVENT)] },
+      event_staff_accounts: signInQueue(accountRow(hash)),
+      event_staff_lice_assignments: { rows: [] },
+    });
+
+    await service.login({
+      eventId: EVENT,
+      eventSlugOrCode: `slug-${OTHER_EVENT}`,
+      username: 'marie',
+      pin: PIN,
+    } as never);
+
     expect(sign).toHaveBeenCalledWith(
       expect.objectContaining({ event_id: EVENT }),
       expect.anything(),
@@ -324,11 +284,6 @@ describe('StaffService.getMe', () => {
   const request = () =>
     ({ cookies: { [STAFF_COOKIE_NAME]: 'token' }, headers: {} }) as unknown as FastifyRequest;
   const verify = () => ({ sub: ACCOUNT, event_id: EVENT, type: 'staff' });
-
-  const withEvent = (account: Record<string, unknown>) => ({
-    ...account,
-    events: { id: EVENT, slug: 'slug-event-1', name: 'FAL', status: 'running' },
-  });
 
   /**
    * A colleague on the same event. The payload read filters on id alone and ends

@@ -64,6 +64,9 @@
     "src/modules/schedule/schedule-run.fixtures.ts",
     // The person schedule's seeded rows, split out for the same reason.
     "src/modules/persons/public-schedule.fixtures.ts",
+    // Staff sign-in's rows and builders, split out when its test reached the
+    // 400-line cap (ruling 48 added the exact-username cases). It imports vitest.
+    "src/modules/staff/staff.service.login.fixtures.ts",
     // A sixth convention: an ordinary-looking module name. Its own header says
     // "Test-only: nothing in the running API parses the workflow (the container
     // has no .github/)" — it exists so gates.drift.test.ts can hold gates.ts to
