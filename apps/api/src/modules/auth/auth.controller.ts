@@ -42,7 +42,9 @@ export class AuthController {
    *
    * Rate limited: 10 per hour per IP (via ThrottlerGuard). Supabase applies its
    * own per-address limit on the email send itself.
-   * Always returns the same generic message to prevent email enumeration.
+   * A login link always answers the same generic message, to prevent email
+   * enumeration. A claim link is refused (400/404) when the row does not
+   * carry the typed email, is already claimed, or cannot be read.
    */
   @Post('magic-link')
   @HttpCode(HttpStatus.OK)

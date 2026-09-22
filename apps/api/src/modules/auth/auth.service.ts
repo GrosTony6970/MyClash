@@ -231,7 +231,7 @@ export class AuthService {
       if (!user.email) {
         throw new ForbiddenException('Google account did not provide an email address');
       }
-      await this.validatePersonClaim(dto.personId, user.email, true);
+      await this.validatePersonClaim(dto.personId, user.email);
       await this.completeClaim(user.id, user.email, dto.personId);
     }
 
@@ -342,7 +342,7 @@ export class AuthService {
 
     // If this was a claim, update the person's claim_status
     if (type === 'claim' && personId) {
-      await this.completeClaim(session.user.id, session.user.email, personId);
+      await this.claimFromLink(session.user.id, session.user.email, personId);
     }
 
     // Silent autolink to a matching global profile on any login path
@@ -363,6 +363,20 @@ export class AuthService {
           : safeRedirect;
     const destination = this.buildPostAuthRedirectUrl(path, type);
     void reply.redirect(destination);
+  }
+
+  /**
+   * The emailed-link claim. The roster row comes from the link's address, not
+   * from the sign-in code, so anyone signed in with a code for their own
+   * address could name any row (ruling 46). Same check as the Google claim.
+   */
+  private async claimFromLink(
+    userId: string,
+    userEmail: string | undefined,
+    personId: string,
+  ): Promise<void> {
+    await this.validatePersonClaim(personId, userEmail);
+    await this.completeClaim(userId, userEmail, personId);
   }
 
   // ── /me endpoint ────────────────────────────────────────────────────────
@@ -714,43 +728,27 @@ export class AuthService {
     }
   }
 
-  private async validatePersonClaim(
-    personId: string,
-    email: string,
-    strict = false,
-  ): Promise<void> {
-    // NOTE: persons table created in T-101. Until then, skip validation.
-    try {
-      const { data, error } = await this.supabase.service
-        .from('persons')
-        .select('id, email, claim_status')
-        .eq('id', personId)
-        .maybeSingle();
+  /**
+   * The check before a roster row is claimed, or a claim link is sent for it:
+   * the row carries `email` (the claiming account's, or the address the link
+   * goes to) and is not claimed yet (ruling 46). A row with no email matches
+   * nobody, and a failed read refuses.
+   */
+  private async validatePersonClaim(personId: string, email: string | undefined): Promise<void> {
+    const { data, error } = await this.supabase.service
+      .from('persons')
+      .select('id, email, claim_status')
+      .eq('id', personId)
+      .maybeSingle();
+    if (error) throw new BadRequestException('Could not validate profile claim');
+    if (!data) throw new NotFoundException('Person not found');
 
-      if (error) {
-        if (strict) throw new BadRequestException('Could not validate profile claim');
-        return; // Table not yet created — skip
-      }
-
-      if (!data) {
-        throw new NotFoundException('Person not found');
-      }
-
-      if ((data as { email: string }).email.toLowerCase() !== email.toLowerCase()) {
-        throw new BadRequestException('Email does not match the registered person');
-      }
-
-      if ((data as { claim_status: string }).claim_status === 'claimed') {
-        throw new BadRequestException('This profile has already been claimed');
-      }
-    } catch (err) {
-      if (err instanceof NotFoundException || err instanceof BadRequestException) {
-        throw err;
-      }
-      if (strict) {
-        throw new BadRequestException('Could not validate profile claim');
-      }
-      // Table not yet created — skip validation
+    const row = data as { email: string | null; claim_status: string };
+    if (!personEmailMatchesUser(row.email, email)) {
+      throw new BadRequestException('Email does not match the registered person');
+    }
+    if (row.claim_status === 'claimed') {
+      throw new BadRequestException('This profile has already been claimed');
     }
   }
 

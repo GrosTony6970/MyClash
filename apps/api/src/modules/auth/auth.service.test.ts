@@ -28,6 +28,7 @@ import {
 const generateLinkMock = vi.fn();
 const getUserMock = vi.fn();
 const signInWithPasswordMock = vi.fn();
+const verifyOtpMock = vi.fn();
 const fromMock = vi.fn();
 const fetchMock = vi.fn();
 const getAuthUserMock = vi.fn();
@@ -46,7 +47,11 @@ const mockSupabase = {
     from: fromMock,
   },
   anon: {
-    auth: { getUser: getUserMock, signInWithPassword: signInWithPasswordMock, verifyOtp: vi.fn() },
+    auth: {
+      getUser: getUserMock,
+      signInWithPassword: signInWithPasswordMock,
+      verifyOtp: verifyOtpMock,
+    },
   },
 };
 
@@ -164,6 +169,8 @@ describe('AuthService', () => {
     fromMock.mockImplementation((table: string) => {
       throw new Error(`auth.service.test: query against unseeded table "${table}"`);
     });
+    // Same reason: a session one test seeded must not sign the next one in.
+    verifyOtpMock.mockReset();
     refreshSessionMock.mockResolvedValue(null);
     getAuthUserMock.mockImplementation(async (accessToken: string) => {
       const response = await fetchMock('http://supabase-auth:9999/user', {
@@ -330,6 +337,54 @@ describe('AuthService', () => {
       await expect(
         service.requestMagicLink({ email: 'jean@example.com', type: 'claim' }),
       ).rejects.toThrow(BadRequestException);
+    });
+
+    // The row's email in another case and padded: the shared helper trims and
+    // lower-cases both sides.
+    it('sends a claim link, naming the row, when the row carries the typed email', async () => {
+      seedTables({
+        persons: {
+          rows: [{ id: 'row-1', email: ' Jean@Example.com ', claim_status: 'unclaimed' }],
+        },
+      });
+      generateLinkMock.mockResolvedValue({
+        data: { properties: { action_link: 'https://example.com/magic' } },
+        error: null,
+      });
+
+      await service.requestMagicLink({
+        email: 'jean@example.com',
+        type: 'claim',
+        personId: 'row-1',
+      });
+
+      expect(generateLinkMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          email: 'jean@example.com',
+          options: {
+            redirectTo:
+              'https://api.myclash.localhost/api/v1/auth/callback?type=claim&personId=row-1&next=%2F',
+          },
+        }),
+      );
+      expect(mockMailService.sendMagicLink).toHaveBeenCalledWith(
+        expect.objectContaining({ to: 'jean@example.com', type: 'claim' }),
+      );
+    });
+
+    // Ruling 46: the link's claim refuses these rows, so a link for them could
+    // never work. The request refuses them first, and sends nothing.
+    it.each([
+      ['a row with no email', { rows: [{ id: 'row-1', email: null, claim_status: 'unclaimed' }] }],
+      ['a row that cannot be read', { data: null, error: { message: 'statement timeout' } }],
+    ])('refuses to send a claim link for %s', async (_label, persons) => {
+      seedTables({ persons });
+
+      await expect(
+        service.requestMagicLink({ email: 'jean@example.com', type: 'claim', personId: 'row-1' }),
+      ).rejects.toThrow(BadRequestException);
+      expect(generateLinkMock).not.toHaveBeenCalled();
+      expect(mockMailService.sendMagicLink).not.toHaveBeenCalled();
     });
   });
 
@@ -1308,6 +1363,91 @@ describe('AuthService', () => {
 
       expect(reply.send).toHaveBeenCalledWith({ next: '/dashboard' });
       expect(filtersFor(seeded.from, 'organization_members', 'maybeSingle')).toEqual([]);
+    });
+  });
+
+  /**
+   * The emailed-link claim. The roster row comes from the link's address, not
+   * from the sign-in code, so anyone who signs in with a code for their OWN
+   * address could name any row (ruling 46). The row must carry the account's
+   * email and be unclaimed: the Google claim's check. A neighbour carries the
+   * account's email too, so a read keyed by email instead of id finds two rows
+   * and cannot decide.
+   */
+  describe('handleCallback — claim', () => {
+    const USER = 'user-1';
+    const EMAIL = 'fighter@example.com';
+    const ROW = '00000000-0000-0000-0000-000000000001';
+    const NEIGHBOUR = {
+      id: '00000000-0000-0000-0000-0000000000ff',
+      email: EMAIL,
+      claim_status: 'unclaimed',
+      claimed_by_user_id: null,
+      global_person_id: null,
+    };
+
+    const signedInAs = (email: string | undefined) =>
+      verifyOtpMock.mockResolvedValue({
+        data: {
+          session: {
+            access_token: 'access',
+            refresh_token: 'refresh',
+            expires_in: 3600,
+            user: { id: USER, email },
+          },
+        },
+        error: null,
+      });
+
+    const withRow = (row: Record<string, unknown>) =>
+      seedTables({
+        persons: { rows: [NEIGHBOUR, { id: ROW, global_person_id: null, ...row }] },
+        global_persons: { rows: [] },
+      });
+
+    const callback = (reply = makeReply()) =>
+      service.handleCallback('token-hash', 'claim', ROW, undefined, reply as never);
+
+    it('claims the row named in the link when it carries the account’s email', async () => {
+      signedInAs(EMAIL);
+      const seeded = withRow({ email: EMAIL, claim_status: 'unclaimed', claimed_by_user_id: null });
+      const reply = makeReply();
+
+      await callback(reply);
+
+      const [claim] = writesTo(seeded, 'persons');
+      expect(claim?.row).toEqual({ claim_status: 'claimed', claimed_by_user_id: USER });
+      expect(scopedTo(claim, 'id')).toBe(ROW);
+      expect(reply.redirect).toHaveBeenCalled();
+    });
+
+    it.each([
+      [
+        'a row with another person’s email',
+        { email: 'anna@example.com', claim_status: 'unclaimed', claimed_by_user_id: null },
+      ],
+      [
+        'a row someone already claimed',
+        { email: EMAIL, claim_status: 'claimed', claimed_by_user_id: 'other-user' },
+      ],
+      // A row with no email matches nobody. (The old loose check read it as a
+      // TypeError, swallowed it and let the claim through.)
+      ['a row with no email', { email: null, claim_status: 'unclaimed', claimed_by_user_id: null }],
+    ])('refuses %s, and claims nothing', async (_label, row) => {
+      signedInAs(EMAIL);
+      const seeded = withRow(row);
+
+      await expect(callback()).rejects.toThrow(BadRequestException);
+      expect(writesTo(seeded, 'persons')).toEqual([]);
+    });
+
+    // An empty email on both sides is not a match.
+    it('refuses an account with no email, and claims nothing', async () => {
+      signedInAs(undefined);
+      const seeded = withRow({ email: '', claim_status: 'unclaimed', claimed_by_user_id: null });
+
+      await expect(callback()).rejects.toThrow(BadRequestException);
+      expect(writesTo(seeded, 'persons')).toEqual([]);
     });
   });
 
