@@ -1,6 +1,7 @@
 /**
  * Whether a roster person's registered email matches the signed-in user's
- * email — the trust rule for auto-suggesting + claiming roster profiles. Both
+ * email — the trust rule for auto-suggesting + claiming roster profiles, and
+ * for handing over the global profile behind a claimed row (ruling 40). Both
  * sides are trimmed + lower-cased; an empty/missing email on either side never
  * matches.
  *

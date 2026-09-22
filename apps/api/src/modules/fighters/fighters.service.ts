@@ -5,6 +5,7 @@ import {
   GoneException,
   Injectable,
   NotFoundException,
+  ServiceUnavailableException,
 } from '@nestjs/common';
 import { asEventKind, countsTowardStats } from '@myclash/types';
 import { sanitizePostgrestFilterValue } from '../../common/postgrest-filter';
@@ -1216,15 +1217,7 @@ export class FightersService {
       throw new ForbiddenException('You can only promote your own Person profile to a Fighter');
     }
 
-    if (p.global_person_id) {
-      // Already promoted — return existing fighter
-      const { data: existing } = await this.supabase.service
-        .from('global_persons')
-        .select('*')
-        .eq('id', p.global_person_id)
-        .maybeSingle();
-      return existing;
-    }
+    if (p.global_person_id) return this.ownLinkedFighter(p.global_person_id, claimedUserId);
 
     // Create the global Fighter
     const displayName = `${p.given_name} ${p.family_name}`;
@@ -1258,6 +1251,29 @@ export class FightersService {
       .eq('id', dto.personId);
 
     return fighter;
+  }
+
+  /**
+   * The Fighter profile a claimed Person is already linked to, only when it is
+   * the caller's own. Claiming a roster row does not hand over the profile the
+   * row is linked to (ruling 40): an organiser can link a row to anyone's
+   * profile, so owning the row proves nothing about it.
+   */
+  private async ownLinkedFighter(globalPersonId: string, claimedUserId: string) {
+    const { data, error } = await this.supabase.service
+      .from('global_persons')
+      .select('*')
+      .eq('id', globalPersonId)
+      .maybeSingle();
+    if (error) throw new ServiceUnavailableException('Could not read the Fighter profile');
+    if (
+      (data as { claimed_by_user_id?: string | null } | null)?.claimed_by_user_id !== claimedUserId
+    ) {
+      throw new ForbiddenException(
+        'This Person is linked to a Fighter profile this account has not claimed',
+      );
+    }
+    return data;
   }
 
   /**

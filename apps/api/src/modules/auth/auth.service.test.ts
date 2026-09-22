@@ -3,6 +3,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import {
   BadRequestException,
   ForbiddenException,
+  Logger,
   ServiceUnavailableException,
   UnauthorizedException,
 } from '@nestjs/common';
@@ -15,6 +16,7 @@ import {
   queriedTables,
   scopedTo,
   selectsFor,
+  supabaseChain,
   writesTo,
   type RecordedWrite,
   type SupabaseRow,
@@ -1015,7 +1017,11 @@ describe('AuthService', () => {
       global_person_id: 'global-99',
     };
 
-    it('claims a Person when Google email matches the registered email', async () => {
+    // Ruling 40: the roster row becomes Jean's, but the global profile behind it
+    // is handed over only when it carries the account's email. This one carries
+    // an older address, so Jean claims it from /me instead (mailed to that
+    // address, or a super admin corrects it).
+    it('claims a Person when Google email matches, but not a linked profile with another email', async () => {
       mockAuthUser({ id: 'user-123', email: 'jean@example.com' });
       const seeded = seedLogin({
         persons: [
@@ -1029,8 +1035,8 @@ describe('AuthService', () => {
         ],
         global_persons: [
           { id: 'global-99', email: 'nobody@example.com', claimed_by_user_id: STRANGER },
-          // A different email, so the autolink that follows every login finds
-          // no candidate of its own and this test stays about the claim.
+          // The autolink that follows every login finds no candidate for this
+          // address either, so nothing may hand this profile over.
           { id: 'global-1', email: 'jean.old@example.com', claimed_by_user_id: null },
         ],
         fighter_clubs: [],
@@ -1051,10 +1057,7 @@ describe('AuthService', () => {
       expect(claim?.row).toEqual({ claim_status: 'claimed', claimed_by_user_id: 'user-123' });
       expect(scopedTo(claim, 'id')).toBe(CLAIMED_PERSON);
 
-      const [link] = writesTo(seeded, 'global_persons');
-      expect(link?.row).toEqual(expect.objectContaining({ claimed_by_user_id: 'user-123' }));
-      expect(scopedTo(link, 'id')).toBe('global-1');
-      expect(isNullScoped(link, 'claimed_by_user_id')).toBe(true);
+      expect(writesTo(seeded, 'global_persons')).toEqual([]);
       expect(reply.send).toHaveBeenCalledWith({ next: '/' });
       expect(getUserMock).not.toHaveBeenCalled();
     });
@@ -1574,7 +1577,14 @@ describe('AuthService', () => {
         global_persons: {
           rows: [
             { id: 'global-other', claimed_by_user_id: 'other-user', merged_into_id: null },
-            { id: 'global-ok', claimed_by_user_id: null, merged_into_id: null },
+            // The account's email in another case: the profile compare is
+            // case-insensitive too.
+            {
+              id: 'global-ok',
+              email: 'FIGHTER@example.com',
+              claimed_by_user_id: null,
+              merged_into_id: null,
+            },
           ],
         },
         fighter_clubs: { rows: [] },
@@ -1587,11 +1597,57 @@ describe('AuthService', () => {
       expect(flip?.row).toMatchObject({ claim_status: 'claimed', claimed_by_user_id: USER });
       expect(scopedTo(flip, 'id')).toBe('ok');
 
-      // …and the claim carries through to the global profile behind that row.
+      // …and the claim carries through to the global profile behind that row,
+      // because that profile carries the account's email (ruling 40).
       const [link] = writesTo(seeded, 'global_persons');
       expect(link?.row).toMatchObject({ claimed_by_user_id: USER });
       expect(scopedTo(link, 'id')).toBe('global-ok');
       expect(isNullScoped(link, 'claimed_by_user_id')).toBe(true);
+    });
+
+    // Ruling 40. An organiser types their OWN email on a roster row, links the
+    // row to a stranger's unclaimed profile, then claims the row on /me. The row
+    // is theirs; the stranger's profile is not. A profile with no email is not
+    // handed over either: its fighter claims it from /me.
+    it.each([
+      ['another person’s email', 'anna@example.com'],
+      ['no email', null],
+    ])('claims the row but not a linked profile with %s', async (_label, profileEmail) => {
+      mockAuthUser({ id: USER, email: EMAIL });
+      const seeded = seedTables({
+        persons: {
+          rows: [
+            { id: 'row', email: EMAIL, claimed_by_user_id: null, global_person_id: 'global-anna' },
+          ],
+        },
+        global_persons: {
+          rows: [
+            {
+              id: 'global-anna',
+              email: profileEmail,
+              claimed_by_user_id: null,
+              merged_into_id: null,
+            },
+          ],
+        },
+        fighter_clubs: { rows: [] },
+      });
+      const log = vi.spyOn(Logger.prototype, 'log').mockImplementation(() => undefined);
+
+      try {
+        await expect(claim(['row'])).resolves.toEqual({ claimed: 1 });
+
+        expect(scopedTo(writesTo(seeded, 'persons')[0], 'id')).toBe('row');
+        expect(writesTo(seeded, 'global_persons')).toEqual([]);
+        // The double ignores the projection: pin the column the check reads.
+        expect(selectsFor(seeded.from, 'global_persons')).toContain(
+          'id, email, claimed_by_user_id, merged_into_id',
+        );
+        // The refusal leaves a trace.
+        expect(log).toHaveBeenCalledWith(expect.stringMatching(/global-anna.*account's email/));
+      } finally {
+        log.mockRestore();
+      }
     });
 
     it('never reassigns a profile already owned by another user', async () => {
@@ -1613,7 +1669,10 @@ describe('AuthService', () => {
    * The silent auto-link of a user to their global profile, run at the tail of
    * every login. Two routes reach it: an EMAIL match against an unclaimed
    * profile, and — when that finds none — a repair from the Persons the user
-   * has already claimed.
+   * has already claimed. The repair hands over only a profile that carries the
+   * account's email (ruling 40), which the email step normally finds by itself;
+   * so the repair is a retry (ruling 45), and the tests that need it to link
+   * reach it through a failed candidate read.
    *
    * The whole method sits inside a `catch` that logs and returns, so a fixture
    * the double refuses does NOT fail the test: it swallows the throw and
@@ -1668,6 +1727,21 @@ describe('AuthService', () => {
     /** Carries a different email, so the candidate read finds none at all. */
     const repairTarget = globalPerson({ email: 'not-the-login@example.com' });
 
+    /**
+     * The email step's candidate read (the only `ilike` on `global_persons`)
+     * fails; every other read answers from the seed. When that read works, the
+     * email step links the profile itself, so this is how a test reaches a link
+     * made by the repair.
+     */
+    const failCandidateRead = (seeded: ReturnType<typeof seedTables>) =>
+      fromMock.mockImplementation((table: string) => {
+        const chain = seeded.from(table);
+        if (table === 'global_persons') {
+          chain.ilike = vi.fn(() => supabaseChain({ data: null, error: { message: 'timeout' } }));
+        }
+        return chain;
+      });
+
     it('links by email match, and flips that profile’s Persons to claimed', async () => {
       const seeded = seedTables({
         global_persons: { rows: [...GLOBAL_DECOYS, globalPerson()] },
@@ -1688,12 +1762,13 @@ describe('AuthService', () => {
       expect(isNullScoped(sync, 'claimed_by_user_id')).toBe(true);
     });
 
-    it('repairs from a claimed Person when exactly one profile sits behind them', async () => {
+    it('retries through the claimed Persons when the email read failed', async () => {
       const seeded = seedTables({
-        global_persons: { rows: [...GLOBAL_DECOYS, repairTarget] },
+        global_persons: { rows: [...GLOBAL_DECOYS, globalPerson()] },
         persons: { rows: [PERSON_DECOY, claimedPerson()] },
         fighter_clubs: { rows: [] },
       });
+      failCandidateRead(seeded);
 
       await service.tryAutolinkGlobalPerson(USER, EMAIL);
 
@@ -1703,9 +1778,34 @@ describe('AuthService', () => {
       expect(isNullScoped(link, 'claimed_by_user_id')).toBe(true);
     });
 
+    // Ruling 40, second door: an organiser who claimed their own roster row (the
+    // claim refused the stranger's profile behind it) signs in again, and the
+    // repair must refuse that profile too.
+    it.each([
+      ['another email', repairTarget],
+      ['no email', globalPerson({ email: null })],
+    ])('does not repair onto a profile with %s', async (_label, target) => {
+      const seeded = seedTables({
+        global_persons: { rows: [...GLOBAL_DECOYS, target] },
+        persons: { rows: [PERSON_DECOY, claimedPerson()] },
+        fighter_clubs: { rows: [] },
+      });
+      const log = vi.spyOn(Logger.prototype, 'log').mockImplementation(() => undefined);
+
+      try {
+        await service.tryAutolinkGlobalPerson(USER, EMAIL);
+
+        expect(writesTo(seeded, 'global_persons')).toEqual([]);
+        // Refused for the email, not stopped earlier for some other reason.
+        expect(log).toHaveBeenCalledWith(expect.stringMatching(/global-1.*account's email/));
+      } finally {
+        log.mockRestore();
+      }
+    });
+
     it('does not repair when the claimed Persons point at more than one profile', async () => {
       const seeded = seedTables({
-        global_persons: { rows: [...GLOBAL_DECOYS, repairTarget] },
+        global_persons: { rows: [...GLOBAL_DECOYS, globalPerson()] },
         persons: {
           rows: [
             PERSON_DECOY,
@@ -1714,6 +1814,9 @@ describe('AuthService', () => {
           ],
         },
       });
+      // `global-1` carries the account's email, so only the "one profile" rule
+      // stands between the retry and a link.
+      failCandidateRead(seeded);
 
       await service.tryAutolinkGlobalPerson(USER, EMAIL);
 
@@ -1740,7 +1843,7 @@ describe('AuthService', () => {
      */
     it('seeds the profile’s club from the newest claimed Person that has one', async () => {
       const seeded = seedTables({
-        global_persons: { rows: [...GLOBAL_DECOYS, repairTarget] },
+        global_persons: { rows: [...GLOBAL_DECOYS, globalPerson()] },
         persons: {
           rows: [
             PERSON_DECOY,
@@ -1756,6 +1859,7 @@ describe('AuthService', () => {
           ],
         },
       });
+      failCandidateRead(seeded);
 
       await service.tryAutolinkGlobalPerson(USER, EMAIL);
 
@@ -1786,16 +1890,14 @@ describe('AuthService', () => {
     it('leaves a profile that already has a club alone', async () => {
       const seeded = seedTables({
         global_persons: {
-          rows: [
-            ...GLOBAL_DECOYS,
-            globalPerson({ email: 'not-the-login@example.com', club_id: 'club-existing' }),
-          ],
+          rows: [...GLOBAL_DECOYS, globalPerson({ club_id: 'club-existing' })],
         },
         persons: {
           rows: [PERSON_DECOY, claimedPerson({ id: 'p-new', club_id: 'club-new' })],
         },
         fighter_clubs: { rows: [] },
       });
+      failCandidateRead(seeded);
 
       await service.tryAutolinkGlobalPerson(USER, EMAIL);
 

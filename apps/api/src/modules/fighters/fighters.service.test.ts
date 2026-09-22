@@ -1,6 +1,16 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ForbiddenException,
+  NotFoundException,
+  ServiceUnavailableException,
+} from '@nestjs/common';
 import type { EventKind } from '@myclash/types';
+import {
+  mockSupabase as seededSupabase,
+  type ChainResult,
+  type SupabaseRow,
+} from '../../common/testing/supabase-chain';
 import { FightersService, parseBoolCell } from './fighters.service';
 import {
   buildRefereeStats,
@@ -139,31 +149,77 @@ describe('FightersService', () => {
       expect((result as { id: string }).id).toBe('fighter-new');
     });
 
-    it('returns existing Fighter if Person already promoted', async () => {
-      const personChain = makeChain({ data: null, error: null });
-      personChain.maybeSingle.mockResolvedValue({
-        data: {
-          id: 'person-1',
+    /**
+     * A Person already linked to a profile. Claiming a roster row does not hand
+     * over the profile it is linked to (ruling 40): an organiser can link a row
+     * to anyone's profile, so owning the row proves nothing about it. The
+     * caller's row and the linked profile are each seeded LAST, behind another,
+     * so a read that lost its `.eq('id', …)` matches two rows and fails instead
+     * of deciding.
+     */
+    describe('a Person already linked to a profile', () => {
+      /** `profiles` is the table's rows, or one canned answer to every read. */
+      const promoteLinkedTo = (linkedId: string, profiles: SupabaseRow[] | ChainResult) => {
+        const person = (id: string, owner: string, linked: string) => ({
+          id,
           given_name: 'Jean',
           family_name: 'Dupont',
           email: 'jean@example.com',
           club_id: null,
-          claimed_by_user_id: 'user-1',
-          global_person_id: 'fighter-existing',
-        },
-        error: null,
+          claimed_by_user_id: owner,
+          global_person_id: linked,
+        });
+        const db = seededSupabase({
+          persons: {
+            rows: [
+              person('person-2', 'user-2', 'global-other'),
+              person('person-1', 'user-1', linkedId),
+            ],
+          },
+          global_persons: Array.isArray(profiles) ? { rows: profiles } : profiles,
+        });
+        const service = new FightersService(db as never, {} as never);
+        return { db, result: service.promote({ personId: 'person-1' }, 'user-1') };
+      };
+
+      it('returns the profile when it is the caller’s own', async () => {
+        const { db, result } = promoteLinkedTo('global-own', [
+          { id: 'global-other', claimed_by_user_id: 'user-2' },
+          { id: 'global-own', slug: 'jean-dupont-old', claimed_by_user_id: 'user-1' },
+        ]);
+
+        await expect(result).resolves.toMatchObject({ id: 'global-own', slug: 'jean-dupont-old' });
+        expect(db.writes).toEqual([]);
       });
 
-      const existingFighterChain = makeChain({ data: null, error: null });
-      existingFighterChain.maybeSingle.mockResolvedValue({
-        data: { id: 'fighter-existing', slug: 'jean-dupont-old' },
-        error: null,
+      it.each([
+        ['unclaimed', null],
+        ['claimed by someone else', 'user-2'],
+      ])('refuses a profile %s, and writes nothing', async (_label, owner) => {
+        const { db, result } = promoteLinkedTo('global-anna', [
+          { id: 'global-own', claimed_by_user_id: 'user-1' },
+          {
+            id: 'global-anna',
+            email: 'anna@example.com',
+            date_of_birth: '1990-01-01',
+            claimed_by_user_id: owner,
+          },
+        ]);
+
+        await expect(result).rejects.toThrow(ForbiddenException);
+        expect(db.writes).toEqual([]);
       });
 
-      fromMock.mockReturnValueOnce(personChain).mockReturnValueOnce(existingFighterChain);
+      // A failed read is not a verdict: neither "not yours" nor a new profile.
+      it('fails, and writes nothing, when the profile cannot be read', async () => {
+        const { db, result } = promoteLinkedTo('global-own', {
+          data: null,
+          error: { message: 'statement timeout' },
+        });
 
-      const result = await service.promote({ personId: 'person-1' }, 'user-1');
-      expect((result as { id: string }).id).toBe('fighter-existing');
+        await expect(result).rejects.toThrow(ServiceUnavailableException);
+        expect(db.writes).toEqual([]);
+      });
     });
   });
 

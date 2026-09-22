@@ -232,7 +232,7 @@ export class AuthService {
         throw new ForbiddenException('Google account did not provide an email address');
       }
       await this.validatePersonClaim(dto.personId, user.email, true);
-      await this.completeClaim(user.id, dto.personId);
+      await this.completeClaim(user.id, user.email, dto.personId);
     }
 
     if (dto.mode === 'public_login') {
@@ -342,7 +342,7 @@ export class AuthService {
 
     // If this was a claim, update the person's claim_status
     if (type === 'claim' && personId) {
-      await this.completeClaim(session.user.id, personId);
+      await this.completeClaim(session.user.id, session.user.email, personId);
     }
 
     // Silent autolink to a matching global profile on any login path
@@ -594,7 +594,7 @@ export class AuthService {
       // Already owned by someone else → never reassign.
       if (person.claimed_by_user_id && person.claimed_by_user_id !== user.id) continue;
       if (!personEmailMatchesUser(person.email, user.email)) continue;
-      await this.completeClaim(user.id, personId);
+      await this.completeClaim(user.id, user.email, personId);
       claimed += 1;
     }
     return { claimed };
@@ -754,7 +754,11 @@ export class AuthService {
     }
   }
 
-  private async completeClaim(userId: string, personId: string): Promise<void> {
+  private async completeClaim(
+    userId: string,
+    userEmail: string | undefined,
+    personId: string,
+  ): Promise<void> {
     try {
       const { error } = await this.supabase.service
         .from('persons')
@@ -765,7 +769,7 @@ export class AuthService {
         .eq('id', personId);
       if (error) throw error;
 
-      await this.linkClaimedPersonGlobalProfile(userId, personId);
+      await this.linkClaimedPersonGlobalProfile(userId, userEmail, personId);
     } catch {
       this.logger.warn(
         `Could not update claim_status for person ${personId} — persons table not yet created`,
@@ -820,8 +824,10 @@ export class AuthService {
    * Rules:
    * - Skip if the user already has a linked global profile (idempotent).
    * - Match must be EXACTLY one unclaimed, unmerged row on LOWER(email).
-   * - Zero or multiple matches → no-op (the user falls through to the
-   *   manual /me search UI).
+   * - Zero or multiple matches, or a failed read or write → the repair from
+   *   the Persons the user claimed. It links only a profile carrying this
+   *   email (ruling 40): a retry, not a second way in (ruling 45). Failing
+   *   that, the user falls through to the manual /me search UI.
    *
    * Trust model: Supabase already verified the email during signup /
    * OAuth, so we trust the match without a second confirmation. The
@@ -849,7 +855,7 @@ export class AuthService {
         .is('merged_into_id', null)
         .limit(2);
       if (candidatesError || !Array.isArray(candidates) || candidates.length !== 1) {
-        await this.tryAutolinkClaimedPersonGlobalProfile(userId);
+        await this.tryAutolinkClaimedPersonGlobalProfile(userId, normalized);
         return;
       }
 
@@ -869,7 +875,7 @@ export class AuthService {
         return;
       }
 
-      await this.tryAutolinkClaimedPersonGlobalProfile(userId);
+      await this.tryAutolinkClaimedPersonGlobalProfile(userId, normalized);
     } catch (err) {
       // Column or table missing pre-migration — silent no-op so login still works.
       const message = err instanceof Error ? err.message : String(err);
@@ -877,7 +883,11 @@ export class AuthService {
     }
   }
 
-  private async linkClaimedPersonGlobalProfile(userId: string, personId: string): Promise<void> {
+  private async linkClaimedPersonGlobalProfile(
+    userId: string,
+    userEmail: string | undefined,
+    personId: string,
+  ): Promise<void> {
     const { data, error } = await this.supabase.service
       .from('persons')
       .select('global_person_id')
@@ -888,10 +898,13 @@ export class AuthService {
     const globalPersonId = (data as { global_person_id: string | null }).global_person_id;
     if (!globalPersonId) return;
 
-    await this.linkGlobalPersonToUserIfSafe(userId, globalPersonId);
+    await this.linkGlobalPersonToUserIfSafe(userId, userEmail, globalPersonId);
   }
 
-  private async tryAutolinkClaimedPersonGlobalProfile(userId: string): Promise<void> {
+  private async tryAutolinkClaimedPersonGlobalProfile(
+    userId: string,
+    userEmail: string,
+  ): Promise<void> {
     const { data, error } = await this.supabase.service
       .from('persons')
       .select('global_person_id')
@@ -908,11 +921,20 @@ export class AuthService {
     const globalPersonId = Array.from(globalPersonIds)[0];
     if (!globalPersonId) return;
 
-    await this.linkGlobalPersonToUserIfSafe(userId, globalPersonId);
+    await this.linkGlobalPersonToUserIfSafe(userId, userEmail, globalPersonId);
   }
 
+  /**
+   * Hands an unclaimed, unmerged global profile to the user, only when the
+   * profile carries the account's own email (ruling 40). An organiser can link
+   * a roster row to ANY profile, so owning the row proves nothing about the
+   * profile behind it. Such a profile stays unclaimed: with no email, its
+   * fighter's /me claim goes to a super admin; with an older one, the /me
+   * claim mails that address, or a super admin corrects it.
+   */
   private async linkGlobalPersonToUserIfSafe(
     userId: string,
+    userEmail: string | undefined,
     globalPersonId: string,
   ): Promise<void> {
     const { data: existing } = await this.supabase.service
@@ -926,17 +948,24 @@ export class AuthService {
 
     const { data: target, error: targetError } = await this.supabase.service
       .from('global_persons')
-      .select('id, claimed_by_user_id, merged_into_id')
+      .select('id, email, claimed_by_user_id, merged_into_id')
       .eq('id', globalPersonId)
       .maybeSingle();
     if (targetError || !target) return;
 
     const row = target as {
       id: string;
+      email: string | null;
       claimed_by_user_id: string | null;
       merged_into_id?: string | null;
     };
     if (row.merged_into_id || row.claimed_by_user_id) return;
+    if (!personEmailMatchesUser(row.email, userEmail)) {
+      this.logger.log(
+        `global-person link refused for user ${userId}: global_persons ${globalPersonId} does not carry the account's email`,
+      );
+      return;
+    }
 
     const { error: updateError } = await this.supabase.service
       .from('global_persons')
