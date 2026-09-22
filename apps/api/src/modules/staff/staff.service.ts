@@ -58,6 +58,13 @@ import { normalizeStaffUsername } from './normalize-username';
 const scrypt = promisify(scryptCallback);
 export const STAFF_COOKIE_NAME = 'mc_staff';
 
+/**
+ * A piste name as the public URL and the stored row are compared — both sides
+ * through here, so neither can fold one way while the other folds another.
+ * See `getPublicLiceCurrent`, its only caller.
+ */
+const foldLiceName = (name: string): string => name.trim().toLowerCase();
+
 export interface ScoringActor {
   userId?: string;
   staffAccountId?: string;
@@ -905,17 +912,49 @@ export class StaffService {
     return this.authorizeMatchOrganizer(req, (data as { match_id: string }).match_id);
   }
 
+  /**
+   * The piste a public URL names, within the event that URL names.
+   *
+   * The name is matched HERE, over the event's own pistes, rather than by the
+   * database. `.ilike('name', liceName)` put the URL straight into a LIKE
+   * pattern: `…/lices/Piste_1/current` answered with `Piste 1`'s scoreboard on
+   * a venue screen, and `…/lices/%/current` matched every piste, so
+   * `maybeSingle` raised PGRST116 and the page showed PostgREST's own message
+   * as a 400. `.eq` is not the exchange for it — piste names carry spaces and
+   * capitals, and only a typed name is trimmed on the way in
+   * (`lices.service.ts`; the venue catalogue copies its own through untouched),
+   * so a URL built from a stored name has to match one that differs in padding
+   * or case.
+   *
+   * Nothing stops two pistes of one event sharing a name once folded, so this
+   * is a resolution with a deciding order — the layout order the organiser set,
+   * then the id — not a lookup that can assume one answer.
+   */
   async getPublicLiceCurrent(eventSlug: string, liceName: string) {
     const event = await this.findEventBySlug(eventSlug);
-    const { data: lice, error } = await this.supabase.service
+    const { data, error } = await this.supabase.service
       .from('lices')
       .select('id,name')
       .eq('event_id', event.id)
-      .ilike('name', liceName)
-      .maybeSingle();
+      .order('sort_order', { ascending: true })
+      .order('id', { ascending: true });
     if (error) throw new BadRequestException(error.message);
+    const wanted = foldLiceName(liceName);
+    const matched = ((data ?? []) as Array<{ id: string; name: string }>).filter(
+      (row) => foldLiceName(row.name) === wanted,
+    );
+    const lice = matched[0];
     if (!lice) throw new NotFoundException('Lice not found');
-    return this.getCurrentForLiceId((lice as { id: string }).id);
+    if (matched.length > 1) {
+      // Every piste of an event carries `sort_order` 0 until an organiser
+      // arranges them, so between two same-named pistes the tiebreak is
+      // usually a random uuid. Whoever is watching the screen cannot tell,
+      // so say it here — the old lookup at least failed loudly.
+      this.logger.warn(
+        `event ${event.id} has ${matched.length} pistes named "${wanted}"; showing ${lice.id}`,
+      );
+    }
+    return this.getCurrentForLiceId(lice.id);
   }
 
   async getPublicMatchDisplay(matchId: string) {

@@ -288,6 +288,14 @@ export class StaffController {
     return this.staff.getAssignedLiceTournamentBracket(req, liceId, tournamentId);
   }
 
+  /**
+   * The piste name arrives DECODED — Fastify's router percent-decodes a path
+   * parameter itself. This used to decode it a second time, which is the same
+   * defect the lookup behind it had: the name searched for was not the name in
+   * the URL. A piste called `Piste%201` reached the service as `Piste 1` and
+   * the screen showed the wrong board, and one called `100% Cotton` made
+   * `decodeURIComponent` throw `URIError` — an unhandled 500 on a public route.
+   */
   @Public()
   @Get('events/:eventSlug/lices/:liceName/current')
   @ApiOperation({ summary: 'Public current match and queue for a Lice' })
@@ -295,7 +303,7 @@ export class StaffController {
     @Param('eventSlug') eventSlug: string,
     @Param('liceName') liceName: string,
   ) {
-    return this.staff.getPublicLiceCurrent(eventSlug, decodeURIComponent(liceName));
+    return this.staff.getPublicLiceCurrent(eventSlug, liceName);
   }
 
   @Public()

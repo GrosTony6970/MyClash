@@ -94,10 +94,11 @@ export function DisplayControls({ eventSlug, currentLiceName }: Props) {
             </p>
             <div className="mt-1.5 flex flex-wrap gap-2">
               {liceNames.map((name) =>
-                // The API resolves the URL segment case-insensitively (ilike),
-                // so the marker has to as well or a `/lice/lice%204/` URL shows
-                // no current Lice at all.
-                name.toLowerCase() === currentLiceName.toLowerCase() ? (
+                // The API resolves the URL segment against the stored name
+                // after trimming it and folding its case (`foldLiceName`,
+                // staff.service.ts), so the marker has to fold the same way or
+                // a `/lice/lice%204/` URL shows no current Lice at all.
+                name.trim().toLowerCase() === currentLiceName.trim().toLowerCase() ? (
                   <span
                     key={name}
                     className="rounded-md border border-accent bg-accent/10 px-3 py-1.5 text-sm font-bold text-accent"
