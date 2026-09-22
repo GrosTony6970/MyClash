@@ -1902,6 +1902,48 @@ describe('AuthService', () => {
       expect(isNullScoped(sync, 'claimed_by_user_id')).toBe(true);
     });
 
+    // Ruling 47: the candidate read is an `ilike`, where `_` is any one character
+    // and `%` any run, so an address holding either found someone else's profile.
+    it.each([
+      ['_', 'jean_dupont@club.fr'],
+      ['%', 'jean%dupont@club.fr'],
+    ])('does not link an address that `%s` matches as a wildcard', async (_wildcard, email) => {
+      const seeded = seedTables({
+        global_persons: {
+          rows: [...GLOBAL_DECOYS, globalPerson({ email: 'jean.dupont@club.fr' })],
+        },
+        persons: { rows: [PERSON_DECOY] },
+      });
+
+      await service.tryAutolinkGlobalPerson(USER, email);
+
+      expect(writesTo(seeded, 'global_persons')).toEqual([]);
+      // The candidate read ran: nothing stopped the method before it.
+      expect(selectsFor(seeded.from, 'global_persons')).toContain('id, email');
+    });
+
+    it('links the exact address when a wildcard in it matches other profiles too', async () => {
+      const seeded = seedTables({
+        global_persons: {
+          rows: [
+            ...GLOBAL_DECOYS,
+            globalPerson({ id: 'global-dot', email: 'jean.dupont@club.fr' }),
+            globalPerson({ id: 'global-dash', email: 'jean-dupont@club.fr' }),
+            // Last, so a read cut short by a limit would miss it.
+            globalPerson({ email: 'Jean_Dupont@club.fr' }),
+          ],
+        },
+        persons: { rows: [PERSON_DECOY] },
+      });
+
+      await service.tryAutolinkGlobalPerson(USER, 'jean_dupont@club.fr');
+
+      const [link] = writesTo(seeded, 'global_persons');
+      expect(scopedTo(link, 'id')).toBe('global-1');
+      // The double ignores the projection: pin the column the compare reads.
+      expect(selectsFor(seeded.from, 'global_persons')).toContain('id, email');
+    });
+
     it('retries through the claimed Persons when the email read failed', async () => {
       const seeded = seedTables({
         global_persons: { rows: [...GLOBAL_DECOYS, globalPerson()] },
@@ -1909,13 +1951,20 @@ describe('AuthService', () => {
         fighter_clubs: { rows: [] },
       });
       failCandidateRead(seeded);
+      const warn = vi.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
 
-      await service.tryAutolinkGlobalPerson(USER, EMAIL);
+      try {
+        await service.tryAutolinkGlobalPerson(USER, EMAIL);
 
-      const [link] = writesTo(seeded, 'global_persons');
-      expect(link?.row).toMatchObject({ claimed_by_user_id: USER });
-      expect(scopedTo(link, 'id')).toBe('global-1');
-      expect(isNullScoped(link, 'claimed_by_user_id')).toBe(true);
+        const [link] = writesTo(seeded, 'global_persons');
+        expect(link?.row).toMatchObject({ claimed_by_user_id: USER });
+        expect(scopedTo(link, 'id')).toBe('global-1');
+        expect(isNullScoped(link, 'claimed_by_user_id')).toBe(true);
+        // The failed read leaves a trace.
+        expect(warn).toHaveBeenCalledWith(expect.stringMatching(/candidate read failed: timeout/));
+      } finally {
+        warn.mockRestore();
+      }
     });
 
     // Ruling 40, second door: an organiser who claimed their own roster row (the

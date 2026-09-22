@@ -821,7 +821,8 @@ export class AuthService {
    *
    * Rules:
    * - Skip if the user already has a linked global profile (idempotent).
-   * - Match must be EXACTLY one unclaimed, unmerged row on LOWER(email).
+   * - Match must be EXACTLY one unclaimed, unmerged row whose email is this
+   *   one, trimmed and lower-cased (ruling 47).
    * - Zero or multiple matches, or a failed read or write → the repair from
    *   the Persons the user claimed. It links only a profile carrying this
    *   email (ruling 40): a retry, not a second way in (ruling 45). Failing
@@ -845,14 +846,8 @@ export class AuthService {
         .maybeSingle();
       if (existing) return;
 
-      const { data: candidates, error: candidatesError } = await this.supabase.service
-        .from('global_persons')
-        .select('id')
-        .ilike('email', normalized)
-        .is('claimed_by_user_id', null)
-        .is('merged_into_id', null)
-        .limit(2);
-      if (candidatesError || !Array.isArray(candidates) || candidates.length !== 1) {
+      const candidates = await this.unclaimedProfilesWithEmail(normalized);
+      if (candidates.length !== 1) {
         await this.tryAutolinkClaimedPersonGlobalProfile(userId, normalized);
         return;
       }
@@ -879,6 +874,29 @@ export class AuthService {
       const message = err instanceof Error ? err.message : String(err);
       this.logger.debug(`autolink skipped (likely pre-migration): ${message}`);
     }
+  }
+
+  /**
+   * The unclaimed, unmerged profiles that carry exactly this email (ruling 47).
+   * `ilike` reads `_` and `%` in an address as wildcards, and PostgREST turns
+   * `*` into `%`, so the read can hand back look-alikes; only an exact match is
+   * kept. No limit: one could cut the exact row off behind the look-alikes.
+   * A failed read finds none, so the caller retries as it does for no match.
+   */
+  private async unclaimedProfilesWithEmail(email: string): Promise<Array<{ id: string }>> {
+    const { data, error } = await this.supabase.service
+      .from('global_persons')
+      .select('id, email')
+      .ilike('email', email)
+      .is('claimed_by_user_id', null)
+      .is('merged_into_id', null);
+    if (error || !Array.isArray(data)) {
+      this.logger.warn(`autolink: candidate read failed: ${error?.message}`);
+      return [];
+    }
+    return (data as Array<{ id: string; email: string | null }>).filter((row) =>
+      personEmailMatchesUser(row.email, email),
+    );
   }
 
   private async linkClaimedPersonGlobalProfile(
