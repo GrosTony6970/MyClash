@@ -32,6 +32,7 @@ import {
   isProductionEnvironment,
 } from '../../security/http-security';
 import { SupabaseService, type SupabaseAuthUser } from '../supabase/supabase.service';
+import { syncClaimedPersonRows } from './claimed-person-sync';
 import { personEmailMatchesUser } from './person-email-match';
 import type { MeResponseDto } from './dto/me-response.dto';
 import type { OAuthSessionDto } from './dto/oauth-session.dto';
@@ -782,37 +783,19 @@ export class AuthService {
   }
 
   /**
-   * Propagate a global-person claim to every linked event participant row.
-   *
-   * The fighter dashboard reads `global_persons.claimed_by_user_id`, but the
-   * admin Participants list reads `persons.claim_status`. The paths that link
-   * a user to a global identity (autolink, magic-link self-service confirm,
-   * admin approval) only ever set `global_persons.claimed_by_user_id`, leaving
-   * the `persons` rows showing "unclaimed". This back-fills them.
-   *
-   * Keyed by `global_person_id` so ALL events the person appears in flip at
-   * once. Guarded with `.is('claimed_by_user_id', null)` so we never overwrite
-   * a row already owned by another user (and still flip unowned guest rows).
-   * Best-effort: a failure (e.g. pre-migration schema) is logged, never thrown
-   * — it must not block login or claim confirmation.
+   * Back-fill the roster rows behind a global-person claim — the account's own
+   * ones (operator ruling 49(b)). The rule and its cost live with the shared
+   * owner in `claimed-person-sync.ts`, which the admin approval also calls.
    */
-  private async syncPersonsForClaimedGlobalPerson(
+  private syncPersonsForClaimedGlobalPerson(
     userId: string,
     globalPersonId: string,
+    accountEmail: string | null | undefined,
   ): Promise<void> {
-    try {
-      const { error } = await this.supabase.service
-        .from('persons')
-        .update({ claim_status: 'claimed', claimed_by_user_id: userId })
-        .eq('global_person_id', globalPersonId)
-        .is('claimed_by_user_id', null);
-      if (error) throw error;
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      this.logger.warn(
-        `persons claim-status sync skipped for global_persons ${globalPersonId}: ${message}`,
-      );
-    }
+    return syncClaimedPersonRows(
+      { supabase: this.supabase, logger: this.logger },
+      { userId, globalPersonId, accountEmail },
+    );
   }
 
   /**
@@ -864,7 +847,7 @@ export class AuthService {
         );
       } else {
         this.logger.log(`autolink: user ${userId} linked to global_persons ${target.id}`);
-        await this.syncPersonsForClaimedGlobalPerson(userId, target.id);
+        await this.syncPersonsForClaimedGlobalPerson(userId, target.id, normalized);
         return;
       }
 
@@ -1728,7 +1711,7 @@ export class AuthService {
 
     await this.supabase.service.from('global_person_claim_tokens').delete().eq('id', t.id);
 
-    await this.syncPersonsForClaimedGlobalPerson(user.id, t.global_person_id);
+    await this.syncPersonsForClaimedGlobalPerson(user.id, t.global_person_id, user.email);
 
     this.logger.log(`global-person claim confirmed: user ${user.id} → ${t.global_person_id}`);
 

@@ -35,8 +35,14 @@ describe('a match writes nothing onto the profile it links to', () => {
     // A queue: Tier 2 finds nobody, then Tier 3 finds Anna.
     ['Tier 3, name + club', CLUB, [NOBODY, ANNA]],
     // No tier can ask, so the email link does, and finds Anna by that email. It
-    // never filled anything; this row keeps a fill from being added there.
-    ['the email link', NO_TIER, { data: { id: 'gp-anna', date_of_birth: null }, error: null }],
+    // never filled anything; this row keeps a fill from being added there. The
+    // link reads a LIST and keeps the exact addresses (ruling 49), so the row
+    // has to carry the one asked for.
+    [
+      'the email link',
+      NO_TIER,
+      { data: [{ id: 'gp-anna', email: 'mallory@example.com' }], error: null },
+    ],
   ])('%s', async (_tier, identifiers, seed) => {
     const db = mockSupabase({ global_persons: seed });
 

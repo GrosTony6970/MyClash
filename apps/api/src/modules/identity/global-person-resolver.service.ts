@@ -1,4 +1,5 @@
 import { BadRequestException, Injectable, Logger } from '@nestjs/common';
+import { personEmailMatchesUser } from '../auth/person-email-match';
 import { applyReachable } from '../fighters/directory-predicate';
 import { SupabaseService } from '../supabase/supabase.service';
 
@@ -168,16 +169,8 @@ export class GlobalPersonResolverService {
     // Email link — reuse the identity that already owns this email rather than
     // minting a duplicate (and so the fighter can auto-claim on first login).
     if (email) {
-      const { data: existingByEmail } = await this.supabase.service
-        .from('global_persons')
-        .select('id')
-        .ilike('email', email)
-        .is('merged_into_id', null)
-        .limit(1)
-        .maybeSingle();
-      if (existingByEmail) {
-        return { id: (existingByEmail as { id: string }).id, created: false, mintReason: null };
-      }
+      const existingByEmail = await this.profileByExactEmail(email);
+      if (existingByEmail) return { id: existingByEmail, created: false, mintReason: null };
     }
 
     // Last resort — the roster rows that carry the HEMA Ratings id.
@@ -209,15 +202,8 @@ export class GlobalPersonResolverService {
       // A concurrent insert may have taken the email (unique on LOWER(email)
       // for unmerged rows) — link to it rather than failing.
       if (email && /duplicate key|unique/i.test(error.message)) {
-        const { data: collided } = await this.supabase.service
-          .from('global_persons')
-          .select('id')
-          .ilike('email', email)
-          .is('merged_into_id', null)
-          .limit(1)
-          .maybeSingle();
-        if (collided)
-          return { id: (collided as { id: string }).id, created: false, mintReason: null };
+        const collided = await this.profileByExactEmail(email);
+        if (collided) return { id: collided, created: false, mintReason: null };
         throw new BadRequestException(
           `Email ${maskEmail(email)} is already linked to another global profile`,
         );
@@ -229,6 +215,45 @@ export class GlobalPersonResolverService {
       created: true,
       mintReason: classifyMint({ clubId: input.clubId, hemaRatingsId, email }),
     };
+  }
+
+  /**
+   * The unmerged profile that carries EXACTLY this address (operator ruling
+   * 49(a), 2026-09-22), or null.
+   *
+   * The read has to be an `ilike` — the stored address may differ in case, and
+   * 0075's unique index is on `LOWER(email)` — but `ilike` also reads `_` and
+   * `%` in the address as wildcards, and PostgREST turns `*` into `%`. A roster
+   * address is whatever an organiser typed, so `m_martin@x.fr` found and linked
+   * `m.martin@x.fr`'s profile; its owner's next sign-in then claimed the row
+   * (`claimed-person-sync.ts`). Only an exact match is kept now.
+   *
+   * No `.limit()`: it would cut the exact row off behind look-alikes, which is
+   * the lesson ruling 47 left on the sign-in email step.
+   *
+   * Claimed profiles count too, not only unclaimed ones — the point is to reuse
+   * one identity across events rather than to decide who owns it. The address
+   * here is whatever an ORGANISER typed on a roster row, so it is not proof of
+   * anything about the caller; that is why a match only links, and writes
+   * nothing onto the row it found (ruling 35, in the class docstring above).
+   *
+   * At most one row can survive the filter, so there is no "which one" to pick:
+   * `ilike` is anchored at both ends, so a stored address padded with spaces is
+   * never returned in the first place, and two unmerged rows cannot share a
+   * lowered address — 0075's unique index on `LOWER(email)` forbids it.
+   */
+  private async profileByExactEmail(email: string): Promise<string | null> {
+    const { data, error } = await this.supabase.service
+      .from('global_persons')
+      .select('id, email')
+      .ilike('email', email)
+      .is('merged_into_id', null);
+    if (error) {
+      this.logger.warn(`email link: candidate read failed: ${error.message}`);
+      return null;
+    }
+    const rows = (data ?? []) as Array<{ id: string; email: string | null }>;
+    return rows.find((row) => personEmailMatchesUser(row.email, email))?.id ?? null;
   }
 
   /**

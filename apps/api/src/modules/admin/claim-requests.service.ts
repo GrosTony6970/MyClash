@@ -5,6 +5,7 @@ import {
   NotFoundException,
   ServiceUnavailableException,
 } from '@nestjs/common';
+import { syncClaimedPersonRows } from '../auth/claimed-person-sync';
 import { MailService } from '../mail/mail.service';
 import { SupabaseService } from '../supabase/supabase.service';
 
@@ -91,6 +92,10 @@ export class ClaimRequestsService {
     // the organizer branch when added in a follow-up sub-tab. Today the
     // controller is super-admin-only, so we just proceed.
 
+    // Read FIRST: the back-fill below needs it, and nothing may be written on
+    // a failed read (see the helper).
+    const requesterEmail = await this.requesterEmailOrThrow(request.user_id);
+
     // Race-guard: only set claimed_by_user_id if still null.
     const { data: updated, error: updateError } = await this.supabase.service
       .from('global_persons')
@@ -113,31 +118,27 @@ export class ClaimRequestsService {
 
     // Backfill global_persons.email with the requester's auth email if
     // currently NULL — keeps the unique-email guarantee growing so a
-    // future login can autolink without re-queueing.
-    const requesterEmail = await this.lookupUserEmail(request.user_id);
+    // future login can autolink without re-queueing. Trimmed as well as
+    // lower-cased: 0075's unique index is on LOWER(email), which does not
+    // trim, so a padded address here would sit beside its own twin.
     if (requesterEmail && !(updated as { email?: string | null }).email) {
       await this.supabase.service
         .from('global_persons')
-        .update({ email: requesterEmail.toLowerCase() })
+        .update({ email: requesterEmail.trim().toLowerCase() })
         .eq('id', request.global_person_id);
     }
 
-    // Back-fill the linked event participant rows so the admin Participants
-    // list reflects the claim. Guarded so we never overwrite a row owned by
-    // another user; best-effort so it never blocks the approval.
-    try {
-      const { error: syncError } = await this.supabase.service
-        .from('persons')
-        .update({ claim_status: 'claimed', claimed_by_user_id: request.user_id })
-        .eq('global_person_id', request.global_person_id)
-        .is('claimed_by_user_id', null);
-      if (syncError) throw syncError;
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      this.logger.warn(
-        `persons claim-status sync skipped for global_persons ${request.global_person_id}: ${message}`,
-      );
-    }
+    // Back-fill the requester's own event participant rows so the admin
+    // Participants list reflects the claim — the same owner, and the same
+    // address rule, the sign-in autolink uses (operator ruling 49(b)).
+    await syncClaimedPersonRows(
+      { supabase: this.supabase, logger: this.logger },
+      {
+        userId: request.user_id,
+        globalPersonId: request.global_person_id,
+        accountEmail: requesterEmail,
+      },
+    );
 
     await this.markDecided(requestId, 'approved', actorUserId, null);
     this.logger.log(
@@ -202,6 +203,30 @@ export class ClaimRequestsService {
       })
       .eq('id', requestId);
     if (error) throw new ServiceUnavailableException(error.message);
+  }
+
+  /**
+   * The requester's own address, or a refusal. `null` means the account
+   * genuinely carries no address; a failed read throws.
+   *
+   * Beside `lookupUserEmail` rather than replacing it, because the two want
+   * opposite failure policies on the same call: a listing or a rejection
+   * notice is best-effort and a missing address only costs an email, while an
+   * approval WRITES on the strength of this address and then marks the request
+   * decided, which takes it out of the queue. Since ruling 49(b) the roster
+   * back-fill needs the address, so a GoTrue blip read as "no email" would
+   * quietly approve a claim that back-filled nothing, notified nobody, and
+   * could not be retried. A failed read is not a verdict — so `approve` asks
+   * before it writes anything, and refuses here rather than guessing.
+   */
+  private async requesterEmailOrThrow(userId: string): Promise<string | null> {
+    const { data, error } = await this.supabase.service.auth.admin.getUserById(userId);
+    if (error) {
+      throw new ServiceUnavailableException(
+        `Could not read the requester's email address: ${error.message}`,
+      );
+    }
+    return data?.user?.email ?? null;
   }
 
   private async lookupUserEmail(userId: string): Promise<string | null> {

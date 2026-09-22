@@ -76,6 +76,11 @@ const isNullScoped = (write: RecordedWrite | undefined, column: string): boolean
     (filter) => filter.method === 'is' && filter.args[0] === column && filter.args[1] === null,
   );
 
+/** The id list an `in('col', [...])` scoped a write to — `scopedTo` sees only `eq`. */
+const inScoped = (write: RecordedWrite | undefined, column: string): unknown[] =>
+  (write?.filters ?? []).find((filter) => filter.method === 'in' && filter.args[0] === column)
+    ?.args[1] as unknown[];
+
 const mockMailService = {
   sendMagicLink: vi.fn().mockResolvedValue(undefined),
 };
@@ -1864,6 +1869,29 @@ describe('AuthService', () => {
       ...over,
     });
 
+    /**
+     * An unclaimed roster row linked to the profile — what the sweep decides on.
+     *
+     * Ruling 49(b): only the rows carrying the account's own address are claimed.
+     * An organiser links any row to any profile, and a look-alike address linked
+     * Marie's row to Michel's profile, so "linked to the profile I just took" is
+     * not proof the row is mine.
+     */
+    const rosterRow = (over: Record<string, unknown> = {}) => ({
+      id: 'p-roster',
+      claimed_by_user_id: null,
+      global_person_id: 'global-1',
+      email: EMAIL,
+      club_id: null,
+      created_at: '2026-02-01T00:00:00Z',
+      ...over,
+    });
+
+    /** Marie: linked to the same profile by a look-alike, her own address on it. */
+    const STRANGER_ROW = rosterRow({ id: 'p-marie', email: 'marie@example.com' });
+    /** An organiser typed a name and no address at all. */
+    const NO_EMAIL_ROW = rosterRow({ id: 'p-nameless', email: null });
+
     /** Carries a different email, so the candidate read finds none at all. */
     const repairTarget = globalPerson({ email: 'not-the-login@example.com' });
 
@@ -1885,7 +1913,7 @@ describe('AuthService', () => {
     it('links by email match, and flips that profile’s Persons to claimed', async () => {
       const seeded = seedTables({
         global_persons: { rows: [...GLOBAL_DECOYS, globalPerson()] },
-        persons: { rows: [PERSON_DECOY, claimedPerson()] },
+        persons: { rows: [PERSON_DECOY, STRANGER_ROW, claimedPerson(), rosterRow()] },
       });
 
       await service.tryAutolinkGlobalPerson(USER, EMAIL);
@@ -1898,8 +1926,47 @@ describe('AuthService', () => {
 
       const [sync] = writesTo(seeded, 'persons');
       expect(sync?.row).toEqual({ claim_status: 'claimed', claimed_by_user_id: USER });
-      expect(scopedTo(sync, 'global_person_id')).toBe('global-1');
+      // Ruling 49(b): named row by row, and Marie's is not among them.
+      expect(inScoped(sync, 'id')).toEqual(['p-roster']);
+      // The race guard survives: a row claimed between the read and the write stays.
       expect(isNullScoped(sync, 'claimed_by_user_id')).toBe(true);
+      // The double ignores the projection, so the email the decision reads has
+      // to be asserted by name or dropping it from the read stays green.
+      expect(selectsFor(seeded.from, 'persons')).toContain('id, email');
+    });
+
+    /**
+     * Ruling 49(b), the hole itself: the sweep claimed EVERY unclaimed row
+     * linked to the profile, with no check on the row's own address. Marie's
+     * row was linked to Michel's profile by a look-alike email, so Michel's
+     * first sign-in claimed it — and Marie's own claim was then refused as
+     * "already claimed".
+     */
+    it('claims only the rows carrying the account’s address, not every linked row', async () => {
+      const seeded = seedTables({
+        global_persons: { rows: [...GLOBAL_DECOYS, globalPerson()] },
+        persons: { rows: [PERSON_DECOY, STRANGER_ROW, NO_EMAIL_ROW, rosterRow()] },
+      });
+
+      await service.tryAutolinkGlobalPerson(USER, EMAIL);
+
+      const [sync] = writesTo(seeded, 'persons');
+      expect(inScoped(sync, 'id')).toEqual(['p-roster']);
+    });
+
+    // The ruled cost: a row with no address, or another's, stays unclaimed —
+    // and with nothing to claim the sweep writes nothing at all.
+    it('writes nothing when no linked row carries the account’s address', async () => {
+      const seeded = seedTables({
+        global_persons: { rows: [...GLOBAL_DECOYS, globalPerson()] },
+        persons: { rows: [PERSON_DECOY, STRANGER_ROW, NO_EMAIL_ROW] },
+      });
+
+      await service.tryAutolinkGlobalPerson(USER, EMAIL);
+
+      // The profile is still handed over; only the roster rows are held back.
+      expect(scopedTo(writesTo(seeded, 'global_persons')[0], 'id')).toBe('global-1');
+      expect(writesTo(seeded, 'persons')).toEqual([]);
     });
 
     // Ruling 47: the candidate read is an `ilike`, where `_` is any one character
@@ -2143,7 +2210,24 @@ describe('AuthService', () => {
       const seeded = seedTables({
         global_person_claim_tokens: { rows: [TOKEN_DECOY, tokenRow()] },
         global_persons: { rows: [GLOBAL_DECOY, unclaimedTarget] },
-        persons: { rows: [] },
+        // Two rows linked to the profile: the fighter's own, and one an
+        // organiser linked to it carrying somebody else's address (ruling 49).
+        persons: {
+          rows: [
+            {
+              id: 'p-stranger',
+              global_person_id: 'global-1',
+              email: 'other@example.com',
+              claimed_by_user_id: null,
+            },
+            {
+              id: 'p-mine',
+              global_person_id: 'global-1',
+              email: 'fighter@example.com',
+              claimed_by_user_id: null,
+            },
+          ],
+        },
       });
 
       await expect(confirm()).resolves.toEqual({ status: 'claimed', globalPersonId: 'global-1' });
@@ -2155,7 +2239,7 @@ describe('AuthService', () => {
 
       const [sync] = writesTo(seeded, 'persons');
       expect(sync?.row).toEqual({ claim_status: 'claimed', claimed_by_user_id: USER });
-      expect(scopedTo(sync, 'global_person_id')).toBe('global-1');
+      expect(inScoped(sync, 'id')).toEqual(['p-mine']);
       expect(isNullScoped(sync, 'claimed_by_user_id')).toBe(true);
     });
 
