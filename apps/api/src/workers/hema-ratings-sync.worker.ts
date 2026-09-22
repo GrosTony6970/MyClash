@@ -23,6 +23,7 @@ import { Job, Queue } from 'bullmq';
 import { SentryReportingWorkerHost } from './sentry-reporting-worker-host';
 import { AdminFeatureFlagsService } from '../modules/admin/admin-feature-flags.service';
 import { SupabaseService } from '../modules/supabase/supabase.service';
+import { linkedHemaRatingsIds } from './hema-ratings-linked-ids';
 import {
   fetchHemaRatingsProfile,
   type HemaRatingsProfile,
@@ -253,22 +254,7 @@ export class HemaRatingsSyncWorker extends SentryReportingWorkerHost implements 
   }
 
   private async fetchLinkedProfiles(): Promise<Map<string, HemaRatingsProfile>> {
-    const { data, error } = await this.supabase.service
-      .from('global_persons')
-      .select('hema_ratings_id')
-      .not('hema_ratings_id', 'is', null);
-
-    if (error) {
-      throw new Error(`Failed to load linked HEMA Ratings IDs: ${error.message}`);
-    }
-
-    const ids = Array.from(
-      new Set(
-        ((data ?? []) as Array<{ hema_ratings_id: string | null }>)
-          .map((fighter) => fighter.hema_ratings_id)
-          .filter((id): id is string => Boolean(id)),
-      ),
-    );
+    const ids = await linkedHemaRatingsIds(this.supabase);
 
     const profiles = new Map<string, HemaRatingsProfile>();
     for (const id of ids) {

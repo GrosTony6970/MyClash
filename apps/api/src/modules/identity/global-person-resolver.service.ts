@@ -1,4 +1,5 @@
 import { BadRequestException, Injectable, Logger } from '@nestjs/common';
+import { applyReachable } from '../fighters/directory-predicate';
 import { SupabaseService } from '../supabase/supabase.service';
 
 /** The identity inputs used to match (or mint) a `global_persons` row. */
@@ -51,8 +52,6 @@ export function classifyMint(identifiers: {
 
 interface GpMatchRow {
   id: string;
-  email: string | null;
-  date_of_birth: string | null;
 }
 
 /** Slug seed for newly-created global_persons rows (mirrors the helpers in
@@ -88,6 +87,8 @@ function maskEmail(email: string): string {
  *           seed) which would otherwise mint a duplicate identity per event.
  *   Email : reuse a row that already owns the email (unique index on
  *           LOWER(email) for unmerged rows) before minting.
+ *   Roster: last resort, the one tier with an accepted false positive; skipped
+ *           when any profile holds the id (see `profileOfRosterHemaId`).
  *
  * Each tier only auto-links on a UNIQUE hit; two or more candidates fall
  * through, so ambiguous namesakes still mint fresh. The conservatism is
@@ -98,6 +99,14 @@ function maskEmail(email: string): string {
  * the same club would collapse into one identity. Accepted deliberately (the
  * global-profiles admin can split them); it is the price of deduping seed/CSV
  * rosters that carry neither email nor date of birth.
+ *
+ * A match only LINKS; it writes nothing onto the row it found (operator ruling
+ * 35, 2026-09-22): only the fighter or a super admin changes an existing
+ * profile's details, as RLS `global_persons_update` says. The resolver used to
+ * fill a matched row's EMPTY email and date of birth from the roster — one way
+ * an organiser could put their own address on a stranger's unclaimed profile
+ * and then claim it (the claim link is mailed to `global_persons.email`, and
+ * signing in with that address claims it). A MINTED row takes every field.
  */
 @Injectable()
 export class GlobalPersonResolverService {
@@ -115,34 +124,30 @@ export class GlobalPersonResolverService {
     const email = input.email?.trim().toLowerCase() || null;
 
     // Tier 1 — HEMA Ratings ID.
+    let idOnAProfile = false;
     if (hemaRatingsId) {
       const { data: hits } = await this.supabase.service
         .from('global_persons')
-        .select('id, email, date_of_birth')
+        .select('id')
         .eq('hema_ratings_id', hemaRatingsId)
         .limit(2);
       const rows = (hits ?? []) as GpMatchRow[];
-      if (rows.length === 1) {
-        await this.backfillIdentity(rows[0]!, { email, dateOfBirth });
-        return { id: rows[0]!.id, created: false, mintReason: null };
-      }
+      if (rows.length === 1) return { id: rows[0]!.id, created: false, mintReason: null };
+      idOnAProfile = rows.length > 0;
     }
 
     // Tier 2 — name + club + DOB. Each part must be present.
     if (input.clubId && dateOfBirth) {
       const { data: hits } = await this.supabase.service
         .from('global_persons')
-        .select('id, email, date_of_birth')
+        .select('id')
         .ilike('given_name', givenName)
         .ilike('family_name', familyName)
         .eq('club_id', input.clubId)
         .eq('date_of_birth', dateOfBirth)
         .limit(2);
       const rows = (hits ?? []) as GpMatchRow[];
-      if (rows.length === 1) {
-        await this.backfillIdentity(rows[0]!, { email, dateOfBirth });
-        return { id: rows[0]!.id, created: false, mintReason: null };
-      }
+      if (rows.length === 1) return { id: rows[0]!.id, created: false, mintReason: null };
     }
 
     // Tier 3 — name + club (unique, non-merged). See the class doc for the
@@ -150,17 +155,14 @@ export class GlobalPersonResolverService {
     if (input.clubId) {
       const { data: hits } = await this.supabase.service
         .from('global_persons')
-        .select('id, email, date_of_birth')
+        .select('id')
         .ilike('given_name', givenName)
         .ilike('family_name', familyName)
         .eq('club_id', input.clubId)
         .is('merged_into_id', null)
         .limit(2);
       const rows = (hits ?? []) as GpMatchRow[];
-      if (rows.length === 1) {
-        await this.backfillIdentity(rows[0]!, { email, dateOfBirth });
-        return { id: rows[0]!.id, created: false, mintReason: null };
-      }
+      if (rows.length === 1) return { id: rows[0]!.id, created: false, mintReason: null };
     }
 
     // Email link — reuse the identity that already owns this email rather than
@@ -176,6 +178,12 @@ export class GlobalPersonResolverService {
       if (existingByEmail) {
         return { id: (existingByEmail as { id: string }).id, created: false, mintReason: null };
       }
+    }
+
+    // Last resort — the roster rows that carry the HEMA Ratings id.
+    if (hemaRatingsId && !idOnAProfile) {
+      const viaRoster = await this.profileOfRosterHemaId(hemaRatingsId);
+      if (viaRoster) return { id: viaRoster, created: false, mintReason: null };
     }
 
     // No confident match — mint a fresh global identity.
@@ -224,25 +232,39 @@ export class GlobalPersonResolverService {
   }
 
   /**
-   * After a tier match, fill in email / date_of_birth on the existing row when
-   * the column is NULL and the caller supplied a value. Never overwrites.
-   * Errors are swallowed (logged): the participant flow must still succeed.
+   * The last resort before minting (operator rulings 43 and 44, 2026-09-22):
+   * the profile every linked roster row typed with this HEMA Ratings id points at,
+   * asked only when no profile holds the id and no other tier matched. Since
+   * ruling 35 a typed id stays on the roster row, so a fighter first seen
+   * without one would otherwise never be found by it again. The operator
+   * accepted that one typo can then attach a stranger's later entries to the
+   * wrong profile.
+   *
+   * Rows linked to two profiles link nothing. The profile must be live — erasure
+   * blanks a profile's id but keeps the roster rows' own — and hold no HEMA
+   * Ratings id of its own: once the fighter a typo sends strangers to sets
+   * their real id, it stops; so it does once the id's owner has a profile.
    */
-  private async backfillIdentity(
-    row: GpMatchRow,
-    incoming: { email: string | null; dateOfBirth: string | null },
-  ): Promise<void> {
-    const updates: Record<string, unknown> = {};
-    if (incoming.email && !row.email) updates['email'] = incoming.email;
-    if (incoming.dateOfBirth && !row.date_of_birth) updates['date_of_birth'] = incoming.dateOfBirth;
-    if (Object.keys(updates).length === 0) return;
+  private async profileOfRosterHemaId(hemaRatingsId: string): Promise<string | null> {
+    const { data: rows } = await this.supabase.service
+      .from('persons')
+      .select('global_person_id')
+      .eq('hema_ratings_id', hemaRatingsId)
+      .not('global_person_id', 'is', null);
+    const linked = new Set(
+      ((rows ?? []) as Array<{ global_person_id: string }>).map((row) => row.global_person_id),
+    );
+    if (linked.size !== 1) return null;
 
-    const { error } = await this.supabase.service
-      .from('global_persons')
-      .update(updates)
-      .eq('id', row.id);
-    if (error) {
-      this.logger.warn(`global_persons backfill failed for ${row.id}: ${error.message}`);
-    }
+    const [profileId] = linked;
+    const { data: live } = await applyReachable(
+      this.supabase.service.from('global_persons').select('id').eq('id', profileId),
+    )
+      .is('hema_ratings_id', null)
+      .maybeSingle();
+    if (!live) return null;
+    // The one tier with an accepted false positive: leave a trace of it.
+    this.logger.log(`HEMA Ratings id ${hemaRatingsId} matched through roster rows: ${profileId}`);
+    return (live as GpMatchRow).id;
   }
 }

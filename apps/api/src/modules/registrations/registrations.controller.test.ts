@@ -327,9 +327,8 @@ describe('RegistrationsController authorization', () => {
 
   it('refuses a body that names a global profile by `fighterId`', () => {
     // `fighterId` wrote `hemaRatingsId` onto whatever global profile it named.
-    // No page sent it; the field is gone (operator ruling 31). The profile a
-    // roster person is LINKED to still takes `hemaRatingsId` — that write is the
-    // global-persons slice's, not this field's.
+    // No page sent it; the field is gone (operator ruling 31). Nor does the
+    // profile a roster person is LINKED to take it any more (ruling 35).
     const body = { personId: ANNA, fighterId: BRUNO, hemaRatingsId: '999' };
     expect(CreateRegistrationDto.schema.safeParse(body).success).toBe(false);
   });

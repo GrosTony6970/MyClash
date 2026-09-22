@@ -182,7 +182,7 @@ export class ExportsService {
       q
         .select(
           `id, given_name, family_name, club_id, hema_ratings_id, gender_category,
-           global_persons ( country_code )`,
+           global_persons ( country_code, hema_ratings_id )`,
         )
         .in('id', personIds),
     );

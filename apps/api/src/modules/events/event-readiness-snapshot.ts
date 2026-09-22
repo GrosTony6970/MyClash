@@ -7,9 +7,10 @@
  * next door. Split when the combined module outgrew the 400-line file budget,
  * along the seam the two test files had always assumed.
  *
- * Pure and dependency-free, so the foldings that carry real judgement are
- * testable without a Supabase mock chain.
+ * Pure — its one runtime import, the rating-id reader, is pure too — so the foldings
+ * that carry real judgement are testable without a Supabase mock chain.
  */
+import { eventHemaRatingsId } from '../hema-ratings/event-hema-ratings-id';
 import type { ReadinessRosterSnapshot, ReadinessRows, ReadinessSnapshot } from './event-readiness';
 
 /**
@@ -187,8 +188,7 @@ function summariseRosterQuality(rows: ReadinessRows): ReadinessRosterSnapshot {
     snapshot.activeFighterCount += 1;
     if (!person.club_id) snapshot.withoutClub += 1;
     if (!person.global_person_id) snapshot.withoutGlobalIdentity += 1;
-    const rating = person.hema_ratings_id?.trim() || person.global_persons?.hema_ratings_id?.trim();
-    if (!rating) snapshot.withoutRatingsId += 1;
+    if (!eventHemaRatingsId(person)) snapshot.withoutRatingsId += 1;
   }
 
   return snapshot;

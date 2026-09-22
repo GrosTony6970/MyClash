@@ -1522,7 +1522,7 @@ describe('PhasesService', () => {
       const rated = reseedService(SEEDED_REGS);
       await rated.service.reseedBracketRoundOne('phase-1', 'actor-1', { strategy: 'by-rating' });
       expect(selectsFor(rated.supabase.from, 'registrations')).toEqual([
-        'id, seed, bib_number, persons(global_persons(hema_ratings_id))',
+        'id, seed, bib_number, persons(hema_ratings_id, global_persons(hema_ratings_id))',
       ]);
 
       const plain = reseedService(SEEDED_REGS);

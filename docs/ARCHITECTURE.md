@@ -1161,14 +1161,18 @@ resolve", whereas a server failure means "something needs a human". Both leave t
 **Pull-only.** MyClash periodically syncs from HEMA Ratings:
 
 - Fighter index (name, club, country, current rating).
-- Allows organizers to **link** a MyClash fighter profile to a HEMA Ratings ID at registration time.
+- Allows organizers to give a roster person a HEMA Ratings ID for their Event. It stays on the roster
+  row: an Event never writes it onto an existing global profile, which only the fighter or a super
+  admin changes. A profile created for a new person takes it at creation.
 - Surface current rating on fighter profiles and in admin registration UI ("this fighter is rated 1450 longsword").
 
 ### 11.2 Mechanism
 
 - Daily BullMQ cron job pulls the public dataset.
 - Stored in `hema_ratings_snapshots` with timestamp.
-- `fighters.hema_ratings_id` is the canonical link.
+- `global_persons.hema_ratings_id` is a profile's own link. An Event reads the roster row's
+  `persons.hema_ratings_id` first, then the profile's (`eventHemaRatingsId`), and the daily job fetches
+  ratings for both: every profile's id, and the roster ids of Events not yet ended.
 - Search: full-text search on the latest snapshot to suggest matches when registering.
 
 ### 11.3 Export format (for organizers to manually submit)

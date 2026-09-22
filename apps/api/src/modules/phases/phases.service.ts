@@ -23,6 +23,7 @@ import {
 import { SupabaseService } from '../supabase/supabase.service';
 import { insertAuditLog } from '../../common/audit-log';
 import { HemaRatingsService } from '../hema-ratings/hema-ratings.service';
+import { eventHemaRatingsId, type RatedPerson } from '../hema-ratings/event-hema-ratings-id';
 import { OrganizationsService } from '../organizations/organizations.service';
 import { SettingsService } from '../referees/settings.service';
 import type {
@@ -246,8 +247,9 @@ export class PhasesService {
       .from('registrations')
       .select(
         // Walk persons.global_person_id to reach global_persons —
-        // registrations.fighter_id was retired in 0083.
-        'id, seed, bib_number, persons(club_id, global_persons(hema_ratings_id))',
+        // registrations.fighter_id was retired in 0083. The rating is the
+        // roster row's, else the profile's (eventHemaRatingsId).
+        'id, seed, bib_number, persons(club_id, hema_ratings_id, global_persons(hema_ratings_id))',
       )
       .eq('tournament_id', tournamentId)
       .in('status', ['registered', 'checked_in']);
@@ -324,13 +326,9 @@ export class PhasesService {
       const hemaIds = Array.from(
         new Set(
           allRegs
-            .map((reg) => {
-              const r = reg as Record<string, unknown>;
-              const person = r['persons'] as {
-                global_persons?: { hema_ratings_id: string | null } | null;
-              } | null;
-              return person?.global_persons?.hema_ratings_id ?? null;
-            })
+            .map((reg) =>
+              eventHemaRatingsId((reg as Record<string, unknown>)['persons'] as RatedPerson | null),
+            )
             .filter((id): id is string => Boolean(id)),
         ),
       );
@@ -341,11 +339,8 @@ export class PhasesService {
 
       const fighters: Fighter[] = allRegs.map((reg, idx) => {
         const r = reg as Record<string, unknown>;
-        const person = r['persons'] as {
-          club_id: string | null;
-          global_persons?: { hema_ratings_id: string | null } | null;
-        } | null;
-        const hemaRatingsId = person?.global_persons?.hema_ratings_id ?? null;
+        const person = r['persons'] as (RatedPerson & { club_id: string | null }) | null;
+        const hemaRatingsId = eventHemaRatingsId(person);
         return {
           registrationId: r['id'] as string,
           clubId: person?.club_id ?? null,
@@ -1565,7 +1560,7 @@ export class PhasesService {
       .select(
         // 0083 retired registrations.fighter_id; identity flows via
         // persons.global_person_id.
-        'id, name, sort_order, pool_members(registration_id, seed, registrations(persons(given_name, family_name, clubs(name), global_persons(hema_ratings_id))))',
+        'id, name, sort_order, pool_members(registration_id, seed, registrations(persons(given_name, family_name, clubs(name), hema_ratings_id, global_persons(hema_ratings_id))))',
       )
       .eq('phase_id', phaseId)
       .order('sort_order', { ascending: true });
@@ -1583,8 +1578,7 @@ export class PhasesService {
           const registration = member['registrations'] as Record<string, unknown> | null;
           const person = registration?.['persons'] as Record<string, unknown> | null;
           const club = person?.['clubs'] as Record<string, unknown> | null;
-          const fighter = person?.['global_persons'] as Record<string, unknown> | null;
-          const hemaRatingsId = (fighter?.['hema_ratings_id'] as string | null) ?? null;
+          const hemaRatingsId = eventHemaRatingsId(person as RatedPerson | null);
           return {
             registrationId: member['registration_id'],
             personName: `${person?.['given_name'] ?? ''} ${person?.['family_name'] ?? ''}`.trim(),
@@ -1631,14 +1625,15 @@ export class PhasesService {
    *
    * `withRatings` gates a `persons → global_persons` embed that only
    * `by-rating` needs — the default path keeps its narrow select so the common
-   * case doesn't pay for a two-level join.
+   * case doesn't pay for a two-level join. The rating is the roster row's,
+   * else the profile's (eventHemaRatingsId).
    */
   private async loadSeedableRegistrations(
     tournamentId: string,
     opts: { withRatings: boolean },
   ): Promise<SeedableRegistration[]> {
     const select = opts.withRatings
-      ? 'id, seed, bib_number, persons(global_persons(hema_ratings_id))'
+      ? 'id, seed, bib_number, persons(hema_ratings_id, global_persons(hema_ratings_id))'
       : 'id, seed, bib_number';
     const { data } = await this.supabase.service
       .from('registrations')
@@ -1649,14 +1644,11 @@ export class PhasesService {
     return ((data ?? []) as unknown as Array<Record<string, unknown>>).map((row) => {
       // registrations.person_id is a plain FK, so `persons` embeds as an
       // object, not an array (see the embed-flip trap in the docs).
-      const person = row['persons'] as {
-        global_persons?: { hema_ratings_id?: string | null } | null;
-      } | null;
       return {
         id: row['id'] as string,
         seed: (row['seed'] as number | null) ?? null,
         bibNumber: (row['bib_number'] as number | null) ?? null,
-        hemaRatingsId: person?.global_persons?.hema_ratings_id ?? null,
+        hemaRatingsId: eventHemaRatingsId(row['persons'] as RatedPerson | null),
       };
     });
   }
@@ -1788,17 +1780,12 @@ export class PhasesService {
     if (!weapon) return new Map<string, number>();
     const { data: regs } = await this.supabase.service
       .from('registrations')
-      .select('persons(global_persons(hema_ratings_id))')
+      .select('persons(hema_ratings_id, global_persons(hema_ratings_id))')
       .eq('tournament_id', tournamentId);
     const hemaIds = Array.from(
       new Set(
         ((regs ?? []) as Array<Record<string, unknown>>)
-          .map((reg) => {
-            const person = reg['persons'] as {
-              global_persons?: { hema_ratings_id: string | null } | null;
-            } | null;
-            return person?.global_persons?.hema_ratings_id ?? null;
-          })
+          .map((reg) => eventHemaRatingsId(reg['persons'] as RatedPerson | null))
           .filter((id): id is string => Boolean(id)),
       ),
     );
@@ -2815,7 +2802,7 @@ export class PhasesService {
       .select(
         // 0083 retired registrations.fighter_id; identity nests
         // through persons.global_person_id.
-        'id, persons(given_name, family_name, clubs(name), global_persons(hema_ratings_id))',
+        'id, persons(given_name, family_name, clubs(name), hema_ratings_id, global_persons(hema_ratings_id))',
       )
       .eq('tournament_id', tournamentId)
       .in('status', ['registered', 'checked_in']);
@@ -2840,8 +2827,7 @@ export class PhasesService {
       .map((reg) => {
         const person = reg['persons'] as Record<string, unknown> | null;
         const club = person?.['clubs'] as Record<string, unknown> | null;
-        const fighter = person?.['global_persons'] as Record<string, unknown> | null;
-        const hemaRatingsId = (fighter?.['hema_ratings_id'] as string | null) ?? null;
+        const hemaRatingsId = eventHemaRatingsId(person as RatedPerson | null);
         return {
           registrationId: reg['id'] as string,
           personName: `${person?.['given_name'] ?? ''} ${person?.['family_name'] ?? ''}`.trim(),

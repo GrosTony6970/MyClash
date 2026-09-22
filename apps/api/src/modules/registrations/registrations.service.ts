@@ -506,13 +506,12 @@ export class RegistrationsService {
       global_person_id: string | null;
     };
 
+    // A linked profile is left as it is, whatever HEMA Ratings id the entry
+    // carries (operator ruling 35): other Events and the fighter share it, and
+    // only the fighter or a super admin may change its details. The entry's id
+    // is not stored: the Event reads the roster row's own id first
+    // (eventHemaRatingsId, ruling 39), which the roster page saves beforehand.
     if (p.global_person_id) {
-      if (dto.hemaRatingsId) {
-        await this.supabase.service
-          .from('global_persons')
-          .update({ hema_ratings_id: dto.hemaRatingsId })
-          .eq('id', p.global_person_id);
-      }
       return { fighterId: p.global_person_id, mintedIdentity: null };
     }
 

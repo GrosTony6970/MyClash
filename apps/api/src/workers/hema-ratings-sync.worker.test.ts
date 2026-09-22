@@ -1,10 +1,19 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { mockSupabase } from '../common/testing/supabase-chain';
+import { fetchHemaRatingsProfile } from '../modules/hema-ratings/hema-ratings.service';
+import type * as HemaRatingsServiceModule from '../modules/hema-ratings/hema-ratings.service';
 import { HemaRatingsSyncWorker } from './hema-ratings-sync.worker';
+
+vi.mock('../modules/hema-ratings/hema-ratings.service', async (importOriginal) => ({
+  ...(await importOriginal<typeof HemaRatingsServiceModule>()),
+  fetchHemaRatingsProfile: vi.fn(async (id: string) => ({ id })),
+}));
 
 /**
  * The worker `process()` performs three steps:
  *   1. fetch hemaratings.com/fighters/ (the global HTML index)
- *   2. fetch one detail page per linked global_persons row
+ *   2. fetch one detail page per linked id (hema-ratings-linked-ids.ts: every
+ *      profile's, and the roster ids of Events not yet ended)
  *   3. insert a row into `hema_ratings_snapshots`
  *
  * The test below mocks `global fetch` to fail on the first step so we can
@@ -68,5 +77,50 @@ describe('HemaRatingsSyncWorker', () => {
     const job = { id: 'test-job' } as never;
 
     await expect(worker.process(job)).rejects.toThrow('ECONNRESET');
+  });
+});
+
+/**
+ * Which ids the night job fetches ratings for (operator ruling 41, 2026-09-22):
+ * every id on a global profile, and every id typed on a roster row of an Event
+ * that has not ended. The roster ids matter because an entry no longer copies
+ * the typed id onto the profile (ruling 35) and seeding reads the roster first.
+ */
+describe('HemaRatingsSyncWorker — the ids it fetches ratings for', () => {
+  beforeEach(() => vi.mocked(fetchHemaRatingsProfile).mockClear());
+
+  it("adds the roster rows' ids of Events not yet ended, trimmed and once each", async () => {
+    const today = new Date().toISOString().slice(0, 10);
+    const supabase = mockSupabase({
+      global_persons: { rows: [{ hema_ratings_id: '100' }, { hema_ratings_id: null }] },
+      events: {
+        rows: [
+          { id: 'e-past', end_date: '2000-01-01' },
+          { id: 'e-today', end_date: today },
+          { id: 'e-live', end_date: '2999-12-31' },
+        ],
+      },
+      persons: {
+        rows: [
+          // A finished Event seeds nothing.
+          { event_id: 'e-past', hema_ratings_id: '400' },
+          { event_id: 'e-today', hema_ratings_id: '500' },
+          { event_id: 'e-live', hema_ratings_id: '200' },
+          { event_id: 'e-live', hema_ratings_id: ' 300 ' },
+          // Also on a profile: fetched once.
+          { event_id: 'e-live', hema_ratings_id: '100' },
+          { event_id: 'e-live', hema_ratings_id: null },
+        ],
+      },
+    });
+    const worker = new HemaRatingsSyncWorker(makeQueue(), supabase as never, makeFlags());
+
+    const profiles = await (
+      worker as unknown as { fetchLinkedProfiles(): Promise<Map<string, unknown>> }
+    ).fetchLinkedProfiles();
+
+    const fetched = vi.mocked(fetchHemaRatingsProfile).mock.calls.map(([id]) => id);
+    expect(fetched.sort()).toEqual(['100', '200', '300', '500']);
+    expect([...profiles.keys()].sort()).toEqual(['100', '200', '300', '500']);
   });
 });

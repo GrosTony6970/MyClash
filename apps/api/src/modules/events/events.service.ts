@@ -19,6 +19,7 @@ import { insertAuditLog } from '../../common/audit-log';
 import { assertCanReadEvent, assertCanReadEventRow } from '../../common/auth/event-authz';
 import { hasPlatformTier } from '../../common/auth/platform-role';
 import { HemaRatingsService } from '../hema-ratings/hema-ratings.service';
+import { eventHemaRatingsId, type RatedPerson } from '../hema-ratings/event-hema-ratings-id';
 import { normalizePersonName, type WeaponRating } from '../hema-ratings/weapon-rating';
 import { resolveCatalogWeapon } from '../fighters/weapon-catalog.util';
 import { OrganizationsService } from '../organizations/organizations.service';
@@ -2002,28 +2003,25 @@ export class EventsService {
     if (registrations.length === 0 && !includeStaff) return [];
 
     const personIds = Array.from(new Set(registrations.map((r) => r.person_id)));
-    let persons: Array<{
-      id: string;
-      given_name: string;
-      family_name: string;
-      club_id: string | null;
-      hema_ratings_id: string | null;
-      global_person_id: string | null;
-    }> = [];
-    if (personIds.length > 0) {
-      const { data: personRows, error: personErr } = await this.supabase.service
-        .from('persons')
-        .select('id, given_name, family_name, club_id, hema_ratings_id, global_person_id')
-        .in('id', personIds);
-      if (personErr) throw new BadRequestException(personErr.message);
-      persons = (personRows ?? []) as Array<{
+    let persons: Array<
+      RatedPerson & {
         id: string;
         given_name: string;
         family_name: string;
         club_id: string | null;
-        hema_ratings_id: string | null;
         global_person_id: string | null;
-      }>;
+      }
+    > = [];
+    if (personIds.length > 0) {
+      const { data: personRows, error: personErr } = await this.supabase.service
+        .from('persons')
+        // The rating id is the roster row's, else the profile's (ruling 42).
+        .select(
+          'id, given_name, family_name, club_id, hema_ratings_id, global_person_id, global_persons(hema_ratings_id)',
+        )
+        .in('id', personIds);
+      if (personErr) throw new BadRequestException(personErr.message);
+      persons = (personRows ?? []) as typeof persons;
     }
     const personById = new Map(persons.map((p) => [p.id, p]));
 
@@ -2083,7 +2081,7 @@ export class EventsService {
     >();
     if (this.hemaRatings) {
       const hemaIds = Array.from(
-        new Set(persons.map((p) => p.hema_ratings_id).filter((id): id is string => !!id)),
+        new Set(persons.map((p) => eventHemaRatingsId(p)).filter((id): id is string => !!id)),
       );
       const allNames = Array.from(new Set(displayNameById.values()));
       const weapons = Array.from(
@@ -2097,13 +2095,14 @@ export class EventsService {
       }
     }
     const ratingFor = (
-      person: { id: string; hema_ratings_id: string | null },
+      person: RatedPerson & { id: string },
       weapon: string | null,
     ): WeaponRating | null => {
       if (!weapon) return null;
       const maps = ratingsByWeapon.get(weapon);
       if (!maps) return null;
-      const byId = person.hema_ratings_id ? maps.byId.get(person.hema_ratings_id) : undefined;
+      const hemaRatingsId = eventHemaRatingsId(person);
+      const byId = hemaRatingsId ? maps.byId.get(hemaRatingsId) : undefined;
       if (byId) return byId;
       const name = displayNameById.get(person.id);
       if (!name) return null;

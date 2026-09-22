@@ -6,6 +6,7 @@
  * read on its own.
  */
 
+import { eventHemaRatingsId, type RatedPerson } from '../hema-ratings/event-hema-ratings-id';
 import type { SubmissionClub, SubmissionFighter, SubmissionMatch } from './hema-ratings-submission';
 
 export type Row = Record<string, unknown>;
@@ -79,6 +80,8 @@ export function toSubmissionFighter(
     clubId,
     nationality: nationality ?? null,
     genderCategory: (row['gender_category'] as string | null) ?? null,
-    hemaRatingsId: (row['hema_ratings_id'] as string | null) ?? null,
+    // The roster row's id, else the profile's (operator ruling 42): a fighter
+    // who set their own id on their profile is not submitted without one.
+    hemaRatingsId: eventHemaRatingsId(row as RatedPerson),
   };
 }

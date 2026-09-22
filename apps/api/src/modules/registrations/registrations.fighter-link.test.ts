@@ -1,4 +1,5 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
+import { mockSupabase as seededSupabase, writesTo } from '../../common/testing/supabase-chain';
 import { RegistrationsService } from './registrations.service';
 
 const fromMock = vi.fn();
@@ -178,61 +179,35 @@ describe('RegistrationsService fighter linking', () => {
     );
   });
 
-  it('reuses an already-linked global person and updates hema_ratings_id only when provided', async () => {
-    const personChain = makeChain({ data: null, error: null });
-    personChain.maybeSingle.mockResolvedValue({
-      data: personRow({ global_person_id: 'fighter-1' }),
-      error: null,
-    });
+  // An entry never writes onto the global profile its person is linked to
+  // (operator ruling 35, 2026-09-22). Other Events and the fighter share that
+  // profile, and only the fighter or a super admin may change it — as RLS
+  // `global_persons_update` says. It used to take the entry's HEMA Ratings id, so
+  // any organiser could change a stranger's rank. The roster page sends the
+  // typed id, or null for an empty field (ruling 32); neither reaches it. The
+  // profile has no id on file, so even a fill-only-if-empty would write.
+  it.each([
+    ['a HEMA Ratings id', '456'],
+    ['null', null],
+  ])(
+    'writes nothing onto the linked global profile when the entry carries %s',
+    async (_label, hemaRatingsId) => {
+      const db = seededSupabase({
+        persons: { rows: [personRow({ global_person_id: 'fighter-1' })] },
+        global_persons: { rows: [{ id: 'fighter-1', hema_ratings_id: null }] },
+        tournaments: { rows: [{ id: 'tournament-1', max_participants: null }] },
+        registrations: { rows: [], returning: { id: 'reg-1' } },
+      });
+      const linked = new RegistrationsService(db as never, mockResolver as never);
 
-    const fighterUpdateChain = makeChain({ data: null, error: null });
-    const bibChain = makeAwaitableChain({ data: [], error: null });
-    const regChain = makeChain({ data: null, error: null });
-    regChain.single.mockResolvedValue({
-      data: { id: 'reg-1', person_id: 'person-1' },
-      error: null,
-    });
+      await linked.create('tournament-1', { personId: 'person-1', hemaRatingsId });
 
-    fromMock
-      .mockReturnValueOnce(personChain) // persons.select (global_person_id already set)
-      .mockReturnValueOnce(fighterUpdateChain) // global_persons.update hema_ratings_id
-      .mockReturnValueOnce(noCapTournamentChain())
-      .mockReturnValueOnce(bibChain)
-      .mockReturnValueOnce(regChain);
-
-    await service.create('tournament-1', { personId: 'person-1', hemaRatingsId: '456' } as never);
-
-    // Already linked → resolver is not consulted.
-    expect(mockResolver.resolveOrCreateGlobalPerson).not.toHaveBeenCalled();
-    expect(fighterUpdateChain.update).toHaveBeenCalledWith({ hema_ratings_id: '456' });
-    expect(regChain.insert.mock.calls[0]?.[0]).not.toHaveProperty('fighter_id');
-  });
-
-  // The roster page sends null for an empty HEMA Ratings field. Null means "no
-  // id given" (operator ruling 32): it never clears the linked global profile,
-  // which other Events share.
-  it('leaves the linked global profile alone when the HEMA Ratings id is null', async () => {
-    const personChain = makeChain({ data: null, error: null });
-    personChain.maybeSingle.mockResolvedValue({
-      data: personRow({ global_person_id: 'fighter-1' }),
-      error: null,
-    });
-    const regChain = makeChain({ data: null, error: null });
-    regChain.single.mockResolvedValue({ data: { id: 'reg-1' }, error: null });
-
-    fromMock
-      .mockReturnValueOnce(personChain)
-      .mockReturnValueOnce(noCapTournamentChain())
-      .mockReturnValueOnce(makeAwaitableChain({ data: [], error: null }))
-      .mockReturnValueOnce(regChain);
-
-    await service.create('tournament-1', { personId: 'person-1', hemaRatingsId: null });
-
-    expect(fromMock.mock.calls.map(([table]) => table)).not.toContain('global_persons');
-    expect(regChain.insert).toHaveBeenCalledWith(
-      expect.objectContaining({ person_id: 'person-1' }),
-    );
-  });
+      // Already linked → the resolver is not consulted.
+      expect(mockResolver.resolveOrCreateGlobalPerson).not.toHaveBeenCalled();
+      expect(writesTo(db, 'global_persons')).toEqual([]);
+      expect(writesTo(db, 'registrations')).toHaveLength(1);
+    },
+  );
 
   it("passes an unlinked person's own HEMA Ratings id to the resolver when the body's is null", async () => {
     mockResolver.resolveOrCreateGlobalPerson.mockResolvedValue({ id: 'fighter-1', created: false });

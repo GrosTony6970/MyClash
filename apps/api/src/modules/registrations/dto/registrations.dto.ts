@@ -22,8 +22,11 @@ const createRegistrationSchema = z
     personId: z.uuid(),
     seed: z.number().int().min(1).optional(),
     bibNumber: z.number().int().min(1).optional(),
-    // Null = no id given: the roster page sends it for an empty field. It never
-    // clears a stored id (registrations.service.ts, resolveFighterForRegistration).
+    // Null = no id given: the roster page sends it for an empty field. The id
+    // only serves a person with no global profile yet: it helps match them to
+    // one, or goes onto the profile minted for them. It is never written onto
+    // an existing profile (registrations.service.ts,
+    // resolveFighterForRegistration; operator ruling 35).
     hemaRatingsId: z.string().nullable().optional(),
   })
   .strict();

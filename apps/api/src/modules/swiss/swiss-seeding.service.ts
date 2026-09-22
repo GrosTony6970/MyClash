@@ -2,6 +2,7 @@ import { BadRequestException, Injectable, Optional } from '@nestjs/common';
 import { SupabaseService } from '../supabase/supabase.service';
 // Value import, not `import type`: Nest DI metadata.
 import { HemaRatingsService } from '../hema-ratings/hema-ratings.service';
+import { eventHemaRatingsId, type RatedPerson } from '../hema-ratings/event-hema-ratings-id';
 import { rankByRating, rankRandom, type SeedableRegistration } from '@myclash/rules/results';
 import { SWISS_DEFAULTS, type GenerateSwissDto } from './dto/swiss.dto';
 import type { RankedRegistration } from '@myclash/rules/results';
@@ -175,21 +176,21 @@ export class SwissSeedingService {
     const { data, error } = await this.supabase.service
       .from('registrations')
       // persons.global_person_id is the route to global_persons; 0083 retired
-      // registrations.fighter_id.
-      .select('id, seed, bib_number, persons(club_id, global_persons(hema_ratings_id))')
+      // registrations.fighter_id. The rating is the roster row's, else the
+      // profile's (eventHemaRatingsId).
+      .select(
+        'id, seed, bib_number, persons(club_id, hema_ratings_id, global_persons(hema_ratings_id))',
+      )
       .eq('tournament_id', tournamentId)
       .in('status', ['registered', 'checked_in']);
     if (error) throw new BadRequestException(error.message);
 
-    return ((data ?? []) as Array<Record<string, unknown>>).map((row) => {
-      const person = row['persons'] as { global_persons?: { hema_ratings_id?: string } } | null;
-      return {
-        id: row['id'] as string,
-        seed: (row['seed'] as number | null) ?? null,
-        bibNumber: (row['bib_number'] as number | null) ?? null,
-        hemaRatingsId: person?.global_persons?.hema_ratings_id ?? null,
-      };
-    });
+    return ((data ?? []) as Array<Record<string, unknown>>).map((row) => ({
+      id: row['id'] as string,
+      seed: (row['seed'] as number | null) ?? null,
+      bibNumber: (row['bib_number'] as number | null) ?? null,
+      hemaRatingsId: eventHemaRatingsId(row['persons'] as RatedPerson | null),
+    }));
   }
 }
 

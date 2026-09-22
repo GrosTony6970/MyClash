@@ -23,9 +23,9 @@ export interface SeedableRegistration {
   seed: number | null;
   bibNumber: number | null;
   /**
-   * hema_ratings_id of the fighter behind this registration, when the person
-   * is linked to a global_person that carries one. Only `rankByRating` reads
-   * it; the other strategies ignore it.
+   * HEMA Ratings id of the fighter behind this registration: the roster row's,
+   * else the linked global profile's (the API's `eventHemaRatingsId`). Only
+   * `rankByRating` reads it; the other strategies ignore it.
    */
   hemaRatingsId?: string | null;
 }
