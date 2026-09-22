@@ -40,11 +40,15 @@ export class AuthController {
    * - Organizer login (admin app): type='login'
    * - Participant claim (public app): type='claim', personId required
    *
-   * Rate limited: 10 per hour per IP (via ThrottlerGuard). Supabase applies its
-   * own per-address limit on the email send itself.
+   * Rate limited: 10 per hour per IP (via ThrottlerGuard), and nothing else —
+   * GoTrue only MINTS the link here, the mail is sent by our own MailService,
+   * so no per-address limit of its own applies on this path.
    * A login link always answers the same generic message, to prevent email
-   * enumeration. A claim link is refused (400/404) when the row does not
-   * carry the typed email, is already claimed, or cannot be read.
+   * enumeration. A claim link is refused (400/404) when the row does not carry
+   * the typed email, or cannot be read. Whether the row is already CLAIMED is
+   * deliberately not asked (operator ruling 53): nobody is signed in here, so
+   * this door cannot be told which account is asking. The link goes to the
+   * address the row carries, and the redemption decides.
    */
   @Post('magic-link')
   @HttpCode(HttpStatus.OK)

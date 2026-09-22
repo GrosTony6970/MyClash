@@ -156,7 +156,7 @@ export class AuthService {
       if (!personId) {
         throw new BadRequestException('personId is required for claim type');
       }
-      await this.validatePersonClaim(personId, email);
+      await this.personRowForClaim(personId, email);
     }
 
     // Generate magic link via Supabase Auth (GoTrue)
@@ -232,7 +232,7 @@ export class AuthService {
       if (!user.email) {
         throw new ForbiddenException('Google account did not provide an email address');
       }
-      await this.validatePersonClaim(dto.personId, user.email);
+      await this.validatePersonClaim(dto.personId, user.email, user.id);
       await this.completeClaim(user.id, user.email, dto.personId);
     }
 
@@ -376,7 +376,7 @@ export class AuthService {
     userEmail: string | undefined,
     personId: string,
   ): Promise<void> {
-    await this.validatePersonClaim(personId, userEmail);
+    await this.validatePersonClaim(personId, userEmail, userId);
     await this.completeClaim(userId, userEmail, personId);
   }
 
@@ -730,25 +730,67 @@ export class AuthService {
   }
 
   /**
-   * The check before a roster row is claimed, or a claim link is sent for it:
-   * the row carries `email` (the claiming account's, or the address the link
-   * goes to) and is not claimed yet (ruling 46). A row with no email matches
-   * nobody, and a failed read refuses.
+   * The roster row, if it carries this address (ruling 46). A row with no email
+   * matches nobody, and a failed read refuses rather than guessing.
+   *
+   * This is the whole check the emailed-link REQUEST may make (ruling 53):
+   * nobody is signed in there, so a row already claimed BY THE ASKER must not
+   * be told from one claimed by somebody else — the typed address is not proof
+   * of identity, whatever could be looked up from it. The link goes to that
+   * address, which this check has just found to be the row's own, so only its
+   * owner can open it, and the redemption below decides with an account in hand.
    */
-  private async validatePersonClaim(personId: string, email: string | undefined): Promise<void> {
+  private async personRowForClaim(
+    personId: string,
+    email: string | undefined,
+  ): Promise<{ claim_status: string; claimed_by_user_id: string | null }> {
     const { data, error } = await this.supabase.service
       .from('persons')
-      .select('id, email, claim_status')
+      .select('id, email, claim_status, claimed_by_user_id')
       .eq('id', personId)
       .maybeSingle();
     if (error) throw new BadRequestException('Could not validate profile claim');
     if (!data) throw new NotFoundException('Person not found');
 
-    const row = data as { email: string | null; claim_status: string };
+    const row = data as {
+      email: string | null;
+      claim_status: string;
+      claimed_by_user_id: string | null;
+    };
     if (!personEmailMatchesUser(row.email, email)) {
       throw new BadRequestException('Email does not match the registered person');
     }
-    if (row.claim_status === 'claimed') {
+    return row;
+  }
+
+  /**
+   * The check before a roster row is actually claimed: it carries the account's
+   * address, and nobody else holds it.
+   *
+   * A row this SAME account already holds passes (ruling 50). A fighter who asks
+   * for a claim link and then signs in another way has the row flipped by the
+   * autolink before the mail arrives; clicking the link then met a raw 400 about
+   * a row that is hers. Re-claiming rewrites the same two values onto the same
+   * row, and retries the global-profile link behind it — which ruling 40 gates
+   * on the account's own address, so the retry can only repair, never take over.
+   *
+   * The holder decides, and the status only backs it up: `completeClaim`'s write
+   * is scoped by id with no `claimed_by_user_id IS NULL` guard, so a row whose
+   * holder is set while its status says otherwise would be handed over to the
+   * next asker. No writer produces that state today — every one sets both
+   * columns together, and nothing in the schema pairs them — and this is the
+   * same bar the /me confirm-to-claim door uses (`claimPersons`).
+   */
+  private async validatePersonClaim(
+    personId: string,
+    email: string | undefined,
+    claimingUserId: string,
+  ): Promise<void> {
+    const row = await this.personRowForClaim(personId, email);
+    const heldByAnother = row.claimed_by_user_id
+      ? row.claimed_by_user_id !== claimingUserId
+      : row.claim_status === 'claimed';
+    if (heldByAnother) {
       throw new BadRequestException('This profile has already been claimed');
     }
   }

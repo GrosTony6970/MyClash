@@ -377,11 +377,53 @@ describe('AuthService', () => {
       );
     });
 
+    /**
+     * Operator ruling 53: the button stops caring whether the row is claimed.
+     *
+     * It knows only a typed address and a row id — nobody is signed in — so it
+     * cannot tell "already yours" from "already someone else's". It checks the
+     * one thing it can, that the row carries the typed address, and leaves the
+     * rest to the redemption, which does know who is asking (ruling 50). The
+     * link is mailed to the address on file, so only its owner can open it.
+     */
+    it('sends a claim link for a row that is already claimed', async () => {
+      seedTables({
+        persons: {
+          rows: [
+            {
+              id: 'row-1',
+              email: 'jean@example.com',
+              claim_status: 'claimed',
+              claimed_by_user_id: 'user-1',
+            },
+          ],
+        },
+      });
+      generateLinkMock.mockResolvedValue({
+        data: { properties: { action_link: 'https://example.com/magic' } },
+        error: null,
+      });
+
+      await service.requestMagicLink({
+        email: 'jean@example.com',
+        type: 'claim',
+        personId: 'row-1',
+      });
+
+      expect(mockMailService.sendMagicLink).toHaveBeenCalledWith(
+        expect.objectContaining({ to: 'jean@example.com', type: 'claim' }),
+      );
+    });
+
     // Ruling 46: the link's claim refuses these rows, so a link for them could
     // never work. The request refuses them first, and sends nothing.
     it.each([
       ['a row with no email', { rows: [{ id: 'row-1', email: null, claim_status: 'unclaimed' }] }],
       ['a row that cannot be read', { data: null, error: { message: 'statement timeout' } }],
+      [
+        'a row carrying another address',
+        { rows: [{ id: 'row-1', email: 'anna@example.com', claim_status: 'unclaimed' }] },
+      ],
     ])('refuses to send a claim link for %s', async (_label, persons) => {
       seedTables({ persons });
 
@@ -1065,7 +1107,7 @@ describe('AuthService', () => {
     });
 
     // A neighbour is seeded FIRST on both tables, with an email the caller does
-    // not own and a global profile that is not theirs. `validatePersonClaim`
+    // not own and a global profile that is not theirs. `personRowForClaim`
     // reads with maybeSingle, so an unscoped read returns the neighbour and the
     // claim is refused for the wrong reason — which is the shape of the bug
     // where a claim lands on somebody else's roster row.
@@ -1155,6 +1197,69 @@ describe('AuthService', () => {
       );
       expect(reply.send).toHaveBeenCalledWith({ next: '/me' });
       expect(getUserMock).not.toHaveBeenCalled();
+    });
+
+    // Ruling 50, the Google door: the same row, already this account's.
+    it('accepts a person claim for a row this same account already claimed', async () => {
+      mockAuthUser({ id: 'user-123', email: 'jean@example.com' });
+      const seeded = seedLogin({
+        persons: [
+          NEIGHBOUR,
+          {
+            id: CLAIMED_PERSON,
+            email: 'jean@example.com',
+            claim_status: 'claimed',
+            claimed_by_user_id: 'user-123',
+            global_person_id: null,
+          },
+        ],
+      });
+
+      const reply = makeReply();
+      await service.acceptOAuthSession(
+        {
+          accessToken: 'access-token',
+          refreshToken: 'refresh-token',
+          mode: 'person_claim',
+          personId: CLAIMED_PERSON,
+        },
+        reply as never,
+      );
+
+      const [claim] = writesTo(seeded, 'persons');
+      expect(claim?.row).toEqual({ claim_status: 'claimed', claimed_by_user_id: 'user-123' });
+      expect(scopedTo(claim, 'id')).toBe(CLAIMED_PERSON);
+      expect(reply.send).toHaveBeenCalledWith({ next: '/' });
+    });
+
+    // …and a row somebody ELSE holds is still refused, on the same door.
+    it('rejects a person claim for a row another account claimed', async () => {
+      mockAuthUser({ id: 'user-123', email: 'jean@example.com' });
+      const seeded = seedLogin({
+        persons: [
+          NEIGHBOUR,
+          {
+            id: CLAIMED_PERSON,
+            email: 'jean@example.com',
+            claim_status: 'claimed',
+            claimed_by_user_id: 'someone-else',
+            global_person_id: null,
+          },
+        ],
+      });
+
+      await expect(
+        service.acceptOAuthSession(
+          {
+            accessToken: 'access-token',
+            refreshToken: 'refresh-token',
+            mode: 'person_claim',
+            personId: CLAIMED_PERSON,
+          },
+          makeReply() as never,
+        ),
+      ).rejects.toThrow(BadRequestException);
+      expect(writesTo(seeded, 'persons')).toEqual([]);
     });
 
     it('rejects person claim when Google email does not match', async () => {
@@ -1375,7 +1480,8 @@ describe('AuthService', () => {
    * The emailed-link claim. The roster row comes from the link's address, not
    * from the sign-in code, so anyone who signs in with a code for their OWN
    * address could name any row (ruling 46). The row must carry the account's
-   * email and be unclaimed: the Google claim's check. A neighbour carries the
+   * email, and nobody else may hold it — the Google claim's check; a row this
+   * same account already holds passes (ruling 50). A neighbour carries the
    * account's email too, so a read keyed by email instead of id finds two rows
    * and cannot decide.
    */
@@ -1453,6 +1559,89 @@ describe('AuthService', () => {
 
       await expect(callback()).rejects.toThrow(BadRequestException);
       expect(writesTo(seeded, 'persons')).toEqual([]);
+    });
+
+    /**
+     * Operator ruling 50: a row this very account already holds is not an error.
+     *
+     * A fighter asks for a claim link, then signs in another way before the mail
+     * arrives; the autolink flips the row to claimed. Clicking the link then met
+     * a raw 400 "This profile has already been claimed" — about a row that is
+     * hers. The claim is idempotent, so it simply runs again.
+     */
+    it('accepts a row this same account already claimed, and redirects', async () => {
+      signedInAs(EMAIL);
+      const seeded = withRow({ email: EMAIL, claim_status: 'claimed', claimed_by_user_id: USER });
+      const reply = makeReply();
+
+      await callback(reply);
+
+      expect(scopedTo(writesTo(seeded, 'persons')[0], 'id')).toBe(ROW);
+      expect(reply.redirect).toHaveBeenCalled();
+      // The owner is read, or "already claimed by me" cannot be told from
+      // "already claimed by someone else" — the double ignores projections.
+      expect(selectsFor(seeded.from, 'persons')).toContain(
+        'id, email, claim_status, claimed_by_user_id',
+      );
+    });
+
+    /**
+     * The holder decides, not the status column.
+     *
+     * `completeClaim` writes scoped by id alone, with no
+     * `claimed_by_user_id IS NULL` guard, so a row whose holder is set while
+     * its status says otherwise would be handed to the next asker — and the
+     * /me confirm-to-claim door already refuses that state. No writer produces
+     * it today and nothing in the schema pairs the two columns, so this keeps
+     * the two doors from drifting apart.
+     */
+    it('refuses a row another account holds even when its status disagrees', async () => {
+      signedInAs(EMAIL);
+      const seeded = withRow({
+        email: EMAIL,
+        claim_status: 'unclaimed',
+        claimed_by_user_id: 'other-user',
+      });
+
+      await expect(callback()).rejects.toThrow(BadRequestException);
+      expect(writesTo(seeded, 'persons')).toEqual([]);
+    });
+
+    /**
+     * The re-claim is not a pure no-op: the global profile behind the row is
+     * handed over on the way, which the old refusal never reached. It is the
+     * same repair the sign-in autolink does, gated on the account's own
+     * address (ruling 40), so it can only complete a claim, never take one.
+     */
+    it('hands over the profile behind a row it re-claims, when that profile is the account’s', async () => {
+      signedInAs(EMAIL);
+      const seeded = seedTables({
+        persons: {
+          rows: [
+            NEIGHBOUR,
+            {
+              id: ROW,
+              email: EMAIL,
+              claim_status: 'claimed',
+              claimed_by_user_id: USER,
+              global_person_id: 'global-1',
+            },
+          ],
+        },
+        global_persons: {
+          rows: [
+            { id: 'global-other', email: 'someone.else@example.com', claimed_by_user_id: null },
+            { id: 'global-1', email: EMAIL, claimed_by_user_id: null, merged_into_id: null },
+          ],
+        },
+        fighter_clubs: { rows: [] },
+      });
+
+      await callback();
+
+      const [link] = writesTo(seeded, 'global_persons');
+      expect(link?.row).toMatchObject({ claimed_by_user_id: USER });
+      expect(scopedTo(link, 'id')).toBe('global-1');
     });
   });
 
