@@ -6,7 +6,7 @@ import {
 } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 import { createStoredZip } from '../../common/stored-zip';
-import { dropUnpinnablePenaltyPins } from './archive-penalty-pins';
+import { dropRestoredPins } from './archive-pins';
 import { danglingReferences, describeDangling } from './archive-references';
 import { buildTournamentReports, emptyTournamentReports, safeFilename } from './archive-reports';
 import { ID_MAP_NAMES } from './archive.table-spec';
@@ -283,7 +283,7 @@ export class ArchiveService {
 
     const crossOrg =
       (sourceEvent['organization_id'] as string | undefined) !== targetOrganizationId;
-    const droppedPins = await dropUnpinnablePenaltyPins(this.supabase, data, targetOrganizationId);
+    const droppedPins = await dropRestoredPins(this.supabase, data, targetOrganizationId);
     await this.insertMappedTables(data, maps, { targetEventId: restoredEventId, crossOrg });
     await this.auditRestore(userId, 'event', sourceEvent['id'] as string, restoredEventId);
     return {
@@ -291,7 +291,7 @@ export class ArchiveService {
       restoredEventId,
       restoredSlug,
       counts: this.countArchiveRows(archive),
-      droppedPenaltyRulesetPins: droppedPins,
+      ...droppedPins,
     };
   }
 
@@ -381,7 +381,7 @@ export class ArchiveService {
     const sourceOrgId = archive.data.events?.[0]?.['organization_id'] as string | undefined;
     const targetOrgId = String(targetEvent['organization_id']);
     const crossOrg = sourceOrgId !== undefined && sourceOrgId !== targetOrgId;
-    const droppedPins = await dropUnpinnablePenaltyPins(this.supabase, data, targetOrgId);
+    const droppedPins = await dropRestoredPins(this.supabase, data, targetOrgId);
     await this.insertMappedTables(data, maps, {
       targetEventId: options.targetEventId,
       targetTournamentId: restoredTournamentId,
@@ -398,7 +398,7 @@ export class ArchiveService {
       restoredTournamentId,
       restoredSlug,
       counts: this.countArchiveRows(archive),
-      droppedPenaltyRulesetPins: droppedPins,
+      ...droppedPins,
     };
   }
 

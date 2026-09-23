@@ -233,8 +233,8 @@ const TABLES = {
   referee_compensation_event_settings: {
     key: 'refereeCompensationEventSettings',
     collect: { event: EVENT_SCOPED, tournament: 'omit' },
-    // plan_id (NOT NULL) references an org-level plan not copied across orgs
-    crossOrg: 'drop',
+    // plan_id (NOT NULL) is an org-level plan: `dropRestoredPins` keeps or
+    // drops the row by the pin rule (ruling 69), whatever org the archive names.
   },
   event_venues: {
     key: 'eventVenues',

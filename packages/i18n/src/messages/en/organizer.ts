@@ -2745,6 +2745,8 @@ export const organizer = {
     restoreStarted: 'Archive restore started.',
     restoreDroppedPenaltyPins:
       'Penalty rulesets removed: {count}. This club may not use them, so the restored copy uses the Event default or the built-in.',
+    restoreDroppedCompensationPlans:
+      'Referee compensation settings removed: {count}. This club may not use their compensation plan, so choose a plan again.',
     scopes: {
       event: 'Event',
       tournament: 'Tournament',

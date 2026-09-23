@@ -536,6 +536,11 @@ describe('ArchiveService', () => {
   it('restores scoped tables into a same-org copy with remapped ids', async () => {
     const { service, inserted } = makeService({
       ...scopedRows(),
+      // The Event's compensation plan is its own club's, so the restore keeps
+      // it (ruling 69; archive-pins.test.ts holds the other cases).
+      referee_compensation_plans: [
+        { id: 'plan-1', organization_id: 'org-1', built_in: false, public_visibility: false },
+      ],
       // second event row so the restore target lookup / slug check has data
     });
     const archive = await service.generateEventArchive('event-1', 'user-1', { include: 'scoring' });
@@ -907,17 +912,25 @@ describe('ArchiveService', () => {
   });
 
   it('drops org-level references when restoring into a different org', async () => {
-    const { service, inserted } = makeService(scopedRows());
+    const { service, inserted } = makeService({
+      ...scopedRows(),
+      referee_compensation_plans: [
+        { id: 'plan-1', organization_id: 'org-1', built_in: false, public_visibility: false },
+      ],
+    });
     const archive = await service.generateEventArchive('event-1', 'user-1', { include: 'scoring' });
 
-    await service.restoreArchiveCopy(Buffer.from(JSON.stringify(archive)), 'user-1', {
-      targetOrganizationId: 'org-2',
-      confirmation: 'RESTORE MYCLASH ARCHIVE',
-    });
+    const result = await service.restoreArchiveCopy(
+      Buffer.from(JSON.stringify(archive)),
+      'user-1',
+      { targetOrganizationId: 'org-2', confirmation: 'RESTORE MYCLASH ARCHIVE' },
+    );
 
-    // event_venues + compensation settings reference the source org's rows → dropped
+    // event_venues reference the source org's venue → dropped
     expect(inserted.event_venues).toBeUndefined();
+    // the source club's private plan is not the target's to use → dropped AND counted
     expect(inserted.referee_compensation_event_settings).toBeUndefined();
+    expect(result.droppedCompensationPlans).toBe(1);
     // nullable org-level FKs are cleared rather than dropped
     expect(inserted.tournament_phase_venues?.[0]?.venue_id).toBeNull();
     expect(inserted.match_penalties?.[0]?.ruleset_id).toBeNull();
@@ -929,6 +942,30 @@ describe('ArchiveService', () => {
     expect(inserted.lices?.[0]?.venue_id).toBeNull();
     expect(inserted.lices?.[0]?.area_id).toBeNull();
     expect(inserted.workshops?.[0]?.venue_id).toBeNull();
+  });
+
+  it('keeps a built-in compensation plan when restoring into a different org', async () => {
+    const { service, inserted } = makeService({
+      ...scopedRows(),
+      referee_compensation_plans: [
+        { id: 'plan-1', organization_id: null, built_in: true, public_visibility: false },
+      ],
+    });
+    const archive = await service.generateEventArchive('event-1', 'user-1', { include: 'scoring' });
+
+    const result = await service.restoreArchiveCopy(
+      Buffer.from(JSON.stringify(archive)),
+      'user-1',
+      { targetOrganizationId: 'org-2', confirmation: 'RESTORE MYCLASH ARCHIVE' },
+    );
+
+    // Any club may use the built-in plan (ruling 69), so the pay settings come
+    // along with the new Event and nothing is counted as dropped.
+    expect(inserted.referee_compensation_event_settings?.[0]?.plan_id).toBe('plan-1');
+    expect(inserted.referee_compensation_event_settings?.[0]?.event_id).toBe(
+      inserted.events?.[0]?.id,
+    );
+    expect(result.droppedCompensationPlans).toBe(0);
   });
 
   /**

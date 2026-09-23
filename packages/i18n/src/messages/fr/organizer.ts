@@ -2714,6 +2714,8 @@ export const organizer = {
     restoreStarted: "Restauration de l'archive lancée.",
     restoreDroppedPenaltyPins:
       "Règlements de pénalités retirés : {count}. Ce club ne peut pas les utiliser ; la copie restaurée utilise celui de l'événement ou le règlement intégré.",
+    restoreDroppedCompensationPlans:
+      'Réglages de compensation des arbitres retirés : {count}. Ce club ne peut pas utiliser leur plan de compensation ; choisissez-en un à nouveau.',
     scopes: {
       event: 'Événement',
       tournament: 'Tournoi',

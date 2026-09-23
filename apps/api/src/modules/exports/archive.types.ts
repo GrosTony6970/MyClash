@@ -79,4 +79,7 @@ export interface RestoreResult {
   /** Event and Tournament penalty ruleset pins cleared because the target
    *  organisation may not pin them (operator ruling 67). */
   droppedPenaltyRulesetPins: number;
+  /** Event compensation settings dropped because the target organisation may
+   *  not use their plan (operator ruling 69). */
+  droppedCompensationPlans: number;
 }

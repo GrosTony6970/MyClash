@@ -5,6 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { SupabaseService } from '../supabase/supabase.service';
+import { pinnableCompensationPlan } from './compensation-plan-pin';
 import type {
   CompensationBreakdownLine,
   CompensationPhase,
@@ -228,7 +229,10 @@ export class CompensationService {
   }
 
   async upsertEventSettings(eventId: string, dto: UpsertEventSettingsDto, userId: string) {
-    await this.requireEventOrgAdmin(eventId, userId);
+    const organizationId = await this.requireEventOrgAdmin(eventId, userId);
+    if (!(await pinnableCompensationPlan(this.supabase, dto.planId, organizationId))) {
+      throw new BadRequestException('This compensation plan is not available to this organisation');
+    }
 
     const { data, error } = await this.supabase.service
       .from('referee_compensation_event_settings')
@@ -600,7 +604,7 @@ export class CompensationService {
   }
 
   /** An admin of the Event's organisation: every compensation read and write of an Event (ruling 63). */
-  async requireEventOrgAdmin(eventId: string, userId: string): Promise<void> {
+  async requireEventOrgAdmin(eventId: string, userId: string): Promise<string> {
     const { data: event } = await this.supabase.service
       .from('events')
       .select('organization_id')
@@ -608,7 +612,9 @@ export class CompensationService {
       .maybeSingle();
 
     if (!event) throw new NotFoundException('Event not found');
-    await this.requireOrgAdmin(userId, (event as Record<string, string>)['organization_id'] ?? '');
+    const organizationId = (event as Record<string, string>)['organization_id'] ?? '';
+    await this.requireOrgAdmin(userId, organizationId);
+    return organizationId;
   }
 
   // Used in buildRefereeReport type inference

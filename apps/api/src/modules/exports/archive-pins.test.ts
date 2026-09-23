@@ -8,6 +8,10 @@
  * private ruleset and restores it into her own Event; Sam, admin of both clubs,
  * restores a Club B Event into Club A. Either way Club A's members would read
  * Club B's rules through the restored Tournament.
+ *
+ * An Event's referee compensation plan follows the same rule (ruling 69): its
+ * settings row is dropped, and counted, when the target club may not use the
+ * plan.
  */
 import { BadRequestException } from '@nestjs/common';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -20,6 +24,9 @@ const PRIVATE_A = '88888888-8888-4888-8888-888888888888';
 const PRIVATE_B = '99999999-9999-4999-8999-999999999999';
 const NOBODY = 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee';
 const CONFIRMATION = 'RESTORE MYCLASH ARCHIVE';
+/** Club A's and Club B's private referee compensation plans. */
+const PLAN_A = 'a1a1a1a1-a1a1-4a1a-8a1a-a1a1a1a1a1a1';
+const PLAN_B = 'b2b2b2b2-b2b2-4b2b-8b2b-b2b2b2b2b2b2';
 
 const RULESETS = {
   rows: [
@@ -57,7 +64,14 @@ const RULESETS = {
 let db: ReturnType<typeof mockSupabase>;
 let service: ArchiveService;
 
-function build(penaltyRulesets: object = RULESETS) {
+const PLANS = {
+  rows: [
+    { id: PLAN_B, organization_id: 'org-b', built_in: false, public_visibility: false },
+    { id: PLAN_A, organization_id: 'org-a', built_in: false, public_visibility: false },
+  ],
+};
+
+function build(penaltyRulesets: object = RULESETS, compensationPlans: object = PLANS) {
   db = mockSupabase({
     penalty_rulesets: penaltyRulesets,
     events: {
@@ -68,6 +82,8 @@ function build(penaltyRulesets: object = RULESETS) {
     tournaments: { rows: [] },
     lices: { rows: [] },
     audit_log: { rows: [] },
+    referee_compensation_plans: compensationPlans,
+    referee_compensation_event_settings: { rows: [] },
   });
   const orgs = { assertOrgRole: vi.fn(async () => undefined) };
   service = new ArchiveService({ service: db.service } as never, orgs as never);
@@ -86,7 +102,11 @@ function tournament(id: string, penaltyRulesetId: string | null) {
   };
 }
 
-function archive(scope: 'event' | 'tournament', tournaments: Record<string, unknown>[]) {
+function archive(
+  scope: 'event' | 'tournament',
+  tournaments: Record<string, unknown>[],
+  extra: { organizationId?: string; settings?: Record<string, unknown>[] } = {},
+) {
   return Buffer.from(
     JSON.stringify({
       manifest: 'myclash.archive.v1',
@@ -104,7 +124,7 @@ function archive(scope: 'event' | 'tournament', tournaments: Record<string, unkn
         events: [
           {
             id: 'event-b',
-            organization_id: 'org-b',
+            organization_id: extra.organizationId ?? 'org-b',
             slug: 'away',
             name: 'Away',
             status: 'completed',
@@ -113,6 +133,7 @@ function archive(scope: 'event' | 'tournament', tournaments: Record<string, unkn
           },
         ],
         tournaments,
+        refereeCompensationEventSettings: extra.settings ?? [],
       },
       reports: { tournaments: [] },
     }),
@@ -193,5 +214,66 @@ describe('archive restore penalty pins', () => {
       ),
     ).rejects.toBeInstanceOf(BadRequestException);
     expect(writesTo(db, 'tournaments')).toEqual([]);
+  });
+
+  // Ruling 69: an Event's compensation plan follows the same rule. Its
+  // `plan_id` is NOT NULL, so a plan the club may not use drops the whole row.
+  it("drops an Event's compensation settings on another club's private plan, and counts them", async () => {
+    // A same-club archive, hand-edited to name Club B's plan: a check on the
+    // archive's own organisation id would not catch this.
+    const result = await service.restoreArchiveCopy(
+      archive('event', [], {
+        organizationId: 'org-a',
+        settings: [{ event_id: 'event-b', plan_id: PLAN_B }],
+      }),
+      'u-admin-a',
+      { targetOrganizationId: 'org-a', confirmation: CONFIRMATION },
+    );
+    expect(rowsOf('referee_compensation_event_settings')).toEqual([]);
+    expect(result.droppedCompensationPlans).toBe(1);
+  });
+
+  it("keeps an Event's compensation settings on its own club's plan", async () => {
+    const result = await service.restoreArchiveCopy(
+      archive('event', [], {
+        organizationId: 'org-a',
+        settings: [{ event_id: 'event-b', plan_id: PLAN_A }],
+      }),
+      'u-admin-a',
+      { targetOrganizationId: 'org-a', confirmation: CONFIRMATION },
+    );
+    expect(rowsOf('referee_compensation_event_settings')).toMatchObject([{ plan_id: PLAN_A }]);
+    expect(result.droppedCompensationPlans).toBe(0);
+  });
+
+  // A Tournament archive never collects the settings, but the restore takes
+  // whatever the file carries and maps it onto the target Event.
+  it('drops compensation settings smuggled into a Tournament archive', async () => {
+    const result = await service.restoreArchiveCopy(
+      archive('tournament', [tournament('t-own', PRIVATE_A)], {
+        organizationId: 'org-a',
+        settings: [{ event_id: 'event-b', plan_id: PLAN_B }],
+      }),
+      'u-admin-a',
+      { targetEventId: 'event-a', confirmation: CONFIRMATION },
+    );
+    expect(rowsOf('referee_compensation_event_settings')).toEqual([]);
+    expect(result.droppedCompensationPlans).toBe(1);
+  });
+
+  it('fails the restore on a failed plan read, before anything is written', async () => {
+    build(RULESETS, { data: null, error: { message: 'connection reset' } });
+    await expect(
+      service.restoreArchiveCopy(
+        archive('event', [], {
+          organizationId: 'org-a',
+          settings: [{ event_id: 'event-b', plan_id: PLAN_A }],
+        }),
+        'u-admin-a',
+        { targetOrganizationId: 'org-a', confirmation: CONFIRMATION },
+      ),
+    ).rejects.toBeInstanceOf(BadRequestException);
+    expect(writesTo(db, 'events')).toEqual([]);
+    expect(writesTo(db, 'referee_compensation_event_settings')).toEqual([]);
   });
 });
