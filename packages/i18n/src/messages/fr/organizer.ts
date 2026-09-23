@@ -3116,17 +3116,12 @@ export const organizer = {
     noReferees: 'Aucun arbitre inscrit. Recherchez ci-dessus pour en ajouter.',
     personColumn: 'Personne',
     globalProfileLinked: 'Profil global lie',
-    searchGlobalPersonsPlaceholder: 'Rechercher des personnes globales…',
-    createGlobalProfile: '+ Créer un profil global',
-    linkGlobalProfile: 'Lier un profil global',
     removeQualification: '– Retirer',
     linkProfileFirst: "Liez d'abord un profil global",
     ratingTooltip: 'Note {star}',
     addRefereeFailed: "Impossible d'ajouter l'arbitre.",
     qualificationSaveFailed: "Impossible d'enregistrer la qualification.",
     qualificationRemoveFailed: 'Impossible de retirer la qualification.',
-    linkProfileFailed: 'Impossible de lier le profil global.',
-    createProfileFailed: 'Impossible de créer le profil global.',
   },
   pool: {
     match: {

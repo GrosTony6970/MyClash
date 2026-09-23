@@ -2599,16 +2599,6 @@ export class FightersService {
       );
   }
 
-  async linkRefereeQualification(qualificationId: string, globalPersonId: string) {
-    const { error } = await this.supabase.service
-      .from('referee_qualifications')
-      .update({ global_person_id: globalPersonId })
-      .eq('id', qualificationId)
-      .is('global_person_id', null);
-
-    if (error) throw new BadRequestException(error.message);
-  }
-
   async linkWorkshopEnrollment(enrollmentId: string, globalPersonId: string) {
     // An instructor holds no participant seat in a workshop they teach
     // (enforced on self-enrollment in EnrollmentService.enroll). Linking an

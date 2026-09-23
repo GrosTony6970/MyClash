@@ -55,7 +55,7 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  '/api/v1/hema-ratings/fighters/{hemaRatingsId}/sync': {
+  '/api/v1/events/{eventId}/hema-ratings/fighters/{hemaRatingsId}/sync': {
     parameters: {
       query?: never;
       header?: never;
@@ -64,8 +64,233 @@ export interface paths {
     };
     get?: never;
     put?: never;
-    /** Background-sync a single HEMA Ratings fighter */
+    /** Background-sync a single HEMA Ratings fighter (editor+) */
     post: operations['HemaRatingsController_sync'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/organizations': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List all organizations (super admin) */
+    get: operations['OrganizationsController_list'];
+    put?: never;
+    /** Create organization (pending approval) */
+    post: operations['OrganizationsController_create'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/organizations/public': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List public organisers (anonymous, searchable) */
+    get: operations['OrganizationsController_listPublic'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/organizations/public/{slug}': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Public organiser profile by slug (anonymous) */
+    get: operations['OrganizationsController_getPublicBySlug'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/organizations/slug/{slug}': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Get organization by slug */
+    get: operations['OrganizationsController_getBySlug'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/organizations/{id}/dashboard-stats': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Get organizer dashboard statistics */
+    get: operations['OrganizationsController_dashboardStats'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/organizations/{id}': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Get organization by ID */
+    get: operations['OrganizationsController_getById'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    /** Update organization (owner) */
+    patch: operations['OrganizationsController_update'];
+    trace?: never;
+  };
+  '/api/v1/organizations/{id}/logo': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Upload organization logo (org admin+) */
+    post: operations['OrganizationsController_uploadLogo'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/organizations/{id}/members': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List organization members with resolved names (org admin+) */
+    get: operations['OrganizationsController_listMembers'];
+    put?: never;
+    /** Add member to organization by userId or email (owner) */
+    post: operations['OrganizationsController_addMember'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/organizations/{id}/members/{userId}': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post?: never;
+    /** Remove member from organization (owner; owner row protected) */
+    delete: operations['OrganizationsController_removeMember'];
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/me/data-export.zip': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Download everything MyClash holds about the current user */
+    get: operations['SubjectExportController_download'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/admin/data-retention': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Data retention policy and last sweep result (super admin) */
+    get: operations['PrivacyAdminController_getRetention'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    /** Update data retention horizons (super admin) */
+    patch: operations['PrivacyAdminController_updateRetention'];
+    trace?: never;
+  };
+  '/api/v1/admin/data-retention/run': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Run the retention sweep immediately (super admin) */
+    post: operations['PrivacyAdminController_runRetention'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/admin/global-persons/{id}/anonymise': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Fully anonymise a profile — replaces the name and rotates the slug (super admin, irreversible) */
+    post: operations['PrivacyAdminController_anonymise'];
     delete?: never;
     options?: never;
     head?: never;
@@ -510,231 +735,6 @@ export interface paths {
     post?: never;
     /** Delete the current user account */
     delete: operations['MeController_deleteAccount'];
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/api/v1/organizations': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** List all organizations (super admin) */
-    get: operations['OrganizationsController_list'];
-    put?: never;
-    /** Create organization (pending approval) */
-    post: operations['OrganizationsController_create'];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/api/v1/organizations/public': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** List public organisers (anonymous, searchable) */
-    get: operations['OrganizationsController_listPublic'];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/api/v1/organizations/public/{slug}': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** Public organiser profile by slug (anonymous) */
-    get: operations['OrganizationsController_getPublicBySlug'];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/api/v1/organizations/slug/{slug}': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** Get organization by slug */
-    get: operations['OrganizationsController_getBySlug'];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/api/v1/organizations/{id}/dashboard-stats': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** Get organizer dashboard statistics */
-    get: operations['OrganizationsController_dashboardStats'];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/api/v1/organizations/{id}': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** Get organization by ID */
-    get: operations['OrganizationsController_getById'];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    /** Update organization (owner) */
-    patch: operations['OrganizationsController_update'];
-    trace?: never;
-  };
-  '/api/v1/organizations/{id}/logo': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    put?: never;
-    /** Upload organization logo (org admin+) */
-    post: operations['OrganizationsController_uploadLogo'];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/api/v1/organizations/{id}/members': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** List organization members with resolved names (org admin+) */
-    get: operations['OrganizationsController_listMembers'];
-    put?: never;
-    /** Add member to organization by userId or email (owner) */
-    post: operations['OrganizationsController_addMember'];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/api/v1/organizations/{id}/members/{userId}': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    put?: never;
-    post?: never;
-    /** Remove member from organization (owner; owner row protected) */
-    delete: operations['OrganizationsController_removeMember'];
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/api/v1/me/data-export.zip': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** Download everything MyClash holds about the current user */
-    get: operations['SubjectExportController_download'];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/api/v1/admin/data-retention': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** Data retention policy and last sweep result (super admin) */
-    get: operations['PrivacyAdminController_getRetention'];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    /** Update data retention horizons (super admin) */
-    patch: operations['PrivacyAdminController_updateRetention'];
-    trace?: never;
-  };
-  '/api/v1/admin/data-retention/run': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    put?: never;
-    /** Run the retention sweep immediately (super admin) */
-    post: operations['PrivacyAdminController_runRetention'];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/api/v1/admin/global-persons/{id}/anonymise': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    put?: never;
-    /** Fully anonymise a profile — replaces the name and rotates the slug (super admin, irreversible) */
-    post: operations['PrivacyAdminController_anonymise'];
-    delete?: never;
     options?: never;
     head?: never;
     patch?: never;
@@ -5477,7 +5477,7 @@ export interface paths {
     /** List clubs (public) */
     get: operations['ClubsController_list'];
     put?: never;
-    /** Create a club (organizer+) */
+    /** Create a verified club (super admin) */
     post: operations['ClubsController_create'];
     delete?: never;
     options?: never;
@@ -5720,7 +5720,7 @@ export interface paths {
     delete: operations['ClubsController_delete'];
     options?: never;
     head?: never;
-    /** Update a club (organizer+) */
+    /** Update a club (super admin) */
     patch: operations['ClubsController_update'];
     trace?: never;
   };
@@ -5890,7 +5890,7 @@ export interface paths {
     /** List fighters (signed-in people search) */
     get: operations['FightersController_list'];
     put?: never;
-    /** Create a fighter (organizer+) */
+    /** Create a fighter (super admin) */
     post: operations['FightersController_create'];
     delete?: never;
     options?: never;
@@ -6182,7 +6182,7 @@ export interface paths {
     /** List global persons (organizer/admin picker) */
     get: operations['GlobalPersonsController_list'];
     put?: never;
-    /** Create an unclaimed global person (organizer+) */
+    /** Create an unclaimed global person (super admin) */
     post: operations['GlobalPersonsController_create'];
     delete?: never;
     options?: never;
@@ -6241,23 +6241,6 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  '/api/v1/global-persons/{id}/link-referee-qualification': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    /** Link a referee qualification to a global person (organizer+) */
-    patch: operations['GlobalPersonsController_linkRefereeQualification'];
-    trace?: never;
-  };
   '/api/v1/global-persons/{id}/link-workshop-enrollment': {
     parameters: {
       query?: never;
@@ -6271,7 +6254,7 @@ export interface paths {
     delete?: never;
     options?: never;
     head?: never;
-    /** Link a workshop enrollment to a global person (organizer+) */
+    /** Link a workshop enrollment to a global person (workshop lead+) */
     patch: operations['GlobalPersonsController_linkWorkshopEnrollment'];
     trace?: never;
   };
@@ -9597,6 +9580,36 @@ export interface components {
        */
       uptime: number;
     };
+    CreateOrganizationDto: {
+      name: string;
+      slug: string;
+      /** Format: email */
+      ownerEmail?: string;
+      ownerDisplayName?: string;
+      /** Format: uuid */
+      ownerUserId?: string;
+    };
+    UpdateOrganizationDto: {
+      name?: string;
+      slug?: string;
+    };
+    AddMemberDto: {
+      /** Format: uuid */
+      globalPersonId?: string;
+      slug?: string;
+    };
+    UpdateRetentionDto: {
+      enabled?: boolean;
+      guestSessionDays?: number;
+      aiUsageLogDays?: number;
+      broadcastRecipientDays?: number;
+      auditLogDays?: number;
+    };
+    AnonymiseDto: {
+      reason: string;
+      /** @enum {string} */
+      confirmation: 'ANONYMISE';
+    };
     RequestMagicLinkDto: {
       /** Format: email */
       email: string;
@@ -9733,36 +9746,6 @@ export interface components {
       currentPassword: string;
       /** @enum {string} */
       confirmation: 'DELETE';
-    };
-    CreateOrganizationDto: {
-      name: string;
-      slug: string;
-      /** Format: email */
-      ownerEmail?: string;
-      ownerDisplayName?: string;
-      /** Format: uuid */
-      ownerUserId?: string;
-    };
-    UpdateOrganizationDto: {
-      name?: string;
-      slug?: string;
-    };
-    AddMemberDto: {
-      /** Format: uuid */
-      globalPersonId?: string;
-      slug?: string;
-    };
-    UpdateRetentionDto: {
-      enabled?: boolean;
-      guestSessionDays?: number;
-      aiUsageLogDays?: number;
-      broadcastRecipientDays?: number;
-      auditLogDays?: number;
-    };
-    AnonymiseDto: {
-      reason: string;
-      /** @enum {string} */
-      confirmation: 'ANONYMISE';
     };
     ReassignOwnerDto: {
       /** Format: uuid */
@@ -10869,10 +10852,6 @@ export interface components {
         isInstructor?: boolean;
       }[];
     };
-    LinkQualificationDto: {
-      /** Format: uuid */
-      qualificationId: string;
-    };
     LinkEnrollmentDto: {
       /** Format: uuid */
       enrollmentId: string;
@@ -11706,6 +11685,7 @@ export interface operations {
       query?: never;
       header?: never;
       path: {
+        eventId: string;
         hemaRatingsId: string;
       };
       cookie?: never;
@@ -11713,6 +11693,347 @@ export interface operations {
     requestBody?: never;
     responses: {
       202: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  OrganizationsController_list: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  OrganizationsController_create: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['CreateOrganizationDto'];
+      };
+    };
+    responses: {
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  OrganizationsController_listPublic: {
+    parameters: {
+      query?: {
+        q?: string;
+        limit?: number;
+        offset?: number;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  OrganizationsController_getPublicBySlug: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        slug: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  OrganizationsController_getBySlug: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        slug: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  OrganizationsController_dashboardStats: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  OrganizationsController_getById: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  OrganizationsController_update: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['UpdateOrganizationDto'];
+      };
+    };
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  OrganizationsController_uploadLogo: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'multipart/form-data': {
+          /** Format: binary */
+          file?: string;
+        };
+      };
+    };
+    responses: {
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  OrganizationsController_listMembers: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  OrganizationsController_addMember: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['AddMemberDto'];
+      };
+    };
+    responses: {
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  OrganizationsController_removeMember: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+        userId: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  SubjectExportController_download: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  PrivacyAdminController_getRetention: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  PrivacyAdminController_updateRetention: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['UpdateRetentionDto'];
+      };
+    };
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  PrivacyAdminController_runRetention: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  PrivacyAdminController_anonymise: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['AnonymiseDto'];
+      };
+    };
+    responses: {
+      201: {
         headers: {
           [name: string]: unknown;
         };
@@ -12481,347 +12802,6 @@ export interface operations {
       };
       /** @description Wrong current password */
       401: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-    };
-  };
-  OrganizationsController_list: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-    };
-  };
-  OrganizationsController_create: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody: {
-      content: {
-        'application/json': components['schemas']['CreateOrganizationDto'];
-      };
-    };
-    responses: {
-      201: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-    };
-  };
-  OrganizationsController_listPublic: {
-    parameters: {
-      query?: {
-        q?: string;
-        limit?: number;
-        offset?: number;
-      };
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-    };
-  };
-  OrganizationsController_getPublicBySlug: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        slug: string;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-    };
-  };
-  OrganizationsController_getBySlug: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        slug: string;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-    };
-  };
-  OrganizationsController_dashboardStats: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        id: string;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-    };
-  };
-  OrganizationsController_getById: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        id: string;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-    };
-  };
-  OrganizationsController_update: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        id: string;
-      };
-      cookie?: never;
-    };
-    requestBody: {
-      content: {
-        'application/json': components['schemas']['UpdateOrganizationDto'];
-      };
-    };
-    responses: {
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-    };
-  };
-  OrganizationsController_uploadLogo: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        id: string;
-      };
-      cookie?: never;
-    };
-    requestBody: {
-      content: {
-        'multipart/form-data': {
-          /** Format: binary */
-          file?: string;
-        };
-      };
-    };
-    responses: {
-      201: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-    };
-  };
-  OrganizationsController_listMembers: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        id: string;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-    };
-  };
-  OrganizationsController_addMember: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        id: string;
-      };
-      cookie?: never;
-    };
-    requestBody: {
-      content: {
-        'application/json': components['schemas']['AddMemberDto'];
-      };
-    };
-    responses: {
-      201: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-    };
-  };
-  OrganizationsController_removeMember: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        id: string;
-        userId: string;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-    };
-  };
-  SubjectExportController_download: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-    };
-  };
-  PrivacyAdminController_getRetention: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-    };
-  };
-  PrivacyAdminController_updateRetention: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody: {
-      content: {
-        'application/json': components['schemas']['UpdateRetentionDto'];
-      };
-    };
-    responses: {
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-    };
-  };
-  PrivacyAdminController_runRetention: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      201: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-    };
-  };
-  PrivacyAdminController_anonymise: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        id: string;
-      };
-      cookie?: never;
-    };
-    requestBody: {
-      content: {
-        'application/json': components['schemas']['AnonymiseDto'];
-      };
-    };
-    responses: {
-      201: {
         headers: {
           [name: string]: unknown;
         };
@@ -20897,29 +20877,6 @@ export interface operations {
     requestBody: {
       content: {
         'application/json': components['schemas']['ImportCommitDto'];
-      };
-    };
-    responses: {
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-    };
-  };
-  GlobalPersonsController_linkRefereeQualification: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        id: string;
-      };
-      cookie?: never;
-    };
-    requestBody: {
-      content: {
-        'application/json': components['schemas']['LinkQualificationDto'];
       };
     };
     responses: {

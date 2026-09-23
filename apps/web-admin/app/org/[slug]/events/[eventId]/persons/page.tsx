@@ -1832,6 +1832,7 @@ export default function ParticipantsPage() {
 
               <HemaRatingsSuggest
                 apiUrl={apiUrl}
+                eventId={eventId}
                 personName={`${addForm.givenName} ${addForm.familyName}`.trim()}
                 selectedId={addForm.hemaRatingsId}
                 onSelect={(s) => setAddForm((f) => ({ ...f, hemaRatingsId: s?.id ?? '' }))}

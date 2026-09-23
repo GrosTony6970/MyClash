@@ -1643,13 +1643,6 @@ function AssignmentsTab({
   );
 }
 
-interface GlobalPersonResult {
-  id: string;
-  given_name: string;
-  family_name: string;
-  display_name: string;
-}
-
 interface PersonResult {
   id: string;
   given_name: string;
@@ -1753,11 +1746,6 @@ export default function RefereesPage() {
 
   // ── Saving state ────────────────────────────────────────────────────────────
   const [savingQual, setSavingQual] = useState<string | null>(null);
-
-  // ── Global person link state ────────────────────────────────────────────────
-  const [linkingPersonId, setLinkingPersonId] = useState<string | null>(null);
-  const [globalSearch, setGlobalSearch] = useState('');
-  const [globalResults, setGlobalResults] = useState<GlobalPersonResult[]>([]);
 
   // ── Skill modal state ───────────────────────────────────────────────────────
   // R4: `initial.description` + `isSystem` flow through so the modal
@@ -1901,30 +1889,6 @@ export default function RefereesPage() {
       controller.abort();
     };
   }, [search, searchFocused, eventId, apiUrl]);
-
-  // ── Global person search ────────────────────────────────────────────────────
-
-  useEffect(() => {
-    if (globalSearch.trim().length < 2) {
-      const timer = setTimeout(() => setGlobalResults([]), 0);
-      return () => clearTimeout(timer);
-    }
-    const controller = new AbortController();
-    const timer = setTimeout(() => {
-      // Silent, for the reason above.
-      void apiRequest<GlobalPersonResult[]>(
-        apiUrl,
-        `/api/v1/global-persons?q=${encodeURIComponent(globalSearch)}&roles=referee`,
-        { signal: controller.signal },
-      ).then((r) => {
-        if (r.ok) setGlobalResults(r.data);
-      });
-    }, 250);
-    return () => {
-      clearTimeout(timer);
-      controller.abort();
-    };
-  }, [globalSearch, apiUrl]);
 
   // ── Actions ─────────────────────────────────────────────────────────────────
 
@@ -2077,46 +2041,6 @@ export default function RefereesPage() {
       const message = failureMessage(r, t, t('organizer.refereesPage.availabilitySaveFailed'));
       if (message) toast.error(message);
     }
-  }
-
-  async function linkToGlobalPerson(qualificationId: string, globalPersonId: string) {
-    const r = await apiRequest(
-      apiUrl,
-      `/api/v1/global-persons/${globalPersonId}/link-referee-qualification`,
-      { method: 'PATCH', body: { qualificationId } },
-    );
-    if (!r.ok) {
-      // A link is refused by name when the profile already carries another
-      // person's qualification — which is exactly the case an operator has to
-      // be told apart from a generic failure.
-      const message = failureMessage(r, t, t('organizer.refereesPage.linkProfileFailed'));
-      if (message) toast.error(message);
-    }
-    setLinkingPersonId(null);
-    setGlobalSearch('');
-    setGlobalResults([]);
-    setRefereesKey((k) => k + 1);
-  }
-
-  async function createAndLinkGlobalPerson(ref: EventRefereeRow) {
-    const nameParts = ref.displayName.split(' ');
-    const givenName = nameParts[0] ?? ref.displayName;
-    const familyName = nameParts.slice(1).join(' ') || givenName;
-    const r = await apiRequest<{ id: string }>(apiUrl, `/api/v1/global-persons`, {
-      method: 'POST',
-      body: { givenName, familyName, displayName: ref.displayName, isReferee: true },
-    });
-    if (!r.ok) {
-      const message = failureMessage(r, t, t('organizer.refereesPage.createProfileFailed'));
-      if (message) toast.error(message);
-      setRefereesKey((k) => k + 1);
-      return;
-    }
-    // Find any qual id for this person
-    const firstQualId = Array.from(qualIdMap.entries()).find(([key]) =>
-      key.startsWith(`${ref.personId}:`),
-    )?.[1];
-    if (firstQualId) await linkToGlobalPerson(firstQualId, r.data.id);
   }
 
   // ── Render ──────────────────────────────────────────────────────────────────
@@ -2396,72 +2320,9 @@ export default function RefereesPage() {
                       <td className="py-3 pr-4 align-top">
                         <p className="font-medium text-foreground">{ref.displayName}</p>
                         {ref.clubLabel && <p className="text-xs text-muted">{ref.clubLabel}</p>}
-                        {ref.personId ? (
-                          <span className="text-xs text-success font-medium">
-                            {t('organizer.refereesPage.globalProfileLinked')}
-                          </span>
-                        ) : (
-                          <div className="mt-1">
-                            {linkingPersonId === ref.personId ? (
-                              <div className="flex flex-col gap-1">
-                                <input
-                                  type="search"
-                                  value={globalSearch}
-                                  onChange={(e) => setGlobalSearch(e.target.value)}
-                                  placeholder={t(
-                                    'organizer.refereesPage.searchGlobalPersonsPlaceholder',
-                                  )}
-                                  className="border border-border rounded px-2 py-1 text-xs w-48 focus:outline-none focus:ring-1 ring-accent"
-                                />
-                                {globalResults.length > 0 && (
-                                  <div className="bg-surface border border-border rounded shadow text-xs max-h-32 overflow-y-auto">
-                                    {globalResults.map((gp) => (
-                                      <button
-                                        key={gp.id}
-                                        onClick={() => {
-                                          // Find any qual id for this user
-                                          const firstQualId = Array.from(qualIdMap.entries()).find(
-                                            ([key]) => key.startsWith(`${ref.personId}:`),
-                                          )?.[1];
-                                          if (firstQualId)
-                                            void linkToGlobalPerson(firstQualId, gp.id);
-                                        }}
-                                        className="block w-full text-left px-2 py-1 hover:bg-background border-b border-border last:border-0"
-                                      >
-                                        {gp.display_name}
-                                      </button>
-                                    ))}
-                                  </div>
-                                )}
-                                <div className="flex gap-1">
-                                  <button
-                                    onClick={() => void createAndLinkGlobalPerson(ref)}
-                                    className="text-xs text-gold-text hover:text-warning"
-                                  >
-                                    {t('organizer.refereesPage.createGlobalProfile')}
-                                  </button>
-                                  <button
-                                    onClick={() => {
-                                      setLinkingPersonId(null);
-                                      setGlobalSearch('');
-                                      setGlobalResults([]);
-                                    }}
-                                    className="text-xs text-muted hover:text-foreground-secondary"
-                                  >
-                                    {t('organizer.refereesPage.cancel')}
-                                  </button>
-                                </div>
-                              </div>
-                            ) : (
-                              <button
-                                onClick={() => setLinkingPersonId(ref.personId)}
-                                className="text-xs text-gold-text hover:text-warning"
-                              >
-                                {t('organizer.refereesPage.linkGlobalProfile')}
-                              </button>
-                            )}
-                          </div>
-                        )}
+                        <span className="text-xs text-success font-medium">
+                          {t('organizer.refereesPage.globalProfileLinked')}
+                        </span>
                       </td>
 
                       {/* Skill cells — relocated from Qualifications to Referees in R1. */}

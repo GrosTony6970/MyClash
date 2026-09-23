@@ -11,13 +11,22 @@ import { FighterMergeService } from './merge.service';
 import { CsvImportService } from '../persons/csv-import.service';
 import { TournamentPlacementModule } from '../tournament-placement/tournament-placement.module';
 import { PrivacyModule } from '../privacy/privacy.module';
+import { OrganizationsModule } from '../organizations/organizations.module';
 
 @Module({
   // TournamentPlacementModule provides the shared placement service used to
   // compute career placements (computeFinalRanking parity with leagues + public).
   // PrivacyModule is a leaf (imports nothing), so its edge cannot form a cycle;
   // getBySlug uses ErasureService to answer 410 on a retired slug.
-  imports: [HemaRatingsModule, AdminModule, TournamentPlacementModule, PrivacyModule],
+  // OrganizationsModule provides the org-role check the workshop-enrolment link
+  // runs through (`assertCanManageWorkshopEnrollment`).
+  imports: [
+    HemaRatingsModule,
+    AdminModule,
+    TournamentPlacementModule,
+    PrivacyModule,
+    OrganizationsModule,
+  ],
   controllers: [FightersController, WeaponsController, GlobalPersonsController],
   providers: [FightersService, FighterMergeService, CsvImportService],
   exports: [FightersService],

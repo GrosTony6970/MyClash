@@ -44,7 +44,6 @@ import {
   GlobalPersonQueryDto,
   ImportCommitDto,
   LinkEnrollmentDto,
-  LinkQualificationDto,
   MergeFightersDto,
   PublicFighterQueryDto,
   PromoteFighterDto,
@@ -53,6 +52,9 @@ import {
   UpdateGlobalPersonDto,
 } from './dto/fighters.dto';
 import { getActorId } from '../../common/auth/actor';
+import { requireRequestUserId } from '../../common/auth/request-user';
+import { assertCanManageWorkshopEnrollment } from '../../common/auth/workshop-authz';
+import { OrganizationsService } from '../organizations/organizations.service';
 
 /** Extract claimed user ID from Supabase JWT in request. */
 async function getClaimedUserId(req: FastifyRequest, supabase: SupabaseService): Promise<string> {
@@ -238,11 +240,21 @@ export class FightersController {
     return this.fighters.getBySlug(slug);
   }
 
-  /** POST /api/v1/fighters */
+  /**
+   * POST /api/v1/fighters
+   *
+   * Platform admin (operator rulings 36 and 55). Minting a platform-wide fighter
+   * identity from nothing belongs with `merge` and `revert`, not with
+   * `PATCH :id` below — that one edits an EXISTING profile whose owner can be
+   * named, so it answers to the claimed owner or an organiser instead. No
+   * caller sends this today.
+   */
   @Post()
   @HttpCode(HttpStatus.CREATED)
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Create a fighter (organizer+)' })
+  @UseGuards(PlatformRoleGuard)
+  @PlatformRole('platform_admin')
+  @ApiOperation({ summary: 'Create a fighter (super admin)' })
   async create(@Body() dto: CreateFighterDto) {
     return this.fighters.create(dto);
   }
@@ -328,6 +340,7 @@ export class GlobalPersonsController {
   constructor(
     private readonly fighters: FightersService,
     private readonly supabase: SupabaseService,
+    private readonly orgs: OrganizationsService,
   ) {}
 
   /**
@@ -363,11 +376,21 @@ export class GlobalPersonsController {
     return this.fighters.listGlobalPersons(query, { includeContactPii });
   }
 
-  /** POST /api/v1/global-persons */
+  /**
+   * POST /api/v1/global-persons
+   *
+   * Platform admin: an organiser never creates a cross-event profile by hand
+   * (operator ruling 56). Adding a person to a roster mints or links one
+   * through `GlobalPersonResolverService`, which is the path that carries the
+   * matching tiers; a hand-made profile in someone else's name is the door
+   * rulings 35 and 40 closed.
+   */
   @Post()
   @HttpCode(HttpStatus.CREATED)
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Create an unclaimed global person (organizer+)' })
+  @UseGuards(PlatformRoleGuard)
+  @PlatformRole('platform_admin')
+  @ApiOperation({ summary: 'Create an unclaimed global person (super admin)' })
   async create(@Body() dto: CreateGlobalPersonDto) {
     return this.fighters.createGlobalPerson(dto);
   }
@@ -441,30 +464,33 @@ export class GlobalPersonsController {
 
   // (`PATCH :id/roles` and `GET/PATCH :id/referee-profile` were removed — a
   // half-shipped referee-profile editor with zero consumers; role edits flow
-  // through the generic `PATCH global-persons/:id` body instead.)
+  // through the generic `PATCH global-persons/:id` body instead. So was
+  // `PATCH :id/link-referee-qualification`, whose only caller sat inside a
+  // referees-page block that has been unreachable since migration 0063 made
+  // every referee row a profile — operator ruling 37.)
 
-  /** PATCH /api/v1/global-persons/:id/link-referee-qualification */
-  @Patch(':id/link-referee-qualification')
-  @ApiBearerAuth()
-  @ApiOperation({ summary: 'Link a referee qualification to a global person (organizer+)' })
-  @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
-  async linkRefereeQualification(
-    @Param('id', ParseUUIDPipe) globalPersonId: string,
-    @Body() dto: LinkQualificationDto,
-  ) {
-    await this.fighters.linkRefereeQualification(dto.qualificationId, globalPersonId);
-    return { linked: true };
-  }
-
-  /** PATCH /api/v1/global-persons/:id/link-workshop-enrollment */
+  /**
+   * PATCH /api/v1/global-persons/:id/link-workshop-enrollment
+   *
+   * `workshop_lead` on the enrolment's OWN Event (operator ruling 38). The
+   * enrolment id comes from the body, so the Event is resolved from that row
+   * rather than named by the caller.
+   */
   @Patch(':id/link-workshop-enrollment')
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Link a workshop enrollment to a global person (organizer+)' })
+  @ApiOperation({ summary: 'Link a workshop enrollment to a global person (workshop lead+)' })
   @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
   async linkWorkshopEnrollment(
     @Param('id', ParseUUIDPipe) globalPersonId: string,
     @Body() dto: LinkEnrollmentDto,
+    @Req() req: FastifyRequest,
   ) {
+    const userId = await requireRequestUserId(req, this.supabase);
+    await assertCanManageWorkshopEnrollment(
+      { supabase: this.supabase, orgs: this.orgs },
+      dto.enrollmentId,
+      userId,
+    );
     await this.fighters.linkWorkshopEnrollment(dto.enrollmentId, globalPersonId);
     return { linked: true };
   }

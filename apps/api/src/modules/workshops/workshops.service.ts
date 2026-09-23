@@ -22,6 +22,7 @@ import { NotificationSchedulerService } from '../../workers/notification-schedul
 import { resolveCatalogWeapon } from '../fighters/weapon-catalog.util';
 import { NotificationEventsService } from '../notifications/event-handlers/notification-events.service';
 import { OrganizationsService } from '../organizations/organizations.service';
+import { WORKSHOP_MANAGE_ROLE } from '../../common/auth/workshop-authz';
 import { PrivacyService } from '../persons/privacy.service';
 import { SupabaseService } from '../supabase/supabase.service';
 
@@ -1168,7 +1169,7 @@ export class WorkshopsService {
   }
 
   private async assertCanManageEvent(eventId: string, userId: string): Promise<void> {
-    await this.assertEventRole(eventId, userId, 'workshop_lead');
+    await this.assertEventRole(eventId, userId, WORKSHOP_MANAGE_ROLE);
   }
 
   private async assertCanReadEvent(eventId: string, userId: string): Promise<void> {

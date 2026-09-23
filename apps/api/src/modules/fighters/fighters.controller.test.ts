@@ -64,7 +64,9 @@ describe('GlobalPersonsController.list access', () => {
   const supabase = {} as never;
 
   function controller() {
-    return new GlobalPersonsController(fighters, supabase);
+    // `list` reaches neither the org-role check nor the workshop hop, so the
+    // third dependency is never touched on this path.
+    return new GlobalPersonsController(fighters, supabase, {} as never);
   }
 
   function requestWith(identity: unknown) {

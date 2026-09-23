@@ -14,13 +14,24 @@ export interface HemaRatingsSuggestion {
 
 interface HemaRatingsSuggestProps {
   apiUrl: string;
+  /** The Event this picker belongs to — the sync route is scoped to it. */
+  eventId: string;
   personName: string;
   selectedId: string;
   onSelect: (suggestion: HemaRatingsSuggestion | null) => void;
 }
 
+/**
+ * The HEMA Ratings picker on an Event's persons page — its only mount.
+ *
+ * `eventId` is not decoration: the background sync it fires is scoped to that
+ * Event and checks the caller holds `editor` there, the same bar as adding the
+ * person. The route asked nobody until 2026-09-23, which let any caller make
+ * the server fetch an arbitrary id from hemaratings.com.
+ */
 export function HemaRatingsSuggest({
   apiUrl,
+  eventId,
   personName,
   selectedId,
   onSelect,
@@ -78,7 +89,7 @@ export function HemaRatingsSuggest({
    * participant.
    */
   function handleSelect(suggestion: HemaRatingsSuggestion) {
-    fetch(`${apiUrl}/api/v1/hema-ratings/fighters/${suggestion.id}/sync`, {
+    fetch(`${apiUrl}/api/v1/events/${eventId}/hema-ratings/fighters/${suggestion.id}/sync`, {
       method: 'POST',
       credentials: 'include',
       keepalive: true,

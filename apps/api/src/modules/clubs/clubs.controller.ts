@@ -180,11 +180,24 @@ export class ClubsController {
     return this.clubs.getBySlug(slug);
   }
 
-  /** POST /api/v1/clubs */
+  /**
+   * POST /api/v1/clubs
+   *
+   * Platform admin (so `platform_admin` or `super_admin`): this creates a
+   * VERIFIED club, which is a catalogue entry every event shares.
+   *
+   * Two organiser doors to a club row stay open, both creating it UNVERIFIED:
+   * `POST /events/:eventId/club-requests` (`events.controller.ts`, org admin)
+   * queues one for review, and the add-participant form's `newClubName` reaches
+   * `resolveOrCreateClubByName` (`persons.service.ts`) at `editor`, with no
+   * review request at all. Operator ruling 38 moved only this route.
+   */
   @Post()
   @HttpCode(HttpStatus.CREATED)
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Create a club (organizer+)' })
+  @UseGuards(PlatformRoleGuard)
+  @PlatformRole('platform_admin')
+  @ApiOperation({ summary: 'Create a verified club (super admin)' })
   async create(@Body() dto: CreateClubDto) {
     return this.clubs.create(dto);
   }
@@ -211,10 +224,17 @@ export class ClubsController {
     return this.clubs.setVerified(id, false, getActorId(req));
   }
 
-  /** PATCH /api/v1/clubs/:id */
+  /**
+   * PATCH /api/v1/clubs/:id
+   *
+   * Platform admin, like every other write on this controller: a club row is
+   * shared by every event that points at it, so editing one is catalogue work.
+   */
   @Patch(':id')
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Update a club (organizer+)' })
+  @UseGuards(PlatformRoleGuard)
+  @PlatformRole('platform_admin')
+  @ApiOperation({ summary: 'Update a club (super admin)' })
   @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
   async update(@Param('id', ParseUUIDPipe) id: string, @Body() dto: UpdateClubDto) {
     return this.clubs.update(id, dto);

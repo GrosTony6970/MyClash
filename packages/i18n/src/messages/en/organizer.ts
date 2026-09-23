@@ -3136,17 +3136,12 @@ export const organizer = {
     noReferees: 'No referees registered yet. Search above to add.',
     personColumn: 'Person',
     globalProfileLinked: 'Global profile linked',
-    searchGlobalPersonsPlaceholder: 'Search global persons…',
-    createGlobalProfile: '+ Create global profile',
-    linkGlobalProfile: 'Link global profile',
     removeQualification: '– Remove',
     linkProfileFirst: 'Link a global profile first',
     ratingTooltip: 'Rating {star}',
     addRefereeFailed: 'Could not add referee.',
     qualificationSaveFailed: 'Could not save qualification.',
     qualificationRemoveFailed: 'Could not remove qualification.',
-    linkProfileFailed: 'Could not link global profile.',
-    createProfileFailed: 'Could not create global profile.',
   },
   pool: {
     match: {

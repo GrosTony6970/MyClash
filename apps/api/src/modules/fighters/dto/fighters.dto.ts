@@ -240,9 +240,6 @@ const globalPersonQuerySchema = z
   .strict();
 export class GlobalPersonQueryDto extends createZodDto(globalPersonQuerySchema) {}
 
-const linkQualificationSchema = z.object({ qualificationId: z.uuid() }).strict();
-export class LinkQualificationDto extends createZodDto(linkQualificationSchema) {}
-
 const linkEnrollmentSchema = z.object({ enrollmentId: z.uuid() }).strict();
 export class LinkEnrollmentDto extends createZodDto(linkEnrollmentSchema) {}
 
