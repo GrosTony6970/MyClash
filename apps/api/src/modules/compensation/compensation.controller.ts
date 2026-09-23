@@ -14,6 +14,7 @@ import {
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
 import type { FastifyRequest } from 'fastify';
+import { requireRequestUserId } from '../../common/auth/request-user';
 import { SupabaseService } from '../supabase/supabase.service';
 import { CompensationService } from './compensation.service';
 import {
@@ -130,7 +131,12 @@ export class CompensationController {
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Get compensation settings for an event' })
   @ApiParam({ name: 'eventId', type: 'string', format: 'uuid' })
-  async getEventSettings(@Param('eventId', ParseUUIDPipe) eventId: string) {
+  async getEventSettings(
+    @Param('eventId', ParseUUIDPipe) eventId: string,
+    @Req() req: FastifyRequest,
+  ) {
+    const userId = await requireRequestUserId(req, this.supabase);
+    await this.compensation.requireEventOrgAdmin(eventId, userId);
     return this.compensation.getEventSettings(eventId);
   }
 
@@ -153,7 +159,11 @@ export class CompensationController {
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Compute live compensation report for an event' })
   @ApiParam({ name: 'eventId', type: 'string', format: 'uuid' })
-  async getReport(@Param('eventId', ParseUUIDPipe) eventId: string) {
+  async getReport(@Param('eventId', ParseUUIDPipe) eventId: string, @Req() req: FastifyRequest) {
+    // What each referee is owed: the admin bar the settings save and the paid
+    // toggle already use (ruling 63), and a signed-out caller gets 401 first.
+    const userId = await requireRequestUserId(req, this.supabase);
+    await this.compensation.requireEventOrgAdmin(eventId, userId);
     return this.compensation.computeReport(eventId);
   }
 

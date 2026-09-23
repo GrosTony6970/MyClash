@@ -599,7 +599,8 @@ export class CompensationService {
     }
   }
 
-  private async requireEventOrgAdmin(eventId: string, userId: string): Promise<void> {
+  /** An admin of the Event's organisation: every compensation read and write of an Event (ruling 63). */
+  async requireEventOrgAdmin(eventId: string, userId: string): Promise<void> {
     const { data: event } = await this.supabase.service
       .from('events')
       .select('organization_id')
