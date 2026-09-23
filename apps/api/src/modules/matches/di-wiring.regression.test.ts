@@ -13,9 +13,10 @@ import { join } from 'node:path';
  * bracket seeds from registration order while the pools-complete gate is
  * vacuously true (PhasesService.poolStandings). Both have regressed before.
  *
- * The app builds with tsc (metadata emitted) but the test runner uses esbuild
- * (no decorator metadata), so we cannot assert design:paramtypes here — guard
- * the source instead: these services must be VALUE-imported, never `import type`.
+ * `app.module.boot.test.ts` builds the whole container, but it cannot see this:
+ * an `@Optional()` dependency Nest cannot resolve is injected as `undefined` and
+ * the build passes. So guard the source instead: these services must be
+ * VALUE-imported, never `import type`.
  */
 const read = (rel: string) => readFileSync(join(__dirname, rel), 'utf8');
 

@@ -6,10 +6,10 @@ import { join } from 'node:path';
  * Guard against NestJS module import CYCLES.
  *
  * A cycle between @Module()s is invisible to `tsc` (the type graph is fine) and
- * invisible to this test suite's DI — vitest runs through esbuild, which emits
- * no decorator metadata, so we cannot boot the real container here (see
- * modules/matches/di-wiring.regression.test.ts for the same constraint). A cycle
- * therefore only surfaces when the API boots, i.e. in production.
+ * surfaces only when the container is built. `app.module.boot.test.ts` builds it
+ * and goes red on a cycle too, but Nest's message names one module (e.g. "cannot
+ * create the HemaRatingsModule instance"); this scan names the whole loop and the
+ * fix.
  *
  * Concrete near-miss this exists to prevent: PoolStandingsService needs
  * RulesetResolver so org-authored rulesets stop 400-ing on standings. The
