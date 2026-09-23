@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { StaffService } from './staff.service';
 import { StaffController } from './staff.controller';
 import { mockSupabase, selectsFor } from '../../common/testing/supabase-chain';
+import { OrganizationsService } from '../organizations/organizations.service';
 
 /**
  * The public piste display — the endpoint a venue TV points at.
@@ -74,21 +75,51 @@ const DEFAULT_LICES = [
   liceRow('lice-pct', '100% Cotton', EVENT, 4),
 ];
 
-const RUNNING_ON_LICE = [
-  { id: 'match-here', lice_id: LICE, status: 'running', scheduled_at: '2026-08-08T09:00:00Z' },
-];
+/** A bout on a piste, with the Tournament and Event its visibility is read from. */
+const bout = (
+  id: string,
+  status: string,
+  scheduledAt: string,
+  tournamentStatus = 'running',
+  event: { id: string; status: string } = { id: EVENT, status: 'running' },
+) => ({
+  id,
+  lice_id: LICE,
+  status,
+  scheduled_at: scheduledAt,
+  phases: {
+    tournaments: {
+      status: tournamentStatus,
+      events: { ...event, organization_id: 'org-1' },
+    },
+  },
+  // The flat key a dotted filter reads on a seeded row (`onlyPublicTournaments`).
+  'phases.tournaments.status': tournamentStatus,
+});
+
+const RUNNING_ON_LICE = [bout('match-here', 'running', '2026-08-08T09:00:00Z')];
+
+/** No login, no staff cookie: the hall projector. */
+const ANON = { userId: 'anonymous', staff: null };
+const ANON_REQ = { headers: {}, cookies: {}, identity: { kind: 'anonymous' } } as never;
 
 function build(
   matches: Array<Record<string, unknown>> = [],
   lices: Array<Record<string, unknown>> = DEFAULT_LICES,
+  events: Array<Record<string, unknown>> = [eventRow(OTHER_EVENT), eventRow(EVENT)],
 ) {
   const supabase = mockSupabase({
-    events: { rows: [eventRow(OTHER_EVENT), eventRow(EVENT)] },
+    events: { rows: events },
     lices: { rows: lices },
     matches: { rows: matches },
+    organization_members: {
+      rows: [{ organization_id: 'org-1', user_id: 'u-member', role: 'read_only' }],
+    },
+    event_staff_accounts: { rows: [{ id: 'staff-1', event_id: EVENT, status: 'active' }] },
   });
-  const service = new StaffService(supabase as never, {} as never, {} as never, {} as never);
-  const controller = new StaffController(service, {} as never);
+  const orgs = new OrganizationsService(supabase as never);
+  const service = new StaffService(supabase as never, orgs, {} as never, {} as never);
+  const controller = new StaffController(service, supabase as never, orgs);
   return { service, controller, supabase };
 }
 
@@ -102,7 +133,11 @@ describe('StaffService.getPublicLiceCurrent', () => {
   it('answers with the board of the piste whose name is in the URL, at that URL event', async () => {
     const { service, supabase } = build(RUNNING_ON_LICE);
 
-    const result = (await service.getPublicLiceCurrent(`slug-${EVENT}`, 'Piste 1')) as LiceCurrent;
+    const result = (await service.getPublicLiceCurrent(
+      `slug-${EVENT}`,
+      'Piste 1',
+      ANON,
+    )) as LiceCurrent;
 
     expect(result.liceId).toBe(LICE);
     expect(result.current?.id).toBe('match-here');
@@ -115,16 +150,16 @@ describe('StaffService.getPublicLiceCurrent', () => {
   it('does not hand a `Piste_1` URL the board of `Piste 1`', async () => {
     const { service } = build(RUNNING_ON_LICE);
 
-    await expect(service.getPublicLiceCurrent(`slug-${EVENT}`, 'Piste_1')).rejects.toBeInstanceOf(
-      NotFoundException,
-    );
+    await expect(
+      service.getPublicLiceCurrent(`slug-${EVENT}`, 'Piste_1', ANON),
+    ).rejects.toBeInstanceOf(NotFoundException);
   });
 
   it('answers a `%` URL with our own not-found, not the database’s message', async () => {
     const { service } = build(RUNNING_ON_LICE);
 
     const error = await service
-      .getPublicLiceCurrent(`slug-${EVENT}`, '%')
+      .getPublicLiceCurrent(`slug-${EVENT}`, '%', ANON)
       .then(() => null)
       .catch((thrown: unknown) => thrown);
 
@@ -138,6 +173,7 @@ describe('StaffService.getPublicLiceCurrent', () => {
     const result = (await service.getPublicLiceCurrent(
       `slug-${EVENT}`,
       '  piste 1  ',
+      ANON,
     )) as LiceCurrent;
 
     expect(result.liceId).toBe(LICE);
@@ -147,7 +183,11 @@ describe('StaffService.getPublicLiceCurrent', () => {
   it('tells `Piste1` from `Piste 1` — the fold trims, it does not strip', async () => {
     const { service } = build(RUNNING_ON_LICE);
 
-    const result = (await service.getPublicLiceCurrent(`slug-${EVENT}`, 'Piste1')) as LiceCurrent;
+    const result = (await service.getPublicLiceCurrent(
+      `slug-${EVENT}`,
+      'Piste1',
+      ANON,
+    )) as LiceCurrent;
 
     expect(result.liceId).toBe('lice-3');
   });
@@ -165,7 +205,11 @@ describe('StaffService.getPublicLiceCurrent', () => {
       ],
     );
 
-    const result = (await service.getPublicLiceCurrent(`slug-${EVENT}`, 'Piste 1')) as LiceCurrent;
+    const result = (await service.getPublicLiceCurrent(
+      `slug-${EVENT}`,
+      'Piste 1',
+      ANON,
+    )) as LiceCurrent;
 
     expect(result.liceId).toBe('lice-m');
   });
@@ -177,7 +221,7 @@ describe('StaffService.getPublicLiceCurrent', () => {
       [liceRow('lice-m', 'Piste 1', EVENT, 1), liceRow('lice-z', ' PISTE 1', EVENT, 1)],
     );
 
-    await service.getPublicLiceCurrent(`slug-${EVENT}`, 'Piste 1');
+    await service.getPublicLiceCurrent(`slug-${EVENT}`, 'Piste 1', ANON);
 
     expect(warn).toHaveBeenCalledWith(expect.stringContaining('2 pistes named "piste 1"'));
   });
@@ -186,7 +230,7 @@ describe('StaffService.getPublicLiceCurrent', () => {
     const warn = vi.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
     const { service } = build(RUNNING_ON_LICE);
 
-    await service.getPublicLiceCurrent(`slug-${EVENT}`, 'Piste 1');
+    await service.getPublicLiceCurrent(`slug-${EVENT}`, 'Piste 1', ANON);
 
     expect(warn).not.toHaveBeenCalled();
   });
@@ -194,9 +238,9 @@ describe('StaffService.getPublicLiceCurrent', () => {
   it('refuses an event slug that does not exist rather than falling back to one', async () => {
     const { service } = build();
 
-    await expect(service.getPublicLiceCurrent('slug-nowhere', 'Piste 1')).rejects.toBeInstanceOf(
-      NotFoundException,
-    );
+    await expect(
+      service.getPublicLiceCurrent('slug-nowhere', 'Piste 1', ANON),
+    ).rejects.toBeInstanceOf(NotFoundException);
   });
 });
 
@@ -212,6 +256,7 @@ describe('StaffController.publicLiceCurrent takes the name as the router decoded
     const result = (await controller.publicLiceCurrent(
       `slug-${EVENT}`,
       'Piste%201',
+      ANON_REQ,
     )) as LiceCurrent;
 
     expect(result.liceId).toBe('lice-esc');
@@ -223,6 +268,7 @@ describe('StaffController.publicLiceCurrent takes the name as the router decoded
     const result = (await controller.publicLiceCurrent(
       `slug-${EVENT}`,
       '100% Cotton',
+      ANON_REQ,
     )) as LiceCurrent;
 
     expect(result.liceId).toBe('lice-pct');
@@ -231,9 +277,114 @@ describe('StaffController.publicLiceCurrent takes the name as the router decoded
   it('still finds an ordinary name', async () => {
     const { controller } = build(RUNNING_ON_LICE);
 
-    const result = (await controller.publicLiceCurrent(`slug-${EVENT}`, 'Piste 1')) as LiceCurrent;
+    const result = (await controller.publicLiceCurrent(
+      `slug-${EVENT}`,
+      'Piste 1',
+      ANON_REQ,
+    )) as LiceCurrent;
 
     expect(result.liceId).toBe(LICE);
     expect(result.current?.id).toBe('match-here');
+  });
+});
+
+/**
+ * The hall projector has no login and no staff cookie. A draft Event's piste,
+ * and a bout of a Tournament that is not published, stay dark for it; a laptop
+ * signed in as a club member, or the Event's own staff, sees them (rulings
+ * 81-83, 89).
+ */
+describe('the public piste board hides what is not public (rulings 81-83, 89)', () => {
+  const MEMBER = { userId: 'u-member', staff: null };
+  const STAFF = { userId: 'anonymous', staff: { staffId: 'staff-1', eventId: EVENT } };
+  const draftEvent = () =>
+    build(
+      [
+        bout('match-here', 'running', '2026-08-08T09:00:00Z', 'running', {
+          id: EVENT,
+          status: 'draft',
+        }),
+      ],
+      DEFAULT_LICES,
+      [eventRow(OTHER_EVENT), { ...eventRow(EVENT), status: 'draft' }],
+    );
+  const refusal = (call: Promise<unknown>) =>
+    call.then(
+      () => null,
+      (error: unknown) => (error as NotFoundException).getResponse(),
+    );
+
+  it("answers a draft Event's piste to a projector exactly as an unknown slug", async () => {
+    const { service, supabase } = draftEvent();
+    const unknown = await refusal(service.getPublicLiceCurrent('slug-nowhere', 'Piste 1', ANON));
+    expect(await refusal(service.getPublicLiceCurrent(`slug-${EVENT}`, 'Piste 1', ANON))).toEqual(
+      unknown,
+    );
+    expect(selectsFor(supabase.from, 'lices')).toEqual([]);
+  });
+
+  it("shows a draft Event's piste to a club member and to the Event's staff", async () => {
+    for (const reader of [MEMBER, STAFF]) {
+      const { service } = draftEvent();
+      const result = (await service.getPublicLiceCurrent(
+        `slug-${EVENT}`,
+        'Piste 1',
+        reader,
+      )) as LiceCurrent;
+      expect(result.current?.id).toBe('match-here');
+    }
+  });
+
+  it('leaves a bout of an unpublished Tournament off the board for a projector', async () => {
+    const matches = [
+      bout('match-draft-t', 'running', '2026-08-08T09:00:00Z', 'draft'),
+      bout('match-next', 'scheduled', '2026-08-08T09:30:00Z', 'published'),
+      bout('match-done-t', 'scheduled', '2026-08-08T10:00:00Z', 'completed'),
+    ];
+    const projector = (await build(matches).service.getPublicLiceCurrent(
+      `slug-${EVENT}`,
+      'Piste 1',
+      ANON,
+    )) as LiceCurrent & { queue: Array<{ id: string }> };
+    expect(projector.current?.id).toBe('match-next');
+    expect(projector.queue.map((row) => row.id)).toEqual(['match-done-t']);
+
+    const member = (await build(matches).service.getPublicLiceCurrent(
+      `slug-${EVENT}`,
+      'Piste 1',
+      MEMBER,
+    )) as LiceCurrent;
+    expect(member.current?.id).toBe('match-draft-t');
+  });
+
+  it('decides what is public before it keeps the first eight bouts', async () => {
+    // Organisers schedule a Tournament before they publish it: eight of its bouts
+    // sort ahead of the one public bout, and the board reads eight at a time.
+    const hidden = Array.from({ length: 8 }, (_, i) =>
+      bout(`match-hidden-${i}`, 'scheduled', `2026-08-08T0${i}:00:00Z`, 'draft'),
+    );
+    const matches = [...hidden, bout('match-public', 'scheduled', '2026-08-08T09:00:00Z')];
+    const projector = (await build(matches).service.getPublicLiceCurrent(
+      `slug-${EVENT}`,
+      'Piste 1',
+      ANON,
+    )) as LiceCurrent;
+    expect(projector.current?.id).toBe('match-public');
+  });
+
+  it('reads each deciding column', async () => {
+    const { service, supabase } = build([
+      bout('match-draft-t', 'running', '2026-08-08T09:00:00Z', 'draft'),
+    ]);
+    await service.getPublicLiceCurrent(`slug-${EVENT}`, 'Piste 1', MEMBER);
+    // The double hands back the whole row whatever is selected, and PostgREST
+    // filters bouts through an embed only when every embed on the path is inner.
+    const [select] = selectsFor(supabase.from, 'matches');
+    expect(select).toContain('phases!inner(');
+    expect(select).toMatch(/tournaments!inner\([^)]*\bstatus\b/);
+    expect(selectsFor(supabase.from, 'organization_members')).toEqual(['role']);
+    const { service: staffView, supabase: staffDb } = draftEvent();
+    await staffView.getPublicLiceCurrent(`slug-${EVENT}`, 'Piste 1', STAFF);
+    expect(selectsFor(staffDb.from, 'event_staff_accounts')).toEqual(['status']);
   });
 });

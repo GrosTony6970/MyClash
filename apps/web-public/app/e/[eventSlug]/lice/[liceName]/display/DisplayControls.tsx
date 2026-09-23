@@ -42,6 +42,8 @@ export function DisplayControls({ eventSlug, currentLiceName }: Props) {
     requested.current = true;
     fetch(`${getPublicApiUrl()}/api/v1/events/${encodeURIComponent(eventSlug)}`, {
       cache: 'no-store',
+      // Same login as the board beside it, so a draft Event's switcher lists its pistes.
+      credentials: 'include',
     })
       .then(async (res) => {
         if (!res.ok) return;

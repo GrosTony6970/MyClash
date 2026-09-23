@@ -7,6 +7,7 @@ import {
   Get,
   HttpCode,
   HttpStatus,
+  NotFoundException,
   Param,
   ParseUUIDPipe,
   Patch,
@@ -37,6 +38,7 @@ import {
   assertCanManagePool,
   assertCanReadPhase,
 } from '../../common/auth/event-authz';
+import { canReadMatch, publicReader } from '../../common/auth/competition-visibility';
 import { resolveRequestUserId } from '../../common/auth/request-user';
 import {
   AdjustClockDto,
@@ -104,12 +106,22 @@ export class MatchesController {
     return this.matches.listByPhase(phaseId);
   }
 
+  /**
+   * The public bout reads hide a draft Event's bout, and a bout of a Tournament
+   * that is not published, from all but its club and that Event's active staff
+   * (rulings 81-83). A hidden bout answers exactly as an unknown one.
+   */
+  private canReadBout(req: FastifyRequest, matchId: string): Promise<boolean> {
+    return canReadMatch({ supabase: this.supabase, orgs: this.orgs }, matchId, publicReader(req));
+  }
+
   @Public()
   @Throttle(PUBLIC_LIVE_READ_THROTTLE)
   @Get('matches/:id')
-  @ApiOperation({ summary: 'Get match by ID (public)' })
+  @ApiOperation({ summary: 'Get match by ID (public; a draft only for its club and staff)' })
   @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
-  async getMatch(@Param('id', ParseUUIDPipe) id: string) {
+  async getMatch(@Param('id', ParseUUIDPipe) id: string, @Req() req: FastifyRequest) {
+    if (!(await this.canReadBout(req, id))) throw new NotFoundException(`Match ${id} not found`);
     return this.matches.getMatch(id);
   }
 
@@ -117,7 +129,8 @@ export class MatchesController {
   @Get('matches/:id/summary')
   @ApiOperation({ summary: 'Match header summary for the scoreboard page (public)' })
   @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
-  async getMatchSummary(@Param('id', ParseUUIDPipe) id: string) {
+  async getMatchSummary(@Param('id', ParseUUIDPipe) id: string, @Req() req: FastifyRequest) {
+    if (!(await this.canReadBout(req, id))) throw new NotFoundException(`Match ${id} not found`);
     return this.matches.getMatchSummary(id);
   }
 
@@ -340,7 +353,8 @@ export class MatchesController {
   @Get('matches/:id/exchanges')
   @ApiOperation({ summary: 'List exchanges for a match (public)' })
   @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
-  async listExchanges(@Param('id', ParseUUIDPipe) id: string) {
+  async listExchanges(@Param('id', ParseUUIDPipe) id: string, @Req() req: FastifyRequest) {
+    if (!(await this.canReadBout(req, id))) return [];
     return this.matches.listExchanges(id);
   }
 
@@ -505,7 +519,9 @@ export class MatchesController {
   @Get('matches/:id/clock')
   @ApiOperation({ summary: 'Get clock state (computed from match_events timeline)' })
   @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
-  async getClockState(@Param('id', ParseUUIDPipe) id: string) {
+  async getClockState(@Param('id', ParseUUIDPipe) id: string, @Req() req: FastifyRequest) {
+    // An unknown bout replays an empty timeline; a hidden one answers the same.
+    if (!(await this.canReadBout(req, id))) return this.clock.computeClockState(id, []);
     return this.clock.getClockState(id);
   }
 

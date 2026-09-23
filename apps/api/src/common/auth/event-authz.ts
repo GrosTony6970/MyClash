@@ -298,7 +298,7 @@ export async function assertTournamentMember(
  * `status` defaults to 'draft' (events.service.ts:563), so an event is org-only
  * from creation until it is published, which is the whole point.
  */
-const HIDDEN_EVENT_STATUSES = new Set(['draft']);
+export const HIDDEN_EVENT_STATUSES = new Set(['draft']);
 
 export interface EventVisibilityRow {
   status: string;

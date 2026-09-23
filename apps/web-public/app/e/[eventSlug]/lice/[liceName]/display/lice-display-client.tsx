@@ -45,7 +45,9 @@ export function LiceDisplayClient({ eventSlug, liceName }: Props) {
     const apiUrl = getPublicApiUrl();
     const res = await fetch(
       `${apiUrl}/api/v1/events/${eventSlug}/lices/${encodeURIComponent(liceName)}/current`,
-      { cache: 'no-store' },
+      // A draft Event, or a bout of an unpublished Tournament, shows only to a
+      // club member: a projector signed in as one sends its login (ruling 89).
+      { cache: 'no-store', credentials: 'include' },
     );
     if (!res.ok) return;
     const body = (await res.json()) as {

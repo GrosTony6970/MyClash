@@ -86,6 +86,11 @@ const PUBLIC_READ_GATES = new Set([
   'assertCanReadEvent',
   'assertCanReadEventRow',
   'assertCanReadPhase',
+  // competition-visibility.ts: the same shape, for bouts and Tournaments.
+  'canReadCompetition',
+  'canReadMatch',
+  'isInsider',
+  'seesHiddenOnLice',
 ]);
 
 const printer = ts.createPrinter({ removeComments: true });

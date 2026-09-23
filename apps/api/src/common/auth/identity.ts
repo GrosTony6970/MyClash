@@ -26,8 +26,26 @@ export const ANONYMOUS: Identity = { kind: 'anonymous' };
  */
 export interface RequestWithIdentity extends FastifyRequest {
   identity?: Identity;
+  /**
+   * The request's verified staff cookie, whichever identity won. A device can
+   * carry two cookies — a scoring pad where someone once signed in keeps the
+   * login, which is set on the parent domain — and `identity` keeps only the
+   * first (claimed > guest > staff). A check that needs the staff session reads
+   * this. Wrapper only: no middleware reads it.
+   */
+  staffSession?: StaffSession | null;
+}
+
+export interface StaffSession {
+  staffId: string;
+  eventId: string;
 }
 
 export function getIdentity(req: FastifyRequest): Identity {
   return (req as RequestWithIdentity).identity ?? ANONYMOUS;
+}
+
+/** Signature and expiry only: whether the account is still active is the caller's check. */
+export function getStaffSession(req: FastifyRequest): StaffSession | null {
+  return (req as RequestWithIdentity).staffSession ?? null;
 }

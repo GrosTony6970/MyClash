@@ -25,6 +25,13 @@ import type { PhaseType, StaffRole } from '@myclash/types';
 import { getEffectiveBestOf, normalizeMatchFormatConfig } from '@myclash/rulesets';
 import type { Match as RulesetMatch } from '@myclash/rulesets';
 import type { FastifyRequest } from 'fastify';
+import {
+  isInsider,
+  onlyPublicTournaments,
+  seesHiddenOnLice,
+  type PublicReader,
+} from '../../common/auth/competition-visibility';
+import { HIDDEN_EVENT_STATUSES } from '../../common/auth/event-authz';
 import { OrganizationsService } from '../organizations/organizations.service';
 import { PhasesService } from '../phases/phases.service';
 import { SupabaseService } from '../supabase/supabase.service';
@@ -594,7 +601,7 @@ export class StaffService {
     const staff = await this.requireStaffFromRequest(req, SCORING_ROLES);
     const assigned = await this.isLiceAssigned(staff.id, liceId);
     if (!assigned) throw new ForbiddenException('Staff account is not assigned to this Lice');
-    return this.getCurrentForLiceId(liceId);
+    return this.getCurrentForLiceId(liceId, { publicOnly: false });
   }
 
   /**
@@ -930,8 +937,14 @@ export class StaffService {
    * is a resolution with a deciding order — the layout order the organiser set,
    * then the id — not a lookup that can assume one answer.
    */
-  async getPublicLiceCurrent(eventSlug: string, liceName: string) {
+  async getPublicLiceCurrent(eventSlug: string, liceName: string, reader: PublicReader) {
     const event = await this.findEventBySlug(eventSlug);
+    // A draft Event answers as an unknown slug, and a bout the caller may not see
+    // is left off the board (rulings 82, 83, 89): a projector with no login is dark.
+    const insider = await isInsider({ supabase: this.supabase, orgs: this.orgs }, event, reader);
+    if (HIDDEN_EVENT_STATUSES.has(event.status) && !insider) {
+      throw new NotFoundException('Event not found');
+    }
     const { data, error } = await this.supabase.service
       .from('lices')
       .select('id,name')
@@ -954,11 +967,12 @@ export class StaffService {
         `event ${event.id} has ${matched.length} pistes named "${wanted}"; showing ${lice.id}`,
       );
     }
-    return this.getCurrentForLiceId(lice.id);
+    return this.getCurrentForLiceId(lice.id, { publicOnly: !insider });
   }
 
-  async getPublicMatchDisplay(matchId: string) {
-    return this.getMatchDisplayPayload(matchId);
+  /** The route has already hidden a bout the reader may not see; `reader` narrows its NEXT bout. */
+  async getPublicMatchDisplay(matchId: string, reader: PublicReader) {
+    return this.getMatchDisplayPayload(matchId, reader);
   }
 
   /**
@@ -1070,13 +1084,17 @@ export class StaffService {
     }>;
     return Promise.all(
       rows.map(async (row: { lices: { id: string; name: string } }) => {
-        const current = await this.getCurrentForLiceId(row.lices.id);
+        const current = await this.getCurrentForLiceId(row.lices.id, { publicOnly: false });
         return { ...row.lices, currentMatch: current.current, event: current.event };
       }),
     );
   }
 
-  private async getCurrentForLiceId(liceId: string) {
+  /**
+   * `publicOnly` leaves out the bouts an outsider may not see; staff surfaces
+   * see them all. Required, so a new public caller cannot forget it.
+   */
+  private async getCurrentForLiceId(liceId: string, { publicOnly }: { publicOnly: boolean }) {
     const { data: lice, error: liceError } = await this.supabase.service
       .from('lices')
       .select('id,name,event_id,events(id,slug,name,status)')
@@ -1085,11 +1103,12 @@ export class StaffService {
     if (liceError) throw new BadRequestException(liceError.message);
     if (!lice) throw new NotFoundException('Lice not found');
 
-    const { data: matches, error } = await this.supabase.service
+    const onLice = this.supabase.service
       .from('matches')
       .select(LICE_MATCH_SELECT)
       .eq('lice_id', liceId)
-      .in('status', ['running', 'paused', 'scheduled'])
+      .in('status', ['running', 'paused', 'scheduled']);
+    const { data: matches, error } = await (publicOnly ? onlyPublicTournaments(onLice) : onLice)
       .order('status', { ascending: true })
       .order('scheduled_at', { ascending: true, nullsFirst: false })
       .limit(8);
@@ -1240,7 +1259,7 @@ export class StaffService {
     };
   }
 
-  private async getMatchDisplayPayload(matchId: string) {
+  private async getMatchDisplayPayload(matchId: string, reader: PublicReader) {
     const { data, error } = await this.supabase.service
       .from('matches')
       .select(
@@ -1279,12 +1298,12 @@ export class StaffService {
     // Next match on the same lice — used by the TV display's auto-
     // rollover (5s after MATCH ENDED, navigate to this id's display
     // route) and the corner NEXT tile. Same query shape the staff
-    // current-match endpoint uses; mirroring it keeps the two
-    // surfaces consistent. Public — no auth, lives alongside the
-    // already-public display payload.
+    // current-match endpoint uses. Public, so narrowed to what `reader`
+    // may see: the tile names fighters, and the rollover opens the bout.
     const nextMatch = await this.resolveNextMatchOnLice(
       matchId,
       (data as { lice_id?: string | null }).lice_id ?? null,
+      reader,
     );
 
     const base = this.mapDisplayMatch(data, { fightIndex, totalFightsInPool });
@@ -1295,9 +1314,15 @@ export class StaffService {
     };
   }
 
+  /**
+   * An outsider is not handed a bout of an unpublished Tournament, filtered
+   * before the limit (rulings 82, 89). The shown bout is visible to the reader,
+   * so the piste's Event is not a draft to them.
+   */
   private async resolveNextMatchOnLice(
     currentMatchId: string,
     liceId: string | null,
+    reader: PublicReader,
   ): Promise<{
     id: string;
     matchNumberLabel: string | null;
@@ -1306,13 +1331,17 @@ export class StaffService {
     blueFighterName: string | null;
   } | null> {
     if (!liceId) return null;
-    const { data, error } = await this.supabase.service
+    const deps = { supabase: this.supabase, orgs: this.orgs };
+    const publicOnly = !(await seesHiddenOnLice(deps, liceId, reader));
+    const onLice = this.supabase.service
       .from('matches')
       .select(
-        'id,status,scheduled_at,match_number_label,red:registrations!matches_red_registration_id_fkey(persons(given_name,family_name)),blue:registrations!matches_blue_registration_id_fkey(persons(given_name,family_name)),phases(config_json,tournaments(weapon)),pools(sort_order),bracket_slots(round),swiss_rounds(round_number)',
+        // `!inner` all the way to the Tournament, for `onlyPublicTournaments`.
+        'id,status,scheduled_at,match_number_label,red:registrations!matches_red_registration_id_fkey(persons(given_name,family_name)),blue:registrations!matches_blue_registration_id_fkey(persons(given_name,family_name)),phases!inner(config_json,tournaments!inner(weapon,status)),pools(sort_order),bracket_slots(round),swiss_rounds(round_number)',
       )
       .eq('lice_id', liceId)
-      .in('status', ['running', 'paused', 'scheduled'])
+      .in('status', ['running', 'paused', 'scheduled']);
+    const { data, error } = await (publicOnly ? onlyPublicTournaments(onLice) : onLice)
       .order('status', { ascending: true })
       .order('scheduled_at', { ascending: true, nullsFirst: false })
       .limit(8);

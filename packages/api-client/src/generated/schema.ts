@@ -2349,7 +2349,7 @@ export interface paths {
       path?: never;
       cookie?: never;
     };
-    /** Get match by ID (public) */
+    /** Get match by ID (public; a draft only for its club and staff) */
     get: operations['MatchesController_getMatch'];
     put?: never;
     post?: never;

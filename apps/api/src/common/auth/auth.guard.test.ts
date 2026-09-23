@@ -39,6 +39,7 @@ type RequestShape = {
   headers: Record<string, string>;
   cookies: Record<string, string>;
   identity?: Identity;
+  staffSession?: unknown;
   raw: { identity?: Identity };
 };
 
@@ -155,6 +156,7 @@ describe('AuthGuard', () => {
 
     await expect(guard.canActivate(context)).resolves.toBe(true);
     expect(request.identity).toEqual({ kind: 'staff', staffId: 's-1', eventId: 'e-1' });
+    expect(request.staffSession).toEqual({ staffId: 's-1', eventId: 'e-1' });
   });
 
   it('claimed wins over a guest cookie presented at the same time', async () => {
@@ -169,12 +171,29 @@ describe('AuthGuard', () => {
     expect(request.identity?.kind).toBe('claimed');
   });
 
+  it('keeps a verified staff session beside the identity that won', async () => {
+    // A scoring pad where someone once signed in carries both cookies: the
+    // login is on `.myclash.fr`. The identity is the login; the staff session
+    // must still reach the checks that ask for it (ruling 81).
+    verifyAccessTokenLocal.mockReturnValue({ id: 'user-1' });
+    staffVerify.mockReturnValue({ sub: 's-1', event_id: 'e-1' });
+    const { context, request } = makeContext({
+      headers: { authorization: 'Bearer tok' },
+      cookies: { mc_staff: 's' },
+    });
+
+    await guard.canActivate(context);
+    expect(request.identity?.kind).toBe('claimed');
+    expect(request.staffSession).toEqual({ staffId: 's-1', eventId: 'e-1' });
+  });
+
   it('degrades a forged or expired token to anonymous instead of throwing', async () => {
     // verify throws; the guard must swallow it and fall through, not 500.
     const { context, request } = makeContext({ cookies: { mc_guest: 'bad', mc_staff: 'bad' } });
 
     await expect(guard.canActivate(context)).resolves.toBe(true);
     expect(request.identity).toEqual({ kind: 'anonymous' });
+    expect(request.staffSession).toBeNull();
   });
 
   // ── the two traps the sibling harness cannot catch ──────────────────────────

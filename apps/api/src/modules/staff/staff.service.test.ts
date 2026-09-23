@@ -1,6 +1,14 @@
 import { describe, expect, it } from 'vitest';
-import { StaffService } from './staff.service';
-import { mockSupabase, selectsFor, type SupabaseRow } from '../../common/testing/supabase-chain';
+import { selectsFor, type SupabaseRow } from '../../common/testing/supabase-chain';
+import {
+  ANON,
+  LICE,
+  OTHER_LICE,
+  at,
+  displayRow,
+  serviceOn,
+  side,
+} from './staff.service.display.fixtures';
 
 /**
  * The two public bout reads: the spectator display payload, and the prev/next
@@ -28,69 +36,8 @@ import { mockSupabase, selectsFor, type SupabaseRow } from '../../common/testing
  * that ignore `error` then see nothing at all.
  */
 
-const LICE = 'lice-1';
-const OTHER_LICE = 'lice-2';
 const POOL = 'pool-1';
 const OTHER_POOL = 'pool-2';
-
-/** Distinct instants, so `scheduled_at` decides an order instead of tying. */
-const at = (hour: number) => `2026-05-05T${String(hour).padStart(2, '0')}:00:00.000Z`;
-
-function serviceOn(rows: readonly SupabaseRow[]) {
-  const supabase = mockSupabase({ matches: { rows } });
-  const service = new StaffService(supabase as never, {} as never, {} as never, {} as never);
-  return { service, from: supabase.from };
-}
-
-/** One side of a bout, with the embeds the display payload reads. */
-function side(
-  registrationId: string,
-  given: string,
-  extra: { club?: { name: string; logo_url: string | null }; photo?: string } = {},
-) {
-  return {
-    id: registrationId,
-    persons: {
-      id: `p-${registrationId}`,
-      given_name: given,
-      family_name: 'X',
-      club_id: extra.club ? 'club-lyon' : null,
-      clubs: extra.club ?? null,
-      global_persons: extra.photo ? { photo_url: extra.photo } : null,
-    },
-  };
-}
-
-/** A bout in the shape `mapDisplayMatch` unwraps. */
-function displayRow(id: string, overrides: SupabaseRow = {}): SupabaseRow {
-  return {
-    id,
-    status: 'scheduled',
-    red_score: 0,
-    blue_score: 0,
-    red_registration_id: 'reg-r',
-    blue_registration_id: 'reg-b',
-    match_number_label: '1',
-    pool_id: null,
-    lice_id: null,
-    scheduled_at: null,
-    lices: { id: LICE, name: 'Lice 1', events: null },
-    pools: null,
-    red: side('reg-r', 'A'),
-    blue: side('reg-b', 'B'),
-    phases: {
-      tournaments: {
-        id: 't-1',
-        name: 'Longsword Open',
-        weapon: 'longsword',
-        scoring_config_json: null,
-        ruleset_config: null,
-      },
-    },
-    bracket_slots: null,
-    ...overrides,
-  };
-}
 
 describe('StaffService.getPublicMatchDisplay', () => {
   const MATCH_FORMAT = { pointCap: 5, doublePenalty: 'none' };
@@ -117,7 +64,9 @@ describe('StaffService.getPublicMatchDisplay', () => {
   it('fetches matchFormat from the canonical ruleset_config column and exposes it on the payload', async () => {
     const { service, from } = serviceOn(CANONICAL_ROWS);
 
-    const payload = (await service.getPublicMatchDisplay('match-1')) as { matchFormat: unknown };
+    const payload = (await service.getPublicMatchDisplay('match-1', ANON)) as {
+      matchFormat: unknown;
+    };
 
     // Behaviour 1: the request asked for the real column name.
     const asked = selectsFor(from, 'matches').join(' ');
@@ -186,7 +135,10 @@ describe('StaffService.getPublicMatchDisplay', () => {
       ];
       const { service } = serviceOn(rows);
 
-      const payload = (await service.getPublicMatchDisplay('match-3')) as Record<string, unknown>;
+      const payload = (await service.getPublicMatchDisplay('match-3', ANON)) as Record<
+        string,
+        unknown
+      >;
 
       expect(payload['poolName']).toBe('Pool A');
       expect(payload['fightIndex']).toBe(3);
@@ -215,7 +167,10 @@ describe('StaffService.getPublicMatchDisplay', () => {
       ];
       const { service } = serviceOn(rows);
 
-      const payload = (await service.getPublicMatchDisplay('bracket-1')) as Record<string, unknown>;
+      const payload = (await service.getPublicMatchDisplay('bracket-1', ANON)) as Record<
+        string,
+        unknown
+      >;
 
       expect(payload['poolName']).toBeNull();
       expect(payload['fightIndex']).toBeNull();
@@ -235,7 +190,10 @@ describe('StaffService.getPublicMatchDisplay', () => {
         displayRow('swiss-1', { swiss_rounds: { round_number: 3 } }),
       ]);
 
-      const payload = (await service.getPublicMatchDisplay('swiss-1')) as Record<string, unknown>;
+      const payload = (await service.getPublicMatchDisplay('swiss-1', ANON)) as Record<
+        string,
+        unknown
+      >;
 
       expect(payload['poolName']).toBeNull();
       expect(payload['roundToken']).toBe('S3');
@@ -258,7 +216,10 @@ describe('StaffService.getPublicMatchDisplay', () => {
           },
         ];
         const { service } = serviceOn(rows);
-        const payload = (await service.getPublicMatchDisplay('de-1')) as Record<string, unknown>;
+        const payload = (await service.getPublicMatchDisplay('de-1', ANON)) as Record<
+          string,
+          unknown
+        >;
         return payload['roundToken'];
       };
 
@@ -288,7 +249,10 @@ describe('StaffService.getPublicMatchDisplay', () => {
     it('names the next bout on this piste, skipping the one being fought', async () => {
       const { service } = serviceOn(NEXT_ROWS);
 
-      const payload = (await service.getPublicMatchDisplay('current')) as Record<string, unknown>;
+      const payload = (await service.getPublicMatchDisplay('current', ANON)) as Record<
+        string,
+        unknown
+      >;
 
       expect(payload['id']).toBe('current');
       expect(payload['nextMatchId']).toBe('up-next');
@@ -305,7 +269,10 @@ describe('StaffService.getPublicMatchDisplay', () => {
         displayRow('last', { lice_id: LICE, status: 'running', scheduled_at: at(9) }),
       ]);
 
-      const payload = (await service.getPublicMatchDisplay('last')) as Record<string, unknown>;
+      const payload = (await service.getPublicMatchDisplay('last', ANON)) as Record<
+        string,
+        unknown
+      >;
 
       expect(payload['nextMatchId']).toBeNull();
       expect(payload['nextMatch']).toBeNull();
@@ -314,7 +281,10 @@ describe('StaffService.getPublicMatchDisplay', () => {
     it('reports no next bout for a match that is on no piste at all', async () => {
       const { service } = serviceOn([displayRow('unplaced', { lice_id: null })]);
 
-      const payload = (await service.getPublicMatchDisplay('unplaced')) as Record<string, unknown>;
+      const payload = (await service.getPublicMatchDisplay('unplaced', ANON)) as Record<
+        string,
+        unknown
+      >;
 
       expect(payload['nextMatchId']).toBeNull();
     });

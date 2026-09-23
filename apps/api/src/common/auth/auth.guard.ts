@@ -11,7 +11,7 @@ import type { FastifyRequest } from 'fastify';
 import { GuestJwtService } from '../../modules/auth/guest-jwt.service';
 import { StaffJwtService } from '../../modules/staff/staff-jwt.service';
 import { SupabaseService } from '../../modules/supabase/supabase.service';
-import { ANONYMOUS, type Identity } from './identity';
+import { ANONYMOUS, type Identity, type RequestWithIdentity, type StaffSession } from './identity';
 import { IS_PUBLIC_KEY } from './public.decorator';
 
 export type AuthGuardMode = 'shadow' | 'enforce';
@@ -77,8 +77,10 @@ export class AuthGuard implements CanActivate {
     // request. Short-circuiting here would leave it undefined on the highest
     // traffic routes (GET /me, GET /events, the feature-flag poll) and would let
     // a later `identity ?? anonymous` coalesce quietly reinstate fail-open.
-    const identity = this.resolve(request);
+    const staff = this.resolveStaff(request);
+    const identity = this.resolve(request, staff);
     this.attach(request, identity);
+    (request as RequestWithIdentity).staffSession = staff;
 
     if (identity.kind !== 'anonymous') return true;
 
@@ -102,7 +104,7 @@ export class AuthGuard implements CanActivate {
   }
 
   /** First identity that verifies wins; claimed outranks guest outranks staff. */
-  private resolve(request: FastifyRequest): Identity {
+  private resolve(request: FastifyRequest, staff: StaffSession | null): Identity {
     const claimed = this.resolveClaimed(request);
     if (claimed) return claimed;
 
@@ -123,17 +125,20 @@ export class AuthGuard implements CanActivate {
       }
     }
 
-    const staffToken = cookies?.[STAFF_COOKIE];
-    if (staffToken) {
-      try {
-        const payload = this.staffJwt.verify(staffToken);
-        return { kind: 'staff', staffId: payload.sub, eventId: payload.event_id };
-      } catch {
-        // Expired or forged staff cookie — fall through to anonymous.
-      }
-    }
+    return staff ? { kind: 'staff', ...staff } : ANONYMOUS;
+  }
 
-    return ANONYMOUS;
+  /** Verified whether or not it wins the identity: a pad can also carry a login. */
+  private resolveStaff(request: FastifyRequest): StaffSession | null {
+    const staffToken = (request as FastifyRequest & CookieBag).cookies?.[STAFF_COOKIE];
+    if (!staffToken) return null;
+    try {
+      const payload = this.staffJwt.verify(staffToken);
+      return { staffId: payload.sub, eventId: payload.event_id };
+    } catch {
+      // Expired or forged staff cookie — no staff session.
+      return null;
+    }
   }
 
   private resolveClaimed(request: FastifyRequest): Identity | null {

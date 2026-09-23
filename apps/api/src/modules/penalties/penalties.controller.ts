@@ -14,6 +14,7 @@ import {
 import { ApiBearerAuth, ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import type { FastifyRequest } from 'fastify';
+import { canReadMatch, publicReader } from '../../common/auth/competition-visibility';
 import { assertTournamentMember } from '../../common/auth/event-authz';
 import { requireRequestUserId } from '../../common/auth/request-user';
 import { PUBLIC_LIVE_READ_THROTTLE } from '../../common/throttling/throttle-profiles';
@@ -293,7 +294,10 @@ export class PenaltiesController {
   @Get('matches/:id/penalties')
   @ApiOperation({ summary: 'List penalties for a match' })
   @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
-  async listMatchPenalties(@Param('id', ParseUUIDPipe) id: string) {
+  async listMatchPenalties(@Param('id', ParseUUIDPipe) id: string, @Req() req: FastifyRequest) {
+    // A hidden bout answers as an unknown one: no cards (rulings 81-83, 89).
+    const deps = { supabase: this.supabase, orgs: this.orgs };
+    if (!(await canReadMatch(deps, id, publicReader(req)))) return [];
     return this.penalties.listMatchPenalties(id);
   }
 

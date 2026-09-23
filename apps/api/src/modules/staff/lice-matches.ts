@@ -19,11 +19,15 @@ import { poolMatchSortKey } from '../phases/pool-match-sort';
  * `pool_id` is here for referee scope precedence (match → pool → lice); the
  * older mappers ignore it, harmlessly. Every consumer reads a subset, so
  * widening this is safe and narrowing it is not.
+ *
+ * `!inner` down to the Tournament's `status` lets the public board filter on it
+ * (`onlyPublicTournaments`). It drops no bout: `matches.phase_id` and
+ * `phases.tournament_id` are both NOT NULL.
  */
 export const LICE_MATCH_SELECT =
   'id,status,scheduled_at,match_number_label,pool_id,red_score,blue_score,' +
   'ruleset_code,ruleset_version,red_registration_id,blue_registration_id,side_order,locked_at,' +
-  'phases(type,config_json,tournaments(id,name,weapon,scoring_config_json,ruleset_config)),' +
+  'phases!inner(type,config_json,tournaments!inner(id,name,weapon,status,scoring_config_json,ruleset_config)),' +
   'pools(sort_order),bracket_slots(round),swiss_rounds(round_number),' +
   'red:registrations!matches_red_registration_id_fkey(id,persons(given_name,family_name)),' +
   'blue:registrations!matches_blue_registration_id_fkey(id,persons(given_name,family_name))';

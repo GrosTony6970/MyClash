@@ -1,5 +1,7 @@
+import { cookies } from 'next/headers';
 import { notFound } from 'next/navigation';
 import { getServerApiUrl } from '@/lib/api-url';
+import { loginCookieHeader } from '@/lib/login-cookie';
 import { DisplayView } from './display-view';
 
 const API_URL = getServerApiUrl();
@@ -14,9 +16,11 @@ export default async function MatchDisplayPage({ params }: Props) {
   // proper 404 instead of letting the client fail on a missing
   // payload. The client (TVScoreboard) re-fetches on mount via the
   // useLiveMatch hook + Supabase subscriptions; the server fetch
-  // here is purely for the existence gate.
+  // here is purely for the existence gate. It sends the viewer's login: the
+  // rollover lands here, and a hidden bout 404s without one.
   const matchRes = await fetch(`${API_URL}/api/v1/matches/${matchId}/display`, {
     next: { revalidate: 0 },
+    headers: loginCookieHeader(await cookies()),
   });
   if (matchRes.status === 404) notFound();
   if (!matchRes.ok) throw new Error(`Failed to load display match: ${matchRes.status}`);

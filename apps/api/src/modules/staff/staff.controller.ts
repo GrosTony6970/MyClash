@@ -4,6 +4,7 @@ import {
   Get,
   HttpCode,
   HttpStatus,
+  NotFoundException,
   Param,
   ParseUUIDPipe,
   Patch,
@@ -21,6 +22,8 @@ import {
   CATALOG_READ_THROTTLE,
 } from '../../common/throttling/throttle-profiles';
 import { buildClearCookieOptions, buildSessionCookieOptions } from '../../security/http-security';
+import { canReadMatch, publicReader } from '../../common/auth/competition-visibility';
+import { OrganizationsService } from '../organizations/organizations.service';
 import { SupabaseService } from '../supabase/supabase.service';
 import {
   CreateStaffAccountDto,
@@ -53,6 +56,8 @@ export class StaffController {
   constructor(
     private readonly staff: StaffService,
     private readonly supabase: SupabaseService,
+    // Value import, not `import type` — a type-only import erases the DI metadata.
+    private readonly orgs: OrganizationsService,
   ) {}
 
   @Get('events/:eventId/staff-accounts')
@@ -302,16 +307,21 @@ export class StaffController {
   async publicLiceCurrent(
     @Param('eventSlug') eventSlug: string,
     @Param('liceName') liceName: string,
+    @Req() req: FastifyRequest,
   ) {
-    return this.staff.getPublicLiceCurrent(eventSlug, liceName);
+    return this.staff.getPublicLiceCurrent(eventSlug, liceName, publicReader(req));
   }
 
   @Public()
   @Get('matches/:id/display')
   @ApiOperation({ summary: 'Public read-only match display payload' })
   @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
-  async publicMatchDisplay(@Param('id', ParseUUIDPipe) id: string) {
-    return this.staff.getPublicMatchDisplay(id);
+  async publicMatchDisplay(@Param('id', ParseUUIDPipe) id: string, @Req() req: FastifyRequest) {
+    // A hidden bout answers as an unknown one (rulings 81-83, 89).
+    const deps = { supabase: this.supabase, orgs: this.orgs };
+    const reader = publicReader(req);
+    if (!(await canReadMatch(deps, id, reader))) throw new NotFoundException('Match not found');
+    return this.staff.getPublicMatchDisplay(id, reader);
   }
 
   @Get('matches/:id/neighbors')

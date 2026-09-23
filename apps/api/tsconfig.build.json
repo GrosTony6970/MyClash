@@ -67,6 +67,10 @@
     // Staff sign-in's rows and builders, split out when its test reached the
     // 400-line cap (ruling 48 added the exact-username cases). It imports vitest.
     "src/modules/staff/staff.service.login.fixtures.ts",
+    // The display payload's bouts, split out when its test reached the 400-line
+    // cap (the projector's NEXT-bout cases, rulings 82 and 89). It imports the
+    // Supabase double.
+    "src/modules/staff/staff.service.display.fixtures.ts",
     // A sixth convention: an ordinary-looking module name. Its own header says
     // "Test-only: nothing in the running API parses the workflow (the container
     // has no .github/)" — it exists so gates.drift.test.ts can hold gates.ts to

@@ -1,5 +1,7 @@
+import { cookies } from 'next/headers';
 import { notFound } from 'next/navigation';
 import { getServerApiUrl } from '@/lib/api-url';
+import { loginCookieHeader } from '@/lib/login-cookie';
 import { MatchLiveView } from './match-live-view';
 import {
   mapMatchRow,
@@ -11,9 +13,17 @@ import {
 
 const API_URL = getServerApiUrl();
 
-async function fetchMatch(matchId: string): Promise<MatchRow | null> {
+/**
+ * The viewer's login, sent on every read below: a bout of a draft Event or of an
+ * unpublished Tournament answers like an unknown one without it, so its club's
+ * members would get a 404 page (rulings 81-83).
+ */
+type LoginHeaders = Record<string, string>;
+
+async function fetchMatch(matchId: string, login: LoginHeaders): Promise<MatchRow | null> {
   const res = await fetch(`${API_URL}/api/v1/matches/${matchId}`, {
     next: { revalidate: 0 }, // always fresh — scores change constantly during an event
+    headers: login,
   });
   if (res.status === 404) return null;
   if (!res.ok) throw new Error(`Failed to fetch match: ${res.status}`);
@@ -21,9 +31,10 @@ async function fetchMatch(matchId: string): Promise<MatchRow | null> {
   return mapMatchRow((await res.json()) as Record<string, unknown>);
 }
 
-async function fetchSummary(matchId: string): Promise<MatchSummary> {
+async function fetchSummary(matchId: string, login: LoginHeaders): Promise<MatchSummary> {
   const res = await fetch(`${API_URL}/api/v1/matches/${matchId}/summary`, {
     next: { revalidate: 0 },
+    headers: login,
   });
   if (!res.ok) {
     return {
@@ -44,17 +55,19 @@ async function fetchSummary(matchId: string): Promise<MatchSummary> {
   return (await res.json()) as MatchSummary;
 }
 
-async function fetchExchanges(matchId: string): Promise<ExchangeRow[]> {
+async function fetchExchanges(matchId: string, login: LoginHeaders): Promise<ExchangeRow[]> {
   const res = await fetch(`${API_URL}/api/v1/matches/${matchId}/exchanges`, {
     next: { revalidate: 0 },
+    headers: login,
   });
   if (!res.ok) return [];
   return (await res.json()) as ExchangeRow[];
 }
 
-async function fetchPenalties(matchId: string): Promise<MatchPenaltyRow[]> {
+async function fetchPenalties(matchId: string, login: LoginHeaders): Promise<MatchPenaltyRow[]> {
   const res = await fetch(`${API_URL}/api/v1/matches/${matchId}/penalties`, {
     next: { revalidate: 0 },
+    headers: login,
   });
   if (!res.ok) return [];
   return (await res.json()) as MatchPenaltyRow[];
@@ -79,11 +92,12 @@ export default async function MatchPage({ params, searchParams }: Props) {
   const { eventSlug, matchId } = await params;
   const { return: returnParam } = await searchParams;
 
+  const login = loginCookieHeader(await cookies());
   const [match, summary, exchanges, penalties] = await Promise.all([
-    fetchMatch(matchId),
-    fetchSummary(matchId),
-    fetchExchanges(matchId),
-    fetchPenalties(matchId),
+    fetchMatch(matchId, login),
+    fetchSummary(matchId, login),
+    fetchExchanges(matchId, login),
+    fetchPenalties(matchId, login),
   ]);
 
   if (!match) notFound();
@@ -108,7 +122,7 @@ export default async function MatchPage({ params, searchParams }: Props) {
 
 export async function generateMetadata({ params }: Props) {
   const { matchId } = await params;
-  const match = await fetchMatch(matchId);
+  const match = await fetchMatch(matchId, loginCookieHeader(await cookies()));
   return {
     title: match?.matchNumberLabel
       ? `Match ${match.matchNumberLabel} · MyClash`
