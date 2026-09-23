@@ -6786,7 +6786,7 @@ export interface paths {
       path?: never;
       cookie?: never;
     };
-    /** List venues for an organization (public read) */
+    /** List venues for an organization (org member) */
     get: operations['VenuesController_listForOrg'];
     put?: never;
     /** Create a venue (org admin+) */
@@ -6804,7 +6804,7 @@ export interface paths {
       path?: never;
       cookie?: never;
     };
-    /** Get a venue with its areas (public read) */
+    /** Get a venue with its areas (org member) */
     get: operations['VenuesController_get'];
     put?: never;
     post?: never;
@@ -6892,7 +6892,7 @@ export interface paths {
       path?: never;
       cookie?: never;
     };
-    /** Distinct venues used by this event's lices + workshop sessions. Powers the event Venue tab. */
+    /** Distinct venues used by this event's lices + workshop sessions (public; a draft Event only for its org). */
     get: operations['VenuesController_listForEvent'];
     /** Reconcile the venues this event spreads on (org admin+). Adds links + seeds tournament lices; safe-removes (blocks venues with matches/sessions). */
     put: operations['VenuesController_setEventVenues'];
@@ -6910,7 +6910,7 @@ export interface paths {
       path?: never;
       cookie?: never;
     };
-    /** A tournament's per-phase venue assignment (pools / bracket). Public read. */
+    /** A tournament's per-phase venue assignment (pools / bracket). Public; a draft Event only for its org. */
     get: operations['VenuesController_getTournamentPhaseVenues'];
     /** Set a tournament's per-phase venue (org admin+). Links the venue to the event + seeds its lices; stores intent (does not move existing matches). */
     put: operations['VenuesController_setTournamentPhaseVenues'];

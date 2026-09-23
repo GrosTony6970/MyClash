@@ -90,6 +90,9 @@ const EXPECTED_PUBLIC = [
   'GET /events/:eventId/programme',
   'GET /events/:eventId/schedule',
   'GET /events/:eventId/tournaments',
+  // The venues an Event uses and a Tournament's venue per phase (ruling 78): a
+  // draft Event answers 404 to anyone outside its organisation (assertCanReadEvent).
+  'GET /events/:eventId/venues',
   'GET /events/:eventSlug/lices/:liceName/current',
   'GET /events/:eventSlug/participants',
   'GET /events/:eventSlug/public-workshop-breaks', // break bars on the public workshop grid
@@ -162,6 +165,7 @@ const EXPECTED_PUBLIC = [
   'GET /tournaments/:id/stats/fighters',
   'GET /tournaments/:id/stats/overview',
   'GET /tournaments/:id/stats/target-values',
+  'GET /tournaments/:tournamentId/phase-venues',
   'GET /tournaments/:tournamentId/pool-standings',
   // Swiss rounds and standings: the same results already printed on the wall
   // and announced over the PA, read by a spectator with no account.

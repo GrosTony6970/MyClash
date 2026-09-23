@@ -5,6 +5,11 @@ import {
   NotFoundException,
   Optional,
 } from '@nestjs/common';
+import {
+  assertCanReadEvent,
+  assertCanReadEventRow,
+  type EventVisibilityRow,
+} from '../../common/auth/event-authz';
 import { SupabaseService } from '../supabase/supabase.service';
 import { OrganizationsService } from '../organizations/organizations.service';
 // Value import, not `import type` — `import type` erases the DI metadata.
@@ -55,7 +60,13 @@ export class VenuesService {
 
   // ── Venues ──────────────────────────────────────────────────────────────────
 
-  async listForOrg(organizationId: string) {
+  /** A club's venue catalogue — for any member of the club (operator ruling 77). */
+  async listForOrgMember(organizationId: string, userId: string) {
+    await this.orgs.assertOrgRole(organizationId, userId, 'read_only');
+    return this.listForOrg(organizationId);
+  }
+
+  private async listForOrg(organizationId: string) {
     const { data, error } = await this.supabase.service
       .from('venues')
       .select('*, venue_areas(id, name, sort_order), venue_lices(id, name, sort_order)')
@@ -133,7 +144,8 @@ export class VenuesService {
     }));
   }
 
-  async get(venueId: string) {
+  /** One venue — for any member of the venue's OWN club (ruling 77). */
+  async get(venueId: string, userId: string) {
     const { data, error } = await this.supabase.service
       .from('venues')
       .select('*, venue_areas(id, name, sort_order), venue_lices(id, name, sort_order)')
@@ -141,6 +153,7 @@ export class VenuesService {
       .maybeSingle();
     if (error) throw new BadRequestException(error.message);
     if (!data) throw new NotFoundException(`Venue ${venueId} not found`);
+    await this.orgs.assertOrgRole(String((data as Row)['organization_id']), userId, 'read_only');
     return data;
   }
 
@@ -289,12 +302,20 @@ export class VenuesService {
   // ── Event-scoped derived listing ────────────────────────────────────────────
 
   /**
-   * Distinct venues this event references via its lices or its
-   * workshop sessions. Powers the event-scoped Venue tab. Public —
-   * no auth required because the underlying primitives (lices,
-   * workshop_sessions) already have public list endpoints.
+   * `@Public()`, gated on event visibility (operator ruling 78): a draft Event
+   * answers 404 to anyone outside its organisation, like its piste list.
    */
-  async listForEvent(eventId: string) {
+  async listForVisibleEvent(eventId: string, resolveUserId: () => Promise<string>) {
+    await assertCanReadEvent({ supabase: this.supabase, orgs: this.orgs }, eventId, resolveUserId);
+    return this.listForEvent(eventId);
+  }
+
+  /**
+   * Distinct venues this event references via its lices or its
+   * workshop sessions. Powers the event-scoped Venue tab. Unchecked: the
+   * callers above decide who may read it.
+   */
+  private async listForEvent(eventId: string) {
     // Lices for this event → venue ids (non-null).
     const { data: liceRows, error: liceErr } = await this.supabase.service
       .from('lices')
@@ -568,10 +589,33 @@ export class VenuesService {
   // ── Tournament phase venues (pools / bracket can live at different venues) ────
 
   /**
-   * The venue each phase-type of a tournament is assigned to run at. Public read
-   * (powers the admin tournament-list "Venue(s)" column + the settings form).
+   * The venue each phase-type of a tournament is assigned to run at. `@Public()`,
+   * gated on its Event's visibility (ruling 78): a draft Event answers 404 to
+   * anyone outside its organisation. The refusal names the TOURNAMENT id, never
+   * the hidden Event's; an unknown tournament answers no venues, as before.
    */
-  async getTournamentPhaseVenues(tournamentId: string): Promise<TournamentPhaseVenues> {
+  async getTournamentPhaseVenues(
+    tournamentId: string,
+    resolveUserId: () => Promise<string>,
+  ): Promise<TournamentPhaseVenues> {
+    const { data, error } = await this.supabase.service
+      .from('tournaments')
+      .select('events!inner(status, organization_id)')
+      .eq('id', tournamentId)
+      .maybeSingle();
+    if (error) throw new BadRequestException(error.message);
+    const event = (data as { events?: EventVisibilityRow } | null)?.events ?? null;
+    await assertCanReadEventRow(
+      { supabase: this.supabase, orgs: this.orgs },
+      tournamentId,
+      event,
+      resolveUserId,
+    );
+    return this.readTournamentPhaseVenues(tournamentId);
+  }
+
+  /** Unchecked: the public read above and the organiser's write decide. */
+  private async readTournamentPhaseVenues(tournamentId: string): Promise<TournamentPhaseVenues> {
     const { data, error } = await this.supabase.service
       .from('tournament_phase_venues')
       .select('phase_kind, venues(id, name)')
@@ -662,7 +706,7 @@ export class VenuesService {
       await this.ensureEventVenueLinked(eventId, venueId);
     }
 
-    return this.getTournamentPhaseVenues(tournamentId);
+    return this.readTournamentPhaseVenues(tournamentId);
   }
 
   /**

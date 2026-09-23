@@ -1,4 +1,5 @@
 import { Public } from '../../common/auth/public.decorator';
+import { requireRequestUserId, resolveRequestUserId } from '../../common/auth/request-user';
 import {
   BadRequestException,
   Body,
@@ -52,10 +53,11 @@ export class VenuesController {
   // ── Venues (org-level catalogue) ────────────────────────────────────────────
 
   @Get('organizations/:orgId/venues')
-  @ApiOperation({ summary: 'List venues for an organization (public read)' })
+  @ApiOperation({ summary: 'List venues for an organization (org member)' })
   @ApiParam({ name: 'orgId', type: 'string', format: 'uuid' })
-  async listForOrg(@Param('orgId', ParseUUIDPipe) orgId: string) {
-    return this.venues.listForOrg(orgId);
+  async listForOrg(@Param('orgId', ParseUUIDPipe) orgId: string, @Req() req: FastifyRequest) {
+    const userId = await requireRequestUserId(req, this.supabase);
+    return this.venues.listForOrgMember(orgId, userId);
   }
 
   @Post('organizations/:orgId/venues')
@@ -73,10 +75,11 @@ export class VenuesController {
   }
 
   @Get('venues/:venueId')
-  @ApiOperation({ summary: 'Get a venue with its areas (public read)' })
+  @ApiOperation({ summary: 'Get a venue with its areas (org member)' })
   @ApiParam({ name: 'venueId', type: 'string', format: 'uuid' })
-  async get(@Param('venueId', ParseUUIDPipe) venueId: string) {
-    return this.venues.get(venueId);
+  async get(@Param('venueId', ParseUUIDPipe) venueId: string, @Req() req: FastifyRequest) {
+    const userId = await requireRequestUserId(req, this.supabase);
+    return this.venues.get(venueId, userId);
   }
 
   @Patch('venues/:venueId')
@@ -172,14 +175,15 @@ export class VenuesController {
 
   // ── Event-scoped derived listing ────────────────────────────────────────────
 
+  @Public()
   @Get('events/:eventId/venues')
   @ApiOperation({
     summary:
-      "Distinct venues used by this event's lices + workshop sessions. Powers the event Venue tab.",
+      "Distinct venues used by this event's lices + workshop sessions (public; a draft Event only for its org).",
   })
   @ApiParam({ name: 'eventId', type: 'string', format: 'uuid' })
-  async listForEvent(@Param('eventId', ParseUUIDPipe) eventId: string) {
-    return this.venues.listForEvent(eventId);
+  async listForEvent(@Param('eventId', ParseUUIDPipe) eventId: string, @Req() req: FastifyRequest) {
+    return this.venues.listForVisibleEvent(eventId, () => resolveRequestUserId(req, this.supabase));
   }
 
   @Put('events/:eventId/venues')
@@ -200,13 +204,20 @@ export class VenuesController {
 
   // ── Tournament phase venues (pools / bracket can live at different venues) ───
 
+  @Public()
   @Get('tournaments/:tournamentId/phase-venues')
   @ApiOperation({
-    summary: "A tournament's per-phase venue assignment (pools / bracket). Public read.",
+    summary:
+      "A tournament's per-phase venue assignment (pools / bracket). Public; a draft Event only for its org.",
   })
   @ApiParam({ name: 'tournamentId', type: 'string', format: 'uuid' })
-  async getTournamentPhaseVenues(@Param('tournamentId', ParseUUIDPipe) tournamentId: string) {
-    return this.venues.getTournamentPhaseVenues(tournamentId);
+  async getTournamentPhaseVenues(
+    @Param('tournamentId', ParseUUIDPipe) tournamentId: string,
+    @Req() req: FastifyRequest,
+  ) {
+    return this.venues.getTournamentPhaseVenues(tournamentId, () =>
+      resolveRequestUserId(req, this.supabase),
+    );
   }
 
   @Put('tournaments/:tournamentId/phase-venues')
