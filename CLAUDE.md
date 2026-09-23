@@ -108,9 +108,10 @@ record; there is no task queue to pick from.
   all land cleanly. Prefer root-cause and class-of-bug fixes over patches.
 - **Several agent sessions commit to this repo concurrently.** Check `git log --oneline -1` before
   staging, `git fetch` before pushing, and stage explicit paths — never `git add -A`.
-- **Text with a backslash goes into a file through the Write or Edit tool** — a regex, a `\n` in a
-  replace anchor, a Windows path. Passed through a Bash heredoc it arrives collapsed: an anchor stops
-  matching with no error, or `\b` lands as a backspace byte in a regex that then never matches.
+- **Any edit or script containing a backslash goes through the Write or Edit tool, never a Bash or
+  Python heredoc** — a regex, a `\n` in a replace anchor, an escaped quote, a Windows path. Through a
+  heredoc it arrives collapsed: an anchor stops matching with no error, `\b` lands as a backspace byte
+  in a regex that then never matches, or a Python script writes a broken file.
 - If a task is ambiguous or contradicts the architecture, **stop and ask**. If it needs something
   only the operator can do — a DNS record, a third-party account, a decision about the real event —
   **stop and notify** rather than improvising around it.
