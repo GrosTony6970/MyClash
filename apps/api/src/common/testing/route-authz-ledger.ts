@@ -38,11 +38,7 @@ export const UNDECIDED: Readonly<Record<string, string>> = {
   'modules/hema-ratings/hema-ratings.controller.ts#HemaRatingsController.search':
     'open: but it fetches upstream',
 
-  // organisations, leagues.
-  'modules/organizations/organizations.controller.ts#OrganizationsController.getById':
-    'read: no caller at all',
-  'modules/organizations/organizations.controller.ts#OrganizationsController.getBySlug':
-    'read: contact email',
+  // leagues.
   'modules/leagues/league-membership-requests.controller.ts#LeagueMembershipRequestsController.listByLeague':
     'read',
   'modules/leagues/leagues.controller.ts#LeaguesController.listAttachable': 'read: drafts',

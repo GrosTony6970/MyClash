@@ -84,7 +84,7 @@ export default function OrgLeaguesPage() {
   const loadAll = useCallback(async () => {
     setLoading(true);
     try {
-      // Org row → orgId. Public endpoint.
+      // Org row → orgId. Org members and platform staff only.
       const orgRes = await apiRequest<Record<string, unknown>>(
         apiUrl,
         `/api/v1/organizations/slug/${encodeURIComponent(orgSlug)}`,

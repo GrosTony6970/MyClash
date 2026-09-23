@@ -55,7 +55,13 @@ export class OrganizationsService {
 
   // ── Get one ──────────────────────────────────────────────────────────────────
 
-  async getById(id: string) {
+  /**
+   * The organisation with every member's account id and role — for a member of
+   * it, any role (operator ruling 70). Checked before the read, so an unknown
+   * id gets the same 403 as another club's.
+   */
+  async getById(id: string, userId: string) {
+    await this.assertOrgRole(id, userId, 'read_only');
     const { data, error } = await this.supabase.service
       .from('organizations')
       .select('*, organization_members(user_id, role, created_at)')
@@ -67,7 +73,13 @@ export class OrganizationsService {
     return data;
   }
 
-  async getBySlug(slug: string) {
+  /**
+   * The organisation, contact email and approval state included — for a member
+   * of it, any role, or platform staff of any tier (operator ruling 71): the
+   * web-admin shell lets every staff tier into every club's pages, and each of
+   * them resolves the club by slug first.
+   */
+  async getBySlug(slug: string, userId: string) {
     const { data, error } = await this.supabase.service
       .from('organizations')
       .select('id, name, slug, status, logo_url, brand_color, contact_email')
@@ -76,6 +88,9 @@ export class OrganizationsService {
 
     if (error) throw new BadRequestException(error.message);
     if (!data) throw new NotFoundException(`Organization "${slug}" not found`);
+    if (!(await hasPlatformTier(this.supabase, userId, 'platform_viewer'))) {
+      await this.assertOrgRole((data as { id: string }).id, userId, 'read_only');
+    }
     return data;
   }
 

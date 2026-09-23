@@ -131,7 +131,7 @@ export interface paths {
       path?: never;
       cookie?: never;
     };
-    /** Get organization by slug */
+    /** Get organization by slug (org member or platform staff) */
     get: operations['OrganizationsController_getBySlug'];
     put?: never;
     post?: never;
@@ -165,7 +165,7 @@ export interface paths {
       path?: never;
       cookie?: never;
     };
-    /** Get organization by ID */
+    /** Get organization by ID (org member) */
     get: operations['OrganizationsController_getById'];
     put?: never;
     post?: never;

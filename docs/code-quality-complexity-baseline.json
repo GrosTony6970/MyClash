@@ -350,7 +350,7 @@
     "apps/api/src/modules/notifications/event-handlers/notification-events.service.test.ts:181",
     "apps/api/src/modules/notifications/event-handlers/notification-events.service.ts:241",
     "apps/api/src/modules/organizations/onboarding.service.ts:184",
-    "apps/api/src/modules/organizations/organizations.service.ts:242",
+    "apps/api/src/modules/organizations/organizations.service.ts:257",
     "apps/api/src/modules/organizer-ai-assistant/organizer-ai-assistant.service.ts:133",
     "apps/api/src/modules/organizer-ai-assistant/organizer-ai-assistant.service.ts:253",
     "apps/api/src/modules/organizer-ai-assistant/organizer-ai-assistant.service.ts:313",

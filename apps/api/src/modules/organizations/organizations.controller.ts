@@ -23,6 +23,7 @@ import {
 } from '@nestjs/swagger';
 import type { FastifyRequest } from 'fastify';
 import { Public } from '../../common/auth/public.decorator';
+import { requireRequestUserId } from '../../common/auth/request-user';
 import { PlatformRoleGuard } from '../admin/guards/platform-role.guard';
 import { SupabaseService } from '../supabase/supabase.service';
 import {
@@ -92,12 +93,13 @@ export class OrganizationsController {
     return this.orgs.getPublicBySlug(slug);
   }
 
-  /** GET /api/v1/organizations/slug/:slug */
+  /** GET /api/v1/organizations/slug/:slug — org member or platform staff (ruling 71) */
   @Get('slug/:slug')
-  @ApiOperation({ summary: 'Get organization by slug' })
+  @ApiOperation({ summary: 'Get organization by slug (org member or platform staff)' })
   @ApiParam({ name: 'slug', type: 'string' })
-  async getBySlug(@Param('slug') slug: string) {
-    return this.orgs.getBySlug(slug);
+  async getBySlug(@Param('slug') slug: string, @Req() req: FastifyRequest) {
+    const userId = await requireRequestUserId(req, this.supabase);
+    return this.orgs.getBySlug(slug, userId);
   }
 
   /** GET /api/v1/organizations/:id/dashboard-stats */
@@ -109,12 +111,13 @@ export class OrganizationsController {
     return this.orgs.dashboardStats(id, userId);
   }
 
-  /** GET /api/v1/organizations/:id */
+  /** GET /api/v1/organizations/:id — org member (ruling 70) */
   @Get(':id')
-  @ApiOperation({ summary: 'Get organization by ID' })
+  @ApiOperation({ summary: 'Get organization by ID (org member)' })
   @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
-  async getById(@Param('id', ParseUUIDPipe) id: string) {
-    return this.orgs.getById(id);
+  async getById(@Param('id', ParseUUIDPipe) id: string, @Req() req: FastifyRequest) {
+    const userId = await requireRequestUserId(req, this.supabase);
+    return this.orgs.getById(id, userId);
   }
 
   /**
