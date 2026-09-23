@@ -4,6 +4,7 @@ import { BracketAdvanceService } from './bracket-advance.service';
 import { BracketSlotsController } from './bracket-slots.controller';
 import { ConflictCheckController } from './conflict-check.controller';
 import { MatchCompletionService } from './match-completion.service';
+import { PhaseReadsController } from './phase-reads.controller';
 import { PhasesController } from './phases.controller';
 import { PhasesService } from './phases.service';
 import { RefereesModule } from '../referees/referees.module';
@@ -36,7 +37,12 @@ import { MatchPlacementModule } from '../matches/match-placement.module';
     NotificationSchedulingModule,
     MatchPlacementModule,
   ],
-  controllers: [PhasesController, ConflictCheckController, BracketSlotsController],
+  controllers: [
+    PhasesController,
+    PhaseReadsController,
+    ConflictCheckController,
+    BracketSlotsController,
+  ],
   providers: [PhasesService, BracketAdvanceService, MatchCompletionService],
   exports: [PhasesService, BracketAdvanceService, MatchCompletionService],
 })

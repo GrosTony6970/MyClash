@@ -262,8 +262,8 @@ export class StaffController {
   }
 
   // The piste screen's pool + bracket views. Staff-scoped rather than reusing
-  // /tournaments/:id/* directly: those take only an id and assert nothing about
-  // which event the caller belongs to.
+  // /tournaments/:id/* directly: those are for members of the tournament's club
+  // (ruling 79), and a staff session is not one.
   @Get('staff/lices/:liceId/tournaments/:tournamentId/pools')
   @ApiOperation({ summary: 'Pools with matches for a tournament running on an assigned Lice' })
   @ApiParam({ name: 'liceId', type: 'string', format: 'uuid' })

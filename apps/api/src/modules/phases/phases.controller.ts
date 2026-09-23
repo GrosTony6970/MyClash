@@ -2,7 +2,6 @@ import {
   Body,
   Controller,
   Delete,
-  Get,
   HttpCode,
   HttpStatus,
   Param,
@@ -85,43 +84,6 @@ export class PhasesController {
     // route reads like its neighbours.
     const userId = await getUserId(req, this.supabase);
     return this.phases.generatePools(tournamentId, dto, force === 'true', userId);
-  }
-
-  @Get('tournaments/:tournamentId/pools')
-  @ApiOperation({ summary: 'List generated pools for a tournament' })
-  @ApiParam({ name: 'tournamentId', type: 'string', format: 'uuid' })
-  async listPools(@Param('tournamentId', ParseUUIDPipe) tournamentId: string) {
-    return this.phases.listTournamentPools(tournamentId);
-  }
-
-  /** GET /api/v1/tournaments/:tournamentId/pools-with-matches */
-  @Get('tournaments/:tournamentId/pools-with-matches')
-  @ApiOperation({ summary: 'List pools with enriched match rows for the Matches tab' })
-  @ApiParam({ name: 'tournamentId', type: 'string', format: 'uuid' })
-  async listPoolsWithMatches(@Param('tournamentId', ParseUUIDPipe) tournamentId: string) {
-    return this.phases.listPoolsWithMatches(tournamentId);
-  }
-
-  /**
-   * Lightweight score snapshot for the pools Matches tab's 30s fallback
-   * poll. Returns only `(id, status, red_score, blue_score)` so the FE
-   * can merge changes in place without re-rendering the whole table.
-   *
-   * GET /api/v1/tournaments/:tournamentId/match-scores
-   */
-  @Get('tournaments/:tournamentId/match-scores')
-  @ApiOperation({ summary: 'Per-tournament match scores (lightweight, for surgical FE polling)' })
-  @ApiParam({ name: 'tournamentId', type: 'string', format: 'uuid' })
-  async listMatchScores(@Param('tournamentId', ParseUUIDPipe) tournamentId: string) {
-    return this.phases.listMatchScores(tournamentId);
-  }
-
-  /** GET /api/v1/tournaments/:tournamentId/unassigned-fighters */
-  @Get('tournaments/:tournamentId/unassigned-fighters')
-  @ApiOperation({ summary: 'List tournament registrations not yet assigned to any pool' })
-  @ApiParam({ name: 'tournamentId', type: 'string', format: 'uuid' })
-  async listUnassignedFighters(@Param('tournamentId', ParseUUIDPipe) tournamentId: string) {
-    return this.phases.listUnassignedFighters(tournamentId);
   }
 
   /** PATCH /api/v1/pools/:poolId */
@@ -316,13 +278,6 @@ export class PhasesController {
   ) {
     const userId = await getUserId(req, this.supabase);
     return this.phases.populateBracket(tournamentId, dto, userId);
-  }
-
-  @Get('tournaments/:tournamentId/bracket')
-  @ApiOperation({ summary: 'Get generated bracket for a tournament' })
-  @ApiParam({ name: 'tournamentId', type: 'string', format: 'uuid' })
-  async getBracket(@Param('tournamentId', ParseUUIDPipe) tournamentId: string) {
-    return this.phases.getTournamentBracket(tournamentId);
   }
 
   @Patch('phases/:phaseId/visibility')

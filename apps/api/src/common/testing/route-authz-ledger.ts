@@ -23,13 +23,6 @@
  * are pinned.
  */
 export const UNDECIDED: Readonly<Record<string, string>> = {
-  // phases — the bracket and the Pools, draft Events and hidden phases included.
-  'modules/phases/phases.controller.ts#PhasesController.getBracket': 'read',
-  'modules/phases/phases.controller.ts#PhasesController.listPools': 'read',
-  'modules/phases/phases.controller.ts#PhasesController.listPoolsWithMatches': 'read',
-  'modules/phases/phases.controller.ts#PhasesController.listUnassignedFighters': 'read',
-  'modules/phases/phases.controller.ts#PhasesController.listMatchScores': 'read',
-
   // clubs and platform-wide identities. The writes were fixed 2026-09-23
   // (rulings 36-38, 55, 56); these four reads wait for ruling 15's read pass.
   'modules/clubs/clubs.controller.ts#ClubsController.list': 'open',

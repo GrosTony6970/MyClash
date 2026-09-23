@@ -9,10 +9,9 @@ import { mockSupabase, queriedTables } from '../../common/testing/supabase-chain
  * bracket behind a piste screen.
  *
  * They exist rather than pointing the tablet at
- * `/tournaments/:id/pools-with-matches` for one reason, which the source states
- * plainly: that route takes only an id and asserts nothing about which event
- * the caller belongs to, so any identity can read any tournament. These two pin
- * the tournament to the staff session's own event first.
+ * `/tournaments/:id/pools-with-matches` because that route is for members of
+ * the tournament's club (ruling 79), and a staff session is not one. These two
+ * pin the tournament to the staff session's own event first.
  *
  * Nothing tested that. `requireTournamentInStaffEvent` — the method holding the
  * pin — was executed by NO test in the API suite, so the whole check could have

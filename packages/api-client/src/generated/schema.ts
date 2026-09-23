@@ -3534,75 +3534,6 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  '/api/v1/tournaments/{tournamentId}/pools': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** List generated pools for a tournament */
-    get: operations['PhasesController_listPools'];
-    put?: never;
-    post?: never;
-    /** Delete every pool in this tournament (org admin+) */
-    delete: operations['PhasesController_deleteAllPools'];
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/api/v1/tournaments/{tournamentId}/pools-with-matches': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** List pools with enriched match rows for the Matches tab */
-    get: operations['PhasesController_listPoolsWithMatches'];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/api/v1/tournaments/{tournamentId}/match-scores': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** Per-tournament match scores (lightweight, for surgical FE polling) */
-    get: operations['PhasesController_listMatchScores'];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/api/v1/tournaments/{tournamentId}/unassigned-fighters': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** List tournament registrations not yet assigned to any pool */
-    get: operations['PhasesController_listUnassignedFighters'];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
   '/api/v1/pools/{poolId}': {
     parameters: {
       query?: never;
@@ -3706,6 +3637,24 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  '/api/v1/tournaments/{tournamentId}/pools': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List generated pools for a tournament (org member) */
+    get: operations['PhaseReadsController_listPools'];
+    put?: never;
+    post?: never;
+    /** Delete every pool in this tournament (org admin+) */
+    delete: operations['PhasesController_deleteAllPools'];
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   '/api/v1/tournaments/{tournamentId}/pools/empty': {
     parameters: {
       query?: never;
@@ -3751,23 +3700,6 @@ export interface paths {
     put?: never;
     /** Populate bracket R1 from pool standings (or registration seed when no pool phase exists) */
     post: operations['PhasesController_populateBracket'];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/api/v1/tournaments/{tournamentId}/bracket': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** Get generated bracket for a tournament */
-    get: operations['PhasesController_getBracket'];
-    put?: never;
-    post?: never;
     delete?: never;
     options?: never;
     head?: never;
@@ -3837,6 +3769,74 @@ export interface paths {
     post?: never;
     /** Delete a bracket phase (admin+) — cascades slots, matches, and assignments */
     delete: operations['PhasesController_deleteBracket'];
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/tournaments/{tournamentId}/pools-with-matches': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List pools with enriched match rows for the Matches tab (org member) */
+    get: operations['PhaseReadsController_listPoolsWithMatches'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/tournaments/{tournamentId}/match-scores': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Per-tournament match scores (lightweight, for surgical FE polling) (org member) */
+    get: operations['PhaseReadsController_listMatchScores'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/tournaments/{tournamentId}/unassigned-fighters': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List tournament registrations not yet assigned to any pool (org member) */
+    get: operations['PhaseReadsController_listUnassignedFighters'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/tournaments/{tournamentId}/bracket': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Get generated bracket for a tournament (org member) */
+    get: operations['PhaseReadsController_getBracket'];
+    put?: never;
+    post?: never;
+    delete?: never;
     options?: never;
     head?: never;
     patch?: never;
@@ -16855,101 +16855,6 @@ export interface operations {
       };
     };
   };
-  PhasesController_listPools: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        tournamentId: string;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-    };
-  };
-  PhasesController_deleteAllPools: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        tournamentId: string;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      204: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-    };
-  };
-  PhasesController_listPoolsWithMatches: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        tournamentId: string;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-    };
-  };
-  PhasesController_listMatchScores: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        tournamentId: string;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-    };
-  };
-  PhasesController_listUnassignedFighters: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        tournamentId: string;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-    };
-  };
   PhasesController_deletePool: {
     parameters: {
       query?: never;
@@ -17084,6 +16989,44 @@ export interface operations {
       };
     };
   };
+  PhaseReadsController_listPools: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        tournamentId: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  PhasesController_deleteAllPools: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        tournamentId: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
   PhasesController_addEmptyPool: {
     parameters: {
       query?: never;
@@ -17161,25 +17104,6 @@ export interface operations {
       };
       /** @description Pools have not finished yet */
       409: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-    };
-  };
-  PhasesController_getBracket: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        tournamentId: string;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      200: {
         headers: {
           [name: string]: unknown;
         };
@@ -17307,6 +17231,82 @@ export interface operations {
       };
       /** @description Pool phases are deleted via DELETE /pools/:poolId */
       400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  PhaseReadsController_listPoolsWithMatches: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        tournamentId: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  PhaseReadsController_listMatchScores: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        tournamentId: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  PhaseReadsController_listUnassignedFighters: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        tournamentId: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  PhaseReadsController_getBracket: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        tournamentId: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
         headers: {
           [name: string]: unknown;
         };

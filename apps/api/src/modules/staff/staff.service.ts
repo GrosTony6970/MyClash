@@ -1144,9 +1144,9 @@ export class StaffService {
    * Pools + matches for a tournament, for the piste screen.
    *
    * Exists rather than pointing the tablet at `/tournaments/:id/pools-with-matches`
-   * because that route takes only an id — it asserts nothing about WHICH event
-   * the caller belongs to, so any identity can read any tournament. This one
-   * pins the tournament to the staff session's own event first.
+   * because that route is for members of the tournament's club (ruling 79), and
+   * a staff session is not one. This one pins the tournament to the staff
+   * session's own event first.
    */
   async getAssignedLiceTournamentPools(req: FastifyRequest, liceId: string, tournamentId: string) {
     await this.requireTournamentInStaffEvent(req, liceId, tournamentId);
