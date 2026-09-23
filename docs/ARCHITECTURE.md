@@ -825,6 +825,14 @@ Two rules keep a pinned definition from shifting under a tournament:
   scoring, `penalty_ruleset_versions` for penalties). Rollback copies a snapshot back onto the parent
   rather than overwriting destructively. `is_frozen` flips `TRUE` the moment a tournament pins the
   ruleset, after which the edit-guard refuses further edits.
+- **A penalty pin stays in its club.** An Event or a Tournament pins only the built-in penalty
+  ruleset, a shared one, or one its own organisation owns: its members read the pinned ruleset, so
+  a pin must not hand over another organisation's private rules. The API applies it at every door
+  that writes a pin, archive restore included (`pinnablePenaltyRuleset`,
+  `apps/api/src/modules/penalties/penalty-version.util.ts`; a restore clears a pin it may not keep and
+  says so), and triggers on `events` and `tournaments` hold it underneath (migration `0199`),
+  including when an Event moves to another organisation with its Tournaments. An unchanged pin and
+  version re-sent by an edit are let through, so a ruleset its owner stops sharing blocks nothing.
 - **Delist ≠ delete.** Deleting a ruleset that any tournament pins would 400 that tournament's
   standings, so the service **soft-archives** it instead: the row leaves every picker and list but stays
   resolvable forever. Only an unreferenced ruleset is truly deleted. System and default rulesets cannot
