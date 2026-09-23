@@ -38,11 +38,7 @@ export const UNDECIDED: Readonly<Record<string, string>> = {
   'modules/hema-ratings/hema-ratings.controller.ts#HemaRatingsController.search':
     'open: but it fetches upstream',
 
-  // workshops and venues.
-  'modules/workshops/workshops.controller.ts#WorkshopsController.list':
-    'read: drafts, ignores hidden workshops',
-  'modules/workshops/workshops.controller.ts#WorkshopsController.getOne': 'read: same',
-  'modules/workshops/workshops.controller.ts#WorkshopsController.listBreaks': 'open*',
+  // venues.
   'modules/venues/venues.controller.ts#VenuesController.listForOrg': 'read',
   'modules/venues/venues.controller.ts#VenuesController.get': 'read',
   'modules/venues/venues.controller.ts#VenuesController.listForEvent': 'open*',

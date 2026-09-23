@@ -257,7 +257,9 @@ export class WorkshopsService {
 
   // ── List workshops for event ──────────────────────────────────────────────────
 
-  async listWorkshops(eventId: string): Promise<WorkshopView[]> {
+  /** Drafts included — for any member of the Event's organisation (ruling 75). */
+  async listWorkshops(eventId: string, userId: string): Promise<WorkshopView[]> {
+    await this.assertCanReadEvent(eventId, userId);
     const { data, error } = await this.supabase.service
       .from('workshops')
       .select(WORKSHOP_SELECT)
@@ -377,7 +379,13 @@ export class WorkshopsService {
 
   // ── Get one workshop ──────────────────────────────────────────────────────────
 
-  async getWorkshop(workshopId: string): Promise<WorkshopView> {
+  /**
+   * One workshop in full — for any member of its OWN Event's organisation
+   * (ruling 75), checked before the workshop itself is read.
+   */
+  async getWorkshop(workshopId: string, userId: string): Promise<WorkshopView> {
+    await this.assertCanReadEvent(await this.resolveWorkshopEvent(workshopId), userId);
+
     const { data, error } = await this.supabase.service
       .from('workshops')
       .select(WORKSHOP_SELECT)
@@ -1034,7 +1042,13 @@ export class WorkshopsService {
 
   // ── Workshop-only break blocks (separate store from event programme) ────────────
 
-  async listWorkshopBreaks(eventId: string): Promise<WorkshopBreakView[]> {
+  /** The organiser's break bars — for any member of the Event's organisation (ruling 75). */
+  async listEventWorkshopBreaks(eventId: string, userId: string): Promise<WorkshopBreakView[]> {
+    await this.assertCanReadEvent(eventId, userId);
+    return this.listWorkshopBreaks(eventId);
+  }
+
+  private async listWorkshopBreaks(eventId: string): Promise<WorkshopBreakView[]> {
     const { data, error } = await this.supabase.service
       .from('workshop_breaks')
       .select('id, event_id, day_index, start_time, end_time, label, color')
@@ -1158,12 +1172,14 @@ export class WorkshopsService {
 
   // ── Authorization helpers ───────────────────────────────────────────────────────
 
+  /** The workshop's own Event. A failed read is not "not found": it throws. */
   private async resolveWorkshopEvent(workshopId: string): Promise<string> {
-    const { data } = await this.supabase.service
+    const { data, error } = await this.supabase.service
       .from('workshops')
       .select('event_id')
       .eq('id', workshopId)
       .maybeSingle();
+    if (error) throw new BadRequestException(error.message);
     if (!data) throw new NotFoundException(`Workshop ${workshopId} not found`);
     return String((data as { event_id: string }).event_id);
   }

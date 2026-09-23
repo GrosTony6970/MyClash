@@ -5,7 +5,9 @@
  *
  * Authorization: write endpoints resolve the caller via `getUserId`
  * and the service asserts the org role (`workshop_lead`+), mirroring
- * the events controller convention. Reads stay public.
+ * the events controller convention. The organiser reads need any member of
+ * the Event's organisation (operator ruling 75); the public site reads
+ * through the slug routes below.
  */
 
 import {
@@ -40,6 +42,7 @@ import { SupabaseService } from '../supabase/supabase.service';
 import { EnrollmentService } from './enrollment.service';
 import { FeedbackService } from './feedback.service';
 import { Public } from '../../common/auth/public.decorator';
+import { requireRequestUserId } from '../../common/auth/request-user';
 import { WorkshopsService } from './workshops.service';
 
 const WORKSHOP_STATUSES = ['draft', 'published', 'running', 'completed'] as const;
@@ -183,10 +186,11 @@ export class WorkshopsController {
   // ── Workshops CRUD ────────────────────────────────────────────────────────────
 
   @Get('events/:eventId/workshops')
-  @ApiOperation({ summary: 'List workshops for an event (organizer)' })
+  @ApiOperation({ summary: 'List workshops for an event (org member)' })
   @ApiParam({ name: 'eventId', type: 'string', format: 'uuid' })
-  async list(@Param('eventId', ParseUUIDPipe) eventId: string) {
-    return this.workshops.listWorkshops(eventId);
+  async list(@Param('eventId', ParseUUIDPipe) eventId: string, @Req() req: FastifyRequest) {
+    const userId = await requireRequestUserId(req, this.supabase);
+    return this.workshops.listWorkshops(eventId, userId);
   }
 
   @Post('events/:eventId/workshops')
@@ -203,10 +207,11 @@ export class WorkshopsController {
   }
 
   @Get('workshops/:id')
-  @ApiOperation({ summary: 'Get workshop detail (organizer)' })
+  @ApiOperation({ summary: 'Get workshop detail (org member)' })
   @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
-  async getOne(@Param('id', ParseUUIDPipe) id: string) {
-    return this.workshops.getWorkshop(id);
+  async getOne(@Param('id', ParseUUIDPipe) id: string, @Req() req: FastifyRequest) {
+    const userId = await requireRequestUserId(req, this.supabase);
+    return this.workshops.getWorkshop(id, userId);
   }
 
   // ── Public reads (slug-based, status-gated; no auth) ────────────────────────────
@@ -424,10 +429,11 @@ export class WorkshopsController {
   // ── Workshop-only break blocks ──────────────────────────────────────────────────
 
   @Get('events/:eventId/workshop-breaks')
-  @ApiOperation({ summary: 'List workshop-only break blocks for an event' })
+  @ApiOperation({ summary: 'List workshop-only break blocks for an event (org member)' })
   @ApiParam({ name: 'eventId', type: 'string', format: 'uuid' })
-  async listBreaks(@Param('eventId', ParseUUIDPipe) eventId: string) {
-    return this.workshops.listWorkshopBreaks(eventId);
+  async listBreaks(@Param('eventId', ParseUUIDPipe) eventId: string, @Req() req: FastifyRequest) {
+    const userId = await requireRequestUserId(req, this.supabase);
+    return this.workshops.listEventWorkshopBreaks(eventId, userId);
   }
 
   @Post('events/:eventId/workshop-breaks')

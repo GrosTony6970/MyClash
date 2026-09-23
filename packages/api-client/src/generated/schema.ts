@@ -8321,7 +8321,7 @@ export interface paths {
       path?: never;
       cookie?: never;
     };
-    /** List workshops for an event (organizer) */
+    /** List workshops for an event (org member) */
     get: operations['WorkshopsController_list'];
     put?: never;
     /** Create a workshop (workshop_lead+) */
@@ -8339,7 +8339,7 @@ export interface paths {
       path?: never;
       cookie?: never;
     };
-    /** Get workshop detail (organizer) */
+    /** Get workshop detail (org member) */
     get: operations['WorkshopsController_getOne'];
     put?: never;
     post?: never;
@@ -8563,7 +8563,7 @@ export interface paths {
       path?: never;
       cookie?: never;
     };
-    /** List workshop-only break blocks for an event */
+    /** List workshop-only break blocks for an event (org member) */
     get: operations['WorkshopsController_listBreaks'];
     put?: never;
     /** Create a workshop break block (workshop_lead+) */
