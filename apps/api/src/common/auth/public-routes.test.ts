@@ -116,6 +116,10 @@ const EXPECTED_PUBLIC = [
   'GET /fighters/:slug/matches',
   'GET /fighters/:slug/rating-history',
   'GET /fighters/:slug/referee-stats',
+  // League scoring systems and their history (ruling 74): written by platform
+  // admins only, nothing private in them.
+  'GET /admin/league-scoring-systems',
+  'GET /admin/league-scoring-systems/:id/versions',
   'GET /leagues',
   'GET /leagues/:leagueId/club-standings',
   'GET /leagues/:leagueId/final-report.csv',

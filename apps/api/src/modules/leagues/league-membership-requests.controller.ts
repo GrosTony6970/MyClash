@@ -18,6 +18,7 @@ import {
   ReviewLeagueMembershipRequestBodyDto,
 } from './dto/league-membership-requests.dto';
 import { LeagueMembershipRequestsService } from './league-membership-requests.service';
+import { LeaguesService } from './leagues.service';
 
 async function getUserId(req: FastifyRequest, supabase: SupabaseService): Promise<string> {
   const authHeader = req.headers['authorization'];
@@ -36,6 +37,7 @@ async function getUserId(req: FastifyRequest, supabase: SupabaseService): Promis
 export class LeagueMembershipRequestsController {
   constructor(
     private readonly service: LeagueMembershipRequestsService,
+    private readonly leagues: LeaguesService,
     private readonly supabase: SupabaseService,
   ) {}
 
@@ -81,11 +83,14 @@ export class LeagueMembershipRequestsController {
 
   @Get('admin/leagues/:leagueId/membership-requests')
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'List org-join requests for a league' })
+  @ApiOperation({ summary: 'List org-join requests for a league (league admin)' })
   async listByLeague(
     @Param('leagueId', ParseUUIDPipe) leagueId: string,
     @Query('status') status: string | undefined,
+    @Req() req: FastifyRequest,
   ) {
+    const userId = await getUserId(req, this.supabase);
+    await this.leagues.assertCanManageLeague(leagueId, userId);
     const allowed = ['requested', 'approved', 'rejected', 'withdrawn'] as const;
     const normalised = (allowed as readonly string[]).includes(status ?? '')
       ? (status as (typeof allowed)[number])

@@ -38,17 +38,6 @@ export const UNDECIDED: Readonly<Record<string, string>> = {
   'modules/hema-ratings/hema-ratings.controller.ts#HemaRatingsController.search':
     'open: but it fetches upstream',
 
-  // leagues.
-  'modules/leagues/league-membership-requests.controller.ts#LeagueMembershipRequestsController.listByLeague':
-    'read',
-  'modules/leagues/leagues.controller.ts#LeaguesController.listAttachable': 'read: drafts',
-  'modules/leagues/leagues.controller.ts#LeaguesController.listLeagueGroups': 'open*',
-  'modules/leagues/leagues.controller.ts#LeaguesController.listLeagueGroupsPublic': 'open*',
-  'modules/admin/league-scoring-systems/league-scoring-systems.controller.ts#LeagueScoringSystemsController.list':
-    'open',
-  'modules/admin/league-scoring-systems/league-scoring-systems.controller.ts#LeagueScoringSystemsController.listVersions':
-    'open',
-
   // workshops and venues.
   'modules/workshops/workshops.controller.ts#WorkshopsController.list':
     'read: drafts, ignores hidden workshops',
@@ -124,6 +113,8 @@ export const DECIDED_ELSEWHERE: Readonly<Record<string, string>> = {
     "the caller's organisations' plans",
   'modules/leagues/leagues.controller.ts#LeaguesController.listManageable':
     "the caller's own leagues",
+  'modules/leagues/leagues.controller.ts#LeaguesController.listAttachable':
+    'public leagues, plus each draft the caller manages (canManageLeague); 401 signed out',
   'modules/organizations/organizations.controller.ts#OrganizationsController.create':
     "a new organisation the caller owns; anonymous fails only on the uuid cast of 'anonymous'",
   // A comparison with the caller, then a 403 — inline, so no name to count.

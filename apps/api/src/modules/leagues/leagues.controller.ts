@@ -61,10 +61,12 @@ export class LeaguesController {
 
   @Get('leagues/attachable')
   @ApiOperation({
-    summary: 'List leagues a tournament organizer can request to attach to (drafts + published).',
+    summary:
+      'List leagues a tournament organizer can request to attach to (published; drafts for their managers).',
   })
-  async listAttachable() {
-    return this.leagues.listAttachable();
+  async listAttachable(@Req() req: FastifyRequest) {
+    const userId = await getUserId(req, this.supabase);
+    return this.leagues.listAttachable(userId);
   }
 
   @Public()
@@ -562,17 +564,25 @@ export class LeaguesController {
   @Get('leagues/:leagueId/groups')
   @ApiOperation({
     summary:
-      'List groups defined for a league (public — used by organizers picking a group when requesting attachment).',
+      'List groups defined for a league, for organizers picking a group when requesting attachment (published; drafts for their managers).',
   })
-  async listLeagueGroupsPublic(@Param('leagueId', ParseUUIDPipe) leagueId: string) {
-    return this.leagues.listGroups(leagueId);
+  async listLeagueGroupsPublic(
+    @Param('leagueId', ParseUUIDPipe) leagueId: string,
+    @Req() req: FastifyRequest,
+  ) {
+    const userId = await getUserId(req, this.supabase);
+    return this.leagues.listGroupsToAttach(leagueId, userId);
   }
 
   @Get('admin/leagues/:leagueId/groups')
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'List groups defined for a league (admin view).' })
-  async listLeagueGroups(@Param('leagueId', ParseUUIDPipe) leagueId: string) {
-    return this.leagues.listGroups(leagueId);
+  @ApiOperation({ summary: 'List groups defined for a league (league admin view).' })
+  async listLeagueGroups(
+    @Param('leagueId', ParseUUIDPipe) leagueId: string,
+    @Req() req: FastifyRequest,
+  ) {
+    const userId = await getUserId(req, this.supabase);
+    return this.leagues.listGroupsToManage(leagueId, userId);
   }
 
   @Post('admin/leagues/:leagueId/groups')

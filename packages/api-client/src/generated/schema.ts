@@ -2784,7 +2784,7 @@ export interface paths {
       path?: never;
       cookie?: never;
     };
-    /** List leagues a tournament organizer can request to attach to (drafts + published). */
+    /** List leagues a tournament organizer can request to attach to (published; drafts for their managers). */
     get: operations['LeaguesController_listAttachable'];
     put?: never;
     post?: never;
@@ -3334,7 +3334,7 @@ export interface paths {
       path?: never;
       cookie?: never;
     };
-    /** List groups defined for a league (public — used by organizers picking a group when requesting attachment). */
+    /** List groups defined for a league, for organizers picking a group when requesting attachment (published; drafts for their managers). */
     get: operations['LeaguesController_listLeagueGroupsPublic'];
     put?: never;
     post?: never;
@@ -3351,7 +3351,7 @@ export interface paths {
       path?: never;
       cookie?: never;
     };
-    /** List groups defined for a league (admin view). */
+    /** List groups defined for a league (league admin view). */
     get: operations['LeaguesController_listLeagueGroups'];
     put?: never;
     /** Create a league group. */
@@ -3490,7 +3490,7 @@ export interface paths {
       path?: never;
       cookie?: never;
     };
-    /** List org-join requests for a league */
+    /** List org-join requests for a league (league admin) */
     get: operations['LeagueMembershipRequestsController_listByLeague'];
     put?: never;
     post?: never;

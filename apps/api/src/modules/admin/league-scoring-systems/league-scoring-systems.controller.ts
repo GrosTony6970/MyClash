@@ -22,6 +22,7 @@ import {
 } from './dto/league-scoring-systems.dto';
 import { LeagueScoringSystemsService } from './league-scoring-systems.service';
 import { getActorId } from '../../../common/auth/actor';
+import { Public } from '../../../common/auth/public.decorator';
 
 @ApiTags('super-admin')
 @ApiBearerAuth()
@@ -29,9 +30,10 @@ import { getActorId } from '../../../common/auth/actor';
 export class LeagueScoringSystemsController {
   constructor(private readonly service: LeagueScoringSystemsService) {}
 
-  // List endpoint is intentionally NOT guarded by PlatformRoleGuard so that
-  // the league editor (used by org/league admins, not only super admins)
-  // can populate the scoring-system dropdown. Writes remain super-admin only.
+  // The reads are public (operator ruling 74): only platform admins write these
+  // rules, nothing in them is private, and the league editor, the club rulesets
+  // tab and the console all read them. Writes remain platform-admin only.
+  @Public()
   @Get()
   @ApiOperation({ summary: 'List league scoring systems' })
   async list() {
@@ -86,6 +88,7 @@ export class LeagueScoringSystemsController {
     return this.service.setDefault(id, getActorId(req));
   }
 
+  @Public()
   @Get(':id/versions')
   @ApiOperation({ summary: 'List version history for a scoring system' })
   async listVersions(@Param('id', ParseUUIDPipe) id: string) {

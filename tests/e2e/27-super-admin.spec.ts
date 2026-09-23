@@ -100,7 +100,7 @@ const GUARDED_ROUTES = [
 
 /**
  * What the console must be able to READ as a super admin. Every guarded GET,
- * plus the league-scoring-systems list — open to org admins by design, but still
+ * plus the league-scoring-systems list — public by design (ruling 74), but still
  * part of what the console shows.
  */
 const CONSOLE_READS: readonly string[] = [

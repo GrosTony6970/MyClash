@@ -63,6 +63,11 @@ function flattenTournamentEvent(row: Row): Row {
   };
 }
 
+/** Published and visible: a league the public league pages show. */
+function isPublicLeague(league: Row): boolean {
+  return league['public_visibility'] === true && league['status'] === 'published';
+}
+
 /** The pool group a link was filed under, from the `league_groups(name)` embed. */
 function linkGroupName(link: Row): string | null {
   return (link['league_groups'] as { name?: string } | null)?.name ?? null;
@@ -212,20 +217,30 @@ export class LeaguesService {
   }
 
   /**
-   * Leagues an organizer can request to attach a tournament to.
-   * Unlike listPublic (which gates on visibility + published status),
-   * this surface returns every non-archived league so organizers can
-   * also see drafts they may have permission to attach to. The
-   * attach POST still enforces league + org permissions on its side.
+   * Leagues an organizer can request to attach a tournament to: every public
+   * league; a draft only for its managers (operator ruling 72) and for an
+   * admin of a club holding any role in it (ruling 76), whose Leagues tab
+   * shows it already. A public league's row is public anyway (listPublic).
+   * The attach POST still enforces league + org permissions on its side.
    */
-  async listAttachable() {
+  async listAttachable(userId: string) {
     const { data, error } = await this.supabase.service
       .from('leagues')
       .select('*')
       .in('status', ['draft', 'published'])
       .order('season_year', { ascending: false });
     if (error) throw new BadRequestException(error.message);
-    return data ?? [];
+    const rows = (data ?? []) as Row[];
+    const clubLeagues = await this.leaguesOfClubsAdminedBy(userId);
+    const shown = await Promise.all(
+      rows.map(async (row) => {
+        const leagueId = String(row['id']);
+        return (
+          isPublicLeague(row) || clubLeagues.has(leagueId) || this.canManageLeague(leagueId, userId)
+        );
+      }),
+    );
+    return rows.filter((_, index) => shown[index]);
   }
 
   async getPublicBySlug(slug: string) {
@@ -909,7 +924,36 @@ export class LeaguesService {
 
   // ── Groups ────────────────────────────────────────────────────────────────
 
-  async listGroups(leagueId: string) {
+  /**
+   * A league's groups for the attach picker: the attach list's rule (rulings
+   * 73, 76) — public, or the caller's club is in it, or the caller manages it.
+   * Unlike the list it does not look at `archived`: a member club and the
+   * managers still get an archived league's group names.
+   */
+  async listGroupsToAttach(leagueId: string, userId: string) {
+    const { data, error } = await this.supabase.service
+      .from('leagues')
+      .select('status, public_visibility')
+      .eq('id', leagueId)
+      .maybeSingle();
+    if (error) throw new BadRequestException(error.message);
+    if (!data) throw new NotFoundException(`League ${leagueId} not found`);
+    if (
+      !isPublicLeague(data as Row) &&
+      !(await this.leaguesOfClubsAdminedBy(userId)).has(leagueId)
+    ) {
+      await this.assertCanManageLeague(leagueId, userId);
+    }
+    return this.listGroups(leagueId);
+  }
+
+  /** A league's groups for its manage page: its managers (ruling 73). */
+  async listGroupsToManage(leagueId: string, userId: string) {
+    await this.assertCanManageLeague(leagueId, userId);
+    return this.listGroups(leagueId);
+  }
+
+  private async listGroups(leagueId: string) {
     const { data, error } = await this.supabase.service
       .from('league_groups')
       .select('*')
@@ -2151,8 +2195,15 @@ export class LeaguesService {
     return data as Row;
   }
 
-  private async assertCanManageLeague(leagueId: string, userId: string) {
-    if (await this.isPlatformStaffAdmin(userId)) return;
+  /** Public for the league's join-requests list (its own controller). */
+  async assertCanManageLeague(leagueId: string, userId: string) {
+    if (!(await this.canManageLeague(leagueId, userId))) {
+      throw new ForbiddenException('League admin access required');
+    }
+  }
+
+  private async canManageLeague(leagueId: string, userId: string): Promise<boolean> {
+    if (await this.isPlatformStaffAdmin(userId)) return true;
     const { data: directRole } = await this.supabase.service
       .from('league_user_roles')
       .select('role')
@@ -2160,11 +2211,9 @@ export class LeaguesService {
       .eq('user_id', userId)
       .in('role', ['admin', 'owner'])
       .maybeSingle();
-    if (directRole) return;
+    if (directRole) return true;
 
-    if (await this.hasOrgManagePath(leagueId, userId)) return;
-
-    throw new ForbiddenException('League admin access required');
+    return this.hasOrgManagePath(leagueId, userId);
   }
 
   /**
@@ -2174,10 +2223,7 @@ export class LeaguesService {
    * caller is losing access they in fact keep via their org.
    */
   private async hasOrgManagePath(leagueId: string, userId: string): Promise<boolean> {
-    const orgMemberships = await this.listRows('organization_members', 'user_id', userId);
-    const adminOrgIds = orgMemberships
-      .filter((row) => ['admin', 'owner'].includes(String(row['role'])))
-      .map((row) => String(row['organization_id']));
+    const adminOrgIds = await this.orgIdsAdminedBy(userId);
     if (adminOrgIds.length === 0) return false;
 
     // .limit(1), not .maybeSingle(): a user who admins two orgs that both hold
@@ -2191,6 +2237,30 @@ export class LeaguesService {
       .in('role', ['admin', 'owner'])
       .limit(1);
     return Array.isArray(orgRoles) && orgRoles.length > 0;
+  }
+
+  /** The organisations `userId` is an admin or owner of. */
+  private async orgIdsAdminedBy(userId: string): Promise<string[]> {
+    const orgMemberships = await this.listRows('organization_members', 'user_id', userId);
+    return orgMemberships
+      .filter((row) => ['admin', 'owner'].includes(String(row['role'])))
+      .map((row) => String(row['organization_id']));
+  }
+
+  /**
+   * The leagues in which a club `userId` admins holds ANY role, member included
+   * (operator ruling 76): such a club's Leagues tab already shows the league,
+   * drafts too, so its draft is attachable for that admin. Not a manage path.
+   */
+  private async leaguesOfClubsAdminedBy(userId: string): Promise<Set<string>> {
+    const adminOrgIds = await this.orgIdsAdminedBy(userId);
+    if (adminOrgIds.length === 0) return new Set();
+    const { data, error } = await this.supabase.service
+      .from('league_organization_roles')
+      .select('league_id')
+      .in('organization_id', adminOrgIds);
+    if (error) throw new BadRequestException(error.message);
+    return new Set(((data ?? []) as Row[]).map((row) => String(row['league_id'])));
   }
 
   /**
