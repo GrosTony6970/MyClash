@@ -778,7 +778,7 @@ export class WorkshopsService {
       await this.assertVenueBelongsToEventsOrg(dto.venueId, eventId);
     }
     if (dto.areaId) {
-      await this.assertAreaBelongsToVenue(dto.areaId, dto.venueId ?? null);
+      await this.assertAreaBelongsToVenue(dto.areaId, dto.venueId ?? null, eventId);
     }
 
     // A workshop has at most one session (UNIQUE(workshop_id), migration
@@ -811,7 +811,8 @@ export class WorkshopsService {
   // ── Update session ────────────────────────────────────────────────────────────
 
   async updateSession(sessionId: string, dto: Partial<CreateSessionDto>, userId: string) {
-    await this.assertCanManageSession(sessionId, userId);
+    const eventId = await this.assertCanManageSession(sessionId, userId);
+    await this.assertSessionPlace(sessionId, eventId, dto);
 
     const updates: Record<string, unknown> = {};
     if (dto.startTime !== undefined) updates['starts_at'] = dto.startTime;
@@ -1210,7 +1211,8 @@ export class WorkshopsService {
     );
   }
 
-  private async assertCanManageSession(sessionId: string, userId: string): Promise<void> {
+  /** The session's Event, once the caller may manage it. */
+  private async assertCanManageSession(sessionId: string, userId: string): Promise<string> {
     const { data: session } = await this.supabase.service
       .from('workshop_sessions')
       .select('workshop_id')
@@ -1221,6 +1223,7 @@ export class WorkshopsService {
       String((session as { workshop_id: string }).workshop_id),
     );
     await this.assertCanManageEvent(eventId, userId);
+    return eventId;
   }
 
   // ── Instructor-scoped authorization ─────────────────────────────────────────────
@@ -1298,14 +1301,49 @@ export class WorkshopsService {
     }
   }
 
-  private async assertAreaBelongsToVenue(areaId: string, venueId: string | null): Promise<void> {
+  /**
+   * The place an edit gives a session must be the Event's club's own, as on
+   * create (ruling 80): the Event's public venue list shows whatever venue a
+   * session names. An area sent alone is checked against the session's venue.
+   */
+  private async assertSessionPlace(
+    sessionId: string,
+    eventId: string,
+    dto: Partial<CreateSessionDto>,
+  ): Promise<void> {
+    if (dto.venueId) await this.assertVenueBelongsToEventsOrg(dto.venueId, eventId);
+    if (!dto.areaId) return;
+    let venueId = dto.venueId ?? null;
+    if (dto.venueId === undefined) {
+      const { data } = await this.supabase.service
+        .from('workshop_sessions')
+        .select('venue_id')
+        .eq('id', sessionId)
+        .maybeSingle();
+      venueId = (data as { venue_id: string | null } | null)?.venue_id ?? null;
+    }
+    await this.assertAreaBelongsToVenue(dto.areaId, venueId, eventId);
+  }
+
+  /**
+   * An area must sit in the session's venue; with no venue, its own venue must
+   * be the Event's club's, or any club's area could be named.
+   */
+  private async assertAreaBelongsToVenue(
+    areaId: string,
+    venueId: string | null,
+    eventId: string,
+  ): Promise<void> {
     const { data: area } = await this.supabase.service
       .from('venue_areas')
       .select('venue_id')
       .eq('id', areaId)
       .maybeSingle();
     if (!area) throw new BadRequestException(`Area ${areaId} not found`);
-    if (venueId && String((area as Record<string, unknown>)['venue_id']) !== venueId) {
+    const areaVenueId = String((area as Record<string, unknown>)['venue_id']);
+    if (!venueId) {
+      await this.assertVenueBelongsToEventsOrg(areaVenueId, eventId);
+    } else if (areaVenueId !== venueId) {
       throw new BadRequestException('Area does not belong to the selected venue');
     }
   }
