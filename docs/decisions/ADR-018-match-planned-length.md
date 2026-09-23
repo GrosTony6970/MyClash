@@ -40,7 +40,8 @@ left open where the number lives and where a Match placed by hand finds it.
   validates it. The planner loads it when it opens and saves it on every field change. The
   defaults, 5/5/8/10 and the rest, live in that schema, which is the one owner of those numbers.
   The browser constant goes.
-- Through the API, anyone signed in who can see the Event may read the sheet; only the organiser's
+- Through the API, anyone who can see the Event may read the sheet, signed in or not (ruling 85,
+  2026-09-23: the route is `@Public()` like the programme list); only the organiser's
   team may write it. The sheet holds planning numbers and no personal data. What its own table buys
   is that it never rides along in a public event payload.
 - **The sheet is read live.** A Match has no copy of its length. Change a number on the sheet and
@@ -205,8 +206,8 @@ shape (ADR-016), not this rule's.
   column of the event row (`apps/api/src/modules/events/events.service.ts`, `listEvents`), so the
   sheet would ride out in a public payload. Its own table keeps it out of those payloads.
 - **The sheet readable only by the organiser's team.** Rejected by the operator: the bars are already
-  public on the schedule, and the numbers are not secret. Anyone signed in who can see the Event may
-  read it; writing stays with the team.
+  public on the schedule, and the numbers are not secret. Anyone who can see the Event may read it;
+  writing stays with the team.
 - **A length on `phases`, written by Generate.** Rejected: a phase that was never generated has
   none, so a second home is still needed.
 - **Generate preserves a typed override.** Rejected: the sheet wins when a day is generated again.

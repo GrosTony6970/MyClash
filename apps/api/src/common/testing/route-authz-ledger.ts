@@ -33,8 +33,6 @@ export const UNDECIDED: Readonly<Record<string, string>> = {
 
   // public by nature.
   'modules/events/events.controller.ts#EventsController.getMatchConfig': 'open*',
-  'modules/programme/programme.controller.ts#ProgrammeController.getConfig':
-    'open: only assertCanReadEvent',
   'modules/fighters/fighters.controller.ts#GlobalPersonsController.list':
     'read: any signed-in account',
   'modules/people-context/me-people.controller.ts#MePeopleController.context':

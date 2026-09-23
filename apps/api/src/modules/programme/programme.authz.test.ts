@@ -130,10 +130,9 @@ describe('a member of another organisation cannot write the programme', () => {
 });
 
 /**
- * The planner sheet is readable by anyone signed in who can see the Event
- * (ADR-018), so its read sits behind the Event's visibility gate rather than
- * the editor bar. Anonymous callers never reach the service: the route is not
- * `@Public()`, so the global guard refuses them first.
+ * The planner sheet is readable by anyone who can see the Event, signed in or
+ * not (ADR-018, ruling 85), so its read sits behind the Event's visibility gate
+ * rather than the editor bar, like the programme list beside it.
  */
 describe('the planner sheet is read behind the Event visibility gate', () => {
   function sheetReader(status: string) {
@@ -155,6 +154,15 @@ describe('the planner sheet is read behind the Event visibility gate', () => {
   it('hides the sheet of a draft Event from a member of another organisation', async () => {
     await expect(
       sheetReader('draft').getConfig(EVENT_ID, () => Promise.resolve(OUTSIDER)),
+    ).rejects.toThrow(NotFoundException);
+  });
+
+  it('lets a signed-out caller read a published sheet, and hides a draft one', async () => {
+    await expect(
+      sheetReader('published').getConfig(EVENT_ID, () => Promise.resolve('anonymous')),
+    ).resolves.toEqual(PROGRAMME_CONFIG_DEFAULTS);
+    await expect(
+      sheetReader('draft').getConfig(EVENT_ID, () => Promise.resolve('anonymous')),
     ).rejects.toThrow(NotFoundException);
   });
 });

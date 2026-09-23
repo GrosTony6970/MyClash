@@ -92,10 +92,10 @@ export class ProgrammeController {
   /**
    * GET /api/v1/events/:eventId/programme/config
    *
-   * Not `@Public()`: the global guard refuses an anonymous caller. Past it, the
-   * service applies the Event's visibility gate, so anyone signed in who can see
-   * the Event may read the sheet (ADR-018).
+   * Public like the list above (ruling 85): the service applies the Event's
+   * visibility gate, so anyone who can see the Event may read the sheet (ADR-018).
    */
+  @Public()
   @Get('events/:eventId/programme/config')
   @ApiBearerAuth()
   @ApiOperation({

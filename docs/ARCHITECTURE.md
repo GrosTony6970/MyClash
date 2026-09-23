@@ -2724,9 +2724,8 @@ the Unscheduled list — not a second tab. The Schedule tab used to split into a
 
 ### 24.3 API
 
-Fourteen routes, all on `programme.controller.ts`. `GET /programme` is the only `@Public()` one.
-Both reads apply the Event's visibility gate in the service; `GET /programme/config` also needs a
-signed-in caller.
+Fourteen routes, all on `programme.controller.ts`. The two reads, `GET /programme` and
+`GET /programme/config`, are `@Public()` and apply the Event's visibility gate in the service.
 
 ```text
 GET    /api/v1/events/:eventId/programme                          list saved blocks

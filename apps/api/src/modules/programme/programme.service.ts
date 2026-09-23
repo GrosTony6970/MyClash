@@ -211,7 +211,7 @@ export class ProgrammeService {
   }
 
   /**
-   * The read counterpart, for the one `@Public()` route here. Lower bar (any
+   * The read counterpart, for the two `@Public()` routes here. Lower bar (any
    * org member) and a 404 rather than a 403 — the programme is the shape of an
    * event, and an event that has not been announced yet should not be found.
    */
@@ -267,9 +267,9 @@ export class ProgrammeService {
   // ── The planner sheet ──────────────────────────────────────────────────────
 
   /**
-   * The Event's planner sheet (ADR-018). Anyone signed in who can see the Event
-   * may read it, behind the same visibility gate as the bars; the route is not
-   * `@Public()`, so the global guard has already refused an anonymous caller.
+   * The Event's planner sheet (ADR-018). Anyone who can see the Event may read
+   * it, signed in or not (ruling 85), behind the same visibility gate as the
+   * bars; the route is `@Public()` like the programme list.
    * `readProgrammeSheet` says how a stored sheet is read.
    */
   async getConfig(eventId: string, resolveUserId: () => Promise<string>): Promise<SuggestConfig> {

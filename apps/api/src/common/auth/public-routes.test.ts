@@ -96,6 +96,8 @@ const EXPECTED_PUBLIC = [
   'GET /events/:eventId/people/:personId/schedule',
   'GET /events/:eventId/persons/lookup',
   'GET /events/:eventId/programme',
+  // The planner sheet beside it (ruling 85): the same draft gate, nothing personal.
+  'GET /events/:eventId/programme/config',
   'GET /events/:eventId/schedule',
   'GET /events/:eventId/tournaments',
   // The venues an Event uses and a Tournament's venue per phase (ruling 78): a
