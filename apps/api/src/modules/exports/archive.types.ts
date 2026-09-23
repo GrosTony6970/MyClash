@@ -76,4 +76,7 @@ export interface RestoreResult {
   restoredTournamentId?: string;
   restoredSlug: string;
   counts: Record<string, number>;
+  /** Event and Tournament penalty ruleset pins cleared because the target
+   *  organisation may not pin them (operator ruling 67). */
+  droppedPenaltyRulesetPins: number;
 }

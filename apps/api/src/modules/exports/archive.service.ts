@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 import { createStoredZip } from '../../common/stored-zip';
+import { dropUnpinnablePenaltyPins } from './archive-penalty-pins';
 import { danglingReferences, describeDangling } from './archive-references';
 import { buildTournamentReports, emptyTournamentReports, safeFilename } from './archive-reports';
 import { ID_MAP_NAMES } from './archive.table-spec';
@@ -231,6 +232,11 @@ export class ArchiveService {
     return createStoredZip(files);
   }
 
+  /**
+   * Fighter exchange stats are computed on-read (fighter_exchange_stats, 0128),
+   * so restored rows are reflected immediately: no derived-data refresh is
+   * needed after either restore.
+   */
   private async restoreEventCopy(
     archive: MyClashArchive,
     userId: string,
@@ -277,16 +283,15 @@ export class ArchiveService {
 
     const crossOrg =
       (sourceEvent['organization_id'] as string | undefined) !== targetOrganizationId;
+    const droppedPins = await dropUnpinnablePenaltyPins(this.supabase, data, targetOrganizationId);
     await this.insertMappedTables(data, maps, { targetEventId: restoredEventId, crossOrg });
     await this.auditRestore(userId, 'event', sourceEvent['id'] as string, restoredEventId);
-    // Fighter exchange stats are computed on-read (fighter_exchange_stats, 0128) —
-    // restored rows are reflected immediately, no derived-data refresh needed.
-
     return {
       scope: 'event',
       restoredEventId,
       restoredSlug,
       counts: this.countArchiveRows(archive),
+      droppedPenaltyRulesetPins: droppedPins,
     };
   }
 
@@ -374,9 +379,9 @@ export class ArchiveService {
     ];
 
     const sourceOrgId = archive.data.events?.[0]?.['organization_id'] as string | undefined;
-    const crossOrg =
-      sourceOrgId !== undefined &&
-      sourceOrgId !== (targetEvent['organization_id'] as string | undefined);
+    const targetOrgId = String(targetEvent['organization_id']);
+    const crossOrg = sourceOrgId !== undefined && sourceOrgId !== targetOrgId;
+    const droppedPins = await dropUnpinnablePenaltyPins(this.supabase, data, targetOrgId);
     await this.insertMappedTables(data, maps, {
       targetEventId: options.targetEventId,
       targetTournamentId: restoredTournamentId,
@@ -388,13 +393,12 @@ export class ArchiveService {
       sourceTournament['id'] as string,
       restoredTournamentId,
     );
-    // On-read fighter exchange stats (0128) — no derived-data refresh needed.
-
     return {
       scope: 'tournament',
       restoredTournamentId,
       restoredSlug,
       counts: this.countArchiveRows(archive),
+      droppedPenaltyRulesetPins: droppedPins,
     };
   }
 

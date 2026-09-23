@@ -1,3 +1,4 @@
+import { BadRequestException } from '@nestjs/common';
 import type { PenaltyCard } from '@myclash/rulesets';
 import type { SupabaseService } from '../supabase/supabase.service';
 
@@ -97,19 +98,57 @@ export async function freezePenaltyRulesetVersion(
 }
 
 /**
- * The current version string of a penalty ruleset — recorded as the
- * penalty_ruleset_version pin on a tournament/event at assign time, so the
- * content-hash reads the frozen snapshot for the version that was pinned rather
- * than whatever the live parent later becomes.
+ * The current version string of a penalty ruleset an Event of `organizationId`
+ * may pin — recorded as the penalty_ruleset_version pin on a tournament/event at
+ * assign time, so the content-hash reads the frozen snapshot for the version
+ * that was pinned rather than whatever the live parent later becomes.
+ *
+ * The one owner of the four pin doors' check (operator rulings 64 and 66): the
+ * built-in, a shared ruleset, or one that organisation owns. A Tournament's
+ * ruleset is readable by every member of its organisation, so pinning another
+ * organisation's private ruleset would hand its rules over. A missing ruleset
+ * gets the same 400 as a foreign private one, so the answer names no ids, and a
+ * failed read refuses rather than pinning no version.
  */
-export async function loadPenaltyRulesetVersion(
+export async function loadPinnablePenaltyRulesetVersion(
   supabase: SupabaseService,
   rulesetId: string,
+  organizationId: string,
 ): Promise<string | null> {
-  const { data } = await supabase.service
+  const pinnable = await pinnablePenaltyRuleset(supabase, rulesetId, organizationId);
+  if (!pinnable) {
+    throw new BadRequestException('This penalty ruleset is not available to this organisation');
+  }
+  return pinnable.version;
+}
+
+/**
+ * The rule itself, for a caller that decides what a refusal does: `null` when
+ * an Event of `organizationId` may not pin the ruleset (missing, or another
+ * organisation's private one). An archive restore clears such a pin instead of
+ * refusing (operator ruling 67). A failed read throws: it is not a verdict.
+ */
+export async function pinnablePenaltyRuleset(
+  supabase: SupabaseService,
+  rulesetId: string,
+  organizationId: string,
+): Promise<{ version: string | null } | null> {
+  const { data, error } = await supabase.service
     .from('penalty_rulesets')
-    .select('version')
+    .select('version, built_in, public_visibility, owner_organization_id')
     .eq('id', rulesetId)
     .maybeSingle();
-  return (data as { version?: string } | null)?.version ?? null;
+  if (error) throw new BadRequestException(error.message);
+  const ruleset = data as {
+    version?: string | null;
+    built_in?: boolean;
+    public_visibility?: boolean;
+    owner_organization_id?: string | null;
+  } | null;
+  const pinnable =
+    ruleset &&
+    (ruleset.built_in ||
+      ruleset.public_visibility ||
+      ruleset.owner_organization_id === organizationId);
+  return pinnable ? { version: ruleset.version ?? null } : null;
 }

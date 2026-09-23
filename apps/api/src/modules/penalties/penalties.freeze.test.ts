@@ -59,6 +59,8 @@ function penaltyRow(overrides: Record<string, unknown> = {}) {
   return {
     id: 'pr-1',
     built_in: false,
+    // The pinning Event's own organisation: a pin takes no other's private ruleset.
+    owner_organization_id: 'org-1',
     version: '1.0.0',
     name: 'Penalties',
     description: null,

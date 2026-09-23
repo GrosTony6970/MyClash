@@ -71,7 +71,7 @@ import {
 } from './ruleset-defaults';
 import {
   freezePenaltyRulesetVersion,
-  loadPenaltyRulesetVersion,
+  loadPinnablePenaltyRulesetVersion,
 } from '../penalties/penalty-version.util';
 
 /**
@@ -153,6 +153,17 @@ export class EventsService {
    */
   private async stampTournamentContentHash(tournamentId: string): Promise<void> {
     await this.rulesetHash?.stampTournamentContentHash(tournamentId);
+  }
+
+  /**
+   * The version to pin for a penalty ruleset on a Tournament of `event`, which
+   * refuses another organisation's private ruleset (operator rulings 64, 66).
+   * `loadPinnablePenaltyRulesetVersion` owns the rule; this names the Event's
+   * organisation for Tournament create and edit.
+   */
+  private pinnablePenaltyVersion(event: unknown, rulesetId: string): Promise<string | null> {
+    const { organization_id } = event as { organization_id: string };
+    return loadPinnablePenaltyRulesetVersion(this.supabase, rulesetId, organization_id);
   }
 
   // ── Events ───────────────────────────────────────────────────────────────────
@@ -2958,7 +2969,7 @@ export class EventsService {
     // Pin the penalty ruleset's current version so the content-hash reads the
     // frozen snapshot for exactly what was pinned.
     const penaltyRulesetVersion = dto.penaltyRulesetId
-      ? await loadPenaltyRulesetVersion(this.supabase, dto.penaltyRulesetId)
+      ? await this.pinnablePenaltyVersion(event, dto.penaltyRulesetId)
       : null;
 
     const { data, error } = await this.supabase.service
@@ -3198,7 +3209,7 @@ export class EventsService {
       );
       // Re-pin the penalty version so the content-hash tracks the new snapshot.
       updates['penalty_ruleset_version'] = nextPenaltyRulesetId
-        ? await loadPenaltyRulesetVersion(this.supabase, nextPenaltyRulesetId)
+        ? await this.pinnablePenaltyVersion(event, nextPenaltyRulesetId)
         : null;
     }
 

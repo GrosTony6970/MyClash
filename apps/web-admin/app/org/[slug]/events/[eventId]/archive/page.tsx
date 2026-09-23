@@ -9,6 +9,7 @@ import { useI18n } from '@myclash/next-i18n/client';
 import { apiRequest, failureMessage } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
 import { BackLink } from '@/components/BackLink';
+import { restoredNotice, type RestoreAnswer } from './restore-notice';
 
 type ArchiveScope = 'event' | 'tournament';
 type ArchiveInclude = 'structure' | 'scoring';
@@ -132,13 +133,13 @@ export default function OrganizerArchivePage() {
     setBusy(true);
     setError(null);
     setNotice(null);
-    void apiRequest(apiUrl, `/api/v1/archive/restore?${params.toString()}`, {
+    void apiRequest<RestoreAnswer>(apiUrl, `/api/v1/archive/restore?${params.toString()}`, {
       method: 'POST',
       body: formData,
     })
       .then((r) => {
         if (r.ok) {
-          setNotice(t('organizer.archive.restoreStarted'));
+          setNotice(restoredNotice(t, r.data));
           setConfirmation('');
           return;
         }

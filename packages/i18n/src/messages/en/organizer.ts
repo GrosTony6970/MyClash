@@ -2743,6 +2743,8 @@ export const organizer = {
     previewError: 'Could not preview this archive.',
     restoreError: 'Could not restore this archive.',
     restoreStarted: 'Archive restore started.',
+    restoreDroppedPenaltyPins:
+      'Penalty rulesets removed: {count}. This club may not use them, so the restored copy uses the Event default or the built-in.',
     scopes: {
       event: 'Event',
       tournament: 'Tournament',

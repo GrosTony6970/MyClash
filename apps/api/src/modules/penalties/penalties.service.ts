@@ -44,7 +44,7 @@ import type {
 import {
   buildPenaltyVersionRow,
   freezePenaltyRulesetVersion,
-  loadPenaltyRulesetVersion,
+  loadPinnablePenaltyRulesetVersion,
   type PenaltyVersionEntry,
 } from './penalty-version.util';
 
@@ -791,7 +791,8 @@ export class PenaltiesService {
   }
 
   async assignEventRuleset(eventId: string, dto: AssignPenaltyRulesetDto, userId?: string) {
-    await this.assertUserCanManageOrg(await this.getEventOrganizationId(eventId), userId);
+    const orgId = await this.getEventOrganizationId(eventId);
+    await this.assertUserCanManageOrg(orgId, userId);
     const nextId = dto.penaltyRulesetId ?? null;
     const currentId = await this.getEventPenaltyRulesetId(eventId);
     // Re-pin guard: tournaments under this event that INHERIT the default (their
@@ -806,7 +807,9 @@ export class PenaltiesService {
     }
     // Pin the ruleset's current version so the content-hash reads the frozen
     // snapshot for exactly what was pinned (null when clearing the default).
-    const nextVersion = nextId ? await loadPenaltyRulesetVersion(this.supabase, nextId) : null;
+    const nextVersion = nextId
+      ? await loadPinnablePenaltyRulesetVersion(this.supabase, nextId, orgId)
+      : null;
     const { data, error } = await this.supabase.service
       .from('events')
       .update({
@@ -831,7 +834,8 @@ export class PenaltiesService {
     dto: AssignPenaltyRulesetDto,
     userId?: string,
   ) {
-    await this.assertUserCanManageOrg(await this.getTournamentOrganizationId(tournamentId), userId);
+    const orgId = await this.getTournamentOrganizationId(tournamentId);
+    await this.assertUserCanManageOrg(orgId, userId);
     const nextId = dto.penaltyRulesetId ?? null;
     const currentId = await this.getTournamentPenaltyRulesetId(tournamentId);
     // Re-pin guard: once matches are scored, the penalty ruleset is locked to
@@ -843,7 +847,9 @@ export class PenaltiesService {
         'This tournament has scored matches, so its penalty ruleset is locked. Change it before scoring starts.',
       );
     }
-    const nextVersion = nextId ? await loadPenaltyRulesetVersion(this.supabase, nextId) : null;
+    const nextVersion = nextId
+      ? await loadPinnablePenaltyRulesetVersion(this.supabase, nextId, orgId)
+      : null;
     const { data, error } = await this.supabase.service
       .from('tournaments')
       .update({

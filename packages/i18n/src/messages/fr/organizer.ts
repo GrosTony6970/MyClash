@@ -2712,6 +2712,8 @@ export const organizer = {
     previewError: 'Impossible de prévisualiser cette archive.',
     restoreError: 'Impossible de restaurer cette archive.',
     restoreStarted: "Restauration de l'archive lancée.",
+    restoreDroppedPenaltyPins:
+      "Règlements de pénalités retirés : {count}. Ce club ne peut pas les utiliser ; la copie restaurée utilise celui de l'événement ou le règlement intégré.",
     scopes: {
       event: 'Événement',
       tournament: 'Tournoi',
