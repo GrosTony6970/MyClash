@@ -47,6 +47,12 @@ interface Props {
   lices: HubLice[];
 }
 
+/**
+ * Both live-state reads send the login: a club member's screen also lists the
+ * bouts of its unpublished Tournaments on a test day (ruling 90).
+ */
+const LIVE_STATE_READ: RequestInit = { cache: 'no-store', credentials: 'include' };
+
 export function NowLiveSection({ eventSlug, lices }: Props) {
   const { t } = useI18n();
   const apiUrl = getPublicApiUrl();
@@ -56,7 +62,7 @@ export function NowLiveSection({ eventSlug, lices }: Props) {
   async function fetchState() {
     try {
       const res = await fetch(`${apiUrl}/api/v1/events/${eventSlug}/live-state`, {
-        cache: 'no-store',
+        ...LIVE_STATE_READ,
       });
       if (res.ok) setState((await res.json()) as LiveStateResponse);
     } catch {
@@ -70,7 +76,7 @@ export function NowLiveSection({ eventSlug, lices }: Props) {
     // `.then` callback, which the react-hooks/set-state-in-effect rule allows.
     const controller = new AbortController();
     fetch(`${apiUrl}/api/v1/events/${eventSlug}/live-state`, {
-      cache: 'no-store',
+      ...LIVE_STATE_READ,
       signal: controller.signal,
     })
       .then(async (res) => {

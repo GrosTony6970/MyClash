@@ -6,6 +6,11 @@ import { SupabaseService } from '../supabase/supabase.service';
 // Value import, not `import type` — `import type` erases the DI metadata and
 // the dependency arrives undefined at runtime.
 import { OrganizationsService } from '../organizations/organizations.service';
+import {
+  isInsider,
+  onlyPublicTournaments,
+  type PublicReader,
+} from '../../common/auth/competition-visibility';
 import { assertCanReadEventRow } from '../../common/auth/event-authz';
 import { dayIndexFor, selectProgrammeBlocks, toHHMM } from './select-programme-block';
 
@@ -97,6 +102,7 @@ export class LiveStateService {
   async getLiveState(
     eventIdOrSlug: string,
     resolveUserId: () => Promise<string>,
+    reader: PublicReader,
   ): Promise<LiveStateResponse> {
     const now = new Date();
 
@@ -154,25 +160,11 @@ export class LiveStateService {
     const blocks = blocksData.map((r) => this.mapBlock(r));
     const { current: currentBlock, next: nextBlock } = selectProgrammeBlocks(blocks, toHHMM(now));
 
-    const liceIds = lices.map((l) => l.id);
-    let matchRows: Record<string, unknown>[] = [];
-    if (liceIds.length > 0) {
-      const matchesRes = await this.supabase.service
-        .from('matches')
-        .select(
-          'id,status,scheduled_at,match_number_label,lice_id,red_score,blue_score,' +
-            'red:registrations!matches_red_registration_id_fkey(id,persons(given_name,family_name)),' +
-            'blue:registrations!matches_blue_registration_id_fkey(id,persons(given_name,family_name)),' +
-            'phases(tournaments(id,name))',
-        )
-        .in('lice_id', liceIds)
-        .in('status', ['running', 'paused', 'scheduled'])
-        .order('scheduled_at', { ascending: true, nullsFirst: false });
-      // The read that mattered most: an unchecked failure here emptied every
-      // piste on the board while still answering 200.
-      matchRows = (this.orThrow(matchesRes as ReadResult<unknown[]>, 'matches') ??
-        []) as unknown as Record<string, unknown>[];
-    }
+    const matchRows = await this.readBouts(
+      lices.map((l) => l.id),
+      { id: eventId, organization_id: String(eventRow?.['organization_id']) },
+      reader,
+    );
 
     const nowIso = now.toISOString();
     const liceStates: LiveLiceState[] = lices.map((lice) => {
@@ -205,6 +197,39 @@ export class LiveStateService {
       lices: liceStates,
       timezone: (eventRow?.['timezone'] as string | null) ?? DEFAULT_EVENT_TIMEZONE,
     };
+  }
+
+  /**
+   * The bouts the board may show on these pistes. A bout of a Tournament that
+   * is not published, running or completed shows only to the Event's club and
+   * its own staff (ruling 90); for anyone else it is left out in SQL.
+   */
+  private async readBouts(
+    liceIds: string[],
+    event: { id: string; organization_id: string },
+    reader: PublicReader,
+  ): Promise<Record<string, unknown>[]> {
+    if (liceIds.length === 0) return [];
+    const onLices = this.supabase.service
+      .from('matches')
+      .select(
+        'id,status,scheduled_at,match_number_label,lice_id,red_score,blue_score,' +
+          'red:registrations!matches_red_registration_id_fkey(id,persons(given_name,family_name)),' +
+          'blue:registrations!matches_blue_registration_id_fkey(id,persons(given_name,family_name)),' +
+          // `!inner` all the way to the Tournament, for `onlyPublicTournaments`.
+          'phases!inner(tournaments!inner(id,name,status))',
+      )
+      .in('lice_id', liceIds)
+      .in('status', ['running', 'paused', 'scheduled']);
+    const insider = await isInsider({ supabase: this.supabase, orgs: this.orgs }, event, reader);
+    const matchesRes = await (insider ? onLices : onlyPublicTournaments(onLices)).order(
+      'scheduled_at',
+      { ascending: true, nullsFirst: false },
+    );
+    // The read that mattered most: an unchecked failure here emptied every
+    // piste on the board while still answering 200.
+    return (this.orThrow(matchesRes as ReadResult<unknown[]>, 'matches') ??
+      []) as unknown as Record<string, unknown>[];
   }
 
   private async resolveSlug(slug: string): Promise<string> {

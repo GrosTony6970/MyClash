@@ -2,6 +2,7 @@ import { Controller, Get, Param, Req } from '@nestjs/common';
 import { ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import type { FastifyRequest } from 'fastify';
+import { publicReader } from '../../common/auth/competition-visibility';
 import { Public } from '../../common/auth/public.decorator';
 import { resolveRequestUserId } from '../../common/auth/request-user';
 import { SupabaseService } from '../supabase/supabase.service';
@@ -20,7 +21,9 @@ export class LiveStateController {
   ) {}
 
   /**
-   * Accepts event UUID or slug — public endpoint, no auth required.
+   * Accepts event UUID or slug — public endpoint, no auth required. A club
+   * member's login, or the Event's staff session, also shows the bouts of its
+   * unpublished Tournaments (ruling 90).
    *
    * Unauthenticated and polled from the venue: hall displays and every
    * spectator phone on the same wifi draw on one bucket, because `req.ip` is
@@ -32,6 +35,10 @@ export class LiveStateController {
   @ApiOperation({ summary: 'Current programme block and per-lice match state (public)' })
   @ApiParam({ name: 'eventId', type: 'string', description: 'Event UUID or slug' })
   getLiveState(@Param('eventId') eventId: string, @Req() req: FastifyRequest) {
-    return this.liveState.getLiveState(eventId, () => resolveRequestUserId(req, this.supabase));
+    return this.liveState.getLiveState(
+      eventId,
+      () => resolveRequestUserId(req, this.supabase),
+      publicReader(req),
+    );
   }
 }
