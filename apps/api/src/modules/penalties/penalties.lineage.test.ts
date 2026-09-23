@@ -51,34 +51,44 @@ describe('PenaltiesService.describeRulesetLineage', () => {
   it('returns null for the built-in itself (no parent to diff)', async () => {
     const supabase = fakeSupabase(builtinRow({ id: 'builtin-1' }), builtinRow());
     const service = new PenaltiesService(supabase as never);
-    expect(await service.describeRulesetLineage('builtin-1')).toBeNull();
+    expect(await service.describeRulesetLineage('builtin-1', 'u-1')).toBeNull();
   });
 
   it('is unchanged when a custom ruleset matches the built-in default', async () => {
-    const custom = builtinRow({ id: 'pr-1', built_in: false, name: 'My copy' });
+    const custom = builtinRow({
+      id: 'pr-1',
+      built_in: false,
+      public_visibility: true,
+      name: 'My copy',
+    });
     const supabase = fakeSupabase(custom, builtinRow());
     const service = new PenaltiesService(supabase as never);
-    expect(await service.describeRulesetLineage('pr-1')).toEqual({
+    expect(await service.describeRulesetLineage('pr-1', 'u-1')).toEqual({
       base: 'FFAMHE penalties',
       status: 'unchanged',
     });
   });
 
   it('is changed when a custom ruleset diverges from the built-in (card cost edit)', async () => {
-    const custom = builtinRow({ id: 'pr-1', built_in: false, red_card_points: -2 });
+    const custom = builtinRow({
+      id: 'pr-1',
+      built_in: false,
+      public_visibility: true,
+      red_card_points: -2,
+    });
     const supabase = fakeSupabase(custom, builtinRow());
     const service = new PenaltiesService(supabase as never);
-    expect(await service.describeRulesetLineage('pr-1')).toEqual({
+    expect(await service.describeRulesetLineage('pr-1', 'u-1')).toEqual({
       base: 'FFAMHE penalties',
       status: 'changed',
     });
   });
 
   it('returns null when there is no built-in to compare against', async () => {
-    const custom = builtinRow({ id: 'pr-1', built_in: false });
+    const custom = builtinRow({ id: 'pr-1', built_in: false, public_visibility: true });
     const supabase = fakeSupabase(custom, null);
     const service = new PenaltiesService(supabase as never);
-    expect(await service.describeRulesetLineage('pr-1')).toBeNull();
+    expect(await service.describeRulesetLineage('pr-1', 'u-1')).toBeNull();
   });
 });
 

@@ -21,7 +21,7 @@ import {
 } from '@myclash/rulesets';
 import { SupabaseService } from '../supabase/supabase.service';
 import { resolveOrganizationNames } from '../../common/organization-names';
-import { hasPlatformTier } from '../../common/auth/platform-role';
+import { assertPlatformTier, hasPlatformTier } from '../../common/auth/platform-role';
 import {
   buildRulesetExport,
   penaltyRulesetExportDefinitionSchema,
@@ -110,7 +110,19 @@ export class PenaltiesService {
     @Optional() private readonly rulesetHash?: RulesetHashService,
   ) {}
 
-  async listRulesets() {
+  /**
+   * Every penalty ruleset on the platform, private ones included — for the
+   * platform catalogue only (operator ruling 62), so any platform tier, as every
+   * other platform read (ruling 65). An organiser lists through
+   * {@link listRulesetsForOrg}.
+   */
+  async listRulesets(userId: string) {
+    await assertPlatformTier(
+      this.supabase,
+      userId,
+      'platform_viewer',
+      'Platform staff access required',
+    );
     const { data, error } = await this.supabase.service
       .from('penalty_rulesets')
       .select('*')
@@ -131,6 +143,23 @@ export class PenaltiesService {
   }
 
   /**
+   * One ruleset, for a caller (operator ruling 61, the RLS
+   * `penalty_rulesets_select` rule): the built-in and shared ones for anyone
+   * signed in, a private one for an admin of its organisation or a platform
+   * admin. `getRuleset` itself stays unchecked for the service's own callers.
+   */
+  async getRulesetFor(rulesetId: string, userId: string): Promise<Row> {
+    const ruleset = (await this.getRuleset(rulesetId)) as Row;
+    if (!ruleset['built_in'] && !ruleset['public_visibility']) {
+      await this.assertUserCanManageOrg(
+        (ruleset['owner_organization_id'] as string | null) ?? '',
+        userId,
+      );
+    }
+    return ruleset;
+  }
+
+  /**
    * How a custom penalty ruleset diverges from the platform built-in default,
    * computed by diffing their canonical forms (never self-declared). Returns
    * null for the built-in itself (no parent) and when no built-in exists. The
@@ -139,8 +168,8 @@ export class PenaltiesService {
    * authoring-surface penalty lineage lamp. Resolved by the built_in flag, not
    * the stale BUILTIN_VERSION constant.
    */
-  async describeRulesetLineage(rulesetId: string): Promise<PenaltyLineage | null> {
-    const ruleset = (await this.getRuleset(rulesetId)) as Row;
+  async describeRulesetLineage(rulesetId: string, userId: string): Promise<PenaltyLineage | null> {
+    const ruleset = await this.getRulesetFor(rulesetId, userId);
     if (ruleset['built_in']) return null;
     const builtin = await this.loadBuiltInPenaltyBaseline();
     if (!builtin) return null;

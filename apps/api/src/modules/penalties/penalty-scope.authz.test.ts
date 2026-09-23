@@ -27,13 +27,12 @@ describe('GET /matches/:id/penalty-scope authorisation', () => {
     const getPenaltyScopeForMatch = vi
       .fn()
       .mockResolvedValue({ accumulationScope: 'match', priors: {} });
-    // Direct instantiation, not Test.createTestingModule with useValue mocks:
-    // vitest does not guarantee emitDecoratorMetadata at test runtime, so the
-    // DI container silently injects undefined.
+    // Direct instantiation: this route touches only the two stubs that matter.
     const controller = new PenaltiesController(
       { getPenaltyScopeForMatch } as never,
       {} as never,
       { authorizeMatchScoring } as never,
+      {} as never,
     );
     return { controller, authorizeMatchScoring, getPenaltyScopeForMatch };
   }

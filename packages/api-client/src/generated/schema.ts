@@ -6962,7 +6962,7 @@ export interface paths {
       path?: never;
       cookie?: never;
     };
-    /** List penalty rulesets visible to the current user */
+    /** List every penalty ruleset on the platform, private ones included (platform staff). Organisers list through organizations/:orgId/penalty-rulesets. */
     get: operations['PenaltiesController_listRulesets'];
     put?: never;
     /** Create a custom penalty ruleset */
@@ -6980,7 +6980,7 @@ export interface paths {
       path?: never;
       cookie?: never;
     };
-    /** Get a penalty ruleset with entries */
+    /** Get a penalty ruleset with entries. Built-in and shared ones for anyone signed in; a private one for an admin of its organisation. */
     get: operations['PenaltiesController_getRuleset'];
     put?: never;
     post?: never;

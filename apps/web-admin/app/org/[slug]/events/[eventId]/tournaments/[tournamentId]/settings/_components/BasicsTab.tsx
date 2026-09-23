@@ -67,16 +67,12 @@ export function BasicsTab({ tournamentId }: { tournamentId: string }) {
     // Resolve org id from slug so we can hit the org-scoped penalty-rulesets
     // endpoint (which filters out other orgs' public rulesets).
     // Silent reads: the tab shows its loading line until the row lands, and
-    // every save below reports its own refusal. The org resolve falls back to
-    // the platform-wide penalty catalogue, exactly as before.
+    // every save below reports its own refusal. A failed org resolve leaves the
+    // penalty list empty: the platform-wide catalogue is for platform staff.
     void apiRequest<{ id: string }>(
       apiUrl,
       `/api/v1/organizations/slug/${encodeURIComponent(orgSlug)}`,
     ).then((orgRes) => {
-      const penaltyEndpoint = orgRes.ok
-        ? `/api/v1/organizations/${orgRes.data.id}/penalty-rulesets`
-        : '/api/v1/penalty-rulesets';
-
       return Promise.all([
         apiRequest<Record<string, unknown>>(apiUrl, `/api/v1/tournaments/${tournamentId}`).then(
           (r) => (r.ok ? r.data : null),
@@ -84,7 +80,12 @@ export function BasicsTab({ tournamentId }: { tournamentId: string }) {
         // Event-scoped, so an org-authored ruleset stays selectable here.
         // The bare /rulesets catalog is registry-only and never contains one.
         fetchSelectableRulesets(apiUrl, eventId),
-        apiRequest<PenaltyRuleset[]>(apiUrl, penaltyEndpoint).then((r) => (r.ok ? r.data : [])),
+        orgRes.ok
+          ? apiRequest<PenaltyRuleset[]>(
+              apiUrl,
+              `/api/v1/organizations/${orgRes.data.id}/penalty-rulesets`,
+            ).then((r) => (r.ok ? r.data : []))
+          : [],
       ]).then(([row, r, p]) => {
         if (row) {
           setData({

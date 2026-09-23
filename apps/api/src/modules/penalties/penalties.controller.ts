@@ -14,7 +14,10 @@ import {
 import { ApiBearerAuth, ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import type { FastifyRequest } from 'fastify';
+import { assertTournamentMember } from '../../common/auth/event-authz';
+import { requireRequestUserId } from '../../common/auth/request-user';
 import { PUBLIC_LIVE_READ_THROTTLE } from '../../common/throttling/throttle-profiles';
+import { OrganizationsService } from '../organizations/organizations.service';
 import { StaffService } from '../staff/staff.service';
 import { SupabaseService } from '../supabase/supabase.service';
 import {
@@ -57,19 +60,26 @@ export class PenaltiesController {
     private readonly penalties: PenaltiesService,
     private readonly supabase: SupabaseService,
     private readonly staff: StaffService,
+    private readonly orgs: OrganizationsService,
   ) {}
 
   @Get('penalty-rulesets')
-  @ApiOperation({ summary: 'List penalty rulesets visible to the current user' })
-  async listRulesets() {
-    return this.penalties.listRulesets();
+  @ApiOperation({
+    summary:
+      'List every penalty ruleset on the platform, private ones included (platform staff). Organisers list through organizations/:orgId/penalty-rulesets.',
+  })
+  async listRulesets(@Req() req: FastifyRequest) {
+    return this.penalties.listRulesets(await requireRequestUserId(req, this.supabase));
   }
 
   @Get('penalty-rulesets/:id')
-  @ApiOperation({ summary: 'Get a penalty ruleset with entries' })
+  @ApiOperation({
+    summary:
+      'Get a penalty ruleset with entries. Built-in and shared ones for anyone signed in; a private one for an admin of its organisation.',
+  })
   @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
-  async getRuleset(@Param('id', ParseUUIDPipe) id: string) {
-    return this.penalties.getRuleset(id);
+  async getRuleset(@Param('id', ParseUUIDPipe) id: string, @Req() req: FastifyRequest) {
+    return this.penalties.getRulesetFor(id, await requireRequestUserId(req, this.supabase));
   }
 
   @Get('penalty-rulesets/:id/lineage')
@@ -78,8 +88,11 @@ export class PenaltiesController {
       'How a custom penalty ruleset diverges from the built-in default (computed, never self-declared); null for the built-in.',
   })
   @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
-  async getRulesetLineage(@Param('id', ParseUUIDPipe) id: string) {
-    return this.penalties.describeRulesetLineage(id);
+  async getRulesetLineage(@Param('id', ParseUUIDPipe) id: string, @Req() req: FastifyRequest) {
+    return this.penalties.describeRulesetLineage(
+      id,
+      await requireRequestUserId(req, this.supabase),
+    );
   }
 
   @Post('penalty-rulesets')
@@ -287,7 +300,9 @@ export class PenaltiesController {
   @Get('matches/:id/penalty-ruleset')
   @ApiOperation({ summary: 'Get the effective penalty ruleset for a match' })
   @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
-  async getMatchPenaltyRuleset(@Param('id', ParseUUIDPipe) id: string) {
+  async getMatchPenaltyRuleset(@Param('id', ParseUUIDPipe) id: string, @Req() req: FastifyRequest) {
+    // The scoring pad reads it beside `penalty-scope`, so the same check.
+    await this.staff.authorizeMatchScoring(req, id);
     return this.penalties.getEffectiveRulesetForMatch(id);
   }
 
@@ -312,7 +327,11 @@ export class PenaltiesController {
   @Get('tournaments/:id/penalty-ruleset')
   @ApiOperation({ summary: 'Get the effective penalty ruleset for a tournament' })
   @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
-  async getTournamentPenaltyRuleset(@Param('id', ParseUUIDPipe) id: string) {
+  async getTournamentPenaltyRuleset(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Req() req: FastifyRequest,
+  ) {
+    await this.assertTournamentReader(req, id);
     return this.penalties.getEffectiveRulesetForTournament(id);
   }
 
@@ -344,7 +363,8 @@ export class PenaltiesController {
   @Get('tournaments/:id/penalty-reviews')
   @ApiOperation({ summary: 'List pending penalty reviews for a tournament' })
   @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
-  async listTournamentReviews(@Param('id', ParseUUIDPipe) id: string) {
+  async listTournamentReviews(@Param('id', ParseUUIDPipe) id: string, @Req() req: FastifyRequest) {
+    await this.assertTournamentReader(req, id);
     return this.penalties.listTournamentReviews(id);
   }
 
@@ -358,5 +378,15 @@ export class PenaltiesController {
   ) {
     const userId = await getOptionalUserId(req, this.supabase);
     return this.penalties.reviewTournamentPenalty(id, dto, userId);
+  }
+
+  /** Any member of the organisation of the Tournament's own Event; 401 first. */
+  private async assertTournamentReader(req: FastifyRequest, tournamentId: string): Promise<void> {
+    const userId = await requireRequestUserId(req, this.supabase);
+    await assertTournamentMember(
+      { supabase: this.supabase, orgs: this.orgs },
+      tournamentId,
+      userId,
+    );
   }
 }

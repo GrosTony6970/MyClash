@@ -4,6 +4,7 @@ import { useI18n } from '@myclash/next-i18n/client';
 import { useEffect, useState } from 'react';
 import { TournamentColorDot, useToast } from '@myclash/ui';
 import { useWeaponOptions } from '@/hooks/useWeaponOptions';
+import { useOrganizerSelectedEvent } from '@/components/organizer-event-context';
 import { TOURNAMENT_COLORS } from '../../_lib/tournament-colors';
 import { matchWeapon } from './weapon-match';
 import { pickWizardDefaults } from './wizard-defaults';
@@ -36,6 +37,22 @@ function slugify(s: string) {
     .slice(0, 50);
 }
 
+/**
+ * The two lists step 1 picks from. The rulesets are Event-scoped, so an
+ * org-authored ruleset is selectable at all: the bare /rulesets catalog is
+ * registry-only and can never contain one. The penalty rulesets are the
+ * organisation's own list, as the Tournament settings tab reads it: the
+ * platform-wide one is for platform staff only.
+ */
+function loadCatalogs(eventId: string, orgId: string) {
+  return Promise.all([
+    fetchSelectableRulesets(apiUrl, eventId),
+    apiRequest<PenaltyRuleset[]>(apiUrl, `/api/v1/organizations/${orgId}/penalty-rulesets`).then(
+      (r) => (r.ok ? r.data : []),
+    ),
+  ]);
+}
+
 export function Step1Basics({
   eventId,
   initialTournamentId,
@@ -48,6 +65,7 @@ export function Step1Basics({
   const { t } = useI18n();
 
   const toast = useToast();
+  const { orgId } = useOrganizerSelectedEvent();
   const weaponOptions = useWeaponOptions();
   const [name, setName] = useState('');
   const [slug, setSlug] = useState('');
@@ -64,14 +82,8 @@ export function Step1Basics({
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
-    void Promise.all([
-      // Event-scoped, so an org-authored ruleset is selectable at all. The
-      // bare /rulesets catalog is registry-only and can never contain one.
-      fetchSelectableRulesets(apiUrl, eventId),
-      apiRequest<PenaltyRuleset[]>(apiUrl, '/api/v1/penalty-rulesets').then((r) =>
-        r.ok ? r.data : [],
-      ),
-    ]).then(([r, p]) => {
+    if (!orgId) return;
+    void loadCatalogs(eventId, orgId).then(([r, p]) => {
       setRulesets(r as Ruleset[]);
       setPenaltyRulesets(p);
       // For a brand-new tournament, pre-select the TF ruleset + FFAMHE penalty.
@@ -85,7 +97,9 @@ export function Step1Basics({
         if (d.penaltyId) setPenaltyRulesetId(d.penaltyId);
       }
     });
+  }, [initialTournamentId, eventId, orgId]);
 
+  useEffect(() => {
     if (initialTournamentId) {
       // Silent read: an unresumed draft shows the blank form, and the save
       // below reports its own refusal.
@@ -109,7 +123,7 @@ export function Step1Basics({
         setMaxWaitlist(maxW != null ? String(maxW) : '');
       });
     }
-  }, [initialTournamentId, eventId]);
+  }, [initialTournamentId]);
 
   async function submit() {
     if (!name.trim()) {

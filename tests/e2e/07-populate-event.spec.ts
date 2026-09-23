@@ -351,7 +351,10 @@ test('populate: 2 tournaments + 25 referees + 6 workshops + publish', async ({ r
   // apply the built-in default at runtime.
   const penaltyRulesetId =
     (await step('resolve default penalty ruleset', async () => {
-      const list = (await (await reqOk(await get('penalty-rulesets'))).json()) as Array<{
+      // The organisation's own list: the platform-wide one is for platform staff.
+      const list = (await (
+        await reqOk(await get(`organizations/${orgId}/penalty-rulesets`))
+      ).json()) as Array<{
         id: string;
         built_in?: boolean;
         code?: string;

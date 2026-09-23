@@ -38,16 +38,6 @@ export const UNDECIDED: Readonly<Record<string, string>> = {
   'modules/hema-ratings/hema-ratings.controller.ts#HemaRatingsController.search':
     'open: but it fetches upstream',
 
-  // penalties — private rulesets and disqualification reviews.
-  'modules/penalties/penalties.controller.ts#PenaltiesController.listRulesets':
-    'read: every org, private ones',
-  'modules/penalties/penalties.controller.ts#PenaltiesController.getRuleset': 'read',
-  'modules/penalties/penalties.controller.ts#PenaltiesController.getRulesetLineage': 'read',
-  'modules/penalties/penalties.controller.ts#PenaltiesController.getMatchPenaltyRuleset': 'read',
-  'modules/penalties/penalties.controller.ts#PenaltiesController.getTournamentPenaltyRuleset':
-    'read',
-  'modules/penalties/penalties.controller.ts#PenaltiesController.listTournamentReviews': 'read',
-
   // money, organisations, leagues.
   'modules/compensation/compensation.controller.ts#CompensationController.getEventSettings': 'read',
   'modules/compensation/compensation.controller.ts#CompensationController.getReport':
