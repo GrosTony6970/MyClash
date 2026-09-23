@@ -11,6 +11,7 @@ import {
 } from '@nestjs/common';
 import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import type { FastifyRequest } from 'fastify';
+import { Public } from '../../common/auth/public.decorator';
 import { RequestPersonEmailChangeDto } from './dto/person-email-change.dto';
 import { PersonEmailChangeService } from './person-email-change.service';
 
@@ -43,8 +44,12 @@ export class PersonEmailChangeController {
     await this.emailChange.cancelEmailChange(req);
   }
 
+  /** The emailed token is the credential; the link is opened before any session. */
+  @Public()
   @Get('confirm')
-  @ApiOperation({ summary: 'Confirm an email-change token sent to the new email address' })
+  @ApiOperation({
+    summary: 'Confirm an email-change token sent to the new email address (public; token)',
+  })
   @ApiResponse({ status: 200, description: 'Email changed' })
   async confirm(@Query('token') token: string) {
     return this.emailChange.confirmEmailChange(token);

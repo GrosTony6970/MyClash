@@ -75,6 +75,14 @@ const EXPECTED_PUBLIC = [
   // controller metadata, which the global prefix is not part of.
   'GET /version',
   'GET /public/feature-flags', // polled by every app before login
+  // Catalogues with nothing private in them: the coded rulesets, the AI model
+  // labels (no keys, no pricing) and the Web Push public key.
+  'GET /rulesets',
+  'GET /ai/models',
+  'GET /notifications/vapid-public-key',
+  // The link emailed to the NEW address lands here. The 256-bit token is the
+  // credential, as for the claim link and the event pass.
+  'GET /persons/me/email-change/confirm',
   // Read by the marketing site at the apex domain, from the browser, above the
   // fold on a page that has no login. Three integers — public events, clubs,
   // fighters — and nothing that names or could re-identify anybody. It replaces

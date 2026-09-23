@@ -35,18 +35,12 @@ export const UNDECIDED: Readonly<Record<string, string>> = {
   'modules/events/events.controller.ts#EventsController.getMatchConfig': 'open*',
   'modules/programme/programme.controller.ts#ProgrammeController.getConfig':
     'open: only assertCanReadEvent',
-  'modules/persons/person-email-change.controller.ts#PersonEmailChangeController.confirm':
-    'open: the emailed token is the credential',
   'modules/fighters/fighters.controller.ts#GlobalPersonsController.list':
     'read: any signed-in account',
   'modules/people-context/me-people.controller.ts#MePeopleController.context':
     'read: any identity by id, anonymous too',
   'modules/events/events.controller.ts#EventsController.getTheme': 'open*',
   'modules/staff/staff.controller.ts#StaffController.matchNeighbors': 'open*',
-  'modules/rulesets/rulesets.controller.ts#RulesetsController.list': 'open',
-  'modules/ai-providers/ai-models.controller.ts#AIModelsController.getModels': 'open',
-  'modules/notifications/notifications.controller.ts#NotificationsController.getVapidPublicKey':
-    'open',
   'modules/exports/exports.controller.ts#ExportsController.restorePreview':
     'read: parses only the upload, but for anyone',
 

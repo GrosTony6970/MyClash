@@ -4712,7 +4712,7 @@ export interface paths {
       path?: never;
       cookie?: never;
     };
-    /** List selectable AI models per provider */
+    /** List selectable AI models per provider (public) */
     get: operations['AIModelsController_getModels'];
     put?: never;
     post?: never;
@@ -5303,7 +5303,7 @@ export interface paths {
       path?: never;
       cookie?: never;
     };
-    /** Confirm an email-change token sent to the new email address */
+    /** Confirm an email-change token sent to the new email address (public; token) */
     get: operations['PersonEmailChangeController_confirm'];
     put?: never;
     post?: never;
@@ -7341,7 +7341,7 @@ export interface paths {
       path?: never;
       cookie?: never;
     };
-    /** Get Web Push VAPID public key */
+    /** Get Web Push VAPID public key (public) */
     get: operations['NotificationsController_getVapidPublicKey'];
     put?: never;
     post?: never;
@@ -9459,7 +9459,7 @@ export interface paths {
       path?: never;
       cookie?: never;
     };
-    /** List the coded (built-in) rulesets */
+    /** List the coded (built-in) rulesets (public) */
     get: operations['RulesetsController_list'];
     put?: never;
     post?: never;

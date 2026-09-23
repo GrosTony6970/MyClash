@@ -4,6 +4,7 @@ import type { FastifyRequest } from 'fastify';
 import { RulesetRegistry } from '@myclash/rulesets';
 import { SupabaseService } from '../supabase/supabase.service';
 import { OrganizationsService } from '../organizations/organizations.service';
+import { Public } from '../../common/auth/public.decorator';
 import { resolveRequestUserId } from '../../common/auth/request-user';
 import { SelectableRulesetsService } from './selectable-rulesets.service';
 import { toRulesetSummary, type RulesetSummary } from './ruleset-summary';
@@ -25,8 +26,9 @@ export class RulesetsController {
    * sufficient for a tournament ruleset picker, because an org-authored
    * ruleset is never in the registry — use `for-event/:eventId` there.
    */
+  @Public()
   @Get()
-  @ApiOperation({ summary: 'List the coded (built-in) rulesets' })
+  @ApiOperation({ summary: 'List the coded (built-in) rulesets (public)' })
   list(): RulesetSummary[] {
     return this.registry.list().map((ruleset) => toRulesetSummary(ruleset, false));
   }

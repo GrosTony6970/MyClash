@@ -14,6 +14,7 @@ import {
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
 import type { FastifyRequest } from 'fastify';
+import { Public } from '../../common/auth/public.decorator';
 import { SupabaseService } from '../supabase/supabase.service';
 import { BroadcastNotificationsService } from './broadcast-notifications.service';
 import { SubscribeDto, UpdateNotificationPreferencesDto } from './dto/notifications.dto';
@@ -42,8 +43,9 @@ export class NotificationsController {
     private readonly supabase: SupabaseService,
   ) {}
 
+  @Public()
   @Get('vapid-public-key')
-  @ApiOperation({ summary: 'Get Web Push VAPID public key' })
+  @ApiOperation({ summary: 'Get Web Push VAPID public key (public)' })
   getVapidPublicKey() {
     return this.notifications.getVapidPublicKey();
   }

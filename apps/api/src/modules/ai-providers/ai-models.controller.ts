@@ -1,5 +1,6 @@
 import { Controller, Get } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
+import { Public } from '../../common/auth/public.decorator';
 import { getAllModelOptions } from './model-registry';
 
 /**
@@ -11,8 +12,9 @@ import { getAllModelOptions } from './model-registry';
 @Controller('ai')
 export class AIModelsController {
   /** GET /api/v1/ai/models */
+  @Public()
   @Get('models')
-  @ApiOperation({ summary: 'List selectable AI models per provider' })
+  @ApiOperation({ summary: 'List selectable AI models per provider (public)' })
   getModels() {
     return getAllModelOptions();
   }
