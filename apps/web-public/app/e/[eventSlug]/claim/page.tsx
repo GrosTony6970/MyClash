@@ -6,6 +6,7 @@ import { Suspense, useState, useSyncExternalStore } from 'react';
 import { apiRequest, failureMessage } from '@myclash/api-client';
 import { GoogleIcon } from '@myclash/ui';
 import { useI18n } from '@myclash/next-i18n/client';
+import { ClaimRefusedNotice } from '@/components/ClaimRefusedNotice';
 import { createOAuthSupabaseClient } from '../../../../src/lib/oauth-supabase';
 
 /**
@@ -183,6 +184,7 @@ export default function ClaimPage() {
   const { t } = useI18n();
   return (
     <main className="flex min-h-screen flex-col items-center justify-center p-8">
+      <ClaimRefusedNotice className="mb-6 w-full max-w-sm" />
       <Suspense fallback={<p className="text-muted">{t('publicApp.claim.loading')}</p>}>
         <ClaimForm />
       </Suspense>

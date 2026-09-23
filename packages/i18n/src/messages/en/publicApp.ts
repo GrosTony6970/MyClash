@@ -1001,6 +1001,16 @@ export const publicApp = {
       network: 'Could not reach the MyClash server. Check your connection and try again.',
       generic: 'Something went wrong while requesting the claim.',
     },
+    refused: {
+      heldByAnother:
+        'You are signed in, but this fighter profile is already linked to another MyClash account. If it is yours, ask the organizer to check your registration.',
+      emailMismatch:
+        'You are signed in, but this fighter profile no longer carries your email address. Ask the organizer to check your registration.',
+      notFound:
+        'You are signed in, but we could not find the fighter profile in your link. The organizer may have removed it.',
+      checkFailed:
+        'You are signed in, but we could not check your fighter profile just now. If it appears under "Claim your profiles", claim it there; otherwise try the claim link again in a moment.',
+    },
   },
   tournament: {
     tabs: {

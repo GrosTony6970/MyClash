@@ -1012,6 +1012,16 @@ export const publicApp = {
       network: 'Impossible de joindre le serveur MyClash. Vérifiez votre connexion et réessayez.',
       generic: 'Une erreur est survenue lors de la demande de liaison.',
     },
+    refused: {
+      heldByAnother:
+        "Vous êtes connecté, mais ce profil de combattant est déjà lié à un autre compte MyClash. S'il est le vôtre, demandez à l'organisateur de vérifier votre inscription.",
+      emailMismatch:
+        "Vous êtes connecté, mais ce profil de combattant ne porte plus votre adresse e-mail. Demandez à l'organisateur de vérifier votre inscription.",
+      notFound:
+        "Vous êtes connecté, mais nous n'avons pas trouvé le profil de combattant de votre lien. L'organisateur l'a peut-être supprimé.",
+      checkFailed:
+        "Vous êtes connecté, mais nous n'avons pas pu vérifier votre profil de combattant pour l'instant. S'il apparaît sous « Revendiquez vos profils », revendiquez-le là ; sinon, réessayez le lien dans un instant.",
+    },
   },
   tournament: {
     tabs: {

@@ -11,7 +11,7 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import type { FastifyReply, FastifyRequest } from 'fastify';
-import { validatePassword } from '@myclash/types';
+import { CLAIM_REFUSED_PARAM, validatePassword, type ClaimLinkRefusal } from '@myclash/types';
 import { isFlagEnabledDirect } from '../../common/feature-flag-direct';
 import { sanitizePostgrestFilterValue } from '../../common/postgrest-filter';
 import { isPlatformStaff, resolvePlatformRole } from '../../common/auth/platform-role';
@@ -40,6 +40,18 @@ import type { PasswordLoginDto } from './dto/password-login.dto';
 import type { PersonalSpaceResponseDto } from './dto/personal-space-response.dto';
 import type { RequestMagicLinkDto } from './dto/request-magic-link.dto';
 import { GuestJwtService } from './guest-jwt.service';
+
+/**
+ * What the two claim doors that answer with an error throw for each refusal: the
+ * anonymous link request and the Google claim. The emailed link's callback
+ * redirects with the reason instead (ruling 57).
+ */
+const CLAIM_REFUSAL_ERRORS: Record<ClaimLinkRefusal, () => HttpException> = {
+  check_failed: () => new BadRequestException('Could not validate profile claim'),
+  not_found: () => new NotFoundException('Person not found'),
+  email_mismatch: () => new BadRequestException('Email does not match the registered person'),
+  held_by_another: () => new BadRequestException('This profile has already been claimed'),
+};
 
 /** Allowed redirect paths after auth — prevents open-redirect attacks. */
 const ALLOWED_REDIRECT_PREFIXES = ['/org/', '/admin/', '/e/', '/me', '/dashboard', '/'];
@@ -156,7 +168,7 @@ export class AuthService {
       if (!personId) {
         throw new BadRequestException('personId is required for claim type');
       }
-      await this.personRowForClaim(personId, email);
+      await this.assertClaimable(personId, email, null);
     }
 
     // Generate magic link via Supabase Auth (GoTrue)
@@ -232,7 +244,7 @@ export class AuthService {
       if (!user.email) {
         throw new ForbiddenException('Google account did not provide an email address');
       }
-      await this.validatePersonClaim(dto.personId, user.email, user.id);
+      await this.assertClaimable(dto.personId, user.email, user.id);
       await this.completeClaim(user.id, user.email, dto.personId);
     }
 
@@ -311,6 +323,20 @@ export class AuthService {
     return { ok: true };
   }
 
+  /**
+   * The emailed link's landing: exchange the code for a session, set the
+   * cookies, redirect into the app.
+   *
+   * A claim link whose row refuses the claim still signs its reader in — the
+   * link proved they own the address, which is all the mail tested — and then
+   * sends them to the claim page with the reason instead of throwing after the
+   * cookies are set, which left them signed in on a raw 400 with nothing to
+   * click (ruling 57). The sign-in autolink runs on that path too: they are
+   * signed in as themselves, so the profile carrying their address is theirs as
+   * on any sign-in (ruling 47), and its sweep claims only rows nobody holds
+   * (`claimed_by_user_id IS NULL`) carrying that address — never the row
+   * another account holds.
+   */
   async handleCallback(
     token: string,
     type: string,
@@ -341,10 +367,10 @@ export class AuthService {
       session.expires_in,
     );
 
-    // If this was a claim, update the person's claim_status
-    if (type === 'claim' && personId) {
-      await this.claimFromLink(session.user.id, session.user.email, personId);
-    }
+    const refusedPath =
+      type === 'claim' && personId
+        ? await this.claimFromLink(session.user.id, session.user.email, personId)
+        : null;
 
     // Silent autolink to a matching global profile on any login path
     // (login / public_login / claim — all benefit).
@@ -362,7 +388,7 @@ export class AuthService {
             ? '/dashboard'
             : safeRedirect
           : safeRedirect;
-    const destination = this.buildPostAuthRedirectUrl(path, type);
+    const destination = this.buildPostAuthRedirectUrl(refusedPath ?? path, type);
     void reply.redirect(destination);
   }
 
@@ -370,14 +396,26 @@ export class AuthService {
    * The emailed-link claim. The roster row comes from the link's address, not
    * from the sign-in code, so anyone signed in with a code for their own
    * address could name any row (ruling 46). Same check as the Google claim.
+   *
+   * Answers null when the row is claimed, else the in-app path to send the
+   * reader to with the reason (ruling 57): the claim page of the row's Event,
+   * or /me when no row was read to name an Event by (ruling 59).
    */
   private async claimFromLink(
     userId: string,
     userEmail: string | undefined,
     personId: string,
-  ): Promise<void> {
-    await this.validatePersonClaim(personId, userEmail, userId);
-    await this.completeClaim(userId, userEmail, personId);
+  ): Promise<string | null> {
+    const { refusal, eventSlug } = await this.claimRefusal(personId, userEmail, userId);
+    if (!refusal) {
+      await this.completeClaim(userId, userEmail, personId);
+      return null;
+    }
+    this.logger.warn(`claim link for person ${personId} refused: ${refusal}`);
+    const reason = `${CLAIM_REFUSED_PARAM}=${refusal}`;
+    return eventSlug
+      ? `/e/${encodeURIComponent(eventSlug)}/claim?personId=${encodeURIComponent(personId)}&${reason}`
+      : `/me?${reason}`;
   }
 
   // ── /me endpoint ────────────────────────────────────────────────────────
@@ -729,45 +767,33 @@ export class AuthService {
     }
   }
 
-  /**
-   * The roster row, if it carries this address (ruling 46). A row with no email
-   * matches nobody, and a failed read refuses rather than guessing.
-   *
-   * This is the whole check the emailed-link REQUEST may make (ruling 53):
-   * nobody is signed in there, so a row already claimed BY THE ASKER must not
-   * be told from one claimed by somebody else — the typed address is not proof
-   * of identity, whatever could be looked up from it. The link goes to that
-   * address, which this check has just found to be the row's own, so only its
-   * owner can open it, and the redemption below decides with an account in hand.
-   */
-  private async personRowForClaim(
+  /** `claimRefusal` for the doors that answer a refusal with an error. */
+  private async assertClaimable(
     personId: string,
     email: string | undefined,
-  ): Promise<{ claim_status: string; claimed_by_user_id: string | null }> {
-    const { data, error } = await this.supabase.service
-      .from('persons')
-      .select('id, email, claim_status, claimed_by_user_id')
-      .eq('id', personId)
-      .maybeSingle();
-    if (error) throw new BadRequestException('Could not validate profile claim');
-    if (!data) throw new NotFoundException('Person not found');
-
-    const row = data as {
-      email: string | null;
-      claim_status: string;
-      claimed_by_user_id: string | null;
-    };
-    if (!personEmailMatchesUser(row.email, email)) {
-      throw new BadRequestException('Email does not match the registered person');
-    }
-    return row;
+    claimingUserId: string | null,
+  ): Promise<void> {
+    const { refusal } = await this.claimRefusal(personId, email, claimingUserId);
+    if (refusal) throw CLAIM_REFUSAL_ERRORS[refusal]();
   }
 
   /**
-   * The check before a roster row is actually claimed: it carries the account's
-   * address, and nobody else holds it.
+   * Why this roster row cannot be claimed, or null when it can — and the slug
+   * of its Event, null when no row was read.
    *
-   * A row this SAME account already holds passes (ruling 50). A fighter who asks
+   * The row must carry this address (ruling 46). A row with no email matches
+   * nobody, and a failed read is `check_failed`, not a verdict about the row.
+   *
+   * `claimingUserId` null is the emailed-link REQUEST, and the address is the
+   * whole check it may make (ruling 53): nobody is signed in there, so a row
+   * already claimed BY THE ASKER must not be told from one claimed by somebody
+   * else — the typed address is not proof of identity, whatever could be looked
+   * up from it. The link goes to that address, which this check has just found
+   * to be the row's own, so only its owner can open it, and the redemption
+   * decides with an account in hand.
+   *
+   * At a redemption the row must also be held by nobody else. A row this SAME
+   * account already holds passes (ruling 50). A fighter who asks
    * for a claim link and then signs in another way has the row flipped by the
    * autolink before the mail arrives; clicking the link then met a raw 400 about
    * a row that is hers. Re-claiming rewrites the same two values onto the same
@@ -781,18 +807,33 @@ export class AuthService {
    * columns together, and nothing in the schema pairs them — and this is the
    * same bar the /me confirm-to-claim door uses (`claimPersons`).
    */
-  private async validatePersonClaim(
+  private async claimRefusal(
     personId: string,
     email: string | undefined,
-    claimingUserId: string,
-  ): Promise<void> {
-    const row = await this.personRowForClaim(personId, email);
+    claimingUserId: string | null,
+  ): Promise<{ refusal: ClaimLinkRefusal | null; eventSlug: string | null }> {
+    const { data, error } = await this.supabase.service
+      .from('persons')
+      .select('id, email, claim_status, claimed_by_user_id, events(slug)')
+      .eq('id', personId)
+      .maybeSingle();
+    if (error) return { refusal: 'check_failed', eventSlug: null };
+    if (!data) return { refusal: 'not_found', eventSlug: null };
+
+    const row = data as {
+      email: string | null;
+      claim_status: string;
+      claimed_by_user_id: string | null;
+      events: { slug?: string } | null;
+    };
+    const eventSlug = row.events?.slug ?? null;
+    if (!personEmailMatchesUser(row.email, email)) return { refusal: 'email_mismatch', eventSlug };
+    if (claimingUserId === null) return { refusal: null, eventSlug };
+
     const heldByAnother = row.claimed_by_user_id
       ? row.claimed_by_user_id !== claimingUserId
       : row.claim_status === 'claimed';
-    if (heldByAnother) {
-      throw new BadRequestException('This profile has already been claimed');
-    }
+    return { refusal: heldByAnother ? 'held_by_another' : null, eventSlug };
   }
 
   private async completeClaim(

@@ -8,6 +8,7 @@ import { useI18n } from '@myclash/next-i18n/client';
 import { apiRequest, failureCode } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
 import { DashboardToday } from '@/components/me/DashboardToday';
+import { ClaimRefusedNotice } from '@/components/ClaimRefusedNotice';
 
 interface PersonalSpaceResponse {
   user: {
@@ -53,6 +54,17 @@ function roleEnabled(profile: Record<string, unknown> | null, key: string) {
   return Boolean(profile?.[key]);
 }
 
+/**
+ * The /me dashboard.
+ *
+ * Flows that land here say how they went in the query. The success markers are
+ * toasted once and stripped: claim-confirm redirects to /me?claimed=1,
+ * reset-password to /me?password_reset=1 — these were written but never read,
+ * and the user got zero confirmation. The mount effect reads them through window
+ * APIs, not useSearchParams, on purpose: the repo's React Compiler setup bails
+ * out on useSearchParams. A refused claim link lands here with its reason when
+ * it had no row to name an Event by (ruling 59); `ClaimRefusedNotice` says it.
+ */
 export function PersonalSpaceDashboard() {
   // Resolved here, not handed down from the server page: a server-resolved URL
   // is the docker-internal host, which the browser can't reach.
@@ -63,11 +75,7 @@ export function PersonalSpaceDashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
 
-  // Success feedback for flows that land here with a marker param:
-  // claim-confirm redirects to /me?claimed=1, reset-password to
-  // /me?password_reset=1. These were written but never read — the user got
-  // zero confirmation. window APIs (not useSearchParams) on purpose: the
-  // repo's React Compiler setup bails out on useSearchParams.
+  // The success markers — see the docblock.
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const claimed = params.get('claimed') === '1';
@@ -145,6 +153,7 @@ export function PersonalSpaceDashboard() {
           </p>
         </header>
 
+        <ClaimRefusedNotice />
         <DashboardToday />
 
         {loading && (

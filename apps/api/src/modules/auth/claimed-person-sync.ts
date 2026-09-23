@@ -34,7 +34,7 @@ export interface ClaimedPersonSyncTarget {
  * I just took" proved nothing about whose row it is: Marie's row was claimed by
  * Michel on his first sign-in, and her own claim was then refused as already
  * claimed. Only rows carrying the account's own address are claimed now — the
- * same bar `claimPersons` and `validatePersonClaim` use.
+ * same bar `claimPersons` and `claimRefusal` use.
  *
  * The ruled cost: a linked row with no address, or with another one, stays
  * unclaimed. It is then absent from /me "My events" and from the notifications
