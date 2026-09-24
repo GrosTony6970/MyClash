@@ -26,7 +26,6 @@
     "apps/web-public/app/e/[eventSlug]/home/_components/LiveNowSection.tsx": 2,
     "apps/web-public/app/e/[eventSlug]/home/_lib/public-event-data.ts": 6,
     "apps/web-public/app/e/[eventSlug]/lice/[liceName]/display/DisplayControls.tsx": 1,
-    "apps/web-public/app/e/[eventSlug]/lice/[liceName]/display/lice-display-client.tsx": 1,
     "apps/web-public/app/e/[eventSlug]/live/page.tsx": 2,
     "apps/web-public/app/e/[eventSlug]/match/[matchId]/display/page.tsx": 1,
     "apps/web-public/app/e/[eventSlug]/match/[matchId]/match-live-view.tsx": 4,

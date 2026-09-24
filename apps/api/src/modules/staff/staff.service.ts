@@ -26,6 +26,7 @@ import { getEffectiveBestOf, normalizeMatchFormatConfig } from '@myclash/ruleset
 import type { Match as RulesetMatch } from '@myclash/rulesets';
 import type { FastifyRequest } from 'fastify';
 import {
+  eventHidesFromPublic,
   isInsider,
   onlyPublicTournaments,
   seesHiddenOnLice,
@@ -967,7 +968,11 @@ export class StaffService {
         `event ${event.id} has ${matched.length} pistes named "${wanted}"; showing ${lice.id}`,
       );
     }
-    return this.getCurrentForLiceId(lice.id, { publicOnly: !insider });
+    const board = await this.getCurrentForLiceId(lice.id, { publicOnly: !insider });
+    // The public channel never carries what this Event hides: its screen polls (ruling 92).
+    const deps = { supabase: this.supabase };
+    const hiddenFromPublic = insider && (await eventHidesFromPublic(deps, event));
+    return { ...board, hiddenFromPublic };
   }
 
   /** The route has already hidden a bout the reader may not see; `reader` narrows its NEXT bout. */

@@ -307,6 +307,7 @@ export {
   deriveFreshness,
   fallbackPollMs,
   isFreshnessAlarming,
+  livePollMs,
   shouldStartFallbackPoll,
   IDLE_POLL_MS,
   LIVE_POLL_MS,
@@ -316,6 +317,7 @@ export type {
   Freshness,
   FreshnessInput,
   FreshnessKind,
+  LivePollInput,
 } from './hooks/realtime-freshness';
 export { FreshnessChip } from './components/FreshnessChip';
 export type { FreshnessChipProps } from './components/FreshnessChip';

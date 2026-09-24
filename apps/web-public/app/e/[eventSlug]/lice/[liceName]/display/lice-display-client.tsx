@@ -1,22 +1,16 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { LiceWaitingDisplay, type LiceWaitingDisplayNextMatch } from '@myclash/ui';
+import { LiceWaitingDisplay } from '@myclash/ui';
 import { useI18n } from '@myclash/next-i18n/client';
 import { useRealtimeWithFallback } from '../../../../../../src/lib/supabase-browser';
-import { getPublicApiUrl } from '../../../../../../src/lib/api-url';
 import { DisplayView } from '../../../match/[matchId]/display/display-view';
 import { DisplayControls } from './DisplayControls';
+import { EMPTY_BOARD, liceBoardPollMs, readLiceBoard, type LiceBoard } from './lice-board';
 
 interface Props {
   eventSlug: string;
   liceName: string;
-}
-
-interface LicePayload {
-  matchId: string | null;
-  eventName: string | null;
-  nextMatch: LiceWaitingDisplayNextMatch | null;
 }
 
 /**
@@ -26,61 +20,22 @@ interface LicePayload {
  * in sub-second time. Falls back to `<LiceWaitingDisplay>` between
  * matches with the next-up card; delegates to `<DisplayView>` for
  * the per-match TVScoreboard once a current match exists.
+ *
+ * The channel is anonymous, so an Event that hides anything from the
+ * public reaches a signed-in screen by a 5 s poll instead (ruling 92).
  */
 export function LiceDisplayClient({ eventSlug, liceName }: Props) {
   const { t } = useI18n();
-  const [liceId, setLiceId] = useState<string | null>(null);
-  const [payload, setPayload] = useState<LicePayload>({
-    matchId: null,
-    eventName: null,
-    nextMatch: null,
-  });
+  const [board, setBoard] = useState<LiceBoard>(EMPTY_BOARD);
+  const [lastReadFailed, setLastReadFailed] = useState(false);
 
-  // Single refetch path shared by the initial mount load and every realtime
-  // event / fallback poll. Reads /current and projects what the waiting
-  // surface needs (event name + next match) plus the current match id for
-  // the DisplayView delegation.
+  // Single refetch path shared by the initial mount load, every realtime
+  // event, the fallback poll and the hidden-board poll. A failed read keeps
+  // the last good picture on screen.
   const refresh = useCallback(async () => {
-    // Client-side base URL (browser-reachable public host).
-    const apiUrl = getPublicApiUrl();
-    const res = await fetch(
-      `${apiUrl}/api/v1/events/${eventSlug}/lices/${encodeURIComponent(liceName)}/current`,
-      // A draft Event, or a bout of an unpublished Tournament, shows only to a
-      // club member: a projector signed in as one sends its login (ruling 89).
-      { cache: 'no-store', credentials: 'include' },
-    );
-    if (!res.ok) return;
-    const body = (await res.json()) as {
-      liceId: string;
-      liceName: string;
-      event: { name?: string | null } | null;
-      current: { id: string } | null;
-      queue: Array<{
-        id: string;
-        redFighterName: string | null;
-        blueFighterName: string | null;
-        roundCode: string | null;
-        matchNumberLabel: string | null;
-        scoringConfig: LiceWaitingDisplayNextMatch['scoringConfig'];
-        tournamentName: string | null;
-      }>;
-    };
-    setLiceId(body.liceId);
-    const next = body.queue[0] ?? null;
-    setPayload({
-      matchId: body.current?.id ?? null,
-      eventName: body.event?.name ?? null,
-      nextMatch: next
-        ? {
-            redFighterName: next.redFighterName,
-            blueFighterName: next.blueFighterName,
-            roundCode: next.roundCode,
-            matchNumberLabel: next.matchNumberLabel,
-            scoringConfig: next.scoringConfig,
-            tournamentName: next.tournamentName,
-          }
-        : null,
-    });
+    const next = await readLiceBoard(eventSlug, liceName);
+    if (next) setBoard(next);
+    setLastReadFailed(next === null);
   }, [eventSlug, liceName]);
 
   useEffect(() => {
@@ -94,23 +49,32 @@ export function LiceDisplayClient({ eventSlug, liceName }: Props) {
   // projection, so the screen flips sub-second when a match starts or
   // ends. Flag-aware (disable_realtime) with a polling fallback.
   useRealtimeWithFallback({
-    channelName: `lice:${liceId}:current`,
+    channelName: `lice:${board.liceId}:current`,
     table: 'matches',
-    filter: `lice_id=eq.${liceId}`,
-    enabled: Boolean(liceId),
+    filter: `lice_id=eq.${board.liceId}`,
+    enabled: Boolean(board.liceId),
     onEvent: () => void refresh(),
     onFallbackPoll: () => void refresh(),
   });
 
+  // web-public's channel is anonymous and RLS keeps what the Event hides off
+  // it: SUBSCRIBED, it still never announces such a bout (ruling 92).
+  const pollMs = liceBoardPollMs(board, lastReadFailed);
+  useEffect(() => {
+    if (pollMs === null) return;
+    const timer = window.setInterval(() => void refresh(), pollMs);
+    return () => window.clearInterval(timer);
+  }, [pollMs, refresh]);
+
   // The control layer rides over BOTH states — it stays invisible until the
   // screen is touched, so it costs the projection nothing either way.
-  if (!payload.matchId) {
+  if (!board.matchId) {
     return (
       <>
         <LiceWaitingDisplay
-          eventName={payload.eventName}
+          eventName={board.eventName}
           liceName={liceName}
-          nextMatch={payload.nextMatch}
+          nextMatch={board.nextMatch}
           t={t}
         />
         <DisplayControls eventSlug={eventSlug} currentLiceName={liceName} />
@@ -120,7 +84,7 @@ export function LiceDisplayClient({ eventSlug, liceName }: Props) {
 
   return (
     <>
-      <DisplayView matchId={payload.matchId} eventSlug={eventSlug} />
+      <DisplayView matchId={board.matchId} eventSlug={eventSlug} />
       <DisplayControls eventSlug={eventSlug} currentLiceName={liceName} />
     </>
   );

@@ -345,9 +345,9 @@ export function MatchLiveView({
   const freshness = useMatchLiveChannel({
     matchId,
     isFinal,
-    // Live status, not the initial one — a bout that starts while the page is
-    // open must speed the fallback up without a reload.
-    matchStatus: match.status,
+    // The live row, not the initial one — a bout that starts while the page is
+    // open must speed the poll up, and a hidden one that ends stop it, without a reload.
+    match,
     realtimeDisabled,
     refresh,
     refreshLive,

@@ -267,6 +267,25 @@ describe('the display payload', () => {
   });
 });
 
+// The spectator bout page: the same anonymous channel, the same silence (ruling 92).
+describe('the bout read', () => {
+  it('tells the page when its bout is hidden from the public, so it keeps polling', async () => {
+    const read = async (id: string, caller?: Caller) =>
+      (await controller.getMatch(id, req(caller))) as { id: string; hiddenFromPublic: unknown };
+    for (const id of VISIBLE) {
+      expect(await read(id), id).toEqual({ id, hiddenFromPublic: false });
+      expect(await read(id, { user: 'u-member' }), id).toEqual({ id, hiddenFromPublic: false });
+    }
+    const staffDraft = { staff: { staffId: 'staff-draft', eventId: EVENT_DRAFT } };
+    expect(await read(IN_DRAFT_EVENT, { user: 'u-member' })).toEqual({
+      id: IN_DRAFT_EVENT,
+      hiddenFromPublic: true,
+    });
+    expect((await read(IN_DRAFT_TOURNAMENT, { user: 'u-member' })).hiddenFromPublic).toBe(true);
+    expect((await read(IN_DRAFT_EVENT, staffDraft)).hiddenFromPublic).toBe(true);
+  });
+});
+
 describe("the pad's prev/next tiles", () => {
   it('narrow the neighbours for the caller the gate decided on', async () => {
     const pad = { user: 'u-stranger', staff: { staffId: 'staff-draft', eventId: EVENT_DRAFT } };

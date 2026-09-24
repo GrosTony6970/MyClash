@@ -54,11 +54,41 @@ export interface CompetitionRow {
   event: CompetitionEvent;
 }
 
-export function isHiddenCompetition(row: CompetitionRow): boolean {
+/** Is anything here hidden from the public: the Event, or one of these Tournaments? */
+export function hidesFromPublic(
+  eventStatus: string,
+  tournamentStatuses: readonly string[],
+): boolean {
   return (
-    HIDDEN_EVENT_STATUSES.has(row.event.status) ||
-    !PUBLIC_TOURNAMENT_STATUSES.has(row.tournamentStatus)
+    HIDDEN_EVENT_STATUSES.has(eventStatus) ||
+    tournamentStatuses.some((status) => !PUBLIC_TOURNAMENT_STATUSES.has(status))
   );
+}
+
+export function isHiddenCompetition(row: CompetitionRow): boolean {
+  return hidesFromPublic(row.event.status, [row.tournamentStatus]);
+}
+
+/**
+ * Does the Event hide anything from the public: is it a DRAFT, or is one of its
+ * Tournaments not public? Ask it for an insider only. web-public's live channel
+ * is anonymous and RLS keeps those rows off it, so an insider's screen polls
+ * instead (ruling 92). It asks the Event, not the bouts on screen: a hidden
+ * Tournament's bout can reach any piste at any time, and nothing announces it.
+ */
+export async function eventHidesFromPublic(
+  deps: Pick<EventAuthzDeps, 'supabase'>,
+  event: Pick<CompetitionEvent, 'id' | 'status'>,
+): Promise<boolean> {
+  if (HIDDEN_EVENT_STATUSES.has(event.status)) return true;
+  const { data, error } = await deps.supabase.service
+    .from('tournaments')
+    .select('status')
+    .eq('event_id', event.id);
+  // A 5xx, not a 400 carrying the database's own words.
+  if (error) throw new Error(`tournament status read failed: ${error.message}`);
+  const statuses = ((data ?? []) as Array<{ status: string }>).map((row) => row.status);
+  return hidesFromPublic(event.status, statuses);
 }
 
 /** A member of the Event's club, any role, or an active staff session of the Event. */

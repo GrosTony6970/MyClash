@@ -3,12 +3,8 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import type { Dispatch, SetStateAction } from 'react';
 import { supabase } from '@/lib/supabase';
-import {
-  deriveFreshness,
-  fallbackPollMs,
-  shouldStartFallbackPoll,
-  type Freshness,
-} from '@myclash/ui';
+import { deriveFreshness, shouldStartFallbackPoll, type Freshness } from '@myclash/ui';
+import { boutPoll } from './bout-poll';
 import {
   mapMatchRow,
   type ExchangeRow,
@@ -104,12 +100,13 @@ export interface MatchLiveChannelOptions {
   /** A completed / voided match is static — no channel, no poll, no banner. */
   isFinal: boolean;
   /**
-   * Current `matches.status`. Drives the fallback cadence only — a running bout
-   * is refetched every few seconds, anything else slowly. Deliberately NOT a
-   * dependency of the channel effect: a status change must not tear down and
-   * rejoin the websocket.
+   * The bout as last read or pushed. Drives the poll only (`boutPoll`): its
+   * status sets the cadence — a running bout is refetched every few seconds,
+   * anything else slowly — and a bout hidden from the public is polled under a
+   * live channel. Deliberately NOT a dependency of the channel effect: a status
+   * change must not tear down and rejoin the websocket.
    */
-  matchStatus: string;
+  match: Pick<MatchRow, 'status' | 'hiddenFromPublic'>;
   /** `disable_realtime` kill-switch: skip the websocket, poll only. */
   realtimeDisabled: boolean;
   /**
@@ -142,11 +139,13 @@ export interface MatchLiveChannelOptions {
  *
  * The poll is a SECOND effect, not part of the channel effect, so that changing
  * its cadence (status, tab visibility) never tears down and rejoins the
- * websocket. The two still cannot run at once: the poll is gated on `degraded`,
- * which the subscribe callback clears the instant the channel reports
- * SUBSCRIBED. That state gate — not shared closure scope — is what keeps them
- * mutually exclusive, which is the property the surfaces that learned this the
- * hard way actually needed (see `useLiveMatch` in `@myclash/ui`).
+ * websocket. For a public bout the two cannot run at once: the poll is gated on
+ * `degraded`, which the subscribe callback clears the instant the channel
+ * reports SUBSCRIBED. That state gate — not shared closure scope — is what keeps
+ * them mutually exclusive, which is the property the surfaces that learned this
+ * the hard way actually needed (see `useLiveMatch` in `@myclash/ui`). A bout
+ * hidden from the public is the exception, on purpose: its channel is up and
+ * silent, so the poll runs beside it (`boutPoll`, ruling 92).
  *
  * Returns a FRESHNESS state, not a boolean. The page used to get `connected`
  * and decide for itself that a working poll still deserved a banner — honest,
@@ -158,7 +157,7 @@ export interface MatchLiveChannelOptions {
 export function useMatchLiveChannel({
   matchId,
   isFinal,
-  matchStatus,
+  match,
   realtimeDisabled,
   refresh,
   refreshLive,
@@ -182,9 +181,9 @@ export function useMatchLiveChannel({
   // The kill-switch degrades us before any channel exists, so it is folded in
   // here rather than tracked as state.
   const degraded = realtimeDisabled || !connected;
-  const pollMs = fallbackPollMs({ status: matchStatus, visible });
+  const cadence = boutPoll({ isFinal, degraded, match, visible, channelStatus });
 
-  // A slow tick, running ONLY while degraded.
+  // A slow tick, running ONLY while the page polls.
   //
   // `stale` is the one state that becomes true with no event to announce it —
   // nothing arriving is precisely the condition — so something has to re-render
@@ -192,28 +191,28 @@ export function useMatchLiveChannel({
   // that is an impure render (the React Compiler rejects it) and it would make
   // freshness a value that changes without anything re-rendering.
   //
-  // Not started when live: a healthy page must not re-render once a second
-  // forever, least of all a projector left running all weekend. `now` stays 0
-  // until the first tick, which `deriveFreshness` clamps to an age of 0 — i.e.
-  // "just degraded", which is exactly right for the first second.
+  // Not started for a public bout with its channel up: a healthy page must not
+  // re-render once a second forever. A hidden bout's poll does tick all day. `now`
+  // stays 0 until the first tick, which `deriveFreshness` clamps to an age of 0 —
+  // "just started polling", which is exactly right for the first second.
   useEffect(() => {
-    if (!degraded) return;
+    if (cadence.pollMs === null) return;
     const id = setInterval(() => setNow(Date.now()), 1_000);
     return () => clearInterval(id);
-  }, [degraded]);
+  }, [cadence.pollMs]);
 
   useEffect(() => {
-    if (isFinal || !degraded) return;
+    if (cadence.pollMs === null) return;
     // Stamped only when a refetch RESOLVES. Stamping on dispatch would make a
     // poll that fires and fails look exactly like one that works, which is the
     // condition `stale` exists to catch.
     const poll = () => void refreshLive().then(() => setLastUpdateAt(Date.now()));
-    // Fire once immediately: on entering degraded the page is stale from this
+    // Fire once immediately: on starting to poll the page is stale from this
     // instant, and on a cadence change the new speed should take effect now.
     poll();
-    const timer = setInterval(poll, pollMs);
+    const timer = setInterval(poll, cadence.pollMs);
     return () => clearInterval(timer);
-  }, [isFinal, degraded, pollMs, refreshLive]);
+  }, [cadence.pollMs, refreshLive]);
 
   useEffect(() => {
     // Finished matches don't stream — no channel at all.
@@ -282,7 +281,7 @@ export function useMatchLiveChannel({
       .subscribe((status) => {
         setChannelStatus(status);
         if (status === 'SUBSCRIBED') {
-          // Clears `degraded`, which stops the poll effect.
+          // Clears `degraded`, which stops a public bout's poll.
           setConnected(true);
           // Re-fetch to catch any changes missed during the disconnection window.
           if (wasDisconnected.current) {
@@ -306,8 +305,8 @@ export function useMatchLiveChannel({
   // when something else re-rendered — it would go stale about staleness.
   return deriveFreshness({
     realtimeDisabled,
-    channelStatus,
-    pollMs: degraded ? pollMs : undefined,
+    channelStatus: cadence.channelStatus,
+    pollMs: cadence.pollMs ?? undefined,
     lastUpdateAt,
     now,
   });

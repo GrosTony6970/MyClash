@@ -49,6 +49,8 @@ export interface MatchRow {
   roundsJson: RoundSnapshot[] | null;
   /** Why the match ended — 'max_doubles' is the 0–0 double loss. */
   endReason: string | null;
+  /** The public may not see this bout, so the page polls it (ruling 92). */
+  hiddenFromPublic: boolean;
 }
 
 /** Header labels from `/matches/:id/summary` (fighter names, schools, referee, tz). */
@@ -92,5 +94,8 @@ export function mapMatchRow(raw: Record<string, unknown>): MatchRow {
     awaitingRoundAdvance: (raw['awaiting_round_advance'] as boolean | null) ?? false,
     roundsJson: Array.isArray(raw['rounds_json']) ? (raw['rounds_json'] as RoundSnapshot[]) : null,
     endReason: (raw['end_reason'] as string | null) ?? null,
+    // Only the bout read (`/matches/:id`) adds this key. A realtime row never
+    // carries it, and rightly reads as public: the public channel pushed it.
+    hiddenFromPublic: raw['hiddenFromPublic'] === true,
   };
 }

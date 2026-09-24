@@ -38,7 +38,11 @@ import {
   assertCanManagePool,
   assertCanReadPhase,
 } from '../../common/auth/event-authz';
-import { canReadMatch, publicReader } from '../../common/auth/competition-visibility';
+import {
+  canReadMatch,
+  matchVisibility,
+  publicReader,
+} from '../../common/auth/competition-visibility';
 import { resolveRequestUserId } from '../../common/auth/request-user';
 import {
   AdjustClockDto,
@@ -121,8 +125,11 @@ export class MatchesController {
   @ApiOperation({ summary: 'Get match by ID (public; a draft only for its club and staff)' })
   @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
   async getMatch(@Param('id', ParseUUIDPipe) id: string, @Req() req: FastifyRequest) {
-    if (!(await this.canReadBout(req, id))) throw new NotFoundException(`Match ${id} not found`);
-    return this.matches.getMatch(id);
+    const deps = { supabase: this.supabase, orgs: this.orgs };
+    const visibility = await matchVisibility(deps, id, publicReader(req));
+    if (visibility === 'refused') throw new NotFoundException(`Match ${id} not found`);
+    // The public live channel never carries a hidden bout: the bout page polls it (ruling 92).
+    return { ...(await this.matches.getMatch(id)), hiddenFromPublic: visibility === 'hidden' };
   }
 
   @Public()

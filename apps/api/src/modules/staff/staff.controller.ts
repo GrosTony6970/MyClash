@@ -20,6 +20,7 @@ import { ThrottleByStaffAccount } from '../../common/throttling/throttle-by-staf
 import {
   ADMIN_READ_THROTTLE,
   CATALOG_READ_THROTTLE,
+  PUBLIC_LIVE_READ_THROTTLE,
 } from '../../common/throttling/throttle-profiles';
 import { buildClearCookieOptions, buildSessionCookieOptions } from '../../security/http-security';
 import {
@@ -306,6 +307,10 @@ export class StaffController {
    * `decodeURIComponent` throw `URIError` — an unhandled 500 on a public route.
    */
   @Public()
+  // Every piste screen of a venue shares one address, and a signed-in one on a
+  // hidden board polls this every 5 s (ruling 92): ten pistes spent the global
+  // 120/min limit.
+  @Throttle(PUBLIC_LIVE_READ_THROTTLE)
   @Get('events/:eventSlug/lices/:liceName/current')
   @ApiOperation({ summary: 'Public current match and queue for a Lice' })
   async publicLiceCurrent(
