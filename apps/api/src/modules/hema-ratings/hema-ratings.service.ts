@@ -401,7 +401,8 @@ export class HemaRatingsService {
       .limit(1)
       .maybeSingle();
 
-    if (error || !data) return [];
+    if (error) throw new Error(`HEMA Ratings snapshot read failed: ${error.message}`);
+    if (!data) return [];
 
     const fighters = ((data as { fighters?: unknown }).fighters ?? []) as SnapshotFighter[];
 
@@ -411,42 +412,49 @@ export class HemaRatingsService {
       .sort((a, b) => b.score - a.score || a.fighter.name.localeCompare(b.fighter.name))
       .slice(0, cappedLimit);
 
-    // Pre-enrich each match with nationality. The snapshot acts as the
-    // cache: entries with a non-null nationality come straight back; the
-    // rest fan out to fetchHemaRatingsProfile in parallel and write the
-    // result back into the snapshot via patchSnapshotEntry. Failures
-    // degrade silently to `nationality: null` so a flaky upstream never
-    // blocks the picker.
-    const enriched = await Promise.all(
-      matches.map(async ({ fighter }) => {
-        const id = String(fighter.id);
-        // Defend against HTML residue in stored snapshot rows. The sync
-        // worker's parseHtml strips tags before decoding entities, so any
-        // escaped anchors in the upstream listing arrive here as live
-        // <a> tags or stray entity refs. cleanHtmlText (same file) strips
-        // tags then decodes entities — the right order for read-side
-        // sanitization regardless of how messy the stored value is.
-        const base: HemaRatingsSearchResult = {
-          id,
-          name: cleanHtmlText(fighter.name ?? ''),
-          club: cleanHtmlText(fighter.club ?? ''),
-          nationality: fighter.nationality ?? null,
-          detailsUrl: `https://hemaratings.com/fighters/details/${id}/`,
-        };
-        if (base.nationality) return base;
-        try {
-          const profile = await fetchHemaRatingsProfile(id);
-          await this.patchSnapshotEntry(profile).catch(() => {
-            /* persistence failures don't block the response */
-          });
-          return { ...base, nationality: profile.nationality ?? null };
-        } catch {
-          return base;
-        }
-      }),
-    );
+    // The kill switch is read only when some match would go upstream.
+    const upstreamOff =
+      matches.some(({ fighter }) => !fighter.nationality) &&
+      (await isFlagEnabledDirect(this.supabase, 'disable_hema_sync'));
 
-    return enriched;
+    return Promise.all(matches.map(({ fighter }) => this.searchResult(fighter, upstreamOff)));
+  }
+
+  /**
+   * One search match, with its nationality. The snapshot acts as the cache: an
+   * entry with a nationality comes straight back; otherwise the profile is
+   * fetched and written back into the snapshot, unless `disable_hema_sync` is
+   * on (ruling 100). Upstream failures degrade silently to `nationality: null`
+   * so a flaky upstream never blocks the picker.
+   */
+  private async searchResult(
+    fighter: SnapshotFighter,
+    upstreamOff: boolean,
+  ): Promise<HemaRatingsSearchResult> {
+    const id = String(fighter.id);
+    // Defend against HTML residue in stored snapshot rows. The sync
+    // worker's parseHtml strips tags before decoding entities, so any
+    // escaped anchors in the upstream listing arrive here as live
+    // <a> tags or stray entity refs. cleanHtmlText (same file) strips
+    // tags then decodes entities — the right order for read-side
+    // sanitization regardless of how messy the stored value is.
+    const base: HemaRatingsSearchResult = {
+      id,
+      name: cleanHtmlText(fighter.name ?? ''),
+      club: cleanHtmlText(fighter.club ?? ''),
+      nationality: fighter.nationality ?? null,
+      detailsUrl: `https://hemaratings.com/fighters/details/${id}/`,
+    };
+    if (base.nationality || upstreamOff) return base;
+    try {
+      const profile = await fetchHemaRatingsProfile(id);
+      await this.patchSnapshotEntry(profile).catch(() => {
+        /* persistence failures don't block the response */
+      });
+      return { ...base, nationality: profile.nationality ?? null };
+    } catch {
+      return base;
+    }
   }
 
   /**

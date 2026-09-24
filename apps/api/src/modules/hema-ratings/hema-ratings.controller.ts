@@ -8,12 +8,14 @@ import {
   Post,
   Query,
   Req,
+  UnauthorizedException,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiParam, ApiQuery, ApiTags } from '@nestjs/swagger';
 import { createZodDto } from 'nestjs-zod';
 import { z } from 'zod';
 import type { FastifyRequest } from 'fastify';
 import { assertCanManageEvent, MANAGE_EVENT_ROLE } from '../../common/auth/event-authz';
+import { getIdentity } from '../../common/auth/identity';
 import { requireRequestUserId } from '../../common/auth/request-user';
 import { OrganizationsService } from '../organizations/organizations.service';
 import { SupabaseService } from '../supabase/supabase.service';
@@ -41,11 +43,23 @@ export class HemaRatingsController {
     private readonly orgs: OrganizationsService,
   ) {}
 
+  /**
+   * The suggest box on an Event's persons page: `editor` in any organization,
+   * the bar for adding a person there (operator ruling 100).
+   */
   @Get('hema-ratings/search')
   @ApiOperation({ summary: 'Search latest HEMA Ratings fighter snapshot' })
   @ApiQuery({ name: 'q', type: 'string' })
   @ApiQuery({ name: 'limit', type: 'number', required: false })
-  async search(@Query() query: HemaRatingsSearchQueryDto) {
+  async search(@Query() query: HemaRatingsSearchQueryDto, @Req() req: FastifyRequest) {
+    const identity = getIdentity(req);
+    if (identity.kind === 'anonymous') {
+      throw new UnauthorizedException('Authentication required');
+    }
+    await this.orgs.assertAnyOrgRole(
+      identity.kind === 'claimed' ? identity.userId : null,
+      'editor',
+    );
     const limit = parseInt(query.limit ?? '5', 10) || 5;
     return this.hemaRatings.search(query.q, limit);
   }
@@ -71,12 +85,9 @@ export class HemaRatingsController {
    * Event it belongs to is the one that decides.
    *
    * What moved is the ARBITRARY id: this took any string and fetched it. The
-   * sibling `GET hema-ratings/search` above still reaches the same outbound
-   * fetch and the same snapshot write (`search` → `fetchHemaRatingsProfile` +
-   * `patchSnapshotEntry`, `hema-ratings.service.ts`) for anyone, and unlike
-   * this route it does NOT honour the `disable_hema_sync` kill switch. It can
-   * only refresh ids the snapshot already holds, which is the narrowing; a bar
-   * for it is ruling 15's read pass, and it is still on the ledger.
+   * sibling `GET hema-ratings/search` above reaches the same outbound fetch and
+   * snapshot write, but only for ids the snapshot already holds, only for an
+   * `editor` somewhere, and not while `disable_hema_sync` is on (ruling 100).
    */
   @Post('events/:eventId/hema-ratings/fighters/:hemaRatingsId/sync')
   @HttpCode(HttpStatus.ACCEPTED)

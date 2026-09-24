@@ -23,11 +23,6 @@
  * are pinned.
  */
 export const UNDECIDED: Readonly<Record<string, string>> = {
-  // clubs and platform-wide identities. The writes were fixed 2026-09-23
-  // (rulings 36-38, 55, 56); this read waits for ruling 15's read pass.
-  'modules/hema-ratings/hema-ratings.controller.ts#HemaRatingsController.search':
-    'open: but it fetches upstream',
-
   // follows — with no cookie the identity is `{}`, and the service then filters
   // on no follower at all.
   'modules/follows/follows.controller.ts#FollowsController.unfollow':

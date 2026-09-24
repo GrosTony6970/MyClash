@@ -8,9 +8,9 @@
  * route now names that Event and takes `editor` on it — the bar for adding a
  * person there (operator ruling 38).
  *
- * The arbitrary id is the half that moved. `GET hema-ratings/search` still
- * reaches the same fetch and the same snapshot write for anyone, over ids the
- * snapshot already holds; it is on the ledger for ruling 15's read pass.
+ * The arbitrary id is the half that moved. `GET hema-ratings/search` reaches the
+ * same fetch and snapshot write over ids the snapshot already holds, for an
+ * `editor` somewhere (ruling 100, hema-ratings.search-access.test.ts).
  *
  * Driven through the controller and the real org-role check over seeded tables.
  * The ratings service is a stub, so "refused" means "never reached".
