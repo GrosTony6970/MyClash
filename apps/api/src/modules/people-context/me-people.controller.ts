@@ -10,11 +10,15 @@
 import { Controller, Get, Query, Req, UnauthorizedException } from '@nestjs/common';
 import { ApiOperation, ApiQuery, ApiTags } from '@nestjs/swagger';
 import type { FastifyRequest } from 'fastify';
+import { z } from 'zod';
+import { Public } from '../../common/auth/public.decorator';
 import { SupabaseService } from '../supabase/supabase.service';
 import { FollowsService } from '../follows/follows.service';
 import { PeopleContextService } from './people-context.service';
 
 const MAX_CONTEXT_IDS = 60;
+/** A malformed id names no one: dropped like an unknown one, never a failed UUID cast (a 5xx). */
+const GLOBAL_PERSON_ID = z.uuid();
 
 @ApiTags('people-context')
 @Controller()
@@ -25,6 +29,8 @@ export class MePeopleController {
     private readonly supabase: SupabaseService,
   ) {}
 
+  // Public (ruling 84): the service leaves out what the public pages hide.
+  @Public()
   @Get('me/people/context')
   @ApiOperation({ summary: 'Live tournament context for a set of global persons' })
   @ApiQuery({ name: 'globalPersonIds', required: true, description: 'Comma-separated UUIDs' })
@@ -32,7 +38,7 @@ export class MePeopleController {
     const ids = (raw ?? '')
       .split(',')
       .map((s) => s.trim())
-      .filter(Boolean)
+      .filter((id) => GLOBAL_PERSON_ID.safeParse(id).success)
       .slice(0, MAX_CONTEXT_IDS);
     if (ids.length === 0) return [];
     const userId = await this.resolveOptionalUserId(req);

@@ -156,6 +156,9 @@ const EXPECTED_PUBLIC = [
   'GET /matches/:id/neighbors',
   'GET /matches/:id/penalties',
   'GET /matches/:id/summary',
+  // The People hub's search cards, which never need a login (ruling 84): no
+  // draft or test Event, no hidden Tournament, the country as the fighter allows.
+  'GET /me/people/context',
   // Anonymous organiser directory for /organisers: active organisations only,
   // same projection as the profile below (no contact_email, no status).
   'GET /organizations/public',

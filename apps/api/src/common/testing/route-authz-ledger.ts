@@ -34,8 +34,6 @@ export const UNDECIDED: Readonly<Record<string, string>> = {
   // public by nature.
   'modules/fighters/fighters.controller.ts#GlobalPersonsController.list':
     'read: any signed-in account',
-  'modules/people-context/me-people.controller.ts#MePeopleController.context':
-    'read: any identity by id, anonymous too',
   'modules/exports/exports.controller.ts#ExportsController.restorePreview':
     'read: parses only the upload, but for anyone',
 

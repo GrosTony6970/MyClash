@@ -82,7 +82,15 @@ describe('PeopleContextService.enrich', () => {
     });
     // registrations (regData)
     queue('registrations', {
-      data: [{ id: 'r-1', person_id: 'p-1', tournament_id: 't-1', status: 'registered' }],
+      data: [
+        {
+          id: 'r-1',
+          person_id: 'p-1',
+          tournament_id: 't-1',
+          status: 'registered',
+          tournaments: { status: 'published' },
+        },
+      ],
       error: null,
     });
     // fights (scheduled → next match)
@@ -217,7 +225,15 @@ describe('PeopleContextService.enrich', () => {
       error: null,
     });
     queue('registrations', {
-      data: [{ id: 'r-3', person_id: 'p-3', tournament_id: 't-3', status: 'registered' }],
+      data: [
+        {
+          id: 'r-3',
+          person_id: 'p-3',
+          tournament_id: 't-3',
+          status: 'registered',
+          tournaments: { status: 'running' },
+        },
+      ],
       error: null,
     });
     // One running bout (→ currentMatch) and one scheduled bout (→ nextMatch).
@@ -464,7 +480,7 @@ describe('PeopleContextService.enrich', () => {
     const [ctx] = await svc.enrich(['gp-4'], 'user-1');
     expect(selectOf(supabase, 'referee_assignments')).toBe(
       'person_id, role, matches ( id, status, scheduled_at, match_number_label, lices ( name ), ' +
-        'pools ( name ), phases ( tournaments ( slug, status, events ( slug, name ) ) ) )',
+        'pools ( name ), phases ( tournaments ( slug, status, events ( slug, name, status, event_kind ) ) ) )',
     );
 
     expect(ctx).toMatchObject({

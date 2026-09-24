@@ -13,6 +13,7 @@ import { SupabaseService } from '../supabase/supabase.service';
 import { HemaRatingsService } from '../hema-ratings/hema-ratings.service';
 import { CsvImportService } from '../persons/csv-import.service';
 import { replaceFighterWeaponsFromCell } from './weapon-import.util';
+import { isFieldPublic, VISIBILITY_FIELDS, type VisibilityField } from './public-visibility';
 import {
   applyReachable,
   isIndexable,
@@ -164,21 +165,6 @@ export interface PublicDirectoryFighter {
   clubSlug: string | null;
   weapons: string[];
 }
-
-/**
- * Fighter-profile fields a user can hide from their public profile, mapped to
- * the underlying column(s). `defaultPublic: false` means hidden unless the user
- * opts in (date_of_birth stays private by default, preserving prior behaviour).
- */
-const VISIBILITY_FIELDS: Record<string, { columns: string[]; defaultPublic: boolean }> = {
-  dateOfBirth: { columns: ['date_of_birth'], defaultPublic: false },
-  nationality: { columns: ['country_code'], defaultPublic: true },
-  gender: { columns: ['gender_category'], defaultPublic: true },
-  bio: { columns: ['bio'], defaultPublic: true },
-  alias: { columns: ['alias'], defaultPublic: true },
-  links: { columns: ['website_url', 'instagram_url', 'youtube_url'], defaultPublic: true },
-  practicingSince: { columns: ['practicing_since_year'], defaultPublic: true },
-};
 
 /**
  * Every column a PUBLIC fighter read may return. An ALLOW-list.
@@ -1295,8 +1281,6 @@ export class FightersService {
    * `withPublicProfileRelations` are attached by the caller, AFTER this runs.
    */
   private sanitizePublicFighter(row: Row): Row {
-    const vis = (row[VISIBILITY_CONFIG_FIELD] ?? {}) as Record<string, unknown>;
-
     const out: Row = {};
     for (const field of PUBLIC_FIGHTER_EMITTED_FIELDS) {
       if (field in row) out[field] = row[field];
@@ -1311,10 +1295,9 @@ export class FightersService {
     out['accountDeleted'] = row[ACCOUNT_ERASED_FIELD] != null;
     out['indexable'] = isIndexable(row as DirectoryRow);
 
-    for (const [key, cfg] of Object.entries(VISIBILITY_FIELDS)) {
-      const explicit = typeof vis[key] === 'boolean' ? (vis[key] as boolean) : undefined;
-      const visible = explicit ?? cfg.defaultPublic;
-      if (!visible) for (const col of cfg.columns) delete out[col];
+    for (const key of Object.keys(VISIBILITY_FIELDS) as VisibilityField[]) {
+      if (isFieldPublic(row[VISIBILITY_CONFIG_FIELD], key)) continue;
+      for (const col of VISIBILITY_FIELDS[key].columns) delete out[col];
     }
     return out;
   }

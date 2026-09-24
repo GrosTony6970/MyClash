@@ -8,6 +8,8 @@ import {
   type RankingSlot,
 } from '@myclash/types';
 import { PUBLIC_TOURNAMENT_STATUSES } from '../../common/auth/competition-visibility';
+import { HIDDEN_EVENT_STATUSES } from '../../common/auth/event-read-gate';
+import { isFieldPublic } from '../fighters/public-visibility';
 import { SupabaseService } from '../supabase/supabase.service';
 import { PoolStandingsService, type StandingsRow } from '../pool-standings/pool-standings.service';
 import { PhasesService } from '../phases/phases.service';
@@ -94,10 +96,31 @@ function one(value: unknown): Record<string, unknown> | null {
   return (value as Record<string, unknown>) ?? null;
 }
 
-/** A bout's phase embed belongs to a Tournament the public may see (operator ruling 91). */
-function isPublicTournament(phase: Record<string, unknown> | null): boolean {
-  const status = one(phase?.['tournaments'])?.['status'];
+/**
+ * The Tournament embedded in a bout's phase or in an entry is one the public
+ * may see (operator rulings 84, 91).
+ */
+function isPublicTournament(embed: Record<string, unknown> | null): boolean {
+  const status = one(embed?.['tournaments'])?.['status'];
   return typeof status === 'string' && PUBLIC_TOURNAMENT_STATUSES.has(status);
+}
+
+/** An Event embed the public may see: not a draft, not a test Event (ruling 84). */
+function isPublicEvent(event: Record<string, unknown> | null): event is Record<string, unknown> {
+  return (
+    !!event &&
+    !HIDDEN_EVENT_STATUSES.has(String(event['status'] ?? '')) &&
+    isPubliclyVisible(asEventKind(event['event_kind']))
+  );
+}
+
+/** A read's rows. A failed read is a 5xx: read as "no rows", a person would look idle. */
+function rowsOf(
+  result: { data: unknown; error: { message: string } | null },
+  what: string,
+): Array<Record<string, unknown>> {
+  if (result.error) throw new Error(`${what} read failed: ${result.error.message}`);
+  return (result.data ?? []) as Array<Record<string, unknown>>;
 }
 
 /**
@@ -126,19 +149,28 @@ export class PeopleContextService {
     if (ids.length === 0) return [];
 
     // 1. Base identity (name / club / photo / license).
-    const { data: gpData } = await this.supabase.service
-      .from('global_persons')
-      .select('id, slug, display_name, photo_url, country_code, hema_ratings_id, clubs ( name )')
-      .in('id', ids);
+    //    The country follows the fighter's own setting, as on their profile. The
+    //    photo has no setting (migration 0187: every photo is public).
+    const gpRows = rowsOf(
+      await this.supabase.service
+        .from('global_persons')
+        .select(
+          'id, slug, display_name, photo_url, country_code, public_visibility, hema_ratings_id, clubs ( name )',
+        )
+        .in('id', ids),
+      'people',
+    );
     const base = new Map<string, PersonContext>();
-    for (const r of (gpData ?? []) as Array<Record<string, unknown>>) {
+    for (const r of gpRows) {
       base.set(r['id'] as string, {
         globalPersonId: r['id'] as string,
         slug: (r['slug'] as string) ?? '',
         displayName: (r['display_name'] as string) ?? '',
         clubName: (one(r['clubs'])?.['name'] as string | undefined) ?? null,
         photoUrl: (r['photo_url'] as string | null) ?? null,
-        countryCode: (r['country_code'] as string | null) ?? null,
+        countryCode: isFieldPublic(r['public_visibility'], 'nationality')
+          ? ((r['country_code'] as string | null) ?? null)
+          : null,
         license: (r['hema_ratings_id'] as string | null) ?? null,
         isFollowing: false,
         event: null,
@@ -170,37 +202,42 @@ export class PeopleContextService {
       if (ctx) ctx.currentMatch = refMatch;
     }
 
-    // 3. Active event-scoped persons for these globals (non-terminal, non-test).
-    const { data: personData } = await this.supabase.service
-      .from('persons')
-      .select('id, global_person_id, events!inner ( status, event_kind )')
-      .in('global_person_id', ids);
+    // 3. Active event-scoped persons for these globals (public, not yet over).
+    const personRows = rowsOf(
+      await this.supabase.service
+        .from('persons')
+        .select('id, global_person_id, events!inner ( status, event_kind )')
+        .in('global_person_id', ids),
+      'event people',
+    );
     const personToGlobal = new Map<string, string>();
-    for (const r of (personData ?? []) as Array<Record<string, unknown>>) {
+    for (const r of personRows) {
       const ev = one(r['events']);
       const active =
-        !!ev &&
-        isPubliclyVisible(asEventKind(ev['event_kind'])) &&
-        !TERMINAL_EVENT_STATUSES.includes(String(ev['status'] ?? ''));
+        isPublicEvent(ev) && !TERMINAL_EVENT_STATUSES.includes(String(ev['status'] ?? ''));
       if (active) personToGlobal.set(r['id'] as string, r['global_person_id'] as string);
     }
     const activePersonIds = [...personToGlobal.keys()];
 
     // 4-7. Active-tournament enrichment (skipped when nobody has an active event).
     if (activePersonIds.length > 0) {
-      // 4. Registrations for those persons (drives tournament / pool / rank / match).
-      const { data: regData } = await this.supabase.service
-        .from('registrations')
-        .select('id, person_id, tournament_id, status')
-        .in('person_id', activePersonIds)
-        .neq('status', 'withdrawn');
+      // 4. Registrations for those persons (drives tournament / pool / rank / match),
+      //    in public Tournaments only: the focus fallback would name a hidden one.
+      const regRows = rowsOf(
+        await this.supabase.service
+          .from('registrations')
+          .select('id, person_id, tournament_id, status, tournaments ( status )')
+          .in('person_id', activePersonIds)
+          .neq('status', 'withdrawn'),
+        'entries',
+      );
       const regToGlobal = new Map<string, string>(); // registrationId → globalPersonId
       const regToTournament = new Map<string, string>();
       const globalToRegIds = new Map<string, string[]>();
-      for (const r of (regData ?? []) as Array<Record<string, unknown>>) {
+      for (const r of regRows) {
         const regId = r['id'] as string;
         const gp = personToGlobal.get(r['person_id'] as string);
-        if (!gp) continue;
+        if (!gp || !isPublicTournament(r)) continue;
         regToGlobal.set(regId, gp);
         regToTournament.set(regId, r['tournament_id'] as string);
         const list = globalToRegIds.get(gp) ?? [];
@@ -290,19 +327,20 @@ export class PeopleContextService {
     >
   > {
     const inList = regIds.join(',');
-    const { data } = await this.supabase.service
-      .from('matches')
-      .select(
-        `id, match_number_label, status, scheduled_at,
+    const rows = rowsOf(
+      await this.supabase.service
+        .from('matches')
+        .select(
+          `id, match_number_label, status, scheduled_at,
          red_registration_id, blue_registration_id,
          pools ( name ), lices ( name ),
          phases ( tournaments ( status ) )`,
-      )
-      .or(`red_registration_id.in.(${inList}),blue_registration_id.in.(${inList})`)
-      .in('status', ACTIVE_MATCH_STATUSES)
-      .order('scheduled_at', { ascending: true });
-
-    const rows = (data ?? []) as Array<Record<string, unknown>>;
+        )
+        .or(`red_registration_id.in.(${inList}),blue_registration_id.in.(${inList})`)
+        .in('status', ACTIVE_MATCH_STATUSES)
+        .order('scheduled_at', { ascending: true }),
+      'bouts',
+    );
     interface Pending {
       focusRegId: string;
       opponentRegId: string | null;
@@ -383,19 +421,22 @@ export class PeopleContextService {
   private async fetchRefereeNow(globalIds: string[]): Promise<Map<string, PersonContextMatch>> {
     const result = new Map<string, PersonContextMatch>();
     if (globalIds.length === 0) return result;
-    const { data } = await this.supabase.service
-      .from('referee_assignments')
-      .select(
-        `person_id, role,
+    const assignments = rowsOf(
+      await this.supabase.service
+        .from('referee_assignments')
+        .select(
+          `person_id, role,
          matches (
            id, status, scheduled_at, match_number_label,
            lices ( name ), pools ( name ),
-           phases ( tournaments ( slug, status, events ( slug, name ) ) )
+           phases ( tournaments ( slug, status, events ( slug, name, status, event_kind ) ) )
          )`,
-      )
-      .in('person_id', globalIds)
-      .eq('scope_type', 'match')
-      .not('match_id', 'is', null);
+        )
+        .in('person_id', globalIds)
+        .eq('scope_type', 'match')
+        .not('match_id', 'is', null),
+      'referee assignments',
+    );
 
     interface Pending {
       role: string | null;
@@ -410,7 +451,7 @@ export class PeopleContextService {
     }
     const pendingByGp = new Map<string, Pending>();
     const roleIds = new Set<string>();
-    for (const a of (data ?? []) as Array<Record<string, unknown>>) {
+    for (const a of assignments) {
       const gp = a['person_id'] as string;
       if (pendingByGp.has(gp)) continue; // one live referee slot per person
       const match = one(a['matches']);
@@ -421,6 +462,7 @@ export class PeopleContextService {
       if (!isPublicTournament(phase)) continue;
       const tournament = phase ? one(phase['tournaments']) : null;
       const event = tournament ? one(tournament['events']) : null;
+      if (!isPublicEvent(event)) continue;
       const role = (a['role'] as string | null) ?? null;
       if (role) roleIds.add(role);
       pendingByGp.set(gp, {
@@ -463,11 +505,14 @@ export class PeopleContextService {
   ): Promise<Map<string, { name: string; color: string }>> {
     const map = new Map<string, { name: string; color: string }>();
     if (roleIds.length === 0) return map;
-    const { data } = await this.supabase.service
-      .from('referee_skills')
-      .select('id, name, color')
-      .in('id', roleIds);
-    for (const s of (data ?? []) as Array<Record<string, unknown>>) {
+    const skills = rowsOf(
+      await this.supabase.service
+        .from('referee_skills')
+        .select('id, name, color')
+        .in('id', roleIds),
+      'referee skills',
+    );
+    for (const s of skills) {
       map.set(s['id'] as string, {
         name: String(s['name'] ?? ''),
         color: String(s['color'] ?? ''),
@@ -480,12 +525,15 @@ export class PeopleContextService {
   private async resolveRegistrationNames(regIds: string[]): Promise<Map<string, string>> {
     const unique = [...new Set(regIds)];
     if (unique.length === 0) return new Map();
-    const { data } = await this.supabase.service
-      .from('registrations')
-      .select('id, persons ( given_name, family_name, global_persons ( display_name ) )')
-      .in('id', unique);
+    const rows = rowsOf(
+      await this.supabase.service
+        .from('registrations')
+        .select('id, persons ( given_name, family_name, global_persons ( display_name ) )')
+        .in('id', unique),
+      'opponents',
+    );
     const map = new Map<string, string>();
-    for (const r of (data ?? []) as Array<Record<string, unknown>>) {
+    for (const r of rows) {
       const person = one(r['persons']);
       if (!person) continue;
       const given = ((person['given_name'] as string | null) ?? '').trim();
@@ -500,11 +548,14 @@ export class PeopleContextService {
   private async fetchTournaments(tournamentIds: string[]): Promise<Map<string, FocusTournament>> {
     const map = new Map<string, FocusTournament>();
     if (tournamentIds.length === 0) return map;
-    const { data } = await this.supabase.service
-      .from('tournaments')
-      .select('id, name, slug, weapon, events ( id, name, slug )')
-      .in('id', tournamentIds);
-    for (const t of (data ?? []) as Array<Record<string, unknown>>) {
+    const rows = rowsOf(
+      await this.supabase.service
+        .from('tournaments')
+        .select('id, name, slug, weapon, events ( id, name, slug )')
+        .in('id', tournamentIds),
+      'tournaments',
+    );
+    for (const t of rows) {
       const ev = one(t['events']);
       map.set(t['id'] as string, {
         id: t['id'] as string,
@@ -526,11 +577,14 @@ export class PeopleContextService {
   private async fetchPoolNames(regIds: string[]): Promise<Map<string, string | null>> {
     const map = new Map<string, string | null>();
     if (regIds.length === 0) return map;
-    const { data } = await this.supabase.service
-      .from('pool_members')
-      .select('registration_id, pools ( name )')
-      .in('registration_id', regIds);
-    for (const m of (data ?? []) as Array<Record<string, unknown>>) {
+    const rows = rowsOf(
+      await this.supabase.service
+        .from('pool_members')
+        .select('registration_id, pools ( name )')
+        .in('registration_id', regIds),
+      'pool members',
+    );
+    for (const m of rows) {
       map.set(
         m['registration_id'] as string,
         (one(m['pools'])?.['name'] as string | undefined) ?? null,
@@ -643,19 +697,22 @@ export class PeopleContextService {
     const result = new Map<string, PersonContextLastResult>();
     if (globalIds.length === 0) return result;
 
-    const { data } = await this.supabase.service
-      .from('registrations')
-      .select(
-        `id, status,
+    const rows = rowsOf(
+      await this.supabase.service
+        .from('registrations')
+        .select(
+          `id, status,
          persons!inner ( global_person_id ),
          tournaments!inner (
            id, name, slug, weapon, status,
-           events!inner ( name, slug, start_date, event_kind )
+           events!inner ( name, slug, start_date, status, event_kind )
          )`,
-      )
-      .in('persons.global_person_id', globalIds)
-      .eq('tournaments.status', 'completed')
-      .neq('status', 'withdrawn');
+        )
+        .in('persons.global_person_id', globalIds)
+        .eq('tournaments.status', 'completed')
+        .neq('status', 'withdrawn'),
+      'last results',
+    );
 
     interface Candidate {
       registrationId: string;
@@ -669,7 +726,7 @@ export class PeopleContextService {
     }
     // Keep the latest-starting completed tournament per global person.
     const bestByGlobal = new Map<string, Candidate>();
-    for (const r of (data ?? []) as Array<Record<string, unknown>>) {
+    for (const r of rows) {
       const person = one(r['persons']);
       const gp = person?.['global_person_id'] as string | undefined;
       if (!gp) continue;
@@ -679,7 +736,7 @@ export class PeopleContextService {
       // Visibility, not stats: this is the navigational "last result" card, and
       // its target page is public. A club tournament can therefore surface here
       // while being absent from the same fighter's career stats. Deliberate.
-      if (!ev || !isPubliclyVisible(asEventKind(ev['event_kind']))) continue;
+      if (!isPublicEvent(ev)) continue;
       const startDate = (ev['start_date'] as string | null) ?? '';
       const cand: Candidate = {
         registrationId: r['id'] as string,
