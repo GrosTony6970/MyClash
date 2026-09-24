@@ -80,6 +80,10 @@ const EXPECTED_PUBLIC = [
   'GET /rulesets',
   'GET /ai/models',
   'GET /notifications/vapid-public-key',
+  // The weapon catalogue (ruling 99): weapon names and an active flag, nothing
+  // about a person; web-public's Event list and fighter directory call it with
+  // no login.
+  'GET /weapons',
   // The link emailed to the NEW address lands here. The 256-bit token is the
   // credential, as for the claim link and the event pass.
   'GET /persons/me/email-change/confirm',

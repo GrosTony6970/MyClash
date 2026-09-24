@@ -3,6 +3,7 @@ import {
   Body,
   Controller,
   Delete,
+  ForbiddenException,
   Get,
   HttpCode,
   HttpStatus,
@@ -80,10 +81,23 @@ export class FightersController {
     private readonly supabase: SupabaseService,
   ) {}
 
-  /** GET /api/v1/fighters?q=...&club=... */
+  /**
+   * GET /api/v1/fighters?q=...&club=...
+   *
+   * Any signed-in personal account (operator ruling 99): signed out is a 401, an
+   * Event staff login or a guest token a 403. Every account sees the same rows —
+   * the reachable filter and the privacy map apply in the service.
+   */
   @Get()
   @ApiOperation({ summary: 'List fighters (signed-in people search)' })
-  async list(@Query() query: FighterQueryDto) {
+  async list(@Query() query: FighterQueryDto, @Req() req: FastifyRequest) {
+    const identity = getIdentity(req);
+    if (identity.kind === 'anonymous') {
+      throw new UnauthorizedException('Authentication required');
+    }
+    if (identity.kind !== 'claimed') {
+      throw new ForbiddenException('A personal account is required');
+    }
     return this.fighters.list(query);
   }
 
@@ -322,6 +336,8 @@ export class FightersController {
 export class WeaponsController {
   constructor(private readonly fighters: FightersService) {}
 
+  /** Public (ruling 99): web-public's Event list and fighter directory call it with no login. */
+  @Public()
   @Get()
   @ApiOperation({ summary: 'List controlled weapon catalog entries' })
   @ApiQuery({

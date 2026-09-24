@@ -331,7 +331,7 @@ export class FightersService {
     const q = this.buildFighterListQuery(query, limit, offset);
 
     const { data, error } = await q;
-    if (error) throw new BadRequestException(error.message);
+    if (error) throw new Error(`fighter search read failed: ${error.message}`);
     // Through `unknown`: supabase-js parses the select string at the TYPE level,
     // and the allow-list is joined at runtime, so it can only infer ParserError.
     // Same reason `listGlobalPersons` returns its rows untyped.
@@ -521,11 +521,12 @@ export class FightersService {
     // on only two of the three columns — it has never excluded erased accounts.
     // Without this the fuzzy branch and the ilike branch return different row
     // sets for the same conceptual query, decided by the length of the term.
-    const { data: rows } = await applyReachable(
+    const { data: rows, error: rowsError } = await applyReachable(
       this.supabase.service
         .from('global_persons')
         .select(`${PUBLIC_FIGHTER_COLUMNS}, clubs(name, slug)`),
     ).in('id', ids);
+    if (rowsError) throw new Error(`fighter search read failed: ${rowsError.message}`);
 
     const order = new Map(ids.map((id, index) => [id, index]));
     return ((rows ?? []) as unknown as Row[])
@@ -672,7 +673,7 @@ export class FightersService {
     if (activeOnly) query = query.eq('active', true);
     const { data, error } = await query.order('name', { ascending: true });
 
-    if (error) throw new BadRequestException(error.message);
+    if (error) throw new Error(`weapon catalogue read failed: ${error.message}`);
     return data ?? [];
   }
 

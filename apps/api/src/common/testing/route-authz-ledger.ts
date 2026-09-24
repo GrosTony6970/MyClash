@@ -24,9 +24,7 @@
  */
 export const UNDECIDED: Readonly<Record<string, string>> = {
   // clubs and platform-wide identities. The writes were fixed 2026-09-23
-  // (rulings 36-38, 55, 56); these three reads wait for ruling 15's read pass.
-  'modules/fighters/fighters.controller.ts#FightersController.list': 'read: unlisted people',
-  'modules/fighters/fighters.controller.ts#WeaponsController.list': 'open: web-public calls it',
+  // (rulings 36-38, 55, 56); this read waits for ruling 15's read pass.
   'modules/hema-ratings/hema-ratings.controller.ts#HemaRatingsController.search':
     'open: but it fetches upstream',
 
@@ -80,6 +78,9 @@ export const DECIDED_ELSEWHERE: Readonly<Record<string, string>> = {
     'public leagues, plus each draft the caller manages or whose club is in it; 401 signed out',
   'modules/organizations/organizations.controller.ts#OrganizationsController.create':
     "a new organisation the caller owns; anonymous fails only on the uuid cast of 'anonymous'",
+  // Signing in IS the bar (ruling 99), so no refuser has a name to count.
+  'modules/fighters/fighters.controller.ts#FightersController.list':
+    'any signed-in personal account; 401 signed out, 403 a staff login or a guest token',
   // A comparison with the caller, then a 403 — inline, so no name to count.
   'modules/fighters/fighters.controller.ts#FightersController.promote':
     'claimed_by_user_id must be the caller',
