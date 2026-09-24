@@ -354,11 +354,13 @@ export class GlobalPersonsController {
    * returns true), an undecorated route is NOT actually closed: the whole
    * roster's contact details were readable anonymously.
    *
-   * Two layers now, because either alone leaves a hole:
+   * Three layers now, because each alone leaves a hole:
    *  1. Anonymous callers are rejected HERE, from the attached identity, so the
    *     route closes today rather than whenever AUTH_GUARD_MODE flips.
    *  2. Contact PII is projected only for platform staff, so an ordinary signed-in
    *     competitor cannot harvest the roster's email addresses either.
+   *  3. Everyone else must hold a role, any role, in at least one organization (operator
+   *     ruling 86): a competitor account, a staff login or a guest token is refused.
    */
   @Get()
   @Throttle(CATALOG_READ_THROTTLE)
@@ -371,9 +373,15 @@ export class GlobalPersonsController {
     }
     // Only a claimed user can hold a platform role; guest and staff tokens
     // carry no user id to look one up with.
-    const includeContactPii =
+    const platformStaff =
       identity.kind === 'claimed' && (await isPlatformStaff(this.supabase, identity.userId));
-    return this.fighters.listGlobalPersons(query, { includeContactPii });
+    if (!platformStaff) {
+      await this.orgs.assertAnyOrgRole(
+        identity.kind === 'claimed' ? identity.userId : null,
+        'read_only',
+      );
+    }
+    return this.fighters.listGlobalPersons(query, { includeContactPii: platformStaff });
   }
 
   /**

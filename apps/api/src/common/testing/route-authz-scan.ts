@@ -55,14 +55,15 @@ const HTTP = new Set(['Get', 'Post', 'Put', 'Patch', 'Delete', 'All', 'Head', 'O
 const MAX_HOPS = 4;
 
 /**
- * Throws unless the caller may proceed: org role, platform tier, staff or
- * participant session — then three module-private checks, each read: league
+ * Throws unless the caller may proceed: org role (in one club, or in any club),
+ * platform tier, staff or participant session — then three module-private checks, each read: league
  * admin, compensation org admin, fighter-profile owner. The test holds each to
  * ONE definition, so a namesake that only looks cannot pass. A reachable 403 is
  * NOT enough: many say "Built-in plans cannot be modified".
  */
 export const REFUSERS = [
   'assertOrgRole',
+  'assertAnyOrgRole',
   'assertPlatformTier',
   'requireStaffFromRequest',
   'requireStaffWithRole',

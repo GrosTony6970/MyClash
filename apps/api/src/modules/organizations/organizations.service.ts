@@ -34,6 +34,21 @@ export interface OrgLogoUpload {
 
 const notAMember = () => new ForbiddenException('You are not a member of this organization');
 
+const notAClubMember = (minRole: string) =>
+  new ForbiddenException(`Requires ${minRole} role or higher in an organization`);
+
+/** Lowest to highest: a role satisfies every role before it. */
+const ORG_ROLE_ORDER = [
+  'read_only',
+  'scorekeeper',
+  'referee',
+  'workshop_lead',
+  'editor',
+  'admin',
+  'owner',
+] as const;
+type OrgRole = (typeof ORG_ROLE_ORDER)[number];
+
 @Injectable()
 export class OrganizationsService {
   constructor(
@@ -557,12 +572,7 @@ export class OrganizationsService {
 
   // ── Helper: assert org role ──────────────────────────────────────────────────
 
-  async assertOrgRole(
-    orgId: string,
-    userId: string,
-    minRole:
-      'owner' | 'admin' | 'editor' | 'scorekeeper' | 'referee' | 'workshop_lead' | 'read_only',
-  ) {
+  async assertOrgRole(orgId: string, userId: string, minRole: OrgRole) {
     // A sentinel is not a user id, and a missing organisation has no members:
     // both are refused before the read, whose UUID cast would otherwise fail and
     // read as a failed read below.
@@ -578,18 +588,27 @@ export class OrganizationsService {
     if (error) throw new Error(`membership read failed: ${error.message}`);
     if (!data) throw notAMember();
 
-    const roleHierarchy = [
-      'read_only',
-      'scorekeeper',
-      'referee',
-      'workshop_lead',
-      'editor',
-      'admin',
-      'owner',
-    ];
-    const memberRole = (data as { role: string }).role;
-    if (roleHierarchy.indexOf(memberRole) < roleHierarchy.indexOf(minRole)) {
+    const memberRole = (data as { role: OrgRole }).role;
+    if (ORG_ROLE_ORDER.indexOf(memberRole) < ORG_ROLE_ORDER.indexOf(minRole)) {
       throw new ForbiddenException(`Requires ${minRole} role or higher`);
     }
+  }
+
+  /**
+   * Refuses a caller who holds `minRole` or higher in no organisation at all:
+   * the bar of the cross-club tools (operator rulings 86, 87). `null` is a caller
+   * with no user id — a staff or guest login — and is refused before any read.
+   */
+  async assertAnyOrgRole(userId: string | null, minRole: OrgRole) {
+    if (!userId || NON_USER_IDS.has(userId)) throw notAClubMember(minRole);
+    const { data, error } = await this.supabase.service
+      .from('organization_members')
+      .select('role')
+      .eq('user_id', userId)
+      .in('role', ORG_ROLE_ORDER.slice(ORG_ROLE_ORDER.indexOf(minRole)))
+      .limit(1);
+    // A failed read is not a verdict: a 5xx, never "you are not a member".
+    if (error) throw new Error(`membership read failed: ${error.message}`);
+    if (!data?.length) throw notAClubMember(minRole);
   }
 }

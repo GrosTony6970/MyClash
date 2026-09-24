@@ -62,11 +62,11 @@ describe('GlobalPersonsController.list access', () => {
   const listGlobalPersons = vi.fn().mockResolvedValue([]);
   const fighters = { listGlobalPersons } as unknown as never;
   const supabase = {} as never;
+  // Ruling 86's organization bar; `global-persons.list-access.test.ts` drives the real one.
+  const assertAnyOrgRole = vi.fn().mockResolvedValue(undefined);
 
   function controller() {
-    // `list` reaches neither the org-role check nor the workshop hop, so the
-    // third dependency is never touched on this path.
-    return new GlobalPersonsController(fighters, supabase, {} as never);
+    return new GlobalPersonsController(fighters, supabase, { assertAnyOrgRole } as never);
   }
 
   function requestWith(identity: unknown) {
@@ -125,6 +125,7 @@ describe('GlobalPersonsController.list access', () => {
     );
 
     expect(isPlatformStaff).not.toHaveBeenCalled();
-    expect(listGlobalPersons).toHaveBeenCalledWith({}, { includeContactPii: false });
+    // No user id either: it reaches the organization bar as null (refused there).
+    expect(assertAnyOrgRole).toHaveBeenCalledWith(null, 'read_only');
   });
 });

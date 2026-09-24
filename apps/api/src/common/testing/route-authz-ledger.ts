@@ -32,8 +32,6 @@ export const UNDECIDED: Readonly<Record<string, string>> = {
     'open: but it fetches upstream',
 
   // public by nature.
-  'modules/fighters/fighters.controller.ts#GlobalPersonsController.list':
-    'read: any signed-in account',
   'modules/exports/exports.controller.ts#ExportsController.restorePreview':
     'read: parses only the upload, but for anyone',
 
