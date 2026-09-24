@@ -11,7 +11,7 @@ import {
   onlyPublicTournaments,
   type PublicReader,
 } from '../../common/auth/competition-visibility';
-import { assertCanReadEventRow } from '../../common/auth/event-authz';
+import { HIDDEN_EVENT_STATUSES } from '../../common/auth/event-authz';
 import { dayIndexFor, selectProgrammeBlocks, toHHMM } from './select-programme-block';
 
 type ProgrammePhase = 'pool' | 'swiss' | 'bracket' | 'finals';
@@ -57,6 +57,20 @@ export interface LiveStateResponse {
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
+function eventNotFound(slug: string): NotFoundException {
+  return new NotFoundException(`Event not found: ${slug}`);
+}
+
+/**
+ * The answer for an Event the board cannot find, and for one this caller may
+ * not see: the same answer, so the difference cannot reveal a draft (ruling 83).
+ * An unknown slug is a 404; an unknown id is a board with no pistes.
+ */
+function unknownBoard(ref: string): LiveStateResponse {
+  if (!UUID_RE.test(ref)) throw eventNotFound(ref);
+  return { currentBlock: null, nextBlock: null, lices: [], timezone: DEFAULT_EVENT_TIMEZONE };
+}
+
 function composeName(
   p: { given_name?: string | null; family_name?: string | null } | null | undefined,
 ): string | null {
@@ -99,11 +113,7 @@ export class LiveStateService {
     return res.data;
   }
 
-  async getLiveState(
-    eventIdOrSlug: string,
-    resolveUserId: () => Promise<string>,
-    reader: PublicReader,
-  ): Promise<LiveStateResponse> {
+  async getLiveState(eventIdOrSlug: string, reader: PublicReader): Promise<LiveStateResponse> {
     const now = new Date();
 
     const eventId = UUID_RE.test(eventIdOrSlug)
@@ -128,18 +138,19 @@ export class LiveStateService {
 
     const eventRow = this.orThrow(eventRes as ReadResult<Record<string, unknown>>, 'event');
     // The board names every fighter currently on a piste. An event still being
-    // built is nobody else's business, so gate before anything is projected.
-    await assertCanReadEventRow(
-      { supabase: this.supabase, orgs: this.orgs },
-      eventIdOrSlug,
-      eventRow
-        ? {
-            status: String(eventRow['status']),
-            organization_id: String(eventRow['organization_id']),
-          }
-        : null,
-      resolveUserId,
-    );
+    // built shows only to its club and its own staff, from the caller the guard
+    // verified (rulings 81, 93); one answer also serves the bouts filter below.
+    const organizationId = String(eventRow?.['organization_id']);
+    const insider =
+      eventRow !== null &&
+      (await isInsider(
+        { supabase: this.supabase, orgs: this.orgs },
+        { id: eventId, organization_id: organizationId },
+        reader,
+      ));
+    if (!eventRow || (HIDDEN_EVENT_STATUSES.has(String(eventRow['status'])) && !insider)) {
+      return unknownBoard(eventIdOrSlug);
+    }
     const dayIndex = dayIndexFor(eventRow?.['start_date'] as string | null, now.getTime());
 
     const lices =
@@ -162,8 +173,7 @@ export class LiveStateService {
 
     const matchRows = await this.readBouts(
       lices.map((l) => l.id),
-      { id: eventId, organization_id: String(eventRow?.['organization_id']) },
-      reader,
+      insider,
     );
 
     const nowIso = now.toISOString();
@@ -202,13 +212,10 @@ export class LiveStateService {
   /**
    * The bouts the board may show on these pistes. A bout of a Tournament that
    * is not published, running or completed shows only to the Event's club and
-   * its own staff (ruling 90); for anyone else it is left out in SQL.
+   * its own staff, the `insider` (ruling 90); for anyone else it is left out in
+   * SQL.
    */
-  private async readBouts(
-    liceIds: string[],
-    event: { id: string; organization_id: string },
-    reader: PublicReader,
-  ): Promise<Record<string, unknown>[]> {
+  private async readBouts(liceIds: string[], insider: boolean): Promise<Record<string, unknown>[]> {
     if (liceIds.length === 0) return [];
     const onLices = this.supabase.service
       .from('matches')
@@ -221,7 +228,6 @@ export class LiveStateService {
       )
       .in('lice_id', liceIds)
       .in('status', ['running', 'paused', 'scheduled']);
-    const insider = await isInsider({ supabase: this.supabase, orgs: this.orgs }, event, reader);
     const matchesRes = await (insider ? onLices : onlyPublicTournaments(onLices)).order(
       'scheduled_at',
       { ascending: true, nullsFirst: false },
@@ -243,7 +249,7 @@ export class LiveStateService {
     // have slugged an event the same way, since `events` is UNIQUE per org and
     // not globally. A real event then 404s and the reason is invisible.
     const data = this.orThrow(res as ReadResult<{ id: string }>, 'event slug');
-    if (!data) throw new NotFoundException(`Event not found: ${slug}`);
+    if (!data) throw eventNotFound(slug);
     return data.id;
   }
 

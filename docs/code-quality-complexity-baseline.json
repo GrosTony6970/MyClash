@@ -435,7 +435,7 @@
     "apps/api/src/modules/registrations/registrations.service.ts:188",
     "apps/api/src/modules/registrations/registrations.service.ts:484",
     "apps/api/src/modules/registrations/registrations.service.ts:63",
-    "apps/api/src/modules/schedule/live-state.service.ts:102",
+    "apps/api/src/modules/schedule/live-state.service.ts:116",
     "apps/api/src/modules/schedule/match-scheduler.ts:122",
     "apps/api/src/modules/schedule/schedule-grid.service.ts:121",
     "apps/api/src/modules/staff/staff.service.ts:1269",

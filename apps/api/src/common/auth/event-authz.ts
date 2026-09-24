@@ -319,14 +319,13 @@ function hidden(ref: string): never {
 }
 
 /**
- * Gate a row the caller had to read anyway (`live-state` already selects from
- * `events`), so the check costs no extra round-trip there.
+ * Gate a row the caller had to read anyway, so the check costs no extra
+ * round-trip there.
  *
  * `resolveUserId` is a THUNK on purpose. `resolveRequestUserId` does a GoTrue
- * round-trip whenever a token is present, and these are the highest-traffic
- * reads in the API — the organiser grid re-reads the schedule after every
- * mutation, and hall displays poll live-state continuously. A public event
- * returns at step 2 and never resolves an identity at all.
+ * round-trip whenever a token is present, and these are high-traffic reads —
+ * the organiser grid re-reads the schedule after every mutation. A public
+ * event returns at step 2 and never resolves an identity at all.
  *
  * A missing row returns rather than throwing: `/schedule` answers `[]` for an
  * unknown id today and its callers depend on that shape. Inventing a 404 here

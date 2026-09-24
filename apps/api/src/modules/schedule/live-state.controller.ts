@@ -4,8 +4,6 @@ import { Throttle } from '@nestjs/throttler';
 import type { FastifyRequest } from 'fastify';
 import { publicReader } from '../../common/auth/competition-visibility';
 import { Public } from '../../common/auth/public.decorator';
-import { resolveRequestUserId } from '../../common/auth/request-user';
-import { SupabaseService } from '../supabase/supabase.service';
 import { PUBLIC_LIVE_READ_THROTTLE } from '../../common/throttling/throttle-profiles';
 import { LiveStateService } from './live-state.service';
 
@@ -15,15 +13,12 @@ import { LiveStateService } from './live-state.service';
 @Public()
 @Controller()
 export class LiveStateController {
-  constructor(
-    private readonly liveState: LiveStateService,
-    private readonly supabase: SupabaseService,
-  ) {}
+  constructor(private readonly liveState: LiveStateService) {}
 
   /**
    * Accepts event UUID or slug — public endpoint, no auth required. A club
-   * member's login, or the Event's staff session, also shows the bouts of its
-   * unpublished Tournaments (ruling 90).
+   * member's login, or the Event's staff session, also shows a draft Event and
+   * the bouts of its unpublished Tournaments (rulings 90, 93).
    *
    * Unauthenticated and polled from the venue: hall displays and every
    * spectator phone on the same wifi draw on one bucket, because `req.ip` is
@@ -35,10 +30,6 @@ export class LiveStateController {
   @ApiOperation({ summary: 'Current programme block and per-lice match state (public)' })
   @ApiParam({ name: 'eventId', type: 'string', description: 'Event UUID or slug' })
   getLiveState(@Param('eventId') eventId: string, @Req() req: FastifyRequest) {
-    return this.liveState.getLiveState(
-      eventId,
-      () => resolveRequestUserId(req, this.supabase),
-      publicReader(req),
-    );
+    return this.liveState.getLiveState(eventId, publicReader(req));
   }
 }
