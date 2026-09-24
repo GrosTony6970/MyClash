@@ -22,16 +22,9 @@
  * too; drop a line once the scan stops passing its route. All three lengths
  * are pinned.
  */
-export const UNDECIDED: Readonly<Record<string, string>> = {
-  // FALSE_PASSES, below.
-  'modules/auth/me.controller.ts#MeController.searchGlobalPersons':
-    "read: other people's unclaimed profiles",
-};
+export const UNDECIDED: Readonly<Record<string, string>> = {};
 
-export const FALSE_PASSES: Readonly<Record<string, string>> = {
-  'modules/auth/me.controller.ts#MeController.searchGlobalPersons':
-    "passes as a `me` route, but reads other people's rows",
-};
+export const FALSE_PASSES: Readonly<Record<string, string>> = {};
 
 export const DECIDED_ELSEWHERE: Readonly<Record<string, string>> = {
   // The caller's own rows, on a path with no `me` segment (a `me` route that

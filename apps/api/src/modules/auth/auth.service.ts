@@ -21,6 +21,8 @@ import { OnboardingService } from '../organizations/onboarding.service';
 // Value import, not `import type`: Nest reads the constructor's design:paramtypes
 // metadata to inject it, and a type-only import erases that at compile time.
 import { ErasureService } from '../privacy/erasure.service';
+import { applyReachable } from '../fighters/directory-predicate';
+import { isFieldPublic } from '../fighters/public-visibility';
 import {
   LegalAcceptanceService,
   type AcceptanceContext,
@@ -1581,9 +1583,10 @@ export class AuthService {
   // ── §3: self-service claim from /me ─────────────────────────────────────
 
   /**
-   * Search unclaimed, unmerged global_persons by name/club for the /me
-   * "Find your profile" UI. Never returns email or date_of_birth — those
-   * fields would leak identity to anonymous probing.
+   * Search unclaimed, reachable global_persons by name for the /me "Find your
+   * profile" UI: any signed-in account (operator ruling 105). It names people
+   * who agreed to nothing, so no email or date of birth, the country only when
+   * the profile's privacy map allows it, and never an erased or merged profile.
    */
   async searchGlobalPersonsForClaim(
     request: FastifyRequest,
@@ -1599,21 +1602,18 @@ export class AuthService {
     const safe = sanitizePostgrestFilterValue(query);
     if (!safe) return [];
 
-    const { data, error } = await this.supabase.service
-      .from('global_persons')
-      .select(
-        'id, slug, display_name, given_name, family_name, country_code, hema_ratings_id, clubs(name)',
-      )
+    const { data, error } = await applyReachable(
+      this.supabase.service
+        .from('global_persons')
+        .select(
+          'id, slug, display_name, given_name, family_name, country_code, public_visibility, hema_ratings_id, clubs(name)',
+        ),
+    )
       .is('claimed_by_user_id', null)
-      .is('merged_into_id', null)
       .or(`display_name.ilike.%${safe}%,given_name.ilike.%${safe}%,family_name.ilike.%${safe}%`)
       .order('display_name', { ascending: true })
       .limit(20);
-
-    if (error) {
-      this.logger.warn(`global-person search failed: ${error.message}`);
-      return [];
-    }
+    if (error) throw new Error(`global person search failed: ${error.message}`);
 
     return (data ?? []).map((row) => {
       const r = row as {
@@ -1623,6 +1623,7 @@ export class AuthService {
         given_name: string;
         family_name: string;
         country_code: string | null;
+        public_visibility: unknown;
         hema_ratings_id: string | null;
         clubs: { name: string } | { name: string }[] | null;
       };
@@ -1633,7 +1634,7 @@ export class AuthService {
         display_name: r.display_name,
         given_name: r.given_name,
         family_name: r.family_name,
-        country_code: r.country_code,
+        country_code: isFieldPublic(r.public_visibility, 'nationality') ? r.country_code : null,
         hema_ratings_id: r.hema_ratings_id,
         club_label: club,
       };
