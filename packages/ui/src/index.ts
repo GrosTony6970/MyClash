@@ -287,6 +287,7 @@ export type { NextMatchInfo } from './hooks/useNextMatch';
 export { useAdjacentMatches } from './hooks/useAdjacentMatches';
 
 export { useLiveMatch } from './hooks/useLiveMatch';
+export { useLoginKeepAlive } from './hooks/useLoginKeepAlive';
 export type {
   DisplayMatch,
   MatchStatus,

@@ -1,4 +1,5 @@
 import { createHash, randomBytes } from 'node:crypto';
+import * as jwt from 'jsonwebtoken';
 import {
   BadRequestException,
   ForbiddenException,
@@ -56,12 +57,23 @@ const CLAIM_REFUSAL_ERRORS: Record<ClaimLinkRefusal, () => HttpException> = {
 /** Allowed redirect paths after auth — prevents open-redirect attacks. */
 const ALLOWED_REDIRECT_PREFIXES = ['/org/', '/admin/', '/e/', '/me', '/dashboard', '/'];
 // Sliding-session lifetime for the auth cookies (30 days). The access token's
-// own JWT exp (GOTRUE_JWT_EXP, ~1h) still governs validity; when it expires,
-// `getMe` mints a fresh one from the refresh-token cookie and re-sets both
+// own JWT exp (GOTRUE_JWT_EXP, ~1h) still governs validity; when it expires or
+// is about to, `getMe` mints a fresh one from the refresh-token cookie and re-sets both
 // cookies. This long maxAge just keeps the cookies on disk so that renewal can
 // happen — previously both cookies were capped at 1h with no refresh, so every
 // session hard-expired after an hour.
 const SESSION_MAX_AGE_SECONDS = 60 * 60 * 24 * 30;
+
+// `getMe` also renews a login with less than this left, so a screen that calls
+// /me every minute swaps its token before the API reads it as a stranger
+// (operator ruling 94). Well above that minute, well below the 1h token.
+const RENEW_WITHIN_SECONDS = 5 * 60;
+
+/** Does this access token end within `seconds`? A token with no readable `exp` does not. */
+function endsWithin(accessToken: string, seconds: number): boolean {
+  const exp = (jwt.decode(accessToken) as { exp?: unknown } | null)?.exp;
+  return typeof exp === 'number' && exp * 1000 - Date.now() < seconds * 1000;
+}
 
 // Entropy for the global-profile claim token, matching the same one-time
 // emailed-token flow in PersonEmailChangeService. 32 bytes base64url encodes
@@ -427,24 +439,7 @@ export class AuthService {
     const refreshToken = cookies?.['sb-refresh-token'];
 
     // ── Claimed path ──────────────────────────────────────────────────────
-    let user = accessToken ? await this.requestAuthUser(accessToken) : null;
-
-    // Access token missing or expired → mint a fresh one from the refresh-token
-    // cookie (sliding session). Needs `reply` so the rotated cookies can be
-    // written back; without it (e.g. a read-only call) we just stay anonymous.
-    if (!user && refreshToken && reply) {
-      const refreshed = await this.supabase.refreshSession(refreshToken);
-      if (refreshed) {
-        this.setAuthCookies(
-          reply,
-          refreshed.access_token,
-          refreshed.refresh_token,
-          refreshed.expires_in,
-        );
-        user = await this.requestAuthUser(refreshed.access_token);
-      }
-    }
-
+    const user = await this.resolveClaimedUser(accessToken, refreshToken, reply);
     if (user) {
       return this.buildClaimedResponse(user, guestToken, reply);
     }
@@ -496,6 +491,37 @@ export class AuthService {
 
     // ── Anonymous ─────────────────────────────────────────────────────────
     return { type: 'anonymous' };
+  }
+
+  /**
+   * The signed-in user, with the login renewed from the refresh-token cookie
+   * when the access token is missing, expired, or ends within five minutes
+   * (sliding session, ruling 94). Needs `reply` so the rotated cookies can be
+   * written back; without it the caller keeps what the current token says. A
+   * refused early renewal keeps the still-valid user; the next call retries.
+   *
+   * Race: two tabs renewing at once present the same refresh token. GoTrue's
+   * reuse interval (10 s in production) accepts both when they land within it,
+   * as it already did for an expired token; once one lands, the shared cookie
+   * carries the new token and the others no longer renew.
+   */
+  private async resolveClaimedUser(
+    accessToken: string | null,
+    refreshToken: string | undefined,
+    reply: FastifyReply | undefined,
+  ): Promise<SupabaseAuthUser | null> {
+    const user = accessToken ? await this.requestAuthUser(accessToken) : null;
+    const renew = !user || (accessToken !== null && endsWithin(accessToken, RENEW_WITHIN_SECONDS));
+    if (!renew || !refreshToken || !reply) return user;
+    const refreshed = await this.supabase.refreshSession(refreshToken);
+    if (!refreshed) return user;
+    this.setAuthCookies(
+      reply,
+      refreshed.access_token,
+      refreshed.refresh_token,
+      refreshed.expires_in,
+    );
+    return (await this.requestAuthUser(refreshed.access_token)) ?? user;
   }
 
   private async buildClaimedResponse(
