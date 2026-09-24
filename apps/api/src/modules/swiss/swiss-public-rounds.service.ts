@@ -1,6 +1,6 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { SupabaseService } from '../supabase/supabase.service';
-import { sideColorsFromScoringConfig } from '../events/side-colors';
+import { sideColorsFromScoringConfig, type SideColors } from '../events/side-colors';
 import { parseSwissConfig } from './dto/swiss-config.dto';
 import {
   buildFighterIndex,
@@ -16,6 +16,21 @@ export type {
   PublicSwissRound,
   PublicSwissRounds,
 } from './swiss-public-rounds.map';
+
+/**
+ * The answer for a Tournament with no Swiss phase, and so for an unknown id (with
+ * the default side colours) — which is what a hidden Tournament must look like.
+ */
+export function noSwissRounds(sideColors: SideColors): PublicSwissRounds {
+  return {
+    phaseId: null,
+    roundCount: 0,
+    roundsCompleted: 0,
+    finalized: null,
+    sideColors,
+    rounds: [],
+  };
+}
 
 /**
  * The Swiss rounds as a spectator sees them.
@@ -55,16 +70,7 @@ export class SwissPublicRoundsService {
       .eq('type', 'swiss')
       .maybeSingle();
     const phaseRow = phase as { id: string; config_json: unknown } | null;
-    if (!phaseRow) {
-      return {
-        phaseId: null,
-        roundCount: 0,
-        roundsCompleted: 0,
-        finalized: null,
-        sideColors,
-        rounds: [],
-      };
-    }
+    if (!phaseRow) return noSwissRounds(sideColors);
 
     const config = parseSwissConfig(phaseRow.config_json);
     const [fighters, rounds, matches] = await Promise.all([

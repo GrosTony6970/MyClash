@@ -125,8 +125,9 @@ export function PoolsDisclosure({
     `${apiUrl}/api/v1/staff/lices/${liceId}/tournaments/${tournamentId}/pools`,
     open,
   );
-  // Standings stay on the public route: it is anonymous by design, so wrapping
-  // it in a staff-scoped sibling would buy nothing.
+  // Standings stay on the public route. For a Tournament hidden from the public
+  // it answers this Event's staff session, which `useLazyFetch` sends with its
+  // credentials, so a staff-scoped sibling would buy nothing.
   const standings = useLazyFetch<PoolStandingsPayload>(
     `${apiUrl}/api/v1/tournaments/${tournamentId}/pool-standings?mode=by-pool`,
     open,

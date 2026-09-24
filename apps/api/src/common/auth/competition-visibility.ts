@@ -124,6 +124,30 @@ async function isActiveStaff(
   return (data as { status?: string } | null)?.status === 'active';
 }
 
+/**
+ * May the caller see this Tournament's contents (ruling 82)? A hidden one only
+ * an insider may. An unknown id is `true`: the route then answers it as it
+ * always has, which is what a hidden one must look like (ruling 83).
+ */
+export async function canReadTournament(
+  deps: EventAuthzDeps,
+  tournamentId: string,
+  reader: PublicReader,
+): Promise<boolean> {
+  const { data, error } = await deps.supabase.service
+    .from('tournaments')
+    .select('status, events!inner(id, status, organization_id)')
+    .eq('id', tournamentId)
+    .maybeSingle();
+  // A 5xx: a failed read is not "unknown", and not the database's words in a 400.
+  if (error) throw new Error(`tournament visibility read failed: ${error.message}`);
+  const row = data as { status: string; events: CompetitionEvent } | null;
+  if (!row || !isHiddenCompetition({ tournamentStatus: row.status, event: row.events })) {
+    return true;
+  }
+  return isInsider(deps, row.events, reader);
+}
+
 /** The embed that reaches a bout's Tournament status and Event from `matches`. */
 export const MATCH_COMPETITION_SELECT =
   'phases!inner(tournaments!inner(status, events!inner(id, status, organization_id)))';
