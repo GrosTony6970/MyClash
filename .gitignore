@@ -87,6 +87,7 @@ dev/
 .claude/skills/*
 !.claude/skills/myclash-gates/
 !.claude/skills/myclash-plan-review/
+!.claude/skills/myclash-handover/
 # Seventeen SYMLINKS into .agents/skills/ are also tracked here. They predate
 # this rule and are deliberate: .agents/skills/ IS tracked, CLAUDE.md routes to
 # it (nestjs-best-practices, next-best-practices), and the symlinks are what
