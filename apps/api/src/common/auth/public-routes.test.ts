@@ -148,6 +148,9 @@ const EXPECTED_PUBLIC = [
   'GET /matches/:id/clock',
   'GET /matches/:id/display',
   'GET /matches/:id/exchanges',
+  // The pad's prev/next tiles: a hidden bout answers as an unknown one, and an
+  // outsider's neighbours skip an unpublished Tournament's bouts (rulings 81-83).
+  'GET /matches/:id/neighbors',
   'GET /matches/:id/penalties',
   'GET /matches/:id/summary',
   // Anonymous organiser directory for /organisers: active organisations only,

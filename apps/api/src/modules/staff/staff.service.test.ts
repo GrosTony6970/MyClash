@@ -304,7 +304,8 @@ describe('StaffService.getMatchNeighbors', () => {
     match_number_label: id,
     red: { persons: { given_name: 'Red', family_name: id } },
     blue: { persons: { given_name: 'Blue', family_name: id } },
-    phases: { config_json: null, tournaments: { weapon: 'longsword' } },
+    phases: { config_json: null, tournaments: { weapon: 'longsword', status: 'running' } },
+    'phases.tournaments.status': 'running',
     pools: { sort_order: 0 },
     bracket_slots: null,
     ...overrides,
@@ -328,7 +329,7 @@ describe('StaffService.getMatchNeighbors', () => {
   it('returns the immediate previous + next match on the same lice', async () => {
     const { service } = serviceOn(ROWS);
 
-    const result = (await service.getMatchNeighbors('m2')) as {
+    const result = (await service.getMatchNeighbors('m2', ANON)) as {
       previous: { id: string } | null;
       next: { id: string } | null;
     };
@@ -340,7 +341,7 @@ describe('StaffService.getMatchNeighbors', () => {
   it('returns null at the open ends (first match has no previous)', async () => {
     const { service } = serviceOn(ROWS);
 
-    const result = (await service.getMatchNeighbors('m1')) as {
+    const result = (await service.getMatchNeighbors('m1', ANON)) as {
       previous: { id: string } | null;
       next: { id: string } | null;
     };
@@ -352,7 +353,7 @@ describe('StaffService.getMatchNeighbors', () => {
   it('returns both null when the match has no lice', async () => {
     const { service } = serviceOn(ROWS);
 
-    const result = (await service.getMatchNeighbors('no-piste')) as {
+    const result = (await service.getMatchNeighbors('no-piste', ANON)) as {
       previous: unknown;
       next: unknown;
     };

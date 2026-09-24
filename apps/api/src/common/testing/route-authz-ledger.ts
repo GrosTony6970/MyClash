@@ -38,7 +38,6 @@ export const UNDECIDED: Readonly<Record<string, string>> = {
   'modules/people-context/me-people.controller.ts#MePeopleController.context':
     'read: any identity by id, anonymous too',
   'modules/events/events.controller.ts#EventsController.getTheme': 'open*',
-  'modules/staff/staff.controller.ts#StaffController.matchNeighbors': 'open*',
   'modules/exports/exports.controller.ts#ExportsController.restorePreview':
     'read: parses only the upload, but for anyone',
 

@@ -981,10 +981,13 @@ export class StaffService {
    * staff lice-queue endpoint (which 401s for an organizer session).
    * "previous" is an already-played match, so unlike resolveNextMatchOnLice
    * we order the full non-voided list by scheduled_at and pick the
-   * immediate neighbours by index.
+   * immediate neighbours by index. The route has already hidden a bout the
+   * reader may not see; an outsider's list skips an unpublished Tournament's
+   * bouts, in SQL (rulings 82, 83).
    */
   async getMatchNeighbors(
     matchId: string,
+    reader: PublicReader,
   ): Promise<{ previous: NeighborTile | null; next: NeighborTile | null }> {
     const { data: current, error: curErr } = await this.supabase.service
       .from('matches')
@@ -996,13 +999,17 @@ export class StaffService {
     const liceId = (current as { lice_id: string | null }).lice_id;
     if (!liceId) return { previous: null, next: null };
 
-    const { data, error } = await this.supabase.service
+    const deps = { supabase: this.supabase, orgs: this.orgs };
+    const publicOnly = !(await seesHiddenOnLice(deps, liceId, reader));
+    const onLice = this.supabase.service
       .from('matches')
       .select(
-        'id,status,scheduled_at,match_number_label,red:registrations!matches_red_registration_id_fkey(persons(given_name,family_name,clubs(name))),blue:registrations!matches_blue_registration_id_fkey(persons(given_name,family_name,clubs(name))),phases(config_json,tournaments(weapon)),pools(sort_order),bracket_slots(round),swiss_rounds(round_number)',
+        // `!inner` all the way to the Tournament, for `onlyPublicTournaments`.
+        'id,status,scheduled_at,match_number_label,red:registrations!matches_red_registration_id_fkey(persons(given_name,family_name,clubs(name))),blue:registrations!matches_blue_registration_id_fkey(persons(given_name,family_name,clubs(name))),phases!inner(config_json,tournaments!inner(weapon,status)),pools(sort_order),bracket_slots(round),swiss_rounds(round_number)',
       )
       .eq('lice_id', liceId)
-      .in('status', ['scheduled', 'running', 'paused', 'completed'])
+      .in('status', ['scheduled', 'running', 'paused', 'completed']);
+    const { data, error } = await (publicOnly ? onlyPublicTournaments(onLice) : onLice)
       .order('scheduled_at', { ascending: true, nullsFirst: false })
       .order('match_number_label', { ascending: true });
     if (error) throw new BadRequestException(error.message);

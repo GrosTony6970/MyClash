@@ -1,3 +1,4 @@
+import { NotFoundException } from '@nestjs/common';
 import { describe, expect, it } from 'vitest';
 import { StaffService } from './staff.service';
 import { mockSupabase, selectsFor, type SupabaseRow } from '../../common/testing/supabase-chain';
@@ -74,6 +75,15 @@ describe('StaffService.getPublicMatchDisplay: the next bout a projector may see'
 
     expect(member.nextMatchId).toBe('hidden-0');
     expect(stranger.nextMatchId).toBe('public-next');
+  });
+
+  // The route answers a hidden bout with its own 404; it must be word for word
+  // the one this service gives an unknown bout, or the difference names a draft.
+  it('answers an unknown bout exactly as the route answers a hidden one', async () => {
+    const refusal = await serviceOn(ROWS)
+      .service.getPublicMatchDisplay('nowhere', ANON)
+      .catch((error: unknown) => (error as NotFoundException).getResponse());
+    expect(refusal).toEqual(new NotFoundException('Match not found').getResponse());
   });
 
   it('reads the columns it decides on', async () => {

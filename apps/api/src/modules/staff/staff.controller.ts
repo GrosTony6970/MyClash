@@ -324,10 +324,15 @@ export class StaffController {
     return this.staff.getPublicMatchDisplay(id, reader);
   }
 
+  @Public()
   @Get('matches/:id/neighbors')
   @ApiOperation({ summary: 'Public previous + next match on the same lice' })
   @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
-  async matchNeighbors(@Param('id', ParseUUIDPipe) id: string) {
-    return this.staff.getMatchNeighbors(id);
+  async matchNeighbors(@Param('id', ParseUUIDPipe) id: string, @Req() req: FastifyRequest) {
+    // A hidden bout answers as an unknown one; its hidden neighbours are skipped (rulings 81-83).
+    const deps = { supabase: this.supabase, orgs: this.orgs };
+    const reader = publicReader(req);
+    if (!(await canReadMatch(deps, id, reader))) throw new NotFoundException('Match not found');
+    return this.staff.getMatchNeighbors(id, reader);
   }
 }

@@ -116,6 +116,11 @@ beforeEach(() => {
       if (!KNOWN.has(id)) throw new NotFoundException('Match not found');
       return { display: id };
     }),
+    // StaffService: the pad's prev/next tiles, the same words for an unknown bout.
+    getMatchNeighbors: vi.fn(async (id: string) => {
+      if (!KNOWN.has(id)) throw new NotFoundException('Match not found');
+      return { previous: null, next: { id: `next-${id}` } };
+    }),
   };
   const orgs = new OrganizationsService(supabase as never);
   controller = new MatchesController(
@@ -163,6 +168,7 @@ const ROUTES = {
   getClockState: (id: string, r: never) => controller.getClockState(id, r),
   listMatchPenalties: (id: string, r: never) => penalties.listMatchPenalties(id, r),
   publicMatchDisplay: (id: string, r: never) => staff.publicMatchDisplay(id, r),
+  matchNeighbors: (id: string, r: never) => staff.matchNeighbors(id, r),
 };
 
 const STRANGERS: Caller[] = [
@@ -238,6 +244,17 @@ describe('the display payload', () => {
     const pad = { user: 'u-stranger', staff: { staffId: 'staff-draft', eventId: EVENT_DRAFT } };
     await staff.publicMatchDisplay(OPEN, req(pad));
     expect(matches['getPublicMatchDisplay']).toHaveBeenCalledWith(OPEN, {
+      userId: 'u-stranger',
+      staff: pad.staff,
+    });
+  });
+});
+
+describe("the pad's prev/next tiles", () => {
+  it('narrow the neighbours for the caller the gate decided on', async () => {
+    const pad = { user: 'u-stranger', staff: { staffId: 'staff-draft', eventId: EVENT_DRAFT } };
+    await staff.matchNeighbors(OPEN, req(pad));
+    expect(matches['getMatchNeighbors']).toHaveBeenCalledWith(OPEN, {
       userId: 'u-stranger',
       staff: pad.staff,
     });
