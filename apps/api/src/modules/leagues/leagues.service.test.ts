@@ -737,7 +737,14 @@ describe('LeaguesService.listLeagueMemberEvents', () => {
       },
     ];
     const linksChain = makeAwaitableChain({ data: linksData, error: null });
-    const supabase = { service: { from: vi.fn(() => linksChain) } };
+    // A league the public pages show (ruling 88).
+    const leagueChain = makeAwaitableChain({
+      data: { status: 'published', public_visibility: true },
+      error: null,
+    });
+    const supabase = {
+      service: { from: vi.fn((table: string) => (table === 'leagues' ? leagueChain : linksChain)) },
+    };
     const service = new LeaguesService(
       supabase as never,
       { assertOrgRole: vi.fn() } as never,

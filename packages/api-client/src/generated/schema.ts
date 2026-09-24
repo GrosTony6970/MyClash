@@ -3317,7 +3317,7 @@ export interface paths {
       path?: never;
       cookie?: never;
     };
-    /** Public: list events whose tournaments have an approved link to the league (Memberships tab sibling list). */
+    /** Public: the Events whose Tournaments have an approved link to a public league (a draft or private league answers []; draft Events are left out). */
     get: operations['LeaguesController_listLeagueMemberEvents'];
     put?: never;
     post?: never;

@@ -553,7 +553,7 @@ export class LeaguesController {
   @Get('leagues/:leagueId/member-events')
   @ApiOperation({
     summary:
-      'Public: list events whose tournaments have an approved link to the league (Memberships tab sibling list).',
+      'Public: the Events whose Tournaments have an approved link to a public league (a draft or private league answers []; draft Events are left out).',
   })
   async listLeagueMemberEvents(@Param('leagueId', ParseUUIDPipe) leagueId: string) {
     return this.leagues.listLeagueMemberEvents(leagueId);

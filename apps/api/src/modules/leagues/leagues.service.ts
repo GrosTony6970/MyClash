@@ -9,6 +9,7 @@ import { asEventKind, countsTowardStats, escapeHtml, toCsvCell } from '@myclash/
 import { OrganizationsService } from '../organizations/organizations.service';
 import { SupabaseService } from '../supabase/supabase.service';
 import { hasPlatformTier } from '../../common/auth/platform-role';
+import { HIDDEN_EVENT_STATUSES } from '../../common/auth/event-read-gate';
 import {
   type LeagueRankingRow,
   type LeagueScoringConfig,
@@ -1285,19 +1286,21 @@ export class LeaguesService {
 
   /**
    * Public listing of every distinct event whose tournaments have an
-   * approved link to the league. Powers the "Other events in this
-   * league" section of the organizer's Memberships tab — already
-   * discoverable via league pages elsewhere, so no auth gate.
+   * approved link to the league, for the public league page. A league the
+   * public pages do not show answers as an unknown one, with an empty list,
+   * and a draft Event is left out (ruling 88).
    */
   async listLeagueMemberEvents(leagueId: string) {
+    if (!(await this.isPublicLeagueId(leagueId))) return [];
+
     const { data, error } = await this.supabase.service
       .from('league_tournament_links')
       .select(
-        'status, tournaments!inner(event_id, events(id, name, slug, start_date, end_date, organizations(id, name)))',
+        'status, tournaments!inner(event_id, events(id, name, slug, start_date, end_date, status, organizations(id, name)))',
       )
       .eq('league_id', leagueId)
       .eq('status', 'approved');
-    if (error) throw new BadRequestException(error.message);
+    if (error) throw new Error(`league links read failed: ${error.message}`);
 
     const byEventId = new Map<
       string,
@@ -1313,7 +1316,7 @@ export class LeaguesService {
     for (const row of (data ?? []) as Row[]) {
       const tournament = row['tournaments'] as Row | null;
       const event = tournament ? ((tournament['events'] as Row | null) ?? null) : null;
-      if (!event) continue;
+      if (!event || HIDDEN_EVENT_STATUSES.has(String(event['status']))) continue;
       const eventId = String(event['id']);
       if (byEventId.has(eventId)) continue;
       const org = (event['organizations'] as Row | null) ?? null;
@@ -1330,6 +1333,18 @@ export class LeaguesService {
       });
     }
     return Array.from(byEventId.values());
+  }
+
+  /** Does this id name a league the public pages show? An unknown id does not. */
+  private async isPublicLeagueId(leagueId: string): Promise<boolean> {
+    const { data, error } = await this.supabase.service
+      .from('leagues')
+      .select('status, public_visibility')
+      .eq('id', leagueId)
+      .maybeSingle();
+    // A 5xx: a failed read is not an unknown league.
+    if (error) throw new Error(`league read failed: ${error.message}`);
+    return data !== null && isPublicLeague(data as Row);
   }
 
   async addTournamentLink(
