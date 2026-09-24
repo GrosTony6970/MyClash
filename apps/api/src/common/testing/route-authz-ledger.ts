@@ -24,8 +24,6 @@
  */
 export const UNDECIDED: Readonly<Record<string, string>> = {
   // FALSE_PASSES, below.
-  'modules/phases/phases.controller.ts#PhasesController.generatePools':
-    'write: rebuilds any unscored Pool layout',
   'modules/referees/qualifications.controller.ts#QualificationsController.updateSkill':
     'write: the global skill catalogue',
   'modules/auth/me.controller.ts#MeController.searchGlobalPersons':
@@ -33,8 +31,6 @@ export const UNDECIDED: Readonly<Record<string, string>> = {
 };
 
 export const FALSE_PASSES: Readonly<Record<string, string>> = {
-  'modules/phases/phases.controller.ts#PhasesController.generatePools':
-    'the org check guards only a forced regeneration that discards scored bouts',
   'modules/referees/qualifications.controller.ts#QualificationsController.updateSkill':
     'the org check runs for custom skills only; a system skill checks nobody',
   'modules/auth/me.controller.ts#MeController.searchGlobalPersons':

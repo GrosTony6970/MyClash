@@ -20,6 +20,8 @@ import {
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
+import { assertCanManageTournament } from '../../common/auth/registration-authz';
+import { OrganizationsService } from '../organizations/organizations.service';
 import { PhasesService } from './phases.service';
 import { SupabaseService } from '../supabase/supabase.service';
 import { GenerateBracketDto, GeneratePoolsDto } from './dto/phases.dto';
@@ -49,6 +51,7 @@ export class PhasesController {
   constructor(
     private readonly phases: PhasesService,
     private readonly supabase: SupabaseService,
+    private readonly orgs: OrganizationsService,
   ) {}
 
   /**
@@ -59,6 +62,10 @@ export class PhasesController {
    *
    * Idempotent: returns 409 if pool phase already exists.
    * Use ?force=true to regenerate (deletes existing phase first).
+   *
+   * Admin of the Event's club (operator ruling 103), as the Swiss generate and
+   * this controller's other Pool writes; discarding scored bouts also needs the
+   * owner, checked in the service.
    */
   @BlockOnCompletedEvent()
   @Post('tournaments/:tournamentId/generate-pools')
@@ -79,10 +86,13 @@ export class PhasesController {
     @Req() req: FastifyRequest,
     @Query('force') force?: string,
   ) {
-    // The identity is only consulted by the `discardScoredResults` override,
-    // which needs an org owner. Resolved here rather than in the service so this
-    // route reads like its neighbours.
     const userId = await getUserId(req, this.supabase);
+    await assertCanManageTournament(
+      { supabase: this.supabase, orgs: this.orgs },
+      tournamentId,
+      userId,
+      'admin',
+    );
     return this.phases.generatePools(tournamentId, dto, force === 'true', userId);
   }
 

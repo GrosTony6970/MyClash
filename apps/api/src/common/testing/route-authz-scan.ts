@@ -24,8 +24,8 @@
  *
  * A helper the scan cannot follow gives a false alarm, which lands in the
  * reviewed exemptions. It reads REACHABILITY, not paths, so it passes a route
- * whose refuser: guards one branch only (`generatePools` checks nobody unless it
- * discards scored bouts); is caught and swallowed; sits behind an `@Optional()`
+ * whose refuser: guards one branch only (a check inside one `if`, the other
+ * path checking nobody); is caught and swallowed; sits behind an `@Optional()`
  * dependency; or checks the wrong thing (an org role on an Event the caller
  * named). A `me` route passes on its path, so one that reads other people's rows
  * passes too. And `requirePersonId` accepts any self-picked guest. The ledger's
