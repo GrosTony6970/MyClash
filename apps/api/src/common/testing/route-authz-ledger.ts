@@ -31,10 +31,6 @@ export const UNDECIDED: Readonly<Record<string, string>> = {
   'modules/hema-ratings/hema-ratings.controller.ts#HemaRatingsController.search':
     'open: but it fetches upstream',
 
-  // public by nature.
-  'modules/exports/exports.controller.ts#ExportsController.restorePreview':
-    'read: parses only the upload, but for anyone',
-
   // follows — with no cookie the identity is `{}`, and the service then filters
   // on no follower at all.
   'modules/follows/follows.controller.ts#FollowsController.unfollow':

@@ -3,7 +3,7 @@ import { ExportsController } from './exports.controller';
 
 describe('ExportsController archive routes', () => {
   it('exposes guarded organizer archive and restore handlers', () => {
-    const controller = new ExportsController({} as never, {} as never, {} as never);
+    const controller = new ExportsController({} as never, {} as never, {} as never, {} as never);
 
     expect(typeof controller.eventArchive).toBe('function');
     expect(typeof controller.tournamentArchive).toBe('function');

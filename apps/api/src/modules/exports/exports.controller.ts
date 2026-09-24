@@ -18,6 +18,7 @@ import {
   Query,
   Req,
   Res,
+  UnauthorizedException,
 } from '@nestjs/common';
 import {
   ApiBearerAuth,
@@ -28,6 +29,9 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import type { FastifyReply, FastifyRequest } from 'fastify';
+import { isPlatformStaff } from '../../common/auth/platform-role';
+import { ANONYMOUS_USER_ID } from '../../common/auth/request-user';
+import { OrganizationsService } from '../organizations/organizations.service';
 import { SupabaseService } from '../supabase/supabase.service';
 import { ArchiveService } from './archive.service';
 import type { ArchiveInclude, RestoreOptions } from './archive.types';
@@ -53,6 +57,7 @@ export class ExportsController {
     private readonly exports: ExportsService,
     private readonly supabase: SupabaseService,
     private readonly archives: ArchiveService,
+    private readonly orgs: OrganizationsService,
   ) {}
 
   // ── HEMA Ratings: submission bundle ───────────────────────────────────────
@@ -229,6 +234,12 @@ export class ExportsController {
   @ApiOperation({ summary: 'Validate an organizer archive before restore' })
   async restorePreview(@Req() req: FastifyRequest) {
     const userId = await getUserId(req, this.supabase);
+    // Ruling 87: signed in, and an admin of some organization or platform staff —
+    // decided before the upload is read.
+    if (userId === ANONYMOUS_USER_ID) throw new UnauthorizedException('Authentication required');
+    if (!(await isPlatformStaff(this.supabase, userId))) {
+      await this.orgs.assertAnyOrgRole(userId, 'admin');
+    }
     const buffer = await readUploadedArchive(req);
     return this.archives.previewRestore(buffer, userId);
   }

@@ -96,7 +96,7 @@ describe('route authorization, API-wide', () => {
 
   it('pins the lists: lower a length with each fix, never raise it to let a route through', () => {
     // A new unchecked route plus its own ledger line would otherwise stay green.
-    expect(Object.keys(UNDECIDED)).toHaveLength(11);
+    expect(Object.keys(UNDECIDED)).toHaveLength(10);
     expect(Object.keys(DECIDED_ELSEWHERE)).toHaveLength(18);
     expect(Object.keys(FALSE_PASSES)).toHaveLength(3);
   });
