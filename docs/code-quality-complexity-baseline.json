@@ -925,7 +925,7 @@
     "packages/ui/src/components/bracket/compute-slot-positions.ts:40",
     "packages/ui/src/components/use-bout-flow-scrub.ts:26",
     "packages/ui/src/hooks/coalesce.ts:37",
-    "packages/ui/src/hooks/useLiveMatch.ts:88",
+    "packages/ui/src/hooks/useLiveMatch.ts:90",
     "packages/ui/src/hooks/useNextMatch.ts:42",
     "packages/ui/src/utils/exchange-timeline.ts:174",
     "scripts/bootstrap-super-admin.mjs:102",

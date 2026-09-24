@@ -35,6 +35,19 @@ describe('display routes', () => {
     ]);
   });
 
+  // A kiosk that starts after its token ended must reach the browser, where
+  // the keep-alive renews the login; `notFound()` would replace the layout.
+  it('the bout display lets a renewable login through its 404 gate', () => {
+    const page = readFileSync(join(APP, 'e/[eventSlug]/match/[matchId]/display/page.tsx'), 'utf8');
+    // The one decision is `displayPageGate`'s (login-cookie.test.ts); the page
+    // must act on it alone, with no second 404 or failure of its own.
+    expect(page).toContain('const gate = displayPageGate(matchRes.status, jar);');
+    expect(page).toContain("if (gate === 'not-found') notFound();");
+    expect(page.match(/notFound\(\)/g)).toHaveLength(1);
+    expect(page.match(/throw new Error\(/g)).toHaveLength(1);
+    expect(page).toContain("if (gate === 'error') throw new Error(");
+  });
+
   it.each(displayPages(APP).map((page) => [route(page), dirname(page)]))(
     '%s keeps the login alive around the page',
     (_, dir) => {

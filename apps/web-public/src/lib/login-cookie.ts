@@ -12,10 +12,33 @@
  * this app: it is host-only on the scoring app's host.
  */
 const LOGIN_COOKIE = 'sb-access-token';
+const REFRESH_COOKIE = 'sb-refresh-token';
 
 /** The part of Next's cookie store this reads — `await cookies()` in a server component. */
 interface CookieJar {
   get(name: string): { value: string } | undefined;
+}
+
+/**
+ * Does this viewer hold a login the browser can renew? A kiosk that starts
+ * after its hour-long access token ended still carries the 30-day refresh
+ * cookie. Its server read then 404s a hidden bout, but the page must still
+ * reach the browser: the keep-alive renews the login through /me, and the
+ * scoreboard reads again (rulings 92, 94).
+ */
+function hasRenewableLogin(jar: CookieJar): boolean {
+  return Boolean(jar.get(REFRESH_COOKIE)?.value);
+}
+
+/**
+ * What a display page does with its server read's status: render the page,
+ * answer 404, or fail. A 404 for a viewer with a renewable login still renders
+ * the page (see `hasRenewableLogin`); anything else not OK is a failure.
+ */
+export function displayPageGate(status: number, jar: CookieJar): 'page' | 'not-found' | 'error' {
+  if (status >= 200 && status < 300) return 'page';
+  if (status === 404) return hasRenewableLogin(jar) ? 'page' : 'not-found';
+  return 'error';
 }
 
 export function loginCookieHeader(jar: CookieJar): Record<string, string> {

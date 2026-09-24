@@ -22,7 +22,11 @@ import {
   CATALOG_READ_THROTTLE,
 } from '../../common/throttling/throttle-profiles';
 import { buildClearCookieOptions, buildSessionCookieOptions } from '../../security/http-security';
-import { canReadMatch, publicReader } from '../../common/auth/competition-visibility';
+import {
+  canReadMatch,
+  matchVisibility,
+  publicReader,
+} from '../../common/auth/competition-visibility';
 import { OrganizationsService } from '../organizations/organizations.service';
 import { SupabaseService } from '../supabase/supabase.service';
 import {
@@ -320,8 +324,11 @@ export class StaffController {
     // A hidden bout answers as an unknown one (rulings 81-83, 89).
     const deps = { supabase: this.supabase, orgs: this.orgs };
     const reader = publicReader(req);
-    if (!(await canReadMatch(deps, id, reader))) throw new NotFoundException('Match not found');
-    return this.staff.getPublicMatchDisplay(id, reader);
+    const visibility = await matchVisibility(deps, id, reader);
+    if (visibility === 'refused') throw new NotFoundException('Match not found');
+    // The public live channel never carries a hidden bout: the screen polls it (ruling 92).
+    const display = await this.staff.getPublicMatchDisplay(id, reader);
+    return { ...display, hiddenFromPublic: visibility === 'hidden' };
   }
 
   @Public()

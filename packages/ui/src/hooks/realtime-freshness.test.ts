@@ -5,8 +5,10 @@ import {
   IDLE_POLL_MS,
   isFreshnessAlarming,
   LIVE_POLL_MS,
+  livePollMs,
   shouldStartFallbackPoll,
   type FreshnessInput,
+  type LivePollInput,
 } from './realtime-freshness';
 
 const NOW = 1_700_000_000_000;
@@ -148,5 +150,54 @@ describe('isFreshnessAlarming', () => {
   it('alarms on stale and on the kill-switch', () => {
     expect(isFreshnessAlarming({ kind: 'stale', ageMs: 60_000 })).toBe(true);
     expect(isFreshnessAlarming({ kind: 'disabled', pollMs: 30_000 })).toBe(true);
+  });
+});
+
+describe('livePollMs — when and how often a live scoreboard polls', () => {
+  // A surface subscribed and holding a public bout, read without error.
+  const quiet: LivePollInput = {
+    pollMs: 10_000,
+    channelStatus: 'SUBSCRIBED',
+    connected: true,
+    match: { hiddenFromPublic: false },
+    loadError: null,
+  };
+
+  it('stays quiet while the channel carries the bout, and before it has joined', () => {
+    expect(livePollMs(quiet)).toBeNull();
+    expect(livePollMs({ ...quiet, channelStatus: null, connected: false })).toBeNull();
+  });
+
+  it("polls at the surface's own pace while the channel is down", () => {
+    const down = { ...quiet, channelStatus: 'CLOSED', connected: false };
+    expect(livePollMs(down)).toBe(10_000);
+    expect(livePollMs({ ...down, pollMs: 1_500 })).toBe(1_500);
+  });
+
+  // The public live channel is anonymous and RLS keeps a hidden bout off it,
+  // so a subscribed channel still never announces a change (ruling 92).
+  it('polls a bout the public cannot see, even with the channel up', () => {
+    expect(livePollMs({ ...quiet, match: { hiddenFromPublic: true } })).toBe(10_000);
+  });
+
+  // No event announces that a failed read would now succeed: a kiosk that
+  // started with an expired login is renewed by /me, then must read again.
+  it('polls again after a failed read, even with the channel up', () => {
+    expect(livePollMs({ ...quiet, match: null, loadError: { status: 404 } })).toBe(10_000);
+  });
+
+  it('never polls a hidden or failed bout faster than the live pace while the channel is up', () => {
+    const fast = { ...quiet, pollMs: 1_500 };
+    expect(livePollMs({ ...fast, match: { hiddenFromPublic: true } })).toBe(LIVE_POLL_MS);
+    expect(livePollMs({ ...fast, loadError: { status: 0 } })).toBe(LIVE_POLL_MS);
+  });
+
+  it('never polls a surface that asked for no poll', () => {
+    for (const pollMs of [undefined, 0]) {
+      expect(
+        livePollMs({ ...quiet, pollMs, channelStatus: 'CLOSED', connected: false }),
+      ).toBeNull();
+      expect(livePollMs({ ...quiet, pollMs, match: { hiddenFromPublic: true } })).toBeNull();
+    }
   });
 });

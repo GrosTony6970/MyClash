@@ -37,8 +37,8 @@ export function DisplayView({ matchId, eventSlug }: Props) {
         // join, the board silently froze mid-bout and someone had to walk over
         // and press F5.
         //
-        // Only a FALLBACK now — it runs while the channel is down and stops on
-        // SUBSCRIBED. It used to run unconditionally at 2s, which is how a
+        // Only a FALLBACK now — it runs while the channel cannot carry the bout
+        // (down, or a hidden bout). It used to run unconditionally at 2s, which is how a
         // websocket that had been 403-ing since Kong was dropped went unnoticed:
         // the board looked live because it was being repainted 30 times a minute.
         // With realtime carrying the updates, 10s is only ever the degraded

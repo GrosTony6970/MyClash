@@ -79,14 +79,6 @@ export async function isInsider(
   }
 }
 
-export async function canReadCompetition(
-  deps: EventAuthzDeps,
-  row: CompetitionRow,
-  reader: PublicReader,
-): Promise<boolean> {
-  return !isHiddenCompetition(row) || isInsider(deps, row.event, reader);
-}
-
 /** Read on every call, like the staff routes do: a disabled account stops at once. */
 async function isActiveStaff(
   deps: EventAuthzDeps,
@@ -152,14 +144,15 @@ export function onlyPublicTournaments<
 }
 
 /**
- * May the caller see this bout? An unknown bout answers true: the route then
- * answers it as it always has.
+ * What the caller may know of this bout: `refused` (answer it as an unknown
+ * one), `public`, or `hidden` — hidden from the public, shown to this insider.
+ * An unknown bout is `public`: the route then answers it as it always has.
  */
-export async function canReadMatch(
+export async function matchVisibility(
   deps: EventAuthzDeps,
   matchId: string,
   reader: PublicReader,
-): Promise<boolean> {
+): Promise<'refused' | 'public' | 'hidden'> {
   const { data, error } = await deps.supabase.service
     .from('matches')
     .select(MATCH_COMPETITION_SELECT)
@@ -167,5 +160,15 @@ export async function canReadMatch(
     .maybeSingle();
   if (error) throw new BadRequestException(error.message);
   const row = competitionOfMatch(data as MatchCompetitionEmbed | null);
-  return row ? canReadCompetition(deps, row, reader) : true;
+  if (!row || !isHiddenCompetition(row)) return 'public';
+  return (await isInsider(deps, row.event, reader)) ? 'hidden' : 'refused';
+}
+
+/** May the caller see this bout? See `matchVisibility`. */
+export async function canReadMatch(
+  deps: EventAuthzDeps,
+  matchId: string,
+  reader: PublicReader,
+): Promise<boolean> {
+  return (await matchVisibility(deps, matchId, reader)) !== 'refused';
 }

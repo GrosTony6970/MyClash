@@ -98,6 +98,41 @@ export function shouldStartFallbackPoll(status: string): boolean {
   return status === 'CLOSED' || status === 'CHANNEL_ERROR' || status === 'TIMED_OUT';
 }
 
+/** The state of a live scoreboard (`useLiveMatch`) that decides its poll. */
+export interface LivePollInput {
+  /** The surface's poll interval; none means the surface never polls. */
+  pollMs?: number;
+  channelStatus: string | null;
+  connected: boolean;
+  match: { hiddenFromPublic?: boolean } | null;
+  loadError: unknown;
+}
+
+/**
+ * How often a live scoreboard polls right now, or null for not at all:
+ *
+ * - the channel is down (it reported a status, then not SUBSCRIBED): no pushes
+ *   arrive, so the surface's own `pollMs`;
+ * - the bout is hidden from the public (ruling 92): web-public's channel is
+ *   anonymous and RLS keeps the bout's rows off it, so a SUBSCRIBED channel
+ *   still never announces a change — a signed-in hall screen froze on its first
+ *   picture;
+ * - the last read failed: no event announces that a retry would now succeed,
+ *   e.g. a kiosk that started with an expired login until /me renewed it.
+ *
+ * The last two run with the channel UP, for as long as they hold, so they poll
+ * no faster than LIVE_POLL_MS. The admin projector asks 1.5 s for a dead socket;
+ * at that pace all day, three screens behind one venue address would spend the
+ * shared per-address limit on these routes.
+ */
+export function livePollMs(input: LivePollInput): number | null {
+  const { pollMs } = input;
+  if (!pollMs || pollMs <= 0) return null;
+  if (input.channelStatus !== null && !input.connected) return pollMs;
+  const hidden = input.match?.hiddenFromPublic === true;
+  return hidden || input.loadError !== null ? Math.max(pollMs, LIVE_POLL_MS) : null;
+}
+
 /**
  * How many missed poll intervals before a surface counts as stale rather than
  * merely slow.

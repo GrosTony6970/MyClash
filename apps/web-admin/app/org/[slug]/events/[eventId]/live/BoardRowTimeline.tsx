@@ -20,8 +20,8 @@ type T = Translator;
  * for one bout at a time by construction, never per row.
  */
 export function BoardRowTimeline({ matchId, t }: { matchId: string; t: T }) {
-  // pollMs is deliberately omitted. useLiveMatch only polls while its channel
-  // is DOWN, and it refetches four endpoints each time — on a degraded socket
+  // pollMs is deliberately omitted. useLiveMatch polls only when given one (a
+  // down channel, a hidden bout), and it refetches four endpoints each time — on a degraded socket
   // that is 4x the load of the board's own 7s poll, which already covers
   // everything the collapsed row shows. A panel open for twenty seconds does
   // not justify that, so a dead socket surfaces as a note instead.

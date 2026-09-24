@@ -3,7 +3,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { ClockSnapshot, DisplayMatch, ExchangeRow, Penalty } from '../types/match-events';
-import { deriveFreshness, type Freshness } from './realtime-freshness';
+import { deriveFreshness, livePollMs, type Freshness } from './realtime-freshness';
+import { readLiveMatch } from './live-match-read';
 import { createCoalescer, type Coalescer } from './coalesce';
 
 // The wire shapes live in ../types/match-events (a leaf module the pure
@@ -73,7 +74,7 @@ function computeElapsedMs(state: ClockSnapshot): number {
  * Subscribes to Supabase realtime postgres_changes on the `matches`,
  * `exchanges`, `match_penalties`, and `match_events` tables filtered
  * to this matchId. Any change triggers a refetch. `pollMs` is the
- * fallback for while that channel is down — see the parameter docs.
+ * fallback for when that channel cannot carry the bout — see the parameter docs.
  *
  * Also runs a 50ms `setInterval` ticker while the clock is RUNNING
  * so the displayed timer doesn't visibly stutter.
@@ -81,8 +82,9 @@ function computeElapsedMs(state: ClockSnapshot): number {
  * Used by:
  *   - `<MatchScoreboard>` (admin preview)
  *   - `<TVScoreboard>`   (public TV display)
+ *   - `BoardRowTimeline` (organiser live board, one expanded row, no poll)
  *
- * Both surfaces render different layouts on top of the same state —
+ * The surfaces render different layouts on top of the same state —
  * this hook is the single source of truth for the data flow.
  */
 export function useLiveMatch(
@@ -90,17 +92,18 @@ export function useLiveMatch(
   matchId: string,
   supabaseClient: SupabaseClient,
   /**
-   * Fallback poll interval (ms), used ONLY while the realtime channel is down.
-   * The poll starts on CLOSED / CHANNEL_ERROR / TIMED_OUT (firing once
-   * immediately) and stops the moment the channel reports SUBSCRIBED. Any
+   * Fallback poll interval (ms), used ONLY while the channel cannot be trusted
+   * to announce a change (`livePollMs`): it is down, the bout is hidden from
+   * the public, or the last read failed. The poll fires once immediately and
+   * stops when none of those holds. Any
    * unattended surface should set it: a channel that fails to join never
    * retries, and without a fallback the board freezes mid-bout showing stale
    * scores — which is exactly what happened to the public projector.
    *
    * It used to run unconditionally, IN ADDITION to realtime. That made a dead
    * websocket invisible: the public display polled four endpoints every 2s for
-   * weeks while its socket 403'd, and looked perfectly healthy doing it. Same
-   * contract as `useRealtimeWithFallback` in the apps now.
+   * weeks while its socket 403'd, and looked perfectly healthy doing it. The
+   * apps' `useRealtimeWithFallback` still polls only while its channel is down.
    */
   pollMs?: number,
   /**
@@ -135,61 +138,22 @@ export function useLiveMatch(
   const wasDisconnected = useRef(false);
 
   const refresh = useCallback(async () => {
-    try {
-      const [matchRes, penaltyRes, exchangeRes, clockRes] = await Promise.all([
-        fetch(`${apiBaseUrl}/api/v1/matches/${matchId}/display`, {
-          cache: 'no-store',
-          credentials: 'include',
-        }),
-        fetch(`${apiBaseUrl}/api/v1/matches/${matchId}/penalties`, {
-          cache: 'no-store',
-          credentials: 'include',
-        }),
-        fetch(`${apiBaseUrl}/api/v1/matches/${matchId}/exchanges`, {
-          cache: 'no-store',
-          credentials: 'include',
-        }),
-        fetch(`${apiBaseUrl}/api/v1/matches/${matchId}/clock`, {
-          cache: 'no-store',
-          credentials: 'include',
-        }),
-      ]);
-      if (!matchRes.ok) {
-        // `detail` first: it is the member RFC 9457 specifies, and `message` is
-        // the compatibility extension the API fills with the same string today.
-        // Reading them in this order is what stops this hook going stale the
-        // day the two diverge. NOT converted to `apiRequest` on purpose — this
-        // package ships CJS with no tree-shaking, so a workspace dependency
-        // here is paid for by all three apps, and the hook renders no sentence
-        // of its own: it hands `{ status, message }` to its callers.
-        const body = (await matchRes.json().catch(() => null)) as {
-          detail?: string;
-          message?: string;
-        } | null;
-        setLoadError({
-          status: matchRes.status,
-          message: body?.detail ?? body?.message ?? matchRes.statusText,
-        });
-        return;
-      }
-      setLoadError(null);
-      // Stamped only on a SUCCESSFUL payload. Stamping on every attempt would
-      // make a poll that fires and fails look exactly like one that works,
-      // which is the whole condition `stale` exists to catch.
-      setLastUpdateAt(Date.now());
-      setMatch((await matchRes.json()) as DisplayMatch);
-      if (penaltyRes.ok) setPenalties((await penaltyRes.json()) as Penalty[]);
-      if (exchangeRes.ok) setExchanges((await exchangeRes.json()) as ExchangeRow[]);
-      if (clockRes.ok) {
-        const nextClock = (await clockRes.json()) as ClockSnapshot;
-        setClock(nextClock);
-        setElapsedMs(computeElapsedMs(nextClock));
-      }
-    } catch (err) {
-      setLoadError({
-        status: 0,
-        message: err instanceof Error ? err.message : 'Network error',
-      });
+    const read = await readLiveMatch(apiBaseUrl, matchId);
+    if (!read.ok) {
+      setLoadError(read.error);
+      return;
+    }
+    setLoadError(null);
+    // Stamped only on a SUCCESSFUL payload. Stamping on every attempt would
+    // make a poll that fires and fails look exactly like one that works,
+    // which is the whole condition `stale` exists to catch.
+    setLastUpdateAt(Date.now());
+    setMatch(read.match);
+    if (read.penalties) setPenalties(read.penalties);
+    if (read.exchanges) setExchanges(read.exchanges);
+    if (read.clock) {
+      setClock(read.clock);
+      setElapsedMs(computeElapsedMs(read.clock));
     }
   }, [apiBaseUrl, matchId]);
 
@@ -225,24 +189,8 @@ export function useLiveMatch(
   coalescerRef.current ??= createCoalescer(() => refreshRef.current(), 200);
   const scheduleRefresh = coalescerRef.current.schedule;
 
-  // Supabase realtime subscription, with `pollMs` as its fallback. Both live
-  // in one effect because the channel's status IS what starts and stops the
-  // poll — splitting them is what let the two run at once.
+  // Supabase realtime subscription. Its status feeds the poll below.
   useEffect(() => {
-    let pollTimer: ReturnType<typeof setInterval> | null = null;
-    const startPolling = () => {
-      if (pollTimer !== null || !pollMs || pollMs <= 0) return;
-      // Fire once immediately: the caller is degraded from this instant, not
-      // one interval from now.
-      void refresh();
-      pollTimer = setInterval(() => void refresh(), pollMs);
-    };
-    const stopPolling = () => {
-      if (pollTimer === null) return;
-      clearInterval(pollTimer);
-      pollTimer = null;
-    };
-
     const channel = supabaseClient
       .channel(`match:${matchId}:display`)
       .on(
@@ -274,7 +222,6 @@ export function useLiveMatch(
         setChannelStatus(status);
         if (status === 'SUBSCRIBED') {
           setConnected(true);
-          stopPolling();
           // Re-fetch to catch changes missed while the channel was down.
           if (wasDisconnected.current) {
             wasDisconnected.current = false;
@@ -283,17 +230,15 @@ export function useLiveMatch(
         } else if (status === 'CLOSED' || status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
           setConnected(false);
           wasDisconnected.current = true;
-          startPolling();
         }
       });
     return () => {
-      stopPolling();
       // Drops a pending trailing refresh. Also what stops a debounce armed for
       // the OLD match firing after `matchId` changes.
       coalescerRef.current?.cancel();
       void supabaseClient.removeChannel(channel);
     };
-  }, [matchId, supabaseClient, refresh, scheduleRefresh, pollMs]);
+  }, [matchId, supabaseClient, refresh, scheduleRefresh]);
 
   // A slow tick, running ONLY while degraded.
   //
@@ -313,6 +258,17 @@ export function useLiveMatch(
     const id = setInterval(() => setNow(Date.now()), 1_000);
     return () => clearInterval(id);
   }, [degraded]);
+
+  // The poll: while the channel is down, the bout is hidden from the public,
+  // or the last read failed (`livePollMs`, ruling 92). One effect owns it, so a
+  // channel drop and a hidden bout never run two timers at once.
+  const pollEvery = livePollMs({ pollMs, channelStatus, connected, match, loadError });
+  useEffect(() => {
+    if (pollEvery === null) return;
+    void refresh();
+    const timer = setInterval(() => void refresh(), pollEvery);
+    return () => clearInterval(timer);
+  }, [pollEvery, refresh]);
 
   // Running-clock ticker
   useEffect(() => {

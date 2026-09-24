@@ -182,6 +182,12 @@ export interface DisplayMatch {
   id: string;
   status: MatchStatus;
   /**
+   * The bout belongs to a draft Event or an unpublished Tournament, and this
+   * caller may see it (a club member, the Event's staff). The public live
+   * channel never carries its rows, so the scoreboard polls it (ruling 92).
+   */
+  hiddenFromPublic?: boolean;
+  /**
    * `phases.type` for this match. Selects which `timeLimitsSeconds` entry the
    * clock counts against — without it a pool bout is billed at the bracket
    * limit, which is what the projector did for every match until now. Optional

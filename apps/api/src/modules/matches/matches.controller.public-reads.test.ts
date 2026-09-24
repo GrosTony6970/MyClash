@@ -248,6 +248,23 @@ describe('the display payload', () => {
       staff: pad.staff,
     });
   });
+
+  // The web-public live channel is anonymous and RLS keeps a hidden bout's rows
+  // off it, so the screen must keep polling that bout (ruling 92).
+  it('tells the screen when its bout is hidden from the public, so it keeps polling', async () => {
+    const hidden = async (id: string, caller?: Caller) =>
+      ((await staff.publicMatchDisplay(id, req(caller))) as { hiddenFromPublic: unknown })
+        .hiddenFromPublic;
+    for (const id of VISIBLE) {
+      expect(await hidden(id), id).toBe(false);
+      expect(await hidden(id, { user: 'u-member' }), id).toBe(false);
+    }
+    expect(await hidden(IN_DRAFT_EVENT, { user: 'u-member' })).toBe(true);
+    expect(await hidden(IN_DRAFT_TOURNAMENT, { user: 'u-member' })).toBe(true);
+    expect(
+      await hidden(IN_DRAFT_EVENT, { staff: { staffId: 'staff-draft', eventId: EVENT_DRAFT } }),
+    ).toBe(true);
+  });
 });
 
 describe("the pad's prev/next tiles", () => {
