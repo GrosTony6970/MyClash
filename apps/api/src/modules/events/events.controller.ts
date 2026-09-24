@@ -34,10 +34,13 @@ import {
   UpdateTournamentDto,
 } from './dto/events.dto';
 import { EventThemesService } from './event-themes.service';
+import { publicReader } from '../../common/auth/competition-visibility';
 import { Public } from '../../common/auth/public.decorator';
 import { AllowOnArchivedEvent } from '../../common/event-readonly/allow-on-archived.decorator';
+import { OrganizationsService } from '../organizations/organizations.service';
 import { EventsService } from './events.service';
 import { ClockReconciliationService } from './clock-reconciliation.service';
+import { readMatchConfig } from './match-config';
 
 async function getUserId(req: FastifyRequest, supabase: SupabaseService): Promise<string> {
   const authHeader = req.headers['authorization'];
@@ -58,6 +61,7 @@ export class EventsController {
     private readonly supabase: SupabaseService,
     private readonly eventThemes: EventThemesService,
     private readonly clockReconciliation: ClockReconciliationService,
+    private readonly orgs: OrganizationsService,
   ) {}
 
   // ── Events ───────────────────────────────────────────────────────────────────
@@ -267,12 +271,13 @@ export class EventsController {
     return this.events.deleteEvent(id, mode, userId);
   }
 
-  /** GET /api/v1/events/:eventId/theme */
+  /** GET /api/v1/events/:eventId/theme — a draft Event's answers an outsider as an unknown one's. */
+  @Public()
   @Get('events/:eventId/theme')
   @ApiOperation({ summary: 'Get event theme' })
   @ApiParam({ name: 'eventId', type: 'string', format: 'uuid' })
-  async getTheme(@Param('eventId', ParseUUIDPipe) eventId: string) {
-    return this.eventThemes.getTheme(eventId);
+  async getTheme(@Param('eventId', ParseUUIDPipe) eventId: string, @Req() req: FastifyRequest) {
+    return this.eventThemes.getTheme(eventId, publicReader(req));
   }
 
   /** POST /api/v1/events/:eventId/theme */
@@ -615,42 +620,11 @@ export class EventsController {
   // reads `tournaments/:id/match-config` below.
 
   /** GET /api/v1/tournaments/:id/match-config — effective match and display config */
+  @Public()
   @Get('tournaments/:id/match-config')
   @ApiOperation({ summary: 'Get tournament match format and display configuration' })
   @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
-  async getMatchConfig(@Param('id', ParseUUIDPipe) id: string) {
-    const { data } = await this.supabase.service
-      .from('tournaments')
-      .select('ruleset_code, ruleset_config, scoring_config_json, lock_config_json')
-      .eq('id', id)
-      .maybeSingle();
-
-    const { DEFAULT_SCORING_CONFIG } = await import('@myclash/types');
-    const {
-      normalizeTournamentLockConfig,
-      normalizeTournamentScoringConfig,
-      validateTournamentRulesetConfig,
-    } = await import('./tournament-config.js');
-    const row = data as {
-      ruleset_code?: string;
-      ruleset_config?: unknown;
-      scoring_config_json?: unknown;
-      lock_config_json?: unknown;
-    } | null;
-    const rulesetConfig = validateTournamentRulesetConfig(
-      row?.ruleset_code ?? 'TF_v1',
-      row?.ruleset_config ?? {},
-    );
-    const scoringConfig = normalizeTournamentScoringConfig(
-      row?.scoring_config_json ?? DEFAULT_SCORING_CONFIG,
-    );
-
-    return {
-      rulesetConfig,
-      matchFormat: rulesetConfig.matchFormat,
-      scoringConfig,
-      display: scoringConfig.display,
-      lockConfig: normalizeTournamentLockConfig(row?.lock_config_json),
-    };
+  async getMatchConfig(@Param('id', ParseUUIDPipe) id: string, @Req() req: FastifyRequest) {
+    return readMatchConfig({ supabase: this.supabase, orgs: this.orgs }, id, publicReader(req));
   }
 }

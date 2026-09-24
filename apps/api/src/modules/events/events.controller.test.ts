@@ -11,6 +11,7 @@ describe('EventsController auth', () => {
       { getAuthUser, anon: { auth: { getUser: anonGetUser } } } as never,
       {} as never,
       {} as never,
+      {} as never,
     );
 
     await controller.createEvent(
@@ -42,6 +43,7 @@ describe('EventsController auth', () => {
       { getAuthUser, anon: { auth: { getUser: anonGetUser } } } as never,
       {} as never,
       {} as never,
+      {} as never,
     );
 
     await controller.deleteEvent('11111111-1111-4111-8111-111111111111', 'hard', {
@@ -64,6 +66,7 @@ describe('EventsController auth', () => {
     const controller = new EventsController(
       { createTournament } as never,
       { getAuthUser } as never,
+      {} as never,
       {} as never,
       {} as never,
     );

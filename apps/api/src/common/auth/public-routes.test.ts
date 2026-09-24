@@ -99,6 +99,9 @@ const EXPECTED_PUBLIC = [
   // The planner sheet beside it (ruling 85): the same draft gate, nothing personal.
   'GET /events/:eventId/programme/config',
   'GET /events/:eventId/schedule',
+  // An Event's logo and hero image: a draft Event answers an outsider exactly as
+  // an unknown one (rulings 81-83).
+  'GET /events/:eventId/theme',
   'GET /events/:eventId/tournaments',
   // The venues an Event uses and a Tournament's venue per phase (ruling 78): a
   // draft Event answers 404 to anyone outside its organisation (assertCanReadEvent).
@@ -178,6 +181,9 @@ const EXPECTED_PUBLIC = [
   'GET /tournaments/:id/stats/fighters',
   'GET /tournaments/:id/stats/overview',
   'GET /tournaments/:id/stats/target-values',
+  // The rules the referee's pad draws. The pad reads it with its staff cookie; a
+  // hidden Tournament answers an outsider the unknown id's 404 (rulings 81-83, 95).
+  'GET /tournaments/:id/match-config',
   'GET /tournaments/:tournamentId/phase-venues',
   'GET /tournaments/:tournamentId/pool-standings',
   // Swiss rounds and standings: the same results already printed on the wall

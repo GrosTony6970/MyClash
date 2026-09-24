@@ -1,4 +1,6 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { isInsider, type PublicReader } from '../../common/auth/competition-visibility';
+import { HIDDEN_EVENT_STATUSES } from '../../common/auth/event-authz';
 import { OrganizationsService } from '../organizations/organizations.service';
 import { SupabaseService } from '../supabase/supabase.service';
 import type { UpsertEventThemeDto } from './dto/events.dto';
@@ -8,7 +10,10 @@ interface EventRow {
   id: string;
   organization_id: string;
   logo_url: string | null;
+  status: string;
 }
+
+const eventNotFound = (eventId: string) => new NotFoundException(`Event ${eventId} not found`);
 
 @Injectable()
 export class EventThemesService {
@@ -21,11 +26,16 @@ export class EventThemesService {
     private readonly events: EventsService,
   ) {}
 
-  async getTheme(eventId: string) {
+  async getTheme(eventId: string, reader: PublicReader) {
     // events.logo_url is the canonical column; merge it into the
     // theme response so existing clients keep seeing `logoUrl` at
     // the top level even after 0084 dropped themes.logo_url.
     const event = await this.getEvent(eventId);
+    // A draft Event's theme answers an outsider as an unknown Event's (rulings 81-83).
+    const deps = { supabase: this.supabase, orgs: this.organizations };
+    if (HIDDEN_EVENT_STATUSES.has(event.status) && !(await isInsider(deps, event, reader))) {
+      throw eventNotFound(eventId);
+    }
     const { data, error } = await this.supabase.service
       .from('themes')
       .select('*')
@@ -77,12 +87,12 @@ export class EventThemesService {
   private async getEvent(eventId: string): Promise<EventRow> {
     const { data, error } = await this.supabase.service
       .from('events')
-      .select('id, organization_id, logo_url')
+      .select('id, organization_id, logo_url, status')
       .eq('id', eventId)
       .maybeSingle();
 
     if (error) throw new BadRequestException(error.message);
-    if (!data) throw new NotFoundException(`Event ${eventId} not found`);
+    if (!data) throw eventNotFound(eventId);
     return data as EventRow;
   }
 
