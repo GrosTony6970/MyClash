@@ -41,6 +41,7 @@ import { BroadcastNotificationsService } from '../notifications/broadcast-notifi
 import { SupabaseService } from '../supabase/supabase.service';
 import { EnrollmentService } from './enrollment.service';
 import { FeedbackService } from './feedback.service';
+import { publicReader } from '../../common/auth/competition-visibility';
 import { Public } from '../../common/auth/public.decorator';
 import { requireRequestUserId } from '../../common/auth/request-user';
 import { WorkshopsService } from './workshops.service';
@@ -214,24 +215,24 @@ export class WorkshopsController {
     return this.workshops.getWorkshop(id, userId);
   }
 
-  // ── Public reads (slug-based, status-gated; no auth) ────────────────────────────
+  // ── Public reads (slug-based, status-gated; a draft Event only for insiders) ──────
 
   @Public()
   @Get('events/:eventSlug/public-workshops')
   @ApiOperation({ summary: 'List public (published+) workshops for an event by slug' })
   @ApiParam({ name: 'eventSlug', type: 'string' })
-  async listPublic(@Param('eventSlug') eventSlug: string) {
-    return this.workshops.listPublicWorkshops(eventSlug);
+  async listPublic(@Param('eventSlug') eventSlug: string, @Req() req: FastifyRequest) {
+    return this.workshops.listPublicWorkshops(eventSlug, publicReader(req));
   }
 
   @Public()
   @Get('events/:eventSlug/public-workshop-breaks')
   @ApiOperation({ summary: 'List workshop break bars for an event by slug (no auth)' })
   @ApiParam({ name: 'eventSlug', type: 'string' })
-  async listPublicBreaks(@Param('eventSlug') eventSlug: string) {
+  async listPublicBreaks(@Param('eventSlug') eventSlug: string, @Req() req: FastifyRequest) {
     // Distinct path from the organizer `events/:eventId/workshop-breaks` below:
     // that one pipes a UUID and would 400 on a slug.
-    return this.workshops.listPublicWorkshopBreaks(eventSlug);
+    return this.workshops.listPublicWorkshopBreaks(eventSlug, publicReader(req));
   }
 
   @Public()
@@ -243,11 +244,13 @@ export class WorkshopsController {
     @Query('eventSlug') eventSlug: string,
     @Req() req: FastifyRequest,
   ) {
-    // Stays @Public() — anonymous browsing is the norm here. The identity is
-    // read opportunistically, only to set `viewerIsInstructor` for the caller.
+    // Stays @Public() — anonymous browsing is the norm here. The guard's reader
+    // decides whether a draft Event's workshop is visible; the GoTrue identity
+    // only sets `viewerIsInstructor` for the caller.
     return this.workshops.getPublicWorkshopBySlug(
       eventSlug,
       slug,
+      publicReader(req),
       await getUserId(req, this.supabase),
     );
   }

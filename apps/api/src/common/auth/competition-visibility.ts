@@ -124,6 +124,15 @@ async function isActiveStaff(
   return (data as { status?: string } | null)?.status === 'active';
 }
 
+/** May the caller see this Event's public contents? A DRAFT one only an insider may. */
+export async function canReadEvent(
+  deps: EventAuthzDeps,
+  event: Pick<CompetitionEvent, 'id' | 'status' | 'organization_id'>,
+  reader: PublicReader,
+): Promise<boolean> {
+  return !HIDDEN_EVENT_STATUSES.has(event.status) || isInsider(deps, event, reader);
+}
+
 /**
  * May the caller see this Tournament's contents (ruling 82)? A hidden one only
  * an insider may. An unknown id is `true`: the route then answers it as it

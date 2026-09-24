@@ -1,6 +1,5 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { isInsider, type PublicReader } from '../../common/auth/competition-visibility';
-import { HIDDEN_EVENT_STATUSES } from '../../common/auth/event-authz';
+import { canReadEvent, type PublicReader } from '../../common/auth/competition-visibility';
 import { OrganizationsService } from '../organizations/organizations.service';
 import { SupabaseService } from '../supabase/supabase.service';
 import type { UpsertEventThemeDto } from './dto/events.dto';
@@ -33,7 +32,7 @@ export class EventThemesService {
     const event = await this.getEvent(eventId);
     // A draft Event's theme answers an outsider as an unknown Event's (rulings 81-83).
     const deps = { supabase: this.supabase, orgs: this.organizations };
-    if (HIDDEN_EVENT_STATUSES.has(event.status) && !(await isInsider(deps, event, reader))) {
+    if (!(await canReadEvent(deps, event, reader))) {
       throw eventNotFound(eventId);
     }
     const { data, error } = await this.supabase.service

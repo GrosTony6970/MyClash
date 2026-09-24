@@ -87,6 +87,7 @@ const PUBLIC_READ_GATES = new Set([
   'assertCanReadEventRow',
   'assertCanReadPhase',
   // competition-visibility.ts: the same shape, for bouts and Tournaments.
+  'canReadEvent',
   'canReadMatch',
   'canReadTournament',
   'matchVisibility',

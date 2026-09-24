@@ -23,6 +23,7 @@ import { resolveCatalogWeapon } from '../fighters/weapon-catalog.util';
 import { NotificationEventsService } from '../notifications/event-handlers/notification-events.service';
 import { OrganizationsService } from '../organizations/organizations.service';
 import { WORKSHOP_MANAGE_ROLE } from '../../common/auth/workshop-authz';
+import { canReadEvent, type PublicReader } from '../../common/auth/competition-visibility';
 import { PrivacyService } from '../persons/privacy.service';
 import { SupabaseService } from '../supabase/supabase.service';
 
@@ -279,10 +280,11 @@ export class WorkshopsService {
    * Public workshop catalog for an event, resolved by event slug. Returns
    * only published/running/completed workshops. Instructors who set the
    * per-person "hide my workshops publicly" flag are dropped from the
-   * instructor lists (the workshop itself stays public). No auth.
+   * instructor lists (the workshop itself stays public). A draft Event's list
+   * answers an outsider as an unknown slug's (rulings 81-83).
    */
-  async listPublicWorkshops(eventSlug: string): Promise<WorkshopView[]> {
-    const event = await this.resolveEventBySlug(eventSlug);
+  async listPublicWorkshops(eventSlug: string, reader: PublicReader): Promise<WorkshopView[]> {
+    const event = await this.resolveEventBySlug(eventSlug, reader);
     if (!event) return [];
 
     const { data, error } = await this.supabase.service
@@ -313,9 +315,10 @@ export class WorkshopsService {
   async getPublicWorkshopBySlug(
     eventSlug: string,
     workshopSlug: string,
+    reader: PublicReader,
     userId = 'anonymous',
   ): Promise<WorkshopView> {
-    const event = await this.resolveEventBySlug(eventSlug);
+    const event = await this.resolveEventBySlug(eventSlug, reader);
     if (!event) throw new NotFoundException(`Workshop "${workshopSlug}" not found`);
 
     const { data, error } = await this.supabase.service
@@ -363,17 +366,32 @@ export class WorkshopsService {
     }));
   }
 
+  /**
+   * The Event behind a public slug read, or null when the slug is unknown — and
+   * when the Event is a draft the caller may not see, so the route answers it as
+   * an unknown slug (rulings 81-83). A failed read is a 5xx, not "unknown".
+   */
   private async resolveEventBySlug(
     eventSlug: string,
+    reader: PublicReader,
   ): Promise<{ id: string; timezone: string } | null> {
-    const { data } = await this.supabase.service
+    const { data, error } = await this.supabase.service
       .from('events')
-      .select('id, timezone')
+      .select('id, timezone, status, organization_id')
       .eq('slug', eventSlug)
       .limit(1)
       .maybeSingle();
+    if (error) throw new Error(`event read failed: ${error.message}`);
     if (!data) return null;
-    const row = data as { id: string; timezone: string | null };
+    const row = data as {
+      id: string;
+      timezone: string | null;
+      status: string;
+      organization_id: string;
+    };
+    if (!(await canReadEvent({ supabase: this.supabase, orgs: this.orgs }, row, reader))) {
+      return null;
+    }
     return { id: row.id, timezone: row.timezone ?? 'Europe/Paris' };
   }
 
@@ -1085,10 +1103,14 @@ export class WorkshopsService {
    * uses) and returns [] for an unknown slug rather than throwing, so a public
    * page degrades to "no breaks" instead of 500ing. Note `workshop_breaks` has
    * no status column: unlike workshops there is no publish gate, so a bar is
-   * public from the moment the organizer saves it.
+   * public from the moment the organizer saves it — once its Event is not a
+   * draft (a draft answers an outsider as an unknown slug).
    */
-  async listPublicWorkshopBreaks(eventSlug: string): Promise<WorkshopBreakView[]> {
-    const event = await this.resolveEventBySlug(eventSlug);
+  async listPublicWorkshopBreaks(
+    eventSlug: string,
+    reader: PublicReader,
+  ): Promise<WorkshopBreakView[]> {
+    const event = await this.resolveEventBySlug(eventSlug, reader);
     if (!event) return [];
     return this.listWorkshopBreaks(event.id);
   }

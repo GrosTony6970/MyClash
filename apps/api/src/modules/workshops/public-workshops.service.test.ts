@@ -14,6 +14,9 @@ import { WorkshopsService } from './workshops.service';
 
 type Resp = { data: unknown; error: { message: string } | null };
 
+/** A signed-out reader: these fakes' Event is published, so nobody is asked who they are. */
+const ANONYMOUS = { userId: 'anonymous', staff: null };
+
 /** Minimal events+workshops fake for the public list path. */
 function buildSupabase(workshopRows: unknown[]) {
   const selectedColumns: string[] = [];
@@ -25,7 +28,12 @@ function buildSupabase(workshopRows: unknown[]) {
     }),
     eq: vi.fn(() => eventsApi),
     limit: vi.fn(() => eventsApi),
-    maybeSingle: vi.fn(() => Promise.resolve({ data: { id: 'event-1' }, error: null } as Resp)),
+    maybeSingle: vi.fn(() =>
+      Promise.resolve({
+        data: { id: 'event-1', status: 'published', organization_id: 'org-1' },
+        error: null,
+      } as Resp),
+    ),
   });
   const workshopsApi: Record<string, unknown> = {};
   Object.assign(workshopsApi, {
@@ -89,7 +97,7 @@ describe('WorkshopsService — public gate', () => {
     const fake = buildSupabase([]);
     const svc = makeSvc(fake);
 
-    await svc.listPublicWorkshops('fal-2027');
+    await svc.listPublicWorkshops('fal-2027', ANONYMOUS);
 
     // The bug we are guarding against: selecting events.hide_workshops_publicly
     // 400s and makes every public call return empty.
@@ -103,7 +111,7 @@ describe('WorkshopsService — public gate', () => {
       fake.service.from('events') as unknown as { maybeSingle: ReturnType<typeof vi.fn> }
     ).maybeSingle = vi.fn(() => Promise.resolve({ data: null, error: null }));
     const svc = makeSvc(fake);
-    expect(await svc.listPublicWorkshops('nope')).toEqual([]);
+    expect(await svc.listPublicWorkshops('nope', ANONYMOUS)).toEqual([]);
   });
 });
 
@@ -128,7 +136,7 @@ describe('WorkshopsService — PostgREST embed shape', () => {
     const fake = buildSupabase([row]);
     const svc = makeSvc(fake);
 
-    const [workshop] = await svc.listPublicWorkshops('fal-2027');
+    const [workshop] = await svc.listPublicWorkshops('fal-2027', ANONYMOUS);
 
     expect(workshop?.sessions).toHaveLength(1);
     expect(workshop?.sessions[0]?.id).toBe('s-1');
@@ -142,7 +150,7 @@ describe('WorkshopsService — logo mapping', () => {
     ]);
     const svc = makeSvc(fake);
 
-    const [workshop] = await svc.listPublicWorkshops('fal-2027');
+    const [workshop] = await svc.listPublicWorkshops('fal-2027', ANONYMOUS);
 
     expect(workshop?.coverImageUrl).toBe('https://cdn.test/workshops/w-1/logo.png');
   });
@@ -151,7 +159,7 @@ describe('WorkshopsService — logo mapping', () => {
     const fake = buildSupabase([workshopRow([])]);
     const svc = makeSvc(fake);
 
-    const [workshop] = await svc.listPublicWorkshops('fal-2027');
+    const [workshop] = await svc.listPublicWorkshops('fal-2027', ANONYMOUS);
 
     expect(workshop?.coverImageUrl).toBeNull();
   });
@@ -167,7 +175,7 @@ describe('WorkshopsService — instructor privacy', () => {
     ]);
     const svc = makeSvc(fake, new Set(['gp-hidden']));
 
-    const [workshop] = await svc.listPublicWorkshops('fal-2027');
+    const [workshop] = await svc.listPublicWorkshops('fal-2027', ANONYMOUS);
 
     expect(workshop?.instructors.map((i) => i.displayName)).toEqual(['Shown Teacher']);
   });
@@ -178,7 +186,7 @@ describe('WorkshopsService — instructor privacy', () => {
     ]);
     const svc = makeSvc(fake, new Set());
 
-    const [workshop] = await svc.listPublicWorkshops('fal-2027');
+    const [workshop] = await svc.listPublicWorkshops('fal-2027', ANONYMOUS);
     expect(workshop?.instructors).toHaveLength(1);
   });
 });
