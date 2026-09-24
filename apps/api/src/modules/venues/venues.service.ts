@@ -317,7 +317,8 @@ export class VenuesService {
 
   /**
    * The Event behind a public read, or null when it is unknown — and when it is
-   * a draft the caller may not see. A failed Event read is a 5xx, not "unknown".
+   * a draft or test Event the caller may not see (ruling 97). A failed Event
+   * read is a 5xx, not "unknown".
    */
   private async readableEvent(
     column: 'id' | 'slug',
@@ -326,11 +327,11 @@ export class VenuesService {
   ): Promise<CompetitionEvent | null> {
     const { data, error } = await this.supabase.service
       .from('events')
-      .select('id, status, organization_id')
+      .select('id, status, organization_id, event_kind')
       .eq(column, ref)
       .maybeSingle();
     if (error) throw new Error(`event read failed: ${error.message}`);
-    const event = data as CompetitionEvent | null;
+    const event = data as (CompetitionEvent & { event_kind: string | null }) | null;
     const deps = { supabase: this.supabase, orgs: this.orgs };
     return event && (await canReadEvent(deps, event, reader)) ? event : null;
   }

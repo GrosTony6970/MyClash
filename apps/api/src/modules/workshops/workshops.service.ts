@@ -368,8 +368,9 @@ export class WorkshopsService {
 
   /**
    * The Event behind a public slug read, or null when the slug is unknown — and
-   * when the Event is a draft the caller may not see, so the route answers it as
-   * an unknown slug (rulings 81-83). A failed read is a 5xx, not "unknown".
+   * when the Event is a draft or test Event the caller may not see, so the route
+   * answers it as an unknown slug (rulings 81-83, 97). A failed read is a 5xx,
+   * not "unknown".
    */
   private async resolveEventBySlug(
     eventSlug: string,
@@ -377,7 +378,7 @@ export class WorkshopsService {
   ): Promise<{ id: string; timezone: string } | null> {
     const { data, error } = await this.supabase.service
       .from('events')
-      .select('id, timezone, status, organization_id')
+      .select('id, timezone, status, organization_id, event_kind')
       .eq('slug', eventSlug)
       .limit(1)
       .maybeSingle();
@@ -388,6 +389,7 @@ export class WorkshopsService {
       timezone: string | null;
       status: string;
       organization_id: string;
+      event_kind: string | null;
     };
     if (!(await canReadEvent({ supabase: this.supabase, orgs: this.orgs }, row, reader))) {
       return null;

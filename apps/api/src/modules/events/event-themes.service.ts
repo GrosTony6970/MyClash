@@ -10,6 +10,7 @@ interface EventRow {
   organization_id: string;
   logo_url: string | null;
   status: string;
+  event_kind: string | null;
 }
 
 const eventNotFound = (eventId: string) => new NotFoundException(`Event ${eventId} not found`);
@@ -30,7 +31,7 @@ export class EventThemesService {
     // theme response so existing clients keep seeing `logoUrl` at
     // the top level even after 0084 dropped themes.logo_url.
     const event = await this.getEvent(eventId);
-    // A draft Event's theme answers an outsider as an unknown Event's (rulings 81-83).
+    // A draft or test Event's theme answers an outsider as an unknown Event's (rulings 81-83, 97).
     const deps = { supabase: this.supabase, orgs: this.organizations };
     if (!(await canReadEvent(deps, event, reader))) {
       throw eventNotFound(eventId);
@@ -86,7 +87,7 @@ export class EventThemesService {
   private async getEvent(eventId: string): Promise<EventRow> {
     const { data, error } = await this.supabase.service
       .from('events')
-      .select('id, organization_id, logo_url, status')
+      .select('id, organization_id, logo_url, status, event_kind')
       .eq('id', eventId)
       .maybeSingle();
 

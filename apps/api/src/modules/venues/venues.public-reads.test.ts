@@ -232,7 +232,7 @@ describe.each(Object.keys(ROUTES))('%s (rulings 81-83, 96)', (name) => {
     const deciding =
       name === 'phaseVenues'
         ? 'status, events!inner(id, status, organization_id)'
-        : 'id, status, organization_id';
+        : 'id, status, organization_id, event_kind';
     expect(new Set(selectsFor(db.from, table))).toEqual(new Set([deciding]));
     expect(queriedTables(db.from)).not.toContain('organization_members');
     expect(queriedTables(db.from)).not.toContain('event_staff_accounts');

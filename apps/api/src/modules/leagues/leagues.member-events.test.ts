@@ -96,7 +96,7 @@ describe('GET leagues/:leagueId/member-events (ruling 88)', () => {
     await controller.listLeagueMemberEvents(PUBLIC);
     expect(selectsFor(db.from, 'leagues')).toEqual(['status, public_visibility']);
     expect(selectsFor(db.from, 'league_tournament_links')).toEqual([
-      'status, tournaments!inner(event_id, events(id, name, slug, start_date, end_date, status, organizations(id, name)))',
+      'status, tournaments!inner(event_id, events(id, name, slug, start_date, end_date, status, event_kind, organizations(id, name)))',
     ]);
   });
 

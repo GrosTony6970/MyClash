@@ -204,8 +204,8 @@ describe.each(Object.keys(ROUTES) as Array<keyof typeof ROUTES>)('%s (rulings 81
     await call('open');
     await call('draft');
     expect(selectsFor(db.from, 'events')).toEqual([
-      'id, timezone, status, organization_id',
-      'id, timezone, status, organization_id',
+      'id, timezone, status, organization_id, event_kind',
+      'id, timezone, status, organization_id, event_kind',
     ]);
     expect(queriedTables(db.from)).not.toContain('organization_members');
     expect(queriedTables(db.from)).not.toContain('event_staff_accounts');

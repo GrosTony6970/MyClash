@@ -274,7 +274,9 @@ describe('GET events/:eventId/theme (rulings 81-83)', () => {
 
   it("reads the Event's status with its logo, and a published Event costs no membership read", async () => {
     await theme(EVENT_OPEN, { user: 'u-stranger' });
-    expect(selectsFor(db.from, 'events')).toEqual(['id, organization_id, logo_url, status']);
+    expect(selectsFor(db.from, 'events')).toEqual([
+      'id, organization_id, logo_url, status, event_kind',
+    ]);
     expect(queriedTables(db.from)).toEqual(['events', 'themes']);
   });
 });

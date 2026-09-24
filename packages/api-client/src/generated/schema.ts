@@ -3317,7 +3317,7 @@ export interface paths {
       path?: never;
       cookie?: never;
     };
-    /** Public: the Events whose Tournaments have an approved link to a public league (a draft or private league answers []; draft Events are left out). */
+    /** Public: the Events whose Tournaments have an approved link to a public league (a draft or private league answers []; draft and test Events are left out). */
     get: operations['LeaguesController_listLeagueMemberEvents'];
     put?: never;
     post?: never;
@@ -6875,7 +6875,7 @@ export interface paths {
       path?: never;
       cookie?: never;
     };
-    /** Distinct venues used by this event's lices + workshop sessions (public; a draft Event answers an outsider as an unknown one). */
+    /** Distinct venues used by this event's lices + workshop sessions (public; a draft or test Event answers an outsider as an unknown one). */
     get: operations['VenuesController_listForEvent'];
     /** Reconcile the venues this event spreads on (org admin+). Adds links + seeds tournament lices; safe-removes (blocks venues with matches/sessions). */
     put: operations['VenuesController_setEventVenues'];
@@ -6928,7 +6928,7 @@ export interface paths {
       path?: never;
       cookie?: never;
     };
-    /** Public venues for an event by slug; a draft Event answers an outsider as an unknown slug. */
+    /** Public venues for an event by slug; a draft or test Event answers an outsider as an unknown slug. */
     get: operations['VenuesController_listForEventSlug'];
     put?: never;
     post?: never;

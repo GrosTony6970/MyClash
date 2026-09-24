@@ -1,14 +1,14 @@
 import { Injectable, Logger } from '@nestjs/common';
 import {
-  asEventKind,
   computeFinalRanking,
-  isPubliclyVisible,
   rankingBracketShape,
   type PoolEntry,
   type RankingSlot,
 } from '@myclash/types';
-import { PUBLIC_TOURNAMENT_STATUSES } from '../../common/auth/competition-visibility';
-import { HIDDEN_EVENT_STATUSES } from '../../common/auth/event-read-gate';
+import {
+  isPublicEvent,
+  PUBLIC_TOURNAMENT_STATUSES,
+} from '../../common/auth/competition-visibility';
 import { isFieldPublic } from '../fighters/public-visibility';
 import { SupabaseService } from '../supabase/supabase.service';
 import { PoolStandingsService, type StandingsRow } from '../pool-standings/pool-standings.service';
@@ -103,15 +103,6 @@ function one(value: unknown): Record<string, unknown> | null {
 function isPublicTournament(embed: Record<string, unknown> | null): boolean {
   const status = one(embed?.['tournaments'])?.['status'];
   return typeof status === 'string' && PUBLIC_TOURNAMENT_STATUSES.has(status);
-}
-
-/** An Event embed the public may see: not a draft, not a test Event (ruling 84). */
-function isPublicEvent(event: Record<string, unknown> | null): event is Record<string, unknown> {
-  return (
-    !!event &&
-    !HIDDEN_EVENT_STATUSES.has(String(event['status'] ?? '')) &&
-    isPubliclyVisible(asEventKind(event['event_kind']))
-  );
 }
 
 /** A read's rows. A failed read is a 5xx: read as "no rows", a person would look idle. */

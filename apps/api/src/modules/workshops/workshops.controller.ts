@@ -215,7 +215,7 @@ export class WorkshopsController {
     return this.workshops.getWorkshop(id, userId);
   }
 
-  // ── Public reads (slug-based, status-gated; a draft Event only for insiders) ──────
+  // ── Public reads (slug-based; a draft or test Event only for insiders) ──────
 
   @Public()
   @Get('events/:eventSlug/public-workshops')

@@ -180,7 +180,7 @@ export class VenuesController {
   @Get('events/:eventId/venues')
   @ApiOperation({
     summary:
-      "Distinct venues used by this event's lices + workshop sessions (public; a draft Event answers an outsider as an unknown one).",
+      "Distinct venues used by this event's lices + workshop sessions (public; a draft or test Event answers an outsider as an unknown one).",
   })
   @ApiParam({ name: 'eventId', type: 'string', format: 'uuid' })
   async listForEvent(@Param('eventId', ParseUUIDPipe) eventId: string, @Req() req: FastifyRequest) {
@@ -262,7 +262,7 @@ export class VenuesController {
   @Get('events/slug/:eventSlug/venues')
   @ApiOperation({
     summary:
-      'Public venues for an event by slug; a draft Event answers an outsider as an unknown slug.',
+      'Public venues for an event by slug; a draft or test Event answers an outsider as an unknown slug.',
   })
   @ApiParam({ name: 'eventSlug', type: 'string' })
   async listForEventSlug(@Param('eventSlug') eventSlug: string, @Req() req: FastifyRequest) {

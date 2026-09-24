@@ -271,7 +271,7 @@ export class EventsController {
     return this.events.deleteEvent(id, mode, userId);
   }
 
-  /** GET /api/v1/events/:eventId/theme — a draft Event's answers an outsider as an unknown one's. */
+  /** GET /api/v1/events/:eventId/theme — a draft or test Event's answers an outsider as an unknown one's. */
   @Public()
   @Get('events/:eventId/theme')
   @ApiOperation({ summary: 'Get event theme' })

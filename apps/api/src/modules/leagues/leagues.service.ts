@@ -9,7 +9,7 @@ import { asEventKind, countsTowardStats, escapeHtml, toCsvCell } from '@myclash/
 import { OrganizationsService } from '../organizations/organizations.service';
 import { SupabaseService } from '../supabase/supabase.service';
 import { hasPlatformTier } from '../../common/auth/platform-role';
-import { HIDDEN_EVENT_STATUSES } from '../../common/auth/event-read-gate';
+import { isPublicEvent } from '../../common/auth/competition-visibility';
 import {
   type LeagueRankingRow,
   type LeagueScoringConfig,
@@ -1288,7 +1288,7 @@ export class LeaguesService {
    * Public listing of every distinct event whose tournaments have an
    * approved link to the league, for the public league page. A league the
    * public pages do not show answers as an unknown one, with an empty list,
-   * and a draft Event is left out (ruling 88).
+   * and a draft or test Event is left out (rulings 88, 97).
    */
   async listLeagueMemberEvents(leagueId: string) {
     if (!(await this.isPublicLeagueId(leagueId))) return [];
@@ -1296,7 +1296,7 @@ export class LeaguesService {
     const { data, error } = await this.supabase.service
       .from('league_tournament_links')
       .select(
-        'status, tournaments!inner(event_id, events(id, name, slug, start_date, end_date, status, organizations(id, name)))',
+        'status, tournaments!inner(event_id, events(id, name, slug, start_date, end_date, status, event_kind, organizations(id, name)))',
       )
       .eq('league_id', leagueId)
       .eq('status', 'approved');
@@ -1316,7 +1316,8 @@ export class LeaguesService {
     for (const row of (data ?? []) as Row[]) {
       const tournament = row['tournaments'] as Row | null;
       const event = tournament ? ((tournament['events'] as Row | null) ?? null) : null;
-      if (!event || HIDDEN_EVENT_STATUSES.has(String(event['status']))) continue;
+      // A draft or test Event is not on the public pages (rulings 88, 97).
+      if (!isPublicEvent(event)) continue;
       const eventId = String(event['id']);
       if (byEventId.has(eventId)) continue;
       const org = (event['organizations'] as Row | null) ?? null;

@@ -2,8 +2,9 @@
  * Who may see a Tournament's public contents: its bouts, scores, standings and
  * stats (operator rulings 81-83, 89).
  *
- * Hidden: a DRAFT Event, or a Tournament that is not published, running or
- * completed — the rule the public slug pages already apply
+ * Hidden: a DRAFT Event (for `canReadEvent`, a TEST Event too: ruling 97), or
+ * a Tournament that is not published, running or completed — the rule the
+ * public slug pages already apply
  * (`events.service.ts`, `getPublicTournamentStandings`). A hidden one is still
  * seen by any member of the Event's club and by an ACTIVE staff session of the
  * same Event: a scoring tablet on a test day before the Event is announced is
@@ -15,6 +16,7 @@
  * its wording (ruling 83) — so the difference cannot reveal a draft.
  */
 import { ForbiddenException } from '@nestjs/common';
+import { asEventKind, isPubliclyVisible } from '@myclash/types';
 import type { FastifyRequest } from 'fastify';
 import { type EventAuthzDeps } from './event-authz';
 import { HIDDEN_EVENT_STATUSES } from './event-read-gate';
@@ -127,13 +129,33 @@ async function isActiveStaff(
   return (data as { status?: string } | null)?.status === 'active';
 }
 
-/** May the caller see this Event's public contents? A DRAFT one only an insider may. */
+/**
+ * May the caller see this Event's public contents? A DRAFT one, or a TEST one
+ * (`event_kind`, ruling 97), only an insider may: the public Event page answers
+ * a test Event as an unknown one.
+ */
 export async function canReadEvent(
   deps: EventAuthzDeps,
-  event: Pick<CompetitionEvent, 'id' | 'status' | 'organization_id'>,
+  event: Pick<CompetitionEvent, 'id' | 'status' | 'organization_id'> & {
+    event_kind: string | null;
+  },
   reader: PublicReader,
 ): Promise<boolean> {
-  return !HIDDEN_EVENT_STATUSES.has(event.status) || isInsider(deps, event, reader);
+  return isPublicEvent(event) || isInsider(deps, event, reader);
+}
+
+/**
+ * Is this Event on the public pages: not a draft, not a test Event (rulings 81,
+ * 97)? The one owner, for a typed row and for a PostgREST embed alike.
+ */
+export function isPublicEvent<E extends { status?: unknown; event_kind?: unknown }>(
+  event: E | null | undefined,
+): event is E {
+  return (
+    !!event &&
+    !HIDDEN_EVENT_STATUSES.has(String(event.status ?? '')) &&
+    isPubliclyVisible(asEventKind(event.event_kind))
+  );
 }
 
 /**
