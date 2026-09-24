@@ -22,6 +22,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
+import { assertPlatformTier } from '../../common/auth/platform-role';
 import { OrganizationsService } from '../organizations/organizations.service';
 import { SupabaseService } from '../supabase/supabase.service';
 
@@ -56,9 +57,9 @@ export interface CreateRefereeSkillDto {
 export interface UpdateRefereeSkillDto {
   name?: string;
   color?: string;
-  /** R4: editable on system skills (rename/colour still blocked). */
+  /** On a system skill, a platform admin only (ruling 104). */
   description?: string;
-  /** R4: editable on system skills (used by drag-reorder). */
+  /** On a system skill, a platform admin only (ruling 104). */
   sortOrder?: number;
 }
 
@@ -348,14 +349,9 @@ export class QualificationsService {
   }
 
   /**
-   * Edit a skill. System skills are partially editable in R4:
-   *   - description: allowed on both system + custom
-   *   - sortOrder:   allowed on both (drag-reorder works on system skills too)
-   *   - name, color: still blocked on system skills (existing invariant)
-   *
-   * Auth: system skills don't carry an event_id, so we require platform
-   * super-admin gating for system-only writes. Custom skills require
-   * org-admin on the owning event (existing behaviour).
+   * Edit a skill. A system (built-in) skill keeps its name and colour; its
+   * description and sort order are edited by a platform admin only (ruling
+   * 104). A custom skill is edited by an admin of its Event's club.
    */
   async updateCustomSkill(
     skillId: string,
@@ -374,19 +370,12 @@ export class QualificationsService {
     const row = existing as Record<string, unknown>;
     const isSystem = row['is_system'] === true;
 
-    // R4: system skills still block rename/recolour, but description +
-    // sortOrder are user-editable across the catalog (incl. drag-reorder).
+    // A built-in skill is never renamed or recoloured, even by the platform.
     if (isSystem && (dto.name !== undefined || dto.color !== undefined)) {
       throw new ForbiddenException('System skills cannot be renamed or recoloured');
     }
 
-    // Auth: custom skills need org-admin on their event; system skills
-    // (no event_id) gate through any event the caller is admin on (R4
-    // exposes them via org-scoped UI, never as global edits).
-    if (!isSystem) {
-      const event = await this.getEvent(row['event_id'] as string);
-      await this.organizations.assertOrgRole(event.organization_id, userId, 'admin');
-    }
+    await this.assertCanEditSkill(row, userId);
 
     const updates: {
       name?: string;
@@ -414,20 +403,48 @@ export class QualificationsService {
   }
 
   /**
-   * R4: bulk drag-reorder. Accepts a list of skill IDs in their new
-   * order; rewrites each skill's `sort_order` to its index. Operates
-   * across both system + custom skills since the drag-reorder UI shows
-   * them in one table.
-   *
-   * Org-admin gated on the event the IDs belong to. We pick the first
-   * non-system skill in the input to establish the event for auth — if
-   * the input is system-only, we accept the request (rare; super-admin
-   * UI calling this is not a v1 expectation).
+   * A built-in skill is shared by every club, so only a platform admin edits
+   * it (operator ruling 104); a custom skill, an admin of its Event's club.
+   */
+  private async assertCanEditSkill(row: Record<string, unknown>, userId: string): Promise<void> {
+    if (row['is_system'] === true) {
+      await assertPlatformTier(
+        this.supabase,
+        userId,
+        'platform_admin',
+        'Only a platform admin edits a built-in skill',
+      );
+      return;
+    }
+    const event = await this.getEvent(row['event_id'] as string);
+    await this.organizations.assertOrgRole(event.organization_id, userId, 'admin');
+  }
+
+  /**
+   * Drag-reorder of an Event's catalogue: each id's `sort_order` becomes its
+   * index. There is no per-Event order — this writes the skill rows
+   * themselves — so it moves only this Event's own custom skills (ruling
+   * 104b). A built-in skill is shared by every club and keeps the platform's
+   * order; any other id refuses the whole list before anything is written.
    */
   async reorderSkills(eventId: string, orderedSkillIds: string[], userId: string): Promise<void> {
     if (orderedSkillIds.length === 0) return;
     const event = await this.getEvent(eventId);
     await this.organizations.assertOrgRole(event.organization_id, userId, 'admin');
+
+    const { data: rows, error: readError } = await this.supabase.service
+      .from('referee_skills')
+      .select('id, event_id')
+      .in('id', orderedSkillIds);
+    if (readError) throw new Error(`referee skills read failed: ${readError.message}`);
+    const own = new Set(
+      ((rows ?? []) as { id: string; event_id: string | null }[])
+        .filter((skill) => skill.event_id === eventId)
+        .map((skill) => skill.id),
+    );
+    if (!orderedSkillIds.every((id) => own.has(id))) {
+      throw new BadRequestException("Only this Event's own skills can be reordered");
+    }
 
     // Persist each new sort_order in sequence. Single-row updates keep
     // the change small + each write is independent; in practice the

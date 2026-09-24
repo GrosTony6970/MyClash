@@ -495,7 +495,8 @@ describe('QualificationsService — skills catalog', () => {
       );
     });
 
-    it('allows editing description + sortOrder on system skills (rename/recolour still blocked)', async () => {
+    // Who may edit a system skill's description: skill-catalogue.access.test.ts (ruling 104).
+    it('still refuses to rename a system skill', async () => {
       const systemSkillRow = {
         id: 'arbitre_declarant',
         event_id: null,
@@ -508,25 +509,6 @@ describe('QualificationsService — skills catalog', () => {
         updated_at: '2024-01-01T00:00:00Z',
       };
 
-      const fetchChain = makeChain({ data: systemSkillRow, error: null });
-      fetchChain.maybeSingle.mockResolvedValue({ data: systemSkillRow, error: null });
-
-      const updatedRow = { ...systemSkillRow, description: 'Lead ref', sort_order: 2 };
-      const updateChain = makeChain({ data: updatedRow, error: null });
-      updateChain.single.mockResolvedValue({ data: updatedRow, error: null });
-
-      fromMock.mockReturnValueOnce(fetchChain).mockReturnValueOnce(updateChain);
-
-      const result = await service.updateCustomSkill(
-        'arbitre_declarant',
-        { description: 'Lead ref', sortOrder: 2 },
-        'user-id-1',
-      );
-
-      expect(result.description).toBe('Lead ref');
-      expect(result.sortOrder).toBe(2);
-
-      // Renaming a system skill must still throw.
       fromMock.mockReturnValueOnce(makeChain({ data: systemSkillRow, error: null }));
       await expect(
         service.updateCustomSkill('arbitre_declarant', { name: 'New Name' }, 'user-id-1'),
@@ -534,43 +516,7 @@ describe('QualificationsService — skills catalog', () => {
     });
   });
 
-  describe('reorderSkills (R4)', () => {
-    it('writes sort_order = index for each id in the input order', async () => {
-      const eventRow = { id: 'event-1', organization_id: 'org-1' };
-      const eventChain = makeChain({ data: eventRow, error: null });
-      eventChain.maybeSingle.mockResolvedValue({ data: eventRow, error: null });
-
-      // 3 ordered skills → 3 sequential UPDATE chains. Each .eq(...) resolves
-      // as a promise (Supabase's `update().eq()` shape).
-      const updateChains = [0, 1, 2].map(() => {
-        const c = makeChain({ data: null, error: null });
-        (c.eq as ReturnType<typeof vi.fn>).mockResolvedValue({ data: null, error: null });
-        return c;
-      });
-
-      fromMock
-        .mockReturnValueOnce(eventChain)
-        .mockReturnValueOnce(updateChains[0]!)
-        .mockReturnValueOnce(updateChains[1]!)
-        .mockReturnValueOnce(updateChains[2]!);
-
-      await service.reorderSkills(
-        'event-1',
-        ['arbitre_table', 'arbitre_declarant', 'custom-xxxx-yy1111'],
-        'user-id-1',
-      );
-
-      expect(updateChains[0]!.update).toHaveBeenCalledWith(
-        expect.objectContaining({ sort_order: 0 }),
-      );
-      expect(updateChains[1]!.update).toHaveBeenCalledWith(
-        expect.objectContaining({ sort_order: 1 }),
-      );
-      expect(updateChains[2]!.update).toHaveBeenCalledWith(
-        expect.objectContaining({ sort_order: 2 }),
-      );
-    });
-  });
+  // reorderSkills: skill-catalogue.access.test.ts (ruling 104b).
 
   // ── upsert (role validation) ──────────────────────────────────────────────────
 

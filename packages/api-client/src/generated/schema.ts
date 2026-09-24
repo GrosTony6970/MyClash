@@ -3943,7 +3943,7 @@ export interface paths {
     delete: operations['QualificationsController_deleteSkill'];
     options?: never;
     head?: never;
-    /** Update a skill (organizer+; system skills allow description/sortOrder only) */
+    /** Update a skill (custom: org admin+; system: platform admin, description/sortOrder only) */
     patch: operations['QualificationsController_updateSkill'];
     trace?: never;
   };

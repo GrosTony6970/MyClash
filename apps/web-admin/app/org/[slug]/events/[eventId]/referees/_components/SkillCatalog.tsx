@@ -29,6 +29,7 @@ import {
   SkillBadge,
   tintBgClassFor,
 } from '@myclash/ui';
+import { reorderOwnSkills } from './reorder-own-skills';
 
 export interface RefereeSkill {
   id: string;
@@ -63,8 +64,8 @@ interface Props {
   onRemoveQualification: (personId: string, skillId: string) => void;
   /**
    * R5: drag-reorder. Caller persists via
-   * `PATCH /api/v1/events/:eventId/referee-skills/reorder`. Receives
-   * the full ordered list of skill IDs (the order shown after the drop).
+   * `PATCH /api/v1/events/:eventId/referee-skills/reorder`. Receives this
+   * Event's custom skill IDs in their new order; built-ins never move.
    */
   onReorder?: (orderedSkillIds: string[]) => void | Promise<void>;
   /**
@@ -101,26 +102,14 @@ export function SkillCatalog({
   function handleDragStart(skillId: string) {
     setDragId(skillId);
   }
-  function handleDragOver(e: React.DragEvent) {
-    if (dragId !== null) e.preventDefault();
+  function handleDragOver(e: React.DragEvent, skill: RefereeSkill) {
+    // A built-in row is no drop target: it keeps the platform's order.
+    if (dragId !== null && !skill.isSystem) e.preventDefault();
   }
   function handleDrop(targetId: string) {
-    if (!dragId || dragId === targetId || !onReorder) {
-      setDragId(null);
-      return;
-    }
-    const ids = skills.map((s) => s.id);
-    const from = ids.indexOf(dragId);
-    const to = ids.indexOf(targetId);
-    if (from < 0 || to < 0) {
-      setDragId(null);
-      return;
-    }
-    const next = [...ids];
-    next.splice(from, 1);
-    next.splice(to, 0, dragId);
+    const next = dragId && onReorder ? reorderOwnSkills(skills, dragId, targetId) : null;
     setDragId(null);
-    void onReorder(next);
+    if (next && onReorder) void onReorder(next);
   }
 
   /**
@@ -172,24 +161,28 @@ export function SkillCatalog({
                 skill.isHidden ? 'bg-background text-muted' : '',
               ].join(' ')}
               onClick={() => setDrillSkillId(skill.id)}
-              onDragOver={handleDragOver}
+              onDragOver={(e) => handleDragOver(e, skill)}
               onDrop={(e) => {
                 e.preventDefault();
                 handleDrop(skill.id);
               }}
             >
-              {onReorder && (
-                <DataTableCell
-                  className="text-center text-muted cursor-grab active:cursor-grabbing select-none"
-                  draggable={!isReadOnly}
-                  onDragStart={() => handleDragStart(skill.id)}
-                  onDragEnd={() => setDragId(null)}
-                  onClick={(e) => e.stopPropagation()}
-                  title={t('organizer.refereesPage.catalogDragHandle')}
-                >
-                  ⋮⋮
-                </DataTableCell>
-              )}
+              {onReorder &&
+                (skill.isSystem ? (
+                  // A built-in keeps the platform's order (ruling 104b).
+                  <DataTableCell />
+                ) : (
+                  <DataTableCell
+                    className="text-center text-muted cursor-grab active:cursor-grabbing select-none"
+                    draggable={!isReadOnly}
+                    onDragStart={() => handleDragStart(skill.id)}
+                    onDragEnd={() => setDragId(null)}
+                    onClick={(e) => e.stopPropagation()}
+                    title={t('organizer.refereesPage.catalogDragHandle')}
+                  >
+                    ⋮⋮
+                  </DataTableCell>
+                ))}
               <DataTableCell>
                 <span
                   className={[

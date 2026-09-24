@@ -52,9 +52,9 @@ const updateRefereeSkillSchema = z
   .object({
     name: z.string().min(1).max(60).optional(),
     color: z.string().max(32).optional(),
-    /** R4: editable on system skills. */
+    /** On a system skill, a platform admin only (ruling 104). */
     description: z.string().max(500).optional(),
-    /** R4: editable on system skills (drag-reorder support). */
+    /** On a system skill, a platform admin only (ruling 104). */
     sortOrder: z.number().int().min(0).optional(),
   })
   .strict();
@@ -187,7 +187,8 @@ export class QualificationsController {
   @Patch('referee-skills/:skillId')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
-    summary: 'Update a skill (organizer+; system skills allow description/sortOrder only)',
+    summary:
+      'Update a skill (custom: org admin+; system: platform admin, description/sortOrder only)',
   })
   @ApiParam({ name: 'skillId', type: 'string' })
   async updateSkill(
@@ -199,7 +200,7 @@ export class QualificationsController {
     return this.qualifications.updateCustomSkill(skillId, dto, userId);
   }
 
-  /** R4: bulk drag-reorder. Re-writes every skill's sort_order. */
+  /** Drag-reorder of this Event's own custom skills only (ruling 104b). */
   @Patch('events/:eventId/referee-skills/reorder')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({

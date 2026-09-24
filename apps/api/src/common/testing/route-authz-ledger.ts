@@ -24,15 +24,11 @@
  */
 export const UNDECIDED: Readonly<Record<string, string>> = {
   // FALSE_PASSES, below.
-  'modules/referees/qualifications.controller.ts#QualificationsController.updateSkill':
-    'write: the global skill catalogue',
   'modules/auth/me.controller.ts#MeController.searchGlobalPersons':
     "read: other people's unclaimed profiles",
 };
 
 export const FALSE_PASSES: Readonly<Record<string, string>> = {
-  'modules/referees/qualifications.controller.ts#QualificationsController.updateSkill':
-    'the org check runs for custom skills only; a system skill checks nobody',
   'modules/auth/me.controller.ts#MeController.searchGlobalPersons':
     "passes as a `me` route, but reads other people's rows",
 };
