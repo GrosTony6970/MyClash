@@ -2,8 +2,8 @@
  * Who may see a Tournament's public contents: its bouts, scores, standings and
  * stats (operator rulings 81-83, 89).
  *
- * Hidden: a DRAFT Event (for `canReadEvent`, a TEST Event too: ruling 97), or
- * a Tournament that is not published, running or completed — the rule the
+ * Hidden: a DRAFT or TEST Event (`isPublicEvent`, rulings 97, 101), or a
+ * Tournament that is not published, running or completed — the rule the
  * public slug pages already apply
  * (`events.service.ts`, `getPublicTournamentStandings`). A hidden one is still
  * seen by any member of the Event's club and by an ACTIVE staff session of the
@@ -16,10 +16,9 @@
  * its wording (ruling 83) — so the difference cannot reveal a draft.
  */
 import { ForbiddenException } from '@nestjs/common';
-import { asEventKind, isPubliclyVisible } from '@myclash/types';
 import type { FastifyRequest } from 'fastify';
 import { type EventAuthzDeps } from './event-authz';
-import { HIDDEN_EVENT_STATUSES } from './event-read-gate';
+import { isPublicEvent } from './event-read-gate';
 import { getIdentity, getStaffSession, type StaffSession } from './identity';
 import { ANONYMOUS_USER_ID } from './request-user';
 
@@ -50,6 +49,8 @@ export interface CompetitionEvent {
   id: string;
   status: string;
   organization_id: string;
+  /** Required: a read without it counts as a standard Event (fail-visible). */
+  event_kind: string | null;
 }
 
 export interface CompetitionRow {
@@ -59,21 +60,21 @@ export interface CompetitionRow {
 
 /** Is anything here hidden from the public: the Event, or one of these Tournaments? */
 export function hidesFromPublic(
-  eventStatus: string,
+  event: Pick<CompetitionEvent, 'status' | 'event_kind'>,
   tournamentStatuses: readonly string[],
 ): boolean {
   return (
-    HIDDEN_EVENT_STATUSES.has(eventStatus) ||
+    !isPublicEvent(event) ||
     tournamentStatuses.some((status) => !PUBLIC_TOURNAMENT_STATUSES.has(status))
   );
 }
 
 export function isHiddenCompetition(row: CompetitionRow): boolean {
-  return hidesFromPublic(row.event.status, [row.tournamentStatus]);
+  return hidesFromPublic(row.event, [row.tournamentStatus]);
 }
 
 /**
- * Does the Event hide anything from the public: is it a DRAFT, or is one of its
+ * Does the Event hide anything from the public: is it a DRAFT or TEST Event, or is one of its
  * Tournaments not public? Ask it for an insider only. web-public's live channel
  * is anonymous and RLS keeps those rows off it, so an insider's screen polls
  * instead (ruling 92). It asks the Event, not the bouts on screen: a hidden
@@ -81,9 +82,9 @@ export function isHiddenCompetition(row: CompetitionRow): boolean {
  */
 export async function eventHidesFromPublic(
   deps: Pick<EventAuthzDeps, 'supabase'>,
-  event: Pick<CompetitionEvent, 'id' | 'status'>,
+  event: Pick<CompetitionEvent, 'id' | 'status' | 'event_kind'>,
 ): Promise<boolean> {
-  if (HIDDEN_EVENT_STATUSES.has(event.status)) return true;
+  if (!isPublicEvent(event)) return true;
   const { data, error } = await deps.supabase.service
     .from('tournaments')
     .select('status')
@@ -91,7 +92,7 @@ export async function eventHidesFromPublic(
   // A 5xx, not a 400 carrying the database's own words.
   if (error) throw new Error(`tournament status read failed: ${error.message}`);
   const statuses = ((data ?? []) as Array<{ status: string }>).map((row) => row.status);
-  return hidesFromPublic(event.status, statuses);
+  return hidesFromPublic(event, statuses);
 }
 
 /** A member of the Event's club, any role, or an active staff session of the Event. */
@@ -130,32 +131,16 @@ async function isActiveStaff(
 }
 
 /**
- * May the caller see this Event's public contents? A DRAFT one, or a TEST one
- * (`event_kind`, ruling 97), only an insider may: the public Event page answers
- * a test Event as an unknown one.
+ * May the caller see this Event's public contents? A DRAFT or TEST one only an
+ * insider may (rulings 97, 101): the public Event page answers a test Event as
+ * an unknown one.
  */
 export async function canReadEvent(
   deps: EventAuthzDeps,
-  event: Pick<CompetitionEvent, 'id' | 'status' | 'organization_id'> & {
-    event_kind: string | null;
-  },
+  event: CompetitionEvent,
   reader: PublicReader,
 ): Promise<boolean> {
   return isPublicEvent(event) || isInsider(deps, event, reader);
-}
-
-/**
- * Is this Event on the public pages: not a draft, not a test Event (rulings 81,
- * 97)? The one owner, for a typed row and for a PostgREST embed alike.
- */
-export function isPublicEvent<E extends { status?: unknown; event_kind?: unknown }>(
-  event: E | null | undefined,
-): event is E {
-  return (
-    !!event &&
-    !HIDDEN_EVENT_STATUSES.has(String(event.status ?? '')) &&
-    isPubliclyVisible(asEventKind(event.event_kind))
-  );
 }
 
 /**
@@ -170,7 +155,7 @@ export async function canReadTournament(
 ): Promise<boolean> {
   const { data, error } = await deps.supabase.service
     .from('tournaments')
-    .select('status, events!inner(id, status, organization_id)')
+    .select('status, events!inner(id, status, organization_id, event_kind)')
     .eq('id', tournamentId)
     .maybeSingle();
   // A 5xx: a failed read is not "unknown", and not the database's words in a 400.
@@ -184,7 +169,7 @@ export async function canReadTournament(
 
 /** The embed that reaches a bout's Tournament status and Event from `matches`. */
 export const MATCH_COMPETITION_SELECT =
-  'phases!inner(tournaments!inner(status, events!inner(id, status, organization_id)))';
+  'phases!inner(tournaments!inner(status, events!inner(id, status, organization_id, event_kind)))';
 
 export interface MatchCompetitionEmbed {
   phases?: { tournaments?: { status: string; events: CompetitionEvent } };

@@ -303,7 +303,7 @@ describe.each(Object.keys(ROUTES) as Array<keyof typeof ROUTES>)('%s (rulings 81
     await call(DRAFT);
     await call(IN_DRAFT_EVENT);
     expect(selectsFor(db.from, 'tournaments')).toContain(
-      'status, events!inner(id, status, organization_id)',
+      'status, events!inner(id, status, organization_id, event_kind)',
     );
     expect(queriedTables(db.from)).not.toContain('organization_members');
     expect(queriedTables(db.from)).not.toContain('event_staff_accounts');

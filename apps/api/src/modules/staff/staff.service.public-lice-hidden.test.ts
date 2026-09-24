@@ -69,6 +69,29 @@ describe('the public piste board hides what is not public (rulings 81-83, 89)', 
     }
   });
 
+  it("answers a TEST Event's piste to a projector as an unknown slug, not to a member (ruling 101)", async () => {
+    const testEvent = () =>
+      build([bout('match-here', 'running', '2026-08-08T09:00:00Z', 'running')], DEFAULT_LICES, [
+        eventRow(OTHER_EVENT),
+        { ...eventRow(EVENT), event_kind: 'test' },
+      ]);
+    const unknown = await refusal(
+      testEvent().service.getPublicLiceCurrent('slug-nowhere', 'Piste 1', ANON),
+    );
+    const { service, supabase } = testEvent();
+    expect(await refusal(service.getPublicLiceCurrent(`slug-${EVENT}`, 'Piste 1', ANON))).toEqual(
+      unknown,
+    );
+    // The kind must be READ: a row without it counts as a standard Event.
+    expect(selectsFor(supabase.from, 'events')[0]).toContain('event_kind');
+    const member = (await testEvent().service.getPublicLiceCurrent(
+      `slug-${EVENT}`,
+      'Piste 1',
+      MEMBER,
+    )) as LiceCurrent;
+    expect(member.current?.id).toBe('match-here');
+  });
+
   it('leaves a bout of an unpublished Tournament off the board for a projector', async () => {
     const matches = [
       bout('match-draft-t', 'running', '2026-08-08T09:00:00Z', 'draft'),

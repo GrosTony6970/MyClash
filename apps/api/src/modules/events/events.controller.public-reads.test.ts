@@ -213,7 +213,7 @@ describe('GET tournaments/:id/match-config (rulings 81-83, 95)', () => {
     await config(RUNNING);
     expect(queriedTables(db.from)).toEqual(['tournaments']);
     expect(selectsFor(db.from, 'tournaments')).toEqual([
-      'ruleset_code, ruleset_config, scoring_config_json, lock_config_json, status, events!inner(id, status, organization_id)',
+      'ruleset_code, ruleset_config, scoring_config_json, lock_config_json, status, events!inner(id, status, organization_id, event_kind)',
     ]);
   });
 

@@ -32,7 +32,7 @@ import {
   seesHiddenOnLice,
   type PublicReader,
 } from '../../common/auth/competition-visibility';
-import { HIDDEN_EVENT_STATUSES } from '../../common/auth/event-read-gate';
+import { isPublicEvent } from '../../common/auth/event-read-gate';
 import { OrganizationsService } from '../organizations/organizations.service';
 import { PhasesService } from '../phases/phases.service';
 import { SupabaseService } from '../supabase/supabase.service';
@@ -97,6 +97,8 @@ type EventRow = {
   slug: string;
   name: string;
   status: string;
+  /** Read by the public piste screen: a test Event is hidden like a draft (ruling 101). */
+  event_kind: string | null;
   /** Day 0 of the programme — the basis for which block is running now. */
   start_date: string | null;
   end_date: string;
@@ -940,10 +942,10 @@ export class StaffService {
    */
   async getPublicLiceCurrent(eventSlug: string, liceName: string, reader: PublicReader) {
     const event = await this.findEventBySlug(eventSlug);
-    // A draft Event answers as an unknown slug, and a bout the caller may not see
-    // is left off the board (rulings 82, 83, 89): a projector with no login is dark.
+    // A draft or test Event answers as an unknown slug, and a bout the caller may not
+    // see is left off the board (rulings 82, 83, 89, 101): a projector with no login is dark.
     const insider = await isInsider({ supabase: this.supabase, orgs: this.orgs }, event, reader);
-    if (HIDDEN_EVENT_STATUSES.has(event.status) && !insider) {
+    if (!isPublicEvent(event) && !insider) {
       throw new NotFoundException('Event not found');
     }
     const { data, error } = await this.supabase.service
@@ -1496,7 +1498,7 @@ export class StaffService {
   private async findEventBySlug(slug: string): Promise<EventRow> {
     const { data, error } = await this.supabase.service
       .from('events')
-      .select('id,organization_id,slug,name,status,start_date,end_date')
+      .select('id,organization_id,slug,name,status,event_kind,start_date,end_date')
       .eq('slug', slug)
       .maybeSingle();
     if (error) throw new BadRequestException(error.message);

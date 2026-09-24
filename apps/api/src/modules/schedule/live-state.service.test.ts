@@ -174,17 +174,30 @@ describe('LiveStateService — a refused read is not an empty one', () => {
    * still being built published its live board to anyone with the id.
    */
   describe('unannounced events', () => {
-    function withStatus(status: string) {
+    function withStatus(status: string, eventKind = 'standard') {
       tables['events'] = {
         data: {
           id: EVENT_ID,
           start_date: new Date().toISOString(),
           status,
           organization_id: 'org-1',
+          event_kind: eventKind,
         },
         error: null,
       };
     }
+
+    it("answers a stranger's read of a TEST event exactly as an unknown id (ruling 101)", async () => {
+      withStatus('published', 'test');
+      const hidden = await service().getLiveState(EVENT_ID, NO_ONE);
+      // The kind must be READ: a row without it counts as a standard Event.
+      const at = fromMock.mock.calls.findIndex(([table]) => table === 'events');
+      const read = fromMock.mock.results[at]?.value as { select: ReturnType<typeof vi.fn> };
+      expect(String(read.select.mock.calls[0]?.[0])).toContain('event_kind');
+
+      tables['events'] = { data: null, error: null };
+      expect(hidden).toEqual(await service().getLiveState(UNKNOWN_ID, NO_ONE));
+    });
 
     it("answers a stranger's read of a draft event exactly as an unknown id", async () => {
       withStatus('draft');

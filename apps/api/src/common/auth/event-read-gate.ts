@@ -4,6 +4,7 @@
  * `event-authz.ts`, which keeps the write-side role checks.
  */
 import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
+import { asEventKind, isPubliclyVisible } from '@myclash/types';
 import type { EventAuthzDeps } from './event-authz';
 import { ANONYMOUS_USER_ID } from './request-user';
 
@@ -19,11 +20,28 @@ import { ANONYMOUS_USER_ID } from './request-user';
  * `status` defaults to 'draft' (events.service.ts:563), so an event is org-only
  * from creation until it is published, which is the whole point.
  */
-export const HIDDEN_EVENT_STATUSES = new Set(['draft']);
+const HIDDEN_EVENT_STATUSES = new Set(['draft']);
+
+/**
+ * Is this Event on the public pages: not a draft, and not a TEST Event
+ * (`event_kind`, rulings 97, 101)? The one owner, for a typed row and for a
+ * PostgREST embed alike. A row read without `event_kind` counts as a standard
+ * Event (`asEventKind` is fail-visible), so every reader must select it.
+ */
+export function isPublicEvent(
+  event: { status?: unknown; event_kind?: unknown } | null | undefined,
+): boolean {
+  return (
+    !!event &&
+    !HIDDEN_EVENT_STATUSES.has(String(event.status ?? '')) &&
+    isPubliclyVisible(asEventKind(event.event_kind))
+  );
+}
 
 export interface EventVisibilityRow {
   status: string;
   organization_id: string;
+  event_kind: string | null;
 }
 
 /**
@@ -64,7 +82,7 @@ export async function assertCanReadEventRow(
   resolveUserId: () => Promise<string>,
 ): Promise<void> {
   if (!row) return;
-  if (!HIDDEN_EVENT_STATUSES.has(row.status)) return;
+  if (isPublicEvent(row)) return;
 
   const userId = await resolveUserId();
   if (userId === ANONYMOUS_USER_ID) hidden(ref);
@@ -96,7 +114,7 @@ export async function assertCanReadPhase(
 ): Promise<void> {
   const { data, error } = await deps.supabase.service
     .from('phases')
-    .select('tournaments!inner(events!inner(status, organization_id))')
+    .select('tournaments!inner(events!inner(status, organization_id, event_kind))')
     .eq('id', phaseId)
     .maybeSingle();
   if (error) throw new BadRequestException(error.message);
@@ -113,7 +131,7 @@ export async function assertCanReadEvent(
 ): Promise<void> {
   const { data, error } = await deps.supabase.service
     .from('events')
-    .select('status, organization_id')
+    .select('status, organization_id, event_kind')
     .eq('id', eventId)
     .maybeSingle();
   if (error) throw new BadRequestException(error.message);

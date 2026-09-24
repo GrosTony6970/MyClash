@@ -178,7 +178,7 @@ describe('public generated content: a Tournament recap (rulings 81-83)', () => {
   it('reads the deciding columns, and a signed-out read costs no membership read', async () => {
     await read('tournament_recap', T_DRAFT);
     expect(selectsFor(db.from, 'tournaments')).toEqual([
-      'status, events!inner(id, status, organization_id)',
+      'status, events!inner(id, status, organization_id, event_kind)',
     ]);
     expect(queriedTables(db.from)).not.toContain('organization_members');
   });

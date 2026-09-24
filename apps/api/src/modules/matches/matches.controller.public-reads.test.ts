@@ -232,7 +232,7 @@ describe.each(Object.keys(ROUTES) as Array<keyof typeof ROUTES>)('%s (rulings 81
     await call(IN_DRAFT_EVENT, { user: 'u-member' });
     // The double hands back the whole row whatever is selected.
     expect(selectsFor(db.from, 'matches')).toContain(
-      'phases!inner(tournaments!inner(status, events!inner(id, status, organization_id)))',
+      'phases!inner(tournaments!inner(status, events!inner(id, status, organization_id, event_kind)))',
     );
     expect(selectsFor(db.from, 'event_staff_accounts')).toEqual(['status']);
     expect(selectsFor(db.from, 'organization_members')).toEqual(['role']);

@@ -14,7 +14,7 @@ import {
 } from './tournament-config';
 
 const MATCH_CONFIG_SELECT =
-  'ruleset_code, ruleset_config, scoring_config_json, lock_config_json, status, events!inner(id, status, organization_id)';
+  'ruleset_code, ruleset_config, scoring_config_json, lock_config_json, status, events!inner(id, status, organization_id, event_kind)';
 
 interface MatchConfigRow {
   ruleset_code: string;

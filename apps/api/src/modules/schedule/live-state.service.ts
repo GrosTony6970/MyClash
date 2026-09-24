@@ -11,7 +11,7 @@ import {
   onlyPublicTournaments,
   type PublicReader,
 } from '../../common/auth/competition-visibility';
-import { HIDDEN_EVENT_STATUSES } from '../../common/auth/event-read-gate';
+import { isPublicEvent } from '../../common/auth/event-read-gate';
 import { dayIndexFor, selectProgrammeBlocks, toHHMM } from './select-programme-block';
 
 type ProgrammePhase = 'pool' | 'swiss' | 'bracket' | 'finals';
@@ -126,7 +126,7 @@ export class LiveStateService {
         // `status` and `organization_id` ride along on a read this method
         // already had to do, so gating the board costs no extra round-trip on
         // a route every hall display polls continuously.
-        .select('start_date, timezone, status, organization_id')
+        .select('start_date, timezone, status, organization_id, event_kind')
         .eq('id', eventId)
         .maybeSingle(),
       this.supabase.service
@@ -148,7 +148,7 @@ export class LiveStateService {
         { id: eventId, organization_id: organizationId },
         reader,
       ));
-    if (!eventRow || (HIDDEN_EVENT_STATUSES.has(String(eventRow['status'])) && !insider)) {
+    if (!eventRow || (!isPublicEvent(eventRow) && !insider)) {
       return unknownBoard(eventIdOrSlug);
     }
     const dayIndex = dayIndexFor(eventRow?.['start_date'] as string | null, now.getTime());

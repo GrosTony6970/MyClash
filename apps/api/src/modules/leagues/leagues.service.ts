@@ -9,7 +9,7 @@ import { asEventKind, countsTowardStats, escapeHtml, toCsvCell } from '@myclash/
 import { OrganizationsService } from '../organizations/organizations.service';
 import { SupabaseService } from '../supabase/supabase.service';
 import { hasPlatformTier } from '../../common/auth/platform-role';
-import { isPublicEvent } from '../../common/auth/competition-visibility';
+import { isPublicEvent } from '../../common/auth/event-read-gate';
 import {
   type LeagueRankingRow,
   type LeagueScoringConfig,
@@ -1317,7 +1317,7 @@ export class LeaguesService {
       const tournament = row['tournaments'] as Row | null;
       const event = tournament ? ((tournament['events'] as Row | null) ?? null) : null;
       // A draft or test Event is not on the public pages (rulings 88, 97).
-      if (!isPublicEvent(event)) continue;
+      if (!event || !isPublicEvent(event)) continue;
       const eventId = String(event['id']);
       if (byEventId.has(eventId)) continue;
       const org = (event['organizations'] as Row | null) ?? null;

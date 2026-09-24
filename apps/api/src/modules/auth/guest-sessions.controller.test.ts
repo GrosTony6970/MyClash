@@ -84,7 +84,9 @@ describe('POST /events/:eventId/guest-sessions', () => {
       expect(writesTo(t.db, 'guest_sessions')).toEqual([]);
       expect(t.setCookie).not.toHaveBeenCalled();
       // The double ignores the projection: without `status` a draft reads as open.
-      expect(selectsFor(t.db.from, 'events')).toEqual(['status, organization_id, end_date']);
+      expect(selectsFor(t.db.from, 'events')).toEqual([
+        'status, organization_id, event_kind, end_date',
+      ]);
     }
   });
 

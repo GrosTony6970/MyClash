@@ -559,11 +559,11 @@ export class EventsService {
     // `slug` and not the id as the 404 ref, so a hidden event and an unknown
     // slug answer identically. Passing the id would hand back exactly the
     // secret this gate exists to keep.
-    const row = data as { status: string; organization_id: string };
+    const row = data as { status: string; organization_id: string; event_kind: string | null };
     await assertCanReadEventRow(
       { supabase: this.supabase, orgs: this.orgs },
       slug,
-      { status: row.status, organization_id: row.organization_id },
+      { status: row.status, organization_id: row.organization_id, event_kind: row.event_kind },
       resolveUserId,
     );
     return data;

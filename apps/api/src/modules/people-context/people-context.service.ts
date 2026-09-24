@@ -5,10 +5,8 @@ import {
   type PoolEntry,
   type RankingSlot,
 } from '@myclash/types';
-import {
-  isPublicEvent,
-  PUBLIC_TOURNAMENT_STATUSES,
-} from '../../common/auth/competition-visibility';
+import { PUBLIC_TOURNAMENT_STATUSES } from '../../common/auth/competition-visibility';
+import { isPublicEvent } from '../../common/auth/event-read-gate';
 import { isFieldPublic } from '../fighters/public-visibility';
 import { SupabaseService } from '../supabase/supabase.service';
 import { PoolStandingsService, type StandingsRow } from '../pool-standings/pool-standings.service';
@@ -205,7 +203,7 @@ export class PeopleContextService {
     for (const r of personRows) {
       const ev = one(r['events']);
       const active =
-        isPublicEvent(ev) && !TERMINAL_EVENT_STATUSES.includes(String(ev['status'] ?? ''));
+        isPublicEvent(ev) && !TERMINAL_EVENT_STATUSES.includes(String(ev?.['status'] ?? ''));
       if (active) personToGlobal.set(r['id'] as string, r['global_person_id'] as string);
     }
     const activePersonIds = [...personToGlobal.keys()];
@@ -727,7 +725,7 @@ export class PeopleContextService {
       // Visibility, not stats: this is the navigational "last result" card, and
       // its target page is public. A club tournament can therefore surface here
       // while being absent from the same fighter's career stats. Deliberate.
-      if (!isPublicEvent(ev)) continue;
+      if (!ev || !isPublicEvent(ev)) continue;
       const startDate = (ev['start_date'] as string | null) ?? '';
       const cand: Candidate = {
         registrationId: r['id'] as string,

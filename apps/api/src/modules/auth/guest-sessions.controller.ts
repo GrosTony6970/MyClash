@@ -206,7 +206,7 @@ export class GuestSessionsController {
   /**
    * The end of an Event a guest may join, read once with its status.
    *
-   * A draft Event is its organisation's alone. The roster search that leads to
+   * A draft or test Event is its organisation's alone (rulings 81, 101). The roster search that leads to
    * the mint refuses one; without the same gate here, anyone holding two ids
    * could become a draft Event's fighter and read their schedule. An unknown
    * Event answers exactly as a hidden one, so the route confirms no draft.
@@ -214,7 +214,7 @@ export class GuestSessionsController {
   private async joinableEventEnd(eventId: string, req: FastifyRequest): Promise<Date> {
     const { data, error } = await this.supabase.service
       .from('events')
-      .select('status, organization_id, end_date')
+      .select('status, organization_id, event_kind, end_date')
       .eq('id', eventId)
       .maybeSingle();
     if (error) throw new BadRequestException(error.message);

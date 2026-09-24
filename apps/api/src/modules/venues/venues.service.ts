@@ -331,7 +331,7 @@ export class VenuesService {
       .eq(column, ref)
       .maybeSingle();
     if (error) throw new Error(`event read failed: ${error.message}`);
-    const event = data as (CompetitionEvent & { event_kind: string | null }) | null;
+    const event = data as CompetitionEvent | null;
     const deps = { supabase: this.supabase, orgs: this.orgs };
     return event && (await canReadEvent(deps, event, reader)) ? event : null;
   }
