@@ -50,7 +50,6 @@ interface Pool {
 
 interface PoolsResponse {
   phaseId: string | null;
-  visibility: 'hidden' | 'published';
   pools: Pool[];
 }
 

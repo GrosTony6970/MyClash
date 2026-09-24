@@ -28,10 +28,9 @@ export const projection = (chain: Chain | undefined): string =>
     .trim();
 
 export const PHASE = {
-  visibility_status: 'published',
   type: 'pool',
   config_json: null,
-  tournaments: { name: 'Longsword Open', slug: 'longsword-open' },
+  tournaments: { name: 'Longsword Open', slug: 'longsword-open', status: 'published' },
 };
 
 /** A match-scoped duty. Its Match sits in a Pool, which the duty does NOT cover. */
@@ -104,7 +103,7 @@ export const rows = (data: unknown[]) => ({ data, error: null });
 export const fighterMatch = (
   id: string,
   override: number | null,
-  visibility = 'published',
+  tournamentStatus = 'published',
   pool: { id: string; name: string } | null = null,
 ) => ({
   id,
@@ -124,8 +123,7 @@ export const fighterMatch = (
   lice_id: `lice-${id}`,
   lices: null,
   phases: {
-    visibility_status: visibility,
     type: 'pool',
-    tournaments: { id: 't-1', name: 'Open' },
+    tournaments: { id: 't-1', name: 'Open', status: tournamentStatus },
   },
 });

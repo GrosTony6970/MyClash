@@ -26,11 +26,7 @@ import { HemaRatingsService } from '../hema-ratings/hema-ratings.service';
 import { eventHemaRatingsId, type RatedPerson } from '../hema-ratings/event-hema-ratings-id';
 import { OrganizationsService } from '../organizations/organizations.service';
 import { SettingsService } from '../referees/settings.service';
-import type {
-  GenerateBracketDto,
-  GeneratePoolsDto,
-  UpdatePhaseVisibilityDto,
-} from './dto/phases.dto';
+import type { GenerateBracketDto, GeneratePoolsDto } from './dto/phases.dto';
 import type { EditBracketConfigDto } from './dto/edit-bracket-config.dto';
 import type { ReseedBracketDto, SeedingStrategy } from './dto/reseed-bracket.dto';
 import type { PopulateBracketDto } from './dto/populate-bracket.dto';
@@ -381,7 +377,6 @@ export class PhasesService {
         type: 'pool',
         sort_order: 1,
         status: 'pending',
-        visibility_status: 'hidden',
         config_json: { poolCount, costReport },
       })
       .select('id')
@@ -660,7 +655,6 @@ export class PhasesService {
         type: phaseType,
         sort_order: 2,
         status: 'pending',
-        visibility_status: 'hidden',
         config_json: configJson,
       })
       .select('id')
@@ -708,7 +702,7 @@ export class PhasesService {
     );
 
     // Read back the canonical bracket so the response shape matches the GET
-    // endpoint (includes `slots`, `visibility`, `wbRounds`, etc.) — the bracket
+    // endpoint (includes `slots`, `wbRounds`, etc.) — the bracket
     // page renders <BracketView slots={bracket.slots} /> immediately after a
     // successful POST, and a missing `slots` field crashes the render.
     return this.getTournamentBracket(tournamentId);
@@ -754,70 +748,6 @@ export class PhasesService {
     if (error) throw new BadRequestException(error.message);
   }
 
-  async updateVisibility(phaseId: string, actorUserId: string, dto: UpdatePhaseVisibilityDto) {
-    if (!['hidden', 'published'].includes(dto.visibility)) {
-      throw new BadRequestException('Invalid phase visibility');
-    }
-
-    const phase = await this.getPhaseForVisibility(phaseId);
-    const tournament = phase['tournaments'] as Record<string, unknown> | null;
-    const event = tournament?.['events'] as Record<string, unknown> | null;
-    const orgId = event?.['organization_id'];
-    if (!this.orgs || typeof orgId !== 'string') {
-      throw new BadRequestException('Phase organization could not be resolved');
-    }
-    await this.orgs.assertOrgRole(orgId, actorUserId, 'admin');
-
-    if (dto.visibility === 'hidden' && !dto.confirmStarted) {
-      const started = await this.countStartedMatches(phaseId);
-      if (started.startedMatchCount > 0 || started.completedMatchCount > 0) {
-        throw new ConflictException({
-          requiresConfirmation: true,
-          ...started,
-        });
-      }
-    }
-
-    const patch =
-      dto.visibility === 'published'
-        ? {
-            visibility_status: 'published',
-            published_at: new Date().toISOString(),
-            published_by_user_id: actorUserId,
-          }
-        : {
-            visibility_status: 'hidden',
-            published_at: null,
-            published_by_user_id: null,
-          };
-
-    const { data, error } = await this.supabase.service
-      .from('phases')
-      .update(patch)
-      .eq('id', phaseId)
-      .select('*')
-      .single();
-
-    if (error) throw new BadRequestException(error.message);
-
-    await insertAuditLog(this.supabase.service, {
-      actorUserId,
-      action:
-        dto.visibility === 'published'
-          ? 'phase.visibility_published'
-          : 'phase.visibility_unpublished',
-      entityType: 'phase',
-      entityId: phaseId,
-      payload: {
-        visibility: dto.visibility,
-        phaseType: phase['type'],
-        tournamentId: phase['tournament_id'],
-      },
-    });
-
-    return data;
-  }
-
   /**
    * PATCH /api/v1/phases/:id/bracket-config
    *
@@ -827,7 +757,7 @@ export class PhasesService {
    * already completed.
    */
   async editBracketConfig(phaseId: string, actorUserId: string, dto: EditBracketConfigDto) {
-    const phase = await this.getPhaseForVisibility(phaseId);
+    const phase = await this.getPhaseWithOrg(phaseId);
     const phaseType = phase['type'] as string;
     if (phaseType !== 'single_elim' && phaseType !== 'double_elim') {
       throw new BadRequestException(`Phase ${phaseId} is not a bracket phase`);
@@ -986,7 +916,7 @@ export class PhasesService {
    * the stored one. The seed used is persisted and audit-logged either way.
    */
   async reseedBracketRoundOne(phaseId: string, actorUserId: string, dto: ReseedBracketDto) {
-    const phase = await this.getPhaseForVisibility(phaseId);
+    const phase = await this.getPhaseWithOrg(phaseId);
     const phaseType = phase['type'] as string;
     if (phaseType !== 'single_elim' && phaseType !== 'double_elim') {
       throw new BadRequestException(`Phase ${phaseId} is not a bracket phase`);
@@ -1547,12 +1477,12 @@ export class PhasesService {
   async listTournamentPools(tournamentId: string) {
     const { data: phase, error: phaseError } = await this.supabase.service
       .from('phases')
-      .select('id, visibility_status')
+      .select('id')
       .eq('tournament_id', tournamentId)
       .eq('type', 'pool')
       .maybeSingle();
     if (phaseError) throw new BadRequestException(phaseError.message);
-    if (!phase) return { phaseId: null, visibility: 'hidden', pools: [] };
+    if (!phase) return { phaseId: null, pools: [] };
 
     const phaseId = (phase as { id: string }).id;
     const { data, error } = await this.supabase.service
@@ -1570,7 +1500,6 @@ export class PhasesService {
 
     return {
       phaseId,
-      visibility: (phase as { visibility_status?: string }).visibility_status ?? 'hidden',
       pools: ((data ?? []) as Array<Record<string, unknown>>).map((pool) => ({
         id: pool['id'],
         name: pool['name'],
@@ -1807,7 +1736,7 @@ export class PhasesService {
    * Refuses pool-type phases — those go through DELETE /pools/:poolId.
    */
   async deleteBracketPhase(phaseId: string, actorUserId: string): Promise<void> {
-    const phase = await this.getPhaseForVisibility(phaseId);
+    const phase = await this.getPhaseWithOrg(phaseId);
     const phaseType = phase['type'] as string;
     if (phaseType !== 'single_elim' && phaseType !== 'double_elim') {
       throw new BadRequestException(
@@ -1851,7 +1780,7 @@ export class PhasesService {
   async getTournamentBracket(tournamentId: string) {
     const { data: phase, error: phaseError } = await this.supabase.service
       .from('phases')
-      .select('id, type, visibility_status, config_json')
+      .select('id, type, config_json')
       .eq('tournament_id', tournamentId)
       .in('type', ['single_elim', 'double_elim'])
       .maybeSingle();
@@ -2107,7 +2036,6 @@ export class PhasesService {
     return {
       phaseId,
       phaseType,
-      visibility: (phase as { visibility_status?: string }).visibility_status ?? 'hidden',
       bracketSize: config.bracketSize ?? 0,
       mainBracketSize: config.mainBracketSize ?? config.bracketSize ?? 0,
       fighterCount: config.fighterCount ?? 0,
@@ -2302,34 +2230,16 @@ export class PhasesService {
     }
   }
 
-  private async getPhaseForVisibility(phaseId: string): Promise<Record<string, unknown>> {
+  private async getPhaseWithOrg(phaseId: string): Promise<Record<string, unknown>> {
     const { data, error } = await this.supabase.service
       .from('phases')
-      .select(
-        'id, tournament_id, type, visibility_status, tournaments(event_id, events(organization_id))',
-      )
+      .select('id, tournament_id, type, tournaments(event_id, events(organization_id))')
       .eq('id', phaseId)
       .maybeSingle();
 
     if (error) throw new BadRequestException(error.message);
     if (!data) throw new NotFoundException(`Phase ${phaseId} not found`);
     return data as Record<string, unknown>;
-  }
-
-  private async countStartedMatches(phaseId: string) {
-    const { data, error } = await this.supabase.service
-      .from('matches')
-      .select('id, status')
-      .eq('phase_id', phaseId)
-      .in('status', [...FOUGHT_STATUSES]);
-
-    if (error) throw new BadRequestException(error.message);
-    const rows = (data ?? []) as Array<{ status: string }>;
-    return {
-      startedMatchCount: rows.filter((row) => row.status === 'running' || row.status === 'paused')
-        .length,
-      completedMatchCount: rows.filter((row) => row.status === 'completed').length,
-    };
   }
 
   // ── Pool edit endpoints ──────────────────────────────────────────────────
@@ -2968,7 +2878,6 @@ export class PhasesService {
           type: 'pool',
           sort_order: 1,
           status: 'pending',
-          visibility_status: 'hidden',
           config_json: { poolCount: 0, costReport: null },
         })
         .select('id')

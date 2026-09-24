@@ -3706,23 +3706,6 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  '/api/v1/phases/{phaseId}/visibility': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    /** Publish or hide a tournament phase (org admin+) */
-    patch: operations['PhasesController_updateVisibility'];
-    trace?: never;
-  };
   '/api/v1/phases/{phaseId}/bracket-config': {
     parameters: {
       query?: never;
@@ -6387,7 +6370,7 @@ export interface paths {
       path?: never;
       cookie?: never;
     };
-    /** Get public tournament pools and bracket, respecting phase visibility */
+    /** Get public tournament pools and bracket */
     get: operations['EventsController_getPublicTournamentStandings'];
     put?: never;
     post?: never;
@@ -10324,11 +10307,6 @@ export interface components {
       /** @enum {string} */
       seedingMode?: 'overall' | 'top-n-per-pool';
       topNPerPool?: number;
-    };
-    UpdatePhaseVisibilityDto: {
-      /** @enum {string} */
-      visibility: 'hidden' | 'published';
-      confirmStarted?: boolean;
     };
     EditBracketConfigDto: {
       grandFinalReset?: boolean;
@@ -17103,37 +17081,6 @@ export interface operations {
         content?: never;
       };
       /** @description Pools have not finished yet */
-      409: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-    };
-  };
-  PhasesController_updateVisibility: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        phaseId: string;
-      };
-      cookie?: never;
-    };
-    requestBody: {
-      content: {
-        'application/json': components['schemas']['UpdatePhaseVisibilityDto'];
-      };
-    };
-    responses: {
-      /** @description Phase visibility updated */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-      /** @description Confirmation required to hide started matches */
       409: {
         headers: {
           [name: string]: unknown;

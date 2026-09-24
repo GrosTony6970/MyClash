@@ -33,6 +33,17 @@ function makeSupabase() {
   return { supabase, queue };
 }
 
+/** The first projection read from `table`, its layout whitespace collapsed. */
+function selectOf(supabase: ReturnType<typeof makeSupabase>['supabase'], table: string): string {
+  const at = supabase.service.from.mock.calls.findIndex(([name]) => name === table);
+  const chain = supabase.service.from.mock.results[at]?.value as {
+    select: ReturnType<typeof vi.fn>;
+  };
+  return String(chain.select.mock.calls[0]?.[0] ?? '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
 /** A PhasesService double whose bracket has no slots (final rank stays null). */
 function noBracket() {
   return { getTournamentBracket: vi.fn().mockResolvedValue({ slots: [] }) };
@@ -86,7 +97,7 @@ describe('PeopleContextService.enrich', () => {
           blue_registration_id: 'r-2',
           pools: { name: 'Pool A' },
           lices: { name: 'Piste 3' },
-          phases: { visibility_status: 'published' },
+          phases: { tournaments: { status: 'published' } },
         },
       ],
       error: null,
@@ -210,8 +221,20 @@ describe('PeopleContextService.enrich', () => {
       error: null,
     });
     // One running bout (→ currentMatch) and one scheduled bout (→ nextMatch).
+    // The first bout belongs to a Tournament the public cannot see (ruling 91).
     queue('matches', {
       data: [
+        {
+          id: 'm-draft',
+          match_number_label: 'D-1',
+          status: 'running',
+          scheduled_at: '2026-07-13T08:00:00Z',
+          red_registration_id: 'r-3',
+          blue_registration_id: 'r-9',
+          pools: null,
+          lices: { name: 'Piste 9' },
+          phases: { tournaments: { status: 'draft' } },
+        },
         {
           id: 'm-live',
           match_number_label: 'SF-1',
@@ -221,7 +244,7 @@ describe('PeopleContextService.enrich', () => {
           blue_registration_id: 'r-4',
           pools: null,
           lices: { name: 'Piste 1' },
-          phases: { visibility_status: 'published' },
+          phases: { tournaments: { status: 'published' } },
         },
         {
           id: 'm-next',
@@ -232,7 +255,7 @@ describe('PeopleContextService.enrich', () => {
           blue_registration_id: 'r-5',
           pools: null,
           lices: { name: 'Piste 1' },
-          phases: { visibility_status: 'published' },
+          phases: { tournaments: { status: 'published' } },
         },
       ],
       error: null,
@@ -330,6 +353,10 @@ describe('PeopleContextService.enrich', () => {
       follows as never,
     );
     const [ctx] = await svc.enrich(['gp-3'], 'user-1');
+    expect(selectOf(supabase, 'matches')).toBe(
+      'id, match_number_label, status, scheduled_at, red_registration_id, blue_registration_id, ' +
+        'pools ( name ), lices ( name ), phases ( tournaments ( status ) )',
+    );
 
     expect(ctx).toMatchObject({
       globalPersonId: 'gp-3',
@@ -376,6 +403,26 @@ describe('PeopleContextService.enrich', () => {
     // Live refereeing assignment (resolved before the no-registration early return).
     queue('referee_assignments', {
       data: [
+        // A live slot on a Tournament the public cannot see comes first (ruling 91).
+        {
+          person_id: 'gp-4',
+          role: 'skill-1',
+          matches: {
+            id: 'm-draft',
+            status: 'running',
+            scheduled_at: '2026-07-13T09:00:00Z',
+            match_number_label: 'D-1',
+            lices: { name: 'Piste 9' },
+            pools: null,
+            phases: {
+              tournaments: {
+                slug: 'draft-open',
+                status: 'draft',
+                events: { slug: 'autumn-cup', name: 'Autumn Cup' },
+              },
+            },
+          },
+        },
         {
           person_id: 'gp-4',
           role: 'skill-9',
@@ -387,9 +434,9 @@ describe('PeopleContextService.enrich', () => {
             lices: { name: 'Piste 2' },
             pools: null,
             phases: {
-              visibility_status: 'published',
               tournaments: {
                 slug: 'saber-open',
+                status: 'published',
                 events: { slug: 'autumn-cup', name: 'Autumn Cup' },
               },
             },
@@ -415,6 +462,10 @@ describe('PeopleContextService.enrich', () => {
       follows as never,
     );
     const [ctx] = await svc.enrich(['gp-4'], 'user-1');
+    expect(selectOf(supabase, 'referee_assignments')).toBe(
+      'person_id, role, matches ( id, status, scheduled_at, match_number_label, lices ( name ), ' +
+        'pools ( name ), phases ( tournaments ( slug, status, events ( slug, name ) ) ) )',
+    );
 
     expect(ctx).toMatchObject({
       globalPersonId: 'gp-4',

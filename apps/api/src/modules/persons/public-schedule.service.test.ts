@@ -128,10 +128,15 @@ describe('PublicScheduleService.getSchedule — referee slot times', () => {
     ]);
   });
 
-  it('asks for no time on a duty whose phase is not published', async () => {
+  it('asks for no time on a duty whose Tournament is not published', async () => {
     windowsAre({});
     const { service } = buildService(
-      rows([matchScoped('hidden', null, { ...PHASE, visibility_status: 'draft' })]),
+      rows([
+        matchScoped('hidden', null, {
+          ...PHASE,
+          tournaments: { ...PHASE.tournaments, status: 'draft' },
+        }),
+      ]),
     );
     await service.getSchedule('e-1', 'p-1', null);
     expect(dutyWindows.mock.calls[0]?.[2]).toEqual([]);
@@ -146,10 +151,10 @@ describe('PublicScheduleService.getSchedule — referee slot times', () => {
     // come back into the read and every value above would still be right.
     expect(projection(read)).toBe(
       'id, role, pool_id, match_id, ' +
-        'pools ( id, name, phases ( type, config_json, visibility_status, tournaments ( name, slug ) ) ), ' +
+        'pools ( id, name, phases ( type, config_json, tournaments ( name, slug, status ) ) ), ' +
         'lices ( name ), ' +
         'matches ( id, match_number_label, scheduled_at, bracket_slot_id, pools ( id, name ), lices ( name ), ' +
-        'phases ( visibility_status, type, config_json, tournaments ( name, slug ) ) )',
+        'phases ( type, config_json, tournaments ( name, slug, status ) ) )',
     );
     expect(read?.order).not.toHaveBeenCalled();
   });
@@ -241,7 +246,7 @@ describe("PublicScheduleService.getSchedule — a fighter's own Match lengths", 
       'id, match_number_label, status, scheduled_at, phase_id, pool_id, lice_id, planned_duration_override_minutes, ' +
         'red_score, blue_score, winner_registration_id, end_reason, ' +
         'red_registration_id, blue_registration_id, pools ( name ), lices ( name ), ' +
-        'phases ( visibility_status, type, tournaments ( id, name, scoring_config_json ) )',
+        'phases ( type, tournaments ( id, name, scoring_config_json, status ) )',
     );
   });
 

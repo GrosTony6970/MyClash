@@ -198,7 +198,6 @@ const FK_COLUMNS_NOT_REMAPPED = new Set<string>([
   'matches.locked_by_staff_account_id',
   'matches.scorekeeper_user_id',
   'persons.created_by_user_id',
-  'phases.published_by_user_id',
   'tournament_penalty_reviews.reviewed_by_user_id',
   'workshop_enrollments.user_id',
   // org-level catalogues, shared across events

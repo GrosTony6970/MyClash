@@ -84,14 +84,6 @@ const generateBracketSchema = z
   .superRefine(refineDoubleElimPodium);
 export class GenerateBracketDto extends createZodDto(generateBracketSchema) {}
 
-const updatePhaseVisibilitySchema = z
-  .object({
-    visibility: z.enum(['hidden', 'published']),
-    confirmStarted: z.boolean().optional(),
-  })
-  .strict();
-export class UpdatePhaseVisibilityDto extends createZodDto(updatePhaseVisibilitySchema) {}
-
 const updateBracketSlotSchema = z
   .object({
     registrationAId: z.uuid().nullish(),

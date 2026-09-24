@@ -49,7 +49,6 @@ interface Tournament {
 interface BracketResult {
   phaseId: string;
   phaseType?: string;
-  visibility?: 'hidden' | 'published';
   bracketSize: number;
   fighterCount: number;
   byeCount: number;

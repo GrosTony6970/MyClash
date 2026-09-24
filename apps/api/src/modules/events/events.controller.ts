@@ -158,7 +158,7 @@ export class EventsController {
   /** GET /api/v1/events/:eventSlug/tournaments/:tournamentSlug/standings */
   @Public()
   @Get('events/:eventSlug/tournaments/:tournamentSlug/standings')
-  @ApiOperation({ summary: 'Get public tournament pools and bracket, respecting phase visibility' })
+  @ApiOperation({ summary: 'Get public tournament pools and bracket' })
   async getPublicTournamentStandings(
     @Param('eventSlug') eventSlug: string,
     @Param('tournamentSlug') tournamentSlug: string,

@@ -7,6 +7,7 @@ import {
   type PoolEntry,
   type RankingSlot,
 } from '@myclash/types';
+import { PUBLIC_TOURNAMENT_STATUSES } from '../../common/auth/competition-visibility';
 import { SupabaseService } from '../supabase/supabase.service';
 import { PoolStandingsService, type StandingsRow } from '../pool-standings/pool-standings.service';
 import { PhasesService } from '../phases/phases.service';
@@ -91,6 +92,12 @@ const LIVE_MATCH_STATUSES = ['running', 'paused'];
 function one(value: unknown): Record<string, unknown> | null {
   if (Array.isArray(value)) return (value[0] as Record<string, unknown>) ?? null;
   return (value as Record<string, unknown>) ?? null;
+}
+
+/** A bout's phase embed belongs to a Tournament the public may see (operator ruling 91). */
+function isPublicTournament(phase: Record<string, unknown> | null): boolean {
+  const status = one(phase?.['tournaments'])?.['status'];
+  return typeof status === 'string' && PUBLIC_TOURNAMENT_STATUSES.has(status);
 }
 
 /**
@@ -289,7 +296,7 @@ export class PeopleContextService {
         `id, match_number_label, status, scheduled_at,
          red_registration_id, blue_registration_id,
          pools ( name ), lices ( name ),
-         phases ( visibility_status )`,
+         phases ( tournaments ( status ) )`,
       )
       .or(`red_registration_id.in.(${inList}),blue_registration_id.in.(${inList})`)
       .in('status', ACTIVE_MATCH_STATUSES)
@@ -312,7 +319,7 @@ export class PeopleContextService {
 
     for (const m of rows) {
       const phase = one(m['phases']);
-      if (phase?.['visibility_status'] !== 'published') continue;
+      if (!isPublicTournament(phase)) continue;
       const redReg = (m['red_registration_id'] as string | null) ?? null;
       const blueReg = (m['blue_registration_id'] as string | null) ?? null;
       const myReg = redReg && regToGlobal.has(redReg) ? redReg : blueReg;
@@ -383,7 +390,7 @@ export class PeopleContextService {
          matches (
            id, status, scheduled_at, match_number_label,
            lices ( name ), pools ( name ),
-           phases ( visibility_status, tournaments ( slug, events ( slug, name ) ) )
+           phases ( tournaments ( slug, status, events ( slug, name ) ) )
          )`,
       )
       .in('person_id', globalIds)
@@ -411,7 +418,7 @@ export class PeopleContextService {
       const status = String(match['status'] ?? '');
       if (!LIVE_MATCH_STATUSES.includes(status)) continue;
       const phase = one(match['phases']);
-      if (phase?.['visibility_status'] !== 'published') continue;
+      if (!isPublicTournament(phase)) continue;
       const tournament = phase ? one(phase['tournaments']) : null;
       const event = tournament ? one(tournament['events']) : null;
       const role = (a['role'] as string | null) ?? null;

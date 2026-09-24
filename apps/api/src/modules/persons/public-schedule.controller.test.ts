@@ -52,9 +52,13 @@ const bout = (id: string, reg: string, tournament: string) => ({
   pools: null,
   lices: null,
   phases: {
-    visibility_status: 'published',
     type: 'pool',
-    tournaments: { id: tournament, name: tournament, scoring_config_json: null },
+    tournaments: {
+      id: tournament,
+      name: tournament,
+      scoring_config_json: null,
+      status: 'published',
+    },
   },
 });
 

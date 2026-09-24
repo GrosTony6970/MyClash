@@ -22,7 +22,7 @@ import {
 } from '@nestjs/swagger';
 import { PhasesService } from './phases.service';
 import { SupabaseService } from '../supabase/supabase.service';
-import { GenerateBracketDto, GeneratePoolsDto, UpdatePhaseVisibilityDto } from './dto/phases.dto';
+import { GenerateBracketDto, GeneratePoolsDto } from './dto/phases.dto';
 import { EditBracketConfigDto } from './dto/edit-bracket-config.dto';
 import { ReseedBracketDto } from './dto/reseed-bracket.dto';
 import { PopulateBracketDto } from './dto/populate-bracket.dto';
@@ -278,20 +278,6 @@ export class PhasesController {
   ) {
     const userId = await getUserId(req, this.supabase);
     return this.phases.populateBracket(tournamentId, dto, userId);
-  }
-
-  @Patch('phases/:phaseId/visibility')
-  @ApiOperation({ summary: 'Publish or hide a tournament phase (org admin+)' })
-  @ApiParam({ name: 'phaseId', type: 'string', format: 'uuid' })
-  @ApiResponse({ status: 200, description: 'Phase visibility updated' })
-  @ApiResponse({ status: 409, description: 'Confirmation required to hide started matches' })
-  async updateVisibility(
-    @Param('phaseId', ParseUUIDPipe) phaseId: string,
-    @Body() dto: UpdatePhaseVisibilityDto,
-    @Req() req: FastifyRequest,
-  ) {
-    const userId = await getUserId(req, this.supabase);
-    return this.phases.updateVisibility(phaseId, userId, dto);
   }
 
   @Patch('phases/:phaseId/bracket-config')

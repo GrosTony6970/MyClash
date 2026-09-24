@@ -21,6 +21,7 @@
 
 import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { DEFAULT_EVENT_TIMEZONE } from '@myclash/time';
+import { PUBLIC_TOURNAMENT_STATUSES } from '../../common/auth/competition-visibility';
 import { assertCanReadEvent } from '../../common/auth/event-authz';
 import { OrganizationsService } from '../organizations/organizations.service';
 import { SupabaseService } from '../supabase/supabase.service';
@@ -157,6 +158,12 @@ export interface PersonSchedule {
   workshops: WorkshopEnrollment[] | null; // null = hidden by privacy
 }
 
+/** A fighter's bout's phase, as `fetchMatches` embeds it. */
+type FighterBoutPhase = {
+  type?: string | null;
+  tournaments: { id: string; name: string; scoring_config_json?: unknown; status?: string } | null;
+} | null;
+
 @Injectable()
 export class PublicScheduleService {
   private readonly logger = new Logger(PublicScheduleService.name);
@@ -282,7 +289,7 @@ export class PublicScheduleService {
         red_registration_id, blue_registration_id,
         pools ( name ),
         lices ( name ),
-        phases ( visibility_status, type, tournaments ( id, name, scoring_config_json ) )
+        phases ( type, tournaments ( id, name, scoring_config_json, status ) )
       `,
       )
       .or(
@@ -298,12 +305,8 @@ export class PublicScheduleService {
       const isRed = redReg !== null && regIds.includes(redReg);
       const pool = m['pools'] as { name: string } | null;
       const lice = m['lices'] as { name: string } | null;
-      const phase = m['phases'] as {
-        visibility_status?: string | null;
-        type?: string | null;
-        tournaments: { id: string; name: string; scoring_config_json?: unknown } | null;
-      } | null;
-      if (phase?.visibility_status !== 'published') return [];
+      const phase = m['phases'] as FighterBoutPhase;
+      if (!PUBLIC_TOURNAMENT_STATUSES.has(phase?.tournaments?.status ?? '')) return [];
 
       const phaseType = phase?.type ?? null;
 
@@ -467,13 +470,13 @@ export class PublicScheduleService {
       .select(
         `
         id, role, pool_id, match_id,
-        pools ( id, name, phases ( type, config_json, visibility_status, tournaments ( name, slug ) ) ),
+        pools ( id, name, phases ( type, config_json, tournaments ( name, slug, status ) ) ),
         lices ( name ),
         matches (
           id, match_number_label, scheduled_at, bracket_slot_id,
           pools ( id, name ),
           lices ( name ),
-          phases ( visibility_status, type, config_json, tournaments ( name, slug ) )
+          phases ( type, config_json, tournaments ( name, slug, status ) )
         )
       `,
       )
@@ -486,10 +489,9 @@ export class PublicScheduleService {
     if (!data) return [];
 
     type PhaseEmbed = {
-      visibility_status?: string | null;
       type?: string | null;
       config_json?: { bracketSize?: number } | null;
-      tournaments: { name?: string; slug?: string } | null;
+      tournaments: { name?: string; slug?: string; status?: string } | null;
     } | null;
 
     // Carry phaseType/bracketSize alongside each slot for the match-kind derivation
@@ -516,10 +518,10 @@ export class PublicScheduleService {
       const pool = matchPool ?? directPool ?? null;
       const lice = matchLice ?? directLice ?? null;
 
-      // Hide rows whose phase isn't published yet (future bracket rounds). Pool
-      // phases are published for a live event, so pool "Déclarant" rows pass.
-      // Rows with no resolvable phase (rare) are kept rather than silently dropped.
-      if (phase && phase.visibility_status !== 'published') return [];
+      // Hide rows of a Tournament the public cannot see yet (operator ruling 91:
+      // the Tournament status is the only switch). Rows with no resolvable phase
+      // (rare) are kept rather than silently dropped.
+      if (phase && !PUBLIC_TOURNAMENT_STATUSES.has(phase.tournaments?.status ?? '')) return [];
 
       return {
         id: String(a['id'] ?? ''),
@@ -550,7 +552,7 @@ export class PublicScheduleService {
       };
     });
 
-    // After the visibility filter, so an unpublished phase leaks no time. Every
+    // After the visibility filter, so an unpublished Tournament leaks no time. Every
     // duty gets an answer; what could not be worked out is null, and logged.
     const windows = await resolveDutyWindows(
       this.supabase.service,

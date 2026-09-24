@@ -259,7 +259,7 @@ describe('PhasesService', () => {
       const [deleted, inserted] = writesTo(supabase, 'phases');
       expect(deleted?.op).toBe('delete');
       expect(scopedTo(deleted, 'id')).toBe('old-phase');
-      expect(inserted?.row).toMatchObject({ visibility_status: 'hidden' });
+      expect(inserted?.row).not.toHaveProperty('visibility_status');
     });
 
     // ── force=true is not a licence to delete fought bouts ────────────────
@@ -784,7 +784,6 @@ describe('PhasesService', () => {
         data: {
           id: 'phase-new',
           type: opts.type ?? 'single_elim',
-          visibility_status: 'hidden',
           config_json: config,
         },
         error: null,
@@ -874,7 +873,7 @@ describe('PhasesService', () => {
       });
 
       const result = await service.generateBracket('tournament-1', {}, false);
-      expect(writesTo(supabase, 'phases')[0]?.row).toMatchObject({ visibility_status: 'hidden' });
+      expect(writesTo(supabase, 'phases')[0]?.row).not.toHaveProperty('visibility_status');
       expect((result as { bracketSize: number }).bracketSize).toBe(8);
       expect((result as { rounds: number }).rounds).toBe(3);
       expect((result as { byeCount: number }).byeCount).toBe(0);
@@ -1194,87 +1193,9 @@ describe('PhasesService', () => {
     });
   });
 
-  describe('updateVisibility', () => {
-    /**
-     * The phase under edit, and one belonging to somebody else.
-     *
-     * The decoy comes FIRST, so dropping `.eq('id', phaseId)` from any of the
-     * three `phases` statements resolves the wrong phase — a different
-     * organisation on the read, a PGRST116 on the update's `single()`.
-     */
-    const phases = (over: SupabaseRow = {}): SupabaseRow[] => [
-      {
-        id: 'phase-elsewhere',
-        type: 'pool',
-        tournament_id: 'tournament-9',
-        visibility_status: 'hidden',
-        tournaments: { event_id: 'event-9', events: { organization_id: 'org-elsewhere' } },
-      },
-      {
-        id: 'phase-1',
-        type: 'pool',
-        tournament_id: 'tournament-1',
-        visibility_status: 'hidden',
-        tournaments: { event_id: 'event-1', events: { organization_id: 'org-1' } },
-        ...over,
-      },
-    ];
-
-    it('publishes a phase and writes an audit log', async () => {
-      const { service, supabase } = makeService({
-        // Seeded as published because a seeded table is a fixture, not a
-        // database: the write is recorded rather than applied, so this row is
-        // what the UPDATE … RETURNING hands back. What the update SET is
-        // asserted from the recorded write below.
-        phases: { rows: phases({ visibility_status: 'published' }) },
-        audit_log: { rows: [] },
-      });
-
-      await expect(
-        service.updateVisibility('phase-1', 'actor-1', { visibility: 'published' }),
-      ).resolves.toMatchObject({ visibility_status: 'published' });
-      expect(mockOrgs.assertOrgRole).toHaveBeenCalledWith('org-1', 'actor-1', 'admin');
-
-      const [updated] = writesTo(supabase, 'phases');
-      expect(updated?.row).toMatchObject({
-        visibility_status: 'published',
-        published_by_user_id: 'actor-1',
-      });
-      expect(scopedTo(updated, 'id')).toBe('phase-1');
-      expect(writesTo(supabase, 'audit_log')[0]?.row).toMatchObject({
-        action: 'phase.visibility_published',
-      });
-    });
-
-    it('requires confirmation before hiding a phase with started or completed matches', async () => {
-      const { service } = makeService({
-        phases: { rows: phases({ type: 'single_elim', visibility_status: 'published' }) },
-        matches: {
-          rows: [
-            { id: 'match-1', phase_id: 'phase-1', status: 'running' },
-            { id: 'match-2', phase_id: 'phase-1', status: 'completed' },
-            // Another phase's finished bout. The counts are exact, so
-            // `.eq('phase_id', …)` slipping would raise completedMatchCount.
-            { id: 'match-elsewhere', phase_id: 'phase-9', status: 'completed' },
-          ],
-        },
-      });
-
-      await expect(
-        service.updateVisibility('phase-1', 'actor-1', { visibility: 'hidden' }),
-      ).rejects.toMatchObject({
-        response: expect.objectContaining({
-          requiresConfirmation: true,
-          startedMatchCount: 1,
-          completedMatchCount: 1,
-        }),
-      });
-    });
-  });
-
   describe('editBracketConfig', () => {
     /**
-     * One phase row answers both `phases` reads — getPhaseForVisibility and the
+     * One phase row answers both `phases` reads — getPhaseWithOrg and the
      * config_json fetch ask the same row for different columns — and the
      * update's `.eq('id', …).select(…).single()` narrows to it as well. The
      * decoy in front is what makes that filter load-bearing on all three.
@@ -1288,7 +1209,6 @@ describe('PhasesService', () => {
           id: 'phase-elsewhere',
           type: 'double_elim',
           tournament_id: 'tournament-9',
-          visibility_status: 'hidden',
           tournaments: { event_id: 'event-9', events: { organization_id: 'org-elsewhere' } },
           config_json: {},
         },
@@ -1296,7 +1216,6 @@ describe('PhasesService', () => {
           id: 'phase-1',
           type,
           tournament_id: 'tournament-1',
-          visibility_status: 'hidden',
           tournaments: { event_id: 'event-1', events: { organization_id: 'org-1' } },
           config_json: config,
         },
@@ -1461,7 +1380,6 @@ describe('PhasesService', () => {
       id: 'phase-1',
       type: 'single_elim',
       tournament_id: 'tournament-1',
-      visibility_status: 'hidden',
       tournaments: { event_id: 'event-1', events: { organization_id: 'org-1' } },
       config_json: {},
     };
@@ -1482,7 +1400,7 @@ describe('PhasesService', () => {
      *
      * The old shape dispatched `from` by name inside a `mockImplementation` and
      * fed `phases` two ordered `maybeSingle` answers, because
-     * getPhaseForVisibility and the config_json read hit the same table. A
+     * getPhaseWithOrg and the config_json read hit the same table. A
      * seeded row carries both column sets at once, so the ordering goes away.
      */
     const reseedService = (registrations: SupabaseRow[]) =>
@@ -1588,7 +1506,6 @@ describe('PhasesService', () => {
       id: 'phase-1',
       tournament_id: 't1',
       type: 'single_elim',
-      visibility_status: 'hidden',
       tournaments: { event_id: 'evt-1', events: { organization_id: 'org-1' } },
     };
 
@@ -1597,7 +1514,6 @@ describe('PhasesService', () => {
       id: 'phase-elsewhere',
       tournament_id: 't9',
       type: 'single_elim',
-      visibility_status: 'hidden',
       tournaments: { event_id: 'evt-9', events: { organization_id: 'org-elsewhere' } },
     };
 
@@ -1657,7 +1573,6 @@ describe('PhasesService', () => {
               id: 'phase-pool',
               tournament_id: 't1',
               type: 'pool',
-              visibility_status: 'hidden',
               tournaments: { event_id: 'evt-1', events: { organization_id: 'org-1' } },
             },
           ],
@@ -1705,21 +1620,18 @@ describe('PhasesService', () => {
         id: 'phase-elsewhere',
         tournament_id: 'tournament-9',
         type: 'single_elim',
-        visibility_status: 'published',
         config_json: { bracketSize: 64 },
       },
       {
         id: 'phase-pool',
         tournament_id: 'tournament-1',
         type: 'pool',
-        visibility_status: 'published',
         config_json: {},
       },
       {
         id: 'phase-1',
         tournament_id: 'tournament-1',
         type: 'single_elim',
-        visibility_status: 'published',
         config_json: { bracketSize: 4, fighterCount: 4, rounds: 2 },
       },
     ];
@@ -3434,7 +3346,6 @@ describe('PhasesService.getTournamentBracket — seeding drift', () => {
             id: 'phase-1',
             tournament_id: 'tournament-1',
             type: 'single_elim',
-            visibility_status: 'published',
             config_json: { bracketSize: 4, seedingStrategy: input.strategy ?? 'snake' },
           },
         ],

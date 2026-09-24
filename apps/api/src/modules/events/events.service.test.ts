@@ -2193,7 +2193,7 @@ describe('EventsService', () => {
       expect(fromMock).not.toHaveBeenCalledWith('referee_assignments');
     });
 
-    it('fetches phases without filtering on visibility_status when the tournament is published', async () => {
+    it("reads a published Tournament's phases with no filter of their own", async () => {
       const eventChain = makeChain({
         data: { id: 'event-1', slug: 'fal-2027' },
         error: null,
@@ -2209,17 +2209,13 @@ describe('EventsService', () => {
         },
         error: null,
       });
-      // Phases: a single pool phase whose visibility_status is 'hidden'.
-      // Pre-refactor this would have been filtered out by `.eq('visibility_status', 'published')`
-      // and the standings would have come back empty. Post-refactor the
-      // tournament's status alone gates the public read, so the pool phase
-      // surfaces regardless.
+      // The Tournament status alone gates the public read (operator ruling
+      // 91): a phase carries no visibility of its own.
       const phasesChain = makeAwaitableChain({
         data: [
           {
             id: 'phase-pool-1',
             type: 'pool',
-            visibility_status: 'hidden',
             config_json: {},
           },
         ],
@@ -2255,14 +2251,9 @@ describe('EventsService', () => {
         CALLER,
       );
 
-      // The phases query must NOT filter on visibility_status. Earlier
-      // bug: `.eq('visibility_status', 'published')` kept hidden phases
-      // off the public page even when the tournament was published.
-      const visibilityFilterCall = phasesChain.eq.mock.calls.find(
-        (c) => c[0] === 'visibility_status',
-      );
-      expect(visibilityFilterCall).toBeUndefined();
-      expect(phasesChain.eq).toHaveBeenCalledWith('tournament_id', 'tournament-1');
+      // The phases read filters on its Tournament and nothing else.
+      expect(phasesChain.select).toHaveBeenCalledWith('id, type, config_json');
+      expect(phasesChain.eq.mock.calls).toEqual([['tournament_id', 'tournament-1']]);
 
       // Tournament header carries through, and the response shape is the
       // canonical empty-pools shape (not a 404 / not null).
@@ -2292,9 +2283,7 @@ describe('EventsService', () => {
         error: null,
       });
       const phasesChain = makeAwaitableChain({
-        data: [
-          { id: 'phase-pool-1', type: 'pool', visibility_status: 'published', config_json: {} },
-        ],
+        data: [{ id: 'phase-pool-1', type: 'pool', config_json: {} }],
         error: null,
       });
       // One pool with no members — keeps the test focused on the
@@ -2362,7 +2351,6 @@ describe('EventsService', () => {
           {
             id: 'phase-br-1',
             type: 'single_elim',
-            visibility_status: 'published',
             config_json: { bracketSize: 4, rounds: 2 },
           },
         ],
@@ -2502,14 +2490,12 @@ describe('EventsService', () => {
   });
 
   describe('publishTournament', () => {
-    it('cascades visibility=published to every child phase', async () => {
-      // setTournamentStatus does, in order:
-      //   1. tournaments.select(event_id).eq(id).maybeSingle()
-      //   2. events.select(...).eq(id).maybeSingle()  (via getEventById)
-      //   3. authz: assertOrgRole
-      //   4. tournaments.update(...).eq(id).select('*').single()
-      //   5. NEW — phases.update({visibility_status:'published', ...})
-      //                  .eq('tournament_id', tournamentId)
+    it.each([
+      ['publishTournament', 'published'],
+      ['unpublishTournament', 'draft'],
+    ] as const)('%s writes the Tournament status and touches no phase', async (method, status) => {
+      // The Tournament status is the only public switch (operator ruling 91):
+      // there is no phase flag left to keep in step.
       const tournamentLookup = makeChain({
         data: { event_id: 'event-1' },
         error: null,
@@ -2522,84 +2508,20 @@ describe('EventsService', () => {
         update: vi.fn().mockReturnThis(),
         eq: vi.fn().mockReturnThis(),
         select: vi.fn().mockReturnThis(),
-        single: vi
-          .fn()
-          .mockResolvedValue({ data: { id: 'tourn-1', status: 'published' }, error: null }),
-      };
-      const phasesUpdate = {
-        update: vi.fn().mockReturnThis(),
-        eq: vi.fn().mockResolvedValue({ data: null, error: null }),
+        single: vi.fn().mockResolvedValue({ data: { id: 'tourn-1', status }, error: null }),
       };
       fromMock
         .mockReturnValueOnce(tournamentLookup)
         .mockReturnValueOnce(eventLookup)
-        .mockReturnValueOnce(tournamentUpdate)
-        .mockReturnValueOnce(phasesUpdate);
+        .mockReturnValueOnce(tournamentUpdate);
       assertOrgRole.mockResolvedValue(undefined);
 
-      await service.publishTournament('tourn-1', 'user-1');
+      await service[method]('tourn-1', 'user-1');
 
-      // Tournament status moves to 'published'.
       expect(tournamentUpdate.update).toHaveBeenCalledTimes(1);
-      expect(tournamentUpdate.update.mock.calls[0]![0]).toMatchObject({ status: 'published' });
-
-      // Phases cascade: visibility_status='published' on every row
-      // belonging to the tournament, with audit stamps.
-      expect(phasesUpdate.update).toHaveBeenCalledTimes(1);
-      const phasesPayload = phasesUpdate.update.mock.calls[0]![0] as Record<string, unknown>;
-      expect(phasesPayload['visibility_status']).toBe('published');
-      expect(phasesPayload['published_at']).toEqual(expect.any(String));
-      expect(phasesPayload['published_by_user_id']).toBe('user-1');
-
-      // Cascade filter: every phase WHERE tournament_id = 'tourn-1'.
-      expect(phasesUpdate.eq).toHaveBeenCalledWith('tournament_id', 'tourn-1');
-    });
-
-    it('hides all child phases when the tournament moves back to draft', async () => {
-      // Reverse cascade — operator un-publishes the tournament, the
-      // phase rows must follow so RLS on the pools table stops
-      // serving anonymous reads.
-      const tournamentLookup = makeChain({
-        data: { event_id: 'event-1' },
-        error: null,
-      });
-      const eventLookup = makeChain({
-        data: { id: 'event-1', organization_id: 'org-1', status: 'draft' },
-        error: null,
-      });
-      const tournamentUpdate = {
-        update: vi.fn().mockReturnThis(),
-        eq: vi.fn().mockReturnThis(),
-        select: vi.fn().mockReturnThis(),
-        single: vi
-          .fn()
-          .mockResolvedValue({ data: { id: 'tourn-1', status: 'draft' }, error: null }),
-      };
-      const phasesUpdate = {
-        update: vi.fn().mockReturnThis(),
-        eq: vi.fn().mockResolvedValue({ data: null, error: null }),
-      };
-      fromMock
-        .mockReturnValueOnce(tournamentLookup)
-        .mockReturnValueOnce(eventLookup)
-        .mockReturnValueOnce(tournamentUpdate)
-        .mockReturnValueOnce(phasesUpdate);
-      assertOrgRole.mockResolvedValue(undefined);
-
-      await service.unpublishTournament('tourn-1', 'user-1');
-
-      // Tournament status moves to 'draft'.
-      expect(tournamentUpdate.update.mock.calls[0]![0]).toMatchObject({ status: 'draft' });
-
-      // Phases cascade: visibility_status='hidden'. published_at and
-      // published_by_user_id are NOT touched on the hide direction —
-      // they stay as the historical record of the previous publish.
-      expect(phasesUpdate.update).toHaveBeenCalledTimes(1);
-      const phasesPayload = phasesUpdate.update.mock.calls[0]![0] as Record<string, unknown>;
-      expect(phasesPayload['visibility_status']).toBe('hidden');
-      expect(phasesPayload).not.toHaveProperty('published_at');
-      expect(phasesPayload).not.toHaveProperty('published_by_user_id');
-      expect(phasesUpdate.eq).toHaveBeenCalledWith('tournament_id', 'tourn-1');
+      expect(tournamentUpdate.update.mock.calls[0]![0]).toMatchObject({ status });
+      expect(tournamentUpdate.eq).toHaveBeenCalledWith('id', 'tourn-1');
+      expect(fromMock).not.toHaveBeenCalledWith('phases');
     });
   });
 
