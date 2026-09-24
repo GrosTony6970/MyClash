@@ -8,7 +8,7 @@
  * (`lookup.controller.ts`). The mint did not, so anyone holding two ids could
  * become a draft Event's fighter and read their schedule through /my-schedule.
  */
-import { NotFoundException } from '@nestjs/common';
+import { ForbiddenException, NotFoundException } from '@nestjs/common';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   mockSupabase,
@@ -48,7 +48,7 @@ function mint(opts: { userId?: string; member?: boolean } = {}) {
   const supabase = { ...db, anon: { auth: { getUser } } };
   const orgs = {
     assertOrgRole: vi.fn(async () => {
-      if (!opts.member) throw new Error('not a member');
+      if (!opts.member) throw new ForbiddenException('not a member');
     }),
   };
   const config = { getOrThrow: () => 'the-server-guest-secret', get: () => 'test' };

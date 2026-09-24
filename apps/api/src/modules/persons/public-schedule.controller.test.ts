@@ -7,7 +7,7 @@
  * person who is not in the Event the URL names. Both answer 404, and the second
  * answers exactly what an unknown person gets, so the route confirms nobody.
  */
-import { NotFoundException } from '@nestjs/common';
+import { ForbiddenException, NotFoundException } from '@nestjs/common';
 import * as jwt from 'jsonwebtoken';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { mockSupabase, queriedTables } from '../../common/testing/supabase-chain';
@@ -98,7 +98,7 @@ function door(opts: { userId?: string; member?: boolean } = {}) {
   const supabase = { ...db, anon: { auth: { getUser } } };
   const orgs = {
     assertOrgRole: vi.fn(async () => {
-      if (!opts.member) throw new Error('not a member');
+      if (!opts.member) throw new ForbiddenException('not a member');
     }),
   };
   // Hidden workshops show to the person themself only, as the real PrivacyService does.

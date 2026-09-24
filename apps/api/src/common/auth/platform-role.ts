@@ -42,10 +42,11 @@ import { ANONYMOUS_USER_ID } from './request-user';
  * `'unknown'` is the historical fallback of the copy-pasted `getActorId()` in
  * the admin controllers, and `'anonymous'` is what `resolveRequestUserId`
  * returns for an unauthenticated caller. Both are plain strings that would
- * otherwise be handed to `.eq('user_id', …)` — harmless today because no row
- * can match them, but only by accident. Rejecting them here makes it deliberate.
+ * otherwise be handed to `.eq('user_id', …)` on a UUID column, where the cast
+ * fails and the read ERRORS. Rejecting them before any read keeps a signed-out
+ * caller a refusal (here, and in `assertOrgRole`) rather than a failed read.
  */
-const NON_USER_IDS: ReadonlySet<string> = new Set(['', ANONYMOUS_USER_ID, 'unknown']);
+export const NON_USER_IDS: ReadonlySet<string> = new Set(['', ANONYMOUS_USER_ID, 'unknown']);
 
 /**
  * The platform tier `userId` holds, or `null` for none.

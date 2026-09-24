@@ -22,7 +22,7 @@
  * must edit a customer's schedule gets added to the organisation, which is how
  * they already reach its workshops and leagues.
  */
-import { BadRequestException, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import type { OrganizationsService } from '../../modules/organizations/organizations.service';
 import type { SupabaseService } from '../../modules/supabase/supabase.service';
 import { ANONYMOUS_USER_ID } from './request-user';
@@ -352,8 +352,10 @@ export async function assertCanReadEventRow(
     // `read_only` is the floor of the role hierarchy, i.e. ANY member — the
     // same bar `is_org_member` sets in the RLS policy this mirrors.
     await deps.orgs.assertOrgRole(row.organization_id, userId, 'read_only');
-  } catch {
-    hidden(ref);
+  } catch (error) {
+    // Only a refusal hides the Event; a failed read stays a 5xx.
+    if (error instanceof ForbiddenException) hidden(ref);
+    throw error;
   }
 }
 

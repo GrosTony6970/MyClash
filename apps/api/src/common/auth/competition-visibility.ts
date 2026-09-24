@@ -14,7 +14,7 @@
  * exactly as it answers an unknown id — an empty list stays empty, a 404 keeps
  * its wording (ruling 83) — so the difference cannot reveal a draft.
  */
-import { BadRequestException } from '@nestjs/common';
+import { ForbiddenException } from '@nestjs/common';
 import type { FastifyRequest } from 'fastify';
 import { HIDDEN_EVENT_STATUSES, type EventAuthzDeps } from './event-authz';
 import { getIdentity, getStaffSession, type StaffSession } from './identity';
@@ -104,8 +104,10 @@ export async function isInsider(
   try {
     await deps.orgs.assertOrgRole(event.organization_id, reader.userId, 'read_only');
     return true;
-  } catch {
-    return false;
+  } catch (error) {
+    // Only a refusal means "not a member"; a failed read stays a 5xx.
+    if (error instanceof ForbiddenException) return false;
+    throw error;
   }
 }
 
@@ -120,7 +122,7 @@ async function isActiveStaff(
     .eq('id', staff.staffId)
     .eq('event_id', staff.eventId)
     .maybeSingle();
-  if (error) throw new BadRequestException(error.message);
+  if (error) throw new Error(`staff session read failed: ${error.message}`);
   return (data as { status?: string } | null)?.status === 'active';
 }
 
@@ -186,7 +188,7 @@ export async function seesHiddenOnLice(
     .select('events!inner(id, organization_id)')
     .eq('id', liceId)
     .maybeSingle();
-  if (error) throw new BadRequestException(error.message);
+  if (error) throw new Error(`piste read failed: ${error.message}`);
   const event = (data as { events?: Pick<CompetitionEvent, 'id' | 'organization_id'> } | null)
     ?.events;
   return event ? isInsider(deps, event, reader) : false;
@@ -221,7 +223,7 @@ export async function matchVisibility(
     .select(MATCH_COMPETITION_SELECT)
     .eq('id', matchId)
     .maybeSingle();
-  if (error) throw new BadRequestException(error.message);
+  if (error) throw new Error(`bout read failed: ${error.message}`);
   const row = competitionOfMatch(data as MatchCompetitionEmbed | null);
   if (!row || !isHiddenCompetition(row)) return 'public';
   return (await isInsider(deps, row.event, reader)) ? 'hidden' : 'refused';

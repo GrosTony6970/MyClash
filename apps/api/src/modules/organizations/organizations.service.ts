@@ -7,7 +7,7 @@ import {
   Optional,
 } from '@nestjs/common';
 import { sanitizePostgrestFilterValue } from '../../common/postgrest-filter';
-import { hasPlatformTier } from '../../common/auth/platform-role';
+import { hasPlatformTier, NON_USER_IDS } from '../../common/auth/platform-role';
 import { SupabaseService } from '../supabase/supabase.service';
 // Value import ON PURPOSE — `import type` erases DI metadata and @Optional()
 // silently injects undefined (see matches/di-wiring.regression.test.ts).
@@ -31,6 +31,8 @@ export interface OrgLogoUpload {
   filename: string;
   mimetype: string;
 }
+
+const notAMember = () => new ForbiddenException('You are not a member of this organization');
 
 @Injectable()
 export class OrganizationsService {
@@ -561,14 +563,20 @@ export class OrganizationsService {
     minRole:
       'owner' | 'admin' | 'editor' | 'scorekeeper' | 'referee' | 'workshop_lead' | 'read_only',
   ) {
-    const { data } = await this.supabase.service
+    // A sentinel is not a user id, and a missing organisation has no members:
+    // both are refused before the read, whose UUID cast would otherwise fail and
+    // read as a failed read below.
+    if (!orgId || !userId || NON_USER_IDS.has(userId)) throw notAMember();
+    const { data, error } = await this.supabase.service
       .from('organization_members')
       .select('role')
       .eq('organization_id', orgId)
       .eq('user_id', userId)
       .maybeSingle();
 
-    if (!data) throw new ForbiddenException('You are not a member of this organization');
+    // A failed read is not a verdict: a 5xx, never "you are not a member".
+    if (error) throw new Error(`membership read failed: ${error.message}`);
+    if (!data) throw notAMember();
 
     const roleHierarchy = [
       'read_only',

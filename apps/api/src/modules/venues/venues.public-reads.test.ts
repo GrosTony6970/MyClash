@@ -106,8 +106,11 @@ const TABLES = {
   },
 };
 
-function build(events: Parameters<typeof mockSupabase>[0][string]) {
-  db = mockSupabase({ events, ...TABLES });
+function build(
+  events: Parameters<typeof mockSupabase>[0][string],
+  overrides: Parameters<typeof mockSupabase>[0] = {},
+) {
+  db = mockSupabase({ events, ...TABLES, ...overrides });
   const supabase = { service: db.service };
   const service = new VenuesService(supabase as never, new OrganizationsService(supabase as never));
   controller = new VenuesController(service, supabase as never);
@@ -254,6 +257,20 @@ describe('the venues of the right Event (rulings 81-83, 96)', () => {
     ]) {
       await expect(call()).rejects.toThrow(/^event read failed: connection reset$/);
       await expect(call()).rejects.not.toBeInstanceOf(HttpException);
+    }
+  });
+
+  // The venues page writes back the list it read: a failed membership read
+  // answered [] once, and the page then detached every venue of the Event.
+  it("fails a failed membership read loudly, never as an outsider's empty answer", async () => {
+    build({ rows: EVENTS }, { organization_members: { data: null, error: { message: 'down' } } });
+    const member = req({ user: 'u-member' });
+    for (const call of [
+      () => controller.listForEvent(EVENT_DRAFT, member),
+      () => controller.listForEventSlug('secret', member),
+      () => controller.getTournamentPhaseVenues(T_IN_DRAFT_EVENT, member),
+    ]) {
+      await expect(call()).rejects.toThrow(/^membership read failed: down$/);
     }
   });
 });
