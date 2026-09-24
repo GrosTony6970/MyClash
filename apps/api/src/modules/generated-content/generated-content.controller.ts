@@ -12,6 +12,7 @@ import { ApiBearerAuth, ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger'
 import type { FastifyRequest } from 'fastify';
 import { SupabaseService } from '../supabase/supabase.service';
 import { Public } from '../../common/auth/public.decorator';
+import { publicReader } from '../../common/auth/competition-visibility';
 import { GeneratedContentService } from './generated-content.service';
 
 async function getClaimedUserId(req: FastifyRequest, supabase: SupabaseService): Promise<string> {
@@ -106,8 +107,9 @@ export class PublicGeneratedContentController {
   async getPublished(
     @Param('type') type: string,
     @Param('entityId', ParseUUIDPipe) entityId: string,
+    @Req() req: FastifyRequest,
     @Query('locale') locale?: string,
   ) {
-    return this.service.getPublished(type, entityId, normLocale(locale));
+    return this.service.getPublished(type, entityId, normLocale(locale), publicReader(req));
   }
 }

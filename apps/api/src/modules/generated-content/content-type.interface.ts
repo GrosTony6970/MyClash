@@ -4,6 +4,8 @@
  * facts context, and prompt the model. The GeneratedContentService runs a fixed
  * pipeline over whichever def matches `contentType`.
  */
+import type { PublicReader } from '../../common/auth/competition-visibility';
+
 export interface GenScope {
   orgId: string;
   eventId: string;
@@ -19,6 +21,11 @@ export interface ContentTypeDef {
   resolveScope?(entityId: string): Promise<GenScope>;
   /** Throws if `userId` may not generate/read this entity's content. */
   assertAccess(entityId: string, userId: string): Promise<void>;
+  /**
+   * May this reader see the entity's PUBLISHED content? `false` answers exactly
+   * like an entity with nothing published (rulings 81-83).
+   */
+  isPubliclyReadable(entityId: string, reader: PublicReader): Promise<boolean>;
   /**
    * Structured, real facts the model must narrate (never invent).
    *

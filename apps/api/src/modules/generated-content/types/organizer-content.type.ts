@@ -42,6 +42,11 @@ export class OrganizerContentType implements ContentTypeDef {
     return { orgId: e.organization_id, eventId: e.id };
   }
 
+  /** Never published (`canPublish` is false), so never publicly read, whatever a row says. */
+  isPubliclyReadable(): Promise<boolean> {
+    return Promise.resolve(false);
+  }
+
   async assertAccess(entityId: string, userId: string): Promise<void> {
     const e = await this.loadEvent(entityId);
     await this.orgs.assertOrgRole(e.organization_id, userId, 'admin');

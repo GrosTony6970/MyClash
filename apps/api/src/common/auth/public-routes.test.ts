@@ -172,6 +172,9 @@ const EXPECTED_PUBLIC = [
   // `assertCanReadPhase` is what makes this safe to open — a draft stays closed
   // to everyone outside the organisation, anonymous or not.
   'GET /phases/:phaseId/matches',
+  // Published AI content only: each content type decides who may read its
+  // entity — a hidden Tournament's recap and an erased fighter's insight answer
+  // null, exactly like nothing published (rulings 81-83).
   'GET /public/generated-content/:type/:entityId',
   // The staff login page's event picker. Public by necessity: staff usernames
   // are unique per EVENT, so there is no namespace to authenticate a username

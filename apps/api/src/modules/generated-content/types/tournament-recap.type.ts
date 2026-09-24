@@ -1,5 +1,6 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { computeFinalRanking, rankingBracketShape, type RankingSlot } from '@myclash/types';
+import { canReadTournament, type PublicReader } from '../../../common/auth/competition-visibility';
 import { EventsService } from '../../events/events.service';
 import { OrganizationsService } from '../../organizations/organizations.service';
 import { SupabaseService } from '../../supabase/supabase.service';
@@ -45,6 +46,11 @@ export class TournamentRecapType implements ContentTypeDef {
     if (!t.events?.organization_id)
       throw new NotFoundException('Tournament organization not found');
     return { orgId: t.events.organization_id, eventId: t.event_id };
+  }
+
+  /** A recap is read like its Tournament: a hidden one only by an insider (rulings 81-83). */
+  isPubliclyReadable(entityId: string, reader: PublicReader): Promise<boolean> {
+    return canReadTournament({ supabase: this.supabase, orgs: this.orgs }, entityId, reader);
   }
 
   async assertAccess(entityId: string, userId: string): Promise<void> {

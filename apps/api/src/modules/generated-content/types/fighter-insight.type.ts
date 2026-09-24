@@ -1,5 +1,10 @@
 import { BadRequestException, ForbiddenException, Injectable } from '@nestjs/common';
 import { MemberStatsService } from '../../directory-groups/member-stats.service';
+import {
+  isReachable,
+  REACHABLE_COLUMNS,
+  type ReachableRow,
+} from '../../fighters/directory-predicate';
 import { SupabaseService } from '../../supabase/supabase.service';
 import type { ContentTypeDef } from '../content-type.interface';
 
@@ -19,6 +24,20 @@ export class FighterInsightType implements ContentTypeDef {
     private readonly supabase: SupabaseService,
     private readonly memberStats: MemberStatsService,
   ) {}
+
+  /**
+   * A merged or erased fighter's insight is gone with their profile, which 404s
+   * (`getBySlug`). An unknown id has nothing published either way.
+   */
+  async isPubliclyReadable(entityId: string): Promise<boolean> {
+    const { data, error } = await this.supabase.service
+      .from('global_persons')
+      .select(REACHABLE_COLUMNS.join(', '))
+      .eq('id', entityId)
+      .maybeSingle();
+    if (error) throw new Error(`person read failed: ${error.message}`);
+    return !data || isReachable(data as ReachableRow);
+  }
 
   async assertAccess(entityId: string, userId: string): Promise<void> {
     const { data, error } = await this.supabase.service

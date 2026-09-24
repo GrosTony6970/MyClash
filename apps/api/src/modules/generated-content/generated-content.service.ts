@@ -9,6 +9,7 @@ import { AIProvidersService } from '../ai-providers/ai-providers.service';
 import { AIUsageService } from '../ai-usage/ai-usage.service';
 import { AdminFeatureFlagsService } from '../admin/admin-feature-flags.service';
 import { SupabaseService } from '../supabase/supabase.service';
+import type { PublicReader } from '../../common/auth/competition-visibility';
 import { CONTENT_TYPES, type ContentTypeDef } from './content-type.interface';
 
 interface GeneratedRow {
@@ -130,11 +131,15 @@ export class GeneratedContentService {
   }
 
   /**
-   * Public read: published content only (no auth). Powers public surfaces.
+   * Public read: published content only, no login needed. Powers public surfaces.
    * Falls back to the EN copy when the requested locale isn't published, so a
    * viewer still sees a recap the organizer only produced in one language.
+   * The content type decides who may read its entity; an unknown type, like a
+   * hidden entity, answers as nothing published.
    */
-  async getPublished(contentType: string, entityId: string, locale: string) {
+  async getPublished(contentType: string, entityId: string, locale: string, reader: PublicReader) {
+    const def = this.registry.get(contentType);
+    if (!def || !(await def.isPubliclyReadable(entityId, reader))) return null;
     const row = await this.load(contentType, entityId, locale);
     if (row && row.status === 'published') return this.view(row);
     if (locale !== 'en') {
@@ -198,7 +203,8 @@ export class GeneratedContentService {
       .eq('entity_id', entityId)
       .eq('locale', locale)
       .maybeSingle();
-    if (error) throw new BadRequestException(error.message);
+    // A 5xx: a failed read is not "nothing generated", nor the database's words in a 400.
+    if (error) throw new Error(`generated content read failed: ${error.message}`);
     return (data as GeneratedRow | null) ?? null;
   }
 

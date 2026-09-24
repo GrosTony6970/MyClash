@@ -31,6 +31,7 @@ function makeType(over: Partial<ContentTypeDef> = {}) {
     keySource: 'org' as const,
     canPublish: true,
     assertAccess,
+    isPubliclyReadable: vi.fn().mockResolvedValue(true),
     buildContext,
     resolveScope,
     systemPrompt: () => 'sys',
@@ -126,7 +127,8 @@ describe('GeneratedContentService', () => {
       published_at: null,
     };
     const { service } = svc([makeType().def], () => chain({ data: draft, error: null }));
-    expect(await service.getPublished('tournament_recap', 't1', 'en')).toBeNull();
+    const anonymous = { userId: 'anonymous', staff: null };
+    expect(await service.getPublished('tournament_recap', 't1', 'en', anonymous)).toBeNull();
   });
 
   it('fighter generate: uses the fighter BYOK path (generateForFighter), stores a draft', async () => {
