@@ -7,6 +7,8 @@ import {
 } from '@nestjs/common';
 import { SupabaseService } from '../supabase/supabase.service';
 import { insertAuditLog } from '../../common/audit-log';
+import { isPlatformStaff } from '../../common/auth/platform-role';
+import { sanitizePostgrestFilterValue } from '../../common/postgrest-filter';
 import type {
   BulkClubUpdateDto,
   ClubQueryDto,
@@ -55,22 +57,28 @@ export class ClubsService {
   private readonly logger = new Logger(ClubsService.name);
   constructor(private readonly supabase: SupabaseService) {}
 
-  async list(query: ClubQueryDto) {
+  /** Archived clubs only for platform staff who ask for them (ruling 98). */
+  async list(query: ClubQueryDto, viewerUserId: string | null) {
     let q = this.supabase.service.from('clubs').select('*').order('name', { ascending: true });
 
-    if (!this.booleanQueryValue(query.includeArchived)) {
+    const withArchived =
+      this.booleanQueryValue(query.includeArchived) &&
+      (await isPlatformStaff(this.supabase, viewerUserId));
+    if (!withArchived) {
       q = q.is('archived_at', null) as typeof q;
     }
 
     if (query.q) {
+      // A `,` or `(` in `q` would add sibling filters to the `.or(...)` string.
+      const safe = sanitizePostgrestFilterValue(query.q);
       q = query.searchAbv
-        ? (q.or(`name.ilike.%${query.q}%,abbreviation.ilike.%${query.q}%`) as typeof q)
+        ? (q.or(`name.ilike.%${safe}%,abbreviation.ilike.%${safe}%`) as typeof q)
         : (q.ilike('name', `%${query.q}%`) as typeof q);
     }
     if (query.country) q = q.ilike('country_code', query.country.trim()) as typeof q;
 
     const { data, error } = await q;
-    if (error) throw new BadRequestException(error.message);
+    if (error) throw new Error(`clubs read failed: ${error.message}`);
     return data ?? [];
   }
 

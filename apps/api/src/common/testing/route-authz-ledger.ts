@@ -24,8 +24,7 @@
  */
 export const UNDECIDED: Readonly<Record<string, string>> = {
   // clubs and platform-wide identities. The writes were fixed 2026-09-23
-  // (rulings 36-38, 55, 56); these four reads wait for ruling 15's read pass.
-  'modules/clubs/clubs.controller.ts#ClubsController.list': 'open',
+  // (rulings 36-38, 55, 56); these three reads wait for ruling 15's read pass.
   'modules/fighters/fighters.controller.ts#FightersController.list': 'read: unlisted people',
   'modules/fighters/fighters.controller.ts#WeaponsController.list': 'open: web-public calls it',
   'modules/hema-ratings/hema-ratings.controller.ts#HemaRatingsController.search':

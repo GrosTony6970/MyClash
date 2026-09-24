@@ -40,18 +40,26 @@ import {
   UpdateClubDto,
 } from './dto/clubs.dto';
 import { getActorId } from '../../common/auth/actor';
+import { getIdentity } from '../../common/auth/identity';
 
 @ApiTags('clubs')
 @Controller('clubs')
 export class ClubsController {
   constructor(private readonly clubs: ClubsService) {}
 
-  /** GET /api/v1/clubs?q=...&country=... */
+  /**
+   * GET /api/v1/clubs?q=...&country=...
+   *
+   * Public (operator ruling 98): a club row names nobody. `includeArchived` is
+   * honoured for platform staff only; everyone else gets live clubs.
+   */
+  @Public()
   @Get()
   @Throttle(CATALOG_READ_THROTTLE)
   @ApiOperation({ summary: 'List clubs (public)' })
-  async list(@Query() query: ClubQueryDto) {
-    return this.clubs.list(query);
+  async list(@Query() query: ClubQueryDto, @Req() req: FastifyRequest) {
+    const identity = getIdentity(req);
+    return this.clubs.list(query, identity.kind === 'claimed' ? identity.userId : null);
   }
 
   /** GET /api/v1/clubs/review-requests?status=pending */

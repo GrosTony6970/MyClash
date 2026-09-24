@@ -81,7 +81,7 @@ describe('ClubsService', () => {
     const chain = makeAwaitableChain({ data: [], error: null });
     fromMock.mockReturnValue(chain);
 
-    await service.list({});
+    await service.list({}, null);
 
     expect(chain.is).toHaveBeenCalledWith('archived_at', null);
   });

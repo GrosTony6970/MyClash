@@ -89,6 +89,9 @@ const EXPECTED_PUBLIC = [
   // three hardcoded figures that were not true.
   'GET /public/site-stats',
   // ── public event site (web-public, logged out) ──
+  // The club search (ruling 98): a club row names nobody. Archived clubs only
+  // for platform staff.
+  'GET /clubs',
   'GET /clubs/:slug',
   'GET /events',
   'GET /events/:eventId/lices',
