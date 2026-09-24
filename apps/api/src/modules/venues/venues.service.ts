@@ -6,10 +6,12 @@ import {
   Optional,
 } from '@nestjs/common';
 import {
-  assertCanReadEvent,
-  assertCanReadEventRow,
-  type EventVisibilityRow,
-} from '../../common/auth/event-authz';
+  canReadEvent,
+  canReadTournament,
+  type CompetitionEvent,
+  type PublicReader,
+} from '../../common/auth/competition-visibility';
+import { eventNotFound } from '../../common/auth/event-authz';
 import { SupabaseService } from '../supabase/supabase.service';
 import { OrganizationsService } from '../organizations/organizations.service';
 // Value import, not `import type` — `import type` erases the DI metadata.
@@ -31,6 +33,9 @@ type PhaseVenue = { id: string; name: string } | null;
  * that follows it, and before this it silently rode the bracket assignment.
  */
 type TournamentPhaseVenues = { pool: PhaseVenue; swiss: PhaseVenue; bracket: PhaseVenue };
+
+/** No venue for any phase: an unknown Tournament's answer, and so a hidden one's. */
+const noPhaseVenues = (): TournamentPhaseVenues => ({ pool: null, swiss: null, bracket: null });
 
 /** The assignable phase-venue kinds, iterated by both the read and the write. */
 const PHASE_VENUE_KINDS = ['pool', 'swiss', 'bracket'] as const;
@@ -302,12 +307,32 @@ export class VenuesService {
   // ── Event-scoped derived listing ────────────────────────────────────────────
 
   /**
-   * `@Public()`, gated on event visibility (operator ruling 78): a draft Event
-   * answers 404 to anyone outside its organisation, like its piste list.
+   * `@Public()`: a draft Event answers an outsider exactly as an unknown one,
+   * with no venues (rulings 81-83, 96).
    */
-  async listForVisibleEvent(eventId: string, resolveUserId: () => Promise<string>) {
-    await assertCanReadEvent({ supabase: this.supabase, orgs: this.orgs }, eventId, resolveUserId);
-    return this.listForEvent(eventId);
+  async listForVisibleEvent(eventId: string, reader: PublicReader) {
+    const event = await this.readableEvent('id', eventId, reader);
+    return event ? this.listForEvent(event.id) : [];
+  }
+
+  /**
+   * The Event behind a public read, or null when it is unknown — and when it is
+   * a draft the caller may not see. A failed Event read is a 5xx, not "unknown".
+   */
+  private async readableEvent(
+    column: 'id' | 'slug',
+    ref: string,
+    reader: PublicReader,
+  ): Promise<CompetitionEvent | null> {
+    const { data, error } = await this.supabase.service
+      .from('events')
+      .select('id, status, organization_id')
+      .eq(column, ref)
+      .maybeSingle();
+    if (error) throw new Error(`event read failed: ${error.message}`);
+    const event = data as CompetitionEvent | null;
+    const deps = { supabase: this.supabase, orgs: this.orgs };
+    return event && (await canReadEvent(deps, event, reader)) ? event : null;
   }
 
   /**
@@ -362,18 +387,14 @@ export class VenuesService {
   }
 
   /**
-   * Public slug variant of listForEvent. Resolves event_slug → event_id
-   * then delegates. Used by the public event page's Venues section.
+   * Public slug variant of listForEvent, for the public event page's Venues
+   * section. An unknown slug and a draft the caller may not see answer the same
+   * 404 (rulings 81-83).
    */
-  async listForEventSlug(eventSlug: string) {
-    const { data: event, error } = await this.supabase.service
-      .from('events')
-      .select('id')
-      .eq('slug', eventSlug)
-      .maybeSingle();
-    if (error) throw new BadRequestException(error.message);
-    if (!event) throw new NotFoundException(`Event ${eventSlug} not found`);
-    return this.listForEvent(String((event as Row)['id']));
+  async listForEventSlug(eventSlug: string, reader: PublicReader) {
+    const event = await this.readableEvent('slug', eventSlug, reader);
+    if (!event) throw eventNotFound(eventSlug);
+    return this.listForEvent(event.id);
   }
 
   // ── Event ↔ venue links (editor reconcile) ──────────────────────────────────
@@ -589,28 +610,17 @@ export class VenuesService {
   // ── Tournament phase venues (pools / bracket can live at different venues) ────
 
   /**
-   * The venue each phase-type of a tournament is assigned to run at. `@Public()`,
-   * gated on its Event's visibility (ruling 78): a draft Event answers 404 to
-   * anyone outside its organisation. The refusal names the TOURNAMENT id, never
-   * the hidden Event's; an unknown tournament answers no venues, as before.
+   * The venue each phase-type of a tournament is assigned to run at. `@Public()`:
+   * a Tournament hidden from the caller (a draft Event, or a Tournament not
+   * published, running or completed) answers no venues, as an unknown one does
+   * (rulings 81-83, 96).
    */
   async getTournamentPhaseVenues(
     tournamentId: string,
-    resolveUserId: () => Promise<string>,
+    reader: PublicReader,
   ): Promise<TournamentPhaseVenues> {
-    const { data, error } = await this.supabase.service
-      .from('tournaments')
-      .select('events!inner(status, organization_id)')
-      .eq('id', tournamentId)
-      .maybeSingle();
-    if (error) throw new BadRequestException(error.message);
-    const event = (data as { events?: EventVisibilityRow } | null)?.events ?? null;
-    await assertCanReadEventRow(
-      { supabase: this.supabase, orgs: this.orgs },
-      tournamentId,
-      event,
-      resolveUserId,
-    );
+    const deps = { supabase: this.supabase, orgs: this.orgs };
+    if (!(await canReadTournament(deps, tournamentId, reader))) return noPhaseVenues();
     return this.readTournamentPhaseVenues(tournamentId);
   }
 
@@ -621,7 +631,7 @@ export class VenuesService {
       .select('phase_kind, venues(id, name)')
       .eq('tournament_id', tournamentId);
     if (error) throw new BadRequestException(error.message);
-    const out: TournamentPhaseVenues = { pool: null, swiss: null, bracket: null };
+    const out = noPhaseVenues();
     for (const row of (data ?? []) as unknown as Array<{
       phase_kind: string;
       venues: { id: string; name: string } | null;

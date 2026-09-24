@@ -7,9 +7,8 @@
  *   names of the Events using each venue, drafts included): any member of the
  *   venue's own organisation, any role (operator ruling 77). A signed-out
  *   caller gets 401 before anything is read.
- * - The venues an Event uses and a Tournament's venue per phase: public, but a
- *   DRAFT Event answers 404 to anyone outside its organisation (ruling 78) —
- *   the rule of the public piste list and the public Tournaments list.
+ * - The venues an Event uses and a Tournament's venue per phase are public
+ *   reads: `venues.public-reads.test.ts` (rulings 81-83, 96).
  *
  * Driven through the controller and the real service over seeded tables.
  */
@@ -27,8 +26,6 @@ const VENUE_A = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 const VENUE_B = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
 const DRAFT = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd';
 const PUBLISHED = 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee';
-const T_DRAFT = '33333333-3333-4333-8333-333333333333';
-const T_PUBLISHED = '44444444-4444-4444-8444-444444444444';
 const NOBODY = '99999999-9999-4999-8999-999999999999';
 
 let db: ReturnType<typeof mockSupabase>;
@@ -62,27 +59,6 @@ beforeEach(() => {
     },
     lices: { rows: [] },
     workshop_sessions: { rows: [] },
-    tournaments: {
-      rows: [
-        // The `events!inner(...)` embed, as PostgREST hands it back.
-        { id: T_DRAFT, event_id: DRAFT, events: { status: 'draft', organization_id: ORG_A } },
-        {
-          id: T_PUBLISHED,
-          event_id: PUBLISHED,
-          events: { status: 'published', organization_id: ORG_A },
-        },
-      ],
-    },
-    tournament_phase_venues: {
-      rows: [
-        { tournament_id: T_DRAFT, phase_kind: 'pool', venues: { id: VENUE_A, name: 'Hall A' } },
-        {
-          tournament_id: T_PUBLISHED,
-          phase_kind: 'pool',
-          venues: { id: VENUE_A, name: 'Hall A' },
-        },
-      ],
-    },
     organization_members: {
       rows: [
         { organization_id: ORG_B, user_id: 'u-owner-b', role: 'owner' },
@@ -174,64 +150,5 @@ describe("a club's venue catalogue (ruling 77)", () => {
     await controller.listForOrg(ORG_A, req('u-member-a'));
     // The double hands back the whole row whatever is selected.
     expect(selectsFor(db.from, 'organization_members')).toEqual(['role']);
-  });
-});
-
-describe("an Event's venues and a Tournament's phase venues (ruling 78)", () => {
-  it("shows a published Event's venues to anyone, signed out included", async () => {
-    await expect(controller.listForEvent(PUBLISHED, req()).then(idsOf)).resolves.toEqual([VENUE_A]);
-    await expect(controller.getTournamentPhaseVenues(T_PUBLISHED, req())).resolves.toMatchObject({
-      pool: { id: VENUE_A },
-    });
-  });
-
-  it('hides a draft Event from everyone outside its club, with one 404, before reading its venues', async () => {
-    const lists = await oneAnswer(
-      (caller) => controller.listForEvent(DRAFT, req(caller)),
-      [undefined as never, 'u-stranger', 'u-owner-b'],
-      NotFoundException,
-    );
-    const phases = await oneAnswer(
-      (caller) => controller.getTournamentPhaseVenues(T_DRAFT, req(caller)),
-      [undefined as never, 'u-stranger', 'u-owner-b'],
-      NotFoundException,
-    );
-    expect([lists, phases]).toEqual([1, 1]);
-    expect(queriedTables(db.from)).not.toContain('event_venues');
-    expect(queriedTables(db.from)).not.toContain('tournament_phase_venues');
-  });
-
-  it('refuses a draft by the Tournament id it was asked for, never the hidden Event id', async () => {
-    const refusal = await controller
-      .getTournamentPhaseVenues(T_DRAFT, req('u-stranger'))
-      .catch((error: unknown) => error);
-    const message = JSON.stringify((refusal as NotFoundException).getResponse());
-    expect(message).toContain(T_DRAFT);
-    expect(message).not.toContain(DRAFT);
-  });
-
-  it("shows a draft Event's venues to a member of its club", async () => {
-    await expect(controller.listForEvent(DRAFT, req('u-member-a')).then(idsOf)).resolves.toEqual([
-      VENUE_A,
-    ]);
-    await expect(
-      controller.getTournamentPhaseVenues(T_DRAFT, req('u-member-a')),
-    ).resolves.toMatchObject({ pool: { id: VENUE_A } });
-  });
-
-  it('answers no venues for a Tournament that does not exist, as before', async () => {
-    await expect(controller.getTournamentPhaseVenues(NOBODY, req())).resolves.toEqual({
-      pool: null,
-      swiss: null,
-      bracket: null,
-    });
-  });
-
-  it('reads each deciding column', async () => {
-    await controller.getTournamentPhaseVenues(T_DRAFT, req('u-member-a'));
-    expect(selectsFor(db.from, 'tournaments')).toEqual(['events!inner(status, organization_id)']);
-    expect(selectsFor(db.from, 'organization_members')).toEqual(['role']);
-    await controller.listForEvent(DRAFT, req('u-member-a'));
-    expect(selectsFor(db.from, 'events')).toEqual(['status, organization_id']);
   });
 });

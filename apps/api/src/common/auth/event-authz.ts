@@ -315,7 +315,12 @@ export interface EventVisibilityRow {
  * back the very thing the gate exists to withhold.
  */
 function hidden(ref: string): never {
-  throw new NotFoundException(`Event "${ref}" not found`);
+  throw eventNotFound(ref);
+}
+
+/** The 404 of `hidden()`: an unknown Event and a hidden one alike, in the same words. */
+export function eventNotFound(ref: string): NotFoundException {
+  return new NotFoundException(`Event "${ref}" not found`);
 }
 
 /**

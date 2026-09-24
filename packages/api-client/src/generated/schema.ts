@@ -6875,7 +6875,7 @@ export interface paths {
       path?: never;
       cookie?: never;
     };
-    /** Distinct venues used by this event's lices + workshop sessions (public; a draft Event only for its org). */
+    /** Distinct venues used by this event's lices + workshop sessions (public; a draft Event answers an outsider as an unknown one). */
     get: operations['VenuesController_listForEvent'];
     /** Reconcile the venues this event spreads on (org admin+). Adds links + seeds tournament lices; safe-removes (blocks venues with matches/sessions). */
     put: operations['VenuesController_setEventVenues'];
@@ -6893,7 +6893,7 @@ export interface paths {
       path?: never;
       cookie?: never;
     };
-    /** A tournament's per-phase venue assignment (pools / bracket). Public; a draft Event only for its org. */
+    /** A tournament's per-phase venue assignment (pools / bracket). Public; a hidden Tournament answers an outsider as an unknown one. */
     get: operations['VenuesController_getTournamentPhaseVenues'];
     /** Set a tournament's per-phase venue (org admin+). Links the venue to the event + seeds its lices; stores intent (does not move existing matches). */
     put: operations['VenuesController_setTournamentPhaseVenues'];
@@ -6928,7 +6928,7 @@ export interface paths {
       path?: never;
       cookie?: never;
     };
-    /** Public venues for an event by slug (no auth). */
+    /** Public venues for an event by slug; a draft Event answers an outsider as an unknown slug. */
     get: operations['VenuesController_listForEventSlug'];
     put?: never;
     post?: never;

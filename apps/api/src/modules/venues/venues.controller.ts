@@ -1,5 +1,6 @@
 import { Public } from '../../common/auth/public.decorator';
-import { requireRequestUserId, resolveRequestUserId } from '../../common/auth/request-user';
+import { publicReader } from '../../common/auth/competition-visibility';
+import { requireRequestUserId } from '../../common/auth/request-user';
 import {
   BadRequestException,
   Body,
@@ -179,11 +180,11 @@ export class VenuesController {
   @Get('events/:eventId/venues')
   @ApiOperation({
     summary:
-      "Distinct venues used by this event's lices + workshop sessions (public; a draft Event only for its org).",
+      "Distinct venues used by this event's lices + workshop sessions (public; a draft Event answers an outsider as an unknown one).",
   })
   @ApiParam({ name: 'eventId', type: 'string', format: 'uuid' })
   async listForEvent(@Param('eventId', ParseUUIDPipe) eventId: string, @Req() req: FastifyRequest) {
-    return this.venues.listForVisibleEvent(eventId, () => resolveRequestUserId(req, this.supabase));
+    return this.venues.listForVisibleEvent(eventId, publicReader(req));
   }
 
   @Put('events/:eventId/venues')
@@ -208,16 +209,14 @@ export class VenuesController {
   @Get('tournaments/:tournamentId/phase-venues')
   @ApiOperation({
     summary:
-      "A tournament's per-phase venue assignment (pools / bracket). Public; a draft Event only for its org.",
+      "A tournament's per-phase venue assignment (pools / bracket). Public; a hidden Tournament answers an outsider as an unknown one.",
   })
   @ApiParam({ name: 'tournamentId', type: 'string', format: 'uuid' })
   async getTournamentPhaseVenues(
     @Param('tournamentId', ParseUUIDPipe) tournamentId: string,
     @Req() req: FastifyRequest,
   ) {
-    return this.venues.getTournamentPhaseVenues(tournamentId, () =>
-      resolveRequestUserId(req, this.supabase),
-    );
+    return this.venues.getTournamentPhaseVenues(tournamentId, publicReader(req));
   }
 
   @Put('tournaments/:tournamentId/phase-venues')
@@ -262,10 +261,11 @@ export class VenuesController {
   @Public()
   @Get('events/slug/:eventSlug/venues')
   @ApiOperation({
-    summary: 'Public venues for an event by slug (no auth).',
+    summary:
+      'Public venues for an event by slug; a draft Event answers an outsider as an unknown slug.',
   })
   @ApiParam({ name: 'eventSlug', type: 'string' })
-  async listForEventSlug(@Param('eventSlug') eventSlug: string) {
-    return this.venues.listForEventSlug(eventSlug);
+  async listForEventSlug(@Param('eventSlug') eventSlug: string, @Req() req: FastifyRequest) {
+    return this.venues.listForEventSlug(eventSlug, publicReader(req));
   }
 }

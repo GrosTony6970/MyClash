@@ -199,7 +199,10 @@ describe('VenuesService', () => {
             // A published Event: the visibility gate lets anyone through.
             if (table === 'tournaments') {
               return q({
-                data: { event_id: 'e-1', events: { status: 'published', organization_id: 'o-1' } },
+                data: {
+                  status: 'running',
+                  events: { id: 'e-1', status: 'published', organization_id: 'o-1' },
+                },
                 error: null,
               });
             }
@@ -210,7 +213,10 @@ describe('VenuesService', () => {
       const assertOrgRole = vi.fn().mockResolvedValue(undefined);
       const service = new VenuesService(supabase as never, { assertOrgRole } as never);
 
-      const result = await service.getTournamentPhaseVenues('t-1', async () => 'anonymous');
+      const result = await service.getTournamentPhaseVenues('t-1', {
+        userId: 'anonymous',
+        staff: null,
+      });
       expect(result).toEqual({
         pool: { id: 'v-1', name: 'Hall A' },
         // A Swiss phase gets its own hall — unassigned here.

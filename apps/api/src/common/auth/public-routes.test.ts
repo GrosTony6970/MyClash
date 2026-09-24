@@ -103,8 +103,8 @@ const EXPECTED_PUBLIC = [
   // an unknown one (rulings 81-83).
   'GET /events/:eventId/theme',
   'GET /events/:eventId/tournaments',
-  // The venues an Event uses and a Tournament's venue per phase (ruling 78): a
-  // draft Event answers 404 to anyone outside its organisation (assertCanReadEvent).
+  // The venues an Event uses and a Tournament's venue per phase: a hidden Event or
+  // Tournament answers an outsider exactly as an unknown one (rulings 81-83, 96).
   'GET /events/:eventId/venues',
   'GET /events/:eventSlug/lices/:liceName/current',
   'GET /events/:eventSlug/participants',
