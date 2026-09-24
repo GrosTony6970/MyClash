@@ -302,7 +302,7 @@
     "apps/api/src/modules/fighters/merge.service.ts:122",
     "apps/api/src/modules/fighters/merge.service.ts:56",
     "apps/api/src/modules/fighters/referee-stats.ts:144",
-    "apps/api/src/modules/follows/follows.service.ts:480",
+    "apps/api/src/modules/follows/follows.service.ts:474",
     "apps/api/src/modules/hema-ratings/hema-ratings.service.ts:310",
     "apps/api/src/modules/hema-ratings/hema-ratings.service.ts:653",
     "apps/api/src/modules/identity/global-person-resolver.service.ts:118",

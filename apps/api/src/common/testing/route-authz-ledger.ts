@@ -23,15 +23,6 @@
  * are pinned.
  */
 export const UNDECIDED: Readonly<Record<string, string>> = {
-  // follows — with no cookie the identity is `{}`, and the service then filters
-  // on no follower at all.
-  'modules/follows/follows.controller.ts#FollowsController.unfollow':
-    "write: anonymous deletes EVERY spectator's follow of the person",
-  'modules/follows/follows.controller.ts#FollowsController.updateNotifications':
-    "write: anonymous rewrites every follower's settings",
-  'modules/follows/follows.controller.ts#FollowsController.follow':
-    "write: anonymous gets another follower's row back",
-
   // FALSE_PASSES, below.
   'modules/phases/phases.controller.ts#PhasesController.generatePools':
     'write: rebuilds any unscored Pool layout',
@@ -55,6 +46,13 @@ export const DECIDED_ELSEWHERE: Readonly<Record<string, string>> = {
   // refuses anonymous callers is recognised on its own).
   'modules/follows/follows.controller.ts#FollowsController.list':
     "the caller's own follows; [] with no identity",
+  // follows.service.ts followerFilter: a 401 with no identity (ruling 102).
+  'modules/follows/follows.controller.ts#FollowsController.follow':
+    "the caller's own follow; 401 with no identity",
+  'modules/follows/follows.controller.ts#FollowsController.unfollow':
+    "the caller's own follow; 401 with no identity",
+  'modules/follows/follows.controller.ts#FollowsController.updateNotifications':
+    "the caller's own follow; 401 with no identity",
   'modules/notifications/notifications.controller.ts#NotificationsController.getPreferences':
     "the caller's own preferences",
   'modules/notifications/notifications.controller.ts#NotificationsController.updatePreferences':

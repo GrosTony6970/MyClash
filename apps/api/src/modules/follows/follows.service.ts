@@ -6,7 +6,7 @@
  * Guest→claimed migration transfers follows atomically.
  */
 
-import { ForbiddenException, Injectable } from '@nestjs/common';
+import { ForbiddenException, Injectable, UnauthorizedException } from '@nestjs/common';
 import { asEventKind, isPubliclyVisible } from '@myclash/types';
 import { FollowNotificationSchedulerService } from '../../workers/follow-notification-scheduler.worker';
 import { SupabaseService } from '../supabase/supabase.service';
@@ -35,6 +35,20 @@ export interface FollowIdentity {
   guestSessionId?: string;
   /** Set for claimed users */
   userId?: string;
+}
+
+const hasFollower = (identity: FollowIdentity): boolean =>
+  Boolean(identity.userId || identity.guestSessionId);
+
+/**
+ * The column and value every follows query scopes to: the caller's own rows.
+ * With neither id there is no follower to scope to, and a query without this
+ * filter acts on EVERY follower of the person, so it refuses (ruling 102).
+ */
+function followerFilter(identity: FollowIdentity): [string, string] {
+  if (identity.userId) return ['follower_user_id', identity.userId];
+  if (identity.guestSessionId) return ['follower_guest_session_id', identity.guestSessionId];
+  throw new UnauthorizedException('Sign in, or join the Event as a guest, to follow someone');
 }
 
 /** A follow plus the event it belongs to — for the cross-event "people I
@@ -98,7 +112,8 @@ export class FollowsService {
   // ── List ─────────────────────────────────────────────────────────────────────
 
   async listFollows(eventId: string, identity: FollowIdentity): Promise<FollowRow[]> {
-    let q = this.supabase.service
+    if (!hasFollower(identity)) return [];
+    const q = this.supabase.service
       .from('follows')
       .select(
         `
@@ -106,15 +121,8 @@ export class FollowsService {
         persons ( given_name, family_name, clubs ( name ) )
       `,
       )
-      .eq('event_id', eventId);
-
-    if (identity.userId) {
-      q = q.eq('follower_user_id', identity.userId) as typeof q;
-    } else if (identity.guestSessionId) {
-      q = q.eq('follower_guest_session_id', identity.guestSessionId) as typeof q;
-    } else {
-      return [];
-    }
+      .eq('event_id', eventId)
+      .eq(...followerFilter(identity));
 
     const { data } = await q.order('created_at', { ascending: false });
     if (!data) return [];
@@ -131,21 +139,17 @@ export class FollowsService {
    * follow counts seen in practice; batch if it grows.
    */
   async listAllFollows(identity: FollowIdentity): Promise<FollowRowCrossEvent[]> {
-    let q = this.supabase.service.from('follows').select(
-      `
+    if (!hasFollower(identity)) return [];
+    const q = this.supabase.service
+      .from('follows')
+      .select(
+        `
         id, followed_person_id, event_id, created_at, notify_match_start, notify_workshop_start,
         persons ( given_name, family_name, clubs ( name ) ),
         events ( name, slug )
       `,
-    );
-
-    if (identity.userId) {
-      q = q.eq('follower_user_id', identity.userId) as typeof q;
-    } else if (identity.guestSessionId) {
-      q = q.eq('follower_guest_session_id', identity.guestSessionId) as typeof q;
-    } else {
-      return [];
-    }
+      )
+      .eq(...followerFilter(identity));
 
     const { data } = await q.order('created_at', { ascending: false });
     if (!data) return [];
@@ -169,6 +173,7 @@ export class FollowsService {
   // ── Follow (idempotent) ───────────────────────────────────────────────────────
 
   async follow(eventId: string, personId: string, identity: FollowIdentity): Promise<FollowRow> {
+    const [followerColumn, follower] = followerFilter(identity);
     // Check privacy
     const priv = await this.privacy.getOrCreate(personId);
     if (!priv.allowBeingFollowed) {
@@ -185,9 +190,8 @@ export class FollowsService {
       followed_person_id: personId,
       notify_match_start: true,
       notify_workshop_start: false,
+      [followerColumn]: follower,
     };
-    if (identity.userId) insert['follower_user_id'] = identity.userId;
-    if (identity.guestSessionId) insert['follower_guest_session_id'] = identity.guestSessionId;
 
     const { data } = await this.supabase.service
       .from('follows')
@@ -204,19 +208,13 @@ export class FollowsService {
   // ── Unfollow ──────────────────────────────────────────────────────────────────
 
   async unfollow(eventId: string, personId: string, identity: FollowIdentity): Promise<void> {
-    let q = this.supabase.service
+    const follower = followerFilter(identity);
+    await this.supabase.service
       .from('follows')
       .delete()
       .eq('event_id', eventId)
-      .eq('followed_person_id', personId);
-
-    if (identity.userId) {
-      q = q.eq('follower_user_id', identity.userId) as typeof q;
-    } else if (identity.guestSessionId) {
-      q = q.eq('follower_guest_session_id', identity.guestSessionId) as typeof q;
-    }
-
-    await q;
+      .eq('followed_person_id', personId)
+      .eq(...follower);
     if (identity.userId) {
       await this.followNotifications.cancelForFollowedPerson(personId, identity.userId);
     }
@@ -234,6 +232,7 @@ export class FollowsService {
       notifyRefereeStart?: boolean;
     },
   ): Promise<FollowRow> {
+    const follower = followerFilter(identity);
     const updates: Record<string, unknown> = {};
     if (patch.notifyMatchStart !== undefined)
       updates['notify_match_start'] = patch.notifyMatchStart;
@@ -242,17 +241,12 @@ export class FollowsService {
     if (patch.notifyRefereeStart !== undefined)
       updates['notify_referee_start'] = patch.notifyRefereeStart;
 
-    let q = this.supabase.service
+    const q = this.supabase.service
       .from('follows')
       .update(updates)
       .eq('event_id', eventId)
-      .eq('followed_person_id', personId);
-
-    if (identity.userId) {
-      q = q.eq('follower_user_id', identity.userId) as typeof q;
-    } else if (identity.guestSessionId) {
-      q = q.eq('follower_guest_session_id', identity.guestSessionId) as typeof q;
-    }
+      .eq('followed_person_id', personId)
+      .eq(...follower);
 
     const { data } = await (
       q as never as {
@@ -340,7 +334,7 @@ export class FollowsService {
       skippedPrivacyCount: 0,
       following: false,
     };
-    if (!identity.userId && !identity.guestSessionId) return summary; // anonymous: nothing to write
+    if (!hasFollower(identity)) return summary; // anonymous: nothing to write
 
     // Persist the follow at the GLOBAL-person level (claimed users only) so the
     // person shows in the "Following" tab even with zero upcoming events. The
@@ -376,7 +370,7 @@ export class FollowsService {
    *  fully off, including any follow left over from a now-finished event) and
    *  removes the persistent directory follow. */
   async unfollowAllEvents(globalPersonId: string, identity: FollowIdentity): Promise<void> {
-    if (!identity.userId && !identity.guestSessionId) return;
+    if (!hasFollower(identity)) return;
 
     if (identity.userId) {
       await this.supabase.service
@@ -514,17 +508,12 @@ export class FollowsService {
     // Count the session's follows over those person ids.
     const followingByGlobal = new Map<string, number>();
     const personIds = [...personIdToGlobal.keys()];
-    if (personIds.length > 0 && (identity.userId || identity.guestSessionId)) {
-      let q = this.supabase.service
+    if (personIds.length > 0 && hasFollower(identity)) {
+      const { data: followRows } = await this.supabase.service
         .from('follows')
         .select('followed_person_id')
-        .in('followed_person_id', personIds);
-      if (identity.userId) {
-        q = q.eq('follower_user_id', identity.userId) as typeof q;
-      } else if (identity.guestSessionId) {
-        q = q.eq('follower_guest_session_id', identity.guestSessionId) as typeof q;
-      }
-      const { data: followRows } = await q;
+        .in('followed_person_id', personIds)
+        .eq(...followerFilter(identity));
       for (const raw of (followRows ?? []) as Array<{ followed_person_id: string }>) {
         const gp = personIdToGlobal.get(raw.followed_person_id);
         if (gp) followingByGlobal.set(gp, (followingByGlobal.get(gp) ?? 0) + 1);
@@ -571,22 +560,16 @@ export class FollowsService {
     personId: string,
     identity: FollowIdentity,
   ): Promise<Record<string, unknown> | null> {
-    let q = this.supabase.service
+    const { data } = await this.supabase.service
       .from('follows')
       .select(
         `id, followed_person_id, created_at, notify_match_start, notify_workshop_start,
          persons ( given_name, family_name, clubs ( name ) )`,
       )
       .eq('event_id', eventId)
-      .eq('followed_person_id', personId);
-
-    if (identity.userId) {
-      q = q.eq('follower_user_id', identity.userId) as typeof q;
-    } else if (identity.guestSessionId) {
-      q = q.eq('follower_guest_session_id', identity.guestSessionId) as typeof q;
-    }
-
-    const { data } = await q.maybeSingle();
+      .eq('followed_person_id', personId)
+      .eq(...followerFilter(identity))
+      .maybeSingle();
     return (data as Record<string, unknown> | null) ?? null;
   }
 
