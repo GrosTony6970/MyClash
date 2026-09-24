@@ -16,7 +16,7 @@ import {
 } from '@myclash/types';
 import { SupabaseService } from '../supabase/supabase.service';
 import { insertAuditLog } from '../../common/audit-log';
-import { assertCanReadEvent, assertCanReadEventRow } from '../../common/auth/event-authz';
+import { assertCanReadEvent, assertCanReadEventRow } from '../../common/auth/event-read-gate';
 import { hasPlatformTier } from '../../common/auth/platform-role';
 import { HemaRatingsService } from '../hema-ratings/hema-ratings.service';
 import { eventHemaRatingsId, type RatedPerson } from '../hema-ratings/event-hema-ratings-id';

@@ -18,7 +18,7 @@ import { describe, expect, it } from 'vitest';
 import { mockSupabase } from '../testing/supabase-chain';
 import { OrganizationsService } from '../../modules/organizations/organizations.service';
 import { isInsider, matchVisibility, seesHiddenOnLice } from './competition-visibility';
-import { assertCanReadEvent } from './event-authz';
+import { assertCanReadEvent } from './event-read-gate';
 
 const EVENT = { id: 'event-1', organization_id: 'org-a' };
 const FAILED = { data: null, error: { message: 'connection reset' } };

@@ -11,7 +11,7 @@ import {
   type CompetitionEvent,
   type PublicReader,
 } from '../../common/auth/competition-visibility';
-import { eventNotFound } from '../../common/auth/event-authz';
+import { eventNotFound } from '../../common/auth/event-read-gate';
 import { SupabaseService } from '../supabase/supabase.service';
 import { OrganizationsService } from '../organizations/organizations.service';
 // Value import, not `import type` — `import type` erases the DI metadata.

@@ -20,7 +20,7 @@ import type { FastifyReply, FastifyRequest } from 'fastify';
 import { ConfigService } from '@nestjs/config';
 import { SupabaseService } from '../supabase/supabase.service';
 import { buildClearCookieOptions, buildSessionCookieOptions } from '../../security/http-security';
-import { assertCanReadEventRow, type EventVisibilityRow } from '../../common/auth/event-authz';
+import { assertCanReadEventRow, type EventVisibilityRow } from '../../common/auth/event-read-gate';
 import { Public } from '../../common/auth/public.decorator';
 import { resolveRequestUserId } from '../../common/auth/request-user';
 // Value import: a type-only import erases the metadata Nest resolves this by.

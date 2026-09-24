@@ -16,7 +16,8 @@
  */
 import { ForbiddenException } from '@nestjs/common';
 import type { FastifyRequest } from 'fastify';
-import { HIDDEN_EVENT_STATUSES, type EventAuthzDeps } from './event-authz';
+import { type EventAuthzDeps } from './event-authz';
+import { HIDDEN_EVENT_STATUSES } from './event-read-gate';
 import { getIdentity, getStaffSession, type StaffSession } from './identity';
 import { ANONYMOUS_USER_ID } from './request-user';
 

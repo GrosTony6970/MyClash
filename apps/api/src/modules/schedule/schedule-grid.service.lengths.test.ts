@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ScheduleGridService } from './schedule-grid.service';
-import { assertCanReadEvent } from '../../common/auth/event-authz';
+import { assertCanReadEvent } from '../../common/auth/event-read-gate';
 import { resolveMatchLengths } from './match-lengths';
 import { readProgrammeSheet } from '../programme/programme-sheet';
 
@@ -16,7 +16,7 @@ import { readProgrammeSheet } from '../programme/programme-sheet';
  * each other and with no organiser. Both read the Event's sheet now.
  */
 
-vi.mock('../../common/auth/event-authz', () => ({
+vi.mock('../../common/auth/event-read-gate', () => ({
   assertCanReadEvent: vi.fn(() => Promise.resolve()),
 }));
 

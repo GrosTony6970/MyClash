@@ -33,11 +33,8 @@ import { MatchesService } from './matches.service';
 import { SupabaseService } from '../supabase/supabase.service';
 // Value import, not `import type` — `import type` erases the DI metadata.
 import { OrganizationsService } from '../organizations/organizations.service';
-import {
-  assertCanManagePhase,
-  assertCanManagePool,
-  assertCanReadPhase,
-} from '../../common/auth/event-authz';
+import { assertCanManagePhase, assertCanManagePool } from '../../common/auth/event-authz';
+import { assertCanReadPhase } from '../../common/auth/event-read-gate';
 import {
   canReadMatch,
   matchVisibility,

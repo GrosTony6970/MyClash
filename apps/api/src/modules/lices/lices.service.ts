@@ -3,11 +3,8 @@ import { SupabaseService } from '../supabase/supabase.service';
 // Value import, not `import type` — `import type` erases the DI metadata and
 // the dependency arrives undefined at runtime.
 import { OrganizationsService } from '../organizations/organizations.service';
-import {
-  assertCanManageEvent,
-  assertCanManageLice,
-  assertCanReadEvent,
-} from '../../common/auth/event-authz';
+import { assertCanManageEvent, assertCanManageLice } from '../../common/auth/event-authz';
+import { assertCanReadEvent } from '../../common/auth/event-read-gate';
 import type { CreateLiceDto, UpdateLiceDto } from './dto/lices.dto';
 
 type Row = Record<string, unknown>;

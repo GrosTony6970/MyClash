@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { NotFoundException } from '@nestjs/common';
 import { ScheduleGridService, formatBracketPlaceholder } from './schedule-grid.service';
-import { assertCanReadEvent } from '../../common/auth/event-authz';
+import { assertCanReadEvent } from '../../common/auth/event-read-gate';
 
 /**
  * The visibility gate is mocked, not exercised, for one reason: `queueTables`
@@ -11,7 +11,7 @@ import { assertCanReadEvent } from '../../common/auth/event-authz';
  * common/auth/event-authz.test.ts; what this file owns is that it is CALLED,
  * and called before any data is read.
  */
-vi.mock('../../common/auth/event-authz', () => ({
+vi.mock('../../common/auth/event-read-gate', () => ({
   assertCanReadEvent: vi.fn(() => Promise.resolve()),
 }));
 const assertCanReadEventMock = vi.mocked(assertCanReadEvent);

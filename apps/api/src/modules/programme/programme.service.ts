@@ -12,7 +12,8 @@ import { SupabaseService } from '../supabase/supabase.service';
 import { OrganizationsService } from '../organizations/organizations.service';
 import { MatchAlertRefresherService } from '../notifications/match-alert-refresher.service';
 import { MatchPlacementService } from '../matches/match-placement.service';
-import { assertCanManageEvent, assertCanReadEvent } from '../../common/auth/event-authz';
+import { assertCanManageEvent } from '../../common/auth/event-authz';
+import { assertCanReadEvent } from '../../common/auth/event-read-gate';
 import { scheduleMatches } from '../schedule/match-scheduler';
 import {
   embeddedOne,

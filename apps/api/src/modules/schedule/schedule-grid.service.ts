@@ -3,7 +3,7 @@ import { SupabaseService } from '../supabase/supabase.service';
 // Value import, not `import type` — `import type` erases the DI metadata and
 // the dependency arrives undefined at runtime.
 import { OrganizationsService } from '../organizations/organizations.service';
-import { assertCanReadEvent } from '../../common/auth/event-authz';
+import { assertCanReadEvent } from '../../common/auth/event-read-gate';
 import { buildRoundCode, bracketCodeConfig } from '../matches/round-code.helper';
 import { readProgrammeSheet } from '../programme/programme-sheet';
 import { resolveMatchLengths } from './match-lengths';

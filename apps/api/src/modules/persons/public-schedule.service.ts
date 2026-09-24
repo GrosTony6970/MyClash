@@ -22,7 +22,7 @@
 import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { DEFAULT_EVENT_TIMEZONE } from '@myclash/time';
 import { PUBLIC_TOURNAMENT_STATUSES } from '../../common/auth/competition-visibility';
-import { assertCanReadEvent } from '../../common/auth/event-authz';
+import { assertCanReadEvent } from '../../common/auth/event-read-gate';
 import { OrganizationsService } from '../organizations/organizations.service';
 import { SupabaseService } from '../supabase/supabase.service';
 import { PrivacyService } from './privacy.service';

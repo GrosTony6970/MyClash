@@ -9,7 +9,7 @@ import { SupabaseService } from '../supabase/supabase.service';
 // Value import, not `import type` — `import type` erases the DI metadata and
 // the dependency arrives undefined at runtime.
 import { OrganizationsService } from '../organizations/organizations.service';
-import { assertCanReadEvent } from '../../common/auth/event-authz';
+import { assertCanReadEvent } from '../../common/auth/event-read-gate';
 import { Public } from '../../common/auth/public.decorator';
 import { resolveRequestUserId } from '../../common/auth/request-user';
 import { CsvImportService } from './csv-import.service';

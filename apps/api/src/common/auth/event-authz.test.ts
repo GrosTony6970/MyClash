@@ -4,9 +4,9 @@ import {
   assertCanManageEvent,
   assertCanManageLice,
   assertCanManagePool,
-  assertCanReadEvent,
   type EventAuthzDeps,
 } from './event-authz';
+import { assertCanReadEvent } from './event-read-gate';
 import { ANONYMOUS_USER_ID } from './request-user';
 
 const ORG_A = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';

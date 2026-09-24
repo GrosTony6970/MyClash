@@ -32,7 +32,7 @@ import {
   seesHiddenOnLice,
   type PublicReader,
 } from '../../common/auth/competition-visibility';
-import { HIDDEN_EVENT_STATUSES } from '../../common/auth/event-authz';
+import { HIDDEN_EVENT_STATUSES } from '../../common/auth/event-read-gate';
 import { OrganizationsService } from '../organizations/organizations.service';
 import { PhasesService } from '../phases/phases.service';
 import { SupabaseService } from '../supabase/supabase.service';

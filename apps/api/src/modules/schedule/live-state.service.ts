@@ -11,7 +11,7 @@ import {
   onlyPublicTournaments,
   type PublicReader,
 } from '../../common/auth/competition-visibility';
-import { HIDDEN_EVENT_STATUSES } from '../../common/auth/event-authz';
+import { HIDDEN_EVENT_STATUSES } from '../../common/auth/event-read-gate';
 import { dayIndexFor, selectProgrammeBlocks, toHHMM } from './select-programme-block';
 
 type ProgrammePhase = 'pool' | 'swiss' | 'bracket' | 'finals';
