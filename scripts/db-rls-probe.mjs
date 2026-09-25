@@ -11,13 +11,16 @@
  *   DATABASE_URL=postgres://… pnpm db:rls-probe
  *
  * It seeds rls-probe-seed.sql and checks, past RLS, that every row a verdict names exists. Then
- * three checks, all as anon (JWT claims with no `sub`), each in a savepoint rolled back after it;
- * the whole run is one transaction, always rolled back, so nothing it wrote survives:
- *   1. every relation anon may SELECT answers without an error;
+ * four checks, the reads as anon (JWT claims with no `sub`), each in a savepoint rolled back after
+ * it; the whole run is one transaction, always rolled back, so nothing it wrote survives:
+ *   1. every relation anon may SELECT (any column of it) answers without an error — a table whose
+ *      grant is split per column is still read, so its policy is still evaluated;
  *   2. the seeded rows split exactly: the published Event's published Tournament is visible; the
  *      draft Event's side, a draft Tournament's side (even under the published Event), the private
  *      League, the club's own ruleset, the membership and the platform role are hidden;
- *   3. every view in `public` runs as its caller (security_invoker) — the runtime twin of
+ *   3. every PRIVATE_COLUMNS entry is granted to neither anon nor authenticated, and an anon read of
+ *      it is refused (42501) — a column no policy can hide on a row it shows;
+ *   4. every view in `public` runs as its caller (security_invoker) — the runtime twin of
  *      db:review's static rule, which missed 0193.
  * Signed-in reads are out of scope: ruling 111a leaves their loop latent on purpose.
  */
@@ -112,6 +115,15 @@ const VERDICTS = [
   },
 ];
 
+/**
+ * Columns neither public role may read, even on a row its policy shows. A column rule, not a row rule:
+ * the policy cannot hide one field, so the table grant is split per column (0205).
+ */
+const PRIVATE_COLUMNS = [
+  // The reasons an organiser confirmed over (W1): "attends a Workshop" names a private enrolment.
+  { table: 'referee_assignments', column: 'conflicts_jsonb' },
+];
+
 const sql = postgres(databaseUrl, {
   max: 1,
   idle_timeout: 5,
@@ -171,7 +183,7 @@ async function readsWithoutError(tx) {
   const relations = await tx`
     SELECT c.relname FROM pg_class c
     WHERE c.relnamespace = 'public'::regnamespace AND c.relkind IN ('r', 'p', 'v', 'm')
-      AND has_table_privilege('anon', c.oid, 'SELECT') AND ${ours(tx)}
+      AND has_any_column_privilege('anon', c.oid, 'SELECT') AND ${ours(tx)}
     ORDER BY c.relname`;
   for (const { relname } of relations) {
     try {
@@ -179,6 +191,12 @@ async function readsWithoutError(tx) {
     } catch (error) {
       failures.push(`anon cannot read ${relname}: ${error.message}`);
     }
+  }
+  // A seeded table is public by design; if the privilege lookup lost it, check 1 skipped its policy.
+  const read = new Set(relations.map((r) => r.relname));
+  for (const { table } of VERDICTS) {
+    if (!read.has(table))
+      failures.push(`check 1 did not read ${table}: its policy went unevaluated`);
   }
   return relations.length;
 }
@@ -196,6 +214,25 @@ async function seededRowsSplit(tx) {
         failures.push(`anon sees ${table} ${leaked.join(', ')}, which is not public`);
     } catch (error) {
       failures.push(`anon read of ${table} failed: ${error.message}`);
+    }
+  }
+}
+
+async function privateColumnsHidden(tx) {
+  for (const { table, column } of PRIVATE_COLUMNS) {
+    for (const role of ['anon', 'authenticated']) {
+      const [{ granted }] =
+        await tx`SELECT has_column_privilege(${role}, ${table}, ${column}, 'SELECT') AS granted`;
+      if (granted) failures.push(`${role} may read ${table}.${column}, which is private`);
+    }
+    try {
+      await asAnon(tx, (sp) => sp`SELECT ${sp(column)} FROM ${sp(table)} LIMIT 1`);
+      failures.push(`anon read ${table}.${column}, which is private`);
+    } catch (error) {
+      if (error.code !== '42501')
+        failures.push(
+          `anon read of ${table}.${column} failed for another reason: ${error.message}`,
+        );
     }
   }
 }
@@ -224,6 +261,7 @@ try {
       await seededRowsExist(tx);
       relations = await readsWithoutError(tx);
       await seededRowsSplit(tx);
+      await privateColumnsHidden(tx);
       await viewsRunAsCaller(tx);
       throw ROLLBACK;
     }),
@@ -233,7 +271,7 @@ try {
     process.exitCode = 1;
   } else {
     console.log(
-      `RLS probe passed: no read errored for anon across ${relations} relations (a policy runs only over rows present: the seed's and the migrations'), ${VERDICTS.length} seeded tables split as expected, every view runs as its caller.`,
+      `RLS probe passed: no read errored for anon across ${relations} relations (a policy runs only over rows present: the seed's and the migrations'), ${VERDICTS.length} seeded tables split as expected, ${PRIVATE_COLUMNS.length} private columns hidden from anon and authenticated, every view runs as its caller.`,
     );
   }
 } catch (error) {
