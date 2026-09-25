@@ -16,7 +16,16 @@ import {
 } from '@myclash/types';
 import { SupabaseService } from '../supabase/supabase.service';
 import { insertAuditLog } from '../../common/audit-log';
-import { assertCanReadEvent, assertCanReadEventRow } from '../../common/auth/event-read-gate';
+import {
+  assertCanReadEventRow,
+  eventNotFound,
+  type EventVisibilityRow,
+} from '../../common/auth/event-read-gate';
+import {
+  canReadEvent,
+  visibleTournaments,
+  type PublicReader,
+} from '../../common/auth/competition-visibility';
 import { hasPlatformTier } from '../../common/auth/platform-role';
 import { HemaRatingsService } from '../hema-ratings/hema-ratings.service';
 import { eventHemaRatingsId, type RatedPerson } from '../hema-ratings/event-hema-ratings-id';
@@ -1652,22 +1661,47 @@ export class EventsService {
   // ── Tournaments ───────────────────────────────────────────────────────────────
 
   /**
-   * `@Public()`, and the id source for every `/tournaments/:id/*` read — the
-   * stats, pool-standings and Swiss routes are all addressed by a tournament id
-   * and have no other public way to discover one for a given event. Gating here
-   * is what keeps those unreachable on an unannounced event rather than merely
-   * unauthorized.
+   * The Event's Tournaments the caller may see, in list order. An unknown Event lists nothing,
+   * as it always did; a hidden one is 404; a draft Tournament is left out for anyone but an
+   * insider (ruling 127a).
    */
-  async listTournaments(eventId: string, resolveUserId: () => Promise<string>) {
-    await assertCanReadEvent({ supabase: this.supabase, orgs: this.orgs }, eventId, resolveUserId);
+  private async readListedTournaments(
+    eventId: string,
+    reader: PublicReader,
+  ): Promise<Array<Record<string, unknown>>> {
+    const deps = { supabase: this.supabase, orgs: this.orgs };
+    const { data: eventRow, error: eventError } = await this.supabase.service
+      .from('events')
+      .select('status, organization_id, event_kind')
+      .eq('id', eventId)
+      .maybeSingle();
+    // A failed read is a 5xx, never an unknown Event nor the database's words in a 400.
+    if (eventError) throw new Error(`event read failed: ${eventError.message}`);
+    if (!eventRow) return [];
+    // Ruling 81's bar, as the theme and venues reads: a club member or the Event's active staff.
+    const event = { id: eventId, ...(eventRow as EventVisibilityRow) };
+    if (!(await canReadEvent(deps, event, reader))) throw eventNotFound(eventId);
     const { data, error } = await this.supabase.service
       .from('tournaments')
       .select('*')
       .eq('event_id', eventId)
       .order('sort_order', { ascending: true });
+    if (error) throw new Error(`tournaments read failed: ${error.message}`);
+    return visibleTournaments(
+      deps,
+      event,
+      (data ?? []) as Array<Record<string, unknown> & { status: string }>,
+      reader,
+    );
+  }
 
-    if (error) throw new BadRequestException(error.message);
-    const tournaments = (data ?? []) as Array<Record<string, unknown>>;
+  /**
+   * `@Public()`: the public Event home's Tournament cards, and one of the places the
+   * `/tournaments/:id/*` reads (stats, pool standings, Swiss) get their ids from. Those
+   * routes gate a hidden Tournament themselves (`canReadTournament`); this list leaves one out.
+   */
+  async listTournaments(eventId: string, reader: PublicReader) {
+    const tournaments = await this.readListedTournaments(eventId, reader);
     if (tournaments.length === 0) return [];
 
     // Decorate each row with aggregates the public event home renders

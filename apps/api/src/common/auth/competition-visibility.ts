@@ -217,6 +217,22 @@ export function onlyPublicTournaments<
 }
 
 /**
+ * The Tournaments of one Event the caller may see (rulings 81-83, 127a): all of them for an
+ * insider, else the published, running and completed ones. A hidden Tournament is simply left
+ * out, as if it did not exist. The membership read runs only when something is hidden.
+ */
+export async function visibleTournaments<Row extends { status: string }>(
+  deps: EventAuthzDeps,
+  event: CompetitionEvent,
+  rows: Row[],
+  reader: PublicReader,
+): Promise<Row[]> {
+  const statuses = rows.map((row) => row.status);
+  if (!hidesFromPublic(event, statuses) || (await isInsider(deps, event, reader))) return rows;
+  return rows.filter((row) => !isHiddenCompetition({ tournamentStatus: row.status, event }));
+}
+
+/**
  * What the caller may know of this bout: `refused` (answer it as an unknown
  * one), `public`, or `hidden` — hidden from the public, shown to this insider.
  * An unknown bout is `public`: the route then answers it as it always has.

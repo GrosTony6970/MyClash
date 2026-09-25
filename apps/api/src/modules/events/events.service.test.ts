@@ -29,6 +29,8 @@ const fromMock = vi.fn();
  * the gate's own behaviour lives in common/auth/event-authz.test.ts.
  */
 const CALLER = () => Promise.resolve('user-1');
+/** The same caller as a public read's reader, as the guard resolves it. */
+const MEMBER = { userId: 'user-1', staff: null };
 /** No token at all — what an anonymous public read resolves to. */
 const ANON = () => Promise.resolve(ANONYMOUS_USER_ID);
 
@@ -2075,15 +2077,39 @@ describe('EventsService', () => {
       // 'disqualified' / 'waitlist' don't count toward the cap.
       const tournamentsChain = makeChain({
         data: [
-          { id: 't-1', name: 'Longsword', max_participants: 12, max_waitlist: 5 },
-          { id: 't-2', name: 'Sabre', max_participants: null, max_waitlist: null },
+          {
+            id: 't-1',
+            name: 'Longsword',
+            max_participants: 12,
+            max_waitlist: 5,
+            status: 'published',
+          },
+          {
+            id: 't-2',
+            name: 'Sabre',
+            max_participants: null,
+            max_waitlist: null,
+            status: 'published',
+          },
         ],
         error: null,
       });
       tournamentsChain.order.mockResolvedValue({
         data: [
-          { id: 't-1', name: 'Longsword', max_participants: 12, max_waitlist: 5 },
-          { id: 't-2', name: 'Sabre', max_participants: null, max_waitlist: null },
+          {
+            id: 't-1',
+            name: 'Longsword',
+            max_participants: 12,
+            max_waitlist: 5,
+            status: 'published',
+          },
+          {
+            id: 't-2',
+            name: 'Sabre',
+            max_participants: null,
+            max_waitlist: null,
+            status: 'published',
+          },
         ],
         error: null,
       });
@@ -2116,7 +2142,7 @@ describe('EventsService', () => {
         throw new Error(`unexpected table ${table}`);
       });
 
-      const result = (await service.listTournaments('event-1', CALLER)) as unknown as Array<{
+      const result = (await service.listTournaments('event-1', MEMBER)) as unknown as Array<{
         id: string;
         registered: number;
         max_participants: number | null;
@@ -2138,7 +2164,7 @@ describe('EventsService', () => {
       fromMock.mockReturnValueOnce(publishedEventChain(makeChain));
       fromMock.mockReturnValueOnce(tournamentsChain);
 
-      const result = await service.listTournaments('event-1', CALLER);
+      const result = await service.listTournaments('event-1', MEMBER);
 
       expect(result).toEqual([]);
       // What this spec is really about: an empty tournament list must not fan
@@ -2529,7 +2555,7 @@ describe('EventsService', () => {
     it('returns waitlistCount + poolCount + bracketSize + pool/bracket fight counts + refereeCount per tournament', async () => {
       const tournamentsChain = makeChain({ data: null, error: null });
       tournamentsChain.order.mockResolvedValue({
-        data: [{ id: 't-1', name: 'Longsword', max_participants: 12 }],
+        data: [{ id: 't-1', name: 'Longsword', max_participants: 12, status: 'published' }],
         error: null,
       });
       // Existing: registered count via grouped registrations fetch
@@ -2622,7 +2648,7 @@ describe('EventsService', () => {
         throw new Error(`unexpected table ${table}`);
       });
 
-      const result = (await service.listTournaments('event-1', CALLER)) as Array<{
+      const result = (await service.listTournaments('event-1', MEMBER)) as Array<{
         id: string;
         registered: number;
         waitlistCount: number;
@@ -2669,7 +2695,7 @@ describe('EventsService', () => {
     function routeTournamentList() {
       const tournamentsChain = makeChain({ data: null, error: null });
       tournamentsChain.order.mockResolvedValue({
-        data: [{ id: 't-1', name: 'Longsword', max_participants: 12 }],
+        data: [{ id: 't-1', name: 'Longsword', max_participants: 12, status: 'published' }],
         error: null,
       });
       const empty = () => makeAwaitableChain({ data: [], error: null });
@@ -2721,7 +2747,7 @@ describe('EventsService', () => {
         ]),
       );
 
-      const [row] = (await service.listTournaments('event-1', CALLER)) as AgendaRow[];
+      const [row] = (await service.listTournaments('event-1', MEMBER)) as AgendaRow[];
 
       expect(row).toMatchObject({
         scheduledStart: '2027-06-21T09:00:00.000Z',
@@ -2748,7 +2774,7 @@ describe('EventsService', () => {
       const warn = vi.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
 
       try {
-        const rows = (await service.listTournaments('event-1', CALLER)) as AgendaRow[];
+        const rows = (await service.listTournaments('event-1', MEMBER)) as AgendaRow[];
 
         expect(rows).toHaveLength(1);
         expect(rows[0]).toMatchObject({

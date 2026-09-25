@@ -374,7 +374,7 @@ export class EventsController {
     @Param('eventId', ParseUUIDPipe) eventId: string,
     @Req() req: FastifyRequest,
   ) {
-    return this.events.listTournaments(eventId, () => getUserId(req, this.supabase));
+    return this.events.listTournaments(eventId, publicReader(req));
   }
 
   /**
