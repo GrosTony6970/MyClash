@@ -63,6 +63,21 @@ export function isReachable(row: ReachableRow): boolean {
 }
 
 /**
+ * `isReachable` for a profile EMBEDDED in another row (a claim link, a claim
+ * request): select it as `global_persons(${REACHABLE_COLUMNS.join(', ')})`.
+ * A missing or array-shaped embed is not a live profile — reading it as one
+ * would fail open.
+ */
+export function isReachableEmbed(embed: unknown): boolean {
+  return (
+    typeof embed === 'object' &&
+    embed !== null &&
+    !Array.isArray(embed) &&
+    isReachable(embed as ReachableRow)
+  );
+}
+
+/**
  * The PostgREST filter chain matching `isReachable`.
  *
  * A read that hydrates rows by id — the fuzzy search does — has to apply this

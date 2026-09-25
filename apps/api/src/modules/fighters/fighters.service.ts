@@ -178,9 +178,9 @@ export interface PublicDirectoryFighter {
  * here until someone adds it deliberately.
  *
  * Notably NOT here, and each for its own reason:
- *  - `email`, `claimed_by_user_id` — contact/account PII, never public. Note
- *    `email` is not in GLOBAL_PERSON_NULLED either, so it SURVIVES a GDPR
- *    erasure; this list is what keeps it off the public profile.
+ *  - `email`, `claimed_by_user_id` — contact/account PII, never public. This
+ *    list is what keeps them off the public profile; erasure also nulls
+ *    `email` (GLOBAL_PERSON_NULLED).
  *  - `merged_into_id`, `deleted_at` — merge bookkeeping. The reads filter on
  *    them rather than publishing them.
  *  - `is_fighter` / `is_referee` / `is_workshop_participant` / `is_instructor`

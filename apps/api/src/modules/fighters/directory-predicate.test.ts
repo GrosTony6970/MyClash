@@ -5,6 +5,7 @@ import {
   isIndexable,
   isListed,
   isReachable,
+  isReachableEmbed,
   REACHABLE_COLUMNS,
 } from './directory-predicate';
 
@@ -160,5 +161,25 @@ describe('applyReachable', () => {
     for (const call of chain.is.mock.calls) {
       expect(call[1]).toBeNull();
     }
+  });
+});
+
+describe('isReachableEmbed', () => {
+  it('accepts a live embedded profile', () => {
+    expect(isReachableEmbed(LIVE)).toBe(true);
+    expect(isReachableEmbed({})).toBe(true);
+  });
+
+  it('rejects an erased, deleted or merged embedded profile', () => {
+    expect(isReachableEmbed({ ...LIVE, account_deleted_at: '2026-01-01T00:00:00Z' })).toBe(false);
+    expect(isReachableEmbed({ ...LIVE, deleted_at: '2026-01-01T00:00:00Z' })).toBe(false);
+    expect(isReachableEmbed({ ...LIVE, merged_into_id: 'gp-2' })).toBe(false);
+  });
+
+  it('rejects a missing or array-shaped embed rather than failing open', () => {
+    expect(isReachableEmbed(null)).toBe(false);
+    expect(isReachableEmbed(undefined)).toBe(false);
+    expect(isReachableEmbed([])).toBe(false);
+    expect(isReachableEmbed([LIVE])).toBe(false);
   });
 });

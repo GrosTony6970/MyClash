@@ -13,8 +13,11 @@ import { createHash } from 'node:crypto';
  *
  * Names and `slug` are absent ON PURPOSE: published competition results are a
  * public record (GDPR Art. 17(3)), so the competitor survives the person.
+ * `email` is here (ruling 106): kept, it let a claim mail the erased person and
+ * a later sign-up with that address link the erased profile again.
  */
 export const GLOBAL_PERSON_NULLED = [
+  'email',
   'photo_url',
   'bio',
   'alias',

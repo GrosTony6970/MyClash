@@ -6,8 +6,13 @@ import {
   ServiceUnavailableException,
 } from '@nestjs/common';
 import { syncClaimedPersonRows } from '../auth/claimed-person-sync';
+import { applyReachable, isReachableEmbed } from '../fighters/directory-predicate';
 import { MailService } from '../mail/mail.service';
 import { SupabaseService } from '../supabase/supabase.service';
+
+/** A request row whose embedded profile is live: not erased, deleted or merged (ruling 106). */
+const hasReachableProfile = (row: unknown): boolean =>
+  isReachableEmbed((row as { global_persons?: unknown }).global_persons);
 
 /**
  * Service for the §8 organizer-approval queue.
@@ -36,13 +41,14 @@ export class ClaimRequestsService {
     const { data, error } = await this.supabase.service
       .from('global_person_claim_requests')
       .select(
-        'id, user_id, global_person_id, status, requested_at, decided_at, decision_reason, global_persons(id, display_name, given_name, family_name, country_code, hema_ratings_id, clubs(name))',
+        'id, user_id, global_person_id, status, requested_at, decided_at, decision_reason, global_persons(id, display_name, given_name, family_name, country_code, hema_ratings_id, deleted_at, merged_into_id, account_deleted_at, clubs(name))',
       )
       .eq('status', 'pending')
       .order('requested_at', { ascending: true });
     if (error) throw new BadRequestException(error.message);
 
-    const rows = (data ?? []) as Array<Record<string, unknown>>;
+    // A request for an erased, deleted or merged profile is not listed (ruling 106).
+    const rows = ((data ?? []) as Array<Record<string, unknown>>).filter(hasReachableProfile);
     const userIds = Array.from(
       new Set(rows.map((r) => r['user_id']).filter((id): id is string => typeof id === 'string')),
     );
@@ -57,8 +63,8 @@ export class ClaimRequestsService {
         country_code: string | null;
         hema_ratings_id: string | null;
         clubs: { name: string } | { name: string }[] | null;
-      } | null;
-      const club = gp?.clubs
+      };
+      const club = gp.clubs
         ? Array.isArray(gp.clubs)
           ? (gp.clubs[0]?.name ?? null)
           : gp.clubs.name
@@ -68,17 +74,15 @@ export class ClaimRequestsService {
         userId: r['user_id'] as string,
         requesterEmail: userMap.get(r['user_id'] as string) ?? null,
         requestedAt: r['requested_at'] as string,
-        globalPerson: gp
-          ? {
-              id: gp.id,
-              displayName: gp.display_name,
-              givenName: gp.given_name,
-              familyName: gp.family_name,
-              countryCode: gp.country_code,
-              hemaRatingsId: gp.hema_ratings_id,
-              clubLabel: club,
-            }
-          : null,
+        globalPerson: {
+          id: gp.id,
+          displayName: gp.display_name,
+          givenName: gp.given_name,
+          familyName: gp.family_name,
+          countryCode: gp.country_code,
+          hemaRatingsId: gp.hema_ratings_id,
+          clubLabel: club,
+        },
       };
     });
   }
@@ -96,22 +100,11 @@ export class ClaimRequestsService {
     // a failed read (see the helper).
     const requesterEmail = await this.requesterEmailOrThrow(request.user_id);
 
-    // Race-guard: only set claimed_by_user_id if still null.
-    const { data: updated, error: updateError } = await this.supabase.service
-      .from('global_persons')
-      .update({
-        claimed_by_user_id: request.user_id,
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', request.global_person_id)
-      .is('claimed_by_user_id', null)
-      .select('id, email')
-      .maybeSingle();
-    if (updateError) {
-      throw new ServiceUnavailableException(updateError.message);
-    }
+    const updated = await this.claimProfile(request);
     if (!updated) {
-      // Someone (autolink, another approval, manual fix) already claimed.
+      // Someone (autolink, another approval, manual fix) already claimed, or
+      // the profile was erased or merged since the request was read; the
+      // second is read as the first (ruling 106).
       await this.markDecided(requestId, 'rejected', actorUserId, 'already_claimed');
       throw new BadRequestException('Profile is already claimed');
     }
@@ -121,7 +114,7 @@ export class ClaimRequestsService {
     // future login can autolink without re-queueing. Trimmed as well as
     // lower-cased: 0075's unique index is on LOWER(email), which does not
     // trim, so a padded address here would sit beside its own twin.
-    if (requesterEmail && !(updated as { email?: string | null }).email) {
+    if (requesterEmail && !updated.email) {
       await this.supabase.service
         .from('global_persons')
         .update({ email: requesterEmail.trim().toLowerCase() })
@@ -168,6 +161,32 @@ export class ClaimRequestsService {
     }
   }
 
+  /**
+   * Race-guard: sets claimed_by_user_id only while it is still null, on a
+   * profile still reachable (ruling 106). Null when either no longer holds.
+   */
+  private async claimProfile(request: {
+    user_id: string;
+    global_person_id: string;
+  }): Promise<{ email?: string | null } | null> {
+    const { data, error } = await applyReachable(
+      this.supabase.service
+        .from('global_persons')
+        .update({
+          claimed_by_user_id: request.user_id,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', request.global_person_id)
+        .is('claimed_by_user_id', null),
+    )
+      .select('id, email')
+      .maybeSingle();
+    if (error) {
+      throw new ServiceUnavailableException(error.message);
+    }
+    return data as { email?: string | null } | null;
+  }
+
   private async loadPendingOrThrow(requestId: string): Promise<{
     user_id: string;
     global_person_id: string;
@@ -175,11 +194,17 @@ export class ClaimRequestsService {
   }> {
     const { data, error } = await this.supabase.service
       .from('global_person_claim_requests')
-      .select('user_id, global_person_id, status')
+      .select(
+        'user_id, global_person_id, status, global_persons(deleted_at, merged_into_id, account_deleted_at)',
+      )
       .eq('id', requestId)
       .maybeSingle();
     if (error) throw new BadRequestException(error.message);
-    if (!data) throw new NotFoundException('Claim request not found');
+    // A request for an erased, deleted or merged profile answers as an unknown
+    // one (ruling 106).
+    if (!data || !hasReachableProfile(data)) {
+      throw new NotFoundException('Claim request not found');
+    }
     const row = data as { user_id: string; global_person_id: string; status: string };
     if (row.status !== 'pending') {
       throw new BadRequestException(`Request is already ${row.status}`);

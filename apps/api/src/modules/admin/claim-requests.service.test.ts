@@ -1,5 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { BadRequestException, ServiceUnavailableException } from '@nestjs/common';
+import {
+  BadRequestException,
+  NotFoundException,
+  ServiceUnavailableException,
+} from '@nestjs/common';
 import {
   mockSupabase as seededSupabase,
   queriedTables,
@@ -9,6 +13,7 @@ import {
   type RecordedWrite,
   type TableSeed,
 } from '../../common/testing/supabase-chain';
+import { REACHABLE_COLUMNS } from '../fighters/directory-predicate';
 import { ClaimRequestsService } from './claim-requests.service';
 
 // ── Mocks ──────────────────────────────────────────────────────────────────
@@ -51,6 +56,8 @@ const REQUEST = {
   user_id: 'user-1',
   global_person_id: 'global-1',
   status: 'pending',
+  // The embed the queue reads: the profile's reachability columns, all null.
+  global_persons: {},
 };
 
 /** Another pending request, seeded FIRST — what a lost `id` filter picks up. */
@@ -59,6 +66,7 @@ const REQUEST_DECOY = {
   user_id: 'other-user',
   global_person_id: 'global-2',
   status: 'pending',
+  global_persons: {},
 };
 
 describe('ClaimRequestsService.approve', () => {
@@ -246,5 +254,122 @@ describe('ClaimRequestsService.approve', () => {
       decision_reason: 'already_claimed',
     });
     expect(sendNotificationMock).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * The organizer queue (operator ruling 106): a request for a profile that was
+ * erased, deleted or merged away answers EXACTLY like an unknown request. It is
+ * not listed, and approving or rejecting it writes nothing. Approving one used
+ * to claim the erased profile and write the requester's email back onto it.
+ */
+describe('claim-request queue on an unreachable profile (ruling 106)', () => {
+  const ERASED_AT = '2026-09-01T00:00:00Z';
+  const STATES = [
+    ['erased', { account_deleted_at: ERASED_AT }],
+    ['merged', { merged_into_id: 'global-2' }],
+    ['deleted', { deleted_at: ERASED_AT }],
+  ] as const;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    getUserByIdMock.mockResolvedValue({
+      data: { user: { email: 'req@example.com' } },
+      error: null,
+    });
+  });
+
+  const seedHidden = (state: Record<string, string>) =>
+    seed({
+      global_person_claim_requests: { rows: [{ ...REQUEST, global_persons: state }] },
+      global_persons: { rows: [{ id: 'global-1', email: null, ...state }] },
+      persons: { rows: [] },
+    });
+
+  const refusal = (call: Promise<unknown>) =>
+    call.then(
+      () => null,
+      (err: unknown) => err,
+    );
+  const shapeOf = (err: unknown) => {
+    expect(err, 'expected a refusal, the call succeeded').not.toBeNull();
+    const http = err as NotFoundException;
+    return { type: http.constructor.name, status: http.getStatus(), body: http.getResponse() };
+  };
+
+  it.each(STATES)(
+    'answers approving a %s profile exactly like an unknown request',
+    async (_l, state) => {
+      const { db, service } = seedHidden(state);
+      const unknown = await refusal(service.approve('req-nobody', 'admin-1'));
+      const hidden = await refusal(service.approve('req-1', 'admin-1'));
+      expect(shapeOf(hidden)).toEqual(shapeOf(unknown));
+      expect(unknown).toBeInstanceOf(NotFoundException);
+      expect(shapeOf(unknown)).toMatchObject({ status: 404 });
+      expect(writesTo(db, 'global_persons')).toEqual([]);
+      expect(writesTo(db, 'global_person_claim_requests')).toEqual([]);
+      expect(sendNotificationMock).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each(STATES)(
+    'answers rejecting a %s profile exactly like an unknown request',
+    async (_l, state) => {
+      const { db, service } = seedHidden(state);
+      const unknown = await refusal(service.reject('req-nobody', 'admin-1', 'not them'));
+      const hidden = await refusal(service.reject('req-1', 'admin-1', 'not them'));
+      expect(shapeOf(hidden)).toEqual(shapeOf(unknown));
+      expect(writesTo(db, 'global_person_claim_requests')).toEqual([]);
+      expect(sendNotificationMock).not.toHaveBeenCalled();
+    },
+  );
+
+  it('claims nothing when the profile is erased after the request was read', async () => {
+    // The request's own read still sees a live profile; the erasure lands
+    // before the claim is written. The claim's update must not match it.
+    const { db, service } = seed({
+      global_person_claim_requests: { rows: [REQUEST] },
+      global_persons: { rows: [{ id: 'global-1', email: null, account_deleted_at: ERASED_AT }] },
+      persons: { rows: [] },
+    });
+    await expect(service.approve('req-1', 'admin-1')).rejects.toBeInstanceOf(BadRequestException);
+    // The guarded update matched nothing: no email backfill, no roster sweep.
+    expect(writesTo(db, 'global_persons')).toHaveLength(1);
+    expect(queriedTables(db.from)).not.toContain('persons');
+  });
+
+  it('lists only requests whose profile is still live', async () => {
+    const live = { display_name: 'Anna', given_name: 'Anna', family_name: 'Martin' };
+    const { db, service } = seed({
+      global_person_claim_requests: {
+        rows: [
+          { ...REQUEST, id: 'req-live', global_persons: { id: 'global-1', ...live } },
+          ...STATES.map(([label, state], i) => ({
+            ...REQUEST,
+            id: `req-${label}`,
+            global_person_id: `global-${label}`,
+            requested_at: `2026-09-0${i + 2}T00:00:00Z`,
+            global_persons: { id: `global-${label}`, ...live, ...state },
+          })),
+        ],
+      },
+    });
+    const rows = await service.listAllPending();
+    expect(rows.map((row) => row.id)).toEqual(['req-live']);
+    expect(selectsFor(db.from, 'global_person_claim_requests')).toEqual([
+      `id, user_id, global_person_id, status, requested_at, decided_at, decision_reason, global_persons(id, display_name, given_name, family_name, country_code, hema_ratings_id, ${REACHABLE_COLUMNS.join(', ')}, clubs(name))`,
+    ]);
+  });
+
+  it('reads a request with its profile reachability columns', async () => {
+    const { db, service } = seed({
+      global_person_claim_requests: { rows: [REQUEST] },
+      global_persons: { rows: [{ id: 'global-1', email: 'req@example.com' }] },
+      persons: { rows: [] },
+    });
+    await service.approve('req-1', 'admin-1');
+    expect(selectsFor(db.from, 'global_person_claim_requests')[0]).toBe(
+      `user_id, global_person_id, status, global_persons(${REACHABLE_COLUMNS.join(', ')})`,
+    );
   });
 });

@@ -7,6 +7,7 @@ import {
   ServiceUnavailableException,
   UnauthorizedException,
 } from '@nestjs/common';
+import { REACHABLE_COLUMNS } from '../fighters/directory-predicate';
 import type { LegalAcceptanceService } from '../privacy/legal-acceptance.service';
 import { AuthService } from './auth.service';
 import { GuestJwtService } from './guest-jwt.service';
@@ -1806,7 +1807,7 @@ describe('AuthService', () => {
         expect(writesTo(seeded, 'global_persons')).toEqual([]);
         // The double ignores the projection: pin the column the check reads.
         expect(selectsFor(seeded.from, 'global_persons')).toContain(
-          'id, email, claimed_by_user_id, merged_into_id',
+          `id, email, claimed_by_user_id, ${REACHABLE_COLUMNS.join(', ')}`,
         );
         // The refusal leaves a trace.
         expect(log).toHaveBeenCalledWith(expect.stringMatching(/global-anna.*account's email/));
@@ -2204,6 +2205,8 @@ describe('AuthService', () => {
       global_person_id: 'global-1',
       expires_at: new Date(Date.now() + 3_600_000).toISOString(),
       token_hash: hashOf(TOKEN),
+      // The profile embed the link is read with: reachable (ruling 106).
+      global_persons: {},
       ...over,
     });
 

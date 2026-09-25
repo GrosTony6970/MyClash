@@ -21,7 +21,12 @@ import { OnboardingService } from '../organizations/onboarding.service';
 // Value import, not `import type`: Nest reads the constructor's design:paramtypes
 // metadata to inject it, and a type-only import erases that at compile time.
 import { ErasureService } from '../privacy/erasure.service';
-import { applyReachable } from '../fighters/directory-predicate';
+import {
+  applyReachable,
+  isReachable,
+  isReachableEmbed,
+  type ReachableRow,
+} from '../fighters/directory-predicate';
 import { isFieldPublic } from '../fighters/public-visibility';
 import {
   LegalAcceptanceService,
@@ -978,12 +983,14 @@ export class AuthService {
    * A failed read finds none, so the caller retries as it does for no match.
    */
   private async unclaimedProfilesWithEmail(email: string): Promise<Array<{ id: string }>> {
-    const { data, error } = await this.supabase.service
-      .from('global_persons')
-      .select('id, email')
-      .ilike('email', email)
-      .is('claimed_by_user_id', null)
-      .is('merged_into_id', null);
+    // An erased, deleted or merged profile is never a candidate (ruling 106).
+    const { data, error } = await applyReachable(
+      this.supabase.service
+        .from('global_persons')
+        .select('id, email')
+        .ilike('email', email)
+        .is('claimed_by_user_id', null),
+    );
     if (error || !Array.isArray(data)) {
       this.logger.warn(`autolink: candidate read failed: ${error?.message}`);
       return [];
@@ -1058,18 +1065,18 @@ export class AuthService {
 
     const { data: target, error: targetError } = await this.supabase.service
       .from('global_persons')
-      .select('id, email, claimed_by_user_id, merged_into_id')
+      .select('id, email, claimed_by_user_id, deleted_at, merged_into_id, account_deleted_at')
       .eq('id', globalPersonId)
       .maybeSingle();
     if (targetError || !target) return;
 
-    const row = target as {
+    const row = target as ReachableRow & {
       id: string;
       email: string | null;
       claimed_by_user_id: string | null;
-      merged_into_id?: string | null;
     };
-    if (row.merged_into_id || row.claimed_by_user_id) return;
+    // An erased, deleted or merged profile is never linked (ruling 106).
+    if (!isReachable(row) || row.claimed_by_user_id) return;
     if (!personEmailMatchesUser(row.email, userEmail)) {
       this.logger.log(
         `global-person link refused for user ${userId}: global_persons ${globalPersonId} does not carry the account's email`,
@@ -1659,11 +1666,13 @@ export class AuthService {
     const user = await this.requestAuthUser(accessToken);
     if (!user) throw new UnauthorizedException('Invalid session');
 
-    const { data: target, error: loadError } = await this.supabase.service
-      .from('global_persons')
-      .select('id, display_name, email, claimed_by_user_id, merged_into_id, clubs(name)')
-      .eq('id', globalPersonId)
-      .maybeSingle();
+    // An erased, deleted or merged profile answers as an unknown one (ruling 106).
+    const { data: target, error: loadError } = await applyReachable(
+      this.supabase.service
+        .from('global_persons')
+        .select('id, display_name, email, claimed_by_user_id, clubs(name)')
+        .eq('id', globalPersonId),
+    ).maybeSingle();
     if (loadError) {
       throw new ServiceUnavailableException('Could not load profile');
     }
@@ -1675,12 +1684,8 @@ export class AuthService {
       display_name: string;
       email: string | null;
       claimed_by_user_id: string | null;
-      merged_into_id: string | null;
       clubs: { name: string } | { name: string }[] | null;
     };
-    if (row.merged_into_id) {
-      throw new BadRequestException('This profile has been merged');
-    }
     if (row.claimed_by_user_id) {
       // Carries a `code` for the same reason `already_pending` does below: the
       // personal space tells these two refusals apart to pick which sentence to
@@ -1764,26 +1769,7 @@ export class AuthService {
     const user = await this.requestAuthUser(accessToken);
     if (!user) throw new UnauthorizedException('Invalid session');
 
-    const { data: tokenRow, error: loadError } = await this.supabase.service
-      .from('global_person_claim_tokens')
-      .select('id, user_id, global_person_id, expires_at')
-      .eq('token_hash', this.hashToken(token))
-      .maybeSingle();
-    if (loadError) {
-      throw new ServiceUnavailableException('Could not load token');
-    }
-    if (!tokenRow) {
-      throw new BadRequestException({
-        code: 'expired_or_used',
-        message: 'This confirmation link has expired or has already been used',
-      });
-    }
-    const t = tokenRow as {
-      id: string;
-      user_id: string;
-      global_person_id: string;
-      expires_at: string;
-    };
+    const t = await this.loadLiveClaimToken(token);
     if (new Date(t.expires_at).getTime() < Date.now()) {
       // Best-effort cleanup; ignore errors.
       await this.supabase.service.from('global_person_claim_tokens').delete().eq('id', t.id);
@@ -1799,19 +1785,22 @@ export class AuthService {
       });
     }
 
-    // Race-guard: only set if still unclaimed.
-    const { data: updated, error: updateError } = await this.supabase.service
-      .from('global_persons')
-      .update({ claimed_by_user_id: user.id, updated_at: new Date().toISOString() })
-      .eq('id', t.global_person_id)
-      .is('claimed_by_user_id', null)
+    // Race-guard: only set if still unclaimed, and still reachable.
+    const { data: updated, error: updateError } = await applyReachable(
+      this.supabase.service
+        .from('global_persons')
+        .update({ claimed_by_user_id: user.id, updated_at: new Date().toISOString() })
+        .eq('id', t.global_person_id)
+        .is('claimed_by_user_id', null),
+    )
       .select('id')
       .maybeSingle();
     if (updateError) {
       throw new ServiceUnavailableException('Could not finalize claim');
     }
     if (!updated) {
-      // Someone else already claimed in the racing window.
+      // Someone else claimed it in the racing window, or it was erased or
+      // merged there; the second is read as the first (ruling 106).
       await this.supabase.service.from('global_person_claim_tokens').delete().eq('id', t.id);
       throw new BadRequestException({
         code: 'already_claimed',
@@ -1826,6 +1815,39 @@ export class AuthService {
     this.logger.log(`global-person claim confirmed: user ${user.id} → ${t.global_person_id}`);
 
     return { status: 'claimed', globalPersonId: t.global_person_id };
+  }
+
+  /**
+   * The claim link a confirmation names, looked up by hash. A link to an
+   * erased, deleted or merged profile answers as an unknown link (ruling 106).
+   */
+  private async loadLiveClaimToken(
+    token: string,
+  ): Promise<{ id: string; user_id: string; global_person_id: string; expires_at: string }> {
+    const { data, error } = await this.supabase.service
+      .from('global_person_claim_tokens')
+      .select(
+        'id, user_id, global_person_id, expires_at, global_persons(deleted_at, merged_into_id, account_deleted_at)',
+      )
+      .eq('token_hash', this.hashToken(token))
+      .maybeSingle();
+    if (error) {
+      throw new ServiceUnavailableException('Could not load token');
+    }
+    const row = data as {
+      id: string;
+      user_id: string;
+      global_person_id: string;
+      expires_at: string;
+      global_persons: unknown;
+    } | null;
+    if (!row || !isReachableEmbed(row.global_persons)) {
+      throw new BadRequestException({
+        code: 'expired_or_used',
+        message: 'This confirmation link has expired or has already been used',
+      });
+    }
+    return row;
   }
 
   /**

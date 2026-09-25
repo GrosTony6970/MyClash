@@ -122,6 +122,8 @@ describe('ErasureService.redactSubject', () => {
     await new ErasureService(supabase).redactSubject('u1');
 
     const patch = log['global_persons']!.updates[0] as Record<string, unknown>;
+    // Ruling 106: a kept email let a claim mail the erased person.
+    expect(patch['email']).toBeNull();
     expect(patch['photo_url']).toBeNull();
     expect(patch['bio']).toBeNull();
     expect(patch['date_of_birth']).toBeNull();
@@ -181,6 +183,7 @@ describe('ErasureService.anonymiseGlobalPerson', () => {
     const patch = log['global_persons']!.updates[0] as Record<string, unknown>;
     expect(patch['display_name']).toBe(pseudonymFor('g1'));
     expect(patch['slug']).toBe(slugFor('g1'));
+    expect(patch['email']).toBeNull();
     expect(patch['photo_url']).toBeNull();
   });
 });
