@@ -35,6 +35,8 @@ import { StaffingService } from './staffing.service';
     RefereeMatchAssignmentsService,
     StaffingService,
   ],
-  exports: [QualificationsService, SettingsService, StaffingService],
+  // AssignmentBoardService: the one referee checker's server door (ADR-016), which the
+  // Pools page's conflict check answers from.
+  exports: [QualificationsService, SettingsService, StaffingService, AssignmentBoardService],
 })
 export class RefereesModule {}

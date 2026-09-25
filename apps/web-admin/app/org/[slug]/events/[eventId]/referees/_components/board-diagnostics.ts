@@ -40,23 +40,26 @@ export function summariseBoard(board: BoardLike): BoardSummary {
 export type HealthStatus = 'healthy' | 'gaps' | 'shortage' | 'conflict';
 
 /**
- * Overall panel status, worst-first:
- *   conflict — scheduling conflicts, capacity shortfalls, or unfillable slots
- *              (red; the operator must act)
+ * Overall panel status, worst-first (ADR-016's two levels):
+ *   conflict — an Impossible assignment, or a slot nobody may fill (red; the operator
+ *              must act)
  *   shortage — not enough qualified referees for some skill (red)
- *   gaps     — slots merely unfilled but theoretically fillable (amber)
+ *   gaps     — slots unfilled, a Discouraged assignment nobody confirmed, or a capacity
+ *              shortfall — "not enough referees at this time" is about the slate and
+ *              never blocks (amber)
  *   healthy  — nothing outstanding (neutral)
  */
 export function boardHealthStatus(input: {
   openSlots: number;
   rosterShort: boolean;
-  conflicts: number;
+  impossible: number;
+  discouraged: number;
   capacity: number;
   deadEnds: number;
 }): HealthStatus {
-  if (input.conflicts > 0 || input.capacity > 0 || input.deadEnds > 0) return 'conflict';
+  if (input.impossible > 0 || input.deadEnds > 0) return 'conflict';
   if (input.rosterShort) return 'shortage';
-  if (input.openSlots > 0) return 'gaps';
+  if (input.openSlots > 0 || input.discouraged > 0 || input.capacity > 0) return 'gaps';
   return 'healthy';
 }
 

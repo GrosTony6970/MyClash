@@ -14,7 +14,13 @@ import { ConfirmDialog, Modal, SkillBadge, tintBgClassFor, useToast } from '@myc
 
 import { DEFAULT_EVENT_TIMEZONE, localeToBcp47, type AppLocale } from '@myclash/time';
 import { blockTint, resolveBlockAccent } from '@myclash/types';
-import type { CapacityWarning, RefereeConflict } from '@myclash/types';
+import type { CapacityWarning } from '@myclash/types';
+import {
+  assignFailureText,
+  type PickerReason,
+  type RefereeConflictEntry,
+} from '@/lib/referee-reasons';
+import { CandidatePicker } from './_components/CandidatePicker';
 import { useI18n, type Translator } from '@myclash/next-i18n/client';
 import { useEventStatus } from '../_hooks/useEventStatus';
 import { SkillCatalog } from './_components/SkillCatalog';
@@ -122,10 +128,11 @@ interface AssignmentBoardRoleSlot {
     isProposal: boolean;
   } | null;
   missingReasons: string[];
+  /** Sorted by the one checker's verdict (ADR-016). */
   candidates: {
     recommended: AssignmentBoardCandidate[];
-    warning: Array<AssignmentBoardCandidate & { warnings: string[] }>;
-    blocked: Array<AssignmentBoardCandidate & { reasons: string[] }>;
+    warning: Array<AssignmentBoardCandidate & { reasons: PickerReason[] }>;
+    blocked: Array<AssignmentBoardCandidate & { reasons: PickerReason[] }>;
   };
 }
 
@@ -178,7 +185,7 @@ interface AssignmentBoard {
   }>;
   warnings: Array<{ poolId: string; poolName: string; role: AssignmentRole; detail: string }>;
   locked: boolean;
-  conflicts: RefereeConflict[];
+  conflicts: RefereeConflictEntry[];
   capacityWarnings: CapacityWarning[];
   deadEndSlots: Array<{ poolId: string; poolName: string; role: string }>;
   swapSuggestions: SwapSuggestion[];
@@ -501,103 +508,6 @@ function formatDayShort(value: string, locale: AppLocale) {
   }).format(new Date(value));
 }
 
-/**
- * Map a backend blocked-candidate reason code to a user-friendly i18n
- * string. Known codes are emitted by assignment-board.service.ts ~L1183:
- *   - 'missing_qualification' → not qualified for this role
- *   - 'fighter_referee_overlap' → competing in this pool
- * Unknown codes fall through verbatim so a new server reason still
- * shows something the operator can grep on.
- */
-const KNOWN_BLOCKED_REASONS = new Set([
-  'missing_qualification',
-  'fighter_referee_overlap',
-  'schedule_conflict',
-  'unavailable',
-  'duplicate_role_same_pool',
-]);
-
-function formatBlockedReason(t: Translator, code: string): string {
-  if (KNOWN_BLOCKED_REASONS.has(code)) {
-    return t(`organizer.refereesPage.blockedReasons.${code}`);
-  }
-  return code;
-}
-
-function CandidateGroup({
-  title,
-  candidates,
-  disabled,
-  onSelect,
-}: {
-  title: string;
-  candidates: Array<AssignmentBoardCandidate & { reasons?: string[]; warnings?: string[] }>;
-  disabled?: boolean;
-  onSelect?: (candidate: AssignmentBoardCandidate) => void;
-}) {
-  const { t } = useI18n();
-
-  if (candidates.length === 0) return null;
-  return (
-    <div>
-      <p className="mb-2 text-xs font-semibold uppercase text-muted">{title}</p>
-      <div className="space-y-2">
-        {candidates.map((candidate) => {
-          const reasonsRaw = candidate.reasons ?? [];
-          const formattedReasons = reasonsRaw.map((code) => formatBlockedReason(t, code));
-          const tooltip =
-            disabled && formattedReasons.length > 0 ? formattedReasons.join(', ') : undefined;
-          return (
-            <button
-              type="button"
-              key={candidate.personId}
-              disabled={disabled}
-              onClick={() => onSelect?.(candidate)}
-              title={tooltip}
-              className={[
-                'w-full rounded border px-3 py-2 text-left text-sm transition-colors',
-                disabled
-                  ? 'cursor-not-allowed border-border bg-background text-muted'
-                  : 'border-border hover:border-border',
-              ].join(' ')}
-            >
-              <div className="flex items-baseline justify-between gap-2">
-                <span
-                  className={[
-                    'block font-medium',
-                    disabled ? 'line-through decoration-muted decoration-1' : '',
-                  ].join(' ')}
-                >
-                  {candidate.displayName}
-                </span>
-                {disabled && (
-                  <span className="rounded bg-border px-1.5 py-0.5 text-[10px] font-semibold uppercase text-foreground-secondary">
-                    {t('organizer.refereesPage.unavailableBadge')}
-                  </span>
-                )}
-              </div>
-              {candidate.clubLabel && <span className="block text-xs">{candidate.clubLabel}</span>}
-              {formattedReasons.length > 0 && (
-                <span
-                  className={[
-                    'mt-0.5 block text-xs italic',
-                    disabled ? 'text-muted' : 'text-foreground-secondary',
-                  ].join(' ')}
-                >
-                  {formattedReasons.join(', ')}
-                </span>
-              )}
-              {(candidate.warnings?.length ?? 0) > 0 && (
-                <span className="block text-xs">{candidate.warnings?.join(', ')}</span>
-              )}
-            </button>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
 function AssignmentsTab({
   eventId,
   apiUrl,
@@ -635,16 +545,16 @@ function AssignmentsTab({
     }
     return false;
   }, [board]);
-  // Scheduling conflicts keyed by `${poolId}|${personId}` so a role cell can
-  // flag the assigned referee in red. Excludes the 'unavailable' kind, which
-  // is surfaced in the health panel rather than per-cell.
+  // The checker's verdicts keyed by `${unitId}|${personId}` so a role cell can show the
+  // assigned referee's reasons: red when Impossible, amber when Discouraged, grey when
+  // confirmed over (ruling 135).
   const conflictByKey = useMemo(() => {
-    const m = new Map<string, RefereeConflict>();
-    for (const c of board?.conflicts ?? []) {
-      if (c.kind !== 'unavailable') m.set(`${c.poolId}|${c.personId}`, c);
-    }
+    const m = new Map<string, RefereeConflictEntry>();
+    for (const c of board?.conflicts ?? []) m.set(`${c.unitId}|${c.personId}`, c);
     return m;
   }, [board]);
+  // A reason the organiser confirmed over is listed, and no longer a warning.
+  const conflictsToAct = (board?.conflicts ?? []).filter((c) => c.level !== 'fine').length;
   const [picker, setPicker] = useState<{
     pool: AssignmentBoardPool;
     slot: AssignmentBoardRoleSlot;
@@ -983,9 +893,11 @@ function AssignmentsTab({
       const s = r.data;
       setRuleSettings({
         enableOwnPoolRule: s.enableOwnPoolRule ?? true,
+        enableOwnPoolSpanRule: s.enableOwnPoolSpanRule ?? true,
         enableOfficiateVsFightRule: s.enableOfficiateVsFightRule ?? true,
         enableDoubleBookedRule: s.enableDoubleBookedRule ?? true,
         enableTwoRolesRule: s.enableTwoRolesRule ?? true,
+        workshopConflictWarning: s.workshopConflictWarning ?? true,
         enableAvailabilityRule: s.enableAvailabilityRule ?? true,
         enableCapacityRule: s.enableCapacityRule ?? true,
       });
@@ -1061,20 +973,25 @@ function AssignmentsTab({
     }
   }
 
-  async function manualAssign(poolId: string, role: AssignmentRole, personId: string) {
+  /** `confirm` goes ahead over Discouraged reasons the organiser has seen (ADR-016). */
+  async function manualAssign(
+    poolId: string,
+    role: AssignmentRole,
+    personId: string,
+    confirm = false,
+  ) {
     setRunning(true);
     setError(null);
     try {
       const r = await apiRequest<AssignmentBoard>(
         apiUrl,
         `/api/v1/events/${eventId}/referee-assignments`,
-        { method: 'POST', body: { poolId, role, personId } },
+        { method: 'POST', body: { poolId, role, personId, ...(confirm ? { confirm } : {}) } },
       );
       if (!r.ok) {
-        // Hard rule 8 refuses this by name — the person is fighting in a pool
-        // that overlaps the one they would referee — and that is the sentence
-        // the operator needs in order to pick somebody else.
-        setError(failureMessage(r, t, t('organizer.refereesPage.assignmentApplyFailed')));
+        // The one checker refuses by reason (ADR-016) — the sentence the operator
+        // needs in order to pick somebody else, or confirm.
+        setError(assignFailureText(t, r, t('organizer.refereesPage.assignmentApplyFailed')));
         return;
       }
       setPicker(null);
@@ -1448,7 +1365,7 @@ function AssignmentsTab({
         >
           {t('organizer.refereesPage.healthcheck')}
         </button>
-        {board && board.conflicts.length > 0 && (
+        {conflictsToAct > 0 && (
           <button
             type="button"
             onClick={() =>
@@ -1461,7 +1378,7 @@ function AssignmentsTab({
             <span aria-hidden="true">⚠</span>
             {t('organizer.refereesPage.conflict.checkButton').replace(
               '{count}',
-              String(board.conflicts.length),
+              String(conflictsToAct),
             )}
           </button>
         )}
@@ -1558,46 +1475,15 @@ function AssignmentsTab({
       )}
 
       {picker && (
-        <Modal
-          open
-          onClose={() => setPicker(null)}
-          size="lg"
-          title={`${picker.pool.name} - ${
-            picker.slot.displayName ?? roleLabel(t, picker.slot.role, skillNameById)
-          }`}
-          description={picker.pool.tournamentName}
-          footer={
-            <button
-              type="button"
-              onClick={() => setPicker(null)}
-              className="text-sm text-muted hover:text-foreground"
-            >
-              {t('organizer.refereesPage.cancel')}
-            </button>
+        <CandidatePicker
+          pool={picker.pool}
+          slot={picker.slot}
+          slotLabel={picker.slot.displayName ?? roleLabel(t, picker.slot.role, skillNameById)}
+          onAssign={(personId, confirm) =>
+            void manualAssign(picker.pool.id, picker.slot.role, personId, confirm)
           }
-        >
-          <div className="space-y-4">
-            <CandidateGroup
-              title={t('organizer.refereesPage.recommendedCandidates')}
-              candidates={picker.slot.candidates.recommended}
-              onSelect={(candidate) =>
-                void manualAssign(picker.pool.id, picker.slot.role, candidate.personId)
-              }
-            />
-            <CandidateGroup
-              title={t('organizer.refereesPage.warningCandidates')}
-              candidates={picker.slot.candidates.warning}
-              onSelect={(candidate) =>
-                void manualAssign(picker.pool.id, picker.slot.role, candidate.personId)
-              }
-            />
-            <CandidateGroup
-              title={t('organizer.refereesPage.blockedCandidates')}
-              candidates={picker.slot.candidates.blocked}
-              disabled
-            />
-          </div>
-        </Modal>
+          onCancel={() => setPicker(null)}
+        />
       )}
 
       <ConfirmDialog

@@ -13,6 +13,8 @@
 
 import { localeToBcp47, type AppLocale } from '@myclash/time';
 import { useI18n } from '@myclash/next-i18n/client';
+import type { RefereeReason, RefereeVerdict } from '@myclash/rulesets/scheduling/referee-checker';
+import { RefereeReasons } from '@/components/RefereeReasons';
 import { assignmentChipClasses } from './assignment-chip-classes';
 import { formatUnassignedReason } from './format-unassigned-reason';
 
@@ -40,9 +42,10 @@ export interface PoolCardPool<S extends PoolCardRoleSlot> {
   roleSlots: S[];
 }
 
+/** The one checker's verdict on the assigned referee of a slot (ADR-016). */
 export interface PoolCardConflict {
-  kind: string;
-  otherPoolName: string;
+  level: RefereeVerdict['level'];
+  reasons: RefereeReason[];
 }
 
 export function PoolSlotCard<S extends PoolCardRoleSlot>({
@@ -134,7 +137,10 @@ export function PoolSlotCard<S extends PoolCardRoleSlot>({
                 'rounded-md border px-3 py-2',
                 assignmentChipClasses({
                   hasAssignment: !!slot.assignment,
-                  isError: !!conflict || (slot.missingReasons.length > 0 && !slot.assignment),
+                  // Red for Impossible only: an amber or confirmed reason is listed below.
+                  isError:
+                    conflict?.level === 'impossible' ||
+                    (slot.missingReasons.length > 0 && !slot.assignment),
                   isProposal: slot.assignment?.isProposal ?? false,
                   skillColor: skillColorById.get(slot.role) ?? null,
                 }),
@@ -177,15 +183,7 @@ export function PoolSlotCard<S extends PoolCardRoleSlot>({
               )}
               {conflict && (
                 <p className="mt-1 text-xs font-medium">
-                  {conflict.kind === 'double_booked'
-                    ? t('organizer.refereesPage.conflict.alsoOfficiating').replace(
-                        '{pool}',
-                        conflict.otherPoolName,
-                      )
-                    : t('organizer.refereesPage.conflict.alsoFighting').replace(
-                        '{pool}',
-                        conflict.otherPoolName,
-                      )}
+                  <RefereeReasons reasons={conflict.reasons} />
                 </p>
               )}
               {slot.missingReasons.length > 0 && !slot.assignment && (

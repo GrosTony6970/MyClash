@@ -3,16 +3,17 @@
  *
  * GET /api/v1/tournaments/:tournamentId/conflict-check
  *
- * Returns fighter/referee overlap conflicts for a tournament.
- * Hard constraint: enforce_fighter_referee_no_overlap (AGENTS.md rule #8).
+ * The referee verdicts the Pools page of one Tournament shows (hard rule 8, ADR-016).
  *
- * Row-to-input mapping lives in ./conflict-check-inputs, which is pure and
- * carries the id-space rule this endpoint got wrong. Authorization is org
- * membership: the answer names fighters and referees.
+ * It answers from the one checker, over the whole Event, and keeps what concerns this
+ * Tournament (`conflict-check-scope.ts`). It used to run a second detector over this
+ * Tournament's Match-scoped rows only, so it could not see a Pool-scoped crew, nor a
+ * referee's duty in another Tournament. Authorization is org membership: the answer names
+ * fighters and referees.
  *
- * A failed read throws. It used to leave its list empty, and an empty list of
- * bouts, duties or fighters reads as "nobody is in two places at once": an
- * all-clear nobody had checked. The Pools page says the check failed instead.
+ * A failed read throws. It used to leave its list empty, and an empty list reads as
+ * "nobody is in two places at once": an all-clear nobody had checked. The Pools page says
+ * the check failed instead.
  */
 
 import {
@@ -26,20 +27,15 @@ import {
 } from '@nestjs/common';
 import { ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
 import type { FastifyRequest } from 'fastify';
-import { detectFighterRefereeConflicts } from '@myclash/rulesets/scheduling';
 import { assertTournamentMember } from '../../common/auth/event-authz';
 import { resolveRequestUserId } from '../../common/auth/request-user';
 import { OrganizationsService } from '../organizations/organizations.service';
-import { resolveMatchLengths } from '../schedule/match-lengths';
-import { SupabaseService } from '../supabase/supabase.service';
 import {
-  toConflictAssignments,
-  toConflictMatches,
-  toRegistrationPersonMap,
-  type RawConflictAssignmentRow,
-  type RawConflictMatchRow,
-  type RawConflictRegistrationRow,
-} from './conflict-check-inputs';
+  AssignmentBoardService,
+  type RefereeConflictEntry,
+} from '../referees/assignment-board.service';
+import { SupabaseService } from '../supabase/supabase.service';
+import { conflictsTouchingTournament } from './conflict-check-scope';
 
 @ApiTags('phases')
 @Controller()
@@ -47,17 +43,18 @@ export class ConflictCheckController {
   constructor(
     private readonly supabase: SupabaseService,
     private readonly organizations: OrganizationsService,
+    private readonly board: AssignmentBoardService,
   ) {}
 
   @Get('tournaments/:tournamentId/conflict-check')
   @ApiOperation({
-    summary: 'Check fighter/referee time conflicts for a tournament (hard constraint, org member)',
+    summary: 'Referee verdicts that concern a tournament, from the one checker (org member)',
   })
   @ApiParam({ name: 'tournamentId', type: 'string', format: 'uuid' })
   async checkConflicts(
     @Param('tournamentId', ParseUUIDPipe) tournamentId: string,
     @Req() req: FastifyRequest,
-  ) {
+  ): Promise<{ conflicts: RefereeConflictEntry[] }> {
     const userId = await resolveRequestUserId(req, this.supabase);
     await assertTournamentMember(
       { supabase: this.supabase, orgs: this.organizations },
@@ -65,11 +62,6 @@ export class ConflictCheckController {
       userId,
     );
 
-    // 0. Resolve the tournament → event scope + phase ids. Neither
-    // `matches.tournament_id` nor `referee_assignments.tournament_id`
-    // exists in the schema (matches link to phases; phases link to
-    // tournaments; referee_assignments are event-scoped). Pre-resolving
-    // here keeps the downstream filters honest.
     const { data: tournamentRow, error: tournamentErr } = await this.supabase.service
       .from('tournaments')
       .select('event_id')
@@ -78,79 +70,10 @@ export class ConflictCheckController {
     if (tournamentErr) throw new BadRequestException(tournamentErr.message);
     const eventId = (tournamentRow as { event_id?: string } | null)?.event_id ?? null;
     // `tournaments.event_id` is NOT NULL, so no Event means no Tournament: it went
-    // after the membership check. Say so, rather than measure bouts against an
-    // Event nobody named.
+    // after the membership check. Say so, rather than judge an Event nobody named.
     if (!eventId) throw new NotFoundException('Tournament not found');
 
-    const { data: phaseRows, error: phasesErr } = await this.supabase.service
-      .from('phases')
-      .select('id')
-      .eq('tournament_id', tournamentId);
-    if (phasesErr) throw new BadRequestException(phasesErr.message);
-    const phaseIds = ((phaseRows ?? []) as Array<{ id: string }>).map((p) => p.id);
-
-    // 1. Fetch all matches for this tournament's phases with scheduled_at.
-    const { data: matchRows, error: matchesErr } = phaseIds.length
-      ? await this.supabase.service
-          .from('matches')
-          .select(
-            'id, phase_id, planned_duration_override_minutes, match_number_label, red_registration_id, blue_registration_id, scheduled_at',
-          )
-          .in('phase_id', phaseIds)
-          .neq('status', 'voided')
-      : { data: [], error: null };
-    if (matchesErr) throw new BadRequestException(matchesErr.message);
-    const rows = (matchRows ?? []) as unknown as RawConflictMatchRow[];
-
-    // Each bout at its own planned length (ADR-018), resolved once for the
-    // Tournament; the assignments below are scoped to these same Matches, so
-    // the one map covers both sides.
-    const lengths = await resolveMatchLengths(
-      this.supabase.service,
-      eventId,
-      rows.map((row) => ({
-        id: row.id,
-        phaseId: row.phase_id,
-        plannedDurationOverrideMinutes: row.planned_duration_override_minutes,
-      })),
-    );
-
-    const matches = toConflictMatches(rows, lengths);
-    const matchIds = matches.map((m) => m.id);
-
-    // 2. Fetch referee assignments scoped to this tournament's matches.
-    // Post-0063: referee_assignments.person_id → global_persons.
-    const { data: refRows, error: refErr } = matchIds.length
-      ? await this.supabase.service
-          .from('referee_assignments')
-          .select(
-            `
-        match_id, role,
-        global_persons ( id, given_name, family_name ),
-        matches ( match_number_label, scheduled_at )
-      `,
-          )
-          .eq('event_id', eventId)
-          .in('match_id', matchIds)
-      : { data: [], error: null };
-    if (refErr) throw new BadRequestException(refErr.message);
-
-    // 3. Fetch registration → person mapping for this tournament.
-    //    Projects `persons.global_person_id` (not `persons.id`) so the map keys
-    //    live in the same id-space as `referee_assignments.person_id`.
-    const { data: regRows, error: regErr } = await this.supabase.service
-      .from('registrations')
-      .select('id, persons ( id, global_person_id, given_name, family_name )')
-      .eq('tournament_id', tournamentId);
-    if (regErr) throw new BadRequestException(regErr.message);
-
-    // 4. Run conflict detection. Rows whose person cannot be resolved are
-    //    dropped by the mappers rather than keyed under '' — see
-    //    ./conflict-check-inputs for the false alarm that produced.
-    return detectFighterRefereeConflicts(
-      matches,
-      toConflictAssignments((refRows ?? []) as unknown as RawConflictAssignmentRow[], lengths),
-      toRegistrationPersonMap((regRows ?? []) as unknown as RawConflictRegistrationRow[]),
-    );
+    const { conflicts, units } = await this.board.checkEvent(eventId);
+    return { conflicts: conflictsTouchingTournament(conflicts, units, tournamentId) };
   }
 }

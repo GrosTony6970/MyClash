@@ -70,17 +70,6 @@ describe('groupSwissMatchesIntoUnits', () => {
     expect(units.map((u) => u.key)).toEqual(['swiss-r1-unscheduled', 'swiss-r2-unscheduled']);
     expect(units[0]!.matches).toHaveLength(2);
     expect(units[0]!.liceId).toBeNull();
-    expect(units[0]!.scheduledStart).toBeNull();
-  });
-
-  it('starts a unit at its earliest bout', () => {
-    const units = groupSwissMatchesIntoUnits(ROUNDS, [
-      match({ id: 'm1', scheduledAt: '2026-08-01T09:00:00.000Z' }),
-      match({ id: 'm2', scheduledAt: '2026-08-01T09:10:00.000Z' }),
-      match({ id: 'm3', scheduledAt: '2026-08-01T09:20:00.000Z' }),
-    ]);
-
-    expect(units[0]!.scheduledStart).toBe('2026-08-01T09:00:00.000Z');
   });
 
   it('skips matches whose round is gone, rather than inventing a unit', () => {

@@ -33,6 +33,8 @@ const manualAssignmentRequestSchema = z
     poolId: z.uuid(),
     role: z.enum(REFEREE_ASSIGNMENT_ROLES as [string, ...string[]]),
     personId: z.uuid(),
+    // ADR-016: go ahead over Discouraged reasons. An Impossible one has no override.
+    confirm: z.boolean().optional(),
   })
   .strict();
 class ManualAssignmentRequestDto extends createZodDto(manualAssignmentRequestSchema) {}
@@ -162,7 +164,10 @@ export class AssignmentBoardController {
 
   @Post('events/:eventId/referee-assignments')
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Assign one referee to one pool role after validation' })
+  @ApiOperation({
+    summary:
+      'Assign one referee to one pool role: 409 when Impossible, 409 when Discouraged unless confirm',
+  })
   @ApiParam({ name: 'eventId', type: 'string', format: 'uuid' })
   async manualAssign(
     @Param('eventId', ParseUUIDPipe) eventId: string,

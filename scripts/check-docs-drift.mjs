@@ -289,6 +289,18 @@ export const ALLOWED_ABSENT = new Map([
     'apps/api/src/modules/schedule/run-end.ts',
     'past tense: ADR-017 records the median-gap run end slice 4 deleted, 2026-09',
   ],
+  [
+    'packages/rulesets/src/scheduling/conflict-check.ts',
+    'past tense: ADR-016 records the second detector the one checker replaced (W1.1), 2026-09',
+  ],
+  [
+    'packages/types/src/referee-conflicts.ts',
+    'past tense: ADR-016 records the shared detectors W1.1 retired; capacity moved to referee-capacity.ts',
+  ],
+  [
+    'apps/api/src/modules/phases/conflict-check-inputs.ts',
+    'past tense: ADR-017 records a length reader W1.1 deleted with the second detector, 2026-09',
+  ],
 ]);
 
 /** A path written for a human rather than for a filesystem. */

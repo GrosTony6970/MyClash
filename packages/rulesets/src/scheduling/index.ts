@@ -2,21 +2,16 @@
  * @myclash/rulesets/scheduling — who may work a Pool.
  *
  * What is left here RESOLVES: the referee assigner reads staff availability,
- * roles and prior workload, and the conflict check reads which Person sits
- * behind a Registration. Both need knowledge the bout itself does not carry.
+ * roles and prior workload. It needs knowledge the bout itself does not carry.
+ *
+ * The one referee checker (ADR-016) is NOT re-exported here: it is imported by
+ * its own path, `@myclash/rulesets/scheduling/referee-checker`, because this
+ * barrel is CommonJS and would drag the assigner into the admin board's bundle.
  *
  * The shape of the competition — pools, seeding, brackets and Swiss rounds —
  * moved to `@myclash/rules`, which has no dependencies and which the scoring pad
  * can therefore reach offline.
  */
-export { detectFighterRefereeConflicts } from './conflict-check';
-export type {
-  ScheduledMatch as ConflictScheduledMatch,
-  RefereeAssignment as ConflictRefereeAssignment,
-  RegistrationPersonMap,
-  FighterRefereeConflict,
-  ConflictCheckResult,
-} from './conflict-check';
 
 export { assignReferees, assignRefereesWithPools } from './referee-assigner';
 export type {

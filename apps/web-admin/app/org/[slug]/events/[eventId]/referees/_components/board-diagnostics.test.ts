@@ -81,69 +81,33 @@ describe('summariseRosterHealth', () => {
 });
 
 describe('boardHealthStatus', () => {
+  const clean = {
+    openSlots: 0,
+    rosterShort: false,
+    impossible: 0,
+    discouraged: 0,
+    capacity: 0,
+    deadEnds: 0,
+  };
+
   it('is "healthy" when everything is filled and there are no problems', () => {
-    expect(
-      boardHealthStatus({
-        openSlots: 0,
-        rosterShort: false,
-        conflicts: 0,
-        capacity: 0,
-        deadEnds: 0,
-      }),
-    ).toBe('healthy');
+    expect(boardHealthStatus(clean)).toBe('healthy');
   });
 
-  it('is "gaps" when slots are merely unfilled', () => {
-    expect(
-      boardHealthStatus({
-        openSlots: 2,
-        rosterShort: false,
-        conflicts: 0,
-        capacity: 0,
-        deadEnds: 0,
-      }),
-    ).toBe('gaps');
+  it('is "gaps" (amber) for unfilled slots, an unconfirmed Discouraged duty, or capacity', () => {
+    expect(boardHealthStatus({ ...clean, openSlots: 2 })).toBe('gaps');
+    expect(boardHealthStatus({ ...clean, discouraged: 1 })).toBe('gaps');
+    // "Not enough referees at this time" never blocks (ADR-016): amber, not red.
+    expect(boardHealthStatus({ ...clean, capacity: 1 })).toBe('gaps');
   });
 
-  it('escalates to "conflict" (red) when there are scheduling conflicts', () => {
-    expect(
-      boardHealthStatus({
-        openSlots: 0,
-        rosterShort: false,
-        conflicts: 1,
-        capacity: 0,
-        deadEnds: 0,
-      }),
-    ).toBe('conflict');
+  it('is "conflict" (red) for an Impossible duty or a slot nobody may fill', () => {
+    expect(boardHealthStatus({ ...clean, impossible: 1 })).toBe('conflict');
+    expect(boardHealthStatus({ ...clean, deadEnds: 1 })).toBe('conflict');
+    expect(boardHealthStatus({ ...clean, impossible: 1, discouraged: 3 })).toBe('conflict');
   });
 
-  it('treats capacity shortages, dead-ends and roster shortage as red too', () => {
-    expect(
-      boardHealthStatus({
-        openSlots: 0,
-        rosterShort: false,
-        conflicts: 0,
-        capacity: 1,
-        deadEnds: 0,
-      }),
-    ).toBe('conflict');
-    expect(
-      boardHealthStatus({
-        openSlots: 0,
-        rosterShort: false,
-        conflicts: 0,
-        capacity: 0,
-        deadEnds: 1,
-      }),
-    ).toBe('conflict');
-    expect(
-      boardHealthStatus({
-        openSlots: 3,
-        rosterShort: true,
-        conflicts: 0,
-        capacity: 0,
-        deadEnds: 0,
-      }),
-    ).toBe('shortage');
+  it('is "shortage" when a skill has too few qualified referees', () => {
+    expect(boardHealthStatus({ ...clean, openSlots: 3, rosterShort: true })).toBe('shortage');
   });
 });

@@ -14,9 +14,9 @@
       "types": "./dist/scheduling/index.d.ts",
       "default": "./dist/scheduling/index.js"
     },
-    "./scheduling/conflict-check": {
-      "types": "./dist/scheduling/conflict-check.d.ts",
-      "default": "./dist/scheduling/conflict-check.js"
+    "./scheduling/referee-checker": {
+      "types": "./dist/scheduling/referee-checker.d.ts",
+      "default": "./dist/scheduling/referee-checker.js"
     }
   },
   "scripts": {
@@ -33,6 +33,7 @@
   },
   "dependencies": {
     "@myclash/rules": "workspace:^",
+    "@myclash/schedule-core": "workspace:^",
     "@myclash/types": "workspace:^",
     "zod": "^4.4.3"
   }

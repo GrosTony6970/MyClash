@@ -1728,8 +1728,26 @@ export const organizer = {
   refereeBoard: {
     cancel: 'Annuler',
     pick: 'Choisir',
+    pickAnyway: 'Affecter quand même',
     pickerRecommended: 'Recommandes',
-    pickerBlocked: 'Bloques',
+    pickerDiscouraged: 'À confirmer',
+    pickerBlocked: 'Impossible',
+    reasons: {
+      own_match: 'combat dans ce match ({against})',
+      fights_overlap: 'combat au même moment ({against})',
+      referees_overlap: 'arbitre déjà au même moment ({against})',
+      teaches_overlap: 'anime un atelier au même moment ({against})',
+      outside_availability: 'hors de ses disponibilités déclarées',
+      own_pool: 'combat dans cette poule ({against})',
+      own_pool_span: 'combat dans une poule en cours au même moment ({against})',
+      two_roles: 'tient déjà un autre rôle ici ({against})',
+      attends_overlap: 'suit un atelier au même moment ({against})',
+      missing_qualification: 'n’a aucune compétence permise pour ce poste',
+    },
+    confirmedOver: 'confirmé',
+    assignImpossible: 'Cet arbitre ne peut pas prendre ce poste : {reasons}.',
+    assignNeedsConfirm:
+      'Cet arbitre demande une confirmation : {reasons}. Choisissez-le sous « À confirmer » pour continuer.',
   },
   poolsPage: {
     refereesLoading: 'Chargement des arbitres...',
@@ -1943,11 +1961,6 @@ export const organizer = {
       refereeCrewUnavailable:
         "Les équipes de poule n'ont pas pu être lues : rien ici n'a été vérifié.",
       refereeCrewRulesOff: 'Ces vérifications sont désactivées : {rules}.',
-      refereeRuleOfficiateVsFight: 'arbitrer en tirant',
-      refereeRuleDoubleBooked: 'arbitrer deux choses en même temps',
-      refereeRuleAvailability: 'affecté hors disponibilité',
-      refereeOwnBout: '{person} doit arbitrer {match}, son propre combat',
-      refereeOverlap: '{person} tire {fight} à {fightTime} et arbitre {refereeing} à {refereeTime}',
       barCollisionSingular: '⚠ {count} combat est programmé pendant une pause ou un bloc admin.',
       barCollisionPlural: '⚠ {count} combats sont programmés pendant une pause ou un bloc admin.',
       barCollisionLine: '{match} pendant {bar}',
@@ -2460,11 +2473,8 @@ export const organizer = {
     page: {
       sectionsAria: 'Sections des poules',
       toBracket: 'Tableau →',
-      conflictsConfirmedTitle: '⛔ Conflits combattant/arbitre détectés (contrainte bloquante)',
-      conflictsPotentialTitle: '⚠ Conflits combattant/arbitre potentiels',
-      conflictSegFightsIn: 'combat dans',
-      conflictSegAndReferees: 'et arbitre',
-      conflictSegUnscheduled: '(non planifié — conflit potentiel)',
+      refereeImpossibleTitle: '⛔ Arbitres qui ne peuvent pas tenir leur poste (règle stricte)',
+      refereeDiscouragedTitle: '⚠ Postes d’arbitre à confirmer',
       conflictsReassignHint: "Réaffectez les arbitres avant de publier l'événement.",
       conflictsCheckFailed:
         "Les conflits combattant/arbitre n'ont pas pu être vérifiés. Il peut y en avoir : relancez la vérification avant de publier.",
@@ -2942,8 +2952,19 @@ export const organizer = {
       title: 'Règles vérifiées',
       toggleFailed: 'Impossible de mettre à jour le réglage de la règle.',
       ownPool: {
-        label: 'Son combat',
-        description: 'Un combattant ne peut pas arbitrer la poule ou le match où il combat.',
+        label: 'Sa poule',
+        description:
+          'Demande confirmation avant qu’un combattant arbitre sa propre poule à un autre moment. Son propre match n’est jamais permis.',
+      },
+      attendWorkshop: {
+        label: 'Participation à un atelier',
+        description:
+          'Demande confirmation avant qu’une personne arbitre pendant un atelier auquel elle est inscrite. Animer un atelier n’est jamais permis.',
+      },
+      ownPoolSpan: {
+        label: 'Poule en cours',
+        description:
+          'Demande confirmation avant qu’une personne arbitre pendant qu’une poule où elle combat est en cours, hors de ses propres matchs.',
       },
       officiateVsFight: {
         label: 'Arbitre vs combat',
@@ -3041,22 +3062,9 @@ export const organizer = {
     refereesTitle: 'Arbitres',
     pageTitle: 'Espace arbitres',
     unscheduled: 'Non planifié',
-    unavailableBadge: 'Indisponible',
-    blockedReasons: {
-      missing_qualification: 'Non qualifie pour ce rôle',
-      fighter_referee_overlap: 'Combattant ici',
-      schedule_conflict: 'Occupé à ce créneau (combat ou arbitrage ailleurs)',
-      unavailable: 'Indisponible pour ce tournoi ou ce jour',
-      duplicate_role_same_pool: 'Déjà affecté à un autre rôle ici',
-    },
     conflict: {
       sectionTitle: 'Conflits de planning',
       checkButton: 'Vérifier les conflits de planning ({count})',
-      alsoFighting: 'combat aussi dans {pool} au même moment',
-      alsoOfficiating: 'arbitre aussi {pool} au même moment',
-      alsoOfficiatingVenue:
-        'arbitre aussi {pool} a {venue} au même moment — un arbitre ne peut pas être dans deux lieux à la fois',
-      unavailableLine: 'affecté hors disponibilité ({tournament})',
       unfillableTitle: 'Postes impossibles à pourvoir',
       unfillableDetail: 'tous les arbitres qualifiés sont occupés ou indisponibles',
       capacityTitle: 'Capacité',
@@ -3109,9 +3117,6 @@ export const organizer = {
     noPoolsForAssignments:
       "Rien de planifié. Générez les poules ou un tableau avant d'affecter les arbitres.",
     missingAssignments: 'Affectations manquantes',
-    recommendedCandidates: 'Recommandés',
-    warningCandidates: 'Eligibles avec avertissements',
-    blockedCandidates: 'Bloques',
     backToPools: '← Poules',
     addRefereeButton: 'Ajouter un arbitre',
     searchParticipantPlaceholder: 'Rechercher un participant par nom…',

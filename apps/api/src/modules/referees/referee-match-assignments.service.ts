@@ -2,6 +2,8 @@ import { BadRequestException, Injectable } from '@nestjs/common';
 import { assertEventMember } from '../../common/auth/event-authz';
 import { OrganizationsService } from '../organizations/organizations.service';
 import { SupabaseService } from '../supabase/supabase.service';
+import { switchesOf } from './event-commitments';
+import { SettingsService } from './settings.service';
 import {
   toRefereeMatchAssignments,
   toRegistrationPersons,
@@ -11,16 +13,17 @@ import {
 } from './referee-match-assignments';
 
 /**
- * Serves the schedule board the two things it needs to check referee conflicts
- * for itself.
+ * Serves the schedule board what it needs to run the one referee checker
+ * (ADR-016) for itself, on every card move.
  *
  * The board already holds every bout and re-derives fighter conflicts on each
  * render. It cannot do the same for referees because it has no idea who is
- * refereeing what, nor which person a registration belongs to. Those are exactly
- * the second and third arguments of `detectFighterRefereeConflicts`, so this
- * endpoint hands over the INPUTS rather than a computed answer — a computed
- * answer would be stale the instant a card moved, which is the whole failure the
- * board's own fighter-conflict derivation exists to avoid.
+ * refereeing what, nor which person a registration belongs to, nor which amber
+ * rules the Event switched on. So this endpoint hands over those INPUTS rather
+ * than a computed answer — a computed answer would be stale the instant a card
+ * moved, which is the whole failure the board's own derivation exists to avoid.
+ * Both scopes: a Pool crew is one Pool-scoped row, and a read of bout rows only
+ * never saw it. A piste-scoped row has no window rule and stays out.
  *
  * Scope is the EVENT, not a tournament. A referee crossing from one tournament's
  * pool to another's bracket is the case most likely to be missed by eye, and a
@@ -42,6 +45,7 @@ export class RefereeMatchAssignmentsService {
   constructor(
     private readonly supabase: SupabaseService,
     private readonly organizations: OrganizationsService,
+    private readonly settings: SettingsService,
   ) {}
 
   async getForEvent(eventId: string, userId: string): Promise<RefereeMatchAssignmentsPayload> {
@@ -53,15 +57,18 @@ export class RefereeMatchAssignmentsService {
     // needs no walk down through tournaments and phases.
     const { data: assignmentRows, error: assignmentErr } = await this.supabase.service
       .from('referee_assignments')
-      .select('match_id, role, global_persons ( id, given_name, family_name, display_name )')
+      .select(
+        'scope_type, match_id, pool_id, role, conflicts_jsonb, global_persons ( id, given_name, family_name, display_name )',
+      )
       .eq('event_id', eventId)
-      .eq('scope_type', 'match')
+      .in('scope_type', ['match', 'pool'])
       .limit(ROW_LIMIT);
     if (assignmentErr) throw new BadRequestException(assignmentErr.message);
 
     const assignments = toRefereeMatchAssignments(
       (assignmentRows ?? []) as unknown as RawRefereeAssignmentRow[],
     );
+    const rules = switchesOf(await this.settings.getSettings(eventId));
 
     // `registrations` keys on `tournament_id` and carries no event id, so the
     // event's tournaments have to be resolved first.
@@ -71,7 +78,7 @@ export class RefereeMatchAssignmentsService {
       .eq('event_id', eventId);
     if (tournamentErr) throw new BadRequestException(tournamentErr.message);
     const tournamentIds = ((tournamentRows ?? []) as Array<{ id: string }>).map((t) => t.id);
-    if (tournamentIds.length === 0) return { assignments, registrations: [] };
+    if (tournamentIds.length === 0) return { assignments, registrations: [], rules };
 
     const { data: registrationRows, error: registrationErr } = await this.supabase.service
       .from('registrations')
@@ -85,6 +92,7 @@ export class RefereeMatchAssignmentsService {
       registrations: toRegistrationPersons(
         (registrationRows ?? []) as unknown as RawRegistrationRow[],
       ),
+      rules,
     };
   }
 }

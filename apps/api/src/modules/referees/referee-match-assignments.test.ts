@@ -6,86 +6,110 @@ import {
   type RawRegistrationRow,
 } from './referee-match-assignments';
 
-describe('toRefereeMatchAssignments', () => {
-  it('projects a per-match assignment with the global person id', () => {
-    const rows: RawRefereeAssignmentRow[] = [
-      {
-        match_id: 'm-1',
-        role: 'head',
-        global_persons: { id: 'gp-1', given_name: 'Ada', family_name: 'Lovelace' },
-      },
-    ];
+/** A Match-scoped row of Ada's on m-1 unless the case says otherwise. */
+function row(over: Partial<RawRefereeAssignmentRow> = {}): RawRefereeAssignmentRow {
+  return {
+    scope_type: 'match',
+    match_id: 'm-1',
+    pool_id: null,
+    role: 'head',
+    conflicts_jsonb: [],
+    global_persons: { id: 'gp-1', given_name: 'Ada', family_name: 'Lovelace' },
+    ...over,
+  };
+}
 
-    expect(toRefereeMatchAssignments(rows)).toEqual([
-      { matchId: 'm-1', personId: 'gp-1', personName: 'Ada Lovelace', role: 'head' },
+const ADA_ON_M1 = {
+  scopeType: 'match',
+  matchId: 'm-1',
+  poolId: null,
+  personId: 'gp-1',
+  personName: 'Ada Lovelace',
+  role: 'head',
+  confirmedReasons: [],
+};
+
+describe('toRefereeMatchAssignments', () => {
+  it('projects a Match-scoped duty with the global person id', () => {
+    expect(toRefereeMatchAssignments([row()])).toEqual([ADA_ON_M1]);
+  });
+
+  it('projects a Pool-scoped duty with its Pool and what was confirmed over', () => {
+    const pool = row({
+      scope_type: 'pool',
+      match_id: null,
+      pool_id: 'pool-a',
+      conflicts_jsonb: [
+        { code: 'own_pool', label: 'Longsword · A' },
+        { code: 'bogus', label: 'x' },
+      ],
+    });
+    expect(toRefereeMatchAssignments([pool])).toEqual([
+      {
+        ...ADA_ON_M1,
+        scopeType: 'pool',
+        matchId: null,
+        poolId: 'pool-a',
+        confirmedReasons: [{ code: 'own_pool', label: 'Longsword · A' }],
+      },
     ]);
   });
 
   it('prefers a display name over the given/family pair', () => {
-    const rows: RawRefereeAssignmentRow[] = [
-      {
-        match_id: 'm-1',
-        role: 'head',
-        global_persons: {
-          id: 'gp-1',
-          given_name: 'Ada',
-          family_name: 'Lovelace',
-          display_name: 'A. Lovelace',
-        },
+    const named = row({
+      global_persons: {
+        id: 'gp-1',
+        given_name: 'Ada',
+        family_name: 'Lovelace',
+        display_name: 'A. Lovelace',
       },
-    ];
-
-    expect(toRefereeMatchAssignments(rows)[0]?.personName).toBe('A. Lovelace');
+    });
+    expect(toRefereeMatchAssignments([named])[0]?.personName).toBe('A. Lovelace');
   });
 
   /** PostgREST returns a to-one embed as an object, or as a one-element array
    *  when it resolves through a unique constraint. Both reach this code. */
   it('reads the person embed whether it arrives as an object or a one-element array', () => {
-    const asArray: RawRefereeAssignmentRow[] = [
-      {
-        match_id: 'm-1',
-        role: 'head',
-        global_persons: [{ id: 'gp-1', given_name: 'Ada', family_name: 'Lovelace' }],
-      },
-    ];
-
-    expect(toRefereeMatchAssignments(asArray)).toEqual([
-      { matchId: 'm-1', personId: 'gp-1', personName: 'Ada Lovelace', role: 'head' },
-    ]);
+    const asArray = row({
+      global_persons: [{ id: 'gp-1', given_name: 'Ada', family_name: 'Lovelace' }],
+    });
+    expect(toRefereeMatchAssignments([asArray])).toEqual([ADA_ON_M1]);
   });
 
   /**
    * THE RULE. Emitting an unresolvable row under `''` would collapse every such
-   * row onto one key, and the detector keys its lookup by person — so an
+   * row onto one key, and the checker keys its commitments by person — so an
    * unidentified referee would "match" every unidentified fighter and the board
    * would raise a conflict for two people it cannot even name.
    */
   it('drops a row it cannot resolve to a person rather than keying it under an empty id', () => {
-    const rows: RawRefereeAssignmentRow[] = [
-      { match_id: 'm-1', role: 'head', global_persons: null },
-      { match_id: 'm-2', role: 'head', global_persons: { given_name: 'No', family_name: 'Id' } },
-      { match_id: 'm-3', role: 'head' },
-    ];
-
-    expect(toRefereeMatchAssignments(rows)).toEqual([]);
+    expect(
+      toRefereeMatchAssignments([
+        row({ global_persons: null }),
+        row({ global_persons: { given_name: 'No', family_name: 'Id' } }),
+        row({ global_persons: undefined }),
+      ]),
+    ).toEqual([]);
   });
 
-  it('drops an assignment with no bout or no role', () => {
-    const rows: RawRefereeAssignmentRow[] = [
-      { match_id: null, role: 'head', global_persons: { id: 'gp-1' } },
-      { match_id: 'm-1', role: null, global_persons: { id: 'gp-1' } },
-    ];
-
-    expect(toRefereeMatchAssignments(rows)).toEqual([]);
+  it("drops a row with no role, or missing its own scope's target, or of a piste", () => {
+    expect(
+      toRefereeMatchAssignments([
+        row({ role: null }),
+        row({ match_id: null }),
+        row({ scope_type: 'pool', match_id: null, pool_id: null }),
+        row({ scope_type: 'pool', match_id: 'm-1', pool_id: null }),
+        row({ scope_type: 'lice', match_id: null }),
+      ]),
+    ).toEqual([]);
   });
 
   it('keeps one row per role when a bout has a crew', () => {
-    const rows: RawRefereeAssignmentRow[] = [
-      { match_id: 'm-1', role: 'head', global_persons: { id: 'gp-1', given_name: 'Ada' } },
-      { match_id: 'm-1', role: 'side', global_persons: { id: 'gp-2', given_name: 'Grace' } },
+    const crew = [
+      row(),
+      row({ role: 'side', global_persons: { id: 'gp-2', given_name: 'Grace' } }),
     ];
-
-    expect(toRefereeMatchAssignments(rows)).toHaveLength(2);
+    expect(toRefereeMatchAssignments(crew)).toHaveLength(2);
   });
 });
 

@@ -21,14 +21,16 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useI18n } from '@myclash/next-i18n/client';
 import { apiRequest, failureMessage } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
+import { assignFailureText, type PickerReason } from '@/lib/referee-reasons';
 // Type-only, so importing from a 'use client' component module is erased at
 // build time. Kept as the single definition rather than re-declared narrowly
 // here: the panel that renders these is the one that decides their shape.
 import type { SwapSuggestion } from './SwapSuggestionsPanel';
 
 export interface AssignmentBoardCandidate {
-  userId: string;
-  personId: string | null;
+  userId: string | null;
+  /** `global_persons.id`: the referee's identity, and what an assign sends. */
+  personId: string;
   displayName: string;
   clubLabel: string | null;
   qualifications: Array<{ role: string; rating: number | null }>;
@@ -42,17 +44,21 @@ export interface AssignmentBoardRoleSlot {
   role: string;
   assignment: {
     id: string;
-    userId: string;
+    /** Null for an unclaimed referee. */
+    userId: string | null;
     personId: string | null;
     displayName: string;
     status: string;
     autoAssigned: boolean;
   } | null;
   missingReasons: string[];
+  /** Sorted by the one checker's verdict (ADR-016). */
   candidates: {
     recommended: AssignmentBoardCandidate[];
-    warning: Array<AssignmentBoardCandidate & { warnings: string[] }>;
-    blocked: Array<AssignmentBoardCandidate & { reasons: string[] }>;
+    /** Discouraged: may be assigned after confirming. */
+    warning: Array<AssignmentBoardCandidate & { reasons: PickerReason[] }>;
+    /** Impossible, or holding no skill this slot allows. */
+    blocked: Array<AssignmentBoardCandidate & { reasons: PickerReason[] }>;
   };
 }
 
@@ -106,7 +112,13 @@ export interface UseAssignmentBoard {
   skillColorById: Map<string, string>;
   liceNameById: Map<string, string>;
   reload: () => Promise<void>;
-  manualAssign: (poolId: string, role: string, userId: string) => Promise<boolean>;
+  /** `confirm` goes ahead over Discouraged reasons the organiser has seen (ADR-016). */
+  manualAssign: (
+    poolId: string,
+    role: string,
+    personId: string,
+    confirm?: boolean,
+  ) => Promise<boolean>;
   unassign: (assignmentId: string) => Promise<void>;
   applySwap: (suggestion: SwapSuggestion) => Promise<void>;
 }
@@ -209,20 +221,19 @@ export function useAssignmentBoard(
 
   /** Resolves true when the assignment persisted, so a caller can close its picker. */
   const manualAssign = useCallback(
-    async (poolId: string, role: string, userId: string): Promise<boolean> => {
+    async (poolId: string, role: string, personId: string, confirm = false): Promise<boolean> => {
       setBusy(true);
       setError(null);
       try {
         const r = await apiRequest<AssignmentBoard>(
           apiUrl,
           `/api/v1/events/${eventId}/referee-assignments`,
-          { method: 'POST', body: { poolId, role, userId } },
+          { method: 'POST', body: { poolId, role, personId, ...(confirm ? { confirm } : {}) } },
         );
         if (!r.ok) {
-          // Hard rule 8 refuses this by name — the person is fighting in a
-          // pool that overlaps the one they would referee — and that is the
-          // sentence the operator needs to pick somebody else.
-          setError(failureMessage(r, t, messages.mutationFailed));
+          // The one checker refuses by reason (ADR-016) — the sentence the operator
+          // needs in order to pick somebody else, or confirm.
+          setError(assignFailureText(t, r, messages.mutationFailed));
           return false;
         }
         setBoard(r.data);

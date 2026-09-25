@@ -1,12 +1,14 @@
 /**
- * The two inputs a per-match referee conflict check needs, in one id-space.
+ * The inputs the schedule board's live referee check needs, in one id-space.
  *
- * `detectFighterRefereeConflicts` (@myclash/rulesets) answers "is this referee
- * also fighting somewhere that overlaps?" from three things: the bouts, the
- * referees committed to them, and which person each registration belongs to.
- * The schedule board already holds the bouts. This module owns the other two, so
- * the board can recompute the answer on every card move instead of asking the
- * server again.
+ * The one checker (`@myclash/rulesets/scheduling/referee-checker`, ADR-016) answers
+ * "may this person referee this?" from commitments. The schedule board already
+ * holds the bouts, so it builds the fights and the Pool spans itself; this module
+ * owns the rest it cannot see — every referee duty, Pool-scoped AND Match-scoped
+ * (a Pool crew is one Pool-scoped row, and a check that read bout rows only never
+ * saw it), what each duty's organiser already confirmed over, and which person
+ * each registration belongs to. The board recomputes on every card move instead
+ * of asking the server again.
  *
  * Pure: no Supabase, no Nest, no HTTP. The service hands it rows and gets the
  * wire payload back, which is what makes the id-space rule below assertable.
@@ -28,14 +30,25 @@
  * identify" into "this referee is fighting right now", which is a false alarm on
  * the one banner an organiser has to be able to trust.
  */
+import {
+  parseStoredReasons,
+  type RefereeSwitches,
+  type StoredRefereeReason,
+} from '@myclash/rulesets/scheduling/referee-checker';
 
-/** One referee committed to one bout. */
+/** One referee duty: a whole Pool (`scopeType: 'pool'`) or one bout (`'match'`). */
 export interface RefereeMatchAssignment {
-  matchId: string;
+  scopeType: 'pool' | 'match';
+  /** The bout, for a Match-scoped duty; null for a Pool-scoped one. */
+  matchId: string | null;
+  /** The Pool, for a Pool-scoped duty; null for a Match-scoped one. */
+  poolId: string | null;
   /** `global_persons.id`. */
   personId: string;
   personName: string;
   role: string;
+  /** The Discouraged reasons the organiser confirmed over when assigning (ruling 135). */
+  confirmedReasons: StoredRefereeReason[];
 }
 
 /** Which global person a tournament registration belongs to. */
@@ -49,6 +62,8 @@ export interface RegistrationPerson {
 export interface RefereeMatchAssignmentsPayload {
   assignments: RefereeMatchAssignment[];
   registrations: RegistrationPerson[];
+  /** The Event's Discouraged switches, so the board grades amber as the server does. */
+  rules: RefereeSwitches;
 }
 
 /** Name columns shared by both embeds. */
@@ -59,8 +74,11 @@ interface PersonNameColumns {
 }
 
 export interface RawRefereeAssignmentRow {
+  scope_type: string;
   match_id: string | null;
+  pool_id: string | null;
   role: string | null;
+  conflicts_jsonb?: unknown;
   global_persons?: unknown;
 }
 
@@ -98,16 +116,25 @@ export function toRefereeMatchAssignments(
   const assignments: RefereeMatchAssignment[] = [];
   for (const row of rows) {
     // A role-less assignment is not a commitment the board can name, and the
-    // referee board skips those too.
-    if (!row.match_id || !row.role) continue;
+    // referee board skips those too. A row must carry its own scope's target.
+    const scopeType =
+      row.scope_type === 'match' && row.match_id
+        ? 'match'
+        : row.scope_type === 'pool' && row.pool_id
+          ? 'pool'
+          : null;
+    if (!scopeType || !row.role) continue;
     const person = one(row.global_persons) as (PersonNameColumns & { id?: string }) | null;
     const personId = person?.id;
     if (!personId) continue;
     assignments.push({
-      matchId: row.match_id,
+      scopeType,
+      matchId: scopeType === 'match' ? row.match_id : null,
+      poolId: scopeType === 'pool' ? row.pool_id : null,
       personId,
       personName: personName(person),
       role: row.role,
+      confirmedReasons: parseStoredReasons(row.conflicts_jsonb),
     });
   }
   return assignments;

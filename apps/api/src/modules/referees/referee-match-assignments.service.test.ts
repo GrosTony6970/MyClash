@@ -11,9 +11,11 @@ import { ForbiddenException } from '@nestjs/common';
 import { RefereeMatchAssignmentsService } from './referee-match-assignments.service';
 import type { OrganizationsService } from '../organizations/organizations.service';
 import type { SupabaseService } from '../supabase/supabase.service';
+import type { SettingsService } from './settings.service';
 
 const fromMock = vi.fn();
 const assertOrgRole = vi.fn();
+const getSettings = vi.fn();
 
 /** A chain whose terminal `await` resolves to `result`. */
 function chain(result: unknown) {
@@ -31,6 +33,7 @@ function makeService(tables: Record<string, unknown>): RefereeMatchAssignmentsSe
   return new RefereeMatchAssignmentsService(
     { service: { from: fromMock } } as unknown as SupabaseService,
     { assertOrgRole } as unknown as OrganizationsService,
+    { getSettings } as unknown as SettingsService,
   );
 }
 
@@ -49,6 +52,13 @@ beforeEach(() => {
   fromMock.mockReset();
   assertOrgRole.mockReset();
   assertOrgRole.mockResolvedValue(undefined);
+  getSettings.mockReset();
+  getSettings.mockResolvedValue({
+    enableOwnPoolRule: true,
+    enableOwnPoolSpanRule: false,
+    enableTwoRolesRule: true,
+    workshopConflictWarning: true,
+  });
 });
 
 describe('RefereeMatchAssignmentsService', () => {
@@ -74,14 +84,25 @@ describe('RefereeMatchAssignmentsService', () => {
     expect(assertOrgRole).toHaveBeenCalledWith('org-1', 'user-1', 'read_only');
   });
 
-  it('reads per-match assignments and the event-wide registration map', async () => {
+  it("reads both scopes' duties, the event-wide registration map and the amber switches", async () => {
     const service = makeService({
       events: eventChain(),
       referee_assignments: chain({
         data: [
           {
+            scope_type: 'match',
             match_id: 'm-1',
+            pool_id: null,
             role: 'head',
+            conflicts_jsonb: [],
+            global_persons: { id: 'gp-1', given_name: 'Ada', family_name: 'Lovelace' },
+          },
+          {
+            scope_type: 'pool',
+            match_id: null,
+            pool_id: 'pool-a',
+            role: 'table',
+            conflicts_jsonb: [{ code: 'own_pool', label: 'Longsword · A' }],
             global_persons: { id: 'gp-1', given_name: 'Ada', family_name: 'Lovelace' },
           },
         ],
@@ -99,11 +120,35 @@ describe('RefereeMatchAssignmentsService', () => {
     const payload = await service.getForEvent('event-1', 'user-1');
 
     expect(payload.assignments).toEqual([
-      { matchId: 'm-1', personId: 'gp-1', personName: 'Ada Lovelace', role: 'head' },
+      {
+        scopeType: 'match',
+        matchId: 'm-1',
+        poolId: null,
+        personId: 'gp-1',
+        personName: 'Ada Lovelace',
+        role: 'head',
+        confirmedReasons: [],
+      },
+      {
+        scopeType: 'pool',
+        matchId: null,
+        poolId: 'pool-a',
+        personId: 'gp-1',
+        personName: 'Ada Lovelace',
+        role: 'table',
+        confirmedReasons: [{ code: 'own_pool', label: 'Longsword · A' }],
+      },
     ]);
     expect(payload.registrations).toEqual([
       { registrationId: 'reg-1', personId: 'gp-1', personName: 'Ada' },
     ]);
+    expect(payload.rules).toEqual({
+      ownPool: true,
+      ownPoolSpan: false,
+      twoRoles: true,
+      attendWorkshop: true,
+    });
+    expect(getSettings).toHaveBeenCalledWith('event-1');
   });
 
   /**
@@ -125,7 +170,7 @@ describe('RefereeMatchAssignmentsService', () => {
     expect(registrations['in']).toHaveBeenCalledWith('tournament_id', ['t-1', 't-2']);
   });
 
-  it('reads only per-match assignment rows, not the pool-scoped crew', async () => {
+  it('reads the Pool crews and the bout crews, never a piste-scoped row', async () => {
     const assignments = chain({ data: [], error: null });
     const service = makeService({
       events: eventChain(),
@@ -135,7 +180,12 @@ describe('RefereeMatchAssignmentsService', () => {
 
     await service.getForEvent('event-1', 'user-1');
 
-    expect(assignments['eq']).toHaveBeenCalledWith('scope_type', 'match');
+    expect(assignments['in']).toHaveBeenCalledWith('scope_type', ['match', 'pool']);
+    expect(assignments['eq']).not.toHaveBeenCalledWith('scope_type', 'match');
+    // The mock ignores the projection: each column the mapper reads is pinned by name.
+    expect(assignments['select']).toHaveBeenCalledWith(
+      'scope_type, match_id, pool_id, role, conflicts_jsonb, global_persons ( id, given_name, family_name, display_name )',
+    );
   });
 
   /**

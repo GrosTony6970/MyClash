@@ -1,4 +1,9 @@
 import { apiRequest, type ApiFailure } from '@myclash/api-client';
+import type {
+  RefereeReason,
+  RefereeSwitches,
+  RefereeVerdict,
+} from '@myclash/rulesets/scheduling/referee-checker';
 import { DEFAULT_EVENT_TIMEZONE } from '@myclash/time';
 import { eachDay } from '@myclash/schedule-core';
 import type {
@@ -103,13 +108,34 @@ export async function loadBootstrap(
 export type RefereeConflictInputs = {
   assignments: RefereeConflictAssignment[];
   registrations: RefereeConflictRegistration[];
+  /** The Event's amber switches, so the board grades a clash as the server does. */
+  rules: RefereeSwitches;
 };
 
 export type RefereeConflictInputsResult =
-  ({ ok: true } & RefereeConflictInputs) | { ok: false; failure: ApiFailure };
+  | ({ ok: true } & RefereeConflictInputs)
+  /** `failure` is null when the server said yes and the body carried no switches. */
+  | { ok: false; failure: ApiFailure | null };
 
 /**
- * Who referees what, and which person each registration belongs to.
+ * True only for the four Discouraged switches (ADR-016). Neither default is safe when
+ * they are missing: `true` claims a rule ran, `false` claims it is off, and one of them
+ * would be a statement about a payload that said nothing.
+ */
+function isSwitches(value: unknown): value is RefereeSwitches {
+  if (typeof value !== 'object' || value === null) return false;
+  const r = value as Record<string, unknown>;
+  return (
+    typeof r['ownPool'] === 'boolean' &&
+    typeof r['ownPoolSpan'] === 'boolean' &&
+    typeof r['twoRoles'] === 'boolean' &&
+    typeof r['attendWorkshop'] === 'boolean'
+  );
+}
+
+/**
+ * Who referees what, what each organiser confirmed over, which person each registration
+ * belongs to, and the amber switches — what the live check runs the one checker on.
  *
  * Deliberately NOT part of `loadBootstrap`. A refusal there blanks the whole
  * board, and this read is an addition to it: the operator can still schedule
@@ -122,44 +148,43 @@ export async function loadRefereeConflictInputs(
   eventId: string,
   signal: AbortSignal,
 ): Promise<RefereeConflictInputsResult> {
-  const r = await apiRequest<RefereeConflictInputs>(
+  const r = await apiRequest<Partial<RefereeConflictInputs>>(
     apiUrl,
     `/api/v1/events/${eventId}/referee-match-assignments`,
     { signal },
   );
   if (!r.ok) return { ok: false, failure: r };
+  if (!isSwitches(r.data.rules)) return { ok: false, failure: null };
   return {
     ok: true,
     assignments: r.data.assignments ?? [],
     registrations: r.data.registrations ?? [],
+    rules: r.data.rules,
   };
 }
 
-/** One pool-scoped referee clash, as `packages/types` defines it. */
+/**
+ * One existing duty the one checker has something to say about — the API's
+ * `RefereeConflictEntry`: red when Impossible, amber when Discouraged, each reason the
+ * organiser already confirmed over marked `confirmed`.
+ */
 export interface RefereeCrewConflict {
+  assignmentId: string;
   personId: string;
   personName: string;
-  kind: 'officiate_vs_fight' | 'double_booked' | 'unavailable';
-  poolId: string;
-  poolName: string;
+  unitId: string;
+  unitName: string;
+  tournamentId: string;
   role: string;
   start: string | null;
-  otherPoolId: string;
-  otherPoolName: string;
-  otherVenueName?: string | null;
-  crossVenue?: boolean;
-}
-
-/** Which of the three checks were switched on when the server looked. */
-export interface RefereeCrewRules {
-  officiateVsFight: boolean;
-  doubleBooked: boolean;
-  availability: boolean;
+  level: RefereeVerdict['level'];
+  reasons: RefereeReason[];
 }
 
 export interface RefereeCrewConflictsBody {
   conflicts: RefereeCrewConflict[];
-  rules: RefereeCrewRules;
+  /** The Discouraged switches when the server looked. The Impossible rules have none. */
+  rules: RefereeSwitches;
   /** ISO, server-side: when these were computed. */
   asOf: string;
 }
@@ -174,35 +199,21 @@ export type RefereeCrewConflictsResult =
    */
   | { ok: false; failure: ApiFailure | null };
 
-/**
- * True only for a body that actually carries the three toggles.
- *
- * Neither default is safe when they are missing. Filling them in as `true`
- * claims all three checks ran; filling them in as `false` claims they are
- * switched off. Both are statements about a payload that said nothing, and one
- * of them will be wrong. So a body without them is not a successful read.
- */
+/** True only for a body that carries the verdicts AND the four switches (`isSwitches`). */
 function hasCrewShape(body: unknown): body is RefereeCrewConflictsBody {
   if (typeof body !== 'object' || body === null) return false;
   const { conflicts, rules } = body as { conflicts?: unknown; rules?: unknown };
-  if (!Array.isArray(conflicts)) return false;
-  if (typeof rules !== 'object' || rules === null) return false;
-  const r = rules as Record<string, unknown>;
-  return (
-    typeof r['officiateVsFight'] === 'boolean' &&
-    typeof r['doubleBooked'] === 'boolean' &&
-    typeof r['availability'] === 'boolean'
-  );
+  return Array.isArray(conflicts) && isSwitches(rules);
 }
 
 /**
- * The pool-scoped referee clashes, and whether anybody was looking.
+ * The server's verdicts on every existing duty, and whether anybody was looking.
  *
  * The slim read, not `referee-assignment-board`: that one returns the whole
  * referee workspace, and this is re-read after every card move.
  *
- * `rules` is why the banner can be honest. Each conflict kind is gated by its
- * own toggle in referee settings, so an empty list may mean the check is off.
+ * `rules` is why the banner can be honest: each amber rule has its own switch in the
+ * referee settings, so no amber row may mean the check is off.
  */
 export async function loadRefereeCrewConflicts(
   apiUrl: string,

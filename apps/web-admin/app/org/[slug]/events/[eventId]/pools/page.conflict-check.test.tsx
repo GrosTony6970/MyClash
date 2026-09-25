@@ -36,19 +36,31 @@ vi.mock('@myclash/api-client', async (importOriginal) => ({
   apiRequest: vi.fn(),
 }));
 
-const CLASH = {
-  conflicts: [
-    {
-      personName: 'Ada Lovelace',
-      fightingMatchLabel: 'L1-P1-M01',
-      refereeingMatchLabel: 'L2-P2-M03',
-      confirmed: true,
-    },
-  ],
-  hasConfirmedConflicts: true,
-  hasPotentialConflicts: false,
-};
-const CLEAN = { conflicts: [], hasConfirmedConflicts: false, hasPotentialConflicts: false };
+/** One verdict as `GET tournaments/:id/conflict-check` answers it (the one checker, ADR-016). */
+function verdict(level: 'impossible' | 'discouraged' | 'fine', confirmed = false) {
+  const code = level === 'impossible' ? 'fights_overlap' : 'own_pool';
+  return {
+    assignmentId: 'row-1',
+    personId: 'gp-ada',
+    personName: 'Ada Lovelace',
+    unitId: 'pool-2',
+    unitName: 'Longsword · Pool 2',
+    tournamentId: 't1',
+    role: 'declarant',
+    start: null,
+    level,
+    reasons: [
+      {
+        code,
+        level: level === 'impossible' ? 'impossible' : 'discouraged',
+        against: { kind: 'pool', id: 'pool-1', label: 'Longsword · Pool 1' },
+        confirmed,
+      },
+    ],
+  };
+}
+const CLASH = { conflicts: [verdict('impossible')] };
+const CLEAN = { conflicts: [] };
 
 const TOURNAMENT_PATH =
   /^\/api\/v1\/tournaments\/([^/]+)\/(pools|unassigned-fighters|conflict-check)$/;
@@ -131,8 +143,34 @@ describe('Pools page conflict check', () => {
     await openPage();
 
     expect(checkedTournaments()).toContain('t1');
+    // The verdict renders, worded by its reason code — a new payload shape that
+    // compiled and rendered nothing is the silent all-clear this page must never show.
     expect(container.textContent).toContain('Ada Lovelace');
-    expect(container.textContent).toContain('L2-P2-M03');
+    expect(container.textContent).toContain('Longsword · Pool 2');
+    expect(container.textContent).toContain('fights at the same time (Longsword · Pool 1)');
+    expect(container.textContent).toContain('Referees who cannot take their duty');
+  });
+
+  it('shows a duty to confirm in amber, and a confirmed-over one not at all', async () => {
+    serve(
+      [
+        { id: 't1', name: 'Longsword' },
+        { id: 't2', name: 'Sabre' },
+      ],
+      { t1: { conflicts: [verdict('discouraged')] }, t2: { conflicts: [verdict('fine', true)] } },
+    );
+    await openPage();
+    expect(container.textContent).toContain('Referee duties that need confirmation');
+    expect(container.textContent).toContain('fights in this Pool (Longsword · Pool 1)');
+
+    await choose('Sabre');
+    expect(container.textContent).not.toContain('Ada Lovelace');
+  });
+
+  it('says the check failed when the answer carries no verdict list', async () => {
+    serve([{ id: 't1', name: 'Longsword' }], { t1: { hasConfirmedConflicts: true } });
+    await openPage();
+    expect(container.textContent).toContain('could not be checked');
   });
 
   it('choosing another Tournament checks that Tournament and shows its clash', async () => {

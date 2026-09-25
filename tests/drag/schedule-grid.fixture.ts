@@ -247,15 +247,19 @@ export const REFEREE_PERSON = 'gp-denis';
 export const refereeMatchAssignmentsFixture = {
   assignments: [
     {
+      scopeType: 'match',
       matchId: MATCH_2,
+      poolId: null,
       personId: REFEREE_PERSON,
       personName: 'Denis Referee',
       role: 'arbitre_declarant',
+      confirmedReasons: [],
     },
   ],
   registrations: [
     { registrationId: 'reg-red', personId: REFEREE_PERSON, personName: 'Denis Referee' },
   ],
+  rules: { ownPool: true, ownPoolSpan: true, twoRoles: true, attendWorkshop: true },
 };
 
 /**
@@ -265,7 +269,7 @@ export const refereeMatchAssignmentsFixture = {
  */
 export const refereeCrewConflictsFixture = {
   conflicts: [],
-  rules: { officiateVsFight: true, doubleBooked: true, availability: true },
+  rules: { ownPool: true, ownPoolSpan: true, twoRoles: true, attendWorkshop: true },
   asOf: at('09:30'),
 };
 

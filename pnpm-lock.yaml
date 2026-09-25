@@ -585,6 +585,9 @@ importers:
       '@myclash/rules':
         specifier: workspace:^
         version: link:../rules
+      '@myclash/schedule-core':
+        specifier: workspace:^
+        version: link:../schedule-core
       '@myclash/types':
         specifier: workspace:^
         version: link:../types

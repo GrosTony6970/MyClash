@@ -287,7 +287,7 @@ test.describe('schedule grid drag layer', () => {
 
     await expect(banner).toBeVisible();
     await expect(
-      page.getByText(/Denis Referee fights LSW-P1-M1 .* referees LSW-P1-M2/),
+      page.getByText(/Denis Referee — .*LSW-P1-M2.*fights at the same time \(.*LSW-P1-M1\)/),
     ).toBeVisible();
     // Derived, not fetched.
     expect(api.readCount('/referee-match-assignments')).toBe(readsBefore);

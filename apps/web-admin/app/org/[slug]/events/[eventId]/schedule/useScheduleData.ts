@@ -186,6 +186,7 @@ export function useScheduleData(args: {
       matches,
       assignments: refereeInputs.assignments,
       registrations: refereeInputs.registrations,
+      rules: refereeInputs.rules,
       tz: eventTz,
       unknownPersonLabel: unknownFighterLabel,
     });
@@ -251,7 +252,7 @@ export function useScheduleData(args: {
       // The board unmounted, or moved to another event. Storing that would
       // make the banner say the referee check is unavailable for an event
       // nobody is looking at any more.
-      if (!result.ok && result.failure.kind === 'aborted') return;
+      if (!result.ok && result.failure?.kind === 'aborted') return;
       setRefereeInputs(result);
     });
     return () => controller.abort();

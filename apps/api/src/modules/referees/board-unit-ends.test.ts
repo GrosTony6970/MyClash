@@ -27,7 +27,6 @@ function unit(id: string, matches: DraftUnitMatch[]): DraftBoardUnit {
     tournamentId: 't-1',
     tournamentName: 'Longsword',
     liceId: 'lice-1',
-    scheduledStart: matches[0]?.scheduledAt ?? null,
     kind: 'pool',
     members: [],
     matches,
@@ -55,6 +54,30 @@ describe('finishBoardUnits', () => {
       ['m2', 12],
     ]);
     expect(finished!.scheduledEnd).toBe('2026-08-01T09:20:00.000Z');
+  });
+
+  it('starts every unit at its earliest bout by the clock, not by the text of its time', () => {
+    // 09:00+02:00 is 07:00 UTC: earlier than 08:30Z, although it sorts after it as text.
+    const [finished] = finishBoardUnits(
+      [
+        unit('pool-1', [
+          bout('m1', '2026-08-01T08:30:00+00:00'),
+          bout('m2', '2026-08-01T09:00:00+02:00'),
+        ]),
+      ],
+      new Map([
+        ['m1', 10],
+        ['m2', 10],
+      ]),
+    );
+    expect(finished!.scheduledStart).toBe('2026-08-01T07:00:00.000Z');
+    expect(finished!.scheduledEnd).toBe('2026-08-01T08:40:00.000Z');
+  });
+
+  it('gives a unit nobody placed neither end', () => {
+    const [finished] = finishBoardUnits([unit('pool-1', [bout('m1', null)])], new Map([['m1', 8]]));
+    expect(finished!.scheduledStart).toBeNull();
+    expect(finished!.scheduledEnd).toBeNull();
   });
 
   it("keeps the helper's inputs off the board's bouts", () => {

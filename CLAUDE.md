@@ -29,7 +29,8 @@ This file is the agent contract. It holds the rules that cannot be inferred from
 8. **Nobody referees while they are somewhere else.** No one may be assigned to referee while they
    fight, referee elsewhere, or teach a Workshop at an overlapping time, or outside the availability
    they declared. These rules have no setting and no override. Refereeing one's own Pool at another
-   time is a separate soft rule that can be switched off. Safety and integrity invariant — see
+   time, and refereeing while a Pool one fights in is running, are separate soft rules that can be
+   switched off. Safety and integrity invariant — see
    `docs/decisions/ADR-016-referee-rules-one-checker.md`.
 9. **One slice = one commit**, scoped to a single concern. Don't bundle unrelated changes.
 10. **Acceptance criteria are testable assertions.** If a task says "X works", demonstrate X with

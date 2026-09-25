@@ -1740,8 +1740,28 @@ export const organizer = {
   refereeBoard: {
     cancel: 'Cancel',
     pick: 'Pick',
+    pickAnyway: 'Assign anyway',
     pickerRecommended: 'Recommended',
-    pickerBlocked: 'Blocked',
+    pickerDiscouraged: 'Needs confirmation',
+    pickerBlocked: 'Not possible',
+    // One sentence per reason code of the one referee checker (ADR-016), said after the
+    // person's name. {against} is the Pool, round, bout or Workshop it clashes with.
+    reasons: {
+      own_match: 'fights in this bout ({against})',
+      fights_overlap: 'fights at the same time ({against})',
+      referees_overlap: 'already referees at the same time ({against})',
+      teaches_overlap: 'teaches a Workshop at the same time ({against})',
+      outside_availability: 'outside their declared availability',
+      own_pool: 'fights in this Pool ({against})',
+      own_pool_span: 'fights in a Pool running at the same time ({against})',
+      two_roles: 'already holds another role here ({against})',
+      attends_overlap: 'attends a Workshop at the same time ({against})',
+      missing_qualification: 'has no skill this slot allows',
+    },
+    confirmedOver: 'confirmed',
+    assignImpossible: 'This referee cannot take this slot: {reasons}.',
+    assignNeedsConfirm:
+      'This referee needs confirmation: {reasons}. Pick them under “Needs confirmation” to go ahead.',
   },
   poolsPage: {
     refereesLoading: 'Loading referees...',
@@ -1973,12 +1993,6 @@ export const organizer = {
       // An empty list means "all clear" ONLY when the checks were running. Each
       // kind has its own switch in the referee settings.
       refereeCrewRulesOff: 'These checks are switched off: {rules}.',
-      refereeRuleOfficiateVsFight: 'refereeing while fighting',
-      refereeRuleDoubleBooked: 'refereeing two things at once',
-      refereeRuleAvailability: 'assigned outside availability',
-      refereeOwnBout: '{person} is down to referee {match}, their own fight',
-      refereeOverlap:
-        '{person} fights {fight} at {fightTime} and referees {refereeing} at {refereeTime}',
       // A lice running more than one bout at once. Amber, not red: the server
       // allows this on purpose, because moving a pool between lices without
       // touching its clock is a real two-step workflow. The count these
@@ -2500,11 +2514,8 @@ export const organizer = {
     page: {
       sectionsAria: 'Pools sections',
       toBracket: 'Bracket →',
-      conflictsConfirmedTitle: '⛔ Fighter/referee conflicts detected (hard constraint)',
-      conflictsPotentialTitle: '⚠ Potential fighter/referee conflicts',
-      conflictSegFightsIn: 'fights in',
-      conflictSegAndReferees: 'and referees',
-      conflictSegUnscheduled: '(unscheduled — potential conflict)',
+      refereeImpossibleTitle: '⛔ Referees who cannot take their duty (hard rule)',
+      refereeDiscouragedTitle: '⚠ Referee duties that need confirmation',
       conflictsReassignHint: 'Reassign referees before publishing this event.',
       conflictsCheckFailed:
         'Fighter/referee conflicts could not be checked. There may be some: retry before publishing.',
@@ -2968,8 +2979,19 @@ export const organizer = {
       title: 'Rules checked',
       toggleFailed: 'Could not update the rule setting.',
       ownPool: {
-        label: 'Own fight',
-        description: 'A fighter cannot referee the pool or match they compete in.',
+        label: 'Own Pool',
+        description:
+          'Asks before a fighter referees their own Pool at another time. Their own bout is never allowed.',
+      },
+      ownPoolSpan: {
+        label: 'Pool running',
+        description:
+          'Asks before someone referees while a Pool they fight in is running, outside their own bouts.',
+      },
+      attendWorkshop: {
+        label: 'Attending a Workshop',
+        description:
+          'Asks before someone referees while a Workshop they signed up for is running. Teaching one is never allowed.',
       },
       officiateVsFight: {
         label: 'Officiate vs fight',
@@ -3062,22 +3084,9 @@ export const organizer = {
     refereesTitle: 'Referees',
     pageTitle: 'Referee workspace',
     unscheduled: 'Unscheduled',
-    unavailableBadge: 'Unavailable',
-    blockedReasons: {
-      missing_qualification: 'Not qualified for this role',
-      fighter_referee_overlap: 'Competing here',
-      schedule_conflict: 'Busy at this time (fighting or officiating elsewhere)',
-      unavailable: 'Not available for this tournament or day',
-      duplicate_role_same_pool: 'Already assigned another role here',
-    },
     conflict: {
       sectionTitle: 'Scheduling conflicts',
       checkButton: 'Check scheduling conflicts ({count})',
-      alsoFighting: 'also fighting in {pool} at the same time',
-      alsoOfficiating: 'also officiating {pool} at the same time',
-      alsoOfficiatingVenue:
-        'also officiating {pool} in {venue} at the same time — a referee can’t be in two halls at once',
-      unavailableLine: 'assigned outside availability ({tournament})',
       unfillableTitle: 'Unfillable slots',
       unfillableDetail: 'all qualified referees are busy or unavailable',
       capacityTitle: 'Capacity',
@@ -3129,9 +3138,6 @@ export const organizer = {
     noPoolsForAssignments:
       'Nothing scheduled yet. Generate pools or a bracket before assigning referees.',
     missingAssignments: 'Missing assignments',
-    recommendedCandidates: 'Recommended',
-    warningCandidates: 'Eligible with warnings',
-    blockedCandidates: 'Blocked',
     backToPools: '← Pools',
     addRefereeButton: 'Add referee',
     searchParticipantPlaceholder: 'Search participant by name…',

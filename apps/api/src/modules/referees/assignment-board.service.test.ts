@@ -1,4 +1,6 @@
 import { BadRequestException, ConflictException } from '@nestjs/common';
+import { checkReferee } from '@myclash/rulesets/scheduling/referee-checker';
+import type * as RefereeChecker from '@myclash/rulesets/scheduling/referee-checker';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { selectsFor } from '../../common/testing/supabase-chain';
 import { resolveMatchLengths } from '../schedule/match-lengths';
@@ -15,6 +17,13 @@ vi.mock('../schedule/match-lengths', () => ({
 }));
 const resolveMatchLengthsMock = vi.mocked(resolveMatchLengths);
 
+// A pass-through spy: the real checker answers, and a test can read what each door asked it.
+vi.mock('@myclash/rulesets/scheduling/referee-checker', async (importOriginal) => {
+  const actual = await importOriginal<typeof RefereeChecker>();
+  return { ...actual, checkReferee: vi.fn(actual.checkReferee) };
+});
+const checkRefereeSpy = vi.mocked(checkReferee);
+
 const fromMock = vi.fn();
 const mockSupabase = { service: { from: fromMock } };
 /** Every rule on. Named so a test can flip one without restating the other eleven. */
@@ -26,6 +35,7 @@ const DEFAULT_RULE_SETTINGS = {
   ratingBasedOrdering: true,
   workloadBalance: true,
   enableOwnPoolRule: true,
+  enableOwnPoolSpanRule: true,
   enableOfficiateVsFightRule: true,
   enableDoubleBookedRule: true,
   enableTwoRolesRule: true,
@@ -86,7 +96,7 @@ const BLUE_GLOBAL_ID = 'person-b-global';
  * referee days. Shared by every board fixture so a change to the candidate
  * pipeline is edited once instead of per-fixture.
  */
-function queueCandidateReads(refereeDays: unknown[] = []) {
+function queueCandidateReads(refereeDays: unknown[] = [], failing?: FailingRead) {
   fromMock
     .mockReturnValueOnce(
       makeChain({
@@ -131,8 +141,12 @@ function queueCandidateReads(refereeDays: unknown[] = []) {
     // event_referee_days. Empty by default — most fixtures have no granular
     // allowlist, so the engine treats every candidate as available for every
     // tournament + day. `refereeDays` seeds the per-day one.
-    .mockReturnValueOnce(makeChain({ data: [], error: null }))
-    .mockReturnValueOnce(makeChain({ data: refereeDays, error: null }));
+    .mockReturnValueOnce(
+      makeChain(failing === 'event_referee_tournaments' ? FAILED : { data: [], error: null }),
+    )
+    .mockReturnValueOnce(
+      makeChain(failing === 'event_referee_days' ? FAILED : { data: refereeDays, error: null }),
+    );
 }
 
 /**
@@ -149,14 +163,21 @@ interface BoardReadOptions {
   matchScheduledAt?: string;
   /** `event_referee_days` rows — the per-day availability allowlist. */
   refereeDays?: unknown[];
+  /** One read that fails, by table. */
+  failing?: FailingRead;
 }
+
+type FailingRead = 'events' | 'event_referee_tournaments' | 'event_referee_days';
+const FAILED = { data: null, error: { message: 'connection reset' } };
 
 function queueBoardReads(assignments: unknown[] = [], options: BoardReadOptions = {}) {
   const event = options.event ?? { start_date: '2026-05-21' };
   const matchScheduledAt = options.matchScheduledAt ?? '2026-05-21T10:00:00.000Z';
   fromMock
     // Slice 8: loadContext now fetches event.start_date + timezone up front.
-    .mockReturnValueOnce(makeChain({ data: event, error: null }))
+    .mockReturnValueOnce(
+      makeChain(options.failing === 'events' ? FAILED : { data: event, error: null }),
+    )
     .mockReturnValueOnce(
       makeChain({ data: [{ id: 'tournament-1', name: 'Longsword' }], error: null }),
     )
@@ -204,7 +225,7 @@ function queueBoardReads(assignments: unknown[] = [], options: BoardReadOptions 
       }),
     );
   // event_referees → … → referee days
-  queueCandidateReads(options.refereeDays ?? []);
+  queueCandidateReads(options.refereeDays ?? [], options.failing);
   fromMock
     // registrations — now joined with persons(global_person_id) so the
     // map keys live in the same id-space as the candidate side.
@@ -228,10 +249,6 @@ function queueBoardReads(assignments: unknown[] = [], options: BoardReadOptions 
       }),
     )
     .mockReturnValueOnce(makeChain({ data: assignments, error: null }))
-    // Tier 3: loadContext now fetches event lices (→ venue) for the cross-venue
-    // referee double-booking warning. Empty → no venue resolved (no behavior
-    // change for these fixtures).
-    .mockReturnValueOnce(makeChain({ data: [], error: null }))
     // R4: bracket phases query (returns empty so these tests stay
     // pool-only — the bracket loader short-circuits and asks nothing
     // further). Other R4-specific tests cover the bracket path.
@@ -240,6 +257,9 @@ function queueBoardReads(assignments: unknown[] = [], options: BoardReadOptions 
     // loader short-circuits before touching swiss_rounds or matches.
     // NOTE: this mock chain is POSITIONAL. Any new query in loadContext must
     // add an entry here or every test in this file reds with a bare TypeError.
+    .mockReturnValueOnce(makeChain({ data: [], error: null }))
+    // W1: the Event's Workshops, for teaching/attending commitments. None here —
+    // the Workshop read short-circuits before sessions and enrolments.
     .mockReturnValueOnce(makeChain({ data: [], error: null }));
 }
 
@@ -248,6 +268,9 @@ describe('AssignmentBoardService', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    // clearAllMocks keeps queued mockReturnValueOnce answers: a test that stops early must
+    // not hand its unread rows to the next one.
+    fromMock.mockReset();
     mockStaffing.getResolvedConfigForAssignmentBoard.mockResolvedValue({
       pool: [...HARD_CODED_DEFAULT_SLOTS],
       swiss: [...HARD_CODED_DEFAULT_SLOTS],
@@ -263,7 +286,7 @@ describe('AssignmentBoardService', () => {
     );
   });
 
-  it('returns a scheduled pool board with candidates, missing slots, and hard-blocked fighter referees', async () => {
+  it('returns a scheduled pool board with candidates, missing slots, and an amber fighter-referee', async () => {
     queueBoardReads();
 
     const board = await service.getBoard('event-1');
@@ -271,14 +294,15 @@ describe('AssignmentBoardService', () => {
     expect(board.pools).toHaveLength(1);
     expect(board.unscheduledPools).toEqual([]);
     expect(board.pools[0]!.scheduledStart).toBe('2026-05-21T10:00:00.000Z');
-    expect(board.pools[0]!.roleSlots[0]!.candidates.blocked).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          userId: 'user-a',
-          reasons: expect.arrayContaining(['fighter_referee_overlap']),
-        }),
-      ]),
-    );
+    // Refereeing one's own Pool is Discouraged (ADR-016): amber, assignable after confirming.
+    const slot = board.pools[0]!.roleSlots[0]!;
+    expect(slot.candidates.warning).toEqual([
+      expect.objectContaining({
+        userId: 'user-a',
+        reasons: [{ code: 'own_pool', label: 'Longsword · Pool 1' }],
+      }),
+    ]);
+    expect(slot.candidates.blocked.map((c) => c.userId)).not.toContain('user-a');
     expect(board.candidates).toEqual(
       expect.arrayContaining([
         expect.objectContaining({ userId: 'user-b', displayName: 'Pure Referee' }),
@@ -327,21 +351,59 @@ describe('AssignmentBoardService', () => {
     }
   });
 
-  it('rejects a manual assignment when the referee is fighting in that pool', async () => {
+  it('asks for confirmation before a referee takes the pool they fight in', async () => {
     queueBoardReads();
 
-    // The manual-PATCH guard must catch this even though the
-    // candidate's id (FIGHTER_REF_GLOBAL_ID = global_persons.id) is
-    // structurally distinct from the pool member's persons.id
-    // (FIGHTER_REF_PERSONS_ID). Pre-fix code projected persons.id and
-    // failed the comparison silently.
-    await expect(
-      service.applyManual('event-1', {
+    // The guard must catch this even though the candidate's id
+    // (FIGHTER_REF_GLOBAL_ID = global_persons.id) is structurally distinct from
+    // the pool member's persons.id (FIGHTER_REF_PERSONS_ID). Pre-fix code
+    // projected persons.id and failed the comparison silently.
+    const refusal = await service
+      .applyManual('event-1', {
         poolId: 'pool-1',
         role: 'arbitre_declarant',
         personId: FIGHTER_REF_GLOBAL_ID,
+      })
+      .catch((error: unknown) => error);
+    expect(refusal).toBeInstanceOf(ConflictException);
+    expect((refusal as ConflictException).getResponse()).toEqual({
+      code: 'referee_needs_confirmation',
+      message: 'Assigning this referee needs confirmation',
+      level: 'discouraged',
+      reasons: [
+        {
+          code: 'own_pool',
+          level: 'discouraged',
+          against: { kind: 'pool', id: 'pool-1', label: 'Longsword · Pool 1' },
+          confirmed: false,
+        },
+      ],
+    });
+    // Nothing was written.
+    expect(fromMock.mock.results.some((r) => r.value?.insert?.mock?.calls?.length)).toBe(false);
+  });
+
+  it('writes the confirmed-over reason onto the row, and does not drop it', async () => {
+    queueBoardReads();
+    const writes = makeChain({ data: null, error: null });
+    fromMock.mockReturnValueOnce(writes).mockReturnValueOnce(writes);
+    queueBoardReads(); // the board re-read after the write
+
+    await service.applyManual('event-1', {
+      poolId: 'pool-1',
+      role: 'arbitre_declarant',
+      personId: FIGHTER_REF_GLOBAL_ID,
+      confirm: true,
+    });
+
+    expect(writes.insert).toHaveBeenCalledWith([
+      expect.objectContaining({
+        person_id: FIGHTER_REF_GLOBAL_ID,
+        scope_type: 'pool',
+        pool_id: 'pool-1',
+        conflicts_jsonb: [{ code: 'own_pool', label: 'Longsword · Pool 1' }],
       }),
-    ).rejects.toBeInstanceOf(BadRequestException);
+    ]);
   });
 
   it('blocks the fighter-in-pool as a referee proposal even when persons.id differs from global_persons.id', async () => {
@@ -363,7 +425,7 @@ describe('AssignmentBoardService', () => {
     expect(slot1Assignment?.personId).not.toBe(FIGHTER_REF_GLOBAL_ID);
   });
 
-  it('rejects a manual assignment when the referee already has another role in the same pool', async () => {
+  it('asks for confirmation when the referee already has another role in the same pool', async () => {
     // Slice 7b: the pure referee (PURE_REF_GLOBAL_ID) is qualified
     // for all three roles per queueBoardReads. They're already
     // assigned to pool-1 as Déclarant — assigning them as Assesseur
@@ -381,13 +443,67 @@ describe('AssignmentBoardService', () => {
       },
     ]);
 
-    await expect(
-      service.applyManual('event-1', {
+    const refusal = await service
+      .applyManual('event-1', {
         poolId: 'pool-1',
         role: 'arbitre_assesseur',
         personId: PURE_REF_GLOBAL_ID,
+      })
+      .catch((error: unknown) => error);
+    expect(refusal).toBeInstanceOf(ConflictException);
+    expect((refusal as ConflictException).getResponse()).toMatchObject({
+      code: 'referee_needs_confirmation',
+      level: 'discouraged',
+      reasons: [expect.objectContaining({ code: 'two_roles' })],
+    });
+  });
+
+  it('the picker and Assign hand the one checker the same person, target and commitments', async () => {
+    queueBoardReads();
+    await service.getBoard('event-1');
+    const pickerCall = checkRefereeSpy.mock.calls.find(
+      ([args]) =>
+        args.personId === FIGHTER_REF_GLOBAL_ID && args.target.role === 'arbitre_declarant',
+    )?.[0];
+    checkRefereeSpy.mockClear();
+
+    queueBoardReads();
+    await service
+      .applyManual('event-1', {
+        poolId: 'pool-1',
+        role: 'arbitre_declarant',
+        personId: FIGHTER_REF_GLOBAL_ID,
+      })
+      .catch(() => undefined);
+    const assignCall = checkRefereeSpy.mock.calls[0]?.[0];
+
+    expect(pickerCall).toBeDefined();
+    expect(assignCall).toEqual(pickerCall);
+    // And the commitments are the board's: her bout of match-1, her Pool.
+    expect(assignCall!.commitments.map((c) => c.kind).sort()).toEqual(['fight', 'fight-pool']);
+    expect(checkRefereeSpy).toHaveBeenCalledTimes(1);
+  });
+
+  // Availability is an Impossible rule: a read that fails must not answer "no restriction".
+  it.each(['events', 'event_referee_tournaments', 'event_referee_days'] as const)(
+    'a failed read of %s is a plain Error (a 5xx), never an unchecked all-clear',
+    async (failing) => {
+      queueBoardReads([], { failing });
+      const failure = service.getBoard('event-1');
+      await expect(failure).rejects.toThrow(/^Could not read .*: connection reset$/);
+      await expect(failure).rejects.not.toHaveProperty('status');
+    },
+  );
+
+  it('keeps a missing skill a 400, before any scheduling rule', async () => {
+    queueBoardReads();
+    await expect(
+      service.applyManual('event-1', {
+        poolId: 'pool-1',
+        role: 'arbitre_table',
+        personId: FIGHTER_REF_GLOBAL_ID,
       }),
-    ).rejects.toBeInstanceOf(BadRequestException);
+    ).rejects.toThrow(new BadRequestException('Selected referee is not qualified for this role'));
   });
 
   // R4: bracket-match classification.
@@ -441,7 +557,6 @@ describe('AssignmentBoardService', () => {
       fromMock
         .mockReturnValueOnce(makeChain({ data: [], error: null })) // registrations
         .mockReturnValueOnce(makeChain({ data: [], error: null })) // assignments
-        .mockReturnValueOnce(makeChain({ data: [], error: null })) // lices → venue
         .mockReturnValueOnce(
           makeChain({
             data: [{ id: 'bracket-phase-1', tournament_id: 'tournament-1', type: 'single_elim' }],
@@ -471,7 +586,8 @@ describe('AssignmentBoardService', () => {
             error: null,
           }),
         )
-        .mockReturnValueOnce(makeChain({ data: [], error: null })); // swiss phases
+        .mockReturnValueOnce(makeChain({ data: [], error: null })) // swiss phases
+        .mockReturnValueOnce(makeChain({ data: [], error: null })); // workshops
     }
 
     it('ends a bracket bout at its own planned length and reads what that length needs', async () => {
@@ -589,7 +705,6 @@ describe('AssignmentBoardService', () => {
           }),
         )
         .mockReturnValueOnce(makeChain({ data: assignments, error: null }))
-        .mockReturnValueOnce(makeChain({ data: [], error: null })) // lices → venue
         .mockReturnValueOnce(makeChain({ data: [], error: null })); // bracket phases
       queueSwissPhaseReads();
     }
@@ -641,7 +756,8 @@ describe('AssignmentBoardService', () => {
             ],
             error: null,
           }),
-        );
+        )
+        .mockReturnValueOnce(makeChain({ data: [], error: null })); // workshops
     }
 
     function swissMatch(id: string, liceId: string, hhmm: string, red: string, blue: string) {
@@ -707,19 +823,17 @@ describe('AssignmentBoardService', () => {
 
       const board = await service.getBoard('event-1');
 
-      // The fighter competes on lice-1. Both units must block them, because
-      // the two pistes of one round run at the same time.
+      // The fighter competes on lice-1 at 10:00. Both units must block them: on
+      // lice-1 it is their own bout, on lice-2 a bout at the same time, because
+      // the two pistes of one round run at once.
       const units = [...board.pools, ...board.unscheduledPools].filter((p) => p.kind === 'swiss');
-      for (const unit of units) {
-        expect(unit.roleSlots[0]!.candidates.blocked).toEqual(
-          expect.arrayContaining([
-            expect.objectContaining({
-              personId: FIGHTER_REF_GLOBAL_ID,
-              reasons: expect.arrayContaining(['fighter_referee_overlap']),
-            }),
-          ]),
-        );
-      }
+      const codesOn = (liceId: string) =>
+        units
+          .find((u) => u.liceId === liceId)!
+          .roleSlots[0]!.candidates.blocked.find((c) => c.personId === FIGHTER_REF_GLOBAL_ID)
+          ?.reasons.map((r) => r.code);
+      expect(codesOn('lice-1')).toEqual(['own_match']);
+      expect(codesOn('lice-2')).toEqual(['fights_overlap', 'own_pool']);
     });
 
     it('writes one scope_type=match row per bout, never a lice-scoped row', async () => {
@@ -854,7 +968,6 @@ describe('AssignmentBoardService', () => {
         assignments: [],
         fighterRegistrationIdsByPerson: new Map(),
         slotConfigByTournament: new Map(),
-        venueByLiceId: new Map(),
         locked: false,
         ...overrides,
       } as never);
@@ -982,23 +1095,24 @@ describe('AssignmentBoardService', () => {
     });
 
     /**
-     * Each conflict kind is gated by its own toggle, so a switched-off rule
-     * empties the list. Without this field the banner cannot tell "no
-     * conflicts" from "nobody is checking", and the second one reads as safe.
+     * Each Discouraged rule has its own switch, so a switched-off rule leaves no
+     * amber row. Without this field the banner cannot tell "no conflicts" from
+     * "nobody is checking", and the second one reads as safe.
      */
-    it('reports a switched-off rule rather than silently returning nothing', async () => {
+    it('reports a switched-off Discouraged rule rather than silently returning nothing', async () => {
       mockSettings.getSettings.mockResolvedValueOnce({
         ...DEFAULT_RULE_SETTINGS,
-        enableDoubleBookedRule: false,
+        enableOwnPoolSpanRule: false,
       });
       queueBoardReads();
 
       const slim = await service.getCrewConflicts('event-1');
 
       expect(slim.rules).toEqual({
-        officiateVsFight: true,
-        doubleBooked: false,
-        availability: true,
+        ownPool: true,
+        ownPoolSpan: false,
+        twoRoles: true,
+        attendWorkshop: true,
       });
     });
 
@@ -1006,10 +1120,46 @@ describe('AssignmentBoardService', () => {
       queueBoardReads();
       const slim = await service.getCrewConflicts('event-1');
       expect(slim.rules).toEqual({
-        officiateVsFight: true,
-        doubleBooked: true,
-        availability: true,
+        ownPool: true,
+        ownPoolSpan: true,
+        twoRoles: true,
+        attendWorkshop: true,
       });
+    });
+
+    it('re-judges an existing duty, and shows a confirmed-over reason grey (ruling 135)', async () => {
+      // The fighter-referee holds a Declarant duty on their own Pool.
+      const own = {
+        id: 'own-pool-duty',
+        person_id: FIGHTER_REF_GLOBAL_ID,
+        pool_id: 'pool-1',
+        match_id: null,
+        role: 'arbitre_declarant',
+        status: 'assigned',
+        auto_assigned: false,
+      };
+      queueBoardReads([own]);
+      const amber = await service.getCrewConflicts('event-1');
+      queueBoardReads([
+        { ...own, conflicts_jsonb: [{ code: 'own_pool', label: 'Longsword · Pool 1' }] },
+      ]);
+      const confirmed = await service.getCrewConflicts('event-1');
+
+      expect(amber.conflicts).toEqual([
+        expect.objectContaining({
+          assignmentId: 'own-pool-duty',
+          personName: 'Fighter Referee',
+          unitName: 'Longsword · Pool 1',
+          level: 'discouraged',
+          reasons: [expect.objectContaining({ code: 'own_pool', confirmed: false })],
+        }),
+      ]);
+      expect(confirmed.conflicts).toEqual([
+        expect.objectContaining({
+          level: 'fine',
+          reasons: [expect.objectContaining({ code: 'own_pool', confirmed: true })],
+        }),
+      ]);
     });
 
     /** This half of the banner is the LAGGING one and has to be able to say so. */
@@ -1134,9 +1284,9 @@ describe('AssignmentBoardService', () => {
           }),
         )
         .mockReturnValueOnce(makeChain({ data: assignments, error: null }))
-        .mockReturnValueOnce(makeChain({ data: [], error: null })) // lices
         .mockReturnValueOnce(makeChain({ data: [], error: null })) // bracket phases
-        .mockReturnValueOnce(makeChain({ data: [], error: null })); // swiss phases
+        .mockReturnValueOnce(makeChain({ data: [], error: null })) // swiss phases
+        .mockReturnValueOnce(makeChain({ data: [], error: null })); // workshops
     }
 
     /** Booked on match-1 alone: scope 'match', match_id set, pool_id NULL. */
@@ -1150,16 +1300,34 @@ describe('AssignmentBoardService', () => {
       auto_assigned: false,
     };
 
+    /** The 409 body of an Impossible refusal, or a failure naming what came back. */
+    async function impossibleCodes(promise: Promise<unknown>): Promise<string[]> {
+      const error = await promise.then(
+        () => new Error('accepted'),
+        (e: unknown) => e,
+      );
+      expect(error).toBeInstanceOf(ConflictException);
+      const body = (error as ConflictException).getResponse() as {
+        code: string;
+        level: string;
+        reasons: Array<{ code: string }>;
+      };
+      expect(body).toMatchObject({ code: 'referee_impossible', level: 'impossible' });
+      return body.reasons.map((r) => r.code);
+    }
+
     it('refuses a referee already booked on an overlapping fight', async () => {
       queueTwoOverlappingPools([perMatchAssignment]);
 
-      await expect(
-        service.applyManual('event-1', {
-          poolId: 'pool-2',
-          role: 'arbitre_declarant',
-          personId: POOL_2_REF,
-        }),
-      ).rejects.toThrow(/already officiating/);
+      expect(
+        await impossibleCodes(
+          service.applyManual('event-1', {
+            poolId: 'pool-2',
+            role: 'arbitre_declarant',
+            personId: POOL_2_REF,
+          }),
+        ),
+      ).toEqual(['referees_overlap']);
     });
 
     it("refuses them when their fight's planned length runs into the pool they would referee", async () => {
@@ -1173,13 +1341,15 @@ describe('AssignmentBoardService', () => {
       );
       queueTwoOverlappingPools([perMatchAssignment], '2026-05-21T10:08:00.000Z');
 
-      await expect(
-        service.applyManual('event-1', {
-          poolId: 'pool-2',
-          role: 'arbitre_declarant',
-          personId: POOL_2_REF,
-        }),
-      ).rejects.toThrow(/already officiating/);
+      expect(
+        await impossibleCodes(
+          service.applyManual('event-1', {
+            poolId: 'pool-2',
+            role: 'arbitre_declarant',
+            personId: POOL_2_REF,
+          }),
+        ),
+      ).toEqual(['referees_overlap']);
     });
 
     it('accepts them when that fight is planned to end before the pool starts', async () => {
@@ -1201,24 +1371,61 @@ describe('AssignmentBoardService', () => {
       ).resolves.toBeDefined();
     });
 
-    it('still accepts them when the double-booking rule is switched off', async () => {
-      // The refusal rides on `enableDoubleBookedRule`, which is a real toggle an
-      // organiser may turn off — unlike rule 8, which is its own always-true
-      // setting and is not what gates this. A disabled rule must let the write
-      // through, or the toggle is decoration.
+    it('refuses them with the old double-booking switch off: an Impossible rule has none', async () => {
+      // ADR-016: refereeing two places at once is Impossible, with no switch and
+      // no override (hard rule 8). The legacy column still exists until W1.4; the
+      // checker does not read it, and this pins that.
       mockSettings.getSettings.mockResolvedValueOnce({
         ...DEFAULT_RULE_SETTINGS,
         enableDoubleBookedRule: false,
+        enableOfficiateVsFightRule: false,
+        enableAvailabilityRule: false,
       });
       queueTwoOverlappingPools([perMatchAssignment]);
 
-      await expect(
-        service.applyManual('event-1', {
-          poolId: 'pool-2',
+      expect(
+        await impossibleCodes(
+          service.applyManual('event-1', {
+            poolId: 'pool-2',
+            role: 'arbitre_declarant',
+            personId: POOL_2_REF,
+          }),
+        ),
+      ).toEqual(['referees_overlap']);
+    });
+
+    it('checkEvent reports a Pool-scoped crew whose referee fights at the same time', async () => {
+      // The case the Pools page could not see: its old read took Match-scoped rows
+      // only, and this crew is one Pool-scoped row on pool-2 while its referee fights
+      // match-1 of pool-1 at 10:00. The real checker, over the whole loaded Event.
+      queueTwoOverlappingPools([
+        {
+          id: 'pool-crew',
+          person_id: FIGHTER_REF_GLOBAL_ID,
+          pool_id: 'pool-2',
+          match_id: null,
           role: 'arbitre_declarant',
-          personId: POOL_2_REF,
+          status: 'assigned',
+          auto_assigned: false,
+        },
+      ]);
+
+      const { conflicts, units } = await service.checkEvent('event-1');
+
+      expect(units.map((u) => u.id)).toEqual(['pool-1', 'pool-2']);
+      expect(conflicts).toEqual([
+        expect.objectContaining({
+          assignmentId: 'pool-crew',
+          unitId: 'pool-2',
+          level: 'impossible',
+          reasons: [
+            expect.objectContaining({
+              code: 'fights_overlap',
+              against: expect.objectContaining({ kind: 'match', id: 'match-1' }),
+            }),
+          ],
         }),
-      ).resolves.toBeDefined();
+      ]);
     });
 
     it('leaves a referee booked on a fight that does NOT overlap alone', async () => {
@@ -1283,7 +1490,7 @@ describe('AssignmentBoardService', () => {
         .flatMap((pool) => pool.roleSlots)
         .flatMap((slot) => slot.candidates.blocked)
         .filter((candidate) => candidate.personId === PURE_REF_GLOBAL_ID)
-        .flatMap((candidate) => candidate.reasons);
+        .flatMap((candidate) => candidate.reasons.map((reason) => reason.code));
     }
 
     it('getBoard blocks the referee on one event and not the other', async () => {
@@ -1293,9 +1500,9 @@ describe('AssignmentBoardService', () => {
       const west = await service.getBoard('event-1');
 
       // Kiritimati: the Pool is on day 1, which the referee declared.
-      expect(blockedReasons(east)).not.toContain('unavailable');
+      expect(blockedReasons(east)).not.toContain('outside_availability');
       // New York: the same instant is still day 0, which they did not.
-      expect(blockedReasons(west)).toContain('unavailable');
+      expect(blockedReasons(west)).toContain('outside_availability');
       // The mock ignores the projection, so the column has to be asserted by
       // name — deleting it from the read leaves every value assertion green.
       expect(selectsFor(fromMock as never, 'events')[0]).toContain('timezone');

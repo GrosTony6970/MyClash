@@ -87,7 +87,17 @@ ahead after confirming:
 - holding two roles in one Pool;
 - refereeing while attending a Workshop at an overlapping time.
 
+- refereeing anywhere while a Pool one fights in is running, outside one's own bouts — the
+  whole-Pool span (operator, 2026-09-18, ruling 5; its own switch, ruling 21). A fighter is busy
+  for their Pool's hull everywhere, refereeing included. Their own bouts overlapping stay
+  Impossible.
+
 **Fine** — no rule applies.
+
+The level is the worst reason's, and every reason that applies is returned. **Reason codes have
+one list**, in the checker (`REFEREE_REASON_CODES`), and every screen's words come from it by
+code. A Swiss round is a group like a Pool for the two Pool rules. A bout of one's own group —
+Pool or round — on another piste at the same time is still two places at once (Impossible).
 
 "Not enough referees at this time" is not a verdict on a person. It stays a warning about the whole
 slate, with its own switch, and it never blocks.
@@ -101,7 +111,14 @@ slate, with its own switch, and it never blocks.
   - A Discouraged assignment returns 409 with the reasons, unless the request confirms. This follows
     `apps/api/src/modules/swiss/swiss-override.service.ts`.
   - The overridden reasons are stored on the assignment, in `conflicts_jsonb`. No audit row is
-    written.
+    written. They are stored as a code and the data name it was against (a Pool name, a round
+    code, a Workshop title), never an id and never a sentence. A reason stored there shows
+    grey, "confirmed", and is no longer a warning; a new reason shows amber again (ruling 135).
+    The column is not public (migration 0205): "attends a Workshop" names a private enrolment.
+  - An Impossible refusal and a Discouraged one both answer 409, with `level` and the reasons
+    in the body (ruling 22). A missing skill is not a scheduling rule and stays a 400.
+- **Locked** = any confirmed assignment in the Event; every door that writes an assignment
+  answers 409 while it is locked (ADR-019).
 - **Auto-assign never picks a Discouraged candidate.** An empty slot lists every reason, in the
   picker's words.
 - **The schedule board's instant check calls the same checker.** The second detector retires, and

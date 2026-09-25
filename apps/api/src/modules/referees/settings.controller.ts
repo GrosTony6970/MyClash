@@ -38,6 +38,7 @@ const updateSettingsSchema = z
     workloadBalance: z.boolean().optional(),
     // Per-rule toggles for the Assignment Health rules (all default true).
     enableOwnPoolRule: z.boolean().optional(),
+    enableOwnPoolSpanRule: z.boolean().optional(),
     enableOfficiateVsFightRule: z.boolean().optional(),
     enableDoubleBookedRule: z.boolean().optional(),
     enableTwoRolesRule: z.boolean().optional(),

@@ -95,7 +95,8 @@ COPY packages/time/ ./packages/time/
 COPY packages/schedule-core/ ./packages/schedule-core/
 COPY packages/feature-flags/ ./packages/feature-flags/
 
-# schedule-core is built after time because it imports @myclash/time.
+# schedule-core is built after time because it imports @myclash/time, and
+# rulesets after schedule-core because the referee checker imports it.
 #
 # `.next/cache` is Next's incremental build cache. It is the one part of .next
 # that a build reads instead of writing, and nothing copies it into the runner
@@ -112,9 +113,9 @@ RUN --mount=type=cache,id=next-cache-web-admin,target=/app/apps/web-admin/.next/
  && pnpm --filter @myclash/i18n build \
  && pnpm --filter @myclash/next-i18n build \
  && pnpm --filter @myclash/api-client build \
- && pnpm --filter @myclash/rulesets build \
  && pnpm --filter @myclash/time build \
  && pnpm --filter @myclash/schedule-core build \
+ && pnpm --filter @myclash/rulesets build \
  && pnpm --filter @myclash/feature-flags build \
  && pnpm --filter @myclash/ui build \
  && pnpm --filter @myclash/web-admin build

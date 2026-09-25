@@ -13,18 +13,37 @@ import {
   type RefereePoolSlot,
   type RefereeRole,
 } from '@myclash/rulesets/scheduling';
+import {
+  FINE,
+  checkAssignments,
+  checkReferee,
+  markConfirmed,
+  mergeVerdicts,
+  parseStoredReasons,
+  toStoredReasons,
+  type RefereeCommitment,
+  type RefereeReason,
+  type RefereeReasonCode,
+  type RefereeSwitches,
+  type RefereeTarget,
+  type RefereeVerdict,
+  type StoredRefereeReason,
+} from '@myclash/rulesets/scheduling/referee-checker';
 import { DEFAULT_EVENT_TIMEZONE, dayIndexInZone } from '@myclash/time';
 import { priorAssignmentsFromRows } from './prior-assignments';
 import { resolveMatchLengths } from '../schedule/match-lengths';
+import { detectConcurrencyShortage, formatRoundCode, type CapacityWarning } from '@myclash/types';
 import {
-  detectConcurrencyShortage,
-  detectRefereeConflicts,
-  findTimeConflict,
-  formatRoundCode,
-  type CapacityWarning,
-  type RefereeCommitmentPool,
-  type RefereeConflict,
-} from '@myclash/types';
+  assignmentTarget,
+  availabilityOf,
+  buildCommitments,
+  slatePools,
+  switchesOf,
+  unitIndex,
+  unitLabel,
+  unitTarget,
+} from './event-commitments';
+import { loadWorkshopSessions } from './workshop-sessions';
 import { SupabaseService } from '../supabase/supabase.service';
 import { SettingsService } from './settings.service';
 import { StaffingService, type ResolvedConfig, type ResolvedSlot } from './staffing.service';
@@ -177,27 +196,51 @@ export interface AssignmentBoardPool {
     missingReasons: string[];
     candidates: {
       recommended: AssignmentBoardCandidate[];
-      warning: Array<AssignmentBoardCandidate & { warnings: string[] }>;
-      blocked: Array<AssignmentBoardCandidate & { reasons: string[] }>;
+      /** Discouraged (ADR-016): may be assigned after the organiser confirms. */
+      warning: Array<AssignmentBoardCandidate & { reasons: PickerReason[] }>;
+      /** Impossible, or holding no skill this slot allows. */
+      blocked: Array<AssignmentBoardCandidate & { reasons: PickerReason[] }>;
     };
   }>;
 }
 
+/** Why a candidate is amber or greyed out: a checker reason, or no matching skill. */
+export interface PickerReason {
+  code: RefereeReasonCode | 'missing_qualification';
+  /** The data name it clashes with; '' when there is none. */
+  label: string;
+}
+
 /**
- * The schedule board's slice of the referee board: the conflicts, and whether
- * anybody was actually looking for them.
+ * One existing duty the checker has something to say about (ADR-016 "later changes"):
+ * red when Impossible, amber when Discouraged, and each reason the organiser already
+ * confirmed over marked `confirmed` (ruling 135). A Swiss crew is one row per bout and
+ * one entry here.
+ */
+export interface RefereeConflictEntry {
+  /** The duty's first row. */
+  assignmentId: string;
+  personId: string;
+  personName: string;
+  unitId: string;
+  /** The Tournament and the unit, as the board names it. */
+  unitName: string;
+  tournamentId: string;
+  role: string;
+  /** When the duty starts; null when it has no time. */
+  start: string | null;
+  level: RefereeVerdict['level'];
+  reasons: RefereeReason[];
+}
+
+/**
+ * The schedule board's slice of the referee board: the verdicts on the existing duties,
+ * and the Discouraged switches, so an amber rule switched off reads as "not checked"
+ * rather than as an all-clear. The Impossible rules have no switch (ADR-016).
  */
 export interface RefereeCrewConflicts {
-  conflicts: RefereeConflict[];
-  /** The three toggles that gate the rows above, one per `RefereeConflictKind`. */
-  rules: {
-    /** Gates `officiate_vs_fight`. */
-    officiateVsFight: boolean;
-    /** Gates `double_booked`. */
-    doubleBooked: boolean;
-    /** Gates `unavailable`. */
-    availability: boolean;
-  };
+  conflicts: RefereeConflictEntry[];
+  rules: RefereeSwitches;
   /** When the server computed these. The banner is the LAGGING half and says so. */
   asOf: string;
 }
@@ -211,10 +254,8 @@ export interface AssignmentBoard {
   missingSlots: Array<{ poolId: string; poolName: string; role: string; reasons: string[] }>;
   warnings: Array<{ poolId: string; poolName: string; role: string; detail: string }>;
   locked: boolean;
-  /** Referee scheduling conflicts on the *current* assignments: a referee
-   *  officiating one pool/bracket while fighting or officiating another at an
-   *  overlapping time (any tournament), or assigned outside their availability. */
-  conflicts: RefereeConflict[];
+  /** The checker's verdicts on the *current* assignments (ADR-016). */
+  conflicts: RefereeConflictEntry[];
   /** Time windows where the parallel pools need more referee slots than there
    *  are free referees. */
   capacityWarnings: CapacityWarning[];
@@ -277,7 +318,6 @@ function toSwissBoardPool(
     tournamentId: tournament?.id ?? '',
     tournamentName: tournament?.name ?? '',
     liceId: unit.liceId,
-    scheduledStart: unit.scheduledStart,
     kind: 'swiss',
     matchIds: unit.matches.map((m) => m.id),
     swissRound: unit.roundNumber,
@@ -309,7 +349,8 @@ interface RefereeAssignmentInsert {
   role: string;
   auto_assigned: boolean;
   status: string;
-  conflicts_jsonb: unknown[];
+  /** The Discouraged reasons the organiser confirmed over (ADR-016); [] when none. */
+  conflicts_jsonb: StoredRefereeReason[];
 }
 
 export interface ManualAssignmentDto {
@@ -318,6 +359,8 @@ export interface ManualAssignmentDto {
   role: string;
   /** Post-0063: the canonical referee identity (= global_persons.id). */
   personId: string;
+  /** Go ahead over Discouraged reasons (ADR-016). Never overrides an Impossible one. */
+  confirm?: boolean;
 }
 
 interface TournamentRow {
@@ -437,6 +480,8 @@ interface RefereeAssignmentRow {
   role: string | null;
   status: string;
   auto_assigned: boolean;
+  /** Raw column; read through `parseStoredReasons`. */
+  conflicts_jsonb: unknown;
 }
 
 @Injectable()
@@ -469,26 +514,30 @@ export class AssignmentBoardService {
    * board wants one field, refreshed after every card move, over a venue's
    * wifi. Same server work, a fraction of the wire.
    *
-   * `rules` is the part `getBoard` cannot give. Each conflict kind is gated by
-   * its own toggle in referee settings, so a switched-off rule empties the list
-   * — and an empty list on a safety banner reads as "all clear" rather than
-   * "nobody is checking". Sending the three toggles that gate these rows lets
-   * the banner tell those apart. The other toggles gate other outputs and are
-   * deliberately not here: this payload should describe only itself.
+   * `rules` is the part `getBoard` cannot give: the Discouraged rules' switches.
+   * A switched-off rule leaves no amber row, and an empty list on a safety banner
+   * reads as "all clear" rather than "nobody is checking"; the switches let the
+   * banner tell those apart. The Impossible rules have no switch (ADR-016).
    */
   async getCrewConflicts(eventId: string): Promise<RefereeCrewConflicts> {
     const context = await this.loadContext(eventId);
-    const board = this.buildBoard(context, EMPTY_PREVIEW);
-    const rules = context.ruleSettings;
     return {
-      conflicts: board.conflicts,
-      rules: {
-        officiateVsFight: rules.enableOfficiateVsFightRule,
-        doubleBooked: rules.enableDoubleBookedRule,
-        availability: rules.enableAvailabilityRule,
-      },
+      conflicts: this.judgeExisting(context),
+      rules: switchesOf(context.ruleSettings),
       asOf: new Date().toISOString(),
     };
+  }
+
+  /**
+   * The checker's verdicts on every existing duty of the Event, with the units they sit
+   * on, for a caller that answers about part of the Event (the Pools page). One checker,
+   * one answer: this is the same call the board and the banner make.
+   */
+  async checkEvent(
+    eventId: string,
+  ): Promise<{ conflicts: RefereeConflictEntry[]; units: AssignmentBoardPool[] }> {
+    const context = await this.loadContext(eventId);
+    return { conflicts: this.judgeExisting(context), units: context.pools };
   }
 
   /**
@@ -799,82 +848,34 @@ export class AssignmentBoardService {
     const candidate = context.candidates.find((c) => c.personId === dto.personId);
     if (!candidate) throw new BadRequestException('Selected referee is not on this event roster');
 
-    // Pool-membership check handles real pools (members list) and bracket
-    // matches (red/blue registration IDs on the single match) uniformly.
-    // Every reject below is gated by its rule toggle so a disabled rule
-    // stops blocking manual assignments too.
-    const rules = context.ruleSettings;
-    const poolMembers = new Set<string>(pool.members.map((m) => m.personId));
-    const fighterRegIds = context.fighterRegistrationIdsByPerson.get(candidate.personId) ?? [];
-    if (rules.enableOwnPoolRule) {
-      for (const match of pool.matches) {
-        if (
-          (match.redRegistrationId && fighterRegIds.includes(match.redRegistrationId)) ||
-          (match.blueRegistrationId && fighterRegIds.includes(match.blueRegistrationId))
-        ) {
-          throw new BadRequestException('A fighter cannot referee their own match');
-        }
-      }
-      if (poolMembers.has(candidate.personId)) {
-        throw new BadRequestException('A fighter cannot referee their own pool');
-      }
-    }
-
-    // Cross-pool scheduling conflict: busy fighting or officiating another
-    // pool/bracket whose window overlaps this one (any tournament, parallel lice).
-    const timeConflict = findTimeConflict(
-      candidate.personId,
-      dto.poolId,
-      this.buildCommitmentPools(context),
-    );
-    if (timeConflict) {
-      // A cross-venue double-booking (the referee already officiating an
-      // overlapping pool in a DIFFERENT hall) is surfaced as a board warning,
-      // not a hard block — parallel-venue events resolve it manually. Same-venue
-      // double-booking and officiate-vs-fight still hard-block.
-      const shouldBlock =
-        timeConflict.kind === 'officiate_vs_fight'
-          ? rules.enableOfficiateVsFightRule
-          : rules.enableDoubleBookedRule && !timeConflict.crossVenue;
-      if (shouldBlock) {
-        throw new BadRequestException(
-          timeConflict.kind === 'double_booked'
-            ? `Referee is already officiating ${timeConflict.otherPoolName} at this time`
-            : `Referee is competing in ${timeConflict.otherPoolName} at this time`,
-        );
-      }
-    }
-    // Outside the referee's declared tournament/day availability.
-    if (
-      rules.enableAvailabilityRule &&
-      this.isUnavailable(
-        candidate,
-        pool,
-        this.makeDayIndexOf(context.eventStartDate, context.eventTimezone),
-      )
-    ) {
-      throw new BadRequestException('Referee is not available for this tournament or day');
-    }
-
+    // A skill is not a scheduling rule: it stays a 400, before the checker.
     if (!candidate.qualifications.some((q) => q.role === dto.role)) {
       throw new BadRequestException('Selected referee is not qualified for this role');
     }
 
-    // Slice 7b: same person cannot hold two different roles on the same
-    // pool / bracket match / Swiss round-piste. The auto-assigner already
-    // enforces this via `alreadyAssignedToPool` (referee-assigner.ts:449-461)
-    // — the manual PATCH was the missing entry-point. Match by pool_id for
-    // real pools and by match_id membership for the synthetic projections.
-    const unitMatchIds = new Set(pool.matchIds ?? []);
-    const conflictingExisting = context.assignments.find((a) => {
-      if (a.person_id !== candidate.personId || a.role === dto.role) return false;
-      if (isMatchScopedKind(kind)) return a.match_id !== null && unitMatchIds.has(a.match_id);
-      return a.pool_id === pool.id;
-    });
-    if (conflictingExisting && rules.enableTwoRolesRule) {
-      throw new BadRequestException(
-        'This referee is already assigned a different role in this pool',
-      );
+    // The same call the picker makes (ADR-016: the picker and Assign cannot disagree).
+    // Impossible is refused outright; Discouraged is refused until the request confirms,
+    // and what was confirmed over is stored on the row (ruling 22).
+    const verdict = this.verdictFor(
+      context,
+      unitTarget(pool, dto.role, this.dayIndexOfContext(context)),
+      candidate.personId,
+    );
+    if (verdict.level === 'impossible') {
+      throw new ConflictException({
+        code: 'referee_impossible',
+        message: 'This referee cannot take this slot',
+        level: verdict.level,
+        reasons: verdict.reasons,
+      });
+    }
+    if (verdict.level === 'discouraged' && dto.confirm !== true) {
+      throw new ConflictException({
+        code: 'referee_needs_confirmation',
+        message: 'Assigning this referee needs confirmation',
+        level: verdict.level,
+        reasons: verdict.reasons,
+      });
     }
 
     const slotIndex = sourceSlots.find((s) => s.allowedSkillIds.includes(dto.role))?.index ?? 1;
@@ -894,12 +895,115 @@ export class AssignmentBoardService {
         },
       ],
       false,
+      toStoredReasons(verdict),
     );
 
     return this.getBoard(eventId);
   }
 
-  private async loadContext(eventId: string) {
+  /**
+   * The verdict on `personId` taking `target`, over the whole Event (ADR-016). The
+   * picker and Assign both come here with the same target (`unitTarget`), so they
+   * cannot disagree.
+   */
+  private verdictFor(
+    context: BoardContext,
+    target: RefereeTarget,
+    personId: string,
+  ): RefereeVerdict {
+    return checkReferee({
+      personId,
+      target,
+      commitments: context.commitmentsByPerson.get(personId) ?? [],
+      availability: context.availability(personId),
+      switches: switchesOf(context.ruleSettings),
+    });
+  }
+
+  private dayIndexOfContext(context: BoardContext): (iso: string) => number | null {
+    return (iso) => dayIndexInZone(iso, context.eventStartDate, context.eventTimezone);
+  }
+
+  /**
+   * Every existing duty re-judged without itself (ADR-016 "later changes"), each reason
+   * already confirmed over marked (ruling 135), one entry per person, unit and role.
+   * Duties the checker has nothing to say about are left out.
+   */
+  private judgeExisting(context: BoardContext): RefereeConflictEntry[] {
+    const duties = this.existingDuties(context);
+    const verdicts = checkAssignments(
+      duties,
+      context.commitments,
+      context.availability,
+      switchesOf(context.ruleSettings),
+    );
+    const nameOf = new Map(context.candidates.map((c) => [c.personId, c.displayName]));
+    const entries = new Map<string, RefereeConflictEntry>();
+    for (const duty of duties) {
+      const verdict = markConfirmed(verdicts.get(duty.id)!, duty.stored);
+      if (verdict.reasons.length === 0) continue;
+      const key = `${duty.unit.id}:${duty.personId}:${duty.target.role}`;
+      const seen = entries.get(key);
+      const startMs = Math.min(
+        duty.target.window?.startMs ?? Infinity,
+        seen?.start ? Date.parse(seen.start) : Infinity,
+      );
+      entries.set(key, {
+        assignmentId: seen?.assignmentId ?? duty.rowId,
+        personId: duty.personId,
+        personName: nameOf.get(duty.personId) ?? '',
+        unitId: duty.unit.id,
+        unitName: unitLabel(duty.unit),
+        tournamentId: duty.unit.tournamentId,
+        role: duty.target.role,
+        start: Number.isFinite(startMs) ? new Date(startMs).toISOString() : null,
+        ...mergeVerdicts(seen ?? FINE, verdict),
+      });
+    }
+    return [...entries.values()];
+  }
+
+  /**
+   * One duty per thing a crew stands on: a Pool-scoped row over its Pool, a Match-scoped
+   * row of a real Pool over its bout, and every row of a Swiss or bracket unit over the
+   * whole unit (it is written one row per bout, and it is one crew — the picker's target).
+   */
+  private existingDuties(context: BoardContext) {
+    const unitOf = unitIndex(context.pools);
+    const dayIndexOf = this.dayIndexOfContext(context);
+    const duties = new Map<
+      string,
+      {
+        id: string;
+        rowId: string;
+        personId: string;
+        unit: AssignmentBoardPool;
+        target: ReturnType<typeof unitTarget>;
+        stored: StoredRefereeReason[];
+      }
+    >();
+    for (const row of context.assignments) {
+      const unit = unitOf(row);
+      if (!unit || !row.role || !row.person_id) continue;
+      const wholeUnit = isMatchScopedKind(unit.kind ?? 'pool') || row.match_id === null;
+      const id = `${unit.id}:${row.person_id}:${row.role}:${wholeUnit ? '' : row.match_id}`;
+      if (duties.has(id)) continue;
+      duties.set(id, {
+        id,
+        rowId: row.id,
+        personId: row.person_id,
+        unit,
+        target: wholeUnit
+          ? unitTarget(unit, row.role, dayIndexOf)
+          : assignmentTarget({ ...row, role: row.role }, unit, dayIndexOf),
+        stored: parseStoredReasons(row.conflicts_jsonb),
+      });
+    }
+    return [...duties.values()];
+  }
+
+  /** The board's rows: units, candidates, assignments, settings (`loadContext` adds the rest). */
+  private async loadBoardRows(eventId: string) {
     // Slice 8: event.start_date anchors dayIndex computation for the
     // per-day availability filter. Fetched up front so every pool can
     // resolve its own day index without re-querying.
@@ -908,11 +1012,13 @@ export class AssignmentBoardService {
     // some clock, and the event's is the one the organiser and the schedule
     // board already use. Read from the same row rather than defaulted here, so
     // an event on another continent buckets its own days.
-    const { data: eventRow } = await this.supabase.service
+    const { data: eventRow, error: eventError } = await this.supabase.service
       .from('events')
       .select('start_date, timezone')
       .eq('id', eventId)
       .maybeSingle();
+    // A 5xx, never "no start date": that would skip every referee's day check (ADR-016).
+    if (eventError) throw new Error(`Could not read the Event: ${eventError.message}`);
     const eventRowTyped = eventRow as { start_date: string | null; timezone: string | null } | null;
     const eventStartDate = eventRowTyped?.start_date ?? null;
     // `events.timezone` is NOT NULL DEFAULT 'Europe/Paris' (migration 0102), so
@@ -939,7 +1045,6 @@ export class AssignmentBoardService {
         assignments: [] as RefereeAssignmentRow[],
         fighterRegistrationIdsByPerson: new Map<string, string[]>(),
         slotConfigByTournament: new Map<string, ResolvedConfig>(),
-        venueByLiceId: new Map<string, { id: string; name: string }>(),
         locked: false,
       };
     }
@@ -968,23 +1073,6 @@ export class AssignmentBoardService {
       fighterRegistrationIdsByPerson.set(registration.global_person_id, existing);
     }
     const assignments = await this.listAssignments(eventId);
-
-    // Lice → venue map, so a referee's double-booking warning can name the
-    // clashing hall and tell cross-venue (warn) from same-venue. lices/venues
-    // have no RLS (service role + org checks own this surface).
-    const venueByLiceId = new Map<string, { id: string; name: string }>();
-    const { data: liceVenueRows } = await this.supabase.service
-      .from('lices')
-      .select('id, venues(id, name)')
-      .eq('event_id', eventId);
-    for (const r of (liceVenueRows ?? []) as unknown as Array<{
-      id: string;
-      venues: { id: string; name: string } | null;
-    }>) {
-      if (r.venues) {
-        venueByLiceId.set(String(r.id), { id: String(r.venues.id), name: String(r.venues.name) });
-      }
-    }
 
     // R2: resolve the slot config once per tournament. We bypass the
     // staffing service's auth gate here — this code path is already
@@ -1043,9 +1131,41 @@ export class AssignmentBoardService {
       assignments,
       fighterRegistrationIdsByPerson,
       slotConfigByTournament,
-      venueByLiceId,
       locked: assignments.some((a) => a.status === 'confirmed'),
     };
+  }
+
+  /**
+   * Everything a board read needs: the rows (`loadBoardRows`), and on top of them every
+   * commitment in the Event as the one checker reads them (`event-commitments.ts`, ADR-016)
+   * with each referee's declared availability.
+   */
+  private async loadContext(eventId: string) {
+    const rows = await this.loadBoardRows(eventId);
+    const personIdByRegistration = new Map<string, string>();
+    for (const [personId, registrationIds] of rows.fighterRegistrationIdsByPerson) {
+      for (const registrationId of registrationIds) {
+        personIdByRegistration.set(registrationId, personId);
+      }
+    }
+    // No unit, nothing to judge: the Workshop read is skipped.
+    const sessions =
+      rows.pools.length === 0 ? [] : await loadWorkshopSessions(this.supabase.service, eventId);
+    const commitments = buildCommitments({
+      units: rows.pools,
+      personIdByRegistration,
+      assignments: rows.assignments,
+      sessions,
+    });
+    // The picker asks about every candidate for every slot: hand it one person's list.
+    const commitmentsByPerson = new Map<string, RefereeCommitment[]>();
+    for (const c of commitments) {
+      const list = commitmentsByPerson.get(c.personId) ?? [];
+      list.push(c);
+      commitmentsByPerson.set(c.personId, list);
+    }
+    const availability = availabilityOf(rows.candidates);
+    return { ...rows, personIdByRegistration, commitments, commitmentsByPerson, availability };
   }
 
   /**
@@ -1159,7 +1279,6 @@ export class AssignmentBoardService {
         tournamentId: tournament?.id ?? '',
         tournamentName: tournament?.name ?? '',
         liceId: m.lice_id,
-        scheduledStart: m.scheduled_at,
         kind,
         matchIds: [m.id],
         ...(info
@@ -1396,10 +1515,6 @@ export class AssignmentBoardService {
 
     return ((data ?? []) as unknown as PoolRow[]).map((pool) => {
       const matches = pool.matches ?? [];
-      const scheduledTimes = matches
-        .map((match) => match.scheduled_at)
-        .filter((value): value is string => Boolean(value))
-        .sort();
       const phaseTournamentId = phaseToTournament.get(pool.phase_id);
       const tournament = phaseTournamentId ? tournamentById.get(phaseTournamentId) : undefined;
       const liceId = matches.find((m) => m.lice_id)?.lice_id ?? null;
@@ -1410,7 +1525,6 @@ export class AssignmentBoardService {
         tournamentId: tournament?.id ?? '',
         tournamentName: tournament?.name ?? '',
         liceId,
-        scheduledStart: scheduledTimes[0] ?? null,
         members: (pool.pool_members ?? []).map((member) => {
           const registration = this.firstRelation(member.registrations);
           const person = this.firstRelation(registration?.persons);
@@ -1519,27 +1633,7 @@ export class AssignmentBoardService {
       );
     }
 
-    // Slice 8: per-tournament + per-day allowlists.
-    const tournamentsByPerson = new Map<string, string[]>();
-    const daysByPerson = new Map<string, number[]>();
-    const { data: tournRows } = await this.supabase.service
-      .from('event_referee_tournaments')
-      .select('person_id, tournament_id')
-      .eq('event_id', eventId);
-    for (const t of (tournRows ?? []) as Array<{ person_id: string; tournament_id: string }>) {
-      const list = tournamentsByPerson.get(t.person_id) ?? [];
-      list.push(t.tournament_id);
-      tournamentsByPerson.set(t.person_id, list);
-    }
-    const { data: dayRows } = await this.supabase.service
-      .from('event_referee_days')
-      .select('person_id, day_index')
-      .eq('event_id', eventId);
-    for (const d of (dayRows ?? []) as Array<{ person_id: string; day_index: number }>) {
-      const list = daysByPerson.get(d.person_id) ?? [];
-      list.push(d.day_index);
-      daysByPerson.set(d.person_id, list);
-    }
+    const { tournamentsByPerson, daysByPerson } = await this.loadAvailabilityLists(eventId);
 
     return eventReferees.map((referee): AssignmentBoardCandidate => {
       const gp = gpById.get(referee.person_id) ?? null;
@@ -1559,6 +1653,36 @@ export class AssignmentBoardService {
         ...(availableDayIndices ? { availableDayIndices } : {}),
       };
     });
+  }
+
+  /**
+   * Slice 8: each referee's per-Tournament and per-day allow-lists. A failed read is a 5xx,
+   * never "no restriction": availability is an Impossible rule (ADR-016).
+   */
+  private async loadAvailabilityLists(eventId: string) {
+    const tournamentsByPerson = new Map<string, string[]>();
+    const daysByPerson = new Map<string, number[]>();
+    const { data: tournRows, error: tournError } = await this.supabase.service
+      .from('event_referee_tournaments')
+      .select('person_id, tournament_id')
+      .eq('event_id', eventId);
+    if (tournError) throw new Error(`Could not read referee Tournaments: ${tournError.message}`);
+    for (const t of (tournRows ?? []) as Array<{ person_id: string; tournament_id: string }>) {
+      const list = tournamentsByPerson.get(t.person_id) ?? [];
+      list.push(t.tournament_id);
+      tournamentsByPerson.set(t.person_id, list);
+    }
+    const { data: dayRows, error: dayError } = await this.supabase.service
+      .from('event_referee_days')
+      .select('person_id, day_index')
+      .eq('event_id', eventId);
+    if (dayError) throw new Error(`Could not read referee days: ${dayError.message}`);
+    for (const d of (dayRows ?? []) as Array<{ person_id: string; day_index: number }>) {
+      const list = daysByPerson.get(d.person_id) ?? [];
+      list.push(d.day_index);
+      daysByPerson.set(d.person_id, list);
+    }
+    return { tournamentsByPerson, daysByPerson };
   }
 
   private async listRegistrations(tournamentIds: string[]): Promise<RegistrationRow[]> {
@@ -1593,7 +1717,7 @@ export class AssignmentBoardService {
     // the synthetic match-id (via the pool's matchId field).
     const { data, error } = await this.supabase.service
       .from('referee_assignments')
-      .select('id, person_id, pool_id, match_id, role, status, auto_assigned')
+      .select('id, person_id, pool_id, match_id, role, status, auto_assigned, conflicts_jsonb')
       .eq('event_id', eventId)
       .in('scope_type', ['pool', 'match']);
     if (error) throw new BadRequestException(error.message);
@@ -1701,108 +1825,53 @@ export class AssignmentBoardService {
     );
   }
 
-  /** Day index in the EVENT's timezone, for the availability filter. Falls back
+  /**
+   * The candidates of one slot, sorted by the checker's verdict (ADR-016): Fine is
+   * recommended, Discouraged is amber (assignable after confirming), Impossible — or no
+   * skill this slot allows — is greyed out. Every reason goes with it, by code and name.
+   */
+  private pickerGroups(
+    context: BoardContext,
+    target: RefereeTarget,
+    allowed: readonly string[],
+  ): AssignmentBoardPool['roleSlots'][number]['candidates'] {
+    const groups: AssignmentBoardPool['roleSlots'][number]['candidates'] = {
+      recommended: [],
+      warning: [],
+      blocked: [],
+    };
+    for (const candidate of context.candidates) {
+      const skill = candidate.qualifications.find((q) => allowed.includes(q.role))?.role;
+      const verdict = this.verdictFor(
+        context,
+        { ...target, role: skill ?? allowed[0]! },
+        candidate.personId,
+      );
+      const reasons: PickerReason[] = verdict.reasons.map((r) => ({
+        code: r.code,
+        label: r.against?.label ?? '',
+      }));
+      if (!skill) {
+        groups.blocked.push({
+          ...candidate,
+          reasons: [{ code: 'missing_qualification', label: '' }, ...reasons],
+        });
+      } else if (verdict.level === 'impossible') {
+        groups.blocked.push({ ...candidate, reasons });
+      } else if (verdict.level === 'discouraged') {
+        groups.warning.push({ ...candidate, reasons });
+      } else {
+        groups.recommended.push(candidate);
+      }
+    }
+    return groups;
+  }
+
+  /** Day index in the EVENT's timezone, for the capacity warning. Falls back
    *  to day 0 when the event has no start date — the same "no per-day
    *  restriction can apply" answer this returned before. */
   private makeDayIndexOf(eventStartDate: string | null, tz: string): (iso: string) => number {
     return (iso: string) => dayIndexInZone(iso, eventStartDate, tz) ?? 0;
-  }
-
-  /** Project the loaded context into the shared conflict-detector shape:
-   *  every pool/bracket with its window, the people fighting in it (pool
-   *  roster ∪ the single match's red/blue fighters), and its persisted
-   *  referee assignments. */
-  private buildCommitmentPools(
-    context: Awaited<ReturnType<AssignmentBoardService['loadContext']>>,
-  ): RefereeCommitmentPool[] {
-    const personNameById = new Map(context.candidates.map((c) => [c.personId, c.displayName]));
-    const personIdByRegId = new Map<string, string>();
-    for (const [personId, regIds] of context.fighterRegistrationIdsByPerson) {
-      for (const regId of regIds) personIdByRegId.set(regId, personId);
-    }
-    return context.pools.map((pool) => {
-      const kind = pool.kind ?? 'pool';
-      const slotConfig = context.slotConfigByTournament.get(pool.tournamentId);
-      const slots = slotsForKind(slotConfig, kind);
-      // From `matches`, NOT `matchIds`. `matchIds` is set only on the synthetic
-      // bracket and Swiss units; a real pool from `listPools` has none, so
-      // reading it here would leave every genuine pool with an empty fight list
-      // — a fix that tests green against a bracket fixture and changes nothing
-      // where the problem actually is. `matches` is projected for all three
-      // kinds and carries the same ids.
-      const unitMatchIds = new Set(pool.matches.map((m) => m.id));
-      const fighterPersonIds = Array.from(
-        new Set<string>([
-          ...pool.members.map((m) => m.personId),
-          ...pool.matches
-            .flatMap((m) => [m.redRegistrationId, m.blueRegistrationId])
-            .filter((r): r is string => Boolean(r))
-            .map((r) => personIdByRegId.get(r))
-            .filter((p): p is string => Boolean(p)),
-        ]),
-      );
-      const assignments: RefereeCommitmentPool['assignments'] = [];
-      for (const a of context.assignments) {
-        if (!a.role || !a.person_id) continue;
-        // BOTH scopes, for every kind of unit. This used to branch on `kind` and
-        // ask a pool only about `pool_id`, so a referee booked on ONE FIGHT of
-        // that pool — which is what the pool tab's matches table writes, with a
-        // null pool_id — was invisible to the commitment model. The write path
-        // judges overlap from this list, so it accepted a double-booking the
-        // board was already warning about.
-        //
-        // A union rather than a branch is safe because the two id spaces cannot
-        // collide: a synthetic unit's `id` is not a pools.id, so a real
-        // pool-scoped row can never match a bracket or Swiss unit by accident.
-        const matchesPool =
-          a.pool_id === pool.id || (a.match_id !== null && unitMatchIds.has(a.match_id));
-        if (matchesPool) {
-          assignments.push({
-            personId: a.person_id,
-            personName: personNameById.get(a.person_id) ?? a.person_id,
-            role: a.role,
-          });
-        }
-      }
-      const venue = pool.liceId ? (context.venueByLiceId.get(pool.liceId) ?? null) : null;
-      return {
-        id: pool.id,
-        name: pool.name,
-        tournamentId: pool.tournamentId,
-        tournamentName: pool.tournamentName,
-        scheduledStart: pool.scheduledStart,
-        scheduledEnd: pool.scheduledEnd,
-        liceName: null,
-        venueId: venue?.id ?? null,
-        venueName: venue?.name ?? null,
-        roleSlotCount: slots.length,
-        fighterPersonIds,
-        assignments,
-      };
-    });
-  }
-
-  /** True when the pool's tournament/day is outside the candidate's declared
-   *  availability (mirrors the auto-assigner's hard filter). */
-  private isUnavailable(
-    candidate: AssignmentBoardCandidate,
-    pool: AssignmentBoardPool,
-    dayIndexOf: (iso: string) => number,
-  ): boolean {
-    if (
-      candidate.availableTournamentIds &&
-      !candidate.availableTournamentIds.includes(pool.tournamentId)
-    ) {
-      return true;
-    }
-    if (
-      candidate.availableDayIndices &&
-      pool.scheduledStart &&
-      !candidate.availableDayIndices.includes(dayIndexOf(pool.scheduledStart))
-    ) {
-      return true;
-    }
-    return false;
   }
 
   private buildBoard(
@@ -1854,21 +1923,17 @@ export class AssignmentBoardService {
       missingByPoolSlot.set(`${missing.poolId}:${missing.slotIndex}`, missing.rejectionReasons);
     }
 
-    // Shared inputs for the scheduling-conflict + availability checks.
-    const dayIndexOf = this.makeDayIndexOf(context.eventStartDate, context.eventTimezone);
-    const commitmentPools = this.buildCommitmentPools(context);
-    const rules = context.ruleSettings;
-
     // R2 + R4: roleSlots come from the resolved Staffing config per
     // tournament, selecting `pool`/`bracket`/`finals` based on the
     // pool's R4 `kind`. The legacy 3-role default still kicks in when
     // no Staffing rows exist (HARD_CODED_DEFAULT_SLOTS in staffing.service).
+    const dayIndexOf = this.dayIndexOfContext(context);
     const pools = context.pools.map((pool) => {
-      const poolMembers = new Set(pool.members.map((member) => member.personId));
       const slotConfig = context.slotConfigByTournament.get(pool.tournamentId);
       const kind = pool.kind ?? 'pool';
       const slots = slotsForKind(slotConfig, kind);
-      const unitMatchIds = new Set(pool.matchIds ?? []);
+      // Measured once per unit; each candidate only changes its role.
+      const target = unitTarget(pool, '', dayIndexOf);
 
       return {
         ...pool,
@@ -1899,63 +1964,6 @@ export class AssignmentBoardService {
               ? candidateByPersonId.get(previewAssignment.personId)
               : undefined;
 
-          const allowedSet = new Set(allowed);
-          const recommended: AssignmentBoardCandidate[] = [];
-          const warning: Array<AssignmentBoardCandidate & { warnings: string[] }> = [];
-          const blocked: Array<AssignmentBoardCandidate & { reasons: string[] }> = [];
-
-          for (const candidate of context.candidates) {
-            const reasons: string[] = [];
-            const hasMatchingQual = candidate.qualifications.some((q) => allowedSet.has(q.role));
-            if (!hasMatchingQual) reasons.push('missing_qualification');
-            if (
-              rules.enableOwnPoolRule &&
-              candidate.personId &&
-              poolMembers.has(candidate.personId)
-            ) {
-              reasons.push('fighter_referee_overlap');
-            }
-            // Busy at this time elsewhere (fighting or officiating another
-            // pool/bracket whose window overlaps — any tournament). Each
-            // collision kind is gated by its own rule toggle.
-            if (candidate.personId) {
-              const collision = findTimeConflict(candidate.personId, pool.id, commitmentPools);
-              if (
-                collision &&
-                (collision.kind === 'officiate_vs_fight'
-                  ? rules.enableOfficiateVsFightRule
-                  : rules.enableDoubleBookedRule)
-              ) {
-                reasons.push('schedule_conflict');
-              }
-            }
-            // Outside the referee's declared tournament/day availability.
-            if (rules.enableAvailabilityRule && this.isUnavailable(candidate, pool, dayIndexOf)) {
-              reasons.push('unavailable');
-            }
-            // Already holding a different role on this same pool/bracket/round.
-            if (
-              rules.enableTwoRolesRule &&
-              candidate.personId &&
-              context.assignments.some(
-                (a) =>
-                  a.person_id === candidate.personId &&
-                  a.role &&
-                  a.role !== primaryRole &&
-                  (kind === 'pool'
-                    ? a.pool_id === pool.id
-                    : a.match_id !== null && unitMatchIds.has(a.match_id)),
-              )
-            ) {
-              reasons.push('duplicate_role_same_pool');
-            }
-            if (reasons.length > 0) {
-              blocked.push({ ...candidate, reasons });
-            } else {
-              recommended.push(candidate);
-            }
-          }
-
           return {
             slotIndex: slot.index,
             displayName: slot.displayName,
@@ -1977,7 +1985,7 @@ export class AssignmentBoardService {
                   }
                 : null,
             missingReasons: missingByPoolSlot.get(`${pool.id}:${slot.index}`) ?? [],
-            candidates: { recommended, warning, blocked },
+            candidates: this.pickerGroups(context, target, allowed),
           };
         }),
       };
@@ -1993,45 +2001,20 @@ export class AssignmentBoardService {
       }
     }
 
-    // Scheduling conflicts on the *current* assignments: time overlaps from the
-    // pure detector, plus any assigned referee now outside their availability.
-    const poolById = new Map(context.pools.map((p) => [p.id, p]));
-    const availabilityConflicts: RefereeConflict[] = [];
-    for (const cp of commitmentPools) {
-      const rawPool = poolById.get(cp.id);
-      if (!rawPool) continue;
-      for (const a of cp.assignments) {
-        const cand = candidateByPersonId.get(a.personId);
-        if (cand && this.isUnavailable(cand, rawPool, dayIndexOf)) {
-          availabilityConflicts.push({
-            personId: a.personId,
-            personName: a.personName,
-            kind: 'unavailable',
-            poolId: cp.id,
-            poolName: cp.name,
-            role: a.role,
-            start: cp.scheduledStart,
-            liceName: null,
-            otherPoolId: '',
-            otherPoolName: cp.tournamentName ?? '',
-            otherLiceName: null,
-          });
-        }
-      }
-    }
-    // Each conflict kind is gated by its rule toggle, so unticking a rule
-    // in the health panel removes its findings everywhere at once.
-    const conflicts = [
-      ...detectRefereeConflicts(commitmentPools).filter((c) =>
-        c.kind === 'officiate_vs_fight'
-          ? rules.enableOfficiateVsFightRule
-          : rules.enableDoubleBookedRule,
-      ),
-      ...(rules.enableAvailabilityRule ? availabilityConflicts : []),
-    ];
-    const capacityWarnings = rules.enableCapacityRule
+    // The verdicts on the *current* assignments: the checker's, as every screen reads them.
+    const conflicts = this.judgeExisting(context);
+    // "Not enough referees at this time" is about the slate, never a person (ADR-016).
+    const capacityWarnings = context.ruleSettings.enableCapacityRule
       ? detectConcurrencyShortage(
-          commitmentPools,
+          slatePools(
+            context.pools,
+            context.personIdByRegistration,
+            (unit) =>
+              slotsForKind(
+                context.slotConfigByTournament.get(unit.tournamentId),
+                unit.kind ?? 'pool',
+              ).length,
+          ),
           context.candidates.map((c) => ({
             personId: c.personId,
             roles: c.qualifications.map((q) => q.role),
@@ -2040,7 +2023,7 @@ export class AssignmentBoardService {
               : {}),
             ...(c.availableDayIndices ? { availableDayIndices: c.availableDayIndices } : {}),
           })),
-          dayIndexOf,
+          this.makeDayIndexOf(context.eventStartDate, context.eventTimezone),
         )
       : [];
     const deadEndSlots: AssignmentBoard['deadEndSlots'] = [];
@@ -2083,6 +2066,7 @@ export class AssignmentBoardService {
     context: Awaited<ReturnType<AssignmentBoardService['loadContext']>>,
     assignments: RefereeAssignment[],
     replaceAutoAssigned: boolean,
+    confirmedOver: StoredRefereeReason[] = [], // the manual path's confirmed-over reasons
   ) {
     if (replaceAutoAssigned) {
       // Scoped to the units this run actually covers, not to the whole event.
@@ -2163,7 +2147,7 @@ export class AssignmentBoardService {
         role: assignment.role,
         auto_assigned: replaceAutoAssigned,
         status: 'assigned',
-        conflicts_jsonb: [],
+        conflicts_jsonb: confirmedOver,
       } satisfies Omit<RefereeAssignmentInsert, 'scope_type' | 'pool_id' | 'match_id'>;
       if (!isMatchScopedKind(pool.kind ?? 'pool')) {
         return [{ ...base, scope_type: 'pool', pool_id: assignment.poolId, match_id: null }];
@@ -2178,11 +2162,9 @@ export class AssignmentBoardService {
 
     if (rows.length === 0) return;
 
-    // Defence in depth: drop any row where the person is a member of
-    // the unit they'd be reffing. The engine has its own filter, and
-    // applyManual throws upstream, but we guard the chokepoint so a
-    // future bypass (engine bug, manual SQL, etc.) can't reintroduce
-    // a fighter-as-own-referee row. A logger.warn surfaces hits.
+    // Defence in depth for the ENGINE's rows only (the checker judged a manual row, and a
+    // confirmed own-Pool row must land): drop any row where the person is a member of the
+    // unit they'd be reffing. A logger.warn surfaces hits.
     //
     // Match-scoped rows are resolved back to their unit rather than skipped:
     // a bracket unit carries `members: []` so its behaviour is unchanged, but
@@ -2194,6 +2176,7 @@ export class AssignmentBoardService {
       for (const matchId of pool.matchIds ?? []) unitIdByMatchId.set(matchId, pool.id);
     }
     const filteredRows = rows.filter((row) => {
+      if (!replaceAutoAssigned) return true;
       const unitId = row.pool_id ?? (row.match_id ? unitIdByMatchId.get(row.match_id) : null);
       if (!unitId) return true;
       const members = fightersByPool.get(unitId);
@@ -2258,3 +2241,6 @@ export class AssignmentBoardService {
     return name || person.display_name || '';
   }
 }
+
+/** What `loadContext` hands every board read: loaded once per request. */
+type BoardContext = Awaited<ReturnType<AssignmentBoardService['loadContext']>>;

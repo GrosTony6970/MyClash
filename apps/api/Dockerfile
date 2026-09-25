@@ -54,12 +54,13 @@ COPY packages/rulesets/ ./packages/rulesets/
 COPY packages/time/ ./packages/time/
 COPY packages/schedule-core/ ./packages/schedule-core/
 COPY packages/feature-flags/ ./packages/feature-flags/
-# Build shared packages first, then the API
+# Build shared packages first, then the API. Dependencies before dependents:
+# rulesets imports schedule-core (the referee checker), which imports time.
 RUN pnpm --filter @myclash/rules build
 RUN pnpm --filter @myclash/types build
-RUN pnpm --filter @myclash/rulesets build
 RUN pnpm --filter @myclash/time build
 RUN pnpm --filter @myclash/schedule-core build
+RUN pnpm --filter @myclash/rulesets build
 RUN pnpm --filter @myclash/feature-flags build
 RUN pnpm --filter @myclash/api build
 

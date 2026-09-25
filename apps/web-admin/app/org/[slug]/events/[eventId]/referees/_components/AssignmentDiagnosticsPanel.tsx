@@ -1,19 +1,30 @@
 'use client';
 
 import { localeToBcp47, type AppLocale } from '@myclash/time';
-import type { CapacityWarning, RefereeConflict } from '@myclash/types';
+import type { CapacityWarning } from '@myclash/types';
 import { useI18n } from '@myclash/next-i18n/client';
+import { RefereeReasons } from '@/components/RefereeReasons';
+import type { RefereeConflictEntry } from '@/lib/referee-reasons';
 import { boardHealthStatus, summariseBoard, summariseRosterHealth } from './board-diagnostics';
 import type { HealthStatus } from './board-diagnostics';
 import { formatUnassignedReason } from './format-unassigned-reason';
 
-/** The six health-panel rules an operator can enable/disable. Keys match
- *  the PUT pool-assignment-settings payload field names. */
+/**
+ * The health-panel rules an operator can enable/disable. Keys match the PUT
+ * pool-assignment-settings payload field names.
+ *
+ * The four Discouraged switches of ADR-016 (own Pool, Pool running, two roles, attending a
+ * Workshop) and the capacity warning's. Officiate-vs-fight, double-booked and availability
+ * are Impossible and have no switch at the board or at Assign; their columns still steer
+ * the auto-assign engine until W1.3 and go with W1.4.
+ */
 export const RULE_KEYS = [
   'enableOwnPoolRule',
+  'enableOwnPoolSpanRule',
   'enableOfficiateVsFightRule',
   'enableDoubleBookedRule',
   'enableTwoRolesRule',
+  'workshopConflictWarning',
   'enableAvailabilityRule',
   'enableCapacityRule',
 ] as const;
@@ -22,9 +33,11 @@ export type RuleKey = (typeof RULE_KEYS)[number];
 /** i18n suffix per rule under organizer.refereesPage.rules.* */
 const RULE_I18N: Record<RuleKey, string> = {
   enableOwnPoolRule: 'ownPool',
+  enableOwnPoolSpanRule: 'ownPoolSpan',
   enableOfficiateVsFightRule: 'officiateVsFight',
   enableDoubleBookedRule: 'doubleBooked',
   enableTwoRolesRule: 'twoRoles',
+  workshopConflictWarning: 'attendWorkshop',
   enableAvailabilityRule: 'availability',
   enableCapacityRule: 'capacity',
 };
@@ -47,7 +60,7 @@ interface DiagnosticsBoard {
     role: string;
     reasons?: string[];
   }>;
-  conflicts?: RefereeConflict[];
+  conflicts?: RefereeConflictEntry[];
   capacityWarnings?: CapacityWarning[];
   deadEndSlots?: Array<{ poolId: string; poolName: string; role: string }>;
 }
@@ -134,7 +147,8 @@ export function AssignmentDiagnosticsPanel({
   const status = boardHealthStatus({
     openSlots: summary.totalSlots - summary.filledSlots,
     rosterShort: rosterShort.length > 0,
-    conflicts: conflicts.length,
+    impossible: conflicts.filter((c) => c.level === 'impossible').length,
+    discouraged: conflicts.filter((c) => c.level === 'discouraged').length,
     capacity: capacityWarnings.length,
     deadEnds: deadEndSlots.length,
   });
@@ -155,30 +169,12 @@ export function AssignmentDiagnosticsPanel({
             ⚠ {t('organizer.refereesPage.conflict.sectionTitle')} ({conflicts.length})
           </p>
           <ul className="space-y-1">
-            {conflicts.map((c, i) => (
-              <li key={`${c.poolId}:${c.personId}:${i}`} className={`text-sm ${theme.item}`}>
-                <span className="font-medium">{c.personName}</span> — {label(c.role)} · {c.poolName}
+            {conflicts.map((c) => (
+              <li key={`${c.assignmentId}:${c.role}`} className={`text-sm ${theme.item}`}>
+                <span className="font-medium">{c.personName}</span> — {label(c.role)} · {c.unitName}
                 {c.start && ` (${hhmm(c.start, locale)})`}
-                <span className={`block text-xs ${theme.sublabel}`}>
-                  ↳{' '}
-                  {c.kind === 'unavailable'
-                    ? t('organizer.refereesPage.conflict.unavailableLine').replace(
-                        '{tournament}',
-                        c.otherPoolName,
-                      )
-                    : c.kind === 'double_booked'
-                      ? c.crossVenue && c.otherVenueName
-                        ? t('organizer.refereesPage.conflict.alsoOfficiatingVenue')
-                            .replace('{pool}', c.otherPoolName)
-                            .replace('{venue}', c.otherVenueName)
-                        : t('organizer.refereesPage.conflict.alsoOfficiating').replace(
-                            '{pool}',
-                            c.otherPoolName,
-                          )
-                      : t('organizer.refereesPage.conflict.alsoFighting').replace(
-                          '{pool}',
-                          c.otherPoolName,
-                        )}
+                <span className="block text-xs">
+                  ↳ <RefereeReasons reasons={c.reasons} />
                 </span>
               </li>
             ))}

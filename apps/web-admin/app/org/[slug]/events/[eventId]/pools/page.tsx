@@ -28,6 +28,8 @@ import { StandingsTab } from './_tabs/StandingsTab';
 import { RefereesTab } from './_tabs/RefereesTab';
 import { parseHashTab } from './parse-hash-tab';
 import { recordConflictCheck, type ConflictChecks } from './conflict-checks';
+import { RefereeVerdictBanner } from './RefereeVerdictBanner';
+import type { RefereeConflictEntry } from '@/lib/referee-reasons';
 import { useEventStatus } from '../_hooks/useEventStatus';
 import { apiRequest, failureMessage, type ApiResult } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
@@ -62,17 +64,18 @@ interface UnassignedFighter {
 
 const UNASSIGNED_DROP_ID = '__unassigned__';
 
-interface Conflict {
-  personName: string;
-  fightingMatchLabel: string;
-  refereeingMatchLabel: string;
-  confirmed: boolean;
+/** The one checker's verdicts that concern this Tournament (ADR-016). */
+interface ConflictResult {
+  conflicts: RefereeConflictEntry[];
 }
 
-interface ConflictResult {
-  conflicts: Conflict[];
-  hasConfirmedConflicts: boolean;
-  hasPotentialConflicts: boolean;
+/**
+ * A body with no verdict list is a failed check, not a clean one: a changed shape must
+ * say "could not be checked" rather than render nothing (hard rule 8).
+ */
+function asConflictResult(data: unknown): ConflictResult | null {
+  const conflicts = (data as { conflicts?: unknown } | null)?.conflicts;
+  return Array.isArray(conflicts) ? { conflicts: conflicts as RefereeConflictEntry[] } : null;
 }
 
 // ── Tab shell ─────────────────────────────────────────────────────────────────
@@ -231,12 +234,12 @@ export default function PoolsPage() {
     // which is older than the load or the edit that asked for this check.
     const tournamentId = selectedTournament;
     const seq = ++conflictCheckSeq.current;
-    const r = await apiRequest<ConflictResult>(
+    const r = await apiRequest<unknown>(
       apiUrl,
       `/api/v1/tournaments/${tournamentId}/conflict-check`,
     );
     setConflictChecks((checks) =>
-      recordConflictCheck(checks, tournamentId, seq, r.ok ? r.data : null),
+      recordConflictCheck(checks, tournamentId, seq, r.ok ? asConflictResult(r.data) : null),
     );
   }
 
@@ -629,39 +632,10 @@ export default function PoolsPage() {
               </div>
             )}
 
-            {/* Fighter/referee conflict banner */}
-            {conflicts && (conflicts.hasConfirmedConflicts || conflicts.hasPotentialConflicts) && (
-              <div
-                className={[
-                  'border rounded-xl px-4 py-3 text-sm',
-                  conflicts.hasConfirmedConflicts
-                    ? 'bg-danger/10 border-danger/30 text-danger'
-                    : 'bg-warning/10 border-warning/30 text-warning',
-                ].join(' ')}
-              >
-                <p className="font-bold mb-1">
-                  {conflicts.hasConfirmedConflicts
-                    ? t('organizer.pools.page.conflictsConfirmedTitle')
-                    : t('organizer.pools.page.conflictsPotentialTitle')}
-                </p>
-                <ul className="list-disc list-inside space-y-0.5">
-                  {conflicts.conflicts.map((c, i) => (
-                    <li key={i}>
-                      <strong>{c.personName}</strong>{' '}
-                      {t('organizer.pools.page.conflictSegFightsIn')}{' '}
-                      <em>{c.fightingMatchLabel}</em>{' '}
-                      {t('organizer.pools.page.conflictSegAndReferees')}{' '}
-                      <em>{c.refereeingMatchLabel}</em>
-                      {!c.confirmed && <> {t('organizer.pools.page.conflictSegUnscheduled')}</>}
-                    </li>
-                  ))}
-                </ul>
-                {conflicts.hasConfirmedConflicts && (
-                  <p className="mt-2 font-medium">
-                    {t('organizer.pools.page.conflictsReassignHint')}
-                  </p>
-                )}
-              </div>
+            {/* Referee verdicts (hard rule 8, ADR-016): red Impossible, amber to confirm,
+                grey confirmed. Nothing to act on — nothing but grey — shows no banner. */}
+            {conflicts && conflicts.conflicts.some((c) => c.level !== 'fine') && (
+              <RefereeVerdictBanner conflicts={conflicts.conflicts} />
             )}
             {conflictCheckFailed && (
               <div

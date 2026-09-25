@@ -3832,7 +3832,7 @@ export interface paths {
       path?: never;
       cookie?: never;
     };
-    /** Check fighter/referee time conflicts for a tournament (hard constraint, org member) */
+    /** Referee verdicts that concern a tournament, from the one checker (org member) */
     get: operations['ConflictCheckController_checkConflicts'];
     put?: never;
     post?: never;
@@ -4196,7 +4196,7 @@ export interface paths {
     };
     get?: never;
     put?: never;
-    /** Assign one referee to one pool role after validation */
+    /** Assign one referee to one pool role: 409 when Impossible, 409 when Discouraged unless confirm */
     post: operations['AssignmentBoardController_manualAssign'];
     /** Clear every referee assignment for an event (refuses when locked) */
     delete: operations['AssignmentBoardController_clearEventAssignments'];
@@ -10383,6 +10383,7 @@ export interface components {
       ratingBasedOrdering?: boolean;
       workloadBalance?: boolean;
       enableOwnPoolRule?: boolean;
+      enableOwnPoolSpanRule?: boolean;
       enableOfficiateVsFightRule?: boolean;
       enableDoubleBookedRule?: boolean;
       enableTwoRolesRule?: boolean;
@@ -10396,6 +10397,7 @@ export interface components {
       role: 'arbitre_declarant' | 'arbitre_assesseur' | 'arbitre_table';
       /** Format: uuid */
       personId: string;
+      confirm?: boolean;
     };
     LegacyManualAssignmentRequestDto: {
       /** Format: uuid */
@@ -10404,6 +10406,7 @@ export interface components {
       role: 'arbitre_declarant' | 'arbitre_assesseur' | 'arbitre_table';
       /** Format: uuid */
       personId: string;
+      confirm?: boolean;
       /** Format: uuid */
       eventId: string;
     };

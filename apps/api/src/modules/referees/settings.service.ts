@@ -31,6 +31,8 @@ export interface PoolAssignmentSettings {
    *  Disabling one stops it being flagged in the health panel AND
    *  enforced (engine, candidate blocking, manual-assign rejects). */
   enableOwnPoolRule: boolean;
+  /** Refereeing while a Pool one fights in is running, outside one's own bouts (ruling 5). */
+  enableOwnPoolSpanRule: boolean;
   enableOfficiateVsFightRule: boolean;
   enableDoubleBookedRule: boolean;
   enableTwoRolesRule: boolean;
@@ -50,6 +52,7 @@ const DEFAULTS: Omit<PoolAssignmentSettings, 'id' | 'eventId' | 'tournamentId'> 
   ratingBasedOrdering: true,
   workloadBalance: true,
   enableOwnPoolRule: true,
+  enableOwnPoolSpanRule: true,
   enableOfficiateVsFightRule: true,
   enableDoubleBookedRule: true,
   enableTwoRolesRule: true,
@@ -127,6 +130,8 @@ export class SettingsService {
     if (patch.workloadBalance !== undefined) updates['workload_balance'] = patch.workloadBalance;
     if (patch.enableOwnPoolRule !== undefined)
       updates['enable_own_pool_rule'] = patch.enableOwnPoolRule;
+    if (patch.enableOwnPoolSpanRule !== undefined)
+      updates['enable_own_pool_span_rule'] = patch.enableOwnPoolSpanRule;
     if (patch.enableOfficiateVsFightRule !== undefined)
       updates['enable_officiate_vs_fight_rule'] = patch.enableOfficiateVsFightRule;
     if (patch.enableDoubleBookedRule !== undefined)
@@ -174,6 +179,7 @@ export class SettingsService {
         rating_based_ordering: DEFAULTS.ratingBasedOrdering,
         workload_balance: DEFAULTS.workloadBalance,
         enable_own_pool_rule: DEFAULTS.enableOwnPoolRule,
+        enable_own_pool_span_rule: DEFAULTS.enableOwnPoolSpanRule,
         enable_officiate_vs_fight_rule: DEFAULTS.enableOfficiateVsFightRule,
         enable_double_booked_rule: DEFAULTS.enableDoubleBookedRule,
         enable_two_roles_rule: DEFAULTS.enableTwoRolesRule,
@@ -209,6 +215,7 @@ export class SettingsService {
       ratingBasedOrdering: Boolean(r['rating_based_ordering'] ?? true),
       workloadBalance: Boolean(r['workload_balance'] ?? true),
       enableOwnPoolRule: Boolean(r['enable_own_pool_rule'] ?? true),
+      enableOwnPoolSpanRule: Boolean(r['enable_own_pool_span_rule'] ?? true),
       enableOfficiateVsFightRule: Boolean(r['enable_officiate_vs_fight_rule'] ?? true),
       enableDoubleBookedRule: Boolean(r['enable_double_booked_rule'] ?? true),
       enableTwoRolesRule: Boolean(r['enable_two_roles_rule'] ?? true),

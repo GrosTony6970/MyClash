@@ -158,8 +158,8 @@ export function RefereesTab({
         <CandidatePicker
           pool={picker.pool}
           slot={picker.slot}
-          onAssign={(userId) => {
-            void manualAssign(picker.pool.id, picker.slot.role, userId).then((ok) => {
+          onAssign={(personId, confirm) => {
+            void manualAssign(picker.pool.id, picker.slot.role, personId, confirm).then((ok) => {
               if (ok) setPicker(null);
             });
           }}

@@ -45,7 +45,6 @@ export interface SwissBoardUnit {
   liceId: string | null;
   /** Ordered by start time, then id — the order the crew works them. */
   matches: SwissUnitMatch[];
-  scheduledStart: string | null;
 }
 
 /** Stable ordering: scheduled bouts by start time, unscheduled last, id breaks ties. */
@@ -89,7 +88,6 @@ export function groupSwissMatchesIntoUnits(
         roundNumber: round.roundNumber,
         liceId: match.liceId,
         matches: [],
-        scheduledStart: null,
       };
       byKey.set(key, unit);
     }
@@ -97,13 +95,8 @@ export function groupSwissMatchesIntoUnits(
   }
 
   const units = [...byKey.values()];
-  for (const unit of units) {
-    unit.matches.sort(byStartThenId);
-    const starts = unit.matches
-      .map((m) => m.scheduledAt)
-      .filter((iso): iso is string => iso !== null);
-    unit.scheduledStart = starts[0] ?? null;
-  }
+  // A unit's start and end are the board's (`finishBoardUnits`, one hull), not this grouper's.
+  for (const unit of units) unit.matches.sort(byStartThenId);
 
   // Round order first so the board's unscheduled column reads 1, 2, 3…
   return units.sort(

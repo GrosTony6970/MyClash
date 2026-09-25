@@ -94,11 +94,11 @@ export function RefereesTab({ eventId, tournamentId, isReadOnly }: Props) {
   );
 
   /**
-   * Scheduled units from OTHER tournaments whose time window overlaps a pool
-   * in this one. Deliberately unfiltered by `kind`, unlike `tournamentPools`
-   * and `timelinePools` above: this set also builds `busyConcurrentUserIds`,
-   * and a referee booked on a bracket match at an overlapping time is just as
-   * busy as one booked on a pool. Filtering it would delete true conflicts.
+   * Scheduled units from OTHER tournaments whose time window overlaps a pool in this
+   * one, for the panel that shows what runs alongside. Deliberately unfiltered by
+   * `kind`: a bracket match at an overlapping time runs alongside just as a pool does.
+   * Who may referee is not decided here — the server's one checker (ADR-016) already
+   * sorted every candidate the picker shows, other Tournaments' duties included.
    */
   const concurrentPools = useMemo(() => {
     if (tournamentPools.length === 0) return [] as AssignmentBoardPool[];
@@ -115,17 +115,6 @@ export function RefereesTab({ eventId, tournamentId, isReadOnly }: Props) {
       });
     });
   }, [allBoardPools, tournamentPools, tournamentId]);
-
-  /** userIds already assigned to a concurrent pool. */
-  const busyConcurrentUserIds = useMemo(() => {
-    const set = new Set<string>();
-    for (const pool of concurrentPools) {
-      for (const slot of pool.roleSlots) {
-        if (slot.assignment?.userId) set.add(slot.assignment.userId);
-      }
-    }
-    return set;
-  }, [concurrentPools]);
 
   if (loading && !board) {
     return <p className="text-sm text-muted">{t('organizer.poolsPage.refereesLoading')}</p>;
@@ -195,9 +184,8 @@ export function RefereesTab({ eventId, tournamentId, isReadOnly }: Props) {
         <CandidatePicker
           pool={picker.pool}
           slot={picker.slot}
-          busyUserIds={busyConcurrentUserIds}
-          onAssign={(userId) => {
-            void manualAssign(picker.pool.id, picker.slot.role, userId).then((ok) => {
+          onAssign={(personId, confirm) => {
+            void manualAssign(picker.pool.id, picker.slot.role, personId, confirm).then((ok) => {
               if (ok) setPicker(null);
             });
           }}

@@ -152,11 +152,15 @@ describe('archive migration coverage', () => {
  *   tournaments.lock_config_json   — TournamentLockConfig (four booleans and a
  *                                    delay).
  *   referee_assignments.conflicts_jsonb
- *                                  — written as `[]` by all three of its
- *                                    writers and read by nothing. If it ever
- *                                    carries real conflict detail, that detail
- *                                    will name matches and pools, and this
- *                                    entry must become a JSON_ID_PATHS one.
+ *                                  — the Discouraged reasons an organiser
+ *                                    confirmed over (ADR-016), stored as
+ *                                    `{ code, label }[]`: a reason code and the
+ *                                    DATA NAME it was against (a Pool name, a
+ *                                    round code, a Workshop title). No ids by
+ *                                    design — `toStoredReasons` in
+ *                                    @myclash/rulesets/scheduling/referee-checker
+ *                                    is its one writer's shape, and its test pins
+ *                                    that no id goes in.
  */
 const JSON_COLUMNS_WITHOUT_IDS = new Set<string>([
   'matches.rounds_json',

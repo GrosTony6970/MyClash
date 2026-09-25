@@ -209,20 +209,42 @@ describe('loadScheduleAndProgramme', () => {
   });
 });
 
+/** The four Discouraged switches (ADR-016), as the API sends them. */
+const RULES_ALL_ON = { ownPool: true, ownPoolSpan: true, twoRoles: true, attendWorkshop: true };
+
 describe('loadRefereeConflictInputs', () => {
-  it('hands back the two arms of the join', async () => {
+  const duty = {
+    scopeType: 'match',
+    matchId: 'm1',
+    poolId: null,
+    personId: 'gp-1',
+    personName: 'Denis',
+    role: 'declarant',
+    confirmedReasons: [],
+  };
+
+  it('hands back the duties, the registrations and the amber switches', async () => {
     stubFetch([
       jsonResponse({
-        assignments: [{ matchId: 'm1', personId: 'gp-1', personName: 'Denis', role: 'declarant' }],
+        assignments: [duty],
         registrations: [{ registrationId: 'reg-1', personId: 'gp-1', personName: 'Denis' }],
+        rules: { ...RULES_ALL_ON, ownPoolSpan: false },
       }),
     ]);
     const result = await loadRefereeConflictInputs(API, EVENT, new AbortController().signal);
     expect(result).toEqual({
       ok: true,
-      assignments: [{ matchId: 'm1', personId: 'gp-1', personName: 'Denis', role: 'declarant' }],
+      assignments: [duty],
       registrations: [{ registrationId: 'reg-1', personId: 'gp-1', personName: 'Denis' }],
+      rules: { ...RULES_ALL_ON, ownPoolSpan: false },
     });
+  });
+
+  /** No switches, no guess: `true` claims a rule ran, `false` that it is off. */
+  it('refuses a 200 that does not carry the switches, rather than guessing them', async () => {
+    stubFetch([jsonResponse({ assignments: [], registrations: [] })]);
+    const result = await loadRefereeConflictInputs(API, EVENT, new AbortController().signal);
+    expect(result).toEqual({ ok: false, failure: null });
   });
 
   /**
@@ -239,9 +261,9 @@ describe('loadRefereeConflictInputs', () => {
   });
 
   it('survives a payload missing an arm', async () => {
-    stubFetch([jsonResponse({})]);
+    stubFetch([jsonResponse({ rules: RULES_ALL_ON })]);
     const result = await loadRefereeConflictInputs(API, EVENT, new AbortController().signal);
-    expect(result).toEqual({ ok: true, assignments: [], registrations: [] });
+    expect(result).toEqual({ ok: true, assignments: [], registrations: [], rules: RULES_ALL_ON });
   });
 
   it('asks the event-scoped endpoint', async () => {
@@ -255,21 +277,20 @@ describe('loadRefereeConflictInputs', () => {
 });
 
 describe('loadRefereeCrewConflicts', () => {
-  const RULES_ALL_ON = { officiateVsFight: true, doubleBooked: true, availability: true };
-
-  it('carries the conflicts, the rules that gate them, and when it looked', async () => {
+  it('carries the verdicts, the switches that gate the amber ones, and when it looked', async () => {
+    const verdict = { assignmentId: 'a1', personId: 'gp-1', level: 'impossible', reasons: [] };
     stubFetch([
       jsonResponse({
-        conflicts: [{ personId: 'gp-1', poolId: 'p1', kind: 'double_booked' }],
-        rules: { officiateVsFight: true, doubleBooked: false, availability: true },
+        conflicts: [verdict],
+        rules: { ...RULES_ALL_ON, twoRoles: false },
         asOf: '2026-06-13T09:30:00.000Z',
       }),
     ]);
     const result = await loadRefereeCrewConflicts(API, EVENT, new AbortController().signal);
     expect(result).toEqual({
       ok: true,
-      conflicts: [{ personId: 'gp-1', poolId: 'p1', kind: 'double_booked' }],
-      rules: { officiateVsFight: true, doubleBooked: false, availability: true },
+      conflicts: [verdict],
+      rules: { ...RULES_ALL_ON, twoRoles: false },
       asOf: '2026-06-13T09:30:00.000Z',
     });
   });
@@ -306,9 +327,9 @@ describe('loadRefereeCrewConflicts', () => {
     expect(result).toEqual({ ok: false, failure: null });
   });
 
-  it('refuses a rules object missing one of the three toggles', async () => {
+  it('refuses a rules object missing one of the four switches', async () => {
     stubFetch([
-      jsonResponse({ conflicts: [], rules: { officiateVsFight: true, doubleBooked: true } }),
+      jsonResponse({ conflicts: [], rules: { ownPool: true, ownPoolSpan: true, twoRoles: true } }),
     ]);
     const result = await loadRefereeCrewConflicts(API, EVENT, new AbortController().signal);
     expect(result).toEqual({ ok: false, failure: null });
