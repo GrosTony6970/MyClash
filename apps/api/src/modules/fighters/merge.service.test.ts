@@ -1,16 +1,9 @@
-import { BadRequestException, HttpException, NotFoundException } from '@nestjs/common';
+import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import {
-  filtersFor,
-  mockSupabase as seededSupabase,
-  queriedTables,
-  selectsFor,
-  writesTo,
-  type TableSeed,
-} from '../../common/testing/supabase-chain';
 import { FighterMergeService } from './merge.service';
 
-type MergeAuditPayloadShape = { moved: { directoryFollowerUserIds?: string[] } };
+// The directory follows (ruling 116) and the merge follow-ups (ruling 125) are in
+// merge.service.follows.test.ts, over seeded tables.
 
 const fromMock = vi.fn();
 const mockSupabase = { service: { from: fromMock } };
@@ -22,9 +15,12 @@ function makeChain(result: { data: unknown; error: unknown }) {
     in: vi.fn(),
     update: vi.fn(),
     insert: vi.fn(),
+    gt: vi.fn(),
+    limit: vi.fn().mockResolvedValue(result),
     maybeSingle: vi.fn().mockResolvedValue(result),
   };
   chain.select.mockReturnValue(chain);
+  chain.gt.mockReturnValue(chain);
   chain.eq.mockReturnValue(chain);
   chain.in.mockReturnValue(chain);
   chain.update.mockReturnValue(chain);
@@ -105,7 +101,11 @@ describe('FighterMergeService', () => {
     // Nobody follows either profile: nothing to move.
     const followsSelect = makeChain({ data: [], error: null });
     followsSelect.select.mockReturnValue({
-      in: vi.fn().mockResolvedValue({ data: [], error: null }),
+      in: vi.fn().mockReturnValue({
+        order: vi.fn().mockReturnValue({
+          limit: vi.fn().mockResolvedValue({ data: [], error: null }),
+        }),
+      }),
     });
 
     const fighterChains = [sourceChain, targetChain];
@@ -196,6 +196,10 @@ describe('FighterMergeService', () => {
     const personsUpdate = makeChain({ data: null, error: null });
     const instructorsUpdate = makeChain({ data: null, error: null });
     const sourceUpdate = makeChain({ data: null, error: null });
+    // The source is still merged into the target: this merge is the one to revert (ruling 125).
+    sourceUpdate.maybeSingle
+      .mockResolvedValueOnce({ data: { id: 'source', merged_into_id: 'target' }, error: null })
+      .mockResolvedValueOnce({ data: { id: 'target', merged_into_id: null }, error: null });
     const auditInsert = makeChain({ data: null, error: null });
 
     fromMock.mockImplementation((table: string) => {
@@ -249,146 +253,5 @@ describe('FighterMergeService', () => {
     );
 
     await expect(service.revertMerge('audit-1', 'actor-user')).rejects.toThrow(BadRequestException);
-  });
-});
-
-// Ruling 116: a merge moves the directory follows of the merged-away profile to the surviving one,
-// and a revert moves exactly those back. Seeded tables, so each write names the rows it touched.
-describe('FighterMergeService — directory follows (ruling 116)', () => {
-  const SOURCE = { id: 'source', merged_into_id: null, deleted_at: null };
-  const TARGET = { id: 'target', merged_into_id: null, deleted_at: null };
-  const FOLLOWS = [
-    // Alice follows only the merged-away profile: her follow moves.
-    { follower_user_id: 'alice', followed_global_person_id: 'source' },
-    // Bob follows both: his survivor follow stays; the other one stays on the merged profile.
-    { follower_user_id: 'bob', followed_global_person_id: 'source' },
-    { follower_user_id: 'bob', followed_global_person_id: 'target' },
-    // Carol follows someone else entirely.
-    { follower_user_id: 'carol', followed_global_person_id: 'someone-else' },
-  ];
-  const MOVE_TO_TARGET = {
-    table: 'directory_follows',
-    op: 'update',
-    row: { followed_global_person_id: 'target' },
-    filters: [
-      { method: 'eq', args: ['followed_global_person_id', 'source'] },
-      { method: 'in', args: ['follower_user_id', ['alice']] },
-    ],
-  };
-
-  function mergeDb(follows: TableSeed = { rows: FOLLOWS }) {
-    return seededSupabase({
-      global_persons: { rows: [SOURCE, TARGET] },
-      // One event-scoped person to re-point: a write placed before the follows move shows.
-      persons: { rows: [{ id: 'person-1', global_person_id: 'source' }] },
-      workshop_instructors: { rows: [] },
-      directory_follows: follows,
-      audit_log: { data: null, error: null },
-    });
-  }
-
-  const merge = (db: ReturnType<typeof seededSupabase>) =>
-    new FighterMergeService(db as never).merge({ sourceId: 'source', targetId: 'target' }, 'actor');
-
-  function auditPayload(db: ReturnType<typeof seededSupabase>) {
-    const insert = writesTo(db, 'audit_log')[0];
-    return (insert?.row as { payload_json: MergeAuditPayloadShape }).payload_json;
-  }
-
-  function revertDb(moved: Record<string, string[]>) {
-    return seededSupabase({
-      audit_log: {
-        data: {
-          id: 'audit-1',
-          action: 'fighter.merge',
-          entity_id: 'source',
-          created_at: new Date().toISOString(),
-          payload_json: {
-            source: { id: 'source' },
-            target: { id: 'target' },
-            moved: { personIds: [], workshopInstructorIds: [], ...moved },
-          },
-        },
-        error: null,
-      },
-      directory_follows: { rows: FOLLOWS },
-      global_persons: { rows: [SOURCE] },
-    });
-  }
-
-  it('moves a follow of the merged-away profile to the surviving one, first, and records who for the revert', async () => {
-    const db = mergeDb();
-    await merge(db);
-
-    expect(writesTo(db, 'directory_follows')).toEqual([MOVE_TO_TARGET]);
-    // The first write: a follow tapped on the survivor since the read fails it with nothing moved.
-    expect(db.writes[0]).toEqual(MOVE_TO_TARGET);
-    expect(auditPayload(db).moved.directoryFollowerUserIds).toEqual(['alice']);
-  });
-
-  it('reads the follows of both profiles, and nothing else', async () => {
-    const db = mergeDb();
-    await merge(db);
-
-    expect(selectsFor(db.from, 'directory_follows')).toEqual([
-      'follower_user_id, followed_global_person_id',
-    ]);
-    expect(filtersFor(db.from, 'directory_follows', 'in')[0]).toEqual([
-      'followed_global_person_id',
-      ['source', 'target'],
-    ]);
-  });
-
-  it('moves nothing when every follower of the merged-away profile already follows the survivor', async () => {
-    const db = mergeDb({ rows: FOLLOWS.filter((row) => row.follower_user_id !== 'alice') });
-    await merge(db);
-
-    expect(writesTo(db, 'directory_follows')).toEqual([]);
-    expect(auditPayload(db).moved.directoryFollowerUserIds).toEqual([]);
-  });
-
-  it('a failed follows read stops the merge before anything is written, as a 5xx', async () => {
-    const db = mergeDb({ data: null, error: { message: 'connection reset' } });
-    const run = merge(db);
-
-    await expect(run).rejects.toThrow('directory follows read failed: connection reset');
-    await expect(run).rejects.not.toBeInstanceOf(HttpException);
-    expect(db.writes).toEqual([]);
-  });
-
-  it('a failed follows move writes nothing else, as a 5xx', async () => {
-    const db = mergeDb([
-      { data: FOLLOWS, error: null },
-      { data: null, error: { message: 'duplicate key value violates unique constraint' } },
-    ]);
-    const run = merge(db);
-
-    await expect(run).rejects.toThrow('directory follows move failed: duplicate key');
-    await expect(run).rejects.not.toBeInstanceOf(HttpException);
-    expect(db.writes.map((write) => write.table)).toEqual(['directory_follows']);
-  });
-
-  it('a revert moves exactly the recorded followers back to the restored profile', async () => {
-    const db = revertDb({ directoryFollowerUserIds: ['alice'] });
-    await new FighterMergeService(db as never).revertMerge('audit-1', 'actor');
-
-    expect(writesTo(db, 'directory_follows')).toEqual([
-      {
-        table: 'directory_follows',
-        op: 'update',
-        row: { followed_global_person_id: 'source' },
-        filters: [
-          { method: 'eq', args: ['followed_global_person_id', 'target'] },
-          { method: 'in', args: ['follower_user_id', ['alice']] },
-        ],
-      },
-    ]);
-  });
-
-  it('a merge recorded before follows moved reverts without touching any follow', async () => {
-    const db = revertDb({});
-    await new FighterMergeService(db as never).revertMerge('audit-1', 'actor');
-
-    expect(queriedTables(db.from)).not.toContain('directory_follows');
   });
 });

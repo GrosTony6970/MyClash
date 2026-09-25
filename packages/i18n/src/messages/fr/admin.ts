@@ -1842,7 +1842,8 @@ export const admin = {
       colReason: 'Motif',
       colCreated: 'Date',
       colMergeActions: 'Actions',
-      movedSummary: 'Personnes {persons}, inscriptions {registrations}, instructeurs {instructors}',
+      movedSummary:
+        'Personnes {persons}, inscriptions {registrations}, instructeurs {instructors}, suivis {follows}',
       revert: 'Annuler',
       revertConfirm: 'Annuler cette fusion ?',
       sourceTargetDifferent: 'Source et cible doivent être differentes.',

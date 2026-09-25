@@ -1837,7 +1837,8 @@ export const admin = {
       colReason: 'Reason',
       colCreated: 'Created',
       colMergeActions: 'Actions',
-      movedSummary: 'Persons {persons}, registrations {registrations}, instructors {instructors}',
+      movedSummary:
+        'Persons {persons}, registrations {registrations}, instructors {instructors}, follows {follows}',
       revert: 'Revert',
       revertConfirm: 'Revert this fighter merge?',
       sourceTargetDifferent: 'Source and target must be different fighters.',

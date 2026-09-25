@@ -65,6 +65,8 @@ interface MergeAuditEntry {
       personIds?: string[];
       registrationIds?: string[];
       workshopInstructorIds?: string[];
+      /** The accounts whose follow moved to the survivor (ruling 116); absent before it. */
+      directoryFollowerUserIds?: string[];
     };
   };
 }
@@ -1138,6 +1140,8 @@ export default function AdminFightersPage() {
                             registrations: audit.payload_json.moved?.registrationIds?.length ?? 0,
                             instructors:
                               audit.payload_json.moved?.workshopInstructorIds?.length ?? 0,
+                            follows:
+                              audit.payload_json.moved?.directoryFollowerUserIds?.length ?? 0,
                           })}
                         </p>
                       </DataTableCell>
