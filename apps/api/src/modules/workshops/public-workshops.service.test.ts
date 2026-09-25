@@ -40,6 +40,9 @@ function buildSupabase(workshopRows: unknown[]) {
     select: vi.fn(() => workshopsApi),
     eq: vi.fn(() => workshopsApi),
     in: vi.fn(() => workshopsApi),
+    maybeSingle: vi.fn(() =>
+      Promise.resolve({ data: workshopRows[0] ?? null, error: null } as Resp),
+    ),
     order: vi.fn(() =>
       Object.assign(Promise.resolve({ data: workshopRows, error: null } as Resp), {
         order: vi.fn(() => Promise.resolve({ data: workshopRows, error: null } as Resp)),
@@ -63,13 +66,19 @@ function buildSupabase(workshopRows: unknown[]) {
   };
 }
 
-const makeSvc = (service: unknown, hidden: Set<string> = new Set()) =>
+/** `hidden` is the privacy check's answer; an Error makes the check fail with it. */
+const makeSvc = (service: unknown, hidden: Set<string> | Error = new Set()) =>
   new WorkshopsService(
     service as never,
     { scheduleWorkshopSessionStarting: vi.fn() } as never,
     { workshopCancelled: vi.fn() } as never,
     { assertOrgRole: vi.fn() } as never,
-    { hiddenWorkshopGlobalPersonIds: vi.fn().mockResolvedValue(hidden) } as never,
+    {
+      hiddenWorkshopGlobalPersonIds:
+        hidden instanceof Error
+          ? vi.fn().mockRejectedValue(hidden)
+          : vi.fn().mockResolvedValue(hidden),
+    } as never,
     { scheduleWorkshopStarting: vi.fn() } as never,
   );
 
@@ -188,5 +197,43 @@ describe('WorkshopsService — instructor privacy', () => {
 
     const [workshop] = await svc.listPublicWorkshops('fal-2027', ANONYMOUS);
     expect(workshop?.instructors).toHaveLength(1);
+  });
+
+  // Ruling 120: the list and the page fail rather than show an instructor they could not check.
+  it('fails the list when the privacy check fails, rather than list everyone', async () => {
+    const fake = buildSupabase([
+      workshopRow([{ global_person_id: 'gp-1', display_name: 'Teacher One' }]),
+    ]);
+    const failure = new Error('hidden-workshop privacy read failed: boom');
+
+    await expect(makeSvc(fake, failure).listPublicWorkshops('fal-2027', ANONYMOUS)).rejects.toBe(
+      failure,
+    );
+  });
+
+  it('fails the Workshop page when the privacy check fails, rather than name everyone', async () => {
+    const fake = buildSupabase([
+      workshopRow([{ global_person_id: 'gp-1', display_name: 'Teacher One' }]),
+    ]);
+    const failure = new Error('hidden-workshop privacy read failed: boom');
+
+    await expect(
+      makeSvc(fake, failure).getPublicWorkshopBySlug('fal-2027', 'longsword', ANONYMOUS),
+    ).rejects.toBe(failure);
+  });
+
+  it('drops a hidden instructor from the Workshop page too', async () => {
+    const fake = buildSupabase([
+      workshopRow([
+        { global_person_id: 'gp-hidden', display_name: 'Hidden Teacher' },
+        { global_person_id: 'gp-shown', display_name: 'Shown Teacher' },
+      ]),
+    ]);
+    const workshop = await makeSvc(fake, new Set(['gp-hidden'])).getPublicWorkshopBySlug(
+      'fal-2027',
+      'longsword',
+      ANONYMOUS,
+    );
+    expect(workshop.instructors.map((i) => i.displayName)).toEqual(['Shown Teacher']);
   });
 });

@@ -1,6 +1,6 @@
 import { HttpException } from '@nestjs/common';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { mockSupabase } from '../../common/testing/supabase-chain';
+import { mockSupabase, selectsFor } from '../../common/testing/supabase-chain';
 import { PrivacyService } from './privacy.service';
 
 function makeChain(result: unknown) {
@@ -116,6 +116,54 @@ describe('privacy read or write that fails', () => {
   it('a failed create is a 5xx, not the defaults', async () => {
     const db = mockSupabase({ person_privacy: [NONE, FAILED] });
     await expectFailure(new PrivacyService(db as never).getOrCreate('p-1'), 'privacy write');
+  });
+
+  // Ruling 120: an empty "hidden" set would list an opted-out instructor publicly.
+  describe('hiddenWorkshopGlobalPersonIds', () => {
+    const persons = {
+      rows: [
+        { id: 'p-1', event_id: 'e-1', global_person_id: 'gp-1' },
+        { id: 'p-2', event_id: 'e-1', global_person_id: 'gp-2' },
+        { id: 'p-9', event_id: 'e-other', global_person_id: 'gp-2' },
+      ],
+    };
+
+    it('returns the global ids whose person in this Event hides their workshops', async () => {
+      const db = mockSupabase({
+        persons,
+        person_privacy: {
+          rows: [
+            { person_id: 'p-1', hide_workshops_publicly: true },
+            { person_id: 'p-2', hide_workshops_publicly: false },
+            // Another Event's row is not this Event's answer.
+            { person_id: 'p-9', hide_workshops_publicly: true },
+          ],
+        },
+      });
+      const hidden = await new PrivacyService(db as never).hiddenWorkshopGlobalPersonIds('e-1', [
+        'gp-1',
+        'gp-2',
+      ]);
+      expect([...hidden]).toEqual(['gp-1']);
+      expect(selectsFor(db.from, 'persons')).toEqual(['id, global_person_id']);
+      expect(selectsFor(db.from, 'person_privacy')).toEqual(['person_id, hide_workshops_publicly']);
+    });
+
+    it('a failed persons read is a 5xx, not "nobody is hidden"', async () => {
+      const db = mockSupabase({ persons: FAILED });
+      await expectFailure(
+        new PrivacyService(db as never).hiddenWorkshopGlobalPersonIds('e-1', ['gp-1']),
+        'hidden-workshop persons read',
+      );
+    });
+
+    it('a failed privacy read is a 5xx, not "nobody is hidden"', async () => {
+      const db = mockSupabase({ persons, person_privacy: FAILED });
+      await expectFailure(
+        new PrivacyService(db as never).hiddenWorkshopGlobalPersonIds('e-1', ['gp-1']),
+        'hidden-workshop privacy read',
+      );
+    });
   });
 
   it('a create that loses the race to another first read returns the row that won', async () => {

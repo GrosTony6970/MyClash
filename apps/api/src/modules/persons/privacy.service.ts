@@ -181,7 +181,8 @@ export class PrivacyService {
    * Batched public-read helper: given global-person ids tagged in an event,
    * return the subset whose event-scoped person set `hide_workshops_publicly`.
    * Read-only (never auto-creates rows); a missing privacy row ⇒ not hidden.
-   * Used to drop opted-out instructors from public workshop listings.
+   * Used to drop opted-out instructors from public workshop listings. A failed
+   * read is a 5xx, never an empty set (ruling 120): that would list them.
    */
   async hiddenWorkshopGlobalPersonIds(
     eventId: string,
@@ -191,11 +192,13 @@ export class PrivacyService {
     const ids = [...new Set(globalPersonIds.filter(Boolean))];
     if (ids.length === 0) return hidden;
 
-    const { data: persons } = await this.supabase.service
+    const { data: persons, error: personsError } = await this.supabase.service
       .from('persons')
       .select('id, global_person_id')
       .eq('event_id', eventId)
       .in('global_person_id', ids);
+    if (personsError)
+      throw new Error(`hidden-workshop persons read failed: ${personsError.message}`);
 
     const personIdToGlobal = new Map<string, string>();
     for (const raw of persons ?? []) {
@@ -204,10 +207,12 @@ export class PrivacyService {
     }
     if (personIdToGlobal.size === 0) return hidden;
 
-    const { data: privacy } = await this.supabase.service
+    const { data: privacy, error: privacyError } = await this.supabase.service
       .from('person_privacy')
       .select('person_id, hide_workshops_publicly')
       .in('person_id', [...personIdToGlobal.keys()]);
+    if (privacyError)
+      throw new Error(`hidden-workshop privacy read failed: ${privacyError.message}`);
 
     for (const raw of privacy ?? []) {
       const row = raw as { person_id: string; hide_workshops_publicly: boolean | null };
