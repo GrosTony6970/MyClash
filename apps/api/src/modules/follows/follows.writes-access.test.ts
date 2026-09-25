@@ -48,6 +48,7 @@ function build(tables: Record<string, TableSeed> = {}) {
     { service: db.service } as never,
     privacy as never,
     notifications as never,
+    {} as never,
   );
 }
 

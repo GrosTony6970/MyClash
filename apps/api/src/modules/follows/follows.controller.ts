@@ -25,6 +25,7 @@ import { ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
 import { createZodDto } from 'nestjs-zod';
 import { z } from 'zod';
 import type { FastifyRequest } from 'fastify';
+import { publicReader } from '../../common/auth/competition-visibility';
 import { GuestJwtService } from '../auth/guest-jwt.service';
 import { SupabaseService } from '../supabase/supabase.service';
 import { resolveFollowIdentity } from './follow-identity';
@@ -149,7 +150,7 @@ export class FollowsController {
     @Req() req: FastifyRequest,
   ) {
     const identity = await this.resolveIdentity(req);
-    return this.follows.follow(eventId, dto.personId, identity);
+    return this.follows.followInEvent(eventId, dto.personId, identity, publicReader(req));
   }
 
   @Delete('events/:eventId/follows/:personId')

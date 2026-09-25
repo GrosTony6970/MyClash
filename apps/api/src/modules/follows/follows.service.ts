@@ -12,11 +12,14 @@ import {
   NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common';
-import { asEventKind, isPubliclyVisible } from '@myclash/types';
+import { onlyPublicTournaments, type PublicReader } from '../../common/auth/competition-visibility';
+import { isPublicEvent } from '../../common/auth/event-read-gate';
 import { applyReachable } from '../fighters/directory-predicate';
 import { FollowNotificationSchedulerService } from '../../workers/follow-notification-scheduler.worker';
 import { SupabaseService } from '../supabase/supabase.service';
+import { OrganizationsService } from '../organizations/organizations.service';
 import { PrivacyService } from '../persons/privacy.service';
+import { readEventPerson } from './event-person-gate';
 
 export interface FollowRow {
   id: string;
@@ -39,6 +42,8 @@ export interface NextEvent {
 export interface FollowIdentity {
   /** Set for guest sessions */
   guestSessionId?: string;
+  /** The one Event a guest session belongs to. */
+  guestEventId?: string;
   /** Set for claimed users */
   userId?: string;
 }
@@ -48,6 +53,10 @@ export const PREFERS_NOT_FOLLOWED = 'prefers_not_followed';
 
 const hasFollower = (identity: FollowIdentity): boolean =>
   Boolean(identity.userId || identity.guestSessionId);
+
+/** A guest session belongs to one Event: anywhere else it follows nobody (ruling 130). */
+const guestOfAnotherEvent = (identity: FollowIdentity, eventId: string): boolean =>
+  Boolean(identity.guestSessionId) && identity.guestEventId !== eventId;
 
 /**
  * The column and value every follows query scopes to: the caller's own rows.
@@ -92,7 +101,7 @@ export interface EventFollowState {
   notifyMatchStart: boolean;
   notifyWorkshopStart: boolean;
   notifyRefereeStart: boolean;
-  /** The backing event is non-terminal and not a test event. */
+  /** The backing Event is upcoming and public: not over, not a draft, not a test Event. */
   active: boolean;
 }
 
@@ -119,12 +128,24 @@ export interface FollowState {
 
 const TERMINAL_EVENT_STATUSES = ['completed', 'archived'];
 
+/**
+ * Is this a current or upcoming Event the public sees? Not a draft or test Event (ruling 130: the
+ * follow-everywhere fan-out, the People hub counts and the notification toggles leave those out),
+ * and not over. A follow made before its Event went back to draft is not removed by this.
+ */
+function isUpcomingPublicEvent(event: { status?: unknown; event_kind?: unknown } | null): boolean {
+  return (
+    !!event && isPublicEvent(event) && !TERMINAL_EVENT_STATUSES.includes(String(event.status ?? ''))
+  );
+}
+
 @Injectable()
 export class FollowsService {
   constructor(
     private readonly supabase: SupabaseService,
     private readonly privacy: PrivacyService,
     private readonly followNotifications: FollowNotificationSchedulerService,
+    private readonly orgs: OrganizationsService,
   ) {}
 
   // ── List ─────────────────────────────────────────────────────────────────────
@@ -189,6 +210,22 @@ export class FollowsService {
   }
 
   // ── Follow (idempotent) ───────────────────────────────────────────────────────
+
+  /**
+   * `POST /events/:eventId/follows` (ruling 130): the public person page's bar first, so a hidden
+   * Event or a person of another Event answers exactly as an unknown person, and nothing about
+   * them comes back. A guest session is nobody outside its own Event.
+   */
+  async followInEvent(
+    eventId: string,
+    personId: string,
+    identity: FollowIdentity,
+    reader: PublicReader,
+  ): Promise<FollowRow> {
+    const deps = { supabase: this.supabase, orgs: this.orgs };
+    await readEventPerson(deps, eventId, personId, reader, 'id');
+    return this.follow(eventId, personId, guestOfAnotherEvent(identity, eventId) ? {} : identity);
+  }
 
   async follow(eventId: string, personId: string, identity: FollowIdentity): Promise<FollowRow> {
     const [followerColumn, follower] = followerFilter(identity);
@@ -382,7 +419,11 @@ export class FollowsService {
     identity: FollowIdentity,
   ): Promise<FollowAllSummary> {
     await this.assertLiveProfile(globalPersonId);
-    const targets = await this.resolveEventPersons(globalPersonId, { upcomingOnly: true });
+    // A guest session follows only inside its own Event (ruling 130): the others are not counted
+    // as upcoming for it either, so the summary never promises a follow it cannot make.
+    const targets = (await this.resolveEventPersons(globalPersonId, { upcomingOnly: true })).filter(
+      (t) => !guestOfAnotherEvent(identity, t.eventId),
+    );
     const summary: FollowAllSummary = {
       globalPersonId,
       upcomingEventCount: targets.length,
@@ -397,15 +438,7 @@ export class FollowsService {
     // person shows in the "Following" tab even with zero upcoming events. The
     // per-event fan-out below only wires notifications for events they're in.
     if (identity.userId) {
-      dataOrThrow(
-        await this.supabase.service
-          .from('directory_follows')
-          .upsert(
-            { follower_user_id: identity.userId, followed_global_person_id: globalPersonId },
-            { onConflict: 'follower_user_id,followed_global_person_id', ignoreDuplicates: true },
-          ),
-        'directory follow write',
-      );
+      await this.writeDirectoryFollow(identity.userId, globalPersonId);
       summary.following = true;
     }
 
@@ -424,6 +457,19 @@ export class FollowsService {
       summary.followedCount += 1;
     }
     return summary;
+  }
+
+  /** The persistent, event-independent follow (idempotent). */
+  private async writeDirectoryFollow(userId: string, globalPersonId: string): Promise<void> {
+    dataOrThrow(
+      await this.supabase.service
+        .from('directory_follows')
+        .upsert(
+          { follower_user_id: userId, followed_global_person_id: globalPersonId },
+          { onConflict: 'follower_user_id,followed_global_person_id', ignoreDuplicates: true },
+        ),
+      'directory follow write',
+    );
   }
 
   /** Unfollow a global person across ALL their events (toggles the hub button
@@ -519,10 +565,7 @@ export class FollowsService {
       const gp = person?.['global_person_id'] as string | undefined;
       if (!person || !gp || !ids.includes(gp)) continue;
       const ev = one(person['events']);
-      const active =
-        !!ev &&
-        isPubliclyVisible(asEventKind(ev['event_kind'])) &&
-        !TERMINAL_EVENT_STATUSES.includes(String(ev['status'] ?? ''));
+      const active = isUpcomingPublicEvent(ev);
       const state: EventFollowState = {
         eventId: r['event_id'] as string,
         personId: r['followed_person_id'] as string,
@@ -563,11 +606,7 @@ export class FollowsService {
       const eventId = raw['event_id'] as string;
       const ev = raw['events'] as { status: string; event_kind: string | null } | null;
       personIdToGlobal.set(personId, gp);
-      if (
-        ev &&
-        isPubliclyVisible(asEventKind(ev.event_kind)) &&
-        !TERMINAL_EVENT_STATUSES.includes(ev.status)
-      ) {
+      if (isUpcomingPublicEvent(ev)) {
         const set = upcomingEvents.get(gp) ?? new Set<string>();
         set.add(eventId);
         upcomingEvents.set(gp, set);
@@ -622,7 +661,7 @@ export class FollowsService {
   }
 
   /** Resolve a global person to their event-scoped persons rows. `upcomingOnly`
-   *  keeps only non-terminal, non-test events. */
+   *  keeps only upcoming public Events (`isUpcomingPublicEvent`). */
   private async resolveEventPersons(
     globalPersonId: string,
     opts: { upcomingOnly: boolean },
@@ -641,10 +680,7 @@ export class FollowsService {
         const ev = r['events'] as { status: string; event_kind: string | null } | null;
         if (!ev) return false;
         if (!opts.upcomingOnly) return true;
-        return (
-          isPubliclyVisible(asEventKind(ev.event_kind)) &&
-          !TERMINAL_EVENT_STATUSES.includes(ev.status)
-        );
+        return isUpcomingPublicEvent(ev);
       })
       .map((r) => ({ eventId: r['event_id'] as string, personId: r['id'] as string }));
   }
@@ -716,19 +752,23 @@ export class FollowsService {
 
     const regIds = (regs as Array<{ id: string }>).map((r) => r.id);
 
-    const match = dataOrThrow(
-      await this.supabase.service
-        .from('matches')
-        .select('id, match_number_label, scheduled_at, status')
-        .or(
-          `red_registration_id.in.(${regIds.join(',')}),blue_registration_id.in.(${regIds.join(',')})`,
-        )
-        .in('status', ['scheduled', 'running'])
-        .order('scheduled_at', { ascending: true })
-        .limit(1)
-        .maybeSingle(),
-      'matches read',
-    );
+    // A draft Tournament's bout is no next bout (ruling 130): this line goes back to whoever follows,
+    // and a follow is open to anyone who may see the Event. `persons` is event-scoped, so the
+    // Event is the follow's own, already gated.
+    const upcoming = this.supabase.service
+      .from('matches')
+      .select(
+        'id, match_number_label, scheduled_at, status, phases!inner(tournaments!inner(status))',
+      )
+      .or(
+        `red_registration_id.in.(${regIds.join(',')}),blue_registration_id.in.(${regIds.join(',')})`,
+      )
+      .in('status', ['scheduled', 'running']);
+    const next = await onlyPublicTournaments(upcoming)
+      .order('scheduled_at', { ascending: true })
+      .limit(1)
+      .maybeSingle();
+    const match = dataOrThrow(next, 'matches read');
 
     if (!match) return null;
 

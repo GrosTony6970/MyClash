@@ -36,6 +36,7 @@ function followsWith(tables: Record<string, TableSeed>) {
     supabase as never,
     privacy as never,
     { cancelForFollowedPerson: vi.fn() } as never,
+    {} as never,
   );
   return { service, supabase };
 }

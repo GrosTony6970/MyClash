@@ -96,6 +96,7 @@ describe('FollowsService', () => {
       mockSupabase as never,
       mockPrivacy as never,
       mockFollowNotifications as never,
+      {} as never,
     );
   });
 

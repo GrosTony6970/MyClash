@@ -134,7 +134,7 @@ function build(overrides: Record<string, TableSeed> = {}) {
     }),
   };
   const privacy = new PrivacyService(supabase as never);
-  const follows = new FollowsService(supabase as never, privacy, {} as never);
+  const follows = new FollowsService(supabase as never, privacy, {} as never, orgs as never);
   const service = new PublicPersonService(supabase as never, orgs as never, privacy, follows);
   return { service, supabase, orgs };
 }

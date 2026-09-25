@@ -30,7 +30,7 @@ export async function resolveFollowIdentity(
   if (guestToken) {
     try {
       const payload = guestJwt.verify(guestToken);
-      return { guestSessionId: payload.sub };
+      return { guestSessionId: payload.sub, guestEventId: payload.event_id };
     } catch {
       // Invalid token — anonymous
     }

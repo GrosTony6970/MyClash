@@ -15,7 +15,7 @@ function door() {
   const guestJwt = {
     verify: vi.fn((token: string) => {
       if (token !== 'good-guest') throw new Error('bad token');
-      return { sub: 'guest-session-1' };
+      return { sub: 'guest-session-1', event_id: EVENT };
     }),
   };
   // `getAuthUser` owns the GoTrue-then-local check (supabase.service.test.ts pins its outage path).
@@ -69,7 +69,7 @@ describe('GET /events/:eventId/people/:personId (ruling 121a)', () => {
     [
       'a guest follows as their guest session',
       { mc_guest: 'good-guest' },
-      { guestSessionId: 'guest-session-1' },
+      { guestSessionId: 'guest-session-1', guestEventId: EVENT },
     ],
     ['a forged guest cookie is nobody', { mc_guest: 'forged' }, {}],
     ['no cookie is nobody', {}, {}],

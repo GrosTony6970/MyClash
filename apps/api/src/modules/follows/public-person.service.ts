@@ -2,23 +2,22 @@
  * The public person page's header (operator ruling 121a): one Event's person as the public sees
  * them — name, club, roles, whether they accept followers and whether the viewer follows them.
  *
- * The bar is the person schedule's (`PublicScheduleService.getPublicSchedule`): the Event must be
- * one the caller may see, and the person must be in THAT Event. A hidden Event answers exactly as
- * an unknown Event, and a person of another Event exactly as an unknown person.
+ * The bar is `readEventPerson`'s, the person schedule's: the Event must be one the caller may see,
+ * and the person must be in THAT Event.
  *
  * It lives in the follows module because it asks FollowsService; persons → follows would be a
  * cycle, since follows already imports persons.
  */
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import {
   type CompetitionEvent,
   type PublicReader,
   visibleTournaments,
 } from '../../common/auth/competition-visibility';
-import { assertCanReadEventRow, eventNotFound } from '../../common/auth/event-read-gate';
 import { OrganizationsService } from '../organizations/organizations.service';
 import { PrivacyService } from '../persons/privacy.service';
 import { SupabaseService } from '../supabase/supabase.service';
+import { readEventPerson } from './event-person-gate';
 import { type FollowIdentity, FollowsService } from './follows.service';
 
 export type PublicPersonRole = 'competitor' | 'referee' | 'instructor';
@@ -63,10 +62,13 @@ export class PublicPersonService {
     reader: PublicReader,
     resolveFollower: () => Promise<FollowIdentity>,
   ): Promise<PublicPersonProfile> {
-    const event = await this.readEvent(eventId);
-    if (!event) throw eventNotFound(eventId);
-    await assertCanReadEventRow(this.deps(), eventId, event, () => Promise.resolve(reader.userId));
-    const person = await this.readPerson(eventId, personId);
+    const { event, person } = await readEventPerson<PersonRow>(
+      this.deps(),
+      eventId,
+      personId,
+      reader,
+      'id, given_name, family_name, global_person_id, clubs(name)',
+    );
 
     const [roles, privacy, following] = await Promise.all([
       this.rolesOf(event, person, reader),
@@ -86,28 +88,6 @@ export class PublicPersonService {
 
   private deps() {
     return { supabase: this.supabase, orgs: this.orgs };
-  }
-
-  private async readEvent(eventId: string): Promise<CompetitionEvent | null> {
-    const { data, error } = await this.supabase.service
-      .from('events')
-      .select('id, status, organization_id, event_kind')
-      .eq('id', eventId)
-      .maybeSingle();
-    if (error) throw new Error(`event read failed: ${error.message}`);
-    return data as CompetitionEvent | null;
-  }
-
-  private async readPerson(eventId: string, personId: string): Promise<PersonRow> {
-    const { data, error } = await this.supabase.service
-      .from('persons')
-      .select('id, given_name, family_name, global_person_id, clubs(name)')
-      .eq('id', personId)
-      .eq('event_id', eventId)
-      .maybeSingle();
-    if (error) throw new Error(`person read failed: ${error.message}`);
-    if (!data) throw new NotFoundException(`Person "${personId}" not found`);
-    return data as unknown as PersonRow;
   }
 
   /** The roles the public roster shows: an entry in a Tournament the caller may see, a referee, an instructor. */
