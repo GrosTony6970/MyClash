@@ -6,8 +6,14 @@
  * Guest→claimed migration transfers follows atomically.
  */
 
-import { ForbiddenException, Injectable, UnauthorizedException } from '@nestjs/common';
+import {
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { asEventKind, isPubliclyVisible } from '@myclash/types';
+import { applyReachable } from '../fighters/directory-predicate';
 import { FollowNotificationSchedulerService } from '../../workers/follow-notification-scheduler.worker';
 import { SupabaseService } from '../supabase/supabase.service';
 import { PrivacyService } from '../persons/privacy.service';
@@ -325,6 +331,7 @@ export class FollowsService {
     globalPersonId: string,
     identity: FollowIdentity,
   ): Promise<FollowAllSummary> {
+    await this.assertLiveProfile(globalPersonId);
     const targets = await this.resolveEventPersons(globalPersonId, { upcomingOnly: true });
     const summary: FollowAllSummary = {
       globalPersonId,
@@ -340,12 +347,13 @@ export class FollowsService {
     // person shows in the "Following" tab even with zero upcoming events. The
     // per-event fan-out below only wires notifications for events they're in.
     if (identity.userId) {
-      await this.supabase.service
+      const { error } = await this.supabase.service
         .from('directory_follows')
         .upsert(
           { follower_user_id: identity.userId, followed_global_person_id: globalPersonId },
           { onConflict: 'follower_user_id,followed_global_person_id', ignoreDuplicates: true },
         );
+      if (error) throw new Error(`directory follow write failed: ${error.message}`);
       summary.following = true;
     }
 
@@ -535,10 +543,12 @@ export class FollowsService {
     globalPersonId: string,
     opts: { upcomingOnly: boolean },
   ): Promise<Array<{ eventId: string; personId: string }>> {
-    const { data } = await this.supabase.service
+    const { data, error } = await this.supabase.service
       .from('persons')
       .select('id, event_id, events!inner(status, event_kind)')
       .eq('global_person_id', globalPersonId);
+    // A 5xx: read as "no events", a follow would report nothing to follow.
+    if (error) throw new Error(`event people read failed: ${error.message}`);
 
     return ((data ?? []) as Array<Record<string, unknown>>)
       .filter((r) => {
@@ -554,6 +564,15 @@ export class FollowsService {
   }
 
   // ── Private helpers ───────────────────────────────────────────────────────────
+
+  /** An erased, merged or deleted profile answers exactly like an unknown one (ruling 112). */
+  private async assertLiveProfile(globalPersonId: string): Promise<void> {
+    const { data, error } = await applyReachable(
+      this.supabase.service.from('global_persons').select('id').eq('id', globalPersonId),
+    ).maybeSingle();
+    if (error) throw new Error(`fighter read failed: ${error.message}`);
+    if (!data) throw new NotFoundException(`Fighter ${globalPersonId} not found`);
+  }
 
   private async findExisting(
     eventId: string,

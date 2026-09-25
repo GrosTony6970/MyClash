@@ -9,7 +9,7 @@ function makeChain(result: MockResult) {
     maybeSingle: vi.fn().mockResolvedValue(result),
     single: vi.fn().mockResolvedValue(result),
   };
-  for (const key of ['select', 'eq', 'neq', 'in', 'or', 'order', 'limit', 'not']) {
+  for (const key of ['select', 'eq', 'neq', 'in', 'is', 'or', 'order', 'limit', 'not']) {
     chain[key] = vi.fn(() => chain);
   }
   return chain;

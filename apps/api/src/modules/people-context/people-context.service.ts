@@ -7,6 +7,7 @@ import {
 } from '@myclash/types';
 import { PUBLIC_TOURNAMENT_STATUSES } from '../../common/auth/competition-visibility';
 import { isPublicEvent } from '../../common/auth/event-read-gate';
+import { applyReachable } from '../fighters/directory-predicate';
 import { isFieldPublic } from '../fighters/public-visibility';
 import { SupabaseService } from '../supabase/supabase.service';
 import { PoolStandingsService, type StandingsRow } from '../pool-standings/pool-standings.service';
@@ -139,14 +140,17 @@ export class PeopleContextService {
 
     // 1. Base identity (name / club / photo / license).
     //    The country follows the fighter's own setting, as on their profile. The
-    //    photo has no setting (migration 0187: every photo is public).
+    //    photo has no setting (migration 0187: every photo is public). An erased,
+    //    merged or deleted profile gets no card, like an unknown id (ruling 112).
     const gpRows = rowsOf(
-      await this.supabase.service
-        .from('global_persons')
-        .select(
-          'id, slug, display_name, photo_url, country_code, public_visibility, hema_ratings_id, clubs ( name )',
-        )
-        .in('id', ids),
+      await applyReachable(
+        this.supabase.service
+          .from('global_persons')
+          .select(
+            'id, slug, display_name, photo_url, country_code, public_visibility, hema_ratings_id, clubs ( name )',
+          )
+          .in('id', ids),
+      ),
       'people',
     );
     const base = new Map<string, PersonContext>();

@@ -30,6 +30,7 @@ function makeChain(result: unknown) {
     select: vi.fn() as ReturnType<typeof vi.fn>,
     eq: vi.fn() as ReturnType<typeof vi.fn>,
     in: vi.fn() as ReturnType<typeof vi.fn>,
+    is: vi.fn() as ReturnType<typeof vi.fn>,
     or: vi.fn() as ReturnType<typeof vi.fn>,
     order: vi.fn() as ReturnType<typeof vi.fn>,
     limit: vi.fn() as ReturnType<typeof vi.fn>,
@@ -44,6 +45,7 @@ function makeChain(result: unknown) {
     'select',
     'eq',
     'in',
+    'is',
     'or',
     'order',
     'limit',
@@ -237,6 +239,7 @@ describe('FollowsService', () => {
       const dirFollowsChain = makeAwaitableChain({ data: null, error: null });
 
       fromMock
+        .mockReturnValueOnce(makeChain({ data: { id: 'gp-1' }, error: null })) // live profile
         .mockReturnValueOnce(personsChain) // resolveEventPersons
         .mockReturnValueOnce(dirFollowsChain); // directory_follows upsert
 
@@ -253,7 +256,9 @@ describe('FollowsService', () => {
 
     it('does not write a directory follow for anonymous identities', async () => {
       const personsChain = makeAwaitableChain({ data: [], error: null });
-      fromMock.mockReturnValueOnce(personsChain);
+      fromMock
+        .mockReturnValueOnce(makeChain({ data: { id: 'gp-1' }, error: null })) // live profile
+        .mockReturnValueOnce(personsChain);
 
       const summary = await service.followAllEvents('gp-1', {});
 
