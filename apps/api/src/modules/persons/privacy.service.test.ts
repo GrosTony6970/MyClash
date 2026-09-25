@@ -118,6 +118,30 @@ describe('privacy read or write that fails', () => {
     await expectFailure(new PrivacyService(db as never).getOrCreate('p-1'), 'privacy write');
   });
 
+  // Ruling 124: the settings page's own read and save.
+  it("a failed read of a user's several copies is a 5xx, not the defaults", async () => {
+    // After the failed read, a fallback to one copy would succeed: only the read's own check
+    // can fail this.
+    const db = mockSupabase({ person_privacy: [FAILED, NONE, { data: row(), error: null }] });
+    await expectFailure(
+      new PrivacyService(db as never).getOrCreateForPersons(['p-1', 'p-2']),
+      'privacy read',
+    );
+    expect(db.writes).toEqual([]);
+  });
+
+  it('a failed save is a 5xx, never the old values read back as if saved', async () => {
+    const db = mockSupabase({ person_privacy: [FAILED, { data: [row()], error: null }] });
+    await expectFailure(
+      new PrivacyService(db as never).updateForPersons(['p-1', 'p-2'], {
+        allowBeingFollowed: false,
+      }),
+      'privacy write',
+    );
+    // The save was the one query: no read-back answered for it.
+    expect(db.from).toHaveBeenCalledTimes(1);
+  });
+
   // Ruling 120: an empty "hidden" set would list an opted-out instructor publicly.
   describe('hiddenWorkshopGlobalPersonIds', () => {
     const persons = {

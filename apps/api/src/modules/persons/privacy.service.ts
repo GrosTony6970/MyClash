@@ -80,29 +80,6 @@ export class PrivacyService {
     return data ? this.map(data as Record<string, unknown>) : null;
   }
 
-  // ── Update ───────────────────────────────────────────────────────────────────
-
-  async update(
-    personId: string,
-    patch: Partial<Omit<PersonPrivacy, 'personId'>>,
-  ): Promise<PersonPrivacy> {
-    const updates: Record<string, unknown> = {};
-    if (patch.hideWorkshopsPublicly !== undefined)
-      updates['hide_workshops_publicly'] = patch.hideWorkshopsPublicly;
-    if (patch.allowBeingFollowed !== undefined)
-      updates['allow_being_followed'] = patch.allowBeingFollowed;
-
-    // Upsert — creates row if missing
-    const { data } = await this.supabase.service
-      .from('person_privacy')
-      .upsert({ person_id: personId, ...updates })
-      .select('*')
-      .single();
-
-    if (data) return this.map(data as Record<string, unknown>);
-    return this.getOrCreate(personId);
-  }
-
   // ── Per-user (across every event) ────────────────────────────────────────────
 
   /**
@@ -124,10 +101,12 @@ export class PrivacyService {
     const primary = personIds[0] as string;
     if (personIds.length === 1) return this.getOrCreate(primary);
 
-    const { data } = await this.supabase.service
+    const { data, error } = await this.supabase.service
       .from('person_privacy')
       .select('*')
       .in('person_id', personIds);
+    // A 5xx, never the defaults (ruling 124): they allow being followed.
+    if (error) throw new Error(`privacy read failed: ${error.message}`);
 
     const rows = (data ?? []) as Array<Record<string, unknown>>;
     if (rows.length === 0) return this.getOrCreate(primary);
@@ -156,9 +135,12 @@ export class PrivacyService {
     if (patch.allowBeingFollowed !== undefined)
       updates['allow_being_followed'] = patch.allowBeingFollowed;
 
-    await this.supabase.service
+    const { error } = await this.supabase.service
       .from('person_privacy')
       .upsert(personIds.map((person_id) => ({ person_id, ...updates })));
+    // A failed save is a 5xx (ruling 124): the read-back below would answer the old values as
+    // if they were saved.
+    if (error) throw new Error(`privacy write failed: ${error.message}`);
 
     return this.getOrCreateForPersons(personIds);
   }
