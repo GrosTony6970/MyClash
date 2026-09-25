@@ -27,6 +27,7 @@ import { z } from 'zod';
 import type { FastifyRequest } from 'fastify';
 import { GuestJwtService } from '../auth/guest-jwt.service';
 import { SupabaseService } from '../supabase/supabase.service';
+import { resolveFollowIdentity } from './follow-identity';
 import { type FollowIdentity, FollowsService } from './follows.service';
 import { OrganizationFollowsService } from './organization-follows.service';
 
@@ -196,27 +197,7 @@ export class FollowsController {
     return identity.userId;
   }
 
-  private async resolveIdentity(req: FastifyRequest): Promise<FollowIdentity> {
-    const cookies = (req as FastifyRequest & { cookies?: Record<string, string> }).cookies;
-
-    // Try claimed user first
-    const accessToken = cookies?.['sb-access-token'];
-    if (accessToken) {
-      const { data } = await this.supabase.anon.auth.getUser(accessToken);
-      if (data.user) return { userId: data.user.id };
-    }
-
-    // Try guest session
-    const guestToken = cookies?.['mc_guest'];
-    if (guestToken) {
-      try {
-        const payload = this.guestJwt.verify(guestToken);
-        return { guestSessionId: payload.sub };
-      } catch {
-        // Invalid token — anonymous
-      }
-    }
-
-    return {};
+  private resolveIdentity(req: FastifyRequest): Promise<FollowIdentity> {
+    return resolveFollowIdentity(req, this.supabase, this.guestJwt);
   }
 }

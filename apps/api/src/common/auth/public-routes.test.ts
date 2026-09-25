@@ -100,6 +100,8 @@ const EXPECTED_PUBLIC = [
   'GET /events',
   'GET /events/:eventId/lices',
   'GET /events/:eventId/live-state',
+  // The public person page's header (ruling 121a): the schedule's bar, nothing private.
+  'GET /events/:eventId/people/:personId',
   'GET /events/:eventId/people/:personId/schedule',
   'GET /events/:eventId/persons/lookup',
   'GET /events/:eventId/programme',

@@ -5,28 +5,39 @@
  * Route: /e/[eventSlug]/people/[personId]
  *
  * Sections: header, today's items, full schedule, results.
- * Follow button with anonymous/guest/claimed behavior.
+ * Follow button: every tap asks the server, which decides who may follow (ruling 121b).
  * Respects allow_being_followed privacy setting.
+ *
+ * The API routes take the Event's id, not its slug: the page resolves it first.
  */
 
 import { useCallback, useEffect, useState } from 'react';
-import { fetchMe } from '@myclash/api-client';
+import { apiRequest, fetchMe } from '@myclash/api-client';
+import { useToast } from '@myclash/ui';
 import { getPublicApiUrl } from '@/lib/api-url';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { localeToBcp47 } from '@myclash/time';
 import { LegalNotice } from '../../../../../src/components/LegalConsent';
 import { useI18n } from '@myclash/next-i18n/client';
+import { fetchEventInfo } from '../../_components/EventHeader';
+import { followRefusal } from './follow-answer';
 
 interface PersonProfile {
   id: string;
   givenName: string;
   familyName: string;
   clubLabel: string | null;
-  roles: string[];
+  roles: Array<'competitor' | 'referee' | 'instructor'>;
   allowBeingFollowed: boolean;
   followState: 'following' | 'not_following';
 }
+
+const ROLE_LABEL_KEYS = {
+  competitor: 'publicApp.following.roleCompetitor',
+  referee: 'publicApp.following.roleReferee',
+  instructor: 'publicApp.following.roleInstructor',
+} as const;
 
 interface ScheduleMatch {
   id: string;
@@ -66,10 +77,13 @@ export default function PersonProfilePage() {
   const params = useParams<{ eventSlug: string; personId: string }>();
   const { eventSlug, personId } = params;
   const apiUrl = getPublicApiUrl();
+  const toast = useToast();
 
+  const [eventId, setEventId] = useState<string | null>(null);
   const [profile, setProfile] = useState<PersonProfile | null>(null);
   const [schedule, setSchedule] = useState<PersonSchedule | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadFailed, setLoadFailed] = useState(false);
   // Viewer identity drives the "This is me" card: anonymous viewers get
   // claim + guest quick-access, guests get the claim upgrade, claimed users
   // get nothing. Defaults to 'claimed' so the card never flashes for
@@ -78,27 +92,28 @@ export default function PersonProfilePage() {
   const [guestLoading, setGuestLoading] = useState(false);
   const [following, setFollowing] = useState(false);
   const [followLoading, setFollowLoading] = useState(false);
-  const [toast, setToast] = useState<string | null>(null);
 
   useEffect(() => {
     async function load() {
       try {
+        const event = await fetchEventInfo(eventSlug, apiUrl);
+        if (!event) return;
+        setEventId(event.id);
+        const people = `/api/v1/events/${event.id}/people/${personId}`;
         const [profileRes, scheduleRes, me] = await Promise.all([
-          fetch(`${apiUrl}/api/v1/events/${eventSlug}/persons/${personId}`, {
-            credentials: 'include',
-          }),
-          fetch(`${apiUrl}/api/v1/events/${eventSlug}/people/${personId}/schedule`, {
-            credentials: 'include',
-          }),
+          apiRequest<PersonProfile>(apiUrl, people),
+          apiRequest<PersonSchedule>(apiUrl, `${people}/schedule`),
           fetchMe(apiUrl),
         ]);
 
         if (profileRes.ok) {
-          const p = (await profileRes.json()) as PersonProfile;
-          setProfile(p);
-          setFollowing(p.followState === 'following');
+          setProfile(profileRes.data);
+          setFollowing(profileRes.data.followState === 'following');
+        } else if (!(profileRes.kind === 'http' && profileRes.status === 404)) {
+          // Only a 404 means "no such person here"; a 5xx or a dropped connection is a failure.
+          setLoadFailed(true);
         }
-        if (scheduleRes.ok) setSchedule((await scheduleRes.json()) as PersonSchedule);
+        if (scheduleRes.ok) setSchedule(scheduleRes.data);
         // Unreadable /me falls through to the existing 'claimed' default, which
         // is what this did before: the viewer type only widens what the page
         // offers, and the API refuses anything they may not do.
@@ -112,7 +127,7 @@ export default function PersonProfilePage() {
           );
         }
       } catch {
-        // Keep loading state
+        setLoadFailed(true);
       } finally {
         setLoading(false);
       }
@@ -120,62 +135,34 @@ export default function PersonProfilePage() {
     void load();
   }, [eventSlug, personId, apiUrl]);
 
+  // Every tap asks the server (ruling 121b): the login is an httpOnly cookie this page cannot
+  // read, so the server is the only one who knows whether the viewer may follow.
   const handleFollow = useCallback(async () => {
-    // Anonymous: localStorage + toast
-    const hasCookie =
-      document.cookie.includes('mc_guest=') || document.cookie.includes('sb-access-token=');
-
-    if (!hasCookie) {
-      const key = `follows:${eventSlug}`;
-      const stored = JSON.parse(localStorage.getItem(key) ?? '[]') as string[];
-      if (!stored.includes(personId)) {
-        localStorage.setItem(key, JSON.stringify([...stored, personId]));
-      }
-      setFollowing(true);
-      setToast(t('publicApp.following.savedLocally'));
-      setTimeout(() => setToast(null), 4000);
-      return;
-    }
-
-    // Guest/claimed: server call
+    if (!eventId) return;
     setFollowLoading(true);
-    try {
-      if (following) {
-        await fetch(`${apiUrl}/api/v1/events/${eventSlug}/follows/${personId}`, {
+    const result = following
+      ? await apiRequest(apiUrl, `/api/v1/events/${eventId}/follows/${personId}`, {
           method: 'DELETE',
-          credentials: 'include',
-        });
-        setFollowing(false);
-      } else {
-        await fetch(`${apiUrl}/api/v1/events/${eventSlug}/follows`, {
+        })
+      : await apiRequest(apiUrl, `/api/v1/events/${eventId}/follows`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          credentials: 'include',
-          body: JSON.stringify({ personId }),
+          body: { personId },
         });
-        setFollowing(true);
-      }
-    } catch {
-      setToast(t('publicApp.following.followUpdateError'));
-      setTimeout(() => setToast(null), 3000);
-    } finally {
-      setFollowLoading(false);
-    }
-  }, [following, eventSlug, personId, apiUrl, t]);
+    setFollowLoading(false);
+    const refusal = followRefusal(result);
+    if (refusal) toast.error(t(refusal));
+    else setFollowing(!following);
+  }, [following, eventId, personId, apiUrl, t, toast]);
 
   // Guest quick-access: participant picks themselves from the roster — the
   // API mints a guest_sessions row + mc_guest httpOnly cookie, unlocking
   // follows/my-schedule/workshops without an account. This flow was fully
   // built server-side but had NO entry point in any UI.
   const handleGuestAccess = useCallback(async () => {
+    if (!eventId) return;
     setGuestLoading(true);
     try {
-      const evRes = await fetch(`${apiUrl}/api/v1/events/${encodeURIComponent(eventSlug)}`, {
-        cache: 'no-store',
-      });
-      if (!evRes.ok) throw new Error('event');
-      const ev = (await evRes.json()) as { id: string };
-      const res = await fetch(`${apiUrl}/api/v1/events/${ev.id}/guest-sessions`, {
+      const res = await fetch(`${apiUrl}/api/v1/events/${eventId}/guest-sessions`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
@@ -185,11 +172,10 @@ export default function PersonProfilePage() {
       // Land on the (now guest-aware) personal event schedule.
       window.location.assign(`/e/${eventSlug}/my-schedule`);
     } catch {
-      setToast(t('publicApp.people.guestAccessError'));
-      setTimeout(() => setToast(null), 4000);
+      toast.error(t('publicApp.people.guestAccessError'));
       setGuestLoading(false);
     }
-  }, [apiUrl, eventSlug, personId, t]);
+  }, [apiUrl, eventId, eventSlug, personId, t, toast]);
 
   if (loading) {
     return (
@@ -205,7 +191,9 @@ export default function PersonProfilePage() {
         <div>
           <p className="text-4xl mb-3">👤</p>
           <h1 className="font-display font-bold text-2xl sm:text-3xl text-foreground mb-2">
-            {t('publicApp.following.personNotFound')}
+            {loadFailed
+              ? t('publicApp.following.personLoadError')
+              : t('publicApp.following.personNotFound')}
           </h1>
         </div>
       </main>
@@ -218,13 +206,6 @@ export default function PersonProfilePage() {
 
   return (
     <main className="px-4 py-6 max-w-lg mx-auto">
-      {/* Toast */}
-      {toast && (
-        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 bg-surface border border-border text-foreground text-sm px-4 py-2 rounded-xl shadow-lg">
-          {toast}
-        </div>
-      )}
-
       {/* Header */}
       <div className="flex items-start justify-between gap-4 mb-6">
         <div>
@@ -239,7 +220,7 @@ export default function PersonProfilePage() {
                   key={r}
                   className="text-xs px-2 py-0.5 rounded-full border bg-border text-foreground-secondary border-border"
                 >
-                  {r.replace('_', ' ')}
+                  {t(ROLE_LABEL_KEYS[r])}
                 </span>
               ))}
             </div>

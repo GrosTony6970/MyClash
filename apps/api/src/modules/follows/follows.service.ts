@@ -43,6 +43,9 @@ export interface FollowIdentity {
   userId?: string;
 }
 
+/** The `code` of the 403 a follow of someone who opted out gets. */
+export const PREFERS_NOT_FOLLOWED = 'prefers_not_followed';
+
 const hasFollower = (identity: FollowIdentity): boolean =>
   Boolean(identity.userId || identity.guestSessionId);
 
@@ -192,7 +195,12 @@ export class FollowsService {
     // Check privacy
     const priv = await this.privacy.getOrCreate(personId);
     if (!priv.allowBeingFollowed) {
-      throw new ForbiddenException('This person prefers not to be followed');
+      // Its own code: an archived Event refuses every follow write with a 403 too
+      // (EventReadOnlyGuard), and the page must not blame the person for that.
+      throw new ForbiddenException({
+        code: PREFERS_NOT_FOLLOWED,
+        message: 'This person prefers not to be followed',
+      });
     }
 
     // Idempotency check
@@ -221,6 +229,12 @@ export class FollowsService {
     );
 
     return this.mapRow(data as Record<string, unknown>, eventId);
+  }
+
+  /** Does this caller follow this person in this Event? A caller with no follower id does not. */
+  async isFollowing(eventId: string, personId: string, identity: FollowIdentity): Promise<boolean> {
+    if (!hasFollower(identity)) return false;
+    return (await this.findExisting(eventId, personId, identity)) !== null;
   }
 
   // ── Unfollow ──────────────────────────────────────────────────────────────────

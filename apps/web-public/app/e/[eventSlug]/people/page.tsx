@@ -14,6 +14,7 @@ import { localeToBcp47 } from '@myclash/time';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { useI18n } from '@myclash/next-i18n/client';
+import { fetchEventInfo } from '../_components/EventHeader';
 
 interface PersonResult {
   id: string;
@@ -38,15 +39,21 @@ export default function PeoplePage() {
   const { eventSlug } = params;
   const apiUrl = getPublicApiUrl();
 
+  const [eventId, setEventId] = useState<string | null>(null);
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<PersonResult[]>([]);
   const [loading, setLoading] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const abortRef = useRef<AbortController | null>(null);
 
+  // The lookup takes the Event's id, not its slug (ruling 121a).
+  useEffect(() => {
+    void fetchEventInfo(eventSlug, apiUrl).then((event) => setEventId(event?.id ?? null));
+  }, [eventSlug, apiUrl]);
+
   const search = useCallback(
     async (q: string) => {
-      if (q.trim().length < 2) {
+      if (q.trim().length < 2 || !eventId) {
         setResults([]);
         return;
       }
@@ -55,7 +62,7 @@ export default function PeoplePage() {
       setLoading(true);
       try {
         const res = await fetch(
-          `${apiUrl}/api/v1/events/${eventSlug}/persons/lookup?q=${encodeURIComponent(q)}`,
+          `${apiUrl}/api/v1/events/${eventId}/persons/lookup?q=${encodeURIComponent(q)}`,
           { signal: abortRef.current.signal },
         );
         if (res.ok) setResults((await res.json()) as PersonResult[]);
@@ -65,7 +72,7 @@ export default function PeoplePage() {
         setLoading(false);
       }
     },
-    [eventSlug, apiUrl],
+    [eventId, apiUrl],
   );
 
   useEffect(() => {

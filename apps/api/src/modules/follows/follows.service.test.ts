@@ -146,6 +146,18 @@ describe('FollowsService', () => {
         ForbiddenException,
       );
     });
+
+    it('says so with its own code: an archived Event refuses follows with a 403 too', async () => {
+      mockPrivacy.getOrCreate.mockResolvedValue({ allowBeingFollowed: false });
+
+      const refusal = await service
+        .follow('event-1', 'person-1', { userId: 'user-1' })
+        .catch((error: ForbiddenException) => error.getResponse());
+      expect(refusal).toEqual({
+        code: 'prefers_not_followed',
+        message: 'This person prefers not to be followed',
+      });
+    });
   });
 
   describe('unfollow', () => {

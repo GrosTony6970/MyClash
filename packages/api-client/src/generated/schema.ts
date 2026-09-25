@@ -8227,6 +8227,23 @@ export interface paths {
     patch: operations['FollowsController_updateNotifications'];
     trace?: never;
   };
+  '/api/v1/events/{eventId}/people/{personId}': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Get a person's public profile in one Event */
+    get: operations['PublicPersonController_getProfile'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   '/api/v1/me/groups': {
     parameters: {
       query?: never;
@@ -23853,6 +23870,34 @@ export interface operations {
     };
     responses: {
       200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  PublicPersonController_getProfile: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        eventId: string;
+        personId: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Profile returned */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Event hidden from the caller, or person not in it */
+      404: {
         headers: {
           [name: string]: unknown;
         };
