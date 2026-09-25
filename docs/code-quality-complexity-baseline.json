@@ -299,8 +299,6 @@
     "apps/api/src/modules/fighters/fighters.service.ts:2346",
     "apps/api/src/modules/fighters/fighters.service.ts:909",
     "apps/api/src/modules/fighters/link-workshop-enrollment.test.ts:20",
-    "apps/api/src/modules/fighters/merge.service.ts:122",
-    "apps/api/src/modules/fighters/merge.service.ts:56",
     "apps/api/src/modules/fighters/referee-stats.ts:144",
     "apps/api/src/modules/follows/follows.service.ts:482",
     "apps/api/src/modules/hema-ratings/hema-ratings.service.ts:310",

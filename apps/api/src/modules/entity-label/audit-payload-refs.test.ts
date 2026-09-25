@@ -56,6 +56,11 @@ describe('collectPayloadRefs', () => {
     ]);
   });
 
+  it('names the accounts whose follow a merge moved (ruling 116)', () => {
+    const { refs } = collect('fighter.merge', { moved: { directoryFollowerUserIds: [A] } });
+    expect(refs).toEqual([{ pointer: '/moved/directoryFollowerUserIds/0', kind: 'user', id: A }]);
+  });
+
   it('resolves an ambiguous key differently per action, and not at all without one', () => {
     expect(collect('archive_restore_event', { sourceId: A }).refs[0]?.kind).toBe('event');
     expect(collect('archive_restore_tournament', { sourceId: A }).refs[0]?.kind).toBe('tournament');

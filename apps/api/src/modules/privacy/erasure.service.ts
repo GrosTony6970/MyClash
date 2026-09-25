@@ -116,8 +116,9 @@ export class ErasureService {
   /**
    * Other people's rows aimed at the erased profiles (rulings 113, 113a): claim
    * links, claim requests and follows. Erasure hides the profile, so nobody can
-   * see or act on them again, yet they still name it. A merge keeps them: it can
-   * be undone.
+   * see or act on them again, yet they still name it. A merge keeps the claim
+   * links and requests (it can be undone) and moves the follows to the surviving
+   * profile, keeping only a follower's duplicate (ruling 116).
    */
   private async deleteRowsAimedAt(globalPersonIds: string[]): Promise<RedactionCounts> {
     const AIMED: readonly [table: string, column: string][] = [

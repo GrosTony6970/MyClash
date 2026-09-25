@@ -20,6 +20,11 @@ interface MergeAuditPayload {
     /** @deprecated registrations now follow persons.global_person_id, no direct cascade. */
     registrationIds?: string[];
     workshopInstructorIds: string[];
+    /**
+     * The accounts whose directory follow moved to the survivor (ruling 116). Account ids, not
+     * follow ids: the audit screen names an account. Absent from audit logs before ruling 116.
+     */
+    directoryFollowerUserIds?: string[];
   };
   reason: string | null;
 }
@@ -65,28 +70,12 @@ export class FighterMergeService {
       throw new BadRequestException('Target fighter cannot be a merged/deleted profile');
     }
 
-    const personIds = await this.selectReferenceIds('persons', 'global_person_id', dto.sourceId);
-    const workshopInstructorIds = await this.selectReferenceIds(
-      'workshop_instructors',
-      'global_person_id',
-      dto.sourceId,
-    );
+    const moved = await this.moveReferences(dto.sourceId, dto.targetId);
 
     await this.supabase.service
       .from('global_persons')
       .update(fillTargetFields(source, target))
       .eq('id', dto.targetId);
-
-    // Registrations cascade via persons.global_person_id — no direct
-    // fighter_id update needed. Updating persons here re-points every
-    // registration that references those persons.id.
-    await this.updateReferences('persons', 'global_person_id', personIds, dto.targetId);
-    await this.updateReferences(
-      'workshop_instructors',
-      'global_person_id',
-      workshopInstructorIds,
-      dto.targetId,
-    );
 
     const now = new Date().toISOString();
     await this.supabase.service
@@ -103,7 +92,7 @@ export class FighterMergeService {
     const payload: MergeAuditPayload = {
       source,
       target,
-      moved: { personIds, workshopInstructorIds },
+      moved,
       reason: dto.reason?.trim() || null,
     };
     await this.writeAudit(actorUserId, 'fighter.merge', dto.sourceId, payload);
@@ -113,8 +102,8 @@ export class FighterMergeService {
       sourceId: dto.sourceId,
       targetId: dto.targetId,
       moved: {
-        persons: personIds.length,
-        workshopInstructors: workshopInstructorIds.length,
+        persons: moved.personIds.length,
+        workshopInstructors: moved.workshopInstructorIds.length,
       },
     };
   }
@@ -144,22 +133,7 @@ export class FighterMergeService {
 
     const payload = audit.payload_json;
     const sourceId = payload.source.id;
-    // Reverting the persons cascade automatically reverts the
-    // registrations that referenced those persons. Older audit logs
-    // may carry a moved.registrationIds list; ignore it — the column
-    // no longer exists post-0083.
-    await this.updateReferences(
-      'persons',
-      'global_person_id',
-      payload.moved.personIds ?? [],
-      sourceId,
-    );
-    await this.updateReferences(
-      'workshop_instructors',
-      'global_person_id',
-      payload.moved.workshopInstructorIds ?? [],
-      sourceId,
-    );
+    await this.restoreReferences(payload.moved, sourceId, payload.target.id);
 
     const now = new Date().toISOString();
     await this.supabase.service
@@ -178,6 +152,98 @@ export class FighterMergeService {
       source_id: sourceId,
       target_id: payload.target.id,
     });
+  }
+
+  /**
+   * Re-points the event people, workshop instructors and directory follows of the merged-away
+   * profile at the surviving one (not every row naming it: group members, league results and
+   * claim links stay), and returns what moved: the audit record keeps it, and the revert moves
+   * exactly that back. Every read comes before the first write.
+   */
+  private async moveReferences(
+    sourceId: string,
+    targetId: string,
+  ): Promise<MergeAuditPayload['moved']> {
+    const personIds = await this.selectReferenceIds('persons', 'global_person_id', sourceId);
+    const workshopInstructorIds = await this.selectReferenceIds(
+      'workshop_instructors',
+      'global_person_id',
+      sourceId,
+    );
+    const directoryFollowerUserIds = await this.followersToMove(sourceId, targetId);
+
+    // The follows go FIRST. A follow of the survivor tapped since the read breaks the
+    // one-follow-per-pair key here; as the first write, that failure leaves nothing half-moved,
+    // and the retry reads afresh.
+    await this.moveFollows(directoryFollowerUserIds, sourceId, targetId);
+    // Registrations cascade via persons.global_person_id — no direct
+    // fighter_id update needed. Updating persons here re-points every
+    // registration that references those persons.id.
+    await this.updateReferences('persons', 'global_person_id', personIds, targetId);
+    await this.updateReferences(
+      'workshop_instructors',
+      'global_person_id',
+      workshopInstructorIds,
+      targetId,
+    );
+    return { personIds, workshopInstructorIds, directoryFollowerUserIds };
+  }
+
+  /**
+   * Reverting the persons cascade automatically reverts the registrations that
+   * referenced those persons. Older audit logs may carry a moved.registrationIds
+   * list; ignore it — the column no longer exists post-0083. Audit logs older
+   * than ruling 116 carry no directoryFollowerUserIds: nothing of theirs moved.
+   */
+  private async restoreReferences(
+    moved: MergeAuditPayload['moved'],
+    sourceId: string,
+    targetId: string,
+  ): Promise<void> {
+    await this.moveFollows(moved.directoryFollowerUserIds ?? [], targetId, sourceId);
+    await this.updateReferences('persons', 'global_person_id', moved.personIds ?? [], sourceId);
+    await this.updateReferences(
+      'workshop_instructors',
+      'global_person_id',
+      moved.workshopInstructorIds ?? [],
+      sourceId,
+    );
+  }
+
+  /**
+   * The accounts following the merged-away profile but not the survivor (ruling 116). One who
+   * follows both keeps that follow on the merged profile — hidden with it, and whole again if the
+   * merge is reverted — because moving it would break the one-follow-per-pair key. Not paged: a
+   * profile with more followers than PostgREST's row cap would lose the overflow's follows.
+   */
+  private async followersToMove(sourceId: string, targetId: string): Promise<string[]> {
+    const { data, error } = await this.supabase.service
+      .from('directory_follows')
+      .select('follower_user_id, followed_global_person_id')
+      .in('followed_global_person_id', [sourceId, targetId]);
+    // A 5xx: read as "no follows", the merge would leave every follow on the hidden profile.
+    if (error) throw new Error(`directory follows read failed: ${error.message}`);
+    const rows = (data ?? []) as Array<{
+      follower_user_id: string;
+      followed_global_person_id: string;
+    }>;
+    const followerIds = (profileId: string) =>
+      rows
+        .filter((row) => row.followed_global_person_id === profileId)
+        .map((row) => row.follower_user_id);
+    const survivorFollowers = new Set(followerIds(targetId));
+    return followerIds(sourceId).filter((userId) => !survivorFollowers.has(userId));
+  }
+
+  /** These accounts' follows of `fromId` now follow `toId`. A failed write is a 5xx. */
+  private async moveFollows(followerUserIds: string[], fromId: string, toId: string) {
+    if (followerUserIds.length === 0) return;
+    const { error } = await this.supabase.service
+      .from('directory_follows')
+      .update({ followed_global_person_id: toId })
+      .eq('followed_global_person_id', fromId)
+      .in('follower_user_id', followerUserIds);
+    if (error) throw new Error(`directory follows move failed: ${error.message}`);
   }
 
   private async loadFighter(id: string, role: 'source' | 'target'): Promise<FighterRow> {

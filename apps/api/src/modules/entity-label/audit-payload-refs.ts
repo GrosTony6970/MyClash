@@ -89,6 +89,7 @@ export const REF_RULES: readonly RefRule[] = [
   { suffix: ['personIds'], kind: 'person' },
   { suffix: ['workshopInstructorIds'], kind: 'workshop_instructor' },
   { suffix: ['registrationIds'], kind: 'registration' },
+  { suffix: ['directoryFollowerUserIds'], kind: 'user' },
   // ── `id` inside a row snapshot — meaningless as a bare leaf name ────────────
   { suffix: ['source', 'id'], kind: 'global_person' },
   { suffix: ['target', 'id'], kind: 'global_person' },
