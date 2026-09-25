@@ -11,6 +11,8 @@
  * Only the personal login is forwarded. The staff session cookie never reaches
  * this app: it is host-only on the scoring app's host.
  */
+import { cookies } from 'next/headers';
+
 const LOGIN_COOKIE = 'sb-access-token';
 const REFRESH_COOKIE = 'sb-refresh-token';
 
@@ -44,4 +46,18 @@ export function displayPageGate(status: number, jar: CookieJar): 'page' | 'not-f
 export function loginCookieHeader(jar: CookieJar): Record<string, string> {
   const value = jar.get(LOGIN_COOKIE)?.value;
   return value ? { cookie: `${LOGIN_COOKIE}=${encodeURIComponent(value)}` } : {};
+}
+
+/**
+ * The current request's login header, for a server read deep in a page's helpers. Next throws
+ * from `cookies()` outside a request scope; that happens only in the stats perf harness, which
+ * renders the page directly and has no viewer, so it reads as signed out: the same reasoning as
+ * `@myclash/next-i18n`'s server locale.
+ */
+export async function requestLoginHeader(): Promise<Record<string, string>> {
+  try {
+    return loginCookieHeader(await cookies());
+  } catch {
+    return {};
+  }
 }

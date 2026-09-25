@@ -12,6 +12,7 @@
 
 import type { Metadata } from 'next';
 import { getServerApiUrl } from '@/lib/api-url';
+import { requestLoginHeader } from '@/lib/login-cookie';
 import { getServerT } from '@myclash/next-i18n/server';
 import Link from 'next/link';
 import { fetchTournamentStats } from '../stats-data';
@@ -31,8 +32,8 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
  * Resolve slug → the tournament's id and colour token via the public standings route.
  *
  * `.../standings` is public, slug-based, and already returns the tournament
- * header including `id` AND `color` (events.service.ts: `tournamentHeader`), on
- * the draft early-return path too. The sibling tournament page resolves it
+ * header including `id` AND `color` (events.service.ts: `tournamentHeader`). A draft answers
+ * only a club member, so the read sends the login (ruling 127a). The sibling tournament page resolves it
  * exactly this way (../page.tsx), so this adds no new API surface — the colour
  * was already in this response, merely dropped by the parse.
  */
@@ -44,7 +45,7 @@ async function fetchTournamentHeader(
   try {
     const res = await fetch(
       `${apiUrl}/api/v1/events/${eventSlug}/tournaments/${tournamentSlug}/standings`,
-      { cache: 'no-store' },
+      { cache: 'no-store', headers: await requestLoginHeader() },
     );
     if (!res.ok) return null;
     const data = (await res.json()) as { tournament?: { id?: string; color?: string | null } };

@@ -71,9 +71,10 @@ export class TournamentRecapType implements ContentTypeDef {
     // The caller `assertAccess` just proved to be an org admin — that assembly
     // hides an unannounced event from non-members, and a recap is exactly the
     // thing an organiser writes before publishing.
-    const standings = await this.events.getPublicTournamentStandings(t.events.slug, t.slug, () =>
-      Promise.resolve(userId),
-    );
+    const standings = await this.events.getPublicTournamentStandings(t.events.slug, t.slug, {
+      userId,
+      staff: null,
+    });
     const header = standings.tournament as Record<string, unknown>;
     const slots = (standings as { bracketSlots?: RankingSlot[] }).bracketSlots ?? [];
     // The cast must expose the WHOLE shape, not just phaseType: narrowing it

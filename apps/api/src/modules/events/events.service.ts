@@ -23,6 +23,7 @@ import {
 } from '../../common/auth/event-read-gate';
 import {
   canReadEvent,
+  hiddenFromReader,
   visibleTournaments,
   type CompetitionEvent,
   type PublicReader,
@@ -1293,15 +1294,34 @@ export class EventsService {
     return { deleted: true, id: eventId };
   }
 
+  /**
+   * The Tournament page's reads answer a Tournament hidden from the caller exactly as an unknown
+   * slug (rulings 81-83, 127a): not published, running or completed, and the caller neither a
+   * member of the Event's club nor its active staff. An insider reads on.
+   */
+  private async pageTournament<Row extends { status: string }>(
+    event: unknown,
+    tournament: Row | null,
+    tournamentSlug: string,
+    reader: PublicReader,
+  ): Promise<Row> {
+    const unknown = new NotFoundException(`Tournament ${tournamentSlug} not found`);
+    if (!tournament) throw unknown;
+    const deps = { supabase: this.supabase, orgs: this.orgs };
+    const row = { tournamentStatus: tournament.status, event: event as CompetitionEvent };
+    if (await hiddenFromReader(deps, row, reader)) throw unknown;
+    return tournament;
+  }
+
   async getPublicTournamentStandings(
     eventSlug: string,
     tournamentSlug: string,
-    resolveUserId: () => Promise<string>,
+    reader: PublicReader,
   ) {
-    const event = await this.getEventBySlug(eventSlug, resolveUserId);
+    const event = await this.getEventBySlug(eventSlug, () => Promise.resolve(reader.userId));
     const eventId = (event as { id: string }).id;
 
-    const { data: tournament, error: tournamentError } = await this.supabase.service
+    const { data: tournamentRow, error: tournamentError } = await this.supabase.service
       .from('tournaments')
       .select(
         'id, name, weapon, ruleset_code, ruleset_version, status, logo_url, color, scoring_config_json',
@@ -1309,8 +1329,8 @@ export class EventsService {
       .eq('event_id', eventId)
       .eq('slug', tournamentSlug)
       .maybeSingle();
-    if (tournamentError) throw new BadRequestException(tournamentError.message);
-    if (!tournament) throw new NotFoundException(`Tournament ${tournamentSlug} not found`);
+    if (tournamentError) throw new Error(`tournament read failed: ${tournamentError.message}`);
+    const tournament = await this.pageTournament(event, tournamentRow, tournamentSlug, reader);
 
     const rulesetLabel = await resolveRulesetLabel(
       this.supabase,
@@ -1488,9 +1508,8 @@ export class EventsService {
    * Public pools-with-matches projection for the spectator page. One
    * entry per pool with the read-only match list (no admin pickers,
    * no referee chips — referees still surface on the Pool List card
-   * footer). Gates on tournament status === published / running /
-   * completed; returns 404 otherwise (consistent with the standings
-   * endpoint above).
+   * footer). A Tournament hidden from the caller is a 404, like the
+   * standings endpoint above; an insider's draft answers empty pools.
    *
    * Match projection mirrors what the admin's MatchesTab shows minus
    * the per-match referee column: round code, fighter names + club
@@ -1499,22 +1518,22 @@ export class EventsService {
   async getPublicTournamentPoolsWithMatches(
     eventSlug: string,
     tournamentSlug: string,
-    resolveUserId: () => Promise<string>,
+    reader: PublicReader,
   ) {
-    const event = await this.getEventBySlug(eventSlug, resolveUserId);
+    const event = await this.getEventBySlug(eventSlug, () => Promise.resolve(reader.userId));
     const eventId = (event as { id: string }).id;
     // Event IANA timezone — the client renders each pool's scheduled date/time
     // in it (defaults to Europe/Paris when unset).
     const timezone = (event as { timezone?: string | null }).timezone ?? 'Europe/Paris';
 
-    const { data: tournament, error: tournamentError } = await this.supabase.service
+    const { data: tournamentRow, error: tournamentError } = await this.supabase.service
       .from('tournaments')
       .select('id, weapon, status, scoring_config_json')
       .eq('event_id', eventId)
       .eq('slug', tournamentSlug)
       .maybeSingle();
-    if (tournamentError) throw new BadRequestException(tournamentError.message);
-    if (!tournament) throw new NotFoundException(`Tournament ${tournamentSlug} not found`);
+    if (tournamentError) throw new Error(`tournament read failed: ${tournamentError.message}`);
+    const tournament = await this.pageTournament(event, tournamentRow, tournamentSlug, reader);
     // Configured fighter-side colour tokens (default red/blue). The client
     // resolves these to hex via `sideStyle` for the matches-table accent bar,
     // matching the admin Pools → Matches view.

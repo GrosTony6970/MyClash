@@ -14,6 +14,7 @@
 import type { Metadata } from 'next';
 import { apiRequest, failureDetail } from '@myclash/api-client';
 import { getServerApiUrl } from '@/lib/api-url';
+import { requestLoginHeader } from '@/lib/login-cookie';
 import { getServerT, resolveServerLocale } from '@myclash/next-i18n/server';
 import { BackLink } from '@/components/BackLink';
 import { MedalPodium } from '@myclash/ui';
@@ -81,10 +82,12 @@ async function fetchTournamentData(
   tournamentSlug: string,
   apiUrl: string,
 ): Promise<FetchOutcome> {
+  // A draft Tournament answers anyone outside its club as an unknown one; the login lets a
+  // member reach its page (ruling 127a, `login-cookie.ts`).
   const result = await apiRequest<TournamentData>(
     apiUrl,
     `/api/v1/events/${eventSlug}/tournaments/${tournamentSlug}/standings`,
-    { cache: 'no-store' },
+    { cache: 'no-store', headers: await requestLoginHeader() },
   );
   if (result.ok) return { kind: 'ok', data: result.data };
   if (result.kind === 'http' && result.status === 404) return { kind: 'not-found' };
@@ -197,9 +200,8 @@ export default async function TournamentPage({ params }: Props) {
   // Published AI recap (organizer-reviewed). Null when none is published.
   const recap = await fetchPublishedRecap(tournament.id, apiUrl);
 
-  // A draft tournament isn't public yet, so it exposes nothing structural —
-  // only the Participants list (the Pool/Standings tabs already hide because
-  // the API returns empty pools for non-public statuses).
+  // A draft tournament reaches this page only for a club member (the API answers anyone else as
+  // an unknown one), and still exposes nothing structural: the API returns empty pools for it.
   const isDraft = tournament.status === 'draft';
   const poolsTabVisible = pools.length > 0;
   const swissTabVisible = !isDraft && Boolean(swissPhaseId);

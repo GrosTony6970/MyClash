@@ -168,9 +168,7 @@ export class EventsController {
     @Param('tournamentSlug') tournamentSlug: string,
     @Req() req: FastifyRequest,
   ) {
-    return this.events.getPublicTournamentStandings(eventSlug, tournamentSlug, () =>
-      getUserId(req, this.supabase),
-    );
+    return this.events.getPublicTournamentStandings(eventSlug, tournamentSlug, publicReader(req));
   }
 
   /** GET /api/v1/events/:eventSlug/tournaments/:tournamentSlug/pools-with-matches */
@@ -182,8 +180,10 @@ export class EventsController {
     @Param('tournamentSlug') tournamentSlug: string,
     @Req() req: FastifyRequest,
   ) {
-    return this.events.getPublicTournamentPoolsWithMatches(eventSlug, tournamentSlug, () =>
-      getUserId(req, this.supabase),
+    return this.events.getPublicTournamentPoolsWithMatches(
+      eventSlug,
+      tournamentSlug,
+      publicReader(req),
     );
   }
 

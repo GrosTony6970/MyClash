@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { displayPageGate, loginCookieHeader } from './login-cookie';
+import { displayPageGate, loginCookieHeader, requestLoginHeader } from './login-cookie';
 
 const jar = (cookies: Record<string, string>) => ({
   get: (name: string) => (name in cookies ? { value: cookies[name] as string } : undefined),
@@ -50,5 +50,11 @@ describe('displayPageGate', () => {
       expect(displayPageGate(status, renewable)).toBe('error');
       expect(displayPageGate(status, signedOut)).toBe('error');
     }
+  });
+});
+
+describe('requestLoginHeader', () => {
+  it('reads as signed out outside a request scope, where Next throws from cookies()', async () => {
+    await expect(requestLoginHeader()).resolves.toEqual({});
   });
 });

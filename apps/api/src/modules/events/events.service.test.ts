@@ -2189,7 +2189,10 @@ describe('EventsService', () => {
   // ── Public tournament standings — pins post-0063 & visibility refactor ─────
 
   describe('getPublicTournamentStandings', () => {
-    it('returns empty pools + bracket for a draft tournament, skipping the phases fetch', async () => {
+    it('returns empty pools + bracket for a draft tournament to a club member, skipping the phases fetch', async () => {
+      // An outsider gets the unknown-slug 404 instead (events.draft-tournament-page.test.ts).
+      assertOrgRole.mockReset();
+      assertOrgRole.mockResolvedValue(undefined);
       const eventChain = makeChain({
         data: { id: 'event-1', slug: 'fal-2027' },
         error: null,
@@ -2210,7 +2213,7 @@ describe('EventsService', () => {
       const result = await service.getPublicTournamentStandings(
         'fal-2027',
         'longsword-open',
-        CALLER,
+        MEMBER,
       );
 
       expect(result).toMatchObject({
@@ -2282,7 +2285,7 @@ describe('EventsService', () => {
       const result = await service.getPublicTournamentStandings(
         'fal-2027',
         'longsword-open',
-        CALLER,
+        MEMBER,
       );
 
       // The phases read filters on its Tournament and nothing else.
@@ -2351,7 +2354,7 @@ describe('EventsService', () => {
         ]),
       );
 
-      await service.getPublicTournamentStandings('fal-2027', 'longsword-open', CALLER);
+      await service.getPublicTournamentStandings('fal-2027', 'longsword-open', MEMBER);
 
       // The select string fed to the referee_assignments query MUST NOT
       // include `user_id` — that column was dropped by migration 0063.
@@ -2491,7 +2494,7 @@ describe('EventsService', () => {
       const result = await service.getPublicTournamentStandings(
         'fal-2027',
         'longsword-open',
-        CALLER,
+        MEMBER,
       );
 
       const slots = result.bracketSlots as Array<{ id: string; referees: unknown[] }>;
@@ -2901,7 +2904,7 @@ describe('EventsService', () => {
       const result = await service.getPublicTournamentStandings(
         'fal-2027',
         'longsword-open',
-        CALLER,
+        MEMBER,
       );
 
       expect(result.tournament).toMatchObject({

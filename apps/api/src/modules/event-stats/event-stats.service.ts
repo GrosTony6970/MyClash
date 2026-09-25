@@ -59,6 +59,9 @@ interface TournamentRow {
 /** How long after the fleet's last report a device counts as having gone quiet. */
 const SILENCE_GRACE_MS = 10 * 60 * 1000;
 
+/** An organiser this service already proved a member, as the public reads' reader. */
+const asMember = (userId: string) => ({ userId, staff: null });
+
 function roundPct(part: number, whole: number): number {
   return whole > 0 ? Math.round((part / whole) * 100) : 0;
 }
@@ -237,9 +240,7 @@ export class EventStatsService {
       // event from non-members, and loadEventForOrganizer already proved this
       // one is a member.
       event.slug
-        ? this.events.getPublicTournamentStandings(event.slug, tournament.slug, () =>
-            Promise.resolve(userId),
-          )
+        ? this.events.getPublicTournamentStandings(event.slug, tournament.slug, asMember(userId))
         : Promise.resolve(null),
     ]);
 

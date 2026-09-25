@@ -1,8 +1,7 @@
 import { NotFoundException } from '@nestjs/common';
 import { DEFAULT_SCORING_CONFIG } from '@myclash/types';
 import {
-  isHiddenCompetition,
-  isInsider,
+  hiddenFromReader,
   type CompetitionEvent,
   type PublicReader,
 } from '../../common/auth/competition-visibility';
@@ -46,10 +45,10 @@ export async function readMatchConfig(
     .maybeSingle();
   if (error) throw new Error(`match-config read failed: ${error.message}`);
   const row = data as MatchConfigRow | null;
-  const hidden =
-    row !== null && isHiddenCompetition({ tournamentStatus: row.status, event: row.events });
-  if (!row || (hidden && !(await isInsider(deps, row.events, reader)))) {
-    throw new NotFoundException(`Tournament ${tournamentId} not found`);
+  const unknown = new NotFoundException(`Tournament ${tournamentId} not found`);
+  if (!row) throw unknown;
+  if (await hiddenFromReader(deps, { tournamentStatus: row.status, event: row.events }, reader)) {
+    throw unknown;
   }
 
   const rulesetConfig = validateTournamentRulesetConfig(row.ruleset_code, row.ruleset_config ?? {});

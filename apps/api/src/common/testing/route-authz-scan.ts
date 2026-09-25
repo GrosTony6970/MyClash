@@ -95,6 +95,7 @@ const PUBLIC_READ_GATES = new Set([
   'isInsider',
   'seesHiddenOnLice',
   'visibleTournaments',
+  'hiddenFromReader',
 ]);
 
 const printer = ts.createPrinter({ removeComments: true });

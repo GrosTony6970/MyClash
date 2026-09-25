@@ -217,6 +217,18 @@ export function onlyPublicTournaments<
 }
 
 /**
+ * Must this row be answered to the caller as an unknown one (rulings 81-83)? Hidden from the
+ * public, and the caller no insider. The membership read runs only for a hidden row.
+ */
+export async function hiddenFromReader(
+  deps: EventAuthzDeps,
+  row: CompetitionRow,
+  reader: PublicReader,
+): Promise<boolean> {
+  return isHiddenCompetition(row) && !(await isInsider(deps, row.event, reader));
+}
+
+/**
  * The Tournaments of one Event the caller may see (rulings 81-83, 127a): all of them for an
  * insider, else the published, running and completed ones. A hidden Tournament is simply left
  * out, as if it did not exist. The membership read runs only when something is hidden.

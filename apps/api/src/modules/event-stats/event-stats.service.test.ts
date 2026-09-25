@@ -125,7 +125,7 @@ describe('EventStatsService', () => {
       referee_assignments: { data: [], error: null },
       persons: { data: [{ club_id: 'c1' }, { club_id: 'c2' }, { club_id: 'c1' }], error: null },
     });
-    const { service, orgs } = makeService({
+    const { service, orgs, events } = makeService({
       overviewByTournament: {
         t1: overview({
           matchCount: 10,
@@ -155,6 +155,12 @@ describe('EventStatsService', () => {
 
     // Org guard enforced with scorekeeper role.
     expect(orgs.assertOrgRole).toHaveBeenCalledWith('org-1', 'user-1', 'scorekeeper');
+    // The standings read runs as that proven member: an outsider's reader would 404 every draft
+    // Tournament and fail the whole page (ruling 127a).
+    expect(events.getPublicTournamentStandings).toHaveBeenCalledWith('evt', 't1s', {
+      userId: 'user-1',
+      staff: null,
+    });
     // Weighted: 15 doubles / 150 exchanges = 10% (NOT mean(8,14)=11%).
     expect(res.event.doublesPercent).toBe(10);
     expect(res.event.exchangeCount).toBe(150);
