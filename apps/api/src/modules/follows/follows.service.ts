@@ -9,6 +9,7 @@
 import {
   ForbiddenException,
   Injectable,
+  Logger,
   NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common';
@@ -141,6 +142,8 @@ function isUpcomingPublicEvent(event: { status?: unknown; event_kind?: unknown }
 
 @Injectable()
 export class FollowsService {
+  private readonly logger = new Logger(FollowsService.name);
+
   constructor(
     private readonly supabase: SupabaseService,
     private readonly privacy: PrivacyService,
@@ -242,7 +245,7 @@ export class FollowsService {
 
     // Idempotency check
     const existing = await this.findExisting(eventId, personId, identity);
-    if (existing) return this.mapRow(existing, eventId);
+    if (existing) return this.mapWrittenRow(existing, eventId);
 
     // Insert
     const insert: Record<string, unknown> = {
@@ -253,19 +256,23 @@ export class FollowsService {
       [followerColumn]: follower,
     };
 
-    const data = dataOrThrow(
-      await this.supabase.service
-        .from('follows')
-        .insert(insert)
-        .select(
-          `id, followed_person_id, created_at, notify_match_start, notify_workshop_start,
+    const inserted = await this.supabase.service
+      .from('follows')
+      .insert(insert)
+      .select(
+        `id, followed_person_id, created_at, notify_match_start, notify_workshop_start,
          persons ( given_name, family_name, clubs ( name ) )`,
-        )
-        .single(),
-      'follow write',
-    );
+      )
+      .single();
+    // Two taps racing past the check above: the loser's insert breaks the one-follow key, and the
+    // follow it asked for exists. Answer the winner's row, not a failure (ruling 122).
+    if ((inserted.error as { code?: string } | null)?.code === '23505') {
+      const winner = await this.findExisting(eventId, personId, identity);
+      if (winner) return this.mapWrittenRow(winner, eventId);
+    }
+    const data = dataOrThrow(inserted, 'follow write');
 
-    return this.mapRow(data as Record<string, unknown>, eventId);
+    return this.mapWrittenRow(data as Record<string, unknown>, eventId);
   }
 
   /** Does this caller follow this person in this Event? A caller with no follower id does not. */
@@ -324,7 +331,7 @@ export class FollowsService {
       await (
         q as never as {
           select: (s: string) => {
-            single: () => Promise<{ data: unknown; error: { message: string } | null }>;
+            maybeSingle: () => Promise<{ data: unknown; error: { message: string } | null }>;
           };
         }
       )
@@ -332,11 +339,13 @@ export class FollowsService {
           `id, followed_person_id, created_at, notify_match_start, notify_workshop_start,
          persons ( given_name, family_name, clubs ( name ) )`,
         )
-        .single(),
+        .maybeSingle(),
       'follow notifications write',
     );
+    // No row: the caller does not follow this person here (any more). A 404, not a 5xx.
+    if (!data) throw new NotFoundException('Follow not found');
 
-    return this.mapRow(data as Record<string, unknown>, eventId);
+    return this.mapWrittenRow(data as Record<string, unknown>, eventId);
   }
 
   // ── Guest→claimed migration ───────────────────────────────────────────────────
@@ -720,18 +729,38 @@ export class FollowsService {
   }
 
   private async mapRow(r: Record<string, unknown>, eventId: string): Promise<FollowRow> {
+    const nextEvent = await this.fetchNextEvent(r['followed_person_id'] as string, eventId);
+    return this.toFollowRow(r, nextEvent);
+  }
+
+  /**
+   * The answer to a follow write that is already saved (ruling 122). The next-bout line is
+   * decoration: when its read fails, the write still stands, so the answer carries no next bout
+   * and the failure goes to the log. A read of follows (the lists) still fails as a 5xx (117a).
+   */
+  private async mapWrittenRow(r: Record<string, unknown>, eventId: string): Promise<FollowRow> {
+    const personId = r['followed_person_id'] as string;
+    const nextEvent = await this.fetchNextEvent(personId, eventId).catch((error: unknown) => {
+      this.logger.warn(
+        `Follow of person ${personId} saved; its next bout is unreadable: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
+      return null;
+    });
+    return this.toFollowRow(r, nextEvent);
+  }
+
+  private toFollowRow(r: Record<string, unknown>, nextEvent: NextEvent | null): FollowRow {
     const person = r['persons'] as {
       given_name: string;
       family_name: string;
       clubs: { name: string } | null;
     } | null;
 
-    const personId = r['followed_person_id'] as string;
-    const nextEvent = await this.fetchNextEvent(personId, eventId);
-
     return {
       id: r['id'] as string,
-      personId,
+      personId: r['followed_person_id'] as string,
       personName: person ? `${person.given_name} ${person.family_name}` : 'Unknown',
       personClub: person?.clubs?.name ?? null,
       followedAt: (r['created_at'] ?? r['followed_at']) as string,

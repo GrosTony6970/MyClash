@@ -6,12 +6,12 @@
  * Member cards reuse compact career stats (MemberStatsService) and the hub
  * follow-state (FollowsService) so the page renders in a couple of round-trips.
  */
-import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { ConflictException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { applyReachable, isReachableEmbed } from '../fighters/directory-predicate';
 import { isFieldPublic } from '../fighters/public-visibility';
-import { FollowsService } from '../follows/follows.service';
+import { type FollowState, FollowsService } from '../follows/follows.service';
 import { SupabaseService } from '../supabase/supabase.service';
-import { MemberStatsService } from './member-stats.service';
+import { type CompactStats, MemberStatsService } from './member-stats.service';
 
 export interface DirectoryGroup {
   id: string;
@@ -54,6 +54,8 @@ const MEMBER_SELECT = `
 
 @Injectable()
 export class DirectoryGroupsService {
+  private readonly logger = new Logger(DirectoryGroupsService.name);
+
   constructor(
     private readonly supabase: SupabaseService,
     private readonly memberStats: MemberStatsService,
@@ -159,7 +161,10 @@ export class DirectoryGroupsService {
     input: { globalPersonId?: string; slug?: string },
   ): Promise<DirectoryGroupMemberCard> {
     await this.assertOwner(userId, groupId);
-    const globalPersonId = await this.resolveGlobalPersonId(input);
+    // The card's own fields come from the lookup, BEFORE the write: after it, only decoration
+    // is read, and a failed decoration never fails a saved write (ruling 122).
+    const fighter = await this.resolveFighter(input);
+    const globalPersonId = fighter['id'] as string;
 
     // Idempotent insert: ignore a duplicate (already in this group).
     const { error } = await this.supabase.service
@@ -170,9 +175,19 @@ export class DirectoryGroupsService {
       );
     if (error) throw this.translateWriteError(error);
 
-    const card = await this.fetchMemberCard(globalPersonId, userId);
-    if (!card) throw new NotFoundException('Fighter not found');
-    return card;
+    const ctx = await this.loadCardContext([globalPersonId], userId).catch((err: unknown) => {
+      this.logger.warn(
+        `Fighter ${globalPersonId} added to group ${groupId}; its card details are unreadable: ${
+          err instanceof Error ? err.message : String(err)
+        }`,
+      );
+      return {
+        stats: new Map<string, CompactStats>(),
+        weapons: new Map<string, string | null>(),
+        followState: new Map<string, FollowState>(),
+      };
+    });
+    return this.toCard(fighter, ctx);
   }
 
   async removeMember(userId: string, groupId: string, globalPersonId: string): Promise<void> {
@@ -186,39 +201,28 @@ export class DirectoryGroupsService {
 
   // ── Helpers ───────────────────────────────────────────────────────────────
 
-  /** An erased, deleted or merged profile answers as an unknown fighter (ruling 107). */
-  private async resolveGlobalPersonId(input: {
+  /**
+   * The fighter to add, with the fields of their card. An erased, deleted or merged profile
+   * answers as an unknown fighter (ruling 107).
+   */
+  private async resolveFighter(input: {
     globalPersonId?: string;
     slug?: string;
-  }): Promise<string> {
+  }): Promise<Record<string, unknown>> {
     const [column, value] = input.globalPersonId
       ? ['id', input.globalPersonId]
       : ['slug', input.slug as string];
-    const { data, error } = await applyReachable(
-      this.supabase.service.from('global_persons').select('id').eq(column, value),
-    ).maybeSingle();
-    if (error) throw new Error(`fighter lookup failed: ${error.message}`);
-    if (!data) throw new NotFoundException('Fighter not found');
-    return (data as { id: string }).id;
-  }
-
-  private async fetchMemberCard(
-    globalPersonId: string,
-    userId: string,
-  ): Promise<DirectoryGroupMemberCard | null> {
     const { data, error } = await applyReachable(
       this.supabase.service
         .from('global_persons')
         .select(
           'id, slug, display_name, photo_url, country_code, public_visibility, clubs ( name )',
         )
-        .eq('id', globalPersonId),
+        .eq(column, value),
     ).maybeSingle();
-    if (error) throw new Error(`fighter card read failed: ${error.message}`);
-    if (!data) return null;
-
-    const ctx = await this.loadCardContext([globalPersonId], userId);
-    return this.toCard(data as Record<string, unknown>, ctx);
+    if (error) throw new Error(`fighter lookup failed: ${error.message}`);
+    if (!data) throw new NotFoundException('Fighter not found');
+    return data as Record<string, unknown>;
   }
 
   private async loadCardContext(personIds: string[], userId: string) {

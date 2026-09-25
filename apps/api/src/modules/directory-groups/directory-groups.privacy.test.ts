@@ -1,4 +1,4 @@
-import { HttpException, NotFoundException } from '@nestjs/common';
+import { HttpException, Logger, NotFoundException } from '@nestjs/common';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   filtersFor,
@@ -19,7 +19,8 @@ import { DirectoryGroupsService } from './directory-groups.service';
  *   - a profile that was erased, deleted or merged away is never a member card
  *     and cannot be added: it answers exactly like an unknown fighter
  *     (`applyReachable` / `isReachable`);
- *   - a failed read is a 5xx, never "no members" or "fighter not found".
+ *   - a failed read is a 5xx, never "no members" or "fighter not found" — except the card's
+ *     details read AFTER a saved add, which answer the card without them (ruling 122).
  *
  * Until 2026-09-25 the card sent the country whatever the map said, and an
  * erased profile could be added by its slug.
@@ -169,20 +170,19 @@ describe('POST /me/groups/:groupId/members (ruling 107)', () => {
   it('reads the added card with its privacy map', async () => {
     await add({ slug: 'hidden-slug' });
     expect(selectsFor(db.from, 'global_persons')).toEqual([
-      'id',
       'id, slug, display_name, photo_url, country_code, public_visibility, clubs ( name )',
     ]);
   });
 
   it('reads the added card only while the profile is still reachable', async () => {
-    // The lookup and the card are two reads: an erasure can land between them.
+    // One read, before the write: the card is the lookup's own row (ruling 122).
     await add({ slug: 'open-slug' });
     const reachable = [
       ['deleted_at', null],
       ['merged_into_id', null],
       ['account_deleted_at', null],
     ];
-    expect(filtersFor(db.from, 'global_persons', 'is')).toEqual([...reachable, ...reachable]);
+    expect(filtersFor(db.from, 'global_persons', 'is')).toEqual(reachable);
   });
 
   it('fails a failed fighter lookup loudly (5xx), never as "fighter not found"', async () => {
@@ -194,19 +194,38 @@ describe('POST /me/groups/:groupId/members (ruling 107)', () => {
     const call = add({ slug: 'open-slug' });
     await expect(call).rejects.toThrow('fighter lookup failed: boom');
     await expect(call).rejects.not.toBeInstanceOf(HttpException);
+    // The lookup comes before the write: nothing was saved.
+    expect(writesTo(db, 'directory_group_members')).toEqual([]);
   });
 
-  it('fails a failed card read loudly (5xx), never as "fighter not found"', async () => {
-    build({
-      directory_groups: { rows: [GROUP] },
-      directory_group_members: { rows: [] },
-      global_persons: [
-        { data: { id: 'open' }, error: null },
-        { data: null, error: { message: 'boom' } },
-      ],
-    });
-    const call = add({ slug: 'open-slug' });
-    await expect(call).rejects.toThrow('fighter card read failed: boom');
-    await expect(call).rejects.not.toBeInstanceOf(HttpException);
+  it('keeps a saved member when its card details fail to read: the card comes back without them (ruling 122)', async () => {
+    const warn = vi.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
+    try {
+      // The follow counts are the one detail read that fails loudly (the stats degrade on their own).
+      service = new DirectoryGroupsService(
+        db as never,
+        {
+          getCompactStats: vi.fn().mockResolvedValue(new Map()),
+          getFavoriteWeapons: vi.fn().mockResolvedValue(new Map()),
+        } as never,
+        {
+          countFollowStateForGlobalPersons: vi
+            .fn()
+            .mockRejectedValue(new Error('event people read failed: boom')),
+        } as never,
+      );
+      await expect(add({ slug: 'open-slug' })).resolves.toMatchObject({
+        globalPersonId: 'open',
+        displayName: 'open',
+        matches: 0,
+        favoriteWeapon: null,
+        upcomingEventCount: 0,
+      });
+      expect(writesTo(db, 'directory_group_members')).toHaveLength(1);
+      // Firing leaves a trace.
+      expect(warn).toHaveBeenCalledWith(expect.stringContaining('event people read failed: boom'));
+    } finally {
+      warn.mockRestore();
+    }
   });
 });

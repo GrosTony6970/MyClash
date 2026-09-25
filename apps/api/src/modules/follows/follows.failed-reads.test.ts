@@ -5,6 +5,8 @@
  * "you follow nobody", a failed "which of these do I follow" read showed nobody
  * as followed, a failed unfollow answered "done" with the row still there. Each
  * now fails as a plain Error — a 5xx naming what failed — and never guesses.
+ * The one exception is the next-bout line read AFTER a saved write (ruling 122,
+ * follows.saved-writes.test.ts): the write stands and answers without it.
  */
 import { HttpException } from '@nestjs/common';
 import { describe, expect, it, vi } from 'vitest';
