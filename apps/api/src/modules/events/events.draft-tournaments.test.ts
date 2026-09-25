@@ -100,29 +100,97 @@ const INSIDERS: Caller[] = [
 let db: ReturnType<typeof mockSupabase>;
 let controller: EventsController;
 
+/** Every table the three reads touch, seeded once; a test overrides one to make it fail. */
+const SEED: Parameters<typeof mockSupabase>[0] = {
+  events: { rows: EVENTS },
+  tournaments: { rows: TOURNAMENTS },
+  // One fighter entered in a running and a draft Tournament, one only in the draft, and one in the
+  // draft Event.
+  registrations: {
+    rows: [
+      {
+        tournament_id: 't-running',
+        person_id: 'p-both',
+        status: 'registered',
+        waitlist_position: null,
+      },
+      {
+        tournament_id: 't-draft',
+        person_id: 'p-both',
+        status: 'registered',
+        waitlist_position: null,
+      },
+      {
+        tournament_id: 't-draft',
+        person_id: 'p-draft',
+        status: 'registered',
+        waitlist_position: null,
+      },
+      {
+        tournament_id: 't-in-draft-event',
+        person_id: 'p-draft-event',
+        status: 'registered',
+        waitlist_position: null,
+      },
+    ],
+  },
+  persons: {
+    rows: [
+      {
+        id: 'p-both',
+        event_id: EVENT_OPEN,
+        given_name: 'Ann',
+        family_name: 'Both',
+        club_id: null,
+        hema_ratings_id: null,
+        global_person_id: 'gp-both',
+        global_persons: null,
+      },
+      {
+        id: 'p-draft',
+        event_id: EVENT_OPEN,
+        given_name: 'Dan',
+        family_name: 'Draft',
+        club_id: null,
+        hema_ratings_id: null,
+        global_person_id: 'gp-draft',
+        global_persons: null,
+      },
+      {
+        id: 'p-draft-event',
+        event_id: EVENT_DRAFT,
+        given_name: 'Eve',
+        family_name: 'Early',
+        club_id: null,
+        hema_ratings_id: null,
+        global_person_id: 'gp-draft-event',
+        global_persons: null,
+      },
+    ],
+  },
+  clubs: { rows: [] },
+  event_referees: { rows: [] },
+  event_instructors: { rows: [] },
+  phases: { rows: [] },
+  tournament_phase_venues: { rows: [] },
+  organization_members: {
+    rows: [
+      { organization_id: 'org-a', user_id: 'u-member', role: 'read_only' },
+      { organization_id: 'org-b', user_id: 'u-owner-b', role: 'owner' },
+    ],
+  },
+  event_staff_accounts: {
+    rows: [
+      { id: 'staff-open', event_id: EVENT_OPEN, status: 'active' },
+      { id: 'staff-off', event_id: EVENT_OPEN, status: 'disabled' },
+      { id: 'staff-draft', event_id: EVENT_DRAFT, status: 'active' },
+      { id: 'staff-draft-off', event_id: EVENT_DRAFT, status: 'disabled' },
+    ],
+  },
+};
+
 function build(overrides: Parameters<typeof mockSupabase>[0] = {}) {
-  db = mockSupabase({
-    events: { rows: EVENTS },
-    tournaments: { rows: TOURNAMENTS },
-    registrations: { rows: [] },
-    phases: { rows: [] },
-    tournament_phase_venues: { rows: [] },
-    organization_members: {
-      rows: [
-        { organization_id: 'org-a', user_id: 'u-member', role: 'read_only' },
-        { organization_id: 'org-b', user_id: 'u-owner-b', role: 'owner' },
-      ],
-    },
-    event_staff_accounts: {
-      rows: [
-        { id: 'staff-open', event_id: EVENT_OPEN, status: 'active' },
-        { id: 'staff-off', event_id: EVENT_OPEN, status: 'disabled' },
-        { id: 'staff-draft', event_id: EVENT_DRAFT, status: 'active' },
-        { id: 'staff-draft-off', event_id: EVENT_DRAFT, status: 'disabled' },
-      ],
-    },
-    ...overrides,
-  });
+  db = mockSupabase({ ...SEED, ...overrides });
   const orgs = new OrganizationsService(db as never);
   const events = new EventsService(db as never, orgs, {} as never, {} as never);
   controller = new EventsController(events, db as never, {} as never, {} as never, orgs);
@@ -214,4 +282,69 @@ describe('GET /events/:eventId/tournaments (the public Event home)', () => {
       await expect(run).rejects.not.toBeInstanceOf(HttpException);
     },
   );
+});
+
+describe('GET /events/:eventSlug/participants (the public roster)', () => {
+  const roster = async (caller?: Caller, eventSlug = 'open', includeStaff?: 'true') =>
+    (
+      (await controller.listParticipants(eventSlug, req(caller), includeStaff)) as Array<{
+        globalPersonId: string;
+        tournaments: Array<{ id: string }>;
+      }>
+    )
+      .map((row) => `${row.globalPersonId}:${idsOf(row.tournaments).sort().join('+')}`)
+      .sort();
+
+  it('leaves out a draft Tournament and whoever is entered only there, for anyone outside the club', async () => {
+    for (const caller of STRANGERS) {
+      expect(await roster(caller), JSON.stringify(caller)).toEqual(['gp-both:t-running']);
+    }
+  });
+
+  it("shows every Tournament and entrant to a club member and to the Event's active staff", async () => {
+    for (const caller of INSIDERS) {
+      expect(await roster(caller), JSON.stringify(caller)).toEqual([
+        'gp-both:t-draft+t-running',
+        'gp-draft:t-draft',
+      ]);
+    }
+  });
+
+  it('answers a draft Event to an outsider as an unknown one, and opens it to a club member', async () => {
+    await expect(controller.listParticipants('draft', req({ user: 'u-stranger' }))).rejects.toThrow(
+      'Event "draft" not found',
+    );
+    expect(await roster({ user: 'u-member' }, 'draft')).toEqual([
+      'gp-draft-event:t-in-draft-event',
+    ]);
+  });
+
+  it('with the Event staff appended, a referee entered only in a draft Tournament shows no Tournament', async () => {
+    build({ event_referees: { rows: [{ event_id: EVENT_OPEN, person_id: 'gp-draft' }] } });
+    for (const caller of STRANGERS) {
+      expect(await roster(caller, 'open', 'true'), JSON.stringify(caller)).toEqual([
+        'gp-both:t-running',
+        'gp-draft:',
+      ]);
+    }
+    expect(await roster({ user: 'u-member' }, 'open', 'true')).toEqual([
+      'gp-both:t-draft+t-running',
+      'gp-draft:t-draft',
+    ]);
+  });
+
+  it("reads each Tournament's status", async () => {
+    await roster();
+    expect(selectsFor(db.from, 'tournaments')).toEqual(['id, slug, name, color, weapon, status']);
+  });
+
+  it.each([
+    ['organization_members', 'membership read failed: connection reset'],
+    ['tournaments', 'tournaments read failed: connection reset'],
+  ])('fails a failed %s read loudly, never as an outsider', async (table, message) => {
+    build({ [table]: { data: null, error: { message: 'connection reset' } } });
+    const run = controller.listParticipants('open', req({ user: 'u-member' }));
+    await expect(run).rejects.toThrow(message);
+    await expect(run).rejects.not.toBeInstanceOf(HttpException);
+  });
 });

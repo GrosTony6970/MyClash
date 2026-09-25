@@ -1615,8 +1615,8 @@ describe('EventsService', () => {
 
     it('groups a person into one row with both tournaments they are registered in', async () => {
       const tournaments = [
-        { id: 't1', slug: 'longsword', name: 'Longsword Open', color: 'red' },
-        { id: 't2', slug: 'rapier', name: 'Rapier Cup', color: 'blue' },
+        { id: 't1', slug: 'longsword', name: 'Longsword Open', color: 'red', status: 'published' },
+        { id: 't2', slug: 'rapier', name: 'Rapier Cup', color: 'blue', status: 'published' },
       ];
       const registrations = [
         { tournament_id: 't1', person_id: 'p1', status: 'registered' },
@@ -1634,7 +1634,7 @@ describe('EventsService', () => {
         .mockReturnValueOnce(makeAwaitableChain({ data: [], error: null })) // event_referees
         .mockReturnValueOnce(makeAwaitableChain({ data: [], error: null })); // event_instructors
 
-      const result = await service.listPublicParticipants('fal-2027', CALLER);
+      const result = await service.listPublicParticipants('fal-2027', MEMBER);
 
       expect(result).toHaveLength(1);
       expect(result[0]?.displayName).toBe('Alice Dupont');
@@ -1644,7 +1644,9 @@ describe('EventsService', () => {
     });
 
     it('excludes withdrawn and disqualified registrations', async () => {
-      const tournaments = [{ id: 't1', slug: 'longsword', name: 'Longsword', color: 'red' }];
+      const tournaments = [
+        { id: 't1', slug: 'longsword', name: 'Longsword', color: 'red', status: 'published' },
+      ];
       // Two registrations: one withdrawn, one checked_in. Only the checked_in row
       // should make it through.
       const registrations = [
@@ -1670,7 +1672,7 @@ describe('EventsService', () => {
         .mockReturnValueOnce(makeAwaitableChain({ data: [], error: null })) // event_referees
         .mockReturnValueOnce(makeAwaitableChain({ data: [], error: null })); // event_instructors
 
-      const result = await service.listPublicParticipants('fal-2027', CALLER);
+      const result = await service.listPublicParticipants('fal-2027', MEMBER);
 
       expect(result.map((r) => r.personId)).toEqual(['p2']);
       // Withdrawn / disqualified must never be in the status filter list.
@@ -1684,7 +1686,9 @@ describe('EventsService', () => {
     });
 
     it('returns the row with null club fields when the person has no club_id', async () => {
-      const tournaments = [{ id: 't1', slug: 'longsword', name: 'Longsword', color: 'red' }];
+      const tournaments = [
+        { id: 't1', slug: 'longsword', name: 'Longsword', color: 'red', status: 'published' },
+      ];
       const registrations = [{ tournament_id: 't1', person_id: 'p1', status: 'registered' }];
       const persons = [{ id: 'p1', given_name: 'Carol', family_name: 'Lemaire', club_id: null }];
 
@@ -1696,7 +1700,7 @@ describe('EventsService', () => {
         .mockReturnValueOnce(makeAwaitableChain({ data: [], error: null })) // event_referees
         .mockReturnValueOnce(makeAwaitableChain({ data: [], error: null })); // event_instructors
 
-      const result = await service.listPublicParticipants('fal-2027', CALLER);
+      const result = await service.listPublicParticipants('fal-2027', MEMBER);
 
       expect(result).toHaveLength(1);
       expect(result[0]?.clubName).toBeNull();
@@ -1704,7 +1708,9 @@ describe('EventsService', () => {
     });
 
     it('marks every projected tournament with registrationState=active', async () => {
-      const tournaments = [{ id: 't1', slug: 'longsword', name: 'Longsword', color: 'red' }];
+      const tournaments = [
+        { id: 't1', slug: 'longsword', name: 'Longsword', color: 'red', status: 'published' },
+      ];
       const registrations = [{ tournament_id: 't1', person_id: 'p1', status: 'registered' }];
       const persons = [{ id: 'p1', given_name: 'Dora', family_name: 'Costa', club_id: null }];
 
@@ -1716,12 +1722,14 @@ describe('EventsService', () => {
         .mockReturnValueOnce(makeAwaitableChain({ data: [], error: null })) // event_referees
         .mockReturnValueOnce(makeAwaitableChain({ data: [], error: null })); // event_instructors
 
-      const result = await service.listPublicParticipants('fal-2027', CALLER);
+      const result = await service.listPublicParticipants('fal-2027', MEMBER);
       expect(result[0]?.tournaments[0]?.registrationState).toBe('active');
     });
 
     it('with includeStaff appends non-competing referees/instructors', async () => {
-      const tournaments = [{ id: 't1', slug: 'longsword', name: 'Longsword', color: 'red' }];
+      const tournaments = [
+        { id: 't1', slug: 'longsword', name: 'Longsword', color: 'red', status: 'published' },
+      ];
       const registrations = [{ tournament_id: 't1', person_id: 'p1', status: 'registered' }];
       // Alice competes AND referees (global g1). Bob (g2) referees but does not
       // compete yet has an event persons row (p2). Carol (g3) instructs with no
@@ -1774,7 +1782,7 @@ describe('EventsService', () => {
           }),
         ); // staff clubs
 
-      const result = await service.listPublicParticipants('fal-2027', CALLER, {
+      const result = await service.listPublicParticipants('fal-2027', MEMBER, {
         includeStaff: true,
       });
 
@@ -2832,7 +2840,7 @@ describe('EventsService', () => {
         .mockReturnValueOnce(makeAwaitableChain({ data: [], error: null })) // event_referees
         .mockReturnValueOnce(makeAwaitableChain({ data: [], error: null })); // event_instructors
 
-      const result = await service.listPublicParticipants('fal-2027', CALLER);
+      const result = await service.listPublicParticipants('fal-2027', MEMBER);
 
       const bob = result.find((r) => r.personId === 'p-2');
       expect(bob).toBeDefined();

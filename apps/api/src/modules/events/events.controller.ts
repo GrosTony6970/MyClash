@@ -393,7 +393,7 @@ export class EventsController {
     @Req() req: FastifyRequest,
     @Query('includeStaff') includeStaff?: string,
   ) {
-    return this.events.listPublicParticipants(eventSlug, () => getUserId(req, this.supabase), {
+    return this.events.listPublicParticipants(eventSlug, publicReader(req), {
       includeStaff: includeStaff === 'true',
     });
   }

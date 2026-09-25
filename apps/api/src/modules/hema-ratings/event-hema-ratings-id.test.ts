@@ -279,7 +279,16 @@ describe("the public participants list and the HEMA Ratings export read the rost
         error: null,
       },
       tournaments: {
-        data: [{ id: 't1', slug: 'ls', name: 'Longsword', color: null, weapon: 'longsword' }],
+        data: [
+          {
+            id: 't1',
+            slug: 'ls',
+            name: 'Longsword',
+            color: null,
+            weapon: 'longsword',
+            status: 'published',
+          },
+        ],
         error: null,
       },
       registrations: {
@@ -309,7 +318,7 @@ describe("the public participants list and the HEMA Ratings export read the rost
       { resolveWeaponRatings } as never,
     );
 
-    const rows = await events.listPublicParticipants('fal', async () => 'anonymous');
+    const rows = await events.listPublicParticipants('fal', { userId: 'anonymous', staff: null });
 
     expect(rows.map((row) => row.tournaments[0]?.hemaRating?.weightedRating)).toEqual([
       1500, 1400, 1300,

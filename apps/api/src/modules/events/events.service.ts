@@ -24,6 +24,7 @@ import {
 import {
   canReadEvent,
   visibleTournaments,
+  type CompetitionEvent,
   type PublicReader,
 } from '../../common/auth/competition-visibility';
 import { hasPlatformTier } from '../../common/auth/platform-role';
@@ -1696,6 +1697,27 @@ export class EventsService {
   }
 
   /**
+   * The Tournaments whose entrants the public roster lists: a draft one is left out, with whoever
+   * is entered only there, for anyone but an insider (ruling 127a).
+   */
+  private async readRosterTournaments(event: CompetitionEvent, reader: PublicReader) {
+    const { data, error } = await this.supabase.service
+      .from('tournaments')
+      .select('id, slug, name, color, weapon, status')
+      .eq('event_id', event.id);
+    if (error) throw new Error(`tournaments read failed: ${error.message}`);
+    const rows = (data ?? []) as Array<{
+      id: string;
+      slug: string;
+      name: string;
+      color: string | null;
+      weapon: string | null;
+      status: string;
+    }>;
+    return visibleTournaments({ supabase: this.supabase, orgs: this.orgs }, event, rows, reader);
+  }
+
+  /**
    * `@Public()`: the public Event home's Tournament cards, and one of the places the
    * `/tournaments/:id/*` reads (stats, pool standings, Swiss) get their ids from. Those
    * routes gate a hidden Tournament themselves (`canReadTournament`); this list leaves one out.
@@ -1970,7 +1992,7 @@ export class EventsService {
    */
   async listPublicParticipants(
     slugOrId: string,
-    resolveUserId: () => Promise<string>,
+    reader: PublicReader,
     opts?: { includeStaff?: boolean },
   ): Promise<
     Array<{
@@ -1992,25 +2014,14 @@ export class EventsService {
       }>;
     }>
   > {
-    const event = await this.getEventBySlug(slugOrId, resolveUserId);
+    const event = await this.getEventBySlug(slugOrId, () => Promise.resolve(reader.userId));
     const eventId = (event as { id: string }).id;
     // Staff (referees/instructors) who don't compete are only appended when the
     // caller opts in — the roster is otherwise registration-only so the event
     // home counts and per-tournament lists stay untouched.
     const includeStaff = opts?.includeStaff ?? false;
 
-    const { data: tournamentRows, error: tournErr } = await this.supabase.service
-      .from('tournaments')
-      .select('id, slug, name, color, weapon')
-      .eq('event_id', eventId);
-    if (tournErr) throw new BadRequestException(tournErr.message);
-    const tournaments = (tournamentRows ?? []) as Array<{
-      id: string;
-      slug: string;
-      name: string;
-      color: string | null;
-      weapon: string | null;
-    }>;
+    const tournaments = await this.readRosterTournaments(event as CompetitionEvent, reader);
     if (tournaments.length === 0 && !includeStaff) return [];
     const tournamentById = new Map(tournaments.map((t) => [t.id, t]));
 
