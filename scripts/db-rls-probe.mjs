@@ -14,8 +14,9 @@
  * three checks, all as anon (JWT claims with no `sub`), each in a savepoint rolled back after it;
  * the whole run is one transaction, always rolled back, so nothing it wrote survives:
  *   1. every relation anon may SELECT answers without an error;
- *   2. the seeded rows split exactly: the published Event's side is visible; the draft's, the
- *      private League, the club's own ruleset, the membership and the platform role are hidden;
+ *   2. the seeded rows split exactly: the published Event's published Tournament is visible; the
+ *      draft Event's side, a draft Tournament's side (even under the published Event), the private
+ *      League, the club's own ruleset, the membership and the platform role are hidden;
  *   3. every view in `public` runs as its caller (security_invoker) — the runtime twin of
  *      db:review's static rule, which missed 0193.
  * Signed-in reads are out of scope: ruling 111a leaves their loop latent on purpose.
@@ -47,19 +48,29 @@ const VERDICTS = [
     table: 'tournaments',
     key: 'id',
     visible: ['77777777-0000-4000-8000-00000000000a'],
-    hidden: ['77777777-0000-4000-8000-00000000000b'],
+    hidden: [
+      '77777777-0000-4000-8000-00000000000b',
+      '77777777-0000-4000-8000-00000000000c',
+      '77777777-0000-4000-8000-00000000000d',
+    ],
   },
   {
     table: 'phases',
     key: 'id',
     visible: ['99999999-0000-4000-8000-00000000000a'],
-    hidden: ['99999999-0000-4000-8000-00000000000b'],
+    hidden: ['99999999-0000-4000-8000-00000000000b', '99999999-0000-4000-8000-00000000000c'],
   },
   {
     table: 'matches',
     key: 'id',
     visible: ['dddddddd-0000-4000-8000-00000000000a'],
-    hidden: ['dddddddd-0000-4000-8000-00000000000b'],
+    hidden: ['dddddddd-0000-4000-8000-00000000000b', 'dddddddd-0000-4000-8000-00000000000c'],
+  },
+  {
+    table: 'registrations',
+    key: 'id',
+    visible: ['cccccccc-0000-4000-8000-00000000000a'],
+    hidden: ['cccccccc-0000-4000-8000-00000000000c'],
   },
   {
     table: 'leagues',

@@ -79,6 +79,19 @@ const EXPECTED: Record<string, string> = {
     'join phases p on p.id = m.phase_id join tournaments t on t.id = p.tournament_id ' +
     'join events e on e.id = t.event_id where m.id = match_id and ' +
     `${PUBLIC.slice(1, -1)}));`,
+  // 0203 (ruling 119): the Tournament's own row and its registrations. The registrations check is
+  // also enforced one level down (its subquery reads `tournaments` under RLS), so the anon probe
+  // cannot tell which lock hid a draft registration: only this pin catches its own branch widening.
+  tournaments_select:
+    'create policy "tournaments_select" on tournaments for select using (is_super_admin() ' +
+    'or is_org_member(event_org_id(event_id)) or ' +
+    "(tournaments.status in ('published','running','completed') and exists (select 1 from events e " +
+    "where e.id = tournaments.event_id and e.status in ('published','running','completed'))));",
+  registrations_select:
+    'create policy "registrations_select" on registrations for select using (is_super_admin() ' +
+    'or exists (select 1 from tournaments t join events e on e.id = t.event_id ' +
+    'where t.id = registrations.tournament_id and (is_org_member(e.organization_id) ' +
+    `or ${PUBLIC})));`,
 };
 
 describe('the Tournament status is the public switch for its contents', () => {
