@@ -35,6 +35,13 @@ import {
 
 export type RedactionCounts = Record<string, number>;
 
+/** Two receipts' counts, table by table. */
+function addCounts(a: RedactionCounts, b: RedactionCounts): RedactionCounts {
+  const sum = { ...a };
+  for (const [table, n] of Object.entries(b)) sum[table] = (sum[table] ?? 0) + n;
+  return sum;
+}
+
 export interface AnonymiseResult {
   counts: RedactionCounts;
   /** sha256 of the rotated-away slug, so its old URL can answer 410 Gone. */
@@ -58,6 +65,9 @@ export class ErasureService {
   async redactSubject(uid: string): Promise<RedactionCounts> {
     const globalPersonIds = await this.idsWhere('global_persons', 'claimed_by_user_id', uid);
     const personIds = await this.idsWhere('persons', 'claimed_by_user_id', uid);
+    // Before the profile update below clears `claimed_by_user_id`: the ids above
+    // come from that column, so a retry after a failure here still finds them.
+    const aimed = await this.deleteRowsAimedAt(globalPersonIds);
 
     return {
       // Profile: strip the private individual, keep the competitor.
@@ -74,7 +84,7 @@ export class ErasureService {
       }),
       // Device telemetry: no historical value, delete outright.
       guest_sessions: await this.deleteIn('guest_sessions', 'person_id', personIds),
-      ...(await this.deleteOwnedRows(uid)),
+      ...addCounts(await this.deleteOwnedRows(uid), aimed),
       // Governance trail: keep the row, scrub the personal values.
       audit_log: await this.redactAuditPayloads(uid, globalPersonIds, personIds),
     };
@@ -99,6 +109,25 @@ export class ErasureService {
     const counts: RedactionCounts = {};
     for (const [table, column] of OWNED) {
       counts[table] = await this.deleteWhere(table, column, uid);
+    }
+    return counts;
+  }
+
+  /**
+   * Other people's rows aimed at the erased profiles (rulings 113, 113a): claim
+   * links, claim requests and follows. Erasure hides the profile, so nobody can
+   * see or act on them again, yet they still name it. A merge keeps them: it can
+   * be undone.
+   */
+  private async deleteRowsAimedAt(globalPersonIds: string[]): Promise<RedactionCounts> {
+    const AIMED: readonly [table: string, column: string][] = [
+      ['global_person_claim_tokens', 'global_person_id'],
+      ['global_person_claim_requests', 'global_person_id'],
+      ['directory_follows', 'followed_global_person_id'],
+    ];
+    const counts: RedactionCounts = {};
+    for (const [table, column] of AIMED) {
+      counts[table] = await this.deleteIn(table, column, globalPersonIds);
     }
     return counts;
   }
@@ -169,6 +198,7 @@ export class ErasureService {
       family_name: '',
     });
     counts['guest_sessions'] = await this.deleteIn('guest_sessions', 'person_id', personIds);
+    Object.assign(counts, await this.deleteRowsAimedAt([globalPersonId]));
 
     return { counts, previousSlugHash: previousSlug ? hashSlug(previousSlug) : null };
   }
