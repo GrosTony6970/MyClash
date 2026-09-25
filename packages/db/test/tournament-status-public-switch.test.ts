@@ -6,7 +6,8 @@
  * bracket created it `hidden`, and only republishing the Tournament showed it, so RLS
  * silently hid the day's bouts from the live channel while the public pages
  * showed them. Every public branch below now reads the Event status AND the
- * Tournament status, and the phase flag is gone.
+ * Tournament status, and the phase flag is gone. The one exception is a
+ * referee's piste assignment (0204): a piste has no Tournament.
  *
  * This reads the migrations in order and asserts each policy's LAST statement
  * WHOLE, so a dropped `and`, a widened status list or a revived phase flag
@@ -92,6 +93,19 @@ const EXPECTED: Record<string, string> = {
     'or exists (select 1 from tournaments t join events e on e.id = t.event_id ' +
     'where t.id = registrations.tournament_id and (is_org_member(e.organization_id) ' +
     `or ${PUBLIC})));`,
+  // 0204 (ruling 126): a Pool or bout assignment follows its Tournament; a piste one has none.
+  referee_assignments_select:
+    'create policy "referee_assignments_select" on referee_assignments for select using ' +
+    '(is_super_admin() or exists (select 1 from global_persons gp ' +
+    'where gp.id = referee_assignments.person_id and gp.claimed_by_user_id = auth.uid()) ' +
+    'or is_org_member(event_org_id(event_id)) or (exists (select 1 from events e ' +
+    "where e.id = referee_assignments.event_id and e.status in ('published','running','completed')) " +
+    "and (referee_assignments.scope_type = 'lice' or exists (select 1 from pools p " +
+    'join phases ph on ph.id = p.phase_id join tournaments t on t.id = ph.tournament_id ' +
+    "where p.id = referee_assignments.pool_id and t.status in ('published','running','completed')) " +
+    'or exists (select 1 from matches m join phases ph on ph.id = m.phase_id ' +
+    'join tournaments t on t.id = ph.tournament_id where m.id = referee_assignments.match_id ' +
+    "and t.status in ('published','running','completed')))));",
 };
 
 describe('the Tournament status is the public switch for its contents', () => {

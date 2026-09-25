@@ -15,6 +15,9 @@
 --   - a draft Tournament under the PUBLISHED Event, with a phase, a bout and a registration: the
 --     Event's status alone let anon read that Tournament's row until 0203. And a published
 --     Tournament under the draft Event: a public row needs BOTH statuses.
+--   - a referee assigned to a piste of the published Event and to a Pool and a bout of its published
+--     Tournament (public), to a piste of the draft Event, and to a Pool and a bout of the draft
+--     Tournament (hidden): the Event's status alone let anon read those last two until 0204.
 
 INSERT INTO auth.users (id) VALUES
   ('11111111-1111-4111-8111-111111111111'), ('22222222-2222-4222-8222-222222222222');
@@ -51,6 +54,27 @@ INSERT INTO registrations (id, tournament_id, person_id) VALUES
    'bbbbbbbb-0000-4000-8000-00000000000a'),
   ('cccccccc-0000-4000-8000-00000000000c', '77777777-0000-4000-8000-00000000000c',
    'bbbbbbbb-0000-4000-8000-00000000000a');
+INSERT INTO pools (id, phase_id, name) VALUES
+  ('90010000-0000-4000-8000-00000000000a', '99999999-0000-4000-8000-00000000000a', 'A'),
+  ('90010000-0000-4000-8000-00000000000c', '99999999-0000-4000-8000-00000000000c', 'A');
+INSERT INTO lices (id, event_id, name) VALUES
+  ('11ce0000-0000-4000-8000-00000000000a', 'eeeeeeee-0000-4000-8000-00000000000a', 'Piste 1'),
+  ('11ce0000-0000-4000-8000-00000000000b', 'eeeeeeee-0000-4000-8000-00000000000b', 'Piste 1');
+INSERT INTO global_persons (id, slug, display_name, given_name, family_name) VALUES
+  ('9e000000-0000-4000-8000-00000000000a', 'rls-probe-referee', 'Probe Referee', 'Probe', 'Referee');
+INSERT INTO referee_assignments (id, event_id, person_id, scope_type, lice_id, pool_id, match_id) VALUES
+  ('4a000000-0000-4000-8000-00000000001a', 'eeeeeeee-0000-4000-8000-00000000000a',
+   '9e000000-0000-4000-8000-00000000000a', 'lice', '11ce0000-0000-4000-8000-00000000000a', NULL, NULL),
+  ('4a000000-0000-4000-8000-00000000002a', 'eeeeeeee-0000-4000-8000-00000000000a',
+   '9e000000-0000-4000-8000-00000000000a', 'pool', NULL, '90010000-0000-4000-8000-00000000000a', NULL),
+  ('4a000000-0000-4000-8000-00000000003a', 'eeeeeeee-0000-4000-8000-00000000000a',
+   '9e000000-0000-4000-8000-00000000000a', 'match', NULL, NULL, 'dddddddd-0000-4000-8000-00000000000a'),
+  ('4a000000-0000-4000-8000-00000000001b', 'eeeeeeee-0000-4000-8000-00000000000b',
+   '9e000000-0000-4000-8000-00000000000a', 'lice', '11ce0000-0000-4000-8000-00000000000b', NULL, NULL),
+  ('4a000000-0000-4000-8000-00000000002c', 'eeeeeeee-0000-4000-8000-00000000000a',
+   '9e000000-0000-4000-8000-00000000000a', 'pool', NULL, '90010000-0000-4000-8000-00000000000c', NULL),
+  ('4a000000-0000-4000-8000-00000000003c', 'eeeeeeee-0000-4000-8000-00000000000a',
+   '9e000000-0000-4000-8000-00000000000a', 'match', NULL, NULL, 'dddddddd-0000-4000-8000-00000000000c');
 INSERT INTO leagues (id, slug, name, season_year, public_visibility) VALUES
   ('1eaa0000-0000-4000-8000-00000000000a', 'rls-probe-public', 'Public', 2026, true),
   ('1eaa0000-0000-4000-8000-00000000000b', 'rls-probe-private', 'Private', 2026, false);
