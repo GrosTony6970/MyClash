@@ -41,17 +41,16 @@ export class PrivacyService {
 
   // ── Get or create ────────────────────────────────────────────────────────────
 
+  /**
+   * A failed read or create is a 5xx, never the defaults (ruling 117a): the defaults allow
+   * being followed, so a guess could follow someone who opted out.
+   */
   async getOrCreate(personId: string): Promise<PersonPrivacy> {
-    const { data } = await this.supabase.service
-      .from('person_privacy')
-      .select('*')
-      .eq('person_id', personId)
-      .maybeSingle();
-
-    if (data) return this.map(data as Record<string, unknown>);
+    const existing = await this.readOne(personId);
+    if (existing) return existing;
 
     // Auto-create with defaults
-    const { data: created } = await this.supabase.service
+    const { data: created, error } = await this.supabase.service
       .from('person_privacy')
       .insert({
         person_id: personId,
@@ -61,8 +60,24 @@ export class PrivacyService {
       .select('*')
       .single();
 
-    if (created) return this.map(created as Record<string, unknown>);
-    return { personId, ...DEFAULTS };
+    // Two requests can race to create the row (two public schedule reads of the same person, a
+    // double-submitted follow): the loser reads the winner's.
+    if (error?.code === '23505') {
+      const winner = await this.readOne(personId);
+      if (winner) return winner;
+    }
+    if (error) throw new Error(`privacy write failed: ${error.message}`);
+    return this.map(created as Record<string, unknown>);
+  }
+
+  private async readOne(personId: string): Promise<PersonPrivacy | null> {
+    const { data, error } = await this.supabase.service
+      .from('person_privacy')
+      .select('*')
+      .eq('person_id', personId)
+      .maybeSingle();
+    if (error) throw new Error(`privacy read failed: ${error.message}`);
+    return data ? this.map(data as Record<string, unknown>) : null;
   }
 
   // ── Update ───────────────────────────────────────────────────────────────────

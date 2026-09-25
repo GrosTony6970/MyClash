@@ -99,17 +99,20 @@ describe('following a fighter from the People hub (ruling 112)', () => {
   });
 
   it.each([
-    ['the profile read', { global_persons: FAILED }],
-    ['the event people read', { persons: FAILED }],
-    ['the follow write', { directory_follows: FAILED }],
-  ])('fails a failed %s loudly, never as a follow that happened', async (_what, broken) => {
-    const { service } = followsWith({ ...TABLES, ...broken });
+    ['the profile read', { global_persons: FAILED }, 'fighter read failed: boom'],
+    ['the event people read', { persons: FAILED }, 'event people read failed: boom'],
+    ['the follow write', { directory_follows: FAILED }, 'directory follow write failed: boom'],
+  ])(
+    'fails a failed %s loudly, never as a follow that happened',
+    async (_what, broken, message) => {
+      const { service } = followsWith({ ...TABLES, ...broken });
 
-    const follow = service.followAllEvents(LIVE, { userId: USER });
+      const follow = service.followAllEvents(LIVE, { userId: USER });
 
-    await expect(follow).rejects.toThrow('boom');
-    await expect(follow).rejects.not.toBeInstanceOf(HttpException);
-  });
+      await expect(follow).rejects.toThrow(message);
+      await expect(follow).rejects.not.toBeInstanceOf(HttpException);
+    },
+  );
 
   it('fails an unfollow whose event people read failed, never as a clean 204', async () => {
     // The same read: read as "no events", the event follows stayed and kept notifying.

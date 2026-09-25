@@ -3,7 +3,7 @@
  *
  * Manages follow rows. Supports both guest sessions and claimed users.
  * Idempotent POST. Respects allow_being_followed privacy setting.
- * Guest→claimed migration transfers follows atomically.
+ * Guest→claimed migration moves follows one row at a time.
  */
 
 import {
@@ -99,6 +99,15 @@ function one(value: unknown): Record<string, unknown> | null {
   return (value as Record<string, unknown>) ?? null;
 }
 
+/**
+ * A query's data, or a 5xx naming what failed (ruling 117a): a failed read is
+ * never "no rows", and a failed write is never "done".
+ */
+function dataOrThrow<T>(result: { data: T; error: { message: string } | null }, what: string): T {
+  if (result.error) throw new Error(`${what} failed: ${result.error.message}`);
+  return result.data;
+}
+
 /** Per-global-person follow state for the "People" hub cards. */
 export interface FollowState {
   upcomingEventCount: number;
@@ -130,7 +139,7 @@ export class FollowsService {
       .eq('event_id', eventId)
       .eq(...followerFilter(identity));
 
-    const { data } = await q.order('created_at', { ascending: false });
+    const data = dataOrThrow(await q.order('created_at', { ascending: false }), 'follows read');
     if (!data) return [];
 
     const rows = data as Array<Record<string, unknown>>;
@@ -157,7 +166,7 @@ export class FollowsService {
       )
       .eq(...followerFilter(identity));
 
-    const { data } = await q.order('created_at', { ascending: false });
+    const data = dataOrThrow(await q.order('created_at', { ascending: false }), 'follows read');
     if (!data) return [];
 
     const rows = data as Array<Record<string, unknown>>;
@@ -199,14 +208,17 @@ export class FollowsService {
       [followerColumn]: follower,
     };
 
-    const { data } = await this.supabase.service
-      .from('follows')
-      .insert(insert)
-      .select(
-        `id, followed_person_id, created_at, notify_match_start, notify_workshop_start,
+    const data = dataOrThrow(
+      await this.supabase.service
+        .from('follows')
+        .insert(insert)
+        .select(
+          `id, followed_person_id, created_at, notify_match_start, notify_workshop_start,
          persons ( given_name, family_name, clubs ( name ) )`,
-      )
-      .single();
+        )
+        .single(),
+      'follow write',
+    );
 
     return this.mapRow(data as Record<string, unknown>, eventId);
   }
@@ -215,12 +227,15 @@ export class FollowsService {
 
   async unfollow(eventId: string, personId: string, identity: FollowIdentity): Promise<void> {
     const follower = followerFilter(identity);
-    await this.supabase.service
-      .from('follows')
-      .delete()
-      .eq('event_id', eventId)
-      .eq('followed_person_id', personId)
-      .eq(...follower);
+    dataOrThrow(
+      await this.supabase.service
+        .from('follows')
+        .delete()
+        .eq('event_id', eventId)
+        .eq('followed_person_id', personId)
+        .eq(...follower),
+      'follow delete',
+    );
     if (identity.userId) {
       await this.followNotifications.cancelForFollowedPerson(personId, identity.userId);
     }
@@ -254,16 +269,21 @@ export class FollowsService {
       .eq('followed_person_id', personId)
       .eq(...follower);
 
-    const { data } = await (
-      q as never as {
-        select: (s: string) => { single: () => Promise<{ data: unknown }> };
-      }
-    )
-      .select(
-        `id, followed_person_id, created_at, notify_match_start, notify_workshop_start,
-         persons ( given_name, family_name, clubs ( name ) )`,
+    const data = dataOrThrow(
+      await (
+        q as never as {
+          select: (s: string) => {
+            single: () => Promise<{ data: unknown; error: { message: string } | null }>;
+          };
+        }
       )
-      .single();
+        .select(
+          `id, followed_person_id, created_at, notify_match_start, notify_workshop_start,
+         persons ( given_name, family_name, clubs ( name ) )`,
+        )
+        .single(),
+      'follow notifications write',
+    );
 
     return this.mapRow(data as Record<string, unknown>, eventId);
   }
@@ -271,8 +291,8 @@ export class FollowsService {
   // ── Guest→claimed migration ───────────────────────────────────────────────────
 
   /**
-   * Transfer all follow rows from a guest session to a claimed user.
-   * Called atomically from the claim handler (T-009).
+   * Transfer all follow rows from a guest session to a claimed user, one row at
+   * a time (not atomic). Nothing calls it today.
    * Duplicate follows (same person already followed by user) are deleted.
    */
   async migrateGuestFollows(
@@ -281,20 +301,26 @@ export class FollowsService {
     eventId: string,
   ): Promise<number> {
     // Fetch guest follows
-    const { data: guestFollows } = await this.supabase.service
-      .from('follows')
-      .select('id, followed_person_id')
-      .eq('follower_guest_session_id', guestSessionId)
-      .eq('event_id', eventId);
+    const guestFollows = dataOrThrow(
+      await this.supabase.service
+        .from('follows')
+        .select('id, followed_person_id')
+        .eq('follower_guest_session_id', guestSessionId)
+        .eq('event_id', eventId),
+      'guest follows read',
+    );
 
     if (!guestFollows || guestFollows.length === 0) return 0;
 
     // Fetch existing user follows to detect duplicates
-    const { data: userFollows } = await this.supabase.service
-      .from('follows')
-      .select('followed_person_id')
-      .eq('follower_user_id', userId)
-      .eq('event_id', eventId);
+    const userFollows = dataOrThrow(
+      await this.supabase.service
+        .from('follows')
+        .select('followed_person_id')
+        .eq('follower_user_id', userId)
+        .eq('event_id', eventId),
+      'follows read',
+    );
 
     const userPersonIds = new Set(
       (userFollows ?? []).map((f) => (f as { followed_person_id: string }).followed_person_id),
@@ -303,20 +329,30 @@ export class FollowsService {
     let migrated = 0;
 
     for (const gf of guestFollows as Array<{ id: string; followed_person_id: string }>) {
-      if (userPersonIds.has(gf.followed_person_id)) {
-        // Duplicate — delete guest follow
-        await this.supabase.service.from('follows').delete().eq('id', gf.id);
-      } else {
-        // Transfer to user
-        await this.supabase.service
-          .from('follows')
-          .update({ follower_user_id: userId, follower_guest_session_id: null })
-          .eq('id', gf.id);
-        migrated++;
-      }
+      const duplicate = userPersonIds.has(gf.followed_person_id);
+      await this.moveGuestFollow(gf.id, userId, duplicate);
+      if (!duplicate) migrated++;
     }
 
     return migrated;
+  }
+
+  /** A guest follow the account already has is deleted; any other moves to the account. */
+  private async moveGuestFollow(followId: string, userId: string, duplicate: boolean) {
+    if (duplicate) {
+      dataOrThrow(
+        await this.supabase.service.from('follows').delete().eq('id', followId),
+        'follow delete',
+      );
+      return;
+    }
+    dataOrThrow(
+      await this.supabase.service
+        .from('follows')
+        .update({ follower_user_id: userId, follower_guest_session_id: null })
+        .eq('id', followId),
+      'follow write',
+    );
   }
 
   // ── Follow-from-hub (global person → all current/upcoming events) ─────────────
@@ -347,13 +383,15 @@ export class FollowsService {
     // person shows in the "Following" tab even with zero upcoming events. The
     // per-event fan-out below only wires notifications for events they're in.
     if (identity.userId) {
-      const { error } = await this.supabase.service
-        .from('directory_follows')
-        .upsert(
-          { follower_user_id: identity.userId, followed_global_person_id: globalPersonId },
-          { onConflict: 'follower_user_id,followed_global_person_id', ignoreDuplicates: true },
-        );
-      if (error) throw new Error(`directory follow write failed: ${error.message}`);
+      dataOrThrow(
+        await this.supabase.service
+          .from('directory_follows')
+          .upsert(
+            { follower_user_id: identity.userId, followed_global_person_id: globalPersonId },
+            { onConflict: 'follower_user_id,followed_global_person_id', ignoreDuplicates: true },
+          ),
+        'directory follow write',
+      );
       summary.following = true;
     }
 
@@ -381,11 +419,14 @@ export class FollowsService {
     if (!hasFollower(identity)) return;
 
     if (identity.userId) {
-      await this.supabase.service
-        .from('directory_follows')
-        .delete()
-        .eq('follower_user_id', identity.userId)
-        .eq('followed_global_person_id', globalPersonId);
+      dataOrThrow(
+        await this.supabase.service
+          .from('directory_follows')
+          .delete()
+          .eq('follower_user_id', identity.userId)
+          .eq('followed_global_person_id', globalPersonId),
+        'directory follow delete',
+      );
     }
 
     const targets = await this.resolveEventPersons(globalPersonId, { upcomingOnly: false });
@@ -398,11 +439,14 @@ export class FollowsService {
 
   /** The user's persistent directory follows (global-person level), newest first. */
   async listDirectoryFollows(userId: string): Promise<DirectoryFollow[]> {
-    const { data } = await this.supabase.service
-      .from('directory_follows')
-      .select('followed_global_person_id, created_at')
-      .eq('follower_user_id', userId)
-      .order('created_at', { ascending: false });
+    const data = dataOrThrow(
+      await this.supabase.service
+        .from('directory_follows')
+        .select('followed_global_person_id, created_at')
+        .eq('follower_user_id', userId)
+        .order('created_at', { ascending: false }),
+      'directory follows read',
+    );
     return ((data ?? []) as Array<Record<string, unknown>>).map((r) => ({
       globalPersonId: r['followed_global_person_id'] as string,
       followedAt: r['created_at'] as string,
@@ -416,11 +460,14 @@ export class FollowsService {
   ): Promise<Set<string>> {
     const ids = [...new Set(globalPersonIds.filter(Boolean))];
     if (ids.length === 0) return new Set();
-    const { data } = await this.supabase.service
-      .from('directory_follows')
-      .select('followed_global_person_id')
-      .eq('follower_user_id', userId)
-      .in('followed_global_person_id', ids);
+    const data = dataOrThrow(
+      await this.supabase.service
+        .from('directory_follows')
+        .select('followed_global_person_id')
+        .eq('follower_user_id', userId)
+        .in('followed_global_person_id', ids),
+      'directory follows read',
+    );
     return new Set(
       ((data ?? []) as Array<Record<string, unknown>>).map(
         (r) => r['followed_global_person_id'] as string,
@@ -442,13 +489,16 @@ export class FollowsService {
     const map = new Map<string, EventFollowState>();
     if (ids.length === 0) return map;
 
-    const { data } = await this.supabase.service
-      .from('follows')
-      .select(
-        `event_id, followed_person_id, notify_match_start, notify_workshop_start, notify_referee_start,
+    const data = dataOrThrow(
+      await this.supabase.service
+        .from('follows')
+        .select(
+          `event_id, followed_person_id, notify_match_start, notify_workshop_start, notify_referee_start,
          persons ( global_person_id, events ( status, event_kind ) )`,
-      )
-      .eq('follower_user_id', userId);
+        )
+        .eq('follower_user_id', userId),
+      'follows read',
+    );
 
     for (const r of (data ?? []) as Array<Record<string, unknown>>) {
       const person = one(r['persons']);
@@ -487,10 +537,7 @@ export class FollowsService {
     const result = new Map<string, FollowState>();
     if (ids.length === 0) return result;
 
-    const { data: personRows } = await this.supabase.service
-      .from('persons')
-      .select('id, global_person_id, event_id, events!inner(status, event_kind)')
-      .in('global_person_id', ids);
+    const personRows = await this.eventPeopleOf(ids);
 
     // global_person_id → { upcoming distinct events, all person ids }
     const upcomingEvents = new Map<string, Set<string>>();
@@ -517,12 +564,8 @@ export class FollowsService {
     const followingByGlobal = new Map<string, number>();
     const personIds = [...personIdToGlobal.keys()];
     if (personIds.length > 0 && hasFollower(identity)) {
-      const { data: followRows } = await this.supabase.service
-        .from('follows')
-        .select('followed_person_id')
-        .in('followed_person_id', personIds)
-        .eq(...followerFilter(identity));
-      for (const raw of (followRows ?? []) as Array<{ followed_person_id: string }>) {
+      const followRows = await this.followedAmong(personIds, identity);
+      for (const raw of followRows) {
         const gp = personIdToGlobal.get(raw.followed_person_id);
         if (gp) followingByGlobal.set(gp, (followingByGlobal.get(gp) ?? 0) + 1);
       }
@@ -537,18 +580,47 @@ export class FollowsService {
     return result;
   }
 
+  /** The event-scoped people behind these global persons, with their Event's status and kind. */
+  private async eventPeopleOf(globalPersonIds: string[]) {
+    return dataOrThrow(
+      await this.supabase.service
+        .from('persons')
+        .select('id, global_person_id, event_id, events!inner(status, event_kind)')
+        .in('global_person_id', globalPersonIds),
+      'event people read',
+    );
+  }
+
+  /** The caller's follows among these event-scoped people. */
+  private async followedAmong(
+    personIds: string[],
+    identity: FollowIdentity,
+  ): Promise<Array<{ followed_person_id: string }>> {
+    const rows = dataOrThrow(
+      await this.supabase.service
+        .from('follows')
+        .select('followed_person_id')
+        .in('followed_person_id', personIds)
+        .eq(...followerFilter(identity)),
+      'follows read',
+    );
+    return (rows ?? []) as Array<{ followed_person_id: string }>;
+  }
+
   /** Resolve a global person to their event-scoped persons rows. `upcomingOnly`
    *  keeps only non-terminal, non-test events. */
   private async resolveEventPersons(
     globalPersonId: string,
     opts: { upcomingOnly: boolean },
   ): Promise<Array<{ eventId: string; personId: string }>> {
-    const { data, error } = await this.supabase.service
-      .from('persons')
-      .select('id, event_id, events!inner(status, event_kind)')
-      .eq('global_person_id', globalPersonId);
     // A 5xx: read as "no events", a follow would report nothing to follow.
-    if (error) throw new Error(`event people read failed: ${error.message}`);
+    const data = dataOrThrow(
+      await this.supabase.service
+        .from('persons')
+        .select('id, event_id, events!inner(status, event_kind)')
+        .eq('global_person_id', globalPersonId),
+      'event people read',
+    );
 
     return ((data ?? []) as Array<Record<string, unknown>>)
       .filter((r) => {
@@ -567,10 +639,12 @@ export class FollowsService {
 
   /** An erased, merged or deleted profile answers exactly like an unknown one (ruling 112). */
   private async assertLiveProfile(globalPersonId: string): Promise<void> {
-    const { data, error } = await applyReachable(
-      this.supabase.service.from('global_persons').select('id').eq('id', globalPersonId),
-    ).maybeSingle();
-    if (error) throw new Error(`fighter read failed: ${error.message}`);
+    const data = dataOrThrow(
+      await applyReachable(
+        this.supabase.service.from('global_persons').select('id').eq('id', globalPersonId),
+      ).maybeSingle(),
+      'fighter read',
+    );
     if (!data) throw new NotFoundException(`Fighter ${globalPersonId} not found`);
   }
 
@@ -579,16 +653,19 @@ export class FollowsService {
     personId: string,
     identity: FollowIdentity,
   ): Promise<Record<string, unknown> | null> {
-    const { data } = await this.supabase.service
-      .from('follows')
-      .select(
-        `id, followed_person_id, created_at, notify_match_start, notify_workshop_start,
+    const data = dataOrThrow(
+      await this.supabase.service
+        .from('follows')
+        .select(
+          `id, followed_person_id, created_at, notify_match_start, notify_workshop_start,
          persons ( given_name, family_name, clubs ( name ) )`,
-      )
-      .eq('event_id', eventId)
-      .eq('followed_person_id', personId)
-      .eq(...followerFilter(identity))
-      .maybeSingle();
+        )
+        .eq('event_id', eventId)
+        .eq('followed_person_id', personId)
+        .eq(...followerFilter(identity))
+        .maybeSingle(),
+      'follows read',
+    );
     return (data as Record<string, unknown> | null) ?? null;
   }
 
@@ -616,25 +693,28 @@ export class FollowsService {
 
   private async fetchNextEvent(personId: string, _eventId: string): Promise<NextEvent | null> {
     // Find next scheduled match for this person in this event
-    const { data: regs } = await this.supabase.service
-      .from('registrations')
-      .select('id')
-      .eq('person_id', personId);
+    const regs = dataOrThrow(
+      await this.supabase.service.from('registrations').select('id').eq('person_id', personId),
+      'registrations read',
+    );
 
     if (!regs || regs.length === 0) return null;
 
     const regIds = (regs as Array<{ id: string }>).map((r) => r.id);
 
-    const { data: match } = await this.supabase.service
-      .from('matches')
-      .select('id, match_number_label, scheduled_at, status')
-      .or(
-        `red_registration_id.in.(${regIds.join(',')}),blue_registration_id.in.(${regIds.join(',')})`,
-      )
-      .in('status', ['scheduled', 'running'])
-      .order('scheduled_at', { ascending: true })
-      .limit(1)
-      .maybeSingle();
+    const match = dataOrThrow(
+      await this.supabase.service
+        .from('matches')
+        .select('id, match_number_label, scheduled_at, status')
+        .or(
+          `red_registration_id.in.(${regIds.join(',')}),blue_registration_id.in.(${regIds.join(',')})`,
+        )
+        .in('status', ['scheduled', 'running'])
+        .order('scheduled_at', { ascending: true })
+        .limit(1)
+        .maybeSingle(),
+      'matches read',
+    );
 
     if (!match) return null;
 

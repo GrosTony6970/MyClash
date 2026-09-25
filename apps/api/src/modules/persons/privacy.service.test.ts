@@ -1,4 +1,6 @@
+import { HttpException } from '@nestjs/common';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { mockSupabase } from '../../common/testing/supabase-chain';
 import { PrivacyService } from './privacy.service';
 
 function makeChain(result: unknown) {
@@ -78,10 +80,53 @@ describe('privacy across a user with several event rows', () => {
     ]);
   });
 
-  it('falls back to defaults when no row exists yet', async () => {
-    fromMock.mockReturnValue(makeChain({ data: null, error: null }));
+  it('creates the row with the defaults when none exists yet', async () => {
+    const chain = makeChain({ data: null, error: null });
+    // The stored row differs from the defaults, so the answer shows it came from the database.
+    const stored = row({ hide_workshops_publicly: true });
+    chain['single']?.mockResolvedValue({ data: stored, error: null });
+    fromMock.mockReturnValue(chain);
     const result = await service.getOrCreateForPersons(['p-1']);
-    expect(result.allowBeingFollowed).toBe(true);
-    expect(result.hideWorkshopsPublicly).toBe(false);
+    expect(chain['insert']).toHaveBeenCalledWith({
+      person_id: 'p-1',
+      hide_workshops_publicly: false,
+      allow_being_followed: true,
+    });
+    expect(result.hideWorkshopsPublicly).toBe(true);
+  });
+});
+
+// Ruling 117a: a failed privacy read or write is a 5xx, never the defaults — the defaults
+// allow being followed, so a guess could follow someone who opted out.
+describe('privacy read or write that fails', () => {
+  const FAILED = { data: null, error: { message: 'boom' } };
+  const NONE = { data: null, error: null };
+
+  async function expectFailure(run: Promise<unknown>, message: string) {
+    await expect(run).rejects.toThrow(`${message} failed: boom`);
+    await expect(run).rejects.not.toBeInstanceOf(HttpException);
+  }
+
+  it('a failed read is a 5xx, and nothing is created', async () => {
+    const db = mockSupabase({ person_privacy: FAILED });
+    await expectFailure(new PrivacyService(db as never).getOrCreate('p-1'), 'privacy read');
+    expect(db.writes).toEqual([]);
+  });
+
+  it('a failed create is a 5xx, not the defaults', async () => {
+    const db = mockSupabase({ person_privacy: [NONE, FAILED] });
+    await expectFailure(new PrivacyService(db as never).getOrCreate('p-1'), 'privacy write');
+  });
+
+  it('a create that loses the race to another first read returns the row that won', async () => {
+    const db = mockSupabase({
+      person_privacy: [
+        NONE,
+        { data: null, error: { message: 'duplicate key', code: '23505' } },
+        { data: row({ allow_being_followed: false }), error: null },
+      ],
+    });
+    const result = await new PrivacyService(db as never).getOrCreate('p-1');
+    expect(result.allowBeingFollowed).toBe(false);
   });
 });
