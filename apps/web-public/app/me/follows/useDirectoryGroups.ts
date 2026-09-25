@@ -1,6 +1,9 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useToast } from '@myclash/ui';
+import { useI18n } from '@myclash/next-i18n/client';
+import { GROUPS_ACTION_ERROR_KEY, type GroupsActionError } from './action-error';
 
 export interface MemberCard {
   globalPersonId: string;
@@ -71,12 +74,14 @@ function placeholderMember(person: SearchPerson): MemberCard {
 /**
  * Owns the user's directory groups (the "People" hub state) and the hub-level
  * follow actions. Mirrors FollowsClient's optimistic idiom: mutate state first,
- * roll back on failure, surface errors inline.
+ * roll back on failure, and say what failed in a toast (ruling 118).
  */
 export function useDirectoryGroups(apiUrl: string) {
   const [groups, setGroups] = useState<DirectoryGroup[]>([]);
   const [status, setStatus] = useState<Status>('loading');
-  const [actionError, setActionError] = useState<string | null>(null);
+  const toast = useToast();
+  const { t } = useI18n();
+  const fail = (kind: GroupsActionError) => toast.error(t(GROUPS_ACTION_ERROR_KEY[kind]));
 
   useEffect(() => {
     const controller = new AbortController();
@@ -99,7 +104,6 @@ export function useDirectoryGroups(apiUrl: string) {
   }, [apiUrl]);
 
   async function createGroup(name: string): Promise<DirectoryGroup | null> {
-    setActionError(null);
     const tmpId = `tmp-${name}-${groups.length}`;
     const optimistic: DirectoryGroup = { id: tmpId, name, members: [] };
     const previous = groups;
@@ -118,13 +122,12 @@ export function useDirectoryGroups(apiUrl: string) {
       return real;
     } catch (err) {
       setGroups(previous);
-      setActionError(err instanceof Error && err.message === 'nameInUse' ? 'nameInUse' : 'create');
+      fail(err instanceof Error && err.message === 'nameInUse' ? 'nameInUse' : 'create');
       return null;
     }
   }
 
   async function renameGroup(groupId: string, name: string): Promise<void> {
-    setActionError(null);
     const previous = groups;
     setGroups((prev) => prev.map((g) => (g.id === groupId ? { ...g, name } : g)));
     try {
@@ -137,12 +140,11 @@ export function useDirectoryGroups(apiUrl: string) {
       if (!res.ok) throw new Error(res.status === 409 ? 'nameInUse' : 'update');
     } catch (err) {
       setGroups(previous);
-      setActionError(err instanceof Error && err.message === 'nameInUse' ? 'nameInUse' : 'update');
+      fail(err instanceof Error && err.message === 'nameInUse' ? 'nameInUse' : 'update');
     }
   }
 
   async function deleteGroup(groupId: string): Promise<void> {
-    setActionError(null);
     const previous = groups;
     setGroups((prev) => prev.filter((g) => g.id !== groupId));
     try {
@@ -153,12 +155,11 @@ export function useDirectoryGroups(apiUrl: string) {
       if (!res.ok) throw new Error('update');
     } catch {
       setGroups(previous);
-      setActionError('update');
+      fail('update');
     }
   }
 
   async function addMember(groupId: string, person: SearchPerson): Promise<void> {
-    setActionError(null);
     const previous = groups;
     setGroups((prev) =>
       prev.map((g) =>
@@ -185,12 +186,11 @@ export function useDirectoryGroups(apiUrl: string) {
       );
     } catch {
       setGroups(previous);
-      setActionError('update');
+      fail('update');
     }
   }
 
   async function removeMember(groupId: string, globalPersonId: string): Promise<void> {
-    setActionError(null);
     const previous = groups;
     setGroups((prev) =>
       prev.map((g) =>
@@ -207,7 +207,7 @@ export function useDirectoryGroups(apiUrl: string) {
       if (!res.ok) throw new Error('update');
     } catch {
       setGroups(previous);
-      setActionError('update');
+      fail('update');
     }
   }
 
@@ -218,7 +218,6 @@ export function useDirectoryGroups(apiUrl: string) {
 
   /** Follow a person across all their current/upcoming events (hub shortcut). */
   async function followPerson(globalPersonId: string): Promise<FollowAllSummary | null> {
-    setActionError(null);
     try {
       const res = await fetch(`${apiUrl}/api/v1/me/follows/by-global-person`, {
         method: 'POST',
@@ -236,13 +235,12 @@ export function useDirectoryGroups(apiUrl: string) {
       patchMemberFollowState(globalPersonId, summary.upcomingEventCount, followingEventCount);
       return summary;
     } catch {
-      setActionError('follow');
+      fail('follow');
       return null;
     }
   }
 
   async function unfollowPerson(globalPersonId: string): Promise<boolean> {
-    setActionError(null);
     try {
       const res = await fetch(`${apiUrl}/api/v1/me/follows/by-global-person/${globalPersonId}`, {
         method: 'DELETE',
@@ -252,7 +250,7 @@ export function useDirectoryGroups(apiUrl: string) {
       patchMemberFollowState(globalPersonId, undefined, 0);
       return true;
     } catch {
-      setActionError('follow');
+      fail('follow');
       return false;
     }
   }
@@ -281,7 +279,6 @@ export function useDirectoryGroups(apiUrl: string) {
   return {
     groups,
     status,
-    actionError,
     createGroup,
     renameGroup,
     deleteGroup,

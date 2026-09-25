@@ -47,12 +47,6 @@ export function GroupsTab({ apiUrl, groupsApi }: { apiUrl: string; groupsApi: Gr
         </button>
       </form>
 
-      {groupsApi.actionError === 'nameInUse' && (
-        <p className="rounded-md border border-danger/40 bg-danger/10 px-3 py-2 text-sm text-danger">
-          {t('publicApp.me.groups.nameInUse')}
-        </p>
-      )}
-
       {groupsApi.groups.length === 0 ? (
         <EmptyState
           title={t('publicApp.me.groups.emptyTitle')}
