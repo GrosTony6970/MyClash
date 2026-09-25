@@ -3,7 +3,12 @@
 import { useEffect, useState } from 'react';
 import { useToast } from '@myclash/ui';
 import { useI18n } from '@myclash/next-i18n/client';
-import { GROUPS_ACTION_ERROR_KEY, type GroupsActionError } from './action-error';
+import {
+  caughtFailure,
+  failureOf,
+  GROUPS_ACTION_ERROR_KEY,
+  type GroupsActionError,
+} from './action-error';
 
 export interface MemberCard {
   globalPersonId: string;
@@ -115,14 +120,15 @@ export function useDirectoryGroups(apiUrl: string) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name }),
       });
-      if (!res.ok) throw new Error(res.status === 409 ? 'nameInUse' : 'create');
+      if (!res.ok)
+        throw new Error(failureOf(res.status, res.status === 409 ? 'nameInUse' : 'create'));
       const created = (await res.json()) as { id: string; name: string };
       const real: DirectoryGroup = { id: created.id, name: created.name, members: [] };
       setGroups((prev) => prev.map((g) => (g.id === tmpId ? real : g)));
       return real;
     } catch (err) {
       setGroups(previous);
-      fail(err instanceof Error && err.message === 'nameInUse' ? 'nameInUse' : 'create');
+      fail(caughtFailure(err, 'create'));
       return null;
     }
   }
@@ -137,10 +143,11 @@ export function useDirectoryGroups(apiUrl: string) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name }),
       });
-      if (!res.ok) throw new Error(res.status === 409 ? 'nameInUse' : 'update');
+      if (!res.ok)
+        throw new Error(failureOf(res.status, res.status === 409 ? 'nameInUse' : 'update'));
     } catch (err) {
       setGroups(previous);
-      fail(err instanceof Error && err.message === 'nameInUse' ? 'nameInUse' : 'update');
+      fail(caughtFailure(err, 'update'));
     }
   }
 
@@ -152,19 +159,22 @@ export function useDirectoryGroups(apiUrl: string) {
         method: 'DELETE',
         credentials: 'include',
       });
-      if (!res.ok) throw new Error('update');
-    } catch {
+      if (!res.ok) throw new Error(failureOf(res.status, 'update'));
+    } catch (err) {
       setGroups(previous);
-      fail('update');
+      fail(caughtFailure(err, 'update'));
     }
   }
 
   async function addMember(groupId: string, person: SearchPerson): Promise<void> {
-    const previous = groups;
+    // The rollback takes out THIS placeholder only. Restoring a snapshot of the list instead
+    // undid a group created just before it: "add to a new group" creates the group, then calls
+    // this from the same render, whose list does not have the new group yet.
+    const placeholder = placeholderMember(person);
     setGroups((prev) =>
       prev.map((g) =>
         g.id === groupId && !g.members.some((m) => m.globalPersonId === person.id)
-          ? { ...g, members: [...g.members, placeholderMember(person)] }
+          ? { ...g, members: [...g.members, placeholder] }
           : g,
       ),
     );
@@ -175,7 +185,7 @@ export function useDirectoryGroups(apiUrl: string) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ globalPersonId: person.id }),
       });
-      if (!res.ok) throw new Error('update');
+      if (!res.ok) throw new Error(failureOf(res.status, 'update'));
       const card = (await res.json()) as MemberCard;
       setGroups((prev) =>
         prev.map((g) =>
@@ -184,9 +194,13 @@ export function useDirectoryGroups(apiUrl: string) {
             : g,
         ),
       );
-    } catch {
-      setGroups(previous);
-      fail('update');
+    } catch (err) {
+      setGroups((prev) =>
+        prev.map((g) =>
+          g.id === groupId ? { ...g, members: g.members.filter((m) => m !== placeholder) } : g,
+        ),
+      );
+      fail(caughtFailure(err, 'update'));
     }
   }
 
@@ -204,16 +218,21 @@ export function useDirectoryGroups(apiUrl: string) {
         method: 'DELETE',
         credentials: 'include',
       });
-      if (!res.ok) throw new Error('update');
-    } catch {
+      if (!res.ok) throw new Error(failureOf(res.status, 'update'));
+    } catch (err) {
       setGroups(previous);
-      fail('update');
+      fail(caughtFailure(err, 'update'));
     }
   }
 
-  async function createGroupWithMember(name: string, person: SearchPerson): Promise<void> {
+  /**
+   * Whether the group was created. The member is added after; a failed add toasts on its own and
+   * takes out only its own placeholder, so the new group stays.
+   */
+  async function createGroupWithMember(name: string, person: SearchPerson): Promise<boolean> {
     const group = await createGroup(name);
     if (group) await addMember(group.id, person);
+    return group !== null;
   }
 
   /** Follow a person across all their current/upcoming events (hub shortcut). */
@@ -225,7 +244,7 @@ export function useDirectoryGroups(apiUrl: string) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ globalPersonId }),
       });
-      if (!res.ok) throw new Error('follow');
+      if (!res.ok) throw new Error(failureOf(res.status, 'follow'));
       const summary = (await res.json()) as FollowAllSummary;
       // The follow is now persistent, so reflect it on the group member card even
       // when the person has no upcoming event (event count would be 0).
@@ -234,8 +253,8 @@ export function useDirectoryGroups(apiUrl: string) {
         : 0;
       patchMemberFollowState(globalPersonId, summary.upcomingEventCount, followingEventCount);
       return summary;
-    } catch {
-      fail('follow');
+    } catch (err) {
+      fail(caughtFailure(err, 'follow'));
       return null;
     }
   }
@@ -246,11 +265,11 @@ export function useDirectoryGroups(apiUrl: string) {
         method: 'DELETE',
         credentials: 'include',
       });
-      if (!res.ok) throw new Error('follow');
+      if (!res.ok) throw new Error(failureOf(res.status, 'follow'));
       patchMemberFollowState(globalPersonId, undefined, 0);
       return true;
-    } catch {
-      fail('follow');
+    } catch (err) {
+      fail(caughtFailure(err, 'follow'));
       return false;
     }
   }

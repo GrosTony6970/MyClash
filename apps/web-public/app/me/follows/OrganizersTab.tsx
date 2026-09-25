@@ -2,8 +2,9 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { EmptyState } from '@myclash/ui';
+import { EmptyState, useToast } from '@myclash/ui';
 import { useI18n } from '@myclash/next-i18n/client';
+import { refusalKey } from './action-error';
 
 interface FollowedOrganization {
   organizationId: string;
@@ -24,6 +25,7 @@ type Status = 'loading' | 'ready' | 'unauthorized' | 'error';
  */
 export function OrganizersTab({ apiUrl }: { apiUrl: string }) {
   const { t } = useI18n();
+  const toast = useToast();
   const [status, setStatus] = useState<Status>('loading');
   const [orgs, setOrgs] = useState<FollowedOrganization[]>([]);
   const [busyId, setBusyId] = useState<string | null>(null);
@@ -70,6 +72,10 @@ export function OrganizersTab({ apiUrl }: { apiUrl: string }) {
       // Drop it locally rather than refetching — the row is gone either way,
       // and a refetch would flash the whole list.
       if (res.ok) setOrgs((prev) => prev.filter((o) => o.organizationId !== organizationId));
+      // A refused unfollow said nothing: the row just stayed (ruling 123).
+      else toast.error(t(refusalKey(res.status, 'publicApp.me.follows.unfollowFailed')));
+    } catch {
+      toast.error(t('publicApp.me.follows.unfollowFailed'));
     } finally {
       setBusyId(null);
     }

@@ -322,6 +322,7 @@ export const publicApp = {
       updateFailed: "Impossible d'enregistrer la modification. Réessayez.",
     },
     people: {
+      sessionEnded: 'Votre session a pris fin. Rechargez la page pour continuer.',
       title: 'Personnes',
       subtitle: "Suivez des combattants, cherchez dans l'annuaire et organisez vos groupes.",
       tabsLabel: 'Basculer entre suivis, recherche et groupes',
@@ -377,6 +378,7 @@ export const publicApp = {
       createFailed: 'Impossible de créer le groupe. Réessayez.',
       updateFailed: "Impossible d'enregistrer la modification du groupe. Réessayez.",
       followFailed: 'Impossible de modifier le suivi. Réessayez.',
+      loadFailed: 'Impossible de charger vos groupes. Rechargez la page pour réessayer.',
       add: 'Ajouter',
       alreadyIn: 'Ajouté',
       remove: 'Retirer',

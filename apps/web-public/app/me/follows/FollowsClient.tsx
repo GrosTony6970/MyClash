@@ -15,6 +15,7 @@ import {
 import { flagEmoji } from '@/lib/flag';
 import { getPublicApiUrl } from '@/lib/api-url';
 import { useI18n } from '@myclash/next-i18n/client';
+import { refusalKey } from './action-error';
 import { Chevron } from './Chevron';
 import { usePersistedOpen } from './usePersistedOpen';
 import { PersonContextDetails } from './PersonContextDetails';
@@ -105,6 +106,7 @@ export default function FollowsClient({ embedded = false }: { embedded?: boolean
         ? { ...f, eventFollow: { ...f.eventFollow, [key]: v } }
         : f;
     setFollows((prev) => prev.map((f) => patch(f, value)));
+    let status: number | null = null;
     try {
       const res = await fetch(`${apiUrl}/api/v1/events/${ev.eventId}/follows/${ev.personId}`, {
         method: 'PATCH',
@@ -112,12 +114,13 @@ export default function FollowsClient({ embedded = false }: { embedded?: boolean
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ [key]: value }),
       });
+      status = res.status;
       if (!res.ok) throw new Error('patch');
     } catch {
       // Roll back the optimistic update AND say so — a toggle that silently
       // undoes itself reads as a broken switch.
       setFollows((prev) => prev.map((f) => patch(f, !value)));
-      toast.error(t('publicApp.me.follows.updateFailed'));
+      toast.error(t(refusalKey(status, 'publicApp.me.follows.updateFailed')));
     }
   }
 
@@ -132,15 +135,17 @@ export default function FollowsClient({ embedded = false }: { embedded?: boolean
     }
     const previous = follows;
     setFollows((prev) => prev.filter((f) => f.globalPersonId !== follow.globalPersonId));
+    let status: number | null = null;
     try {
       const res = await fetch(
         `${apiUrl}/api/v1/me/follows/by-global-person/${follow.globalPersonId}`,
         { method: 'DELETE', credentials: 'include' },
       );
+      status = res.status;
       if (!res.ok) throw new Error('delete');
     } catch {
       setFollows(previous);
-      toast.error(t('publicApp.me.follows.unfollowFailed'));
+      toast.error(t(refusalKey(status, 'publicApp.me.follows.unfollowFailed')));
     }
   }
 

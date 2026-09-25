@@ -323,6 +323,7 @@ export const publicApp = {
       updateFailed: 'Could not save your change. Please try again.',
     },
     people: {
+      sessionEnded: 'Your session has ended. Reload the page to continue.',
       title: 'People',
       subtitle: 'Follow fighters, search the directory, and organize your groups.',
       tabsLabel: 'Switch between following, search and groups',
@@ -375,6 +376,7 @@ export const publicApp = {
       createFailed: 'Could not create the group. Please try again.',
       updateFailed: 'Could not save your change to the group. Please try again.',
       followFailed: 'Could not change the follow. Please try again.',
+      loadFailed: 'Could not load your groups. Reload the page to try again.',
       add: 'Add',
       alreadyIn: 'Added',
       remove: 'Remove',

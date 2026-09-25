@@ -5,6 +5,7 @@ import { Avatar, EmptyState, formatCountryName, useNow } from '@myclash/ui';
 import { flagEmoji } from '@/lib/flag';
 import { useI18n } from '@myclash/next-i18n/client';
 import { FollowButton } from './FollowButton';
+import { GroupsLoadNotice, NewGroupForm } from './NewGroupForm';
 import { PersonContextDetails } from './PersonContextDetails';
 import { fetchPeopleContext, type PersonContext } from './personContext';
 import type { SearchPerson, useDirectoryGroups } from './useDirectoryGroups';
@@ -179,7 +180,8 @@ export function SearchTab({ apiUrl, groupsApi }: { apiUrl: string; groupsApi: Gr
 
             {pickerOpen && (
               <div className="mt-3 flex flex-col gap-1 border-t border-border pt-3">
-                {groupsApi.groups.length === 0 && (
+                <GroupsLoadNotice status={groupsApi.status} />
+                {groupsApi.status === 'ready' && groupsApi.groups.length === 0 && (
                   <p className="text-xs text-muted">{t('publicApp.me.groups.emptyPicker')}</p>
                 )}
                 {groupsApi.groups.map((group) => {
@@ -201,8 +203,10 @@ export function SearchTab({ apiUrl, groupsApi }: { apiUrl: string; groupsApi: Gr
                     </button>
                   );
                 })}
-                <NewGroupInline
-                  onCreate={(name) => void groupsApi.createGroupWithMember(name, person)}
+                <NewGroupForm
+                  variant="inline"
+                  disabled={groupsApi.status !== 'ready'}
+                  onCreate={(name) => groupsApi.createGroupWithMember(name, person)}
                 />
               </div>
             )}
@@ -210,43 +214,5 @@ export function SearchTab({ apiUrl, groupsApi }: { apiUrl: string; groupsApi: Gr
         );
       })}
     </section>
-  );
-}
-
-function NewGroupInline({ onCreate }: { onCreate: (name: string) => void }) {
-  const { t } = useI18n();
-  const [name, setName] = useState('');
-
-  function submit() {
-    const trimmed = name.trim();
-    if (!trimmed) return;
-    onCreate(trimmed);
-    setName('');
-  }
-
-  return (
-    <form
-      onSubmit={(e) => {
-        e.preventDefault();
-        submit();
-      }}
-      className="mt-1 flex items-center gap-2 border-t border-border pt-2"
-    >
-      <input
-        type="text"
-        value={name}
-        onChange={(e) => setName(e.target.value)}
-        placeholder={t('publicApp.me.groups.createPlaceholder')}
-        maxLength={80}
-        className="min-h-[40px] flex-1 rounded-md border border-border bg-surface px-2 py-1 text-sm text-foreground placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-accent"
-      />
-      <button
-        type="submit"
-        disabled={name.trim().length === 0}
-        className="rounded-md border border-accent/60 bg-accent/10 px-3 py-1.5 text-xs font-semibold text-accent disabled:opacity-50"
-      >
-        {t('publicApp.me.groups.create')}
-      </button>
-    </form>
   );
 }

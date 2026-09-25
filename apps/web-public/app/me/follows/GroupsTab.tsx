@@ -5,6 +5,7 @@ import { EmptyState } from '@myclash/ui';
 import { useI18n } from '@myclash/next-i18n/client';
 import { Chevron } from './Chevron';
 import { MemberCard } from './MemberCard';
+import { GroupsLoadNotice, NewGroupForm } from './NewGroupForm';
 import { usePersistedOpen } from './usePersistedOpen';
 import type { DirectoryGroup, useDirectoryGroups } from './useDirectoryGroups';
 
@@ -12,42 +13,18 @@ type GroupsApi = ReturnType<typeof useDirectoryGroups>;
 
 export function GroupsTab({ apiUrl, groupsApi }: { apiUrl: string; groupsApi: GroupsApi }) {
   const { t } = useI18n();
-  const [newName, setNewName] = useState('');
-
-  function createGroup() {
-    const trimmed = newName.trim();
-    if (!trimmed) return;
-    void groupsApi.createGroup(trimmed);
-    setNewName('');
-  }
+  const ready = groupsApi.status === 'ready';
 
   return (
     <section className="flex flex-col gap-6">
-      <form
-        onSubmit={(e) => {
-          e.preventDefault();
-          createGroup();
-        }}
-        className="flex items-center gap-2"
-      >
-        <input
-          type="text"
-          value={newName}
-          onChange={(e) => setNewName(e.target.value)}
-          placeholder={t('publicApp.me.groups.createPlaceholder')}
-          maxLength={80}
-          className="min-h-[44px] flex-1 rounded-lg border border-border bg-surface px-3 py-2 text-sm text-foreground placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-accent"
-        />
-        <button
-          type="submit"
-          disabled={newName.trim().length === 0}
-          className="min-h-[44px] rounded-lg border border-accent/60 bg-accent/10 px-4 py-2 text-sm font-semibold text-accent disabled:opacity-50"
-        >
-          {t('publicApp.me.groups.create')}
-        </button>
-      </form>
+      <NewGroupForm
+        variant="page"
+        disabled={!ready}
+        onCreate={async (name) => (await groupsApi.createGroup(name)) !== null}
+      />
 
-      {groupsApi.groups.length === 0 ? (
+      <GroupsLoadNotice status={groupsApi.status} />
+      {!ready ? null : groupsApi.groups.length === 0 ? (
         <EmptyState
           title={t('publicApp.me.groups.emptyTitle')}
           description={t('publicApp.me.groups.emptyHint')}
