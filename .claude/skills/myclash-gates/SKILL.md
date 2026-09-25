@@ -77,6 +77,11 @@ they were once a single `&&` chain, and because `quality:complexity` was red on 
 eight gates behind it silently did not run for roughly six weeks. Never re-chain them with `&&`
 locally either — you will reproduce the same blindness.
 
+A change under `packages/db/` also needs CI's `Database replay` job locally: a fresh `postgres:17`
+container, then `pnpm db:migrations:replay` and `pnpm db:rls-probe` with `DATABASE_URL` set (the
+commands are in CONTRIBUTING.md, "Before pushing"). No other gate runs a migration. These two are
+sequential on purpose: the probe has no verdict on a half-replayed database.
+
 ## Traps
 
 **A red gate is not necessarily yours.** Before debugging, re-run the gate on a clean HEAD

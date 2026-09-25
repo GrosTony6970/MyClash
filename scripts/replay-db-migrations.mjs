@@ -14,10 +14,10 @@ if (!databaseUrl) {
 
 const root = process.cwd();
 const migrationsDir = join(root, 'packages', 'db', 'migrations');
-// Supabase-compatibility baseline (roles + auth.users + auth.role()) so the
-// replay works against a vanilla postgres image. Idempotent + non-destructive,
-// so applying it against a real Supabase DB is a harmless no-op — see the file
-// header and docs/DATABASE_REVIEW.md.
+// Supabase-compatibility baseline (roles + auth.users + auth.role() + the image's
+// default privileges) so the replay works against a vanilla postgres image.
+// Idempotent, so applying it against a stock Supabase DB is a no-op — see the
+// file header and docs/DATABASE_REVIEW.md.
 const baselinePath = join(root, 'packages', 'db', 'fixtures', 'supabase-baseline.sql');
 const files = listMigrationFiles(migrationsDir);
 
@@ -25,7 +25,7 @@ const sql = postgres(databaseUrl, { max: 1, idle_timeout: 5, connect_timeout: 10
 
 try {
   if (existsSync(baselinePath)) {
-    process.stdout.write('Applying Supabase baseline (roles + auth stubs)... ');
+    process.stdout.write('Applying Supabase baseline (roles + auth stubs + default grants)... ');
     await sql.unsafe(readFileSync(baselinePath, 'utf8'));
     process.stdout.write('ok\n');
   }

@@ -15,10 +15,10 @@
  * promise the order of AND's operands), and must not read a table. The signed-in
  * branch is the old body unchanged; its loop is ruled out of scope.
  *
- * It cannot see the running database, and no test here does: the anonymous
- * verdicts were measured by hand on a Postgres 17 replay (DATABASE_REVIEW.md) the
- * day this landed. A new helper or inline policy that reads a guarded table can
- * bring the loop back with every gate green.
+ * It cannot see the running database, and no test here does: CI's `Database
+ * replay` job does (`pnpm db:rls-probe`, ruling 114), reading a Postgres 17 replay
+ * as anon with a platform role seeded. It sees only tables with rows in them, so a
+ * new helper that loops over a table the probe never seeds still hides there.
  */
 import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';

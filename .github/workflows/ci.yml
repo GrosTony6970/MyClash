@@ -547,6 +547,56 @@ jobs:
           path: playwright-report
           retention-days: 7
 
+  # ── Database replay + anonymous RLS probe ───────────────────────────────
+  # The static db:review rules read migration text; this job runs it. It
+  # replays every migration on a fresh Postgres 17 (production's major) and
+  # reads the result as the anonymous visitor PostgREST and the live channel
+  # serve. Before 0201, ONE platform role made every anonymous read fail with
+  # "stack depth limit exceeded" while every static gate stayed green.
+  db-replay:
+    name: Database replay
+    runs-on: ubuntu-latest
+    needs: install
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: dev-password
+          POSTGRES_DB: myclash_replay
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready --health-interval 5s --health-timeout 5s --health-retries 12
+    env:
+      DATABASE_URL: postgres://postgres:dev-password@localhost:5432/myclash_replay
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - name: Restore node_modules
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            node_modules
+            apps/*/node_modules
+            packages/*/node_modules
+          key: node-modules-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+
+      - name: Replay migrations on Postgres 17
+        run: pnpm db:migrations:replay
+
+      # Runs only on a replay that succeeded: a half-migrated database has no verdict to give.
+      - name: Probe RLS as an anonymous reader
+        run: pnpm db:rls-probe
+
   shellcheck:
     name: Shellcheck infra scripts
     runs-on: ubuntu-latest

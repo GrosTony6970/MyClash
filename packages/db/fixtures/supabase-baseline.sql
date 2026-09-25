@@ -17,10 +17,14 @@
 --     `REFERENCES auth.users(id)`, which needs the table to exist.
 --   * `auth.role()`. 0002 defines auth.uid()/auth.jwt() but not auth.role(),
 --     which a later migration calls.
+--   * Supabase's default privileges. Without them anon may read nothing, so an
+--     anonymous RLS probe of the replay (`pnpm db:rls-probe`) never reaches RLS.
 --
 -- Every statement is idempotent AND non-destructive, so applying it against a
--- real Supabase database is a harmless no-op (roles/schema/table already exist;
--- auth.role() is only created when absent, never replacing Supabase's own).
+-- stock Supabase database is a harmless no-op (roles/schema/table already exist;
+-- auth.role() is only created when absent, never replacing Supabase's own; the
+-- grants are the image's own). On a database whose default privileges were
+-- tightened, the grants would widen them again: point it at a disposable one.
 
 -- ── Supabase roles ──────────────────────────────────────────────────────────
 DO $$ BEGIN CREATE ROLE anon NOLOGIN; EXCEPTION WHEN duplicate_object THEN NULL; END $$;
@@ -55,3 +59,15 @@ BEGIN
     $fn$;
   END IF;
 END $$;
+
+-- ── Supabase's default privileges ───────────────────────────────────────────
+-- The Supabase image grants anon, authenticated and service_role on every table, view, sequence and
+-- function the migrating role creates. A vanilla postgres grants them nothing, so on a bare replay
+-- every anonymous read is "permission denied" and RLS is never asked. Granting afterwards is no
+-- substitute: it would also re-grant what a migration revoked (0184's views). So the defaults are
+-- set here, before the first migration, and each migration's GRANT/REVOKE lands on them as it does
+-- in production (`pnpm db:rls-probe` reads the replay as anon).
+GRANT USAGE ON SCHEMA public, auth TO anon, authenticated, service_role;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO anon, authenticated, service_role;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO anon, authenticated, service_role;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON FUNCTIONS TO anon, authenticated, service_role;

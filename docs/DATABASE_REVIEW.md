@@ -12,6 +12,7 @@ Phase 4 production-readiness review. Scope fixed 2026-05-12; **content maintaine
 - `pnpm db:review` checks migration ordering, required Phase 4 artifacts, RLS coverage for table declarations, critical extensions, and idempotence/index-review warnings.
 - `pnpm db:perf:fixture` verifies the committed synthetic event fixture and EXPLAIN workload are in sync with the generator.
 - `pnpm db:migrations:replay` replays every migration into a disposable database when `DATABASE_URL` is explicitly provided. See [Migration replay on a vanilla Postgres](#migration-replay-on-a-vanilla-postgres) for the Supabase-compatibility baseline it applies first.
+- `pnpm db:rls-probe` reads that replay as the anonymous visitor, after seeding `packages/db/fixtures/rls-probe-seed.sql` (a platform role, a draft Event, a private League, a club's own ruleset). It fails on any read error ("stack depth limit exceeded" was every anonymous read before 0201), on a private seeded row anon can see or a public one it cannot, and on a `public` view without `security_invoker`. CI runs both in the `Database replay` job on Postgres 17. Signed-in reads are not probed: their helper loop is latent (ruling 111a).
 - `pnpm db:perf:explain` runs the committed EXPLAIN workload against a disposable database after applying `packages/db/fixtures/phase4_synthetic.sql`. Build that database with `pnpm db:migrations:replay` first.
 - `pnpm --filter @myclash/db test` covers RLS logic, including recent service-role-only tables.
 - `pnpm db:realtime-bindings` fails when a table named in any realtime binding is not in the publication — one unpublished table permanently CHANNEL_ERRORs the whole channel. It runs in CI between `db:review` and `db:perf:fixture`.
@@ -29,12 +30,14 @@ has none of the roles or `auth.users`, so the replay would die at migration
 `REFERENCES auth.users(id)`.
 
 `packages/db/fixtures/supabase-baseline.sql` supplies that missing baseline —
-the three roles, a minimal `auth.users`, and an `auth.role()` shim (migration
-`0002` self-creates the `auth` schema + `auth.uid()`/`auth.jwt()`). The replay
-script applies it automatically before the first migration. Every statement is
-idempotent and non-destructive (roles created only when absent, `auth.role()`
-created only when the real Supabase function is missing), so pointing the replay
-at a real Supabase database is a harmless no-op.
+the three roles, a minimal `auth.users`, an `auth.role()` shim (migration
+`0002` self-creates the `auth` schema + `auth.uid()`/`auth.jwt()`), and the
+default privileges the Supabase image gives anon/authenticated/service_role. The
+replay script applies it automatically before the first migration. Every statement
+is idempotent (roles created only when absent, `auth.role()` created only when the
+real Supabase function is missing, the grants are the image's own), so pointing the
+replay at a stock Supabase database is a no-op; on one whose default privileges
+were tightened, the grants would widen them again.
 
 Full run against a throwaway container:
 
@@ -105,6 +108,6 @@ Trigger to add PgBouncer: sustained `pg_stat_activity` usage above 60% of Postgr
 
 ## Known Issues
 
-- Live migration replay, EXPLAIN timings, and restore-drill measurements require a disposable local/staging database or VPS access; the repo provides commands and fixtures but cannot collect production evidence by itself.
+- CI replays every migration on a fresh Postgres 17 (`Database replay` job). EXPLAIN timings and restore-drill measurements still require a disposable local/staging database or VPS access; the repo provides commands and fixtures but cannot collect production evidence by itself.
 - PITR is not proven in repo-local automation. Owner must verify provider/VPS strategy before production sign-off.
 - Some older indexes are not idempotent by declaration. Fresh replay is the source of truth; re-running individual old migrations remains unsupported.

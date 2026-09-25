@@ -20,6 +20,7 @@ Every pull request targeting `main` runs the following GitHub Actions jobs, all 
 | **Dependency audit**      | `CI / Dependency audit`                                  | `pnpm audit --audit-level high`                                                                                                                                                                                                            |
 | **Coverage**              | `CI / Coverage`                                          | `pnpm coverage` (enforced coverage thresholds)                                                                                                                                                                                             |
 | **Playwright and Axe**    | `CI / Playwright and Axe`                                | `pnpm test:e2e` — Playwright end-to-end + Axe accessibility checks                                                                                                                                                                         |
+| **Database replay**       | `CI / Database replay`                                   | Replays every migration on a fresh Postgres 17 (`pnpm db:migrations:replay`), then reads it as the anonymous visitor (`pnpm db:rls-probe`): any read error, leaked private row or view without `security_invoker` fails                    |
 | **Secret scan**           | `CI / Secret scan`                                       | Gitleaks secret scan                                                                                                                                                                                                                       |
 | **Trivy image scan**      | `CI / Trivy production image scan`                       | Builds the api / web-admin / web-public / web-staff / web-marketing production images and scans them with Trivy (HIGH,CRITICAL)                                                                                                            |
 | **CodeQL**                | `CodeQL Security Scan / Analyze (javascript-typescript)` | Static security analysis                                                                                                                                                                                                                   |
@@ -118,6 +119,20 @@ pnpm format:check
 
 Run them as separate commands, not as one `&&` chain: each is an independent verdict, and chaining
 is exactly how eight of these silently stopped running in CI for six weeks.
+
+A change under `packages/db/` also needs the `Database replay` job's check, on a throwaway Postgres 17
+(the migrations are not re-runnable, so start from a fresh container each time):
+
+```bash
+docker run -d --name myclash-replay-pg17 -e POSTGRES_PASSWORD=dev-password \
+  -e POSTGRES_DB=myclash_replay -p 55432:5432 postgres:17
+# -h: during first start-up the socket answers "ready" before the TCP server does
+until docker exec myclash-replay-pg17 pg_isready -h 127.0.0.1; do sleep 1; done
+export DATABASE_URL="postgres://postgres:dev-password@localhost:55432/myclash_replay"
+pnpm db:migrations:replay
+pnpm db:rls-probe                # anon reads every table without an error and sees only public rows
+docker rm -f myclash-replay-pg17
+```
 
 CI is the second line of defense, not the first.
 

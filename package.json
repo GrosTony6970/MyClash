@@ -45,6 +45,7 @@
     "db:review": "node scripts/check-db-review.mjs",
     "db:realtime-bindings": "node scripts/check-realtime-bindings.mjs",
     "db:migrations:replay": "node scripts/replay-db-migrations.mjs",
+    "db:rls-probe": "node scripts/db-rls-probe.mjs",
     "db:perf:fixture": "node scripts/db-synthetic-fixture.mjs --check",
     "db:perf:explain": "node scripts/db-explain-report.mjs",
     "infra:review": "node scripts/check-infra-review.mjs",
