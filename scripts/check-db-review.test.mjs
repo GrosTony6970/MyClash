@@ -81,6 +81,54 @@ test('accepts security_invoker declared inline at creation', () => {
   assert.deepEqual(viewsMissingSecurityInvoker(sql), []);
 });
 
+test('a CREATE OR REPLACE after the pin resets it', () => {
+  // The real shape: pinned in 0184, replaced in 0193 without WITH (...).
+  // Postgres replaces the view's options with the (empty) list given, so the
+  // view runs as its owner again.
+  const sql = `
+    CREATE OR REPLACE VIEW vw_replaced AS SELECT * FROM matches;
+    ALTER VIEW vw_replaced SET (security_invoker = on);
+    CREATE OR REPLACE VIEW vw_replaced AS SELECT *, 1 AS extra FROM matches;
+  `;
+  assert.deepEqual(viewsMissingSecurityInvoker(sql), ['vw_replaced']);
+});
+
+test('a pin after the latest CREATE OR REPLACE holds', () => {
+  const sql = `
+    CREATE OR REPLACE VIEW vw_repinned AS SELECT * FROM matches;
+    ALTER VIEW vw_repinned SET (security_invoker = on);
+    CREATE OR REPLACE VIEW vw_repinned AS SELECT *, 1 AS extra FROM matches;
+    ALTER VIEW vw_repinned SET (security_invoker = on);
+  `;
+  assert.deepEqual(viewsMissingSecurityInvoker(sql), []);
+});
+
+test('an ALTER VIEW that does not touch security_invoker leaves the pin', () => {
+  const sql = `
+    CREATE VIEW vw_owned WITH (security_invoker = on) AS SELECT 1;
+    ALTER VIEW vw_owned OWNER TO postgres;
+  `;
+  assert.deepEqual(viewsMissingSecurityInvoker(sql), []);
+});
+
+test('switching security_invoker off unpins the view', () => {
+  const sql = `
+    CREATE VIEW vw_switched WITH (security_invoker = on) AS SELECT 1;
+    ALTER VIEW vw_switched SET (security_invoker = off);
+  `;
+  assert.deepEqual(viewsMissingSecurityInvoker(sql), ['vw_switched']);
+});
+
+test('resetting security_invoker unpins the view, IF EXISTS or not', () => {
+  const sql = `
+    CREATE VIEW vw_reset WITH (security_invoker = on) AS SELECT 1;
+    ALTER VIEW vw_reset RESET (security_invoker);
+    CREATE VIEW vw_reset_if WITH (security_invoker = on) AS SELECT 1;
+    ALTER VIEW IF EXISTS vw_reset_if RESET (security_invoker);
+  `;
+  assert.deepEqual(viewsMissingSecurityInvoker(sql), ['vw_reset', 'vw_reset_if']);
+});
+
 // ── SECURITY DEFINER reachability ────────────────────────────────────────────
 
 test('REVOKE ... FROM public does not count as revoked', () => {

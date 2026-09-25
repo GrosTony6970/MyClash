@@ -7,7 +7,7 @@
  * their own test, so moving them is what buys the gate room without touching
  * anything the test can see: check-db-review.mjs re-exports all three, so
  * scripts/check-db-review.test.mjs keeps importing them from the path it always
- * did and stays byte-identical.
+ * did.
  *
  * That test file is deliberately NOT duplicated here. Every other
  * scripts/lib/*.mjs has a sibling test, and this one does not, because its
@@ -43,19 +43,22 @@ export function tablesMissingRls(sql) {
 // such a view hands its base tables to any role that may SELECT it with RLS
 // switched off entirely. Matched corpus-wide: a view may be created in one
 // migration and pinned in a later one.
+//
+// Read in ORDER, last statement wins: CREATE OR REPLACE VIEW replaces the
+// view's options with the list it gives, so a re-create without
+// WITH (security_invoker = on) undoes an earlier pin. 0193 did exactly that to
+// 0184's pin on vw_tournament_query_matches, and an order-blind check passed it.
 export function viewsMissingSecurityInvoker(sql) {
-  const views = [
-    ...sql.matchAll(/CREATE\s+(?:OR\s+REPLACE\s+)?VIEW\s+((?:"?\w+"?\.)?"?\w+"?)/gi),
-  ].map((match) => objectName(match[1] ?? ''));
-  const pinned = [
-    ...sql.matchAll(
-      /ALTER\s+VIEW\s+((?:"?\w+"?\.)?"?\w+"?)\s+SET\s*\([^)]*security_invoker\s*=\s*on/gi,
-    ),
-    ...sql.matchAll(
-      /CREATE\s+(?:OR\s+REPLACE\s+)?VIEW\s+((?:"?\w+"?\.)?"?\w+"?)\s+WITH\s*\([^)]*security_invoker\s*=\s*on/gi,
-    ),
-  ].map((match) => objectName(match[1] ?? ''));
-  return [...new Set(views.filter((view) => !pinned.includes(view)))];
+  const pinned = new Map();
+  for (const match of sql.matchAll(
+    /(CREATE\s+(?:OR\s+REPLACE\s+)?|ALTER\s+)VIEW\s+(?:IF\s+EXISTS\s+)?((?:"?\w+"?\.)?"?\w+"?)(\s+(?:(?:WITH|SET)\s*\([^)]*security_invoker\s*=\s*(\w+)|RESET\s*\([^)]*security_invoker))?/gi,
+  )) {
+    const isCreate = /^CREATE/i.test(match[1] ?? '');
+    // An ALTER VIEW that does not touch security_invoker (a rename, an owner) leaves it as it was.
+    if (!isCreate && match[3] === undefined) continue;
+    pinned.set(objectName(match[2] ?? ''), match[4]?.toLowerCase() === 'on');
+  }
+  return [...pinned].filter(([, on]) => !on).map(([view]) => view);
 }
 
 // SECURITY DEFINER functions must be revoked from anon and authenticated BY

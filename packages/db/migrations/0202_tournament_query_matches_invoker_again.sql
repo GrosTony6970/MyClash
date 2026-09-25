@@ -1,0 +1,21 @@
+-- 0202: `vw_tournament_query_matches` honours the caller's RLS again.
+--
+-- THE DEFECT. 0184 set `security_invoker = on` on the five vw_tournament_query_* views. 0193 then
+-- re-created `vw_tournament_query_matches` with `CREATE OR REPLACE VIEW` and no `WITH (...)`, and
+-- Postgres replaces a view's options with the list the statement gives: the empty one. On a PG17
+-- replay (2026-09-25) the view's reloptions are empty. It runs as its owner again (supabase_admin,
+-- BYPASSRLS), so any role granted SELECT on it reads a draft Event's bouts, fighter names and clubs.
+-- 0184's REVOKE from anon and authenticated survived (a replace keeps grants), so ONE of the two
+-- locks still held; this puts the second one back (operator ruling 115).
+--
+-- scripts/lib/db-rules.mjs `viewsMissingSecurityInvoker` passed 0193 because it was order-blind:
+-- 0184's ALTER counted for a view re-created after it. It now reads statements in order, and the
+-- last one decides.
+--
+-- ── Security posture ────────────────────────────────────────────────────────
+--
+-- Nothing breaks: every reader of the view goes through the API's service-role client, which
+-- bypasses RLS (matches, match-completion, phases, assignments, schedule-grid, tournament-query).
+-- A future re-create must carry `WITH (security_invoker = on)` or repeat this ALTER after it.
+
+ALTER VIEW vw_tournament_query_matches SET (security_invoker = on);
