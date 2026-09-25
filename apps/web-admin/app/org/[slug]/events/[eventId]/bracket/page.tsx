@@ -5,7 +5,7 @@
  * Route: /org/[slug]/events/[eventId]/bracket
  */
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from 'react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import {
@@ -317,6 +317,11 @@ export default function BracketPage() {
     bronzeMatch: true,
     repechageEntrySize: null,
   });
+  // The saved podium the form last took. The bracket is re-read every 30 s even
+  // while the channel is up (ruling 110a); a re-read must not wipe a toggle the
+  // operator has not saved yet, so the form follows the server only when the
+  // SAVED value itself changes.
+  const savedPodiumRef = useRef<string | null>(null);
   const [configSaving, setConfigSaving] = useState(false);
   const [configError, setConfigError] = useState<string | null>(null);
 
@@ -445,6 +450,7 @@ export default function BracketPage() {
     setBracketPhaseId(null);
     setExistingBracket(false);
     setEditPodium(podiumFromBracket({}));
+    savedPodiumRef.current = null;
     setTournamentWeapon(null);
     setRedColor('red');
     setBlueColor('blue');
@@ -470,7 +476,16 @@ export default function BracketPage() {
         setBracketPhaseId(data.phaseId);
         setExistingBracket(true);
         if (data.phaseType === 'double_elim') setPhaseType('double_elim');
-        setEditPodium(podiumFromBracket(data));
+        const saved = podiumFromBracket(data);
+        if (JSON.stringify(saved) !== savedPodiumRef.current) {
+          adoptSavedPodium(savedPodiumRef, setEditPodium, saved);
+        }
+      } else {
+        // Gone on the server, deleted here or by another organiser: the 30 s
+        // re-read (ruling 110a) is how this page learns it.
+        setBracket(null);
+        setBracketPhaseId(null);
+        setExistingBracket(false);
       }
     });
     return () => controller.abort();
@@ -691,7 +706,9 @@ export default function BracketPage() {
       setBracket(result);
       setBracketPhaseId(result.phaseId);
       setExistingBracket(true);
-      setEditPodium(podiumFromBracket(result));
+      adoptSavedPodium(savedPodiumRef, setEditPodium, podiumFromBracket(result));
+      // Aborts a re-read already on its way: its answer predates this write.
+      refreshBracket();
     } finally {
       setGenerating(false);
     }
@@ -777,6 +794,8 @@ export default function BracketPage() {
       setBracketPhaseId(null);
       setExistingBracket(false);
       setShowDeleteConfirm(false);
+      // Aborts a re-read already on its way: it would bring the bracket back.
+      refreshBracket();
     } finally {
       setDeleting(false);
     }
@@ -2081,4 +2100,14 @@ function strategyKey(s: SeedingStrategy): string {
     case 'by-pool-rank':
       return 'ByPoolRank';
   }
+}
+
+/** The configuration form takes a podium the server holds, and remembers it as the saved one. */
+function adoptSavedPodium(
+  savedRef: RefObject<string | null>,
+  setForm: (value: PodiumOptionsValue) => void,
+  saved: PodiumOptionsValue,
+): void {
+  savedRef.current = JSON.stringify(saved);
+  setForm(saved);
 }

@@ -21,11 +21,9 @@ import {
   computeFinalRanking,
   rankingBracketShape,
   type FinalRankingEntry,
-  type PoolEntry,
-  type RankingSlot,
 } from '@myclash/ui';
-import { useRealtimeWithFallback } from '@/lib/supabase-browser';
 import { rankingToCsv, rankingToPrintHtml, type ExportRow } from './final-ranking-export';
+import { useFinalRankingData } from './useFinalRankingData';
 import { useI18n } from '@myclash/next-i18n/client';
 import { apiRequest } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
@@ -36,24 +34,6 @@ interface Tournament {
   id: string;
   name: string;
   color?: string | null;
-}
-
-interface BracketResponse {
-  phaseId?: string;
-  phaseType?: string;
-  /** Double-elim round split — needed so the ranking places fighters by their
-   *  losers-bracket exit rather than by the round of their first loss. */
-  wbRounds?: number | null;
-  lbRounds?: number | null;
-  bronzeSlotId?: string | null;
-  slots: RankingSlot[];
-}
-
-interface StandingsRow {
-  registrationId: string;
-  displayName: string;
-  club: { name: string; abbreviation: string | null } | null;
-  stats: Record<string, number | string>;
 }
 
 const apiUrl = getPublicApiUrl();
@@ -69,10 +49,6 @@ export default function FinalRankingPage() {
   const [selectedTournament, setSelectedTournament] = useState<string>(
     searchParams.get('tournamentId') ?? '',
   );
-  const [bracket, setBracket] = useState<BracketResponse | null>(null);
-  const [poolEntries, setPoolEntries] = useState<PoolEntry[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [refreshKey, setRefreshKey] = useState(0);
 
   // Load the event's tournaments once; seed the selection from ?tournamentId.
   useEffect(() => {
@@ -101,61 +77,7 @@ export default function FinalRankingPage() {
     router.replace(`${url.pathname}${url.search}`, { scroll: false });
   }, [selectedTournament, searchParams, router]);
 
-  // Fetch bracket + pool standings for the selected tournament.
-  useEffect(() => {
-    if (!selectedTournament) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect -- clear loading flag when no tournament is selected
-      setLoading(false);
-      return;
-    }
-    const controller = new AbortController();
-    setLoading(true);
-    void Promise.all([
-      apiRequest<unknown>(apiUrl, `/api/v1/tournaments/${selectedTournament}/bracket`, {
-        signal: controller.signal,
-      }).then((r) => (r.ok ? r.data : null)),
-      apiRequest<unknown>(
-        apiUrl,
-        `/api/v1/tournaments/${selectedTournament}/pool-standings?mode=overall`,
-        { signal: controller.signal },
-      ).then((r) => (r.ok ? r.data : null)),
-    ])
-      .then(([bracketData, standingsData]) => {
-        setBracket(
-          bracketData && Array.isArray((bracketData as BracketResponse).slots)
-            ? (bracketData as BracketResponse)
-            : null,
-        );
-        const rows = (standingsData as { rows?: StandingsRow[] } | null)?.rows ?? [];
-        setPoolEntries(
-          rows.map((row) => {
-            const raw = row.stats?.['score'];
-            const n = typeof raw === 'number' ? raw : Number(raw);
-            return {
-              registrationId: row.registrationId,
-              fighterName: row.displayName,
-              clubAbbrev: row.club?.abbreviation ?? row.club?.name ?? null,
-              poolScore: Number.isFinite(n) ? n : null,
-            };
-          }),
-        );
-      })
-      .finally(() => setLoading(false));
-    return () => controller.abort();
-  }, [selectedTournament, refreshKey]);
-
-  // Live-refresh on bracket-match changes (a finished match changes the ranking).
-  const bracketPhaseId = bracket?.phaseId ?? null;
-  useRealtimeWithFallback({
-    channelName: bracketPhaseId ? `finalranking-${bracketPhaseId}` : 'finalranking-idle',
-    table: 'matches',
-    filter: bracketPhaseId
-      ? `phase_id=eq.${bracketPhaseId}`
-      : 'phase_id=eq.00000000-0000-0000-0000-000000000000',
-    event: '*',
-    onEvent: () => setRefreshKey((k) => k + 1),
-    onFallbackPoll: () => setRefreshKey((k) => k + 1),
-  });
+  const { bracket, poolEntries, loading } = useFinalRankingData(selectedTournament);
 
   const maxRound = useMemo(
     () => (bracket?.slots ?? []).reduce((m, s) => Math.max(m, s.round), 0),

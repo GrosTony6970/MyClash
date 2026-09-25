@@ -7,11 +7,12 @@
  *
  * THE FIX THIS CARRIES: a suppressed tick used to be dropped, not deferred —
  * `if (isBusy()) return;` and nothing rearmed it. That is only harmless if
- * something else re-reads later, and nothing does: the 30-second poll exists
- * only while the websocket is DOWN, and a successful write never refetches. So a
- * remote change landing during a local save was lost until the next unrelated
- * event, and the operator worked from a board that was quietly stale. It now
- * rearms at the same delay and fires when the write finishes.
+ * something else re-reads soon, and nothing did: the 30-second poll then ran
+ * only while the websocket was DOWN (it runs always since ruling 110a, but 30 s
+ * is still a long wait), and a successful write never refetches. So a remote
+ * change landing during a local save was lost until the next unrelated event,
+ * and the operator worked from a board that was quietly stale. It now rearms at
+ * the same delay and fires when the write finishes.
  *
  * Pure: no React, no timers of its own. `setTimer`/`clearTimer` are injected, so
  * the gate can be driven at full speed in a test — which is the only reason this

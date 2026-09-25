@@ -51,8 +51,8 @@ describe('createRefetchGate', () => {
 
   it('holds the refetch off while a write is in flight, then runs it', () => {
     // The defect this exists for. A suppressed tick used to be dropped, and
-    // nothing re-read the board afterwards: the fallback poll only runs while
-    // the websocket is down, and a successful write never refetches. The
+    // nothing re-read the board soon after: the poll then ran only while the
+    // websocket was down, and a successful write never refetches. The
     // operator was left working from a stale board.
     const clock = fakeClock();
     let refetches = 0;

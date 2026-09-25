@@ -38,7 +38,7 @@ function LiceRealtime({
       });
     },
     // useLiveBoard already runs the 7s structural poll; the per-lice channel
-    // is a score-cell overlay only, so its socket-down fallback is a no-op.
+    // is a score-cell overlay only, so its poll is a no-op.
     onFallbackPoll: () => {},
     fallbackPollMs: 7000,
   });

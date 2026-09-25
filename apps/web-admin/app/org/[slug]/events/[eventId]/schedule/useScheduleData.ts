@@ -57,9 +57,10 @@ const NO_REFEREE_CONFLICTS: RefereeConflictRow[] = [];
  * therefore the only part of this path with any test cover. This hook is the
  * lifecycle around it.
  *
- * The websocket's own 30 s poll fallback covers the unschedule-off-lice edge the
- * `lice_id` filter cannot see. It exists only while the socket is DOWN, which is
- * why the gate has to defer a suppressed refetch rather than drop it.
+ * The hook's 30 s poll runs even while the socket is up (ruling 110a). It covers
+ * the unschedule-off-lice edge the `lice_id` filter cannot see, and a draft
+ * Event's bouts, which the anonymous channel never carries. 30 s is still a long
+ * wait, which is why the gate has to defer a suppressed refetch rather than drop it.
  *
  * Returns that gated re-read, for a change the socket cannot see.
  */
@@ -198,15 +199,24 @@ export function useScheduleData(args: {
     setLices(r.data.sort((a, b) => a.sortOrder - b.sortOrder));
   }, [apiUrl, eventId]);
 
+  // The banner a failed re-read raised. The board is re-read every 30 s (ruling
+  // 110a), so the next good re-read takes that banner down, and only that one: a
+  // failed first load stays up.
+  const refetchErrorRef = useRef<string | null>(null);
   const refetchScheduleAndBlocks = useCallback(async (): Promise<void> => {
     const result = await loadScheduleAndProgramme(apiUrl, eventId);
     // Also the rollback path after a failed write, so a silent skip would leave
     // the board showing state the server rejected — the exact failure `commit`
     // exists to prevent. A refusal has to be visible.
     if (!result.ok) {
-      setFetchError(readMessage(t, result.source, result.failure));
+      const message = readMessage(t, result.source, result.failure);
+      refetchErrorRef.current = message;
+      setFetchError(message);
       return;
     }
+    const raised = refetchErrorRef.current;
+    refetchErrorRef.current = null;
+    if (raised !== null) setFetchError((current) => (current === raised ? null : current));
     setMatches(result.matches);
     setProgrammeBlocks(result.programmeBlocks);
   }, [apiUrl, eventId, t]);

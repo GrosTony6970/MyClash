@@ -43,31 +43,36 @@ export interface UseRealtimeOptions {
     old: Record<string, unknown> | null;
     eventType: string;
   }) => void;
-  /** Called every fallbackPollMs while the websocket is disconnected. */
+  /**
+   * Called every fallbackPollMs for as long as the page is open, channel up or
+   * not, and once straight away when the channel drops.
+   */
   onFallbackPoll: () => void;
-  /** Polling interval (ms) used while the websocket is unhealthy. Default 30s. */
+  /** Polling interval (ms). Default 30s. */
   fallbackPollMs?: number;
 }
 
 const API_URL = getPublicApiUrl();
 
 /**
- * Subscribes to a Supabase realtime channel and falls back to a setInterval
- * poll whenever the websocket is not in the SUBSCRIBED state.
+ * Subscribes to a Supabase realtime channel, with a setInterval poll beside it
+ * for as long as the page is open.
+ *
+ * The poll does not stop on SUBSCRIBED (ruling 110a). This client is anonymous,
+ * and RLS keeps a draft Event's rows, and an unpublished Tournament's, off its
+ * channel: the channel says SUBSCRIBED and then never speaks. A poll that
+ * stopped there froze the organiser's own screens on exactly those Events.
  *
  * Behavior:
  *   • If the `disable_realtime` feature flag is on, skip the websocket
  *     entirely and run only the polling loop. We re-subscribe to the
  *     runtime-flags cache so flipping the flag mid-session re-runs this
  *     effect and either reattaches or detaches the channel.
- *   • On SUBSCRIBED → stop polling.
- *   • On CHANNEL_ERROR / TIMED_OUT / CLOSED → start polling (or keep polling
- *     if we never connected). Polling resumes the live view as soon as the
- *     channel re-subscribes successfully.
+ *   • On CHANNEL_ERROR / TIMED_OUT / CLOSED → poll straight away, so a drop
+ *     does not wait a full interval. Once per outage: SUBSCRIBED re-arms it.
  *   • On unmount → stop polling AND remove the channel.
  */
 export function useRealtimeWithFallback(opts: UseRealtimeOptions): void {
-  const pollTimerRef = useRef<number | null>(null);
   const channelRef = useRef<RealtimeChannel | null>(null);
   const wasConnectedRef = useRef(false);
 
@@ -77,28 +82,23 @@ export function useRealtimeWithFallback(opts: UseRealtimeOptions): void {
   const realtimeDisabled = (flags ?? getRuntimeFlagsCached(API_URL)).realtimeDisabled === true;
 
   useEffect(() => {
-    function startPolling() {
-      if (pollTimerRef.current !== null) return;
-      // Fire once immediately so the consumer sees fresh data without
-      // waiting a full interval — matches the WS connected→data path.
+    const pollTimer = window.setInterval(
+      () => opts.onFallbackPoll(),
+      opts.fallbackPollMs ?? 30_000,
+    );
+    let caughtUp = false;
+    function catchUp() {
+      if (caughtUp) return;
+      caughtUp = true;
       opts.onFallbackPoll();
-      pollTimerRef.current = window.setInterval(
-        () => opts.onFallbackPoll(),
-        opts.fallbackPollMs ?? 30_000,
-      );
-    }
-    function stopPolling() {
-      if (pollTimerRef.current === null) return;
-      window.clearInterval(pollTimerRef.current);
-      pollTimerRef.current = null;
     }
 
     // Kill-switch path: skip the websocket entirely.
     if (realtimeDisabled) {
       console.info(`[realtime] disabled by flag, polling only: ${opts.channelName}`);
-      startPolling();
+      catchUp();
       return () => {
-        stopPolling();
+        window.clearInterval(pollTimer);
       };
     }
 
@@ -133,17 +133,20 @@ export function useRealtimeWithFallback(opts: UseRealtimeOptions): void {
             console.info(`[realtime] connected: ${opts.channelName}`);
             wasConnectedRef.current = true;
           }
-          stopPolling();
+          caughtUp = false;
         } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
           console.info(`[realtime] dropped (${status}): ${opts.channelName}`);
-          startPolling();
+          catchUp();
         }
       });
 
     channelRef.current = channel;
 
     return () => {
-      stopPolling();
+      window.clearInterval(pollTimer);
+      // Leaving the channel reports CLOSED to the callback above; the page is
+      // gone, so that must not fire a catch-up read.
+      caughtUp = true;
       void supabase.removeChannel(channel);
       channelRef.current = null;
     };

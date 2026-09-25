@@ -102,8 +102,10 @@ export function useLiveMatch(
    *
    * It used to run unconditionally, IN ADDITION to realtime. That made a dead
    * websocket invisible: the public display polled four endpoints every 2s for
-   * weeks while its socket 403'd, and looked perfectly healthy doing it. The
-   * apps' `useRealtimeWithFallback` still polls only while its channel is down.
+   * weeks while its socket 403'd, and looked perfectly healthy doing it.
+   * web-admin's `useRealtimeWithFallback` does poll unconditionally, by ruling
+   * (110a): its anonymous channel never carries a draft Event's rows. There only
+   * its `[realtime] connected/dropped` console lines tell a dead socket apart.
    */
   pollMs?: number,
   /**

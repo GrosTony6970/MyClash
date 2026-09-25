@@ -318,13 +318,16 @@ export async function dragAfterAbandonedDrag(
 }
 
 /**
- * The read count for `suffix` once reads have stopped for two seconds.
+ * The read count for `suffix` once reads have stopped for three and a half seconds.
  *
- * The harness's realtime socket always fails, and the board answers a dropped
- * channel with one fallback re-read about 1.5 s later: `useRealtimeWithFallback`
- * polls at once and the refetch gate debounces it. A spec that counts re-reads
- * must let that one land first or it counts it. The sheet-save case in the spec stayed
- * green with its own re-read deleted until it waited here.
+ * The harness's realtime socket always fails. The board opens its channel twice
+ * (a placeholder until its pistes load, then the real one), each failure asks
+ * `useRealtimeWithFallback` for a catch-up read, and the refetch gate debounces
+ * them into one re-read about 2.5 s after the pistes load (measured 2.4 s). A
+ * spec that counts re-reads must let that one land first or it counts it. The
+ * sheet-save case in the spec stayed green with its own re-read deleted until it
+ * waited here. The window was 2 s while a leaked read on the placeholder's CLOSED
+ * came sooner (ruling 110a removed it).
  */
 export async function settledReadCount(api: Harness, suffix: string): Promise<number> {
   let count = api.readCount(suffix);
@@ -341,7 +344,7 @@ export async function settledReadCount(api: Harness, suffix: string): Promise<nu
       },
       { timeout: 15_000, intervals: [200] },
     )
-    .toBeGreaterThanOrEqual(2_000);
+    .toBeGreaterThanOrEqual(3_500);
   return count;
 }
 

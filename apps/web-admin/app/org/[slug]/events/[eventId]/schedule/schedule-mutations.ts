@@ -8,7 +8,7 @@
  * optimistic UI showing a placement that did not exist, with no banner, no
  * rollback and no console trace — and it did NOT heal on the next tick: no
  * realtime event fires for a write that never happened, and the poll fallback
- * is stopped while the socket is SUBSCRIBED. Correction waited for an unrelated
+ * was then stopped while the socket was SUBSCRIBED. Correction waited for an unrelated
  * change or a page reload. `clearActiveDay` was the worst shape: on a 401 the
  * operator saw the whole day emptied on screen while every match stayed
  * scheduled in the database, on the pad and on the public display.

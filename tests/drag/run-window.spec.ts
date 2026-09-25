@@ -171,8 +171,8 @@ test.describe('schedule grid run window', () => {
 
     const atOpen = api.readCount(SCHEDULE_PATH);
     typedElsewhere = 7;
-    // The failed socket's catch-up read lands about 1.5 s after mount, with the
-    // window already open, and serves the 7. Asserting that it landed is what
+    // The failed socket's catch-up read lands about 2.5 s after the board loads,
+    // with the window already open, and serves the 7. Asserting that it landed is what
     // keeps this case from passing on a board that never saw the new length.
     expect(await settledReadCount(api, SCHEDULE_PATH)).toBeGreaterThan(atOpen);
     await expect(lengthField(page)).toHaveValue('');
