@@ -4,10 +4,10 @@
  * Covers the bits with real logic:
  *   ✓ compact stats win-rate derivation (rounding + div-by-zero → null)
  *   ✓ duplicate group name → ConflictException (23505 mapping)
- *   ✓ adding a soft-deleted/merged fighter is rejected
+ *   (reachability, privacy and failed reads: directory-groups.privacy.test.ts)
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { ConflictException, NotFoundException } from '@nestjs/common';
+import { ConflictException } from '@nestjs/common';
 import { MemberStatsService } from './member-stats.service';
 import { DirectoryGroupsService } from './directory-groups.service';
 
@@ -85,20 +85,5 @@ describe('DirectoryGroupsService', () => {
       makeChain({ data: null, error: { code: '23505', message: 'duplicate key' } }),
     );
     await expect(service.createGroup('user-1', 'Rivals')).rejects.toThrow(ConflictException);
-  });
-
-  it('rejects adding a soft-deleted fighter', async () => {
-    // assertOwner → group exists
-    const ownerChain = makeChain({ data: { id: 'group-1' }, error: null });
-    // resolveGlobalPersonId → fighter is soft-deleted
-    const personChain = makeChain({
-      data: { id: 'gp-1', deleted_at: '2026-01-01T00:00:00Z', merged_into_id: null },
-      error: null,
-    });
-    from.mockReturnValueOnce(ownerChain).mockReturnValueOnce(personChain);
-
-    await expect(
-      service.addMember('user-1', 'group-1', { globalPersonId: 'gp-1' }),
-    ).rejects.toThrow(NotFoundException);
   });
 });

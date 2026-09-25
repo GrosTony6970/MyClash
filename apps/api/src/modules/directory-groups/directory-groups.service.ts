@@ -7,6 +7,8 @@
  * follow-state (FollowsService) so the page renders in a couple of round-trips.
  */
 import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { applyReachable, isReachableEmbed } from '../fighters/directory-predicate';
+import { isFieldPublic } from '../fighters/public-visibility';
 import { FollowsService } from '../follows/follows.service';
 import { SupabaseService } from '../supabase/supabase.service';
 import { MemberStatsService } from './member-stats.service';
@@ -44,7 +46,8 @@ export interface DirectoryGroupWithMembers extends DirectoryGroup {
 const MEMBER_SELECT = `
   group_id, global_person_id, sort_order, created_at,
   global_persons (
-    id, slug, display_name, photo_url, country_code, deleted_at, merged_into_id,
+    id, slug, display_name, photo_url, country_code, public_visibility,
+    deleted_at, merged_into_id, account_deleted_at,
     clubs ( name )
   )
 `;
@@ -60,26 +63,31 @@ export class DirectoryGroupsService {
   // ── Read ──────────────────────────────────────────────────────────────────
 
   async listGroups(userId: string): Promise<DirectoryGroupWithMembers[]> {
-    const { data: groups } = await this.supabase.service
+    const { data: groups, error: groupsError } = await this.supabase.service
       .from('directory_groups')
       .select('id, name, sort_order, created_at, updated_at')
       .eq('owner_user_id', userId)
       .order('sort_order', { ascending: true })
       .order('created_at', { ascending: true });
+    if (groupsError) throw new Error(`directory groups read failed: ${groupsError.message}`);
 
     const groupRows = (groups ?? []) as Array<Record<string, unknown>>;
     if (groupRows.length === 0) return [];
 
     const groupIds = groupRows.map((g) => g['id'] as string);
-    const { data: members } = await this.supabase.service
+    const { data: members, error: membersError } = await this.supabase.service
       .from('directory_group_members')
       .select(MEMBER_SELECT)
       .in('group_id', groupIds)
       .order('sort_order', { ascending: true })
       .order('created_at', { ascending: true });
+    if (membersError) {
+      throw new Error(`directory group members read failed: ${membersError.message}`);
+    }
 
+    // An erased, deleted or merged profile is never a card (ruling 107).
     const memberRows = ((members ?? []) as Array<Record<string, unknown>>).filter((m) =>
-      this.isVisible(m['global_persons']),
+      isReachableEmbed(m['global_persons']),
     );
 
     const personIds = [...new Set(memberRows.map((m) => m['global_person_id'] as string))];
@@ -178,47 +186,36 @@ export class DirectoryGroupsService {
 
   // ── Helpers ───────────────────────────────────────────────────────────────
 
+  /** An erased, deleted or merged profile answers as an unknown fighter (ruling 107). */
   private async resolveGlobalPersonId(input: {
     globalPersonId?: string;
     slug?: string;
   }): Promise<string> {
-    if (input.globalPersonId) {
-      const { data } = await this.supabase.service
-        .from('global_persons')
-        .select('id, deleted_at, merged_into_id')
-        .eq('id', input.globalPersonId)
-        .maybeSingle();
-      const row = data as Record<string, unknown> | null;
-      if (!row || row['deleted_at'] || row['merged_into_id']) {
-        throw new NotFoundException('Fighter not found');
-      }
-      return row['id'] as string;
-    }
-
-    const { data } = await this.supabase.service
-      .from('global_persons')
-      .select('id, deleted_at, merged_into_id')
-      .eq('slug', input.slug as string)
-      .maybeSingle();
-    const row = data as Record<string, unknown> | null;
-    if (!row || row['deleted_at'] || row['merged_into_id']) {
-      throw new NotFoundException('Fighter not found');
-    }
-    return row['id'] as string;
+    const [column, value] = input.globalPersonId
+      ? ['id', input.globalPersonId]
+      : ['slug', input.slug as string];
+    const { data, error } = await applyReachable(
+      this.supabase.service.from('global_persons').select('id').eq(column, value),
+    ).maybeSingle();
+    if (error) throw new Error(`fighter lookup failed: ${error.message}`);
+    if (!data) throw new NotFoundException('Fighter not found');
+    return (data as { id: string }).id;
   }
 
   private async fetchMemberCard(
     globalPersonId: string,
     userId: string,
   ): Promise<DirectoryGroupMemberCard | null> {
-    const { data } = await this.supabase.service
-      .from('global_persons')
-      .select(
-        'id, slug, display_name, photo_url, country_code, deleted_at, merged_into_id, clubs ( name )',
-      )
-      .eq('id', globalPersonId)
-      .maybeSingle();
-    if (!data || !this.isVisible(data)) return null;
+    const { data, error } = await applyReachable(
+      this.supabase.service
+        .from('global_persons')
+        .select(
+          'id, slug, display_name, photo_url, country_code, public_visibility, clubs ( name )',
+        )
+        .eq('id', globalPersonId),
+    ).maybeSingle();
+    if (error) throw new Error(`fighter card read failed: ${error.message}`);
+    if (!data) return null;
 
     const ctx = await this.loadCardContext([globalPersonId], userId);
     return this.toCard(data as Record<string, unknown>, ctx);
@@ -246,7 +243,10 @@ export class DirectoryGroupsService {
       slug: gp['slug'] as string,
       displayName: gp['display_name'] as string,
       photoUrl: (gp['photo_url'] as string | null) ?? null,
-      countryCode: (gp['country_code'] as string | null) ?? null,
+      // Only when the fighter's privacy map allows it (ruling 107).
+      countryCode: isFieldPublic(gp['public_visibility'], 'nationality')
+        ? ((gp['country_code'] as string | null) ?? null)
+        : null,
       clubName: club?.name ?? null,
       favoriteWeapon: ctx.weapons.get(id) ?? null,
       matches: stats.matches,
@@ -257,11 +257,6 @@ export class DirectoryGroupsService {
       upcomingEventCount: follow.upcomingEventCount,
       followingEventCount: follow.followingEventCount,
     };
-  }
-
-  private isVisible(gp: unknown): boolean {
-    const row = gp as Record<string, unknown> | null;
-    return Boolean(row && !row['deleted_at'] && !row['merged_into_id']);
   }
 
   private async assertOwner(userId: string, groupId: string): Promise<void> {
