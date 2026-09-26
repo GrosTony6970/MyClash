@@ -28,7 +28,7 @@ import { StandingsTab } from './_tabs/StandingsTab';
 import { RefereesTab } from './_tabs/RefereesTab';
 import { parseHashTab } from './parse-hash-tab';
 import { recordConflictCheck, type ConflictChecks } from './conflict-checks';
-import { RefereeVerdictBanner } from './RefereeVerdictBanner';
+import { RefereeVerdictBanner } from '@/components/RefereeVerdictBanner';
 import type { RefereeConflictEntry } from '@/lib/referee-reasons';
 import { useEventStatus } from '../_hooks/useEventStatus';
 import { apiRequest, failureMessage, type ApiResult } from '@myclash/api-client';

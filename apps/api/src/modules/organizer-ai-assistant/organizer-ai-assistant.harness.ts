@@ -70,6 +70,15 @@ export function chain(
  */
 export const placement = { placeMatches: vi.fn().mockResolvedValue(undefined) };
 
+/**
+ * The one referee checker, through the board. Doubled: what it answers is
+ * `assignment-board.judge-write.test.ts`'s; what the assistant owns is the question it
+ * asks and that it never confirms (`organizer-ai-assistant.assign-referee.test.ts`).
+ */
+export const refereeBoard = {
+  judgeWrite: vi.fn().mockResolvedValue({ stored: [], matchIds: [], skippedMatchIds: [] }),
+};
+
 export function service() {
   return new OrganizerAIAssistantService(
     supabase as never,
@@ -78,6 +87,7 @@ export function service() {
     events as never,
     phases as never,
     placement as never,
+    refereeBoard as never,
   );
 }
 
@@ -85,6 +95,7 @@ export function service() {
 export function resetHarness(): void {
   vi.clearAllMocks();
   mockAssertOrgRole.mockResolvedValue(undefined);
+  refereeBoard.judgeWrite.mockResolvedValue({ stored: [], matchIds: [], skippedMatchIds: [] });
   mockGenerateWithCap.mockResolvedValue({
     text: JSON.stringify({
       summary: 'Use four balanced pools.',

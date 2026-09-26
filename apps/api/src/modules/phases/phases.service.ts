@@ -26,6 +26,9 @@ import { HemaRatingsService } from '../hema-ratings/hema-ratings.service';
 import { eventHemaRatingsId, type RatedPerson } from '../hema-ratings/event-hema-ratings-id';
 import { OrganizationsService } from '../organizations/organizations.service';
 import { SettingsService } from '../referees/settings.service';
+// Value import: a DI dependency (see di-wiring.regression.test.ts).
+import { AssignmentBoardService, type JudgedWrite } from '../referees/assignment-board.service';
+import { assertRefereeBoardUnlocked } from '../referees/referee-lock';
 import type { GenerateBracketDto, GeneratePoolsDto } from './dto/phases.dto';
 import type { EditBracketConfigDto } from './dto/edit-bracket-config.dto';
 import type { ReseedBracketDto, SeedingStrategy } from './dto/reseed-bracket.dto';
@@ -170,6 +173,9 @@ export class PhasesService {
     // The two routes that need it are the two that write match times.
     @Optional()
     private readonly matchAlerts?: MatchAlertRefresherService,
+    // Optional for the same reason; the per-Pool crew door refuses to write without it.
+    @Optional()
+    private readonly refereeBoard?: AssignmentBoardService,
   ) {}
 
   // ── Generate pools ────────────────────────────────────────────────────────
@@ -2493,48 +2499,63 @@ export class PhasesService {
   }
 
   /**
-   * Set (or clear) the referee for one role on every match in a pool.
+   * Set (or clear) the referee for one role on every bout of a pool.
    *
-   * Mirrors `MatchesService.setRefereeRoleAssignment` but fans out to every
-   * match in the pool, and the replace is ONE TRANSACTION:
-   * `replace_match_referee_role` (migration 0194) holds the delete and the
-   * insert. They used to be two PostgREST calls, so a failed insert landed
-   * after the delete had committed and the pool lost its referee for that role.
-   * The insert did fail, every time a match had a lice: it copied the match's
-   * `lice_id` onto a match-scoped row, which `referee_assignments_scope_check`
-   * (migration 0091) forbids. A referee id that names nobody still fails it.
-   *
-   * A null `refereeId` clears the role through the same call.
+   * Mirrors `MatchesService.setRefereeRoleAssignment` over the pool's bouts: 409 while
+   * the referee board is locked, then the one referee checker (ADR-016) through the
+   * board's `judgeWrite`. The bouts the person fights are LEFT OUT (`skippedMatchIds`):
+   * judged, each would be own_match and the own-Pool confirm could never be reached; left
+   * out, they keep whoever holds the role on them. The replace is one database call
+   * (`replace_match_referee_role`, 0207) carrying the reasons confirmed over, so a failed
+   * insert keeps the pool's referees. A null `refereeId` clears the role on every bout.
    */
   async setPoolRefereeRoleAssignment(
     poolId: string,
     role: string,
     refereeId: string | null,
     userId: string,
-  ): Promise<{ poolId: string; role: string; refereeId: string | null }> {
+    confirm = false,
+  ): Promise<{
+    poolId: string;
+    role: string;
+    refereeId: string | null;
+    skippedMatchIds: string[];
+  }> {
     const ctx = await this.assertPoolEditAuth(poolId, userId);
     await this.assertPoolEditable(poolId);
+    await assertRefereeBoardUnlocked(this.supabase.service, ctx.eventId);
 
     const { data: matches, error: matchesErr } = await this.supabase.service
       .from('matches')
       .select('id')
       .eq('pool_id', poolId);
     if (matchesErr) throw new BadRequestException(matchesErr.message);
-
     const matchIds = ((matches ?? []) as Array<{ id: string }>).map((m) => m.id);
-    if (matchIds.length === 0) {
-      return { poolId, role, refereeId };
+
+    let judged: JudgedWrite = { stored: [], matchIds, skippedMatchIds: [] };
+    if (refereeId !== null && matchIds.length > 0) {
+      if (!this.refereeBoard) throw new Error('PhasesService has no referee checker wired in');
+      judged = await this.refereeBoard.judgeWrite(ctx.eventId, {
+        matchIds,
+        role,
+        personId: refereeId,
+        confirm,
+        skipOwnBouts: true,
+      });
     }
 
-    const { error } = await this.supabase.service.rpc('replace_match_referee_role', {
-      p_event_id: ctx.eventId,
-      p_role: role,
-      p_person_id: refereeId,
-      p_match_ids: matchIds,
-    });
-    if (error) throw new BadRequestException(error.message);
+    if (judged.matchIds.length > 0) {
+      const { error } = await this.supabase.service.rpc('replace_match_referee_role', {
+        p_event_id: ctx.eventId,
+        p_role: role,
+        p_person_id: refereeId,
+        p_match_ids: judged.matchIds,
+        p_conflicts: judged.stored,
+      });
+      if (error) throw new BadRequestException(error.message);
+    }
 
-    return { poolId, role, refereeId };
+    return { poolId, role, refereeId, skippedMatchIds: judged.skippedMatchIds };
   }
 
   async renamePool(poolId: string, name: string, userId: string) {

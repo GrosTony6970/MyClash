@@ -12,6 +12,8 @@ import { countPoolFighters } from './count-pool-fighters';
 import { buildMatchScoringHref, STAFF_APP_PREFIX } from './build-scoring-href';
 import { apiRequest, failureDetail } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
+import { useRefereeWrite } from '@/hooks/useRefereeWrite';
+import { RefereeWriteNotice } from '@/components/RefereeRefusalNotice';
 
 const apiUrl = getPublicApiUrl();
 
@@ -113,6 +115,8 @@ export function MatchesTab({ tournamentId, poolPhaseId, slug, eventId }: Matches
   const [refreshKey, setRefreshKey] = useState(0);
 
   const refresh = useCallback(() => setRefreshKey((k) => k + 1), []);
+  // The two referee dropdowns ask the one checker (ADR-016): a refusal is shown, not reverted in silence.
+  const refereeWrite = useRefereeWrite();
 
   // Use the scoreboard's exact side-colour palette so the fighter pills match
   // the configured tournament colours (and the live scoreboard) one-for-one.
@@ -249,14 +253,13 @@ export function MatchesTab({ tournamentId, poolPhaseId, slug, eventId }: Matches
         }),
       })),
     );
-    const r = await apiRequest(apiUrl, `/api/v1/matches/${matchId}/referee-role-assignments`, {
-      method: 'PUT',
-      body: { role, refereeId },
-    });
-    if (!r.ok) {
-      console.error('Referee role assignment failed:', failureDetail(r) ?? r.kind);
-      refresh();
-    }
+    await refereeWrite.put(
+      `/api/v1/matches/${matchId}/referee-role-assignments`,
+      { role, refereeId },
+      (answer) => {
+        if (!answer) refresh();
+      },
+    );
   }
 
   // ── Pool-wide assignments ───────────────────────────────────────────────
@@ -299,14 +302,18 @@ export function MatchesTab({ tournamentId, poolPhaseId, slug, eventId }: Matches
         };
       }),
     );
-    const r = await apiRequest(apiUrl, `/api/v1/pools/${poolId}/referee-role-assignments`, {
-      method: 'PUT',
-      body: { role, refereeId },
-    });
-    if (!r.ok) {
-      console.error('Pool referee role assignment failed:', failureDetail(r) ?? r.kind);
-      refresh();
-    }
+    // The bouts the referee fights in are left out (`skippedMatchIds`): the optimistic row lied.
+    await refereeWrite.put<{ skippedMatchIds: string[] }>(
+      `/api/v1/pools/${poolId}/referee-role-assignments`,
+      { role, refereeId },
+      (answer) => {
+        const skipped = answer?.skippedMatchIds.length ?? 0;
+        if (!answer || skipped > 0) refresh();
+        return skipped > 0
+          ? t('organizer.refereeBoard.skippedOwnBouts', { count: String(skipped) })
+          : undefined;
+      },
+    );
   }
 
   // The strip displays a value in its picker only when every match in
@@ -335,6 +342,7 @@ export function MatchesTab({ tournamentId, poolPhaseId, slug, eventId }: Matches
 
   return (
     <div className="space-y-6">
+      <RefereeWriteNotice write={refereeWrite} />
       <div className="flex items-center justify-end">
         <button
           type="button"

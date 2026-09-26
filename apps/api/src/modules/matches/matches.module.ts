@@ -3,6 +3,7 @@ import { OrganizationsModule } from '../organizations/organizations.module';
 import { WorkersModule } from '../../workers/workers.module';
 import { StaffModule } from '../staff/staff.module';
 import { PhasesModule } from '../phases/phases.module';
+import { RefereesModule } from '../referees/referees.module';
 import { ClockService } from './clock.service';
 import { FrozenResultsModule } from './frozen-results.module';
 import { MatchAuditService } from './match-audit.service';
@@ -27,6 +28,9 @@ import { ScoringService } from './scoring.service';
     FrozenResultsModule,
     OrganizationsModule,
     MatchPlacementModule,
+    // The per-bout crew door asks the referee checker (ADR-016). Exports are not
+    // transitive: PhasesModule imports RefereesModule but does not re-export it.
+    RefereesModule,
   ],
   controllers: [MatchesController],
   providers: [

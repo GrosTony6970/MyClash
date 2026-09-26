@@ -28,6 +28,7 @@ import { GenerateBracketDto, GeneratePoolsDto } from './dto/phases.dto';
 import { EditBracketConfigDto } from './dto/edit-bracket-config.dto';
 import { ReseedBracketDto } from './dto/reseed-bracket.dto';
 import { PopulateBracketDto } from './dto/populate-bracket.dto';
+import { PoolRefereeRoleDto } from './dto/pool-referee-role.dto';
 import type { FastifyRequest } from 'fastify';
 import { BlockOnCompletedEvent } from '../../common/event-readonly/block-on-completed.decorator';
 
@@ -146,20 +147,21 @@ export class PhasesController {
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary:
-      'Bulk-assign (or clear) one referee for one role on every match in a pool (org admin+)',
+      'Assign (or clear) one referee for one role on every bout of a pool, the bouts they fight left out (org admin+): 409 when locked or Impossible, 409 when Discouraged unless confirm',
   })
   @ApiParam({ name: 'poolId', type: 'string', format: 'uuid' })
   async setPoolRefereeRoleAssignment(
     @Param('poolId', ParseUUIDPipe) poolId: string,
-    @Body() dto: { role: string; refereeId: string | null },
+    @Body() dto: PoolRefereeRoleDto,
     @Req() req: FastifyRequest,
   ) {
     const userId = await getUserId(req, this.supabase);
     return this.phases.setPoolRefereeRoleAssignment(
       poolId,
       dto.role,
-      dto.refereeId ?? null,
+      dto.refereeId,
       userId,
+      dto.confirm === true,
     );
   }
 

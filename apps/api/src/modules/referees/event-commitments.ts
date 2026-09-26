@@ -218,22 +218,32 @@ export function unitTarget(
   };
 }
 
+/** One bout of a unit as the target, in one role; null when the unit has no such bout. */
+export function boutTarget(
+  unit: AssignmentBoardPool,
+  matchId: string,
+  role: string,
+  dayIndexOf: (iso: string) => number | null,
+): RefereeTarget | null {
+  const bout = unit.matches.find((m) => m.id === matchId);
+  if (!bout) return null;
+  return {
+    ...unitTarget(unit, role, dayIndexOf),
+    scope: 'match',
+    matchIds: [bout.id],
+    window: boutWindowMs(bout),
+    dayIndex: bout.scheduledAt ? dayIndexOf(bout.scheduledAt) : null,
+  };
+}
+
 /** An existing row as its own target: the whole Pool, or its one bout. */
 export function assignmentTarget(
   row: BoardAssignmentRow & { role: string },
   unit: AssignmentBoardPool,
   dayIndexOf: (iso: string) => number | null,
 ): RefereeTarget {
-  const whole = unitTarget(unit, row.role, dayIndexOf);
-  const bout = row.match_id ? unit.matches.find((m) => m.id === row.match_id) : undefined;
-  if (!bout) return whole;
-  return {
-    ...whole,
-    scope: 'match',
-    matchIds: [bout.id],
-    window: boutWindowMs(bout),
-    dayIndex: bout.scheduledAt ? dayIndexOf(bout.scheduledAt) : null,
-  };
+  const bout = row.match_id ? boutTarget(unit, row.match_id, row.role, dayIndexOf) : null;
+  return bout ?? unitTarget(unit, row.role, dayIndexOf);
 }
 
 /** A referee's declared availability; a person off the roster has declared none. */

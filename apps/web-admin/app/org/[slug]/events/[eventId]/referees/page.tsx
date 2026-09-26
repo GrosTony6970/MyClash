@@ -17,6 +17,7 @@ import { blockTint, resolveBlockAccent } from '@myclash/types';
 import type { CapacityWarning } from '@myclash/types';
 import {
   assignFailureText,
+  lockRefusal,
   type PickerReason,
   type RefereeConflictEntry,
 } from '@/lib/referee-reasons';
@@ -28,6 +29,8 @@ import { StaffingTab } from './_components/StaffingTab';
 import { SwapSuggestionsPanel } from './_components/SwapSuggestionsPanel';
 import { AssignmentDiagnosticsPanel, type RuleKey } from './_components/AssignmentDiagnosticsPanel';
 import { PoolSlotCard } from './_components/PoolSlotCard';
+import { LockRefusal } from './_components/LockRefusal';
+import { requestLock } from './_components/lock-assignments';
 import { groupPoolsByTimeslot } from './_components/group-pools-by-timeslot';
 import { NO_LICE, liceColumnsFor } from './_components/timeslot-lice-columns';
 import {
@@ -533,6 +536,8 @@ function AssignmentsTab({
   const [running, setRunning] = useState(false);
   const [previewing, setPreviewing] = useState(false);
   const [locking, setLocking] = useState(false);
+  // The duties that refused the lock (ADR-019), until reassigned or sent anyway.
+  const [lockRefused, setLockRefused] = useState<RefereeConflictEntry[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   // True iff at least one slot's chip is from the engine but not
   // yet saved. Drives the visibility of Apply + Clear preview.
@@ -1058,16 +1063,18 @@ function AssignmentsTab({
     }
   }
 
-  async function lockAssignments() {
+  /** `confirm`: send anyway, over the duties that break a rule with no override. */
+  async function lockAssignments(confirm = false) {
     setLocking(true);
     setError(null);
+    setLockRefused(null);
     try {
-      const r = await apiRequest(apiUrl, `/api/v1/events/${eventId}/lock-referee-assignments`, {
-        method: 'POST',
-      });
+      const r = await requestLock(eventId, confirm);
       if (!r.ok) {
-        // A lock is refused by what is still unstaffed, and the API names it.
-        setError(failureMessage(r, t, t('organizer.refereesPage.assignmentLockFailed')));
+        // Refused by duties the one checker judges Impossible (ADR-019), or a plain failure.
+        const refused = lockRefusal(r);
+        if (refused) setLockRefused(refused);
+        else setError(failureMessage(r, t, t('organizer.refereesPage.assignmentLockFailed')));
         return;
       }
       await loadBoard();
@@ -1385,6 +1392,14 @@ function AssignmentsTab({
       </div>
 
       {error && <p className="text-sm text-danger">{error}</p>}
+      {lockRefused && (
+        <LockRefusal
+          conflicts={lockRefused}
+          busy={locking}
+          onSend={() => void lockAssignments(true)}
+          onCancel={() => setLockRefused(null)}
+        />
+      )}
       {loading ? (
         <p className="text-sm text-muted">{t('organizer.refereesPage.loading')}</p>
       ) : !board || (board.pools.length === 0 && board.unscheduledPools.length === 0) ? (

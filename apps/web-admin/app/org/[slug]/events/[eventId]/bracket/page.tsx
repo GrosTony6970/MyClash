@@ -39,6 +39,9 @@ import {
 } from './DoubleElimPodiumOptions';
 import { apiRequest, failureMessage } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
+import { RefereeRefusalNotice } from '@/components/RefereeRefusalNotice';
+import { assignFailureText, type RefereeRefusal } from '@/lib/referee-reasons';
+import { saveRoleChanges } from './save-role-changes';
 
 interface Tournament {
   id: string;
@@ -247,6 +250,12 @@ export default function BracketPage() {
   const [overrideModal, setOverrideModal] = useState<OverrideModalState | null>(null);
   const [overriding, setOverriding] = useState(false);
   const [overrideError, setOverrideError] = useState<string | null>(null);
+  // A role change the one checker refused (ADR-016); `confirmed` = the roles already confirmed.
+  const [overrideRefusal, setOverrideRefusal] = useState<{
+    role: string;
+    refusal: RefereeRefusal;
+    confirmed: string[];
+  } | null>(null);
 
   // Inline forfeit modal — opened from the WO chip on a bracket card.
   // Posts to /matches/:id/forfeit so the operator doesn't have to leave
@@ -830,13 +839,16 @@ export default function BracketPage() {
       roleChanges: {},
     });
     setOverrideError(null);
+    setOverrideRefusal(null);
     resetForfeitDraft();
   }
 
-  async function submitOverride() {
+  /** `confirmed`: roles the organiser confirmed over their amber reasons, one at a time. */
+  async function submitOverride(confirmed: readonly string[] = []) {
     if (!overrideModal) return;
     setOverriding(true);
     setOverrideError(null);
+    setOverrideRefusal(null);
     try {
       // 1. Fighters (bracket slot) — only when the operator touched a side.
       if (overrideModal.regAId !== undefined || overrideModal.regBId !== undefined) {
@@ -883,19 +895,24 @@ export default function BracketPage() {
             ? (overrideModal.roleChanges[c.role] ?? null)
             : c.refereeId,
         }));
-        for (const change of diffRoleAssignments(current, draft)) {
-          const r = await apiRequest(
-            apiUrl,
-            `/api/v1/matches/${matchId}/referee-role-assignments`,
-            {
-              method: 'PUT',
-              body: { role: change.role, refereeId: change.refereeId },
-            },
-          );
-          if (!r.ok) {
-            setOverrideError(failureMessage(r, t, t('admin.common.refereeUpdateFailed')));
-            return;
+        const saved = await saveRoleChanges(
+          matchId,
+          diffRoleAssignments(current, draft),
+          confirmed,
+        );
+        if (!saved.ok) {
+          if ('refusal' in saved) {
+            setOverrideRefusal({
+              role: saved.role,
+              refusal: saved.refusal,
+              confirmed: [...confirmed],
+            });
+          } else {
+            setOverrideError(
+              assignFailureText(t, saved.failure, t('admin.common.refereeUpdateFailed')),
+            );
           }
+          return;
         }
       }
 
@@ -1850,6 +1867,16 @@ export default function BracketPage() {
               </div>
             )}
             {overrideError && <p className="text-danger text-sm mb-3">{overrideError}</p>}
+            {overrideRefusal && (
+              <RefereeRefusalNotice
+                refusal={overrideRefusal.refusal}
+                busy={overriding}
+                onConfirm={() =>
+                  void submitOverride([...overrideRefusal.confirmed, overrideRefusal.role])
+                }
+                onDismiss={() => setOverrideRefusal(null)}
+              />
+            )}
           </Modal>
         )}
 

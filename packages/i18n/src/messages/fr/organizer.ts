@@ -1748,6 +1748,15 @@ export const organizer = {
     assignImpossible: 'Cet arbitre ne peut pas prendre ce poste : {reasons}.',
     assignNeedsConfirm:
       'Cet arbitre demande une confirmation : {reasons}. Choisissez-le sous « À confirmer » pour continuer.',
+    refusedImpossible: 'Cet arbitre ne peut pas le prendre :',
+    refusedDiscouraged: 'Cet arbitre demande votre confirmation :',
+    skippedOwnBouts:
+      'Matchs gardés avec leur arbitre actuel, parce que cet arbitre y combat : {count}',
+    lockRefused:
+      'Verrouiller annonce à chaque arbitre son affectation. Réaffectez ceux-ci d’abord, ou envoyez quand même.',
+    lockAnyway: 'Envoyer quand même',
+    boardLocked:
+      'Les affectations d’arbitres sont verrouillées. Déverrouillez-les d’abord sur la page Arbitres.',
   },
   poolsPage: {
     refereesLoading: 'Chargement des arbitres...',

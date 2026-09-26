@@ -24,6 +24,9 @@ import { unplayedMatchColumns } from './unplayed-match-columns';
 // @Optional() param silently resolves to `undefined`, and every completion side
 // effect stops firing without a word. Keep it a value import.
 import { MatchCompletionService } from '../phases/match-completion.service';
+// Value import too: a DI dependency (see di-wiring.regression.test.ts).
+import { AssignmentBoardService } from '../referees/assignment-board.service';
+import { assertRefereeBoardUnlocked } from '../referees/referee-lock';
 import type {
   CreateExchangeDto,
   CreateMatchDto,
@@ -57,6 +60,8 @@ export class MatchesService {
     private readonly scoring: ScoringService,
     private readonly matchAlerts: MatchAlertRefresherService,
     private readonly placement: MatchPlacementService,
+    // Required: without it the per-bout crew door would write with no referee rule.
+    private readonly refereeBoard: AssignmentBoardService,
     @Optional() private readonly frozenResults?: FrozenResultsGuard,
     @Optional() private readonly matchCompletion?: MatchCompletionService,
   ) {}
@@ -577,38 +582,26 @@ export class MatchesService {
   }
 
   /**
-   * Set (or clear) the referee for a single (match, role) pair.
+   * Set (or clear) the referee for a single (match, role) pair — the Pools page's
+   * per-bout crew and the bracket override.
    *
-   * Writes go to `referee_assignments` with `scope_type='match'`. This
-   * is the per-role-column write path used by the pool tab's matches
-   * table — distinct from the legacy single `matches.referee_id`
-   * field, which no API route writes any more. The legacy field
-   * stays on the schema until a follow-up backfill migration
-   * lands.
-   *
-   * Behaviour:
-   *   refereeId = string  → delete any existing row for (match, role),
-   *                         then insert the new assignment.
-   *   refereeId = null    → delete any existing row, do not insert.
-   *
-   * HARD RULE 8. A fighter may not referee their own fight, and that rule has no
-   * off switch. The assignment board enforced it on its own manual path and this
-   * route — the one the pool tab's matches table actually uses — enforced
-   * nothing, so the rule held on one door and not the other.
+   * Asks what every write door asks (ADR-016): 409 while the referee board is locked,
+   * then the one referee checker through the board (`judgeWrite`) — a fighter on their
+   * own bout is own_match, Impossible, hard rule 8. Discouraged goes ahead only with
+   * `confirm`, and the reasons confirmed over are stored on the row. The replace is one
+   * database call (`replace_match_referee_role`, 0207), so a failed insert keeps the
+   * referee the bout had. `refereeId = null` clears the role through the same call.
    */
   async setRefereeRoleAssignment(
     matchId: string,
     role: string,
     refereeId: string | null,
+    confirm = false,
   ): Promise<{ matchId: string; role: string; refereeId: string | null }> {
-    // 1. Load the match and resolve its event via phases → tournaments.event_id
-    //    (the `phases` table has no event_id column of its own — it keys on
-    //    tournament_id, and the event is reached one hop further up). The two
-    //    registration ids come back on the same read: rule 8 is about them, and
-    //    a second round trip for two columns already in hand is waste.
+    // `phases` has no event_id: the Event is reached through the Tournament.
     const { data: match, error: matchErr } = await this.supabase.service
       .from('matches')
-      .select('red_registration_id, blue_registration_id, phases ( tournaments ( event_id ) )')
+      .select('phases ( tournaments ( event_id ) )')
       .eq('id', matchId)
       .maybeSingle();
     if (matchErr) throw new BadRequestException(matchErr.message);
@@ -618,94 +611,31 @@ export class MatchesService {
       Array.isArray(v)
         ? ((v[0] as Record<string, unknown>) ?? null)
         : ((v as Record<string, unknown>) ?? null);
-    const phase = one((match as Record<string, unknown>)['phases']);
-    const tournament = one(phase?.['tournaments']);
+    const tournament = one(one((match as Record<string, unknown>)['phases'])?.['tournaments']);
     const eventId = tournament?.['event_id'] as string | undefined;
     if (!eventId) throw new NotFoundException(`Event for match ${matchId} not found`);
 
-    // 2. Hard rule 8, before anything is written. Checked on the way IN rather
-    //    than as a filter on the way out: a refusal has to reach the operator
-    //    who picked the name, not disappear into a log.
-    if (refereeId !== null) {
-      const matchRow = match as Record<string, unknown>;
-      await this.assertRefereeIsNotFighting(refereeId, [
-        matchRow['red_registration_id'] as string | null,
-        matchRow['blue_registration_id'] as string | null,
-      ]);
-    }
+    await assertRefereeBoardUnlocked(this.supabase.service, eventId);
+    const judged =
+      refereeId === null
+        ? { stored: [] }
+        : await this.refereeBoard.judgeWrite(eventId, {
+            matchIds: [matchId],
+            role,
+            personId: refereeId,
+            confirm,
+          });
 
-    // 3. Idempotent clear — delete any existing assignment for the
-    //    (match, role) tuple. Mirrors the manual-assignment branch in
-    //    AssignmentBoardService.persistAssignments.
-    const { error: delErr } = await this.supabase.service
-      .from('referee_assignments')
-      .delete()
-      .eq('scope_type', 'match')
-      .eq('match_id', matchId)
-      .eq('role', role);
-    if (delErr) throw new BadRequestException(delErr.message);
-
-    if (refereeId === null) {
-      return { matchId, role, refereeId: null };
-    }
-
-    const { error: insErr } = await this.supabase.service.from('referee_assignments').insert({
-      event_id: eventId,
-      person_id: refereeId,
-      scope_type: 'match',
-      pool_id: null,
-      match_id: matchId,
-      // Match-scoped rows MUST be lice-null (referee_assignments_scope_check,
-      // migration 0091); lice_id is reserved for the 'lice' scope. The
-      // assignment-board engine writes null here too.
-      lice_id: null,
-      role,
-      auto_assigned: false,
-      status: 'assigned',
-      conflicts_jsonb: [],
+    const { error } = await this.supabase.service.rpc('replace_match_referee_role', {
+      p_event_id: eventId,
+      p_role: role,
+      p_person_id: refereeId,
+      p_match_ids: [matchId],
+      p_conflicts: judged.stored,
     });
-    if (insErr) throw new BadRequestException(insErr.message);
-
-    return { matchId, role, refereeId };
-  }
-
-  /**
-   * Refuse a referee who is one of the two fighters in the bout.
-   *
-   * ONE ID-SPACE. `referee_assignments.person_id` points at `global_persons`. A
-   * registration reaches that same space through `persons.global_person_id` —
-   * NOT `persons.id`, which is the per-event identity and a different space
-   * entirely. Comparing the wrong one yields a guard that never matches and
-   * therefore never fires, which reads exactly like a guard that works. That is
-   * the Denis-Allaume bug, and `referee-match-assignments.ts` carries the same
-   * note for the same reason.
-   *
-   * An unresolvable registration is skipped, never compared under an empty id:
-   * two people we cannot identify must not collapse onto one key and refuse each
-   * other.
-   */
-  private async assertRefereeIsNotFighting(
-    refereeId: string,
-    registrationIds: readonly (string | null)[],
-  ): Promise<void> {
-    const ids = registrationIds.filter((id): id is string => Boolean(id));
-    if (ids.length === 0) return;
-
-    const { data, error } = await this.supabase.service
-      .from('registrations')
-      .select('id, persons ( global_person_id )')
-      .in('id', ids);
     if (error) throw new BadRequestException(error.message);
 
-    for (const row of (data ?? []) as Array<{ persons?: unknown }>) {
-      const person = Array.isArray(row.persons)
-        ? ((row.persons[0] as Record<string, unknown>) ?? null)
-        : ((row.persons as Record<string, unknown>) ?? null);
-      const globalPersonId = person?.['global_person_id'] as string | null | undefined;
-      if (globalPersonId && globalPersonId === refereeId) {
-        throw new BadRequestException('A fighter cannot referee their own match');
-      }
-    }
+    return { matchId, role, refereeId };
   }
 
   async update(matchId: string, dto: UpdateMatchDto) {

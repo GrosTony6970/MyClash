@@ -97,9 +97,7 @@ export interface RefereeConflictEntry {
 }
 
 /** The two refusals an assign door answers 409 with (ADR-016, ruling 22), or null. */
-export function refereeRefusal(
-  failure: ApiFailure,
-): { level: 'impossible' | 'discouraged'; reasons: RefereeReasonLike[] } | null {
+export function refereeRefusal(failure: ApiFailure): RefereeRefusal | null {
   if (failure.kind !== 'http' || failure.status !== 409) return null;
   const level =
     failure.code === 'referee_impossible'
@@ -110,15 +108,39 @@ export function refereeRefusal(
   if (!level) return null;
   const raw = failure.details?.['reasons'];
   const reasons = (Array.isArray(raw) ? raw : []).filter(
-    (r): r is RefereeReasonLike =>
-      typeof r === 'object' && r !== null && typeof (r as { code?: unknown }).code === 'string',
+    (r): r is RefereeReason =>
+      typeof r === 'object' &&
+      r !== null &&
+      typeof (r as { code?: unknown }).code === 'string' &&
+      typeof (r as { level?: unknown }).level === 'string',
   );
   return { level, reasons };
 }
 
 /**
- * What to tell the organiser when an assign did not land: the checker's reasons when it
- * refused, else the API's own words (`failureMessage`, with the caller's fallback). Null,
+ * The lock's 409 (ADR-019): the duties that break a rule with no override, which the
+ * organiser reassigns or sends anyway. Null for any other failure.
+ */
+export function lockRefusal(failure: ApiFailure): RefereeConflictEntry[] | null {
+  if (failure.kind !== 'http' || failure.status !== 409) return null;
+  if (failure.code !== 'referee_lock_impossible') return null;
+  const raw = failure.details?.['conflicts'];
+  return (Array.isArray(raw) ? raw : []).filter(
+    (c): c is RefereeConflictEntry =>
+      typeof c === 'object' && c !== null && Array.isArray((c as { reasons?: unknown }).reasons),
+  );
+}
+
+/** An assign door's 409: the checker's level and every reason, as the API sent them. */
+export interface RefereeRefusal {
+  level: 'impossible' | 'discouraged';
+  reasons: RefereeReason[];
+}
+
+/**
+ * What to tell the organiser when an assign did not land: the locked board in their
+ * language, the checker's reasons when it refused, else the API's own words
+ * (`failureMessage`, with the caller's fallback). Null,
  * as `failureMessage` answers, for an aborted request: there is nothing to say.
  */
 export function assignFailureText(
@@ -126,6 +148,9 @@ export function assignFailureText(
   failure: ApiFailure,
   fallback: string,
 ): string | null {
+  if (failure.kind === 'http' && failure.code === 'referee_board_locked') {
+    return t('organizer.refereeBoard.boardLocked');
+  }
   const refusal = refereeRefusal(failure);
   if (!refusal) return failureMessage(failure, t, fallback);
   const reasons = refereeReasonsText(t, refusal.reasons);

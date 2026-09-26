@@ -1762,6 +1762,17 @@ export const organizer = {
     assignImpossible: 'This referee cannot take this slot: {reasons}.',
     assignNeedsConfirm:
       'This referee needs confirmation: {reasons}. Pick them under “Needs confirmation” to go ahead.',
+    // A write refused where no picker showed the verdict first (Pools page, bracket override).
+    refusedImpossible: 'This referee cannot take it:',
+    refusedDiscouraged: 'This referee needs your confirmation:',
+    // The Pool strip left out the bouts the chosen referee fights in.
+    skippedOwnBouts:
+      'Bouts kept with their current referee, because this referee fights in them: {count}',
+    // Locking refused by duties that break a rule with no override (ADR-019).
+    lockRefused: 'Locking tells every referee their duty. Reassign these first, or send anyway.',
+    lockAnyway: 'Send anyway',
+    // Any referee write while the board is locked (ADR-019).
+    boardLocked: 'Referee assignments are locked. Unlock them on the Referees page first.',
   },
   poolsPage: {
     refereesLoading: 'Loading referees...',

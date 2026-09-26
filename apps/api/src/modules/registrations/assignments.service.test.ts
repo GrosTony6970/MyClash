@@ -24,7 +24,12 @@ function awaitableChain(result: { data: unknown; error: unknown }) {
   for (const key of ['select', 'eq', 'in', 'or', 'order', 'delete', 'update', 'insert']) {
     (chain as unknown as Record<string, unknown>)[key] = vi.fn().mockReturnValue(chain);
   }
-  return chain;
+  // `.limit(1)` is only the referee lock's read here (referee-lock.ts). A canned table
+  // answers every read alike, so these fixtures say "unlocked" explicitly; the locked
+  // cases are `assignments.force-delete-lock.test.ts`'s, over a seeded table.
+  return Object.assign(chain, {
+    limit: vi.fn().mockResolvedValue({ data: [], error: null }),
+  });
 }
 
 describe('AssignmentsService.getEventAssignments', () => {
@@ -562,7 +567,8 @@ describe('AssignmentsService.forceDeletePersonInEvent', () => {
         return chain;
       }
       if (tableName === 'persons') {
-        const chain = awaitableChain({ data: null, error: null });
+        // The duty read resolves the event person to the global person duties carry.
+        const chain = awaitableChain({ data: { global_person_id: 'gp-1' }, error: null });
         chain.delete = vi.fn(() => {
           deletedFrom.push('persons');
           return Object.assign(Promise.resolve({ data: null, error: null }), {

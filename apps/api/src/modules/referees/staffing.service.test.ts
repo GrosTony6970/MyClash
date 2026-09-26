@@ -15,6 +15,7 @@ import {
   StaffingService,
 } from './staffing.service';
 import type { StaffingConfigPayloadDto } from './dto/staffing.dto';
+import { mockSupabase as seededSupabase } from '../../common/testing/supabase-chain';
 
 // ── Mock helpers ──────────────────────────────────────────────────────────────
 
@@ -222,6 +223,10 @@ describe('StaffingService', () => {
           data: [{ id: 'ra-1', pool_id: 'pool-1', match_id: null, role: 'arbitre_table' }],
           error: null,
         }),
+      );
+      // The referee lock (referee-lock.ts): nothing confirmed, so the save may ask.
+      fromMock.mockReturnValueOnce(
+        seededSupabase({ referee_assignments: { rows: [] } }).from('referee_assignments'),
       );
 
       // Payload drops 'arbitre_table' from the pool config.

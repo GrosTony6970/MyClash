@@ -5,6 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { SupabaseService } from '../supabase/supabase.service';
+import { isRefereeBoardLocked, refereeBoardLocked } from '../referees/referee-lock';
 
 /**
  * Operational blocking set for force-delete: a match in any of these
@@ -82,6 +83,37 @@ interface RegistrationRow {
 @Injectable()
 export class AssignmentsService {
   constructor(private readonly supabase: SupabaseService) {}
+
+  /**
+   * The person's referee duties in this Event. A duty carries the GLOBAL person (0063);
+   * `personId` is this Event's persons.id, which no duty holds, so reading by it found
+   * nothing and force-delete left every duty behind. Scoped to this Event: a global person
+   * referees in others too. A person with no global identity holds no duty.
+   */
+  private async readRefereeDuties(eventId: string, personId: string): Promise<unknown[]> {
+    const { data: personRow, error: personErr } = await this.supabase.service
+      .from('persons')
+      .select('global_person_id')
+      .eq('id', personId)
+      .maybeSingle();
+    if (personErr) throw new BadRequestException(personErr.message);
+    const globalPersonId =
+      (personRow as { global_person_id: string | null } | null)?.global_person_id ?? null;
+    if (globalPersonId === null) return [];
+    const { data, error } = await this.supabase.service
+      .from('referee_assignments')
+      .select(
+        // The match branch traverses phases for the same reason the pool branch
+        // does: there is no matches.tournament_id and no matches→tournaments FK,
+        // so the old `matches(…, tournament_id, tournaments(…))` 400'd the whole
+        // query and every referee assignment read back empty.
+        'id, scope_type, pool_id, match_id, role, pools(phases(tournament_id, tournaments(id, name))), matches(id, match_number_label, status, phases(tournament_id, tournaments(id, name)))',
+      )
+      .eq('event_id', eventId)
+      .eq('person_id', globalPersonId);
+    if (error) throw new BadRequestException(error.message);
+    return data ?? [];
+  }
 
   /**
    * One-shot probe: where is `personId` currently assigned within `eventId`?
@@ -273,17 +305,7 @@ export class AssignmentsService {
     }
 
     // 6. Referee assignments (scope-aware).
-    const { data: refAssignments, error: refAssignErr } = await this.supabase.service
-      .from('referee_assignments')
-      .select(
-        // The match branch traverses phases for the same reason the pool branch
-        // does: there is no matches.tournament_id and no matches→tournaments FK,
-        // so the old `matches(…, tournament_id, tournaments(…))` 400'd the whole
-        // query and every referee assignment read back empty.
-        'id, scope_type, pool_id, match_id, role, pools(phases(tournament_id, tournaments(id, name))), matches(id, match_number_label, status, phases(tournament_id, tournaments(id, name)))',
-      )
-      .eq('person_id', personId);
-    if (refAssignErr) throw new BadRequestException(refAssignErr.message);
+    const refAssignments = await this.readRefereeDuties(eventId, personId);
     const refereeAssignments: AssignmentSummary[] = [];
     for (const row of (refAssignments ?? []) as unknown as Array<{
       id: string;
@@ -418,6 +440,8 @@ export class AssignmentsService {
     const unplayedMatchIds = report.matchesAsFighter
       .map((m) => m.matchId)
       .filter(Boolean) as string[];
+    // Its bouts take their crews with them (0179): the same wait for an unlock.
+    await this.assertNoLockedDutyGoes(eventId, 0, unplayedMatchIds);
     if (unplayedMatchIds.length > 0) {
       const { error: delMatchesErr } = await this.supabase.service
         .from('matches')
@@ -431,6 +455,28 @@ export class AssignmentsService {
       .delete()
       .eq('id', registrationId);
     if (delRegErr) throw new BadRequestException(delRegErr.message);
+  }
+
+  /**
+   * While the referee board is locked (ADR-019) a deletion that takes a referee duty with
+   * it waits for an unlock: the person's own duties, or the crew of a bout of theirs that
+   * goes (0179 cascades those rows). Checked before the first delete.
+   */
+  private async assertNoLockedDutyGoes(
+    eventId: string,
+    ownDuties: number,
+    boutIds: readonly string[],
+  ): Promise<void> {
+    if (!(await isRefereeBoardLocked(this.supabase.service, eventId))) return;
+    if (ownDuties > 0) throw refereeBoardLocked();
+    if (boutIds.length === 0) return;
+    const { data, error } = await this.supabase.service
+      .from('referee_assignments')
+      .select('id')
+      .in('match_id', boutIds)
+      .limit(1);
+    if (error) throw new Error(`Could not read the crews of the bouts: ${error.message}`);
+    if ((data ?? []).length > 0) throw refereeBoardLocked();
   }
 
   /**
@@ -459,6 +505,12 @@ export class AssignmentsService {
       });
     }
 
+    // Their unplayed bouts (the report scoped + filtered them), deleted in one batch below.
+    const unplayedMatchIds = report.matchesAsFighter
+      .map((m) => m.matchId)
+      .filter((id): id is string => typeof id === 'string');
+    await this.assertNoLockedDutyGoes(eventId, report.refereeAssignments.length, unplayedMatchIds);
+
     // Step 2 — force-delete every registration in this event.
     // matchesAsFighter is already the per-event scope (probe was eventId-scoped),
     // so we can derive the registration ids from the assignment graph.
@@ -473,12 +525,6 @@ export class AssignmentsService {
       .map((r) => (r as { id: string }).id)
       .filter((id) => typeof id === 'string');
 
-    // Delete this person's unplayed matches across the event in one
-    // batch (the report's matchesAsFighter is already scoped + filtered
-    // to non-blocking statuses).
-    const unplayedMatchIds = report.matchesAsFighter
-      .map((m) => m.matchId)
-      .filter((id): id is string => typeof id === 'string');
     if (unplayedMatchIds.length > 0) {
       const { error: delMatchesErr } = await this.supabase.service
         .from('matches')

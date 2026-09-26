@@ -27,6 +27,7 @@ import {
 } from '@nestjs/common';
 import { SupabaseService } from '../supabase/supabase.service';
 import { OrganizationsService } from '../organizations/organizations.service';
+import { isRefereeBoardLocked, refereeBoardLocked } from './referee-lock';
 import type { StaffingConfigPayloadDto, StaffingSlotDto } from './dto/staffing.dto';
 
 export type PhaseType = 'pool' | 'swiss' | 'bracket' | 'finals';
@@ -232,6 +233,7 @@ export class StaffingService {
     await this.organizations.assertOrgRole(organizationId, userId, 'admin');
 
     const affected = await this.computeAffectedAssignmentsForTournament(tournamentId, payload);
+    await this.assertMayDelete(eventId, affected);
     if (affected.length > 0 && payload.confirmDestructive !== true) {
       throw new ConflictException({
         message:
@@ -260,6 +262,7 @@ export class StaffingService {
     await this.organizations.assertOrgRole(organizationId, userId, 'admin');
 
     const affected = await this.computeAffectedAssignmentsForEventDefault(eventId, payload);
+    await this.assertMayDelete(eventId, affected);
     if (affected.length > 0 && payload.confirmDestructive !== true) {
       throw new ConflictException({
         message:
@@ -666,6 +669,15 @@ export class StaffingService {
       out.push(...partial);
     }
     return out;
+  }
+
+  /**
+   * A save that would delete referee assignments waits for the board to be unlocked
+   * (ADR-019): the referees were told those duties. A save that deletes none goes ahead.
+   */
+  private async assertMayDelete(eventId: string, affected: readonly unknown[]): Promise<void> {
+    if (affected.length === 0) return;
+    if (await isRefereeBoardLocked(this.supabase.service, eventId)) throw refereeBoardLocked();
   }
 
   private async deleteAssignments(ids: string[]): Promise<void> {

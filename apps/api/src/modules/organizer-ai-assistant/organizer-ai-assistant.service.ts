@@ -4,6 +4,8 @@ import { EventsService } from '../events/events.service';
 import { OrganizationsService } from '../organizations/organizations.service';
 import { PhasesService } from '../phases/phases.service';
 import { MatchPlacementService } from '../matches/match-placement.service';
+import { AssignmentBoardService } from '../referees/assignment-board.service';
+import { assertRefereeBoardUnlocked } from '../referees/referee-lock';
 import { SupabaseService } from '../supabase/supabase.service';
 import { insertAuditLog } from '../../common/audit-log';
 import { parseModelJson } from '../../common/model-json';
@@ -67,6 +69,7 @@ export class OrganizerAIAssistantService {
     private readonly events: EventsService,
     private readonly phases: PhasesService,
     private readonly placement: MatchPlacementService,
+    private readonly refereeBoard: AssignmentBoardService,
   ) {}
 
   async createDraft(eventId: string, actorUserId: string, dto: CreateOrganizerAIDraftDto) {
@@ -391,50 +394,62 @@ export class OrganizerAIAssistantService {
       ]);
       return { kind, result: { id: matchId } };
     }
-    if (kind === 'assign_referee') {
-      if (typeof action['poolId'] === 'string') {
-        await this.assertPoolBelongsToEvent(eventId, action['poolId']);
-      }
-      if (typeof action['matchId'] === 'string') {
-        await assertMatchesBelongToEvent(this.supabase.service, eventId, [action['matchId']]);
-      }
-      // Post-0063: referee_assignments keys on person_id (= global_persons.id).
-      // The AI draft DSL still labels the field "userId" for historical reasons
-      // but the value is now the canonical person_id.
-      // `referee_assignments` is POLYMORPHIC: `scope_type` is NOT NULL with no
-      // default, and 0091's referee_assignments_scope_check demands that
-      // exactly one of lice_id/pool_id/match_id be set, matching it. This
-      // insert used to omit scope_type entirely, set pool_id and match_id
-      // together, and carry a `notes` column that does not exist — so applying
-      // an AI referee draft failed every single time. Mirrors the shape
-      // matches.service.ts:494 writes.
-      const poolId = typeof action['poolId'] === 'string' ? action['poolId'] : null;
-      const matchId = typeof action['matchId'] === 'string' ? action['matchId'] : null;
-      if ((poolId === null) === (matchId === null)) {
-        throw new BadRequestException(
-          'A referee assignment must name exactly one of poolId or matchId',
-        );
-      }
-
-      const { data, error } = await this.supabase.service
-        .from('referee_assignments')
-        .insert({
-          event_id: eventId,
-          person_id: String(action['userId']),
-          scope_type: matchId ? 'match' : 'pool',
-          lice_id: null,
-          pool_id: poolId,
-          match_id: matchId,
-          role: String(action['role']),
-          status: 'assigned',
-          auto_assigned: false,
-        })
-        .select('id')
-        .single();
-      if (error) throw new BadRequestException(error.message);
-      return { kind, result: data };
-    }
+    if (kind === 'assign_referee')
+      return { kind, result: await this.assignReferee(eventId, action) };
     throw new BadRequestException(`Unsupported draft action: ${String(kind)}`);
+  }
+
+  /**
+   * `assign_referee`. The draft DSL calls the person "userId"; post-0063 it is the
+   * `global_persons.id`. The row is polymorphic: exactly one of pool_id / match_id, with
+   * its scope_type (0091's scope check; it failed on every apply until that was right).
+   */
+  private async assignReferee(eventId: string, action: Record<string, unknown>) {
+    if (typeof action['poolId'] === 'string') {
+      await this.assertPoolBelongsToEvent(eventId, action['poolId']);
+    }
+    if (typeof action['matchId'] === 'string') {
+      await assertMatchesBelongToEvent(this.supabase.service, eventId, [action['matchId']]);
+    }
+    const poolId = typeof action['poolId'] === 'string' ? action['poolId'] : null;
+    const matchId = typeof action['matchId'] === 'string' ? action['matchId'] : null;
+    if ((poolId === null) === (matchId === null)) {
+      throw new BadRequestException(
+        'A referee assignment must name exactly one of poolId or matchId',
+      );
+    }
+
+    // The one referee checker (ADR-016), and the assistant never confirms (W1 ruling 3):
+    // Impossible and Discouraged are both refused, and the organiser assigns by hand to
+    // go ahead. The refusal's message names each reason: it is all the failed draft keeps.
+    await assertRefereeBoardUnlocked(this.supabase.service, eventId);
+    const personId = String(action['userId']);
+    const role = String(action['role']);
+    const { stored } = await this.refereeBoard.judgeWrite(
+      eventId,
+      poolId
+        ? { poolId, role, personId, confirm: false }
+        : { matchIds: [matchId as string], role, personId, confirm: false },
+    );
+
+    const { data, error } = await this.supabase.service
+      .from('referee_assignments')
+      .insert({
+        event_id: eventId,
+        person_id: personId,
+        scope_type: matchId ? 'match' : 'pool',
+        lice_id: null,
+        pool_id: poolId,
+        match_id: matchId,
+        role,
+        status: 'assigned',
+        auto_assigned: false,
+        conflicts_jsonb: stored,
+      })
+      .select('id')
+      .single();
+    if (error) throw new BadRequestException(error.message);
+    return data;
   }
 
   private validateActions(

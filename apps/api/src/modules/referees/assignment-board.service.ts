@@ -20,7 +20,6 @@ import {
   markConfirmed,
   mergeVerdicts,
   parseStoredReasons,
-  toStoredReasons,
   type RefereeCommitment,
   type RefereeReason,
   type RefereeReasonCode,
@@ -36,6 +35,7 @@ import { detectConcurrencyShortage, formatRoundCode, type CapacityWarning } from
 import {
   assignmentTarget,
   availabilityOf,
+  boutTarget,
   buildCommitments,
   slatePools,
   switchesOf,
@@ -44,6 +44,8 @@ import {
   unitTarget,
 } from './event-commitments';
 import { loadWorkshopSessions } from './workshop-sessions';
+import { refereeBoardLocked } from './referee-lock';
+import { qualifiedCandidate, refuseUnlessFine } from './write-verdict';
 import { SupabaseService } from '../supabase/supabase.service';
 import { SettingsService } from './settings.service';
 import { StaffingService, type ResolvedConfig, type ResolvedSlot } from './staffing.service';
@@ -363,6 +365,20 @@ export interface ManualAssignmentDto {
   confirm?: boolean;
 }
 
+/** A write another door is about to make: one Pool as a whole, or a crew per bout. */
+export type RefereeWrite = { personId: string; role: string; confirm: boolean } & (
+  { poolId: string } | { matchIds: readonly string[]; skipOwnBouts?: boolean }
+);
+
+export interface JudgedWrite {
+  /** The Discouraged reasons confirmed over: what the door stores on the row. */
+  stored: StoredRefereeReason[];
+  /** The bouts to write (bout writes only). */
+  matchIds: string[];
+  /** The bouts left out because the person fights them (`skipOwnBouts`). */
+  skippedMatchIds: string[];
+}
+
 interface TournamentRow {
   id: string;
   name: string;
@@ -538,6 +554,58 @@ export class AssignmentBoardService {
   ): Promise<{ conflicts: RefereeConflictEntry[]; units: AssignmentBoardPool[] }> {
     const context = await this.loadContext(eventId);
     return { conflicts: this.judgeExisting(context), units: context.pools };
+  }
+
+  /**
+   * Another write door's question (W1.2): may `personId` take `role` here? Roster and
+   * skill first (400), then the checker the picker and Assign use, refused as they refuse
+   * (`refuseUnlessFine`). Bouts are judged one by one and merged: a crew per bout.
+   *
+   * `skipOwnBouts` (the per-Pool crew) leaves out the bouts the person fights. Judged, each
+   * would be own_match and the own-Pool confirm could never be reached; left out, they keep
+   * whoever holds the role on them. A bout the board does not hold is a plain Error: an
+   * unjudged write must never pass as fine.
+   */
+  async judgeWrite(eventId: string, write: RefereeWrite): Promise<JudgedWrite> {
+    const context = await this.loadContext(eventId);
+    const { personId } = qualifiedCandidate(context.candidates, write.personId, write.role);
+    const dayIndexOf = this.dayIndexOfContext(context);
+    if ('poolId' in write) {
+      const pool = context.pools.find(
+        (p) => p.id === write.poolId && (p.kind ?? 'pool') === 'pool',
+      );
+      if (!pool) throw new Error(`Pool ${write.poolId} is not on the referee board of ${eventId}`);
+      const verdict = this.verdictFor(context, unitTarget(pool, write.role, dayIndexOf), personId);
+      return {
+        stored: refuseUnlessFine(verdict, write.confirm),
+        matchIds: [],
+        skippedMatchIds: [],
+      };
+    }
+    const unitOf = unitIndex(context.pools);
+    const fought = new Set(
+      (context.commitmentsByPerson.get(personId) ?? []).flatMap((c) =>
+        c.kind === 'fight' ? [c.matchId] : [],
+      ),
+    );
+    const judged: RefereeTarget[] = [];
+    const skippedMatchIds: string[] = [];
+    for (const matchId of write.matchIds) {
+      const unit = unitOf({ pool_id: null, match_id: matchId });
+      const target = unit ? boutTarget(unit, matchId, write.role, dayIndexOf) : null;
+      if (!target) throw new Error(`Match ${matchId} is not on the referee board of ${eventId}`);
+      if (write.skipOwnBouts && fought.has(matchId)) skippedMatchIds.push(matchId);
+      else judged.push(target);
+    }
+    const verdict = judged.reduce(
+      (merged, target) => mergeVerdicts(merged, this.verdictFor(context, target, personId)),
+      FINE,
+    );
+    return {
+      stored: refuseUnlessFine(verdict, write.confirm),
+      matchIds: judged.flatMap((t) => t.matchIds),
+      skippedMatchIds,
+    };
   }
 
   /**
@@ -821,6 +889,8 @@ export class AssignmentBoardService {
 
   async applyManual(eventId: string, dto: ManualAssignmentDto) {
     const context = await this.loadContext(eventId);
+    // `locked` is `referee-lock.ts`'s rule over the rows the board already read.
+    if (context.locked) throw refereeBoardLocked();
     const pool = context.pools.find((p) => p.id === dto.poolId);
     if (!pool) throw new NotFoundException(`Pool ${dto.poolId} not found for event ${eventId}`);
 
@@ -845,38 +915,15 @@ export class AssignmentBoardService {
     if (!dto.personId) {
       throw new BadRequestException('personId is required');
     }
-    const candidate = context.candidates.find((c) => c.personId === dto.personId);
-    if (!candidate) throw new BadRequestException('Selected referee is not on this event roster');
-
-    // A skill is not a scheduling rule: it stays a 400, before the checker.
-    if (!candidate.qualifications.some((q) => q.role === dto.role)) {
-      throw new BadRequestException('Selected referee is not qualified for this role');
-    }
+    const candidate = qualifiedCandidate(context.candidates, dto.personId, dto.role);
 
     // The same call the picker makes (ADR-016: the picker and Assign cannot disagree).
-    // Impossible is refused outright; Discouraged is refused until the request confirms,
-    // and what was confirmed over is stored on the row (ruling 22).
     const verdict = this.verdictFor(
       context,
       unitTarget(pool, dto.role, this.dayIndexOfContext(context)),
       candidate.personId,
     );
-    if (verdict.level === 'impossible') {
-      throw new ConflictException({
-        code: 'referee_impossible',
-        message: 'This referee cannot take this slot',
-        level: verdict.level,
-        reasons: verdict.reasons,
-      });
-    }
-    if (verdict.level === 'discouraged' && dto.confirm !== true) {
-      throw new ConflictException({
-        code: 'referee_needs_confirmation',
-        message: 'Assigning this referee needs confirmation',
-        level: verdict.level,
-        reasons: verdict.reasons,
-      });
-    }
+    const confirmedOver = refuseUnlessFine(verdict, dto.confirm === true);
 
     const slotIndex = sourceSlots.find((s) => s.allowedSkillIds.includes(dto.role))?.index ?? 1;
 
@@ -895,7 +942,7 @@ export class AssignmentBoardService {
         },
       ],
       false,
-      toStoredReasons(verdict),
+      confirmedOver,
     );
 
     return this.getBoard(eventId);

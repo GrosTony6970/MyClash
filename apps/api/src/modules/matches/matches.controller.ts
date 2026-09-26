@@ -69,6 +69,8 @@ const refereeRoleAssignmentSchema = z
     role: z.string(),
     // Null clears the assignment for this (match, role) pair.
     refereeId: z.uuid().nullable(),
+    /** Go ahead over Discouraged reasons (ADR-016). Never overrides an Impossible one. */
+    confirm: z.boolean().optional(),
   })
   .strict();
 class RefereeRoleAssignmentDto extends createZodDto(refereeRoleAssignmentSchema) {}
@@ -237,7 +239,7 @@ export class MatchesController {
   @ApiBearerAuth()
   @ApiOperation({
     summary:
-      'Set (or clear) the referee for one (match, role) pair in referee_assignments (scope_type=match, organizer+)',
+      'Set (or clear) the referee for one (match, role) pair (organizer+): 409 when locked or Impossible, 409 when Discouraged unless confirm',
   })
   @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
   async setRefereeRoleAssignment(
@@ -250,7 +252,7 @@ export class MatchesController {
     // from the MATCH, like the other writes here, so a caller cannot reach past
     // their own event.
     await this.staff.authorizeMatchOrganizer(req, id);
-    return this.matches.setRefereeRoleAssignment(id, dto.role, dto.refereeId);
+    return this.matches.setRefereeRoleAssignment(id, dto.role, dto.refereeId, dto.confirm === true);
   }
 
   @Get('matches/:id/uncomplete-preflight')

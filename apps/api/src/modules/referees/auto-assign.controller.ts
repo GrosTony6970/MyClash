@@ -9,8 +9,20 @@
  * which are what the referees page actually calls.)
  */
 
-import { Controller, HttpCode, HttpStatus, Param, ParseUUIDPipe, Post, Req } from '@nestjs/common';
+import {
+  BadRequestException,
+  Body,
+  ConflictException,
+  Controller,
+  HttpCode,
+  HttpStatus,
+  Param,
+  ParseUUIDPipe,
+  Post,
+  Req,
+} from '@nestjs/common';
 import { ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
+import { z } from 'zod';
 import type { FastifyRequest } from 'fastify';
 import { assertCanManageEvent } from '../../common/auth/event-authz';
 import { resolveRequestUserId } from '../../common/auth/request-user';
@@ -19,6 +31,14 @@ import { NotificationSchedulerService } from '../../workers/notification-schedul
 import { NotificationEventsService } from '../notifications/event-handlers/notification-events.service';
 import { OrganizationsService } from '../organizations/organizations.service';
 import { SupabaseService } from '../supabase/supabase.service';
+import { AssignmentBoardService } from './assignment-board.service';
+
+/**
+ * `{ confirm: true }` sends the board over Impossible rows ("send anyway", ADR-019). An
+ * empty body is `{}`: the lock was always called with none (`21-referee-assign.spec.ts`),
+ * and a Zod DTO cannot be optional, so the body is parsed here.
+ */
+const lockBodySchema = z.object({ confirm: z.boolean().optional() }).strict();
 
 @ApiTags('referees')
 @Controller()
@@ -29,6 +49,7 @@ export class AutoAssignController {
     private readonly followNotifications: FollowNotificationSchedulerService,
     private readonly notificationEvents: NotificationEventsService,
     private readonly organizations: OrganizationsService,
+    private readonly board: AssignmentBoardService,
   ) {}
 
   /**
@@ -46,21 +67,46 @@ export class AutoAssignController {
 
   // ── Lock assignments ──────────────────────────────────────────────────────────
 
+  /**
+   * Locking tells every referee their duty. A duty that breaks an Impossible rule (the one
+   * checker, ADR-016) refuses the lock with 409 `referee_lock_impossible` and the list,
+   * unless the organiser sends anyway (`confirm`, ADR-019). Discouraged duties never
+   * refuse it: each was confirmed when it was made.
+   */
   @Post('events/:eventId/lock-referee-assignments')
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Lock referee assignments (transition to confirmed)' })
+  @ApiOperation({
+    summary:
+      'Lock referee assignments (transition to confirmed): 409 while an assignment is Impossible, unless confirm',
+  })
   @ApiParam({ name: 'eventId', type: 'string', format: 'uuid' })
   async lockAssignments(
     @Param('eventId', ParseUUIDPipe) eventId: string,
+    @Body() body: unknown,
     @Req() req: FastifyRequest,
   ) {
     await this.assertWriter(eventId, req);
-    const { data } = await this.supabase.service
+    const parsed = lockBodySchema.safeParse(body ?? {});
+    if (!parsed.success) throw new BadRequestException('The lock takes { confirm?: boolean }');
+    if (parsed.data.confirm !== true) {
+      const { conflicts } = await this.board.checkEvent(eventId);
+      const impossible = conflicts.filter((c) => c.level === 'impossible');
+      if (impossible.length > 0) {
+        throw new ConflictException({
+          code: 'referee_lock_impossible',
+          message: `${impossible.length} referee assignment(s) break a rule that has no override`,
+          conflicts: impossible,
+        });
+      }
+    }
+    const { data, error } = await this.supabase.service
       .from('referee_assignments')
       .update({ status: 'confirmed' })
       .eq('event_id', eventId)
       .eq('status', 'assigned')
       .select('id');
+    // "Nothing was locked" would tell the organiser the referees were told.
+    if (error) throw new Error(`Could not lock the referee assignments: ${error.message}`);
 
     const assignmentIds = ((data as Array<{ id: string }> | null) ?? []).map(
       (assignment) => assignment.id,
@@ -95,12 +141,13 @@ export class AutoAssignController {
     @Req() req: FastifyRequest,
   ) {
     await this.assertWriter(eventId, req);
-    const { data } = await this.supabase.service
+    const { data, error } = await this.supabase.service
       .from('referee_assignments')
       .update({ status: 'assigned' })
       .eq('event_id', eventId)
       .eq('status', 'confirmed')
       .select('id');
+    if (error) throw new Error(`Could not unlock the referee assignments: ${error.message}`);
 
     const assignmentIds = ((data as Array<{ id: string }> | null) ?? []).map((a) => a.id);
     return { reopened: assignmentIds.length };

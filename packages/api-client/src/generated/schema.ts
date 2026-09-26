@@ -2436,7 +2436,7 @@ export interface paths {
       cookie?: never;
     };
     get?: never;
-    /** Set (or clear) the referee for one (match, role) pair in referee_assignments (scope_type=match, organizer+) */
+    /** Set (or clear) the referee for one (match, role) pair (organizer+): 409 when locked or Impossible, 409 when Discouraged unless confirm */
     put: operations['MatchesController_setRefereeRoleAssignment'];
     post?: never;
     delete?: never;
@@ -3594,7 +3594,7 @@ export interface paths {
       cookie?: never;
     };
     get?: never;
-    /** Bulk-assign (or clear) one referee for one role on every match in a pool (org admin+) */
+    /** Assign (or clear) one referee for one role on every bout of a pool, the bouts they fight left out (org admin+): 409 when locked or Impossible, 409 when Discouraged unless confirm */
     put: operations['PhasesController_setPoolRefereeRoleAssignment'];
     post?: never;
     delete?: never;
@@ -4060,7 +4060,7 @@ export interface paths {
     };
     get?: never;
     put?: never;
-    /** Lock referee assignments (transition to confirmed) */
+    /** Lock referee assignments (transition to confirmed): 409 while an assignment is Impossible, unless confirm */
     post: operations['AutoAssignController_lockAssignments'];
     delete?: never;
     options?: never;
@@ -10142,6 +10142,7 @@ export interface components {
       role: string;
       /** Format: uuid */
       refereeId: string | null;
+      confirm?: boolean;
     };
     CreateMatchForfeitDto: {
       /** Format: uuid */
@@ -10304,6 +10305,12 @@ export interface components {
       enforceFighterRefereeNoOverlap?: boolean;
       preferHighRatedReferees?: boolean;
       discardScoredResults?: boolean;
+    };
+    PoolRefereeRoleDto: {
+      role: string;
+      /** Format: uuid */
+      refereeId: string | null;
+      confirm?: boolean;
     };
     GenerateBracketDto: {
       /** @enum {string} */
@@ -16938,7 +16945,11 @@ export interface operations {
       };
       cookie?: never;
     };
-    requestBody?: never;
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['PoolRefereeRoleDto'];
+      };
+    };
     responses: {
       200: {
         headers: {

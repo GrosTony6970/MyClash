@@ -25,6 +25,7 @@ import { randomUUID } from 'node:crypto';
 import { assertPlatformTier } from '../../common/auth/platform-role';
 import { OrganizationsService } from '../organizations/organizations.service';
 import { SupabaseService } from '../supabase/supabase.service';
+import { isRefereeBoardLocked, refereeBoardLocked } from './referee-lock';
 
 // ── Referee Skill types ───────────────────────────────────────────────────────
 
@@ -613,6 +614,8 @@ export class QualificationsService {
 
   /**
    * Remove a person as referee for an event.
+   * - Refuses 409 while the referee board is locked and the person holds a duty
+   *   (ADR-019: the referees were told). A person with no duty goes whatever the lock.
    * - Cascades referee_assignments cleanup defensively.
    * - Deletes the event_referees row.
    * - Tick-only: the global is_referee flag is intentionally left untouched, so a
@@ -622,11 +625,24 @@ export class QualificationsService {
     const event = await this.getEvent(eventId);
     await this.organizations.assertOrgRole(event.organization_id, actorUserId, 'admin');
 
-    await this.supabase.service
+    if (await isRefereeBoardLocked(this.supabase.service, eventId)) {
+      const { data: duties, error: dutiesErr } = await this.supabase.service
+        .from('referee_assignments')
+        .select('id')
+        .eq('event_id', eventId)
+        .eq('person_id', personId)
+        .limit(1);
+      if (dutiesErr) throw new Error(`Could not read the referee's duties: ${dutiesErr.message}`);
+      if ((duties ?? []).length > 0) throw refereeBoardLocked();
+    }
+
+    const { error: raErr } = await this.supabase.service
       .from('referee_assignments')
       .delete()
       .eq('event_id', eventId)
       .eq('person_id', personId);
+    // Going on would drop the roster row and leave the person refereeing.
+    if (raErr) throw new Error(`Could not remove the referee's duties: ${raErr.message}`);
 
     const { error: delErr } = await this.supabase.service
       .from('event_referees')

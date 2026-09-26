@@ -161,6 +161,11 @@ export function StaffingTab({ eventId, apiUrl, skills, isReadOnly }: Props) {
       // filter moves every key that is not a standard problem+json member under
       // `details`, so the top-level read this replaces returned undefined every
       // time and the dialog listed nobody.
+      // Unless the referee board is locked (ADR-019): confirming would meet the same 409.
+      if (!r.ok && r.kind === 'http' && r.code === 'referee_board_locked') {
+        toast.error(t('organizer.refereeBoard.boardLocked'));
+        return;
+      }
       if (!r.ok && r.kind === 'http' && r.status === 409) {
         const affected = r.details?.['affectedAssignments'];
         setPendingDestructive({

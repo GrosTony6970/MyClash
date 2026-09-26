@@ -368,7 +368,8 @@ describe('AssignmentBoardService', () => {
     expect(refusal).toBeInstanceOf(ConflictException);
     expect((refusal as ConflictException).getResponse()).toEqual({
       code: 'referee_needs_confirmation',
-      message: 'Assigning this referee needs confirmation',
+      // Names each reason: the AI assistant keeps nothing but the message on a failed draft.
+      message: 'Assigning this referee needs confirmation: own_pool (Longsword · Pool 1)',
       level: 'discouraged',
       reasons: [
         {

@@ -4,6 +4,7 @@ import { EventsModule } from '../events/events.module';
 import { OrganizationsModule } from '../organizations/organizations.module';
 import { PhasesModule } from '../phases/phases.module';
 import { MatchPlacementModule } from '../matches/match-placement.module';
+import { RefereesModule } from '../referees/referees.module';
 import { SupabaseModule } from '../supabase/supabase.module';
 import { OrganizerAIAssistantController } from './organizer-ai-assistant.controller';
 import { OrganizerAIAssistantService } from './organizer-ai-assistant.service';
@@ -19,6 +20,8 @@ import { OrganizerAIAssistantService } from './organizer-ai-assistant.service';
     EventsModule,
     PhasesModule,
     MatchPlacementModule,
+    // assign_referee asks the referee checker (ADR-016); PhasesModule does not re-export it.
+    RefereesModule,
   ],
   controllers: [OrganizerAIAssistantController],
   providers: [OrganizerAIAssistantService],
