@@ -128,6 +128,8 @@ slate, with its own switch, and it never blocks.
   picker's words. It asks the checker for every candidate, with its own proposals counted as
   duties, over the commitments the run keeps (never the auto rows it replaces); Apply re-judges
   every proposal before it deletes anything, and a refused one is an engine bug and a 5xx (W1.3).
+  It never proposes someone for a Pool or Swiss round they fight in, even with the own-Pool rule
+  switched off: the switch lets the organiser do that by hand (operator, 2026-09-26, ruling 140).
 - **The schedule board's instant check calls the same checker.** The second detector retires, and
   `apps/api/src/modules/phases/conflict-check.controller.ts` answers from the checker.
 - **Changes that are not assignments are allowed.** Moving a Match or Pool, programme generate,

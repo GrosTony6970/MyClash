@@ -139,6 +139,15 @@ describe('the checker decides who may take a slot', () => {
     expect(reasonsOf(r)).toEqual(['A:teaches_overlap+outside_availability+own_pool']);
   });
 
+  it('never proposes someone for a Pool they fight in, even with the own-Pool rule off (ruling 140)', () => {
+    const lea = at('lea', { kind: 'fight-pool', groupId: 'A', window: w(0, 60) });
+    const off = rules([lea], { ownPool: false });
+    const r = assignReferees([pool('A', 0, 0, 60)], [ref('lea', 9), ref('free', 1)], RANKED, off);
+    expect(picked(r)).toEqual(['A:free']);
+    const alone = assignReferees([pool('A', 0, 0, 60)], [ref('lea', 9)], RANKED, off);
+    expect(reasonsOf(alone)).toEqual(['A:own_pool']);
+  });
+
   it('holds a kept (manual) duty against the candidate', () => {
     const manual = at('ann', {
       kind: 'referee',

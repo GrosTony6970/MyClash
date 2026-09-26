@@ -21,7 +21,10 @@
  *
  * Two rules stay here because they are about seats, not clashes: a candidate needs
  * a qualification the slot allows (`no_qualified_users`), and nobody takes two
- * seats of one unit in the same role (`all_qualified_already_seated`).
+ * seats of one unit in the same role (`all_qualified_already_seated`). And the
+ * engine never proposes someone for a Pool or Swiss round they fight in, even with
+ * the own-Pool rule switched off (ruling 140): that switch lets the organiser do it
+ * by hand. Such a slot says `own_pool`.
  *
  * Among the Fine candidates: higher rating first, then the less loaded.
  *
@@ -31,148 +34,26 @@
 import {
   checkReferee,
   REFEREE_REASON_CODES,
-  type RefereeAvailability,
   type RefereeCommitment,
   type RefereeReasonCode,
-  type RefereeSwitches,
   type RefereeTarget,
 } from './referee-checker';
+import {
+  LEGACY_DEFAULT_SLOTS,
+  type AssignmentResult,
+  type AssignmentSettings,
+  type EmptySlotReason,
+  type EngineRules,
+  type MissingAssignment,
+  type PoolSlot,
+  type PriorAssignment,
+  type RefereeAssignment,
+  type RefereeCandidate,
+  type RefereeRole,
+  type SlotDefinition,
+} from './referee-assigner-types';
 
-// ── Types ─────────────────────────────────────────────────────────────────────
-
-/**
- * `RefereeRole` used to be a closed enum (3 hard-coded skill IDs). R3
- * relaxes it to any `referee_skills.id` string so custom skills introduced
- * via the Staffing tab can flow through. Kept as an alias for documentation.
- */
-export type RefereeRole = string;
-
-/**
- * `ALL_ROLES` is retained for callers that still want the legacy 3 roles
- * (e.g. UI dropdowns that haven't migrated). The engine itself does not
- * use this constant anymore — it iterates `pool.slotDefinitions` instead.
- */
-export const ALL_ROLES: readonly RefereeRole[] = [
-  'arbitre_declarant',
-  'arbitre_assesseur',
-  'arbitre_table',
-] as const;
-
-/**
- * Per-pool slot identity + admissible skill set. Mirrors the resolver
- * output (`StaffingService.ResolvedConfig.pool[i]`). A slot is satisfied
- * when a candidate has an active qualification for ANY of `allowedSkillIds`.
- */
-export interface SlotDefinition {
-  /** 1..6, matches `tournament_slot_config.slot_index`. */
-  index: number;
-  displayName: string | null;
-  /** At least one skill id. */
-  allowedSkillIds: string[];
-}
-
-/**
- * Legacy default — exactly mirrors `StaffingService.HARD_CODED_DEFAULT_SLOTS`.
- * Engine + service share this shape so a tournament with no Staffing
- * config still gets the same 3 slots (Décl/Asses/Table) auto-filled
- * exactly as before R3.
- */
-export const LEGACY_DEFAULT_SLOTS: readonly SlotDefinition[] = [
-  { index: 1, displayName: null, allowedSkillIds: ['arbitre_declarant'] },
-  { index: 2, displayName: null, allowedSkillIds: ['arbitre_assesseur'] },
-  { index: 3, displayName: null, allowedSkillIds: ['arbitre_table'] },
-] as const;
-
-export interface RefereeCandidate {
-  personId: string;
-  personName: string;
-  /** Active qualifications for this event. `role` is any skill_id. */
-  qualifications: Array<{ role: RefereeRole; rating: number | null }>;
-}
-
-/** One board unit to staff: a Pool, a Swiss round on one piste, or a bracket bout. */
-export interface PoolSlot {
-  poolId: string;
-  poolName: string;
-  /** The unit as the checker judges it; the engine adds the role. */
-  target: Omit<RefereeTarget, 'role'>;
-  /** The data name a proposal's duty carries (`unitLabel`). */
-  label: string;
-  /**
-   * Slot definitions for this pool (typically from `StaffingService`).
-   * Optional — when absent the engine uses `LEGACY_DEFAULT_SLOTS`.
-   */
-  slotDefinitions?: SlotDefinition[];
-  /**
-   * R4 metadata flag — marks bracket "pools" that represent medal-set matches.
-   * The engine doesn't dispatch on this; it surfaces back through
-   * `RefereeAssignment.isFinals` so consumers can group results by phase-type.
-   */
-  isFinals?: boolean;
-}
-
-/** How the engine ranks the candidates the checker left Fine. */
-export interface AssignmentSettings {
-  ratingBasedOrdering: boolean;
-  workloadBalance: boolean;
-}
-
-/** What the checker needs besides a target: everything the Event already holds. */
-export interface EngineRules {
-  /**
-   * Each person's commitments — fights, Workshops, and the duties this run keeps
-   * (manual rows; never the auto rows the run replaces).
-   */
-  commitmentsByPerson: ReadonlyMap<string, readonly RefereeCommitment[]>;
-  availabilityOf: (personId: string) => RefereeAvailability;
-  switches: RefereeSwitches;
-}
-
-export interface RefereeAssignment {
-  poolId: string;
-  poolName: string;
-  /** R3: slot identity is load-bearing alongside role. */
-  slotIndex: number;
-  /** The specific skill_id chosen for the slot (one of slot.allowedSkillIds). */
-  role: RefereeRole;
-  personId: string;
-  personName: string;
-  autoAssigned: true;
-  /** R4: mirrors PoolSlot.isFinals so callers can group output by phase. */
-  isFinals?: boolean;
-}
-
-/** Why a slot stayed empty: a seat rule, or the checker's codes. */
-export type EmptySlotReason =
-  'no_qualified_users' | 'all_qualified_already_seated' | RefereeReasonCode;
-
-export interface MissingAssignment {
-  poolId: string;
-  poolName: string;
-  slotIndex: number;
-  /** Primary skill_id for display (= slot.allowedSkillIds[0]). */
-  role: RefereeRole;
-  rejectionReasons: EmptySlotReason[];
-  /** R4: mirrors PoolSlot.isFinals (same rationale as RefereeAssignment). */
-  isFinals?: boolean;
-}
-
-export interface AssignmentResult {
-  assignments: RefereeAssignment[];
-  missing: MissingAssignment[];
-}
-
-/**
- * An assignment that already exists on the board (typically a human's
- * manual pick): the engine won't propose into the same `(poolId, role)` slot,
- * and it counts toward the person's workload. Its clashes reach the checker
- * through `EngineRules.commitmentsByPerson`.
- */
-export interface PriorAssignment {
-  poolId: string;
-  role: RefereeRole;
-  personId: string;
-}
+export * from './referee-assigner-types';
 
 // ── Implementation ────────────────────────────────────────────────────────────
 
@@ -301,6 +182,45 @@ function bestMatchingQual(
   return best;
 }
 
+/**
+ * Whether the person fights in the unit's group (its Pool or Swiss round). Everyone who fights a
+ * bout of a group holds that group's fight-pool; a bracket bout has no group, and fighting it is
+ * already `own_match`.
+ */
+function fightsIn(
+  commitments: readonly RefereeCommitment[],
+  target: Omit<RefereeTarget, 'role'>,
+): boolean {
+  return commitments.some(
+    (c) => c.kind === 'fight-pool' && target.groupId !== null && c.groupId === target.groupId,
+  );
+}
+
+/**
+ * Why the engine may not propose this person in this role on this unit — the checker's
+ * reasons over their commitments and the run's proposals so far — or none when Fine.
+ */
+function refusals(
+  personId: string,
+  role: string,
+  pool: PoolSlot,
+  rules: EngineRules,
+  state: RunState,
+): RefereeReasonCode[] {
+  const mine = rules.commitmentsByPerson.get(personId) ?? [];
+  // Ruling 140: never proposed for a group one fights in, whatever the own-Pool switch —
+  // that switch lets an organiser do it by hand, not the engine on its own.
+  if (fightsIn(mine, pool.target)) return ['own_pool'];
+  const verdict = checkReferee({
+    personId,
+    target: { ...pool.target, role },
+    commitments: [...mine, ...(state.proposals.get(personId) ?? [])],
+    availability: rules.availabilityOf(personId),
+    switches: rules.switches,
+  });
+  return verdict.level === 'fine' ? [] : verdict.reasons.map((r) => r.code);
+}
+
 interface SlotAssignmentResult {
   assigned: RefereeAssignment | null;
   rejectionReasons: EmptySlotReason[];
@@ -332,18 +252,9 @@ function assignSlot(
 
   const refused = new Set<RefereeReasonCode>();
   const fine = free.filter(({ candidate, matchedQual }) => {
-    const verdict = checkReferee({
-      personId: candidate.personId,
-      target: { ...pool.target, role: matchedQual.role },
-      commitments: [
-        ...(rules.commitmentsByPerson.get(candidate.personId) ?? []),
-        ...(state.proposals.get(candidate.personId) ?? []),
-      ],
-      availability: rules.availabilityOf(candidate.personId),
-      switches: rules.switches,
-    });
-    for (const r of verdict.reasons) refused.add(r.code);
-    return verdict.level === 'fine';
+    const reasons = refusals(candidate.personId, matchedQual.role, pool, rules, state);
+    for (const code of reasons) refused.add(code);
+    return reasons.length === 0;
   });
   if (fine.length === 0) {
     return {
