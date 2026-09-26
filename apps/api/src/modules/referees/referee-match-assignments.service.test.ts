@@ -58,6 +58,9 @@ beforeEach(() => {
     enableOwnPoolSpanRule: false,
     enableTwoRolesRule: true,
     workshopConflictWarning: true,
+    enforceRefereeNoBackToBack: true,
+    refereeRestMinSlots: 2,
+    maxBoutsPerDay: 9,
   });
 });
 
@@ -147,6 +150,8 @@ describe('RefereeMatchAssignmentsService', () => {
       ownPoolSpan: false,
       twoRoles: true,
       attendWorkshop: true,
+      restSlots: 2,
+      maxBoutsPerDay: 9,
     });
     expect(getSettings).toHaveBeenCalledWith('event-1');
   });

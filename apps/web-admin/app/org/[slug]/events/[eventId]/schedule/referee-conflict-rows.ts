@@ -13,7 +13,8 @@
  * bout's window, a Pool someone fights in is the hull of its placed bouts, a duty is a
  * Pool's hull or a bout's window — so it reports own_match, fights_overlap,
  * referees_overlap, own_pool, own_pool_span and two_roles as the cards stand now.
- * Teaching, attending and availability need data the board does not hold; the server's
+ * Teaching, attending, availability, rest and the daily bout cap (ADR-019: day slots and
+ * days on the Event clock) need data the board does not hold; the server's
  * half (`useRefereeCrewConflicts`, re-read after each move) reports those. So do a Swiss
  * round's two group rules: the board's bouts carry no round, so here a Swiss bout is judged
  * as a bout on its own (its overlaps still fire). The banner says which half is which.
@@ -184,7 +185,9 @@ function fightCommitments(
 
 /** Where a duty stands, from the cards; null when the board holds none of it. */
 function dutyTarget(a: RefereeConflictAssignment, index: BoardIndex): RefereeTarget | null {
-  const base = { role: a.role, tournamentId: '', dayIndex: null };
+  // No day and no day slot: rest and the daily cap (ADR-019) are the server section's,
+  // like teaching, attending and availability.
+  const base = { role: a.role, tournamentId: '', dayIndex: null, slot: null };
   if (a.scopeType === 'pool' && a.poolId) {
     const bouts = index.boutsOfPool.get(a.poolId);
     if (!bouts) return null;
@@ -245,6 +248,9 @@ export function buildRefereeConflictRows(args: {
     poolId: target.poolId,
     matchId: assignment.scopeType === 'match' ? assignment.matchId : null,
     role: assignment.role,
+    matchIds: target.matchIds,
+    slot: null,
+    dayIndex: null,
     window: target.window,
     label: labelOfTarget(target, index),
   }));

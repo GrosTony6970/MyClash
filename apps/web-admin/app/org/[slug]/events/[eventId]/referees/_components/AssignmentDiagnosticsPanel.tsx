@@ -8,39 +8,7 @@ import type { RefereeConflictEntry } from '@/lib/referee-reasons';
 import { boardHealthStatus, summariseBoard, summariseRosterHealth } from './board-diagnostics';
 import type { HealthStatus } from './board-diagnostics';
 import { formatUnassignedReason } from './format-unassigned-reason';
-
-/**
- * The health-panel rules an operator can enable/disable. Keys match the PUT
- * pool-assignment-settings payload field names.
- *
- * The four Discouraged switches of ADR-016 (own Pool, Pool running, two roles, attending a
- * Workshop) and the capacity warning's. Officiate-vs-fight, double-booked and availability
- * are Impossible and have no switch at the board or at Assign; their columns still steer
- * the auto-assign engine until W1.3 and go with W1.4.
- */
-export const RULE_KEYS = [
-  'enableOwnPoolRule',
-  'enableOwnPoolSpanRule',
-  'enableOfficiateVsFightRule',
-  'enableDoubleBookedRule',
-  'enableTwoRolesRule',
-  'workshopConflictWarning',
-  'enableAvailabilityRule',
-  'enableCapacityRule',
-] as const;
-export type RuleKey = (typeof RULE_KEYS)[number];
-
-/** i18n suffix per rule under organizer.refereesPage.rules.* */
-const RULE_I18N: Record<RuleKey, string> = {
-  enableOwnPoolRule: 'ownPool',
-  enableOwnPoolSpanRule: 'ownPoolSpan',
-  enableOfficiateVsFightRule: 'officiateVsFight',
-  enableDoubleBookedRule: 'doubleBooked',
-  enableTwoRolesRule: 'twoRoles',
-  workshopConflictWarning: 'attendWorkshop',
-  enableAvailabilityRule: 'availability',
-  enableCapacityRule: 'capacity',
-};
+import { RefereeRulesFooter, type RuleChange, type RuleSettings } from './RefereeRulesFooter';
 
 interface DiagnosticsBoard {
   pools: Array<{
@@ -112,7 +80,7 @@ export function AssignmentDiagnosticsPanel({
   skillNameById,
   roleLabel,
   ruleSettings,
-  onToggleRule,
+  onChangeRule,
   togglesDisabled,
 }: {
   board: DiagnosticsBoard;
@@ -120,8 +88,8 @@ export function AssignmentDiagnosticsPanel({
   roleLabel?: (role: string) => string;
   /** Per-rule enabled state (from pool-assignment-settings). When provided,
    *  the rules footer becomes a checkbox list with descriptions. */
-  ruleSettings?: Record<RuleKey, boolean>;
-  onToggleRule?: (key: RuleKey, enabled: boolean) => void;
+  ruleSettings?: RuleSettings;
+  onChangeRule?: RuleChange;
   togglesDisabled?: boolean;
 }) {
   const { locale, t } = useI18n();
@@ -284,38 +252,12 @@ export function AssignmentDiagnosticsPanel({
       </div>
 
       {ruleSettings ? (
-        <div className="mt-3 border-t pt-2">
-          <p
-            className={`mb-1.5 text-[11px] font-semibold uppercase tracking-wider ${theme.sublabel}`}
-          >
-            {t('organizer.refereesPage.rules.title')}
-          </p>
-          <ul className="grid gap-1.5 sm:grid-cols-2 xl:grid-cols-3">
-            {RULE_KEYS.map((key) => (
-              <li key={key}>
-                <label
-                  className={`flex items-start gap-2 ${togglesDisabled ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'}`}
-                >
-                  <input
-                    type="checkbox"
-                    checked={ruleSettings[key]}
-                    disabled={togglesDisabled}
-                    onChange={(e) => onToggleRule?.(key, e.target.checked)}
-                    className="mt-0.5 rounded"
-                  />
-                  <span>
-                    <span className={`block text-xs font-semibold ${theme.item}`}>
-                      {t(`organizer.refereesPage.rules.${RULE_I18N[key]}.label`)}
-                    </span>
-                    <span className={`block text-[11px] ${theme.sublabel}`}>
-                      {t(`organizer.refereesPage.rules.${RULE_I18N[key]}.description`)}
-                    </span>
-                  </span>
-                </label>
-              </li>
-            ))}
-          </ul>
-        </div>
+        <RefereeRulesFooter
+          settings={ruleSettings}
+          onChange={onChangeRule}
+          disabled={togglesDisabled}
+          tone={theme}
+        />
       ) : (
         <p className={`mt-3 border-t pt-2 text-[11px] ${theme.sublabel}`}>
           {t('organizer.refereesPage.conflict.rulesFooter')}

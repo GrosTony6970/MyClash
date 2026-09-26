@@ -1370,79 +1370,36 @@ serves `GET events/:eventId/referee-match-assignments` — a referee assigned to
 a pool or a lice. Compensation counts it as 1, where a pool assignment expands to every completed match
 in the pool.
 
-**Inputs:**
+**Inputs:** every board unit (a Pool, a Swiss round on one piste, a bracket bout) as the one
+referee checker judges it (`referees/event-commitments.ts`: its window is the hull of its Matches'
+planned windows, ADR-017, plus its day and its day slot), each referee's active
+`referee_qualifications`, every commitment of the Event (fights, the Pools one fights in, teaching and
+attending Workshop sessions, the manual duties the run keeps — never the auto rows it replaces), each
+referee's declared availability, and `pool_assignment_settings`.
 
-- The pool schedule: each Pool's Lice and its window, the hull of its Matches' planned windows (ADR-017).
-- The event's match schedule (so we know when each fighter is on the piste).
-- All `referee_qualifications` for the event.
-- All workshop enrollments per user (soft conflict).
-- `pool_assignment_settings`.
+**Who may take a slot is the checker's question, not the engine's** (ADR-016, W1.3). For each slot,
+the engine keeps the candidates holding a skill the slot allows (`no_qualified_users` otherwise) who do
+not already sit in that role on the unit (`all_qualified_already_seated`), and asks
+`checkReferee` about each, with the run's own proposals so far counted as duties. Only a Fine
+candidate is picked: the engine never proposes what the organiser would have to confirm (Discouraged:
+own Pool, Pool running, two roles, attending a Workshop, rest, the daily cap) or could not assign at all
+(Impossible: own bout, fighting, refereeing or teaching at an overlapping time, outside availability).
+Among the Fine candidates it prefers the higher rating (`rating_based_ordering`), then the less loaded
+(`workload_balance`). An empty slot says why by the checker's codes, one per reason that refused a
+qualified referee.
 
-**Hard constraints** (assignment is rejected if violated):
+**Rest and the cap (ADR-019)** are checker rules, so the picker, Assign and every write door say them
+too. Rest counts **day slots**: a slot is a distinct start time of the day's Pools and Swiss units on the
+Event clock, in time order, and a duty within `referee_rest_min_slots` slots of another duty that day is
+Discouraged (`enforce_referee_no_back_to_back` switches it; bracket bouts sit in no slot). The cap counts
+the distinct bouts under a person's duties that Event day against `max_bouts_per_day` (0 = no cap).
 
-- A fighter cannot referee a pool whose time overlaps with a match they're fighting in. (`enforce_fighter_referee_no_overlap`)
-- A user must hold an active `referee_qualifications` row for the role being assigned.
+**Output:** the proposals and a missing-slot report (`{ poolId, slotIndex, role, rejectionReasons }`).
+Apply re-judges every proposal against the kept duties and the other proposals BEFORE it deletes
+anything; a proposal the checker refuses is an engine bug and a 5xx. Assignments are persisted to
+`referee_assignments` with `auto_assigned=true`. A row stores its scope (Pool or Match), not a time:
+every reader works the duty's window out from the Matches it covers (migration 0198).
 
-**Soft constraints** (cost function, configurable on/off):
-
-- **No back-to-back referee duties.** If `enforce_referee_no_back_to_back=true`, assigning the same user to two consecutive pool slots on the same Lice incurs high cost. `referee_rest_min_slots` controls the gap (default 1).
-- **Dedicated referee rest.** Same constraint applies even to users with no fighter registration, when `enforce_dedicated_referee_rest=true`.
-- **Workshop conflict.** If the user has a confirmed workshop session in the same time window, cost increases (warning, not rejection).
-- **Prefer high-rated referees.** When `prefer_high_rated_referees=true`, candidates are sorted by `rating` descending before being assigned.
-- **Workload balance.** Across the event, distribute refereeing duties evenly among qualified users.
-
-**Algorithm (greedy with backtracking):**
-
-```
-1. Build the schedule grid: list of (pool_id, role, slot_start, slot_end) cells.
-2. Sort cells by constraint tightness (fewest eligible candidates first).
-3. For each cell:
-   a. Get candidates: users with active qualification for this role.
-   b. Filter HARD-conflicted candidates (fighter in this pool's matches at this time).
-   c. Score remaining candidates:
-        score = rating_weight * rating
-              - back_to_back_penalty (if assigned to adjacent slot)
-              - workload_penalty (more existing assignments = higher penalty)
-              - workshop_conflict_penalty (if soft conflict)
-   d. Assign top-scored candidate; record any soft-conflicts in `conflicts_jsonb`.
-   e. If no candidates: leave UNASSIGNED, continue.
-4. Optional backtracking: if N cells unassigned, try reordering and retry once.
-5. Return assignments + missing-role report.
-```
-
-**Output:**
-
-- Assignments persisted to `referee_assignments` with `auto_assigned=true`. A row stores its scope
-  (Pool or Match), not a time: every reader works the duty's window out from the Matches it covers
-  (migration 0198).
-- A **missing-role report**, structured for the admin UI:
-  ```json
-  {
-    "assigned": 18,
-    "missing": [
-      {
-        "pool_id": "...",
-        "pool_label": "Longsword Pool A",
-        "lice": "Lice 1",
-        "starts_at": "2026-05-09T10:30:00Z",
-        "role": "arbitre_assesseur",
-        "candidates_considered": 4,
-        "rejection_reasons": {
-          "fighter_overlap": 2,
-          "back_to_back": 2,
-          "no_qualified_users": 0
-        }
-      }
-    ],
-    "warnings": [
-      {
-        "assignment_id": "...",
-        "type": "workshop_conflict",
-        "details": "Conflicts with workshop 'Sword & Buckler intro' at 11:00"
-      }
-    ]
-  }
-  ```
 - Manual override is always available — the admin can drag any qualified user into any cell; the system recomputes warnings live.
 
 ### 11quater.3 Iteration loop

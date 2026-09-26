@@ -22,11 +22,6 @@ import { useI18n } from '@myclash/next-i18n/client';
 import { apiRequest, failureMessage } from '@myclash/api-client';
 import { getPublicApiUrl } from '@/lib/api-url';
 import { assignFailureText, type PickerReason } from '@/lib/referee-reasons';
-// Type-only, so importing from a 'use client' component module is erased at
-// build time. Kept as the single definition rather than re-declared narrowly
-// here: the panel that renders these is the one that decides their shape.
-import type { SwapSuggestion } from './SwapSuggestionsPanel';
-
 export interface AssignmentBoardCandidate {
   userId: string | null;
   /** `global_persons.id`: the referee's identity, and what an assign sends. */
@@ -34,8 +29,13 @@ export interface AssignmentBoardCandidate {
   displayName: string;
   clubLabel: string | null;
   qualifications: Array<{ role: string; rating: number | null }>;
-  workload: number;
 }
+
+/**
+ * A candidate as the picker lists them for one slot: their bouts on the slot's day (ADR-019);
+ * null when the slot has no time yet.
+ */
+export type PickerCandidate = AssignmentBoardCandidate & { boutsThatDay: number | null };
 
 export interface AssignmentBoardRoleSlot {
   slotIndex: number;
@@ -54,11 +54,11 @@ export interface AssignmentBoardRoleSlot {
   missingReasons: string[];
   /** Sorted by the one checker's verdict (ADR-016). */
   candidates: {
-    recommended: AssignmentBoardCandidate[];
+    recommended: PickerCandidate[];
     /** Discouraged: may be assigned after confirming. */
-    warning: Array<AssignmentBoardCandidate & { reasons: PickerReason[] }>;
+    warning: Array<PickerCandidate & { reasons: PickerReason[] }>;
     /** Impossible, or holding no skill this slot allows. */
-    blocked: Array<AssignmentBoardCandidate & { reasons: PickerReason[] }>;
+    blocked: Array<PickerCandidate & { reasons: PickerReason[] }>;
   };
 }
 
@@ -91,7 +91,6 @@ export interface AssignmentBoard {
   unscheduledPools: AssignmentBoardPool[];
   candidates: AssignmentBoardCandidate[];
   locked: boolean;
-  swapSuggestions?: SwapSuggestion[];
 }
 
 interface RefereeSkill {
@@ -120,7 +119,6 @@ export interface UseAssignmentBoard {
     confirm?: boolean,
   ) => Promise<boolean>;
   unassign: (assignmentId: string) => Promise<void>;
-  applySwap: (suggestion: SwapSuggestion) => Promise<void>;
 }
 
 export interface AssignmentBoardMessages {
@@ -265,37 +263,6 @@ export function useAssignmentBoard(
     [apiUrl, messages.mutationFailed, load, t],
   );
 
-  /**
-   * Apply a back-to-back swap proposal: unassign, then assign the replacement.
-   * The board's slot list resolves the outgoing assignment id from
-   * (poolId, slotIndex) — the suggestion itself carries neither.
-   */
-  const applySwap = useCallback(
-    async (suggestion: SwapSuggestion) => {
-      const pool = allBoardPools.find((p) => p.id === suggestion.fromPoolId);
-      const slot = pool?.roleSlots.find((rs) => rs.slotIndex === suggestion.fromSlotIndex);
-      if (!slot) return;
-      const oldId = slot.assignment?.id;
-      setBusy(true);
-      setError(null);
-      if (oldId) {
-        const r = await apiRequest(apiUrl, `/api/v1/referee-assignments/${oldId}`, {
-          method: 'DELETE',
-        });
-        // The swap stops here rather than assigning the replacement on top of
-        // an assignment that is still standing.
-        if (!r.ok) {
-          setError(failureMessage(r, t, messages.mutationFailed));
-          setBusy(false);
-          return;
-        }
-      }
-      setBusy(false);
-      await manualAssign(suggestion.fromPoolId, slot.role, suggestion.toPersonId);
-    },
-    [allBoardPools, apiUrl, messages.mutationFailed, manualAssign, t],
-  );
-
   return {
     board,
     allBoardPools,
@@ -309,6 +276,5 @@ export function useAssignmentBoard(
     reload: load,
     manualAssign,
     unassign,
-    applySwap,
   };
 }

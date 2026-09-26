@@ -1744,6 +1744,8 @@ export const organizer = {
     pickerRecommended: 'Recommended',
     pickerDiscouraged: 'Needs confirmation',
     pickerBlocked: 'Not possible',
+    // ADR-019's load: the distinct bouts under the person's duties on the slot's day.
+    pickerBoutsThatDay: 'Bouts that day: {count}',
     // One sentence per reason code of the one referee checker (ADR-016), said after the
     // person's name. {against} is the Pool, round, bout or Workshop it clashes with.
     reasons: {
@@ -1756,6 +1758,9 @@ export const organizer = {
       own_pool_span: 'fights in a Pool running at the same time ({against})',
       two_roles: 'already holds another role here ({against})',
       attends_overlap: 'attends a Workshop at the same time ({against})',
+      rest: 'no rest since another duty ({against})',
+      // {against} is the day's bout total with this duty.
+      cap: 'past the daily bout cap ({against} bouts that day)',
       missing_qualification: 'has no skill this slot allows',
     },
     confirmedOver: 'confirmed',
@@ -2973,18 +2978,22 @@ export const organizer = {
       assignments:
         "Read-only view of everything scheduled, with its assigned Déclarant / Assesseur / Table. Lock once you're happy with the result; unlock if you need to redo it.",
     },
+    // Why auto-assign left a slot empty: a seat rule, or what the referee checker said about
+    // the qualified referees (one line per reason that refused someone).
     unassignedReasons: {
       no_qualified_users: 'No one with this qualification is registered.',
-      all_qualified_already_assigned_to_pool:
-        'Everyone qualified is already assigned to another role here.',
-      all_qualified_are_fighters_in_this_pool: 'Everyone qualified is fighting here.',
-      all_qualified_have_time_conflict_with_other_pool:
-        'Everyone qualified has a conflict at the same time.',
-      no_candidates_after_scoring: 'No one passed the scoring filter.',
-      all_qualified_unavailable_for_this_pool:
-        'Everyone qualified is unavailable for this tournament or day.',
-      all_qualified_fighting_in_parallel_pool:
-        'Everyone qualified is fighting elsewhere at the same time.',
+      all_qualified_already_seated: 'Everyone qualified already holds this role here.',
+      own_match: 'Fights in this bout',
+      fights_overlap: 'Fights at the same time',
+      referees_overlap: 'Already referees at the same time',
+      teaches_overlap: 'Teaches a Workshop at the same time',
+      outside_availability: 'Unavailable for this tournament or day',
+      own_pool: 'Fights in this Pool',
+      own_pool_span: 'Fights in a Pool running at the same time',
+      two_roles: 'Already holds another role here',
+      attends_overlap: 'Attends a Workshop at the same time',
+      rest: 'Needs rest after another duty',
+      cap: 'Past the daily bout cap',
     },
     rules: {
       title: 'Rules checked',
@@ -3004,21 +3013,20 @@ export const organizer = {
         description:
           'Asks before someone referees while a Workshop they signed up for is running. Teaching one is never allowed.',
       },
-      officiateVsFight: {
-        label: 'Officiate vs fight',
-        description: 'A referee cannot officiate while fighting elsewhere at an overlapping time.',
-      },
-      doubleBooked: {
-        label: 'Double-booked',
-        description: 'A referee cannot officiate twice at overlapping times.',
-      },
       twoRoles: {
         label: 'Two roles',
         description: 'One person cannot hold two referee roles on the same pool or match.',
       },
-      availability: {
-        label: 'Availability',
-        description: 'Assignments must respect each referee’s tournament and day availability.',
+      rest: {
+        label: 'Rest between duties',
+        description:
+          'Asks before someone referees within this many time slots of another duty that day. A slot is a start time of the day’s Pools and Swiss rounds; bracket bouts are not counted.',
+        slots: 'Slots of rest',
+      },
+      cap: {
+        label: 'Daily bout cap',
+        description:
+          'Asks before someone referees more bouts in one day than this. Auto-assign never goes past it. 0 = no cap.',
       },
       capacity: {
         label: 'Capacity',
@@ -3059,12 +3067,6 @@ export const organizer = {
     skillColor: 'Skill color',
     skillDescription: 'Description (optional)',
     skillDescriptionPlaceholder: 'Short tooltip shown on the skill catalog',
-    swapSuggestionsTitle: 'Suggested swaps',
-    swapSuggestionsHelp:
-      '{count} swap(s) would break a back-to-back chain. Apply one to rebalance.',
-    swapApply: 'Apply',
-    swapApplying: 'Applying...',
-    swapApplyFailed: 'Could not apply swap.',
     catalogDragHandle: 'Drag to reorder',
     catalogReorderFailed: 'Could not save the new order.',
     catalogHideAction: 'Hide',

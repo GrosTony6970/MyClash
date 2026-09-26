@@ -21,14 +21,11 @@ describe('summariseBoard', () => {
           roleSlots: [
             slot({ assigned: true }),
             slot({ reasons: ['no_qualified_users'] }),
-            slot({ reasons: ['all_qualified_have_time_conflict_with_other_pool'] }),
+            slot({ reasons: ['referees_overlap'] }),
           ],
         },
         {
-          roleSlots: [
-            slot({ assigned: true }),
-            slot({ reasons: ['all_qualified_have_time_conflict_with_other_pool'] }),
-          ],
+          roleSlots: [slot({ assigned: true }), slot({ reasons: ['referees_overlap'] })],
         },
       ],
     };
@@ -37,7 +34,7 @@ describe('summariseBoard', () => {
     expect(summary.filledSlots).toBe(2);
     expect(summary.byReason).toEqual({
       no_qualified_users: 1,
-      all_qualified_have_time_conflict_with_other_pool: 2,
+      referees_overlap: 2,
     });
   });
 

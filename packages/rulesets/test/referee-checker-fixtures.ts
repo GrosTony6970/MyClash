@@ -19,12 +19,16 @@ export const ALL_ON: RefereeSwitches = {
   ownPoolSpan: true,
   twoRoles: true,
   attendWorkshop: true,
+  restSlots: 1,
+  maxBoutsPerDay: 0,
 };
 export const ALL_OFF: RefereeSwitches = {
   ownPool: false,
   ownPoolSpan: false,
   twoRoles: false,
   attendWorkshop: false,
+  restSlots: 0,
+  maxBoutsPerDay: 0,
 };
 
 /** Pool B, 10:00–11:00, a Pool-scoped crew slot. */
@@ -38,6 +42,7 @@ export const poolB: RefereeTarget = {
   role: 'declarant',
   tournamentId: 'longsword',
   dayIndex: 0,
+  slot: 1,
 };
 
 export const fight = (
@@ -70,6 +75,9 @@ export const duty = (
     matchId: string | null;
     role: string;
     personId: string;
+    matchIds: string[];
+    slot: number | null;
+    dayIndex: number | null;
   }> = {},
 ): RefereeCommitment => ({
   kind: 'referee',
@@ -78,6 +86,9 @@ export const duty = (
   poolId: extra.poolId ?? null,
   matchId: extra.matchId ?? null,
   role: extra.role ?? 'assesseur',
+  matchIds: extra.matchIds ?? (extra.matchId ? [extra.matchId] : []),
+  slot: extra.slot ?? null,
+  dayIndex: extra.dayIndex ?? null,
   window,
   label: `unit ${unitId}`,
 });

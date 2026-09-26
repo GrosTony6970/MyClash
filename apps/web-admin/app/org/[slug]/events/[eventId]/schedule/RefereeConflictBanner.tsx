@@ -37,6 +37,9 @@ function rulesOff(rules: RefereeSwitches, t: Translate): string[] {
   if (!rules.ownPoolSpan) off.push(t('organizer.refereesPage.rules.ownPoolSpan.label'));
   if (!rules.twoRoles) off.push(t('organizer.refereesPage.rules.twoRoles.label'));
   if (!rules.attendWorkshop) off.push(t('organizer.refereesPage.rules.attendWorkshop.label'));
+  // Rest is on by default, so 0 is a choice to stop checking. A cap of 0 is no limit set,
+  // not a check turned off: listing it would leave no banner clean by default.
+  if (rules.restSlots === 0) off.push(t('organizer.refereesPage.rules.rest.label'));
   return off;
 }
 

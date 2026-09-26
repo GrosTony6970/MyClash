@@ -1732,6 +1732,7 @@ export const organizer = {
     pickerRecommended: 'Recommandes',
     pickerDiscouraged: 'À confirmer',
     pickerBlocked: 'Impossible',
+    pickerBoutsThatDay: 'Combats ce jour-là : {count}',
     reasons: {
       own_match: 'combat dans ce match ({against})',
       fights_overlap: 'combat au même moment ({against})',
@@ -1742,6 +1743,8 @@ export const organizer = {
       own_pool_span: 'combat dans une poule en cours au même moment ({against})',
       two_roles: 'tient déjà un autre rôle ici ({against})',
       attends_overlap: 'suit un atelier au même moment ({against})',
+      rest: 'sans repos depuis un autre arbitrage ({against})',
+      cap: 'au-delà du plafond quotidien ({against} combats ce jour-là)',
       missing_qualification: 'n’a aucune compétence permise pour ce poste',
     },
     confirmedOver: 'confirmé',
@@ -2946,16 +2949,18 @@ export const organizer = {
     },
     unassignedReasons: {
       no_qualified_users: "Personne ayant cette qualification n'est inscrit.",
-      all_qualified_already_assigned_to_pool:
-        'Tous les arbitres qualifiés sont déjà affectés à un autre rôle ici.',
-      all_qualified_are_fighters_in_this_pool: 'Tous les arbitres qualifiés combattent ici.',
-      all_qualified_have_time_conflict_with_other_pool:
-        'Tous les arbitres qualifiés ont un conflit au même moment.',
-      no_candidates_after_scoring: "Aucun candidat n'a passé le filtre de notation.",
-      all_qualified_unavailable_for_this_pool:
-        'Tous les arbitres qualifiés sont indisponibles pour ce tournoi ou ce jour.',
-      all_qualified_fighting_in_parallel_pool:
-        'Tous les arbitres qualifiés combattent ailleurs au même moment.',
+      all_qualified_already_seated: 'Tous les arbitres qualifiés tiennent déjà ce rôle ici.',
+      own_match: 'Combat dans ce match',
+      fights_overlap: 'Combat au même moment',
+      referees_overlap: 'Arbitre déjà au même moment',
+      teaches_overlap: 'Anime un atelier au même moment',
+      outside_availability: 'Indisponible pour ce tournoi ou ce jour',
+      own_pool: 'Combat dans cette poule',
+      own_pool_span: 'Combat dans une poule en cours au même moment',
+      two_roles: 'Tient déjà un autre rôle ici',
+      attends_overlap: 'Suit un atelier au même moment',
+      rest: 'A besoin de repos après un autre arbitrage',
+      cap: 'Au-delà du plafond quotidien de combats',
     },
     rules: {
       title: 'Règles vérifiées',
@@ -2975,24 +2980,21 @@ export const organizer = {
         description:
           'Demande confirmation avant qu’une personne arbitre pendant qu’une poule où elle combat est en cours, hors de ses propres matchs.',
       },
-      officiateVsFight: {
-        label: 'Arbitre vs combat',
-        description:
-          "Un arbitre ne peut pas officier pendant qu'il combat ailleurs au même moment.",
-      },
-      doubleBooked: {
-        label: 'Double affectation',
-        description:
-          'Un arbitre ne peut pas officier deux fois sur des horaires qui se chevauchent.',
-      },
       twoRoles: {
         label: 'Deux rôles',
         description:
           'Une même personne ne peut pas tenir deux rôles sur la même poule ou le même match.',
       },
-      availability: {
-        label: 'Disponibilité',
-        description: 'Les affectations respectent la disponibilité tournoi/jour de chaque arbitre.',
+      rest: {
+        label: 'Repos entre arbitrages',
+        description:
+          'Demande confirmation avant qu’une personne arbitre à moins de ce nombre de créneaux d’un autre arbitrage le même jour. Un créneau est une heure de début des poules et rondes suisses du jour ; les matchs de tableau ne comptent pas.',
+        slots: 'Créneaux de repos',
+      },
+      cap: {
+        label: 'Plafond quotidien de combats',
+        description:
+          'Demande confirmation avant qu’une personne arbitre plus de combats que cela en une journée. L’affectation automatique ne le dépasse jamais. 0 = pas de plafond.',
       },
       capacity: {
         label: 'Capacité',
@@ -3035,12 +3037,6 @@ export const organizer = {
     skillColor: 'Couleur de la compétence',
     skillDescription: 'Description (optionnel)',
     skillDescriptionPlaceholder: 'Info-bulle affichée dans le catalogue',
-    swapSuggestionsTitle: 'Échanges suggeres',
-    swapSuggestionsHelp:
-      '{count} échange(s) brise(nt) une chaine consecutive. Appliquez-en un pour reequilibrer.',
-    swapApply: 'Appliquer',
-    swapApplying: 'Application...',
-    swapApplyFailed: "Impossible d'appliquer l'échange.",
     catalogDragHandle: 'Glisser pour reordonner',
     catalogReorderFailed: 'Impossible de sauvegarder le nouvel ordre.',
     catalogHideAction: 'Masquer',

@@ -266,7 +266,6 @@ export class PhasesService {
       const anyRefereeOverride =
         dto.enforceRefereeNoBackToBack !== undefined ||
         dto.refereeRestMinSlots !== undefined ||
-        dto.enforceDedicatedRefereeRest !== undefined ||
         dto.preferHighRatedReferees !== undefined;
       if (anyRefereeOverride) {
         await this.settingsService.upsertSettings(eventId, tournamentId, {
@@ -275,9 +274,6 @@ export class PhasesService {
           }),
           ...(dto.refereeRestMinSlots !== undefined && {
             refereeRestMinSlots: dto.refereeRestMinSlots,
-          }),
-          ...(dto.enforceDedicatedRefereeRest !== undefined && {
-            enforceDedicatedRefereeRest: dto.enforceDedicatedRefereeRest,
           }),
           // enforceFighterRefereeNoOverlap is a HARD constraint (always true) and excluded from upsert
           ...(dto.preferHighRatedReferees !== undefined && {

@@ -44,7 +44,9 @@ left four rules to choose a level and a unit. The code they replace:
 
 - **A slot is a distinct start time of the day's Pools and rounds**, on the Event's clock, in time
   order. Saturday's units start at 10:00, 14:00 and 16:00: three slots. Two Pools that start at the
-  same minute are one slot.
+  same minute are one slot. "Rounds" are Swiss rounds (one unit per round and piste). A bracket bout
+  makes no slot and sits in none, so rest never fires for or against it (operator, 2026-09-26,
+  ruling 139); the cap still counts its bouts.
 - A duty is **Discouraged** when the person has another duty whose slot is within
   `referee_rest_min_slots` slots of it. With the default of 1, the 10:00 referee is Discouraged at
   14:00 and Fine at 16:00, and two hours of lunch in between change nothing. That is the operator's
@@ -69,8 +71,11 @@ left four rules to choose a level and a unit. The code they replace:
 - The Event sets a **maximum number of bouts per person per event day**; 0 means no cap. A duty that
   would take the person past it is Discouraged, with the count in the reason. Auto-assign never
   exceeds it. Ranking keeps preferring the less loaded candidate.
-- The count has one owner: the bouts under the person's duties that day, computed by the function
-  the roster page already uses. The board's load column shows that number. The hard-coded zero goes.
+- The count has one owner: the bouts under the person's duties that day, two roles on one bout
+  counted once. That owner is the checker's pure `boutsOnDay` (amended at build, 2026-09-26): the
+  roster page's count reads the database per Tournament over the whole Event and could not serve a
+  pure checker; it moves onto the same function when its `matches.referee_id` source goes (W1.4).
+  The board's picker shows each candidate's bouts on the slot's day. The hard-coded zero goes.
 
 ### Availability: a from–to window per day, Impossible outside it
 

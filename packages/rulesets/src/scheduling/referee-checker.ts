@@ -12,7 +12,8 @@
  *   - Discouraged: each rule has one per-Event switch; the organiser may go ahead
  *     after confirming. One's own Pool at another time; two roles on one unit;
  *     attending a Workshop at an overlapping time; refereeing while a Pool one fights
- *     in is running, outside one's own bouts (operator ruling 5).
+ *     in is running, outside one's own bouts (operator ruling 5); no rest between two
+ *     duties of one day, and past the day's bout cap (ADR-019, `referee-load.ts`).
  * The verdict is the worst level; every reason that applies is returned.
  *
  * Commitments arrive already windowed (ADR-017: a Match is `[start, start + length)`,
@@ -28,121 +29,22 @@
  * assignment engine into the admin board's bundle.
  */
 import { overlapsHalfOpen, type TimeWindowMs } from '@myclash/schedule-core';
+import {
+  levelOf,
+  type RefereeAvailability,
+  type RefereeCommitment,
+  type RefereeReason,
+  type RefereeReasonCode,
+  type RefereeSwitches,
+  type RefereeTarget,
+  type RefereeVerdict,
+  REFEREE_REASON_CODES,
+  type StoredRefereeReason,
+} from './referee-checker-types';
+import { boutsOverCap, dutiesTooClose } from './referee-load';
 
-export const REFEREE_REASON_CODES = [
-  'own_match',
-  'fights_overlap',
-  'referees_overlap',
-  'teaches_overlap',
-  'outside_availability',
-  'own_pool',
-  'own_pool_span',
-  'two_roles',
-  'attends_overlap',
-] as const;
-
-export type RefereeReasonCode = (typeof REFEREE_REASON_CODES)[number];
-export type RefereeLevel = 'impossible' | 'discouraged';
-
-const IMPOSSIBLE: ReadonlySet<RefereeReasonCode> = new Set<RefereeReasonCode>([
-  'own_match',
-  'fights_overlap',
-  'referees_overlap',
-  'teaches_overlap',
-  'outside_availability',
-]);
-
-export function levelOf(code: RefereeReasonCode): RefereeLevel {
-  return IMPOSSIBLE.has(code) ? 'impossible' : 'discouraged';
-}
-
-interface CommitmentBase {
-  /** `global_persons.id`. */
-  personId: string;
-  window: TimeWindowMs | null;
-  /** The data name a screen shows and a confirm stores. */
-  label: string;
-}
-
-/**
- * Something a person is doing. A fight is one bout; a fight-pool is the whole group a
- * person fights in — a Pool, or a Swiss round across its pistes — as its hull, and it
- * carries the two Pool rules; a referee duty sits on a board unit (a Pool, a Swiss round
- * on one piste, a bracket bout).
- *
- * A fight's `groupId` is the group whose span the bout is part of (the Pool, or the Swiss
- * round). A bout of that group on another piste at the same time is still two places at
- * once: the group decides the two Pool rules, never whether an overlap counts.
- */
-export type RefereeCommitment =
-  | (CommitmentBase & {
-      kind: 'fight';
-      matchId: string;
-      groupId: string | null;
-    })
-  | (CommitmentBase & { kind: 'fight-pool'; groupId: string })
-  | (CommitmentBase & {
-      kind: 'referee';
-      unitId: string;
-      poolId: string | null;
-      matchId: string | null;
-      role: string;
-    })
-  | (CommitmentBase & { kind: 'teach' | 'attend'; sessionId: string });
-
-/** What someone would referee. */
-export interface RefereeTarget {
-  /** 'pool': one Pool-scoped duty over the whole Pool. 'match': duties on these bouts. */
-  scope: 'pool' | 'match';
-  /** The board unit. Duties on the same unit are "on" the target (two roles, not two places). */
-  unitId: string;
-  /** The real Pool the unit or bout belongs to, when there is one. */
-  poolId: string | null;
-  /** The group whose fighters make this "their own" (a Pool, a Swiss round); null for a bracket bout. */
-  groupId: string | null;
-  matchIds: readonly string[];
-  window: TimeWindowMs | null;
-  role: string;
-  tournamentId: string;
-  /** The target's day on the Event clock, or null when it has no time. */
-  dayIndex: number | null;
-}
-
-/** Declared availability; null = no restriction on that axis. */
-export interface RefereeAvailability {
-  tournamentIds: readonly string[] | null;
-  dayIndices: readonly number[] | null;
-}
-
-export const ANY_AVAILABILITY: RefereeAvailability = { tournamentIds: null, dayIndices: null };
-
-/** The Discouraged rules' per-Event switches. The Impossible rules have none. */
-export interface RefereeSwitches {
-  ownPool: boolean;
-  ownPoolSpan: boolean;
-  twoRoles: boolean;
-  attendWorkshop: boolean;
-}
-
-export interface RefereeReason {
-  code: RefereeReasonCode;
-  level: RefereeLevel;
-  /** What it clashes with. Null for availability. */
-  against: { kind: 'match' | 'pool' | 'unit' | 'workshop'; id: string; label: string } | null;
-  /** True when the organiser already confirmed over this reason (ruling 135). */
-  confirmed: boolean;
-}
-
-export interface RefereeVerdict {
-  level: RefereeLevel | 'fine';
-  reasons: RefereeReason[];
-}
-
-/** What a confirm stores in `referee_assignments.conflicts_jsonb`. */
-export interface StoredRefereeReason {
-  code: RefereeReasonCode;
-  label: string;
-}
+export * from './referee-checker-types';
+export { boutsOnDay } from './referee-load';
 
 type Fight = Extract<RefereeCommitment, { kind: 'fight' }>;
 type FightPool = Extract<RefereeCommitment, { kind: 'fight-pool' }>;
@@ -213,11 +115,33 @@ function dutyReasons(
   const out: RefereeReason[] = [];
   for (const d of duties) {
     const against = { kind: 'unit' as const, id: d.unitId, label: d.label };
-    if (isOnTarget(d, target)) {
+    // A bout of one's own Pool crew, dragged to another piste at the same time as the target
+    // bout, is still two places at once (hard rule 8) — the duties' twin of fights_overlap.
+    const siblingBout = d.matchId !== null && !target.matchIds.includes(d.matchId);
+    if (isOnTarget(d, target) && siblingBout && overlaps(d.window, target.window)) {
+      out.push(reason('referees_overlap', against));
+    } else if (isOnTarget(d, target)) {
       if (switches.twoRoles && d.role !== target.role) out.push(reason('two_roles', against));
     } else if (overlaps(d.window, target.window)) {
       out.push(reason('referees_overlap', against));
     }
+  }
+  return out;
+}
+
+function loadReasons(
+  target: RefereeTarget,
+  duties: readonly Duty[],
+  switches: RefereeSwitches,
+): RefereeReason[] {
+  const out = dutiesTooClose(
+    target,
+    duties.filter((d) => !isOnTarget(d, target)),
+    switches.restSlots,
+  ).map((d) => reason('rest', { kind: 'unit', id: d.unitId, label: d.label }));
+  const total = boutsOverCap(target, duties, switches.maxBoutsPerDay);
+  if (total !== null) {
+    out.push(reason('cap', { kind: 'day', id: String(target.dayIndex), label: String(total) }));
   }
   return out;
 }
@@ -304,6 +228,7 @@ export function checkReferee(args: {
     dedupe([
       ...fightReasons(target, fights, pools, switches),
       ...dutyReasons(target, duties, switches),
+      ...loadReasons(target, duties, switches),
       ...workshopReasons(target, mine, switches),
       ...availabilityReasons(target, availability),
     ]),
@@ -312,8 +237,11 @@ export function checkReferee(args: {
 
 /**
  * Re-judge assignments that already exist, each without its own duty — that is how a
- * later schedule move shows red or amber (ADR-016 "later changes"). The own duty is
- * every duty of the same person, unit and role: a Swiss crew is one row per bout.
+ * later schedule move shows red or amber (ADR-016 "later changes"). The own duty is every
+ * duty of the same person, unit and role on the target's bouts: a Swiss crew is one row
+ * per bout and its target is the whole unit. A per-bout crew of a Pool is judged bout by
+ * bout, so its sibling rows stay: on the target they raise nothing, and the day's bout
+ * cap needs them.
  */
 export function checkAssignments<Id>(
   assignments: readonly { id: Id; personId: string; target: RefereeTarget }[],
@@ -329,7 +257,8 @@ export function checkAssignments<Id>(
           c.kind === 'referee' &&
           c.personId === a.personId &&
           c.unitId === a.target.unitId &&
-          c.role === a.target.role
+          c.role === a.target.role &&
+          (c.matchId === null || a.target.matchIds.includes(c.matchId))
         ),
     );
     out.set(

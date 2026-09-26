@@ -32,6 +32,8 @@ describe('levels', () => {
       'own_pool_span',
       'two_roles',
       'attends_overlap',
+      'rest',
+      'cap',
     ]);
   });
 
@@ -210,6 +212,7 @@ describe('a Swiss round is a group, not a Pool', () => {
     role: 'declarant',
     tournamentId: 'longsword',
     dayIndex: 0,
+    slot: 1,
   };
   const swissBout = (matchId: string, window: ReturnType<typeof w>): RefereeCommitment => ({
     kind: 'fight',
@@ -274,6 +277,15 @@ describe('referees_overlap and two_roles', () => {
     };
     const crew = duty('pool-b', w(120, 180), { poolId: 'pool-b', role: 'table' });
     expect(codes(check([crew], b2))).toEqual(['two_roles']);
+  });
+
+  it('calls a bout of her own crew on another piste at the same time referees_overlap (hard rule 8)', () => {
+    const b2: RefereeTarget = { ...poolB, scope: 'match', matchIds: ['b2'], window: w(140, 145) };
+    const sameRole = { poolId: 'pool-b', role: 'declarant' };
+    const b1Now = duty('pool-b', w(140, 145), { ...sameRole, matchId: 'b1' });
+    const b1Before = duty('pool-b', w(125, 130), { ...sameRole, matchId: 'b1' });
+    expect(codes(check([b1Now], b2))).toEqual(['referees_overlap']);
+    expect(check([b1Before], b2).level).toBe('fine');
   });
 
   it('is fine for two roles when the switch is off', () => {

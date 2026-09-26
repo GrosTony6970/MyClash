@@ -23,12 +23,10 @@ const generatePoolsSchema = z
     seed: z.number().int().optional(),
     /** Lice ID to assign matches to (optional — assigns all to one Lice if provided) */
     liceId: z.uuid().optional(),
-    /** Prevent a referee from being scheduled back-to-back across pools (default: true) */
+    /** Rest between two referee duties of a day, in day slots (ADR-019; default: true) */
     enforceRefereeNoBackToBack: z.boolean().optional(),
-    /** Number of pool slots a referee must rest between officiating duties (default: 1) */
-    refereeRestMinSlots: z.number().int().min(0).max(10).optional(),
-    /** Ensure competing referees get a rest between the pool they ref and the pool they fight in (default: true) */
-    enforceDedicatedRefereeRest: z.boolean().optional(),
+    /** Day slots a referee rests between two duties, 0–5 as everywhere (ADR-019; default: 1) */
+    refereeRestMinSlots: z.number().int().min(0).max(5).optional(),
     /** Never schedule a fighter to referee the same pool they're fighting in (default: true) */
     enforceFighterRefereeNoOverlap: z.boolean().optional(),
     /** Prefer referees with higher ratings when multiple candidates are available (default: true) */

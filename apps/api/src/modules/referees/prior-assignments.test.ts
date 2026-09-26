@@ -1,12 +1,17 @@
 import { describe, expect, it } from 'vitest';
+import type { AssignmentBoardPool } from './assignment-board.service';
 import { priorAssignmentsFromRows } from './prior-assignments';
 
+const unit = (id: string, bouts: string[]) =>
+  ({ id, matches: bouts.map((m) => ({ id: m })) }) as unknown as AssignmentBoardPool;
+
 const POOLS = [
-  { id: 'pool-1', matchIds: undefined },
+  // A real Pool, whose bouts the Pools page can staff one by one.
+  unit('pool-1', ['p1-a', 'p1-b']),
   // A synthetic bracket "pool" wrapping a single match.
-  { id: 'match-pool-9', matchIds: ['match-9'] },
+  unit('match-pool-9', ['match-9']),
   // A Swiss (round × piste) unit wrapping several consecutive bouts.
-  { id: 'swiss-r3-lice-a', matchIds: ['sw-1', 'sw-2', 'sw-3'] },
+  unit('swiss-r3-lice-a', ['sw-1', 'sw-2', 'sw-3']),
 ];
 
 describe('priorAssignmentsFromRows', () => {
@@ -40,6 +45,20 @@ describe('priorAssignmentsFromRows', () => {
       POOLS,
     );
     expect(priors).toEqual([{ poolId: 'match-pool-9', role: 'arbitre_table', personId: 'ref-2' }]);
+  });
+
+  it("maps a real Pool's bout-by-bout manual crew to that Pool, once", () => {
+    const priors = priorAssignmentsFromRows(
+      ['p1-a', 'p1-b'].map((matchId) => ({
+        person_id: 'ref-8',
+        pool_id: null,
+        match_id: matchId,
+        role: 'arbitre_declarant',
+        auto_assigned: false,
+      })),
+      POOLS,
+    );
+    expect(priors).toEqual([{ poolId: 'pool-1', role: 'arbitre_declarant', personId: 'ref-8' }]);
   });
 
   it('excludes auto-assigned rows (they are regenerated each run)', () => {

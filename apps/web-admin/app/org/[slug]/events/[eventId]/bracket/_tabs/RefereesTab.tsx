@@ -9,16 +9,15 @@
  *
  * Sub-sections per bracket round — so the operator can scan the medal
  * set separately from the rest of the bracket. Each shows the same
- * per-match slot cards + the shared SwapSuggestionsPanel.
+ * per-match slot cards.
  *
- * The board itself — fetch, catalogues, assign/unassign/swap — lives in the
+ * The board itself — fetch, catalogues, assign/unassign — lives in the
  * shared `useAssignmentBoard` hook; this file is the bracket-specific grouping
  * and nothing else.
  */
 
 import { useEffect, useMemo, useState } from 'react';
 import { useI18n } from '@myclash/next-i18n/client';
-import { SwapSuggestionsPanel } from '../../referees/_components/SwapSuggestionsPanel';
 import { CandidatePicker } from '../../referees/_components/CandidatePicker';
 import { formatHHMM } from '../../referees/_components/format-hhmm';
 import {
@@ -48,7 +47,6 @@ export function RefereesTab({ eventId, tournamentId, isReadOnly }: Props) {
     skillColorById,
     manualAssign,
     unassign,
-    applySwap,
   } = useAssignmentBoard(eventId, {
     loadFailed: t('organizer.bracketPage.refereesLoadFailed'),
     mutationFailed: t('organizer.bracketPage.refereesAssignFailed'),
@@ -106,10 +104,6 @@ export function RefereesTab({ eventId, tournamentId, isReadOnly }: Props) {
     );
   }
 
-  const filteredSwapSuggestions = (board.swapSuggestions ?? []).filter((s) =>
-    bracketPools.some((p) => p.id === s.fromPoolId),
-  );
-
   return (
     <section className="space-y-6">
       {error && (
@@ -157,13 +151,6 @@ export function RefereesTab({ eventId, tournamentId, isReadOnly }: Props) {
           onUnassign={(id) => void unassign(id)}
         />
       ))}
-
-      <SwapSuggestionsPanel
-        suggestions={filteredSwapSuggestions}
-        isReadOnly={isReadOnly || board.locked}
-        busy={busy}
-        onApply={(s) => void applySwap(s)}
-      />
 
       {picker && (
         <CandidatePicker

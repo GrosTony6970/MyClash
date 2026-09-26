@@ -3,7 +3,9 @@ import type { AssignmentBoardPool } from './assignment-board.service';
 import {
   assignmentTarget,
   availabilityOf,
+  boardClock,
   buildCommitments,
+  dutyOn,
   slatePools,
   switchesOf,
   unitIndex,
@@ -90,8 +92,13 @@ const people = new Map([
   ['reg-dan', 'dan'],
 ]);
 
+const day = (iso: string) => (iso.startsWith('2026-10-03') ? 0 : 1);
+// Day 0 starts at 10:00 (Pool A, Swiss piste 1) and 10:05 (Swiss piste 2): two slots.
+const clock = boardClock([poolA, swissP1, swissP2, final], day);
+
 const inputs = (over: Partial<CommitmentInputs> = {}): CommitmentInputs => ({
   units: [poolA, swissP1, swissP2, final],
+  clock,
   personIdByRegistration: people,
   assignments: [],
   sessions: [],
@@ -151,7 +158,7 @@ describe('buildCommitments', () => {
     expect(groups.map((c) => c.personId)).toEqual(['zoe']);
   });
 
-  it('windows a Pool-scoped duty on the hull and a Match-scoped one on its bout', () => {
+  it('windows a Pool-scoped duty on the hull and a Match-scoped one on its bout, with bouts, day and slot', () => {
     const duties = buildCommitments(
       inputs({
         assignments: [
@@ -171,6 +178,9 @@ describe('buildCommitments', () => {
         poolId: 'pool-a',
         matchId: null,
         role: 'decl',
+        matchIds: ['a1', 'a2'],
+        slot: 0,
+        dayIndex: 0,
         window: { startMs: ms('10:00'), endMs: ms('10:20') },
         label: 'Longsword · A',
       },
@@ -181,6 +191,9 @@ describe('buildCommitments', () => {
         poolId: 'pool-a',
         matchId: 'a2',
         role: 'table',
+        matchIds: ['a2'],
+        slot: 0,
+        dayIndex: 0,
         window: { startMs: ms('10:10'), endMs: ms('10:20') },
         label: 'Longsword · A',
       },
@@ -191,6 +204,9 @@ describe('buildCommitments', () => {
         poolId: null,
         matchId: 's2',
         role: 'decl',
+        matchIds: ['s2'],
+        slot: 1,
+        dayIndex: 0,
         window: { startMs: ms('10:05'), endMs: ms('10:15') },
         label: 'Longsword · LSW-S3',
       },
@@ -237,11 +253,34 @@ describe('buildCommitments', () => {
   });
 });
 
-describe('targets', () => {
-  const day = (iso: string) => (iso.startsWith('2026-10-03') ? 0 : 1);
+describe('day slots (ADR-019 rest)', () => {
+  const pool = (id: string, start: string) =>
+    unit({ id, matches: [bout(`${id}-1`, start, 'reg-x', 'reg-y')] });
 
+  it('numbers the distinct start times of a day in time order; one minute, one slot', () => {
+    const units = [pool('c', '14:00'), pool('a', '08:00'), pool('b', '08:00'), pool('d', '10:00')];
+    const { slotOf } = boardClock(units, day);
+    expect(units.map((u) => slotOf(u))).toEqual([2, 0, 0, 1]);
+  });
+
+  it('starts each day again at 0', () => {
+    const units = [pool('sat', '14:00'), unit({ id: 'sun', matches: [bout('s', null, 'x', 'y')] })];
+    const sunday = { ...units[1]!, scheduledStart: '2026-10-04T09:00:00.000Z' };
+    const { slotOf } = boardClock([units[0]!, sunday], day);
+    expect([slotOf(units[0]!), slotOf(sunday)]).toEqual([0, 0]);
+  });
+
+  it('gives a bracket bout and an untimed unit no slot, and they make none (ruling 139)', () => {
+    const bracket = { ...pool('br', '09:00'), kind: 'bracket' as const };
+    const later = pool('p', '11:00');
+    const { slotOf } = boardClock([bracket, later, final], day);
+    expect([slotOf(bracket), slotOf(later), slotOf(final)]).toEqual([null, 0, null]);
+  });
+});
+
+describe('targets', () => {
   it('a Pool is a Pool-scoped target over its hull', () => {
-    expect(unitTarget(poolA, 'decl', day)).toEqual({
+    expect(unitTarget(poolA, 'decl', clock)).toEqual({
       scope: 'pool',
       unitId: 'pool-a',
       poolId: 'pool-a',
@@ -251,31 +290,52 @@ describe('targets', () => {
       role: 'decl',
       tournamentId: 't-ls',
       dayIndex: 0,
+      slot: 0,
     });
   });
 
   it('a Swiss unit and a bracket bout are Match-scoped, and an unplaced one has no day', () => {
-    expect(unitTarget(swissP1, 'decl', day)).toMatchObject({
+    expect(unitTarget(swissP1, 'decl', clock)).toMatchObject({
       scope: 'match',
       poolId: null,
       groupId: 'swiss:r3',
+      slot: 0,
     });
-    expect(unitTarget(final, 'decl', day)).toMatchObject({
+    expect(unitTarget(final, 'decl', clock)).toMatchObject({
       scope: 'match',
       groupId: null,
       window: null,
       dayIndex: null,
+      slot: null,
     });
   });
 
   it('a Match-scoped row is judged on its own bout of its unit', () => {
     const row = { id: 'r2', person_id: 'lea', pool_id: null, match_id: 'a2', role: 'table' };
-    expect(assignmentTarget(row, poolA, day)).toMatchObject({
+    expect(assignmentTarget(row, poolA, clock)).toMatchObject({
       scope: 'match',
       unitId: 'pool-a',
       poolId: 'pool-a',
       matchIds: ['a2'],
       window: { startMs: ms('10:10'), endMs: ms('10:20') },
+      slot: 0,
+    });
+  });
+
+  it('a duty not written yet takes its target whole', () => {
+    const target = unitTarget(poolA, 'decl', clock);
+    expect(dutyOn(target, 'lea', 'Longsword · A', 'a1')).toEqual({
+      kind: 'referee',
+      personId: 'lea',
+      unitId: 'pool-a',
+      poolId: 'pool-a',
+      matchId: 'a1',
+      role: 'decl',
+      matchIds: ['a1', 'a2'],
+      slot: 0,
+      dayIndex: 0,
+      window: target.window,
+      label: 'Longsword · A',
     });
   });
 
@@ -288,15 +348,29 @@ describe('targets', () => {
 });
 
 describe('the rest of what the board hands the checker', () => {
-  it('maps the settings to the four Discouraged switches', () => {
-    expect(
-      switchesOf({
-        enableOwnPoolRule: true,
-        enableOwnPoolSpanRule: false,
-        enableTwoRolesRule: true,
-        workshopConflictWarning: false,
-      }),
-    ).toEqual({ ownPool: true, ownPoolSpan: false, twoRoles: true, attendWorkshop: false });
+  const settings = {
+    enableOwnPoolRule: true,
+    enableOwnPoolSpanRule: false,
+    enableTwoRolesRule: true,
+    workshopConflictWarning: false,
+    enforceRefereeNoBackToBack: true,
+    refereeRestMinSlots: 2,
+    maxBoutsPerDay: 12,
+  };
+
+  it('maps the settings to the Discouraged switches, rest and cap included', () => {
+    expect(switchesOf(settings)).toEqual({
+      ownPool: true,
+      ownPoolSpan: false,
+      twoRoles: true,
+      attendWorkshop: false,
+      restSlots: 2,
+      maxBoutsPerDay: 12,
+    });
+  });
+
+  it('turns rest off with its switch, whatever the number', () => {
+    expect(switchesOf({ ...settings, enforceRefereeNoBackToBack: false }).restSlots).toBe(0);
   });
 
   it('reads availability per person; nobody declared means no restriction', () => {

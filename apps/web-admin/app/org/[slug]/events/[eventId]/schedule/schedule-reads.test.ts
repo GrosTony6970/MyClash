@@ -209,8 +209,15 @@ describe('loadScheduleAndProgramme', () => {
   });
 });
 
-/** The four Discouraged switches (ADR-016), as the API sends them. */
-const RULES_ALL_ON = { ownPool: true, ownPoolSpan: true, twoRoles: true, attendWorkshop: true };
+/** The Discouraged switches (ADR-016, ADR-019), as the API sends them. */
+const RULES_ALL_ON = {
+  ownPool: true,
+  ownPoolSpan: true,
+  twoRoles: true,
+  attendWorkshop: true,
+  restSlots: 1,
+  maxBoutsPerDay: 0,
+};
 
 describe('loadRefereeConflictInputs', () => {
   const duty = {
@@ -258,6 +265,13 @@ describe('loadRefereeConflictInputs', () => {
     expect(result.ok).toBe(false);
     if (result.ok) return;
     expect(result.failure).toMatchObject({ kind: 'unauthenticated', status: 403, detail: 'nope' });
+  });
+
+  it('refuses switches without the rest and cap numbers (ADR-019)', async () => {
+    const { restSlots: _rest, ...withoutRest } = RULES_ALL_ON;
+    stubFetch([jsonResponse({ assignments: [], registrations: [], rules: withoutRest })]);
+    const result = await loadRefereeConflictInputs(API, EVENT, new AbortController().signal);
+    expect(result).toEqual({ ok: false, failure: null });
   });
 
   it('survives a payload missing an arm', async () => {

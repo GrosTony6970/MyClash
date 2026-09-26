@@ -15,6 +15,9 @@ const RULES = {
   enableOwnPoolSpanRule: true,
   enableTwoRolesRule: true,
   workshopConflictWarning: true,
+  enforceRefereeNoBackToBack: true,
+  refereeRestMinSlots: 1,
+  maxBoutsPerDay: 0,
 };
 
 const bout = (id: string, at: string, red: string, blue: string) => ({
@@ -54,7 +57,6 @@ const candidate = (personId: string, roles: string[]) => ({
   displayName: personId,
   clubLabel: null,
   qualifications: roles.map((role) => ({ role, rating: null })),
-  workload: 0,
 });
 
 const ROWS = {
@@ -171,8 +173,72 @@ describe('AssignmentBoardService.judgeWrite', () => {
 
   it('lets a free referee through with nothing to store', async () => {
     await expect(
-      service.judgeWrite('event-1', write({ personId: 'ref', matchIds: ['m-1', 'm-4'] })),
-    ).resolves.toEqual({ stored: [], matchIds: ['m-1', 'm-4'], skippedMatchIds: [] });
+      service.judgeWrite('event-1', write({ personId: 'ref', matchIds: ['m-1', 'm-2'] })),
+    ).resolves.toEqual({ stored: [], matchIds: ['m-1', 'm-2'], skippedMatchIds: [] });
+  });
+
+  it("judges each bout with the write's other bouts: two pistes at once is Impossible", async () => {
+    // m-1 (Pool A) and m-4 (Pool B) both start at 10:00 on two pistes.
+    const error = await refusal(
+      write({ personId: 'ref', matchIds: ['m-1', 'm-4'], confirm: true }),
+    );
+    expect(error.getResponse()).toMatchObject({
+      code: 'referee_impossible',
+      reasons: [
+        expect.objectContaining({
+          code: 'referees_overlap',
+          against: expect.objectContaining({ id: 'pool-b' }),
+        }),
+        expect.objectContaining({
+          code: 'referees_overlap',
+          against: expect.objectContaining({ id: 'pool-a' }),
+        }),
+      ],
+    });
+  });
+
+  it('refuses a crew for two bouts of one Pool dragged to two pistes at the same time', async () => {
+    // Pool D's two bouts both start at 11:00: one crew cannot stand on both pistes.
+    const poolD = pool('pool-d', 'Pool D', [
+      { ...bout('m-5', '11:00', 'reg-ben', 'reg-cleo'), liceId: 'lice-1' },
+      { ...bout('m-6', '11:00', 'reg-dan', 'reg-eve'), liceId: 'lice-2' },
+    ]);
+    vi.spyOn(
+      service as unknown as { loadBoardRows: (eventId: string) => Promise<unknown> },
+      'loadBoardRows',
+    ).mockResolvedValue({ ...ROWS, pools: [POOL_A, POOL_B, poolD] });
+    const error = await refusal(
+      write({ personId: 'ref', matchIds: ['m-5', 'm-6'], confirm: true }),
+    );
+    expect(error.getResponse()).toMatchObject({
+      code: 'referee_impossible',
+      reasons: [expect.objectContaining({ code: 'referees_overlap' })],
+    });
+  });
+
+  it("counts the whole crew against the day's bout cap, not one bout at a time", async () => {
+    vi.spyOn(
+      service as unknown as { loadBoardRows: (eventId: string) => Promise<unknown> },
+      'loadBoardRows',
+    ).mockResolvedValue({ ...ROWS, ruleSettings: { ...RULES, maxBoutsPerDay: 2 } });
+    const crew = write({ personId: 'ref', matchIds: ['m-1', 'm-2', 'm-3'] });
+    const error = await refusal(crew);
+    expect(error.getResponse()).toMatchObject({
+      code: 'referee_needs_confirmation',
+      reasons: [
+        {
+          code: 'cap',
+          level: 'discouraged',
+          against: { kind: 'day', id: '0', label: '3' },
+          confirmed: false,
+        },
+      ],
+    });
+    await expect(service.judgeWrite('event-1', { ...crew, confirm: true })).resolves.toEqual({
+      stored: [{ code: 'cap', label: '3' }],
+      matchIds: ['m-1', 'm-2', 'm-3'],
+      skippedMatchIds: [],
+    });
   });
 
   it('judges a whole Pool as the board does (the AI door)', async () => {

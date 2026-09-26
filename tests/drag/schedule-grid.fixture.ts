@@ -259,7 +259,14 @@ export const refereeMatchAssignmentsFixture = {
   registrations: [
     { registrationId: 'reg-red', personId: REFEREE_PERSON, personName: 'Denis Referee' },
   ],
-  rules: { ownPool: true, ownPoolSpan: true, twoRoles: true, attendWorkshop: true },
+  rules: {
+    ownPool: true,
+    ownPoolSpan: true,
+    twoRoles: true,
+    attendWorkshop: true,
+    restSlots: 1,
+    maxBoutsPerDay: 0,
+  },
 };
 
 /**
@@ -269,7 +276,14 @@ export const refereeMatchAssignmentsFixture = {
  */
 export const refereeCrewConflictsFixture = {
   conflicts: [],
-  rules: { ownPool: true, ownPoolSpan: true, twoRoles: true, attendWorkshop: true },
+  rules: {
+    ownPool: true,
+    ownPoolSpan: true,
+    twoRoles: true,
+    attendWorkshop: true,
+    restSlots: 1,
+    maxBoutsPerDay: 0,
+  },
   asOf: at('09:30'),
 };
 

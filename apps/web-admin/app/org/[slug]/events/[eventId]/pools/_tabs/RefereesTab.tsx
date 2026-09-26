@@ -28,7 +28,6 @@ import { useMemo, useState } from 'react';
 import { type AppLocale } from '@myclash/time';
 import { useI18n } from '@myclash/next-i18n/client';
 import { PoolTimelineGrid, type TimelinePool } from './_components/PoolTimelineGrid';
-import { SwapSuggestionsPanel } from '../../referees/_components/SwapSuggestionsPanel';
 import { PoolSlotCard } from '../../referees/_components/PoolSlotCard';
 import { CandidatePicker } from '../../referees/_components/CandidatePicker';
 import { formatHHMM } from '../../referees/_components/format-hhmm';
@@ -57,7 +56,6 @@ export function RefereesTab({ eventId, tournamentId, isReadOnly }: Props) {
     liceNameById,
     manualAssign,
     unassign,
-    applySwap,
   } = useAssignmentBoard(eventId, {
     loadFailed: t('organizer.poolsPage.refereesLoadFailed'),
     mutationFailed: t('organizer.poolsPage.refereesAssignFailed'),
@@ -167,18 +165,6 @@ export function RefereesTab({ eventId, tournamentId, isReadOnly }: Props) {
           ))}
         </div>
       </section>
-
-      {/* R4: back-to-back swap suggestions for the assignments shown
-          here. Filters server-output to this tournament's pools — keeps
-          the panel relevant to the operator's current context. */}
-      <SwapSuggestionsPanel
-        suggestions={(board.swapSuggestions ?? []).filter((s) =>
-          tournamentPools.some((p) => p.id === s.fromPoolId),
-        )}
-        isReadOnly={isReadOnly || board.locked}
-        busy={busy}
-        onApply={(s) => void applySwap(s)}
-      />
 
       {picker && (
         <CandidatePicker

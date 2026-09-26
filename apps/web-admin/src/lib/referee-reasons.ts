@@ -50,6 +50,11 @@ export function refereeReasonText(
       return t('organizer.refereeBoard.reasons.two_roles', v);
     case 'attends_overlap':
       return t('organizer.refereeBoard.reasons.attends_overlap', v);
+    case 'rest':
+      return t('organizer.refereeBoard.reasons.rest', v);
+    case 'cap':
+      // `against` is the day's bout total with this duty (ADR-019).
+      return t('organizer.refereeBoard.reasons.cap', v);
     case 'missing_qualification':
       return t('organizer.refereeBoard.reasons.missing_qualification');
   }

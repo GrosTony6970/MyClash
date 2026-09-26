@@ -32,7 +32,8 @@ const updateSettingsSchema = z
     // enforce_fighter_referee_no_overlap is NOT in this DTO — it cannot be changed
     enforceRefereeNoBackToBack: z.boolean().optional(),
     refereeRestMinSlots: z.number().int().min(0).max(5).optional(),
-    enforceDedicatedRefereeRest: z.boolean().optional(),
+    // ADR-019: most bouts a person referees in one Event day; 0 = no cap.
+    maxBoutsPerDay: z.number().int().min(0).max(200).optional(),
     workshopConflictWarning: z.boolean().optional(),
     ratingBasedOrdering: z.boolean().optional(),
     workloadBalance: z.boolean().optional(),
@@ -46,7 +47,7 @@ const updateSettingsSchema = z
     enableCapacityRule: z.boolean().optional(),
   })
   .strict();
-class UpdateSettingsDto extends createZodDto(updateSettingsSchema) {}
+export class UpdateSettingsDto extends createZodDto(updateSettingsSchema) {}
 
 @ApiTags('referees')
 @Controller()

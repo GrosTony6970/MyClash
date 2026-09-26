@@ -22,6 +22,7 @@ export type {
   RefereeAssignment,
   PriorAssignment,
   MissingAssignment,
-  AssignmentWarning,
+  EmptySlotReason,
+  EngineRules as RefereeEngineRules,
   AssignmentResult,
 } from './referee-assigner';

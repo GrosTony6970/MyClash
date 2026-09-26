@@ -21,9 +21,11 @@ export interface PoolAssignmentSettings {
   enforceSkillBalance: boolean;
   /** HARD CONSTRAINT — always true, cannot be disabled */
   enforceFighterRefereeNoOverlap: true;
+  /** ADR-019 rest: the switch, and how many day slots apart two duties must be (0–5). */
   enforceRefereeNoBackToBack: boolean;
   refereeRestMinSlots: number;
-  enforceDedicatedRefereeRest: boolean;
+  /** ADR-019 cap: most bouts a person referees in one Event day; 0 = no cap. */
+  maxBoutsPerDay: number;
   workshopConflictWarning: boolean;
   ratingBasedOrdering: boolean;
   workloadBalance: boolean;
@@ -47,7 +49,7 @@ const DEFAULTS: Omit<PoolAssignmentSettings, 'id' | 'eventId' | 'tournamentId'> 
   enforceFighterRefereeNoOverlap: true, // HARD — always true
   enforceRefereeNoBackToBack: true,
   refereeRestMinSlots: 1,
-  enforceDedicatedRefereeRest: false,
+  maxBoutsPerDay: 0,
   workshopConflictWarning: true,
   ratingBasedOrdering: true,
   workloadBalance: true,
@@ -121,8 +123,7 @@ export class SettingsService {
       updates['enforce_referee_no_back_to_back'] = patch.enforceRefereeNoBackToBack;
     if (patch.refereeRestMinSlots !== undefined)
       updates['referee_rest_min_slots'] = patch.refereeRestMinSlots;
-    if (patch.enforceDedicatedRefereeRest !== undefined)
-      updates['enforce_dedicated_referee_rest'] = patch.enforceDedicatedRefereeRest;
+    if (patch.maxBoutsPerDay !== undefined) updates['max_bouts_per_day'] = patch.maxBoutsPerDay;
     if (patch.workshopConflictWarning !== undefined)
       updates['workshop_conflict_warning'] = patch.workshopConflictWarning;
     if (patch.ratingBasedOrdering !== undefined)
@@ -174,7 +175,7 @@ export class SettingsService {
         enforce_fighter_referee_no_overlap: true, // HARD — always true
         enforce_referee_no_back_to_back: DEFAULTS.enforceRefereeNoBackToBack,
         referee_rest_min_slots: DEFAULTS.refereeRestMinSlots,
-        enforce_dedicated_referee_rest: DEFAULTS.enforceDedicatedRefereeRest,
+        max_bouts_per_day: DEFAULTS.maxBoutsPerDay,
         workshop_conflict_warning: DEFAULTS.workshopConflictWarning,
         rating_based_ordering: DEFAULTS.ratingBasedOrdering,
         workload_balance: DEFAULTS.workloadBalance,
@@ -210,7 +211,7 @@ export class SettingsService {
       enforceFighterRefereeNoOverlap: true, // HARD — always true regardless of DB value
       enforceRefereeNoBackToBack: Boolean(r['enforce_referee_no_back_to_back'] ?? true),
       refereeRestMinSlots: (r['referee_rest_min_slots'] as number) ?? 1,
-      enforceDedicatedRefereeRest: Boolean(r['enforce_dedicated_referee_rest'] ?? false),
+      maxBoutsPerDay: (r['max_bouts_per_day'] as number) ?? 0,
       workshopConflictWarning: Boolean(r['workshop_conflict_warning'] ?? true),
       ratingBasedOrdering: Boolean(r['rating_based_ordering'] ?? true),
       workloadBalance: Boolean(r['workload_balance'] ?? true),

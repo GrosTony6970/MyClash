@@ -27,8 +27,8 @@ import { useI18n, type Translator } from '@myclash/next-i18n/client';
 import { useEventStatus } from '../_hooks/useEventStatus';
 import { SkillCatalog } from './_components/SkillCatalog';
 import { StaffingTab } from './_components/StaffingTab';
-import { SwapSuggestionsPanel } from './_components/SwapSuggestionsPanel';
-import { AssignmentDiagnosticsPanel, type RuleKey } from './_components/AssignmentDiagnosticsPanel';
+import { AssignmentDiagnosticsPanel } from './_components/AssignmentDiagnosticsPanel';
+import type { RuleSettings } from './_components/RefereeRulesFooter';
 import { PoolSlotCard } from './_components/PoolSlotCard';
 import { LockRefusal } from './_components/LockRefusal';
 import { requestLock } from './_components/lock-assignments';
@@ -106,7 +106,6 @@ interface AssignmentBoardCandidate {
   displayName: string;
   clubLabel: string | null;
   qualifications: Array<{ role: AssignmentRole; rating: number | null }>;
-  workload: number;
 }
 
 interface AssignmentBoardRoleSlot {
@@ -134,11 +133,14 @@ interface AssignmentBoardRoleSlot {
   missingReasons: string[];
   /** Sorted by the one checker's verdict (ADR-016). */
   candidates: {
-    recommended: AssignmentBoardCandidate[];
-    warning: Array<AssignmentBoardCandidate & { reasons: PickerReason[] }>;
-    blocked: Array<AssignmentBoardCandidate & { reasons: PickerReason[] }>;
+    recommended: PickerCandidate[];
+    warning: Array<PickerCandidate & { reasons: PickerReason[] }>;
+    blocked: Array<PickerCandidate & { reasons: PickerReason[] }>;
   };
 }
+
+/** A candidate as the picker lists them for one slot: their bouts on the slot's day (ADR-019). */
+type PickerCandidate = AssignmentBoardCandidate & { boutsThatDay: number | null };
 
 interface AssignmentBoardPool {
   id: string;
@@ -164,18 +166,6 @@ interface AssignmentBoardPool {
   roleSlots: AssignmentBoardRoleSlot[];
 }
 
-/** R4: surfaced from the engine's swap-suggestion computation. */
-interface SwapSuggestion {
-  fromPoolId: string;
-  fromSlotIndex: number;
-  fromPersonId: string;
-  fromPersonName: string;
-  toPersonId: string;
-  toPersonName: string;
-  reason: 'breaks_back_to_back';
-  detail: string;
-}
-
 interface AssignmentBoard {
   roles: AssignmentRole[];
   pools: AssignmentBoardPool[];
@@ -187,12 +177,10 @@ interface AssignmentBoard {
     role: AssignmentRole;
     reasons: string[];
   }>;
-  warnings: Array<{ poolId: string; poolName: string; role: AssignmentRole; detail: string }>;
   locked: boolean;
   conflicts: RefereeConflictEntry[];
   capacityWarnings: CapacityWarning[];
   deadEndSlots: Array<{ poolId: string; poolName: string; role: string }>;
-  swapSuggestions: SwapSuggestion[];
 }
 
 type QualIdMap = Map<string, string>;
@@ -884,13 +872,13 @@ function AssignmentsTab({
     return () => controller.abort();
   }, [eventId, apiUrl]);
 
-  // Per-rule toggles (health panel checkboxes) — persisted in the event's
-  // pool-assignment-settings; the board re-loads after a toggle so
-  // conflicts / candidate blocking re-evaluate against the new rule set.
-  const [ruleSettings, setRuleSettings] = useState<Record<RuleKey, boolean> | null>(null);
+  // Per-rule settings (health panel checkboxes and ADR-019's two numbers) — persisted in
+  // the event's pool-assignment-settings; the board re-loads after a change so conflicts /
+  // candidate blocking re-evaluate against the new rule set.
+  const [ruleSettings, setRuleSettings] = useState<RuleSettings | null>(null);
   useEffect(() => {
     const controller = new AbortController();
-    void apiRequest<Record<RuleKey, boolean>>(
+    void apiRequest<Partial<RuleSettings>>(
       apiUrl,
       `/api/v1/events/${eventId}/pool-assignment-settings`,
       { signal: controller.signal },
@@ -900,28 +888,27 @@ function AssignmentsTab({
       setRuleSettings({
         enableOwnPoolRule: s.enableOwnPoolRule ?? true,
         enableOwnPoolSpanRule: s.enableOwnPoolSpanRule ?? true,
-        enableOfficiateVsFightRule: s.enableOfficiateVsFightRule ?? true,
-        enableDoubleBookedRule: s.enableDoubleBookedRule ?? true,
         enableTwoRolesRule: s.enableTwoRolesRule ?? true,
         workshopConflictWarning: s.workshopConflictWarning ?? true,
-        enableAvailabilityRule: s.enableAvailabilityRule ?? true,
+        enforceRefereeNoBackToBack: s.enforceRefereeNoBackToBack ?? true,
         enableCapacityRule: s.enableCapacityRule ?? true,
+        refereeRestMinSlots: s.refereeRestMinSlots ?? 1,
+        maxBoutsPerDay: s.maxBoutsPerDay ?? 0,
       });
     });
     return () => controller.abort();
   }, [eventId, apiUrl]);
 
-  async function toggleRule(key: RuleKey, enabled: boolean) {
+  async function changeRule<K extends keyof RuleSettings>(key: K, value: RuleSettings[K]) {
     const prev = ruleSettings;
-    setRuleSettings((cur) => (cur ? { ...cur, [key]: enabled } : cur));
+    setRuleSettings((cur) => (cur ? { ...cur, [key]: value } : cur));
     const r = await apiRequest(apiUrl, `/api/v1/events/${eventId}/pool-assignment-settings`, {
       method: 'PUT',
-      body: { [key]: enabled },
+      body: { [key]: value },
     });
     if (!r.ok) {
-      // The checkbox goes back to what the server still holds. Rule 8 is one
-      // of these and it CANNOT be switched off, so the API refuses that by
-      // name — a sentence the fixed one used to hide.
+      // The control goes back to what the server still holds, and the API's own words
+      // say why (an out-of-range number, say).
       setRuleSettings(prev ?? null);
       setError(failureMessage(r, t, t('organizer.refereesPage.rules.toggleFailed')));
       return;
@@ -1021,44 +1008,6 @@ function AssignmentsTab({
         return;
       }
       await loadBoard();
-    } finally {
-      setRunning(false);
-    }
-  }
-
-  /**
-   * R4: apply a swap suggestion. Implemented as unassign-then-assign:
-   * delete the old assignment for the (poolId, slot) tuple, then POST
-   * the new one. Both calls reuse the existing /referee-assignments
-   * endpoints — no new backend surface. If the assign step fails after
-   * the unassign succeeded, the slot is left empty and the operator
-   * sees the failure toast; they can retry manually.
-   */
-  async function applySwap(suggestion: SwapSuggestion) {
-    if (!board) return;
-    // Find the existing assignment for that slot so we know which id to delete.
-    const pool = [...board.pools, ...board.unscheduledPools].find(
-      (p) => p.id === suggestion.fromPoolId,
-    );
-    const slot = pool?.roleSlots.find((s) => s.slotIndex === suggestion.fromSlotIndex);
-    const oldAssignmentId = slot?.assignment?.id;
-    setRunning(true);
-    setError(null);
-    try {
-      if (oldAssignmentId) {
-        const r = await apiRequest(apiUrl, `/api/v1/referee-assignments/${oldAssignmentId}`, {
-          method: 'DELETE',
-        });
-        // The swap stops here rather than assigning the replacement on top of
-        // an assignment that is still standing.
-        if (!r.ok) {
-          setError(failureMessage(r, t, t('organizer.refereesPage.swapApplyFailed')));
-          return;
-        }
-      }
-      // Assign the new ref. The board response from POST is the
-      // refreshed board, so we use it directly.
-      await manualAssign(suggestion.fromPoolId, slot?.role ?? '', suggestion.toPersonId);
     } finally {
       setRunning(false);
     }
@@ -1430,7 +1379,7 @@ function AssignmentsTab({
                 skillNameById={skillNameById}
                 roleLabel={(role) => roleLabel(t, role, skillNameById)}
                 {...(ruleSettings ? { ruleSettings } : {})}
-                onToggleRule={(key, enabled) => void toggleRule(key, enabled)}
+                onChangeRule={(key, value) => void changeRule(key, value)}
                 togglesDisabled={isReadOnly || running || previewing}
               />
             </div>
@@ -1478,14 +1427,6 @@ function AssignmentsTab({
               </div>
             )}
             {renderTimeslotSections()}
-            {/* R4: back-to-back swap suggestions (engine-computed).
-                Panel hides itself when the list is empty. */}
-            <SwapSuggestionsPanel
-              suggestions={board.swapSuggestions ?? []}
-              isReadOnly={isReadOnly}
-              busy={running}
-              onApply={(s) => void applySwap(s)}
-            />
           </div>
         </>
       )}

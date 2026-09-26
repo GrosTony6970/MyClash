@@ -65,8 +65,8 @@ It lives in `packages/rulesets/src/scheduling/`, next to the engine. It is pure.
 It does no I/O, so the API and the admin schedule board call the same code. `packages/types` keeps
 only the shared shapes, so the scoring pad does not carry the logic.
 
-Ranking candidates by rating, workload and rest stays inside the engine. That is a different job,
-and it has one caller.
+Ranking candidates by rating and workload stays inside the engine. That is a different job, and it
+has one caller. Rest is not ranking: it is a Discouraged rule of the checker (ADR-019).
 
 The checker returns one of three levels, with every reason that applies.
 
@@ -91,6 +91,9 @@ ahead after confirming:
   whole-Pool span (operator, 2026-09-18, ruling 5; its own switch, ruling 21). A fighter is busy
   for their Pool's hull everywhere, refereeing included. Their own bouts overlapping stay
   Impossible.
+- refereeing without rest: another duty of that day within `referee_rest_min_slots` day slots
+  (ADR-019; its switch is `enforce_referee_no_back_to_back`);
+- refereeing past the day's bout cap, `max_bouts_per_day` (ADR-019; 0 = no cap).
 
 **Fine** — no rule applies.
 
@@ -122,7 +125,9 @@ slate, with its own switch, and it never blocks.
   Impossible, unless the organiser sends anyway over exactly the duties it listed (ruling 138). Deleting a bout or a Pool is not a referee
   door: its crew goes with it, locked or not (ruling 137).
 - **Auto-assign never picks a Discouraged candidate.** An empty slot lists every reason, in the
-  picker's words.
+  picker's words. It asks the checker for every candidate, with its own proposals counted as
+  duties, over the commitments the run keeps (never the auto rows it replaces); Apply re-judges
+  every proposal before it deletes anything, and a refused one is an engine bug and a 5xx (W1.3).
 - **The schedule board's instant check calls the same checker.** The second detector retires, and
   `apps/api/src/modules/phases/conflict-check.controller.ts` answers from the checker.
 - **Changes that are not assignments are allowed.** Moving a Match or Pool, programme generate,

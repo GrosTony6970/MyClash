@@ -29,6 +29,11 @@ describe('the referee reason words', () => {
     expect(refereeReasonText(t, 'outside_availability', '')).toBe(
       'outside their declared availability',
     );
+    // The cap's `against` is the day's bout total, not a name.
+    expect(refereeReasonText(t, 'cap', '9')).toBe('past the daily bout cap (9 bouts that day)');
+    expect(refereeReasonText(t, 'rest', 'Longsword · B')).toBe(
+      'no rest since another duty (Longsword · B)',
+    );
   });
 
   it('joins several, from a checker reason or a picker reason alike', () => {

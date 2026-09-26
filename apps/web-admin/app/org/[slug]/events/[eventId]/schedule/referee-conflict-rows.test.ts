@@ -1,97 +1,18 @@
-import type { RefereeSwitches } from '@myclash/rulesets/scheduling/referee-checker';
-import { describe, expect, it } from 'vitest';
-import {
-  buildRefereeConflictRows,
-  type RefereeConflictAssignment,
-  type RefereeConflictMatch,
-  type RefereeConflictRegistration,
-} from './referee-conflict-rows';
-
 /**
  * The live half of hard rule 8: the cards, turned into commitments, judged by the REAL
  * one checker (ADR-016) — no stub, so these hold the rules as the server applies them.
- *
- * Every fixture keeps the registration id and the person id visibly different (`reg-*`
- * against `gp-*`): keying on `persons.id` instead of `global_persons.id` produces a join
- * that matches nothing — no rows, no error, a board that looks healthy.
- *
- * Times are asserted from a NEW YORK event, not a Paris one. This machine, the app default
- * zone and the drag fixture are all Europe/Paris, so a Paris assertion agrees with a
- * dropped timezone argument and proves nothing.
+ * The fixtures and why they look the way they do: referee-conflict-rows.fixtures.ts.
  */
-
-const TZ = 'America/New_York';
-const UNKNOWN = 'Unknown fighter';
-/** Shaped like a real id so a leak is obvious. */
-const PERSON_UUID = '6f1e9f42-0000-4000-8000-000000000001';
-const ALL_ON: RefereeSwitches = {
-  ownPool: true,
-  ownPoolSpan: true,
-  twoRoles: true,
-  attendWorkshop: true,
-};
-
-function match(over: Partial<RefereeConflictMatch> & { id: string }): RefereeConflictMatch {
-  return {
-    matchNumberLabel: over.id,
-    liceId: 'lice-1',
-    scheduledAt: '2026-06-13T13:00:00Z',
-    durationMinutes: 5,
-    redRegistrationId: `reg-red-${over.id}`,
-    blueRegistrationId: `reg-blue-${over.id}`,
-    poolId: null,
-    poolName: null,
-    tournamentName: 'Longsword',
-    ...over,
-  };
-}
-
-/** A Match-scoped duty on `matchId`. */
-function onBout(
-  matchId: string,
-  over: Partial<RefereeConflictAssignment> = {},
-): RefereeConflictAssignment {
-  return {
-    scopeType: 'match',
-    matchId,
-    poolId: null,
-    personId: 'gp-denis',
-    personName: 'Denis',
-    role: 'declarant',
-    confirmedReasons: [],
-    ...over,
-  };
-}
-
-/** A Pool-scoped duty on `poolId`. */
-function onPool(
-  poolId: string,
-  over: Partial<RefereeConflictAssignment> = {},
-): RefereeConflictAssignment {
-  return onBout('', { scopeType: 'pool', matchId: null, poolId, ...over });
-}
-
-const denisIs = (registrationId: string): RefereeConflictRegistration => ({
-  registrationId,
-  personId: 'gp-denis',
-  personName: 'Denis',
-});
-
-function build(args: {
-  matches: RefereeConflictMatch[];
-  assignments: RefereeConflictAssignment[];
-  registrations: RefereeConflictRegistration[];
-  rules?: RefereeSwitches;
-}) {
-  return buildRefereeConflictRows({
-    rules: ALL_ON,
-    ...args,
-    tz: TZ,
-    unknownPersonLabel: UNKNOWN,
-  });
-}
-
-const codesOf = (rows: ReturnType<typeof build>) => rows.map((r) => r.reasons.map((x) => x.code));
+import { describe, expect, it } from 'vitest';
+import {
+  ALL_ON,
+  build,
+  codesOf,
+  denisIs,
+  match,
+  onBout,
+  onPool,
+} from './referee-conflict-rows.fixtures';
 
 describe('buildRefereeConflictRows — overlap (Impossible)', () => {
   it('flags a referee whose bout runs into the one they referee', () => {
@@ -266,6 +187,19 @@ describe('buildRefereeConflictRows — Pools', () => {
     ]);
   });
 
+  it('says nothing about rest or the daily cap: those are the server section (C8)', () => {
+    // Denis crews Pool 1 (two bouts) then Pool 3 right after: next slot, three bouts.
+    const pool3 = [
+      match({ id: 'P3a', poolId: 'p3', poolName: 'Pool 3', scheduledAt: '2026-06-13T13:30:00Z' }),
+    ];
+    const rows = build({
+      matches: [...pool1, ...pool3],
+      assignments: [onPool('p1'), onPool('p3')],
+      registrations: [],
+    });
+    expect(rows).toEqual([]);
+  });
+
   it('calls crewing his own Pool Discouraged, and the switch turns it off', () => {
     const args = {
       matches: pool1,
@@ -339,55 +273,5 @@ describe('buildRefereeConflictRows — Swiss rounds', () => {
   it('says nothing about the round at another time (no group on the board)', () => {
     const later = { ...s2, scheduledAt: '2026-06-13T13:20:00Z' };
     expect(build({ matches: [s1, later], ...refereeingS1 })).toEqual([]);
-  });
-});
-
-describe('buildRefereeConflictRows — naming', () => {
-  const clash = (
-    assignment: RefereeConflictAssignment,
-    registrations: RefereeConflictRegistration[],
-  ) =>
-    build({
-      matches: [match({ id: 'A' }), match({ id: 'B', scheduledAt: '2026-06-13T13:02:00Z' })],
-      assignments: [assignment],
-      registrations,
-    });
-
-  it('never renders a person id — falls back to the caller label', () => {
-    const rows = clash(onBout('B', { personId: PERSON_UUID, personName: '' }), [
-      { registrationId: 'reg-red-A', personId: PERSON_UUID, personName: '' },
-    ]);
-    expect(rows[0]!.personName).toBe(UNKNOWN);
-    expect(JSON.stringify(rows.map((r) => r.personName))).not.toContain(PERSON_UUID);
-  });
-
-  it('treats a whitespace-only name as no name, and borrows the registration name', () => {
-    const rows = clash(onBout('B', { personName: '   ' }), [denisIs('reg-red-A')]);
-    expect(rows[0]!.personName).toBe('Denis');
-  });
-
-  it('falls back to the bout number when a bout has no canonical code', () => {
-    const rows = clash(onBout('B'), [denisIs('reg-red-A')]);
-    expect(rows[0]!.refereeingLabel).toBe('Longsword · B');
-  });
-});
-
-describe('buildRefereeConflictRows — id spaces', () => {
-  it('joins on the person id, not the registration id', () => {
-    const rows = build({
-      matches: [match({ id: 'A' }), match({ id: 'B', scheduledAt: '2026-06-13T13:02:00Z' })],
-      assignments: [onBout('B', { personId: 'reg-red-A' })],
-      registrations: [denisIs('reg-red-A')],
-    });
-    expect(rows).toEqual([]);
-  });
-
-  it('does not pair two unresolved people through an empty id', () => {
-    const rows = build({
-      matches: [match({ id: 'A' }), match({ id: 'B', scheduledAt: '2026-06-13T13:02:00Z' })],
-      assignments: [onBout('B', { personId: '' })],
-      registrations: [{ registrationId: 'reg-red-A', personId: '', personName: '' }],
-    });
-    expect(rows).toEqual([]);
   });
 });

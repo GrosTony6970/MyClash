@@ -10301,7 +10301,6 @@ export interface components {
       liceId?: string;
       enforceRefereeNoBackToBack?: boolean;
       refereeRestMinSlots?: number;
-      enforceDedicatedRefereeRest?: boolean;
       enforceFighterRefereeNoOverlap?: boolean;
       preferHighRatedReferees?: boolean;
       discardScoredResults?: boolean;
@@ -10385,7 +10384,7 @@ export interface components {
       enforceSkillBalance?: boolean;
       enforceRefereeNoBackToBack?: boolean;
       refereeRestMinSlots?: number;
-      enforceDedicatedRefereeRest?: boolean;
+      maxBoutsPerDay?: number;
       workshopConflictWarning?: boolean;
       ratingBasedOrdering?: boolean;
       workloadBalance?: boolean;

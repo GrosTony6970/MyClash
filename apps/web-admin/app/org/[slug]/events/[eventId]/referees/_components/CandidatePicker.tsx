@@ -16,9 +16,9 @@ import { useI18n } from '@myclash/next-i18n/client';
 import { Modal } from '@myclash/ui';
 import { refereeReasonsText, type PickerReason } from '@/lib/referee-reasons';
 import type {
-  AssignmentBoardCandidate,
   AssignmentBoardPool,
   AssignmentBoardRoleSlot,
+  PickerCandidate,
 } from './useAssignmentBoard';
 
 export function CandidatePicker({
@@ -97,11 +97,11 @@ function CandidateGroup({
   onSelect,
 }: {
   title: string;
-  candidates: Array<AssignmentBoardCandidate & { reasons?: PickerReason[] }>;
+  candidates: Array<PickerCandidate & { reasons?: PickerReason[] }>;
   /** The button's words; no button when absent (the candidate cannot be picked). */
   action?: string;
   tone: keyof typeof TONES;
-  onSelect?: (candidate: AssignmentBoardCandidate) => void;
+  onSelect?: (candidate: PickerCandidate) => void;
 }) {
   if (candidates.length === 0) return null;
   return (
@@ -140,7 +140,7 @@ function CandidateLine({
   candidate,
   reasonsClass,
 }: {
-  candidate: AssignmentBoardCandidate & { reasons?: PickerReason[] };
+  candidate: PickerCandidate & { reasons?: PickerReason[] };
   reasonsClass: string;
 }) {
   const { t } = useI18n();
@@ -149,6 +149,13 @@ function CandidateLine({
       <p className="truncate font-medium text-foreground">{candidate.displayName}</p>
       {candidate.clubLabel && (
         <p className="truncate text-[10px] text-muted">{candidate.clubLabel}</p>
+      )}
+      {candidate.boutsThatDay !== null && (
+        <p className="text-[10px] text-muted">
+          {t('organizer.refereeBoard.pickerBoutsThatDay', {
+            count: String(candidate.boutsThatDay),
+          })}
+        </p>
       )}
       {candidate.reasons && candidate.reasons.length > 0 && (
         <p className={`text-[10px] ${reasonsClass}`}>{refereeReasonsText(t, candidate.reasons)}</p>

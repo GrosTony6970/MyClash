@@ -8,9 +8,13 @@
  *   - a fight-pool is the hull of a group a person fights in: a Pool (its members and its
  *     bouts' fighters), or a Swiss round across its pistes (every competitor of the round);
  *   - a referee duty is a Pool's hull for a Pool-scoped row, one bout's window for a
- *     Match-scoped row;
+ *     Match-scoped row, with the bouts it covers, its day and its unit's day slot;
  *   - teaching and attending are the Workshop session's own times.
  * And the targets: a board unit for the picker and Assign, an existing row for a re-judge.
+ *
+ * The day slots of ADR-019's rest are built here too (`boardClock`): a slot is a distinct
+ * start time of the day's Pools and Swiss units on the Event clock, in time order. A
+ * bracket bout makes none and sits in none (ruling 139).
  *
  * It also builds the slate (`RefereeCommitmentPool[]`) the capacity warning reads, from the
  * same units, so the warning and the verdicts cannot disagree about who fights when.
@@ -41,8 +45,42 @@ export interface BoardAssignmentRow {
   role: string | null;
 }
 
+/** Where a unit sits in the Event's days: its day index, and its day slot (ADR-019). */
+export interface BoardClock {
+  dayIndexOf: (iso: string) => number | null;
+  slotOf: (unit: Pick<AssignmentBoardPool, 'id'>) => number | null;
+}
+
+/**
+ * The Event's day slots, from its units: per day, the distinct start times of its Pools
+ * and Swiss units in time order. Two units that start at the same minute share a slot.
+ */
+export function boardClock(
+  units: readonly AssignmentBoardPool[],
+  dayIndexOf: (iso: string) => number | null,
+): BoardClock {
+  const startsByDay = new Map<number, Set<number>>();
+  const placed: Array<{ id: string; day: number; startMs: number }> = [];
+  for (const unit of units) {
+    if ((unit.kind ?? 'pool') !== 'pool' && unit.kind !== 'swiss') continue;
+    if (!unit.scheduledStart) continue;
+    const day = dayIndexOf(unit.scheduledStart);
+    if (day === null) continue;
+    const startMs = Date.parse(unit.scheduledStart);
+    startsByDay.set(day, (startsByDay.get(day) ?? new Set<number>()).add(startMs));
+    placed.push({ id: unit.id, day, startMs });
+  }
+  const slotById = new Map<string, number>();
+  for (const { id, day, startMs } of placed) {
+    const ordered = [...startsByDay.get(day)!].sort((a, b) => a - b);
+    slotById.set(id, ordered.indexOf(startMs));
+  }
+  return { dayIndexOf, slotOf: (unit) => slotById.get(unit.id) ?? null };
+}
+
 export interface CommitmentInputs {
   units: readonly AssignmentBoardPool[];
+  clock: BoardClock;
   /** Registration id → `global_persons.id` of its fighter. */
   personIdByRegistration: ReadonlyMap<string, string>;
   assignments: readonly BoardAssignmentRow[];
@@ -53,7 +91,13 @@ export interface CommitmentInputs {
 export function switchesOf(
   settings: Pick<
     PoolAssignmentSettings,
-    'enableOwnPoolRule' | 'enableOwnPoolSpanRule' | 'enableTwoRolesRule' | 'workshopConflictWarning'
+    | 'enableOwnPoolRule'
+    | 'enableOwnPoolSpanRule'
+    | 'enableTwoRolesRule'
+    | 'workshopConflictWarning'
+    | 'enforceRefereeNoBackToBack'
+    | 'refereeRestMinSlots'
+    | 'maxBoutsPerDay'
   >,
 ): RefereeSwitches {
   return {
@@ -61,6 +105,8 @@ export function switchesOf(
     ownPoolSpan: settings.enableOwnPoolSpanRule,
     twoRoles: settings.enableTwoRolesRule,
     attendWorkshop: settings.workshopConflictWarning,
+    restSlots: settings.enforceRefereeNoBackToBack ? settings.refereeRestMinSlots : 0,
+    maxBoutsPerDay: settings.maxBoutsPerDay,
   };
 }
 
@@ -154,6 +200,7 @@ function dutyCommitments(inputs: CommitmentInputs): RefereeCommitment[] {
     const unit = unitOf(row);
     if (!unit || !row.role || !row.person_id) return [];
     const bout = row.match_id ? unit.matches.find((m) => m.id === row.match_id) : undefined;
+    const start = bout ? bout.scheduledAt : unit.scheduledStart;
     return [
       {
         kind: 'referee',
@@ -162,6 +209,9 @@ function dutyCommitments(inputs: CommitmentInputs): RefereeCommitment[] {
         poolId: poolIdOf(unit),
         matchId: row.match_id,
         role: row.role,
+        matchIds: bout ? [bout.id] : unit.matches.map((m) => m.id),
+        slot: inputs.clock.slotOf(unit),
+        dayIndex: start ? inputs.clock.dayIndexOf(start) : null,
         window: bout ? boutWindowMs(bout) : unitWindowMs(unit),
         label: unitLabel(unit),
       },
@@ -202,7 +252,7 @@ export function buildCommitments(inputs: CommitmentInputs): RefereeCommitment[] 
 export function unitTarget(
   unit: AssignmentBoardPool,
   role: string,
-  dayIndexOf: (iso: string) => number | null,
+  clock: BoardClock,
 ): RefereeTarget {
   const kind = unit.kind ?? 'pool';
   return {
@@ -214,7 +264,8 @@ export function unitTarget(
     window: unitWindowMs(unit),
     role,
     tournamentId: unit.tournamentId,
-    dayIndex: unit.scheduledStart ? dayIndexOf(unit.scheduledStart) : null,
+    dayIndex: unit.scheduledStart ? clock.dayIndexOf(unit.scheduledStart) : null,
+    slot: clock.slotOf(unit),
   };
 }
 
@@ -223,16 +274,16 @@ export function boutTarget(
   unit: AssignmentBoardPool,
   matchId: string,
   role: string,
-  dayIndexOf: (iso: string) => number | null,
+  clock: BoardClock,
 ): RefereeTarget | null {
   const bout = unit.matches.find((m) => m.id === matchId);
   if (!bout) return null;
   return {
-    ...unitTarget(unit, role, dayIndexOf),
+    ...unitTarget(unit, role, clock),
     scope: 'match',
     matchIds: [bout.id],
     window: boutWindowMs(bout),
-    dayIndex: bout.scheduledAt ? dayIndexOf(bout.scheduledAt) : null,
+    dayIndex: bout.scheduledAt ? clock.dayIndexOf(bout.scheduledAt) : null,
   };
 }
 
@@ -240,10 +291,35 @@ export function boutTarget(
 export function assignmentTarget(
   row: BoardAssignmentRow & { role: string },
   unit: AssignmentBoardPool,
-  dayIndexOf: (iso: string) => number | null,
+  clock: BoardClock,
 ): RefereeTarget {
-  const bout = row.match_id ? boutTarget(unit, row.match_id, row.role, dayIndexOf) : null;
-  return bout ?? unitTarget(unit, row.role, dayIndexOf);
+  const bout = row.match_id ? boutTarget(unit, row.match_id, row.role, clock) : null;
+  return bout ?? unitTarget(unit, row.role, clock);
+}
+
+/**
+ * A duty not written yet, as the checker counts it: an engine proposal on its unit, or
+ * one bout of a per-Pool write (`matchId`). Its day and slot are the target's.
+ */
+export function dutyOn(
+  target: RefereeTarget,
+  personId: string,
+  label: string,
+  matchId: string | null = null,
+): RefereeCommitment {
+  return {
+    kind: 'referee',
+    personId,
+    unitId: target.unitId,
+    poolId: target.poolId,
+    matchId,
+    role: target.role,
+    matchIds: target.matchIds,
+    slot: target.slot,
+    dayIndex: target.dayIndex,
+    window: target.window,
+    label,
+  };
 }
 
 /** A referee's declared availability; a person off the roster has declared none. */

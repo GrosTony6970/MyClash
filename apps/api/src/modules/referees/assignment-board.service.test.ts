@@ -30,7 +30,7 @@ const mockSupabase = { service: { from: fromMock } };
 const DEFAULT_RULE_SETTINGS = {
   enforceRefereeNoBackToBack: true,
   refereeRestMinSlots: 1,
-  enforceDedicatedRefereeRest: true,
+  maxBoutsPerDay: 0,
   workshopConflictWarning: true,
   ratingBasedOrdering: true,
   workloadBalance: true,
@@ -268,6 +268,8 @@ describe('AssignmentBoardService', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    // A describe below turns rest off for its own tests; every test starts from the default.
+    mockSettings.getSettings.mockResolvedValue(DEFAULT_RULE_SETTINGS);
     // clearAllMocks keeps queued mockReturnValueOnce answers: a test that stops early must
     // not hand its unread rows to the next one.
     fromMock.mockReset();
@@ -309,7 +311,6 @@ describe('AssignmentBoardService', () => {
       ]),
     );
     expect(board.missingSlots.length).toBeGreaterThanOrEqual(0);
-    expect(board.swapSuggestions).toEqual([]);
   });
 
   it('getBoard does NOT run the auto-assign engine — no proposal chips appear', async () => {
@@ -948,12 +949,13 @@ describe('AssignmentBoardService', () => {
   // `loadContext` is stubbed rather than mocked through `fromMock`: it makes a
   // dozen queries, and none of them is what either test is about.
   describe('applyPreview lock guard', () => {
-    // `loadContext` is private, so the spy needs a structural view of it. Cast
-    // through `unknown` — TS2352 otherwise, per the repo's mock-chain note.
-    type WithLoadContext = { loadContext: (eventId: string) => Promise<unknown> };
+    // `loadBoardRows` is private, so the spy needs a structural view of it. Cast
+    // through `unknown` — TS2352 otherwise, per the repo's mock-chain note. The rest of
+    // `loadContext` (the clock, the commitments) is the real one.
+    type WithBoardRows = { loadBoardRows: (eventId: string) => Promise<unknown> };
 
     function stubContext(overrides: Record<string, unknown>) {
-      return vi.spyOn(service as unknown as WithLoadContext, 'loadContext').mockResolvedValue({
+      return vi.spyOn(service as unknown as WithBoardRows, 'loadBoardRows').mockResolvedValue({
         eventId: 'event-1',
         eventStartDate: null,
         // Present because the real context carries it. The literal is cast
@@ -980,7 +982,7 @@ describe('AssignmentBoardService', () => {
       await expect(service.applyPreview('event-1')).rejects.toBeInstanceOf(ConflictException);
       // The guard has to run BEFORE persistAssignments, not alongside it: the
       // delete is the first thing that method does.
-      expect(fromMock).not.toHaveBeenCalled();
+      expect(fromMock).not.toHaveBeenCalledWith('referee_assignments');
     });
 
     it('scopes the delete to the units the run covers, not the whole event', async () => {
@@ -1114,6 +1116,8 @@ describe('AssignmentBoardService', () => {
         ownPoolSpan: false,
         twoRoles: true,
         attendWorkshop: true,
+        restSlots: 1,
+        maxBoutsPerDay: 0,
       });
     });
 
@@ -1125,6 +1129,8 @@ describe('AssignmentBoardService', () => {
         ownPoolSpan: true,
         twoRoles: true,
         attendWorkshop: true,
+        restSlots: 1,
+        maxBoutsPerDay: 0,
       });
     });
 
@@ -1190,6 +1196,15 @@ describe('AssignmentBoardService', () => {
    */
   describe('a per-match referee is a commitment the write path can see', () => {
     const POOL_2_REF = 'person-ref-b'; // = PURE_REF_GLOBAL_ID, the referee being moved
+
+    // About the overlap alone: two Pools at two start times are also two day slots,
+    // and rest (ADR-019) would add its own amber.
+    beforeEach(() => {
+      mockSettings.getSettings.mockResolvedValue({
+        ...DEFAULT_RULE_SETTINGS,
+        enforceRefereeNoBackToBack: false,
+      });
+    });
     const C_GLOBAL_ID = 'person-c-global';
     const D_GLOBAL_ID = 'person-d-global';
 
@@ -1517,13 +1532,11 @@ describe('AssignmentBoardService', () => {
 
       expect(assignedPersonIds(east)).toContain(PURE_REF_GLOBAL_ID);
       expect(assignedPersonIds(west)).not.toContain(PURE_REF_GLOBAL_ID);
-      // Name the rule that dropped them, on the slot only they can fill: the
-      // declarant slot has a second candidate who dies on the fighter filter
-      // first, so it reports a different reason.
+      // Name the rule that dropped them, on the slot only they can fill: the checker's code.
       const table = west.pools
         .flatMap((pool) => pool.roleSlots)
         .find((slot) => slot.role === 'arbitre_table');
-      expect(table?.missingReasons).toContain('all_qualified_unavailable_for_this_pool');
+      expect(table?.missingReasons).toEqual(['outside_availability']);
     });
   });
 });

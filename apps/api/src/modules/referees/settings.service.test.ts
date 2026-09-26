@@ -42,7 +42,7 @@ describe('SettingsService', () => {
         enforce_fighter_referee_no_overlap: true,
         enforce_referee_no_back_to_back: true,
         referee_rest_min_slots: 1,
-        enforce_dedicated_referee_rest: false,
+        max_bouts_per_day: 0,
         workshop_conflict_warning: true,
         rating_based_ordering: true,
         workload_balance: true,
@@ -53,6 +53,10 @@ describe('SettingsService', () => {
 
     await service.createDefaults('event-1', null);
 
+    const inserted = insertChain.insert.mock.calls[0]![0] as Record<string, unknown>;
+    // ADR-019: no cap until an organiser sets one; the dead rest switch is gone.
+    expect(inserted['max_bouts_per_day']).toBe(0);
+    expect(inserted).not.toHaveProperty('enforce_dedicated_referee_rest');
     expect(insertChain.insert).toHaveBeenCalledWith(
       expect.objectContaining({
         enforce_fighter_referee_no_overlap: true,
@@ -89,11 +93,13 @@ describe('SettingsService', () => {
       workshopConflictWarning: false,
       ratingBasedOrdering: false,
       workloadBalance: false,
+      maxBoutsPerDay: 8,
     });
 
     expect(updateChain.update).toHaveBeenCalledWith(
       expect.objectContaining({
         enforce_fighter_referee_no_overlap: true,
+        max_bouts_per_day: 8,
         workshop_conflict_warning: false,
         rating_based_ordering: false,
         workload_balance: false,

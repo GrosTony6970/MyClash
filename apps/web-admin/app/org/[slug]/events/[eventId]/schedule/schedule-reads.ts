@@ -129,7 +129,9 @@ function isSwitches(value: unknown): value is RefereeSwitches {
     typeof r['ownPool'] === 'boolean' &&
     typeof r['ownPoolSpan'] === 'boolean' &&
     typeof r['twoRoles'] === 'boolean' &&
-    typeof r['attendWorkshop'] === 'boolean'
+    typeof r['attendWorkshop'] === 'boolean' &&
+    typeof r['restSlots'] === 'number' &&
+    typeof r['maxBoutsPerDay'] === 'number'
   );
 }
 
