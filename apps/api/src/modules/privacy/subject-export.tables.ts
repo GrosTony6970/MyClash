@@ -169,10 +169,11 @@ export const SUBJECT_EXPORT_TABLES: Readonly<Record<string, SubjectTableSpec>> =
   // their dual identity down to person_id and DROPPED the column. Reading it
   // 400s in PostgREST, which `fetchDirect` turns into a 500 for the whole
   // bundle — the subject loses everything, not just their referee rows. The
-  // subject is reached by their GLOBAL person: 0063 made `person_id` a
-  // global_persons.id (resolved through global_persons.claimed_by_user_id).
-  // Reaching it as `person` (an event persons.id) found no duty at all.
-  // Pinned by subject-export.schema.test.ts.
+  // subject is reached by their GLOBAL person: 0062/0063 made `person_id` a
+  // global_persons.id on every referee table (resolved through
+  // global_persons.claimed_by_user_id). Reaching it as `person` (an event
+  // persons.id) found no row at all. Pinned by subject-export.schema.test.ts
+  // (the columns exist) and subject-export.reach-fk.test.ts (the id space).
   referee_assignments: {
     reaches: [{ column: 'person_id', reach: 'global_person' }],
     file: 'referee-assignments.csv',
@@ -180,7 +181,7 @@ export const SUBJECT_EXPORT_TABLES: Readonly<Record<string, SubjectTableSpec>> =
   referee_qualifications: {
     reaches: [
       { column: 'global_person_id', reach: 'global_person' },
-      { column: 'person_id', reach: 'person' },
+      { column: 'person_id', reach: 'global_person' },
     ],
     file: 'referee-assignments.csv',
   },
@@ -191,15 +192,15 @@ export const SUBJECT_EXPORT_TABLES: Readonly<Record<string, SubjectTableSpec>> =
     file: 'referee-assignments.csv',
   },
   event_referees: {
-    reaches: [{ column: 'person_id', reach: 'person' }],
+    reaches: [{ column: 'person_id', reach: 'global_person' }],
     file: 'referee-assignments.csv',
   },
   event_referee_days: {
-    reaches: [{ column: 'person_id', reach: 'person' }],
+    reaches: [{ column: 'person_id', reach: 'global_person' }],
     file: 'referee-assignments.csv',
   },
   event_referee_tournaments: {
-    reaches: [{ column: 'person_id', reach: 'person' }],
+    reaches: [{ column: 'person_id', reach: 'global_person' }],
     file: 'referee-assignments.csv',
   },
 
@@ -217,7 +218,8 @@ export const SUBJECT_EXPORT_TABLES: Readonly<Record<string, SubjectTableSpec>> =
     file: 'workshops.csv',
   },
   event_instructors: {
-    reaches: [{ column: 'person_id', reach: 'person' }],
+    // A global_persons.id (0099), like every referee table's person_id.
+    reaches: [{ column: 'person_id', reach: 'global_person' }],
     file: 'workshops.csv',
   },
   workshop_instructors: {

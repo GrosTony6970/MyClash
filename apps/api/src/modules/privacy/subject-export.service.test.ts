@@ -137,6 +137,42 @@ describe('subject table census', () => {
     expect([...anchors.matchIds].sort()).toEqual(['m-bout', 'm-p1', 'm-p2']);
   });
 
+  it.each([
+    'event_referees',
+    'event_referee_days',
+    'event_referee_tournaments',
+    'event_instructors',
+  ])("exports the subject's %s rows, keyed by their GLOBAL person", async (table) => {
+    // The event persons.id ('p-1') and the global id ('gp-1') differ on purpose: these rows
+    // carry the global one (0062, 0077, 0099), and reading them by the event one found nothing.
+    const supabase = mockSupabase({
+      [table]: {
+        rows: [
+          { id: `${table}-mine`, person_id: 'gp-1' },
+          { id: `${table}-theirs`, person_id: 'gp-other' },
+        ],
+      },
+    });
+    const service = new SubjectExportService(supabase as never);
+    const fetchDirect = (
+      service as unknown as {
+        fetchDirect: (
+          table: string,
+          spec: unknown,
+          anchors: unknown,
+        ) => Promise<Array<{ id: string }>>;
+      }
+    ).fetchDirect.bind(service);
+    const rows = await fetchDirect(table, SUBJECT_EXPORT_TABLES[table], {
+      uid: 'u-1',
+      globalPersonIds: ['gp-1'],
+      personIds: ['p-1'],
+      registrationIds: [],
+      matchIds: [],
+    });
+    expect(rows.map((row) => row.id)).toEqual([`${table}-mine`]);
+  });
+
   it('never exports credential material', () => {
     for (const table of [
       'global_person_claim_tokens',

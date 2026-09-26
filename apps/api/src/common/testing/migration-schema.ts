@@ -38,6 +38,18 @@ export interface ReplayedSchema {
    * as opaque rather than report every column on it as missing.
    */
   views: Set<string>;
+  /**
+   * table name → column → the `table.column` its foreign key names, as the replay leaves it
+   * (inline `REFERENCES`, a table-level `FOREIGN KEY`, `ADD COLUMN … REFERENCES`, `ADD … FOREIGN
+   * KEY`; a renamed table is renamed on both ends). A `DROP CONSTRAINT` is not followed: it names a
+   * constraint, not a column.
+   */
+  references: Map<string, Map<string, ForeignKeyTarget>>;
+}
+
+export interface ForeignKeyTarget {
+  table: string;
+  column: string;
 }
 
 export function findMigrationsDir(): string {
@@ -137,11 +149,48 @@ interface SchemaBuilder {
   columns: Map<string, Set<string>>;
   jsonColumns: Map<string, Set<string>>;
   views: Set<string>;
+  references: Map<string, Map<string, ForeignKeyTarget>>;
   /** `declaration` is whatever follows the column name; only its first token
-   *  is read, so a `CHECK (… ::jsonb)` further along cannot fake a JSON type. */
+   *  is read for the type, so a `CHECK (… ::jsonb)` further along cannot fake a
+   *  JSON type. An inline `REFERENCES t(c)` in it is recorded as the column's FK. */
   add: (table: string, column: string, declaration?: string) => void;
   drop: (table: string, column: string) => void;
   renameTable: (from: string, to: string) => void;
+  reference: (table: string, column: string, target: ForeignKeyTarget) => void;
+}
+
+// Any schema prefix: `public.` is dropped by normaliseTable, `auth.users` stays whole.
+const TABLE_NAME = '((?:"?[a-z_][a-z0-9_]*"?\\.)?"?[a-z_][a-z0-9_]*"?)';
+const INLINE_REFERENCE_RE = new RegExp(`\\bREFERENCES\\s+${TABLE_NAME}\\s*(?:\\(([^)]*)\\))?`, 'i');
+const FOREIGN_KEY_RE = new RegExp(
+  `FOREIGN\\s+KEY\\s*\\(([^)]*)\\)\\s*REFERENCES\\s+${TABLE_NAME}\\s*(?:\\(([^)]*)\\))?`,
+  'i',
+);
+
+const identifiers = (list: string): string[] =>
+  list
+    .split(',')
+    .map((name) => name.trim().replace(/"/g, '').toLowerCase())
+    .filter((name) => name !== '');
+
+/** The FK a column declaration names inline (`… REFERENCES t(c)`); `id` when no column is named. */
+function inlineReference(declaration: string | undefined): ForeignKeyTarget | null {
+  const hit = INLINE_REFERENCE_RE.exec(declaration ?? '');
+  if (!hit) return null;
+  const table = normaliseTable(hit[1]!.replace(/"/g, ''));
+  return { table, column: identifiers(hit[2] ?? '')[0] ?? 'id' };
+}
+
+/** `[CONSTRAINT x] FOREIGN KEY (a, b) REFERENCES t (c, d)`: each local column with its target. */
+function foreignKeyReferences(clause: string): Array<[string, ForeignKeyTarget]> {
+  const hit = FOREIGN_KEY_RE.exec(clause);
+  if (!hit) return [];
+  const table = normaliseTable(hit[2]!.replace(/"/g, ''));
+  const remote = identifiers(hit[3] ?? '');
+  return identifiers(hit[1]!).map((column, index) => [
+    column,
+    { table, column: remote[index] ?? 'id' },
+  ]);
 }
 
 /** Is the first token of this declaration a JSON type? */
@@ -160,6 +209,9 @@ function applyCreateTables(sql: string, schema: SchemaBuilder): void {
       const line = part.trim();
       if (!line) continue;
       if (/^(CONSTRAINT|PRIMARY\s+KEY|FOREIGN\s+KEY|UNIQUE|CHECK|EXCLUDE|LIKE)\b/i.test(line)) {
+        for (const [column, target] of foreignKeyReferences(line)) {
+          schema.reference(match[1]!, column, target);
+        }
         continue;
       }
       const name = /^"?([a-z_][a-z0-9_]*)"?/i.exec(line);
@@ -191,13 +243,23 @@ function applyAlterTables(sql: string, schema: SchemaBuilder): void {
     for (const renamed of tail.matchAll(
       /RENAME\s+COLUMN\s+"?([a-z_][a-z0-9_]*)"?\s+TO\s+"?([a-z_][a-z0-9_]*)"?/gi,
     )) {
+      const target = schema.references.get(normaliseTable(table))?.get(renamed[1]!.toLowerCase());
       schema.drop(table, renamed[1]!);
       schema.add(table, renamed[2]!);
+      if (target) schema.reference(table, renamed[2]!, target);
     }
     for (const dropped of tail.matchAll(
       /DROP\s+COLUMN\s+(?:IF\s+EXISTS\s+)?"?([a-z_][a-z0-9_]*)"?/gi,
     )) {
       schema.drop(table, dropped[1]!);
+    }
+    // `ADD [CONSTRAINT x] FOREIGN KEY (a, b) …`: its column list holds commas, so split on
+    // top-level commas only.
+    for (const action of splitTopLevel(tail)) {
+      if (!/^\s*ADD\s+(?:CONSTRAINT\s+\S+\s+)?FOREIGN\s+KEY\b/i.test(action)) continue;
+      for (const [column, target] of foreignKeyReferences(action)) {
+        schema.reference(table, column, target);
+      }
     }
   }
 }
@@ -216,6 +278,56 @@ function applyViews(sql: string, schema: SchemaBuilder): void {
 
 let cached: ReplayedSchema | null = null;
 
+/** The empty schema the scanners apply each migration to. */
+function newSchemaBuilder(): SchemaBuilder {
+  const columns = new Map<string, Set<string>>();
+  const jsonColumns = new Map<string, Set<string>>();
+  const references = new Map<string, Map<string, ForeignKeyTarget>>();
+  const reference = (table: string, column: string, target: ForeignKeyTarget) => {
+    const key = normaliseTable(table);
+    if (!references.has(key)) references.set(key, new Map());
+    references.get(key)!.set(column.toLowerCase(), target);
+  };
+  return {
+    columns,
+    jsonColumns,
+    views: new Set<string>(),
+    references,
+    reference,
+    add: (table, column, declaration) => {
+      const key = normaliseTable(table);
+      if (!columns.has(key)) columns.set(key, new Set());
+      columns.get(key)!.add(column.toLowerCase());
+      const target = inlineReference(declaration);
+      if (target) reference(table, column, target);
+      if (!declaresJson(declaration)) return;
+      if (!jsonColumns.has(key)) jsonColumns.set(key, new Set());
+      jsonColumns.get(key)!.add(column.toLowerCase());
+    },
+    drop: (table, column) => {
+      columns.get(normaliseTable(table))?.delete(column.toLowerCase());
+      jsonColumns.get(normaliseTable(table))?.delete(column.toLowerCase());
+      references.get(normaliseTable(table))?.delete(column.toLowerCase());
+    },
+    renameTable: (from, to) => {
+      const [oldKey, newKey] = [normaliseTable(from), normaliseTable(to)];
+      for (const index of [columns, jsonColumns]) {
+        const moved = index.get(oldKey);
+        if (!moved) continue;
+        index.set(newKey, new Set([...(index.get(newKey) ?? []), ...moved]));
+        index.delete(oldKey);
+      }
+      const movedRefs = references.get(oldKey);
+      if (movedRefs)
+        references.set(newKey, new Map([...(references.get(newKey) ?? []), ...movedRefs]));
+      references.delete(oldKey);
+      for (const targets of references.values()) {
+        for (const target of targets.values()) if (target.table === oldKey) target.table = newKey;
+      }
+    },
+  };
+}
+
 /**
  * table → live column names, replayed over the migrations IN ORDER so a later
  * DROP COLUMN actually removes what an earlier CREATE TABLE added.
@@ -226,35 +338,7 @@ let cached: ReplayedSchema | null = null;
 export function buildMigrationSchema(): ReplayedSchema {
   if (cached) return cached;
 
-  const columns = new Map<string, Set<string>>();
-  const jsonColumns = new Map<string, Set<string>>();
-  const schema: SchemaBuilder = {
-    columns,
-    jsonColumns,
-    views: new Set<string>(),
-    add: (table, column, declaration) => {
-      const key = normaliseTable(table);
-      if (!columns.has(key)) columns.set(key, new Set());
-      columns.get(key)!.add(column.toLowerCase());
-      if (!declaresJson(declaration)) return;
-      if (!jsonColumns.has(key)) jsonColumns.set(key, new Set());
-      jsonColumns.get(key)!.add(column.toLowerCase());
-    },
-    drop: (table, column) => {
-      columns.get(normaliseTable(table))?.delete(column.toLowerCase());
-      jsonColumns.get(normaliseTable(table))?.delete(column.toLowerCase());
-    },
-    renameTable: (from, to) => {
-      const [oldKey, newKey] = [normaliseTable(from), normaliseTable(to)];
-      for (const index of [columns, jsonColumns]) {
-        const moved = index.get(oldKey);
-        if (!moved) continue;
-        index.set(newKey, new Set([...(index.get(newKey) ?? []), ...moved]));
-        index.delete(oldKey);
-      }
-    },
-  };
-
+  const schema = newSchemaBuilder();
   const dir = findMigrationsDir();
   for (const file of readdirSync(dir)
     .filter((name) => name.endsWith('.sql'))
@@ -265,6 +349,11 @@ export function buildMigrationSchema(): ReplayedSchema {
     applyAlterTables(sql, schema);
   }
 
-  cached = { columns, jsonColumns, views: schema.views };
+  cached = {
+    columns: schema.columns,
+    jsonColumns: schema.jsonColumns,
+    views: schema.views,
+    references: schema.references,
+  };
   return cached;
 }

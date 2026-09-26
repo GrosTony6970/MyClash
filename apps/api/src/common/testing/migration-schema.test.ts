@@ -50,6 +50,42 @@ describe('migration replay', () => {
     expect(schema.columns.get('penalty_ruleset_versions')).not.toContain('sortorder');
   });
 
+  it("records each column's foreign key, in every shape the migrations use", () => {
+    const fk = (table: string, column: string) => schema.references.get(table)?.get(column);
+    // Inline, schema-qualified: 0183 `references public.persons(id)`.
+    expect(fk('event_feedback', 'respondent_person_id')).toEqual({
+      table: 'persons',
+      column: 'id',
+    });
+    // Another schema stays whole.
+    expect(fk('referee_assignments', 'person_id')).toEqual({
+      table: 'global_persons',
+      column: 'id',
+    });
+    expect(
+      [...schema.references.values()].some((m) =>
+        [...m.values()].some((t) => t.table === 'auth.users'),
+      ),
+    ).toBe(true);
+    // Table-level composite key (0077), paired column by column.
+    expect(fk('event_referee_days', 'person_id')).toEqual({
+      table: 'event_referees',
+      column: 'person_id',
+    });
+    expect(fk('event_referee_days', 'event_id')).toEqual({
+      table: 'event_referees',
+      column: 'event_id',
+    });
+    // `ALTER TABLE … ADD CONSTRAINT … FOREIGN KEY` (0163).
+    expect(fk('referee_compensation_payments', 'person_id')).toEqual({
+      table: 'global_persons',
+      column: 'id',
+    });
+    // 0001 `global_fighter_id REFERENCES fighters(id)`; 0023 renamed the column and the table.
+    expect(fk('persons', 'global_person_id')).toEqual({ table: 'global_persons', column: 'id' });
+    expect(fk('persons', 'global_fighter_id')).toBeUndefined();
+  });
+
   it('records views without columns, so callers can treat them as opaque', () => {
     expect(schema.views.size).toBeGreaterThan(0);
     for (const view of schema.views) expect(view).toBe(normaliseTable(view));
