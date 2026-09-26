@@ -31,14 +31,28 @@ import { NotificationSchedulerService } from '../../workers/notification-schedul
 import { NotificationEventsService } from '../notifications/event-handlers/notification-events.service';
 import { OrganizationsService } from '../organizations/organizations.service';
 import { SupabaseService } from '../supabase/supabase.service';
-import { AssignmentBoardService } from './assignment-board.service';
+import { AssignmentBoardService, type RefereeConflictEntry } from './assignment-board.service';
 
 /**
- * `{ confirm: true }` sends the board over Impossible rows ("send anyway", ADR-019). An
- * empty body is `{}`: the lock was always called with none (`21-referee-assign.spec.ts`),
- * and a Zod DTO cannot be optional, so the body is parsed here.
+ * `confirmedDuties` sends the board over the Impossible duties the organiser SAW ("send
+ * anyway", ADR-019, ruling 138): the keys the refusal listed. An empty body is `{}`: the
+ * lock was always called with none (`21-referee-assign.spec.ts`), and a Zod DTO cannot be
+ * optional, so the body is parsed here.
  */
-const lockBodySchema = z.object({ confirm: z.boolean().optional() }).strict();
+const lockBodySchema = z.object({ confirmedDuties: z.array(z.string()).optional() }).strict();
+
+/**
+ * One Impossible duty as the organiser saw it: the unit, the person, the role, and each
+ * Impossible reason with what it was against. A duty that turned red after the list was
+ * shown, or gained a reason, has a key nobody confirmed. The page sends keys back unread.
+ */
+function lockDutyKey(entry: RefereeConflictEntry): string {
+  const reasons = entry.reasons
+    .filter((r) => r.level === 'impossible')
+    .map((r) => `${r.code}:${r.against?.id ?? ''}`)
+    .sort();
+  return [entry.unitId, entry.personId, entry.role, ...reasons].join('|');
+}
 
 @ApiTags('referees')
 @Controller()
@@ -65,19 +79,36 @@ export class AutoAssignController {
     );
   }
 
+  /** 409 with every Impossible duty while one of them is not among those confirmed. */
+  private async assertNoUnseenImpossible(eventId: string, confirmedDuties: readonly string[]) {
+    const confirmed = new Set(confirmedDuties);
+    const { conflicts } = await this.board.checkEvent(eventId);
+    const impossible = conflicts
+      .filter((c) => c.level === 'impossible')
+      .map((c) => ({ ...c, key: lockDutyKey(c) }));
+    if (impossible.some((c) => !confirmed.has(c.key))) {
+      throw new ConflictException({
+        code: 'referee_lock_impossible',
+        message: `${impossible.length} referee assignment(s) break a rule that has no override`,
+        conflicts: impossible,
+      });
+    }
+  }
+
   // ── Lock assignments ──────────────────────────────────────────────────────────
 
   /**
    * Locking tells every referee their duty. A duty that breaks an Impossible rule (the one
-   * checker, ADR-016) refuses the lock with 409 `referee_lock_impossible` and the list,
-   * unless the organiser sends anyway (`confirm`, ADR-019). Discouraged duties never
-   * refuse it: each was confirmed when it was made.
+   * checker, ADR-016) refuses the lock with 409 `referee_lock_impossible` and the list, each
+   * duty with its `key`, unless the organiser sends anyway over exactly those duties
+   * (`confirmedDuties`, ruling 138): one they did not see refuses again, with the whole
+   * list. Discouraged duties never refuse it: each was confirmed when it was made.
    */
   @Post('events/:eventId/lock-referee-assignments')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary:
-      'Lock referee assignments (transition to confirmed): 409 while an assignment is Impossible, unless confirm',
+      'Lock referee assignments (transition to confirmed): 409 while an assignment is Impossible, unless each is confirmed',
   })
   @ApiParam({ name: 'eventId', type: 'string', format: 'uuid' })
   async lockAssignments(
@@ -87,18 +118,10 @@ export class AutoAssignController {
   ) {
     await this.assertWriter(eventId, req);
     const parsed = lockBodySchema.safeParse(body ?? {});
-    if (!parsed.success) throw new BadRequestException('The lock takes { confirm?: boolean }');
-    if (parsed.data.confirm !== true) {
-      const { conflicts } = await this.board.checkEvent(eventId);
-      const impossible = conflicts.filter((c) => c.level === 'impossible');
-      if (impossible.length > 0) {
-        throw new ConflictException({
-          code: 'referee_lock_impossible',
-          message: `${impossible.length} referee assignment(s) break a rule that has no override`,
-          conflicts: impossible,
-        });
-      }
+    if (!parsed.success) {
+      throw new BadRequestException('The lock takes { confirmedDuties?: string[] }');
     }
+    await this.assertNoUnseenImpossible(eventId, parsed.data.confirmedDuties ?? []);
     const { data, error } = await this.supabase.service
       .from('referee_assignments')
       .update({ status: 'confirmed' })

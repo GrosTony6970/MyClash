@@ -18,6 +18,7 @@ import type { CapacityWarning } from '@myclash/types';
 import {
   assignFailureText,
   lockRefusal,
+  type LockRefusedDuty,
   type PickerReason,
   type RefereeConflictEntry,
 } from '@/lib/referee-reasons';
@@ -537,7 +538,7 @@ function AssignmentsTab({
   const [previewing, setPreviewing] = useState(false);
   const [locking, setLocking] = useState(false);
   // The duties that refused the lock (ADR-019), until reassigned or sent anyway.
-  const [lockRefused, setLockRefused] = useState<RefereeConflictEntry[] | null>(null);
+  const [lockRefused, setLockRefused] = useState<LockRefusedDuty[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   // True iff at least one slot's chip is from the engine but not
   // yet saved. Drives the visibility of Apply + Clear preview.
@@ -1063,13 +1064,13 @@ function AssignmentsTab({
     }
   }
 
-  /** `confirm`: send anyway, over the duties that break a rule with no override. */
-  async function lockAssignments(confirm = false) {
+  /** `confirmedDuties`: send anyway over the red duties the organiser saw (ruling 138). */
+  async function lockAssignments(confirmedDuties: readonly string[] = []) {
     setLocking(true);
     setError(null);
     setLockRefused(null);
     try {
-      const r = await requestLock(eventId, confirm);
+      const r = await requestLock(eventId, confirmedDuties);
       if (!r.ok) {
         // Refused by duties the one checker judges Impossible (ADR-019), or a plain failure.
         const refused = lockRefusal(r);
@@ -1396,7 +1397,7 @@ function AssignmentsTab({
         <LockRefusal
           conflicts={lockRefused}
           busy={locking}
-          onSend={() => void lockAssignments(true)}
+          onSend={() => void lockAssignments(lockRefused.map((c) => c.key))}
           onCancel={() => setLockRefused(null)}
         />
       )}

@@ -119,7 +119,7 @@ slate, with its own switch, and it never blocks.
     in the body (ruling 22). A missing skill is not a scheduling rule and stays a 400.
 - **Locked** = any confirmed Pool or bout assignment in the Event; every door that writes an assignment
   answers 409 while it is locked (ADR-019). The lock itself refuses while a duty is
-  Impossible, unless the organiser sends anyway. Deleting a bout or a Pool is not a referee
+  Impossible, unless the organiser sends anyway over exactly the duties it listed (ruling 138). Deleting a bout or a Pool is not a referee
   door: its crew goes with it, locked or not (ruling 137).
 - **Auto-assign never picks a Discouraged candidate.** An empty slot lists every reason, in the
   picker's words.

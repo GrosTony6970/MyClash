@@ -1,15 +1,27 @@
 /**
  * Locking the referee board tells every referee their duty (ADR-019). A duty that breaks
  * an Impossible rule — the one checker's verdict, through the board's `checkEvent` — refuses
- * the lock unless the organiser sends anyway (`{ confirm: true }`). An empty body is still
- * "no Impossible row, go": the e2e lock posts none.
+ * the lock unless the organiser sends anyway over exactly the duties it listed (ruling 138:
+ * a duty that turned red after the list was shown is never sent unseen). An empty body is
+ * still "no Impossible row, go": the e2e lock posts none.
  */
 import { BadRequestException, ConflictException } from '@nestjs/common';
 import { describe, expect, it, vi } from 'vitest';
 import { mockSupabase, scopedTo, writesTo } from '../../common/testing/supabase-chain';
 import { AutoAssignController } from './auto-assign.controller';
 
-const entry = (level: 'impossible' | 'discouraged', personName: string) => ({
+const clash = (code: string, matchId: string) => ({
+  code,
+  level: code === 'own_pool' ? 'discouraged' : 'impossible',
+  against: { kind: 'match', id: matchId, label: 'Longsword · Pool B' },
+  confirmed: false,
+});
+
+const entry = (
+  level: 'impossible' | 'discouraged',
+  personName: string,
+  reasons = [clash(level === 'impossible' ? 'fights_overlap' : 'own_pool', 'm-9')],
+) => ({
   assignmentId: `ra-${personName}`,
   personId: personName,
   personName,
@@ -19,8 +31,11 @@ const entry = (level: 'impossible' | 'discouraged', personName: string) => ({
   role: 'arbitre_declarant',
   start: null,
   level,
-  reasons: [],
+  reasons,
 });
+
+/** The key the refusal gives Marc's duty, as the page sends it back. */
+const MARC_KEY = 'pool-1|Marc|arbitre_declarant|fights_overlap:m-9';
 
 function makeController(
   options: {
@@ -91,27 +106,65 @@ describe('locking the referee board (ADR-019)', () => {
     expect(error.getResponse()).toEqual({
       code: 'referee_lock_impossible',
       message: '1 referee assignment(s) break a rule that has no override',
-      conflicts: [entry('impossible', 'Marc')],
+      conflicts: [{ ...entry('impossible', 'Marc'), key: MARC_KEY }],
     });
     expect(writesTo(supabase, 'referee_assignments')).toEqual([]);
   });
 
-  it('sends anyway when the organiser confirms, without asking the checker', async () => {
-    const { controller, supabase, checkEvent } = makeController({
-      conflicts: [entry('impossible', 'Marc')],
+  it('sends anyway over exactly the duties it listed', async () => {
+    const { controller, supabase } = makeController({
+      conflicts: [entry('impossible', 'Marc'), entry('discouraged', 'Léa')],
     });
 
-    await controller.lockAssignments('event-1', { confirm: true }, REQ);
+    await controller.lockAssignments('event-1', { confirmedDuties: [MARC_KEY] }, REQ);
 
-    expect(checkEvent).not.toHaveBeenCalled();
     expect(writesTo(supabase, 'referee_assignments')).toHaveLength(1);
+  });
+
+  /** The keys a first refusal listed, as the page sends them back. */
+  async function keysShown(conflicts: ReturnType<typeof entry>[]): Promise<string[]> {
+    const refusal = await makeController({ conflicts })
+      .controller.lockAssignments('event-1', {}, REQ)
+      .then(unexpected, (e: unknown) => e as ConflictException);
+    return (refusal.getResponse() as { conflicts: Array<{ key: string }> }).conflicts.map(
+      (c) => c.key,
+    );
+  }
+
+  it.each([
+    [
+      'a duty that turned red after the list was shown',
+      [entry('impossible', 'Marc'), entry('impossible', 'Anne')],
+    ],
+    [
+      'a new red reason on a duty already listed',
+      [
+        entry('impossible', 'Marc', [
+          clash('fights_overlap', 'm-9'),
+          clash('teaches_overlap', 'ws-1'),
+        ]),
+      ],
+    ],
+  ])('refuses again, with the whole list, over %s', async (_l, later) => {
+    const shown = await keysShown([entry('impossible', 'Marc')]);
+    const { controller, supabase } = makeController({ conflicts: later });
+
+    const error = await controller
+      .lockAssignments('event-1', { confirmedDuties: shown }, REQ)
+      .then(unexpected, (e: unknown) => e as ConflictException);
+
+    expect(error.getResponse()).toMatchObject({
+      code: 'referee_lock_impossible',
+      conflicts: later.map((c) => expect.objectContaining({ personId: c.personId })),
+    });
+    expect(writesTo(supabase, 'referee_assignments')).toEqual([]);
   });
 
   it('refuses a body it does not know, 400, before anything is read or written', async () => {
     const { controller, supabase, checkEvent } = makeController();
-    await expect(
-      controller.lockAssignments('event-1', { confirm: true, force: true }, REQ),
-    ).rejects.toThrow(new BadRequestException('The lock takes { confirm?: boolean }'));
+    await expect(controller.lockAssignments('event-1', { confirm: true }, REQ)).rejects.toThrow(
+      new BadRequestException('The lock takes { confirmedDuties?: string[] }'),
+    );
     expect(checkEvent).not.toHaveBeenCalled();
     expect(writesTo(supabase, 'referee_assignments')).toEqual([]);
   });

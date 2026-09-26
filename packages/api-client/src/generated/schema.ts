@@ -4060,7 +4060,7 @@ export interface paths {
     };
     get?: never;
     put?: never;
-    /** Lock referee assignments (transition to confirmed): 409 while an assignment is Impossible, unless confirm */
+    /** Lock referee assignments (transition to confirmed): 409 while an assignment is Impossible, unless each is confirmed */
     post: operations['AutoAssignController_lockAssignments'];
     delete?: never;
     options?: never;

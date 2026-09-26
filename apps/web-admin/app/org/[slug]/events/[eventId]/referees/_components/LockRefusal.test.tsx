@@ -10,8 +10,8 @@ import { requestLock } from './lock-assignments';
 
 /**
  * Locking the referee board tells every referee their duty (ADR-019). The API refuses
- * while a duty breaks a rule with no override; the organiser reassigns, or sends anyway.
- * The lock was sent with no body; the body is pinned here, both ways.
+ * while a duty breaks a rule with no override; the organiser reassigns, or sends anyway over
+ * exactly the duties listed, by their keys (ruling 138). The body is pinned, both ways.
  */
 
 vi.mock('@/lib/api-url', () => ({ getPublicApiUrl: () => 'http://api.test' }));
@@ -30,6 +30,7 @@ const MARC = {
   role: 'arbitre_declarant',
   start: null,
   level: 'impossible' as const,
+  key: 'pool-a|gp-marc|arbitre_declarant|fights_overlap:m-9',
   reasons: [
     {
       code: 'fights_overlap' as const,
@@ -47,10 +48,10 @@ describe('the lock request', () => {
   });
 
   it.each([
-    [false, {}],
-    [true, { confirm: true }],
-  ])('confirm=%s posts %j', async (confirm, body) => {
-    await requestLock('ev1', confirm);
+    [[], {}],
+    [[MARC.key], { confirmedDuties: [MARC.key] }],
+  ])('confirming %j posts %j', async (confirmed, body) => {
+    await requestLock('ev1', confirmed);
     expect(vi.mocked(apiRequest).mock.calls[0]?.slice(1)).toStrictEqual([
       '/api/v1/events/ev1/lock-referee-assignments',
       { method: 'POST', body },
@@ -67,6 +68,20 @@ describe('lockRefusal', () => {
         code: 'referee_lock_impossible',
         detail: '1 referee assignment(s) break a rule that has no override',
         details: { conflicts: [MARC] },
+        validationErrors: null,
+      }),
+    ).toStrictEqual([MARC]);
+  });
+
+  it('drops a duty that carries no key: "send anyway" could not name it', () => {
+    const { key: _key, ...keyless } = MARC;
+    expect(
+      lockRefusal({
+        kind: 'http',
+        status: 409,
+        code: 'referee_lock_impossible',
+        detail: '2 referee assignment(s) break a rule that has no override',
+        details: { conflicts: [MARC, keyless] },
         validationErrors: null,
       }),
     ).toStrictEqual([MARC]);

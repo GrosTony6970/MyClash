@@ -121,15 +121,21 @@ export function refereeRefusal(failure: ApiFailure): RefereeRefusal | null {
  * The lock's 409 (ADR-019): the duties that break a rule with no override, which the
  * organiser reassigns or sends anyway. Null for any other failure.
  */
-export function lockRefusal(failure: ApiFailure): RefereeConflictEntry[] | null {
+export function lockRefusal(failure: ApiFailure): LockRefusedDuty[] | null {
   if (failure.kind !== 'http' || failure.status !== 409) return null;
   if (failure.code !== 'referee_lock_impossible') return null;
   const raw = failure.details?.['conflicts'];
   return (Array.isArray(raw) ? raw : []).filter(
-    (c): c is RefereeConflictEntry =>
-      typeof c === 'object' && c !== null && Array.isArray((c as { reasons?: unknown }).reasons),
+    (c): c is LockRefusedDuty =>
+      typeof c === 'object' &&
+      c !== null &&
+      Array.isArray((c as { reasons?: unknown }).reasons) &&
+      typeof (c as { key?: unknown }).key === 'string',
   );
 }
+
+/** A duty that refused the lock, with the key "send anyway" confirms it by (ruling 138). */
+export type LockRefusedDuty = RefereeConflictEntry & { key: string };
 
 /** An assign door's 409: the checker's level and every reason, as the API sent them. */
 export interface RefereeRefusal {
