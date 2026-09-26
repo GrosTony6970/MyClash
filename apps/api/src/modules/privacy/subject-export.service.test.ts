@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { rowsToCsv, scrubRows } from './subject-export.service';
+import { mockSupabase } from '../../common/testing/supabase-chain';
+import { SubjectExportService, rowsToCsv, scrubRows } from './subject-export.service';
 import { HEADER_ROW } from '../exports/hema-ratings-format';
 import { SUBJECT_EXPORT_TABLES, SUBJECT_EXPORT_EXCLUDED_TABLES } from './subject-export.tables';
 
@@ -95,11 +96,45 @@ describe('subject table census', () => {
     }
   });
 
-  it('reaches the assigned referee through matches.referee_id', () => {
-    // Named neither *_user_id nor *_person_id — found only because the coverage
-    // guard scans foreign keys as well as column names.
-    const reach = SUBJECT_EXPORT_TABLES['matches']?.reaches.find((r) => r.column === 'referee_id');
-    expect(reach?.reach).toBe('person');
+  it("reaches the subject's referee duties by their GLOBAL person (0063), not an event person", () => {
+    const reach = SUBJECT_EXPORT_TABLES['referee_assignments']?.reaches.find(
+      (r) => r.column === 'person_id',
+    );
+    expect(reach?.reach).toBe('global_person');
+    // matches.referee_id is gone (0209): a refereed bout comes from the duties.
+    expect(SUBJECT_EXPORT_TABLES['matches']?.reaches.some((r) => r.column === 'referee_id')).toBe(
+      false,
+    );
+  });
+
+  it('exports the bouts the subject refereed: a bout duty, and every bout of a Pool duty', async () => {
+    // The event persons.id ('p-1') and the global id ('gp-1') differ on purpose: the duties
+    // carry the global one, and reading them by the event one found nothing.
+    const supabase = mockSupabase({
+      global_persons: { rows: [{ id: 'gp-1', claimed_by_user_id: 'u-1' }] },
+      persons: { rows: [{ id: 'p-1', claimed_by_user_id: 'u-1', global_person_id: 'gp-1' }] },
+      registrations: { rows: [] },
+      referee_assignments: {
+        rows: [
+          { id: 'ra-1', person_id: 'gp-1', match_id: 'm-bout', pool_id: null },
+          { id: 'ra-2', person_id: 'gp-1', match_id: null, pool_id: 'pool-1' },
+          { id: 'ra-3', person_id: 'gp-other', match_id: 'm-not-mine', pool_id: null },
+        ],
+      },
+      matches: {
+        rows: [
+          { id: 'm-bout', pool_id: null, scorekeeper_user_id: null },
+          { id: 'm-p1', pool_id: 'pool-1', scorekeeper_user_id: null },
+          { id: 'm-p2', pool_id: 'pool-1', scorekeeper_user_id: null },
+          { id: 'm-not-mine', pool_id: 'pool-9', scorekeeper_user_id: null },
+        ],
+      },
+    });
+    const service = new SubjectExportService(supabase as never);
+    const anchors = await (
+      service as unknown as { resolveAnchors: (uid: string) => Promise<{ matchIds: string[] }> }
+    ).resolveAnchors('u-1');
+    expect([...anchors.matchIds].sort()).toEqual(['m-bout', 'm-p1', 'm-p2']);
   });
 
   it('never exports credential material', () => {

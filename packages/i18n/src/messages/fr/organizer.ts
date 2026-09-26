@@ -3076,7 +3076,7 @@ export const organizer = {
       capacityLine:
         '{lices} en parallèle demandent {needed} postes, seulement {free} arbitres libres',
       rulesFooter:
-        'Règles : son combat · arbitre-vs-combat · double affectation · deux rôles · disponibilité · capacité',
+        'Toujours vérifié : son combat · combattre, arbitrer ou animer au même moment · disponibilité. Réglable : sa poule · poule en cours · deux rôles · participation à un atelier · repos · plafond quotidien · capacité',
     },
     byTimeslotTitle: 'Par créneau',
     idleLice: 'libre',

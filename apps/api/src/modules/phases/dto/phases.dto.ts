@@ -23,14 +23,8 @@ const generatePoolsSchema = z
     seed: z.number().int().optional(),
     /** Lice ID to assign matches to (optional — assigns all to one Lice if provided) */
     liceId: z.uuid().optional(),
-    /** Rest between two referee duties of a day, in day slots (ADR-019; default: true) */
-    enforceRefereeNoBackToBack: z.boolean().optional(),
-    /** Day slots a referee rests between two duties, 0–5 as everywhere (ADR-019; default: 1) */
-    refereeRestMinSlots: z.number().int().min(0).max(5).optional(),
-    /** Never schedule a fighter to referee the same pool they're fighting in (default: true) */
-    enforceFighterRefereeNoOverlap: z.boolean().optional(),
-    /** Prefer referees with higher ratings when multiple candidates are available (default: true) */
-    preferHighRatedReferees: z.boolean().optional(),
+    // No referee setting here: the referee rules are set in one place, the Event's referee
+    // panel (ruling 142). A body naming one is refused (strict).
     /**
      * Accept the permanent loss of already-scored bouts when regenerating with
      * `?force=true`. Without it a scored phase refuses with a 409 naming the

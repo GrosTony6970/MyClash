@@ -11,10 +11,9 @@ import {
   Param,
   ParseUUIDPipe,
   Put,
-  Query,
   Req,
 } from '@nestjs/common';
-import { ApiOperation, ApiParam, ApiQuery, ApiTags } from '@nestjs/swagger';
+import { ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
 import { createZodDto } from 'nestjs-zod';
 import { z } from 'zod';
 import type { FastifyRequest } from 'fastify';
@@ -29,7 +28,7 @@ const updateSettingsSchema = z
     enforceSchoolSeparation: z.boolean().optional(),
     schoolSeparationStrictness: z.enum(['hard', 'soft']).optional(),
     enforceSkillBalance: z.boolean().optional(),
-    // enforce_fighter_referee_no_overlap is NOT in this DTO — it cannot be changed
+    // The Impossible rules (ADR-016, hard rule 8) have no setting: a body naming one is refused.
     enforceRefereeNoBackToBack: z.boolean().optional(),
     refereeRestMinSlots: z.number().int().min(0).max(5).optional(),
     // ADR-019: most bouts a person referees in one Event day; 0 = no cap.
@@ -37,13 +36,10 @@ const updateSettingsSchema = z
     workshopConflictWarning: z.boolean().optional(),
     ratingBasedOrdering: z.boolean().optional(),
     workloadBalance: z.boolean().optional(),
-    // Per-rule toggles for the Assignment Health rules (all default true).
+    // The Discouraged rules' switches and the capacity warning's (all default true).
     enableOwnPoolRule: z.boolean().optional(),
     enableOwnPoolSpanRule: z.boolean().optional(),
-    enableOfficiateVsFightRule: z.boolean().optional(),
-    enableDoubleBookedRule: z.boolean().optional(),
     enableTwoRolesRule: z.boolean().optional(),
-    enableAvailabilityRule: z.boolean().optional(),
     enableCapacityRule: z.boolean().optional(),
   })
   .strict();
@@ -67,31 +63,25 @@ export class SettingsController {
   }
 
   @Get('events/:eventId/pool-assignment-settings')
-  @ApiOperation({ summary: 'Get pool assignment settings (tournament override → event default)' })
+  @ApiOperation({ summary: "Get the Event's pool assignment settings" })
   @ApiParam({ name: 'eventId', type: 'string', format: 'uuid' })
-  @ApiQuery({ name: 'tournamentId', required: false, type: 'string' })
-  async get(
-    @Param('eventId', ParseUUIDPipe) eventId: string,
-    @Req() req: FastifyRequest,
-    @Query('tournamentId') tournamentId?: string,
-  ) {
+  async get(@Param('eventId', ParseUUIDPipe) eventId: string, @Req() req: FastifyRequest) {
     await assertEventMember(this.authz, eventId, await this.userId(req));
-    return this.settings.getSettings(eventId, tournamentId);
+    return this.settings.getSettings(eventId);
   }
 
   @Put('events/:eventId/pool-assignment-settings')
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Update pool assignment settings (organizer+)' })
+  @ApiOperation({ summary: "Update the Event's pool assignment settings (organizer+)" })
   @ApiParam({ name: 'eventId', type: 'string', format: 'uuid' })
-  @ApiQuery({ name: 'tournamentId', required: false, type: 'string' })
   async update(
     @Param('eventId', ParseUUIDPipe) eventId: string,
-    @Query('tournamentId') tournamentId: string | undefined,
     @Body() dto: UpdateSettingsDto,
     @Req() req: FastifyRequest,
   ) {
-    // The summary said "organizer+" and nothing enforced it until 2026-08-15.
+    // The summary said "organizer+" and nothing enforced it until 2026-08-15. One row per Event:
+    // the referee rules are set in one place (ruling 142), so there is no per-Tournament door.
     await assertCanManageEvent(this.authz, eventId, await this.userId(req));
-    return this.settings.upsertSettings(eventId, tournamentId ?? null, dto);
+    return this.settings.upsertSettings(eventId, dto);
   }
 }

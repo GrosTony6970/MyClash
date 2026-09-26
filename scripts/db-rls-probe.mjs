@@ -21,8 +21,12 @@
  *   3. every PRIVATE_COLUMNS entry is granted to neither anon nor authenticated, and an anon read of
  *      it is refused (42501) — a column no policy can hide on a row it shows;
  *   4. every view in `public` runs as its caller (security_invoker) — the runtime twin of
- *      db:review's static rule, which missed 0193.
- * Signed-in reads are out of scope: ruling 111a leaves their loop latent on purpose.
+ *      db:review's static rule, which missed 0193;
+ *   5. every API_ONLY_WRITES table refuses INSERT, UPDATE and DELETE on privilege (42501, not an
+ *      RLS refusal) to the seeded organisation admin, signed in: only the API's service role
+ *      writes it (0209, ruling 144).
+ * Signed-in reads are out of scope: ruling 111a leaves their loop latent on purpose. Check 5 is a
+ * write, refused on privilege before any policy runs.
  */
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -123,6 +127,17 @@ const PRIVATE_COLUMNS = [
   // The reasons an organiser confirmed over (W1): "attends a Workshop" names a private enrolment.
   { table: 'referee_assignments', column: 'conflicts_jsonb' },
 ];
+
+/**
+ * Tables only the API writes: no write grant for either public role, so a direct write through
+ * PostgREST fails loudly rather than touching no row in silence. Each names a seeded row.
+ */
+const API_ONLY_WRITES = [
+  // Every door that writes a referee asks the one checker and the lock (ADR-016, ADR-019).
+  { table: 'referee_assignments', key: 'id', row: '4a000000-0000-4000-8000-00000000002a' },
+];
+/** The seeded organisation admin of the probe club (rls-probe-seed.sql). */
+const ORG_ADMIN = '11111111-1111-4111-8111-111111111111';
 
 const sql = postgres(databaseUrl, {
   max: 1,
@@ -237,6 +252,60 @@ async function privateColumnsHidden(tx) {
   }
 }
 
+/** Runs `write` signed in as `userId` in a savepoint that is always rolled back; its error, if any. */
+async function writeAs(tx, userId, write) {
+  let failure = null;
+  await rolledBack(() =>
+    tx.savepoint(async (sp) => {
+      await sp`SET LOCAL ROLE authenticated`;
+      const claims = JSON.stringify({ role: 'authenticated', sub: userId });
+      await sp`SELECT set_config('request.jwt.claims', ${claims}, true)`;
+      try {
+        await write(sp);
+      } catch (error) {
+        failure = error;
+      }
+      throw ROLLBACK;
+    }),
+  );
+  return failure;
+}
+
+/**
+ * Each write must be refused on PRIVILEGE ("permission denied for table"), not by RLS: with the
+ * grant back and no write policy, an INSERT is still 42501 ("violates row-level security") and an
+ * UPDATE or DELETE touches no row in silence. The INSERT copies the seeded row under a new key from
+ * JSON read beforehand, so it reads nothing as the admin: SELECT is per column since 0205.
+ */
+async function apiOnlyWritesRefused(tx) {
+  for (const { table, key, row } of API_ONLY_WRITES) {
+    const [seeded] =
+      await tx`SELECT to_jsonb(t) AS doc FROM ${tx(table)} t WHERE ${tx(key)}::text = ${row}`;
+    if (!seeded) {
+      failures.push(`${table}: the seeded row ${row} is missing, so no write was tried`);
+      continue;
+    }
+    const copy = JSON.stringify({ ...seeded.doc, [key]: globalThis.crypto.randomUUID() });
+    const writes = {
+      INSERT: (sp) =>
+        sp`INSERT INTO ${sp(table)} SELECT * FROM jsonb_populate_record(NULL::${sp(table)}, ${copy}::text::jsonb)`,
+      UPDATE: (sp) =>
+        sp`UPDATE ${sp(table)} SET ${sp(key)} = ${sp(key)} WHERE ${sp(key)}::text = ${row}`,
+      DELETE: (sp) => sp`DELETE FROM ${sp(table)} WHERE ${sp(key)}::text = ${row}`,
+    };
+    for (const [verb, write] of Object.entries(writes)) {
+      const failure = await writeAs(tx, ORG_ADMIN, write);
+      if (!failure)
+        failures.push(`the organisation admin may ${verb} ${table}: only the API writes it`);
+      else if (
+        failure.code !== '42501' ||
+        !failure.message.startsWith('permission denied for table')
+      )
+        failures.push(`${verb} on ${table} was not refused on privilege: ${failure.message}`);
+    }
+  }
+}
+
 async function viewsRunAsCaller(tx) {
   const views = await tx`
     SELECT c.relname FROM pg_class c
@@ -263,6 +332,7 @@ try {
       await seededRowsSplit(tx);
       await privateColumnsHidden(tx);
       await viewsRunAsCaller(tx);
+      await apiOnlyWritesRefused(tx);
       throw ROLLBACK;
     }),
   );
@@ -271,7 +341,7 @@ try {
     process.exitCode = 1;
   } else {
     console.log(
-      `RLS probe passed: no read errored for anon across ${relations} relations (a policy runs only over rows present: the seed's and the migrations'), ${VERDICTS.length} seeded tables split as expected, ${PRIVATE_COLUMNS.length} private columns hidden from anon and authenticated, every view runs as its caller.`,
+      `RLS probe passed: no read errored for anon across ${relations} relations (a policy runs only over rows present: the seed's and the migrations'), ${VERDICTS.length} seeded tables split as expected, ${PRIVATE_COLUMNS.length} private columns hidden from anon and authenticated, every view runs as its caller, ${API_ONLY_WRITES.length} API-only tables refuse direct writes.`,
     );
   }
 } catch (error) {

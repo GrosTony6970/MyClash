@@ -2156,7 +2156,9 @@ describe('PhasesService', () => {
         phases: { rows: POOL_PHASES },
         tournaments: { rows: TOURNAMENTS },
         pools: { rows: POOLS },
-        matches: { rows: [{ id: 'm-1', phase_id: 'phase-1', referee_id: null }] },
+        // No `matches` seed: the bouts come from the view and their crews from
+        // referee_assignments (matches.referee_id is gone, 0209). A read of the raw
+        // table would throw here.
         // Read whenever the pool has bouts and the tournament has an event, so
         // it is declared by default; the crew tests below replace it.
         referee_assignments: { rows: [] },
@@ -2168,6 +2170,17 @@ describe('PhasesService', () => {
     // identifiers because the pool tab built the code client-side.
     // `listPoolsWithMatches` must now ship a pre-built `roundCode` so the
     // FE renders it verbatim — same shape as `getMatchSummary`.
+    it('carries no matches.referee_id: a bout crew comes from referee_assignments (0209)', async () => {
+      const { service } = listService({
+        vw_tournament_query_matches: { rows: [viewMatch('m-1', {})] },
+      });
+
+      const result = await service.listPoolsWithMatches('tournament-1');
+
+      expect(result[0]?.matches[0]).not.toHaveProperty('referee_id');
+      expect(result[0]?.matches[0]).toHaveProperty('referees');
+    });
+
     it("returns a backend-built roundCode on each match (e.g. 'LSW-P1-M1')", async () => {
       const { service } = listService({
         vw_tournament_query_matches: {
@@ -2641,7 +2654,7 @@ describe('PhasesService', () => {
           winner_registration_id: null,
         },
       ]);
-      // The SELECT must NOT include privileged fields like referee_id
+      // The SELECT must NOT include privileged fields like the crew
       // or lice_id — those should only come through the heavier
       // `pools-with-matches` endpoint that handles permissions properly.
       expect(selectsFor(supabase.from, 'matches')).toEqual([
@@ -2754,7 +2767,6 @@ describe('PhasesService', () => {
         { placeMatches: vi.fn() } as never,
         undefined,
         mockOrgs as never,
-        undefined,
         undefined,
         undefined,
         undefined,
@@ -2927,7 +2939,6 @@ describe('PhasesService', () => {
         { placeMatches: vi.fn() } as never,
         undefined,
         mockOrgs as never,
-        undefined,
         undefined,
         poolStandings as never,
       );
@@ -3202,7 +3213,6 @@ describe('PhasesService.getTournamentBracket — seeding drift', () => {
       { placeMatches: vi.fn() } as never,
       undefined,
       mockOrgs as never,
-      undefined,
       undefined,
       poolStandings as never,
       swissStandings as never,

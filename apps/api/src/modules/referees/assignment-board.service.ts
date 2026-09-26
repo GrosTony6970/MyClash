@@ -1096,9 +1096,9 @@ export class AssignmentBoardService {
     // Measuring the day the way the platform does beats refusing to load a board.
     const eventTimezone = eventRowTyped?.timezone ?? DEFAULT_EVENT_TIMEZONE;
 
-    // Per-rule toggles (own pool / officiate-vs-fight / …) gate every
-    // enforcement point downstream: engine filters, candidate blocking,
-    // manual-assign rejects, and the conflicts/capacity payload.
+    // The Discouraged rules' switches (own Pool, Pool running, two roles, attending, rest, the
+    // cap) and the capacity warning's: read by the checker at every door. The Impossible rules
+    // have none (ADR-016).
     const ruleSettings = await this.settings.getSettings(eventId);
 
     const tournaments = await this.listTournaments(eventId);

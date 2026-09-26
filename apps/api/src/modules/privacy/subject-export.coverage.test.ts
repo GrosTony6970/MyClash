@@ -51,9 +51,9 @@ function loadMigrationSql(): string {
  * the event-scoped persons.id — the export decides which, see SubjectReach).
  *
  * FK catches columns that point at a person under a name the first net cannot
- * guess. `matches.referee_id` is the proof this is needed: it REFERENCES
- * persons(id), carries no `person_id` in its name, and spans two lines in
- * migration 0039, so a name-only, line-anchored scan misses it silently.
+ * guess. `matches.referee_id` (0039, dropped in 0209) was the proof this is
+ * needed: it REFERENCED persons(id), carried no `person_id` in its name, and
+ * spanned two lines, so a name-only, line-anchored scan missed it silently.
  *
  * Deliberately broad: a false positive costs one line in the excluded set, a
  * false negative costs a silent compliance gap.

@@ -25,7 +25,6 @@ import { insertAuditLog } from '../../common/audit-log';
 import { HemaRatingsService } from '../hema-ratings/hema-ratings.service';
 import { eventHemaRatingsId, type RatedPerson } from '../hema-ratings/event-hema-ratings-id';
 import { OrganizationsService } from '../organizations/organizations.service';
-import { SettingsService } from '../referees/settings.service';
 // Value import: a DI dependency (see di-wiring.regression.test.ts).
 import { AssignmentBoardService, type JudgedWrite } from '../referees/assignment-board.service';
 import { assertRefereeBoardUnlocked } from '../referees/referee-lock';
@@ -161,8 +160,6 @@ export class PhasesService {
     @Optional()
     private readonly bracketAdvance?: BracketAdvanceService,
     @Optional()
-    private readonly settingsService?: SettingsService,
-    @Optional()
     private readonly poolStandings?: PoolStandingsService,
     // From the Swiss LEAF module, which PhasesModule already imports for
     // auto-advance. Value-imported so `by-swiss-rank` does not silently
@@ -259,29 +256,6 @@ export class PhasesService {
     if (regsError) throw new BadRequestException(regsError.message);
     const allRegs = regs ?? [];
     const fighterCount = allRegs.length;
-
-    // Merge any referee constraint overrides from the DTO into pool_assignment_settings
-    // and persist them so they survive across regenerations.
-    if (this.settingsService && eventId) {
-      const anyRefereeOverride =
-        dto.enforceRefereeNoBackToBack !== undefined ||
-        dto.refereeRestMinSlots !== undefined ||
-        dto.preferHighRatedReferees !== undefined;
-      if (anyRefereeOverride) {
-        await this.settingsService.upsertSettings(eventId, tournamentId, {
-          ...(dto.enforceRefereeNoBackToBack !== undefined && {
-            enforceRefereeNoBackToBack: dto.enforceRefereeNoBackToBack,
-          }),
-          ...(dto.refereeRestMinSlots !== undefined && {
-            refereeRestMinSlots: dto.refereeRestMinSlots,
-          }),
-          // enforceFighterRefereeNoOverlap is a HARD constraint (always true) and excluded from upsert
-          ...(dto.preferHighRatedReferees !== undefined && {
-            ratingBasedOrdering: dto.preferHighRatedReferees,
-          }),
-        });
-      }
-    }
 
     // Resolve pool count. When there are zero fighters we still need a sensible
     // default so the operator can stand up the layout before any registrations
@@ -2933,8 +2907,8 @@ export class PhasesService {
 
   /**
    * Returns pools with their enriched matches for the Matches tab.
-   * Queries the vw_tournament_query_matches view (red_name, blue_name, lice_id …)
-   * and supplements referee_id from the raw matches table.
+   * Queries the vw_tournament_query_matches view (red_name, blue_name, lice_id …);
+   * each bout's crew comes from `referee_assignments` (`referees`).
    */
   async listPoolsWithMatches(tournamentId: string): Promise<
     Array<{
@@ -2992,23 +2966,8 @@ export class PhasesService {
       .eq('phase_type', 'pool')
       .order('match_number_label', { ascending: true });
 
-    // 4. Get referee_id from raw matches table (not in view)
-    const { data: rawMatches } = await this.supabase.service
-      .from('matches')
-      .select('id, referee_id')
-      .eq('phase_id', phaseId);
-
-    const refereeMap = new Map<string, string | null>(
-      ((rawMatches ?? []) as Array<{ id: string; referee_id: string | null }>).map((m) => [
-        m.id,
-        m.referee_id,
-      ]),
-    );
-
-    // 4b. Per-role match referee assignments (scope_type='match').
-    // The pool tab renders one column per role with the referee's NAME
-    // — distinct from the legacy matches.referee_id single field, which
-    // no API route writes any more.
+    // 4. Per-role match referee assignments (scope_type='match').
+    // The pool tab renders one column per role with the referee's NAME.
     //
     // Post-0063: referee_assignments.person_id → global_persons(id).
     // The legacy `persons(...)` embed silently 400'd because there is
@@ -3195,7 +3154,6 @@ export class PhasesService {
             lice_id: m.lice_id,
             lice_name: m.lice_name ?? null,
             lice_number: m.lice_number ?? null,
-            referee_id: refereeMap.get(m.match_id) ?? null,
             scheduled_at: m.scheduled_at,
             match_number_label: m.match_number_label,
             referees: resolveReferees(m.match_id, m.pool_id),
@@ -3220,7 +3178,7 @@ export class PhasesService {
    *
    * Deliberately narrow SELECT: only the four fields the FE needs to
    * decide "did the score / status change for this row?". Privileged
-   * fields (referee_id, lice_id) intentionally not exposed here so
+   * fields (the crew, lice_id) intentionally not exposed here so
    * this cheap polling endpoint can't be used to siphon assignment
    * data.
    */

@@ -1,7 +1,7 @@
 /**
- * The two bodies that write the referee rules' numbers (ADR-019): rest in day slots is
- * 0–5 on both, the daily bout cap is written by the settings screen only, and the dead
- * `enforceDedicatedRefereeRest` is refused by name (both schemas are strict).
+ * The one body that writes the referee rules (ADR-019, ruling 142): rest in day slots is 0–5,
+ * the daily bout cap 0–200; a deleted switch or an Impossible rule is refused by name, and
+ * Generate Pools takes no referee key at all (both schemas are strict).
  */
 import { describe, expect, it } from 'vitest';
 import { GeneratePoolsDto } from '../phases/dto/phases.dto';
@@ -25,19 +25,31 @@ describe('referee settings body', () => {
     expect(settings({ refereeRestMinSlots: 6 })).toBe(false);
   });
 
-  it('refuses the deleted switch', () => {
-    expect(settings({ enforceDedicatedRefereeRest: true })).toBe(false);
+  it.each([
+    'enforceDedicatedRefereeRest',
+    'enableOfficiateVsFightRule',
+    'enableDoubleBookedRule',
+    'enableAvailabilityRule',
+    'enforceFighterRefereeNoOverlap',
+  ])('refuses %s: a deleted switch, or a rule that has none', (key) => {
+    expect(settings({ [key]: true })).toBe(false);
   });
 });
 
 describe('generate-pools body', () => {
-  it('bounds rest at 5 slots, as the settings screen does', () => {
-    expect(generate({ refereeRestMinSlots: 5 })).toBe(true);
-    expect(generate({ refereeRestMinSlots: 6 })).toBe(false);
+  it('still takes the pool keys', () => {
+    expect(generate({ enforceSchoolSeparation: true, targetSize: 6 })).toBe(true);
   });
 
-  it('writes no cap and no deleted switch', () => {
-    expect(generate({ maxBoutsPerDay: 3 })).toBe(false);
-    expect(generate({ enforceDedicatedRefereeRest: true })).toBe(false);
+  // The referee rules are set in one place, the Event's panel (ruling 142).
+  it.each([
+    'enforceRefereeNoBackToBack',
+    'refereeRestMinSlots',
+    'enforceFighterRefereeNoOverlap',
+    'preferHighRatedReferees',
+    'maxBoutsPerDay',
+    'enforceDedicatedRefereeRest',
+  ])('refuses the referee key %s', (key) => {
+    expect(generate({ [key]: key === 'refereeRestMinSlots' ? 1 : true })).toBe(false);
   });
 });

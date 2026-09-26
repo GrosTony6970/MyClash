@@ -222,29 +222,39 @@ describe('AssignmentsService.getEventAssignments', () => {
       if (tableName === 'bracket_slots') return awaitableChain({ data: [], error: null });
       if (tableName === 'vw_tournament_query_matches')
         return awaitableChain({ data: [], error: null });
-      if (tableName === 'matches') {
-        // Legacy matches.referee_id read returns one running match. The
-        // tournament arrives through the `phases` EMBED — there is no
-        // matches.tournament_id, and asking for one 400'd the whole query, so
-        // a referee's live match never blocked anything.
+      // The duty is read by the GLOBAL person (0063); matches.referee_id is gone (0209).
+      if (tableName === 'persons') {
+        return awaitableChain({ data: { global_person_id: 'gp-1' }, error: null });
+      }
+      if (tableName === 'referee_assignments') {
+        // One bout duty on a running match. The tournament arrives through the
+        // `phases` EMBED — there is no matches.tournament_id.
         return awaitableChain({
           data: [
             {
-              id: 'm-ref-live',
-              match_number_label: 'SBR-P1-M2',
-              status: 'running',
-              referee_id: 'person-1',
-              phases: { tournament_id: 't-1' },
+              id: 'ra-live',
+              scope_type: 'match',
+              pool_id: null,
+              match_id: 'm-ref-live',
+              role: 'arbitre_declarant',
+              pools: null,
+              matches: {
+                id: 'm-ref-live',
+                match_number_label: 'SBR-P1-M2',
+                status: 'running',
+                phases: { tournament_id: 't-1', tournaments: { id: 't-1', name: 'Sabre' } },
+              },
             },
           ],
           error: null,
         });
       }
-      if (tableName === 'referee_assignments') return awaitableChain({ data: [], error: null });
       return awaitableChain({ data: null, error: null });
     });
 
     const report = await service.getEventAssignments('event-1', 'person-1');
+    // No read of the dropped column survives.
+    expect(fromMock.mock.calls.map(([table]) => table)).not.toContain('matches');
 
     expect(report.hasBlockingMatch).toBe(true);
     expect(report.blockingMatches).toContainEqual({
@@ -481,9 +491,9 @@ describe('AssignmentsService.forceDeletePersonInEvent', () => {
     });
   });
 
-  it('also clears referee_assignments and nulls matches.referee_id pointing at the person', async () => {
+  it("also clears the person's referee duties, and touches no matches.referee_id (0209)", async () => {
     const deletedFrom: string[] = [];
-    const updatedRefereeIds: string[] = [];
+    const matchUpdates: string[] = [];
 
     fromMock.mockImplementation((tableName: string) => {
       if (tableName === 'registrations') {
@@ -511,14 +521,13 @@ describe('AssignmentsService.forceDeletePersonInEvent', () => {
               match_number_label: 'SBR-P1-M9',
               status: 'scheduled',
               tournament_id: 't-A',
-              referee_id: 'person-1',
             },
           ],
           error: null,
         });
-        // Spy on the eventual update that nulls referee_id.
-        chain.update = vi.fn((patch: { referee_id: string | null }) => {
-          updatedRefereeIds.push(JSON.stringify(patch));
+        // The column is gone: nothing may write a bout to clear it.
+        chain.update = vi.fn((patch: unknown) => {
+          matchUpdates.push(JSON.stringify(patch));
           return Object.assign(Promise.resolve({ data: null, error: null }), {
             eq: vi.fn().mockReturnThis(),
             in: vi.fn().mockReturnThis(),
@@ -584,7 +593,7 @@ describe('AssignmentsService.forceDeletePersonInEvent', () => {
 
     expect(deletedFrom).toContain('referee_assignments');
     expect(deletedFrom).toContain('persons');
-    expect(updatedRefereeIds.some((p) => p.includes('"referee_id":null'))).toBe(true);
+    expect(matchUpdates).toEqual([]);
   });
 });
 

@@ -1,12 +1,9 @@
 /**
  * settings.service.ts — T-902
  *
- * CRUD for pool_assignment_settings.
- *
- * AC:
- *   - Default settings created on event creation
- *   - Per-tournament override resolves correctly
- *   - enforce_fighter_referee_no_overlap cannot be set to false (hard constraint)
+ * CRUD for pool_assignment_settings: one row per Event (`tournament_id` NULL), created with the
+ * defaults on first read. The referee rules are set in one place, the Event's panel (ruling 142):
+ * no per-Tournament row is ever written. The Impossible rules of ADR-016 have no setting at all.
  */
 
 import { BadRequestException, Injectable } from '@nestjs/common';
@@ -19,8 +16,6 @@ export interface PoolAssignmentSettings {
   enforceSchoolSeparation: boolean;
   schoolSeparationStrictness: 'hard' | 'soft';
   enforceSkillBalance: boolean;
-  /** HARD CONSTRAINT — always true, cannot be disabled */
-  enforceFighterRefereeNoOverlap: true;
   /** ADR-019 rest: the switch, and how many day slots apart two duties must be (0–5). */
   enforceRefereeNoBackToBack: boolean;
   refereeRestMinSlots: number;
@@ -29,16 +24,12 @@ export interface PoolAssignmentSettings {
   workshopConflictWarning: boolean;
   ratingBasedOrdering: boolean;
   workloadBalance: boolean;
-  /** Per-rule toggles for the Assignment Health rules — all default true.
-   *  Disabling one stops it being flagged in the health panel AND
-   *  enforced (engine, candidate blocking, manual-assign rejects). */
+  /** The Discouraged rules' switches (ADR-016) — all default true. */
   enableOwnPoolRule: boolean;
   /** Refereeing while a Pool one fights in is running, outside one's own bouts (ruling 5). */
   enableOwnPoolSpanRule: boolean;
-  enableOfficiateVsFightRule: boolean;
-  enableDoubleBookedRule: boolean;
   enableTwoRolesRule: boolean;
-  enableAvailabilityRule: boolean;
+  /** The slate warning "not enough referees at this time" — never a verdict on a person. */
   enableCapacityRule: boolean;
 }
 
@@ -46,7 +37,6 @@ const DEFAULTS: Omit<PoolAssignmentSettings, 'id' | 'eventId' | 'tournamentId'> 
   enforceSchoolSeparation: true,
   schoolSeparationStrictness: 'soft',
   enforceSkillBalance: true,
-  enforceFighterRefereeNoOverlap: true, // HARD — always true
   enforceRefereeNoBackToBack: true,
   refereeRestMinSlots: 1,
   maxBoutsPerDay: 0,
@@ -55,10 +45,7 @@ const DEFAULTS: Omit<PoolAssignmentSettings, 'id' | 'eventId' | 'tournamentId'> 
   workloadBalance: true,
   enableOwnPoolRule: true,
   enableOwnPoolSpanRule: true,
-  enableOfficiateVsFightRule: true,
-  enableDoubleBookedRule: true,
   enableTwoRolesRule: true,
-  enableAvailabilityRule: true,
   enableCapacityRule: true,
 };
 
@@ -66,22 +53,9 @@ const DEFAULTS: Omit<PoolAssignmentSettings, 'id' | 'eventId' | 'tournamentId'> 
 export class SettingsService {
   constructor(private readonly supabase: SupabaseService) {}
 
-  // ── Get settings (tournament override → event default) ────────────────────────
+  // ── Get settings (the Event's row) ────────────────────────────────────────────
 
-  async getSettings(eventId: string, tournamentId?: string): Promise<PoolAssignmentSettings> {
-    // Try tournament-specific override first
-    if (tournamentId) {
-      const { data: tournamentSettings } = await this.supabase.service
-        .from('pool_assignment_settings')
-        .select('*')
-        .eq('event_id', eventId)
-        .eq('tournament_id', tournamentId)
-        .maybeSingle();
-
-      if (tournamentSettings) return this.map(tournamentSettings as Record<string, unknown>);
-    }
-
-    // Fall back to event-level settings
+  async getSettings(eventId: string): Promise<PoolAssignmentSettings> {
     const { data: eventSettings } = await this.supabase.service
       .from('pool_assignment_settings')
       .select('*')
@@ -92,25 +66,16 @@ export class SettingsService {
     if (eventSettings) return this.map(eventSettings as Record<string, unknown>);
 
     // Auto-create defaults
-    return this.createDefaults(eventId, null);
+    return this.createDefaults(eventId);
   }
 
   // ── Create or update settings ─────────────────────────────────────────────────
 
   async upsertSettings(
     eventId: string,
-    tournamentId: string | null,
-    patch: Partial<
-      Omit<
-        PoolAssignmentSettings,
-        'id' | 'eventId' | 'tournamentId' | 'enforceFighterRefereeNoOverlap'
-      >
-    >,
+    patch: Partial<Omit<PoolAssignmentSettings, 'id' | 'eventId' | 'tournamentId'>>,
   ): Promise<PoolAssignmentSettings> {
-    // Hard constraint: enforce_fighter_referee_no_overlap cannot be disabled
-    // (enforced by type — the field is always `true` in the interface)
-
-    const existing = await this.getSettings(eventId, tournamentId ?? undefined);
+    const existing = await this.getSettings(eventId);
 
     const updates: Record<string, unknown> = {};
     if (patch.enforceSchoolSeparation !== undefined)
@@ -133,19 +98,12 @@ export class SettingsService {
       updates['enable_own_pool_rule'] = patch.enableOwnPoolRule;
     if (patch.enableOwnPoolSpanRule !== undefined)
       updates['enable_own_pool_span_rule'] = patch.enableOwnPoolSpanRule;
-    if (patch.enableOfficiateVsFightRule !== undefined)
-      updates['enable_officiate_vs_fight_rule'] = patch.enableOfficiateVsFightRule;
-    if (patch.enableDoubleBookedRule !== undefined)
-      updates['enable_double_booked_rule'] = patch.enableDoubleBookedRule;
     if (patch.enableTwoRolesRule !== undefined)
       updates['enable_two_roles_rule'] = patch.enableTwoRolesRule;
-    if (patch.enableAvailabilityRule !== undefined)
-      updates['enable_availability_rule'] = patch.enableAvailabilityRule;
     if (patch.enableCapacityRule !== undefined)
       updates['enable_capacity_rule'] = patch.enableCapacityRule;
-
-    // Always keep hard constraint true
-    updates['enforce_fighter_referee_no_overlap'] = true;
+    // Nothing to write: an UPDATE with no column returns no row, and `.single()` would 400.
+    if (Object.keys(updates).length === 0) return existing;
 
     const { data, error } = await this.supabase.service
       .from('pool_assignment_settings')
@@ -160,19 +118,15 @@ export class SettingsService {
 
   // ── Create defaults (called on event creation) ────────────────────────────────
 
-  async createDefaults(
-    eventId: string,
-    tournamentId: string | null,
-  ): Promise<PoolAssignmentSettings> {
+  async createDefaults(eventId: string): Promise<PoolAssignmentSettings> {
     const { data, error } = await this.supabase.service
       .from('pool_assignment_settings')
       .insert({
         event_id: eventId,
-        tournament_id: tournamentId,
+        tournament_id: null,
         enforce_school_separation: DEFAULTS.enforceSchoolSeparation,
         school_separation_strictness: DEFAULTS.schoolSeparationStrictness,
         enforce_skill_balance: DEFAULTS.enforceSkillBalance,
-        enforce_fighter_referee_no_overlap: true, // HARD — always true
         enforce_referee_no_back_to_back: DEFAULTS.enforceRefereeNoBackToBack,
         referee_rest_min_slots: DEFAULTS.refereeRestMinSlots,
         max_bouts_per_day: DEFAULTS.maxBoutsPerDay,
@@ -181,10 +135,7 @@ export class SettingsService {
         workload_balance: DEFAULTS.workloadBalance,
         enable_own_pool_rule: DEFAULTS.enableOwnPoolRule,
         enable_own_pool_span_rule: DEFAULTS.enableOwnPoolSpanRule,
-        enable_officiate_vs_fight_rule: DEFAULTS.enableOfficiateVsFightRule,
-        enable_double_booked_rule: DEFAULTS.enableDoubleBookedRule,
         enable_two_roles_rule: DEFAULTS.enableTwoRolesRule,
-        enable_availability_rule: DEFAULTS.enableAvailabilityRule,
         enable_capacity_rule: DEFAULTS.enableCapacityRule,
       })
       .select('*')
@@ -192,7 +143,7 @@ export class SettingsService {
 
     if (error) {
       // May already exist (race condition) — return existing
-      return this.getSettings(eventId, tournamentId ?? undefined);
+      return this.getSettings(eventId);
     }
 
     return this.map(data as Record<string, unknown>);
@@ -208,7 +159,6 @@ export class SettingsService {
       enforceSchoolSeparation: Boolean(r['enforce_school_separation'] ?? true),
       schoolSeparationStrictness: (r['school_separation_strictness'] as 'hard' | 'soft') ?? 'soft',
       enforceSkillBalance: Boolean(r['enforce_skill_balance'] ?? true),
-      enforceFighterRefereeNoOverlap: true, // HARD — always true regardless of DB value
       enforceRefereeNoBackToBack: Boolean(r['enforce_referee_no_back_to_back'] ?? true),
       refereeRestMinSlots: (r['referee_rest_min_slots'] as number) ?? 1,
       maxBoutsPerDay: (r['max_bouts_per_day'] as number) ?? 0,
@@ -217,10 +167,7 @@ export class SettingsService {
       workloadBalance: Boolean(r['workload_balance'] ?? true),
       enableOwnPoolRule: Boolean(r['enable_own_pool_rule'] ?? true),
       enableOwnPoolSpanRule: Boolean(r['enable_own_pool_span_rule'] ?? true),
-      enableOfficiateVsFightRule: Boolean(r['enable_officiate_vs_fight_rule'] ?? true),
-      enableDoubleBookedRule: Boolean(r['enable_double_booked_rule'] ?? true),
       enableTwoRolesRule: Boolean(r['enable_two_roles_rule'] ?? true),
-      enableAvailabilityRule: Boolean(r['enable_availability_rule'] ?? true),
       enableCapacityRule: Boolean(r['enable_capacity_rule'] ?? true),
     };
   }

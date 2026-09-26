@@ -1388,14 +1388,12 @@ describe('QualificationsService — Task 3: availability + referees list', () =>
   // ── countAssignmentsByReferee — dedup invariant ───────────────────────────────
 
   describe('countAssignmentsByReferee (via listEventReferees)', () => {
-    it('dedups (matchId, personId) across referee_assignments match-scope and matches.referee_id', async () => {
+    it("counts each bout once per referee: a Pool duty's bouts and a bout duty on one of them", async () => {
       // Scenario:
-      //   - 1 tournament "T1", 1 phase "ph1", 1 pool "pool1"
-      //   - 1 match "m1" in pool1
-      //   - 1 global_person "gp-1"
-      //   - referee_assignments: scope_type='match', match_id=m1, person_id=gp-1
-      //   - matches.referee_id points to persons row "p1" whose global_person_id=gp-1
-      //   Expected: m1 counted ONCE → totalMatchCount = 1
+      //   - 1 tournament "T1", 1 phase "ph1", 1 pool "pool1" with bouts m1 and m2
+      //   - 1 global_person "gp-1", who holds pool1's crew AND a bout duty on m1
+      //   Expected: m1 and m2 counted once each → totalMatchCount = 2 (ruling 141: per
+      //   Tournament over the Event, from the duties only — matches.referee_id is gone, 0209)
 
       const eventRow = { id: 'event-1', organization_id: 'org-1' };
 
@@ -1423,12 +1421,12 @@ describe('QualificationsService — Task 3: availability + referees list', () =>
       const tournamentsRows = [{ id: 't1', name: 'T1' }];
       const phaseRows = [{ id: 'ph1', tournament_id: 't1' }];
       const poolRows = [{ id: 'pool1', phase_id: 'ph1' }];
-      // matches — m1 belongs to ph1/pool1, referee_id = p1 (event-scoped persons.id)
-      const matchRows = [{ id: 'm1', phase_id: 'ph1', pool_id: 'pool1', referee_id: 'p1' }];
-      // persons — event-scoped p1 → global_person_id gp-1
-      const personRows = [{ id: 'p1', global_person_id: 'gp-1' }];
-      // referee_assignments — match-scope for m1/gp-1
+      const matchRows = [
+        { id: 'm1', phase_id: 'ph1', pool_id: 'pool1' },
+        { id: 'm2', phase_id: 'ph1', pool_id: 'pool1' },
+      ];
       const assignmentRows = [
+        { person_id: 'gp-1', scope_type: 'pool', pool_id: 'pool1', match_id: null },
         { person_id: 'gp-1', scope_type: 'match', pool_id: null, match_id: 'm1' },
       ];
 
@@ -1443,7 +1441,6 @@ describe('QualificationsService — Task 3: availability + referees list', () =>
       const phaseChain = makeResolvedChain({ data: phaseRows, error: null });
       const poolChain = makeResolvedChain({ data: poolRows, error: null });
       const matchChain = makeResolvedChain({ data: matchRows, error: null });
-      const personChain = makeResolvedChain({ data: personRows, error: null });
       const assignmentChain = makeResolvedChain({ data: assignmentRows, error: null });
 
       const erTournChain = makeResolvedChain({ data: [], error: null });
@@ -1462,7 +1459,6 @@ describe('QualificationsService — Task 3: availability + referees list', () =>
         .mockReturnValueOnce(phaseChain) // phases
         .mockReturnValueOnce(poolChain) // pools
         .mockReturnValueOnce(matchChain) // matches
-        .mockReturnValueOnce(personChain) // persons (for referee_id resolution)
         .mockReturnValueOnce(assignmentChain) // referee_assignments
         .mockReturnValueOnce(erTournChain) // Slice 8: event_referee_tournaments
         .mockReturnValueOnce(erDayChain) // Slice 8: event_referee_days
@@ -1473,10 +1469,13 @@ describe('QualificationsService — Task 3: availability + referees list', () =>
 
       expect(result).toHaveLength(1);
       const row = result[0]!;
-      // m1 must be counted exactly once despite appearing in both sources
-      expect(row.totalMatchCount).toBe(1);
-      expect(row.assignments).toHaveLength(1);
-      expect(row.assignments[0]!.matchCount).toBe(1);
+      // m1 once despite two duties on it, m2 once: two bouts, one Tournament.
+      expect(row.totalMatchCount).toBe(2);
+      expect(row.assignments).toEqual([
+        { tournamentId: 't1', tournamentName: 'T1', matchCount: 2 },
+      ]);
+      // The bouts are read without the dropped column (0209).
+      expect(matchChain.select).toHaveBeenCalledWith('id, phase_id, pool_id');
     });
   });
 });

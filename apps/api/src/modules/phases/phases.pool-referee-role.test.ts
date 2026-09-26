@@ -79,7 +79,6 @@ function makeService(
     undefined,
     undefined,
     undefined,
-    undefined,
     options.noBoard ? undefined : ({ judgeWrite } as never),
   );
   return { service, supabase, rpc, judgeWrite };

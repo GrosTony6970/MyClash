@@ -27,20 +27,28 @@ function allSql(): string {
 const flat = (text: string | undefined) =>
   (text ?? '').replace(/\s+/g, ' ').replace(/\( /g, '(').replace(/ \)/g, ')').trim().toLowerCase();
 
-/** The last statement starting with `verb` that names `referee_assignments`, up to its semicolon. */
-function lastStatement(sql: string, verb: 'grant' | 'revoke'): string {
+/**
+ * The last statement starting with `verb` that names `referee_assignments`, up to its semicolon;
+ * with `privileges`, the last one whose privilege list matches it.
+ */
+function lastStatement(sql: string, verb: 'grant' | 'revoke', privileges?: RegExp): string {
   // `ON TABLE public.referee_assignments` and `ON ALL TABLES IN SCHEMA public` grant it too.
   const target =
     '(?:(?:table\\s+)?(?:public\\.)?referee_assignments\\b|all\\s+tables\\s+in\\s+schema\\s+public)';
   const pattern = new RegExp(`${verb}\\s[^;]*\\bon\\s+${target}[^;]*;`, 'gi');
-  return flat([...sql.matchAll(pattern)].map((hit) => hit[0]).at(-1));
+  const hits = [...sql.matchAll(pattern)].map((hit) => hit[0]);
+  const named = privileges
+    ? hits.filter((hit) => privileges.test(hit.split(/\son\s/i)[0] ?? ''))
+    : hits;
+  return flat(named.at(-1));
 }
 
 describe('referee_assignments.conflicts_jsonb is not public', () => {
   const sql = allSql();
 
   it('takes the table-wide SELECT away from both public roles', () => {
-    expect(lastStatement(sql, 'revoke')).toBe(
+    // 0209 revokes the writes (referee-rules-what-goes.test.ts); this pins the last word on SELECT.
+    expect(lastStatement(sql, 'revoke', /\b(select|all)\b/i)).toBe(
       'revoke select on referee_assignments from anon, authenticated;',
     );
   });

@@ -9,8 +9,8 @@ import { useI18n } from '@myclash/next-i18n/client';
  *
  * The Discouraged switches of ADR-016 (own Pool, Pool running, two roles, attending a
  * Workshop), rest between duties (ADR-019) and the capacity warning's. The Impossible
- * rules have no switch anywhere (hard rule 8): their old columns steer nothing since W1.3
- * and go with W1.4.
+ * rules have no switch anywhere (hard rule 8): their old columns went with 0209, and the
+ * settings body refuses their keys.
  */
 export const RULE_KEYS = [
   'enableOwnPoolRule',

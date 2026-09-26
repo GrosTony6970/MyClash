@@ -4040,9 +4040,9 @@ export interface paths {
       path?: never;
       cookie?: never;
     };
-    /** Get pool assignment settings (tournament override → event default) */
+    /** Get the Event's pool assignment settings */
     get: operations['SettingsController_get'];
-    /** Update pool assignment settings (organizer+) */
+    /** Update the Event's pool assignment settings (organizer+) */
     put: operations['SettingsController_update'];
     post?: never;
     delete?: never;
@@ -10299,10 +10299,6 @@ export interface components {
       seed?: number;
       /** Format: uuid */
       liceId?: string;
-      enforceRefereeNoBackToBack?: boolean;
-      refereeRestMinSlots?: number;
-      enforceFighterRefereeNoOverlap?: boolean;
-      preferHighRatedReferees?: boolean;
       discardScoredResults?: boolean;
     };
     PoolRefereeRoleDto: {
@@ -10390,10 +10386,7 @@ export interface components {
       workloadBalance?: boolean;
       enableOwnPoolRule?: boolean;
       enableOwnPoolSpanRule?: boolean;
-      enableOfficiateVsFightRule?: boolean;
-      enableDoubleBookedRule?: boolean;
       enableTwoRolesRule?: boolean;
-      enableAvailabilityRule?: boolean;
       enableCapacityRule?: boolean;
     };
     ManualAssignmentRequestDto: {
@@ -17630,9 +17623,7 @@ export interface operations {
   };
   SettingsController_get: {
     parameters: {
-      query?: {
-        tournamentId?: string;
-      };
+      query?: never;
       header?: never;
       path: {
         eventId: string;
@@ -17651,9 +17642,7 @@ export interface operations {
   };
   SettingsController_update: {
     parameters: {
-      query?: {
-        tournamentId?: string;
-      };
+      query?: never;
       header?: never;
       path: {
         eventId: string;

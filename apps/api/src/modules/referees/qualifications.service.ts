@@ -955,16 +955,12 @@ export class QualificationsService {
   }
 
   /**
-   * Aggregate per-referee, per-tournament match counts across all assignment sources.
-   *
-   * Data sources:
-   *   1. referee_assignments rows (scope_type = 'match' | 'pool')
-   *      - 'match' → single match; tournament resolved via match → phase → tournament
-   *      - 'pool'  → all matches in that pool; tournament resolved via pool → phase → tournament
-   *   2. matches.referee_id (event-scoped persons.id, not user_id)
-   *      → resolved to user_id via persons.claimed_by_user_id (best-effort)
-   *
-   * Deduplication: a (matchId, userId) pair is counted at most once across both sources.
+   * Per-referee, per-Tournament bout counts over the whole Event, from the referee duties
+   * (`referee_assignments`, scope_type = 'match' | 'pool'):
+   *   - 'match' → its one bout; tournament resolved via match → phase → tournament
+   *   - 'pool'  → every bout of that pool; tournament resolved via pool → phase → tournament
+   * A (bout, person) pair counts once. Bouts with no time yet count too: the roster answers
+   * "how much in total", the daily cap "how much that day" (ruling 141, ADR-019).
    */
   private async countAssignmentsByReferee(
     eventId: string,
@@ -1018,10 +1014,10 @@ export class QualificationsService {
       if (tid) poolToTournament.set(pool.id, tid);
     }
 
-    // ── Step 3: load matches (for dedup set + referee_id source) ─────────────
+    // ── Step 3: load matches (bout → tournament, pool → bouts) ───────────────
     const { data: matchRows, error: mErr } = await this.supabase.service
       .from('matches')
-      .select('id, phase_id, pool_id, referee_id')
+      .select('id, phase_id, pool_id')
       .in('phase_id', phaseIds);
 
     if (mErr) throw new BadRequestException(mErr.message);
@@ -1029,7 +1025,6 @@ export class QualificationsService {
       id: string;
       phase_id: string;
       pool_id: string | null;
-      referee_id: string | null;
     }>;
 
     const matchToTournament = new Map<string, string>();
@@ -1038,30 +1033,7 @@ export class QualificationsService {
       if (tid) matchToTournament.set(m.id, tid);
     }
 
-    // ── Step 4: resolve matches.referee_id (event-scoped persons.id) → global_persons.id ─
-    // Source B keys assignments via the legacy matches.referee_id column. Post-0063
-    // we count everything on person_id (= global_persons.id), so resolve through
-    // persons.global_person_id.
-    const matchesWithRefereeId = matches.filter((m) => m.referee_id !== null);
-    const personToGlobal = new Map<string, string>(); // persons.id → global_persons.id
-
-    if (matchesWithRefereeId.length > 0) {
-      const referePersonIds = [...new Set(matchesWithRefereeId.map((m) => m.referee_id as string))];
-      const { data: personRows } = await this.supabase.service
-        .from('persons')
-        .select('id, global_person_id')
-        .in('id', referePersonIds)
-        .not('global_person_id', 'is', null);
-
-      for (const p of (personRows ?? []) as Array<{
-        id: string;
-        global_person_id: string | null;
-      }>) {
-        if (p.global_person_id) personToGlobal.set(p.id, p.global_person_id);
-      }
-    }
-
-    // ── Step 5: load referee_assignments for this event ───────────────────────
+    // ── Step 4: load referee_assignments for this event ───────────────────────
     const { data: assignmentRows, error: aErr } = await this.supabase.service
       .from('referee_assignments')
       .select('person_id, scope_type, pool_id, match_id')
@@ -1078,7 +1050,7 @@ export class QualificationsService {
       match_id: string | null;
     }>;
 
-    // ── Step 6: matches per pool (for pool-scoped assignments) ────────────────
+    // ── Step 5: matches per pool (for pool-scoped assignments) ────────────────
     const matchesPerPool = new Map<string, string[]>();
     for (const m of matches) {
       if (m.pool_id) {
@@ -1088,7 +1060,7 @@ export class QualificationsService {
       }
     }
 
-    // ── Step 7: accumulate counts with deduplication ──────────────────────────
+    // ── Step 6: accumulate counts with deduplication ──────────────────────────
     // Key: `${matchId}:${personId}` — counts each match at most once per referee.
     const seen = new Set<string>();
 
@@ -1112,7 +1084,7 @@ export class QualificationsService {
       entry.totalMatches += 1;
     };
 
-    // Source A: referee_assignments (person_id-keyed post-0063).
+    // person_id is a global_persons.id (post-0063).
     for (const a of assignments) {
       if (a.scope_type === 'match' && a.match_id) {
         const tid = matchToTournament.get(a.match_id);
@@ -1125,15 +1097,6 @@ export class QualificationsService {
           addCount(a.person_id, matchId, tid);
         }
       }
-    }
-
-    // Source B: matches.referee_id (resolved to global person_id via persons).
-    for (const m of matchesWithRefereeId) {
-      const personId = personToGlobal.get(m.referee_id as string);
-      if (!personId) continue;
-      const tid = matchToTournament.get(m.id);
-      if (!tid) continue;
-      addCount(personId, m.id, tid);
     }
 
     return result;

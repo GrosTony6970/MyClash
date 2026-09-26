@@ -101,15 +101,6 @@ export const SHARED_FK_COLUMNS: Readonly<Record<string, SharedFkColumn>> = {
   event_id: { map: 'events', target: 'event' },
   lice_id: { map: 'lices' },
   person_id: { map: 'persons' },
-  // `matches.referee_id` is an EVENT-SCOPED persons.id (migration 0039), not a
-  // global person — so it has to be remapped like any other person reference.
-  // Left unmapped, a restored match pointed at the SOURCE event's person row:
-  // delete the source and `ON DELETE SET NULL` silently dropped the referee,
-  // keep it and the referee dashboard listed the copy's match under the wrong
-  // event's person (assignments.service.ts reads this column directly). A
-  // Tournament copy in another event nulls one it does not carry
-  // (`restoreTournamentCopy`).
-  referee_id: { map: 'persons' },
   // A global person is NOT archived, so this map stays empty and the id passes
   // through — correct, because it names a row that exists outside the copy.
   global_person_id: { map: 'fighters' },

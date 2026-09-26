@@ -101,7 +101,11 @@ export class SubjectExportService {
 
     const uniquePersonIds = [...new Set(personIds)];
     const registrationIds = await this.idsIn('registrations', 'person_id', uniquePersonIds);
-    const matchIds = await this.resolveMatchIds(uid, uniquePersonIds, registrationIds);
+    const matchIds = await this.resolveMatchIds(
+      uid,
+      [...new Set(globalPersonIds)],
+      registrationIds,
+    );
 
     return {
       uid,
@@ -114,15 +118,37 @@ export class SubjectExportService {
 
   private async resolveMatchIds(
     uid: string,
-    personIds: string[],
+    globalPersonIds: string[],
     registrationIds: string[],
   ): Promise<string[]> {
     const ids = new Set<string>();
     for (const column of ['red_registration_id', 'blue_registration_id'] as const) {
       for (const id of await this.idsIn('matches', column, registrationIds)) ids.add(id);
     }
-    for (const id of await this.idsIn('matches', 'referee_id', personIds)) ids.add(id);
+    for (const id of await this.refereedMatchIds(globalPersonIds)) ids.add(id);
     for (const id of await this.idsWhere('matches', 'scorekeeper_user_id', uid)) ids.add(id);
+    return [...ids];
+  }
+
+  /**
+   * The bouts the subject refereed: their duties, keyed by the GLOBAL person (0063). A bout
+   * duty names its bout; a Pool duty covers every bout of the Pool.
+   */
+  private async refereedMatchIds(globalPersonIds: string[]): Promise<string[]> {
+    const ids = new Set<string>();
+    const poolIds = new Set<string>();
+    for (const chunk of chunked(globalPersonIds)) {
+      const { data, error } = await this.supabase.service
+        .from('referee_assignments')
+        .select('match_id, pool_id')
+        .in('person_id', chunk);
+      if (error) throw new Error(`referee_assignments.person_id: ${error.message}`);
+      for (const row of (data ?? []) as { match_id: string | null; pool_id: string | null }[]) {
+        if (row.match_id) ids.add(row.match_id);
+        if (row.pool_id) poolIds.add(row.pool_id);
+      }
+    }
+    for (const id of await this.idsIn('matches', 'pool_id', [...poolIds])) ids.add(id);
     return [...ids];
   }
 

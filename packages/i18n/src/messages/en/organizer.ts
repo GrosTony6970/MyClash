@@ -3105,7 +3105,7 @@ export const organizer = {
       capacityTitle: 'Capacity',
       capacityLine: '{lices} running in parallel need {needed} slots, only {free} referees free',
       rulesFooter:
-        'Rules: own fight · officiate-vs-fight · double-booked · two roles · availability · capacity',
+        'Always checked: own bout · fighting, refereeing or teaching at the same time · availability. Switchable: own Pool · Pool running · two roles · attending a Workshop · rest · daily cap · capacity',
     },
     byTimeslotTitle: 'By time slot',
     idleLice: 'idle',

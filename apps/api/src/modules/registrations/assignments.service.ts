@@ -271,38 +271,8 @@ export class AssignmentsService {
         }));
     }
 
-    // 5. Matches as referee — two sources: legacy matches.referee_id and the
-    //    referee_assignments table (scope_type='match'). Merge by match_id.
+    // 5. Matches as referee — the person's bout duties (scope_type='match'), filled below.
     const matchesAsRefereeMap = new Map<string, AssignmentSummary>();
-
-    // `matches` has NO tournament_id — it reaches its tournament through
-    // `phases` (0001), exactly as the pool branch below already does. Naming it
-    // directly 400'd the query, so `legacyRefMatches` was always undefined and
-    // a referee's match assignments never appeared on this surface at all.
-    const { data: legacyRefMatches, error: legacyRefErr } = await this.supabase.service
-      .from('matches')
-      .select('id, match_number_label, status, referee_id, phases(tournament_id)')
-      .eq('referee_id', personId);
-    if (legacyRefErr) throw new BadRequestException(legacyRefErr.message);
-    for (const row of (legacyRefMatches ?? []) as unknown as Array<{
-      id: string;
-      match_number_label: string | null;
-      status: string;
-      phases: Embed<{ tournament_id: string }>;
-    }>) {
-      const rowTournamentId = firstEmbed(row.phases)?.tournament_id ?? null;
-      if (!rowTournamentId) continue;
-      if (tournamentId && rowTournamentId !== tournamentId) continue;
-      const t = regs.find((r) => r.tournament_id === rowTournamentId);
-      matchesAsRefereeMap.set(row.id, {
-        matchId: row.id,
-        label: row.match_number_label ?? '',
-        status: row.status,
-        role: 'referee',
-        tournamentId: rowTournamentId,
-        tournamentName: firstEmbed(t?.tournaments ?? null)?.name ?? '',
-      });
-    }
 
     // 6. Referee assignments (scope-aware).
     const refAssignments = await this.readRefereeDuties(eventId, personId);
@@ -488,8 +458,7 @@ export class AssignmentsService {
    *      (Slice B logic — deletes their unplayed matches, then the
    *      registration; pool_members cascade, bracket_slots null out).
    *   3. Remove the person's referee assignments scoped to this event
-   *      (both `referee_assignments` rows AND legacy
-   *      `matches.referee_id` references in the same event).
+   *      (`referee_assignments` rows).
    *   4. Delete the person row.
    *
    * The person's other events (if any) are not touched.
@@ -541,10 +510,9 @@ export class AssignmentsService {
       if (delRegsErr) throw new BadRequestException(delRegsErr.message);
     }
 
-    // Step 3 — referee cleanup. Two surfaces:
-    //   a. referee_assignments rows for this person in this event.
-    //      We just delete them by person id; the scope_type='match'
-    //      assignments may reference now-deleted matches, that's fine.
+    // Step 3 — referee cleanup: the person's referee_assignments rows in this
+    //   event. The scope_type='match' ones may reference now-deleted matches,
+    //   that's fine.
     const refAssignmentIds = report.refereeAssignments
       .map((a) => a.assignmentId)
       .filter((id): id is string => typeof id === 'string');
@@ -555,16 +523,6 @@ export class AssignmentsService {
         .in('id', refAssignmentIds);
       if (delRaErr) throw new BadRequestException(delRaErr.message);
     }
-
-    //   b. Legacy `matches.referee_id` — null out for any match in this
-    //      event that still points at this person. Matches in unplayed
-    //      states may have been deleted in step 2; this catches any
-    //      remaining historical row.
-    const { error: nullRefErr } = await this.supabase.service
-      .from('matches')
-      .update({ referee_id: null })
-      .eq('referee_id', personId);
-    if (nullRefErr) throw new BadRequestException(nullRefErr.message);
 
     // Step 4 — delete the person.
     const { error: delPersonErr } = await this.supabase.service

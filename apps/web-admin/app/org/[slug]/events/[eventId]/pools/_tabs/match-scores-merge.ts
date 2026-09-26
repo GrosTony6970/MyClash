@@ -25,7 +25,7 @@ export interface MatchScoreUpdate {
 
 // Minimal shape the helper reads. Callers pass their richer Match
 // type and we use a generic parameter to preserve passthrough fields
-// (lice_id, referee_id, names, etc.) without forcing an index
+// (lice_id, referees, names, etc.) without forcing an index
 // signature on the consumer's type.
 export interface MergeableMatch {
   id: string;

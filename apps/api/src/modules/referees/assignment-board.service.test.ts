@@ -26,7 +26,7 @@ const checkRefereeSpy = vi.mocked(checkReferee);
 
 const fromMock = vi.fn();
 const mockSupabase = { service: { from: fromMock } };
-/** Every rule on. Named so a test can flip one without restating the other eleven. */
+/** Every rule on. Named so a test can flip one without restating the other nine. */
 const DEFAULT_RULE_SETTINGS = {
   enforceRefereeNoBackToBack: true,
   refereeRestMinSlots: 1,
@@ -36,10 +36,7 @@ const DEFAULT_RULE_SETTINGS = {
   workloadBalance: true,
   enableOwnPoolRule: true,
   enableOwnPoolSpanRule: true,
-  enableOfficiateVsFightRule: true,
-  enableDoubleBookedRule: true,
   enableTwoRolesRule: true,
-  enableAvailabilityRule: true,
   enableCapacityRule: true,
 };
 const mockSettings = {
@@ -1385,29 +1382,6 @@ describe('AssignmentBoardService', () => {
           personId: POOL_2_REF,
         }),
       ).resolves.toBeDefined();
-    });
-
-    it('refuses them with the old double-booking switch off: an Impossible rule has none', async () => {
-      // ADR-016: refereeing two places at once is Impossible, with no switch and
-      // no override (hard rule 8). The legacy column still exists until W1.4; the
-      // checker does not read it, and this pins that.
-      mockSettings.getSettings.mockResolvedValueOnce({
-        ...DEFAULT_RULE_SETTINGS,
-        enableDoubleBookedRule: false,
-        enableOfficiateVsFightRule: false,
-        enableAvailabilityRule: false,
-      });
-      queueTwoOverlappingPools([perMatchAssignment]);
-
-      expect(
-        await impossibleCodes(
-          service.applyManual('event-1', {
-            poolId: 'pool-2',
-            role: 'arbitre_declarant',
-            personId: POOL_2_REF,
-          }),
-        ),
-      ).toEqual(['referees_overlap']);
     });
 
     it('checkEvent reports a Pool-scoped crew whose referee fights at the same time', async () => {

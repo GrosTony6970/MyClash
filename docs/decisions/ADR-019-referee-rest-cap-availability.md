@@ -71,11 +71,13 @@ left four rules to choose a level and a unit. The code they replace:
 - The Event sets a **maximum number of bouts per person per event day**; 0 means no cap. A duty that
   would take the person past it is Discouraged, with the count in the reason. Auto-assign never
   exceeds it. Ranking keeps preferring the less loaded candidate.
-- The count has one owner: the bouts under the person's duties that day, two roles on one bout
-  counted once. That owner is the checker's pure `boutsOnDay` (amended at build, 2026-09-26): the
-  roster page's count reads the database per Tournament over the whole Event and could not serve a
-  pure checker; it moves onto the same function when its `matches.referee_id` source goes (W1.4).
-  The board's picker shows each candidate's bouts on the slot's day. The hard-coded zero goes.
+- The cap's count has one owner: the bouts under the person's duties that day, two roles on one
+  bout counted once — the checker's pure `boutsOnDay` (amended at build, 2026-09-26). The board's
+  picker shows each candidate's bouts on the slot's day. The hard-coded zero goes.
+- The roster page answers a different question and keeps its own count (operator, 2026-09-26,
+  ruling 141): bouts per Tournament over the whole Event, unscheduled ones included, from the same
+  duties (`referee_assignments` only; `matches.referee_id` went with 0209). "How much in total"
+  and "how much that day" are two questions over one source of duties.
 
 ### Availability: a from–to window per day, Impossible outside it
 

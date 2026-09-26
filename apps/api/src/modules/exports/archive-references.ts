@@ -22,8 +22,7 @@
  *   archive. A structure archive holds no Matches and keeps no duty on one
  *   (`archive.tables.ts`); one written before that rule still does, and its
  *   `match_id` passes unchecked.
- * - A `person_id` that names a global person, and `matches.referee_id` in a
- *   tournament archive (see `ROSTER_REFERENCES`).
+ * - A `person_id` that names a global person (see `ROSTER_REFERENCES`).
  * - A skill id: a system skill is shared by every event and passes through.
  * - An id inside a JSON column. It has no foreign key, so it cannot fail a
  *   restore, and a genuine archive can hold a stale one: force-deleting a
@@ -56,19 +55,12 @@ type Checked = Pick<MyClashArchive, 'scope' | 'include' | 'data'>;
  * `person_id` names a GLOBAL person (migrations 0062 and 0099), which no archive
  * contains, and the unmapped id passing through is correct.
  *
- * `matches.referee_id` is a roster id (0039), checked in an event archive only.
- * An event archive carries every person of its Event, so a referee it does not
- * hold is another Event's person, and the copy would point at them. A tournament
- * archive carries only the persons its registrations name, so a referee who did
- * not fight is absent on purpose: a restore into the same Event keeps them, and
- * one into another Event drops them (`restoreTournamentCopy`). A Match written
- * before the match route stopped taking any person may still name another
- * Event's referee: an event archive holding one is refused on purpose.
+ * A bout carries no referee (`matches.referee_id` went with 0209): every duty is a
+ * `referee_assignments` row, keyed by the global person.
  */
 const ROSTER_REFERENCES = new Map<string, ReadonlyArray<ArchiveScope>>([
   ['registrations.person_id', ['event', 'tournament']],
   ['person_privacy.person_id', ['event', 'tournament']],
-  ['matches.referee_id', ['event']],
 ]);
 
 /**

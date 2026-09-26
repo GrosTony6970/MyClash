@@ -86,40 +86,9 @@ describe('danglingReferences', () => {
       archive('event', 'scoring', {
         ...PHASE,
         persons: [{ id: 'p-1' }],
-        matches: [{ id: 'm-1', phase_id: 'ph-1', referee_id: 'p-1' }],
+        matches: [{ id: 'm-1', phase_id: 'ph-1' }],
         refereeAssignments: [{ id: 'ra-1', person_id: 'gp-1', match_id: 'm-1' }],
         eventReferees: [{ id: 'er-1', person_id: 'gp-1', global_person_id: 'gp-1' }],
-      }),
-    );
-
-    expect(found).toEqual([]);
-  });
-
-  it("finds a Match's referee that an event archive does not carry", () => {
-    // An event archive holds every person of its Event, so this referee is
-    // another Event's person, and a restored copy would point at them.
-    const found = danglingReferences(
-      archive('event', 'scoring', {
-        ...PHASE,
-        persons: [{ id: 'p-1' }],
-        matches: [
-          { id: 'm-1', phase_id: 'ph-1', referee_id: 'p-1' },
-          { id: 'm-2', phase_id: 'ph-1', referee_id: 'p-other-event' },
-        ],
-      }),
-    );
-
-    expect(found).toEqual([{ table: 'matches', column: 'referee_id', id: 'p-other-event' }]);
-  });
-
-  it("leaves alone a Match's referee that a tournament archive does not carry", () => {
-    // A tournament archive holds only the persons its registrations name, so a
-    // referee who did not fight is absent on purpose.
-    const found = danglingReferences(
-      archive('tournament', 'scoring', {
-        ...PHASE,
-        persons: [{ id: 'p-1' }],
-        matches: [{ id: 'm-1', phase_id: 'ph-1', referee_id: 'p-referee' }],
       }),
     );
 

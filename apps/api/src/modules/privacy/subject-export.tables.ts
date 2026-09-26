@@ -141,13 +141,9 @@ export const SUBJECT_EXPORT_TABLES: Readonly<Record<string, SubjectTableSpec>> =
     reaches: [
       { column: 'scorekeeper_user_id', reach: 'uid' },
       { column: 'locked_by_user_id', reach: 'uid' },
-      // Assigned referee. Named neither *_user_id nor *_person_id, but it
-      // REFERENCES persons(id) — the reason the coverage guard scans foreign
-      // keys as well as column names.
-      { column: 'referee_id', reach: 'person' },
     ],
     file: 'matches.csv',
-    note: 'Matches the subject FOUGHT are reached via registrations → red/blue_registration_id, not by these columns.',
+    note: 'Matches the subject FOUGHT are reached via registrations → red/blue_registration_id, and the ones they REFEREED via their referee_assignments, not by these columns.',
   },
   match_events: {
     reaches: [{ column: 'by_user_id', reach: 'uid' }],
@@ -173,11 +169,12 @@ export const SUBJECT_EXPORT_TABLES: Readonly<Record<string, SubjectTableSpec>> =
   // their dual identity down to person_id and DROPPED the column. Reading it
   // 400s in PostgREST, which `fetchDirect` turns into a 500 for the whole
   // bundle — the subject loses everything, not just their referee rows. The
-  // subject is still fully reached: `person` resolves through
-  // global_persons.claimed_by_user_id, which is what 0063 made the canonical
-  // route. Pinned by subject-export.schema.test.ts.
+  // subject is reached by their GLOBAL person: 0063 made `person_id` a
+  // global_persons.id (resolved through global_persons.claimed_by_user_id).
+  // Reaching it as `person` (an event persons.id) found no duty at all.
+  // Pinned by subject-export.schema.test.ts.
   referee_assignments: {
-    reaches: [{ column: 'person_id', reach: 'person' }],
+    reaches: [{ column: 'person_id', reach: 'global_person' }],
     file: 'referee-assignments.csv',
   },
   referee_qualifications: {

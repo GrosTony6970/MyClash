@@ -45,8 +45,10 @@ here.
   broken engine — fix the engine, never the snapshot.
 - Voiding an exchange must never delete the row. Set `voided=true` and recompute; replays stay
   lossless.
-- Hard scheduling constraints (e.g. `enforce_fighter_referee_no_overlap`) are not configurable.
-  Soft ones are.
+- Hard scheduling constraints (hard rule 8: refereeing while fighting, refereeing elsewhere,
+  teaching, or outside one's availability) have NO setting at all — not a switch pinned to true:
+  a pinned switch still reads as configurable, and gated nothing (dropped in 0209). Soft ones have
+  one switch each (ADR-016).
 - Every scoring exchange carries a **client-generated UUID**, and server inserts are idempotent on
   it. That is what makes offline-first sync safe.
 

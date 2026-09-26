@@ -429,8 +429,6 @@ describe('ArchiveService', () => {
         tournament_id: 't-1',
         status: 'completed',
         red_registration_id: 'r-1',
-        // An event-scoped persons.id (migration 0039), so it must be remapped.
-        referee_id: 'p-1',
       },
     ],
     referee_skills: [{ id: 'skill-custom', event_id: 'event-1', name: 'Custom', is_system: false }],
@@ -575,33 +573,12 @@ describe('ArchiveService', () => {
   });
 
   /**
-   * `matches.referee_id` was the one person reference `remapRow` did not remap,
-   * so a restored match kept pointing at the SOURCE event's person. A restore is
-   * supposed to produce a self-contained copy: nothing in it may reference a row
-   * belonging to the archive's source.
-   */
-  it("re-points a match referee at the restored person, not the source event's", async () => {
-    const { service, inserted } = makeService(scopedRows());
-    const archive = await service.generateEventArchive('event-1', 'user-1', { include: 'scoring' });
-    expect(archive.data.matches?.[0]?.['referee_id'], 'the archive must carry it').toBe('p-1');
-
-    await service.restoreArchiveCopy(Buffer.from(JSON.stringify(archive)), 'user-1', {
-      targetOrganizationId: 'org-1',
-      confirmation: 'RESTORE MYCLASH ARCHIVE',
-    });
-
-    const restoredPersonId = inserted.persons?.[0]?.id as string;
-    expect(restoredPersonId, 'the person is copied under a new id').not.toBe('p-1');
-    expect(inserted.matches?.[0]?.referee_id).toBe(restoredPersonId);
-  });
-
-  /**
    * A restore must produce a SELF-CONTAINED copy. `mapFk` returns early on
    * anything that is not a top-level string, so every id nested in an array or
    * an object survived verbatim and kept pointing into the source event — with
    * the FK satisfied, because the source rows still exist, so nothing ever
-   * complained. Same shape as the `bye_registration_id` and `referee_id` misses
-   * above, one level down.
+   * complained. Same shape as the `bye_registration_id` miss above, one level
+   * down.
    *
    * One test per leak class. `restoreScoped()` runs the round trip once.
    */
@@ -1132,13 +1109,11 @@ describe('ArchiveService', () => {
   });
 
   /**
-   * A bout's legacy referee is a person of the event (migration 0039), and a
-   * tournament archive carries only the persons its registrations name. `p-2`
-   * referees `m-2` and did not fight, so the file does not hold them: a copy in
-   * another event keeps no referee on that bout, while a restore into the event
-   * it came from keeps them, because they are still there.
+   * A tournament archive carries only the persons its registrations name: `p-2`
+   * is on the Event's roster and does not fight, so the file does not hold them.
+   * (A bout carries no referee since 0209: duties are referee_assignments rows.)
    */
-  const refereedRows = () => {
+  const rosterRows = () => {
     const rows = placedRows();
     return {
       ...rows,
@@ -1146,46 +1121,15 @@ describe('ArchiveService', () => {
         ...rows.persons,
         { id: 'p-2', event_id: 'event-1', given_name: 'C', family_name: 'D', email: 'c@d.e' },
       ],
-      matches: [...rows.matches, { ...rows.matches[0], id: 'm-2', referee_id: 'p-2' }],
+      matches: [...rows.matches, { ...rows.matches[0], id: 'm-2' }],
     };
   };
 
-  const restoreRefereed = async (targetEventId: string) => {
-    const { service, inserted } = makeService(refereedRows());
-    const archive = await service.generateTournamentArchive('t-1', 'user-1', {
-      include: 'scoring',
-    });
-    await service.restoreArchiveCopy(Buffer.from(JSON.stringify(archive)), 'user-1', {
-      targetEventId,
-      confirmation: 'RESTORE MYCLASH ARCHIVE',
-    });
-    return inserted;
-  };
-
-  it('keeps no referee it does not carry on a tournament copy in another event', async () => {
-    const inserted = await restoreRefereed('event-2');
-
-    expect(
-      inserted.persons?.map((person) => person.given_name),
-      'the fighter only',
-    ).toEqual(['A']);
-    const copiedFighter = inserted.persons?.[0]?.id;
-    expect(copiedFighter, 'under a new id').not.toBe('p-1');
-    expect(inserted.matches?.map((match) => match.referee_id)).toEqual([copiedFighter, null]);
-  });
-
-  it('keeps a referee who did not fight when a tournament is restored into its own event', async () => {
-    const inserted = await restoreRefereed('event-1');
-
-    expect(inserted.persons, 'nothing re-inserted').toBeUndefined();
-    expect(inserted.matches?.map((match) => match.referee_id)).toEqual(['p-1', 'p-2']);
-  });
-
   it('leaves no source id anywhere in a tournament copy sent to another event', async () => {
     // The sentinel sweep, on the path it never covered. Its bouts sit on a Lice
-    // and one is refereed by a person the file does not carry, so a source Lice
-    // or person id left on the copy is a survivor too.
-    const rows = refereedRows();
+    // and the Event holds a person the file does not carry, so a source Lice or
+    // person id left on the copy is a survivor too.
+    const rows = rosterRows();
     const sourceIds = new Set<string>();
     for (const table of Object.values(rows) as Array<Record<string, unknown>[]>) {
       for (const row of table) {

@@ -32,7 +32,8 @@ Three more findings made this more than a tidy-up:
   names is gated by the switches that `packages/db/migrations/0097_referee_rule_toggles.sql` added,
   and the settings endpoint accepts them
   (`apps/api/src/modules/referees/settings.controller.ts`). An organiser could untick "cannot
-  referee while fighting at the same time".
+  referee while fighting at the same time". (The column and those switches were dropped in 0209,
+  W1.4.)
 - **Most doors check nothing.**
   - Manual assign and auto-assign run the rules.
   - The per-Match crew (`apps/api/src/modules/matches/matches.service.ts`), the per-Pool crew
