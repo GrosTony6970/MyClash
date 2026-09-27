@@ -16,6 +16,7 @@ export type { paths, components, operations } from './generated/schema';
 import type { ApiFailure } from './request';
 import { isAbortLike, parseBody, responseFailure } from './request';
 import { failureDetail } from './failure-message';
+import { fetchRenewingLogin } from './renew-login';
 
 export { apiRequest, isAbortLike, responseFailure } from './request';
 export type { ApiFailure, ApiResult } from './request';
@@ -83,7 +84,8 @@ export function failureFromError(err: unknown): ApiFailure {
 
 /**
  * Minimal typed fetch wrapper. Sends cookies by default (the API's session
- * model is httpOnly-cookie based) and surfaces problem+json error details.
+ * model is httpOnly-cookie based) and surfaces problem+json error details. A 401
+ * renews the login once and retries once, as `apiRequest` does (`renew-login.ts`).
  * For full path-level type-safety, layer openapi-fetch on the exported types.
  */
 export function createApiClient(baseUrl: string, defaultHeaders?: Record<string, string>) {
@@ -94,7 +96,7 @@ export function createApiClient(baseUrl: string, defaultHeaders?: Record<string,
 
   return {
     async get<T = unknown>(path: string, init?: RequestInit): Promise<T> {
-      const res = await fetch(`${baseUrl}${path}`, {
+      const res = await fetchRenewingLogin(baseUrl, path, {
         credentials: 'include',
         ...init,
         method: 'GET',
@@ -104,7 +106,7 @@ export function createApiClient(baseUrl: string, defaultHeaders?: Record<string,
       return parseBody<T>(res);
     },
     async post<T = unknown>(path: string, body?: unknown, init?: RequestInit): Promise<T> {
-      const res = await fetch(`${baseUrl}${path}`, {
+      const res = await fetchRenewingLogin(baseUrl, path, {
         credentials: 'include',
         ...init,
         method: 'POST',
@@ -115,7 +117,7 @@ export function createApiClient(baseUrl: string, defaultHeaders?: Record<string,
       return parseBody<T>(res);
     },
     async patch<T = unknown>(path: string, body?: unknown, init?: RequestInit): Promise<T> {
-      const res = await fetch(`${baseUrl}${path}`, {
+      const res = await fetchRenewingLogin(baseUrl, path, {
         credentials: 'include',
         ...init,
         method: 'PATCH',
@@ -126,7 +128,7 @@ export function createApiClient(baseUrl: string, defaultHeaders?: Record<string,
       return parseBody<T>(res);
     },
     async delete(path: string, init?: RequestInit): Promise<void> {
-      const res = await fetch(`${baseUrl}${path}`, {
+      const res = await fetchRenewingLogin(baseUrl, path, {
         credentials: 'include',
         ...init,
         method: 'DELETE',

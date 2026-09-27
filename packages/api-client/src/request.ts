@@ -25,6 +25,8 @@
  * browser every time.
  */
 
+import { fetchRenewingLogin } from './renew-login';
+
 /** Why a request did not produce data. `aborted` is a caller's own doing. */
 export type ApiFailure =
   | { kind: 'aborted' }
@@ -256,7 +258,8 @@ export async function apiRequest<T>(
 ): Promise<ApiResult<T>> {
   let res: Response;
   try {
-    res = await fetch(`${baseUrl}${path}`, requestInit(init));
+    // A 401 renews the login once and retries once (`renew-login.ts`, rulings 131, 153).
+    res = await fetchRenewingLogin(baseUrl, path, requestInit(init));
   } catch (err) {
     return isAbortLike(err) ? { ok: false, kind: 'aborted' } : { ok: false, kind: 'network' };
   }

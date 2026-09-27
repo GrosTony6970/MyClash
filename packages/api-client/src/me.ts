@@ -16,6 +16,8 @@
  *
  * ── The path is here too, and that is the point ─────────────────────────────
  * `ME_PATH` sits beside the type so a caller cannot take one without the other.
+ * It is defined in `renew-login.ts`, which `request.ts` imports to renew a login
+ * on a 401: defining it here would make the two modules import each other.
  * A site that hard-codes the string is free to hard-code the shape as well,
  * which is exactly how `/api/v1/auth/me` ended up read by one page with its own
  * private idea of where the account id lives.
@@ -23,6 +25,9 @@
 
 import type { components } from './generated/schema';
 import { apiRequest, type ApiResult } from './request';
+import { ME_PATH } from './renew-login';
+
+export { ME_PATH };
 
 /** The body of `GET /api/v1/me`. Generated from the API's own DTO. */
 export type MeSession = components['schemas']['MeResponseDto'];
@@ -32,8 +37,6 @@ export type MeSessionType = MeSession['type'];
 
 /** The admin grant block, present for org members and platform staff alike. */
 export type MeAdmin = NonNullable<MeSession['admin']>;
-
-export const ME_PATH = '/api/v1/me';
 
 /**
  * Read the current identity. Never throws — a failure is a value, same as every
