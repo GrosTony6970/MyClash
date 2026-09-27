@@ -5,6 +5,7 @@ import {
   Injectable,
   NotFoundException,
   Optional,
+  UnauthorizedException,
 } from '@nestjs/common';
 import { sanitizePostgrestFilterValue } from '../../common/postgrest-filter';
 import { hasPlatformTier, NON_USER_IDS } from '../../common/auth/platform-role';
@@ -575,8 +576,13 @@ export class OrganizationsService {
   async assertOrgRole(orgId: string, userId: string, minRole: OrgRole) {
     // A sentinel is not a user id, and a missing organisation has no members:
     // both are refused before the read, whose UUID cast would otherwise fail and
-    // read as a failed read below.
-    if (!orgId || !userId || NON_USER_IDS.has(userId)) throw notAMember();
+    // read as a failed read below. A sentinel is a caller with no valid login —
+    // none sent, or one past its hour — so it is a 401, the status on which the
+    // web client renews the login and sends the request again (ruling 154).
+    if (!userId || NON_USER_IDS.has(userId)) {
+      throw new UnauthorizedException('Authentication required');
+    }
+    if (!orgId) throw notAMember();
     const { data, error } = await this.supabase.service
       .from('organization_members')
       .select('role')

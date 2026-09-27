@@ -12,7 +12,7 @@
  * Driven through the controller with the real organization check over seeded
  * tables. The Pools service is a stub, so "refused" means "never reached".
  */
-import { ForbiddenException, NotFoundException } from '@nestjs/common';
+import { ForbiddenException, NotFoundException, UnauthorizedException } from '@nestjs/common';
 import { beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 import { mockSupabase, selectsFor } from '../../common/testing/supabase-chain';
 import { OrganizationsService } from '../organizations/organizations.service';
@@ -78,9 +78,14 @@ describe('POST tournaments/:id/generate-pools (ruling 103)', () => {
   it.each([
     ["an editor of the Event's club", 'u-editor-a'],
     ['an admin of another club', 'u-admin-b'],
-    ['a signed-out caller', undefined],
   ])('refuses %s, before generating anything', async (_label, userId) => {
     await expect(generate(T_A, userId)).rejects.toThrow(ForbiddenException);
+    expect(generatePools).not.toHaveBeenCalled();
+  });
+
+  // Ruling 154: no valid login is a 401, on which the web client renews it.
+  it('asks a signed-out caller to sign in, before generating anything', async () => {
+    await expect(generate(T_A, undefined)).rejects.toThrow(UnauthorizedException);
     expect(generatePools).not.toHaveBeenCalled();
   });
 

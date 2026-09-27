@@ -29,9 +29,9 @@
  * has one API origin in the browser. It ignores a caller's abort signal; a caller that aborted
  * meanwhile gets `aborted` from its retry.
  *
- * Not covered: raw `fetch` sites (most of web-public's pages, the pad's Pool poll), and an
- * organiser route that answers an expired login with 403 instead of 401 (many controllers turn
- * a missing identity into `'anonymous'`, which `assertOrgRole` refuses 403).
+ * Not covered: raw `fetch` sites (most of web-public's pages, the pad's Pool poll, the live
+ * board's poll). The organiser routes answer an expired login 401 too: many controllers turn a
+ * missing identity into `'anonymous'`, and `assertOrgRole` asks it to sign in (ruling 154).
  */
 
 import type { MeSession } from './me';

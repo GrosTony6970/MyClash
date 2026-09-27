@@ -1,4 +1,4 @@
-import { ForbiddenException } from '@nestjs/common';
+import { ForbiddenException, UnauthorizedException } from '@nestjs/common';
 import { describe, expect, it, vi } from 'vitest';
 import { AIProvidersController } from './ai-providers.controller';
 
@@ -71,7 +71,10 @@ describe('AIProvidersController authorization', () => {
   it('treats anonymous AI key writes as unauthorized org access', async () => {
     const service = { createKey: vi.fn() };
     const orgs = {
-      assertOrgRole: vi.fn().mockRejectedValue(new ForbiddenException('Not a member')),
+      // What the real check answers a signed-out caller (ruling 154).
+      assertOrgRole: vi
+        .fn()
+        .mockRejectedValue(new UnauthorizedException('Authentication required')),
     };
     const controller = new AIProvidersController(
       service as never,
@@ -85,7 +88,7 @@ describe('AIProvidersController authorization', () => {
         { label: 'x', provider: 'anthropic', apiKey: 'sk-anthropic-test' },
         makeRequest() as never,
       ),
-    ).rejects.toThrow(ForbiddenException);
+    ).rejects.toThrow(UnauthorizedException);
 
     expect(orgs.assertOrgRole).toHaveBeenCalledWith('org-1', 'anonymous', 'admin');
     expect(service.createKey).not.toHaveBeenCalled();

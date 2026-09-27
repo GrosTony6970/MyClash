@@ -44,8 +44,8 @@ function mint(opts: { userId?: string; member?: boolean } = {}) {
       returning: { id: 'gs-new', device_label: 'Unknown device', expires_at: '2027-05-30' },
     },
   });
-  const getUser = vi.fn(async () => ({ data: { user: opts.userId ? { id: opts.userId } : null } }));
-  const supabase = { ...db, anon: { auth: { getUser } } };
+  const getAuthUser = vi.fn(async () => (opts.userId ? { id: opts.userId } : null));
+  const supabase = { ...db, getAuthUser };
   const orgs = {
     assertOrgRole: vi.fn(async () => {
       if (!opts.member) throw new ForbiddenException('not a member');

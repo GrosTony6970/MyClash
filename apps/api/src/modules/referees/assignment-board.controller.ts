@@ -82,7 +82,7 @@ export class AssignmentBoardController {
   }
 
   /** The sentinel, not a throw: the org-role assertion turns an anonymous
-   *  caller into a 403 that says what was wrong. */
+   *  caller into a 401, on which the web client renews the login (ruling 154). */
   private userId(req: FastifyRequest): Promise<string> {
     return resolveRequestUserId(req, this.supabase);
   }

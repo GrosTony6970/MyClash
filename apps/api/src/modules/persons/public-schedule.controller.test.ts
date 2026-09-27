@@ -62,6 +62,7 @@ const bout = (id: string, reg: string, tournament: string) => ({
   },
 });
 
+/** The Event gate asks `getAuthUser`; the viewer's own person (ParticipantIdentityService) asks GoTrue. */
 function door(opts: { userId?: string; member?: boolean } = {}) {
   const db = mockSupabase({
     events: {
@@ -94,8 +95,9 @@ function door(opts: { userId?: string; member?: boolean } = {}) {
       ],
     },
   });
-  const getUser = vi.fn(async () => ({ data: { user: opts.userId ? { id: opts.userId } : null } }));
-  const supabase = { ...db, anon: { auth: { getUser } } };
+  const user = opts.userId ? { id: opts.userId } : null;
+  const getUser = vi.fn(async () => ({ data: { user } }));
+  const supabase = { ...db, getAuthUser: vi.fn(async () => user), anon: { auth: { getUser } } };
   const orgs = {
     assertOrgRole: vi.fn(async () => {
       if (!opts.member) throw new ForbiddenException('not a member');

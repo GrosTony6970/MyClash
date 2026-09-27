@@ -31,7 +31,7 @@ export class RefereeMatchAssignmentsController {
   @ApiParam({ name: 'eventId', type: 'string', format: 'uuid' })
   async getForEvent(@Param('eventId', ParseUUIDPipe) eventId: string, @Req() req: FastifyRequest) {
     // The sentinel, not a throw: the org-role assertion downstream turns an
-    // anonymous caller into a 403 that says what was wrong.
+    // anonymous caller into a 401, on which the web client renews the login.
     const userId = await resolveRequestUserId(req, this.supabase);
     return this.assignments.getForEvent(eventId, userId);
   }

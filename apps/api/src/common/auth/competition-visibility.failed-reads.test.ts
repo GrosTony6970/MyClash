@@ -13,7 +13,12 @@
  * 5xx.
  */
 import 'reflect-metadata';
-import { ForbiddenException, HttpException, NotFoundException } from '@nestjs/common';
+import {
+  ForbiddenException,
+  HttpException,
+  NotFoundException,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { describe, expect, it } from 'vitest';
 import { mockSupabase } from '../testing/supabase-chain';
 import { OrganizationsService } from '../../modules/organizations/organizations.service';
@@ -47,20 +52,32 @@ describe('assertOrgRole on a failed read', () => {
   // The sentinels are no user ids: `user_id` is a UUID column, so reading them
   // would fail the cast and read as a failed read. No table is seeded here: a
   // read would throw "unconfigured table", not refuse.
-  it('refuses a signed-out sentinel, or no organisation, as not a member, before any read', async () => {
+  //
+  // Ruling 154: a sentinel is a caller with no valid login (none sent, or an
+  // hour-old one), so it answers 401 — the one status on which the web client
+  // renews the login and sends the request again. A 403 "not a member" left an
+  // organiser whose login ran out over lunch to reload the page.
+  it('asks a signed-out sentinel to sign in (401) before any read, whatever the organisation', async () => {
     const orgs = new OrganizationsService({ service: mockSupabase({}).service } as never);
-    const refusals = [
-      ...['anonymous', 'unknown', ''].map((sentinel) => ['org-a', sentinel]),
-      // A ruleset with no owning club names no organisation.
-      ['', 'u-member'],
-    ];
-    for (const [orgId, userId] of refusals) {
-      const refusal = orgs.assertOrgRole(orgId!, userId!, 'read_only');
-      await expect(refusal, `${orgId}/${userId}`).rejects.toBeInstanceOf(ForbiddenException);
-      await expect(orgs.assertOrgRole(orgId!, userId!, 'read_only')).rejects.toThrow(
-        'You are not a member of this organization',
-      );
+    for (const orgId of ['org-a', '']) {
+      for (const userId of ['anonymous', 'unknown', '']) {
+        const refusal = orgs.assertOrgRole(orgId, userId, 'read_only');
+        await expect(refusal, `${orgId}/${userId}`).rejects.toBeInstanceOf(UnauthorizedException);
+        await expect(orgs.assertOrgRole(orgId, userId, 'read_only')).rejects.toThrow(
+          /^Authentication required$/,
+        );
+      }
     }
+  });
+
+  it('refuses a signed-in caller with no organisation as not a member, before any read', async () => {
+    const orgs = new OrganizationsService({ service: mockSupabase({}).service } as never);
+    // A ruleset with no owning club names no organisation.
+    const refusal = orgs.assertOrgRole('', 'u-member', 'read_only');
+    await expect(refusal).rejects.toBeInstanceOf(ForbiddenException);
+    await expect(orgs.assertOrgRole('', 'u-member', 'read_only')).rejects.toThrow(
+      /^You are not a member of this organization$/,
+    );
   });
 
   it('still refuses a caller who is not a member', async () => {

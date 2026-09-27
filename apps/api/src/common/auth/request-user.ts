@@ -7,12 +7,15 @@
  * populated by `PlatformRoleGuard`, and organizer-facing controllers
  * intentionally don't use that guard (organizers aren't super-admins).
  * Reading it there would leave every `assertOrgRole(orgId, 'unknown', …)`
- * throwing 403 for real org admins. See LESSONS_LEARNED.md > Identity & auth.
+ * refusing real org admins. See LESSONS_LEARNED.md > Identity & auth.
  *
  * Two helpers. `resolveRequestUserId` returns the sentinel `'anonymous'` rather
- * than throwing, so callers keep control of the failure mode: an org-role
- * assertion turns it into a 403 with a useful message. `requireRequestUserId`
- * answers 401 itself, for routes that tell "signed out" from "not allowed".
+ * than throwing, so callers keep control of the failure mode: a public read
+ * serves it the public answer, and an org-role assertion turns it into a 401
+ * (ruling 154). `requireRequestUserId` answers 401 itself, for routes no
+ * signed-out caller may use at all. Both go through `getAuthUser`, which
+ * verifies the token locally while GoTrue is unreachable: a GoTrue outage does
+ * not turn a signed-in organiser into a stranger.
  */
 import { UnauthorizedException } from '@nestjs/common';
 import type { FastifyRequest } from 'fastify';
@@ -22,11 +25,7 @@ export const ANONYMOUS_USER_ID = 'anonymous';
 
 /**
  * The caller's user id, or 401 — for a route no anonymous caller may use.
- *
- * Unlike `resolveRequestUserId` below, this goes through `getAuthUser`, which
- * falls back to verifying the token locally while GoTrue is unreachable: a
- * GoTrue outage does not turn a signed-in organiser into a stranger. The
- * persons and registrations routes share it.
+ * The persons and registrations routes share it.
  */
 export async function requireRequestUserId(
   req: FastifyRequest,
@@ -53,8 +52,9 @@ export async function resolveRequestUserId(
     ? authHeader.slice(7)
     : cookies?.['sb-access-token'];
   if (!token) return ANONYMOUS_USER_ID;
-  const {
-    data: { user },
-  } = await supabase.anon.auth.getUser(token);
+  // Since ruling 154 the sentinel is a 401 at the org check, on which the web
+  // client renews the login and retries: a GoTrue blip read as "no login" would
+  // answer a signed-in organiser "session ended" and double the GoTrue calls.
+  const user = await supabase.getAuthUser(token);
   return user?.id ?? ANONYMOUS_USER_ID;
 }

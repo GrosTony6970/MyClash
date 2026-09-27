@@ -4,7 +4,7 @@
  */
 import { UnauthorizedException } from '@nestjs/common';
 import { describe, expect, it, vi } from 'vitest';
-import { requireRequestUserId } from './request-user';
+import { requireRequestUserId, resolveRequestUserId } from './request-user';
 
 /** `getAuthUser` answering with `user`: null is a token the session check rejects. */
 const supabase = (user: { id: string } | null) => ({ getAuthUser: vi.fn(async () => user) });
@@ -42,5 +42,31 @@ describe('requireRequestUserId', () => {
     const caller = request({}, { 'sb-access-token': 'from-cookie' });
     await expect(requireRequestUserId(caller, db as never)).resolves.toBe('u1');
     expect(db.getAuthUser).toHaveBeenCalledWith('from-cookie');
+  });
+});
+
+describe('resolveRequestUserId', () => {
+  it('is the anonymous sentinel with no token, without asking for a session', async () => {
+    const db = supabase({ id: 'u1' });
+    await expect(resolveRequestUserId(request({}), db as never)).resolves.toBe('anonymous');
+    expect(db.getAuthUser).not.toHaveBeenCalled();
+  });
+
+  it('is the anonymous sentinel for a token the session check rejects', async () => {
+    const caller = request({}, { 'sb-access-token': 'expired' });
+    await expect(resolveRequestUserId(caller, supabase(null) as never)).resolves.toBe('anonymous');
+  });
+
+  // Ruling 154 makes the sentinel a 401 the web client renews on. The session check is
+  // `getAuthUser`, which verifies the token locally while GoTrue is unreachable: a GoTrue
+  // blip must not read as "no login".
+  it('asks the session check that survives a GoTrue outage, Bearer before cookie', async () => {
+    const db = supabase({ id: 'u1' });
+    const caller = request({ authorization: 'Bearer from-header' }, { 'sb-access-token': 'c' });
+    await expect(resolveRequestUserId(caller, db as never)).resolves.toBe('u1');
+    expect(db.getAuthUser).toHaveBeenCalledWith('from-header');
+    const cookie = request({}, { 'sb-access-token': 'from-cookie' });
+    await expect(resolveRequestUserId(cookie, db as never)).resolves.toBe('u1');
+    expect(db.getAuthUser).toHaveBeenLastCalledWith('from-cookie');
   });
 });

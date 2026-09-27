@@ -165,9 +165,10 @@ here.
   helper that validates the Supabase JWT. Do **not** copy the sync `getActorId(req)` shortcut from
   super-admin controllers: `req.actorUserId` is only populated by `SuperAdminGuard`, so on a
   guard-less route it is undefined, the helper returns the literal `'unknown'`, and every
-  `assertOrgRole(orgId, 'unknown', …)` 403s regardless of the caller's real role. Symptom: "403 on
-  a page that should work for me as org admin" while other org-gated endpoints succeed in the same
-  session.
+  `assertOrgRole(orgId, 'unknown', …)` refuses regardless of the caller's real role — a 401 since
+  ruling 154, so the web client renews the login, retries, and is refused again. Symptom: "session
+  ended" on a page that should work for me as org admin, while other org-gated endpoints succeed in
+  the same session.
 
 ## Auth & cookies
 

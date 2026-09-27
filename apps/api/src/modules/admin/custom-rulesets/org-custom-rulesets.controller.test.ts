@@ -1,15 +1,9 @@
-import { ForbiddenException } from '@nestjs/common';
+import { ForbiddenException, UnauthorizedException } from '@nestjs/common';
 import { describe, expect, it, vi } from 'vitest';
 import { OrgCustomRulesetsController } from './org-custom-rulesets.controller';
 
 function makeSupabase(userId: string | null) {
-  return {
-    anon: {
-      auth: {
-        getUser: vi.fn().mockResolvedValue({ data: { user: userId ? { id: userId } : null } }),
-      },
-    },
-  };
+  return { getAuthUser: vi.fn().mockResolvedValue(userId ? { id: userId } : null) };
 }
 
 function makeRequest(token?: string) {
@@ -43,7 +37,10 @@ describe('OrgCustomRulesetsController authorization', () => {
   it('rejects requests with no JWT (resolved user id is anonymous)', async () => {
     const service = { listForOrg: vi.fn() };
     const orgs = {
-      assertOrgRole: vi.fn().mockRejectedValue(new ForbiddenException('Not a member')),
+      // What the real check answers a signed-out caller (ruling 154).
+      assertOrgRole: vi
+        .fn()
+        .mockRejectedValue(new UnauthorizedException('Authentication required')),
     };
     const supabase = makeSupabase(null);
     const controller = new OrgCustomRulesetsController(
@@ -53,7 +50,7 @@ describe('OrgCustomRulesetsController authorization', () => {
     );
 
     await expect(controller.list('org-1', makeRequest() as never)).rejects.toThrow(
-      ForbiddenException,
+      UnauthorizedException,
     );
 
     expect(orgs.assertOrgRole).toHaveBeenCalledWith('org-1', 'anonymous', 'admin');

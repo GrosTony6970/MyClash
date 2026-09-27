@@ -18,7 +18,7 @@ function makeController(overrides?: {
         maybeSingle,
       }),
     },
-    anon: { auth: { getUser: vi.fn().mockResolvedValue({ data: { user: { id: 'u1' } } }) } },
+    getAuthUser: vi.fn().mockResolvedValue({ id: 'u1' }),
   };
   const assertOrgRole = overrides?.assertOrgRole ?? vi.fn().mockResolvedValue(undefined);
   const selectable = {

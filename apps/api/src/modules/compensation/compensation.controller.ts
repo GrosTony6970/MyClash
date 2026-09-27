@@ -67,7 +67,7 @@ export class CompensationController {
     @Body() dto: CreatePlanDto,
     @Req() req: FastifyRequest,
   ) {
-    const userId = await getUserId(req, this.supabase);
+    const userId = await requireRequestUserId(req, this.supabase);
     return this.compensation.createPlan(dto, userId, orgId);
   }
 
@@ -81,7 +81,7 @@ export class CompensationController {
     @Body() dto: UpdatePlanDto,
     @Req() req: FastifyRequest,
   ) {
-    const userId = await getUserId(req, this.supabase);
+    const userId = await requireRequestUserId(req, this.supabase);
     return this.compensation.updatePlan(planId, dto, userId);
   }
 
@@ -92,7 +92,7 @@ export class CompensationController {
   @ApiOperation({ summary: 'Delete an org compensation plan' })
   @ApiParam({ name: 'planId', type: 'string', format: 'uuid' })
   async deletePlan(@Param('planId', ParseUUIDPipe) planId: string, @Req() req: FastifyRequest) {
-    const userId = await getUserId(req, this.supabase);
+    const userId = await requireRequestUserId(req, this.supabase);
     await this.compensation.deletePlan(planId, userId);
   }
 
@@ -106,7 +106,7 @@ export class CompensationController {
     @Body() dto: UpsertRoleRatesDto,
     @Req() req: FastifyRequest,
   ) {
-    const userId = await getUserId(req, this.supabase);
+    const userId = await requireRequestUserId(req, this.supabase);
     return this.compensation.upsertRoleRates(planId, dto.rates, userId);
   }
 
@@ -120,7 +120,7 @@ export class CompensationController {
     @Body() dto: UpsertTiersDto,
     @Req() req: FastifyRequest,
   ) {
-    const userId = await getUserId(req, this.supabase);
+    const userId = await requireRequestUserId(req, this.supabase);
     return this.compensation.upsertTiers(planId, dto.tiers, userId);
   }
 
@@ -150,7 +150,7 @@ export class CompensationController {
     @Body() dto: UpsertEventSettingsDto,
     @Req() req: FastifyRequest,
   ) {
-    const userId = await getUserId(req, this.supabase);
+    const userId = await requireRequestUserId(req, this.supabase);
     return this.compensation.upsertEventSettings(eventId, dto, userId);
   }
 
@@ -179,7 +179,7 @@ export class CompensationController {
     @Body() dto: TogglePaidDto,
     @Req() req: FastifyRequest,
   ) {
-    const actorId = await getUserId(req, this.supabase);
+    const actorId = await requireRequestUserId(req, this.supabase);
     await this.compensation.togglePaid(eventId, personId, dto.paid, actorId);
   }
 }
