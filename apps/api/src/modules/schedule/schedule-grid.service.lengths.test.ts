@@ -1,6 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ScheduleGridService } from './schedule-grid.service';
-import { assertCanReadEvent } from '../../common/auth/event-read-gate';
 import { resolveMatchLengths } from './match-lengths';
 import { readProgrammeSheet } from '../programme/programme-sheet';
 
@@ -16,9 +15,15 @@ import { readProgrammeSheet } from '../programme/programme-sheet';
  * each other and with no organiser. Both read the Event's sheet now.
  */
 
-vi.mock('../../common/auth/event-read-gate', () => ({
-  assertCanReadEvent: vi.fn(() => Promise.resolve()),
+// The Event and draft gate is owned by schedule-grid.drafts.test.ts; here every Event and
+// Tournament is visible, so the ordered queue below sees only the grid's own reads.
+vi.mock('../../common/auth/competition-visibility', () => ({
+  readableEvent: vi.fn((_deps: unknown, id: string) => Promise.resolve({ id })),
+  visibleTournaments: vi.fn((_deps: unknown, _event: unknown, rows: unknown[]) =>
+    Promise.resolve(rows),
+  ),
 }));
+const READER = { userId: 'u1', staff: null };
 
 vi.mock('./match-lengths', () => ({ resolveMatchLengths: vi.fn() }));
 const resolveMatchLengthsMock = vi.mocked(resolveMatchLengths);
@@ -79,7 +84,6 @@ describe('ScheduleGridService — a card is as wide as the sheet says', () => {
     fromMock.mockReset();
     resolveMatchLengthsMock.mockReset();
     readProgrammeSheetMock.mockReset().mockResolvedValue(SHEET as never);
-    vi.mocked(assertCanReadEvent).mockResolvedValue(undefined as never);
   });
 
   it("gives each card the helper's length for that Match", async () => {
@@ -91,7 +95,7 @@ describe('ScheduleGridService — a card is as wide as the sheet says', () => {
       ]),
     );
 
-    const rows = await service().listEventSchedule('e1', () => Promise.resolve('u1'));
+    const rows = await service().listEventSchedule('e1', READER);
 
     expect(rows.map((r) => [r.id, r.durationMinutes])).toEqual([
       ['m1', 7],
@@ -115,7 +119,7 @@ describe('ScheduleGridService — a card is as wide as the sheet says', () => {
       ]),
     );
 
-    const rows = await service().listEventSchedule('e1', () => Promise.resolve('u1'));
+    const rows = await service().listEventSchedule('e1', READER);
 
     expect(rows.map((r) => [r.id, r.plannedDurationOverrideMinutes])).toEqual([
       ['m1', null],
@@ -128,7 +132,7 @@ describe('ScheduleGridService — a card is as wide as the sheet says', () => {
     queue([match({ id: 'm1', planned_duration_override_minutes: 9 })]);
     resolveMatchLengthsMock.mockResolvedValue(new Map([['m1', 9]]));
 
-    await service().listEventSchedule('e1', () => Promise.resolve('u1'));
+    await service().listEventSchedule('e1', READER);
 
     expect(resolveMatchLengthsMock).toHaveBeenCalledTimes(1);
     expect(resolveMatchLengthsMock.mock.calls[0]?.[1]).toBe('e1');
@@ -143,7 +147,7 @@ describe('ScheduleGridService — a card is as wide as the sheet says', () => {
     queue([match()]);
     resolveMatchLengthsMock.mockResolvedValue(new Map([['m1', 5]]));
 
-    await service().listEventSchedule('e1', () => Promise.resolve('u1'));
+    await service().listEventSchedule('e1', READER);
 
     const matchesChain = fromMock.mock.results[2]?.value as { select: ReturnType<typeof vi.fn> };
     expect(matchesChain.select.mock.calls[0]?.[0]).toContain('planned_duration_override_minutes');
@@ -159,7 +163,7 @@ describe('ScheduleGridService — a card is as wide as the sheet says', () => {
       ]),
     );
 
-    await service().listEventSchedule('e1', () => Promise.resolve('u1'));
+    await service().listEventSchedule('e1', READER);
 
     expect(resolveMatchLengthsMock).toHaveBeenCalledTimes(1);
   });
@@ -180,7 +184,7 @@ describe('ScheduleGridService — a card is as wide as the sheet says', () => {
       ]),
     );
 
-    const rows = await service().listEventSchedule('e1', () => Promise.resolve('u1'));
+    const rows = await service().listEventSchedule('e1', READER);
 
     expect(rows.map((r) => [r.id, r.poolRestMinutes])).toEqual([
       ['m1', 7],

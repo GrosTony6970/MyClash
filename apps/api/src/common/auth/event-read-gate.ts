@@ -67,8 +67,8 @@ export function eventNotFound(ref: string): NotFoundException {
  * round-trip there.
  *
  * `resolveUserId` is a THUNK on purpose. `resolveRequestUserId` does a GoTrue
- * round-trip whenever a token is present, and these are high-traffic reads —
- * the organiser grid re-reads the schedule after every mutation. A public
+ * round-trip whenever a token is present, and these are high-traffic public
+ * reads. A public
  * event returns at step 2 and never resolves an identity at all.
  *
  * A missing row returns rather than throwing: `/schedule` answers `[]` for an

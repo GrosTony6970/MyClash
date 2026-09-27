@@ -1,20 +1,20 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { NotFoundException } from '@nestjs/common';
 import { ScheduleGridService, formatBracketPlaceholder } from './schedule-grid.service';
-import { assertCanReadEvent } from '../../common/auth/event-read-gate';
+import { readableEvent } from '../../common/auth/competition-visibility';
 
 /**
  * The visibility gate is mocked, not exercised, for one reason: `queueTables`
  * below drives `fromMock` as an ORDERED mockReturnValueOnce sequence, so the
  * gate's own `events` read would shift every queued chain by one and desync
- * every spec in this file. The gate's behaviour is owned by
- * common/auth/event-authz.test.ts; what this file owns is that it is CALLED,
- * and called before any data is read.
+ * every spec in this file. schedule-grid.drafts.test.ts owns its behaviour
+ * (ruling 129); this file owns that it is CALLED, before any data is read.
  */
-vi.mock('../../common/auth/event-read-gate', () => ({
-  assertCanReadEvent: vi.fn(() => Promise.resolve()),
+vi.mock('../../common/auth/competition-visibility', () => ({
+  readableEvent: vi.fn((_deps: unknown, id: string) => Promise.resolve({ id })),
+  visibleTournaments: vi.fn((...args: unknown[]) => Promise.resolve(args[2])),
 }));
-const assertCanReadEventMock = vi.mocked(assertCanReadEvent);
+const readableEventMock = vi.mocked(readableEvent);
 
 /**
  * The length helper is mocked for the same reason: it makes reads of its own
@@ -37,7 +37,7 @@ const fromMock = vi.fn();
 const mockSupabase = { service: { from: fromMock } };
 const mockOrgs = { assertOrgRole: vi.fn() };
 /** Every spec below reads a published event; the gate is asserted separately. */
-const anyCaller = () => Promise.resolve('user-1');
+const anyCaller = { userId: 'user-1', staff: null };
 
 function makeChain(result: unknown) {
   const promise = Promise.resolve(result);
@@ -357,18 +357,18 @@ describe('ScheduleGridService', () => {
 
       await service.listEventSchedule('event-1', anyCaller);
 
-      expect(assertCanReadEventMock).toHaveBeenCalledWith(
+      expect(readableEventMock).toHaveBeenCalledWith(
         expect.objectContaining({ supabase: mockSupabase, orgs: mockOrgs }),
         'event-1',
         anyCaller,
       );
-      expect(assertCanReadEventMock.mock.invocationCallOrder[0]!).toBeLessThan(
+      expect(readableEventMock.mock.invocationCallOrder[0]!).toBeLessThan(
         fromMock.mock.invocationCallOrder[0]!,
       );
     });
 
     it('returns nothing at all when the gate refuses', async () => {
-      assertCanReadEventMock.mockRejectedValueOnce(new NotFoundException('Event not found'));
+      readableEventMock.mockRejectedValueOnce(new NotFoundException('Event not found'));
       queueTables({
         tournaments: [{ id: 't1', name: 'Cup' }],
         phases: [{ id: 'ph', type: 'pool', tournament_id: 't1' }],

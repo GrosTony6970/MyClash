@@ -18,7 +18,7 @@
 import { ForbiddenException } from '@nestjs/common';
 import type { FastifyRequest } from 'fastify';
 import { type EventAuthzDeps } from './event-authz';
-import { isPublicEvent } from './event-read-gate';
+import { eventNotFound, isPublicEvent } from './event-read-gate';
 import { getIdentity, getStaffSession, type StaffSession } from './identity';
 import { ANONYMOUS_USER_ID } from './request-user';
 
@@ -141,6 +141,28 @@ export async function canReadEvent(
   reader: PublicReader,
 ): Promise<boolean> {
   return isPublicEvent(event) || isInsider(deps, event, reader);
+}
+
+/**
+ * The Event whose public contents the caller asks for, when the caller may see it: null for an
+ * unknown id (each route answers that as it always has), a 404 in `eventNotFound`'s words for a
+ * hidden one (rulings 81, 97). A failed read is a 5xx, never an unknown Event.
+ */
+export async function readableEvent(
+  deps: EventAuthzDeps,
+  eventId: string,
+  reader: PublicReader,
+): Promise<CompetitionEvent | null> {
+  const { data, error } = await deps.supabase.service
+    .from('events')
+    .select('status, organization_id, event_kind')
+    .eq('id', eventId)
+    .maybeSingle();
+  if (error) throw new Error(`event read failed: ${error.message}`);
+  if (!data) return null;
+  const event = { id: eventId, ...(data as Omit<CompetitionEvent, 'id'>) };
+  if (!(await canReadEvent(deps, event, reader))) throw eventNotFound(eventId);
+  return event;
 }
 
 /**

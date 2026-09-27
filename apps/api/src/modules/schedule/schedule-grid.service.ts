@@ -3,7 +3,11 @@ import { SupabaseService } from '../supabase/supabase.service';
 // Value import, not `import type` — `import type` erases the DI metadata and
 // the dependency arrives undefined at runtime.
 import { OrganizationsService } from '../organizations/organizations.service';
-import { assertCanReadEvent } from '../../common/auth/event-read-gate';
+import {
+  readableEvent,
+  visibleTournaments,
+  type PublicReader,
+} from '../../common/auth/competition-visibility';
 import { buildRoundCode, bracketCodeConfig } from '../matches/round-code.helper';
 import { readProgrammeSheet } from '../programme/programme-sheet';
 import { resolveMatchLengths } from './match-lengths';
@@ -29,6 +33,7 @@ interface TournamentRow {
   slug: string | null;
   weapon: string | null;
   color: string | null;
+  status: string;
 }
 
 interface MatchRow {
@@ -100,6 +105,27 @@ export class ScheduleGridService {
   ) {}
 
   /**
+   * The Event's Tournaments the caller may see: none for an unknown Event, a 404 for a hidden
+   * one, and a draft Tournament only for a club member or the Event's active staff (ruling 129,
+   * the bar of 127). Its bouts carry the fighters' names.
+   */
+  private async readVisibleTournaments(
+    eventId: string,
+    reader: PublicReader,
+  ): Promise<TournamentRow[]> {
+    const deps = { supabase: this.supabase, orgs: this.orgs };
+    const event = await readableEvent(deps, eventId, reader);
+    if (!event) return [];
+    const { data, error } = await this.supabase.service
+      .from('tournaments')
+      .select('id, name, slug, weapon, color, status')
+      .eq('event_id', eventId);
+    if (error) throw new Error(`tournaments read failed: ${error.message}`);
+    const rows = await visibleTournaments(deps, event, (data ?? []) as TournamentRow[], reader);
+    return rows.filter((t) => Boolean(t.id));
+  }
+
+  /**
    * Return every match across every phase (pool / bracket / finals) for the
    * event, with enough hydration for the admin schedule grid:
    *   - `liceId` + `scheduledAt` for placement on the canvas
@@ -116,21 +142,13 @@ export class ScheduleGridService {
    *
    * Gated on event visibility FIRST: every row below carries both fighters'
    * names, and this route is `@Public()`, so an unannounced event's whole
-   * roster was one request away for anyone holding its id.
+   * roster was one request away for anyone holding its id. A draft Tournament
+   * is left out the same way for anyone but a club member or the Event's
+   * active staff (ruling 129); an unknown Event answers `[]`, as it always has.
    */
-  async listEventSchedule(
-    eventId: string,
-    resolveUserId: () => Promise<string>,
-  ): Promise<ScheduleGridMatch[]> {
-    await assertCanReadEvent({ supabase: this.supabase, orgs: this.orgs }, eventId, resolveUserId);
-
-    // 1. Tournaments for this event.
-    const { data: tournamentsData, error: tournamentsErr } = await this.supabase.service
-      .from('tournaments')
-      .select('id, name, slug, weapon, color')
-      .eq('event_id', eventId);
-    if (tournamentsErr) throw new BadRequestException(tournamentsErr.message);
-    const tournaments = ((tournamentsData ?? []) as TournamentRow[]).filter((t) => Boolean(t.id));
+  async listEventSchedule(eventId: string, reader: PublicReader): Promise<ScheduleGridMatch[]> {
+    // 1. Tournaments for this event, as this caller may see them.
+    const tournaments = await this.readVisibleTournaments(eventId, reader);
     if (tournaments.length === 0) return [];
     const tournamentIds = tournaments.map((t) => t.id);
     const tournamentById = new Map(tournaments.map((t) => [t.id, t]));

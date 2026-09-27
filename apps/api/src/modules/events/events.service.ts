@@ -16,14 +16,10 @@ import {
 } from '@myclash/types';
 import { SupabaseService } from '../supabase/supabase.service';
 import { insertAuditLog } from '../../common/audit-log';
+import { assertCanReadEventRow } from '../../common/auth/event-read-gate';
 import {
-  assertCanReadEventRow,
-  eventNotFound,
-  type EventVisibilityRow,
-} from '../../common/auth/event-read-gate';
-import {
-  canReadEvent,
   hiddenFromReader,
+  readableEvent,
   visibleTournaments,
   type CompetitionEvent,
   type PublicReader,
@@ -1690,17 +1686,9 @@ export class EventsService {
     reader: PublicReader,
   ): Promise<Array<Record<string, unknown>>> {
     const deps = { supabase: this.supabase, orgs: this.orgs };
-    const { data: eventRow, error: eventError } = await this.supabase.service
-      .from('events')
-      .select('status, organization_id, event_kind')
-      .eq('id', eventId)
-      .maybeSingle();
-    // A failed read is a 5xx, never an unknown Event nor the database's words in a 400.
-    if (eventError) throw new Error(`event read failed: ${eventError.message}`);
-    if (!eventRow) return [];
     // Ruling 81's bar, as the theme and venues reads: a club member or the Event's active staff.
-    const event = { id: eventId, ...(eventRow as EventVisibilityRow) };
-    if (!(await canReadEvent(deps, event, reader))) throw eventNotFound(eventId);
+    const event = await readableEvent(deps, eventId, reader);
+    if (!event) return [];
     const { data, error } = await this.supabase.service
       .from('tournaments')
       .select('*')
