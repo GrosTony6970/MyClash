@@ -143,9 +143,11 @@ export function maskAuditPayload(payload: unknown, depth = 0): unknown {
  *
  * Returns the PostgREST error rather than throwing, because callers disagree
  * about severity on purpose: most treat a failed audit write as best-effort (an
- * audit failure must never fail the mutation it describes), while merge.service
- * throws — losing the trail of a destructive identity merge is not acceptable
- * there. Each caller keeps its own decision.
+ * audit failure must never fail the mutation it describes), while
+ * frozen-results.guard throws — losing the trail of an edit to a frozen result
+ * is not acceptable there. Each caller keeps its own decision. (The fighter
+ * merge writes its record in SQL, in the merge's own transaction: migration
+ * 0212, with snapshots masked by `maskAuditPayload` above.)
  */
 export async function insertAuditLog(
   supabase: AuditCapableClient,

@@ -83,6 +83,7 @@ export const CI_GATES: readonly CiGate[] = [
   { job: 'Playwright and Axe', step: 'Run Playwright and Axe tests' },
   { job: 'Database replay', step: 'Replay migrations on Postgres 17' },
   { job: 'Database replay', step: 'Probe RLS as an anonymous reader' },
+  { job: 'Database replay', step: 'Probe the fighter merge' },
   { job: 'Shellcheck infra scripts', step: 'Run shellcheck' },
   { job: 'Secret scan', step: 'Run Gitleaks' },
   { job: 'Trivy production image scan', step: 'Scan production image', matrix: true },

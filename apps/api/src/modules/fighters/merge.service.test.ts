@@ -1,268 +1,207 @@
-import { BadRequestException, NotFoundException } from '@nestjs/common';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { BadRequestException, HttpException, NotFoundException } from '@nestjs/common';
+import { describe, expect, it, vi } from 'vitest';
+import {
+  filtersFor,
+  mockSupabase,
+  queriedTables,
+  selectsFor,
+  type TableSeed,
+} from '../../common/testing/supabase-chain';
 import { FighterMergeService } from './merge.service';
 
-// The directory follows (ruling 116) and the merge follow-ups (ruling 125) are in
-// merge.service.follows.test.ts, over seeded tables.
+// Ruling 133: a merge and a revert are ONE database call each (`merge_fighters`,
+// `revert_fighter_merge`, migration 0212), all or nothing. What moves, the refusals and the
+// merge record are the functions' own; `scripts/db-merge-probe.mjs` proves them on Postgres.
+// This file holds the API's part: the two profile reads, the masked snapshots, the exact call,
+// and how a refusal becomes a status.
 
-const fromMock = vi.fn();
-const mockSupabase = { service: { from: fromMock } };
+const SOURCE = {
+  id: 'source',
+  display_name: 'Lea Source',
+  email: 'lea.source@example.com',
+  date_of_birth: '1990-04-17',
+  merged_into_id: null,
+  deleted_at: null,
+};
+const TARGET = {
+  id: 'target',
+  display_name: 'Lea Target',
+  email: null,
+  date_of_birth: '1991-02-03',
+  merged_into_id: null,
+  deleted_at: null,
+};
 
-function makeChain(result: { data: unknown; error: unknown }) {
-  const chain = {
-    select: vi.fn(),
-    eq: vi.fn(),
-    in: vi.fn(),
-    update: vi.fn(),
-    insert: vi.fn(),
-    gt: vi.fn(),
-    limit: vi.fn().mockResolvedValue(result),
-    maybeSingle: vi.fn().mockResolvedValue(result),
-  };
-  chain.select.mockReturnValue(chain);
-  chain.gt.mockReturnValue(chain);
-  chain.eq.mockReturnValue(chain);
-  chain.in.mockReturnValue(chain);
-  chain.update.mockReturnValue(chain);
-  chain.insert.mockResolvedValue(result);
-  return chain;
+type Rpc = ReturnType<typeof vi.fn>;
+
+function makeDb(
+  profiles: TableSeed = { rows: [SOURCE, TARGET] },
+  rpcResult: { data: unknown; error: unknown } = {
+    data: { persons: 2, workshopInstructors: 1 },
+    error: null,
+  },
+) {
+  const db = mockSupabase({ global_persons: profiles });
+  const rpc: Rpc = vi.fn().mockResolvedValue(rpcResult);
+  const service = new FighterMergeService({ service: { from: db.from, rpc } } as never);
+  return { db, rpc, service };
 }
 
-describe('FighterMergeService', () => {
-  let service: FighterMergeService;
+const refusal = (code: string, message: string) => ({ data: null, error: { code, message } });
 
-  beforeEach(() => {
-    vi.clearAllMocks();
-    // `clearAllMocks` keeps a `mockReturnValueOnce` queue: a test that stops before its last
-    // queued chain handed it to the next test, which then merged the wrong rows.
-    fromMock.mockReset();
-    fromMock.mockReturnValue(makeChain({ data: null, error: null }));
-    service = new FighterMergeService(mockSupabase as never);
-  });
+/** The failure's class AND its words: `toThrow(new X(m))` compares the message only. */
+async function expectFailure(
+  promise: Promise<unknown>,
+  type: abstract new (...args: never[]) => Error,
+  message: string,
+) {
+  const failure = await promise.then(
+    () => null,
+    (error: unknown) => error,
+  );
+  expect(failure).toBeInstanceOf(type);
+  expect((failure as Error).message).toBe(message);
+}
 
-  it('rejects merging a fighter into itself', async () => {
-    await expect(
-      service.merge({ sourceId: 'fighter-1', targetId: 'fighter-1' }, 'actor-user'),
-    ).rejects.toThrow(BadRequestException);
-    expect(fromMock).not.toHaveBeenCalled();
-  });
-
-  it('rejects missing source or target fighter', async () => {
-    const sourceChain = makeChain({ data: null, error: null });
-    sourceChain.maybeSingle.mockResolvedValue({ data: null, error: null });
-    const targetChain = makeChain({ data: null, error: null });
-    targetChain.maybeSingle.mockResolvedValue({ data: { id: 'target' }, error: null });
-    fromMock.mockReturnValueOnce(sourceChain).mockReturnValueOnce(targetChain);
-
-    await expect(
-      service.merge({ sourceId: 'source', targetId: 'target' }, 'actor'),
-    ).rejects.toThrow(NotFoundException);
-  });
-
-  it('moves references, fills blank target fields, soft-deletes source, and audits merge', async () => {
-    const source = {
-      id: 'source',
-      slug: 'source-fighter',
-      display_name: 'Source Fighter',
-      photo_url: 'https://cdn/source.jpg',
-      hema_ratings_id: '123',
-      bio: 'source bio',
-      country_code: 'FR',
-      gender_category: 'open',
-      merged_into_id: null,
-      deleted_at: null,
-    };
-    const target = {
-      id: 'target',
-      slug: 'target-fighter',
-      display_name: 'Target Fighter',
-      photo_url: null,
-      hema_ratings_id: null,
-      bio: null,
-      country_code: 'BE',
-      gender_category: null,
-      merged_into_id: null,
-      deleted_at: null,
-    };
-
-    const sourceChain = makeChain({ data: null, error: null });
-    sourceChain.maybeSingle.mockResolvedValue({ data: source, error: null });
-    const targetChain = makeChain({ data: null, error: null });
-    targetChain.maybeSingle.mockResolvedValue({ data: target, error: null });
-    const personsSelect = makeChain({ data: [{ id: 'person-1' }], error: null });
-    personsSelect.select.mockReturnValue({
-      eq: vi.fn().mockResolvedValue({ data: [{ id: 'person-1' }], error: null }),
-    });
-    const instructorsSelect = makeChain({ data: [{ id: 'instructor-1' }], error: null });
-    instructorsSelect.select.mockReturnValue({
-      eq: vi.fn().mockResolvedValue({ data: [{ id: 'instructor-1' }], error: null }),
-    });
-    const fighterUpdate = makeChain({ data: null, error: null });
-    const personsUpdate = makeChain({ data: null, error: null });
-    const instructorsUpdate = makeChain({ data: null, error: null });
-    const auditInsert = makeChain({ data: null, error: null });
-    // Nobody follows either profile: nothing to move.
-    const followsSelect = makeChain({ data: [], error: null });
-    followsSelect.select.mockReturnValue({
-      in: vi.fn().mockReturnValue({
-        order: vi.fn().mockReturnValue({
-          limit: vi.fn().mockResolvedValue({ data: [], error: null }),
-        }),
-      }),
-    });
-
-    const fighterChains = [sourceChain, targetChain];
-    fromMock.mockImplementation((table: string) => {
-      if (table === 'directory_follows') return followsSelect;
-      if (table === 'global_persons') return fighterChains.shift() ?? fighterUpdate;
-      if (table === 'persons')
-        return personsSelect.select.mock.calls.length ? personsUpdate : personsSelect;
-      if (table === 'workshop_instructors') {
-        return instructorsSelect.select.mock.calls.length ? instructorsUpdate : instructorsSelect;
-      }
-      if (table === 'audit_log') return auditInsert;
-      return makeChain({ data: null, error: null });
-    });
+describe('FighterMergeService.merge — one database call (ruling 133)', () => {
+  it('reads both profiles whole, then calls merge_fighters once with masked snapshots', async () => {
+    const { db, rpc, service } = makeDb();
 
     const result = await service.merge(
-      { sourceId: 'source', targetId: 'target', reason: 'duplicate registration' },
+      { sourceId: 'source', targetId: 'target', reason: '  duplicate registration  ' },
       'actor-user',
     );
 
+    expect(queriedTables(db.from)).toEqual(['global_persons', 'global_persons']);
+    expect(selectsFor(db.from, 'global_persons')).toEqual(['*', '*']);
+    expect(filtersFor(db.from, 'global_persons', 'eq')).toEqual([
+      ['id', 'source'],
+      ['id', 'target'],
+    ]);
+    expect(rpc).toHaveBeenCalledTimes(1);
+    // The record keeps the profiles as they were, masked the way every audit row is
+    // (common/audit-log.ts): the email and the date of birth never reach the table raw.
+    expect(rpc).toHaveBeenCalledWith('merge_fighters', {
+      p_source_id: 'source',
+      p_target_id: 'target',
+      p_actor_user_id: 'actor-user',
+      p_reason: 'duplicate registration',
+      p_source_snapshot: { ...SOURCE, email: 'l***@e***', date_of_birth: '1990-**-**' },
+      p_target_snapshot: { ...TARGET, date_of_birth: '1991-**-**' },
+    });
     expect(result).toEqual({
       merged: true,
       sourceId: 'source',
       targetId: 'target',
-      moved: { persons: 1, workshopInstructors: 1 },
+      moved: { persons: 2, workshopInstructors: 1 },
     });
-    const fighterUpdateCalls = fighterUpdate.update.mock.calls;
-    expect(auditInsert.insert).toHaveBeenCalledWith(
-      expect.objectContaining({
-        action: 'fighter.merge',
-        payload_json: expect.objectContaining({
-          moved: {
-            personIds: ['person-1'],
-            workshopInstructorIds: ['instructor-1'],
-            directoryFollowerUserIds: [],
-          },
-          reason: 'duplicate registration',
-        }),
-      }),
+  });
+
+  it('sends no reason as null, and a blank one as null', async () => {
+    for (const reason of [undefined, '   ']) {
+      const { rpc, service } = makeDb();
+      await service.merge({ sourceId: 'source', targetId: 'target', reason }, 'actor-user');
+      expect(rpc.mock.calls[0]![1]).toMatchObject({ p_reason: null });
+    }
+  });
+
+  it('answers a missing profile 404 with its role, and calls nothing', async () => {
+    const noSource = makeDb({ rows: [TARGET] });
+    await expectFailure(
+      noSource.service.merge({ sourceId: 'source', targetId: 'target' }, 'actor'),
+      NotFoundException,
+      'source fighter source not found',
     );
-    expect(personsUpdate.update).toHaveBeenCalledWith({ global_person_id: 'target' });
-    expect(instructorsUpdate.update).toHaveBeenCalledWith({ global_person_id: 'target' });
-    // The target's blanks take the source's values; its own country stays.
-    expect(fighterUpdateCalls[0]![0]).toMatchObject({
-      photo_url: 'https://cdn/source.jpg',
-      hema_ratings_id: '123',
-      bio: 'source bio',
-      gender_category: 'open',
-    });
-    expect(fighterUpdateCalls[0]![0]).not.toHaveProperty('country_code');
-    expect(fighterUpdateCalls).toContainEqual([
-      expect.objectContaining({
-        merged_into_id: 'target',
-        merge_reverted_at: null,
-      }),
-    ]);
-    expect(auditInsert.insert).toHaveBeenCalledWith(
-      expect.objectContaining({
-        actor_user_id: 'actor-user',
-        action: 'fighter.merge',
-        entity_type: 'fighter',
-        entity_id: 'source',
-        payload_json: expect.objectContaining({
-          moved: {
-            personIds: ['person-1'],
-            workshopInstructorIds: ['instructor-1'],
-            directoryFollowerUserIds: [],
-          },
-          reason: 'duplicate registration',
-        }),
-      }),
+    expect(noSource.rpc).not.toHaveBeenCalled();
+
+    const noTarget = makeDb({ rows: [SOURCE] });
+    await expectFailure(
+      noTarget.service.merge({ sourceId: 'source', targetId: 'target' }, 'actor'),
+      NotFoundException,
+      'target fighter target not found',
+    );
+    expect(noTarget.rpc).not.toHaveBeenCalled();
+  });
+
+  it('fails a profile read that errored as a 5xx, never a verdict, and calls nothing', async () => {
+    const { rpc, service } = makeDb({ data: null, error: { message: 'connection reset' } });
+    const failure = await service
+      .merge({ sourceId: 'source', targetId: 'target' }, 'actor')
+      .catch((error: unknown) => error);
+    expect(failure).toBeInstanceOf(Error);
+    expect(failure).not.toBeInstanceOf(HttpException);
+    expect((failure as Error).message).toBe('fighter read failed: connection reset');
+    expect(rpc).not.toHaveBeenCalled();
+  });
+
+  it("answers the function's refusal (P0001) 400 in its own words", async () => {
+    const { service } = makeDb(
+      undefined,
+      refusal('P0001', 'Source fighter is already merged into another profile'),
+    );
+    await expectFailure(
+      service.merge({ sourceId: 'source', targetId: 'target' }, 'actor'),
+      BadRequestException,
+      'Source fighter is already merged into another profile',
     );
   });
 
-  it('reverts a merge from audit payload within 30 days', async () => {
-    const auditChain = makeChain({ data: null, error: null });
-    const maybeSingle = vi.fn().mockResolvedValue({
-      data: {
-        id: 'audit-1',
-        action: 'fighter.merge',
-        entity_id: 'source',
-        created_at: new Date().toISOString(),
-        payload_json: {
-          source: { id: 'source' },
-          target: { id: 'target' },
-          moved: {
-            personIds: ['person-1'],
-            registrationIds: ['registration-1'],
-            workshopInstructorIds: ['instructor-1'],
-          },
-        },
-      },
-      error: null,
-    });
-    auditChain.select.mockReturnValue({ eq: vi.fn().mockReturnValue({ maybeSingle }) });
-    const personsUpdate = makeChain({ data: null, error: null });
-    const instructorsUpdate = makeChain({ data: null, error: null });
-    const sourceUpdate = makeChain({ data: null, error: null });
-    // The source is still merged into the target: this merge is the one to revert (ruling 125).
-    sourceUpdate.maybeSingle
-      .mockResolvedValueOnce({ data: { id: 'source', merged_into_id: 'target' }, error: null })
-      .mockResolvedValueOnce({ data: { id: 'target', merged_into_id: null }, error: null });
-    const auditInsert = makeChain({ data: null, error: null });
+  it("answers the function's not-found (P0002) 404 in its own words", async () => {
+    const { service } = makeDb(undefined, refusal('P0002', 'target fighter target not found'));
+    await expectFailure(
+      service.merge({ sourceId: 'source', targetId: 'target' }, 'actor'),
+      NotFoundException,
+      'target fighter target not found',
+    );
+  });
 
-    fromMock.mockImplementation((table: string) => {
-      if (table === 'audit_log')
-        return auditChain.select.mock.calls.length ? auditInsert : auditChain;
-      if (table === 'persons') return personsUpdate;
-      if (table === 'workshop_instructors') return instructorsUpdate;
-      if (table === 'global_persons') return sourceUpdate;
-      return makeChain({ data: null, error: null });
-    });
+  it('fails any other database error as a 5xx: the merge did not happen, nothing is guessed', async () => {
+    const { service } = makeDb(undefined, refusal('23505', 'duplicate key value'));
+    const failure = await service
+      .merge({ sourceId: 'source', targetId: 'target' }, 'actor')
+      .catch((error: unknown) => error);
+    expect(failure).not.toBeInstanceOf(HttpException);
+    expect((failure as Error).message).toBe('fighter merge failed: duplicate key value');
+  });
+});
+
+describe('FighterMergeService.revertMerge — one database call (ruling 133)', () => {
+  it('calls revert_fighter_merge once with the record and the actor, and reads no table', async () => {
+    const { db, rpc, service } = makeDb(undefined, { data: null, error: null });
 
     await service.revertMerge('audit-1', 'actor-user');
 
-    // Reverting persons.global_person_id automatically reverts the
-    // registrations that referenced those persons — no direct
-    // registrations.fighter_id cascade after 0083.
-    expect(personsUpdate.update).toHaveBeenCalledWith({ global_person_id: 'source' });
-    expect(instructorsUpdate.update).toHaveBeenCalledWith({ global_person_id: 'source' });
-    expect(sourceUpdate.update).toHaveBeenCalledWith(
-      expect.objectContaining({
-        merged_into_id: null,
-        merged_at: null,
-        deleted_at: null,
-      }),
+    expect(rpc).toHaveBeenCalledTimes(1);
+    expect(rpc).toHaveBeenCalledWith('revert_fighter_merge', {
+      p_audit_log_id: 'audit-1',
+      p_actor_user_id: 'actor-user',
+    });
+    expect(queriedTables(db.from)).toEqual([]);
+  });
+
+  it('answers a refusal 400 and an unknown record 404, in the function’s own words', async () => {
+    const refused = makeDb(
+      undefined,
+      refusal('P0001', 'Fighter merge can only be reverted within 30 days'),
     );
-    expect(auditInsert.insert).toHaveBeenCalledWith(
-      expect.objectContaining({
-        actor_user_id: 'actor-user',
-        action: 'fighter.merge_revert',
-        entity_id: 'source',
-      }),
+    await expectFailure(
+      refused.service.revertMerge('audit-1', 'actor'),
+      BadRequestException,
+      'Fighter merge can only be reverted within 30 days',
+    );
+
+    const unknown = makeDb(undefined, refusal('P0002', 'Merge audit log audit-1 not found'));
+    await expectFailure(
+      unknown.service.revertMerge('audit-1', 'actor'),
+      NotFoundException,
+      'Merge audit log audit-1 not found',
     );
   });
 
-  it('rejects merge reverts after 30 days', async () => {
-    const oldDate = new Date(Date.now() - 31 * 24 * 60 * 60 * 1000).toISOString();
-    const auditChain = makeChain({ data: null, error: null });
-    const maybeSingle = vi.fn().mockResolvedValue({
-      data: {
-        id: 'audit-1',
-        action: 'fighter.merge',
-        entity_id: 'source',
-        created_at: oldDate,
-        payload_json: { source: { id: 'source' }, target: { id: 'target' }, moved: {} },
-      },
-      error: null,
-    });
-    auditChain.select.mockReturnValue({ eq: vi.fn().mockReturnValue({ maybeSingle }) });
-    fromMock.mockImplementation((table: string) =>
-      table === 'audit_log' ? auditChain : makeChain({ data: null, error: null }),
-    );
-
-    await expect(service.revertMerge('audit-1', 'actor-user')).rejects.toThrow(BadRequestException);
+  it('fails any other database error as a 5xx', async () => {
+    const { service } = makeDb(undefined, refusal('23505', 'duplicate key value'));
+    const failure = await service.revertMerge('audit-1', 'actor').catch((error: unknown) => error);
+    expect(failure).not.toBeInstanceOf(HttpException);
+    expect((failure as Error).message).toBe('fighter merge revert failed: duplicate key value');
   });
 });

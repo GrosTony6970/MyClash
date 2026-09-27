@@ -591,11 +591,18 @@ jobs:
           key: node-modules-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
 
       - name: Replay migrations on Postgres 17
+        id: replay
         run: pnpm db:migrations:replay
 
       # Runs only on a replay that succeeded: a half-migrated database has no verdict to give.
       - name: Probe RLS as an anonymous reader
         run: pnpm db:rls-probe
+
+      # Ruling 133/162: the fighter merge and its revert are database functions (0212); this runs
+      # them. After a replay that succeeded, whatever the RLS probe said: the two are independent.
+      - name: Probe the fighter merge
+        if: ${{ !cancelled() && steps.replay.outcome == 'success' }}
+        run: pnpm db:merge-probe
 
   shellcheck:
     name: Shellcheck infra scripts

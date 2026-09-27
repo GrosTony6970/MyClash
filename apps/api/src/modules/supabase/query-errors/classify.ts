@@ -49,6 +49,8 @@ const RUNTIME_CODES = new Set([
   '23503', // foreign_key_violation
   '23514', // check_violation
   '42501', // insufficient_privilege — an RLS denial
+  'P0001', // raise_exception — a database function's own refusal (the fighter merge, 0212)
+  'P0002', // no_data_found — a database function's "not found"
 ]);
 
 /**

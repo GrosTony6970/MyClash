@@ -13,6 +13,13 @@ import { describe, expect, it } from 'vitest';
  *
  * Reads are fine and plentiful (the admin log viewer, merge audits, the erasure
  * scrubber): this only forbids INSERT.
+ *
+ * One writer lives outside this scan, in SQL: the fighter merge and its revert
+ * write their own record inside the same transaction (migration 0212, ruling
+ * 133). The merge's profile snapshots arrive already masked by this file's
+ * masker (`maskAuditPayload`, merge.service.ts); the revert record holds ids
+ * only. packages/db/test/fighter-merge-functions.test.ts pins that no other
+ * migration inserts into audit_log.
  */
 
 const SRC = path.resolve(__dirname, '..');

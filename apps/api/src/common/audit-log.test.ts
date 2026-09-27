@@ -58,7 +58,8 @@ describe('maskAuditPayload', () => {
   });
 
   it('reaches PII nested inside a row snapshot', () => {
-    // merge.service and exchange_edit_request.approve embed whole rows.
+    // The fighter merge (its snapshots, masked by merge.service before the SQL write) and
+    // exchange_edit_request.approve embed whole rows.
     const masked = maskAuditPayload({
       source: { id: 'g1', email: 'a@b.com', given_name: 'Jean' },
     }) as { source: Record<string, string> };
@@ -133,7 +134,7 @@ describe('insertAuditLog', () => {
   });
 
   it('returns the error instead of throwing, so callers keep their own severity', async () => {
-    // Most treat a failed audit write as best-effort; merge.service throws.
+    // Most treat a failed audit write as best-effort; frozen-results.guard throws.
     const { supabase } = makeSupabase({ message: 'db down' });
     await expect(
       insertAuditLog(supabase, {

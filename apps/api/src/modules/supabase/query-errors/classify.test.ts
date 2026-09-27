@@ -36,6 +36,8 @@ describe('classifyQueryError', () => {
     ['42703', 'an undefined column'],
     ['PGRST200', 'a relationship the schema cache does not have'],
     ['PGRST201', 'an ambiguous embed'],
+    // A function's broken internal promise (the merge's snapshot-id guard) stays loud.
+    ['P0004', 'a failed assertion inside a function'],
   ])('treats %s (%s) as a contract defect', (code) => {
     expect(classifyQueryError(code, 400)).toBe('contract');
     expect(severityFor('contract')).toBe('error');
@@ -45,6 +47,10 @@ describe('classifyQueryError', () => {
     ['PGRST116', 'single() row count'],
     ['23505', 'unique violation'],
     ['42501', 'an RLS denial'],
+    // A database function's own refusal (ruling 133: the fighter merge refuses a merged source
+    // with RAISE, P0001) and its "not found" (P0002): ordinary answers, not a broken query.
+    ['P0001', 'a function refusal'],
+    ['P0002', 'a function not-found'],
   ])('treats %s (%s) as runtime, not a defect', (code) => {
     expect(classifyQueryError(code, 406)).toBe('runtime');
     expect(severityFor('runtime')).toBe('warning');
