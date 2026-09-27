@@ -50,8 +50,9 @@ const person = (id: string, eventId: string, globalPersonId: string | null) => (
   global_person_id: globalPersonId,
   clubs: { name: 'Salle Dupont' },
 });
-const privacyOf = (personId: string, allowBeingFollowed = true) => ({
-  person_id: personId,
+/** A global person's privacy choices (ruling 132): one answer for every Event. */
+const privacyOf = (globalPersonId: string, allowBeingFollowed = true) => ({
+  id: globalPersonId,
   hide_workshops_publicly: false,
   allow_being_followed: allowBeingFollowed,
 });
@@ -105,14 +106,14 @@ const SEED: Record<string, TableSeed> = {
       { event_id: OTHER_EVENT, person_id: 'gp-marie' },
     ],
   },
-  person_privacy: {
+  // NO_PROFILE has no global person: the defaults.
+  global_persons: {
     rows: [
-      privacyOf(MARIE),
-      privacyOf(DRAFT_ONLY),
-      privacyOf(WITHDRAWN, false),
-      privacyOf(NO_PROFILE),
-      privacyOf(IN_DRAFT_EVENT),
-      privacyOf(IN_TEST_EVENT),
+      privacyOf('gp-marie'),
+      privacyOf('gp-draft-only'),
+      privacyOf('gp-withdrawn', false),
+      privacyOf('gp-in-draft'),
+      privacyOf('gp-in-test'),
     ],
   },
   follows: {
@@ -171,6 +172,9 @@ describe('the public person header (ruling 121a)', () => {
     expect(selectsFor(supabase.from, 'registrations')).toEqual(['id']);
     expect(selectsFor(supabase.from, 'event_referees')).toEqual(['person_id']);
     expect(selectsFor(supabase.from, 'event_instructors')).toEqual(['person_id']);
+    expect(selectsFor(supabase.from, 'global_persons')).toEqual([
+      'hide_workshops_publicly, allow_being_followed',
+    ]);
   });
 
   describe('a person the caller may not see answers exactly like an unknown one', () => {
@@ -271,7 +275,7 @@ describe('the public person header (ruling 121a)', () => {
       ['registrations', 'registrations read'],
       ['event_referees', 'event referees read'],
       ['event_instructors', 'event instructors read'],
-      ['person_privacy', 'privacy read'],
+      ['global_persons', 'privacy read'],
       ['follows', 'follows read'],
     ])('%s', async (table, what) => {
       const { service } = build({ [table]: FAILED });

@@ -310,7 +310,7 @@ function* chunked(values: string[]): Generator<string[]> {
   }
 }
 
-/** Dedupe key. Rows without an `id` (person_privacy) fall back to full content. */
+/** Dedupe key. Rows without an `id` fall back to full content. */
 function stableKey(row: Record<string, unknown>): string {
   const id = row['id'];
   return typeof id === 'string' ? `${String(row['_table'])}:${id}` : JSON.stringify(row);

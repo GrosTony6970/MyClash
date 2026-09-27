@@ -6,8 +6,8 @@ export type FollowRefusal =
   | 'publicApp.following.prefersNotFollowed'
   | 'publicApp.following.followUpdateError';
 
-/** `PREFERS_NOT_FOLLOWED` in the API's follows.service.ts. */
-const PREFERS_NOT_FOLLOWED = 'prefers_not_followed';
+/** `PREFERS_NOT_FOLLOWED` in the API's follows.service.ts; the People hub reads it too. */
+export const PREFERS_NOT_FOLLOWED = 'prefers_not_followed';
 
 /**
  * What the server's answer to a Follow or Unfollow tap means for the page (operator ruling 121b).

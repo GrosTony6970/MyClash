@@ -302,7 +302,7 @@ export class WorkshopsService {
       ...this.mapWorkshop(row, counts),
       eventTimezone: event.timezone,
     }));
-    return this.applyInstructorPrivacy(event.id, views);
+    return this.applyInstructorPrivacy(views);
   }
 
   /**
@@ -345,20 +345,17 @@ export class WorkshopsService {
       eventTimezone: event.timezone,
       viewerIsInstructor,
     };
-    const [withPrivacy] = await this.applyInstructorPrivacy(event.id, [view]);
+    const [withPrivacy] = await this.applyInstructorPrivacy([view]);
     return withPrivacy!;
   }
 
-  /** Drop instructors whose person set `hide_workshops_publicly` from public DTOs. */
-  private async applyInstructorPrivacy(
-    eventId: string,
-    views: WorkshopView[],
-  ): Promise<WorkshopView[]> {
+  /** Drop instructors who hide their workshops (a global choice, ruling 132) from public DTOs. */
+  private async applyInstructorPrivacy(views: WorkshopView[]): Promise<WorkshopView[]> {
     const globalIds = views.flatMap((w) =>
       w.instructors.map((i) => i.globalPersonId).filter((id): id is string => Boolean(id)),
     );
     if (globalIds.length === 0) return views;
-    const hidden = await this.privacy.hiddenWorkshopGlobalPersonIds(eventId, globalIds);
+    const hidden = await this.privacy.hiddenWorkshopGlobalPersonIds(globalIds);
     if (hidden.size === 0) return views;
     return views.map((w) => ({
       ...w,

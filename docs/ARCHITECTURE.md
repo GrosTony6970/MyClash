@@ -1492,7 +1492,7 @@ Three categories of information, three different defaults:
 | **Email address**                              | Always masked publicly; full visible only to oneself | Anti-harvesting                                                                         |
 | **Following relationships**                    | Private; never shown to the followed person          | Avoids implied social relationships                                                     |
 
-Persons can opt out of being followed entirely (`person_privacy.allow_being_followed = false`). When that flag is set, their public profile remains visible (you can still find them and see their schedule) but the Follow button is hidden.
+Persons can opt out of being followed entirely (`global_persons.allow_being_followed = false`). When that flag is set, their public profile remains visible (you can still find them and see their schedule) but the Follow button is hidden, and a follow — of one Event's person or of the whole profile from the People hub — is refused. Both privacy choices (`allow_being_followed`, `hide_workshops_publicly`) live on the global person (migration 0211): one answer for every Event, past and future.
 
 ### 11quinquies.2 Following capabilities by tier
 

@@ -52,6 +52,16 @@ export interface FollowIdentity {
 /** The `code` of the 403 a follow of someone who opted out gets. */
 export const PREFERS_NOT_FOLLOWED = 'prefers_not_followed';
 
+/**
+ * The refusal of a follow the person does not want. Its own code: an archived Event refuses every
+ * follow write with a 403 too (EventReadOnlyGuard), and the page must not blame the person for that.
+ */
+const prefersNotFollowed = () =>
+  new ForbiddenException({
+    code: PREFERS_NOT_FOLLOWED,
+    message: 'This person prefers not to be followed',
+  });
+
 const hasFollower = (identity: FollowIdentity): boolean =>
   Boolean(identity.userId || identity.guestSessionId);
 
@@ -84,7 +94,6 @@ export interface FollowAllSummary {
   upcomingEventCount: number;
   followedCount: number;
   alreadyFollowingCount: number;
-  skippedPrivacyCount: number;
   /** Whether the persistent directory follow now exists (claimed users only). */
   following: boolean;
 }
@@ -232,16 +241,8 @@ export class FollowsService {
 
   async follow(eventId: string, personId: string, identity: FollowIdentity): Promise<FollowRow> {
     const [followerColumn, follower] = followerFilter(identity);
-    // Check privacy
-    const priv = await this.privacy.getOrCreate(personId);
-    if (!priv.allowBeingFollowed) {
-      // Its own code: an archived Event refuses every follow write with a 403 too
-      // (EventReadOnlyGuard), and the page must not blame the person for that.
-      throw new ForbiddenException({
-        code: PREFERS_NOT_FOLLOWED,
-        message: 'This person prefers not to be followed',
-      });
-    }
+    // One answer for every Event: the person's global choice (ruling 132).
+    if (!(await this.privacy.forPerson(personId)).allowBeingFollowed) throw prefersNotFollowed();
 
     // Idempotency check
     const existing = await this.findExisting(eventId, personId, identity);
@@ -428,6 +429,11 @@ export class FollowsService {
     identity: FollowIdentity,
   ): Promise<FollowAllSummary> {
     await this.assertLiveProfile(globalPersonId);
+    // Ruling 158: a person who prefers not to be followed is refused here too, before the directory
+    // follow below is written — it used to be saved whatever they chose, with each Event skipped.
+    if (!(await this.privacy.forGlobalPerson(globalPersonId)).allowBeingFollowed) {
+      throw prefersNotFollowed();
+    }
     // A guest session follows only inside its own Event (ruling 130): the others are not counted
     // as upcoming for it either, so the summary never promises a follow it cannot make.
     const targets = (await this.resolveEventPersons(globalPersonId, { upcomingOnly: true })).filter(
@@ -438,7 +444,6 @@ export class FollowsService {
       upcomingEventCount: targets.length,
       followedCount: 0,
       alreadyFollowingCount: 0,
-      skippedPrivacyCount: 0,
       following: false,
     };
     if (!hasFollower(identity)) return summary; // anonymous: nothing to write
@@ -455,11 +460,6 @@ export class FollowsService {
       const existing = await this.findExisting(t.eventId, t.personId, identity);
       if (existing) {
         summary.alreadyFollowingCount += 1;
-        continue;
-      }
-      const priv = await this.privacy.getOrCreate(t.personId);
-      if (!priv.allowBeingFollowed) {
-        summary.skippedPrivacyCount += 1;
         continue;
       }
       await this.follow(t.eventId, t.personId, identity);

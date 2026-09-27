@@ -5249,7 +5249,7 @@ export interface paths {
       path?: never;
       cookie?: never;
     };
-    /** Get own privacy preferences (auto-creates defaults) */
+    /** Get own privacy preferences */
     get: operations['PrivacyController_getPrivacy'];
     put?: never;
     post?: never;

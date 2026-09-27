@@ -37,12 +37,15 @@ const ROW = {
 };
 
 let db: ReturnType<typeof mockSupabase>;
-let privacy: { getOrCreate: ReturnType<typeof vi.fn> };
+let privacy: { forPerson: ReturnType<typeof vi.fn>; forGlobalPerson: ReturnType<typeof vi.fn> };
 let follows: FollowsService;
 
 function build(tables: Record<string, TableSeed> = {}) {
   db = mockSupabase({ follows: { data: ROW }, registrations: { rows: [] }, ...tables });
-  privacy = { getOrCreate: vi.fn().mockResolvedValue({ allowBeingFollowed: true }) };
+  privacy = {
+    forPerson: vi.fn().mockResolvedValue({ allowBeingFollowed: true }),
+    forGlobalPerson: vi.fn().mockResolvedValue({ allowBeingFollowed: true }),
+  };
   const notifications = { cancelForFollowedPerson: vi.fn().mockResolvedValue(undefined) };
   follows = new FollowsService(
     { service: db.service } as never,
@@ -67,7 +70,7 @@ describe('follows writes (ruling 102)', () => {
     async (_verb, write) => {
       await expect(write()).rejects.toThrow(UnauthorizedException);
       expect(queriedTables(db.from)).toEqual([]);
-      expect(privacy.getOrCreate).not.toHaveBeenCalled();
+      expect(privacy.forPerson).not.toHaveBeenCalled();
     },
   );
 

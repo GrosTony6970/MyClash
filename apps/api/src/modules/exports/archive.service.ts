@@ -347,7 +347,6 @@ export class ArchiveService {
         maps.persons.set(person['id'] as string, person['id'] as string);
       }
       data.persons = [];
-      data.personPrivacy = [];
       for (const skill of data.refereeSkills) {
         maps.refereeSkills.set(skill['id'] as string, skill['id'] as string);
       }
@@ -851,15 +850,20 @@ function idMapForTable(table: ArchiveTableName, maps: IdMaps): Map<string, strin
   return generic;
 }
 
+/**
+ * Every table the archive format knows, and only those: a file from an older schema may carry one
+ * that has since gone (`personPrivacy`, 0211), which neither the restore nor its preview reads.
+ */
 function normalizeArchiveTables(
   data: MyClashArchive['data'] | Partial<ArchiveTables>,
 ): ArchiveTables {
-  return {
-    ...emptyArchiveTables(),
-    ...Object.fromEntries(
-      Object.entries(data).map(([key, value]) => [key, Array.isArray(value) ? [...value] : []]),
-    ),
-  };
+  const tables = emptyArchiveTables();
+  for (const [key, value] of Object.entries(data)) {
+    if (Object.hasOwn(tables, key)) {
+      (tables as Record<string, ArchiveRow[]>)[key] = Array.isArray(value) ? [...value] : [];
+    }
+  }
+  return tables;
 }
 
 function ids(rows: ArchiveRow[]): string[] {

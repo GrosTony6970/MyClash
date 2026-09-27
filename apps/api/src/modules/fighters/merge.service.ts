@@ -2,6 +2,12 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import { SupabaseService } from '../supabase/supabase.service';
 import { insertAuditLog } from '../../common/audit-log';
 import type { MergeFightersDto } from './dto/fighters.dto';
+import {
+  claimToMove,
+  fillTargetFields,
+  type FighterRow,
+  type MergeAuditPayload,
+} from './merge-survivor';
 
 const REVERT_WINDOW_MS = 30 * 24 * 60 * 60 * 1000;
 /** Rows asked for per read of a profile pair's follows. A lower row cap only shortens a page. */
@@ -9,41 +15,8 @@ const FOLLOWS_PAGE = 1000;
 /** Followers per follows move: the `in` filter travels in the request URL. */
 const MOVE_CHUNK = 200;
 
-type FighterRow = Record<string, unknown> & {
-  id: string;
-  display_name?: string | null;
-  merged_into_id?: string | null;
-  deleted_at?: string | null;
-};
-
-interface MergeAuditPayload {
-  source: FighterRow;
-  target: FighterRow;
-  moved: {
-    personIds: string[];
-    /** @deprecated registrations now follow persons.global_person_id, no direct cascade. */
-    registrationIds?: string[];
-    workshopInstructorIds: string[];
-    /**
-     * The accounts whose directory follow moved to the survivor (ruling 116). Account ids, not
-     * follow ids: the audit screen names an account. Absent from audit logs before ruling 116.
-     */
-    directoryFollowerUserIds?: string[];
-  };
-  reason: string | null;
-}
-
 function ids(rows: unknown): string[] {
   return ((rows as Array<{ id: string }> | null) ?? []).map((row) => row.id);
-}
-
-function fillTargetFields(source: FighterRow, target: FighterRow): Record<string, unknown> {
-  const updates: Record<string, unknown> = {};
-  for (const field of ['photo_url', 'hema_ratings_id', 'bio', 'country_code', 'gender_category']) {
-    if (!target[field] && source[field]) updates[field] = source[field];
-  }
-  updates['updated_at'] = new Date().toISOString();
-  return updates;
 }
 
 @Injectable()
@@ -81,17 +54,7 @@ export class FighterMergeService {
     }
 
     const moved = await this.moveReferences(dto.sourceId, dto.targetId);
-
-    await this.writeFighter(dto.targetId, fillTargetFields(source, target));
-
-    const now = new Date().toISOString();
-    await this.writeFighter(dto.sourceId, {
-      merged_into_id: dto.targetId,
-      merged_at: now,
-      merge_reverted_at: null,
-      deleted_at: now,
-      updated_at: now,
-    });
+    await this.retire(source, target, moved);
 
     const payload: MergeAuditPayload = {
       source,
@@ -110,6 +73,27 @@ export class FighterMergeService {
         workshopInstructors: moved.workshopInstructorIds.length,
       },
     };
+  }
+
+  /**
+   * The survivor takes the source's blanks and stricter choices; the source is flagged merged; the
+   * account moves to the survivor (ruling 159), recorded in `moved` for the revert.
+   */
+  private async retire(source: FighterRow, target: FighterRow, moved: MergeAuditPayload['moved']) {
+    await this.writeFighter(target.id, fillTargetFields(source, target));
+    const now = new Date().toISOString();
+    await this.writeFighter(source.id, {
+      merged_into_id: target.id,
+      merged_at: now,
+      merge_reverted_at: null,
+      deleted_at: now,
+      updated_at: now,
+    });
+    const claimUserId = claimToMove(source, target);
+    if (claimUserId) {
+      await this.moveClaim(claimUserId, source.id, target.id);
+      moved.claimUserId = claimUserId;
+    }
   }
 
   async revertMerge(auditLogId: string, actorUserId: string): Promise<void> {
@@ -139,6 +123,9 @@ export class FighterMergeService {
     const sourceId = payload.source.id;
     await this.assertCurrentMerge(auditLogId, audit.created_at, sourceId, payload.target.id);
     await this.restoreReferences(payload.moved, sourceId, payload.target.id);
+    if (payload.moved.claimUserId) {
+      await this.moveClaim(payload.moved.claimUserId, payload.target.id, sourceId);
+    }
 
     const now = new Date().toISOString();
     await this.writeFighter(sourceId, {
@@ -167,6 +154,24 @@ export class FighterMergeService {
       .update(updates)
       .eq('id', id);
     if (error) throw new Error(`fighter write failed: ${error.message}`);
+  }
+
+  /**
+   * Move an account's link from one profile to another (ruling 159). An account owns at most one
+   * profile (0063's unique index), so the old link goes first. The new one is taken only if the
+   * account still held the old: one deleted or unlinked since the merge is not linked again.
+   * A failure is a 5xx.
+   */
+  private async moveClaim(userId: string, fromId: string, toId: string): Promise<void> {
+    const { data, error } = await this.supabase.service
+      .from('global_persons')
+      .update({ claimed_by_user_id: null })
+      .eq('id', fromId)
+      .eq('claimed_by_user_id', userId)
+      .select('id');
+    if (error) throw new Error(`claim release failed: ${error.message}`);
+    if ((data ?? []).length === 0) return;
+    await this.writeFighter(toId, { claimed_by_user_id: userId });
   }
 
   /**

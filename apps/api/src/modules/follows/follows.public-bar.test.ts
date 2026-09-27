@@ -93,7 +93,10 @@ function build(overrides: Record<string, TableSeed> = {}) {
     registrations: { rows: [] },
     ...overrides,
   });
-  const privacy = { getOrCreate: vi.fn().mockResolvedValue({ allowBeingFollowed: true }) };
+  const privacy = {
+    forPerson: vi.fn().mockResolvedValue({ allowBeingFollowed: true }),
+    forGlobalPerson: vi.fn().mockResolvedValue({ allowBeingFollowed: true }),
+  };
   const orgs = {
     assertOrgRole: vi.fn(async (orgId: string, userId: string) => {
       if (orgId !== ORG || userId !== MEMBER) throw new ForbiddenException('not a member');
@@ -134,7 +137,7 @@ describe('a follow holds the public person page bar (ruling 130)', () => {
         `Event "${UNKNOWN_EVENT}" not found`,
       );
       expect(queriedTables(supabase.from)).toEqual(['events', 'events']);
-      expect(privacy.getOrCreate).not.toHaveBeenCalled();
+      expect(privacy.forPerson).not.toHaveBeenCalled();
     },
   );
 
@@ -153,7 +156,7 @@ describe('a follow holds the public person page bar (ruling 130)', () => {
       `Person "${UNKNOWN_PERSON}" not found`,
     );
     expect(queriedTables(supabase.from)).not.toContain('follows');
-    expect(privacy.getOrCreate).not.toHaveBeenCalled();
+    expect(privacy.forPerson).not.toHaveBeenCalled();
   });
 
   it('a guest follows inside their own Event', async () => {

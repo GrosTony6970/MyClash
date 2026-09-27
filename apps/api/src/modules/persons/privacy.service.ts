@@ -1,148 +1,103 @@
 /**
  * privacy.service.ts — T-608 + T-609
  *
- * Manages person_privacy rows and applies privacy filters
- * to schedule queries per ARCHITECTURE.md §11quinquies.
+ * A person's two privacy choices — hide their workshops publicly, and whether others may follow
+ * them — and the filters that apply them (ARCHITECTURE.md §11quinquies).
+ *
+ * They live on the GLOBAL person (migration 0211, ruling 132): one answer for every Event, past and
+ * future. They used to live per Event row (`person_privacy`, keyed by the event-scoped
+ * `persons.id`), so a competitor in five Events held five answers, and a choice made before an
+ * Event existed never reached it.
+ *
+ * A failed read or write is a 5xx, never the defaults (rulings 117a, 124): the defaults allow being
+ * followed, so a guess could follow someone who opted out.
  */
 
 import { Injectable } from '@nestjs/common';
 import { SupabaseService } from '../supabase/supabase.service';
 
 export interface PersonPrivacy {
-  personId: string;
   hideWorkshopsPublicly: boolean;
   allowBeingFollowed: boolean;
 }
 
-const DEFAULTS: Omit<PersonPrivacy, 'personId'> = {
+/** 0211's column defaults: what a person who never chose has. */
+const DEFAULTS: PersonPrivacy = {
   hideWorkshopsPublicly: false,
   allowBeingFollowed: true,
 };
-
-/**
- * Fold two copies of one user's answer to the stricter of the two.
- *
- * "Stricter" is per-field, not per-row: hiding is the restrictive choice for
- * `hideWorkshopsPublicly`, and NOT allowing is the restrictive choice for the
- * other two. Keeps `personId` from the accumulator, which the caller seeds with
- * the primary row.
- */
-function mostRestrictive(a: PersonPrivacy, b: PersonPrivacy): PersonPrivacy {
-  return {
-    personId: a.personId,
-    hideWorkshopsPublicly: a.hideWorkshopsPublicly || b.hideWorkshopsPublicly,
-    allowBeingFollowed: a.allowBeingFollowed && b.allowBeingFollowed,
-  };
-}
 
 @Injectable()
 export class PrivacyService {
   constructor(private readonly supabase: SupabaseService) {}
 
-  // ── Get or create ────────────────────────────────────────────────────────────
-
   /**
-   * A failed read or create is a 5xx, never the defaults (ruling 117a): the defaults allow
-   * being followed, so a guess could follow someone who opted out.
+   * The choices of the global person behind an Event's person row. A row linked to no global
+   * person has made no choice anywhere: the defaults.
    */
-  async getOrCreate(personId: string): Promise<PersonPrivacy> {
-    const existing = await this.readOne(personId);
-    if (existing) return existing;
-
-    // Auto-create with defaults
-    const { data: created, error } = await this.supabase.service
-      .from('person_privacy')
-      .insert({
-        person_id: personId,
-        hide_workshops_publicly: DEFAULTS.hideWorkshopsPublicly,
-        allow_being_followed: DEFAULTS.allowBeingFollowed,
-      })
-      .select('*')
-      .single();
-
-    // Two requests can race to create the row (two public schedule reads of the same person, a
-    // double-submitted follow): the loser reads the winner's.
-    if (error?.code === '23505') {
-      const winner = await this.readOne(personId);
-      if (winner) return winner;
-    }
-    if (error) throw new Error(`privacy write failed: ${error.message}`);
-    return this.map(created as Record<string, unknown>);
+  async forPerson(personId: string): Promise<PersonPrivacy> {
+    const { data, error } = await this.supabase.service
+      .from('persons')
+      .select('global_person_id')
+      .eq('id', personId)
+      .maybeSingle();
+    if (error) throw new Error(`privacy read failed: ${error.message}`);
+    return this.forGlobalPerson(
+      (data as { global_person_id: string | null } | null)?.global_person_id ?? null,
+    );
   }
 
-  private async readOne(personId: string): Promise<PersonPrivacy | null> {
+  /** The choices of a global person; none (an unlinked Event row) or an unknown one has made none. */
+  async forGlobalPerson(globalPersonId: string | null): Promise<PersonPrivacy> {
+    if (!globalPersonId) return DEFAULTS;
     const { data, error } = await this.supabase.service
-      .from('person_privacy')
-      .select('*')
-      .eq('person_id', personId)
+      .from('global_persons')
+      .select('hide_workshops_publicly, allow_being_followed')
+      .eq('id', globalPersonId)
+      .maybeSingle();
+    if (error) throw new Error(`privacy read failed: ${error.message}`);
+    return data ? this.map(data as Record<string, unknown>) : DEFAULTS;
+  }
+
+  /**
+   * The signed-in user's own choices, or null when no live global person is theirs. A merge moves
+   * the account to the survivor (ruling 159) unless another account owns it; the account then
+   * stays on the merged-away profile, whose choices nothing reads, so it has none to edit.
+   */
+  async forUser(userId: string): Promise<PersonPrivacy | null> {
+    const { data, error } = await this.supabase.service
+      .from('global_persons')
+      .select('hide_workshops_publicly, allow_being_followed')
+      .eq('claimed_by_user_id', userId)
+      .is('merged_into_id', null)
       .maybeSingle();
     if (error) throw new Error(`privacy read failed: ${error.message}`);
     return data ? this.map(data as Record<string, unknown>) : null;
   }
 
-  // ── Per-user (across every event) ────────────────────────────────────────────
-
-  /**
-   * One privacy answer for a user who may hold several event-scoped `persons`
-   * rows.
-   *
-   * `person_privacy.person_id` references `persons(id)`, which is event-scoped,
-   * so a competitor in five events has five places to store a single preference.
-   * The controller used to resolve one arbitrary row; the reader
-   * (`hiddenWorkshopGlobalPersonIds`) then looked up the row for whichever event
-   * it was rendering, so "hide my workshops" applied to at most one event and
-   * silently did nothing on the rest.
-   *
-   * Read folds MOST-RESTRICTIVE across the rows. When copies disagree — and
-   * before this commit they routinely did — honouring the strictest is the only
-   * safe reading: it can never publish something the user asked to hide.
-   */
-  async getOrCreateForPersons(personIds: string[]): Promise<PersonPrivacy> {
-    const primary = personIds[0] as string;
-    if (personIds.length === 1) return this.getOrCreate(primary);
-
-    const { data, error } = await this.supabase.service
-      .from('person_privacy')
-      .select('*')
-      .in('person_id', personIds);
-    // A 5xx, never the defaults (ruling 124): they allow being followed.
-    if (error) throw new Error(`privacy read failed: ${error.message}`);
-
-    const rows = (data ?? []) as Array<Record<string, unknown>>;
-    if (rows.length === 0) return this.getOrCreate(primary);
-
-    return rows
-      .map((row) => this.map(row))
-      .reduce(mostRestrictive, {
-        personId: primary,
-        ...DEFAULTS,
-      });
-  }
-
-  /**
-   * Write the answer to EVERY row the user owns, so it holds in every event.
-   *
-   * Anything less leaves the copies disagreeing, which is the state that made
-   * the setting look applied while doing nothing.
-   */
-  async updateForPersons(
-    personIds: string[],
-    patch: Partial<Omit<PersonPrivacy, 'personId'>>,
-  ): Promise<PersonPrivacy> {
-    const updates: Record<string, unknown> = {};
+  /** Save the user's choices on their global person, then read them back (null: none is theirs). */
+  async updateForUser(
+    userId: string,
+    patch: Partial<PersonPrivacy>,
+  ): Promise<PersonPrivacy | null> {
+    const updates: Record<string, boolean> = {};
     if (patch.hideWorkshopsPublicly !== undefined)
       updates['hide_workshops_publicly'] = patch.hideWorkshopsPublicly;
     if (patch.allowBeingFollowed !== undefined)
       updates['allow_being_followed'] = patch.allowBeingFollowed;
 
-    const { error } = await this.supabase.service
-      .from('person_privacy')
-      .upsert(personIds.map((person_id) => ({ person_id, ...updates })));
-    // A failed save is a 5xx (ruling 124): the read-back below would answer the old values as
-    // if they were saved.
-    if (error) throw new Error(`privacy write failed: ${error.message}`);
-
-    return this.getOrCreateForPersons(personIds);
+    // An empty patch would be an UPDATE with no column, which PostgREST refuses.
+    if (Object.keys(updates).length > 0) {
+      const { error } = await this.supabase.service
+        .from('global_persons')
+        .update(updates)
+        .eq('claimed_by_user_id', userId)
+        .is('merged_into_id', null);
+      // A failed save is a 5xx (ruling 124): the read-back below would answer the old values as
+      // if they were saved.
+      if (error) throw new Error(`privacy write failed: ${error.message}`);
+    }
+    return this.forUser(userId);
   }
 
   // ── Privacy check ────────────────────────────────────────────────────────────
@@ -155,64 +110,33 @@ export class PrivacyService {
    */
   async canSeeWorkshops(personId: string, requesterPersonId: string | null): Promise<boolean> {
     if (requesterPersonId === personId) return true; // always see own workshops
-    const priv = await this.getOrCreate(personId);
-    return !priv.hideWorkshopsPublicly;
+    return !(await this.forPerson(personId)).hideWorkshopsPublicly;
   }
 
   /**
-   * Batched public-read helper: given global-person ids tagged in an event,
-   * return the subset whose event-scoped person set `hide_workshops_publicly`.
-   * Read-only (never auto-creates rows); a missing privacy row ⇒ not hidden.
-   * Used to drop opted-out instructors from public workshop listings. A failed
-   * read is a 5xx, never an empty set (ruling 120): that would list them.
+   * Batched public-read helper: the subset of these global persons who hide their workshops.
+   * Used to drop opted-out instructors from public workshop listings. A failed read is a 5xx,
+   * never an empty set (ruling 120): that would list them.
    */
-  async hiddenWorkshopGlobalPersonIds(
-    eventId: string,
-    globalPersonIds: string[],
-  ): Promise<Set<string>> {
-    const hidden = new Set<string>();
+  async hiddenWorkshopGlobalPersonIds(globalPersonIds: string[]): Promise<Set<string>> {
     const ids = [...new Set(globalPersonIds.filter(Boolean))];
-    if (ids.length === 0) return hidden;
+    if (ids.length === 0) return new Set();
 
-    const { data: persons, error: personsError } = await this.supabase.service
-      .from('persons')
-      .select('id, global_person_id')
-      .eq('event_id', eventId)
-      .in('global_person_id', ids);
-    if (personsError)
-      throw new Error(`hidden-workshop persons read failed: ${personsError.message}`);
-
-    const personIdToGlobal = new Map<string, string>();
-    for (const raw of persons ?? []) {
-      const p = raw as { id: string; global_person_id: string | null };
-      if (p.global_person_id) personIdToGlobal.set(p.id, p.global_person_id);
-    }
-    if (personIdToGlobal.size === 0) return hidden;
-
-    const { data: privacy, error: privacyError } = await this.supabase.service
-      .from('person_privacy')
-      .select('person_id, hide_workshops_publicly')
-      .in('person_id', [...personIdToGlobal.keys()]);
-    if (privacyError)
-      throw new Error(`hidden-workshop privacy read failed: ${privacyError.message}`);
-
-    for (const raw of privacy ?? []) {
-      const row = raw as { person_id: string; hide_workshops_publicly: boolean | null };
-      if (row.hide_workshops_publicly) {
-        const global = personIdToGlobal.get(row.person_id);
-        if (global) hidden.add(global);
-      }
-    }
-    return hidden;
+    const { data, error } = await this.supabase.service
+      .from('global_persons')
+      .select('id')
+      .in('id', ids)
+      .eq('hide_workshops_publicly', true);
+    if (error) throw new Error(`hidden-workshop privacy read failed: ${error.message}`);
+    return new Set(((data ?? []) as Array<{ id: string }>).map((row) => row.id));
   }
 
   // ── Private ──────────────────────────────────────────────────────────────────
 
   private map(row: Record<string, unknown>): PersonPrivacy {
     return {
-      personId: row['person_id'] as string,
       hideWorkshopsPublicly: Boolean(row['hide_workshops_publicly']),
-      allowBeingFollowed: Boolean(row['allow_being_followed'] ?? true),
+      allowBeingFollowed: Boolean(row['allow_being_followed']),
     };
   }
 }

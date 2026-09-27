@@ -17,9 +17,11 @@ describe('the groups store', () => {
   const source = read('useDirectoryGroups.ts');
 
   it('names a signed-out failure on every group and follow action', () => {
-    // Seven actions throw their failure through `failureOf`; the load's 401 is the "sign in"
-    // screen already, so its own throw stays as it is. No action throws a bare kind any more.
-    expect(source.match(/throw new Error\(\s*failureOf\(res\.status, /g)).toHaveLength(7);
+    // Six actions throw their failure through `failureOf`, and the follow through
+    // `followFailureOf`, which also names "prefers not to be followed" (ruling 158); the load's 401
+    // is the "sign in" screen already, so its own throw stays as it is. No action throws a bare kind.
+    expect(source.match(/throw new Error\(\s*failureOf\(res\.status, /g)).toHaveLength(6);
+    expect(source).toContain('throw new Error(followFailureOf(res.status, body?.code));');
     expect(source).not.toMatch(/throw new Error\('(create|update|follow|nameInUse)'\)/);
     expect(source).not.toContain("? 'nameInUse' : 'create');");
     expect(source.match(/fail\(caughtFailure\(err, '(create|update|follow)'\)\);/g)).toHaveLength(

@@ -93,6 +93,21 @@ function subjectTablesFromMigrations(sql: string): { subject: Set<string>; all: 
     if (addsSubjectName || addsPersonFk) subject.add(alter[1]!.toLowerCase());
   }
 
+  // A table dropped after its last CREATE holds nothing any more (`person_privacy`, 0211).
+  for (const name of [...all]) {
+    const last = (re: RegExp) => Math.max(-1, ...[...sql.matchAll(re)].map((m) => m.index!));
+    const created = last(
+      new RegExp(`CREATE TABLE(?:\\s+IF NOT EXISTS)?\\s+(?:public\\.)?"?${name}"?\\s*\\(`, 'gi'),
+    );
+    const dropped = last(
+      new RegExp(`DROP TABLE(?:\\s+IF EXISTS)?\\s+(?:public\\.)?"?${name}"?\\s*;`, 'gi'),
+    );
+    if (dropped > created) {
+      all.delete(name);
+      subject.delete(name);
+    }
+  }
+
   return { subject, all };
 }
 

@@ -1220,6 +1220,21 @@ describe('ArchiveService', () => {
     expect(preview.warnings).toEqual([expect.stringContaining('matches.lice_id lice-ghost')]);
   });
 
+  // `personPrivacy` left the archive with 0211 (ruling 132): the choices live on the global person.
+  // An older file still carries it; the preview counted it under a label that no longer exists.
+  it('previews an archive from before 0211 without the table it no longer knows', async () => {
+    const { service } = makeService(placedRows());
+    const archive = await service.generateTournamentArchive('t-1', 'user-1', {
+      include: 'scoring',
+    });
+    const older = { ...archive, data: { ...archive.data, personPrivacy: [{ person_id: 'p-1' }] } };
+
+    const preview = await service.previewRestore(Buffer.from(JSON.stringify(older)), 'user-1');
+
+    expect(preview.counts).not.toHaveProperty('personPrivacy');
+    expect(preview.counts).toHaveProperty('persons');
+  });
+
   it.each(['event-1', 'event-2'])(
     'refuses to restore that archive into %s before writing anything',
     async (targetEventId) => {

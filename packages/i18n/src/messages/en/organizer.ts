@@ -2791,7 +2791,6 @@ export const organizer = {
       themes: 'Theme',
       lices: 'Lices',
       persons: 'People',
-      personPrivacy: 'Privacy choices',
       refereeSkills: 'Referee roles',
       refereeQualifications: 'Referee qualifications',
       eventReferees: 'Referee roster',

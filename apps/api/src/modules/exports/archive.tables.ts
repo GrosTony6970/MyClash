@@ -158,13 +158,6 @@ const TABLES = {
     set: { claim_status: 'unclaimed', claimed_by_user_id: null },
     idMap: 'persons',
   },
-  person_privacy: {
-    key: 'personPrivacy',
-    collect: {
-      event: { from: 'persons', local: 'person_id' },
-      tournament: { from: 'persons', local: 'person_id' },
-    },
-  },
 
   // referee_skills before anything that stores a skill id: event_hidden_skills,
   // both slot-config skill joins, and referee_assignments.role — which holds a

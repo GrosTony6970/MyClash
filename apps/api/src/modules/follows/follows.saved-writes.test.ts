@@ -33,7 +33,10 @@ function build(tables: Record<string, TableSeed>) {
   const supabase = mockSupabase(tables);
   const service = new FollowsService(
     supabase as never,
-    { getOrCreate: vi.fn().mockResolvedValue({ allowBeingFollowed: true }) } as never,
+    {
+      forPerson: vi.fn().mockResolvedValue({ allowBeingFollowed: true }),
+      forGlobalPerson: vi.fn().mockResolvedValue({ allowBeingFollowed: true }),
+    } as never,
     { cancelForFollowedPerson: vi.fn() } as never,
     {} as never,
   );

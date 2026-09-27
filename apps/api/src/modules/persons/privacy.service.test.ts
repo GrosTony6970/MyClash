@@ -1,204 +1,184 @@
+/**
+ * A person's privacy choices live on their global person (ruling 132, migration 0211): every Event,
+ * past and future, reads one answer. A failed read or write is a 5xx, never the defaults (rulings
+ * 117a, 120, 124): the defaults allow being followed.
+ */
 import { HttpException } from '@nestjs/common';
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { mockSupabase, selectsFor } from '../../common/testing/supabase-chain';
+import { describe, expect, it } from 'vitest';
+import {
+  filtersFor,
+  mockSupabase,
+  queriedTables,
+  selectsFor,
+  writesTo,
+} from '../../common/testing/supabase-chain';
 import { PrivacyService } from './privacy.service';
 
-function makeChain(result: unknown) {
-  const chain: Record<string, ReturnType<typeof vi.fn>> = {
-    select: vi.fn(),
-    eq: vi.fn(),
-    in: vi.fn(),
-    insert: vi.fn(),
-    upsert: vi.fn(),
-    maybeSingle: vi.fn().mockResolvedValue(result),
-    single: vi.fn().mockResolvedValue(result),
-  };
-  for (const key of ['select', 'eq', 'in', 'insert', 'upsert']) chain[key]?.mockReturnValue(chain);
-  (chain as unknown as { then: unknown }).then = (resolve: (v: unknown) => unknown) =>
-    Promise.resolve(result).then(resolve);
-  return chain;
+const LEA = 'gp-lea';
+const FAILED = { data: null, error: { message: 'connection reset' } };
+const COLUMNS = 'hide_workshops_publicly, allow_being_followed';
+
+function world(tables: Parameters<typeof mockSupabase>[0] = {}) {
+  const db = mockSupabase({
+    persons: {
+      rows: [
+        // Léa in two Events, one Event row with no global person.
+        { id: 'p-spring', global_person_id: LEA },
+        { id: 'p-autumn', global_person_id: LEA },
+        { id: 'p-unlinked', global_person_id: null },
+      ],
+    },
+    global_persons: {
+      rows: [
+        {
+          id: LEA,
+          claimed_by_user_id: 'u-lea',
+          merged_into_id: null,
+          hide_workshops_publicly: true,
+          allow_being_followed: false,
+        },
+        {
+          id: 'gp-marc',
+          claimed_by_user_id: 'u-marc',
+          merged_into_id: null,
+          hide_workshops_publicly: false,
+          allow_being_followed: true,
+        },
+        // Nina's profile, merged into Marc's, which another account owns: her account stayed here.
+        {
+          id: 'gp-nina-old',
+          claimed_by_user_id: 'u-nina',
+          merged_into_id: 'gp-marc',
+          hide_workshops_publicly: true,
+          allow_being_followed: false,
+        },
+      ],
+    },
+    ...tables,
+  });
+  return { db, service: new PrivacyService({ service: db.service } as never) };
 }
 
-function row(overrides: Record<string, unknown> = {}) {
-  return {
-    person_id: 'p-1',
-    hide_workshops_publicly: false,
-    allow_being_followed: true,
-    ...overrides,
-  };
-}
-
-describe('privacy across a user with several event rows', () => {
-  let fromMock: ReturnType<typeof vi.fn>;
-  let service: PrivacyService;
-
-  beforeEach(() => {
-    vi.clearAllMocks();
-    fromMock = vi.fn();
-    service = new PrivacyService({ service: { from: fromMock } } as never);
+describe('one answer for every Event (ruling 132)', () => {
+  it("reads every Event row of a person through their global person's choices", async () => {
+    const { db, service } = world();
+    for (const personId of ['p-spring', 'p-autumn']) {
+      await expect(service.forPerson(personId)).resolves.toEqual({
+        hideWorkshopsPublicly: true,
+        allowBeingFollowed: false,
+      });
+    }
+    expect(selectsFor(db.from, 'persons')).toEqual(['global_person_id', 'global_person_id']);
+    expect(selectsFor(db.from, 'global_persons')).toEqual([COLUMNS, COLUMNS]);
+    expect(filtersFor(db.from, 'global_persons', 'eq')).toContainEqual(['id', LEA]);
   });
 
-  it('folds disagreeing copies to the most restrictive answer', async () => {
-    // The copies routinely DID disagree: the settings page wrote one arbitrary
-    // event row while every reader looked up the row for the event it was
-    // rendering. Honouring the strictest is the only safe reading of that state
-    // -- it can never publish something the user asked to hide.
-    fromMock.mockReturnValue(
-      makeChain({
-        data: [
-          row({ person_id: 'p-1', hide_workshops_publicly: false, allow_being_followed: true }),
-          row({ person_id: 'p-2', hide_workshops_publicly: true, allow_being_followed: false }),
-        ],
-        error: null,
-      }),
-    );
-
-    const result = await service.getOrCreateForPersons(['p-1', 'p-2']);
-    expect(result.hideWorkshopsPublicly).toBe(true);
-    expect(result.allowBeingFollowed).toBe(false);
+  it('gives an Event row linked to no global person, or an unknown one, the defaults', async () => {
+    const { db, service } = world();
+    const defaults = { hideWorkshopsPublicly: false, allowBeingFollowed: true };
+    await expect(service.forPerson('p-unlinked')).resolves.toEqual(defaults);
+    // No global person, nothing to ask for.
+    expect(queriedTables(db.from)).toEqual(['persons']);
+    await expect(service.forPerson('p-nobody')).resolves.toEqual(defaults);
+    await expect(service.forGlobalPerson('gp-nobody')).resolves.toEqual(defaults);
   });
 
-  it('leaves an agreeing set alone', async () => {
-    fromMock.mockReturnValue(
-      makeChain({ data: [row({ person_id: 'p-1' }), row({ person_id: 'p-2' })], error: null }),
-    );
-    const result = await service.getOrCreateForPersons(['p-1', 'p-2']);
-    expect(result.hideWorkshopsPublicly).toBe(false);
-    expect(result.allowBeingFollowed).toBe(true);
-  });
-
-  it('upserts one row per event, not one row total', async () => {
-    const chain = makeChain({ data: [row()], error: null });
-    fromMock.mockReturnValue(chain);
-
-    await service.updateForPersons(['p-1', 'p-2', 'p-3'], { hideWorkshopsPublicly: true });
-
-    expect(chain['upsert']).toHaveBeenCalledWith([
-      { person_id: 'p-1', hide_workshops_publicly: true },
-      { person_id: 'p-2', hide_workshops_publicly: true },
-      { person_id: 'p-3', hide_workshops_publicly: true },
+  it("reads the signed-in user's own choices, and null when no global person is theirs", async () => {
+    const { db, service } = world();
+    await expect(service.forUser('u-lea')).resolves.toEqual({
+      hideWorkshopsPublicly: true,
+      allowBeingFollowed: false,
+    });
+    await expect(service.forUser('u-nobody')).resolves.toBeNull();
+    expect(filtersFor(db.from, 'global_persons', 'eq')).toContainEqual([
+      'claimed_by_user_id',
+      'u-lea',
     ]);
   });
 
-  it('creates the row with the defaults when none exists yet', async () => {
-    const chain = makeChain({ data: null, error: null });
-    // The stored row differs from the defaults, so the answer shows it came from the database.
-    const stored = row({ hide_workshops_publicly: true });
-    chain['single']?.mockResolvedValue({ data: stored, error: null });
-    fromMock.mockReturnValue(chain);
-    const result = await service.getOrCreateForPersons(['p-1']);
-    expect(chain['insert']).toHaveBeenCalledWith({
-      person_id: 'p-1',
-      hide_workshops_publicly: false,
-      allow_being_followed: true,
+  it("writes the user's own global person, only the choices sent, then reads them back", async () => {
+    const { db, service } = world();
+    await expect(service.updateForUser('u-marc', { allowBeingFollowed: false })).resolves.toEqual({
+      hideWorkshopsPublicly: false,
+      allowBeingFollowed: true, // the double reads back the seeded row
     });
-    expect(result.hideWorkshopsPublicly).toBe(true);
+    const [write, ...more] = writesTo(db, 'global_persons');
+    expect(more).toEqual([]);
+    expect(write).toMatchObject({ op: 'update', row: { allow_being_followed: false } });
+    expect(write!.filters).toEqual([
+      { method: 'eq', args: ['claimed_by_user_id', 'u-marc'] },
+      { method: 'is', args: ['merged_into_id', null] },
+    ]);
+  });
+
+  it('gives an account left on a merged-away profile no choices to read or save (ruling 159)', async () => {
+    const { db, service } = world();
+    await expect(service.forUser('u-nina')).resolves.toBeNull();
+    await expect(service.updateForUser('u-nina', { allowBeingFollowed: true })).resolves.toBeNull();
+    expect(writesTo(db, 'global_persons')[0]!.filters).toContainEqual({
+      method: 'is',
+      args: ['merged_into_id', null],
+    });
+  });
+
+  it('writes nothing for an empty patch, and still answers', async () => {
+    const { db, service } = world();
+    await expect(service.updateForUser('u-marc', {})).resolves.toEqual({
+      hideWorkshopsPublicly: false,
+      allowBeingFollowed: true,
+    });
+    expect(writesTo(db, 'global_persons')).toEqual([]);
+  });
+
+  it('lets the person see their own hidden workshops, and nobody else', async () => {
+    const { service } = world();
+    await expect(service.canSeeWorkshops('p-spring', 'p-spring')).resolves.toBe(true);
+    await expect(service.canSeeWorkshops('p-spring', 'p-other')).resolves.toBe(false);
+    await expect(service.canSeeWorkshops('p-spring', null)).resolves.toBe(false);
+  });
+
+  it('names the global persons who hide their workshops, in one read', async () => {
+    const { db, service } = world();
+    await expect(service.hiddenWorkshopGlobalPersonIds([LEA, 'gp-marc', LEA, ''])).resolves.toEqual(
+      new Set([LEA]),
+    );
+    expect(selectsFor(db.from, 'global_persons')).toEqual(['id']);
+    expect(filtersFor(db.from, 'global_persons', 'in')).toEqual([['id', [LEA, 'gp-marc']]]);
+    expect(filtersFor(db.from, 'global_persons', 'eq')).toEqual([
+      ['hide_workshops_publicly', true],
+    ]);
+    await expect(service.hiddenWorkshopGlobalPersonIds([])).resolves.toEqual(new Set());
   });
 });
 
-// Ruling 117a: a failed privacy read or write is a 5xx, never the defaults — the defaults
-// allow being followed, so a guess could follow someone who opted out.
-describe('privacy read or write that fails', () => {
-  const FAILED = { data: null, error: { message: 'boom' } };
-  const NONE = { data: null, error: null };
+describe('a privacy read or write that fails', () => {
+  const plainError = async (call: Promise<unknown>, message: RegExp) => {
+    const failure = await call.catch((error: unknown) => error);
+    expect(failure).toBeInstanceOf(Error);
+    expect(failure).not.toBeInstanceOf(HttpException);
+    expect((failure as Error).message).toMatch(message);
+  };
 
-  async function expectFailure(run: Promise<unknown>, message: string) {
-    await expect(run).rejects.toThrow(`${message} failed: boom`);
-    await expect(run).rejects.not.toBeInstanceOf(HttpException);
-  }
-
-  it('a failed read is a 5xx, and nothing is created', async () => {
-    const db = mockSupabase({ person_privacy: FAILED });
-    await expectFailure(new PrivacyService(db as never).getOrCreate('p-1'), 'privacy read');
-    expect(db.writes).toEqual([]);
+  it('is a 5xx on the Event row, never the defaults', async () => {
+    const { service } = world({ persons: FAILED });
+    await plainError(service.forPerson('p-spring'), /^privacy read failed: connection reset$/);
   });
 
-  it('a failed create is a 5xx, not the defaults', async () => {
-    const db = mockSupabase({ person_privacy: [NONE, FAILED] });
-    await expectFailure(new PrivacyService(db as never).getOrCreate('p-1'), 'privacy write');
-  });
-
-  // Ruling 124: the settings page's own read and save.
-  it("a failed read of a user's several copies is a 5xx, not the defaults", async () => {
-    // After the failed read, a fallback to one copy would succeed: only the read's own check
-    // can fail this.
-    const db = mockSupabase({ person_privacy: [FAILED, NONE, { data: row(), error: null }] });
-    await expectFailure(
-      new PrivacyService(db as never).getOrCreateForPersons(['p-1', 'p-2']),
-      'privacy read',
+  it('is a 5xx on the global person, for a reader and for the settings page', async () => {
+    const { service } = world({ global_persons: FAILED });
+    await plainError(service.forGlobalPerson(LEA), /^privacy read failed: connection reset$/);
+    await plainError(service.forUser('u-lea'), /^privacy read failed: connection reset$/);
+    await plainError(
+      service.hiddenWorkshopGlobalPersonIds([LEA]),
+      /^hidden-workshop privacy read failed: connection reset$/,
     );
-    expect(db.writes).toEqual([]);
   });
 
-  it('a failed save is a 5xx, never the old values read back as if saved', async () => {
-    const db = mockSupabase({ person_privacy: [FAILED, { data: [row()], error: null }] });
-    await expectFailure(
-      new PrivacyService(db as never).updateForPersons(['p-1', 'p-2'], {
-        allowBeingFollowed: false,
-      }),
-      'privacy write',
+  it('is a 5xx on a save, never the old values read back as if saved', async () => {
+    const { service } = world({ global_persons: FAILED });
+    await plainError(
+      service.updateForUser('u-lea', { hideWorkshopsPublicly: false }),
+      /^privacy write failed: connection reset$/,
     );
-    // The save was the one query: no read-back answered for it.
-    expect(db.from).toHaveBeenCalledTimes(1);
-  });
-
-  // Ruling 120: an empty "hidden" set would list an opted-out instructor publicly.
-  describe('hiddenWorkshopGlobalPersonIds', () => {
-    const persons = {
-      rows: [
-        { id: 'p-1', event_id: 'e-1', global_person_id: 'gp-1' },
-        { id: 'p-2', event_id: 'e-1', global_person_id: 'gp-2' },
-        { id: 'p-9', event_id: 'e-other', global_person_id: 'gp-2' },
-      ],
-    };
-
-    it('returns the global ids whose person in this Event hides their workshops', async () => {
-      const db = mockSupabase({
-        persons,
-        person_privacy: {
-          rows: [
-            { person_id: 'p-1', hide_workshops_publicly: true },
-            { person_id: 'p-2', hide_workshops_publicly: false },
-            // Another Event's row is not this Event's answer.
-            { person_id: 'p-9', hide_workshops_publicly: true },
-          ],
-        },
-      });
-      const hidden = await new PrivacyService(db as never).hiddenWorkshopGlobalPersonIds('e-1', [
-        'gp-1',
-        'gp-2',
-      ]);
-      expect([...hidden]).toEqual(['gp-1']);
-      expect(selectsFor(db.from, 'persons')).toEqual(['id, global_person_id']);
-      expect(selectsFor(db.from, 'person_privacy')).toEqual(['person_id, hide_workshops_publicly']);
-    });
-
-    it('a failed persons read is a 5xx, not "nobody is hidden"', async () => {
-      const db = mockSupabase({ persons: FAILED });
-      await expectFailure(
-        new PrivacyService(db as never).hiddenWorkshopGlobalPersonIds('e-1', ['gp-1']),
-        'hidden-workshop persons read',
-      );
-    });
-
-    it('a failed privacy read is a 5xx, not "nobody is hidden"', async () => {
-      const db = mockSupabase({ persons, person_privacy: FAILED });
-      await expectFailure(
-        new PrivacyService(db as never).hiddenWorkshopGlobalPersonIds('e-1', ['gp-1']),
-        'hidden-workshop privacy read',
-      );
-    });
-  });
-
-  it('a create that loses the race to another first read returns the row that won', async () => {
-    const db = mockSupabase({
-      person_privacy: [
-        NONE,
-        { data: null, error: { message: 'duplicate key', code: '23505' } },
-        { data: row({ allow_being_followed: false }), error: null },
-      ],
-    });
-    const result = await new PrivacyService(db as never).getOrCreate('p-1');
-    expect(result.allowBeingFollowed).toBe(false);
   });
 });

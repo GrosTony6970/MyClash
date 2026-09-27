@@ -1,7 +1,9 @@
 import type { KnownTranslationKey } from '@myclash/i18n';
+import { PREFERS_NOT_FOLLOWED } from '../../e/[eventSlug]/people/[personId]/follow-answer';
 
 /** What a People hub action (Search or My groups) failed on. */
-export type GroupsActionError = 'nameInUse' | 'create' | 'update' | 'follow' | 'signedOut';
+export type GroupsActionError =
+  'nameInUse' | 'create' | 'update' | 'follow' | 'signedOut' | 'prefersNotFollowed';
 
 /**
  * The toast each failure shows (rulings 118, 123). Before, only "name already used"
@@ -14,6 +16,7 @@ export const GROUPS_ACTION_ERROR_KEY: Record<GroupsActionError, KnownTranslation
   update: 'publicApp.me.groups.updateFailed',
   follow: 'publicApp.me.groups.followFailed',
   signedOut: 'publicApp.me.people.sessionEnded',
+  prefersNotFollowed: 'publicApp.following.prefersNotFollowed',
 };
 
 /**
@@ -24,6 +27,16 @@ export const GROUPS_ACTION_ERROR_KEY: Record<GroupsActionError, KnownTranslation
  */
 export function failureOf(status: number, otherwise: GroupsActionError): GroupsActionError {
   return status === 401 ? 'signedOut' : otherwise;
+}
+
+/**
+ * Which failure a refused hub follow is: a person who prefers not to be followed is told so
+ * (ruling 158). Any other 403 — an archived Event refuses every follow write — is the follow's own
+ * failure, never blamed on the person.
+ */
+export function followFailureOf(status: number, code: unknown): GroupsActionError {
+  if (status === 403 && code === PREFERS_NOT_FOLLOWED) return 'prefersNotFollowed';
+  return failureOf(status, 'follow');
 }
 
 /**

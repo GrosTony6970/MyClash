@@ -52,7 +52,6 @@ export const SUBJECT_EXPORT_TABLES: Readonly<Record<string, SubjectTableSpec>> =
     reaches: [{ column: 'global_person_id', reach: 'global_person' }],
     file: 'profile.json',
   },
-  person_privacy: { reaches: [{ column: 'person_id', reach: 'person' }], file: 'profile.json' },
   fighter_clubs: {
     reaches: [{ column: 'global_person_id', reach: 'global_person' }],
     file: 'profile.json',

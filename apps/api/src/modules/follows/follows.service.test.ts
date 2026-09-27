@@ -17,7 +17,8 @@ const fromMock = vi.fn();
 const mockSupabase = { service: { from: fromMock }, anon: {} };
 
 const mockPrivacy = {
-  getOrCreate: vi.fn(),
+  forPerson: vi.fn(),
+  forGlobalPerson: vi.fn().mockResolvedValue({ allowBeingFollowed: true }),
   canSeeWorkshops: vi.fn(),
   update: vi.fn(),
 };
@@ -113,7 +114,7 @@ describe('FollowsService', () => {
         persons: { given_name: 'Jean', family_name: 'Dupont', clubs: null },
       };
 
-      mockPrivacy.getOrCreate.mockResolvedValue({ allowBeingFollowed: true });
+      mockPrivacy.forPerson.mockResolvedValue({ allowBeingFollowed: true });
 
       // findExisting returns the existing row
       const existingChain = makeChain({ data: null, error: null });
@@ -141,7 +142,7 @@ describe('FollowsService', () => {
 
   describe('follow — privacy', () => {
     it('throws ForbiddenException when allow_being_followed = false', async () => {
-      mockPrivacy.getOrCreate.mockResolvedValue({ allowBeingFollowed: false });
+      mockPrivacy.forPerson.mockResolvedValue({ allowBeingFollowed: false });
 
       await expect(service.follow('event-1', 'person-1', { userId: 'user-1' })).rejects.toThrow(
         ForbiddenException,
@@ -149,7 +150,7 @@ describe('FollowsService', () => {
     });
 
     it('says so with its own code: an archived Event refuses follows with a 403 too', async () => {
-      mockPrivacy.getOrCreate.mockResolvedValue({ allowBeingFollowed: false });
+      mockPrivacy.forPerson.mockResolvedValue({ allowBeingFollowed: false });
 
       const refusal = await service
         .follow('event-1', 'person-1', { userId: 'user-1' })

@@ -33,6 +33,9 @@ describe('FighterMergeService', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    // `clearAllMocks` keeps a `mockReturnValueOnce` queue: a test that stops before its last
+    // queued chain handed it to the next test, which then merged the wrong rows.
+    fromMock.mockReset();
     fromMock.mockReturnValue(makeChain({ data: null, error: null }));
     service = new FighterMergeService(mockSupabase as never);
   });
@@ -148,6 +151,14 @@ describe('FighterMergeService', () => {
     );
     expect(personsUpdate.update).toHaveBeenCalledWith({ global_person_id: 'target' });
     expect(instructorsUpdate.update).toHaveBeenCalledWith({ global_person_id: 'target' });
+    // The target's blanks take the source's values; its own country stays.
+    expect(fighterUpdateCalls[0]![0]).toMatchObject({
+      photo_url: 'https://cdn/source.jpg',
+      hema_ratings_id: '123',
+      bio: 'source bio',
+      gender_category: 'open',
+    });
+    expect(fighterUpdateCalls[0]![0]).not.toHaveProperty('country_code');
     expect(fighterUpdateCalls).toContainEqual([
       expect.objectContaining({
         merged_into_id: 'target',

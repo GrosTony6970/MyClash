@@ -2755,7 +2755,6 @@ export const organizer = {
       themes: 'Thème',
       lices: 'Lices',
       persons: 'Personnes',
-      personPrivacy: 'Choix de confidentialité',
       refereeSkills: "Rôles d'arbitrage",
       refereeQualifications: 'Qualifications des arbitres',
       eventReferees: 'Liste des arbitres',

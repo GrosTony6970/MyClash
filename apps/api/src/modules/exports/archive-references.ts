@@ -60,7 +60,6 @@ type Checked = Pick<MyClashArchive, 'scope' | 'include' | 'data'>;
  */
 const ROSTER_REFERENCES = new Map<string, ReadonlyArray<ArchiveScope>>([
   ['registrations.person_id', ['event', 'tournament']],
-  ['person_privacy.person_id', ['event', 'tournament']],
 ]);
 
 /**

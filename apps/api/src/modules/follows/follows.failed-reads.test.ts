@@ -33,7 +33,10 @@ const FOLLOW_ROW = {
 
 function followsWith(tables: Record<string, TableSeed>) {
   const supabase = mockSupabase(tables);
-  const privacy = { getOrCreate: vi.fn().mockResolvedValue({ allowBeingFollowed: true }) };
+  const privacy = {
+    forPerson: vi.fn().mockResolvedValue({ allowBeingFollowed: true }),
+    forGlobalPerson: vi.fn().mockResolvedValue({ allowBeingFollowed: true }),
+  };
   const service = new FollowsService(
     supabase as never,
     privacy as never,

@@ -1,6 +1,12 @@
 import { createTranslator, getMessages } from '@myclash/i18n';
 import { describe, expect, it } from 'vitest';
-import { caughtFailure, failureOf, GROUPS_ACTION_ERROR_KEY, refusalKey } from './action-error';
+import {
+  caughtFailure,
+  failureOf,
+  followFailureOf,
+  GROUPS_ACTION_ERROR_KEY,
+  refusalKey,
+} from './action-error';
 
 describe('a People hub action that fails shows its own message (ruling 118)', () => {
   const en = createTranslator(getMessages('en'));
@@ -63,5 +69,24 @@ describe('the Following and Organizers tabs’ messages (ruling 123)', () => {
     expect(refusalKey(null, 'publicApp.me.follows.unfollowFailed')).toBe(
       'publicApp.me.follows.unfollowFailed',
     );
+  });
+});
+
+describe('a hub follow of someone who prefers not to be followed says so (ruling 158)', () => {
+  it('the refusal with its own code is told apart, in English and French', () => {
+    expect(followFailureOf(403, 'prefers_not_followed')).toBe('prefersNotFollowed');
+    expect(caughtFailure(new Error('prefersNotFollowed'), 'follow')).toBe('prefersNotFollowed');
+    const en = createTranslator(getMessages('en'));
+    expect(en(GROUPS_ACTION_ERROR_KEY.prefersNotFollowed)).toBe(
+      'This person prefers not to be followed',
+    );
+  });
+
+  it('any other refusal keeps the follow failure, and a 401 the session one', () => {
+    // An archived Event refuses every follow write with a 403 too: it must not blame the person.
+    expect(followFailureOf(403, 'archived')).toBe('follow');
+    expect(followFailureOf(403, undefined)).toBe('follow');
+    expect(followFailureOf(500, 'prefers_not_followed')).toBe('follow');
+    expect(followFailureOf(401, undefined)).toBe('signedOut');
   });
 });

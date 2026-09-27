@@ -6,6 +6,7 @@ import { useI18n } from '@myclash/next-i18n/client';
 import {
   caughtFailure,
   failureOf,
+  followFailureOf,
   GROUPS_ACTION_ERROR_KEY,
   type GroupsActionError,
 } from './action-error';
@@ -48,7 +49,6 @@ export interface FollowAllSummary {
   upcomingEventCount: number;
   followedCount: number;
   alreadyFollowingCount: number;
-  skippedPrivacyCount: number;
   /** Whether the persistent global follow now exists (drives the toggle state). */
   following: boolean;
 }
@@ -244,7 +244,10 @@ export function useDirectoryGroups(apiUrl: string) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ globalPersonId }),
       });
-      if (!res.ok) throw new Error(failureOf(res.status, 'follow'));
+      if (!res.ok) {
+        const body = (await res.json().catch(() => null)) as { code?: unknown } | null;
+        throw new Error(followFailureOf(res.status, body?.code));
+      }
       const summary = (await res.json()) as FollowAllSummary;
       // The follow is now persistent, so reflect it on the group member card even
       // when the person has no upcoming event (event count would be 0).

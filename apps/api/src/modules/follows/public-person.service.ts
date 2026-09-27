@@ -72,7 +72,7 @@ export class PublicPersonService {
 
     const [roles, privacy, following] = await Promise.all([
       this.rolesOf(event, person, reader),
-      this.privacy.getOrCreate(person.id),
+      this.privacy.forGlobalPerson(person.global_person_id),
       resolveFollower().then((identity) => this.follows.isFollowing(eventId, person.id, identity)),
     ]);
     return {
