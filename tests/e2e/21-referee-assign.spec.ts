@@ -132,12 +132,10 @@ test.describe('referee assignment', () => {
 
     // …and one qualified referee is restricted to a DIFFERENT tournament.
     //
-    // AN EMPTY ALLOWLIST DOES NOT MEAN "AVAILABLE FOR NOTHING". `isUnavailable`
-    // only consults `availableTournamentIds` when it is non-empty, so
-    // `{ availableAllTournaments: false, tournamentIds: [] }` leaves the referee
-    // fully assignable — the boolean alone is never read. Expressing the
-    // restriction the way the engine understands it means naming a tournament
-    // that is not this one, which is why the spec creates a second one.
+    // AN EMPTY LIST DOES NOT MEAN "AVAILABLE FOR NOTHING". Availability is ticks
+    // only (ruling 145): no ticked Tournament = available for every Tournament, and
+    // ticking every one is stored as none. A restriction names a Tournament that is
+    // not this one, which is why the spec creates a second one.
     //
     // NOTE THE IDENTITY TOO. Two endpoints share the `events/:eventId/referees/
     // :personId` shape and disagree about what `:personId` means: registration
@@ -153,7 +151,7 @@ test.describe('referee assignment', () => {
     );
     await api.ok(
       await api.patch(`events/${eventId}/referees/${globalOf(unavailable)}/availability`, {
-        data: { availableAllTournaments: false, tournamentIds: [elsewhere.id] },
+        data: { tournamentIds: [elsewhere.id] },
       }),
     );
 

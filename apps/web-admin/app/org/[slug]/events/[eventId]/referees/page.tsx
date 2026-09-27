@@ -12,7 +12,7 @@ import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { ConfirmDialog, Modal, SkillBadge, tintBgClassFor, useToast } from '@myclash/ui';
 
-import { DEFAULT_EVENT_TIMEZONE, localeToBcp47, type AppLocale } from '@myclash/time';
+import { DEFAULT_EVENT_TIMEZONE, addDays, localeToBcp47, type AppLocale } from '@myclash/time';
 import { blockTint, resolveBlockAccent } from '@myclash/types';
 import type { CapacityWarning } from '@myclash/types';
 import {
@@ -46,6 +46,8 @@ import {
   type TimelinePool,
 } from '../pools/_tabs/_components/PoolTimelineGrid';
 import { AvailabilityChips } from './_components/AvailabilityChips';
+import { DayAvailability } from './_components/DayAvailability';
+import { daysBody, type DayTick } from './_components/day-window';
 import { countQualifiedBySkill } from './count-qualified-by-skill';
 import { programmeBlockStartIso } from './_components/programme-block-instant';
 import { apiRequest, failureMessage, type ApiResult } from '@myclash/api-client';
@@ -77,12 +79,10 @@ interface EventRefereeRow {
   displayName: string;
   clubLabel: string | null;
   qualifications: Array<{ skillId: string; rating: number | null }>;
-  availableAllTournaments: boolean;
-  availableAllEventDuration: boolean;
-  /** Slice 8: per-tournament allowlist. Empty array = no restriction set. */
+  /** Ticked Tournaments, as stored. Empty = every Tournament (ruling 145). */
   tournamentIds: string[];
-  /** Slice 8: per-day allowlist. Empty array = no restriction set. */
-  dayIndices: number[];
+  /** Ticked days with their from–to, as stored. Empty = every day. */
+  days: DayTick[];
   assignments: Array<{ tournamentId: string; tournamentName: string; matchCount: number }>;
   totalMatchCount: number;
 }
@@ -1501,7 +1501,7 @@ interface PersonResult {
 }
 
 export default function RefereesPage() {
-  const { locale, t } = useI18n();
+  const { t } = useI18n();
   const params = useParams<{ slug: string; eventId: string }>();
   const { slug, eventId } = params;
   const apiUrl = getPublicApiUrl();
@@ -1536,9 +1536,9 @@ export default function RefereesPage() {
   /** Slice 8: list of tournaments on the event — feeds the per-tournament
    *  availability chip column. Fetched once on mount. */
   const [eventTournaments, setEventTournaments] = useState<Array<{ id: string; name: string }>>([]);
-  /** Slice 8: list of day indices on the event — feeds the per-day
-   *  availability chip column. Derived from event.start_date / end_date. */
-  const [eventDays, setEventDays] = useState<Array<{ index: number; label: string }>>([]);
+  /** Every date of the event (`YYYY-MM-DD`), first to last — feeds the per-day
+   *  availability column. Derived from event.start_date / end_date. */
+  const [eventDates, setEventDates] = useState<string[]>([]);
   const [qualIdMap, setQualIdMap] = useState<QualIdMap>(new Map());
   const [loading, setLoading] = useState(true);
   // ConfirmDialog state for destructive skill delete (replaces native confirm).
@@ -1641,27 +1641,20 @@ export default function RefereesPage() {
       if (eRes.ok) {
         // Events endpoint returns snake_case start_date / end_date.
         const ev = eRes.data;
-        const start = new Date(`${ev.start_date}T00:00:00.000Z`);
-        const end = ev.end_date ? new Date(`${ev.end_date}T00:00:00.000Z`) : start;
-        const days: Array<{ index: number; label: string }> = [];
-        const cursor = new Date(start);
-        let idx = 0;
-        while (cursor.getTime() <= end.getTime()) {
-          days.push({
-            index: idx,
-            label: cursor.toLocaleDateString(localeToBcp47(locale), {
-              weekday: 'short',
-              day: 'numeric',
-            }),
-          });
-          cursor.setUTCDate(cursor.getUTCDate() + 1);
-          idx += 1;
+        const end = ev.end_date ?? ev.start_date;
+        const dates: string[] = [];
+        for (
+          let date: string | null = ev.start_date;
+          date && date <= end;
+          date = addDays(date, 1)
+        ) {
+          dates.push(date);
         }
-        setEventDays(days);
+        setEventDates(dates);
       }
     });
     return () => controller.abort();
-  }, [eventId, apiUrl, locale]);
+  }, [eventId, apiUrl]);
 
   // ── Fetch referees (enriched) + qual id map ─────────────────────────────────
 
@@ -1849,12 +1842,7 @@ export default function RefereesPage() {
 
   async function updateAvailability(
     personId: string,
-    patch: {
-      availableAllTournaments?: boolean;
-      availableAllEventDuration?: boolean;
-      tournamentIds?: string[];
-      dayIndices?: number[];
-    },
+    patch: { tournamentIds?: string[]; days?: DayTick[] },
   ) {
     // Optimistic update
     setReferees((prev) =>
@@ -1862,11 +1850,8 @@ export default function RefereesPage() {
         r.personId === personId
           ? {
               ...r,
-              availableAllTournaments: patch.availableAllTournaments ?? r.availableAllTournaments,
-              availableAllEventDuration:
-                patch.availableAllEventDuration ?? r.availableAllEventDuration,
               tournamentIds: patch.tournamentIds ?? r.tournamentIds,
-              dayIndices: patch.dayIndices ?? r.dayIndices,
+              days: patch.days ?? r.days,
             }
           : r,
       ),
@@ -1875,12 +1860,19 @@ export default function RefereesPage() {
     const r = await apiRequest(
       apiUrl,
       `/api/v1/events/${eventId}/referees/${personId}/availability`,
-      { method: 'PATCH', body: patch },
+      {
+        method: 'PATCH',
+        body: {
+          ...(patch.tournamentIds ? { tournamentIds: patch.tournamentIds } : {}),
+          ...(patch.days ? { days: daysBody(patch.days) } : {}),
+        },
+      },
     );
 
+    // Either way, reload: on success the API may have stored every tick as none (ruling 145);
+    // on failure the chips are drawn as the operator set them, not as stored.
+    setRefereesKey((k) => k + 1);
     if (!r.ok) {
-      // Revert — the chips are already drawn as the operator set them.
-      setRefereesKey((k) => k + 1);
       const message = failureMessage(r, t, t('organizer.refereesPage.availabilitySaveFailed'));
       if (message) toast.error(message);
     }
@@ -2248,17 +2240,11 @@ export default function RefereesPage() {
                       {/* Slice 8: per-day chip picker. */}
                       {activeTab === 'referees' && (
                         <td className="py-3 px-3 align-middle">
-                          <AvailabilityChips
-                            options={eventDays.map((d) => ({
-                              value: d.index,
-                              label: d.label,
-                            }))}
-                            selected={ref.dayIndices}
+                          <DayAvailability
+                            days={ref.days}
+                            eventDates={eventDates}
                             disabled={isReadOnly}
-                            allLabel={t('organizer.refereesPage.availableAllDaysShort')}
-                            onChange={(indices) =>
-                              void updateAvailability(ref.personId, { dayIndices: indices })
-                            }
+                            onSave={(days) => void updateAvailability(ref.personId, { days })}
                           />
                         </td>
                       )}

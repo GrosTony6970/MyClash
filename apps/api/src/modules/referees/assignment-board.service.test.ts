@@ -134,10 +134,9 @@ function queueCandidateReads(refereeDays: unknown[] = [], failing?: FailingRead)
         error: null,
       }),
     )
-    // Slice 8: listCandidates now reads event_referee_tournaments +
-    // event_referee_days. Empty by default — most fixtures have no granular
-    // allowlist, so the engine treats every candidate as available for every
-    // tournament + day. `refereeDays` seeds the per-day one.
+    // Then each referee's ticks (`referee-availability.ts`): event_referee_tournaments +
+    // event_referee_days. Empty by default — no tick = available for every Tournament and
+    // day (ruling 145). `refereeDays` seeds the per-day one.
     .mockReturnValueOnce(
       makeChain(failing === 'event_referee_tournaments' ? FAILED : { data: [], error: null }),
     )
@@ -154,11 +153,11 @@ function queueCandidateReads(refereeDays: unknown[] = [], failing?: FailingRead)
 interface BoardReadOptions {
   /** The Pool bout's own stored length, when a test needs one. */
   matchOverride?: number;
-  /** The `events` row. Carries the timezone the day index is measured on. */
-  event?: { start_date: string | null; timezone?: string | null };
+  /** The `events` row. Carries the timezone every date and window is measured on. */
+  event?: { timezone?: string | null };
   /** When the pool's single match is scheduled. Sets the pool's window. */
   matchScheduledAt?: string;
-  /** `event_referee_days` rows — the per-day availability allowlist. */
+  /** `event_referee_days` rows — the ticked days, each with its window. */
   refereeDays?: unknown[];
   /** One read that fails, by table. */
   failing?: FailingRead;
@@ -168,10 +167,10 @@ type FailingRead = 'events' | 'event_referee_tournaments' | 'event_referee_days'
 const FAILED = { data: null, error: { message: 'connection reset' } };
 
 function queueBoardReads(assignments: unknown[] = [], options: BoardReadOptions = {}) {
-  const event = options.event ?? { start_date: '2026-05-21' };
+  const event = options.event ?? {};
   const matchScheduledAt = options.matchScheduledAt ?? '2026-05-21T10:00:00.000Z';
   fromMock
-    // Slice 8: loadContext now fetches event.start_date + timezone up front.
+    // The Event's clock, read up front.
     .mockReturnValueOnce(
       makeChain(options.failing === 'events' ? FAILED : { data: event, error: null }),
     )
@@ -547,7 +546,7 @@ describe('AssignmentBoardService', () => {
      */
     function queueBracketBoardReads() {
       fromMock
-        .mockReturnValueOnce(makeChain({ data: { start_date: '2026-05-21' }, error: null }))
+        .mockReturnValueOnce(makeChain({ data: {}, error: null }))
         .mockReturnValueOnce(
           makeChain({ data: [{ id: 'tournament-1', name: 'Longsword' }], error: null }),
         )
@@ -679,7 +678,7 @@ describe('AssignmentBoardService', () => {
      */
     function queueSwissBoardReads(assignments: unknown[] = []) {
       fromMock
-        .mockReturnValueOnce(makeChain({ data: { start_date: '2026-05-21' }, error: null }))
+        .mockReturnValueOnce(makeChain({ data: {}, error: null }))
         .mockReturnValueOnce(
           makeChain({
             data: [{ id: 'tournament-1', name: 'Longsword', weapon: 'longsword' }],
@@ -954,12 +953,12 @@ describe('AssignmentBoardService', () => {
     function stubContext(overrides: Record<string, unknown>) {
       return vi.spyOn(service as unknown as WithBoardRows, 'loadBoardRows').mockResolvedValue({
         eventId: 'event-1',
-        eventStartDate: null,
         // Present because the real context carries it. The literal is cast
-        // `as never`, so a missing field takes no type error — and a day index
+        // `as never`, so a missing field takes no type error — and a date
         // asked for without a zone falls back to the runner's clock, which is
         // the bug the zone was threaded through to remove.
         eventTimezone: 'Europe/Paris',
+        declaredAvailability: new Map(),
         ruleSettings: DEFAULT_RULE_SETTINGS,
         tournaments: [],
         phases: [],
@@ -1219,7 +1218,7 @@ describe('AssignmentBoardService', () => {
       // part of loadContext.
       fromMock.mockReturnValue(makeChain({ data: [], error: null }));
       fromMock
-        .mockReturnValueOnce(makeChain({ data: { start_date: '2026-05-21' }, error: null }))
+        .mockReturnValueOnce(makeChain({ data: {}, error: null }))
         .mockReturnValueOnce(
           makeChain({ data: [{ id: 'tournament-1', name: 'Longsword' }], error: null }),
         )
@@ -1455,12 +1454,14 @@ describe('AssignmentBoardService', () => {
     /** 22:00Z on 21 May: midday on the 22nd in Kiritimati (UTC+14), evening of
      *  the 21st in New York (UTC-4). */
     const INSTANT = '2026-05-21T22:00:00.000Z';
-    /** The pure referee is allowlisted for day 1 and no other day. */
-    const DAY_ONE_ONLY = [{ person_id: PURE_REF_GLOBAL_ID, day_index: 1 }];
+    /** The pure referee ticked the 22nd and no other day. */
+    const DAY_ONE_ONLY = [
+      { person_id: PURE_REF_GLOBAL_ID, day: '2026-05-22', from_minute: null, to_minute: null },
+    ];
 
     function queueEventIn(timezone: string) {
       queueBoardReads([], {
-        event: { start_date: '2026-05-21', timezone },
+        event: { timezone },
         matchScheduledAt: INSTANT,
         refereeDays: DAY_ONE_ONLY,
       });
@@ -1489,13 +1490,19 @@ describe('AssignmentBoardService', () => {
       queueEventIn('America/New_York');
       const west = await service.getBoard('event-1');
 
-      // Kiritimati: the Pool is on day 1, which the referee declared.
+      // Kiritimati: the Pool is on the 22nd, which the referee ticked.
       expect(blockedReasons(east)).not.toContain('outside_availability');
-      // New York: the same instant is still day 0, which they did not.
+      // New York: the same instant is still the 21st, which they did not.
       expect(blockedReasons(west)).toContain('outside_availability');
-      // The mock ignores the projection, so the column has to be asserted by
-      // name — deleting it from the read leaves every value assertion green.
-      expect(selectsFor(fromMock as never, 'events')[0]).toContain('timezone');
+      // The mock ignores the projection, so the columns have to be asserted by
+      // name — deleting one from the read leaves every value assertion green.
+      expect(selectsFor(fromMock as never, 'events')[0]).toBe('timezone');
+      expect(selectsFor(fromMock as never, 'event_referee_days')[0]).toBe(
+        'person_id, day, from_minute, to_minute',
+      );
+      expect(selectsFor(fromMock as never, 'event_referee_tournaments')[0]).toBe(
+        'person_id, tournament_id',
+      );
     });
 
     it('the engine drops the referee only when the event day is outside their availability', async () => {
@@ -1511,6 +1518,55 @@ describe('AssignmentBoardService', () => {
         .flatMap((pool) => pool.roleSlots)
         .find((slot) => slot.role === 'arbitre_table');
       expect(table?.missingReasons).toEqual(['outside_availability']);
+    });
+  });
+
+  // ── A day's window, on the Event's clock (ruling 146) ─────────────────────
+  //
+  // The Pool is one bout at 10:00Z of its planned five minutes: 12:00-12:05 in Paris (UTC+2 in
+  // May). A window is minutes into the Paris day, so 09:00-12:05 fits exactly (half-open) and
+  // 09:00-12:04 does not. Read as UTC minutes, both would sit hours off.
+  describe("a day's window is placed on the Event's clock", () => {
+    function queueWindow(toMinute: number) {
+      queueBoardReads([], {
+        event: { timezone: 'Europe/Paris' },
+        refereeDays: [
+          {
+            person_id: PURE_REF_GLOBAL_ID,
+            day: '2026-05-21',
+            from_minute: 540,
+            to_minute: toMinute,
+          },
+        ],
+      });
+    }
+
+    const pureReasons = (board: Awaited<ReturnType<AssignmentBoardService['getBoard']>>) =>
+      board.pools
+        .flatMap((pool) => pool.roleSlots)
+        .flatMap((slot) => slot.candidates.blocked)
+        .filter((candidate) => candidate.personId === PURE_REF_GLOBAL_ID)
+        .flatMap((candidate) => candidate.reasons.map((reason) => reason.code));
+
+    it('refuses the referee when the Pool runs past the window, and not when it ends with it', async () => {
+      queueWindow(725);
+      const fits = await service.getBoard('event-1');
+      queueWindow(724);
+      const late = await service.getBoard('event-1');
+
+      expect(pureReasons(fits)).not.toContain('outside_availability');
+      expect(pureReasons(late)).toContain('outside_availability');
+    });
+
+    it('the capacity warning asks the same test: a referee gone before the Pool ends is not free', async () => {
+      queueWindow(725);
+      const fits = await service.getBoard('event-1');
+      queueWindow(724);
+      const late = await service.getBoard('event-1');
+
+      // The fighting referee is never free in their own Pool; the pure one is, until they leave.
+      expect(fits.capacityWarnings.map((w) => w.free)).toEqual([1]);
+      expect(late.capacityWarnings.map((w) => w.free)).toEqual([0]);
     });
   });
 });

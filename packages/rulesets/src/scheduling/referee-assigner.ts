@@ -150,7 +150,7 @@ function propose(state: RunState, pool: PoolSlot, assignment: RefereeAssignment)
     role: assignment.role,
     matchIds: pool.target.matchIds,
     slot: pool.target.slot,
-    dayIndex: pool.target.dayIndex,
+    day: pool.target.day,
     window: pool.target.window,
     label: pool.label,
   });

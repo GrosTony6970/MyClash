@@ -61,8 +61,8 @@ const candidate = (personId: string, roles: string[]) => ({
 
 const ROWS = {
   eventId: 'event-1',
-  eventStartDate: '2026-05-21',
   eventTimezone: 'UTC',
+  declaredAvailability: new Map(),
   ruleSettings: RULES,
   tournaments: [],
   phases: [],
@@ -229,7 +229,7 @@ describe('AssignmentBoardService.judgeWrite', () => {
         {
           code: 'cap',
           level: 'discouraged',
-          against: { kind: 'day', id: '0', label: '3' },
+          against: { kind: 'day', id: '2026-05-21', label: '3' },
           confirmed: false,
         },
       ],

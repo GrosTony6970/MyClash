@@ -45,7 +45,7 @@ function pool(id: string, slot: number | null, from: number, to: number, bouts =
       matchIds: Array.from({ length: bouts }, (_, i) => `${id}-m${i}`),
       window: w(from, to),
       tournamentId: 'longsword',
-      dayIndex: 0,
+      day: '2026-10-03',
       slot,
     },
   };
@@ -129,7 +129,7 @@ describe('the checker decides who may take a slot', () => {
       at('teaches', { kind: 'teach', sessionId: 's1' }),
       at('own', { kind: 'fight-pool', groupId: 'A', window: w(0, 60) }),
     ];
-    const away = () => ({ tournamentIds: ['other'], dayIndices: null });
+    const away = () => ({ tournamentIds: ['other'], days: null });
     const r = assignReferees(
       [pool('A', 0, 0, 60)],
       [ref('own'), ref('teaches'), ref('away')],
@@ -157,7 +157,7 @@ describe('the checker decides who may take a slot', () => {
       role: 'decl',
       matchIds: ['B-m0'],
       slot: 0,
-      dayIndex: 0,
+      day: '2026-10-03',
       window: w(30, 90),
     });
     const r = assignReferees([pool('A', 0, 0, 60)], [ref('ann')], RANKED, rules([manual]));

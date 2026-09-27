@@ -8,6 +8,8 @@ import {
 import {
   ALL_OFF,
   ALL_ON,
+  D0,
+  D1,
   LEA,
   check,
   codes,
@@ -18,7 +20,7 @@ import {
 
 // Pool B is slot 1 of day 0 (10:00). A duty at 08:00 is slot 0, one at 14:00 slot 2.
 const morning = (extra: Parameters<typeof duty>[2] = {}) =>
-  duty('pool-a', w(0, 60), { slot: 0, dayIndex: 0, matchIds: ['a1', 'a2'], ...extra });
+  duty('pool-a', w(0, 60), { slot: 0, day: D0, matchIds: ['a1', 'a2'], ...extra });
 
 describe('rest (Discouraged, restSlots — ADR-019)', () => {
   it('fires on a duty in the slot next to the target, against that duty', () => {
@@ -35,26 +37,26 @@ describe('rest (Discouraged, restSlots — ADR-019)', () => {
   });
 
   it('counts slots, not minutes: a long lunch between two slots changes nothing', () => {
-    const after = duty('pool-c', w(360, 420), { slot: 2, dayIndex: 0 });
+    const after = duty('pool-c', w(360, 420), { slot: 2, day: D0 });
     expect(codes(check([after]))).toEqual(['rest']);
   });
 
   it('reaches as far as restSlots, and no further', () => {
-    const far = duty('pool-d', w(420, 480), { slot: 3, dayIndex: 0 });
+    const far = duty('pool-d', w(420, 480), { slot: 3, day: D0 });
     expect(codes(check([far]))).toEqual([]);
     expect(codes(check([far], poolB, { ...ALL_ON, restSlots: 2 }))).toEqual(['rest']);
   });
 
   it('never fires within one slot (that is an overlap), across days, or without a slot', () => {
-    const sameSlot = duty('pool-e', w(200, 230), { slot: 1, dayIndex: 0 });
-    const nextDay = morning({ dayIndex: 1 });
+    const sameSlot = duty('pool-e', w(200, 230), { slot: 1, day: D0 });
+    const nextDay = morning({ day: D1 });
     const bracketBout = morning({ slot: null });
     expect(codes(check([sameSlot, nextDay, bracketBout]))).toEqual([]);
     expect(codes(check([morning()], { ...poolB, slot: null }))).toEqual([]);
   });
 
   it('leaves a duty on the target to two_roles', () => {
-    const onTarget = duty('pool-b', w(120, 180), { poolId: 'pool-b', slot: 0, dayIndex: 0 });
+    const onTarget = duty('pool-b', w(120, 180), { poolId: 'pool-b', slot: 0, day: D0 });
     expect(codes(check([onTarget]))).toEqual(['two_roles']);
   });
 
@@ -72,7 +74,7 @@ describe('cap (Discouraged, maxBoutsPerDay — ADR-019)', () => {
       {
         code: 'cap',
         level: 'discouraged',
-        against: { kind: 'day', id: '0', label: '4' },
+        against: { kind: 'day', id: D0, label: '4' },
         confirmed: false,
       },
     ]);
@@ -84,14 +86,14 @@ describe('cap (Discouraged, maxBoutsPerDay — ADR-019)', () => {
 
   it('counts a bout once for two roles, and only the target day', () => {
     const second = morning({ role: 'table' });
-    const otherDay = duty('pool-x', w(1500, 1560), { dayIndex: 1, matchIds: ['x1', 'x2', 'x3'] });
+    const otherDay = duty('pool-x', w(1500, 1560), { day: D1, matchIds: ['x1', 'x2', 'x3'] });
     expect(codes(check([morning(), second, otherDay], poolB, capAt(4)))).toEqual([]);
   });
 
   it('counts nothing without a day, on either side', () => {
-    const untimed = morning({ dayIndex: null });
+    const untimed = morning({ day: null });
     expect(codes(check([untimed], poolB, capAt(2)))).toEqual([]);
-    expect(codes(check([morning()], { ...poolB, dayIndex: null }, capAt(1)))).toEqual([]);
+    expect(codes(check([morning()], { ...poolB, day: null }, capAt(1)))).toEqual([]);
     expect(boutsOnDay([morning()], null, ['b1'])).toBe(0);
   });
 
@@ -119,7 +121,7 @@ describe('checkAssignments keeps a per-bout crew whole for the cap', () => {
       matchId: r.id,
       role: 'declarant',
       slot: 1,
-      dayIndex: 0,
+      day: D0,
     }),
   );
 

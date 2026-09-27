@@ -22,6 +22,7 @@ export * from './pin-strength';
 export * from './programme';
 export * from './persons';
 export * from './platform-role';
+export * from './referee-availability';
 export * from './referee-capacity';
 export * from './round-code';
 export * from './scoring-config';

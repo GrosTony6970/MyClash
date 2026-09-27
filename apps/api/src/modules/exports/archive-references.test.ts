@@ -100,7 +100,7 @@ describe('danglingReferences', () => {
       archive('event', 'structure', {
         eventReferees: [{ id: 'er-1', person_id: 'gp-1' }],
         eventRefereeTournaments: [{ person_id: 'gp-1', tournament_id: 't-1' }],
-        eventRefereeDays: [{ person_id: 'gp-2', day_index: 0 }],
+        eventRefereeDays: [{ person_id: 'gp-2', day: '2026-05-21' }],
       }),
     );
 

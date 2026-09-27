@@ -4029,7 +4029,7 @@ export interface paths {
     delete?: never;
     options?: never;
     head?: never;
-    /** Update availability flags for a referee (admin+) */
+    /** Set a referee's ticked Tournaments and days, with a from–to per day (admin+) */
     patch: operations['QualificationsController_updateAvailability'];
     trace?: never;
   };
@@ -10368,10 +10368,13 @@ export interface components {
       isHidden: boolean;
     };
     UpdateRefereeAvailabilityDto: {
-      availableAllTournaments?: boolean;
-      availableAllEventDuration?: boolean;
       tournamentIds?: string[];
-      dayIndices?: number[];
+      days?: {
+        /** Format: date */
+        date: string;
+        fromMinute?: number;
+        toMinute?: number;
+      }[];
     };
     UpdateSettingsDto: {
       enforceSchoolSeparation?: boolean;

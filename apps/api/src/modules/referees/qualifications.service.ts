@@ -25,6 +25,13 @@ import { randomUUID } from 'node:crypto';
 import { assertPlatformTier } from '../../common/auth/platform-role';
 import { OrganizationsService } from '../organizations/organizations.service';
 import { SupabaseService } from '../supabase/supabase.service';
+import {
+  applyAvailability,
+  loadDeclaredAvailability,
+  planAvailability,
+  type AvailabilityDay,
+  type AvailabilityPatch,
+} from './referee-availability';
 import { isRefereeBoardLocked, refereeBoardLocked } from './referee-lock';
 
 // ── Referee Skill types ───────────────────────────────────────────────────────
@@ -84,19 +91,6 @@ export interface RefereeQualification {
 
 // ── Task 3 types ──────────────────────────────────────────────────────────────
 
-export interface UpdateRefereeAvailabilityDto {
-  availableAllTournaments?: boolean;
-  availableAllEventDuration?: boolean;
-  /**
-   * Slice 8: explicit tournament allowlist. When present, replaces the
-   * referee's entire tournament-availability set. Mutually compatible
-   * with the boolean above — pass either to update that dimension.
-   */
-  tournamentIds?: string[];
-  /** Slice 8: explicit day-index allowlist (0 = event start_date). */
-  dayIndices?: number[];
-}
-
 export interface EventRefereeRow {
   /**
    * Post-0063: personId is the canonical key. userId is a derived display
@@ -110,16 +104,10 @@ export interface EventRefereeRow {
   displayName: string;
   clubLabel: string | null;
   qualifications: Array<{ skillId: string; rating: number | null }>;
-  availableAllTournaments: boolean;
-  availableAllEventDuration: boolean;
-  /**
-   * Slice 8: explicit per-tournament allowlist composed from
-   * event_referee_tournaments. The boolean above is a derived shortcut
-   * (true iff this list contains every tournament currently on the event).
-   */
+  /** Ticked Tournaments, as stored; empty = available for every Tournament (ruling 145). */
   tournamentIds: string[];
-  /** Slice 8: explicit day-index allowlist (0 = event start_date). */
-  dayIndices: number[];
+  /** Ticked days with their windows, as stored; empty = available every day. */
+  days: AvailabilityDay[];
   assignments: Array<{ tournamentId: string; tournamentName: string; matchCount: number }>;
   totalMatchCount: number;
 }
@@ -588,15 +576,12 @@ export class QualificationsService {
       throw new BadRequestException(`Global person ${personId} not found.`);
     }
 
-    const { error: upsertError } = await this.supabase.service.from('event_referees').upsert(
-      {
-        event_id: eventId,
-        person_id: resolvedGlobalId,
-        available_all_tournaments: true,
-        available_all_event_duration: true,
-      },
-      { onConflict: 'event_id,person_id', ignoreDuplicates: true },
-    );
+    const { error: upsertError } = await this.supabase.service
+      .from('event_referees')
+      .upsert(
+        { event_id: eventId, person_id: resolvedGlobalId },
+        { onConflict: 'event_id,person_id', ignoreDuplicates: true },
+      );
 
     if (upsertError) throw new BadRequestException(upsertError.message);
 
@@ -654,92 +639,40 @@ export class QualificationsService {
   }
 
   /**
-   * Update availability flags for a referee at an event.
-   * Upserts the event_referees row if missing (defaults: true/true).
+   * Set a referee's ticked Tournaments and days (ADR-019, rulings 145-147, 149): checked and
+   * stored by `referee-availability.ts`. A refused write changes nothing; a person not on the
+   * roster yet is added to it.
    */
   async updateAvailability(
     eventId: string,
     personId: string,
-    dto: UpdateRefereeAvailabilityDto,
+    dto: AvailabilityPatch,
     actorUserId: string,
   ): Promise<void> {
     const event = await this.getEvent(eventId);
     await this.organizations.assertOrgRole(event.organization_id, actorUserId, 'admin');
+    const plan = await planAvailability(this.supabase.service, eventId, dto);
 
-    const { data: existing } = await this.supabase.service
+    const { data: existing, error: existingError } = await this.supabase.service
       .from('event_referees')
       .select('event_id')
       .eq('event_id', eventId)
       .eq('person_id', personId)
       .maybeSingle();
+    if (existingError) throw new Error(`Could not read the roster row: ${existingError.message}`);
 
-    if (existing) {
-      const updates: {
-        available_all_tournaments?: boolean;
-        available_all_event_duration?: boolean;
-        updated_at: string;
-      } = { updated_at: new Date().toISOString() };
-      if (dto.availableAllTournaments !== undefined)
-        updates.available_all_tournaments = dto.availableAllTournaments;
-      if (dto.availableAllEventDuration !== undefined)
-        updates.available_all_event_duration = dto.availableAllEventDuration;
+    const { error } = existing
+      ? await this.supabase.service
+          .from('event_referees')
+          .update({ updated_at: new Date().toISOString() })
+          .eq('event_id', eventId)
+          .eq('person_id', personId)
+      : await this.supabase.service
+          .from('event_referees')
+          .insert({ event_id: eventId, person_id: personId });
+    if (error) throw new BadRequestException(error.message);
 
-      const { error } = await this.supabase.service
-        .from('event_referees')
-        .update(updates)
-        .eq('event_id', eventId)
-        .eq('person_id', personId);
-
-      if (error) throw new BadRequestException(error.message);
-    } else {
-      const { error } = await this.supabase.service.from('event_referees').insert({
-        event_id: eventId,
-        person_id: personId,
-        available_all_tournaments: dto.availableAllTournaments ?? true,
-        available_all_event_duration: dto.availableAllEventDuration ?? true,
-      });
-
-      if (error) throw new BadRequestException(error.message);
-    }
-
-    // Slice 8: explicit allowlists. When `tournamentIds` is present in the
-    // dto, replace the entire tournament allowlist for this referee
-    // (delete then insert). Same for `dayIndices`. Absent means "leave
-    // alone" so individual booleans can still mutate independently.
-    if (dto.tournamentIds !== undefined) {
-      await this.supabase.service
-        .from('event_referee_tournaments')
-        .delete()
-        .eq('event_id', eventId)
-        .eq('person_id', personId);
-      if (dto.tournamentIds.length > 0) {
-        const { error } = await this.supabase.service.from('event_referee_tournaments').insert(
-          dto.tournamentIds.map((tournamentId) => ({
-            event_id: eventId,
-            person_id: personId,
-            tournament_id: tournamentId,
-          })),
-        );
-        if (error) throw new BadRequestException(error.message);
-      }
-    }
-    if (dto.dayIndices !== undefined) {
-      await this.supabase.service
-        .from('event_referee_days')
-        .delete()
-        .eq('event_id', eventId)
-        .eq('person_id', personId);
-      if (dto.dayIndices.length > 0) {
-        const { error } = await this.supabase.service.from('event_referee_days').insert(
-          dto.dayIndices.map((dayIndex) => ({
-            event_id: eventId,
-            person_id: personId,
-            day_index: dayIndex,
-          })),
-        );
-        if (error) throw new BadRequestException(error.message);
-      }
-    }
+    await applyAvailability(this.supabase.service, eventId, personId, plan);
   }
 
   /**
@@ -753,15 +686,11 @@ export class QualificationsService {
     // 1. Load event_referees rows — post-0063, person_id is the only identity.
     const { data: refRows, error: refError } = await this.supabase.service
       .from('event_referees')
-      .select('person_id, available_all_tournaments, available_all_event_duration')
+      .select('person_id')
       .eq('event_id', eventId);
 
     if (refError) throw new BadRequestException(refError.message);
-    const rows = (refRows ?? []) as Array<{
-      person_id: string;
-      available_all_tournaments: boolean;
-      available_all_event_duration: boolean;
-    }>;
+    const rows = (refRows ?? []) as Array<{ person_id: string }>;
 
     if (rows.length === 0) return [];
 
@@ -838,58 +767,8 @@ export class QualificationsService {
     // 5. Assignment counts per person per tournament.
     const assignmentMap = await this.countAssignmentsByReferee(eventId);
 
-    // 6. Slice 8: granular per-tournament + per-day allowlists.
-    const tournamentsByPerson = new Map<string, string[]>();
-    const daysByPerson = new Map<string, number[]>();
-    const { data: tournRows } = await this.supabase.service
-      .from('event_referee_tournaments')
-      .select('person_id, tournament_id')
-      .eq('event_id', eventId);
-    for (const t of (tournRows ?? []) as Array<{ person_id: string; tournament_id: string }>) {
-      const list = tournamentsByPerson.get(t.person_id) ?? [];
-      list.push(t.tournament_id);
-      tournamentsByPerson.set(t.person_id, list);
-    }
-    const { data: dayRows } = await this.supabase.service
-      .from('event_referee_days')
-      .select('person_id, day_index')
-      .eq('event_id', eventId);
-    for (const d of (dayRows ?? []) as Array<{ person_id: string; day_index: number }>) {
-      const list = daysByPerson.get(d.person_id) ?? [];
-      list.push(d.day_index);
-      daysByPerson.set(d.person_id, list);
-    }
-
-    // 7. Coalesce the per-referee allowlists against the legacy
-    //    "available_all_*" booleans. The booleans are the operator's
-    //    intent; the join tables are a backfilled index. If a
-    //    tournament was added after the backfill, the join row
-    //    doesn't exist for it — so a referee marked "all
-    //    tournaments" sees the chip picker render the OLD subset
-    //    instead of the compact "✓ All tournaments" pill. Expand
-    //    the array here so the frontend's auto-collapse fires.
-    const { data: allTournamentRows } = await this.supabase.service
-      .from('tournaments')
-      .select('id')
-      .eq('event_id', eventId);
-    const allTournamentIds = ((allTournamentRows ?? []) as Array<{ id: string }>).map((t) => t.id);
-
-    const { data: eventDates } = await this.supabase.service
-      .from('events')
-      .select('start_date, end_date')
-      .eq('id', eventId)
-      .maybeSingle();
-    const start = (eventDates as { start_date?: string | null } | null)?.start_date ?? null;
-    const end = (eventDates as { end_date?: string | null } | null)?.end_date ?? start;
-    let numDays = 0;
-    if (start) {
-      const startMs = Date.parse(`${start}T00:00:00Z`);
-      const endMs = Date.parse(`${end ?? start}T00:00:00Z`);
-      if (!Number.isNaN(startMs) && !Number.isNaN(endMs)) {
-        numDays = Math.max(1, Math.floor((endMs - startMs) / 86_400_000) + 1);
-      }
-    }
-    const allDayIndices = Array.from({ length: numDays }, (_, i) => i);
+    // 6. What each referee ticked, as the board reads it (ruling 145).
+    const declared = await loadDeclaredAvailability(this.supabase.service, eventId);
 
     return rows.map((r) => {
       const gp = gpById.get(r.person_id) ?? null;
@@ -926,14 +805,8 @@ export class QualificationsService {
         displayName,
         clubLabel: clubId ? (clubsById.get(clubId) ?? null) : null,
         qualifications,
-        availableAllTournaments: r.available_all_tournaments,
-        availableAllEventDuration: r.available_all_event_duration,
-        tournamentIds: r.available_all_tournaments
-          ? allTournamentIds
-          : (tournamentsByPerson.get(r.person_id) ?? []),
-        dayIndices: r.available_all_event_duration
-          ? allDayIndices
-          : (daysByPerson.get(r.person_id) ?? []),
+        tournamentIds: declared.get(r.person_id)?.tournamentIds ?? [],
+        days: declared.get(r.person_id)?.days ?? [],
         assignments,
         totalMatchCount,
       };

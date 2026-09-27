@@ -22,28 +22,28 @@ export function dutiesTooClose(
   duties: readonly Duty[],
   restSlots: number,
 ): Duty[] {
-  const { slot, dayIndex } = target;
-  if (restSlots <= 0 || slot === null || dayIndex === null) return [];
+  const { slot, day } = target;
+  if (restSlots <= 0 || slot === null || day === null) return [];
   return duties.filter((d) => {
-    if (d.slot === null || d.dayIndex !== dayIndex) return false;
+    if (d.slot === null || d.day !== day) return false;
     const gap = Math.abs(d.slot - slot);
     return gap > 0 && gap <= restSlots;
   });
 }
 
 /**
- * The distinct bouts one person would referee on `dayIndex`: the duties among `commitments`
+ * The distinct bouts one person would referee on `day`: the duties among `commitments`
  * (pass one person's), plus `extra`. The one count of ADR-019's cap and of the board's load.
  */
 export function boutsOnDay(
   commitments: readonly RefereeCommitment[],
-  dayIndex: number | null,
+  day: string | null,
   extra: readonly string[] = [],
 ): number {
-  if (dayIndex === null) return 0;
+  if (day === null) return 0;
   const bouts = new Set(extra);
   for (const d of commitments) {
-    if (d.kind === 'referee' && d.dayIndex === dayIndex) for (const id of d.matchIds) bouts.add(id);
+    if (d.kind === 'referee' && d.day === day) for (const id of d.matchIds) bouts.add(id);
   }
   return bouts.size;
 }
@@ -54,7 +54,7 @@ export function boutsOverCap(
   duties: readonly Duty[],
   maxBoutsPerDay: number,
 ): number | null {
-  if (maxBoutsPerDay <= 0 || target.dayIndex === null) return null;
-  const total = boutsOnDay(duties, target.dayIndex, target.matchIds);
+  if (maxBoutsPerDay <= 0 || target.day === null) return null;
+  const total = boutsOnDay(duties, target.day, target.matchIds);
   return total > maxBoutsPerDay ? total : null;
 }

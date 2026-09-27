@@ -74,14 +74,44 @@ const setSkillVisibilitySchema = z
   .strict();
 class SetSkillVisibilityDto extends createZodDto(setSkillVisibilitySchema) {}
 
+const minuteOfDay = z.number().int().min(0).max(1440);
+
+/** One ticked day: a date of the Event, and an optional from–to in minutes into it (ruling 146). */
+const availabilityDaySchema = z
+  .object({
+    date: z.iso.date(),
+    fromMinute: minuteOfDay.optional(),
+    toMinute: minuteOfDay.optional(),
+  })
+  .strict()
+  .refine((d) => (d.fromMinute === undefined) === (d.toMinute === undefined), {
+    message: 'Give both fromMinute and toMinute, or neither.',
+  })
+  .refine(
+    (d) => d.fromMinute === undefined || d.toMinute === undefined || d.fromMinute < d.toMinute,
+    {
+      message: 'fromMinute must be before toMinute.',
+    },
+  );
+
+/**
+ * Ticks only (ruling 145): each axis given replaces its rows, and no tick = available always.
+ * `referee-availability.ts` checks it against the Event and stores it.
+ */
 const updateRefereeAvailabilitySchema = z
   .object({
-    availableAllTournaments: z.boolean().optional(),
-    availableAllEventDuration: z.boolean().optional(),
-    /** Slice 8: explicit per-tournament allowlist; replaces the row set. */
-    tournamentIds: z.array(z.uuid()).optional(),
-    /** Slice 8: explicit per-day allowlist (0 = event start_date). */
-    dayIndices: z.array(z.number().int().min(0)).optional(),
+    tournamentIds: z
+      .array(z.uuid())
+      .refine((ids) => new Set(ids).size === ids.length, {
+        message: 'Each Tournament may appear once.',
+      })
+      .optional(),
+    days: z
+      .array(availabilityDaySchema)
+      .refine((days) => new Set(days.map((d) => d.date)).size === days.length, {
+        message: 'Each date may appear once.',
+      })
+      .optional(),
   })
   .strict();
 export class UpdateRefereeAvailabilityDto extends createZodDto(updateRefereeAvailabilitySchema) {}
@@ -272,7 +302,9 @@ export class QualificationsController {
 
   @Patch('events/:eventId/referees/:personId/availability')
   @HttpCode(HttpStatus.NO_CONTENT)
-  @ApiOperation({ summary: 'Update availability flags for a referee (admin+)' })
+  @ApiOperation({
+    summary: "Set a referee's ticked Tournaments and days, with a from–to per day (admin+)",
+  })
   @ApiParam({ name: 'eventId', type: 'string', format: 'uuid' })
   @ApiParam({ name: 'personId', type: 'string', format: 'uuid' })
   async updateAvailability(

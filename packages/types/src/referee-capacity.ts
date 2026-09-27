@@ -8,6 +8,7 @@
  *
  * Pure: no I/O, no React, no Node-only APIs.
  */
+import { isAvailableFor, type RefereeAvailability } from './referee-availability';
 
 export interface RefereeCommitmentPool {
   id: string;
@@ -24,10 +25,7 @@ export interface RefereeCommitmentPool {
 export interface RefereeForCapacity {
   personId: string;
   roles: string[];
-  /** undefined = available for every tournament; otherwise an allowlist. */
-  availableTournamentIds?: string[];
-  /** undefined = available every day; otherwise an allowlist of day indices. */
-  availableDayIndices?: number[];
+  availability: RefereeAvailability;
 }
 
 export interface CapacityWarning {
@@ -44,14 +42,19 @@ export interface CapacityWarning {
 /**
  * Sweep-line over scheduled pool windows: for each interval where the set of
  * active pools is constant, compare slots needed (Σ roleSlotCount) against the
- * referees who are free then — not fighting any active pool and available for
- * at least one active tournament/day. Flags windows that are impossible to
- * staff. Heuristic (not a full assignment feasibility solver).
+ * referees who are free then — not fighting any active pool and available
+ * (`isAvailableFor`, the checker's own test) for at least one active pool over
+ * that interval. The interval is a stretch between two pool edges, not a pool's
+ * whole run, so it can count someone the checker would refuse for the pool: it
+ * under-warns, never over-warns. Flags windows that are impossible to staff.
+ * Heuristic (not a full assignment feasibility solver).
+ *
+ * `dateOf` is the calendar date of an instant on the Event's clock.
  */
 export function detectConcurrencyShortage(
   pools: RefereeCommitmentPool[],
   referees: RefereeForCapacity[],
-  dayIndexOf: (iso: string) => number,
+  dateOf: (iso: string) => string | null,
 ): CapacityWarning[] {
   const scheduled = pools.filter(
     (p): p is RefereeCommitmentPool & { scheduledStart: string; scheduledEnd: string } =>
@@ -76,17 +79,16 @@ export function detectConcurrencyShortage(
 
     const needed = active.reduce((sum, p) => sum + p.roleSlotCount, 0);
     const fighting = new Set(active.flatMap((p) => p.fighterPersonIds));
-    const activeTournaments = new Set(active.map((p) => p.tournamentId));
-    const dayIndex = dayIndexOf(start);
+    const date = dateOf(start);
+    const window = { startMs: mid, endMs: new Date(end).getTime() };
 
-    const free = referees.filter((ref) => {
-      if (fighting.has(ref.personId)) return false;
-      const tournamentOk =
-        !ref.availableTournamentIds ||
-        ref.availableTournamentIds.some((id) => activeTournaments.has(id));
-      const dayOk = !ref.availableDayIndices || ref.availableDayIndices.includes(dayIndex);
-      return tournamentOk && dayOk;
-    }).length;
+    const free = referees.filter(
+      (ref) =>
+        !fighting.has(ref.personId) &&
+        active.some((p) =>
+          isAvailableFor(ref.availability, { tournamentId: p.tournamentId, date, window }),
+        ),
+    ).length;
 
     if (needed > free) {
       warnings.push({ start, end, liceCount: active.length, needed, free });

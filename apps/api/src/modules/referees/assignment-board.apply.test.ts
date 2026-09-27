@@ -62,8 +62,8 @@ const candidate = (personId: string, rating: number) => ({
 /** Pools A and B at 10:00 on two pistes. Ann (rated 5) is preferred over Bob (rated 1). */
 const ROWS = {
   eventId: 'event-1',
-  eventStartDate: '2026-05-21',
   eventTimezone: 'UTC',
+  declaredAvailability: new Map(),
   ruleSettings: RULES,
   tournaments: [],
   phases: [],

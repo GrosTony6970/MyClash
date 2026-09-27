@@ -8,6 +8,8 @@
  */
 import type { TimeWindowMs } from '@myclash/schedule-core';
 
+export { ANY_AVAILABILITY, type AvailableDay, type RefereeAvailability } from '@myclash/types';
+
 export const REFEREE_REASON_CODES = [
   'own_match',
   'fights_overlap',
@@ -72,8 +74,8 @@ export type RefereeCommitment =
       matchIds: readonly string[];
       /** The duty's unit's day slot (`referee-load.ts`); null for a bracket bout or untimed. */
       slot: number | null;
-      /** Its day on the Event clock; null when it has no time. */
-      dayIndex: number | null;
+      /** Its date (`YYYY-MM-DD`) on the Event clock; null when it has no time. */
+      day: string | null;
     })
   | (CommitmentBase & { kind: 'teach' | 'attend'; sessionId: string });
 
@@ -91,19 +93,11 @@ export interface RefereeTarget {
   window: TimeWindowMs | null;
   role: string;
   tournamentId: string;
-  /** The target's day on the Event clock, or null when it has no time. */
-  dayIndex: number | null;
+  /** The target's date (`YYYY-MM-DD`) on the Event clock, or null when it has no time. */
+  day: string | null;
   /** Its unit's day slot (`referee-load.ts`); null for a bracket bout or untimed. */
   slot: number | null;
 }
-
-/** Declared availability; null = no restriction on that axis. */
-export interface RefereeAvailability {
-  tournamentIds: readonly string[] | null;
-  dayIndices: readonly number[] | null;
-}
-
-export const ANY_AVAILABILITY: RefereeAvailability = { tournamentIds: null, dayIndices: null };
 
 /** The Discouraged rules' per-Event switches. The Impossible rules have none. */
 export interface RefereeSwitches {

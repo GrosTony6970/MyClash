@@ -29,6 +29,7 @@
  * assignment engine into the admin board's bundle.
  */
 import { overlapsHalfOpen, type TimeWindowMs } from '@myclash/schedule-core';
+import { isAvailableFor } from '@myclash/types';
 import {
   levelOf,
   type RefereeAvailability,
@@ -141,7 +142,7 @@ function loadReasons(
   ).map((d) => reason('rest', { kind: 'unit', id: d.unitId, label: d.label }));
   const total = boutsOverCap(target, duties, switches.maxBoutsPerDay);
   if (total !== null) {
-    out.push(reason('cap', { kind: 'day', id: String(target.dayIndex), label: String(total) }));
+    out.push(reason('cap', { kind: 'day', id: String(target.day), label: String(total) }));
   }
   return out;
 }
@@ -165,14 +166,8 @@ function availabilityReasons(
   target: RefereeTarget,
   availability: RefereeAvailability,
 ): RefereeReason[] {
-  const tournamentOut =
-    availability.tournamentIds !== null &&
-    !availability.tournamentIds.includes(target.tournamentId);
-  const dayOut =
-    availability.dayIndices !== null &&
-    target.dayIndex !== null &&
-    !availability.dayIndices.includes(target.dayIndex);
-  return tournamentOut || dayOut ? [reason('outside_availability', null)] : [];
+  const ask = { tournamentId: target.tournamentId, date: target.day, window: target.window };
+  return isAvailableFor(availability, ask) ? [] : [reason('outside_availability', null)];
 }
 
 const reasonKey = (r: RefereeReason) => `${r.code}:${r.against?.kind ?? ''}:${r.against?.id ?? ''}`;

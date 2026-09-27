@@ -8,6 +8,7 @@ import {
 import {
   ALL_OFF,
   ALL_ON,
+  D0,
   LEA,
   check,
   codes,
@@ -211,7 +212,7 @@ describe('a Swiss round is a group, not a Pool', () => {
     window: w(120, 150),
     role: 'declarant',
     tournamentId: 'longsword',
-    dayIndex: 0,
+    day: D0,
     slot: 1,
   };
   const swissBout = (matchId: string, window: ReturnType<typeof w>): RefereeCommitment => ({

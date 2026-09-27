@@ -29,13 +29,17 @@ import {
   type RefereeVerdict,
   type StoredRefereeReason,
 } from '@myclash/rulesets/scheduling/referee-checker';
-import { DEFAULT_EVENT_TIMEZONE, dayIndexInZone } from '@myclash/time';
+import { DEFAULT_EVENT_TIMEZONE, zonedDay } from '@myclash/time';
 import { priorAssignmentsFromRows } from './prior-assignments';
+import {
+  availabilityOf,
+  loadDeclaredAvailability,
+  type DeclaredAvailability,
+} from './referee-availability';
 import { resolveMatchLengths } from '../schedule/match-lengths';
 import { detectConcurrencyShortage, formatRoundCode, type CapacityWarning } from '@myclash/types';
 import {
   assignmentTarget,
-  availabilityOf,
   boardClock,
   boutTarget,
   buildCommitments,
@@ -101,10 +105,6 @@ export interface AssignmentBoardCandidate {
   displayName: string;
   clubLabel: string | null;
   qualifications: Array<{ role: string; rating: number | null }>;
-  /** Slice 8: per-tournament allowlist read from event_referee_tournaments. */
-  availableTournamentIds?: string[];
-  /** Slice 8: per-day allowlist read from event_referee_days. */
-  availableDayIndices?: number[];
 }
 
 export interface AssignmentBoardPool {
@@ -1074,23 +1074,18 @@ export class AssignmentBoardService {
 
   /** The board's rows: units, candidates, assignments, settings (`loadContext` adds the rest). */
   private async loadBoardRows(eventId: string) {
-    // Slice 8: event.start_date anchors dayIndex computation for the
-    // per-day availability filter. Fetched up front so every pool can
-    // resolve its own day index without re-querying.
-    //
-    // The timezone comes with it because a day boundary is only meaningful on
-    // some clock, and the event's is the one the organiser and the schedule
-    // board already use. Read from the same row rather than defaulted here, so
-    // an event on another continent buckets its own days.
+    // The Event's clock: a unit's date, the date of an availability row and the minutes of its
+    // window are all read on it, the one the organiser and the schedule board already use. Read
+    // from the row rather than defaulted here, so an Event on another continent buckets its
+    // own days.
     const { data: eventRow, error: eventError } = await this.supabase.service
       .from('events')
-      .select('start_date, timezone')
+      .select('timezone')
       .eq('id', eventId)
       .maybeSingle();
-    // A 5xx, never "no start date": that would skip every referee's day check (ADR-016).
+    // A 5xx, never "no clock": that would misplace every referee's day check (ADR-016).
     if (eventError) throw new Error(`Could not read the Event: ${eventError.message}`);
-    const eventRowTyped = eventRow as { start_date: string | null; timezone: string | null } | null;
-    const eventStartDate = eventRowTyped?.start_date ?? null;
+    const eventRowTyped = eventRow as { timezone: string | null } | null;
     // `events.timezone` is NOT NULL DEFAULT 'Europe/Paris' (migration 0102), so
     // a null here means the row was missing, not that the column was empty.
     // Measuring the day the way the platform does beats refusing to load a board.
@@ -1105,13 +1100,13 @@ export class AssignmentBoardService {
     if (tournaments.length === 0) {
       return {
         eventId,
-        eventStartDate,
         eventTimezone,
         ruleSettings,
         tournaments,
         phases: [] as PhaseRow[],
         pools: [] as AssignmentBoardPool[],
         candidates: [] as AssignmentBoardCandidate[],
+        declaredAvailability: new Map<string, DeclaredAvailability>(),
         assignments: [] as RefereeAssignmentRow[],
         fighterRegistrationIdsByPerson: new Map<string, string[]>(),
         slotConfigByTournament: new Map<string, ResolvedConfig>(),
@@ -1129,6 +1124,7 @@ export class AssignmentBoardService {
       tournamentById,
     );
     const candidates = await this.listCandidates(eventId);
+    const declaredAvailability = await loadDeclaredAvailability(this.supabase.service, eventId);
     const registrations = await this.listRegistrations(tournamentIds);
     // Key by `global_person_id` so the map's keys live in the same
     // id-space as the referee candidate (`event_referees.person_id`).
@@ -1191,13 +1187,13 @@ export class AssignmentBoardService {
 
     return {
       eventId,
-      eventStartDate,
       eventTimezone,
       ruleSettings,
       tournaments,
       phases,
       pools: allPools,
       candidates,
+      declaredAvailability,
       assignments,
       fighterRegistrationIdsByPerson,
       slotConfigByTournament,
@@ -1221,9 +1217,7 @@ export class AssignmentBoardService {
     // No unit, nothing to judge: the Workshop read is skipped.
     const sessions =
       rows.pools.length === 0 ? [] : await loadWorkshopSessions(this.supabase.service, eventId);
-    const clock = boardClock(rows.pools, (iso) =>
-      dayIndexInZone(iso, rows.eventStartDate, rows.eventTimezone),
-    );
+    const clock = boardClock(rows.pools, (iso) => zonedDay(iso, rows.eventTimezone));
     const commitments = buildCommitments({
       units: rows.pools,
       clock,
@@ -1233,7 +1227,7 @@ export class AssignmentBoardService {
     });
     // The picker asks about every candidate for every slot: hand it one person's list.
     const commitmentsByPerson = byPerson(commitments);
-    const availability = availabilityOf(rows.candidates);
+    const availability = availabilityOf(rows.declaredAvailability, rows.eventTimezone);
     return {
       ...rows,
       personIdByRegistration,
@@ -1710,55 +1704,19 @@ export class AssignmentBoardService {
       );
     }
 
-    const { tournamentsByPerson, daysByPerson } = await this.loadAvailabilityLists(eventId);
-
     return eventReferees.map((referee): AssignmentBoardCandidate => {
       const gp = gpById.get(referee.person_id) ?? null;
       const name = gp
         ? `${gp.given_name} ${gp.family_name}`.trim() || referee.person_id
         : referee.person_id;
-      const availableTournamentIds = tournamentsByPerson.get(referee.person_id);
-      const availableDayIndices = daysByPerson.get(referee.person_id);
       return {
         personId: referee.person_id,
         userId: gp?.claimed_by_user_id ?? null,
         displayName: name,
         clubLabel: gp?.club_id ? (clubsById.get(gp.club_id) ?? null) : null,
         qualifications: qualificationsByPerson.get(referee.person_id) ?? [],
-        ...(availableTournamentIds ? { availableTournamentIds } : {}),
-        ...(availableDayIndices ? { availableDayIndices } : {}),
       };
     });
-  }
-
-  /**
-   * Slice 8: each referee's per-Tournament and per-day allow-lists. A failed read is a 5xx,
-   * never "no restriction": availability is an Impossible rule (ADR-016).
-   */
-  private async loadAvailabilityLists(eventId: string) {
-    const tournamentsByPerson = new Map<string, string[]>();
-    const daysByPerson = new Map<string, number[]>();
-    const { data: tournRows, error: tournError } = await this.supabase.service
-      .from('event_referee_tournaments')
-      .select('person_id, tournament_id')
-      .eq('event_id', eventId);
-    if (tournError) throw new Error(`Could not read referee Tournaments: ${tournError.message}`);
-    for (const t of (tournRows ?? []) as Array<{ person_id: string; tournament_id: string }>) {
-      const list = tournamentsByPerson.get(t.person_id) ?? [];
-      list.push(t.tournament_id);
-      tournamentsByPerson.set(t.person_id, list);
-    }
-    const { data: dayRows, error: dayError } = await this.supabase.service
-      .from('event_referee_days')
-      .select('person_id, day_index')
-      .eq('event_id', eventId);
-    if (dayError) throw new Error(`Could not read referee days: ${dayError.message}`);
-    for (const d of (dayRows ?? []) as Array<{ person_id: string; day_index: number }>) {
-      const list = daysByPerson.get(d.person_id) ?? [];
-      list.push(d.day_index);
-      daysByPerson.set(d.person_id, list);
-    }
-    return { tournamentsByPerson, daysByPerson };
   }
 
   private async listRegistrations(tournamentIds: string[]): Promise<RegistrationRow[]> {
@@ -1936,9 +1894,9 @@ export class AssignmentBoardService {
       const candidate: PickerCandidate = {
         ...person,
         boutsThatDay:
-          target.dayIndex === null
+          target.day === null
             ? null
-            : boutsOnDay(context.commitmentsByPerson.get(person.personId) ?? [], target.dayIndex),
+            : boutsOnDay(context.commitmentsByPerson.get(person.personId) ?? [], target.day),
       };
       const skill = candidate.qualifications.find((q) => allowed.includes(q.role))?.role;
       const verdict = this.verdictFor(
@@ -1964,13 +1922,6 @@ export class AssignmentBoardService {
       }
     }
     return groups;
-  }
-
-  /** Day index in the EVENT's timezone, for the capacity warning. Falls back
-   *  to day 0 when the event has no start date — the same "no per-day
-   *  restriction can apply" answer this returned before. */
-  private makeDayIndexOf(eventStartDate: string | null, tz: string): (iso: string) => number {
-    return (iso: string) => dayIndexInZone(iso, eventStartDate, tz) ?? 0;
   }
 
   private buildBoard(
@@ -2116,12 +2067,9 @@ export class AssignmentBoardService {
           context.candidates.map((c) => ({
             personId: c.personId,
             roles: c.qualifications.map((q) => q.role),
-            ...(c.availableTournamentIds
-              ? { availableTournamentIds: c.availableTournamentIds }
-              : {}),
-            ...(c.availableDayIndices ? { availableDayIndices: c.availableDayIndices } : {}),
+            availability: context.availability(c.personId),
           })),
-          this.makeDayIndexOf(context.eventStartDate, context.eventTimezone),
+          context.clock.dayOf,
         )
       : [];
     const deadEndSlots: AssignmentBoard['deadEndSlots'] = [];

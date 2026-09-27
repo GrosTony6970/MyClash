@@ -11,8 +11,14 @@ import {
 export const LEA = 'lea';
 export const MIN = 60_000;
 export const T0 = Date.parse('2026-10-03T08:00:00Z');
+/** T0's date and the next, as the Event clock names them. */
+export const D0 = '2026-10-03';
+export const D1 = '2026-10-04';
 /** Minutes after 08:00 UTC, as a half-open window. */
 export const w = (from: number, to: number) => ({ startMs: T0 + from * MIN, endMs: T0 + to * MIN });
+/** D0 and D1 midnight to midnight, as the API builds a whole-day tick. */
+export const WHOLE_D0 = w(-480, 960);
+export const WHOLE_D1 = w(960, 2400);
 
 export const ALL_ON: RefereeSwitches = {
   ownPool: true,
@@ -41,7 +47,7 @@ export const poolB: RefereeTarget = {
   window: w(120, 180),
   role: 'declarant',
   tournamentId: 'longsword',
-  dayIndex: 0,
+  day: D0,
   slot: 1,
 };
 
@@ -77,7 +83,7 @@ export const duty = (
     personId: string;
     matchIds: string[];
     slot: number | null;
-    dayIndex: number | null;
+    day: string | null;
   }> = {},
 ): RefereeCommitment => ({
   kind: 'referee',
@@ -88,7 +94,7 @@ export const duty = (
   role: extra.role ?? 'assesseur',
   matchIds: extra.matchIds ?? (extra.matchId ? [extra.matchId] : []),
   slot: extra.slot ?? null,
-  dayIndex: extra.dayIndex ?? null,
+  day: extra.day ?? null,
   window,
   label: `unit ${unitId}`,
 });

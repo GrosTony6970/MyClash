@@ -187,7 +187,7 @@ function fightCommitments(
 function dutyTarget(a: RefereeConflictAssignment, index: BoardIndex): RefereeTarget | null {
   // No day and no day slot: rest and the daily cap (ADR-019) are the server section's,
   // like teaching, attending and availability.
-  const base = { role: a.role, tournamentId: '', dayIndex: null, slot: null };
+  const base = { role: a.role, tournamentId: '', day: null, slot: null };
   if (a.scopeType === 'pool' && a.poolId) {
     const bouts = index.boutsOfPool.get(a.poolId);
     if (!bouts) return null;
@@ -250,7 +250,7 @@ export function buildRefereeConflictRows(args: {
     role: assignment.role,
     matchIds: target.matchIds,
     slot: null,
-    dayIndex: null,
+    day: null,
     window: target.window,
     label: labelOfTarget(target, index),
   }));

@@ -24,7 +24,6 @@
  * Pure: no I/O.
  */
 import type {
-  RefereeAvailability,
   RefereeCommitment,
   RefereeSwitches,
   RefereeTarget,
@@ -32,7 +31,7 @@ import type {
 import type { RefereeCommitmentPool } from '@myclash/types';
 import type { TimeWindowMs } from '@myclash/schedule-core';
 import { boutWindowMs, unitWindowMs } from './board-unit-ends';
-import type { AssignmentBoardCandidate, AssignmentBoardPool } from './assignment-board.service';
+import type { AssignmentBoardPool } from './assignment-board.service';
 import type { PoolAssignmentSettings } from './settings.service';
 import type { WorkshopSessionCommitments } from './workshop-sessions';
 
@@ -45,9 +44,9 @@ export interface BoardAssignmentRow {
   role: string | null;
 }
 
-/** Where a unit sits in the Event's days: its day index, and its day slot (ADR-019). */
+/** Where a unit sits in the Event's days: its date on the Event clock, and its day slot (ADR-019). */
 export interface BoardClock {
-  dayIndexOf: (iso: string) => number | null;
+  dayOf: (iso: string) => string | null;
   slotOf: (unit: Pick<AssignmentBoardPool, 'id'>) => number | null;
 }
 
@@ -57,14 +56,14 @@ export interface BoardClock {
  */
 export function boardClock(
   units: readonly AssignmentBoardPool[],
-  dayIndexOf: (iso: string) => number | null,
+  dayOf: (iso: string) => string | null,
 ): BoardClock {
-  const startsByDay = new Map<number, Set<number>>();
-  const placed: Array<{ id: string; day: number; startMs: number }> = [];
+  const startsByDay = new Map<string, Set<number>>();
+  const placed: Array<{ id: string; day: string; startMs: number }> = [];
   for (const unit of units) {
     if ((unit.kind ?? 'pool') !== 'pool' && unit.kind !== 'swiss') continue;
     if (!unit.scheduledStart) continue;
-    const day = dayIndexOf(unit.scheduledStart);
+    const day = dayOf(unit.scheduledStart);
     if (day === null) continue;
     const startMs = Date.parse(unit.scheduledStart);
     startsByDay.set(day, (startsByDay.get(day) ?? new Set<number>()).add(startMs));
@@ -75,7 +74,7 @@ export function boardClock(
     const ordered = [...startsByDay.get(day)!].sort((a, b) => a - b);
     slotById.set(id, ordered.indexOf(startMs));
   }
-  return { dayIndexOf, slotOf: (unit) => slotById.get(unit.id) ?? null };
+  return { dayOf, slotOf: (unit) => slotById.get(unit.id) ?? null };
 }
 
 export interface CommitmentInputs {
@@ -211,7 +210,7 @@ function dutyCommitments(inputs: CommitmentInputs): RefereeCommitment[] {
         role: row.role,
         matchIds: bout ? [bout.id] : unit.matches.map((m) => m.id),
         slot: inputs.clock.slotOf(unit),
-        dayIndex: start ? inputs.clock.dayIndexOf(start) : null,
+        day: start ? inputs.clock.dayOf(start) : null,
         window: bout ? boutWindowMs(bout) : unitWindowMs(unit),
         label: unitLabel(unit),
       },
@@ -264,7 +263,7 @@ export function unitTarget(
     window: unitWindowMs(unit),
     role,
     tournamentId: unit.tournamentId,
-    dayIndex: unit.scheduledStart ? clock.dayIndexOf(unit.scheduledStart) : null,
+    day: unit.scheduledStart ? clock.dayOf(unit.scheduledStart) : null,
     slot: clock.slotOf(unit),
   };
 }
@@ -283,7 +282,7 @@ export function boutTarget(
     scope: 'match',
     matchIds: [bout.id],
     window: boutWindowMs(bout),
-    dayIndex: bout.scheduledAt ? clock.dayIndexOf(bout.scheduledAt) : null,
+    day: bout.scheduledAt ? clock.dayOf(bout.scheduledAt) : null,
   };
 }
 
@@ -316,26 +315,9 @@ export function dutyOn(
     role: target.role,
     matchIds: target.matchIds,
     slot: target.slot,
-    dayIndex: target.dayIndex,
+    day: target.day,
     window: target.window,
     label,
-  };
-}
-
-/** A referee's declared availability; a person off the roster has declared none. */
-export function availabilityOf(
-  candidates: readonly Pick<
-    AssignmentBoardCandidate,
-    'personId' | 'availableTournamentIds' | 'availableDayIndices'
-  >[],
-): (personId: string) => RefereeAvailability {
-  const byPerson = new Map(candidates.map((c) => [c.personId, c]));
-  return (personId) => {
-    const c = byPerson.get(personId);
-    return {
-      tournamentIds: c?.availableTournamentIds ?? null,
-      dayIndices: c?.availableDayIndices ?? null,
-    };
   };
 }
 

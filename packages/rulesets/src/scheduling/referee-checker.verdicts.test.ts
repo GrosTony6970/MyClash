@@ -11,7 +11,11 @@ import {
 } from './referee-checker';
 import {
   ALL_ON,
+  D0,
+  D1,
   LEA,
+  WHOLE_D0,
+  WHOLE_D1,
   check,
   codes,
   duty,
@@ -58,29 +62,41 @@ describe('Workshops', () => {
 
 describe('outside_availability', () => {
   it('fires for a Tournament outside the allow-list', () => {
-    const v = check([], poolB, ALL_ON, { tournamentIds: ['sabre'], dayIndices: null });
+    const v = check([], poolB, ALL_ON, { tournamentIds: ['sabre'], days: null });
     expect(v.reasons).toEqual([
       { code: 'outside_availability', level: 'impossible', against: null, confirmed: false },
     ]);
   });
 
-  it('fires for a day outside the allow-list, once even when both miss', () => {
-    expect(codes(check([], poolB, ALL_ON, { tournamentIds: null, dayIndices: [1] }))).toEqual([
-      'outside_availability',
-    ]);
-    expect(codes(check([], poolB, ALL_ON, { tournamentIds: ['sabre'], dayIndices: [1] }))).toEqual([
-      'outside_availability',
-    ]);
+  const onDay = (date: string, window = date === D0 ? WHOLE_D0 : WHOLE_D1) => ({
+    tournamentIds: null,
+    days: [{ date, window }],
+  });
+
+  it('fires for a date outside the allow-list, once even when both miss', () => {
+    expect(codes(check([], poolB, ALL_ON, onDay(D1)))).toEqual(['outside_availability']);
+    expect(
+      codes(check([], poolB, ALL_ON, { tournamentIds: ['sabre'], days: onDay(D1).days })),
+    ).toEqual(['outside_availability']);
   });
 
   it('cannot judge the day of an untimed target, and allows a listed one', () => {
+    expect(check([], { ...poolB, day: null }, ALL_ON, onDay(D1)).level).toBe('fine');
     expect(
-      check([], { ...poolB, dayIndex: null }, ALL_ON, { tournamentIds: null, dayIndices: [1] })
-        .level,
+      check([], poolB, ALL_ON, { tournamentIds: ['longsword'], days: onDay(D0).days }).level,
     ).toBe('fine');
-    expect(check([], poolB, ALL_ON, { tournamentIds: ['longsword'], dayIndices: [0] }).level).toBe(
-      'fine',
-    );
+  });
+
+  it("fires when the unit's whole window does not fit the day's window (ruling 146)", () => {
+    // Pool B runs 10:00-11:00 (w(120, 180)).
+    expect(check([], poolB, ALL_ON, onDay(D0, w(0, 180))).level).toBe('fine');
+    expect(check([], poolB, ALL_ON, onDay(D0, w(120, 480))).level).toBe('fine');
+    expect(codes(check([], poolB, ALL_ON, onDay(D0, w(0, 179))))).toEqual(['outside_availability']);
+    expect(codes(check([], poolB, ALL_ON, onDay(D0, w(121, 480))))).toEqual([
+      'outside_availability',
+    ]);
+    // A target with a day but no window is judged on its day alone.
+    expect(check([], { ...poolB, window: null }, ALL_ON, onDay(D0, w(0, 1))).level).toBe('fine');
   });
 });
 
@@ -103,7 +119,7 @@ describe('checkAssignments', () => {
         { id: 'b', personId: 'paul', target: poolB },
       ],
       [],
-      (p) => (p === LEA ? { tournamentIds: ['sabre'], dayIndices: null } : ANY_AVAILABILITY),
+      (p) => (p === LEA ? { tournamentIds: ['sabre'], days: null } : ANY_AVAILABILITY),
       ALL_ON,
     );
     expect(verdicts.get('a')!.level).toBe('impossible');

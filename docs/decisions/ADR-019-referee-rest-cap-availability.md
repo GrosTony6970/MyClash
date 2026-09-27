@@ -89,6 +89,24 @@ left four rules to choose a level and a unit. The code they replace:
   today.
 - The board's coalescing gap is closed: a referee marked available for all Tournaments or all days
   is available for a Tournament or a day added later.
+- Amended at build (2026-09-27, W1.5, migration 0210), by rulings 145-147 and 149:
+  - **Ticks only.** The two "available for all" switches go. No tick on an axis = available
+    always, including a Tournament or a day added later; ticking every option is stored as none.
+    The roster and the board read the same rows (`referees/referee-availability.ts`).
+  - **One window per ticked day**, not several ("one of the person's windows" above): no lunch-break
+    split. The default is the whole day, midnight to the next midnight. A duty crossing midnight
+    is judged on its start date's window, which ends first, so it does not fit. Stored as minutes into the day on the Event's clock, and
+    placed on it DST-safe; the duty's whole hull must fit, half-open.
+  - **A day is a calendar date**, not a number counted from the Event's first day, so moving the
+    Event keeps Sunday on Sunday. A date the Event no longer holds never matches and shows greyed on
+    the roster. The write refuses a date outside the Event's dates, and a Tournament of another
+    Event.
+  - The capacity warning asks the same test as the checker (`isAvailableFor`, `@myclash/types`) over
+    each stretch between two Pool edges, so it no longer counts a referee free after they have left.
+    A stretch is not a Pool's whole run: it can still under-warn, never over-warn.
+  - The last tick of a column cannot be unticked (ruling 151): "no tick" means every option, the
+    opposite of what the organiser meant. They take the referee off the roster instead. Deleting a
+    Tournament that was someone's only tick makes them available for every Tournament (ruling 150).
 
 ### The lock holds at every door
 

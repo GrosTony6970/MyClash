@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest';
 import type { AssignmentBoardPool } from './assignment-board.service';
 import {
   assignmentTarget,
-  availabilityOf,
   boardClock,
   buildCommitments,
   dutyOn,
@@ -92,7 +91,7 @@ const people = new Map([
   ['reg-dan', 'dan'],
 ]);
 
-const day = (iso: string) => (iso.startsWith('2026-10-03') ? 0 : 1);
+const day = (iso: string) => iso.slice(0, 10);
 // Day 0 starts at 10:00 (Pool A, Swiss piste 1) and 10:05 (Swiss piste 2): two slots.
 const clock = boardClock([poolA, swissP1, swissP2, final], day);
 
@@ -180,7 +179,7 @@ describe('buildCommitments', () => {
         role: 'decl',
         matchIds: ['a1', 'a2'],
         slot: 0,
-        dayIndex: 0,
+        day: '2026-10-03',
         window: { startMs: ms('10:00'), endMs: ms('10:20') },
         label: 'Longsword · A',
       },
@@ -193,7 +192,7 @@ describe('buildCommitments', () => {
         role: 'table',
         matchIds: ['a2'],
         slot: 0,
-        dayIndex: 0,
+        day: '2026-10-03',
         window: { startMs: ms('10:10'), endMs: ms('10:20') },
         label: 'Longsword · A',
       },
@@ -206,7 +205,7 @@ describe('buildCommitments', () => {
         role: 'decl',
         matchIds: ['s2'],
         slot: 1,
-        dayIndex: 0,
+        day: '2026-10-03',
         window: { startMs: ms('10:05'), endMs: ms('10:15') },
         label: 'Longsword · LSW-S3',
       },
@@ -289,7 +288,7 @@ describe('targets', () => {
       window: { startMs: ms('10:00'), endMs: ms('10:20') },
       role: 'decl',
       tournamentId: 't-ls',
-      dayIndex: 0,
+      day: '2026-10-03',
       slot: 0,
     });
   });
@@ -305,7 +304,7 @@ describe('targets', () => {
       scope: 'match',
       groupId: null,
       window: null,
-      dayIndex: null,
+      day: null,
       slot: null,
     });
   });
@@ -333,7 +332,7 @@ describe('targets', () => {
       role: 'decl',
       matchIds: ['a1', 'a2'],
       slot: 0,
-      dayIndex: 0,
+      day: '2026-10-03',
       window: target.window,
       label: 'Longsword · A',
     });
@@ -371,14 +370,6 @@ describe('the rest of what the board hands the checker', () => {
 
   it('turns rest off with its switch, whatever the number', () => {
     expect(switchesOf({ ...settings, enforceRefereeNoBackToBack: false }).restSlots).toBe(0);
-  });
-
-  it('reads availability per person; nobody declared means no restriction', () => {
-    const of = availabilityOf([
-      { personId: 'lea', availableTournamentIds: ['t-ls'], availableDayIndices: [0] },
-    ]);
-    expect(of('lea')).toEqual({ tournamentIds: ['t-ls'], dayIndices: [0] });
-    expect(of('ghost')).toEqual({ tournamentIds: null, dayIndices: null });
   });
 
   it('builds the slate from the same units and fighters', () => {
