@@ -178,8 +178,8 @@ const EXPECTED_PUBLIC = [
   // said "(public)" in its own summary and sat next to five @Public() siblings,
   // but carried no decorator and no check: it demanded an account and then asked
   // nothing of it, so any signed-in stranger could read a DRAFT event's card.
-  // `assertCanReadPhase` is what makes this safe to open — a draft stays closed
-  // to everyone outside the organisation, anonymous or not.
+  // `canReadPhase` is what makes this safe to open — a draft Event or Tournament
+  // lists nothing to everyone outside its club and staff, anonymous or not.
   'GET /phases/:phaseId/matches',
   // Published AI content only: each content type decides who may read its
   // entity — a hidden Tournament's recap and an erased fighter's insight answer

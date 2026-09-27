@@ -98,31 +98,6 @@ export async function assertCanReadEventRow(
   }
 }
 
-/**
- * The public-read gate for something reached through a phase.
- *
- * A phase carries no event id, so the visibility row is fetched through the same
- * `phases → tournaments` hop `orgIdForPhase` makes. An unknown phase RETURNS
- * rather than throwing, matching `assertCanReadEventRow`: the callers here
- * answer `[]` for an id that does not exist and inventing a 404 would be a
- * second, unrelated behaviour change.
- */
-export async function assertCanReadPhase(
-  deps: EventAuthzDeps,
-  phaseId: string,
-  resolveUserId: () => Promise<string>,
-): Promise<void> {
-  const { data, error } = await deps.supabase.service
-    .from('phases')
-    .select('tournaments!inner(events!inner(status, organization_id, event_kind))')
-    .eq('id', phaseId)
-    .maybeSingle();
-  if (error) throw new BadRequestException(error.message);
-  const event = (data as { tournaments?: { events?: EventVisibilityRow } } | null)?.tournaments
-    ?.events;
-  await assertCanReadEventRow(deps, phaseId, event ?? null, resolveUserId);
-}
-
 /** Fetch the visibility row, then gate on it. */
 export async function assertCanReadEvent(
   deps: EventAuthzDeps,

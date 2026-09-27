@@ -189,6 +189,29 @@ export async function canReadTournament(
   return isInsider(deps, row.events, reader);
 }
 
+/**
+ * May the caller see this phase's bouts (ruling 129)? A phase of a hidden Event or Tournament only
+ * an insider may. An unknown phase is `true`: the route then answers it as it always has, which is
+ * what a hidden one must look like (ruling 83).
+ */
+export async function canReadPhase(
+  deps: EventAuthzDeps,
+  phaseId: string,
+  reader: PublicReader,
+): Promise<boolean> {
+  const { data, error } = await deps.supabase.service
+    .from('phases')
+    .select('tournaments!inner(status, events!inner(id, status, organization_id, event_kind))')
+    .eq('id', phaseId)
+    .maybeSingle();
+  if (error) throw new Error(`phase visibility read failed: ${error.message}`);
+  const tournament = (data as { tournaments?: { status: string; events: CompetitionEvent } } | null)
+    ?.tournaments;
+  if (!tournament) return true;
+  const row = { tournamentStatus: tournament.status, event: tournament.events };
+  return !(await hiddenFromReader(deps, row, reader));
+}
+
 /** The embed that reaches a bout's Tournament status and Event from `matches`. */
 export const MATCH_COMPETITION_SELECT =
   'phases!inner(tournaments!inner(status, events!inner(id, status, organization_id, event_kind)))';

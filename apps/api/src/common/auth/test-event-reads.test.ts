@@ -24,13 +24,14 @@ import { OrganizationsService } from '../../modules/organizations/organizations.
 import { VenuesService } from '../../modules/venues/venues.service';
 import { WorkshopsService } from '../../modules/workshops/workshops.service';
 import {
+  canReadPhase,
   canReadTournament,
   eventHidesFromPublic,
   matchVisibility,
   type PublicReader,
 } from './competition-visibility';
 import type { EventAuthzDeps } from './event-authz';
-import { assertCanReadEvent, assertCanReadPhase } from './event-read-gate';
+import { assertCanReadEvent } from './event-read-gate';
 
 const ORG = '11111111-1111-4111-8111-111111111111';
 const EVENT_OPEN = 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee';
@@ -107,7 +108,7 @@ const TABLES = {
   },
   // A RUNNING Tournament, Pool phase and bout of the test Event: only its kind hides them.
   tournaments: { rows: [{ id: T_TEST, status: 'running', events: EVENTS[1] }] },
-  phases: { rows: [{ id: PHASE_TEST, tournaments: { events: EVENTS[1] } }] },
+  phases: { rows: [{ id: PHASE_TEST, tournaments: { status: 'running', events: EVENTS[1] } }] },
   matches: {
     rows: [{ id: M_TEST, phases: { tournaments: { status: 'running', events: EVENTS[1] } } }],
   },
@@ -244,25 +245,23 @@ describe('the other public gates hide a test Event (ruling 101)', () => {
   it.each([
     ['a signed-out caller', 'anonymous'],
     ['a stranger', 'u-stranger'],
-  ])('answers its Event and phase reads to %s as not found', async (_l, userId) => {
+  ])('answers its Event read to %s as not found, and hides its phase', async (_l, userId) => {
     const as = () => Promise.resolve(userId);
     await expect(assertCanReadEvent(deps, EVENT_TEST, as)).rejects.toThrow(
       `Event "${EVENT_TEST}" not found`,
     );
-    await expect(assertCanReadPhase(deps, PHASE_TEST, as)).rejects.toThrow(
-      `Event "${PHASE_TEST}" not found`,
-    );
+    expect(await canReadPhase(deps, PHASE_TEST, { userId, staff: null })).toBe(false);
   });
 
   it('lets a member of its organization through its Event and phase reads', async () => {
     const member = () => Promise.resolve('u-member');
     await expect(assertCanReadEvent(deps, EVENT_TEST, member)).resolves.toBeUndefined();
-    await expect(assertCanReadPhase(deps, PHASE_TEST, member)).resolves.toBeUndefined();
+    expect(await canReadPhase(deps, PHASE_TEST, { userId: 'u-member', staff: null })).toBe(true);
     // The kind must be READ: a row without it counts as a standard Event, and the
     // double hands back the whole row whatever is selected.
     expect(selectsFor(db.from, 'events')).toEqual(['status, organization_id, event_kind']);
     expect(selectsFor(db.from, 'phases')).toEqual([
-      'tournaments!inner(events!inner(status, organization_id, event_kind))',
+      'tournaments!inner(status, events!inner(id, status, organization_id, event_kind))',
     ]);
   });
 

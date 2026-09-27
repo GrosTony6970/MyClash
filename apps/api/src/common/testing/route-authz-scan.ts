@@ -86,11 +86,11 @@ const AUTHENTICATES = /\bthrow new UnauthorizedException\b/;
 const PUBLIC_READ_GATES = new Set([
   'assertCanReadEvent',
   'assertCanReadEventRow',
-  'assertCanReadPhase',
   // competition-visibility.ts: the same shape, for bouts and Tournaments.
   'canReadEvent',
   'readableEvent',
   'canReadMatch',
+  'canReadPhase',
   'canReadTournament',
   'matchVisibility',
   'isInsider',

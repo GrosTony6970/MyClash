@@ -34,9 +34,9 @@ import { SupabaseService } from '../supabase/supabase.service';
 // Value import, not `import type` — `import type` erases the DI metadata.
 import { OrganizationsService } from '../organizations/organizations.service';
 import { assertCanManagePhase, assertCanManagePool } from '../../common/auth/event-authz';
-import { assertCanReadPhase } from '../../common/auth/event-read-gate';
 import {
   canReadMatch,
+  canReadPhase,
   matchVisibility,
   publicReader,
 } from '../../common/auth/competition-visibility';
@@ -101,11 +101,11 @@ export class MatchesController {
     // Its summary said "(public)" and its two neighbours are `@Public()`, but
     // this one was neither public nor gated: it demanded an account and then
     // asked nothing of it, so any signed-in stranger could read a DRAFT event's
-    // fight card. Now it is what it always claimed — open for a published event,
-    // and closed over a draft to everyone outside the organisation.
-    await assertCanReadPhase({ supabase: this.supabase, orgs: this.orgs }, phaseId, () =>
-      resolveRequestUserId(req, this.supabase),
-    );
+    // fight card. Now a phase of a draft Event or Tournament lists nothing — as an
+    // unknown phase does — for all but its club and that Event's active staff
+    // (ruling 129).
+    const deps = { supabase: this.supabase, orgs: this.orgs };
+    if (!(await canReadPhase(deps, phaseId, publicReader(req)))) return [];
     return this.matches.listByPhase(phaseId);
   }
 
