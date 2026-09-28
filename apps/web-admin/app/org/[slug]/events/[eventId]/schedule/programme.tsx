@@ -10,8 +10,8 @@ import type {
 import { blockTint, resolveBlockAccent } from '@myclash/types';
 import { useConfirm } from '@myclash/ui';
 import { useI18n } from '@myclash/next-i18n/client';
-import { apiRequest } from '@myclash/api-client';
 import { minToTime, nextBlockStartTime, resequenceDay, timeToMin } from './programme-timeline';
+import { loadPlannerBlocks } from './schedule-reads';
 import { mutateSchedule, refusalText } from './schedule-mutations';
 import { ProgrammeSheetInputs } from './sheet-inputs';
 import type { ProgrammeSheet } from './useProgrammeSheet';
@@ -133,8 +133,9 @@ export function ProgrammePlanner({
     // /events/:eventId/programme is a replace-all ("Replace all programme blocks
     // for an event"), so silently starting from [] and letting the organizer
     // save would destroy the real programme. Any non-ok — 401, 5xx, a network
-    // blip — has to be visible and has to block saving.
-    void apiRequest<ProgrammeBlock[]>(apiUrl, `/api/v1/events/${eventId}/programme`)
+    // blip — has to be visible and has to block saving. For the same reason it is
+    // the organiser's read, never the public one (ruling 166b).
+    void loadPlannerBlocks(apiUrl, eventId)
       .then((r) => {
         if (r.ok) {
           setBlocks(r.data);
@@ -306,10 +307,7 @@ export function ProgrammePlanner({
       // programme so the drawer list mirrors the persisted times instead of the
       // pre-generate ones (the grid already re-fetches via its refresh key).
       // Non-fatal — the list catches up on next drawer open.
-      const refreshed = await apiRequest<ProgrammeBlock[]>(
-        apiUrl,
-        `/api/v1/events/${eventId}/programme`,
-      );
+      const refreshed = await loadPlannerBlocks(apiUrl, eventId);
       if (refreshed.ok) setBlocks(refreshed.data);
       // When 0 matches landed (e.g. no lices, no draw run), keep the
       // result on-screen here so the operator can read per-block

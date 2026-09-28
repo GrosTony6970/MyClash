@@ -1,15 +1,12 @@
 'use client';
 
 import type { ReactNode } from 'react';
-import type { SuggestConfig } from '@myclash/types';
+import type { ProgrammePlannerSheet, SuggestConfig } from '@myclash/types';
 import { useI18n } from '@myclash/next-i18n/client';
 import { LENGTH_FIELDS, withTournamentField, type LengthField } from './sheet-rows';
 
-/** A Tournament of the Event, as `GET /events/:eventId/tournaments` returns it. */
-export interface TournamentOption {
-  id: string;
-  name: string;
-}
+/** A Tournament of the Event, as the planner's sheet read returns it (ruling 166b). */
+export type TournamentOption = ProgrammePlannerSheet['tournaments'][number];
 
 /** The whole sheet after one box changed, and whether that box passes its own check. */
 export type SheetEdit = (next: SuggestConfig, valid: boolean) => void;

@@ -1,4 +1,5 @@
-import { apiRequest, type ApiFailure } from '@myclash/api-client';
+import { apiRequest, type ApiFailure, type ApiResult } from '@myclash/api-client';
+import type { ProgrammeBlock, ProgrammePlannerSheet } from '@myclash/types';
 import type {
   RefereeReason,
   RefereeSwitches,
@@ -255,4 +256,30 @@ export async function loadScheduleAndProgramme(
     matches: schedule.data,
     programmeBlocks: barBlocksOnly(programme.data),
   };
+}
+
+/**
+ * The planner's reads (ruling 166b): every bar, and the sheet whole with the Event's Tournaments,
+ * as the organiser. Never the public programme reads: the planner saves what it reads whole, and
+ * those leave a draft Tournament out for a login that has lapsed. Here a lapsed login is a 401,
+ * which `apiRequest` renews and asks again.
+ */
+export function loadPlannerBlocks(
+  apiUrl: string,
+  eventId: string,
+): Promise<ApiResult<ProgrammeBlock[]>> {
+  return apiRequest<ProgrammeBlock[]>(apiUrl, `/api/v1/events/${eventId}/programme/planner/blocks`);
+}
+
+/** See `loadPlannerBlocks`. */
+export function loadPlannerSheet(
+  apiUrl: string,
+  eventId: string,
+  signal: AbortSignal,
+): Promise<ApiResult<ProgrammePlannerSheet>> {
+  return apiRequest<ProgrammePlannerSheet>(
+    apiUrl,
+    `/api/v1/events/${eventId}/programme/planner/sheet`,
+    { signal },
+  );
 }

@@ -72,10 +72,11 @@ export function readFixture(path: string, opts: MockOptions = {}): unknown | nul
       : (opts.schedule ?? scheduleFixture);
   }
   if (path.endsWith(`/events/${EVENT_ID}/programme`)) return programmeFixture;
-  // The planner reads its sheet and the Event's Tournaments once on mount. The
-  // fall-through `[]` is not a sheet, and the planner would report it unloaded.
-  if (path.endsWith(`/events/${EVENT_ID}/programme/config`)) return sheetFixture;
-  if (path.endsWith(`/events/${EVENT_ID}/tournaments`)) return [];
+  // The planner reads as the organiser (ruling 166b); `[]` is no sheet, it would say unloaded.
+  if (path.endsWith(`/events/${EVENT_ID}/programme/planner/blocks`)) return programmeFixture;
+  if (path.endsWith(`/events/${EVENT_ID}/programme/planner/sheet`)) {
+    return { sheet: sheetFixture, tournaments: [] };
+  }
   // Both halves of the referee check. Unmocked they fall through to the `?? []`
   // in mockApi, and an array is not a crew payload — the board would raise a
   // "could not be read" banner in every spec in this file.

@@ -3,6 +3,7 @@ import { ForbiddenException, NotFoundException } from '@nestjs/common';
 import { ProgrammeService } from './programme.service';
 import { LicesService } from '../lices/lices.service';
 import { PROGRAMME_CONFIG_DEFAULTS } from './dto/programme.dto';
+import { ANONYMOUS_USER_ID } from '../../common/auth/request-user';
 
 /**
  * The acceptance criterion for the slice: a member of ANOTHER organisation is
@@ -22,6 +23,8 @@ const ORG_OWNER = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 const EVENT_ID = 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee';
 const LICE_ID = '11111111-1111-4111-8111-111111111111';
 const OUTSIDER = 'member-of-another-org';
+const OUTSIDER_READER = { userId: OUTSIDER, staff: null };
+const SIGNED_OUT = { userId: ANONYMOUS_USER_ID, staff: null };
 
 /** Refuses everyone, the way `assertOrgRole` refuses a non-member. */
 function refusingOrgs() {
@@ -146,24 +149,24 @@ describe('the planner sheet is read behind the Event visibility gate', () => {
   }
 
   it('lets a member of another organisation read the sheet of a published Event', async () => {
-    await expect(
-      sheetReader('published').getConfig(EVENT_ID, () => Promise.resolve(OUTSIDER)),
-    ).resolves.toEqual(PROGRAMME_CONFIG_DEFAULTS);
+    await expect(sheetReader('published').getConfig(EVENT_ID, OUTSIDER_READER)).resolves.toEqual(
+      PROGRAMME_CONFIG_DEFAULTS,
+    );
   });
 
   it('hides the sheet of a draft Event from a member of another organisation', async () => {
-    await expect(
-      sheetReader('draft').getConfig(EVENT_ID, () => Promise.resolve(OUTSIDER)),
-    ).rejects.toThrow(NotFoundException);
+    await expect(sheetReader('draft').getConfig(EVENT_ID, OUTSIDER_READER)).rejects.toThrow(
+      NotFoundException,
+    );
   });
 
   it('lets a signed-out caller read a published sheet, and hides a draft one', async () => {
-    await expect(
-      sheetReader('published').getConfig(EVENT_ID, () => Promise.resolve('anonymous')),
-    ).resolves.toEqual(PROGRAMME_CONFIG_DEFAULTS);
-    await expect(
-      sheetReader('draft').getConfig(EVENT_ID, () => Promise.resolve('anonymous')),
-    ).rejects.toThrow(NotFoundException);
+    await expect(sheetReader('published').getConfig(EVENT_ID, SIGNED_OUT)).resolves.toEqual(
+      PROGRAMME_CONFIG_DEFAULTS,
+    );
+    await expect(sheetReader('draft').getConfig(EVENT_ID, SIGNED_OUT)).rejects.toThrow(
+      NotFoundException,
+    );
   });
 });
 
@@ -205,7 +208,7 @@ describe('an unannounced event is not readable from outside the org', () => {
   const reads: Array<
     [string, (svc: { programme: ProgrammeService; lices: LicesService }) => unknown]
   > = [
-    ['programme', ({ programme: p }) => p.listBlocks(EVENT_ID, () => Promise.resolve(OUTSIDER))],
+    ['programme', ({ programme: p }) => p.listBlocks(EVENT_ID, OUTSIDER_READER)],
     ['lices', ({ lices: l }) => l.list(EVENT_ID, () => Promise.resolve(OUTSIDER))],
   ];
 

@@ -17,6 +17,7 @@ import { ApiBearerAuth, ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger'
 import type { FastifyRequest } from 'fastify';
 import { ProgrammeService } from './programme.service';
 import { SupabaseService } from '../supabase/supabase.service';
+import { publicReader } from '../../common/auth/competition-visibility';
 import { resolveRequestUserId } from '../../common/auth/request-user';
 import { BlockOnCompletedEvent } from '../../common/event-readonly/block-on-completed.decorator';
 import {
@@ -59,7 +60,42 @@ export class ProgrammeController {
   @ApiOperation({ summary: 'List all programme blocks for an event' })
   @ApiParam({ name: 'eventId', type: 'string', format: 'uuid' })
   listBlocks(@Param('eventId', ParseUUIDPipe) eventId: string, @Req() req: FastifyRequest) {
-    return this.programme.listBlocks(eventId, () => this.caller(req));
+    return this.programme.listBlocks(eventId, publicReader(req));
+  }
+
+  /**
+   * GET /api/v1/events/:eventId/programme/planner/blocks
+   *
+   * Not public, nor its sheet below (ruling 166b): the planner saves what it reads whole, so it
+   * reads as the organiser. An expired login is a 401 here, never a stranger's view.
+   */
+  @Get('events/:eventId/programme/planner/blocks')
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary:
+      "The programme planner's blocks, every one, draft Tournaments included (a member of the Event's club only)",
+  })
+  @ApiParam({ name: 'eventId', type: 'string', format: 'uuid' })
+  async getPlannerBlocks(
+    @Param('eventId', ParseUUIDPipe) eventId: string,
+    @Req() req: FastifyRequest,
+  ) {
+    return this.programme.getPlannerBlocks(eventId, await this.caller(req));
+  }
+
+  /** GET /api/v1/events/:eventId/programme/planner/sheet */
+  @Get('events/:eventId/programme/planner/sheet')
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary:
+      "The programme planner's sheet whole and the Event's Tournaments, draft ones included (a member of the Event's club only)",
+  })
+  @ApiParam({ name: 'eventId', type: 'string', format: 'uuid' })
+  async getPlannerSheet(
+    @Param('eventId', ParseUUIDPipe) eventId: string,
+    @Req() req: FastifyRequest,
+  ) {
+    return this.programme.getPlannerSheet(eventId, await this.caller(req));
   }
 
   /** PUT /api/v1/events/:eventId/programme */
@@ -104,7 +140,7 @@ export class ProgrammeController {
   })
   @ApiParam({ name: 'eventId', type: 'string', format: 'uuid' })
   getConfig(@Param('eventId', ParseUUIDPipe) eventId: string, @Req() req: FastifyRequest) {
-    return this.programme.getConfig(eventId, () => this.caller(req));
+    return this.programme.getConfig(eventId, publicReader(req));
   }
 
   /** PUT /api/v1/events/:eventId/programme/config */

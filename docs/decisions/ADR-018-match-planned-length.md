@@ -41,7 +41,9 @@ left open where the number lives and where a Match placed by hand finds it.
   defaults, 5/5/8/10 and the rest, live in that schema, which is the one owner of those numbers.
   The browser constant goes.
 - Through the API, anyone who can see the Event may read the sheet, signed in or not (ruling 85,
-  2026-09-23: the route is `@Public()` like the programme list); only the organiser's
+  2026-09-23: the route is `@Public()` like the programme list; ruling 129 leaves a draft
+  Tournament's row out for an outsider, and the planner reads its own copy as the organiser,
+  ruling 166b); only the organiser's
   team may write it. The sheet holds planning numbers and no personal data. What its own table buys
   is that it never rides along in a public event payload.
 - **The sheet is read live.** A Match has no copy of its length. Change a number on the sheet and

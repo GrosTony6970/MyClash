@@ -2681,13 +2681,23 @@ the Unscheduled list — not a second tab. The Schedule tab used to split into a
 
 ### 24.3 API
 
-Fourteen routes, all on `programme.controller.ts`. The two reads, `GET /programme` and
-`GET /programme/config`, are `@Public()` and apply the Event's visibility gate in the service.
+Sixteen routes, all on `programme.controller.ts`. The two public reads, `GET /programme` and
+`GET /programme/config`, are `@Public()` and apply the Event's visibility gate in the service. A
+draft Tournament's bars and its sheet row are left out for anyone but the Event's club and its
+active staff sessions (ruling 129), as if the Tournament did not exist.
+
+The planner never starts from those two (ruling 166b). It saves the programme and the sheet whole,
+and a public read takes a lapsed login for a stranger, so a save would delete the draft's bars.
+It reads `GET /programme/planner/blocks` and `/planner/sheet` (the sheet with the Event's
+Tournaments) instead: any member of the Event's club, and an expired login is a 401, on which the
+client renews it and asks again.
 
 ```text
-GET    /api/v1/events/:eventId/programme                          list saved blocks
+GET    /api/v1/events/:eventId/programme                          list saved blocks (public)
 PUT    /api/v1/events/:eventId/programme                          bulk save (replace all)
-GET    /api/v1/events/:eventId/programme/config                   read the planner sheet (defaults if none saved)
+GET    /api/v1/events/:eventId/programme/planner/blocks           every block, for the planner (club members)
+GET    /api/v1/events/:eventId/programme/planner/sheet            the sheet and the Tournaments, for the planner
+GET    /api/v1/events/:eventId/programme/config                   read the planner sheet (public; defaults if none saved)
 PUT    /api/v1/events/:eventId/programme/config                   store the planner sheet
 POST   /api/v1/events/:eventId/programme/suggest                  auto-suggest (no DB write)
 POST   /api/v1/events/:eventId/programme/generate                 run the scheduler over saved blocks

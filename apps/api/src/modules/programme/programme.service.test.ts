@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 /** Org-role check stands in for OrganizationsService; see the authz suite. */
 const mockOrgs = { assertOrgRole: vi.fn() };
 const CALLER = 'user-1';
+const READER = { userId: CALLER, staff: null };
 import { ProgrammeService, decidePoolAffinity } from './programme.service';
 import type { ProgrammeConfigDto, SaveProgrammeDto } from './dto/programme.dto';
 import { PROGRAMME_CONFIG_DEFAULTS } from './dto/programme.dto';
@@ -261,18 +262,18 @@ describe('ProgrammeService', () => {
     );
     mockMatchAlerts.refresh.mockClear();
     // The org-role assertion reads `events` before every write, and the
-    // visibility gate does the same before the one public read. These suites
-    // drive their mocks as ORDERED queues, so letting either read through would
-    // desync every one of them. Authorization has its own tests below and in
-    // programme.authz.test.ts, which do NOT stub these.
+    // visibility gate reads the Event and its Tournaments before the two public
+    // reads. These suites drive their mocks as ORDERED queues, so letting either
+    // through would desync every one of them. Authorization has its own tests in
+    // programme.authz.test.ts and programme.drafts.test.ts, which do NOT stub these.
     vi.spyOn(
       service as never as { assertWriter: () => Promise<void> },
       'assertWriter',
     ).mockResolvedValue(undefined);
     vi.spyOn(
-      service as never as { assertReader: () => Promise<void> },
-      'assertReader',
-    ).mockResolvedValue(undefined);
+      service as never as { readableVisibility: () => Promise<{ hidden: Set<string> }> },
+      'readableVisibility',
+    ).mockResolvedValue({ hidden: new Set() });
   });
 
   it('strips seconds from start_time / end_time when listing saved blocks', async () => {
@@ -297,7 +298,7 @@ describe('ProgrammeService', () => {
     };
     fromMock.mockReturnValueOnce(makeChain({ data: [blockRow], error: null }));
 
-    const blocks = await service.listBlocks('event-1', () => Promise.resolve(CALLER));
+    const blocks = await service.listBlocks('event-1', READER);
 
     expect(blocks).toHaveLength(1);
     expect(blocks[0]!.startTime).toBe('08:00');
@@ -706,7 +707,7 @@ describe('ProgrammeService', () => {
       const chain = makeChain({ data: null, error: null });
       fromMock.mockReturnValueOnce(chain);
 
-      const sheet = await service.getConfig('event-1', () => Promise.resolve(CALLER));
+      const sheet = await service.getConfig('event-1', READER);
 
       expect(sheet).toEqual(PROGRAMME_CONFIG_DEFAULTS);
       expect(fromMock).toHaveBeenCalledWith('event_programme_configs');
@@ -721,7 +722,7 @@ describe('ProgrammeService', () => {
         makeChain({ data: { config_json: { poolMatchDurationMinutes: 7 } }, error: null }),
       );
 
-      const sheet = await service.getConfig('event-1', () => Promise.resolve(CALLER));
+      const sheet = await service.getConfig('event-1', READER);
 
       expect(sheet.poolMatchDurationMinutes).toBe(7);
       expect(sheet.finalsMatchDurationMinutes).toBe(10);
@@ -738,7 +739,7 @@ describe('ProgrammeService', () => {
         }),
       );
 
-      const sheet = await service.getConfig('event-1', () => Promise.resolve(CALLER));
+      const sheet = await service.getConfig('event-1', READER);
 
       expect(sheet.poolMatchDurationMinutes).toBe(7);
       expect(sheet).not.toHaveProperty('parallelLiceCount');

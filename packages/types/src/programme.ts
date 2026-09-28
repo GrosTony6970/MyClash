@@ -105,3 +105,15 @@ export interface SuggestConfig {
   /** Registration and gear check: one block, in minutes. */
   arrivalAndGearCheckMinutes: number;
 }
+
+/**
+ * The planner's sheet as it starts from it (`GET /programme/planner/sheet`, ruling 166b): the
+ * sheet whole and the Event's Tournaments, read as a member of the Event's club. The planner
+ * saves the sheet whole, so it never starts from the public reads, which leave a draft
+ * Tournament out for a stranger.
+ */
+export interface ProgrammePlannerSheet {
+  sheet: SuggestConfig;
+  /** In the Event's list order. */
+  tournaments: Array<{ id: string; name: string }>;
+}

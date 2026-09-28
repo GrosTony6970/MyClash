@@ -96,6 +96,7 @@ const PUBLIC_READ_GATES = new Set([
   'isInsider',
   'seesHiddenOnLice',
   'visibleTournaments',
+  'hiddenTournamentIds',
   'hiddenFromReader',
 ]);
 

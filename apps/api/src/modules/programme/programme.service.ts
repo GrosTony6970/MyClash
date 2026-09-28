@@ -4,6 +4,7 @@ import type {
   BlockDiagnostic,
   GenerateResult,
   ProgrammeBlock,
+  ProgrammePlannerSheet,
   ProgrammeSuggestion,
   SuggestConfig,
 } from '@myclash/types';
@@ -12,8 +13,12 @@ import { SupabaseService } from '../supabase/supabase.service';
 import { OrganizationsService } from '../organizations/organizations.service';
 import { MatchAlertRefresherService } from '../notifications/match-alert-refresher.service';
 import { MatchPlacementService } from '../matches/match-placement.service';
-import { assertCanManageEvent } from '../../common/auth/event-authz';
-import { assertCanReadEvent } from '../../common/auth/event-read-gate';
+import { assertCanManageEvent, assertEventMember } from '../../common/auth/event-authz';
+import {
+  hiddenTournamentIds,
+  readableEvent,
+  type PublicReader,
+} from '../../common/auth/competition-visibility';
 import { scheduleMatches } from '../schedule/match-scheduler';
 import {
   embeddedOne,
@@ -204,20 +209,26 @@ export class ProgrammeService {
    * Every WRITE on this service asserts the caller's org role first. There was
    * no check at all before, on ten routes that all run as the BYPASSRLS
    * service role — including `DELETE /programme/full`, which unschedules every
-   * match in the event. `listBlocks` is a read and uses `assertCanReadEvent`
-   * instead — a lower bar (any member) and a 404 rather than a 403.
+   * match in the event. The two `@Public()` reads use `readableVisibility`
+   * instead — a lower bar and a 404 rather than a 403.
    */
   private async assertWriter(eventId: string, userId: string): Promise<void> {
     await assertCanManageEvent({ supabase: this.supabase, orgs: this.orgs }, eventId, userId);
   }
 
   /**
-   * The read counterpart, for the two `@Public()` routes here. Lower bar (any
-   * org member) and a 404 rather than a 403 — the programme is the shape of an
-   * event, and an event that has not been announced yet should not be found.
+   * The read counterpart, for the two `@Public()` routes here: null for an unknown Event, a 404
+   * for a hidden one, else the ids of the Tournaments hidden from the caller. The programme is
+   * the shape of an Event, and neither an unannounced Event nor a draft Tournament should be
+   * found in it by anyone but the Event's club and its active staff (rulings 81, 129).
    */
-  private async assertReader(eventId: string, resolveUserId: () => Promise<string>): Promise<void> {
-    await assertCanReadEvent({ supabase: this.supabase, orgs: this.orgs }, eventId, resolveUserId);
+  private async readableVisibility(
+    eventId: string,
+    reader: PublicReader,
+  ): Promise<{ hidden: Set<string> } | null> {
+    const deps = { supabase: this.supabase, orgs: this.orgs };
+    const event = await readableEvent(deps, eventId, reader);
+    return event ? { hidden: await hiddenTournamentIds(deps, event, reader) } : null;
   }
 
   /**
@@ -248,13 +259,19 @@ export class ProgrammeService {
 
   /**
    * `@Public()`, but not unconditional: the programme is the shape of an event
-   * that has not been announced yet. Gated on visibility, org members exempt.
+   * that has not been announced yet. Gated on visibility, insiders exempt; a
+   * hidden Tournament's bars are left out, as if it did not exist.
    */
-  async listBlocks(
-    eventId: string,
-    resolveUserId: () => Promise<string>,
-  ): Promise<ProgrammeBlock[]> {
-    await this.assertReader(eventId, resolveUserId);
+  async listBlocks(eventId: string, reader: PublicReader): Promise<ProgrammeBlock[]> {
+    const visibility = await this.readableVisibility(eventId, reader);
+    if (!visibility) return [];
+    return (await this.readBlocks(eventId)).filter(
+      (block) => !block.competitionId || !visibility.hidden.has(block.competitionId),
+    );
+  }
+
+  /** Every bar of the Event, in day and list order. No authorization: each caller decides. */
+  private async readBlocks(eventId: string): Promise<ProgrammeBlock[]> {
     const { data, error } = await this.supabase.service
       .from('event_programme_blocks')
       .select('*')
@@ -265,17 +282,58 @@ export class ProgrammeService {
     return (data ?? []).map((r) => this.mapBlock(r as Record<string, unknown>));
   }
 
+  /**
+   * The planner's own reads (ruling 166b), for a member of the Event's club: every bar, and the
+   * sheet whole with the Event's Tournaments. The planner saves the programme and the sheet
+   * whole, so it must not start from the public reads, which leave a draft Tournament out for a
+   * stranger and take an expired login for one. Here an expired login is a 401, on which the
+   * client renews it and asks again before the planner sees anything.
+   */
+  async getPlannerBlocks(eventId: string, userId: string): Promise<ProgrammeBlock[]> {
+    await assertEventMember({ supabase: this.supabase, orgs: this.orgs }, eventId, userId);
+    return this.readBlocks(eventId);
+  }
+
+  /** See `getPlannerBlocks`. */
+  async getPlannerSheet(eventId: string, userId: string): Promise<ProgrammePlannerSheet> {
+    await assertEventMember({ supabase: this.supabase, orgs: this.orgs }, eventId, userId);
+    const [sheet, tournaments] = await Promise.all([
+      readProgrammeSheet(this.supabase.service, eventId),
+      this.readTournamentNames(eventId),
+    ]);
+    return { sheet, tournaments };
+  }
+
+  private async readTournamentNames(
+    eventId: string,
+  ): Promise<ProgrammePlannerSheet['tournaments']> {
+    const { data, error } = await this.supabase.service
+      .from('tournaments')
+      .select('id, name')
+      .eq('event_id', eventId)
+      .order('sort_order', { ascending: true });
+    if (error) throw new Error(`tournaments read failed: ${error.message}`);
+    return ((data ?? []) as Array<{ id: string; name: string }>).map(({ id, name }) => ({
+      id,
+      name,
+    }));
+  }
+
   // ── The planner sheet ──────────────────────────────────────────────────────
 
   /**
    * The Event's planner sheet (ADR-018). Anyone who can see the Event may read
    * it, signed in or not (ruling 85), behind the same visibility gate as the
-   * bars; the route is `@Public()` like the programme list.
+   * bars; the route is `@Public()` like the programme list. A hidden Tournament's
+   * row of lengths is left out, like its bars.
    * `readProgrammeSheet` says how a stored sheet is read.
    */
-  async getConfig(eventId: string, resolveUserId: () => Promise<string>): Promise<SuggestConfig> {
-    await this.assertReader(eventId, resolveUserId);
-    return readProgrammeSheet(this.supabase.service, eventId);
+  async getConfig(eventId: string, reader: PublicReader): Promise<SuggestConfig> {
+    const visibility = await this.readableVisibility(eventId, reader);
+    const sheet = await readProgrammeSheet(this.supabase.service, eventId);
+    if (!visibility) return sheet;
+    const tournaments = sheet.tournaments.filter((row) => !visibility.hidden.has(row.tournamentId));
+    return { ...sheet, tournaments };
   }
 
   /**

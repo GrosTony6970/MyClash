@@ -84,13 +84,13 @@ test.describe('schedule grid drag layer', () => {
     await expect(poolLength).toHaveValue('7');
     expect(sheetWrites()).toHaveLength(1);
 
-    // Save remounts the grid and the planner. The sheet lives above that remount:
-    // no fresh read here, which could land before the last save and restore the 5.
-    const [sheetReads, licesReads] = [api.readCount('/config'), api.readCount('/lices')];
+    // Save remounts the planner, not the sheet above it: no re-read to restore the 5 (ruling 166b).
+    const [sheetReads, licesReads] = [api.readCount('/planner/sheet'), api.readCount('/lices')];
+    expect(Math.min(sheetReads, api.readCount('/planner/blocks'))).toBeGreaterThan(0);
     await page.getByRole('button', { name: 'Save programme' }).click();
     await expect.poll(() => api.readCount('/lices')).toBeGreaterThan(licesReads);
     await expect(poolLength).toHaveValue('7');
-    expect(api.readCount('/config')).toBe(sheetReads);
+    expect(api.readCount('/planner/sheet')).toBe(sheetReads);
   });
 
   /**

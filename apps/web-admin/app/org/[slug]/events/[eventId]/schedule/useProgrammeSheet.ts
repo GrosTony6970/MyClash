@@ -2,8 +2,8 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { SuggestConfig } from '@myclash/types';
-import { apiRequest } from '@myclash/api-client';
 import { useI18n } from '@myclash/next-i18n/client';
+import { loadPlannerSheet } from './schedule-reads';
 import { mutateSchedule, refusalText } from './schedule-mutations';
 import type { TournamentOption } from './sheet-inputs';
 import { keepLiveRows } from './sheet-rows';
@@ -77,7 +77,11 @@ export function useProgrammeSheet(args: {
   return { config, tournaments, loadFailed, saveError, edit, flush: saver.flush };
 }
 
-/** The sheet and the Event's Tournaments, read together, once per Event. */
+/**
+ * The sheet and the Event's Tournaments, read together, once per Event, as the organiser
+ * (ruling 166b): the sheet is saved whole, and a row whose Tournament is not in the list is
+ * dropped on save, so neither may come from a read that leaves a draft Tournament out.
+ */
 function useSheetLoad(apiUrl: string, eventId: string) {
   const [config, setConfig] = useState<SuggestConfig | null>(null);
   const [tournaments, setTournaments] = useState<TournamentOption[]>([]);
@@ -85,17 +89,13 @@ function useSheetLoad(apiUrl: string, eventId: string) {
 
   useEffect(() => {
     const controller = new AbortController();
-    const init = { signal: controller.signal };
-    void Promise.all([
-      apiRequest<SuggestConfig>(apiUrl, `/api/v1/events/${eventId}/programme/config`, init),
-      apiRequest<TournamentOption[]>(apiUrl, `/api/v1/events/${eventId}/tournaments`, init),
-    ]).then(([sheet, list]) => {
+    void loadPlannerSheet(apiUrl, eventId, controller.signal).then((planner) => {
       if (controller.signal.aborted) return;
       // A sheet that did not load must not look like a fresh one: edits typed
       // over stand-in numbers would replace the Event's real sheet on save.
-      if (!sheet.ok || !list.ok) return setLoadFailed(true);
-      setConfig(sheet.data);
-      setTournaments(list.data);
+      if (!planner.ok) return setLoadFailed(true);
+      setConfig(planner.data.sheet);
+      setTournaments(planner.data.tournaments);
     });
     return () => controller.abort();
   }, [eventId, apiUrl]);

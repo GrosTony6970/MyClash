@@ -290,6 +290,26 @@ export async function visibleTournaments<Row extends { status: string }>(
 }
 
 /**
+ * The ids of the Event's Tournaments hidden from the caller (ruling 129): none for an insider,
+ * else those `visibleTournaments` leaves out. For a read that names Tournaments by id rather than
+ * listing them — the programme's bars, the planner sheet's rows.
+ */
+export async function hiddenTournamentIds(
+  deps: EventAuthzDeps,
+  event: CompetitionEvent,
+  reader: PublicReader,
+): Promise<Set<string>> {
+  const { data, error } = await deps.supabase.service
+    .from('tournaments')
+    .select('id, status')
+    .eq('event_id', event.id);
+  if (error) throw new Error(`tournaments read failed: ${error.message}`);
+  const rows = (data ?? []) as Array<{ id: string; status: string }>;
+  const visible = new Set((await visibleTournaments(deps, event, rows, reader)).map((t) => t.id));
+  return new Set(rows.map((row) => row.id).filter((id) => !visible.has(id)));
+}
+
+/**
  * What the caller may know of this bout: `refused` (answer it as an unknown
  * one), `public`, or `hidden` — hidden from the public, shown to this insider.
  * An unknown bout is `public`: the route then answers it as it always has.
