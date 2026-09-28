@@ -27,8 +27,11 @@ describe('FightersService.listMatchesPaginated', () => {
         id: 't-001',
         name: 'Longsword Open',
         weapon: 'Longsword',
+        // A public Tournament of a public Event: the only kind a fighter's page shows (163).
+        status: 'completed',
         events: {
           id: 'evt-001',
+          status: 'completed',
           name: 'HEMA Fest 2025',
           start_date: '2025-06-01',
           end_date: null,
@@ -156,7 +159,14 @@ describe('FightersService.listMatchesPaginated', () => {
         id: 't-002',
         name: 'Longsword Open',
         weapon: 'Longsword',
-        events: { id: 'evt-002', name: 'HEMA Fest 2026', start_date: '2026-06-01', end_date: null },
+        status: 'completed',
+        events: {
+          id: 'evt-002',
+          status: 'completed',
+          name: 'HEMA Fest 2026',
+          start_date: '2026-06-01',
+          end_date: null,
+        },
       },
     };
     const ceilingMatch: Row = {
@@ -240,8 +250,10 @@ describe('FightersService.listMatchesPaginated', () => {
         id: 't-002',
         name: 'Sabre Cup',
         weapon: 'Sabre',
+        status: 'completed',
         events: {
           id: 'evt-002',
+          status: 'completed',
           name: 'City Cup 2025',
           start_date: '2025-09-01',
           end_date: null,

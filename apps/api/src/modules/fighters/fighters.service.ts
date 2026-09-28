@@ -8,6 +8,7 @@ import {
   ServiceUnavailableException,
 } from '@nestjs/common';
 import { asEventKind, countsTowardStats } from '@myclash/types';
+import { isPublicTournamentEmbed } from '../../common/auth/competition-visibility';
 import { sanitizePostgrestFilterValue } from '../../common/postgrest-filter';
 import { SupabaseService } from '../supabase/supabase.service';
 import { HemaRatingsService } from '../hema-ratings/hema-ratings.service';
@@ -105,6 +106,13 @@ export interface FighterPhotoUpload {
 }
 
 type Row = Record<string, unknown>;
+
+/**
+ * A registration of a public Tournament of a public Event: the only entries a fighter's pages,
+ * which span many Events, show — for everyone, the fighter's own dashboard included (rulings 163,
+ * 164). The row must embed `tournaments(status, events(status, event_kind))`.
+ */
+const isPublicEntry = (row: Row): boolean => isPublicTournamentEmbed(row['tournaments']);
 
 /** Completed matches shown inline on the profile "recent results" strip; the
  *  full history is behind the "show all matches" modal. */
@@ -932,12 +940,12 @@ export class FightersService {
     const { data: regData, error: regError } = await this.supabase.service
       .from('registrations')
       .select(
-        `id, tournament_id, persons!inner(global_person_id), tournaments(id, name, weapon, events(id, name, start_date, end_date))`,
+        `id, tournament_id, persons!inner(global_person_id), tournaments(id, name, weapon, status, events(id, name, start_date, end_date, status, event_kind))`,
       )
       .eq('persons.global_person_id', fighterId);
     if (regError) throw new BadRequestException(regError.message);
 
-    const registrations = (regData ?? []) as Row[];
+    const registrations = ((regData ?? []) as Row[]).filter(isPublicEntry);
     if (registrations.length === 0) return { items: [], total: 0 };
 
     const regById = new Map<string, Row>();
@@ -1338,7 +1346,7 @@ export class FightersService {
     const { data: regData, error: regError } = await this.supabase.service
       .from('registrations')
       .select(
-        'id, persons!inner(global_person_id), tournaments(events(id, name, slug, event_kind))',
+        'id, persons!inner(global_person_id), tournaments(status, events(id, name, slug, status, event_kind))',
       )
       .eq('persons.global_person_id', fighterId);
     if (regError || !regData) return [];
@@ -1346,7 +1354,7 @@ export class FightersService {
     const registrations = (regData as Row[]).filter((reg) => {
       const tournament = reg['tournaments'] as Row | null;
       const event = tournament?.['events'] as Row | null;
-      return countsTowardStats(asEventKind(event?.['event_kind']));
+      return isPublicEntry(reg) && countsTowardStats(asEventKind(event?.['event_kind']));
     });
     if (registrations.length === 0) return [];
 
@@ -1629,14 +1637,14 @@ export class FightersService {
 
     return (
       ((data ?? []) as Row[])
-        // Only STANDARD results count toward a fighter's public career stats —
-        // test events are dry runs and club events are internal activity.
-        // Filtering registrations cascades: career matches/placements derive
-        // from this set, and league rankings are already gated (league gate).
+        // Only STANDARD results of public Tournaments count toward a career —
+        // test events are dry runs, club events internal, a draft unannounced
+        // (rulings 163, 164: the fighter's own dashboard too). Filtering cascades:
+        // matches, placements and "upcoming" derive from this set.
         .filter((row) => {
           const tournament = row['tournaments'] as Row | null;
           const event = tournament?.['events'] as Row | null;
-          return countsTowardStats(asEventKind(event?.['event_kind']));
+          return isPublicEntry(row) && countsTowardStats(asEventKind(event?.['event_kind']));
         })
         .map((row) => {
           const tournament = row['tournaments'] as Row | null;

@@ -74,6 +74,17 @@ export function isHiddenCompetition(row: CompetitionRow): boolean {
 }
 
 /**
+ * Is this Tournament embed — `tournaments(status, events(status, event_kind))` — public: a
+ * published, running or completed Tournament of a public Event? What a page spanning many Events
+ * shows, for everyone (ruling 163). A row read without either status counts as hidden.
+ */
+export function isPublicTournamentEmbed(tournament: unknown): boolean {
+  const row = tournament as { status?: unknown; events?: { status?: unknown } } | null | undefined;
+  if (!row?.events?.status) return false;
+  return !hidesFromPublic(row.events as CompetitionEvent, [String(row.status ?? '')]);
+}
+
+/**
  * Does the Event hide anything from the public: is it a DRAFT or TEST Event, or is one of its
  * Tournaments not public? Ask it for an insider only. web-public's live channel
  * is anonymous and RLS keeps those rows off it, so an insider's screen polls

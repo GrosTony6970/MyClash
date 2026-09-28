@@ -219,6 +219,7 @@ export function filtersFor(
     | 'is'
     | 'not'
     | 'ilike'
+    | 'or'
     | 'gte'
     | 'gt'
     | 'lte'
