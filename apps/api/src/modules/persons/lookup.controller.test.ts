@@ -103,7 +103,18 @@ function simulateLookup(query: string, threshold = 0.3, limit = 10) {
  * has no `.maybeSingle()`, and every spec dies on an unrelated TypeError.
  */
 function gated(from: (table: string) => unknown, status = 'published') {
-  return vi.fn((table: string) => (table === 'events' ? eventChain(status) : from(table)));
+  return vi.fn((table: string) => {
+    if (table === 'events') return eventChain(status);
+    return table === 'tournaments' ? noTournaments() : from(table);
+  });
+}
+
+/** The draft check's Tournament read: none, so nobody is hidden (lookup.drafts.test.ts). */
+function noTournaments() {
+  const c: Record<string, unknown> = {};
+  c['select'] = vi.fn(() => c);
+  c['eq'] = vi.fn(() => Promise.resolve({ data: [], error: null }));
+  return c;
 }
 
 /** Published unless a spec asks otherwise; the gate returns on status. */
@@ -142,7 +153,7 @@ function makeMockSupabase(query: string, eventStatus = 'published') {
       // Dispatches on table name: the visibility gate reads `events` before
       // anything else, and an ordered/blanket stub would hand it the persons
       // chain instead.
-      from: vi.fn((table: string) => (table === 'events' ? eventChain(eventStatus) : claimedStub)),
+      from: gated(() => claimedStub, eventStatus),
     },
   };
 }

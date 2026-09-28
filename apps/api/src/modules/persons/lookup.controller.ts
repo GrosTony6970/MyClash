@@ -9,9 +9,9 @@ import { SupabaseService } from '../supabase/supabase.service';
 // Value import, not `import type` — `import type` erases the DI metadata and
 // the dependency arrives undefined at runtime.
 import { OrganizationsService } from '../organizations/organizations.service';
-import { assertCanReadEvent } from '../../common/auth/event-read-gate';
+import { publicReader, readableEvent } from '../../common/auth/competition-visibility';
+import { hiddenEntrantIds } from '../../common/auth/hidden-entrants';
 import { Public } from '../../common/auth/public.decorator';
-import { resolveRequestUserId } from '../../common/auth/request-user';
 import { CsvImportService } from './csv-import.service';
 
 // Query DTO: values arrive as strings. `limit` is kept as a string because the
@@ -83,23 +83,31 @@ export class LookupController {
     @Req() req: FastifyRequest,
   ): Promise<LookupResult[]> {
     // An empty `q` returns up to 50 participants, so this route is a roster
-    // dump by another name. Gated on the event: public once announced, org-only
-    // before that.
-    await assertCanReadEvent({ supabase: this.supabase, orgs: this.orgs }, eventId, () =>
-      resolveRequestUserId(req, this.supabase),
-    );
+    // dump by another name. Gated on the event: public once announced, its
+    // club and active staff only before that; an unknown Event lists no one.
+    const deps = { supabase: this.supabase, orgs: this.orgs };
+    const reader = publicReader(req);
+    const event = await readableEvent(deps, eventId, reader);
+    if (!event) return [];
+    // Someone entered only in a draft Tournament is not found (ruling 129). Each read asks for
+    // that many more, so the ones left out never take a visible person's place under the limit.
+    const hidden = await hiddenEntrantIds(deps, event, reader);
     const q = (query.q ?? '').trim();
     // Empty query = "show me all participants" (used by typeahead on focus).
     // Caller can request up to 50 in that case; with a query we still cap at 10
     // because the trigram RPC isn't useful past the top matches.
-    const limit = Math.min(
-      parseInt(query.limit ?? (q ? '10' : '50'), 10) || (q ? 10 : 50),
-      q ? 10 : 50,
-    );
-    if (!q) {
-      return this.listAllParticipants(eventId, limit);
-    }
+    // A limit below one reads as the default: `LIMIT -1` is a database error, not "no one".
+    const cap = q ? 10 : 50;
+    const asked = parseInt(query.limit ?? '', 10);
+    const limit = Math.min(asked > 0 ? asked : cap, cap);
+    const rows = q
+      ? await this.searchByName(eventId, q, limit + hidden.size)
+      : await this.listAllParticipants(eventId, limit + hidden.size);
+    return rows.filter((row) => !hidden.has(row.id)).slice(0, limit);
+  }
 
+  /** The Event's people whose name is closest to `q`, best first. */
+  private async searchByName(eventId: string, q: string, limit: number): Promise<LookupResult[]> {
     // Call the lookup_persons Postgres function (defined in 0003_lookup_functions.sql)
     const { data, error } = await this.supabase.service.rpc('lookup_persons', {
       p_event_id: eventId,
@@ -147,7 +155,7 @@ export class LookupController {
     // injection risk as the global fighter search.
     const safe = sanitizePostgrestFilterValue(q);
     if (!safe) return [];
-    const { data } = await this.supabase.service
+    const { data, error } = await this.supabase.service
       .from('persons')
       .select(
         'id, given_name, family_name, email, claimed_by_user_id, global_person_id, clubs(name)',
@@ -155,6 +163,8 @@ export class LookupController {
       .eq('event_id', eventId)
       .or(`given_name.ilike.%${safe}%,family_name.ilike.%${safe}%`)
       .limit(limit);
+    // A 5xx: a failed read is not "no one of that name".
+    if (error) throw new Error(`persons read failed: ${error.message}`);
 
     return (data ?? []).map((p) => {
       const row = p as unknown as {
@@ -217,7 +227,7 @@ export class LookupController {
    * before the user has typed anything.
    */
   private async listAllParticipants(eventId: string, limit: number): Promise<LookupResult[]> {
-    const { data } = await this.supabase.service
+    const { data, error } = await this.supabase.service
       .from('persons')
       .select(
         'id, given_name, family_name, email, claimed_by_user_id, global_person_id, clubs(name)',
@@ -226,6 +236,8 @@ export class LookupController {
       .order('family_name', { ascending: true })
       .order('given_name', { ascending: true })
       .limit(limit);
+    // A 5xx: a failed read is not "no participant".
+    if (error) throw new Error(`persons read failed: ${error.message}`);
 
     return (data ?? []).map((p) => {
       const row = p as unknown as {
