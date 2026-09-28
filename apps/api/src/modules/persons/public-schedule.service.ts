@@ -19,10 +19,14 @@
  *   - 100ms p95 target (relies on DB indexes on person_id + event_id)
  */
 
-import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { DEFAULT_EVENT_TIMEZONE } from '@myclash/time';
-import { PUBLIC_TOURNAMENT_STATUSES } from '../../common/auth/competition-visibility';
-import { assertCanReadEvent } from '../../common/auth/event-read-gate';
+import {
+  PUBLIC_TOURNAMENT_STATUSES,
+  type PublicReader,
+} from '../../common/auth/competition-visibility';
+// A plain function file, not a PersonsModule → FollowsModule edge: follows imports persons.
+import { readEventPerson } from '../follows/event-person-gate';
 import { OrganizationsService } from '../organizations/organizations.service';
 import { SupabaseService } from '../supabase/supabase.service';
 import { PrivacyService } from './privacy.service';
@@ -184,7 +188,9 @@ export class PublicScheduleService {
    *   Event's fighter was readable under any open Event's id.
    *
    * A person of another Event gets the answer an unknown person gets, so the
-   * route confirms nobody.
+   * route confirms nobody; so does a person entered only in a draft Tournament,
+   * for an outsider (ruling 129). Both checks are the person page's own
+   * (`readEventPerson`), so the header, the schedule and a follow agree.
    *
    * Who the viewer is (it unhides the workshops a person hid, for that person
    * only) is asked after both checks: it costs a sign-in lookup or a guest
@@ -194,17 +200,10 @@ export class PublicScheduleService {
     eventId: string,
     personId: string,
     resolveViewerPersonId: () => Promise<string | null>,
-    resolveUserId: () => Promise<string>,
+    reader: PublicReader,
   ): Promise<PersonSchedule> {
-    await assertCanReadEvent({ supabase: this.supabase, orgs: this.orgs }, eventId, resolveUserId);
-    const { data, error } = await this.supabase.service
-      .from('persons')
-      .select('id')
-      .eq('id', personId)
-      .eq('event_id', eventId)
-      .maybeSingle();
-    if (error) throw new BadRequestException(error.message);
-    if (!data) throw new NotFoundException(`Person "${personId}" not found`);
+    const deps = { supabase: this.supabase, orgs: this.orgs };
+    await readEventPerson(deps, eventId, personId, reader, 'id');
     return this.getSchedule(eventId, personId, await resolveViewerPersonId());
   }
 

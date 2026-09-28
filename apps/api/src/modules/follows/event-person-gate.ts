@@ -1,15 +1,20 @@
 import { NotFoundException } from '@nestjs/common';
-import type { CompetitionEvent, PublicReader } from '../../common/auth/competition-visibility';
+import {
+  readableEvent,
+  type CompetitionEvent,
+  type PublicReader,
+} from '../../common/auth/competition-visibility';
 import type { EventAuthzDeps } from '../../common/auth/event-authz';
-import { assertCanReadEventRow, eventNotFound } from '../../common/auth/event-read-gate';
+import { eventNotFound } from '../../common/auth/event-read-gate';
+import { hiddenEntrantIds } from '../../common/auth/hidden-entrants';
 
 /**
- * The public bar onto one Event's person (rulings 121a, 130) — the person schedule's
- * (`PublicScheduleService.getPublicSchedule`). The Event must be one the caller may see (a draft
- * or test Event only for its club) and the person must be in THAT Event. A hidden Event answers
- * exactly as an unknown Event; a person of another Event exactly as an unknown person. Both checks
- * come before anything about the person is read. Shared by the public person page and a follow;
- * `getPublicSchedule` still holds the same bar in its own code.
+ * The public bar onto one Event's person (rulings 121a, 130, 129, 167) — the one owner for the
+ * person page's header, its schedule and a follow. The Event must be one the caller may see (a
+ * draft or test Event only for its club and active staff) and the person must be in THAT Event,
+ * and not entered only in Tournaments hidden from the caller. A hidden Event answers exactly as
+ * an unknown Event; a person of another Event, or entered only in a draft, exactly as an unknown
+ * person. All of it comes before anything about the person is answered.
  *
  * `personColumns` is what the caller reads of the person; `id` must be among them.
  */
@@ -20,16 +25,8 @@ export async function readEventPerson<Person extends { id: string }>(
   reader: PublicReader,
   personColumns: string,
 ): Promise<{ event: CompetitionEvent; person: Person }> {
-  const { data: event, error: eventError } = await deps.supabase.service
-    .from('events')
-    .select('id, status, organization_id, event_kind')
-    .eq('id', eventId)
-    .maybeSingle();
-  if (eventError) throw new Error(`event read failed: ${eventError.message}`);
+  const event = await readableEvent(deps, eventId, reader);
   if (!event) throw eventNotFound(eventId);
-  await assertCanReadEventRow(deps, eventId, event as CompetitionEvent, () =>
-    Promise.resolve(reader.userId),
-  );
 
   const { data: person, error: personError } = await deps.supabase.service
     .from('persons')
@@ -38,6 +35,8 @@ export async function readEventPerson<Person extends { id: string }>(
     .eq('event_id', eventId)
     .maybeSingle();
   if (personError) throw new Error(`person read failed: ${personError.message}`);
-  if (!person) throw new NotFoundException(`Person "${personId}" not found`);
-  return { event: event as CompetitionEvent, person: person as unknown as Person };
+  if (!person || (await hiddenEntrantIds(deps, event, reader)).has(personId)) {
+    throw new NotFoundException(`Person "${personId}" not found`);
+  }
+  return { event, person: person as unknown as Person };
 }

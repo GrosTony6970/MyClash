@@ -62,39 +62,48 @@ const bout = (id: string, reg: string, tournament: string) => ({
   },
 });
 
+const TABLES = {
+  events: {
+    rows: [
+      { id: DRAFT, status: 'draft', organization_id: 'org-draft', timezone: 'Europe/Paris' },
+      { id: OPEN, status: 'published', organization_id: 'org-open', timezone: 'Europe/Paris' },
+    ],
+  },
+  persons: {
+    rows: [
+      { id: ANNA, event_id: DRAFT, global_person_id: null },
+      { id: CARL, event_id: OPEN, global_person_id: null, claimed_by_user_id: 'u-carl' },
+    ],
+  },
+  registrations: {
+    rows: [
+      { id: 'r-anna', tournament_id: 'draft-open', person_id: ANNA },
+      { id: 'r-carl', tournament_id: 'open-open', person_id: CARL },
+    ],
+  },
+  // Both published: the draft-only entrant is person-page.drafts.test.ts's case.
+  tournaments: {
+    rows: [
+      { id: 'draft-open', event_id: DRAFT, status: 'published' },
+      { id: 'open-open', event_id: OPEN, status: 'published' },
+    ],
+  },
+  matches: {
+    rows: [bout('anna-bout', 'r-anna', 'draft-open'), bout('carl-bout', 'r-carl', 'open-open')],
+  },
+  referee_assignments: { rows: [] },
+  workshop_enrollments: { rows: [] },
+  guest_sessions: {
+    rows: [
+      { id: 'gs-live', revoked_at: null },
+      { id: 'gs-signed-out', revoked_at: '2027-05-22T08:00:00+00:00' },
+    ],
+  },
+};
+
 /** The Event gate asks `getAuthUser`; the viewer's own person (ParticipantIdentityService) asks GoTrue. */
 function door(opts: { userId?: string; member?: boolean } = {}) {
-  const db = mockSupabase({
-    events: {
-      rows: [
-        { id: DRAFT, status: 'draft', organization_id: 'org-draft', timezone: 'Europe/Paris' },
-        { id: OPEN, status: 'published', organization_id: 'org-open', timezone: 'Europe/Paris' },
-      ],
-    },
-    persons: {
-      rows: [
-        { id: ANNA, event_id: DRAFT, global_person_id: null },
-        { id: CARL, event_id: OPEN, global_person_id: null, claimed_by_user_id: 'u-carl' },
-      ],
-    },
-    registrations: {
-      rows: [
-        { id: 'r-anna', tournament_id: 'draft-open', person_id: ANNA },
-        { id: 'r-carl', tournament_id: 'open-open', person_id: CARL },
-      ],
-    },
-    matches: {
-      rows: [bout('anna-bout', 'r-anna', 'draft-open'), bout('carl-bout', 'r-carl', 'open-open')],
-    },
-    referee_assignments: { rows: [] },
-    workshop_enrollments: { rows: [] },
-    guest_sessions: {
-      rows: [
-        { id: 'gs-live', revoked_at: null },
-        { id: 'gs-signed-out', revoked_at: '2027-05-22T08:00:00+00:00' },
-      ],
-    },
-  });
+  const db = mockSupabase(TABLES);
   const user = opts.userId ? { id: opts.userId } : null;
   const getUser = vi.fn(async () => ({ data: { user } }));
   const supabase = { ...db, getAuthUser: vi.fn(async () => user), anon: { auth: { getUser } } };
@@ -110,7 +119,7 @@ function door(opts: { userId?: string; member?: boolean } = {}) {
   const service = new PublicScheduleService(supabase as never, privacy as never, orgs as never);
   const guestJwt = new GuestJwtService({ getOrThrow: () => GUEST_SECRET } as never);
   const identity = new ParticipantIdentityService(supabase as never, guestJwt);
-  const controller = new PublicScheduleController(service, identity, supabase as never);
+  const controller = new PublicScheduleController(service, identity);
   return { controller, service, from: db.from, orgs };
 }
 
@@ -127,7 +136,13 @@ const guest = (sub: string, person: string, event: string) =>
   }) as never;
 
 const anonymous = { headers: {}, cookies: {} } as never;
-const signedIn = { headers: { authorization: 'Bearer t' }, cookies: {} } as never;
+/** The login as the AuthGuard verified it: the Event gate reads it from the request. */
+const signedInAs = (userId: string) =>
+  ({
+    headers: { authorization: 'Bearer t' },
+    cookies: {},
+    identity: { kind: 'claimed', userId, email: null },
+  }) as never;
 const boutsOf = (schedule: { matches: Array<{ id: string }> }) => schedule.matches.map((m) => m.id);
 
 afterEach(() => vi.clearAllMocks());
@@ -149,9 +164,9 @@ describe('GET /events/:eventId/people/:personId/schedule', () => {
 
     // Signed in is not enough: the account must belong to the organisation.
     const outsider = door({ userId: 'u-outsider', member: false });
-    await expect(outsider.controller.getSchedule(DRAFT, ANNA, signedIn)).rejects.toThrow(
-      `Event "${DRAFT}" not found`,
-    );
+    await expect(
+      outsider.controller.getSchedule(DRAFT, ANNA, signedInAs('u-outsider')),
+    ).rejects.toThrow(`Event "${DRAFT}" not found`);
     expect(outsider.orgs.assertOrgRole).toHaveBeenCalledWith(
       'org-draft',
       'u-outsider',
@@ -162,7 +177,7 @@ describe('GET /events/:eventId/people/:personId/schedule', () => {
 
   it("lets a member of the draft Event's organisation read it, as the caller they signed in as", async () => {
     const { controller, orgs } = door({ userId: 'u-organiser', member: true });
-    const schedule = await controller.getSchedule(DRAFT, ANNA, signedIn);
+    const schedule = await controller.getSchedule(DRAFT, ANNA, signedInAs('u-organiser'));
     expect(boutsOf(schedule)).toEqual(['anna-bout']);
     expect(orgs.assertOrgRole).toHaveBeenCalledWith('org-draft', 'u-organiser', 'read_only');
   });
@@ -182,12 +197,13 @@ describe('GET /events/:eventId/people/:personId/schedule', () => {
   });
 
   it('answers an Event id that matches nothing with a 404, not with the person', async () => {
-    // Before the gate, any id at all served the person's bouts from their own Event.
+    // Before the gate, any id at all served the person's bouts from their own Event. Like the
+    // person page's header, an unknown Event is the unknown-Event 404, as a hidden one is.
     const { controller, from } = door();
     await expect(controller.getSchedule(NOBODY, CARL, anonymous)).rejects.toThrow(
-      `Person "${CARL}" not found`,
+      `Event "${NOBODY}" not found`,
     );
-    expect(queriedTables(from)).toEqual(['events', 'persons']);
+    expect(queriedTables(from)).toEqual(['events']);
   });
 
   it('serves a person of an open Event to anyone', async () => {

@@ -1,8 +1,8 @@
 /**
  * GET /api/v1/events/:eventId/people/:personId — the public person page's header (ruling 121a).
  *
- * Public does not mean unconditional: `PublicPersonService.getProfile` holds the person schedule's
- * bar (Event readable, person in it) before it reads anything.
+ * Public does not mean unconditional: `PublicPersonService.getProfile` holds `readEventPerson`'s
+ * bar (Event readable, person in it, not entered only in a draft) before it reads anything.
  */
 import { Controller, Get, Param, ParseUUIDPipe, Req } from '@nestjs/common';
 import { ApiOperation, ApiParam, ApiResponse, ApiTags } from '@nestjs/swagger';

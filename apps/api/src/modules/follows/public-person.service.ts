@@ -2,8 +2,9 @@
  * The public person page's header (operator ruling 121a): one Event's person as the public sees
  * them — name, club, roles, whether they accept followers and whether the viewer follows them.
  *
- * The bar is `readEventPerson`'s, the person schedule's: the Event must be one the caller may see,
- * and the person must be in THAT Event.
+ * The bar is `readEventPerson`'s, shared with the person schedule and a follow: the Event must be
+ * one the caller may see, and the person must be in THAT Event and not entered only in
+ * Tournaments hidden from the caller (rulings 129, 167, 168).
  *
  * It lives in the follows module because it asks FollowsService; persons → follows would be a
  * cycle, since follows already imports persons.
@@ -14,6 +15,8 @@ import {
   type PublicReader,
   visibleTournaments,
 } from '../../common/auth/competition-visibility';
+// The entries the public roster lists (`listPublicParticipants`): withdrawn ones are not.
+import { ENTERED_STATUSES } from '../../common/auth/hidden-entrants';
 import { OrganizationsService } from '../organizations/organizations.service';
 import { PrivacyService } from '../persons/privacy.service';
 import { SupabaseService } from '../supabase/supabase.service';
@@ -39,9 +42,6 @@ interface PersonRow {
   global_person_id: string | null;
   clubs: { name: string } | null;
 }
-
-/** The entries the public roster lists (`listPublicParticipants`): withdrawn ones are not. */
-const ENTERED_STATUSES = ['registered', 'checked_in', 'waitlist'];
 
 @Injectable()
 export class PublicPersonService {

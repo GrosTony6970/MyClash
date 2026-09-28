@@ -91,6 +91,8 @@ function build(overrides: Record<string, TableSeed> = {}) {
     },
     directory_follows: { data: null, error: null },
     registrations: { rows: [] },
+    // No Tournament, so no one is entered only in a draft (person-page.drafts.test.ts).
+    tournaments: { rows: [] },
     ...overrides,
   });
   const privacy = {

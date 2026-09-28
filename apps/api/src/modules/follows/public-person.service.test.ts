@@ -57,6 +57,8 @@ const privacyOf = (globalPersonId: string, allowBeingFollowed = true) => ({
   allow_being_followed: allowBeingFollowed,
 });
 
+const SEED_OPEN_TOURNAMENT = { id: 't-open', event_id: EVENT, status: 'published' };
+
 /** The seeded tables: one person per case, in the Events and Tournaments each case needs. */
 const SEED: Record<string, TableSeed> = {
   events: {
@@ -80,7 +82,7 @@ const SEED: Record<string, TableSeed> = {
   },
   tournaments: {
     rows: [
-      { id: 't-open', event_id: EVENT, status: 'published' },
+      SEED_OPEN_TOURNAMENT,
       { id: 't-secret', event_id: EVENT, status: 'draft' },
       { id: 't-draft-event', event_id: DRAFT_EVENT, status: 'published' },
     ],
@@ -162,16 +164,20 @@ describe('the public person header (ruling 121a)', () => {
   it('reads the columns it answers with', async () => {
     const { service, supabase } = build();
     await service.getProfile(EVENT, MARIE, ANON, noFollower);
-    expect(selectsFor(supabase.from, 'events')).toEqual([
-      'id, status, organization_id, event_kind',
-    ]);
+    expect(selectsFor(supabase.from, 'events')).toEqual(['status, organization_id, event_kind']);
+    // The gate's draft-only check reads the persons it hides; then the role's own reads.
     expect(selectsFor(supabase.from, 'persons')).toEqual([
       'id, given_name, family_name, global_person_id, clubs(name)',
+      'id, global_person_id',
     ]);
-    expect(selectsFor(supabase.from, 'tournaments')).toEqual(['id, status']);
-    expect(selectsFor(supabase.from, 'registrations')).toEqual(['id']);
-    expect(selectsFor(supabase.from, 'event_referees')).toEqual(['person_id']);
-    expect(selectsFor(supabase.from, 'event_instructors')).toEqual(['person_id']);
+    expect(selectsFor(supabase.from, 'tournaments')).toEqual(['id, status', 'id, status']);
+    expect(selectsFor(supabase.from, 'registrations')).toEqual([
+      'person_id',
+      'person_id, tournament_id',
+      'id',
+    ]);
+    expect(selectsFor(supabase.from, 'event_referees')).toEqual(['person_id', 'person_id']);
+    expect(selectsFor(supabase.from, 'event_instructors')).toEqual(['person_id', 'person_id']);
     expect(selectsFor(supabase.from, 'global_persons')).toEqual([
       'hide_workshops_publicly, allow_being_followed',
     ]);
@@ -240,7 +246,8 @@ describe('the public person header (ruling 121a)', () => {
     });
 
     it('a person with no profile is no referee and no instructor, and costs no staff read', async () => {
-      const { service, supabase } = build();
+      // No draft Tournament: the gate's draft-only check would read the staff tables itself.
+      const { service, supabase } = build({ tournaments: { rows: [SEED_OPEN_TOURNAMENT] } });
       const profile = await service.getProfile(EVENT, NO_PROFILE, ANON, noFollower);
       expect(profile.roles).toEqual([]);
       expect(queriedTables(supabase.from)).not.toContain('event_referees');
