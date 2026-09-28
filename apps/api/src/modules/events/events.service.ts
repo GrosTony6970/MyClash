@@ -19,6 +19,7 @@ import { insertAuditLog } from '../../common/audit-log';
 import { assertCanReadEventRow } from '../../common/auth/event-read-gate';
 import {
   hiddenFromReader,
+  PUBLIC_TOURNAMENT_STATUSES,
   readableEvent,
   visibleTournaments,
   type CompetitionEvent,
@@ -188,7 +189,7 @@ export class EventsService {
     // still one row, so `.limit()` keeps meaning "events". `!inner` drops
     // events whose embed comes back empty.
     const select = weaponName
-      ? '*, organizations(name, slug, logo_url, brand_color), tournaments!inner(weapon)'
+      ? '*, organizations(name, slug, logo_url, brand_color), tournaments!inner(weapon, status)'
       : '*, organizations(name, slug, logo_url, brand_color)';
 
     let q = this.supabase.service
@@ -197,8 +198,11 @@ export class EventsService {
       .order('start_date', { ascending: false })
       .limit(limit);
 
-    if (query.status && query.status !== 'all') q = q.eq('status', query.status) as typeof q;
-    else q = q.in('status', ['published', 'running', 'completed']) as typeof q;
+    // A page over many Events shows public things only, for everyone (rulings 129, 163): a draft
+    // Event is never listed, whatever `status` asks for — `?status=draft` lists nothing.
+    if (query.status && query.status !== 'all') {
+      q = q.eq('status', query.status).neq('status', 'draft') as typeof q;
+    } else q = q.in('status', ['published', 'running', 'completed']) as typeof q;
 
     // Test events never appear on public surfaces. Club events DO — they are
     // public, they just never count toward rankings or career stats.
@@ -210,7 +214,12 @@ export class EventsService {
 
     if (query.cursor) q = q.lt('start_date', query.cursor) as typeof q;
 
-    if (weaponName) q = q.eq('tournaments.weapon', weaponName) as typeof q;
+    // Through a public Tournament only: a draft one's weapon is not the Event's yet.
+    if (weaponName) {
+      q = q
+        .eq('tournaments.weapon', weaponName)
+        .in('tournaments.status', [...PUBLIC_TOURNAMENT_STATUSES]) as typeof q;
+    }
 
     if (query.country) q = q.ilike('country', query.country) as typeof q;
 
@@ -226,7 +235,7 @@ export class EventsService {
     }
 
     const { data, error } = await q;
-    if (error) throw new BadRequestException(error.message);
+    if (error) throw new Error(`events read failed: ${error.message}`);
     // Double cast: the select string is now built at runtime (the weapon filter
     // appends an embed), so supabase-js's literal-type select parser resolves
     // it to a ParserError rather than a row shape. Runtime is unaffected.
@@ -236,13 +245,15 @@ export class EventsService {
     // Enrich with tournament_count so the public home page can show
     // 'N tournaments' per row without a per-event roundtrip. Also
     // collect each tournament's id so we can resolve the per-event
-    // league list in one follow-up batch.
+    // league list in one follow-up batch. Public Tournaments only: a draft
+    // one is not counted, and its league is not the Event's (ruling 163).
     const eventIds = rows.map((r) => r['id'] as string);
     const { data: tournRows, error: tournErr } = await this.supabase.service
       .from('tournaments')
       .select('id, event_id')
-      .in('event_id', eventIds);
-    if (tournErr) throw new BadRequestException(tournErr.message);
+      .in('event_id', eventIds)
+      .in('status', [...PUBLIC_TOURNAMENT_STATUSES]);
+    if (tournErr) throw new Error(`tournaments read failed: ${tournErr.message}`);
     const countByEvent = new Map<string, number>();
     const eventByTournament = new Map<string, string>();
     for (const t of (tournRows ?? []) as Array<{ id: string; event_id: string }>) {
@@ -250,40 +261,7 @@ export class EventsService {
       eventByTournament.set(t.id, t.event_id);
     }
 
-    // Project the linked-league list onto each event row so the public
-    // Upcoming table can render a "League" cell without a per-event
-    // roundtrip. Goes via league_tournament_links (status='approved')
-    // → leagues. We dedupe per event so an event whose two tournaments
-    // join the same league shows the league once.
-    const tournamentIds = Array.from(eventByTournament.keys());
-    const leaguesByEvent = new Map<
-      string,
-      Map<string, { id: string; name: string; slug: string }>
-    >();
-    if (tournamentIds.length > 0) {
-      const { data: linkRows, error: linkErr } = await this.supabase.service
-        .from('league_tournament_links')
-        .select('tournament_id, leagues(id, name, slug)')
-        .eq('status', 'approved')
-        .in('tournament_id', tournamentIds);
-      if (linkErr) throw new BadRequestException(linkErr.message);
-      type LinkRow = {
-        tournament_id: string;
-        leagues:
-          | { id: string; name: string; slug: string }
-          | Array<{ id: string; name: string; slug: string }>
-          | null;
-      };
-      for (const link of (linkRows ?? []) as LinkRow[]) {
-        const eventId = eventByTournament.get(link.tournament_id);
-        if (!eventId) continue;
-        const embed = link.leagues;
-        const league = Array.isArray(embed) ? embed[0] : embed;
-        if (!league) continue;
-        if (!leaguesByEvent.has(eventId)) leaguesByEvent.set(eventId, new Map());
-        leaguesByEvent.get(eventId)!.set(league.id, league);
-      }
-    }
+    const leaguesByEvent = await this.readLeaguesByEvent(eventByTournament);
 
     return rows.map((row) => {
       const id = row['id'] as string;
@@ -299,6 +277,48 @@ export class EventsService {
         leagues: leagueMap ? Array.from(leagueMap.values()) : [],
       };
     });
+  }
+
+  /**
+   * Project the linked-league list onto each event row so the public
+   * Upcoming table can render a "League" cell without a per-event
+   * roundtrip. Goes via league_tournament_links (status='approved')
+   * → leagues. We dedupe per event so an event whose two tournaments
+   * join the same league shows the league once. `eventByTournament` holds the
+   * public Tournaments only, so a draft one's league is not the Event's.
+   */
+  private async readLeaguesByEvent(
+    eventByTournament: Map<string, string>,
+  ): Promise<Map<string, Map<string, { id: string; name: string; slug: string }>>> {
+    const tournamentIds = Array.from(eventByTournament.keys());
+    const leaguesByEvent = new Map<
+      string,
+      Map<string, { id: string; name: string; slug: string }>
+    >();
+    if (tournamentIds.length === 0) return leaguesByEvent;
+    const { data: linkRows, error: linkErr } = await this.supabase.service
+      .from('league_tournament_links')
+      .select('tournament_id, leagues(id, name, slug)')
+      .eq('status', 'approved')
+      .in('tournament_id', tournamentIds);
+    if (linkErr) throw new Error(`league links read failed: ${linkErr.message}`);
+    type LinkRow = {
+      tournament_id: string;
+      leagues:
+        | { id: string; name: string; slug: string }
+        | Array<{ id: string; name: string; slug: string }>
+        | null;
+    };
+    for (const link of (linkRows ?? []) as LinkRow[]) {
+      const eventId = eventByTournament.get(link.tournament_id);
+      if (!eventId) continue;
+      const embed = link.leagues;
+      const league = Array.isArray(embed) ? embed[0] : embed;
+      if (!league) continue;
+      if (!leaguesByEvent.has(eventId)) leaguesByEvent.set(eventId, new Map());
+      leaguesByEvent.get(eventId)!.set(league.id, league);
+    }
+    return leaguesByEvent;
   }
 
   /**

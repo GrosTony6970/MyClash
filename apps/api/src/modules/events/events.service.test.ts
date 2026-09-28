@@ -2,6 +2,7 @@ import {
   BadRequestException,
   ConflictException,
   ForbiddenException,
+  HttpException,
   Logger,
   NotFoundException,
 } from '@nestjs/common';
@@ -1930,7 +1931,7 @@ describe('EventsService', () => {
       >;
 
       expect(eventsChain.select).toHaveBeenCalledWith(
-        '*, organizations(name, slug, logo_url, brand_color), tournaments!inner(weapon)',
+        '*, organizations(name, slug, logo_url, brand_color), tournaments!inner(weapon, status)',
       );
       // Exact eq on the canonical catalog NAME — tournaments.weapon is
       // canonicalised on write, so this is both correct and indexable.
@@ -2038,19 +2039,20 @@ describe('EventsService', () => {
       expect(chain.in).not.toHaveBeenCalled();
     });
 
-    it('translates a supabase error into BadRequestException', async () => {
+    it('fails a supabase error as a 5xx, never as an empty list', async () => {
       // The public landing page treats any non-2xx as "unavailable" and
-      // shows a banner with no diagnostic. The error path here is what
-      // produces that 400 → ensures we don't accidentally start
-      // returning `[]` on supabase errors (which would mask the failure
-      // as "empty events").
+      // shows a banner with no diagnostic. A failed read is a server fault,
+      // not a 400 carrying the database's words; and not `[]`, which would
+      // mask the failure as "empty events".
       const chain = makeAwaitableChain({
         data: null,
         error: { message: 'boom' },
       });
       fromMock.mockReturnValueOnce(chain);
 
-      await expect(service.listEvents({})).rejects.toThrow(BadRequestException);
+      const failure = await service.listEvents({}).catch((error: unknown) => error);
+      expect(failure).toBeInstanceOf(Error);
+      expect(failure).not.toBeInstanceOf(HttpException);
     });
 
     it('caps the row count at 100 by default — spectators poll this endpoint every ~30 s', async () => {
