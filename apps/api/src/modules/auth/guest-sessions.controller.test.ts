@@ -3,10 +3,10 @@
  * roster and gets a guest cookie. No proof is asked, on purpose (ARCHITECTURE.md
  * §12: most participants stop at Guest, and the venue has no time for more).
  *
- * What it must not do is open a draft Event. A draft is visible to its
- * organisation only, and the roster search that leads here already refuses one
- * (`lookup.controller.ts`). The mint did not, so anyone holding two ids could
- * become a draft Event's fighter and read their schedule through /my-schedule.
+ * What it must not do is open a draft Event. A draft is visible to its club and
+ * its active staff sessions only, and the roster search that leads here already
+ * refuses one (`lookup.controller.ts`). The mint did not, so anyone holding two ids
+ * could become a draft Event's fighter and read their schedule through /my-schedule.
  */
 import { ForbiddenException, NotFoundException } from '@nestjs/common';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -25,7 +25,7 @@ const ANNA = '33333333-3333-4333-8333-333333333333';
 const CARL = '44444444-4444-4444-8444-444444444444';
 const NOWHERE = '55555555-5555-4555-8555-555555555555';
 
-function mint(opts: { userId?: string; member?: boolean } = {}) {
+function mint(opts: { member?: boolean } = {}) {
   const db = mockSupabase({
     events: {
       rows: [
@@ -43,9 +43,10 @@ function mint(opts: { userId?: string; member?: boolean } = {}) {
       rows: [],
       returning: { id: 'gs-new', device_label: 'Unknown device', expires_at: '2027-05-30' },
     },
+    // No Tournament: the draft-only entrant is guest-sessions.drafts.test.ts's case.
+    tournaments: { rows: [] },
+    event_staff_accounts: { rows: [{ id: 'staff-draft', event_id: DRAFT, status: 'active' }] },
   });
-  const getAuthUser = vi.fn(async () => (opts.userId ? { id: opts.userId } : null));
-  const supabase = { ...db, getAuthUser };
   const orgs = {
     assertOrgRole: vi.fn(async () => {
       if (!opts.member) throw new ForbiddenException('not a member');
@@ -53,7 +54,7 @@ function mint(opts: { userId?: string; member?: boolean } = {}) {
   };
   const config = { getOrThrow: () => 'the-server-guest-secret', get: () => 'test' };
   const controller = new GuestSessionsController(
-    supabase as never,
+    db as never,
     new GuestJwtService(config as never),
     config as never,
     { recordForGuestSession: vi.fn(async () => undefined) } as never,
@@ -66,7 +67,13 @@ function mint(opts: { userId?: string; member?: boolean } = {}) {
 }
 
 const anonymous = { headers: {}, cookies: {} } as never;
-const signedIn = { headers: { authorization: 'Bearer t' }, cookies: {} } as never;
+/** The login as the AuthGuard verified it: the Event gate reads it from the request. */
+const signedInAs = (userId: string) =>
+  ({
+    headers: { authorization: 'Bearer t' },
+    cookies: {},
+    identity: { kind: 'claimed', userId, email: null },
+  }) as never;
 
 afterEach(() => vi.clearAllMocks());
 
@@ -74,7 +81,7 @@ describe('POST /events/:eventId/guest-sessions', () => {
   it('refuses a draft Event to anyone outside its organisation, before it reads the roster or opens a session', async () => {
     for (const [caller, opts] of [
       [anonymous, {}],
-      [signedIn, { userId: 'u-outsider', member: false }],
+      [signedInAs('u-outsider'), { member: false }],
     ] as const) {
       const t = mint(opts);
       const refusal = t.controller.create(DRAFT, { person_id: ANNA }, caller, t.reply as never);
@@ -84,9 +91,7 @@ describe('POST /events/:eventId/guest-sessions', () => {
       expect(writesTo(t.db, 'guest_sessions')).toEqual([]);
       expect(t.setCookie).not.toHaveBeenCalled();
       // The double ignores the projection: without `status` a draft reads as open.
-      expect(selectsFor(t.db.from, 'events')).toEqual([
-        'status, organization_id, event_kind, end_date',
-      ]);
+      expect(selectsFor(t.db.from, 'events')).toEqual(['status, organization_id, event_kind']);
     }
   });
 
@@ -99,9 +104,21 @@ describe('POST /events/:eventId/guest-sessions', () => {
   });
 
   it("lets a member of the draft Event's organisation pick a person, as the caller they signed in as", async () => {
-    const t = mint({ userId: 'u-organiser', member: true });
-    await t.controller.create(DRAFT, { person_id: ANNA }, signedIn, t.reply as never);
+    const t = mint({ member: true });
+    await t.controller.create(
+      DRAFT,
+      { person_id: ANNA },
+      signedInAs('u-organiser'),
+      t.reply as never,
+    );
     expect(t.orgs.assertOrgRole).toHaveBeenCalledWith('org-draft', 'u-organiser', 'read_only');
+    expect(t.setCookie).toHaveBeenCalledTimes(1);
+  });
+
+  it("lets the draft Event's active staff session pick a person", async () => {
+    const t = mint();
+    const staff = { headers: {}, staffSession: { staffId: 'staff-draft', eventId: DRAFT } };
+    await t.controller.create(DRAFT, { person_id: ANNA }, staff as never, t.reply as never);
     expect(t.setCookie).toHaveBeenCalledTimes(1);
   });
 
@@ -111,8 +128,14 @@ describe('POST /events/:eventId/guest-sessions', () => {
     expect(writesTo(t.db, 'guest_sessions')).toHaveLength(1);
     expect(t.setCookie).toHaveBeenCalledTimes(1);
     expect(t.send.mock.calls[0]?.[0]).toMatchObject({ person: { id: CARL } });
-    // Until the Event's end + 7 days, from the same Event read as the gate.
+    // Until the Event's end + 7 days, read once the gate let the caller in.
     const written = writesTo(t.db, 'guest_sessions')[0]?.row as { expires_at?: string };
     expect(written?.expires_at).toBe('2027-05-30T00:00:00.000Z');
+    expect(selectsFor(t.db.from, 'events')).toEqual([
+      'status, organization_id, event_kind',
+      'end_date',
+    ]);
+    // What the pick answers with, and nothing more: no email.
+    expect(selectsFor(t.db.from, 'persons')).toEqual(['id, given_name, family_name, claim_status']);
   });
 });

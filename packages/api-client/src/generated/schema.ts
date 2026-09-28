@@ -12509,14 +12509,7 @@ export interface operations {
         };
         content?: never;
       };
-      /** @description Person not found in this event */
-      401: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-      /** @description Event unknown, or hidden from the caller */
+      /** @description Event unknown or hidden from the caller; person not in it, or entered only in a draft */
       404: {
         headers: {
           [name: string]: unknown;

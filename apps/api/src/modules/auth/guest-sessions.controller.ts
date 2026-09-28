@@ -1,11 +1,9 @@
 import {
-  BadRequestException,
   Body,
   Controller,
   Delete,
   HttpCode,
   HttpStatus,
-  NotFoundException,
   Param,
   ParseUUIDPipe,
   Post,
@@ -20,9 +18,9 @@ import type { FastifyReply, FastifyRequest } from 'fastify';
 import { ConfigService } from '@nestjs/config';
 import { SupabaseService } from '../supabase/supabase.service';
 import { buildClearCookieOptions, buildSessionCookieOptions } from '../../security/http-security';
-import { assertCanReadEventRow, type EventVisibilityRow } from '../../common/auth/event-read-gate';
+import { publicReader } from '../../common/auth/competition-visibility';
+import { readEventPerson } from '../../common/auth/event-person-gate';
 import { Public } from '../../common/auth/public.decorator';
-import { resolveRequestUserId } from '../../common/auth/request-user';
 // Value import: a type-only import erases the metadata Nest resolves this by.
 import { OrganizationsService } from '../organizations/organizations.service';
 import { LegalAcceptanceService } from '../privacy/legal-acceptance.service';
@@ -36,6 +34,14 @@ const createGuestSessionSchema = z
 class CreateGuestSessionDto extends createZodDto(createGuestSessionSchema) {}
 
 const COOKIE_NAME = 'mc_guest';
+
+/** What a guest's pick reads of the person, and answers with. */
+interface GuestPerson {
+  id: string;
+  given_name: string;
+  family_name: string;
+  claim_status: string;
+}
 
 @ApiTags('auth')
 @Controller()
@@ -65,28 +71,28 @@ export class GuestSessionsController {
   @ApiOperation({ summary: 'Create a guest session (participant picks themselves)' })
   @ApiParam({ name: 'eventId', type: 'string', format: 'uuid' })
   @ApiResponse({ status: 201, description: 'Guest session created, cookie set' })
-  @ApiResponse({ status: 401, description: 'Person not found in this event' })
-  @ApiResponse({ status: 404, description: 'Event unknown, or hidden from the caller' })
+  @ApiResponse({
+    status: 404,
+    description:
+      'Event unknown or hidden from the caller; person not in it, or entered only in a draft',
+  })
   async create(
     @Param('eventId', ParseUUIDPipe) eventId: string,
     @Body() dto: CreateGuestSessionDto,
     @Req() req: FastifyRequest,
     @Res() reply: FastifyReply,
   ): Promise<void> {
-    // 0. Only an Event the caller may see — not a draft outside its organisation
-    const endDate = await this.joinableEventEnd(eventId, req);
-
-    // 1. Verify person belongs to this event
-    const { data: person, error: personError } = await this.supabase.service
-      .from('persons')
-      .select('id, given_name, family_name, email, claim_status, event_id')
-      .eq('id', dto.person_id)
-      .eq('event_id', eventId)
-      .maybeSingle();
-
-    if (personError || !person) {
-      throw new UnauthorizedException('Person not found in this event');
-    }
+    // 0-1. The person page's own bar (`readEventPerson`): an Event the caller may see, a person
+    //      of it, not entered only in a draft Tournament. Nothing is written before it.
+    const deps = { supabase: this.supabase, orgs: this.orgs };
+    const { person } = await readEventPerson<GuestPerson>(
+      deps,
+      eventId,
+      dto.person_id,
+      publicReader(req),
+      'id, given_name, family_name, claim_status',
+    );
+    const endDate = await this.eventEnd(eventId);
 
     // 2. The session lasts until the Event's end + 7 days
     const expiresAt = new Date(endDate.getTime() + 7 * 24 * 60 * 60 * 1000); // +7 days
@@ -142,20 +148,12 @@ export class GuestSessionsController {
       }),
     );
 
-    const p = person as {
-      id: string;
-      given_name: string;
-      family_name: string;
-      email: string;
-      claim_status: string;
-    };
-
     void reply.status(201).send({
       person: {
-        id: p.id,
-        given_name: p.given_name,
-        family_name: p.family_name,
-        claim_status: p.claim_status,
+        id: person.id,
+        given_name: person.given_name,
+        family_name: person.family_name,
+        claim_status: person.claim_status,
       },
       session: {
         id: s.id,
@@ -203,27 +201,15 @@ export class GuestSessionsController {
 
   // ── Private helpers ──────────────────────────────────────────────────────────
 
-  /**
-   * The end of an Event a guest may join, read once with its status.
-   *
-   * A draft or test Event is its organisation's alone (rulings 81, 101). The roster search that leads to
-   * the mint refuses one; without the same gate here, anyone holding two ids
-   * could become a draft Event's fighter and read their schedule. An unknown
-   * Event answers exactly as a hidden one, so the route confirms no draft.
-   */
-  private async joinableEventEnd(eventId: string, req: FastifyRequest): Promise<Date> {
+  /** When the session ends: the Event's end + 7 days. Read once the gate has let the caller in. */
+  private async eventEnd(eventId: string): Promise<Date> {
     const { data, error } = await this.supabase.service
       .from('events')
-      .select('status, organization_id, event_kind, end_date')
+      .select('end_date')
       .eq('id', eventId)
       .maybeSingle();
-    if (error) throw new BadRequestException(error.message);
-    if (!data) throw new NotFoundException(`Event "${eventId}" not found`);
-    const event = data as EventVisibilityRow & { end_date: string };
-    await assertCanReadEventRow({ supabase: this.supabase, orgs: this.orgs }, eventId, event, () =>
-      resolveRequestUserId(req, this.supabase),
-    );
-    return new Date(event.end_date);
+    if (error || !data) throw new Error(`event end read failed: ${error?.message ?? 'no row'}`);
+    return new Date((data as { end_date: string }).end_date);
   }
 
   private parseDeviceLabel(ua: string): string {

@@ -2,7 +2,7 @@
  * The public person page's header (operator ruling 121a): one Event's person as the public sees
  * them — name, club, roles, whether they accept followers and whether the viewer follows them.
  *
- * The bar is `readEventPerson`'s, shared with the person schedule and a follow: the Event must be
+ * The bar is `readEventPerson`'s, shared with the schedule, a follow and the guest sign-in: the Event must be
  * one the caller may see, and the person must be in THAT Event and not entered only in
  * Tournaments hidden from the caller (rulings 129, 167, 168).
  *
@@ -20,7 +20,7 @@ import { ENTERED_STATUSES } from '../../common/auth/hidden-entrants';
 import { OrganizationsService } from '../organizations/organizations.service';
 import { PrivacyService } from '../persons/privacy.service';
 import { SupabaseService } from '../supabase/supabase.service';
-import { readEventPerson } from './event-person-gate';
+import { readEventPerson } from '../../common/auth/event-person-gate';
 import { type FollowIdentity, FollowsService } from './follows.service';
 
 export type PublicPersonRole = 'competitor' | 'referee' | 'instructor';

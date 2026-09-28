@@ -20,7 +20,7 @@ import { FollowNotificationSchedulerService } from '../../workers/follow-notific
 import { SupabaseService } from '../supabase/supabase.service';
 import { OrganizationsService } from '../organizations/organizations.service';
 import { PrivacyService } from '../persons/privacy.service';
-import { readEventPerson } from './event-person-gate';
+import { readEventPerson } from '../../common/auth/event-person-gate';
 
 export interface FollowRow {
   id: string;

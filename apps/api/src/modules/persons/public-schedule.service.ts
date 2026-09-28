@@ -25,8 +25,7 @@ import {
   PUBLIC_TOURNAMENT_STATUSES,
   type PublicReader,
 } from '../../common/auth/competition-visibility';
-// A plain function file, not a PersonsModule → FollowsModule edge: follows imports persons.
-import { readEventPerson } from '../follows/event-person-gate';
+import { readEventPerson } from '../../common/auth/event-person-gate';
 import { OrganizationsService } from '../organizations/organizations.service';
 import { SupabaseService } from '../supabase/supabase.service';
 import { PrivacyService } from './privacy.service';
@@ -190,7 +189,7 @@ export class PublicScheduleService {
    * A person of another Event gets the answer an unknown person gets, so the
    * route confirms nobody; so does a person entered only in a draft Tournament,
    * for an outsider (ruling 129). Both checks are the person page's own
-   * (`readEventPerson`), so the header, the schedule and a follow agree.
+   * (`readEventPerson`), so the header, the schedule, a follow and the guest sign-in agree.
    *
    * Who the viewer is (it unhides the workshops a person hid, for that person
    * only) is asked after both checks: it costs a sign-in lookup or a guest
