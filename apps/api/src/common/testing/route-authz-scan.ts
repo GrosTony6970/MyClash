@@ -99,6 +99,7 @@ const PUBLIC_READ_GATES = new Set([
   'hiddenTournamentIds',
   // hidden-entrants.ts: the people a caller may not find.
   'hiddenEntrantIds',
+  'knownRosterRows',
   'hiddenFromReader',
 ]);
 

@@ -67,6 +67,7 @@ function build(table: TableSeed = { rows: PROFILES }) {
     { getOrThrow: vi.fn(), get: vi.fn((_k: string, def?: string) => def ?? '') } as never,
     {} as never,
     {} as never,
+    {} as never,
   );
 }
 

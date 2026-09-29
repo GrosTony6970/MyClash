@@ -97,8 +97,15 @@ describe('/me/events hides what an outsider may not see (ruling 164)', () => {
 
   it('reads the Events and Tournaments it decides on, and 5xxs when either read fails', async () => {
     await myEvents();
-    expect(selectsFor(db.from, 'events')).toEqual(['id, status, organization_id, event_kind']);
-    expect(filtersFor(db.from, 'events', 'in')).toEqual([['id', ['e-pub', 'e-draft', 'e-only']]]);
+    // Once for the Events she may see, once for the claimed rows of those (`knownRosterRows`).
+    expect(selectsFor(db.from, 'events')).toEqual([
+      'id, status, organization_id, event_kind',
+      'id, status, organization_id, event_kind',
+    ]);
+    expect(filtersFor(db.from, 'events', 'in')).toEqual([
+      ['id', ['e-pub', 'e-draft', 'e-only']],
+      ['id', ['e-pub', 'e-only']],
+    ]);
     expect(selectsFor(db.from, 'tournaments')[0]).toBe('id, event_id, slug, name, weapon, status');
     // A draft Event hidden from her: not even its Tournaments are read.
     expect(filtersFor(db.from, 'tournaments', 'in')[0]).toEqual(['event_id', ['e-pub', 'e-only']]);

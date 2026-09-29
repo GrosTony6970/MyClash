@@ -26,7 +26,7 @@ import {
   type PublicReader,
   visibleTournaments,
 } from '../../common/auth/competition-visibility';
-import { hiddenEntrantIds } from '../../common/auth/hidden-entrants';
+import { knownRosterRows } from '../../common/auth/hidden-entrants';
 import { OrganizationsService } from '../organizations/organizations.service';
 import { SupabaseService } from '../supabase/supabase.service';
 import { type PersonSchedule, PublicScheduleService } from '../persons/public-schedule.service';
@@ -264,14 +264,6 @@ interface EventTournament {
   status: string;
 }
 
-/** An Event of the list the caller may see, with the Tournaments of it she may see. */
-interface VisibleEvent {
-  event: CompetitionEvent;
-  tournaments: EventTournament[];
-  /** Some Tournament of the Event is hidden from her. */
-  hidesSome: boolean;
-}
-
 @Injectable()
 export class MeEventsService {
   private readonly logger = new Logger(MeEventsService.name);
@@ -368,7 +360,7 @@ export class MeEventsService {
       ],
       reader,
     );
-    const shown = new Set([...visible.values()].flatMap((v) => v.tournaments.map((t) => t.id)));
+    const shown = new Set([...visible.values()].flatMap((kept) => kept.map((t) => t.id)));
 
     // Build the event set (union of competitor / referee / workshop events).
     const events = new Map<string, MyEvent>();
@@ -394,7 +386,7 @@ export class MeEventsService {
       return entry;
     };
 
-    for (const p of await this.linkingPersons(claimedPersons, visible, reader)) ensure(p.event);
+    for (const p of await this.knownClaims(claimedPersons, visible, reader)) ensure(p.event);
     for (const a of refAssignments) {
       if (a.tournamentId && !shown.has(a.tournamentId)) continue;
       const entry = ensure(a.event);
@@ -432,7 +424,7 @@ export class MeEventsService {
       if (taught && taught.length > 0) entry.workshopsTeaching = taught;
     }
 
-    const listed = [...events.keys()].flatMap((id) => visible.get(id)?.tournaments ?? []);
+    const listed = [...events.keys()].flatMap((id) => visible.get(id) ?? []);
     await this.addTournaments(events, listed, registrations);
 
     // Sort: live first, then by start date desc.
@@ -496,23 +488,37 @@ export class MeEventsService {
   /**
    * What of these Events the caller may see (ruling 164, the bar of 129): a draft Event only a
    * member of its club or an active staff session of it may, and of an Event she may see, the
-   * Tournaments `visibleTournaments` keeps. An Event missing from the answer is left out as if
-   * she had nothing there; a hidden Event's Tournaments are not even read.
+   * Tournaments `visibleTournaments` keeps, by Event id. An Event missing from the answer is left
+   * out as if she had nothing there; a hidden Event's Tournaments are not even read.
    */
   private async readVisibleEvents(
     infos: Iterable<MyEventInfo | null>,
     reader: PublicReader,
-  ): Promise<Map<string, VisibleEvent>> {
+  ): Promise<Map<string, EventTournament[]>> {
     const events = await this.readableEvents(infos, reader);
     const tournaments = await this.fetchTournamentsForEvents(events.map((event) => event.id));
     const deps = { supabase: this.supabase, orgs: this.orgs };
-    const visible = new Map<string, VisibleEvent>();
+    const visible = new Map<string, EventTournament[]>();
     for (const event of events) {
       const own = tournaments.filter((t) => t.eventId === event.id);
-      const kept = await visibleTournaments(deps, event, own, reader);
-      visible.set(event.id, { event, tournaments: kept, hidesSome: kept.length < own.length });
+      visible.set(event.id, await visibleTournaments(deps, event, own, reader));
     }
     return visible;
+  }
+
+  /**
+   * Her claimed rows that tie her to an Event of the list. Only a row she may know of does
+   * (`knownRosterRows`, the bar of ruling 171a): one entered only in Tournaments hidden from her
+   * does not. A duty or a Workshop there still ties her to it.
+   */
+  private async knownClaims<Person extends { id: string; eventId: string; event: unknown }>(
+    claimed: Person[],
+    visible: Map<string, EventTournament[]>,
+    reader: PublicReader,
+  ): Promise<Person[]> {
+    const deps = { supabase: this.supabase, orgs: this.orgs };
+    const inList = claimed.filter((p) => p.event && visible.has(p.eventId));
+    return knownRosterRows(deps, inList, reader);
   }
 
   /**
@@ -536,29 +542,6 @@ export class MeEventsService {
       if (await canReadEvent(deps, event, reader)) readable.push(event);
     }
     return readable;
-  }
-
-  /**
-   * The claimed rows that tie her to an Event she may see. A row entered only in Tournaments
-   * hidden from her ties her to nothing (the bar of ruling 171a, `hiddenEntrantIds`): the Event
-   * would show up because of her draft entry alone. Another tie — a duty, a Workshop — still does.
-   */
-  private async linkingPersons<Person extends { id: string; event: MyEventInfo | null }>(
-    claimed: Person[],
-    visible: Map<string, VisibleEvent>,
-    reader: PublicReader,
-  ): Promise<Person[]> {
-    const deps = { supabase: this.supabase, orgs: this.orgs };
-    const linking: Person[] = [];
-    for (const person of claimed) {
-      const seen = person.event ? visible.get(person.event.id) : undefined;
-      if (!seen) continue;
-      if (seen.hidesSome && (await hiddenEntrantIds(deps, seen.event, reader)).has(person.id)) {
-        continue;
-      }
-      linking.push(person);
-    }
-    return linking;
   }
 
   // ── /me/upcoming ──────────────────────────────────────────────────────────

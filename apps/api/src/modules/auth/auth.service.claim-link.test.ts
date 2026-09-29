@@ -86,6 +86,7 @@ describe('AuthService.handleCallback — claim', () => {
       config as never,
       {} as never,
       {} as LegalAcceptanceService,
+      {} as never,
     );
   });
 

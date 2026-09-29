@@ -59,6 +59,7 @@ describe('AuthService.getMe — a login about to end is renewed early', () => {
       config as never,
       {} as never,
       { pendingFor: vi.fn().mockResolvedValue([]) } as unknown as LegalAcceptanceService,
+      {} as never,
     );
   });
 

@@ -17,7 +17,10 @@ import { isFlagEnabledDirect } from '../../common/feature-flag-direct';
 import { sanitizePostgrestFilterValue } from '../../common/postgrest-filter';
 import { isPlatformStaff, resolvePlatformRole } from '../../common/auth/platform-role';
 import { MailService } from '../mail/mail.service';
+import { knownRosterRows } from '../../common/auth/hidden-entrants';
+import { getStaffSession } from '../../common/auth/identity';
 import { OnboardingService } from '../organizations/onboarding.service';
+import { OrganizationsService } from '../organizations/organizations.service';
 // Value import, not `import type`: Nest reads the constructor's design:paramtypes
 // metadata to inject it, and a type-only import erases that at compile time.
 import { ErasureService } from '../privacy/erasure.service';
@@ -171,6 +174,8 @@ export class AuthService {
     // is one whose consent we can never evidence, so a missing wiring must fail
     // at boot rather than silently at signup.
     private readonly legal: LegalAcceptanceService,
+    // The draft bar on the profiles a user may claim (ruling 171a): who is a club member.
+    private readonly orgs: OrganizationsService,
     private readonly guestJwt?: GuestJwtService,
     private readonly onboarding?: OnboardingService,
   ) {}
@@ -619,7 +624,7 @@ export class AuthService {
         this.fetchGlobalPerson(user.id),
         this.fetchRefereeAssignments(user.id),
         this.fetchWorkshopEnrollments(user.id),
-        this.fetchClaimablePersons(user.email),
+        this.fetchClaimablePersons(user, request),
       ]);
 
     const eventIds = new Set<string>();
@@ -688,12 +693,16 @@ export class AuthService {
 
   /**
    * Unclaimed roster profiles whose registered email matches the user's —
-   * the confirm-step suggestions for the /me dashboard.
+   * the confirm-step suggestions for the /me dashboard. Only rows the draft bar
+   * lets her know of (ruling 171a, `knownRosterRows`); like the dashboard's
+   * other reads, a failed one offers nothing, so never a hidden row. The reader is
+   * her login and the request's staff cookie.
    */
   private async fetchClaimablePersons(
-    email: string | null | undefined,
+    user: SupabaseAuthUser,
+    request: FastifyRequest,
   ): Promise<Array<{ id: string; name: string; eventName: string }>> {
-    const normalized = (email ?? '').trim();
+    const normalized = (user.email ?? '').trim();
     if (!normalized) return [];
     try {
       const { data, error } = await this.supabase.service
@@ -702,18 +711,25 @@ export class AuthService {
         // 400'd the query, the `if (error) return []` below swallowed it, and
         // the claim-your-profile suggestions were empty for every user who ever
         // had one. Same phantom column killed fetchClaimedPersons.
-        .select('id, given_name, family_name, email, claimed_by_user_id, events(name)')
+        .select('id, given_name, family_name, email, claimed_by_user_id, event_id, events(name)')
         .ilike('email', normalized)
         .is('claimed_by_user_id', null);
       if (error) return [];
-      const rows = Array.isArray(data) ? (data as Record<string, unknown>[]) : [];
-      return rows
+      const rows = (Array.isArray(data) ? (data as Record<string, unknown>[]) : [])
         .filter((r) => personEmailMatchesUser(r['email'] as string | null, normalized))
         .map((r) => ({
           id: r['id'] as string,
+          eventId: r['event_id'] as string,
           name: `${((r['given_name'] as string) ?? '').trim()} ${((r['family_name'] as string) ?? '').trim()}`.trim(),
           eventName: ((r['events'] as { name?: string } | null)?.name ?? '').trim(),
         }));
+      const deps = { supabase: this.supabase, orgs: this.orgs };
+      const reader = { userId: user.id, staff: getStaffSession(request) };
+      return (await knownRosterRows(deps, rows, reader)).map(({ id, name, eventName }) => ({
+        id,
+        name,
+        eventName,
+      }));
     } catch {
       return [];
     }

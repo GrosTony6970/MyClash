@@ -203,6 +203,7 @@ describe('AuthService', () => {
       mockConfigService as never,
       mockErasure as never,
       legalService,
+      {} as never,
       guestJwtService,
       mockOnboarding as never,
     );
@@ -1527,6 +1528,7 @@ describe('AuthService', () => {
         prodConfig as never,
         mockErasure as never,
         legalService,
+        {} as never,
         guestJwtService,
         mockOnboarding as never,
       );
@@ -1655,6 +1657,18 @@ describe('AuthService', () => {
             { id: 'we-1', user_id: USER, enrolled_at: '2026-02-01T00:00:00Z' },
           ],
         },
+        // The suggestion's Event, for the draft bar (ruling 171a): public, nothing hidden.
+        events: {
+          rows: [
+            {
+              id: 'event-2',
+              status: 'published',
+              organization_id: 'org-1',
+              event_kind: 'standard',
+            },
+          ],
+        },
+        tournaments: { rows: [] },
       });
 
     const read = () =>

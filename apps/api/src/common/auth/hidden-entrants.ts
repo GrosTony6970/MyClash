@@ -12,6 +12,7 @@
  */
 import type { SupabaseClient } from '@supabase/supabase-js';
 import {
+  canReadEvent,
   type CompetitionEvent,
   hiddenTournamentIds,
   type PublicReader,
@@ -51,6 +52,36 @@ export async function hiddenEntrantIds(
   return new Set(
     persons.filter((row) => !staff.has(row.global_person_id)).map((row) => row.id as string),
   );
+}
+
+/**
+ * The roster rows among these a reader may know of (rulings 164, 171a): the row's Event is one she
+ * may see (`canReadEvent`), and the person is not entered there only in Tournaments hidden from her
+ * (`hiddenEntrantIds`). For a list that hands someone roster rows of many Events: her own claimed
+ * rows, the profiles she may claim. A failed read is a 5xx.
+ */
+export async function knownRosterRows<RosterRow extends { id: string; eventId: string }>(
+  deps: EventAuthzDeps,
+  roster: RosterRow[],
+  reader: PublicReader,
+): Promise<RosterRow[]> {
+  const eventIds = [...new Set(roster.map((row) => row.eventId))];
+  if (eventIds.length === 0) return [];
+  const events = await rows(
+    'events',
+    deps.supabase.service
+      .from('events')
+      .select('id, status, organization_id, event_kind')
+      .in('id', eventIds),
+  );
+  // Absent: an Event she may not see (or an unknown one), so none of its rows is known.
+  const hiddenByEvent = new Map<string, Set<string>>();
+  for (const event of events as unknown as CompetitionEvent[]) {
+    if (await canReadEvent(deps, event, reader)) {
+      hiddenByEvent.set(event.id, await hiddenEntrantIds(deps, event, reader));
+    }
+  }
+  return roster.filter((row) => hiddenByEvent.get(row.eventId)?.has(row.id) === false);
 }
 
 /** Everyone entered in one of `hidden`, less anyone with a live entry in a public one too. */
