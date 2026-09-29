@@ -16,6 +16,7 @@ import {
   type CompetitionEvent,
   hiddenTournamentIds,
   type PublicReader,
+  THE_PUBLIC,
 } from './competition-visibility';
 import type { EventAuthzDeps } from './event-authz';
 
@@ -83,6 +84,37 @@ export async function knownRosterRows<RosterRow extends { id: string; eventId: s
     }
   }
   return roster.filter((row) => hiddenByEvent.get(row.eventId)?.has(row.id) === false);
+}
+
+/**
+ * The profiles among these the public may know of (rulings 171b, 173-175): one with no roster row
+ * at all (an imported one), or with a roster row `knownRosterRows` lets `THE_PUBLIC` know of. A
+ * profile known only through entries hidden from the public — a draft Tournament, a draft or test
+ * Event — is not. For what spans many Events (ruling 163). A failed read is a 5xx: read as "no
+ * roster row", every profile would be known.
+ */
+export async function publiclyKnownProfileIds(
+  deps: EventAuthzDeps,
+  profileIds: string[],
+): Promise<Set<string>> {
+  if (profileIds.length === 0) return new Set();
+  const persons = await rows(
+    'profile roster',
+    deps.supabase.service
+      .from('persons')
+      .select('id, event_id, global_person_id')
+      .in('global_person_id', profileIds),
+  );
+  const roster = persons.map((row) => ({
+    id: row.id as string,
+    eventId: row.event_id as string,
+    profileId: row.global_person_id as string,
+  }));
+  const known = new Set(
+    (await knownRosterRows(deps, roster, THE_PUBLIC)).map((row) => row.profileId),
+  );
+  const listed = new Set(roster.map((row) => row.profileId));
+  return new Set(profileIds.filter((id) => !listed.has(id) || known.has(id)));
 }
 
 /** Everyone entered in one of `hidden`, less anyone with a live entry in a public one too. */

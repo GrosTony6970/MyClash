@@ -17,7 +17,7 @@ import { isFlagEnabledDirect } from '../../common/feature-flag-direct';
 import { sanitizePostgrestFilterValue } from '../../common/postgrest-filter';
 import { isPlatformStaff, resolvePlatformRole } from '../../common/auth/platform-role';
 import { MailService } from '../mail/mail.service';
-import { knownRosterRows } from '../../common/auth/hidden-entrants';
+import { knownRosterRows, publiclyKnownProfileIds } from '../../common/auth/hidden-entrants';
 import { getStaffSession } from '../../common/auth/identity';
 import { OnboardingService } from '../organizations/onboarding.service';
 import { OrganizationsService } from '../organizations/organizations.service';
@@ -1644,6 +1644,15 @@ export class AuthService {
   }
 
   /**
+   * A profile known only through entries hidden from the public answers a claim request like an
+   * unknown one, and nothing is mailed (ruling 175, `publiclyKnownProfileIds`).
+   */
+  private async isPubliclyKnown(globalPersonId: string): Promise<boolean> {
+    const deps = { supabase: this.supabase, orgs: this.orgs };
+    return (await publiclyKnownProfileIds(deps, [globalPersonId])).has(globalPersonId);
+  }
+
+  /**
    * Request a claim on a global_persons row. Validates ownership
    * pre-conditions, then either mails a confirmation link to
    * `global_persons.email` (happy path) or 422s with a hint about
@@ -1671,7 +1680,7 @@ export class AuthService {
     if (loadError) {
       throw new ServiceUnavailableException('Could not load profile');
     }
-    if (!target) {
+    if (!target || !(await this.isPubliclyKnown(globalPersonId))) {
       throw new NotFoundException('Profile not found');
     }
     const row = target as {

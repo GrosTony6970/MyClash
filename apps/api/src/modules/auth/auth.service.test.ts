@@ -2382,6 +2382,8 @@ describe('AuthService', () => {
           ],
         },
         global_person_claim_tokens: { rows: [] },
+        // No roster row: nothing for the draft bar to hide (claim-request.drafts.test.ts).
+        persons: { rows: [] },
       });
 
       const result = await service.requestGlobalPersonClaim(
@@ -2428,6 +2430,8 @@ describe('AuthService', () => {
           ],
         },
         global_person_claim_tokens: { rows: [] },
+        // No roster row: nothing for the draft bar to hide (claim-request.drafts.test.ts).
+        persons: { rows: [] },
       });
 
       const refusal = await service

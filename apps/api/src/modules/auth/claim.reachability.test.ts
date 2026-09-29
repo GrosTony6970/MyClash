@@ -74,7 +74,9 @@ const shapeOf = (err: unknown) => {
 };
 
 describe('POST /me/global-person-claim (ruling 106)', () => {
-  beforeEach(() => build({ global_persons: PROFILES, global_person_claim_tokens: [] }));
+  beforeEach(() =>
+    build({ global_persons: PROFILES, global_person_claim_tokens: [], persons: [] }),
+  );
 
   const request = (id: string) => service.requestGlobalPersonClaim(signedIn, id);
 

@@ -2,16 +2,14 @@
  * The rows of the "find your profile" search (`GET /me/global-person-search`, ruling 105):
  * unclaimed, reachable profiles by a name the caller typed, 20 at most.
  *
- * A profile known only through entries hidden from the public is not offered (rulings 171b, 173):
- * every roster row of it is one the public may not know of (`knownRosterRows` read as
- * `THE_PUBLIC`, ruling 163 — a draft Tournament, a draft or test Event). A profile with no roster
+ * A profile known only through entries hidden from the public is not offered (rulings 171b, 173,
+ * `publiclyKnownProfileIds`: a draft Tournament, a draft or test Event); a profile with no roster
  * row at all (an imported one) stays. Hidden profiles must not crowd out the rest, so the search
  * reads more rows until 20 are kept or none are left — up to 100 rows, five reads: past that it
  * offers what it has checked, never a row it has not.
  */
-import { THE_PUBLIC } from '../../common/auth/competition-visibility';
 import type { EventAuthzDeps } from '../../common/auth/event-authz';
-import { knownRosterRows } from '../../common/auth/hidden-entrants';
+import { publiclyKnownProfileIds } from '../../common/auth/hidden-entrants';
 import { applyReachable } from '../fighters/directory-predicate';
 
 export const CLAIM_SEARCH_LIMIT = 20;
@@ -38,7 +36,11 @@ export async function searchClaimableProfiles(
   let limit = CLAIM_SEARCH_LIMIT;
   for (;;) {
     const rows = await readRows(deps, safe, limit);
-    const kept = await publiclyKnown(deps, rows);
+    const known = await publiclyKnownProfileIds(
+      deps,
+      rows.map((row) => row.id),
+    );
+    const kept = rows.filter((row) => known.has(row.id));
     // While fewer than 20 are kept, hidden > limit - 20: the next read is longer, up to MAX_READ.
     if (kept.length >= CLAIM_SEARCH_LIMIT || rows.length < limit || limit >= MAX_READ) {
       // A longer read starts with the shorter one (the order ends on the id), so no more than 20
@@ -64,28 +66,4 @@ async function readRows(deps: EventAuthzDeps, safe: string, limit: number) {
     .limit(limit);
   if (error) throw new Error(`global person search failed: ${error.message}`);
   return (data ?? []) as unknown as ClaimSearchRow[];
-}
-
-/** The profiles the public may know of: no roster row at all, or one it may know of. */
-async function publiclyKnown(deps: EventAuthzDeps, profiles: ClaimSearchRow[]) {
-  if (profiles.length === 0) return [];
-  const { data, error } = await deps.supabase.service
-    .from('persons')
-    .select('id, event_id, global_person_id')
-    .in(
-      'global_person_id',
-      profiles.map((profile) => profile.id),
-    );
-  // A 5xx: read as "no roster row", every profile would be offered.
-  if (error) throw new Error(`profile roster read failed: ${error.message}`);
-  const roster = ((data ?? []) as Array<Record<string, string>>).map((row) => ({
-    id: row['id'] as string,
-    eventId: row['event_id'] as string,
-    profileId: row['global_person_id'] as string,
-  }));
-  const known = new Set(
-    (await knownRosterRows(deps, roster, THE_PUBLIC)).map((row) => row.profileId),
-  );
-  const listed = new Set(roster.map((row) => row.profileId));
-  return profiles.filter((profile) => !listed.has(profile.id) || known.has(profile.id));
 }

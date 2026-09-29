@@ -100,6 +100,7 @@ const PUBLIC_READ_GATES = new Set([
   // hidden-entrants.ts: the people a caller may not find.
   'hiddenEntrantIds',
   'knownRosterRows',
+  'publiclyKnownProfileIds',
   'hiddenFromReader',
 ]);
 
