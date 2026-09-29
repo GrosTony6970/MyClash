@@ -87,23 +87,37 @@ export async function knownRosterRows<RosterRow extends { id: string; eventId: s
 }
 
 /**
- * The profiles among these the public may know of (rulings 171b, 173-175): one with no roster row
- * at all (an imported one), or with a roster row `knownRosterRows` lets `THE_PUBLIC` know of. A
- * profile known only through entries hidden from the public — a draft Tournament, a draft or test
- * Event — is not. For what spans many Events (ruling 163). A failed read is a 5xx: read as "no
- * roster row", every profile would be known.
+ * The profiles among these the public may know of (rulings 171b, 173-176a): one that stands on its
+ * own — claimed by an account, or made outside a roster (a super admin's) — whatever its entries
+ * (ruling 176: hiding it once a draft entry appears would flip a public page to a 404, and the
+ * flip tells of the draft); one with no roster row at all; or one with a roster row
+ * `knownRosterRows` lets `THE_PUBLIC` know of. A profile known only through entries hidden from
+ * the public — a draft Tournament, a draft or test Event — is not, whatever HEMA Ratings id its
+ * entry copied onto it (176a). For what spans many Events (ruling 163). A failed read is a 5xx:
+ * read as "no roster row", every profile would be known.
  */
 export async function publiclyKnownProfileIds(
   deps: Pick<EventAuthzDeps, 'supabase'>,
   profileIds: string[],
 ): Promise<Set<string>> {
   if (profileIds.length === 0) return new Set();
+  const standing = await rows(
+    'profile',
+    deps.supabase.service
+      .from('global_persons')
+      .select('id')
+      .in('id', profileIds)
+      .or('claimed_by_user_id.not.is.null,made_outside_roster.is.true'),
+  );
+  const onItsOwn = new Set(standing.map((row) => row.id as string));
+  const rest = profileIds.filter((id) => !onItsOwn.has(id));
+  if (rest.length === 0) return onItsOwn;
   const persons = await rows(
     'profile roster',
     deps.supabase.service
       .from('persons')
       .select('id, event_id, global_person_id')
-      .in('global_person_id', profileIds),
+      .in('global_person_id', rest),
   );
   const roster = persons.map((row) => ({
     id: row.id as string,
@@ -114,6 +128,7 @@ export async function publiclyKnownProfileIds(
   const known = new Set(
     (await knownRosterRows(publicDeps, roster, THE_PUBLIC)).map((row) => row.profileId),
   );
+  // A profile that stands on its own had its roster rows left unread: it is not `listed`, so kept.
   const listed = new Set(roster.map((row) => row.profileId));
   return new Set(profileIds.filter((id) => !listed.has(id) || known.has(id)));
 }

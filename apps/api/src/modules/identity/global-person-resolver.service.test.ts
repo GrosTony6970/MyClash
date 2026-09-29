@@ -211,6 +211,8 @@ describe('GlobalPersonResolverService.resolveOrCreateGlobalPerson', () => {
       family_name: 'Dupont',
       is_fighter: true,
     });
+    // Made for a roster entry, not outside one: public only through a public entry (176a).
+    expect(insertCaptures['global_persons']![0]).not.toHaveProperty('made_outside_roster');
   });
 
   it('links by email before minting when an identity already owns it', async () => {

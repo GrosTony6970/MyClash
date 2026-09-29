@@ -643,6 +643,8 @@ export class FightersService {
         date_of_birth: dto.dateOfBirth ?? null,
         gender_category: dto.genderCategory ?? null,
         is_fighter: true,
+        // A super admin's: public whatever its entries (ruling 176a).
+        made_outside_roster: true,
       })
       .select('*')
       .single();
@@ -2145,6 +2147,8 @@ export class FightersService {
         is_referee: dto.isReferee ?? false,
         is_workshop_participant: dto.isWorkshopParticipant ?? false,
         is_instructor: dto.isInstructor ?? false,
+        // A super admin's: public whatever its entries (ruling 176a).
+        made_outside_roster: true,
       })
       .select('*, clubs(id, name, slug, abbreviation, city, country_code)')
       .single();
@@ -2464,7 +2468,7 @@ export class FightersService {
           const slug = `${baseSlug}-${Date.now().toString(36)}`;
           const { data, error } = await this.supabase.service
             .from('global_persons')
-            .insert({ slug, ...payload })
+            .insert({ slug, ...payload, made_outside_roster: true }) // A super admin's (176a).
             .select('id')
             .single();
           if (error) {

@@ -1,15 +1,19 @@
 /**
  * `POST /me/global-person-claim` (ruling 175): a profile known only through entries hidden from
  * the public — a draft Tournament, a draft or test Event — answers EXACTLY like an unknown one,
- * whatever else is true of it (claimed, no email), and nothing is mailed or written. It spans many
- * Events, so it shows public things only, for everyone (ruling 163): no membership is read.
+ * with or without an email or a HEMA Ratings id, and nothing is mailed or written. A profile that
+ * stands on its own — claimed by an account, or made outside a roster (a super admin's) — is
+ * public whatever its entries (rulings 176, 176a). It spans many Events, so it shows public things
+ * only, for everyone (ruling 163): no membership is read.
  */
 import 'reflect-metadata';
 import type { HttpException } from '@nestjs/common';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
+  filtersFor,
   mockSupabase,
   queriedTables,
+  selectsFor,
   writesTo,
   type SupabaseRow,
   type TableSeed,
@@ -22,6 +26,7 @@ const profile = (id: string, over: SupabaseRow = {}): SupabaseRow => ({
   display_name: `Martin ${id}`,
   email: `${id}@example.com`,
   claimed_by_user_id: null,
+  made_outside_roster: false,
   ...over,
 });
 const rosterRow = (id: string, eventId: string, profileId: string) => ({
@@ -35,18 +40,25 @@ const entry = (personId: string, tournamentId: string) => ({
   status: 'registered',
 });
 
+const PROFILES = [
+  profile('open'),
+  profile('draft-only'),
+  profile('draft-claimed', { claimed_by_user_id: 'someone' }),
+  profile('draft-no-email', { email: null }),
+  // Made by her draft entry, which carried her HEMA Ratings id (ruling 176a).
+  profile('draft-rated', { hema_ratings_id: '4242' }),
+  // Made by a super admin, before any entry.
+  profile('draft-imported', { made_outside_roster: true }),
+  profile('no-roster'),
+];
+// One roster row each but `no-roster`'s: `open` is entered in the public Tournament, the rest
+// only in the draft one.
+const ROSTERED = PROFILES.map((p) => p['id'] as string).filter((id) => id !== 'no-roster');
+
 type Tables = Record<string, TableSeed>;
 function baseTables(): Tables {
   return {
-    global_persons: {
-      rows: [
-        profile('open'),
-        profile('draft-only'),
-        profile('draft-claimed', { claimed_by_user_id: 'someone' }),
-        profile('draft-no-email', { email: null }),
-        profile('no-roster'),
-      ],
-    },
+    global_persons: { rows: PROFILES },
     events: {
       rows: [
         { id: 'e-pub', status: 'published', organization_id: 'org-a', event_kind: 'standard' },
@@ -58,21 +70,9 @@ function baseTables(): Tables {
         { id: 't-secret', event_id: 'e-pub', status: 'draft' },
       ],
     },
-    persons: {
-      rows: [
-        rosterRow('p-open', 'e-pub', 'open'),
-        rosterRow('p-draft', 'e-pub', 'draft-only'),
-        rosterRow('p-claimed', 'e-pub', 'draft-claimed'),
-        rosterRow('p-no-email', 'e-pub', 'draft-no-email'),
-      ],
-    },
+    persons: { rows: ROSTERED.map((id) => rosterRow(`p-${id}`, 'e-pub', id)) },
     registrations: {
-      rows: [
-        entry('p-open', 't-open'),
-        entry('p-draft', 't-secret'),
-        entry('p-claimed', 't-secret'),
-        entry('p-no-email', 't-secret'),
-      ],
+      rows: ROSTERED.map((id) => entry(`p-${id}`, id === 'open' ? 't-open' : 't-secret')),
     },
     event_referees: { rows: [] },
     event_instructors: { rows: [] },
@@ -117,7 +117,7 @@ beforeEach(() => {
 });
 
 describe('the claim request answers a profile known only through hidden entries as unknown (ruling 175)', () => {
-  it.each(['draft-only', 'draft-claimed', 'draft-no-email'])(
+  it.each(['draft-only', 'draft-no-email', 'draft-rated'])(
     'answers %s exactly like an unknown profile, and mails and writes nothing',
     async (id) => {
       const unknown = shapeOf(await refusal(request('nobody')));
@@ -146,6 +146,50 @@ describe('the claim request answers a profile known only through hidden entries 
     expect(failure).toBeInstanceOf(Error);
     expect((failure as { getStatus?: unknown }).getStatus).toBeUndefined();
     expect(String(failure)).toContain('profile roster read failed: boom');
+    expect(mail.sendMagicLink).not.toHaveBeenCalled();
+  });
+});
+
+describe('a profile that stands on its own stays public whatever its entries (rulings 176, 176a)', () => {
+  it('answers a claimed draft-only profile "already claimed", as any claimed profile', async () => {
+    expect(shapeOf(await refusal(request('draft-claimed')))).toMatchObject({
+      status: 400,
+      body: { code: 'already_claimed' },
+    });
+    expect(mail.sendMagicLink).not.toHaveBeenCalled();
+  });
+
+  it("mails the link for a super admin's profile entered only in a draft, reading no roster row", async () => {
+    await expect(request('draft-imported')).resolves.toMatchObject({
+      status: 'confirmation_sent',
+    });
+    expect(mail.sendMagicLink.mock.calls.map((call) => call[0].to)).toEqual([
+      'draft-imported@example.com',
+    ]);
+    expect(queriedTables(db.from)).not.toContain('persons');
+  });
+
+  it('asks which of the profiles an account owns or a super admin made', async () => {
+    await refusal(request('draft-only'));
+    expect(selectsFor(db.from, 'global_persons')[1]).toBe('id');
+    expect(filtersFor(db.from, 'global_persons', 'in')).toEqual([['id', ['draft-only']]]);
+    expect(filtersFor(db.from, 'global_persons', 'or')).toEqual([
+      ['claimed_by_user_id.not.is.null,made_outside_roster.is.true'],
+    ]);
+  });
+
+  it('5xxs when the profiles cannot be read, and mails nothing', async () => {
+    db = mockSupabase({
+      ...baseTables(),
+      global_persons: [
+        { data: profile('open'), error: null },
+        { data: null, error: { message: 'boom' } },
+      ],
+    });
+    const failure = await refusal(request('open'));
+    expect(failure).toBeInstanceOf(Error);
+    expect((failure as { getStatus?: unknown }).getStatus).toBeUndefined();
+    expect(String(failure)).toContain('profile read failed: boom');
     expect(mail.sendMagicLink).not.toHaveBeenCalled();
   });
 });

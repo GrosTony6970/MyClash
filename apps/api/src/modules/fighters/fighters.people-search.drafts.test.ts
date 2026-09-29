@@ -3,6 +3,7 @@
  * entries hidden from the public — a draft Tournament, a draft or test Event — is left out, a club
  * member of the draft's club included (public things only, ruling 163), and hidden ones do not
  * crowd out the rest. A platform admin, whose merge tool searches here, still finds every profile.
+ * A profile claimed by an account or made outside a roster is public whatever its entries (176a).
  */
 import 'reflect-metadata';
 import { HttpException } from '@nestjs/common';
@@ -22,6 +23,7 @@ const profile = (id: string) => ({
   display_name: `Martin ${id}`,
   given_name: id,
   family_name: 'Martin',
+  made_outside_roster: false,
 });
 const rosterRow = (id: string, eventId: string, profileId: string) => ({
   id,
@@ -151,6 +153,27 @@ describe('the people search leaves out a profile known only through hidden entri
       ['given_name', { ascending: true }],
       ['id', { ascending: true }],
     ]);
+  });
+
+  it("shows a claimed profile or a super admin's whatever its entries (rulings 176, 176a)", async () => {
+    ranked = ['b-draft', 'i-imported', 'j-rated', 'k-claimed'];
+    db = mockSupabase({
+      ...baseTables(),
+      global_persons: {
+        rows: [
+          profile('b-draft'),
+          { ...profile('i-imported'), made_outside_roster: true },
+          // Made by her draft entry, which carried her HEMA Ratings id: hidden like any other.
+          { ...profile('j-rated'), hema_ratings_id: '4242' },
+          { ...profile('k-claimed'), claimed_by_user_id: 'u-anna' },
+        ],
+      },
+      persons: {
+        rows: ranked.map((id) => rosterRow(`p-${id}`, 'e-pub', id)),
+      },
+      registrations: { rows: ranked.map((id) => entry(`p-${id}`, 't-secret')) },
+    });
+    expect((await search()).map((row) => row.id)).toEqual(['i-imported', 'k-claimed']);
   });
 
   it('5xxs when the roster rows cannot be read, never showing everyone', async () => {

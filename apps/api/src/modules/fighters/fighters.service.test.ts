@@ -289,6 +289,10 @@ describe('FightersService', () => {
       });
 
       expect((result as { slug: string }).slug).toContain('jean-dupont');
+      // A super admin's: public whatever its entries (ruling 176a).
+      expect(insertChain.insert).toHaveBeenCalledWith(
+        expect.objectContaining({ made_outside_roster: true }),
+      );
     });
   });
 
@@ -324,6 +328,8 @@ describe('FightersService', () => {
           club_id: 'club-1',
           hema_ratings_id: '10458',
           is_fighter: true,
+          // Public whatever its entries (ruling 176a).
+          made_outside_roster: true,
         }),
       );
       expect(result).toMatchObject({ id: 'global-1' });

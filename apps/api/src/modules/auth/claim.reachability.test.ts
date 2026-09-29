@@ -106,8 +106,10 @@ describe('POST /me/global-person-claim (ruling 106)', () => {
 
   it('reads the profile with the columns the claim uses', async () => {
     await request('live');
+    // Then whether it stands on its own (ruling 176, claim-request.drafts.test.ts).
     expect(selectsFor(db.from, 'global_persons')).toEqual([
       'id, display_name, email, claimed_by_user_id, clubs(name)',
+      'id',
     ]);
   });
 });

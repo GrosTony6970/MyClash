@@ -2,8 +2,9 @@
  * The "find your profile" search (`GET /me/global-person-search`, rulings 171b, 173): a profile
  * known only through entries hidden from the public — a draft Tournament, a draft or a test Event —
  * is not offered, to anyone: the search spans many Events, so it shows public things only
- * (ruling 163), a club member included. A profile with no roster row stays, and so does a referee
- * of the Event (ruling 167). Hidden profiles do not crowd out the rest.
+ * (ruling 163), a club member included. A profile with no roster row stays, and so do a referee
+ * of the Event (ruling 167) and a profile made outside a roster (rulings 176, 176a: a HEMA Ratings
+ * id alone does not count). Hidden profiles do not crowd out the rest.
  */
 import 'reflect-metadata';
 import { HttpException } from '@nestjs/common';
@@ -37,6 +38,7 @@ const profile = (id: string) => ({
   family_name: 'Martin',
   country_code: null,
   claimed_by_user_id: null,
+  made_outside_roster: false,
 });
 // One roster row of a profile, and its entries.
 const rosterRow = (id: string, eventId: string, profileId: string) => ({
@@ -213,6 +215,29 @@ describe('the claim search offers no profile known only through hidden entries (
     db = mockSupabase(tables);
     expect(await search()).toEqual([]);
     expect(filtersFor(db.from, 'global_persons', 'limit')).toEqual([[20], [40], [60], [80], [100]]);
+  });
+
+  it("offers a super admin's profile whatever its entries, reading its roster rows not at all (ruling 176a)", async () => {
+    const tables = baseTables();
+    tables['global_persons'] = {
+      rows: [
+        // Made by her draft entry, which carried her HEMA Ratings id: hidden like any other.
+        { ...profile('b-draft'), hema_ratings_id: '4242' },
+        { ...profile('i-imported'), made_outside_roster: true },
+      ],
+    };
+    tables['persons'] = {
+      rows: [
+        rosterRow('p-draft', 'e-pub', 'b-draft'),
+        rosterRow('p-imported', 'e-pub', 'i-imported'),
+      ],
+    };
+    tables['registrations'] = {
+      rows: [entry('p-draft', 't-secret'), entry('p-imported', 't-secret')],
+    };
+    db = mockSupabase(tables);
+    expect((await search()).map((row) => row.id)).toEqual(['i-imported']);
+    expect(filtersFor(db.from, 'persons', 'in')[0]).toEqual(['global_person_id', ['b-draft']]);
   });
 
   it('5xxs when the roster rows cannot be read, never offering everyone', async () => {
