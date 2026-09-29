@@ -58,7 +58,8 @@ export async function hiddenEntrantIds(
  * The roster rows among these a reader may know of (rulings 164, 171a): the row's Event is one she
  * may see (`canReadEvent`), and the person is not entered there only in Tournaments hidden from her
  * (`hiddenEntrantIds`). For a list that hands someone roster rows of many Events: her own claimed
- * rows, the profiles she may claim. A failed read is a 5xx.
+ * rows and the rows she may claim, read as her; the claim search's profiles, read as `THE_PUBLIC`.
+ * A failed read is a 5xx.
  */
 export async function knownRosterRows<RosterRow extends { id: string; eventId: string }>(
   deps: EventAuthzDeps,

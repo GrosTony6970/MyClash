@@ -225,6 +225,7 @@ export function filtersFor(
     | 'lte'
     | 'lt'
     | 'limit'
+    | 'order'
     | 'maybeSingle',
 ): unknown[][] {
   return from.mock.calls.flatMap(([queried], index) => {

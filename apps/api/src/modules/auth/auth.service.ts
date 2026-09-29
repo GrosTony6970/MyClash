@@ -44,6 +44,7 @@ import {
 } from '../../security/http-security';
 import { SupabaseService, type SupabaseAuthUser } from '../supabase/supabase.service';
 import { syncClaimedPersonRows } from './claimed-person-sync';
+import { searchClaimableProfiles } from './claim-search';
 import { personEmailMatchesUser } from './person-email-match';
 import type { MeResponseDto } from './dto/me-response.dto';
 import type { OAuthSessionDto } from './dto/oauth-session.dto';
@@ -1609,7 +1610,8 @@ export class AuthService {
    * Search unclaimed, reachable global_persons by name for the /me "Find your
    * profile" UI: any signed-in account (operator ruling 105). It names people
    * who agreed to nothing, so no email or date of birth, the country only when
-   * the profile's privacy map allows it, and never an erased or merged profile.
+   * the profile's privacy map allows it, and never an erased or merged profile,
+   * nor one known only through entries hidden from the public (claim-search.ts).
    */
   async searchGlobalPersonsForClaim(
     request: FastifyRequest,
@@ -1625,31 +1627,8 @@ export class AuthService {
     const safe = sanitizePostgrestFilterValue(query);
     if (!safe) return [];
 
-    const { data, error } = await applyReachable(
-      this.supabase.service
-        .from('global_persons')
-        .select(
-          'id, slug, display_name, given_name, family_name, country_code, public_visibility, hema_ratings_id, clubs(name)',
-        ),
-    )
-      .is('claimed_by_user_id', null)
-      .or(`display_name.ilike.%${safe}%,given_name.ilike.%${safe}%,family_name.ilike.%${safe}%`)
-      .order('display_name', { ascending: true })
-      .limit(20);
-    if (error) throw new Error(`global person search failed: ${error.message}`);
-
-    return (data ?? []).map((row) => {
-      const r = row as {
-        id: string;
-        slug: string;
-        display_name: string;
-        given_name: string;
-        family_name: string;
-        country_code: string | null;
-        public_visibility: unknown;
-        hema_ratings_id: string | null;
-        clubs: { name: string } | { name: string }[] | null;
-      };
+    const deps = { supabase: this.supabase, orgs: this.orgs };
+    return (await searchClaimableProfiles(deps, safe)).map((r) => {
       const club = Array.isArray(r.clubs) ? (r.clubs[0]?.name ?? null) : (r.clubs?.name ?? null);
       return {
         id: r.id,

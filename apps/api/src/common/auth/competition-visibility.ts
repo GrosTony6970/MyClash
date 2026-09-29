@@ -37,6 +37,15 @@ export interface PublicReader {
   staff: StaffSession | null;
 }
 
+/**
+ * The reader of a page that spans many Events (ruling 163): public things only, for everyone, so
+ * no membership is read. A member sees drafts on the Event's own pages and in web-admin.
+ */
+export const THE_PUBLIC: Readonly<PublicReader> = Object.freeze({
+  userId: ANONYMOUS_USER_ID,
+  staff: null,
+});
+
 export function publicReader(req: FastifyRequest): PublicReader {
   const identity = getIdentity(req);
   return {

@@ -59,7 +59,8 @@ let service: AuthService;
 function build(table: TableSeed = { rows: PROFILES }) {
   supabase = {
     getAuthUser: vi.fn().mockResolvedValue(USER),
-    service: seededSupabase({ global_persons: table }),
+    // No roster row: nothing for the draft bar to hide (claim-search.drafts.test.ts owns that).
+    service: seededSupabase({ global_persons: table, persons: { rows: [] } }),
   };
   service = new AuthService(
     supabase as never,

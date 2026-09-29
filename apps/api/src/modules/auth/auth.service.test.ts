@@ -2534,7 +2534,7 @@ describe('AuthService', () => {
     ];
 
     const search = async (q: string) => {
-      seedTables({ global_persons: { rows: PROFILES } });
+      seedTables({ global_persons: { rows: PROFILES }, persons: { rows: [] } });
       mockAuthUser({ id: 'user-123', email: 'fighter@example.com' });
       const rows = await service.searchGlobalPersonsForClaim(session(), q);
       return rows.map((row) => row.id);
@@ -2559,7 +2559,7 @@ describe('AuthService', () => {
     // have not agreed to anything. The double ignores projections, so no
     // value assertion can see a widened select — only the select string can.
     it('never asks for email or date of birth', async () => {
-      const seeded = seedTables({ global_persons: { rows: PROFILES } });
+      const seeded = seedTables({ global_persons: { rows: PROFILES }, persons: { rows: [] } });
       mockAuthUser({ id: 'user-123', email: 'fighter@example.com' });
 
       await service.searchGlobalPersonsForClaim(session(), 'Jean');
@@ -2569,7 +2569,7 @@ describe('AuthService', () => {
     });
 
     it('returns nothing for a query too short to narrow, without asking', async () => {
-      const seeded = seedTables({ global_persons: { rows: PROFILES } });
+      const seeded = seedTables({ global_persons: { rows: PROFILES }, persons: { rows: [] } });
       mockAuthUser({ id: 'user-123', email: 'fighter@example.com' });
 
       await expect(service.searchGlobalPersonsForClaim(session(), 'J')).resolves.toEqual([]);
@@ -2580,7 +2580,7 @@ describe('AuthService', () => {
     // so a query made only of them survives as an empty string. Searching on it
     // would build `display_name.ilike.%%` and offer the whole table.
     it('returns nothing when the query is only filter syntax', async () => {
-      const seeded = seedTables({ global_persons: { rows: PROFILES } });
+      const seeded = seedTables({ global_persons: { rows: PROFILES }, persons: { rows: [] } });
       mockAuthUser({ id: 'user-123', email: 'fighter@example.com' });
 
       await expect(service.searchGlobalPersonsForClaim(session(), ',()*')).resolves.toEqual([]);
