@@ -2,12 +2,13 @@
  * me-events.service.ts
  *
  * Cross-event aggregation for the redesigned personal space (/me):
- *   - listMyEvents(userId): one entry per event the user touches (competitor,
+ *   - listMyEvents(reader): one entry per event the user touches (competitor,
  *     referee, or workshop participant), with the event's tournaments (flagging
  *     the ones the user is registered in + their pool/seed/bib), the referee
  *     tournament/pool, and lightweight counts.
- *   - getUpcoming(userId, limit): the next N time-ordered fights + referee slots
+ *   - getUpcoming(reader, limit): the next N time-ordered fights + referee slots
  *     across ALL the user's events, for the dashboard "Next up".
+ *   Both leave out what the draft bar hides from the reader (ruling 164).
  *
  * Identity chain (reused project-wide):
  *   global_persons.claimed_by_user_id → per-event `persons` (event-scoped) for
@@ -19,8 +20,16 @@
 
 import { Injectable, Logger } from '@nestjs/common';
 import { asEventKind, isPubliclyVisible, type EventKind } from '@myclash/types';
+import {
+  canReadEvent,
+  type CompetitionEvent,
+  type PublicReader,
+  visibleTournaments,
+} from '../../common/auth/competition-visibility';
+import { hiddenEntrantIds } from '../../common/auth/hidden-entrants';
+import { OrganizationsService } from '../organizations/organizations.service';
 import { SupabaseService } from '../supabase/supabase.service';
-import { PublicScheduleService } from '../persons/public-schedule.service';
+import { type PersonSchedule, PublicScheduleService } from '../persons/public-schedule.service';
 // A zod schema, not a provider — plain file import, no module edge.
 import { parseSwissConfig } from '../swiss/dto/swiss-config.dto';
 import { computeMatchKind, fetchBracketRounds, fetchSwissRounds } from '../persons/match-kind.util';
@@ -246,6 +255,23 @@ export interface MyLeague {
   groups: MyLeagueGroup[];
 }
 
+interface EventTournament {
+  id: string;
+  eventId: string;
+  slug: string;
+  name: string;
+  weapon: string | null;
+  status: string;
+}
+
+/** An Event of the list the caller may see, with the Tournaments of it she may see. */
+interface VisibleEvent {
+  event: CompetitionEvent;
+  tournaments: EventTournament[];
+  /** Some Tournament of the Event is hidden from her. */
+  hidesSome: boolean;
+}
+
 @Injectable()
 export class MeEventsService {
   private readonly logger = new Logger(MeEventsService.name);
@@ -253,6 +279,7 @@ export class MeEventsService {
   constructor(
     private readonly supabase: SupabaseService,
     private readonly schedule: PublicScheduleService,
+    private readonly orgs: OrganizationsService,
   ) {}
 
   // ── /me/leagues ───────────────────────────────────────────────────────────
@@ -315,10 +342,10 @@ export class MeEventsService {
 
   // ── /me/events ────────────────────────────────────────────────────────────
 
-  async listMyEvents(userId: string): Promise<MyEvent[]> {
+  async listMyEvents(reader: PublicReader): Promise<MyEvent[]> {
     const [claimedPersons, globalPersonId] = await Promise.all([
-      this.fetchClaimedPersons(userId),
-      this.resolveGlobalPersonId(userId),
+      this.fetchClaimedPersons(reader.userId),
+      this.resolveGlobalPersonId(reader.userId),
     ]);
 
     const personIds = claimedPersons.map((p) => p.id);
@@ -330,10 +357,23 @@ export class MeEventsService {
       this.fetchRegistrations(personIds),
     ]);
 
+    // What of it she may see (ruling 164): an Event hidden from her is left out whatever ties
+    // her to it, and so is a duty in a Tournament hidden from her.
+    const visible = await this.readVisibleEvents(
+      [
+        ...claimedPersons.map((p) => p.event),
+        ...refAssignments.map((a) => a.event),
+        ...workshopEvents.values(),
+        ...instructorEvents.events.values(),
+      ],
+      reader,
+    );
+    const shown = new Set([...visible.values()].flatMap((v) => v.tournaments.map((t) => t.id)));
+
     // Build the event set (union of competitor / referee / workshop events).
     const events = new Map<string, MyEvent>();
     const ensure = (info: MyEventInfo | null): MyEvent | null => {
-      if (!info) return null;
+      if (!info || !visible.has(info.id)) return null;
       let entry = events.get(info.id);
       if (!entry) {
         entry = {
@@ -354,8 +394,9 @@ export class MeEventsService {
       return entry;
     };
 
-    for (const p of claimedPersons) ensure(p.event);
+    for (const p of await this.linkingPersons(claimedPersons, visible, reader)) ensure(p.event);
     for (const a of refAssignments) {
+      if (a.tournamentId && !shown.has(a.tournamentId)) continue;
       const entry = ensure(a.event);
       if (!entry) continue;
       entry.roles.isReferee = true;
@@ -391,17 +432,35 @@ export class MeEventsService {
       if (taught && taught.length > 0) entry.workshopsTeaching = taught;
     }
 
-    // Tournaments for every touched event + the user's registration flags.
-    const eventIds = [...events.keys()];
-    const [allTournaments, matchCounts] = await Promise.all([
-      this.fetchTournamentsForEvents(eventIds),
+    const listed = [...events.keys()].flatMap((id) => visible.get(id)?.tournaments ?? []);
+    await this.addTournaments(events, listed, registrations);
+
+    // Sort: live first, then by start date desc.
+    return [...events.values()].sort((a, b) => {
+      const liveA = a.event.status === 'running' || a.event.status === 'published' ? 0 : 1;
+      const liveB = b.event.status === 'running' || b.event.status === 'published' ? 0 : 1;
+      if (liveA !== liveB) return liveA - liveB;
+      return (b.event.startDate ?? '').localeCompare(a.event.startDate ?? '');
+    });
+  }
+
+  /**
+   * Each listed Event's Tournaments she may see, flagging the ones she is entered in, and her
+   * bout count per Event. An entry in a Tournament not listed is neither flagged nor counted.
+   */
+  private async addTournaments(
+    events: Map<string, MyEvent>,
+    tournaments: EventTournament[],
+    registrations: Awaited<ReturnType<MeEventsService['fetchRegistrations']>>,
+  ): Promise<void> {
+    const [swissByTournament, matchCounts] = await Promise.all([
+      this.fetchSwissProgress(tournaments.map((t) => t.id)),
       this.fetchMatchCounts(registrations.map((r) => r.id)),
     ]);
-    const swissByTournament = await this.fetchSwissProgress(allTournaments.map((t) => t.id));
     const regByTournament = new Map(registrations.map((r) => [r.tournamentId, r]));
-    const tournamentToEvent = new Map(allTournaments.map((t) => [t.id, t.eventId]));
+    const tournamentToEvent = new Map(tournaments.map((t) => [t.id, t.eventId]));
 
-    for (const t of allTournaments) {
+    for (const t of tournaments) {
       const entry = events.get(t.eventId);
       if (!entry) continue;
       const reg = regByTournament.get(t.id);
@@ -432,75 +491,148 @@ export class MeEventsService {
       const entry = events.get(eventId);
       if (entry) entry.counts.matches += mc.count;
     }
+  }
 
-    // Sort: live first, then by start date desc.
-    return [...events.values()].sort((a, b) => {
-      const liveA = a.event.status === 'running' || a.event.status === 'published' ? 0 : 1;
-      const liveB = b.event.status === 'running' || b.event.status === 'published' ? 0 : 1;
-      if (liveA !== liveB) return liveA - liveB;
-      return (b.event.startDate ?? '').localeCompare(a.event.startDate ?? '');
-    });
+  /**
+   * What of these Events the caller may see (ruling 164, the bar of 129): a draft Event only a
+   * member of its club or an active staff session of it may, and of an Event she may see, the
+   * Tournaments `visibleTournaments` keeps. An Event missing from the answer is left out as if
+   * she had nothing there; a hidden Event's Tournaments are not even read.
+   */
+  private async readVisibleEvents(
+    infos: Iterable<MyEventInfo | null>,
+    reader: PublicReader,
+  ): Promise<Map<string, VisibleEvent>> {
+    const events = await this.readableEvents(infos, reader);
+    const tournaments = await this.fetchTournamentsForEvents(events.map((event) => event.id));
+    const deps = { supabase: this.supabase, orgs: this.orgs };
+    const visible = new Map<string, VisibleEvent>();
+    for (const event of events) {
+      const own = tournaments.filter((t) => t.eventId === event.id);
+      const kept = await visibleTournaments(deps, event, own, reader);
+      visible.set(event.id, { event, tournaments: kept, hidesSome: kept.length < own.length });
+    }
+    return visible;
+  }
+
+  /**
+   * The Events among these the caller may see: a draft one only an insider may (`canReadEvent`).
+   * A failed read is a 5xx: read as "no Event", it would empty her space without a word.
+   */
+  private async readableEvents(
+    infos: Iterable<MyEventInfo | null>,
+    reader: PublicReader,
+  ): Promise<CompetitionEvent[]> {
+    const ids = [...new Set([...infos].flatMap((info) => (info ? [info.id] : [])))];
+    if (ids.length === 0) return [];
+    const { data, error } = await this.supabase.service
+      .from('events')
+      .select('id, status, organization_id, event_kind')
+      .in('id', ids);
+    if (error) throw new Error(`events read failed: ${error.message}`);
+    const deps = { supabase: this.supabase, orgs: this.orgs };
+    const readable: CompetitionEvent[] = [];
+    for (const event of (data ?? []) as CompetitionEvent[]) {
+      if (await canReadEvent(deps, event, reader)) readable.push(event);
+    }
+    return readable;
+  }
+
+  /**
+   * The claimed rows that tie her to an Event she may see. A row entered only in Tournaments
+   * hidden from her ties her to nothing (the bar of ruling 171a, `hiddenEntrantIds`): the Event
+   * would show up because of her draft entry alone. Another tie — a duty, a Workshop — still does.
+   */
+  private async linkingPersons<Person extends { id: string; event: MyEventInfo | null }>(
+    claimed: Person[],
+    visible: Map<string, VisibleEvent>,
+    reader: PublicReader,
+  ): Promise<Person[]> {
+    const deps = { supabase: this.supabase, orgs: this.orgs };
+    const linking: Person[] = [];
+    for (const person of claimed) {
+      const seen = person.event ? visible.get(person.event.id) : undefined;
+      if (!seen) continue;
+      if (seen.hidesSome && (await hiddenEntrantIds(deps, seen.event, reader)).has(person.id)) {
+        continue;
+      }
+      linking.push(person);
+    }
+    return linking;
   }
 
   // ── /me/upcoming ──────────────────────────────────────────────────────────
 
-  async getUpcoming(userId: string, limit: number): Promise<UpcomingItem[]> {
-    const claimedPersons = await this.fetchClaimedPersons(userId);
+  async getUpcoming(reader: PublicReader, limit: number): Promise<UpcomingItem[]> {
+    const claimedPersons = await this.fetchClaimedPersons(reader.userId);
+    // A draft Event hidden from her is left out (ruling 164); `getSchedule` already leaves out her
+    // bouts and duties in a draft Tournament, for everyone.
+    const events = await this.readableEvents(
+      claimedPersons.map((p) => p.event),
+      reader,
+    );
+    const readable = new Set(events.map((event) => event.id));
     const targets = claimedPersons.flatMap((p) =>
-      p.event ? [{ personId: p.id, event: p.event }] : [],
+      p.event && readable.has(p.event.id) ? [{ personId: p.id, event: p.event }] : [],
     );
     if (targets.length === 0) return [];
 
-    const schedules = await Promise.all(
-      targets.map(async (t) => ({
-        event: t.event,
-        schedule: await this.schedule.getSchedule(t.event.id, t.personId, t.personId),
-      })),
+    const items = await Promise.all(
+      targets.map(async (t) =>
+        this.upcomingItems(
+          t.event,
+          await this.schedule.getSchedule(t.event.id, t.personId, t.personId),
+        ),
+      ),
     );
+    return items
+      .flat()
+      .sort((a, b) => a.scheduledAt.localeCompare(b.scheduledAt))
+      .slice(0, limit);
+  }
 
+  /** One Event's timed bouts and duties, as "Next up" items. */
+  private upcomingItems(info: MyEventInfo, schedule: PersonSchedule): UpcomingItem[] {
     const items: UpcomingItem[] = [];
-    for (const { event: info, schedule } of schedules) {
-      for (const m of schedule.matches) {
-        if (!m.scheduledAt) continue;
-        items.push({
-          kind: 'fight',
-          eventId: info.id,
-          eventSlug: info.slug,
-          eventName: info.name,
-          eventTimezone: info.timezone,
-          scheduledAt: m.scheduledAt,
-          matchId: m.id,
-          matchNumberLabel: m.matchNumberLabel,
-          tournamentName: m.tournamentName,
-          poolName: m.poolName,
-          liceName: m.liceName,
-          opponentName: m.opponentName,
-          isRed: m.isRed,
-          role: null,
-        });
-      }
-      for (const s of schedule.refereeSlots) {
-        if (!s.scheduledAt) continue;
-        items.push({
-          kind: 'referee',
-          eventId: info.id,
-          eventSlug: info.slug,
-          eventName: info.name,
-          eventTimezone: info.timezone,
-          scheduledAt: s.scheduledAt,
-          matchId: s.matchId,
-          matchNumberLabel: s.matchNumberLabel,
-          tournamentName: s.tournamentName,
-          poolName: s.poolName,
-          liceName: null,
-          opponentName: null,
-          isRed: null,
-          role: s.role,
-        });
-      }
+    for (const m of schedule.matches) {
+      if (!m.scheduledAt) continue;
+      items.push({
+        kind: 'fight',
+        eventId: info.id,
+        eventSlug: info.slug,
+        eventName: info.name,
+        eventTimezone: info.timezone,
+        scheduledAt: m.scheduledAt,
+        matchId: m.id,
+        matchNumberLabel: m.matchNumberLabel,
+        tournamentName: m.tournamentName,
+        poolName: m.poolName,
+        liceName: m.liceName,
+        opponentName: m.opponentName,
+        isRed: m.isRed,
+        role: null,
+      });
     }
-
-    return items.sort((a, b) => a.scheduledAt.localeCompare(b.scheduledAt)).slice(0, limit);
+    for (const s of schedule.refereeSlots) {
+      if (!s.scheduledAt) continue;
+      items.push({
+        kind: 'referee',
+        eventId: info.id,
+        eventSlug: info.slug,
+        eventName: info.name,
+        eventTimezone: info.timezone,
+        scheduledAt: s.scheduledAt,
+        matchId: s.matchId,
+        matchNumberLabel: s.matchNumberLabel,
+        tournamentName: s.tournamentName,
+        poolName: s.poolName,
+        liceName: null,
+        opponentName: null,
+        isRed: null,
+        role: s.role,
+      });
+    }
+    return items;
   }
 
   // ── Private fetchers ────────────────────────────────────────────────────────
@@ -531,25 +663,10 @@ export class MeEventsService {
     return (data as { id: string } | null)?.id ?? null;
   }
 
-  private async fetchRefereeAssignments(globalPersonId: string | null): Promise<
-    Array<{
-      id: string;
-      event: MyEventInfo | null;
-      role: string | null;
-      tournamentName: string | null;
-      poolName: string | null;
-      skillName: string | null;
-      skillColor: string | null;
-      liceName: string | null;
-      venueName: string | null;
-      matchKind: string | null;
-      roundOfCount: number | null;
-      swissRound: number | null;
-      bracketSlotId: string | null;
-      startsAt: string | null;
-      endsAt: string | null;
-    }>
-  > {
+  /** Her duties, each with its Event and the id of its Tournament (null for a piste or Event duty). */
+  private async fetchRefereeAssignments(
+    globalPersonId: string | null,
+  ): Promise<Array<MyEventRefereeOf & { event: MyEventInfo | null; tournamentId: string | null }>> {
     if (!globalPersonId) return [];
     const { data, error } = await this.supabase.service
       .from('referee_assignments')
@@ -557,11 +674,11 @@ export class MeEventsService {
         `
         id, role, event_id, pool_id, match_id,
         events ( id, slug, name, start_date, end_date, status, timezone, event_kind ),
-        pools ( name, phases ( type, config_json, tournaments ( name ) ) ),
+        pools ( name, phases ( type, config_json, tournaments ( id, name ) ) ),
         matches (
           bracket_slot_id,
-          pools ( name, phases ( type, config_json, tournaments ( name ) ) ),
-          phases ( type, config_json, tournaments ( name ) ),
+          pools ( name, phases ( type, config_json, tournaments ( id, name ) ) ),
+          phases ( type, config_json, tournaments ( id, name ) ),
           lices ( name, venues ( name ) )
         ),
         lices ( name, venues ( name ) )
@@ -582,14 +699,13 @@ export class MeEventsService {
       const phase = one(pool?.['phases']) ?? one(matchPool?.['phases']) ?? one(match?.['phases']);
       const phaseType = (phase?.['type'] as string | undefined) ?? null;
       const config = (phase?.['config_json'] as { bracketSize?: number } | null) ?? null;
+      const tournament = one(phase?.['tournaments']);
       return {
         id: String(r['id'] ?? ''),
         event: this.mapEvent(one(r['events'])),
         role: (r['role'] as string | null) ?? null,
-        tournamentName:
-          this.tournamentNameFrom(pool) ??
-          this.tournamentNameFrom(matchPool) ??
-          this.tournamentNameFrom(match),
+        tournamentId: (tournament?.['id'] as string | undefined) ?? null,
+        tournamentName: (tournament?.['name'] as string | undefined) ?? null,
         poolName:
           (pool?.['name'] as string | undefined) ??
           (matchPool?.['name'] as string | undefined) ??
@@ -623,7 +739,8 @@ export class MeEventsService {
     const windows = await resolveDutyWindows(
       this.supabase.service,
       this.logger,
-      // A duty in an Event this list hides (a test Event) is never shown.
+      // A duty in a test Event is never shown. One in a draft hidden from her is dropped later
+      // (ruling 164), after its window is worked out: this read does not know the reader.
       assignments.filter((a) => a.event !== null).map((a) => ({ id: a.id, ...a.duty })),
     );
     for (const a of assignments) Object.assign(a, windows.get(a.id));
@@ -725,6 +842,7 @@ export class MeEventsService {
       id: a.id,
       event: a.event,
       role: a.role,
+      tournamentId: a.tournamentId,
       tournamentName: a.tournamentName,
       poolName: a.poolName,
       skillName: a.skillName,
@@ -738,13 +856,6 @@ export class MeEventsService {
       startsAt: a.startsAt,
       endsAt: a.endsAt,
     }));
-  }
-
-  private tournamentNameFrom(node: Row | null): string | null {
-    if (!node) return null;
-    const phases = one(node['phases']);
-    const tournaments = phases ? one(phases['tournaments']) : null;
-    return (tournaments?.['name'] as string | undefined) ?? null;
   }
 
   private async fetchWorkshopEventIds(
@@ -922,17 +1033,15 @@ export class MeEventsService {
     return regs;
   }
 
-  private async fetchTournamentsForEvents(
-    eventIds: string[],
-  ): Promise<
-    Array<{ id: string; eventId: string; slug: string; name: string; weapon: string | null }>
-  > {
+  private async fetchTournamentsForEvents(eventIds: string[]): Promise<EventTournament[]> {
     if (eventIds.length === 0) return [];
-    const { data } = await this.supabase.service
+    const { data, error } = await this.supabase.service
       .from('tournaments')
-      .select('id, event_id, slug, name, weapon')
+      .select('id, event_id, slug, name, weapon, status')
       .in('event_id', eventIds)
       .order('name', { ascending: true });
+    // A 5xx: read as "no Tournament", her entries would vanish without a word.
+    if (error) throw new Error(`tournaments read failed: ${error.message}`);
     const rows = Array.isArray(data) ? (data as Row[]) : [];
     return rows.map((t) => ({
       id: String(t['id']),
@@ -940,6 +1049,7 @@ export class MeEventsService {
       slug: String(t['slug']),
       name: String(t['name']),
       weapon: (t['weapon'] as string | null) ?? null,
+      status: String(t['status'] ?? ''),
     }));
   }
 

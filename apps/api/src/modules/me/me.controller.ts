@@ -14,6 +14,8 @@
 import { Controller, Get, Query, Req, UnauthorizedException } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import type { FastifyRequest } from 'fastify';
+import type { PublicReader } from '../../common/auth/competition-visibility';
+import { getStaffSession } from '../../common/auth/identity';
 import { SupabaseService } from '../supabase/supabase.service';
 import { MeEventsService } from './me-events.service';
 
@@ -27,6 +29,17 @@ async function resolveUserId(req: FastifyRequest, supabase: SupabaseService): Pr
   const user = await supabase.getAuthUser(token);
   if (!user) throw new UnauthorizedException('Invalid session');
   return user.id;
+}
+
+/**
+ * The signed-in caller as the draft bar reads her (ruling 164): her checked login, and the
+ * request's staff cookie, which makes her an insider of that one Event while it is active.
+ */
+async function resolveReader(
+  req: FastifyRequest,
+  supabase: SupabaseService,
+): Promise<PublicReader> {
+  return { userId: await resolveUserId(req, supabase), staff: getStaffSession(req) };
 }
 
 @ApiTags('me')
@@ -43,17 +56,16 @@ export class MeController {
     summary: 'List the events the current user is involved in (competitor / referee / workshops)',
   })
   async events(@Req() req: FastifyRequest) {
-    const userId = await resolveUserId(req, this.supabase);
-    return this.me.listMyEvents(userId);
+    return this.me.listMyEvents(await resolveReader(req, this.supabase));
   }
 
   @Get('upcoming')
   @ApiOperation({ summary: "Next N fights + referee slots across all the user's events" })
   async upcoming(@Req() req: FastifyRequest, @Query('limit') limit?: string) {
-    const userId = await resolveUserId(req, this.supabase);
+    const reader = await resolveReader(req, this.supabase);
     const parsed = Number.parseInt(limit ?? '5', 10);
     const n = Math.min(20, Math.max(1, Number.isFinite(parsed) ? parsed : 5));
-    return this.me.getUpcoming(userId, n);
+    return this.me.getUpcoming(reader, n);
   }
 
   @Get('leagues')

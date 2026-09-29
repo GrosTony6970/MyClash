@@ -74,6 +74,9 @@
     // The public piste board's pistes and bouts, split out when its test reached
     // the 400-line cap (ruling 92's poll mark). It imports the Supabase double.
     "src/modules/staff/staff.service.public-lice.fixtures.ts",
+    // The personal space's draft-bar rows (ruling 164), split out when its test reached the
+    // 400-line cap. It imports vitest.
+    "src/modules/me/me-events.drafts.fixtures.ts",
     // A sixth convention: an ordinary-looking module name. Its own header says
     // "Test-only: nothing in the running API parses the workflow (the container
     // has no .github/)" — it exists so gates.drift.test.ts can hold gates.ts to

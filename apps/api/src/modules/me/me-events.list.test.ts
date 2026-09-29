@@ -29,6 +29,9 @@ const EVENT = (over: Record<string, unknown> = {}) => ({
   ...over,
 });
 
+/** A signed-in caller with no staff session. */
+const READER = { userId: 'user-1', staff: null };
+
 /** A claimed person tying the user to event e-1 (so the event is in the list). */
 const CLAIMED_PERSON = { id: 'p-1', event_id: 'e-1', events: EVENT() };
 
@@ -53,6 +56,15 @@ function buildService(opts: {
             return q({ data: opts.eventInstructors ?? [], error: null });
           case 'workshop_instructors':
             return q({ data: opts.workshopInstructors ?? [], error: null });
+          case 'events':
+            // The visibility read (ruling 164): published, so nobody is asked for membership.
+            return q({
+              data: [EVENT(), EVENT({ id: 'e-club', event_kind: 'club' })].map((event) => ({
+                ...event,
+                organization_id: 'org-1',
+              })),
+              error: null,
+            });
           default:
             // referee_assignments, workshop_enrollments, registrations,
             // tournaments, matches, pool_members — all irrelevant here.
@@ -61,13 +73,13 @@ function buildService(opts: {
       }),
     },
   };
-  return new MeEventsService(supabase as never, {} as never);
+  return new MeEventsService(supabase as never, {} as never, {} as never);
 }
 
 describe('MeEventsService.listMyEvents — isInstructor', () => {
   it('sets isInstructor when the user is on the event instructor roster', async () => {
     const service = buildService({ eventInstructors: [{ events: EVENT() }] });
-    const events = await service.listMyEvents('user-1');
+    const events = await service.listMyEvents(READER);
     expect(events).toHaveLength(1);
     expect(events[0]!.roles.isInstructor).toBe(true);
   });
@@ -77,7 +89,7 @@ describe('MeEventsService.listMyEvents — isInstructor', () => {
       persons: [], // no claimed person — the event comes solely from the workshop lead
       workshopInstructors: [{ workshops: { event_id: 'e-1', events: EVENT() } }],
     });
-    const events = await service.listMyEvents('user-1');
+    const events = await service.listMyEvents(READER);
     expect(events).toHaveLength(1);
     expect(events[0]!.roles).toMatchObject({
       isInstructor: true,
@@ -109,7 +121,7 @@ describe('MeEventsService.listMyEvents — isInstructor', () => {
         },
       ],
     });
-    const events = await service.listMyEvents('user-1');
+    const events = await service.listMyEvents(READER);
     expect(events).toHaveLength(1);
     expect(events[0]!.workshopsTeaching).toEqual([
       {
@@ -128,7 +140,7 @@ describe('MeEventsService.listMyEvents — isInstructor', () => {
       persons: [],
       eventInstructors: [{ events: EVENT() }],
     });
-    const events = await service.listMyEvents('user-1');
+    const events = await service.listMyEvents(READER);
     expect(events).toHaveLength(1);
     expect(events[0]!.roles.isInstructor).toBe(true);
     expect(events[0]!.workshopsTeaching).toEqual([]);
@@ -136,14 +148,14 @@ describe('MeEventsService.listMyEvents — isInstructor', () => {
 
   it('leaves isInstructor false when the user has no instructor role at the event', async () => {
     const service = buildService({}); // claimed person only, no instructor rows
-    const events = await service.listMyEvents('user-1');
+    const events = await service.listMyEvents(READER);
     expect(events).toHaveLength(1);
     expect(events[0]!.roles.isInstructor).toBe(false);
   });
 
   it('does not crash (isInstructor false) when the user has no global person', async () => {
     const service = buildService({ globalPerson: null, eventInstructors: [{ events: EVENT() }] });
-    const events = await service.listMyEvents('user-1');
+    const events = await service.listMyEvents(READER);
     // event still present via the claimed person; instructor sources are skipped
     expect(events).toHaveLength(1);
     expect(events[0]!.roles.isInstructor).toBe(false);
@@ -154,7 +166,7 @@ describe('MeEventsService.listMyEvents — isInstructor', () => {
       persons: [],
       eventInstructors: [{ events: EVENT({ id: 'e-test', event_kind: 'test' }) }],
     });
-    const events = await service.listMyEvents('user-1');
+    const events = await service.listMyEvents(READER);
     expect(events).toHaveLength(0);
   });
 
@@ -168,7 +180,7 @@ describe('MeEventsService.listMyEvents — isInstructor', () => {
         { id: 'p-club', event_id: 'e-club', events: EVENT({ id: 'e-club', event_kind: 'club' }) },
       ],
     });
-    const events = await service.listMyEvents('user-1');
+    const events = await service.listMyEvents(READER);
     expect(events).toHaveLength(1);
     expect(events[0]!.event.id).toBe('e-club');
     // …and the kind rides along so the UI can tag it.
@@ -177,7 +189,7 @@ describe('MeEventsService.listMyEvents — isInstructor', () => {
 
   it('tags standard events with their kind too', async () => {
     const service = buildService({ persons: [CLAIMED_PERSON] });
-    const events = await service.listMyEvents('user-1');
+    const events = await service.listMyEvents(READER);
     expect(events[0]!.event.kind).toBe('standard');
   });
 });

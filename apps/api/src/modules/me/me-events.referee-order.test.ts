@@ -65,6 +65,12 @@ function windowsAre(times: Record<string, [string, string | null]>) {
   );
 }
 
+/** A signed-in caller with no staff session. */
+const READER = { userId: 'user-1', staff: null };
+
+// The visibility read (ruling 164): both published, so nobody is asked for membership.
+const VISIBLE_EVENTS = ['e-1', 'e-2'].map((id) => ({ ...EVENT, id, organization_id: 'org-1' }));
+
 function buildService(assignments: unknown, matches: unknown[] = []) {
   const chains = new Map<string, Chain>();
   const supabase = {
@@ -77,13 +83,15 @@ function buildService(assignments: unknown, matches: unknown[] = []) {
               ? q({ data: { id: 'gp-1' }, error: null })
               : table === 'matches'
                 ? q({ data: matches, error: null })
-                : q({ data: [], error: null });
+                : table === 'events'
+                  ? q({ data: VISIBLE_EVENTS, error: null })
+                  : q({ data: [], error: null });
         if (!chains.has(table)) chains.set(table, chain);
         return chain;
       }),
     },
   };
-  return { service: new MeEventsService(supabase as never, {} as never), chains };
+  return { service: new MeEventsService(supabase as never, {} as never, {} as never), chains };
 }
 
 const rows = (data: unknown[]) => ({ data, error: null });
@@ -97,7 +105,7 @@ describe('MeEventsService.listMyEvents — referee duty times and order', () => 
   it('reads the duty scope and no stored time, and leaves the order to the service', async () => {
     windowsAre({});
     const { service, chains } = buildService(rows([ASSIGNMENT('a-1', { poolId: 'pool-1' })]));
-    await service.listMyEvents('user-1');
+    await service.listMyEvents(READER);
     const read = chains.get('referee_assignments');
     // The double ignores the projection: without this, a stored column could
     // come back into the read and every value below would still be right.
@@ -108,9 +116,9 @@ describe('MeEventsService.listMyEvents — referee duty times and order', () => 
     ).toBe(
       'id, role, event_id, pool_id, match_id, ' +
         'events ( id, slug, name, start_date, end_date, status, timezone, event_kind ), ' +
-        'pools ( name, phases ( type, config_json, tournaments ( name ) ) ), ' +
-        'matches ( bracket_slot_id, pools ( name, phases ( type, config_json, tournaments ( name ) ) ), ' +
-        'phases ( type, config_json, tournaments ( name ) ), lices ( name, venues ( name ) ) ), ' +
+        'pools ( name, phases ( type, config_json, tournaments ( id, name ) ) ), ' +
+        'matches ( bracket_slot_id, pools ( name, phases ( type, config_json, tournaments ( id, name ) ) ), ' +
+        'phases ( type, config_json, tournaments ( id, name ) ), lices ( name, venues ( name ) ) ), ' +
         'lices ( name, venues ( name ) )',
     );
     expect(read?.order).not.toHaveBeenCalled();
@@ -124,7 +132,7 @@ describe('MeEventsService.listMyEvents — referee duty times and order', () => 
         ASSIGNMENT('bout-duty', { eventId: 'e-2', matchId: 'm-7' }),
       ]),
     );
-    await service.listMyEvents('user-1');
+    await service.listMyEvents(READER);
     expect(dutyWindows).toHaveBeenCalledTimes(1);
     expect(dutyWindows.mock.calls[0]?.[1]).toBeInstanceOf(Logger);
     expect(dutyWindows.mock.calls[0]?.[2]).toEqual([
@@ -138,14 +146,14 @@ describe('MeEventsService.listMyEvents — referee duty times and order', () => 
     const hidden = { ...ASSIGNMENT('in-test-event', { eventId: 'e-test' }) };
     hidden.events = { ...hidden.events, event_kind: 'test' };
     const { service } = buildService(rows([hidden, ASSIGNMENT('shown', { poolId: 'pool-1' })]));
-    await service.listMyEvents('user-1');
+    await service.listMyEvents(READER);
     expect(dutyWindows.mock.calls[0]?.[2]?.map((duty) => duty.id)).toEqual(['shown']);
   });
 
   it('exposes the assignment id so the UI has a stable key per duty', async () => {
     windowsAre({ 'a-1': ['2027-05-22T13:00:00.000Z', null] });
     const { service } = buildService(rows([ASSIGNMENT('a-1'), ASSIGNMENT('a-2')]));
-    const events = await service.listMyEvents('user-1');
+    const events = await service.listMyEvents(READER);
     expect(events[0]!.refereeOf.map((r) => r.id)).toEqual(['a-1', 'a-2']);
   });
 
@@ -158,7 +166,7 @@ describe('MeEventsService.listMyEvents — referee duty times and order', () => 
     const { service } = buildService(
       rows([ASSIGNMENT('tbd'), ASSIGNMENT('qf-late'), ASSIGNMENT('pool'), ASSIGNMENT('qf-early')]),
     );
-    const events = await service.listMyEvents('user-1');
+    const events = await service.listMyEvents(READER);
     expect(events[0]!.refereeOf.map((r) => [r.id, r.startsAt, r.endsAt])).toEqual([
       ['pool', '2027-05-22T13:00:00.000Z', '2027-05-22T14:05:00.000Z'],
       ['qf-early', '2027-05-23T09:11:00.000Z', null],
@@ -186,7 +194,7 @@ describe('MeEventsService.listMyEvents — referee duty times and order', () => 
       { id: 'm-sw', swiss_rounds: { round_number: 3 } },
     ]);
 
-    const events = await service.listMyEvents('user-1');
+    const events = await service.listMyEvents(READER);
 
     expect(events[0]!.refereeOf.find((r) => r.id === 'swiss-duty')).toMatchObject({
       matchKind: 'swiss',
@@ -202,7 +210,7 @@ describe('MeEventsService.listMyEvents — referee duty times and order', () => 
     const warn = vi.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
     windowsAre({});
     const { service } = buildService({ data: null, error: { message: 'column does not exist' } });
-    expect(await service.listMyEvents('user-1')).toEqual([]);
+    expect(await service.listMyEvents(READER)).toEqual([]);
     expect(warn).toHaveBeenCalledTimes(1);
     expect(String(warn.mock.calls[0]?.[0])).toContain('column does not exist');
   });

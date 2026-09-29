@@ -84,7 +84,7 @@ function buildService(persons: unknown[], enrollments: unknown[]) {
       }),
     },
   };
-  const service = new MeEventsService(supabase as never, {} as never);
+  const service = new MeEventsService(supabase as never, {} as never, {} as never);
   return { service, enrollmentsChain };
 }
 
