@@ -1,9 +1,9 @@
 /**
  * Who may search fighters, `GET /fighters` (operator ruling 99): any signed-in
  * personal account. A signed-out caller gets a 401; an Event staff login or a
- * guest token gets a 403, because neither is a person's own account. Every
- * account sees the same rows: the reachable filter and the privacy map already
- * apply in the service.
+ * guest token gets a 403, because neither is a person's own account. The
+ * reachable filter and the privacy map apply in the service; the draft bar
+ * (rulings 174, 174a) is fighters.people-search.drafts.test.ts's.
  *
  * The weapon catalogue, `GET /weapons`, is public: web-public's Event list and
  * fighter directory call it with no login.
@@ -46,7 +46,8 @@ describe('GET /fighters (ruling 99)', () => {
 
   it('lets a signed-in account search, with the same query and no club needed', async () => {
     await search(claimed);
-    expect(list).toHaveBeenCalledWith(QUERY);
+    // Not a platform admin: the draft bar applies (ruling 174).
+    expect(list).toHaveBeenCalledWith(QUERY, { everyProfile: false });
   });
 
   it.each([
@@ -67,7 +68,7 @@ describe('GET /fighters (ruling 99)', () => {
 
   it('fails a failed search read loudly (5xx), never as a 400 carrying the database text', async () => {
     const service = realService({ global_persons: { data: null, error: { message: 'boom' } } });
-    const call = service.list({} as never);
+    const call = service.list({} as never, { everyProfile: true });
     await expect(call).rejects.toThrow('fighter search read failed: boom');
     await expect(call).rejects.not.toBeInstanceOf(HttpException);
   });
@@ -78,7 +79,7 @@ describe('GET /fighters (ruling 99)', () => {
       { global_persons: { data: null, error: { message: 'boom' } } },
       rpc,
     );
-    const call = service.list({ q: 'Anna' } as never);
+    const call = service.list({ q: 'Anna' } as never, { everyProfile: true });
     await expect(call).rejects.toThrow('fighter search read failed: boom');
     await expect(call).rejects.not.toBeInstanceOf(HttpException);
   });

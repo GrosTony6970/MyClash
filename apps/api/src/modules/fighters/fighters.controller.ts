@@ -32,7 +32,7 @@ import {
   CATALOG_READ_THROTTLE,
 } from '../../common/throttling/throttle-profiles';
 import { getIdentity } from '../../common/auth/identity';
-import { isPlatformStaff } from '../../common/auth/platform-role';
+import { hasPlatformTier, isPlatformStaff } from '../../common/auth/platform-role';
 import { PlatformRoleGuard } from '../admin/guards/platform-role.guard';
 import { PlatformRole } from '../admin/guards/platform-role.decorator';
 import { SupabaseService } from '../supabase/supabase.service';
@@ -85,8 +85,9 @@ export class FightersController {
    * GET /api/v1/fighters?q=...&club=...
    *
    * Any signed-in personal account (operator ruling 99): signed out is a 401, an
-   * Event staff login or a guest token a 403. Every account sees the same rows —
-   * the reachable filter and the privacy map apply in the service.
+   * Event staff login or a guest token a 403. The reachable filter and the privacy
+   * map apply in the service, and a profile known only through entries hidden from
+   * the public is left out (ruling 174) — except for a platform admin (174a).
    */
   @Get()
   @ApiOperation({ summary: 'List fighters (signed-in people search)' })
@@ -98,7 +99,9 @@ export class FightersController {
     if (identity.kind !== 'claimed') {
       throw new ForbiddenException('A personal account is required');
     }
-    return this.fighters.list(query);
+    // The merge tool's bar (ruling 174a): a platform admin still finds every profile.
+    const everyProfile = await hasPlatformTier(this.supabase, identity.userId, 'platform_admin');
+    return this.fighters.list(query, { everyProfile });
   }
 
   /**

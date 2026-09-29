@@ -9,6 +9,7 @@ import {
 } from '@nestjs/common';
 import { asEventKind, countsTowardStats } from '@myclash/types';
 import { isPublicTournamentEmbed } from '../../common/auth/competition-visibility';
+import { firstPubliclyKnown } from '../../common/auth/hidden-entrants';
 import { sanitizePostgrestFilterValue } from '../../common/postgrest-filter';
 import { SupabaseService } from '../supabase/supabase.service';
 import { HemaRatingsService } from '../hema-ratings/hema-ratings.service';
@@ -318,14 +319,30 @@ export class FightersService {
 
   // ── List ────────────────────────────────────────────────────────────────────
 
-  async list(query: FighterQueryDto) {
+  /**
+   * The signed-in people search (ruling 99). A profile known only through entries hidden from the
+   * public is left out (ruling 174), and hidden ones do not crowd out the rest
+   * (`firstPubliclyKnown`) — except for a platform admin, whose merge tool finds every profile
+   * (ruling 174a). `offset` counts every row, hidden ones included.
+   */
+  async list(query: FighterQueryDto, opts: { everyProfile: boolean }) {
+    const limit = Math.min(query.limit ?? DEFAULT_FIGHTER_PAGE, MAX_FIGHTER_PAGE);
+    const offset = query.offset ?? 0;
+    const read = (n: number) => this.readFighterPage(query, n, offset);
+    if (opts.everyProfile) return read(limit);
+    return firstPubliclyKnown({ supabase: this.supabase }, limit, read);
+  }
+
+  /** One read of the people search, `limit` rows from `offset`. */
+  private async readFighterPage(
+    query: FighterQueryDto,
+    limit: number,
+    offset: number,
+  ): Promise<Array<Row & { id: string }>> {
     // Typo-tolerant search: when a free-text query is present (and we're not also
     // filtering by club), rank by trigram similarity via lookup_global_persons,
     // then hydrate full rows in that order. Falls back to ilike when the RPC is
     // unavailable or returns nothing.
-    const limit = Math.min(query.limit ?? DEFAULT_FIGHTER_PAGE, MAX_FIGHTER_PAGE);
-    const offset = query.offset ?? 0;
-
     const term = query.q?.trim();
     if (term && term.length >= 2 && !query.club) {
       // The fuzzy branch honours `limit` but has no offset: lookup_global_persons
@@ -333,7 +350,7 @@ export class FightersService {
       // directory's own RPC (search_public_fighters) is where that is fixed;
       // here the branch is a typo-tolerant first page, as it always was.
       const fuzzy = await this.fuzzySearchFighters(term, limit);
-      if (fuzzy) return fuzzy;
+      if (fuzzy) return fuzzy as Array<Row & { id: string }>;
     }
 
     const q = this.buildFighterListQuery(query, limit, offset);
@@ -343,7 +360,9 @@ export class FightersService {
     // Through `unknown`: supabase-js parses the select string at the TYPE level,
     // and the allow-list is joined at runtime, so it can only infer ParserError.
     // Same reason `listGlobalPersons` returns its rows untyped.
-    return ((data ?? []) as unknown as Row[]).map((row) => this.sanitizePublicFighter(row));
+    return ((data ?? []) as unknown as Row[]).map(
+      (row) => this.sanitizePublicFighter(row) as Row & { id: string },
+    );
   }
 
   /** The non-fuzzy `list()` query: reachable rows, filtered, ordered, paged. */
@@ -367,6 +386,8 @@ export class FightersService {
     )
       .order('family_name', { ascending: true })
       .order('given_name', { ascending: true })
+      // Ends on the id: a longer read then starts with the shorter one (`firstPubliclyKnown`).
+      .order('id', { ascending: true })
       // Unbounded before this: with no query at all, GET /fighters selected
       // every global_persons row and its club embed in one response.
       .range(offset, offset + limit - 1);

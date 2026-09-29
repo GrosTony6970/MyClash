@@ -94,7 +94,7 @@ export async function knownRosterRows<RosterRow extends { id: string; eventId: s
  * roster row", every profile would be known.
  */
 export async function publiclyKnownProfileIds(
-  deps: EventAuthzDeps,
+  deps: Pick<EventAuthzDeps, 'supabase'>,
   profileIds: string[],
 ): Promise<Set<string>> {
   if (profileIds.length === 0) return new Set();
@@ -110,11 +110,55 @@ export async function publiclyKnownProfileIds(
     eventId: row.event_id as string,
     profileId: row.global_person_id as string,
   }));
+  const publicDeps = { supabase: deps.supabase, orgs: NO_CLUB };
   const known = new Set(
-    (await knownRosterRows(deps, roster, THE_PUBLIC)).map((row) => row.profileId),
+    (await knownRosterRows(publicDeps, roster, THE_PUBLIC)).map((row) => row.profileId),
   );
   const listed = new Set(roster.map((row) => row.profileId));
   return new Set(profileIds.filter((id) => !listed.has(id) || known.has(id)));
+}
+
+/**
+ * The club list `THE_PUBLIC` is read against. The public is a member of no club, and `isInsider`
+ * answers an anonymous reader before it would ask: a question here is a bug, so it says so loudly.
+ */
+const NO_CLUB = {
+  assertOrgRole: () => {
+    throw new Error('the public is asked no club membership');
+  },
+} as unknown as EventAuthzDeps['orgs'];
+
+/** The longest read of `firstPubliclyKnown`: it bounds the reads and keeps the `.in()` list short. */
+const MAX_PROFILE_READ = 100;
+
+/**
+ * The first `want` profiles of a read that the public may know of (`publiclyKnownProfileIds`), so
+ * hidden ones never crowd out the rest (rulings 171b, 174): it reads `want` rows, then `want` + the
+ * hidden count, until `want` are kept, the rows run out or 100 rows were read — then it answers
+ * what it has checked, never a row it has not. Each read is checked whole, so its order never
+ * decides what is shown; an order that ends on the id keeps a longer read starting with the
+ * shorter one, so the rows kept stay the same.
+ */
+export async function firstPubliclyKnown<Profile extends { id: string }>(
+  deps: Pick<EventAuthzDeps, 'supabase'>,
+  want: number,
+  read: (limit: number) => Promise<Profile[]>,
+): Promise<Profile[]> {
+  let limit = want;
+  for (;;) {
+    const rows = await read(limit);
+    const known = await publiclyKnownProfileIds(
+      deps,
+      rows.map((row) => row.id),
+    );
+    const kept = rows.filter((row) => known.has(row.id));
+    // While fewer than `want` are kept, hidden > limit - want: the next read is longer.
+    if (kept.length >= want || rows.length < limit || limit >= MAX_PROFILE_READ) {
+      // No more than `want` are kept, unless a row changes between two reads.
+      return kept.slice(0, want);
+    }
+    limit = Math.min(want + rows.length - kept.length, MAX_PROFILE_READ);
+  }
 }
 
 /** Everyone entered in one of `hidden`, less anyone with a live entry in a public one too. */

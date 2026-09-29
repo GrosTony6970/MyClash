@@ -844,7 +844,9 @@ describe('public fighter projection', () => {
 
   async function listOne(row: Record<string, unknown> = FULL_ROW) {
     fromMock.mockReturnValue(makeAwaitableChain({ data: [row], error: null }));
-    const rows = (await service.list({} as never)) as Array<Record<string, unknown>>;
+    const rows = (await service.list({} as never, { everyProfile: true })) as Array<
+      Record<string, unknown>
+    >;
     return rows[0] ?? {};
   }
 
@@ -1000,7 +1002,7 @@ describe('public fighter reads exclude merged and erased identities', () => {
 
   it('list() excludes them', async () => {
     fromMock.mockReturnValue(makeAwaitableChain({ data: [], error: null }));
-    await service.list({} as never);
+    await service.list({} as never, { everyProfile: true });
     expect(nulledColumns()).toEqual(EXPECTED);
   });
 
@@ -1009,20 +1011,20 @@ describe('public fighter reads exclude merged and erased identities', () => {
     // embed for each, in one response.
     const chain = makeAwaitableChain({ data: [], error: null });
     fromMock.mockReturnValue(chain);
-    await service.list({} as never);
+    await service.list({} as never, { everyProfile: true });
     expect(chain.range).toHaveBeenCalledWith(0, 23);
 
     vi.clearAllMocks();
     const paged = makeAwaitableChain({ data: [], error: null });
     fromMock.mockReturnValue(paged);
-    await service.list({ limit: 10, offset: 30 } as never);
+    await service.list({ limit: 10, offset: 30 } as never, { everyProfile: true });
     expect(paged.range).toHaveBeenCalledWith(30, 39);
   });
 
   it('list() clamps an over-large limit rather than trusting the caller', async () => {
     const chain = makeAwaitableChain({ data: [], error: null });
     fromMock.mockReturnValue(chain);
-    await service.list({ limit: 5000 } as never);
+    await service.list({ limit: 5000 } as never, { everyProfile: true });
     expect(chain.range).toHaveBeenCalledWith(0, 49);
   });
 
@@ -1043,7 +1045,7 @@ describe('public fighter reads exclude merged and erased identities', () => {
     const local = new FightersService(supabase as never, {} as never);
 
     fromMock.mockReturnValue(makeAwaitableChain({ data: [], error: null }));
-    await local.list({ q: 'dupont' } as never);
+    await local.list({ q: 'dupont' } as never, { everyProfile: true });
 
     expect(rpc).toHaveBeenCalledWith('lookup_global_persons', expect.anything());
     expect(nulledColumns()).toEqual(EXPECTED);
@@ -1285,14 +1287,14 @@ describe('list() club filter', () => {
     // on the ones that did not match. `?club=x` returned the entire table and
     // the filter did nothing at all. A fighter from another club can only be
     // absent if the join is inner.
-    await service.list({ club: 'garde-noire' } as never);
+    await service.list({ club: 'garde-noire' } as never, { everyProfile: true });
     expect(selectedColumns()).toContain('clubs!inner(');
   });
 
   it('does NOT inner-join when no club filter is present', async () => {
     // `!inner` is an inner join. Unconditionally, it would drop every fighter
     // with no club -- most of an early roster -- from the unfiltered list.
-    await service.list({} as never);
+    await service.list({} as never, { everyProfile: true });
     expect(selectedColumns()).toContain('clubs(');
     expect(selectedColumns()).not.toContain('clubs!inner(');
   });
@@ -1300,7 +1302,7 @@ describe('list() club filter', () => {
   it('filters on the club slug', async () => {
     const chain = makeAwaitableChain({ data: [], error: null });
     fromMock.mockReturnValue(chain);
-    await service.list({ club: 'garde-noire' } as never);
+    await service.list({ club: 'garde-noire' } as never, { everyProfile: true });
     expect(chain.eq).toHaveBeenCalledWith('clubs.slug', 'garde-noire');
   });
 
@@ -1312,7 +1314,7 @@ describe('list() club filter', () => {
       { service: { from: fromMock, rpc }, anon: {} } as never,
       {} as never,
     );
-    await local.list({ q: 'dupont', club: 'garde-noire' } as never);
+    await local.list({ q: 'dupont', club: 'garde-noire' } as never, { everyProfile: true });
     expect(rpc).not.toHaveBeenCalled();
     expect(selectedColumns()).toContain('clubs!inner(');
   });
