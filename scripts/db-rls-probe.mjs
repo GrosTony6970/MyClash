@@ -24,7 +24,7 @@
  *      db:review's static rule, which missed 0193;
  *   5. every API_ONLY_WRITES table refuses INSERT, UPDATE and DELETE on privilege (42501, not an
  *      RLS refusal) to the seeded organisation admin, signed in: only the API's service role
- *      writes it (0209, ruling 144);
+ *      writes it (0209, ruling 144; the League tables, 0216);
  *   6. a League is visible only when it is published (0215, ruling 88): the database refuses a
  *      visible draft, inserted or unpublished, so the anon League policies, which read
  *      `public_visibility` alone, match the API's bar.
@@ -138,6 +138,14 @@ const PRIVATE_COLUMNS = [
 const API_ONLY_WRITES = [
   // Every door that writes a referee asks the one checker and the lock (ADR-016, ADR-019).
   { table: 'referee_assignments', key: 'id', row: '4a000000-0000-4000-8000-00000000002a' },
+  // Past the API's permission checks, link review and scoring engine (0216): a League, its roles,
+  // its links, and the results and standings only the recompute writes.
+  { table: 'leagues', key: 'id', row: '1eaa0000-0000-4000-8000-00000000000a' },
+  { table: 'league_organization_roles', key: 'id', row: '1eab0000-0000-4000-8000-00000000000a' },
+  { table: 'league_user_roles', key: 'id', row: '1eac0000-0000-4000-8000-00000000000a' },
+  { table: 'league_tournament_links', key: 'id', row: '1ead0000-0000-4000-8000-00000000000a' },
+  { table: 'league_tournament_results', key: 'id', row: '1eae0000-0000-4000-8000-00000000000a' },
+  { table: 'league_rankings', key: 'id', row: '1eaf0000-0000-4000-8000-00000000000a' },
 ];
 /** The seeded organisation admin of the probe club (rls-probe-seed.sql). */
 const ORG_ADMIN = '11111111-1111-4111-8111-111111111111';

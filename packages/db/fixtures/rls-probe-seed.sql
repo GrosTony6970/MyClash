@@ -78,6 +78,20 @@ INSERT INTO referee_assignments (id, event_id, person_id, scope_type, lice_id, p
 INSERT INTO leagues (id, slug, name, season_year, status, public_visibility) VALUES
   ('1eaa0000-0000-4000-8000-00000000000a', 'rls-probe-public', 'Public', 2026, 'published', true),
   ('1eaa0000-0000-4000-8000-00000000000b', 'rls-probe-private', 'Private', 2026, 'draft', false);
+-- One row per League table, all of the public League: only the API writes them (0216).
+INSERT INTO league_organization_roles (id, league_id, organization_id, role) VALUES
+  ('1eab0000-0000-4000-8000-00000000000a', '1eaa0000-0000-4000-8000-00000000000a', 'aaaaaaaa-0000-4000-8000-000000000001', 'member');
+INSERT INTO league_user_roles (id, league_id, user_id, role) VALUES
+  ('1eac0000-0000-4000-8000-00000000000a', '1eaa0000-0000-4000-8000-00000000000a', '22222222-2222-4222-8222-222222222222', 'admin');
+INSERT INTO league_tournament_links (id, league_id, tournament_id, status, requested_by_user_id) VALUES
+  ('1ead0000-0000-4000-8000-00000000000a', '1eaa0000-0000-4000-8000-00000000000a', '77777777-0000-4000-8000-00000000000a', 'approved',
+   '11111111-1111-4111-8111-111111111111');
+INSERT INTO league_tournament_results
+  (id, league_id, tournament_id, event_id, global_person_id, ranking_group_key, final_rank) VALUES
+  ('1eae0000-0000-4000-8000-00000000000a', '1eaa0000-0000-4000-8000-00000000000a', '77777777-0000-4000-8000-00000000000a',
+   'eeeeeeee-0000-4000-8000-00000000000a', '9e000000-0000-4000-8000-00000000000a', 'longsword', 1);
+INSERT INTO league_rankings (id, league_id, ranking_group_key, global_person_id, rank) VALUES
+  ('1eaf0000-0000-4000-8000-00000000000a', '1eaa0000-0000-4000-8000-00000000000a', 'longsword', '9e000000-0000-4000-8000-00000000000a', 1);
 INSERT INTO penalty_rulesets (id, code, version, name, owner_organization_id, built_in, public_visibility) VALUES
   ('fe000000-0000-4000-8000-00000000000a', 'rls-probe-club', '1', 'Club', 'aaaaaaaa-0000-4000-8000-000000000001',
    false, false);
