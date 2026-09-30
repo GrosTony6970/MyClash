@@ -7,7 +7,7 @@ import * as webPush from 'web-push';
 import { MailService } from '../modules/mail/mail.service';
 import { readDutyStart } from '../modules/schedule/duty-windows';
 import { SupabaseService } from '../modules/supabase/supabase.service';
-import { isPublicFollowAlert } from './follow-alert-visibility';
+import { isPublicAlert } from './alert-visibility';
 
 export const NOTIFICATION_QUEUE = 'notification-scheduler';
 export const NOTIFICATION_SEND_JOB = 'send';
@@ -542,7 +542,7 @@ export class NotificationSchedulerWorker extends SentryReportingWorkerHost {
   }
 
   async process(job: Job<ScheduledNotificationJob>): Promise<void> {
-    if (await isPublicFollowAlert(this.supabase, job.data)) return this.deliver(job);
+    if (await isPublicAlert(this.supabase, job.data)) return this.deliver(job);
     // Its minute came while it was hidden (a draft, or one sent back to draft) or gone.
     this.logger.log(`Dropped ${job.data.kind} for ${job.data.entityId}: hidden or gone`);
   }

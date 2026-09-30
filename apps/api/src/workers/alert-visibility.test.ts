@@ -1,10 +1,11 @@
 /**
- * A follower's "starting soon" fires only for what the public may see, checked when it fires
- * (rulings 129, 130, 163, and 126 for a referee's duty). Sam follows Léa. The organiser planned
- * her bouts in the draft Winter Secret of the public Winter Games before publishing it, so the
- * alerts sit in the queue from then on: they must stay silent while it is a draft, and ring once
- * it is published (publishing queues nothing again). Sam runs no club here, and a member of the
- * club would get the same answer: the alert reads no membership.
+ * A "starting soon" fires only for what the public may see, checked when it fires. Léa fights in
+ * the draft Winter Secret of the public Winter Games, and Marc referees one of its Pools. The
+ * organiser planned the bouts before publishing it, so the alerts sit in the queue from then on:
+ * Léa's own, Marc's own (rulings 183, 184), and those of Sam, who follows them both (rulings 129,
+ * 130, 163; ruling 126 for a duty). They stay silent while it is a draft, and ring once it is
+ * published (publishing queues nothing again). A member of the club gets the same answer: the
+ * alert reads no membership. A TEST Event rings like the real day: it is a rehearsal (ruling 185).
  */
 import { ConfigService } from '@nestjs/config';
 import { HttpException, Logger } from '@nestjs/common';
@@ -17,7 +18,6 @@ import {
 } from '../common/testing/supabase-chain';
 import {
   NotificationSchedulerWorker,
-  type FollowNotificationKind,
   type NotificationKind,
 } from './notification-scheduler.worker';
 
@@ -30,21 +30,27 @@ const phaseOf = (status: string, events = PUBLIC_EVENT) => ({
   phases: { tournaments: tournament(status, events) },
 });
 
-const TOURNAMENT = 'tournaments(status, events(status, event_kind))';
-// The table each alert reads, its projection, and the words of its 5xx.
-const SELECTS: Record<FollowNotificationKind, [string, string, string]> = {
-  follow_match_starting: ['matches', `phases(${TOURNAMENT})`, 'follow alert bout'],
-  follow_referee_starting: [
-    'referee_assignments',
-    `events(status, event_kind), pools(phases(${TOURNAMENT})), matches(phases(${TOURNAMENT}))`,
-    'follow alert referee duty',
-  ],
-  follow_workshop_starting: [
-    'workshop_sessions',
-    'workshops(status, events(status, event_kind))',
-    'follow alert Workshop session',
-  ],
-};
+const TOURNAMENT = 'tournaments(status, events(status))';
+type Read = [table: string, select: string, what: string];
+const BOUT: Read = ['matches', `phases(${TOURNAMENT})`, 'alert bout'];
+const DUTY: Read = [
+  'referee_assignments',
+  `events(status), pools(phases(${TOURNAMENT})), matches(phases(${TOURNAMENT}))`,
+  'alert referee duty',
+];
+const SESSION: Read = [
+  'workshop_sessions',
+  'workshops(status, events(status))',
+  'alert Workshop session',
+];
+// The kinds the gate checks: the table each reads, its projection, and the words of its 5xx.
+const CHECKED: Array<[NotificationKind, Read]> = [
+  ['match_starting', BOUT],
+  ['follow_match_starting', BOUT],
+  ['referee_starting', DUTY],
+  ['follow_referee_starting', DUTY],
+  ['follow_workshop_starting', SESSION],
+];
 
 function baseTables(): Record<string, TableSeed> {
   return {
@@ -68,6 +74,7 @@ function baseTables(): Record<string, TableSeed> {
         { id: 'd-bout-secret', events: PUBLIC_EVENT, pools: null, matches: phaseOf('draft') },
         { id: 'd-piste', events: PUBLIC_EVENT, pools: null, matches: null },
         { id: 'd-piste-draft-event', events: DRAFT_EVENT, pools: null, matches: null },
+        { id: 'd-piste-test-event', events: TEST_EVENT, pools: null, matches: null },
       ],
     },
     workshop_sessions: {
@@ -75,6 +82,7 @@ function baseTables(): Record<string, TableSeed> {
         { id: 's-draft', workshops: { status: 'draft', events: PUBLIC_EVENT } },
         { id: 's-open', workshops: { status: 'published', events: PUBLIC_EVENT } },
         { id: 's-draft-event', workshops: { status: 'published', events: DRAFT_EVENT } },
+        { id: 's-test-event', workshops: { status: 'published', events: TEST_EVENT } },
       ],
     },
   };
@@ -110,39 +118,49 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-describe("a followed fighter's bout alert (ruling 130's next bout)", () => {
+describe.each([
+  ["Léa's own bout alert (ruling 183)", 'match_starting'],
+  ["a followed fighter's bout alert (ruling 130's next bout)", 'follow_match_starting'],
+] as Array<[string, NotificationKind]>)('%s', (_, kind) => {
   it('stays silent for a bout of the draft Winter Secret, and says so in the log', async () => {
     const log = vi.spyOn(Logger.prototype, 'log').mockImplementation(() => undefined);
-    expect(await fire('follow_match_starting', 'm-secret')).toBe(false);
-    expect(log).toHaveBeenCalledWith('Dropped follow_match_starting for m-secret: hidden or gone');
+    expect(await fire(kind, 'm-secret')).toBe(false);
+    expect(log).toHaveBeenCalledWith(`Dropped ${kind} for m-secret: hidden or gone`);
     expect(queriedTables(db.from)).not.toContain('push_subscriptions');
     expect(queriedTables(db.from)).not.toContain('organization_members');
   });
 
   it('rings once the Tournament is published', async () => {
-    expect(await fire('follow_match_starting', 'm-open')).toBe(true);
+    expect(await fire(kind, 'm-open')).toBe(true);
+  });
+
+  it('rings for a bout of a test Event: a rehearsal (ruling 185)', async () => {
+    expect(await fire(kind, 'm-test-event')).toBe(true);
   });
 
   it.each([
     ['of a published Tournament in a draft Event', 'm-draft-event'],
-    ['of a test Event', 'm-test-event'],
     ['read without its Event', 'm-no-event'],
     ['deleted since it was queued', 'm-gone'],
   ])('stays silent for a bout %s', async (_, bout) => {
-    expect(await fire('follow_match_starting', bout)).toBe(false);
+    expect(await fire(kind, bout)).toBe(false);
   });
 });
 
-describe("a followed referee's duty alert (ruling 126)", () => {
+describe.each([
+  ["Marc's own duty alert (ruling 184)", 'referee_starting'],
+  ["a followed referee's duty alert (ruling 126)", 'follow_referee_starting'],
+] as Array<[string, NotificationKind]>)('%s', (_, kind) => {
   it.each([
     ['a Pool of the draft Winter Secret', 'd-pool-secret', false],
     ['a bout of the draft Winter Secret', 'd-bout-secret', false],
     ['a Pool of a running Tournament', 'd-pool-open', true],
     ['a piste of a public Event', 'd-piste', true],
     ['a piste of a draft Event', 'd-piste-draft-event', false],
+    ['a piste of a test Event', 'd-piste-test-event', true],
     ['a duty deleted since it was queued', 'd-gone', false],
   ])('%s (%s): rings = %s', async (_, duty, rings) => {
-    expect(await fire('follow_referee_starting', duty)).toBe(rings);
+    expect(await fire(kind, duty)).toBe(rings);
   });
 });
 
@@ -151,6 +169,7 @@ describe("a followed instructor's Workshop alert", () => {
     ['a draft Workshop', 's-draft', false],
     ['a published Workshop', 's-open', true],
     ['a published Workshop of a draft Event', 's-draft-event', false],
+    ['a published Workshop of a test Event', 's-test-event', true],
     ['a session deleted since it was queued', 's-gone', false],
   ])('%s (%s): rings = %s', async (_, session, rings) => {
     expect(await fire('follow_workshop_starting', session)).toBe(rings);
@@ -158,21 +177,21 @@ describe("a followed instructor's Workshop alert", () => {
 });
 
 describe('what the gate reads', () => {
-  it.each(Object.entries(SELECTS))('%s reads its row by id', async (kind, [table, select]) => {
-    await fire(kind as FollowNotificationKind, 'x');
+  it.each(CHECKED)('%s reads its row by id', async (kind, [table, select]) => {
+    await fire(kind, 'x');
     expect(selectsFor(db.from, table)).toEqual([select]);
   });
 
-  it("leaves the fighter's own alert to its own rules: no bout read", async () => {
-    expect(await fire('match_starting', 'm-secret')).toBe(true);
+  it('checks nothing for an alert about no bout, duty or Workshop: an organiser broadcast', async () => {
+    expect(await fire('organizer_broadcast', 'm-secret')).toBe(true);
     expect(queriedTables(db.from)).not.toContain('matches');
   });
 
-  it.each(Object.entries(SELECTS))(
+  it.each(CHECKED)(
     '%s fails the job on a failed read, sending nothing',
     async (kind, [table, , what]) => {
       db = mockSupabase({ ...baseTables(), [table]: { data: null, error: { message: 'boom' } } });
-      const failure = await fire(kind as FollowNotificationKind, 'x').then(
+      const failure = await fire(kind, 'x').then(
         () => null,
         (error: unknown) => error,
       );

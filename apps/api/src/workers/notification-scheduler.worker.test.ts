@@ -503,6 +503,18 @@ describe('notification worker', () => {
         data: { user_id: 'user-1', enabled: true },
         error: null,
       },
+      // A bout of a public Tournament: the alert gate lets it ring (alert-visibility.test.ts).
+      matches: {
+        data: {
+          phases: {
+            tournaments: {
+              status: 'published',
+              events: { status: 'published', event_kind: 'standard' },
+            },
+          },
+        },
+        error: null,
+      },
     });
     const sender = { send: vi.fn().mockResolvedValue(undefined) };
     const mail = { sendNotification: vi.fn().mockResolvedValue(undefined) };
