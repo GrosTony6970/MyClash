@@ -1,7 +1,11 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { announcesOnPublish, asEventKind } from '@myclash/types';
-import { NotificationSchedulerService } from '../../../workers/notification-scheduler.worker';
+import {
+  NotificationSchedulerService,
+  type ScheduledNotificationJob,
+} from '../../../workers/notification-scheduler.worker';
 import { SupabaseService } from '../../supabase/supabase.service';
+import { lockedDutyIds } from './locked-duties';
 import { loadSwissRoundContext } from './swiss-round-context';
 
 interface ContactRow {
@@ -25,7 +29,21 @@ export class NotificationEventsService {
     private readonly scheduler: NotificationSchedulerService,
   ) {}
 
-  async assignmentChanged(assignmentId: string): Promise<void> {
+  /**
+   * Send again the lock messages of an Event's locked duties, or of one Tournament's, as it leaves
+   * draft (ruling 186): the send gate dropped each while it was a draft's. The gate still decides
+   * each one. A duty told before an unpublish is told again.
+   */
+  async lockedDutiesPublished(eventId: string, tournamentId: string | null): Promise<void> {
+    const ids = await lockedDutyIds(this.supabase, eventId, tournamentId);
+    await Promise.all(ids.map((id) => this.assignmentChanged(id, { resend: true })));
+  }
+
+  /**
+   * The referee's lock message. `resend`: sent again on purpose, past the job its first send left
+   * (ruling 186: one the send gate dropped still holds its job id for a day).
+   */
+  async assignmentChanged(assignmentId: string, { resend = false } = {}): Promise<void> {
     const { data: assignment } = await this.supabase.service
       .from('referee_assignments')
       .select('id, event_id, person_id, role, matches ( match_number_label )')
@@ -47,7 +65,7 @@ export class NotificationEventsService {
     const contact = await this.getContactByGlobalPerson(row.event_id, row.person_id);
     if (!contact?.claimed_by_user_id) return;
 
-    await this.scheduler.sendImmediate({
+    const message: ScheduledNotificationJob = {
       kind: 'assignment_changed',
       entityId: row.id,
       userId: contact.claimed_by_user_id,
@@ -59,7 +77,8 @@ export class NotificationEventsService {
       email: contact.email,
       emailSubject: 'Referee assignment updated',
       preference: 'schedule_changes',
-    });
+    };
+    await this.scheduler.sendImmediate(message, { replace: resend });
   }
 
   async workshopCancelled(sessionId: string): Promise<void> {

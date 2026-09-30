@@ -7,7 +7,8 @@
  * included: a follower's alerts (rulings 129, 130, 163) and the fighter's and the referee's own
  * (rulings 183, 184); a duty holds ruling 126's bar. A TEST Event rings like any other: it is a
  * rehearsal of the day (ruling 185). A draft published before the minute comes still rings; one
- * sent back to draft goes silent. A deleted one is silent too.
+ * sent back to draft goes silent. A deleted one is silent too. The referee's lock message is sent
+ * at once, so leaving draft sends it again (ruling 186).
  */
 import { PUBLIC_TOURNAMENT_STATUSES } from '../common/auth/competition-visibility';
 import { isPublicEvent } from '../common/auth/event-read-gate';
@@ -88,10 +89,12 @@ const CHECKS: Record<NotificationKind, Check | null> = {
   referee_starting: dutyIsPublic,
   follow_referee_starting: dutyIsPublic,
   follow_workshop_starting: workshopIsPublic,
+  // The lock message (ruling 186): held for a draft, sent again as it leaves draft
+  // (`lockedDutiesPublished`).
+  assignment_changed: dutyIsPublic,
   // Addressed to the booking's roster id, not an account: it reaches no one (enrollment.service).
   // Once it reaches an account, it takes `workshopIsPublic`.
   workshop_starting: null,
-  assignment_changed: null,
   workshop_cancelled: null,
   waitlist_promoted: null,
   results_published: null,

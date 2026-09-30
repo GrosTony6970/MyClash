@@ -64,6 +64,8 @@ describe('notification event handlers', () => {
         email: 'ref@example.com',
         preference: 'schedule_changes',
       }),
+      // The lock's own send keeps the one-send-per-id rule; only the publish resend replaces.
+      { replace: false },
     );
   });
 

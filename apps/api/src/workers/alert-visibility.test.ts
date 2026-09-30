@@ -49,6 +49,7 @@ const CHECKED: Array<[NotificationKind, Read]> = [
   ['follow_match_starting', BOUT],
   ['referee_starting', DUTY],
   ['follow_referee_starting', DUTY],
+  ['assignment_changed', DUTY],
   ['follow_workshop_starting', SESSION],
 ];
 
@@ -149,6 +150,7 @@ describe.each([
 
 describe.each([
   ["Marc's own duty alert (ruling 184)", 'referee_starting'],
+  ["Marc's lock message: held for a draft, sent on publish (ruling 186)", 'assignment_changed'],
   ["a followed referee's duty alert (ruling 126)", 'follow_referee_starting'],
 ] as Array<[string, NotificationKind]>)('%s', (_, kind) => {
   it.each([

@@ -709,7 +709,7 @@ export class EventsService {
     if (dto.status === 'completed' || statsEligibilityChanged) {
       await this.leagues?.recomputeForEvent(eventId);
     }
-    if (firstPublishHere) await this.announceFirstPublish(eventId);
+    await this.afterEventStatus(eventId, event, dto.status, firstPublishHere);
     return data;
   }
 
@@ -737,7 +737,7 @@ export class EventsService {
     if (firstErr) throw new BadRequestException(firstErr.message);
 
     if (firstPublish) {
-      await this.announceFirstPublish(eventId);
+      await this.afterEventStatus(eventId, event, 'published', true);
       return firstPublish;
     }
 
@@ -750,7 +750,51 @@ export class EventsService {
       .single();
 
     if (error) throw new BadRequestException(error.message);
+    await this.afterEventStatus(eventId, event, 'published', false);
     return data;
+  }
+
+  /**
+   * After an Event's status write: its first publish is announced, and leaving draft resends the
+   * referees the lock messages the send gate dropped while it was one (ruling 186).
+   */
+  private async afterEventStatus(
+    eventId: string,
+    before: { status?: unknown },
+    next: string | undefined,
+    firstPublish: boolean,
+  ): Promise<void> {
+    if (firstPublish) await this.announceFirstPublish(eventId);
+    if (before.status === 'draft' && next !== undefined && next !== 'draft') {
+      await this.resendLockMessages(eventId, null);
+    }
+  }
+
+  /**
+   * After a Tournament's status write: leaving draft for a public status resends the lock messages
+   * the send gate dropped while it was one (ruling 186), and completing it publishes its results.
+   */
+  private async afterTournamentStatus(
+    before: { id: string; event_id: string; status?: unknown },
+    next: string | undefined,
+  ): Promise<void> {
+    if (before.status === 'draft' && next !== undefined && PUBLIC_TOURNAMENT_STATUSES.has(next)) {
+      await this.resendLockMessages(before.event_id, before.id);
+    }
+    if (next === 'completed') await this.notificationEvents.resultsPublished(before.id);
+  }
+
+  /** Best effort, as the first-publish announcement: the publish stands whatever the sending does. */
+  private async resendLockMessages(eventId: string, tournamentId: string | null): Promise<void> {
+    try {
+      await this.notificationEvents.lockedDutiesPublished(eventId, tournamentId);
+    } catch (err) {
+      this.logger.error(
+        `Failed to resend the lock messages of ${tournamentId ?? eventId}: ${
+          err instanceof Error ? err.message : String(err)
+        }`,
+      );
+    }
   }
 
   /**
@@ -3303,9 +3347,8 @@ export class EventsService {
     ) {
       await this.stampTournamentContentHash(tournamentId);
     }
-    if (dto.status === 'completed') {
-      await this.notificationEvents.resultsPublished(tournamentId);
-    }
+    const before = current as { id: string; event_id: string; status: string };
+    await this.afterTournamentStatus(before, dto.status);
     return data;
   }
 
@@ -3897,11 +3940,12 @@ export class EventsService {
   private async setTournamentStatus(tournamentId: string, status: string, userId: string) {
     const { data: row } = await this.supabase.service
       .from('tournaments')
-      .select('event_id')
+      .select('id, event_id, status')
       .eq('id', tournamentId)
       .maybeSingle();
     if (!row) throw new NotFoundException(`Tournament ${tournamentId} not found`);
-    const event = await this.getEventById((row as { event_id: string }).event_id);
+    const before = row as { id: string; event_id: string; status: string };
+    const event = await this.getEventById(before.event_id);
     await this.orgs.assertOrgRole(
       (event as { organization_id: string }).organization_id,
       userId,
@@ -3915,6 +3959,7 @@ export class EventsService {
       .select('*')
       .single();
     if (error) throw new BadRequestException(error.message);
+    await this.afterTournamentStatus(before, status);
     return data;
   }
 

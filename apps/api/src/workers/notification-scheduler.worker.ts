@@ -214,10 +214,15 @@ export class NotificationSchedulerService {
     });
   }
 
-  async sendImmediate(input: ScheduledNotificationJob): Promise<void> {
+  /**
+   * Send now, once: a job already held under this id (a completed one is kept a day) wins. `replace`
+   * sends it again on purpose, removing the held job first (ruling 186).
+   */
+  async sendImmediate(input: ScheduledNotificationJob, { replace = false } = {}): Promise<void> {
     const jobId = buildNotificationJobId(input.kind, input.entityId, input.userId);
     const existing = await this.queue.getJob(jobId);
-    if (existing) return;
+    if (existing && !replace) return;
+    await existing?.remove();
 
     await this.queue.add(NOTIFICATION_SEND_JOB, input, {
       jobId,
