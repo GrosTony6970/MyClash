@@ -1915,7 +1915,7 @@ export class FightersService {
     const { data, error } = await this.supabase.service
       .from('referee_assignments')
       .select(
-        'match_id, person_id, role, matches(id, status, scheduled_at, pool_id, bracket_slot_id, pools(sort_order), bracket_slots(round), phases(type, config_json, tournaments(id, name, weapon, scoring_config_json, events(id, name, event_kind))))',
+        'match_id, person_id, role, matches(id, status, scheduled_at, pool_id, bracket_slot_id, pools(sort_order), bracket_slots(round), phases(type, config_json, tournaments(id, name, weapon, scoring_config_json, status, events(id, name, event_kind, status))))',
       )
       .eq('person_id', personId)
       .eq('scope_type', 'match')
@@ -1928,7 +1928,7 @@ export class FightersService {
     const { data, error } = await this.supabase.service
       .from('referee_assignments')
       .select(
-        'match_id, person_id, role, matches(id, status, scheduled_at, pool_id, bracket_slot_id, pools(sort_order), bracket_slots(round), phases(type, config_json, tournaments(id, name, weapon, scoring_config_json, events(id, name, event_kind))))',
+        'match_id, person_id, role, matches(id, status, scheduled_at, pool_id, bracket_slot_id, pools(sort_order), bracket_slots(round), phases(type, config_json, tournaments(id, name, weapon, scoring_config_json, status, events(id, name, event_kind, status))))',
       )
       .in('match_id', matchIds)
       .eq('scope_type', 'match');
@@ -1950,6 +1950,9 @@ export class FightersService {
         const phase = match?.['phases'] as Row | null;
         const tournament = phase?.['tournaments'] as Row | null;
         const event = tournament?.['events'] as Row | null;
+        // Only a public Tournament of a public Event, for everyone, her own stats included (ruling
+        // 163); a row read without either status counts as hidden.
+        if (!isPublicTournamentEmbed(tournament)) return null;
         // Only STANDARD work counts toward a referee's cross-event career stats
         // — mirrors the fighter career exclusion (fetchCareerRegistrations), so
         // test AND club events are both dropped. Scoped to the profile/career
