@@ -24,7 +24,10 @@
  *      db:review's static rule, which missed 0193;
  *   5. every API_ONLY_WRITES table refuses INSERT, UPDATE and DELETE on privilege (42501, not an
  *      RLS refusal) to the seeded organisation admin, signed in: only the API's service role
- *      writes it (0209, ruling 144).
+ *      writes it (0209, ruling 144);
+ *   6. a League is visible only when it is published (0215, ruling 88): the database refuses a
+ *      visible draft, inserted or unpublished, so the anon League policies, which read
+ *      `public_visibility` alone, match the API's bar.
  * Signed-in reads are out of scope: ruling 111a leaves their loop latent on purpose. Check 5 is a
  * write, refused on privilege before any policy runs.
  */
@@ -306,6 +309,35 @@ async function apiOnlyWritesRefused(tx) {
   }
 }
 
+/** The seeded public League (rls-probe-seed.sql). */
+const PUBLIC_LEAGUE = '1eaa0000-0000-4000-8000-00000000000a';
+
+/** Each write, as the owner in a rolled-back savepoint, must fail the 0215 CHECK (23514). */
+async function visibleLeagueIsPublished(tx) {
+  const writes = {
+    'insert a visible draft': (sp) =>
+      sp`INSERT INTO leagues (slug, name, season_year, status, public_visibility)
+        VALUES ('rls-probe-visible-draft', 'Visible draft', 2026, 'draft', true)`,
+    'unpublish a visible League': (sp) =>
+      sp`UPDATE leagues SET status = 'draft' WHERE id = ${PUBLIC_LEAGUE}`,
+  };
+  for (const [label, write] of Object.entries(writes)) {
+    let failure = null;
+    await rolledBack(() =>
+      tx.savepoint(async (sp) => {
+        await write(sp).catch((error) => {
+          failure = error;
+        });
+        throw ROLLBACK;
+      }),
+    );
+    if (failure?.code !== '23514')
+      failures.push(
+        `leagues: ${label} was not refused by its CHECK: ${failure?.message ?? 'accepted'}`,
+      );
+  }
+}
+
 async function viewsRunAsCaller(tx) {
   const views = await tx`
     SELECT c.relname FROM pg_class c
@@ -333,6 +365,7 @@ try {
       await privateColumnsHidden(tx);
       await viewsRunAsCaller(tx);
       await apiOnlyWritesRefused(tx);
+      await visibleLeagueIsPublished(tx);
       throw ROLLBACK;
     }),
   );
@@ -341,7 +374,7 @@ try {
     process.exitCode = 1;
   } else {
     console.log(
-      `RLS probe passed: no read errored for anon across ${relations} relations (a policy runs only over rows present: the seed's and the migrations'), ${VERDICTS.length} seeded tables split as expected, ${PRIVATE_COLUMNS.length} private columns hidden from anon and authenticated, every view runs as its caller, ${API_ONLY_WRITES.length} API-only tables refuse direct writes.`,
+      `RLS probe passed: no read errored for anon across ${relations} relations (a policy runs only over rows present: the seed's and the migrations'), ${VERDICTS.length} seeded tables split as expected, ${PRIVATE_COLUMNS.length} private columns hidden from anon and authenticated, every view runs as its caller, ${API_ONLY_WRITES.length} API-only tables refuse direct writes, a visible League is a published one.`,
     );
   }
 } catch (error) {

@@ -75,9 +75,9 @@ INSERT INTO referee_assignments (id, event_id, person_id, scope_type, lice_id, p
    '9e000000-0000-4000-8000-00000000000a', 'pool', NULL, '90010000-0000-4000-8000-00000000000c', NULL),
   ('4a000000-0000-4000-8000-00000000003c', 'eeeeeeee-0000-4000-8000-00000000000a',
    '9e000000-0000-4000-8000-00000000000a', 'match', NULL, NULL, 'dddddddd-0000-4000-8000-00000000000c');
-INSERT INTO leagues (id, slug, name, season_year, public_visibility) VALUES
-  ('1eaa0000-0000-4000-8000-00000000000a', 'rls-probe-public', 'Public', 2026, true),
-  ('1eaa0000-0000-4000-8000-00000000000b', 'rls-probe-private', 'Private', 2026, false);
+INSERT INTO leagues (id, slug, name, season_year, status, public_visibility) VALUES
+  ('1eaa0000-0000-4000-8000-00000000000a', 'rls-probe-public', 'Public', 2026, 'published', true),
+  ('1eaa0000-0000-4000-8000-00000000000b', 'rls-probe-private', 'Private', 2026, 'draft', false);
 INSERT INTO penalty_rulesets (id, code, version, name, owner_organization_id, built_in, public_visibility) VALUES
   ('fe000000-0000-4000-8000-00000000000a', 'rls-probe-club', '1', 'Club', 'aaaaaaaa-0000-4000-8000-000000000001',
    false, false);
