@@ -121,6 +121,9 @@ export interface EventLogoUpload {
   mimetype: string;
 }
 
+/** The columns an Event write sets; a publish stamps `first_published_at` with its `updated_at`. */
+type EventWrite = Record<string, unknown> & { updated_at: string };
+
 @Injectable()
 export class EventsService {
   private readonly logger = new Logger(EventsService.name);
@@ -645,7 +648,7 @@ export class EventsService {
       'admin',
     );
 
-    const updates: Record<string, unknown> = { updated_at: new Date().toISOString() };
+    const updates: EventWrite = { updated_at: new Date().toISOString() };
     if (dto.name !== undefined) updates['name'] = dto.name.trim();
     if (dto.slug !== undefined) {
       // Slug is org-scoped UNIQUE(organization_id, slug). Mirror createEvent's
@@ -674,15 +677,6 @@ export class EventsService {
     if (dto.aiSpendCapEur !== undefined) updates['ai_spend_cap_eur'] = dto.aiSpendCapEur;
     if (dto.eventKind !== undefined) updates['event_kind'] = dto.eventKind;
 
-    // publishEvent() is the path the admin UI uses, but UpdateEventDto also
-    // accepts status:'published' — so the first-publish stamp has to happen
-    // here too, or an event published this way would never announce (and would
-    // then announce later, wrongly, on its first trip through publishEvent).
-    const firstPublishHere =
-      dto.status === 'published' &&
-      (event as { first_published_at?: string | null }).first_published_at == null;
-    if (firstPublishHere) updates['first_published_at'] = new Date().toISOString();
-
     const previousKind = asEventKind((event as { event_kind?: string }).event_kind);
     const nextKind = dto.eventKind ?? previousKind;
     // League contributions track *stats eligibility*, not the raw kind: a
@@ -690,14 +684,12 @@ export class EventsService {
     // a pointless full-event recompute.
     const statsEligibilityChanged = countsTowardStats(previousKind) !== countsTowardStats(nextKind);
 
-    const { data, error } = await this.supabase.service
-      .from('events')
-      .update(updates)
-      .eq('id', eventId)
-      .select('*')
-      .single();
-
-    if (error) throw new BadRequestException(error.message);
+    // The edit form sends its status on every save, so a `published` here is a
+    // first publish only when the compare-and-set says so.
+    const { row: data, firstPublish } =
+      dto.status === 'published'
+        ? await this.writePublishedEvent(eventId, updates)
+        : { row: await this.writeEvent(eventId, updates), firstPublish: false };
     // Recompute league standings on completion, and whenever stats eligibility
     // changes (standard ↔ test|club) — the league gate
     // (computeTournamentContributions) writes empty contributions for a now-
@@ -709,7 +701,7 @@ export class EventsService {
     if (dto.status === 'completed' || statsEligibilityChanged) {
       await this.leagues?.recomputeForEvent(eventId);
     }
-    await this.afterEventStatus(eventId, event, dto.status, firstPublishHere);
+    await this.afterEventStatus(eventId, event, dto.status, firstPublish);
     return data;
   }
 
@@ -721,36 +713,44 @@ export class EventsService {
       'admin',
     );
 
-    const nowIso = new Date().toISOString();
+    const { row, firstPublish } = await this.writePublishedEvent(eventId, {
+      status: 'published',
+      updated_at: new Date().toISOString(),
+    });
+    await this.afterEventStatus(eventId, event, 'published', firstPublish);
+    return row;
+  }
 
-    // Compare-and-set on first_published_at: the update only stamps it when it
-    // is still null, so exactly one publish in the event's lifetime returns a
-    // row here. That is what makes the follower announcement fire once —
-    // a republish next month must not re-spam everyone.
-    const { data: firstPublish, error: firstErr } = await this.supabase.service
+  /**
+   * Writes `updates`, which publish the Event. Compare-and-set on first_published_at: the first
+   * write stamps it only while it is still null, so exactly one publish in the Event's life gets
+   * its row back there and is announced. A republish next month, or the edit form sending its
+   * status with every save, must not re-spam every follower. Two saves at once: SQL gives the row
+   * to one of them. Already published once: the second write, without the stamp. The stamp is
+   * the write's own `updated_at`, which the type makes every caller pass: without it the stamp
+   * would drop out of the body and every publish would announce.
+   */
+  private async writePublishedEvent(eventId: string, updates: EventWrite) {
+    const { data: first, error } = await this.supabase.service
       .from('events')
-      .update({ status: 'published', first_published_at: nowIso, updated_at: nowIso })
+      .update({ ...updates, first_published_at: updates.updated_at })
       .eq('id', eventId)
       .is('first_published_at', null)
       .select('*')
       .maybeSingle();
-    if (firstErr) throw new BadRequestException(firstErr.message);
+    if (error) throw new BadRequestException(error.message);
+    if (first) return { row: first, firstPublish: true };
+    return { row: await this.writeEvent(eventId, updates), firstPublish: false };
+  }
 
-    if (firstPublish) {
-      await this.afterEventStatus(eventId, event, 'published', true);
-      return firstPublish;
-    }
-
-    // Already published once before — plain status update, no announcement.
+  private async writeEvent(eventId: string, updates: Record<string, unknown>) {
     const { data, error } = await this.supabase.service
       .from('events')
-      .update({ status: 'published', updated_at: nowIso })
+      .update(updates)
       .eq('id', eventId)
       .select('*')
       .single();
-
     if (error) throw new BadRequestException(error.message);
-    await this.afterEventStatus(eventId, event, 'published', false);
     return data;
   }
 

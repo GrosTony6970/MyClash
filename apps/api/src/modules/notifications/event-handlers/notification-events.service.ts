@@ -247,9 +247,9 @@ export class NotificationEventsService {
   /**
    * Tell an organiser's followers that they published a new event.
    *
-   * Called ONLY from the compare-and-set in EventsService.publishEvent /
-   * updateEvent, which stamps events.first_published_at and so guarantees this
-   * runs at most once per event. That guard lives in the DB rather than here
+   * Called ONLY after the compare-and-set in EventsService.writePublishedEvent
+   * (publishEvent and updateEvent), which stamps events.first_published_at and
+   * so guarantees this runs at most once per event. That guard lives in the DB rather than here
    * because BullMQ's jobId dedupe expires with removeOnComplete (24h), and an
    * unpublish/republish a week later would otherwise re-spam every follower.
    *
