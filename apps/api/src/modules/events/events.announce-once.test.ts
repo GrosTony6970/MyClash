@@ -156,3 +156,62 @@ describe('an Event is announced once in its life', () => {
     expect(scopedTo(stamping[0], 'id')).toBe(EVENT);
   });
 });
+
+/**
+ * Ruling 189. Claire's Spring Open is a draft; on the day she picks "Running" in the edit form and
+ * skips "Published". It goes public, so its followers hear of it as if she had published it. Had
+ * she picked "Completed" or "Archived", the Event is old news: nobody is told, and it counts as
+ * announced, so a later switch to "Published" tells nobody either.
+ */
+describe('a draft that skips published', () => {
+  /** The save is one write, which SQL alone lets stamp the first publish. */
+  function expectFirstPublishWrite(db: ReturnType<typeof mockSupabase>, status: string) {
+    const writes = writesTo(db, 'events');
+    expect(writes).toHaveLength(1);
+    const row = writes[0]!.row as Record<string, unknown>;
+    expect(row).toMatchObject({ status, first_published_at: expect.any(String) });
+    expect(row['first_published_at']).toBe(row['updated_at']);
+    expect(onlyIfNeverPublished(writes[0]!)).toBe(true);
+    expect(scopedTo(writes[0], 'id')).toBe(EVENT);
+  }
+
+  it('is announced when it goes straight to running', async () => {
+    const { db, service, notificationEvents } = setup('draft', null);
+    await service.updateEvent(EVENT, { status: 'running' }, 'u');
+    expect(notificationEvents.organizerPublishedEvent.mock.calls).toEqual([[EVENT]]);
+    expectFirstPublishWrite(db, 'running');
+  });
+
+  it.each<'completed' | 'archived'>(['completed', 'archived'])(
+    'is not announced when it goes straight to %s, but counts as announced',
+    async (status) => {
+      const { db, service, notificationEvents } = setup('draft', null);
+      await service.updateEvent(EVENT, { status }, 'u');
+      expect(notificationEvents.organizerPublishedEvent).not.toHaveBeenCalled();
+      expectFirstPublishWrite(db, status);
+    },
+  );
+
+  it('is not announced when it goes to running after it was published once', async () => {
+    const { db, service, notificationEvents } = setup('draft', '2026-09-01T00:00:00Z');
+    await service.updateEvent(EVENT, { status: 'running' }, 'u');
+    expect(notificationEvents.organizerPublishedEvent).not.toHaveBeenCalled();
+    const plain = writesTo(db, 'events').filter((w) => !stamps(w));
+    expect(plain).toHaveLength(1);
+    expect(plain[0]!.row).toMatchObject({ status: 'running' });
+    expect(scopedTo(plain[0], 'id')).toBe(EVENT);
+    // It still asked SQL first: running is not a plain write.
+    const stamping = writesTo(db, 'events').filter(stamps);
+    expect(stamping).toHaveLength(1);
+    expect(onlyIfNeverPublished(stamping[0]!)).toBe(true);
+  });
+
+  it('a save that keeps it a draft stamps nothing', async () => {
+    const { db, service, notificationEvents } = setup('draft', null);
+    await service.updateEvent(EVENT, { name: 'Spring Open', status: 'draft' }, 'u');
+    expect(notificationEvents.organizerPublishedEvent).not.toHaveBeenCalled();
+    const writes = writesTo(db, 'events');
+    expect(writes).toHaveLength(1);
+    expect(stamps(writes[0]!)).toBe(false);
+  });
+});

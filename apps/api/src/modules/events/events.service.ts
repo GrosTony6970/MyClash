@@ -121,7 +121,7 @@ export interface EventLogoUpload {
   mimetype: string;
 }
 
-/** The columns an Event write sets; a publish stamps `first_published_at` with its `updated_at`. */
+/** The columns an Event write sets; leaving draft stamps `first_published_at` with `updated_at`. */
 type EventWrite = Record<string, unknown> & { updated_at: string };
 
 @Injectable()
@@ -684,10 +684,11 @@ export class EventsService {
     // a pointless full-event recompute.
     const statsEligibilityChanged = countsTowardStats(previousKind) !== countsTowardStats(nextKind);
 
-    // The edit form sends its status on every save, so a `published` here is a
-    // first publish only when the compare-and-set says so.
+    // Any status but draft makes the Event public (a draft may skip `published`, ruling 189). The
+    // edit form sends its status on every save, so this is a first publish only when the
+    // compare-and-set says so.
     const { row: data, firstPublish } =
-      dto.status === 'published'
+      dto.status !== undefined && dto.status !== 'draft'
         ? await this.writePublishedEvent(eventId, updates)
         : { row: await this.writeEvent(eventId, updates), firstPublish: false };
     // Recompute league standings on completion, and whenever stats eligibility
@@ -722,13 +723,13 @@ export class EventsService {
   }
 
   /**
-   * Writes `updates`, which publish the Event. Compare-and-set on first_published_at: the first
-   * write stamps it only while it is still null, so exactly one publish in the Event's life gets
-   * its row back there and is announced. A republish next month, or the edit form sending its
-   * status with every save, must not re-spam every follower. Two saves at once: SQL gives the row
-   * to one of them. Already published once: the second write, without the stamp. The stamp is
-   * the write's own `updated_at`, which the type makes every caller pass: without it the stamp
-   * would drop out of the body and every publish would announce.
+   * Writes `updates`, which set a status other than draft. Compare-and-set on first_published_at:
+   * the first write stamps it only while it is still null, so exactly one publish in the Event's
+   * life gets its row back there and may be announced. A republish next month, or the edit form
+   * sending its status with every save, must not re-spam every follower. Two saves at once: SQL
+   * gives the row to one of them. Already published once: the second write, without the stamp.
+   * The stamp is the write's own `updated_at`, which the type makes every caller pass: without it
+   * the stamp would drop out of the body and every publish would announce.
    */
   private async writePublishedEvent(eventId: string, updates: EventWrite) {
     const { data: first, error } = await this.supabase.service
@@ -755,8 +756,9 @@ export class EventsService {
   }
 
   /**
-   * After an Event's status write: its first publish is announced, and leaving draft resends the
-   * referees the lock messages the send gate dropped while it was one (ruling 186).
+   * After an Event's status write: its first publish is announced, unless it went straight to
+   * completed or archived, which is old news (ruling 189; it still counts as announced). Leaving
+   * draft resends the referees the lock messages the send gate dropped while it was one (186).
    */
   private async afterEventStatus(
     eventId: string,
@@ -764,7 +766,9 @@ export class EventsService {
     next: string | undefined,
     firstPublish: boolean,
   ): Promise<void> {
-    if (firstPublish) await this.announceFirstPublish(eventId);
+    if (firstPublish && (next === 'published' || next === 'running')) {
+      await this.announceFirstPublish(eventId);
+    }
     if (before.status === 'draft' && next !== undefined && next !== 'draft') {
       await this.resendLockMessages(eventId, null);
     }
