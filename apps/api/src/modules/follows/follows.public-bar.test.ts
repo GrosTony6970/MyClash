@@ -256,7 +256,7 @@ describe('following someone at every upcoming Event skips the ones the public ca
     expect(state.get(GP_LEA)?.upcomingEventCount).toBe(1);
   });
 
-  it('a follow left in a draft Event is not an active one', async () => {
+  it('a follow left in a draft Event backs no switch: it answers as no follow (ruling 163)', async () => {
     const { service } = build({
       follows: {
         rows: [
@@ -270,6 +270,6 @@ describe('following someone at every upcoming Event skips the ones the public ca
       },
     });
     const state = await service.getEventFollowStateForGlobalPersons('fan-user', [GP_LEA]);
-    expect(state.get(GP_LEA)?.active).toBe(false);
+    expect(state.get(GP_LEA)).toBeUndefined();
   });
 });

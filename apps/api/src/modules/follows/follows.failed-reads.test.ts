@@ -10,6 +10,7 @@
  */
 import { HttpException } from '@nestjs/common';
 import { describe, expect, it, vi } from 'vitest';
+import { THE_PUBLIC } from '../../common/auth/competition-visibility';
 import {
   mockSupabase,
   type ChainResult,
@@ -25,14 +26,23 @@ const FAILED: ChainResult = { data: null, error: { message: 'boom' } };
 const FOLLOW_ROW = {
   id: 'f1',
   followed_person_id: PERSON,
+  event_id: EVENT,
   created_at: '2026-09-25T00:00:00Z',
   notify_match_start: true,
   notify_workshop_start: false,
   persons: { given_name: 'Ana', family_name: 'Silva', clubs: null },
 };
 
+// The Event a listed follow belongs to: public, nothing hidden, so the list reaches its next bout.
+const KNOWN_EVENT: Record<string, TableSeed> = {
+  events: {
+    rows: [{ id: EVENT, status: 'published', organization_id: 'o1', event_kind: 'standard' }],
+  },
+  tournaments: { rows: [] },
+};
+
 function followsWith(tables: Record<string, TableSeed>) {
-  const supabase = mockSupabase(tables);
+  const supabase = mockSupabase({ ...KNOWN_EVENT, ...tables });
   const privacy = {
     forPerson: vi.fn().mockResolvedValue({ allowBeingFollowed: true }),
     forGlobalPerson: vi.fn().mockResolvedValue({ allowBeingFollowed: true }),
@@ -54,7 +64,7 @@ async function expectFailure(run: Promise<unknown>, message: string) {
 describe('a failed follow read or write fails loudly (ruling 117a)', () => {
   it('the follows list of one Event', async () => {
     const { service } = followsWith({ follows: FAILED });
-    await expectFailure(service.listFollows(EVENT, USER), 'follows read');
+    await expectFailure(service.listFollows(EVENT, USER, THE_PUBLIC), 'follows read');
   });
 
   it('the follows list across Events', async () => {
@@ -91,7 +101,7 @@ describe('a failed follow read or write fails loudly (ruling 117a)', () => {
       follows: { data: [FOLLOW_ROW], error: null },
       registrations: FAILED,
     });
-    await expectFailure(service.listFollows(EVENT, USER), 'registrations read');
+    await expectFailure(service.listFollows(EVENT, USER, THE_PUBLIC), 'registrations read');
   });
 
   it('the next-bout read itself', async () => {
@@ -100,7 +110,7 @@ describe('a failed follow read or write fails loudly (ruling 117a)', () => {
       registrations: { data: [{ id: 'r1' }], error: null },
       matches: FAILED,
     });
-    await expectFailure(service.listFollows(EVENT, USER), 'matches read');
+    await expectFailure(service.listFollows(EVENT, USER, THE_PUBLIC), 'matches read');
   });
 
   it('the directory unfollow, before the per-Event unfollows run', async () => {

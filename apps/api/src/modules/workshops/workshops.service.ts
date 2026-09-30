@@ -26,6 +26,7 @@ import { WORKSHOP_MANAGE_ROLE } from '../../common/auth/workshop-authz';
 import { canReadEvent, type PublicReader } from '../../common/auth/competition-visibility';
 import { PrivacyService } from '../persons/privacy.service';
 import { SupabaseService } from '../supabase/supabase.service';
+import { PUBLIC_WORKSHOP_STATUSES } from './workshop-visibility';
 
 // Workshop logos live in their own bucket (not the shared 10 MB
 // `event-assets`) so the 15 MB cap is actually honored — a shared
@@ -233,9 +234,6 @@ function toArray<T>(value: T | T[] | null | undefined): T[] {
   if (Array.isArray(value)) return value;
   return value == null ? [] : [value];
 }
-
-// Public visibility gate — mirrors TOURNAMENT_PUBLIC_STATUSES.
-const PUBLIC_WORKSHOP_STATUSES = ['published', 'running', 'completed'];
 
 const WORKSHOP_SELECT = `
   id, slug, title, short_description, description_md, category, level, weapon, language,

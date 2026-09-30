@@ -8,6 +8,7 @@
  */
 import { HttpException, Logger, NotFoundException } from '@nestjs/common';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { THE_PUBLIC } from '../../common/auth/competition-visibility';
 import {
   mockSupabase,
   writesTo,
@@ -23,6 +24,7 @@ const FAILED: ChainResult = { data: null, error: { message: 'boom' } };
 const ROW = {
   id: 'f1',
   followed_person_id: PERSON,
+  event_id: EVENT,
   created_at: '2026-09-25T00:00:00Z',
   notify_match_start: true,
   notify_workshop_start: false,
@@ -121,8 +123,18 @@ describe('a saved follow write survives a failed next-bout read (ruling 122)', (
 
   it('a list read stays strict: its failed next bout is a 5xx (ruling 117a)', async () => {
     const warn = warnings();
-    const { service } = build({ follows: { data: [ROW], error: null }, registrations: FAILED });
-    await expect(service.listFollows(EVENT, FAN)).rejects.toThrow('registrations read failed');
+    const { service } = build({
+      follows: { data: [ROW], error: null },
+      registrations: FAILED,
+      // Its Event is public, nothing hidden: the list reaches the next bout.
+      events: {
+        rows: [{ id: EVENT, status: 'published', organization_id: 'o1', event_kind: 'standard' }],
+      },
+      tournaments: { rows: [] },
+    });
+    await expect(service.listFollows(EVENT, FAN, THE_PUBLIC)).rejects.toThrow(
+      'registrations read failed',
+    );
     expect(warn).not.toHaveBeenCalled();
   });
 });

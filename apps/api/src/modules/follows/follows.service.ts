@@ -167,13 +167,17 @@ export class FollowsService {
 
   // ── List ─────────────────────────────────────────────────────────────────────
 
-  async listFollows(eventId: string, identity: FollowIdentity): Promise<FollowRow[]> {
+  async listFollows(
+    eventId: string,
+    identity: FollowIdentity,
+    reader: PublicReader,
+  ): Promise<FollowRow[]> {
     if (!hasFollower(identity)) return [];
     const q = this.supabase.service
       .from('follows')
       .select(
         `
-        id, followed_person_id, created_at, notify_match_start, notify_workshop_start,
+        id, followed_person_id, event_id, created_at, notify_match_start, notify_workshop_start,
         persons ( given_name, family_name, clubs ( name ) )
       `,
       )
@@ -183,7 +187,8 @@ export class FollowsService {
     const data = dataOrThrow(await q.order('created_at', { ascending: false }), 'follows read');
     if (!data) return [];
 
-    const rows = data as Array<Record<string, unknown>>;
+    // One Event's list holds that Event's bar (ruling 129): an insider still sees a draft's follows.
+    const rows = await this.knownFollows(data as Array<Record<string, unknown>>, reader);
     return Promise.all(rows.map((r) => this.mapRow(r, eventId)));
   }
 
@@ -210,7 +215,7 @@ export class FollowsService {
     const data = dataOrThrow(await q.order('created_at', { ascending: false }), 'follows read');
     if (!data) return [];
 
-    const rows = data as Array<Record<string, unknown>>;
+    const rows = await this.knownFollows(data as Array<Record<string, unknown>>, THE_PUBLIC);
     return Promise.all(
       rows.map(async (r) => {
         const eventId = r['event_id'] as string;
@@ -574,12 +579,16 @@ export class FollowsService {
       'follows read',
     );
 
-    for (const r of (data ?? []) as Array<Record<string, unknown>>) {
-      const person = one(r['persons']);
-      const gp = person?.['global_person_id'] as string | undefined;
-      if (!person || !gp || !ids.includes(gp)) continue;
-      const ev = one(person['events']);
-      const active = isUpcomingPublicEvent(ev);
+    const globalOf = (r: Record<string, unknown>) =>
+      one(r['persons'])?.['global_person_id'] as string | undefined;
+    const followed = ((data ?? []) as Array<Record<string, unknown>>).filter((r) =>
+      ids.includes(globalOf(r) ?? ''),
+    );
+    // The Following tab spans many Events (ruling 163): a follow the public may not know of backs
+    // no switch, or the switches would say "active" while the card names no Event.
+    for (const r of await this.knownFollows(followed, THE_PUBLIC)) {
+      const gp = globalOf(r) as string;
+      const active = isUpcomingPublicEvent(one(one(r['persons'])?.['events']));
       const state: EventFollowState = {
         eventId: r['event_id'] as string,
         personId: r['followed_person_id'] as string,
@@ -714,6 +723,24 @@ export class FollowsService {
   }
 
   // ── Private helpers ───────────────────────────────────────────────────────────
+
+  /**
+   * The follows among these whose person the reader may know of (`knownRosterRows`): a follow of
+   * someone entered only in a Tournament hidden from her, or of anyone in an Event she may not see,
+   * answers exactly as no follow. A failed read is a 5xx.
+   */
+  private async knownFollows(
+    rows: Array<Record<string, unknown>>,
+    reader: PublicReader,
+  ): Promise<Array<Record<string, unknown>>> {
+    const roster = rows.map((row) => ({
+      id: row['followed_person_id'] as string,
+      eventId: row['event_id'] as string,
+      row,
+    }));
+    const deps = { supabase: this.supabase, orgs: this.orgs };
+    return (await knownRosterRows(deps, roster, reader)).map(({ row }) => row);
+  }
 
   /** An erased, merged or deleted profile answers exactly like an unknown one (ruling 112). */
   private async assertLiveProfile(globalPersonId: string): Promise<void> {

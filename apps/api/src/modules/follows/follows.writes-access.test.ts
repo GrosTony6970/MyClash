@@ -13,6 +13,7 @@
  */
 import { UnauthorizedException } from '@nestjs/common';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { THE_PUBLIC } from '../../common/auth/competition-visibility';
 import {
   mockSupabase,
   queriedTables,
@@ -109,7 +110,7 @@ describe('follows writes (ruling 102)', () => {
   });
 
   it('still answers the list reads with nothing when there is no identity', async () => {
-    await expect(follows.listFollows(EVENT, NOBODY)).resolves.toEqual([]);
+    await expect(follows.listFollows(EVENT, NOBODY, THE_PUBLIC)).resolves.toEqual([]);
     await expect(follows.listAllFollows(NOBODY)).resolves.toEqual([]);
   });
 });

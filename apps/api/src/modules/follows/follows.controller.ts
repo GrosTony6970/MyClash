@@ -77,7 +77,7 @@ export class FollowsController {
   @ApiParam({ name: 'eventId', type: 'string', format: 'uuid' })
   async list(@Param('eventId', ParseUUIDPipe) eventId: string, @Req() req: FastifyRequest) {
     const identity = await this.resolveIdentity(req);
-    return this.follows.listFollows(eventId, identity);
+    return this.follows.listFollows(eventId, identity, publicReader(req));
   }
 
   @Get('me/follows')
