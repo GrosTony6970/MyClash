@@ -19,7 +19,7 @@ const EVENT = 'e-winter';
 
 type Act = (s: EventsService) => Promise<unknown>;
 
-function setup(status: string, firstPublishedAt: string | null) {
+function setup(status: string, firstPublishedAt: string | null, kind = 'standard') {
   const db = mockSupabase({
     events: {
       rows: [
@@ -27,7 +27,7 @@ function setup(status: string, firstPublishedAt: string | null) {
           id: EVENT,
           organization_id: 'org-a',
           status,
-          event_kind: 'standard',
+          event_kind: kind,
           first_published_at: firstPublishedAt,
         },
       ],
@@ -213,5 +213,33 @@ describe('a draft that skips published', () => {
     const writes = writesTo(db, 'events');
     expect(writes).toHaveLength(1);
     expect(stamps(writes[0]!)).toBe(false);
+  });
+});
+
+/**
+ * Claire rehearsed on the Spring Open as a test Event. In one save she makes it a standard Event
+ * and publishes it, or marks it completed. Either save recomputes its Leagues (a standard Event
+ * counts toward them), and the recompute fails. The status is written
+ * and the first publish stamped by then, so the announcement and the referees' lock messages
+ * must already be sent: nothing would ever send them again.
+ */
+describe('a failed league recompute', () => {
+  it.each<[string, 'published' | 'completed', string[][]]>([
+    ['announces the first publish and resends the lock messages', 'published', [[EVENT]]],
+    ['resends the lock messages of a draft marked completed', 'completed', []],
+  ])('still %s', async (_, status, announced) => {
+    const { db, notificationEvents } = setup('draft', null, 'test');
+    const service = new EventsService(
+      db as never,
+      { assertOrgRole: vi.fn().mockResolvedValue(undefined) } as never,
+      notificationEvents as never,
+      {} as never,
+      { recomputeForEvent: vi.fn().mockRejectedValue(new Error('recompute failed')) } as never,
+    );
+    await expect(
+      service.updateEvent(EVENT, { status, eventKind: 'standard' }, 'u'),
+    ).rejects.toThrow('recompute failed');
+    expect(notificationEvents.organizerPublishedEvent.mock.calls).toEqual(announced);
+    expect(notificationEvents.lockedDutiesPublished.mock.calls).toEqual([[EVENT, null]]);
   });
 });

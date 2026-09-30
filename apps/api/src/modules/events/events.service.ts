@@ -691,6 +691,9 @@ export class EventsService {
       dto.status !== undefined && dto.status !== 'draft'
         ? await this.writePublishedEvent(eventId, updates)
         : { row: await this.writeEvent(eventId, updates), firstPublish: false };
+    // Before the recompute, which may throw: the status and the first-publish stamp are already
+    // written, so nothing would ever send these again.
+    await this.afterEventStatus(eventId, event, dto.status, firstPublish);
     // Recompute league standings on completion, and whenever stats eligibility
     // changes (standard ↔ test|club) — the league gate
     // (computeTournamentContributions) writes empty contributions for a now-
@@ -702,7 +705,6 @@ export class EventsService {
     if (dto.status === 'completed' || statsEligibilityChanged) {
       await this.leagues?.recomputeForEvent(eventId);
     }
-    await this.afterEventStatus(eventId, event, dto.status, firstPublish);
     return data;
   }
 
