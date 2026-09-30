@@ -1851,9 +1851,36 @@ describe('EventsService', () => {
       // one. event-pub also joins a second distinct league via t-3.
       // event-pub-2 has no league links → empty leagues array.
       const linkRows = [
-        { tournament_id: 't-1', leagues: { id: 'L1', name: 'French Cup', slug: 'french-cup' } },
-        { tournament_id: 't-2', leagues: { id: 'L1', name: 'French Cup', slug: 'french-cup' } },
-        { tournament_id: 't-3', leagues: { id: 'L2', name: 'Regional', slug: 'regional' } },
+        {
+          tournament_id: 't-1',
+          leagues: {
+            id: 'L1',
+            name: 'French Cup',
+            slug: 'french-cup',
+            status: 'published',
+            public_visibility: true,
+          },
+        },
+        {
+          tournament_id: 't-2',
+          leagues: {
+            id: 'L1',
+            name: 'French Cup',
+            slug: 'french-cup',
+            status: 'published',
+            public_visibility: true,
+          },
+        },
+        {
+          tournament_id: 't-3',
+          leagues: {
+            id: 'L2',
+            name: 'Regional',
+            slug: 'regional',
+            status: 'published',
+            public_visibility: true,
+          },
+        },
       ];
       const eventsChain = makeAwaitableChain({ data: rows, error: null });
       const tournamentsChain = makeAwaitableChain({ data: tournaments, error: null });

@@ -64,8 +64,8 @@ function flattenTournamentEvent(row: Row): Row {
   };
 }
 
-/** Published and visible: a league the public league pages show. */
-function isPublicLeague(league: Row): boolean {
+/** Published and visible: a league the public pages show (ruling 88). */
+export function isPublicLeague(league: Row): boolean {
   return league['public_visibility'] === true && league['status'] === 'published';
 }
 

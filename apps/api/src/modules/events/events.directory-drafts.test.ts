@@ -2,7 +2,9 @@
  * The Events directory `GET /events` (ruling 129 family 5, ruling 163): a page that spans many
  * Events shows public things only, for everyone — no Event's club is asked who the caller is.
  * A draft Event is never listed, whatever `status` asks for; its Tournament count, the weapon
- * filter and the league tags count only published, running and completed Tournaments.
+ * filter and the league tags count only published, running and completed Tournaments. A league
+ * tag names only a published, publicly visible league (ruling 88): a draft or private one answers
+ * as no link.
  */
 import { HttpException } from '@nestjs/common';
 import { beforeEach, describe, expect, it } from 'vitest';
@@ -27,11 +29,24 @@ const event = (id: string, status: string, extra: Record<string, unknown> = {}) 
   organizations: ORG,
   ...extra,
 });
-const league = (tournamentId: string, id: string) => ({
+const league = (
+  tournamentId: string,
+  id: string,
+  shown: Record<string, unknown> = { status: 'published', public_visibility: true },
+) => ({
   tournament_id: tournamentId,
   status: 'approved',
-  leagues: { id, name: id, slug: id },
+  leagues: { id, name: id, slug: id, ...shown },
 });
+const HIDDEN_LEAGUES = [
+  league('t-open', 'draft-league', { status: 'draft', public_visibility: true }),
+  league('t-open', 'private-league', { status: 'published', public_visibility: false }),
+  league('t-done', 'archived-league', { status: 'archived', public_visibility: true }),
+  league('t-done', 'league-read-bare', {}),
+  league('t-done', 'visibility-read-bare', { status: 'published' }),
+  // A public League, but the link was never approved.
+  { ...league('t-open', 'requested-league'), status: 'requested' },
+];
 
 let db: ReturnType<typeof mockSupabase>;
 let service: EventsService;
@@ -79,6 +94,20 @@ describe('GET /events — the directory shows public things only, for everyone (
     expect(filtersFor(db.from, 'tournaments', 'in')).toEqual([
       ['event_id', ['e-open']],
       ['status', PUBLIC],
+    ]);
+  });
+
+  it('tags no draft or private league, answering it as no link (ruling 88)', async () => {
+    const LINKS = [league('t-open', 'french-cup'), league('t-secret', 'secret-league')];
+    seed({ league_tournament_links: { rows: [...LINKS, ...HIDDEN_LEAGUES] } });
+    const withHidden = await list();
+    expect(withHidden[0]?.leagues).toEqual([
+      { id: 'french-cup', name: 'french-cup', slug: 'french-cup' },
+    ]);
+    seed({ league_tournament_links: { rows: LINKS } });
+    expect(withHidden).toEqual(await list());
+    expect(selectsFor(db.from, 'league_tournament_links')).toEqual([
+      'tournament_id, leagues(id, name, slug, status, public_visibility)',
     ]);
   });
 

@@ -32,7 +32,7 @@ import { normalizePersonName, type WeaponRating } from '../hema-ratings/weapon-r
 import { resolveCatalogWeapon } from '../fighters/weapon-catalog.util';
 import { OrganizationsService } from '../organizations/organizations.service';
 import { NotificationEventsService } from '../notifications/event-handlers/notification-events.service';
-import { LeaguesService } from '../leagues/leagues.service';
+import { LeaguesService, isPublicLeague } from '../leagues/leagues.service';
 import { ClubsService } from '../clubs/clubs.service';
 import { buildRoundCode } from '../matches/round-code.helper';
 import { resolveMatchLengths } from '../schedule/match-lengths';
@@ -285,7 +285,9 @@ export class EventsService {
    * roundtrip. Goes via league_tournament_links (status='approved')
    * → leagues. We dedupe per event so an event whose two tournaments
    * join the same league shows the league once. `eventByTournament` holds the
-   * public Tournaments only, so a draft one's league is not the Event's.
+   * public Tournaments only, so a draft one's league is not the Event's. Only a
+   * published, publicly visible league is named, as on every public league page
+   * (ruling 88): a draft or private one answers as no link.
    */
   private async readLeaguesByEvent(
     eventByTournament: Map<string, string>,
@@ -298,7 +300,7 @@ export class EventsService {
     if (tournamentIds.length === 0) return leaguesByEvent;
     const { data: linkRows, error: linkErr } = await this.supabase.service
       .from('league_tournament_links')
-      .select('tournament_id, leagues(id, name, slug)')
+      .select('tournament_id, leagues(id, name, slug, status, public_visibility)')
       .eq('status', 'approved')
       .in('tournament_id', tournamentIds);
     if (linkErr) throw new Error(`league links read failed: ${linkErr.message}`);
@@ -314,9 +316,11 @@ export class EventsService {
       if (!eventId) continue;
       const embed = link.leagues;
       const league = Array.isArray(embed) ? embed[0] : embed;
-      if (!league) continue;
+      if (!league || !isPublicLeague(league)) continue;
       if (!leaguesByEvent.has(eventId)) leaguesByEvent.set(eventId, new Map());
-      leaguesByEvent.get(eventId)!.set(league.id, league);
+      leaguesByEvent
+        .get(eventId)!
+        .set(league.id, { id: league.id, name: league.name, slug: league.slug });
     }
     return leaguesByEvent;
   }
