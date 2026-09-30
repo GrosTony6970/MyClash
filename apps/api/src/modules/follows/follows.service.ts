@@ -13,7 +13,12 @@ import {
   NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common';
-import { onlyPublicTournaments, type PublicReader } from '../../common/auth/competition-visibility';
+import {
+  onlyPublicTournaments,
+  type PublicReader,
+  THE_PUBLIC,
+} from '../../common/auth/competition-visibility';
+import { knownRosterRows } from '../../common/auth/hidden-entrants';
 import { isPublicEvent } from '../../common/auth/event-read-gate';
 import { applyReachable } from '../fighters/directory-predicate';
 import { FollowNotificationSchedulerService } from '../../workers/follow-notification-scheduler.worker';
@@ -608,7 +613,7 @@ export class FollowsService {
     // global_person_id → { upcoming distinct events, all person ids }
     const upcomingEvents = new Map<string, Set<string>>();
     const personIdToGlobal = new Map<string, string>();
-    for (const raw of (personRows ?? []) as Array<Record<string, unknown>>) {
+    for (const raw of personRows) {
       const gp = raw['global_person_id'] as string | null;
       if (!gp) continue;
       const personId = raw['id'] as string;
@@ -642,15 +647,25 @@ export class FollowsService {
     return result;
   }
 
-  /** The event-scoped people behind these global persons, with their Event's status and kind. */
-  private async eventPeopleOf(globalPersonIds: string[]) {
-    return dataOrThrow(
+  /**
+   * The event-scoped people behind these global persons, with their Event's status and kind: only
+   * rows the public may know of (ruling 163, `knownRosterRows`), not one entered only in a draft.
+   */
+  private async eventPeopleOf(globalPersonIds: string[]): Promise<Array<Record<string, unknown>>> {
+    const data = dataOrThrow(
       await this.supabase.service
         .from('persons')
         .select('id, global_person_id, event_id, events!inner(status, event_kind)')
         .in('global_person_id', globalPersonIds),
       'event people read',
     );
+    const roster = ((data ?? []) as Array<Record<string, unknown>>).map((raw) => ({
+      id: raw['id'] as string,
+      eventId: raw['event_id'] as string,
+      raw,
+    }));
+    const deps = { supabase: this.supabase, orgs: this.orgs };
+    return (await knownRosterRows(deps, roster, THE_PUBLIC)).map(({ raw }) => raw);
   }
 
   /** The caller's follows among these event-scoped people. */
@@ -670,7 +685,8 @@ export class FollowsService {
   }
 
   /** Resolve a global person to their event-scoped persons rows. `upcomingOnly`
-   *  keeps only upcoming public Events (`isUpcomingPublicEvent`). */
+   *  keeps only upcoming public Events (`isUpcomingPublicEvent`), and there only rows the public
+   *  may know of (ruling 163, `knownRosterRows`); an unfollow clears every row. */
   private async resolveEventPersons(
     globalPersonId: string,
     opts: { upcomingOnly: boolean },
@@ -684,14 +700,17 @@ export class FollowsService {
       'event people read',
     );
 
-    return ((data ?? []) as Array<Record<string, unknown>>)
+    const rows = ((data ?? []) as Array<Record<string, unknown>>)
       .filter((r) => {
         const ev = r['events'] as { status: string; event_kind: string | null } | null;
         if (!ev) return false;
         if (!opts.upcomingOnly) return true;
         return isUpcomingPublicEvent(ev);
       })
-      .map((r) => ({ eventId: r['event_id'] as string, personId: r['id'] as string }));
+      .map((r) => ({ id: r['id'] as string, eventId: r['event_id'] as string }));
+    const deps = { supabase: this.supabase, orgs: this.orgs };
+    const kept = opts.upcomingOnly ? await knownRosterRows(deps, rows, THE_PUBLIC) : rows;
+    return kept.map(({ id, eventId }) => ({ eventId, personId: id }));
   }
 
   // ── Private helpers ───────────────────────────────────────────────────────────

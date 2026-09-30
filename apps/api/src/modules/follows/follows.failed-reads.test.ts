@@ -159,6 +159,11 @@ describe('a failed follow read or write fails loudly (ruling 117a)', () => {
         ],
         error: null,
       },
+      // A public Event with no hidden Tournament: the row passes the draft bar (ruling 163).
+      events: {
+        rows: [{ id: EVENT, status: 'published', organization_id: 'o1', event_kind: 'standard' }],
+      },
+      tournaments: { rows: [] },
       follows: FAILED,
     });
     await expectFailure(
