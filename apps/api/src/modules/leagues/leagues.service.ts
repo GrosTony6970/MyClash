@@ -10,6 +10,7 @@ import { OrganizationsService } from '../organizations/organizations.service';
 import { SupabaseService } from '../supabase/supabase.service';
 import { hasPlatformTier } from '../../common/auth/platform-role';
 import { isPublicEvent } from '../../common/auth/event-read-gate';
+import { isPublicTournamentEmbed } from '../../common/auth/competition-visibility';
 import {
   type LeagueRankingRow,
   type LeagueScoringConfig,
@@ -1119,8 +1120,7 @@ export class LeaguesService {
       const tournamentId = String((link as Row)['tournament_id'] ?? '');
       if (tournamentId) {
         await this.replaceTournamentResults(leagueId, tournamentId, []);
-        const league = await this.getLeagueById(leagueId);
-        if (!league['finalized_at']) await this.recomputeLeagueRankings(leagueId);
+        await this.rerankUnlessFinalized(leagueId);
       }
     }
 
@@ -1473,7 +1473,7 @@ export class LeaguesService {
   private async listEventTournaments(eventId: string): Promise<Map<string, Row>> {
     const { data, error } = await this.supabase.service
       .from('tournaments')
-      .select('*, events(organization_id, event_kind)')
+      .select('*, events(organization_id, event_kind, status)')
       .eq('event_id', eventId);
     if (error) throw new BadRequestException(error.message);
     return new Map(
@@ -1623,21 +1623,12 @@ export class LeaguesService {
   async getRecomputePreflight(leagueId: string, userId: string) {
     await this.assertCanManageLeague(leagueId, userId);
 
-    // Carries `league_groups(name)` for the same reason recomputeForEvent's query
-    // does: it is the one owner of the group name now that the per-link lookup
-    // is gone. This walks a single League's links, so there is no batch of
-    // tournament rows to draw on — each is still read on its own below.
-    const { data: links, error: linksError } = await this.supabase.service
-      .from('league_tournament_links')
-      .select('tournament_id, tournaments(name), league_groups(name)')
-      .eq('league_id', leagueId)
-      .eq('status', 'approved');
-    if (linksError) throw new BadRequestException(linksError.message);
-
+    // This walks a single League's links, so there is no batch of tournament
+    // rows to draw on — each is still read on its own below.
     const blocking: Array<{ tournamentName: string; fighterNames: string[] }> = [];
     const contributorIds = new Set<string>();
 
-    for (const link of (links ?? []) as Row[]) {
+    for (const link of await this.approvedLinks(leagueId)) {
       const tournament = await this.getTournamentWithEvent(String(link['tournament_id']));
       const inputs = await this.buildContributionInputs(leagueId, tournament, linkGroupName(link));
       const tournamentName = String((link['tournaments'] as { name?: string } | null)?.name ?? '');
@@ -1672,6 +1663,34 @@ export class LeaguesService {
     return ((data ?? []) as Row[]).map((row) => String(row['display_name'] ?? ''));
   }
 
+  /** Re-rank from the stored results (the other links' stand), unless the season is finalized. */
+  private async rerankUnlessFinalized(leagueId: string): Promise<void> {
+    const league = await this.getLeagueById(leagueId);
+    if (league['finalized_at']) return;
+    const config = normalizeScoringConfig(league['scoring_config']);
+    await this.rankLeagueFromResults(leagueId, await this.scoring.resolveConfig(config));
+  }
+
+  /**
+   * One League's approved links, with the Tournament's name and the pool group. Carries
+   * `league_groups(name)` for the same reason recomputeForEvent's query does: it is the one owner
+   * of the group name now that the per-link lookup is gone. A failed read is a 5xx.
+   */
+  private async approvedLinks(leagueId: string): Promise<Row[]> {
+    const { data, error } = await this.supabase.service
+      .from('league_tournament_links')
+      .select('tournament_id, tournaments(name), league_groups(name)')
+      .eq('league_id', leagueId)
+      .eq('status', 'approved');
+    if (error) throw new Error(`league links read failed: ${error.message}`);
+    return (data ?? []) as Row[];
+  }
+
+  /**
+   * The league admin's Recompute (ruling 178a): re-score every approved link, then rank. A
+   * Tournament published since its Event completed adds its points now; one back in draft loses
+   * them. Scoring otherwise runs only when an Event completes (`recomputeForEvent`).
+   */
   async recomputeLeagueRankings(leagueId: string, userId?: string) {
     if (userId) await this.assertCanManageLeague(leagueId, userId);
     const league = await this.getLeagueById(leagueId);
@@ -1683,10 +1702,14 @@ export class LeaguesService {
         'This league season is finalized. Reopen it before recomputing rankings.',
       );
     }
-    return this.rankLeagueFromResults(
-      leagueId,
-      await this.scoring.resolveConfig(normalizeScoringConfig(league['scoring_config'])),
+    const config = await this.scoring.resolveConfig(
+      normalizeScoringConfig(league['scoring_config']),
     );
+    for (const link of await this.approvedLinks(leagueId)) {
+      const tournament = await this.getTournamentWithEvent(String(link['tournament_id']));
+      await this.recomputeLink(leagueId, tournament, linkGroupName(link), config);
+    }
+    return this.rankLeagueFromResults(leagueId, config);
   }
 
   /**
@@ -2062,6 +2085,9 @@ export class LeaguesService {
     // changes) self-heals in BOTH directions: rows drop when an event becomes
     // unrated and come back when it becomes standard again.
     if (!countsTowardStats(asEventKind(tournament['event_kind']))) return [];
+    // Nor does a draft Tournament, or one of a draft Event, until it is published (ruling 178); it
+    // self-heals the same way. A row read without either status counts as hidden.
+    if (!isPublicTournamentEmbed(tournament)) return [];
     // No placement service wired (only in some unit constructions) → nothing to
     // score. Production always injects it.
     if (!this.placement) return [];
@@ -2192,7 +2218,7 @@ export class LeaguesService {
   private async getTournamentWithEvent(tournamentId: string): Promise<Row> {
     const { data, error } = await this.supabase.service
       .from('tournaments')
-      .select('*, events(organization_id, event_kind)')
+      .select('*, events(organization_id, event_kind, status)')
       .eq('id', tournamentId)
       .maybeSingle();
     if (error) throw new BadRequestException(error.message);

@@ -1775,6 +1775,8 @@ describe('LeaguesService placement-driven contributions', () => {
     weapon: 'Longsword',
     organization_id: 'org-1',
     event_kind: 'standard',
+    status: 'completed',
+    events: { organization_id: 'org-1', event_kind: 'standard', status: 'completed' },
   };
   const noReads = {
     service: {
@@ -2147,6 +2149,11 @@ describe('LeaguesService recompute freeze guard', () => {
 
 describe('LeaguesService.recomputeForEvent gathering', () => {
   const LEAGUE = { id: 'L1', finalized_at: null, scoring_config: {} };
+  // A completed Tournament of a completed standard Event: one that feeds a league (ruling 178).
+  const PUBLIC_ROW = {
+    status: 'completed',
+    events: { event_kind: 'standard', status: 'completed' },
+  };
 
   /**
    * Two tournaments of one event, both linked to the SAME league.
@@ -2159,8 +2166,8 @@ describe('LeaguesService.recomputeForEvent gathering', () => {
     const supabase = mockSupabase({
       tournaments: {
         rows: [
-          { id: 't1', event_id: 'ev-1', weapon: 'Longsword', events: { event_kind: 'standard' } },
-          { id: 't2', event_id: 'ev-1', weapon: 'Rapier', events: { event_kind: 'standard' } },
+          { id: 't1', event_id: 'ev-1', weapon: 'Longsword', ...PUBLIC_ROW },
+          { id: 't2', event_id: 'ev-1', weapon: 'Rapier', ...PUBLIC_ROW },
           // Another event's tournament: it must not reach the links query.
           { id: 't-elsewhere', event_id: 'ev-9', weapon: null, events: { event_kind: 'standard' } },
         ],
@@ -2248,7 +2255,7 @@ describe('LeaguesService.recomputeForEvent gathering', () => {
           id: `t${i}`,
           event_id: 'ev-1',
           weapon: 'Longsword',
-          events: { event_kind: 'standard' },
+          ...PUBLIC_ROW,
         })),
       },
       league_tournament_links: {
